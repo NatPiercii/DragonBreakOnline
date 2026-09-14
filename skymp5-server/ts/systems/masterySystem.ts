@@ -635,9 +635,9 @@ export class MasterySystem implements System {
         eatIngredient: !!c["eatIngredient"], killKeywords: stringList(c["killKeywords"]), hitKeywords: stringList(c["hitKeywords"]),
         weaponTypes: stringList(c["weaponTypes"]), spellSchools: stringList(c["spellCastSchools"]),
         damageTakenWhileArmored: !!c["damageTakenWhileArmored"], blockEvents: !!c["blockEvents"],
-        // A station entry that is a keyword editor id (isBlacksmithForge) gates by keyword; anything else gates by base editor id prefix.
-        gateStations: stations.filter((s) => /^is[A-Z]/.test(s) || s.startsWith("Crafting") || s.includes(":")),
-        gatePrefixes: stations.filter((s) => !(/^is[A-Z]/.test(s) || s.startsWith("Crafting") || s.includes(":"))).map((s) => s.toLowerCase()),
+        // Every station entry is tried as a keyword first; whatever does not resolve gates by base editor id prefix instead.
+        gateStations: stations,
+        gatePrefixes: [] as string[],
         gateNodes: !!g["nodes"],
       };
       raw[k.id] = r;
@@ -660,7 +660,9 @@ export class MasterySystem implements System {
     }
     this.playerKeyword = ids.get("ActorTypeNPC") || 0;
     const missingMarkers = unresolved.filter((n) => n.startsWith("DBO_Skill_"));
-    this.log(`[skills] resolved ${ids.size}/${names.length} form(s) in ${scan.scannedMs} ms${unresolved.length ? `, unresolved: ${unresolved.filter((n) => !n.startsWith("DBO_Skill_")).join(", ") || "none"}` : ""}${missingMarkers.length ? `, ${missingMarkers.length} marker spell(s) missing` : ""}`);
+    // Station names that are not keywords are fine: they become editor-id prefixes below.
+    const stationNames = new Set<string>(); for (const k of this.skills) for (const n of raw[k.id].gateStations) stationNames.add(n);
+    this.log(`[skills] resolved ${ids.size}/${names.length} form(s) in ${scan.scannedMs} ms${unresolved.length ? `, unresolved: ${unresolved.filter((n) => !n.startsWith("DBO_Skill_") && !stationNames.has(n)).join(", ") || "none"}` : ""}${missingMarkers.length ? `, ${missingMarkers.length} marker spell(s) missing` : ""}`);
     const toIds = (list: string[]): Set<number> => new Set(list.map((n) => ids.get(n) || 0).filter((v) => v));
     for (const k of this.skills) {
       const r = raw[k.id];
@@ -669,7 +671,7 @@ export class MasterySystem implements System {
         activatePrefixes: r.activatePrefixes.map((p) => p.toLowerCase()), activateTypes: new Set(r.activateTypes.map((t) => t.toUpperCase())),
         eatIngredient: r.eatIngredient, killKeywords: toIds(r.killKeywords), hitKeywords: toIds(r.hitKeywords),
         weaponTypes: new Set(r.weaponTypes), spellSchools: new Set(r.spellSchools), damageTakenWhileArmored: r.damageTakenWhileArmored, blockEvents: r.blockEvents,
-        gateStations: toIds(r.gateStations), gatePrefixes: r.gatePrefixes, gateNodes: r.gateNodes,
+        gateStations: toIds(r.gateStations), gatePrefixes: r.gateStations.filter((n) => !ids.has(n)).map((n) => n.toLowerCase()), gateNodes: r.gateNodes,
       };
       const list: number[] = [];
       for (let t = 1; t <= this.tierHours.length; t++) list.push(ids.get(`DBO_Skill_${k.id}_T${t}`) || 0);
