@@ -3,18 +3,40 @@
 #include "libespm/RecordHeader.h"
 #include "libespm/Utils.h"
 #include <array>
+#include <cctype>
+#include <cstring>
 #include <fmt/format.h>
 #include <memory>
 #include <unordered_set>
 
 namespace espm {
 
+namespace {
+// Skyrim resolves master names case-insensitively: USSEP lists
+// "ccbgssse001-fish.esm" while the file on disk is "ccBGSSSE001-Fish.esm".
+bool PluginNamesEqual(const std::string& a, const char* b) noexcept
+{
+  const size_t n = a.size();
+  if (std::strlen(b) != n) {
+    return false;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    const auto ca = std::tolower(static_cast<unsigned char>(a[i]));
+    const auto cb = std::tolower(static_cast<unsigned char>(b[i]));
+    if (ca != cb) {
+      return false;
+    }
+  }
+  return true;
+}
+}
+
 int32_t CombineBrowser::Impl::GetFileIndex(const char* fileName) const noexcept
 {
   // returns index of sources array or -1 if not found
   if (fileName[0] != '\0') {
     for (size_t i = 0; i < sources.size(); ++i) {
-      if (sources[i].fileName == fileName) {
+      if (PluginNamesEqual(sources[i].fileName, fileName)) {
         return i;
       }
     }
