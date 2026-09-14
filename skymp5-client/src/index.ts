@@ -45,6 +45,7 @@ import { HousingService } from "./services/services/housingService";
 import { RefDecorService } from "./services/services/refDecorService";
 import { PlayerActionService } from "./services/services/playerActionService";
 import { EmoteService } from "./services/services/emoteService";
+import { ConsumeAnimationService } from "./services/services/consumeAnimationService";
 import { MasteryService } from "./services/services/masteryService";
 import { BountyBoardService } from "./services/services/bountyBoardService";
 import { InteractionPromptService } from "./services/services/interactionPromptService";
@@ -137,6 +138,7 @@ const main = () => {
       new RefDecorService(sp, controller),
       new PlayerActionService(sp, controller),
       new EmoteService(sp, controller),
+      new ConsumeAnimationService(sp, controller),
       new MasteryService(sp, controller),
       new BountyBoardService(sp, controller),
       new InteractionPromptService(sp, controller),

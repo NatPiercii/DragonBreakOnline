@@ -219,6 +219,19 @@ export class EmoteService extends ClientListener {
     }
   }
 
+  /**
+   * Plays a catalog idle on the local player for a fixed time, then exits it.
+   * Used for consumption animations (drinking a potion, eating food); movement
+   * keys still break it early like any emote.
+   */
+  public playIdle(anim: string, seconds: number): void {
+    if (!this.allowedAnims.has(anim) || this.menuOpen || this.isPoseLocked()) return;
+    this.playEmote(anim);
+    this.sp.Utility.wait(seconds).then(() => {
+      if (this.activeEmote === anim) this.stopActiveEmote();
+    });
+  }
+
   private playEmote(anim: string): void {
     const previous = this.activeEmote;
     this.activeEmote = anim;
