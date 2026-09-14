@@ -1,0 +1,55 @@
+// Needs HUD, bottom-left, above the vanilla compass line. Passive overlay in the Skyrim HUD idiom:
+// condensed gold label, thin framed bar, no background panel. Vitals bars (bottom-right) go in the
+// same widget later, mirrored with `right` instead of `left`.
+
+$gold: #c8b48a;
+$text: #e8e0d0;
+
+.dboHud {
+  position: fixed;
+  left: 2.2%;
+  bottom: 3.6%;
+  z-index: 15;
+  pointer-events: none;
+  font-family: 'Futura Condensed', 'Roboto Condensed', sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  &__label {
+    color: $gold;
+    font-size: 15px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    min-width: 58px;
+  }
+
+  &__bar {
+    width: 220px;
+    height: 9px;
+    border: 1px solid rgba(200, 180, 138, 0.8);
+    background: rgba(0, 0, 0, 0.55);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
+  }
+
+  &__fill {
+    height: 100%;
+    background: linear-gradient(#e2c078, #a3752a);
+    transition: width 0.6s ease, background 0.6s ease;
+
+    &--peckish { background: linear-gradient(#e0b25a, #9a6a1e); }
+    &--hungry { background: linear-gradient(#e08a4a, #9a4a1a); }
+    &--starving { background: linear-gradient(#d8503c, #8a1e14); }
+  }
+
+  &__stage {
+    color: $text;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    min-width: 60px;
+  }
+}

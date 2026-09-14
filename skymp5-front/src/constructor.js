@@ -23,6 +23,7 @@ import Housing from './features/housing';
 import MasteryMenu from './features/masteryMenu';
 import BountyBoard from './features/bountyBoard';
 import InteractPrompt from './features/interactPrompt';
+import Hud from './features/hud';
 
 const styles = [
   'BUTTON_STYLE_GITHUB',
@@ -239,6 +240,8 @@ const Constructor = props => {
       return <BountyBoard data={rend} />;
     case 'interactPrompt':
       return <InteractPrompt data={rend} />;
+    case 'hud':
+      return <Hud data={rend} />;
     case 'death':
       return (
         <DeathScreen seconds={rend.seconds} onChoice={rend.onChoice} />
