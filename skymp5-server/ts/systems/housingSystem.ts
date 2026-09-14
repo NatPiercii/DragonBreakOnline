@@ -451,7 +451,8 @@ export class HousingSystem implements System {
     if (v.admin) return true;
     const hold = this.holdOf(ctx, primary);
     if (hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1)) return true;
-    return v.keys.has(this.keyNameOf(primary, rec));
+    const credential = this.keyCredential(primary, rec);
+    return Array.from(v.keys).some((n) => this.isKeyFor(n, credential));
   }
 
   // One inventory read and one access read per actor, not per claimed ref.
@@ -550,23 +551,34 @@ export class HousingSystem implements System {
   // The credential is the form id plus the serial, never the player-chosen
   // label: a rename must not orphan keys, and no label may forge another
   // property's key. hasAccess matches the key item's name against it exactly.
-  private keyNameOf(primary: number, rec: PropertyRecord): string {
+  // The credential is the "(TAG[-serial])" suffix; the label in front of it is the property's
+  // current name, so a key reads "Breezehome Key (220174E5)" and a rename cannot orphan it.
+  private keyCredential(primary: number, rec: PropertyRecord): string {
     const tag = primary.toString(16).toUpperCase();
-    return rec.serial > 1 ? `Property Key (${tag}-${rec.serial})` : `Property Key (${tag})`;
+    return rec.serial > 1 ? `(${tag}-${rec.serial})` : `(${tag})`;
+  }
+
+  private keyNameOf(primary: number, rec: PropertyRecord): string {
+    const label = (rec.name || "").trim();
+    return `${label ? label + " " : "Property "}Key ${this.keyCredential(primary, rec)}`;
+  }
+
+  private isKeyFor(name: unknown, credential: string): boolean {
+    return typeof name === "string" && name.endsWith(credential);
   }
 
   // Pull the current keys from everyone online and move the serial on, so any
   // copy that was missed (offline, in a container) stops matching.
   private reKey(ctx: SystemContext, primary: number, rec: PropertyRecord): void {
     const mp = ctx.svr as Mp;
-    const keyName = this.keyNameOf(primary, rec);
+    const credential = this.keyCredential(primary, rec);
     for (const userId of this.onlineUsers(ctx)) {
       const actorId = this.actorOf(ctx, userId);
       if (!actorId) continue;
       try {
         const inv = mp.get(actorId, "inventory");
         const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
-        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && String(e?.name || "") === keyName));
+        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && this.isKeyFor(e?.name, credential)));
         if (kept.length !== entries.length) mp.set(actorId, "inventory", { entries: kept });
       } catch { /* actor gone */ }
     }
