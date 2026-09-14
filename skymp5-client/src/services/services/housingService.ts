@@ -78,7 +78,7 @@ export class HousingService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
 
-    this.menuKey = readMenuKeyCode(this.sp, "housingMenuKeyCode", DxScanCode.H);
+    this.menuKey = readMenuKeyCode(this.sp, "housingMenuKeyCode", DxScanCode.X); // DragonBreak Online: X is the shared interact key
   }
 
   private onButtonEvent(e: ButtonEvent): void {
@@ -124,7 +124,11 @@ export class HousingService extends ClientListener {
     }
 
     const ref = this.sp.Game.getCurrentCrosshairRef();
-    if (!ref || Actor.from(ref)) {
+    // A player under the crosshair belongs to the interaction menu (same X key): stay silent.
+    if (ref && Actor.from(ref)) {
+      return;
+    }
+    if (!ref) {
       notifyNextUpdate(this.controller, this.sp, "Look at a door or container.");
       return;
     }
@@ -251,7 +255,7 @@ export class HousingService extends ClientListener {
     window.skyrimPlatform.widgets.set(others.concat([widget]));
   };
 
-  private menuKey: DxScanCode = DxScanCode.H;
+  private menuKey: DxScanCode = DxScanCode.X;
   private menuOpen = false;
   private target = 0;
   private pendingRecipient: { action: string; target: number; expiresAt: number } | null = null;

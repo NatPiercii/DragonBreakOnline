@@ -45,7 +45,7 @@ const events = {
 let targetName = '';
 
 /**
- * Look-at-target interaction menu on the game's own Activate control: every
+ * Look-at-target interaction menu on the X key (DragonBreak Online): every
  * button event carries the user event name the live control map gives it, so
  * a rebind (Settings > Controls or the launcher's Game Hotkeys) applies at
  * once, default E. Activating a player character opens the player-action /
@@ -71,7 +71,9 @@ export class PlayerActionService extends ClientListener {
       return;
     }
     // The engine stamps the live control map's event name on every device, so a rebind applies at once
-    if (e.userEventName !== "Activate" || this.menuOpen) {
+    // DragonBreak Online: the interaction menu lives on the X key (keyboard only), not on Activate.
+    const xPressed = e.device === InputDeviceType.Keyboard && e.code === DxScanCode.X;
+    if (!xPressed || this.menuOpen) {
       return;
     }
     if (isMenuHotkeyBlocked(this.sp, this.controller)) {
