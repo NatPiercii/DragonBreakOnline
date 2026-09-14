@@ -120,6 +120,7 @@ export class Spawn implements System {
   private startingItems = DEFAULT_STARTING_ITEMS;
   private logoutGraceMs = DEFAULT_LOGOUT_GRACE_MS;
   private charCreator = parseCharCreatorSettings(undefined);
+  private deferRaceMenu = false;
   private modHair: ModHairCatalog | null = null;
   private settingsObject!: Settings;
   // userId -> auth context awaiting a character selection
@@ -144,6 +145,10 @@ export class Spawn implements System {
     const rawGrace = Number(all?.["logoutGraceMs"]);
     if (Number.isInteger(rawGrace) && rawGrace >= 0) this.logoutGraceMs = rawGrace;
     this.charCreator = parseCharCreatorSettings(all?.["charCreator"]);
+    // deferRaceMenu: a fresh character spawns without the vanilla race menu; the gamemode opens it
+    // later with setRaceMenuOpen (DragonBreak moves new characters into the hub first, because a
+    // world reload with RaceMenu open can crash the client)
+    this.deferRaceMenu = all?.["deferRaceMenu"] === true;
     if (this.charCreator.enabled) this.loadModHair();
     this.installAppearanceHook(ctx);
     this.installEquipmentHook(ctx);
@@ -387,7 +392,7 @@ export class Spawn implements System {
       if (this.charCreator.enabled) {
         mp.set(actorId, "private.charCreatorPending", true);
         this.sendCharCreatorOpen(ctx, userId, auth.profileId);
-      } else {
+      } else if (!this.deferRaceMenu) {
         ctx.svr.setRaceMenuOpen(actorId, true);
       }
     } else if (this.charCreator.enabled && this.isCharCreatorPending(mp, actorId)) {
@@ -657,7 +662,7 @@ export class Spawn implements System {
       if (this.charCreator.enabled) {
         mp.set(actorId, "private.charCreatorPending", true);
         this.sendCharCreatorOpen(ctx, userId, userProfileId);
-      } else {
+      } else if (!this.deferRaceMenu) {
         ctx.svr.setRaceMenuOpen(actorId, true);
       }
     }
