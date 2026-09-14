@@ -587,17 +587,18 @@ export class FormView {
         if (!this.textNameId && headScreenPos[2] > 0) {
           this.createdTagName = this.tagName(refr);
           this.createdActorIdLine = FormView.isDisplayingActorIds;
+          this.createdSecondLine = FormView.secondLineOf(model, this.refrId);
           this.textNameId = createText(textXPos, textYPos, this.createdTagName, [1, 1, 1, 0.8]);
           setTextSize(this.textNameId, 0.5);
-          // Local (ffxxxxxx) actor id on a second line under the name
+          // DragonBreak Online: the character's #TAG, faint, under the name (falls back to the ffxxxxxx id)
           if (this.createdActorIdLine) {
             this.textActorIdId = createText(
               textXPos,
               textYPos + FormView.actorIdLineOffset,
-              this.refrId.toString(16).toUpperCase().padStart(8, "0"),
-              [1, 1, 1, 0.6]
+              this.createdSecondLine,
+              [1, 1, 1, 0.35]
             );
-            setTextSize(this.textActorIdId, 0.4);
+            setTextSize(this.textActorIdId, 0.35);
           }
           SpApiInteractor.getControllerInstance().emitter.emit("nicknameCreate", {
             remoteRefrId: this.getRemoteRefrId(),
@@ -610,7 +611,8 @@ export class FormView {
           }
           // Rename (/mask), a fresh introduction or a toggled id line: recreate
           if (this.textNameId
-            && (this.tagName(refr) !== this.createdTagName || this.createdActorIdLine !== FormView.isDisplayingActorIds)) {
+            && (this.tagName(refr) !== this.createdTagName || this.createdActorIdLine !== FormView.isDisplayingActorIds
+              || FormView.secondLineOf(model, this.refrId) !== this.createdSecondLine)) {
             this.removeNickname();
           }
           if (this.textNameId) {
@@ -854,6 +856,14 @@ export class FormView {
   private textActorIdId: number | undefined = undefined;
   private createdTagName = "";
   private createdActorIdLine = false;
+  private createdSecondLine = "";
+
+  // "#TAG" from the server's ff_charTag property, else the local actor id
+  private static secondLineOf(model: FormModel, refrId: number): string {
+    const tag = (model as Record<string, unknown>)["ff_charTag"];
+    if (typeof tag === "string" && tag.length === 4) return "#" + tag;
+    return refrId.toString(16).toUpperCase().padStart(8, "0");
+  }
 
   // Screen-space pixels between the name line and the actor id line
   private static readonly actorIdLineOffset = 18;
