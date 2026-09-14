@@ -362,3 +362,11 @@ $text-dim: rgba(232, 224, 208, 0.6);
     }
   }
 }
+
+// DragonBreak skills layout additions
+.mastery__frame--skills .mastery__list--grouped { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
+.mastery__group-name { font-size: 0.8em; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; margin: 6px 0 2px; }
+.mastery__item-tier { font-size: 0.75em; opacity: 0.7; margin-left: 6px; }
+.mastery__description { opacity: 0.85; line-height: 1.35; margin: 8px 0 12px; }
+.mastery__ranks--five .mastery__rank { min-width: 0; }
+.mastery__drop { display: inline-block; margin-top: 10px; }

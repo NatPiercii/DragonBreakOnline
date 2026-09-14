@@ -2,70 +2,67 @@ import React, { useEffect, useState } from 'react';
 
 import './styles.scss';
 
-interface Profession {
+// DragonBreak Online skills menu (K): three groups, up to `maxChosen` skills,
+// five tiers each. Data comes from the client's masteryMenu packet mirror.
+
+interface SkillDef {
   id: string;
+  category: string;
   label: string;
   title: string;
+  description: string;
+  tiers: string[];
+}
+
+interface Category {
+  id: string;
+  label: string;
+}
+
+interface Chosen {
+  id: string;
+  rank: number;
+  hours: number;
+}
+
+interface Respec {
+  open: boolean;
+  free: boolean;
+  cost: number;
+  count: number;
 }
 
 interface MasteryEvents {
   choose: string;
+  drop: string;
   close: string;
   [key: string]: string;
 }
 
-// The widget object the client pushes through window.skyrimPlatform.widgets.
 export interface MasteryData {
+  maxChosen?: number;
+  tierNames?: string[];
+  tierHours?: number[];
+  categories?: Category[];
+  skills?: SkillDef[];
+  chosen?: Chosen[];
+  respec?: Respec;
+  // legacy fields still sent by the server
   profession: string | null;
   rank: number;
   hours: number;
   rankHours: number[];
-  professions: Profession[];
+  professions: Array<{ id: string; label: string; title: string }>;
   events: MasteryEvents;
 }
 
-const RANKS = ['Novice', 'Adept', 'Expert', 'Master'];
-
-// What each rank opens up, shown beside the ladder.
-const RANK_BLURB = [
-  'The first recipes of the craft.',
-  'Refined work, and better materials.',
-  'Rare patterns few can attempt.',
-  'The full repertoire of the craft.',
-];
-
-// Artwork is keyed by profession id; the file names predate the labels.
-const ART: Record<string, string> = {
-  alchemist: 'Alchemist',
-  blacksmith: 'Blacksmith',
-  cook: 'Cooking',
-  hunter: 'Hunting',
-  miner: 'Mining',
-  tailor: 'Tailor',
-  warrior: 'Combat',
-  woodworker: 'Woodcutting',
-};
-
-// Asset modules export the url as module.exports or as .default depending on the loader.
-const assetUrl = (mod: { default?: string } | string): string =>
-  typeof mod === 'string' ? mod : mod.default || '';
-
-const artFor = (professionId: string): string => {
-  const name = ART[professionId];
-  if (!name) return '';
-  try {
-    return assetUrl(require('./assets/' + name + '.jpg'));
-  } catch (e) {
-    return '';
-  }
-};
+const DEFAULT_TIERS = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
 
 const send = (key: string, ...args: unknown[]): void => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).skyrimPlatform.sendMessage(key, ...args);
   } catch (e) {
-    // Running outside the game (e.g. Storybook) - log instead.
     // eslint-disable-next-line no-console
     console.log('mastery sendMessage', key, args);
   }
@@ -73,22 +70,23 @@ const send = (key: string, ...args: unknown[]): void => {
 
 const MasteryMenu = ({ data }: { data: MasteryData }) => {
   const ev = data.events || ({} as MasteryEvents);
-  const professions = data.professions || [];
-  const chosen = data.profession;
-  const thresholds = data.rankHours && data.rankHours.length ? data.rankHours : [0, 40, 100, 180];
+  const skills: SkillDef[] = data.skills && data.skills.length
+    ? data.skills
+    : (data.professions || []).map((p) => ({ id: p.id, category: 'profession', label: p.label, title: p.title, description: '', tiers: [] }));
+  const categories: Category[] = data.categories && data.categories.length
+    ? data.categories
+    : [{ id: 'profession', label: 'Professions' }];
+  const chosen: Chosen[] = data.chosen || (data.profession ? [{ id: data.profession, rank: data.rank, hours: data.hours }] : []);
+  const maxChosen = data.maxChosen || 3;
+  const tierNames = data.tierNames && data.tierNames.length ? data.tierNames : DEFAULT_TIERS;
+  const tierHours = data.tierHours && data.tierHours.length ? data.tierHours : [0, 10, 30, 70, 150];
+  const respec: Respec = data.respec || { open: false, free: true, cost: 0, count: 0 };
 
-  // Browsing is free; the chosen craft is what the panel opens on.
-  const [viewing, setViewing] = useState(chosen || (professions[0] ? professions[0].id : ''));
-  const [confirming, setConfirming] = useState<string | null>(null);
-  const [committing, setCommitting] = useState(false);
+  const [viewing, setViewing] = useState(chosen[0] ? chosen[0].id : (skills[0] ? skills[0].id : ''));
+  const [confirming, setConfirming] = useState<{ action: 'choose' | 'drop'; id: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (chosen) {
-      setViewing(chosen);
-      setCommitting(false);
-      setConfirming(null);
-    }
-  }, [chosen]);
+  useEffect(() => { setBusy(false); setConfirming(null); }, [chosen.length, respec.count]);
 
   useEffect(() => {
     const onUnfocused = () => send(ev.close);
@@ -96,8 +94,6 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
     return () => window.removeEventListener('skymp5-client:browserUnfocused', onUnfocused);
   }, [ev.close]);
 
-  // index.js fires menu:escape globally; while the commit dialog is up,
-  // Escape should back out of the dialog rather than the whole menu.
   useEffect(() => {
     if (!confirming) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -109,77 +105,77 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [confirming]);
 
-  const current = professions.filter((p) => p.id === viewing)[0] || professions[0];
+  const current = skills.filter((s) => s.id === viewing)[0] || skills[0];
   if (!current) return null;
-
-  const isChosen = chosen === current.id;
-  const art = artFor(current.id);
+  const mine = chosen.filter((c) => c.id === current.id)[0] || null;
+  const slotsLeft = maxChosen - chosen.length;
 
   return (
     <div className="mastery">
       <div className="mastery__fade" />
-      <div className="mastery__frame">
-        <div className="mastery__corner">Skills</div>
-        <h1 className="mastery__title">{current.label} &mdash; Mastery</h1>
+      <div className="mastery__frame mastery__frame--skills">
+        <div className="mastery__corner">Skills {chosen.length}/{maxChosen}</div>
+        <h1 className="mastery__title">{current.label}</h1>
 
-        <nav className="mastery__list">
-          {professions.map((p) => (
-            <button
-              key={p.id}
-              className={
-                'mastery__item' +
-                (p.id === viewing ? ' mastery__item--viewing' : '') +
-                (p.id === chosen ? ' mastery__item--chosen' : '')
-              }
-              onClick={() => setViewing(p.id)}
-            >
-              {p.id === chosen ? <span className="mastery__marker">&#9670;</span> : null}
-              {p.label}
-            </button>
+        <nav className="mastery__list mastery__list--grouped">
+          {categories.map((cat) => (
+            <div key={cat.id} className="mastery__group">
+              <div className="mastery__group-name">{cat.label}</div>
+              {skills.filter((s) => s.category === cat.id).map((s) => {
+                const c = chosen.filter((x) => x.id === s.id)[0];
+                return (
+                  <button
+                    key={s.id}
+                    className={
+                      'mastery__item' +
+                      (s.id === viewing ? ' mastery__item--viewing' : '') +
+                      (c ? ' mastery__item--chosen' : '')
+                    }
+                    onClick={() => setViewing(s.id)}
+                  >
+                    {c ? <span className="mastery__marker">&#9670;</span> : null}
+                    {s.label}
+                    {c ? <span className="mastery__item-tier"> {tierNames[c.rank] || ''}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
           ))}
         </nav>
 
         <section className="mastery__stage">
           <h2 className="mastery__epithet">{current.title}</h2>
-          {art ? (
-            <img className="mastery__art" src={art} alt="" />
-          ) : (
-            <div className="mastery__art mastery__art--missing" />
-          )}
+          <p className="mastery__description">{current.description}</p>
           <div className="mastery__stage-foot">
-            {isChosen ? (
+            {mine ? (
               <p className="mastery__played">
-                {data.hours} {data.hours === 1 ? 'hour' : 'hours'} at the craft
+                {tierNames[mine.rank] || ''} &middot; {mine.hours} {mine.hours === 1 ? 'hour' : 'hours'} of work
                 <br />
-                <span className="mastery__played--muted mastery__played--hint">Working your craft earns an hour; the next counts an hour later.</span>
+                <span className="mastery__played--muted mastery__played--hint">Working the skill earns an hour; the next counts an hour later.</span>
+                {respec.open ? (
+                  <button className="mastery__cancel mastery__drop" disabled={busy} onClick={() => setConfirming({ action: 'drop', id: current.id })}>
+                    Set aside {respec.free ? '(free)' : `(${respec.cost} gold)`}
+                  </button>
+                ) : null}
               </p>
-            ) : chosen ? (
-              <p className="mastery__played mastery__played--muted">You follow another craft.</p>
-            ) : (
-              <button
-                className="mastery__choose"
-                disabled={committing}
-                onClick={() => setConfirming(current.id)}
-              >
-                {committing ? 'Taking it up...' : 'Take up this craft'}
+            ) : slotsLeft > 0 ? (
+              <button className="mastery__choose" disabled={busy} onClick={() => setConfirming({ action: 'choose', id: current.id })}>
+                {busy ? 'Taking it up...' : `Take up ${current.label}`}
               </button>
+            ) : (
+              <p className="mastery__played mastery__played--muted">All {maxChosen} of your skills are chosen. A standing stone lets you change your path.</p>
             )}
           </div>
         </section>
 
-        <section className="mastery__ranks">
-          {RANKS.map((rankName, i) => {
-            const reached = isChosen && data.rank >= i;
+        <section className="mastery__ranks mastery__ranks--five">
+          {tierNames.map((tierName, i) => {
+            const reached = !!mine && mine.rank >= i;
             return (
-              <div
-                key={rankName}
-                className={'mastery__rank' + (reached ? ' mastery__rank--reached' : '')}
-              >
-                <h3 className="mastery__rank-name">{rankName}</h3>
-                <p className="mastery__rank-perk">{RANK_BLURB[i]}</p>
-                <span className="mastery__rank-cost">
-                  {thresholds[i] === 0 ? 'from the start' : thresholds[i] + ' hours'}
-                </span>
+              <div key={tierName} className={'mastery__rank' + (reached ? ' mastery__rank--reached' : '')}>
+                <h3 className="mastery__rank-name">{tierName}</h3>
+                <p className="mastery__rank-perk">{current.tiers[i] || ''}</p>
+                <span className="mastery__rank-cost">{!tierHours[i] ? 'from the start' : tierHours[i] + ' hours'}</span>
               </div>
             );
           })}
@@ -190,24 +186,26 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
         {confirming ? (
           <div className="mastery__confirm-shade">
             <div className="mastery__confirm">
-              <h3 className="mastery__confirm-title">Take up the {current.label}?</h3>
+              <h3 className="mastery__confirm-title">
+                {confirming.action === 'choose' ? `Take up ${current.label}?` : `Set aside ${current.label}?`}
+              </h3>
               <p className="mastery__confirm-body">
-                A character keeps one craft for life. Only an admin can set it aside.
+                {confirming.action === 'choose'
+                  ? `You may follow ${maxChosen} skills. Changing your mind later means a standing stone${respec.cost ? ` and ${respec.cost} gold after the first time` : ''}.`
+                  : `Every hour of work in ${current.label} is lost.${respec.free ? ' This one is free.' : ` The stone takes ${respec.cost} gold.`}`}
               </p>
               <div className="mastery__confirm-actions">
                 <button
                   className="mastery__choose"
                   onClick={() => {
-                    send(ev.choose, confirming);
-                    setCommitting(true);
+                    send(confirming.action === 'choose' ? ev.choose : ev.drop, confirming.id);
+                    setBusy(true);
                     setConfirming(null);
                   }}
                 >
-                  Commit
+                  {confirming.action === 'choose' ? 'Commit' : 'Set aside'}
                 </button>
-                <button className="mastery__cancel" onClick={() => setConfirming(null)}>
-                  Not yet
-                </button>
+                <button className="mastery__cancel" onClick={() => setConfirming(null)}>Not yet</button>
               </div>
             </div>
           </div>

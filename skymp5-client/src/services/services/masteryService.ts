@@ -14,6 +14,7 @@ const WIDGET_ID = 25;
 // Event keys exchanged with the browser. Namespaced to avoid collisions.
 const events = {
   choose: 'mastery:choose',
+  drop: 'mastery:drop',
   close: 'mastery:close',
 };
 
@@ -30,10 +31,18 @@ interface MasteryInfo {
   hours: number;
   rankHours: number[];
   professions: Profession[];
+  // DragonBreak skills: three groups, up to maxChosen skills, five tiers
+  maxChosen: number;
+  tierNames: string[];
+  tierHours: number[];
+  categories: unknown[];
+  skills: unknown[];
+  chosen: unknown[];
+  respec: unknown;
 }
 
 // Module-level so the browser-side widget setter can read it (runtime injection).
-let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [] };
+let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [], maxChosen: 3, tierNames: [], tierHours: [], categories: [], skills: [], chosen: [], respec: null };
 
 /**
  * Mastery menu (default K). Shows the eight professions, the one this
@@ -91,6 +100,13 @@ export class MasteryService extends ClientListener {
           hours: Number(content["hours"]) || 0,
           rankHours: rankHours as number[],
           professions: professions as Profession[],
+          maxChosen: Number(content["maxChosen"]) || 3,
+          tierNames: Array.isArray(content["tierNames"]) ? content["tierNames"] as string[] : [],
+          tierHours: Array.isArray(content["tierHours"]) ? content["tierHours"] as number[] : [],
+          categories: Array.isArray(content["categories"]) ? content["categories"] as unknown[] : [],
+          skills: Array.isArray(content["skills"]) ? content["skills"] as unknown[] : [],
+          chosen: Array.isArray(content["chosen"]) ? content["chosen"] as unknown[] : [],
+          respec: content["respec"] ?? null,
         };
         // A reply we did not ask for (a refresh after choosing) updates the
         // open menu but must never force a closed one open.
@@ -123,10 +139,10 @@ export class MasteryService extends ClientListener {
       this.closeMenu();
       return;
     }
-    if (key === events.choose) {
+    if (key === events.choose || key === events.drop) {
       const profession = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
       if (profession) {
-        sendCustomPacket(this.controller, { customPacketType: "masteryChoose", profession });
+        sendCustomPacket(this.controller, { customPacketType: key === events.choose ? "masteryChoose" : "masteryDrop", profession });
       }
     }
   }
@@ -153,6 +169,13 @@ export class MasteryService extends ClientListener {
       hours: info.hours,
       rankHours: info.rankHours,
       professions: info.professions,
+      maxChosen: info.maxChosen,
+      tierNames: info.tierNames,
+      tierHours: info.tierHours,
+      categories: info.categories,
+      skills: info.skills,
+      chosen: info.chosen,
+      respec: info.respec,
       events: events,
     };
     const others = (window.skyrimPlatform.widgets.get() || []).filter((w: any) => w.id !== WIDGET_ID);
