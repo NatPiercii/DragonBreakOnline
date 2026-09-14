@@ -55,6 +55,25 @@ client.on('guildBanRemove', ban => {
   }
 })
 
+// Role and nickname changes go to the audit channel the moment they happen
+client.on('guildMemberUpdate', (before, after) => {
+  try {
+    if (config.discordGuildId && after.guild.id !== config.discordGuildId) return
+    const audit = require('./audit')
+    const was = new Set(before.roles.cache.keys())
+    const now = new Set(after.roles.cache.keys())
+    const added = [...now].filter(r => !was.has(r)).map(r => after.guild.roles.cache.get(r)?.name || r)
+    const removed = [...was].filter(r => !now.has(r)).map(r => after.guild.roles.cache.get(r)?.name || r)
+    const tag = `${after.user.username} (<@${after.id}>)`
+    if (added.length) audit.log(`PERM ${tag} gained role(s): ${added.join(', ')}`)
+    if (removed.length) audit.log(`PERM ${tag} lost role(s): ${removed.join(', ')}`)
+    if (before.nickname !== after.nickname) audit.log(`NAME ${tag} nickname "${before.nickname || ''}" -> "${after.nickname || ''}"`)
+    if (added.length || removed.length) roleCache.delete(after.id)
+  } catch (err) {
+    console.error('[discord-bot] member update audit failed:', err.message)
+  }
+})
+
 function ensureRoleLookupConfigured() {
   if (!config.discordBotToken || !config.discordGuildId) {
     throw new Error('discord bot role lookup is not configured')
@@ -213,6 +232,7 @@ function start() {
 
 module.exports = {
   start,
+  audit: require('./audit'),
   getMemberRoles,
   isReady,
   memberHasRole,

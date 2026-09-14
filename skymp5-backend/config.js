@@ -64,6 +64,8 @@ module.exports = {
   // Discord bot (role-based access): token/guild used to fetch member roles at login; the bot needs "Server Members Intent" enabled in the Developer Portal
   discordBotToken: process.env.DISCORD_BOT_TOKEN || '',
   discordGuildId:  process.env.DISCORD_GUILD_ID  || '',
+  // Channel that receives the audit log (role changes, permission edits, GM actions relayed by the game server)
+  discordLogChannelId: process.env.DISCORD_LOG_CHANNEL_ID || '',
 
   // Server lockdown: when true only serverLockedAllowList IDs can connect; others get loginFailedServerLocked from the TS server and the launcher shows "Server locked"
   serverLocked:          process.env.SERVER_LOCKED === 'true',
