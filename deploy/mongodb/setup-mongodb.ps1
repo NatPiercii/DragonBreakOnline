@@ -1,5 +1,5 @@
 <#
-  Alduinak MongoDB setup. RUN THIS YOURSELF in an elevated PowerShell.
+  DragonBreak MongoDB setup. RUN THIS YOURSELF in an elevated PowerShell.
   It installs MongoDB Community Server, registers it as a Windows service
   using deploy/mongodb/mongod.cfg, and creates the skymp app user.
 
@@ -9,7 +9,7 @@
   Usage (elevated):
     powershell -ExecutionPolicy Bypass -File deploy\mongodb\setup-mongodb.ps1 -Password "YourStrongPassword"
 
-  After it finishes, follow docs/alduinak_mongodb_migration.md to run the
+  After it finishes, follow docs/dragonbreak_mongodb_migration.md to run the
   one-shot file->mongo migration and switch the server driver to mongodb.
 #>
 param(
@@ -18,7 +18,7 @@ param(
   [string] $MongoVersion = "8.0.28",
   [string] $MongoshVersion = "2.10.0",
   [string] $ToolsVersion = "100.18.0",
-  [string] $Root = "C:\Alduinak\mongodb",
+  [string] $Root = "C:\DragonBreak\mongodb",
   [string] $User = "skympuser"
 )
 
@@ -83,11 +83,11 @@ if (-not $mongosh) { throw "mongosh not found; install the MongoDB Shell and re-
 # 2. Register the service against our config (nssm if present, else sc/mongod).
 $nssm = Join-Path $repoRoot "server-manager\tools\nssm.exe"
 if (-not (Test-Path $nssm)) { $nssm = "C:\tools\nssm\nssm.exe" }
-Write-Host "[mongo] registering AlduinakMongo service"
-Start-Process $mongod -ArgumentList "--config `"$cfg`" --install --serviceName AlduinakMongo --serviceDisplayName `"Alduinak MongoDB`"" -Wait -ErrorAction SilentlyContinue
-Start-Service AlduinakMongo -ErrorAction SilentlyContinue
+Write-Host "[mongo] registering DragonBreakMongo service"
+Start-Process $mongod -ArgumentList "--config `"$cfg`" --install --serviceName DragonBreakMongo --serviceDisplayName `"DragonBreak MongoDB`"" -Wait -ErrorAction SilentlyContinue
+Start-Service DragonBreakMongo -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 5
-if ((Get-Service AlduinakMongo -ErrorAction SilentlyContinue).Status -ne 'Running') { throw "AlduinakMongo is not running; check $Root\log\mongod.log" }
+if ((Get-Service DragonBreakMongo -ErrorAction SilentlyContinue).Status -ne 'Running') { throw "DragonBreakMongo is not running; check $Root\log\mongod.log" }
 
 # 3. Create the app user. authorization is enabled, but the localhost
 #    exception lets the FIRST user be created without auth.
@@ -107,5 +107,5 @@ try {
 Write-Host ""
 Write-Host "[mongo] done. Next:"
 Write-Host "  1. URL-encode any reserved chars in the password for the URI (see the migration doc)."
-Write-Host "  2. Follow docs\alduinak_mongodb_migration.md to migrate file->mongo and switch the driver."
+Write-Host "  2. Follow docs\dragonbreak_mongodb_migration.md to migrate file->mongo and switch the driver."
 Write-Host "  3. Run 'npm install' in server-manager so its Mongo-aware character reader works."

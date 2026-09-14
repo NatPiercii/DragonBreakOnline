@@ -1,6 +1,6 @@
-const config = window.ALDUINAK_DASHBOARD_CONFIG || {}
+const config = window.DRAGONBREAK_DASHBOARD_CONFIG || {}
 const apiBaseUrl = (config.apiBaseUrl || '').replace(/\/$/, '')
-const tokenKey = 'alduinak.dashboard.token'
+const tokenKey = 'dragonbreak.dashboard.token'
 
 const state = {
   token: localStorage.getItem(tokenKey) || '',

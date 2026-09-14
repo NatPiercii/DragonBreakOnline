@@ -1,4 +1,4 @@
-# MongoDB for the Alduinak world DB
+# MongoDB for the DragonBreak world DB
 
 The game server's mongo driver is already compiled into `scam_native.node`, so
 no CI rebuild is needed. You only need MongoDB installed and running, then a
@@ -6,9 +6,9 @@ one-shot migration.
 
 ## Files here
 
-- `mongod.cfg` - mongod config (loopback only, auth enabled, data under `C:\Alduinak\mongodb`).
+- `mongod.cfg` - mongod config (loopback only, auth enabled, data under `C:\DragonBreak\mongodb`).
 - `setup-mongodb.ps1` - **run yourself, elevated.** Installs MongoDB, registers
-  the `AlduinakMongo` service against `mongod.cfg`, and creates the `skympuser`
+  the `DragonBreakMongo` service against `mongod.cfg`, and creates the `skympuser`
   app user. Installs mongosh and the Database Tools (mongodump/mongorestore)
   when they are missing. Claude does not run installers or register services.
 
@@ -19,7 +19,7 @@ one-shot migration.
    powershell -ExecutionPolicy Bypass -File deploy\mongodb\setup-mongodb.ps1 -Password "YourStrongPassword"
    ```
 2. Run the migration and switch the driver: follow
-   [`docs/alduinak_mongodb_migration.md`](../../docs/alduinak_mongodb_migration.md)
+   [`docs/dragonbreak_mongodb_migration.md`](../../docs/dragonbreak_mongodb_migration.md)
    (URL-encode reserved password characters in the `databaseUri`).
 3. In `server-manager/`, run `npm install` so the manager's Mongo-aware
    character reader can load the `mongodb` client.

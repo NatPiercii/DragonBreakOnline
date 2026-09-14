@@ -7,7 +7,7 @@ const fs = require('fs')
 const LATEST_VERSION = '2.1.14'
 const CLIENT_VERSION = '0.3.1'
 const SERVER_VERSION = '0.3.1'
-const DOWNLOAD_URL   = 'https://api.alduinak.com/downloads/AlduinakLauncher.exe'
+const DOWNLOAD_URL   = 'https://api.dragonbreakonline.com/downloads/DragonBreakLauncher.exe'
 
 router.get('/', (_req, res) => {
   res.json({

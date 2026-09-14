@@ -4,7 +4,7 @@ import { RemoteServer } from "./remoteServer";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
 import { logError, logTrace } from "../../logging";
 
-// Drives Actor.setExpressionPhoneme from the front's voice::speaking reports, contract in docs/alduinak_voice_chat.md
+// Drives Actor.setExpressionPhoneme from the front's voice::speaking reports, contract in docs/dragonbreak_voice_chat.md
 
 const TICK_MS = 90;
 const REPORT_TTL_MS = 600;

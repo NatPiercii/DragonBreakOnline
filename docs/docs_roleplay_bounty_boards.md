@@ -94,7 +94,7 @@ at. Correctness never depends on the sweep having run.
 ## Logging
 
 Every post and every fade is appended to `bounty.log` in the shared log
-directory (`ALDUINAK_LOG_DIR`, else `logDir` from `server-settings.json`, else
+directory (`DRAGONBREAK_LOG_DIR`, else `logDir` from `server-settings.json`, else
 `C:\logs`). Names and notice text are JSON-quoted with the profile id in a
 fixed position, so crafted text cannot forge a line. The Server Manager
 rotates `bounty.log` with the other gamemode logs on service restart.

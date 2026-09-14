@@ -1,5 +1,5 @@
 <#
-  Alduinak X-drive migration. RUN THIS YOURSELF in an elevated PowerShell.
+  DragonBreak X-drive migration. RUN THIS YOURSELF in an elevated PowerShell.
   Frees ~77 GB on C: by moving the three big Skyrim content folders to X:
     C:\skyrim install  (24 GB, GOG offline installers, referenced by nothing)
     C:\MO2             (15 GB, portable Mod Organizer 2)
@@ -69,11 +69,11 @@ Move-Tree "C:\skyrim install" "$XRoot\skyrim install"
 Move-Tree "C:\MO2" "$XRoot\MO2"
 
 # 2. GOG Games: stop the game server first, it reads plugins from here.
-$svc = Get-Service AlduinakGameServer -ErrorAction SilentlyContinue
+$svc = Get-Service DragonBreakGameServer -ErrorAction SilentlyContinue
 $wasRunning = $svc -and $svc.Status -eq "Running"
 if ($wasRunning) {
-  Write-Host "[svc] stopping AlduinakGameServer"
-  Stop-Service AlduinakGameServer -Force
+  Write-Host "[svc] stopping DragonBreakGameServer"
+  Stop-Service DragonBreakGameServer -Force
   $svc.WaitForStatus("Stopped", (New-TimeSpan -Seconds 60))
 }
 Move-Tree "C:\GOG Games" "$XRoot\GOG Games"
@@ -100,8 +100,8 @@ Update-PathsInFile (Join-Path $repoRoot "build\dist\server\server-settings.json"
 
 # 6. Restart the game server if we stopped it.
 if ($wasRunning) {
-  Write-Host "[svc] starting AlduinakGameServer"
-  Start-Service AlduinakGameServer
+  Write-Host "[svc] starting DragonBreakGameServer"
+  Start-Service DragonBreakGameServer
 }
 
 $free = [math]::Round((Get-Volume -DriveLetter C).SizeRemaining / 1GB, 1)

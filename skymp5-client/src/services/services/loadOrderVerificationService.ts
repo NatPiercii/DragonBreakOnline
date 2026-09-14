@@ -50,7 +50,7 @@ export class LoadOrderVerificationService extends ClientListener {
         problems.forEach((problem) => printConsole(problem));
         // Plugins out of step with the server get other form ids, so modded doors bounce the player back
         this.updateText(
-          'LOAD ORDER MISMATCH: your plugins differ from the server.\nModded buildings, doors and items will not work.\nRe-run the Alduinak launcher (Repair Modlist). Details are in the console.',
+          'LOAD ORDER MISMATCH: your plugins differ from the server.\nModded buildings, doors and items will not work.\nRe-run the DragonBreak launcher (Repair Modlist). Details are in the console.',
           [255, 64, 64, 1], 30,
         );
       })

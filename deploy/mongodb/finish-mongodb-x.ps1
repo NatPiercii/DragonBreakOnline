@@ -1,17 +1,17 @@
 <#
-  Alduinak MongoDB finish-setup for the box as it stands (2026-07-27):
+  DragonBreak MongoDB finish-setup for the box as it stands (2026-07-27):
   MongoDB 8.0 was installed via the MSI with its bundled "MongoDB" service,
   config at C:\Program Files\MongoDB\Server\8.0\bin\mongod.cfg, and data/log
   already on X: (X:\Program Files\MongoDB\Server\8.0\...). Auth is OFF and no
   app user exists yet. RUN THIS YOURSELF in an elevated PowerShell.
 
   Stage 1 (default) does, in order:
-    1. Backs up build\dist\server\world to X:\Alduinak\backups.
+    1. Backs up build\dist\server\world to X:\DragonBreak\backups.
     2. Creates the skympuser app user (while auth is still off).
     3. Enables authorization in the service's mongod.cfg and restarts MongoDB.
     4. Verifies authenticated login works.
     5. Patches server-settings.json with the MIGRATION driver block.
-  Then: start AlduinakGameServer once. It migrates file->mongo and exits.
+  Then: start DragonBreakGameServer once. It migrates file->mongo and exits.
 
   Stage 2:  re-run with -Finalize. It verifies mongo has the migrated docs and
   flips server-settings.json to the plain mongodb driver. Then start the
@@ -73,16 +73,16 @@ function Invoke-Mongosh([string]$connString, [string]$evalJs, [string]$what) {
 }
 
 # The game server must not run while we rewrite its database settings.
-$gameSvc = Get-Service AlduinakGameServer -ErrorAction SilentlyContinue
+$gameSvc = Get-Service DragonBreakGameServer -ErrorAction SilentlyContinue
 if ($gameSvc -and $gameSvc.Status -eq "Running") {
-  Write-Host "[mongo] stopping AlduinakGameServer"
-  Stop-Service AlduinakGameServer -Force
+  Write-Host "[mongo] stopping DragonBreakGameServer"
+  Stop-Service DragonBreakGameServer -Force
 }
 
 if (-not $Finalize) {
   # 1. Backup the file-driver world before anything touches it.
   $stamp = Get-Date -Format "yyyyMMdd-HHmm"
-  $backup = "X:\Alduinak\backups\world-$stamp"
+  $backup = "X:\DragonBreak\backups\world-$stamp"
   $world = Join-Path $repoRoot "build\dist\server\world"
   if (Test-Path $world) {
     Write-Host "[mongo] backing up world -> $backup"
@@ -96,12 +96,12 @@ if (-not $Finalize) {
   #    env var so quotes/backslashes in it can't break the JS or argv quoting.
   #    Must succeed BEFORE auth gets enabled or we'd lock ourselves out.
   Write-Host "[mongo] creating user $User"
-  $env:ALDUINAK_MONGO_PWD = $Password
+  $env:DRAGONBREAK_MONGO_PWD = $Password
   try {
-    $js = "try { db.getSiblingDB('admin').createUser({ user: '$User', pwd: process.env.ALDUINAK_MONGO_PWD, roles: [ { role: 'readWrite', db: 'skymp' }, { role: 'dbAdmin', db: 'skymp' } ] }); print('CREATED'); } catch (e) { if (/already exists/.test(e.message)) { print('EXISTS'); } else { print('FAILED: ' + e.message); quit(1); } }"
+    $js = "try { db.getSiblingDB('admin').createUser({ user: '$User', pwd: process.env.DRAGONBREAK_MONGO_PWD, roles: [ { role: 'readWrite', db: 'skymp' }, { role: 'dbAdmin', db: 'skymp' } ] }); print('CREATED'); } catch (e) { if (/already exists/.test(e.message)) { print('EXISTS'); } else { print('FAILED: ' + e.message); quit(1); } }"
     $created = Invoke-Mongosh "mongodb://127.0.0.1:27017/admin" $js "createUser"
   } finally {
-    Remove-Item Env:ALDUINAK_MONGO_PWD -ErrorAction SilentlyContinue
+    Remove-Item Env:DRAGONBREAK_MONGO_PWD -ErrorAction SilentlyContinue
   }
   if ($created -notmatch "CREATED|EXISTS") { throw "createUser did not succeed: $created" }
   Write-Host "[mongo] user: $created"
@@ -151,7 +151,7 @@ if (-not $Finalize) {
 
   Write-Host ""
   Write-Host "[mongo] stage 1 done. NEXT:"
-  Write-Host "  1. Start AlduinakGameServer once (manager Start button). It migrates and exits."
+  Write-Host "  1. Start DragonBreakGameServer once (manager Start button). It migrates and exits."
   Write-Host "  2. Re-run this script with -Finalize (same -Password)."
   exit 0
 }
@@ -174,5 +174,5 @@ $final = "`"databaseDriver`": `"mongodb`",`r`n  `"databaseName`": `"skymp`",`r`n
 Patch-Settings ($text -replace $pattern, $final) "stage2"
 
 Write-Host ""
-Write-Host "[mongo] finalized. Start AlduinakGameServer normally; it now runs on MongoDB."
+Write-Host "[mongo] finalized. Start DragonBreakGameServer normally; it now runs on MongoDB."
 Write-Host "[mongo] Keep the world backup until a few sessions have saved/loaded cleanly."

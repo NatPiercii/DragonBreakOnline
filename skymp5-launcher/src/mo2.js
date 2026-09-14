@@ -3,13 +3,13 @@
 /**
  * Mod Organizer 2 integration - portable install fully managed by the launcher.
  *
- *   %LOCALAPPDATA%\Alduinak\MO2\
+ *   %LOCALAPPDATA%\DragonBreak\MO2\
  *     ModOrganizer.exe          downloaded from the official MO2 release
  *     ModOrganizer.ini          portable instance config (written by us)
  *     nxmhandler.ini            nxm:// → this MO2 instance
  *     downloads\                Nexus "Mod Manager Download" archives land here
  *     mods\<Mod Name>\          installed mods (assembled from the manifest)
- *     profiles\Alduinak\        the single launcher-managed profile
+ *     profiles\DragonBreak\        the single launcher-managed profile
  *
  * Mods are installed by replaying a compiled manifest (see the backend's
  * scripts/compile-manifest.js): each archive is downloaded + verified by
@@ -27,7 +27,7 @@ const { spawn, execFileSync, execFile } = require('child_process')
 
 const MO2_VERSION = '2.5.2'
 const MO2_URL     = `https://github.com/ModOrganizer2/modorganizer/releases/download/v${MO2_VERSION}/Mod.Organizer-${MO2_VERSION}.7z`
-const PROFILE     = 'Alduinak'
+const PROFILE     = 'DragonBreak'
 
 // SKSE is edition-specific: the Steam and GOG builds ship different loaders and
 // runtime DLLs, so we download the one matching the player's game.
@@ -50,7 +50,7 @@ function getRoot() {
   const custom = _rootProvider ? _rootProvider() : null
   if (custom) return custom
   const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
-  return path.join(local, 'Alduinak', 'MO2')
+  return path.join(local, 'DragonBreak', 'MO2')
 }
 
 const getExe          = () => path.join(getRoot(), 'ModOrganizer.exe')
@@ -414,7 +414,7 @@ function pickDarkStyle() {
 }
 
 /**
- * Create or refresh the portable instance config and the Alduinak profile.
+ * Create or refresh the portable instance config and the DragonBreak profile.
  * Safe to call repeatedly; user data (mods, downloads) is never touched.
  *
  * @param {string}   skyrimPath

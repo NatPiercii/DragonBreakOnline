@@ -90,7 +90,7 @@ class Builder {
   // the native binaries come prebuilt from CI.
   async ensurePrereqs() {
     if (!isWin) return { ok: true }                        // auto-install is Windows-only
-    if (process.env.ALDUINAK_NO_AUTO_INSTALL === '1') return { ok: true }
+    if (process.env.DRAGONBREAK_NO_AUTO_INSTALL === '1') return { ok: true }
 
     const missing = []
     if (!this.hasCmd('node')) missing.push({ id: 'OpenJS.NodeJS.LTS', label: 'Node.js LTS', check: () => this.hasCmd('node') })
@@ -99,7 +99,7 @@ class Builder {
 
     this.banner('Installing missing prerequisites')
     if (!this.hasCmd('winget')) {
-      return { ok: false, error: `missing ${missing.map(m => m.label).join(', ')} and winget is unavailable to auto-install - install the App Installer (winget), or get them manually: Node https://nodejs.org/ , Git https://git-scm.com/download/win . Then re-run (or set ALDUINAK_NO_AUTO_INSTALL=1).` }
+      return { ok: false, error: `missing ${missing.map(m => m.label).join(', ')} and winget is unavailable to auto-install - install the App Installer (winget), or get them manually: Node https://nodejs.org/ , Git https://git-scm.com/download/win . Then re-run (or set DRAGONBREAK_NO_AUTO_INSTALL=1).` }
     }
     this.line(`[prereqs] missing: ${missing.map(m => m.label).join(', ')} - installing with winget…`)
     for (const m of missing) {
@@ -236,7 +236,7 @@ class Builder {
     }
 
     // SKYMP_VOICE_CHAT / VCPKG_MANIFEST_FEATURES=voice-chat from circulating guides do not exist here (the latter aborts configure).
-    // Voice chat is already built in; see docs/alduinak_voice_chat.md.
+    // Voice chat is already built in; see docs/dragonbreak_voice_chat.md.
     const args = [
       '-B', buildDir,
       '-G', 'Visual Studio 17 2022',
@@ -314,7 +314,7 @@ class Builder {
   pruneServerDeploy() {
     const deployDir = path.join(config.buildDir, 'dist', 'server')
     const keep = new Set(['world', 'gamemode.js', 'gamemode_extensions', 'plugins', 'dist_back', 'scam_native.node', 'data', 'sign-gamemode.js', 'signing-private.pem', 'install-services.bat', 'launch_server.bat', 'readme.md', 'starter-grants.json', 'zone-spawns.json', 'companions.json', 'housing.json', 'npc-spawns.json'])
-    for (const extra of (process.env.ALDUINAK_SERVER_KEEP || '').split(',')) {
+    for (const extra of (process.env.DRAGONBREAK_SERVER_KEEP || '').split(',')) {
       const n = extra.trim().toLowerCase(); if (n) keep.add(n)
     }
     let entries

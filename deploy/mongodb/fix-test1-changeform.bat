@@ -6,14 +6,14 @@ setlocal
 cd /d "%~dp0..\.."
 
 echo ==========================================================
-echo  Alduinak - repoint the orphaned Test 1 changeForm
+echo  DragonBreak - repoint the orphaned Test 1 changeForm
 echo ==========================================================
 echo.
 echo Repo: %CD%
 echo.
 
 echo [1/3] Stopping the game server (safe: a running server re-upserts forms)...
-net stop AlduinakGameServer >nul 2>&1
+net stop DragonBreakGameServer >nul 2>&1
 echo.
 
 echo [2/3] Repointing the changeForm...
@@ -28,7 +28,7 @@ if errorlevel 1 (
 echo.
 
 echo [3/3] Starting the game server...
-net start AlduinakGameServer
+net start DragonBreakGameServer
 echo.
 echo Done. Give it ~20 seconds, then check: http://127.0.0.1:4000/api/status
 echo It should say "online". If it says "offline", send back the last lines of

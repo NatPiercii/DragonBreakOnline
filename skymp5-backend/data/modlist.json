@@ -6,13 +6,13 @@
     "source": "backend"
   },
   {
-    "name": "Alduinak Mesh Fixes",
+    "name": "DragonBreak Mesh Fixes",
     "required": true,
     "enabled": true,
     "source": "url"
   },
   {
-    "name": "Alduinak",
+    "name": "DragonBreak",
     "required": true,
     "enabled": true,
     "source": "url"

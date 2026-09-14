@@ -22,7 +22,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const SETTINGS = process.env.ALDUINAK_SERVER_SETTINGS ||
+const SETTINGS = process.env.DRAGONBREAK_SERVER_SETTINGS ||
   path.join(__dirname, '..', '..', 'build', 'dist', 'server', 'server-settings.json')
 const APPLY = process.argv.includes('--apply')
 const args = process.argv.slice(2).filter(a => !a.startsWith('--'))

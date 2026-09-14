@@ -19,7 +19,7 @@ type Mp = any;
 // re-owns those two handlers on every hot reload). Every event is validated
 // by the C++ server before it fires and re-checked here for reach and
 // ownership, so a modified client cannot mint points. Each rank grants a marker spell;
-// recipes in the Alduinak plugin carry a HasSpell condition for the marker,
+// recipes in the DragonBreak plugin carry a HasSpell condition for the marker,
 // which is the one gate the engine honours on both sides: the vanilla crafting
 // menu hides recipes the player cannot make, and the server independently
 // refuses a forged craft packet for them.
@@ -40,7 +40,7 @@ type Mp = any;
 //   masteryRankHours             [adept, expert, master] thresholds, default [40, 100, 180]
 //   masteryPointIntervalMinutes  minimum gap between two points, default 60
 //   masterySpells                { "<professionId>": [noviceSpell, adept, expert, master] }
-//                                form ids from the Alduinak plugin; professions absent
+//                                form ids from the DragonBreak plugin; professions absent
 //                                from the map simply grant no spell.
 //   masteryActivities            { "<professionId>": { craftKeywords, craftStations,
 //                                activatePrefixes, activateTypes, eatIngredient,

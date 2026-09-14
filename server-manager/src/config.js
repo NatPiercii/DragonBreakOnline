@@ -23,17 +23,17 @@ function readEnv(key) {
   } catch { return '' }
 }
 
-const serverSettings = process.env.ALDUINAK_SERVER_SETTINGS
+const serverSettings = process.env.DRAGONBREAK_SERVER_SETTINGS
   || path.join(repoRoot, 'build', 'dist', 'server', 'server-settings.json')
 
 module.exports = {
   repoRoot,
-  logDir:   process.env.ALDUINAK_LOG_DIR || 'C:\\logs',
+  logDir:   process.env.DRAGONBREAK_LOG_DIR || 'C:\\logs',
   nssm:     nssmPath(),
 
   // Build output directory. Holds dist/ (the CI-built client/server payloads the
   // launcher and game server consume) and launcher/ (the Electron installer).
-  buildDir: process.env.ALDUINAK_BUILD_DIR || path.join(repoRoot, 'build'),
+  buildDir: process.env.DRAGONBREAK_BUILD_DIR || path.join(repoRoot, 'build'),
 
   // nssm services. `key` is the short label shown in the UI; `name` is the
   // actual Windows service. Order is the start order (stop order is reversed).
@@ -42,16 +42,16 @@ module.exports = {
   // Renamed services: migrate the live box by re-running build/dist/server/install-services.bat
   // legacyNames are pre-rename service names the manager falls back to until then.
   services: [
-    { key: 'nginx',   name: 'AlduinakNginx',      legacyNames: ['SkyrpNginx', 'SkyMPNginx'],      label: 'Nginx'    },
-    { key: 'backend', name: 'AlduinakBackend',    legacyNames: ['SkyrpBackend', 'SkyRP-Backend'], label: 'Backend'  },
-    { key: 'livekit', name: 'AlduinakLiveKit',    legacyNames: [],                                label: 'LiveKit'  },
-    { key: 'game',    name: 'AlduinakGameServer', legacyNames: ['SkyrpGameServer'],               label: 'Game'     },
+    { key: 'nginx',   name: 'DragonBreakNginx',      legacyNames: ['SkyrpNginx', 'SkyMPNginx'],      label: 'Nginx'    },
+    { key: 'backend', name: 'DragonBreakBackend',    legacyNames: ['SkyrpBackend', 'SkyRP-Backend'], label: 'Backend'  },
+    { key: 'livekit', name: 'DragonBreakLiveKit',    legacyNames: [],                                label: 'LiveKit'  },
+    { key: 'game',    name: 'DragonBreakGameServer', legacyNames: ['SkyrpGameServer'],               label: 'Game'     },
   ],
 
   // Reference MO2 install used to compile the manifest (the Modlist tab).
-  mo2Root:  process.env.ALDUINAK_MO2_ROOT  || 'C:\\MO2',
-  gameRoot: process.env.ALDUINAK_GAME_ROOT || 'C:\\GOG Games\\Skyrim Anniversary Edition',
-  profile:  process.env.ALDUINAK_MO2_PROFILE || 'Default',
+  mo2Root:  process.env.DRAGONBREAK_MO2_ROOT  || 'C:\\MO2',
+  gameRoot: process.env.DRAGONBREAK_GAME_ROOT || 'C:\\GOG Games\\Skyrim Anniversary Edition',
+  profile:  process.env.DRAGONBREAK_MO2_PROFILE || 'Default',
 
   paths: {
     launcher:     path.join(repoRoot, 'skymp5-launcher'),
@@ -70,7 +70,7 @@ module.exports = {
     serverSettings,
     // The game server's working directory: its file-database (changeForms)
     // and data dir live here. Defaults to the folder holding server-settings.json.
-    serverDir:    process.env.ALDUINAK_SERVER_DIR || path.dirname(serverSettings),
+    serverDir:    process.env.DRAGONBREAK_SERVER_DIR || path.dirname(serverSettings),
     launcherOut:  path.join(repoRoot, 'build', 'launcher'),
     clientOut:    path.join(repoRoot, 'build', 'dist', 'client'),
     dataDir:      path.join(repoRoot, 'skymp5-backend', 'data'),
@@ -94,11 +94,11 @@ module.exports = {
   // GitHub Actions dispatch for the CI Rebuild button (needs a PAT with actions:write).
   // token is a getter so a PAT saved on the Settings tab works without a manager restart.
   github: {
-    get token() { return process.env.ALDUINAK_GH_TOKEN || readEnv('ALDUINAK_GH_TOKEN') },
-    repo:     process.env.ALDUINAK_GH_REPO || 'Alduinak-RP/alduinak',
-    workflow: process.env.ALDUINAK_GH_WORKFLOW || 'dist-windows-flatrim.yml',
-    ref:      process.env.ALDUINAK_GH_REF || 'main',
+    get token() { return process.env.DRAGONBREAK_GH_TOKEN || readEnv('DRAGONBREAK_GH_TOKEN') },
+    repo:     process.env.DRAGONBREAK_GH_REPO || 'DragonBreak-RP/dragonbreak',
+    workflow: process.env.DRAGONBREAK_GH_WORKFLOW || 'dist-windows-flatrim.yml',
+    ref:      process.env.DRAGONBREAK_GH_REF || 'main',
   },
 
-  launcherArtifact: 'AlduinakLauncher.exe',
+  launcherArtifact: 'DragonBreakLauncher.exe',
 }

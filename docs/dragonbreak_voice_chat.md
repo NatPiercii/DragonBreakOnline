@@ -33,7 +33,7 @@ The integration described as "future work" below has been built:
 Rollout order: (1) CI flatrim rebuild -> new SkyrimPlatform.dll into the client
 dist, (2) server manager "Build Client" (front + client logic + repackage),
 (3) launcher rebuild/redistribute, (4) players re-download via launcher.
-LiveKit server + firewall are already live on the box (`AlduinakLiveKit`).
+LiveKit server + firewall are already live on the box (`DragonBreakLiveKit`).
 
 ### Trust model and accepted limitations
 

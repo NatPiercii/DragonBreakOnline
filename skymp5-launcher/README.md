@@ -1,16 +1,16 @@
-# Alduinak Launcher
+# DragonBreak Online Launcher
 
-Desktop launcher for the Alduinak SkyMP server. Handles Discord authentication, client file installation, mod management via Mod Organizer 2, and launching Skyrim through SKSE.
+Desktop launcher for the DragonBreak SkyMP server. Handles Discord authentication, client file installation, mod management via Mod Organizer 2, and launching Skyrim through SKSE.
 Original by the SkyMP team: https://github.com/F02K/SkyMP-Launcher
 
-Pre-built installers are available at **https://alduinak.com/**.
+Pre-built installers are available at **https://dragonbreakonline.com/**.
 
 ## Instructions
 
 1) Open the Server Manager (server-manager) and go to the Launcher tab
 2) Set the version if needed, then click "Rebuild"
-3) Collect the installer from build\launcher\AlduinakLauncher.exe (already named for distribution)
-4) nginx is already set up to route api.alduinak.com/download/AlduinakLauncher.exe, change this as needed
+3) Collect the installer from build\launcher\DragonBreakLauncher.exe (already named for distribution)
+4) nginx is already set up to route api.dragonbreakonline.com/download/DragonBreakLauncher.exe, change this as needed
 5) Whenever you edit these files, rebuild from the Launcher tab. Also, check the Backend readme.md for more.
 
 ## Project structure
@@ -19,7 +19,7 @@ Pre-built installers are available at **https://alduinak.com/**.
 src/
   main.js          Main process: window, IPC handlers, OAuth flow, install, launch
   preload.js       Context-isolated bridge - exposes window.electronAPI to renderer
-  config.js        API_URL from env (defaults to https://api.alduinak.com)
+  config.js        API_URL from env (defaults to https://api.dragonbreakonline.com)
   mo2.js           Mod Organizer 2 portable install + manifest replay
   nexus.js         Nexus Mods API (key validation, premium downloads, SSO)
   ini.js           Minimal INI reader/writer for SkyrimPrefs.ini
@@ -77,7 +77,7 @@ Online mode (server `offlineMode: false`):
 {
   "server-ip": "...",
   "server-port": 7777,
-  "master": "https://api.alduinak.com/",
+  "master": "https://api.dragonbreakonline.com/",
   "server-master-key": "<key>"
 }
 ```
@@ -117,7 +117,7 @@ the `files[]` list written by the backend's `npm run merge`.
 | Key | Type | Purpose |
 |-----|------|---------|
 | `skyrimPath` | string | Path to the source Skyrim Special Edition directory |
-| `baseDirPath` | string | Alduinak base dir: MO2 root, with the game copy at `<base>\skyrim` |
+| `baseDirPath` | string | DragonBreak base dir: MO2 root, with the game copy at `<base>\skyrim` |
 | `isolatedGame` | boolean | Play from the isolated game copy instead of `skyrimPath` |
 | `mo2Enabled` | boolean | Launch the game through the managed portable MO2 |
 | `activeServerIndex` | number | Index into the cached server list |

@@ -6,10 +6,10 @@ setlocal
 ::    1. Installs nginx to C:\nginx
 ::    2. Installs win-acme (Let's Encrypt client) to C:\tools\win-acme
 ::    3. Starts nginx on port 80 and obtains certificates for
-::       api. and dashboard.alduinak.com (auto-renewing)
+::       api. and dashboard.dragonbreakonline.com (auto-renewing)
 ::    4. Switches nginx to the full HTTPS proxy config
 ::       (api -> localhost:4000, dashboard -> localhost:4002)
-::    5. Registers nginx as the AlduinakNginx Windows service
+::    5. Registers nginx as the DragonBreakNginx Windows service
 ::  PREREQUISITE: DNS A records for both subdomains must point at
 ::  this machine, and ports 80/443 must be reachable from outside.
 ::  Safe to re-run; existing certificates are kept.
@@ -23,9 +23,9 @@ set "WACS_DIR=C:\tools\win-acme"
 set "WACS_VER=2.2.9.1701"
 set "NSSM_DIR=C:\tools\nssm"
 set "EMAIL="igravespmc@gmail.com"
-set "DOMAINS=api.alduinak.com,dashboard.alduinak.com"
-set "CERT_NAME=api.alduinak.com"
-set "SERVICE=AlduinakNginx"
+set "DOMAINS=api.dragonbreakonline.com,dashboard.dragonbreakonline.com"
+set "CERT_NAME=api.dragonbreakonline.com"
+set "SERVICE=DragonBreakNginx"
 
 :: ---- Re-launch elevated if not running as Administrator ----
 net session >nul 2>&1
@@ -169,7 +169,7 @@ if errorlevel 1 (
 )
 echo.
 echo Test from this machine:
-echo   curl https://api.alduinak.com/api/status
+echo   curl https://api.dragonbreakonline.com/api/status
 echo (The backend service must be running for it to return JSON.)
 echo.
 pause

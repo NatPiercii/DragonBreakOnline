@@ -5,7 +5,7 @@ document.getElementById('btn-close').addEventListener('click',    () => window.e
 
 // External nav links
 const EXTERNAL_URLS = {
-  website: 'https://alduinak.com/',           // e.g. 'https://example.com'
+  website: 'https://dragonbreakonline.com/',           // e.g. 'https://example.com'
   discord: 'https://discord.gg/Pkxdgt6W8q',   // e.g. 'https://discord.gg/...'
 }
 
@@ -556,10 +556,10 @@ async function refreshIsolatedStatus() {
     isolatedText.textContent = 'Game copy not installed yet - use Repair Game Copy'
   } else if (!fieldIsolated.checked) {
     isolatedDot.className    = 'vortex-status-dot dot-warn'
-    isolatedText.textContent = 'Alduinak install exists - playing from the original Skyrim'
+    isolatedText.textContent = 'DragonBreak install exists - playing from the original Skyrim'
   } else {
     isolatedDot.className    = 'vortex-status-dot dot-ok'
-    isolatedText.textContent = `Alduinak installed at ${st.base || st.dir}`
+    isolatedText.textContent = `DragonBreak installed at ${st.base || st.dir}`
   }
   refreshDownloadModsState(st)
 }
@@ -578,7 +578,7 @@ async function repairGameCopy() {
     installLog(`Error: ${result.error}`)
     return false
   }
-  // The base may have been nested under \Alduinak - reflect what was used.
+  // The base may have been nested under \DragonBreak - reflect what was used.
   if (result.dir) fieldBaseDir.value = result.dir
   installLog('Game copy ready ✓')
   fieldIsolated.checked = true
@@ -615,7 +615,7 @@ document.getElementById('btn-browse').addEventListener('click', async () => {
 
 // Browse install location (dialog fallback for the Install Location field)
 document.getElementById('btn-browse-base').addEventListener('click', async () => {
-  const folder = await window.electronAPI.openFolder('Choose where to install Alduinak (~16 GB: MO2 + game copy)')
+  const folder = await window.electronAPI.openFolder('Choose where to install DragonBreak (~16 GB: MO2 + game copy)')
   if (folder) fieldBaseDir.value = folder
 })
 
@@ -921,7 +921,7 @@ function updatePlayButton() {
   if (!isoReady) {
     btnConnect.disabled    = false
     btnConnect.textContent = '\u2699 INSTALL'
-    btnConnect.title       = 'Installs Alduinak automatically, then launches.'
+    btnConnect.title       = 'Installs DragonBreak automatically, then launches.'
     return
   }
 

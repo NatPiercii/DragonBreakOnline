@@ -42,7 +42,7 @@ function log(...args) {
 try {
   fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true })
   // Truncate per run so the file stays small and always covers the last attempt
-  fs.writeFileSync(LOG_FILE, `=== alduinak install log ${new Date().toISOString()} ===\n`)
+  fs.writeFileSync(LOG_FILE, `=== dragonbreak install log ${new Date().toISOString()} ===\n`)
 } catch { }
 
 // Route module debug output through the same logger
@@ -63,7 +63,7 @@ const store = new Store({
     nexusUser:         null,   // { name, isPremium } from the last validation
     isolatedGame:      true,  // play from the isolated game copy instead of skyrimPath
     gameDirPath:       '',     // legacy: pre-base-dir location of the game copy
-    baseDirPath:       '',     // Alduinak base dir: MO2 root, with the game at <base>\skyrim
+    baseDirPath:       '',     // DragonBreak base dir: MO2 root, with the game at <base>\skyrim
     forcedDefaultsApplied: false, // server-required graphics defaults seeded once at first install
   }
 })
@@ -71,7 +71,7 @@ const store = new Store({
 mo2.setRootProvider(() => store.get('baseDirPath') || DEFAULT_BASE_DIR)
 
 // Default install root for MO2 + the portable game copy when none is stored.
-const DEFAULT_BASE_DIR = 'C:\\Alduinak'
+const DEFAULT_BASE_DIR = 'C:\\DragonBreak'
 
 let win = null
 
@@ -98,7 +98,7 @@ function isolatedGameDir() {
   const legacy = store.get('gameDirPath')
   if (legacy) return legacy
   const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
-  return path.join(local, 'Alduinak', 'GameDir')
+  return path.join(local, 'DragonBreak', 'GameDir')
 }
 
 function isolatedGameReady() {
@@ -317,7 +317,7 @@ ipcMain.handle('settings:save', (_e, data) => {
 
 // Graphics / hotkey settings (Settings tab)
 // Graphics edit the MO2 portable profile's SkyrimPrefs.ini. NOTE: this assumes
-// the Alduinak profile uses profile-specific INI files; and if SSEDisplayTweaks is
+// the DragonBreak profile uses profile-specific INI files; and if SSEDisplayTweaks is
 // active it may override window mode via its own ini.
 function skyrimPrefsPath() {
   return path.join(mo2.getProfileDir(), 'skyrimprefs.ini')
@@ -580,7 +580,7 @@ ipcMain.handle('gameHotkeys:save', (_e, keys) => {
 
 // Forced server defaults
 // The server ships a couple of required defaults. We apply them once, when the
-// Alduinak install is first set up, so later tweaks in the Settings tab aren't
+// DragonBreak install is first set up, so later tweaks in the Settings tab aren't
 // reverted on every client update:
 //   • borderless window mode → MO2 profile's SkyrimPrefs.ini [Display]
 //     (resolution is player-owned: it comes from the seeded ini, or the
@@ -957,10 +957,10 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
   let base = (typeof baseDirOverride === 'string' && baseDirOverride.trim()) ||
              store.get('baseDirPath') || DEFAULT_BASE_DIR
 
-  // Portable instance fix: nest a generic folder under \Alduinak
-  if (path.basename(base).toLowerCase() !== 'alduinak' &&
+  // Portable instance fix: nest a generic folder under \DragonBreak
+  if (path.basename(base).toLowerCase() !== 'dragonbreak' &&
       !fs.existsSync(path.join(base, 'alduinak-instance.txt'))) {
-    base = path.join(base, 'Alduinak')
+    base = path.join(base, 'DragonBreak')
   }
 
   const dst = path.join(base, 'skyrim')
@@ -973,7 +973,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
       message: 'Warning, you are trying to download the game on top of itself. ' +
                'Please choose a new spot to install a copy of Skyrim, such as the root folder (c:/).',
       detail:
-        'Alduinak uses a portable Skyrim install for maximum compatibility with other modlists or servers.\n' +
+        'DragonBreak uses a portable Skyrim install for maximum compatibility with other modlists or servers.\n' +
         "If you're short on disk space, you can turn this feature off in the troubleshooting tab.",
       buttons: ['OK'],
       defaultId: 0,
@@ -987,7 +987,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
 
   try {
     store.set('baseDirPath', base)
-    // Mark this folder as an Alduinak instance so future setups reuse it in
+    // Mark this folder as an DragonBreak instance so future setups reuse it in
     // place instead of nesting again.
     try { fs.mkdirSync(base, { recursive: true }); fs.writeFileSync(path.join(base, 'alduinak-instance.txt'), '') } catch {}
     send('isolated:progress', 'Installing Mod Organizer 2…')
@@ -1021,7 +1021,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
     store.set('isolatedGame', true)
     store.set('mo2Enabled', true)
 
-    log(`[isolated] Alduinak install ready at ${base}`)
+    log(`[isolated] DragonBreak install ready at ${base}`)
     return { success: true, dir: base }
   } catch (err) {
     return { success: false, error: err.message }
@@ -1215,7 +1215,7 @@ async function maybeWarnNeverLaunched() {
     message: "Skyrim's My Documents ini files are missing.",
     detail:
       'Run vanilla Skyrim once (Steam/GOG), reach the main menu, then quit so the game creates them. ' +
-      'The Alduinak install steps stay blocked until then.',
+      'The DragonBreak install steps stay blocked until then.',
     buttons: ['OK'],
     defaultId: 0,
   })
@@ -1230,7 +1230,7 @@ async function showGameVersionDialog(gv) {
     const { response } = await dialog.showMessageBox(win, {
       type: 'warning',
       title: 'Wrong Skyrim version',
-      message: `Skyrim is version ${gv.version}, but Alduinak needs ${gv.required}.`,
+      message: `Skyrim is version ${gv.version}, but DragonBreak needs ${gv.required}.`,
       detail:
         `Checked: ${gv.exe}\n\n` +
         'Use the Reliquary downgrade tool from Nexus Mods to switch Skyrim Special Edition to build 1.6.1170; it only downloads the files that differ. ' +
@@ -1460,7 +1460,7 @@ ipcMain.handle('app:installUpdate', async () => {
       return { ok: false, error: 'Refusing to install an update from a non-HTTPS URL.' }
     }
 
-    const dest = path.join(os.tmpdir(), 'AlduinakLauncher-update.exe')
+    const dest = path.join(os.tmpdir(), 'DragonBreakLauncher-update.exe')
     send('update:progress', { phase: 'download', received: 0, total: 0 })
     await downloadToFile(data.downloadUrl, dest, (received, total) =>
       send('update:progress', { phase: 'download', received, total }))
@@ -1637,7 +1637,7 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   const gv = gameversion.checkGameVersion(skyrimPath, mo2.detectEdition(skyrimPath))
   if (!gv.ok) {
     showGameVersionDialog(gv)
-    return { success: false, error: `Skyrim ${gv.version} found in ${skyrimPath}; Alduinak needs ${gv.required}. Downgrade it (see the popup), then press PLAY again.` }
+    return { success: false, error: `Skyrim ${gv.version} found in ${skyrimPath}; DragonBreak needs ${gv.required}. Downgrade it (see the popup), then press PLAY again.` }
   }
 
   const srv = activeServer()
@@ -2635,7 +2635,7 @@ async function runMO2Install(opts = {}) {
       openDownloadList(downloadsDir, needBrowser)
       send('install:progress', {
         phase: 'mods',
-        file:  'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the Alduinak downloads folder.',
+        file:  'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder.',
         index: 0, total: needBrowser.length, skipped: false,
       })
       // Matched by sha256, so paths come back verified regardless of filename; the

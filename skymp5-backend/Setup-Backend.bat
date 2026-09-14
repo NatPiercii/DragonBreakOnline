@@ -2,14 +2,14 @@
 setlocal
 
 :: ============================================================
-::   Alduinak backend one-click installer. Double-click to run.
+::   DragonBreak backend one-click installer. Double-click to run.
 :: ============================================================
 
 set "BACKEND_DIR=%~dp0"
 if "%BACKEND_DIR:~-1%"=="\" set "BACKEND_DIR=%BACKEND_DIR:~0,-1%"
 set "LOG_DIR=C:\logs"
 set "NSSM_DIR=C:\tools\nssm"
-set "SERVICE=AlduinakBackend"
+set "SERVICE=DragonBreakBackend"
 
 :: Elevate to admin
 net session >nul 2>&1
@@ -20,7 +20,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo === Alduinak backend setup ===
+echo === DragonBreak backend setup ===
 echo Backend folder: %BACKEND_DIR%
 echo.
 
@@ -108,8 +108,8 @@ echo Configuring service: %SERVICE%
 
 :: Firewall
 netsh advfirewall firewall delete rule name="SkyRP WS Relay TCP 7778" >nul 2>&1
-netsh advfirewall firewall delete rule name="Alduinak WS Relay TCP 7778" >nul 2>&1
-netsh advfirewall firewall add  rule name="Alduinak WS Relay TCP 7778" dir=in action=allow protocol=TCP localport=7778
+netsh advfirewall firewall delete rule name="DragonBreak WS Relay TCP 7778" >nul 2>&1
+netsh advfirewall firewall add  rule name="DragonBreak WS Relay TCP 7778" dir=in action=allow protocol=TCP localport=7778
 
 :: Start
 echo Starting %SERVICE%...

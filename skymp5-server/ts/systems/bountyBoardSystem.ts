@@ -123,7 +123,7 @@ export class BountyBoardSystem implements System {
     const maxDistance = Number(all?.["bountyBoardMaxDistance"]);
     if (Number.isFinite(maxDistance) && maxDistance > 0) this.maxDistance = maxDistance;
 
-    this.logDir = process.env.ALDUINAK_LOG_DIR || String(all?.["logDir"] || "") || "C:\\logs";
+    this.logDir = process.env.DRAGONBREAK_LOG_DIR || String(all?.["logDir"] || "") || "C:\\logs";
     try { fs.mkdirSync(this.logDir, { recursive: true }); } catch { /* appendFile will complain */ }
 
     const mp = ctx.svr as Mp;

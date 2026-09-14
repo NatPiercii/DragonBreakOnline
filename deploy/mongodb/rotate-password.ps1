@@ -17,7 +17,7 @@ param(
   [string]$User = 'skympuser',
   [string]$MongoCfg = 'C:\Program Files\MongoDB\Server\8.0\bin\mongod.cfg',
   [string]$ServiceName = 'MongoDB',
-  [string]$Settings = 'C:\Users\Administrator\Desktop\alduinak\build\dist\server\server-settings.json'
+  [string]$Settings = 'C:\Users\Administrator\Desktop\dragonbreak\build\dist\server\server-settings.json'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -111,4 +111,4 @@ if (Test-Path $merged) { Remove-Item $merged -Force; Write-Host '[rotate] remove
 $newUri = "mongodb://${User}:${escaped}@127.0.0.1:27017/skymp?authSource=admin"
 $count = Invoke-Mongo $newUri "print(db.getSiblingDB('skymp').changeForms.countDocuments({}))"
 Write-Host "[rotate] verified: changeForms docs = $count"
-Write-Host '[rotate] DONE. Restart AlduinakGameServer so it picks up the new password.'
+Write-Host '[rotate] DONE. Restart DragonBreakGameServer so it picks up the new password.'

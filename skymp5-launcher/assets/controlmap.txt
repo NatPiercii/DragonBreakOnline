@@ -1,4 +1,4 @@
-// Alduinak launcher controlmap override.
+// DragonBreak launcher controlmap override.
 // Based on the vanilla Skyrim AE (1.6.1130+) PC controlmap.txt, which adds the Creations Menu
 // input context. The only change from vanilla is the "Wait" action: its keyboard (T / 0x14) and
 // gamepad (Back / 0x0020) bindings are set to 0xff (unbound), because waiting is disabled on the

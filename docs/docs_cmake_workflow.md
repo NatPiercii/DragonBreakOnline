@@ -1,6 +1,6 @@
 # CMake Workflow
 
-## Alduinak note (2026-07-28): building the C++ locally
+## DragonBreak note (2026-07-28): building the C++ locally
 
 The server manager's Build tab has a **Native (C++)** button that runs this whole
 flow for you (`server-manager/src/build.js` -> `buildNative`), or `build native`
@@ -30,7 +30,7 @@ are incremental. The `CI Rebuild` button remains the alternative.
 **Two flags in the circulating "SkyMP Build Instructions" note are fictional:**
 `-DSKYMP_VOICE_CHAT=ON` is read by nothing, and `-DVCPKG_MANIFEST_FEATURES=voice-chat`
 **aborts** the configure (no such vcpkg feature). Do not pass either; voice chat is
-already implemented in this fork (see docs/alduinak_voice_chat.md).
+already implemented in this fork (see docs/dragonbreak_voice_chat.md).
 
 ## Upstream documentation
 
@@ -44,7 +44,7 @@ On Windows the build requires the `Visual Studio 17 2022` generator (v143 toolse
 cmake .. -G "Visual Studio 17 2022" -A x64 -DSKYRIM_DIR="<your Skyrim install folder>"
 ```
 
-Note: there is no `SKYMP_VOICE_CHAT` CMake option or `voice-chat` vcpkg feature in this tree. Do not pass `-DSKYMP_VOICE_CHAT=ON` (nothing reads it) or `-DVCPKG_MANIFEST_FEATURES=voice-chat` (vcpkg aborts with an unknown-feature error). See `alduinak_voice_chat.md`.
+Note: there is no `SKYMP_VOICE_CHAT` CMake option or `voice-chat` vcpkg feature in this tree. Do not pass `-DSKYMP_VOICE_CHAT=ON` (nothing reads it) or `-DVCPKG_MANIFEST_FEATURES=voice-chat` (vcpkg aborts with an unknown-feature error). See `dragonbreak_voice_chat.md`.
 
 ## Adding Source Files
 

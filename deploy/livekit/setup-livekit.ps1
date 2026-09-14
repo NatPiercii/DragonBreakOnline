@@ -1,5 +1,5 @@
 <#
-  Alduinak LiveKit media-server setup. RUN THIS YOURSELF, elevated.
+  DragonBreak LiveKit media-server setup. RUN THIS YOURSELF, elevated.
   Deploys the LiveKit server binary (reusing X:\Downloads if present),
   generates API keys into livekit.yaml, registers a Windows service, and
   opens the firewall ports. Safe to re-run: keys are only generated once.
@@ -9,7 +9,7 @@
 
   IMPORTANT: LiveKit is only the media server. In-game voice also needs the
   client-side WebRTC/LiveKit integration, which does NOT exist in this fork yet.
-  See docs/alduinak_voice_chat.md before relying on this. Standing up LiveKit
+  See docs/dragonbreak_voice_chat.md before relying on this. Standing up LiveKit
   alone will not produce in-game voice.
 
   Usage (elevated):
@@ -17,7 +17,7 @@
 #>
 param(
   [string] $Version = "1.13.4",
-  [string] $Root = "X:\Alduinak\livekit"
+  [string] $Root = "X:\DragonBreak\livekit"
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,8 +78,8 @@ if (Test-Path $cfgDst) {
 
 # 3. Firewall: signaling TCP 7880/7881 + UDP media range 50000-50200 (skip if present).
 foreach ($rule in @(
-  @{ Name = "Alduinak LiveKit TCP"; Proto = "TCP"; Ports = "7880,7881" },
-  @{ Name = "Alduinak LiveKit UDP"; Proto = "UDP"; Ports = "50000-50200" }
+  @{ Name = "DragonBreak LiveKit TCP"; Proto = "TCP"; Ports = "7880,7881" },
+  @{ Name = "DragonBreak LiveKit UDP"; Proto = "UDP"; Ports = "50000-50200" }
 )) {
   netsh advfirewall firewall show rule name="$($rule.Name)" | Out-Null
   if ($LASTEXITCODE -eq 0) {
@@ -95,18 +95,18 @@ foreach ($rule in @(
 $nssm = Join-Path $repoRoot "server-manager\tools\nssm.exe"
 if (-not (Test-Path $nssm)) { $nssm = "C:\tools\nssm\nssm.exe" }
 if (Test-Path $nssm) {
-  $existing = Get-Service AlduinakLiveKit -ErrorAction SilentlyContinue
+  $existing = Get-Service DragonBreakLiveKit -ErrorAction SilentlyContinue
   if (-not $existing) {
-    Write-Host "[livekit] registering AlduinakLiveKit service"
-    & $nssm install AlduinakLiveKit $exe "--config" $cfgDst
+    Write-Host "[livekit] registering DragonBreakLiveKit service"
+    & $nssm install DragonBreakLiveKit $exe "--config" $cfgDst
     if ($LASTEXITCODE -ne 0) { throw "nssm install failed (exit $LASTEXITCODE)" }
-    & $nssm set AlduinakLiveKit AppDirectory $Root
+    & $nssm set DragonBreakLiveKit AppDirectory $Root
   }
-  if ((Get-Service AlduinakLiveKit).Status -eq "Running") {
-    Write-Host "[livekit] AlduinakLiveKit service already running"
+  if ((Get-Service DragonBreakLiveKit).Status -eq "Running") {
+    Write-Host "[livekit] DragonBreakLiveKit service already running"
   } else {
-    & $nssm start AlduinakLiveKit
-    Write-Host "[livekit] AlduinakLiveKit service started"
+    & $nssm start DragonBreakLiveKit
+    Write-Host "[livekit] DragonBreakLiveKit service started"
   }
 } else {
   Write-Warning "nssm not found (server-manager\tools or C:\tools\nssm); run manually: `"$exe`" --config `"$cfgDst`""
@@ -114,4 +114,4 @@ if (Test-Path $nssm) {
 
 Write-Host ""
 Write-Host "[livekit] done. Server listening on 7880 (signaling), media UDP 50000-50200."
-Write-Host "[livekit] REMEMBER: in-game voice still needs the client integration (docs/alduinak_voice_chat.md)."
+Write-Host "[livekit] REMEMBER: in-game voice still needs the client integration (docs/dragonbreak_voice_chat.md)."
