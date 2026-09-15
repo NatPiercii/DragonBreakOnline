@@ -181,6 +181,19 @@ export class RemoteServer extends ClientListener {
     if (!(hosted as Array<unknown>).includes(target)) {
       (hosted as Array<unknown>).push(target);
     }
+
+    // The copy may still be sliding (translateTo, no collision) from its first movement sample; its own AI drives it now
+    once('update', () => {
+      try {
+        const localId = remoteIdToLocalId(target);
+        const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
+        if (!ac || ac.getFormID() === 0x14) return;
+        ac.stopTranslation();
+        ac.evaluatePackage();
+      } catch (e) {
+        logError(this, `hostStart settle failed for`, target.toString(16), e);
+      }
+    });
   }
 
   private onHostStopMessage(event: ConnectionMessage<HostStopMessage>) {
