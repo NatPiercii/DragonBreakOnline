@@ -88,6 +88,11 @@ let pcInvLastApply = 0;
 let pcInvHoldUntil = 0;
 let encumbranceRefreshPending = false;
 
+// Rebuilding the player's head or gear while RaceSexMenu frees its head parts crashes in the allocator
+const RACE_MENU_SETTLE_MS = 3000;
+const isRaceMenuSettling = (): boolean =>
+  Ui.isMenuOpen("RaceSex Menu") || Date.now() - (Number((globalThis as any).__dboRaceMenuClosedAt) || 0) < RACE_MENU_SETTLE_MS;
+
 // Holds the periodic re-apply while the server has not seen a local change yet
 export const holdPcInventoryApply = (ms: number): void => {
   pcInvHoldUntil = Math.max(pcInvHoldUntil, Date.now() + ms);
@@ -108,7 +113,7 @@ on('update', () => {
     player.modActorValue("CarryWeight", -1);
   }
   // Snapshots sent before the server saw a quick run of consumes would re-add them
-  if (Date.now() < pcInvHoldUntil) {
+  if (Date.now() < pcInvHoldUntil || isRaceMenuSettling()) {
     return;
   }
   if (Date.now() - pcInvLastApply > 5000) {
@@ -811,6 +816,11 @@ export class RemoteServer extends ClientListener {
     const newAppearance = msg.data;
 
     if (i === this.getMyActorIndex() && newAppearance) {
+      // The echo of the appearance this client just sent from RaceMenu
+      if (isRaceMenuSettling()) {
+        logTrace(this, "Skipped own appearance echo while RaceMenu settles");
+        return;
+      }
       this.controller.once("update", () => {
         applyAppearanceToPlayer(newAppearance);
         logTrace(this, "Applied appearance to the player");

@@ -261,6 +261,8 @@ export class SendInputsService extends ClientListener {
             this.isRaceSexMenuShown = shown;
             if (!shown) {
                 this.sp.printConsole('Exited from race menu');
+                // remoteServer holds player rebuilds while the menu tears down its head parts
+                (globalThis as any).__dboRaceMenuClosedAt = Date.now();
 
                 const appearance = getAppearance(this.sp.Game.getPlayer() as Actor);
                 // TODO: log appearance contents to debug appearance issues?
