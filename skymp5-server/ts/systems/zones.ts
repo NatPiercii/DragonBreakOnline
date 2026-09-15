@@ -22,6 +22,8 @@ export interface Zone {
   center?: number[];
   radius?: number;
   worldspaces?: string[];
+  // Container ref desc that receives the zone's fees, e.g. "f19f:DragonBreak.esp".
+  treasury?: string;
 }
 
 const ZONES_FILE = "zones.json";
@@ -32,6 +34,7 @@ const CITY_WORLD_DESCS = ["1a26f:Skyrim.esm", "1691d:Skyrim.esm", "16bb4:Skyrim.
 
 const numList = (v: unknown): number[] => Array.isArray(v) ? v.map(Number).filter(Number.isFinite) : [];
 const strList = (v: unknown): string[] => Array.isArray(v) ? v.map(String) : [];
+const optStr = (v: unknown): string | undefined => typeof v === "string" && v ? v : undefined;
 
 // "0x1A26F:Skyrim.esm", "1a26f:Skyrim.esm" and "01A26F:skyrim.esm" are one worldspace.
 export const normDesc = (desc: unknown): string => {
@@ -57,15 +60,15 @@ export class Zones {
       this.zones = [];
       for (const h of Array.isArray(raw.holds) ? raw.holds : []) {
         if (!h || typeof h.id !== "string") continue;
-        this.zones.push({ id: h.id, name: String(h.name || h.id), kind: "hold", officials: strList(h.officials), capital: numList(h.capital) });
+        this.zones.push({ id: h.id, name: String(h.name || h.id), kind: "hold", officials: strList(h.officials), capital: numList(h.capital), treasury: optStr(h.treasury) });
       }
       for (const s of Array.isArray(raw.strongholds) ? raw.strongholds : []) {
         if (!s || typeof s.id !== "string") continue;
-        this.zones.push({ id: s.id, name: String(s.name || s.id), kind: "stronghold", officials: strList(s.officials), center: numList(s.center), radius: Number(s.radius) || 0 });
+        this.zones.push({ id: s.id, name: String(s.name || s.id), kind: "stronghold", officials: strList(s.officials), center: numList(s.center), radius: Number(s.radius) || 0, treasury: optStr(s.treasury) });
       }
       for (const r of Array.isArray(raw.regions) ? raw.regions : []) {
         if (!r || typeof r.id !== "string") continue;
-        this.zones.push({ id: r.id, name: String(r.name || r.id), kind: "region", officials: strList(r.officials), worldspaces: strList(r.worldspaces).map(normDesc) });
+        this.zones.push({ id: r.id, name: String(r.name || r.id), kind: "region", officials: strList(r.officials), worldspaces: strList(r.worldspaces).map(normDesc), treasury: optStr(r.treasury) });
       }
       this.rankTitles = raw.rankTitles && typeof raw.rankTitles === "object" ? raw.rankTitles : {};
       this.strongholdsOverride = !(raw.sovereignty && raw.sovereignty.strongholdsOverrideHolds === false);

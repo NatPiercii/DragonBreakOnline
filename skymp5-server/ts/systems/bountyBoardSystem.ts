@@ -43,6 +43,7 @@ type Mp = any;
 //   bountyBoardMaxNotes     notices one hold's board holds, default 60
 //   bountyBoardMaxTextLen   characters per notice, default 500
 //   bountyBoardMaxDistance  posting reach in game units, default 512
+//   bountyBoardTreasuryPercent  share of a paid post deposited in the zone's treasury, default 50
 
 const DEFAULT_BASE_DESCS = [
   "3e10:notice board.esp",          // manny_up_NoticeBoardActivator
@@ -60,6 +61,7 @@ const DEFAULT_EXPIRY_DAYS = 7;
 const DEFAULT_MAX_NOTES = 60;
 const DEFAULT_MAX_TEXT_LEN = 500;
 const DEFAULT_MAX_DISTANCE = 512;
+const DEFAULT_TREASURY_PERCENT = 50;
 
 const POST_COOLDOWN_MS = 5000;
 const OPEN_COOLDOWN_MS = 1000;
@@ -120,6 +122,8 @@ export class BountyBoardSystem implements System {
     if (Number.isFinite(maxLen) && maxLen > 0) this.maxTextLen = Math.floor(maxLen);
     const maxDistance = Number(all?.["bountyBoardMaxDistance"]);
     if (Number.isFinite(maxDistance) && maxDistance > 0) this.maxDistance = maxDistance;
+    const treasuryPercent = Number(all?.["bountyBoardTreasuryPercent"]);
+    if (Number.isFinite(treasuryPercent) && treasuryPercent >= 0) this.treasuryPercent = Math.min(100, treasuryPercent);
 
     this.logDir = process.env.DRAGONBREAK_LOG_DIR || String(all?.["logDir"] || "") || "C:\\logs";
     try { fs.mkdirSync(this.logDir, { recursive: true }); } catch { /* appendFile will complain */ }
@@ -312,12 +316,14 @@ export class BountyBoardSystem implements System {
       return;
     }
 
+    const deposited = cost > 0 ? this.depositToTreasury(ctx, zone, Math.floor(cost * this.treasuryPercent / 100)) : 0;
+
     const author = this.displayNameOf(ctx, actorId) + (official ? `, ${this.zones.titleOf(official)}` : "");
     rec.notes.push({ id: rec.nextId, tab, author, profileId, text, createdAt: now });
     rec.nextId += 1;
     this.saveStore();
 
-    this.appendLog(`${this.describeActor(ctx, actorId)} posted on the ${zone.name} board [${tabDef.label}]${cost ? ` (-${cost} gold)` : ""}: ${JSON.stringify(text)}`);
+    this.appendLog(`${this.describeActor(ctx, actorId)} posted on the ${zone.name} board [${tabDef.label}]${cost ? ` (-${cost} gold${deposited ? `, ${deposited} to the ${zone.name} treasury` : ""})` : ""}: ${JSON.stringify(text)}`);
     this.notice(ctx, userId, "Your notice is pinned to the board.");
     this.refreshViewers(ctx, session.zoneId);
   }
@@ -465,6 +471,26 @@ export class BountyBoardSystem implements System {
     } catch (e) {
       this.log(`[board] could not take gold from ${actorId.toString(16)}: ${e}`);
       return false;
+    }
+  }
+
+  // Returns the gold actually deposited; zones without a treasury keep nothing.
+  private depositToTreasury(ctx: SystemContext, zone: Zone, amount: number): number {
+    if (amount <= 0 || !zone.treasury) return 0;
+    const mp = ctx.svr as Mp;
+    try {
+      const chestId = mp.getIdFromDesc(zone.treasury) >>> 0;
+      if (!chestId) return 0;
+      const inv = mp.get(chestId, "inventory");
+      const entries = inv && Array.isArray(inv.entries) ? inv.entries.slice() : [];
+      const gold = entries.find((e: any) => (Number(e?.baseId) >>> 0) === GOLD_BASE_ID);
+      if (gold) gold.count = (Number(gold.count) || 0) + amount;
+      else entries.push({ baseId: GOLD_BASE_ID, count: amount });
+      mp.set(chestId, "inventory", { entries });
+      return amount;
+    } catch (e) {
+      this.log(`[board] could not deposit ${amount} gold in the ${zone.id} treasury ${zone.treasury}: ${e}`);
+      return 0;
     }
   }
 
@@ -635,6 +661,7 @@ export class BountyBoardSystem implements System {
   private maxNotes = DEFAULT_MAX_NOTES;
   private maxTextLen = DEFAULT_MAX_TEXT_LEN;
   private maxDistance = DEFAULT_MAX_DISTANCE;
+  private treasuryPercent = DEFAULT_TREASURY_PERCENT;
   private logDir = "C:\\logs";
   private storePath = "";
   private store: Record<string, BoardRecord> = {};
