@@ -344,11 +344,14 @@ export class MasterySystem implements System {
     if (!rec || !rec.order.length) return;
     const now = Date.now();
     let changed = false;
+    // Hunger slows the work: the gamemode writes private.needs.xpMult (1 fed, 0.25 starving), and a
+    // quarter rate means an hour of work takes four times as long to be counted.
+    const interval = this.intervalMs / this.xpMultOf(ctx, ev.actorId);
     for (const id of rec.order) {
       const prog = rec.skills[id]; const rules = this.rules[id];
       if (!prog || !rules) continue;
       const elapsed = now - prog.lastPointAt;
-      if (elapsed >= 0 && elapsed < this.intervalMs) continue;
+      if (elapsed >= 0 && elapsed < interval) continue;
       if (!this.matches(ctx, id, rules, ev)) continue;
       prog.points += 1; prog.lastPointAt = now; changed = true;
       const userId = this.userOf(ctx, ev.actorId);
@@ -356,6 +359,15 @@ export class MasterySystem implements System {
       this.syncRank(ctx, ev.actorId, rec, id, userId);
     }
     if (changed) this.write(ctx, ev.actorId, rec);
+  }
+
+  // 0 < mult <= 1 from the needs record; anything missing or odd counts as fed.
+  private xpMultOf(ctx: SystemContext, actorId: number): number {
+    try {
+      const needs = (ctx.svr as Mp).get(actorId, "private.needs");
+      const m = Number(needs && typeof needs === "object" ? needs.xpMult : 1);
+      return Number.isFinite(m) && m > 0 && m <= 1 ? m : 1;
+    } catch { return 1; }
   }
 
   private matches(ctx: SystemContext, skillId: string, rules: ResolvedRules, ev: ActivityEvent): boolean {

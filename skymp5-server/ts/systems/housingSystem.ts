@@ -3,6 +3,7 @@ import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { espmRefrFieldId, toFormId } from "./formIdUtil";
 import { AdminRoleConfig, readAdminRoleConfig, adminTierOf } from "./adminRoles";
+import { getZones, Zones } from "./zones";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -57,29 +58,31 @@ const DECOR_PUSH_INTERVAL_MS = 4000;
 const REQUEST_COOLDOWN_MS = 500;
 const CHANGE_FAILED = "That cannot be changed right now.";
 
-// Hold ranks that may manage property in their own hold; ported from the
-// permission matrix in server_guest_lib/HoldClaims.cpp.
-const MANAGER_RANKS = ["jarl", "steward"];
+// Ranks that manage property in their own zone: the Jarl and Steward of a hold, the
+// Chieftain and Bane of a sovereign stronghold (zones.json). A stronghold's radius wins
+// over the surrounding hold, so hold officials have no say inside it and vice versa.
+// Managers claim, revoke, rename, transfer, re-key and cut keys for any property there.
+const MANAGER_RANKS = ["jarl", "steward", "chieftain", "bane"];
 
-// Interior cells that belong to a hold, from HoldClaims::GetHoldCells().
-// Only these can resolve a hold manager; everything else is owner + admin only.
+// Interior cells that belong to a hold, kept as a fallback for interiors whose exterior
+// door the server cannot place (old HoldClaims table, slugs mapped to zones.json ids).
 const HOLD_CELLS: Record<number, string> = {
   0x000165a8: "whiterun",   // Breezehome
   0x0001b131: "whiterun",   // Dragonsreach Dungeon
-  0x0003480e: "eastmarch",  // Hjerim
-  0x000d7b12: "eastmarch",  // Windhelm Barracks
-  0x000c9f1a: "rift",       // Honeyside
-  0x0008bfe6: "rift",       // Riften Jail
-  0x00017013: "reach",      // Vlindrel Hall
-  0x00018b22: "reach",      // Hall of Justice
-  0x000165a0: "haafingar",  // Proudspire Manor
-  0x000136c9: "haafingar",  // Castle Dour Dungeon
-  0x0301ab54: "pale",       // Heljarchen Hall
-  0x0001620b: "pale",       // Dawnstar jail
+  0x0003480e: "windhelm",   // Hjerim
+  0x000d7b12: "windhelm",   // Windhelm Barracks
+  0x000c9f1a: "riften",     // Honeyside
+  0x0008bfe6: "riften",     // Riften Jail
+  0x00017013: "markarth",   // Vlindrel Hall
+  0x00018b22: "markarth",   // Hall of Justice
+  0x000165a0: "solitude",   // Proudspire Manor
+  0x000136c9: "solitude",   // Castle Dour Dungeon
+  0x0301ab54: "dawnstar",   // Heljarchen Hall
+  0x0001620b: "dawnstar",   // Dawnstar jail
   0x0300307b: "falkreath",  // Lakeview Manor
   0x000fa3d9: "falkreath",  // Falkreath jail
-  0x0300307e: "hjaalmarch", // Windstad Manor
-  0x00038a92: "hjaalmarch", // Morthal jail
+  0x0300307e: "morthal",    // Windstad Manor
+  0x00038a92: "morthal",    // Morthal jail
   0x0001e7e0: "winterhold", // College quarters
   0x0001e7e2: "winterhold", // Winterhold jail
 };
@@ -129,6 +132,7 @@ export class HousingSystem implements System {
     if (Number.isFinite(maxDistance) && maxDistance > 0) this.maxDistance = maxDistance;
 
     this.roleCfg = readAdminRoleConfig(all);
+    this.zones = getZones(this.log);
 
     this.claimed = this.loadRegistry();
     this.installActivationHook(ctx);
@@ -246,7 +250,7 @@ export class HousingSystem implements System {
       case "lock": this.doLock(ctx, userId, actorId, primary, rec, true); break;
       case "unlock": this.doLock(ctx, userId, actorId, primary, rec, false); break;
       case "rename": this.doRename(ctx, userId, primary, rec, isOwner, isManager, content["name"]); break;
-      case "createkey": this.doCreateKey(ctx, userId, actorId, primary, rec, isOwner); break;
+      case "createkey": this.doCreateKey(ctx, userId, actorId, primary, rec, isOwner || isManager); break;
       case "revokekeys": this.doRevokeKeys(ctx, userId, primary, rec, isOwner, isManager); break;
       case "transfer": this.doTransfer(ctx, userId, primary, rec, isOwner, isManager, content["recipient"]); break;
       case "grantcontainer": this.doGrantContainer(ctx, userId, primary, rec, isOwner, isManager, content["recipient"]); break;
@@ -343,7 +347,7 @@ export class HousingSystem implements System {
   // handed over in trade works immediately and needs no server bookkeeping.
   private doCreateKey(ctx: SystemContext, userId: number, actorId: number, primary: number, rec: PropertyRecord, isOwner: boolean): void {
     if (!isOwner) {
-      this.notice(ctx, userId, "Only the owner cuts keys.");
+      this.notice(ctx, userId, "Only the owner, the Jarl or the Steward cuts keys here.");
       return;
     }
     const keyName = this.keyNameOf(primary, rec);
@@ -486,9 +490,14 @@ export class HousingSystem implements System {
     return adminTierOf(ctx.svr as Mp, actorId, this.roleCfg) !== null;
   }
 
-  // Backend faction rows are "hold:<slug>:<rank>".
+  // officials.json (via zones) first, then the backend faction rows "hold:<slug>:<rank>".
   private holdRanks(ctx: SystemContext, actorId: number): Array<{ hold: string; rank: string }> {
     const out: Array<{ hold: string; rank: string }> = [];
+    const profileId = this.profileOf(ctx, actorId);
+    for (const z of this.zones.all) {
+      const rank = this.zones.rankOf(profileId, z.id);
+      if (rank) out.push({ hold: z.id, rank });
+    }
     try {
       const access = (ctx.svr as Mp).get(actorId, "private.skympAccess");
       const rows = access && Array.isArray(access.factions) ? access.factions : [];
@@ -500,13 +509,34 @@ export class HousingSystem implements System {
     return out;
   }
 
-  // The hold a property answers to. Either half of a teleport pair may be the
-  // primary, so check both; only the interior side is in the table.
+  // The zone a property answers to: where the reference stands in the world, or where its
+  // teleport partner (the exterior door of an interior) stands. Strongholds win by radius.
+  // The old cell table is the fallback for interiors without a placeable exterior door.
   private holdOf(ctx: SystemContext, primary: number): string | null {
-    const own = HOLD_CELLS[this.cellOf(ctx, primary)];
-    if (own) return own;
-    const partner = this.partnerOf(ctx, primary);
-    return partner ? (HOLD_CELLS[this.cellOf(ctx, partner)] || null) : null;
+    const cached = this.zoneCache.get(primary);
+    if (cached !== undefined) return cached;
+    let zone: string | null = this.zoneOfRef(ctx, primary);
+    if (!zone) {
+      const partner = this.partnerOf(ctx, primary);
+      if (partner) zone = this.zoneOfRef(ctx, partner);
+    }
+    if (!zone) zone = HOLD_CELLS[this.cellOf(ctx, primary)] || null;
+    if (!zone) {
+      const partner = this.partnerOf(ctx, primary);
+      if (partner) zone = HOLD_CELLS[this.cellOf(ctx, partner)] || null;
+    }
+    this.zoneCache.set(primary, zone);
+    return zone;
+  }
+
+  private zoneOfRef(ctx: SystemContext, refrId: number): string | null {
+    const mp = ctx.svr as Mp;
+    try {
+      const z = this.zones.zoneAt(mp.get(refrId, "worldOrCellDesc"), mp.get(refrId, "pos"));
+      return z ? z.id : null;
+    } catch {
+      return null;
+    }
   }
 
   // The cell this reference itself stands in.
@@ -895,6 +925,8 @@ export class HousingSystem implements System {
   private lastRequestMs = new Map<number, number>();
   private lastDenyMs = new Map<number, number>();
   private roleCfg: AdminRoleConfig = readAdminRoleConfig(null);
+  private zones!: Zones;
+  private zoneCache = new Map<number, string | null>();
   private maxClaims = DEFAULT_MAX_CLAIMS;
   private maxDistance = DEFAULT_MAX_DISTANCE;
   private decorDirty = false;

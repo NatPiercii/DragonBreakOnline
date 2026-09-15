@@ -55,6 +55,8 @@ interface Zone {
   cellOrWorldId: number;
   pos: number[];
   radius: number;
+  // Optional placed reference used as the PlaceAtMe self, so the NPC appears on that spot instead of at a player
+  anchorId: number;
   npcs: ZoneNpc[];
   // One entry per NPC to place; slot i stands at slotPos(i)
   slots: ZoneNpc[];
@@ -74,6 +76,7 @@ interface Zone {
 interface Draft {
   name: string;
   locator: string;
+  anchor: string;
   pos: number[];
   radius: number;
   npcs: { id: string; count: number }[];
@@ -283,6 +286,7 @@ export class NpcSpawnSystem implements System {
     }
     return {
       name, locator, pos, radius, npcs,
+      anchor: String(pick(raw, "anchor") ?? "").trim(),
       despawnSeconds: Math.max(0, num(pick(raw, "despawn"), DEFAULT_DESPAWN)),
       respawnSeconds: Math.max(0, num(pick(raw, "respawn"), DEFAULT_RESPAWN)),
     };
@@ -348,13 +352,18 @@ export class NpcSpawnSystem implements System {
       return null;
     }
     const slots = npcs.flatMap((n) => Array<ZoneNpc>(n.count).fill(n));
+    let anchorId = 0;
+    if (draft.anchor) {
+      try { anchorId = mp.getIdFromDesc(draft.anchor.includes(":") ? draft.anchor : mp.getDescFromId(parseInt(draft.anchor, 16))) >>> 0; }
+      catch { reject(`'${draft.name}' Anchor '${draft.anchor}' is not a known reference, spawning at a player instead`); }
+    }
     return {
-      name: draft.name, cellOrWorldDesc, cellOrWorldId, pos: draft.pos, radius: draft.radius, npcs, slots,
+      name: draft.name, cellOrWorldDesc, cellOrWorldId, pos: draft.pos, radius: draft.radius, anchorId, npcs, slots,
       total: slots.length,
       despawnSeconds: draft.despawnSeconds,
       respawnSeconds: draft.respawnSeconds,
       slotReadyAt: slots.map(() => 0),
-      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds]),
+      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds]),
       spawned: [], emptySince: 0, inside: new Set(),
     };
   }
@@ -476,7 +485,7 @@ export class NpcSpawnSystem implements System {
   private spawnOne(mp: Mp, zone: Zone, npc: ZoneNpc, slot: number, anchorId: number): number | null {
     try {
       const loc = { cellOrWorldDesc: zone.cellOrWorldDesc, pos: this.slotPos(zone, slot), rot: [0, 0, 0] };
-      const id = placeNpc(mp, anchorId, npc.baseDesc, loc);
+      const id = placeNpc(mp, zone.anchorId || anchorId, npc.baseDesc, loc);
       try { mp.set(id, TAG_PROP, zone.name); } catch { }
       try { mp.set(id, HOSTILE_PROP, this.isHostileBase(mp, npc.baseDesc)); } catch { }
       return id;

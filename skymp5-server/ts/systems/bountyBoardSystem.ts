@@ -2,57 +2,62 @@ import * as fs from "fs";
 import * as path from "path";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
-import { espmRefrFieldId, toFormId } from "./formIdUtil";
+import { espmRefrFieldId } from "./formIdUtil";
+import { readAdminRoleConfig, adminTierOf, AdminRoleConfig } from "./adminRoles";
+import { getZones, Zones, Zone } from "./zones";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
 
-// ── Bounty boards: public notices pinned in the hold capitals ─────────────────
+// ── Notice boards: public notices, one pool per hold ─────────────────────────
 //
-// The Missives mod places its board activator in every hold capital. Activating
-// a board opens a menu of the notices pinned there; anyone may read them, and
-// posting one costs gold. A notice stays up for a week and then fades. The five
-// walled cities have two copies of the same physical board (one in the city
-// worldspace, one in Tamriel for the exterior view); both resolve to one
-// canonical reference so they always show the same notices.
+// Manny's Notice Board mod (and our own board activators) place boards in every
+// town. Activating one opens the board of the hold it stands in: a board in
+// Riverwood shows Whiterun's notices, one inside a stronghold's radius shows
+// that stronghold's. Three tabs: Hold Notices (free, officials only), Shop Ads
+// and Citizen Notices (30 gold a post). Everyone reads every tab. Notices fade
+// after a week; a board holds 60. Officials of the hold and admins can take a
+// notice down.
 //
 // Wire protocol - every message is a CustomPacket carrying JSON:
 //   Client -> Server:
 //     { customPacketType: "bountyBoardOpenRequest" }
-//     { customPacketType: "bountyBoardPost", board: <refrId>, text }
+//     { customPacketType: "bountyBoardPost", board: <zoneId>, tab, text }
+//     { customPacketType: "bountyBoardRemove", board: <zoneId>, id }
 //     { customPacketType: "bountyBoardClose" }
 //   Server -> Client:
-//     { customPacketType: "bountyBoardMenu", board, boardName, reason,
+//     { customPacketType: "bountyBoardMenu", board: <zoneId>, boardName, reason,
 //       costGold, gold, maxTextLen, maxNotes, expiryDays,
-//       notes: [{ id, author, text, ageHours }] }
+//       tabs: [{ id, label, cost, canPost }],
+//       notes: [{ id, tab, author, text, ageHours, canRemove }] }
 //     { customPacketType: "bountyBoardNotice", text }
 //
-// Persistence: `private.bountyBoard` on the canonical board reference, which
-// rides the changeform into Mongo and comes back on restart. Notices expire
-// lazily on every read plus a slow sweep, so correctness does not depend on
-// the sweep having run.
-//
-// Every post and expiry is appended to bounty.log in the shared log directory.
+// Persistence: notice-boards.json next to zones.json (one file, every hold),
+// written atomically after each change. Notices expire lazily on every read
+// plus a slow sweep.
 //
 // server-settings.json keys (all optional):
-//   bountyBoardCostGold     price of pinning a notice, default 25
+//   noticeBoardBaseDescs    board activator bases, default Manny's + ours
+//   bountyBoardCostGold     price of a Shop or Citizen post, default 30
 //   bountyBoardExpiryDays   days a notice stays up, default 7
-//   bountyBoardMaxNotes     notices one board holds, default 40
+//   bountyBoardMaxNotes     notices one hold's board holds, default 60
 //   bountyBoardMaxTextLen   characters per notice, default 500
 //   bountyBoardMaxDistance  posting reach in game units, default 512
 
-const BOARD_PROP = "private.bountyBoard";
+const DEFAULT_BASE_DESCS = [
+  "3e10:notice board.esp",          // manny_up_NoticeBoardActivator
+  "6:DragonBreak.esp",              // Noticeboard
+  "900:DragonBreak Harvest.esp",    // RP_NoticeBoard
+  "901:DragonBreak Harvest.esp",    // RP_NoticeBoardCandle
+  "902:DragonBreak Harvest.esp",    // RP_NoticeBoardWall
+];
 
-// The board comes as two bases: the named, visible activator players actually
-// hit with the crosshair (_M_MissiveBoard, "Missive Board") and the invisible
-// script primitive singleplayer uses (_M_ActivatorBoard). Both are boards.
-const BOARD_BASE_DESCS = ["12cb:Missives.esp", "d65:Missives.esp"];
-
+const STORE_FILE = "notice-boards.json";
 const GOLD_BASE_ID = 0x0000000f;
 
-const DEFAULT_COST_GOLD = 25;
+const DEFAULT_COST_GOLD = 30;
 const DEFAULT_EXPIRY_DAYS = 7;
-const DEFAULT_MAX_NOTES = 40;
+const DEFAULT_MAX_NOTES = 60;
 const DEFAULT_MAX_TEXT_LEN = 500;
 const DEFAULT_MAX_DISTANCE = 512;
 
@@ -63,26 +68,19 @@ const MAX_ESPM_CACHE = 4096;
 // getUserByActor reports failure with Networking::InvalidUserId, not -1.
 const INVALID_USER_ID = 65535;
 
-// Each city's board is a cluster of references: the visible mesh activator
-// (what players activate) plus the invisible primitive, and the walled cities
-// carry the whole pair twice (city worldspace and the Tamriel exterior twin).
-// Notes live on the first desc listed; every other ref is an alias of it.
-const BOARDS: Array<{ name: string; descs: string[] }> = [
-  { name: "Whiterun", descs: ["d66:Missives.esp", "12cc:Missives.esp", "21846:Missives.esp", "21847:Missives.esp"] },
-  { name: "Riften", descs: ["9478:Missives.esp", "9491:Missives.esp", "21844:Missives.esp", "2183f:Missives.esp"] },
-  { name: "Windhelm", descs: ["9492:Missives.esp", "9477:Missives.esp", "2183a:Missives.esp", "21845:Missives.esp"] },
-  { name: "Markarth", descs: ["94a3:Missives.esp", "94a2:Missives.esp", "21840:Missives.esp", "21841:Missives.esp"] },
-  { name: "Solitude", descs: ["9490:Missives.esp", "948f:Missives.esp", "21838:Missives.esp", "21839:Missives.esp"] },
-  { name: "Dawnstar", descs: ["94b1:Missives.esp", "94ae:Missives.esp"] },
-  { name: "Winterhold", descs: ["94b5:Missives.esp", "94b2:Missives.esp"] },
-  { name: "Morthal", descs: ["94ad:Missives.esp", "94aa:Missives.esp"] },
-  { name: "Falkreath", descs: ["94a9:Missives.esp", "94a6:Missives.esp"] },
+export type TabId = "hold" | "shop" | "citizen";
+const TABS: Array<{ id: TabId; label: string; official: boolean }> = [
+  { id: "hold", label: "Hold Notices", official: true },
+  { id: "shop", label: "Shop Ads", official: false },
+  { id: "citizen", label: "Citizen Notices", official: false },
 ];
+const isTab = (v: unknown): v is TabId => TABS.some((t) => t.id === v);
 
 interface BoardNote {
   id: number;
+  tab: TabId;
   author: string;
-  // Poster's account, kept for the audit trail; never sent to clients.
+  // Poster's account, kept for the audit trail and removal rights; never sent to clients.
   profileId: number;
   text: string;
   createdAt: number;
@@ -94,11 +92,9 @@ interface BoardRecord {
 }
 
 interface BoardSession {
-  // Canonical reference the record lives on.
-  primary: number;
-  // The copy the player actually stood at; reach is checked against it.
+  zoneId: string;
+  // The board the player actually stood at; reach is checked against it.
   refr: number;
-  name: string;
 }
 
 const emptyRecord = (): BoardRecord => ({ nextId: 1, notes: [] });
@@ -111,6 +107,8 @@ export class BountyBoardSystem implements System {
   async initAsync(ctx: SystemContext): Promise<void> {
     const s = await Settings.get();
     const all = s.allSettings as Record<string, unknown> | null;
+    this.roleCfg = readAdminRoleConfig(all);
+    this.zones = getZones(this.log);
 
     const cost = Number(all?.["bountyBoardCostGold"]);
     if (Number.isFinite(cost) && cost >= 0) this.costGold = Math.floor(cost);
@@ -127,37 +125,26 @@ export class BountyBoardSystem implements System {
     try { fs.mkdirSync(this.logDir, { recursive: true }); } catch { /* appendFile will complain */ }
 
     const mp = ctx.svr as Mp;
-    for (const desc of BOARD_BASE_DESCS) {
-      try {
-        this.boardBaseIds.add(mp.getIdFromDesc(desc) >>> 0);
-      } catch { /* base missing from this load order */ }
+    const descs = Array.isArray(all?.["noticeBoardBaseDescs"]) ? (all!["noticeBoardBaseDescs"] as unknown[]).map(String) : DEFAULT_BASE_DESCS;
+    for (const desc of descs) {
+      try { this.boardBaseIds.add(mp.getIdFromDesc(desc) >>> 0); } catch { /* base missing from this load order */ }
     }
     if (!this.boardBaseIds.size) {
-      this.log(`[bounty] Missives.esp is not in the load order, boards disabled`);
+      this.log(`[board] no board activator base is in the load order, notice boards disabled`);
       return;
     }
-    for (const board of BOARDS) {
-      let primary = 0;
-      for (const desc of board.descs) {
-        let refrId = 0;
-        try { refrId = mp.getIdFromDesc(desc) >>> 0; } catch { continue; }
-        if (!primary) primary = refrId;
-        this.knownBoards.set(refrId, { primary, name: board.name });
-      }
-    }
+    this.storePath = path.join(this.zones.dataDir || process.cwd(), STORE_FILE);
+    this.loadStore();
 
     this.installActivationHook(ctx);
     // A character switch mid-connection voids the session, same as trade.
-    ctx.gm.on("userAssignActor", (userId: number) => {
-      this.sessions.delete(userId);
-    });
-    // The gamemode's /board chat command opens the menu through this bridge,
-    // same globalThis pattern as the trade log.
+    ctx.gm.on("userAssignActor", (userId: number) => { this.sessions.delete(userId); });
+    // The gamemode's /board chat command opens the menu through this bridge.
     (globalThis as any).__alduinakBountyOpen = (actorId: number) => {
       const userId = this.userOf(ctx, Number(actorId) >>> 0);
       if (userId >= 0) this.onOpenRequest(ctx, userId);
     };
-    this.log(`[bounty] ready, ${BOARDS.length} boards, ${this.costGold} gold a notice, ${this.expiryDays} days on the board`);
+    this.log(`[board] ready, ${this.boardBaseIds.size} board base(s), ${this.costGold} gold a notice, ${this.expiryDays} days on the board, store ${this.storePath}`);
   }
 
   // Activating a board opens the menu instead of the vanilla activation.
@@ -166,29 +153,21 @@ export class BountyBoardSystem implements System {
     const previous = typeof mp.onActivate === "function" ? mp.onActivate : null;
     mp.onActivate = (targetId: number, casterId: number): boolean => {
       let isBoard = false;
-      try {
-        isBoard = this.onActivate(ctx, targetId >>> 0, casterId >>> 0);
-      } catch (e) {
-        this.log(`[bounty] activation check failed: ${e}`);
-      }
+      try { isBoard = this.onActivate(ctx, targetId >>> 0, casterId >>> 0); }
+      catch (e) { this.log(`[board] activation check failed: ${e}`); }
       if (isBoard) return false;
-      // Chain, so another handler still gets its say.
       if (!previous) return true;
-      try {
-        return previous.call(mp, targetId, casterId) !== false;
-      } catch {
-        return true;
-      }
+      try { return previous.call(mp, targetId, casterId) !== false; } catch { return true; }
     };
   }
 
   // True when the target is a board and the menu was taken care of.
   private onActivate(ctx: SystemContext, targetId: number, casterId: number): boolean {
-    const board = this.boardOf(ctx, targetId);
-    if (!board) return false;
+    const zone = this.zoneOfBoard(ctx, targetId);
+    if (!zone) return false;
     const userId = this.userOf(ctx, casterId);
     if (userId < 0) return true;
-    this.sessions.set(userId, { primary: board.primary, refr: targetId, name: board.name });
+    this.sessions.set(userId, { zoneId: zone.id, refr: targetId });
     this.sendMenu(ctx, userId, "open");
     return true;
   }
@@ -197,23 +176,21 @@ export class BountyBoardSystem implements System {
     switch (type) {
       case "bountyBoardOpenRequest": this.onOpenRequest(ctx, userId); break;
       case "bountyBoardPost": this.onPost(ctx, userId, content); break;
+      case "bountyBoardRemove": this.onRemove(ctx, userId, content); break;
       case "bountyBoardClose": this.sessions.delete(userId); break;
       default: break;
     }
   }
 
   // Notices expire lazily on read; the sweep only covers boards nobody reads.
-  async updateAsync(ctx: SystemContext): Promise<void> {
+  async updateAsync(): Promise<void> {
     const now = Date.now();
     const sinceLast = now - this.lastSweepMs;
     if (sinceLast >= 0 && sinceLast < SWEEP_INTERVAL_MS) return;
     this.lastSweepMs = now;
-    const primaries = new Set<number>();
-    this.knownBoards.forEach((b) => primaries.add(b.primary));
-    for (const primary of primaries) {
-      const rec = this.read(ctx, primary);
-      if (rec && this.prune(ctx, primary, rec)) this.write(ctx, primary, rec);
-    }
+    let dirty = false;
+    for (const zoneId of Object.keys(this.store)) if (this.prune(zoneId, this.store[zoneId])) dirty = true;
+    if (dirty) this.saveStore();
   }
 
   disconnect(userId: number): void {
@@ -224,9 +201,8 @@ export class BountyBoardSystem implements System {
 
   // ── Opening ─────────────────────────────────────────────────────────────────
 
-  // Activating the visible board opens the menu through onActivate; this is
-  // the other road in, for the N hotkey and the /board command. Reach is
-  // checked here.
+  // The other road in, for the N hotkey and the /board command: the nearest board
+  // the server has already seen activated. Reach is checked here.
   private onOpenRequest(ctx: SystemContext, userId: number): void {
     const now = Date.now();
     if (now - (this.lastOpenMs.get(userId) || 0) < OPEN_COOLDOWN_MS) return;
@@ -236,35 +212,30 @@ export class BountyBoardSystem implements System {
     if (!actorId) return;
     const board = this.nearestBoard(ctx, actorId);
     if (!board) {
-      this.notice(ctx, userId, "There is no notice board within reach.");
+      this.notice(ctx, userId, "There is no notice board within reach. Walk up to one and use it.");
       return;
     }
-    this.sessions.set(userId, { primary: board.primary, refr: board.refr, name: board.name });
+    this.sessions.set(userId, board);
     this.sendMenu(ctx, userId, "open");
   }
 
-  private nearestBoard(ctx: SystemContext, actorId: number): { primary: number; refr: number; name: string } | null {
+  private nearestBoard(ctx: SystemContext, actorId: number): BoardSession | null {
     const mp = ctx.svr as Mp;
     let pos: any;
     try { pos = mp.get(actorId, "pos"); } catch { return null; }
     if (!Array.isArray(pos)) return null;
     let where = "";
     try { where = String(mp.get(actorId, "worldOrCellDesc") || ""); } catch { /* distance check only */ }
-    let best: { primary: number; refr: number; name: string } | null = null;
+    let best: BoardSession | null = null;
     let bestD2 = this.maxDistance * this.maxDistance;
-    this.knownBoards.forEach((board, refrId) => {
+    this.knownBoards.forEach((zoneId, refrId) => {
       const spot = this.boardSpot(ctx, refrId);
-      // Interiors have their own coordinate origins; only compare inside
-      // the same world or cell.
       if (!spot || (where && spot.where && spot.where !== where)) return;
       const dx = Number(pos[0]) - spot.pos[0];
       const dy = Number(pos[1]) - spot.pos[1];
       const dz = Number(pos[2]) - spot.pos[2];
       const d2 = dx * dx + dy * dy + dz * dz;
-      if (Number.isFinite(d2) && d2 <= bestD2) {
-        bestD2 = d2;
-        best = { primary: board.primary, refr: refrId, name: board.name };
-      }
+      if (Number.isFinite(d2) && d2 <= bestD2) { bestD2 = d2; best = { zoneId, refr: refrId }; }
     });
     return best;
   }
@@ -277,12 +248,7 @@ export class BountyBoardSystem implements System {
     let spot: { pos: number[]; where: string } | null = null;
     try {
       const pos = mp.get(refrId, "pos");
-      if (Array.isArray(pos)) {
-        spot = {
-          pos: [Number(pos[0]), Number(pos[1]), Number(pos[2])],
-          where: String(mp.get(refrId, "worldOrCellDesc") || ""),
-        };
-      }
+      if (Array.isArray(pos)) spot = { pos: [Number(pos[0]), Number(pos[1]), Number(pos[2])], where: String(mp.get(refrId, "worldOrCellDesc") || "") };
     } catch { /* reference the server cannot resolve */ }
     this.spotCache.set(refrId, spot);
     return spot;
@@ -299,18 +265,28 @@ export class BountyBoardSystem implements System {
     this.lastPostMs.set(userId, now);
 
     const session = this.sessions.get(userId);
-    const board = toFormId(content["board"]);
-    if (!session || !board || session.primary !== board) return;
+    if (!session || String(content["board"]) !== session.zoneId) return;
+    const zone = this.zones.byId(session.zoneId);
+    if (!zone) return;
     const actorId = this.actorOf(ctx, userId);
     if (!actorId) return;
     if (!this.withinReach(ctx, actorId, session.refr)) {
       this.notice(ctx, userId, "You are too far from the board.");
       return;
     }
+    const tab = content["tab"];
+    if (!isTab(tab)) return;
+    const tabDef = TABS.find((t) => t.id === tab)!;
+    const profileId = this.profileIdOf(ctx, actorId);
+    const official = this.rankIn(ctx, actorId, zone);
+    const admin = this.isAdmin(ctx, actorId);
+    if (tabDef.official && !official && !admin) {
+      this.notice(ctx, userId, `Only the ${this.officialTitles(zone)} may post Hold Notices here.`);
+      return;
+    }
 
     const rawText = content["text"];
     if (typeof rawText !== "string") return;
-    // Bound the work before sanitize walks the payload.
     if (rawText.length > this.maxTextLen * 4) {
       this.notice(ctx, userId, `A notice holds ${this.maxTextLen} characters at most.`);
       return;
@@ -322,41 +298,53 @@ export class BountyBoardSystem implements System {
       return;
     }
 
-    const rec = this.read(ctx, session.primary) || emptyRecord();
-    const pruned = this.prune(ctx, session.primary, rec);
+    const rec = this.recordOf(session.zoneId);
+    this.prune(session.zoneId, rec);
     if (rec.notes.length >= this.maxNotes) {
-      if (pruned) this.write(ctx, session.primary, rec);
       this.notice(ctx, userId, "The board is full. Older notices must fade first.");
       return;
     }
 
-    // The fee is taken only once everything else has passed.
-    if (this.costGold > 0 && !this.takeGold(ctx, actorId, this.costGold)) {
-      if (pruned) this.write(ctx, session.primary, rec);
-      this.notice(ctx, userId, `Pinning a notice costs ${this.costGold} gold, and you do not have it.`);
+    // Hold Notices are free; the fee for the others is taken only once everything else has passed.
+    const cost = tabDef.official ? 0 : this.costGold;
+    if (cost > 0 && !this.takeGold(ctx, actorId, cost)) {
+      this.notice(ctx, userId, `Pinning a notice costs ${cost} gold, and you do not have it.`);
       return;
     }
 
-    const author = this.displayNameOf(ctx, actorId);
-    rec.notes.push({
-      id: rec.nextId,
-      author,
-      profileId: this.profileIdOf(ctx, actorId),
-      text,
-      createdAt: now,
-    });
+    const author = this.displayNameOf(ctx, actorId) + (official ? `, ${this.zones.titleOf(official)}` : "");
+    rec.notes.push({ id: rec.nextId, tab, author, profileId, text, createdAt: now });
     rec.nextId += 1;
-    if (!this.write(ctx, session.primary, rec)) {
-      // The board cannot hold the record; give the fee back.
-      this.giveGold(ctx, actorId, this.costGold);
-      this.appendLog(`${this.describeActor(ctx, actorId)} failed to post on the ${session.name} board, fee refunded`);
-      this.notice(ctx, userId, "The board would not take your notice.");
+    this.saveStore();
+
+    this.appendLog(`${this.describeActor(ctx, actorId)} posted on the ${zone.name} board [${tabDef.label}]${cost ? ` (-${cost} gold)` : ""}: ${JSON.stringify(text)}`);
+    this.notice(ctx, userId, "Your notice is pinned to the board.");
+    this.refreshViewers(ctx, session.zoneId);
+  }
+
+  // Officials of the hold and admins take any notice down; a poster takes down their own.
+  private onRemove(ctx: SystemContext, userId: number, content: Content): void {
+    const session = this.sessions.get(userId);
+    if (!session || String(content["board"]) !== session.zoneId) return;
+    const zone = this.zones.byId(session.zoneId);
+    if (!zone) return;
+    const actorId = this.actorOf(ctx, userId);
+    if (!actorId) return;
+    const id = Number(content["id"]);
+    const rec = this.recordOf(session.zoneId);
+    const note = rec.notes.find((n) => n.id === id);
+    if (!note) return;
+    const profileId = this.profileIdOf(ctx, actorId);
+    const allowed = note.profileId === profileId || this.isAdmin(ctx, actorId) || this.rankIn(ctx, actorId, zone) !== null;
+    if (!allowed) {
+      this.notice(ctx, userId, "That notice is not yours to take down.");
       return;
     }
-
-    this.appendLog(`${this.describeActor(ctx, actorId)} posted on the ${session.name} board (-${this.costGold} gold): ${JSON.stringify(text)}`);
-    this.notice(ctx, userId, "Your notice is pinned to the board.");
-    this.refreshViewers(ctx, session.primary);
+    rec.notes = rec.notes.filter((n) => n.id !== id);
+    this.saveStore();
+    this.appendLog(`${this.describeActor(ctx, actorId)} took down note ${id} by [profile ${note.profileId}] ${JSON.stringify(note.author)} from the ${zone.name} board: ${JSON.stringify(note.text)}`);
+    this.notice(ctx, userId, "The notice is taken down.");
+    this.refreshViewers(ctx, session.zoneId);
   }
 
   // ── Menu ────────────────────────────────────────────────────────────────────
@@ -364,60 +352,81 @@ export class BountyBoardSystem implements System {
   private sendMenu(ctx: SystemContext, userId: number, reason: "open" | "refresh"): void {
     const session = this.sessions.get(userId);
     if (!session) return;
+    const zone = this.zones.byId(session.zoneId);
     const actorId = this.actorOf(ctx, userId);
-    if (!actorId) return;
-    const rec = this.read(ctx, session.primary) || emptyRecord();
-    if (this.prune(ctx, session.primary, rec)) this.write(ctx, session.primary, rec);
+    if (!zone || !actorId) return;
+    const rec = this.recordOf(session.zoneId);
+    if (this.prune(session.zoneId, rec)) this.saveStore();
     const now = Date.now();
+    const profileId = this.profileIdOf(ctx, actorId);
+    const official = this.rankIn(ctx, actorId, zone) !== null;
+    const admin = this.isAdmin(ctx, actorId);
     this.send(ctx, userId, {
       customPacketType: "bountyBoardMenu",
-      board: session.primary,
-      boardName: session.name,
+      board: session.zoneId,
+      boardName: zone.name,
       reason,
       costGold: this.costGold,
       gold: this.goldOf(ctx, actorId),
       maxTextLen: this.maxTextLen,
       maxNotes: this.maxNotes,
       expiryDays: this.expiryDays,
+      tabs: TABS.map((t) => ({ id: t.id, label: t.label, cost: t.official ? 0 : this.costGold, canPost: !t.official || official || admin })),
       notes: rec.notes.map((n) => ({
         id: n.id,
+        tab: n.tab,
         author: n.author,
         text: n.text,
         ageHours: Math.max(0, Math.floor((now - n.createdAt) / 3600000)),
+        canRemove: n.profileId === profileId || official || admin,
       })),
     });
   }
 
-  // A new notice shows up for everyone standing at that board.
-  private refreshViewers(ctx: SystemContext, primary: number): void {
-    this.sessions.forEach((session, userId) => {
-      if (session.primary === primary) this.sendMenu(ctx, userId, "refresh");
-    });
+  // A new notice shows up for everyone standing at a board of that hold.
+  private refreshViewers(ctx: SystemContext, zoneId: string): void {
+    this.sessions.forEach((session, userId) => { if (session.zoneId === zoneId) this.sendMenu(ctx, userId, "refresh"); });
   }
 
   // ── Expiry ──────────────────────────────────────────────────────────────────
 
-  // Drops notes past their week, logging each; true when anything fell off.
-  private prune(ctx: SystemContext, primary: number, rec: BoardRecord): boolean {
+  private prune(zoneId: string, rec: BoardRecord): boolean {
     const cutoff = Date.now() - this.expiryDays * 24 * 3600000;
     const kept: BoardNote[] = [];
     let dropped = false;
     for (const note of rec.notes) {
-      if (note.createdAt > cutoff) {
-        kept.push(note);
-        continue;
-      }
+      if (note.createdAt > cutoff) { kept.push(note); continue; }
       dropped = true;
-      const name = this.boardNameOf(primary);
-      this.appendLog(`note ${note.id} by [profile ${note.profileId}] ${JSON.stringify(note.author)} faded from the ${name} board: ${JSON.stringify(note.text)}`);
+      this.appendLog(`note ${note.id} by [profile ${note.profileId}] ${JSON.stringify(note.author)} faded from the ${zoneId} board: ${JSON.stringify(note.text)}`);
     }
     rec.notes = kept;
     return dropped;
   }
 
-  private boardNameOf(primary: number): string {
-    const board = this.knownBoards.get(primary);
-    return board ? board.name : "Missive";
+  // ── Officials and admins ────────────────────────────────────────────────────
+
+  // officials.json first, then the backend faction rows "hold:<zone>:<rank>" on the actor.
+  private rankIn(ctx: SystemContext, actorId: number, zone: Zone): string | null {
+    const fromFile = this.zones.rankOf(this.profileIdOf(ctx, actorId), zone.id);
+    if (fromFile) return fromFile;
+    try {
+      const access = (ctx.svr as Mp).get(actorId, "private.skympAccess");
+      const rows = access && Array.isArray(access.factions) ? access.factions : [];
+      for (const row of rows) {
+        const parts = String(row?.requirementId || "").split(":");
+        if (parts.length === 3 && parts[0] === "hold" && parts[1] === zone.id && zone.officials.indexOf(parts[2]) !== -1) return parts[2];
+      }
+    } catch { /* no access record */ }
+    return null;
+  }
+
+  private officialTitles(zone: Zone): string {
+    const titles = zone.officials.map((r) => this.zones.titleOf(r));
+    return titles.length ? titles.join(", ") : "officials";
+  }
+
+  private isAdmin(ctx: SystemContext, actorId: number): boolean {
+    try { return adminTierOf(ctx.svr as Mp, actorId, this.roleCfg) !== null; } catch { return false; }
   }
 
   // ── Gold ────────────────────────────────────────────────────────────────────
@@ -428,9 +437,7 @@ export class BountyBoardSystem implements System {
     try {
       const inv = mp.get(actorId, "inventory");
       const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
-      for (const e of entries) {
-        if ((Number(e?.baseId) >>> 0) === GOLD_BASE_ID) total += Number(e?.count) || 0;
-      }
+      for (const e of entries) if ((Number(e?.baseId) >>> 0) === GOLD_BASE_ID) total += Number(e?.count) || 0;
     } catch { /* actor gone */ }
     return total;
   }
@@ -442,9 +449,7 @@ export class BountyBoardSystem implements System {
       const inv = mp.get(actorId, "inventory");
       const entries = inv && Array.isArray(inv.entries) ? inv.entries.slice() : [];
       let held = 0;
-      for (const e of entries) {
-        if ((Number(e?.baseId) >>> 0) === GOLD_BASE_ID) held += Number(e?.count) || 0;
-      }
+      for (const e of entries) if ((Number(e?.baseId) >>> 0) === GOLD_BASE_ID) held += Number(e?.count) || 0;
       if (held < amount) return false;
       let remaining = amount;
       for (const e of entries) {
@@ -458,38 +463,27 @@ export class BountyBoardSystem implements System {
       mp.set(actorId, "inventory", { entries: entries.filter((e: any) => (Number(e?.count) || 0) > 0) });
       return true;
     } catch (e) {
-      this.log(`[bounty] could not take gold from ${actorId.toString(16)}: ${e}`);
+      this.log(`[board] could not take gold from ${actorId.toString(16)}: ${e}`);
       return false;
-    }
-  }
-
-  private giveGold(ctx: SystemContext, actorId: number, amount: number): void {
-    if (amount <= 0) return;
-    const mp = ctx.svr as Mp;
-    try {
-      const inv = mp.get(actorId, "inventory");
-      const entries = inv && Array.isArray(inv.entries) ? inv.entries.slice() : [];
-      const stack = entries.find((e: any) => (Number(e?.baseId) >>> 0) === GOLD_BASE_ID);
-      if (stack) stack.count = (Number(stack.count) || 0) + amount;
-      else entries.push({ baseId: GOLD_BASE_ID, count: amount });
-      mp.set(actorId, "inventory", { entries });
-    } catch (e) {
-      this.log(`[bounty] could not refund gold to ${actorId.toString(16)}: ${e}`);
     }
   }
 
   // ── Board resolution ────────────────────────────────────────────────────────
 
-  // Known placements resolve from the table; anything else is checked against
-  // the Missives activator base, so a patch may add boards without code work.
-  private boardOf(ctx: SystemContext, refrId: number): { primary: number; name: string } | null {
+  // A placed ref with a board base belongs to the zone its position falls in.
+  private zoneOfBoard(ctx: SystemContext, refrId: number): Zone | null {
     if (!this.boardBaseIds.size || !refrId) return null;
     const known = this.knownBoards.get(refrId);
-    if (known) return known;
+    if (known) return this.zones.byId(known);
     if (!this.boardBaseIds.has(this.baseIdOf(ctx, refrId))) return null;
-    const board = { primary: refrId, name: "Missive" };
-    this.knownBoards.set(refrId, board);
-    return board;
+    const spot = this.boardSpot(ctx, refrId);
+    const zone = spot ? this.zones.zoneAt(spot.where, spot.pos) : null;
+    if (!zone) {
+      this.log(`[board] board ${refrId.toString(16)} at ${spot ? spot.where : "?"} ${spot ? JSON.stringify(spot.pos) : ""} is outside every zone`);
+      return null;
+    }
+    this.knownBoards.set(refrId, zone.id);
+    return zone;
   }
 
   // The base object behind a placed reference, from the ESM's NAME field.
@@ -497,22 +491,16 @@ export class BountyBoardSystem implements System {
     const cached = this.baseIdCache.get(refrId);
     if (cached !== undefined) return cached;
     const baseId = espmRefrFieldId(ctx.svr as Mp, refrId, "NAME");
-    // ESM data never changes, so overflow can just start the cache over.
     if (this.baseIdCache.size >= MAX_ESPM_CACHE) this.baseIdCache.clear();
     this.baseIdCache.set(refrId, baseId);
     return baseId;
   }
 
-  // Posting has to happen at the board, not from a form id typed into a packet.
+  // Posting has to happen at the board, not from a zone id typed into a packet.
   private withinReach(ctx: SystemContext, actorId: number, refrId: number): boolean {
     const mp = ctx.svr as Mp;
     let a: any, b: any;
-    try {
-      a = mp.get(actorId, "pos");
-      b = mp.get(refrId, "pos");
-    } catch {
-      return true; // position unavailable: do not block a legitimate action
-    }
+    try { a = mp.get(actorId, "pos"); b = mp.get(refrId, "pos"); } catch { return true; }
     if (!Array.isArray(a) || !Array.isArray(b)) return true;
     const dx = Number(a[0]) - Number(b[0]);
     const dy = Number(a[1]) - Number(b[1]);
@@ -524,57 +512,62 @@ export class BountyBoardSystem implements System {
 
   // ── Storage ─────────────────────────────────────────────────────────────────
 
-  // Re-validates and re-bounds everything: a changeform edited by hand must
-  // not be amplified to every viewer or wedge the board.
-  private read(ctx: SystemContext, primary: number): BoardRecord | null {
-    try {
-      const raw = (ctx.svr as Mp).get(primary, BOARD_PROP);
-      if (!raw || typeof raw !== "object") return null;
-      const r = raw as Partial<BoardRecord>;
-      const now = Date.now();
-      const notes: BoardNote[] = [];
-      if (Array.isArray(r.notes)) {
-        for (const n of r.notes) {
-          if (notes.length >= this.maxNotes) break;
-          if (!n || typeof n !== "object") continue;
-          const text = typeof n.text === "string" ? n.text.slice(0, this.maxTextLen) : "";
-          if (!text) continue;
-          notes.push({
-            id: Number(n.id) || 0,
-            author: typeof n.author === "string" ? n.author.slice(0, 100) : "Unknown",
-            profileId: Number.isFinite(Number(n.profileId)) ? Number(n.profileId) : -1,
-            text,
-            // A future stamp would make the note immortal.
-            createdAt: Math.min(Number(n.createdAt) || 0, now),
-          });
-        }
-      }
-      return { nextId: Math.max(1, Number(r.nextId) || 1), notes };
-    } catch {
-      return null;
-    }
+  private recordOf(zoneId: string): BoardRecord {
+    if (!this.store[zoneId]) this.store[zoneId] = emptyRecord();
+    return this.store[zoneId];
   }
 
-  private write(ctx: SystemContext, primary: number, rec: BoardRecord): boolean {
-    try {
-      (ctx.svr as Mp).set(primary, BOARD_PROP, rec);
-      return true;
-    } catch (e) {
-      this.log(`[bounty] write failed for ${primary.toString(16)}: ${e}`);
-      return false;
+  // Re-validates and re-bounds everything: a file edited by hand must not wedge the board.
+  private loadStore(): void {
+    this.store = {};
+    let raw: any = null;
+    try { raw = JSON.parse(fs.readFileSync(this.storePath, "utf8")); } catch { return; }
+    const zones = raw && typeof raw === "object" && raw.zones && typeof raw.zones === "object" ? raw.zones : {};
+    const now = Date.now();
+    for (const zoneId of Object.keys(zones)) {
+      const r = zones[zoneId];
+      if (!r || typeof r !== "object") continue;
+      const notes: BoardNote[] = [];
+      for (const n of Array.isArray(r.notes) ? r.notes : []) {
+        if (notes.length >= this.maxNotes) break;
+        if (!n || typeof n !== "object") continue;
+        const text = typeof n.text === "string" ? n.text.slice(0, this.maxTextLen) : "";
+        if (!text) continue;
+        notes.push({
+          id: Number(n.id) || 0,
+          tab: isTab(n.tab) ? n.tab : "citizen",
+          author: typeof n.author === "string" ? n.author.slice(0, 100) : "Unknown",
+          profileId: Number.isFinite(Number(n.profileId)) ? Number(n.profileId) : -1,
+          text,
+          createdAt: Math.min(Number(n.createdAt) || 0, now),
+        });
+      }
+      this.store[zoneId] = { nextId: Math.max(1, Number(r.nextId) || 1), notes };
     }
+    this.log(`[board] ${Object.keys(this.store).length} board(s) loaded from ${this.storePath}`);
+  }
+
+  private saveStore(): void {
+    if (!this.storePath) return;
+    const tmp = this.storePath + ".tmp";
+    try {
+      fs.writeFileSync(tmp, JSON.stringify({ _comment: "Notice board posts per zone (zones.json ids). Written by the server; edit only while it is stopped.", zones: this.store }, null, 1));
+      fs.renameSync(tmp, this.storePath);
+    } catch (e) { this.log(`[board] save failed: ${e}`); }
   }
 
   // ── Names and audit ─────────────────────────────────────────────────────────
 
-  // While masked, appearance.name is already the placeholder and the real
-  // name sits in maskName (40_chat_commands.js), so the actor name is the
-  // name others see and a mask holds at the board.
+  // "Ysolda #K7Q2": the name others see plus the character tag the gamemode assigns.
   private displayNameOf(ctx: SystemContext, actorId: number): string {
-    try { return String((ctx.svr as Mp).getActorName(actorId) || "Unknown"); } catch { return "Unknown"; }
+    const mp = ctx.svr as Mp;
+    let name = "Unknown";
+    try { name = String(mp.getActorName(actorId) || "Unknown"); } catch { /* keep */ }
+    let tag = "";
+    try { const t = mp.get(actorId, "private.charTag"); if (typeof t === "string" && t.length === 4) tag = t; } catch { /* untagged */ }
+    return tag ? `${name} #${tag}` : name;
   }
 
-  // The stashed original while masked, for the audit trail only.
   private realNameOf(ctx: SystemContext, actorId: number): string {
     let stashed = "";
     try { stashed = String((ctx.svr as Mp).get(actorId, "maskName") || "").trim(); } catch { /* unmasked */ }
@@ -585,13 +578,9 @@ export class BountyBoardSystem implements System {
     try {
       const profileId = Number((ctx.svr as Mp).get(actorId, "profileId"));
       return Number.isFinite(profileId) ? profileId : -1;
-    } catch {
-      return -1;
-    }
+    } catch { return -1; }
   }
 
-  // JSON-quoted real name plus a fixed-position profile id, so a crafted
-  // character name cannot forge another player's line.
   private describeActor(ctx: SystemContext, actorId: number): string {
     const real = this.realNameOf(ctx, actorId);
     const shown = this.displayNameOf(ctx, actorId);
@@ -600,9 +589,9 @@ export class BountyBoardSystem implements System {
   }
 
   private appendLog(text: string): void {
-    try {
-      fs.appendFile(path.join(this.logDir, "bounty.log"), new Date().toISOString() + " " + text + "\n", () => { });
-    } catch { /* log only */ }
+    try { fs.appendFile(path.join(this.logDir, "bounty.log"), new Date().toISOString() + " " + text + "\n", () => { }); } catch { /* log only */ }
+    // The gamemode forwards this to the Discord audit channel when it has a webhook.
+    try { (globalThis as any).__alduinakBoardLog?.(text); } catch { /* log only */ }
   }
 
   // Keeps line breaks, drops every other control character.
@@ -629,9 +618,7 @@ export class BountyBoardSystem implements System {
     try {
       const userId = (ctx.svr as Mp).getUserByActor(actorId);
       return userId === INVALID_USER_ID ? -1 : userId;
-    } catch {
-      return -1;
-    }
+    } catch { return -1; }
   }
 
   private send(ctx: SystemContext, userId: number, payload: Record<string, unknown>): void {
@@ -649,8 +636,12 @@ export class BountyBoardSystem implements System {
   private maxTextLen = DEFAULT_MAX_TEXT_LEN;
   private maxDistance = DEFAULT_MAX_DISTANCE;
   private logDir = "C:\\logs";
+  private storePath = "";
+  private store: Record<string, BoardRecord> = {};
+  private zones!: Zones;
+  private roleCfg!: AdminRoleConfig;
   private boardBaseIds = new Set<number>();
-  private knownBoards = new Map<number, { primary: number; name: string }>();
+  private knownBoards = new Map<number, string>();
   private baseIdCache = new Map<number, number>();
   private sessions = new Map<number, BoardSession>();
   private lastPostMs = new Map<number, number>();
