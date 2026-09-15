@@ -325,8 +325,10 @@ export class SearchSystem implements System {
       // Simple stacks of the real inventory: the searcher's local clone never holds it, so the client syncs the clone before opening the window
       entries: this.simpleEntriesOf(ctx, targetActorId),
     }));
-    this.notice(ctx, this.userOf(ctx, targetActorId),
-      `${this.nameShownTo(ctx, targetActorId, searcherActorId)} is searching ${body ? "your body" : "you"}.`);
+    const targetUser = this.userOf(ctx, targetActorId);
+    if (targetUser >= 0) {
+      this.notice(ctx, targetUser, `${this.nameShownTo(ctx, targetActorId, searcherActorId)} is searching ${body ? "your body" : "you"}.`);
+    }
     this.log(`[search] ${searcherActorId.toString(16)} searches ${body ? "body " : ""}${targetActorId.toString(16)}`);
   }
 
@@ -456,8 +458,11 @@ export class SearchSystem implements System {
     if (!targetActorId || targetActorId === selfActorId) {
       return false;
     }
-    // Living targets must be connected players; any dead actor is a searchable body
+    // Living targets must be connected players; only player bodies are searched (creatures are skinned, NPCs looted with E)
     if (this.userOf(ctx, targetActorId) < 0 && !this.isDead(ctx, targetActorId)) {
+      return false;
+    }
+    if (this.isDead(ctx, targetActorId) && !this.isPlayerCharacter(ctx, targetActorId)) {
       return false;
     }
     if (this.isPermaDead(ctx.svr as Mp, targetActorId)) {

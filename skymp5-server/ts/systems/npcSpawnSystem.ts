@@ -33,6 +33,8 @@ const TAG_PROP = "private.npcSpawner";
 // ACBS template flag: the AI data comes from the TPLT template
 const TEMPLATE_USE_AI_DATA = 0x10;
 const MAX_TEMPLATE_DEPTH = 8;
+// An NPC this far below its spawn point fell out of the world and is replaced on its spot
+const FALL_LIMIT = 3000;
 // Slot cooldown marker for Respawn 0: the slot stays empty until the zone despawns or an admin resets it
 const NEVER_READY = -1;
 // A corpse is removed this long after death, whatever its zone does. Overridable via "npcCorpseSeconds".
@@ -57,6 +59,8 @@ interface Zone {
   radius: number;
   // Optional placed reference used as the PlaceAtMe self, so the NPC appears on that spot instead of at a player
   anchorId: number;
+  // Spawns without a player in range; needs an anchor ref as the PlaceAtMe self
+  prespawn: boolean;
   npcs: ZoneNpc[];
   // One entry per NPC to place; slot i stands at slotPos(i)
   slots: ZoneNpc[];
@@ -77,6 +81,7 @@ interface Draft {
   name: string;
   locator: string;
   anchor: string;
+  prespawn?: boolean;
   pos: number[];
   radius: number;
   npcs: { id: string; count: number }[];
@@ -156,6 +161,16 @@ export class NpcSpawnSystem implements System {
     await this.queueLoad("boot");
     this.watchFile();
     this.ready = true;
+    // The gamemode fills a dungeon lease before moving the party in: reload now, place every prespawn zone under the prefix
+    (globalThis as any).__alduinakNpcSpawnNow = (prefix: string): Promise<number> => this.queueLoad("gamemode").then(() => {
+      let placed = 0;
+      for (const zone of this.zones) {
+        if (!zone.prespawn || !zone.name.startsWith(String(prefix))) continue;
+        this.fillSlots(this.mp, zone, Date.now());
+        placed += zone.spawned.length;
+      }
+      return placed;
+    });
   }
 
   private queueLoad(reason: string): Promise<void> {
@@ -287,6 +302,7 @@ export class NpcSpawnSystem implements System {
     return {
       name, locator, pos, radius, npcs,
       anchor: String(pick(raw, "anchor") ?? "").trim(),
+      prespawn: pick(raw, "prespawn") === true,
       despawnSeconds: Math.max(0, num(pick(raw, "despawn"), DEFAULT_DESPAWN)),
       respawnSeconds: Math.max(0, num(pick(raw, "respawn"), DEFAULT_RESPAWN)),
     };
@@ -359,11 +375,12 @@ export class NpcSpawnSystem implements System {
     }
     return {
       name: draft.name, cellOrWorldDesc, cellOrWorldId, pos: draft.pos, radius: draft.radius, anchorId, npcs, slots,
+      prespawn: !!draft.prespawn && anchorId > 0,
       total: slots.length,
       despawnSeconds: draft.despawnSeconds,
       respawnSeconds: draft.respawnSeconds,
       slotReadyAt: slots.map(() => 0),
-      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds]),
+      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn]),
       spawned: [], emptySince: 0, inside: new Set(),
     };
   }
@@ -402,8 +419,11 @@ export class NpcSpawnSystem implements System {
 
     for (const zone of this.zones) {
       this.updateInside(mp, zone, playerIds);
-      const occupied = zone.inside.size > 0;
-      if (zone.spawned.length) this.checkDeaths(mp, zone, now);
+      const occupied = zone.inside.size > 0 || zone.prespawn;
+      if (zone.spawned.length) {
+        this.checkDeaths(mp, zone, now);
+        this.checkFallen(mp, zone, now);
+      }
       if (occupied) {
         zone.emptySince = 0;
         this.fillSlots(mp, zone, now);
@@ -455,7 +475,7 @@ export class NpcSpawnSystem implements System {
       if (entry && !entry.diedAt) continue;
       const at = zone.slotReadyAt[slot];
       if (at < 0 || at > now) continue;
-      const anchor = this.anchorIn(zone);
+      const anchor = this.anchorIn(zone) ?? (zone.prespawn ? zone.anchorId : undefined);
       if (anchor === undefined) break;
       const npc = zone.slots[slot];
       const id = this.spawnOne(mp, zone, npc, slot, anchor);
@@ -561,6 +581,20 @@ export class NpcSpawnSystem implements System {
       entry.diedAt = now;
       zone.slotReadyAt[entry.slot] = zone.respawnSeconds > 0 ? now + zone.respawnSeconds * 1000 : NEVER_READY;
       if (!gone) this.corpses.set(entry.id, now + this.corpseMs);
+    }
+  }
+
+  private checkFallen(mp: Mp, zone: Zone, now: number): void {
+    for (const entry of zone.spawned) {
+      if (!entry.id || entry.diedAt) continue;
+      let z = 0;
+      try { z = mp.getActorPos(entry.id)[2]; } catch { continue; }
+      if (!(z < zone.pos[2] - FALL_LIMIT)) continue;
+      this.log(`NpcSpawnSystem: '${zone.name}' ${hex(entry.id)} fell out of the world (z ${Math.round(z)}), placing it again`);
+      try { mp.destroyActor(entry.id); } catch { }
+      entry.id = 0;
+      entry.diedAt = now;
+      zone.slotReadyAt[entry.slot] = now;
     }
   }
 

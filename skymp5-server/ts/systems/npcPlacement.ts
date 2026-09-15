@@ -28,5 +28,8 @@ export const placeNpc = (mp: Mp, anchorId: number, baseDesc: string, loc: NpcLoc
   mp.set(id, "locationalData", loc);
   mp.set(id, "spawnPoint", loc);
   mp.set(id, "spawnDelay", NEVER_RESPAWN);
+  // The move above never reaches clients already watching the anchor; disable/enable re-sends the actor at loc
+  mp.set(id, "isDisabled", true);
+  mp.set(id, "isDisabled", false);
   return id;
 };
