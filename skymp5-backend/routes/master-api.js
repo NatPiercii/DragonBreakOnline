@@ -7,7 +7,7 @@
  *   app.use('/api/servers', masterApiRoute)  -> GET/POST /api/servers/:key/…
  *
  * Endpoints:
- *   POST /auth/session
+ *   POST /auth/session  (X-Auth-Token)
  *     Body: { discordUser: { id, username } }  Returns: { profileId, session }
  *     Called by the launcher after Discord login; the game client passes the session token to the game server.
  *   GET /api/servers/:key/sessions/:session
@@ -203,6 +203,7 @@ function createSession(discordUser) {
 // POST /auth/session
 
 router.post('/session', (req, res) => {
+  if (!checkWriteToken(req, res)) return
   const { discordUser } = req.body || {}
   if (!discordUser || !discordUser.id)
     return res.status(400).json({ error: 'Missing discordUser.id' })
