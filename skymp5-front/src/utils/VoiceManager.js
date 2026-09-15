@@ -181,8 +181,8 @@ class VoiceManager {
   async setPtt(down) {
     this.ptt = !!down;
     // The banner doubles as the transmit indicator: solid while the mic is open, hidden on release
-    if (this.ptt) this.showBanner(this.mode);
-    else this.hideBanner();
+    // The HUD status panel (features/hud) shows transmit state; the old banner image is retired.
+    window.dispatchEvent(new CustomEvent('dbo:voicePtt', { detail: this.ptt }));
     if (!this.room) return;
     try {
       await this.room.localParticipant.setMicrophoneEnabled(this.ptt);
@@ -195,7 +195,8 @@ class VoiceManager {
     if (!this.modeByKey(key)) return;
     this.mode = key;
     this.publishRange();
-    this.showBanner(key);
+    window.__dboVoiceMode = key;
+    window.dispatchEvent(new CustomEvent('dbo:voiceMode', { detail: key }));
   }
 
   publishRange() {

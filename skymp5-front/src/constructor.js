@@ -24,6 +24,9 @@ import MasteryMenu from './features/masteryMenu';
 import BountyBoard from './features/bountyBoard';
 import InteractPrompt from './features/interactPrompt';
 import Hud from './features/hud';
+import Reading from './features/reading';
+import DungeonGate from './features/dungeonGate';
+import Party from './features/party';
 
 const styles = [
   'BUTTON_STYLE_GITHUB',
@@ -242,6 +245,12 @@ const Constructor = props => {
       return <InteractPrompt data={rend} />;
     case 'hud':
       return <Hud data={rend} />;
+    case 'reading':
+      return <Reading data={rend} />;
+    case 'dungeonGate':
+      return <DungeonGate data={rend} />;
+    case 'party':
+      return <Party data={rend} />;
     case 'death':
       return (
         <DeathScreen seconds={rend.seconds} onChoice={rend.onChoice} />

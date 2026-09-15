@@ -1,10 +1,10 @@
 // Player-to-player trade window: inventory left, cancel/lock/trade center, both offers stacked right; a locked pane glows gold.
 
-$trade-gold: #c8b48a;
-$trade-gold-dim: #8a7a55;
-$trade-bg: rgba(12, 12, 12, 0.92);
-$trade-pane-bg: rgba(0, 0, 0, 0.45);
-$trade-border: rgba(200, 180, 138, 0.45);
+$trade-gold: #8fd3d0;
+$trade-gold-dim: #5fb3b3;
+$trade-bg: rgba(12, 34, 38, 0.94);
+$trade-pane-bg: rgba(8, 25, 28, 0.5);
+$trade-border: rgba(143, 211, 208, 0.42);
 
 .trade {
   position: fixed;
@@ -73,7 +73,7 @@ $trade-border: rgba(200, 180, 138, 0.45);
     // A locked offer glows gold until either side changes their offer.
     &--locked {
       border-color: $trade-gold;
-      box-shadow: 0 0 10px rgba(200, 180, 138, 0.55), inset 0 0 14px rgba(200, 180, 138, 0.18);
+      box-shadow: 0 0 10px rgba(143, 211, 208, 0.55), inset 0 0 14px rgba(143, 211, 208, 0.18);
       background: rgba(64, 54, 30, 0.5);
     }
   }
@@ -117,10 +117,10 @@ $trade-border: rgba(200, 180, 138, 0.45);
     }
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(200, 180, 138, 0.35);
+      background: rgba(143, 211, 208, 0.35);
 
       &:hover {
-        background: rgba(200, 180, 138, 0.6);
+        background: rgba(143, 211, 208, 0.6);
       }
     }
   }
@@ -132,13 +132,13 @@ $trade-border: rgba(200, 180, 138, 0.45);
     padding: 5px 8px;
     font-size: clamp(15px, 1.2vw, 18px);
     color: $trade-gold;
-    border-bottom: 1px solid rgba(200, 180, 138, 0.12);
+    border-bottom: 1px solid rgba(143, 211, 208, 0.12);
 
     &--clickable {
       cursor: pointer;
 
       &:hover {
-        background: rgba(200, 180, 138, 0.16);
+        background: rgba(143, 211, 208, 0.16);
         color: #fff;
       }
     }

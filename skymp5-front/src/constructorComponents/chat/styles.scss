@@ -58,13 +58,13 @@
       flex: 1 1 auto;
       cursor: move;
       border-radius: 3px;
-      background: rgba(10, 8, 8, 0.6);
-      border: 1px solid rgba(110, 30, 28, 0.45);
+      background: rgba(8, 25, 28, 0.6);
+      border: 1px solid rgba(143, 211, 208, 0.35);
       opacity: 0.5;
       transition: opacity 0.15s ease, border-color 0.15s ease;
       &:hover {
         opacity: 0.9;
-        border-color: rgba(200, 70, 60, 0.85);
+        border-color: rgba(143, 211, 208, 0.85);
       }
     }
     .chat-corner {
@@ -120,18 +120,18 @@
         max-width: 100%;
         overflow-wrap: break-word;
         white-space: pre-wrap;
-        text-shadow: -0 -2px 0 rgba(0, 0, 0, 0.63), 0 -2px 0 rgba(0, 0, 0, 0.63),
-          -0 2px 0 rgba(0, 0, 0, 0.63), 0 2px 0 rgba(0, 0, 0, 0.63),
-          -2px -0 0 rgba(0, 0, 0, 0.63), 2px -0 0 rgba(0, 0, 0, 0.63),
-          -2px 0 0 rgba(0, 0, 0, 0.63), 2px 0 0 rgba(0, 0, 0, 0.63),
-          -1px -2px 0 rgba(0, 0, 0, 0.63), 1px -2px 0 rgba(0, 0, 0, 0.63),
-          -1px 2px 0 rgba(0, 0, 0, 0.63), 1px 2px 0 rgba(0, 0, 0, 0.63),
-          -2px -1px 0 rgba(0, 0, 0, 0.63), 2px -1px 0 rgba(0, 0, 0, 0.63),
-          -2px 1px 0 rgba(0, 0, 0, 0.63), 2px 1px 0 rgba(0, 0, 0, 0.63),
-          -2px -2px 0 rgba(0, 0, 0, 0.63), 2px -2px 0 rgba(0, 0, 0, 0.63),
-          -2px 2px 0 rgba(0, 0, 0, 0.63), 2px 2px 0 rgba(0, 0, 0, 0.63),
-          -2px -2px 0 rgba(0, 0, 0, 0.63), 2px -2px 0 rgba(0, 0, 0, 0.63),
-          -2px 2px 0 rgba(0, 0, 0, 0.63), 2px 2px 0 rgba(0, 0, 0, 0.63);
+        text-shadow: -0 -2px 0 rgba(8, 25, 28, 0.66), 0 -2px 0 rgba(8, 25, 28, 0.66),
+          -0 2px 0 rgba(8, 25, 28, 0.66), 0 2px 0 rgba(8, 25, 28, 0.66),
+          -2px -0 0 rgba(8, 25, 28, 0.66), 2px -0 0 rgba(8, 25, 28, 0.66),
+          -2px 0 0 rgba(8, 25, 28, 0.66), 2px 0 0 rgba(8, 25, 28, 0.66),
+          -1px -2px 0 rgba(8, 25, 28, 0.66), 1px -2px 0 rgba(8, 25, 28, 0.66),
+          -1px 2px 0 rgba(8, 25, 28, 0.66), 1px 2px 0 rgba(8, 25, 28, 0.66),
+          -2px -1px 0 rgba(8, 25, 28, 0.66), 2px -1px 0 rgba(8, 25, 28, 0.66),
+          -2px 1px 0 rgba(8, 25, 28, 0.66), 2px 1px 0 rgba(8, 25, 28, 0.66),
+          -2px -2px 0 rgba(8, 25, 28, 0.66), 2px -2px 0 rgba(8, 25, 28, 0.66),
+          -2px 2px 0 rgba(8, 25, 28, 0.66), 2px 2px 0 rgba(8, 25, 28, 0.66),
+          -2px -2px 0 rgba(8, 25, 28, 0.66), 2px -2px 0 rgba(8, 25, 28, 0.66),
+          -2px 2px 0 rgba(8, 25, 28, 0.66), 2px 2px 0 rgba(8, 25, 28, 0.66);
         color: #fafafa;
         &.default {
           color: #fafafa;
@@ -140,7 +140,7 @@
           color: #c37bdd;
         }
         &.admin {
-          color: #ce3131;
+          color: #e8d6a0;
         }
         span {
           white-space: pre-line;
@@ -154,7 +154,7 @@
   .chat-divider {
     height: 1px;
     margin: 6px 0 8px;
-    background: linear-gradient(90deg, transparent, rgba(180, 60, 50, 0.45), transparent);
+    background: linear-gradient(90deg, transparent, rgba(143, 211, 208, 0.45), transparent);
     pointer-events: none;
   }
   .chat-tabs-row {
@@ -177,10 +177,10 @@
       opacity: 0.5;
       white-space: nowrap;
       transition: opacity 0.15s ease;
-      text-shadow: -0 -2px 0 rgba(0, 0, 0, 0.63), 0 -2px 0 rgba(0, 0, 0, 0.63),
-        -0 2px 0 rgba(0, 0, 0, 0.63), 0 2px 0 rgba(0, 0, 0, 0.63),
-        -2px 0 0 rgba(0, 0, 0, 0.63), 2px 0 0 rgba(0, 0, 0, 0.63),
-        -2px 2px 0 rgba(0, 0, 0, 0.63), 2px 2px 0 rgba(0, 0, 0, 0.63);
+      text-shadow: -0 -2px 0 rgba(8, 25, 28, 0.66), 0 -2px 0 rgba(8, 25, 28, 0.66),
+        -0 2px 0 rgba(8, 25, 28, 0.66), 0 2px 0 rgba(8, 25, 28, 0.66),
+        -2px 0 0 rgba(8, 25, 28, 0.66), 2px 0 0 rgba(8, 25, 28, 0.66),
+        -2px 2px 0 rgba(8, 25, 28, 0.66), 2px 2px 0 rgba(8, 25, 28, 0.66);
       &:hover {
         opacity: 1;
       }
@@ -206,21 +206,21 @@
       opacity: 0.68;
       font-weight: bold;
       letter-spacing: 1px;
-      text-shadow: -0 -2px 0 rgba(0, 0, 0, 0.63), 0 -2px 0 rgba(0, 0, 0, 0.63),
-        -0 2px 0 rgba(0, 0, 0, 0.63), 0 2px 0 rgba(0, 0, 0, 0.63),
-        -2px -0 0 rgba(0, 0, 0, 0.63), 2px -0 0 rgba(0, 0, 0, 0.63),
-        -2px 0 0 rgba(0, 0, 0, 0.63), 2px 0 0 rgba(0, 0, 0, 0.63),
-        -1px -2px 0 rgba(0, 0, 0, 0.63), 1px -2px 0 rgba(0, 0, 0, 0.63),
-        -1px 2px 0 rgba(0, 0, 0, 0.63), 1px 2px 0 rgba(0, 0, 0, 0.63),
-        -2px -1px 0 rgba(0, 0, 0, 0.63), 2px -1px 0 rgba(0, 0, 0, 0.63),
-        -2px 1px 0 rgba(0, 0, 0, 0.63), 2px 1px 0 rgba(0, 0, 0, 0.63),
-        -2px -2px 0 rgba(0, 0, 0, 0.63), 2px -2px 0 rgba(0, 0, 0, 0.63),
-        -2px 2px 0 rgba(0, 0, 0, 0.63), 2px 2px 0 rgba(0, 0, 0, 0.63),
-        -2px -2px 0 rgba(0, 0, 0, 0.63), 2px -2px 0 rgba(0, 0, 0, 0.63),
-        -2px 2px 0 rgba(0, 0, 0, 0.63), 2px 2px 0 rgba(0, 0, 0, 0.63);
+      text-shadow: -0 -2px 0 rgba(8, 25, 28, 0.66), 0 -2px 0 rgba(8, 25, 28, 0.66),
+        -0 2px 0 rgba(8, 25, 28, 0.66), 0 2px 0 rgba(8, 25, 28, 0.66),
+        -2px -0 0 rgba(8, 25, 28, 0.66), 2px -0 0 rgba(8, 25, 28, 0.66),
+        -2px 0 0 rgba(8, 25, 28, 0.66), 2px 0 0 rgba(8, 25, 28, 0.66),
+        -1px -2px 0 rgba(8, 25, 28, 0.66), 1px -2px 0 rgba(8, 25, 28, 0.66),
+        -1px 2px 0 rgba(8, 25, 28, 0.66), 1px 2px 0 rgba(8, 25, 28, 0.66),
+        -2px -1px 0 rgba(8, 25, 28, 0.66), 2px -1px 0 rgba(8, 25, 28, 0.66),
+        -2px 1px 0 rgba(8, 25, 28, 0.66), 2px 1px 0 rgba(8, 25, 28, 0.66),
+        -2px -2px 0 rgba(8, 25, 28, 0.66), 2px -2px 0 rgba(8, 25, 28, 0.66),
+        -2px 2px 0 rgba(8, 25, 28, 0.66), 2px 2px 0 rgba(8, 25, 28, 0.66),
+        -2px -2px 0 rgba(8, 25, 28, 0.66), 2px -2px 0 rgba(8, 25, 28, 0.66),
+        -2px 2px 0 rgba(8, 25, 28, 0.66), 2px 2px 0 rgba(8, 25, 28, 0.66);
       color: #fafafa;
       &.limit {
-        color: #F78C8C;
+        color: #f0e2b8;
       }
   }
 }

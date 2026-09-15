@@ -20,9 +20,9 @@
   width: 100%;
   border-radius: 4px;
   background-color: rgba(0, 0, 0, var(--chat-bg-alpha, 0.75));
-  border: 1px solid rgba(110, 30, 28, 0.45);
+  border: 1px solid rgba(143, 211, 208, 0.35);
   // Red hairline along the bottom edge of the input row
-  background-image: linear-gradient(90deg, transparent, rgba(180, 60, 50, 0.45), transparent);
+  background-image: linear-gradient(90deg, transparent, rgba(143, 211, 208, 0.45), transparent);
   background-repeat: no-repeat;
   background-position: center bottom;
   background-size: 100% 1px;
@@ -86,7 +86,7 @@
     cursor: pointer;
     border: solid 15px transparent;
     background-clip: padding-box;
-    border: 1px solid rgba(140, 40, 35, 0.8);
+    border: 1px solid rgba(232, 214, 160, 0.7);
   }
   &::-webkit-scrollbar-track-piece:end {
     background: transparent;

@@ -15,12 +15,12 @@
     color: #fafafa;
     opacity: 0.5;
     transition: opacity 0.15s ease, color 0.15s ease;
-    text-shadow: -0 -2px 0 rgba(0, 0, 0, 0.63), 0 -2px 0 rgba(0, 0, 0, 0.63),
-      -0 2px 0 rgba(0, 0, 0, 0.63), 0 2px 0 rgba(0, 0, 0, 0.63),
-      -2px -0 0 rgba(0, 0, 0, 0.63), 2px -0 0 rgba(0, 0, 0, 0.63),
-      -2px 0 0 rgba(0, 0, 0, 0.63), 2px 0 0 rgba(0, 0, 0, 0.63),
-      -2px -2px 0 rgba(0, 0, 0, 0.63), 2px -2px 0 rgba(0, 0, 0, 0.63),
-      -2px 2px 0 rgba(0, 0, 0, 0.63), 2px 2px 0 rgba(0, 0, 0, 0.63);
+    text-shadow: -0 -2px 0 rgba(8, 25, 28, 0.66), 0 -2px 0 rgba(8, 25, 28, 0.66),
+      -0 2px 0 rgba(8, 25, 28, 0.66), 0 2px 0 rgba(8, 25, 28, 0.66),
+      -2px -0 0 rgba(8, 25, 28, 0.66), 2px -0 0 rgba(8, 25, 28, 0.66),
+      -2px 0 0 rgba(8, 25, 28, 0.66), 2px 0 0 rgba(8, 25, 28, 0.66),
+      -2px -2px 0 rgba(8, 25, 28, 0.66), 2px -2px 0 rgba(8, 25, 28, 0.66),
+      -2px 2px 0 rgba(8, 25, 28, 0.66), 2px 2px 0 rgba(8, 25, 28, 0.66);
 	  
 	.chat-channel-unread {
 	  display: inline-block;
@@ -28,7 +28,7 @@
 	  height: 6px;
 	  margin-left: 4px;
 	  border-radius: 50%;
-	  background: #ff5b5b;
+	  background: #e8d6a0;
 	  vertical-align: middle;
 }
 
@@ -50,7 +50,7 @@
     }
 
     &.channel-admin.active {
-      color: #ce3131;
+      color: #e8d6a0;
     }
   }
 }

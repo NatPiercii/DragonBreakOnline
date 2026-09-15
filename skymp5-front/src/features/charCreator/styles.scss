@@ -1,10 +1,10 @@
 // Character creator: dark 40% left panel, transparent right side so the player stays visible for live preview.
 
-$cc-gold: #c8b48a;
-$cc-gold-dim: #8a7a55;
-$cc-bg: rgba(10, 10, 10, 0.88);
-$cc-panel-bg: rgba(0, 0, 0, 0.45);
-$cc-border: rgba(200, 180, 138, 0.45);
+$cc-gold: #8fd3d0;
+$cc-gold-dim: #5fb3b3;
+$cc-bg: rgba(12, 34, 38, 0.94);
+$cc-panel-bg: rgba(8, 25, 28, 0.5);
+$cc-border: rgba(143, 211, 208, 0.42);
 
 .charCreator {
   position: fixed;
@@ -48,7 +48,7 @@ $cc-border: rgba(200, 180, 138, 0.45);
 
     &--active {
       color: #fff;
-      text-shadow: 0 0 8px rgba(200, 180, 138, 0.8);
+      text-shadow: 0 0 8px rgba(143, 211, 208, 0.8);
     }
   }
 
@@ -101,7 +101,7 @@ $cc-border: rgba(200, 180, 138, 0.45);
 
   &__section {
     background: $cc-panel-bg;
-    border: 1px solid rgba(200, 180, 138, 0.2);
+    border: 1px solid rgba(143, 211, 208, 0.2);
     padding: 10px 12px;
   }
 
@@ -111,7 +111,7 @@ $cc-border: rgba(200, 180, 138, 0.45);
     align-items: baseline;
     font-size: 18px;
     color: $cc-gold;
-    border-bottom: 1px solid rgba(200, 180, 138, 0.25);
+    border-bottom: 1px solid rgba(143, 211, 208, 0.25);
     padding-bottom: 4px;
     margin-bottom: 8px;
   }
@@ -155,7 +155,7 @@ $cc-border: rgba(200, 180, 138, 0.45);
     &--selected {
       border-color: $cc-gold;
       color: #fff;
-      box-shadow: 0 0 14px rgba(200, 180, 138, 0.65), inset 0 0 12px rgba(200, 180, 138, 0.25);
+      box-shadow: 0 0 14px rgba(143, 211, 208, 0.65), inset 0 0 12px rgba(143, 211, 208, 0.25);
     }
 
     &--locked {
@@ -233,13 +233,13 @@ $cc-border: rgba(200, 180, 138, 0.45);
     &--selected {
       color: #fff;
       border-color: $cc-gold;
-      box-shadow: 0 0 10px rgba(200, 180, 138, 0.5);
+      box-shadow: 0 0 10px rgba(143, 211, 208, 0.5);
     }
   }
 
   &__lore {
     background: $cc-panel-bg;
-    border: 1px solid rgba(200, 180, 138, 0.2);
+    border: 1px solid rgba(143, 211, 208, 0.2);
     padding: 12px 14px;
   }
 
@@ -394,7 +394,7 @@ $cc-border: rgba(200, 180, 138, 0.45);
 
     &--selected {
       border: 2px solid #fff;
-      box-shadow: 0 0 8px rgba(200, 180, 138, 0.8);
+      box-shadow: 0 0 8px rgba(143, 211, 208, 0.8);
     }
 
     &--none {
@@ -441,7 +441,7 @@ $cc-border: rgba(200, 180, 138, 0.45);
       }
 
       &_track_inner {
-        background: rgba(200, 180, 138, 0.45);
+        background: rgba(143, 211, 208, 0.45);
       }
     }
   }
@@ -523,7 +523,7 @@ $cc-border: rgba(200, 180, 138, 0.45);
   &__waiting {
     font-size: 20px;
     color: #fff;
-    text-shadow: 0 0 10px rgba(200, 180, 138, 0.8);
+    text-shadow: 0 0 10px rgba(143, 211, 208, 0.8);
   }
 }
 

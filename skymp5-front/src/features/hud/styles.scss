@@ -1,61 +1,127 @@
-// Needs HUD, bottom-left, above the vanilla compass line. Passive overlay in the Skyrim HUD idiom:
-// condensed gold label, thin framed bar, no background panel. Vitals bars (bottom-right) go in the
-// same widget later, mirrored with `right` instead of `left`.
+// Passive HUD in the DragonBreak palette (src/dbo-theme.scss): hunger bar bottom-left above the
+// vanilla compass line, vitals bottom-right in the Oblivion idiom, hourglass watermark top-right.
+@import '../../dbo-theme.scss';
 
-$gold: #c8b48a;
-$text: #e8e0d0;
-
-.dboHud {
+.dboWatermark {
   position: fixed;
-  left: 2.2%;
-  bottom: 3.6%;
+  top: 2.4%;
+  right: 1.8%;
+  z-index: 14;
+  pointer-events: none;
+  opacity: 0.62;
+  filter: drop-shadow(0 0 10px rgba(143, 211, 208, 0.35)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+
+  // The art ships inside the bundle (src/img/dbo-watermark.png); the <img> only sizes the box.
+  width: clamp(72px, 7vw, 140px);
+  aspect-ratio: 420 / 520;
+  background: url('../../img/dbo-watermark.png') center / contain no-repeat;
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+    opacity: 0;
+  }
+}
+
+// Status panel, bottom-left: a dark teal card with one row per state (hunger, voice mode),
+// icon on the left, label, value on the right, a thin meter under the hunger row.
+.dboStatus {
+  position: fixed;
+  left: 1.6%;
+  bottom: 3.4%;
   z-index: 15;
   pointer-events: none;
-  font-family: 'Futura Condensed', 'Roboto Condensed', sans-serif;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  width: 232px;
+  font-family: $dbo-ui-font;
+  background: linear-gradient(180deg, rgba(15, 42, 46, 0.78), rgba(8, 25, 28, 0.86));
+  border: 1px solid rgba(143, 211, 208, 0.38);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(143, 211, 208, 0.14), 0 6px 14px rgba(0, 0, 0, 0.6);
 
   &__row {
-    display: flex;
+    position: relative;
+    display: grid;
+    grid-template-columns: 26px 1fr auto;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
+    padding: 8px 12px 10px;
+    border-bottom: 1px solid rgba(143, 211, 208, 0.18);
+
+    &:last-child { border-bottom: 0; }
+  }
+
+  &__icon {
+    width: 20px;
+    height: 20px;
+    justify-self: center;
+    opacity: 0.85;
+    background-color: $dbo-aqua;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+
+    // A bowl of food and a speaking mouth, as inline SVG masks (no files to ship).
+    &--food {
+      -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 11h18a9 9 0 0 1-18 0z' fill='black'/><path d='M7 4c1 1 1 2 0 3M12 3c1 1 1 2 0 3M17 4c1 1 1 2 0 3' stroke='black' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
+      mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 11h18a9 9 0 0 1-18 0z' fill='black'/><path d='M7 4c1 1 1 2 0 3M12 3c1 1 1 2 0 3M17 4c1 1 1 2 0 3' stroke='black' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
+    }
+
+    &--voice {
+      -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M4 9v6h4l5 4V5L8 9z' fill='black'/><path d='M16 8a5 5 0 0 1 0 8M18.5 5.5a8.5 8.5 0 0 1 0 13' stroke='black' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+      mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M4 9v6h4l5 4V5L8 9z' fill='black'/><path d='M16 8a5 5 0 0 1 0 8M18.5 5.5a8.5 8.5 0 0 1 0 13' stroke='black' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+    }
   }
 
   &__label {
-    color: $gold;
-    font-size: 15px;
-    letter-spacing: 0.12em;
+    color: $dbo-silver;
+    font-size: 14px;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    min-width: 58px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   }
 
-  &__bar {
-    width: 220px;
-    height: 9px;
-    border: 1px solid rgba(200, 180, 138, 0.8);
-    background: rgba(0, 0, 0, 0.55);
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
+  &__value {
+    color: $dbo-aqua;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+
+    &--dim {
+      color: $dbo-text-dim;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+  }
+
+  &__meter {
+    grid-column: 2 / span 2;
+    height: 3px;
+    margin-top: 2px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(143, 211, 208, 0.25);
   }
 
   &__fill {
     height: 100%;
-    background: linear-gradient(#e2c078, #a3752a);
+    background: linear-gradient(90deg, $dbo-aqua-deep, $dbo-aqua);
     transition: width 0.6s ease, background 0.6s ease;
-
-    &--peckish { background: linear-gradient(#e0b25a, #9a6a1e); }
-    &--hungry { background: linear-gradient(#e08a4a, #9a4a1a); }
-    &--starving { background: linear-gradient(#d8503c, #8a1e14); }
   }
 
-  &__stage {
-    color: $text;
-    font-size: 13px;
-    letter-spacing: 0.06em;
-    min-width: 60px;
-  }
+  &__row--peckish .dboStatus__fill { background: linear-gradient(90deg, #4f8a80, #a9cfc0); }
+  &__row--hungry .dboStatus__fill { background: linear-gradient(90deg, #8a5a1e, #d9a860); }
+  &__row--hungry .dboStatus__label { color: #e8d6a0; }
+  &__row--starving .dboStatus__fill { background: linear-gradient(90deg, #8a1e14, #d8503c); }
+  &__row--starving .dboStatus__label { color: #e8907f; }
 }
 
-// Vitals, bottom-right, in the Oblivion idiom: three stacked horizontal bars with a dark bevelled
-// frame, red health on top, blue magicka, green fatigue (stamina) at the bottom. No labels.
+// Vitals, bottom-right: three stacked horizontal bars with a dark bevelled frame, red health on
+// top, blue magicka, green fatigue (stamina) at the bottom. No labels.
 .dboVitals {
   position: fixed;
   right: 2.2%;
@@ -64,7 +130,7 @@ $text: #e8e0d0;
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
   align-items: flex-end;
 
   &__row {
@@ -73,11 +139,11 @@ $text: #e8e0d0;
   }
 
   &__bar {
-    width: 240px;
-    height: 12px;
-    border: 1px solid rgba(214, 196, 150, 0.85);
+    width: 360px;
+    height: 20px;
+    border: 1px solid $dbo-border-strong;
     border-radius: 2px;
-    background: linear-gradient(rgba(10, 10, 10, 0.75), rgba(30, 28, 24, 0.7));
+    background: linear-gradient(rgba(8, 25, 28, 0.8), rgba(15, 42, 46, 0.75));
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 1px 2px rgba(0, 0, 0, 0.8);
     overflow: hidden;
   }
@@ -90,5 +156,23 @@ $text: #e8e0d0;
     &--health { background: linear-gradient(#e4413a, #8f1310); }
     &--magicka { background: linear-gradient(#4f8fe6, #17408f); }
     &--stamina { background: linear-gradient(#66c95a, #1e6a1e); }
+  }
+}
+
+// Voice row while push-to-talk is held: the row lights up instead of a separate banner.
+.dboStatus__row--talking {
+  background: linear-gradient(90deg, rgba(143, 211, 208, 0.24), rgba(143, 211, 208, 0.04));
+
+  .dboStatus__icon {
+    background-color: #ffffff;
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(143, 211, 208, 0.95));
+  }
+
+  .dboStatus__label { color: $dbo-aqua; }
+
+  .dboStatus__value {
+    color: $dbo-aqua;
+    text-shadow: 0 0 8px rgba(143, 211, 208, 0.8);
   }
 }

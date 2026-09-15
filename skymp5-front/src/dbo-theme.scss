@@ -1,0 +1,96 @@
+// DragonBreak Online palette, taken from the hourglass logo: deep teal-black grounds, pale aqua
+// glow, grey stone frames, silver serif titles, a touch of amber in the nebula. Every custom
+// widget imports this; nothing hard-codes a colour of its own.
+
+$dbo-ground: #08191c;                 // deepest background (the dark sand)
+$dbo-ground-2: #0f2a2e;               // panel body
+$dbo-ground-3: #16383d;               // raised panel / hover
+$dbo-stone: #5d6b6e;                  // hourglass frame grey
+$dbo-stone-dark: #3a4548;
+$dbo-stone-light: #8c9a9c;
+$dbo-aqua: #8fd3d0;                   // the glow
+$dbo-aqua-dim: #5fb3b3;
+$dbo-aqua-deep: #2f7c80;
+$dbo-silver: #e6ecec;                 // title lettering
+$dbo-text: #d7e3e3;
+$dbo-text-dim: rgba(215, 227, 227, 0.62);
+$dbo-amber: #c98a3a;                  // nebula warmth, for warnings and gold
+$dbo-red: #c9463a;
+
+$dbo-panel: rgba(12, 34, 38, 0.94);
+$dbo-panel-soft: rgba(12, 34, 38, 0.82);
+$dbo-border: rgba(143, 211, 208, 0.42);
+$dbo-border-strong: rgba(143, 211, 208, 0.75);
+$dbo-glow: 0 0 18px rgba(143, 211, 208, 0.25);
+$dbo-shadow: 0 24px 48px rgba(0, 0, 0, 0.8);
+
+$dbo-title-font: 'Bankir-Retro', 'Trajan Pro', 'Cinzel', Georgia, serif;
+$dbo-ui-font: 'Futura Condensed', 'Roboto Condensed', sans-serif;
+$dbo-book-font: Georgia, 'Times New Roman', serif;
+
+$dbo-fast: 140ms ease;
+
+// A framed panel in the house style.
+@mixin dbo-panel {
+  background: linear-gradient(180deg, $dbo-ground-2, $dbo-ground);
+  border: 1px solid $dbo-border;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5), $dbo-glow, $dbo-shadow;
+}
+
+@mixin dbo-title {
+  color: $dbo-silver;
+  font-family: $dbo-title-font;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(143, 211, 208, 0.45), 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+// Buttons: light, translucent gold on every custom panel.
+$dbo-gold: #e8d6a0;
+$dbo-gold-fill: rgba(232, 214, 160, 0.16);
+$dbo-gold-fill-hover: rgba(232, 214, 160, 0.34);
+$dbo-gold-border: rgba(232, 214, 160, 0.55);
+$dbo-gold-border-strong: rgba(232, 214, 160, 0.9);
+
+@mixin dbo-button {
+  padding: 8px 18px;
+  background: $dbo-gold-fill;
+  border: 1px solid $dbo-gold-border;
+  color: $dbo-gold;
+  font-family: $dbo-ui-font;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  transition: background $dbo-fast, color $dbo-fast, border-color $dbo-fast;
+
+  &:hover:not(:disabled) {
+    background: $dbo-gold-fill-hover;
+    border-color: $dbo-gold-border-strong;
+    color: #fff6dc;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  &--primary {
+    background: rgba(232, 214, 160, 0.24);
+    border-color: $dbo-gold-border-strong;
+    color: #fff6dc;
+  }
+
+  &--danger {
+    border-color: rgba(201, 70, 58, 0.6);
+    color: #e8907f;
+
+    &:hover:not(:disabled) {
+      background: $dbo-red;
+      border-color: $dbo-red;
+      color: $dbo-silver;
+    }
+  }
+}

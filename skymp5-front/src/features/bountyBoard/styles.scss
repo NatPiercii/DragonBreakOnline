@@ -1,24 +1,12 @@
-// Bounty board: a wooden notice board of pinned papers. The board frame and
-// each paper are flat placeholder fills for now; both are meant to be swapped
-// for background-image art (frame backdrop, paper texture) when it arrives.
+// Notice board: a stone-framed board of pinned papers in the DragonBreak palette
+// (see src/dbo-theme.scss). Three tabs along the top, papers in a grid, one paper
+// opened at a time, and a compose dialog.
+@import '../../dbo-theme.scss';
 
-$fast: 140ms ease;
-
-// Placeholder wood and parchment tones.
-$wood: #4a3421;
-$wood-dark: #38271a;
-$wood-edge: #2a1d12;
-$paper: #d8c9a3;
-$paper-edge: #b5a478;
-$ink: #2a2118;
-$ink-dim: rgba(42, 33, 24, 0.65);
-
-// Chrome shared with the other menus (black and gold).
-$gold: #c8b48a;
-$bg: rgba(10, 10, 10, 0.94);
-$border: rgba(200, 180, 138, 0.45);
-$text: #e8e0d0;
-$text-dim: rgba(232, 224, 208, 0.6);
+$paper: #d9dede;
+$paper-edge: #9fb0b0;
+$ink: #14282b;
+$ink-dim: rgba(20, 40, 43, 0.62);
 
 .bountyBoard {
   position: fixed;
@@ -30,41 +18,77 @@ $text-dim: rgba(232, 224, 208, 0.6);
   display: grid;
   place-items: center;
   pointer-events: none;
-  font-family: 'Futura Condensed', 'Roboto Condensed', sans-serif;
+  font-family: $dbo-ui-font;
 
   &__fade {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.88) 100%);
+    background: radial-gradient(circle at center, rgba(8, 25, 28, 0.6), rgba(3, 10, 12, 0.9) 100%);
   }
 
-  // Swap the flat fill for the board backdrop graphic here.
   &__frame {
     position: relative;
     pointer-events: auto;
     width: min(1060px, 92vw);
-    height: min(680px, 88vh);
+    height: min(700px, 88vh);
     display: grid;
-    grid-template-rows: 72px minmax(0, 1fr) 64px;
-    background: linear-gradient(180deg, $wood, $wood-dark);
-    border: 6px solid $wood-edge;
-    box-shadow:
-      inset 0 0 60px rgba(0, 0, 0, 0.55),
-      0 24px 48px rgba(0, 0, 0, 0.8);
+    grid-template-rows: 72px 46px minmax(0, 1fr) 64px;
+    @include dbo-panel;
+    border: 6px solid $dbo-stone-dark;
+    outline: 1px solid $dbo-border;
   }
 
   &__title {
     margin: 0;
     display: grid;
     place-items: center;
-    color: $gold;
-    font-family: 'Bankir-Retro', Georgia, serif;
+    @include dbo-title;
     font-size: clamp(24px, 2.6vw, 36px);
-    font-weight: 400;
+    border-bottom: 1px solid $dbo-border;
+  }
+
+  &__tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px 22px 0;
+    border-bottom: 1px solid $dbo-border;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  &__tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    color: $dbo-text-dim;
+    font-family: inherit;
+    font-size: 15px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
-    border-bottom: 2px solid $wood-edge;
+    cursor: pointer;
+    transition: color $dbo-fast, background $dbo-fast;
+
+    &:hover { color: $dbo-text; }
+
+    &--active {
+      background: $dbo-ground-3;
+      border-color: $dbo-border;
+      color: $dbo-aqua;
+      text-shadow: 0 0 10px rgba(143, 211, 208, 0.45);
+    }
+  }
+
+  &__tab-count {
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(143, 211, 208, 0.15);
+    color: $dbo-aqua-dim;
+    font-size: 12px;
+    text-align: center;
   }
 
   &__grid {
@@ -76,7 +100,6 @@ $text-dim: rgba(232, 224, 208, 0.6);
     overflow-y: auto;
   }
 
-  // Swap the flat fill for the paper graphic here.
   &__paper {
     position: relative;
     display: flex;
@@ -84,14 +107,14 @@ $text-dim: rgba(232, 224, 208, 0.6);
     justify-content: space-between;
     min-height: 130px;
     padding: 16px 12px 10px;
-    background: $paper;
+    background: linear-gradient(170deg, #e4e8e8, $paper 60%, #c9d2d2);
     border: 1px solid $paper-edge;
-    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.55);
     color: $ink;
-    font-family: Georgia, 'Times New Roman', serif;
+    font-family: $dbo-book-font;
     text-align: left;
     cursor: pointer;
-    transition: transform $fast, box-shadow $fast;
+    transition: transform $dbo-fast, box-shadow $dbo-fast;
 
     // The pin.
     &::before {
@@ -103,8 +126,8 @@ $text-dim: rgba(232, 224, 208, 0.6);
       height: 8px;
       margin-left: -4px;
       border-radius: 50%;
-      background: $wood-edge;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      background: $dbo-stone-dark;
+      box-shadow: 0 0 0 1px $dbo-stone-light, 0 1px 2px rgba(0, 0, 0, 0.6);
     }
 
     &:nth-child(3n) { transform: rotate(1.2deg); }
@@ -113,7 +136,7 @@ $text-dim: rgba(232, 224, 208, 0.6);
 
     &:hover {
       transform: rotate(0deg) scale(1.04);
-      box-shadow: 0 10px 16px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 10px 16px rgba(0, 0, 0, 0.6), 0 0 14px rgba(143, 211, 208, 0.35);
       z-index: 1;
     }
   }
@@ -141,9 +164,11 @@ $text-dim: rgba(232, 224, 208, 0.6);
     align-self: center;
     justify-self: center;
     margin: 0;
-    color: $text-dim;
+    padding: 0 40px;
+    color: $dbo-text-dim;
     font-size: 20px;
     letter-spacing: 0.06em;
+    text-align: center;
   }
 
   &__footer {
@@ -152,12 +177,12 @@ $text-dim: rgba(232, 224, 208, 0.6);
     justify-content: space-between;
     gap: 16px;
     padding: 0 22px;
-    border-top: 2px solid $wood-edge;
+    border-top: 1px solid $dbo-border;
     background: rgba(0, 0, 0, 0.25);
   }
 
   &__hint {
-    color: $text-dim;
+    color: $dbo-text-dim;
     font-size: 14px;
     letter-spacing: 0.04em;
   }
@@ -168,35 +193,7 @@ $text-dim: rgba(232, 224, 208, 0.6);
   }
 
   &__button {
-    padding: 8px 18px;
-    background: $bg;
-    border: 1px solid $border;
-    color: $text;
-    font-family: inherit;
-    font-size: 15px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: background $fast, color $fast;
-
-    &:hover:not(:disabled) {
-      background: $gold;
-      color: #101010;
-    }
-
-    &:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-
-    &--primary {
-      border-color: $gold;
-      color: $gold;
-    }
-
-    &--primary:hover:not(:disabled) {
-      color: #101010;
-    }
+    @include dbo-button;
   }
 
   &__shade {
@@ -206,21 +203,21 @@ $text-dim: rgba(232, 224, 208, 0.6);
     z-index: 2;
     display: grid;
     place-items: center;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(3, 10, 12, 0.6);
   }
 
-  // A single opened paper; takes the paper graphic too.
+  // A single opened paper.
   &__read {
     display: flex;
     flex-direction: column;
     width: min(520px, 80%);
     max-height: 82%;
     padding: 28px 26px 18px;
-    background: $paper;
+    background: linear-gradient(170deg, #e4e8e8, $paper 60%, #c9d2d2);
     border: 1px solid $paper-edge;
     box-shadow: 0 18px 32px rgba(0, 0, 0, 0.7);
     color: $ink;
-    font-family: Georgia, 'Times New Roman', serif;
+    font-family: $dbo-book-font;
   }
 
   &__read-text {
@@ -245,8 +242,8 @@ $text-dim: rgba(232, 224, 208, 0.6);
     text-align: right;
   }
 
-  &__read .bountyBoard__button {
-    align-self: flex-end;
+  &__read-actions {
+    justify-content: flex-end;
   }
 
   &__compose {
@@ -255,19 +252,13 @@ $text-dim: rgba(232, 224, 208, 0.6);
     gap: 12px;
     width: min(560px, 84%);
     padding: 20px;
-    background: $bg;
-    border: 1px solid $border;
-    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.7);
+    @include dbo-panel;
   }
 
   &__compose-title {
     margin: 0;
-    color: $gold;
-    font-family: 'Bankir-Retro', Georgia, serif;
+    @include dbo-title;
     font-size: 22px;
-    font-weight: 400;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
   }
 
   &__compose-text {
@@ -277,12 +268,12 @@ $text-dim: rgba(232, 224, 208, 0.6);
     background: $paper;
     border: 1px solid $paper-edge;
     color: $ink;
-    font-family: Georgia, 'Times New Roman', serif;
+    font-family: $dbo-book-font;
     font-size: 15px;
     line-height: 1.4;
 
     &:focus {
-      outline: 1px solid $gold;
+      outline: 1px solid $dbo-aqua;
     }
   }
 
@@ -297,7 +288,7 @@ $text-dim: rgba(232, 224, 208, 0.6);
     &__frame {
       width: 96vw;
       height: 92vh;
-      grid-template-rows: 56px minmax(0, 1fr) 88px;
+      grid-template-rows: 56px 42px minmax(0, 1fr) 88px;
     }
 
     &__footer {

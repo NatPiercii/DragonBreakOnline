@@ -14,7 +14,7 @@
     padding: 2px 10px;
     border: none;
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(8, 25, 28, 0.6);
     color: #fafafa;
     font-family: 'Futura Condensed', Din-pro;
     font-weight: bold;
@@ -25,7 +25,7 @@
     transition: opacity 0.15s ease, background 0.15s ease;
     &:hover {
       opacity: 1;
-      background: rgba(0, 0, 0, 0.75);
+      background: rgba(8, 25, 28, 0.78);
     }
   }
   .content {
@@ -58,7 +58,7 @@
       height: 56px;
       border-radius: 6px;
       border: 1px solid rgba(255, 255, 255, 0.25);
-      background: rgba(0, 0, 0, 0.55);
+      background: rgba(8, 25, 28, 0.6);
       color: #fafafa;
       font-family: 'Futura Condensed', Din-pro;
       font-size: 13px;

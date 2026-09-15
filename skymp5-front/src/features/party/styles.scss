@@ -1,0 +1,100 @@
+// Party panel in the DragonBreak palette: a small movable, resizable card of names and health bars.
+@import '../../dbo-theme.scss';
+
+.dboParty {
+  position: fixed;
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  pointer-events: auto;
+  font-family: $dbo-ui-font;
+  background: rgba(8, 25, 28, 0.62);
+  border: 1px solid rgba(143, 211, 208, 0.35);
+  box-shadow: 0 0 12px rgba(143, 211, 208, 0.12), 0 6px 16px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px;
+    cursor: move;
+    background: rgba(143, 211, 208, 0.1);
+    border-bottom: 1px solid rgba(143, 211, 208, 0.25);
+    user-select: none;
+  }
+
+  &__title {
+    color: $dbo-aqua;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  &__count {
+    color: $dbo-text-dim;
+    font-size: 11px;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px 10px;
+    overflow-y: auto;
+  }
+
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    &--self .dboParty__name { color: $dbo-gold; }
+    &--dead .dboParty__name { color: #e8907f; text-decoration: line-through; }
+  }
+
+  &__name {
+    color: $dbo-text;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__bar-track {
+    position: relative;
+    height: 8px;
+    border: 1px solid rgba(143, 211, 208, 0.5);
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  &__fill {
+    height: 100%;
+    background: linear-gradient(#e4413a, #8f1310);
+    transition: width 0.3s ease;
+  }
+
+  &__far {
+    position: absolute;
+    inset: -1px 0 0;
+    color: $dbo-text-dim;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 8px;
+  }
+
+  &__grip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, rgba(143, 211, 208, 0.6) 50%);
+  }
+}

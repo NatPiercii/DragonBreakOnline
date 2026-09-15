@@ -1,17 +1,15 @@
-// Mastery menu: the black-and-gold palette shared with the character creator,
-// laid out as the mockup - profession list left, artwork centre, rank ladder right.
+// Skills menu (K) in the DragonBreak palette (src/dbo-theme.scss): a wide frame, the skill list
+// grouped by category on the left, a readable description panel in the centre with the hours
+// worked and the choose/set-aside buttons, and the five-tier ladder on the right.
+@import '../../dbo-theme.scss';
 
 $fast: 140ms ease;
 $medium: 260ms ease;
-
-$gold: #c8b48a;
-$gold-dim: #8a7a55;
-$bg: rgba(10, 10, 10, 0.94);
-$panel-bg: rgba(0, 0, 0, 0.45);
-$border: rgba(200, 180, 138, 0.45);
-$border-dim: rgba(200, 180, 138, 0.22);
-$text: #e8e0d0;
-$text-dim: rgba(232, 224, 208, 0.6);
+$gold: $dbo-aqua;
+$text: $dbo-text;
+$text-dim: $dbo-text-dim;
+$border: $dbo-border;
+$border-dim: rgba(143, 211, 208, 0.2);
 
 .mastery {
   position: fixed;
@@ -23,28 +21,26 @@ $text-dim: rgba(232, 224, 208, 0.6);
   display: grid;
   place-items: center;
   pointer-events: none;
-  font-family: 'Futura Condensed', 'Roboto Condensed', sans-serif;
+  font-family: $dbo-ui-font;
 
   &__fade {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.88) 100%);
+    background: radial-gradient(circle at center, rgba(8, 25, 28, 0.55), rgba(3, 10, 12, 0.9) 100%);
   }
 
   // Rows: header, then the body. Columns: list, stage, ranks.
   &__frame {
     position: relative;
     pointer-events: auto;
-    width: min(1180px, 94vw);
-    height: min(680px, 88vh);
+    width: min(1440px, 96vw);
+    height: min(860px, 92vh);
     display: grid;
-    grid-template-columns: 210px minmax(0, 1fr) 360px;
-    grid-template-rows: 84px minmax(0, 1fr);
-    background: $bg;
-    border: 1px solid $border;
-    box-shadow:
-      inset 0 0 60px rgba(0, 0, 0, 0.8),
-      0 24px 48px rgba(0, 0, 0, 0.8);
+    grid-template-columns: 250px minmax(0, 1fr) 380px;
+    grid-template-rows: 92px minmax(0, 1fr);
+    @include dbo-panel;
+    border: 4px solid $dbo-stone-dark;
+    outline: 1px solid $border;
   }
 
   &__corner {
@@ -53,12 +49,10 @@ $text-dim: rgba(232, 224, 208, 0.6);
     display: grid;
     place-items: center;
     border-right: 1px solid $border-dim;
-    border-bottom: 1px solid $border-dim;
-    color: $gold;
-    font-family: 'Bankir-Retro', Georgia, serif;
-    font-size: 26px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    border-bottom: 1px solid $border;
+    @include dbo-title;
+    color: $dbo-aqua;
+    font-size: 24px;
   }
 
   &__title {
@@ -67,17 +61,12 @@ $text-dim: rgba(232, 224, 208, 0.6);
     margin: 0;
     display: grid;
     place-items: center;
-    border-bottom: 1px solid $border-dim;
-    color: $gold;
-    font-family: 'Bankir-Retro', Georgia, serif;
-    font-size: clamp(26px, 3vw, 42px);
-    font-weight: 400;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    text-shadow: 0 0 18px rgba(200, 180, 138, 0.35);
+    border-bottom: 1px solid $border;
+    @include dbo-title;
+    font-size: clamp(30px, 3.2vw, 46px);
   }
 
-  // ── Profession list ────────────────────────────────────────────────────────
+  // ── Skill list ─────────────────────────────────────────────────────────────
 
   &__list {
     grid-column: 1;
@@ -86,48 +75,73 @@ $text-dim: rgba(232, 224, 208, 0.6);
     flex-direction: column;
     border-right: 1px solid $border-dim;
     overflow-y: auto;
+    padding-bottom: 12px;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__group-name {
+    margin: 14px 0 4px;
+    padding: 0 16px;
+    color: $dbo-aqua-dim;
+    font-family: $dbo-title-font;
+    font-size: 13px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-shadow: 0 0 8px rgba(143, 211, 208, 0.35);
   }
 
   &__item {
     position: relative;
-    flex: 1 1 0;
-    min-height: 46px;
-    padding: 0 10px 0 26px;
+    min-height: 40px;
+    padding: 8px 12px 8px 30px;
     border: 0;
-    border-bottom: 1px solid $border-dim;
+    border-left: 3px solid transparent;
     background: transparent;
-    color: $text-dim;
+    color: $text;
     font-family: inherit;
-    font-size: 15px;
-    letter-spacing: 0.12em;
+    font-size: 16px;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     text-align: left;
     cursor: pointer;
-    transition: color $fast, background $fast;
+    transition: color $fast, background $fast, border-color $fast;
 
     &:hover {
-      color: $text;
-      background: rgba(200, 180, 138, 0.06);
+      color: #fff;
+      background: rgba(143, 211, 208, 0.08);
     }
 
     &--viewing {
-      color: $gold;
-      background: rgba(200, 180, 138, 0.1);
+      color: $dbo-aqua;
+      background: rgba(143, 211, 208, 0.14);
+      border-left-color: $dbo-aqua;
     }
 
     &--chosen {
-      color: $gold;
+      color: $dbo-gold;
       font-weight: 700;
     }
   }
 
   &__marker {
     position: absolute;
-    left: 9px;
+    left: 12px;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 9px;
-    color: $gold;
+    font-size: 10px;
+    color: $dbo-gold;
+  }
+
+  &__item-tier {
+    display: block;
+    margin-top: 2px;
+    color: $text-dim;
+    font-size: 11px;
+    letter-spacing: 0.14em;
   }
 
   // ── Centre stage ───────────────────────────────────────────────────────────
@@ -138,52 +152,60 @@ $text-dim: rgba(232, 224, 208, 0.6);
     position: relative;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
-    background: #000;
+    background: radial-gradient(ellipse at top, rgba(143, 211, 208, 0.08), transparent 55%), linear-gradient(180deg, rgba(15, 42, 46, 0.6), rgba(8, 25, 28, 0.9));
     border-right: 1px solid $border-dim;
     overflow: hidden;
   }
 
   &__epithet {
     margin: 0;
-    padding: 16px 20px 12px;
+    padding: 26px 24px 8px;
     text-align: center;
-    color: $text;
-    font-size: clamp(17px, 1.7vw, 23px);
+    color: $dbo-silver;
+    font-family: $dbo-title-font;
+    font-size: clamp(20px, 2vw, 28px);
     font-weight: 400;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
+    text-shadow: 0 0 14px rgba(143, 211, 208, 0.35);
+
+    &::after {
+      content: '';
+      display: block;
+      width: 120px;
+      height: 1px;
+      margin: 14px auto 0;
+      background: linear-gradient(90deg, transparent, $dbo-aqua, transparent);
+    }
   }
 
-  &__art {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    // The screenshots are bright; sink them so the gold chrome stays legible.
-    filter: brightness(0.82) saturate(0.9);
-
-    &--missing {
-      background: linear-gradient(180deg, rgba(30, 26, 20, 0.9), rgba(0, 0, 0, 0.95));
-    }
+  &__description {
+    margin: 0;
+    padding: 18px 48px;
+    overflow-y: auto;
+    color: $text;
+    font-family: $dbo-book-font;
+    font-size: 19px;
+    line-height: 1.55;
+    text-align: center;
   }
 
   &__stage-foot {
     display: grid;
     place-items: center;
-    min-height: 60px;
-    padding: 12px 16px;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.85) 40%);
-    // Sits over the artwork rather than pushing it down.
-    margin-top: -60px;
-    position: relative;
-    z-index: 1;
+    gap: 6px;
+    min-height: 90px;
+    padding: 14px 16px 18px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(3, 10, 12, 0.75) 60%);
   }
 
   &__played {
     margin: 0;
-    color: $gold;
-    font-size: 15px;
+    color: $dbo-aqua;
+    font-size: 16px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
+    text-align: center;
 
     &--muted {
       color: $text-dim;
@@ -191,7 +213,10 @@ $text-dim: rgba(232, 224, 208, 0.6);
 
     // One quiet sentence under the hour count
     &--hint {
-      font-size: 12px;
+      display: block;
+      margin-top: 4px;
+      color: $text-dim;
+      font-size: 13px;
       letter-spacing: 0.04em;
       text-transform: none;
     }
@@ -205,31 +230,32 @@ $text-dim: rgba(232, 224, 208, 0.6);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    padding-bottom: 56px;
   }
 
   &__rank {
     flex: 1 1 0;
-    min-height: 96px;
-    padding: 12px 14px;
+    min-height: 104px;
+    padding: 14px 18px;
     display: grid;
     grid-template-rows: auto 1fr auto;
     border-bottom: 1px solid $border-dim;
-    opacity: 0.45;
+    opacity: 0.5;
     transition: opacity $medium;
 
     &--reached {
       opacity: 1;
-      background: linear-gradient(90deg, rgba(200, 180, 138, 0.08), transparent);
+      background: linear-gradient(90deg, rgba(143, 211, 208, 0.12), transparent);
     }
   }
 
   &__rank-name {
     margin: 0;
-    color: $gold;
-    font-family: 'Bankir-Retro', Georgia, serif;
-    font-size: 18px;
+    color: $dbo-silver;
+    font-family: $dbo-title-font;
+    font-size: 20px;
     font-weight: 400;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
@@ -237,16 +263,17 @@ $text-dim: rgba(232, 224, 208, 0.6);
     margin: 0;
     padding: 6px 0 0 18px;
     color: $text;
-    font-size: 13px;
-    letter-spacing: 0.04em;
+    font-family: $dbo-book-font;
+    font-size: 15px;
+    letter-spacing: 0.02em;
   }
 
   &__rank-cost {
     justify-self: end;
-    padding: 2px 8px;
-    background: rgba(200, 180, 138, 0.14);
-    border: 1px solid $border-dim;
-    color: $gold;
+    padding: 2px 10px;
+    background: rgba(232, 214, 160, 0.14);
+    border: 1px solid rgba(232, 214, 160, 0.4);
+    color: $dbo-gold;
     font-size: 11px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -257,42 +284,32 @@ $text-dim: rgba(232, 224, 208, 0.6);
   &__choose,
   &__cancel,
   &__close {
-    padding: 9px 18px;
-    border: 1px solid $border;
-    background: rgba(200, 180, 138, 0.1);
-    color: $gold;
-    font-family: inherit;
-    font-size: 13px;
+    @include dbo-button;
+    font-size: 14px;
     letter-spacing: 0.18em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: background $fast, border-color $fast, color $fast;
+  }
 
-    &:hover:not(:disabled) {
-      background: rgba(200, 180, 138, 0.22);
-      border-color: $gold;
-      color: #fff;
-    }
-
-    &:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
+  &__choose {
+    @extend .mastery__choose--primary;
   }
 
   &__cancel {
     background: transparent;
-    border-color: $border-dim;
+    border-color: rgba(232, 214, 160, 0.3);
     color: $text-dim;
+  }
+
+  &__drop {
+    display: inline-block;
+    margin-top: 10px;
   }
 
   // Inside the frame: anchoring it below pushed it off short viewports.
   &__close {
     position: absolute;
-    right: 16px;
+    right: 18px;
     bottom: 14px;
     z-index: 2;
-    background: rgba(10, 10, 10, 0.92);
   }
 
   // ── Commit confirmation ────────────────────────────────────────────────────
@@ -303,36 +320,30 @@ $text-dim: rgba(232, 224, 208, 0.6);
     z-index: 3;
     display: grid;
     place-items: center;
-    background: rgba(0, 0, 0, 0.78);
+    background: rgba(3, 10, 12, 0.78);
   }
 
   &__confirm {
-    width: min(420px, 80%);
+    width: min(460px, 80%);
     padding: 26px 24px;
     display: flex;
     flex-direction: column;
     gap: 14px;
     text-align: center;
-    background: $panel-bg;
-    border: 1px solid $border;
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.9);
+    @include dbo-panel;
   }
 
   &__confirm-title {
     margin: 0;
-    color: $gold;
-    font-family: 'Bankir-Retro', Georgia, serif;
+    @include dbo-title;
     font-size: 22px;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
 
   &__confirm-body {
     margin: 0;
     color: $text;
-    font-size: 14px;
-    letter-spacing: 0.04em;
+    font-family: $dbo-book-font;
+    font-size: 16px;
   }
 
   &__confirm-actions {
@@ -342,31 +353,34 @@ $text-dim: rgba(232, 224, 208, 0.6);
   }
 }
 
-@media (max-width: 1080px), (max-height: 700px) {
+.mastery__choose--primary {
+  background: rgba(232, 214, 160, 0.24);
+  border-color: rgba(232, 214, 160, 0.9);
+  color: #fff6dc;
+}
+
+@media (max-width: 1180px), (max-height: 720px) {
   .mastery {
     &__frame {
-      width: 96vw;
-      height: 92vh;
-      grid-template-columns: 168px minmax(0, 1fr) 280px;
-      grid-template-rows: 64px minmax(0, 1fr);
+      width: 97vw;
+      height: 94vh;
+      grid-template-columns: 200px minmax(0, 1fr) 300px;
+      grid-template-rows: 70px minmax(0, 1fr);
+    }
+
+    &__description {
+      padding: 12px 24px;
+      font-size: 16px;
     }
 
     &__rank {
-      min-height: 76px;
-      padding: 8px 10px;
+      min-height: 80px;
+      padding: 8px 12px;
     }
 
     &__rank-perk {
       padding-left: 10px;
-      font-size: 12px;
+      font-size: 13px;
     }
   }
 }
-
-// DragonBreak skills layout additions
-.mastery__frame--skills .mastery__list--grouped { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
-.mastery__group-name { font-size: 0.8em; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; margin: 6px 0 2px; }
-.mastery__item-tier { font-size: 0.75em; opacity: 0.7; margin-left: 6px; }
-.mastery__description { opacity: 0.85; line-height: 1.35; margin: 8px 0 12px; }
-.mastery__ranks--five .mastery__rank { min-width: 0; }
-.mastery__drop { display: inline-block; margin-top: 10px; }

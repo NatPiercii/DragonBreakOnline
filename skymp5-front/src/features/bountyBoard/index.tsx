@@ -4,13 +4,23 @@ import './styles.scss';
 
 interface BoardNote {
   id: number;
+  tab: string;
   author: string;
   text: string;
   ageHours: number;
+  canRemove?: boolean;
+}
+
+interface BoardTab {
+  id: string;
+  label: string;
+  cost: number;
+  canPost: boolean;
 }
 
 interface BoardEvents {
   post: string;
+  remove: string;
   close: string;
   [key: string]: string;
 }
@@ -23,9 +33,16 @@ export interface BountyBoardData {
   maxTextLen: number;
   maxNotes: number;
   expiryDays: number;
+  tabs: BoardTab[];
   notes: BoardNote[];
   events: BoardEvents;
 }
+
+const FALLBACK_TABS: BoardTab[] = [
+  { id: 'hold', label: 'Hold Notices', cost: 0, canPost: false },
+  { id: 'shop', label: 'Shop Ads', cost: 30, canPost: true },
+  { id: 'citizen', label: 'Citizen Notices', cost: 30, canPost: true },
+];
 
 const send = (key: string, ...args: unknown[]): void => {
   try {
@@ -52,26 +69,30 @@ const fadesLabel = (ageHours: number, expiryDays: number): string => {
 
 const BountyBoard = ({ data }: { data: BountyBoardData }) => {
   const ev = data.events || ({} as BoardEvents);
-  const notes = data.notes || [];
+  const tabs = data.tabs && data.tabs.length ? data.tabs : FALLBACK_TABS;
+  const allNotes = data.notes || [];
 
+  const [tabId, setTabId] = useState(tabs[0].id);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
 
-  const selected = notes.filter((n) => n.id === selectedId)[0] || null;
+  const tab = tabs.filter((t) => t.id === tabId)[0] || tabs[0];
+  const notes = allNotes.filter((n) => n.tab === tab.id);
+  const selected = allNotes.filter((n) => n.id === selectedId)[0] || null;
 
   // A refresh can pull the note being read off the board.
   useEffect(() => {
     if (selectedId !== null && !selected) setSelectedId(null);
-  }, [notes, selectedId, selected]);
+  }, [allNotes, selectedId, selected]);
 
   // The draft survives a rejected post (cooldown, distance, gold); it only
   // clears once the server shows the note pinned.
   useEffect(() => {
     if (composing || !draft) return;
     const t = draft.trim();
-    if (t && notes.filter((n) => n.text === t).length) setDraft('');
-  }, [notes, composing, draft]);
+    if (t && allNotes.filter((n) => n.text === t).length) setDraft('');
+  }, [allNotes, composing, draft]);
 
   useEffect(() => {
     const onUnfocused = () => send(ev.close);
@@ -93,21 +114,42 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [composing, selectedId]);
 
-  const full = notes.length >= data.maxNotes;
-  const canAfford = data.gold >= data.costGold;
+  const full = allNotes.length >= data.maxNotes;
+  const cost = Number(tab.cost) || 0;
+  const canAfford = data.gold >= cost;
+  const canPost = tab.canPost !== false;
   const trimmed = draft.trim();
 
   const submit = () => {
     if (!trimmed) return;
-    send(ev.post, trimmed);
+    send(ev.post, tab.id, trimmed);
     setComposing(false);
   };
+
+  const postLabel = !canPost
+    ? 'Officials only'
+    : full ? 'The board is full'
+      : !canAfford ? 'Not enough gold'
+        : 'Pin a notice';
 
   return (
     <div className="bountyBoard">
       <div className="bountyBoard__fade" />
       <div className="bountyBoard__frame">
         <h1 className="bountyBoard__title">{data.boardName} Notice Board</h1>
+
+        <div className="bountyBoard__tabs">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              className={'bountyBoard__tab' + (t.id === tab.id ? ' bountyBoard__tab--active' : '')}
+              onClick={() => { setTabId(t.id); setSelectedId(null); }}
+            >
+              {t.label}
+              <span className="bountyBoard__tab-count">{allNotes.filter((n) => n.tab === t.id).length}</span>
+            </button>
+          ))}
+        </div>
 
         {notes.length ? (
           <div className="bountyBoard__grid">
@@ -119,20 +161,24 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
             ))}
           </div>
         ) : (
-          <p className="bountyBoard__empty">Nothing is pinned here yet.</p>
+          <p className="bountyBoard__empty">
+            {tab.id === 'hold' ? 'The ' + data.boardName + ' officials have posted nothing yet.' : 'Nothing is pinned here yet.'}
+          </p>
         )}
 
         <div className="bountyBoard__footer">
           <span className="bountyBoard__hint">
-            {'A notice costs ' + data.costGold + ' gold and fades after ' + data.expiryDays + ' days. You carry ' + data.gold + ' gold.'}
+            {tab.id === 'hold'
+              ? 'Hold Notices are posted by the Jarl, Steward and Hold Commander (Chieftain and Bane in a stronghold). Notices fade after ' + data.expiryDays + ' days.'
+              : 'A notice costs ' + cost + ' gold and fades after ' + data.expiryDays + ' days. You carry ' + data.gold + ' gold.'}
           </span>
           <div className="bountyBoard__actions">
             <button
               className="bountyBoard__button bountyBoard__button--primary"
-              disabled={full || !canAfford}
+              disabled={!canPost || full || !canAfford}
               onClick={() => setComposing(true)}
             >
-              {full ? 'The board is full' : canAfford ? 'Pin a notice' : 'Not enough gold'}
+              {postLabel}
             </button>
             <button className="bountyBoard__button" onClick={() => send(ev.close)}>Close</button>
           </div>
@@ -146,7 +192,17 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
               <p className="bountyBoard__read-age">
                 {pinnedLabel(selected.ageHours)} &middot; {fadesLabel(selected.ageHours, data.expiryDays)}
               </p>
-              <button className="bountyBoard__button" onClick={() => setSelectedId(null)}>Back</button>
+              <div className="bountyBoard__actions bountyBoard__read-actions">
+                {selected.canRemove ? (
+                  <button
+                    className="bountyBoard__button bountyBoard__button--danger"
+                    onClick={() => { send(ev.remove, selected.id); setSelectedId(null); }}
+                  >
+                    Take down
+                  </button>
+                ) : null}
+                <button className="bountyBoard__button" onClick={() => setSelectedId(null)}>Back</button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -154,18 +210,18 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
         {composing ? (
           <div className="bountyBoard__shade">
             <div className="bountyBoard__compose">
-              <h3 className="bountyBoard__compose-title">Pin a notice</h3>
+              <h3 className="bountyBoard__compose-title">Pin a notice &middot; {tab.label}</h3>
               <textarea
                 className="bountyBoard__compose-text"
                 value={draft}
                 maxLength={data.maxTextLen}
                 autoFocus
-                placeholder="What should the hold read here?"
+                placeholder={tab.id === 'shop' ? 'What are you selling, and where?' : tab.id === 'hold' ? 'Word from the hold...' : 'What should the hold read here?'}
                 onChange={(e) => setDraft(e.target.value)}
               />
               <div className="bountyBoard__compose-foot">
                 <span className="bountyBoard__hint">
-                  {draft.length + ' / ' + data.maxTextLen + ' · ' + data.costGold + ' gold'}
+                  {draft.length + ' / ' + data.maxTextLen + (cost ? ' · ' + cost + ' gold' : ' · free')}
                 </span>
                 <div className="bountyBoard__actions">
                   <button
@@ -173,7 +229,7 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
                     disabled={!trimmed}
                     onClick={submit}
                   >
-                    {'Post for ' + data.costGold + ' gold'}
+                    {cost ? 'Post for ' + cost + ' gold' : 'Post'}
                   </button>
                   <button className="bountyBoard__button" onClick={() => setComposing(false)}>Cancel</button>
                 </div>
