@@ -48,6 +48,8 @@ import { EmoteService } from "./services/services/emoteService";
 import { ConsumeAnimationService } from "./services/services/consumeAnimationService";
 import { MasteryService } from "./services/services/masteryService";
 import { BountyBoardService } from "./services/services/bountyBoardService";
+import { DboRelayService } from "./services/services/dboRelayService";
+import { DboGlowService } from "./services/services/dboGlowService";
 import { InteractionPromptService } from "./services/services/interactionPromptService";
 import { RestraintService } from "./services/services/restraintService";
 import { CaptureConsentService } from "./services/services/captureConsentService";
@@ -141,6 +143,8 @@ const main = () => {
       new ConsumeAnimationService(sp, controller),
       new MasteryService(sp, controller),
       new BountyBoardService(sp, controller),
+      new DboRelayService(sp, controller),
+      new DboGlowService(sp, controller),
       new InteractionPromptService(sp, controller),
       new RestraintService(sp, controller),
       new CaptureConsentService(sp, controller),

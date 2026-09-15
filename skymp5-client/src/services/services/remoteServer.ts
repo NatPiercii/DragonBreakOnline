@@ -532,6 +532,7 @@ export class RemoteServer extends ClientListener {
     const numSetInventory = this.numSetInventory;
 
     const applyPcInv = () => {
+      if (msg.isMe) (globalThis as any).__dboDressUntil = Date.now() + 2500;
       if (msg.equipment) {
         applyEquipment(Game.getPlayer()!, msg.equipment)
       }
@@ -582,6 +583,7 @@ export class RemoteServer extends ClientListener {
 
     if (msg.isMe) {
       const spawnTask = { running: false };
+      (globalThis as any).__dboDressUntil = Date.now() + 15000;
       once('update', () => {
         // Use MoveRefrToPosition to spawn if possible (not in main menu); essential after a lost connection
         if (!spawnTask.running) {

@@ -14,48 +14,59 @@ const WIDGET_ID = 26;
 // Event keys exchanged with the browser. Namespaced to avoid collisions.
 const events = {
   post: 'bountyBoard:post',
+  remove: 'bountyBoard:remove',
   close: 'bountyBoard:close',
 };
 
 interface BoardNote {
   id: number;
+  tab: string;
   author: string;
   text: string;
   ageHours: number;
+  canRemove: boolean;
+}
+
+interface BoardTab {
+  id: string;
+  label: string;
+  cost: number;
+  canPost: boolean;
 }
 
 // The server's bountyBoardMenu reply, mirrored into the widget.
 interface BoardInfo {
-  board: number;
+  board: string;
   boardName: string;
   costGold: number;
   gold: number;
   maxTextLen: number;
   maxNotes: number;
   expiryDays: number;
+  tabs: BoardTab[];
   notes: BoardNote[];
 }
 
 // Module-level so the browser-side widget setter can read it (runtime injection).
 let info: BoardInfo = {
-  board: 0, boardName: "", costGold: 25, gold: 0,
-  maxTextLen: 500, maxNotes: 40, expiryDays: 7, notes: [],
+  board: "", boardName: "", costGold: 30, gold: 0,
+  maxTextLen: 500, maxNotes: 60, expiryDays: 7, tabs: [], notes: [],
 };
 
 /**
- * Bounty board menu (default N, at a board). The Missives board activator is
- * an unnamed primitive the engine will not offer an activate prompt for, so
- * the key asks the server to open whichever board is within reach; the server
- * checks proximity and pushes the menu. Reading is free; pinning a notice
- * costs gold, taken server-side.
+ * Notice board menu: opens when a board is activated (the server pushes the
+ * menu), or on N near a board the server already knows. One board per hold,
+ * three tabs (Hold Notices for officials, Shop Ads, Citizen Notices). Reading
+ * is free; a Shop or Citizen post costs gold, taken server-side.
  *
  * Protocol - all messages are MsgType.CustomPacket with a JSON dump.
  *
  *   Client -> Server: { "customPacketType": "bountyBoardOpenRequest" }
- *   Server -> Client: { "customPacketType": "bountyBoardMenu", "board",
- *                       "boardName", "reason", "costGold", "gold",
- *                       "maxTextLen", "maxNotes", "expiryDays", "notes" }
- *   Client -> Server: { "customPacketType": "bountyBoardPost", "board", "text" }
+ *   Server -> Client: { "customPacketType": "bountyBoardMenu", "board", "boardName",
+ *                       "reason", "costGold", "gold", "maxTextLen", "maxNotes",
+ *                       "expiryDays", "tabs", "notes" }
+ *   Client -> Server: { "customPacketType": "bountyBoardPost", "board", "tab", "text" }
+ *   Client -> Server: { "customPacketType": "bountyBoardRemove", "board", "id" }
  *   Client -> Server: { "customPacketType": "bountyBoardClose" }
  *   Server -> Client: { "customPacketType": "bountyBoardNotice", "text" }
  */
@@ -96,14 +107,16 @@ export class BountyBoardService extends ClientListener {
     switch (content["customPacketType"]) {
       case "bountyBoardMenu": {
         const notes = Array.isArray(content["notes"]) ? content["notes"] : [];
+        const tabs = Array.isArray(content["tabs"]) ? content["tabs"] : [];
         info = {
-          board: Number(content["board"]) || 0,
+          board: String(content["board"] || ""),
           boardName: typeof content["boardName"] === "string" ? content["boardName"] as string : "",
           costGold: Number(content["costGold"]) || 0,
           gold: Number(content["gold"]) || 0,
           maxTextLen: Number(content["maxTextLen"]) || 500,
-          maxNotes: Number(content["maxNotes"]) || 40,
+          maxNotes: Number(content["maxNotes"]) || 60,
           expiryDays: Number(content["expiryDays"]) || 7,
+          tabs: tabs as BoardTab[],
           notes: notes as BoardNote[],
         };
         // A refresh (someone posted) updates the open menu but must never
@@ -140,9 +153,17 @@ export class BountyBoardService extends ClientListener {
       return;
     }
     if (key === events.post) {
-      const text = typeof e.arguments[1] === "string" ? (e.arguments[1] as string).trim() : "";
-      if (text) {
-        sendCustomPacket(this.controller, { customPacketType: "bountyBoardPost", board: info.board, text });
+      const tab = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
+      const text = typeof e.arguments[2] === "string" ? (e.arguments[2] as string).trim() : "";
+      if (tab && text) {
+        sendCustomPacket(this.controller, { customPacketType: "bountyBoardPost", board: info.board, tab, text });
+      }
+      return;
+    }
+    if (key === events.remove) {
+      const id = Number(e.arguments[1]);
+      if (Number.isFinite(id)) {
+        sendCustomPacket(this.controller, { customPacketType: "bountyBoardRemove", board: info.board, id });
       }
     }
   }
@@ -171,6 +192,7 @@ export class BountyBoardService extends ClientListener {
       maxTextLen: info.maxTextLen,
       maxNotes: info.maxNotes,
       expiryDays: info.expiryDays,
+      tabs: info.tabs,
       notes: info.notes,
       events: events,
     };

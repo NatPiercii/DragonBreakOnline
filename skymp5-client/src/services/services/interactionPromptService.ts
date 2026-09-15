@@ -1,5 +1,8 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { closeWidget, isUiHidden } from "./widgetMenuUtil";
+import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
+import { ConnectionMessage } from "../events/connectionMessage";
+import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { FunctionInfo } from "../../lib/functionInfo";
 import { Actor, CrosshairRefChangedEvent, Form, FormType, ObjectReference } from "skyrimPlatform";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
@@ -20,9 +23,15 @@ const ROLLOVER_ALPHA_PATHS = [
   "_root.HUDMovieBaseInstance.RolloverText._alpha",
 ];
 
-// The bounty board's visible activator; local id inside Missives.esp.
-const BOARD_BASE_LOCAL_ID = 0x0012cb;
-const BOARD_PLUGIN = "Missives.esp";
+// The notice board activators the server keys its boards to: Manny's Notice Board
+// plus our own board statics. Local id inside the plugin.
+const BOARD_BASES: Array<[number, string]> = [
+  [0x003e10, "notice board.esp"],
+  [0x000006, "DragonBreak.esp"],
+  [0x000900, "DragonBreak Harvest.esp"],
+  [0x000901, "DragonBreak Harvest.esp"],
+  [0x000902, "DragonBreak Harvest.esp"],
+];
 
 const PROMPT_POLL_MS = 500;
 
@@ -57,6 +66,7 @@ export class InteractionPromptService extends ClientListener {
     if (!this.enabled) return;
     this.controller.on("update", () => this.onUpdate());
     this.controller.on("crosshairRefChanged", (e) => this.onCrosshairRefChanged(e));
+    this.controller.emitter.on("customPacketMessage", (e) => this.onDoorNameMessage(e));
     // A front reload drops the widget silently.
     this.controller.emitter.on("browserWindowLoaded", () => {
       this.promptShown = false;
@@ -133,7 +143,12 @@ export class InteractionPromptService extends ClientListener {
       return { verb: "Read", label: "Notice Board" };
     }
 
-    const label = (ref.getDisplayName() || base.getName() || "").trim();
+    let label = (ref.getDisplayName() || base.getName() || "").trim();
+    // Load doors read as where they lead ("Open  Bleak Falls Barrow"); the server knows the destinations.
+    if (base.getType() === FormType.Door) {
+      const destination = this.doorNameFor(localIdToRemoteId(ref.getFormID()));
+      if (destination) label = destination;
+    }
     if (!label) return null;
     const verb = this.verbFor(ref, base.getType());
     if (!verb) return null;
@@ -173,6 +188,27 @@ export class InteractionPromptService extends ClientListener {
     return known.includes(remoteId);
   }
 
+  // undefined = not asked yet (ask once), "" = not a load door, otherwise the destination name
+  private doorNameFor(refId: number): string {
+    if (!refId) return "";
+    const known = this.doorNames.get(refId);
+    if (known !== undefined) return known;
+    if (!this.doorAsked.has(refId)) {
+      this.doorAsked.add(refId);
+      sendCustomPacket(this.controller, { customPacketType: "dboDoorName", refId });
+    }
+    return "";
+  }
+
+  private onDoorNameMessage(event: ConnectionMessage<CustomPacketMessage>): void {
+    const content = parseCustomPacket(event);
+    if (!content || content["customPacketType"] !== "dboDoorName") return;
+    const refId = Number(content["refId"]) >>> 0;
+    if (!refId) return;
+    this.doorNames.set(refId, typeof content["name"] === "string" ? content["name"] as string : "");
+    this.refresh();
+  }
+
   private verbFor(ref: ObjectReference, type: number): string | null {
     switch (type) {
       case FormType.Door:
@@ -206,15 +242,18 @@ export class InteractionPromptService extends ClientListener {
   }
 
   private isBoardBase(base: Form): boolean {
-    if (this.boardBaseId === undefined) {
-      try {
-        const form = this.sp.Game.getFormFromFile(BOARD_BASE_LOCAL_ID, BOARD_PLUGIN);
-        this.boardBaseId = form ? form.getFormID() : 0;
-      } catch {
-        this.boardBaseId = 0;
+    if (this.boardBaseIds === undefined) {
+      this.boardBaseIds = new Set<number>();
+      for (const [localId, plugin] of BOARD_BASES) {
+        try {
+          const form = this.sp.Game.getFormFromFile(localId, plugin);
+          if (form) this.boardBaseIds.add(form.getFormID());
+        } catch {
+          // plugin not in this load order
+        }
       }
     }
-    return this.boardBaseId !== 0 && base.getFormID() === this.boardBaseId;
+    return this.boardBaseIds.has(base.getFormID());
   }
 
   private hideVanillaRollover(): void {
@@ -255,7 +294,9 @@ export class InteractionPromptService extends ClientListener {
   private enabled = true;
   private promptShown = false;
   private browserFocused = false;
-  private boardBaseId: number | undefined = undefined;
+  private boardBaseIds: Set<number> | undefined = undefined;
   private errorLogged = false;
   private lastPollMs = 0;
+  private doorNames = new Map<number, string>();
+  private doorAsked = new Set<number>();
 }

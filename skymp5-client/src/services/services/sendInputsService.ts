@@ -282,6 +282,10 @@ export class SendInputsService extends ClientListener {
           return;
         }
         // Coalesce bursts: rapid re-equips flood the server with reliable updates whose forced-revert snippets can freeze the client (S2)
+        // While the login dress runs (remoteServer applyPcInv) the player is briefly naked; a report now
+        // would be stored as the outfit. equipmentChanged stays set, so the dressed state goes out after.
+        const dressUntil = Number((globalThis as any).__dboDressUntil) || 0;
+        if (Date.now() < dressUntil) return;
         if (this.equipmentChanged && Date.now() - this.lastEquipmentSentMs >= 300) {
             this.lastEquipmentSentMs = Date.now();
             this.equipmentChanged = false;

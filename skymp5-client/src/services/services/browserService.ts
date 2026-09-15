@@ -2,6 +2,8 @@
 import { QueryKeyCodeBindings } from "../events/queryKeyCodeBindings";
 
 import { ClientListener, CombinedController, Sp } from "./clientListener";
+import { FormView } from "../../view/formView";
+import { showSystemNotification } from "./systemNotification";
 import { isConsoleOpen, readMenuKeyCode } from "./widgetMenuUtil";
 import { BrowserMessageEvent, DxScanCode, Menu, MenuCloseEvent, MenuOpenEvent } from "skyrimPlatform";
 
@@ -16,8 +18,10 @@ export class BrowserService extends ClientListener {
     this.sp.browser.setVisible(false);
 
     // Key bindings are configurable from the launcher's client settings
-    this.hideUiKey = readMenuKeyCode(this.sp, "hideUiKeyCode", DxScanCode.F1);
-    this.freeCursorKey = readMenuKeyCode(this.sp, "freeCursorKeyCode", DxScanCode.F6);
+    // DragonBreak bindings: F1 nametags, F2 hide the HUD, F6 focus chat (also T / Enter), F7 free cursor
+    this.nametagKey = readMenuKeyCode(this.sp, "nametagKeyCode", DxScanCode.F1);
+    this.hideUiKey = readMenuKeyCode(this.sp, "hideUiKeyCode", DxScanCode.F2);
+    this.freeCursorKey = readMenuKeyCode(this.sp, "freeCursorKeyCode", DxScanCode.F7);
     try {
       const settings = this.sp.settings["skymp5-client"] as any;
       if (settings && Array.isArray(settings["chatFocusKeyCodes"])) {
@@ -43,6 +47,10 @@ export class BrowserService extends ClientListener {
     // Same gate as the menu hotkeys: never fires from typed chat text or the console
     if (e.isDown([this.hideUiKey]) && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) {
       this.setUiHidden(!this.uiHidden);
+    }
+    if (e.isDown([this.nametagKey]) && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) {
+      FormView.isDisplayingNicknames = !FormView.isDisplayingNicknames;
+      showSystemNotification(this.sp, FormView.isDisplayingNicknames ? "Nametags shown" : "Nametags hidden");
     }
     // A hidden page must not take keyboard focus away from the game
     const canFocus = !this.uiHidden && this.badMenusOpen.size === 0;
@@ -151,9 +159,10 @@ export class BrowserService extends ClientListener {
   private badMenusOpen = new Set<string>();
   private uiHidden = false;
 
-  private hideUiKey: DxScanCode = DxScanCode.F1;
-  private freeCursorKey: DxScanCode = DxScanCode.F6;
-  private chatFocusKeys: DxScanCode[] = [DxScanCode.Enter, DxScanCode.T];
+  private nametagKey: DxScanCode = DxScanCode.F1;
+  private hideUiKey: DxScanCode = DxScanCode.F2;
+  private freeCursorKey: DxScanCode = DxScanCode.F7;
+  private chatFocusKeys: DxScanCode[] = [DxScanCode.Enter, DxScanCode.T, DxScanCode.F6];
 
   private readonly badMenus: Menu[] = [
     Menu.Barter,

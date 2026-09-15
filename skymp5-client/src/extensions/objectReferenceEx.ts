@@ -50,9 +50,9 @@ export class ObjectReferenceEx {
     ObjectReferenceEx.untouchableBaseIds = new Set(ids.map((id) => id >>> 0));
   }
 
+  // Coin purses (leveled flora) are Harvesting nodes on DragonBreak, so only the server's list counts.
   static isUntouchable(base: Form): boolean {
-    return ObjectReferenceEx.untouchableBaseIds.has(base.getFormID() >>> 0)
-      || ObjectReferenceEx.isLeveledFlora(base);
+    return ObjectReferenceEx.untouchableBaseIds.has(base.getFormID() >>> 0);
   }
 
   private static untouchableBaseIds = new Set<number>();

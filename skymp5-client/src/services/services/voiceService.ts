@@ -32,11 +32,16 @@ export class VoiceService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.voiceKey = readMenuKeyCode(sp, "voicePushToTalkKeyCode", DxScanCode.V);
+    // The mode used to be set only when a voice server answered; without one Left Alt did nothing.
+    const persisted = this.readPersistedMode();
+    this.mode = this.modes.some(m => m.key === persisted) ? persisted : "talk";
+    this.controller.once("update", () => this.announceMode(this.mode));
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.on("update", () => this.onUpdate());
     // Fresh game connection = fresh voice session; also kills ghost rooms that would outlive a disconnect back to the main menu
+    this.controller.emitter.on("browserWindowLoaded", () => { if (this.mode) setTimeout(() => this.announceMode(this.mode), 1500); });
     this.controller.emitter.on("connectionAccepted", () => this.resetSession());
     this.controller.emitter.on("connectionFailed", () => this.resetSession());
     this.controller.emitter.on("connectionDenied", () => this.resetSession());
@@ -50,6 +55,7 @@ export class VoiceService extends ClientListener {
   private mode = "";        // "" = not yet initialized from settings/packet
   private modePersistAt = 0;
   private altDown = false;
+  private altUsedAsModifier = false;
   private pttDown = false;
   private micDeniedShown = false;
   private nextTokenAttemptAt = 0;
@@ -68,12 +74,16 @@ export class VoiceService extends ClientListener {
   private onButtonEventImpl(e: ButtonEvent) {
     if (e.device !== InputDeviceType.Keyboard) return;
 
-    // Track Alt so Alt+V can mean "cycle mode" instead of "talk"
+    // Track Alt: a plain tap of Left Alt cycles whisper -> talk -> shout; Alt+V still does too
     if (e.code === DxScanCode.LeftAlt || e.code === DxScanCode.RightAlt) {
-      if (e.isDown) this.altDown = true;
-      else if (e.isUp) this.altDown = false;
+      if (e.isDown) { this.altDown = true; this.altUsedAsModifier = false; }
+      else if (e.isUp) {
+        this.altDown = false;
+        if (e.code === DxScanCode.LeftAlt && !this.altUsedAsModifier && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
+      }
       return;
     }
+    if (this.altDown && e.isDown) this.altUsedAsModifier = true;
     if (e.code !== this.voiceKey) return;
 
     // isHeld frames let a V hold that outlives the Alt+V cycle start transmitting once Alt releases (isDown fires only on the press frame)
@@ -99,6 +109,7 @@ export class VoiceService extends ClientListener {
     const next = this.modes[(idx + 1) % this.modes.length];
     if (!next) return;
     this.applyMode(next.key);
+    showSystemNotification(this.sp, `Voice: ${next.label}`);
   }
 
   private applyMode(key: string) {
@@ -107,6 +118,14 @@ export class VoiceService extends ClientListener {
     this.modePersistAt = Date.now() + MODE_PERSIST_DELAY_MS;
     this.sp.browser.executeJavaScript(
       `window.__alduinakVoice && window.__alduinakVoice.setMode(${JSON.stringify(key)})`
+    );
+    this.announceMode(key);
+  }
+
+  // The HUD status panel shows the mode; a front reload asks again through the same global.
+  private announceMode(key: string): void {
+    this.sp.browser.executeJavaScript(
+      `window.__dboVoiceMode=${JSON.stringify(key)};window.dispatchEvent(new CustomEvent('dbo:voiceMode',{detail:${JSON.stringify(key)}}))`
     );
   }
 
@@ -208,6 +227,7 @@ export class VoiceService extends ClientListener {
       this.mode = this.modes.some(m => m.key === persisted)
         ? persisted
         : (this.modes.find(m => m.key === "talk") || this.modes[0]).key;
+      this.announceMode(this.mode);
     }
 
     const cfg = { modes: this.modes, mode: this.mode };
