@@ -67,6 +67,7 @@ export class InteractionPromptService extends ClientListener {
     this.controller.on("update", () => this.onUpdate());
     this.controller.on("crosshairRefChanged", (e) => this.onCrosshairRefChanged(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onDoorNameMessage(e));
+    this.controller.emitter.on("customPacketMessage", (e) => this.onBlockedDoorsMessage(e));
     // A front reload drops the widget silently.
     this.controller.emitter.on("browserWindowLoaded", () => {
       this.promptShown = false;
@@ -146,8 +147,14 @@ export class InteractionPromptService extends ClientListener {
     let label = (ref.getDisplayName() || base.getName() || "").trim();
     // Load doors read as where they lead ("Open  Bleak Falls Barrow"); the server knows the destinations.
     if (base.getType() === FormType.Door) {
-      const destination = this.doorNameFor(localIdToRemoteId(ref.getFormID()));
+      const remoteId = localIdToRemoteId(ref.getFormID());
+      const destination = this.doorNameFor(remoteId);
       if (destination) label = destination;
+      // A door the server keeps shut: block it here too, or the engine loads the cell behind it anyway
+      if (this.blockedDoors.has(remoteId)) {
+        try { ref.blockActivation(true); } catch { /* unloaded ref */ }
+        return { verb: "Closed", label: label || "the way on" };
+      }
     }
     if (!label) return null;
     const verb = this.verbFor(ref, base.getType());
@@ -206,6 +213,17 @@ export class InteractionPromptService extends ClientListener {
     const refId = Number(content["refId"]) >>> 0;
     if (!refId) return;
     this.doorNames.set(refId, typeof content["name"] === "string" ? content["name"] as string : "");
+    this.refresh();
+  }
+
+  // Doors the server refuses (the playtest's border crossings); blocked here so no local cell load starts
+  private blockedDoors = new Set<number>();
+
+  private onBlockedDoorsMessage(event: ConnectionMessage<CustomPacketMessage>): void {
+    const content = parseCustomPacket(event);
+    if (!content || content["customPacketType"] !== "dboBlockedDoors") return;
+    const refs = Array.isArray(content["refs"]) ? content["refs"] as unknown[] : [];
+    this.blockedDoors = new Set(refs.map((r) => Number(r) >>> 0).filter(Boolean));
     this.refresh();
   }
 
