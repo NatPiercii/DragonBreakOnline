@@ -62,7 +62,8 @@ const CHANGE_FAILED = "That cannot be changed right now.";
 // Chieftain and Bane of a sovereign stronghold (zones.json). A stronghold's radius wins
 // over the surrounding hold, so hold officials have no say inside it and vice versa.
 // Managers claim, revoke, rename, transfer, re-key and cut keys for any property there.
-const MANAGER_RANKS = ["jarl", "steward", "chieftain", "bane"];
+// The Count of Bruma (zones.json region "bruma") manages property the way a Jarl does.
+const MANAGER_RANKS = ["jarl", "steward", "chieftain", "bane", "count"];
 
 // Interior cells that belong to a hold, kept as a fallback for interiors whose exterior
 // door the server cannot place (old HoldClaims table, slugs mapped to zones.json ids).
