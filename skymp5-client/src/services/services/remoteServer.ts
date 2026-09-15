@@ -90,6 +90,7 @@ let encumbranceRefreshPending = false;
 
 // Rebuilding the player's head or gear while RaceSexMenu frees its head parts crashes in the allocator
 const RACE_MENU_SETTLE_MS = 3000;
+const SPAWN_MAX_ATTEMPTS = 30;
 const isRaceMenuSettling = (): boolean =>
   Ui.isMenuOpen("RaceSex Menu") || Date.now() - (Number((globalThis as any).__dboRaceMenuClosedAt) || 0) < RACE_MENU_SETTLE_MS;
 
@@ -334,6 +335,7 @@ export class RemoteServer extends ClientListener {
     const msg = event.message;
     once('update', () => {
       const id = ("idx" in msg && typeof msg.idx === "number") ? this.getIdManager().getId(msg.idx) : this.getMyActorIndex();
+      if (id === this.getMyActorIndex()) this.numPlayerTeleports++;
       const refr = id === this.getMyActorIndex() ? Game.getPlayer() : getObjectReference(id);
       logTrace(this,
         `Teleporting id`, id, `refrId`, refr?.getFormID().toString(16), `...`,
@@ -594,8 +596,14 @@ export class RemoteServer extends ClientListener {
         if (!spawnTask.running) {
           spawnTask.running = true;
           logTrace(this, 'Using moveRefrToPosition to spawn player');
+          // A server teleport during the spawn wins; retrying the spawn point after it loops loads forever
+          const teleportsAtSpawn = this.numPlayerTeleports;
           (async () => {
-            while (true) {
+            for (let attempt = 0; attempt < SPAWN_MAX_ATTEMPTS; attempt++) {
+              if (this.numPlayerTeleports !== teleportsAtSpawn) {
+                logTrace(this, 'Spawn loop stopped by a server teleport');
+                break;
+              }
               logTrace(this, 'Spawning...');
               TESModPlatform.moveRefrToPosition(
                 Game.getPlayer(),
@@ -610,7 +618,7 @@ export class RemoteServer extends ClientListener {
               );
               await Utility.wait(1);
               const pl = Game.getPlayer();
-              if (!pl) {
+              if (!pl || this.numPlayerTeleports !== teleportsAtSpawn) {
                 break;
               }
               const pos = [
@@ -1195,4 +1203,5 @@ export class RemoteServer extends ClientListener {
   private readonly cloneCastStopMemoryMs = 2000;
   private lastCloneCastSweep = 0;
   private numSetInventory = 0;
+  private numPlayerTeleports = 0;
 }
