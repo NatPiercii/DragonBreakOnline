@@ -1008,6 +1008,11 @@ export class RemoteServer extends ClientListener {
       // wait 0.3s to avoid visual bugs when teleporting and showing this menu at the same time in onConnect
       once('update', () =>
         Utility.wait(0.3).then(() => {
+          // Showing it again over itself frees its head parts twice and crashes in the allocator
+          if (Ui.isMenuOpen("RaceSex Menu")) {
+            logTrace(this, "Skipped showRaceMenu, the creator is already open");
+            return;
+          }
           unequipDefaultOutfit();
           Game.showRaceMenu();
         }),
