@@ -70,11 +70,6 @@ const CharacterSelect = ({ data }: { data: CharacterSelectData }) => {
 
       <div className="dboSelect__brand">
         <div className="dboSelect__logo" />
-        <div className="dboSelect__wordmark">
-          <span className="dboSelect__word">Dragon</span>
-          <span className="dboSelect__word">Break</span>
-          <span className="dboSelect__tagline">Skyrim Roleplay</span>
-        </div>
       </div>
 
       <div className="dboSelect__panel">
