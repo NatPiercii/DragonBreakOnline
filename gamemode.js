@@ -876,13 +876,59 @@ if ((cfg.debug || {}).logPlayerLocations) {
 }
 registerChatCommand('whereami', (a) => personal(a, `server thinks: cell/world ${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} pos ${JSON.stringify((mp.get(a, 'pos') || []).map(Math.round))}`), { help: 'server-side location' });
 
+// What a playtest actually costs: players, live npcs, the spawn poll and the packets we send
+registerChatCommand('load', (a, args) => {
+  const c = globalThis.__dboPacketCounts || { since: Date.now(), byType: {}, total: 0 };
+  const minutes = Math.max(1 / 60, (Date.now() - c.since) / 60000);
+  const live = (() => { try { return (JSON.parse(fs.readFileSync(path.resolve('zone-spawns.json'), 'utf8')) || []).length; } catch (e) { return -1; } })();
+  const poll = globalThis.__alduinakSpawnPollMs;
+  const top = Object.entries(c.byType).sort((x, y) => y[1] - x[1]).slice(0, 5)
+    .map(([t, n]) => `${t} ${Math.round(n / minutes)}/min`).join(', ');
+  personal(a, `${onlineActors().length} online, ${live < 0 ? '?' : live} npcs alive, spawn poll ${poll === undefined ? 'not reported' : `${poll} ms`}.`);
+  personal(a, `packets ${Math.round(c.total / minutes)}/min over ${minutes.toFixed(1)} min${top ? `: ${top}` : ''}.`);
+  personal(a, `champions ${typeof globalThis.__dboChampionCount === 'function' ? globalThis.__dboChampionCount() : '?'} abroad. Reset the count with /load reset.`);
+  if (String(args || '').trim().toLowerCase() === 'reset') {
+    globalThis.__dboPacketCounts = { since: Date.now(), byType: {}, total: 0 };
+    personal(a, 'Packet counters reset.');
+  }
+}, { admin: true, help: 'players, npcs, poll time and packet rates (admin)' });
+
+// One command that says which of our systems are actually wired, so a playtest does not start blind
+registerChatCommand('selftest', (a) => {
+  const rows = [
+    ['contracts', typeof globalThis.__dboContractKill === 'function'],
+    ['champions', typeof globalThis.__dboChampionHit === 'function' && typeof globalThis.__dboChampionDeath === 'function'],
+    ['labour', typeof globalThis.__dboLabour === 'function'],
+    ['dungeons', typeof globalThis.__dboDungeonActivate === 'function'],
+    ['wildlife', typeof globalThis.__dboCampChest === 'function'],
+    ['playtest lock', typeof globalThis.__dboPlaytestGate === 'function'],
+    ['reading', typeof globalThis.__dboReadBook === 'function'],
+    ['skinning', typeof globalThis.__dboSkin === 'function'],
+  ];
+  const bad = rows.filter((r) => !r[1]).map((r) => r[0]);
+  personal(a, bad.length ? `NOT wired: ${bad.join(', ')}.` : 'Every system is wired.');
+  const ui = globalThis.__dboUiEvents;
+  personal(a, `ui events: ${ui ? [...ui.entries()].map(([k, v]) => `${k}x${v.length}`).join(' ') : 'none'}`);
+  let zones = -1; try { zones = (JSON.parse(fs.readFileSync(path.resolve('NPC-Spawns.json'), 'utf8')).zones || []).length; } catch (e) { /* unreadable */ }
+  personal(a, `spawn zones ${zones}, widgets open through the relay, hunger ${NEEDS.enabled ? 'on' : 'off'}.`);
+}, { admin: true, help: 'check every system is wired (admin)' });
+
 // ---- DragonBreak UI relay -------------------------------------------------------------------
 // The client's DboRelayService opens any front widget this file sends and forwards the widget's
 // window.skyrimPlatform.sendMessage('dbo:<event>', ...) calls back here as {customPacketType:'dbo'}.
 const INVALID_USER = 65535;
+// Counted by type so a playtest can show which feature is talking most; /load reports it
+globalThis.__dboPacketCounts = globalThis.__dboPacketCounts || { since: Date.now(), byType: {}, total: 0 };
 const sendPacket = (a, payload) => {
   const u = userOf(a); if (u < 0 || u === INVALID_USER) return false;
-  try { mp.sendCustomPacket(u, JSON.stringify(payload)); return true; } catch (e) { log('sendCustomPacket failed', e.message); return false; }
+  try {
+    mp.sendCustomPacket(u, JSON.stringify(payload));
+    const c = globalThis.__dboPacketCounts;
+    const t = String((payload && payload.customPacketType) || 'other');
+    c.byType[t] = (c.byType[t] || 0) + 1;
+    c.total++;
+    return true;
+  } catch (e) { log('sendCustomPacket failed', e.message); return false; }
 };
 const openWidget = (a, widget, focus) => sendPacket(a, { customPacketType: 'dboWidget', widget, focus: !!focus });
 const closeWidget = (a, id) => sendPacket(a, { customPacketType: 'dboWidget', close: id });
@@ -1421,6 +1467,7 @@ try {
   delete require.cache[PLAYTEST_JS];
   require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt });
 } catch (e) { log('playtest.js failed to load:', e.stack || e.message); globalThis.__dboPlaytestActivate = null; globalThis.__dboPlaytestGate = null; }
+
 
 
 
