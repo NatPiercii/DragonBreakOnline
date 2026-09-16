@@ -26,7 +26,7 @@ import { applyAppearanceToPlayer } from '../../sync/appearance';
 import { applyEquipment, isBadMenuShown } from '../../sync/equipment';
 import { Inventory, applyInventory, getDiff, getInventory, isBoundItem, removeSimpleItemsAsManyAsPossible } from '../../sync/inventory';
 import { Movement } from '../../sync/movement';
-import { learnSpells, removeAllSpells } from '../../sync/spell';
+import { enforceSpells } from '../../sync/spell';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
 import { LoadGameService } from './loadGameService';
@@ -91,6 +91,8 @@ let encumbranceRefreshPending = false;
 // Rebuilding the player's head or gear while RaceSexMenu frees its head parts crashes in the allocator
 const RACE_MENU_SETTLE_MS = 3000;
 const SPAWN_MAX_ATTEMPTS = 30;
+// Seconds after spawn at which the server's spell list is re-imposed, because the engine grants the race defaults late
+const SPELL_ENFORCE_PASSES = [1, 3, 6, 10, 15, 20];
 const isRaceMenuSettling = (): boolean =>
   Ui.isMenuOpen("RaceSex Menu") || Date.now() - (Number((globalThis as any).__dboRaceMenuClosedAt) || 0) < RACE_MENU_SETTLE_MS;
 
@@ -582,16 +584,18 @@ export class RemoteServer extends ClientListener {
       const learnedSpells = msg.props.learnedSpells;
 
       once('update', () => {
-        Utility.wait(1).then(() => {
-          const player = Game.getPlayer();
-
-          if (player) {
-            removeAllSpells(player);
-            learnSpells(player, learnedSpells);
-            logTrace(this,
-              `player learnedSpells:`, JSON.stringify(learnedSpells),
-            );
-          }
+        logTrace(this, `player learnedSpells:`, JSON.stringify(learnedSpells));
+        SPELL_ENFORCE_PASSES.forEach((seconds) => {
+          Utility.wait(seconds).then(() => {
+            const player = Game.getPlayer();
+            if (!player) {
+              return;
+            }
+            const changed = enforceSpells(player, learnedSpells);
+            if (changed > 0) {
+              logTrace(this, `spells enforced at`, seconds, `s:`, changed, `change(s)`);
+            }
+          });
         });
       });
     }
