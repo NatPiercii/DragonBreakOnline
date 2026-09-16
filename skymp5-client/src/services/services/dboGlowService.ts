@@ -4,8 +4,8 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { EffectShader, ObjectReference } from "skyrimPlatform";
 
-// Vanilla detect-life shaders: no fill texture, so they rim the chest instead of washing it white
-const SHADERS: Record<string, number> = { loot: 0x00000146, locked: 0x000aaeb3 };
+// Vanilla detect-life shaders: no fill texture, so they rim the target instead of washing it white
+const SHADERS: Record<string, number> = { loot: 0x00000146, locked: 0x000aaeb3, champion: 0x000dc209 };
 const POLL_MS = 1000;
 
 /**
