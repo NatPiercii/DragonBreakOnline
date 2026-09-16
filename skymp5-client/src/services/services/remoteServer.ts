@@ -189,6 +189,9 @@ export class RemoteServer extends ClientListener {
         const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
         if (!ac || ac.getFormID() === 0x14) return;
         ac.stopTranslation();
+        ac.clearKeepOffsetFromActor();
+        // Re-seat it where it stands: a translation handed over mid-flight leaves havok asleep and the actor hanging
+        ac.setPosition(ac.getPositionX(), ac.getPositionY(), ac.getPositionZ());
         ac.evaluatePackage();
       } catch (e) {
         logError(this, `hostStart settle failed for`, target.toString(16), e);
