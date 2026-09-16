@@ -47,12 +47,39 @@ module.exports = (api) => {
   const idOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
   const pick = (list) => (list.length ? list[Math.floor(Math.random() * list.length)] : null);
 
-  // The server's SetScale is a stub, so a champion is marked with the enemy rim shader instead
-  const glow = (ids, on) => {
+  // The server's SetScale is a stub, so a champion is marked with the enemy rim shader instead.
+  // A broadcast to everyone would cost a packet per player per sweep, so marks go to the champion's
+  // own worldspace and only when that player's view of it changed.
+  const worldOf = (id) => { try { return String(mp.get(id, 'worldOrCellDesc') || ''); } catch (e) { return ''; } };
+  const sentTo = new Map();
+
+  const glow = (ids, on, world) => {
     if (!ids.length) return;
     for (const a of onlineActors()) {
+      if (world && worldOf(a) !== world) continue;
       try { sendPacket(a, { customPacketType: 'dboGlow', refs: ids, on, kind: 'champion' }); } catch (e) { /* offline */ }
     }
+  };
+
+  // Catches logins, which clear every glow, and players walking into a world where one is abroad
+  const syncGlow = () => {
+    const byWorld = new Map();
+    for (const id of champions.keys()) {
+      const w = worldOf(id);
+      if (!w) continue;
+      const list = byWorld.get(w);
+      if (list) list.push(id); else byWorld.set(w, [id]);
+    }
+    const seenNow = new Set();
+    for (const a of onlineActors()) {
+      seenNow.add(a);
+      const ids = byWorld.get(worldOf(a)) || [];
+      const signature = ids.join(',');
+      if (sentTo.get(a) === signature) continue;
+      sentTo.set(a, signature);
+      if (ids.length) { try { sendPacket(a, { customPacketType: 'dboGlow', refs: ids, on: true, kind: 'champion' }); } catch (e) { /* offline */ } }
+    }
+    for (const a of [...sentTo.keys()]) if (!seenNow.has(a)) sentTo.delete(a);
   };
 
   const promote = (id, zone) => {
@@ -65,7 +92,7 @@ module.exports = (api) => {
     } catch (e) { log('champion promote failed', id.toString(16), e.message); return false; }
     try { mp.set(id, 'private.dboChampion', true); } catch (e) { /* not persisted, memory is enough */ }
     champions.set(id, { name: epithet, zone, health: healthOf(id) ?? 1, damage: new Map() });
-    glow([id], true);
+    glow([id], true, worldOf(id));
     log(`champion: ${epithet} (${id.toString(16)}) in ${zone}`);
     return true;
   };
@@ -77,10 +104,8 @@ module.exports = (api) => {
     try { ids = JSON.parse(fs.readFileSync(SPAWNS_FILE, 'utf8')); } catch (e) { return; }
     if (!Array.isArray(ids)) return;
     const live = new Set(ids.map((x) => x >>> 0));
-    for (const id of [...champions.keys()]) { if (live.has(id)) continue; champions.delete(id); glow([id], false); }
+    for (const id of [...champions.keys()]) { if (live.has(id)) continue; const w = worldOf(id); champions.delete(id); glow([id], false, w); }
     for (const id of seen) if (!live.has(id)) seen.delete(id);
-    // A login clears every glow and a late joiner never saw the promotion, so the marks are re-sent
-    glow([...champions.keys()], true);
 
     for (const id of live) {
       if (seen.has(id)) continue;
@@ -92,6 +117,7 @@ module.exports = (api) => {
       if (!(Math.random() < (chance || 0))) continue;
       promote(id, zone);
     }
+    syncGlow();
   };
 
   if (globalThis.__dboChampionTimer) clearInterval(globalThis.__dboChampionTimer);
@@ -121,8 +147,9 @@ module.exports = (api) => {
     const id = actorId >>> 0;
     const champ = champions.get(id);
     if (!champ) return;
+    const world = worldOf(id);
     champions.delete(id);
-    glow([id], false);
+    glow([id], false, world);
 
     let total = 0;
     for (const dmg of champ.damage.values()) total += dmg;

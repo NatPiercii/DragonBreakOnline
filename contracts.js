@@ -43,7 +43,16 @@ module.exports = (api) => {
   })();
   if (!Array.isArray(state.contracts)) state.contracts = [];
   if (!state.taken || typeof state.taken !== 'object') state.taken = {};
-  const save = () => { try { fs.writeFileSync(FILE, JSON.stringify(state, null, 2)); } catch (e) { log('contracts save failed', e.message); } };
+  // A kill would otherwise write the file on every hit of progress, per player
+  let dirty = false;
+  const flush = () => {
+    if (!dirty) return;
+    dirty = false;
+    try { fs.writeFileSync(FILE, JSON.stringify(state, null, 2)); } catch (e) { log('contracts save failed', e.message); }
+  };
+  const save = () => { dirty = true; };
+  if (globalThis.__dboContractFlush) clearInterval(globalThis.__dboContractFlush);
+  globalThis.__dboContractFlush = setInterval(flush, 5000);
 
   // Which creature kinds the spawner actually places in a zone's worldspaces
   const kindsByZone = (() => {

@@ -100,11 +100,23 @@ const distanceMeters = (a, b) => {
     return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) / UNITS_PER_METER;
   } catch (e) { return Infinity; }
 };
+// distanceMeters costs four engine reads per pair; a message to everyone in range reads the
+// speaker once and skips anyone in another world on a single read
 const sendNear = (fromActor, rangeM, line, includeSelf) => {
   const tagged = `[[B${fromActor.toString(16)}]]${line}`;
+  let world = null; let from = null;
+  try { world = mp.get(fromActor, 'worldOrCellDesc'); from = mp.get(fromActor, 'pos'); } catch (e) { return; }
+  if (!Array.isArray(from)) return;
+  const reach = rangeM * UNITS_PER_METER;
   for (const a of onlineActors()) {
     if (a === fromActor && !includeSelf) continue;
-    if (distanceMeters(fromActor, a) <= rangeM) deliver(a, tagged);
+    try {
+      if (mp.get(a, 'worldOrCellDesc') !== world) continue;
+      const p = mp.get(a, 'pos');
+      const dx = p[0] - from[0]; const dy = p[1] - from[1]; const dz = p[2] - from[2];
+      if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
+    } catch (e) { continue; }
+    deliver(a, tagged);
   }
 };
 const broadcast = (line, onlyAdmins) => { for (const a of onlineActors()) if (!onlyAdmins || isAdmin(a)) deliver(a, line); };
@@ -855,9 +867,12 @@ registerChatCommand('fixloc', (a, args) => {
     personal(a, `Moved ${nameOf(t)} to the hub; server now says ${JSON.stringify(mp.get(t, 'worldOrCellDesc'))}.`);
   } catch (e) { personal(a, 'Failed: ' + e.message); }
 }, { admin: true, help: '[player] reset a stuck character to the hub' });
-for (const a of onlineActors()) {
-  try { log(`whereis ${display(a)}: worldOrCellDesc=${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} pos=${JSON.stringify(mp.get(a, 'pos'))} locational=${JSON.stringify(mp.get(a, 'locationalData'))}`); }
-  catch (e) { log('whereis failed', e.message); }
+// One line per online player on every reload, so it stays behind the debug flag
+if ((cfg.debug || {}).logPlayerLocations) {
+  for (const a of onlineActors()) {
+    try { log(`whereis ${display(a)}: worldOrCellDesc=${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} pos=${JSON.stringify(mp.get(a, 'pos'))} locational=${JSON.stringify(mp.get(a, 'locationalData'))}`); }
+    catch (e) { log('whereis failed', e.message); }
+  }
 }
 registerChatCommand('whereami', (a) => personal(a, `server thinks: cell/world ${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} pos ${JSON.stringify((mp.get(a, 'pos') || []).map(Math.round))}`), { help: 'server-side location' });
 
@@ -1406,6 +1421,8 @@ try {
   delete require.cache[PLAYTEST_JS];
   require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt });
 } catch (e) { log('playtest.js failed to load:', e.stack || e.message); globalThis.__dboPlaytestActivate = null; globalThis.__dboPlaytestGate = null; }
+
+
 
 
 
