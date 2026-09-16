@@ -22,6 +22,12 @@ module.exports = (api) => {
     pollSeconds: 4,
   }, cfg.champions || {});
 
+  // Creatures worth promoting; the zone name carries the kind, so nothing has to be read off the actor
+  const WORTHY = new Set([
+    'mudcrab', 'skeever', 'slaughterfish', 'horker', 'wolf', 'frostbitespider', 'sabrecat',
+    'bear', 'riekling', 'netch', 'werebear', 'troll', 'giant', 'mammoth', 'lurker',
+  ]);
+
   const EPITHETS = [
     'Ravening', 'Scarred', 'Elder', 'Dire', 'Grim', 'Ancient', 'Blighted', 'Hollow',
     'Iron-Hide', 'Storm-Born', 'Frost-Touched', 'Black-Maned', 'Gore-Fed', 'Wretched',
@@ -112,7 +118,9 @@ module.exports = (api) => {
       seen.add(id);
       const zone = String(propOf(id, 'private.npcSpawner') || '');
       if (!zone) continue;
-      if (propOf(id, 'ff_hostile') !== true) continue;
+      const kind = /^wild:([^:]+):/.exec(zone);
+      if (kind && !WORTHY.has(kind[1])) continue;
+      if (!kind && !zone.startsWith('dungeon:')) continue;
       const chance = zone.startsWith('dungeon:') ? Number(CFG.dungeonChance) : Number(CFG.wildChance);
       if (!(Math.random() < (chance || 0))) continue;
       promote(id, zone);

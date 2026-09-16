@@ -44,6 +44,7 @@ makeProp(CHAT_PROP, false);
 makeProp(ADMIN_PROP, false);
 makeProp('ff_adminModes', true); // AdminSystem mirrors god/smite/healhit/invis here for neighbours
 makeProp('ff_charTag', true);    // the character's #TAG, drawn faintly under the nametag by every client
+makeProp('ff_hostile', true);    // npcSpawnSystem's "attacks on sight" flag, read by the client to raise Aggression
 
 let nonce = Date.now();
 const deliver = (actorId, line) => { try { mp.set(actorId, CHAT_PROP, `${++nonce}${US}${line}`); } catch (e) { log('deliver failed', actorId, e.message); } };
@@ -552,17 +553,30 @@ const creationPending = (a) => {
   try { return mp.get(a, 'private.creationPending') === true || mp.get(a, 'appearance') == null; }
   catch (e) { return false; }
 };
+// actorId -> 'landing' | 'hub' | 'open' while a new character is carried to the creator. The client reports
+// 'arrived' when its body is really in a world, so each step waits exactly as long as that machine needs;
+// the old fixed timers stay behind as fallbacks for a client that never reports.
+if (!(globalThis.__dboCreation instanceof Map)) globalThis.__dboCreation = new Map();
+const creation = globalThis.__dboCreation;
+const worldIdOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
+const setFade = (a, on) => sendPacket(a, { customPacketType: 'dboFade', on: !!on });
 const openCreator = (a) => {
   try {
     if (mp.get(a, 'isOnline') === false) return;
-    if (!creationPending(a)) return;
+    if (!creationPending(a)) { creation.delete(a); setFade(a, false); return; }
+    if (creation.get(a) === 'open') return;
+    creation.set(a, 'open');
+    setFade(a, false);
     mp.setRaceMenuOpen(a, false);
     mp.setRaceMenuOpen(a, true);
     log(`opened character creation for ${display(a)}`);
   } catch (e) { log('creator open failed', e.message); }
 };
 const startCreationInHub = (a) => {
+  const stage = creation.get(a);
+  if (stage === 'hub' || stage === 'open') return;
   if (moveToHubIfLanding(a)) {
+    creation.set(a, 'hub');
     log(`moved ${display(a)} into the hub for character creation`);
     setTimeout(() => openCreator(a), CREATOR_OPEN_MS);
   } else {
@@ -570,6 +584,7 @@ const startCreationInHub = (a) => {
     setTimeout(() => openCreator(a), 2000);
   }
 };
+
 const moveToHubWhenReady = (a, why) => {
   const started = Date.now();
   const tick = () => {
@@ -627,6 +642,8 @@ if (globalThis.__dboLoginWaits) { for (const t of globalThis.__dboLoginWaits.val
 globalThis.__dboLoginWaits = new Map();
 const onCharacterReady = (userId, a) => {
   connectedAt.set(a, Date.now());
+  // A new character is carried through the landing into the hub behind a black screen
+  if (creationPending(a)) { creation.set(a, 'landing'); setFade(a, true); }
   // Seed the remembered outfit from the save before the client's undressed login reports replace it.
   try { const worn = wornOf(mp.get(a, 'equipment')); if (worn.length) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0])); } catch (e) { /* nothing saved */ }
   setTimeout(() => { if (actorOf(userId) === a && !creationPending(a)) { try { redress(a); } catch (e) { log('redress failed', e.message); } } }, 12000);
@@ -893,6 +910,34 @@ registerChatCommand('load', (a, args) => {
   }
 }, { admin: true, help: 'players, npcs, poll time and packet rates (admin)' });
 
+// The spawned npcs near you, with how far each one sits above the spot its zone asked for
+registerChatCommand('npc', (a) => {
+  let ids = []; let zones = [];
+  try { ids = JSON.parse(fs.readFileSync(path.resolve('zone-spawns.json'), 'utf8')) || []; } catch (e) { return personal(a, 'zone-spawns.json unreadable.'); }
+  try { zones = (JSON.parse(fs.readFileSync(path.resolve('NPC-Spawns.json'), 'utf8')).zones) || []; } catch (e) { /* names only */ }
+  const byName = {}; for (const z of zones) byName[String(z.Name || z.name || '')] = z;
+  let me = null; try { me = mp.get(a, 'pos'); } catch (e) { return personal(a, 'No position.'); }
+  const rows = [];
+  for (const raw of ids) {
+    const id = raw >>> 0;
+    try {
+      const q = mp.getActorPos(id);
+      const d = Math.round(Math.hypot(q[0] - me[0], q[1] - me[1], q[2] - me[2]));
+      if (d > 8000) continue;
+      const tag = String(mp.get(id, 'private.npcSpawner') || '?');
+      const z = byName[tag];
+      const up = z && Array.isArray(z.POS) ? Math.round(q[2] - z.POS[2]) : null;
+      rows.push({ id, d, tag, up, dead: mp.get(id, 'isDead') === true, q: q.map(Math.round) });
+    } catch (e) { /* gone this tick */ }
+  }
+  rows.sort((x, y) => x.d - y.d);
+  if (!rows.length) return personal(a, 'No spawned npcs within 8000 units.');
+  personal(a, `${rows.length} spawned npc(s) near you:`);
+  for (const r of rows.slice(0, 6)) {
+    personal(a, `  ${r.id.toString(16)} ${r.tag} ${r.d}u away, ${r.up === null ? 'spawn spot unknown' : `${r.up >= 0 ? '+' : ''}${r.up} above its spot`}${r.dead ? ', dead' : ''} @ ${JSON.stringify(r.q)}`);
+  }
+}, { admin: true, help: 'spawned npcs near you and their height above their spawn spot (admin)' });
+
 // One command that says which of our systems are actually wired, so a playtest does not start blind
 registerChatCommand('selftest', (a) => {
   const rows = [
@@ -940,7 +985,19 @@ const onUi = (event, fn) => {
   list.push(fn);
   globalThis.__dboUiEvents.set(event, list);
 };
-const giveItem = (a, baseId, count) => {
+// The client reports its body really landed in a world; the creation flow steps on that (see startCreationInHub)
+onUi('arrived', (a, args) => {
+  const world = Number(args[0]) >>> 0;
+  if (!creationPending(a)) return;
+  const stage = creation.get(a) || 'landing';
+  if (stage === 'landing' && world === worldIdOf(LANDING.world)) {
+    log(`${display(a)} arrived at the landing`);
+    startCreationInHub(a);
+  } else if (stage === 'hub' && world === worldIdOf(HUB.cellOrWorldDesc)) {
+    log(`${display(a)} arrived in the hub`);
+    openCreator(a);
+  }
+});const giveItem = (a, baseId, count) => {
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
     const entries = Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : [];
@@ -1467,6 +1524,9 @@ try {
   delete require.cache[PLAYTEST_JS];
   require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt });
 } catch (e) { log('playtest.js failed to load:', e.stack || e.message); globalThis.__dboPlaytestActivate = null; globalThis.__dboPlaytestGate = null; }
+
+
+
 
 
 

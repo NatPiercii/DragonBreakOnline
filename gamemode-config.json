@@ -5,7 +5,11 @@
   "landing": {
     "_comment": "Where fresh characters spawn (must match server-settings.json startPoints). The gamemode moves them into the hub from here. Bruma arrival while the Whiterun landing hangs the first load.",
     "world": "a764b:BSHeartland.esm",
-    "pos": [48236.2, 260600.4, 20405.1],
+    "pos": [
+      48236.2,
+      260600.4,
+      20405.1
+    ],
     "radius": 2500
   },
   "rangesMeters": {
@@ -47,7 +51,10 @@
     "dungeonChance": 0.08,
     "scale": 1.14,
     "toughness": 0.5,
-    "goldReward": [25, 120],
+    "goldReward": [
+      25,
+      120
+    ],
     "gemChance": 0.35,
     "creditShare": 0.1
   },
@@ -55,10 +62,28 @@
     "_comment": "Mining and woodcutting mini-game: seconds per round, strike band half-width in percent of the bar by tier, seconds the marker takes to cross the bar by tier, how many strikes a vein needs, ore per vein before the tier multiplier, firewood per block by tier, and the rest each node takes afterwards.",
     "enabled": true,
     "seconds": 30,
-    "bandByTier": [7, 8, 9, 11, 13],
-    "sweepByTier": [1.5, 1.4, 1.3, 1.2, 1.1],
+    "bandByTier": [
+      7,
+      8,
+      9,
+      11,
+      13
+    ],
+    "sweepByTier": [
+      1.5,
+      1.4,
+      1.3,
+      1.2,
+      1.1
+    ],
     "oreStrikes": 6,
-    "firewoodByTier": [3, 4, 5, 6, 8],
+    "firewoodByTier": [
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
     "veinRestMinutes": 45,
     "blockRestMinutes": 10,
     "failRestMinutes": 2
@@ -144,7 +169,8 @@
   },
   "debug": {
     "logSpellCasts": true,
-    "logEquipment": true
+    "logEquipment": true,
+    "logPlayerLocations": true
   },
   "wildlife": {
     "_comment": "Outdoor creatures from wildlife.json: spawn radius (units), despawn when nobody is near, respawn after a kill, which leveled option (low/mid/high), giant camp chest cooldown per player.",
@@ -158,7 +184,10 @@
       {
         "_comment": "Pale Pass arrival for the Bruma playtest: only the weakest creature of each spot (no ogres or trolls on the first stretch of road).",
         "world": "a764b:BSHeartland.esm",
-        "pos": [48236.2, 260600.4],
+        "pos": [
+          48236.2,
+          260600.4
+        ],
         "radius": 25000,
         "pick": "low"
       }
@@ -176,7 +205,7 @@
         260600.4,
         20405.1
       ],
-      "rotZ": 135.0
+      "rotZ": 135
     },
     "allowedWorlds": [
       "a764b:BSHeartland.esm",
