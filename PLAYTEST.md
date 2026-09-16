@@ -68,6 +68,15 @@ Needs the skill first: take **Miner** and/or **Woodcutter** in the skills menu.
 | 21 | `/champions` | Answers even with none abroad |
 | 22 | If one is up | Name like "Ravening Wolf", **red rim**, takes about twice the hits, pays gold on death. Log `champion: ...` then `CHAMPION ...` |
 
+## F2. Bruma notice board (placed 2026-09-16 in DLE)
+
+| # | Do | Proof |
+|---|---|---|
+| 22a | Walk to the board near the cathedral, about [59437, 202554] | Manny's board stands outdoors in the city |
+| 22b | Use it | The board opens on **Bruma**'s pool. The log must NOT say  |
+| 22c | Post on Shop Ads | 30 gold taken, half deposited in the Bruma treasury |
+| 22d | As a Bruma official (), post on Hold Notices | Free, and only officials can |
+
 ## G. Things that changed underneath
 
 | # | Do | Proof |
@@ -82,6 +91,4 @@ involved (`/npc` prints them), then one sentence of expected versus actual.
 
 ## Not in this build
 
-- **No notice board in Bruma.** It needs an outdoor `RP_NoticeBoard` placed in the Creation Kit;
-  indoor boards get no zone. Contracts don't depend on it.
 - **No bank in Bruma** beyond the treasury safe. Also a Creation Kit job.
