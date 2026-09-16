@@ -2,12 +2,14 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, closeWidget, refreshFormMenu } from "./widgetMenuUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
+import { TimersService } from "./timersService";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
 
 const HUD_WIDGET_ID = 29;
 const PARTY_WIDGET_ID = 32;
 const PASSIVE_TICK_MS = 1000;
+const FADE_SAFETY_MS = 25000;
 // The vanilla meters fade themselves back in with timeline animations that rewrite _alpha, so they are
 // also scaled to nothing and parked below the screen; the animations never touch scale or position.
 const VANILLA_METERS = ["Health", "Magica", "Stamina"];
@@ -41,6 +43,7 @@ export class DboRelayService extends ClientListener {
     this.controller.emitter.on("browserWindowLoaded", () => { this.focusedId = 0; this.hudKey = ""; this.partyKey = ""; });
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.focusedId) this.closeFocused("hidden"); });
     this.controller.on("update", () => this.onUpdate());
+    this.controller.on("loadGame", () => this.onGameLoaded());
   }
 
   // Passive widgets the server feeds with data packets; the client adds what only it can read
@@ -128,6 +131,7 @@ export class DboRelayService extends ClientListener {
       if (typeof content["text"] === "string") notifyNextUpdate(this.controller, this.sp, content["text"]);
       return;
     }
+    if (type === "dboFade") { this.setFade(!!content["on"]); return; }
     if (type !== "dboWidget") return;
     const closeId = Number(content["close"]);
     if (Number.isFinite(closeId) && closeId > 0) {
@@ -146,6 +150,24 @@ export class DboRelayService extends ClientListener {
       refreshFormMenu(this.sp, this.browsersideWidgetSetter, { widget: w, id: wid });
     }
   }
+
+  // A black screen held while the server carries a new character into the hub; it lifts on its own if the server never says so
+  private setFade(on: boolean): void {
+    const timers = this.controller.lookupListener(TimersService);
+    if (this.fadeSafety !== undefined) { timers.clearTimeout(this.fadeSafety); this.fadeSafety = undefined; }
+    this.fadeWanted = on;
+    try { this.sp.Game.fadeOutGame(on, true, 0, on ? 0.4 : 1); } catch (e) { return; }
+    if (on) this.fadeSafety = timers.setTimeout(() => this.setFade(false), FADE_SAFETY_MS);
+  }
+
+  // Loading a save clears any fade, so a black screen still wanted goes straight back on, with no fade-in to see through
+  private onGameLoaded(): void {
+    if (!this.fadeWanted) return;
+    try { this.sp.Game.fadeOutGame(true, true, 0, 0); } catch (e) { /* the next load tries again */ }
+  }
+
+  private fadeSafety: number | undefined = undefined;
+  private fadeWanted = false;
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
     const key = e.arguments[0];

@@ -27,6 +27,7 @@ import { applyEquipment, isBadMenuShown } from '../../sync/equipment';
 import { Inventory, applyInventory, getDiff, getInventory, isBoundItem, removeSimpleItemsAsManyAsPossible } from '../../sync/inventory';
 import { Movement } from '../../sync/movement';
 import { enforceSpells } from '../../sync/spell';
+import { setRefrCollision } from '../../sync/animation';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
 import { LoadGameService } from './loadGameService';
@@ -68,7 +69,7 @@ import { SpellCastMessage } from '../messages/spellCastMessage';
 import { UpdateAnimVariablesMessage } from '../messages/updateAnimVariablesMessage';
 import { MsgType } from '../../messages';
 import { CustomPacketMessage } from '../messages/customPacketMessage';
-import { parseCustomPacket } from './customPacketUtil';
+import { parseCustomPacket, sendCustomPacket } from './customPacketUtil';
 
 export const getPcInventory = (): Inventory | undefined => {
   const res = storage['pcInv'];
@@ -91,6 +92,9 @@ let encumbranceRefreshPending = false;
 // Rebuilding the player's head or gear while RaceSexMenu frees its head parts crashes in the allocator
 const RACE_MENU_SETTLE_MS = 3000;
 const SPAWN_MAX_ATTEMPTS = 30;
+// A teleported player is checked this often, for this many polls, before the server hears it arrived
+const ARRIVAL_POLL_SECONDS = 0.5;
+const ARRIVAL_POLLS = 40;
 // Seconds after spawn at which the server's spell list is re-imposed, because the engine grants the race defaults late
 const SPELL_ENFORCE_PASSES = [1, 3, 6, 10, 15, 20];
 const isRaceMenuSettling = (): boolean =>
@@ -191,6 +195,7 @@ export class RemoteServer extends ClientListener {
         const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
         if (!ac || ac.getFormID() === 0x14) return;
         ac.stopTranslation();
+        setRefrCollision(ac.getFormID(), true);
         ac.clearKeepOffsetFromActor();
         // Re-seat it where it stands so havok takes it back, but never while the world is still
         // streaming: forcing a position on an actor without 3D can wedge the load.
@@ -402,8 +407,33 @@ export class RemoteServer extends ClientListener {
       } else {
         removeRagdollCallback();
       }
+      if (refrId === 0x14) {
+        this.watchArrival(msg.worldOrCell);
+      }
     });
   }
+
+  // The server waits on this before anything that must not happen mid-move, such as opening RaceMenu
+  private reportArrival(worldOrCell: number): void {
+    sendCustomPacket(this.controller, { customPacketType: 'dbo', event: 'arrived', args: [worldOrCell] });
+  }
+
+  private watchArrival(worldOrCell: number): void {
+    const watch = ++this.arrivalWatch;
+    (async () => {
+      for (let i = 0; i < ARRIVAL_POLLS; i++) {
+        await Utility.wait(ARRIVAL_POLL_SECONDS);
+        if (watch !== this.arrivalWatch) return;
+        const pl = Game.getPlayer();
+        if (pl && pl.is3DLoaded() && ObjectReferenceEx.getWorldOrCell(pl) === worldOrCell) {
+          this.reportArrival(worldOrCell);
+          return;
+        }
+      }
+    })();
+  }
+
+  private arrivalWatch = 0;
 
   private onCreateActorMessage(event: ConnectionMessage<CreateActorMessage>): void {
     const msg = event.message;
@@ -654,8 +684,14 @@ export class RemoteServer extends ClientListener {
                 sqr(pos[0] - msg.transform.pos[0]) +
                 sqr(pos[1] - msg.transform.pos[1]),
               );
-              if (distance < 256) {
+              // Interiors and small worldspaces both sit near the origin, so X/Y alone can match the wrong cell
+              const inTargetCell = ObjectReferenceEx.getWorldOrCell(pl) === msg.transform.worldOrCell;
+              if (distance < 256 && inTargetCell) {
+                this.reportArrival(msg.transform.worldOrCell);
                 break;
+              }
+              if (attempt === SPAWN_MAX_ATTEMPTS - 1) {
+                logError(this, 'Spawn loop gave up: still in', ObjectReferenceEx.getWorldOrCell(pl).toString(16), 'expected', msg.transform.worldOrCell.toString(16));
               }
             }
           })();
@@ -743,6 +779,8 @@ export class RemoteServer extends ClientListener {
               { minutes: 0, seconds: 0, hours: this.controller.lookupListener(TimeService).getTime().newGameHourValue }
             );
             once('update', () => {
+              // The save was built at the spawn point, so the server hears where the body really is once it loads
+              this.watchArrival(msg.transform.worldOrCell);
               applyPcInv();
               Utility.wait(0.3).then(applyPcInv);
               // Note: appearance part was copy-pasted
