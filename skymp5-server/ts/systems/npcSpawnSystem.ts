@@ -35,6 +35,13 @@ const TEMPLATE_USE_AI_DATA = 0x10;
 const MAX_TEMPLATE_DEPTH = 8;
 // An NPC this far below its spawn point fell out of the world and is replaced on its spot
 const FALL_LIMIT = 3000;
+// Above its spot by this much, within this radius of it and still for this many polls: stuck in the air, not climbing
+const STRAND_LIFT = 600;
+const STRAND_RADIUS = 384;
+const STRAND_POLLS = 3;
+// An NPC dragged this far from its zone is not coming home; its slot is freed for the next player
+const LEASH_MIN = 8000;
+const LEASH_RADII = 3;
 // Slot cooldown marker for Respawn 0: the slot stays empty until the zone despawns or an admin resets it
 const NEVER_READY = -1;
 // A corpse is removed this long after death, whatever its zone does. Overridable via "npcCorpseSeconds".
@@ -422,7 +429,7 @@ export class NpcSpawnSystem implements System {
       const occupied = zone.inside.size > 0 || zone.prespawn;
       if (zone.spawned.length) {
         this.checkDeaths(mp, zone, now);
-        this.checkFallen(mp, zone, now);
+        this.checkMisplaced(mp, zone, now);
       }
       if (occupied) {
         zone.emptySince = 0;
@@ -584,18 +591,48 @@ export class NpcSpawnSystem implements System {
     }
   }
 
-  private checkFallen(mp: Mp, zone: Zone, now: number): void {
+  private checkMisplaced(mp: Mp, zone: Zone, now: number): void {
     for (const entry of zone.spawned) {
       if (!entry.id || entry.diedAt) continue;
-      let z = 0;
-      try { z = mp.getActorPos(entry.id)[2]; } catch { continue; }
-      if (!(z < zone.pos[2] - FALL_LIMIT)) continue;
-      this.log(`NpcSpawnSystem: '${zone.name}' ${hex(entry.id)} fell out of the world (z ${Math.round(z)}), placing it again`);
+      let pos: number[] = [];
+      try { pos = mp.getActorPos(entry.id); } catch { continue; }
+      const slot = this.slotPos(zone, entry.slot);
+      const fell = pos[2] < zone.pos[2] - FALL_LIMIT;
+      const leash = Math.max(LEASH_MIN, zone.radius * LEASH_RADII);
+      const away = Math.hypot(pos[0] - zone.pos[0], pos[1] - zone.pos[1]);
+      const strayed = !fell && away > leash;
+      if (!fell && !strayed && !this.isStranded(entry.id, pos, slot)) continue;
+      const why = fell
+        ? `fell out of the world (z ${Math.round(pos[2])})`
+        : strayed
+          ? `strayed ${Math.round(away)} from its zone`
+          : `hung ${Math.round(pos[2] - slot[2])} above its spot`;
+      this.log(`NpcSpawnSystem: '${zone.name}' ${hex(entry.id)} ${why}, placing it again`);
       try { mp.destroyActor(entry.id); } catch { }
+      this.airborne.delete(entry.id);
       entry.id = 0;
       entry.diedAt = now;
       zone.slotReadyAt[entry.slot] = now;
     }
+  }
+
+  // Last seen ground position of an NPC hanging above its spot, with the number of polls it has not moved
+  private airborne = new Map<number, { xy: number[]; polls: number }>();
+
+  private isStranded(id: number, pos: number[], slot: number[]): boolean {
+    const near = pos[2] - slot[2] >= STRAND_LIFT
+      && Math.hypot(pos[0] - slot[0], pos[1] - slot[1]) <= STRAND_RADIUS;
+    if (!near) {
+      this.airborne.delete(id);
+      return false;
+    }
+    const prev = this.airborne.get(id);
+    if (!prev || Math.hypot(pos[0] - prev.xy[0], pos[1] - prev.xy[1]) > 8) {
+      this.airborne.set(id, { xy: [pos[0], pos[1]], polls: 0 });
+      return false;
+    }
+    prev.polls++;
+    return prev.polls >= STRAND_POLLS;
   }
 
   // A corpse is left to its timer unless forced (admin reset); a death the poll has not seen yet starts its timer here
