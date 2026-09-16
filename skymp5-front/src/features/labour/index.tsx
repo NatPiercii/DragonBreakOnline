@@ -32,6 +32,9 @@ const send = (key: string, ...args: unknown[]): void => {
   }
 };
 
+const HIT_COOLDOWN_MS = 250;
+const MISS_STAGGER_MS = 600;
+
 const bandCentre = (half: number): number => half + Math.random() * (100 - 2 * half);
 
 const Labour = ({ data }: { data: LabourData }) => {
@@ -51,6 +54,7 @@ const Labour = ({ data }: { data: LabourData }) => {
   const markerRef = useRef(0);
   const centreRef = useRef(centre);
   const hitsRef = useRef(0);
+  const readyAt = useRef(0);
   centreRef.current = centre;
   hitsRef.current = hits;
 
@@ -62,6 +66,7 @@ const Labour = ({ data }: { data: LabourData }) => {
     setFlash(null);
     setCentre(bandCentre(half));
     startedAt.current = Date.now();
+    readyAt.current = 0;
   }, [data.nonce, total, half]);
 
   const submit = (landed: number) => {
@@ -93,7 +98,10 @@ const Labour = ({ data }: { data: LabourData }) => {
 
   const strike = () => {
     if (sent || data.result) return;
+    // Without a stagger, hammering the key lands a strike every time the marker crosses the band
+    if (Date.now() < readyAt.current) return;
     const landed = Math.abs(markerRef.current - centreRef.current) <= half;
+    readyAt.current = Date.now() + (landed ? HIT_COOLDOWN_MS : MISS_STAGGER_MS);
     setFlash(landed ? 'hit' : 'miss');
     window.setTimeout(() => setFlash(null), 160);
     if (!landed) return;
