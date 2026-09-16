@@ -131,6 +131,8 @@ export class CharacterSelectService extends ClientListener {
         selectedSlot = null;
         confirmDeleteSlot = null;
         this.menuOpen = true;
+        // remoteServer reads this: our own body being parked must not quit the game to the main menu
+        (globalThis as any).__dboCharacterSelectOpen = true;
         logTrace(this, `Opening character select menu with`, maxCharacters, `slots`);
         openFormMenu(this.sp, this.browsersideWidgetSetter, this.menuArgs(), this.controller);
         break;
@@ -226,6 +228,7 @@ export class CharacterSelectService extends ClientListener {
 
   private closeMenu(): void {
     this.menuOpen = false;
+    (globalThis as any).__dboCharacterSelectOpen = false;
     selectedSlot = null;
     confirmDeleteSlot = null;
     // Clear the title screen and any auth form; chat and other in-game widgets must survive a mid-session reopen.

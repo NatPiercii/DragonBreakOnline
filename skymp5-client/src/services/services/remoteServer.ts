@@ -776,6 +776,12 @@ export class RemoteServer extends ClientListener {
       // "update" doesn't fire in the main menu, so this can trigger long after queueing;
       // re-check on fire since the server may have re-created our actor by then.
       once('update', () => {
+        // Character select parks the old body on purpose; quitting then would drop the connection
+        // and strand the player on Skyrim's own menu instead of our title screen.
+        if ((globalThis as any).__dboCharacterSelectOpen === true) {
+          logTrace(this, 'Own actor destroyed while character select is open, staying connected');
+          return;
+        }
         if (this.worldModel.playerCharacterFormIdx === -1) {
           Game.quitToMainMenu();
         }
