@@ -25,6 +25,7 @@ import BountyBoard from './features/bountyBoard';
 import InteractPrompt from './features/interactPrompt';
 import Hud from './features/hud';
 import Reading from './features/reading';
+import Labour from './features/labour';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
@@ -249,6 +250,8 @@ const Constructor = props => {
       return <Hud data={rend} />;
     case 'reading':
       return <Reading data={rend} />;
+    case 'labour':
+      return <Labour data={rend} />;
     case 'skinning':
       return <Skinning data={rend} />;
     case 'characterSelect':
