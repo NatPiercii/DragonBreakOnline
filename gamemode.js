@@ -298,11 +298,78 @@ registerChatCommand('tp', (a, args) => {
 
 // ---- pigeons (player mail, works for offline recipients) --------------------------------------
 // Each character keeps 'private.indexed.nameKey' (lowercase name) so an offline character can be found
-// by name, and 'private.pigeons' (unread mail). One pigeon per sender every PIGEON_COOLDOWN_MS.
+// by name, and 'private.pigeons' (unread mail). One pigeon per player every PIGEON_COOLDOWN_MS, only to a
+// character the sender's character has met, for PIGEON_FEE gold paid into the treasury of the hold it is sent from.
 const PIGEON_COOLDOWN_MS = 35 * 60 * 1000;
 const PIGEON_MAX_TEXT = 240;
 const PIGEON_MAX_UNREAD = 20;
-const pigeonLastSent = new Map(); // profileId -> epoch ms (in memory; a restart forgives one cooldown)
+const PIGEON_FEE = 5;
+// profileId -> epoch ms, on disk so a restart or a gamemode reload does not forgive everyone's wait
+const PIGEON_COOLDOWN_FILE = path.resolve('pigeon-cooldowns.json');
+const pigeonLastSent = (() => {
+  try { return new Map(Object.entries(JSON.parse(fs.readFileSync(PIGEON_COOLDOWN_FILE, 'utf8'))).map(([k, v]) => [Number(k), Number(v)])); }
+  catch (e) { return new Map(); }
+})();
+const notePigeonSent = (p) => {
+  pigeonLastSent.set(p, Date.now());
+  for (const [k, v] of pigeonLastSent) if (Date.now() - v > PIGEON_COOLDOWN_MS) pigeonLastSent.delete(k);
+  try { fs.writeFileSync(PIGEON_COOLDOWN_FILE, JSON.stringify(Object.fromEntries(pigeonLastSent))); } catch (e) { log('pigeon cooldown save failed', e.message); }
+};
+// Two characters have met once they stood within speaking range in the same place, recorded on both
+const MEET_TICK_MS = 5000;
+const MAX_MET = 500;
+const metOf = (a) => { try { const r = mp.get(a, 'private.metActors'); return Array.isArray(r) ? r : []; } catch (e) { return []; } };
+const noteMet = (a, b) => {
+  const list = metOf(a);
+  if (list.includes(b)) return;
+  list.push(b);
+  if (list.length > MAX_MET) list.splice(0, list.length - MAX_MET);
+  try { mp.set(a, 'private.metActors', list); } catch (e) { /* next tick */ }
+};
+if (globalThis.__dboMeetTimer) clearInterval(globalThis.__dboMeetTimer);
+globalThis.__dboMeetTimer = setInterval(() => {
+  const reach = (Number((cfg.rangesMeters || {}).say) || 20) * UNITS_PER_METER;
+  const byPlace = new Map();
+  for (const a of onlineActors()) {
+    try {
+      const w = String(mp.get(a, 'worldOrCellDesc') || ''); const p = mp.get(a, 'pos');
+      if (!w || !Array.isArray(p)) continue;
+      const list = byPlace.get(w); if (list) list.push([a, p]); else byPlace.set(w, [[a, p]]);
+    } catch (e) { /* between cells */ }
+  }
+  for (const list of byPlace.values()) {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const [a, p] = list[i]; const [b, q] = list[j];
+      if (Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) > reach) continue;
+      noteMet(a, b); noteMet(b, a);
+    }
+  }
+}, MEET_TICK_MS);
+const takeGold = (a, amount) => {
+  try {
+    const inv = mp.get(a, 'inventory') || { entries: [] };
+    const entries = (Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
+    const gold = entries.find((e) => (Number(e.baseId) >>> 0) === GOLD_BASE && !e.worn);
+    if (!gold || (Number(gold.count) || 0) < amount) return false;
+    gold.count -= amount;
+    mp.set(a, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) });
+    return true;
+  } catch (e) { log('gold take failed', e.message); return false; }
+};
+// Returns what was deposited; a zone without a treasury keeps nothing
+const depositToTreasury = (zoneId, amount) => {
+  const zone = zoneId ? zoneById(zoneId) : null;
+  if (!zone || !zone.treasury || amount <= 0) return 0;
+  try {
+    const chest = mp.getIdFromDesc(zone.treasury) >>> 0;
+    const inv = mp.get(chest, 'inventory') || { entries: [] };
+    const entries = (Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
+    const gold = entries.find((e) => (Number(e.baseId) >>> 0) === GOLD_BASE);
+    if (gold) gold.count = (Number(gold.count) || 0) + amount; else entries.push({ baseId: GOLD_BASE, count: amount });
+    mp.set(chest, 'inventory', { entries });
+    return amount;
+  } catch (e) { log('treasury deposit failed', e.message); return 0; }
+};
 const indexName = (actorId) => {
   try {
     const key = nameOf(actorId).toLowerCase();
@@ -342,27 +409,32 @@ registerChatCommand('pigeon', (a, args) => {
   if (!m) return personal(a, 'Usage: /pigeon <name|#TAG> <message>');
   const text = m[2].trim().replace(/\s+/g, ' ');
   if (text.length > PIGEON_MAX_TEXT) return personal(a, `Pigeons carry at most ${PIGEON_MAX_TEXT} characters.`);
+  const admin = isAdmin(a);
   const p = profileOf(a); const last = pigeonLastSent.get(p) || 0; const left = PIGEON_COOLDOWN_MS - (Date.now() - last);
-  if (left > 0 && !isAdmin(a)) return personal(a, `Your pigeon is still out. Next one in ${Math.ceil(left / 60000)} min.`);
+  if (left > 0 && !admin) return personal(a, `Your pigeon is still out. Next one in ${Math.ceil(left / 60000)} min.`);
   const t = findAnyByName(m[1]);
   if (t < 0) return personal(a, `${-t} characters share that name. Use their #TAG.`);
   if (!t) return personal(a, 'No character by that name.');
   if (t === a) return personal(a, 'The pigeon just sits on your shoulder.');
+  if (!admin && !metOf(a).includes(t)) return personal(a, 'Your pigeon does not know the way to someone you have never met.');
   try {
-    const blocked = mp.get(t, 'private.pigeonBlock');
-    if (Array.isArray(blocked) && blocked.includes(p)) { pigeonLastSent.set(p, Date.now()); return personal(a, 'Your pigeon flew off and never came back.'); }
     const online = onlineActors().includes(t);
+    const box = online ? null : (Array.isArray(mp.get(t, 'private.pigeons')) ? mp.get(t, 'private.pigeons') : []);
+    if (box && box.length >= PIGEON_MAX_UNREAD) return personal(a, 'Their coop is full. Try again later.');
+    if (!admin && !takeGold(a, PIGEON_FEE)) return personal(a, `A pigeon costs ${PIGEON_FEE} gold, and you do not have it.`);
+    const zoneId = admin ? null : zoneOfActor(a);
+    const paid = admin ? 0 : depositToTreasury(zoneId, PIGEON_FEE);
+    notePigeonSent(p);
+    const blocked = mp.get(t, 'private.pigeonBlock');
+    if (Array.isArray(blocked) && blocked.includes(p)) return personal(a, 'Your pigeon flew off and never came back.');
     if (online) deliverPigeon(t, display(a), text, 0);
-    else {
-      const box = Array.isArray(mp.get(t, 'private.pigeons')) ? mp.get(t, 'private.pigeons') : [];
-      if (box.length >= PIGEON_MAX_UNREAD) return personal(a, 'Their coop is full. Try again later.');
-      box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(t, 'private.pigeons', box);
-    }
-    pigeonLastSent.set(p, Date.now());
-    personal(a, `Your pigeon flies to ${nameOf(t)}${online ? '' : ' (away; delivered when they return)'}.`);
-    log(`pigeon ${who(a)} -> ${nameOf(t)} #${tagOf(t)}: ${text}`);
+    else { box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(t, 'private.pigeons', box); }
+    const zone = zoneId ? zoneById(zoneId) : null;
+    const fee = admin ? '' : `. ${PIGEON_FEE} gold${zone ? ` to the ${zone.name} treasury` : ''}`;
+    personal(a, `Your pigeon flies to ${nameOf(t)}${online ? '' : ' (away; delivered when they return)'}${fee}.`);
+    log(`pigeon ${who(a)} -> ${nameOf(t)} #${tagOf(t)}${admin ? '' : ` (${PIGEON_FEE} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})`}: ${text}`);
   } catch (e) { personal(a, 'The pigeon refused to fly: ' + e.message); }
-}, { help: '<name|#TAG> <message>  one every 35 min, reaches offline players' });
+}, { help: '<name|#TAG> <message>  5 gold, one every 35 min, only to someone you have met' });
 registerChatCommand('pigeonblock', (a, args) => {
   const t = findAnyByName(args.trim()); if (!t || t < 0) return personal(a, 'No such character (use their #TAG).');
   try {
@@ -553,7 +625,7 @@ const creationPending = (a) => {
   try { return mp.get(a, 'private.creationPending') === true || mp.get(a, 'appearance') == null; }
   catch (e) { return false; }
 };
-// actorId -> 'landing' | 'hub' | 'open' while a new character is carried to the creator. The client reports
+// actorId -> 'spawning' | 'landing' | 'hub' | 'open' while a new character is carried to the creator. The client reports
 // 'arrived' when its body is really in a world, so each step waits exactly as long as that machine needs;
 // the old fixed timers stay behind as fallbacks for a client that never reports.
 if (!(globalThis.__dboCreation instanceof Map)) globalThis.__dboCreation = new Map();
@@ -572,16 +644,22 @@ const openCreator = (a) => {
     log(`opened character creation for ${display(a)}`);
   } catch (e) { log('creator open failed', e.message); }
 };
+// New characters spawn straight into the hub. A client that has not reported arriving there in time is sent
+// the long way, to the landing a save always loads into and on into the hub, still behind the black screen.
+const HUB_SPAWN_WAIT_MS = 12000;
+const LANDING_LOC = { cellOrWorldDesc: LANDING.world, pos: LANDING.pos, rot: [0, 0, Number(LANDING.angleZ) || 135] };
+const fallBackToLanding = (a) => {
+  if (creation.get(a) !== 'spawning' || !creationPending(a)) return;
+  creation.set(a, 'landing');
+  log(`${display(a)} did not arrive in the hub from the spawn; sending them via the landing`);
+  try { mp.set(a, 'locationalData', LANDING_LOC); } catch (e) { log('landing fallback failed', e.message); }
+};
 const startCreationInHub = (a) => {
-  const stage = creation.get(a);
-  if (stage === 'hub' || stage === 'open') return;
+  if (creation.get(a) !== 'landing') return;
   if (moveToHubIfLanding(a)) {
     creation.set(a, 'hub');
     log(`moved ${display(a)} into the hub for character creation`);
     setTimeout(() => openCreator(a), CREATOR_OPEN_MS);
-  } else {
-    log(`${display(a)} resumes character creation where they stand`);
-    setTimeout(() => openCreator(a), 2000);
   }
 };
 
@@ -643,7 +721,7 @@ globalThis.__dboLoginWaits = new Map();
 const onCharacterReady = (userId, a) => {
   connectedAt.set(a, Date.now());
   // A new character is carried through the landing into the hub behind a black screen
-  if (creationPending(a)) { creation.set(a, 'landing'); setFade(a, true); }
+  if (creationPending(a)) { creation.set(a, 'spawning'); setFade(a, true); setTimeout(() => fallBackToLanding(a), HUB_SPAWN_WAIT_MS); }
   // Seed the remembered outfit from the save before the client's undressed login reports replace it.
   try { const worn = wornOf(mp.get(a, 'equipment')); if (worn.length) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0])); } catch (e) { /* nothing saved */ }
   setTimeout(() => { if (actorOf(userId) === a && !creationPending(a)) { try { redress(a); } catch (e) { log('redress failed', e.message); } } }, 12000);
@@ -989,15 +1067,16 @@ const onUi = (event, fn) => {
 onUi('arrived', (a, args) => {
   const world = Number(args[0]) >>> 0;
   if (!creationPending(a)) return;
-  const stage = creation.get(a) || 'landing';
-  if (stage === 'landing' && world === worldIdOf(LANDING.world)) {
+  const stage = creation.get(a);
+  if (world === worldIdOf(HUB.cellOrWorldDesc) && (stage === 'spawning' || stage === 'hub')) {
+    log(`${display(a)} arrived in the hub${stage === 'spawning' ? ' straight from the spawn' : ''}`);
+    openCreator(a);
+  } else if (world === worldIdOf(LANDING.world) && stage === 'landing') {
     log(`${display(a)} arrived at the landing`);
     startCreationInHub(a);
-  } else if (stage === 'hub' && world === worldIdOf(HUB.cellOrWorldDesc)) {
-    log(`${display(a)} arrived in the hub`);
-    openCreator(a);
   }
-});const giveItem = (a, baseId, count) => {
+});
+const giveItem = (a, baseId, count) => {
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
     const entries = Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : [];
@@ -1302,14 +1381,19 @@ globalThis.__dboOutsideTimer = setInterval(() => {
     try { const w = String(mp.get(a, 'worldOrCellDesc') || ''); if (w && isWorldspace(w)) mp.set(a, 'private.lastOutside', { world: w, pos: mp.get(a, 'pos') }); } catch (e) { /* next tick */ }
   }
 }, 10000);
-const setDeathTemple = (a) => {
-  try { if (!(Number(mp.get(a, 'profileId')) >= 0)) return; } catch (e) { return; }
+// The zone a player is in: by worldspace or nearest hold capital outdoors, by owning plugin indoors, else where they last stood outside
+const zoneOfActor = (a) => {
   let world = '', pos = null;
-  try { world = String(mp.get(a, 'worldOrCellDesc') || ''); pos = mp.get(a, 'pos'); } catch (e) { return; }
+  try { world = String(mp.get(a, 'worldOrCellDesc') || ''); pos = mp.get(a, 'pos'); } catch (e) { return null; }
   let zone = null;
   if (isWorldspace(world)) zone = zoneAtPlace(world, pos);
   if (!zone) zone = REGION_PLUGINS[normPlace(world).split(':')[1]] || null;
   if (!zone) { let last = null; try { last = mp.get(a, 'private.lastOutside'); } catch (e) { /* none */ } if (last && last.world) zone = zoneAtPlace(last.world, last.pos); }
+  return zone;
+};
+const setDeathTemple = (a) => {
+  try { if (!(Number(mp.get(a, 'profileId')) >= 0)) return; } catch (e) { return; }
+  const zone = zoneOfActor(a);
   const t = zone ? templeFor(zone) : null;
   if (!t) return;
   try { mp.set(a, 'spawnPoint', { cellOrWorldDesc: t.world, pos: t.pos, rot: [0, 0, Number(t.rotZ) || 0] }); log(`${display(a)} fell in ${zone}; wakes at its temple`); } catch (e) { log('respawn temple failed', e.message); }
