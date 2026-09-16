@@ -164,6 +164,16 @@ interface GroundSample {
   grade: number;
 }
 
+// Clones with a translateTo still running, so it can be stopped exactly once when they settle
+const translating = new Set<number>();
+
+// A running translateTo holds collision off, so a copy nothing drives any more hangs in the air
+export const settleTranslation = (refr: ObjectReference): void => {
+  if (translating.delete(refr.getFormID())) {
+    refr.stopTranslation();
+  }
+};
+
 // Last received position per clone and the ground grade (dz per horizontal unit) it implies
 const groundSamples = new Map<number, GroundSample>();
 const maxGroundGrade = 1.2;
@@ -219,16 +229,18 @@ const translateTo = (refr: ObjectReference, m: Movement) => {
   const speed = distance / time;
 
   const angleDiff = Math.abs(m.rot[2] - refr.getAngleZ());
-  if (
+  const refrId = refr.getFormID();
+  const actor = Actor.from(refr);
+  const needsMove =
     m.runMode !== "Standing" ||
     m.isInJumpState ||
     ObjectReferenceEx.getDistanceNoZ(refrRealPos, gTempTargetPos) > 8 ||
     Math.abs(refrRealPos[2] - gTempTargetPos[2]) > standingMaxDeltaZ ||
     angleDiff > 80 ||
-    Actor.from(refr)?.getSitState() === 3 ||
-    (isInSitPose(refr.getFormID()) && distance > 1)
-  ) {
-    const actor = Actor.from(refr);
+    actor?.getSitState() === 3 ||
+    (isInSitPose(refrId) && distance > 1);
+
+  if (needsMove) {
     if (actor && actor.getActorValue("Variable10") < -999) {
       return;
     }
@@ -244,7 +256,14 @@ const translateTo = (refr: ObjectReference, m: Movement) => {
         speed,
         0
       );
+      translating.add(refrId);
+      return;
     }
+  }
+
+  // Standing at the reported spot or dead: hand the copy back to havok instead of leaving it translating
+  if (translating.delete(refrId)) {
+    refr.stopTranslation();
   }
 };
 

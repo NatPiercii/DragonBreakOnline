@@ -4,7 +4,7 @@ import { Appearance, applyAppearance } from "../sync/appearance";
 import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
-import { applyMovement } from "../sync/movementApply";
+import { applyMovement, settleTranslation } from "../sync/movementApply";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
@@ -451,6 +451,9 @@ export class FormView {
         } else {
           const remoteId = this.remoteRefrId;
           if (ac && remoteId && ac.is3DLoaded()) {
+            // The server no longer drives this copy, so its last translateTo must not keep running
+            settleTranslation(ac);
+
             if (!isOwnCompanion(remoteId)) {
               ac.clearKeepOffsetFromActor();
             }
