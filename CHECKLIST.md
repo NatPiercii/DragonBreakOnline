@@ -1,5 +1,18 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-16 (late morning): contracts, review fixes, npc budget
+- [x] **Hunting contracts LIVE** (`server\contracts.js`, state `contracts.json`, config `contracts`). Each zone with a treasury keeps 3 standing contracts drawn from the creatures that actually spawn there (from NPC-Spawns.json wild:* names; a hold with no worldspace of its own takes the fauna within 45,000 units of its capital). Danger tiers set both the count and the pay: 2 trolls at 120 gold, 9 mudcrabs at 108. `/contracts` lists the work where you stand, `/contract take <n>`, `/contract` shows progress, `/contract abandon`. **The reward comes out of the zone treasury**, so a hold that spends its coffers stops being able to post work, and a contract is never posted the treasury cannot cover. Officials of the zone post their own with `/contract post <creature> <count> <reward>`. A champion kill counts double. 27 contracts across 11 zones at first load.
+- [x] **Review pass over the morning's untested code, three real bugs found:**
+  - `onUi` kept ONE handler per event name in a Map, and three modules register `close` (reading, dungeon gate, labour). The last one loaded silently killed the others, so reading and dungeon-gate sessions have been leaking on close since before today. It now keeps a list and calls every handler.
+  - The labour mini-game could be beaten by hammering the key, since a miss cost nothing. A strike now has a 250 ms cooldown and a miss staggers 600 ms.
+  - Heartstone veins were mapped to stalhrim, which would have paid the wrong ore. Unknown ores are refused instead.
+  - A champion that despawned without dying left its rim shader lit on every client. Cleared on despawn now.
+- [x] **NPC budget (server)**: 1883 wildlife zones mean a player crossing the map trails actors that are each held four minutes after they leave. `fillSlots` now stops at `MAX_LIVE` 150 live NPCs across every zone and retries the slot in 10 s, logging at most once a minute. Respawning a slot that already exists is unaffected.
+- [x] **`server\` is a git repo** (local only, no remote yet): 42 files, the gameplay layer and the design data. Secrets, `world/`, logs, builds, backups and runtime state are ignored. Commits `60eabb7`, `64a02be`, `c827ea8`.
+- [x] Fork pushed through `6264832`.
+- [ ] NOT tested in game: contracts, champions, labour, the budget.
+- [ ] NPC merchants deliberately NOT built: the economy stays player-run shops (user decision 2026-09-16).
+
 ## Added 2026-09-16 (morning, third block): champions, the lite MMO layer
 - [x] **Champions LIVE** (`server\champions.js`, config `champions`, no client build needed to tune). Every few seconds the module reads `zone-spawns.json`, and a hostile new spawn has a 5% (wild) / 8% (dungeon) chance of promotion: it gets a name through Papyrus `SetDisplayName` using the client's `%original_name%` token ("Ravening Wolf", "Elder Draugr", 20 epithets), a red rim from the glow service, and toughness. `/champions` lists what is abroad.
 - [x] **Toughness without touching max health**: `SetActorValue` on the server is a documented no-op for server calculations, so a champion is healed back a share of every hit instead (`mp.set(id, 'percentages', ...)`, `toughness` 0.5 = roughly double health, capped at 0.8). The bar still drains, which reads correctly.
