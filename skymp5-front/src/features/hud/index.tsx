@@ -24,7 +24,8 @@ const clampPct = (v: unknown): number => Math.max(0, Math.min(100, Number(v) || 
 // only the positioned box it paints into.
 const Watermark = ({ on }: { on: boolean }) => (on ? <div className="dboWatermark" /> : null);
 
-// Oblivion-style stacked bars: health, magicka, fatigue (stamina), bottom-right
+// Three etched bars in the Lorkhan idiom: a notched aetherial frame, a rune cap per vital, quarter
+// ticks like the marks of a broken calendar, and a slow sheen across the fill.
 const Vitals = ({ data }: { data: HudData }) => {
   if (data.vitalsOn === false) return null;
   const rows: Array<[string, string, number]> = [
@@ -35,9 +36,14 @@ const Vitals = ({ data }: { data: HudData }) => {
   return (
     <div className="dboVitals">
       {rows.map(([key, label, pct]) => (
-        <div className="dboVitals__row" key={key} title={`${label} ${Math.round(pct)}%`}>
+        <div className={`dboVitals__row dboVitals__row--${key}`} key={key} title={`${label} ${Math.round(pct)}%`}>
+          <span className={`dboVitals__rune dboVitals__rune--${key}`} />
           <div className="dboVitals__bar">
-            <div className={`dboVitals__fill dboVitals__fill--${key}`} style={{ width: `${pct}%` }} />
+            <div className={`dboVitals__fill dboVitals__fill--${key}`} style={{ width: `${pct}%` }}>
+              <span className="dboVitals__sheen" />
+            </div>
+            <span className="dboVitals__ticks" />
+            <span className="dboVitals__gloss" />
           </div>
         </div>
       ))}
