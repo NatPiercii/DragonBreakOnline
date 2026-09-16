@@ -34,3 +34,4 @@ _*/
 
 # Copies of the settings file, same reason
 server-settings-*.json
+contracts.json
