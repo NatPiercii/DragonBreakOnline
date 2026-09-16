@@ -26,6 +26,7 @@ import InteractPrompt from './features/interactPrompt';
 import Hud from './features/hud';
 import Reading from './features/reading';
 import Skinning from './features/skinning';
+import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
 import Party from './features/party';
 
@@ -250,6 +251,8 @@ const Constructor = props => {
       return <Reading data={rend} />;
     case 'skinning':
       return <Skinning data={rend} />;
+    case 'characterSelect':
+      return <CharacterSelect data={rend} />;
     case 'dungeonGate':
       return <DungeonGate data={rend} />;
     case 'party':

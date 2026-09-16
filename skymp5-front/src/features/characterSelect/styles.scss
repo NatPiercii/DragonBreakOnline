@@ -1,0 +1,310 @@
+// DragonBreak title screen and character select, in the logo palette
+// (src/dbo-theme.scss). The art is the branding main menu plate bundled at
+// src/img/dbo-mainmenu.png; everything else is drawn.
+@import '../../dbo-theme.scss';
+
+.dboSelect {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: auto;
+  font-family: $dbo-ui-font;
+  color: $dbo-text;
+  opacity: 0;
+  transition: opacity 420ms ease;
+
+  &--shown { opacity: 1; }
+
+  // The plate: nebula and stars, panned slightly right so the logo area sits under our own mark.
+  &__art {
+    position: absolute;
+    inset: 0;
+    background: #04090b url('../../img/dbo-mainmenu.png') center / cover no-repeat;
+    filter: saturate(1.05);
+  }
+
+  // Deepen the edges so the panel reads against the art.
+  &__vignette {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 28% 45%, rgba(4, 9, 11, 0.1), rgba(4, 9, 11, 0.86) 72%),
+      linear-gradient(90deg, rgba(4, 9, 11, 0.2) 0%, rgba(4, 9, 11, 0.75) 55%, rgba(4, 9, 11, 0.94) 100%);
+  }
+
+  // Brand block, left third, over the nebula.
+  &__brand {
+    position: absolute;
+    left: 6vw;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+  }
+
+  &__logo {
+    width: clamp(120px, 12vw, 220px);
+    aspect-ratio: 420 / 520;
+    background: url('../../img/dbo-watermark.png') center / contain no-repeat;
+    filter: drop-shadow(0 0 22px rgba(143, 211, 208, 0.45)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.85));
+  }
+
+  &__wordmark {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__word {
+    @include dbo-title;
+    font-size: clamp(30px, 3.6vw, 56px);
+    line-height: 1.02;
+    letter-spacing: 0.14em;
+    text-shadow: 0 0 24px rgba(143, 211, 208, 0.35), 0 4px 10px rgba(0, 0, 0, 0.9);
+  }
+
+  &__tagline {
+    margin-top: 10px;
+    color: $dbo-aqua-dim;
+    font-size: clamp(11px, 1vw, 14px);
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+  }
+
+  // Selection panel, right side.
+  &__panel {
+    position: absolute;
+    right: 5vw;
+    top: 50%;
+    transform: translateY(-50%);
+    width: min(660px, 46vw);
+    max-height: 84vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 30px 34px 26px;
+    @include dbo-panel;
+  }
+
+  &__heading {
+    margin: 0;
+    @include dbo-title;
+    font-size: clamp(22px, 2.2vw, 32px);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  &__sub {
+    margin: 0 0 6px;
+    color: $dbo-text-dim;
+    font-family: $dbo-book-font;
+    font-style: italic;
+    font-size: 15px;
+  }
+
+  &__slots {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  // One card per slot: sigil, name block, actions.
+  &__slot {
+    display: grid;
+    grid-template-columns: 74px 1fr auto;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 20px;
+    background: $dbo-panel-soft;
+    border: 1px solid $dbo-border;
+    cursor: pointer;
+    transition: background $dbo-fast, border-color $dbo-fast, transform $dbo-fast, box-shadow $dbo-fast;
+
+    &:hover {
+      background: $dbo-ground-3;
+      border-color: $dbo-border-strong;
+      transform: translateY(-1px);
+    }
+
+    &--selected {
+      border-color: $dbo-aqua;
+      box-shadow: inset 0 0 26px rgba(143, 211, 208, 0.12), 0 0 18px rgba(143, 211, 208, 0.35);
+    }
+
+    &--empty {
+      border-style: dashed;
+
+      .dboSelect__name { color: $dbo-text-dim; }
+    }
+
+    &--dead {
+      cursor: default;
+      opacity: 0.55;
+
+      .dboSelect__name { text-decoration: line-through; }
+      &:hover { transform: none; border-color: $dbo-border; background: $dbo-panel-soft; }
+    }
+  }
+
+  // The diamond mark: first letter of the name, or + on an empty slot.
+  &__sigil {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    justify-self: center;
+    background: linear-gradient(160deg, rgba(143, 211, 208, 0.22), rgba(8, 25, 28, 0.9));
+    border: 1px solid $dbo-border;
+    transform: rotate(45deg);
+    color: $dbo-silver;
+    font-family: $dbo-title-font;
+    font-size: 26px;
+
+    > * { transform: rotate(-45deg); }
+  }
+
+  &__who {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  &__slotLabel {
+    color: $dbo-aqua-dim;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+
+  &__name {
+    @include dbo-title;
+    font-size: clamp(19px, 1.8vw, 26px);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  &__meta {
+    color: $dbo-text-dim;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+  }
+
+  &__detail {
+    color: rgba(215, 227, 227, 0.45);
+    font-family: $dbo-book-font;
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  &__slotActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-self: end;
+  }
+
+  &__chosen {
+    padding: 6px 12px;
+    color: $dbo-aqua;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    border: 1px solid rgba(143, 211, 208, 0.45);
+    background: rgba(143, 211, 208, 0.1);
+  }
+
+  &__warn {
+    color: $dbo-amber;
+    font-family: $dbo-book-font;
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  &__link {
+    padding: 4px 6px;
+    background: none;
+    border: 0;
+    color: $dbo-text-dim;
+    font-family: $dbo-ui-font;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color $dbo-fast;
+
+    &:hover { color: $dbo-red; }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 4px;
+  }
+
+  &__button {
+    @include dbo-button;
+
+    &--quiet {
+      color: $dbo-text-dim;
+      border-color: rgba(143, 211, 208, 0.28);
+      background: transparent;
+    }
+
+    &--danger {
+      color: $dbo-silver;
+      border-color: rgba(201, 70, 58, 0.8);
+      background: rgba(201, 70, 58, 0.25);
+
+      &:hover {
+        background: rgba(201, 70, 58, 0.5);
+        border-color: $dbo-red;
+      }
+    }
+  }
+
+  // The one big commitment on the screen.
+  &__play {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 14px 28px;
+    background: linear-gradient(180deg, rgba(143, 211, 208, 0.22), rgba(47, 124, 128, 0.32));
+    border: 1px solid $dbo-border-strong;
+    color: $dbo-silver;
+    font-family: $dbo-ui-font;
+    cursor: pointer;
+    transition: background $dbo-fast, border-color $dbo-fast, box-shadow $dbo-fast, opacity $dbo-fast;
+
+    &:hover:not(:disabled) {
+      background: linear-gradient(180deg, rgba(143, 211, 208, 0.34), rgba(47, 124, 128, 0.46));
+      box-shadow: 0 0 22px rgba(143, 211, 208, 0.45);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+
+  &__playLabel {
+    font-size: 20px;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+  }
+
+  &__playName {
+    color: $dbo-aqua;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+}
