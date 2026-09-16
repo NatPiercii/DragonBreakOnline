@@ -24,14 +24,21 @@
   }
 }
 
-// Status panel, bottom-left: a dark teal card with one row per state (hunger, voice mode),
-// icon on the left, label, value on the right, a thin meter under the hunger row.
-.dboStatus {
+// Bottom-right corner: the hunger card with the voice box under it.
+.dboCorner {
   position: fixed;
-  left: 1.6%;
+  right: 1.6%;
   bottom: 3.4%;
   z-index: 15;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+// Status card: a dark teal panel, icon on the left, label, value on the right, a thin meter under it.
+.dboStatus {
   display: flex;
   flex-direction: column;
   width: 232px;
@@ -120,18 +127,18 @@
   &__row--starving .dboStatus__label { color: #e8907f; }
 }
 
-// Vitals, bottom-right: three stacked horizontal bars with a dark bevelled frame, red health on
+// Vitals, bottom-left: three stacked horizontal bars with a dark bevelled frame, red health on
 // top, blue magicka, green fatigue (stamina) at the bottom. No labels.
 .dboVitals {
   position: fixed;
-  right: 2.2%;
+  left: 1.8%;
   bottom: 3.6%;
   z-index: 15;
   pointer-events: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: flex-end;
+  align-items: flex-start;
 
   &__row {
     display: flex;
@@ -159,20 +166,83 @@
   }
 }
 
-// Voice row while push-to-talk is held: the row lights up instead of a separate banner.
-.dboStatus__row--talking {
-  background: linear-gradient(90deg, rgba(143, 211, 208, 0.24), rgba(143, 211, 208, 0.04));
+// Voice box: its own card under the hunger card. The three ranges read as pips with the active one
+// lit; holding V lights the whole box and the hint reads ON AIR.
+.dboVoice {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 232px;
+  padding: 8px 12px;
+  font-family: $dbo-ui-font;
+  background: linear-gradient(180deg, rgba(15, 42, 46, 0.78), rgba(8, 25, 28, 0.86));
+  border: 1px solid rgba(143, 211, 208, 0.38);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(143, 211, 208, 0.14), 0 6px 14px rgba(0, 0, 0, 0.6);
+  transition: border-color $dbo-fast, box-shadow $dbo-fast;
 
-  .dboStatus__icon {
-    background-color: #ffffff;
-    opacity: 1;
-    filter: drop-shadow(0 0 6px rgba(143, 211, 208, 0.95));
+  &__icon {
+    width: 18px;
+    height: 18px;
+    justify-self: center;
+    opacity: 0.85;
+    background-color: $dbo-aqua;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z' fill='black'/><path d='M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6' stroke='black' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+    mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z' fill='black'/><path d='M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6' stroke='black' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+    transition: background-color $dbo-fast, filter $dbo-fast;
   }
 
-  .dboStatus__label { color: $dbo-aqua; }
+  &__modes {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-  .dboStatus__value {
-    color: $dbo-aqua;
-    text-shadow: 0 0 8px rgba(143, 211, 208, 0.8);
+  &__mode {
+    padding: 2px 6px;
+    color: $dbo-text-dim;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    transition: color $dbo-fast, border-color $dbo-fast, background $dbo-fast;
+
+    &--on {
+      color: $dbo-silver;
+      background: rgba(143, 211, 208, 0.12);
+      border-color: rgba(143, 211, 208, 0.45);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    }
+  }
+
+  &__hint {
+    color: $dbo-text-dim;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  &--talking {
+    border-color: $dbo-aqua;
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 18px rgba(143, 211, 208, 0.5), 0 6px 14px rgba(0, 0, 0, 0.6);
+
+    .dboVoice__icon {
+      background-color: #ffffff;
+      opacity: 1;
+      filter: drop-shadow(0 0 6px rgba(143, 211, 208, 0.95));
+    }
+
+    .dboVoice__mode--on { color: $dbo-aqua; }
+
+    .dboVoice__hint {
+      color: $dbo-aqua;
+      text-shadow: 0 0 8px rgba(143, 211, 208, 0.8);
+    }
   }
 }

@@ -46,7 +46,7 @@ const Vitals = ({ data }: { data: HudData }) => {
 };
 
 const STAGE_LABEL: Record<string, string> = { sated: 'Well fed', peckish: 'Peckish', hungry: 'Hungry', starving: 'Starving' };
-const VOICE_LABEL: Record<string, string> = { whisper: 'Whisper', talk: 'Normal', shout: 'Yell' };
+const VOICE_MODES: Array<[string, string]> = [['whisper', 'Whisper'], ['talk', 'Normal'], ['shout', 'Yell']];
 
 // Voice mode comes from the client (window.__dboVoiceMode + "dbo:voiceMode"); push-to-talk state from
 // the front voice manager ("dbo:voicePtt").
@@ -66,6 +66,22 @@ const useVoice = (): { mode: string; talking: boolean } => {
   return { mode, talking };
 };
 
+// Voice box: the three ranges as pips with the active one lit; the box glows while V is held.
+const Voice = ({ mode, talking }: { mode: string; talking: boolean }) => {
+  const active = VOICE_MODES.some(([id]) => id === mode) ? mode : 'talk';
+  return (
+    <div className={'dboVoice' + (talking ? ' dboVoice--talking' : '')} title="Hold V to talk, tap Left Alt to change range">
+      <span className="dboVoice__icon" />
+      <div className="dboVoice__modes">
+        {VOICE_MODES.map(([id, label]) => (
+          <span key={id} className={'dboVoice__mode' + (id === active ? ' dboVoice__mode--on' : '')}>{label}</span>
+        ))}
+      </div>
+      <span className="dboVoice__hint">{talking ? 'On air' : 'L-Alt'}</span>
+    </div>
+  );
+};
+
 const Hud = ({ data }: { data: HudData }) => {
   const { mode: voice, talking } = useVoice();
   if (!data) return null;
@@ -75,21 +91,19 @@ const Hud = ({ data }: { data: HudData }) => {
   return (
     <>
       <Watermark on={data.watermarkOn !== false} />
-      {data.hungerOn !== false && (
-        <div className="dboStatus">
-          <div className={`dboStatus__row dboStatus__row--${stage || 'sated'}`} title={`Hunger ${Math.round(hunger)}%`}>
-            <span className="dboStatus__icon dboStatus__icon--food" />
-            <span className="dboStatus__label">{STAGE_LABEL[stage] || data.stage || 'Well fed'}</span>
-            <span className="dboStatus__value">{Math.round(fullness)}%</span>
-            <div className="dboStatus__meter"><div className="dboStatus__fill" style={{ width: `${fullness}%` }} /></div>
+      <div className="dboCorner">
+        {data.hungerOn !== false && (
+          <div className="dboStatus">
+            <div className={`dboStatus__row dboStatus__row--${stage || 'sated'}`} title={`Hunger ${Math.round(hunger)}%`}>
+              <span className="dboStatus__icon dboStatus__icon--food" />
+              <span className="dboStatus__label">{STAGE_LABEL[stage] || data.stage || 'Well fed'}</span>
+              <span className="dboStatus__value">{Math.round(fullness)}%</span>
+              <div className="dboStatus__meter"><div className="dboStatus__fill" style={{ width: `${fullness}%` }} /></div>
+            </div>
           </div>
-          <div className={'dboStatus__row dboStatus__row--voice' + (talking ? ' dboStatus__row--talking' : '')} title="Hold V to talk, tap Left Alt to change">
-            <span className="dboStatus__icon dboStatus__icon--voice" />
-            <span className="dboStatus__label">{VOICE_LABEL[voice] || 'Normal'}</span>
-            <span className="dboStatus__value dboStatus__value--dim">{talking ? 'talking' : 'L-Alt'}</span>
-          </div>
-        </div>
-      )}
+        )}
+        <Voice mode={voice} talking={talking} />
+      </div>
       <Vitals data={data} />
     </>
   );
