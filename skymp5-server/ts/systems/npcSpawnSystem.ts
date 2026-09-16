@@ -39,8 +39,12 @@ const FALL_LIMIT = 3000;
 const STRAND_LIFT = 600;
 const STRAND_RADIUS = 384;
 const STRAND_POLLS = 3;
-// Live spawned actors allowed at once across every zone
-const MAX_LIVE = 150;
+// Player bucket size for the zone poll; one exterior cell, so a 3000 unit zone reaches one square
+const GRID_UNITS = 4096;
+// Beyond this many squares a zone is cheaper to test against every player in its world
+const MAX_GRID_SPAN = 8;
+// Live spawned actors allowed at once across every zone. Overridable via "npcLiveBudget".
+const DEFAULT_MAX_LIVE = 150;
 const BUDGET_RETRY_MS = 10000;
 const BUDGET_LOG_MS = 60000;
 // An NPC dragged this far from its zone is not coming home; its slot is freed for the next player
@@ -55,6 +59,19 @@ interface ZoneNpc {
   baseDesc: string;
   count: number;
 }
+
+interface PlayerSnapshot {
+  id: number;
+  world: number;
+  pos: number[];
+}
+
+interface PlayerIndex {
+  byWorld: Map<number, PlayerSnapshot[]>;
+  grid: Map<string, PlayerSnapshot[]>;
+}
+
+const NO_PLAYERS: PlayerSnapshot[] = [];
 
 interface Spawned {
   id: number;
@@ -162,12 +179,15 @@ export class NpcSpawnSystem implements System {
   private corpses = new Map<number, number>();
   private corpseMs = DEFAULT_CORPSE_SECONDS * 1000;
   private budgetLoggedAt = 0;
+  private maxLive = DEFAULT_MAX_LIVE;
 
   async initAsync(ctx: SystemContext): Promise<void> {
     this.mp = ctx.svr as Mp;
     const all = (await Settings.get()).allSettings as Record<string, unknown> | null;
     const rawCorpse = Number(all?.["npcCorpseSeconds"]);
     if (Number.isFinite(rawCorpse) && rawCorpse > 0) this.corpseMs = rawCorpse * 1000;
+    const rawBudget = Number(all?.["npcLiveBudget"]);
+    if (Number.isFinite(rawBudget) && rawBudget > 0) this.maxLive = Math.floor(rawBudget);
     this.cleanupLeftovers(this.mp);
     ctx.gm.once(WORLD_LOADED_EVENT, () => this.removeLeftovers());
     await this.queueLoad("boot");
@@ -429,8 +449,9 @@ export class NpcSpawnSystem implements System {
     let playerIds: number[] = [];
     try { playerIds = mp.get(0, "onlinePlayers") ?? []; } catch { return; }
 
+    const index = this.buildIndex(this.snapshotPlayers(mp, playerIds));
     for (const zone of this.zones) {
-      this.updateInside(mp, zone, playerIds);
+      this.updateInside(mp, zone, index);
       const occupied = zone.inside.size > 0 || zone.prespawn;
       if (zone.spawned.length) {
         this.checkDeaths(mp, zone, now);
@@ -446,23 +467,63 @@ export class NpcSpawnSystem implements System {
     }
   }
 
-  private updateInside(mp: Mp, zone: Zone, playerIds: number[]): void {
-    const inside = new Set<number>();
-    for (const id of playerIds) {
-      // Hysteresis: a player already inside only counts as gone beyond 1.5x the trigger radius
-      const reach = zone.inside.has(id) ? zone.radius * DESPAWN_HYSTERESIS : zone.radius;
-      try {
-        if (mp.getActorCellOrWorld(id) !== zone.cellOrWorldId) continue;
-        const pos = mp.getActorPos(id);
-        const dx = pos[0] - zone.pos[0];
-        const dy = pos[1] - zone.pos[1];
-        const dz = pos[2] - zone.pos[2];
-        if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
-      } catch {
-        continue;
+  // Every player is read once per poll instead of once per zone per poll
+  private snapshotPlayers(mp: Mp, ids: number[]): PlayerSnapshot[] {
+    const out: PlayerSnapshot[] = [];
+    for (const id of ids) {
+      try { out.push({ id, world: mp.getActorCellOrWorld(id), pos: mp.getActorPos(id) }); } catch { /* between cells */ }
+    }
+    return out;
+  }
+
+  private buildIndex(players: PlayerSnapshot[]): PlayerIndex {
+    const byWorld = new Map<number, PlayerSnapshot[]>();
+    const grid = new Map<string, PlayerSnapshot[]>();
+    for (const p of players) {
+      const world = byWorld.get(p.world);
+      if (world) world.push(p); else byWorld.set(p.world, [p]);
+      const key = `${p.world}:${Math.floor(p.pos[0] / GRID_UNITS)}:${Math.floor(p.pos[1] / GRID_UNITS)}`;
+      const cell = grid.get(key);
+      if (cell) cell.push(p); else grid.set(key, [p]);
+    }
+    return { byWorld, grid };
+  }
+
+  // The players a zone could possibly hold: same world, and in a grid square its radius reaches
+  private candidates(zone: Zone, index: PlayerIndex): PlayerSnapshot[] {
+    const inWorld = index.byWorld.get(zone.cellOrWorldId);
+    if (!inWorld || !inWorld.length) return NO_PLAYERS;
+    const span = Math.ceil((zone.radius * DESPAWN_HYSTERESIS) / GRID_UNITS);
+    // A zone that spans half a worldspace (a dungeon cell) is cheaper to test against everyone
+    if (span > MAX_GRID_SPAN) return inWorld;
+    const gx = Math.floor(zone.pos[0] / GRID_UNITS);
+    const gy = Math.floor(zone.pos[1] / GRID_UNITS);
+    const out: PlayerSnapshot[] = [];
+    for (let x = gx - span; x <= gx + span; x++) {
+      for (let y = gy - span; y <= gy + span; y++) {
+        const cell = index.grid.get(`${zone.cellOrWorldId}:${x}:${y}`);
+        if (cell) for (const p of cell) out.push(p);
       }
-      inside.add(id);
-      if (!zone.inside.has(id)) this.log(`NpcSpawnSystem: '${zone.name}' entered by ${this.actorLabel(mp, id)}`);
+    }
+    return out;
+  }
+
+  private updateInside(mp: Mp, zone: Zone, index: PlayerIndex): void {
+    const near = this.candidates(zone, index);
+    if (!near.length) {
+      if (zone.inside.size) zone.inside = new Set();
+      return;
+    }
+    const inside = new Set<number>();
+    for (const p of near) {
+      // Hysteresis: a player already inside only counts as gone beyond 1.5x the trigger radius
+      const reach = zone.inside.has(p.id) ? zone.radius * DESPAWN_HYSTERESIS : zone.radius;
+      const dx = p.pos[0] - zone.pos[0];
+      const dy = p.pos[1] - zone.pos[1];
+      const dz = p.pos[2] - zone.pos[2];
+      if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
+      inside.add(p.id);
+      if (!zone.inside.has(p.id)) this.log(`NpcSpawnSystem: '${zone.name}' entered by ${this.actorLabel(mp, p.id)}`);
     }
     zone.inside = inside;
   }
@@ -495,10 +556,10 @@ export class NpcSpawnSystem implements System {
       if (entry && !entry.diedAt) continue;
       const at = zone.slotReadyAt[slot];
       if (at < 0 || at > now) continue;
-      if (!entry && live >= MAX_LIVE) {
+      if (!entry && live >= this.maxLive) {
         if (now - this.budgetLoggedAt > BUDGET_LOG_MS) {
           this.budgetLoggedAt = now;
-          this.log(`NpcSpawnSystem: ${live} npcs alive, at the budget of ${MAX_LIVE}; '${zone.name}' waits for room`);
+          this.log(`NpcSpawnSystem: ${live} npcs alive, at the budget of ${this.maxLive}; '${zone.name}' waits for room`);
         }
         zone.slotReadyAt[slot] = now + BUDGET_RETRY_MS;
         continue;
