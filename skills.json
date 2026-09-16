@@ -1,0 +1,1078 @@
+{
+  "_comment": "DragonBreak Online skill template. Consumed by the extended mastery system (see SKILLS_DESIGN.md). Tiers are 1-5; thresholds are hours of server-verified activity in that skill. Every <...> is a form id to fill once the marker spells exist in DragonBreak Online Edits.esp.",
+  "maxChosen": 3,
+  "tierNames": [
+    "Novice",
+    "Apprentice",
+    "Journeyman",
+    "Expert",
+    "Master"
+  ],
+  "tierHours": [
+    0,
+    10,
+    30,
+    70,
+    150
+  ],
+  "swapCooldownDays": 7,
+  "categories": [
+    {
+      "id": "combat",
+      "label": "Combat"
+    },
+    {
+      "id": "profession",
+      "label": "Professions"
+    },
+    {
+      "id": "support",
+      "label": "Support"
+    }
+  ],
+  "skills": [
+    {
+      "id": "twohanded",
+      "category": "combat",
+      "label": "Two-Handed",
+      "title": "The Greatblade",
+      "description": "Greatswords, battleaxes and warhammers. Tiers raise your proficiency and the vanilla Two-Handed skill grows only through this.",
+      "vanillaSkills": [
+        "TwoHanded"
+      ],
+      "counts": {
+        "hitKeywords": [
+          "ActorTypeNPC",
+          "ActorTypeAnimal",
+          "ActorTypeCreature",
+          "ActorTypeUndead",
+          "ActorTypeDaedra",
+          "ActorTypeDragon"
+        ],
+        "weaponTypes": [
+          "Greatsword",
+          "Battleaxe",
+          "Warhammer"
+        ]
+      },
+      "tiers": [
+        "Basic strikes",
+        "Power attacks cost less",
+        "+10% damage",
+        "+20% damage, faster swings",
+        "+30% damage, master power attacks"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "archery",
+      "category": "combat",
+      "label": "Archery",
+      "title": "The Far Shot",
+      "description": "Bows and crossbows. Tiers raise proficiency and the vanilla Archery skill grows only through this.",
+      "vanillaSkills": [
+        "Archery"
+      ],
+      "counts": {
+        "hitKeywords": [
+          "ActorTypeNPC",
+          "ActorTypeAnimal",
+          "ActorTypeCreature",
+          "ActorTypeUndead",
+          "ActorTypeDaedra",
+          "ActorTypeDragon"
+        ],
+        "weaponTypes": [
+          "Bow",
+          "Crossbow"
+        ]
+      },
+      "tiers": [
+        "Basic shots",
+        "Steadier aim",
+        "+10% damage",
+        "+20% damage, faster draw",
+        "+30% damage, zoom and slow time"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "onehanded",
+      "category": "combat",
+      "label": "One-Handed",
+      "title": "The Quick Edge",
+      "description": "Swords, axes, maces and daggers. Tiers raise proficiency and the vanilla One-Handed skill grows only through this.",
+      "vanillaSkills": [
+        "OneHanded"
+      ],
+      "counts": {
+        "hitKeywords": [
+          "ActorTypeNPC",
+          "ActorTypeAnimal",
+          "ActorTypeCreature",
+          "ActorTypeUndead",
+          "ActorTypeDaedra",
+          "ActorTypeDragon"
+        ],
+        "weaponTypes": [
+          "Sword",
+          "WarAxe",
+          "Mace",
+          "Dagger"
+        ]
+      },
+      "tiers": [
+        "Basic strikes",
+        "Power attacks cost less",
+        "+10% damage",
+        "+20% damage, dual-wield flow",
+        "+30% damage, master power attacks"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "defense",
+      "category": "combat",
+      "label": "Defense",
+      "title": "The Wall",
+      "description": "Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor.",
+      "vanillaSkills": [
+        "Block",
+        "LightArmor",
+        "HeavyArmor"
+      ],
+      "counts": {
+        "blockEvents": true,
+        "damageTakenWhileArmored": true
+      },
+      "tiers": [
+        "Light armor, basic blocking",
+        "Medium armor, blocks cost less stamina",
+        "Heavy armor, shield bash",
+        "+15% armor, power bash, arrows deflected",
+        "+30% armor, blocks reflect part of the blow, no stagger from small hits"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "arcane",
+      "category": "combat",
+      "label": "Arcane Arts",
+      "title": "The Ordered Mind",
+      "description": "Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the well in the Hall of the Elements to start). Three spells known at a time; the tier decides the highest spell rank you may learn.",
+      "vanillaSkills": [
+        "Destruction",
+        "Conjuration",
+        "Illusion"
+      ],
+      "counts": {
+        "spellCastSchools": [
+          "Destruction",
+          "Conjuration",
+          "Illusion"
+        ]
+      },
+      "spellSlots": 3,
+      "spellRankByTier": [
+        "Novice",
+        "Apprentice",
+        "Adept",
+        "Expert",
+        "Master"
+      ],
+      "tiers": [
+        "Novice spells",
+        "Apprentice spells",
+        "Adept spells",
+        "Expert spells",
+        "Master spells"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ],
+      "studyAt": "spellStudyPoints"
+    },
+    {
+      "id": "blacksmith",
+      "category": "profession",
+      "label": "Blacksmith",
+      "title": "The Forge-Bound",
+      "description": "Only a Blacksmith may use the forge, the workbench and the grindstone. Tiers decide which metals you may work and how well you improve gear.",
+      "vanillaSkills": [
+        "Smithing"
+      ],
+      "gates": {
+        "stations": [
+          "isBlacksmithForge",
+          "isBlacksmithAnvil",
+          "isBlacksmithWorkbench",
+          "isSmelter",
+          "CraftingBlacksmithSharpeningWheel"
+        ]
+      },
+      "counts": {
+        "craftKeywords": [
+          "CraftingSmithingForge",
+          "CraftingSmithingSkyforge",
+          "DLC2CraftingSmithingSkaalForge",
+          "DLC1CraftingDawnguard"
+        ],
+        "craftStations": [
+          "isBlacksmithForge",
+          "isBlacksmithAnvil",
+          "isSmelter"
+        ]
+      },
+      "tiers": [
+        "Iron, hide, leather",
+        "Steel, elven, dwarven",
+        "Orcish, glass, scaled",
+        "Ebony, dragon",
+        "Daedric; legendary improvement"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "alchemist",
+      "category": "profession",
+      "label": "Alchemist",
+      "title": "The Patient Hand",
+      "description": "Only an Alchemist may use the alchemy lab. Tiers decide the strength of the potions and poisons you can brew.",
+      "vanillaSkills": [
+        "Alchemy"
+      ],
+      "gates": {
+        "stations": [
+          "isAlchemy",
+          "CraftingAlchemyWorkbench"
+        ]
+      },
+      "counts": {
+        "activatePrefixes": [
+          "CraftingAlchemyWorkbench"
+        ],
+        "activateTypes": [
+          "FLOR",
+          "TREE"
+        ],
+        "eatIngredient": true
+      },
+      "tiers": [
+        "Weak potions",
+        "Standard potions",
+        "Strong potions",
+        "Potent potions, poisons",
+        "Legendary brews"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "woodcutter",
+      "category": "profession",
+      "label": "Woodcutter",
+      "title": "The Grain Reader",
+      "description": "Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield.",
+      "vanillaSkills": [],
+      "gates": {
+        "stations": [
+          "WoodChoppingBlock",
+          "DLC2WoodChoppingBlock",
+          "CharcoalKiln",
+          "LumberMill",
+          "FarmLumbermill"
+        ]
+      },
+      "counts": {
+        "activatePrefixes": [
+          "WoodChoppingBlock",
+          "DLC2WoodChoppingBlock",
+          "LumberMill",
+          "FarmLumbermill"
+        ]
+      },
+      "chopStrikesByTier": [
+        4,
+        8,
+        12,
+        16,
+        20
+      ],
+      "millFirewoodByTier": [
+        10,
+        14,
+        18,
+        22,
+        26
+      ],
+      "millCooldownMinutes": 30,
+      "tiers": [
+        "4 strikes, rough charcoal",
+        "8 strikes",
+        "12 strikes, good charcoal",
+        "16 strikes",
+        "20 strikes, fine charcoal, best mill yield"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "miner",
+      "category": "profession",
+      "label": "Miner",
+      "title": "The Deep Delver",
+      "description": "Only a Miner may work ore veins. Tiers decide which ores you can mine and how much a vein gives.",
+      "vanillaSkills": [],
+      "gates": {
+        "stations": [
+          "MineOre",
+          "CYRMineOre",
+          "PickaxeMining"
+        ]
+      },
+      "counts": {
+        "activatePrefixes": [
+          "MineOre",
+          "CYRMineOre",
+          "PickaxeMining"
+        ]
+      },
+      "oreByTier": [
+        [
+          "Copper",
+          "Iron",
+          "Corundum"
+        ],
+        [
+          "Silver",
+          "Quicksilver"
+        ],
+        [
+          "Orichalcum",
+          "Moonstone"
+        ],
+        [
+          "Ebony",
+          "Malachite"
+        ],
+        [
+          "Ebony",
+          "Malachite"
+        ]
+      ],
+      "yieldMultiplierByTier": [
+        1,
+        1.2,
+        1.4,
+        1.7,
+        2
+      ],
+      "tiers": [
+        "Copper, iron, corundum",
+        "Silver, quicksilver",
+        "Orichalcum, moonstone",
+        "Ebony, malachite",
+        "Double yield from every vein"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "tailor",
+      "category": "profession",
+      "label": "Tailor",
+      "title": "The Fine Thread",
+      "description": "Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew.",
+      "vanillaSkills": [],
+      "gates": {
+        "stations": [
+          "MCE_CraftingLoom",
+          "MCE_Loom",
+          "TailorBench"
+        ]
+      },
+      "counts": {
+        "craftKeywords": [
+          "MCE_CraftingLoom",
+          "TailorBench"
+        ]
+      },
+      "tiers": [
+        "Common clothes",
+        "Fine clothes, padded armor",
+        "Noble clothes, studded medium armor",
+        "Scaled medium armor",
+        "Masterwork garments"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "skinner",
+      "category": "support",
+      "label": "Skinner",
+      "title": "The Far Tracker",
+      "description": "Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get.",
+      "vanillaSkills": [],
+      "gates": {
+        "stations": [
+          "isTanning",
+          "CraftingTanningRack"
+        ],
+        "skinning": true
+      },
+      "counts": {
+        "killKeywords": [
+          "ActorTypeAnimal"
+        ],
+        "craftKeywords": [
+          "CraftingTanningRack"
+        ]
+      },
+      "tiers": [
+        "Hide, 1 leather per pelt",
+        "Leather strips",
+        "2 leather per pelt",
+        "Fine leather",
+        "3 leather per pelt, rare pelts intact"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "scholar",
+      "category": "support",
+      "label": "Scholar",
+      "title": "The Ink-Stained",
+      "description": "Only a Scholar may read the books of the world. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll.",
+      "vanillaSkills": [],
+      "gates": {
+        "books": true
+      },
+      "counts": {
+        "activateTypes": [
+          "BOOK"
+        ]
+      },
+      "bookDropChanceByTier": [
+        0.15,
+        0.25,
+        0.35,
+        0.45,
+        0.55
+      ],
+      "tomeDropChanceByTier": [
+        0,
+        0.02,
+        0.04,
+        0.07,
+        0.1
+      ],
+      "tiers": [
+        "Read common books",
+        "Better copies",
+        "Rare books",
+        "Scrolls",
+        "Spell tomes"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "enchanter",
+      "category": "support",
+      "label": "Enchanter",
+      "title": "The Rune-Wright",
+      "description": "Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong.",
+      "vanillaSkills": [
+        "Enchanting"
+      ],
+      "gates": {
+        "stations": [
+          "isEnchanting",
+          "CraftingEnchantingWorkbench"
+        ],
+        "weaponOnly": true
+      },
+      "counts": {
+        "craftStations": [
+          "isEnchanting"
+        ]
+      },
+      "tiers": [
+        "Fire, frost, shock",
+        "Soul trap, absorb stamina",
+        "Absorb health, paralyze",
+        "Chaos, absorb magicka",
+        "Dual enchantments"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "priest",
+      "category": "support",
+      "label": "Priest",
+      "title": "The Hand of the Divines",
+      "description": "Restoration and Alteration. The only way to learn healing and warding spells, studied at any spell study point. Praying at a shrine counts as Priest work and raises the odds of a blessing.",
+      "vanillaSkills": [
+        "Restoration",
+        "Alteration"
+      ],
+      "counts": {
+        "spellCastSchools": [
+          "Restoration",
+          "Alteration"
+        ],
+        "prayer": true
+      },
+      "spellSlots": 3,
+      "spellRankByTier": [
+        "Novice",
+        "Apprentice",
+        "Adept",
+        "Expert",
+        "Master"
+      ],
+      "tiers": [
+        "Novice spells",
+        "Apprentice spells",
+        "Adept spells",
+        "Expert spells",
+        "Master spells"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ],
+      "studyAt": "spellStudyPoints"
+    },
+    {
+      "id": "cook",
+      "category": "support",
+      "label": "Cook",
+      "title": "The Hearthkeeper",
+      "description": "Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare.",
+      "vanillaSkills": [],
+      "gates": {
+        "stations": [
+          "isCookingSpit",
+          "isSmallCookingPot",
+          "CraftingCookingPot",
+          "CraftingCookingFireSpit",
+          "BYOHOven"
+        ]
+      },
+      "counts": {
+        "craftKeywords": [
+          "CraftingCookpot",
+          "BYOHCraftingOven"
+        ]
+      },
+      "tiers": [
+        "Simple meals",
+        "Hearty meals",
+        "Feast dishes",
+        "Restorative dishes",
+        "Banquet fare with long buffs"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
+      "id": "harvesting",
+      "category": "support",
+      "label": "Harvesting",
+      "title": "The Gleaner",
+      "description": "Gathering from the world's resource nodes: plants, mushrooms, nests, and gold pouches. Without this skill a node gives little or nothing; tiers raise both the chance of a yield and the amount.",
+      "vanillaSkills": [],
+      "gates": {
+        "nodes": true
+      },
+      "counts": {
+        "activateTypes": [
+          "FLOR",
+          "TREE"
+        ],
+        "activatePrefixes": [
+          "CoinPurse",
+          "GoldPouch"
+        ]
+      },
+      "yieldChanceByTier": [
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1
+      ],
+      "yieldMultiplierByTier": [
+        1,
+        1.25,
+        1.5,
+        1.75,
+        2
+      ],
+      "unskilled": {
+        "yieldChance": 0.25,
+        "yieldMultiplier": 0.5
+      },
+      "tiers": [
+        "Common plants",
+        "Rare plants, nests",
+        "Double chance on gold pouches",
+        "+75% yield",
+        "Double yield, every node"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ],
+      "harvestablePlacedItems": {
+        "_comment": "placed ingredient refs treated as nodes (Harvesting roll, then empty until respawn) instead of blocked clutter; matched by base EditorID prefix",
+        "prefixes": [
+          "HangingRabbit",
+          "HangingPheasant",
+          "HangingGarlic",
+          "GarlicBraid",
+          "HangingElvesEar",
+          "HangingFrostMirriam",
+          "DriedElvesEar",
+          "DriedFrostMirriam",
+          "HangingSalmon",
+          "SalmonRack",
+          "HangingHerb"
+        ],
+        "respawnMinutes": 1440
+      },
+      "nodeKinds": {
+        "_comment": "everything Harvesting rolls on",
+        "kinds": [
+          "FLOR (all flora: flowers, mushrooms, nests, planted crops such as cabbage, potato, leek, wheat, gourd, carrot, tomato, farm rows)",
+          "TREE harvestables (apple, snowberry, juniper, jazbay and any tree or bush with a harvest ingredient)",
+          "gold pouches (CoinPurse activators)",
+          "hanging food and herb bundles (see harvestablePlacedItems)",
+          "Hearthfire garden and planter soil (BYOH planters)"
+        ]
+      }
+    },
+    {
+      "id": "lockpicking",
+      "category": "profession",
+      "label": "Lockpicking",
+      "title": "The Quiet Hand",
+      "description": "Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt.",
+      "vanillaSkills": [
+        "Lockpicking"
+      ],
+      "gates": {
+        "pickable": [
+          "player-owned doors (housing locks)",
+          "dungeon loot chests"
+        ]
+      },
+      "counts": {
+        "lockOpened": true
+      },
+      "lockLevelByTier": [
+        "Novice",
+        "Apprentice",
+        "Adept",
+        "Expert",
+        "Master"
+      ],
+      "tiers": [
+        "Novice locks",
+        "Apprentice locks",
+        "Adept locks, fewer picks broken",
+        "Expert locks",
+        "Master locks, silent entry"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    }
+  ],
+  "vanillaLevel": {
+    "cap": 5,
+    "perks": "disabled",
+    "levelFrom": "sum of tiers across the three chosen skills divided by 3, rounded down",
+    "perLevel": "+10 to one of Health, Magicka, Stamina chosen by the player"
+  },
+  "minigames": {
+    "mining": "timing bar, one strike per hit inside the green zone, strikes per vein by Miner tier",
+    "woodcutting": "rhythm press, strikes per sitting by Woodcutter tier (4-20)",
+    "reading": "word-order or timed page turn, result rolls the Scholar tables",
+    "lumberMill": "no mini-game, 30-minute cooldown per player per mill, yield by Woodcutter tier"
+  },
+  "spellStudyPoints": [
+    {
+      "name": "The well in the Hall of the Elements",
+      "cell": "1380e:Skyrim.esm",
+      "refr": "108d6f:Skyrim.esm",
+      "radiusMeters": 6,
+      "schools": [
+        "Destruction",
+        "Conjuration",
+        "Illusion",
+        "Restoration",
+        "Alteration"
+      ],
+      "_comment": "add more entries later: temples, mage towers, a court wizard's study"
+    }
+  ],
+  "praying": {
+    "_comment": "Anyone can pray, but only at a shrine of the deity chosen after character creation. Other shrines answer with a notice and no roll. Priests get better odds and skill progress.",
+    "shrines": {
+      "Akatosh": "d9883:Skyrim.esm",
+      "Arkay": "71854:Skyrim.esm",
+      "Dibella": "d9881:Skyrim.esm",
+      "Julianos": "d9885:Skyrim.esm",
+      "Kynareth": "d987f:Skyrim.esm",
+      "Mara": "d9887:Skyrim.esm",
+      "Stendarr": "d987d:Skyrim.esm",
+      "Talos": "100780:Skyrim.esm",
+      "Zenithar": "d987b:Skyrim.esm"
+    },
+    "cooldownMinutesPerShrine": 60,
+    "blessingChance": {
+      "everyone": 0.02,
+      "priestByTier": [
+        0.05,
+        0.1,
+        0.15,
+        0.2,
+        0.3
+      ]
+    },
+    "blessingDurationHoursByTier": [
+      8,
+      8,
+      12,
+      16,
+      24
+    ],
+    "priestActivityPoint": true,
+    "minigame": "hold the prayer key through three verses; releasing early ends the prayer with no roll",
+    "onlyOwnDeity": true
+  },
+  "deities": {
+    "_comment": "Picked once in a popup right after character creation (server packet deityMenu -> client deityChoose). Stored per character. Praying works only at your own deity's shrines. Conversion: pray at the new deity's shrine with /convert, 30-day cooldown, current blessing removed.",
+    "conversionCooldownDays": 30,
+    "choices": [
+      {
+        "id": "akatosh",
+        "name": "Akatosh",
+        "kind": "divine",
+        "shrines": [
+          "d9883:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfAkatosh"
+      },
+      {
+        "id": "arkay",
+        "name": "Arkay",
+        "kind": "divine",
+        "shrines": [
+          "71854:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfArkay"
+      },
+      {
+        "id": "dibella",
+        "name": "Dibella",
+        "kind": "divine",
+        "shrines": [
+          "d9881:Skyrim.esm",
+          "6c9f1:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfDibella"
+      },
+      {
+        "id": "julianos",
+        "name": "Julianos",
+        "kind": "divine",
+        "shrines": [
+          "d9885:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfJulianos"
+      },
+      {
+        "id": "kynareth",
+        "name": "Kynareth",
+        "kind": "divine",
+        "shrines": [
+          "d987f:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfKynareth"
+      },
+      {
+        "id": "mara",
+        "name": "Mara",
+        "kind": "divine",
+        "shrines": [
+          "d9887:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfMara"
+      },
+      {
+        "id": "stendarr",
+        "name": "Stendarr",
+        "kind": "divine",
+        "shrines": [
+          "d987d:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfStendarr"
+      },
+      {
+        "id": "talos",
+        "name": "Talos",
+        "kind": "divine",
+        "shrines": [
+          "100780:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfTalos",
+        "note": "Illegal under the White-Gold Concordat: a Thalmor or Imperial faction could treat open Talos worship as a crime. RP hook, not a mechanic yet."
+      },
+      {
+        "id": "zenithar",
+        "name": "Zenithar",
+        "kind": "divine",
+        "shrines": [
+          "d987b:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfZenithar"
+      },
+      {
+        "id": "auriel",
+        "name": "Auri-El",
+        "kind": "divine",
+        "shrines": [
+          "c86b:Dawnguard.esm"
+        ],
+        "blessing": "<author: Blessing of Auriel>",
+        "note": "Snow-elf faith; shrine is inside the Forgotten Vale."
+      },
+      {
+        "id": "malacath",
+        "name": "Malacath",
+        "kind": "daedra",
+        "shrines": [
+          "5db6:DragonBreak.esp",
+          "23bb:DragonBreak.esp"
+        ],
+        "blessing": "<author: Boon of Malacath>",
+        "note": "Custom shrine activator placed at six strongholds and Gol-Kharzum."
+      },
+      {
+        "id": "azura",
+        "name": "Azura",
+        "kind": "daedra",
+        "shrines": [
+          "92492:Skyrim.esm",
+          "3a484:Dragonborn.esm"
+        ],
+        "blessing": "<author: Boon of Azura>"
+      },
+      {
+        "id": "boethiah",
+        "name": "Boethiah",
+        "kind": "daedra",
+        "shrines": [
+          "39e34:Dragonborn.esm"
+        ],
+        "blessing": "<author: Boon of Boethiah>",
+        "note": "Vanilla Skyrim shrine is a static; only the Solstheim one activates."
+      },
+      {
+        "id": "mephala",
+        "name": "Mephala",
+        "kind": "daedra",
+        "shrines": [
+          "3a481:Dragonborn.esm"
+        ],
+        "blessing": "<author: Boon of Mephala>"
+      },
+      {
+        "id": "mehrunes",
+        "name": "Mehrunes Dagon",
+        "kind": "daedra",
+        "shrines": [
+          "bf2b6:Skyrim.esm"
+        ],
+        "blessing": "<author: Boon of Mehrunes Dagon>"
+      },
+      {
+        "id": "molagbal",
+        "name": "Molag Bal",
+        "kind": "daedra",
+        "shrines": [
+          "c7b72:Skyrim.esm"
+        ],
+        "blessing": "<author: Boon of Molag Bal>"
+      },
+      {
+        "id": "nocturnal",
+        "name": "Nocturnal",
+        "kind": "daedra",
+        "shrines": [
+          "10e8b0:Skyrim.esm"
+        ],
+        "blessing": "BlessingOfNocturnal"
+      },
+      {
+        "id": "hircine",
+        "name": "Hircine",
+        "kind": "daedra",
+        "shrines": [
+          "1112c6:DragonBreak Online Edits.esp",
+          "1112c7:DragonBreak Online Edits.esp"
+        ],
+        "blessing": "<author: Boon of Hircine>",
+        "note": "DBO_ShrineOfHircine activators on the Daedric Shrines AIO statues: Falkreath forest (BearCaveMill cell) and Solstheim (Snowclad Ruins)."
+      },
+      {
+        "id": "meridia",
+        "name": "Meridia",
+        "kind": "daedra",
+        "shrines": [
+          "4e4d6:Skyrim.esm"
+        ],
+        "blessing": "<author: Boon of Meridia>",
+        "note": "Vanilla Kilkreath statue (DA09MeridiaStatue, already an activator); the AIO mod replaces its mesh. Vanilla activation is blocked server-side like every shrine."
+      },
+      {
+        "id": "sanguine",
+        "name": "Sanguine",
+        "kind": "daedra",
+        "shrines": [
+          "1112c9:DragonBreak Online Edits.esp",
+          "1112ca:DragonBreak Online Edits.esp"
+        ],
+        "blessing": "<author: Boon of Sanguine>",
+        "note": "DBO_ShrineOfSanguine activators: the Rift (33,-18) and inside Misty Grove."
+      },
+      {
+        "id": "sheogorath",
+        "name": "Sheogorath",
+        "kind": "daedra",
+        "shrines": [
+          "1112cc:DragonBreak Online Edits.esp"
+        ],
+        "blessing": "<author: Boon of Sheogorath>",
+        "note": "DBO_ShrineOfSheogorath activator in the Hjaalmarch marsh (-12,24) near Morthal."
+      }
+    ]
+  },
+  "respec": {
+    "_comment": "Standing stones are the only place to change your three chosen skills. Activating a stone opens the K menu in respec mode.",
+    "where": "standing stones (vanilla DoomStone activators: Warrior, Mage, Thief, Lover, Steed, Lady, Lord, Apprentice, Atronach, Ritual, Serpent, Shadow, Tower)",
+    "firstRespecFree": true,
+    "goldCostAfterFirst": 1200,
+    "whatHappens": "drop any of the three skills and pick replacements; dropped skills lose all tier progress; no swap cooldown applies at a stone (the gold is the cost)",
+    "keepsDeity": true
+  },
+  "worldPickup": {
+    "_comment": "Nothing lying in the world can be picked up with E. Loose items placed by the plugins are not loot. Resources come from nodes (Harvesting, Mining, Woodcutter), containers, crafting and trade. Items dropped by players (dynamic ff-space refs) stay pickable so trading and dropping keep working.",
+    "blockPlacedItems": true,
+    "allowPlayerDropped": true,
+    "nodes": [
+      "FLOR",
+      "TREE",
+      "gold pouches (CoinPurse activators)",
+      "ore veins",
+      "chopping blocks",
+      "books (Scholar)",
+      "hanging food and herb bundles (Harvesting)"
+    ],
+    "farmsAndFields": "Open to everyone with the Harvesting skill. No ownership lock on crops: protecting a field is roleplay (guards, patrols, bounties), not a mechanic."
+  },
+  "edition": {
+    "decision": "Skyrim SE 1.6.1170 with the four free base creations only. No Anniversary Edition requirement.",
+    "revisit": "Alternative Armors packs (crafting variety) and player homes, launch-day decision only."
+  }
+}

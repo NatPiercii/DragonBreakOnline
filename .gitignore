@@ -1,0 +1,36 @@
+# The gameplay layer is tracked; secrets, binaries, runtime state and backups are not.
+
+# Secrets and per-machine settings
+server-settings.json
+server-settings.*.json
+.env
+*.env
+
+# Runtime state written by the server
+world/
+zone-spawns.json
+notice-boards.json
+officials.json
+*.log
+*.log.*
+server.log*
+
+# Builds and binaries
+dist_back/
+client-dist/
+launcher-build/
+data/
+tools/
+scam_native.node
+node_modules/
+yarn.lock
+package-lock.json
+
+# Backups and parked files
+_*/
+*.bak
+*.bak-*
+*.before-*
+
+# Copies of the settings file, same reason
+server-settings-*.json

@@ -1,0 +1,267 @@
+{
+  "_comment": "One table for every system that needs to know where a place belongs: housing managers, notice boards, bounty boards, stronghold sovereignty, bank treasuries. Positions are Tamriel (3c:Skyrim.esm) unless a cell is given; the five city worldspaces share Tamriel coordinates. Radii are in game units (70 = 1 metre). A position inside a stronghold radius belongs to the stronghold, otherwise to the nearest hold capital. regions claim whole worldspaces (Solstheim). Who holds each rank is in officials.json (/appoint, /dismiss).",
+  "holds": [
+    {
+      "id": "whiterun",
+      "name": "Whiterun",
+      "treasury": "f19f:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        18313,
+        -10665,
+        -4590
+      ]
+    },
+    {
+      "id": "riften",
+      "name": "The Rift",
+      "treasury": "f19d:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        173137,
+        -90912,
+        11102
+      ]
+    },
+    {
+      "id": "solitude",
+      "name": "Haafingar",
+      "treasury": "f19e:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        -74344,
+        96470,
+        -11512
+      ]
+    },
+    {
+      "id": "windhelm",
+      "name": "Eastmarch",
+      "treasury": "bb79:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        135039,
+        33143,
+        -12575
+      ]
+    },
+    {
+      "id": "markarth",
+      "name": "The Reach",
+      "treasury": "626f:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        -171097,
+        6922,
+        -3937
+      ]
+    },
+    {
+      "id": "falkreath",
+      "name": "Falkreath",
+      "treasury": "7d69:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        -30296,
+        -86284,
+        -3107
+      ]
+    },
+    {
+      "id": "morthal",
+      "name": "Hjaalmarch",
+      "treasury": "7df4:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        -38640,
+        66734,
+        -13244
+      ]
+    },
+    {
+      "id": "dawnstar",
+      "name": "The Pale",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        30808,
+        106138,
+        -13921
+      ]
+    },
+    {
+      "id": "winterhold",
+      "name": "Winterhold",
+      "treasury": "e766:DragonBreak.esp",
+      "officials": [
+        "jarl",
+        "steward",
+        "commander"
+      ],
+      "capital": [
+        109208,
+        102864,
+        -9013
+      ]
+    }
+  ],
+  "strongholds": [
+    {
+      "id": "gol-kharzum",
+      "name": "Gol-Kharzum",
+      "officials": [
+        "chieftain",
+        "bane"
+      ],
+      "center": [
+        -76847,
+        -45868,
+        2327
+      ],
+      "radius": 6000,
+      "shrine": "5db6:DragonBreak.esp"
+    },
+    {
+      "id": "mor-khazgur",
+      "name": "Mor Khazgur",
+      "officials": [
+        "chieftain",
+        "bane"
+      ],
+      "center": [
+        -152793,
+        80438,
+        -5565
+      ],
+      "radius": 6000,
+      "shrine": "5db6:DragonBreak.esp"
+    },
+    {
+      "id": "dushnikh-yal",
+      "name": "Dushnikh Yal",
+      "officials": [
+        "chieftain",
+        "bane"
+      ],
+      "center": [
+        -146377,
+        -24035,
+        -456
+      ],
+      "radius": 6000,
+      "shrine": "5db6:DragonBreak.esp"
+    },
+    {
+      "id": "largashbur",
+      "name": "Largashbur",
+      "officials": [
+        "chieftain",
+        "bane"
+      ],
+      "center": [
+        134863,
+        -111206,
+        10877
+      ],
+      "radius": 6000,
+      "shrine": "5db6:DragonBreak.esp"
+    },
+    {
+      "id": "narzulbur",
+      "name": "Narzulbur",
+      "officials": [
+        "chieftain",
+        "bane"
+      ],
+      "center": [
+        158953,
+        3051,
+        -4046
+      ],
+      "radius": 6000,
+      "shrine": "5db6:DragonBreak.esp"
+    },
+    {
+      "id": "cracked-tusk",
+      "name": "Cracked Tusk Keep",
+      "officials": [
+        "chieftain",
+        "bane"
+      ],
+      "center": [
+        -57193,
+        -88386,
+        -1745
+      ],
+      "radius": 6000,
+      "shrine": "5db6:DragonBreak.esp"
+    }
+  ],
+  "regions": [
+    {
+      "id": "bruma",
+      "name": "Bruma",
+      "treasury": "79b22:BSHeartland.esm",
+      "officials": [
+        "count",
+        "steward",
+        "captain"
+      ],
+      "worldspaces": [
+        "a764b:BSHeartland.esm"
+      ]
+    },
+    {
+      "id": "solstheim",
+      "name": "Solstheim",
+      "officials": [],
+      "worldspaces": [
+        "800:Dragonborn.esm"
+      ]
+    }
+  ],
+  "sovereignty": {
+    "_comment": "Inside a stronghold radius only that stronghold's officials (and admins) manage property, locks and Hold Notices. Hold officials have no rights there and stronghold officials none outside.",
+    "strongholdsOverrideHolds": true
+  },
+  "rankTitles": {
+    "jarl": "Jarl",
+    "steward": "Steward",
+    "commander": "Hold Commander",
+    "chieftain": "Chieftain",
+    "bane": "Bane",
+    "count": "Count",
+    "captain": "Captain of the Guard"
+  }
+}

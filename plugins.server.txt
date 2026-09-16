@@ -1,0 +1,106 @@
+# DragonBreak server order (xEdit -P file, ck-mcp)
+*Skyrim.esm
+*Update.esm
+*Dawnguard.esm
+*HearthFires.esm
+*Dragonborn.esm
+*ccBGSSSE001-Fish.esm
+*ccQDRSSE001-SurvivalMode.esl
+*ccBGSSSE037-Curios.esl
+*ccBGSSSE025-AdvDSGS.esm
+*_ResourcePack.esl
+*BSAssets.esm
+*BSHeartland.esm
+*Journey to Baan Malur.esp
+*Journey to Baan Malur - Dunmeth Pass.esp
+*Gray Fox Cowl.esm
+*unofficial skyrim special edition patch.esp
+*Expressive Facegen Morphs.esl
+*TrueHUD.esl
+*Sentinel - Master Plugin.esp
+*DragonBreak Built.esp
+*RaceMenu.esp
+*RaceMenuPlugin.esp
+*JKs Skyrim.esp
+*WindhelmSSE.esp
+*JK's Whiterun's Outskirts.esp
+*Cloaks&Capes.esp
+*Precision.esp
+*MoreCraftableEquipment.esp
+*MoreCraftableEquipment_USSEP.esp
+*MoreCraftableEquipment_Fish.esp
+*MoreCraftableEquipment_BYOHLooms.esp
+*TrueDirectionalMovement.esp
+*DIS_Heavy_Legion.esp
+*Sentinel.esp
+*Sentinel - City Guards.esp
+*MCMHelper.esp
+*IcePenguinWorldMap.esp
+*DragonBreak Dungeons.esp
+*SurWR.esp
+*DragonBreak Harvest.esp
+*CWE - JK - United.esp
+*DragonBreak Whiterun.esp
+*notice board.esp
+*SkyUI_SE.esp
+*JK's Markarth Outskirts.esp
+*XPMSE.esp
+*JK's Riften Outskirts.esp
+*CBBE.esp
+*KS Hairdo's.esp
+*Brows.esp
+*Beards.esp
+*TheEyesOfBeauty.esp
+*Improved Eyes Skyrim.esp
+*Smooth Argonians.esp
+*AlternateHighPolyHead_SE.esp
+*DragonBreak Hub.esp
+*Hothtrooper44_ArmorCompilation.esp
+*Hothtrooper44_Armor_Ecksstra.esp
+*Immersive Weapons.esp
+*JK's Castle Volkihar.esp
+*JK's Fort Dawnguard.esp
+*LostArk_Kamen.esp
+*[Kirax] Lost Ark Reborn Paladin Legendary.esp
+*The Great Cities - Minor Cities and Towns.esp
+*Resources - The Great Cities.esp
+*COTN - Dawnstar.esp
+*COTN - Falkreath.esp
+*COTN - Morthal.esp
+*COTN - Winterhold.esp
+*The Great City of Winterhold v4.esp
+*TGCotN Winterhold.esp
+*TGCotN Winterhold - JKs Skyrim patch.esp
+*The Great Cities of JK's North - Patch.esp
+*COTN Morthal - CC - Fishing Patch.esp
+*TGC Winterhold - Notice Board Patch.esp
+*COTN Morthal - Notice Board patch.esp
+*The Great City of Dragon Bridge.esp
+*The Great City of Rorikstead.esp
+*Saltdeposits.esp
+*Obsidian Weathers.esp
+*MoonsAndStars.esp
+*Obsidian CS.esp
+*RelightingSkyrim_SSE.esp
+*OCW_Obscure's_CollegeofWinterhold.esp
+*OCW_CellSettings.esp
+*OCW_TGCoW_FEPatch.esp
+*PipeSmokingSE.esp
+*The Great City of Dawnstar.esp
+*The Great City of Falkreath.esp
+*COTN Dawnstar - JK's Skyrim - TGC Dawnstar Patch.esp
+*COTN Falkreath - JKs Skyrim - TGCF Patch.esp
+*COTN Falkreath - CC - Fishing Patch.esp
+*OCW_RLS_FEPatch.esp
+*The Great City of Morthal.esp
+*COTN Morthal - JKs Skyrim - The Great City of Morthal Patch.esp
+*IA CBBE Patch.esp
+*Riften Expansion.esp
+*Riften Expansion - JK's Skyrim Patch.esp
+*FlawnsArgonians - NPCs, Flawns Edits.esp
+*DragonPriestArmor.esp
+*man_DaedricShrines.esp
+*DragonBreak.esp
+*Armors of the Velothi.esp
+*Armors of the Velothi Pt2.esp
+*DragonBreak Online Edits.esp

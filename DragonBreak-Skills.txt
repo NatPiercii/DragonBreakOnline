@@ -1,0 +1,215 @@
+DRAGONBREAK ONLINE - SKILLS
+Generated 2026-09-14 from server/skills.json
+
+Rules
+  Pick 3 skills per character (K key).
+  Tiers: Novice (from start), Apprentice (10 hours), Journeyman (30 hours), Expert (70 hours), Master (150 hours)
+  Hours are server-verified activity in that skill; one hour credited per hour of real work.
+  Respec: standing stones (vanilla DoomStone activators: Warrior, Mage, Thief, Lover, Steed, Lady, Lord, Apprentice, Atronach, Ritual, Serpent, Shadow, Tower). First respec free, then 1200 gold. Dropped skills lose all progress.
+  Vanilla level cap 5, perks disabled. Level = sum of tiers across the three chosen skills divided by 3, rounded down. Per level: +10 to one of Health, Magicka, Stamina chosen by the player.
+
+======================================================================
+COMBAT (5)
+======================================================================
+
+Two-Handed - The Greatblade
+  Greatswords, battleaxes and warhammers. Tiers raise your proficiency and the vanilla Two-Handed skill grows only through this.
+  Drives vanilla: TwoHanded
+  Tiers:
+    1. Novice: Basic strikes
+    2. Apprentice: Power attacks cost less
+    3. Journeyman: +10% damage
+    4. Expert: +20% damage, faster swings
+    5. Master: +30% damage, master power attacks
+
+Archery - The Far Shot
+  Bows and crossbows. Tiers raise proficiency and the vanilla Archery skill grows only through this.
+  Drives vanilla: Archery
+  Tiers:
+    1. Novice: Basic shots
+    2. Apprentice: Steadier aim
+    3. Journeyman: +10% damage
+    4. Expert: +20% damage, faster draw
+    5. Master: +30% damage, zoom and slow time
+
+One-Handed - The Quick Edge
+  Swords, axes, maces and daggers. Tiers raise proficiency and the vanilla One-Handed skill grows only through this.
+  Drives vanilla: OneHanded
+  Tiers:
+    1. Novice: Basic strikes
+    2. Apprentice: Power attacks cost less
+    3. Journeyman: +10% damage
+    4. Expert: +20% damage, dual-wield flow
+    5. Master: +30% damage, master power attacks
+
+Defense - The Wall
+  Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor.
+  Drives vanilla: Block, LightArmor, HeavyArmor
+  Tiers:
+    1. Novice: Light armor, basic blocking
+    2. Apprentice: Medium armor, blocks cost less stamina
+    3. Journeyman: Heavy armor, shield bash
+    4. Expert: +15% armor, power bash, arrows deflected
+    5. Master: +30% armor, blocks reflect part of the blow, no stagger from small hits
+
+Arcane Arts - The Ordered Mind
+  Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the well in the Hall of the Elements to start). Three spells known at a time; the tier decides the highest spell rank you may learn.
+  Drives vanilla: Destruction, Conjuration, Illusion
+  Spell slots: 3; max spell rank by tier: Novice / Apprentice / Adept / Expert / Master
+  Tiers:
+    1. Novice: Novice spells
+    2. Apprentice: Apprentice spells
+    3. Journeyman: Adept spells
+    4. Expert: Expert spells
+    5. Master: Master spells
+
+======================================================================
+PROFESSIONS (6)
+======================================================================
+
+Blacksmith - The Forge-Bound
+  Only a Blacksmith may use the forge, the workbench and the grindstone. Tiers decide which metals you may work and how well you improve gear.
+  Drives vanilla: Smithing
+  Gated stations: isBlacksmithForge, isBlacksmithAnvil, isBlacksmithWorkbench, isSmelter, CraftingBlacksmithSharpeningWheel
+  Tiers:
+    1. Novice: Iron, hide, leather
+    2. Apprentice: Steel, elven, dwarven
+    3. Journeyman: Orcish, glass, scaled
+    4. Expert: Ebony, dragon
+    5. Master: Daedric; legendary improvement
+
+Alchemist - The Patient Hand
+  Only an Alchemist may use the alchemy lab. Tiers decide the strength of the potions and poisons you can brew.
+  Drives vanilla: Alchemy
+  Gated stations: isAlchemy, CraftingAlchemyWorkbench
+  Tiers:
+    1. Novice: Weak potions
+    2. Apprentice: Standard potions
+    3. Journeyman: Strong potions
+    4. Expert: Potent potions, poisons
+    5. Master: Legendary brews
+
+Woodcutter - The Grain Reader
+  Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield.
+  Gated stations: WoodChoppingBlock, DLC2WoodChoppingBlock, CharcoalKiln, LumberMill
+  Chop strikes by tier: 4 / 8 / 12 / 16 / 20; mill firewood by tier: 10 / 14 / 18 / 22 / 26 (30 min cooldown)
+  Tiers:
+    1. Novice: 4 strikes, rough charcoal
+    2. Apprentice: 8 strikes
+    3. Journeyman: 12 strikes, good charcoal
+    4. Expert: 16 strikes
+    5. Master: 20 strikes, fine charcoal, best mill yield
+
+Miner - The Deep Delver
+  Only a Miner may work ore veins. Tiers decide which ores you can mine and how much a vein gives.
+  Gated stations: MineOre, PickaxeMining
+  Ore by tier: Iron+Corundum / Silver+Quicksilver / Orichalcum+Moonstone / Ebony+Malachite / Ebony+Malachite; yield x1 / x1.2 / x1.4 / x1.7 / x2
+  Tiers:
+    1. Novice: Iron, corundum
+    2. Apprentice: Silver, quicksilver
+    3. Journeyman: Orichalcum, moonstone
+    4. Expert: Ebony, malachite
+    5. Master: Double yield from every vein
+
+Tailor - The Fine Thread
+  Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew.
+  Gated stations: MCE_CraftingLoom, MCE_Loom, TailorBench
+  Tiers:
+    1. Novice: Common clothes
+    2. Apprentice: Fine clothes, padded armor
+    3. Journeyman: Noble clothes, studded medium armor
+    4. Expert: Scaled medium armor
+    5. Master: Masterwork garments
+
+Lockpicking - The Quiet Hand
+  Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt.
+  Drives vanilla: Lockpicking
+  Can pick: player-owned doors (housing locks); dungeon loot chests
+  Lock level by tier: Novice / Apprentice / Adept / Expert / Master
+  Tiers:
+    1. Novice: Novice locks
+    2. Apprentice: Apprentice locks
+    3. Journeyman: Adept locks, fewer picks broken
+    4. Expert: Expert locks
+    5. Master: Master locks, silent entry
+
+======================================================================
+SUPPORT (6)
+======================================================================
+
+Skinner - The Far Tracker
+  Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get.
+  Gated stations: isTanning, CraftingTanningRack
+  Gates: skinning animals
+  Tiers:
+    1. Novice: Hide, 1 leather per pelt
+    2. Apprentice: Leather strips
+    3. Journeyman: 2 leather per pelt
+    4. Expert: Fine leather
+    5. Master: 3 leather per pelt, rare pelts intact
+
+Scholar - The Ink-Stained
+  Only a Scholar may read the books of the world. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll.
+  Gates: reading books
+  Book copy chance by tier: 15% / 25% / 35% / 45% / 55%; tome chance: 0% / 2% / 4% / 7% / 10%
+  Tiers:
+    1. Novice: Read common books
+    2. Apprentice: Better copies
+    3. Journeyman: Rare books
+    4. Expert: Scrolls
+    5. Master: Spell tomes
+
+Enchanter - The Rune-Wright
+  Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong.
+  Drives vanilla: Enchanting
+  Gated stations: isEnchanting, CraftingEnchantingWorkbench
+  Tiers:
+    1. Novice: Fire, frost, shock
+    2. Apprentice: Soul trap, absorb stamina
+    3. Journeyman: Absorb health, paralyze
+    4. Expert: Chaos, absorb magicka
+    5. Master: Dual enchantments
+
+Priest - The Hand of the Divines
+  Restoration and Alteration. The only way to learn healing and warding spells, studied at any spell study point. Praying at a shrine counts as Priest work and raises the odds of a blessing.
+  Drives vanilla: Restoration, Alteration
+  Spell slots: 3; max spell rank by tier: Novice / Apprentice / Adept / Expert / Master
+  Tiers:
+    1. Novice: Novice spells
+    2. Apprentice: Apprentice spells
+    3. Journeyman: Adept spells
+    4. Expert: Expert spells
+    5. Master: Master spells
+
+Cook - The Hearthkeeper
+  Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare.
+  Gated stations: isCookingSpit, isSmallCookingPot, CraftingCookingPot, CraftingCookingFireSpit, BYOHOven
+  Tiers:
+    1. Novice: Simple meals
+    2. Apprentice: Hearty meals
+    3. Journeyman: Feast dishes
+    4. Expert: Restorative dishes
+    5. Master: Banquet fare with long buffs
+
+Harvesting - The Gleaner
+  Gathering from the world's resource nodes: plants, mushrooms, nests, and gold pouches. Without this skill a node gives little or nothing; tiers raise both the chance of a yield and the amount.
+  Gates: resource nodes
+  Yield chance by tier: 60% / 70% / 80% / 90% / 100%; yield x1 / x1.25 / x1.5 / x1.75 / x2; unskilled 25% at x0.5
+  Harvestable placed items: HangingRabbit, HangingPheasant, HangingGarlic, GarlicBraid, HangingElvesEar, HangingFrostMirriam, DriedElvesEar, DriedFrostMirriam, HangingSalmon, SalmonRack, HangingHerb (respawn 24 h)
+  Tiers:
+    1. Novice: Common plants
+    2. Apprentice: Rare plants, nests
+    3. Journeyman: Double chance on gold pouches
+    4. Expert: +75% yield
+    5. Master: Double yield, every node
+
+======================================================================
+OTHER SYSTEMS TIED TO SKILLS
+======================================================================
+Mini-games: mining = timing bar, one strike per hit inside the green zone, strikes per vein by Miner tier; woodcutting = rhythm press, strikes per sitting by Woodcutter tier (4-20); reading = word-order or timed page turn, result rolls the Scholar tables; lumberMill = no mini-game, 30-minute cooldown per player per mill, yield by Woodcutter tier
+Spell study: The well in the Hall of the Elements (Destruction, Conjuration, Illusion, Restoration, Alteration)
+Praying: shrines of Akatosh, Arkay, Dibella, Julianos, Kynareth, Mara, Stendarr, Talos, Zenithar. Cooldown 60 min per shrine. Blessing chance 2% for anyone, Priest by tier 5% / 10% / 15% / 20% / 30%. Only at your own deity.
+Deities (21): Akatosh, Arkay, Dibella, Julianos, Kynareth, Mara, Stendarr, Talos, Zenithar, Auri-El, Malacath (Daedra), Azura (Daedra), Boethiah (Daedra), Mephala (Daedra), Mehrunes Dagon (Daedra), Molag Bal (Daedra), Nocturnal (Daedra), Hircine (Daedra) [no shrine yet], Meridia (Daedra) [no shrine yet], Sanguine (Daedra) [no shrine yet], Sheogorath (Daedra) [no shrine yet]. Conversion cooldown 30 days.
+World pickup: Nothing lying in the world can be picked up with E. Loose items placed by the plugins are not loot. Resources come from nodes (Harvesting, Mining, Woodcutter), containers, crafting and trade. Items dropped by players (dynamic ff-space refs) stay pickable so trading and dropping keep working.
+Farms: Open to everyone with the Harvesting skill. No ownership lock on crops: protecting a field is roleplay (guards, patrols, bounties), not a mechanic.
+Edition: Skyrim SE 1.6.1170 with the four free base creations only. No Anniversary Edition requirement.
