@@ -299,11 +299,31 @@ registerChatCommand('tp', (a, args) => {
 // ---- pigeons (player mail, works for offline recipients) --------------------------------------
 // Each character keeps 'private.indexed.nameKey' (lowercase name) so an offline character can be found
 // by name, and 'private.pigeons' (unread mail). One pigeon per player every PIGEON_COOLDOWN_MS, only to a
-// character the sender's character has met, for PIGEON_FEE gold paid into the treasury of the hold it is sent from.
+// character the sender's character has met, for gold by distance (PIGEON_PRICE) paid into the treasury of the hold it is sent from.
 const PIGEON_COOLDOWN_MS = 35 * 60 * 1000;
 const PIGEON_MAX_TEXT = 240;
 const PIGEON_MAX_UNREAD = 20;
-const PIGEON_FEE = 5;
+// A base fee, gold per kilometre flown, and a cap; a bird to another land costs the cap
+const PIGEON_PRICE = Object.assign({ baseFee: 5, goldPerKm: 10, maxFee: 50 }, cfg.pigeons || {});
+// Where a character is for pricing: outdoors as it stands, indoors where it last stood outside
+const pigeonPlace = (x) => {
+  try {
+    const world = String(mp.get(x, 'worldOrCellDesc') || '');
+    if (world && isWorldspace(world)) return { world, pos: mp.get(x, 'pos') };
+    const last = mp.get(x, 'private.lastOutside');
+    return last && last.world ? { world: String(last.world), pos: last.pos } : null;
+  } catch (e) { return null; }
+};
+const pigeonFee = (a, t) => {
+  const max = Math.max(0, Math.floor(Number(PIGEON_PRICE.maxFee) || 0));
+  const from = pigeonPlace(a); const to = pigeonPlace(t);
+  if (!from || !to || !Array.isArray(from.pos) || !Array.isArray(to.pos)) return max;
+  const fw = normPlace(from.world); const tw = normPlace(to.world);
+  if (fw !== tw && !(TAMRIEL_FRAME.has(fw) && TAMRIEL_FRAME.has(tw))) return max;
+  const km = Math.hypot(from.pos[0] - to.pos[0], from.pos[1] - to.pos[1]) / UNITS_PER_METER / 1000;
+  const base = Math.max(0, Math.floor(Number(PIGEON_PRICE.baseFee) || 0));
+  return Math.min(max, base + Math.round(km * (Number(PIGEON_PRICE.goldPerKm) || 0)));
+};
 // profileId -> epoch ms, on disk so a restart or a gamemode reload does not forgive everyone's wait
 const PIGEON_COOLDOWN_FILE = path.resolve('pigeon-cooldowns.json');
 const pigeonLastSent = (() => {
@@ -405,8 +425,18 @@ const flushPigeons = (actorId) => {
   } catch (e) { log('pigeon flush failed', e.message); }
 };
 registerChatCommand('pigeon', (a, args) => {
-  const m = args.trim().match(/^(\S+(?:\s+#[A-Za-z0-9]{4})?|#[A-Za-z0-9]{4})\s+([\s\S]+)$/);
-  if (!m) return personal(a, 'Usage: /pigeon <name|#TAG> <message>');
+  let m = args.trim().match(/^(\S+(?:\s+#[A-Za-z0-9]{4})?|#[A-Za-z0-9]{4})\s+([\s\S]+)$/);
+  // "Name #TAG" with nothing after it asks the price; it is not a message reading "#TAG"
+  if (m && /^#[A-Za-z0-9]{4}$/.test(m[2].trim())) m = null;
+  const quote = m ? null : args.trim().match(/^(\S+(?:\s+#[A-Za-z0-9]{4})?|#[A-Za-z0-9]{4})$/);
+  if (quote) {
+    const to = findAnyByName(quote[1]);
+    if (to < 0) return personal(a, `${-to} characters share that name. Use their #TAG.`);
+    if (!to || to === a) return personal(a, 'No character by that name.');
+    if (!isAdmin(a) && !metOf(a).includes(to)) return personal(a, 'Your pigeon does not know the way to someone you have never met.');
+    return personal(a, `A pigeon to ${nameOf(to)} costs ${isAdmin(a) ? 0 : pigeonFee(a, to)} gold.`);
+  }
+  if (!m) return personal(a, 'Usage: /pigeon <name|#TAG> <message>, or /pigeon <name|#TAG> for the price');
   const text = m[2].trim().replace(/\s+/g, ' ');
   if (text.length > PIGEON_MAX_TEXT) return personal(a, `Pigeons carry at most ${PIGEON_MAX_TEXT} characters.`);
   const admin = isAdmin(a);
@@ -421,20 +451,21 @@ registerChatCommand('pigeon', (a, args) => {
     const online = onlineActors().includes(t);
     const box = online ? null : (Array.isArray(mp.get(t, 'private.pigeons')) ? mp.get(t, 'private.pigeons') : []);
     if (box && box.length >= PIGEON_MAX_UNREAD) return personal(a, 'Their coop is full. Try again later.');
-    if (!admin && !takeGold(a, PIGEON_FEE)) return personal(a, `A pigeon costs ${PIGEON_FEE} gold, and you do not have it.`);
+    const price = admin ? 0 : pigeonFee(a, t);
+    if (price > 0 && !takeGold(a, price)) return personal(a, `A pigeon to ${nameOf(t)} costs ${price} gold, and you do not have it.`);
     const zoneId = admin ? null : zoneOfActor(a);
-    const paid = admin ? 0 : depositToTreasury(zoneId, PIGEON_FEE);
+    const paid = price > 0 ? depositToTreasury(zoneId, price) : 0;
     notePigeonSent(p);
     const blocked = mp.get(t, 'private.pigeonBlock');
     if (Array.isArray(blocked) && blocked.includes(p)) return personal(a, 'Your pigeon flew off and never came back.');
     if (online) deliverPigeon(t, display(a), text, 0);
     else { box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(t, 'private.pigeons', box); }
     const zone = zoneId ? zoneById(zoneId) : null;
-    const fee = admin ? '' : `. ${PIGEON_FEE} gold${zone ? ` to the ${zone.name} treasury` : ''}`;
+    const fee = price > 0 ? `. ${price} gold${zone ? ` to the ${zone.name} treasury` : ''}` : '';
     personal(a, `Your pigeon flies to ${nameOf(t)}${online ? '' : ' (away; delivered when they return)'}${fee}.`);
-    log(`pigeon ${who(a)} -> ${nameOf(t)} #${tagOf(t)}${admin ? '' : ` (${PIGEON_FEE} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})`}: ${text}`);
+    log(`pigeon ${who(a)} -> ${nameOf(t)} #${tagOf(t)}${price > 0 ? ` (${price} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
   } catch (e) { personal(a, 'The pigeon refused to fly: ' + e.message); }
-}, { help: '<name|#TAG> <message>  5 gold, one every 35 min, only to someone you have met' });
+}, { help: '<name|#TAG> [message]  gold by distance (leave out the message to see it), one every 35 min, only to someone you have met' });
 registerChatCommand('pigeonblock', (a, args) => {
   const t = findAnyByName(args.trim()); if (!t || t < 0) return personal(a, 'No such character (use their #TAG).');
   try {

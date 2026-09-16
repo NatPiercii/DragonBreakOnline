@@ -224,5 +224,11 @@
     ],
     "graceSeconds": 60,
     "checkSeconds": 5
+  },
+  "pigeons": {
+    "_comment": "Pigeon price: baseFee plus goldPerKm for the distance flown, capped at maxFee; a pigeon to another land costs maxFee. Paid into the treasury of the hold it is sent from.",
+    "baseFee": 5,
+    "goldPerKm": 10,
+    "maxFee": 50
   }
 }
