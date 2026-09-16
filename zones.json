@@ -1,5 +1,5 @@
 {
-  "_comment": "One table for every system that needs to know where a place belongs: housing managers, notice boards, bounty boards, stronghold sovereignty, bank treasuries. Positions are Tamriel (3c:Skyrim.esm) unless a cell is given; the five city worldspaces share Tamriel coordinates. Radii are in game units (70 = 1 metre). A position inside a stronghold radius belongs to the stronghold, otherwise to the nearest hold capital. regions claim whole worldspaces (Solstheim). Who holds each rank is in officials.json (/appoint, /dismiss).",
+  "_comment": "One table for every system that needs to know where a place belongs: housing managers, notice boards, bounty boards, stronghold sovereignty, bank treasuries. Positions are Tamriel (3c:Skyrim.esm) unless a cell is given; the five city worldspaces share Tamriel coordinates. Radii are in game units (70 = 1 metre). A position inside a stronghold radius belongs to the stronghold, otherwise to the nearest hold capital. regions claim whole worldspaces (Solstheim). Who holds each rank is in officials.json (/appoint, /dismiss). majorCity marks a great city (center, radius in units): notice boards inside it charge the city rate for Recruitment, the rest of the zone the town rate.",
   "holds": [
     {
       "id": "whiterun",
@@ -14,7 +14,14 @@
         18313,
         -10665,
         -4590
-      ]
+      ],
+      "majorCity": {
+        "center": [
+          18313,
+          -10665
+        ],
+        "radius": 15000
+      }
     },
     {
       "id": "riften",
@@ -29,7 +36,14 @@
         173137,
         -90912,
         11102
-      ]
+      ],
+      "majorCity": {
+        "center": [
+          173137,
+          -90912
+        ],
+        "radius": 15000
+      }
     },
     {
       "id": "solitude",
@@ -44,7 +58,14 @@
         -74344,
         96470,
         -11512
-      ]
+      ],
+      "majorCity": {
+        "center": [
+          -74344,
+          96470
+        ],
+        "radius": 15000
+      }
     },
     {
       "id": "windhelm",
@@ -59,7 +80,14 @@
         135039,
         33143,
         -12575
-      ]
+      ],
+      "majorCity": {
+        "center": [
+          135039,
+          33143
+        ],
+        "radius": 15000
+      }
     },
     {
       "id": "markarth",
@@ -74,7 +102,14 @@
         -171097,
         6922,
         -3937
-      ]
+      ],
+      "majorCity": {
+        "center": [
+          -171097,
+          6922
+        ],
+        "radius": 15000
+      }
     },
     {
       "id": "falkreath",
@@ -240,7 +275,14 @@
       ],
       "worldspaces": [
         "a764b:BSHeartland.esm"
-      ]
+      ],
+      "majorCity": {
+        "center": [
+          57750,
+          202700
+        ],
+        "radius": 15000
+      }
     },
     {
       "id": "solstheim",

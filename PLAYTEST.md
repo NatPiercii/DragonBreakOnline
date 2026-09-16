@@ -76,6 +76,20 @@ Needs the skill first: take **Miner** and/or **Woodcutter** in the skills menu.
 | 22b | Use it | The board opens on **Bruma**'s pool. The log must NOT say `[board] board 1164c7 ... is outside every zone` |
 | 22c | Post on Shop Ads | 30 gold taken, half deposited in the Bruma treasury |
 | 22d | As a Bruma official (`/appoint <you> bruma count`), post on Hold Notices | Free, and only officials can |
+| 22e | Open the **Recruitment** tab on the Bruma board | Footer says **100 gold**: Bruma is a great city. A town board would say 50 |
+| 22f | Post a recruitment notice | 100 gold taken, half deposited in the Bruma treasury |
+
+## F3. Pigeons
+
+Needs two characters. Meeting only counts once you have stood within 20 m of each other for a few seconds.
+
+| # | Do | Proof |
+|---|---|---|
+| 22g | `/pigeon <them>` before meeting | "does not know the way to someone you have never met" |
+| 22h | Stand together a few seconds, then `/pigeon <them>` with no message | Quotes a price: about 5 to 8 gold standing next to each other |
+| 22i | Walk about a kilometre apart and ask again | About 15 gold at 1 km, 10 more per km after that, never above 50 |
+| 22j | `/pigeon <them> hello` | Gold taken, "N gold to the Bruma treasury", and they receive it |
+| 22k | Send a second one straight away | "still out", with minutes left. It survives a server restart |
 
 ## G. Things that changed underneath
 
