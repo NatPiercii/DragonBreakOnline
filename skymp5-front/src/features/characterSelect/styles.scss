@@ -32,8 +32,7 @@
       linear-gradient(90deg, rgba(4, 9, 11, 0.2) 0%, rgba(4, 9, 11, 0.75) 55%, rgba(4, 9, 11, 0.94) 100%);
   }
 
-  // Brand mark, top right: the hourglass with the wordmark under it. The plate already carries the
-  // big lettering, so this stays small.
+  // Brand mark, top right: the hourglass alone, since the plate already carries the lettering.
   &__brand {
     position: absolute;
     right: 3.4vw;
@@ -50,28 +49,6 @@
     aspect-ratio: 420 / 520;
     background: url('../../img/dbo-watermark.png') center / contain no-repeat;
     filter: drop-shadow(0 0 22px rgba(143, 211, 208, 0.45)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.85));
-  }
-
-  &__wordmark {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  &__word {
-    @include dbo-title;
-    font-size: clamp(15px, 1.5vw, 22px);
-    line-height: 1.05;
-    letter-spacing: 0.18em;
-    text-shadow: 0 0 24px rgba(143, 211, 208, 0.35), 0 4px 10px rgba(0, 0, 0, 0.9);
-  }
-
-  &__tagline {
-    margin-top: 6px;
-    color: $dbo-aqua-dim;
-    font-size: clamp(8px, 0.7vw, 11px);
-    letter-spacing: 0.34em;
-    text-transform: uppercase;
   }
 
   // Selection panel: under the plate's DRAGON BREAK lettering, centred on it.
