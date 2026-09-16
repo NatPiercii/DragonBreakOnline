@@ -39,6 +39,10 @@ const FALL_LIMIT = 3000;
 const STRAND_LIFT = 600;
 const STRAND_RADIUS = 384;
 const STRAND_POLLS = 3;
+// Live spawned actors allowed at once across every zone
+const MAX_LIVE = 150;
+const BUDGET_RETRY_MS = 10000;
+const BUDGET_LOG_MS = 60000;
 // An NPC dragged this far from its zone is not coming home; its slot is freed for the next player
 const LEASH_MIN = 8000;
 const LEASH_RADII = 3;
@@ -157,6 +161,7 @@ export class NpcSpawnSystem implements System {
   // Dead NPC actorId -> epoch ms when its corpse is destroyed
   private corpses = new Map<number, number>();
   private corpseMs = DEFAULT_CORPSE_SECONDS * 1000;
+  private budgetLoggedAt = 0;
 
   async initAsync(ctx: SystemContext): Promise<void> {
     this.mp = ctx.svr as Mp;
@@ -473,15 +478,31 @@ export class NpcSpawnSystem implements System {
     return zone.inside.values().next().value;
   }
 
+  // Live actors across every zone, so one player crossing a continent cannot trail hundreds of them
+  private liveCount(): number {
+    let n = 0;
+    for (const zone of this.zones) n += zone.spawned.length;
+    return n;
+  }
+
   // Places every slot that is empty or holds a corpse once its cooldown has run out
   private fillSlots(mp: Mp, zone: Zone, now: number): void {
     const before = zone.spawned.length;
     let changed = false;
+    let live = this.liveCount();
     for (let slot = 0; slot < zone.total; slot++) {
       const entry = zone.spawned.find((e) => e.slot === slot);
       if (entry && !entry.diedAt) continue;
       const at = zone.slotReadyAt[slot];
       if (at < 0 || at > now) continue;
+      if (!entry && live >= MAX_LIVE) {
+        if (now - this.budgetLoggedAt > BUDGET_LOG_MS) {
+          this.budgetLoggedAt = now;
+          this.log(`NpcSpawnSystem: ${live} npcs alive, at the budget of ${MAX_LIVE}; '${zone.name}' waits for room`);
+        }
+        zone.slotReadyAt[slot] = now + BUDGET_RETRY_MS;
+        continue;
+      }
       const anchor = this.anchorIn(zone) ?? (zone.prespawn ? zone.anchorId : undefined);
       if (anchor === undefined) break;
       const npc = zone.slots[slot];
@@ -497,6 +518,7 @@ export class NpcSpawnSystem implements System {
         entry.diedAt = 0;
       } else {
         zone.spawned.push({ id, slot, diedAt: 0 });
+        live++;
       }
       zone.slotReadyAt[slot] = 0;
       changed = true;
