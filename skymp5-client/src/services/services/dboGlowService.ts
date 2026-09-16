@@ -4,8 +4,8 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { EffectShader, ObjectReference } from "skyrimPlatform";
 
-// Vanilla ghost shaders: the white-blue ethereal one for lootable chests, the violet one for locked ones.
-const SHADERS: Record<string, number> = { loot: 0x0003b6cb, locked: 0x00103129 };
+// Vanilla detect-life shaders: no fill texture, so they rim the chest instead of washing it white
+const SHADERS: Record<string, number> = { loot: 0x00000146, locked: 0x000aaeb3 };
 const POLL_MS = 1000;
 
 /**
