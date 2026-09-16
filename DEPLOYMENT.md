@@ -25,10 +25,10 @@ bundle loads it by name. It is not portable:
 | `package.json`, `node_modules` | - | Or `npm install` on the host |
 | `gamemode.js` + the modules | ~250 KB | `dungeons.js`, `wildlife.js`, `playtest.js`, `labour.js`, `champions.js`, `contracts.js` |
 | The data files | ~7 MB | `skills.json`, `zones.json`, `loot.json`, `dungeons.json`, `wildlife.json`, `doors.json`, `readables.json`, `NPC-Spawns.json`, `gamemode-config.json`, `housing.json`, `companions.json`, `starter-grants.json` |
-|  | - | The reference load order |
+| `plugins.server.txt` | - | The reference load order |
 
-Node 22 is what runs it here ( = v22.14.0);  is , so the world
-state is  on disk and no database server is needed.
+Node 22 runs it here (`node --version` = v22.14.0). `databaseDriver` is `file`, so the world state
+is the `world\` folder on disk and no database server is needed.
 
 **Do not copy:**
 
