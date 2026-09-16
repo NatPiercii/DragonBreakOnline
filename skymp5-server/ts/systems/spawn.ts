@@ -333,11 +333,57 @@ export class Spawn implements System {
     }
   }
 
+  // Card lines for the select screen: race, time played, masteries and what they are wearing.
+  private characterRace(mp: Mp, actorId: number): string {
+    try {
+      const appearance = mp.get(actorId, "appearance") as { raceId?: number } | null;
+      const raceId = appearance && typeof appearance.raceId === "number" ? appearance.raceId : 0;
+      if (!raceId) return "";
+      const rec = mp.lookupEspmRecordById(raceId);
+      const edid = String(rec?.record?.editorId || "");
+      return edid.replace(/Race$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+    } catch { return ""; }
+  }
+
+  // Time played is not recorded yet; the gamemode would have to keep it per character first.
+  private characterInfo(mp: Mp, actorId: number): string {
+    const parts: string[] = [];
+    const race = this.characterRace(mp, actorId);
+    if (race) parts.push(race);
+    try {
+      const tag = mp.get(actorId, "private.charTag");
+      if (typeof tag === "string" && tag.length === 4) parts.push(`#${tag}`);
+    } catch { /* untagged */ }
+    return parts.join(" · ");
+  }
+
+  private characterDetail(mp: Mp, actorId: number): string {
+    const parts: string[] = [];
+    try {
+      const mastery = mp.get(actorId, "private.mastery") as { order?: unknown[] } | null;
+      const chosen = mastery && Array.isArray(mastery.order) ? mastery.order.length : 0;
+      parts.push(chosen ? `${chosen} master${chosen === 1 ? "y" : "ies"}` : "No masteries yet");
+    } catch { parts.push("No masteries yet"); }
+    try {
+      const equipment = mp.get(actorId, "equipment") as { inv?: { entries?: { worn?: unknown; wornLeft?: unknown }[] } } | null;
+      const entries = equipment?.inv?.entries || [];
+      const worn = entries.filter((e) => e && (e.worn || e.wornLeft)).length;
+      if (worn) parts.push(`${worn} item${worn === 1 ? "" : "s"} worn`);
+    } catch { /* nothing worn */ }
+    return parts.join(" · ");
+  }
+
   private sendCharacterList(ctx: SystemContext, userId: number, profileId: number): void {
     const mp = ctx.svr as unknown as Mp;
     const characters = this.slotMap(ctx, profileId).map((actorId, i) =>
       actorId !== undefined
-        ? { name: this.characterName(ctx, actorId) || `Character ${i + 1}`, dead: this.isPermaDead(mp, actorId) }
+        ? {
+          name: this.characterName(ctx, actorId) || `Character ${i + 1}`,
+          dead: this.isPermaDead(mp, actorId),
+          race: this.characterRace(mp, actorId),
+          info: this.characterInfo(mp, actorId),
+          detail: this.characterDetail(mp, actorId),
+        }
         : null);
     ctx.svr.sendCustomPacket(userId, JSON.stringify({
       customPacketType: "characterSelectMenu", maxCharacters: this.maxCharacters, characters,
