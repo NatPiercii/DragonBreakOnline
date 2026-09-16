@@ -31,5 +31,26 @@ export const placeNpc = (mp: Mp, anchorId: number, baseDesc: string, loc: NpcLoc
   // The move above never reaches clients already watching the anchor; disable/enable re-sends the actor at loc
   mp.set(id, "isDisabled", true);
   mp.set(id, "isDisabled", false);
+  assertPlacedIn(mp, id, loc);
   return id;
+};
+
+const sameCell = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
+// PlaceAtMe creates the actor in the anchor's own cell. When the anchor sits inside an interior the
+// move can leave the actor there: it looks right to every client but the server has it in another
+// cell, so hits on it are refused as a worldspace mismatch. One retry, then give the slot up.
+const assertPlacedIn = (mp: Mp, id: number, loc: NpcLocation): void => {
+  let where = "";
+  try { where = String(mp.get(id, "worldOrCellDesc") || ""); } catch (e) { return; }
+  if (!where || sameCell(where, loc.cellOrWorldDesc)) return;
+
+  mp.set(id, "locationalData", loc);
+  mp.set(id, "isDisabled", true);
+  mp.set(id, "isDisabled", false);
+  try { where = String(mp.get(id, "worldOrCellDesc") || ""); } catch (e) { return; }
+  if (sameCell(where, loc.cellOrWorldDesc)) return;
+
+  try { mp.destroyActor(id); } catch (e) { /* already gone */ }
+  throw new Error(`placed in ${where}, expected ${loc.cellOrWorldDesc}`);
 };
