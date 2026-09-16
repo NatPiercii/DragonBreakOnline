@@ -424,48 +424,60 @@ const flushPigeons = (actorId) => {
     system(actorId, `${box.length} pigeon${box.length === 1 ? '' : 's'} waited for you.`);
   } catch (e) { log('pigeon flush failed', e.message); }
 };
-registerChatCommand('pigeon', (a, args) => {
-  let m = args.trim().match(/^(\S+(?:\s+#[A-Za-z0-9]{4})?|#[A-Za-z0-9]{4})\s+([\s\S]+)$/);
-  // "Name #TAG" with nothing after it asks the price; it is not a message reading "#TAG"
-  if (m && /^#[A-Za-z0-9]{4}$/.test(m[2].trim())) m = null;
-  const quote = m ? null : args.trim().match(/^(\S+(?:\s+#[A-Za-z0-9]{4})?|#[A-Za-z0-9]{4})$/);
-  if (quote) {
-    const to = findAnyByName(quote[1]);
-    if (to < 0) return personal(a, `${-to} characters share that name. Use their #TAG.`);
-    if (!to || to === a) return personal(a, 'No character by that name.');
-    if (!isAdmin(a) && !metOf(a).includes(to)) return personal(a, 'Your pigeon does not know the way to someone you have never met.');
-    return personal(a, `A pigeon to ${nameOf(to)} costs ${isAdmin(a) ? 0 : pigeonFee(a, to)} gold.`);
-  }
-  if (!m) return personal(a, 'Usage: /pigeon <name|#TAG> <message>, or /pigeon <name|#TAG> for the price');
-  const text = m[2].trim().replace(/\s+/g, ' ');
-  if (text.length > PIGEON_MAX_TEXT) return personal(a, `Pigeons carry at most ${PIGEON_MAX_TEXT} characters.`);
+// Pigeons fly from notice boards: the board opens the coop window, and the fee goes to that board's town
+const PIGEON_WIDGET_ID = 34;
+const pigeonNonces = new Map(); // actorId -> nonce of the coop window it has open
+const boardZoneNear = (a) => { try { return typeof globalThis.__alduinakBoardNear === 'function' ? globalThis.__alduinakBoardNear(a) : null; } catch (e) { return null; } };
+const goldOf = (a) => {
+  try { return ((mp.get(a, 'inventory') || {}).entries || []).filter((e) => (Number(e.baseId) >>> 0) === GOLD_BASE).reduce((s, e) => s + (Number(e.count) || 0), 0); }
+  catch (e) { return 0; }
+};
+const sendPigeon = (a, to, rawText, zoneId) => {
+  const text = String(rawText || '').trim().replace(/\s+/g, ' ');
+  if (!text) return { ok: false, text: 'Write something for the pigeon to carry.' };
+  if (text.length > PIGEON_MAX_TEXT) return { ok: false, text: `Pigeons carry at most ${PIGEON_MAX_TEXT} characters.` };
   const admin = isAdmin(a);
-  const p = profileOf(a); const last = pigeonLastSent.get(p) || 0; const left = PIGEON_COOLDOWN_MS - (Date.now() - last);
-  if (left > 0 && !admin) return personal(a, `Your pigeon is still out. Next one in ${Math.ceil(left / 60000)} min.`);
-  const t = findAnyByName(m[1]);
-  if (t < 0) return personal(a, `${-t} characters share that name. Use their #TAG.`);
-  if (!t) return personal(a, 'No character by that name.');
-  if (t === a) return personal(a, 'The pigeon just sits on your shoulder.');
-  if (!admin && !metOf(a).includes(t)) return personal(a, 'Your pigeon does not know the way to someone you have never met.');
+  const p = profileOf(a); const left = PIGEON_COOLDOWN_MS - (Date.now() - (pigeonLastSent.get(p) || 0));
+  if (left > 0 && !admin) return { ok: false, text: `Your pigeon is still out. Next one in ${Math.ceil(left / 60000)} min.` };
+  if (!to || to === a) return { ok: false, text: 'Choose who the letter is for.' };
+  if (!admin && !metOf(a).includes(to)) return { ok: false, text: 'Your pigeon does not know the way to someone you have never met.' };
   try {
-    const online = onlineActors().includes(t);
-    const box = online ? null : (Array.isArray(mp.get(t, 'private.pigeons')) ? mp.get(t, 'private.pigeons') : []);
-    if (box && box.length >= PIGEON_MAX_UNREAD) return personal(a, 'Their coop is full. Try again later.');
-    const price = admin ? 0 : pigeonFee(a, t);
-    if (price > 0 && !takeGold(a, price)) return personal(a, `A pigeon to ${nameOf(t)} costs ${price} gold, and you do not have it.`);
-    const zoneId = admin ? null : zoneOfActor(a);
+    const online = onlineActors().includes(to);
+    const box = online ? null : (Array.isArray(mp.get(to, 'private.pigeons')) ? mp.get(to, 'private.pigeons') : []);
+    if (box && box.length >= PIGEON_MAX_UNREAD) return { ok: false, text: 'Their coop is full. Try again later.' };
+    const price = admin ? 0 : pigeonFee(a, to);
+    if (price > 0 && !takeGold(a, price)) return { ok: false, text: `A pigeon to ${nameOf(to)} costs ${price} gold, and you do not have it.` };
     const paid = price > 0 ? depositToTreasury(zoneId, price) : 0;
     notePigeonSent(p);
-    const blocked = mp.get(t, 'private.pigeonBlock');
-    if (Array.isArray(blocked) && blocked.includes(p)) return personal(a, 'Your pigeon flew off and never came back.');
-    if (online) deliverPigeon(t, display(a), text, 0);
-    else { box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(t, 'private.pigeons', box); }
+    const blocked = mp.get(to, 'private.pigeonBlock');
+    if (Array.isArray(blocked) && blocked.includes(p)) return { ok: true, text: 'Your pigeon flew off and never came back.' };
+    if (online) deliverPigeon(to, display(a), text, 0);
+    else { box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(to, 'private.pigeons', box); }
     const zone = zoneId ? zoneById(zoneId) : null;
-    const fee = price > 0 ? `. ${price} gold${zone ? ` to the ${zone.name} treasury` : ''}` : '';
-    personal(a, `Your pigeon flies to ${nameOf(t)}${online ? '' : ' (away; delivered when they return)'}${fee}.`);
-    log(`pigeon ${who(a)} -> ${nameOf(t)} #${tagOf(t)}${price > 0 ? ` (${price} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
-  } catch (e) { personal(a, 'The pigeon refused to fly: ' + e.message); }
-}, { help: '<name|#TAG> [message]  gold by distance (leave out the message to see it), one every 35 min, only to someone you have met' });
+    log(`pigeon ${who(a)} -> ${nameOf(to)} #${tagOf(to)}${price > 0 ? ` (${price} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
+    return { ok: true, text: `Your pigeon flies to ${nameOf(to)}${online ? '' : ', who will read it on their return'}${price > 0 ? `. ${price} gold${zone ? ` to the ${zone.name} treasury` : ''}` : ''}.` };
+  } catch (e) { return { ok: false, text: 'The pigeon refused to fly: ' + e.message }; }
+};
+const openPigeonCoop = (a, result, resultKind) => {
+  const zoneId = boardZoneNear(a);
+  const zone = zoneId ? zoneById(zoneId) : null;
+  const admin = isAdmin(a);
+  const online = onlineActors();
+  const contacts = [];
+  for (const id of metOf(a)) {
+    try { if (!mp.get(id, 'appearance')) continue; } catch (e) { continue; }
+    contacts.push({ id, name: nameOf(id), tag: tagOf(id), online: online.includes(id), price: admin ? 0 : pigeonFee(a, id) });
+  }
+  contacts.sort((x, y) => x.name.localeCompare(y.name));
+  const left = PIGEON_COOLDOWN_MS - (Date.now() - (pigeonLastSent.get(profileOf(a)) || 0));
+  const nonce = `${a.toString(16)}-${Date.now().toString(36)}`;
+  pigeonNonces.set(a, nonce);
+  openWidget(a, {
+    type: 'pigeon', id: PIGEON_WIDGET_ID, nonce, boardName: zone ? zone.name : 'The',
+    contacts, gold: goldOf(a), cooldownMinutes: admin || left <= 0 ? 0 : Math.ceil(left / 60000), maxText: PIGEON_MAX_TEXT,
+    result, resultKind,
+  }, true);
+};
 registerChatCommand('pigeonblock', (a, args) => {
   const t = findAnyByName(args.trim()); if (!t || t < 0) return personal(a, 'No such character (use their #TAG).');
   try {
@@ -1107,6 +1119,17 @@ onUi('arrived', (a, args) => {
     startCreationInHub(a);
   }
 });
+const refusePigeon = (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); personal(a, 'Pigeons are sent from a notice board. Walk up to one and use it.'); };
+onUi('pigeonOpen', (a) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a); });
+onUi('pigeonSend', (a, args) => {
+  if (String(args[0]) !== pigeonNonces.get(a)) return;
+  const zoneId = boardZoneNear(a);
+  if (!zoneId) return refusePigeon(a);
+  const r = sendPigeon(a, Number(args[1]) >>> 0, args[2], zoneId);
+  openPigeonCoop(a, r.text, r.ok ? 'sent' : 'refused');
+});
+onUi('pigeonClose', (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); });
+onUi('close', (a, args, widgetId) => { if (widgetId === PIGEON_WIDGET_ID) pigeonNonces.delete(a); });
 const giveItem = (a, baseId, count) => {
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
@@ -1633,12 +1656,20 @@ try {
   require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF });
 } catch (e) { log('labour.js failed to load:', e.stack || e.message); globalThis.__dboLabour = null; }
 
+// ---- temporary: wolf tethering diagnostic, remove once answered -------------------------------
+try {
+  const PROBE_JS = path.resolve('dbo-probe.js');
+  delete require.cache[PROBE_JS];
+  require(PROBE_JS)({ mp, log, registerChatCommand, personal });
+} catch (e) { log('dbo-probe.js failed to load:', e.stack || e.message); }
+
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
   const PLAYTEST_JS = path.resolve('playtest.js');
   delete require.cache[PLAYTEST_JS];
   require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt });
 } catch (e) { log('playtest.js failed to load:', e.stack || e.message); globalThis.__dboPlaytestActivate = null; globalThis.__dboPlaytestGate = null; }
+
 
 
 

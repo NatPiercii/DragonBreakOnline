@@ -46,7 +46,7 @@
   },
   "champions": {
     "_comment": "Named champion spawns: chance a hostile wildlife or dungeon spawn is promoted, how much bigger it stands, the share of each hit given back to it (0.5 is roughly double health), the gold each fighter is paid, the chance of a gem on top, and the share of the damage a player needs to count as a fighter.",
-    "enabled": true,
+    "enabled": false,
     "wildChance": 0.05,
     "dungeonChance": 0.08,
     "scale": 1.14,
@@ -230,5 +230,17 @@
     "baseFee": 5,
     "goldPerKm": 10,
     "maxFee": 50
+  },
+  "respawnTemples": {
+    "_comment": "TEST 2026-09-16: Bruma respawn back at the cathedral door, the spot HANDOFF records as hanging on login. Delete this bruma entry to return to the Pale Pass default.",
+    "bruma": {
+      "world": "a764b:BSHeartland.esm",
+      "pos": [
+        59150.7,
+        201644.9,
+        7560.6
+      ],
+      "rotZ": 0
+    }
   }
 }
