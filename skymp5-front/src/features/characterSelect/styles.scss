@@ -32,21 +32,21 @@
       linear-gradient(90deg, rgba(4, 9, 11, 0.2) 0%, rgba(4, 9, 11, 0.75) 55%, rgba(4, 9, 11, 0.94) 100%);
   }
 
-  // Brand block, left third, over the nebula.
+  // Brand mark, top right: the hourglass with the wordmark under it. The plate already carries the
+  // big lettering, so this stays small.
   &__brand {
     position: absolute;
-    left: 6vw;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 3.4vw;
+    top: 3.5vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 18px;
+    gap: 8px;
     text-align: center;
   }
 
   &__logo {
-    width: clamp(120px, 12vw, 220px);
+    width: clamp(64px, 6vw, 104px);
     aspect-ratio: 420 / 520;
     background: url('../../img/dbo-watermark.png') center / contain no-repeat;
     filter: drop-shadow(0 0 22px rgba(143, 211, 208, 0.45)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.85));
@@ -60,28 +60,28 @@
 
   &__word {
     @include dbo-title;
-    font-size: clamp(30px, 3.6vw, 56px);
-    line-height: 1.02;
-    letter-spacing: 0.14em;
+    font-size: clamp(15px, 1.5vw, 22px);
+    line-height: 1.05;
+    letter-spacing: 0.18em;
     text-shadow: 0 0 24px rgba(143, 211, 208, 0.35), 0 4px 10px rgba(0, 0, 0, 0.9);
   }
 
   &__tagline {
-    margin-top: 10px;
+    margin-top: 6px;
     color: $dbo-aqua-dim;
-    font-size: clamp(11px, 1vw, 14px);
-    letter-spacing: 0.42em;
+    font-size: clamp(8px, 0.7vw, 11px);
+    letter-spacing: 0.34em;
     text-transform: uppercase;
   }
 
-  // Selection panel, right side.
+  // Selection panel: under the plate's DRAGON BREAK lettering, centred on it.
   &__panel {
     position: absolute;
-    right: 5vw;
-    top: 50%;
-    transform: translateY(-50%);
-    width: min(660px, 46vw);
-    max-height: 84vh;
+    left: 56%;
+    top: 47%;
+    transform: translateX(-50%);
+    width: min(640px, 50vw);
+    max-height: 48vh;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
