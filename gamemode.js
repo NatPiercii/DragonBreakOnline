@@ -1262,6 +1262,7 @@ const deathHook = (actorId, killerId, ...rest) => {
   // MpActor::Kill adds the death item after firing this event, so the pelt only exists a tick later
   setTimeout(() => { try { stashPelts(Number(actorId) >>> 0); } catch (e) { log('pelt stash failed', e.message); } }, 50);
   try { if (globalThis.__dboChampionDeath) globalThis.__dboChampionDeath(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('champion death failed', e.message); }
+  try { if (globalThis.__dboContractKill && killerId) globalThis.__dboContractKill(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('contract kill failed', e.message); }
   try { if (globalThis.__dboTrimCorpse) globalThis.__dboTrimCorpse(Number(actorId) >>> 0); } catch (e) { log('corpse trim failed', e.message); }
   const prev = globalThis.__dboPrevDeath;
   if (prev) { try { return prev(actorId, killerId, ...rest); } catch (e) { log('death chain failed', e.message); } }
@@ -1378,6 +1379,13 @@ const DOOR_NAMES = (() => {
 })();
 log(`door names: ${Object.keys(DOOR_NAMES).length}`);
 
+// ---- hunting contracts paid from the zone treasury (server\contracts.js, config "contracts") ---
+try {
+  const CONTRACTS_JS = path.resolve('contracts.js');
+  delete require.cache[CONTRACTS_JS];
+  require(CONTRACTS_JS)({ mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones: ZONES, ranksOf, profileOf });
+} catch (e) { log('contracts.js failed to load:', e.stack || e.message); globalThis.__dboContractKill = null; }
+
 // ---- champions: named, tougher spawns that pay everyone who fought them (server\champions.js) --
 try {
   const CHAMPIONS_JS = path.resolve('champions.js');
@@ -1398,6 +1406,8 @@ try {
   delete require.cache[PLAYTEST_JS];
   require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt });
 } catch (e) { log('playtest.js failed to load:', e.stack || e.message); globalThis.__dboPlaytestActivate = null; globalThis.__dboPlaytestGate = null; }
+
+
 
 
 
