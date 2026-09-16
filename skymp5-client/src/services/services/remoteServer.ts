@@ -190,8 +190,11 @@ export class RemoteServer extends ClientListener {
         if (!ac || ac.getFormID() === 0x14) return;
         ac.stopTranslation();
         ac.clearKeepOffsetFromActor();
-        // Re-seat it where it stands: a translation handed over mid-flight leaves havok asleep and the actor hanging
-        ac.setPosition(ac.getPositionX(), ac.getPositionY(), ac.getPositionZ());
+        // Re-seat it where it stands so havok takes it back, but never while the world is still
+        // streaming: forcing a position on an actor without 3D can wedge the load.
+        if (ac.is3DLoaded()) {
+          ac.setPosition(ac.getPositionX(), ac.getPositionY(), ac.getPositionZ());
+        }
         ac.evaluatePackage();
       } catch (e) {
         logError(this, `hostStart settle failed for`, target.toString(16), e);
