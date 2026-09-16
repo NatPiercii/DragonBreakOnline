@@ -47,6 +47,9 @@ const MAX_GRID_SPAN = 8;
 const DEFAULT_MAX_LIVE = 150;
 const BUDGET_RETRY_MS = 10000;
 const BUDGET_LOG_MS = 60000;
+// A poll slower than this is worth a line in the log, at most once a minute
+const SLOW_POLL_MS = 50;
+const SLOW_LOG_MS = 60000;
 // An NPC dragged this far from its zone is not coming home; its slot is freed for the next player
 const LEASH_MIN = 8000;
 const LEASH_RADII = 3;
@@ -179,6 +182,7 @@ export class NpcSpawnSystem implements System {
   private corpses = new Map<number, number>();
   private corpseMs = DEFAULT_CORPSE_SECONDS * 1000;
   private budgetLoggedAt = 0;
+  private slowLoggedAt = 0;
   private maxLive = DEFAULT_MAX_LIVE;
 
   async initAsync(ctx: SystemContext): Promise<void> {
@@ -449,6 +453,7 @@ export class NpcSpawnSystem implements System {
     let playerIds: number[] = [];
     try { playerIds = mp.get(0, "onlinePlayers") ?? []; } catch { return; }
 
+    const startedAt = Date.now();
     const index = this.buildIndex(this.snapshotPlayers(mp, playerIds));
     for (const zone of this.zones) {
       this.updateInside(mp, zone, index);
@@ -464,6 +469,14 @@ export class NpcSpawnSystem implements System {
         if (!zone.emptySince) zone.emptySince = now;
         if (now - zone.emptySince >= zone.despawnSeconds * 1000) this.despawn(mp, zone);
       }
+    }
+
+    // What the poll actually costs, for the gamemode's /load and for a slow-poll warning
+    const took = Date.now() - startedAt;
+    (globalThis as any).__alduinakSpawnPollMs = took;
+    if (took > SLOW_POLL_MS && Date.now() - this.slowLoggedAt > SLOW_LOG_MS) {
+      this.slowLoggedAt = Date.now();
+      this.log(`NpcSpawnSystem: poll took ${took} ms for ${this.zones.length} zones and ${playerIds.length} player(s)`);
     }
   }
 
