@@ -15,8 +15,11 @@ declare const window: any;
 // A character slot from the server; null/absent means empty and Play creates a new character there.
 interface CharacterSlot {
   name?: string;
-  // Optional one-line summary, e.g. "Level 3 Nord, Whiterun".
+  // Optional one-line summary, e.g. "Nord . 6d 19h played".
   info?: string;
+  // Second line, e.g. "No masteries yet . 11 items worn".
+  detail?: string;
+  race?: string;
   // Permanently dead: shown crossed out and greyed, only Delete is allowed.
   dead?: boolean;
 }
@@ -47,19 +50,27 @@ const translations = {
     cancel: 'Отмена',
     quit: 'Выйти',
     dead: 'Мёртв',
+    slot: 'Слот',
+    create: 'Создать',
+    selected: 'Выбран',
+    newCharacter: 'Новая жизнь',
   },
   "en": {
-    selectCharacter: 'Select Character',
-    emptySlot: 'Empty',
+    selectCharacter: 'Choose your character',
+    emptySlot: 'Empty slot',
     unnamed: 'Unnamed',
     play: 'Play',
     edit: 'Edit',
     del: 'Delete',
-    confirmDelete: 'Permanently delete this character? This cannot be undone.',
+    confirmDelete: 'Delete this character forever?',
     confirm: 'Confirm',
     cancel: 'Cancel',
     quit: 'Quit',
     dead: 'Dead',
+    slot: 'Slot',
+    create: 'Create',
+    selected: 'Selected',
+    newCharacter: 'A new life',
   },
 } as const;
 
@@ -217,70 +228,30 @@ export class CharacterSelectService extends ClientListener {
     this.menuOpen = false;
     selectedSlot = null;
     confirmDeleteSlot = null;
-    // Clear forms only; chat and other in-game widgets must survive a mid-session reopen.
+    // Clear the title screen and any auth form; chat and other in-game widgets must survive a mid-session reopen.
     this.sp.browser.executeJavaScript(
-      'window.skyrimPlatform.widgets.set((window.skyrimPlatform.widgets.get()||[]).filter(function(w){return w&&w.type!=="form";}));'
+      'window.skyrimPlatform.widgets.set((window.skyrimPlatform.widgets.get()||[]).filter(function(w){return w&&w.type!=="form"&&w.type!=="characterSelect";}));'
     );
     this.sp.browser.setFocused(false);
   }
 
   // Runs inside the CEF browser; only the injected variables and window are available here.
+  // The screen itself is the front's "characterSelect" widget; it answers with the same events.
   private browsersideWidgetSetter = () => {
-    const widget: any = { type: "form", id: WIDGET_ID, caption: strings.selectCharacter, elements: [] as any[] };
+    const widget: any = {
+      type: "characterSelect",
+      id: WIDGET_ID,
+      characters,
+      maxCharacters,
+      selectedSlot,
+      confirmDeleteSlot,
+      strings,
+      events,
+    };
 
-    // Strike through via combining U+0336 overlays; the form renderer has no text styling.
-    const strike = (s: string) => s.split("").map((c) => c + String.fromCharCode(0x0336)).join("");
-
-    for (let i = 0; i < maxCharacters; i++) {
-      const character = characters[i];
-      const headerTags = i === 0 ? [] : ["ELEMENT_STYLE_MARGIN_EXTENDED"];
-
-      if (confirmDeleteSlot === i) {
-        widget.elements.push({ type: "text", text: (character && character.name) || strings.unnamed, tags: headerTags });
-        widget.elements.push({ type: "text", text: strings.confirmDelete, tags: [] });
-        widget.elements.push({ type: "button", text: strings.confirm, tags: [], click: () => window.skyrimPlatform.sendMessage(events.confirmDelete, i) });
-        widget.elements.push({ type: "button", text: strings.cancel, tags: ["ELEMENT_SAME_LINE"], click: () => window.skyrimPlatform.sendMessage(events.cancelDelete, i) });
-        continue;
-      }
-
-      const isSelected = selectedSlot === i;
-      const isDead = !!(character && character.dead);
-      const label = character ? (character.name || strings.unnamed) : strings.emptySlot;
-      // The slot itself is a button that selects it; dead slots render struck out and disabled.
-      widget.elements.push({
-        type: "button",
-        text: isDead ? strike(label) : (isSelected ? "> " : "") + label,
-        tags: headerTags,
-        isDisabled: isDead,
-        click: () => window.skyrimPlatform.sendMessage(events.select, i),
-      });
-      if (character) {
-        if (isDead) widget.elements.push({ type: "text", text: strings.dead, tags: ["ELEMENT_SAME_LINE"] });
-        else if (character.info) widget.elements.push({ type: "text", text: character.info, tags: ["ELEMENT_SAME_LINE"] });
-        // Editing a corpse makes no sense, but freeing the slot must stay possible.
-        if (!isDead) widget.elements.push({ type: "button", text: strings.edit, tags: ["ELEMENT_SAME_LINE"], width: 90, click: () => window.skyrimPlatform.sendMessage(events.edit, i) });
-        widget.elements.push({ type: "button", text: strings.del, tags: ["ELEMENT_SAME_LINE"], width: 90, click: () => window.skyrimPlatform.sendMessage(events.delete, i) });
-      }
-    }
-
-    // Bottom row: Quit on the left, Play (disabled until a live slot is picked) on the right.
-    const selectedDead = selectedSlot !== null && !!(characters[selectedSlot] && characters[selectedSlot]!.dead);
-    widget.elements.push({
-      type: "button",
-      text: strings.quit,
-      tags: ["ELEMENT_STYLE_MARGIN_EXTENDED"],
-      click: () => window.skyrimPlatform.sendMessage(events.quit),
-    });
-    widget.elements.push({
-      type: "button",
-      text: strings.play,
-      tags: ["BUTTON_STYLE_FRAME", "ELEMENT_SAME_LINE"],
-      isDisabled: selectedSlot === null || selectedDead,
-      click: () => window.skyrimPlatform.sendMessage(events.play),
-    });
-
-    // Replace form widgets (auth/menu) but keep chat alive: this can render mid-session.
-    const others = (window.skyrimPlatform.widgets.get() || []).filter((w: any) => w && w.type !== "form");
+    // Replace the auth form and any older title screen, but keep chat alive: this can render mid-session.
+    const others = (window.skyrimPlatform.widgets.get() || [])
+      .filter((w: any) => w && w.type !== "form" && w.type !== "characterSelect");
     window.skyrimPlatform.widgets.set(others.concat([widget]));
   };
 
