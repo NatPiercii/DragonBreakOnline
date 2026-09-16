@@ -14,8 +14,9 @@ type Mp = any;
 // Manny's Notice Board mod (and our own board activators) place boards in every
 // town. Activating one opens the board of the hold it stands in: a board in
 // Riverwood shows Whiterun's notices, one inside a stronghold's radius shows
-// that stronghold's. Three tabs: Hold Notices (free, officials only), Shop Ads
-// and Citizen Notices (30 gold a post). Everyone reads every tab. Notices fade
+// that stronghold's. Four tabs: Hold Notices (free, officials only), Shop Ads and
+// Citizen Notices (30 gold a post), and Recruitment for factions and guilds (100 gold
+// on a board in a great city, 50 in a town). Everyone reads every tab. Notices fade
 // after a week; a board holds 60. Officials of the hold and admins can take a
 // notice down.
 //
@@ -39,6 +40,8 @@ type Mp = any;
 // server-settings.json keys (all optional):
 //   noticeBoardBaseDescs    board activator bases, default Manny's + ours
 //   bountyBoardCostGold     price of a Shop or Citizen post, default 30
+//   bountyBoardRecruitCityGold  price of a Recruitment post in a great city, default 100
+//   bountyBoardRecruitTownGold  price of a Recruitment post anywhere else, default 50
 //   bountyBoardExpiryDays   days a notice stays up, default 7
 //   bountyBoardMaxNotes     notices one hold's board holds, default 60
 //   bountyBoardMaxTextLen   characters per notice, default 500
@@ -57,6 +60,8 @@ const STORE_FILE = "notice-boards.json";
 const GOLD_BASE_ID = 0x0000000f;
 
 const DEFAULT_COST_GOLD = 30;
+const DEFAULT_RECRUIT_CITY_GOLD = 100;
+const DEFAULT_RECRUIT_TOWN_GOLD = 50;
 const DEFAULT_EXPIRY_DAYS = 7;
 const DEFAULT_MAX_NOTES = 60;
 const DEFAULT_MAX_TEXT_LEN = 500;
@@ -70,11 +75,12 @@ const MAX_ESPM_CACHE = 4096;
 // getUserByActor reports failure with Networking::InvalidUserId, not -1.
 const INVALID_USER_ID = 65535;
 
-export type TabId = "hold" | "shop" | "citizen";
+export type TabId = "hold" | "shop" | "citizen" | "recruit";
 const TABS: Array<{ id: TabId; label: string; official: boolean }> = [
   { id: "hold", label: "Hold Notices", official: true },
   { id: "shop", label: "Shop Ads", official: false },
   { id: "citizen", label: "Citizen Notices", official: false },
+  { id: "recruit", label: "Recruitment", official: false },
 ];
 const isTab = (v: unknown): v is TabId => TABS.some((t) => t.id === v);
 
@@ -114,6 +120,10 @@ export class BountyBoardSystem implements System {
 
     const cost = Number(all?.["bountyBoardCostGold"]);
     if (Number.isFinite(cost) && cost >= 0) this.costGold = Math.floor(cost);
+    const cityGold = Number(all?.["bountyBoardRecruitCityGold"]);
+    if (Number.isFinite(cityGold) && cityGold >= 0) this.recruitCityGold = Math.floor(cityGold);
+    const townGold = Number(all?.["bountyBoardRecruitTownGold"]);
+    if (Number.isFinite(townGold) && townGold >= 0) this.recruitTownGold = Math.floor(townGold);
     const days = Number(all?.["bountyBoardExpiryDays"]);
     if (Number.isFinite(days) && days > 0) this.expiryDays = days;
     const maxNotes = Number(all?.["bountyBoardMaxNotes"]);
@@ -148,7 +158,7 @@ export class BountyBoardSystem implements System {
       const userId = this.userOf(ctx, Number(actorId) >>> 0);
       if (userId >= 0) this.onOpenRequest(ctx, userId);
     };
-    this.log(`[board] ready, ${this.boardBaseIds.size} board base(s), ${this.costGold} gold a notice, ${this.expiryDays} days on the board, store ${this.storePath}`);
+    this.log(`[board] ready, ${this.boardBaseIds.size} board base(s), ${this.costGold} gold a notice, recruitment ${this.recruitCityGold} in a city and ${this.recruitTownGold} in a town, ${this.expiryDays} days on the board, store ${this.storePath}`);
   }
 
   // Activating a board opens the menu instead of the vanilla activation.
@@ -310,7 +320,7 @@ export class BountyBoardSystem implements System {
     }
 
     // Hold Notices are free; the fee for the others is taken only once everything else has passed.
-    const cost = tabDef.official ? 0 : this.costGold;
+    const cost = this.costOf(ctx, tab, zone, session.refr);
     if (cost > 0 && !this.takeGold(ctx, actorId, cost)) {
       this.notice(ctx, userId, `Pinning a notice costs ${cost} gold, and you do not have it.`);
       return;
@@ -377,7 +387,7 @@ export class BountyBoardSystem implements System {
       maxTextLen: this.maxTextLen,
       maxNotes: this.maxNotes,
       expiryDays: this.expiryDays,
-      tabs: TABS.map((t) => ({ id: t.id, label: t.label, cost: t.official ? 0 : this.costGold, canPost: !t.official || official || admin })),
+      tabs: TABS.map((t) => ({ id: t.id, label: t.label, cost: this.costOf(ctx, t.id, zone, session.refr), canPost: !t.official || official || admin })),
       notes: rec.notes.map((n) => ({
         id: n.id,
         tab: n.tab,
@@ -657,6 +667,16 @@ export class BountyBoardSystem implements System {
   }
 
   private costGold = DEFAULT_COST_GOLD;
+  private recruitCityGold = DEFAULT_RECRUIT_CITY_GOLD;
+  private recruitTownGold = DEFAULT_RECRUIT_TOWN_GOLD;
+
+  // Hold Notices are free; Recruitment is priced by whether this board stands in the zone's great city
+  private costOf(ctx: SystemContext, tab: TabId, zone: Zone, refr: number): number {
+    if (TABS.find((x) => x.id === tab)?.official) return 0;
+    if (tab !== "recruit") return this.costGold;
+    const spot = this.boardSpot(ctx, refr);
+    return spot && this.zones.isMajorCity(zone, spot.pos) ? this.recruitCityGold : this.recruitTownGold;
+  }
   private expiryDays = DEFAULT_EXPIRY_DAYS;
   private maxNotes = DEFAULT_MAX_NOTES;
   private maxTextLen = DEFAULT_MAX_TEXT_LEN;
