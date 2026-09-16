@@ -1,0 +1,195 @@
+// Pigeon coop in the DragonBreak palette (src/dbo-theme.scss): a panel with the people
+// this character has met on the left, the letter on the right, the price in the footer.
+@import '../../dbo-theme.scss';
+
+.pigeon {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 54;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: $dbo-ui-font;
+
+  &__fade {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(8, 25, 28, 0.42), rgba(3, 10, 12, 0.85) 100%);
+  }
+
+  &__panel {
+    position: relative;
+    pointer-events: auto;
+    width: min(760px, 92vw);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 24px 28px 20px;
+    @include dbo-panel;
+  }
+
+  &__title {
+    margin: 0;
+    @include dbo-title;
+    font-size: clamp(20px, 2.2vw, 30px);
+    text-align: center;
+  }
+
+  &__result {
+    margin: 0;
+    padding: 8px 12px;
+    text-align: center;
+    font-family: $dbo-book-font;
+    font-size: 15px;
+    border: 1px solid $dbo-border;
+    background: rgba(0, 0, 0, 0.25);
+    color: $dbo-text;
+
+    &--refused {
+      border-color: rgba(201, 70, 58, 0.7);
+    }
+  }
+
+  &__body {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 14px;
+    min-height: 280px;
+  }
+
+  &__contacts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  &__contact {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 8px 10px;
+    text-align: left;
+    cursor: pointer;
+    color: $dbo-text;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid $dbo-stone-dark;
+    font-family: $dbo-ui-font;
+    transition: border-color $dbo-fast, background $dbo-fast;
+
+    &:hover {
+      border-color: $dbo-border;
+    }
+
+    &--selected {
+      border-color: $dbo-border-strong;
+      background: rgba(47, 124, 128, 0.22);
+      box-shadow: $dbo-glow;
+    }
+  }
+
+  &__contact-name {
+    font-size: 16px;
+    color: $dbo-silver;
+  }
+
+  &__contact-tag {
+    font-size: 12px;
+    color: $dbo-text-dim;
+  }
+
+  &__contact-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: $dbo-text-dim;
+  }
+
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: $dbo-stone;
+
+    &--online {
+      background: $dbo-aqua;
+      box-shadow: 0 0 6px rgba(143, 211, 208, 0.7);
+    }
+  }
+
+  &__empty {
+    margin: 0;
+    padding: 12px;
+    font-family: $dbo-book-font;
+    font-style: italic;
+    color: $dbo-text-dim;
+  }
+
+  &__letter {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__text {
+    flex: 1;
+    min-height: 240px;
+    resize: none;
+    padding: 12px;
+    font-family: $dbo-book-font;
+    font-size: 16px;
+    line-height: 1.45;
+    color: $dbo-text;
+    background: rgba(0, 0, 0, 0.32);
+    border: 1px solid $dbo-border;
+    outline: none;
+
+    &:focus {
+      border-color: $dbo-border-strong;
+    }
+
+    &:disabled {
+      opacity: 0.55;
+    }
+  }
+
+  &__count {
+    align-self: flex-end;
+    margin-top: 4px;
+    font-size: 12px;
+    color: $dbo-text-dim;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__hint {
+    font-size: 13px;
+    color: $dbo-text-dim;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  &__button {
+    @include dbo-button;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+  }
+}

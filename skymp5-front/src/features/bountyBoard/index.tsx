@@ -180,6 +180,7 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
             >
               {postLabel}
             </button>
+            <button className="bountyBoard__button" onClick={() => { send('dbo:pigeonOpen'); send(ev.close); }}>Send a pigeon</button>
             <button className="bountyBoard__button" onClick={() => send(ev.close)}>Close</button>
           </div>
         </div>
