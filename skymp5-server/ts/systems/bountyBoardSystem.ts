@@ -158,6 +158,11 @@ export class BountyBoardSystem implements System {
       const userId = this.userOf(ctx, Number(actorId) >>> 0);
       if (userId >= 0) this.onOpenRequest(ctx, userId);
     };
+    // The zone of the board an actor stands at, or null; the gamemode sends pigeons only from a board
+    (globalThis as any).__alduinakBoardNear = (actorId: number): string | null => {
+      const board = this.nearestBoard(ctx, Number(actorId) >>> 0);
+      return board ? board.zoneId : null;
+    };
     this.log(`[board] ready, ${this.boardBaseIds.size} board base(s), ${this.costGold} gold a notice, recruitment ${this.recruitCityGold} in a city and ${this.recruitTownGold} in a town, ${this.expiryDays} days on the board, store ${this.storePath}`);
   }
 
