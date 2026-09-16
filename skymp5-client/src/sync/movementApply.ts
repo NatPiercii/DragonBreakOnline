@@ -9,7 +9,7 @@ import { RespawnNeededError } from "../lib/errors";
 import { Movement, RunMode, AnimationVariables, Transform, NiPoint3 } from "./movement";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { SpApiInteractor } from "../services/spApiInteractor";
-import { isInSitPose } from "./animation";
+import { isInSitPose, setRefrCollision } from "./animation";
 
 const sqr = (x: number) => x * x;
 
@@ -167,10 +167,20 @@ interface GroundSample {
 // Clones with a translateTo still running, so it can be stopped exactly once when they settle
 const translating = new Set<number>();
 
+// stopTranslation does not reliably hand the reference back to havok; the sit path's toggle does
+const giveBackCollision = (refrId: number): void => {
+  if (isInSitPose(refrId)) {
+    return;
+  }
+  try { setRefrCollision(refrId, true); } catch (e) { /* not loaded */ }
+};
+
 // A running translateTo holds collision off, so a copy nothing drives any more hangs in the air
 export const settleTranslation = (refr: ObjectReference): void => {
-  if (translating.delete(refr.getFormID())) {
+  const refrId = refr.getFormID();
+  if (translating.delete(refrId)) {
     refr.stopTranslation();
+    giveBackCollision(refrId);
   }
 };
 
@@ -264,6 +274,7 @@ const translateTo = (refr: ObjectReference, m: Movement) => {
   // Standing at the reported spot or dead: hand the copy back to havok instead of leaving it translating
   if (translating.delete(refrId)) {
     refr.stopTranslation();
+    giveBackCollision(refrId);
   }
 };
 
