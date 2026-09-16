@@ -24,6 +24,8 @@ export interface Zone {
   worldspaces?: string[];
   // Container ref desc that receives the zone's fees, e.g. "f19f:DragonBreak.esp".
   treasury?: string;
+  // The great city in the zone, if it has one; boards inside it charge city rates, the rest of the zone town rates
+  majorCity?: { center: number[]; radius: number };
 }
 
 const ZONES_FILE = "zones.json";
@@ -35,6 +37,11 @@ const CITY_WORLD_DESCS = ["1a26f:Skyrim.esm", "1691d:Skyrim.esm", "16bb4:Skyrim.
 const numList = (v: unknown): number[] => Array.isArray(v) ? v.map(Number).filter(Number.isFinite) : [];
 const strList = (v: unknown): string[] => Array.isArray(v) ? v.map(String) : [];
 const optStr = (v: unknown): string | undefined => typeof v === "string" && v ? v : undefined;
+const cityOf = (v: any): Zone["majorCity"] => {
+  const center = numList(v && v.center);
+  const radius = Number(v && v.radius);
+  return center.length >= 2 && radius > 0 ? { center, radius } : undefined;
+};
 
 // "0x1A26F:Skyrim.esm", "1a26f:Skyrim.esm" and "01A26F:skyrim.esm" are one worldspace.
 export const normDesc = (desc: unknown): string => {
@@ -60,15 +67,15 @@ export class Zones {
       this.zones = [];
       for (const h of Array.isArray(raw.holds) ? raw.holds : []) {
         if (!h || typeof h.id !== "string") continue;
-        this.zones.push({ id: h.id, name: String(h.name || h.id), kind: "hold", officials: strList(h.officials), capital: numList(h.capital), treasury: optStr(h.treasury) });
+        this.zones.push({ id: h.id, name: String(h.name || h.id), kind: "hold", officials: strList(h.officials), capital: numList(h.capital), treasury: optStr(h.treasury), majorCity: cityOf(h.majorCity) });
       }
       for (const s of Array.isArray(raw.strongholds) ? raw.strongholds : []) {
         if (!s || typeof s.id !== "string") continue;
-        this.zones.push({ id: s.id, name: String(s.name || s.id), kind: "stronghold", officials: strList(s.officials), center: numList(s.center), radius: Number(s.radius) || 0, treasury: optStr(s.treasury) });
+        this.zones.push({ id: s.id, name: String(s.name || s.id), kind: "stronghold", officials: strList(s.officials), center: numList(s.center), radius: Number(s.radius) || 0, treasury: optStr(s.treasury), majorCity: cityOf(s.majorCity) });
       }
       for (const r of Array.isArray(raw.regions) ? raw.regions : []) {
         if (!r || typeof r.id !== "string") continue;
-        this.zones.push({ id: r.id, name: String(r.name || r.id), kind: "region", officials: strList(r.officials), worldspaces: strList(r.worldspaces).map(normDesc), treasury: optStr(r.treasury) });
+        this.zones.push({ id: r.id, name: String(r.name || r.id), kind: "region", officials: strList(r.officials), worldspaces: strList(r.worldspaces).map(normDesc), treasury: optStr(r.treasury), majorCity: cityOf(r.majorCity) });
       }
       this.rankTitles = raw.rankTitles && typeof raw.rankTitles === "object" ? raw.rankTitles : {};
       this.strongholdsOverride = !(raw.sovereignty && raw.sovereignty.strongholdsOverrideHolds === false);
@@ -84,6 +91,12 @@ export class Zones {
   // The folder zones.json was found in; sidecar files (officials, notice boards) live there too.
   dataDir = "";
   byId(id: string): Zone | null { return this.zones.find((z) => z.id === id) || null; }
+  // Inside the zone's great city; city worldspaces share their region's coordinate frame, so a position compares directly
+  isMajorCity(zone: Zone, pos: unknown): boolean {
+    const c = zone.majorCity;
+    if (!c || !Array.isArray(pos) || pos.length < 2) return false;
+    return Math.hypot(Number(pos[0]) - c.center[0], Number(pos[1]) - c.center[1]) <= c.radius;
+  }
   titleOf(rank: string): string { return String(this.rankTitles[rank] || rank); }
 
   // The zone a world position belongs to; null for interiors and unknown worldspaces.
