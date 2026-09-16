@@ -73,9 +73,9 @@ Needs the skill first: take **Miner** and/or **Woodcutter** in the skills menu.
 | # | Do | Proof |
 |---|---|---|
 | 22a | Walk to the board near the cathedral, about [59437, 202554] | Manny's board stands outdoors in the city |
-| 22b | Use it | The board opens on **Bruma**'s pool. The log must NOT say  |
+| 22b | Use it | The board opens on **Bruma**'s pool. The log must NOT say `[board] board 1164c7 ... is outside every zone` |
 | 22c | Post on Shop Ads | 30 gold taken, half deposited in the Bruma treasury |
-| 22d | As a Bruma official (), post on Hold Notices | Free, and only officials can |
+| 22d | As a Bruma official (`/appoint <you> bruma count`), post on Hold Notices | Free, and only officials can |
 
 ## G. Things that changed underneath
 
