@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as path from "path";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content, WORLD_LOADED_EVENT } from "./system";
 import { placeNpc, placeAtMe, NpcLocation, HOSTILE_PROP } from "./npcPlacement";
@@ -75,6 +76,8 @@ const ASH_DELAY_MS = 1250;
 const DEFAULT_ASH_PILE_BASE = 0xc674b;
 
 const REGISTRY_FILE = "./companions.json";
+// Written into every companion's change form, so the boot sweep can find one the registry lost
+const COMPANION_PROP = "private.dboCompanion";
 const UPDATE_MS = 500;
 const SPAWN_DISTANCE = 96;
 const SPAWN_LIFT = 16;
@@ -118,6 +121,9 @@ export class CompanionSystem implements System {
   private ashPileDesc = "";
   private stored: Stored[] = [];
   private twinSouls = new Set<number>();
+  // Database driver and its directory, for the boot sweep of tagged companions
+  private dbDriver = "file";
+  private dbName = "world";
   // Actor ids of the previous run still to destroy
   private leftovers: number[] = [];
 
@@ -127,6 +133,8 @@ export class CompanionSystem implements System {
     const corpseSec = Number(all?.["npcCorpseSeconds"]);
     if (Number.isFinite(corpseSec) && corpseSec > 0) this.corpseSec = corpseSec;
     this.ashPileDesc = this.containerDesc(all?.["reanimateAshPileBase"] ?? DEFAULT_ASH_PILE_BASE);
+    this.dbDriver = String(all?.["databaseDriver"] ?? "file");
+    this.dbName = String(all?.["databaseName"] ?? "world");
     this.loadRegistry();
     ctx.gm.once(WORLD_LOADED_EVENT, () => this.removeLeftovers());
     this.installHooks();
@@ -209,6 +217,8 @@ export class CompanionSystem implements System {
       id = placeNpc(mp, ownerId, baseDesc, loc) >>> 0;
       // Clients never raise a companion to attack everyone
       try { mp.set(id, HOSTILE_PROP, false); } catch { }
+      // Survives in the change form, so a crash cannot leave a summon behind as an ordinary hostile npc
+      try { mp.set(id, COMPANION_PROP, kind); } catch { }
     } catch (e) {
       this.log(`CompanionSystem: failed to spawn ${baseDesc} for ${hex(ownerId)}: ${e}`);
       return null;
@@ -533,7 +543,33 @@ export class CompanionSystem implements System {
   }
 
   // The world DB loads after every system's init (attachSaveStorage in index.ts), before anyone can place a form
+  // Ids of tagged companions in the stored change forms, which outlive the registry a crash never updated
+  private taggedLeftovers(): number[] {
+    if (String(this.dbDriver).toLowerCase() !== "file") {
+      this.log(`CompanionSystem: database driver '${this.dbDriver}' cannot be swept, only the registry is used`);
+      return [];
+    }
+    const dir = path.resolve(this.dbName, "changeForms");
+    let files: string[] = [];
+    try { files = fs.readdirSync(dir); } catch (e) { this.log(`CompanionSystem: ${dir} unreadable: ${e}`); return []; }
+    const ids: number[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      let form: Record<string, unknown> = {};
+      try { form = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")); } catch { continue; }
+      // A character has a profile; anything ours has none and carries the tag
+      if (Number(form["profileId"] ?? -1) >= 0) continue;
+      const fields = form["dynamicFields"];
+      if (!fields || typeof fields !== "object" || !(COMPANION_PROP in (fields as object))) continue;
+      const desc = String(form["formDesc"] ?? "");
+      if (!desc) continue;
+      try { const id = this.mp.getIdFromDesc(desc) >>> 0; if (id) ids.push(id); } catch { }
+    }
+    return ids;
+  }
+
   private removeLeftovers(): void {
+    for (const id of this.taggedLeftovers()) if (!this.leftovers.includes(id)) this.leftovers.push(id);
     const ids = this.leftovers;
     if (!ids.length) return;
     this.leftovers = [];
