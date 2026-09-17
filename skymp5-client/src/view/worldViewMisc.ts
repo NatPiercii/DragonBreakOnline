@@ -49,6 +49,13 @@ export const remoteIdToLocalId = (remoteFormId: number): number => {
 };
 
 // Hosted ids are remote ids, some stored with the 64-bit server offset
+// Another player's character (not a server-spawned NPC or creature, which share the 0xff id space)
+export const isRemotePlayerCharacter = (remoteFormId: number): boolean => {
+  if (remoteFormId < 0xff000000) return false;
+  const view = getViewFromStorage();
+  return !!view && view.isPlayerCharacter(remoteFormId);
+};
+
 export const isRemoteHostedByMe = (remoteId: number): boolean => {
   const hosted = storage["hosted"];
   return remoteId !== 0 && Array.isArray(hosted) && (hosted.includes(remoteId) || hosted.includes(remoteId + 0x100000000));

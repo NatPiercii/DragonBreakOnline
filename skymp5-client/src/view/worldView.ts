@@ -33,6 +33,10 @@ export class WorldView extends ClientListener {
     return this.state.formViews.getLocalRefrId(remoteRefrId);
   }
 
+  isPlayerCharacter(remoteRefrId: number): boolean {
+    return this.state.formViews.isPlayerCharacter(remoteRefrId);
+  }
+
   syncFormArray(model: WorldModel) {
     const { settings } = this.sp;
     const showMe = settings['skymp5-client']['show-me'];

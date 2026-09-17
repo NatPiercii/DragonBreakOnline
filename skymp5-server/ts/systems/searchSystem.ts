@@ -2,6 +2,7 @@ import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { toFormId } from "./formIdUtil";
 import { KEY_BASE_ID } from "./housingSystem";
+import { LAWFUL_PROP } from "./captureSystem";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -187,6 +188,10 @@ export class SearchSystem implements System {
 
   // ── Incoming requests ───────────────────────────────────────────────────────
 
+  private isLawful(ctx: SystemContext, actorId: number): boolean {
+    try { return (ctx.svr as any).get(actorId, LAWFUL_PROP) === true; } catch { return false; }
+  }
+
   private onSearchRequest(ctx: SystemContext, userId: number, content: Content): void {
     const searcherActorId = this.resolveActor(ctx, userId);
     if (searcherActorId === null) {
@@ -206,6 +211,11 @@ export class SearchSystem implements System {
     const targetActorId = toFormId(content.target);
     if (!this.validTarget(ctx, searcherActorId, targetActorId)) {
       this.notice(ctx, userId, "Look at a player or a body to search.");
+      return;
+    }
+    // Searching a living player is a guard's job; bodies stay open to everyone under the take limit
+    if (!this.isDead(ctx, targetActorId) && !this.isLawful(ctx, searcherActorId)) {
+      this.notice(ctx, userId, "Only guards, officials and admins can search someone.");
       return;
     }
     if (this.sessions.has(targetActorId)) {

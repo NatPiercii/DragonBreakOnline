@@ -104,6 +104,11 @@ export class FormViewArray {
     return formView ? formView.getLocalRefrId() : 0;
   }
 
+  isPlayerCharacter(remoteRefrId: number): boolean {
+    const formView = this.formViews.find((formView?: FormView) => formView && formView.getRemoteRefrId() === remoteRefrId);
+    return !!formView && formView.isPlayerCharacter();
+  }
+
   getNthFormView(i: number): FormView | undefined {
     return this.formViews[i];
   }

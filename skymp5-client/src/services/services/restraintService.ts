@@ -38,6 +38,14 @@ const CARRY_FOLLOW_DEADZONE = 4;
 const CARRY_FOLLOW_YAW_DEADZONE = 3;
 const CARRY_FOLLOW_MIN_SPEED = 50;
 const CARRY_FOLLOW_MAX_DIST = 2048;
+// Bound captive on a tether: once the captor is more than the slack away the captive is walked back to the
+// keep distance behind them; beyond the max the server moves them (door, cell change, outrun)
+const LEASH_SLACK = 220;
+const LEASH_KEEP = 130;
+const LEASH_TIME_S = 0.45;
+const LEASH_MIN_SPEED = 110;
+const LEASH_MAX_SPEED = 520;
+const LEASH_MAX_DIST = 1500;
 const CARRIER_COLLISION_REFRESH_MS = 1000;
 
 const finiteOr = (value: unknown, fallback: number): number =>
@@ -147,6 +155,8 @@ export class RestraintService extends ClientListener {
       if (!this.carried) {
         this.carrierId = 0;
       }
+      this.leashId = typeof content["leash"] === "number" && this.boundHands && !this.carried ? content["leash"] as number : 0;
+      if (!this.leashId) this.stopLeashWalk();
       if (typeof content["anim"] === "string" && content["anim"]) {
         this.captiveAnim = content["anim"] as string;
       }
@@ -201,7 +211,44 @@ export class RestraintService extends ClientListener {
 
     if (this.carried && this.carrierId) {
       this.followCarrier(player);
+    } else if (this.boundHands && this.leashId) {
+      this.followLeash(player);
     }
+  }
+
+  private followLeash(player: Actor): void {
+    const captor = this.sp.ObjectReference.from(this.sp.Game.getFormEx(remoteIdToLocalId(this.leashId)));
+    if (!captor || !captor.is3DLoaded() ||
+      ObjectReferenceEx.getWorldOrCell(captor) !== ObjectReferenceEx.getWorldOrCell(player)) {
+      this.stopLeashWalk();
+      return;
+    }
+    const own = ObjectReferenceEx.getPos(player);
+    const to = ObjectReferenceEx.getPos(captor);
+    const dx = to[0] - own[0], dy = to[1] - own[1];
+    const dist = Math.hypot(dx, dy);
+    if (dist <= LEASH_SLACK || dist > LEASH_MAX_DIST) {
+      this.stopLeashWalk();
+      return;
+    }
+    const k = (dist - LEASH_KEEP) / dist;
+    const facing = Math.atan2(dx, dy) * 180 / Math.PI;
+    player.translateTo(
+      own[0] + dx * k, own[1] + dy * k, to[2],
+      player.getAngleX(), player.getAngleY(), facing,
+      Math.min(LEASH_MAX_SPEED, Math.max(LEASH_MIN_SPEED, (dist - LEASH_KEEP) / LEASH_TIME_S)), 0,
+    );
+    this.leashWalking = true;
+  }
+
+  // translateTo holds collision off; hand the body back to havok as soon as the tether goes slack
+  private stopLeashWalk(): void {
+    if (!this.leashWalking) return;
+    this.leashWalking = false;
+    try {
+      const player = this.sp.Game.getPlayer();
+      if (player) player.stopTranslation();
+    } catch { /* not in game */ }
   }
 
   private followCarrier(player: Actor): void {
@@ -374,6 +421,8 @@ export class RestraintService extends ClientListener {
   private boundHands = false;
   private carried = false;
   private carrierId = 0;
+  private leashId = 0;
+  private leashWalking = false;
   private captiveAnim = BOUND_HANDS_ANIM_START;
   private carriedAnim = CARRIED_ANIM_START;
   private carryForward = CARRY_FORWARD;

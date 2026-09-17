@@ -43,6 +43,14 @@ const NOTICE_PACKET = "captureNotice";
 //   mp.get(actorId, "private.restrained") -> { boundHands, carried, captorActorId, carrierActorId } | null
 const RESTRAINED_PROP = "private.restrained";
 
+// Set by the gamemode on admins and zone officials (guards included): only they may restrain or carry another player
+export const LAWFUL_PROP = "private.dboLawful";
+
+// A bound captive is tethered to their captor: the captive's client walks them after the captor, and the server
+// moves them over when the captor leaves the cell or gets this far ahead (squared game units)
+const LEASH_SNAP_DIST_SQ = 1500 * 1500;
+const LEASH_SNAP_BEHIND = 120;
+
 // 0 = no item requirement; set manaclesFormId in server-settings.json to gate arrests behind a carryable item
 const DEFAULT_MANACLES = 0;
 
@@ -162,7 +170,7 @@ export class CaptureSystem implements System {
 
   // Snap every carried body onto its carrier; runs from the ~1ms update loop, self-throttled to CARRY_FOLLOW_INTERVAL_MS
   async updateAsync(ctx: SystemContext): Promise<void> {
-    if (this.carrying.size === 0) {
+    if (this.carrying.size === 0 && this.restraints.size === 0) {
       return;
     }
     const now = Date.now();
@@ -172,6 +180,7 @@ export class CaptureSystem implements System {
     this.lastFollowMs = now;
 
     const mp = ctx.svr as Mp;
+    this.followLeashes(ctx);
     for (const [carrierActorId, carriedActorId] of Array.from(this.carrying)) {
       try {
         // A dead carrier drops the body; a dead body slips free
@@ -219,6 +228,35 @@ export class CaptureSystem implements System {
         this.releaseTarget(ctx, carriedActorId);
       }
     }
+  }
+
+  // Walking the captive is the captive client's job; this only catches the captor going through a door or outrunning it
+  private followLeashes(ctx: SystemContext): void {
+    const mp = ctx.svr as Mp;
+    for (const [captiveActorId, info] of Array.from(this.restraints)) {
+      if (!info.boundHands || info.carried || !info.captorActorId) continue;
+      try {
+        if (this.userOf(ctx, captiveActorId) < 0 || this.userOf(ctx, info.captorActorId) < 0) continue;
+        if (this.isDowned(mp, captiveActorId) || this.isDowned(mp, info.captorActorId)) continue;
+        const loc = mp.get(info.captorActorId, "locationalData");
+        const own = mp.get(captiveActorId, "locationalData");
+        if (!loc || !Array.isArray(loc.pos) || !own || !Array.isArray(own.pos)) continue;
+        const sameCell = own.cellOrWorldDesc === loc.cellOrWorldDesc;
+        const dx = loc.pos[0] - own.pos[0], dy = loc.pos[1] - own.pos[1], dz = loc.pos[2] - own.pos[2];
+        if (sameCell && dx * dx + dy * dy + dz * dz < LEASH_SNAP_DIST_SQ) continue;
+        const yaw = Array.isArray(loc.rot) ? Number(loc.rot[2]) || 0 : 0;
+        const rad = yaw * Math.PI / 180;
+        mp.set(captiveActorId, "locationalData", {
+          cellOrWorldDesc: loc.cellOrWorldDesc,
+          pos: [loc.pos[0] - Math.sin(rad) * LEASH_SNAP_BEHIND, loc.pos[1] - Math.cos(rad) * LEASH_SNAP_BEHIND, loc.pos[2]],
+          rot: [0, 0, yaw],
+        });
+      } catch { /* either side vanished; release paths clean up */ }
+    }
+  }
+
+  private isLawful(mp: Mp, actorId: number): boolean {
+    try { return mp.get(actorId, LAWFUL_PROP) === true; } catch { return false; }
   }
 
   disconnect(userId: number, ctx: SystemContext): void {
@@ -300,6 +338,10 @@ export class CaptureSystem implements System {
       return;
     }
     const targetActorId = toFormId(content.target, 0);
+    if (!this.isLawful(mp, captorActorId)) {
+      this.notice(ctx, userId, "Only guards, officials and admins can restrain someone.");
+      return;
+    }
     if (!this.validTarget(ctx, captorActorId, targetActorId)) {
       this.notice(ctx, userId, "Look at another player to restrain them.");
       return;
@@ -329,6 +371,10 @@ export class CaptureSystem implements System {
       return;
     }
     const targetActorId = toFormId(content.target, 0);
+    if (!this.isLawful(mp, carrierActorId)) {
+      this.notice(ctx, userId, "Only guards, officials and admins can carry someone.");
+      return;
+    }
     if (!this.validTarget(ctx, carrierActorId, targetActorId)) {
       this.notice(ctx, userId, "Look at another player to carry them.");
       return;
@@ -380,14 +426,14 @@ export class CaptureSystem implements System {
       this.notice(ctx, userId, "They are not restrained.");
       return;
     }
-    // Only the captor (or whoever is carrying them) may release: prevents griefing
+    // The captor, whoever carries them, or any guard, official or admin may uncuff: prevents griefing
     const carrier = this.carriedBy.get(targetActorId);
-    if (info.captorActorId !== requesterActorId && carrier !== requesterActorId) {
-      this.notice(ctx, userId, "Only their captor can release them.");
+    if (info.captorActorId !== requesterActorId && carrier !== requesterActorId && !this.isLawful(ctx.svr as Mp, requesterActorId)) {
+      this.notice(ctx, userId, "Only their captor or the guard can uncuff them.");
       return;
     }
     this.releaseTarget(ctx, targetActorId);
-    this.notice(ctx, userId, `You released ${this.nameOf(ctx, targetActorId)}.`);
+    this.notice(ctx, userId, `You uncuffed ${this.nameOf(ctx, targetActorId)}.`);
   }
 
   private onConsentResult(ctx: SystemContext, userId: number, content: Content): void {
@@ -584,6 +630,7 @@ export class CaptureSystem implements System {
       boundHands: info.boundHands,
       carried: info.carried,
       carrier: this.carriedBy.get(targetActorId) ?? 0,
+      leash: info.boundHands && !info.carried ? info.captorActorId : 0,
       anim: this.captiveAnim,
       carriedAnim: this.carriedAnim,
       carryForward: this.carryForward,

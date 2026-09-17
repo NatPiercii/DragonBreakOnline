@@ -1,33 +1,26 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
-import { sendCustomPacket, notifyNextUpdate } from "./customPacketUtil";
+import { sendCustomPacket, notifyNextUpdate, parseCustomPacket } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, isMenuHotkeyBlocked } from "./widgetMenuUtil";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
-import { localIdToRemoteId } from "../../view/worldViewMisc";
+import { isRemotePlayerCharacter, localIdToRemoteId } from "../../view/worldViewMisc";
 import { logTrace } from "../../logging";
+import { ConnectionMessage } from "../events/connectionMessage";
+import { CustomPacketMessage } from "../messages/customPacketMessage";
 
 // for the browser-side widget setter (executed inside the CEF browser)
 declare const window: any;
 
 const WIDGET_ID = 10;
+const MASK_TOGGLE_COOLDOWN_MS = 1500;
 
 interface PlayerAction {
   id: string;
   label: string;
 }
 
-// Character interaction menu, kept intentionally small (Trade is a dedicated button above these).
-const ACTIONS: PlayerAction[] = [
-  { id: 'introduce', label: 'Introduce' },
-  { id: 'search', label: 'Search' },
-  { id: 'capture', label: 'Restrain' },
-  { id: 'carry', label: 'Carry' },
-  { id: 'putdown', label: 'Put down' },
-  { id: 'release', label: 'Release' },
-];
-
-// Every action goes to the server systems as a custom packet (by server form id).
+// Actions the server systems handle from this client's own packet (they check who may use them);
+// every other entry (introduce, inspect, party) goes to the gamemode as a dbo "playerAction" event.
 const PACKET_ACTIONS: Record<string, string> = {
-  introduce: 'introduceRequest',
   search: 'searchRequest',
   capture: 'captureRequest',
   carry: 'carryRequest',
@@ -43,6 +36,9 @@ const events = {
 
 // Module-level so the browser-side widget setter can read it (runtime injection).
 let targetName = '';
+let menuActions: PlayerAction[] = [];
+let menuLines: string[] = [];
+let menuMode = 'menu';
 
 /**
  * Look-at-target interaction menu on the X key (DragonBreak Online): every
@@ -59,6 +55,7 @@ export class PlayerActionService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
+    this.controller.emitter.on("customPacketMessage", (e) => this.onMenuPacket(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
   }
@@ -73,10 +70,19 @@ export class PlayerActionService extends ClientListener {
     // The engine stamps the live control map's event name on every device, so a rebind applies at once
     // DragonBreak Online: the interaction menu lives on the X key (keyboard only), not on Activate.
     const xPressed = e.device === InputDeviceType.Keyboard && e.code === DxScanCode.X;
-    if (!xPressed || this.menuOpen) {
+    // H pulls a mask up or down; the gamemode dresses the character and swaps the shown name
+    const hPressed = e.device === InputDeviceType.Keyboard && e.code === DxScanCode.H;
+    if ((!xPressed && !hPressed) || this.menuOpen) {
       return;
     }
     if (isMenuHotkeyBlocked(this.sp, this.controller)) {
+      return;
+    }
+    if (hPressed) {
+      const now = Date.now();
+      if (now - this.lastMaskToggle < MASK_TOGGLE_COOLDOWN_MS) return;
+      this.lastMaskToggle = now;
+      sendCustomPacket(this.controller, { customPacketType: "dbo", event: "maskToggle", args: [] });
       return;
     }
 
@@ -88,6 +94,8 @@ export class PlayerActionService extends ClientListener {
     if (!actor) return;
     const remoteId = localIdToRemoteId(ref.getFormID());
     if (!remoteId || remoteId < 0xff000000) return;
+    // Server-spawned creatures and NPCs share the id space and get no menu
+    if (!isRemotePlayerCharacter(remoteId)) return;
 
     // Belt and braces next to the prompt service's block: no clone dialogue.
     try { ref.blockActivation(true); } catch { /* unloaded ref */ }
@@ -96,13 +104,27 @@ export class PlayerActionService extends ClientListener {
       sendCustomPacket(this.controller, { customPacketType: PACKET_ACTIONS.search, target: remoteId });
       return;
     }
-    targetName = (ref.getName() || "").trim();
+    // The gamemode decides the entries (guard and official actions, restraint state) and answers with dboPlayerMenu
     this.playerTarget = remoteId;
-    // Names stay hidden until introduced (ff_knownIds owner prop)
-    if (!targetName || !this.knowsTarget(this.playerTarget)) {
-      targetName = "Stranger";
-    }
-    logTrace(this, `Opening player-action menu for`, targetName);
+    logTrace(this, `Asking for the player menu on`, remoteId.toString(16));
+    sendCustomPacket(this.controller, { customPacketType: "dbo", event: "playerMenu", args: [remoteId] });
+  }
+
+  private onMenuPacket(event: ConnectionMessage<CustomPacketMessage>): void {
+    const content = parseCustomPacket(event);
+    if (!content || content["customPacketType"] !== "dboPlayerMenu") return;
+    const target = Number(content["target"]) >>> 0;
+    if (!target || target !== this.playerTarget) return;
+    const raw = typeof content["name"] === "string" ? (content["name"] as string).trim() : "";
+    targetName = raw || "Stranger";
+    menuMode = content["mode"] === "inspect" ? "inspect" : "menu";
+    menuActions = Array.isArray(content["entries"])
+      ? (content["entries"] as Array<Record<string, unknown>>)
+        .filter((x) => x && typeof x["id"] === "string" && typeof x["label"] === "string")
+        .map((x) => ({ id: x["id"] as string, label: x["label"] as string }))
+      : [];
+    menuLines = Array.isArray(content["lines"]) ? (content["lines"] as unknown[]).map((x) => String(x)) : [];
+    if (this.menuOpen) this.closeMenu();
     this.openMenu();
   }
 
@@ -129,34 +151,28 @@ export class PlayerActionService extends ClientListener {
     }
     if (key === events.action) {
       const actionId = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
-      const packetType = PACKET_ACTIONS[actionId];
-      if (packetType && this.playerTarget) {
-        sendCustomPacket(this.controller, { customPacketType: packetType, target: this.playerTarget });
-      } else if (packetType) {
-        notifyNextUpdate(this.controller, this.sp, "Look at a player first.");
-      }
       this.closeMenu();
+      if (!this.playerTarget) {
+        notifyNextUpdate(this.controller, this.sp, "Look at a player first.");
+        return;
+      }
+      if (actionId === "trade") {
+        sendCustomPacket(this.controller, { customPacketType: "tradeRequest", recipient: this.playerTarget });
+        return;
+      }
+      const packetType = PACKET_ACTIONS[actionId];
+      if (packetType) {
+        sendCustomPacket(this.controller, { customPacketType: packetType, target: this.playerTarget });
+      } else if (actionId) {
+        sendCustomPacket(this.controller, { customPacketType: "dbo", event: "playerAction", args: [actionId, this.playerTarget] });
+      }
       return;
     }
   }
 
-  // True when the local player's ff_knownIds list contains the remote actor id.
-  // A missing list (gamemode without the introduce feature) shows real names.
-  private knowsTarget(remoteId: number): boolean {
-    if (this.sp.storage["ownerModelSet"] !== true) {
-      return true;
-    }
-    const owner = this.sp.storage["ownerModel"] as Record<string, unknown> | undefined;
-    const known = owner ? owner["ff_knownIds"] : undefined;
-    if (!Array.isArray(known)) {
-      return true;
-    }
-    return known.includes(remoteId);
-  }
-
   private openMenu(): void {
     this.menuOpen = true;
-    openFormMenu(this.sp, this.playerWidgetSetter, { ACTIONS, targetName, events, WIDGET_ID }, this.controller);
+    openFormMenu(this.sp, this.playerWidgetSetter, { menuActions, menuLines, menuMode, targetName, events, WIDGET_ID }, this.controller);
   }
 
   private closeMenu(): void {
@@ -170,7 +186,9 @@ export class PlayerActionService extends ClientListener {
       type: "contextMenu",
       id: WIDGET_ID,
       targetName: targetName,
-      actions: ACTIONS,
+      actions: menuActions,
+      lines: menuLines,
+      mode: menuMode,
       events: events,
     };
     const others = (window.skyrimPlatform.widgets.get() || []).filter((w: any) => w.id !== WIDGET_ID);
@@ -179,4 +197,5 @@ export class PlayerActionService extends ClientListener {
 
   private menuOpen = false;
   private playerTarget = 0;
+  private lastMaskToggle = 0;
 }

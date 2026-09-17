@@ -205,6 +205,10 @@ export const applyAnimation = (
 
 export const isInSitPose = (refrId: number): boolean => sitCollisionDisabledAt.has(refrId);
 
+export const clearSitPose = (refrId: number): void => {
+  sitCollisionDisabledAt.delete(refrId);
+};
+
 export const setRefrCollision = (refrId: number, collision: boolean): void => {
   setCollision(refrId, collision);
 };

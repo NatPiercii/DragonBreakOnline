@@ -1,5 +1,5 @@
 import { Actor, ActorBase, createText, destroyText, EffectShader, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
-import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving } from "../sync/animation";
+import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving, isInSitPose, clearSitPose, setRefrCollision } from "../sync/animation";
 import { Appearance, applyAppearance } from "../sync/appearance";
 import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
@@ -390,9 +390,27 @@ export class FormView {
     }
     setDefaultAnimsDisabled(this.refrId, alreadyHosted ? false : true);
 
-    // Own companions keep the follow offset CompanionService gives them
-    if (alreadyHosted && !isOwnCompanion(this.remoteRefrId)) {
-      Actor.from(refr)?.clearKeepOffsetFromActor();
+    if (alreadyHosted) {
+      const hostedActor = Actor.from(refr);
+      // Own companions keep the follow offset CompanionService gives them; others only lose an offset this view set
+      if (hostedActor && this.movState.offsetApplied && !isOwnCompanion(this.remoteRefrId)) {
+        hostedActor.clearKeepOffsetFromActor();
+        this.movState.offsetApplied = false;
+      }
+      if (hostedActor && refr.is3DLoaded()) {
+        // A weapon mode forced while the copy was remote would keep our own AI from drawing or sheathing
+        if (!this.movState.weapReleased) {
+          TESModPlatform.setWeaponDrawnMode(hostedActor, -1);
+          this.movState.weapReleased = true;
+        }
+        // A sit pose replayed before we hosted it holds collision off, and nothing else turns it back on for a host
+        if (isInSitPose(this.refrId)) {
+          clearSitPose(this.refrId);
+          setRefrCollision(this.refrId, true);
+        }
+      }
+    } else {
+      this.movState.weapReleased = false;
     }
 
     if (model.movement) {
@@ -414,7 +432,18 @@ export class FormView {
       const isNewMovement = +(model.numMovementChanges as number) !== this.movState.lastNumChanges;
       if (isNewMovement || Date.now() - this.movState.lastApply > 2000) {
         this.movState.lastApply = Date.now();
-        if (model.isHostedByOther || !this.movState.everApplied) {
+        // Nobody drives it yet: seat it on its spot without the collision-off slide, our AI takes it once hosted
+        if (!model.isHostedByOther && !this.movState.everApplied && ac && !model.isDead) {
+          const m = model.movement;
+          try {
+            if (ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), m.pos) > 16) {
+              refr.setPosition(m.pos[0], m.pos[1], m.pos[2]);
+            }
+            refr.setAngle(0, 0, m.rot[2]);
+          } catch { /* not loaded yet, the next pass seats it */ }
+          this.movState.lastNumChanges = +(model.numMovementChanges as number);
+          this.movState.everApplied = true;
+        } else if (model.isHostedByOther || !this.movState.everApplied) {
           const backup = model.movement.isWeapDrawn;
           const isDeadBackup = model.movement.isDead;
           if (forcedWeapDrawn === true || forcedWeapDrawn === false) {
@@ -430,6 +459,7 @@ export class FormView {
               ? model.movement
               : { ...model.movement, runMode: "Standing", isInJumpState: false, pos: [model.movement.pos[0], model.movement.pos[1], refr.getPositionZ()] };
             applyMovement(refr, movement, !!model.isMyClone);
+            this.movState.offsetApplied = true;
             restoreSitCollisionIfMoving(refr, movement);
           } catch (e) {
             if (e instanceof RespawnNeededError) {
@@ -454,8 +484,9 @@ export class FormView {
             // The server no longer drives this copy, so its last translateTo must not keep running
             settleTranslation(ac);
 
-            if (!isOwnCompanion(remoteId)) {
+            if (this.movState.offsetApplied && !isOwnCompanion(remoteId)) {
               ac.clearKeepOffsetFromActor();
+              this.movState.offsetApplied = false;
             }
 
             // TODO: make host service
@@ -491,7 +522,12 @@ export class FormView {
 
     if (refr.is3DLoaded()) {
       if (model.animation) {
-        applyAnimation(refr, model.animation, this.animState);
+        if (alreadyHosted) {
+          // The server echoes our own AI's animations back; replaying them restarts swings and can turn collision off
+          this.animState.lastNumChanges = model.animation.numChanges;
+        } else {
+          applyAnimation(refr, model.animation, this.animState);
+        }
       }
       // Use them only once, for spawning actors with correct animations
       this.animState.useAnimOverrides = false;
@@ -825,6 +861,11 @@ export class FormView {
     return this.remoteRefrId as number;
   }
 
+  // Player characters carry an appearance; server-spawned NPCs are placed from a base and never do
+  isPlayerCharacter(): boolean {
+    return !!this.appearanceState.appearance;
+  }
+
   private refrId = 0;
   private ready = false;
   private animState = this.getDefaultAnimState();
@@ -833,6 +874,8 @@ export class FormView {
     lastApply: 0,
     lastRehost: 0,
     everApplied: false,
+    offsetApplied: false,
+    weapReleased: false,
   };
   private appearanceState = this.getDefaultAppearanceState();
   private eqState = this.getDefaultEquipState();
