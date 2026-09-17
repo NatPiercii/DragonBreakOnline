@@ -25,6 +25,9 @@ interface CharacterSlot {
 }
 
 const WIDGET_ID = 7;
+const MENU_REQUEST_RETRY_MS = 4000;
+const MENU_REQUEST_GIVE_UP_MS = 90000;
+const MENU_RECONNECT_RETRY_MS = 12000;
 
 // Event keys exchanged with the browser; namespaced to avoid collisions with other "browserMessage" listeners.
 const events = {
@@ -109,6 +112,7 @@ export class CharacterSelectService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("menuOpen", (e) => this.onMenuOpen(e));
+    this.controller.on("tick", () => this.onTick());
     // "update" fires only in-game, so the first one marks the initial spawn.
     this.controller.once("update", () => { this.sawGameplay = true; });
     // The hide UI key drops focus; the modal must be clickable again once shown
@@ -131,6 +135,7 @@ export class CharacterSelectService extends ClientListener {
         selectedSlot = null;
         confirmDeleteSlot = null;
         this.menuOpen = true;
+        this.wantMenuSince = 0;
         // remoteServer reads this: our own body being parked must not quit the game to the main menu
         (globalThis as any).__dboCharacterSelectOpen = true;
         logTrace(this, `Opening character select menu with`, maxCharacters, `slots`);
@@ -206,9 +211,37 @@ export class CharacterSelectService extends ClientListener {
       return; // native context unavailable, event is certainly stale
     }
     if (this.controller.lookupListener(SinglePlayerService).isSinglePlayer) return;
-    if (!this.controller.lookupListener(NetworkingService).isConnected()) return;
-    logTrace(this, 'Main menu opened while connected, requesting character select menu');
-    sendCustomPacket(this.controller, { customPacketType: 'characterSelectMenuRequest' });
+    // Quitting to the main menu can drop the connection while the world unloads, which lost the one
+    // request this used to send: keep asking (reconnecting when needed) until the menu arrives
+    this.wantMenuSince = Date.now();
+    this.lastMenuAttempt = 0;
+    this.lastReconnect = Date.now();
+    this.onTick();
+  }
+
+  // "update" never fires in the main menu; "tick" does
+  private onTick(): void {
+    if (!this.wantMenuSince) return;
+    const now = Date.now();
+    if (this.menuOpen || now - this.wantMenuSince > MENU_REQUEST_GIVE_UP_MS) { this.wantMenuSince = 0; return; }
+    if (now - this.lastMenuAttempt < MENU_REQUEST_RETRY_MS) return;
+    this.lastMenuAttempt = now;
+    try {
+      if (!this.sp.Ui.isMenuOpen(Menu.Main)) { this.wantMenuSince = 0; return; }
+    } catch (err) {
+      return;
+    }
+    const networking = this.controller.lookupListener(NetworkingService);
+    if (networking.isConnected()) {
+      // A fresh connection gets the list on its own once authenticated; a request as well is harmless (server-side guards)
+      logTrace(this, 'Main menu open after gameplay, requesting character select menu');
+      sendCustomPacket(this.controller, { customPacketType: 'characterSelectMenuRequest' });
+    } else if (!networking.isAutoReconnectBlocked() && now - this.lastReconnect >= MENU_RECONNECT_RETRY_MS) {
+      // Spaced out so a connection attempt still in flight is not torn down and restarted
+      this.lastReconnect = now;
+      logTrace(this, 'Main menu open after gameplay while disconnected, reconnecting for character select');
+      networking.reconnect();
+    }
   }
 
   private sendResult(action: 'play' | 'create' | 'delete', slot: number): void {
@@ -260,4 +293,7 @@ export class CharacterSelectService extends ClientListener {
 
   private menuOpen = false;
   private sawGameplay = false;
+  private wantMenuSince = 0;
+  private lastMenuAttempt = 0;
+  private lastReconnect = 0;
 }
