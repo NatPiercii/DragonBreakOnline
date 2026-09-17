@@ -1,10 +1,10 @@
-import { Actor, HitEvent, storage } from "skyrimPlatform";
+import { Actor, HitEvent, ObjectReference, storage } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { WorldCleanerService } from "./worldCleanerService";
-import { isRemoteHostedByMe, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
+import { getViewFromStorage, isRemoteHostedByMe, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
 
 // Owner side of the server companion library (companionSystem.ts, docs/docs_roleplay_companions.md).
 // The owner hosts its companions, so this engine's AI drives them: teammate setup, following, and combat with the server's target.
@@ -13,10 +13,17 @@ const COMPANION_IDS_KEY = "ownCompanionIds";
 const PLAYER_ID = 0x14;
 const PLAYER_FACTION = 0xdb1;
 const TWIN_SOULS_PERK = 0xd5f1c;
+// Vanilla summoning flash (SummonTargetFXActivator), played where a companion appears and where it vanishes
+const SUMMON_FX = 0x07cd55;
+// Owner-side list the party panel reads: [{ id (local), name, leftMs, at, staying }]
+export const COMPANION_HUD_KEY = "dboCompanionHud";
 
 interface CompanionEntry {
   id: number;
   target: number;
+  staying: boolean;
+  leftMs: number;
+  at: number;
 }
 
 // Per local copy; a respawned copy gets a new local id and is set up again
@@ -57,7 +64,10 @@ export class CompanionService extends ClientListener {
     const raw = Array.isArray(content["companions"]) ? content["companions"] as Record<string, unknown>[] : [];
     const list: CompanionEntry[] = raw
       .filter((x) => x && typeof x["id"] === "number")
-      .map((x) => ({ id: x["id"] as number, target: typeof x["target"] === "number" ? x["target"] as number : 0 }));
+      .map((x) => ({
+        id: x["id"] as number, target: typeof x["target"] === "number" ? x["target"] as number : 0,
+        staying: x["staying"] === true, leftMs: typeof x["leftMs"] === "number" ? x["leftMs"] as number : 0, at: Date.now(),
+      }));
     // A new companion stands in for the engine's own summon, which the world cleaner removes
     if (list.some((c) => !this.companions.some((old) => old.id === c.id))) {
       this.controller.lookupListener(WorldCleanerService).sweepBurst(CompanionService.cleanerBurstMs);
@@ -66,6 +76,13 @@ export class CompanionService extends ClientListener {
   }
 
   private setCompanions(list: CompanionEntry[]): void {
+    // A companion that left the list vanishes with the summoning flash where it stood
+    for (const old of this.companions) {
+      if (list.some((c) => c.id === old.id)) continue;
+      const pos = this.lastPos.get(old.id);
+      if (pos) this.pendingFx.push(pos);
+      this.lastPos.delete(old.id);
+    }
     this.companions = list;
     storage[COMPANION_IDS_KEY] = list.map((c) => c.id);
     Array.from(this.local.keys()).forEach((id) => {
@@ -128,6 +145,9 @@ export class CompanionService extends ClientListener {
     if (!player) {
       return;
     }
+    this.playPendingFx(now);
+    this.assist(player, now);
+    this.publishHud(now);
     for (const c of this.companions) {
       const actor = this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.id)));
       if (!actor || actor.isDead() || !actor.is3DLoaded()) {
@@ -135,6 +155,7 @@ export class CompanionService extends ClientListener {
       }
       // Set up as an ally at once: the summon's own AI runs before our host grant and would pick a fight with its caster
       const state = this.stateFor(c.id, actor);
+      this.lastPos.set(c.id, [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()]);
       if (actor.getCombatTarget()?.getFormID() === PLAYER_ID) {
         actor.stopCombat();
       }
@@ -145,6 +166,8 @@ export class CompanionService extends ClientListener {
       const target = c.target ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.target))) : null;
       if (target && !target.isDead()) {
         this.fight(actor, target, state);
+      } else if (c.staying) {
+        this.stay(actor, state);
       } else {
         this.follow(actor, player, state);
       }
@@ -157,6 +180,10 @@ export class CompanionService extends ClientListener {
       state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", reportAt: 0, fightingTarget: 0 };
       this.local.set(remoteId, state);
       this.prepare(actor);
+      if (!this.announced.has(remoteId)) {
+        this.announced.add(remoteId);
+        this.summonFx(actor);
+      }
     }
     return state;
   }
@@ -221,6 +248,82 @@ export class CompanionService extends ClientListener {
     }
   }
 
+  // Ordered to stay: holds its ground, still fights what attacks it or its owner
+  private stay(actor: Actor, state: LocalState): void {
+    if (state.following) {
+      actor.clearKeepOffsetFromActor();
+      state.following = false;
+      state.followResult = "staying";
+    }
+    if (state.fightingTarget && !actor.isInCombat()) state.fightingTarget = 0;
+  }
+
+  // Summons join fights the owner is already in: anything nearby in combat with the owner or one of the owner's companions
+  // becomes the attack order, without waiting for the owner's first hit. The server still checks every target.
+  private assist(player: Actor, now: number): void {
+    if (now - this.lastAssistMs < CompanionService.assistMs) return;
+    this.lastAssistMs = now;
+    if (this.companions.every((c) => c.target)) return;
+    const view = getViewFromStorage();
+    if (!view) return;
+    const guarded = new Set<number>([PLAYER_ID]);
+    for (const c of this.companions) guarded.add(remoteIdToLocalId(c.id));
+    const views = view.getFormViews();
+    let best = 0;
+    let bestDistance = CompanionService.assistRadius;
+    for (let i = 0; i < views.getFormViewsArrayLength(); i++) {
+      const fv = views.getNthFormView(i);
+      if (!fv) continue;
+      const remoteId = fv.getRemoteRefrId();
+      if (!remoteId || isOwnCompanion(remoteId)) continue;
+      const enemy = Actor.from(this.sp.Game.getFormEx(fv.getLocalRefrId()));
+      if (!enemy || enemy.isDead() || !enemy.is3DLoaded()) continue;
+      const theirTarget = enemy.getCombatTarget();
+      if (!theirTarget || !guarded.has(theirTarget.getFormID())) continue;
+      const distance = enemy.getDistance(player);
+      if (distance < bestDistance) { best = remoteId; bestDistance = distance; }
+    }
+    if (!best || (best === this.lastOrderTarget && now - this.lastOrderMs < CompanionService.orderRepeatMs)) return;
+    this.lastOrderTarget = best;
+    this.lastOrderMs = now;
+    sendCustomPacket(this.controller, { customPacketType: "companionCommand", action: "attack", targetId: best });
+  }
+
+  // The party panel shows each companion with its health and the time it has left
+  private publishHud(now: number): void {
+    const rows: Array<{ id: number; name: string; leftMs: number; staying: boolean }> = [];
+    for (const c of this.companions) {
+      const localId = remoteIdToLocalId(c.id);
+      const actor = localId ? Actor.from(this.sp.Game.getFormEx(localId)) : null;
+      const name = actor ? (actor.getDisplayName() || actor.getBaseObject()?.getName() || "Companion") : "Companion";
+      rows.push({ id: localId, name, leftMs: c.leftMs ? Math.max(0, c.leftMs - (now - c.at)) : 0, staying: c.staying });
+    }
+    storage[COMPANION_HUD_KEY] = rows;
+  }
+
+  private summonFx(ref: ObjectReference, at?: number[]): void {
+    try {
+      const fx = this.sp.Game.getFormFromFile(SUMMON_FX, "Skyrim.esm");
+      const placed = fx ? ref.placeAtMe(fx, 1, false, false) : null;
+      if (!placed) return;
+      if (at) placed.setPosition(at[0], at[1], at[2]);
+      this.fxRefs.push([placed.getFormID(), Date.now() + CompanionService.fxLifeMs]);
+    } catch { /* effect not loaded, no flash */ }
+  }
+
+  // Vanish flashes queued from the packet handler, plus clean-up of finished flashes
+  private playPendingFx(now: number): void {
+    const player = this.sp.Game.getPlayer();
+    for (const pos of this.pendingFx.splice(0)) {
+      if (player) this.summonFx(player, pos);
+    }
+    this.fxRefs = this.fxRefs.filter(([id, until]) => {
+      if (until > now) return true;
+      try { ObjectReference.from(this.sp.Game.getFormEx(id))?.delete(); } catch { /* already gone */ }
+      return false;
+    });
+  }
+
   // Diagnostic: every few seconds the owner reports each companion's state to the server log (dbo npcDrift, kind companion)
   private report(remoteId: number, actor: Actor, player: Actor, state: LocalState): void {
     const now = Date.now();
@@ -257,6 +360,11 @@ export class CompanionService extends ClientListener {
 
   private companions: CompanionEntry[] = [];
   private local = new Map<number, LocalState>();
+  private announced = new Set<number>();
+  private pendingFx: number[][] = [];
+  private lastPos = new Map<number, number[]>();
+  private fxRefs: Array<[number, number]> = [];
+  private lastAssistMs = 0;
   private lastApplyMs = 0;
   private lastOrderTarget = 0;
   private lastOrderMs = 0;
@@ -272,6 +380,9 @@ export class CompanionService extends ClientListener {
   private static readonly followRadius = 128;
   private static readonly followTurnDeg = 25;
   private static readonly teleportDistance = 2048;
+  private static readonly assistMs = 1000;
+  private static readonly assistRadius = 2048;
+  private static readonly fxLifeMs = 4000;
   private static readonly reportMs = 5000;
   private static readonly hostileEffectFlag = 0x1;
 }

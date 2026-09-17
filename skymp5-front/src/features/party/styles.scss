@@ -98,3 +98,7 @@
     background: linear-gradient(135deg, transparent 50%, rgba(143, 211, 208, 0.6) 50%);
   }
 }
+
+.dboParty__row--summon { opacity: 0.92; padding-left: 10px; border-left: 2px solid rgba(143, 211, 208, 0.45); }
+.dboParty__timer { float: right; font-size: 12px; opacity: 0.75; margin-left: 6px; }
+.dboParty__tag { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-left: 6px; padding: 0 4px; border: 1px solid rgba(232, 214, 160, 0.55); color: #e8d6a0; }

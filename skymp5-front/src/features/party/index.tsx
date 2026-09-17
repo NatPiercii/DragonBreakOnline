@@ -13,7 +13,12 @@ export interface PartyMember {
   health?: number;     // 0..100, undefined when the actor is not loaded nearby
   far?: boolean;
   dead?: boolean;
+  summon?: boolean;    // an own summon or companion listed under the party
+  leftSec?: number;    // seconds until a summon ends, 0 when it has no limit
+  staying?: boolean;   // ordered to hold its ground
 }
+
+const clock = (sec: number): string => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
 export interface PartyData {
   id: number;
@@ -53,15 +58,19 @@ const Party = ({ data }: { data: PartyData }) => {
   return (
     <div className="dboParty" style={{ left: box.x, top: box.y, width: box.w, height: box.h || 'auto' }}>
       <div className="dboParty__bar" onMouseDown={start('move')}>
-        <span className="dboParty__title">Party</span>
+        <span className="dboParty__title">{members.some((m) => !m.summon) ? 'Party' : 'Companions'}</span>
         <span className="dboParty__count">{members.length}</span>
       </div>
       <div className="dboParty__list">
         {members.map((m) => {
           const pct = Math.max(0, Math.min(100, Number(m.health) || 0));
           return (
-            <div key={m.id} className={'dboParty__row' + (m.id === data.self ? ' dboParty__row--self' : '') + (m.dead ? ' dboParty__row--dead' : '')}>
-              <span className="dboParty__name">{m.leader ? '✦ ' : ''}{m.name}</span>
+            <div key={m.id} className={'dboParty__row' + (m.id === data.self ? ' dboParty__row--self' : '') + (m.dead ? ' dboParty__row--dead' : '') + (m.summon ? ' dboParty__row--summon' : '')}>
+              <span className="dboParty__name">
+                {m.leader ? '✦ ' : ''}{m.name}
+                {m.summon && m.staying ? <span className="dboParty__tag">stay</span> : null}
+                {m.summon && m.leftSec ? <span className="dboParty__timer">{clock(m.leftSec)}</span> : null}
+              </span>
               <div className="dboParty__bar-track" title={m.far ? 'Too far to see' : `${Math.round(pct)}%`}>
                 {m.far ? <span className="dboParty__far">far</span> : <div className="dboParty__fill" style={{ width: `${pct}%` }} />}
               </div>

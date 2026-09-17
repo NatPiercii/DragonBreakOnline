@@ -4,7 +4,8 @@ import { openFormMenu, closeFormMenu, closeWidget, refreshFormMenu } from "./wid
 import { ConnectionMessage } from "../events/connectionMessage";
 import { TimersService } from "./timersService";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
+import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, storage } from "skyrimPlatform";
+import { COMPANION_HUD_KEY } from "./companionService";
 
 const HUD_WIDGET_ID = 29;
 const PARTY_WIDGET_ID = 32;
@@ -86,9 +87,11 @@ export class DboRelayService extends ClientListener {
   }
 
   private pushParty(): void {
-    if (!this.partyData) { if (this.partyKey) { this.partyKey = ""; this.removeWidget(PARTY_WIDGET_ID); } return; }
-    const members = Array.isArray(this.partyData["members"]) ? this.partyData["members"] as Array<Record<string, unknown>> : [];
-    if (!members.length) { if (this.partyKey) { this.partyKey = ""; this.removeWidget(PARTY_WIDGET_ID); } return; }
+    // Own summons and companions (CompanionService) are listed under the party, with the time they have left
+    const hud = storage[COMPANION_HUD_KEY];
+    const companions = Array.isArray(hud) ? hud as Array<{ id: number; name: string; leftMs: number; staying: boolean }> : [];
+    const members = this.partyData && Array.isArray(this.partyData["members"]) ? this.partyData["members"] as Array<Record<string, unknown>> : [];
+    if (!members.length && !companions.length) { if (this.partyKey) { this.partyKey = ""; this.removeWidget(PARTY_WIDGET_ID); } return; }
     const rows = members.map((m) => {
       const row: Record<string, unknown> = { id: Number(m["id"]) || 0, name: String(m["name"] || "?"), leader: !!m["leader"], far: true };
       try {
@@ -97,7 +100,15 @@ export class DboRelayService extends ClientListener {
       } catch { /* not loaded */ }
       return row;
     });
-    const w = { type: "party", id: PARTY_WIDGET_ID, members: rows, self: Number(this.partyData["self"]) || 0 };
+    for (const c of companions) {
+      const row: Record<string, unknown> = { id: c.id, name: c.name, far: true, summon: true, leftSec: Math.ceil(c.leftMs / 1000), staying: c.staying };
+      try {
+        const a = Actor.from(this.sp.Game.getFormEx(c.id));
+        if (a && a.is3DLoaded()) { row["far"] = false; row["dead"] = a.isDead(); row["health"] = Math.round(a.getActorValuePercentage("Health") * 100); }
+      } catch { /* not loaded */ }
+      rows.push(row);
+    }
+    const w = { type: "party", id: PARTY_WIDGET_ID, members: rows, self: this.partyData ? Number(this.partyData["self"]) || 0 : 0 };
     const key = JSON.stringify(w);
     if (key === this.partyKey && now() - this.partySentAt < 5000) return;
     this.partyKey = key; this.partySentAt = now();

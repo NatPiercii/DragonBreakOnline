@@ -6,6 +6,7 @@ import { isRemotePlayerCharacter, localIdToRemoteId } from "../../view/worldView
 import { logTrace } from "../../logging";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
+import { isOwnCompanion } from "./companionService";
 
 // for the browser-side widget setter (executed inside the CEF browser)
 declare const window: any;
@@ -94,6 +95,20 @@ export class PlayerActionService extends ClientListener {
     if (!actor) return;
     const remoteId = localIdToRemoteId(ref.getFormID());
     if (!remoteId || remoteId < 0xff000000) return;
+    // Your own summon or companion takes orders from the same menu
+    if (isOwnCompanion(remoteId) && !actor.isDead()) {
+      this.playerTarget = remoteId;
+      targetName = (ref.getDisplayName() || "Companion").trim();
+      menuMode = "menu";
+      menuLines = [];
+      menuActions = [
+        { id: "c:follow", label: "Follow me" },
+        { id: "c:stay", label: "Stay here" },
+        { id: "c:dismiss", label: "Dismiss" },
+      ];
+      this.openMenu();
+      return;
+    }
     // Server-spawned creatures and NPCs share the id space and get no menu
     if (!isRemotePlayerCharacter(remoteId)) return;
 
@@ -154,6 +169,10 @@ export class PlayerActionService extends ClientListener {
       this.closeMenu();
       if (!this.playerTarget) {
         notifyNextUpdate(this.controller, this.sp, "Look at a player first.");
+        return;
+      }
+      if (actionId.startsWith("c:")) {
+        sendCustomPacket(this.controller, { customPacketType: "companionCommand", action: actionId.slice(2), companionId: this.playerTarget });
         return;
       }
       if (actionId === "trade") {

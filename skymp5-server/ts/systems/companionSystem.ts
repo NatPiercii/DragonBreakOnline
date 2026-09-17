@@ -45,6 +45,8 @@ interface Companion extends CompanionInfo {
   createdAt: number;
   lastRetargetAt: number;
   ownerAwaySince: number;
+  // Holds its ground instead of following until ordered to follow again
+  staying: boolean;
 }
 
 interface Stored {
@@ -178,6 +180,8 @@ export class CompanionSystem implements System {
       for (const c of mine) this.orderAttack(c.id, targetId);
     } else if (action === "follow") {
       for (const c of mine) this.orderFollow(c.id);
+    } else if (action === "stay") {
+      for (const c of mine) this.orderStay(c.id);
     } else if (action === "dismiss" && wanted) {
       this.dismiss(wanted, "dismissed by owner");
     }
@@ -221,6 +225,7 @@ export class CompanionSystem implements System {
       createdAt: now,
       lastRetargetAt: 0,
       ownerAwaySince: 0,
+      staying: false,
     });
     this.log(`CompanionSystem: ${kind} ${hex(id)} (${baseDesc}) spawned for ${hex(ownerId)}${opts.source ? ` by ${hex(opts.source)}` : ""}`);
     this.save();
@@ -250,7 +255,20 @@ export class CompanionSystem implements System {
   orderFollow(companionId: number): boolean {
     const c = this.companions.get(companionId >>> 0);
     if (!c) return false;
-    if (c.targetId) {
+    if (c.targetId || c.staying) {
+      c.targetId = 0;
+      c.staying = false;
+      this.sendState(c.ownerId);
+    }
+    return true;
+  }
+
+  // Stops following and holds position; attack orders and defending the owner still apply
+  orderStay(companionId: number): boolean {
+    const c = this.companions.get(companionId >>> 0);
+    if (!c) return false;
+    if (!c.staying || c.targetId) {
+      c.staying = true;
       c.targetId = 0;
       this.sendState(c.ownerId);
     }
@@ -345,7 +363,7 @@ export class CompanionSystem implements System {
     }
     c.ownerAwaySince = 0;
     if (KIND_RULES[c.kind].commanded && !isAlive(mp, c.ownerId)) return this.end(c, "owner died", false);
-    if (!isNear(mp, c.id, c.ownerId, FOLLOW_TELEPORT_DISTANCE)) {
+    if (!c.staying && !isNear(mp, c.id, c.ownerId, FOLLOW_TELEPORT_DISTANCE)) {
       const loc = this.locationNear(c.ownerId, FOLLOW_OFFSET);
       mp.set(c.id, "locationalData", loc);
       mp.set(c.id, "spawnPoint", loc);
@@ -454,7 +472,10 @@ export class CompanionSystem implements System {
   private sendState(ownerId: number): void {
     const user = userOf(this.mp, ownerId);
     if (user < 0) return;
-    const companions = this.ownedBy(ownerId).map((c) => ({ id: c.id, target: c.targetId, kind: c.kind }));
+    const now = Date.now();
+    const companions = this.ownedBy(ownerId).map((c) => ({
+      id: c.id, target: c.targetId, kind: c.kind, staying: c.staying, leftMs: c.expiresAt ? Math.max(0, c.expiresAt - now) : 0,
+    }));
     try { this.mp.sendCustomPacket(user, JSON.stringify({ customPacketType: "companionState", companions })); } catch { }
   }
 
