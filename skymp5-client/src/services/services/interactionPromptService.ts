@@ -5,7 +5,7 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { FunctionInfo } from "../../lib/functionInfo";
 import { Actor, CrosshairRefChangedEvent, Form, FormType, ObjectReference } from "skyrimPlatform";
-import { localIdToRemoteId } from "../../view/worldViewMisc";
+import { isRemotePlayerCharacter, localIdToRemoteId } from "../../view/worldViewMisc";
 import { ObjectReferenceEx } from "../../extensions/objectReferenceEx";
 import { logError } from "../../logging";
 
@@ -34,6 +34,7 @@ const BOARD_BASES: Array<[number, string]> = [
 ];
 
 const PROMPT_POLL_MS = 500;
+const DOOR_NAME_TIMEOUT_MS = 2000;
 
 interface Prompt {
   verb: string;
@@ -99,6 +100,8 @@ export class InteractionPromptService extends ClientListener {
   private onCrosshairRefChanged(e: CrosshairRefChangedEvent): void {
     try {
       if (this.browserFocused) return;
+      // The engine has just written the vanilla rollover; blank it now instead of on the next update
+      this.hideVanillaRollover();
       this.apply(e.reference || null);
     } catch (e) {
       this.logOnce(`crosshair handler failed: ${e}`);
@@ -145,16 +148,18 @@ export class InteractionPromptService extends ClientListener {
     }
 
     let label = (ref.getDisplayName() || base.getName() || "").trim();
-    // Load doors read as where they lead ("Open  Bleak Falls Barrow"); the server knows the destinations.
+    // Load doors read as just where they lead ("Bleak Falls Barrow"); the server knows the destinations.
     if (base.getType() === FormType.Door) {
       const remoteId = localIdToRemoteId(ref.getFormID());
       const destination = this.doorNameFor(remoteId);
-      if (destination) label = destination;
       // A door the server keeps shut: block it here too, or the engine loads the cell behind it anyway
       if (this.blockedDoors.has(remoteId)) {
         try { ref.blockActivation(true); } catch { /* unloaded ref */ }
-        return { verb: "Closed", label: label || "the way on" };
+        return { verb: "Closed", label: destination || label || "the way on" };
       }
+      if (destination) return { verb: "", label: destination };
+      // Still waiting on the server: show nothing rather than "Open Wooden Door" swapping to the name
+      if (destination === undefined) return null;
     }
     if (!label) return null;
     const verb = this.verbFor(ref, base.getType());
@@ -177,6 +182,11 @@ export class InteractionPromptService extends ClientListener {
       const name = (ref.getDisplayName() || "").trim();
       return name ? { verb: "Talk", label: name } : null;
     }
+    // Server-spawned creatures and NPCs share the id space: they keep their own activation (loot, skinning)
+    if (!isRemotePlayerCharacter(remoteId)) {
+      const name = (ref.getDisplayName() || "").trim();
+      return dead && name ? { verb: "Search", label: name } : null;
+    }
     // The engine must not start a dialogue or a local loot window on the clone under our menu.
     try { ref.blockActivation(true); } catch { /* unloaded ref */ }
     const raw = (ref.getName() || "").trim();
@@ -195,16 +205,19 @@ export class InteractionPromptService extends ClientListener {
     return known.includes(remoteId);
   }
 
-  // undefined = not asked yet (ask once), "" = not a load door, otherwise the destination name
-  private doorNameFor(refId: number): string {
+  // undefined = the server has not answered yet (asked once), "" = not a load door, otherwise the destination name
+  private doorNameFor(refId: number): string | undefined {
     if (!refId) return "";
     const known = this.doorNames.get(refId);
     if (known !== undefined) return known;
     if (!this.doorAsked.has(refId)) {
       this.doorAsked.add(refId);
+      this.doorAskedAt.set(refId, Date.now());
       sendCustomPacket(this.controller, { customPacketType: "dboDoorName", refId });
     }
-    return "";
+    // A lost answer must not hide the door for good
+    if (Date.now() - (this.doorAskedAt.get(refId) ?? 0) > DOOR_NAME_TIMEOUT_MS) return "";
+    return undefined;
   }
 
   private onDoorNameMessage(event: ConnectionMessage<CustomPacketMessage>): void {
@@ -317,4 +330,5 @@ export class InteractionPromptService extends ClientListener {
   private lastPollMs = 0;
   private doorNames = new Map<number, string>();
   private doorAsked = new Set<number>();
+  private doorAskedAt = new Map<number, number>();
 }

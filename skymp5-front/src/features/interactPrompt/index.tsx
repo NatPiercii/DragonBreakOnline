@@ -9,10 +9,11 @@ export interface InteractPromptData {
 }
 
 const InteractPrompt = ({ data }: { data: InteractPromptData }) => {
-  if (!data.verb || !data.label) return null;
+  if (!data.label) return null;
+  // Load doors carry no verb: the destination name alone
   return (
     <div className="interactPrompt">
-      <span className="interactPrompt__verb">{data.verb}</span>
+      {data.verb ? <span className="interactPrompt__verb">{data.verb}</span> : null}
       <span className="interactPrompt__label">{data.label}</span>
     </div>
   );
