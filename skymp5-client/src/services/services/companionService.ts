@@ -176,7 +176,6 @@ export class CompanionService extends ClientListener {
       if (!isRemoteHostedByMe(c.id)) {
         continue;
       }
-      this.report(c.id, actor, player, state);
       const target = c.target ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.target))) : null;
       if (target && !target.isDead()) {
         this.fight(actor, target, state);
@@ -185,6 +184,7 @@ export class CompanionService extends ClientListener {
       } else {
         this.follow(actor, player, state);
       }
+      this.report(c.id, actor, player, state);
     }
   }
 
@@ -232,12 +232,20 @@ export class CompanionService extends ClientListener {
       }
       state.fightingTarget = 0;
     }
+    // A fight the engine picked itself used to strand the companion: no follow order, no leash either
     if (actor.isInCombat()) {
-      if (state.following) {
-        actor.clearKeepOffsetFromActor();
-        state.following = false;
+      const distance = actor.getDistance(player);
+      if (distance < CompanionService.combatLeashDistance) {
+        if (state.following) {
+          actor.clearKeepOffsetFromActor();
+          state.following = false;
+        }
+        state.followResult = "fighting at " + Math.round(distance);
+        return;
       }
-      return;
+      actor.stopCombat();
+      state.fightingTarget = 0;
+      state.followResult = "left a fight " + Math.round(distance) + " away";
     }
     if (!state.aliasFailed && this.nativeFollow(actor, state)) {
       return;
@@ -462,6 +470,8 @@ export class CompanionService extends ClientListener {
   private static readonly followRadius = 128;
   private static readonly followTurnDeg = 25;
   private static readonly teleportDistance = 2048;
+  // Past this the companion breaks off its own fight and comes back, so it cannot be left behind
+  private static readonly combatLeashDistance = 1500;
   private static readonly assistMs = 1000;
   private static readonly assistRadius = 2048;
   private static readonly fxLifeMs = 4000;
