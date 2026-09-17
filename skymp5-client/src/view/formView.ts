@@ -24,6 +24,9 @@ export interface ScreenResolution {
 
 type AdminView = "visible" | "hidden" | "ghost";
 
+// A copy nobody drives this far from where the server holds it is re-seated, not left standing there
+const STRANDED_UNITS = 512;
+
 let _screenResolution: ScreenResolution | undefined;
 export const getScreenResolution = (): ScreenResolution => {
   if (!_screenResolution) {
@@ -433,11 +436,16 @@ export class FormView {
       if (isNewMovement || Date.now() - this.movState.lastApply > 2000) {
         this.movState.lastApply = Date.now();
         // Nobody drives it yet: seat it on its spot without the collision-off slide, our AI takes it once hosted
-        if (!model.isHostedByOther && !this.movState.everApplied && ac && !model.isDead) {
+        const undriven = !model.isHostedByOther && !alreadyHosted;
+        // A copy born on the spawn anchor, which is usually a player, stays there once everApplied is set
+        const strandedFromServer = undriven && this.movState.everApplied && ac && !model.isDead
+          && ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), model.movement.pos) > STRANDED_UNITS;
+        if (undriven && (!this.movState.everApplied || strandedFromServer) && ac && !model.isDead) {
           const m = model.movement;
           try {
             if (ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), m.pos) > 16) {
               refr.setPosition(m.pos[0], m.pos[1], m.pos[2]);
+              setRefrCollision(this.refrId, true);
             }
             refr.setAngle(0, 0, m.rot[2]);
           } catch { /* not loaded yet, the next pass seats it */ }
