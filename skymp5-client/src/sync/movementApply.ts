@@ -10,6 +10,7 @@ import { Movement, RunMode, AnimationVariables, Transform, NiPoint3 } from "./mo
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { SpApiInteractor } from "../services/spApiInteractor";
 import { isInSitPose, setRefrCollision } from "./animation";
+import { isHostedByMe } from "../view/worldViewMisc";
 
 const sqr = (x: number) => x * x;
 
@@ -66,7 +67,7 @@ export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: bo
   applySprinting(ac, m.runMode === "Sprinting");
   applyBlocking(ac, m);
   applySneaking(ac, m.isSneaking);
-  applyWeapDrawn(ac, m.isWeapDrawn);
+  if (!isHostedByMe(ac.getFormID())) applyWeapDrawn(ac, m.isWeapDrawn);
   applyHealthPercentage(ac, m.healthPercentage);
 
   SpApiInteractor.getControllerInstance().emitter.emit("applyDeathStateEvent", { actor: ac, isDead: m.isDead });

@@ -23,6 +23,9 @@ interface CompanionEntry {
 interface LocalState {
   localId: number;
   following: boolean;
+  followAngle: number;
+  followResult: string;
+  reportAt: number;
   fightingTarget: number;
 }
 
@@ -126,14 +129,19 @@ export class CompanionService extends ClientListener {
       return;
     }
     for (const c of this.companions) {
-      if (!isRemoteHostedByMe(c.id)) {
-        continue;
-      }
       const actor = this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.id)));
       if (!actor || actor.isDead() || !actor.is3DLoaded()) {
         continue;
       }
+      // Set up as an ally at once: the summon's own AI runs before our host grant and would pick a fight with its caster
       const state = this.stateFor(c.id, actor);
+      if (actor.getCombatTarget()?.getFormID() === PLAYER_ID) {
+        actor.stopCombat();
+      }
+      if (!isRemoteHostedByMe(c.id)) {
+        continue;
+      }
+      this.report(c.id, actor, player, state);
       const target = c.target ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.target))) : null;
       if (target && !target.isDead()) {
         this.fight(actor, target, state);
@@ -146,7 +154,7 @@ export class CompanionService extends ClientListener {
   private stateFor(remoteId: number, actor: Actor): LocalState {
     let state = this.local.get(remoteId);
     if (!state || state.localId !== actor.getFormID()) {
-      state = { localId: actor.getFormID(), following: false, fightingTarget: 0 };
+      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", reportAt: 0, fightingTarget: 0 };
       this.local.set(remoteId, state);
       this.prepare(actor);
     }
@@ -163,13 +171,12 @@ export class CompanionService extends ClientListener {
     actor.setPlayerTeammate(true, false);
     actor.ignoreFriendlyHits(true);
     actor.setActorValue("Aggression", 1);
+    actor.clearKeepOffsetFromActor();
+    actor.stopCombat();
+    actor.stopCombatAlarm();
   }
 
   private fight(actor: Actor, target: Actor, state: LocalState): void {
-    if (state.following) {
-      actor.clearKeepOffsetFromActor();
-      state.following = false;
-    }
     state.fightingTarget = target.getFormID();
     if (actor.getCombatTarget()?.getFormID() !== state.fightingTarget) {
       actor.startCombat(target);
@@ -191,11 +198,45 @@ export class CompanionService extends ClientListener {
       }
       return;
     }
-    if (!state.following) {
-      actor.keepOffsetFromActor(player, 0, CompanionService.followOffsetY, 0, 0, 0, 0,
+    // PathToReference is refused for summons, so the follow is a keep-offset behind the owner. Its angle is relative to
+    // the owner's heading, so it is recomputed to face the owner, or the companion walks backwards when the owner turns.
+    const distance = actor.getDistance(player);
+    if (distance > CompanionService.teleportDistance) {
+      actor.moveTo(player, 0, CompanionService.followOffsetY, 0, false);
+      state.following = false;
+      state.followResult = "moved to owner";
+      return;
+    }
+    const dx = player.getPositionX() - actor.getPositionX();
+    const dy = player.getPositionY() - actor.getPositionY();
+    const facing = Math.atan2(dx, dy) * 180 / Math.PI;
+    const angle = ((facing - player.getAngleZ()) % 360 + 540) % 360 - 180;
+    const turn = Math.abs(((angle - state.followAngle) % 360 + 540) % 360 - 180);
+    if (!state.following || (distance > CompanionService.followRadius && turn > CompanionService.followTurnDeg)) {
+      actor.keepOffsetFromActor(player, 0, CompanionService.followOffsetY, 0, 0, 0, angle,
         CompanionService.catchUpRadius, CompanionService.followRadius);
       state.following = true;
+      state.followAngle = angle;
+      state.followResult = "offset " + Math.round(angle);
     }
+  }
+
+  // Diagnostic: every few seconds the owner reports each companion's state to the server log (dbo npcDrift, kind companion)
+  private report(remoteId: number, actor: Actor, player: Actor, state: LocalState): void {
+    const now = Date.now();
+    if (now - state.reportAt < CompanionService.reportMs) {
+      return;
+    }
+    state.reportAt = now;
+    const base = actor.getBaseObject();
+    sendCustomPacket(this.controller, {
+      customPacketType: "dbo", event: "npcDrift", args: [{
+        kind: "companion", remoteId: remoteId.toString(16), base: `${base?.getName() || "?"} ${(base?.getFormID() ?? 0).toString(16)}`,
+        hosted: isRemoteHostedByMe(remoteId), distance: Math.round(actor.getDistance(player)), inCombat: actor.isInCombat(),
+        combatTarget: (actor.getCombatTarget()?.getFormID() ?? 0).toString(16), aiDisabled: actor.isAIEnabled() === false,
+        following: state.following, follow: state.followResult, weaponDrawn: actor.isWeaponDrawn(),
+      }],
+    });
   }
 
   // Twin Souls raises the summon limit to two; the server only keeps the flag for a character in game, so it is repeated while true
@@ -229,5 +270,8 @@ export class CompanionService extends ClientListener {
   private static readonly followOffsetY = -128;
   private static readonly catchUpRadius = 512;
   private static readonly followRadius = 128;
+  private static readonly followTurnDeg = 25;
+  private static readonly teleportDistance = 2048;
+  private static readonly reportMs = 5000;
   private static readonly hostileEffectFlag = 0x1;
 }

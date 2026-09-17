@@ -28,6 +28,7 @@ import { Inventory, applyInventory, getDiff, getInventory, isBoundItem, removeSi
 import { Movement } from '../../sync/movement';
 import { enforceSpells } from '../../sync/spell';
 import { setRefrCollision } from '../../sync/animation';
+import { isOwnCompanion } from './companionService';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
 import { LoadGameService } from './loadGameService';
@@ -196,7 +197,10 @@ export class RemoteServer extends ClientListener {
         if (!ac || ac.getFormID() === 0x14) return;
         ac.stopTranslation();
         setRefrCollision(ac.getFormID(), true);
-        ac.clearKeepOffsetFromActor();
+        // A remote copy may have been locked sheathed; our own AI decides from here
+        TESModPlatform.setWeaponDrawnMode(ac, -1);
+        // Own companions keep the follow order CompanionService gives them
+        if (!isOwnCompanion(target)) ac.clearKeepOffsetFromActor();
         // Re-seat it where it stands so havok takes it back, but never while the world is still
         // streaming: forcing a position on an actor without 3D can wedge the load.
         if (ac.is3DLoaded()) {

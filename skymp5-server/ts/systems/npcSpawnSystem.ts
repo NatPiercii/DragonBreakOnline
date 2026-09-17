@@ -26,7 +26,7 @@ const MAX_TOTAL = 40;
 const MAX_NAME = 64;
 const SLOT_SPACING = 96;
 // Spawn height above POS so an NPC drops onto an uneven floor instead of starting inside it
-const SPAWN_LIFT = 64;
+const SPAWN_LIFT = 16;
 const RETRY_MS = 30000;
 const RELOAD_DEBOUNCE_MS = 500;
 const TAG_PROP = "private.npcSpawner";

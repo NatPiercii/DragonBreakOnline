@@ -74,8 +74,8 @@ const DEFAULT_ASH_PILE_BASE = 0xc674b;
 
 const REGISTRY_FILE = "./companions.json";
 const UPDATE_MS = 500;
-const SPAWN_DISTANCE = 160;
-const SPAWN_LIFT = 32;
+const SPAWN_DISTANCE = 96;
+const SPAWN_LIFT = 16;
 const FOLLOW_OFFSET = -128;
 // Farther than this from the owner, or in another cell, the companion is moved behind them
 const FOLLOW_TELEPORT_DISTANCE = 4096;
