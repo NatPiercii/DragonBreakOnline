@@ -1,4 +1,4 @@
-import { Actor, HitEvent, ObjectReference, storage } from "skyrimPlatform";
+import { Actor, HitEvent, ObjectReference, Quest, ReferenceAlias, storage } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
@@ -15,6 +15,11 @@ const PLAYER_FACTION = 0xdb1;
 const TWIN_SOULS_PERK = 0xd5f1c;
 // Vanilla summoning flash (SummonTargetFXActivator), played where a companion appears and where it vanishes
 const SUMMON_FX = 0x07cd55;
+// Vanilla DialogueFollower: its Follower and Animal aliases carry the engine's follow-the-player packages, so a companion
+// forced into one walks the navmesh, uses doors and fights like a hired follower. Papyrus events are blocked on the client,
+// so the quest's scripts stay inert; one slot per companion, which covers the summon limit of two.
+const DIALOGUE_FOLLOWER = 0x0750ba;
+const FOLLOW_ALIASES = ["Follower", "Animal"];
 // Owner-side list the party panel reads: [{ id (local), name, leftMs, at, staying }]
 export const COMPANION_HUD_KEY = "dboCompanionHud";
 
@@ -32,6 +37,10 @@ interface LocalState {
   following: boolean;
   followAngle: number;
   followResult: string;
+  // Native follow through a DialogueFollower alias: slot name, when it was forced, and whether it failed the check
+  aliasSlot: string;
+  aliasAt: number;
+  aliasFailed: boolean;
   reportAt: number;
   fightingTarget: number;
 }
@@ -87,6 +96,8 @@ export class CompanionService extends ClientListener {
     storage[COMPANION_IDS_KEY] = list.map((c) => c.id);
     Array.from(this.local.keys()).forEach((id) => {
       if (!list.some((c) => c.id === id)) {
+        const gone = this.local.get(id);
+        if (gone && gone.aliasSlot) this.pendingAliasClear.push(gone.aliasSlot);
         this.local.delete(id);
       }
     });
@@ -146,6 +157,9 @@ export class CompanionService extends ClientListener {
       return;
     }
     this.playPendingFx(now);
+    for (const slot of this.pendingAliasClear.splice(0)) {
+      try { this.aliasByName(slot)?.clear(); } catch { /* quest gone */ }
+    }
     this.assist(player, now);
     this.publishHud(now);
     for (const c of this.companions) {
@@ -177,7 +191,7 @@ export class CompanionService extends ClientListener {
   private stateFor(remoteId: number, actor: Actor): LocalState {
     let state = this.local.get(remoteId);
     if (!state || state.localId !== actor.getFormID()) {
-      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", reportAt: 0, fightingTarget: 0 };
+      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0 };
       this.local.set(remoteId, state);
       this.prepare(actor);
       if (!this.announced.has(remoteId)) {
@@ -225,7 +239,10 @@ export class CompanionService extends ClientListener {
       }
       return;
     }
-    // PathToReference is refused for summons, so the follow is a keep-offset behind the owner. Its angle is relative to
+    if (!state.aliasFailed && this.nativeFollow(actor, state)) {
+      return;
+    }
+    // Fallback when the alias is unavailable: a keep-offset behind the owner. Its angle is relative to
     // the owner's heading, so it is recomputed to face the owner, or the companion walks backwards when the owner turns.
     const distance = actor.getDistance(player);
     if (distance > CompanionService.teleportDistance) {
@@ -248,8 +265,70 @@ export class CompanionService extends ClientListener {
     }
   }
 
+  // Puts the companion in a free DialogueFollower alias once, then checks after a few seconds that the engine took it:
+  // the alias holds it and a package runs. Returns false when the fallback follow should run instead.
+  private nativeFollow(actor: Actor, state: LocalState): boolean {
+    const now = Date.now();
+    if (state.aliasSlot) {
+      const alias = this.aliasByName(state.aliasSlot);
+      const held = alias?.getReference()?.getFormID() === actor.getFormID();
+      if (now - state.aliasAt > CompanionService.aliasCheckMs && (!held || !actor.getCurrentPackage())) {
+        state.aliasFailed = true;
+        state.followResult = `alias failed (held ${held}, package ${actor.getCurrentPackage() ? "yes" : "none"})`;
+        this.releaseAlias(state);
+        return false;
+      }
+      return true;
+    }
+    const quest = this.followerQuest();
+    if (!quest) {
+      state.aliasFailed = true;
+      state.followResult = "no DialogueFollower quest";
+      return false;
+    }
+    const taken = new Set(Array.from(this.local.values()).map((x) => x.aliasSlot).filter(Boolean));
+    const slot = FOLLOW_ALIASES.find((name) => !taken.has(name) && !this.aliasByName(name)?.getReference());
+    if (!slot) return false;
+    const alias = this.aliasByName(slot);
+    if (!alias) return false;
+    if (state.following) {
+      actor.clearKeepOffsetFromActor();
+      state.following = false;
+    }
+    alias.forceRefTo(actor);
+    actor.evaluatePackage();
+    state.aliasSlot = slot;
+    state.aliasAt = now;
+    state.followResult = "alias " + slot;
+    return true;
+  }
+
+  private releaseAlias(state: LocalState): void {
+    if (!state.aliasSlot) return;
+    try {
+      const alias = this.aliasByName(state.aliasSlot);
+      if (alias && alias.getReference()?.getFormID() === state.localId) alias.clear();
+    } catch { /* quest gone */ }
+    state.aliasSlot = "";
+  }
+
+  private followerQuest(): Quest | null {
+    const quest = Quest.from(this.sp.Game.getFormFromFile(DIALOGUE_FOLLOWER, "Skyrim.esm"));
+    if (quest && !quest.isRunning() && !this.questStartAsked) {
+      this.questStartAsked = true;
+      quest.start().catch(() => { /* reported by the alias check */ });
+    }
+    return quest;
+  }
+
+  private aliasByName(name: string): ReferenceAlias | null {
+    const quest = Quest.from(this.sp.Game.getFormFromFile(DIALOGUE_FOLLOWER, "Skyrim.esm"));
+    return quest ? ReferenceAlias.from(quest.getAliasByName(name)) : null;
+  }
+
   // Ordered to stay: holds its ground, still fights what attacks it or its owner
   private stay(actor: Actor, state: LocalState): void {
+    this.releaseAlias(state);
     if (state.following) {
       actor.clearKeepOffsetFromActor();
       state.following = false;
@@ -338,6 +417,7 @@ export class CompanionService extends ClientListener {
         hosted: isRemoteHostedByMe(remoteId), distance: Math.round(actor.getDistance(player)), inCombat: actor.isInCombat(),
         combatTarget: (actor.getCombatTarget()?.getFormID() ?? 0).toString(16), aiDisabled: actor.isAIEnabled() === false,
         following: state.following, follow: state.followResult, weaponDrawn: actor.isWeaponDrawn(),
+        package: (actor.getCurrentPackage()?.getFormID() ?? 0).toString(16), aliasSlot: state.aliasSlot,
       }],
     });
   }
@@ -365,6 +445,8 @@ export class CompanionService extends ClientListener {
   private lastPos = new Map<number, number[]>();
   private fxRefs: Array<[number, number]> = [];
   private lastAssistMs = 0;
+  private questStartAsked = false;
+  private pendingAliasClear: string[] = [];
   private lastApplyMs = 0;
   private lastOrderTarget = 0;
   private lastOrderMs = 0;
@@ -383,6 +465,7 @@ export class CompanionService extends ClientListener {
   private static readonly assistMs = 1000;
   private static readonly assistRadius = 2048;
   private static readonly fxLifeMs = 4000;
+  private static readonly aliasCheckMs = 3000;
   private static readonly reportMs = 5000;
   private static readonly hostileEffectFlag = 0x1;
 }
