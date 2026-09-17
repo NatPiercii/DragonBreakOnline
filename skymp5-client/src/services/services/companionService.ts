@@ -43,6 +43,10 @@ interface LocalState {
   aliasFailed: boolean;
   reportAt: number;
   fightingTarget: number;
+  // Stuck watch: last sampled position, when it stopped moving, and when it was last lifted out
+  stuckPos?: number[];
+  stuckSince: number;
+  unstuckAt: number;
 }
 
 export const isOwnCompanion = (remoteId: number | undefined): boolean => {
@@ -184,14 +188,40 @@ export class CompanionService extends ClientListener {
       } else {
         this.follow(actor, player, state);
       }
+      if (!c.staying) this.unstick(actor, player, state, now);
       this.report(c.id, actor, player, state);
     }
+  }
+
+  // A companion born inside geometry cannot walk anywhere, whatever order it holds, so it is lifted to the owner
+  private unstick(actor: Actor, player: Actor, state: LocalState, now: number): void {
+    const here = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()];
+    const before = state.stuckPos;
+    state.stuckPos = here;
+    const distance = actor.getDistance(player);
+    if (!before || distance <= CompanionService.stuckDistance) {
+      state.stuckSince = 0;
+      return;
+    }
+    if (Math.hypot(here[0] - before[0], here[1] - before[1], here[2] - before[2]) > CompanionService.stuckUnits) {
+      state.stuckSince = 0;
+      return;
+    }
+    state.stuckSince = state.stuckSince || now;
+    if (now - state.stuckSince < CompanionService.stuckMs || now - state.unstuckAt < CompanionService.stuckMs) {
+      return;
+    }
+    state.stuckSince = 0;
+    state.unstuckAt = now;
+    actor.moveTo(player, 0, CompanionService.followOffsetY, 0, false);
+    state.following = false;
+    state.followResult = "unstuck at " + Math.round(distance);
   }
 
   private stateFor(remoteId: number, actor: Actor): LocalState {
     let state = this.local.get(remoteId);
     if (!state || state.localId !== actor.getFormID()) {
-      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0 };
+      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0, stuckSince: 0, unstuckAt: 0 };
       this.local.set(remoteId, state);
       this.prepare(actor);
       if (!this.announced.has(remoteId)) {
@@ -267,6 +297,8 @@ export class CompanionService extends ClientListener {
     if (!state.following || (distance > CompanionService.followRadius && turn > CompanionService.followTurnDeg)) {
       actor.keepOffsetFromActor(player, 0, CompanionService.followOffsetY, 0, 0, 0, angle,
         CompanionService.catchUpRadius, CompanionService.followRadius);
+      // An offset alone leaves the current package running, so the AI never acts on it
+      actor.evaluatePackage();
       state.following = true;
       state.followAngle = angle;
       state.followResult = "offset " + Math.round(angle);
@@ -419,12 +451,17 @@ export class CompanionService extends ClientListener {
     }
     state.reportAt = now;
     const base = actor.getBaseObject();
+    // Whether it actually moved since the last report, so an order that changes nothing is visible
+    const here = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()];
+    const then = this.reportPos.get(remoteId);
+    const moved = then ? Math.round(Math.hypot(here[0] - then[0], here[1] - then[1], here[2] - then[2])) : -1;
+    this.reportPos.set(remoteId, here);
     sendCustomPacket(this.controller, {
       customPacketType: "dbo", event: "npcDrift", args: [{
         kind: "companion", remoteId: remoteId.toString(16), base: `${base?.getName() || "?"} ${(base?.getFormID() ?? 0).toString(16)}`,
         hosted: isRemoteHostedByMe(remoteId), distance: Math.round(actor.getDistance(player)), inCombat: actor.isInCombat(),
         combatTarget: (actor.getCombatTarget()?.getFormID() ?? 0).toString(16), aiDisabled: actor.isAIEnabled() === false,
-        following: state.following, follow: state.followResult, weaponDrawn: actor.isWeaponDrawn(),
+        following: state.following, follow: state.followResult, weaponDrawn: actor.isWeaponDrawn(), moved,
         package: (actor.getCurrentPackage()?.getFormID() ?? 0).toString(16), aliasSlot: state.aliasSlot,
       }],
     });
@@ -460,6 +497,8 @@ export class CompanionService extends ClientListener {
   private lastOrderMs = 0;
   private lastPerkCheckMs = 0;
   private sentTwinSouls = false;
+  // Position at the last report, to tell a companion that will not move from one that is keeping up
+  private reportPos = new Map<number, number[]>();
 
   private static readonly applyIntervalMs = 250;
   private static readonly orderRepeatMs = 2000;
@@ -472,6 +511,10 @@ export class CompanionService extends ClientListener {
   private static readonly teleportDistance = 2048;
   // Past this the companion breaks off its own fight and comes back, so it cannot be left behind
   private static readonly combatLeashDistance = 1500;
+  // Moving less than this far while this far from the owner, for this long, counts as stuck
+  private static readonly stuckUnits = 8;
+  private static readonly stuckDistance = 400;
+  private static readonly stuckMs = 3000;
   private static readonly assistMs = 1000;
   private static readonly assistRadius = 2048;
   private static readonly fxLifeMs = 4000;
