@@ -35,6 +35,8 @@ const TEMPLATE_USE_AI_DATA = 0x10;
 const MAX_TEMPLATE_DEPTH = 8;
 // An NPC this far below its spawn point fell out of the world and is replaced on its spot
 const FALL_LIMIT = 3000;
+// Falls on one spot before the slot is given up: a spot with no floor would otherwise cycle forever
+const MAX_SPOT_FALLS = 2;
 // Above its spot by this much, within this radius of it and still for this many polls: stuck in the air, not climbing
 const STRAND_LIFT = 600;
 const STRAND_RADIUS = 384;
@@ -697,20 +699,48 @@ export class NpcSpawnSystem implements System {
       const leash = Math.max(LEASH_MIN, zone.radius * LEASH_RADII);
       const away = Math.hypot(pos[0] - zone.pos[0], pos[1] - zone.pos[1]);
       const strayed = !fell && away > leash;
-      if (!fell && !strayed && !this.isStranded(entry.id, pos, slot)) continue;
+      // The server never moves a spawned actor between cells: a movement update that disagrees with
+      // the cell it holds is dropped, so once these two part company every hit on the NPC is refused
+      // as a worldspace mismatch and it can never be killed. Only a fresh copy fixes it.
+      const elsewhere = !fell && !strayed && this.wrongCell(mp, entry.id, zone);
+      if (!fell && !strayed && !elsewhere && !this.isStranded(entry.id, pos, slot)) continue;
       const why = fell
         ? `fell out of the world (z ${Math.round(pos[2])})`
         : strayed
           ? `strayed ${Math.round(away)} from its zone`
-          : `hung ${Math.round(pos[2] - slot[2])} above its spot`;
+          : elsewhere
+            ? `is in ${elsewhere}, not ${zone.cellOrWorldDesc}, so hits on it are refused`
+            : `hung ${Math.round(pos[2] - slot[2])} above its spot`;
       this.log(`NpcSpawnSystem: '${zone.name}' ${hex(entry.id)} ${why}, placing it again`);
       try { mp.destroyActor(entry.id); } catch { }
       this.airborne.delete(entry.id);
       entry.id = 0;
       entry.diedAt = now;
       zone.slotReadyAt[entry.slot] = now;
+      // A spot with no floor under it drops every actor placed on it, which would cycle for the whole
+      // lease. After a second fall the slot is left empty and the spot is named for fixing in the data.
+      if (fell) {
+        const key = `${zone.name}:${entry.slot}`;
+        const falls = (this.fallenSpots.get(key) ?? 0) + 1;
+        this.fallenSpots.set(key, falls);
+        if (falls >= MAX_SPOT_FALLS) {
+          zone.slotReadyAt[entry.slot] = NEVER_READY;
+          this.log(`NpcSpawnSystem: '${zone.name}' slot ${entry.slot} at [${slot.map((n) => Math.round(n)).join(", ")}] has dropped ${falls} npcs into the void; leaving it empty`);
+        }
+      }
     }
   }
+
+  // Cell the server holds for a spawned actor when it is not the one its zone lives in
+  private wrongCell(mp: Mp, id: number, zone: Zone): string | "" {
+    let where = "";
+    try { where = String(mp.get(id, "worldOrCellDesc") || ""); } catch { return ""; }
+    if (!where || where.toLowerCase() === zone.cellOrWorldDesc.toLowerCase()) return "";
+    return where;
+  }
+
+  // Zone slots that have dropped an NPC out of the world, by "<zone>:<slot>"
+  private fallenSpots = new Map<string, number>();
 
   // Last seen ground position of an NPC hanging above its spot, with the number of polls it has not moved
   private airborne = new Map<number, { xy: number[]; polls: number }>();
@@ -773,6 +803,7 @@ export class NpcSpawnSystem implements System {
     zone.emptySince = 0;
     const now = Date.now();
     zone.slotReadyAt = zone.slotReadyAt.map((at) => reset || at < 0 || at <= now ? 0 : at);
+    for (let slot = 0; slot < zone.total; slot++) this.fallenSpots.delete(`${zone.name}:${slot}`);
     this.saveSpawns();
   }
 

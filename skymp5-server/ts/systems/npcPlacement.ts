@@ -32,6 +32,7 @@ export const placeNpc = (mp: Mp, anchorId: number, baseDesc: string, loc: NpcLoc
   mp.set(id, "isDisabled", true);
   mp.set(id, "isDisabled", false);
   assertPlacedIn(mp, id, loc);
+  assertStandingAt(mp, id, loc);
   return id;
 };
 
@@ -53,4 +54,26 @@ const assertPlacedIn = (mp: Mp, id: number, loc: NpcLocation): void => {
 
   try { mp.destroyActor(id); } catch (e) { /* already gone */ }
   throw new Error(`placed in ${where}, expected ${loc.cellOrWorldDesc}`);
+};
+
+// The cell can be right while the position is still the anchor's, which puts an enemy on the player
+const PLACE_TOLERANCE = 256;
+
+const assertStandingAt = (mp: Mp, id: number, loc: NpcLocation): void => {
+  const offBy = (): number => {
+    let pos: number[] = [];
+    try { pos = mp.getActorPos(id); } catch (e) { return 0; }
+    if (!Array.isArray(pos) || pos.length < 3) return 0;
+    return Math.hypot(pos[0] - loc.pos[0], pos[1] - loc.pos[1], pos[2] - loc.pos[2]);
+  };
+  if (offBy() <= PLACE_TOLERANCE) return;
+
+  mp.set(id, "locationalData", loc);
+  mp.set(id, "isDisabled", true);
+  mp.set(id, "isDisabled", false);
+  const still = offBy();
+  if (still <= PLACE_TOLERANCE) return;
+
+  try { mp.destroyActor(id); } catch (e) { /* already gone */ }
+  throw new Error(`stayed ${Math.round(still)} units from its spot in ${loc.cellOrWorldDesc}`);
 };
