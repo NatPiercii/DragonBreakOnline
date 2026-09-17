@@ -27,6 +27,7 @@ import { applyEquipment, isBadMenuShown } from '../../sync/equipment';
 import { Inventory, applyInventory, getDiff, getInventory, isBoundItem, removeSimpleItemsAsManyAsPossible } from '../../sync/inventory';
 import { Movement } from '../../sync/movement';
 import { enforceSpells } from '../../sync/spell';
+import { wasSelfActivated } from '../../sync/selfActivation';
 import { setRefrCollision } from '../../sync/animation';
 import { isOwnCompanion } from './companionService';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
@@ -306,10 +307,16 @@ export class RemoteServer extends ClientListener {
         return;
       }
 
-      refr.activate(Game.getPlayer(), true);
-
       const baseObject = refr.getBaseObject();
       const baseType = baseObject?.getType();
+
+      // Furniture answers carry no caster, and an NPC's own sit is routed to its hoster
+      if (baseType === FormType.Furniture && !wasSelfActivated(remoteId)) {
+        logTrace(this, "onOpenContainerMessage - furniture we did not activate, not seating the player", remoteId.toString(16));
+        return;
+      }
+
+      refr.activate(Game.getPlayer(), true);
 
       let functionChecker: (() => boolean) | null = null;
       let factName = "";

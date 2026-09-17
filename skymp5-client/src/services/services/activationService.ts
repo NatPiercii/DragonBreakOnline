@@ -1,4 +1,4 @@
-import { ActivateEvent, Actor } from "skyrimPlatform";
+import { ActivateEvent, Actor, FormType } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { MsgType } from "../../messages";
 import { getInventory } from "../../sync/inventory";
@@ -7,6 +7,7 @@ import { getInventory } from "../../sync/inventory";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
 
 import { LastInvService } from "./lastInvService";
+import { selfActivated } from "../../sync/selfActivation";
 import { logError, logTrace } from "../../logging";
 
 export class ActivationService extends ClientListener {
@@ -28,6 +29,14 @@ export class ActivationService extends ClientListener {
 
         // Actors never have non-ff ids locally in skymp
         if (caster !== 0x14 && caster < 0xff000000) {
+          return;
+        }
+
+        const isPlayer = caster === 0x14;
+
+        // An NPC sitting down would have the server seat the hosting player instead, over and over
+        if (!isPlayer && e.target.getBaseObject()?.getType() === FormType.Furniture) {
+          logTrace(this, "Not relaying an NPC's furniture activation");
           return;
         }
 
@@ -58,6 +67,8 @@ export class ActivationService extends ClientListener {
             logTrace(this, "Ignoring activation of door because it's already opening or closing");
             return;
         }
+
+        if (isPlayer) selfActivated(target);
 
         this.controller.emitter.emit("sendMessage", {
             message: {
