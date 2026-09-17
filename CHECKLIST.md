@@ -1,5 +1,65 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-17: the native (C++) NPC session, scoped and ready to pick up
+
+Server-side C++ only. It rebuilds the SERVER binaries, so players download nothing and no client bundle
+changes. Do NOT touch SkyrimPlatform for any of this: that would make every player re-download through the
+launcher. Build with the manager's Native (C++) button (CMake configures into `build/`, writes `build/dist`
+directly, game service stopped) or the CI flatrim build, which needs `DRAGONBREAK_GH_TOKEN` in
+`skymp5-backend\.env`. See `fork\CLAUDE.md` "Deployment reality".
+
+Do these in order; each stands alone and is testable on its own.
+
+- [ ] **1. Let an NPC change cell, and correct a rejected move** (retires a whole class of bugs).
+  `skymp5-server\cpp\server_guest_lib\MovementValidation.cpp:16-34` rejects an update when the cell differs or
+  the jump is past 4096 units, and its corrective teleport is `isMe` only, with the comment "Not doing this to
+  any NPCs at this moment". So an NPC whose real cell parts company with the server's copy is dropped from then
+  on: `ActionListener.cpp:1479-1505` then refuses every hit as "different cells or world" and the creature is
+  unkillable until it despawns. Change: accept a cell change from the actor's hoster (it is the authority for
+  that actor), and send the correction to the hoster when a move is refused. The TypeScript net added
+  2026-09-17 (`npcSpawnSystem.checkMisplaced` destroys and respawns a wrong-cell copy) is the workaround and can
+  stay as a backstop. TEST: fight a creature through an interior door, then keep hitting it.
+- [ ] **2. Server-chosen hosting by proximity.** The gamemode's `onHostAttempt` can only refuse a claim, never
+  start one (`ActionListener.cpp:1060-1095`), so the first client to load an NPC drives it even from across a
+  valley, and hosting only moves when the holder stops sending (`hostResetTimeout` 2 s). Add a server-side
+  reassignment to the nearest eligible player. Biggest single win for NPC quality once more than one player is
+  near the same creatures. `server\NPC_NOTES.md` already ranks this first among the techniques.
+- [ ] **3. Stop echoing an actor's own movement and animations back to its host.**
+  `ActionListener.cpp:393-398` forwards to every listener including the sender, which is why the client carries
+  guards against replaying its own animations (`formView.ts:523-530`, restarted swings, a sit that turned
+  collision off permanently). Fixing it server-side lets those client guards be deleted later.
+- [ ] NOT worth doing: server-driven NPC movement. The server has no navmesh (libespm parses NAVM vertices,
+  nothing consumes them, no triangles and no pathfinder), it cannot broadcast a movement message at all
+  (`SendToNeighbours` only forwards bytes a client sent), and a server "move" is a Teleport delivered to ONE
+  user (`MpActor.cpp:1635-1648` with `GetActorToSendTo`). Driving companions from the server would replace
+  navmesh walking with straight-line sliding. Tilted Online (Skyrim Together) is client-authoritative for the
+  same reasons. Keep the split we have: the server decides what (follow, fight, stay, lifetime), the owner's
+  engine decides how.
+- [ ] Also C++, already known and unrelated to the above: `PapyrusObjectReference::SetScale` is a stub, so
+  champions cannot be made visibly bigger.
+
+## Added 2026-09-17: region-locked gear and crafting (user decision, NOT built)
+
+- [ ] **Gear belongs to its province.** Cyrodiil items are made and found in Cyrodiil, Skyrim items in
+  Skyrim, Solstheim items on Solstheim. A Nordic or Stalhrim weapon should not turn up in a Bruma cave,
+  and Cyrodiilic Legion gear should not drop in Whiterun. Decided 2026-09-17 after Bruma Caverns bandits
+  were armed with `DLC2Nordic*` weapons.
+- [ ] Places this has to be enforced, all of which currently draw from one world-wide pool:
+  - `server\dungeons.js` `weaponFor` arms unarmed enemies from `LOOT.weapons`; the only filters are the
+    `BAD_WEAPON` pattern, a shape by editor id, the draugr/falmer/forsworn factions and a value cap per
+    difficulty. Needs a province filter from the dungeon's worldspace.
+  - `server\loot.json` (from `ck-mcp\loot.py`) fills dungeon chests: armor, ench_armor, weapons,
+    ench_weapons, arrows. Either tag every entry with its province at generation time or filter by the
+    source plugin (BSAssets/BSHeartland = Cyrodiil, Dragonborn/DLC2 = Solstheim, Skyrim/Update = Skyrim).
+  - Crafting: recipes are not gated by region at all yet, so a Skyrim smith could forge Cyrodiilic gear.
+    Decide whether the gate is the crafting station's zone or a learned recipe (`SKILLS_DESIGN.md` has the
+    recipe work under `HasSpell` gating, still unbuilt).
+  - `server\admin-items.json` (admin panel catalog) may stay world-wide; it is a GM tool.
+- [ ] Open question for the user: what about trade and travel? Simplest rule is that gear is only
+  *produced and looted* in its own province but may be *carried* anywhere, which needs no extra work.
+- [ ] Vanilla Skyrim gear in Bruma is the common case to check first: the leveled lists behind Cyrodiil's
+  bandits already resolve to Skyrim bases in places, so some of this is Beyond Skyrim's own data.
+
 ## Added 2026-09-16 (afternoon): Bruma notice board, spawn and creation fixes
 - [x] **Bruma notice board placed** in the Creation Kit with DLE active: `1164c7:DragonBreak Online Edits.esp`, base Manny's `manny_up_NoticeBoardActivator`, outdoors in BSHeartland at [59437, 202554, 7481] near the cathedral. Resolves to the `bruma` region (zones.ts `zoneAt` matches regions by worldspace). Deployed to `server\data` (previous DLE in `_ckmcp-dle-backup-20260916-144519`). NOT tested in game.
 - [ ] **DLE gained three masters** in that save, 49 -> 52: `BSAssets.esm`, `BSHeartland.esm` (expected for anything placed in Bruma) and `Sentinel - Master Plugin.esp` (unexpected; DLE now cannot load without Sentinel). All load before DLE, and DLE still validates clean.

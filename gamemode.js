@@ -581,6 +581,19 @@ mp.onActivate = (targetId, casterId) => {
   if (!prev) return true;
   try { return prev.call(mp, targetId, casterId) !== false; } catch (e) { return true; }
 };
+// TEMPORARY door trace (2026-09-16, Applewatch house doors would not open): every door activation and its answer
+{
+  const activateCore = mp.onActivate;
+  mp.onActivate = (targetId, casterId) => {
+    const allowed = activateCore(targetId, casterId);
+    try {
+      const desc = String(mp.get(targetId >>> 0, 'baseDesc') || '');
+      const rec = desc && mp.lookupEspmRecordById(mp.getIdFromDesc(desc));
+      if (rec && rec.record && rec.record.type === 'DOOR') log(`doortrace ${display(casterId)} door ${mp.getDescFromId(targetId >>> 0)} (${desc}) allowed=${allowed}`);
+    } catch (e) { /* not a door */ }
+    return allowed;
+  };
+}
 
 // ---- bank treasuries -----------------------------------------------------------------------
 // Every zone with a "treasury" in zones.json starts with 10,000 gold, seeded once; board fees are paid into it.
@@ -639,7 +652,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     // Mirror admin panel actions (Insert key) into the audit log; AdminSystem enforces them.
     if (content.customPacketType === 'adminAction') {
       const a = actorOf(userId); if (!a || !isAdmin(a)) return;
-      const extra = ['target', 'mode', 'amount'].filter(k => content[k] !== undefined).map(k => `${k}=${content[k]}`).join(' ');
+      const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier'].filter(k => content[k] !== undefined).map(k => `${k}=${content[k]}`).join(' ');
       audit(`GM ${who(a)} admin panel: ${content.action} ${extra}`.trim());
     }
   } catch (e) { log('customPacket error', e.message); }
@@ -776,8 +789,11 @@ const onCharacterReady = (userId, a) => {
     if (creationPending(a)) startCreationInHub(a);
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
     needsOnConnect(a);
+    if (globalThis.__dboPlayerMenuReady) globalThis.__dboPlayerMenuReady(a);
     // A lease that ended while the player was offline never told this client to stop glowing
     try { if (globalThis.__dboGlowClear) globalThis.__dboGlowClear(a); } catch (e) { log('glow clear failed', e.message); }
+    // Anyone who logs in inside a dungeon they no longer hold is put back outside its entrance
+    try { if (globalThis.__dboDungeonLoginCheck) globalThis.__dboDungeonLoginCheck(a); } catch (e) { log('dungeon login check failed', e.message); }
     giveStarterKit(a);
     try { pushHud(a, needsOf(a), true); } catch (e) { /* hud later */ }
   }, 8000);
@@ -820,6 +836,9 @@ const giveStarterKit = (a) => {
 setTimeout(() => { for (const a of onlineActors()) { try { giveStarterKit(a); pushHud(a, needsOf(a), true); } catch (e) { log('starter kit failed', e.message); } } }, 1000);
 globalThis.__dboHandlers.disconnect = (userId) => {
   const a = actorOf(userId); if (a) audit(`LEAVE ${who(a)}`);
+  if (a && globalThis.__dboPlayerMenuLeave) globalThis.__dboPlayerMenuLeave(a);
+  // Logging out inside a dungeon would put them back inside it next time, in a claim that is not theirs
+  if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -1118,6 +1137,11 @@ onUi('arrived', (a, args) => {
     log(`${display(a)} arrived at the landing`);
     startCreationInHub(a);
   }
+});
+// Client HostedDriftService: an NPC this client hosts whose skeleton split from its reference (floating creatures, 2026-09-16)
+onUi('npcDrift', (a, args) => {
+  const r = args[0] && typeof args[0] === 'object' ? args[0] : {};
+  log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 400)}`);
 });
 const refusePigeon = (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); personal(a, 'Pigeons are sent from a notice board. Walk up to one and use it.'); };
 onUi('pigeonOpen', (a) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a); });
@@ -1656,12 +1680,13 @@ try {
   require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF });
 } catch (e) { log('labour.js failed to load:', e.stack || e.message); globalThis.__dboLabour = null; }
 
-// ---- temporary: wolf tethering diagnostic, remove once answered -------------------------------
+// ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
 try {
-  const PROBE_JS = path.resolve('dbo-probe.js');
-  delete require.cache[PROBE_JS];
-  require(PROBE_JS)({ mp, log, registerChatCommand, personal });
-} catch (e) { log('dbo-probe.js failed to load:', e.stack || e.message); }
+  const PLAYERMENU_JS = path.resolve('playermenu.js');
+  delete require.cache[PLAYERMENU_JS];
+  const runCommand = (a, name, argStr) => { const c = commands.get(name); if (c && (!c.admin || isAdmin(a))) c.fn(a, argStr); };
+  require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, cfg });
+} catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
@@ -1669,6 +1694,9 @@ try {
   delete require.cache[PLAYTEST_JS];
   require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt });
 } catch (e) { log('playtest.js failed to load:', e.stack || e.message); globalThis.__dboPlaytestActivate = null; globalThis.__dboPlaytestGate = null; }
+
+
+
 
 
 

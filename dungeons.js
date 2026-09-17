@@ -30,7 +30,7 @@ module.exports = (api) => {
   const SPAWNED_IDS_FILE = path.resolve('zone-spawns.json');
   const ZONE_PREFIX = 'dungeon:';
   const DIFFICULTIES = [
-    { id: 'story', label: 'Story', blurb: 'The weakest of each kind, fewer of them. Modest loot, no locked chests.', pick: 'low', mult: 0.6, gear: 150, potionTier: 0, gold: [3, 12], soulgem: 0, soulTier: 0, ench: 0, bossEnch: 0.05 },
+    { id: 'story', label: 'Story', blurb: 'Ordinary foes, fewer of them. Modest loot, no locked chests.', pick: 'mid', mult: 0.6, gear: 150, potionTier: 0, gold: [3, 12], soulgem: 0, soulTier: 0, ench: 0, bossEnch: 0.05 },
     { id: 'normal', label: 'Normal', blurb: 'As Bethesda placed them. Fair loot, a few locked chests.', pick: 'mid', mult: 1, gear: 400, potionTier: 1, gold: [5, 25], soulgem: 0.03, soulTier: 1, ench: 0.02, bossEnch: 0.12 },
     { id: 'hard', label: 'Hard', blurb: 'The strongest of each kind, more of them. Better loot.', pick: 'high', mult: 1.25, gear: 900, potionTier: 2, gold: [10, 45], soulgem: 0.06, soulTier: 2, ench: 0.05, bossEnch: 0.25 },
     { id: 'nightmare', label: 'Nightmare', blurb: 'The strongest, half again as many, most chests locked. The best loot.', pick: 'high', mult: 1.6, gear: 3000, potionTier: 3, gold: [20, 80], soulgem: 0.1, soulTier: 3, ench: 0.08, bossEnch: 0.4 },
@@ -292,7 +292,7 @@ module.exports = (api) => {
   const HUMANOID = /bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|orc|soldier|guard|thalmor|vampire|hunter|warlock|necromancer|conjurer|mage|cultist|silverhand|reaver|smuggler|pirate|warrior|dremora|boss/i;
   const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ghost|dragon|frostbite|netch|riekling|ashhopper/i;
   const CASTER = /mage|wizard|sorcerer|warlock|necromancer|conjurer|witch|priest|cultist|shaman/i;
-  const BAD_WEAPON = /dun|Favor|^FF|LD_|NPC$|Trap|^FX|Unarmed|Giant|Lurker|Riekling|Nightingale|^MG|^T0|^C0|SSD|weapBasic|BYOH|Skyforge|Bound|Projectile|dlc2DB|Wrathman|Keeper|Ysgramor|Horksbane|Longhammer|Relic|Illusion|Pickaxe|Catapult|Ballista|Sphere|Knife|Fork|Scimitar|Executioner|Katana|Akaviri|Prelate|Aetherium|Dawnguard|^Axe01|Cross[Bb]ow|Stalhrim|Dragonbone|Daedric|Wooden|Follower|Imperial|Silver|NordHero|Honed|Supple|Enhanced/;
+  const BAD_WEAPON = /dun|Favor|^FF|LD_|NPC$|Trap|^FX|Unarmed|POI|Freeform|DragonPriest|Giant|Lurker|Riekling|Nightingale|^MG|^T0|^C0|SSD|weapBasic|BYOH|Skyforge|Bound|Projectile|dlc2DB|Wrathman|Keeper|Ysgramor|Horksbane|Longhammer|Relic|Illusion|Pickaxe|Catapult|Ballista|Sphere|Knife|Fork|Scimitar|Executioner|Katana|Akaviri|Prelate|Aetherium|Dawnguard|^Axe01|Cross[Bb]ow|Stalhrim|Dragonbone|Daedric|Wooden|Follower|Imperial|Silver|NordHero|Honed|Supple|Enhanced/;
   const GEAR_BY_DIFF = { story: 45, normal: 110, hard: 300, nightmare: 1000 };
   const weaponFor = (edid, diffId) => {
     const e = String(edid || '');
@@ -357,6 +357,41 @@ module.exports = (api) => {
       mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) });
       return true;
     } catch (e) { return false; }
+  };
+  // ---- logging out inside a dungeon ------------------------------------------------------------
+  // A character left standing in an interior logs back in inside it, which means inside somebody
+  // else's claim or inside one that has since reset with its enemies gone. On disconnect they are
+  // put back outside the entrance; on login anyone found inside without a live claim of their own
+  // is put out as well, which also covers a lease that ended or a restart while they were away.
+  const leaseHolding = (a) => { const pid = profileOf(a); for (const l of ST.leases.values()) if (l.members.has(pid)) return l; return null; };
+  const outsideSpot = (d, entrance) => {
+    const e = entrance && Array.isArray(entrance.pos) ? entrance : (d.entrances || []).find((x) => Array.isArray(x.pos));
+    return e || null;
+  };
+  globalThis.__dboDungeonLeave = (a) => {
+    if (!C.enabled) return false;
+    try {
+      const d = dungeonAround(a); if (!d) return false;
+      const lease = leaseHolding(a);
+      const e = outsideSpot(d, lease && lease.id === d.id ? lease.entrance : null);
+      if (!e) { log(`${display(a)} logged out inside ${d.name}, which has no entrance spot to put them out of`); return false; }
+      if (!teleport(a, e.world || e.cell, e.pos, e.rot)) return false;
+      log(`${display(a)} logged out inside ${d.name}; moved out to the entrance`);
+      return true;
+    } catch (err) { log('dungeon logout move failed', err.message); return false; }
+  };
+  globalThis.__dboDungeonLoginCheck = (a) => {
+    if (!C.enabled) return false;
+    try {
+      const d = dungeonAround(a); if (!d) return false;
+      const lease = leaseHolding(a);
+      if (lease && lease.id === d.id) return false;    // their own claim still runs; they may stay
+      const e = outsideSpot(d, null); if (!e) return false;
+      if (!teleport(a, e.world || e.cell, e.pos, e.rot)) return false;
+      system(a, `${d.name} is claimed anew or rested since you left. You wake at its entrance.`);
+      log(`${display(a)} logged in inside ${d.name} without a claim; moved out to the entrance`);
+      return true;
+    } catch (err) { log('dungeon login check failed', err.message); return false; }
   };
   // Returns false to block the activation, true to let it through, null when it is not ours.
   globalThis.__dboDungeonActivate = (targetId, casterId) => {

@@ -146,14 +146,6 @@
    "value": 49
   },
   {
-   "id": "Skyrim.esm:09E2AB",
-   "name": "SpellTomeConjureFamiliar",
-   "school": "Conjuration",
-   "rank": 0,
-   "spell": "ConjureFamiliar",
-   "value": 49
-  },
-  {
    "id": "Skyrim.esm:09E2AA",
    "name": "SpellTomeRaiseZombie",
    "school": "Conjuration",
@@ -202,38 +194,6 @@
    "value": 100
   },
   {
-   "id": "Skyrim.esm:0B45F7",
-   "name": "dunHighGateSpellTomeFlamingFamiliar",
-   "school": "Conjuration",
-   "rank": 1,
-   "spell": "dunHighGateSummonFlamingThrall",
-   "value": 250
-  },
-  {
-   "id": "Dawnguard.esm:0045B1",
-   "name": "DLC1SpellTomeConjureMistman",
-   "school": "Conjuration",
-   "rank": 2,
-   "spell": "DLC1ConjureMistman",
-   "value": 75
-  },
-  {
-   "id": "Dragonborn.esm:01E2B1",
-   "name": "DLC2SpellTomeConjureAshSpawn",
-   "school": "Conjuration",
-   "rank": 2,
-   "spell": "DLC2ConjureAshSpawn",
-   "value": 338
-  },
-  {
-   "id": "Dragonborn.esm:033C67",
-   "name": "DLC2SpellTomeConjureSeeker",
-   "school": "Conjuration",
-   "rank": 2,
-   "spell": "DLC2ConjureSeeker",
-   "value": 307
-  },
-  {
    "id": "Skyrim.esm:0A26EE",
    "name": "SpellTomeBanishDaedra",
    "school": "Conjuration",
@@ -264,22 +224,6 @@
    "rank": 2,
    "spell": "Revenant",
    "value": 340
-  },
-  {
-   "id": "Dawnguard.esm:0045B2",
-   "name": "DLC1SpellTomeConjureWrathman",
-   "school": "Conjuration",
-   "rank": 3,
-   "spell": "DLC1ConjureWrathman",
-   "value": 75
-  },
-  {
-   "id": "Dragonborn.esm:01AABA",
-   "name": "DLC2SpellTomeConjureAshGuardian",
-   "school": "Conjuration",
-   "rank": 3,
-   "spell": "DLC2AshGuardianRune",
-   "value": 720
   },
   {
    "id": "Skyrim.esm:10FD60",
@@ -913,11 +857,6 @@
    "value": 250
   },
   {
-   "id": "Skyrim.esm:09659F",
-   "name": "ConjureFamiliarScroll",
-   "value": 25
-  },
-  {
    "id": "Skyrim.esm:0965A5",
    "name": "ConjureFlameAtronachScroll",
    "value": 50
@@ -1060,11 +999,6 @@
   {
    "id": "Dragonborn.esm:020961",
    "name": "DLC2ExpSpiderShockJumpingScroll",
-   "value": 100
-  },
-  {
-   "id": "Dragonborn.esm:016E1C",
-   "name": "DLC2ExpSpiderZombieScroll",
    "value": 100
   },
   {

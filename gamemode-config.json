@@ -190,6 +190,16 @@
         ],
         "radius": 25000,
         "pick": "low"
+      },
+      {
+        "_comment": "Bruma city surroundings (user request 2026-09-16): weakest creature of each spot, so wolves instead of ogres around the walls.",
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          57750,
+          202700
+        ],
+        "radius": 25000,
+        "pick": "low"
       }
     ]
   },
@@ -232,7 +242,7 @@
     "maxFee": 50
   },
   "respawnTemples": {
-    "_comment": "TEST 2026-09-16: Bruma respawn back at the cathedral door, the spot HANDOFF records as hanging on login. Delete this bruma entry to return to the Pale Pass default.",
+    "_comment": "Bruma deaths respawn at the cathedral door (user decision 2026-09-16). The login hang there was vanilla creature pathing, fixed by disabling Bruma's plugin creatures (HANDOFF section 14). Hub gates still lead to the Pale Pass arrival.",
     "bruma": {
       "world": "a764b:BSHeartland.esm",
       "pos": [
