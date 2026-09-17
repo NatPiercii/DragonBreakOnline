@@ -30,11 +30,39 @@ export class AdminModeService extends ClientListener {
 
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
     const content = parseCustomPacket(event);
+    if (content && content["customPacketType"] === "dboTeachShouts") {
+      const shouts = Array.isArray(content["shouts"]) ? content["shouts"] as Array<{ shout: string; words: string[] }> : [];
+      this.controller.once("update", () => this.teachShouts(shouts));
+      return;
+    }
     if (!content || content["customPacketType"] !== "adminMode") return;
     const mode = String(content["mode"] ?? "");
     const on = !!content["on"];
     // Natives throw in the packet-handler context; defer to update
     this.controller.once("update", () => this.apply(mode, on));
+  }
+
+  // Admin panel "all shouts": the server has no shout storage, so it sends the list at the grant and at every login.
+  // desc is "hex:Plugin.esm"; every word is learned and unlocked, then the shout is added.
+  private teachShouts(shouts: Array<{ shout: string; words: string[] }>): void {
+    const player = this.sp.Game.getPlayer();
+    if (!player) return;
+    const formOf = (desc: string) => {
+      const i = String(desc).indexOf(":");
+      if (i < 0) return null;
+      try { return this.sp.Game.getFormFromFile(parseInt(desc.slice(0, i), 16), desc.slice(i + 1)); } catch { return null; }
+    };
+    let taught = 0;
+    for (const entry of shouts) {
+      for (const w of entry.words || []) {
+        const word = this.sp.WordOfPower.from(formOf(w));
+        if (!word) continue;
+        try { this.sp.Game.teachWord(word); this.sp.Game.unlockWord(word); } catch { /* not a word in this load order */ }
+      }
+      const shout = this.sp.Shout.from(formOf(entry.shout));
+      if (shout) { try { player.addShout(shout); taught++; } catch { /* already known */ } }
+    }
+    showSystemNotification(this.sp, `You know ${taught} shouts.`);
   }
 
   private apply(mode: string, on: boolean): void {

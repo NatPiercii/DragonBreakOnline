@@ -475,3 +475,39 @@ $admin-row-gutter: 16px;
     }
   }
 }
+
+// ---- F7 additions: punishments, bans, skills, items, powers ---------------------------------------
+.admin-panel {
+  &__punish { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+  &__tempban { flex-wrap: wrap; align-items: center; }
+  &__label { color: $admin-gold; font-size: 14px; letter-spacing: 0.04em; margin-right: 6px; }
+  &__section { color: #c98a3a; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; margin: 6px 0 2px; }
+  &__bans { max-height: 150px; overflow-y: auto; }
+  &__chip {
+    background: rgba(232, 214, 160, 0.12); border: 1px solid rgba(232, 214, 160, 0.45); color: #e8d6a0;
+    font-family: inherit; font-size: 13px; padding: 4px 9px; margin-right: 4px; cursor: pointer;
+    &:hover { background: rgba(232, 214, 160, 0.3); }
+    &--on { background: rgba(143, 211, 208, 0.3); border-color: $admin-gold; color: #fff; }
+  }
+  &__input--short { width: 64px; }
+  &__tiers { display: flex; flex-wrap: wrap; gap: 2px; flex: 1; }
+  &__list--skills { max-height: 460px; }
+  &__items { display: flex; gap: 12px; align-items: stretch; }
+  &__categories { display: flex; flex-direction: column; gap: 3px; width: 190px; flex-shrink: 0; max-height: 540px; overflow-y: auto; }
+  &__category {
+    text-align: left; background: rgba(8, 25, 28, 0.6); border: 1px solid $admin-border; color: $admin-gold;
+    font-family: inherit; font-size: 14px; padding: 6px 10px; cursor: pointer;
+    &:hover { background: rgba(22, 56, 61, 0.9); }
+    &--on { background: rgba(143, 211, 208, 0.22); color: #fff; border-color: $admin-gold; }
+  }
+  &__count { float: right; opacity: 0.6; font-size: 12px; }
+  &__itempane { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  &__list--items { max-height: 420px; }
+  &__powers { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+  &__power { display: flex; align-items: center; gap: 16px; }
+}
+
+.admin-panel__select {
+  background: rgba(8, 25, 28, 0.8); border: 1px solid $admin-border; color: $admin-gold;
+  font-family: inherit; font-size: 14px; padding: 5px 8px; margin-left: 8px; max-width: 260px;
+}

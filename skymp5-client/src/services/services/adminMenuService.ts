@@ -9,7 +9,7 @@ import { ActiveEffectApplyRemoveEvent, BrowserMessageEvent, ButtonEvent, DxScanC
 
 declare const window: any;
 
-// Tabbed admin panel (default Insert, launcher-configurable via adminMenuKeyCode); item spawning is via the server-granted in-game console.
+// Tabbed admin panel (default F7, launcher-configurable via adminMenuKeyCode).
 // Every player gets the Debug tab at once; the admin tabs appear only when the server answers adminMenuRequest (Discord roles / profile ids).
 // Renders as the dedicated 'adminPanel' widget (skymp5-front features/adminPanel), trade-style: pure data in, sendMessage events out.
 // The Players tab also grants mastery hours (admin::masterygrant target amount / admin::masteryreset target -> adminAction masteryGrant / masteryReset).
@@ -41,7 +41,13 @@ const events = {
   npcDelete: "admin::npcdelete",
   masteryGrant: "admin::masterygrant",
   masteryReset: "admin::masteryreset",
+  // F7 panel tabs: any adminAction (action + fields) and the two data requests
+  action: "admin::action",
+  request: "admin::request",
 };
+
+// Requests the front may send through admin::request; everything else is refused here
+const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest"]);
 
 interface DebugServer {
   name: string;
@@ -89,7 +95,7 @@ function safe<T>(fn: () => T | null | undefined, fallback: T): T {
 export class AdminMenuService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
-    this.menuKey = readMenuKeyCode(sp, "adminMenuKeyCode", DxScanCode.Insert);
+    this.menuKey = readMenuKeyCode(sp, "adminMenuKeyCode", DxScanCode.F7);
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("update", () => this.onUpdate());
@@ -122,6 +128,8 @@ export class AdminMenuService extends ClientListener {
     panelData.modes = [];
     panelData.npcZones = [];
     panelData.mastery = null;
+    panelData.bans = [];
+    panelData.masteryTarget = null;
     this.refreshDebug();
     this.showMenu();
     sendCustomPacket(this.controller, { customPacketType: "debugInfoRequest" });
@@ -153,6 +161,11 @@ export class AdminMenuService extends ClientListener {
         tier: String(content["tier"] ?? ""),
         // The admin's own standing; absent on older servers
         mastery: content["mastery"] && typeof content["mastery"] === "object" ? content["mastery"] : null,
+        bans: Array.isArray(content["bans"]) ? content["bans"] : [],
+        // The big catalogs live in the browser (window.__dboAdminItems / __dboAdminLocations); only their version travels here
+        itemsVersion: panelData.itemsVersion || 0,
+        locationsVersion: panelData.locationsVersion || 0,
+        masteryTarget: panelData.masteryTarget || null,
         events,
       };
       this.pushData();
@@ -183,6 +196,17 @@ export class AdminMenuService extends ClientListener {
       for (const m of Array.isArray(panelData.modes) ? panelData.modes : []) {
         if (m && m.id === mode) m.active = on;
       }
+      this.pushData();
+    } else if (content["customPacketType"] === "adminItems" || content["customPacketType"] === "adminLocations") {
+      // Handed to the browser once: re-sending thousands of rows with every panel refresh made the panel lag
+      const isItems = content["customPacketType"] === "adminItems";
+      const list = isItems ? content["categories"] : content["locations"];
+      const json = JSON.stringify(Array.isArray(list) ? list : []);
+      this.sp.browser.executeJavaScript(`window.${isItems ? "__dboAdminItems" : "__dboAdminLocations"} = ${json};`);
+      if (isItems) panelData.itemsVersion = Date.now(); else panelData.locationsVersion = Date.now();
+      this.pushData();
+    } else if (content["customPacketType"] === "adminMastery") {
+      panelData.masteryTarget = { name: String(content["targetName"] ?? ""), target: String(content["target"] ?? ""), detail: content["detail"] || null };
       this.pushData();
     } else if (content["customPacketType"] === "adminActionResult") {
       notifyNextUpdate(this.controller, this.sp, String(content["text"] ?? ""));
@@ -317,6 +341,25 @@ export class AdminMenuService extends ClientListener {
     }
     if (kind === events.mode) {
       sendCustomPacket(this.controller, { customPacketType: "adminAction", action: "toggleMode", mode: String(e.arguments[1] ?? "") });
+      return;
+    }
+    if (kind === events.action) {
+      // admin::action <action> <JSON of extra fields>; the server checks rank and target for every one
+      let fields: Record<string, unknown> = {};
+      try { fields = JSON.parse(String(e.arguments[2] ?? "{}")) || {}; } catch { fields = {}; }
+      const action = String(e.arguments[1] ?? "");
+      sendCustomPacket(this.controller, Object.assign({}, fields, { customPacketType: "adminAction", action }));
+      if (["kill", "deleteCharacter", "ipBan", "tempBan", "unban"].indexOf(action) !== -1) {
+        sendCustomPacket(this.controller, { customPacketType: "adminMenuRequest" });
+      }
+      return;
+    }
+    if (kind === events.request) {
+      const type = String(e.arguments[1] ?? "");
+      if (!PANEL_REQUESTS.has(type)) return;
+      let fields: Record<string, unknown> = {};
+      try { fields = JSON.parse(String(e.arguments[2] ?? "{}")) || {}; } catch { fields = {}; }
+      sendCustomPacket(this.controller, Object.assign({}, fields, { customPacketType: type }));
       return;
     }
     if (kind === events.npcList) {

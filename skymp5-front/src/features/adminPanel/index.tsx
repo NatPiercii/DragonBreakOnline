@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import './styles.scss';
+import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PanelBan, MasteryTarget } from './extraTabs';
 
 // One roster row as merged by the server (online actor data + backend record).
 interface PanelPlayer {
@@ -86,6 +87,10 @@ export interface AdminPanelData {
   caps?: { ban?: boolean }; // server-resolved tier capabilities, absent on older servers
   tier?: string; // "senior" | "developer" | "gm", absent on older servers
   mastery?: PanelMastery | null; // the admin's own standing, absent on older servers
+  bans?: PanelBan[]; // admin-bans.json entries (temp and ip bans)
+  itemsVersion?: number; // bumped when window.__dboAdminItems arrives
+  locationsVersion?: number; // bumped when window.__dboAdminLocations arrives
+  masteryTarget?: MasteryTarget | null; // the Skills tab's player, arrives after adminMasteryRequest
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -99,12 +104,15 @@ const send = (key: string, ...args: unknown[]): void => {
   }
 };
 
-type Tab = 'debug' | 'players' | 'teleport' | 'modes' | 'npcs';
+type Tab = 'debug' | 'players' | 'skills' | 'items' | 'powers' | 'teleport' | 'modes' | 'npcs';
 
 // Debug is open to every player; the rest render only while data.admin is true
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'debug', label: 'Debug' },
   { id: 'players', label: 'Players' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'items', label: 'Items' },
+  { id: 'powers', label: 'Powers' },
   { id: 'teleport', label: 'Teleport' },
   { id: 'modes', label: 'Modes' },
   { id: 'npcs', label: 'NPCs' },
@@ -405,6 +413,15 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
               <Button text="Kick" width={104} height={32} disabled={!actionsEnabled} onClick={() => act(ev.kick)} />
               {canBan ? <Button text="Ban" width={104} height={32} disabled={!actionsEnabled} onClick={() => act(ev.ban)} /> : null}
             </div>
+            {ev.action ? (
+              <PlayerPunish
+                events={ev}
+                target={actionsEnabled && selectedPlayer && selectedPlayer.a ? selectedPlayer.a : null}
+                name={selectedPlayer ? selectedPlayer.n : ''}
+                canBan={canBan}
+                bans={data.bans || []}
+              />
+            ) : null}
             {ev.masteryGrant && data.mastery ? (
               <div className="admin-panel__mastery">
                 <div className="admin-panel__mastery-row">
@@ -489,30 +506,11 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
           </div>
         ) : null}
 
-        {tab === 'teleport' ? (
-          <div className="admin-panel__body">
-            <div className="admin-panel__filters">
-              <input
-                className="admin-panel__search"
-                placeholder="Search locations"
-                value={locSearch}
-                onChange={(e) => setLocSearch(e.target.value)}
-              />
-            </div>
-            <div className="admin-panel__list">
-              {shownLocations.length === 0 ? (
-                <div className="admin-panel__empty">No locations configured</div>
-              ) : (
-                shownLocations.map((l) => (
-                  <div key={l.name} className="admin-panel__row admin-panel__row--location">
-                    <span className="admin-panel__cell admin-panel__cell--name">{l.name}</span>
-                    <Button text="Teleport" width={112} height={30} onClick={() => send(ev.tpLoc, l.name)} />
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        ) : null}
+        {tab === 'skills' ? <SkillsTab events={ev} masteryTarget={data.masteryTarget || null} /> : null}
+        {tab === 'items' ? <ItemsTab events={ev} itemsVersion={data.itemsVersion || 0} /> : null}
+        {tab === 'powers' ? <PowersTab events={ev} /> : null}
+
+        {tab === 'teleport' ? <TeleportTab events={ev} locationsVersion={data.locationsVersion || 0} /> : null}
 
         {tab === 'modes' ? (
           <div className="admin-panel__modes">

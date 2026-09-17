@@ -456,6 +456,45 @@ export class MasterySystem implements System {
     return true;
   }
 
+  // Every skill with its label, which of them the character follows and at what tier, for the admin Skills tab
+  adminDetail(ctx: SystemContext, actorId: number): { skills: Array<{ id: string; label: string; chosen: boolean; rank: number; hours: number }>; tierNames: string[]; tierHours: number[]; maxChosen: number } {
+    const rec = this.read(ctx, actorId) || emptyRecord();
+    return {
+      skills: this.skills.map((k) => ({ id: k.id, label: k.label, chosen: rec.order.indexOf(k.id) !== -1, rank: rec.skills[k.id]?.rank ?? -1, hours: rec.skills[k.id]?.points ?? 0 })),
+      tierNames: this.tierNames.slice(), tierHours: this.tierHours.slice(), maxChosen: this.maxChosen,
+    };
+  }
+
+  // Admin: puts the character at the start of a tier in a skill, taking the skill up first if needed (the chosen-skill limit does not apply)
+  adminSetTier(ctx: SystemContext, actorId: number, skillId: string, tier: number): boolean {
+    if (!this.def(skillId) || !Number.isInteger(tier) || tier < 0 || tier >= this.tierHours.length) return false;
+    const rec = this.read(ctx, actorId) || emptyRecord();
+    const userId = this.userOf(ctx, actorId);
+    if (rec.order.indexOf(skillId) === -1) {
+      rec.order.push(skillId);
+      rec.skills[skillId] = rec.skills[skillId] || emptyProgress();
+      rec.skills[skillId].rank = -1;
+    }
+    rec.skills[skillId].points = this.tierHours[tier];
+    this.syncRank(ctx, actorId, rec, skillId, userId);
+    this.applyActorValues(ctx, actorId, skillId, rec.skills[skillId].rank);
+    this.write(ctx, actorId, rec);
+    this.sendMenu(ctx, userId);
+    return true;
+  }
+
+  // Admin: sets one skill aside with no standing stone, no gold and no respec counted
+  adminDropSkill(ctx: SystemContext, actorId: number, skillId: string): boolean {
+    const rec = this.read(ctx, actorId);
+    if (!rec || rec.order.indexOf(skillId) === -1) return false;
+    this.dropSkill(ctx, actorId, rec, skillId);
+    this.write(ctx, actorId, rec);
+    const userId = this.userOf(ctx, actorId);
+    this.notice(ctx, userId, `${this.labelOf(skillId)} has been set aside.`);
+    this.sendMenu(ctx, userId);
+    return true;
+  }
+
   // ── Login ───────────────────────────────────────────────────────────────────
 
   private onActorAssigned(ctx: SystemContext, userId: number, actorId: number): void {

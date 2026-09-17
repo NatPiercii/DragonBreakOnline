@@ -18,10 +18,10 @@ export class BrowserService extends ClientListener {
     this.sp.browser.setVisible(false);
 
     // Key bindings are configurable from the launcher's client settings
-    // DragonBreak bindings: F1 nametags, F2 hide the HUD, F6 focus chat (also T / Enter), F7 free cursor
+    // DragonBreak bindings: F1 nametags, F2 hide the HUD, F6 focus chat (also T / Enter), F8 free cursor (F7 opens the admin panel)
     this.nametagKey = readMenuKeyCode(this.sp, "nametagKeyCode", DxScanCode.F1);
     this.hideUiKey = readMenuKeyCode(this.sp, "hideUiKeyCode", DxScanCode.F2);
-    this.freeCursorKey = readMenuKeyCode(this.sp, "freeCursorKeyCode", DxScanCode.F7);
+    this.freeCursorKey = readMenuKeyCode(this.sp, "freeCursorKeyCode", DxScanCode.F8);
     try {
       const settings = this.sp.settings["skymp5-client"] as any;
       if (settings && Array.isArray(settings["chatFocusKeyCodes"])) {
@@ -161,7 +161,7 @@ export class BrowserService extends ClientListener {
 
   private nametagKey: DxScanCode = DxScanCode.F1;
   private hideUiKey: DxScanCode = DxScanCode.F2;
-  private freeCursorKey: DxScanCode = DxScanCode.F7;
+  private freeCursorKey: DxScanCode = DxScanCode.F8;
   private chatFocusKeys: DxScanCode[] = [DxScanCode.Enter, DxScanCode.T, DxScanCode.F6];
 
   private readonly badMenus: Menu[] = [
