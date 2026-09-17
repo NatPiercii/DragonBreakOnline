@@ -6,6 +6,8 @@ import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { WorldCleanerService } from "./worldCleanerService";
 import { getViewFromStorage, isRemoteHostedByMe, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
 import { COMPANION_IDS_KEY, isOwnCompanion } from "../../sync/ownCompanions";
+import { applyMovement } from "../../sync/movementApply";
+import { ObjectReferenceEx } from "../../extensions/objectReferenceEx";
 
 export { isOwnCompanion };
 
@@ -50,6 +52,8 @@ interface LocalState {
   stuckPos?: number[];
   stuckSince: number;
   unstuckAt: number;
+  // This copy ignores the engine's orders, so the client walks it itself
+  driven: boolean;
 }
 
 export class CompanionService extends ClientListener {
@@ -167,6 +171,7 @@ export class CompanionService extends ClientListener {
     for (const slot of this.pendingAliasClear.splice(0)) {
       try { this.aliasByName(slot)?.clear(); } catch { /* quest gone */ }
     }
+    this.recordTrail(player);
     this.assist(player, now);
     this.publishHud(now);
     for (const c of this.companions) {
@@ -188,10 +193,14 @@ export class CompanionService extends ClientListener {
         this.fight(actor, target, state);
       } else if (c.staying) {
         this.stay(actor, state);
+      } else if (state.driven) {
+        // applyMovement throws on a cell mismatch; a throw here would break every companion this tick
+        try { this.drive(actor, player, state); } catch (e) { state.followResult = "drive failed"; }
       } else {
         this.follow(actor, player, state);
       }
-      if (!c.staying) this.unstick(actor, player, state, now);
+      // A throw here would break every companion this tick, so the driven path is contained
+      try { if (!c.staying && !state.driven) this.unstick(actor, player, state, now); } catch (e) { state.followResult = "unstick failed"; }
       this.report(c.id, actor, player, state);
     }
   }
@@ -215,16 +224,89 @@ export class CompanionService extends ClientListener {
       return;
     }
     state.stuckSince = 0;
+    // Teleported once already and still going nowhere: this copy will not take an order, so drive it
+    if (state.unstuckAt) {
+      state.driven = true;
+      actor.clearKeepOffsetFromActor();
+      state.following = false;
+      state.followResult = "driving from " + Math.round(distance);
+      return;
+    }
     state.unstuckAt = now;
     actor.moveTo(player, 0, CompanionService.followOffsetY, 0, false);
     state.following = false;
     state.followResult = "unstuck at " + Math.round(distance);
   }
 
+  // Walked positions of the owner, the newest last, so a driven companion follows ground the owner crossed
+  private trail: number[][] = [];
+
+  private recordTrail(player: Actor): void {
+    const here = [player.getPositionX(), player.getPositionY(), player.getPositionZ()];
+    const last = this.trail[this.trail.length - 1];
+    if (last && Math.hypot(here[0] - last[0], here[1] - last[1], here[2] - last[2]) < CompanionService.trailStepUnits) {
+      return;
+    }
+    this.trail.push(here);
+    if (this.trail.length > CompanionService.trailPoints) this.trail.shift();
+  }
+
+  // Some copies ignore every order the engine takes, so the client walks them itself along the owner's trail
+  private drive(actor: Actor, player: Actor, state: LocalState): void {
+    const from = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()];
+    const distance = actor.getDistance(player);
+    if (distance <= CompanionService.followRadius * 2) {
+      state.followResult = "driven, at heel";
+      return;
+    }
+    // Head for the owner, taking the height from the nearest ground the owner actually walked on,
+    // so a step never sinks into a slope or hangs in the air
+    const target = [player.getPositionX(), player.getPositionY(), player.getPositionZ()];
+    let nearest = Infinity;
+    for (const point of this.trail) {
+      const d = Math.hypot(point[0] - from[0], point[1] - from[1]);
+      if (d < nearest) {
+        nearest = d;
+        target[2] = point[2];
+      }
+    }
+    const dx = target[0] - from[0];
+    const dy = target[1] - from[1];
+    const flat = Math.hypot(dx, dy) || 1;
+    const facing = ((Math.atan2(dx, dy) * 180 / Math.PI) % 360 + 360) % 360;
+    // Too far to run back: put it behind the owner, since a driven companion has no leash of its own
+    if (distance > CompanionService.teleportDistance) {
+      actor.setPosition(target[0] - dx / flat * CompanionService.followRadius,
+        target[1] - dy / flat * CompanionService.followRadius, target[2]);
+      state.followResult = "driven, caught up from " + Math.round(distance);
+      return;
+    }
+    const running = distance > CompanionService.catchUpRadius;
+    const speed = running ? CompanionService.driveRunSpeed : CompanionService.driveWalkSpeed;
+    const step = Math.min(speed * CompanionService.applyIntervalMs / 1000, flat);
+    // applyMovement throws RespawnNeededError when this does not match the actor's own cell
+    applyMovement(actor, {
+      worldOrCell: ObjectReferenceEx.getWorldOrCell(actor),
+      pos: [from[0] + dx / flat * step, from[1] + dy / flat * step, target[2]],
+      rot: [0, 0, facing],
+      runMode: running ? "Running" : "Walking",
+      direction: 0,
+      isInJumpState: false,
+      isSneaking: false,
+      isBlocking: false,
+      isWeapDrawn: actor.isWeaponDrawn(),
+      isDead: false,
+      healthPercentage: 1,
+      speed,
+    });
+    state.following = false;
+    state.followResult = `driven ${running ? "running" : "walking"} at ${Math.round(distance)}`;
+  }
+
   private stateFor(remoteId: number, actor: Actor): LocalState {
     let state = this.local.get(remoteId);
     if (!state || state.localId !== actor.getFormID()) {
-      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0, stuckSince: 0, unstuckAt: 0 };
+      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0, stuckSince: 0, unstuckAt: 0, driven: false };
       this.local.set(remoteId, state);
       this.prepare(actor);
       if (!this.announced.has(remoteId)) {
@@ -245,6 +327,9 @@ export class CompanionService extends ClientListener {
     actor.setPlayerTeammate(true, false);
     actor.ignoreFriendlyHits(true);
     actor.setActorValue("Aggression", 1);
+    // A spawned copy can carry a zero speed, which leaves it inching along instead of walking
+    if (actor.getActorValue("SpeedMult") < 50) actor.setActorValue("SpeedMult", 100);
+    actor.setDontMove(false);
     actor.clearKeepOffsetFromActor();
     actor.stopCombat();
     actor.stopCombatAlarm();
@@ -465,7 +550,7 @@ export class CompanionService extends ClientListener {
         hosted: isRemoteHostedByMe(remoteId), distance: Math.round(actor.getDistance(player)), inCombat: actor.isInCombat(),
         combatTarget: (actor.getCombatTarget()?.getFormID() ?? 0).toString(16), aiDisabled: actor.isAIEnabled() === false,
         following: state.following, follow: state.followResult, weaponDrawn: actor.isWeaponDrawn(), moved,
-        deleted: actor.isDeleted(), disabled: actor.isDisabled(), loaded: actor.is3DLoaded(),
+        deleted: actor.isDeleted(), disabled: actor.isDisabled(), loaded: actor.is3DLoaded(), var10: Math.round(actor.getActorValue("Variable10")), speedMult: Math.round(actor.getActorValue("SpeedMult")), driven: state.driven,
         localId: actor.getFormID().toString(16), at: here.map(Math.round), owner: [player.getPositionX(), player.getPositionY(), player.getPositionZ()].map(Math.round),
         package: (actor.getCurrentPackage()?.getFormID() ?? 0).toString(16), aliasSlot: state.aliasSlot,
       }],
@@ -524,6 +609,11 @@ export class CompanionService extends ClientListener {
   private static readonly stuckUnits = 8;
   private static readonly stuckDistance = 400;
   private static readonly stuckMs = 3000;
+  // Client-driven follow: trail spacing and length, and the speeds it walks and runs at
+  private static readonly trailStepUnits = 96;
+  private static readonly trailPoints = 48;
+  private static readonly driveWalkSpeed = 260;
+  private static readonly driveRunSpeed = 900;
   private static readonly assistMs = 1000;
   private static readonly assistRadius = 2048;
   private static readonly fxLifeMs = 4000;

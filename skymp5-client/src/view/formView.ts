@@ -490,8 +490,11 @@ export class FormView {
         } else {
           const remoteId = this.remoteRefrId;
           if (ac && remoteId && ac.is3DLoaded()) {
-            // The server no longer drives this copy, so its last translateTo must not keep running
-            settleTranslation(ac);
+            // The server no longer drives this copy, so its last translateTo must not keep running.
+            // Own companions are exempt: CompanionService drives a stuck one with its own translations.
+            if (!isOwnCompanion(remoteId)) {
+              settleTranslation(ac);
+            }
 
             if (this.movState.offsetApplied && !isOwnCompanion(remoteId)) {
               ac.clearKeepOffsetFromActor();
