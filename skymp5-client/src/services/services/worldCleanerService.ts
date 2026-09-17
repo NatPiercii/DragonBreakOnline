@@ -3,6 +3,8 @@ import { NiPoint3 } from "../../sync/movement";
 import { ObjectReferenceEx } from "../../extensions/objectReferenceEx";
 import { Actor } from "skyrimPlatform";
 import { logTrace } from "../../logging";
+import { isOwnCompanion } from "../../sync/ownCompanions";
+import { localIdToRemoteId } from "../../view/worldViewMisc";
 
 export class WorldCleanerService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -66,6 +68,11 @@ export class WorldCleanerService extends ClientListener {
     }
 
     if (actorId === 0x14 || actor.isDisabled() || actor.isDeleted()) {
+      return;
+    }
+
+    // A companion is swept before its view protects it, and a deleted one can never move again
+    if (isOwnCompanion(localIdToRemoteId(actorId))) {
       return;
     }
 

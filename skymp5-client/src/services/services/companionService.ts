@@ -5,11 +5,14 @@ import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { WorldCleanerService } from "./worldCleanerService";
 import { getViewFromStorage, isRemoteHostedByMe, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
+import { COMPANION_IDS_KEY, isOwnCompanion } from "../../sync/ownCompanions";
+
+export { isOwnCompanion };
 
 // Owner side of the server companion library (companionSystem.ts, docs/docs_roleplay_companions.md).
 // The owner hosts its companions, so this engine's AI drives them: teammate setup, following, and combat with the server's target.
 
-const COMPANION_IDS_KEY = "ownCompanionIds";
+
 const PLAYER_ID = 0x14;
 const PLAYER_FACTION = 0xdb1;
 const TWIN_SOULS_PERK = 0xd5f1c;
@@ -49,11 +52,6 @@ interface LocalState {
   unstuckAt: number;
 }
 
-export const isOwnCompanion = (remoteId: number | undefined): boolean => {
-  const ids = storage[COMPANION_IDS_KEY];
-  return remoteId !== undefined && Array.isArray(ids) && ids.includes(remoteId);
-};
-
 export class CompanionService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
@@ -83,7 +81,8 @@ export class CompanionService extends ClientListener {
       }));
     // A new companion stands in for the engine's own summon, which the world cleaner removes
     if (list.some((c) => !this.companions.some((old) => old.id === c.id))) {
-      this.controller.lookupListener(WorldCleanerService).sweepBurst(CompanionService.cleanerBurstMs);
+      // Delayed: a burst started now can sweep our own copy before its view is mapped and protected
+      this.pendingBurstAt = Date.now() + CompanionService.burstDelayMs;
     }
     this.setCompanions(list);
   }
@@ -151,6 +150,10 @@ export class CompanionService extends ClientListener {
 
   private onUpdate(): void {
     const now = Date.now();
+    if (this.pendingBurstAt && now >= this.pendingBurstAt) {
+      this.pendingBurstAt = 0;
+      this.controller.lookupListener(WorldCleanerService).sweepBurst(CompanionService.cleanerBurstMs);
+    }
     this.reportPerks(now);
     if (!this.companions.length || now - this.lastApplyMs < CompanionService.applyIntervalMs) {
       return;
@@ -462,6 +465,8 @@ export class CompanionService extends ClientListener {
         hosted: isRemoteHostedByMe(remoteId), distance: Math.round(actor.getDistance(player)), inCombat: actor.isInCombat(),
         combatTarget: (actor.getCombatTarget()?.getFormID() ?? 0).toString(16), aiDisabled: actor.isAIEnabled() === false,
         following: state.following, follow: state.followResult, weaponDrawn: actor.isWeaponDrawn(), moved,
+        deleted: actor.isDeleted(), disabled: actor.isDisabled(), loaded: actor.is3DLoaded(),
+        localId: actor.getFormID().toString(16), at: here.map(Math.round), owner: [player.getPositionX(), player.getPositionY(), player.getPositionZ()].map(Math.round),
         package: (actor.getCurrentPackage()?.getFormID() ?? 0).toString(16), aliasSlot: state.aliasSlot,
       }],
     });
@@ -497,12 +502,16 @@ export class CompanionService extends ClientListener {
   private lastOrderMs = 0;
   private lastPerkCheckMs = 0;
   private sentTwinSouls = false;
+  // When the delayed cleaner burst is due, 0 when none is pending
+  private pendingBurstAt = 0;
   // Position at the last report, to tell a companion that will not move from one that is keeping up
   private reportPos = new Map<number, number[]>();
 
   private static readonly applyIntervalMs = 250;
   private static readonly orderRepeatMs = 2000;
   private static readonly cleanerBurstMs = 3000;
+  // The engine summon our copy replaces is swept after this, once our own copy is safely mapped
+  private static readonly burstDelayMs = 3000;
   private static readonly perkCheckMs = 10000;
   private static readonly followOffsetY = -128;
   private static readonly catchUpRadius = 512;
