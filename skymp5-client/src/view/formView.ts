@@ -436,11 +436,12 @@ export class FormView {
       if (isNewMovement || Date.now() - this.movState.lastApply > 2000) {
         this.movState.lastApply = Date.now();
         // Nobody drives it yet: seat it on its spot without the collision-off slide, our AI takes it once hosted
-        const undriven = !model.isHostedByOther && !alreadyHosted;
         // A copy born on the spawn anchor, which is usually a player, stays there once everApplied is set
-        const strandedFromServer = undriven && this.movState.everApplied && ac && !model.isDead
+        // Nobody may drive it: not hosted here, not hosted elsewhere, and not one of our own companions
+        const strandedFromServer = this.movState.everApplied && ac && !model.isDead
+          && !alreadyHosted && !isOwnCompanion(this.remoteRefrId)
           && ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), model.movement.pos) > STRANDED_UNITS;
-        if (undriven && (!this.movState.everApplied || strandedFromServer) && ac && !model.isDead) {
+        if (!model.isHostedByOther && (!this.movState.everApplied || strandedFromServer) && ac && !model.isDead) {
           const m = model.movement;
           try {
             if (ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), m.pos) > 16) {
