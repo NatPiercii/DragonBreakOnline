@@ -121,7 +121,7 @@ function readModId(modDir) {
 
 /** List archive entries as [{ path, size, crc }] (files only, with a CRC). */
 function listEntries(archivePath) {
-  const out = execFileSync(SEVEN, ['l', '-slt', '-ba', archivePath], {
+  const out = execFileSync(SEVEN, ['l', '-slt', '-ba', '-sccUTF-8', archivePath], {
     encoding: 'utf8',
     maxBuffer: 256 * 1024 * 1024,
     timeout: 5 * 60 * 1000,
