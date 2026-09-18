@@ -4,15 +4,16 @@ const fs = require('fs')
 // Written by the manager Build tab. LATEST_VERSION = launcher app release (GET /api/version, update prompt)
 // CLIENT_VERSION = client files release (baked into data/files-version.json by merge-files.js)
 // SERVER_VERSION = game server release label (informational)
-const LATEST_VERSION = '2.1.14'
+// DOWNLOAD_URL = installer for LATEST_VERSION (GitHub release asset of NatPiercii/DragonBreakOnline)
+const LATEST_VERSION = '2.1.15'
 const CLIENT_VERSION = '0.3.1'
 const SERVER_VERSION = '0.3.1'
-const DOWNLOAD_URL   = 'https://api.dragonbreakonline.com/downloads/DragonBreakLauncher.exe'
+const DOWNLOAD_URL   = 'https://github.com/NatPiercii/DragonBreakOnline/releases/download/launcher-v2.1.15/DragonBreakLauncher.exe'
 
 router.get('/', (_req, res) => {
   res.json({
     version:       readConst('LATEST_VERSION', LATEST_VERSION),
-    downloadUrl:   DOWNLOAD_URL,
+    downloadUrl:   readConst('DOWNLOAD_URL', DOWNLOAD_URL),
     clientVersion: readConst('CLIENT_VERSION', CLIENT_VERSION),
     serverVersion: readConst('SERVER_VERSION', SERVER_VERSION),
   })
