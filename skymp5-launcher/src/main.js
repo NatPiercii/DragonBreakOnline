@@ -1029,7 +1029,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
 }
 
 // Vanilla root files, by store edition. Only those present get copied.
-// Skyrim.ccc is deliberately NOT copied: no cc* plugins are copied either, and
+// Skyrim.ccc is deliberately NOT copied: only the free CC plugins below are copied (the load order lists them), and
 // an orphan ccc list makes the engine treat the AE/CC content set as changed,
 // which pops the Creation Club announcement over the main menu on first boot.
 // That box is modal and SkyrimPlatform cannot dismiss pre-game menus.
@@ -1045,9 +1045,16 @@ const VANILLA_ROOT_FILES = [
 // Vanilla BSAs the engine loads without a matching plugin (cc* still excluded).
 const VANILLA_STANDALONE_BSAS = new Set(['marketplacetextures.bsa', '_resourcepack.bsa'])
 
-// A Data file is vanilla if it is a known master or a vanilla-named BSA (cc* excluded).
+// Creation Club plugins every 1.6 install ships free; USSEP and other mods list them as masters.
+const FREE_CC_PLUGINS = new Set([
+  'ccbgssse001-fish.esm', 'ccqdrsse001-survivalmode.esl', 'ccbgssse037-curios.esl', 'ccbgssse025-advdsgs.esm',
+])
+const FREE_CC_BASES = [...FREE_CC_PLUGINS].map(p => p.replace(/\.es[ml]$/, ''))
+
+// A Data file is vanilla if it is a known master, a free CC plugin or its BSA, or a vanilla-named BSA.
 function isVanillaDataFile(name) {
   const l = name.toLowerCase()
+  if (FREE_CC_PLUGINS.has(l) || FREE_CC_BASES.some(b => l === `${b}.bsa`)) return true
   if (l.startsWith('cc')) return false
   if (VANILLA_MASTERS.has(l)) return true
   if (l.endsWith('.bsa')) {
@@ -1080,10 +1087,10 @@ function vanillaJobs(src) {
   } catch { /* no Video folder */ }
   try {
     // Vanilla loose strings exist on localized installs; English keeps them in the BSAs.
-    const bases = [...VANILLA_MASTERS].map(m => m.replace(/\.es[mlp]$/, ''))
+    const bases = [...VANILLA_MASTERS].map(m => m.replace(/\.es[mlp]$/, '')).concat(FREE_CC_BASES)
     for (const e of fs.readdirSync(path.join(dataDir, 'Strings'), { withFileTypes: true })) {
       const l = e.name.toLowerCase()
-      if (e.isFile() && !l.startsWith('cc') && bases.some(b => l.startsWith(`${b}_`))) {
+      if (e.isFile() && bases.some(b => l.startsWith(`${b}_`))) {
         jobs.push({ rel: e.name, sub: path.join('Data', 'Strings') })
       }
     }
