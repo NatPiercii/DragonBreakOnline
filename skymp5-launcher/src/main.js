@@ -65,6 +65,7 @@ const store = new Store({
     gameDirPath:       '',     // legacy: pre-base-dir location of the game copy
     baseDirPath:       '',     // DragonBreak base dir: MO2 root, with the game at <base>\skyrim
     forcedDefaultsApplied: false, // server-required graphics defaults seeded once at first install
+    gamepadDefaultApplied: false, // controller turned off once (keyboard/mouse players spawn frozen otherwise)
   }
 })
 
@@ -586,6 +587,7 @@ ipcMain.handle('gameHotkeys:save', (_e, keys) => {
 //     (resolution is player-owned: it comes from the seeded ini, or the
 //      Settings tab default when the ini doesn't specify one)
 //   • Wait unbound (T, pad Back) → controlmap override (waiting is disabled here)
+//   • controller off → SkyrimPrefs.ini [MAIN] bGamepadEnable=0
 function applyForcedServerDefaults(gamePath) {
   // One-time repair for profiles created before resolution became
   // player-owned: earlier builds force-stamped 1920x1080 into the profile
@@ -619,6 +621,21 @@ function applyForcedServerDefaults(gamePath) {
       log('[defaults] forced borderless window mode into SkyrimPrefs.ini')
     } catch (err) {
       log('[defaults] could not write graphics defaults:', err.message)
+    }
+  }
+
+  // Controller off: with bGamepadEnable=1 (Bethesda's template default, copied in when the profile
+  // prefs are seeded) a keyboard/mouse player spawns unable to move or look although the keys reach
+  // the engine. New profiles get it from seedProfilePrefs; this one-time pass migrates existing ones.
+  // Separate from forcedDefaultsApplied so existing installs get it too; players who use a
+  // controller can turn it back on in-game. Only an existing file: a stub would block the later seed.
+  if (!store.get('gamepadDefaultApplied') && fs.existsSync(skyrimPrefsPath())) {
+    try {
+      ini.write(skyrimPrefsPath(), { MAIN: { bGamepadEnable: '0' } })
+      store.set('gamepadDefaultApplied', true)
+      log('[defaults] turned the controller off in SkyrimPrefs.ini')
+    } catch (err) {
+      log('[defaults] could not turn the controller off:', err.message)
     }
   }
 
@@ -1280,7 +1297,8 @@ function gameVersionProblem() {
 }
 
 // Seed the MO2 profile SkyrimPrefs.ini from the player's own prefs, then
-// rewrite the server's forced window mode (borderless) on top. Resolution is
+// rewrite the server's forced window mode (borderless) and controller-off on
+// top (Bethesda's template ships bGamepadEnable=1). Resolution is
 // deliberately NOT rewritten: it stays whatever the player's ini says, and
 // the Settings tab only shows 1080p as a fallback when the ini has none.
 function seedProfilePrefs(skyrimPath) {
@@ -1297,6 +1315,7 @@ function seedProfilePrefs(skyrimPath) {
       fs.copyFileSync(from, dest)
       ini.write(dest, {
         Display: { 'bFull Screen': '0', 'bBorderless': '1' },
+        MAIN: { bGamepadEnable: '0' },
       })
       log(`[isolated] seeded profile SkyrimPrefs.ini from ${from}`)
     } catch (err) {
