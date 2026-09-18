@@ -42,10 +42,23 @@ if(BUILD_GAMEMODE)
     COMMENT "Downloading & building gamemode repo..."
   )
 else()
-  add_custom_target(skymp5-functions-lib ALL
-    SOURCES ${source}
-    COMMAND ${CMAKE_COMMAND} -E echo "Building skymp5-functions-lib is disabled. To enable it, set BUILD_GAMEMODE to ON."
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/dist/server
-    COMMAND ${CMAKE_COMMAND} -E true > ${CMAKE_BINARY_DIR}/dist/server/gamemode.js
-  )
+  # DragonBreak ships its own gamemode in the repo, so the server gets one without the token-gated private repo.
+  set(DRAGONBREAK_GAMEMODE "${CMAKE_SOURCE_DIR}/dragonbreak-gamemode/gamemode.js")
+  if(EXISTS "${DRAGONBREAK_GAMEMODE}")
+    add_custom_target(skymp5-functions-lib ALL
+      SOURCES ${DRAGONBREAK_GAMEMODE}
+      COMMAND ${CMAKE_COMMAND} -E echo "Building skymp5-functions-lib is disabled, using dragonbreak-gamemode/gamemode.js"
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/dist/server
+      # copy_if_different keeps the file untouched when unchanged, so the server's hot reload doesn't fire needlessly
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DRAGONBREAK_GAMEMODE} ${CMAKE_BINARY_DIR}/dist/server/gamemode.js
+      VERBATIM
+    )
+  else()
+    add_custom_target(skymp5-functions-lib ALL
+      SOURCES ${source}
+      COMMAND ${CMAKE_COMMAND} -E echo "Building skymp5-functions-lib is disabled. To enable it, set BUILD_GAMEMODE to ON."
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/dist/server
+      COMMAND ${CMAKE_COMMAND} -E true > ${CMAKE_BINARY_DIR}/dist/server/gamemode.js
+    )
+  endif()
 endif()
