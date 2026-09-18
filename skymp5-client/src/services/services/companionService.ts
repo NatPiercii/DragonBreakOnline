@@ -54,6 +54,8 @@ interface LocalState {
   unstuckAt: number;
   // This copy ignores the engine's orders, so the client walks it itself
   driven: boolean;
+  // Distance to the owner at the last stuck check, to tell walking apart from actually closing
+  lastGap?: number;
 }
 
 export class CompanionService extends ClientListener {
@@ -215,7 +217,11 @@ export class CompanionService extends ClientListener {
       state.stuckSince = 0;
       return;
     }
-    if (Math.hypot(here[0] - before[0], here[1] - before[1], here[2] - before[2]) > CompanionService.stuckUnits) {
+    // Not closing counts as stuck too: a companion can walk steadily and still drift away from its owner
+    const moved = Math.hypot(here[0] - before[0], here[1] - before[1], here[2] - before[2]);
+    const closing = state.lastGap ? state.lastGap - distance : 0;
+    state.lastGap = distance;
+    if (moved > CompanionService.stuckUnits && closing > CompanionService.closingUnits) {
       state.stuckSince = 0;
       return;
     }
@@ -296,7 +302,8 @@ export class CompanionService extends ClientListener {
       isBlocking: false,
       isWeapDrawn: actor.isWeaponDrawn(),
       isDead: false,
-      healthPercentage: 1,
+      // applyMovement applies this as a real heal or wound, so it must be the actor's own value
+      healthPercentage: actor.getActorValuePercentage("health") || 0,
       speed,
     });
     state.following = false;
@@ -609,6 +616,8 @@ export class CompanionService extends ClientListener {
   private static readonly stuckUnits = 8;
   private static readonly stuckDistance = 400;
   private static readonly stuckMs = 3000;
+  // Closing less than this per check while beyond stuckDistance counts as not following
+  private static readonly closingUnits = 16;
   // Client-driven follow: trail spacing and length, and the speeds it walks and runs at
   private static readonly trailStepUnits = 96;
   private static readonly trailPoints = 48;

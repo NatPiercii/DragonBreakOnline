@@ -26,6 +26,8 @@ type AdminView = "visible" | "hidden" | "ghost";
 
 // A copy nobody drives this far from where the server holds it is re-seated, not left standing there
 const STRANDED_UNITS = 512;
+// A hosted copy this far from the server position has its updates refused, so it is snapped back
+const RESYNC_UNITS = 3000;
 
 let _screenResolution: ScreenResolution | undefined;
 export const getScreenResolution = (): ScreenResolution => {
@@ -490,6 +492,16 @@ export class FormView {
         } else {
           const remoteId = this.remoteRefrId;
           if (ac && remoteId && ac.is3DLoaded()) {
+            // The server drops a hosted actor's movement once it disagrees by a cell width and never
+            // corrects it, after which every hit on that actor is refused as too distant, forever.
+            // Snapping our copy back to the server's position lets the next update be accepted again.
+            if (model.movement && !isOwnCompanion(remoteId)
+              && ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), model.movement.pos) > RESYNC_UNITS) {
+              const m = model.movement;
+              refr.setPosition(m.pos[0], m.pos[1], m.pos[2]);
+              setRefrCollision(this.refrId, true);
+              printConsole(`dbo: resynced hosted ${remoteId.toString(16)} to the server position`);
+            }
             // The server no longer drives this copy, so its last translateTo must not keep running.
             // Own companions are exempt: CompanionService drives a stuck one with its own translations.
             if (!isOwnCompanion(remoteId)) {
