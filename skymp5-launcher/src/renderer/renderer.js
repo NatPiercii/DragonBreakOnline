@@ -1101,6 +1101,11 @@ btnConnect.addEventListener('click', async () => {
     const result = await window.electronAPI.launchSkse()
 
     if (!result.success) {
+      if (result.authExpired) {
+        discordUser   = null
+        serverAllowed = true
+        renderTopbarDiscord()
+      }
       showWarning(result.error)
       return
     }

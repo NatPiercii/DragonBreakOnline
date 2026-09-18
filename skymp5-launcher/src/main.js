@@ -721,7 +721,7 @@ ipcMain.handle('api:serverinfo', async () => {
 
 ipcMain.handle('discord:getUser', () => store.get('discordUser') || null)
 
-ipcMain.handle('discord:logout', () => {
+function clearDiscordAuth() {
   store.set('discordUser',   null)
   store.set('gameProfileId', null)
   store.set('gameSession',   null)
@@ -733,7 +733,10 @@ ipcMain.handle('discord:logout', () => {
     const authDataPath = path.join(skyrimPath, 'Data', 'Platform', 'PluginsNoLoad', 'auth-data-no-load.js')
     try { fs.writeFileSync(authDataPath, '//null') } catch { /* file may not exist yet */ }
   }
+}
 
+ipcMain.handle('discord:logout', () => {
+  clearDiscordAuth()
   return { success: true }
 })
 
@@ -1741,6 +1744,13 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
       }
       log('[launch] launch-check passed')
     } catch (err) {
+      // 401 = the backend no longer knows this session (sessions expire after 24h);
+      // launching anyway only ends in "not authorized" in game, so ask for a fresh login.
+      if (err.statusCode === 401) {
+        log('[launch] Discord session expired - cleared, user must log in again')
+        clearDiscordAuth()
+        return { success: false, authExpired: true, error: 'Your Discord login has expired. Log in again from the top bar, then press PLAY.' }
+      }
       log(`[launch] launch-check unavailable (${err.message}) - continuing, server will enforce`)
     }
   }
