@@ -1,5 +1,61 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-17 evening: server authority audit (see `server\SERVER_AUTHORITY.md`)
+
+Ten-agent audit against Jake's rule ("everything server side, relayed to everyone"). The rule holds once
+split into authority (always server), execution (client, because only the engine has navmesh/physics) and
+replication (the server's job through three channels: the hosted movement sample, neighbour-visible
+properties, dbo* packets). 29 migrations ordered by risk in the doc; the ones that matter most:
+- [ ] **Login identity in offline mode**: the client names its own profileId and the server spawns it as
+  that account with no token or binding, and profileId 1 is a full admin. TS, small. Fix before any public
+  playtest.
+- [ ] **Movement has no rate or speed validation**, only a per-packet 4096-unit delta, so every server-side
+  proximity rule reads a position the client chose. C++ (belongs with the movement-validation task).
+- [ ] **Host assignment is first-packet-wins** with no server policy, and host is the key to moving,
+  hitting, casting and activating as that actor. TS, small: an `onHostAttempt` policy.
+- [ ] **Damage multipliers come from the client verbatim**; bow hits are exempt from the range check and the
+  melee reach test is commented out. Gamemode clamp first (small), C++ later.
+- [ ] **Mini-game verdicts** (labour, skinning) are judged inside the CEF widget; the server only gets a hit
+  count. Move the judging server-side; front rebuild, no client rebuild.
+- [ ] **Companion decisions** (driven latch, stuck verdict, attack order, three client teleports competing
+  with the server leash) must become server state with the client as hands. companionSystem.ts + client.
+- [ ] **My bug (2026-09-17)**: `companionService.drive()` passes `healthPercentage: 1` into applyMovement,
+  which heals the owner's own companion every step. Fix with the real value; needs a client rebuild.
+- [ ] Environmental damage (falls, traps, unarmed) never reaches the server, so dungeon clears, champion
+  payouts and contract credit silently miss it.
+- [ ] Twin Souls trusts `player.hasPerk()` from the client. Read it server-side.
+
+## Added 2026-09-17 evening: Serpent's Trail drops enemies into the void (cause still OPEN)
+
+- [ ] **Retracted the same evening: the "wrong cell" theory.** Serpent's Trail spans three cells
+  (`CYRSerpentsTrail01/02/03`, descs `6a7bd`, `6a7bc`, `6a7ba`) and all 15 zones carry `cell: 6a7bd`, but
+  the creation-kit MCP confirms the failing anchor refs (`82576`, `7e73c`) and the healthy boss ref
+  (`6aae1`) all have `parent_cell` 06A7BD: Trail 01 is the big cavern, 02 and 03 are small side rooms with
+  no NPCs. The survey's per-cell attribution is correct. Do not "fix" the generator for this.
+- [ ] **What is established**: six spots in Trail 01 dropped two actors each in one Nightmare claim and were
+  given up, all in the region x -6k..-9.7k, y -8.4k..-12.3k, z ~9100-9430: [-5936, -12327, 9157],
+  [-7850, -8452, 9431], [-9069, -9592, 9152], [-9165, -9592, 9152], [-9720, -8991, 9191],
+  [-7666, -8858, 9403], [-9623, -9064, 9199]. Actors land around z 6000-6500, about 3000 below. Spots in
+  the other half of the same cell (x > -6k) hold. `refs_near` in the MCP is cell-blind (it returned
+  Skyrim.esm interiors sharing those coordinates), so it cannot answer what floor is there.
+- [ ] **Cell-aware scan (scratchpad `serpents_floor_scan.py`, 3,730 refs in the cell) rules out bad data**:
+  every failing spot has 17-47 floor statics beneath it, all won by BSHeartland.esm, none disabled; DLE's
+  only overrides in the cell are 20 disabled ACHRs and one sunk gate. The vanilla NPC stands on each spot.
+  The remaining explanation, consistent with the timing (each fall came while the player was 3,000-3,500
+  units away, on the far side of a room-culled cavern): **the copy is created before the client has that
+  room's collision loaded, drops, and the net respawned it under the same conditions until it gave up.**
+- [ ] **Stopgap applied 2026-09-17 (npcSpawnSystem)**: a spot that has dropped an actor is only refilled once
+  a player is within 2,500 units of it, and a fall with nobody that close no longer counts toward giving
+  the slot up. Proper fix belongs to rebuild invariant 4 (place where the actor can stand): the client
+  should hold a freshly created copy still until its room is loaded, or the spawn handshake should wait
+  for the client to confirm collision.
+- [ ] Until then the nets hold: a spot that drops two NPCs is left empty for the rest of the lease
+  (added 2026-09-17) and logs its coordinates.
+- [ ] Log noise to silence: while a lease runs, the dungeon enemy tracker reads `private.npcSpawner` on ids
+  the spawn system has already destroyed, which the native layer logs as "resolved context with 1 entries
+  (reason=exception)" twice every 15 s. The gamemode catches it; only the log is affected.
+
+
 ## Added 2026-09-17: the native (C++) NPC session, scoped and ready to pick up
 
 Server-side C++ only. It rebuilds the SERVER binaries, so players download nothing and no client bundle
