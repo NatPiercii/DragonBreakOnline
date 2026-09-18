@@ -5,11 +5,12 @@ import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { WorldCleanerService } from "./worldCleanerService";
 import { getViewFromStorage, isRemoteHostedByMe, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
-import { COMPANION_IDS_KEY, isOwnCompanion } from "../../sync/ownCompanions";
-import { applyMovement } from "../../sync/movementApply";
+import { COMPANION_IDS_KEY, isOwnCompanion, isAnyCompanion } from "../../sync/ownCompanions";
+import { applyMovement, settleTranslation } from "../../sync/movementApply";
 import { ObjectReferenceEx } from "../../extensions/objectReferenceEx";
+import { lastTryHost, tryHost } from "../../view/hostAttempts";
 
-export { isOwnCompanion };
+export { isOwnCompanion, isAnyCompanion };
 
 // Owner side of the server companion library (companionSystem.ts, docs/docs_roleplay_companions.md).
 // The owner hosts its companions, so this engine's AI drives them: teammate setup, following, and combat with the server's target.
@@ -75,7 +76,16 @@ export class CompanionService extends ClientListener {
 
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
     const content = parseCustomPacket(event);
-    if (!content || content["customPacketType"] !== "companionState") {
+    if (!content) return;
+    if (content["customPacketType"] === "dboCompanionFx") {
+      const pos = Array.isArray(content["pos"]) ? (content["pos"] as number[]) : null;
+      if (pos) {
+        const player = this.sp.Game.getPlayer();
+        if (player) this.summonFx(player, pos);
+      }
+      return;
+    }
+    if (content["customPacketType"] !== "companionState") {
       return;
     }
     const raw = Array.isArray(content["companions"]) ? content["companions"] as Record<string, unknown>[] : [];
@@ -188,11 +198,28 @@ export class CompanionService extends ClientListener {
         actor.stopCombat();
       }
       if (!isRemoteHostedByMe(c.id)) {
+        const last = lastTryHost[c.id];
+        if (!last || now - last >= 1000) {
+          lastTryHost[c.id] = now;
+          tryHost(c.id);
+        }
         continue;
       }
       const target = c.target ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.target))) : null;
       if (target && !target.isDead()) {
+        if (state.driven) {
+          state.driven = false;
+          settleTranslation(actor);
+        }
         this.fight(actor, target, state);
+      } else if (actor.isInCombat()) {
+        if (state.driven) {
+          state.driven = false;
+          settleTranslation(actor);
+        }
+        state.stuckSince = 0;
+        state.unstuckAt = 0;
+        this.follow(actor, player, state);
       } else if (c.staying) {
         this.stay(actor, state);
       } else if (state.driven) {
@@ -202,13 +229,17 @@ export class CompanionService extends ClientListener {
         this.follow(actor, player, state);
       }
       // A throw here would break every companion this tick, so the driven path is contained
-      try { if (!c.staying && !state.driven) this.unstick(actor, player, state, now); } catch (e) { state.followResult = "unstick failed"; }
+      try { if (!c.staying && !state.driven && !actor.isInCombat()) this.unstick(actor, player, state, now); } catch (e) { state.followResult = "unstick failed"; }
       this.report(c.id, actor, player, state);
     }
   }
 
   // A companion born inside geometry cannot walk anywhere, whatever order it holds, so it is lifted to the owner
   private unstick(actor: Actor, player: Actor, state: LocalState, now: number): void {
+    if (actor.isInCombat()) {
+      state.stuckSince = 0;
+      return;
+    }
     const here = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()];
     const before = state.stuckPos;
     state.stuckPos = here;
@@ -217,11 +248,9 @@ export class CompanionService extends ClientListener {
       state.stuckSince = 0;
       return;
     }
-    // Not closing counts as stuck too: a companion can walk steadily and still drift away from its owner
     const moved = Math.hypot(here[0] - before[0], here[1] - before[1], here[2] - before[2]);
-    const closing = state.lastGap ? state.lastGap - distance : 0;
     state.lastGap = distance;
-    if (moved > CompanionService.stuckUnits && closing > CompanionService.closingUnits) {
+    if (moved > CompanionService.stuckUnits) {
       state.stuckSince = 0;
       return;
     }
@@ -230,14 +259,6 @@ export class CompanionService extends ClientListener {
       return;
     }
     state.stuckSince = 0;
-    // Teleported once already and still going nowhere: this copy will not take an order, so drive it
-    if (state.unstuckAt) {
-      state.driven = true;
-      actor.clearKeepOffsetFromActor();
-      state.following = false;
-      state.followResult = "driving from " + Math.round(distance);
-      return;
-    }
     state.unstuckAt = now;
     actor.moveTo(player, 0, CompanionService.followOffsetY, 0, false);
     state.following = false;
@@ -259,9 +280,21 @@ export class CompanionService extends ClientListener {
 
   // Some copies ignore every order the engine takes, so the client walks them itself along the owner's trail
   private drive(actor: Actor, player: Actor, state: LocalState): void {
+    if (actor.isInCombat() || state.fightingTarget) {
+      state.driven = false;
+      settleTranslation(actor);
+      actor.clearKeepOffsetFromActor();
+      actor.evaluatePackage();
+      return;
+    }
     const from = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()];
     const distance = actor.getDistance(player);
     if (distance <= CompanionService.followRadius * 2) {
+      state.driven = false;
+      state.unstuckAt = 0;
+      settleTranslation(actor);
+      actor.clearKeepOffsetFromActor();
+      actor.evaluatePackage();
       state.followResult = "driven, at heel";
       return;
     }
@@ -614,8 +647,8 @@ export class CompanionService extends ClientListener {
   private static readonly combatLeashDistance = 1500;
   // Moving less than this far while this far from the owner, for this long, counts as stuck
   private static readonly stuckUnits = 8;
-  private static readonly stuckDistance = 400;
-  private static readonly stuckMs = 3000;
+  private static readonly stuckDistance = 800;
+  private static readonly stuckMs = 6000;
   // Closing less than this per check while beyond stuckDistance counts as not following
   private static readonly closingUnits = 16;
   // Client-driven follow: trail spacing and length, and the speeds it walks and runs at

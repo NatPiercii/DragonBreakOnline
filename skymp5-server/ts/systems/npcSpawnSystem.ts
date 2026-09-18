@@ -209,12 +209,12 @@ export class NpcSpawnSystem implements System {
     await this.queueLoad("boot");
     this.watchFile();
     this.ready = true;
-    // The gamemode fills a dungeon lease before moving the party in: reload now, place every prespawn zone under the prefix
+    // The gamemode fills a dungeon lease before moving the party in: reload now, place every zone under the prefix
     (globalThis as any).__alduinakNpcSpawnNow = (prefix: string): Promise<number> => this.queueLoad("gamemode").then(() => {
       let placed = 0;
       for (const zone of this.zones) {
-        if (!zone.prespawn || !zone.name.startsWith(String(prefix))) continue;
-        this.fillSlots(this.mp, zone, Date.now());
+        if (!zone.name.startsWith(String(prefix))) continue;
+        this.fillSlots(this.mp, zone, Date.now(), zone.anchorId > 0 ? zone.anchorId : undefined);
         placed += zone.spawned.length;
       }
       return placed;
@@ -423,7 +423,7 @@ export class NpcSpawnSystem implements System {
     }
     return {
       name: draft.name, cellOrWorldDesc, cellOrWorldId, pos: draft.pos, radius: draft.radius, anchorId, npcs, slots,
-      prespawn: !!draft.prespawn && anchorId > 0,
+      prespawn: !!draft.prespawn,
       total: slots.length,
       despawnSeconds: draft.despawnSeconds,
       respawnSeconds: draft.respawnSeconds,
@@ -431,6 +431,13 @@ export class NpcSpawnSystem implements System {
       signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn]),
       spawned: [], emptySince: 0, inside: new Set(),
     };
+  }
+
+  // Extracts group prefix like "dungeon:CYRAngaLocation" from zone name
+  private dungeonGroup(name: string): string {
+    if (!name.startsWith("dungeon:")) return "";
+    const parts = name.split(":");
+    return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : "";
   }
 
   private toLocatorDesc(mp: Mp, locator: string, editorIds: Map<string, string>): string {
@@ -467,16 +474,47 @@ export class NpcSpawnSystem implements System {
 
     const startedAt = Date.now();
     const index = this.buildIndex(this.snapshotPlayers(mp, playerIds));
+
+    const activeDungeons = new Set<string>();
+    const activeInteriorCells = new Set<number>();
+    const dungeonAnchors = new Map<string, number>();
+    const interiorAnchors = new Map<number, number>();
+
+    for (const [cellId, playersInCell] of index.byWorld.entries()) {
+      if (playersInCell && playersInCell.length > 0) {
+        activeInteriorCells.add(cellId);
+        interiorAnchors.set(cellId, playersInCell[0].id);
+      }
+    }
+
     for (const zone of this.zones) {
       this.updateInside(mp, zone, index);
-      const occupied = zone.inside.size > 0 || zone.prespawn;
+      if (zone.inside.size > 0) {
+        const dGroup = this.dungeonGroup(zone.name);
+        if (dGroup) {
+          activeDungeons.add(dGroup);
+          if (!dungeonAnchors.has(dGroup)) {
+            const pid = zone.inside.values().next().value;
+            if (pid) dungeonAnchors.set(dGroup, pid);
+          }
+        }
+      }
+    }
+
+    for (const zone of this.zones) {
+      const dGroup = this.dungeonGroup(zone.name);
+      const inActiveDungeon = !!dGroup && activeDungeons.has(dGroup);
+      const inActiveInterior = activeInteriorCells.has(zone.cellOrWorldId);
+      const isDungeonZone = !!dGroup;
+
+      const occupied = zone.inside.size > 0 || zone.prespawn || inActiveDungeon || (isDungeonZone && inActiveInterior);
       if (zone.spawned.length) {
         this.checkDeaths(mp, zone, now);
         this.checkMisplaced(mp, zone, now);
       }
       if (occupied) {
         zone.emptySince = 0;
-        this.fillSlots(mp, zone, now);
+        this.fillSlots(mp, zone, now, (dGroup ? dungeonAnchors.get(dGroup) : undefined) ?? interiorAnchors.get(zone.cellOrWorldId));
       } else if (zone.spawned.length && zone.despawnSeconds > 0) {
         if (!zone.emptySince) zone.emptySince = now;
         if (now - zone.emptySince >= zone.despawnSeconds * 1000) this.despawn(mp, zone);
@@ -572,7 +610,7 @@ export class NpcSpawnSystem implements System {
   }
 
   // Places every slot that is empty or holds a corpse once its cooldown has run out
-  private fillSlots(mp: Mp, zone: Zone, now: number): void {
+  private fillSlots(mp: Mp, zone: Zone, now: number, fallbackAnchor?: number): void {
     const before = zone.spawned.length;
     let changed = false;
     let live = this.liveCount();
@@ -590,7 +628,7 @@ export class NpcSpawnSystem implements System {
         zone.slotReadyAt[slot] = now + BUDGET_RETRY_MS;
         continue;
       }
-      const anchor = this.anchorIn(zone) ?? (zone.prespawn ? zone.anchorId : undefined);
+      const anchor = this.anchorIn(zone) ?? (zone.anchorId > 0 ? zone.anchorId : undefined) ?? fallbackAnchor;
       if (anchor === undefined) break;
       const npc = zone.slots[slot];
       const id = this.spawnOne(mp, zone, npc, slot, anchor);
@@ -682,7 +720,7 @@ export class NpcSpawnSystem implements System {
     const size = Math.min(ringSize(ring), zone.total - first);
     const angle = (2 * Math.PI * (slot - first)) / size;
     const radius = ring * SLOT_SPACING;
-    return [zone.pos[0] + radius * Math.cos(angle), zone.pos[1] + radius * Math.sin(angle), zone.pos[2] + SPAWN_LIFT];
+    return [zone.pos[0] + radius * Math.cos(angle), zone.pos[1] + radius * Math.sin(angle), zone.pos[2] + (slot === 0 ? 0 : SPAWN_LIFT)];
   }
 
   // A death starts the slot's Respawn cooldown and the corpse's own removal timer

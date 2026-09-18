@@ -3,7 +3,10 @@ import { storage } from "skyrimPlatform";
 storage["hostAttempts"] = [];
 
 export const tryHost = (targetRemoteId: number): void => {
-  (storage["hostAttempts"] as any).push(targetRemoteId);
+  const arr = storage["hostAttempts"] as Array<number>;
+  if (!arr.includes(targetRemoteId)) {
+    arr.push(targetRemoteId);
+  }
 };
 
 export const nextHostAttempt = (): number | undefined => {

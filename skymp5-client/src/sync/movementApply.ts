@@ -82,6 +82,9 @@ const keepOffsetFromActor = (ac: Actor, m: Movement) => {
   }
 
   if (m.runMode === "Standing") {
+    if (offsetAngle === 0) {
+      return ac.clearKeepOffsetFromActor();
+    }
     return ac.keepOffsetFromActor(ac, 0, 0, 0, 0, 0, offsetAngle, 1, 1);
   }
   const offset = [
@@ -176,13 +179,17 @@ const giveBackCollision = (refrId: number): void => {
   try { setRefrCollision(refrId, true); } catch (e) { /* not loaded */ }
 };
 
-// A running translateTo holds collision off, so a copy nothing drives any more hangs in the air
 export const settleTranslation = (refr: ObjectReference): void => {
   const refrId = refr.getFormID();
-  if (translating.delete(refrId)) {
-    refr.stopTranslation();
-    giveBackCollision(refrId);
-  }
+  translating.delete(refrId);
+  try { refr.stopTranslation(); } catch (e) { /* not loaded */ }
+  try {
+    const ac = Actor.from(refr);
+    if (ac) {
+      ac.clearKeepOffsetFromActor();
+    }
+  } catch (e) { /* not loaded */ }
+  giveBackCollision(refrId);
 };
 
 // Last received position per clone and the ground grade (dz per horizontal unit) it implies
@@ -268,6 +275,7 @@ const translateTo = (refr: ObjectReference, m: Movement) => {
         0
       );
       translating.add(refrId);
+      setRefrCollision(refrId, true);
       return;
     }
   }

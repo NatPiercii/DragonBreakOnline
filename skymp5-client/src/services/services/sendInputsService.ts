@@ -312,18 +312,18 @@ export class SendInputsService extends ClientListener {
     }
 
     private sendHostAttempts() {
-        const remoteId = nextHostAttempt();
-        if (!remoteId) {
-          return;
+        let remoteId: number | undefined;
+        let count = 0;
+        while ((remoteId = nextHostAttempt()) !== undefined && count < 25) {
+            count++;
+            this.controller.emitter.emit("sendMessage", {
+                message: {
+                    t: MsgType.Host,
+                    remoteId
+                },
+                reliability: "reliable"
+            });
         }
-
-        this.controller.emitter.emit("sendMessage", {
-            message: {
-                t: MsgType.Host,
-                remoteId
-            },
-            reliability: "unreliable"
-        });
     }
 
     private getInputOwner(_refrId?: number) {

@@ -15,7 +15,7 @@ import { localIdToRemoteId } from "./worldViewMisc";
 import { SpApiInteractor } from "../services/spApiInteractor";
 import { WorldCleanerService } from "../services/services/worldCleanerService";
 import { GamemodeUpdateService } from "../services/services/gamemodeUpdateService";
-import { isOwnCompanion } from "../services/services/companionService";
+import { isOwnCompanion, isAnyCompanion } from "../services/services/companionService";
 
 export interface ScreenResolution {
   width: number;
@@ -293,6 +293,13 @@ export class FormView {
     this.spawnMoment = 0;
     this.dealtWithRef = false;
     const refrId = this.refrId;
+    const remoteRefrId = this.remoteRefrId;
+    if (remoteRefrId) {
+      const rawAll = storage["allCompanionIds"];
+      if (Array.isArray(rawAll) && rawAll.includes(remoteRefrId)) {
+        storage["allCompanionIds"] = rawAll.filter((id) => id !== remoteRefrId);
+      }
+    }
     once("update", () => {
       if (refrId >= 0xff000000) {
         const refr = ObjectReference.from(Game.getFormEx(refrId));
@@ -313,6 +320,7 @@ export class FormView {
     this.adminView = "visible";
     this.adminShaderOn = false;
     this.adminShaderReplayAt = 0;
+    this.movState.havokSeated = false;
     this.removeNickname();
   }
 
@@ -395,27 +403,38 @@ export class FormView {
     }
     setDefaultAnimsDisabled(this.refrId, alreadyHosted ? false : true);
 
-    if (alreadyHosted) {
-      const hostedActor = Actor.from(refr);
-      // Own companions keep the follow offset CompanionService gives them; others only lose an offset this view set
-      if (hostedActor && this.movState.offsetApplied && !isOwnCompanion(this.remoteRefrId)) {
-        hostedActor.clearKeepOffsetFromActor();
-        this.movState.offsetApplied = false;
+    const ac = Actor.from(refr);
+    if (refr.is3DLoaded()) {
+      if (!this.movState.havokSeated) {
+        this.movState.havokSeated = true;
+        settleTranslation(refr);
+        setRefrCollision(this.refrId, true);
+        if (ac && !isOwnCompanion(this.remoteRefrId)) {
+          ac.clearKeepOffsetFromActor();
+          this.movState.offsetApplied = false;
+          ac.setPosition(ac.getPositionX(), ac.getPositionY(), ac.getPositionZ());
+          ac.evaluatePackage();
+        }
       }
-      if (hostedActor && refr.is3DLoaded()) {
-        // A weapon mode forced while the copy was remote would keep our own AI from drawing or sheathing
+      if (alreadyHosted && ac) {
         if (!this.movState.weapReleased) {
-          TESModPlatform.setWeaponDrawnMode(hostedActor, -1);
+          TESModPlatform.setWeaponDrawnMode(ac, -1);
           this.movState.weapReleased = true;
         }
-        // A sit pose replayed before we hosted it holds collision off, and nothing else turns it back on for a host
         if (isInSitPose(this.refrId)) {
           clearSitPose(this.refrId);
           setRefrCollision(this.refrId, true);
         }
       }
     } else {
+      this.movState.havokSeated = false;
       this.movState.weapReleased = false;
+    }
+
+    if (!model.isHostedByOther && !alreadyHosted && !isOwnCompanion(this.remoteRefrId)) {
+      if (ac && this.remoteRefrId) {
+        this.tryHostIfNeed(ac, this.remoteRefrId, model.movement?.worldOrCell);
+      }
     }
 
     if (model.movement) {
@@ -428,7 +447,7 @@ export class FormView {
           this.movState.lastRehost = Date.now();
           const remoteId = this.remoteRefrId;
           if (ac && ac.is3DLoaded()) {
-            this.tryHostIfNeed(ac, remoteId as number);
+            this.tryHostIfNeed(ac, remoteId as number, model.movement?.worldOrCell);
             printConsole("tryHostIfNeed - reason: not seeing movement for long time");
           }
         }
@@ -448,8 +467,8 @@ export class FormView {
           try {
             if (ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), m.pos) > 16) {
               refr.setPosition(m.pos[0], m.pos[1], m.pos[2]);
-              setRefrCollision(this.refrId, true);
             }
+            setRefrCollision(this.refrId, true);
             refr.setAngle(0, 0, m.rot[2]);
           } catch { /* not loaded yet, the next pass seats it */ }
           this.movState.lastNumChanges = +(model.numMovementChanges as number);
@@ -516,15 +535,14 @@ export class FormView {
             // TODO: make host service
             const hosted = storage['hosted'];
             let alreadyHosted = false;
-            if (Array.isArray(hosted)) {
-              const remoteId = localIdToRemoteId(ac.getFormID());
+            if (Array.isArray(hosted) && remoteId) {
               if (hosted.includes(remoteId) || hosted.includes(remoteId + 0x100000000)) {
                 alreadyHosted = true;
               }
             }
 
-            if (!alreadyHosted) {
-              if (this.tryHostIfNeed(ac, remoteId)) {
+            if (!alreadyHosted && remoteId) {
+              if (this.tryHostIfNeed(ac, remoteId, model.movement?.worldOrCell)) {
 
                 // previously, we did this cleanup on each update
                 // but I guess it's too expensive and can possibly hurt FPS
@@ -725,6 +743,12 @@ export class FormView {
     }
     this.hostilityApplied = true;
     this.hostileFlagSeen = flag;
+    const companionOf = (model as Record<string, unknown>)["ff_companionOf"];
+    if (companionOf && this.remoteRefrId) {
+      const rawAll = storage["allCompanionIds"];
+      const all: number[] = Array.isArray(rawAll) ? rawAll : [];
+      if (!all.includes(this.remoteRefrId)) storage["allCompanionIds"] = all.concat(this.remoteRefrId);
+    }
     if (FormView.attacksEveryone(actor, model, this.remoteRefrId)) {
       if (this.aggressionBeforeRaise === undefined) {
         this.aggressionBeforeRaise = actor.getActorValue("Aggression");
@@ -740,8 +764,9 @@ export class FormView {
   // Remote players' copies are neutral to every NPC, so NPCs that attack players on sight are raised to attack neutrals too
   private static attacksEveryone(actor: Actor, model: FormModel, remoteId: number | undefined): boolean {
     const hostile = (model as Record<string, unknown>)["ff_hostile"];
+    const companionOf = (model as Record<string, unknown>)["ff_companionOf"];
     // Companions are flagged false by the server, and CompanionService sets up the player's own ones
-    if (hostile === false || isOwnCompanion(remoteId)) {
+    if (hostile === false || isOwnCompanion(remoteId) || isAnyCompanion(remoteId) || companionOf) {
       return false;
     }
     if (FormView.ambushRaces.includes(actor.getRace()?.getFormID() ?? 0)) {
@@ -861,15 +886,24 @@ export class FormView {
     return { lastNumChanges: 0, useAnimOverrides: true };
   };
 
-  private tryHostIfNeed(ac: Actor, remoteId: number) {
+  private tryHostIfNeed(ac: Actor, remoteId: number, worldOrCell?: number) {
     const last = lastTryHost[remoteId];
     if (!last || Date.now() - last >= 1000) {
-      lastTryHost[remoteId] = Date.now();
-
-      if (
-        ObjectReferenceEx.getWorldOrCell(ac) ===
-        ObjectReferenceEx.getWorldOrCell(Game.getPlayer() as Actor)
-      ) {
+      try {
+        const pc = Game.getPlayer() as Actor;
+        if (pc && ac && ac.is3DLoaded()) {
+          const d = ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(pc), ObjectReferenceEx.getPos(ac));
+          const isInterior = !pc.getWorldSpace() || (pc.getParentCell() && pc.getParentCell()?.isInterior());
+          const maxD = isInterior ? 25000 : 6000;
+          if (d > maxD) return false;
+        }
+      } catch { /* ignore */ }
+      const pcWorld = PlayerCharacterDataHolder.getWorldOrCell() || ObjectReferenceEx.getWorldOrCell(Game.getPlayer() as Actor);
+      const acWorld = ObjectReferenceEx.getWorldOrCell(ac);
+      const modelWorld = worldOrCell;
+      const sameWorld = (acWorld && acWorld === pcWorld) || (modelWorld && modelWorld === pcWorld);
+      if (sameWorld || (!acWorld && !modelWorld)) {
+        lastTryHost[remoteId] = Date.now();
         tryHost(remoteId);
         return true;
       }
@@ -900,6 +934,7 @@ export class FormView {
     everApplied: false,
     offsetApplied: false,
     weapReleased: false,
+    havokSeated: false,
   };
   private appearanceState = this.getDefaultAppearanceState();
   private eqState = this.getDefaultEquipState();

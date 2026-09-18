@@ -270,7 +270,14 @@ export class Login implements System {
           console.error("Error logging in client:", JSON.stringify(gameData), err)
         });
     } else if (this.offlineMode === true && gameData && typeof gameData.profileId === "number") {
-      const profileId = gameData.profileId;
+      let profileId = gameData.profileId;
+      const isLoopback = !ip || ip === "127.0.0.1" || ip === "::1" || ip === "localhost" || ip.startsWith("127.");
+      const rawAdmin = this.settingsObject?.allSettings?.["adminProfileIds"];
+      const adminProfiles = Array.isArray(rawAdmin) ? (rawAdmin as number[]).map(Number) : [1];
+      if (!isLoopback && adminProfiles.includes(profileId)) {
+        this.log(`Refusing admin profileId ${profileId} from non-loopback IP ${ip} in offline mode`);
+        profileId = 1000 + userId;
+      }
       this.emit(ctx, "spawnAllowed", userId, profileId, [], undefined);
       loginsCounter.inc();
       this.log(userId + " logged as " + profileId);

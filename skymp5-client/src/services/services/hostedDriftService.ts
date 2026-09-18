@@ -7,8 +7,13 @@ import { setRefrCollision } from "../../sync/animation";
 const POLL_MS = 500;
 const HEARTBEAT_MS = 30000;
 const REPAIR_COOLDOWN_MS = 10000;
-// Root sits at the feet, COM at the pelvis; a creature's COM can stand well above its reference
-const NODES: Array<[string, number]> = [["NPC Root [Root]", 250], ["NPC COM [COM ]", 450]];
+const NODES: Array<[string, number]> = [
+  ["NPC Root [Root]", 250],
+  ["NPC COM [COM ]", 450],
+  ["BoneRoot", 250],
+  ["Root", 250],
+  ["Bip01", 250],
+];
 
 /**
  * Floating spawned creatures (2026-09-16): the host reports an NPC at ground height while its model hangs

@@ -78,12 +78,13 @@ const DEFAULT_ASH_PILE_BASE = 0xc674b;
 const REGISTRY_FILE = "./companions.json";
 // Written into every companion's change form, so the boot sweep can find one the registry lost
 const COMPANION_PROP = "private.dboCompanion";
+const COMPANION_OF_PROP = "ff_companionOf";
 const UPDATE_MS = 500;
 const SPAWN_DISTANCE = 96;
 const SPAWN_LIFT = 16;
 const FOLLOW_OFFSET = -128;
 // Farther than this from the owner, or in another cell, the companion is moved behind them
-const FOLLOW_TELEPORT_DISTANCE = 4096;
+const FOLLOW_TELEPORT_DISTANCE = 2500;
 const COMMAND_RANGE = 4096;
 const TARGET_KEEP_RANGE = 6144;
 const DEFEND_RETARGET_MS = 3000;
@@ -136,6 +137,7 @@ export class CompanionSystem implements System {
     this.dbDriver = String(all?.["databaseDriver"] ?? "file");
     this.dbName = String(all?.["databaseName"] ?? "world");
     this.loadRegistry();
+    try { this.mp.makeProperty(COMPANION_OF_PROP, true); } catch { }
     ctx.gm.once(WORLD_LOADED_EVENT, () => this.removeLeftovers());
     this.installHooks();
     ctx.gm.on("userAssignActor", (_userId: number, actorId: number) => {
@@ -176,8 +178,19 @@ export class CompanionSystem implements System {
     if (!ownerId) return;
     const action = String(content["action"] ?? "");
     if (action === "perks") {
-      if (content["twinSouls"] === true) this.twinSouls.add(ownerId);
-      else this.twinSouls.delete(ownerId);
+      let allowed = false;
+      try {
+        const mastery = this.mp ? (this.mp.get(ownerId, "private.mastery") as { skills?: Record<string, { rank?: number }> } | null) : null;
+        if ((mastery?.skills?.arcane?.rank ?? 0) >= 4) allowed = true;
+      } catch { }
+      if (content["twinSouls"] === true && allowed) {
+        this.twinSouls.add(ownerId);
+      } else {
+        if (content["twinSouls"] === true && !allowed) {
+          this.log(`CompanionSystem: refused twinSouls for actor ${ownerId.toString(16)} (requires Master rank in Arcane Arts)`);
+        }
+        this.twinSouls.delete(ownerId);
+      }
       return;
     }
     const wanted = content["companionId"] === undefined ? 0 : toFormId(content["companionId"]);
@@ -210,8 +223,9 @@ export class CompanionSystem implements System {
     }
     if (KIND_RULES[kind].commanded) this.makeRoom(ownerId);
     let id = 0;
+    let loc: NpcLocation | null = null;
     try {
-      const loc = this.locationNear(ownerId, SPAWN_DISTANCE);
+      loc = this.locationNear(ownerId, SPAWN_DISTANCE);
       if (opts.pos) loc.pos = opts.pos;
       if (opts.rot) loc.rot = opts.rot;
       id = placeNpc(mp, ownerId, baseDesc, loc) >>> 0;
@@ -219,6 +233,7 @@ export class CompanionSystem implements System {
       try { mp.set(id, HOSTILE_PROP, false); } catch { }
       // Survives in the change form, so a crash cannot leave a summon behind as an ordinary hostile npc
       try { mp.set(id, COMPANION_PROP, kind); } catch { }
+      try { mp.set(id, COMPANION_OF_PROP, ownerId); } catch { }
     } catch (e) {
       this.log(`CompanionSystem: failed to spawn ${baseDesc} for ${hex(ownerId)}: ${e}`);
       return null;
@@ -240,6 +255,7 @@ export class CompanionSystem implements System {
     this.log(`CompanionSystem: ${kind} ${hex(id)} (${baseDesc}) spawned for ${hex(ownerId)}${opts.source ? ` by ${hex(opts.source)}` : ""}`);
     this.save();
     this.sendState(ownerId);
+    if (loc) this.broadcastFx(ownerId, loc.pos, "summon");
     return id;
   }
 
@@ -294,6 +310,21 @@ export class CompanionSystem implements System {
     for (const c of mine) {
       if (c.targetId === aggressorId || (c.targetId && now - c.lastRetargetAt < DEFEND_RETARGET_MS)) continue;
       c.targetId = aggressorId;
+      c.lastRetargetAt = now;
+      changed = true;
+    }
+    if (changed) this.sendState(ownerId);
+  }
+
+  // Orders every companion of the owner to attack what the owner attacked
+  orderAttackAll(ownerId: number, targetId: number): void {
+    const mine = this.ownedBy(ownerId);
+    if (!mine.length || !this.isValidTarget(ownerId, targetId, COMMAND_RANGE)) return;
+    const now = Date.now();
+    let changed = false;
+    for (const c of mine) {
+      if (c.targetId === targetId) continue;
+      c.targetId = targetId;
       c.lastRetargetAt = now;
       changed = true;
     }
@@ -388,6 +419,11 @@ export class CompanionSystem implements System {
     const mp = this.mp;
     const rules = KIND_RULES[c.kind];
     this.companions.delete(c.id);
+    try { mp.set(c.id, COMPANION_OF_PROP, 0); } catch { }
+    try {
+      const p = mp.getActorPos(c.id);
+      if (Array.isArray(p)) this.broadcastFx(c.ownerId, p, "vanish");
+    } catch { }
     this.log(`CompanionSystem: ${c.kind} ${hex(c.id)} of ${hex(c.ownerId)} ended (${reason})`);
     if (died || rules.dieOnEnd) {
       if (!rules.lootable) {
@@ -510,16 +546,40 @@ export class CompanionSystem implements System {
 
     const previousHit = typeof mp.onHitDamageAttempt === "function" ? mp.onHitDamageAttempt : null;
     mp.onHitDamageAttempt = (aggressorId: number, targetId: number, sourceId: number, damage: number): boolean => {
-      const aggressor = this.companions.get(aggressorId >>> 0);
-      const targetOwner = this.companions.get(targetId >>> 0)?.ownerId ?? targetId >>> 0;
+      const aggId = aggressorId >>> 0;
+      const tgtId = targetId >>> 0;
+      const aggressor = this.companions.get(aggId);
+      const targetOwner = this.companions.get(tgtId)?.ownerId ?? tgtId;
       if (aggressor && aggressor.ownerId === targetOwner) return false;
       try {
-        this.defend(targetId >>> 0, aggressorId >>> 0);
+        if (this.ownedBy(aggId).length > 0) {
+          this.orderAttackAll(aggId, tgtId);
+        }
+        this.defend(tgtId, aggId);
       } catch (e) {
         this.log(`CompanionSystem: defend failed: ${e}`);
       }
       return chain(previousHit, [aggressorId, targetId, sourceId, damage]);
     };
+  }
+
+  private broadcastFx(originActorId: number, pos: number[], fx: "summon" | "vanish"): void {
+    const mp = this.mp;
+    if (!mp || !Array.isArray(pos)) return;
+    const packet = JSON.stringify({ customPacketType: "dboCompanionFx", fx, pos });
+    const user = userOf(mp, originActorId);
+    if (user >= 0) {
+      try { mp.sendCustomPacket(user, packet); } catch { }
+    }
+    let neighbors: number[] = [];
+    try { neighbors = mp.get(originActorId, "actorNeighbors") ?? []; } catch { }
+    for (const raw of neighbors) {
+      const nid = Number(raw) >>> 0;
+      const nu = userOf(mp, nid);
+      if (nu >= 0 && nu !== user) {
+        try { mp.sendCustomPacket(nu, packet); } catch { }
+      }
+    }
   }
 
   // Companions from the previous run are removed once the world loads; persistent ones wait for their owner's next login

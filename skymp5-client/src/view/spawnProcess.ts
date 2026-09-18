@@ -2,6 +2,7 @@ import { ObjectReference, Game, Actor, MotionType } from "skyrimPlatform";
 import { Appearance, applyTints } from "../sync/appearance";
 import { NiPoint3 } from "../sync/movement";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
+import { setRefrCollision } from "../sync/animation";
 
 export class SpawnProcess {
   constructor(
@@ -40,6 +41,7 @@ export class SpawnProcess {
     const ac = Actor.from(refr);
     if (ac) {
       return ac.resurrect().then(() => {
+        setRefrCollision(refrId, true);
         this.callback();
       });
     }
