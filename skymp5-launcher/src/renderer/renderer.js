@@ -313,6 +313,7 @@ function updateLockState() {
     // Fix instantly disappearing
     const lockMessages = [
       'You are not on the server whitelist.',
+      'Server is currently locked - you are not on the allow list.',
     ]
     if (lockMessages.includes(connectWarning.textContent)) {
       connectWarning.classList.remove('visible')
@@ -423,6 +424,7 @@ function renderTopbarDiscord() {
       const result = await window.electronAPI.discordLogin()
       if (result.success) {
         discordUser = result.user
+        if (connectWarning.textContent.startsWith('Your Discord login has expired.')) clearWarning()
         // Re-fetch serverinfo now that we have a session - the backend will
         // evaluate whitelist / lock access and return the correct `allowed` flag.
         const freshInfo = await window.electronAPI.fetchServerInfo()
@@ -1044,6 +1046,10 @@ btnConnect.addEventListener('click', async () => {
       return
     }
 
+    // A cached "not allowed" may be stale (role granted since, Discord lookup recovered, login expired): ask again.
+    // updateLockState() is a no-op here because playBusy is set.
+    if (discordUser && !serverAllowed) await loadServerInfo()
+
     // Launch prerequisites. A pending update or first-run install still runs and refreshes the files.
     // The warning explains what is missing before the game can start.
     const blockers = []
@@ -1198,24 +1204,24 @@ async function loadServerInfo() {
     discSep.hidden = false
   }
 
-  if (info.locked) {
-    serverLocked   = true
-    lockEl.hidden  = false
-    lockSep.hidden = false
-  }
+  serverLocked   = !!info.locked
+  lockEl.hidden  = !info.locked
+  lockSep.hidden = !info.locked
 
-  // `allowed` is session-aware: false only when a session was sent and the
+  // `allowed` is session-aware: false only when a valid session was sent and the
   // backend rejected it (locked/not whitelisted).  Without a session it
   // defaults to true - access is re-checked after Discord login.
-  // `sessionValid: false` means the stored session expired - treat as logged out.
-  if (info.sessionValid === false && discordUser) {
-    // Session expired - clear stale auth so the user can log in again cleanly.
-    await window.electronAPI.discordLogout()
+  // `sessionExpired` (set by main, which already cleared the stored login) is
+  // checked regardless of discordUser: this can resolve before loadSettings
+  // restores the user, and the expired session's allowed:false must not read as
+  // "not on the whitelist".
+  if (info.sessionExpired) {
     discordUser   = null
     serverAllowed = true
     renderTopbarDiscord()
-  } else if (info.allowed === false) {
-    serverAllowed = false
+  } else if (info.sessionValid === true) {
+    // Both directions: a role granted (or a Discord lookup that recovered) since the last check unblocks PLAY
+    serverAllowed = info.allowed !== false
   }
 
   updateLockState()

@@ -713,8 +713,17 @@ ipcMain.handle('api:status', async () => {
 ipcMain.handle('api:serverinfo', async () => {
   const session = store.get('gameSession')
   const headers = session ? { 'x-session': session } : {}
-  try { return await fetchJSON(`${config.apiUrl}/api/serverinfo`, headers) }
+  let info
+  try { info = await fetchJSON(`${config.apiUrl}/api/serverinfo`, headers) }
   catch { return null }
+  // The backend answers sessionValid:false both with no session and with an unknown one; only
+  // the latter means the stored login expired (and its allowed:false is not a whitelist verdict).
+  if (session && info && info.sessionValid === false) {
+    log('[discord] stored session is no longer valid - cleared, user must log in again')
+    clearDiscordAuth()
+    return { ...info, sessionExpired: true }
+  }
+  return info
 })
 
 // Discord OAuth
