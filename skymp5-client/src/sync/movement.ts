@@ -17,6 +17,8 @@ export interface AnimationVariables {
   isWeapDrawn: boolean;
   isDead: boolean;
   healthPercentage: number;
+  staminaPercentage: number;
+  magickaPercentage: number;
   lookAt?: NiPoint3;
   speed: number;
 }

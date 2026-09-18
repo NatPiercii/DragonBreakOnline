@@ -89,6 +89,8 @@ export const getMovement = (refr: ObjectReference, form?: FormModel): Movement =
     isWeapDrawn: !!(ac && ac.isWeaponDrawn()),
     isDead: (form?.isDead ?? false) || !!(ac && ac.isDead()),
     healthPercentage: healthPercentage || 0,
+    staminaPercentage: (ac && !ac.isDead()) ? (ac.getActorValuePercentage("stamina") || 0) : 0,
+    magickaPercentage: (ac && !ac.isDead()) ? (ac.getActorValuePercentage("magicka") || 0) : 0,
     lookAt,
     speed
   };

@@ -10,6 +10,7 @@ import { COMPANION_HUD_KEY } from "./companionService";
 const HUD_WIDGET_ID = 29;
 const PARTY_WIDGET_ID = 32;
 const PASSIVE_TICK_MS = 1000;
+const VITALS_CHANGE_THRESHOLD = 1; // percent; skip CEF call when vitals unchanged by at least this much
 const FADE_SAFETY_MS = 25000;
 // The vanilla meters fade themselves back in with timeline animations that rewrite _alpha, so they are
 // also scaled to nothing and parked below the screen; the animations never touch scale or position.
@@ -41,7 +42,7 @@ export class DboRelayService extends ClientListener {
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
-    this.controller.emitter.on("browserWindowLoaded", () => { this.focusedId = 0; this.hudKey = ""; this.partyKey = ""; });
+    this.controller.emitter.on("browserWindowLoaded", () => { this.focusedId = 0; this.hudKey = ""; this.partyKey = ""; this.widgetJsonCache.clear(); this.lastH = -1; this.lastM = -1; this.lastS = -1; });
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.focusedId) this.closeFocused("hidden"); });
     this.controller.on("update", () => this.onUpdate());
     this.controller.on("loadGame", () => this.onGameLoaded());
@@ -53,10 +54,14 @@ export class DboRelayService extends ClientListener {
   //   { customPacketType: "dboParty", members: [{ id, name, leader }], self }
   private onUpdate(): void {
     this.hideVanillaMeters();
+    // Vitals (health / magicka / stamina) are polled every frame and pushed immediately when they
+    // change — combat makes them move fast and a 1 s lag feels broken.
+    try { this.pushVitals(); } catch { /* keep the tick alive */ }
     const now = Date.now();
     if (now < this.nextPassive) return;
     this.nextPassive = now + PASSIVE_TICK_MS;
-    try { this.pushHud(); } catch { /* keep the tick alive */ }
+    // Static portion (hunger, stage, flags) only needs a 1 s refresh.
+    try { this.pushHudStatic(); } catch { /* keep the tick alive */ }
     try { this.pushParty(); } catch { /* keep the tick alive */ }
   }
 
@@ -70,17 +75,47 @@ export class DboRelayService extends ClientListener {
     }
   }
 
-  private pushHud(): void {
-    if (!this.hudData) return;
+  // Fast path: push only when health/magicka/stamina change by >= threshold.
+  // Does NOT wait for the 1 s passive tick — called every frame.
+  private pushVitals(): void {
+    if (!this.hudData || this.hudData["vitalsOn"] === false) return;
     const p = this.sp.Game.getPlayer();
     const pct = (av: string): number => { try { return p ? Math.round(p.getActorValuePercentage(av) * 100) : 100; } catch { return 100; } };
+    const h = pct("Health"), m = pct("Magicka"), s = pct("Stamina");
+    if (
+      Math.abs(h - this.lastH) < VITALS_CHANGE_THRESHOLD &&
+      Math.abs(m - this.lastM) < VITALS_CHANGE_THRESHOLD &&
+      Math.abs(s - this.lastS) < VITALS_CHANGE_THRESHOLD
+    ) return;
+    this.lastH = h; this.lastM = m; this.lastS = s;
+    // Build full widget JSON so the front has all fields; hunger/stage come from the last static push.
     const w = {
       type: "hud", id: HUD_WIDGET_ID,
-      hunger: Number(this.hudData["hunger"]) || 0, stage: String(this.hudData["stage"] || ""), hungerOn: this.hudData["hungerOn"] !== false,
-      health: pct("Health"), magicka: pct("Magicka"), stamina: pct("Stamina"), vitalsOn: this.hudData["vitalsOn"] !== false,
+      hunger: Number(this.hudData["hunger"]) || 0, stage: String(this.hudData["stage"] || ""),
+      hungerOn: this.hudData["hungerOn"] !== false,
+      health: h, magicka: m, stamina: s,
+      vitalsOn: true,
       watermarkOn: this.hudData["watermarkOn"] !== false,
     };
     const key = JSON.stringify(w);
+    if (key === this.hudKey) return;
+    this.hudKey = key; this.hudSentAt = now();
+    this.setWidget(HUD_WIDGET_ID, key);
+  }
+
+  // Slow path: push hunger/stage/flags once per second — these change rarely.
+  private pushHudStatic(): void {
+    if (!this.hudData) return;
+    const w = {
+      type: "hud", id: HUD_WIDGET_ID,
+      hunger: Number(this.hudData["hunger"]) || 0, stage: String(this.hudData["stage"] || ""),
+      hungerOn: this.hudData["hungerOn"] !== false,
+      health: this.lastH, magicka: this.lastM, stamina: this.lastS,
+      vitalsOn: this.hudData["vitalsOn"] !== false,
+      watermarkOn: this.hudData["watermarkOn"] !== false,
+    };
+    const key = JSON.stringify(w);
+    // 5 s re-push heartbeat to survive CEF reloads even when nothing changed.
     if (key === this.hudKey && now() - this.hudSentAt < 5000) return;
     this.hudKey = key; this.hudSentAt = now();
     this.setWidget(HUD_WIDGET_ID, key);
@@ -116,12 +151,16 @@ export class DboRelayService extends ClientListener {
   }
 
   private setWidget(id: number, widgetJson: string): void {
+    // Dedup: if the browser already has exactly this widget content, skip the JS injection.
+    if (this.widgetJsonCache.get(id) === widgetJson) return;
+    this.widgetJsonCache.set(id, widgetJson);
     this.sp.browser.executeJavaScript(
       "(function(){if(!window.skyrimPlatform||!window.skyrimPlatform.widgets)return;var ws=(window.skyrimPlatform.widgets.get()||[]).filter(function(x){return x.id!==" + id + ";});ws.push(" + widgetJson + ");window.skyrimPlatform.widgets.set(ws);})();"
     );
   }
 
   private removeWidget(id: number): void {
+    this.widgetJsonCache.delete(id);
     this.sp.browser.executeJavaScript(
       "(function(){if(!window.skyrimPlatform||!window.skyrimPlatform.widgets)return;window.skyrimPlatform.widgets.set((window.skyrimPlatform.widgets.get()||[]).filter(function(x){return x.id!==" + id + ";}));})();"
     );
@@ -210,6 +249,12 @@ export class DboRelayService extends ClientListener {
   private hudSentAt = 0;
   private partySentAt = 0;
   private nextPassive = 0;
+  // Per-widget JSON dedup so repeated openWidget calls don't re-inject unchanged content.
+  private widgetJsonCache = new Map<number, string>();
+  // Last pushed vitals to detect changes between frames.
+  private lastH = -1;
+  private lastM = -1;
+  private lastS = -1;
 }
 
 const now = (): number => Date.now();
