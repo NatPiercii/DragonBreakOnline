@@ -28,13 +28,14 @@ function parseArgs(argv) {
     else if (k === '--game')    a.game    = argv[++i]
     else if (k === '--profile') a.profile = argv[++i]
     else if (k === '--out')     a.out     = argv[++i]
+    else if (k === '--no-modlist') a.noModlist = true
   }
   return a
 }
 
 const args = parseArgs(process.argv.slice(2))
 if (!args.mo2) {
-  console.error('Usage: node scripts/compile-manifest.js --mo2 <MO2 root> [--game <game root>] [--profile DragonBreak]')
+  console.error('Usage: node scripts/compile-manifest.js --mo2 <MO2 root> [--game <game root>] [--profile DragonBreak] [--out <file>] [--no-modlist]')
   process.exit(1)
 }
 
@@ -331,7 +332,7 @@ async function main() {
       ...(m.modId ? { nexusId: m.modId } : {}),
     })),
   ]
-  fs.writeFileSync(MODLIST_OUT, JSON.stringify(display, null, 2) + '\n')
+  if (!args.noModlist) fs.writeFileSync(MODLIST_OUT, JSON.stringify(display, null, 2) + '\n')
 
   // Report
   const inlineCount = mods.reduce((n, m) => n + m.files.filter(f => f.inline != null).length, 0) +
@@ -355,7 +356,7 @@ async function main() {
   }
 
   console.log(`\nWrote ${OUT}`)
-  console.log(`Wrote ${MODLIST_OUT}`)
+  if (!args.noModlist) console.log(`Wrote ${MODLIST_OUT}`)
 }
 
 main().catch(err => {
