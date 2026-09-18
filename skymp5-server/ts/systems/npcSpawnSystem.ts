@@ -37,6 +37,13 @@ const MAX_TEMPLATE_DEPTH = 8;
 const FALL_LIMIT = 3000;
 // Falls on one spot before the slot is given up: a spot with no floor would otherwise cycle forever
 const MAX_SPOT_FALLS = 2;
+// A copy created before the client has the room loaded drops through the missing collision, so a spot
+// that has dropped an actor is only tried again once a player is this close to it
+const SAFE_RESPAWN_UNITS = 2500;
+// The engine refuses a hit past one cell width, so an actor further than this from its target is unhittable
+const HIT_RANGE = 4096;
+// Polls that far apart before the actor is pulled in, so a real chase is not yanked
+const DESYNC_POLLS = 2;
 // Above its spot by this much, within this radius of it and still for this many polls: stuck in the air, not climbing
 const STRAND_LIFT = 600;
 const STRAND_RADIUS = 384;
@@ -186,12 +193,15 @@ export class NpcSpawnSystem implements System {
   private budgetLoggedAt = 0;
   private slowLoggedAt = 0;
   private maxLive = DEFAULT_MAX_LIVE;
+  // Pulling a desynced actor to its target removes its ragdoll mid fight and has crashed the client
+  private desyncPull = false;
 
   async initAsync(ctx: SystemContext): Promise<void> {
     this.mp = ctx.svr as Mp;
     const all = (await Settings.get()).allSettings as Record<string, unknown> | null;
     const rawCorpse = Number(all?.["npcCorpseSeconds"]);
     if (Number.isFinite(rawCorpse) && rawCorpse > 0) this.corpseMs = rawCorpse * 1000;
+    this.desyncPull = all?.["npcDesyncPull"] === true;
     const rawBudget = Number(all?.["npcLiveBudget"]);
     if (Number.isFinite(rawBudget) && rawBudget > 0) this.maxLive = Math.floor(rawBudget);
     this.cleanupLeftovers(this.mp);
@@ -571,6 +581,7 @@ export class NpcSpawnSystem implements System {
       if (entry && !entry.diedAt) continue;
       const at = zone.slotReadyAt[slot];
       if (at < 0 || at > now) continue;
+      if (this.fallenSpots.has(`${zone.name}:${slot}`) && !this.playerNear(mp, zone, this.slotPos(zone, slot), SAFE_RESPAWN_UNITS)) continue;
       if (!entry && live >= this.maxLive) {
         if (now - this.budgetLoggedAt > BUDGET_LOG_MS) {
           this.budgetLoggedAt = now;
@@ -694,6 +705,7 @@ export class NpcSpawnSystem implements System {
       if (!entry.id || entry.diedAt) continue;
       let pos: number[] = [];
       try { pos = mp.getActorPos(entry.id); } catch { continue; }
+      if (this.desyncPull && this.resyncDesynced(mp, zone, entry, pos)) continue;
       const slot = this.slotPos(zone, entry.slot);
       const fell = pos[2] < zone.pos[2] - FALL_LIMIT;
       const leash = Math.max(LEASH_MIN, zone.radius * LEASH_RADII);
@@ -717,11 +729,12 @@ export class NpcSpawnSystem implements System {
       entry.id = 0;
       entry.diedAt = now;
       zone.slotReadyAt[entry.slot] = now;
-      // A spot with no floor under it drops every actor placed on it, which would cycle for the whole
-      // lease. After a second fall the slot is left empty and the spot is named for fixing in the data.
+      // A spot with no floor drops every actor placed on it, so the slot is given up after a second fall.
+      // A fall with nobody near counts for nothing: the room was not loaded, so the floor was not there yet.
       if (fell) {
         const key = `${zone.name}:${entry.slot}`;
-        const falls = (this.fallenSpots.get(key) ?? 0) + 1;
+        const witnessed = this.playerNear(mp, zone, slot, SAFE_RESPAWN_UNITS);
+        const falls = (this.fallenSpots.get(key) ?? 0) + (witnessed ? 1 : 0);
         this.fallenSpots.set(key, falls);
         if (falls >= MAX_SPOT_FALLS) {
           zone.slotReadyAt[entry.slot] = NEVER_READY;
@@ -729,6 +742,53 @@ export class NpcSpawnSystem implements System {
         }
       }
     }
+  }
+
+  // Once a hosted actor's movement disagrees with the server by a cell width the update is dropped and
+  // never corrected, so the server's copy freezes and every hit on it is refused as too distant. The
+  // hosting client cannot see that, but the server holds both positions: pull the actor to the player.
+  private resyncDesynced(mp: Mp, zone: Zone, entry: Spawned, pos: number[]): boolean {
+    let nearest = 0;
+    let gap = Infinity;
+    for (const playerId of zone.inside) {
+      let p: number[] = [];
+      try { p = mp.getActorPos(playerId); } catch { continue; }
+      const d = Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]);
+      if (d < gap) { gap = d; nearest = playerId; }
+    }
+    if (!nearest || gap <= HIT_RANGE) {
+      this.desynced.delete(entry.id);
+      return false;
+    }
+    const polls = (this.desynced.get(entry.id) ?? 0) + 1;
+    this.desynced.set(entry.id, polls);
+    if (polls < DESYNC_POLLS) return false;
+    this.desynced.delete(entry.id);
+    try {
+      const p = mp.getActorPos(nearest);
+      const loc = {
+        cellOrWorldDesc: String(mp.get(nearest, "worldOrCellDesc") || zone.cellOrWorldDesc),
+        pos: [p[0], p[1], p[2] + SPAWN_LIFT],
+        rot: [0, 0, 0],
+      };
+      mp.set(entry.id, "locationalData", loc);
+      this.log(`NpcSpawnSystem: '${zone.name}' ${hex(entry.id)} was ${Math.round(gap)} from the player it fights, which refuses every hit; pulled to them`);
+    } catch (e) {
+      this.log(`NpcSpawnSystem: '${zone.name}' ${hex(entry.id)} resync failed: ${e}`);
+    }
+    return true;
+  }
+
+  // Spawned actor id -> consecutive polls found too far from the player in its zone for a hit to land
+  private desynced = new Map<number, number>();
+
+  private playerNear(mp: Mp, zone: Zone, pos: number[], units: number): boolean {
+    for (const playerId of zone.inside) {
+      let p: number[] = [];
+      try { p = mp.getActorPos(playerId); } catch { continue; }
+      if (Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]) <= units) return true;
+    }
+    return false;
   }
 
   // Cell the server holds for a spawned actor when it is not the one its zone lives in
