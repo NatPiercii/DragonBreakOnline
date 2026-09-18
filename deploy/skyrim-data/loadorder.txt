@@ -1,0 +1,96 @@
+Skyrim.esm
+Update.esm
+Dawnguard.esm
+HearthFires.esm
+Dragonborn.esm
+ccBGSSSE001-Fish.esm
+ccQDRSSE001-SurvivalMode.esl
+ccBGSSSE037-Curios.esl
+ccBGSSSE025-AdvDSGS.esm
+_ResourcePack.esl
+unofficial skyrim special edition patch.esp
+TrueHUD.esl
+Journey to Baan Malur.esp
+BSAssets.esm
+BSHeartland.esm
+Gray Fox Cowl.esm
+Sentinel - Master Plugin.esp
+Expressive Facegen Morphs.esl
+Journey to Baan Malur - Dunmeth Pass.esp
+SkyUI_SE.esp
+Obsidian Weathers.esp
+RaceMenu.esp
+XPMSE.esp
+Armors of the Velothi.esp
+IcePenguinWorldMap.esp
+AlternateHighPolyHead_SE.esp
+TrueDirectionalMovement.esp
+RelightingSkyrim_SSE.esp
+COTN - Falkreath.esp
+COTN - Dawnstar.esp
+JKs Skyrim.esp
+The Great City of Falkreath.esp
+COTN Falkreath - JKs Skyrim - TGCF Patch.esp
+The Great Cities - Minor Cities and Towns.esp
+Resources - The Great Cities.esp
+OCW_Obscure's_CollegeofWinterhold.esp
+The Great City of Winterhold v4.esp
+The Great City of Dawnstar.esp
+COTN Dawnstar - JK's Skyrim - TGC Dawnstar Patch.esp
+COTN - Morthal.esp
+JK's Castle Volkihar.esp
+COTN - Winterhold.esp
+The Great Cities of JK's North - Patch.esp
+TGCotN Winterhold.esp
+TGCotN Winterhold - JKs Skyrim patch.esp
+WindhelmSSE.esp
+CWE - JK - United.esp
+JK's Fort Dawnguard.esp
+The Great City of Morthal.esp
+COTN Morthal - JKs Skyrim - The Great City of Morthal Patch.esp
+JK's Markarth Outskirts.esp
+SurWR.esp
+JK's Whiterun's Outskirts.esp
+Riften Expansion.esp
+JK's Riften Outskirts.esp
+Riften Expansion - JK's Skyrim Patch.esp
+MoreCraftableEquipment.esp
+Hothtrooper44_ArmorCompilation.esp
+man_DaedricShrines.esp
+The Great City of Rorikstead.esp
+The Great City of Dragon Bridge.esp
+TGC Winterhold - OCW Patch.esp
+Saltdeposits.esp
+notice board.esp
+TGC Winterhold - Notice Board Patch.esp
+Armors of the Velothi Pt2.esp
+TheEyesOfBeauty.esp
+RaceMenuPlugin.esp
+Precision.esp
+PipeSmokingSE.esp
+Immersive Weapons.esp
+Sentinel.esp
+Cloaks&Capes.esp
+Sentinel - City Guards.esp
+Obsidian CS.esp
+MoonsAndStars.esp
+OCW_RLS_FEPatch.esp
+MCMHelper.esp
+MoreCraftableEquipment_BYOHLooms.esp
+MoreCraftableEquipment_Fish.esp
+MoreCraftableEquipment_USSEP.esp
+KS Hairdo's.esp
+Improved Eyes Skyrim.esp
+IA CBBE Patch.esp
+Hothtrooper44_Armor_Ecksstra.esp
+Brows.esp
+Beards.esp
+Smooth Argonians.esp
+FlawnsArgonians - NPCs, Flawns Edits.esp
+COTN Morthal - Notice Board patch.esp
+COTN Morthal - CC - Fishing Patch.esp
+COTN Falkreath - CC - Fishing Patch.esp
+DIS_Heavy_Legion.esp
+CBBE.esp
+DragonPriestArmor.esp
+OCW_CellSettings.esp
