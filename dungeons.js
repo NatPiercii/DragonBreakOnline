@@ -30,10 +30,10 @@ module.exports = (api) => {
   const SPAWNED_IDS_FILE = path.resolve('zone-spawns.json');
   const ZONE_PREFIX = 'dungeon:';
   const DIFFICULTIES = [
-    { id: 'story', label: 'Story', blurb: 'Ordinary foes, fewer of them. Modest loot, no locked chests.', pick: 'mid', mult: 0.6, gear: 150, potionTier: 0, gold: [3, 12], soulgem: 0, soulTier: 0, ench: 0, bossEnch: 0.05 },
-    { id: 'normal', label: 'Normal', blurb: 'As Bethesda placed them. Fair loot, a few locked chests.', pick: 'mid', mult: 1, gear: 400, potionTier: 1, gold: [5, 25], soulgem: 0.03, soulTier: 1, ench: 0.02, bossEnch: 0.12 },
-    { id: 'hard', label: 'Hard', blurb: 'The strongest of each kind, more of them. Better loot.', pick: 'high', mult: 1.25, gear: 900, potionTier: 2, gold: [10, 45], soulgem: 0.06, soulTier: 2, ench: 0.05, bossEnch: 0.25 },
-    { id: 'nightmare', label: 'Nightmare', blurb: 'The strongest, half again as many, most chests locked. The best loot.', pick: 'high', mult: 1.6, gear: 3000, potionTier: 3, gold: [20, 80], soulgem: 0.1, soulTier: 3, ench: 0.08, bossEnch: 0.4 },
+    { id: 'story',     label: 'Novice',    blurb: 'Ordinary foes, fewer of them. Modest loot, no locked chests.',                                              pick: 'mid',  mult: 0.6,  gear: 150,  potionTier: 0, gold: [3,  12], soulgem: 0,    soulTier: 0, ench: 0,    bossEnch: 0.05 },
+    { id: 'normal',    label: 'Adept',     blurb: 'As Bethesda placed them. Fair loot, a few locked chests.',                                                  pick: 'mid',  mult: 1,    gear: 400,  potionTier: 1, gold: [5,  25], soulgem: 0.03, soulTier: 1, ench: 0.02, bossEnch: 0.12 },
+    { id: 'hard',      label: 'Expert',    blurb: 'The strongest of each kind, more of them. Better loot.',                                                     pick: 'high', mult: 1.25, gear: 900,  potionTier: 2, gold: [10, 45], soulgem: 0.06, soulTier: 2, ench: 0.05, bossEnch: 0.25 },
+    { id: 'nightmare', label: 'Master',    blurb: 'The strongest, half again as many, most chests locked. The best loot.',                                      pick: 'high', mult: 1.6,  gear: 3000, potionTier: 3, gold: [20, 80], soulgem: 0.1,  soulTier: 3, ench: 0.08, bossEnch: 0.4  },
   ];
   const LOCK_LEVELS = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   const LOCK_BY_DIFF = { normal: [0, 1], hard: [1, 2, 3], nightmare: [2, 3, 4] };
@@ -118,12 +118,38 @@ module.exports = (api) => {
       { kind: 'warlock_thrall_melee', options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm']] },
       { kind: 'warlock_thrall_archer', options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm']] },
     ],
-    // Bandit caves and forts
-    bandit_camp: [
-      { kind: 'bandit_melee_1h', options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm'], [46, '39cfa:Skyrim.esm']] },
-      { kind: 'bandit_melee_2h', options: [[1, '3cf5c:Skyrim.esm'], [6, '3cf5d:Skyrim.esm'], [12, '3cf5e:Skyrim.esm'], [19, '3cf5f:Skyrim.esm'], [27, '3cf60:Skyrim.esm'], [36, '3cf61:Skyrim.esm'], [46, '3cf62:Skyrim.esm']] },
-      { kind: 'bandit_archer', options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm'], [46, '37c03:Skyrim.esm']] },
-      { kind: 'bandit_mage', options: [[1, '44cda:Skyrim.esm'], [6, '44cdc:Skyrim.esm'], [12, '44cdf:Skyrim.esm'], [19, '44ce0:Skyrim.esm'], [27, '44ce1:Skyrim.esm']] },
+    // Cyrodiil bandit forts and camps (BSHeartland soldiers / marauders)
+    cyrodiil_bandit: [
+      { kind: 'cyro_bandit_melee_1h',  options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm'], [46, '39cfa:Skyrim.esm']] },
+      { kind: 'cyro_bandit_melee_2h',  options: [[1, '3cf5c:Skyrim.esm'], [6, '3cf5d:Skyrim.esm'], [12, '3cf5e:Skyrim.esm'], [19, '3cf5f:Skyrim.esm'], [27, '3cf60:Skyrim.esm'], [36, '3cf61:Skyrim.esm'], [46, '3cf62:Skyrim.esm']] },
+      { kind: 'cyro_bandit_archer',    options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm'], [46, '37c03:Skyrim.esm']] },
+      { kind: 'cyro_bandit_mage',      options: [[1, '44cda:Skyrim.esm'], [6, '44cdc:Skyrim.esm'], [12, '44cdf:Skyrim.esm'], [19, '44ce0:Skyrim.esm'], [27, '44ce1:Skyrim.esm']] },
+      // Heartland-specific marauder types (BSHeartland.esm)
+      { kind: 'cyro_marauder_melee',   options: [[1, '2e504:BSHeartland.esm'], [6, '2e505:BSHeartland.esm'], [12, '2e506:BSHeartland.esm'], [19, '2e507:BSHeartland.esm'], [27, '2e508:BSHeartland.esm']] },
+      { kind: 'cyro_marauder_archer',  options: [[1, '2e509:BSHeartland.esm'], [6, '2e50a:BSHeartland.esm'], [12, '2e50b:BSHeartland.esm'], [19, '2e50c:BSHeartland.esm']] },
+      { kind: 'cyro_marauder_mage',    options: [[1, '2e50d:BSHeartland.esm'], [6, '2e50e:BSHeartland.esm'], [12, '2e50f:BSHeartland.esm']] },
+    ],
+    cyrodiil_bandit_boss: [
+      { kind: 'cyro_bandit_boss',      options: [[12, '39cf9:Skyrim.esm'], [19, '39cfa:Skyrim.esm'], [27, '2e508:BSHeartland.esm'], [36, '2e50c:BSHeartland.esm']] },
+    ],
+    // Nordic draugr ruins — full tier ladder
+    nordic_draugr: [
+      { kind: 'draugr_melee',    options: [[1, '2d1de:Skyrim.esm'], [6, '2d1df:Skyrim.esm'], [12, '2d1e0:Skyrim.esm'], [19, '2d1e1:Skyrim.esm'], [27, '2d1e3:Skyrim.esm'], [36, '2d1fd:Skyrim.esm'], [46, '2d1ff:Skyrim.esm']] },
+      { kind: 'draugr_archer',   options: [[1, '2d1de:Skyrim.esm'], [6, '14407:Skyrim.esm'], [12, '14408:Skyrim.esm'], [19, '14409:Skyrim.esm'], [27, '1440a:Skyrim.esm'], [36, '1440b:Skyrim.esm']] },
+      { kind: 'draugr_2h',       options: [[6, '2d1df:Skyrim.esm'], [12, '2d1e2:Skyrim.esm'], [19, '2d1e4:Skyrim.esm'], [27, '2d1fe:Skyrim.esm'], [36, '2d200:Skyrim.esm']] },
+    ],
+    nordic_draugr_boss: [
+      { kind: 'draugr_boss',     options: [[12, '2d1fd:Skyrim.esm'], [19, '2d1ff:Skyrim.esm'], [27, '2d200:Skyrim.esm'], [36, '31eda:Skyrim.esm'], [46, '31edb:Skyrim.esm']] },
+    ],
+    // Boss pools for existing groups
+    bandit_camp_boss: [
+      { kind: 'bandit_chief',    options: [[12, '39cf9:Skyrim.esm'], [19, '39cfa:Skyrim.esm'], [27, '39cfa:Skyrim.esm'], [36, '2e508:BSHeartland.esm']] },
+    ],
+    ayleid_cultist_boss: [
+      { kind: 'cultist_boss',    options: [[12, '617ac:BSHeartland.esm'], [19, '617b0:BSHeartland.esm'], [27, '617b2:BSHeartland.esm'], [36, '617b4:BSHeartland.esm']] },
+    ],
+    warlock_ruin_boss: [
+      { kind: 'warlock_boss',    options: [[12, 'a092e:Skyrim.esm'], [19, 'a092f:Skyrim.esm'], [27, 'a0930:Skyrim.esm'], [36, '551b6:Skyrim.esm']] },
     ],
   };
 
@@ -152,29 +178,46 @@ module.exports = (api) => {
   const zonesFor = (d, diff) => {
     const out = [];
     let n = 0;
-    const isAyleid = Array.isArray(d.keywords) && d.keywords.some((k) => /ayleid/i.test(k));
-    const isWarlock = /warlock|necro|witch|cultist|coven|shrine/i.test(d.name + ' ' + (d.keywords || []).join(' '));
-    const isBandit = /bandit|marauder|mine|hideout/i.test(d.name + ' ' + (d.keywords || []).join(' '));
-    const poolKey = isAyleid ? 'ayleid_cultist' : isWarlock ? 'warlock_ruin' : isBandit ? 'bandit_camp' : null;
-    const archetypes = poolKey ? DIVERSE_ARCHETYPES[poolKey] : null;
+    const province = provinceOfDungeon(d);
+    const isAyleid  = Array.isArray(d.keywords) && d.keywords.some((k) => /ayleid/i.test(k));
+    const isWarlock  = /warlock|necro|witch|cultist|coven|shrine/i.test(d.name + ' ' + (d.keywords || []).join(' '));
+    const isBandit   = /bandit|marauder|mine|hideout/i.test(d.name + ' ' + (d.keywords || []).join(' '));
+    const isNordic   = d.type === 'nordic' || /nordic|draugr|barrow|crypts|burial/i.test(d.name + ' ' + (d.keywords || []).join(' '));
+    const isCyroBandit = isBandit && province === 'cyrodiil';
+
+    let poolKey = isAyleid ? 'ayleid_cultist'
+      : isWarlock           ? 'warlock_ruin'
+      : isCyroBandit        ? 'cyrodiil_bandit'
+      : isBandit            ? 'bandit_camp'
+      : isNordic            ? 'nordic_draugr'
+      : null;
+
+    const archetypes     = poolKey ? DIVERSE_ARCHETYPES[poolKey]          : null;
+    const bossArchetypes = poolKey ? DIVERSE_ARCHETYPES[poolKey + '_boss'] : null;
     let archIdx = 0;
 
     for (const z of d.zones || []) {
       for (const npc of z.npcs || []) {
         const edid = String(npc.edid || '');
-        const isBoss = /boss/i.test(edid);
+        const isBoss     = /boss/i.test(edid);
         const isCreature = /rat|skeever|spider|wolf|bear|chaurus|troll|crab|deer|animal/i.test(edid);
 
         let opts = npc.options || [];
         let kind = edid;
 
-        // For non-boss, non-creature humanoids in homogeneous dungeons, cycle through the diverse archetype pool
-        if (!isBoss && !isCreature && archetypes && archetypes.length) {
-          const arch = archetypes[archIdx++ % archetypes.length];
-          if (arch.options && arch.options.length) {
-            opts = arch.options;
+        if (!isCreature) {
+          if (isBoss && bossArchetypes && bossArchetypes.length) {
+            // Boss placements cycle their own mini-pool
+            const arch = bossArchetypes[archIdx % bossArchetypes.length];
+            if (arch.options && arch.options.length) opts = arch.options;
+            kind = arch.kind;
+          } else if (!isBoss && archetypes && archetypes.length) {
+            // Non-boss humanoids cycle the main pool
+            const arch = archetypes[archIdx % archetypes.length];
+            if (arch.options && arch.options.length) opts = arch.options;
+            kind = arch.kind;
           }
-          kind = arch.kind;
+          archIdx++;
         }
 
         const id = pickOption(opts, diff.pick);
@@ -183,7 +226,14 @@ module.exports = (api) => {
         const count = 1 + (diff.mult > 1 && Math.random() < diff.mult - 1 ? 1 : 0); // sometimes a second one
         // Anchor = Bethesda's own (disabled) actor ref on that spot: the spawn appears there, not at a player.
         const zone = { Name: `${ZONE_PREFIX}${d.id}:${n++}`, ID: z.cell, POS: npc.pos, Size: 100000, NPC: [{ id, count }], Despawn: 0, Respawn: 0, Kind: kind, Prespawn: true };
-        if (npc.ref) zone.Anchor = npc.ref;
+        // Anchor ref is optional — if it resolves, the spawn appears exactly on that ref; if not, it falls
+        // back to the baked POS which is still Bethesda's placement coordinate.
+        if (npc.ref) {
+          try {
+            const anchorId = mp.getIdFromDesc(npc.ref.includes(':') ? npc.ref : undefined);
+            if (anchorId && anchorId > 0) zone.Anchor = npc.ref;
+          } catch (e) { /* ref not loaded in this server's ESM set; spawn at POS instead */ }
+        }
         out.push(zone);
       }
     }
