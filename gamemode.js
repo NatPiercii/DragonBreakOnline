@@ -45,6 +45,7 @@ makeProp(ADMIN_PROP, false);
 makeProp('ff_adminModes', true); // AdminSystem mirrors god/smite/healhit/invis here for neighbours
 makeProp('ff_charTag', true);    // the character's #TAG, drawn faintly under the nametag by every client
 makeProp('ff_hostile', true);    // npcSpawnSystem's "attacks on sight" flag, read by the client to raise Aggression
+makeProp('ff_companionOf', true);// companion owner id, tells clients actor is friendly companion
 
 let nonce = Date.now();
 const deliver = (actorId, line) => { try { mp.set(actorId, CHAT_PROP, `${++nonce}${US}${line}`); } catch (e) { log('deliver failed', actorId, e.message); } };
@@ -558,7 +559,23 @@ const blockPlacedPickup = (targetId, casterId) => {
   return true;
 };
 mp.onActivate = (targetId, casterId) => {
-  if (globalThis.__dboReadBook && globalThis.__dboReadBook(targetId >>> 0, casterId >>> 0)) return false;
+  const caster = Number(casterId) >>> 0;
+  const target = Number(targetId) >>> 0;
+  try {
+    const r = mp.get(caster, 'private.restrained');
+    if (r && r.boundHands) {
+      if (Date.now() - (lastPickupDeny.get(caster) || 0) > 1500) {
+        lastPickupDeny.set(caster, Date.now());
+        personal(caster, "Your hands are bound.");
+      }
+      return false;
+    }
+  } catch (e) { }
+  try {
+    const q = mp.get(target, 'pos');
+    if (Array.isArray(q) && distanceMeters(caster, target) > 6.5) return false;
+  } catch (e) { }
+  if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboCoinPurse && globalThis.__dboCoinPurse(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
@@ -1607,6 +1624,101 @@ const equipHook = (actorId, equipment, isAllowed, ...rest) => {
 };
 equipHook.__dbo = true;
 mp.onUpdateEquipmentAttempt = equipHook;
+
+// Host assignment policy
+if (typeof globalThis.__dboPrevHostAttempt === 'undefined') {
+  globalThis.__dboPrevHostAttempt = typeof mp.onHostAttempt === 'function' && !mp.onHostAttempt.__dbo ? mp.onHostAttempt : null;
+}
+const MAX_HOST_DISTANCE = 8192;
+const MAX_INTERIOR_HOST_DISTANCE = 30000;
+const normWorldDesc = (s) => {
+  if (!s || typeof s !== 'string') return '';
+  const parts = s.trim().toLowerCase().split(':');
+  if (parts.length === 2) {
+    const id = parseInt(parts[0], 16);
+    return isNaN(id) ? s.toLowerCase() : (id.toString(16) + ':' + parts[1]);
+  }
+  const id = parseInt(s, 16);
+  return isNaN(id) ? s.toLowerCase() : id.toString(16);
+};
+const hostAttemptHook = (requesterId, actorId) => {
+  const req = Number(requesterId) >>> 0;
+  const act = Number(actorId) >>> 0;
+  const prev = globalThis.__dboPrevHostAttempt;
+  if (prev) {
+    try { if (prev(req, act) === false) return false; }
+    catch (e) { /* ignore */ }
+  }
+  if (userOf(req) === -1) return false;
+  try {
+    const r = mp.get(req, 'private.restrained');
+    if (r && r.boundHands) return false;
+  } catch (e) { /* ignore */ }
+  try {
+    const reqWorld = normWorldDesc(String(mp.get(req, 'worldOrCellDesc') || ''));
+    const actWorld = normWorldDesc(String(mp.get(act, 'worldOrCellDesc') || ''));
+    if (!reqWorld || !actWorld || reqWorld !== actWorld) {
+      console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: world mismatch "${reqWorld}" !== "${actWorld}"`);
+      return false;
+    }
+    const p = mp.get(req, 'pos');
+    const q = mp.get(act, 'pos');
+    if (Array.isArray(p) && Array.isArray(q)) {
+      const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+      let isInterior = false;
+      try {
+        const id = reqWorld.includes(':') ? mp.getIdFromDesc(reqWorld) : parseInt(reqWorld, 16);
+        const rec = id ? mp.lookupEspmRecordById(id) : null;
+        if (rec && rec.record && rec.record.type === 'CELL') isInterior = true;
+      } catch (e) { /* ignore */ }
+      const maxDist = isInterior ? MAX_INTERIOR_HOST_DISTANCE : MAX_HOST_DISTANCE;
+      if (d > maxDist) {
+        console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: distance ${Math.round(d)} > ${maxDist}`);
+        return false;
+      }
+    }
+  } catch (e) {
+    console.log(`[hostAttempt] Error for req=${req.toString(16)} act=${act.toString(16)}: ${e}`);
+    return false;
+  }
+  console.log(`[hostAttempt] Granted host of act=${act.toString(16)} to req=${req.toString(16)}`);
+  return true;
+};
+hostAttemptHook.__dbo = true;
+mp.onHostAttempt = hostAttemptHook;
+
+// Combat adjudication and damage clamp
+if (typeof globalThis.__dboPrevHitDamageAttempt === 'undefined') {
+  globalThis.__dboPrevHitDamageAttempt = typeof mp.onHitDamageAttempt === 'function' && !mp.onHitDamageAttempt.__dbo ? mp.onHitDamageAttempt : null;
+}
+const MAX_DAMAGE_CAP = 350;
+const hitDamageAttemptHook = (aggressorId, targetId, sourceId, damage) => {
+  const agg = Number(aggressorId) >>> 0;
+  const tgt = Number(targetId) >>> 0;
+  const src = Number(sourceId) >>> 0;
+  const dmg = Number(damage) || 0;
+
+  // 1. Refuse attack if aggressor has bound hands
+  try {
+    const r = mp.get(agg, 'private.restrained');
+    if (r && r.boundHands) return false;
+  } catch (e) { }
+
+  // 2. Reject damage exceeding plausible maximums (anti-cheat clamp)
+  if (!isAdmin(agg) && dmg > MAX_DAMAGE_CAP) {
+    log(`damageRefused: ${dmg.toFixed(1)} from ${display(agg)} on ${display(tgt)} (source 0x${src.toString(16)})`);
+    return false;
+  }
+
+  const prev = globalThis.__dboPrevHitDamageAttempt;
+  if (prev) {
+    try { if (prev(agg, tgt, src, dmg) === false) return false; }
+    catch (e) { /* ignore */ }
+  }
+  return true;
+};
+hitDamageAttemptHook.__dbo = true;
+mp.onHitDamageAttempt = hitDamageAttemptHook;
 
 // ---- party panel: names and health of your party, owner-side widget fed by ff_party --------------
 // The server writes {members:[{id,name,leader}], self}; the client reads each member's health from

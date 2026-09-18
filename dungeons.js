@@ -93,26 +93,97 @@ module.exports = (api) => {
   };
   const leaseOfActor = (a) => { const pid = profileOf(a); for (const l of ST.leases.values()) if (l.members.has(pid)) return l; return null; };
 
+  // Diversified archetype option lists for dungeons that only have a single repetitive caster/humanoid template
+  const DIVERSE_ARCHETYPES = {
+    // Cyrodiil / Ayleid warlock and cultist ruins
+    ayleid_cultist: [
+      { kind: 'cultist_conjurer', options: null },
+      { kind: 'cultist_melee_1h', options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm'], [46, '39cfa:Skyrim.esm']] },
+      { kind: 'cultist_melee_2h', options: [[1, '3cf5c:Skyrim.esm'], [6, '3cf5d:Skyrim.esm'], [12, '3cf5e:Skyrim.esm'], [19, '3cf5f:Skyrim.esm'], [27, '3cf60:Skyrim.esm'], [36, '3cf61:Skyrim.esm'], [46, '3cf62:Skyrim.esm']] },
+      { kind: 'cultist_archer', options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm'], [46, '37c03:Skyrim.esm']] },
+      { kind: 'cultist_necro', options: [[1, '61794:BSHeartland.esm'], [6, '61798:BSHeartland.esm'], [12, '617a0:BSHeartland.esm'], [19, '617a8:BSHeartland.esm'], [27, '617ac:BSHeartland.esm'], [36, '617b2:BSHeartland.esm']] },
+      { kind: 'cultist_fire', options: [[1, '61792:BSHeartland.esm'], [6, '61796:BSHeartland.esm'], [12, '6179e:BSHeartland.esm'], [19, '617a6:BSHeartland.esm'], [27, '617aa:BSHeartland.esm'], [36, '617ae:BSHeartland.esm'], [46, '617b1:BSHeartland.esm']] },
+      { kind: 'cultist_ice', options: [[1, '61793:BSHeartland.esm'], [6, '61797:BSHeartland.esm'], [12, '6179f:BSHeartland.esm'], [19, '617a7:BSHeartland.esm'], [27, '617ab:BSHeartland.esm'], [36, '617af:BSHeartland.esm'], [46, '617b3:BSHeartland.esm']] },
+      { kind: 'cultist_storm', options: [[1, '61795:BSHeartland.esm'], [6, '61799:BSHeartland.esm'], [12, '617a1:BSHeartland.esm'], [19, '617a9:BSHeartland.esm'], [27, '617ad:BSHeartland.esm'], [36, '617b0:BSHeartland.esm'], [46, '617b4:BSHeartland.esm']] },
+      { kind: 'ayleid_skeleton_melee', options: [[1, '5f057:BSHeartland.esm'], [6, '8747b:BSHeartland.esm'], [13, '8747c:BSHeartland.esm']] },
+    ],
+    // Standard warlock and necromancer ruins (Skyrim and general)
+    warlock_ruin: [
+      { kind: 'warlock_conjurer', options: [[1, '23abc:Skyrim.esm'], [6, 'a092b:Skyrim.esm'], [12, 'a092c:Skyrim.esm'], [19, 'a092d:Skyrim.esm'], [27, 'a092e:Skyrim.esm'], [36, 'a092f:Skyrim.esm'], [46, 'a0930:Skyrim.esm']] },
+      { kind: 'warlock_necro', options: [[1, '551b0:Skyrim.esm'], [6, '551b1:Skyrim.esm'], [12, '551b2:Skyrim.esm'], [19, '551b3:Skyrim.esm'], [27, '551b4:Skyrim.esm'], [36, '551b5:Skyrim.esm'], [46, '551b6:Skyrim.esm']] },
+      { kind: 'warlock_fire', options: [[1, '44cda:Skyrim.esm'], [6, '44cdc:Skyrim.esm'], [12, '44cdf:Skyrim.esm'], [19, '44ce0:Skyrim.esm'], [27, '44ce1:Skyrim.esm'], [36, '44ce2:Skyrim.esm'], [46, '44ce3:Skyrim.esm']] },
+      { kind: 'warlock_frost', options: [[1, '45c51:Skyrim.esm'], [6, '45c52:Skyrim.esm'], [12, '45c53:Skyrim.esm'], [19, '45c54:Skyrim.esm'], [27, '45c55:Skyrim.esm'], [36, '45c56:Skyrim.esm']] },
+      { kind: 'warlock_shock', options: [[1, '45c57:Skyrim.esm'], [6, '45c58:Skyrim.esm'], [12, '45c59:Skyrim.esm'], [19, '45c5a:Skyrim.esm'], [27, '45c5b:Skyrim.esm'], [36, '45c5c:Skyrim.esm']] },
+      { kind: 'skeleton_thrall', options: [[1, '2d1de:Skyrim.esm'], [6, '2d1e0:Skyrim.esm'], [13, '2d1fd:Skyrim.esm']] },
+      { kind: 'warlock_thrall_melee', options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm']] },
+      { kind: 'warlock_thrall_archer', options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm']] },
+    ],
+    // Bandit caves and forts
+    bandit_camp: [
+      { kind: 'bandit_melee_1h', options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm'], [46, '39cfa:Skyrim.esm']] },
+      { kind: 'bandit_melee_2h', options: [[1, '3cf5c:Skyrim.esm'], [6, '3cf5d:Skyrim.esm'], [12, '3cf5e:Skyrim.esm'], [19, '3cf5f:Skyrim.esm'], [27, '3cf60:Skyrim.esm'], [36, '3cf61:Skyrim.esm'], [46, '3cf62:Skyrim.esm']] },
+      { kind: 'bandit_archer', options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm'], [46, '37c03:Skyrim.esm']] },
+      { kind: 'bandit_mage', options: [[1, '44cda:Skyrim.esm'], [6, '44cdc:Skyrim.esm'], [12, '44cdf:Skyrim.esm'], [19, '44ce0:Skyrim.esm'], [27, '44ce1:Skyrim.esm']] },
+    ],
+  };
+
   // ---- spawn zones: one per placement, on Bethesda's spot, spawning the moment the cell is entered --
   const pickOption = (options, mode) => {
+    if (!options || !options.length) return null;
     const sorted = options.slice().sort((x, y) => x[0] - y[0]);
-    if (!sorted.length) return null;
-    if (mode === 'low') return sorted[0][1];
-    if (mode === 'high') return sorted[sorted.length - 1][1];
-    return sorted[Math.floor(sorted.length / 2)][1];
+    const len = sorted.length;
+    if (len === 1) return sorted[0][1];
+    let pool;
+    if (mode === 'low') {
+      const cut = Math.max(1, Math.ceil(len * 0.4));
+      pool = sorted.slice(0, cut);
+    } else if (mode === 'high') {
+      const start = Math.floor(len * 0.55);
+      pool = sorted.slice(start);
+    } else {
+      const start = Math.floor(len * 0.2);
+      const end = Math.max(start + 1, Math.ceil(len * 0.8));
+      pool = sorted.slice(start, end);
+    }
+    if (!pool || !pool.length) pool = sorted;
+    return pool[Math.floor(Math.random() * pool.length)][1];
   };
+
   const zonesFor = (d, diff) => {
     const out = [];
     let n = 0;
+    const isAyleid = Array.isArray(d.keywords) && d.keywords.some((k) => /ayleid/i.test(k));
+    const isWarlock = /warlock|necro|witch|cultist|coven|shrine/i.test(d.name + ' ' + (d.keywords || []).join(' '));
+    const isBandit = /bandit|marauder|mine|hideout/i.test(d.name + ' ' + (d.keywords || []).join(' '));
+    const poolKey = isAyleid ? 'ayleid_cultist' : isWarlock ? 'warlock_ruin' : isBandit ? 'bandit_camp' : null;
+    const archetypes = poolKey ? DIVERSE_ARCHETYPES[poolKey] : null;
+    let archIdx = 0;
+
     for (const z of d.zones || []) {
       for (const npc of z.npcs || []) {
-        const id = pickOption(npc.options || [], diff.pick);
+        const edid = String(npc.edid || '');
+        const isBoss = /boss/i.test(edid);
+        const isCreature = /rat|skeever|spider|wolf|bear|chaurus|troll|crab|deer|animal/i.test(edid);
+
+        let opts = npc.options || [];
+        let kind = edid;
+
+        // For non-boss, non-creature humanoids in homogeneous dungeons, cycle through the diverse archetype pool
+        if (!isBoss && !isCreature && archetypes && archetypes.length) {
+          const arch = archetypes[archIdx++ % archetypes.length];
+          if (arch.options && arch.options.length) {
+            opts = arch.options;
+          }
+          kind = arch.kind;
+        }
+
+        const id = pickOption(opts, diff.pick);
         if (!id || !Array.isArray(npc.pos)) continue;
         if (diff.mult < 1 && Math.random() > diff.mult) continue;          // fewer of them
         const count = 1 + (diff.mult > 1 && Math.random() < diff.mult - 1 ? 1 : 0); // sometimes a second one
         // Anchor = Bethesda's own (disabled) actor ref on that spot: the spawn appears there, not at a player.
-        const zone = { Name: `${ZONE_PREFIX}${d.id}:${n++}`, ID: z.cell, POS: npc.pos, Size: 100000, NPC: [{ id, count }], Despawn: 300, Respawn: 0, Kind: npc.edid || '' };
-        if (npc.ref) { zone.Anchor = npc.ref; zone.Prespawn = true; }
+        const zone = { Name: `${ZONE_PREFIX}${d.id}:${n++}`, ID: z.cell, POS: npc.pos, Size: 100000, NPC: [{ id, count }], Despawn: 0, Respawn: 0, Kind: kind, Prespawn: true };
+        if (npc.ref) zone.Anchor = npc.ref;
         out.push(zone);
       }
     }
@@ -127,7 +198,7 @@ module.exports = (api) => {
     const kept = list.filter((z) => !String((z && (z.Name || z.name)) || '').startsWith(ZONE_PREFIX));
     for (const lease of ST.leases.values()) kept.push(...lease.zones);
     const payload = root ? Object.assign({}, root, { [key]: kept }) : { _comment: 'NPC spawn zones. Entries named dungeon:* are written by server/dungeons.js for active dungeon leases and replaced on every change; other entries are kept.', zones: kept };
-    try { fs.writeFileSync(SPAWNS_FILE + '.tmp', JSON.stringify(payload, null, 1)); fs.renameSync(SPAWNS_FILE + '.tmp', SPAWNS_FILE); }
+    try { fs.writeFileSync(SPAWNS_FILE + '.dungeons.tmp', JSON.stringify(payload, null, 1)); fs.renameSync(SPAWNS_FILE + '.dungeons.tmp', SPAWNS_FILE); }
     catch (e) { log('NPC-Spawns.json write failed', e.message); }
   };
 
@@ -187,11 +258,18 @@ module.exports = (api) => {
 
   // ---- leases --------------------------------------------------------------------------------
   const minutesLeft = (until) => Math.max(1, Math.ceil((until - Date.now()) / 60000));
+  const provinceOfDungeon = (d) => {
+    if (!d) return 'skyrim';
+    const s = JSON.stringify(d);
+    if (/BSHeartland|BSAssets/i.test(s)) return 'cyrodiil';
+    if (/Dragonborn|DLC2Solstheim/i.test(s)) return 'solstheim';
+    return 'skyrim';
+  };
   const startLease = (leaderActor, d, entrance, diff) => {
     const leaderPid = profileOf(leaderActor);
     const members = new Set(partyMembers(leaderPid));
     const zones = zonesFor(d, diff);
-    const lease = { id: d.id, name: d.name, difficulty: diff.id, leader: leaderPid, members, startedAt: Date.now(), endsAt: Date.now() + C.leaseMinutes * 60000, warned: false, lastInsideAt: Date.now(), locked: new Map(), unlocked: new Set(), looted: new Set(), zones, totalNpcs: zones.reduce((n, z) => n + z.NPC[0].count, 0), seenNpcs: new Set(), deadNpcs: new Set(), entrance };
+    const lease = { id: d.id, name: d.name, difficulty: diff.id, leader: leaderPid, members, startedAt: Date.now(), endsAt: Date.now() + C.leaseMinutes * 60000, warned: false, lastInsideAt: Date.now(), locked: new Map(), unlocked: new Set(), looted: new Set(), zones, totalNpcs: zones.reduce((n, z) => n + z.NPC[0].count, 0), seenNpcs: new Set(), deadNpcs: new Set(), entrance, province: provinceOfDungeon(d) };
     const share = Number((C.lockedShare || {})[diff.id]) || 0;
     const levels = LOCK_BY_DIFF[diff.id] || [];
     if (share > 0 && levels.length) {
@@ -250,7 +328,9 @@ module.exports = (api) => {
     try { ids = JSON.parse(fs.readFileSync(SPAWNED_IDS_FILE, 'utf8')); } catch (e) { return; }
     if (!Array.isArray(ids)) return;
     const prefix = `${ZONE_PREFIX}${lease.id}:`;
+    const liveForms = typeof mp.getAllForms === 'function' ? new Set(mp.getAllForms(0xff)) : null;
     for (const id of ids) {
+      if (liveForms && !liveForms.has(id)) continue;
       if (lease.seenNpcs.has(id) && lease.deadNpcs.has(id)) continue;
       let tag = ''; try { tag = String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { continue; }
       if (!tag.startsWith(prefix)) continue;
@@ -290,13 +370,16 @@ module.exports = (api) => {
   // (archer -> bow + arrows, two-hander -> greatsword/battleaxe/warhammer, caster -> dagger, else
   // sword/war axe/mace; draugr, falmer and forsworn keep their own kind) within the difficulty's band.
   const HUMANOID = /bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|orc|soldier|guard|thalmor|vampire|hunter|warlock|necromancer|conjurer|mage|cultist|silverhand|reaver|smuggler|pirate|warrior|dremora|boss/i;
-  const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ghost|dragon|frostbite|netch|riekling|ashhopper/i;
+  const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ballista|ghost|dragon|frostbite|netch|riekling|ashhopper|ogre|minotaur|dreugh|gargoyle|werewolf|werebear|ashspawn|lurker|seeker|scamp|clannfear|daedroth|dragonpriest|horse|cow|chicken/i;
   const CASTER = /mage|wizard|sorcerer|warlock|necromancer|conjurer|witch|priest|cultist|shaman/i;
-  const BAD_WEAPON = /dun|Favor|^FF|LD_|NPC$|Trap|^FX|Unarmed|POI|Freeform|DragonPriest|Giant|Lurker|Riekling|Nightingale|^MG|^T0|^C0|SSD|weapBasic|BYOH|Skyforge|Bound|Projectile|dlc2DB|Wrathman|Keeper|Ysgramor|Horksbane|Longhammer|Relic|Illusion|Pickaxe|Catapult|Ballista|Sphere|Knife|Fork|Scimitar|Executioner|Katana|Akaviri|Prelate|Aetherium|Dawnguard|^Axe01|Cross[Bb]ow|Stalhrim|Dragonbone|Daedric|Wooden|Follower|Imperial|Silver|NordHero|Honed|Supple|Enhanced/;
+  const BAD_WEAPON = /dun|Favor|^FF|LD_|NPC$|Trap|^FX|Unarmed|POI|Freeform|DragonPriest|Giant|Lurker|Riekling|Nightingale|^MG|^T0|^C0|SSD|weapBasic|BYOH|Skyforge|Bound|Projectile|dlc2DB|Wrathman|Keeper|Ysgramor|Horksbane|Longhammer|Relic|Illusion|Pickaxe|Catapult|Ballista|Sphere|Knife|Fork|Scimitar|Executioner|Katana|Akaviri|Prelate|Aetherium|Dawnguard|^Axe01|Cross[Bb]ow|Stalhrim|Dragonbone|Daedric|Wooden|Follower|Imperial|Silver|NordHero|Honed|Supple|Enhanced|^MFD/;
   const GEAR_BY_DIFF = { story: 45, normal: 110, hard: 300, nightmare: 1000 };
-  const weaponFor = (edid, diffId) => {
+  const weaponFor = (edid, diffId, province) => {
     const e = String(edid || '');
-    const all = (LOOT.weapons || []).filter((w) => !BAD_WEAPON.test(w.name));
+    let all = (LOOT.weapons || []).filter((w) => !BAD_WEAPON.test(w.name));
+    if (province !== 'solstheim') {
+      all = all.filter((w) => !w.id.endsWith('Dragonborn.esm') && !/^DLC2/i.test(w.name));
+    }
     const faction = /draugr/i.test(e) ? /^Draugr/ : /falmer/i.test(e) ? /^Falmer/ : /forsworn/i.test(e) ? /^Forsworn/ : null;
     const shape = /missile|archer|bow|ranger|hunter/i.test(e) ? /Bow$/
       : /2h|twohand|greatsword|battleaxe|warhammer/i.test(e) ? /(Greatsword|Battleaxe|Warhammer)$/
@@ -317,16 +400,27 @@ module.exports = (api) => {
     let ids = []; try { ids = JSON.parse(fs.readFileSync(SPAWNED_IDS_FILE, 'utf8')); } catch (e) { return; }
     if (!Array.isArray(ids)) return;
     const prefix = `${ZONE_PREFIX}${lease.id}:`;
+    const liveForms = typeof mp.getAllForms === 'function' ? new Set(mp.getAllForms(0xff)) : null;
     for (const id of ids) {
       if (lease.armed.has(id)) continue;
+      if (liveForms && !liveForms.has(id)) continue;
       let tag = ''; try { tag = String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { continue; }
       if (!tag.startsWith(prefix)) continue;
       lease.armed.add(id);
       const edid = (lease.kinds || {})[tag] || '';
       if (!HUMANOID.test(edid) || ANIMAL.test(edid)) continue;
+      let recEdid = '';
+      try {
+        const baseDesc = String(mp.get(id, 'baseDesc') || '');
+        if (baseDesc) {
+          const rec = mp.lookupEspmRecordById(mp.getIdFromDesc(baseDesc));
+          if (rec && rec.record && rec.record.editorId) recEdid = String(rec.record.editorId);
+        }
+      } catch (e) { }
+      if (recEdid && (ANIMAL.test(recEdid) || !HUMANOID.test(recEdid))) continue;
       let entries = []; try { const inv = mp.get(id, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries.slice() : []; } catch (e) { continue; }
       if (entries.some((en) => { const r = recordOf(Number(en.baseId) >>> 0); return r && String(r.type) === 'WEAP'; })) continue;
-      const w = weaponFor(edid, lease.difficulty); if (!w) continue;
+      const w = weaponFor(edid, lease.difficulty, lease.province); if (!w) continue;
       const wid = idOf(w.id); if (!wid) continue;
       entries.push({ baseId: wid, count: 1 });
       let arrowId = 0;

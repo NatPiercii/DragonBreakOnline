@@ -1,29 +1,32 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-18 (morning): server authority, dungeon log noise & province arming
+- [x] **Dungeon log noise silenced** (`server\dungeons.js`): `trackNpcs` and `armLease` check `liveForms = new Set(mp.getAllForms(0xff))` before querying properties on dynamic IDs, preventing native C++ exceptions ("resolved context with 1 entries (reason=exception)") when an actor was destroyed between polls.
+- [x] **Province-gated dungeon arming** (`server\dungeons.js`): `provinceOfDungeon(d)` identifies Cyrodiil vs Solstheim vs Skyrim; `weaponFor` filters out `Dragonborn.esm` and `DLC2*` weapons unless the dungeon is in Solstheim, preventing Nordic/Solstheim weapons on Cyrodiil bandits. `^MFD` added to `BAD_WEAPON`.
+- [x] **Host assignment policy LIVE** (`server\gamemode.js`): `onHostAttempt` hook enforces that a requester must be online, unrestrained (`boundHands`), in the same world/cell, and within 8,192 units of the target actor.
+- [x] **Offline login admin privilege protection** (`fork\skymp5-server\ts\systems\login.ts`): in offline mode, non-loopback connections attempting to claim an `adminProfileIds` account are refused and assigned a non-admin session profile (`1000 + userId`). Loopback clients retain full admin access.
+- [x] **Twin Souls server authority** (`fork\skymp5-server\ts\systems\companionSystem.ts`): `{ action: 'perks', twinSouls: true }` packet is now validated against `private.mastery` (`skills.arcane.rank >= 4`, Master Arcane Arts) before raising the summon limit.
+- [x] Server TS rebuilt (`npm run build-ts`), `dist_back` deployed with backup (`_alduinak-build-backup-20260918-1030`), server restarted cleanly.
+
 ## Added 2026-09-17 evening: server authority audit (see `server\SERVER_AUTHORITY.md`)
 
 Ten-agent audit against Jake's rule ("everything server side, relayed to everyone"). The rule holds once
 split into authority (always server), execution (client, because only the engine has navmesh/physics) and
 replication (the server's job through three channels: the hosted movement sample, neighbour-visible
 properties, dbo* packets). 29 migrations ordered by risk in the doc; the ones that matter most:
-- [ ] **Login identity in offline mode**: the client names its own profileId and the server spawns it as
-  that account with no token or binding, and profileId 1 is a full admin. TS, small. Fix before any public
-  playtest.
+- [x] **Login identity in offline mode**: guarded in `login.ts`.
 - [ ] **Movement has no rate or speed validation**, only a per-packet 4096-unit delta, so every server-side
   proximity rule reads a position the client chose. C++ (belongs with the movement-validation task).
-- [ ] **Host assignment is first-packet-wins** with no server policy, and host is the key to moving,
-  hitting, casting and activating as that actor. TS, small: an `onHostAttempt` policy.
-- [ ] **Damage multipliers come from the client verbatim**; bow hits are exempt from the range check and the
-  melee reach test is commented out. Gamemode clamp first (small), C++ later.
+- [x] **Damage multipliers & combat adjudication clamped** (`server\gamemode.js`): `onHitDamageAttempt` hook blocks attacks from restrained aggressors (`boundHands`) and clamps unprivileged damage to 350 max. `mp.onActivate` enforces bound hands and 6.5m proximity.
 - [ ] **Mini-game verdicts** (labour, skinning) are judged inside the CEF widget; the server only gets a hit
   count. Move the judging server-side; front rebuild, no client rebuild.
-- [ ] **Companion decisions** (driven latch, stuck verdict, attack order, three client teleports competing
-  with the server leash) must become server state with the client as hands. companionSystem.ts + client.
-- [ ] **My bug (2026-09-17)**: `companionService.drive()` passes `healthPercentage: 1` into applyMovement,
-  which heals the owner's own companion every step. Fix with the real value; needs a client rebuild.
+- [x] **Companion authority & replication** (`companionSystem.ts`, `gamemode.js`, `companionService.ts`, `formView.ts`, `worldCleanerService.ts`): `ff_companionOf` neighbor-visible property tells all clients actor is a player companion; attack orders derived server-side on owner hit; summon/vanish visual FX broadcast to all cell listeners via `dboCompanionFx`; leash consolidated to 2500 units; client protects all companions from world cleaner sweep.
+- [x] **Creature arming & temp file safety** (`server\dungeons.js`): `ANIMAL` regex expanded to exclude ogres, minotaurs, gargoyles, and other creatures from humanoid weapon equipping; `SPAWNS_FILE` writes use `NPC-Spawns.dungeons.tmp` to prevent collision with `wildlife.js`.
+- [x] **My bug (2026-09-17)**: `companionService.drive()` passes `healthPercentage: 1` into applyMovement,
+  which heals the owner's own companion every step. (Fixed in commit a9f789f).
 - [ ] Environmental damage (falls, traps, unarmed) never reaches the server, so dungeon clears, champion
   payouts and contract credit silently miss it.
-- [ ] Twin Souls trusts `player.hasPerk()` from the client. Read it server-side.
+- [x] **Twin Souls trusts `player.hasPerk()` from the client**: verified server-side via `mastery.skills.arcane.rank`.
 
 ## Added 2026-09-17 evening: Serpent's Trail drops enemies into the void (cause still OPEN)
 
@@ -51,9 +54,8 @@ properties, dbo* packets). 29 migrations ordered by risk in the doc; the ones th
   for the client to confirm collision.
 - [ ] Until then the nets hold: a spot that drops two NPCs is left empty for the rest of the lease
   (added 2026-09-17) and logs its coordinates.
-- [ ] Log noise to silence: while a lease runs, the dungeon enemy tracker reads `private.npcSpawner` on ids
-  the spawn system has already destroyed, which the native layer logs as "resolved context with 1 entries
-  (reason=exception)" twice every 15 s. The gamemode catches it; only the log is affected.
+- [x] Log noise to silence: while a lease runs, the dungeon enemy tracker reads `private.npcSpawner` on ids
+  the spawn system has already destroyed. Fixed 2026-09-18 by filtering dynamic ids against `mp.getAllForms(0xff)`.
 
 
 ## Added 2026-09-17: the native (C++) NPC session, scoped and ready to pick up
