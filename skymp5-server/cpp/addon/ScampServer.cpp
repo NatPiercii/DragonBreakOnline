@@ -461,6 +461,54 @@ ScampServer::ScampServer(const Napi::CallbackInfo& info)
       partOne->worldState.SetBlockedSpells(blockedSpells);
     }
 
+    // movementValidation: per-actor speed ceilings for player movement
+    // packets, in units per second
+    auto movementIt = serverSettings.find("movementValidation");
+    if (movementIt != serverSettings.end() && (*movementIt).is_object()) {
+      auto& limits = partOne->worldState.movementLimits;
+      const auto& j = *movementIt;
+      auto readBool = [&](const char* key, bool& out) {
+        if (j.contains(key) && j[key].is_boolean()) {
+          out = j[key].get<bool>();
+        }
+      };
+      auto readFloat = [&](const char* key, float& out) {
+        if (j.contains(key) && j[key].is_number()) {
+          out = j[key].get<float>();
+        }
+      };
+      auto readUint = [&](const char* key, uint32_t& out) {
+        if (j.contains(key) && j[key].is_number_unsigned()) {
+          out = j[key].get<uint32_t>();
+        }
+      };
+      readBool("enabled", limits.enabled);
+      readBool("enforce", limits.enforce);
+      readFloat("maxHorizontalSpeed", limits.maxHorizontalSpeed);
+      readFloat("maxUpSpeed", limits.maxUpSpeed);
+      readFloat("maxDownSpeed", limits.maxDownSpeed);
+      readFloat("burstSeconds", limits.burstSeconds);
+      readFloat("peakLogFraction", limits.peakLogFraction);
+      readUint("teleportGraceMs", limits.teleportGraceMs);
+      readUint("snapBackIntervalMs", limits.snapBackIntervalMs);
+      readUint("logIntervalMs", limits.logIntervalMs);
+      // A zero or negative ceiling would refuse every packet forever
+      limits.burstSeconds = std::max(0.25f, limits.burstSeconds);
+      limits.maxHorizontalSpeed = std::max(1.f, limits.maxHorizontalSpeed);
+      limits.maxUpSpeed = std::max(1.f, limits.maxUpSpeed);
+      limits.maxDownSpeed = std::max(1.f, limits.maxDownSpeed);
+    }
+    {
+      const auto& limits = partOne->worldState.movementLimits;
+      spdlog::info("movementValidation: {}, ceilings {:.0f} horizontal, "
+                   "{:.0f} up, {:.0f} down u/s, burst {:.1f} s",
+                   limits.enabled
+                     ? (limits.enforce ? "enforcing" : "logging only")
+                     : "off",
+                   limits.maxHorizontalSpeed, limits.maxUpSpeed,
+                   limits.maxDownSpeed, limits.burstSeconds);
+    }
+
     // playersInheritBaseSpells: false strips the Player record's castable spells (Flames, Healing) from player characters
     auto inheritIt = serverSettings.find("playersInheritBaseSpells");
     if (inheritIt != serverSettings.end() && (*inheritIt).is_boolean()) {

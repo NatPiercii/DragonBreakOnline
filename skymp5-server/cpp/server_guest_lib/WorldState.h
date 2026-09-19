@@ -4,6 +4,7 @@
 #include "FormIndex.h"
 #include "Grid.h"
 #include "GridElement.h"
+#include "MovementLimits.h"
 #include "MpChangeForms.h"
 #include "MpForm.h"
 #include "MpObjectReference.h"
@@ -257,6 +258,7 @@ public:
   NpcSettingsEntry defaultSetting;
   bool enableConsoleCommandsForAll = false;
   float regenerationMultiplier = 1.f;
+  MovementLimits movementLimits;
 
   bool disableVanillaScriptsInExterior = true;
 
