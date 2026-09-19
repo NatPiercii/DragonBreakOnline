@@ -69,8 +69,6 @@ export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: bo
   applySneaking(ac, m.isSneaking);
   if (!isHostedByMe(ac.getFormID())) applyWeapDrawn(ac, m.isWeapDrawn);
   applyHealthPercentage(ac, m.healthPercentage);
-  applyStaminaPercentage(ac, m.staminaPercentage);
-  applyMagickaPercentage(ac, m.magickaPercentage);
 
   SpApiInteractor.getControllerInstance().emitter.emit("applyDeathStateEvent", { actor: ac, isDead: m.isDead });
 };
@@ -159,34 +157,6 @@ const applyHealthPercentage = (ac: Actor, healthPercentage: number) => {
     ac.restoreActorValue('health', deltaPercentage * currentMax * k);
   } else if (deltaPercentage < 0) {
     ac.damageActorValue('health', deltaPercentage * currentMax * k);
-  }
-};
-
-const applyStaminaPercentage = (ac: Actor, staminaPercentage: number) => {
-  if (staminaPercentage < 0) return; // 0 is valid (exhausted)
-  const currentPercentage = ac.getActorValuePercentage('stamina');
-  if (Math.abs(currentPercentage - staminaPercentage) < 0.001) return;
-  const currentMax = ac.getBaseActorValue('stamina');
-  const deltaPercentage = staminaPercentage - currentPercentage;
-  const k = vitalLerpK(deltaPercentage);
-  if (deltaPercentage > 0) {
-    ac.restoreActorValue('stamina', deltaPercentage * currentMax * k);
-  } else if (deltaPercentage < 0) {
-    ac.damageActorValue('stamina', deltaPercentage * currentMax * k);
-  }
-};
-
-const applyMagickaPercentage = (ac: Actor, magickaPercentage: number) => {
-  if (magickaPercentage < 0) return;
-  const currentPercentage = ac.getActorValuePercentage('magicka');
-  if (Math.abs(currentPercentage - magickaPercentage) < 0.001) return;
-  const currentMax = ac.getBaseActorValue('magicka');
-  const deltaPercentage = magickaPercentage - currentPercentage;
-  const k = vitalLerpK(deltaPercentage);
-  if (deltaPercentage > 0) {
-    ac.restoreActorValue('magicka', deltaPercentage * currentMax * k);
-  } else if (deltaPercentage < 0) {
-    ac.damageActorValue('magicka', deltaPercentage * currentMax * k);
   }
 };
 

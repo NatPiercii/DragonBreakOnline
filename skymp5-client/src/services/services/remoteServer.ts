@@ -533,8 +533,6 @@ export class RemoteServer extends ClientListener {
         isWeapDrawn: false,
         isDead: false,
         healthPercentage: 1.0,
-        staminaPercentage: 1.0,
-        magickaPercentage: 1.0,
         speed: 0,
       };
     }

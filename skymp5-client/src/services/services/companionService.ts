@@ -337,8 +337,6 @@ export class CompanionService extends ClientListener {
       isDead: false,
       // applyMovement applies this as a real heal or wound, so it must be the actor's own value
       healthPercentage: actor.getActorValuePercentage("health") || 0,
-      staminaPercentage: actor.getActorValuePercentage("stamina") || 0,
-      magickaPercentage: actor.getActorValuePercentage("magicka") || 0,
       speed,
     });
     state.following = false;
