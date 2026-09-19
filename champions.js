@@ -5,7 +5,7 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, cfg, giveItem, loot, registerChatCommand, sendPacket, onlineActors } = api;
+  const { mp, log, personal, audit, display, cfg, giveItem, loot, registerChatCommand, sendPacket, onlineActors, every, stopTimer } = api;
   const fs = require('fs');
   const path = require('path');
 
@@ -128,10 +128,8 @@ module.exports = (api) => {
     syncGlow();
   };
 
-  if (globalThis.__dboChampionTimer) clearInterval(globalThis.__dboChampionTimer);
-  globalThis.__dboChampionTimer = CFG.enabled
-    ? setInterval(() => { try { sweep(); } catch (e) { log('champion sweep failed', e.message); } }, Math.max(1, Number(CFG.pollSeconds) || 4) * 1000)
-    : null;
+  if (CFG.enabled) every('champions', Math.max(1, Number(CFG.pollSeconds) || 4) * 1000, () => { try { sweep(); } catch (e) { log('champion sweep failed', e.message); } });
+  else stopTimer('champions');
 
   // Damage on a champion is credited to the attacker and partly given back, so it lives twice as long
   globalThis.__dboChampionHit = (aggressorId, targetId, damage) => {

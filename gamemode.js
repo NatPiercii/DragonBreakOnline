@@ -27,6 +27,56 @@ const cfg = (() => {
 const R = Object.assign({ whisper: 3, low: 8, say: 20, wide: 35, shout: 80, emote: 20, emoteLow: 8, emoteLong: 35, looc: 20, loocLow: 8, loocLong: 35 }, cfg.rangesMeters || {});
 const serverSettings = (() => { try { return mp.getServerSettings() || {}; } catch (e) { return {}; } })();
 
+// ---- timers: named, timed, replaced by name on every reload -------------------------------------
+const TIMERS = globalThis.__dboTimers instanceof Map ? globalThis.__dboTimers : (globalThis.__dboTimers = new Map()); // name -> { start, interval }
+// Handles kept before the registry existed; empty after the first reload onto it
+for (const k of ['__dboAuditTimer', '__dboWatchTimer', '__dboMeetTimer', '__dboNeedsTimer', '__dboOutsideTimer', '__dboContractFlush', '__dboChampionTimer', '__dboLawfulTimer', '__dboPlaytestTimer', '__dboDungeonTimer', '__dboArmTimer']) if (globalThis[k]) { clearInterval(globalThis[k]); globalThis[k] = null; }
+const SLOW_TICK_MS = Number((cfg.debug || {}).slowTickMs) || 20;
+const tickStats = new Map(); // name -> { n, total, max, slow } since the last summary
+const timed = (name, fn) => function (...args) {
+  const t0 = performance.now();
+  try { return fn.apply(this, args); } finally {
+    const ms = performance.now() - t0;
+    let s = tickStats.get(name); if (!s) tickStats.set(name, s = { n: 0, total: 0, max: 0, slow: 0 });
+    s.n++; s.total += ms; if (ms > s.max) s.max = ms;
+    if (ms > SLOW_TICK_MS) { s.slow++; log(`slow tick ${name}: ${ms.toFixed(1)} ms`); }
+  }
+};
+const stopTimer = (name) => { const t = TIMERS.get(name); if (!t) return; clearTimeout(t.start); clearInterval(t.interval); TIMERS.delete(name); };
+// Start offsets are spread over the first second so timers made in one load do not fire together
+let timerSlot = 0;
+const every = (name, ms, fn) => {
+  stopTimer(name);
+  const t = { start: null, interval: null }; const body = timed(name, fn);
+  t.start = setTimeout(() => { t.start = null; t.interval = setInterval(body, ms); }, Math.round(((++timerSlot * 0.618034) % 1) * 1000));
+  TIMERS.set(name, t);
+};
+every('tickSummary', 60000, () => {
+  const rows = [...tickStats.entries()].sort((x, y) => y[1].total - x[1].total)
+    .map(([k, s]) => `${k} ${s.n}x max ${s.max.toFixed(2)} mean ${(s.total / s.n).toFixed(2)}${s.slow ? ` slow ${s.slow}` : ''}`);
+  tickStats.clear();
+  if (rows.length) log(`ticks (ms, last 60 s, ${onlineActors().length} online): ${rows.join(' | ')}`);
+});
+
+// ---- debounced saves: a hot path marks its file dirty, one async write per file every few seconds -----
+// file -> { snapshot, dirty, busy, seq }; a reload first writes out what the last generation left dirty
+const SAVES = globalThis.__dboSaves instanceof Map ? globalThis.__dboSaves : (globalThis.__dboSaves = new Map());
+const saveSoon = (file, snapshot) => { const s = SAVES.get(file) || { dirty: false, busy: false, seq: 0 }; s.snapshot = snapshot; s.dirty = true; SAVES.set(file, s); };
+const writeSaveSync = (file, s) => { const tmp = `${file}.${++s.seq}.tmp`; fs.writeFileSync(tmp, s.snapshot()); fs.renameSync(tmp, file); s.dirty = false; };
+const writeSave = (file, s) => {
+  if (!s.dirty || s.busy) return;
+  let text; try { text = s.snapshot(); } catch (e) { return log('save snapshot failed', path.basename(file), e.message); }
+  const seq = ++s.seq; const tmp = `${file}.${seq}.tmp`;
+  s.dirty = false; s.busy = true;
+  fs.writeFile(tmp, text, (err) => {
+    s.busy = false;
+    if (s.seq !== seq) return fs.unlink(tmp, () => {}); // a reload wrote a newer copy meanwhile
+    try { if (err) throw err; fs.renameSync(tmp, file); } catch (e) { s.dirty = true; fs.unlink(tmp, () => {}); log('save failed', path.basename(file), e.message); }
+  });
+};
+for (const [file, s] of SAVES) if (s.dirty) { try { writeSaveSync(file, s); log(`saved ${path.basename(file)} before reload`); } catch (e) { log('save flush failed', path.basename(file), e.message); } }
+every('saves', 5000, () => { for (const [file, s] of SAVES) writeSave(file, s); });
+
 // Admin tiers, same rules as the server's adminRoles.ts: adminProfileIds are senior, then adminRoles
 // tiers by Discord role id (senior > developer > gm), then legacy adminRoleIds as senior.
 const idList = (v) => Array.isArray(v) ? v.map(String) : [];
@@ -46,6 +96,7 @@ makeProp('ff_adminModes', true); // AdminSystem mirrors god/smite/healhit/invis 
 makeProp('ff_charTag', true);    // the character's #TAG, drawn faintly under the nametag by every client
 makeProp('ff_hostile', true);    // npcSpawnSystem's "attacks on sight" flag, read by the client to raise Aggression
 makeProp('ff_companionOf', true);// companion owner id, tells clients actor is friendly companion
+makeProp('ff_factions', true);   // dungeons.js: the placement template's factions, applied by the client to the spawned actor
 
 let nonce = Date.now();
 const deliver = (actorId, line) => { try { mp.set(actorId, CHAT_PROP, `${++nonce}${US}${line}`); } catch (e) { log('deliver failed', actorId, e.message); } };
@@ -179,8 +230,7 @@ const audit = (text) => {
 };
 if (discordTarget) log(`discord audit log: ${discordTarget.kind}${discordTarget.kind === 'bot' ? ' channel ' + discordTarget.channel : ''}`);
 else log('discord audit log: not configured (gamemode-config.json discord.webhookUrl, or discordAuth in server-settings.json)');
-if (globalThis.__dboAuditTimer) clearInterval(globalThis.__dboAuditTimer);
-globalThis.__dboAuditTimer = setInterval(flushAudit, 1500);
+every('audit', 1500, flushAudit);
 // AdminSystem (teleport, summon, kick, ban, mastery, npc zones) routes its log lines through this hook.
 globalThis.__alduinakAdminLog = (text) => audit(`GM ${text}`);
 
@@ -246,8 +296,7 @@ const watchPlayers = () => {
     seen.set(p, now);
   }
 };
-if (globalThis.__dboWatchTimer) clearInterval(globalThis.__dboWatchTimer);
-globalThis.__dboWatchTimer = setInterval(() => { try { watchPlayers(); } catch (e) { log('watch failed', e.message); } }, 5000);
+every('watch', 5000, () => { try { watchPlayers(); } catch (e) { log('watch failed', e.message); } });
 
 // ---- chat commands -------------------------------------------------------------------------
 const commands = new Map();
@@ -334,38 +383,50 @@ const pigeonLastSent = (() => {
 const notePigeonSent = (p) => {
   pigeonLastSent.set(p, Date.now());
   for (const [k, v] of pigeonLastSent) if (Date.now() - v > PIGEON_COOLDOWN_MS) pigeonLastSent.delete(k);
-  try { fs.writeFileSync(PIGEON_COOLDOWN_FILE, JSON.stringify(Object.fromEntries(pigeonLastSent))); } catch (e) { log('pigeon cooldown save failed', e.message); }
+  saveSoon(PIGEON_COOLDOWN_FILE, () => JSON.stringify(Object.fromEntries(pigeonLastSent)));
 };
 // Two characters have met once they stood within speaking range in the same place, recorded on both
 const MEET_TICK_MS = 5000;
 const MAX_MET = 500;
 const metOf = (a) => { try { const r = mp.get(a, 'private.metActors'); return Array.isArray(r) ? r : []; } catch (e) { return []; } };
-const noteMet = (a, b) => {
-  const list = metOf(a);
-  if (list.includes(b)) return;
-  list.push(b);
-  if (list.length > MAX_MET) list.splice(0, list.length - MAX_MET);
-  try { mp.set(a, 'private.metActors', list); } catch (e) { /* next tick */ }
+// actorId -> { list, set } for online actors: the property is read once and written only when the list grows
+const metCache = new Map();
+const noteMet = (a, b, changed) => {
+  let m = metCache.get(a);
+  if (!m) { const list = metOf(a); m = { list, set: new Set(list) }; metCache.set(a, m); }
+  if (m.set.has(b)) return;
+  m.list.push(b); m.set.add(b);
+  if (m.list.length > MAX_MET) { m.list.splice(0, m.list.length - MAX_MET); m.set = new Set(m.list); }
+  changed.add(a);
 };
-if (globalThis.__dboMeetTimer) clearInterval(globalThis.__dboMeetTimer);
-globalThis.__dboMeetTimer = setInterval(() => {
+every('meet', MEET_TICK_MS, () => {
   const reach = (Number((cfg.rangesMeters || {}).say) || 20) * UNITS_PER_METER;
-  const byPlace = new Map();
-  for (const a of onlineActors()) {
+  const online = onlineActors();
+  const live = new Set(online);
+  for (const a of metCache.keys()) if (!live.has(a)) metCache.delete(a);
+  // Grid cells one reach wide per place, so any pair in reach shares a cell or sits in a neighbouring one
+  const grid = new Map(); const all = [];
+  for (const a of online) {
     try {
       const w = String(mp.get(a, 'worldOrCellDesc') || ''); const p = mp.get(a, 'pos');
       if (!w || !Array.isArray(p)) continue;
-      const list = byPlace.get(w); if (list) list.push([a, p]); else byPlace.set(w, [[a, p]]);
+      const me = { a, p, w, i: all.length, cx: Math.floor(p[0] / reach), cy: Math.floor(p[1] / reach) };
+      all.push(me);
+      const key = `${w}|${me.cx}|${me.cy}`; const cell = grid.get(key); if (cell) cell.push(me); else grid.set(key, [me]);
     } catch (e) { /* between cells */ }
   }
-  for (const list of byPlace.values()) {
-    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
-      const [a, p] = list[i]; const [b, q] = list[j];
-      if (Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) > reach) continue;
-      noteMet(a, b); noteMet(b, a);
+  const changed = new Set();
+  for (const me of all) {
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      for (const o of grid.get(`${me.w}|${me.cx + dx}|${me.cy + dy}`) || []) {
+        if (o.i <= me.i) continue;
+        if (Math.hypot(me.p[0] - o.p[0], me.p[1] - o.p[1], me.p[2] - o.p[2]) > reach) continue;
+        noteMet(me.a, o.a, changed); noteMet(o.a, me.a, changed);
+      }
     }
   }
-}, MEET_TICK_MS);
+  for (const a of changed) { try { mp.set(a, 'private.metActors', metCache.get(a).list.slice()); } catch (e) { metCache.delete(a); } }
+});
 const takeGold = (a, amount) => {
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
@@ -820,14 +881,14 @@ const startLoginWait = (userId, seenActor) => {
   if (old) clearInterval(old);
   const since = Date.now();
   let seen = seenActor || 0;
-  const wait = setInterval(() => {
+  const wait = setInterval(timed('loginWait', () => {
     if (!connected.has(userId) || Date.now() - since > LOGIN_WAIT_MS) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); return; }
     const a = actorOf(userId);
     // A character switch hands the user a different actor; each one gets its own login run.
     if (!a || a === seen) return;
     seen = a;
     try { onCharacterReady(userId, a); } catch (e) { log('login setup failed', e.message); }
-  }, 500);
+  }), 500);
   globalThis.__dboLoginWaits.set(userId, wait);
 };
 globalThis.__dboHandlers.connect = (userId) => { connected.add(userId); startLoginWait(userId, 0); };
@@ -958,8 +1019,7 @@ const needsOnConnect = (a) => {
   try { const n = needsOf(a); n.applied = { staminaRateMult: 0, healRateMult: 0 }; applyNeedsStage(a, n, false); saveNeeds(a, n); }
   catch (e) { log('needs connect failed', e.message); }
 };
-if (globalThis.__dboNeedsTimer) clearInterval(globalThis.__dboNeedsTimer);
-globalThis.__dboNeedsTimer = setInterval(needsTick, Math.max(5, Number(NEEDS.tickSeconds) || 60) * 1000);
+every('needs', Math.max(5, Number(NEEDS.tickSeconds) || 60) * 1000, needsTick);
 
 // What a consumed base form does to hunger: meal / snack / drink / ingredient / nothing (potions).
 const recordOf = (id) => { try { const r = mp.lookupEspmRecordById(id >>> 0); return r && r.record ? r : null; } catch (e) { return null; } };
@@ -1362,7 +1422,7 @@ log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} lines,
 try {
   const DUNGEONS_JS = path.resolve('dungeons.js'); // gamemode.js is evaluated outside the bundle's module tree, so resolve by cwd
   delete require.cache[DUNGEONS_JS];
-  require(DUNGEONS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg });
+  require(DUNGEONS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg, every });
 } catch (e) { log('dungeons.js failed to load:', e.stack || e.message); globalThis.__dboDungeonActivate = null; }
 
 // ---- coin purses: Harvesting nodes that pay gold ------------------------------------------------
@@ -1470,12 +1530,11 @@ const zoneAtPlace = (world, pos) => {
   for (const h of ZONES.holds || []) { if (!Array.isArray(h.capital)) continue; const d = Math.hypot(pos[0] - h.capital[0], pos[1] - h.capital[1]); if (d < bestD) { bestD = d; best = h.id; } }
   return best;
 };
-if (globalThis.__dboOutsideTimer) clearInterval(globalThis.__dboOutsideTimer);
-globalThis.__dboOutsideTimer = setInterval(() => {
+every('outside', 10000, () => {
   for (const a of onlineActors()) {
     try { const w = String(mp.get(a, 'worldOrCellDesc') || ''); if (w && isWorldspace(w)) mp.set(a, 'private.lastOutside', { world: w, pos: mp.get(a, 'pos') }); } catch (e) { /* next tick */ }
   }
-}, 10000);
+});
 // The zone a player is in: by worldspace or nearest hold capital outdoors, by owning plugin indoors, else where they last stood outside
 const zoneOfActor = (a) => {
   let world = '', pos = null;
@@ -1775,14 +1834,14 @@ log(`door names: ${Object.keys(DOOR_NAMES).length}`);
 try {
   const CONTRACTS_JS = path.resolve('contracts.js');
   delete require.cache[CONTRACTS_JS];
-  require(CONTRACTS_JS)({ mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones: ZONES, ranksOf, profileOf });
+  require(CONTRACTS_JS)({ mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones: ZONES, ranksOf, profileOf, saveSoon });
 } catch (e) { log('contracts.js failed to load:', e.stack || e.message); globalThis.__dboContractKill = null; }
 
 // ---- champions: named, tougher spawns that pay everyone who fought them (server\champions.js) --
 try {
   const CHAMPIONS_JS = path.resolve('champions.js');
   delete require.cache[CHAMPIONS_JS];
-  require(CHAMPIONS_JS)({ mp, log, personal, audit, display, cfg, giveItem, registerChatCommand, sendPacket, onlineActors, loot: (() => { try { return JSON.parse(fs.readFileSync(path.resolve('loot.json'), 'utf8')); } catch (e) { return { pools: {} }; } })() });
+  require(CHAMPIONS_JS)({ mp, log, personal, audit, display, cfg, giveItem, registerChatCommand, sendPacket, onlineActors, every, stopTimer, loot: (() => { try { return JSON.parse(fs.readFileSync(path.resolve('loot.json'), 'utf8')); } catch (e) { return { pools: {} }; } })() });
 } catch (e) { log('champions.js failed to load:', e.stack || e.message); globalThis.__dboChampionHit = null; globalThis.__dboChampionDeath = null; }
 
 // ---- mining and woodcutting mini-games (server\labour.js, config "labour") ---------------------
@@ -1797,15 +1856,28 @@ try {
   const PLAYERMENU_JS = path.resolve('playermenu.js');
   delete require.cache[PLAYERMENU_JS];
   const runCommand = (a, name, argStr) => { const c = commands.get(name); if (c && (!c.admin || isAdmin(a))) c.fn(a, argStr); };
-  require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, cfg });
+  require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, cfg, every });
 } catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
   const PLAYTEST_JS = path.resolve('playtest.js');
   delete require.cache[PLAYTEST_JS];
-  require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt });
+  require(PLAYTEST_JS)({ mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc: HUB.cellOrWorldDesc, connectedAt, every });
 } catch (e) { log('playtest.js failed to load:', e.stack || e.message); globalThis.__dboPlaytestActivate = null; globalThis.__dboPlaytestGate = null; }
+
+// ---- TEMPORARY movement speed recorder (server\movetrace.js), remove once the C++ ceiling is set ---
+try {
+  const MOVETRACE_JS = path.resolve('movetrace.js');
+  delete require.cache[MOVETRACE_JS];
+  require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
+} catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
+
+
+
+
+
 
 
 

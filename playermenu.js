@@ -20,7 +20,7 @@
 
 module.exports = (api) => {
   const { mp, log, personal, system, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf,
-    giveItem, makeProp, runCommand, cfg } = api;
+    giveItem, makeProp, runCommand, cfg, every } = api;
   const C = Object.assign({ maskItem: '808:Armors of the Velothi Pt2.esp', maskName: 'Masked Person', maxDistance: 400 }, cfg.playerMenu || {});
   const KNOWN_PROP = 'ff_knownIds';
   const LAWFUL_PROP = 'private.dboLawful';
@@ -45,8 +45,7 @@ module.exports = (api) => {
 
   // ---- who may restrain: admins and anyone holding a zone rank --------------------------------------
   const refreshLawful = (a) => { const v = isLawful(a); if (get(a, LAWFUL_PROP, false) !== v) { try { mp.set(a, LAWFUL_PROP, v); } catch (e) { /* not ready */ } } };
-  if (globalThis.__dboLawfulTimer) clearInterval(globalThis.__dboLawfulTimer);
-  globalThis.__dboLawfulTimer = setInterval(() => { for (const a of onlineActors()) refreshLawful(a); }, 15000);
+  every('lawful', 15000, () => { for (const a of onlineActors()) refreshLawful(a); });
 
   // ---- introductions ------------------------------------------------------------------------------
   // Turns the system on for a character (an absent list means "show every name")

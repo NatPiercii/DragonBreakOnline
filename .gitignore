@@ -9,6 +9,7 @@ server-settings.*.json
 # Runtime state written by the server
 world/
 zone-spawns.json
+*.tmp
 notice-boards.json
 officials.json
 *.log

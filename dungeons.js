@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg } = api;
+  const { mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg, every } = api;
   const C = Object.assign({ enabled: true, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
   const GATE_WIDGET_ID = 31;
   const LOCKPICK_BASE = 0x0000000a;
@@ -93,65 +93,31 @@ module.exports = (api) => {
   };
   const leaseOfActor = (a) => { const pid = profileOf(a); for (const l of ST.leases.values()) if (l.members.has(pid)) return l; return null; };
 
-  // Diversified archetype option lists for dungeons that only have a single repetitive caster/humanoid template
-  const DIVERSE_ARCHETYPES = {
-    // Cyrodiil / Ayleid warlock and cultist ruins
-    ayleid_cultist: [
-      { kind: 'cultist_conjurer', options: null },
-      { kind: 'cultist_melee_1h', options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm'], [46, '39cfa:Skyrim.esm']] },
-      { kind: 'cultist_melee_2h', options: [[1, '3cf5c:Skyrim.esm'], [6, '3cf5d:Skyrim.esm'], [12, '3cf5e:Skyrim.esm'], [19, '3cf5f:Skyrim.esm'], [27, '3cf60:Skyrim.esm'], [36, '3cf61:Skyrim.esm'], [46, '3cf62:Skyrim.esm']] },
-      { kind: 'cultist_archer', options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm'], [46, '37c03:Skyrim.esm']] },
-      { kind: 'cultist_necro', options: [[1, '61794:BSHeartland.esm'], [6, '61798:BSHeartland.esm'], [12, '617a0:BSHeartland.esm'], [19, '617a8:BSHeartland.esm'], [27, '617ac:BSHeartland.esm'], [36, '617b2:BSHeartland.esm']] },
-      { kind: 'cultist_fire', options: [[1, '61792:BSHeartland.esm'], [6, '61796:BSHeartland.esm'], [12, '6179e:BSHeartland.esm'], [19, '617a6:BSHeartland.esm'], [27, '617aa:BSHeartland.esm'], [36, '617ae:BSHeartland.esm'], [46, '617b1:BSHeartland.esm']] },
-      { kind: 'cultist_ice', options: [[1, '61793:BSHeartland.esm'], [6, '61797:BSHeartland.esm'], [12, '6179f:BSHeartland.esm'], [19, '617a7:BSHeartland.esm'], [27, '617ab:BSHeartland.esm'], [36, '617af:BSHeartland.esm'], [46, '617b3:BSHeartland.esm']] },
-      { kind: 'cultist_storm', options: [[1, '61795:BSHeartland.esm'], [6, '61799:BSHeartland.esm'], [12, '617a1:BSHeartland.esm'], [19, '617a9:BSHeartland.esm'], [27, '617ad:BSHeartland.esm'], [36, '617b0:BSHeartland.esm'], [46, '617b4:BSHeartland.esm']] },
-      { kind: 'ayleid_skeleton_melee', options: [[1, '5f057:BSHeartland.esm'], [6, '8747b:BSHeartland.esm'], [13, '8747c:BSHeartland.esm']] },
-    ],
-    // Standard warlock and necromancer ruins (Skyrim and general)
-    warlock_ruin: [
-      { kind: 'warlock_conjurer', options: [[1, '23abc:Skyrim.esm'], [6, 'a092b:Skyrim.esm'], [12, 'a092c:Skyrim.esm'], [19, 'a092d:Skyrim.esm'], [27, 'a092e:Skyrim.esm'], [36, 'a092f:Skyrim.esm'], [46, 'a0930:Skyrim.esm']] },
-      { kind: 'warlock_necro', options: [[1, '551b0:Skyrim.esm'], [6, '551b1:Skyrim.esm'], [12, '551b2:Skyrim.esm'], [19, '551b3:Skyrim.esm'], [27, '551b4:Skyrim.esm'], [36, '551b5:Skyrim.esm'], [46, '551b6:Skyrim.esm']] },
-      { kind: 'warlock_fire', options: [[1, '44cda:Skyrim.esm'], [6, '44cdc:Skyrim.esm'], [12, '44cdf:Skyrim.esm'], [19, '44ce0:Skyrim.esm'], [27, '44ce1:Skyrim.esm'], [36, '44ce2:Skyrim.esm'], [46, '44ce3:Skyrim.esm']] },
-      { kind: 'warlock_frost', options: [[1, '45c51:Skyrim.esm'], [6, '45c52:Skyrim.esm'], [12, '45c53:Skyrim.esm'], [19, '45c54:Skyrim.esm'], [27, '45c55:Skyrim.esm'], [36, '45c56:Skyrim.esm']] },
-      { kind: 'warlock_shock', options: [[1, '45c57:Skyrim.esm'], [6, '45c58:Skyrim.esm'], [12, '45c59:Skyrim.esm'], [19, '45c5a:Skyrim.esm'], [27, '45c5b:Skyrim.esm'], [36, '45c5c:Skyrim.esm']] },
-      { kind: 'skeleton_thrall', options: [[1, '2d1de:Skyrim.esm'], [6, '2d1e0:Skyrim.esm'], [13, '2d1fd:Skyrim.esm']] },
-      { kind: 'warlock_thrall_melee', options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm']] },
-      { kind: 'warlock_thrall_archer', options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm']] },
-    ],
-    // Cyrodiil bandit forts and camps (BSHeartland soldiers / marauders)
-    cyrodiil_bandit: [
-      { kind: 'cyro_bandit_melee_1h',  options: [[1, '1bcd8:Skyrim.esm'], [6, '39cf5:Skyrim.esm'], [12, '39cf6:Skyrim.esm'], [19, '39cf7:Skyrim.esm'], [27, '39cf8:Skyrim.esm'], [36, '39cf9:Skyrim.esm'], [46, '39cfa:Skyrim.esm']] },
-      { kind: 'cyro_bandit_melee_2h',  options: [[1, '3cf5c:Skyrim.esm'], [6, '3cf5d:Skyrim.esm'], [12, '3cf5e:Skyrim.esm'], [19, '3cf5f:Skyrim.esm'], [27, '3cf60:Skyrim.esm'], [36, '3cf61:Skyrim.esm'], [46, '3cf62:Skyrim.esm']] },
-      { kind: 'cyro_bandit_archer',    options: [[1, '37bfc:Skyrim.esm'], [6, '37bfe:Skyrim.esm'], [12, '37bff:Skyrim.esm'], [19, '37c00:Skyrim.esm'], [27, '37c01:Skyrim.esm'], [36, '37c02:Skyrim.esm'], [46, '37c03:Skyrim.esm']] },
-      { kind: 'cyro_bandit_mage',      options: [[1, '44cda:Skyrim.esm'], [6, '44cdc:Skyrim.esm'], [12, '44cdf:Skyrim.esm'], [19, '44ce0:Skyrim.esm'], [27, '44ce1:Skyrim.esm']] },
-      // Heartland-specific marauder types (BSHeartland.esm)
-      { kind: 'cyro_marauder_melee',   options: [[1, '2e504:BSHeartland.esm'], [6, '2e505:BSHeartland.esm'], [12, '2e506:BSHeartland.esm'], [19, '2e507:BSHeartland.esm'], [27, '2e508:BSHeartland.esm']] },
-      { kind: 'cyro_marauder_archer',  options: [[1, '2e509:BSHeartland.esm'], [6, '2e50a:BSHeartland.esm'], [12, '2e50b:BSHeartland.esm'], [19, '2e50c:BSHeartland.esm']] },
-      { kind: 'cyro_marauder_mage',    options: [[1, '2e50d:BSHeartland.esm'], [6, '2e50e:BSHeartland.esm'], [12, '2e50f:BSHeartland.esm']] },
-    ],
-    cyrodiil_bandit_boss: [
-      { kind: 'cyro_bandit_boss',      options: [[12, '39cf9:Skyrim.esm'], [19, '39cfa:Skyrim.esm'], [27, '2e508:BSHeartland.esm'], [36, '2e50c:BSHeartland.esm']] },
-    ],
-    // Nordic draugr ruins — full tier ladder
-    nordic_draugr: [
-      { kind: 'draugr_melee',    options: [[1, '2d1de:Skyrim.esm'], [6, '2d1df:Skyrim.esm'], [12, '2d1e0:Skyrim.esm'], [19, '2d1e1:Skyrim.esm'], [27, '2d1e3:Skyrim.esm'], [36, '2d1fd:Skyrim.esm'], [46, '2d1ff:Skyrim.esm']] },
-      { kind: 'draugr_archer',   options: [[1, '2d1de:Skyrim.esm'], [6, '14407:Skyrim.esm'], [12, '14408:Skyrim.esm'], [19, '14409:Skyrim.esm'], [27, '1440a:Skyrim.esm'], [36, '1440b:Skyrim.esm']] },
-      { kind: 'draugr_2h',       options: [[6, '2d1df:Skyrim.esm'], [12, '2d1e2:Skyrim.esm'], [19, '2d1e4:Skyrim.esm'], [27, '2d1fe:Skyrim.esm'], [36, '2d200:Skyrim.esm']] },
-    ],
-    nordic_draugr_boss: [
-      { kind: 'draugr_boss',     options: [[12, '2d1fd:Skyrim.esm'], [19, '2d1ff:Skyrim.esm'], [27, '2d200:Skyrim.esm'], [36, '31eda:Skyrim.esm'], [46, '31edb:Skyrim.esm']] },
-    ],
-    // Boss pools for existing groups
-    bandit_camp_boss: [
-      { kind: 'bandit_chief',    options: [[12, '39cf9:Skyrim.esm'], [19, '39cfa:Skyrim.esm'], [27, '39cfa:Skyrim.esm'], [36, '2e508:BSHeartland.esm']] },
-    ],
-    ayleid_cultist_boss: [
-      { kind: 'cultist_boss',    options: [[12, '617ac:BSHeartland.esm'], [19, '617b0:BSHeartland.esm'], [27, '617b2:BSHeartland.esm'], [36, '617b4:BSHeartland.esm']] },
-    ],
-    warlock_ruin_boss: [
-      { kind: 'warlock_boss',    options: [[12, 'a092e:Skyrim.esm'], [19, 'a092f:Skyrim.esm'], [27, 'a0930:Skyrim.esm'], [36, '551b6:Skyrim.esm']] },
-    ],
-  };
+  // Enemy families from ck-mcp\dungeon_pools.py, built from the leveled lists: a generic placement may become any
+  // archetype of its own faction in its own province (bosses only boss archetypes). Quest, named and
+  // dungeon-specific placements are not listed and stay as Bethesda placed them.
+  const POOLS = readJson('dungeon-pools.json', { families: {}, placements: {} });
+  const POOLS_KEEP = new Set(POOLS.keep || []);   // curation, Starts Dead, quest alias and set-piece refs, never swapped
+  // DragonBreak's own placements stay as placed even if dungeons.json gained them after the pools were built
+  const CURATED_REF = /:DragonBreak( Online Edits)?\.esp$/i;
+  {
+    let kept = 0, dropped = 0;
+    for (const f of Object.values(POOLS.families || {})) {
+      for (const a of [...(f.archetypes || []), ...(f.boss || [])]) {
+        // this server must know every option as an NPC_, or the slot would fail to spawn
+        a.options = (a.options || []).filter((o) => {
+          let rec = null; try { rec = mp.lookupEspmRecordById(idOf(o[1])); } catch (e) { rec = null; }
+          const ok = !!(rec && rec.record && String(rec.record.type) === 'NPC_');
+          if (ok) kept++; else { dropped++; log(`dungeon pools: ${o[1]} ${o[2] || ''} is not an NPC_ on this server, dropped`); }
+          return ok;
+        });
+      }
+    }
+    log(`dungeon pools: ${Object.keys(POOLS.families || {}).length} families, ${Object.keys(POOLS.placements || {}).length} placement types, ${kept} options${dropped ? `, ${dropped} dropped` : ''}`);
+    const built = ((POOLS.source || {})['dungeons.json']) || '';
+    let current = ''; try { current = require('crypto').createHash('sha1').update(fs.readFileSync(path.resolve('dungeons.json'))).digest('hex'); } catch (e) { /* unreadable, reported above */ }
+    if (built && current && built !== current) log('dungeon pools: built from a different dungeons.json; run py ck-mcp\\dungeon_pools.py and reload');
+  }
 
   // ---- spawn zones: one per placement, on Bethesda's spot, spawning the moment the cell is entered --
   const pickOption = (options, mode) => {
@@ -178,46 +144,25 @@ module.exports = (api) => {
   const zonesFor = (d, diff) => {
     const out = [];
     let n = 0;
-    const province = provinceOfDungeon(d);
-    const isAyleid  = Array.isArray(d.keywords) && d.keywords.some((k) => /ayleid/i.test(k));
-    const isWarlock  = /warlock|necro|witch|cultist|coven|shrine/i.test(d.name + ' ' + (d.keywords || []).join(' '));
-    const isBandit   = /bandit|marauder|mine|hideout/i.test(d.name + ' ' + (d.keywords || []).join(' '));
-    const isNordic   = d.type === 'nordic' || /nordic|draugr|barrow|crypts|burial/i.test(d.name + ' ' + (d.keywords || []).join(' '));
-    const isCyroBandit = isBandit && province === 'cyrodiil';
-
-    let poolKey = isAyleid ? 'ayleid_cultist'
-      : isWarlock           ? 'warlock_ruin'
-      : isCyroBandit        ? 'cyrodiil_bandit'
-      : isBandit            ? 'bandit_camp'
-      : isNordic            ? 'nordic_draugr'
-      : null;
-
-    const archetypes     = poolKey ? DIVERSE_ARCHETYPES[poolKey]          : null;
-    const bossArchetypes = poolKey ? DIVERSE_ARCHETYPES[poolKey + '_boss'] : null;
-    let archIdx = 0;
+    const province = (POOLS.provinces || {})[d.id] || provinceOfDungeon(d);
+    const next = {};   // family (and boss) -> next archetype index, from a random start so each claim differs
 
     for (const z of d.zones || []) {
       for (const npc of z.npcs || []) {
         const edid = String(npc.edid || '');
-        const isBoss     = /boss/i.test(edid);
-        const isCreature = /rat|skeever|spider|wolf|bear|chaurus|troll|crab|deer|animal/i.test(edid);
-
         let opts = npc.options || [];
         let kind = edid;
-
-        if (!isCreature) {
-          if (isBoss && bossArchetypes && bossArchetypes.length) {
-            // Boss placements cycle their own mini-pool
-            const arch = bossArchetypes[archIdx % bossArchetypes.length];
-            if (arch.options && arch.options.length) opts = arch.options;
-            kind = arch.kind;
-          } else if (!isBoss && archetypes && archetypes.length) {
-            // Non-boss humanoids cycle the main pool
-            const arch = archetypes[archIdx % archetypes.length];
-            if (arch.options && arch.options.length) opts = arch.options;
-            kind = arch.kind;
-          }
-          archIdx++;
+        // A generic placement cycles through its own faction's archetypes; anything unlisted stays vanilla
+        const ref = String(npc.ref || '');
+        const entry = POOLS_KEEP.has(ref) || CURATED_REF.test(ref) ? null : (POOLS.placements || {})[`${province}|${edid}`];
+        const family = entry ? (POOLS.families || {})[entry.family] : null;
+        const archetypes = family ? ((entry.boss ? family.boss : family.archetypes) || []).filter((a) => a.options.length) : [];
+        if (archetypes.length) {
+          const key = entry.family + (entry.boss ? '#boss' : '');
+          if (next[key] === undefined) next[key] = Math.floor(Math.random() * archetypes.length);
+          const arch = archetypes[next[key]++ % archetypes.length];
+          opts = arch.options;
+          kind = arch.kind;
         }
 
         const id = pickOption(opts, diff.pick);
@@ -345,7 +290,8 @@ module.exports = (api) => {
     const spawnNow = globalThis.__alduinakNpcSpawnNow;
     if (typeof spawnNow !== 'function') return moveIn(-1);
     let done = false;
-    const finish = (placed) => { if (done) return; done = true; moveIn(placed); };
+    // Arm and set placement factions before anyone arrives, so no client meets a spawn without them
+    const finish = (placed) => { if (done) return; done = true; try { armLease(lease); factionCheck(lease); } catch (e) { log('dungeon prespawn setup failed', e.message); } moveIn(placed); };
     setTimeout(() => finish(-1), 6000);
     Promise.resolve().then(() => spawnNow(`${ZONE_PREFIX}${d.id}:`)).then((n) => finish(Number(n) || 0), (e) => { log('dungeon prespawn failed', e && e.message); finish(-1); });
   };
@@ -372,17 +318,21 @@ module.exports = (api) => {
     writeSpawnZones();
     audit(`DUNGEON ${lease.name} released (${why})`);
   };
+  // mp.getAllForms answers from a cache filled on its first call and never lists later spawns, so an id that throws once is skipped instead
+  const spawnerTag = (lease, id) => {
+    if (!lease.gone) lease.gone = new Set();
+    if (lease.gone.has(id)) return '';
+    try { return String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { lease.gone.add(id); return ''; }
+  };
+  // The spawn system's sidecar of live ids; each timer tick reads it once for every lease
+  const readSpawnedIds = () => { try { const ids = JSON.parse(fs.readFileSync(SPAWNED_IDS_FILE, 'utf8')); return Array.isArray(ids) ? ids : null; } catch (e) { return null; } };
   // Enemies the spawn system has placed for this lease, from its sidecar of live ids.
-  const trackNpcs = (lease) => {
-    let ids = [];
-    try { ids = JSON.parse(fs.readFileSync(SPAWNED_IDS_FILE, 'utf8')); } catch (e) { return; }
-    if (!Array.isArray(ids)) return;
+  const trackNpcs = (lease, ids = readSpawnedIds()) => {
+    if (!ids) return;
     const prefix = `${ZONE_PREFIX}${lease.id}:`;
-    const liveForms = typeof mp.getAllForms === 'function' ? new Set(mp.getAllForms(0xff)) : null;
     for (const id of ids) {
-      if (liveForms && !liveForms.has(id)) continue;
       if (lease.seenNpcs.has(id) && lease.deadNpcs.has(id)) continue;
-      let tag = ''; try { tag = String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { continue; }
+      const tag = spawnerTag(lease, id);
       if (!tag.startsWith(prefix)) continue;
       lease.seenNpcs.add(id);
       try { if (mp.get(id, 'isDead') === true) lease.deadNpcs.add(id); } catch (e) { lease.deadNpcs.add(id); }
@@ -398,10 +348,11 @@ module.exports = (api) => {
   };
   const tick = () => {
     const now = Date.now();
+    const ids = ST.leases.size ? readSpawnedIds() : null;
     for (const lease of [...ST.leases.values()]) {
       const insideNow = [...lease.members].some((pid) => { const a = actorByProfile(pid); const dd = a ? dungeonAround(a) : null; return dd && dd.id === lease.id; });
       if (insideNow) lease.lastInsideAt = now;
-      trackNpcs(lease);
+      trackNpcs(lease, ids);
       if (isCleared(lease)) { endLease(lease, 'cleared'); continue; }
       if (now >= lease.endsAt) { endLease(lease, 'time'); continue; }
       if (!lease.warned && lease.endsAt - now <= C.warnMinutes * 60000) {
@@ -411,8 +362,7 @@ module.exports = (api) => {
       if (now - lease.lastInsideAt > C.graceMinutes * 60000) endLease(lease, 'left');
     }
   };
-  if (globalThis.__dboDungeonTimer) clearInterval(globalThis.__dboDungeonTimer);
-  globalThis.__dboDungeonTimer = setInterval(() => { try { tick(); } catch (e) { log('dungeon tick failed', e.message); } }, 15000);
+  every('dungeons.tick', 15000, () => { try { tick(); } catch (e) { log('dungeon tick failed', e.message); } });
 
   // ---- arm unarmed enemies ---------------------------------------------------------------------
   // Spawned NPCs sometimes come out of their leveled lists with no weapon, and an unarmed NPC flees.
@@ -445,16 +395,13 @@ module.exports = (api) => {
     const mat = String(bowName || '').match(/^(Draugr|Falmer|Forsworn|Orcish|Dwarven|Elven|Glass|Ebony)/);
     return (mat && arrows.find((a) => a.name.startsWith(mat[1]))) || arrows.find((a) => a.name === 'IronArrow') || arrows[0] || null;
   };
-  const armLease = (lease) => {
+  const armLease = (lease, ids = readSpawnedIds()) => {
     if (!lease.armed) lease.armed = new Set();
-    let ids = []; try { ids = JSON.parse(fs.readFileSync(SPAWNED_IDS_FILE, 'utf8')); } catch (e) { return; }
-    if (!Array.isArray(ids)) return;
+    if (!ids) return;
     const prefix = `${ZONE_PREFIX}${lease.id}:`;
-    const liveForms = typeof mp.getAllForms === 'function' ? new Set(mp.getAllForms(0xff)) : null;
     for (const id of ids) {
       if (lease.armed.has(id)) continue;
-      if (liveForms && !liveForms.has(id)) continue;
-      let tag = ''; try { tag = String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { continue; }
+      const tag = spawnerTag(lease, id);
       if (!tag.startsWith(prefix)) continue;
       lease.armed.add(id);
       const edid = (lease.kinds || {})[tag] || '';
@@ -470,7 +417,8 @@ module.exports = (api) => {
       if (recEdid && (ANIMAL.test(recEdid) || !HUMANOID.test(recEdid))) continue;
       let entries = []; try { const inv = mp.get(id, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries.slice() : []; } catch (e) { continue; }
       if (entries.some((en) => { const r = recordOf(Number(en.baseId) >>> 0); return r && String(r.type) === 'WEAP'; })) continue;
-      const w = weaponFor(edid, lease.difficulty, lease.province); if (!w) continue;
+      // the spawned record's own editor id names its weapon shape (EncBandit03Boss2HNordM); a pool kind like bandit_boss does not
+      const w = weaponFor(recEdid ? `${recEdid} ${edid}` : edid, lease.difficulty, lease.province); if (!w) continue;
       const wid = idOf(w.id); if (!wid) continue;
       entries.push({ baseId: wid, count: 1 });
       let arrowId = 0;
@@ -484,8 +432,90 @@ module.exports = (api) => {
       } catch (e) { log('arm failed', id.toString(16), e.message); }
     }
   };
-  if (globalThis.__dboArmTimer) clearInterval(globalThis.__dboArmTimer);
-  globalThis.__dboArmTimer = setInterval(() => { for (const lease of ST.leases.values()) { try { armLease(lease); } catch (e) { log('arm tick failed', e.message); } } }, 2000);
+  // ---- placement factions ----------------------------------------------------------------------
+  // A placement is spawned as the concrete NPC_ its leveled list resolves to, so factions its own Lvl*
+  // template supplies (Use Factions unset) never reach the actor. The boot audit counts them, factionCheck hands them to the client.
+  const TEMPLATE_USE_FACTIONS = 0x04;
+  const espmOf = (id) => { try { const r = id ? mp.lookupEspmRecordById(id >>> 0) : null; return r && r.record ? r : null; } catch (e) { return null; } };
+  const fieldsOf = (res, type) => (res.record.fields || []).filter((f) => f && f.type === type && f.data instanceof Uint8Array);
+  const viewOf = (data) => new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const globalIdAt = (res, data) => { try { return res.toGlobalRecordId(viewOf(data).getUint32(0, true)) >>> 0; } catch (e) { return 0; } };
+  const edidOf = (id) => { const r = espmOf(id); return (r && String(r.record.editorId || '')) || (id >>> 0).toString(16); };
+  const sourceCache = new Map();
+  // The NPC_ whose own faction list an actor of this base gets; null when a leveled pick supplies it
+  const factionSource = (baseId) => {
+    if (sourceCache.has(baseId)) return sourceCache.get(baseId);
+    let found = null;
+    for (let id = baseId >>> 0, depth = 0; id && depth < 8; depth++) {
+      const res = espmOf(id);
+      if (!res || String(res.record.type) !== 'NPC_') break;
+      const acbs = fieldsOf(res, 'ACBS')[0];
+      const tflags = acbs && acbs.data.byteLength >= 20 ? viewOf(acbs.data).getUint16(18, true) : 0;
+      const tplt = fieldsOf(res, 'TPLT')[0];
+      const next = tplt ? globalIdAt(res, tplt.data) : 0;
+      if (!next || !(tflags & TEMPLATE_USE_FACTIONS)) {
+        const crif = fieldsOf(res, 'CRIF')[0];
+        const factions = fieldsOf(res, 'SNAM').filter((f) => f.data.byteLength >= 5).map((f) => ({ id: globalIdAt(res, f.data), rank: viewOf(f.data).getInt8(4) }));
+        found = { id, factions, crime: crif ? globalIdAt(res, crif.data) : 0 };
+        break;
+      }
+      id = next;
+    }
+    sourceCache.set(baseId, found);
+    return found;
+  };
+  const placedBase = (refDesc) => { const res = espmOf(idOf(refDesc)); const name = res && String(res.record.type) === 'ACHR' ? fieldsOf(res, 'NAME')[0] : null; return name ? globalIdAt(res, name.data) : 0; };
+  const factionKey = (src) => src ? src.factions.map((f) => `${f.id}:${f.rank}`).sort().join(',') + `|${src.crime}` : '';
+  const factionNames = (src) => src ? src.factions.map((f) => edidOf(f.id)).sort().concat(src.crime ? [`crime ${edidOf(src.crime)}`] : []).join(', ') || 'none' : 'from leveled pick';
+  // Factions the placement's own template gives that the spawned base does not, or null when they agree
+  const factionLoss = (placementBase, spawnedBase) => {
+    const want = factionSource(placementBase);
+    if (!want) return null;
+    const got = factionSource(spawnedBase);
+    return got && got.id === want.id ? null : factionKey(want) === factionKey(got) ? null : { want, got };
+  };
+  if (!globalThis.__dboFactionAudited) {
+    globalThis.__dboFactionAudited = true;
+    const t0 = Date.now();
+    let slots = 0, lost = 0;
+    const byPlacement = new Map();
+    for (const d of DATA.dungeons || []) for (const z of d.zones || []) for (const npc of z.npcs || []) {
+      const opt = (npc.options || [])[0];
+      if (!npc.ref || !opt) continue;
+      slots++;
+      const loss = factionLoss(placedBase(npc.ref), idOf(opt[1]));
+      if (!loss) continue;
+      lost++;
+      const k = `${npc.edid} [${factionNames(loss.want)}] spawned as ${edidOf(idOf(opt[1]))} [${factionNames(loss.got)}]`;
+      byPlacement.set(k, (byPlacement.get(k) || 0) + 1);
+    }
+    const top = [...byPlacement.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => `${n}x ${k}`);
+    log(`dungeon faction audit: ${lost} of ${slots} placements spawn without their template's factions (${byPlacement.size} kinds, ${Date.now() - t0} ms); top: ${top.join(' | ')}`);
+  }
+  // A spawned actor whose placement template gives other factions carries them in ff_factions; the client applies them (formView.applyFactions)
+  const factionCheck = (lease) => {
+    if (!lease.factionChecked) { lease.factionChecked = new Set(); lease.factionPairs = new Set(); }
+    for (const id of lease.armed || []) {
+      if (lease.factionChecked.has(id)) continue;
+      lease.factionChecked.add(id);
+      const tag = spawnerTag(lease, id);
+      let baseDesc = ''; try { baseDesc = String(mp.get(id, 'baseDesc') || ''); } catch (e) { continue; }
+      const zone = (lease.zones || []).find((z) => z.Name === tag);
+      const pBase = zone && zone.Anchor ? placedBase(zone.Anchor) : 0;
+      const sBase = idOf(baseDesc);
+      const loss = pBase ? factionLoss(pBase, sBase) : null;
+      if (!loss) continue;
+      try { mp.set(id, 'ff_factions', { f: loss.want.factions.map((x) => [x.id, x.rank]), c: loss.want.crime }); } catch (e) { log('ff_factions set failed', id.toString(16), e.message); continue; }
+      const pair = `${pBase}>${sBase}`;
+      if (lease.factionPairs.has(pair)) continue;
+      lease.factionPairs.add(pair);
+      log(`dungeon ${lease.id} factions: ${edidOf(pBase)} (${zone.Kind}) spawned as ${edidOf(sBase)} [${factionNames(loss.got)}], given [${factionNames(loss.want)}]`);
+    }
+  };
+  every('dungeons.arm', 2000, () => {
+    const ids = ST.leases.size ? readSpawnedIds() : null;
+    for (const lease of ST.leases.values()) { try { armLease(lease, ids); factionCheck(lease); } catch (e) { log('arm tick failed', e.message); } }
+  });
 
   // ---- doors and chests -------------------------------------------------------------------------
   const denyAt = new Map();

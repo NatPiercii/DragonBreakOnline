@@ -14,7 +14,7 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc, connectedAt } = api;
+  const { mp, log, personal, system, registerChatCommand, display, who, audit, onlineActors, isAdmin, sendPacket, cfg, hubDesc, connectedAt, every } = api;
   const C = Object.assign({ enabled: false, name: 'the playtest region', arrival: null, allowedWorlds: [], allowedPlugins: [], allowedCells: [], blockedDoors: [], graceSeconds: 60, checkSeconds: 5 }, cfg.playtest || {});
 
   const normDesc = (d) => { const s = String(d || ''); const i = s.indexOf(':'); if (i < 0) return s.toLowerCase(); const n = parseInt(s.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase(); };
@@ -86,8 +86,7 @@ module.exports = (api) => {
       } catch (e) { log('playtest check failed', e.message); }
     }
   };
-  if (globalThis.__dboPlaytestTimer) clearInterval(globalThis.__dboPlaytestTimer);
-  globalThis.__dboPlaytestTimer = setInterval(check, Math.max(2, Number(C.checkSeconds) || 5) * 1000);
+  every('playtest', Math.max(2, Number(C.checkSeconds) || 5) * 1000, check);
 
   registerChatCommand('playtest', (a) => {
     if (!active()) return personal(a, 'No region lock is active; the whole world is open.');

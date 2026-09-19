@@ -1,10 +1,252 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-19 (afternoon): remote vitals go through a relay packet, HUD heartbeat restored (LIVE 14:42)
+
+Items 2 and 3 of `_reviews\2026-09-19-daily-review.md`, both from `4937b4c`. Both were measured before and
+after, not reasoned about; the harness that did it is `server\tools\bot\` (below).
+
+- [x] **The stamina/magicka mirror in `4937b4c` did nothing, CONFIRMED by measurement.** Two headless bots
+  (`server\tools\bot\bot.py`, which drives the game's own `MpClientPlugin.dll` through ctypes, so messages are
+  serialized exactly as the real client does) against an isolated server on port 7790: the mover sent movement
+  with `staminaPercentage 0.33 / magickaPercentage 0.66`, the observer received
+  `['direction','healthPercentage','isBlocking','isDead','isInJumpState','isSneaking','isWeapDrawn','pos','rot','runMode','speed','worldOrCell']`.
+  The C++ `UpdateMovementMessage::Data` has `healthPercentage` only, so the client's own serializer drops the
+  other two before they leave the machine. The earlier entry below is corrected.
+- [x] **Server relay instead (`fork\skymp5-server\ts\systems\vitalsRelaySystem.ts`, commit 7e127f3).** The
+  server already holds all three percentages (the owner's `ChangeValues`), so nothing new is sent upstream and
+  nothing is added to movement. Every 500 ms it sends each online player's neighbours
+  `{ customPacketType: "dboVitals", v: [actorId, stamina%, magicka%, ...] }`, integer percent, on first sight
+  and then only on a 5 point change or on reaching 0 or 100. One packet per recipient per tick at most
+  (several neighbours share one packet), pairs pruned when out of range. Knobs: `TICK_MS`, `STEP`.
+  Measured on the isolated server: first sight `[ff000001, 37, 66]`, then 31, 25, 19, 13, 7 as stamina fell,
+  one 55-byte packet each, movement unchanged.
+- [x] **Client applies them (`remoteVitalsService.ts`, commit d91b556).** Sets each clone's values with the
+  shared `setActorValuePercentage`; a re-created clone gets the last values again without another packet;
+  magicka is not lowered while the clone is casting, so a replayed concentration spell is not cut short.
+  The first values per clone print a `Trace in RemoteVitalsService` console line. `staminaPercentage` /
+  `magickaPercentage` are gone from `Movement`, `getMovement`, the `remoteServer` literal and the companion
+  drive call. The sharp lerp on `healthPercentage` stays.
+- [x] **HUD heartbeat fixed (`dboRelayService.ts`, commit ba92b2d).** `4937b4c`'s `widgetJsonCache` skipped any
+  JSON identical to the last send, which is exactly what the 5 s re-push of `pushHudStatic` / `pushParty` is,
+  so a widget dropped from the browser by anything other than a full reload stayed gone. Both callers already
+  dedupe on `hudKey` / `partyKey`, so the cache is removed. Measured by running the real service under node
+  with SkyrimPlatform stubbed (`scratchpad svc harness`): 12 s idle gave **1** HUD push before, **3** after
+  (t=0, 5 s, 10 s), and a value change still pushes in both.
+- [x] Deployed: client bundle built from main HEAD (which includes `ec62938`, the other session's
+  `ff_factions` change) to the dev copy and `client-dist` at 14:39, backup in
+  `_client-bundle-backups\before-vitals-relay-20260919-143844\`; `dist_back` rebuilt and the server restarted
+  under `run-logged.cmd` at 14:42, backup in `_alduinak-build-before-vitals-relay-20260919-143929\`. The
+  uncommitted `npcSpawnSystem.ts` change from the other session was already in the live bundle and still is.
+- [ ] **In game (user), needs a relaunch** (a running game keeps the old bundle): two players in sight of each
+  other, one sprints to drain stamina; the other's console shows `Trace in RemoteVitalsService: clone ff0000xx
+  stamina ..% magicka ..%`. Nothing in the vanilla UI shows another actor's stamina or magicka, so the console
+  line (or a future party-panel bar) is the only visible proof. HUD: it should survive a widget drop within 5 s.
+- [ ] Follow-up: **the relay carries players only.** Hosted NPCs' stamina/magicka are not mirrored (the server
+  never learns them; `sendActorValuePercentage` sends the player's own values even for hosted refs). Nothing
+  in the UI needs them today.
+- [ ] Follow-up: **`server\tools\bot\`** is the start of the load-test harness the review asked for (S-items).
+  Today it logs in, sends movement and `ChangeValues`, and prints what it receives; N bots walking Bruma and
+  a bytes/tick report are the next step.
+
+## Added 2026-09-19 (afternoon): tick timing, and scaling fixes S2, S7, S8 (LIVE 14:37)
+
+From `_reviews\2026-09-19-daily-review.md`, "Scaling to 100 concurrent players". Gameplay layer only, no rebuild.
+- [x] **Tick timing** (`gamemode.js`, "timers" section). Repeating timers are registered by name with
+  `every(name, ms, fn)` in `globalThis.__dboTimers` and replaced by name on reload. Modules get `every` and
+  `stopTimer` through their api. Every tick is timed: over 20 ms logs `slow tick <name>: N ms`
+  (`debug.slowTickMs` in gamemode-config.json overrides it), and once a minute one line
+  `ticks (ms, last 60 s, N online): <name> <count>x max .. mean ..`, sorted by total time. `dungeons.js` still
+  creates its own two timers. `requireTimed` wraps `setInterval` while that file loads, so they are timed as
+  `dungeons.tick` and `dungeons.arm` and keep their real handles. Per-user login waits are timed as `loginWait`.
+- [x] **S2 meet timer**: players are bucketed per place into a grid one say-range wide (1,400 units), and only the
+  3x3 neighbouring cells are checked. Each online actor's `private.metActors` is read once into a Set cache and
+  written only when the list grows. Synthetic benchmark, mock `mp` that copies values on get, same met lists as
+  the old code: 100 players in a 6,000-unit square 58.9 ms -> 0.47 ms per tick (1,494 -> 200 reads);
+  100 in one room 532 ms -> 1.4 ms; 50 in one room 136 ms -> 0.2 ms.
+- [x] **S7**: the pigeon cooldowns and the contracts save go through `saveSoon(file, snapshot)`: one async temp
+  write + rename per dirty file every 5 s (`saves` timer). A reload first writes out whatever the previous
+  generation left dirty (`saved <file> before reload`). Before, a reload dropped up to 5 s of contract
+  progress. A crash still loses up to 5 s.
+- [x] **S8**: timer starts are spread over the first second (golden-ratio slots), so the 5 s timers (watch,
+  meet, playtest, saves) no longer fire in the same turn, and neither does everything else every 60 s.
+  Periods are unchanged; a first run comes at most 1 s later than before.
+- [x] Live numbers, 0 players online (the only load available): before (14:34-14:37) and after (14:38-14:39),
+  every tick under 0.35 ms max, no slow ticks. The live log cannot show S2 until real players are on.
+- [x] **S1 (LIVE 18:02, `dungeons.js`)**: `readSpawnedIds()` reads `zone-spawns.json` once per timer tick and
+  every lease of that tick uses it; `trackNpcs(lease, ids)` and `armLease(lease, ids)` take it as an optional
+  argument, so `finish()` on a claim and the `/dungeon` status line still read it themselves. Both timers moved
+  onto `every` (`dungeons.tick`, `dungeons.arm`, both staggered and timed), and `requireTimed` in `gamemode.js`
+  is gone with them. Measured with 3 fake leases against a mock mp, same seen/armed result either way: 16 arm
+  ticks + 2 dungeon ticks went from 54 file reads to 17. The faction session's `getAllForms` removal stays;
+  never use it for liveness, the engine caches it forever.
+- [ ] Read the `ticks` lines during the next multi-player playtest; any `slow tick` names the next target.
+  14:42-18:02 with 1 player and 2 dungeon leases: no slow tick, every timer under 0.7 ms max.
+- [ ] After the next server restart, delete the legacy-handle `for` line under "timers" in `gamemode.js` (it
+  only matters on the first reload onto the registry).
+
+## Added 2026-09-19 (afternoon): form id checker `ck-mcp\verify_formids.py`
+
+- [x] **Built** (HANDOFF §7). It resolves every `'<hex>:<Plugin>'` desc in server JS/JSON and the skymp5-server TS against the
+  load order, and exits 1 on a missing, deleted, unloaded or out-of-range record, or on the wrong record type where the code
+  names the type. On `e7f66fc`'s dungeons.js: 46 errors, including every id the review found missing or not an NPC_.
+- [x] **Pre-commit hook installed** (user OK): `server\.git\hooks\pre-commit`, a copy of `ck-mcp\git-hooks\pre-commit`.
+- [x] **`doors.py` kept dead door refs, fixed**: it now uses each ref's winning version, so a ref deleted by a later plugin
+  (7, all by DragonBreak Online Edits.esp) or overridden without XTEL (105, by the city mods and DLE) is not a load door.
+  `doors.json` regenerated: 4,153 -> 4,045 (112 removed, 4 new DLE doors near Riften). Live on the next gamemode reload
+  (DOOR_NAMES is read at load). Backup `ck-mcp\doors.py.bak-20260919-143948`.
+- [x] Checker fix on the way: descs whose plugin name has an apostrophe (JK's Castle Volkihar, JK's Fort Dawnguard,
+  JK's Whiterun's Outskirts, OCW_Obscure's...) were silently skipped (40 in doors.json); they are checked now.
+
+## Added 2026-09-19 (afternoon): dungeon actors spawn without their placement template's factions
+
+Step 2 (ff_factions) is deployed and needs an in-game pass; the user chose it after Red Ruby Cave 14:24.
+- [x] **Server** (`dungeons.js`, live 14:35): `factionCheck` runs in the 2 s arm tick and once in
+  `startLease`'s `finish()`, i.e. before the party is moved in. It sets the neighbour-visible `ff_factions` =
+  `{ f: [[factionId, rank], ...], c: crimeFactionId }` on each spawned actor whose placement template supplies
+  other factions than the spawned base. It logs one `dungeon <id> factions: <placement> (<kind>) spawned as
+  <base> [had], given [...]` line per pair. `ff_factions` is registered in `gamemode.js` (live file).
+- [x] **Client** (fork `ec62938`, `formView.applyFactions`, next to `applyHostility`): once per value,
+  `removeFromAllFactions()`, `setFactionRank(f, rank)` per entry, `setCrimeFaction(c)`. It reports `npcDrift`
+  kind `factions` with `sent`/`applied`, where applied = getFactionRank read back equal. Live bundle md5
+  82a5b592 (ec62938 + the vitals commits) in the dev copy and client-dist. Relaunch needed.
+- [ ] **In-game pass**: claim Red Ruby Cave again. Thralls should stand with the vampires, not fight them.
+  `server.log` should show the `factions:` lines and `npcDrift ... factions: {"sent":1,"applied":1}`.
+- [x] **Found on the way, fixed (`dungeons.js`)**: `mp.getAllForms(0xff)` fills a cache on its first call and
+  never refreshes it (`WorldState.cpp` 897-925). The 09-18 `liveForms` filter in `armLease` and `trackNpcs`
+  therefore skipped every actor spawned after the first call of a process. Since 09-18: no arming (the last
+  "armed" lines were Serpent's Trail 09-17 and one Anga lease today at 10:41, which made the first call), and
+  no "cleared" ends (every Anga lease ended "left"). Both now go through `spawnerTag`, which remembers ids that
+  throw. Do not use getAllForms for liveness until the C++ cache is invalidated on AddForm.
+- [ ] **Red Ruby Cave blockers** (user 14:30: "a blocked off door activated with a chain"): `BSHeartland.esm:083DBD`
+  `CYRMineSecretDoor`, opened by pull chains `0885AC`/`0885B3`, gets sunk in DLE with `DBO_BrumaInteriors.pas`
+  (op `sink`). Waiting on the game being closed, because Skyrim holds the dev DLE. Also chain-driven there and
+  left alone: `083F5B` `NorRetractableBridge01NONAVCUT` (chain `083F8E`). Sinking a bridge leaves a gap; ask the
+  user if it blocks the way.
+- [ ] **Dev DLE and `server\data` DLE differ**: the dev copy was saved 2026-09-18 15:57 (240 records added,
+  1,082 changed: Falkreath sawmill, notice board refs, Whiterun cells, 85 SPEL, 48 QUST, one NAVM). The server
+  copy is still 2026-09-16 20:41. Not recorded anywhere; the user decides whether it ships.
+- Still not covered: ambush packages (1,086 slots), outfits (618), spells (280). Separate follow-ups.
+
+Step 1 (verify), done before step 2:
+- [x] **Record data confirms it.** `dungeons.js` spawns the concrete NPC_ that a placement's leveled list resolves
+  to. The placement's own Lvl* template, with Use Factions unset, never reaches the actor. Scratch analysis over
+  every placement in `dungeons.json` walked the template flags (ACBS u16 @18) both ways. Result: 4,244 placements,
+  and the spawned actor loses factions in 503 slots, AI packages in 1,086 (the draugr, dwarven, Falmer and
+  riekling ambush sit packages), AI data in 1,076, inventory/outfit in 618, spells in 280 and scripts in 978.
+  Examples: every `(CYR)LvlVampireThrall*` becomes CYREncBandit/EncBandit in BanditFaction instead of
+  (CYR)VampireThrallFaction. Silver Hand becomes BanditFaction. Blackblood (MS07BanditFaction), Thorina's
+  Cutters, Morag Tong and Dres slavers become plain bandits or reavers. `DLC2LvlCultist*` lose
+  CreatureFaction, SkeletonFaction, DragonPriestFaction and DLC2ApocryphaFaction. Morr500 loses the Baan Malur
+  outfit.
+- [x] **Diagnostic LIVE 14:18** (`server\dungeons.js`, section "faction check"). It runs a one-time boot audit
+  over the live server's own records (`dungeon faction audit: 529 of 4244 placements spawn without their
+  template's factions (202 kinds)`, 382 ms, once per process). It also writes one line per placement kind per
+  lease: `dungeon <id> factions: <placement> (<kind>) spawned as <base> <id>: server has [...]; placement
+  template gives [...], LOST`.
+- [x] **In-game check (user, done 14:24 on Master; user saw the vampires, rats and bears, then chose ff_factions)**: claim **Red Ruby Cave** on Adept. It is in Bruma's world; F7 Locations has
+  "Red Ruby Cave" 826 units from the door. Expected if confirmed: its 7 generic thralls are
+  bandit-looking, and they fight its 5 vampires with nobody provoking them. The reason: the thralls spawn in
+  BanditFaction with Very Aggressive AI data (2), the vampires in CYRVampireFaction (2). BanditFaction has no
+  relation to CYRVampireFaction, so the two are neutral, and Very Aggressive attacks neutrals. The placement
+  faction CYRVampireThrallFaction is Ally (2) to CYRVampireFaction. Then read the `factions:` lines in
+  `server.log`. Gutted Mine (19 thralls, 2 vampires) and Haemar's Shame (Skyrim) show the same thing.
+- [ ] **Step 2 options, checked in code (none built yet):**
+  - Spawn the placement's own Lvl* base: rejected. Server `PlaceAtMe` accepts it and `EnsureTemplateChainEvaluated`
+    picks a chain with pcLevel 0, i.e. any entry of the whole list, so difficulty is ignored. The client
+    ignores the server's chain: `formView.ts` has `getLeveledBase` commented out upstream ("crashes too
+    often"), and `TESModPlatform::EvaluateLeveledNpc` is a leaky experiment. So each client's engine rolls its
+    own pick at its own player level, and race, sex and gear differ per client and from the server's stats.
+    The pools would lose their meaning too.
+  - Faction changes made on the server alone: they do nothing in game. `PapyrusActor::AddToFaction` only edits the
+    server's change form, `CreateActorMessage` carries no factions, and faction relations are evaluated by the
+    host client's engine.
+  - **Recommended**: the server decides and the client applies. `dungeons.js` puts the placement template's
+    factions (+ crime faction) into a neighbour-visible `ff_factions` property on each spawned actor, set before
+    the party is moved in. `formView.ts` applies it next to `applyHostility`: `removeFromAllFactions()`, then
+    `setFactionRank(f, rank)` (vanilla `AddToFaction` is just `SetFactionRank(f, 0)`; `Actor.psc`:591). The
+    typings have both. Pools keep working: a family is one faction, so every archetype gets the placement's
+    faction. Needs a client rebuild and relaunch, plus the property registered in `gamemode.js` (live file).
+  - Not covered by that fix: ambush packages (no vanilla Papyrus adds a package; that needs a baked NPC_ per
+    placement/option in a plugin, or a working `evaluateLeveledNpc`), outfits (could go through the server
+    inventory + EquipItem the way `armLease` does), spells (client `addSpell`).
+
+## Added 2026-09-19: dungeon enemy pools rebuilt from the leveled lists (LIVE 14:10)
+
+- [x] **`ck-mcp\dungeon_pools.py` -> `server\dungeon-pools.json`** replaces the hand-typed `DIVERSE_ARCHETYPES`
+  table in `dungeons.js`. 15 families, each one faction in one province, each archetype a set of root leveled
+  lists looked up by editor id and resolved like `dungeons_build.py` does: Skyrim bandit, Silver Hand, vampire
+  thrall, warlock (conjurer + elemental), Forsworn, Falmer, witch; Cyrodiil bandit, smuggler, vampire thrall,
+  goblin, Blue Scalp goblin, Ayleid undead; Solstheim reaver, Miraak cultist. 167 placement types, 2288 options,
+  all accepted as NPC_ by the running server at boot ("dungeon pools:" log line, it drops and logs any that are not).
+- [x] **Selection is per placement, not per dungeon**: a generic placement (Lvl*/Enc*, not quest, named or `dun*`)
+  swaps only within its own faction family; bosses (edid /boss/ or options all *Boss*) only into boss archetypes;
+  everything else stays as Bethesda placed it. The old keyword rule had replaced Solstheim's Dunmer reavers, Dres
+  slavers, Ildari and Niyya, Anga's Namira cultists and Caius, Vaermina devotees, Vigilants, goblins, smugglers and
+  hagravens with Skyrim bandits and warlocks. Refs placed by DragonBreak.esp / DragonBreak Online Edits.esp
+  (sewers, Vilverin), Starts Dead corpses and the quest/set-piece refs in `KEEP_REFS` are never swapped.
+- [x] **Left vanilla on purpose**: draugr (their lists are already varied), necromancers, vampires, zombies and
+  skeletons (one list each, a swap would change nothing), Thalmor (only in the curated sewers), Fort Horunn's
+  conjurers (the Cyrodiil conjurer lists are mostly unique NPCs).
+- [x] Province per dungeon now comes from its entrance worldspace (written into the pools file); the text search
+  had tagged a Windhelm warehouse as Solstheim. `provinceOfDungeon` (arming) is unchanged.
+- [x] Checks: the generator writes nothing if a list is missing, a placement fits two families, or a family's
+  placement count differs from its `expect` in SPEC. Dry run of the real `zonesFor` over 217 dungeons x 4
+  difficulties x 20 trials (305,790 zones): 0 failures. Designed by three province agents, each checked by a data
+  and a lore reviewer. After regenerating `dungeons.json`, rerun `py ck-mcp\dungeon_pools.py` and reload the gamemode.
+- [x] **Independent review round (code, data re-derived from the plugins, lore; each finding checked by a skeptic)**.
+  Confirmed and fixed: 60 Skyrim/Dawnguard quest-alias actors were swappable (Brurid at Treva's Watch, Krev the
+  Skinner, Morvunskar's forge conjurers, the dun*QST scene bandits); the generator now keeps every ref a quest
+  alias forces (ALFR) and every ref a quest fills through its location (ALFA + ALRT: scene actors such as Redwater
+  Den's chatter thrall and the Knifepoint Ridge DA02 bandits, and bosses the quest names, like Rigel Strong-Arm at
+  Pinewatch; an unnamed Boss alias is the generic clear-the-dungeon one and stays swappable), read from the load
+  order instead of hand lists. Also: goblin boss kinds keep 'boss' so they are armed
+  and E-looted as before; the pools file is written through a tmp file; `dungeons.js` never swaps a
+  DragonBreak.esp / DLE ref even if the pools are stale, and logs "built from a different dungeons.json" when the
+  pools' recorded sha1 does not match. Refuted: hold-position archers swapped into melee (58 of 60 perches share a
+  navmesh component with the room, and hold packages never reach spawned actors anyway), so they stay pooled.
+  Now 134 placement types, 136 kept refs. Refuted as well: race/sex-locked Skyrim placements (after the alias keep,
+  the 10 left are unnamed generic bandits, Forsworn and warlocks whose vanilla lists mix races anyway). Witches now count as humanoid for arming/E-loot (they are people; the
+  old regex just lacked 'witch'); `CYRLvlGoblinMeleeGuard` no longer does (it matched only through 'Guard').
+- [x] **Draugr and riekling families added** (LIVE 18:03, 19 families, 226 placement types, 3022 options): skyrim /
+  solstheim / cyrodiil draugr (roles melee 1H, melee 2H, archer, warlock, each combining the male and female lists;
+  membership follows the template chain to `LCharDraugr(Melee|Missile|Warlock)`) and solstheim riekling (melee,
+  missile). Draugr **bosses stay vanilla**: `LCharDraugrBoss` tops out at a dragon priest and the NoDragonPriest list
+  has one role. Solstheim's and Bruma's barrows (Kolbjorn, Vahlok's Tomb, Temple of Miraak, CYRNorthfringeSanctum) are
+  filled from Skyrim.esm draugr lists in vanilla and in Beyond Skyrim, so those two families carry a `plugins`
+  allowance. Kinds keep 'draugr'/'riekling', so arming and E-loot are unchanged. Lore review: role and sex mixing is
+  vanilla behaviour, and every lore-specific group (Yngvild, Folgunthur, Reachwater Rock, Red Eagle, Ustengrav,
+  Ansilvund, Labyrinthian, Dimhollow, Korvanjund, the sewers) is held out by the dun*/quest/curation rules. Its one
+  finding is fixed: three Thirsk riekling types chain to the hostile lists, so `deny: Thirsk|PillarBuilder` keeps the
+  friendly tribe out if Thirsk ever enters dungeons.json. Dry run 305,821 zones, 0 failures.
+- [ ] Old note, superseded by the entry above: draugr/riekling were absent (the old "nordic_draugr" table was invented
+  ids, so nothing was lost). Draugr vary by look already (their lists hold 9-104 NPCs) but not by role: Dustman's
+  Cairn is 27 one-handers and 17 two-handers. A family would use LCharDraugrMelee1H/2H/Missile/Warlock (male +
+  female) with LCharDraugrBossNoDragonPriest, and needs a province exception because Solstheim's and Bruma's
+  barrows use Skyrim.esm lists. Rieklings: DLC2LCharRieklingMelee/Missile, never the friendly Thirsk lists.
+- [ ] Follow-ups found on the way (split out as separate tasks): Starts Dead corpses spawn alive (Caius's body in
+  Sedor); `SKIP` 'dead' matches 'Undead' so ~55 Ayleid undead never spawn, Vilverin's curated roster included;
+  XESP enable parents ignored (Driftshade Silver Hand + bandits together, Dres Slavers Camp spawns 26 soldiers);
+  ACBS level read from the wrong offset in the generators; spawned actors lose their template's faction and outfit
+  (thralls as plain bandits).
+- [x] **Unarmed two-handed bosses got a one-hander** (Serpent's Trail smuggler boss: a mace): `armLease` now gives
+  `weaponFor` the spawned record's editor id with the kind, so `EncBandit03Boss2HNordM` gets a two-hander. Checked
+  on every boss, wizard and missile list: 35 two-handed bosses -> greatswords/axes/hammers, mages -> daggers,
+  archers -> bows. Live 14:13.
+
 ## Added 2026-09-18 (afternoon): vitals fluidity, NPC variety, difficulty rename
 
-- [x] **Stamina & magicka mirrored on remote clones** (`fork\skymp5-client\src\sync\movementApply.ts`, `movement.ts`, `movementGet.ts`, `companionService.ts`, `remoteServer.ts`): `staminaPercentage` and `magickaPercentage` added to the `Movement` interface and populated in `getMovement`. `applyStaminaPercentage` / `applyMagickaPercentage` helpers apply them on every `applyMovement` call using a **variable-lerp factor**: deltas ≤5 % use k=0.25 (smooth micro-change); deltas >5 % use k=0.6 so a big hit or a hard sprint drain snaps in within one or two ticks. `healthPercentage` upgraded to the same sharp-lerp. `companionService.drive()` passes own live stamina/magicka values. `remoteServer.ts` initial movement literal gains both fields defaulted to 1.0. Client built and deployed to both dev and `client-dist`; backup in `_client-bundle-backups\before-vitals-npcvar-173258`.
+- [ ] **CORRECTED 2026-09-19: the mirror never reached another client** (the fields are dropped by the C++ serializer; see the block at the top of this file, and the relay that replaces them). Original entry: **Stamina & magicka mirrored on remote clones** (`fork\skymp5-client\src\sync\movementApply.ts`, `movement.ts`, `movementGet.ts`, `companionService.ts`, `remoteServer.ts`): `staminaPercentage` and `magickaPercentage` added to the `Movement` interface and populated in `getMovement`. `applyStaminaPercentage` / `applyMagickaPercentage` helpers apply them on every `applyMovement` call using a **variable-lerp factor**: deltas ≤5 % use k=0.25 (smooth micro-change); deltas >5 % use k=0.6 so a big hit or a hard sprint drain snaps in within one or two ticks. `healthPercentage` upgraded to the same sharp-lerp. `companionService.drive()` passes own live stamina/magicka values. `remoteServer.ts` initial movement literal gains both fields defaulted to 1.0. Client built and deployed to both dev and `client-dist`; backup in `_client-bundle-backups\before-vitals-npcvar-173258`.
 - [x] **Dungeon difficulty renamed to Skyrim screen names** (`server\dungeons.js`): `Story→Novice`, `Normal→Adept`, `Hard→Expert`, `Nightmare→Master`. Internal `id` fields unchanged so cooldowns and active leases are not affected.
-- [x] **Expanded NPC archetype pools** (`server\dungeons.js`): `DIVERSE_ARCHETYPES` gains `cyrodiil_bandit` (Heartland marauder/soldier types from BSHeartland.esm) selected automatically when `isBandit && province==='cyrodiil'`; `nordic_draugr` (full Draugr tier ladder from Skyrim.esm) for nordic-type dungeons; `*_boss` mini-pools for every group (bandit chief, cultist boss, warlock boss, draugr death overlord) so boss placements draw from appropriate high-level entries. Boss and non-boss placements now use separate cycling paths in `zonesFor`.
+- [ ] **REVERTED 2026-09-19: expanded NPC archetype pools.** The pool table and the pool selection in
+  `zonesFor` are back to `c71ccaa`; the difficulty rename and the anchor fallback stay. Most of the new ids
+  were invented or the wrong record type: the `2e504`-`2e50f:BSHeartland.esm` marauders do not exist, the
+  "draugr" ladder was skeletons, a FACT, placed ACHRs/REFRs and two CELLs, and the warlock bosses were
+  werewolves plus an LVLI. The commit also deleted `bandit_camp` while `poolKey` still selected it. Report:
+  `_reviews\2026-09-19-daily-review.md`. **Still bad in the restored c71ccaa pools** (these were live before
+  and after e7f66fc): `3cf5f` (LVLN) and `3cf60`-`3cf62` (REFRs) in `cultist_melee_2h` and
+  `bandit_melee_2h`; `44ce0`, `44ce2` (REFRs) in `warlock_fire` and `bandit_mage`; `warlock_conjurer` is
+  `EncWerewolf01`-`06` plus `a0930` (LVLI). **Superseded the same day by the leveled-list pools above.**
+  Original entry: `DIVERSE_ARCHETYPES` gained `cyrodiil_bandit` (Heartland marauder/soldier types from BSHeartland.esm) selected automatically when `isBandit && province==='cyrodiil'`; `nordic_draugr` (full Draugr tier ladder from Skyrim.esm) for nordic-type dungeons; `*_boss` mini-pools for every group (bandit chief, cultist boss, warlock boss, draugr death overlord) so boss placements draw from appropriate high-level entries. Boss and non-boss placements now use separate cycling paths in `zonesFor`.
 - [x] **Invalid anchor graceful fallback** (`server\dungeons.js`): `zonesFor` now wraps the `mp.getIdFromDesc(npc.ref)` call in a try/catch; if the anchor ref is not loaded in the server's ESM set (the root cause of "no enemies in dungeon" for some BSHeartland dungeons), the zone is still emitted using the baked `POS` coordinate instead of being silently skipped. Server hot-reloaded via `gamemode.js` touch.
 
 ## Added 2026-09-18 (morning): server authority, dungeon log noise & province arming
