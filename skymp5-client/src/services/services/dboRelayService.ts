@@ -42,7 +42,7 @@ export class DboRelayService extends ClientListener {
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
-    this.controller.emitter.on("browserWindowLoaded", () => { this.focusedId = 0; this.hudKey = ""; this.partyKey = ""; this.widgetJsonCache.clear(); this.lastH = -1; this.lastM = -1; this.lastS = -1; });
+    this.controller.emitter.on("browserWindowLoaded", () => { this.focusedId = 0; this.hudKey = ""; this.partyKey = ""; this.lastH = -1; this.lastM = -1; this.lastS = -1; });
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.focusedId) this.closeFocused("hidden"); });
     this.controller.on("update", () => this.onUpdate());
     this.controller.on("loadGame", () => this.onGameLoaded());
@@ -115,7 +115,7 @@ export class DboRelayService extends ClientListener {
       watermarkOn: this.hudData["watermarkOn"] !== false,
     };
     const key = JSON.stringify(w);
-    // 5 s re-push heartbeat to survive CEF reloads even when nothing changed.
+    // Identical JSON is re-sent every 5 s so a widget dropped from the browser comes back
     if (key === this.hudKey && now() - this.hudSentAt < 5000) return;
     this.hudKey = key; this.hudSentAt = now();
     this.setWidget(HUD_WIDGET_ID, key);
@@ -151,16 +151,12 @@ export class DboRelayService extends ClientListener {
   }
 
   private setWidget(id: number, widgetJson: string): void {
-    // Dedup: if the browser already has exactly this widget content, skip the JS injection.
-    if (this.widgetJsonCache.get(id) === widgetJson) return;
-    this.widgetJsonCache.set(id, widgetJson);
     this.sp.browser.executeJavaScript(
       "(function(){if(!window.skyrimPlatform||!window.skyrimPlatform.widgets)return;var ws=(window.skyrimPlatform.widgets.get()||[]).filter(function(x){return x.id!==" + id + ";});ws.push(" + widgetJson + ");window.skyrimPlatform.widgets.set(ws);})();"
     );
   }
 
   private removeWidget(id: number): void {
-    this.widgetJsonCache.delete(id);
     this.sp.browser.executeJavaScript(
       "(function(){if(!window.skyrimPlatform||!window.skyrimPlatform.widgets)return;window.skyrimPlatform.widgets.set((window.skyrimPlatform.widgets.get()||[]).filter(function(x){return x.id!==" + id + ";}));})();"
     );
@@ -249,8 +245,6 @@ export class DboRelayService extends ClientListener {
   private hudSentAt = 0;
   private partySentAt = 0;
   private nextPassive = 0;
-  // Per-widget JSON dedup so repeated openWidget calls don't re-inject unchanged content.
-  private widgetJsonCache = new Map<number, string>();
   // Last pushed vitals to detect changes between frames.
   private lastH = -1;
   private lastM = -1;
