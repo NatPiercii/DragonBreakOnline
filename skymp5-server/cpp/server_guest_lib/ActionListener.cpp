@@ -432,7 +432,12 @@ void ActionListener::OnUpdateMovement(const RawMessageData& rawMsgData,
     }
   }
 
-  auto actor = SendToNeighbours(msg.idx, rawMsgData);
+  MpActor* myActor = partOne.serverState.ActorByUser(rawMsgData.userId);
+  const bool isOwnActor = myActor && myActor->GetIdx() == msg.idx;
+
+  // A player's refused packet must not reach other clients, so own movement is
+  // validated before it is relayed. Hosted actors keep the old order
+  auto actor = isOwnActor ? myActor : SendToNeighbours(msg.idx, rawMsgData);
   if (actor) {
     bool teleportFlag = actor->GetTeleportFlag();
     actor->SetTeleportFlag(false);
@@ -455,8 +460,12 @@ void ActionListener::OnUpdateMovement(const RawMessageData& rawMsgData,
             ? kInfinityPos
             : NiPoint3{ msg.data.pos[0], msg.data.pos[1], msg.data.pos[2] },
           FormDesc::FromFormId(msg.data.worldOrCell, espmFiles),
-          rawMsgData.userId, actor, espmFiles)) {
+          rawMsgData.userId, actor, espmFiles, &movementTracker)) {
       return;
+    }
+
+    if (isOwnActor) {
+      SendToNeighbours(msg.idx, rawMsgData);
     }
 
     if (!msg.data.isBlocking) {
