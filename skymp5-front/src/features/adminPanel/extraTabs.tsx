@@ -302,10 +302,6 @@ export const PowersTab = ({ events }: { events: Record<string, string> }) => {
           <span className="admin-panel__hint">Every spell a spell tome teaches, kept on the character</span>
         </div>
         <div className="admin-panel__power">
-          <Button text="Give all shouts" width={200} height={40} onClick={() => adminAction(events, 'giveShouts', target())} />
-          <span className="admin-panel__hint">Every shout with all three words unlocked, taught again at each login</span>
-        </div>
-        <div className="admin-panel__power">
           <Button text="Give werewolf form" width={200} height={40} onClick={() => adminAction(events, 'giveWerewolf', target())} />
           <span className="admin-panel__hint">The Beast Form power (vanilla WerewolfChange)</span>
         </div>
