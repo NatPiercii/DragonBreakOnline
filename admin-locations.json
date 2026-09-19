@@ -2338,6 +2338,214 @@
 ]
 },
 {
+"name": "Dawnstar",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-107278.98,
+90052.13,
+-6438.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Falkreath",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-76108.5,
+-115049.44,
+1697.87
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Helgen",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-21592.0,
+-115428.0,
+1095.0
+],
+"rot": [
+0,
+0,
+180.0
+]
+},
+{
+"name": "Ivarstead",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+71756.0,
+-58285.0,
+-366.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Markarth",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-148272.0,
+-14648.0,
+-8064.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Morthal",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-81440.0,
+55820.0,
+-14428.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Riften",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+185976.0,
+-84808.0,
+-5276.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Riverwood",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+14042.0,
+-52498.0,
+455.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Rorikstead",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-84892.0,
+-47140.0,
+-5366.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Solitude",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-106720.0,
+82020.0,
+-4700.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Whiterun",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+20120.0,
+-7408.0,
+-3550.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Windhelm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+134860.0,
+40496.0,
+-12284.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Winterhold",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+198956.0,
+116996.0,
+-8900.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Aerin's House",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
