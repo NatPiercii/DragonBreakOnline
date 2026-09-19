@@ -1,4 +1,4 @@
-import { Actor, ActorBase, createText, destroyText, EffectShader, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
+import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
 import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving, isInSitPose, clearSitPose, setRefrCollision } from "../sync/animation";
 import { Appearance, applyAppearance } from "../sync/appearance";
 import { isBadMenuShown, applyEquipment } from "../sync/equipment";
@@ -16,6 +16,7 @@ import { SpApiInteractor } from "../services/spApiInteractor";
 import { WorldCleanerService } from "../services/services/worldCleanerService";
 import { GamemodeUpdateService } from "../services/services/gamemodeUpdateService";
 import { isOwnCompanion, isAnyCompanion } from "../services/services/companionService";
+import { sendCustomPacket } from "../services/services/customPacketUtil";
 
 export interface ScreenResolution {
   width: number;
@@ -224,6 +225,7 @@ export class FormView {
         } else {
           const actor = Actor.from(refr);
           if (actor) {
+            this.applyFactions(actor, model);
             this.applyHostility(actor, model);
           }
         }
@@ -278,6 +280,7 @@ export class FormView {
         this.localImmortal = true;
       }
       if (actor && !refId) {
+        this.applyFactions(actor, model);
         this.applyHostility(actor, model);
       }
       this.applyAll(refr, model);
@@ -317,6 +320,7 @@ export class FormView {
     this.localImmortal = false;
     this.hostilityApplied = false;
     this.aggressionBeforeRaise = undefined;
+    this.factionsSeen = "";
     this.adminView = "visible";
     this.adminShaderOn = false;
     this.adminShaderReplayAt = 0;
@@ -736,6 +740,35 @@ export class FormView {
   }
 
   // ff_hostile can arrive in an UpdateProperty after the copy spawned, so a changed flag is checked again
+  // ff_factions (server dungeons.js): the placement's own Lvl* template factions, which the spawned concrete base lacks
+  private applyFactions(actor: Actor, model: FormModel): void {
+    const value = (model as Record<string, unknown>)["ff_factions"] as { f?: unknown; c?: unknown } | undefined;
+    if (!value || !Array.isArray(value.f)) {
+      return;
+    }
+    const key = JSON.stringify(value);
+    if (key === this.factionsSeen) {
+      return;
+    }
+    this.factionsSeen = key;
+    actor.removeFromAllFactions();
+    let applied = 0;
+    for (const entry of value.f) {
+      const faction = Faction.from(Game.getFormEx(Array.isArray(entry) ? Number(entry[0]) : 0));
+      if (!faction) {
+        continue;
+      }
+      const rank = Number(entry[1]) || 0;
+      actor.setFactionRank(faction, rank);
+      if (actor.getFactionRank(faction) === rank) applied++;
+    }
+    actor.setCrimeFaction(Faction.from(Game.getFormEx(Number(value.c) || 0)));
+    sendCustomPacket(SpApiInteractor.getControllerInstance(), {
+      customPacketType: "dbo", event: "npcDrift",
+      args: [{ kind: "factions", remoteId: (this.remoteRefrId ?? 0).toString(16), sent: value.f.length, applied }],
+    });
+  }
+
   private applyHostility(actor: Actor, model: FormModel): void {
     const flag = (model as Record<string, unknown>)["ff_hostile"];
     if (this.hostilityApplied && flag === this.hostileFlagSeen) {
@@ -952,6 +985,7 @@ export class FormView {
   private localImmortal = false;
   private hostilityApplied = false;
   private hostileFlagSeen: unknown = undefined;
+  private factionsSeen = "";
   private aggressionBeforeRaise: number | undefined = undefined;
   private adminView: AdminView = "visible";
   private adminShaderOn = false;
