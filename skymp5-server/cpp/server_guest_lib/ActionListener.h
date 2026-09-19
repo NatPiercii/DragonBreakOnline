@@ -3,6 +3,7 @@
 #include "ConsoleCommands.h"
 #include "CraftService.h"
 #include "Messages.h"
+#include "MovementValidation.h"
 #include "MpActor.h"
 #include "PartOne.h"
 #include "RawMessageData.h"
@@ -152,6 +153,8 @@ private:
   std::unordered_map<uint32_t, WardChannel> wardChannels;
   std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>
     paralyzedUntil;
+
+  MovementValidation::Tracker movementTracker;
 
   // TODO: inverse dependency
   std::shared_ptr<CraftService> craftService;
