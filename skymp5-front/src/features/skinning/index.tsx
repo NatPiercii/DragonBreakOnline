@@ -4,20 +4,27 @@ import './styles.scss';
 
 // Skinner mini-game, opened by the gamemode through the dbo relay (widget type "skinning"). A blade
 // sweeps along the hide; cut while it crosses the seam. Enough clean cuts before the time runs out
-// and the pelt comes away; too many slips tear it. The server judges the attempt and gives the pelt.
+// and the pelt comes away; too many slips tear it.
 //
-//   Browser -> client -> server: sendMessage('dbo:skinning', nonce, hits)
+// The round belongs to the server: it rolls the seed, the seam for every cut, the blade's period and
+// the time limit, and sends them here. This widget only draws that round and reports WHEN each cut
+// fell — never whether it was clean. The server replays the same blade at those milliseconds and
+// counts the clean cuts itself (gamemode.js, SERVER_AUTHORITY.md migration 7), so editing this file
+// can change what the player sees but not what they are given.
+//
+//   Browser -> client -> server: sendMessage('dbo:skinning', nonce, JSON.stringify(cutMs), atMs)
 //   Escape / Stop:               sendMessage('dbo:skinningCancel', nonce)
 export interface SkinningData {
   id: number;
   nonce: string;
-  name: string;     // the animal
-  cuts: number;     // clean cuts needed
-  misses: number;   // slips allowed
-  seam: number;     // seam width as a share of the hide
-  speed: number;    // sweeps per second
-  seconds: number;  // time limit
-  result?: string;  // set by the server when the attempt is judged
+  name: string;      // the animal
+  cuts: number;      // clean cuts needed
+  misses: number;    // slips allowed
+  seam: number;      // seam width as a share of the hide
+  seams: number[];   // centre of the seam for cut 1..n, rolled by the server
+  sweepMs: number;   // the blade takes this long to cross the hide
+  totalMs: number;   // time limit
+  result?: string;   // set by the server when the attempt is judged
   resultKind?: 'win' | 'lose';
 }
 
@@ -31,43 +38,66 @@ const send = (key: string, ...args: unknown[]): void => {
   }
 };
 
-const newSeam = (width: number): number => width / 2 + Math.random() * (1 - width);
+// Must stay identical to bladeAt() in server\gamemode.js, which scores the cut times reported from
+// here by running this same arithmetic on the same integer millisecond.
+const bladeAt = (ms: number, sweepMs: number): number => {
+  const phase = (ms % (sweepMs * 2)) / sweepMs;
+  return phase <= 1 ? phase : 2 - phase;
+};
+
+const num = (v: unknown, fallback: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
 
 const Skinning = ({ data }: { data: SkinningData }) => {
-  const cuts = Math.max(1, Number(data.cuts) || 3);
-  const allowed = Math.max(0, Number(data.misses) || 0);
-  const width = Math.max(0.05, Math.min(0.5, Number(data.seam) || 0.15));
-  const speed = Math.max(0.2, Number(data.speed) || 1);
-  const total = Math.max(1, (Number(data.seconds) || 15) * 1000);
+  const cuts = Math.max(1, Math.floor(num(data.cuts, 3)));
+  const allowed = Math.max(0, Math.floor(num(data.misses, 2)));
+  const width = Math.max(0.05, Math.min(0.5, num(data.seam, 0.15)));
+  const sweepMs = Math.max(400, Math.floor(num(data.sweepMs, 900)));
+  const total = Math.max(1000, Math.floor(num(data.totalMs, 15000)));
+  // The server sends one seam per cut; a short list just repeats its last seam
+  const seamAt = (i: number): number => {
+    const list = Array.isArray(data.seams) ? data.seams : [];
+    return list.length ? num(list[Math.min(i, list.length - 1)], 0.5) : 0.5;
+  };
+
   const [blade, setBlade] = useState(0);
-  const [seam, setSeam] = useState(() => newSeam(width));
   const [hits, setHits] = useState(0);
   const [misses, setMisses] = useState(0);
   const [left, setLeft] = useState(total);
   const [sent, setSent] = useState(false);
   const [flash, setFlash] = useState('');
-  const startedAt = useRef(Date.now());
-  const bladeRef = useRef(0);
+  // performance.now() so the round's clock cannot be stepped by the machine's time service
+  const startedAt = useRef(performance.now());
+  const sampleRef = useRef(0);  // ms into the round of the frame currently on screen
+  const timesRef = useRef<number[]>([]);
   const hitsRef = useRef(0);
+  const missRef = useRef(0);
   const sentRef = useRef(false);
 
-  // A new attempt (new nonce) resets the hide.
+  // A new attempt (new nonce) resets the hide. The server re-sending the same round with its verdict
+  // must not.
   useEffect(() => {
     setHits(0);
     setMisses(0);
     setSent(false);
-    sentRef.current = false;
-    hitsRef.current = 0;
     setLeft(total);
-    setSeam(newSeam(width));
-    startedAt.current = Date.now();
+    setFlash('');
+    setBlade(0);
+    hitsRef.current = 0;
+    missRef.current = 0;
+    sentRef.current = false;
+    timesRef.current = [];
+    sampleRef.current = 0;
+    startedAt.current = performance.now();
   }, [data.nonce, total, width]);
 
-  const submit = (count: number) => {
+  const submit = (at: number) => {
     if (sentRef.current) return;
     sentRef.current = true;
     setSent(true);
-    send('dbo:skinning', data.nonce, count);
+    send('dbo:skinning', data.nonce, JSON.stringify(timesRef.current), at);
   };
 
   // The blade sweeps back and forth until the time runs out.
@@ -75,14 +105,12 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     if (sent || data.result) return undefined;
     let raf = 0;
     const tick = () => {
-      const elapsed = Date.now() - startedAt.current;
-      const phase = ((elapsed / 1000) * speed) % 2;
-      const pos = phase < 1 ? phase : 2 - phase;
-      bladeRef.current = pos;
-      setBlade(pos);
-      setLeft(Math.max(0, total - elapsed));
-      if (elapsed >= total) {
-        submit(hitsRef.current);
+      const el = Math.floor(performance.now() - startedAt.current);
+      sampleRef.current = el;
+      setBlade(bladeAt(el, sweepMs));
+      setLeft(Math.max(0, total - el));
+      if (el >= total) {
+        submit(el);
         return;
       }
       raf = window.requestAnimationFrame(tick);
@@ -94,20 +122,24 @@ const Skinning = ({ data }: { data: SkinningData }) => {
 
   const cut = () => {
     if (sentRef.current || data.result) return;
-    if (Math.abs(bladeRef.current - seam) <= width / 2) {
+    // The cut is timed at the frame on screen, not at the keypress: what the player saw is what the
+    // server scores.
+    const t = sampleRef.current;
+    const clean = Math.abs(bladeAt(t, sweepMs) - seamAt(hitsRef.current)) <= width / 2;
+    timesRef.current.push(t);
+    setFlash(clean ? 'hit' : 'miss');
+    window.setTimeout(() => setFlash(''), 180);
+    if (clean) {
       const next = hitsRef.current + 1;
       hitsRef.current = next;
       setHits(next);
-      setFlash('hit');
-      setSeam(newSeam(width));
-      if (next >= cuts) submit(next);
+      if (next >= cuts) submit(Math.floor(performance.now() - startedAt.current));
     } else {
-      const next = misses + 1;
+      const next = missRef.current + 1;
+      missRef.current = next;
       setMisses(next);
-      setFlash('miss');
-      if (next > allowed) submit(hitsRef.current);
+      if (next > allowed) submit(Math.floor(performance.now() - startedAt.current));
     }
-    window.setTimeout(() => setFlash(''), 180);
   };
 
   useEffect(() => {
@@ -125,9 +157,11 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.nonce, sent, data.result]);
 
   const pct = Math.max(0, Math.min(100, (left / total) * 100));
+  const seam = seamAt(Math.min(hits, cuts - 1));
 
   return (
     <div className="skinning">

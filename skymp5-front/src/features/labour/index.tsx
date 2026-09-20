@@ -3,11 +3,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import './styles.scss';
 
 // Mining and woodcutting mini-game, opened by the gamemode through the dbo relay
-// (widget type "labour"). A marker sweeps the bar and the worker strikes while it
-// sits in the band; the band moves after every landed strike. Only the number of
-// strikes goes back to the server, which is the only judge of the result.
+// (widget type "labour"). A marker sweeps the bar and the worker strikes while it sits in the band;
+// the band moves after every landed strike.
 //
-//   Browser -> client -> server: sendMessage('dbo:labour', nonce, hits)
+// The round belongs to the server: it rolls the seed, the centre of every band, the sweep, the
+// cooldowns and the length, and sends them here. This widget only draws that round and reports WHEN
+// each strike fell — never whether one landed. The server replays the same sweep at those
+// milliseconds and counts the hits itself (server\labour.js, SERVER_AUTHORITY.md migration 7), so
+// editing this file can change what the player sees but not what they are paid.
+//
+//   Browser -> client -> server: sendMessage('dbo:labour', nonce, JSON.stringify(strikeMs), atMs)
 //   Escape / Walk away:          sendMessage('dbo:labourCancel', nonce)
 export interface LabourData {
   id: number;
@@ -15,9 +20,12 @@ export interface LabourData {
   kind: 'mining' | 'chopping';
   title: string;        // the seam or the block
   strikes: number;      // landed strikes needed
-  seconds: number;      // time for the whole round
   band: number;         // half width of the band, percent of the bar
-  sweep: number;        // seconds the marker takes to cross the bar
+  bands: number[];      // centre of the band for strike 1..n, rolled by the server
+  sweepMs: number;      // the marker takes this long to cross the bar
+  totalMs: number;      // time for the whole round
+  hitMs: number;        // stagger after a landed strike
+  missMs: number;       // stagger after a missed one
   result?: string;      // set by the server when the round is judged
   resultKind?: 'win' | 'lose';
 }
@@ -32,64 +40,80 @@ const send = (key: string, ...args: unknown[]): void => {
   }
 };
 
-const HIT_COOLDOWN_MS = 250;
-const MISS_STAGGER_MS = 600;
+// Must stay identical to markerAt() in server\labour.js, which scores the strike times reported
+// from here by running this same arithmetic on the same integer millisecond.
+const markerAt = (ms: number, sweepMs: number): number => {
+  const phase = (ms % (sweepMs * 2)) / sweepMs;
+  return phase <= 1 ? phase * 100 : (2 - phase) * 100;
+};
 
-const bandCentre = (half: number): number => half + Math.random() * (100 - 2 * half);
+const num = (v: unknown, fallback: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
 
 const Labour = ({ data }: { data: LabourData }) => {
   const kind = data.kind === 'chopping' ? 'chopping' : 'mining';
-  const need = Math.max(1, Number(data.strikes) || 1);
-  const total = Math.max(1, (Number(data.seconds) || 30) * 1000);
-  const sweepMs = Math.max(400, (Number(data.sweep) || 1.4) * 1000);
-  const half = Math.max(3, Math.min(30, Number(data.band) || 8));
+  const need = Math.max(1, Math.floor(num(data.strikes, 1)));
+  const total = Math.max(1000, Math.floor(num(data.totalMs, 30000)));
+  const sweepMs = Math.max(400, Math.floor(num(data.sweepMs, 1400)));
+  const half = Math.max(3, Math.min(30, num(data.band, 8)));
+  const hitMs = Math.max(0, Math.floor(num(data.hitMs, 250)));
+  const missMs = Math.max(0, Math.floor(num(data.missMs, 600)));
+  // The server sends one centre per strike; a short list just repeats its last band
+  const centreAt = (i: number): number => {
+    const list = Array.isArray(data.bands) ? data.bands : [];
+    return list.length ? num(list[Math.min(i, list.length - 1)], 50) : 50;
+  };
 
   const [hits, setHits] = useState(0);
   const [marker, setMarker] = useState(0);
-  const [centre, setCentre] = useState(() => bandCentre(half));
   const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
   const [left, setLeft] = useState(total);
   const [sent, setSent] = useState(false);
-  const startedAt = useRef(Date.now());
-  const markerRef = useRef(0);
-  const centreRef = useRef(centre);
+  // performance.now() so the round's clock cannot be stepped by the machine's time service
+  const startedAt = useRef(performance.now());
+  const sampleRef = useRef(0);   // ms into the round of the frame currently on screen
+  const strikesRef = useRef<number[]>([]);
   const hitsRef = useRef(0);
+  const sentRef = useRef(false);
   const readyAt = useRef(0);
-  centreRef.current = centre;
-  hitsRef.current = hits;
 
-  // A new round (new nonce) resets the bar.
+  // A new round (new nonce) resets the bar. The server re-sending the same round with its verdict
+  // must not, so the tally and the band stay where the player left them.
   useEffect(() => {
     setHits(0);
     setSent(false);
     setLeft(total);
     setFlash(null);
-    setCentre(bandCentre(half));
-    startedAt.current = Date.now();
+    setMarker(0);
+    hitsRef.current = 0;
+    sentRef.current = false;
+    strikesRef.current = [];
     readyAt.current = 0;
+    sampleRef.current = 0;
+    startedAt.current = performance.now();
   }, [data.nonce, total, half]);
 
-  const submit = (landed: number) => {
-    if (sent) return;
+  const submit = (at: number) => {
+    if (sentRef.current) return;
+    sentRef.current = true;
     setSent(true);
-    send('dbo:labour', data.nonce, landed);
+    send('dbo:labour', data.nonce, JSON.stringify(strikesRef.current), at);
   };
 
   // The marker sweeps back and forth; the round ends when the time runs out.
   useEffect(() => {
     if (sent || data.result) return undefined;
     const t = window.setInterval(() => {
-      const now = Date.now();
-      const phase = ((now - startedAt.current) % (sweepMs * 2)) / sweepMs;
-      const pos = phase <= 1 ? phase * 100 : (2 - phase) * 100;
-      markerRef.current = pos;
-      setMarker(pos);
-      const remaining = total - (now - startedAt.current);
-      if (remaining <= 0) {
+      const el = Math.floor(performance.now() - startedAt.current);
+      sampleRef.current = el;
+      setMarker(markerAt(el, sweepMs));
+      if (el >= total) {
         setLeft(0);
-        submit(hitsRef.current);
+        submit(el);
       } else {
-        setLeft(remaining);
+        setLeft(total - el);
       }
     }, 16);
     return () => window.clearInterval(t);
@@ -97,19 +121,22 @@ const Labour = ({ data }: { data: LabourData }) => {
   }, [sent, data.result, data.nonce]);
 
   const strike = () => {
-    if (sent || data.result) return;
+    if (sentRef.current || data.result) return;
+    // The strike is timed at the frame on screen, not at the keypress: what the player saw is what
+    // the server scores, and the stagger runs on that same clock.
+    const t = sampleRef.current;
     // Without a stagger, hammering the key lands a strike every time the marker crosses the band
-    if (Date.now() < readyAt.current) return;
-    const landed = Math.abs(markerRef.current - centreRef.current) <= half;
-    readyAt.current = Date.now() + (landed ? HIT_COOLDOWN_MS : MISS_STAGGER_MS);
+    if (t < readyAt.current) return;
+    const landed = Math.abs(markerAt(t, sweepMs) - centreAt(hitsRef.current)) <= half;
+    readyAt.current = t + (landed ? hitMs : missMs);
+    strikesRef.current.push(t);
     setFlash(landed ? 'hit' : 'miss');
     window.setTimeout(() => setFlash(null), 160);
     if (!landed) return;
     const next = hitsRef.current + 1;
     hitsRef.current = next;
     setHits(next);
-    setCentre(bandCentre(half));
-    if (next >= need) submit(next);
+    if (next >= need) submit(Math.floor(performance.now() - startedAt.current));
   };
 
   useEffect(() => {
@@ -130,6 +157,7 @@ const Labour = ({ data }: { data: LabourData }) => {
   }, [data.nonce, sent, data.result]);
 
   const pct = Math.max(0, Math.min(100, (left / total) * 100));
+  const centre = centreAt(Math.min(hits, need - 1));
   const hint = kind === 'mining'
     ? 'Strike while the pick is on the seam. Space or click.'
     : 'Swing while the axe is over the grain. Space or click.';
