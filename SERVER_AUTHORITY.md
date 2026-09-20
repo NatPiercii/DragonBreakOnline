@@ -225,6 +225,25 @@ it, so a refused packet no longer reaches other clients; hosted actors keep the 
 - **How:** Two bugs, one fix. (1) MpActor::SetEquipment writes the change form only — no SendMessageToActorListeners — and CreateActorMessage (PartOne.cpp:801-803) is the sole delivery, fired once per listener at stream-in; the client refuses to send a hosted actor's equipment (sendInputsService.ts:282-284) and OnUpdateEquipment resolves the actor by user so it could not carry it anyway. (2) dungeons.js:334-338 arms unarmed enemies with mp.callPapyrusFunction EquipItem, and PapyrusActor::EquipItem dispatches an SpSnippet whose Execute returns a never-resolving promise when !IsCreatedAsPlayer (SpSnippet.cpp:27, MpActor.cpp:1140-1143 — baseId <= 0x7) — a server-spawned NPC's baseId is its NPC_ record, so nothing is sent to anyone and the whole 'unarmed NPCs flee' fix is inert. Make equipment a neighbour-visible property update the way ff_hostile already is, and use MpActor::EquipBestWeapon (which does write the change form) for the arming. The same change fixes server-driven EquipItem for masks and manacles, which today reach only the wearer.
 - **Needs C++:** yes  **Effort:** medium
 - **Risk if skipped:** Permanent visual divergence on every NPC whose gear changes after spawn, and the clients that missed it run the wrong local combat state. The hosting client — the one whose engine decides whether the bandit fights or runs — still sees an unarmed actor. Masks and restraints look applied to the wearer and to the server while other players see an uncovered face and bare wrists.
+- **CONFIRMED BY MEASUREMENT 2026-09-19** (isolated server, real `MpClientPlugin.dll` bot): a spawned
+  `EncBandit01Melee1H` (`ff000001`, baseId `39cf9`) was given an iron sword with `mp.set(id,'inventory')` and
+  then `EquipItem` exactly as `armLease` did it. The server's `equipment` change form was unchanged before
+  and after (`numChanges` 1, same three worn base gear entries), and the client received **nothing** — no
+  SpSnippet, no UpdateEquipment, no SetInventory. The same `EquipItem` on the player produced a SetInventory
+  and an SpSnippet in the same run. `armLease` no longer makes the call (2026-09-19); it writes the
+  inventory and says so in its log line. **The CHECKLIST's "verified in game" entries for arming were wrong:
+  the `armed` line only ever proved that the JS ran.**
+- **And the one delivery path that exists today crashes the server.** `MpActor::EquipBestWeapon` does write
+  the change form and fan an `UpdateEquipmentMessage` out to every listener, and `ActionListener::
+  OnHostAttempt` calls it on each host (re)grant — so a weapon added after Init does reach clients when a
+  player takes the actor over. But three lines earlier that same branch does
+  `partOne.worldState.lastMovUpdateByIdx[remoteIdx] = now` with **no resize**, unlike the identical write in
+  `OnUpdateMovement` (`ActionListener.cpp:502-506` resizes, `:1113` does not). The vector is only ever grown
+  by movement updates, so granting host of a reference whose idx is past the end is an out-of-bounds vector
+  write. Reproduced twice on the probe server, both times a segfault ~30 ms after `Hoster of ff000001
+  changed from 0 to ...`: once with a spawned NPC (idx 61) and once with a placed non-actor (idx 61), which
+  cannot reach `EquipBestWeapon` at all and so rules it out as the cause. This is the likely identity of the
+  open "segfault on granting host of a summon". Fix it in the same C++ session as the equipment message.
 
 ### 15. A single lost animation packet permanently freezes an NPC's copy on one client while it keeps moving for everyone else.
 
@@ -267,6 +286,31 @@ it, so a refused packet no longer reaches other clients; hosted actors keep the 
 - **How:** DO NOT move all of it or you delete working features. masterySystem.ts:647-657 writes vanilla skill AVs including Smithing, Alchemy, Enchanting, Lockpicking, Sneak, Speechcraft and the magic schools; spell magicka cost, tempering and potion quality, lockpicking and sneak detection are computed by the engine on the character's own client, so the local write is the only mechanism and it works. Only the COMBAT half is inert, and PapyrusActor.cpp's own source says why: 'SetActorValue executes locally at this moment. Results will not affect server calculations.' Apply a mastery multiplier in the onHitDamageAttempt hook where the server computes damage — no formula rewrite needed. Related and cheap: gamemode.js:898-902 calls ModActorValue, which is not in the registered Actor method table, so VirtualMachine::CallMethod logs 'Method not found' and returns None without throwing — the JS catch never fires, zero matches appear in any server log, and :908-911 then records the penalty as applied. Hunger's stamina and healing penalties have never been in force. Express them as regen caps in the ChangeValues path instead, and clear the stale `applied` bookkeeping.
 - **Needs C++:** no  **Effort:** medium for the mastery multiplier; small for hunger
 - **Risk if skipped:** The whole progression ladder has no effect on the damage anyone actually takes, two clients disagree about how strong the same character is, and hunger is cosmetic below the xpMult effect while the server believes the modifier is on.
+- **DONE 2026-09-19 (both halves, gameplay layer only, no rebuild), with two corrections to the audit:**
+  - *The multiplier cannot live in `onHitDamageAttempt`.* That hook is a veto, not a filter: `FireHitDamageEvent`
+    returns `CustomEvent::Fire`'s bool and the C++ applies its own `damage` to the health percentage
+    immediately afterwards (`ActionListener.cpp` `OnWeaponHit`), so a gamemode return value can only refuse
+    the hit. `gamemode.js` now notes the target's health in the attempt hook and takes the tier's extra share
+    off in `onHitDamage`, through `mp.set(id, 'percentages')` — `PercentagesBinding::Set` ->
+    `NetSetPercentages` -> `ChangeValues` to the owner, which is a registered, server-authoritative write.
+    The bonus is clamped so it never lands the killing blow, because a percentages kill passes no aggressor
+    to `MpActor::Kill` and champions, contracts and the mastery kill credit all read the killer.
+    **Measured** on an isolated server with a bot that lands real weapon hits (`server\tools\bot`): iron
+    sword, one-handed chosen, same target - Novice 6.71 damage, 19.2% of health per hit, 100 -> 80.8 -> 61.6
+    -> 42.5; Master 6.72 engine damage dealt as 8.74, 25.0% per hit, 100 -> 75.0 -> 50.1 -> 25.1. +30.1%,
+    which is what `skills.json` advertises. The clamp was seen firing on the fourth hit (bonus cut from 2.0
+    to 1.7, health left at 1.00%) and the engine's next hit took the kill.
+  - *Hunger cannot be capped in the ChangeValues path from JS.* `CropRegeneration` derives its ceiling from
+    `max(baseValues.healRateMult, actorValues.healRateMult)` (`CropRegeneration.cpp`), so a lowered actor
+    value cannot reduce regen below the vanilla base, and nothing in the `mp` property table writes those
+    rate fields anyway. The registered path that does work is `SetActorValue`, which dispatches a snippet to
+    the owner's client (or to the hoster), where regen is actually computed; the server's own ceiling is
+    unchanged and still caps a lying client. `gamemode.js` now sets `HealRateMult`/`StaminaRateMult` to an
+    absolute `100 + stage%` and re-sends both on every login, because the client's save keeps the last value
+    written. **Measured**: `ModActorValue` logged `VirtualMachine::CallMethod - Method not found -
+    'ModActorValue'`, returned null, threw nothing and put no message on the wire; `SetActorValue` on the
+    same actor produced `{"class":"Actor","function":"SetActorValue","arguments":["HealRateMult",50]}` at the
+    bot. A regen cap the server *enforces* (rather than asks for) still needs C++ and is not built.
 
 ### 21. Party HUD health and own vitals are read off local engine copies although the server owns all three values.
 

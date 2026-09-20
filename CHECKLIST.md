@@ -1,5 +1,624 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (03:15): unarmed, combat openings, the Lorkhan menu pass and the racial stat spread
+
+All four shipped and deployed in one client/front/server/plugin round. Server restarted 02:53:20, boots
+clean at the known 18-error baseline, `[skills] ready: 18 skills`.
+
+- [x] **Unarmed, "The Closed Fist"** - skill 18, combat. `skills.json` entry plus a guard in
+  `masterySystem.weaponClass` that names `Skyrim.esm:0001F4` directly rather than trusting its DNAM byte,
+  matching the test the C++ damage formula itself uses (`TES5DamageFormula.cpp` `IsUnarmedAttack`).
+  `WEAPON_CLASS` already mapped DNAM 0 to `HandToHand`, so this was mostly data.
+- [x] **Combat skills can be opened at last** (the nine-skill hole, now six of it). Shadow progress: an
+  unopened combat skill banks its units in `prog.shadow` at level 0 - costing no pool and staying out of
+  `order` - and at a level's worth (`P.unitsForLevel(1)` = 10 at Novice) offers itself. `masteryTakeUp`
+  spends the pool point and **replays the banked units**, so work done before accepting is credited.
+  Three hops wired: `masterySystem.onTakeUp` + `offers` in the menu payload, `masteryService` events map
+  and packet, front button.
+- [x] **K menu, Lorkhan pass** - an eight-spoke Wheel behind the pool count whose spokes light as it fills,
+  locks coloured as Masser (amber, Waxing) and Secunda (silver, Held), the take-up offer as a warm call to
+  action. Appended as its own block at the end of `masteryMenu/styles.scss` so the pass lifts out cleanly.
+  **Confirmed in game by screenshot.**
+- [x] **The racial stat spread is live** (`RACES_DESIGN.md` section 2). Ten RACE overrides written into
+  `DragonBreak Online Edits.esp` by `SSEEdit 4.1.5f\Edit Scripts\DBO_RaceStats.pas`, verified by re-running
+  the read-only report, **and confirmed in game: an Orc reads MAGICKA 80 / HEALTH 105 / STAMINA 115.**
+
+**Three facts the plugin pass established, all measured:**
+
+- **Vanilla RACE DATA is `50/50/50`, carry 300, regen 0.7/3.0/5.0 - identical across all ten races.** The
+  player's 100 is race(50) + the **Player NPC_ offset of +50** (`DBO_PlayerOffsets.pas`), so the script
+  writes *target minus 50*. Writing the design numbers directly would have made every race 50 points strong.
+- **`Unarmed Damage` is already 10 for Khajiit and Argonian against 4 for everyone else**, and
+  `CalcUnarmedDamage` returns exactly that field. Khajiit claws were server-authoritative before the skill
+  existed. The pass leaves the field alone.
+- **`server\data\` is a separate copy of every plugin**, not a junction to the dev Data folder. The pass
+  edited the dev copy; the server would have kept vanilla values while the client showed the new ones, with
+  nothing logged. Synced both. The running server memory-maps its copy, so node must be stopped first.
+  Memory note: `server-data-is-a-separate-plugin-copy`.
+
+- [ ] **Unarmed's five marker spells do not exist** - boot says `5 marker spell(s) missing`. Harmless for
+  damage and crediting (both read `rank`), but plugin-side conditions cannot key on Unarmed until
+  `DBO_Skill_unarmed_T1..T5` are created.
+
+## Added 2026-09-20 (03:15): the starting-spell bug is C++, and the cause is now known exactly
+
+**Nat's observation closed it: a character spawns as the Player record - which is a Nord - and is only then
+thrown into the race menu.** Everything follows from that.
+
+- `MpActor::GetBaseSpells()` draws from the base NPC_ record (`7:Skyrim.esm`, the vanilla **Player**, whose
+  `RACE` is **NordRace** - confirmed by dumping the record, not inferred) and from the chosen race via
+  `appearance->raceId`.
+- `playersInheritBaseSpells: false` **is set, is read, and works** - but it filters only the NPC_ list. The
+  race loop at the end of the function pushes `raceData.spells` **unfiltered**.
+- The CreateActor message is built **at login, while the character is still a Nord**, so its spell list
+  carries Nord abilities. That is why an Orc holds **Battle Cry and "Your Nord blood gives you 50%
+  resistance to Frost"** - screenshotted.
+- It also defeats the client fix shipped earlier tonight: `rememberServerSpells` stores that login-time list,
+  so re-enforcing after the creator faithfully re-applies the Nord spells.
+
+- [ ] **Fix (C++, native build):** apply `skipCastable` to the race loop as well, **and** recompute the
+  spell list after character creation rather than reusing the login one. The client half is already correct
+  and will match whatever list arrives.
+
+## Added 2026-09-20 (03:15): the native binary is six days stale - highest-value single action
+
+Every `scam_native.node` on disk is dated **2026-09-13 23:44** and none contains `movementValidation` or
+`snapBackIntervalMs`. Three commits sit in source, built into nothing:
+
+- `d6f39a2` movement: validate a player's own packet before relaying it
+- `e1678f4` movement validation: time-aware per-actor rate check
+- `4f97e32` movement validation: speed ceilings in server-settings
+
+`HANDOFF.md` recorded movement rate validation as **landed** on 09-19; it landed in *source* and has never
+run, while the competitive analysis calls it the top remaining security hole. Caught because the C++ logs
+`movementValidation:` unconditionally at boot and that line is absent from `server.log`.
+
+- [ ] **One native build (CI flatrim, or the manager's Native button) ships the movement validation, the
+  starting-spell fix and `vanillaLevel` together.** Claude cannot run it.
+
+## Added 2026-09-20 (03:15): deities designed, not built
+
+`server\DEITY_DESIGN.md` written from Nat's brief. **Most of it already existed** in `skills.json` under
+`deities` and `praying` - the own-shrine rule, the hold-through-three-verses mini-game, 2% for everyone
+against a priest's 5/10/15/20/30% by tier, the 60-minute per-shrine cooldown, and `priestActivityPoint`.
+The `prayer` event kind is already in `masterySystem`'s candidate map; nothing emits it.
+
+- [ ] Three changes asked for: conversion cooldown **30 days -> 7**, conversion moved onto a menu key rather
+  than `/convert`, and the Daedric Princes added to the picker.
+- [ ] **Blocker found while looking up shrines: every shrine id in `skills.json` is a Skyrim shrine, and the
+  playtest is region-locked to Bruma.** Prayer is unreachable today. Beyond Skyrim's wayshrines cover all
+  nine Divines (`BSHeartland.esm:061B52`-`061B5A`); each shrine entry must become a list of both.
+- [ ] Only Malacath, Nocturnal, Azura, Mephala and Boethiah have shrine activators in this load order. The
+  other twelve Princes would need placements. Recommendation in the doc: restrict the picker rather than
+  offer a deity nobody can pray to.
+
+## Added 2026-09-20 (02:00): four client fixes from the first real play session - built, deployed, UNTESTED
+
+One client build (02:01) carries all four; they need a relaunch, not a reload. Deployed to both
+`Skyrim Special Edition - dev\Data\Platform\Plugins\` and `server\client-dist\...`, identical, type-check
+clean.
+
+- [ ] **Spells stick on a freshly created character.** `SPELL_ENFORCE_PASSES = [1, 3, 6, 10, 15, 20]` runs
+  only after CreateActor, and the race menu grants race + Player-record spells as it *closes*. Measured on
+  the live log: JOIN 01:49:31.838, last pass +20 s = 01:49:51.8, "Character creation finished" 01:49:52.078 -
+  **240 ms too late**, so nothing ever reconciles again. The earlier character was 165 s out, same result.
+  This is also why a plain login *did* strip them ("gives you stuff then takes it away") - same cause,
+  opposite symptom. Fix: `sync/spell.ts` gained `rememberServerSpells`/`reenforceServerSpells`, `remoteServer`
+  remembers the list from CreateActor, and `charCreatorService.close()` re-runs enforcement at 1/3/6/10 s.
+  **Correct regardless of the server flag**, because the client simply matches whatever list arrives.
+- [ ] **The bare "E" on doors was an unreachable guard.** `doorNameFor` has a 2 s timeout so "a lost answer
+  must not hide the door for good", but the only caller that can fire it is the 500 ms poll in `onUpdate`,
+  and that poll was gated on `this.promptShown` - which is false precisely because the prompt is hidden. The
+  recovery was guarded by the condition the bug creates. Fix: ungated the poll. Note the service keeps the
+  vanilla key glyph on purpose ("the vanilla key glyph stays"), so a null prompt shows a bare E rather than
+  nothing. The **container** case is NOT diagnosed - `verbFor` handles Container, so it is a different path.
+- [ ] **The HUD painted over the vanilla race menu.** `Menu.RaceSex` is already in `browserService.badMenus`,
+  so the browser *is* hidden for it - but `interactionPromptService.apply()` called `browser.setVisible(true)`
+  guarded only by `isUiHidden`, which is the **F2 manual toggle** and knows nothing about blocking menus. On
+  every crosshair change and every poll it repainted the whole HUD over the creator. `chatService` does the
+  same once at mount, which is exactly when the race menu is open on a new character. Both now check
+  `isGameInputBlocked` (browser focus + console + blocking menu). Nothing is lost by skipping: `browserService`
+  re-shows the browser when the last blocking menu closes.
+
+**Server-side, applied and restarted 01:46:31:** `"playersInheritBaseSpells": false` added to
+`server-settings.json` (a live file outside git; backup at `server-settings.json.bak-20260920-014618`).
+The C++ reads it beside `serverKey`/`movementValidation`, the live `scam_native.node` carries it (built
+2026-09-13 23:44, after `MpActor.cpp` was last touched at 23:05), and `enforceSpells` genuinely removes -
+it builds a `toRemove` list of everything not on the server's list. **Still unverified in play**: the only
+test since was another fresh character, which the creation-timing bug above defeats.
+
+**What the spell plumbing actually is**, corrected from two earlier wrong guesses in this session:
+`learnedSpells` on the change form is the list of spells **the server granted** (admin grants, mastery
+marker spells) - which is why the admin character had 131 and a fresh one has 0. Race and Player-record
+spells never enter it; `MpActor::GetBaseSpells()` adds them to the CreateActor *message* only, deliberately
+("Base NPC_/race spells ride along so the client's spell reconciliation does not wipe Flames/Healing").
+Race spells come from `appearance->raceId` (the chosen race, correctly giving an Orc Berserker Rage); the
+base NPC_ is `7:Skyrim.esm`, the vanilla **Player** record, which is a Nord - **that is where Battle Cry on
+an Orc comes from**, and `playersInheritBaseSpells: false` will not remove it because the filter only drops
+`SpellType::Spell`, not powers.
+
+## Added 2026-09-20 (01:15): the level/points mismatch is FIXED, built, deployed, server restarted
+
+`SkillProgress.level` is now the canonical field in `masterySystem.ts`, and `points` is written beside it as a
+**derived legacy shim** on every save, exactly as `order` and `rank` already are - so `gamemode.js`,
+`labour.js` and `dungeons.js` read what they always read and needed no change. The v2 read takes
+`src.level ?? src.points`, so a record written by the broken build degrades to its old value instead of
+resetting. 27 sites changed, all in one file; no other TS file referenced `.points`.
+
+- [x] `tsc --noEmit` clean, **110/110 maths checks still pass**, bundle deployed to `server\dist_back\`.
+- [x] Verified in the *minified* bundle, not just the source: `.level??l.points` (the read fallback),
+  `.points=i.level` (the shim) and `rises to ${d.level}` (the notice) are all present.
+- [x] Server restarted 01:11:49, boots clean: "point system ON: pool 300, cap 100...", **18 errors, the same
+  count as the last known-good boot** (the `ScampServer.cpp:1084` context noise).
+- [x] **Phase 0 instrumentation fixed in the same pass**: `creditPoints` now counts `out.units` into
+  `creditStats.credits` and increments `suppressed` when a character has no record, so the credit-rate log
+  reports something under point mode. It measures **units**, not levels - a level is far too rare to tune
+  weights against - and the formatter now rounds to one decimal.
+- [x] **PROVEN IN PLAY, 01:38-01:41**, on a fresh character (`Stranger #GKFP`, mastery null at creation).
+  First touch wrote `woodcutter { level: 1, points: 1, xp: 0 }` - both the canonical field and the derived
+  shim. **Re-read 90 s later the level was still 1**, with `xp: 5`, `spentToday: 0.5`, a populated `ring`,
+  and `miner` opened alongside it; `order` derived to `["woodcutter", "miner"]`. Under the bug the level came
+  back 0/null on every read. The `xp: 5` also confirms the predicted arithmetic exactly: one `activate`-weighted
+  round is 0.5 units and a Novice unit is 10 xp.
+- [x] **The Phase 0 fix is proven too**, same session: `credit rate (last 15 min, 1 character(s)): events
+  activate 10 | credited miner 2, woodcutter 0.5`. That line read "credited none" every time under the old
+  code. First real tuning datum: **10 activate events, 5 units credited** - half the activations were on
+  things that are neither vein nor block.
+
+## Added 2026-09-20 (01:20): the charcoal chain (Nat's side note) - designed, not built
+
+Ingots should require charcoal, better ingots better charcoal; firewood feeds a kiln; a tiered Woodcutter may
+work a saw mill for bulk wood every 30 minutes. Written up as **`SKILLS_DESIGN.md` §13** with what already
+exists checked rather than assumed:
+
+- The **woodcutting mini-game already exists** (`chop()`, 4/8/12/16/20 strikes by tier, pays 3-8 firewood).
+- The **30-minute saw mill is already the written design** (`skills.json` §minigames `lumberMill`), and
+  `LumberMill`/`FarmLumbermill` are already in the woodcutter's gates and activate prefixes - but
+  `__dboLabour` dispatches only `MineOre*` and `WoodChoppingBlock*`, so a mill does nothing today.
+- **Charcoal grades are half designed**: the tier names already say rough/good/fine charcoal and `CharcoalKiln`
+  is gated, but there is no charcoal item, no kiln handler and nothing consumes it.
+
+- [ ] The genuinely new work is the **dependency**: charcoal items (plugin), a kiln handler, a mill handler,
+  and ingot recipes that spend charcoal by grade. The recipe gating belongs in the same xEdit pass as the
+  crafted-only ebony/daedric `HasSpell` conditions, not a separate one.
+- [ ] **Do not start before the point system keeps a level.** A supply chain resting on a skill system that
+  discards progress cannot be tested.
+
+## Added 2026-09-20 (01:10): the point system does not persist a level - BLOCKER, found in play
+
+Two in-game sessions tonight (01:00-01:07). Mining and the forge both work; **nothing is kept**.
+
+**The bug: the two modules disagree on the field name for a skill's level.**
+`masterySystem.SkillProgress` calls it `points` (`:104`, commented "the level itself under pointSystem").
+`skillPoints.PointSkill` calls it `level`, and every function writes `s.level` (`:266`, `:273`, `:277`, `:287`).
+They meet through four `as unknown as P.PointRecord` casts (`:352`, `:424`, `:1097`, `:1121`), which switch
+off type checking at exactly the seam. The fatal line is `:1083`, inside the **v2** branch:
+
+    const level = v2 ? Math.floor(Number(src.points) || 0) : ...
+
+`firstTouch` writes `level: 1`; the next `read()` asks for `src.points`, gets undefined, and the level is 0.
+
+**Measured, not inferred.** Argy's record right after first touch was clean
+(`miner: { level: 1, xp: 0, lock: "raise", rank: 0 }`, `order: ["miner"]`). After six mined veins and six
+forge uses it read:
+
+    "blacksmith": { "level": null, "points": 0, "xp": 0, "spentToday": 2.35 },
+    "miner":      {                "points": 0, "xp": 0, "spentToday": 0.5  },
+    "order": [], "spentToday": 5.35
+
+Both names on one object. `order` is empty because `derivedOrder` filters `level >= 1`. **`spentToday: 5.35`
+is the proof of waste: the daily meter counted the work, the level never kept it.**
+
+Knock-on: an empty `order` sends `labour.js`'s `tierOf` back to -1 on every activation, so first touch is
+re-granted every single time.
+
+Why the 110 tests missed it: they exercise `skillPoints.ts` alone, against `level`, where it is internally
+consistent. The bug exists only at the boundary.
+
+- [ ] **Fix (TS rebuild + dist_back + restart, not hot-reload):** make `level` canonical in `SkillProgress`
+  and write `points` as a derived legacy field on save, exactly as `order` and `rank` already are, so
+  `gamemode.js`, `labour.js` and `dungeons.js` keep reading what they read today. Make the v2 read take
+  `src.level ?? src.points` so tonight's damaged records recover rather than reset.
+- [ ] **Fold in while rebuilding:** `creditPoints` never touches `creditStats.credits`/`.suppressed` (they
+  are only incremented at `:475`/`:462`, inside the old `creditHours` path below the `:460` early return),
+  so the Phase 0 credit-rate log always prints "credited none | no skill chosen 0" under point mode. Phase 0
+  measures nothing while the flag is on.
+
+## Added 2026-09-20 (01:00): the first-touch deadlock in the hot-reload layer - FIXED, live
+
+Mining refused with "Only a Miner can read a seam well enough to work it." and the trade could never be
+taken up. `gamemode.js:638` runs `__dboLabour` **before** `__dboPrevActivate` - the chained hook
+`masterySystem` installs at `masterySystem.ts:257`, which is the only thing that can grant first touch. When
+`mine()` found no miner skill it called `deny()`, and **`deny()` returns `true`** (`labour.js:95`), so
+gamemode returned false and stopped the chain. Refused for not being a miner; could not become one because
+the refusal preceded the code that grants it.
+
+Verified rather than assumed: no KYWD named `MineOre` exists, so the gate falls to an editor-id prefix;
+veins are ACTI `MineOreIron01_LReachGrass` and friends, which do match `mineore`; and `private.mastery` was
+absent from the change form after the attempts, proving the gate never ran.
+
+- [x] **Fixed in `labour.js`**, hot-reloaded 00:58:27 clean: `mine()` and `chop()` now `return false`
+  (not handled) instead of denying when the tier is -1, so the chain reaches the first-touch gate. Costs one
+  extra activation: the first opens the trade, the second starts the minigame. Confirmed working in play.
+- [ ] **Same shape, not fixed, and falling through would not help:** `gamemode.js:1388` ("Only a Scholar may
+  read the books of the world") - scholar has no gate station at all, so there is nothing downstream to open
+  it; `gamemode.js:1650` ("Only a Skinner can take the pelt") - skinner opens at a **tanning rack** only,
+  never from a corpse.
+
+## Added 2026-09-20 (00:55): nine skills have no opening move under point mode
+
+`creditPoints` skips any skill with no record (`:418`, "a trade is opened at its station, not by accident")
+and `firstTouch` fires only from the station loop at `:349`, which tests `gateStations`/`gatePrefixes`.
+Checking `gates.stations` across `skills.json`:
+
+- **Can be opened (8):** blacksmith, alchemist, woodcutter, miner, tailor, skinner, enchanter, cook.
+- **Cannot be opened (9):** twohanded, onehanded, archery, defense, arcane (**all five combat**), plus
+  scholar, priest, lockpicking, harvesting.
+
+Harvesting is a near miss: it declares `gates.nodes: true`, and `gateNodes` is parsed (`:837`) and carried
+into `ResolvedRules` (`:870`) - and **read nowhere**. The same dead-field shape as `blockEvents`, already
+flagged in `SKILLS_DESIGN.md` §5.
+
+Under the old system these opened by being chosen in the menu. Point mode removed choosing, and design §5.3
+solved only the mirror case - the station that refuses a skill you do not hold. A skill with *no* station
+fell through.
+
+- [ ] **Design call, for Nat, not to be picked unilaterally:** opening a skill on its first credited act is
+  the obvious mirror of §5.3, but it contradicts the "not by accident" rule - one stray arrow would spend a
+  pool point on Archery. Combat probably needs a different opening rule than trades do.
+
+## Added 2026-09-20 (01:05): mining credits at half weight, and the ore band is dead code
+
+`labour.js:311` emits the event as kind **`activate`**, not `mine`. In `weightOf`, `mine` is
+`1 + min(1, band/4)` (1.0-2.0) while `activate` is a flat **0.5**. Nothing anywhere emits `mine`, so the
+ore-band term never runs. Sharper than the existing "per-act inputs are not wired" note: the *kind* is wrong,
+not just the value. At Novice (10 units per level) one vein is 5 xp, so a level is **20 different veins**
+(each rests 45 minutes).
+
+## Added 2026-09-20 (01:08): no crash after either logout tonight
+
+Logouts at 00:57:44 and 01:07:28, server up continuously since 00:34:48. The 00:32:51 heap corruption did
+not repeat. Still one data point, still no dump.
+
+## Added 2026-09-20 (00:45): the K menu chain verified statically, end to end
+
+Not an in-game proof - a static trace of every hop, done before the next launch so that if the menu is
+still wrong the fault is runtime, not deployment. All five links carry point mode:
+
+- `server\skills.json` -> `pointSystem.enabled: true`.
+- `sendMenu` emits `points: { enabled: true, pool: 300, ... }`; present in `server\dist_back\skymp5-server.js`
+  (built 00:27, and the running process started 00:34:48, so it has it).
+- The client mirror (`points: content["points"] ?? null`) and the browserside setter (`points: info.points`)
+  are both in the deployed `skymp5-client.js` (00:38), byte-identical in the dev install and `client-dist`.
+- `build.js` gates on `t.points && t.points.enabled` and holds the string "spokes of the Wheel"; deployed to
+  both UI folders (00:27).
+
+**Why it read "Skills 0/3" last night:** the client bundle carrying hops 2 and 3 was written at 00:38 and the
+player's last session ended at 00:32. That bundle has never been loaded by a running game. The next fresh
+launch is the first one that can show point mode.
+
+**Crash, one theory killed:** the corpse-cleanup `Refr pointer expired` path is not involved - the crashing run
+(`_server-logs\server-20260920-003210.log`) contains zero such lines. That run logs a clean disconnect at
+00:32:09.34, one tick summary at 00:32:10.95, then 40 s of silence before the heap-corruption exit at 00:32:51.09.
+The 09-17 access violation (14:31:39) has **no surviving log** - its run was rotated out of `_server-logs`, so
+there is one data point, not a pattern. Nothing more is learnable without a dump.
+
+## Added 2026-09-20 (early): skill point system, phases 0 and 1 of the engine
+
+- [x] **Phase 0, credit-rate logging, LIVE in the bundle** (`masterySystem.ts`): one line per 15 minutes with
+  events by kind, points credited by skill, characters involved, and how many events came from a character
+  with no skill chosen. Nothing about crediting changed. This exists because every events-per-hour number in
+  `SKILLS_DESIGN.md` is an estimate; one evening of real play replaces the guesses. Built, deployed and booted
+  clean (0 errors beyond the known boot noise), then the server was stopped at the owner's request.
+- [x] **The point arithmetic, as a tested module** (`fork\skymp5-server\ts\systems\skillPoints.ts`): levels and
+  bands, xp per unit by band, the token bucket, daily caps, repetition decay on a persisted ring, structural
+  caps (one Seat above 90, three above 75), donor selection for pool overflow, `applyGain` over a whole record,
+  first touch, the derived `order`/`rank` shim, and the migration from the hours record. Kept pure and separate
+  from `masterySystem.ts` so it can be exercised with no server: **110 checks in `server\tests\skillPoints.test.js`**
+  (`node server\tests\skillPoints.test.js <bundled skillPoints.js>`; bundle it with
+  `./node_modules/.bin/esbuild ts/systems/skillPoints.ts --bundle --platform=node --format=cjs --outfile=...`).
+  Confirmed against the design's own numbers: 250/750/1750/2950/3950/5950 units per band edge, 8.3 to 198 hours
+  saturated, 90->95 at least 17 days and 95->100 at least 34 at the Master daily cap, and every live character
+  migrating into exactly the tier it already holds (10h->27, 70h->79, 150h->96, three maxed skills = 288 of 300).
+- [x] **Wired into `masterySystem.ts` behind `pointSystem.enabled` in skills.json, which is OFF**: the live
+  three-chosen-skills ladder is untouched until it is flipped. What the flag turns on: record v2 with lazy
+  migration inside `read()` (hours to levels at 30 units an hour, locks set to raise for the old chosen skills
+  and hold for the rest, `granted`/`respecs` carried over); `creditPoints` replacing the hourly tick, which tests
+  every skill that could match the act through a new kind-to-skills index, weighs it, applies repetition decay
+  from the persisted ring, meters it through the bucket and the daily caps, and takes pool overflow from a skill
+  marked to fall; first touch at a gated station taking up a trade for one level instead of refusing; and
+  `order`/`rank` written as derived fields on every save, so `gamemode.js`, `labour.js` and `dungeons.js` need no
+  change. `rankFor` returns the band of the level when the flag is on.
+- [x] Verified: type-check clean, 110 maths checks pass, and the server boots clean both ways (flag off reports
+  "3 chosen, tiers at 0/10/30/70/150h"; flag on reports "point system ON: pool 300, cap 100, one skill over 90,
+  3 over 75"), zero errors beyond the known boot noise in each. The bundle is deployed and the flag is off.
+- [x] **The K menu was rebuilt for point mode and the flag is now ON** (`pointSystem.enabled: true`). The menu
+  shows spokes of the Wheel out of 300, per-skill levels with a moon glyph, the level with a progress bar, three
+  locks (Waxing / Held / Waning, after Masser and Secunda) and a level ladder instead of hours. Server sends
+  `points` in `masteryMenu`, `masteryLock` sets a lock, and the client carries the field through all three hops.
+- [ ] **Not yet proven in game**: no point has been earned by a player. First session next: launch fresh, open K
+  (it must read "0/300 spokes"), use a forge or vein for first touch, work it for credits, then set a lock.
+- [ ] **A widget field must be copied in three places** or it silently vanishes: `sendMenu` (server),
+  `onCustomPacketMessage` mirror plus the `MasteryInfo` interface and its initialiser (client), and
+  `browsersideWidgetSetter` (client, no spread allowed). This cost two rebuilds and two relaunches tonight.
+  Memory note: `widget-payload-has-three-hops`.
+- [ ] **Native crash, unexplained**: exit -1073740940 (heap corruption) at 00:32:51, ~40 s after a logout, no JS
+  error. Watch for a repeat after logout; capture a dump rather than theorising.
+- [ ] Still true before the flag is trusted: the weights use base values only - the per-act inputs (product
+  value, target health, magicka cost, damage taken, ore band) are not wired, and the Phase 0 credit log is what
+  should tune them.
+
+## Added 2026-09-19 (late): four advertised-but-inert systems settled, each one measured
+
+The four bugs the competitive analysis calls "confirmed" were each re-confirmed independently before
+anything was touched, on an **isolated measuring server** (port 7790, the live `dist_back`, five base
+masters) driven by the real-protocol bot in `server\tools\bot`. Everything below is a wire measurement or a
+named line of C++, never an inference. The probe gamemodes and bot patches are throwaway and live in the
+session scratchpad; the bot gained three roles worth keeping if it is ever rebuilt: it can now send
+`UpdateEquipment` (needs `idx`, or the serializer throws), `OnHit` and `Host`.
+
+- [x] **1. Mastery's combat half now changes damage. Fixed, measured, live in the hot-reload layer.**
+  Confirmed inert first: `TES5DamageFormula` reads the weapon's base damage, the target's worn armour, the
+  race's unarmed damage and the client's power/sneak/block flags — no skill and no mastery record — and
+  `masterySystem`'s `SetActorValue` is a client-local snippet by the C++'s own admission. The audit's
+  proposed home for the fix does not work: `onHitDamageAttempt` is a veto (`FireHitDamageEvent` returns a
+  bool) and the engine applies its own number right after it. So `gamemode.js` notes the target's health in
+  the attempt hook and takes the tier's extra share off in `onHitDamage` with `mp.set(id,'percentages')`
+  (registered, server-side, delivered as `ChangeValues`). `MASTERY_DMG` is `{enabled, byTier:[0,0,.10,.20,
+  .30], log}`, overridable from `gamemode-config.json` under `"mastery": {"damage": {...}}`; the weapon is
+  classified from WEAP `DNAM[0]` exactly as `masterySystem` does, so only One-Handed, Two-Handed and Archery
+  count. **Before/after, same target, real weapon hits from a bot:** Novice 6.71 damage = 19.2% of health
+  per hit (100 -> 80.8 -> 61.6 -> 42.5); Master 6.72 engine damage dealt as 8.74 = 25.0% per hit (100 ->
+  75.0 -> 50.1 -> 25.1). **+30.1%.** The bonus is clamped so it can never land the killing blow — a
+  percentages kill reaches `MpActor::Kill` with no aggressor and champions, contracts and the mastery kill
+  credit all read the killer. Seen firing: fourth hit, bonus cut 2.0 -> 1.7, health left at exactly 1.00%,
+  and the engine's next hit took the kill.
+- [ ] **In-game pass for mastery damage**: two characters, one with a chosen weapon skill at Journeyman or
+  above, trade hits; `server.log` prints one `mastery damage <name> x1.30 on <name>: 6.7 + 2.0 (health ...)`
+  line per boosted hit. Set `"mastery": {"damage": {"log": false}}` once it is trusted.
+- [x] **2. Hunger's regen penalties now actually leave the server. Fixed, mechanism measured.**
+  `ModActorValue` is not in the registered Actor method table (`PapyrusActor.cpp` registers `SetActorValue`,
+  `RestoreActorValue`, `DamageActorValue`). Measured: the call logged `VirtualMachine::CallMethod - Method
+  not found - 'ModActorValue'`, returned null, threw nothing (so the JS catch never fired) and put nothing on
+  the wire, while `applyNeedsStage` recorded the penalty as applied. Every stage since the meter was built
+  changed only the HUD number. The audit's suggested fix — regen caps in the ChangeValues path — is not
+  reachable from JS either: `CropRegeneration` takes `max(baseValues.healRateMult, actorValues.healRateMult)`,
+  so a lowered actor value cannot pull regen below the vanilla base, and no `mp` property writes those rate
+  fields. `gamemode.js` now calls `SetActorValue` with an absolute `100 + stage%` and re-sends both rates on
+  **every** login (the client's own save keeps the last value written, so a player who logged out Starving
+  would otherwise keep a zeroed heal rate after eating). Measured: `SetActorValue` on the same actor arrives
+  at the client as `{"class":"Actor","function":"SetActorValue","arguments":["HealRateMult",50]}`. One
+  `needs <name> HealRateMult -> 50 (Hungry, -50%)` line per change in `server.log`. Honest limit: regen is
+  computed on the owner's client, so this is the engine executing a server verdict; the server's own ceiling
+  still caps a lying client, but a server-*enforced* cap needs C++.
+- [ ] **In-game pass for hunger**: `/sethunger #TAG 95`, then watch health and stamina crawl back after a
+  fight; expect the `needs ... -> 0 (Starving, -100%)` lines. Rejoin and confirm the rates are re-sent.
+- [x] **3. NPC arming never reached anybody, and the CHECKLIST was wrong to call it verified.** A spawned
+  `EncBandit01Melee1H` was given an iron sword and the exact `armLease` `EquipItem` call: the server's
+  `equipment` change form was identical before and after (`numChanges` 1) and **nothing** reached the client
+  — no SpSnippet, no UpdateEquipment, no SetInventory — while the same call on a player produced both. The
+  mechanism is `SpSnippet::Execute`, which returns without sending for any actor that is not "created as
+  player" (`formId >= 0xff000000 && baseId <= 0x7`); a spawned NPC's baseId is its NPC_ record. The old
+  `armed` log lines only ever proved the JS ran. `dungeons.js` `armLease` now writes the inventory, drops the
+  two dead Papyrus calls, and logs `armed ... (inventory; worn on the next host grant)`. See the two
+  corrected entries further down this file (2026-09-15 and 2026-09-18).
+- [x] **Found while testing it: a reproducible server segfault on the host-grant path (C++, one line).**
+  `ActionListener::OnHostAttempt` writes `partOne.worldState.lastMovUpdateByIdx[remoteIdx] = now` at
+  `ActionListener.cpp:1113` with no bounds check; the identical write in `OnUpdateMovement` (`:502-506`)
+  resizes first, and movement updates are the only thing that ever grows that vector. Granting host of a
+  reference whose idx is past the end is therefore an out-of-bounds vector write. Reproduced twice, both
+  times a segfault about 30 ms after `Hoster of ff000001 changed from 0 to ...`: once with a spawned NPC
+  (idx 61, vector length 1) and once with a placed **non-actor** (idx 61), which never reaches
+  `EquipBestWeapon` and so rules that out as the cause. This is the likely identity of the open "segfault on
+  granting host of a summon". Fix: resize exactly as `OnUpdateMovement` does.
+- [ ] **C++ task queued with it: make server-side equipment reach clients** (`SERVER_AUTHORITY.md`
+  migration 14). `MpActor::EquipBestWeapon` is the only function that turns inventory into worn equipment and
+  fans `UpdateEquipmentMessage` out to every listener, and today it runs only at actor Init and on a host
+  (re)grant — the crash above sits on that same path, so both belong in one session. Until then a spawned
+  NPC's added weapon becomes visible only if a client takes the actor over after the inventory write.
+- [x] **4. The third docs-vs-code contradiction (stamina/magicka on remote clones): the code was right, the
+  CHECKLIST entry was wrong, and today's correction to it is now verified too.** Measured both halves on the
+  wire. Old path: the bot sends `staminaPercentage` and `magickaPercentage` in its movement and the copy that
+  reaches another client carries `['direction','healthPercentage','isBlocking','isDead','isInJumpState',
+  'isSneaking','isWeapDrawn','pos','rot','runMode','speed','worldOrCell']` — both fields dropped by the C++
+  serializer, exactly as the 2026-09-18 entry was corrected to say. New path: the observer bot receives
+  `dboVitals` for the mover, `{"v":[4278190083,30,66]}` then 24, 18, 12, 6 as the mover ramped its stamina
+  down. The relay works; no doc change needed beyond this confirmation.
+
+## Added 2026-09-19 (late): SKILLS_DESIGN.md rewritten, two skills.json bugs fixed
+
+- [x] **`server\SKILLS_DESIGN.md` replaced** with the point-system design the owner asked for (use-based
+  0-100 per skill, pool 300, one skill above 90, gains only from server-verified events through a token
+  bucket, no offline decay, five tiers kept as bands so every existing gate still works). Designed by three
+  agents from different angles, scored by three judges, written against a read-only pass over the live code.
+- [x] **Mining could be farmed for free** (`skills.json`): Bruma holds 169 `PickaxeMining*` FURN markers and
+  `PickaxeMining` was in the Miner's `counts.activatePrefixes`, so a bare activation credited the skill with
+  no minigame and no ore. Removed from `counts`, kept in `gates.stations` so the markers stay miner-only.
+  **Needs a server restart** to take effect: `masterySystem.ts` reads skills.json at boot, not on reload.
+- [x] **Ore tiers corrected** (`skills.json`, live on reload through `labour.js`): ebony was reachable at
+  tier 3 (Expert) and is now Master-only; gold appeared in no tier at all, so Bruma's 22 gold veins refused
+  every miner, and it now sits at tier 2 with orichalcum and moonstone. Tin is in no plugin, so it is not listed.
+- [ ] **Correction to an earlier note**: Cyrodiil is not ebony-free and mining in Bruma is not copper-only
+  (`CHECKLIST.md` said so). Beyond Skyrim places vanilla iron (120), corundum (66), silver (52), moonstone (28),
+  gold (22), copper (14), malachite (12) and **ebony (4 refs, 2 veins) in `CYRRedRubyCave01`** - already a
+  leased vampire lair. Tell players there is one ebony seam in the province rather than none.
+- [ ] Blocking the "ebony and daedric are crafted only" rule: **no recipe carries a `HasSpell` condition yet**.
+  All 85 marker spells exist in DLE, but nothing gates a forge recipe on them, so the crafting side is unenforced.
+
+## Added 2026-09-19 (evening): swinging-axe trap arches re-enabled (plugin edit, NOT yet deployed)
+
+Reported in game as "walls moving where the swinging axe trap should be, there's nothing there".
+- [x] **Cause**: the blocker pass disabled and sank (z -30000) the arch a swinging blade hangs in
+  (`STAT NorHallExSmPortcullis01`) along with the lever gates, while leaving every blade
+  (`ACTI TrapBladeSwinging01`, 130 refs, none disabled) live. Axes swing in a bare corridor.
+  The arch is the housing, the grate is a separate animated `NorPortcullis`: 39 of the 151 arches have
+  their own gate at the same x,y, and a blade cannot swing through a solid panel.
+- [x] **Fixed** with `ck-mcp\restore_axe_arches.py --apply` (2026-09-19 19:0x): removed DLE's override of the
+  **45 arches that sit where a live blade swings** (15 cells: 3 + 3 in Bleak Falls Barrow, 5 Dawnguard,
+  3 Solstheim, the rest Skyrim), so the vanilla record wins again - enabled, original z, same position,
+  rotation, scale. Each target is re-derived from the records at run time and must be a two-version chain
+  whose override differs from vanilla only in the disabled flag and z. DLE 29,287 -> 29,242 records; validate
+  ok, HEDR matches, 0 unresolvable form ids; inventory diff shows exactly 45 removed, nothing else altered.
+  Backup in `ckmcp-backups`.
+- [x] **Gate grates stay out** as the user asked: 147 `NorPortcullis` and 39 `NorPortcullisLarge01` still
+  disabled. The **75 arches with no blade** at their spot were left alone (27 are housings for a removed gate;
+  the rest may block a route) - revisit only if something looks wrong in game.
+- [x] **Deployed 2026-09-19 23:2x**: both servers and the loadtest harness stopped (they hold the plugin open),
+  then the dev copy copied over `server\data\`. All three paths are md5 `23deb7f4`, 3,986,835 bytes.
+  Note `tools\loadtest\sandbox\data\DragonBreak Online Edits.esp` is a **hard link** to `server\data\`'s copy
+  (one inode, two links), so the sandbox always sees the same file - and its `server-settings.json` carries the
+  full 105-plugin load order, so both servers lock the plugin while they run.
+- [ ] **Restart (user)**: `server\run-logged.cmd`, then relaunch the client and check Bleak Falls Barrow's axe
+  corridor. The arches are statics, so the client's copy is what shows them.
+- [ ] **Still open**: the pale blue panel in the two screenshots is NOT this and is unidentified. Ruled out:
+  DragonBreak curation (Toadstool Hollow has no overrides at all), broken trap/marker/fog meshes (no loose
+  copies), a missing black-plane texture (`textures\Black.dds` is in Skyrim - Textures0.bsa). Need `/whereami`
+  standing at one, then `refs_near`.
+
+## Added 2026-09-19 (late): province-locked loot, and two live loot bugs fixed (LIVE 23:01)
+
+- [x] **`ck-mcp\loot.py` now tags every entry with `p` = the provinces it may be looted or made in**, and
+  includes Beyond Skyrim items for the first time (the old `VANILLA` set had none, so Bruma chests held only
+  Skyrim and Solstheim gear). A missing `p` means Tamriel-wide, so an older `loot.json` still works. The rule is
+  ordered: explicit exceptions, then culture marks in the editor id, then the material keyword family, then the
+  origin plugin — **material cannot come first** (`ForswornSword` carries `WeapMaterialIron`) and origin cannot
+  decide alone (BS hands out vanilla iron and steel in Bruma).
+- [x] **Beyond Skyrim's own distribution is the authority for Cyrodiil**: the generator flattens every LVLI,
+  CONT, NPC_ and OTFT owned by BSHeartland/BSAssets plus everything placed in BS cells (5,009 roots to 7,153 leaf
+  items) and unions `cyrodiil` onto them. Without it, vanilla items with no material keyword fell through to
+  Skyrim and Bruma lost 544 records BS itself distributes, including Nirnroot, the Amulets of the Nine and every
+  staff. It cannot import Solstheim: zero Dragonborn.esm records appear in BS lists.
+- [x] **`server\dungeons.js` filters by province and by context**: chest, urn and corpse loot and `weaponFor` /
+  `arrowFor` all draw through `lootOk(lease)`. Three context rules: the one Cyrodiil nordic ruin
+  (CYRNorthfringeSanctum) admits draugr gear, Ayleid and Ancient Imperial arms appear only in Ayleid ruins (Anga,
+  Rielle, Sedor, Vilverin), goblin gear only in goblin dens (Silvertooth). A faction's own gear bypasses the
+  province test, but the filter is applied to the whole weapon pool first, so an empty faction filter can no
+  longer fall back to Solstheim weapons in Bruma.
+- [x] **Live bug: no potion dropped from any chest at any difficulty.** The generator admitted an ALCH only if
+  its editor id contained "potion", but vanilla potions are `RestoreHealth01`, `CureDisease`; the 37-record pool
+  was all junk and `potionPool` returned an empty array at all four tiers. Potions are now admitted by name
+  pattern and ranked numerically (01 Minor to 06 Ultimate, Resist 25/50/75/100): tiers per province now 5 / 8 /
+  138 / 151.
+- [x] **Live bug: 149 non-playable records were being handed out as chest loot** (house-building tokens, Dremora
+  gear, gags). The record header's Non-Playable flag is now honoured, along with prop/dev-leftover and
+  quest/unique filters that are prefix-tolerant for BS ids (the Cloud Ruler Blades swords were reachable).
+  County guard livery, order regalia and the 53-weapon Akaviri pack are held out of generic chests.
+- [x] `GEAR_BY_DIFF.story` 45 -> 60: the cheapest two-hander is IronGreatsword at 50, so Novice two-handed NPCs
+  had an empty weapon band (true before this change too).
+- [x] Checks: generator output is byte-identical to the reviewing agent's independent build except one food item;
+  a simulation of the real draw code over six province/context cases at every difficulty had 0 out-of-province
+  items and no empty pool. Reviews: one data, one lore, then a full revision that re-measured everything.
+- [ ] Owner decisions still open: Dawnguard gear stays out of Cyrodiil although BS dresses its own Bruma vampires
+  in 19 of those pieces (two Bruma dungeons are vampire lairs) — deleting `|^DLC1` from `OVERLAY_DENY` admits
+  exactly those; the Akaviri pack needs a deliberate home (admin catalog, vendor or a Cloud Ruler relic source);
+  out-of-province gear on vendors at a markup when vendors exist.
+
+## Added 2026-09-19 (evening): movement rate validation in C++ (built, NOT deployed, NOT measured)
+
+Closes the top half of `SERVER_AUTHORITY.md` migration 2. Branch `movement-rate-validation`; it is C++, so it
+needs a CI flatrim build and only `scam_native.node` is copied out of the artifact (see the deploy note below).
+
+- [x] **The check.** `MovementValidation` keeps, per player actor, the last position it accepted and a token
+  bucket of allowance that refills at the speed ceiling. A packet spends the distance it claims; one that
+  cannot pay is refused with the existing `isMe` snap-back (one per 250 ms), and refusals are logged at most
+  once per 5 s per actor with a count. Horizontal, up and down budgets are separate. The 4096-unit single
+  packet cap and the cell check are unchanged and still run first.
+- [x] **Server teleports do not trip it.** A teleport is detected by the server's own position having moved
+  since the last accepted packet, which covers `MpActor::Teleport` (every `mp.set locationalData`, Papyrus
+  MoveTo), door activation, respawn and the login change-form load without hooking any of them. It reseeds
+  the bucket at the destination and opens a 5 s grace in which the player's in-flight packets from the old
+  spot are dropped WITHOUT a snap-back, which also fixes the old race where such a packet reverted the
+  server's position. The carry/restraint slide renews the grace on every move, so it never rubber-bands.
+- [x] **Hosted NPCs are left alone** (`isMe` only): refusing an NPC's move with no correction path is exactly
+  the frozen-copy, unkillable-enemy bug in C++ task 1 below. Fix that first, then consider NPCs here.
+- [x] **A player's own movement is validated before it is relayed** (`SendToNeighbours` used to run first), so
+  a refused packet no longer reaches other clients. Hosted actors keep the old order.
+- [x] **Ceilings come from the game data, not a guess** (`ck-mcp` load order, MOVT records): the player's own
+  movement types are `NPC_Default_MT` 370 u/s run / 80 walk and `NPC_Sprinting_MT` 500 forward;
+  `Horse_Default_MT` 450 run and `Horse_Sprint_MT` 600 are the fastest a player can legitimately be;
+  `WerewolfBeastSprint_MT` 531, `VampireLordSprint_MT` 600. `fJumpFallVelocityMin` 700 is where fall damage
+  starts. First ceiling: 1000 horizontal, 2000 up, 4000 down, 3 s burst.
+- [x] **Tunable without a rebuild**: `server-settings.json` `movementValidation` (live file, read at boot).
+  Shipping with `"enforce": false`, which logs "would refuse" and changes nothing, plus `peakLogFraction` 0.5
+  so every player peak above 500 u/s is logged for calibration.
+- [ ] **Measure (user, in game).** `server\movetrace.js` is loaded and records per-player speed from the
+  server's accepted positions: `/mv <label>` before each activity (walk, run, sprint, sneak, jump, fall,
+  shout, door, tp, dungeon, bounce), `/mv report` at the end. Output: `movetrace` lines in `server.log` and
+  `server\_diagnostics\movetrace.json`. Delete `movetrace.js` and its require block in `gamemode.js` after.
+- [ ] **Then set the real ceiling** from the measured maxima plus lag slack, flip `"enforce": true`, restart.
+- [ ] **Deploy note**: take ONLY `scam_native.node` from the CI `server-dist` artifact into `server\` (back up
+  the old one first). Do NOT copy `dist_back\` from the artifact: the bundle now running was built with
+  another session's uncommitted `npcSpawnSystem.ts` fix, which is not on the branch.
+- [ ] **In-game test list after deploy**: sprint, a long fall, a horse if one exists, a door both ways, `/tp`,
+  an F7 Locations jump, a dungeon claim (party move), the Pale Pass bounce, and a carry/restrain. Watch for
+  `MovementValidation:` lines in `server.log` and for any rubber-banding.
+
+## Added 2026-09-19 (evening): labour and skinning rounds are issued and judged by the server (LIVE 18:30, needs a client relaunch)
+
+SERVER_AUTHORITY.md migration 7, both halves. Each widget used to roll its own band or seam and report a
+count, so the server could only check that the count had not arrived too fast: in labour, waiting
+`strikes * 350 ms` and claiming a perfect round won at any tier; skinning was weaker still, taking the pelt
+for three cuts claimed after 1.5 s, with no clamp at all and the slips computed in the widget and never sent.
+Both rounds are the server's now, in the same shape.
+
+- [x] **The server issues the round** (`server\labour.js`): a 32-bit seed from `crypto`, the band centre for
+  every strike derived from it with mulberry32, the sweep, the round length and both staggers go out in the
+  widget packet (`bands`, `sweepMs`, `totalMs`, `hitMs`, `missMs`). Nothing in the packet says where a strike
+  should fall or whether one landed. The seed is in every verdict line, so a round can be rebuilt from the log.
+- [x] **The widget reports evidence, not a score** (`fork\skymp5-front\src\features\labour\index.tsx`): it sends
+  `JSON.stringify(strikeMs)` — the millisecond of every strike it took, hit or miss — plus its own clock at the
+  moment it submitted. The server replays the sweep at those milliseconds, counts the hits against its own band
+  list and pays from that count.
+- [x] **The verdict is the same number the player saw**: both sides run the identical `markerAt()` on the same
+  integer millisecond, and the widget times a strike at the frame on screen rather than at the keypress, so
+  there is no latency term in the scoring and no tolerance to tune. Verified end to end: the built bundle driven
+  in a browser, its real report judged by the real module, agreed strike for strike (`hit,miss,hit,miss,hit,hit,
+  hit,miss,hit`, 6/6) — and 40 randomly played rounds in the harness never disagreed once.
+- [x] **Impossible reports are refused and logged**: strikes inside the stagger (`cooldown`), after the round was
+  already won (`extra`), outside `0..totalMs` or not whole (`range`), more strikes than the stagger allows
+  (`flood`), a strike later than the report itself (`submit`), a clock that has seen more time pass than the
+  server has (`future`), a widget clock further behind the server's than transport can explain — slow motion or
+  a report from minutes ago (`late`), and unparseable payloads (`malformed`). A repeat of a judged nonce logs
+  `labour replay` and pays nothing.
+- [x] **An interface from before the change** (a hit count, no times) is refused with "Your interface is out of
+  date. Rejoin the server to pick up the new one." and costs no rest timer. **Every player must relaunch** to get
+  the new UI; until they do, mining and woodcutting refuse rather than pay.
+- [x] **One line per verdict** in `server.log`: `labour win Name #TAG mining/iron t3 6/6 of 9 last=12513 at=12518
+  lag=180 err=0.91 seed=4e4a46e4`. `err` is the mean distance of the landed strikes from the band centre, 0 dead
+  centre to 1 at the edge. Played by hand it wanders (0.4-0.9); a script that aims lands on 0.00 every round, and
+  one that takes the first feasible millisecond lands on 1.00 every round. Neither is a hand.
+- [x] **Rounds survive a gamemode reload** (`globalThis.__dboLabourRounds`) and expire on their own, so a report
+  that never comes back no longer locks the player out of that seam for the rest of the session.
+- [x] **Skinning got the same treatment** (`server\gamemode.js` 1575-1701, widget `skinning`): `skinRound()` rolls
+  the seed and the seam for every cut, `skinPacket()` sends the seams, the blade's period and the time limit, and
+  `judgeSkin()` replays the blade at the cut times the widget reports. The widget now reports every cut it took,
+  so the slips are counted here instead of being invisible to the server. Same refusals as labour plus `order`
+  (this game has no stagger, so order is the only rule between cuts); the corpse checks — already skinned, pelts
+  still on it, within 400 units — are unchanged and still run after the judge. Tier curves are untouched: tier 1
+  is a 0.12 seam and an 870 ms blade, tier 5 a 0.26 seam and 1493 ms. Verdict line: `skinning win Name #TAG wolf
+  t3 3/3 cuts 1 slips of 4 last=4104 at=4113 lag=150 err=0.60 seed=aa6ea4d7 -> wolf pelt`. Noticed while
+  working on it, not fixed: `SKIN_WIDGET_ID` and labour's `WIDGET_ID` are both 33, so the `close` event from one
+  clears the other's session. Harmless today because a vein and a corpse cannot be activated at once, but a
+  third widget on 33 would not be.
+- [x] **Deployed**: `labour.js` and `gamemode.js` both live, last reload 18:30 and clean; front rebuilt and copied
+  to `Skyrim Special Edition - dev\Data\Platform\UI\` and `server\client-dist\Data\Platform\UI\` (previous bundles
+  in `_ui-build-backups\before-labour-verdicts-20260919-181035\` and `...\before-skinning-verdicts-20260919-183015\`).
+  The reload nudges left a few more blank lines at the end of `gamemode.js`, which another session had open.
+- [x] **Regression tests**, no server and no game: `node tests\labour-harness.js` (32 checks) loads the real
+  module with a mock api and plays rounds the way the widget does; `node tests\skinning-harness.js` (23 checks)
+  lifts `skinRng`, `bladeAt`, `skinRound`, `skinPacket` and `judgeSkin` straight out of `gamemode.js` and runs
+  them in a sandbox, because that file cannot be required without a live `mp`. Both fire the forgeries above.
+  60 simulated skinning attempts across the tiers, no disagreement; the built widget driven in a browser agreed
+  cut for cut on a clean run (3/3) and on a mixed one (`clean,slip,clean,slip,slip`, 2 cuts 3 slips, a loss).
+- [ ] **Tune the lag grace from a playtest** (`cfg.labour.lagGraceMs` and `cfg.skinning.lagGraceMs`, both 2500 ms,
+  the old labour grace kept unchanged). It is the one number still unmeasured in game: how far behind the server's
+  clock the widget's may sit — the packet out, the mount, the report back. The browser's own share measured 5-9 ms
+  plus up to one 16 ms frame (six runs against the built bundle in Chromium); the two network legs and the
+  client's frame pacing need a real round. Read `lag=` out of a playtest's verdict lines and lower both to
+  comfortably above the worst honest value. It is what bounds drawing the round out in real time and scaling the
+  reported times back down, and it bites hardest in skinning, where an attempt is short: the harness prints the
+  exposure — at 2500 ms a 3.1 s attempt can be stretched to 5.6 s, a 1.8x slower blade.
+
 ## Added 2026-09-19 (evening): four dungeon-survey bugs fixed, dungeons.json and wildlife.json regenerated (LIVE 19:01)
 
 Placements 4,244 -> 3,500 in `server\dungeons.json` and 3,329 -> 3,185 in `server\wildlife.json`. Full
@@ -185,15 +804,36 @@ Step 2 (ff_factions) is deployed and needs an in-game pass; the user chose it af
   "armed" lines were Serpent's Trail 09-17 and one Anga lease today at 10:41, which made the first call), and
   no "cleared" ends (every Anga lease ended "left"). Both now go through `spawnerTag`, which remembers ids that
   throw. Do not use getAllForms for liveness until the C++ cache is invalidated on AddForm.
-- [ ] **Red Ruby Cave blockers** (user 14:30: "a blocked off door activated with a chain"): `BSHeartland.esm:083DBD`
-  `CYRMineSecretDoor`, opened by pull chains `0885AC`/`0885B3`, gets sunk in DLE with `DBO_BrumaInteriors.pas`
-  (op `sink`). Waiting on the game being closed, because Skyrim holds the dev DLE. Also chain-driven there and
-  left alone: `083F5B` `NorRetractableBridge01NONAVCUT` (chain `083F8E`). Sinking a bridge leaves a gap; ask the
-  user if it blocks the way.
-- [ ] **Dev DLE and `server\data` DLE differ**: the dev copy was saved 2026-09-18 15:57 (240 records added,
-  1,082 changed: Falkreath sawmill, notice board refs, Whiterun cells, 85 SPEL, 48 QUST, one NAVM). The server
-  copy is still 2026-09-16 20:41. Not recorded anywhere; the user decides whether it ships.
-- Still not covered: ambush packages (1,086 slots), outfits (618), spells (280). Separate follow-ups.
+- [x] **Red Ruby Cave chain door removed 2026-09-19 18:06** (user 14:30: "a blocked off door activated with a
+  chain"): `BSHeartland.esm:083DBD` `CYRMineSecretDoor`, opened by pull chains `0885AC`/`0885B3`, is now
+  Initially Disabled at Z -30000 in DLE, XESP absent, via `DBO_BrumaInteriors.pas` op `sink` (result kept as
+  `Edit Scripts\DBO_BrumaInteriors_result.redruby.txt`, one-line list as `DBO_BrumaInteriorsList.txt.redruby-run`,
+  the 28-line Vilverin list restored). DLE 3,988,898 -> 3,991,389 bytes, 52 masters unchanged, MCP validate ok,
+  deleted_records 2521 unchanged. Backup `server\_ckmcp-dle-backup-redruby-20260919-180400\`. The 09-16 pass
+  missed it because it is an ACTI, not a DOOR, and the gate sweeps keyed on door and portcullis bases.
+  **Dev copy only so far**; `server\data` not touched, see the next item.
+- [ ] Also chain-driven in that cave and left alone: `083F5B` `NorRetractableBridge01NONAVCUT` (chain `083F8E`),
+  over the water at [-347, -4208, -884]. Sinking a bridge leaves a gap, so it needs a different fix if it blocks
+  the way. User to confirm.
+- [x] **DLE synced to the server and node restarted 18:22** (user's call). `server\data\DragonBreak Online
+  Edits.esp` was still the 2026-09-16 20:41 copy; the dev copy carried the user's unrecorded 2026-09-18 15:57
+  save (240 records added, 1,082 changed: Falkreath sawmill, notice board refs, Whiterun cells, 85 SPEL,
+  48 QUST, one NAVM) plus the Red Ruby door. Both are now md5 eee55dce. Previous server copy in
+  `server\_ckmcp-dle-backup-serverdata-20260919-182005\`. Of the 110 plugins in `server\data`, DLE was the only
+  one whose content differed; HIMBO.esp and the two RaceMenuMorphs plugins exist only on the server side.
+  Boot clean at 18:22: VitalsRelaySystem up, 3,185 wildlife zones, 19 pool families, playtest lock on,
+  `dungeon faction audit: 390 of 3501 placements`. The 18 `resolved context` errors at 18:22:14 are the
+  companion sweep reading last run's ids, the known noise family, not new.
+- [ ] **The Steam install and Jake's server still carry the older DLE.** Clients and server must hold the same
+  file, so they need this one before anyone connects from there. Run `server\sync-plugins.cmd` with Vortex
+  closed before the next client test.
+- Note: the server now runs detached (`cmd /c run-logged.cmd`, node PID 30124), not as a background task of a
+  Claude session, so it survives the session ending. `server-exit.log` records how it stops.
+- **Counts re-measured 18:12 over the regenerated `dungeons.json`** (3,501 placements after the survey session
+  dropped Starts Dead and enable-parent placements): 398 slots in 155 placement kinds lose their template's
+  factions, 967 lose AI packages, 994 AI data, 910 scripts, 460 inventory/outfit, 244 spells. The earlier
+  503/1,086/618/978/280 figures were over the old 4,244-placement file.
+- Still not covered: ambush packages (967 slots), outfits (460), spells (244). Separate follow-ups.
 
 Step 1 (verify), done before step 2:
 - [x] **Record data confirms it.** `dungeons.js` spawns the concrete NPC_ that a placement's leveled list resolves
@@ -302,6 +942,9 @@ Step 1 (verify), done before step 2:
   `weaponFor` the spawned record's editor id with the kind, so `EncBandit03Boss2HNordM` gets a two-hander. Checked
   on every boss, wizard and missile list: 35 two-handed bosses -> greatswords/axes/hammers, mages -> daggers,
   archers -> bows. Live 14:13.
+  **CORRECTED 2026-09-19 (late): the weapon choice is right, the delivery was not.** `armLease` set the
+  inventory and called Papyrus EquipItem, which SpSnippet drops for every server-spawned actor, so no client
+  ever saw any of it. Measured on the probe server; see the block at the top of this file.
 
 ## Added 2026-09-18 (afternoon): vitals fluidity, NPC variety, difficulty rename
 
@@ -548,7 +1191,7 @@ Do these in order; each stands alone and is testable on its own.
 - [x] Voice: the server has no voiceChat settings, so voice chat itself is off (V does not transmit). The client used to set the voice mode only when a voice server answered, which made Left Alt do nothing; it now starts from the saved mode or Normal. The old TALK banner image is retired; the status panel's voice row lights up while V is held and shows Whisper / Normal / Yell with an L-Alt hint.
 - [x] Vanilla health/magicka/stamina meters are forced to alpha 0 every frame while our vitals are on (they faded back in on sprint). Paths: _root.HUDMovieBaseInstance.Health/Magica/Stamina.
 - [x] Vitals bars 300x16 (were 240x12); watermark opacity 62% (was 45%).
-- [x] Unarmed dungeon enemies: every 2 s dungeons.js checks each new humanoid spawn of a lease and, if it has no weapon, gives one fitting its placement (archer: bow + 30 arrows; two-hander: greatsword/battleaxe/warhammer; caster: dagger; else sword/war axe/mace; draugr, falmer, forsworn get their own kind) within the difficulty band, then EquipItem. Logged as "armed".
+- [x] Unarmed dungeon enemies: every 2 s dungeons.js checks each new humanoid spawn of a lease and, if it has no weapon, gives one fitting its placement (archer: bow + 30 arrows; two-hander: greatsword/battleaxe/warhammer; caster: dagger; else sword/war axe/mace; draugr, falmer, forsworn get their own kind) within the difficulty band, then EquipItem. Logged as "armed". **CORRECTED 2026-09-19 (late): the EquipItem half reached nobody** (SpSnippet is dropped for actors that are not created as player), so unarmed enemies stayed unarmed on every screen unless a host grant happened after the inventory write. The "armed" log line only proved the JS ran. See the block at the top of this file.
 - [x] Launcher icon: hourglass on a dark teal rounded tile (serverranding\launcher-icon.png, all Windows sizes in skymp5-launcherssets\icon.ico, old one kept as launcher-icon-old.ico). The source is watermark.png with the lettering cropped away; the plain line-art hourglass from chat is not on disk. Launcher rebuilt; previous exe kept as DragonBreakLauncher.exe.before-icon-*.bak.
 - [ ] Voice chat needs a LiveKit server and `voiceChat` settings before V transmits anything.
 

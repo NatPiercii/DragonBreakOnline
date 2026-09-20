@@ -15,6 +15,26 @@
     70,
     150
   ],
+  "_pointSystemComment": "The use-based point system from server/SKILLS_DESIGN.md. While enabled is false the server runs the three-chosen-skills ladder above and nothing here is read. Turning it on converts each character's record the first time it is read: hours become levels at 30 units an hour, so everyone lands in the tier they already hold. pool is the total levels one character may hold across all skills, capPerSkill the ceiling for one, seatAbove/seatCount the Seat rule (how many skills may pass 90), expertAbove/expertCount the same for 75, transferFloor the level no skill falls below when another takes from it, bucketBurst/bucketPerHour the token bucket that caps work per hour, dailyCaps the per-skill ceiling per day by band, characterDaily the whole character's.",
+  "pointSystem": {
+    "enabled": true,
+    "pool": 300,
+    "capPerSkill": 100,
+    "seatAbove": 90,
+    "seatCount": 1,
+    "expertAbove": 75,
+    "expertCount": 3,
+    "transferFloor": 25,
+    "firstTouchCost": 1,
+    "bucketBurst": 20,
+    "bucketPerHour": 30,
+    "dailyCaps": {
+      "low": 360,
+      "expert": 180,
+      "master": 60
+    },
+    "characterDaily": 1080
+  },
   "swapCooldownDays": 7,
   "categories": [
     {
@@ -221,6 +241,41 @@
       "studyAt": "spellStudyPoints"
     },
     {
+      "id": "unarmed",
+      "category": "combat",
+      "label": "Unarmed",
+      "title": "The Closed Fist",
+      "description": "Fists, claws and the discipline to use them. The only skill that needs nothing in your hands, and the one a Khajiit is born into: the server already reads a Khajiit's claws as a weapon. Tiers raise unarmed damage and nothing else grows it.",
+      "vanillaSkills": [],
+      "counts": {
+        "hitKeywords": [
+          "ActorTypeNPC",
+          "ActorTypeAnimal",
+          "ActorTypeCreature",
+          "ActorTypeUndead",
+          "ActorTypeDaedra",
+          "ActorTypeDragon"
+        ],
+        "weaponTypes": [
+          "HandToHand"
+        ]
+      },
+      "tiers": [
+        "Bare-knuckle blows",
+        "Power attacks cost less",
+        "+10% damage",
+        "+20% damage, faster combinations",
+        "+30% damage, disarming strikes"
+      ],
+      "markerSpells": [
+        "<T1>",
+        "<T2>",
+        "<T3>",
+        "<T4>",
+        "<T5>"
+      ]
+    },
+    {
       "id": "blacksmith",
       "category": "profession",
       "label": "Blacksmith",
@@ -375,10 +430,10 @@
         ]
       },
       "counts": {
+        "_comment": "PickaxeMining is deliberately NOT here: Bruma has 169 PickaxeMining* FURN markers and a bare activation on one would credit the skill with no minigame and no ore. It stays in gates.stations so the markers remain miner-only.",
         "activatePrefixes": [
           "MineOre",
-          "CYRMineOre",
-          "PickaxeMining"
+          "CYRMineOre"
         ]
       },
       "oreByTier": [
@@ -393,15 +448,14 @@
         ],
         [
           "Orichalcum",
-          "Moonstone"
+          "Moonstone",
+          "Gold"
         ],
         [
-          "Ebony",
           "Malachite"
         ],
         [
-          "Ebony",
-          "Malachite"
+          "Ebony"
         ]
       ],
       "yieldMultiplierByTier": [

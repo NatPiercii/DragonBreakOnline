@@ -187,7 +187,10 @@ module.exports = (api) => {
     const ore = oreOf(String(rec.record.editorId || ''));
     if (!ore) return false;
     const tier = tierOf(casterId, 'miner');
-    if (tier < 0) return deny(casterId, 'Only a Miner can read a seam well enough to work it.');
+    // Not a miner yet: fall through rather than deny, so masterySystem's activation gate can grant
+    // first touch (SKILLS_DESIGN 5.3). deny() returns true, which makes gamemode.js:638 stop the
+    // activate chain before that gate ever runs - the skill could then never be opened at all.
+    if (tier < 0) return false;
     if (liveRound(casterId)) return true;
     if (!ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
     if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${titleCase(ore)} is beyond your skill. Work the seams you know first.`);
@@ -201,7 +204,7 @@ module.exports = (api) => {
 
   const chop = (targetId, casterId) => {
     const tier = tierOf(casterId, 'woodcutter');
-    if (tier < 0) return deny(casterId, 'Only a Woodcutter knows where to set the wedge.');
+    if (tier < 0) return false;   // same first-touch fall-through as mine()
     if (liveRound(casterId)) return true;
     const rests = restsOf(casterId, 'private.choppedBlocks');
     const until = Number(rests[targetId.toString(16)]) || 0;

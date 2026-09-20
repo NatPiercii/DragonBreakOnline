@@ -198,55 +198,91 @@ module.exports = (api) => {
   };
 
   // ---- chest loot -------------------------------------------------------------------------------
-  const pool = (name, maxValue) => (LOOT[name] || []).filter((it) => !maxValue || Number(it.value) <= maxValue);
-  // Potions by strength word, since the record value of auto-calculated potions is not the shown value.
-  const POTION_TIERS = [/minor/i, /^potion(restore|cure|resist)?(health|magicka|stamina|disease|poison|fire|frost|shock)?$|^potion(restore)?(health|magicka|stamina)01$/i, /plentiful|extra|vigorous|fortify/i, /./];
-  const potionPool = (tier) => {
-    const all = (LOOT.potions || []).filter((it) => !/^(TG|Blades|IVD|Default|DLC1Blood|DLC2dun|Markarth|MQ|dun|MS)/i.test(it.name));
-    const isRestore = (it) => /restore|health|magicka|stamina|cure|resist/i.test(it.name) && !/fortify|regen|larceny|stallion|vigor|extreme|ultimate/i.test(it.name);
-    if (tier <= 0) return all.filter((it) => isRestore(it) && /minor/i.test(it.name));
-    if (tier === 1) return all.filter((it) => isRestore(it) && !/plentiful|extra|vigorous|extreme|ultimate/i.test(it.name));
-    if (tier === 2) return all.filter((it) => !/extreme|ultimate/i.test(it.name));
-    return all;
+  // An item with no p is Tamriel-wide, so a loot.json generated before the province tag still works.
+  const hasProv = (it, prov) => !prov || !it.p || it.p.indexOf(prov) >= 0;
+  // Additive: gear a context admits although the province tag excludes it. Beyond Skyrim puts the whole
+  // draugr kit in CYRNorthfringeSanctum and nowhere else in its Cyrodiil.
+  const NORDIC_GEAR = /^(?:Ench)?(?:Armor)?(?:Draugr|AncientNord|NordHero)|^(?:Draugr|Falmer)Arrow$/;
+  // Restrictive: Cyrodiil gear that belongs to one kind of site only. Ayleid and Ancient Imperial arms are
+  // grave goods; goblin gear belongs on goblins. Ayleid jewellery is deliberately not here - it circulates
+  // as treasure, so CYREnchRing*Ayleid and CYREnchAmulet*Ayleid stay generally lootable.
+  const AYLEID_GEAR = /^(?:CYR(?:Ench)?Ayleid|BSKAyleidStaff|CYR(?:Ench)?AncientImperial)/;
+  const GOBLIN_GEAR = /^BSKGoblin|^CYRArmorGoblinShield/;
+  // dungeons.json already carries Beyond Skyrim's own location keywords, so no generator re-run is needed.
+  // Vilverin is an Ayleid ruin BS keyworded only as a cave, hence the id list.
+  const lootOk = (lease) => {
+    const prov = lease && lease.province;
+    const d = lease ? byId.get(lease.id) : null;
+    const kw = (d && d.keywords) || [];
+    const has = (re) => kw.some((k) => re.test(k));
+    const nordic = prov === 'cyrodiil' && ((d && d.type === 'nordic') || has(/NordicRuin|DraugrCrypt/i));
+    const ayleid = has(/Ayleid/i) || /^CYR(Anga|Rielle|Sedor|Vilverin)/i.test((d && d.id) || '');
+    const goblin = has(/GoblinDen/i);
+    return (it) => {
+      if (AYLEID_GEAR.test(it.name)) return ayleid;
+      if (GOBLIN_GEAR.test(it.name)) return goblin;
+      if (nordic && NORDIC_GEAR.test(it.name)) return true;
+      return hasProv(it, prov);
+    };
   };
+  const ALL_OK = () => true;
+  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
+  // Vanilla names potions by numeric strength, not by word: RestoreHealth01 is Minor, 03 Plentiful, 05
+  // Extreme, 06 Ultimate; Resist* uses 25/50/75/100. The old word-matching tiers returned an empty array at
+  // all four tiers against the live pool, so no potion dropped at any difficulty.
+  const POTION_RANK = /^(?:DLC1|DLC2)?(Restore(?:Health|Magicka|Stamina|All)|Fortify[A-Za-z]+|Resist(?:Fire|Frost|Shock|Magic|Poison|Disease)|Cure(?:Disease|Poison)|Invisibility|Waterbreathing)(\d*)$/i;
+  const rankOf = (name) => {
+    const m = POTION_RANK.exec(name); if (!m) return 0;
+    const n = Number(m[2] || 0);
+    if (n === 25) return 1; if (n === 50) return 2; if (n === 75) return 3; if (n === 100) return 4;
+    return n ? Math.min(n, 6) : 1;
+  };
+  const POTION_CAP = [1, 2, 4, 6];
+  const potionPool = (tier, ok) => (LOOT.potions || []).filter((it) => {
+    if (ok && !ok(it)) return false;
+    const r = rankOf(it.name); if (!r) return false;
+    if (tier <= 1 && !/^(?:DLC\d)?(Restore|Cure)/i.test(it.name)) return false;   // novice and adept: restoratives only
+    return r <= POTION_CAP[Math.min(tier, 3)];
+  });
   const SOUL_TIERS = [/petty/i, /petty|lesser/i, /petty|lesser|common/i, /./];
-  const soulPool = (tier) => (LOOT.soulgems || []).filter((it) => (SOUL_TIERS[Math.min(tier, 3)]).test(it.name) && (tier >= 3 || !/black|grand|greater/i.test(it.name)));
+  const soulPool = (tier, ok) => (LOOT.soulgems || []).filter((it) => (SOUL_TIERS[Math.min(tier, 3)]).test(it.name) && (tier >= 3 || !/black|grand|greater/i.test(it.name)) && (!ok || ok(it)));
   const addEntry = (entries, item, count) => { if (!item) return; const id = idOf(item.id); if (!id) return; const hit = entries.find((e) => e.baseId === id); if (hit) hit.count += count; else entries.push({ baseId: id, count }); };
-  const chestLoot = (diff, boss) => {
+  const chestLoot = (diff, boss, ok = ALL_OK) => {
     const entries = [];
     addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)));
-    if (boss || Math.random() < 0.45) addEntry(entries, pickFrom(potionPool(diff.potionTier)), rnd(1, 2));
-    if (boss && Math.random() < 0.7) addEntry(entries, pickFrom(potionPool(diff.potionTier)), 1);
-    if (Math.random() < 0.4) addEntry(entries, pickFrom(pool('ingredients', 0)), rnd(1, 3));
-    if (Math.random() < 0.25) addEntry(entries, pickFrom(pool('materials', 0)), rnd(1, 2));
-    if (diff.id !== 'story' && Math.random() < (boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear)), 1);
-    if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('arrows', 0)), rnd(5, 15));
-    if (Math.random() < 0.2) addEntry(entries, pickFrom(pool('lockpicks', 0)), rnd(1, 3));
-    if (diff.soulgem > 0 && Math.random() < diff.soulgem * (boss ? 2 : 1)) addEntry(entries, pickFrom(soulPool(diff.soulTier)), 1);
+    if (boss || Math.random() < 0.45) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), rnd(1, 2));
+    if (boss && Math.random() < 0.7) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
+    if (Math.random() < 0.4) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 3));
+    if (Math.random() < 0.25) addEntry(entries, pickFrom(pool('materials', 0, ok)), rnd(1, 2));
+    if (diff.id !== 'story' && Math.random() < (boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear, ok)), 1);
+    if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(5, 15));
+    if (Math.random() < 0.2) addEntry(entries, pickFrom(pool('lockpicks', 0, ok)), rnd(1, 3));
+    if (diff.soulgem > 0 && Math.random() < diff.soulgem * (boss ? 2 : 1)) addEntry(entries, pickFrom(soulPool(diff.soulTier, ok)), 1);
     const gearChance = boss ? 1 : 0.2;
-    if (Math.random() < gearChance) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'weapons' : 'armor', diff.gear)), 1);
+    if (Math.random() < gearChance) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'weapons' : 'armor', diff.gear, ok)), 1);
     const enchChance = boss ? diff.bossEnch : diff.ench;
-    if (enchChance > 0 && Math.random() < enchChance) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'ench_weapons' : 'ench_armor', diff.gear * 3)), 1);
+    if (enchChance > 0 && Math.random() < enchChance) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'ench_weapons' : 'ench_armor', diff.gear * 3, ok)), 1);
     return entries;
   };
   // Urns, sacks, barrels and the like: a little coin or food, now and then a potion or arrows
-  const smallLoot = (diff, edid) => {
+  const smallLoot = (diff, edid, ok = ALL_OK) => {
     const entries = [];
     const foodish = /food|barrel|basket|sack|cupboard|pantry|crate/i.test(edid || '');
     if (Math.random() < (foodish ? 0.25 : 0.5)) addEntry(entries, { id: 'f:Skyrim.esm' }, rnd(1, Math.max(2, diff.gold[0] * 2)));
-    if (Math.random() < (foodish ? 0.8 : 0.35)) addEntry(entries, pickFrom(pool('food', 0)), rnd(1, 2));
-    if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('ingredients', 0)), rnd(1, 2));
-    if (Math.random() < 0.15) addEntry(entries, pickFrom(potionPool(Math.max(0, diff.potionTier - 1))), 1);
-    if (Math.random() < 0.12) addEntry(entries, pickFrom(pool('arrows', 0)), rnd(3, 8));
+    if (Math.random() < (foodish ? 0.8 : 0.35)) addEntry(entries, pickFrom(pool('food', 0, ok)), rnd(1, 2));
+    if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 2));
+    if (Math.random() < 0.15) addEntry(entries, pickFrom(potionPool(Math.max(0, diff.potionTier - 1), ok)), 1);
+    if (Math.random() < 0.12) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(3, 8));
     if (!entries.length) addEntry(entries, { id: 'f:Skyrim.esm' }, rnd(1, 3));
     return entries;
   };
   const fillChests = (d, diff, lease) => {
     let filled = 0;
+    const ok = lootOk(lease);
     for (const ch of d.chests || []) {
       const id = idOf(ch.ref); if (!id) continue;
       const boss = /boss/i.test(ch.edid);
-      try { mp.set(id, 'inventory', { entries: ch.big ? chestLoot(diff, boss) : smallLoot(diff, ch.edid) }); filled++; } catch (e) { log('chest fill failed', ch.ref, e.message); }
+      try { mp.set(id, 'inventory', { entries: ch.big ? chestLoot(diff, boss, ok) : smallLoot(diff, ch.edid, ok) }); filled++; } catch (e) { log('chest fill failed', ch.ref, e.message); }
     }
     return filled;
   };
@@ -264,7 +300,7 @@ module.exports = (api) => {
     const leaderPid = profileOf(leaderActor);
     const members = new Set(partyMembers(leaderPid));
     const zones = zonesFor(d, diff);
-    const lease = { id: d.id, name: d.name, difficulty: diff.id, leader: leaderPid, members, startedAt: Date.now(), endsAt: Date.now() + C.leaseMinutes * 60000, warned: false, lastInsideAt: Date.now(), locked: new Map(), unlocked: new Set(), looted: new Set(), zones, totalNpcs: zones.reduce((n, z) => n + z.NPC[0].count, 0), seenNpcs: new Set(), deadNpcs: new Set(), entrance, province: provinceOfDungeon(d) };
+    const lease = { id: d.id, name: d.name, difficulty: diff.id, leader: leaderPid, members, startedAt: Date.now(), endsAt: Date.now() + C.leaseMinutes * 60000, warned: false, lastInsideAt: Date.now(), locked: new Map(), unlocked: new Set(), looted: new Set(), zones, totalNpcs: zones.reduce((n, z) => n + z.NPC[0].count, 0), seenNpcs: new Set(), deadNpcs: new Set(), entrance, province: (POOLS.provinces || {})[d.id] || provinceOfDungeon(d) };
     const share = Number((C.lockedShare || {})[diff.id]) || 0;
     const levels = LOCK_BY_DIFF[diff.id] || [];
     if (share > 0 && levels.length) {
@@ -373,27 +409,31 @@ module.exports = (api) => {
   const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ballista|ghost|dragon|frostbite|netch|riekling|ashhopper|ogre|minotaur|dreugh|gargoyle|werewolf|werebear|ashspawn|lurker|seeker|scamp|clannfear|daedroth|dragonpriest|horse|cow|chicken/i;
   const CASTER = /mage|wizard|sorcerer|warlock|necromancer|conjurer|witch|priest|cultist|shaman/i;
   const BAD_WEAPON = /dun|Favor|^FF|LD_|NPC$|Trap|^FX|Unarmed|POI|Freeform|DragonPriest|Giant|Lurker|Riekling|Nightingale|^MG|^T0|^C0|SSD|weapBasic|BYOH|Skyforge|Bound|Projectile|dlc2DB|Wrathman|Keeper|Ysgramor|Horksbane|Longhammer|Relic|Illusion|Pickaxe|Catapult|Ballista|Sphere|Knife|Fork|Scimitar|Executioner|Katana|Akaviri|Prelate|Aetherium|Dawnguard|^Axe01|Cross[Bb]ow|Stalhrim|Dragonbone|Daedric|Wooden|Follower|Imperial|Silver|NordHero|Honed|Supple|Enhanced|^MFD/;
-  const GEAR_BY_DIFF = { story: 45, normal: 110, hard: 300, nightmare: 1000 };
-  const weaponFor = (edid, diffId, province) => {
+  const GEAR_BY_DIFF = { story: 60, normal: 110, hard: 300, nightmare: 1000 };   // 60: IronGreatsword is 50, so story 45 left Novice two-handers empty
+  const weaponFor = (edid, diffId, lease) => {
     const e = String(edid || '');
-    let all = (LOOT.weapons || []).filter((w) => !BAD_WEAPON.test(w.name));
-    if (province !== 'solstheim') {
-      all = all.filter((w) => !w.id.endsWith('Dragonborn.esm') && !/^DLC2/i.test(w.name));
-    }
-    const faction = /draugr/i.test(e) ? /^Draugr/ : /falmer/i.test(e) ? /^Falmer/ : /forsworn/i.test(e) ? /^Forsworn/ : null;
+    // A draugr carries draugr steel and a goblin carries goblin iron wherever they stand, so a faction's OWN
+    // gear bypasses the province test - but nothing else does. Filtering `all` here rather than inside the
+    // else-branch is what stops DLC2Nordic* reaching a Bruma NPC when the faction filter comes back empty.
+    const faction = /draugr/i.test(e) ? /^(?:Ench)?Draugr/ : /falmer/i.test(e) ? /^Falmer/
+      : /forsworn/i.test(e) ? /^Forsworn/ : /goblin/i.test(e) ? /^BSKGoblin/ : null;
+    const base = lootOk(lease);
+    const ok = (w) => base(w) || (faction && faction.test(w.name));
+    let all = (LOOT.weapons || []).filter((w) => !BAD_WEAPON.test(w.name) && ok(w));
     const shape = /missile|archer|bow|ranger|hunter/i.test(e) ? /Bow$/
       : /2h|twohand|greatsword|battleaxe|warhammer/i.test(e) ? /(Greatsword|Battleaxe|Warhammer)$/
       : CASTER.test(e) ? /Dagger$/ : /(Sword|WarAxe|Mace)$/;
     let pool = all.filter((w) => shape.test(w.name));
     if (faction) { const f = pool.filter((w) => faction.test(w.name)); if (f.length) pool = f; }
-    else pool = pool.filter((w) => !/^(Draugr|Falmer|Forsworn)/.test(w.name) && Number(w.value) <= (GEAR_BY_DIFF[diffId] || 110));
+    else pool = pool.filter((w) => !/^(Draugr|Falmer|Forsworn|BSKGoblin)/.test(w.name) && Number(w.value) <= (GEAR_BY_DIFF[diffId] || 110));
     if (!pool.length) pool = all.filter((w) => /^(IronSword|IronWarAxe|IronMace)$/.test(w.name));
     return pickFrom(pool);
   };
-  const arrowFor = (bowName) => {
-    const arrows = (LOOT.arrows || []).filter((a) => /Arrow/.test(a.name) && !/Trap|Dummy|Bound|Fire|Ice|Shock|dun|MQ|DLC|Nightingale|Projectile/.test(a.name));
-    const mat = String(bowName || '').match(/^(Draugr|Falmer|Forsworn|Orcish|Dwarven|Elven|Glass|Ebony)/);
-    return (mat && arrows.find((a) => a.name.startsWith(mat[1]))) || arrows.find((a) => a.name === 'IronArrow') || arrows[0] || null;
+  const arrowFor = (bowName, lease) => {
+    const ok = lootOk(lease);
+    const arrows = (LOOT.arrows || []).filter((a) => /Arrow/.test(a.name) && ok(a) && !/Trap|Dummy|Bound|Fire|Ice|Shock|dun|MQ|DLC|Nightingale|Projectile/.test(a.name));
+    const mat = String(bowName || '').replace(/^(?:CYR|BSK)/, '').match(/^(Draugr|Falmer|Forsworn|Orcish|Dwarven|Elven|Glass|Ebony|Ayleid|AncientImperial)/);
+    return (mat && arrows.find((a) => a.name.replace(/^(?:CYR|BSK)/, '').startsWith(mat[1]))) || arrows.find((a) => a.name === 'IronArrow') || arrows[0] || null;
   };
   const armLease = (lease, ids = readSpawnedIds()) => {
     if (!lease.armed) lease.armed = new Set();
@@ -418,17 +458,23 @@ module.exports = (api) => {
       let entries = []; try { const inv = mp.get(id, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries.slice() : []; } catch (e) { continue; }
       if (entries.some((en) => { const r = recordOf(Number(en.baseId) >>> 0); return r && String(r.type) === 'WEAP'; })) continue;
       // the spawned record's own editor id names its weapon shape (EncBandit03Boss2HNordM); a pool kind like bandit_boss does not
-      const w = weaponFor(recEdid ? `${recEdid} ${edid}` : edid, lease.difficulty, lease.province); if (!w) continue;
+      const w = weaponFor(recEdid ? `${recEdid} ${edid}` : edid, lease.difficulty, lease); if (!w) continue;
       const wid = idOf(w.id); if (!wid) continue;
       entries.push({ baseId: wid, count: 1 });
       let arrowId = 0;
-      if (/Bow$/.test(w.name)) { const ar = arrowFor(w.name); arrowId = ar ? idOf(ar.id) : 0; if (arrowId) entries.push({ baseId: arrowId, count: 30 }); }
+      if (/Bow$/.test(w.name)) { const ar = arrowFor(w.name, lease); arrowId = ar ? idOf(ar.id) : 0; if (arrowId) entries.push({ baseId: arrowId, count: 30 }); }
       try {
+        // The weapon goes into the inventory and stops there. Papyrus EquipItem used to follow, and it
+        // reached nobody: SpSnippet::Execute returns without sending for any actor that is not
+        // "created as player" (formId >= 0xff000000 AND baseId <= 7, MpActor.cpp), which a spawned
+        // NPC never is. Measured 2026-09-19 on the isolated probe server: the call changed neither the
+        // server's equipment change form nor anything on the wire, while the same call on a player
+        // produced an SpSnippet. The one server function that turns inventory into worn equipment and
+        // tells every client (MpActor::EquipBestWeapon -> UpdateEquipmentMessage) runs at actor Init,
+        // before this, and on each host (re)grant, so the weapon shows up when a client takes over -
+        // and that same path currently segfaults the server (see CHECKLIST, C++ task).
         mp.set(id, 'inventory', { entries });
-        const self = { type: 'form', desc: mp.getDescFromId(id) };
-        mp.callPapyrusFunction('method', 'Actor', 'EquipItem', self, [{ type: 'espm', desc: w.id }, true, true]);
-        if (arrowId) mp.callPapyrusFunction('method', 'Actor', 'EquipItem', self, [{ type: 'espm', desc: mp.getDescFromId(arrowId) }, true, true]);
-        log(`dungeon ${lease.id}: armed ${edid} ${id.toString(16)} with ${w.name}`);
+        log(`dungeon ${lease.id}: armed ${edid} ${id.toString(16)} with ${w.name} (inventory; worn on the next host grant)`);
       } catch (e) { log('arm failed', id.toString(16), e.message); }
     }
   };
@@ -690,12 +736,12 @@ module.exports = (api) => {
   const leaseOfTag = (tag) => [...ST.leases.values()].find((x) => tag.startsWith(`${ZONE_PREFIX}${x.id}:`)) || null;
   function isHumanoidTag(tag) { const l = leaseOfTag(tag); const kind = l && l.kinds ? l.kinds[tag] || '' : ''; return HUMANOID.test(kind) && !ANIMAL.test(kind); }
   const itemName = (baseId) => { const r = recordOf(baseId); return String((r && r.editorId) || 'something').replace(/^(Food|Potion)/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'something'; };
-  const corpseLoot = (diff) => {
+  const corpseLoot = (diff, ok = ALL_OK) => {
     const entries = [];
     addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, rnd(diff.gold[0], diff.gold[1])));
-    if (Math.random() < 0.6) addEntry(entries, pickFrom(pool('food', 0)), 1);
-    if (Math.random() < 0.25) addEntry(entries, pickFrom(potionPool(diff.potionTier)), 1);
-    if (Math.random() < 0.2) addEntry(entries, pickFrom(pool('ingredients', 0)), rnd(1, 2));
+    if (Math.random() < 0.6) addEntry(entries, pickFrom(pool('food', 0, ok)), 1);
+    if (Math.random() < 0.25) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
+    if (Math.random() < 0.2) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 2));
     return entries;
   };
   // false = handled (nothing opens), null = not a lease humanoid
@@ -710,7 +756,7 @@ module.exports = (api) => {
     const lease = leaseOfTag(tag);
     const diff = DIFFICULTIES.find((x) => x.id === (lease ? lease.difficulty : 'normal')) || DIFFICULTIES[1];
     const got = [];
-    for (const en of corpseLoot(diff)) {
+    for (const en of corpseLoot(diff, lootOk(lease))) {
       if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); continue; }
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }

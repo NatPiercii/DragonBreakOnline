@@ -923,7 +923,8 @@ globalThis.__dboHandlers.disconnect = (userId) => {
 // ---- needs: hunger ---------------------------------------------------------------------------
 // A server-owned 0-100 meter per character (private.needs). It rises with online time and falls
 // when food is eaten; the server's onEatItem event is the only source, so a client cannot fake a
-// meal. Stages apply regeneration penalties on the owner's client through Papyrus ModActorValue;
+// meal. Stages apply regeneration penalties on the owner's client through Papyrus SetActorValue
+// (ModActorValue until 2026-09-19: not a registered method, so no stage ever applied - see below);
 // the client's actor values reset every login, so the stage is re-applied on connect. Potions,
 // poisons and the potion cooldown are untouched (the 10 s cap lives in the server core).
 const NEEDS = Object.assign({ enabled: false, hungerPerHour: 12, tickSeconds: 60, warnEveryMinutes: 10, stages: [], restore: {}, mealWords: [], drinkWords: [] }, cfg.needs || {});
@@ -971,19 +972,34 @@ const pushHud = (a, n, force) => {
   } catch (e) { log('hud push failed', e.message); }
 };
 const stageFor = (hunger) => { let s = NEEDS_STAGES[0] || { at: 0, name: 'Sated' }; for (const st of NEEDS_STAGES) if (hunger >= st.at) s = st; return s; };
-const modActorValue = (a, av, delta) => {
-  if (!delta) return;
-  try { mp.callPapyrusFunction('method', 'Actor', 'ModActorValue', { type: 'form', desc: mp.getDescFromId(a) }, [av, delta]); }
-  catch (e) { log('ModActorValue failed', av, delta, e.message); }
+// ModActorValue is NOT in the server's Actor method table (PapyrusActor.cpp registers SetActorValue,
+// RestoreActorValue and DamageActorValue only). Calling it logged "VirtualMachine::CallMethod - Method
+// not found - 'ModActorValue'", returned None and threw nothing, so every stage since the meter was
+// built recorded its penalty as applied while nothing left the server. Measured 2026-09-19 on the
+// isolated probe server: no SpSnippet for ModActorValue at the client, one for SetActorValue.
+// SetActorValue takes an absolute value, so the stage's percent (a delta on the vanilla 100) is added
+// to NEEDS_RATE_BASE here. It is dispatched to the owner's client as a snippet, which is where regen
+// is computed; the server's own regen ceiling (CropRegeneration) is unchanged and still caps it.
+const NEEDS_RATE_BASE = Number(NEEDS.baseRateMult) > 0 ? Number(NEEDS.baseRateMult) : 100;
+const setActorValue = (a, av, value) => {
+  try {
+    mp.callPapyrusFunction('method', 'Actor', 'SetActorValue', { type: 'form', desc: mp.getDescFromId(a) }, [av, value]);
+    return true;
+  } catch (e) { log('SetActorValue failed', av, value, e.message); return false; }
 };
 // Brings the client's regen modifiers in line with the stage; `applied` remembers what the client holds.
-const applyNeedsStage = (a, n, announce) => {
+const applyNeedsStage = (a, n, announce, force) => {
   const st = stageFor(n.hunger);
   // Skill progress slows with hunger: masterySystem reads private.needs.xpMult (1 = full rate).
   n.xpMult = Number(st.xpMult) > 0 && Number(st.xpMult) <= 1 ? Number(st.xpMult) : 1;
   for (const key of Object.keys(NEEDS_AV)) {
     const want = Number(st[key]) || 0, have = Number(n.applied[key]) || 0;
-    if (want !== have) { modActorValue(a, NEEDS_AV[key], want - have); n.applied[key] = want; }
+    if (want === have && !force) continue;
+    const value = Math.max(0, NEEDS_RATE_BASE + want);
+    if (setActorValue(a, NEEDS_AV[key], value)) {
+      n.applied[key] = want;
+      log(`needs ${display(a)} ${NEEDS_AV[key]} -> ${value} (${st.name}${want ? `, ${want}%` : ''})`);
+    }
   }
   if (n.stage !== st.name) {
     const prev = n.stage; n.stage = st.name;
@@ -1014,7 +1030,10 @@ const needsTick = () => {
 // The client's actor values are fresh after every login: forget what was applied and re-apply.
 const needsOnConnect = (a) => {
   if (!NEEDS.enabled) return;
-  try { const n = needsOf(a); n.applied = { staminaRateMult: 0, healRateMult: 0 }; applyNeedsStage(a, n, false); saveNeeds(a, n); }
+  // The client's own save holds whatever SetActorValue last wrote, so both rates are re-sent on
+  // every login even when the stage did not change (force), or a player who logged out Starving keeps
+  // a zeroed regen rate after eating.
+  try { const n = needsOf(a); n.applied = { staminaRateMult: 0, healRateMult: 0 }; applyNeedsStage(a, n, false, true); saveNeeds(a, n); }
   catch (e) { log('needs connect failed', e.message); }
 };
 every('needs', Math.max(5, Number(NEEDS.tickSeconds) || 60) * 1000, needsTick);
@@ -1717,9 +1736,14 @@ mp.onDeath = deathHook;
 // Damage on a spawned champion is credited to the attacker and partly given back (champions.js).
 if (typeof globalThis.__dboPrevHitDamage === 'undefined') globalThis.__dboPrevHitDamage = typeof mp.onHitDamage === 'function' && !mp.onHitDamage.__dbo ? mp.onHitDamage : null;
 const hitDamageHook = (aggressorId, targetId, sourceId, damage, ...rest) => {
-  try { if (globalThis.__dboChampionHit) globalThis.__dboChampionHit(Number(aggressorId) >>> 0, Number(targetId) >>> 0, Number(damage) || 0); } catch (e) { log('champion hit failed', e.message); }
+  const agg = Number(aggressorId) >>> 0, tgt = Number(targetId) >>> 0;
+  let dealt = Number(damage) || 0;
+  // Before the rest of the chain: masterySystem credits a kill from isDead inside its own handler,
+  // so the tier's share has to be on the target by the time it looks.
+  try { dealt += masteryBonusDamage(agg, tgt, dealt); } catch (e) { log('mastery damage failed', e.message); }
+  try { if (globalThis.__dboChampionHit) globalThis.__dboChampionHit(agg, tgt, dealt); } catch (e) { log('champion hit failed', e.message); }
   const prev = globalThis.__dboPrevHitDamage;
-  if (prev) { try { return prev(aggressorId, targetId, sourceId, damage, ...rest); } catch (e) { log('hit damage chain failed', e.message); } }
+  if (prev) { try { return prev(aggressorId, targetId, sourceId, dealt, ...rest); } catch (e) { log('hit damage chain failed', e.message); } }
   return undefined;
 };
 hitDamageHook.__dbo = true;
@@ -1834,6 +1858,67 @@ const hostAttemptHook = (requesterId, actorId) => {
 hostAttemptHook.__dbo = true;
 mp.onHostAttempt = hostAttemptHook;
 
+// ---- mastery: the combat tiers reach the damage the target takes -------------------------------
+// The number is computed in C++ (TES5DamageFormula: weapon damage, the target's worn armour, the
+// power/sneak/block flags) and reads no skill and no mastery record; masterySystem's vanilla-skill
+// writes go out as SetActorValue, which runs on the owner's client only ("SetActorValue executes
+// locally at this moment. Results will not affect server calculations", PapyrusActor.cpp). So the
+// 10/30/70/150-hour tiers changed nothing about a fight. onHitDamageAttempt can only refuse a hit,
+// never change its size (FireHitDamageEvent returns bool), so the tier's share is taken off the
+// target here, right after the engine's hit lands: the health percentage is the one server-side
+// write that reaches clients (PercentagesBinding -> NetSetPercentages -> ChangeValues, measured on
+// the isolated probe server 2026-09-19). Percentages carry no aggressor, so a kill through them
+// would credit nobody: MASTERY_MIN_HEALTH keeps the bonus from landing the killing blow, and the
+// engine's next hit takes it with the killer intact.
+// Tunable in gamemode-config.json under "mastery": { "damage": { ... } }; byTier is indexed by rank
+// (0 Novice .. 4 Master) and matches what skills.json advertises: +10/+20/+30% from Journeyman.
+const MASTERY_DMG = Object.assign({ enabled: true, byTier: [0, 0, 0.10, 0.20, 0.30], log: true },
+  ((cfg.mastery || {}).damage) || {});
+const MASTERY_MIN_HEALTH = 0.01;
+// WEAP DNAM byte 0 is the animation type (libespm WEAP.h): 1 Sword, 2 Dagger, 3 WarAxe, 4 Mace,
+// 5 Greatsword, 6 Battleaxe (warhammers share it), 7 Bow, 8 Staff, 9 Crossbow. Spells and staves
+// are left out: the arcane tiers buy spell ranks, not damage.
+const WEAPON_SKILL = { 1: 'onehanded', 2: 'onehanded', 3: 'onehanded', 4: 'onehanded', 5: 'twohanded', 6: 'twohanded', 7: 'archery', 9: 'archery' };
+const weaponSkillCache = globalThis.__dboWeaponSkill instanceof Map ? globalThis.__dboWeaponSkill : (globalThis.__dboWeaponSkill = new Map());
+const weaponSkillOf = (sourceId) => {
+  if (weaponSkillCache.has(sourceId)) return weaponSkillCache.get(sourceId);
+  let skill = '';
+  const r = recordOf(sourceId);
+  if (r && String(r.record.type) === 'WEAP') {
+    const dnam = (r.record.fields || []).find((f) => f && f.type === 'DNAM' && f.data instanceof Uint8Array && f.data.byteLength);
+    if (dnam) skill = WEAPON_SKILL[dnam.data[0]] || '';
+  }
+  weaponSkillCache.set(sourceId, skill);
+  return skill;
+};
+// 1 = no change. Only a skill the player chose counts, and only from the tier skills.json promises.
+const masteryDamageMult = (aggressorId, sourceId) => {
+  if (!MASTERY_DMG.enabled) return 1;
+  const skill = weaponSkillOf(sourceId); if (!skill) return 1;
+  const rec = masteryOf(aggressorId);
+  if (!rec || !Array.isArray(rec.order) || rec.order.indexOf(skill) === -1) return 1;
+  const rank = Math.max(0, Number(((rec.skills || {})[skill] || {}).rank) || 0);
+  const bonus = Number((MASTERY_DMG.byTier || [])[rank]) || 0;
+  return bonus > 0 ? 1 + bonus : 1;
+};
+// onHitDamageAttempt fires, the engine applies the damage, onHitDamage fires - all inside one C++
+// call, so one pending record is enough. Returns the extra damage in points, for the hit credit.
+const masteryBonusDamage = (agg, tgt, damage) => {
+  const pend = globalThis.__dboMasteryPending; globalThis.__dboMasteryPending = null;
+  if (!pend || pend.agg !== agg || pend.tgt !== tgt || !(damage > 0)) return 0;
+  let now = null; try { now = mp.get(tgt, 'percentages'); } catch (e) { return 0; }
+  if (!now || !(now.health > 0)) return 0;             // the engine's hit killed it; the kill is credited
+  const dealtPct = pend.health - now.health;
+  if (!(dealtPct > 0)) return 0;                       // blocked, warded, or healed in between
+  const health = Math.max(MASTERY_MIN_HEALTH, now.health - dealtPct * (pend.mult - 1));
+  if (!(health < now.health)) return 0;
+  try { mp.set(tgt, 'percentages', { health, magicka: now.magicka, stamina: now.stamina }); }
+  catch (e) { log('mastery damage failed', e.message); return 0; }
+  const extra = damage * ((now.health - health) / dealtPct);
+  if (MASTERY_DMG.log) log(`mastery damage ${display(agg)} x${pend.mult.toFixed(2)} on ${display(tgt)}: ${damage.toFixed(1)} + ${extra.toFixed(1)} (health ${(pend.health * 100).toFixed(1)}% -> ${(health * 100).toFixed(1)}%)`);
+  return extra;
+};
+
 // Combat adjudication and damage clamp
 if (typeof globalThis.__dboPrevHitDamageAttempt === 'undefined') {
   globalThis.__dboPrevHitDamageAttempt = typeof mp.onHitDamageAttempt === 'function' && !mp.onHitDamageAttempt.__dbo ? mp.onHitDamageAttempt : null;
@@ -1844,6 +1929,7 @@ const hitDamageAttemptHook = (aggressorId, targetId, sourceId, damage) => {
   const tgt = Number(targetId) >>> 0;
   const src = Number(sourceId) >>> 0;
   const dmg = Number(damage) || 0;
+  globalThis.__dboMasteryPending = null;
 
   // 1. Refuse attack if aggressor has bound hands
   try {
@@ -1862,6 +1948,15 @@ const hitDamageAttemptHook = (aggressorId, targetId, sourceId, damage) => {
     try { if (prev(agg, tgt, src, dmg) === false) return false; }
     catch (e) { /* ignore */ }
   }
+
+  // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
+  try {
+    const mult = masteryDamageMult(agg, src);
+    if (mult !== 1 && dmg > 0) {
+      const p = mp.get(tgt, 'percentages');
+      if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };
+    }
+  } catch (e) { /* not an actor */ }
   return true;
 };
 hitDamageAttemptHook.__dbo = true;
@@ -1960,6 +2055,10 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
+
+
+
 
 
 
