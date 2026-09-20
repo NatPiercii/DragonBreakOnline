@@ -1,6 +1,7 @@
 // Temporary diagnostic: per-player movement speed measured from the server's own accepted positions.
 // Feeds the ceiling for the C++ movement rate check. Delete with its require block in gamemode.js after.
-// /mv <label> tags what you are doing, /mv report prints the maxima, /mv reset clears them.
+// /mv <label> tags what you are doing, /mv report prints the maxima, /mv off stops tracing you.
+// Only players who ran /mv are sampled, so the tick is free when nobody is tracing.
 
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +23,7 @@ const newStats = () => ({
   teleports: [],
 });
 
-module.exports = ({ mp, log, personal, display, registerChatCommand, onlineActors, every }) => {
+module.exports = ({ mp, log, personal, display, registerChatCommand, every }) => {
   const ST = globalThis.__dboMoveTrace || (globalThis.__dboMoveTrace = {
     labels: new Map(), // label -> stats
     tracks: new Map(), // actorId -> live track
@@ -43,11 +44,16 @@ module.exports = ({ mp, log, personal, display, registerChatCommand, onlineActor
     if (speed > slot.speed) { slot.d = d; slot.dt = dt; slot.speed = speed; }
   };
 
+  const forget = (a) => { ST.label.delete(a); ST.tracks.delete(a); ST.lastLog.delete(a); };
+
+  // Only actors that asked for it with /mv are sampled, so the tick costs nothing
+  // when nobody is tracing and never scales with a full server or a bot run
   const sample = () => {
+    if (!ST.label.size) return;
     const now = performance.now();
-    for (const a of onlineActors()) {
+    for (const a of [...ST.label.keys()]) {
       let pos, cell;
-      try { pos = mp.get(a, 'pos'); cell = String(mp.get(a, 'worldOrCellDesc') || ''); } catch (e) { continue; }
+      try { pos = mp.get(a, 'pos'); cell = String(mp.get(a, 'worldOrCellDesc') || ''); } catch (e) { forget(a); continue; }
       if (!Array.isArray(pos)) continue;
       let tr = ST.tracks.get(a);
       if (!tr) { ST.tracks.set(a, { t: now, pos, cell, hist: [] }); continue; }
@@ -142,11 +148,12 @@ module.exports = ({ mp, log, personal, display, registerChatCommand, onlineActor
       return;
     }
     if (arg === 'reset') { ST.labels.clear(); ST.tracks.clear(); ST.dirty = true; write(); return personal(a, 'movetrace cleared.'); }
+    if (arg === 'off') { forget(a); log(`movetrace ${display(a)} stopped recording`); return personal(a, `Stopped recording. ${ST.label.size} player(s) still traced.`); }
     ST.label.set(a, arg);
     statsFor(arg);
     log(`movetrace ${display(a)} now recording as "${arg}"`);
     personal(a, `Recording as "${arg}". Do the movement, then /mv <next label>.`);
-  }, { admin: true, help: 'movement speed recorder: /mv <label>, /mv report, /mv reset' });
+  }, { admin: true, help: 'movement speed recorder: /mv <label>, /mv report, /mv off, /mv reset' });
 
   every('moveTrace', SAMPLE_MS, sample);
   every('moveTraceWrite', 5000, write);
