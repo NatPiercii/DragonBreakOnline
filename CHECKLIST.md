@@ -1,5 +1,110 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (13:30): every scale term in weightOf is live, and the offsets were measured
+
+Unattended run, nobody online, no lease open. Server restarted **13:22:58**, **18 `[error]` lines, the
+known baseline**, boot lines unchanged (`resolved 113/129`, `18 skills have marker spells`, `prayer on:
+26 deities ... blessings 22 resolved, 0 broken`). Warnings identical to the previous boot.
+
+**The queue I was handed was already done by the three runs before me** (mining kinds, the deity data,
+the shrine path, the Unarmed markers). So this run took the item those runs left behind, which HANDOFF
+section 0 still lists as open: **`weightOf`'s `value` was passed by nobody, so craft, kill, hurt and
+cast all sat at the flat 0.5 base whatever they were worth.** Mining was fixed at 11:00; the rest were not.
+
+### What now carries a value
+
+| kind | scale term | where it comes from |
+|---|---|---|
+| `craft` | product gold value | COBJ `CNAM` -> product record, by measured offset per type |
+| `cast` | magicka cost | `SPIT.spellCost`, uint32 at offset 0 |
+| `hurt` | damage taken | the 4th argument of `onHitDamage`, which was being discarded |
+| `kill` | victim's ACBS level | `npcLevel()`, the existing helper conjurationSystem uses |
+| `hit` | **deliberately flat** | too hot a path to price per blow; repetition decay already covers it |
+
+- [x] `masterySystem.ts`: `productValue()` and `spellCost()`, both cached by form id like the
+  `benchCache`/`schoolCache` beside them, because plugin data never changes at runtime.
+- [x] **`hurt` was free.** `onHitDamage(aggressorId, targetId, sourceId, damage)` always carried the
+  damage and masterySystem destructured only the first three. C++ never fires the event for a hit of
+  zero or less (`ActionListener::FireHitDamageEvent` returns early), so the value is always > 0.
+- [x] **`kill` is scaled by level, not health, and that is not a shortcut.** Max health is *not
+  readable server-side*: `percentages` is a 0..1 fraction and `GetBaseActorValues` has **no property
+  binding** in `cpp\addon\property_bindings\` at all. Reading it needs C++, which is blocked. `npcLevel`
+  is the honest measure available. `weightOf`'s kill case was split from hit and rescaled to levels
+  (`min(1.5, v/40)`), so a levelled bandit sits near the base and a fixed-level giant earns the top.
+- [x] Type-check clean, built, **verified in the minified bundle**, deployed with node stopped, and the
+  deployed file's md5 matches a fresh build of the current source. Backup in
+  `server\_dist_back-backups\before-weights-20260920-132241`.
+
+### No offset was guessed, and the one that was guessed was caught
+
+`py ck-mcp\itemvalues.py` (new) scans **every 4-aligned offset** of the value-bearing field across the
+whole load order and characterises it: how many reads are plausible gold, how many distinct, the max,
+and whether the same bytes read as a plausible float instead. Results in `server\item-value-layout.json`.
+
+- **AMMO was wrong on the first pass and the measurement caught it.** A narrow candidate list picked
+  `value@4`, which is the *flags* field. The real value is at **12** and offset 8 is the arrow's
+  **damage as a float** - which is why "iron arrow weighs 8.0" looked wrong and was worth chasing.
+  Proved by the vanilla arrow ladder: iron 1, steel 2, orcish 3, dwarven 4, elven 5, glass 6, ebony 7,
+  daedric 8. The script now re-checks that ladder on every run.
+- **BOOK's offset 0 is a 4-value flag enum, not gold**; gold is at 8 (Spell Tome of Icy Spear 725,
+  Candlelight 44). **ALCH keeps weight alone in DATA and the gold value in ENIT.** Everything else is
+  `value@0`, at 100% against a runner-up scoring 2-44%.
+- **`SPIT.spellCost` tracks spell power exactly**, which is the whole requirement: Healing 12, Flames 14,
+  Frostbite 16, Sparks 19, Candlelight 21, Firebolt 41, Ice Spike 48, Fast Healing 73, Fireball 86,
+  Oakflesh 103, Close Wounds 126, Incinerate 171, Grand Healing 254, Icy Spear 320, Ebonyflesh 341,
+  Thunderbolt 343, Blizzard 1106. Monotonic, and the script asserts that. 748 of the 986 castable
+  Spell-type records carry one; the rest are auto-calculated at 0 and fall back to the flat base.
+- **6687 of the 6695 COBJ recipes** in this load order resolve to a product with a known layout.
+
+### Tested, including a test that can fail
+
+- [x] `tests\skillPoints.test.js`: **110 -> 148 checks, all passing.** New: each kind rises with its
+  value, `hit` stays flat however large the value it is handed, a kind with **no** value still returns
+  the old 0.5 base (so an emitter that sends none never regresses), and NaN/Infinity/negative/1e12 all
+  stay inside the clamp.
+- [x] **`tests\mastery-values-harness.js` (new), 46 checks.** A measurement in Python only proves where
+  a number is, not that the TypeScript reads it. So `py ck-mcp\valuefixtures.py` dumps the **raw bytes of
+  real records out of the real plugins** into `tests\value-fixtures.json`, and the harness runs the real
+  `productValue()`/`spellCost()` against them: 12 recipes covering WEAP/ARMO/MISC/ALCH/AMMO/INGR and
+  7 spells, plus the guards (unknown recipe, unmapped master, unlisted product type, truncated field).
+- [x] **Negative control run**: AMMO's offset was deliberately put back to 4 and the harness failed 5 of
+  46 checks, naming both arrows. It would have caught the original mistake.
+- [x] Whole suite re-run: labour 37, prayer, skinning, mastery-damage 33, all passing.
+
+### Two corrections to earlier blocks
+
+- **"Tin and stalhrim can never be mined" (11:00 block) is true but is not a bug.** There is **no
+  `MineOreTin` or `MineOreStalhrim` vein anywhere in this load order** - no base object and no
+  placement - so their absence from `oreByTier` is correct and adding them would do nothing. The tin
+  entry in `labour.js`'s `ITEMS` is dead data. The ores that really are **placed but unmineable** are
+  **blackreach (41 placements)** and **heartstone (37)**, both outside the Bruma lock, so no player
+  impact today. Census: bases and placements counted per ore over the whole load order.
+- **Copper has only 7 placements in the entire load order** while being the tier-1 starter ore. A Novice
+  is not blocked (iron 849 and corundum 287 are also tier 1), but "go mine copper" is near-impossible
+  advice. Worth knowing before anyone writes a copper-gated tutorial.
+
+### Open, and needing Nat
+
+- [ ] **Nothing here is tested in play.** Harness, bundle grep and boot lines only. First check: craft
+  something cheap and something expensive and confirm the expensive one moves the bar further.
+- [ ] **`kill` scaling is a balance call I made alone.** Level/40 capped at 1.5 was chosen so a fixed-level
+  giant reaches the top of the band; most levelled NPCs report their calculated minimum and sit near the
+  base. Say if kills should be worth more or less than a vein.
+- [ ] **`hit` is flat on purpose.** If a per-blow scale is wanted it needs a cheap toughness number that
+  is not an espm walk per swing.
+- [ ] **`tests\skinning-harness.js` is flaky, and it is flaky for a real reason.** "evenly spaced forgery
+  is refused or slips out" fails about **1 run in 30**. Measured over 20000 rounds per spacing, a forger
+  who sends evenly spaced cut times with **no knowledge of the seam** still wins **0.16% to 6.3%** of
+  rounds (best at 300 ms spacing). That is worse than playing honestly, so it buys a *player* nothing -
+  but a headless bot that cannot play the mini-game could farm pelts at ~6% per attempt for free. Either
+  tighten the judge or make the test probabilistic; it should not assert an absolute over a random seam.
+- [ ] **Widget id 33 is still used twice** (`gamemode.js` `SKIN_WIDGET_ID`, `labour.js` `WIDGET_ID`), and
+  the front has **separate `skinning` and `labour` features**, so they are two different widgets on one
+  id. Not touched: fixing it is a front rebuild plus an id allocation, and I could not confirm unattended
+  whether the two can ever be open at once. Prayer took 35 to stay clear of it.
+- [ ] Left alone deliberately, per the brief: the native build, the starting-spell bug, the join path,
+  `Refr pointer expired`, bot load testing. **Nothing was pushed to git and nothing was committed.**
+
 ## Added 2026-09-20 (13:00): the plugin debt is paid - 16 records authored in xEdit
 
 Server restarted 12:58:25. **18 `[error]` lines.** Boot now reads `resolved 113/129 form(s),
@@ -340,6 +445,9 @@ three are corrected in the doc, with the measurement beside them.
   the widget and strand the first session server-side. Prayer took 35 to stay clear of it.
 - **Tin and stalhrim can never be mined.** Both are in `labour.js`'s `ITEMS` and `oreYieldByOre` but in no
   tier of `miner.oreByTier`, and `oresUpTo()` refuses anything absent from that list.
+  **Checked 2026-09-20 13:30: not a bug, do not "fix" it.** There is no `MineOreTin` or
+  `MineOreStalhrim` vein in this load order at all, so there is nothing for a tier to unlock. The ores
+  that are placed but unmineable are **blackreach** and **heartstone**. See the 13:30 block.
 
 ## Added 2026-09-20 (03:15): unarmed, combat openings, the Lorkhan menu pass and the racial stat spread
 
@@ -1079,6 +1187,16 @@ after, not reasoned about; the harness that did it is `server\tools\bot\` (below
 ## Added 2026-09-19 (afternoon): tick timing, and scaling fixes S2, S7, S8 (LIVE 14:37)
 
 From `_reviews\2026-09-19-daily-review.md`, "Scaling to 100 concurrent players". Gameplay layer only, no rebuild.
+- [x] **officials.json read per player, found by the bot harness (LIVE 2026-09-20 13:35)**. The 25-bot step of
+  `tools\loadtest` reported `lawful` at 2.5 ms max against every other timer under 0.3 ms. Cause: playermenu's
+  15 s lawful tick calls `refreshLawful` per online player, and that reaches `ranksOf` -> `readOfficials`, which
+  was a `readFileSync` + `JSON.parse` per call. One blocking disk read per player per tick. Measured warm:
+  25 players 1.44 ms, 100 players 4.66 ms, and worse under IO contention. `readOfficials` now keeps the file as
+  text, re-checks it by mtime at most once a second, and `writeOfficials` refreshes the cache so `/appoint` and
+  `/dismiss` stay instant: 100 players per tick 4.66 ms -> 0.054 ms. Checked that it returns the same content as
+  a direct read, that a caller mutating the returned object cannot poison the cache (`/appoint` mutates it), and
+  that an edit from outside is picked up within a second. **Pattern to grep for at scale: a per-player sync read
+  inside a timer.** The harness will re-measure it as a `lawful` delta after a `sandbox init`.
 - [x] **Tick timing** (`gamemode.js`, "timers" section). Repeating timers are registered by name with
   `every(name, ms, fn)` in `globalThis.__dboTimers` and replaced by name on reload. Modules get `every` and
   `stopTimer` through their api. Every tick is timed: over 20 ms logs `slow tick <name>: N ms`

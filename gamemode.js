@@ -1276,8 +1276,26 @@ const ZONES = (() => { try { return JSON.parse(fs.readFileSync(path.resolve('zon
 const OFFICIALS_PATH = path.resolve('officials.json');
 const zoneList = () => [].concat(ZONES.holds || [], ZONES.strongholds || [], ZONES.regions || []);
 const zoneById = (id) => zoneList().find((z) => z.id === String(id).toLowerCase()) || null;
-const readOfficials = () => { try { return JSON.parse(fs.readFileSync(OFFICIALS_PATH, 'utf8')) || {}; } catch (e) { return {}; } };
-const writeOfficials = (o) => { fs.writeFileSync(OFFICIALS_PATH + '.tmp', JSON.stringify(o, null, 1)); fs.renameSync(OFFICIALS_PATH + '.tmp', OFFICIALS_PATH); };
+// The file is kept as text, because the lawful tick asks for it once per player and a read per
+// player is a sync disk read per player. Its own writer refreshes it; an edit from outside is
+// picked up within a second through the file's mtime.
+let officialsText = null, officialsMtime = -1, officialsCheckedAt = 0;
+const readOfficials = () => {
+  if (officialsText === null || Date.now() - officialsCheckedAt > 1000) {
+    officialsCheckedAt = Date.now();
+    try {
+      const m = fs.statSync(OFFICIALS_PATH).mtimeMs;
+      if (m !== officialsMtime) { officialsText = fs.readFileSync(OFFICIALS_PATH, 'utf8'); officialsMtime = m; }
+    } catch (e) { if (officialsText === null) officialsText = '{}'; }
+  }
+  try { return JSON.parse(officialsText) || {}; } catch (e) { return {}; }
+};
+const writeOfficials = (o) => {
+  const text = JSON.stringify(o, null, 1);
+  fs.writeFileSync(OFFICIALS_PATH + '.tmp', text); fs.renameSync(OFFICIALS_PATH + '.tmp', OFFICIALS_PATH);
+  officialsText = text; officialsCheckedAt = Date.now();
+  try { officialsMtime = fs.statSync(OFFICIALS_PATH).mtimeMs; } catch (e) { officialsMtime = -1; }
+};
 const rankTitle = (r) => String((ZONES.rankTitles || {})[r] || r);
 const ranksOf = (profileId) => {
   const o = readOfficials(); const out = [];
@@ -2069,6 +2087,7 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
 
 
 
