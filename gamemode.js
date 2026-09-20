@@ -29,8 +29,6 @@ const serverSettings = (() => { try { return mp.getServerSettings() || {}; } cat
 
 // ---- timers: named, timed, replaced by name on every reload -------------------------------------
 const TIMERS = globalThis.__dboTimers instanceof Map ? globalThis.__dboTimers : (globalThis.__dboTimers = new Map()); // name -> { start, interval }
-// Handles kept before the registry existed; empty after the first reload onto it
-for (const k of ['__dboAuditTimer', '__dboWatchTimer', '__dboMeetTimer', '__dboNeedsTimer', '__dboOutsideTimer', '__dboContractFlush', '__dboChampionTimer', '__dboLawfulTimer', '__dboPlaytestTimer', '__dboDungeonTimer', '__dboArmTimer']) if (globalThis[k]) { clearInterval(globalThis[k]); globalThis[k] = null; }
 const SLOW_TICK_MS = Number((cfg.debug || {}).slowTickMs) || 20;
 const tickStats = new Map(); // name -> { n, total, max, slow } since the last summary
 const timed = (name, fn) => function (...args) {
@@ -1568,13 +1566,60 @@ const stashPelts = (actorId) => {
   try { mp.set(actorId, 'private.dboPelts', pelts); if (pelts.length) mp.set(actorId, 'inventory', { entries: entries.filter((e) => !pelts.some((p) => p.baseId === (Number(e.baseId) >>> 0))) }); } catch (e) { log('pelt stash failed', e.message); }
 };
 // ---- skinning: a Skinner takes the pelt through a mini-game (front widget "skinning") ------------
+// The round is the server's, the same way labour.js does it (SERVER_AUTHORITY.md migration 7): the
+// seed, the seam for every cut, the blade's period and the time limit go out in the packet; the
+// widget draws that and reports the millisecond of every cut it took, clean or slipped, and the
+// clean ones are counted here. Both sides run bladeAt() on the same integer millisecond, so the
+// verdict is the one the player saw and no latency enters the scoring - latency only binds the
+// widget's clock to the server's (lagGraceMs).
 const SKIN_WIDGET_ID = 33;
-const skinSessions = new Map(); // actorId -> { nonce, corpse, tier, startedAt }
+const SKIN = Object.assign({
+  cuts: 3, misses: 2, seconds: 15,
+  // How far behind the server's clock the widget's may sit: the packet out, the mount in the
+  // browser, the report back. Every verdict logs its measured lag ("lag="); read a playtest's worth
+  // out of server.log before tightening this.
+  lagGraceMs: 2500,
+  // Both clocks are monotonic, so only crystal drift between the machines and the widget's 1 ms
+  // quantisation can make that difference negative.
+  clockSlackMs: 50,
+}, cfg.skinning || {});
+// Rounds and judged nonces outlive a reload, or every save would strand an attempt in flight
+const skinSessions = globalThis.__dboSkinRounds || (globalThis.__dboSkinRounds = new Map()); // actorId -> round
+const skinSpent = globalThis.__dboSkinSpent || (globalThis.__dboSkinSpent = new Map()); // nonce -> when judged
 const skinDeny = new Map();
 const skinSay = (a, text) => { if (Date.now() - (skinDeny.get(a) || 0) > 1500) { skinDeny.set(a, Date.now()); personal(a, text); } return false; };
 const skinnerTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.order) || !r.order.includes('skinner')) return -1; const p = r.skills && r.skills.skinner; return p ? Math.max(0, Number(p.rank) || 0) : 0; };
 const edidWords = (edid, fallback) => String(edid || '').replace(/^(CYR|BSK|DLC\d+)?(Enc|Lvl)?/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || fallback;
 const creatureName = (id) => { try { const r = recordOf(mp.getIdFromDesc(String(mp.get(id, 'baseDesc')))); return edidWords(r && r.record.editorId, 'animal').toLowerCase(); } catch (e) { return 'animal'; } };
+// mulberry32: the seams come from the round's seed, so the seed in a verdict line rebuilds the round
+const skinRng = (seed) => { let s = seed >>> 0; return () => { s = (s + 0x6d2b79f5) >>> 0; let t = Math.imul(s ^ (s >>> 15), s | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+// Where the blade sits along the hide (0..1) at ms into the round. The widget runs this same
+// arithmetic on the same integer ms, so the two verdicts are the same double. Keep them in step.
+const bladeAt = (ms, sweepMs) => { const phase = (ms % (sweepMs * 2)) / sweepMs; return phase <= 1 ? phase : 2 - phase; };
+// The round the server issues: the seams come from the seed, and the seam width and the blade's
+// period from the Skinner's tier on the same curves as before, clamped here so the values judged
+// with are the values drawn with.
+const skinRound = (casterId, tier, corpse, name) => {
+  const seed = Math.floor(Math.random() * 0x100000000) >>> 0;
+  const rand = skinRng(seed);
+  const width = Math.max(0.05, Math.min(0.5, Math.min(0.3, 0.12 + 0.035 * tier)));
+  const sweepMs = Math.max(400, Math.round(1000 / Math.max(0.2, Math.max(0.55, 1.15 - 0.12 * tier))));
+  const cuts = Math.max(1, Math.round(Number(SKIN.cuts) || 3));
+  const allowed = Math.max(0, Math.round(Number(SKIN.misses) || 2));
+  const seams = [];
+  for (let i = 0; i < cuts; i++) seams.push(Math.round((width / 2 + rand() * (1 - width)) * 10000) / 10000);
+  return {
+    nonce: `${casterId.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+    corpse, tier, seed, name, cuts, allowed, width, seams, sweepMs,
+    totalMs: Math.max(1000, Math.round((Number(SKIN.seconds) || 15) * 1000)), startedAt: performance.now(),
+  };
+};
+// Everything the widget needs to draw the round, and nothing it could use to judge it
+const skinPacket = (round, result, resultKind) => {
+  const w = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, cuts: round.cuts, misses: round.allowed, seam: round.width, seams: round.seams, sweepMs: round.sweepMs, totalMs: round.totalMs };
+  if (result) { w.result = result; w.resultKind = resultKind; }
+  return w;
+};
 globalThis.__dboSkin = (targetId, casterId) => {
   if (targetId < 0xff000000) return null;
   let pelts = null; try { pelts = mp.get(targetId, 'private.dboPelts'); } catch (e) { return null; }
@@ -1584,31 +1629,74 @@ globalThis.__dboSkin = (targetId, casterId) => {
   if (mp.get(targetId, 'private.dboSkinned') === true) return skinSay(casterId, 'This one has already been skinned.');
   const tier = skinnerTier(casterId);
   if (tier < 0) return skinSay(casterId, 'Only a Skinner can take the pelt.');
-  const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}`;
-  skinSessions.set(casterId, { nonce, corpse: targetId, tier, startedAt: Date.now() });
-  openWidget(casterId, { type: 'skinning', id: SKIN_WIDGET_ID, nonce, name: creatureName(targetId), cuts: 3, misses: 2, seam: Math.min(0.3, 0.12 + 0.035 * tier), speed: Math.max(0.55, 1.15 - 0.12 * tier), seconds: 15 }, true);
+  const round = skinRound(casterId, tier, targetId, creatureName(targetId));
+  skinSessions.set(casterId, round);
+  openWidget(casterId, skinPacket(round), true);
   return false;
 };
+// Replay the attempt against the report. The widget sends the millisecond of every cut it took; the
+// clean ones are counted here, from the blade and the seam list the server issued.
+const judgeSkin = (round, raw, at, elapsed) => {
+  const r = { cuts: 0, slips: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '' };
+  let list = null;
+  if (Array.isArray(raw)) list = raw;
+  else if (typeof raw === 'string' && raw.length <= 1024) { try { list = JSON.parse(raw); } catch (e) { list = null; } }
+  if (!Array.isArray(list)) { r.bad = 'malformed'; return r; }
+  // The widget submits the moment the cuts are made or the slips run out, so it can never take more
+  if (list.length > round.cuts + round.allowed) { r.bad = 'flood'; return r; }
+  r.count = list.length;
+  for (const v of list) {
+    const t = Number(v);
+    if (!Number.isInteger(t) || t < 0 || t > round.totalMs) { r.bad = 'range'; break; }
+    if (t < r.last) { r.bad = 'order'; break; }  // this game has no stagger, so order is the only rule
+    if (r.cuts >= round.cuts || r.slips > round.allowed) { r.bad = 'extra'; break; }
+    const d = Math.abs(bladeAt(t, round.sweepMs) - round.seams[r.cuts]);
+    const clean = d <= round.width / 2 + 1e-9;
+    if (clean) { r.err += d / (round.width / 2); r.cuts++; } else r.slips++;
+    r.last = t;
+  }
+  if (r.cuts) r.err /= r.cuts;
+  if (r.bad) return r;
+  if (r.last > at) r.bad = 'submit';                    // a cut after the report went out
+  else if (r.lag < -SKIN.clockSlackMs) r.bad = 'future'; // more time on its clock than the server watched pass
+  else if (r.lag > SKIN.lagGraceMs) r.bad = 'late';      // drawn out in real time, or a report from minutes ago
+  return r;
+};
 onUi('skinning', (a, args) => {
-  const ses = skinSessions.get(a); if (!ses || String(args[0]) !== ses.nonce) return;
+  const ses = skinSessions.get(a);
+  if (!ses || String(args[0]) !== ses.nonce) {
+    if (skinSpent.has(String(args[0]))) log(`skinning replay ${display(a)}: ${String(args[0]).slice(0, 40)} was already judged`);
+    return;
+  }
   skinSessions.delete(a);
-  const hits = Math.max(0, Number(args[1]) || 0);
+  skinSpent.set(ses.nonce, Date.now());
+  while (skinSpent.size > 200) skinSpent.delete(skinSpent.keys().next().value);
+  const elapsed = performance.now() - ses.startedAt;
+  // An interface from before the round was server-issued reports a cut count and nothing else
+  if (typeof args[1] === 'number' || /^\s*\d+\s*$/.test(String(args[1]))) {
+    log(`skinning stale-ui ${display(a)} ${ses.name}: a cut count, no cut times`);
+    return openWidget(a, skinPacket(ses, 'Your interface is out of date. Rejoin the server to pick up the new one.', 'lose'), true);
+  }
+  const v = judgeSkin(ses, args[1], Math.max(0, Math.floor(Number(args[2]) || 0)), elapsed);
   let pelts = []; try { pelts = mp.get(ses.corpse, 'private.dboPelts') || []; } catch (e) { /* corpse gone */ }
   let skinned = true; try { skinned = mp.get(ses.corpse, 'private.dboSkinned') === true; } catch (e) { /* corpse gone */ }
   let near = false; try { const p = mp.get(a, 'pos'), q = mp.get(ses.corpse, 'pos'); near = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 400; } catch (e) { /* gone */ }
-  const win = hits >= 3 && Date.now() - ses.startedAt >= 1500 && !skinned && near && pelts.length > 0;
+  const win = !v.bad && v.cuts >= ses.cuts && !skinned && near && pelts.length > 0;
   let text = skinned ? 'Someone has already skinned it.' : !near ? 'You moved away from the body.' : 'The knife slips and the hide tears. Try again.';
+  const got = [];
   if (win) {
     try { mp.set(ses.corpse, 'private.dboSkinned', true); } catch (e) { /* corpse gone */ }
-    const got = [];
     for (const p of pelts) {
       const count = (Number(p.count) || 1) + (ses.tier >= 4 && Math.random() < 0.5 ? 1 : 0);
       if (giveItem(a, Number(p.baseId) >>> 0, count)) { const r = recordOf(Number(p.baseId) >>> 0); got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'pelt')}`); }
     }
     text = got.length ? `The hide comes away clean: ${got.join(', ')}.` : 'The hide comes away, but there is nothing to keep.';
-    log(`${display(a)} skinned ${ses.corpse.toString(16)}: ${got.join(', ')}`);
   }
-  openWidget(a, { type: 'skinning', id: SKIN_WIDGET_ID, nonce: ses.nonce, name: '', cuts: 3, misses: 2, seam: 0.15, speed: 1, seconds: 15, result: text, resultKind: win ? 'win' : 'lose' }, true);
+  // One line per verdict: clean cuts of those needed, slips, how many cuts were taken, the last cut
+  // and the report's own clock, the lag between that clock and the server's, and how far off centre
+  // the clean cuts were (0 dead centre, 1 at the seam's edge).
+  log(`skinning ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${ses.name} t${ses.tier + 1} ${v.cuts}/${ses.cuts} cuts ${v.slips} slips of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${ses.seed.toString(16)}${skinned ? ' already-skinned' : ''}${near ? '' : ' too-far'}${got.length ? ' -> ' + got.join(', ') : ''}`);
+  openWidget(a, skinPacket(ses, text, win ? 'win' : 'lose'), true);
 });
 onUi('skinningCancel', (a) => { skinSessions.delete(a); closeWidget(a, SKIN_WIDGET_ID); });
 
@@ -1872,6 +1960,11 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
+
+
+
+
 
 
 

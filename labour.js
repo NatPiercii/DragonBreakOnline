@@ -2,7 +2,17 @@
 // An ore vein (MineOre / CYRMineOre activators) belongs to the Miner skill, a chopping block to the
 // Woodcutter. Both use the same front widget: a marker sweeps a bar and the worker strikes while it
 // sits in the band. The server sends the round, judges the report and hands out the yield.
+//
+// The round is the server's, not the widget's (SERVER_AUTHORITY.md migration 7, the reading game in
+// gamemode.js is the same pattern): the server rolls a seed, derives the band centre for every
+// strike from it and sends the sweep, the band list and the cooldowns. The widget renders exactly
+// that and reports WHEN each strike fell, never whether it landed; the server replays the sweep at
+// those times and counts the hits itself. Both sides run markerAt() on the same integer millisecond,
+// so the server's verdict is the same number the player saw — there is no latency term in the
+// scoring at all. Latency only binds the widget's clock to the server's (see lagGraceMs).
 'use strict';
+
+const crypto = require('crypto');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills } = api;
@@ -16,6 +26,18 @@ module.exports = (api) => {
     // Seconds the marker takes to cross the bar once, tier 1..5
     sweepByTier: [1.5, 1.4, 1.3, 1.2, 1.1],
     oreStrikes: 6,
+    // The stagger after a strike, ms: the widget obeys these and the server re-checks them, so a
+    // report cannot pack more strikes into the round than a hand could throw
+    hitCooldownMs: 250,
+    missStaggerMs: 600,
+    // How much later than the round length a report may still arrive: the packet out, the widget's
+    // mount in the browser, and the report back. Every verdict logs its measured lag ("lag=") —
+    // read a playtest's worth out of server.log before tightening this.
+    lagGraceMs: 2500,
+    // A report may never claim more time on the widget's clock than the server has watched pass.
+    // Both clocks are monotonic (QPC), so only crystal drift between the two machines (200 ppm over
+    // a 30 s round is 6 ms) and the widget's 1 ms quantisation can make the difference negative.
+    clockSlackMs: 50,
     oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1 },
     firewoodByTier: [3, 4, 5, 6, 8],
     veinRestMinutes: 45,
@@ -43,8 +65,13 @@ module.exports = (api) => {
   const MINER = (skills.skills || []).find((k) => k.id === 'miner') || {};
   const WOODCUTTER = (skills.skills || []).find((k) => k.id === 'woodcutter') || {};
 
-  const sessions = new Map(); // actorId -> round
+  // Rounds and spent nonces outlive a gamemode reload, or every save would strand a round in flight
+  const sessions = globalThis.__dboLabourRounds || (globalThis.__dboLabourRounds = new Map()); // actorId -> round
+  const spent = globalThis.__dboLabourSpent || (globalThis.__dboLabourSpent = new Map()); // nonce -> when judged
   const denied = new Map();
+
+  // The round clock is monotonic: Date.now() can be stepped by the time service mid-round
+  const nowMs = () => performance.now();
 
   const idOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
   const baseRecord = (targetId) => {
@@ -84,26 +111,76 @@ module.exports = (api) => {
     return out;
   };
 
-  const startRound = (a, round) => {
-    sessions.set(a, round);
-    const widget = {
-      type: 'labour', id: WIDGET_ID, nonce: round.nonce, kind: round.kind, title: round.title,
-      strikes: round.strikes, seconds: CFG.seconds, band: round.band, sweep: round.sweep,
-    };
-    if (!openWidget(a, widget, true)) sessions.delete(a);
-    return true;
-  };
-
-  const roundFor = (a, kind, tier, strikes, title, refId) => ({
-    nonce: `${a.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
-    kind, tier, strikes, title, refId,
-    startedAt: Date.now(),
-  });
-
   const tierValue = (list, tier, fallback) => {
     const arr = Array.isArray(list) ? list : [];
     const v = Number(arr[Math.min(Math.max(tier, 0), arr.length - 1)]);
     return Number.isFinite(v) ? v : fallback;
+  };
+
+  // mulberry32: the band centres come from the round's seed, so a seed out of the log rebuilds the
+  // exact round that was played.
+  const rngOf = (seed) => {
+    let s = seed >>> 0;
+    return () => {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(s ^ (s >>> 15), s | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  // Where the marker sits on the bar (0..100) at ms into the round. The widget runs this same
+  // arithmetic on the same integer ms, so the two verdicts are the same double. Keep them in step.
+  const markerAt = (ms, sweepMs) => {
+    const phase = (ms % (sweepMs * 2)) / sweepMs;
+    return phase <= 1 ? phase * 100 : (2 - phase) * 100;
+  };
+
+  const roundFor = (a, kind, tier, strikes, title, refId) => {
+    const seed = crypto.randomBytes(4).readUInt32LE(0);
+    const rand = rngOf(seed);
+    // Clamp here, exactly as the widget used to, so the value the server judges with is the value
+    // the widget draws with
+    const half = Math.max(3, Math.min(30, tierValue(CFG.bandByTier, tier, 8)));
+    const bands = [];
+    for (let i = 0; i < strikes; i++) bands.push(Math.round((half + rand() * (100 - 2 * half)) * 100) / 100);
+    return {
+      nonce: `${a.toString(16)}-${Date.now().toString(36)}-${crypto.randomBytes(4).readUInt32LE(0).toString(36)}`,
+      kind, tier, strikes, title, refId, seed, half, bands,
+      sweepMs: Math.max(400, Math.round(tierValue(CFG.sweepByTier, tier, 1.4) * 1000)),
+      totalMs: Math.max(1000, Math.round((Number(CFG.seconds) || 30) * 1000)),
+      hitMs: Math.max(0, Math.round(Number(CFG.hitCooldownMs) || 250)),
+      missMs: Math.max(0, Math.round(Number(CFG.missStaggerMs) || 600)),
+      startedAt: 0,
+    };
+  };
+
+  // Everything the widget needs to draw the server's round, and nothing it could use to judge it
+  const packetFor = (round, result, resultKind) => {
+    const w = {
+      type: 'labour', id: WIDGET_ID, nonce: round.nonce, kind: round.kind, title: round.title,
+      strikes: round.strikes, band: round.half, bands: round.bands,
+      sweepMs: round.sweepMs, totalMs: round.totalMs, hitMs: round.hitMs, missMs: round.missMs,
+    };
+    if (result) { w.result = result; w.resultKind = resultKind; }
+    return w;
+  };
+
+  const startRound = (a, round) => {
+    sessions.set(a, round);
+    round.startedAt = nowMs();
+    if (!openWidget(a, packetFor(round), true)) sessions.delete(a);
+    return true;
+  };
+
+  // A round whose report never came back (a crash, a lost packet, a closed browser) must not lock
+  // the player out of the seam for ever, so anything past the round plus the lag grace is dead.
+  const liveRound = (a) => {
+    const r = sessions.get(a);
+    if (!r) return null;
+    if (nowMs() - r.startedAt <= r.totalMs + CFG.lagGraceMs) return r;
+    sessions.delete(a);
+    return null;
   };
 
   const mine = (targetId, casterId, rec) => {
@@ -111,7 +188,7 @@ module.exports = (api) => {
     if (!ore) return false;
     const tier = tierOf(casterId, 'miner');
     if (tier < 0) return deny(casterId, 'Only a Miner can read a seam well enough to work it.');
-    if (sessions.has(casterId)) return true;
+    if (liveRound(casterId)) return true;
     if (!ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
     if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${titleCase(ore)} is beyond your skill. Work the seams you know first.`);
     const rests = restsOf(casterId, 'private.minedVeins');
@@ -119,22 +196,18 @@ module.exports = (api) => {
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
     const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), `${titleCase(ore)} Seam`, targetId);
     round.ore = ore;
-    round.band = tierValue(CFG.bandByTier, tier, 8);
-    round.sweep = tierValue(CFG.sweepByTier, tier, 1.4);
     return startRound(casterId, round);
   };
 
   const chop = (targetId, casterId) => {
     const tier = tierOf(casterId, 'woodcutter');
     if (tier < 0) return deny(casterId, 'Only a Woodcutter knows where to set the wedge.');
-    if (sessions.has(casterId)) return true;
+    if (liveRound(casterId)) return true;
     const rests = restsOf(casterId, 'private.choppedBlocks');
     const until = Number(rests[targetId.toString(16)]) || 0;
     if (until > Date.now()) return deny(casterId, `You have split all the logs here. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
-    const strikes = Math.max(1, tierValue(WOODCUTTER.chopStrikesByTier, tier, 4));
+    const strikes = Math.max(1, Math.round(tierValue(WOODCUTTER.chopStrikesByTier, tier, 4)));
     const round = roundFor(casterId, 'chopping', tier, strikes, 'Chopping Block', targetId);
-    round.band = tierValue(CFG.bandByTier, tier, 8);
-    round.sweep = tierValue(CFG.sweepByTier, tier, 1.4);
     return startRound(casterId, round);
   };
 
@@ -150,34 +223,80 @@ module.exports = (api) => {
     return false;
   };
 
-  const finish = (a, round, win, text, kind) => {
-    const rests = restsOf(a, round.kind === 'mining' ? 'private.minedVeins' : 'private.choppedBlocks');
-    const restMinutes = win
-      ? (round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes)
-      : CFG.failRestMinutes;
-    rests[round.refId.toString(16)] = Date.now() + restMinutes * 60000;
-    saveRests(a, round.kind === 'mining' ? 'private.minedVeins' : 'private.choppedBlocks', rests);
-    openWidget(a, {
-      type: 'labour', id: WIDGET_ID, nonce: round.nonce, kind: round.kind, title: round.title,
-      strikes: round.strikes, seconds: CFG.seconds, band: round.band, sweep: round.sweep,
-      result: text, resultKind: kind,
-    }, false);
+  const finish = (a, round, win, text, kind, rest) => {
+    if (rest !== false) {
+      const prop = round.kind === 'mining' ? 'private.minedVeins' : 'private.choppedBlocks';
+      const rests = restsOf(a, prop);
+      const restMinutes = win
+        ? (round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes)
+        : CFG.failRestMinutes;
+      rests[round.refId.toString(16)] = Date.now() + restMinutes * 60000;
+      saveRests(a, prop, rests);
+    }
+    openWidget(a, packetFor(round, text, kind), false);
     sessions.delete(a);
+    // Remembered only so a repeat of the same report is logged as a replay instead of vanishing
+    spent.set(round.nonce, Date.now());
+    while (spent.size > 200) spent.delete(spent.keys().next().value);
   };
 
   onUi('labourCancel', (a) => { sessions.delete(a); closeWidget(a, WIDGET_ID); });
   onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) sessions.delete(a); });
 
+  // Replay the round against the report. The widget sends the millisecond of every strike it took,
+  // hit or miss; the hits are counted here, from the sweep and the band list the server issued.
+  const judge = (round, raw, at, elapsed) => {
+    const r = { hits: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '' };
+    let list = null;
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === 'string' && raw.length <= 2048) { try { list = JSON.parse(raw); } catch (e) { list = null; } }
+    if (!Array.isArray(list)) { r.bad = 'malformed'; return r; }
+    // One strike per cooldown is the most an honest widget can record in the round
+    if (list.length > Math.floor(round.totalMs / Math.max(1, round.hitMs)) + 2) { r.bad = 'flood'; return r; }
+    r.count = list.length;
+    let ready = 0;
+    for (const v of list) {
+      const t = Number(v);
+      if (!Number.isInteger(t) || t < 0 || t > round.totalMs) { r.bad = 'range'; break; }
+      // The cooldown also orders the list: ready is always past the strike before this one
+      if (t < ready) { r.bad = 'cooldown'; break; }
+      if (r.hits >= round.strikes) { r.bad = 'extra'; break; } // the widget submits on the last hit
+      const d = Math.abs(markerAt(t, round.sweepMs) - round.bands[r.hits]);
+      const landed = d <= round.half + 1e-9;
+      ready = t + (landed ? round.hitMs : round.missMs);
+      if (landed) { r.err += d / round.half; r.hits++; }
+      r.last = t;
+    }
+    if (r.hits) r.err /= r.hits;
+    if (r.bad) return r;
+    if (r.last > at) r.bad = 'submit';                      // a strike after the report went out
+    else if (r.lag < -CFG.clockSlackMs) r.bad = 'future';   // more time on its clock than the server watched pass
+    // The widget's clock may only sit behind the server's by the transport: the packet out, the
+    // mount, the report back. Further behind means the round was drawn out in real time and the
+    // times scaled back down — a sweep played in slow motion is the one cheat the band check alone
+    // would not see. It also expires a report that turns up minutes after its round.
+    else if (r.lag > CFG.lagGraceMs) r.bad = 'late';
+    return r;
+  };
+
   onUi('labour', (a, args) => {
     const round = sessions.get(a);
-    if (!round || String(args[0]) !== round.nonce) return;
-    const elapsed = Date.now() - round.startedAt;
-    const hits = Math.max(0, Math.min(round.strikes, Math.floor(Number(args[1]) || 0)));
-    // A strike cannot land faster than the marker can cross the band, so a flood of hits is a lie
-    const tooFast = elapsed < hits * 350;
-    const inTime = elapsed <= CFG.seconds * 1000 + 2500;
-    const win = hits >= round.strikes && inTime && !tooFast;
-    if (tooFast) log(`labour: ${display(a)} reported ${hits} strikes in ${elapsed} ms, refused`);
+    if (!round || String(args[0]) !== round.nonce) {
+      if (spent.has(String(args[0]))) log(`labour replay ${display(a)}: ${String(args[0]).slice(0, 40)} was already judged`);
+      return;
+    }
+    const elapsed = nowMs() - round.startedAt;
+    // An interface from before the round was server-issued reports a hit count and nothing else
+    if (typeof args[1] === 'number' || /^\s*\d+\s*$/.test(String(args[1]))) {
+      log(`labour stale-ui ${display(a)} ${round.kind}: a hit count, no strike times`);
+      return finish(a, round, false, 'Your interface is out of date. Rejoin the server to pick up the new one.', 'lose', false);
+    }
+    const v = judge(round, args[1], Math.max(0, Math.floor(Number(args[2]) || 0)), elapsed);
+    const win = !v.bad && v.hits >= round.strikes;
+    // One line per verdict: hits of strikes taken, the last strike and the report's own clock, the
+    // lag between that clock and the server's, how far off centre the hits were (0 is dead centre,
+    // 1 is the band's edge — a player who is always at 0.00 is not a player), and the round's seed.
+    log(`labour ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} ${v.hits}/${round.strikes} of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`);
 
     if (!win) {
       const text = round.kind === 'mining'
@@ -209,5 +328,5 @@ module.exports = (api) => {
     finish(a, round, true, text, 'win');
   });
 
-  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min`);
+  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min; rounds issued and judged server-side from strike times (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms)`);
 };

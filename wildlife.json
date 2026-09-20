@@ -586,86 +586,6 @@
 ]
 },
 {
-"kind": "chicken",
-"edid": "USKPdunPOIChicken",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-90706.32,
--74277.66,
-13602.74
-],
-"src": "1092f3:Skyrim.esm",
-"ref": "1092f0:Skyrim.esm",
-"anchorDist": 242,
-"options": [
-[
-65511,
-"5ba55:unofficial skyrim special edition patch.esp"
-]
-]
-},
-{
-"kind": "chicken",
-"edid": "USKPdunPOIChicken",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-90874.11,
--74672.43,
-13559.56
-],
-"src": "1092f2:Skyrim.esm",
-"ref": "1092f0:Skyrim.esm",
-"anchorDist": 504,
-"options": [
-[
-65511,
-"5ba55:unofficial skyrim special edition patch.esp"
-]
-]
-},
-{
-"kind": "chicken",
-"edid": "USKPdunPOIChicken",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-90991.9,
--74127.25,
-13610.6
-],
-"src": "1092f1:Skyrim.esm",
-"ref": "1092f0:Skyrim.esm",
-"anchorDist": 82,
-"options": [
-[
-65511,
-"5ba55:unofficial skyrim special edition patch.esp"
-]
-]
-},
-{
-"kind": "chicken",
-"edid": "USKPdunPOIChicken",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-90847.35,
--74129.8,
-13598.05
-],
-"src": "1092eb:Skyrim.esm",
-"ref": "1092f0:Skyrim.esm",
-"anchorDist": 88,
-"options": [
-[
-65511,
-"5ba55:unofficial skyrim special edition patch.esp"
-]
-]
-},
-{
 "kind": "mammoth",
 "edid": "EncMammothTamedNoAggro",
 "world": "3c:Skyrim.esm",
@@ -680,7 +600,7 @@
 "anchorDist": 1665,
 "options": [
 [
-0,
+38,
 "101581:Skyrim.esm"
 ]
 ]
@@ -700,7 +620,7 @@
 "anchorDist": 838,
 "options": [
 [
-0,
+38,
 "101581:Skyrim.esm"
 ]
 ]
@@ -748,7 +668,7 @@
 "anchorDist": 788,
 "options": [
 [
-0,
+38,
 "101580:Skyrim.esm"
 ]
 ]
@@ -7014,26 +6934,6 @@
 ]
 },
 {
-"kind": "giant",
-"edid": "E3demoGiant02",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-8387.08,
--20672.22,
--4234.62
-],
-"src": "93654:Skyrim.esm",
-"ref": "99315:Skyrim.esm",
-"anchorDist": 1329,
-"options": [
-[
-0,
-"936d3:Skyrim.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "EncWolf",
 "world": "3c:Skyrim.esm",
@@ -7048,7 +6948,7 @@
 "anchorDist": 1869,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -7068,28 +6968,8 @@
 "anchorDist": 277,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "giant",
-"edid": "E3demoGiant01",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-7625.73,
--20307.27,
--4551.17
-],
-"src": "93660:Skyrim.esm",
-"ref": "99315:Skyrim.esm",
-"anchorDist": 2229,
-"options": [
-[
-0,
-"936d1:Skyrim.esm"
 ]
 ]
 },
@@ -7108,7 +6988,7 @@
 "anchorDist": 849,
 "options": [
 [
-0,
+14,
 "6af65:Skyrim.esm"
 ]
 ]
@@ -7128,7 +7008,7 @@
 "anchorDist": 302,
 "options": [
 [
-0,
+14,
 "6af65:Skyrim.esm"
 ]
 ]
@@ -7196,56 +7076,8 @@
 "anchorDist": 1738,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
-]
-]
-},
-{
-"kind": "giant",
-"edid": "DA06LvlGiant",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-136713.36,
--109169.25,
-10629.57
-],
-"src": "8bee2:Skyrim.esm",
-"ref": "8cd9e:Skyrim.esm",
-"anchorDist": 748,
-"options": [
-[
-1,
-"23aae:Skyrim.esm"
-],
-[
-1,
-"30437:Skyrim.esm"
-],
-[
-1,
-"30438:Skyrim.esm"
-]
-]
-},
-{
-"kind": "giant",
-"edid": "dunKarthspireGiant",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
--124078.48,
-8640.34,
--7483.02
-],
-"src": "69f7c:Skyrim.esm",
-"ref": "ccda8:Skyrim.esm",
-"anchorDist": 138,
-"options": [
-[
-0,
-"69f7d:Skyrim.esm"
 ]
 ]
 },
@@ -7264,7 +7096,7 @@
 "anchorDist": 1462,
 "options": [
 [
-0,
+38,
 "b6234:Skyrim.esm"
 ]
 ]
@@ -7284,7 +7116,7 @@
 "anchorDist": 2406,
 "options": [
 [
-0,
+38,
 "b6234:Skyrim.esm"
 ]
 ]
@@ -7332,68 +7164,8 @@
 "anchorDist": 17,
 "options": [
 [
-0,
+2,
 "d1684:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "dunCGEncHare",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-22848.6,
--89559.37,
-12504.91
-],
-"src": "b8e9d:Skyrim.esm",
-"ref": "b8ee2:Skyrim.esm",
-"anchorDist": 1980,
-"options": [
-[
-65511,
-"b8eca:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "dunCGEncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-18533.45,
--89571.9,
-11878.15
-],
-"src": "b8ef2:Skyrim.esm",
-"ref": "109126:Skyrim.esm",
-"anchorDist": 1494,
-"options": [
-[
-0,
-"b8f25:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "dunCGEncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
-18731.23,
--89346.52,
-11864.0
-],
-"src": "b8f24:Skyrim.esm",
-"ref": "109126:Skyrim.esm",
-"anchorDist": 1267,
-"options": [
-[
-0,
-"b8f25:Skyrim.esm"
 ]
 ]
 },
@@ -7412,7 +7184,7 @@
 "anchorDist": 2838,
 "options": [
 [
-0,
+38,
 "101581:Skyrim.esm"
 ]
 ]
@@ -7432,7 +7204,7 @@
 "anchorDist": 2478,
 "options": [
 [
-0,
+38,
 "101581:Skyrim.esm"
 ]
 ]
@@ -7528,7 +7300,7 @@
 "anchorDist": 288,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -7548,7 +7320,7 @@
 "anchorDist": 856,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -7568,7 +7340,7 @@
 "anchorDist": 614,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -7588,7 +7360,7 @@
 "anchorDist": 915,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -7902,26 +7674,6 @@
 [
 6,
 "23ab5:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlDeer",
-"world": "3c:Skyrim.esm",
-"cell": "9143:Skyrim.esm",
-"pos": [
-19069.01,
-18281.25,
--4811.54
-],
-"src": "a30f6:Skyrim.esm",
-"ref": "53a67:Skyrim.esm",
-"anchorDist": 112,
-"options": [
-[
-1,
-"cf89d:Skyrim.esm"
 ]
 ]
 },
@@ -8548,28 +8300,8 @@
 "anchorDist": 1292,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
-]
-]
-},
-{
-"kind": "sabrecat",
-"edid": "EncSabreCat",
-"world": "3c:Skyrim.esm",
-"cell": "99a2:Skyrim.esm",
-"pos": [
-433.73,
-745.0,
--5883.4
-],
-"src": "33f7e:Skyrim.esm",
-"ref": "cd93b:Skyrim.esm",
-"anchorDist": 644,
-"options": [
-[
-0,
-"23ab5:Skyrim.esm"
 ]
 ]
 },
@@ -8702,26 +8434,6 @@
 ]
 },
 {
-"kind": "elk",
-"edid": "EncElk",
-"world": "3c:Skyrim.esm",
-"cell": "9048:Skyrim.esm",
-"pos": [
-31733.8,
-51130.1,
--9125.94
-],
-"src": "9838a:Skyrim.esm",
-"ref": "c43cc:Skyrim.esm",
-"anchorDist": 184,
-"options": [
-[
-0,
-"23a91:Skyrim.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "EncWolf",
 "world": "3c:Skyrim.esm",
@@ -8736,7 +8448,7 @@
 "anchorDist": 759,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -8756,7 +8468,7 @@
 "anchorDist": 711,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -8776,7 +8488,7 @@
 "anchorDist": 173,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -8796,7 +8508,7 @@
 "anchorDist": 269,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -9476,7 +9188,7 @@
 "anchorDist": 237,
 "options": [
 [
-0,
+1,
 "23ab7:Skyrim.esm"
 ]
 ]
@@ -9496,7 +9208,7 @@
 "anchorDist": 249,
 "options": [
 [
-0,
+1,
 "23ab7:Skyrim.esm"
 ]
 ]
@@ -9756,7 +9468,7 @@
 "anchorDist": 1720,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
 ]
 ]
@@ -10000,7 +9712,7 @@
 "anchorDist": 4291,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10020,7 +9732,7 @@
 "anchorDist": 4861,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10040,7 +9752,7 @@
 "anchorDist": 3707,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10060,7 +9772,7 @@
 "anchorDist": 5159,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10080,7 +9792,7 @@
 "anchorDist": 2676,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10100,7 +9812,7 @@
 "anchorDist": 2572,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10120,7 +9832,7 @@
 "anchorDist": 2179,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10140,7 +9852,7 @@
 "anchorDist": 2417,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10160,7 +9872,7 @@
 "anchorDist": 5067,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10180,7 +9892,7 @@
 "anchorDist": 3543,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10200,7 +9912,7 @@
 "anchorDist": 1237,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10220,7 +9932,7 @@
 "anchorDist": 1312,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -10240,7 +9952,7 @@
 "anchorDist": 1174,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -10260,7 +9972,7 @@
 "anchorDist": 1034,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -10280,7 +9992,7 @@
 "anchorDist": 1378,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -10336,7 +10048,7 @@
 "anchorDist": 88,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -10356,7 +10068,7 @@
 "anchorDist": 37,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -10376,7 +10088,7 @@
 "anchorDist": 263,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -10420,7 +10132,7 @@
 "anchorDist": 200,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -10440,7 +10152,7 @@
 "anchorDist": 229,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -10484,7 +10196,7 @@
 "anchorDist": 433,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -10504,7 +10216,7 @@
 "anchorDist": 797,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -10524,7 +10236,7 @@
 "anchorDist": 2013,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -10644,7 +10356,7 @@
 "anchorDist": 1314,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -10664,7 +10376,7 @@
 "anchorDist": 1462,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -10784,7 +10496,7 @@
 "anchorDist": 1898,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -11040,7 +10752,7 @@
 "anchorDist": 177,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -11184,7 +10896,7 @@
 "anchorDist": 131,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -11204,7 +10916,7 @@
 "anchorDist": 258,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -11550,26 +11262,6 @@
 ]
 },
 {
-"kind": "mammoth",
-"edid": "EncMammothWild",
-"world": "3c:Skyrim.esm",
-"cell": "9047:Skyrim.esm",
-"pos": [
-33134.01,
-51048.49,
--9138.74
-],
-"src": "9834c:Skyrim.esm",
-"ref": "c43cc:Skyrim.esm",
-"anchorDist": 1305,
-"options": [
-[
-0,
-"23ab4:Skyrim.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "LvlAmbientCreaturesSnow",
 "world": "3c:Skyrim.esm",
@@ -11716,7 +11408,7 @@
 "anchorDist": 1996,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
 ]
 ]
@@ -11736,7 +11428,7 @@
 "anchorDist": 1805,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
 ]
 ]
@@ -11824,7 +11516,7 @@
 "anchorDist": 3781,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -11924,7 +11616,7 @@
 "anchorDist": 4284,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -11944,7 +11636,7 @@
 "anchorDist": 4000,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -11964,7 +11656,7 @@
 "anchorDist": 4284,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -12044,7 +11736,7 @@
 "anchorDist": 2366,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -12064,7 +11756,7 @@
 "anchorDist": 1849,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -12084,7 +11776,7 @@
 "anchorDist": 2746,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -12274,26 +11966,6 @@
 [
 1,
 "829b6:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "8f6d:Skyrim.esm",
-"pos": [
-38185.43,
-78303.45,
--8957.06
-],
-"src": "9dbbe:Skyrim.esm",
-"ref": "107473:Skyrim.esm",
-"anchorDist": 2774,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
 ]
 ]
 },
@@ -12544,7 +12216,7 @@
 "anchorDist": 1949,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12564,7 +12236,7 @@
 "anchorDist": 1691,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12584,7 +12256,7 @@
 "anchorDist": 2115,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12604,7 +12276,7 @@
 "anchorDist": 2643,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12624,7 +12296,7 @@
 "anchorDist": 1789,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12644,7 +12316,7 @@
 "anchorDist": 1924,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12664,7 +12336,7 @@
 "anchorDist": 1993,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -12684,7 +12356,7 @@
 "anchorDist": 1763,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -12704,7 +12376,7 @@
 "anchorDist": 1807,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -12724,7 +12396,7 @@
 "anchorDist": 2152,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12744,7 +12416,7 @@
 "anchorDist": 2030,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -12764,7 +12436,7 @@
 "anchorDist": 1627,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -12784,7 +12456,7 @@
 "anchorDist": 2080,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -12804,7 +12476,7 @@
 "anchorDist": 1896,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -13152,28 +12824,8 @@
 "anchorDist": 2209,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "90da:Skyrim.esm",
-"pos": [
-68364.01,
-31645.72,
--7275.21
-],
-"src": "16429:Skyrim.esm",
-"ref": "16421:Skyrim.esm",
-"anchorDist": 1736,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
 ]
 ]
 },
@@ -13676,7 +13328,7 @@
 "anchorDist": 1029,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -13696,7 +13348,7 @@
 "anchorDist": 833,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -14008,7 +13660,7 @@
 "anchorDist": 881,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -14028,7 +13680,7 @@
 "anchorDist": 2586,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15176,7 +14828,7 @@
 "anchorDist": 453,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15196,7 +14848,7 @@
 "anchorDist": 665,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15216,7 +14868,7 @@
 "anchorDist": 1081,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15332,7 +14984,7 @@
 "anchorDist": 2150,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15352,7 +15004,7 @@
 "anchorDist": 2260,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15372,7 +15024,7 @@
 "anchorDist": 1466,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15392,7 +15044,7 @@
 "anchorDist": 1163,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15472,7 +15124,7 @@
 "anchorDist": 2706,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15552,7 +15204,7 @@
 "anchorDist": 2200,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15572,7 +15224,7 @@
 "anchorDist": 3021,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -15668,7 +15320,7 @@
 "anchorDist": 553,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -15688,7 +15340,7 @@
 "anchorDist": 571,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -15708,7 +15360,7 @@
 "anchorDist": 680,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -15822,26 +15474,6 @@
 [
 10,
 "21875:Skyrim.esm"
-]
-]
-},
-{
-"kind": "goat",
-"edid": "LvlAnimalMountainSnowPrey",
-"world": "3c:Skyrim.esm",
-"cell": "90eb:Skyrim.esm",
-"pos": [
-125640.7,
-27788.63,
--13718.12
-],
-"src": "7abb1:Skyrim.esm",
-"ref": "108fb2:Skyrim.esm",
-"anchorDist": 2339,
-"options": [
-[
-1,
-"2ebe2:Skyrim.esm"
 ]
 ]
 },
@@ -16058,26 +15690,6 @@
 ]
 },
 {
-"kind": "wolf",
-"edid": "EncWolfIce",
-"world": "3c:Skyrim.esm",
-"cell": "910e:Skyrim.esm",
-"pos": [
-109810.47,
-20527.76,
--6078.78
-],
-"src": "d84c6:Skyrim.esm",
-"ref": "d84a0:Skyrim.esm",
-"anchorDist": 209,
-"options": [
-[
-0,
-"23abf:Skyrim.esm"
-]
-]
-},
-{
 "kind": "troll",
 "edid": "EncTrollFrost",
 "world": "3c:Skyrim.esm",
@@ -16092,7 +15704,7 @@
 "anchorDist": 207,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -17628,7 +17240,7 @@
 "anchorDist": 2867,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -17948,7 +17560,7 @@
 "anchorDist": 2667,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -17986,26 +17598,6 @@
 "src": "83f2d:Skyrim.esm",
 "ref": "10f00f:Skyrim.esm",
 "anchorDist": 848,
-"options": [
-[
-1,
-"2ebe2:Skyrim.esm"
-]
-]
-},
-{
-"kind": "goat",
-"edid": "LvlAnimalMountainSnowPrey",
-"world": "3c:Skyrim.esm",
-"cell": "8f57:Skyrim.esm",
-"pos": [
-127320.52,
-81070.08,
--8898.25
-],
-"src": "7ac65:Skyrim.esm",
-"ref": "1073e3:Skyrim.esm",
-"anchorDist": 1697,
 "options": [
 [
 1,
@@ -18328,7 +17920,7 @@
 "anchorDist": 1868,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18348,7 +17940,7 @@
 "anchorDist": 2802,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18368,7 +17960,7 @@
 "anchorDist": 2872,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18388,7 +17980,7 @@
 "anchorDist": 2742,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18408,7 +18000,7 @@
 "anchorDist": 2484,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18428,7 +18020,7 @@
 "anchorDist": 2569,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18448,7 +18040,7 @@
 "anchorDist": 2400,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18504,7 +18096,7 @@
 "anchorDist": 1426,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18524,88 +18116,8 @@
 "anchorDist": 2098,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "8dea:Skyrim.esm",
-"pos": [
-99330.79,
-128483.03,
--13806.3
-],
-"src": "ef616:Skyrim.esm",
-"ref": "ef625:Skyrim.esm",
-"anchorDist": 264,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "8dea:Skyrim.esm",
-"pos": [
-99470.14,
-128818.7,
--13807.55
-],
-"src": "ef615:Skyrim.esm",
-"ref": "ef5f9:Skyrim.esm",
-"anchorDist": 168,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "8dea:Skyrim.esm",
-"pos": [
-99556.41,
-128372.94,
--13807.29
-],
-"src": "ef614:Skyrim.esm",
-"ref": "ef625:Skyrim.esm",
-"anchorDist": 217,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "8dea:Skyrim.esm",
-"pos": [
-99836.09,
-128955.95,
--13797.78
-],
-"src": "ef611:Skyrim.esm",
-"ref": "ef613:Skyrim.esm",
-"anchorDist": 41,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
 ]
 ]
 },
@@ -18624,7 +18136,7 @@
 "anchorDist": 326,
 "options": [
 [
-0,
+1,
 "23ab7:Skyrim.esm"
 ]
 ]
@@ -18704,7 +18216,7 @@
 "anchorDist": 1901,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18724,7 +18236,7 @@
 "anchorDist": 2599,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18780,7 +18292,7 @@
 "anchorDist": 2414,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18800,7 +18312,7 @@
 "anchorDist": 2813,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -18892,7 +18404,7 @@
 "anchorDist": 123,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -18912,7 +18424,7 @@
 "anchorDist": 180,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -18932,7 +18444,7 @@
 "anchorDist": 3751,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -18952,7 +18464,7 @@
 "anchorDist": 3685,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -18972,7 +18484,7 @@
 "anchorDist": 1359,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -18992,7 +18504,7 @@
 "anchorDist": 1537,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19012,7 +18524,7 @@
 "anchorDist": 1234,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19032,7 +18544,7 @@
 "anchorDist": 1989,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19244,7 +18756,7 @@
 "anchorDist": 528,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19372,7 +18884,7 @@
 "anchorDist": 853,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19392,7 +18904,7 @@
 "anchorDist": 1598,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19412,7 +18924,7 @@
 "anchorDist": 2448,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19432,7 +18944,7 @@
 "anchorDist": 1332,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19476,7 +18988,7 @@
 "anchorDist": 1847,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19496,7 +19008,7 @@
 "anchorDist": 1626,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19516,7 +19028,7 @@
 "anchorDist": 1113,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -19642,110 +19154,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "980e:Skyrim.esm",
-"pos": [
-5532.24,
--75809.45,
-4478.41
-],
-"src": "847ef:Skyrim.esm",
-"ref": "5b6ce:Skyrim.esm",
-"anchorDist": 1005,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "980e:Skyrim.esm",
-"pos": [
-5645.68,
--75383.69,
-4620.8
-],
-"src": "847ee:Skyrim.esm",
-"ref": "5b6ce:Skyrim.esm",
-"anchorDist": 958,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "980e:Skyrim.esm",
-"pos": [
-5556.66,
--74973.97,
-4638.13
-],
-"src": "847ed:Skyrim.esm",
-"ref": "5b6ce:Skyrim.esm",
-"anchorDist": 904,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "dunCGEncHare",
-"world": "3c:Skyrim.esm",
-"cell": "9867:Skyrim.esm",
-"pos": [
-21521.41,
--87510.55,
-11322.19
-],
-"src": "b8f2a:Skyrim.esm",
-"ref": "b8f1d:Skyrim.esm",
-"anchorDist": 1982,
-"options": [
-[
-65511,
-"b8eca:Skyrim.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "LvlAnimalMountainSnowPredator",
 "world": "3c:Skyrim.esm",
@@ -19824,7 +19232,7 @@
 "anchorDist": 609,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -19850,34 +19258,6 @@
 [
 1,
 "829b6:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "9c57:Skyrim.esm",
-"pos": [
-776.19,
--82311.72,
-5016.6
-],
-"src": "ec189:Skyrim.esm",
-"ref": "9790e:Skyrim.esm",
-"anchorDist": 1428,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
 ]
 ]
 },
@@ -20004,7 +19384,7 @@
 "anchorDist": 698,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -20052,7 +19432,7 @@
 "anchorDist": 462,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20096,7 +19476,7 @@
 "anchorDist": 659,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20116,7 +19496,7 @@
 "anchorDist": 536,
 "options": [
 [
-0,
+2,
 "1e62a:Skyrim.esm"
 ]
 ]
@@ -20136,7 +19516,7 @@
 "anchorDist": 646,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -20156,7 +19536,7 @@
 "anchorDist": 397,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20176,7 +19556,7 @@
 "anchorDist": 1008,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -20196,7 +19576,7 @@
 "anchorDist": 3336,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -20244,7 +19624,7 @@
 "anchorDist": 3197,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -20264,7 +19644,7 @@
 "anchorDist": 1846,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -20308,27 +19688,7 @@
 "anchorDist": 2190,
 "options": [
 [
-0,
-"23abe:Skyrim.esm"
-]
-]
-},
-{
-"kind": "wolf",
-"edid": "EncWolf",
-"world": "3c:Skyrim.esm",
-"cell": "9773:Skyrim.esm",
-"pos": [
-7542.62,
--56330.57,
-956.83
-],
-"src": "992d8:Skyrim.esm",
-"ref": "ac139:Skyrim.esm",
-"anchorDist": 1491,
-"options": [
-[
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -20420,7 +19780,7 @@
 "anchorDist": 1165,
 "options": [
 [
-0,
+2,
 "829b3:Skyrim.esm"
 ]
 ]
@@ -20520,7 +19880,7 @@
 "anchorDist": 720,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20540,7 +19900,7 @@
 "anchorDist": 711,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20560,7 +19920,7 @@
 "anchorDist": 484,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -20636,7 +19996,7 @@
 "anchorDist": 666,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20656,7 +20016,7 @@
 "anchorDist": 462,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20676,7 +20036,7 @@
 "anchorDist": 308,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -20696,7 +20056,7 @@
 "anchorDist": 416,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -20828,7 +20188,7 @@
 "anchorDist": 776,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -20848,7 +20208,7 @@
 "anchorDist": 503,
 "options": [
 [
-0,
+2,
 "e4011:Skyrim.esm"
 ]
 ]
@@ -20924,7 +20284,7 @@
 "anchorDist": 3292,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -20944,7 +20304,7 @@
 "anchorDist": 2108,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -20964,7 +20324,7 @@
 "anchorDist": 2325,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -21280,7 +20640,7 @@
 "anchorDist": 2251,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21300,7 +20660,7 @@
 "anchorDist": 1604,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21344,7 +20704,7 @@
 "anchorDist": 7819,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21364,7 +20724,7 @@
 "anchorDist": 7474,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21384,7 +20744,7 @@
 "anchorDist": 6947,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21404,7 +20764,7 @@
 "anchorDist": 731,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21448,7 +20808,7 @@
 "anchorDist": 1075,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21468,7 +20828,7 @@
 "anchorDist": 3316,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -21548,7 +20908,7 @@
 "anchorDist": 2221,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -21892,7 +21252,7 @@
 "anchorDist": 1237,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -21912,7 +21272,7 @@
 "anchorDist": 455,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -21932,7 +21292,7 @@
 "anchorDist": 675,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -22036,7 +21396,7 @@
 "anchorDist": 576,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -22056,7 +21416,7 @@
 "anchorDist": 524,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -22076,7 +21436,7 @@
 "anchorDist": 631,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -22300,7 +21660,7 @@
 "anchorDist": 536,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -22536,7 +21896,7 @@
 "anchorDist": 215,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -22556,7 +21916,7 @@
 "anchorDist": 931,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -22800,7 +22160,7 @@
 "anchorDist": 2388,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -22820,7 +22180,7 @@
 "anchorDist": 2258,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -22864,7 +22224,7 @@
 "anchorDist": 967,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -22884,7 +22244,7 @@
 "anchorDist": 902,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -22932,7 +22292,7 @@
 "anchorDist": 984,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -22952,7 +22312,7 @@
 "anchorDist": 1711,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -23012,7 +22372,7 @@
 "anchorDist": 3894,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -23032,7 +22392,7 @@
 "anchorDist": 4239,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -23100,7 +22460,7 @@
 "anchorDist": 3104,
 "options": [
 [
-0,
+20,
 "23a8c:Skyrim.esm"
 ]
 ]
@@ -23352,7 +22712,7 @@
 "anchorDist": 938,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -23372,7 +22732,7 @@
 "anchorDist": 913,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -23392,7 +22752,7 @@
 "anchorDist": 1983,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -23412,7 +22772,7 @@
 "anchorDist": 2069,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -23456,7 +22816,7 @@
 "anchorDist": 1266,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -23476,7 +22836,7 @@
 "anchorDist": 1504,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -23588,7 +22948,7 @@
 "anchorDist": 1472,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -23760,7 +23120,7 @@
 "anchorDist": 6423,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -23780,7 +23140,7 @@
 "anchorDist": 5822,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -23848,7 +23208,7 @@
 "anchorDist": 1119,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -23868,7 +23228,7 @@
 "anchorDist": 1064,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -23888,7 +23248,7 @@
 "anchorDist": 918,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -23980,28 +23340,8 @@
 "anchorDist": 621,
 "options": [
 [
-0,
+14,
 "23aba:Skyrim.esm"
-]
-]
-},
-{
-"kind": "elk",
-"edid": "EncElk",
-"world": "3c:Skyrim.esm",
-"cell": "9741:Skyrim.esm",
-"pos": [
-82982.26,
--51494.73,
-6433.84
-],
-"src": "ced66:Skyrim.esm",
-"ref": "ced32:Skyrim.esm",
-"anchorDist": 333,
-"options": [
-[
-0,
-"23a91:Skyrim.esm"
 ]
 ]
 },
@@ -24020,7 +23360,7 @@
 "anchorDist": 507,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -24040,7 +23380,7 @@
 "anchorDist": 605,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -24108,7 +23448,7 @@
 "anchorDist": 939,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -24128,7 +23468,7 @@
 "anchorDist": 1154,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -24276,7 +23616,7 @@
 "anchorDist": 152,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -24296,7 +23636,7 @@
 "anchorDist": 152,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -24316,7 +23656,7 @@
 "anchorDist": 148,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -24376,7 +23716,7 @@
 "anchorDist": 1412,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -24504,7 +23844,7 @@
 "anchorDist": 483,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -24702,26 +24042,6 @@
 [
 1,
 "30438:Skyrim.esm"
-]
-]
-},
-{
-"kind": "cow",
-"edid": "EncCowPainted",
-"world": "3c:Skyrim.esm",
-"cell": "95ea:Skyrim.esm",
-"pos": [
-93136.2,
--5582.72,
--8585.24
-],
-"src": "399b2:Skyrim.esm",
-"ref": "cf6b3:Skyrim.esm",
-"anchorDist": 86,
-"options": [
-[
-0,
-"c39f1:Skyrim.esm"
 ]
 ]
 },
@@ -24976,7 +24296,7 @@
 "anchorDist": 432,
 "options": [
 [
-0,
+32,
 "23aae:Skyrim.esm"
 ]
 ]
@@ -25816,7 +25136,7 @@
 "anchorDist": 602,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -25836,7 +25156,7 @@
 "anchorDist": 739,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -25856,7 +25176,7 @@
 "anchorDist": 364,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -25876,7 +25196,7 @@
 "anchorDist": 2028,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -25896,7 +25216,7 @@
 "anchorDist": 1448,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -26264,7 +25584,7 @@
 "anchorDist": 935,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -26284,7 +25604,7 @@
 "anchorDist": 1335,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -26844,7 +26164,7 @@
 "anchorDist": 432,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -26864,7 +26184,7 @@
 "anchorDist": 325,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -26884,7 +26204,7 @@
 "anchorDist": 83,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -27148,7 +26468,7 @@
 "anchorDist": 2127,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -27168,7 +26488,7 @@
 "anchorDist": 1636,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -27836,7 +27156,7 @@
 "anchorDist": 1104,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -27856,7 +27176,7 @@
 "anchorDist": 1268,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -27876,7 +27196,7 @@
 "anchorDist": 264,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -27896,7 +27216,7 @@
 "anchorDist": 1087,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -28926,26 +28246,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "b4f9:Skyrim.esm",
-"pos": [
-147972.73,
-26295.85,
--10146.38
-],
-"src": "6af79:Skyrim.esm",
-"ref": "6af78:Skyrim.esm",
-"anchorDist": 131,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "chicken",
 "edid": "EncChicken",
 "world": "3c:Skyrim.esm",
@@ -28960,7 +28260,7 @@
 "anchorDist": 225,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -28980,7 +28280,7 @@
 "anchorDist": 460,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -29000,28 +28300,8 @@
 "anchorDist": 373,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "b538:Skyrim.esm",
-"pos": [
-160783.62,
-19260.02,
--29.51
-],
-"src": "cd6ff:Skyrim.esm",
-"ref": "10eeed:Skyrim.esm",
-"anchorDist": 2076,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
 ]
 ]
 },
@@ -29238,26 +28518,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "b57b:Skyrim.esm",
-"pos": [
-156145.53,
-9870.17,
--4647.61
-],
-"src": "50187:Skyrim.esm",
-"ref": "50188:Skyrim.esm",
-"anchorDist": 58,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "goat",
 "edid": "EncGoatDomestic",
 "world": "3c:Skyrim.esm",
@@ -29272,7 +28532,7 @@
 "anchorDist": 239,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -29292,7 +28552,7 @@
 "anchorDist": 298,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -29396,7 +28656,7 @@
 "anchorDist": 224,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -29416,7 +28676,7 @@
 "anchorDist": 2096,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -29460,7 +28720,7 @@
 "anchorDist": 1443,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -29480,7 +28740,7 @@
 "anchorDist": 1426,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -29500,7 +28760,7 @@
 "anchorDist": 1082,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -29520,7 +28780,7 @@
 "anchorDist": 1215,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -29636,7 +28896,7 @@
 "anchorDist": 1678,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -30194,26 +29454,6 @@
 ]
 },
 {
-"kind": "horker",
-"edid": "EncHorker",
-"world": "3c:Skyrim.esm",
-"cell": "b40f:Skyrim.esm",
-"pos": [
-159846.25,
-54336.59,
--13987.41
-],
-"src": "858f4:Skyrim.esm",
-"ref": "14b02d:ccBGSSSE001-Fish.esm",
-"anchorDist": 2437,
-"options": [
-[
-65511,
-"23ab1:Skyrim.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "LvlAnimalCoastSnowPredator",
 "world": "3c:Skyrim.esm",
@@ -30460,7 +29700,7 @@
 "anchorDist": 2232,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -30552,7 +29792,7 @@
 "anchorDist": 2108,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -30820,7 +30060,7 @@
 "anchorDist": 2175,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -30840,7 +30080,7 @@
 "anchorDist": 1981,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -30924,7 +30164,7 @@
 "anchorDist": 863,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -30944,7 +30184,7 @@
 "anchorDist": 1272,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -30964,7 +30204,7 @@
 "anchorDist": 1558,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -30984,7 +30224,7 @@
 "anchorDist": 1607,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -31004,7 +30244,7 @@
 "anchorDist": 1359,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -31024,7 +30264,7 @@
 "anchorDist": 1280,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -31044,7 +30284,7 @@
 "anchorDist": 1357,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -31064,7 +30304,7 @@
 "anchorDist": 2419,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -31084,7 +30324,7 @@
 "anchorDist": 2583,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -31128,7 +30368,7 @@
 "anchorDist": 2581,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31148,7 +30388,7 @@
 "anchorDist": 2351,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31204,7 +30444,7 @@
 "anchorDist": 1018,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31284,7 +30524,7 @@
 "anchorDist": 2587,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31328,7 +30568,7 @@
 "anchorDist": 3543,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31348,7 +30588,7 @@
 "anchorDist": 3540,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31368,7 +30608,7 @@
 "anchorDist": 3376,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31388,27 +30628,7 @@
 "anchorDist": 3353,
 "options": [
 [
-65511,
-"23ab1:Skyrim.esm"
-]
-]
-},
-{
-"kind": "horker",
-"edid": "EncHorker",
-"world": "3c:Skyrim.esm",
-"cell": "b309:Skyrim.esm",
-"pos": [
-153009.47,
-86394.08,
--13891.19
-],
-"src": "c25fe:Skyrim.esm",
-"ref": "f4a15:Skyrim.esm",
-"anchorDist": 366,
-"options": [
-[
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31428,7 +30648,7 @@
 "anchorDist": 317,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31448,7 +30668,7 @@
 "anchorDist": 218,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31504,32 +30724,8 @@
 "anchorDist": 467,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
-]
-]
-},
-{
-"kind": "wolf",
-"edid": "LvlWolf",
-"world": "3c:Skyrim.esm",
-"cell": "b30d:Skyrim.esm",
-"pos": [
-137009.5,
-88171.07,
--13832.96
-],
-"src": "83ed0:Skyrim.esm",
-"ref": "e7eb0:Skyrim.esm",
-"anchorDist": 515,
-"options": [
-[
-1,
-"23abe:Skyrim.esm"
-],
-[
-1,
-"10fe05:Skyrim.esm"
 ]
 ]
 },
@@ -31548,7 +30744,7 @@
 "anchorDist": 820,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31568,7 +30764,7 @@
 "anchorDist": 717,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31649,26 +30845,6 @@
 "kind": "horker",
 "edid": "EncHorker",
 "world": "3c:Skyrim.esm",
-"cell": "b32c:Skyrim.esm",
-"pos": [
-147103.34,
-82443.15,
--13509.64
-],
-"src": "c25df:Skyrim.esm",
-"ref": "c25e3:Skyrim.esm",
-"anchorDist": 218,
-"options": [
-[
-65511,
-"23ab1:Skyrim.esm"
-]
-]
-},
-{
-"kind": "horker",
-"edid": "EncHorker",
-"world": "3c:Skyrim.esm",
 "cell": "b32d:Skyrim.esm",
 "pos": [
 139669.91,
@@ -31680,7 +30856,7 @@
 "anchorDist": 2334,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31736,7 +30912,7 @@
 "anchorDist": 3795,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31756,7 +30932,7 @@
 "anchorDist": 4301,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31776,7 +30952,7 @@
 "anchorDist": 1611,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -31966,26 +31142,6 @@
 ]
 },
 {
-"kind": "horker",
-"edid": "EncHorker",
-"world": "3c:Skyrim.esm",
-"cell": "b38e:Skyrim.esm",
-"pos": [
-151254.19,
-73173.61,
--12161.96
-],
-"src": "7ac16:Skyrim.esm",
-"ref": "7ac15:Skyrim.esm",
-"anchorDist": 345,
-"options": [
-[
-65511,
-"23ab1:Skyrim.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "LvlAnimalMountainSnowPredator",
 "world": "3c:Skyrim.esm",
@@ -32140,7 +31296,7 @@
 "anchorDist": 877,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32160,7 +31316,7 @@
 "anchorDist": 952,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32180,7 +31336,7 @@
 "anchorDist": 261,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32200,7 +31356,7 @@
 "anchorDist": 2656,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -32384,7 +31540,7 @@
 "anchorDist": 837,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32404,7 +31560,7 @@
 "anchorDist": 2211,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32460,7 +31616,7 @@
 "anchorDist": 476,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32552,7 +31708,7 @@
 "anchorDist": 1778,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32572,7 +31728,7 @@
 "anchorDist": 1864,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32592,7 +31748,7 @@
 "anchorDist": 1261,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32720,7 +31876,7 @@
 "anchorDist": 1274,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32812,7 +31968,7 @@
 "anchorDist": 1074,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32868,7 +32024,7 @@
 "anchorDist": 1032,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -32936,7 +32092,7 @@
 "anchorDist": 2271,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -33448,7 +32604,7 @@
 "anchorDist": 1831,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -33468,7 +32624,7 @@
 "anchorDist": 581,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -33488,7 +32644,7 @@
 "anchorDist": 209,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -33508,7 +32664,7 @@
 "anchorDist": 345,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -33528,7 +32684,7 @@
 "anchorDist": 444,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -33548,7 +32704,7 @@
 "anchorDist": 1672,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -33568,7 +32724,7 @@
 "anchorDist": 1783,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -33588,7 +32744,7 @@
 "anchorDist": 859,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -33668,7 +32824,7 @@
 "anchorDist": 3248,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -33688,7 +32844,7 @@
 "anchorDist": 1651,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -33708,7 +32864,7 @@
 "anchorDist": 1865,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -33836,7 +32992,7 @@
 "anchorDist": 1414,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -33892,7 +33048,7 @@
 "anchorDist": 1605,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -33912,7 +33068,7 @@
 "anchorDist": 1910,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -33932,7 +33088,7 @@
 "anchorDist": 368,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -34424,7 +33580,7 @@
 "anchorDist": 232,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -34444,7 +33600,7 @@
 "anchorDist": 172,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -34616,7 +33772,7 @@
 "anchorDist": 668,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -34636,7 +33792,7 @@
 "anchorDist": 757,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -34656,7 +33812,7 @@
 "anchorDist": 717,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -34814,26 +33970,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "bd99:Skyrim.esm",
-"pos": [
-161263.16,
--119842.82,
-11405.35
-],
-"src": "4486d:Skyrim.esm",
-"ref": "44871:Skyrim.esm",
-"anchorDist": 451,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "LvlAmbientCreatures",
 "world": "3c:Skyrim.esm",
@@ -34882,26 +34018,6 @@
 ]
 },
 {
-"kind": "goat",
-"edid": "EncGoatWild",
-"world": "3c:Skyrim.esm",
-"cell": "bda0:Skyrim.esm",
-"pos": [
-131970.72,
--119604.93,
-18058.27
-],
-"src": "ce644:Skyrim.esm",
-"ref": "ce63a:Skyrim.esm",
-"anchorDist": 399,
-"options": [
-[
-65511,
-"2ebe2:Skyrim.esm"
-]
-]
-},
-{
 "kind": "troll",
 "edid": "EncTroll",
 "world": "3c:Skyrim.esm",
@@ -34916,7 +34032,7 @@
 "anchorDist": 274,
 "options": [
 [
-0,
+14,
 "23aba:Skyrim.esm"
 ]
 ]
@@ -35454,26 +34570,6 @@
 ]
 },
 {
-"kind": "elk",
-"edid": "EncElkFemale",
-"world": "3c:Skyrim.esm",
-"cell": "bc71:Skyrim.esm",
-"pos": [
-158130.36,
--83607.66,
-11061.18
-],
-"src": "ce621:Skyrim.esm",
-"ref": "cd949:Skyrim.esm",
-"anchorDist": 168,
-"options": [
-[
-0,
-"abedf:Skyrim.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "LvlAmbientCreatures",
 "world": "3c:Skyrim.esm",
@@ -35720,7 +34816,7 @@
 "anchorDist": 1356,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -35820,7 +34916,7 @@
 "anchorDist": 68,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -35840,7 +34936,7 @@
 "anchorDist": 774,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -36288,7 +35384,7 @@
 "anchorDist": 4595,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -36308,7 +35404,7 @@
 "anchorDist": 4595,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -36328,48 +35424,8 @@
 "anchorDist": 4307,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "bb4d:Skyrim.esm",
-"pos": [
-137031.27,
--45625.62,
--1433.22
-],
-"src": "ea27b:Skyrim.esm",
-"ref": "10eca7:Skyrim.esm",
-"anchorDist": 4726,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "EncHare",
-"world": "3c:Skyrim.esm",
-"cell": "bb4d:Skyrim.esm",
-"pos": [
-136864.62,
--45648.39,
--1456.28
-],
-"src": "ea27f:Skyrim.esm",
-"ref": "10ecab:Skyrim.esm",
-"anchorDist": 4813,
-"options": [
-[
-65511,
-"6dc9d:Skyrim.esm"
 ]
 ]
 },
@@ -36560,7 +35616,7 @@
 "anchorDist": 838,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -37044,28 +36100,8 @@
 "anchorDist": 1663,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
-]
-]
-},
-{
-"kind": "wolf",
-"edid": "EncWolf",
-"world": "3c:Skyrim.esm",
-"cell": "ba23:Skyrim.esm",
-"pos": [
-142318.94,
--8616.02,
--9493.85
-],
-"src": "680fb:Skyrim.esm",
-"ref": "cd963:Skyrim.esm",
-"anchorDist": 144,
-"options": [
-[
-0,
-"23abe:Skyrim.esm"
 ]
 ]
 },
@@ -37762,26 +36798,6 @@
 ]
 },
 {
-"kind": "mammoth",
-"edid": "EncMammothTamed",
-"world": "3c:Skyrim.esm",
-"cell": "baa6:Skyrim.esm",
-"pos": [
-147227.12,
--26336.39,
--11247.7
-],
-"src": "ea283:Skyrim.esm",
-"ref": "15f6e7:ccBGSSSE001-Fish.esm",
-"anchorDist": 887,
-"options": [
-[
-0,
-"dd641:Skyrim.esm"
-]
-]
-},
-{
 "kind": "goat",
 "edid": "LvlAnimalCanyonPrey",
 "world": "3c:Skyrim.esm",
@@ -37836,7 +36852,7 @@
 "anchorDist": 1649,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -37856,7 +36872,7 @@
 "anchorDist": 2041,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -38184,7 +37200,7 @@
 "anchorDist": 1056,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -38204,7 +37220,7 @@
 "anchorDist": 1739,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -38224,7 +37240,7 @@
 "anchorDist": 1353,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -38324,7 +37340,7 @@
 "anchorDist": 252,
 "options": [
 [
-65511,
+1,
 "fa6d9:Skyrim.esm"
 ]
 ]
@@ -38344,7 +37360,7 @@
 "anchorDist": 347,
 "options": [
 [
-65511,
+1,
 "fa6d9:Skyrim.esm"
 ]
 ]
@@ -38364,7 +37380,7 @@
 "anchorDist": 335,
 "options": [
 [
-65511,
+1,
 "fa6d9:Skyrim.esm"
 ]
 ]
@@ -38384,7 +37400,7 @@
 "anchorDist": 427,
 "options": [
 [
-65511,
+1,
 "fa6d9:Skyrim.esm"
 ]
 ]
@@ -38404,7 +37420,7 @@
 "anchorDist": 230,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -38726,34 +37742,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "bd77:Skyrim.esm",
-"pos": [
-164920.36,
--117437.12,
-11504.54
-],
-"src": "82813:Skyrim.esm",
-"ref": "106419:Skyrim.esm",
-"anchorDist": 1885,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "skeever",
 "edid": "LvlAnimalForestPredator",
 "world": "3c:Skyrim.esm",
@@ -38940,7 +37928,7 @@
 "anchorDist": 1181,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -38960,7 +37948,7 @@
 "anchorDist": 861,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -39932,7 +38920,7 @@
 "anchorDist": 580,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -39952,7 +38940,7 @@
 "anchorDist": 889,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -39972,7 +38960,7 @@
 "anchorDist": 797,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -39992,7 +38980,7 @@
 "anchorDist": 897,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -40446,26 +39434,6 @@
 [
 24,
 "23abb:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "bae1:Skyrim.esm",
-"pos": [
-174008.97,
--34904.11,
-28.75
-],
-"src": "c0030:Skyrim.esm",
-"ref": "c002e:Skyrim.esm",
-"anchorDist": 92,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
 ]
 ]
 },
@@ -40958,26 +39926,6 @@
 ]
 },
 {
-"kind": "elk",
-"edid": "EncElkFemale",
-"world": "3c:Skyrim.esm",
-"cell": "bb86:Skyrim.esm",
-"pos": [
-175592.59,
--56826.79,
-5195.81
-],
-"src": "d161e:Skyrim.esm",
-"ref": "d1638:Skyrim.esm",
-"anchorDist": 874,
-"options": [
-[
-0,
-"abedf:Skyrim.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "EncWolf",
 "world": "3c:Skyrim.esm",
@@ -40992,7 +39940,7 @@
 "anchorDist": 599,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -41012,7 +39960,7 @@
 "anchorDist": 322,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -41180,7 +40128,7 @@
 "anchorDist": 2275,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -41244,7 +40192,7 @@
 "anchorDist": 649,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -41712,7 +40660,7 @@
 "anchorDist": 566,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -41732,7 +40680,7 @@
 "anchorDist": 314,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -41752,7 +40700,7 @@
 "anchorDist": 573,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -41772,48 +40720,8 @@
 "anchorDist": 746,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
-]
-]
-},
-{
-"kind": "wolf",
-"edid": "EncWolf",
-"world": "3c:Skyrim.esm",
-"cell": "70bf:Skyrim.esm",
-"pos": [
--166356.78,
-31227.26,
-155.53
-],
-"src": "1068f3:Skyrim.esm",
-"ref": "1068f4:Skyrim.esm",
-"anchorDist": 269,
-"options": [
-[
-0,
-"23abe:Skyrim.esm"
-]
-]
-},
-{
-"kind": "wolf",
-"edid": "EncWolf",
-"world": "3c:Skyrim.esm",
-"cell": "70bf:Skyrim.esm",
-"pos": [
--166200.47,
-30927.62,
-117.75
-],
-"src": "1068f2:Skyrim.esm",
-"ref": "1068f4:Skyrim.esm",
-"anchorDist": 170,
-"options": [
-[
-0,
-"23abe:Skyrim.esm"
 ]
 ]
 },
@@ -41934,26 +40842,6 @@
 ]
 },
 {
-"kind": "goat",
-"edid": "EncGoatDomestic",
-"world": "3c:Skyrim.esm",
-"cell": "711f:Skyrim.esm",
-"pos": [
--177648.7,
-18889.55,
-4300.64
-],
-"src": "e8c10:Skyrim.esm",
-"ref": "e8c0a:Skyrim.esm",
-"anchorDist": 793,
-"options": [
-[
-65511,
-"4359c:Skyrim.esm"
-]
-]
-},
-{
 "kind": "chicken",
 "edid": "EncChicken",
 "world": "3c:Skyrim.esm",
@@ -41968,7 +40856,7 @@
 "anchorDist": 135,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -41988,7 +40876,7 @@
 "anchorDist": 199,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -42008,7 +40896,7 @@
 "anchorDist": 183,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -42028,7 +40916,7 @@
 "anchorDist": 268,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -42154,30 +41042,6 @@
 ]
 },
 {
-"kind": "wolf",
-"edid": "LvlWolf",
-"world": "3c:Skyrim.esm",
-"cell": "7083:Skyrim.esm",
-"pos": [
--172388.23,
-38305.54,
--462.88
-],
-"src": "23a25:Skyrim.esm",
-"ref": "37ea1:Skyrim.esm",
-"anchorDist": 65,
-"options": [
-[
-1,
-"23abe:Skyrim.esm"
-],
-[
-1,
-"10fe05:Skyrim.esm"
-]
-]
-},
-{
 "kind": "troll",
 "edid": "EncTrollFrost",
 "world": "3c:Skyrim.esm",
@@ -42192,7 +41056,7 @@
 "anchorDist": 257,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -42656,7 +41520,7 @@
 "anchorDist": 1103,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -42676,7 +41540,7 @@
 "anchorDist": 929,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -42696,7 +41560,7 @@
 "anchorDist": 757,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -42740,7 +41604,7 @@
 "anchorDist": 745,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -42932,7 +41796,7 @@
 "anchorDist": 499,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -43012,7 +41876,7 @@
 "anchorDist": 750,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -43032,7 +41896,7 @@
 "anchorDist": 600,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -43052,7 +41916,7 @@
 "anchorDist": 248,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -43188,7 +42052,7 @@
 "anchorDist": 1993,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -43576,7 +42440,7 @@
 "anchorDist": 3871,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -43596,7 +42460,7 @@
 "anchorDist": 4977,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -43736,7 +42600,7 @@
 "anchorDist": 284,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -43756,7 +42620,7 @@
 "anchorDist": 629,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -43776,7 +42640,7 @@
 "anchorDist": 482,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -43796,7 +42660,7 @@
 "anchorDist": 533,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -43816,7 +42680,7 @@
 "anchorDist": 573,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -43836,7 +42700,7 @@
 "anchorDist": 147,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -43926,26 +42790,6 @@
 ]
 },
 {
-"kind": "sabrecat",
-"edid": "EncSabreCat",
-"world": "3c:Skyrim.esm",
-"cell": "709b:Skyrim.esm",
-"pos": [
--144089.23,
-35307.66,
--1891.41
-],
-"src": "6f1b7:Skyrim.esm",
-"ref": "6f321:Skyrim.esm",
-"anchorDist": 72,
-"options": [
-[
-0,
-"23ab5:Skyrim.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "LvlAmbientCreaturesSnow",
 "world": "3c:Skyrim.esm",
@@ -44008,7 +42852,7 @@
 "anchorDist": 4284,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -44028,7 +42872,7 @@
 "anchorDist": 4050,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -44120,7 +42964,7 @@
 "anchorDist": 4301,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -44140,7 +42984,7 @@
 "anchorDist": 4708,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -44160,7 +43004,7 @@
 "anchorDist": 675,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -44180,7 +43024,7 @@
 "anchorDist": 481,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -44228,7 +43072,7 @@
 "anchorDist": 5515,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -44272,7 +43116,7 @@
 "anchorDist": 3469,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -44292,7 +43136,7 @@
 "anchorDist": 3618,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -44312,7 +43156,7 @@
 "anchorDist": 2728,
 "options": [
 [
-0,
+2,
 "e4011:Skyrim.esm"
 ]
 ]
@@ -44332,7 +43176,7 @@
 "anchorDist": 1728,
 "options": [
 [
-0,
+2,
 "829b6:Skyrim.esm"
 ]
 ]
@@ -44464,7 +43308,7 @@
 "anchorDist": 1272,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -44484,7 +43328,7 @@
 "anchorDist": 1524,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -44504,7 +43348,7 @@
 "anchorDist": 1268,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -44572,7 +43416,7 @@
 "anchorDist": 1181,
 "options": [
 [
-0,
+2,
 "829b6:Skyrim.esm"
 ]
 ]
@@ -44592,7 +43436,7 @@
 "anchorDist": 2525,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -44752,7 +43596,7 @@
 "anchorDist": 1160,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -44916,7 +43760,7 @@
 "anchorDist": 3476,
 "options": [
 [
-0,
+3,
 "21875:Skyrim.esm"
 ]
 ]
@@ -44936,7 +43780,7 @@
 "anchorDist": 225,
 "options": [
 [
-0,
+3,
 "21875:Skyrim.esm"
 ]
 ]
@@ -44956,7 +43800,7 @@
 "anchorDist": 747,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -44976,7 +43820,7 @@
 "anchorDist": 3141,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -44996,7 +43840,7 @@
 "anchorDist": 4094,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -45044,7 +43888,7 @@
 "anchorDist": 4456,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -45064,7 +43908,7 @@
 "anchorDist": 3374,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -45084,7 +43928,7 @@
 "anchorDist": 187,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -45104,7 +43948,7 @@
 "anchorDist": 144,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -45160,28 +44004,8 @@
 "anchorDist": 1229,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
-]
-]
-},
-{
-"kind": "troll",
-"edid": "EncTroll",
-"world": "3c:Skyrim.esm",
-"cell": "7646:Skyrim.esm",
-"pos": [
--163852.52,
--18085.5,
--277.13
-],
-"src": "96d93:Skyrim.esm",
-"ref": "10d57b:Skyrim.esm",
-"anchorDist": 619,
-"options": [
-[
-0,
-"23aba:Skyrim.esm"
 ]
 ]
 },
@@ -45224,7 +44048,7 @@
 "anchorDist": 1214,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -45244,28 +44068,8 @@
 "anchorDist": 761,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
-]
-]
-},
-{
-"kind": "goat",
-"edid": "EncGoatDomestic",
-"world": "3c:Skyrim.esm",
-"cell": "764a:Skyrim.esm",
-"pos": [
--181916.2,
--19117.77,
-8078.77
-],
-"src": "1b9df:Skyrim.esm",
-"ref": "a0d81:Skyrim.esm",
-"anchorDist": 29,
-"options": [
-[
-65511,
-"4359c:Skyrim.esm"
 ]
 ]
 },
@@ -45320,7 +44124,7 @@
 "anchorDist": 635,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -45932,7 +44736,7 @@
 "anchorDist": 1186,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -45952,7 +44756,7 @@
 "anchorDist": 1039,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -45972,7 +44776,7 @@
 "anchorDist": 125,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -46368,7 +45172,7 @@
 "anchorDist": 1186,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -46388,7 +45192,7 @@
 "anchorDist": 1679,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -46468,7 +45272,7 @@
 "anchorDist": 2384,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -46488,7 +45292,7 @@
 "anchorDist": 2405,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -46508,7 +45312,7 @@
 "anchorDist": 2040,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -46582,26 +45386,6 @@
 [
 1,
 "829b3:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "955a:Skyrim.esm",
-"pos": [
--105035.91,
-14107.31,
-1256.59
-],
-"src": "bdf86:Skyrim.esm",
-"ref": "bdfa1:Skyrim.esm",
-"anchorDist": 135,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
 ]
 ]
 },
@@ -46896,7 +45680,7 @@
 "anchorDist": 409,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -46916,7 +45700,7 @@
 "anchorDist": 711,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -46996,7 +45780,7 @@
 "anchorDist": 290,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -47040,7 +45824,7 @@
 "anchorDist": 1875,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -47088,7 +45872,7 @@
 "anchorDist": 629,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -47108,7 +45892,7 @@
 "anchorDist": 394,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -47256,7 +46040,7 @@
 "anchorDist": 248,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -47276,7 +46060,7 @@
 "anchorDist": 791,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -47296,7 +46080,7 @@
 "anchorDist": 3391,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -47340,7 +46124,7 @@
 "anchorDist": 1336,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -47360,7 +46144,7 @@
 "anchorDist": 1318,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -47380,7 +46164,7 @@
 "anchorDist": 2385,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -47752,7 +46536,7 @@
 "anchorDist": 854,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -47772,7 +46556,7 @@
 "anchorDist": 985,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -47792,7 +46576,7 @@
 "anchorDist": 958,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -47822,26 +46606,6 @@
 ]
 },
 {
-"kind": "goat",
-"edid": "EncGoatWild",
-"world": "3c:Skyrim.esm",
-"cell": "930a:Skyrim.esm",
-"pos": [
--113319.88,
-87739.13,
--7393.96
-],
-"src": "77384:Skyrim.esm",
-"ref": "8f7dd:Skyrim.esm",
-"anchorDist": 4297,
-"options": [
-[
-65511,
-"2ebe2:Skyrim.esm"
-]
-]
-},
-{
 "kind": "bear",
 "edid": "LvlBearAll",
 "world": "3c:Skyrim.esm",
@@ -47862,26 +46626,6 @@
 [
 16,
 "23a8b:Skyrim.esm"
-]
-]
-},
-{
-"kind": "goat",
-"edid": "EncGoatWild",
-"world": "3c:Skyrim.esm",
-"cell": "930b:Skyrim.esm",
-"pos": [
--115607.44,
-86542.89,
--7312.4
-],
-"src": "77424:Skyrim.esm",
-"ref": "8f7d2:Skyrim.esm",
-"anchorDist": 2134,
-"options": [
-[
-65511,
-"2ebe2:Skyrim.esm"
 ]
 ]
 },
@@ -48072,7 +46816,7 @@
 "anchorDist": 2901,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -48092,7 +46836,7 @@
 "anchorDist": 3037,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -48196,7 +46940,7 @@
 "anchorDist": 712,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -48216,7 +46960,7 @@
 "anchorDist": 305,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -48236,7 +46980,7 @@
 "anchorDist": 540,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -48256,7 +47000,7 @@
 "anchorDist": 535,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -48408,7 +47152,7 @@
 "anchorDist": 2492,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -48428,7 +47172,7 @@
 "anchorDist": 2473,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -48476,7 +47220,7 @@
 "anchorDist": 3215,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -48732,7 +47476,7 @@
 "anchorDist": 328,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -48822,46 +47566,6 @@
 [
 1,
 "829b6:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "9247:Skyrim.esm",
-"pos": [
--125750.62,
-111025.17,
--7998.39
-],
-"src": "eef9c:Skyrim.esm",
-"ref": "eef9a:Skyrim.esm",
-"anchorDist": 443,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "9247:Skyrim.esm",
-"pos": [
--125874.12,
-111653.0,
--8003.46
-],
-"src": "eef89:Skyrim.esm",
-"ref": "eef9a:Skyrim.esm",
-"anchorDist": 202,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
 ]
 ]
 },
@@ -49094,26 +47798,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "9289:Skyrim.esm",
-"pos": [
--124123.23,
-106099.23,
--7852.83
-],
-"src": "eefbf:Skyrim.esm",
-"ref": "8f828:Skyrim.esm",
-"anchorDist": 2238,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "LvlAmbientCreaturesSnow",
 "world": "3c:Skyrim.esm",
@@ -49236,7 +47920,7 @@
 "anchorDist": 1171,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -49572,7 +48256,7 @@
 "anchorDist": 1068,
 "options": [
 [
-0,
+1,
 "23ab7:Skyrim.esm"
 ]
 ]
@@ -49592,7 +48276,7 @@
 "anchorDist": 1599,
 "options": [
 [
-0,
+1,
 "23ab7:Skyrim.esm"
 ]
 ]
@@ -49612,7 +48296,7 @@
 "anchorDist": 1471,
 "options": [
 [
-0,
+1,
 "23ab7:Skyrim.esm"
 ]
 ]
@@ -49632,7 +48316,7 @@
 "anchorDist": 945,
 "options": [
 [
-0,
+1,
 "23ab7:Skyrim.esm"
 ]
 ]
@@ -49808,7 +48492,7 @@
 "anchorDist": 2079,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -49828,7 +48512,7 @@
 "anchorDist": 1902,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -49848,7 +48532,7 @@
 "anchorDist": 702,
 "options": [
 [
-0,
+3,
 "9da4b:Skyrim.esm"
 ]
 ]
@@ -49908,7 +48592,7 @@
 "anchorDist": 790,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -49928,7 +48612,7 @@
 "anchorDist": 519,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -49948,7 +48632,7 @@
 "anchorDist": 678,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -49965,10 +48649,10 @@
 ],
 "src": "9da4d:Skyrim.esm",
 "ref": "1d95:notice board.esp",
-"anchorDist": 1193,
+"anchorDist": 1224,
 "options": [
 [
-0,
+3,
 "9da4b:Skyrim.esm"
 ]
 ]
@@ -50248,7 +48932,7 @@
 "anchorDist": 842,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -50376,7 +49060,7 @@
 "anchorDist": 656,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -50396,7 +49080,7 @@
 "anchorDist": 816,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -50504,7 +49188,7 @@
 "anchorDist": 795,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -50580,7 +49264,7 @@
 "anchorDist": 19,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -50600,7 +49284,7 @@
 "anchorDist": 201,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -50658,66 +49342,6 @@
 [
 10,
 "21875:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "946b:Skyrim.esm",
-"pos": [
--71562.08,
-44258.86,
--12192.83
-],
-"src": "dce4c:Skyrim.esm",
-"ref": "dce55:Skyrim.esm",
-"anchorDist": 43,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "946b:Skyrim.esm",
-"pos": [
--71181.09,
-44373.46,
--12237.59
-],
-"src": "dce40:Skyrim.esm",
-"ref": "dce4b:Skyrim.esm",
-"anchorDist": 85,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "946b:Skyrim.esm",
-"pos": [
--71231.69,
-44375.49,
--12242.41
-],
-"src": "dce3d:Skyrim.esm",
-"ref": "dce71:Skyrim.esm",
-"anchorDist": 111,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
 ]
 ]
 },
@@ -50792,7 +49416,7 @@
 "anchorDist": 832,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -50840,7 +49464,7 @@
 "anchorDist": 2224,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -50912,7 +49536,7 @@
 "anchorDist": 2320,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -50932,7 +49556,7 @@
 "anchorDist": 2369,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -51032,7 +49656,7 @@
 "anchorDist": 149,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -51052,7 +49676,7 @@
 "anchorDist": 624,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -51124,7 +49748,7 @@
 "anchorDist": 289,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -51144,7 +49768,7 @@
 "anchorDist": 328,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -51164,7 +49788,7 @@
 "anchorDist": 391,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -51184,7 +49808,7 @@
 "anchorDist": 509,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -51252,7 +49876,7 @@
 "anchorDist": 463,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -51272,7 +49896,7 @@
 "anchorDist": 119,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -51408,7 +50032,7 @@
 "anchorDist": 1585,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -51428,7 +50052,7 @@
 "anchorDist": 1031,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -51624,7 +50248,7 @@
 "anchorDist": 1560,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -51828,7 +50452,7 @@
 "anchorDist": 467,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -51996,7 +50620,7 @@
 "anchorDist": 1458,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -52016,7 +50640,7 @@
 "anchorDist": 985,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -52176,7 +50800,7 @@
 "anchorDist": 853,
 "options": [
 [
-0,
+6,
 "3d278:Skyrim.esm"
 ]
 ]
@@ -52206,26 +50830,6 @@
 ]
 },
 {
-"kind": "elk",
-"edid": "EncElk",
-"world": "3c:Skyrim.esm",
-"cell": "91f8:Skyrim.esm",
-"pos": [
--70621.49,
-119441.88,
--1788.17
-],
-"src": "c6389:Skyrim.esm",
-"ref": "10ece7:Skyrim.esm",
-"anchorDist": 3021,
-"options": [
-[
-0,
-"23a91:Skyrim.esm"
-]
-]
-},
-{
 "kind": "sabrecat",
 "edid": "EncSabreCatSnow",
 "world": "3c:Skyrim.esm",
@@ -52240,7 +50844,7 @@
 "anchorDist": 2962,
 "options": [
 [
-0,
+11,
 "23ab6:Skyrim.esm"
 ]
 ]
@@ -52260,7 +50864,7 @@
 "anchorDist": 2622,
 "options": [
 [
-0,
+11,
 "23ab6:Skyrim.esm"
 ]
 ]
@@ -52384,7 +50988,7 @@
 "anchorDist": 3577,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -52404,7 +51008,7 @@
 "anchorDist": 3509,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -52424,7 +51028,7 @@
 "anchorDist": 3753,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -52660,7 +51264,7 @@
 "anchorDist": 417,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -52680,7 +51284,7 @@
 "anchorDist": 663,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -52700,7 +51304,7 @@
 "anchorDist": 622,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -52738,26 +51342,6 @@
 [
 16,
 "23a8b:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "94c8:Skyrim.esm",
-"pos": [
--47504.27,
-32009.15,
--1763.88
-],
-"src": "54d1b:Skyrim.esm",
-"ref": "54d17:Skyrim.esm",
-"anchorDist": 143,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
 ]
 ]
 },
@@ -52812,7 +51396,7 @@
 "anchorDist": 3608,
 "options": [
 [
-0,
+6,
 "23ab5:Skyrim.esm"
 ]
 ]
@@ -52992,7 +51576,7 @@
 "anchorDist": 446,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -53152,7 +51736,7 @@
 "anchorDist": 1048,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -53836,7 +52420,7 @@
 "anchorDist": 540,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -53856,7 +52440,7 @@
 "anchorDist": 570,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -53876,7 +52460,7 @@
 "anchorDist": 626,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -54064,7 +52648,7 @@
 "anchorDist": 1105,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -54084,7 +52668,7 @@
 "anchorDist": 751,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -54104,7 +52688,7 @@
 "anchorDist": 622,
 "options": [
 [
-0,
+1,
 "cf89d:Skyrim.esm"
 ]
 ]
@@ -54702,26 +53286,6 @@
 ]
 },
 {
-"kind": "troll",
-"edid": "EncTrollFrost",
-"world": "3c:Skyrim.esm",
-"cell": "9465:Skyrim.esm",
-"pos": [
--47402.57,
-43392.63,
--6031.57
-],
-"src": "6481d:Skyrim.esm",
-"ref": "bc0a5:Skyrim.esm",
-"anchorDist": 227,
-"options": [
-[
-0,
-"23abb:Skyrim.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "LvlAmbientCreaturesSnow",
 "world": "3c:Skyrim.esm",
@@ -54916,47 +53480,7 @@
 "anchorDist": 1360,
 "options": [
 [
-0,
-"23abb:Skyrim.esm"
-]
-]
-},
-{
-"kind": "troll",
-"edid": "EncTrollFrost",
-"world": "3c:Skyrim.esm",
-"cell": "9484:Skyrim.esm",
-"pos": [
--38893.98,
-39074.75,
-453.65
-],
-"src": "64846:Skyrim.esm",
-"ref": "64866:Skyrim.esm",
-"anchorDist": 1386,
-"options": [
-[
-0,
-"23abb:Skyrim.esm"
-]
-]
-},
-{
-"kind": "troll",
-"edid": "EncTrollFrost",
-"world": "3c:Skyrim.esm",
-"cell": "9485:Skyrim.esm",
-"pos": [
--41325.04,
-37269.01,
-2171.68
-],
-"src": "64845:Skyrim.esm",
-"ref": "c496d:Skyrim.esm",
-"anchorDist": 1160,
-"options": [
-[
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -54976,7 +53500,7 @@
 "anchorDist": 1535,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -54996,7 +53520,7 @@
 "anchorDist": 1276,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -55016,48 +53540,8 @@
 "anchorDist": 246,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
-]
-]
-},
-{
-"kind": "troll",
-"edid": "EncTrollFrost",
-"world": "3c:Skyrim.esm",
-"cell": "94a6:Skyrim.esm",
-"pos": [
--41660.93,
-35128.11,
-2532.78
-],
-"src": "64844:Skyrim.esm",
-"ref": "c4959:Skyrim.esm",
-"anchorDist": 372,
-"options": [
-[
-0,
-"23abb:Skyrim.esm"
-]
-]
-},
-{
-"kind": "cow",
-"edid": "EncCow",
-"world": "3c:Skyrim.esm",
-"cell": "94a6:Skyrim.esm",
-"pos": [
--41462.21,
-35904.43,
-2515.02
-],
-"src": "6487e:Skyrim.esm",
-"ref": "c496b:Skyrim.esm",
-"anchorDist": 602,
-"options": [
-[
-0,
-"23a90:Skyrim.esm"
 ]
 ]
 },
@@ -55232,7 +53716,7 @@
 "anchorDist": 737,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -55252,7 +53736,7 @@
 "anchorDist": 834,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -55404,7 +53888,7 @@
 "anchorDist": 982,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -55424,7 +53908,7 @@
 "anchorDist": 991,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -55776,7 +54260,7 @@
 "anchorDist": 1152,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -56316,7 +54800,7 @@
 "anchorDist": 83,
 "options": [
 [
-0,
+2,
 "e4011:Skyrim.esm"
 ]
 ]
@@ -56336,7 +54820,7 @@
 "anchorDist": 294,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -56356,7 +54840,7 @@
 "anchorDist": 259,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -56376,7 +54860,7 @@
 "anchorDist": 212,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -56800,7 +55284,7 @@
 "anchorDist": 625,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -56948,7 +55432,7 @@
 "anchorDist": 1182,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -56968,7 +55452,7 @@
 "anchorDist": 839,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -56988,7 +55472,7 @@
 "anchorDist": 1123,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -57056,7 +55540,7 @@
 "anchorDist": 2189,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -57076,7 +55560,7 @@
 "anchorDist": 2915,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -57096,7 +55580,7 @@
 "anchorDist": 2314,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -57116,7 +55600,7 @@
 "anchorDist": 740,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -57136,7 +55620,7 @@
 "anchorDist": 1030,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -57156,7 +55640,7 @@
 "anchorDist": 4248,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -57176,7 +55660,7 @@
 "anchorDist": 3767,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -57196,7 +55680,7 @@
 "anchorDist": 3766,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -57244,7 +55728,7 @@
 "anchorDist": 830,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -57264,7 +55748,7 @@
 "anchorDist": 790,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -57284,7 +55768,7 @@
 "anchorDist": 1254,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -57304,7 +55788,7 @@
 "anchorDist": 228,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -57324,7 +55808,7 @@
 "anchorDist": 148,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -57484,7 +55968,7 @@
 "anchorDist": 2420,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -57504,7 +55988,7 @@
 "anchorDist": 2371,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -57524,7 +56008,7 @@
 "anchorDist": 2261,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -57600,7 +56084,7 @@
 "anchorDist": 4706,
 "options": [
 [
-0,
+38,
 "101580:Skyrim.esm"
 ]
 ]
@@ -57620,7 +56104,7 @@
 "anchorDist": 5008,
 "options": [
 [
-0,
+38,
 "101580:Skyrim.esm"
 ]
 ]
@@ -58568,7 +57052,7 @@
 "anchorDist": 3089,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
 ]
 ]
@@ -58588,7 +57072,7 @@
 "anchorDist": 2649,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
 ]
 ]
@@ -59044,7 +57528,7 @@
 "anchorDist": 442,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -59064,7 +57548,7 @@
 "anchorDist": 483,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -59188,7 +57672,7 @@
 "anchorDist": 958,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -59252,7 +57736,7 @@
 "anchorDist": 1115,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -59876,7 +58360,7 @@
 "anchorDist": 1217,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -60016,7 +58500,7 @@
 "anchorDist": 3102,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60036,7 +58520,7 @@
 "anchorDist": 2611,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60056,7 +58540,7 @@
 "anchorDist": 903,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60076,7 +58560,7 @@
 "anchorDist": 636,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60096,7 +58580,7 @@
 "anchorDist": 2120,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60116,7 +58600,7 @@
 "anchorDist": 2040,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60136,7 +58620,7 @@
 "anchorDist": 1789,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60156,7 +58640,7 @@
 "anchorDist": 1901,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60218,66 +58702,6 @@
 ]
 },
 {
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "91e7:Skyrim.esm",
-"pos": [
--1524.55,
-120820.75,
--14285.75
-],
-"src": "95619:Skyrim.esm",
-"ref": "4c9af:Skyrim.esm",
-"anchorDist": 527,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "91e7:Skyrim.esm",
-"pos": [
--1779.91,
-120507.46,
--14260.74
-],
-"src": "9561b:Skyrim.esm",
-"ref": "4c9af:Skyrim.esm",
-"anchorDist": 202,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
-]
-]
-},
-{
-"kind": "skeever",
-"edid": "EncSkeever",
-"world": "3c:Skyrim.esm",
-"cell": "91e7:Skyrim.esm",
-"pos": [
--1890.91,
-120435.71,
--14291.32
-],
-"src": "9561c:Skyrim.esm",
-"ref": "4c9af:Skyrim.esm",
-"anchorDist": 140,
-"options": [
-[
-0,
-"23ab7:Skyrim.esm"
-]
-]
-},
-{
 "kind": "horker",
 "edid": "EncHorker",
 "world": "3c:Skyrim.esm",
@@ -60292,7 +58716,7 @@
 "anchorDist": 1541,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60312,7 +58736,7 @@
 "anchorDist": 2272,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60332,7 +58756,7 @@
 "anchorDist": 2468,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60352,7 +58776,7 @@
 "anchorDist": 2351,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60372,7 +58796,7 @@
 "anchorDist": 5475,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60392,7 +58816,7 @@
 "anchorDist": 5590,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60440,7 +58864,7 @@
 "anchorDist": 629,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60836,7 +59260,7 @@
 "anchorDist": 1735,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60880,7 +59304,7 @@
 "anchorDist": 2144,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60900,7 +59324,7 @@
 "anchorDist": 2145,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -60920,7 +59344,7 @@
 "anchorDist": 737,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -60940,7 +59364,7 @@
 "anchorDist": 1562,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -61016,7 +59440,7 @@
 "anchorDist": 1372,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -61060,7 +59484,7 @@
 "anchorDist": 2019,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -61164,7 +59588,7 @@
 "anchorDist": 1483,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -61256,7 +59680,7 @@
 "anchorDist": 1154,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -61580,7 +60004,7 @@
 "anchorDist": 2215,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -61760,7 +60184,7 @@
 "anchorDist": 5310,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -61780,7 +60204,7 @@
 "anchorDist": 1098,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -62052,7 +60476,7 @@
 "anchorDist": 354,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -62408,7 +60832,7 @@
 "anchorDist": 1568,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -62428,7 +60852,7 @@
 "anchorDist": 1755,
 "options": [
 [
-65511,
+1,
 "2ebe2:Skyrim.esm"
 ]
 ]
@@ -62524,7 +60948,7 @@
 "anchorDist": 971,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -62640,7 +61064,7 @@
 "anchorDist": 219,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -62838,26 +61262,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "9ac4:Skyrim.esm",
-"pos": [
--105176.88,
--32292.15,
--927.08
-],
-"src": "3ea48:Skyrim.esm",
-"ref": "3e936:Skyrim.esm",
-"anchorDist": 115,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "goat",
 "edid": "LvlAnimalCanyonPrey",
 "world": "3c:Skyrim.esm",
@@ -63028,7 +61432,7 @@
 "anchorDist": 427,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -63246,26 +61650,6 @@
 ]
 },
 {
-"kind": "elk",
-"edid": "EncElkFemale",
-"world": "3c:Skyrim.esm",
-"cell": "9ba2:Skyrim.esm",
-"pos": [
--69361.21,
--59448.83,
-680.02
-],
-"src": "97c8d:Skyrim.esm",
-"ref": "97c82:Skyrim.esm",
-"anchorDist": 335,
-"options": [
-[
-0,
-"abedf:Skyrim.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "EncWolf",
 "world": "3c:Skyrim.esm",
@@ -63280,7 +61664,7 @@
 "anchorDist": 288,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -63300,7 +61684,7 @@
 "anchorDist": 527,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -64076,7 +62460,7 @@
 "anchorDist": 2689,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -64096,7 +62480,7 @@
 "anchorDist": 2691,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -64116,7 +62500,7 @@
 "anchorDist": 2574,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -64220,7 +62604,7 @@
 "anchorDist": 2060,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -64270,26 +62654,6 @@
 [
 1,
 "829b3:Skyrim.esm"
-]
-]
-},
-{
-"kind": "elk",
-"edid": "EncElkFemale",
-"world": "3c:Skyrim.esm",
-"cell": "9ca5:Skyrim.esm",
-"pos": [
--48138.68,
--93441.43,
-43.66
-],
-"src": "993d3:Skyrim.esm",
-"ref": "993fe:Skyrim.esm",
-"anchorDist": 225,
-"options": [
-[
-0,
-"abedf:Skyrim.esm"
 ]
 ]
 },
@@ -64550,26 +62914,6 @@
 ]
 },
 {
-"kind": "elk",
-"edid": "EncElkFemale",
-"world": "3c:Skyrim.esm",
-"cell": "9afc:Skyrim.esm",
-"pos": [
--64606.04,
--39179.12,
--1076.97
-],
-"src": "99857:Skyrim.esm",
-"ref": "9985c:Skyrim.esm",
-"anchorDist": 176,
-"options": [
-[
-0,
-"abedf:Skyrim.esm"
-]
-]
-},
-{
 "kind": "deer",
 "edid": "LvlAnimalForestPrey",
 "world": "3c:Skyrim.esm",
@@ -64708,7 +63052,7 @@
 "anchorDist": 479,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -64808,7 +63152,7 @@
 "anchorDist": 358,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -64828,7 +63172,7 @@
 "anchorDist": 346,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -64848,7 +63192,7 @@
 "anchorDist": 478,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -64868,27 +63212,7 @@
 "anchorDist": 328,
 "options": [
 [
-65511,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "EncHare",
-"world": "3c:Skyrim.esm",
-"cell": "9b7b:Skyrim.esm",
-"pos": [
--43772.19,
--56013.03,
-932.67
-],
-"src": "10fc72:Skyrim.esm",
-"ref": "10fc73:Skyrim.esm",
-"anchorDist": 37,
-"options": [
-[
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -64942,26 +63266,6 @@
 ]
 },
 {
-"kind": "elk",
-"edid": "EncElkFemale",
-"world": "3c:Skyrim.esm",
-"cell": "9b7e:Skyrim.esm",
-"pos": [
--56606.44,
--54419.54,
-1638.45
-],
-"src": "97c51:Skyrim.esm",
-"ref": "97c55:Skyrim.esm",
-"anchorDist": 67,
-"options": [
-[
-0,
-"abedf:Skyrim.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "LvlAmbientCreatures",
 "world": "3c:Skyrim.esm",
@@ -65000,7 +63304,7 @@
 "anchorDist": 419,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -65020,7 +63324,7 @@
 "anchorDist": 281,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -65040,7 +63344,7 @@
 "anchorDist": 408,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -65860,7 +64164,7 @@
 "anchorDist": 761,
 "options": [
 [
-0,
+38,
 "dd641:Skyrim.esm"
 ]
 ]
@@ -66496,7 +64800,7 @@
 "anchorDist": 504,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -66516,7 +64820,7 @@
 "anchorDist": 576,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -66536,7 +64840,7 @@
 "anchorDist": 666,
 "options": [
 [
-0,
+2,
 "23abe:Skyrim.esm"
 ]
 ]
@@ -66717,90 +65021,6 @@
 "kind": "deer",
 "edid": "LvlAnimalForestPrey",
 "world": "3c:Skyrim.esm",
-"cell": "9c37:Skyrim.esm",
-"pos": [
--2151.08,
--80110.92,
-3795.56
-],
-"src": "847f2:Skyrim.esm",
-"ref": "10d76d:Skyrim.esm",
-"anchorDist": 1746,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "9c37:Skyrim.esm",
-"pos": [
--2242.47,
--78666.05,
-3254.53
-],
-"src": "847f1:Skyrim.esm",
-"ref": "10d76d:Skyrim.esm",
-"anchorDist": 1737,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "9c37:Skyrim.esm",
-"pos": [
--3028.93,
--78254.6,
-3045.09
-],
-"src": "847f0:Skyrim.esm",
-"ref": "8f645:Skyrim.esm",
-"anchorDist": 2218,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
 "cell": "9c38:Skyrim.esm",
 "pos": [
 -7515.81,
@@ -66880,7 +65100,7 @@
 "anchorDist": 363,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -66924,7 +65144,7 @@
 "anchorDist": 351,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -66944,28 +65164,8 @@
 "anchorDist": 323,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
-]
-]
-},
-{
-"kind": "wolf",
-"edid": "EncWolfIce",
-"world": "3c:Skyrim.esm",
-"cell": "9cbe:Skyrim.esm",
-"pos": [
--12349.23,
--95463.96,
-9540.07
-],
-"src": "100823:Skyrim.esm",
-"ref": "10081e:Skyrim.esm",
-"anchorDist": 192,
-"options": [
-[
-0,
-"23abf:Skyrim.esm"
 ]
 ]
 },
@@ -67316,7 +65516,7 @@
 "anchorDist": 223,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -67336,7 +65536,7 @@
 "anchorDist": 328,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -67492,7 +65692,7 @@
 "anchorDist": 403,
 "options": [
 [
-65511,
+1,
 "6dc9d:Skyrim.esm"
 ]
 ]
@@ -68056,7 +66256,7 @@
 "anchorDist": 2081,
 "options": [
 [
-0,
+38,
 "101580:Skyrim.esm"
 ]
 ]
@@ -68874,422 +67074,6 @@
 ]
 },
 {
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "912a:Skyrim.esm",
-"pos": [
-120303.56,
-19277.54,
--10715.18
-],
-"src": "302c:Update.esm",
-"ref": "5315b:Skyrim.esm",
-"anchorDist": 816,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "912a:Skyrim.esm",
-"pos": [
-120116.98,
-18966.73,
--10709.56
-],
-"src": "302b:Update.esm",
-"ref": "5315b:Skyrim.esm",
-"anchorDist": 767,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "95f4:Skyrim.esm",
-"pos": [
-50540.0,
--5395.49,
--1414.15
-],
-"src": "3037:Update.esm",
-"ref": "3412:DragonBreak.esp",
-"anchorDist": 283,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "b490:Skyrim.esm",
-"pos": [
-172392.12,
-38393.62,
--9223.12
-],
-"src": "302e:Update.esm",
-"ref": "1073f6:Skyrim.esm",
-"anchorDist": 1903,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "b490:Skyrim.esm",
-"pos": [
-172582.22,
-38315.01,
--9213.31
-],
-"src": "302d:Update.esm",
-"ref": "1073f6:Skyrim.esm",
-"anchorDist": 1710,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "bc0f:Skyrim.esm",
-"pos": [
-153682.67,
--71432.8,
-9924.83
-],
-"src": "3036:Update.esm",
-"ref": "cde31:Skyrim.esm",
-"anchorDist": 159,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "b9de:Skyrim.esm",
-"pos": [
-155251.61,
--2341.85,
--6446.62
-],
-"src": "302a:Update.esm",
-"ref": "eb3de:Skyrim.esm",
-"anchorDist": 239,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "b9de:Skyrim.esm",
-"pos": [
-155483.38,
--2369.4,
--6460.69
-],
-"src": "3029:Update.esm",
-"ref": "874b3:RelightingSkyrim_SSE.esp",
-"anchorDist": 272,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "bd34:Skyrim.esm",
-"pos": [
-170904.58,
--110201.2,
-12713.54
-],
-"src": "3038:Update.esm",
-"ref": "d1e9f:Skyrim.esm",
-"anchorDist": 244,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "94c8:Skyrim.esm",
-"pos": [
--48677.71,
-31009.81,
--2484.35
-],
-"src": "3032:Update.esm",
-"ref": "54d13:Skyrim.esm",
-"anchorDist": 1766,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "94c8:Skyrim.esm",
-"pos": [
--48788.14,
-30677.72,
--2467.11
-],
-"src": "3031:Update.esm",
-"ref": "54d13:Skyrim.esm",
-"anchorDist": 2072,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "9c23:Skyrim.esm",
-"pos": [
--54038.1,
--77066.48,
--2462.66
-],
-"src": "3034:Update.esm",
-"ref": "99836:Skyrim.esm",
-"anchorDist": 295,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "9c23:Skyrim.esm",
-"pos": [
--53748.25,
--77370.34,
--2515.27
-],
-"src": "3033:Update.esm",
-"ref": "107116:Skyrim.esm",
-"anchorDist": 383,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "9bdb:Skyrim.esm",
-"pos": [
--32326.0,
--66362.23,
-912.0
-],
-"src": "3030:Update.esm",
-"ref": "4c275:Skyrim.esm",
-"anchorDist": 238,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "9bdb:Skyrim.esm",
-"pos": [
--32049.1,
--66231.58,
-912.0
-],
-"src": "302f:Update.esm",
-"ref": "4c27b:Skyrim.esm",
-"anchorDist": 296,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "9bb5:Skyrim.esm",
-"pos": [
--9712.29,
--65504.62,
-1199.12
-],
-"src": "303a:Update.esm",
-"ref": "99526:Skyrim.esm",
-"anchorDist": 193,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "9bb5:Skyrim.esm",
-"pos": [
--9967.87,
--65345.94,
-1204.73
-],
-"src": "3039:Update.esm",
-"ref": "e9a34:Skyrim.esm",
-"anchorDist": 189,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "ccBGSSSE003_LvlBoneWolfZombie",
-"world": "3c:Skyrim.esm",
-"cell": "9a4e:Skyrim.esm",
-"pos": [
--28365.26,
--18189.47,
--5291.17
-],
-"src": "3035:Update.esm",
-"ref": "dc870:Skyrim.esm",
-"anchorDist": 265,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "9bf8:Skyrim.esm",
-"pos": [
--14024.01,
--72125.8,
-3104.82
-],
-"src": "326c:HearthFires.esm",
-"ref": "10d763:Skyrim.esm",
-"anchorDist": 1920,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "LvlAnimalForestPrey",
-"world": "3c:Skyrim.esm",
-"cell": "9bf8:Skyrim.esm",
-"pos": [
--13480.3,
--72507.77,
-3253.88
-],
-"src": "326b:HearthFires.esm",
-"ref": "10d763:Skyrim.esm",
-"anchorDist": 1271,
-"options": [
-[
-1,
-"23a91:Skyrim.esm"
-],
-[
-1,
-"abedf:Skyrim.esm"
-],
-[
-1,
-"cf89d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "skeever",
 "edid": "DLC2LvlAnimalForestPredator",
 "world": "800:Dragonborn.esm",
@@ -69648,7 +67432,7 @@
 "anchorDist": 2219,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -69668,7 +67452,7 @@
 "anchorDist": 3127,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -69688,7 +67472,7 @@
 "anchorDist": 2192,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -69900,7 +67684,7 @@
 "anchorDist": 1179,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -69920,7 +67704,7 @@
 "anchorDist": 891,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -69955,26 +67739,6 @@
 "world": "800:Dragonborn.esm",
 "cell": "ed0a:Dragonborn.esm",
 "pos": [
-24339.75,
-92768.38,
-360.18
-],
-"src": "320e5:Dragonborn.esm",
-"ref": "320e3:Dragonborn.esm",
-"anchorDist": 32,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "ed0a:Dragonborn.esm",
-"pos": [
 21928.51,
 92131.99,
 340.52
@@ -69984,7 +67748,7 @@
 "anchorDist": 283,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -70004,7 +67768,7 @@
 "anchorDist": 108,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -70080,7 +67844,7 @@
 "anchorDist": 187,
 "options": [
 [
-0,
+3,
 "1d77a:Dragonborn.esm"
 ]
 ]
@@ -70100,7 +67864,7 @@
 "anchorDist": 1218,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -70120,7 +67884,7 @@
 "anchorDist": 894,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -70586,182 +68350,6 @@
 ]
 },
 {
-"kind": "riekling",
-"edid": "DLC2LvlRieklingMeleeAmbush",
-"world": "800:Dragonborn.esm",
-"cell": "ed8f:Dragonborn.esm",
-"pos": [
-18769.44,
-75805.75,
-456.64
-],
-"src": "3262d:Dragonborn.esm",
-"ref": "3662f:Dragonborn.esm",
-"anchorDist": 404,
-"options": [
-[
-1,
-"17f47:Dragonborn.esm"
-],
-[
-8,
-"1b64e:Dragonborn.esm"
-],
-[
-15,
-"1b64f:Dragonborn.esm"
-],
-[
-32,
-"3cba3:Dragonborn.esm"
-]
-]
-},
-{
-"kind": "riekling",
-"edid": "DLC2LvlRieklingMeleeAmbush",
-"world": "800:Dragonborn.esm",
-"cell": "ed8f:Dragonborn.esm",
-"pos": [
-18548.24,
-75958.32,
-431.82
-],
-"src": "3262c:Dragonborn.esm",
-"ref": "3662f:Dragonborn.esm",
-"anchorDist": 306,
-"options": [
-[
-1,
-"17f47:Dragonborn.esm"
-],
-[
-8,
-"1b64e:Dragonborn.esm"
-],
-[
-15,
-"1b64f:Dragonborn.esm"
-],
-[
-32,
-"3cba3:Dragonborn.esm"
-]
-]
-},
-{
-"kind": "riekling",
-"edid": "DLC2LvlRieklingMeleeAmbush",
-"world": "800:Dragonborn.esm",
-"cell": "ed8f:Dragonborn.esm",
-"pos": [
-18584.51,
-75778.38,
-437.79
-],
-"src": "3262b:Dragonborn.esm",
-"ref": "3662f:Dragonborn.esm",
-"anchorDist": 219,
-"options": [
-[
-1,
-"17f47:Dragonborn.esm"
-],
-[
-8,
-"1b64e:Dragonborn.esm"
-],
-[
-15,
-"1b64f:Dragonborn.esm"
-],
-[
-32,
-"3cba3:Dragonborn.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "ed8f:Dragonborn.esm",
-"pos": [
-17910.58,
-74456.84,
-264.85
-],
-"src": "3262a:Dragonborn.esm",
-"ref": "3662f:Dragonborn.esm",
-"anchorDist": 1340,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "ed8f:Dragonborn.esm",
-"pos": [
-17961.74,
-74863.46,
-275.11
-],
-"src": "32629:Dragonborn.esm",
-"ref": "3662f:Dragonborn.esm",
-"anchorDist": 948,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "ed8f:Dragonborn.esm",
-"pos": [
-17573.18,
-74671.39,
-267.01
-],
-"src": "32628:Dragonborn.esm",
-"ref": "3662f:Dragonborn.esm",
-"anchorDist": 1318,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabGiant",
-"world": "800:Dragonborn.esm",
-"cell": "ed8f:Dragonborn.esm",
-"pos": [
-17663.64,
-74896.25,
-256.0
-],
-"src": "32602:Dragonborn.esm",
-"ref": "3662f:Dragonborn.esm",
-"anchorDist": 1091,
-"options": [
-[
-0,
-"21875:Skyrim.esm"
-]
-]
-},
-{
 "kind": "goat",
 "edid": "DLC2LvlAnimalMountainSnowPrey",
 "world": "800:Dragonborn.esm",
@@ -70820,7 +68408,7 @@
 "anchorDist": 808,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -70840,7 +68428,7 @@
 "anchorDist": 381,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -70860,7 +68448,7 @@
 "anchorDist": 310,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -70880,7 +68468,7 @@
 "anchorDist": 1998,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -70900,7 +68488,7 @@
 "anchorDist": 1900,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -70920,7 +68508,7 @@
 "anchorDist": 2274,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -70940,7 +68528,7 @@
 "anchorDist": 654,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -70960,7 +68548,7 @@
 "anchorDist": 905,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -70980,7 +68568,7 @@
 "anchorDist": 2956,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -71000,7 +68588,7 @@
 "anchorDist": 2998,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -71020,7 +68608,7 @@
 "anchorDist": 2839,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -71040,7 +68628,7 @@
 "anchorDist": 3060,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -71092,7 +68680,7 @@
 "anchorDist": 2397,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -71112,7 +68700,7 @@
 "anchorDist": 2679,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -71180,7 +68768,7 @@
 "anchorDist": 3546,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71200,7 +68788,7 @@
 "anchorDist": 3316,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71220,7 +68808,7 @@
 "anchorDist": 898,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71240,7 +68828,7 @@
 "anchorDist": 603,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71260,7 +68848,7 @@
 "anchorDist": 495,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71280,7 +68868,7 @@
 "anchorDist": 266,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71300,7 +68888,7 @@
 "anchorDist": 2367,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71384,7 +68972,7 @@
 "anchorDist": 448,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71404,7 +68992,7 @@
 "anchorDist": 1095,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71424,7 +69012,7 @@
 "anchorDist": 902,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71444,7 +69032,7 @@
 "anchorDist": 826,
 "options": [
 [
-0,
+20,
 "23a8c:Skyrim.esm"
 ]
 ]
@@ -71528,7 +69116,7 @@
 "anchorDist": 2599,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71620,7 +69208,7 @@
 "anchorDist": 2773,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -71728,7 +69316,7 @@
 "anchorDist": 579,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -71748,7 +69336,7 @@
 "anchorDist": 301,
 "options": [
 [
-0,
+22,
 "23abb:Skyrim.esm"
 ]
 ]
@@ -72054,46 +69642,6 @@
 ]
 },
 {
-"kind": "fox",
-"edid": "EncFoxArctic",
-"world": "800:Dragonborn.esm",
-"cell": "edc9:Dragonborn.esm",
-"pos": [
-50778.17,
-67828.41,
-9265.63
-],
-"src": "3282e:Dragonborn.esm",
-"ref": "3282b:Dragonborn.esm",
-"anchorDist": 190,
-"options": [
-[
-0,
-"829b6:Skyrim.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "EncHare",
-"world": "800:Dragonborn.esm",
-"cell": "edc9:Dragonborn.esm",
-"pos": [
-50573.02,
-67743.86,
-9265.92
-],
-"src": "32820:Dragonborn.esm",
-"ref": "3282d:Dragonborn.esm",
-"anchorDist": 60,
-"options": [
-[
-65511,
-"6dc9d:Skyrim.esm"
-]
-]
-},
-{
 "kind": "bear",
 "edid": "EncBearSnow",
 "world": "800:Dragonborn.esm",
@@ -72108,7 +69656,7 @@
 "anchorDist": 2049,
 "options": [
 [
-0,
+20,
 "23a8c:Skyrim.esm"
 ]
 ]
@@ -72142,26 +69690,6 @@
 [
 32,
 "3cba4:Dragonborn.esm"
-]
-]
-},
-{
-"kind": "riekling",
-"edid": "DLC2EncRiekling01Missile",
-"world": "800:Dragonborn.esm",
-"cell": "edcb:Dragonborn.esm",
-"pos": [
-44931.94,
-69170.21,
-13819.15
-],
-"src": "35b8a:Dragonborn.esm",
-"ref": "35b62:Dragonborn.esm",
-"anchorDist": 1527,
-"options": [
-[
-0,
-"1b650:Dragonborn.esm"
 ]
 ]
 },
@@ -72244,7 +69772,7 @@
 "anchorDist": 1937,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -72264,7 +69792,7 @@
 "anchorDist": 1983,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -72284,7 +69812,7 @@
 "anchorDist": 1030,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -72304,7 +69832,7 @@
 "anchorDist": 1032,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -72324,7 +69852,7 @@
 "anchorDist": 529,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -72344,7 +69872,7 @@
 "anchorDist": 664,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -72364,7 +69892,7 @@
 "anchorDist": 2307,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -72384,7 +69912,7 @@
 "anchorDist": 2504,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -72404,7 +69932,7 @@
 "anchorDist": 3469,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -72424,7 +69952,7 @@
 "anchorDist": 3487,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -72444,7 +69972,7 @@
 "anchorDist": 3711,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -72774,38 +70302,6 @@
 ]
 },
 {
-"kind": "riekling",
-"edid": "DLC2LvlRieklingMelee",
-"world": "800:Dragonborn.esm",
-"cell": "ee48:Dragonborn.esm",
-"pos": [
-71669.42,
-49300.77,
-5993.89
-],
-"src": "39f8c:Dragonborn.esm",
-"ref": "3182e:Dragonborn.esm",
-"anchorDist": 1260,
-"options": [
-[
-1,
-"17f47:Dragonborn.esm"
-],
-[
-8,
-"1b64e:Dragonborn.esm"
-],
-[
-15,
-"1b64f:Dragonborn.esm"
-],
-[
-32,
-"3cba3:Dragonborn.esm"
-]
-]
-},
-{
 "kind": "deer",
 "edid": "DLC2LvlAnimalForestPrey",
 "world": "800:Dragonborn.esm",
@@ -72898,38 +70394,6 @@
 [
 16,
 "23a8b:Skyrim.esm"
-]
-]
-},
-{
-"kind": "riekling",
-"edid": "DLC2LvlRieklingMissile",
-"world": "800:Dragonborn.esm",
-"cell": "ee69:Dragonborn.esm",
-"pos": [
-71512.51,
-48938.05,
-6038.97
-],
-"src": "39f8d:Dragonborn.esm",
-"ref": "3cce2:Dragonborn.esm",
-"anchorDist": 718,
-"options": [
-[
-1,
-"1b650:Dragonborn.esm"
-],
-[
-8,
-"1b651:Dragonborn.esm"
-],
-[
-15,
-"1b652:Dragonborn.esm"
-],
-[
-32,
-"3cba4:Dragonborn.esm"
 ]
 ]
 },
@@ -73116,7 +70580,7 @@
 "anchorDist": 2507,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73136,7 +70600,7 @@
 "anchorDist": 3341,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73156,7 +70620,7 @@
 "anchorDist": 2908,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73176,7 +70640,7 @@
 "anchorDist": 2068,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73244,7 +70708,7 @@
 "anchorDist": 243,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73312,27 +70776,7 @@
 "anchorDist": 789,
 "options": [
 [
-65511,
-"23ab1:Skyrim.esm"
-]
-]
-},
-{
-"kind": "horker",
-"edid": "EncHorker",
-"world": "800:Dragonborn.esm",
-"cell": "ed9f:Dragonborn.esm",
-"pos": [
-87760.49,
-69979.77,
-748.54
-],
-"src": "264bc:Dragonborn.esm",
-"ref": "264bb:Dragonborn.esm",
-"anchorDist": 198,
-"options": [
-[
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73352,7 +70796,7 @@
 "anchorDist": 476,
 "options": [
 [
-65511,
+25,
 "26196:Dragonborn.esm"
 ]
 ]
@@ -73372,7 +70816,7 @@
 "anchorDist": 301,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73392,7 +70836,7 @@
 "anchorDist": 1237,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73412,7 +70856,7 @@
 "anchorDist": 1374,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73432,7 +70876,7 @@
 "anchorDist": 2901,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -73452,7 +70896,7 @@
 "anchorDist": 178,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -73472,7 +70916,7 @@
 "anchorDist": 925,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -73492,108 +70936,8 @@
 "anchorDist": 854,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "8e7b:Skyrim.esm",
-"pos": [
-12347.72,
-110948.05,
--13965.2
-],
-"src": "f4840:ccBGSSSE001-Fish.esm",
-"ref": "f485c:ccBGSSSE001-Fish.esm",
-"anchorDist": 69,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "8e7b:Skyrim.esm",
-"pos": [
-12288.21,
-111178.45,
--13981.05
-],
-"src": "f4847:ccBGSSSE001-Fish.esm",
-"ref": "f4857:ccBGSSSE001-Fish.esm",
-"anchorDist": 116,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "8e7c:Skyrim.esm",
-"pos": [
-12228.68,
-111159.14,
--13979.75
-],
-"src": "f4846:ccBGSSSE001-Fish.esm",
-"ref": "f484c:ccBGSSSE001-Fish.esm",
-"anchorDist": 111,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "8e7c:Skyrim.esm",
-"pos": [
-12248.26,
-111182.24,
--13984.05
-],
-"src": "f4848:ccBGSSSE001-Fish.esm",
-"ref": "f484c:ccBGSSSE001-Fish.esm",
-"anchorDist": 125,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "3c:Skyrim.esm",
-"cell": "8e7c:Skyrim.esm",
-"pos": [
-12217.28,
-111221.37,
--13992.53
-],
-"src": "f4845:ccBGSSSE001-Fish.esm",
-"ref": "f484c:ccBGSSSE001-Fish.esm",
-"anchorDist": 172,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
 ]
 ]
 },
@@ -75666,46 +73010,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "9f485:BSHeartland.esm",
-"pos": [
-14270.33,
-125486.05,
--4417.8
-],
-"src": "a8de5:BSHeartland.esm",
-"ref": "a8de9:BSHeartland.esm",
-"anchorDist": 109,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "9f485:BSHeartland.esm",
-"pos": [
-14645.62,
-125727.98,
--4417.34
-],
-"src": "a8de6:BSHeartland.esm",
-"ref": "a8da7:BSHeartland.esm",
-"anchorDist": 252,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "CYRLvlAnimalForestPredator",
 "world": "a764b:BSHeartland.esm",
@@ -75874,26 +73178,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "9fc3c:BSHeartland.esm",
-"pos": [
-12545.99,
-157908.73,
--2022.25
-],
-"src": "c8d42:BSHeartland.esm",
-"ref": "a9d8d:BSHeartland.esm",
-"anchorDist": 4311,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
 "kind": "wolf",
 "edid": "CYRLvlWolf",
 "world": "a764b:BSHeartland.esm",
@@ -75980,28 +73264,8 @@
 "anchorDist": 8827,
 "options": [
 [
-0,
+18,
 "8bb63:BSHeartland.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "9fc58:BSHeartland.esm",
-"pos": [
-19503.17,
-147338.52,
--4872.67
-],
-"src": "c8ebe:BSHeartland.esm",
-"ref": "a9d8d:BSHeartland.esm",
-"anchorDist": 8693,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
 ]
 ]
 },
@@ -76033,26 +73297,6 @@
 "kind": "deer",
 "edid": "CYREncDeer",
 "world": "a764b:BSHeartland.esm",
-"cell": "9fc5e:BSHeartland.esm",
-"pos": [
-6297.05,
-144841.75,
--2874.85
-],
-"src": "c8ea7:BSHeartland.esm",
-"ref": "c98d0:BSHeartland.esm",
-"anchorDist": 224,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
 "cell": "9fc7a:BSHeartland.esm",
 "pos": [
 11910.51,
@@ -76064,7 +73308,7 @@
 "anchorDist": 1634,
 "options": [
 [
-0,
+1,
 "4932f:BSHeartland.esm"
 ]
 ]
@@ -76084,7 +73328,7 @@
 "anchorDist": 1700,
 "options": [
 [
-0,
+1,
 "4932f:BSHeartland.esm"
 ]
 ]
@@ -76104,7 +73348,7 @@
 "anchorDist": 1440,
 "options": [
 [
-0,
+1,
 "4932f:BSHeartland.esm"
 ]
 ]
@@ -76452,7 +73696,7 @@
 "anchorDist": 8406,
 "options": [
 [
-0,
+6,
 "718e4:BSHeartland.esm"
 ]
 ]
@@ -76472,7 +73716,7 @@
 "anchorDist": 8271,
 "options": [
 [
-0,
+6,
 "718e4:BSHeartland.esm"
 ]
 ]
@@ -76492,7 +73736,7 @@
 "anchorDist": 8503,
 "options": [
 [
-0,
+6,
 "718e4:BSHeartland.esm"
 ]
 ]
@@ -76512,7 +73756,7 @@
 "anchorDist": 8536,
 "options": [
 [
-0,
+6,
 "718e4:BSHeartland.esm"
 ]
 ]
@@ -76611,26 +73855,6 @@
 },
 {
 "kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "9fc00:BSHeartland.esm",
-"pos": [
-41328.16,
-157917.47,
--2340.61
-],
-"src": "8b95a:BSHeartland.esm",
-"ref": "8b9cb:BSHeartland.esm",
-"anchorDist": 3784,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
-"kind": "deer",
 "edid": "CYRLvlAnimalForestPrey",
 "world": "a764b:BSHeartland.esm",
 "cell": "9fdef:BSHeartland.esm",
@@ -76704,7 +73928,7 @@
 "anchorDist": 490,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -76724,7 +73948,7 @@
 "anchorDist": 335,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -76744,7 +73968,7 @@
 "anchorDist": 409,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -78160,7 +75384,7 @@
 "anchorDist": 241,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -78252,7 +75476,7 @@
 "anchorDist": 930,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -78296,7 +75520,7 @@
 "anchorDist": 987,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -78316,7 +75540,7 @@
 "anchorDist": 661,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -78336,7 +75560,7 @@
 "anchorDist": 698,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -78356,7 +75580,7 @@
 "anchorDist": 600,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -78376,7 +75600,7 @@
 "anchorDist": 312,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -79066,26 +76290,6 @@
 ]
 },
 {
-"kind": "wolf",
-"edid": "CYREncWolf",
-"world": "a764b:BSHeartland.esm",
-"cell": "a00bd:BSHeartland.esm",
-"pos": [
-82954.28,
-191617.47,
--4294.64
-],
-"src": "c8375:BSHeartland.esm",
-"ref": "c8415:BSHeartland.esm",
-"anchorDist": 1055,
-"options": [
-[
-0,
-"3c86:BSHeartland.esm"
-]
-]
-},
-{
 "kind": "troll",
 "edid": "CYREncTrollRiver",
 "world": "a764b:BSHeartland.esm",
@@ -79100,7 +76304,7 @@
 "anchorDist": 850,
 "options": [
 [
-0,
+18,
 "8bb63:BSHeartland.esm"
 ]
 ]
@@ -80252,7 +77456,7 @@
 "anchorDist": 994,
 "options": [
 [
-0,
+18,
 "8bb63:BSHeartland.esm"
 ]
 ]
@@ -80466,26 +77670,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "a013d:BSHeartland.esm",
-"pos": [
-85210.62,
-222591.31,
-4165.45
-],
-"src": "621ad:BSHeartland.esm",
-"ref": "621ae:BSHeartland.esm",
-"anchorDist": 162,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "CYRLvlAmbientCreaturesMountains",
 "world": "a764b:BSHeartland.esm",
@@ -80524,7 +77708,7 @@
 "anchorDist": 106,
 "options": [
 [
-0,
+17,
 "4932b:BSHeartland.esm"
 ]
 ]
@@ -80568,7 +77752,7 @@
 "anchorDist": 772,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -80588,7 +77772,7 @@
 "anchorDist": 1406,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -80608,7 +77792,7 @@
 "anchorDist": 1552,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -80908,7 +78092,7 @@
 "anchorDist": 249,
 "options": [
 [
-0,
+2,
 "3c86:BSHeartland.esm"
 ]
 ]
@@ -80928,7 +78112,7 @@
 "anchorDist": 137,
 "options": [
 [
-0,
+2,
 "3c86:BSHeartland.esm"
 ]
 ]
@@ -80948,7 +78132,7 @@
 "anchorDist": 157,
 "options": [
 [
-0,
+2,
 "3c86:BSHeartland.esm"
 ]
 ]
@@ -81560,7 +78744,7 @@
 "anchorDist": 771,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -81580,7 +78764,7 @@
 "anchorDist": 599,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -81600,7 +78784,7 @@
 "anchorDist": 378,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -81916,7 +79100,7 @@
 "anchorDist": 338,
 "options": [
 [
-0,
+14,
 "4932a:BSHeartland.esm"
 ]
 ]
@@ -83582,26 +80766,6 @@
 ]
 },
 {
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "a335f:BSHeartland.esm",
-"pos": [
-148219.02,
-189916.2,
--4661.62
-],
-"src": "70479:BSHeartland.esm",
-"ref": "d1caf:BSHeartland.esm",
-"anchorDist": 1489,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
 "kind": "fox",
 "edid": "CYRLvlAmbientCreatures",
 "world": "a764b:BSHeartland.esm",
@@ -84443,26 +81607,6 @@
 },
 {
 "kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "a343b:BSHeartland.esm",
-"pos": [
-179836.86,
-150693.55,
--5787.4
-],
-"src": "63414:BSHeartland.esm",
-"ref": "6344b:BSHeartland.esm",
-"anchorDist": 304,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
-]
-]
-},
-{
-"kind": "deer",
 "edid": "CYRLvlAnimalMountainSnowPrey",
 "world": "a764b:BSHeartland.esm",
 "cell": "a3491:BSHeartland.esm",
@@ -84736,28 +81880,8 @@
 "anchorDist": 11068,
 "options": [
 [
-0,
+22,
 "5d16f:BSHeartland.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "CYREncDeer",
-"world": "a764b:BSHeartland.esm",
-"cell": "9d562:BSHeartland.esm",
-"pos": [
--2060.38,
-232728.25,
-14575.12
-],
-"src": "8268a:BSHeartland.esm",
-"ref": "8268d:BSHeartland.esm",
-"anchorDist": 467,
-"options": [
-[
-0,
-"4932f:BSHeartland.esm"
 ]
 ]
 },
@@ -84872,7 +81996,7 @@
 "anchorDist": 794,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -84892,68 +82016,8 @@
 "anchorDist": 696,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "f48b:Dragonborn.esm",
-"pos": [
-701.27,
--22591.89,
-386.83
-],
-"src": "1576ac:Journey to Baan Malur.esp",
-"ref": "33518e:Journey to Baan Malur.esp",
-"anchorDist": 302,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "f48b:Dragonborn.esm",
-"pos": [
-752.69,
--22591.73,
-389.82
-],
-"src": "1576ad:Journey to Baan Malur.esp",
-"ref": "33518e:Journey to Baan Malur.esp",
-"anchorDist": 251,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "f4cb:Dragonborn.esm",
-"pos": [
-11227.96,
--31588.02,
-436.83
-],
-"src": "9b2ae:Journey to Baan Malur.esp",
-"ref": "426e07:Journey to Baan Malur.esp",
-"anchorDist": 334,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
 ]
 ]
 },
@@ -85004,7 +82068,7 @@
 "anchorDist": 1205,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85024,7 +82088,7 @@
 "anchorDist": 243,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85044,7 +82108,7 @@
 "anchorDist": 1375,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85064,7 +82128,7 @@
 "anchorDist": 180,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85084,7 +82148,7 @@
 "anchorDist": 1960,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85104,7 +82168,7 @@
 "anchorDist": 3005,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85124,7 +82188,7 @@
 "anchorDist": 3075,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85144,7 +82208,7 @@
 "anchorDist": 1465,
 "options": [
 [
-0,
+1,
 "23ab8:Skyrim.esm"
 ]
 ]
@@ -85164,7 +82228,7 @@
 "anchorDist": 9475,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -85184,7 +82248,7 @@
 "anchorDist": 9385,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -85232,7 +82296,7 @@
 "anchorDist": 5814,
 "options": [
 [
-0,
+6,
 "23abf:Skyrim.esm"
 ]
 ]
@@ -85252,7 +82316,7 @@
 "anchorDist": 5406,
 "options": [
 [
-0,
+6,
 "23abf:Skyrim.esm"
 ]
 ]
@@ -85306,46 +82370,6 @@
 ]
 },
 {
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "aa6d:Dragonborn.esm",
-"pos": [
--119200.23,
-47875.03,
-474.36
-],
-"src": "1544d0:Journey to Baan Malur.esp",
-"ref": "18003e:Journey to Baan Malur.esp",
-"anchorDist": 476,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
-"kind": "mudcrab",
-"edid": "EncMudcrabMedium",
-"world": "800:Dragonborn.esm",
-"cell": "aa6d:Dragonborn.esm",
-"pos": [
--119233.13,
-47909.84,
-468.24
-],
-"src": "1544d1:Journey to Baan Malur.esp",
-"ref": "18003e:Journey to Baan Malur.esp",
-"anchorDist": 521,
-"options": [
-[
-0,
-"e4010:Skyrim.esm"
-]
-]
-},
-{
 "kind": "netch",
 "edid": "DLC2EncNetchCalf",
 "world": "800:Dragonborn.esm",
@@ -85360,7 +82384,7 @@
 "anchorDist": 1370,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85380,7 +82404,7 @@
 "anchorDist": 1591,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85400,7 +82424,7 @@
 "anchorDist": 1414,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -85420,7 +82444,7 @@
 "anchorDist": 1652,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85440,7 +82464,7 @@
 "anchorDist": 5030,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -85460,7 +82484,7 @@
 "anchorDist": 4906,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -85480,7 +82504,7 @@
 "anchorDist": 5060,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -85500,7 +82524,7 @@
 "anchorDist": 1136,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -85520,7 +82544,7 @@
 "anchorDist": 1307,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85540,7 +82564,7 @@
 "anchorDist": 1733,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85560,7 +82584,7 @@
 "anchorDist": 1179,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -85580,7 +82604,7 @@
 "anchorDist": 1158,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85600,7 +82624,7 @@
 "anchorDist": 1371,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85620,7 +82644,7 @@
 "anchorDist": 3724,
 "options": [
 [
-0,
+6,
 "23abf:Skyrim.esm"
 ]
 ]
@@ -85640,7 +82664,7 @@
 "anchorDist": 4075,
 "options": [
 [
-0,
+6,
 "23abf:Skyrim.esm"
 ]
 ]
@@ -85660,7 +82684,7 @@
 "anchorDist": 3586,
 "options": [
 [
-0,
+6,
 "23abf:Skyrim.esm"
 ]
 ]
@@ -85680,7 +82704,7 @@
 "anchorDist": 1611,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85700,7 +82724,7 @@
 "anchorDist": 1707,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85720,7 +82744,7 @@
 "anchorDist": 9688,
 "options": [
 [
-0,
+1,
 "abedf:Skyrim.esm"
 ]
 ]
@@ -85740,7 +82764,7 @@
 "anchorDist": 9734,
 "options": [
 [
-0,
+1,
 "23a91:Skyrim.esm"
 ]
 ]
@@ -85760,7 +82784,7 @@
 "anchorDist": 4187,
 "options": [
 [
-0,
+6,
 "23abf:Skyrim.esm"
 ]
 ]
@@ -85780,7 +82804,7 @@
 "anchorDist": 9975,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85800,7 +82824,7 @@
 "anchorDist": 10204,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85820,7 +82844,7 @@
 "anchorDist": 10217,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85840,7 +82864,7 @@
 "anchorDist": 10571,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -85860,7 +82884,7 @@
 "anchorDist": 3517,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85880,7 +82904,7 @@
 "anchorDist": 4008,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -85900,7 +82924,7 @@
 "anchorDist": 6967,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -85920,7 +82944,7 @@
 "anchorDist": 7371,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -85940,7 +82964,7 @@
 "anchorDist": 7056,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85960,7 +82984,7 @@
 "anchorDist": 7237,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -85980,7 +83004,7 @@
 "anchorDist": 6991,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -86000,7 +83024,7 @@
 "anchorDist": 7514,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -86020,7 +83044,7 @@
 "anchorDist": 137,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -86040,7 +83064,7 @@
 "anchorDist": 151,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -86060,7 +83084,7 @@
 "anchorDist": 280,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -86080,7 +83104,7 @@
 "anchorDist": 395,
 "options": [
 [
-0,
+2,
 "e4011:Skyrim.esm"
 ]
 ]
@@ -86100,7 +83124,7 @@
 "anchorDist": 4814,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -86120,7 +83144,7 @@
 "anchorDist": 4989,
 "options": [
 [
-0,
+3,
 "21875:Skyrim.esm"
 ]
 ]
@@ -86140,7 +83164,7 @@
 "anchorDist": 1005,
 "options": [
 [
-0,
+2,
 "e4011:Skyrim.esm"
 ]
 ]
@@ -86160,7 +83184,7 @@
 "anchorDist": 4912,
 "options": [
 [
-0,
+1,
 "e4010:Skyrim.esm"
 ]
 ]
@@ -86180,7 +83204,7 @@
 "anchorDist": 841,
 "options": [
 [
-0,
+2,
 "e4011:Skyrim.esm"
 ]
 ]
@@ -86200,7 +83224,7 @@
 "anchorDist": 1387,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -86220,7 +83244,7 @@
 "anchorDist": 1311,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -86240,7 +83264,7 @@
 "anchorDist": 1445,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
 ]
 ]
@@ -86260,7 +83284,7 @@
 "anchorDist": 833,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -86280,7 +83304,7 @@
 "anchorDist": 697,
 "options": [
 [
-0,
+60,
 "35f911:Journey to Baan Malur.esp"
 ]
 ]
@@ -86300,7 +83324,7 @@
 "anchorDist": 1160,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -86320,7 +83344,7 @@
 "anchorDist": 1753,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -86340,7 +83364,7 @@
 "anchorDist": 5056,
 "options": [
 [
-0,
+40,
 "1b649:Dragonborn.esm"
 ]
 ]
@@ -86360,7 +83384,7 @@
 "anchorDist": 4770,
 "options": [
 [
-0,
+36,
 "2857e:Dragonborn.esm"
 ]
 ]
@@ -86380,28 +83404,8 @@
 "anchorDist": 4809,
 "options": [
 [
-0,
+25,
 "2857f:Dragonborn.esm"
-]
-]
-},
-{
-"kind": "hare",
-"edid": "EncHare",
-"world": "3c:Skyrim.esm",
-"cell": "d74:Skyrim.esm",
-"pos": [
--91526.55,
-8526.7,
--2376.76
-],
-"src": "108d90:JKs Skyrim.esp",
-"ref": "24693:JKs Skyrim.esp",
-"anchorDist": 858,
-"options": [
-[
-65511,
-"6dc9d:Skyrim.esm"
 ]
 ]
 },
@@ -86420,7 +83424,7 @@
 "anchorDist": 309,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86440,7 +83444,7 @@
 "anchorDist": 276,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86460,7 +83464,7 @@
 "anchorDist": 376,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86480,7 +83484,7 @@
 "anchorDist": 301,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86500,7 +83504,7 @@
 "anchorDist": 475,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86520,7 +83524,7 @@
 "anchorDist": 379,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86540,7 +83544,7 @@
 "anchorDist": 836,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86560,7 +83564,7 @@
 "anchorDist": 324,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -86580,7 +83584,7 @@
 "anchorDist": 672,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86600,7 +83604,7 @@
 "anchorDist": 789,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86620,7 +83624,7 @@
 "anchorDist": 787,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86640,7 +83644,7 @@
 "anchorDist": 594,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86660,7 +83664,7 @@
 "anchorDist": 710,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86680,7 +83684,7 @@
 "anchorDist": 213,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86700,7 +83704,7 @@
 "anchorDist": 600,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86720,7 +83724,7 @@
 "anchorDist": 960,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86740,7 +83744,7 @@
 "anchorDist": 787,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86760,7 +83764,7 @@
 "anchorDist": 538,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86780,7 +83784,7 @@
 "anchorDist": 262,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86800,7 +83804,7 @@
 "anchorDist": 214,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86820,7 +83824,7 @@
 "anchorDist": 376,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86840,7 +83844,7 @@
 "anchorDist": 325,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -86860,7 +83864,7 @@
 "anchorDist": 789,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -86880,7 +83884,7 @@
 "anchorDist": 190,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86900,7 +83904,7 @@
 "anchorDist": 284,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86920,7 +83924,7 @@
 "anchorDist": 1546,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -86940,7 +83944,7 @@
 "anchorDist": 847,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -86960,7 +83964,7 @@
 "anchorDist": 1172,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -86980,7 +83984,7 @@
 "anchorDist": 1354,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87000,7 +84004,7 @@
 "anchorDist": 141,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -87020,7 +84024,7 @@
 "anchorDist": 448,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87040,7 +84044,7 @@
 "anchorDist": 592,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87060,7 +84064,7 @@
 "anchorDist": 245,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -87080,7 +84084,7 @@
 "anchorDist": 322,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87100,7 +84104,7 @@
 "anchorDist": 436,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87120,7 +84124,7 @@
 "anchorDist": 200,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -87140,7 +84144,7 @@
 "anchorDist": 629,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87160,7 +84164,7 @@
 "anchorDist": 500,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87180,7 +84184,7 @@
 "anchorDist": 442,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87200,7 +84204,7 @@
 "anchorDist": 1282,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87220,7 +84224,7 @@
 "anchorDist": 827,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87240,7 +84244,7 @@
 "anchorDist": 144,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -87260,7 +84264,7 @@
 "anchorDist": 239,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87280,7 +84284,7 @@
 "anchorDist": 223,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87300,7 +84304,7 @@
 "anchorDist": 335,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87320,7 +84324,7 @@
 "anchorDist": 115,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87340,7 +84344,7 @@
 "anchorDist": 242,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -87360,7 +84364,7 @@
 "anchorDist": 1328,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87380,7 +84384,7 @@
 "anchorDist": 539,
 "options": [
 [
-0,
+2,
 "23a92:Skyrim.esm"
 ]
 ]
@@ -87400,7 +84404,7 @@
 "anchorDist": 497,
 "options": [
 [
-0,
+2,
 "23a92:Skyrim.esm"
 ]
 ]
@@ -87420,7 +84424,7 @@
 "anchorDist": 901,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87440,7 +84444,7 @@
 "anchorDist": 1279,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87460,7 +84464,7 @@
 "anchorDist": 873,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87480,7 +84484,7 @@
 "anchorDist": 1306,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87500,7 +84504,7 @@
 "anchorDist": 1768,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87520,7 +84524,7 @@
 "anchorDist": 1504,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87540,7 +84544,7 @@
 "anchorDist": 793,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87560,7 +84564,7 @@
 "anchorDist": 1317,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87580,7 +84584,7 @@
 "anchorDist": 944,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87600,7 +84604,7 @@
 "anchorDist": 277,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87620,7 +84624,7 @@
 "anchorDist": 180,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87640,7 +84644,7 @@
 "anchorDist": 1507,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -87660,7 +84664,7 @@
 "anchorDist": 1307,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -87680,7 +84684,7 @@
 "anchorDist": 1827,
 "options": [
 [
-65511,
+3,
 "23ab1:Skyrim.esm"
 ]
 ]
@@ -87700,7 +84704,7 @@
 "anchorDist": 171,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87720,7 +84724,7 @@
 "anchorDist": 157,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87740,7 +84744,7 @@
 "anchorDist": 228,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87760,7 +84764,7 @@
 "anchorDist": 155,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87780,7 +84784,7 @@
 "anchorDist": 879,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87800,7 +84804,7 @@
 "anchorDist": 1279,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87820,7 +84824,7 @@
 "anchorDist": 901,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87840,7 +84844,7 @@
 "anchorDist": 1306,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87860,7 +84864,7 @@
 "anchorDist": 1504,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87880,7 +84884,7 @@
 "anchorDist": 1768,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87900,7 +84904,7 @@
 "anchorDist": 873,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87920,7 +84924,7 @@
 "anchorDist": 944,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87940,7 +84944,7 @@
 "anchorDist": 793,
 "options": [
 [
-0,
+3,
 "23a90:Skyrim.esm"
 ]
 ]
@@ -87960,7 +84964,7 @@
 "anchorDist": 1317,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -87980,7 +84984,7 @@
 "anchorDist": 1979,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -88000,7 +85004,7 @@
 "anchorDist": 411,
 "options": [
 [
-0,
+2,
 "23a92:Skyrim.esm"
 ]
 ]
@@ -88020,7 +85024,7 @@
 "anchorDist": 544,
 "options": [
 [
-0,
+2,
 "23a92:Skyrim.esm"
 ]
 ]
@@ -88136,7 +85140,7 @@
 "anchorDist": 2023,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88156,7 +85160,7 @@
 "anchorDist": 2116,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88176,7 +85180,7 @@
 "anchorDist": 2155,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88236,7 +85240,7 @@
 "anchorDist": 384,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -88256,7 +85260,7 @@
 "anchorDist": 692,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -88276,7 +85280,7 @@
 "anchorDist": 724,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88296,7 +85300,7 @@
 "anchorDist": 770,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88316,7 +85320,7 @@
 "anchorDist": 892,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -88336,7 +85340,7 @@
 "anchorDist": 744,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88356,28 +85360,8 @@
 "anchorDist": 1089,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
-]
-]
-},
-{
-"kind": "deer",
-"edid": "EncDeer",
-"world": "3c:Skyrim.esm",
-"cell": "9b41:Skyrim.esm",
-"pos": [
--75168.57,
--46534.4,
-2181.14
-],
-"src": "2c31:DragonBreak.esp",
-"ref": "1f4a8:DragonBreak.esp",
-"anchorDist": 69,
-"options": [
-[
-0,
-"cf89d:Skyrim.esm"
 ]
 ]
 },
@@ -88396,7 +85380,7 @@
 "anchorDist": 570,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88416,7 +85400,7 @@
 "anchorDist": 471,
 "options": [
 [
-0,
+3,
 "c39f1:Skyrim.esm"
 ]
 ]
@@ -88436,7 +85420,7 @@
 "anchorDist": 496,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88456,7 +85440,7 @@
 "anchorDist": 574,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88476,7 +85460,7 @@
 "anchorDist": 570,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88496,7 +85480,7 @@
 "anchorDist": 471,
 "options": [
 [
-0,
+3,
 "c39f1:Skyrim.esm"
 ]
 ]
@@ -88516,7 +85500,7 @@
 "anchorDist": 520,
 "options": [
 [
-0,
+3,
 "c39f1:Skyrim.esm"
 ]
 ]
@@ -88536,7 +85520,7 @@
 "anchorDist": 574,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88556,7 +85540,7 @@
 "anchorDist": 496,
 "options": [
 [
-65511,
+1,
 "a91a0:Skyrim.esm"
 ]
 ]
@@ -88576,7 +85560,7 @@
 "anchorDist": 520,
 "options": [
 [
-0,
+3,
 "c39f1:Skyrim.esm"
 ]
 ]
@@ -88596,7 +85580,7 @@
 "anchorDist": 251,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
 ]
 ]
@@ -88616,28 +85600,8 @@
 "anchorDist": 251,
 "options": [
 [
-65511,
+3,
 "4359c:Skyrim.esm"
-]
-]
-},
-{
-"kind": "werebear",
-"edid": "DLC2EncWerebear",
-"world": "3c:Skyrim.esm",
-"cell": "9a09:Skyrim.esm",
-"pos": [
--12537.67,
--9929.51,
--5523.1
-],
-"src": "b038a:DragonBreak Online Edits.esp",
-"ref": "b0253:DragonBreak Online Edits.esp",
-"anchorDist": 408,
-"options": [
-[
-0,
-"322b1:Dragonborn.esm"
 ]
 ]
 }

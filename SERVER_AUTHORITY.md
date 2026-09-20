@@ -41,7 +41,7 @@ Both must be no and yes respectively before a feature is finished.
 
 ---
 
-AND THE THING THE TEAM SHOULD STOP SAYING: "the server re-checks the distance, so it is contained." It is not, yet. The only movement validation is a single per-packet delta test with no rate limit, so the position every proximity rule reads is whatever the client last wrote. Once movement is rate-validated, that sentence becomes true and about eight other gates become real at the same time. Until then, distance is advice.
+AND THE THING THE TEAM SHOULD STOP SAYING: "the server re-checks the distance, so it is contained." It is not, yet. The only movement validation is a single per-packet delta test with no rate limit, so the position every proximity rule reads is whatever the client last wrote. Once movement is rate-validated, that sentence becomes true and about eight other gates become real at the same time. Until then, distance is advice. (Update 2026-09-19: the rate check is written and waiting on a CI build, migration 2 below. It counts once it is running with `"enforce": true`, not before.)
 
 ## Is "everything server side" achievable?
 
@@ -111,6 +111,23 @@ ONE SENTENCE FOR JAKE: the companion drive is the right shape of machine wired t
 
 ### 2. Movement has no rate or speed validation, only a per-packet delta test — so the position every server-side proximity rule reads is whatever the client last wrote.
 
+**BUILT 2026-09-19, branch `movement-rate-validation`, not yet running on the server.** `MovementValidation`
+now keeps the last position it accepted per player actor plus a token bucket of movement allowance
+(`MovementLimits`, from `server-settings.json` `movementValidation`): the bucket refills at the speed
+ceiling, a packet spends the distance it claims, and a packet that cannot pay is refused with the existing
+`isMe` snap-back, rate limited to one per 250 ms. Horizontal, upward and downward budgets are separate
+because falling is fast. The ceilings come from the engine's own MOVT records read out of the load order
+(`NPC_Sprinting_MT` 500 u/s forward is the player sprint, `Horse_Sprint_MT` 600, `Horse_Default_MT` 450 run,
+`NPC_Default_MT` 370 run / 80 walk; `fJumpFallVelocityMin` 700 is where fall damage starts), so the first
+ceiling is 1000 horizontal, 2000 up, 4000 down with a 3 s burst, to be tightened from the measured log.
+Three things make it safe to ship: `"enforce": false` logs what it would refuse and changes nothing, a
+server teleport is detected by the server's own position having moved since the last accepted packet (which
+covers `MpActor::Teleport`, door activation, respawn, change-form load and every `mp.set locationalData`)
+and opens a 5 s grace in which the player's in-flight packets are dropped without a snap-back, and the
+check is skipped entirely for hosted NPCs, because refusing an NPC's move with no correction path is the
+frozen-copy bug in C++ task 1. A player's own movement is now validated BEFORE `SendToNeighbours` relays
+it, so a refused packet no longer reaches other clients; hosted actors keep the old order.
+
 - **From -> to:** client-authored position accepted at any rate -> server-rate-validated position
 - **How:** VERIFIED: MovementValidation.cpp:16-33 is the whole check — cell equality plus (currentPos-newPos).SqrLength() >= 4096*4096, with the TeleportMessage2 snap-back gated on isMe. There is no time term, no speed term, and ActionListener.cpp:421-500 records lastMovUpdateByIdx only for host timeouts; a grep for ratelimit/throttle/flood across the C++ tree returns nothing. Add to MovementValidation::Validate a per-actor time-aware check: keep the last accepted position and timestamp, compute units/second, and refuse (with the isMe snap-back) anything above a generous ceiling — sprint-plus-horse plus slack, tuned from a real log before picking the number. Keep the existing 4096 delta as the hard ceiling for a single packet.
 - **Needs C++:** yes  **Effort:** medium — C++ change, CI flatrim or Native build, per fork\CLAUDE.md
@@ -149,6 +166,15 @@ ONE SENTENCE FOR JAKE: the companion drive is the right shape of machine wired t
 - **From -> to:** client asserts the outcome -> server issues a checkable challenge and verifies the answer
 - **How:** VERIFIED: labour.js:171-180 clamps hits to round.strikes and rejects only elapsed < hits*350, so waiting strikes*350 ms and reporting a perfect round always wins — the band centre is rolled by the widget itself (skymp5-front labour/index.tsx) so the server never learns where the band was or when any strike happened. The nonce prevents replay, not forgery. Skinning is weaker still: gamemode.js:1516-1523 does not even clamp hits and floors only at 1.5 s; misses are computed in the widget and never transmitted. THE TEMPLATE IS TWO FILES OVER AND BY THE SAME AUTHOR: gamemode.js:1301-1315 generates the shuffle server-side and verifies the returned permutation against it, so the client holds the puzzle but not the answer. Do the same here — the server issues a deterministic sweep (seed, period, band sequence), the widget renders it, the client returns per-strike timestamps, the server re-runs the band check. Feel is unchanged.
 - **Needs C++:** no  **Effort:** medium — gamemode plus a front rebuild, no client rebuild
+- **DONE 2026-09-19, both halves:** `labour.js` issues the round (seed, band centre per strike, sweep, length,
+  staggers) and `gamemode.js` does the same for skinning (`skinRound`/`skinPacket`/`judgeSkin`: seed, seam per
+  cut, blade period, limit). Each widget returns the millisecond of every strike or cut it took, and the server
+  replays the sweep or the blade to count the hits itself — skinning counts the slips too, which the widget used
+  to keep to itself. Both sides run the same `markerAt()`/`bladeAt()` on the same integer ms, so the verdict is
+  the number the player saw and no latency tolerance enters the scoring; latency only binds the widget's clock to
+  the server's (`lagGraceMs`, logged as `lag=` on every verdict, still to be tightened from a playtest). Forged
+  counts, strikes inside the stagger, cuts after the attempt ended, replays and slow-motion rounds are refused
+  and logged. Tests: `node server\tests\labour-harness.js`, `node server\tests\skinning-harness.js`.
 - **Risk if skipped:** Free ore and firewood at the maximum tier for a one-line widget edit, limited only by the vein rest timers, plus free Mastery credit. It feeds the trade economy, so it inflates prices for honest players rather than just benefiting the cheat. Skinning failures simply stop existing.
 
 ### 8. Twin Souls: the client reads player.hasPerk() and the server raises the summon limit on that claim alone.
