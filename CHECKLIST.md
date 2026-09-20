@@ -395,6 +395,21 @@ no bot has ever logged into the live server on 7777.**
   - **A server killed while players are connected leaves their characters enabled in the world**: on the next
     boot they stream to everybody and any client can take host of them. Same family as the orphan dungeon
     zones; the logout grace never ran.
+- [x] **Sweep run against the LIVE server** (user asked; world snapshotted and restored, nothing left behind):
+  10/25/50/100 bots, five minutes a step, no dungeon claims and no NPC hosting. **Zero errors in 25 minutes,
+  no disconnects, memory flat at ~1 GB.** 100 players = **67,454 messages a second out** against 737 in,
+  20.2% of one core, loop lag p99 24.9 ms, createActor churn 307/s.
+  - The gameplay timers matched the sandbox at 100 players (`meet` 1.15 ms mean vs 0.71-1.12, `lawful` 1.09
+    vs 1.04-2.03, `moveTrace` 0.00 in both), so the real character data behind `meet` and `lawful` costs
+    nothing now that both are caches. **The sandbox is a fair stand-in: nobody needs to touch live again for
+    load work.**
+  - The relay was ~10% heavier than the sandbox (67,454 vs 61,951) because this run held no leases, so all
+    100 bots stayed in one worldspace instead of four sitting in interiors.
+  - Restore verified by counting: `changeForms` back to 650, `starter-grants.json` 101 rows -> 1,
+    `npc-fallen-spots.json` still 11, `metricsAuth` removed, no `LOADTEST` string anywhere in the world.
+    Recipe and cautions are in the review, section 6. The bot characters were never flushed to disk at all.
+  - Cost: the live server was down ~100 s during a false start (my restart did not launch; nobody was online),
+    and restarted four times in total. `server-settings.json.bak-20260920-160224` is the pre-run settings file.
 - [ ] **Still to run**: bots on a second machine for real bytes/s without the relay hop.
 
 ## Added 2026-09-20 (13:30): every scale term in weightOf is live, and the offsets were measured

@@ -64,10 +64,15 @@ function resolveTarget(args) {
   const kind = args.target === 'live' ? 'live' : 'sandbox';
   if (kind === 'live') {
     const settings = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'server-settings.json'), 'utf8'));
+    // /metrics is off unless the live settings carry metricsAuth (ui.ts:73). When somebody has turned it
+    // on, use it: it is the only source of tick duration and event-loop lag.
+    const auth = settings.metricsAuth;
+    const uiPort = settings.port === 7777 ? 3000 : settings.port + 1;
     return {
       kind, host: '127.0.0.1', port: settings.port, settings,
       logPath: path.join(SERVER_DIR, 'server.log'),
-      metricsUrl: null, metricsAuth: null,
+      metricsUrl: auth ? 'http://127.0.0.1:' + uiPort + '/metrics' : null,
+      metricsAuth: auth ? auth.user + ':' + auth.password : null,
       note: 'the live dev server, shared with whoever is testing in game',
     };
   }
@@ -97,13 +102,24 @@ const ACTIVITY = [
   /kickWithReason|has been kicked/,
 ];
 
+// A line this harness's own bots produced, which is not a reason to refuse the next run
+function isOursFactory(base, count) {
+  const ids = new Set();
+  for (let i = 0; i < count; i++) ids.add(String(base + i));
+  return (line) => {
+    if (/LOADTEST/.test(line)) return true;
+    const m = /logged as (d+)/.exec(line);
+    return !!(m && ids.has(m[1]));
+  };
+}
+
 function logLineTime(line) {
   const m = LOG_TS.exec(line);
   if (!m) return null;
   return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
 }
 
-function preflight(target, args) {
+async function preflight(target, args) {
   const problems = [];
   const notes = [];
   const bots = Number(args.bots || Math.max(...(CFG.steps || [10])));
@@ -135,6 +151,7 @@ function preflight(target, args) {
   const lines = text ? text.split('\n') : [];
   const now = Date.now();
   const recentWindowMs = Number(args.window || 20) * 60 * 1000;
+  const isOurs = isOursFactory(base, Math.max(bots, 200));
   let netConnected = 0;
   const recent = [];
   const leases = new Map();
@@ -143,15 +160,35 @@ function preflight(target, args) {
     if (/\bdisconnect \d+/.test(line)) netConnected--;
     const ts = logLineTime(line);
     const isRecent = ts !== null && now - ts < recentWindowMs;
-    if (isRecent && ACTIVITY.some((re) => re.test(line))) recent.push(line.trim());
+    if (isRecent && ACTIVITY.some((re) => re.test(line)) && !isOurs(line)) recent.push(line.trim());
     // dungeons.js:287 logs a claim by dungeon id and :319 audits the release by dungeon NAME, so the two
     // cannot be paired: a lease is treated as open until a release line appears after the newest claim.
     const claim = /dungeon (\S+) claimed by/.exec(line);
     if (claim) leases.set(claim[1], line.trim());
     if (/DUNGEON .* released/.test(line)) leases.clear();
   }
-  if (netConnected > 0) problems.push(netConnected + ' player(s) look connected right now (connect lines without a disconnect)');
-  if (recent.length) problems.push(recent.length + ' line(s) of player activity in the last ' + (recentWindowMs / 60000) + ' min, newest: ' + recent[recent.length - 1].slice(0, 140));
+  // The log heuristic cannot see a client that was killed without a disconnect line, so ask the server
+  // itself when /metrics is on: the gauge is what is actually connected.
+  let liveClients = null;
+  if (target.metricsUrl) {
+    try {
+      const series = await metrics.scrape(target.metricsUrl, target.metricsAuth, 4000);
+      const gauge = series['skymp_server_connected_clients_count'];
+      if (gauge !== undefined) { liveClients = gauge; notes.push('server reports ' + gauge + ' connected client(s)'); }
+    } catch (e) { notes.push('metrics unreachable for the connected count: ' + e.message); }
+  }
+  if (liveClients !== null) {
+    if (liveClients > 0) problems.push(liveClients + ' client(s) connected right now, per the server');
+  } else if (netConnected > 0) {
+    problems.push(netConnected + ' player(s) look connected right now (connect lines without a disconnect)');
+  }
+  if (recent.length) {
+    const msg = recent.length + ' line(s) of player activity in the last ' + (recentWindowMs / 60000) +
+      ' min, newest: ' + recent[recent.length - 1].slice(0, 140);
+    // Recent activity matters because somebody may be about to come back. When the server itself says
+    // nobody is connected, that is the stronger signal and the log lines are only worth reading.
+    if (liveClients === 0) notes.push(msg); else problems.push(msg);
+  }
   if (leases.size) problems.push(leases.size + ' dungeon lease(s) with no end line: ' + [...leases.keys()].join(', '));
 
   // 4. binaries
@@ -330,11 +367,11 @@ function spreadPoint(place, i) {
   return [place.pos[0] + Math.cos(a) * r, place.pos[1] + Math.sin(a) * r, place.groundZ];
 }
 
-const FIRST = ['Bjorn', 'Ragna', 'Torvald', 'Eldra', 'Hrafn', 'Sigrid', 'Ulfr', 'Dagny', 'Kjell', 'Freya',
-  'Orval', 'Mira', 'Brand', 'Selka', 'Halvar', 'Runa'];
-const LAST = ['Snow-Walker', 'of Bruma', 'Ice-Veil', 'Pass-Warden', 'Stone-Hand', 'Cold-Ember'];
-const botName = (i) => FIRST[i % FIRST.length] + ' ' + LAST[Math.floor(i / FIRST.length) % LAST.length] +
-  (i >= FIRST.length * LAST.length ? ' ' + i : '');
+// Bot characters are permanent in the live world: gamemode.js indexes every character's lowercase name
+// and #TAG (private.indexed.nameKey / tagKey, :456-458) so offline characters stay findable by name forever.
+// So they are named unmistakably rather than plausibly - nobody should have to wonder whether LOADTEST 042
+// is a person, and a chat line from one is obvious to anyone watching the server during a run.
+const botName = (i) => 'LOADTEST ' + String(i + 1).padStart(3, '0');
 
 // ---- commands --------------------------------------------------------------------------------
 function cmdBuild() {
@@ -361,9 +398,9 @@ async function cmdSandbox(args) {
   else log('not initialised: run "node loadtest.js sandbox init"');
 }
 
-function cmdPreflight(args) {
+async function cmdPreflight(args) {
   const target = resolveTarget(args);
-  const pre = preflight(target, args);
+  const pre = await preflight(target, args);
   log('target: ' + target.kind + ' ' + target.host + ':' + target.port + ' (' + target.note + ')');
   for (const n of pre.notes) log('note: ' + n);
   if (!pre.problems.length) { log('preflight OK'); return 0; }
@@ -381,7 +418,7 @@ async function cmdRun(args) {
   const maxBots = Math.max(...steps);
 
   // Safety gates
-  const pre = preflight(target, Object.assign({}, args, { bots: maxBots }));
+  const pre = await preflight(target, Object.assign({}, args, { bots: maxBots }));
   for (const n of pre.notes) log('note: ' + n);
   if (pre.problems.length) {
     for (const p of pre.problems) log('BLOCK: ' + p);
@@ -679,7 +716,7 @@ async function main() {
   const cmd = args._[0] || 'help';
   if (cmd === 'build') return cmdBuild();
   if (cmd === 'sandbox') return cmdSandbox(args);
-  if (cmd === 'preflight') return process.exit(cmdPreflight(args));
+  if (cmd === 'preflight') return process.exit(await cmdPreflight(args));
   if (cmd === 'run' || cmd === 'dry') return process.exit(await cmdRun(args));
   console.log(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').split('\n').slice(0, 60).join('\n'));
 }

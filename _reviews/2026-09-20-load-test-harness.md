@@ -70,6 +70,30 @@ a trigger volume in the same tick it was replaced). Memory did not move: 980 MB 
 them. Chat worked at every step: at 100 bots, 287 lines sent became 2,780 deliveries, which is the
 distance ranges doing their job.
 
+### The same sweep on the live server
+
+Run against the live server on 7777 at the user's request, with the world snapshotted beforehand and
+restored afterwards so nothing was left behind (see section 6). No dungeon claims and no NPC hosting, so
+all 100 bots stayed in one worldspace.
+
+| bots | msg/s to bots | per bot | createActor/s | server CPU | loop lag p50 / p99 | errors |
+|---|---|---|---|---|---|---|
+| 10 | 740 | 74 | 8 | 2.7% | 15.6 / 16.7 ms | 0 |
+| 25 | 4,591 | 184 | 47 | 5.6% | 15.6 / 17.2 ms | 0 |
+| 50 | 17,328 | 347 | 138 | 11.2% | 15.5 / 18.6 ms | 0 |
+| 100 | **67,454** | 675 | 307 | 20.2% | 15.5 / **24.9 ms** | 0 |
+
+**Zero errors in 25 minutes, no disconnects, no refused movement, memory flat at ~1 GB.** The relay is
+about 10% heavier than the sandbox at the top step (67,454 against 61,951) and the stream churn is higher
+too (307 createActor a second against 277) - partly because this run held no dungeon leases, so nobody was
+tucked away in an interior, and partly because the live world has more references to stream.
+
+The gameplay timers were indistinguishable from the sandbox at 100 players: `meet` 1.15 ms mean against
+0.71-1.12, `lawful` 1.09 against 1.04-2.03, `watch` 1.09, `outside` 1.09, `playtest` 0.74, `moveTrace`
+0.00. So the real character data behind `meet` and `lawful` costs nothing measurable now that both are
+caches - which is the useful confirmation, because it means **the sandbox is a fair stand-in for load work
+and nobody needs to touch live to get these numbers again.**
+
 ## 4. What the numbers say
 
 ### The wall is the movement fan-out, and it is quadratic
@@ -385,7 +409,26 @@ Reports land in `server\tools\loadtest\reports\<stamp>\report.md`, one folder pe
 before-and-after comparisons are a diff rather than an argument. That is how the two timer fixes above were
 checked within an hour of being written.
 
-Against the live server it is `--target live --yes-live`, and preflight refuses while anyone is connected,
-while there is activity in the last 20 minutes, or while a dungeon lease is open. Live runs write a
-character per bot into the live world and a row per profile into `starter-grants.json`, so the sandbox is
-the default for a reason, and the user's standing answer for now is sandbox only.
+Against the live server it is `--target live --yes-live`, and preflight refuses while anyone is connected
+(it asks the server's own `skymp_server_connected_clients_count` when `/metrics` is on, because a client
+killed without a disconnect line leaves the log lying) or while a dungeon lease is open.
+
+**A live run leaves permanent marks unless you snapshot first**: a character per bot in
+`world\changeForms`, a row per profile in `starter-grants.json`, and a permanent entry in the name and
+#TAG index that pigeons use to find offline characters (`gamemode.js:456-458`). That is why bots are named
+`LOADTEST 001`-`100` rather than plausibly, and why the live run on 2026-09-20 was done like this:
+
+    node loadtest.js sandbox stop                  (free the port, not needed for a live run)
+    # stop the live server, then, with it stopped:
+    copy server\world\ and starter-grants.json, zone-spawns.json, npc-fallen-spots.json,
+         companions.json, housing.json into server\_world-snapshot-<stamp>\
+    # add metricsAuth to server-settings.json (backed up first), start the server, run the sweep
+    # stop the server, copy the snapshot back, restore server-settings.json, start again
+
+Verified afterwards by counting: `changeForms` back to 650, `starter-grants.json` back to 1 row from 101,
+`npc-fallen-spots.json` still exactly 11 entries, `metricsAuth` gone, and no `LOADTEST` string anywhere in
+the world. The bot characters had not even been flushed to disk when the server was stopped.
+
+Restore only with the server **stopped** - a running process holds change forms in memory and will write
+over what you just put back - and only when nobody real is connected, because the restore discards
+everything that happened in the window.

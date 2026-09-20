@@ -63,6 +63,11 @@ Two details cost an hour each and are worth remembering:
   `0x14` alone (`worldViewMisc.ts:20`) and `ActionListener::OnActivate` only skips its hoster check for
   `0x14` (`ActionListener.cpp:833`). Sending the actor id gives
   `Bad hoster is attached to caster 0x..., but found 0x0`.
+- **Custom gamemode properties are not in `props`.** A `createActor` carries them in
+  `customPropsJsonDumps`, an array of `{propName, propValueJsonDump}` (`CreateActorMessage.h`), which is
+  where `ff_factions` and friends are read from. And `baseRecordType` is only set when the base is a DOOR
+  (`PartOne.cpp:869-874`), which is why an `=== 'NPC_'` test never matches anything - `--host-npcs` was
+  silently hosting nothing until that was fixed.
 - **`nlohmann` dumps object keys alphabetically**, so `"t"` is at the END of a message, not the start. The
   host scans backwards for it.
 
