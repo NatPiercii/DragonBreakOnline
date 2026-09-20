@@ -5,6 +5,7 @@ import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { resolveEditorIds, isEditorId } from "./espmEditorIds";
 import { espmFieldFormIds } from "./formIdUtil";
+import { npcLevel } from "./espmMagic";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -164,6 +165,26 @@ const POINT_REFUSE_NOTICE_MS = 600000;
 const ACTIVITY_KINDS = ["craft", "activate", "mine", "chop", "read", "eat", "kill", "hit", "cast", "hurt", "prayer", "lock"] as const;
 type ActivityKind = typeof ACTIVITY_KINDS[number];
 
+// Where an item's gold value sits, per record type. Measured over this whole load order rather than
+// remembered - see productValue() and `server\item-value-layout.json`. ARMO keeps its armour rating
+// in DNAM, not DATA, so DATA is (value, weight) like the simple types; AMMO and BOOK are the two that
+// are not. Every winner below scored 100% plausible against its runner-up's 2-44%.
+const PRODUCT_VALUE_AT: Record<string, { field: string; offset: number }> = {
+  WEAP: { field: "DATA", offset: 0 },   // 4891 records, value@0 weight@4, 4891/4891
+  ARMO: { field: "DATA", offset: 0 },   // 7346 records, value@0 weight@4, 7346/7346
+  MISC: { field: "DATA", offset: 0 },   // 1623 records, value@0 weight@4, 1623/1623
+  INGR: { field: "DATA", offset: 0 },   //  442 records, value@0 weight@4,  442/442
+  SLGM: { field: "DATA", offset: 0 },   //   26 records, value@0 weight@4,   26/26
+  SCRL: { field: "DATA", offset: 0 },   //  172 records, value@0 weight@4,  172/172
+  KEYM: { field: "DATA", offset: 0 },   //  799 records, value@0 weight@4,  798/798
+  // AMMO is the trap: DATA is projectile@0, flags@4, DAMAGE as a float@8, value@12. A first pass put
+  // it at 4 and was reading the flags. Confirmed by the arrow ladder: iron 1, steel 2, orcish 3,
+  // dwarven 4, elven 5, glass 6, ebony 7, daedric 8 at offset 12, against damage 8/10/12..24 at 8.
+  AMMO: { field: "DATA", offset: 12 },  //  111 records, value@12 (some DATA are 16 bytes, not 20)
+  BOOK: { field: "DATA", offset: 8 },   // offset 0 is a 4-value flag enum, 8 is gold (tome 44..725)
+  ALCH: { field: "ENIT", offset: 0 },   //  896 records; ALCH keeps weight alone in DATA, value in ENIT
+};
+
 interface ActivityEvent {
   kind: ActivityKind;
   actorId: number;
@@ -265,7 +286,8 @@ export class MasterySystem implements System {
       };
     };
     chain("onCraft", "craft", ([actorId, , , recipeId]) =>
-      [actorId, { recipeId, held: this.holdsInputs(ctx, Number(actorId) >>> 0, Number(recipeId) >>> 0) ? 1 : 0 }]);
+      [actorId, { recipeId, held: this.holdsInputs(ctx, Number(actorId) >>> 0, Number(recipeId) >>> 0) ? 1 : 0,
+                  value: this.productValue(ctx, Number(recipeId) >>> 0) }]);
     chain("onActivate", "activate", ([refrId, casterId]) => [casterId, { refrId }], ([refrId, casterId]) => this.gateActivation(ctx, Number(refrId) >>> 0, Number(casterId) >>> 0));
     chain("onEatItem", "eat", ([actorId, baseId]) => [actorId, { baseId }]);
     // onHitDamage(aggressorId, targetId, sourceId, damage): credit the attacker (hit) and the defender (hurt).
@@ -273,17 +295,28 @@ export class MasterySystem implements System {
     mp.onHitDamage = (...args: unknown[]) => {
       const verdict = prevHit ? prevHit(...args) : undefined;
       if (verdict !== false) {
-        const [aggressorId, targetId, sourceId] = args;
+        const [aggressorId, targetId, sourceId, damage] = args;
+        // `damage` is the fourth argument and was being dropped. C++ never fires this event for a
+        // hit of zero or less (ActionListener::FireHitDamageEvent returns early), so it is always > 0.
         this.enqueue("hit", aggressorId, { targetId, sourceId });
-        this.enqueue("hurt", targetId, { aggressorId, sourceId });
-        try { if ((ctx.svr as Mp).get(Number(targetId) >>> 0, "isDead")) this.enqueue("kill", aggressorId, { victimId: targetId }); } catch { /* not an actor */ }
+        this.enqueue("hurt", targetId, { aggressorId, sourceId, value: Number(damage) || 0 });
+        try {
+          if ((ctx.svr as Mp).get(Number(targetId) >>> 0, "isDead")) {
+            // A kill is weighed by how hard the target was to kill. Max health is the natural measure
+            // and is NOT readable here: `percentages` is a 0..1 fraction and GetBaseActorValues has no
+            // property binding, so it needs C++. npcLevel is the available proxy, already used by
+            // conjurationSystem, and it walks the template chain like EvaluateTemplate does.
+            // A kill is rare enough to afford the espm walk; `hit` is not, and stays flat.
+            this.enqueue("kill", aggressorId, { victimId: targetId, value: npcLevel(ctx.svr as Mp, Number(targetId) >>> 0) });
+          }
+        } catch { /* not an actor */ }
       }
       return verdict;
     };
     const prevCast = typeof mp.onSpellCast === "function" ? mp.onSpellCast : null;
     mp.onSpellCast = (...args: unknown[]) => {
       const verdict = prevCast ? prevCast(...args) : undefined;
-      if (verdict !== false) { const [casterId, spellId] = args; this.enqueue("cast", casterId, { spellId }); }
+      if (verdict !== false) { const [casterId, spellId] = args; this.enqueue("cast", casterId, { spellId, value: this.spellCost(ctx, Number(spellId) >>> 0) }); }
       return verdict;
     };
   }
@@ -1077,6 +1110,47 @@ export class MasterySystem implements System {
     this.benchCache.set(recipeId, bench); return bench;
   }
 
+  // Gold value of what a recipe makes, for skillPoints.weightOf's "craft" scale term.
+  // Every offset below was measured over this load order by `py ck-mcp\itemvalues.py`, never assumed:
+  // the winning layout is the one where the neighbouring float parses as a plausible weight for
+  // essentially every record of that type, and a wrong offset fails that test loudly. Results are in
+  // `server\item-value-layout.json`. 6687 of the 6695 COBJ recipes here resolve to one of these types.
+  // A product with no known layout returns 0, which is weightOf's flat base - never a wrong number.
+  private productValue(ctx: SystemContext, recipeId: number): number {
+    const hit = this.valueCache.get(recipeId); if (hit !== undefined) return hit;
+    let value = 0;
+    const product = this.fieldFormIds(this.lookup(ctx, recipeId), "CNAM")[0] || 0;
+    const res = product ? this.lookup(ctx, product) : null;
+    const spot = res ? PRODUCT_VALUE_AT[String(res.record.type || "")] : undefined;
+    if (spot) {
+      const f = (res.record.fields || []).find((x: any) => x.type === spot.field && x.data instanceof Uint8Array && x.data.byteLength >= spot.offset + 4);
+      if (f) {
+        const v = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getInt32(spot.offset, true);
+        if (v > 0 && v < 1000000) value = v;
+      }
+    }
+    this.valueCache.set(recipeId, value); return value;
+  }
+
+  // Magicka cost of a spell, for weightOf's "cast" scale term: SPIT.spellCost, a uint32 at offset 0
+  // of a 36-byte block (libespm's own SPITData, `static_assert(sizeof(SPITData) == 36)`).
+  // Measured over this load order: it tracks spell power exactly - Flames 14, Healing 12, Firebolt 41,
+  // Fireball 86, Incinerate 171, Icy Spear 320, Blizzard 1106. 748 of the 986 castable Spell-type
+  // records carry one; the rest are auto-calculated and left at 0, and fall back to the flat base.
+  private spellCost(ctx: SystemContext, spellId: number): number {
+    const hit = this.costCache.get(spellId); if (hit !== undefined) return hit;
+    let cost = 0;
+    const res = this.lookup(ctx, spellId);
+    if (res && (String(res.record.type || "") === "SPEL" || String(res.record.type || "") === "SCRL")) {
+      const f = (res.record.fields || []).find((x: any) => x.type === "SPIT" && x.data instanceof Uint8Array && x.data.byteLength >= 36);
+      if (f) {
+        const v = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(0, true);
+        if (v > 0 && v < 1000000) cost = v;
+      }
+    }
+    this.costCache.set(spellId, cost); return cost;
+  }
+
   private recipeInputs(ctx: SystemContext, recipeId: number): Array<{ baseId: number; count: number }> {
     const hit = this.inputCache.get(recipeId); if (hit) return hit;
     const out: Array<{ baseId: number; count: number }> = [];
@@ -1237,6 +1311,8 @@ export class MasterySystem implements System {
   private respecUntil = new Map<number, number>();
   private pendingGrants = new Map<number, number>();
   private benchCache = new Map<number, number>();
+  private valueCache = new Map<number, number>();
+  private costCache = new Map<number, number>();
   private reachCache = new Map<number, number>();
   private weaponCache = new Map<number, string>();
   private schoolCache = new Map<number, string>();

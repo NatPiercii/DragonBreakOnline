@@ -91,8 +91,13 @@ export type WeightInput = { kind: string; value?: number };
 export const weightOf = ({ kind, value = 0 }: WeightInput): number => {
   const v = Number.isFinite(value) ? Math.max(0, value) : 0;
   switch (kind) {
-    case "craft": return clampW(0.5 + Math.min(2.5, v / 400));       // product value
-    case "kill": case "hit": return clampW(0.5 + Math.min(1.5, v / 200));  // target max health
+    case "craft": return clampW(0.5 + Math.min(2.5, v / 400));       // product gold value
+    // A kill is scaled by the victim's ACBS level, not its max health: max health is not readable
+    // server-side (percentages are 0..1 and GetBaseActorValues has no property binding), so the
+    // honest measure available is the level. Most levelled NPCs report their calculated minimum,
+    // so a bandit sits near the base and a fixed-level giant or dragon earns the top of the range.
+    case "kill": return clampW(0.5 + Math.min(1.5, v / 40));         // victim level
+    case "hit": return 0.5;                                          // too hot a path to price per blow
     case "cast": return clampW(0.5 + Math.min(1.0, v / 150));        // magicka cost
     case "hurt": return clampW(0.5 + Math.min(1.5, v / 40));         // damage taken
     case "mine": return clampW(1 + Math.min(1, v / 4));              // ore band 0..4
