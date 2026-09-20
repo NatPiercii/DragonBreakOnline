@@ -582,7 +582,20 @@ module.exports = (api) => {
 
   // ---- doors and chests -------------------------------------------------------------------------
   const denyAt = new Map();
-  const deny = (a, text) => { if (Date.now() - (denyAt.get(a) || 0) > 1500) { denyAt.set(a, Date.now()); personal(a, text); } return false; };
+  const denySwallowed = new Map();
+  // A refusal used to reach the player only, so nobody could tell afterwards why a claim failed; reasons are logged too
+  const deny = (a, text, why) => {
+    const now = Date.now();
+    if (now - (denyAt.get(a) || 0) <= 1500) { denySwallowed.set(a, (denySwallowed.get(a) || 0) + 1); return false; }
+    denyAt.set(a, now);
+    personal(a, text);
+    if (why) {
+      const missed = denySwallowed.get(a) || 0;
+      denySwallowed.delete(a);
+      log(`dungeon refused ${who(a)}: ${why}${missed ? ` (${missed} more refusals swallowed)` : ''}`);
+    }
+    return false;
+  };
   const lockpickingTier = (a) => { try { const r = mp.get(a, 'private.mastery'); if (!r || !Array.isArray(r.order) || !r.order.includes('lockpicking')) return -1; return Math.max(0, Number((r.skills && r.skills.lockpicking || {}).rank) || 0); } catch (e) { return -1; } };
   const takeLockpick = (a) => {
     try {
@@ -642,12 +655,12 @@ module.exports = (api) => {
       const lease = ST.leases.get(d.id);
       if (lease) {
         if (lease.members.has(pid)) { glowLease(casterId, lease, d); return true; }
-        return deny(casterId, `Someone is inside ${d.name}. It frees up in ${minutesLeft(lease.endsAt)} minutes at most.`);
+        return deny(casterId, `Someone is inside ${d.name}. It frees up in ${minutesLeft(lease.endsAt)} minutes at most.`, `${d.id} is claimed by another party for ${minutesLeft(lease.endsAt)} more min`);
       }
       const cd = Number(cooldownsOf(casterId)[d.id]) || 0;
-      if (cd > Date.now()) return deny(casterId, `${d.name} still rests for you. Come back in ${minutesLeft(cd)} minutes.`);
+      if (cd > Date.now()) return deny(casterId, `${d.name} still rests for you. Come back in ${minutesLeft(cd)} minutes.`, `${d.id} rests for them ${minutesLeft(cd)} more min`);
       const party = partyOf(pid);
-      if (party && party.leader !== pid) return deny(casterId, `Only your party leader, ${party.leaderName}, can claim ${d.name}.`);
+      if (party && party.leader !== pid) return deny(casterId, `Only your party leader, ${party.leaderName}, can claim ${d.name}.`, `${d.id} claim by a party member, leader is ${party.leaderName}`);
       const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}`;
       ST.pending.set(casterId, { nonce, dungeonId: d.id, entrance });
       const partyNames = partyMembers(pid).filter((x) => x !== pid).map((x) => { const a = actorByProfile(x); return a ? nameOf(a) : `#${x}`; });
@@ -663,8 +676,8 @@ module.exports = (api) => {
       if (!lease.locked.has(targetId) || lease.unlocked.has(targetId)) { opened(); return null; }
       const level = lease.locked.get(targetId);
       const tier = lockpickingTier(casterId);
-      if (tier < 0) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Only a Lockpicker can open it.`);
-      if (tier < level) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Your Lockpicking is not yet up to it (tier ${level + 1} needed).`);
+      if (tier < 0) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Only a Lockpicker can open it.`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, not a Lockpicker`);
+      if (tier < level) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Your Lockpicking is not yet up to it (tier ${level + 1} needed).`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, tier ${tier} below ${level}`);
       const chance = Math.min(0.95, 0.55 + 0.15 * (tier - level));
       if (Math.random() < chance) {
         lease.unlocked.add(targetId);
@@ -674,8 +687,8 @@ module.exports = (api) => {
         opened();
         return true;
       }
-      if (takeLockpick(casterId)) return deny(casterId, `The pick snaps in the ${LOCK_LEVELS[level]} lock.`);
-      return deny(casterId, `You have no lockpicks left for this ${LOCK_LEVELS[level]} lock.`);
+      if (takeLockpick(casterId)) return deny(casterId, `The pick snaps in the ${LOCK_LEVELS[level]} lock.`, `${chest.d.id} ${LOCK_LEVELS[level]} lock, pick broke`);
+      return deny(casterId, `You have no lockpicks left for this ${LOCK_LEVELS[level]} lock.`, `${chest.d.id} ${LOCK_LEVELS[level]} lock, no lockpicks left`);
     }
     return null;
   };
@@ -684,8 +697,8 @@ module.exports = (api) => {
     ST.pending.delete(a); closeWidget(a, GATE_WIDGET_ID);
     const d = byId.get(p.dungeonId); const diff = DIFFICULTIES.find((x) => x.id === String(args[1]));
     if (!d || !diff) return;
-    if (ST.leases.has(d.id)) return personal(a, `Someone claimed ${d.name} first.`);
-    if (distance(a, p.entrance.doorPos || p.entrance.pos, p.entrance.world || p.entrance.cell) > C.entranceReach) return personal(a, 'You have wandered from the entrance.');
+    if (ST.leases.has(d.id)) { log(`dungeon refused ${who(a)}: ${d.id} was claimed by someone else while their gate was open`); return personal(a, `Someone claimed ${d.name} first.`); }
+    if (distance(a, p.entrance.doorPos || p.entrance.pos, p.entrance.world || p.entrance.cell) > C.entranceReach) { log(`dungeon refused ${who(a)}: ${d.id} claim from beyond ${C.entranceReach} units of the entrance`); return personal(a, 'You have wandered from the entrance.'); }
     startLease(a, d, p.entrance, diff);
   });
   onUi('dungeonCancel', (a) => { ST.pending.delete(a); closeWidget(a, GATE_WIDGET_ID); });
