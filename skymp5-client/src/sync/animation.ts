@@ -215,15 +215,18 @@ export const setRefrCollision = (refrId: number, collision: boolean): void => {
 
 // Animation sync is unreliable and single-slot, so a lost get-up must not leave a walking clone without collision
 export const restoreSitCollisionIfMoving = (refr: ObjectReference, m: Movement): void => {
-  if (m.runMode === "Standing") {
-    return;
-  }
   const refrId = refr.getFormID();
   const disabledAt = sitCollisionDisabledAt.get(refrId);
-  if (disabledAt !== undefined && Date.now() - disabledAt > 2000) {
-    sitCollisionDisabledAt.delete(refrId);
-    setCollision(refrId, true);
+  if (disabledAt === undefined || Date.now() - disabledAt <= 2000) {
+    return;
   }
+  // A standing copy the engine does not hold in furniture never got up from a sit it was told about:
+  // its collision would stay off for as long as it lives, and any translation slides it through the world
+  if (m.runMode === "Standing" && Actor.from(refr)?.getSitState() !== 0) {
+    return;
+  }
+  sitCollisionDisabledAt.delete(refrId);
+  setCollision(refrId, true);
 };
 
 export const setDefaultAnimsDisabled = (

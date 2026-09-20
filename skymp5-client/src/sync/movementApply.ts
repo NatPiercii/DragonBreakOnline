@@ -260,7 +260,13 @@ const translateTo = (refr: ObjectReference, m: Movement) => {
     (isInSitPose(refrId) && distance > 1);
 
   if (needsMove) {
+    // A ragdolled copy is not translated, and the last translation must not be left running:
+    // it would carry the body on with collision off for as long as the get-up event is missed
     if (actor && actor.getActorValue("Variable10") < -999) {
+      if (translating.delete(refrId)) {
+        try { refr.stopTranslation(); } catch (e) { /* not loaded */ }
+        giveBackCollision(refrId);
+      }
       return;
     }
 
