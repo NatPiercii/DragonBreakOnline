@@ -109,6 +109,28 @@ module.exports = (api) => {
     personal(a, `${(DATA.placements || []).length} creature spots outdoors, ${campChests.size} giant camp chests, spawn within ${Math.round(C.radius / 70)} m, back ${Math.round(C.respawnSeconds / 60)} min after a kill.${isAdmin(a) ? ' Config: gamemode-config.json "wildlife".' : ''}`);
   }, { help: 'what roams the wilds' });
 
+  // ---- placement factions -----------------------------------------------------------------------
+  // pickOption resolves the placement's Lvl* wrapper down to a concrete NPC_, which in dungeons.js
+  // loses the factions of any wrapper that owns them ("Use Factions" unset) - 390 of 3,500 there.
+  // Measured 2026-09-20: it costs wildlife NOTHING. All 3,185 wrappers have "Use Factions" SET and
+  // template down to an LVLN, so they never had factions of their own to lose, and no ff_factions
+  // repair is needed here. This audit stays so that the day someone adds a placement whose template
+  // does own its factions, the boot line says so instead of it going quietly wrong.
+  // Once per process: it walks a few thousand espm chains and a hot reload must not pay for it again.
+  // Cache-busted like gamemode.js busts its own modules: this file is evaluated outside the bundle's
+  // module tree, so a hot reload re-requires wildlife.js but would otherwise keep a stale factions.js.
+  const FACTIONS = (() => { try { const p = path.resolve('factions.js'); delete require.cache[p]; return require(p)(mp); } catch (e) { log('factions.js failed to load:', e.message); return null; } })();
+  // The verdict is kept on globalThis so the summary line still carries it after a hot reload, when
+  // the audit itself is skipped.
+  if (FACTIONS && !globalThis.__dboWildFactionAudit) {
+    const t0 = Date.now();
+    // Audit the option actually picked, not options[0]: the pick is what gets spawned.
+    const slots = (DATA.placements || []).map((pl) => ({ ref: pl.ref, base: idOf(pickOption(pl.options, pickFor(pl))), edid: pl.edid }));
+    const a = FACTIONS.audit(slots);
+    globalThis.__dboWildFactionAudit = `, ${a.lost} of ${a.counted} lose their template's factions`;
+    log(`wildlife faction audit: ${a.lost} of ${a.counted} placements spawn without their template's factions, ${a.deferred} defer to the leveled pick (${a.kinds} kinds, ${Date.now() - t0} ms)${a.top.length ? '; top: ' + a.top.slice(0, 6).map(([k, n]) => `${n}x ${k}`).join(' | ') : ''}`);
+  }
+
   const zones = writeZones();
-  log(`wildlife ${C.enabled ? 'on' : 'off'}: ${(DATA.placements || []).length} placements -> ${zones} zones, ${campChests.size} giant camp chests, radius ${C.radius}, despawn ${C.despawnSeconds}s, respawn ${C.respawnSeconds}s`);
+  log(`wildlife ${C.enabled ? 'on' : 'off'}: ${(DATA.placements || []).length} placements -> ${zones} zones, ${campChests.size} giant camp chests, radius ${C.radius}, despawn ${C.despawnSeconds}s, respawn ${C.respawnSeconds}s${globalThis.__dboWildFactionAudit || ''}`);
 };
