@@ -355,25 +355,42 @@ module.exports = (api) => {
     audit(`DUNGEON ${lease.name} released (${why})`);
   };
   // mp.getAllForms answers from a cache filled on its first call and never lists later spawns, so an id that throws once is skipped instead
-  const spawnerTag = (lease, id) => {
-    if (!lease.gone) lease.gone = new Set();
-    if (lease.gone.has(id)) return '';
-    try { return String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { lease.gone.add(id); return ''; }
+  const gone = new Set();
+  const spawnerTag = (id) => {
+    if (gone.has(id)) return '';
+    try { return String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { gone.add(id); return ''; }
   };
   // The spawn system's sidecar of live ids; each timer tick reads it once for every lease
   const readSpawnedIds = () => { try { const ids = JSON.parse(fs.readFileSync(SPAWNED_IDS_FILE, 'utf8')); return Array.isArray(ids) ? ids : null; } catch (e) { return null; } };
+  // A spawned actor's zone is written once when it is placed, so it is read once and kept. An id that
+  // leaves the sidecar is forgotten, which is what makes a form id the engine later reuses safe.
+  const tagCache = new Map();
+  // Snapshots stop while no lease runs, and a form id can be despawned and reused unseen in that gap,
+  // so a break longer than a few ticks throws both caches away rather than trusting them
+  let snapAt = 0;
+  // One snapshot per timer tick: the live ids, a Set of them for the sweep, and each id's zone, shared by every lease
+  const spawnSnapshot = () => {
+    const ids = readSpawnedIds();
+    if (!ids) return null;
+    if (Date.now() - snapAt > 10000) { tagCache.clear(); gone.clear(); }
+    snapAt = Date.now();
+    const set = new Set(ids);
+    for (const id of tagCache.keys()) if (!set.has(id)) tagCache.delete(id);
+    for (const id of gone) if (!set.has(id)) gone.delete(id);
+    for (const id of ids) if (!tagCache.has(id)) { const tag = spawnerTag(id); if (tag) tagCache.set(id, tag); }
+    return { ids, set, tags: tagCache };
+  };
   // Enemies the spawn system has placed for this lease, from its sidecar of live ids.
-  const trackNpcs = (lease, ids = readSpawnedIds()) => {
-    if (!ids) return;
+  const trackNpcs = (lease, snap = spawnSnapshot()) => {
+    if (!snap) return;
     const prefix = `${ZONE_PREFIX}${lease.id}:`;
-    for (const id of ids) {
+    for (const id of snap.ids) {
       if (lease.seenNpcs.has(id) && lease.deadNpcs.has(id)) continue;
-      const tag = spawnerTag(lease, id);
-      if (!tag.startsWith(prefix)) continue;
+      if (!String(snap.tags.get(id) || '').startsWith(prefix)) continue;
       lease.seenNpcs.add(id);
       try { if (mp.get(id, 'isDead') === true) lease.deadNpcs.add(id); } catch (e) { lease.deadNpcs.add(id); }
     }
-    for (const id of lease.seenNpcs) { if (!ids.includes(id)) lease.deadNpcs.add(id); } // swept corpse
+    for (const id of lease.seenNpcs) { if (!snap.set.has(id)) lease.deadNpcs.add(id); } // swept corpse
   };
   const isCleared = (lease) => {
     const d = byId.get(lease.id); if (!d) return false;
@@ -384,11 +401,11 @@ module.exports = (api) => {
   };
   const tick = () => {
     const now = Date.now();
-    const ids = ST.leases.size ? readSpawnedIds() : null;
+    const snap = ST.leases.size ? spawnSnapshot() : null;
     for (const lease of [...ST.leases.values()]) {
       const insideNow = [...lease.members].some((pid) => { const a = actorByProfile(pid); const dd = a ? dungeonAround(a) : null; return dd && dd.id === lease.id; });
       if (insideNow) lease.lastInsideAt = now;
-      trackNpcs(lease, ids);
+      trackNpcs(lease, snap);
       if (isCleared(lease)) { endLease(lease, 'cleared'); continue; }
       if (now >= lease.endsAt) { endLease(lease, 'time'); continue; }
       if (!lease.warned && lease.endsAt - now <= C.warnMinutes * 60000) {
@@ -435,13 +452,13 @@ module.exports = (api) => {
     const mat = String(bowName || '').replace(/^(?:CYR|BSK)/, '').match(/^(Draugr|Falmer|Forsworn|Orcish|Dwarven|Elven|Glass|Ebony|Ayleid|AncientImperial)/);
     return (mat && arrows.find((a) => a.name.replace(/^(?:CYR|BSK)/, '').startsWith(mat[1]))) || arrows.find((a) => a.name === 'IronArrow') || arrows[0] || null;
   };
-  const armLease = (lease, ids = readSpawnedIds()) => {
+  const armLease = (lease, snap = spawnSnapshot()) => {
     if (!lease.armed) lease.armed = new Set();
-    if (!ids) return;
+    if (!snap) return;
     const prefix = `${ZONE_PREFIX}${lease.id}:`;
-    for (const id of ids) {
+    for (const id of snap.ids) {
       if (lease.armed.has(id)) continue;
-      const tag = spawnerTag(lease, id);
+      const tag = String(snap.tags.get(id) || '');
       if (!tag.startsWith(prefix)) continue;
       lease.armed.add(id);
       const edid = (lease.kinds || {})[tag] || '';
@@ -544,7 +561,7 @@ module.exports = (api) => {
     for (const id of lease.armed || []) {
       if (lease.factionChecked.has(id)) continue;
       lease.factionChecked.add(id);
-      const tag = spawnerTag(lease, id);
+      const tag = spawnerTag(id);
       let baseDesc = ''; try { baseDesc = String(mp.get(id, 'baseDesc') || ''); } catch (e) { continue; }
       const zone = (lease.zones || []).find((z) => z.Name === tag);
       const pBase = zone && zone.Anchor ? placedBase(zone.Anchor) : 0;
@@ -559,8 +576,8 @@ module.exports = (api) => {
     }
   };
   every('dungeons.arm', 2000, () => {
-    const ids = ST.leases.size ? readSpawnedIds() : null;
-    for (const lease of ST.leases.values()) { try { armLease(lease, ids); factionCheck(lease); } catch (e) { log('arm tick failed', e.message); } }
+    const snap = ST.leases.size ? spawnSnapshot() : null;
+    for (const lease of ST.leases.values()) { try { armLease(lease, snap); factionCheck(lease); } catch (e) { log('arm tick failed', e.message); } }
   });
 
   // ---- doors and chests -------------------------------------------------------------------------

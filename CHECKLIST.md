@@ -65,8 +65,14 @@ no bot has ever logged into the live server on 7777.**
   present, including back to the sender (self-subscription is deliberate, `MpObjectReference.cpp:745`).
   Fixes, cheapest first: stop echoing the sender's own movement; interest management by distance instead of
   by grid block; a per-listener rate ladder by distance. The last two are C++.
-- [ ] **Re-run after the officials.json cache fix** (6f68fc3): the sweep in the review measures the 18:24
-  snapshot from 2026-09-19, so its `lawful` timer line is the before number.
+- [x] **First sweep done** (10/25/50/100, five minutes a step, four dungeon leases open): one error line in
+  25 minutes, no disconnects, memory flat at ~1 GB, and 61,951 messages a second leaving the server at 100
+  players against 736 arriving. Real wire bytes, measured through the harness's counting relay: 8.8 KiB/s
+  per player, so about 3.8 MB/s out at 100. JSON is 4.6x the wire size.
+- [x] **Re-measured after the two per-player timer fixes** (`6f68fc3` officials cache, `e07b09c` movetrace
+  gate): `lawful` 6.99 -> 1.1-2.0 ms mean at 100 players, `moveTrace` 0.47 -> 0.00, the whole gameplay
+  timer layer 1.1 s -> 0.11 s of CPU a minute. Traffic and CPU unchanged, which is the point: the cost was
+  never in the gameplay layer. A forced hot reload with 100 bots connected costs `meet` 2.48 ms once.
 - [ ] **Still to run**: `--host-npcs` (bots host and drive the NPCs near them, which is how a real crowd
   multiplies the fan-out), and a run with the bots on a second machine for real bytes/s.
 
@@ -1257,6 +1263,18 @@ after, not reasoned about; the harness that did it is `server\tools\bot\` (below
 ## Added 2026-09-19 (afternoon): tick timing, and scaling fixes S2, S7, S8 (LIVE 14:37)
 
 From `_reviews\2026-09-19-daily-review.md`, "Scaling to 100 concurrent players". Gameplay layer only, no rebuild.
+- [x] **dungeons.js read every spawned id once per lease, found by the bot harness (LIVE 2026-09-20 14:07)**.
+  At 100 bots with 4 leases open, `dungeons.tick` (1.67-2.05 ms mean) and `dungeons.arm` (1.38-1.41) were the
+  two most expensive gameplay timers. `trackNpcs` and `armLease` each walked every id in `zone-spawns.json`, so
+  an id belonging to another lease or to wildlife cost an `mp.get` per lease per tick, forever: leases x ids
+  engine reads where ids is enough. The swept-corpse check was also `ids.includes(id)` per remembered NPC.
+  Now one snapshot per timer tick carries the id list, a Set of it for the sweep, and each id's zone read once
+  and kept (`private.npcSpawner` is written once at spawn, npcSpawnSystem.ts:668, and never changes). An id
+  that leaves the sidecar is dropped from the cache, and a gap longer than 10 s between snapshots (no lease
+  running) throws both caches away, so a form id the engine reuses in that gap cannot inherit a stale zone.
+  Measured with 4 fake leases and 600 ids against a mock mp, identical seen/armed sets either way: 10 arm ticks
+  plus a dungeon tick went from **24,617 engine reads to 420**. `lease.gone` became a module-level `gone` with
+  the same meaning. The harness re-measures both lines with 4 leases at 100 bots.
 - [x] **officials.json read per player, found by the bot harness (LIVE 2026-09-20 13:35)**. The 25-bot step of
   `tools\loadtest` reported `lawful` at 2.5 ms max against every other timer under 0.3 ms. Cause: playermenu's
   15 s lawful tick calls `refreshLawful` per online player, and that reaches `ranksOf` -> `readOfficials`, which
