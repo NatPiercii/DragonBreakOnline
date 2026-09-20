@@ -409,7 +409,14 @@ no bot has ever logged into the live server on 7777.**
     `npc-fallen-spots.json` still 11, `metricsAuth` removed, no `LOADTEST` string anywhere in the world.
     Recipe and cautions are in the review, section 6. The bot characters were never flushed to disk at all.
   - Cost: the live server was down ~100 s during a false start (my restart did not launch; nobody was online),
-    and restarted four times in total. `server-settings.json.bak-20260920-160224` is the pre-run settings file.
+    and restarted four times in total.
+  - **Cleaned up afterwards, on request.** The snapshot folder and the pre-run settings backup are both gone;
+    each was checked against the live copy first rather than taken on trust. All 650 change forms were
+    byte-identical to the snapshot (0 differing, 0 missing) and `server-settings.json` matched its backup by
+    SHA-256, so neither deletion could lose anything. Both were gitignored (`_*/` and `*.bak-*`), so nothing
+    about the cleanup shows in this repo. A residue grep for `9000[0-9][0-9]` matched 10 files and was a red
+    herring - floating-point coordinates like `110.9000015258789`, present in the pre-run snapshot too. The
+    check that means something is `"profileId": 9000xx`, and that was zero.
 - [ ] **Still to run**: bots on a second machine for real bytes/s without the relay hop.
 
 ## Added 2026-09-20 (13:30): every scale term in weightOf is live, and the offsets were measured
