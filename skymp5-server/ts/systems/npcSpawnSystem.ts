@@ -109,6 +109,8 @@ interface Zone {
   anchorId: number;
   // Spawns without a player in range; needs an anchor ref as the PlaceAtMe self
   prespawn: boolean;
+  // Waits for a player inside its own radius, instead of filling with the rest of its dungeon
+  ambush: boolean;
   npcs: ZoneNpc[];
   // One entry per NPC to place; slot i stands at slotPos(i)
   slots: ZoneNpc[];
@@ -130,6 +132,7 @@ interface Draft {
   locator: string;
   anchor: string;
   prespawn?: boolean;
+  ambush?: boolean;
   pos: number[];
   radius: number;
   npcs: { id: string; count: number }[];
@@ -227,6 +230,8 @@ export class NpcSpawnSystem implements System {
       } catch {}
       for (const zone of this.zones) {
         if (!zone.name.startsWith(String(prefix))) continue;
+        // An ambush is not part of the pre-spawn: it waits for somebody to walk into its own radius
+        if (zone.ambush && zone.inside.size === 0) continue;
         this.fillSlots(this.mp, zone, Date.now(), fallback);
         placed += zone.spawned.length;
       }
@@ -364,6 +369,7 @@ export class NpcSpawnSystem implements System {
       name, locator, pos, radius, npcs,
       anchor: String(pick(raw, "anchor") ?? "").trim(),
       prespawn: pick(raw, "prespawn") === true,
+      ambush: pick(raw, "ambush") === true,
       despawnSeconds: Math.max(0, num(pick(raw, "despawn"), DEFAULT_DESPAWN)),
       respawnSeconds: Math.max(0, num(pick(raw, "respawn"), DEFAULT_RESPAWN)),
     };
@@ -437,11 +443,12 @@ export class NpcSpawnSystem implements System {
     return {
       name: draft.name, cellOrWorldDesc, cellOrWorldId, pos: draft.pos, radius: draft.radius, anchorId, npcs, slots,
       prespawn: !!draft.prespawn,
+      ambush: !!draft.ambush,
       total: slots.length,
       despawnSeconds: draft.despawnSeconds,
       respawnSeconds: draft.respawnSeconds,
       slotReadyAt: slots.map(() => 0),
-      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn]),
+      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn, !!draft.ambush]),
       spawned: [], emptySince: 0, inside: new Set(),
     };
   }
@@ -520,7 +527,10 @@ export class NpcSpawnSystem implements System {
       const inActiveInterior = activeInteriorCells.has(zone.cellOrWorldId);
       const isDungeonZone = !!dGroup;
 
-      const occupied = zone.inside.size > 0 || zone.prespawn || inActiveDungeon || (isDungeonZone && inActiveInterior);
+      // An ambush waits for somebody inside its own radius: its vanilla template lay in a linked coffin or pod
+      // until the player came close, and neither the package nor the link survives a PlaceAtMe spawn
+      const occupied = zone.inside.size > 0 ||
+        (!zone.ambush && (zone.prespawn || inActiveDungeon || (isDungeonZone && inActiveInterior)));
       if (zone.spawned.length) {
         this.checkDeaths(mp, zone, now);
         this.checkMisplaced(mp, zone, now);
@@ -1072,6 +1082,7 @@ export class NpcSpawnSystem implements System {
       POS: { x: draft.pos[0], y: draft.pos[1], z: draft.pos[2] },
       Size: draft.radius,
       NPC: draft.npcs.map((n) => n.count > 1 ? `${n.id} ${n.count}` : n.id),
+      Ambush: draft.ambush,
       Despawn: draft.despawnSeconds,
       Respawn: draft.respawnSeconds,
     });
