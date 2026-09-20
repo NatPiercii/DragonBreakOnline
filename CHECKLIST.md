@@ -1,5 +1,91 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (12:00): the lore pass on the deities, and every boon designed
+
+Nat, on waking: *"make everything lore accurate, especially with the boons. As for the daedric shrines,
+I can add them as hidden ones throughout cyrodiil in creation kit."* That second sentence changes the
+roster from "whoever already had a statue" to the canonical one. Hot-reload only; server reloaded
+11:47:33, **18 `[error]` lines**, `prayer on: 26 deities, 33 shrine ids, 9 reachable`.
+`tests\prayer-harness.js` now **49 checks, all passing**.
+
+### The roster is canonical now, not opportunistic
+
+- [x] **26 deities**: the Nine Divines plus Auri-El, and **Oblivion's fifteen Cyrodiil Daedric shrines**
+  plus Mephala. Five Princes added: **Clavicus Vile, Hermaeus Mora, Namira, Peryite, Vaermina**.
+- [x] **Jyggalag is deliberately absent and the data says why.** He was Sheogorath until the Greymarch
+  ended in 3E 433 and has walked free since, but he has no cult, no shrine and no worshippers in
+  4E 201. He is the one entry in the whole list that lore actively forbids.
+- [x] **Auri-El carries `aspectOf: akatosh`** - he is the Aldmeri name for Akatosh, not a second god,
+  and `prayer.js` now lets a worshipper of either kneel at either's shrine. This is not decoration:
+  Auri-El's only shrine is in the Forgotten Vale, so without it a Snow-Elf-faithed character could
+  never pray at all. Covered by the harness both ways.
+- [x] Every Divine carries `alsoKnownAs` where the same god has other names - Kyne, Jhunal, Stuhn,
+  Tu'whacca, Z'en, Ysmir.
+
+### Every boon designed, and every one buildable from an effect that already exists
+
+Measured first: `py ck-mcp\blessings.py` -> `server\blessing-effects.json`, what all 18 `Altar*Spell`
+records in this load order actually do. **There is no `BlessingOf*` record anywhere** - the real one is
+`Altar<Deity>Spell`, always one `Fortify<X>FFSelf` plus `CureDiseaseEffect` for 8 hours.
+
+- [x] **The Divines are left mechanically alone, on purpose.** These are the blessings every Skyrim
+  player knows and every other mod assumes; rewriting them is a change lore does not ask for. What was
+  added is `sphere` and `alsoKnownAs`.
+- [x] **All sixteen Princes now have a boon**, each grounded in their sphere, and **every one is built
+  from an MGEF that already exists** - so the Creation Kit work is "a new SPEL pointing at an existing
+  effect", never "a new effect". The single exception is called out: Molag Bal's absorb-health.
+- [x] **Sheogorath's boon is implemented and needed no plugin at all.** The Madgod has no blessing of
+  his own and should not have one, so `prayer.js` hands over **another god's blessing, rolled fresh
+  every prayer**. `skills.json` marks him `capricious: true`. The one boon in the list that is more
+  lore-accurate as code than as a record.
+- [x] **A useful accident**: `FortifyStaminaRateFFSelf` (`fb98b:Skyrim.esm`) is in Bethesda's own
+  shrine-blessing family and **no shrine in the game uses it**. It went to Hircine - the hunt never
+  tires - so that boon needs a SPEL and nothing more.
+- [x] Each entry now carries `blessingSource` (**vanilla** 15 / **server** 3 / **pending** 8) and, for
+  the pending ones, a `blessingRecipe` naming the exact record to copy and the exact MGEF to point at.
+
+### Lawfulness, written as data and nothing else
+
+- [x] Every Prince **and Talos** carry `lawful: false` and an `unlawfulWhere` line. The White-Gold
+  Concordat outlawed Talos and Bruma is Imperial - Beyond Skyrim has already renamed its Great Chapel
+  of Talos to the **Cathedral of St Martin** for exactly that reason.
+- [x] `prayer.js` warns the worshipper **once per character** and nothing else happens. No guard reads
+  the flag. Wiring it to `private.dboLawful` would make Talos and Daedra worship the first real crimes
+  in the game; that is a faction decision for Nat and is left in `DEITY_DESIGN.md` section 8.
+
+### What the Creation Kit pass has waiting for it (DEITY_DESIGN.md section 7)
+
+`py ck-mcp\daedricsites.py` -> `server\daedric-sites.json`, a census of what Beyond Skyrim already built.
+
+- [x] **Namira's shrine is finished.** `CYRNamirasShrineExterior`, `BSHeartland.esm:0A009B`, grid
+  **(23, 47)**, **99 references** already placed - snow, bone piles, cobwebs, red-eye lights, evil
+  cairns. The shrine itself, `CYRMountainCliffNamira` at **[95612.3, 195219.2, 3297.2]**, is a **STAT**,
+  so nothing can activate it. **It needs an ACTI standing at it and nothing else.** Cheapest shrine in
+  the list by a wide margin.
+- [x] `CYRStatueAzuraSnow` stands in the open world at **[198151.7, 178842.1, 1872.6]**. Same case.
+- [x] `CYRShrineMephalaTEMP` is placed 9x inside `CYRNagastaniSilaseli`; the "TEMP" suggests Beyond
+  Skyrim intends to replace it.
+- [x] **There is no Daedric shrine *activator* anywhere in Beyond Skyrim Cyrodiil.** A STAT cannot be
+  prayed at, so every site needs an ACTI: reuse the vanilla one for the five Princes that have one, or
+  copy `DBO_ShrineOfHircine/Sanguine/Sheogorath` (`1112C5 / 1112C8 / 1112CB`) for the rest.
+- The three steps after placing are in section 7, and the middle one is the trap: **copy the plugin
+  into `server\data\` AND the dev Data with node stopped**, then restart, then `py ck-mcp\shrines.py`.
+
+### Still open after this pass
+
+- [ ] **Molag Bal is the one boon needing a new magic effect** (absorb-health-on-strike; nearest vanilla
+  `AbsorbHealthConstant 91f7a`). `FortifyHealthFFSelf` at 25 is the stand-in if it is not worth it.
+- [ ] **Mehrunes Dagon duplicates half of Malacath's boon** (Damage +10%) because the shrine family has
+  no Fortify Destruction. A new Destruction MGEF would be truer to the Prince whose Great Gate opened
+  at Bruma, which is the one place in Tamriel where that matters.
+- [ ] **Hermaeus Mora's boon is the best next build and is not CK work.** "What you read teaches you
+  more" lands exactly on the Scholar skill and the reading mini-game; no other Prince's sphere maps
+  onto an existing system that cleanly. It needs the read weight multiplied in `masterySystem`, a TS
+  rebuild. Clavicus Vile's bargain is the other server-side one and needs a choice step in the widget.
+- [ ] Eight `pending` SPELs to author. Fold them into the same xEdit/CK pass that still owes Unarmed
+  its five marker spells.
+- [ ] **Nothing here is tested in play either.** The lore pass is data plus 12 new harness checks.
+
 ## Added 2026-09-20 (11:00): mining is weighed as mining, and prayer exists
 
 Unattended run, nobody online, no lease open. Server restarted 10:39:10, **18 `[error]` lines, the known

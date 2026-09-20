@@ -103,6 +103,15 @@ module.exports = (api) => {
     return DEITIES.find((d) => d.id === q || d.name.toLowerCase().replace(/[^a-z]/g, '') === q) || null;
   };
   const deityById = (id) => DEITIES.find((d) => d.id === id) || null;
+  // Auri-El is not a second god, he is Akatosh under the Aldmeri name, and skills.json says so with
+  // `aspectOf`. Two ids are the same faith if either is an aspect of the other, so a worshipper of
+  // one may kneel at the other's shrine - which is the only way a Snow-Elf-faithed character gets to
+  // pray at all, Auri-El's one shrine being in the Forgotten Vale.
+  const sameFaith = (a, b) => {
+    if (!a || !b) return false;
+    if (a.id === b.id) return true;
+    return a.aspectOf === b.id || b.aspectOf === a.id || (!!a.aspectOf && a.aspectOf === b.aspectOf);
+  };
 
   // ── what a character worships ───────────────────────────────────────────────────────────────
   const faithOf = (a) => { try { const r = mp.get(a, 'private.dboDeity'); return r && typeof r === 'object' && r.id ? r : null; } catch (e) { return null; } };
@@ -138,7 +147,23 @@ module.exports = (api) => {
     try { mp.set(a, 'private.dboBlessing', null); } catch (e) { /* gone with the character */ }
     if (why) personal(a, why);
   };
+  // Sheogorath has no blessing of his own and should not have one. The Madgod gives what he feels
+  // like, so his worshipper is handed another god's blessing at random - a different one each time.
+  // This is the only boon in the list that is more lore-accurate as code than as a record, and it is
+  // the only one that needed no Creation Kit work at all. skills.json marks him `capricious: true`.
+  const capriceOf = (d) => {
+    const pool = DEITIES.filter((x) => x.id !== d.id && blessingIdOf(x));
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  };
+
   const grantBlessing = (a, d, hours) => {
+    if (d.capricious) {
+      const other = capriceOf(d);
+      if (!other) { personal(a, `${d.name} laughs, and gives you nothing. He may have meant to.`); return false; }
+      const got = grantBlessing(a, other, hours);
+      if (got) personal(a, `${d.name} rummages, and hands you the blessing of ${other.name}. He seems delighted.`);
+      return got;
+    }
     const spell = blessingIdOf(d);
     clearBlessing(a, null);
     if (!spell) {
@@ -192,6 +217,17 @@ module.exports = (api) => {
     azura: ['Dusk and dawn are the same door', 'Show me the shape of what comes'],
     boethiah: ['Take by strength what deceit could not hold', 'The teacher is the one still standing'],
     mephala: ['Every thread pulls another', 'What is said in the dark is still said'],
+    clavicusvile: ['Name the price and I will hear the rest', 'A bargain is a promise with teeth'],
+    hermaeusmora: ['What is known cannot be unknown again', 'I come to be read as much as to read'],
+    hircine: ['Let the chase be long and the ending quick', 'There is no hunter who is not also game'],
+    mehrunes: ['What stands has stood long enough', 'Tear it down and see what was beneath'],
+    meridia: ['The dead should stay where they were put', 'Light does not forgive, it only shines'],
+    molagbal: ['Everything that lives belongs to something', 'Kneel early and it is over sooner'],
+    namira: ['Praise what the others turn their faces from', 'In the dark nothing is ugly'],
+    peryite: ['Everything rots, and in its proper order', 'Even the least thing is given its task'],
+    sanguine: ['One more, and then one more after that', 'Nothing was ever regretted before morning'],
+    sheogorath: ['I asked a question and the answer was a fish', 'Cheese for everyone, and none for me'],
+    vaermina: ['Take the dream and leave me the waking', 'I remember a thing that never happened'],
   };
   const verseFor = (d, i, rand) => {
     const own = OWN[d.id] || [];
@@ -281,14 +317,25 @@ module.exports = (api) => {
     if (!faith) {
       return deny(casterId, `This is a shrine of ${d.name}. You hold no god yet - say "/deity ${d.name}" here to take ${d.name} as your own.`);
     }
-    if (PRAY.onlyOwnDeity !== false && faith.id !== d.id) {
-      const mine = deityById(faith.id);
+    const mine = deityById(faith.id);
+    if (PRAY.onlyOwnDeity !== false && !sameFaith(mine, d)) {
       return deny(casterId, `${d.name} has no ear for a follower of ${mine ? mine.name : 'another god'}. Find your own shrine, or say "/deity ${d.name}" here to turn.`);
     }
     const until = Number(restsOf(casterId)[targetId.toString(16)]) || 0;
     if (until > Date.now()) {
       const mins = Math.ceil((until - Date.now()) / 60000);
       return deny(casterId, `You have prayed here recently. This shrine will hear you again in ${mins} minute${mins === 1 ? '' : 's'}.`);
+    }
+    // Bruma is Imperial. The White-Gold Concordat outlawed Talos, and Daedra worship has always been
+    // proscribed - Beyond Skyrim has already renamed the Great Chapel of Talos to the Cathedral of
+    // St Martin for exactly this reason. Said once per character, and nothing follows from it: no
+    // guard reads `lawful`, deliberately. Whether the law has teeth is a faction decision.
+    if (d.lawful === false && !faith.warnedUnlawful) {
+      faith.warnedUnlawful = true;
+      setFaith(casterId, faith);
+      personal(casterId, d.kind === 'divine'
+        ? 'You kneel to Talos in an Imperial county. The Concordat calls that a crime, and the Thalmor keep a Justiciar in Bruma. Nobody stops you.'
+        : `You kneel to a Prince in an Imperial county. ${d.name} is proscribed here, and the shrine is hidden for a reason. Nobody stops you.`);
     }
     const rec = baseId ? baseRecord(baseId) : null;
     const shrineName = (rec && rec.record && rec.record.name) || `Shrine of ${d.name}`;
@@ -409,17 +456,25 @@ module.exports = (api) => {
     if (!arg) {
       const mine = faith ? deityById(faith.id) : null;
       personal(a, mine
-        ? `You follow ${mine.name}${daysLeft(faith) ? `. You may turn to another god in ${daysLeft(faith)} day(s).` : '. You may turn to another god.'}`
+        ? `You follow ${mine.name} - ${mine.boon || 'no boon recorded'}${daysLeft(faith) ? ` You may turn to another god in ${daysLeft(faith)} day(s).` : ' You may turn to another god.'}`
         : 'You hold no god. Stand at a shrine and say /deity <name>.');
-      const divines = DEITIES.filter((d) => d.kind === 'divine').map((d) => d.name + (d.inBruma ? '' : '*'));
-      const daedra = DEITIES.filter((d) => d.kind !== 'divine').map((d) => d.name + (d.inBruma ? '' : '*'));
-      personal(a, `Divines: ${divines.join(', ')}`);
-      personal(a, `Daedra: ${daedra.join(', ')}`);
-      personal(a, '* no shrine you can reach yet.');
+      const list = (kind) => DEITIES.filter((d) => (d.kind === 'divine') === (kind === 'divine'))
+        .map((d) => d.name + (Number(d.inBruma) > 0 ? '' : '*')).join(', ');
+      personal(a, `Divines: ${list('divine')}`);
+      personal(a, `Daedra: ${list('daedra')}`);
+      personal(a, '* no shrine you can reach yet. Say /deity <name> to hear what a god asks and gives.');
       return;
     }
     const d = deityByName(arg);
     if (!d) return personal(a, `No god by that name. Say /deity on its own for the list.`);
+    // Naming a god you do not follow, away from its shrine, reads as a question rather than a vow.
+    if (!faith || faith.id !== d.id) {
+      const here = lastShrine.get(a);
+      if (!here || here.deityId !== d.id || Date.now() - here.at > 30000) {
+        if (d.sphere) personal(a, `${d.name}. ${d.sphere}`);
+        if (d.boon) personal(a, `Boon: ${d.boon}${Number(d.inBruma) > 0 ? '' : ' (no shrine you can reach yet)'}`);
+      }
+    }
     if (faith && faith.id === d.id) return personal(a, `You already follow ${d.name}.`);
 
     const here = lastShrine.get(a);

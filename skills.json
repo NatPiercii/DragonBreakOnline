@@ -925,7 +925,7 @@
     "holdSlackMs": 500
   },
   "deities": {
-    "_comment": "Picked once after character creation, or by praying at a shrine while godless (server\\prayer.js offers it). Stored per character in private.dboDeity. Praying works only at your own deity's shrines. Conversion: /deity <name> at that deity's shrine, conversionCooldownDays apart, current blessing removed. The menu key the brief asks for is front work and is not built; /deity is the stopgap.",
+    "_comment": "Picked after character creation, or by praying at a shrine while godless (server\\prayer.js offers it). Stored per character in private.dboDeity. Praying works only at your own deity's shrines, or at an aspect of them (see auriel.aspectOf). Conversion: /deity <name> at that deity's shrine, conversionCooldownDays apart, current blessing removed. The menu key the brief asks for is front work and is not built; /deity is the stopgap.",
     "conversionCooldownDays": 7,
     "choices": [
       {
@@ -940,7 +940,15 @@
         "blessingEditorId": "AltarAkatoshSpell",
         "placements": 40,
         "inPlaytest": 18,
-        "inBruma": 3
+        "inBruma": 3,
+        "sphere": "Time. Chief of the Divines, the Dragon God whose covenant with Alessia binds the Empire.",
+        "boon": "Magicka returns 10% faster.",
+        "alsoKnownAs": [
+          "Auri-El (Aldmeri)",
+          "Alduin (Nordic, disputed)",
+          "Bormahu"
+        ],
+        "blessingSource": "vanilla"
       },
       {
         "id": "arkay",
@@ -954,7 +962,14 @@
         "blessingEditorId": "AltarArkaySpell",
         "placements": 50,
         "inPlaytest": 8,
-        "inBruma": 4
+        "inBruma": 4,
+        "sphere": "The cycle of birth and death, and the sanctity of the grave. His priests bury the dead so they stay buried.",
+        "boon": "Health raised by 25.",
+        "alsoKnownAs": [
+          "Tu'whacca (Yokudan)",
+          "Orkey (Nordic)"
+        ],
+        "blessingSource": "vanilla"
       },
       {
         "id": "dibella",
@@ -969,7 +984,10 @@
         "blessingEditorId": "AltarDibellaSpell",
         "placements": 21,
         "inPlaytest": 4,
-        "inBruma": 3
+        "inBruma": 3,
+        "sphere": "Beauty, love and art. Her temple at Markarth keeps the Sybil; her Cyrodiilic chapels teach that beauty is a form of worship.",
+        "boon": "Persuasion raised by 10.",
+        "blessingSource": "vanilla"
       },
       {
         "id": "julianos",
@@ -983,7 +1001,13 @@
         "blessingEditorId": "AltarJulianosSpell",
         "placements": 21,
         "inPlaytest": 6,
-        "inBruma": 4
+        "inBruma": 4,
+        "sphere": "Wisdom, logic, literature and law. Patron of mages and of the Elder Council that writes the Empire down.",
+        "boon": "Magicka raised by 25.",
+        "alsoKnownAs": [
+          "Jhunal (Nordic)"
+        ],
+        "blessingSource": "vanilla"
       },
       {
         "id": "kynareth",
@@ -997,7 +1021,13 @@
         "blessingEditorId": "AltarKynarethSpell",
         "placements": 23,
         "inPlaytest": 8,
-        "inBruma": 4
+        "inBruma": 4,
+        "sphere": "Air, wind, sky and the elements. The only Divine who was present at the making and stayed.",
+        "boon": "Stamina raised by 25.",
+        "alsoKnownAs": [
+          "Kyne (Nordic), the Kiss at the End"
+        ],
+        "blessingSource": "vanilla"
       },
       {
         "id": "mara",
@@ -1011,7 +1041,13 @@
         "blessingEditorId": "AltarMaraSpell",
         "placements": 21,
         "inPlaytest": 4,
-        "inBruma": 2
+        "inBruma": 2,
+        "sphere": "Love, compassion and the hearth. The Mother-Goddess, worshipped in every province under one name or another.",
+        "boon": "Restoration raised by 10.",
+        "alsoKnownAs": [
+          "Mara (universal)"
+        ],
+        "blessingSource": "vanilla"
       },
       {
         "id": "stendarr",
@@ -1025,7 +1061,13 @@
         "blessingEditorId": "AltarStendarrSpell",
         "placements": 25,
         "inPlaytest": 4,
-        "inBruma": 3
+        "inBruma": 3,
+        "sphere": "Mercy, charity and justice; the shield against the unnatural. His Vigilants hunt Daedra and the undead.",
+        "boon": "Block raised by 10.",
+        "alsoKnownAs": [
+          "Stuhn (Nordic)"
+        ],
+        "blessingSource": "vanilla"
       },
       {
         "id": "talos",
@@ -1036,11 +1078,20 @@
           "61b59:BSHeartland.esm"
         ],
         "blessing": "fb99a:Skyrim.esm",
-        "note": "Illegal under the White-Gold Concordat: a Thalmor or Imperial faction could treat open Talos worship as a crime. RP hook, not a mechanic yet.",
+        "note": "Openly worshipping Talos is a crime in Cyrodiil in 4E 201. prayer.js warns a Talos worshipper the first time they pray, and nothing else happens: whether the guards care is a faction decision for Nat, not a prayer one. private.dboLawful already exists if it should.",
         "blessingEditorId": "AltarTalosSpell",
         "placements": 56,
         "inPlaytest": 6,
-        "inBruma": 4
+        "inBruma": 4,
+        "sphere": "Tiber Septim, the man who became the Ninth Divine and founded the Empire that outlawed him.",
+        "boon": "Shouts return 20% sooner.",
+        "alsoKnownAs": [
+          "Ysmir",
+          "Hjalti Early-Beard"
+        ],
+        "blessingSource": "vanilla",
+        "lawful": false,
+        "unlawfulWhere": "The Empire, under the White-Gold Concordat. Bruma is Imperial and the Thalmor keep a Justiciar presence."
       },
       {
         "id": "zenithar",
@@ -1054,7 +1105,14 @@
         "blessingEditorId": "AltarZenitharSpell",
         "placements": 23,
         "inPlaytest": 6,
-        "inBruma": 2
+        "inBruma": 2,
+        "sphere": "Work, commerce and honest labour. The god who says wealth follows craft, and never the other way round.",
+        "boon": "Speechcraft raised by 10.",
+        "alsoKnownAs": [
+          "Z'en (Bosmeri)",
+          "Tsun (Nordic, disputed)"
+        ],
+        "blessingSource": "vanilla"
       },
       {
         "id": "auriel",
@@ -1064,11 +1122,15 @@
           "c86b:Dawnguard.esm"
         ],
         "blessing": "11360:Dawnguard.esm",
-        "note": "Snow-elf faith; shrine is inside the Forgotten Vale.",
+        "note": "The Aldmeri name for Akatosh, not a separate god. prayer.js treats the two as one: a worshipper of either may pray at either shrine. Auri-El's only shrine is in the Forgotten Vale, so in practice this lets a Snow-Elf-faithed character use the Akatosh chapels of Cyrodiil.",
         "blessingEditorId": "DLC1AltarAurielSpell",
         "placements": 4,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "The Aldmeri aspect of Akatosh, worshipped by the Snow Elves as the founder of their line.",
+        "boon": "Marksman raised by 10, for half a day.",
+        "blessingSource": "vanilla",
+        "aspectOf": "akatosh"
       },
       {
         "id": "malacath",
@@ -1083,7 +1145,12 @@
         "blessingEditorId": "AltarMalacathSpell",
         "placements": 10,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "The sworn oath, the broken curse, and every people the others cast out. Trinimac was, and Malacath is.",
+        "boon": "Damage raised by 10% and Block by 15.",
+        "blessingSource": "vanilla",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "azura",
@@ -1097,7 +1164,12 @@
         "blessingEditorId": "DLC2AltarAzuraSpell",
         "placements": 7,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Dusk and dawn, prophecy, and the Moonshadow. The kindest of the Princes, which is not saying much.",
+        "boon": "Magic resisted by 10%.",
+        "blessingSource": "vanilla",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "boethiah",
@@ -1111,7 +1183,12 @@
         "blessingEditorId": "DLC2AltarBoethiahSpell",
         "placements": 8,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Plots, secret murder, treason - and the teacher who makes the Chimer strong by testing them to destruction.",
+        "boon": "One-handed raised by 10.",
+        "blessingSource": "vanilla",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "mephala",
@@ -1124,7 +1201,13 @@
         "blessingEditorId": "DLC2AltarMephalaSpell",
         "placements": 4,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Lies, sex and secret murder; the Webspinner, who taught the Morag Tong their trade.",
+        "boon": "Speechcraft raised by 10.",
+        "blessingSource": "vanilla",
+        "note": "Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone. Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "mehrunes",
@@ -1136,7 +1219,13 @@
         "blessing": "<author: Boon of Mehrunes Dagon>",
         "placements": 0,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Destruction, change, revolution and ambition. Bruma above all others has met him: the Great Gate opened here, and Martin broke it.",
+        "boon": "Damage raised by 10% - the Razor's edge.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarMalacathSpell (5db8:DragonBreak.esp) and keep FortifyDamageFFSelf (5dba:DragonBreak.esp) alone, without the Block effect, so Dagon cuts and Malacath endures. A Fortify Destruction MGEF would be truer to his sphere, but none exists in the FFSelf family and Dagon is a destroyer of things rather than a school of magic.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "molagbal",
@@ -1148,7 +1237,13 @@
         "blessing": "<author: Boon of Molag Bal>",
         "placements": 0,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Domination and the enslavement of mortals. The King of Rape; the father of vampires; the reason a black soul gem is black.",
+        "boon": "What you kill feeds you.",
+        "blessingSource": "pending",
+        "blessingRecipe": "The only boon needing a NEW magic effect: an absorb-health-on-strike, which the FFSelf family has no equivalent of. AbsorbHealthConstant (91f7a:Skyrim.esm) is the nearest vanilla effect to copy. If that is more work than it is worth, FortifyHealthFFSelf at 25 is the safe stand-in, though it says nothing about domination.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "nocturnal",
@@ -1161,7 +1256,12 @@
         "blessingEditorId": "AltarNocturnalSpell",
         "placements": 2,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Night and darkness, luck, and things that are not where they were left. The Nightingales answer to her; nobody else gets an answer.",
+        "boon": "Sneak raised by 10.",
+        "blessingSource": "vanilla",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "hircine",
@@ -1174,7 +1274,13 @@
         "note": "DBO_ShrineOfHircine activators on the Daedric Shrines AIO statues: Falkreath forest (BearCaveMill cell) and Solstheim (Snowclad Ruins). Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
         "placements": 2,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "The Hunt, the Chase and the Great Game. The Huntsman of the Princes; werewolves are his.",
+        "boon": "Stamina returns 10% faster - the hunt never tires.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarNocturnalSpell, swap its effect for FortifyStaminaRateFFSelf (fb98b:Skyrim.esm) at magnitude 10, duration 28800, and keep CureDiseaseEffect. That MGEF is vanilla, is part of Bethesda's own shrine family, and no shrine in the game uses it - so nothing has to be authored but the SPEL.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "meridia",
@@ -1188,7 +1294,13 @@
         "placements": 1,
         "inPlaytest": 0,
         "inBruma": 0,
-        "isReference": true
+        "isReference": true,
+        "sphere": "The energies of living things, and a hatred of the undead so total that she is counted a Daedric Prince mostly by process of elimination.",
+        "boon": "The undead flee you.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarArkaySpell and swap its effect for TurnUndeadFFMassSelfArea (8c1aa:Skyrim.esm), duration 28800. This is Dawnbreaker's sphere expressed as a blessing, and it is the only boon in the list that does nothing at all against the living - which is exactly right for Meridia.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "sanguine",
@@ -1201,7 +1313,13 @@
         "note": "DBO_ShrineOfSanguine activators: the Rift (33,-18) and inside Misty Grove. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
         "placements": 2,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Revelry, debauchery and passionate indulgence. The only Prince most people would drink with twice.",
+        "boon": "Persuasion raised by 10 - nobody argues with the life of the feast.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarDibellaSpell exactly; FortifyPersuasionFFSelf (fb98a:Skyrim.esm) at 10, duration 28800. It duplicates Dibella's boon, which is left deliberate: she charms and he carouses, and vanilla already gives Zenithar and Mephala the same Speechcraft.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       },
       {
         "id": "sheogorath",
@@ -1214,10 +1332,103 @@
         "note": "DBO_ShrineOfSheogorath activator in the Hjaalmarch marsh (-12,24) near Morthal. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
         "placements": 1,
         "inPlaytest": 0,
-        "inBruma": 0
+        "inBruma": 0,
+        "sphere": "Madness. Was Jyggalag, and will be again, and is not, and both of those are true.",
+        "boon": "Whatever he feels like. A different god's blessing every time, chosen at random.",
+        "blessingSource": "server",
+        "blessingDesign": "The one boon that is more lore-accurate as code than as a record: prayer.js rolls one of the OTHER deities' blessings and grants that instead. The Madgod needs no spell of his own, and a worshipper who prays twice gets two different gods. Implemented in prayer.js as `capricious: true`.",
+        "blessingImplemented": true,
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "capricious": true
+      },
+      {
+        "id": "clavicusvile",
+        "name": "Clavicus Vile",
+        "kind": "daedra",
+        "shrines": [],
+        "blessing": "",
+        "placements": 0,
+        "inPlaytest": 0,
+        "inBruma": 0,
+        "sphere": "Power through bargains. Every wish is granted exactly as worded, and the wording is never yours.",
+        "boon": "The bargain: you name the boon you want and Vile takes a price for it.",
+        "blessingSource": "server",
+        "blessingDesign": "A boon of another god, granted in full, against a standing cost - reduced maximum health for as long as it lasts. prayer.js can do this with no new record: it already grants and revokes spells. Needs a choice step in the widget, which is why it is not built yet.",
+        "blessingImplemented": false,
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+      },
+      {
+        "id": "hermaeusmora",
+        "name": "Hermaeus Mora",
+        "kind": "daedra",
+        "shrines": [],
+        "blessing": "",
+        "placements": 0,
+        "inPlaytest": 0,
+        "inBruma": 0,
+        "sphere": "Knowledge, memory and the fate of all things. He does not bargain; he collects.",
+        "boon": "What you read teaches you more.",
+        "blessingSource": "server",
+        "blessingDesign": "The one Prince whose sphere lands exactly on a system this server already has: the Scholar skill and the reading mini-game. While blessed, a finished reading round is worth more. Not built because the weight lives in masterySystem (a TS rebuild), not in the gamemode.",
+        "blessingImplemented": false,
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+      },
+      {
+        "id": "namira",
+        "name": "Namira",
+        "kind": "daedra",
+        "shrines": [],
+        "blessing": "",
+        "placements": 0,
+        "inPlaytest": 0,
+        "inBruma": 0,
+        "sphere": "The ancient darkness, decay, and everything that revolts: spirits, spiders, the eaten dead.",
+        "boon": "Sneak raised by 10, and you see in the dark.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarNocturnalSpell, keep FortifySneakFFSelf (10e8af:Skyrim.esm) at 10, and ADD NightEyeEffect (6b10c:Skyrim.esm) at duration 28800. Two effects on one spell, exactly as Malacath's already has three. Nocturnal hides you from others; Namira shows you what is in the dark with you.",
+        "note": "The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell. The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+      },
+      {
+        "id": "peryite",
+        "name": "Peryite",
+        "kind": "daedra",
+        "shrines": [],
+        "blessing": "",
+        "placements": 0,
+        "inPlaytest": 0,
+        "inBruma": 0,
+        "sphere": "Pestilence, and the ordering of the lowest realms. The weakest of the Princes, and the one most concerned with tidiness.",
+        "boon": "Disease cannot touch you.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Needs a Resist Disease magic effect; the FFSelf family has none, and CureDiseaseEffect (fbff5) cures rather than resists. Peryite is the lowest-value boon of the set and should be authored last. Spellbreaker is his artifact, so FortifyBlockFFSelf (fb991) at 10 is a defensible stand-in that needs no new MGEF at all.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+      },
+      {
+        "id": "vaermina",
+        "name": "Vaermina",
+        "kind": "daedra",
+        "shrines": [],
+        "blessing": "",
+        "placements": 0,
+        "inPlaytest": 0,
+        "inBruma": 0,
+        "sphere": "Dreams and nightmares, and the memories torn out of them.",
+        "boon": "You see as if dreaming.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for NightEyeEffect (6b10c:Skyrim.esm), duration 28800. The dream-sight. If Vaermina should instead touch sleep, that belongs with the needs system and not with a spell.",
+        "lawful": false,
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
       }
     ],
-    "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens."
+    "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens.",
+    "_lore": "The roster is the canonical one for Cyrodiil, not whoever happened to have a shrine already: the Nine Divines plus Auri-El, and Oblivion's fifteen Daedric shrines plus Mephala. JYGGALAG IS DELIBERATELY ABSENT - he was Sheogorath until the Greymarch ended in 3E 433 and has walked free since, but he has no cult, no shrine and no worshippers in 4E 201, and a shrine to him would be the one thing in this list that lore actually forbids. Every boon below is grounded in the Prince's sphere, and every magic effect it names exists in this load order (measured by ck-mcp\\blessings.py; see server\\blessing-effects.json).",
+    "_blessingSource": "vanilla = a real SPEL that works today. server = prayer.js does it, no Creation Kit work at all. pending = one new SPEL, and blessingRecipe says exactly which existing MGEF to point it at - no new magic effect is needed for any of them except Molag Bal."
   },
   "respec": {
     "_comment": "Standing stones are the only place to change your three chosen skills. Activating a stone opens the K menu in respec mode.",

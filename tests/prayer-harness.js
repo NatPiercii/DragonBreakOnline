@@ -242,6 +242,65 @@ wallClock += 61 * 60000; virtual = 14000000;
 check('a shrine named by reference is still found', activate(KILKREATH).ok === true);
 check('another statue of the same base is not a shrine', globalThis.__dboPrayerActivate(SCENERY, ACTOR) === false);
 
+// 16. Auri-El is Akatosh under the Aldmeri name. A worshipper of either may kneel at either shrine,
+// which is the only way a Snow-Elf-faithed character prays at all - Auri-El has one shrine and it is
+// in the Forgotten Vale.
+props.set(ACTOR + '|private.dboDeity', { id: 'auriel', name: 'Auri-El', kind: 'divine', at: 1, convertedAt: 1 });
+props.delete(ACTOR + '|private.prayedShrines');
+wallClock += 61 * 60000; virtual = 15000000;
+r = activate(AKATOSH_SHRINE);
+check('a follower of Auri-El may pray at an Akatosh shrine', !!r.w, r.said);
+fire('prayerCancel', [r.w.nonce]);        // a round still in flight would swallow the next activation
+r = activate(MARA_SHRINE);
+check('but not at a shrine of a different god', !r.w && /no ear/.test(r.said), r.said);
+
+// 17. Sheogorath has no blessing of his own, and should not have one: he hands over another god's.
+const SHEO = choiceOf('sheogorath');
+check('Sheogorath is marked capricious in the data', SHEO.capricious === true && SHEO.blessingSource === 'server');
+const SHEO_SHRINE = 0x2005;
+props.set(SHEO_SHRINE + '|baseDesc', SHEO.shrines[0]);
+records.set(idOf(SHEO.shrines[0]), { record: { type: 'ACTI', editorId: 'DBO_ShrineOfSheogorath', name: 'Shrine of Sheogorath' } });
+props.set(ACTOR + '|private.dboDeity', { id: 'sheogorath', name: 'Sheogorath', kind: 'daedra', at: 1, convertedAt: 1 });
+props.delete(ACTOR + '|private.prayedShrines');
+props.delete(ACTOR + '|private.dboBlessing');
+const roll2 = Math.random;
+Math.random = () => 0;                    // certain: the blessing chance for a non-priest is 0.02
+wallClock += 61 * 60000; virtual = 16000000;
+const w6 = activate(SHEO_SHRINE).w;
+res = report(w6, wholeHold(w6), w6.totalMs, 100, 16000000);
+Math.random = roll2;
+const madness = props.get(ACTOR + '|private.dboBlessing');
+check('the Madgod hands over some other god\'s blessing', verdictOf(res.log) === 'held'
+  && !!madness && madness.deity !== 'sheogorath' && res.papyrus.some((p) => p[0] === 'AddSpell'),
+  JSON.stringify(madness) + ' ' + res.said);
+check('and says whose it was', /hands you the blessing of /.test(res.said), res.said);
+
+// 18. Talos in an Imperial county, and the Princes. Data only - nothing may act on it.
+check('Talos is marked unlawful', choiceOf('talos').lawful === false);
+check('every Prince is marked unlawful', SKILLS.deities.choices.filter((c) => c.kind === 'daedra')
+  .every((c) => c.lawful === false));
+props.set(ACTOR + '|private.dboDeity', { id: 'talos', name: 'Talos', kind: 'divine', at: 1, convertedAt: 1 });
+props.delete(ACTOR + '|private.prayedShrines');
+const TALOS_SHRINE = 0x2006;
+props.set(TALOS_SHRINE + '|baseDesc', choiceOf('talos').shrines[0]);
+records.set(idOf(choiceOf('talos').shrines[0]), { record: { type: 'ACTI', editorId: 'ShrineofTalos', name: 'Shrine of Talos' } });
+wallClock += 61 * 60000; virtual = 17000000;
+r = activate(TALOS_SHRINE);
+check('a Talos worshipper is warned once, and prays anyway', !!r.w && /Concordat/.test(r.said), r.said);
+fire('prayerCancel', [r.w.nonce]);
+wallClock += 61 * 60000; virtual = 17500000;
+r = activate(TALOS_SHRINE);
+check('and is not warned a second time', !!r.w && !/Concordat/.test(r.said), r.said);
+
+// 19. every deity in the roster is complete enough to show a player
+const holes = SKILLS.deities.choices.filter((c) => !c.sphere || !c.boon || !c.blessingSource);
+check('every deity carries a sphere, a boon and a blessing source', holes.length === 0,
+  holes.map((c) => c.id).join(', '));
+check('no deity claims a blessing spell it does not have',
+  SKILLS.deities.choices.every((c) => c.blessingSource !== 'vanilla' || /^[0-9a-f]+:/i.test(String(c.blessing))),
+  SKILLS.deities.choices.filter((c) => c.blessingSource === 'vanilla' && !/^[0-9a-f]+:/i.test(String(c.blessing))).map((c) => c.id).join(', '));
+check('Jyggalag is deliberately absent', !SKILLS.deities.choices.some((c) => /jyggalag/i.test(c.id)));
+
 Date.now = realNow;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
