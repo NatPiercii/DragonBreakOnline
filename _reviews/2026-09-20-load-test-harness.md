@@ -212,6 +212,12 @@ every tick, including ids belonging to other leases and to wildlife. One shared 
 The "after" run happened to hold heavier dungeons than the "before" one - Sedor alone is 36 spawn zones -
 so that improvement is understated rather than flattered.)
 
+*(Superseded in one respect: the ambush work of 2026-09-20 evening, commit `90bfec3`, marks 971 placements
+across 95 dungeons as `Ambush: true`, and those wait for a player inside their own radius instead of
+pre-spawning with the claim. Every prespawn count and claim-time churn figure below was measured before it -
+Northfringe Sanctum, for example, now pre-spawns 15 where this run saw 33. The timer numbers are unaffected:
+they scale with living actors, and the ambush actors still arrive, just later.)*
+
 **Checked again at many leases**, because four is not where a leases-times-ids cost would show. A third run
 put 100 bots on twenty dungeon doors at once; thirteen leases were granted, holding **225 living enemies**
 against the four-lease run's 135:

@@ -260,6 +260,17 @@ class Bot {
     }, this.cfg.arrivalMs || 1200);
   }
 
+  // Send this bot somewhere deliberately, for a driver script using the harness as a library.
+  // Both fields have to move: tickTravel steers back towards this.home on every tick, so setting the
+  // warper alone is undone on the next one.
+  driveTo(pos, radius) {
+    this.home = pos.slice();
+    if (radius !== undefined) this.homeRadius = radius;
+    this.homeKey = '';
+    if (this.walker) this.walker.setHome(this.home, this.homeRadius);
+    this.warper = new Warper(this.walker ? this.walker.pos : this.home, this.home, this.cfg.warpStep);
+  }
+
   nearestGate() {
     let best = null;
     let bestD = Infinity;

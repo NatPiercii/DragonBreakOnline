@@ -71,6 +71,19 @@ Two details cost an hour each and are worth remembering:
 - **`nlohmann` dumps object keys alphabetically**, so `"t"` is at the END of a message, not the start. The
   host scans backwards for it.
 
+## Using it as a library
+
+Other sessions drive the `lib/` modules from their own script for one-off questions (a faction probe, an
+ambush check) rather than running a sweep. Two things about a bot that cost people time:
+
+- **Move a bot with `bot.driveTo(pos, radius)`, not by setting `warper`.** `tickTravel` steers back towards
+  `bot.home` on every tick, so a warper set from outside is undone on the next one. `driveTo` moves both.
+- **A bot cannot reach anything down a cell chain.** It has no engine, so it never walks through a load
+  door: interior cells have their own coordinate space, and a bot only ever moves inside the cell or
+  worldspace the server last put it in. Anything behind a second door - a deeper dungeon room, an ambush
+  placement in a back cell - is out of reach. The only cross-cell moves a bot gets are the ones the server
+  performs for it: a hub gate, a dungeon claim's teleport, the playtest bounce.
+
 ## Safety
 
 - `--target live` refuses to run without `--yes-live`, and `preflight` blocks when `server.log` shows a
