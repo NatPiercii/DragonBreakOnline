@@ -67,6 +67,34 @@ for (const k of ['craft', 'kill', 'hit', 'cast', 'hurt', 'mine', 'chop', 'read',
 eq('a rabbit is worth less than a giant', S.weightOf({ kind: 'kill', value: 20 }) < S.weightOf({ kind: 'kill', value: 400 }), true);
 eq('iron ore is worth less than ebony', S.weightOf({ kind: 'mine', value: 0 }) < S.weightOf({ kind: 'mine', value: 4 }), true);
 
+// ── the scale terms, now that emitters actually pass a value (2026-09-20) ────────────────────────
+// Every kind that takes a value must rise with it and must not sit at the flat base any more.
+// A kind that is deliberately flat (`hit`) must stay flat however large the value it is handed.
+eq('a leather helmet is worth less than a daedric greatsword',
+  S.weightOf({ kind: 'craft', value: 60 }) < S.weightOf({ kind: 'craft', value: 2500 }), true);
+eq('a craft is no longer flat', S.weightOf({ kind: 'craft', value: 900 }) > 0.5, true);
+eq('Flames is worth less than Incinerate',
+  S.weightOf({ kind: 'cast', value: 14 }) < S.weightOf({ kind: 'cast', value: 171 }), true);
+eq('a cast is no longer flat', S.weightOf({ kind: 'cast', value: 86 }) > 0.5, true);
+eq('a scratch is worth less than a maul',
+  S.weightOf({ kind: 'hurt', value: 3 }) < S.weightOf({ kind: 'hurt', value: 60 }), true);
+eq('a hurt is no longer flat', S.weightOf({ kind: 'hurt', value: 40 }) > 0.5, true);
+eq('a level 1 bandit is worth less than a level 32 giant',
+  S.weightOf({ kind: 'kill', value: 1 }) < S.weightOf({ kind: 'kill', value: 32 }), true);
+eq('hit stays flat whatever it is handed', S.weightOf({ kind: 'hit', value: 99999 }), 0.5);
+eq('hit is flat at zero too', S.weightOf({ kind: 'hit', value: 0 }), 0.5);
+// A missing value must still yield the old flat base, so an emitter that sends none never regresses.
+for (const k of ['craft', 'kill', 'cast', 'hurt']) {
+  eq(`${k} with no value falls back to the base`, S.weightOf({ kind: k }), 0.5);
+}
+// Junk must not escape the clamp: weightOf is the only guard between a bad espm read and the ladder.
+for (const bad of [NaN, Infinity, -Infinity, -50, 1e12]) {
+  for (const k of ['craft', 'kill', 'cast', 'hurt', 'mine']) {
+    const w = S.weightOf({ kind: k, value: bad });
+    eq(`${k} clamps ${bad}`, w >= 0.5 && w <= 3, true);
+  }
+}
+
 // repetition decay: the 9th identical act is worth half
 let ring = [];
 const now = 1000000;

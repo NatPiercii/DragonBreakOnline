@@ -1,0 +1,523 @@
+{
+ "types": {
+  "WEAP": {
+   "records": 4891,
+   "minFieldLen": 10,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 4891,
+     "n": 4891,
+     "nonZero": 4817,
+     "distinct": 176,
+     "max": 12500,
+     "floatPlausible": 4891,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 4,
+     "intPlausible": 83,
+     "n": 4891,
+     "nonZero": 4808,
+     "distinct": 44,
+     "max": 1110704128,
+     "floatPlausible": 4891,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    0
+   ],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  },
+  "ARMO": {
+   "records": 7346,
+   "minFieldLen": 8,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 7346,
+     "n": 7346,
+     "nonZero": 6751,
+     "distinct": 183,
+     "max": 23000,
+     "floatPlausible": 7346,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 4,
+     "intPlausible": 646,
+     "n": 7346,
+     "nonZero": 6700,
+     "distinct": 50,
+     "max": 1114112000,
+     "floatPlausible": 7346,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    0
+   ],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  },
+  "MISC": {
+   "records": 1623,
+   "minFieldLen": 8,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 1623,
+     "n": 1623,
+     "nonZero": 857,
+     "distinct": 56,
+     "max": 5000,
+     "floatPlausible": 1623,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 4,
+     "intPlausible": 679,
+     "n": 1623,
+     "nonZero": 944,
+     "distinct": 29,
+     "max": 1108082688,
+     "floatPlausible": 1623,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    0
+   ],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  },
+  "INGR": {
+   "records": 442,
+   "minFieldLen": 8,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 442,
+     "n": 442,
+     "nonZero": 437,
+     "distinct": 34,
+     "max": 560,
+     "floatPlausible": 442,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 4,
+     "intPlausible": 1,
+     "n": 442,
+     "nonZero": 441,
+     "distinct": 15,
+     "max": 1084227584,
+     "floatPlausible": 442,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    0
+   ],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  },
+  "SLGM": {
+   "records": 26,
+   "minFieldLen": 8,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 26,
+     "n": 26,
+     "nonZero": 23,
+     "distinct": 16,
+     "max": 1000,
+     "floatPlausible": 26,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 4,
+     "intPlausible": 5,
+     "n": 26,
+     "nonZero": 21,
+     "distinct": 7,
+     "max": 1065353216,
+     "floatPlausible": 26,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    0
+   ],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  },
+  "SCRL": {
+   "records": 172,
+   "minFieldLen": 8,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 172,
+     "n": 172,
+     "nonZero": 172,
+     "distinct": 13,
+     "max": 1000,
+     "floatPlausible": 172,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 4,
+     "intPlausible": 0,
+     "n": 172,
+     "nonZero": 172,
+     "distinct": 1,
+     "max": 1056964608,
+     "floatPlausible": 172,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    0
+   ],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  },
+  "KEYM": {
+   "records": 798,
+   "minFieldLen": 8,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 798,
+     "n": 798,
+     "nonZero": 2,
+     "distinct": 3,
+     "max": 15,
+     "floatPlausible": 798,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 4,
+     "intPlausible": 796,
+     "n": 798,
+     "nonZero": 2,
+     "distinct": 3,
+     "max": 1056964608,
+     "floatPlausible": 798,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  },
+  "AMMO": {
+   "records": 111,
+   "minFieldLen": 16,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 6,
+     "n": 111,
+     "nonZero": 111,
+     "distinct": 77,
+     "max": 122064574,
+     "floatPlausible": 111,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 4,
+     "intPlausible": 111,
+     "n": 111,
+     "nonZero": 88,
+     "distinct": 5,
+     "max": 7,
+     "floatPlausible": 111,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 8,
+     "intPlausible": 15,
+     "n": 111,
+     "nonZero": 96,
+     "distinct": 21,
+     "max": 1120403456,
+     "floatPlausible": 111,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 12,
+     "intPlausible": 111,
+     "n": 111,
+     "nonZero": 83,
+     "distinct": 12,
+     "max": 16,
+     "floatPlausible": 111,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [],
+   "shippedOffset": 12,
+   "agreesWithShipped": true
+  },
+  "BOOK": {
+   "records": 2666,
+   "minFieldLen": 16,
+   "field": "DATA",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 2666,
+     "n": 2666,
+     "nonZero": 405,
+     "distinct": 4,
+     "max": 4,
+     "floatPlausible": 2666,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 4,
+     "intPlausible": 376,
+     "n": 2666,
+     "nonZero": 2526,
+     "distinct": 177,
+     "max": 184559906,
+     "floatPlausible": 525,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 8,
+     "intPlausible": 2666,
+     "n": 2666,
+     "nonZero": 1556,
+     "distinct": 131,
+     "max": 6000,
+     "floatPlausible": 2666,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 12,
+     "intPlausible": 1178,
+     "n": 2666,
+     "nonZero": 1488,
+     "distinct": 6,
+     "max": 1101004800,
+     "floatPlausible": 2666,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    8
+   ],
+   "shippedOffset": 8,
+   "agreesWithShipped": true
+  },
+  "ALCH": {
+   "records": 896,
+   "minFieldLen": 20,
+   "field": "ENIT",
+   "offsets": [
+    {
+     "offset": 0,
+     "intPlausible": 896,
+     "n": 896,
+     "nonZero": 886,
+     "distinct": 188,
+     "max": 4008,
+     "floatPlausible": 896,
+     "looksLikeGold": true
+    },
+    {
+     "offset": 4,
+     "intPlausible": 896,
+     "n": 896,
+     "nonZero": 663,
+     "distinct": 8,
+     "max": 131075,
+     "floatPlausible": 896,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 8,
+     "intPlausible": 896,
+     "n": 896,
+     "nonZero": 0,
+     "distinct": 1,
+     "max": 0,
+     "floatPlausible": 896,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 12,
+     "intPlausible": 896,
+     "n": 896,
+     "nonZero": 0,
+     "distinct": 1,
+     "max": 0,
+     "floatPlausible": 896,
+     "looksLikeGold": false
+    },
+    {
+     "offset": 16,
+     "intPlausible": 11,
+     "n": 896,
+     "nonZero": 886,
+     "distinct": 8,
+     "max": 1106666,
+     "floatPlausible": 896,
+     "looksLikeGold": false
+    }
+   ],
+   "goldCandidates": [
+    0
+   ],
+   "shippedOffset": 0,
+   "agreesWithShipped": true
+  }
+ },
+ "spel": {
+  "byType": {
+   "Spell": {
+    "n": 986,
+    "costNonZero": 748,
+    "autoCalc": 764
+   },
+   "Ability": {
+    "n": 711,
+    "costNonZero": 241,
+    "autoCalc": 668
+   },
+   "Power": {
+    "n": 64,
+    "costNonZero": 4,
+    "autoCalc": 26
+   },
+   "Voice": {
+    "n": 206,
+    "costNonZero": 81,
+    "autoCalc": 145
+   },
+   "Poison": {
+    "n": 18,
+    "costNonZero": 0,
+    "autoCalc": 0
+   },
+   "Disease": {
+    "n": 124,
+    "costNonZero": 49,
+    "autoCalc": 49
+   },
+   "LesserPower": {
+    "n": 33,
+    "costNonZero": 7,
+    "autoCalc": 17
+   }
+  },
+  "ladder": [
+   {
+    "edid": "Healing",
+    "cost": 12
+   },
+   {
+    "edid": "Flames",
+    "cost": 14
+   },
+   {
+    "edid": "Frostbite",
+    "cost": 16
+   },
+   {
+    "edid": "Sparks",
+    "cost": 19
+   },
+   {
+    "edid": "Candlelight",
+    "cost": 21
+   },
+   {
+    "edid": "Firebolt",
+    "cost": 41
+   },
+   {
+    "edid": "IceSpike",
+    "cost": 48
+   },
+   {
+    "edid": "FastHealing",
+    "cost": 73
+   },
+   {
+    "edid": "Fireball",
+    "cost": 86
+   },
+   {
+    "edid": "Oakflesh",
+    "cost": 103
+   },
+   {
+    "edid": "CloseWounds",
+    "cost": 126
+   },
+   {
+    "edid": "Incinerate",
+    "cost": 171
+   },
+   {
+    "edid": "GrandHealing",
+    "cost": 254
+   },
+   {
+    "edid": "IcySpear",
+    "cost": 320
+   },
+   {
+    "edid": "Ebonyflesh",
+    "cost": 341
+   },
+   {
+    "edid": "Thunderbolt",
+    "cost": 343
+   },
+   {
+    "edid": "Blizzard",
+    "cost": 1106
+   }
+  ],
+  "monotonic": true
+ },
+ "ammoLadder": {
+  "expected": {
+   "IronArrow": 1,
+   "SteelArrow": 2,
+   "OrcishArrow": 3,
+   "DwarvenArrow": 4,
+   "ElvenArrow": 5,
+   "GlassArrow": 6,
+   "EbonyArrow": 7,
+   "DaedricArrow": 8
+  },
+  "read": {
+   "DaedricArrow": 8,
+   "EbonyArrow": 7,
+   "GlassArrow": 6,
+   "ElvenArrow": 5,
+   "DwarvenArrow": 4,
+   "OrcishArrow": 3,
+   "SteelArrow": 2,
+   "IronArrow": 1
+  },
+  "matches": true
+ }
+}
