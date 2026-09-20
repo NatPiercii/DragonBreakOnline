@@ -1,5 +1,179 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-19 (evening): movement rate validation in C++ (built, NOT deployed, NOT measured)
+
+Closes the top half of `SERVER_AUTHORITY.md` migration 2. Branch `movement-rate-validation`; it is C++, so it
+needs a CI flatrim build and only `scam_native.node` is copied out of the artifact (see the deploy note below).
+
+- [x] **The check.** `MovementValidation` keeps, per player actor, the last position it accepted and a token
+  bucket of allowance that refills at the speed ceiling. A packet spends the distance it claims; one that
+  cannot pay is refused with the existing `isMe` snap-back (one per 250 ms), and refusals are logged at most
+  once per 5 s per actor with a count. Horizontal, up and down budgets are separate. The 4096-unit single
+  packet cap and the cell check are unchanged and still run first.
+- [x] **Server teleports do not trip it.** A teleport is detected by the server's own position having moved
+  since the last accepted packet, which covers `MpActor::Teleport` (every `mp.set locationalData`, Papyrus
+  MoveTo), door activation, respawn and the login change-form load without hooking any of them. It reseeds
+  the bucket at the destination and opens a 5 s grace in which the player's in-flight packets from the old
+  spot are dropped WITHOUT a snap-back, which also fixes the old race where such a packet reverted the
+  server's position. The carry/restraint slide renews the grace on every move, so it never rubber-bands.
+- [x] **Hosted NPCs are left alone** (`isMe` only): refusing an NPC's move with no correction path is exactly
+  the frozen-copy, unkillable-enemy bug in C++ task 1 below. Fix that first, then consider NPCs here.
+- [x] **A player's own movement is validated before it is relayed** (`SendToNeighbours` used to run first), so
+  a refused packet no longer reaches other clients. Hosted actors keep the old order.
+- [x] **Ceilings come from the game data, not a guess** (`ck-mcp` load order, MOVT records): the player's own
+  movement types are `NPC_Default_MT` 370 u/s run / 80 walk and `NPC_Sprinting_MT` 500 forward;
+  `Horse_Default_MT` 450 run and `Horse_Sprint_MT` 600 are the fastest a player can legitimately be;
+  `WerewolfBeastSprint_MT` 531, `VampireLordSprint_MT` 600. `fJumpFallVelocityMin` 700 is where fall damage
+  starts. First ceiling: 1000 horizontal, 2000 up, 4000 down, 3 s burst.
+- [x] **Tunable without a rebuild**: `server-settings.json` `movementValidation` (live file, read at boot).
+  Shipping with `"enforce": false`, which logs "would refuse" and changes nothing, plus `peakLogFraction` 0.5
+  so every player peak above 500 u/s is logged for calibration.
+- [ ] **Measure (user, in game).** `server\movetrace.js` is loaded and records per-player speed from the
+  server's accepted positions: `/mv <label>` before each activity (walk, run, sprint, sneak, jump, fall,
+  shout, door, tp, dungeon, bounce), `/mv report` at the end. Output: `movetrace` lines in `server.log` and
+  `server\_diagnostics\movetrace.json`. Delete `movetrace.js` and its require block in `gamemode.js` after.
+- [ ] **Then set the real ceiling** from the measured maxima plus lag slack, flip `"enforce": true`, restart.
+- [ ] **Deploy note**: take ONLY `scam_native.node` from the CI `server-dist` artifact into `server\` (back up
+  the old one first). Do NOT copy `dist_back\` from the artifact: the bundle now running was built with
+  another session's uncommitted `npcSpawnSystem.ts` fix, which is not on the branch.
+- [ ] **In-game test list after deploy**: sprint, a long fall, a horse if one exists, a door both ways, `/tp`,
+  an F7 Locations jump, a dungeon claim (party move), the Pale Pass bounce, and a carry/restrain. Watch for
+  `MovementValidation:` lines in `server.log` and for any rubber-banding.
+
+## Added 2026-09-19 (evening): labour and skinning rounds are issued and judged by the server (LIVE 18:30, needs a client relaunch)
+
+SERVER_AUTHORITY.md migration 7, both halves. Each widget used to roll its own band or seam and report a
+count, so the server could only check that the count had not arrived too fast: in labour, waiting
+`strikes * 350 ms` and claiming a perfect round won at any tier; skinning was weaker still, taking the pelt
+for three cuts claimed after 1.5 s, with no clamp at all and the slips computed in the widget and never sent.
+Both rounds are the server's now, in the same shape.
+
+- [x] **The server issues the round** (`server\labour.js`): a 32-bit seed from `crypto`, the band centre for
+  every strike derived from it with mulberry32, the sweep, the round length and both staggers go out in the
+  widget packet (`bands`, `sweepMs`, `totalMs`, `hitMs`, `missMs`). Nothing in the packet says where a strike
+  should fall or whether one landed. The seed is in every verdict line, so a round can be rebuilt from the log.
+- [x] **The widget reports evidence, not a score** (`fork\skymp5-front\src\features\labour\index.tsx`): it sends
+  `JSON.stringify(strikeMs)` — the millisecond of every strike it took, hit or miss — plus its own clock at the
+  moment it submitted. The server replays the sweep at those milliseconds, counts the hits against its own band
+  list and pays from that count.
+- [x] **The verdict is the same number the player saw**: both sides run the identical `markerAt()` on the same
+  integer millisecond, and the widget times a strike at the frame on screen rather than at the keypress, so
+  there is no latency term in the scoring and no tolerance to tune. Verified end to end: the built bundle driven
+  in a browser, its real report judged by the real module, agreed strike for strike (`hit,miss,hit,miss,hit,hit,
+  hit,miss,hit`, 6/6) — and 40 randomly played rounds in the harness never disagreed once.
+- [x] **Impossible reports are refused and logged**: strikes inside the stagger (`cooldown`), after the round was
+  already won (`extra`), outside `0..totalMs` or not whole (`range`), more strikes than the stagger allows
+  (`flood`), a strike later than the report itself (`submit`), a clock that has seen more time pass than the
+  server has (`future`), a widget clock further behind the server's than transport can explain — slow motion or
+  a report from minutes ago (`late`), and unparseable payloads (`malformed`). A repeat of a judged nonce logs
+  `labour replay` and pays nothing.
+- [x] **An interface from before the change** (a hit count, no times) is refused with "Your interface is out of
+  date. Rejoin the server to pick up the new one." and costs no rest timer. **Every player must relaunch** to get
+  the new UI; until they do, mining and woodcutting refuse rather than pay.
+- [x] **One line per verdict** in `server.log`: `labour win Name #TAG mining/iron t3 6/6 of 9 last=12513 at=12518
+  lag=180 err=0.91 seed=4e4a46e4`. `err` is the mean distance of the landed strikes from the band centre, 0 dead
+  centre to 1 at the edge. Played by hand it wanders (0.4-0.9); a script that aims lands on 0.00 every round, and
+  one that takes the first feasible millisecond lands on 1.00 every round. Neither is a hand.
+- [x] **Rounds survive a gamemode reload** (`globalThis.__dboLabourRounds`) and expire on their own, so a report
+  that never comes back no longer locks the player out of that seam for the rest of the session.
+- [x] **Skinning got the same treatment** (`server\gamemode.js` 1575-1701, widget `skinning`): `skinRound()` rolls
+  the seed and the seam for every cut, `skinPacket()` sends the seams, the blade's period and the time limit, and
+  `judgeSkin()` replays the blade at the cut times the widget reports. The widget now reports every cut it took,
+  so the slips are counted here instead of being invisible to the server. Same refusals as labour plus `order`
+  (this game has no stagger, so order is the only rule between cuts); the corpse checks — already skinned, pelts
+  still on it, within 400 units — are unchanged and still run after the judge. Tier curves are untouched: tier 1
+  is a 0.12 seam and an 870 ms blade, tier 5 a 0.26 seam and 1493 ms. Verdict line: `skinning win Name #TAG wolf
+  t3 3/3 cuts 1 slips of 4 last=4104 at=4113 lag=150 err=0.60 seed=aa6ea4d7 -> wolf pelt`. Noticed while
+  working on it, not fixed: `SKIN_WIDGET_ID` and labour's `WIDGET_ID` are both 33, so the `close` event from one
+  clears the other's session. Harmless today because a vein and a corpse cannot be activated at once, but a
+  third widget on 33 would not be.
+- [x] **Deployed**: `labour.js` and `gamemode.js` both live, last reload 18:30 and clean; front rebuilt and copied
+  to `Skyrim Special Edition - dev\Data\Platform\UI\` and `server\client-dist\Data\Platform\UI\` (previous bundles
+  in `_ui-build-backups\before-labour-verdicts-20260919-181035\` and `...\before-skinning-verdicts-20260919-183015\`).
+  The reload nudges left a few more blank lines at the end of `gamemode.js`, which another session had open.
+- [x] **Regression tests**, no server and no game: `node tests\labour-harness.js` (32 checks) loads the real
+  module with a mock api and plays rounds the way the widget does; `node tests\skinning-harness.js` (23 checks)
+  lifts `skinRng`, `bladeAt`, `skinRound`, `skinPacket` and `judgeSkin` straight out of `gamemode.js` and runs
+  them in a sandbox, because that file cannot be required without a live `mp`. Both fire the forgeries above.
+  60 simulated skinning attempts across the tiers, no disagreement; the built widget driven in a browser agreed
+  cut for cut on a clean run (3/3) and on a mixed one (`clean,slip,clean,slip,slip`, 2 cuts 3 slips, a loss).
+- [ ] **Tune the lag grace from a playtest** (`cfg.labour.lagGraceMs` and `cfg.skinning.lagGraceMs`, both 2500 ms,
+  the old labour grace kept unchanged). It is the one number still unmeasured in game: how far behind the server's
+  clock the widget's may sit — the packet out, the mount, the report back. The browser's own share measured 5-9 ms
+  plus up to one 16 ms frame (six runs against the built bundle in Chromium); the two network legs and the
+  client's frame pacing need a real round. Read `lag=` out of a playtest's verdict lines and lower both to
+  comfortably above the worst honest value. It is what bounds drawing the round out in real time and scaling the
+  reported times back down, and it bites hardest in skinning, where an attempt is short: the harness prints the
+  exposure — at 2500 ms a 3.1 s attempt can be stretched to 5.6 s, a 1.8x slower blade.
+
+## Added 2026-09-19 (evening): four dungeon-survey bugs fixed, dungeons.json and wildlife.json regenerated (LIVE 19:01)
+
+Placements 4,244 -> 3,500 in `server\dungeons.json` and 3,329 -> 3,185 in `server\wildlife.json`. Full
+before/after per dungeon: `server\_data-backup-survey-fixes-20260919-142041\per-dungeon-changes.txt`; that folder
+also holds the previous dungeons.json, wildlife.json, dungeon-pools.json, NPC-Spawns.json and dungeons_survey.json.
+Script backups are `ck-mcp\*.py.bak-20260919-141334`.
+
+- [x] **Starts Dead corpses no longer spawn alive** (`ck-mcp\dungeons_survey.py`, `ck-mcp\wildlife.py`): an ACHR
+  whose record flag has 0x200 is a corpse and is left out. 1,122 left the dungeon survey (Caius's body in Sedor,
+  Tenilis Nonno in Unmarked Cave, Nchuand-Zel's 5 falmer + boss, Alftand's 7 dwarven spiders, Liar's Retreat's 4
+  bandits, Potema's draugr) and 99 the wildlife file (dead deer, horkers, a frost troll, Karthspire's giant).
+  Checked across every plugin version: nothing in the order sets or clears 0x200 on an override, so the winning
+  version decides.
+- [x] **`dead` no longer matches inside `Undead`** (`dungeons_build.py`, mirrored in `dungeon_pools.py`): the word
+  Undead is taken out of the editor id before the skip words are looked for. A plain `(?<!un)dead` lookbehind is
+  NOT enough: `dunDead...` ends in "un" too, and it let `MS05_dunDeadMensRespite_Svaknir` through. 47 Ayleid undead
+  came back - Rielle 2 -> 22, Sedor 28 -> 51, and 3 more of the user's own Vilverin placements (25 -> 28, all still
+  DragonBreak Online Edits refs).
+- [x] **Dragons are never spawned** (`dungeons_build.py`, user decision 2026-09-19): the Undead fix surfaced
+  `dunLabyrinthianUndeadDragon`, the one dragon a dungeon would ever have placed. `resolve` now drops any NPC whose
+  RACE is a dragon race, told apart by race and not by editor id, because `DragonRace`, `DragonBlackRace`,
+  `UndeadDragonRace`, `DLC1UndeadDragonRace`, `DLC2DragonBlackRace` and `dlc2SpectralDragonRace` are dragons while
+  `DragonPriestRace` and `DLC2AcolyteDragonPriestRace` are not. Effect: exactly one placement removed (Labyrinthian
+  34 -> 32), no option list changed, the 7 dragon priest placements all stay.
+- [x] **Enable parents (XESP) decide the start state** (`dungeons_survey.py`, `wildlife.py`): a placement is kept
+  only when its enable-parent chain leaves it enabled at game start (`enabled = parentEnabled XOR opposite`,
+  parents followed to the root, `0x1` of the XESP flags uint32 = "set enable state opposite of parent", verified
+  against UESP's REFR/ACHR pages). Flags and XESP come from the last version before `DragonBreak.esp` and
+  `DragonBreak Online Edits.esp`, because DLE disabled the actors the server spawns and stripped the XESP off 17 of
+  them. 470 dungeon placements and 45 creatures went: Driftshade keeps its 17 Silver Hand and loses the 38 bandits,
+  Dres Slavers Camp goes from 26 soldiers at 13 posts to the 13 Ally refs, Gallows Rock from two LvlSilverhandBoss
+  to one, Ansilvund keeps 30 draugr and loses 12 skeletons, Wolfskull loses the quest necromancers, Korvanjund the
+  MQ103 soldiers. Every one of them follows an XMarker flagged 0xc00 (persistent + initially disabled) in the same
+  state, so they are off on a fresh game.
+- [x] **NPC level read from the right bytes** (`dungeons_survey.py`, `dungeons_build.py`, `wildlife.py`): ACBS is
+  flags uint32 @0, magicka/stamina offsets int16 @4/@6, level uint16 @8. The old `<IH` read the magicka offset as
+  an unsigned level, so `EncBandit01Melee1HNordM` was level 65511 (offset -25) instead of 1 and `EncTroll` 0 instead
+  of 14. 776 dungeon and 833 wildlife placements now carry real levels; nothing is above 1000 any more (116 dungeon
+  options and 440 wildlife options were). This changes which option each difficulty band picks.
+- [x] **Checks before going live**: the unfixed generators were rerun first and reproduce the live files exactly
+  (dungeons.json identical except Vilverin's record order, wildlife.json two anchors that moved to newer DLE refs),
+  so every difference below is the fixes and not load-order drift. `dungeon_pools.py` reran clean after its expect
+  values were updated (19 families, 215 placement types, 3,022 options, 177 kept refs; only
+  `cyrodiil.ayleid_undead` gained members, 1 -> 6 ids / 6 -> 36 slots, all generic `CYRLvlAyleidUndead*` templates
+  with 5-11 options each). Pools dry run over the live `zonesFor`, 217 dungeons x 4 difficulties x 20 trials =
+  252,097 zones, 0 failures. Gamemode reloaded at 18:09 with no lease active: 217 dungeons, 19 pool families, 3,185
+  wildlife zones, no errors.
+- [x] **Survey rerun from scratch at 18:39 after the dragon rule** (29 min) to pick up any plugin edit since the
+  first run: byte-identical to the 14:18 survey, so the other session's 18:06 DLE change (a sunk secret door in Red
+  Ruby Cave) touches nothing here. Rebuilt, pools regenerated (same 19 families / 215 types; the dragon was never
+  pooled, `dun*` is in NEVER), dry run 252,081 zones / 0 failures, gamemode reloaded 19:01 with no lease active and
+  no errors. `server\dungeon-pools.json` carries sha1 `c0fb782b...` of the current dungeons.json.
+- [ ] **Follow-ups for the user to decide**
+  - Five dungeons now hold no enemies at all, because everything in them was a corpse or starts disabled:
+    Mountainwatch Frostiron Mine (12 goblins, all behind the CYRMountainWatchMS02 marker), Boreal Stone Cave (4),
+    Gyldenhul Barrow (2), Guldun Rock (2), Bthalft Aetherium Forge (1). They can still be claimed and their chests
+    still fill. Frostiron Mine is in Bruma, so a player can meet it during the playtest.
+  - Quest-gated dungeons are thin now: Kolbjorn Barrow 95 -> 8, Korvanjund 39 -> 9, Kagrumez 20 -> 1, Yngol Barrow
+    10 -> 1, Swindler's Den 32 -> 15, Temple of Miraak 50 -> 24 (its 24 parentless draugr stay; every cultist sits
+    behind a DLC2MQ02 marker, which is why `solstheim.cultist` now has no placements). If leases should show the
+    post-quest state instead, that is a second start-state table, not a bug in the survey.
+  - Bruma has 11 Starts Dead creatures that DLE disabled as "living" actors and wildlife replaced with live ones.
+    Those spots now have neither a corpse nor a creature. Re-enabling the corpses is a DLE edit and is the user's
+    call (the standing rule is to keep corpses, and never to restore a disable on my own).
+  - `ck-mcp\dungeons_anchor.py` was NOT run. The live file has been build-only since c71ccaa (2026-09-18), so every
+    `ref` is Bethesda's ACHR, which is what dungeons.js, `dungeon_pools.py` KEEP_REFS and the faction diagnostic all
+    read. Running the anchor step would swap them for the nearest loadable ref and change where spawns appear.
+
 ## Added 2026-09-19 (afternoon): remote vitals go through a relay packet, HUD heartbeat restored (LIVE 14:42)
 
 Items 2 and 3 of `_reviews\2026-09-19-daily-review.md`, both from `4937b4c`. Both were measured before and
@@ -117,15 +291,36 @@ Step 2 (ff_factions) is deployed and needs an in-game pass; the user chose it af
   "armed" lines were Serpent's Trail 09-17 and one Anga lease today at 10:41, which made the first call), and
   no "cleared" ends (every Anga lease ended "left"). Both now go through `spawnerTag`, which remembers ids that
   throw. Do not use getAllForms for liveness until the C++ cache is invalidated on AddForm.
-- [ ] **Red Ruby Cave blockers** (user 14:30: "a blocked off door activated with a chain"): `BSHeartland.esm:083DBD`
-  `CYRMineSecretDoor`, opened by pull chains `0885AC`/`0885B3`, gets sunk in DLE with `DBO_BrumaInteriors.pas`
-  (op `sink`). Waiting on the game being closed, because Skyrim holds the dev DLE. Also chain-driven there and
-  left alone: `083F5B` `NorRetractableBridge01NONAVCUT` (chain `083F8E`). Sinking a bridge leaves a gap; ask the
-  user if it blocks the way.
-- [ ] **Dev DLE and `server\data` DLE differ**: the dev copy was saved 2026-09-18 15:57 (240 records added,
-  1,082 changed: Falkreath sawmill, notice board refs, Whiterun cells, 85 SPEL, 48 QUST, one NAVM). The server
-  copy is still 2026-09-16 20:41. Not recorded anywhere; the user decides whether it ships.
-- Still not covered: ambush packages (1,086 slots), outfits (618), spells (280). Separate follow-ups.
+- [x] **Red Ruby Cave chain door removed 2026-09-19 18:06** (user 14:30: "a blocked off door activated with a
+  chain"): `BSHeartland.esm:083DBD` `CYRMineSecretDoor`, opened by pull chains `0885AC`/`0885B3`, is now
+  Initially Disabled at Z -30000 in DLE, XESP absent, via `DBO_BrumaInteriors.pas` op `sink` (result kept as
+  `Edit Scripts\DBO_BrumaInteriors_result.redruby.txt`, one-line list as `DBO_BrumaInteriorsList.txt.redruby-run`,
+  the 28-line Vilverin list restored). DLE 3,988,898 -> 3,991,389 bytes, 52 masters unchanged, MCP validate ok,
+  deleted_records 2521 unchanged. Backup `server\_ckmcp-dle-backup-redruby-20260919-180400\`. The 09-16 pass
+  missed it because it is an ACTI, not a DOOR, and the gate sweeps keyed on door and portcullis bases.
+  **Dev copy only so far**; `server\data` not touched, see the next item.
+- [ ] Also chain-driven in that cave and left alone: `083F5B` `NorRetractableBridge01NONAVCUT` (chain `083F8E`),
+  over the water at [-347, -4208, -884]. Sinking a bridge leaves a gap, so it needs a different fix if it blocks
+  the way. User to confirm.
+- [x] **DLE synced to the server and node restarted 18:22** (user's call). `server\data\DragonBreak Online
+  Edits.esp` was still the 2026-09-16 20:41 copy; the dev copy carried the user's unrecorded 2026-09-18 15:57
+  save (240 records added, 1,082 changed: Falkreath sawmill, notice board refs, Whiterun cells, 85 SPEL,
+  48 QUST, one NAVM) plus the Red Ruby door. Both are now md5 eee55dce. Previous server copy in
+  `server\_ckmcp-dle-backup-serverdata-20260919-182005\`. Of the 110 plugins in `server\data`, DLE was the only
+  one whose content differed; HIMBO.esp and the two RaceMenuMorphs plugins exist only on the server side.
+  Boot clean at 18:22: VitalsRelaySystem up, 3,185 wildlife zones, 19 pool families, playtest lock on,
+  `dungeon faction audit: 390 of 3501 placements`. The 18 `resolved context` errors at 18:22:14 are the
+  companion sweep reading last run's ids, the known noise family, not new.
+- [ ] **The Steam install and Jake's server still carry the older DLE.** Clients and server must hold the same
+  file, so they need this one before anyone connects from there. Run `server\sync-plugins.cmd` with Vortex
+  closed before the next client test.
+- Note: the server now runs detached (`cmd /c run-logged.cmd`, node PID 30124), not as a background task of a
+  Claude session, so it survives the session ending. `server-exit.log` records how it stops.
+- **Counts re-measured 18:12 over the regenerated `dungeons.json`** (3,501 placements after the survey session
+  dropped Starts Dead and enable-parent placements): 398 slots in 155 placement kinds lose their template's
+  factions, 967 lose AI packages, 994 AI data, 910 scripts, 460 inventory/outfit, 244 spells. The earlier
+  503/1,086/618/978/280 figures were over the old 4,244-placement file.
+- Still not covered: ambush packages (967 slots), outfits (460), spells (244). Separate follow-ups.
 
 Step 1 (verify), done before step 2:
 - [x] **Record data confirms it.** `dungeons.js` spawns the concrete NPC_ that a placement's leveled list resolves
@@ -228,6 +423,8 @@ Step 1 (verify), done before step 2:
   XESP enable parents ignored (Driftshade Silver Hand + bandits together, Dres Slavers Camp spawns 26 soldiers);
   ACBS level read from the wrong offset in the generators; spawned actors lose their template's faction and outfit
   (thralls as plain bandits).
+  The first four are fixed and live since 2026-09-19 evening, see that block in this file; the expect values in
+  `dungeon_pools.py` were updated to the regenerated survey. The faction/outfit one is still open.
 - [x] **Unarmed two-handed bosses got a one-hander** (Serpent's Trail smuggler boss: a mace): `armLease` now gives
   `weaponFor` the spawned record's editor id with the kind, so `EncBandit03Boss2HNordM` gets a two-hander. Checked
   on every boss, wizard and missile list: 35 two-handed bosses -> greatswords/axes/hammers, mages -> daggers,
