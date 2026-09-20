@@ -34,8 +34,38 @@ harnesses green. The boot line moved **`9 reachable` -> `24 reachable`**.
   so no master was added and DLE's self-index could not shift.
 - [x] `skills.json` gained the ten new ids; census re-run; **24 of 26 deities now reachable**.
 
-**Only Auri-El and Clavicus Vile are still unreachable** - Auri-El's one shrine is in the Forgotten
-Vale, and no Clavicus Vile statue was placed. One more statue would close it.
+### Clavicus Vile was already there, and I missed him twice
+
+Nat: *"should be a shrine here already at the namira place in bruma, it uses the quest one from that
+cave is skyrim."* He was right. `DA03ClavicusVileShrine` (`Skyrim.esm:01C4E8`, the Haemar's Shame
+shrine) has been sitting at **[94521.9, 193547.5, 2328.8]** since his 14:10 save, in the middle of
+the ring.
+
+**It is a `TACT` - a talking activator - and both of my surveys only scanned ACTI/STAT/FURN/MSTT/
+LIGH.** So it reported as an unresolved `?` base and fell into the "dressing" line, twice. It was
+even visible in the very first comparison as `+1 base 01C4E8 ?`. **An activator is not always an
+ACTI**; a TACT is activated exactly the same way.
+
+- [x] `ck-mcp\shrines.py` and `ck-mcp\newshrines.py` now share a `BASE_SIGS` list that includes
+  **TACT**, SCOL, ADDN and the rest, and `newshrines.py` treats TACT as activatable when it decides
+  what is prayable.
+- [x] Clavicus Vile wired by **data alone** - no plugin work. The base is named, so the Haemar's
+  Shame shrine counts too, which is right: both are genuinely his.
+- [x] The `DBO_ShrineOfClavicusVile` activator I had started creating was **killed mid-run** and
+  never saved; the plugin is untouched by it. It was not needed.
+- [x] The stale 14:10 `.tes` was moved out of `Data\` into
+  `ckmcp-backups\pre-ckshrines-20260920-141648\`. It was a pre-activator state sitting beside the
+  live plugin - promoting it would have silently undone the ten activators and thirteen repoints.
+
+**Boot: `45 shrine ids, 25 reachable`. Only Auri-El has no shrine of his own here**, and it costs
+his worshippers nothing: he is Akatosh under the Aldmeri name and `prayer.js` treats the two as one
+faith, so any Akatosh chapel in Bruma will hear him. **Every character on the server has somewhere
+to pray.**
+
+- [ ] **One thing to watch in the first play test:** whether `mp.onActivate` fires for a **TACT** at
+  all. A talking activator is activator-derived and the player activates it in vanilla to speak to
+  Clavicus, so it should - but that is reasoning, not a measurement, and Clavicus is the only shrine
+  on the server that depends on it.
 
 - [ ] Two placements look accidental and are worth a glance in the CK: `BSMApoHMShrine01` sits at
   **[0, 0, 0]** in cell `0A7646`, and `DA07ShrineofMehrunesDagonExitTrigger` is a quest trigger
@@ -1065,8 +1095,14 @@ Reported in game as "walls moving where the swinging axe trap should be, there's
   Note `tools\loadtest\sandbox\data\DragonBreak Online Edits.esp` is a **hard link** to `server\data\`'s copy
   (one inode, two links), so the sandbox always sees the same file - and its `server-settings.json` carries the
   full 105-plugin load order, so both servers lock the plugin while they run.
-- [ ] **Restart (user)**: `server\run-logged.cmd`, then relaunch the client and check Bleak Falls Barrow's axe
-  corridor. The arches are statics, so the client's copy is what shows them.
+- [x] **Survived the 2026-09-20 14:50 rewrite of DLE** (md5 8e615b1f, 4,339,991 bytes, 29,316 records; someone
+  resaved the plugin in the CK). Re-checked 15:01: `restore_axe_arches.py` finds 0 arches to re-enable and the
+  three Bleak Falls arches resolve to Skyrim.esm alone, enabled at z -2304. Diff against the post-edit inventory:
+  74 records added (37 REFR, 16 SPEL, 10 RACE, 10 ACTI), 0 removed, 858 modified - but the modified ones are
+  mostly CELL/REFR bodies re-serialised with identical flags, which is what a CK resave does. **When diffing this
+  plugin, compare meaning (flags, position, base), not body hashes.**
+- [ ] **Still unverified in game**: relaunch the client and look at Bleak Falls Barrow's axe corridor. The arches
+  are statics, so the client's copy is what shows them.
 - [ ] **Still open**: the pale blue panel in the two screenshots is NOT this and is unidentified. Ruled out:
   DragonBreak curation (Toadstool Hollow has no overrides at all), broken trap/marker/fog meshes (no loose
   copies), a missing black-plane texture (`textures\Black.dds` is in Skyrim - Textures0.bsa). Need `/whereami`

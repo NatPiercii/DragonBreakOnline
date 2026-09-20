@@ -1364,18 +1364,21 @@
         "id": "clavicusvile",
         "name": "Clavicus Vile",
         "kind": "daedra",
-        "shrines": [],
+        "shrines": [
+          "1c4e8:Skyrim.esm"
+        ],
         "blessing": "",
-        "placements": 0,
-        "inPlaytest": 0,
-        "inBruma": 0,
+        "placements": 2,
+        "inPlaytest": 1,
+        "inBruma": 1,
         "sphere": "Power through bargains. Every wish is granted exactly as worded, and the wording is never yours.",
         "boon": "The bargain: you name the boon you want and Vile takes a price for it.",
         "blessingSource": "server",
         "blessingDesign": "A boon of another god, granted in full, against a standing cost - reduced maximum health for as long as it lasts. prayer.js can do this with no new record: it already grants and revokes spells. Needs a choice step in the widget, which is why it is not built yet.",
         "blessingImplemented": false,
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "note": "DA03ClavicusVileShrine, the vanilla Haemar's Shame shrine, which is a TACT (a talking activator) rather than an ACTI - it is activated the same way. Placed at the Bruma test site on 2026-09-20; the base is named, so the Skyrim one counts too."
       },
       {
         "id": "hermaeusmora",

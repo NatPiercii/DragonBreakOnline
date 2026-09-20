@@ -15,9 +15,12 @@ Unarmed its five marker spells at `1209CA-1209CE` (`DBO_UnarmedMarkers.pas`), so
 **Every Prince can be prayed to** (2026-09-20 15:00). Nat placed a statue of each at the Namira
 shrine site as one central test ground; thirteen went in as STATICS, which the engine never fires an
 activation on, so `DBO_ShrineActivators2.pas` gave each Prince an activator using that same statue
-mesh and repointed the references at it. The boot line reads `44 shrine ids, 24 reachable`. Only **Auri-El**
-(his one shrine is in the Forgotten Vale, though an Akatosh shrine will hear him) and **Clavicus Vile**
-(no statue placed) are still out of reach.
+mesh and repointed the references at it. Clavicus Vile was already among them, placed with the
+vanilla Haemar's Shame quest shrine. The boot line reads `45 shrine ids, 25 reachable`.
+
+**Only Auri-El has no shrine of his own here, and it costs nothing:** he is Akatosh under the
+Aldmeri name and `prayer.js` treats the two as one faith, so any Akatosh chapel in Bruma will hear
+him. Every character on the server has somewhere to pray.
 
 **The picker is built** (2026-09-20 13:40): front widget `deityPicker`, id 36, offered automatically to
 any character out of the race menu with no god, and reopened with `/deity`. The **first choice is free
@@ -94,8 +97,8 @@ reachable shrines in Bruma county before any of this work:**
 | **every Daedric Prince** | — | — | **0 at the time** |
 
 That last row was true until 20 September, when a statue of every Prince went in at the Namira site
-and was wired to an activator. Fourteen of the sixteen now have exactly one reachable shrine; see the
-note at the top.
+and was wired to an activator. **All sixteen** now have exactly one reachable shrine; see the note at
+the top.
 
 The Cyrodiil wayshrines were added to the Divines anyway, because a wayshrine is a shrine a traveller
 will walk up to. Note that **seven of the nine are base objects with no placement at all**: only

@@ -361,6 +361,28 @@
         }
       ]
     },
+    "Skyrim.esm:01C4E8": {
+      "names": [
+        "Clavicus Vile"
+      ],
+      "editorId": "DA03ClavicusVileShrine",
+      "type": "TACT",
+      "isBaseObject": true,
+      "placements": 2,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BF9",
+          "where": "BSHeartland",
+          "pos": [
+            94521.9,
+            193547.5,
+            2328.8
+          ]
+        }
+      ]
+    },
     "Skyrim.esm:0D9881": {
       "names": [
         "Dibella",
