@@ -78,6 +78,9 @@ ambush check) rather than running a sweep. Two things about a bot that cost peop
 
 - **Move a bot with `bot.driveTo(pos, radius)`, not by setting `warper`.** `tickTravel` steers back towards
   `bot.home` on every tick, so a warper set from outside is undone on the next one. `driveTo` moves both.
+- **A spawned NPC carries no inventory.** A createActor for an npc has no inventory in props - only the
+  bot's own character does - so a bot cannot see what an actor is holding or wearing. The observable for
+  that is the SpSnippet traffic, which is how the server drives EquipItem on an npc.
 - **A bot cannot reach anything down a cell chain.** It has no engine, so it never walks through a load
   door: interior cells have their own coordinate space, and a bot only ever moves inside the cell or
   worldspace the server last put it in. Anything behind a second door - a deeper dungeon room, an ambush

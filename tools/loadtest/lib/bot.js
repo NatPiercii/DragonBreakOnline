@@ -455,9 +455,19 @@ class Bot {
       if (this.warper && !this.warper.done) return;
       const dist = Math.hypot(this.walker.pos[0] - d.doorPos[0], this.walker.pos[1] - d.doorPos[1]);
       if (dist > (this.cfg.entranceReach || 500)) {
-        this.warper = new Warper(this.walker.pos, d.doorPos, this.cfg.warpStep);
+        // driveTo, not a bare warper: tickTravel steers back towards home every tick, so the two used to
+        // fight and the bot pressed claim while the server still had it up to a warp step away. dungeons.js
+        // refuses a claim from beyond 2,500 units, which is what 6 of 20 claims died of before this.
+        this.driveTo(d.doorPos, 300);
         return;
       }
+      // One more movement tick before claiming, so the server has the arrival and not the step before it
+      this.dungeonState = 'arrived';
+      this.dungeonDeadline = now + 600;
+      return;
+    }
+    if (this.dungeonState === 'arrived') {
+      if (now < this.dungeonDeadline) return;
       this.dungeonState = 'activate';
       return;
     }

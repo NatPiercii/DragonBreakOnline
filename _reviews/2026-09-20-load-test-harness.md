@@ -361,6 +361,40 @@ No false fire on the 48 zones' npcs standing still in the same world, and none o
 they crossed the threshold. `--drift-axis x` walks a hosted actor out of its zone instead, for the
 `strayed` path.
 
+### Twenty doors at once: the live-NPC budget runs out and dungeons come up empty
+
+Re-run against the evening build (ambush, `90bfec3`, plus the refusal logging in `73fb0e5`), 100 bots, 20
+dungeon doors claimed at once. Two results, and the second is the important one.
+
+**Refusals now say why, and the first run's said it was my bug.** 14 claims granted, 6 refused, and all six
+read `claim from beyond 2500 units of the entrance`: the bots pressed claim while the server still had them
+a warp step short of the door, because `tickTravel` was steering each one back towards its home patch while
+the dungeon code warped it to the door. Fixed (`driveTo` plus one settle tick before the claim); the
+verification run claimed **21 of 21** doors with zero distance refusals, the 14 refusals it did log being
+honest ones - `claimed by another party for 56 more min`, from the previous run's leases.
+
+**With enough leases open, a claim pre-spawns nothing.** Every one of the seven doors claimed in the second
+run reported `0 prespawned` - Underpall with 69 enemies, Anga with 21, Fort Caractacus with 15, all zero.
+The cause is the live-NPC budget: `zone-spawns.json` sat at exactly **150**, the default `npcLiveBudget`,
+with the log repeating `budget of 150; 'dungeon:CYRSedorLocation:10' waits for room`. Fourteen leases from
+the earlier run were still holding about 142 actors, and wildlife wanted the rest.
+
+The failure mode matters more than the number:
+
+- Nothing errors. The claim succeeds, the party is moved in, and the claim line still reads
+  `15 enemies, 0 prespawned` - a phrase nobody would notice in a log.
+- The party walks into an **empty dungeon**, and enemies trickle in only as other actors despawn
+  elsewhere in the world.
+- **Fourteen concurrent leases is enough to exhaust it** in the Bruma playtest. `SCALING_NOTES.md` already
+  says 150 "is a playtest number" and that the right value is expected players times NPCs a player should
+  see; this is the measured threshold behind that sentence.
+- The ambush change softens it by accident, not by design: it holds 68 of 210 actors back (32%) until a
+  player is inside the radius, which frees budget for other leases but also means a late claimant's
+  ambushers may be what finally spawns.
+
+Raising `npcLiveBudget` is one line in `server-settings.json` and needs a restart. Before raising it, watch
+memory and change-form count, which is the cost the budget exists to bound.
+
 ### What the harness cannot see, and what that means for the 100-player night
 
 - **Bots run no AI.** `--host-npcs` now reproduces the *traffic* of hosting (measured above) but not the

@@ -247,6 +247,14 @@ class Sandbox {
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error('sandbox server exited with code ' + child.exitCode + ', see ' + this.logPath);
       if (this.isReady()) {
+        // Two sessions starting a sandbox at once means one loses the port and dies while the other serves.
+        // Reporting 'up, pid N' for the loser sent a whole run's bots at a server that was already gone, so
+        // the pid that owns the port has to be the pid we spawned.
+        const owner = await portOwner(this.port);
+        if (owner && owner !== child.pid) {
+          throw new Error('another process (pid ' + owner + ') already owns port ' + this.port +
+            '; the server started here (pid ' + child.pid + ') is not the one serving. Stop the other first.');
+        }
         this.log('sandbox server ready after ' + Math.round((Date.now() - (deadline - (timeoutMs || 180000))) / 1000) + ' s');
         return child.pid;
       }
@@ -289,5 +297,18 @@ function copyFile(src, dst) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Which pid holds a UDP port, so a start can prove it is the one serving
+function portOwner(port) {
+  return new Promise((resolve) => {
+    const ps = spawn('powershell', ['-NoProfile', '-Command',
+      '(Get-NetUDPEndpoint -LocalPort ' + port + ' -ErrorAction SilentlyContinue).OwningProcess'],
+      { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    ps.stdout.on('data', (d) => { out += d; });
+    ps.on('close', () => { const n = parseInt(String(out).trim().split(/s+/)[0], 10); resolve(Number.isFinite(n) ? n : 0); });
+    ps.on('error', () => resolve(0));
+  });
+}
 
 module.exports = { Sandbox, BUNDLE };

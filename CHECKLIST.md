@@ -417,6 +417,26 @@ no bot has ever logged into the live server on 7777.**
     about the cleanup shows in this repo. A residue grep for `9000[0-9][0-9]` matched 10 files and was a red
     herring - floating-point coordinates like `110.9000015258789`, present in the pre-run snapshot too. The
     check that means something is `"profileId": 9000xx`, and that was zero.
+- [x] **20-door refusal check against the evening build** (ambush `90bfec3` + refusal logging `73fb0e5`).
+  It found a gameplay problem worth acting on:
+  - **A claim pre-spawns nothing once the live-npc budget is full.** Every one of the seven doors claimed in
+    the second run reported `0 prespawned` - Underpall with 69 enemies, Anga with 21, Fort Caractacus with
+    15, all zero. `zone-spawns.json` sat at exactly **150**, the default `npcLiveBudget`, with the log
+    repeating `budget of 150; 'dungeon:CYRSedorLocation:10' waits for room`. **Fourteen concurrent leases
+    exhaust it.** Nothing errors: the claim succeeds, the party is moved in, the line still reads
+    `N enemies, 0 prespawned`, and the party walks into an empty dungeon while enemies trickle in as other
+    actors despawn elsewhere. `SCALING_NOTES.md` already calls 150 a playtest number; this is the measured
+    threshold behind that sentence. Raising it is one line plus a restart - watch memory and change-form
+    count, which is the cost the budget exists to bound.
+  - The ambush change holds back 68 of 210 actors (32%), which softens the budget problem by accident and
+    means a late claimant's ambushers may be what finally spawns.
+  - **The refusal logging earned itself immediately.** First run: 14 granted, 6 refused, and all six said
+    `claim from beyond 2500 units of the entrance` - a harness bug, not a server one (`tickTravel` steered
+    each bot back to its home patch while the dungeon code warped it to the door, so it pressed claim a warp
+    step short). Fixed with `driveTo` plus a settle tick; the verification run claimed **21 of 21** with zero
+    distance refusals, its 14 refusals being honest `claimed by another party for 56 more min` ones.
+  - Fort Caractacus was then claimed on its own for the faction session (15/15 prespawned, 7 `factions:`
+    lines), because on a saturated budget it had spawned nothing and would have told them nothing.
 - [ ] **Still to run**: bots on a second machine for real bytes/s without the relay hop.
 
 ## Added 2026-09-20 (13:30): every scale term in weightOf is live, and the offsets were measured
