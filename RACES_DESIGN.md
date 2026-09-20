@@ -42,9 +42,23 @@ every race now wins from DLE with the intended totals.
   magicka and stamina (`DBO_PlayerOffsets.pas`). So the script writes **target minus 50**; carry weight and
   the regen rates are absolute. Vanilla differentiates races only through abilities, never through DATA,
   which is why this spread is entirely new information.
-- **`Unarmed Damage` is already 10 for Khajiit and Argonian against 4 for everyone else**, and
+- **`Unarmed Damage` was already 10 for Khajiit and Argonian against 4 for everyone else**, and
   `TES5DamageFormulaImpl::CalcUnarmedDamage` returns exactly this field. Khajiit claws were server-
-  authoritative before any of this. The pass leaves the field untouched.
+  authoritative before any of this. **Khajiit raised to 14 on 2026-09-20 11:36**, Argonian left at 10:
+  the two were identical, and since Night Eye is client-side cosmetic that left Khajiit with **no
+  server-enforceable trait of their own at all** while Argonian also carried a 50% disease resist.
+  Rawlith Khaj is the iconic set of claws, so the split goes their way. The field sits outside the
+  300 stat budget, so it costs Khajiit nothing elsewhere.
+
+  **Deliberately not given a resistance.** Khajiit have none in Skyrim, Oblivion or Morrowind; their
+  identity across the series is agility and stealth, not resilience. Inventing one would be the same
+  mistake as Imperious halving fire resist - balancing the sheet at the cost of the lore.
+
+  **If their second trait ever goes on the agility axis** (Imperious's "Feline Agility", 15% faster),
+  note that it will fight the movement rate validation: that C++ work uses a flat
+  `maxHorizontalSpeed: 1000` for everyone, so a race that legitimately moves faster trips a flat
+  ceiling and gets snapped back. The ceiling needs to be per-race or carry a margin, and it is far
+  cheaper to say so while the binary is still unbuilt than to debug "Khajiit keep rubber-banding".
 
 A third, incidental: the Player NPC_ record's `RACE` is **NordRace**, which proves rather than infers where
 `PowerNordBattleCry` on a non-Nord character comes from.
@@ -55,12 +69,19 @@ correct; it is not a sign of double application.
 
 ### The spread as written
 
-Imperious's spread, taken as-is. It is roughly 15-20 either side of vanilla's flat 100, which is meaningful
-next to `vanillaLevel`'s +10 per level to a cap of 5 (section 4) without swamping it.
+Imperious's spread, with three races retuned by Nat on 2026-09-20 (bold below, re-run at 11:15 and verified).
+It is roughly 15-20 either side of vanilla's flat 100, which is meaningful next to `vanillaLevel`'s +10 per
+level to a cap of 5 (section 4) without swamping it.
+
+**Every race sums to exactly 300**, which Imperious held to and Nat's three edits preserve. Treat that as the
+invariant when retuning: move points between a race's own three stats, never add to the total. What the
+edits changed in the pecking order - **Redguard takes the stamina crown at 120** (Orc had it at 115),
+**Orc ties Nord for the most health at 110** and gives up the stamina lead, and **Altmer goes further out on
+its own axis**, 120 magicka against 90/90 physical, the most lopsided sheet in the game.
 
 | Race | Health | Magicka | Stamina | H regen | M regen | S regen | Carry |
 |---|---|---|---|---|---|---|---|
-| Altmer | 90 | 115 | 95 | 0.5% | 3.75% | 4.5% | 250 |
+| Altmer | 90 | **120** | **90** | 0.5% | 3.75% | 4.5% | 250 |
 | Argonian | 100 | 95 | 105 | 0.5% | 3.0% | 5.0% | 325 |
 | Bosmer | 95 | 100 | 105 | 1.0% | 3.0% | 5.0% | 275 |
 | Breton | 95 | 105 | 100 | 0.75% | 3.125% | 4.75% | 300 |
@@ -68,8 +89,8 @@ next to `vanillaLevel`'s +10 per level to a cap of 5 (section 4) without swampin
 | Imperial | 100 | 100 | 100 | 1.0% | 3.0% | 5.0% | 300 |
 | Khajiit | 90 | 105 | 105 | 0.5% | 3.125% | 5.25% | 300 |
 | Nord | 110 | 85 | 105 | 0.75% | 2.875% | 5.25% | 325 |
-| Orc | 105 | 80 | 115 | 1.0% | 2.75% | 5.5% | 350 |
-| Redguard | 100 | 90 | 110 | 0.75% | 2.875% | 5.25% | 325 |
+| Orc | **110** | 80 | **110** | 1.0% | 2.75% | 5.5% | 350 |
+| Redguard | 100 | **80** | **120** | 0.75% | 2.875% | 5.25% | 325 |
 
 Base stats are read per actor at spawn, so a live character picks up a changed race record on its next
 login - no wipe, no migration.
@@ -87,7 +108,7 @@ as `masteryDamageMult`, keyed on the target's `appearance.raceId`.
 | Breton | **25% magic resist** - all elements and spell damage |
 | Dunmer | **50% fire resist** |
 | Imperial | Gold found on bodies and in containers raised; hook `loot.js`, not the damage path |
-| Khajiit | Unarmed claw damage - **already honoured**, `TES5DamageFormula` reads the race's unarmed damage |
+| Khajiit | Unarmed claw damage at **14** against Argonian's 10 and everyone else's 4 - **already honoured**, `TES5DamageFormula` reads the race's unarmed damage. No resistance, deliberately (section 2). |
 | Nord | **50% frost resist** |
 | Orc | **15% magic resist** (restored, see below) plus weapon damage up / enchantment strength down (Imperious's "Strength of Steel", lore-true for orcish smithing) |
 | Redguard | 50% poison resist |
