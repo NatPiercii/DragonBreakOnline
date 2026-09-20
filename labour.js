@@ -111,6 +111,18 @@ module.exports = (api) => {
     return out;
   };
 
+  // The band an ore sits in, 0..4: the tier that first lists it. This is the `value` the point system
+  // weighs a mining round by (skillPoints.weightOf, "ore band 0..4" — 1.0 units for copper, 2.0 for
+  // ebony). An ore absent from oreByTier cannot be mined at all (oresUpTo refuses it), so the 0 here
+  // is only a floor.
+  const oreBand = (ore) => {
+    const byTier = MINER.oreByTier || [];
+    for (let i = 0; i < byTier.length; i++) {
+      if ((byTier[i] || []).some((o) => String(o).toLowerCase() === ore)) return i;
+    }
+    return 0;
+  };
+
   const tierValue = (list, tier, fallback) => {
     const arr = Array.isArray(list) ? list : [];
     const v = Number(arr[Math.min(Math.max(tier, 0), arr.length - 1)]);
@@ -308,7 +320,15 @@ module.exports = (api) => {
       return finish(a, round, false, text, 'lose');
     }
 
-    try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('activate', a, { refrId: round.refId }); } catch (e) { /* no skill system */ }
+    // A finished round is its own event kind, not a bare 'activate': 'mine' is weighed by the ore band
+    // and 'chop' is flat 1.0, against 0.5 for touching a thing. Emitting 'activate' here made the ore
+    // band in skillPoints.weightOf dead code and cost a Novice miner twenty separate veins.
+    try {
+      if (typeof globalThis.__alduinakMasteryEvent === 'function') {
+        if (round.kind === 'mining') globalThis.__alduinakMasteryEvent('mine', a, { refrId: round.refId, value: oreBand(round.ore) });
+        else globalThis.__alduinakMasteryEvent('chop', a, { refrId: round.refId });
+      }
+    } catch (e) { /* no skill system */ }
 
     let text = '';
     if (round.kind === 'mining') {

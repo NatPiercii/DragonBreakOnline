@@ -636,6 +636,7 @@ mp.onActivate = (targetId, casterId) => {
   } catch (e) { }
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboPrayerActivate && globalThis.__dboPrayerActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboCoinPurse && globalThis.__dboCoinPurse(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
@@ -1183,6 +1184,7 @@ registerChatCommand('selftest', (a) => {
     ['playtest lock', typeof globalThis.__dboPlaytestGate === 'function'],
     ['reading', typeof globalThis.__dboReadBook === 'function'],
     ['skinning', typeof globalThis.__dboSkin === 'function'],
+    ['prayer', typeof globalThis.__dboPrayerActivate === 'function'],
   ];
   const bad = rows.filter((r) => !r[1]).map((r) => r[0]);
   personal(a, bad.length ? `NOT wired: ${bad.join(', ')}.` : 'Every system is wired.');
@@ -1411,7 +1413,9 @@ onUi('reading', (a, args) => {
   const results = [];
   if (win) {
     const tier = ses.tier;
-    try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('activate', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
+    // 'read', not 'activate': a finished reading round is worth 1.0 units against 0.5 for opening a
+    // book. Same correction as the mining/chopping rounds in labour.js.
+    try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     if (ses.baseId && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) results.push(`you copy out ${ses.title} and keep it`);
@@ -2034,6 +2038,13 @@ try {
   require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF });
 } catch (e) { log('labour.js failed to load:', e.stack || e.message); globalThis.__dboLabour = null; }
 
+// ---- shrines, deities and prayer (server\prayer.js, config "prayer", skills.json deities/praying)
+try {
+  const PRAYER_JS = path.resolve('prayer.js');
+  delete require.cache[PRAYER_JS];
+  require(PRAYER_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, skills: SKILLS_DEF });
+} catch (e) { log('prayer.js failed to load:', e.stack || e.message); globalThis.__dboPrayerActivate = null; }
+
 // ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
 try {
   const PLAYERMENU_JS = path.resolve('playermenu.js');
@@ -2055,6 +2066,8 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
+
 
 
 

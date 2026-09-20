@@ -1,5 +1,132 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (11:00): mining is weighed as mining, and prayer exists
+
+Unattended run, nobody online, no lease open. Server restarted 10:39:10, **18 `[error]` lines, the known
+baseline**, `[skills] ready: 18 skills`. Everything below is verified by harness and by log line;
+**nothing is verified in play, because nobody was in the game.**
+
+### Mining and chopping report the kind the point system actually weighs
+
+`labour.js` emitted `'activate'` when a round completed - flat 0.5 units - so `weightOf`'s `'mine'` case
+(1.0 to 2.0 by ore band) was dead code and a Novice miner cost twenty separate veins. **It needed a TS
+rebuild, not just a hot reload**, which the queue asked me to say plainly: `enqueue()` drops any kind
+outside `ACTIVITY_KINDS`, and `matches()` had no case for `mine`/`chop`, so emitting `'mine'` alone would
+have credited *nothing at all* - strictly worse than the bug.
+
+- [x] `masterySystem.ts`: `mine`, `chop` and `read` added to `ACTIVITY_KINDS`; `matches()` falls through
+  to the `activate` case for all three (same reach, same prefix and type rules); `indexCandidates()` adds
+  them wherever it adds `activate`. `tsc --noEmit` clean, **110/110 skillPoints maths checks still pass**,
+  all four changes verified in the **minified** bundle before deploying.
+- [x] **The wider bug behind it: `weightOf`'s `value` was never passed by anyone.** Both call sites read
+  `P.weightOf({ kind: ev.kind })` with no value, so *every* kind sat at its `v = 0` base - craft 0.5
+  whatever the product is worth, kill/hit 0.5 whatever the target's health, cast 0.5 whatever the magicka
+  cost, hurt 0.5 whatever the damage. Every scaling term in that function was dead, not just the ore band.
+  Both call sites now pass `ev.detail["value"]`; an emitter that sends none still gets the old base, so
+  only mining changes today. **Craft, kill, hit, hurt and cast still emit no value and are still flat** -
+  that is the next weight-tuning job and it is gamemode/TS work, not design work.
+- [x] `labour.js`: a finished round emits `'mine'` with the ore band (0..4, the index in
+  `miner.oreByTier`) as `value`, or `'chop'`. Copper 1.0 units, ebony 2.0, chopping 1.0, against 0.5 for
+  everything before. A Novice level is 10 units, so a Novice miner is now **10 copper veins, not 20**.
+- [x] `gamemode.js:1414`: the reading mini-game emitted `'activate'` too; now `'read'` (1.0). Same one-line
+  bug, same fix, included because it is the same rebuild. The coin purse at `:1486` stays `'activate'` -
+  there is no better kind for it.
+- [x] `tests\labour-harness.js` grew five cases: the kind, the ore band as `value`, the refrId, `chop`,
+  and that a *refused* round emits nothing. **All 37 checks pass.**
+
+### Shrines, deities and prayer - built end to end, untested in play
+
+- [x] **`server\prayer.js`** (new, hot-reloads like `labour.js`): the shrine index, the own-shrine rule,
+  the three-verse hold, the blessing roll, the per-shrine hour, the conversion cooldown, and
+  `__alduinakMasteryEvent('prayer', a, { refrId })` on a completed prayer. Hooked into the activate chain
+  right after `__dboLabour`; a target that is not a shrine `return false`s and the chain carries on, per
+  `gamemode-activate-chain-runs-before-systems`. Boots: `prayer on: 21 deities, 33 shrine ids, 9 reachable
+  under the region lock`. Added to `/selftest`.
+- [x] **Front widget `prayer`** (id 35), `fork\skymp5-front\src\features\prayer`. Built, deployed to both
+  `Skyrim Special Edition - dev\Data\Platform\UI\` and `server\client-dist\...`, both greps confirm
+  `prayer__shrine` in the deployed bundle; backup in `_ui-build-backups\before-prayer-20260920-103728`.
+  **No client rebuild was needed** - `dboRelayService` passes a widget payload through verbatim, so the
+  three-hop rule does not bite a widget with no typed client mirror.
+- [x] **`tests\prayer-harness.js`** (new), the same pattern as the labour harness: 37 checks, all passing.
+  It covers the honest hold, a 300 ms flicker forgiven and a 3 s release refused, a report that outruns
+  the server's clock, one played in slow motion, one that arrives ten minutes late, spans that overlap,
+  leave the round, are fractional, are still open at the report, start late, or flood; a replayed nonce;
+  the shrine's hour; the conversion cooldown and the blessing taken back on conversion; a round surviving
+  a gamemode reload; and a shrine named by reference not matching its base's other statues.
+
+### Three things the deity design said that were not true
+
+`DEITY_DESIGN.md` was written at 03:10 from a reading of the data rather than a measurement of it. All
+three are corrected in the doc, with the measurement beside them.
+
+- **"Every shrine id in skills.json is a Skyrim shrine, so prayer is unreachable under the Bruma lock."**
+  **No.** The ids are *base objects*, and Beyond Skyrim Cyrodiil places the vanilla Skyrim shrine bases
+  through its own chapels. `ShrineofAkatosh` stands 39 times, 17 inside the lock, one in
+  `CYRBrumaCathedralofStMartin`. **All nine Divines already had reachable shrines in Bruma county.**
+  There was no blocker.
+- **"The choices list holds only the nine Divines."** **No.** It has held 21 entries since `60eabb7` on
+  2026-09-16, including eleven Princes. The doc was written from `praying.shrines`, a nine-entry duplicate
+  index sitting beside the real list. That duplicate is now labelled; `deities.choices` is what the server
+  reads.
+- **"The Divines have vanilla `BlessingOf*` spells."** **No such record exists anywhere in this load
+  order.** The real one is `Altar<Deity>Spell`. Fifteen of the 21 deities have one; six do not.
+
+### The census the above rests on
+
+- [x] **`ck-mcp\shrines.py`** (new) writes **`server\shrine-placements.json`**: for every shrine named in
+  `skills.json`, how many REFRs place it, how many are inside `playtest.allowedWorlds`, and how many are
+  in Bruma county (the only released, walkable part of BS Cyrodiil - Kvatch is in the plugin and is not).
+  Re-run it with `py ck-mcp\shrines.py` whenever the load order changes.
+- **Not one Daedric Prince has a shrine in Bruma county.** Nine of eleven have one somewhere; Mehrunes
+  Dagon and Molag Bal have none placed at all. Under the region lock, only the Divines can be prayed to.
+- Seven of the nine Cyrodiil wayshrine bases (`BSHeartland.esm:061B53`-`061B5A` bar Dibella) have **zero
+  placements**. They were added to the Divines anyway - correct bases, no cost - but they were never the
+  thing that made prayer reachable.
+- **A shrine id may be a base or a reference and both are deliberate.** Meridia names the Kilkreath REFR
+  on purpose (this file, 2026-09-14) because its base `DA09MeridiaStatue` also stands four times in
+  `CYRCrowhavenBurialHalls` as scenery. `prayer.js` indexes both and matches the reference first; a first
+  pass that "fixed" Meridia to its base was reverted when this entry was found.
+
+### skills.json, changed and read at boot
+
+- [x] Every Divine's `shrines` is a list holding the Skyrim base and the Cyrodiil wayshrine.
+- [x] `conversionCooldownDays` 30 -> **7**.
+- [x] `blessing` is now a real form id on the 15 deities that have one, with `blessingEditorId` beside it;
+  the other six keep their `<author: ...>` placeholder and a prayer to them logs "no spell record".
+- [x] Every choice carries measured `placements` / `inPlaytest` / `inBruma`, so a picker can grey out a
+  god nobody can reach without re-deriving anything.
+- Backup: `skills.json.bak-20260920-102553`. **This is a live file outside git.**
+
+### Not done, and why
+
+- [ ] **Unarmed's five marker spells** (`DBO_Skill_unarmed_T1..T5`) - boot still says
+  `5 marker spell(s) missing`. **I stopped at the measurement.** `ck-mcp\markerspells.py` (new) dumps the
+  exact record: an **empty Ability** - `EDID`, zeroed `OBND`, `FULL` = "Skill: <id> tier <n>",
+  `ETYP 443f0100`, empty `DESC`, `SPIT` type 4 / ConstantEffect / Self / cost 0 / no perk, `EFID` null and
+  a zeroed `EFIT`. No magic effect at all; it exists only to be a `HasSpell` condition target. 85 of them
+  live at `DragonBreak Online Edits.esp:111270`-`1112C4`, contiguous, and the shrine activators start at
+  `1112C5`. So the write is `wbCopyElementToFile(DBO_Skill_onehanded_T<n>, target, AsNew, Deep)` five
+  times with a new EDID and FULL. **I did not run it** because headless SSEEdit still needs a
+  `BM_CLICK` on the Module Selection dialog that once cost an 8-hour hang, a plugin edit must be copied
+  into `server\data\` *and* the dev Data with node stopped, and the payoff is currently zero - nothing
+  authors a `HasSpell` condition on Unarmed yet. Worth folding into the next xEdit pass, alongside the
+  six Daedric blessing SPELs.
+- [ ] **The deity picker after the race menu** (Nat's brief) - front work, not built. `/deity <name>`,
+  said while standing at that god's shrine, is the stopgap and is the only way to take a god today.
+- [ ] **Nothing knelt at a shrine.** The whole prayer path is harness-verified and log-verified only.
+  First in-game test: stand at any shrine in Bruma Cathedral of St Martin, expect the widget; the boot
+  line and `prayer held/refused(...)` in `server.log` are the instruments.
+- [ ] Left alone deliberately: the native build, the starting-spell bug, the join path,
+  `Refr pointer expired`, bot load testing. Nothing here was pushed to git.
+
+### Two observations worth a look, not acted on
+
+- **Widget id 33 is used twice**: `gamemode.js` `SKIN_WIDGET_ID = 33` and `labour.js` `WIDGET_ID = 33`.
+  Sharing one modal slot may well be deliberate, but opening one while the other is live would replace
+  the widget and strand the first session server-side. Prayer took 35 to stay clear of it.
+- **Tin and stalhrim can never be mined.** Both are in `labour.js`'s `ITEMS` and `oreYieldByOre` but in no
+  tier of `miner.oreByTier`, and `oresUpTo()` refuses anything absent from that list.
+
 ## Added 2026-09-20 (03:15): unarmed, combat openings, the Lorkhan menu pass and the racial stat spread
 
 All four shipped and deployed in one client/front/server/plugin round. Server restarted 02:53:20, boots

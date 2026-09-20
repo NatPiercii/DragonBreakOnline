@@ -32,8 +32,12 @@ const records = new Map([
 props.set(VEIN + '|baseDesc', VEIN_BASE);
 props.set(BLOCK + '|baseDesc', BLOCK_BASE);
 
-const out = { widgets: [], logs: [], audits: [], items: [], personals: [] };
+const out = { widgets: [], logs: [], audits: [], items: [], personals: [], events: [] };
 const handlers = new Map();
+
+// The skill system's entry point, mocked: a completed round must emit the kind the point system
+// actually weighs, with the scale term that kind asks for (skillPoints.weightOf).
+globalThis.__alduinakMasteryEvent = (kind, actorId, detail) => out.events.push({ kind, actorId, detail });
 
 const api = {
   mp: {
@@ -114,9 +118,9 @@ const openRound = (kind, tier) => {
 
 const report = (w, strikes, at, lagMs, start) => {
   virtual = start + at + (lagMs === undefined ? 120 : lagMs);
-  out.logs.length = 0; out.items.length = 0; out.audits.length = 0; out.widgets.length = 0;
+  out.logs.length = 0; out.items.length = 0; out.audits.length = 0; out.widgets.length = 0; out.events.length = 0;
   fire('labour', [w.nonce, typeof strikes === 'string' ? strikes : JSON.stringify(strikes), at]);
-  return { log: out.logs.join(' | '), items: out.items.slice(), audit: out.audits.slice(), result: out.widgets[0] };
+  return { log: out.logs.join(' | '), items: out.items.slice(), audit: out.audits.slice(), result: out.widgets[0], events: out.events.slice() };
 };
 
 // ---- cases ---------------------------------------------------------------------------------------
@@ -282,6 +286,34 @@ check('chopping round judged the same way', hitsOf(res.log) === `${p.hits}/20/${
 const seen = new Set();
 for (let i = 0; i < 20; i++) { virtual = 11000000 + i * 100000; const rr = openRound('mining', 2); seen.add(JSON.stringify(rr.w.bands)); }
 check('every round gets its own band sequence', seen.size === 20, `${seen.size} distinct of 20`);
+
+// 19. a finished round emits the kind the point system weighs, with the ore band as its value.
+// Emitting 'activate' here (flat 0.5) left the ore band in skillPoints.weightOf dead code.
+const SKILLS = require(path.join(SERVER, 'skills.json'));
+const BY_TIER = (SKILLS.skills.find((k) => k.id === 'miner') || {}).oreByTier || [];
+const bandOf = (ore) => BY_TIER.findIndex((t) => (t || []).some((o) => String(o).toLowerCase() === ore));
+
+virtual = 13000000; r = openRound('mining', 4); w = r.w;
+p = play(w, { aim: 0.5 });
+res = report(w, p.strikes, p.at, 100, 13000000);
+const ev = res.events[0] || {};
+check('a mined vein emits "mine", not "activate"', verdictOf(res.log) === 'win' && ev.kind === 'mine',
+  `kind=${ev.kind} events=${res.events.length}`);
+check('the ore band rides along as the weight\'s value', ev.detail && ev.detail.value === bandOf('iron'),
+  `value=${ev.detail && ev.detail.value} want ${bandOf('iron')} (iron)`);
+check('the vein is still named by its reference', ev.detail && ev.detail.refrId === VEIN, JSON.stringify(ev.detail));
+
+virtual = 13200000; r = openRound('chopping', 0); w = r.w;
+p = play(w, { aim: 0.5 });
+res = report(w, p.strikes, p.at, 100, 13200000);
+const ev2 = res.events[0] || {};
+check('a split block emits "chop"', verdictOf(res.log) === 'win' && ev2.kind === 'chop',
+  `kind=${ev2.kind} events=${res.events.length}`);
+
+virtual = 13400000; r = openRound('mining', 4); w = r.w;
+res = report(w, [1, 2, 3], 3, 100, 13400000);
+check('a refused round emits nothing at all', verdictOf(res.log) !== 'win' && res.events.length === 0,
+  `${res.events.length} event(s)`);
 
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

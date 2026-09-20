@@ -860,17 +860,44 @@
     }
   ],
   "praying": {
-    "_comment": "Anyone can pray, but only at a shrine of the deity chosen after character creation. Other shrines answer with a notice and no roll. Priests get better odds and skill progress.",
+    "_comment": "Anyone can pray, but only at a shrine of the deity chosen after character creation. Other shrines answer with a notice and no roll. Priests get better odds and skill progress. server\\prayer.js reads deities.choices[].shrines, NOT the shrines map below - that map is kept only as a quick index of the Divines.",
     "shrines": {
-      "Akatosh": "d9883:Skyrim.esm",
-      "Arkay": "71854:Skyrim.esm",
-      "Dibella": "d9881:Skyrim.esm",
-      "Julianos": "d9885:Skyrim.esm",
-      "Kynareth": "d987f:Skyrim.esm",
-      "Mara": "d9887:Skyrim.esm",
-      "Stendarr": "d987d:Skyrim.esm",
-      "Talos": "100780:Skyrim.esm",
-      "Zenithar": "d987b:Skyrim.esm"
+      "Akatosh": [
+        "d9883:Skyrim.esm",
+        "61b52:BSHeartland.esm"
+      ],
+      "Arkay": [
+        "71854:Skyrim.esm",
+        "61b53:BSHeartland.esm"
+      ],
+      "Dibella": [
+        "d9881:Skyrim.esm",
+        "61b54:BSHeartland.esm"
+      ],
+      "Julianos": [
+        "d9885:Skyrim.esm",
+        "61b55:BSHeartland.esm"
+      ],
+      "Kynareth": [
+        "d987f:Skyrim.esm",
+        "61b56:BSHeartland.esm"
+      ],
+      "Mara": [
+        "d9887:Skyrim.esm",
+        "61b57:BSHeartland.esm"
+      ],
+      "Stendarr": [
+        "d987d:Skyrim.esm",
+        "61b58:BSHeartland.esm"
+      ],
+      "Talos": [
+        "100780:Skyrim.esm",
+        "61b59:BSHeartland.esm"
+      ],
+      "Zenithar": [
+        "d987b:Skyrim.esm",
+        "61b5a:BSHeartland.esm"
+      ]
     },
     "cooldownMinutesPerShrine": 60,
     "blessingChance": {
@@ -892,29 +919,42 @@
     ],
     "priestActivityPoint": true,
     "minigame": "hold the prayer key through three verses; releasing early ends the prayer with no roll",
-    "onlyOwnDeity": true
+    "onlyOwnDeity": true,
+    "verses": 3,
+    "verseSeconds": 6,
+    "holdSlackMs": 500
   },
   "deities": {
-    "_comment": "Picked once in a popup right after character creation (server packet deityMenu -> client deityChoose). Stored per character. Praying works only at your own deity's shrines. Conversion: pray at the new deity's shrine with /convert, 30-day cooldown, current blessing removed.",
-    "conversionCooldownDays": 30,
+    "_comment": "Picked once after character creation, or by praying at a shrine while godless (server\\prayer.js offers it). Stored per character in private.dboDeity. Praying works only at your own deity's shrines. Conversion: /deity <name> at that deity's shrine, conversionCooldownDays apart, current blessing removed. The menu key the brief asks for is front work and is not built; /deity is the stopgap.",
+    "conversionCooldownDays": 7,
     "choices": [
       {
         "id": "akatosh",
         "name": "Akatosh",
         "kind": "divine",
         "shrines": [
-          "d9883:Skyrim.esm"
+          "d9883:Skyrim.esm",
+          "61b52:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfAkatosh"
+        "blessing": "fb988:Skyrim.esm",
+        "blessingEditorId": "AltarAkatoshSpell",
+        "placements": 40,
+        "inPlaytest": 18,
+        "inBruma": 3
       },
       {
         "id": "arkay",
         "name": "Arkay",
         "kind": "divine",
         "shrines": [
-          "71854:Skyrim.esm"
+          "71854:Skyrim.esm",
+          "61b53:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfArkay"
+        "blessing": "fb994:Skyrim.esm",
+        "blessingEditorId": "AltarArkaySpell",
+        "placements": 50,
+        "inPlaytest": 8,
+        "inBruma": 4
       },
       {
         "id": "dibella",
@@ -922,64 +962,99 @@
         "kind": "divine",
         "shrines": [
           "d9881:Skyrim.esm",
-          "6c9f1:Skyrim.esm"
+          "6c9f1:Skyrim.esm",
+          "61b54:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfDibella"
+        "blessing": "fb995:Skyrim.esm",
+        "blessingEditorId": "AltarDibellaSpell",
+        "placements": 21,
+        "inPlaytest": 4,
+        "inBruma": 3
       },
       {
         "id": "julianos",
         "name": "Julianos",
         "kind": "divine",
         "shrines": [
-          "d9885:Skyrim.esm"
+          "d9885:Skyrim.esm",
+          "61b55:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfJulianos"
+        "blessing": "fb996:Skyrim.esm",
+        "blessingEditorId": "AltarJulianosSpell",
+        "placements": 21,
+        "inPlaytest": 6,
+        "inBruma": 4
       },
       {
         "id": "kynareth",
         "name": "Kynareth",
         "kind": "divine",
         "shrines": [
-          "d987f:Skyrim.esm"
+          "d987f:Skyrim.esm",
+          "61b56:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfKynareth"
+        "blessing": "fb997:Skyrim.esm",
+        "blessingEditorId": "AltarKynarethSpell",
+        "placements": 23,
+        "inPlaytest": 8,
+        "inBruma": 4
       },
       {
         "id": "mara",
         "name": "Mara",
         "kind": "divine",
         "shrines": [
-          "d9887:Skyrim.esm"
+          "d9887:Skyrim.esm",
+          "61b57:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfMara"
+        "blessing": "fb998:Skyrim.esm",
+        "blessingEditorId": "AltarMaraSpell",
+        "placements": 21,
+        "inPlaytest": 4,
+        "inBruma": 2
       },
       {
         "id": "stendarr",
         "name": "Stendarr",
         "kind": "divine",
         "shrines": [
-          "d987d:Skyrim.esm"
+          "d987d:Skyrim.esm",
+          "61b58:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfStendarr"
+        "blessing": "fb999:Skyrim.esm",
+        "blessingEditorId": "AltarStendarrSpell",
+        "placements": 25,
+        "inPlaytest": 4,
+        "inBruma": 3
       },
       {
         "id": "talos",
         "name": "Talos",
         "kind": "divine",
         "shrines": [
-          "100780:Skyrim.esm"
+          "100780:Skyrim.esm",
+          "61b59:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfTalos",
-        "note": "Illegal under the White-Gold Concordat: a Thalmor or Imperial faction could treat open Talos worship as a crime. RP hook, not a mechanic yet."
+        "blessing": "fb99a:Skyrim.esm",
+        "note": "Illegal under the White-Gold Concordat: a Thalmor or Imperial faction could treat open Talos worship as a crime. RP hook, not a mechanic yet.",
+        "blessingEditorId": "AltarTalosSpell",
+        "placements": 56,
+        "inPlaytest": 6,
+        "inBruma": 4
       },
       {
         "id": "zenithar",
         "name": "Zenithar",
         "kind": "divine",
         "shrines": [
-          "d987b:Skyrim.esm"
+          "d987b:Skyrim.esm",
+          "61b5a:BSHeartland.esm"
         ],
-        "blessing": "BlessingOfZenithar"
+        "blessing": "fb99b:Skyrim.esm",
+        "blessingEditorId": "AltarZenitharSpell",
+        "placements": 23,
+        "inPlaytest": 6,
+        "inBruma": 2
       },
       {
         "id": "auriel",
@@ -988,8 +1063,12 @@
         "shrines": [
           "c86b:Dawnguard.esm"
         ],
-        "blessing": "<author: Blessing of Auriel>",
-        "note": "Snow-elf faith; shrine is inside the Forgotten Vale."
+        "blessing": "11360:Dawnguard.esm",
+        "note": "Snow-elf faith; shrine is inside the Forgotten Vale.",
+        "blessingEditorId": "DLC1AltarAurielSpell",
+        "placements": 4,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "malacath",
@@ -999,8 +1078,12 @@
           "5db6:DragonBreak.esp",
           "23bb:DragonBreak.esp"
         ],
-        "blessing": "<author: Boon of Malacath>",
-        "note": "Custom shrine activator placed at six strongholds and Gol-Kharzum."
+        "blessing": "5db8:DragonBreak.esp",
+        "note": "Custom shrine activator placed at six strongholds and Gol-Kharzum.",
+        "blessingEditorId": "AltarMalacathSpell",
+        "placements": 10,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "azura",
@@ -1010,7 +1093,11 @@
           "92492:Skyrim.esm",
           "3a484:Dragonborn.esm"
         ],
-        "blessing": "<author: Boon of Azura>"
+        "blessing": "3bcfb:Dragonborn.esm",
+        "blessingEditorId": "DLC2AltarAzuraSpell",
+        "placements": 7,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "boethiah",
@@ -1019,8 +1106,12 @@
         "shrines": [
           "39e34:Dragonborn.esm"
         ],
-        "blessing": "<author: Boon of Boethiah>",
-        "note": "Vanilla Skyrim shrine is a static; only the Solstheim one activates."
+        "blessing": "3bcfc:Dragonborn.esm",
+        "note": "Vanilla Skyrim shrine is a static; only the Solstheim one activates.",
+        "blessingEditorId": "DLC2AltarBoethiahSpell",
+        "placements": 8,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "mephala",
@@ -1029,7 +1120,11 @@
         "shrines": [
           "3a481:Dragonborn.esm"
         ],
-        "blessing": "<author: Boon of Mephala>"
+        "blessing": "3bcfd:Dragonborn.esm",
+        "blessingEditorId": "DLC2AltarMephalaSpell",
+        "placements": 4,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "mehrunes",
@@ -1038,7 +1133,10 @@
         "shrines": [
           "bf2b6:Skyrim.esm"
         ],
-        "blessing": "<author: Boon of Mehrunes Dagon>"
+        "blessing": "<author: Boon of Mehrunes Dagon>",
+        "placements": 0,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "molagbal",
@@ -1047,7 +1145,10 @@
         "shrines": [
           "c7b72:Skyrim.esm"
         ],
-        "blessing": "<author: Boon of Molag Bal>"
+        "blessing": "<author: Boon of Molag Bal>",
+        "placements": 0,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "nocturnal",
@@ -1056,18 +1157,24 @@
         "shrines": [
           "10e8b0:Skyrim.esm"
         ],
-        "blessing": "BlessingOfNocturnal"
+        "blessing": "10e8ae:Skyrim.esm",
+        "blessingEditorId": "AltarNocturnalSpell",
+        "placements": 2,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "hircine",
         "name": "Hircine",
         "kind": "daedra",
         "shrines": [
-          "1112c6:DragonBreak Online Edits.esp",
-          "1112c7:DragonBreak Online Edits.esp"
+          "1112c5:DragonBreak Online Edits.esp"
         ],
         "blessing": "<author: Boon of Hircine>",
-        "note": "DBO_ShrineOfHircine activators on the Daedric Shrines AIO statues: Falkreath forest (BearCaveMill cell) and Solstheim (Snowclad Ruins)."
+        "note": "DBO_ShrineOfHircine activators on the Daedric Shrines AIO statues: Falkreath forest (BearCaveMill cell) and Solstheim (Snowclad Ruins). Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
+        "placements": 2,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "meridia",
@@ -1077,30 +1184,40 @@
           "4e4d6:Skyrim.esm"
         ],
         "blessing": "<author: Boon of Meridia>",
-        "note": "Vanilla Kilkreath statue (DA09MeridiaStatue, already an activator); the AIO mod replaces its mesh. Vanilla activation is blocked server-side like every shrine."
+        "note": "The vanilla Kilkreath activator, named as a single REFR on purpose (CHECKLIST 2026-09-14): its base DA09MeridiaStatue also stands four times in CYRCrowhavenBurialHalls as scenery, and those must not become shrines. It is in Skyrim, so it is unreachable under the Bruma region lock.",
+        "placements": 1,
+        "inPlaytest": 0,
+        "inBruma": 0,
+        "isReference": true
       },
       {
         "id": "sanguine",
         "name": "Sanguine",
         "kind": "daedra",
         "shrines": [
-          "1112c9:DragonBreak Online Edits.esp",
-          "1112ca:DragonBreak Online Edits.esp"
+          "1112c8:DragonBreak Online Edits.esp"
         ],
         "blessing": "<author: Boon of Sanguine>",
-        "note": "DBO_ShrineOfSanguine activators: the Rift (33,-18) and inside Misty Grove."
+        "note": "DBO_ShrineOfSanguine activators: the Rift (33,-18) and inside Misty Grove. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
+        "placements": 2,
+        "inPlaytest": 0,
+        "inBruma": 0
       },
       {
         "id": "sheogorath",
         "name": "Sheogorath",
         "kind": "daedra",
         "shrines": [
-          "1112cc:DragonBreak Online Edits.esp"
+          "1112cb:DragonBreak Online Edits.esp"
         ],
         "blessing": "<author: Boon of Sheogorath>",
-        "note": "DBO_ShrineOfSheogorath activator in the Hjaalmarch marsh (-12,24) near Morthal."
+        "note": "DBO_ShrineOfSheogorath activator in the Hjaalmarch marsh (-12,24) near Morthal. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
+        "placements": 1,
+        "inPlaytest": 0,
+        "inBruma": 0
       }
-    ]
+    ],
+    "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens."
   },
   "respec": {
     "_comment": "Standing stones are the only place to change your three chosen skills. Activating a stone opens the K menu in respec mode.",
