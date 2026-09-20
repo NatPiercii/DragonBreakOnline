@@ -458,27 +458,136 @@ module.exports = (api) => {
     finish(a, round, true, text, 'win');
   });
 
-  // ── /deity ──────────────────────────────────────────────────────────────────────────────────
-  // The brief puts conversion on a menu key. That menu is front work and is not built; this is the
-  // reachable stopgap, and it keeps the same rule: you turn at the new god's shrine, not anywhere.
   const daysLeft = (faith) => {
     const last = Number(faith && (faith.convertedAt || faith.at)) || 0;
     const ms = last + CONVERSION_DAYS * 86400000 - Date.now();
     return ms > 0 ? Math.ceil(ms / 86400000) : 0;
   };
+
+  // ── the picker ──────────────────────────────────────────────────────────────────────────────
+  // The brief: "a deity picker after the race menu" and "you can only change deity once a week
+  // IRL, by a menu key". So the first choice is free and needs no shrine - a character who has just
+  // finished the race menu is standing in the hub - and a later change is gated only by the
+  // cooldown, not by a pilgrimage. `/deity <name>` keeps the older at-the-shrine rule for anyone
+  // who prefers to type; the menu is the path the brief asked for.
+  const PICKER_ID = 36;
+  const pickerNonce = globalThis.__dboDeityNonce || (globalThis.__dboDeityNonce = new Map());
+  const offered = globalThis.__dboDeityOffered || (globalThis.__dboDeityOffered = new Set());
+
+  const pickerPayload = (a, notice, noticeKind) => {
+    const faith = faithOf(a);
+    const nonce = `${a.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
+    pickerNonce.set(a, nonce);
+    const left = faith ? daysLeft(faith) : 0;
+    return {
+      type: 'deityPicker', id: PICKER_ID, nonce,
+      current: faith ? faith.id : '',
+      first: !faith,
+      daysLeft: left,
+      cooldownDays: CONVERSION_DAYS,
+      canChoose: !faith || left === 0,
+      notice: notice || '',
+      noticeKind: noticeKind || '',
+      choices: DEITIES.map((d) => ({
+        id: d.id, name: d.name, kind: d.kind,
+        sphere: d.sphere || '', boon: d.boon || '',
+        reachable: Number(d.inBruma) > 0,
+        lawful: d.lawful !== false,
+        aspectOf: d.aspectOf || '',
+      })),
+    };
+  };
+  const openPicker = (a, notice, noticeKind) => {
+    const first = !offered.has(a);
+    offered.add(a);
+    const ok = openWidget(a, pickerPayload(a, notice, noticeKind), true);
+    if (first) log(`deity menu ${ok ? 'opened for' : 'REFUSED for'} ${display(a)}${faithOf(a) ? '' : ' (no god yet)'}`);
+    return ok;
+  };
+  globalThis.__dboDeityPicker = (a) => openPicker(a);
+
+  // A character out of the race menu with no god gets the picker; so does an older character who
+  // never had one, which is every character alive today. Watching for it beats hooking creation:
+  // private.creationPending is cleared in a TS system with no gamemode callback, and this covers
+  // the returning player as well as the new one.
+  every('deityPickerOffer', 7000, () => {
+    for (const a of (api.onlineActors ? api.onlineActors() : [])) {
+      try {
+        if (offered.has(a) || faithOf(a)) continue;
+        if (mp.get(a, 'private.creationPending') === true) continue;
+        if (mp.get(a, 'appearance') == null) continue;
+        openPicker(a);
+      } catch (e) { /* not an actor yet */ }
+    }
+  });
+  // Someone who logs out mid-pick should be offered it again next time.
+  globalThis.__dboDeityForget = (a) => { offered.delete(a); pickerNonce.delete(a); };
+
+  // Taking or changing a god. `atShrine` is the older chat path's extra rule and is not applied to
+  // the menu, because the brief moved conversion onto a menu key rather than a pilgrimage.
+  const takeDeity = (a, d, opts) => {
+    const faith = faithOf(a);
+    if (faith && faith.id === d.id) return { ok: false, text: `You already follow ${d.name}.` };
+    if (faith) {
+      const left = daysLeft(faith);
+      if (left) {
+        const mine = deityById(faith.id);
+        return { ok: false, text: `${mine ? mine.name : 'Your god'} is not so easily left. You may turn again in ${left} day${left === 1 ? '' : 's'}.` };
+      }
+    }
+    if (opts && opts.atShrine) {
+      const here = lastShrine.get(a);
+      if (!here || here.deityId !== d.id || Date.now() - here.at > 30000) {
+        return { ok: false, text: `You must stand at a shrine of ${d.name} and touch it, then say this again.` };
+      }
+    }
+    if (faith) clearBlessing(a, null);
+    setFaith(a, {
+      id: d.id, name: d.name, kind: d.kind,
+      at: faith ? Number(faith.at) || Date.now() : Date.now(),
+      convertedAt: Date.now(),
+    });
+    audit(`DEITY ${who(a)} ${faith ? 'turned to' : 'took'} ${d.name}`);
+    return {
+      ok: true, converted: !!faith,
+      text: faith
+        ? `You turn to ${d.name}. The blessing you carried falls away.`
+        : `You take ${d.name} as your own.`,
+    };
+  };
+
+  onUi('deityChoose', (a, args) => {
+    if (String(args[0]) !== pickerNonce.get(a)) return;
+    const d = deityByName(String(args[1] || ''));
+    if (!d) return openWidget(a, pickerPayload(a, 'No god by that name.', 'refused'), false);
+    const r = takeDeity(a, d);
+    openWidget(a, pickerPayload(a, r.text, r.ok ? 'taken' : 'refused'), false);
+    if (r.ok) {
+      const where = Number(d.inBruma) > 0
+        ? `Find a shrine of ${d.name} and use it to pray.`
+        : `${d.name} has no shrine you can reach yet, so there is nowhere to pray until Skyrim opens.`;
+      personal(a, where);
+    }
+  });
+  onUi('deityClose', (a) => { pickerNonce.delete(a); closeWidget(a, PICKER_ID); });
+
+  // ── /deity ──────────────────────────────────────────────────────────────────────────────────
+  // The chat path, kept for anyone who would rather type than click. Bare `/deity` opens the menu.
   registerChatCommand('deity', (a, argStr) => {
     const faith = faithOf(a);
     const arg = String(argStr || '').trim();
     if (!arg) {
+      // Bare /deity is the menu key the brief asked for, until there is a real one.
+      if (openPicker(a)) return;
       const mine = faith ? deityById(faith.id) : null;
       personal(a, mine
         ? `You follow ${mine.name} - ${mine.boon || 'no boon recorded'}${daysLeft(faith) ? ` You may turn to another god in ${daysLeft(faith)} day(s).` : ' You may turn to another god.'}`
-        : 'You hold no god. Stand at a shrine and say /deity <name>.');
+        : 'You hold no god.');
       const list = (kind) => DEITIES.filter((d) => (d.kind === 'divine') === (kind === 'divine'))
         .map((d) => d.name + (Number(d.inBruma) > 0 ? '' : '*')).join(', ');
       personal(a, `Divines: ${list('divine')}`);
       personal(a, `Daedra: ${list('daedra')}`);
-      personal(a, '* no shrine you can reach yet. Say /deity <name> to hear what a god asks and gives.');
+      personal(a, '* no shrine you can reach yet.');
       return;
     }
     const d = deityByName(arg);
@@ -491,24 +600,11 @@ module.exports = (api) => {
         if (d.boon) personal(a, `Boon: ${d.boon}${Number(d.inBruma) > 0 ? '' : ' (no shrine you can reach yet)'}`);
       }
     }
-    if (faith && faith.id === d.id) return personal(a, `You already follow ${d.name}.`);
-
-    const here = lastShrine.get(a);
-    if (!here || here.deityId !== d.id || Date.now() - here.at > 30000) {
-      return personal(a, `You must stand at a shrine of ${d.name} and touch it, then say this again.`);
-    }
-    if (faith) {
-      const left = daysLeft(faith);
-      if (left) {
-        const mine = deityById(faith.id);
-        return personal(a, `${mine ? mine.name : 'Your god'} is not so easily left. You may turn again in ${left} day(s).`);
-      }
-      clearBlessing(a, 'The blessing you carried falls away.');
-    }
-    setFaith(a, { id: d.id, name: d.name, kind: d.kind, at: faith ? Number(faith.at) || Date.now() : Date.now(), convertedAt: Date.now() });
-    personal(a, faith ? `You turn to ${d.name}.` : `You take ${d.name} as your own.`);
-    audit(`DEITY ${who(a)} ${faith ? 'turned to' : 'took'} ${d.name}`);
-  }, { help: 'your god; /deity <name> at that god\'s shrine to take or change it' });
+    // The chat path keeps the pilgrimage: naming a god here means saying it at their shrine. The
+    // menu does not, per the brief. A character with no god yet is not asked to walk anywhere.
+    const r = takeDeity(a, d, { atShrine: !!faith });
+    personal(a, r.text);
+  }, { help: 'open the deity menu; /deity <name> at that god\'s shrine to turn by hand' });
 
   // A blessing id that does not resolve is silent: the prayer succeeds, the roll lands and the
   // worshipper is told the god "gives no sign". Count them at boot so a mistyped form id shows up

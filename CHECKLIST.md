@@ -1,5 +1,75 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (13:40): the deity picker, the last piece of the brief
+
+Front widget `deityPicker` (id 36), built and deployed to both UI folders; `prayer.js` drives it.
+Reloaded 13:37:52, **18 `[error]` lines**, harness **74 checks, all passing**. Backup in
+`_ui-build-backups\before-deitypicker-20260920-133448`. No client rebuild - the relay passes a widget
+payload through verbatim.
+
+- [x] **Two columns of names beside a reading pane**: Divines keyed aqua, Princes amber, the same
+  split the prayer widget uses. Each name carries its marks - **yours**, **no shrine**, **unlawful** -
+  and the pane gives the sphere, the boon, whether there is anywhere to pray, and the aspect line for
+  Auri-El.
+- [x] **The server decides everything.** The widget sends only `dbo:deityChoose <nonce> <id>`; the
+  server judges it and re-sends the whole payload with a notice, so the panel never works anything
+  out for itself and a stale nonce changes nothing. Same contract as the labour and prayer rounds.
+- [x] **Offered by a watcher, not a creation hook.** `private.creationPending` is cleared in a TS
+  system with no gamemode callback, so a 7 s tick offers the menu to any online character who is out
+  of the race menu and holds no god. That covers the new character *and* every existing one, which a
+  creation hook would not have.
+
+### One rule changed, and it is the brief's
+
+**The first god is now free and needs no shrine**; only a later turn is gated. The brief says "a
+deity picker after the race menu" and "you can only change deity once a week IRL, **by a menu key**",
+so conversion through the menu is gated by the **cooldown alone** - no pilgrimage. A character who
+has just left the race menu is standing in the hub and could not reach a shrine anyway.
+
+- `/deity` on its own now **opens the menu**. `/deity <name>` still works and still keeps the older
+  at-the-shrine rule for a *turn*, for anyone who would rather type; a first pick by chat is free too.
+- Two harness cases were testing the old behaviour and were rewritten, not worked around.
+
+- [ ] **A real menu key is still client work.** `/deity` is the key for now. Adding a hotkey means a
+  client rebuild and a player re-download, so it should ride along with the next one rather than
+  cost a relaunch of its own.
+- [ ] **Untested in play, like everything else here.** 74 harness checks and a boot line
+  (`deity menu opened for ...`), and nothing else.
+
+## Added 2026-09-20: headless load-test harness `tools\loadtest` (LIVE, sandbox only)
+
+Answers the daily review's "Load test before any real 100-player night". Full write-up with the numbers:
+`_reviews\2026-09-20-load-test-harness.md`. **No change to `fork\` or `server\` was needed to build it, and
+no bot has ever logged into the live server on 7777.**
+
+- [x] **Bots speak the real protocol.** Each bot drives the game's own `MpClientPlugin.dll` (real SLikeNet
+  client, real `MessageSerializerFactory`) through a small C# host, ten bots per process, each with its own
+  copy of the DLL because it keeps one client in a file-static. Node drives the bot logic; no npm packages,
+  and the C# is built by the `csc.exe` that ships with Windows.
+- [x] **A bot walks the player's path**: offline login with its own profileId (900001+, never 1 or an admin
+  id), character select, arrival report, race menu closed by sending an appearance, out of the hub through
+  a Realm of Lorkhan gate, then waypoints at run speed with `UpdateMovement` every 130 ms, chat every
+  45-150 s, `ChangeValues`, and a dungeon claim (gate widget -> `dungeonClaim`). Verified in the sandbox:
+  Serpent's Trail claimed, 20 enemies prespawned, 88 containers filled, party moved in.
+- [x] **Isolated sandbox** (`node loadtest.js sandbox init`): the same bundle, gamemode and data files on
+  port 7787 with its own world folder, `/metrics` on and plugins hardlinked from `server\data`. It is a
+  snapshot, so it never disturbs the live gamemode and a run measures the code as of the last `init`.
+- [x] **Measured, not guessed**: server tick histogram and event-loop lag from the server's own `/metrics`,
+  CPU and RSS, machine-wide UDP datagram rates, exact message counts and per-type breakdown from the bots,
+  and the gamemode's own `ticks (ms, last 60 s, N online)` lines pulled out of `server.log` per step.
+  Windows has no per-process network byte counter without ETW (measured: 10 MB of UDP on loopback moves
+  `Win32_Process.WriteTransferCount` by 0), so bytes/s needs bots on a second machine.
+- [ ] **The wall is the movement fan-out, and it is quadratic.** Every player in the same 3x3 block of
+  4,096-unit grid squares is a listener (`MpObjectReference.cpp:158`, `WorldState::GetNeighborsByPosition`),
+  and Bruma city fits inside one block, so each player's ~7.1 messages a second are copied to everyone
+  present, including back to the sender (self-subscription is deliberate, `MpObjectReference.cpp:745`).
+  Fixes, cheapest first: stop echoing the sender's own movement; interest management by distance instead of
+  by grid block; a per-listener rate ladder by distance. The last two are C++.
+- [ ] **Re-run after the officials.json cache fix** (6f68fc3): the sweep in the review measures the 18:24
+  snapshot from 2026-09-19, so its `lawful` timer line is the before number.
+- [ ] **Still to run**: `--host-npcs` (bots host and drive the NPCs near them, which is how a real crowd
+  multiplies the fan-out), and a run with the bots on a second machine for real bytes/s.
+
 ## Added 2026-09-20 (13:30): every scale term in weightOf is live, and the offsets were measured
 
 Unattended run, nobody online, no lease open. Server restarted **13:22:58**, **18 `[error]` lines, the

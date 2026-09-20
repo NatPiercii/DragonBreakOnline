@@ -45,6 +45,7 @@ const records = new Map([
 const out = { widgets: [], logs: [], audits: [], personals: [], events: [], papyrus: [] };
 const handlers = new Map();
 const commands = new Map();
+const timers = new Map();
 
 const api = {
   mp: {
@@ -66,12 +67,21 @@ const api = {
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
   registerChatCommand: (name, fn) => commands.set(name, fn),
   onlineActors: () => [ACTOR],
-  every: () => { },                                // the blessing sweep is driven by hand below
+  // The module's timers are captured, not run: the blessing sweep and the picker offer are driven
+  // by hand below so a case can decide exactly when they tick.
+  every: (name, ms, fn) => { timers.set(name, fn); },
   skills: SKILLS,
 };
 globalThis.__alduinakMasteryEvent = (kind, actorId, detail) => out.events.push({ kind, actorId, detail });
 
-const load = () => { delete require.cache[require.resolve(PRAYER)]; handlers.clear(); commands.clear(); require(PRAYER)(api); };
+const load = () => { delete require.cache[require.resolve(PRAYER)]; handlers.clear(); commands.clear(); timers.clear(); require(PRAYER)(api); };
+// Run the picker-offer tick and say whether it put the menu up.
+const faithlessOffered = () => {
+  clear();
+  const fn = timers.get('deityPickerOffer');
+  if (fn) fn();
+  return out.widgets.some((w) => w && w.type === 'deityPicker');
+};
 const fire = (ev, args) => (handlers.get(ev) || []).forEach((f) => f(ACTOR, args, 35));
 const clear = () => { out.widgets.length = 0; out.logs.length = 0; out.personals.length = 0; out.audits.length = 0; out.events.length = 0; out.papyrus.length = 0; };
 
@@ -115,14 +125,20 @@ check('a godless worshipper is told how to take a god', r.ok === true && /\/deit
 check('and no round is opened', !r.w);
 
 // 3. conversion needs the shrine
+// The brief puts the first choice on a picker after the race menu, so it needs no shrine by either
+// route. Turning later, by chat, still means saying it at the new god's shrine; by menu it does not.
 props.delete(ACTOR + '|private.dboDeity');
 let said = say('deity', 'Mara');
-check('taking a god away from its shrine is refused', /must stand at a shrine of Mara/.test(said), said);
+check('a first god may be taken from anywhere', /take Mara as your own/.test(said)
+  && (props.get(ACTOR + '|private.dboDeity') || {}).id === 'mara', said);
 
-// 4. taking a god at its shrine
+// 4. turning by chat
+wallClock += (Number(SKILLS.deities.conversionCooldownDays) + 1) * 86400000;
+said = say('deity', 'Akatosh');
+check('turning by chat still wants the shrine', /must stand at a shrine of Akatosh/.test(said), said);
 activate(AKATOSH_SHRINE);
 said = say('deity', 'Akatosh');
-check('a god taken at its own shrine sticks', /take Akatosh as your own/.test(said)
+check('and lands at it', /turn to Akatosh/.test(said)
   && (props.get(ACTOR + '|private.dboDeity') || {}).id === 'akatosh', said);
 
 // 5. someone else's shrine
@@ -334,6 +350,87 @@ check('no deity claims a blessing spell it does not have',
   SKILLS.deities.choices.every((c) => c.blessingSource !== 'vanilla' || /^[0-9a-f]+:/i.test(String(c.blessing))),
   SKILLS.deities.choices.filter((c) => c.blessingSource === 'vanilla' && !/^[0-9a-f]+:/i.test(String(c.blessing))).map((c) => c.id).join(', '));
 check('Jyggalag is deliberately absent', !SKILLS.deities.choices.some((c) => /jyggalag/i.test(c.id)));
+
+// 22. the picker. The brief wants it after the race menu and again on a menu key, so the first
+// choice is free and needs no shrine, and a later one is gated by the cooldown alone.
+props.delete(ACTOR + '|private.dboDeity');
+props.delete(ACTOR + '|private.dboBlessing');
+props.set(ACTOR + '|appearance', { ok: 1 });
+globalThis.__dboDeityForget(ACTOR);
+
+clear();
+check('the picker opens on demand', globalThis.__dboDeityPicker(ACTOR) === true && !!out.widgets[0]);
+let pick = out.widgets[0];
+check('it is the deityPicker widget and carries the whole roster',
+  pick.type === 'deityPicker' && pick.choices.length === SKILLS.deities.choices.length,
+  `${pick.type}, ${pick.choices.length} choices`);
+check('a godless character is told it is their first', pick.first === true && pick.current === '' && pick.canChoose === true);
+check('every choice carries what the panel shows',
+  pick.choices.every((c) => c.name && c.sphere && c.boon && typeof c.reachable === 'boolean' && typeof c.lawful === 'boolean'));
+check('and nothing it could use to decide for itself',
+  pick.choices.every((c) => c.blessing === undefined && c.shrines === undefined));
+
+// the first pick needs no shrine at all
+clear();
+fire('deityChoose', [pick.nonce, 'kynareth']);
+check('the first god is taken with no shrine anywhere near',
+  (props.get(ACTOR + '|private.dboDeity') || {}).id === 'kynareth', JSON.stringify(props.get(ACTOR + '|private.dboDeity')));
+pick = out.widgets[0];
+check('and the menu comes back saying so', !!pick && pick.noticeKind === 'taken' && /take Kynareth as your own/i.test(pick.notice), pick && pick.notice);
+check('it now reads as the current god', pick.current === 'kynareth' && pick.first === false);
+
+// a stale nonce is ignored
+clear();
+fire('deityChoose', ['not-the-nonce', 'talos']);
+check('a stale nonce changes nothing',
+  (props.get(ACTOR + '|private.dboDeity') || {}).id === 'kynareth' && out.widgets.length === 0);
+
+// inside the cooldown the menu refuses
+clear();
+globalThis.__dboDeityPicker(ACTOR);
+pick = out.widgets[0];
+check('inside the cooldown the menu says so', pick.canChoose === false && pick.daysLeft === SKILLS.deities.conversionCooldownDays,
+  `canChoose=${pick.canChoose} daysLeft=${pick.daysLeft}`);
+clear();
+fire('deityChoose', [pick.nonce, 'talos']);
+check('and refuses the turn', (props.get(ACTOR + '|private.dboDeity') || {}).id === 'kynareth'
+  && out.widgets[0].noticeKind === 'refused', out.widgets[0] && out.widgets[0].notice);
+
+// past it, the turn is allowed from the menu with no pilgrimage
+wallClock += (Number(SKILLS.deities.conversionCooldownDays) + 1) * 86400000;
+clear();
+globalThis.__dboDeityPicker(ACTOR);
+pick = out.widgets[0];
+check('past the cooldown the menu opens it up', pick.canChoose === true && pick.daysLeft === 0);
+clear();
+fire('deityChoose', [pick.nonce, 'talos']);
+check('and the turn needs no shrine either', (props.get(ACTOR + '|private.dboDeity') || {}).id === 'talos'
+  && /turn to Talos/i.test(out.widgets[0].notice), out.widgets[0] && out.widgets[0].notice);
+
+// choosing the god you already hold
+clear();
+globalThis.__dboDeityPicker(ACTOR);
+pick = out.widgets[0];
+clear();
+fire('deityChoose', [pick.nonce, 'talos']);
+check('the god you already hold is refused politely', /already follow Talos/i.test(out.widgets[0].notice), out.widgets[0].notice);
+
+// closing
+clear();
+globalThis.__dboDeityPicker(ACTOR);
+pick = out.widgets[0];
+clear();
+fire('deityClose', [pick.nonce]);
+fire('deityChoose', [pick.nonce, 'mara']);
+check('a closed menu cannot still be answered', (props.get(ACTOR + '|private.dboDeity') || {}).id === 'talos');
+
+// a character still in the race menu is not interrupted
+props.delete(ACTOR + '|private.dboDeity');
+globalThis.__dboDeityForget(ACTOR);
+props.set(ACTOR + '|private.creationPending', true);
+check('the offer waits while the race menu is open', !faithlessOffered());
+props.set(ACTOR + '|private.creationPending', false);
+check('and comes once they are out of it', faithlessOffered());
 
 Date.now = realNow;
 console.log('');

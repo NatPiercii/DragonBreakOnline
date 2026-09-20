@@ -12,8 +12,13 @@ live server reports `blessings 22 resolved, 4 server-side, 0 broken`. The same s
 Unarmed its five marker spells at `1209CA-1209CE` (`DBO_UnarmedMarkers.pas`), so boot now reads
 `unresolved: none` and `18 skills have marker spells`.
 
+**The picker is built** (2026-09-20 13:40): front widget `deityPicker`, id 36, offered automatically to
+any character out of the race menu with no god, and reopened with `/deity`. The **first choice is free
+and needs no shrine**; a later turn is gated by the 7-day cooldown alone, because the brief puts
+conversion on a menu key rather than a pilgrimage.
+
 **Still open, in section 8**: whether Talos and Daedra worship should actually be a crime in Imperial
-Bruma, and the deity picker, which is front work.
+Bruma, and a real hotkey for the menu, which is the one piece still wanting a client rebuild.
 
 ## 1. The brief, as given
 
@@ -45,9 +50,10 @@ side needed rebuilding to credit the Priest.
 ## 3. The three changes the brief actually asks for
 
 1. **Conversion cooldown: 30 days -> 7 days.** Done, `deities.conversionCooldownDays: 7`. The brief
-   also moves conversion off `/convert`-at-a-shrine and onto **a menu key**, so this is a front widget
-   (a deity menu) and is **not built**; `/deity <name>`, said while standing at that god's shrine, is
-   the stopgap. "Current blessing removed on conversion" is implemented and covered by the harness.
+   also moves conversion off `/convert`-at-a-shrine and onto **a menu key** - **the picker is built**
+   (front widget `deityPicker`, id 36), and conversion through it is gated by the cooldown alone, no
+   pilgrimage. `/deity` opens it; a real hotkey is the one piece still wanting a client rebuild.
+   "Current blessing removed on conversion" is implemented and covered by the harness.
 2. ~~**Add the Daedric Princes.** The `deities.choices` list holds only the nine Divines.~~
    **WRONG, corrected 2026-09-20.** `deities.choices` has held twenty-one entries since commit
    `60eabb7` on 2026-09-16: ten Divines (with Auri-El) and eleven Princes. This section was written
