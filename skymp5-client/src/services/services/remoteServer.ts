@@ -26,7 +26,7 @@ import { applyAppearanceToPlayer } from '../../sync/appearance';
 import { applyEquipment, isBadMenuShown } from '../../sync/equipment';
 import { Inventory, applyInventory, getDiff, getInventory, isBoundItem, removeSimpleItemsAsManyAsPossible } from '../../sync/inventory';
 import { Movement } from '../../sync/movement';
-import { enforceSpells } from '../../sync/spell';
+import { enforceSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
 import { setRefrCollision } from '../../sync/animation';
 import { isOwnCompanion } from './companionService';
@@ -623,6 +623,7 @@ export class RemoteServer extends ClientListener {
 
     if (msg.isMe && msg.props && msg.props.learnedSpells) {
       const learnedSpells = msg.props.learnedSpells;
+      rememberServerSpells(learnedSpells);
 
       once('update', () => {
         logTrace(this, `player learnedSpells:`, JSON.stringify(learnedSpells));

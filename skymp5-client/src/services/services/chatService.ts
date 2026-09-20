@@ -3,6 +3,7 @@ import { logTrace } from "../../logging";
 import { BrowserMessageEvent } from "skyrimPlatform";
 import { MsgType } from "../../messages";
 import { FormView, getScreenResolution } from "../../view/formView";
+import { isGameInputBlocked } from "./widgetMenuUtil";
 
 declare const window: any;
 
@@ -407,7 +408,11 @@ export class ChatService extends ClientListener {
       this.lastAdmin = owner["isAdmin"] === true;
       logTrace(this, "Mounting chat widget (local parse + render)");
       this.sp.browser.executeJavaScript(buildMountJs(name, this.lastAdmin, this.readChatSettings()));
-      this.sp.browser.setVisible(true);
+      // Chat mounts at login, which is exactly when the race menu is open on a new character.
+      // BrowserService shows the browser again once the last blocking menu closes.
+      if (!isGameInputBlocked(this.sp, this.controller)) {
+        this.sp.browser.setVisible(true);
+      }
     }
 
     // The server syncs isAdmin a few seconds after spawn; keep the CEF global

@@ -15,6 +15,8 @@ const WIDGET_ID = 25;
 const events = {
   choose: 'mastery:choose',
   drop: 'mastery:drop',
+  lock: 'mastery:lock',
+  takeUp: 'mastery:takeUp',
   close: 'mastery:close',
 };
 
@@ -39,10 +41,11 @@ interface MasteryInfo {
   skills: unknown[];
   chosen: unknown[];
   respec: unknown;
+  points: unknown;     // the point system's pool, caps and held skills, null while it is off
 }
 
 // Module-level so the browser-side widget setter can read it (runtime injection).
-let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [], maxChosen: 3, tierNames: [], tierHours: [], categories: [], skills: [], chosen: [], respec: null };
+let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [], maxChosen: 3, tierNames: [], tierHours: [], categories: [], skills: [], chosen: [], respec: null, points: null };
 
 /**
  * Mastery menu (default K). Shows the eight professions, the one this
@@ -107,6 +110,7 @@ export class MasteryService extends ClientListener {
           skills: Array.isArray(content["skills"]) ? content["skills"] as unknown[] : [],
           chosen: Array.isArray(content["chosen"]) ? content["chosen"] as unknown[] : [],
           respec: content["respec"] ?? null,
+          points: content["points"] ?? null,
         };
         // A reply we did not ask for (a refresh after choosing) updates the
         // open menu but must never force a closed one open.
@@ -144,6 +148,18 @@ export class MasteryService extends ClientListener {
       if (profession) {
         sendCustomPacket(this.controller, { customPacketType: key === events.choose ? "masteryChoose" : "masteryDrop", profession });
       }
+      return;
+    }
+    if (key === events.lock) {
+      const skill = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
+      const lock = typeof e.arguments[2] === "string" ? (e.arguments[2] as string) : "";
+      if (skill && lock) sendCustomPacket(this.controller, { customPacketType: "masteryLock", skill, lock });
+      return;
+    }
+    // Accepting a combat skill the server has offered: it banked the work already done and pays it back.
+    if (key === events.takeUp) {
+      const skill = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
+      if (skill) sendCustomPacket(this.controller, { customPacketType: "masteryTakeUp", skill });
     }
   }
 
@@ -176,6 +192,7 @@ export class MasteryService extends ClientListener {
       skills: info.skills,
       chosen: info.chosen,
       respec: info.respec,
+      points: info.points,
       events: events,
     };
     const others = (window.skyrimPlatform.widgets.get() || []).filter((w: any) => w.id !== WIDGET_ID);

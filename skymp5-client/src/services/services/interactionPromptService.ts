@@ -1,5 +1,5 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
-import { closeWidget, isUiHidden } from "./widgetMenuUtil";
+import { closeWidget, isUiHidden, isGameInputBlocked } from "./widgetMenuUtil";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
@@ -88,7 +88,11 @@ export class InteractionPromptService extends ClientListener {
       }
       // A death or respawn under the crosshair fires no crosshair event
       const now = Date.now();
-      if (!focused && this.promptShown && now - this.lastPollMs >= PROMPT_POLL_MS) {
+      // Deliberately not gated on promptShown: a door still waiting on its name shows no prompt at
+      // all, and this poll is the only thing that calls doorNameFor again so its 2 s timeout can fire.
+      // Gating on promptShown made that recovery unreachable - the door kept the bare key glyph until
+      // the crosshair moved away and back.
+      if (!focused && now - this.lastPollMs >= PROMPT_POLL_MS) {
         this.lastPollMs = now;
         this.refresh();
       }
@@ -115,6 +119,13 @@ export class InteractionPromptService extends ClientListener {
   }
 
   private apply(ref: ObjectReference | null): void {
+    // A blocking vanilla menu (race menu, inventory, map, console) owns the screen and BrowserService
+    // has already hidden the browser for it. Forcing it visible again below painted the whole HUD over
+    // the character creator; BrowserService re-shows it when the last such menu closes.
+    if (isGameInputBlocked(this.sp, this.controller)) {
+      this.clearPrompt();
+      return;
+    }
     const next = ref ? this.promptFor(ref) : null;
     if (!next) {
       this.clearPrompt();

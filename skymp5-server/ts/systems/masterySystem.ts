@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import * as P from "./skillPoints";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { resolveEditorIds, isEditorId } from "./espmEditorIds";
@@ -64,6 +65,9 @@ const ANIM_CROSSBOW = 9;
 const INVALID_USER_ID = 65535;
 const LOGIN_GRANT_DELAY_MS = 5000;
 const AV_PER_TIER = 15;
+// Phase 0 of the point system (serverSKILLS_DESIGN.md): before any gain curve is tuned we need to know
+// what a real hour of play actually produces. This only counts and logs; nothing about crediting changes.
+const CREDIT_LOG_MS = 900000;
 
 // Kept for AdminSystem's rank display; index = rank (0..4).
 export let RANK_NAMES = DEFAULT_TIER_NAMES.slice();
@@ -83,6 +87,8 @@ const WEAPON_CLASS: Record<number, string> = {
 };
 // Warhammers share DNAM type 6 with battleaxes; both count as two-handed.
 const TWO_HANDED = new Set(["Greatsword", "Battleaxe", "Warhammer"]);
+// Skyrim.esm:0001F4 "Unarmed" - the source form the engine reports for a punch or a claw.
+const UNARMED_WEAPON = 0x1f4;
 
 interface SkillDef {
   id: string;
@@ -97,16 +103,31 @@ interface SkillDef {
 }
 
 interface SkillProgress {
-  points: number;
+  level: number;             // hours in the old system, the level itself under pointSystem.
+                             // Stored beside a derived `points` shim; see write(). skillPoints.ts calls
+                             // it `level` too, and the two names disagreeing silently cost a play session.
   lastPointAt: number;
   rank: number;
   granted: number[];
+  xp?: number;               // progress inside the current level, 0..100
+  lock?: P.Lock;             // raise, hold or lower: who gives way when the pool is full
+  bucket?: P.Bucket;
+  ring?: P.NoveltyEntry[];   // recent targets, so repetition is worth less
+  day?: string;
+  spentToday?: number;
+  // Units of work done on a skill the character has not taken up yet. Costs no pool and never
+  // appears in `order`, because the level stays 0 until the player accepts the offer (see takeUp).
+  shadow?: number;
+  offered?: boolean;
 }
 
 interface MasteryRecord {
   skills: Record<string, SkillProgress>;
   order: string[];
   respecs: number;
+  v?: number;                // 2 once the record holds levels rather than hours
+  day?: string;
+  spentToday?: number;
 }
 
 export interface MasterySummary {
@@ -134,6 +155,8 @@ interface ResolvedRules {
   gateNodes: boolean;
 }
 
+const POINT_REFUSE_NOTICE_MS = 600000;
+
 const ACTIVITY_KINDS = ["craft", "activate", "eat", "kill", "hit", "cast", "hurt", "prayer", "lock"] as const;
 type ActivityKind = typeof ACTIVITY_KINDS[number];
 
@@ -147,7 +170,7 @@ interface BaseInfo { id: number; type: string; editorId: string; }
 interface Location { cell: string; pos: number[]; }
 
 const emptyRecord = (): MasteryRecord => ({ skills: {}, order: [], respecs: 0 });
-const emptyProgress = (): SkillProgress => ({ points: 0, lastPointAt: 0, rank: 0, granted: [] });
+const emptyProgress = (): SkillProgress => ({ level: 0, lastPointAt: 0, rank: 0, granted: [] });
 const stringList = (v: unknown): string[] => Array.isArray(v) ? v.filter((x) => typeof x === "string" && x) : [];
 
 export class MasterySystem implements System {
@@ -162,7 +185,10 @@ export class MasterySystem implements System {
     const interval = Number(all?.["masteryPointIntervalMinutes"]);
     if (Number.isFinite(interval) && interval > 0) this.intervalMs = interval * 60000;
     await this.loadRules(ctx, s.dataDir, s.loadOrder);
-    this.log(`[skills] ready: ${this.skills.length} skills, ${this.maxChosen} chosen, tiers at ${this.tierHours.join("/")}h, ${Object.keys(this.spells).length} skills have marker spells, respec ${this.respecGold} gold after the first`);
+    const ladder = this.points
+      ? `point system ON: pool ${this.points.pool}, cap ${this.points.capPerSkill}, one skill over ${this.points.seatAbove}, ${this.points.expertCount} over ${this.points.expertAbove}`
+      : `${this.maxChosen} chosen, tiers at ${this.tierHours.join("/")}h`;
+    this.log(`[skills] ready: ${this.skills.length} skills, ${ladder}, ${Object.keys(this.spells).length} skills have marker spells, respec ${this.respecGold} gold after the first`);
 
     ctx.gm.on("userAssignActor", (userId: number, actorId: number) => this.onActorAssigned(ctx, userId, actorId >>> 0));
     (globalThis as any).__alduinakMasteryEvent = (kind: string, actorId: number, detail: unknown) => this.enqueue(kind, actorId, detail);
@@ -177,6 +203,20 @@ export class MasterySystem implements System {
       try { raw = JSON.parse(fs.readFileSync(path.join(dir, SKILLS_FILE), "utf8")); this.log(`[skills] loaded ${path.join(dir, SKILLS_FILE)}`); break; } catch { /* next */ }
     }
     if (!raw) { this.log(`[skills] ${SKILLS_FILE} not found next to the server; no skills available`); return; }
+    const ps = raw.pointSystem && typeof raw.pointSystem === "object" ? raw.pointSystem : null;
+    if (ps && ps.enabled === true) {
+      const caps = ps.dailyCaps && typeof ps.dailyCaps === "object" ? ps.dailyCaps : {};
+      const num = (v: unknown, dflt: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : dflt);
+      this.points = {
+        pool: num(ps.pool, 300), capPerSkill: num(ps.capPerSkill, 100),
+        seatAbove: num(ps.seatAbove, 90), seatCount: num(ps.seatCount, 1),
+        expertAbove: num(ps.expertAbove, 75), expertCount: num(ps.expertCount, 3),
+        transferFloor: num(ps.transferFloor, 25), firstTouchCost: num(ps.firstTouchCost, 1),
+        bucketBurst: num(ps.bucketBurst, 20), bucketPerHour: num(ps.bucketPerHour, 30),
+        dailyCaps: { low: num(caps.low, 360), expert: num(caps.expert, 180), master: num(caps.master, 60) },
+        characterDaily: num(ps.characterDaily, 1080),
+      };
+    }
     const hours = Array.isArray(raw.tierHours) ? raw.tierHours.map(Number).filter(Number.isFinite) : [];
     if (hours.length >= 2) this.tierHours = hours;
     const names = stringList(raw.tierNames);
@@ -257,17 +297,36 @@ export class MasterySystem implements System {
       case "masteryInfoRequest": this.sendMenu(ctx, userId); break;
       case "masteryChoose": this.onChoose(ctx, userId, content); break;
       case "masteryDrop": this.onDrop(ctx, userId, content); break;
+      case "masteryLock": this.onLock(ctx, userId, content); break;
+      case "masteryTakeUp": this.onTakeUp(ctx, userId, content); break;
       default: break;
     }
   }
 
   async updateAsync(ctx: SystemContext): Promise<void> {
     this.flushPendingGrants(ctx);
+    this.logCreditRate();
     if (!this.events.length) return;
     const batch = this.events.splice(0, this.events.length);
     for (const ev of batch) {
       try { this.creditActivity(ctx, ev); } catch (e) { this.log(`[skills] ${ev.kind} credit failed for ${ev.actorId.toString(16)}: ${e}`); }
     }
+  }
+
+  // Phase 0 measurement. One line per window, only when something happened, so a quiet server stays quiet.
+  // events = validated activity the server saw, credits = points actually granted (the 60 min interval
+  // swallows the rest), suppressed = events from a character who has chosen no skill yet.
+  private logCreditRate(): void {
+    const now = Date.now();
+    if (!this.creditStats.since) { this.creditStats.since = now; return; }
+    if (now - this.creditStats.since < CREDIT_LOG_MS) return;
+    const st = this.creditStats;
+    const minutes = Math.round((now - st.since) / 60000);
+    const fmt = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${Math.round(n * 10) / 10}`).join(", ") || "none";
+    if (st.events.size || st.credits.size || st.suppressed) {
+      this.log(`[skills] credit rate (last ${minutes} min, ${st.actors.size} character(s)): events ${fmt(st.events)} | credited ${fmt(st.credits)} | no skill chosen ${st.suppressed}`);
+    }
+    this.creditStats = { events: new Map(), credits: new Map(), actors: new Set(), suppressed: 0, since: now };
   }
 
   // ── Gating (stations, nodes, standing stones) ───────────────────────────────
@@ -298,6 +357,19 @@ export class MasterySystem implements System {
       const r = this.rules[k.id]; if (!r) continue;
       const gated = (r.gateStations.size && Array.from(r.gateStations).some((kw) => keywords.has(kw))) || r.gatePrefixes.some((p) => edid.startsWith(p));
       if (gated && !has(k.id)) {
+        if (this.points) {
+          if (P.firstTouch(rec as unknown as P.PointRecord, k.id, this.points)) {
+            this.write(ctx, casterId, rec);
+            this.notice(ctx, userId, `You set your hand to the ${k.label.toLowerCase()}'s work for the first time.`);
+            this.syncRank(ctx, casterId, rec, k.id, userId);
+            return true;
+          }
+          if (Date.now() - (this.lastDenyMs.get(casterId) || 0) > 1500) {
+            this.lastDenyMs.set(casterId, Date.now());
+            this.notice(ctx, userId, "Your hands are full. Mark a skill to fall (K) before taking up a new trade.");
+          }
+          return false;
+        }
         if (Date.now() - (this.lastDenyMs.get(casterId) || 0) > 1500) {
           this.lastDenyMs.set(casterId, Date.now());
           this.notice(ctx, userId, `Only a ${k.label} may use this.`);
@@ -339,9 +411,81 @@ export class MasterySystem implements System {
 
   // ── Worked hours ────────────────────────────────────────────────────────────
 
+  // Under the point system work is metered rather than counted: every skill that could match the act is
+  // tested, the act is weighed, repetition on the same target is worth less, the token bucket decides how
+  // much of it an hour can hold, and a gain past the pool takes from a skill the player marked to fall.
+  private creditPoints(ctx: SystemContext, ev: ActivityEvent): void {
+    const cfg = this.points; if (!cfg) return;
+    const rec = this.read(ctx, ev.actorId); if (!rec) { this.creditStats.suppressed++; return; }
+    const now = Date.now();
+    const userId = this.userOf(ctx, ev.actorId);
+    const mult = this.xpMultOf(ctx, ev.actorId);
+    let changed = false;
+    for (const id of this.candidates.get(ev.kind) || []) {
+      const rules = this.rules[id]; if (!rules) continue;
+      const prog = rec.skills[id];
+      // A trade is opened at its station, not by accident - but combat has no station to walk to, so an
+      // unopened skill banks its work instead of losing it and offers itself once there is a level's worth.
+      if (!prog || prog.level < 1) {
+        const kdef = this.def(id);
+        if (!kdef || kdef.category !== "combat") continue;
+        if (!this.matches(ctx, id, rules, ev)) continue;
+        const bank = prog || (rec.skills[id] = emptyProgress());
+        bank.shadow = (bank.shadow || 0) + P.weightOf({ kind: ev.kind }) * mult;
+        changed = true;
+        if (!bank.offered && bank.shadow >= P.unitsForLevel(1)) {
+          bank.offered = true;
+          this.notice(ctx, userId, `You have fought often enough this way to call it your own. Open your skills (K) to take up ${this.labelOf(id)}.`);
+          this.sendMenu(ctx, userId);
+        }
+        continue;
+      }
+      if (!this.matches(ctx, id, rules, ev)) continue;
+      const rep = P.repetitionFactor(prog.ring || [], this.noveltyOf(ev), now);
+      prog.ring = rep.ring;
+      const units = P.weightOf({ kind: ev.kind }) * rep.factor * mult;
+      const before = prog.level;
+      const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now);
+      changed = true;
+      // Phase 0 measures units, not levels: a level is far too rare to tune weights against.
+      if (out.units > 0) this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + out.units);
+      if (out.refused === "pool") this.noticeRefused(ctx, userId, ev.actorId);
+      if (out.gained > 0) {
+        this.notice(ctx, userId, `Your ${this.labelOf(id)} rises to ${prog.level}.`);
+        this.syncRank(ctx, ev.actorId, rec, id, userId);
+      } else if (prog.level < before) {
+        this.syncRank(ctx, ev.actorId, rec, id, userId);
+      }
+      for (const taken of out.tookFrom) {
+        if (taken.levels <= 0) continue;
+        this.notice(ctx, userId, `Your ${this.labelOf(taken.id)} slips to ${rec.skills[taken.id].level}.`);
+        this.syncRank(ctx, ev.actorId, rec, taken.id, userId);
+      }
+    }
+    if (changed) this.write(ctx, ev.actorId, rec);
+  }
+
+  // The same target, station or recipe again and again is worth less; this is the key the ring counts.
+  private noveltyOf(ev: ActivityEvent): number {
+    const d = ev.detail || {};
+    const raw = d["refrId"] || d["recipeId"] || d["victimId"] || d["targetId"] || d["spellId"] || d["baseId"] || 0;
+    return (Number(raw) >>> 0) ^ (ev.kind.charCodeAt(0) << 24);
+  }
+
+  private noticeRefused(ctx: SystemContext, userId: number, actorId: number): void {
+    const now = Date.now();
+    const last = this.lastRefuseMs.get(actorId) || 0;
+    if (now - last < POINT_REFUSE_NOTICE_MS) return;
+    this.lastRefuseMs.set(actorId, now);
+    this.notice(ctx, userId, "Your hands are full. Mark a skill to fall (K) before this one can rise further.");
+  }
+
   private creditActivity(ctx: SystemContext, ev: ActivityEvent): void {
+    this.creditStats.events.set(ev.kind, (this.creditStats.events.get(ev.kind) || 0) + 1);
+    this.creditStats.actors.add(ev.actorId);
+    if (this.points) { this.creditPoints(ctx, ev); return; }
     const rec = this.read(ctx, ev.actorId);
-    if (!rec || !rec.order.length) return;
+    if (!rec || !rec.order.length) { this.creditStats.suppressed++; return; }
     const now = Date.now();
     let changed = false;
     // Hunger slows the work: the gamemode writes private.needs.xpMult (1 fed, 0.25 starving), and a
@@ -353,9 +497,10 @@ export class MasterySystem implements System {
       const elapsed = now - prog.lastPointAt;
       if (elapsed >= 0 && elapsed < interval) continue;
       if (!this.matches(ctx, id, rules, ev)) continue;
-      prog.points += 1; prog.lastPointAt = now; changed = true;
+      prog.level += 1; prog.lastPointAt = now; changed = true;
+      this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + 1);
       const userId = this.userOf(ctx, ev.actorId);
-      this.notice(ctx, userId, `Your work as a ${this.labelOf(id)} is counted: ${prog.points} ${prog.points === 1 ? "hour" : "hours"}.`);
+      this.notice(ctx, userId, `Your work as a ${this.labelOf(id)} is counted: ${prog.level} ${prog.level === 1 ? "hour" : "hours"}.`);
       this.syncRank(ctx, ev.actorId, rec, id, userId);
     }
     if (changed) this.write(ctx, ev.actorId, rec);
@@ -420,7 +565,7 @@ export class MasterySystem implements System {
   summaryOf(ctx: SystemContext, actorId: number): MasterySummary {
     const rec = this.read(ctx, actorId) || emptyRecord();
     const ranks = rec.order.map((id) => rec.skills[id] ? rec.skills[id].rank : 0);
-    const hours = rec.order.reduce((s, id) => s + (rec.skills[id] ? rec.skills[id].points : 0), 0);
+    const hours = rec.order.reduce((s, id) => s + (rec.skills[id] ? rec.skills[id].level : 0), 0);
     const top = ranks.length ? Math.max(...ranks) : 0;
     return {
       profession: rec.order.length ? rec.order.join(",") : null,
@@ -435,10 +580,10 @@ export class MasterySystem implements System {
     const id = skillId && rec.order.indexOf(skillId) !== -1 ? skillId : rec.order[0];
     if (!id) return null;
     const prog = rec.skills[id];
-    prog.points = Math.max(0, prog.points + amount);
+    prog.level = Math.max(0, prog.level + amount);
     this.write(ctx, actorId, rec);
     const userId = this.userOf(ctx, actorId);
-    this.notice(ctx, userId, `Your hours as a ${this.labelOf(id)} now stand at ${prog.points}.`);
+    this.notice(ctx, userId, `Your hours as a ${this.labelOf(id)} now stand at ${prog.level}.`);
     this.syncRank(ctx, actorId, rec, id, userId);
     this.write(ctx, actorId, rec);
     return this.summaryOf(ctx, actorId);
@@ -460,7 +605,7 @@ export class MasterySystem implements System {
   adminDetail(ctx: SystemContext, actorId: number): { skills: Array<{ id: string; label: string; chosen: boolean; rank: number; hours: number }>; tierNames: string[]; tierHours: number[]; maxChosen: number } {
     const rec = this.read(ctx, actorId) || emptyRecord();
     return {
-      skills: this.skills.map((k) => ({ id: k.id, label: k.label, chosen: rec.order.indexOf(k.id) !== -1, rank: rec.skills[k.id]?.rank ?? -1, hours: rec.skills[k.id]?.points ?? 0 })),
+      skills: this.skills.map((k) => ({ id: k.id, label: k.label, chosen: rec.order.indexOf(k.id) !== -1, rank: rec.skills[k.id]?.rank ?? -1, hours: rec.skills[k.id]?.level ?? 0 })),
       tierNames: this.tierNames.slice(), tierHours: this.tierHours.slice(), maxChosen: this.maxChosen,
     };
   }
@@ -475,7 +620,7 @@ export class MasterySystem implements System {
       rec.skills[skillId] = rec.skills[skillId] || emptyProgress();
       rec.skills[skillId].rank = -1;
     }
-    rec.skills[skillId].points = this.tierHours[tier];
+    rec.skills[skillId].level = this.tierHours[tier];
     this.syncRank(ctx, actorId, rec, skillId, userId);
     this.applyActorValues(ctx, actorId, skillId, rec.skills[skillId].rank);
     this.write(ctx, actorId, rec);
@@ -502,7 +647,7 @@ export class MasterySystem implements System {
     if (!rec || !rec.order.length) return;
     for (const id of rec.order) {
       const prog = rec.skills[id];
-      const corrected = this.rankFor(prog.points);
+      const corrected = this.rankFor(prog.level);
       if (corrected < prog.rank) this.revokeAbove(ctx, actorId, prog, id, corrected);
       prog.rank = corrected;
     }
@@ -537,7 +682,7 @@ export class MasterySystem implements System {
     if (rec.order.length >= this.maxChosen) { this.notice(ctx, userId, `You can follow ${this.maxChosen} skills. Set one aside at a standing stone first.`); return; }
     rec.order.push(id);
     rec.skills[id] = rec.skills[id] || emptyProgress();
-    rec.skills[id].rank = this.rankFor(rec.skills[id].points);
+    rec.skills[id].rank = this.rankFor(rec.skills[id].level);
     this.write(ctx, actorId, rec);
     this.applySpells(ctx, actorId, rec, id);
     this.applyActorValues(ctx, actorId, id, rec.skills[id].rank);
@@ -587,13 +732,68 @@ export class MasterySystem implements System {
 
   // ── Menu ────────────────────────────────────────────────────────────────────
 
+  // Which skill gives way when the pool is full: raise, hold or lower.
+  private onLock(ctx: SystemContext, userId: number, content: Content): void {
+    if (!this.points) return;
+    const actorId = this.actorOf(ctx, userId); if (!actorId) return;
+    const id = String((content as any).skill || "");
+    const lock = String((content as any).lock || "");
+    if (!this.def(id) || (lock !== "raise" && lock !== "hold" && lock !== "lower")) return;
+    const rec = this.read(ctx, actorId); if (!rec) return;
+    const prog = rec.skills[id]; if (!prog) return;
+    prog.lock = lock as P.Lock;
+    this.write(ctx, actorId, rec);
+    this.sendMenu(ctx, userId);
+  }
+
+  // Accepts an offer made by creditPoints: spends one pool point on the skill, then credits every unit
+  // banked while it was unopened, so the fighting done before the player agreed is not wasted.
+  private onTakeUp(ctx: SystemContext, userId: number, content: Content): void {
+    const cfg = this.points; if (!cfg) return;
+    const actorId = this.actorOf(ctx, userId); if (!actorId) return;
+    const id = String((content as any).skill || ""); if (!this.def(id)) return;
+    const rec = this.read(ctx, actorId) || emptyRecord();
+    const prog = rec.skills[id];
+    if (prog && prog.level >= 1) return;                      // already held
+    if (!prog || !prog.offered) return;                       // no offer stands for this skill
+    if (!P.firstTouch(rec as unknown as P.PointRecord, id, cfg)) {
+      this.notice(ctx, userId, "Your hands are full. Mark a skill to fall (K) before taking up a new trade.");
+      return;
+    }
+    const banked = Math.max(0, Number(prog.shadow) || 0);
+    const fresh = rec.skills[id];
+    fresh.shadow = 0; fresh.offered = false;
+    this.notice(ctx, userId, `You take up ${this.labelOf(id)}.`);
+    if (banked > 0) {
+      const out = P.applyGain(rec as unknown as P.PointRecord, id, banked, cfg, Date.now());
+      if (out.gained > 0) this.notice(ctx, userId, `Your ${this.labelOf(id)} rises to ${fresh.level}.`);
+    }
+    this.write(ctx, actorId, rec);
+    this.syncRank(ctx, actorId, rec, id, userId);
+    this.sendMenu(ctx, userId);
+  }
+
   private sendMenu(ctx: SystemContext, userId: number): void {
     const actorId = this.actorOf(ctx, userId); if (!actorId) return;
     const rec = this.read(ctx, actorId) || emptyRecord();
-    const chosen = rec.order.map((id) => ({ id, rank: rec.skills[id]?.rank || 0, hours: rec.skills[id]?.points || 0 }));
+    const chosen = rec.order.map((id) => ({ id, rank: rec.skills[id]?.rank || 0, hours: rec.skills[id]?.level || 0 }));
+    const cfg = this.points;
+    const points = cfg ? {
+      enabled: true, pool: cfg.pool, capPerSkill: cfg.capPerSkill,
+      seatAbove: cfg.seatAbove, seatCount: cfg.seatCount, expertAbove: cfg.expertAbove, expertCount: cfg.expertCount,
+      transferFloor: cfg.transferFloor,
+      used: Object.values(rec.skills).reduce((n, pr) => n + (pr.level || 0), 0),
+      offers: Object.entries(rec.skills)
+        .filter(([, pr]) => pr.level < 1 && pr.offered)
+        .map(([id, pr]) => ({ id, banked: Math.round(pr.shadow || 0) })),
+      held: Object.entries(rec.skills).filter(([, pr]) => pr.level >= 1)
+        .map(([id, pr]) => ({ id, level: pr.level, xp: Math.round(pr.xp || 0), tier: pr.rank, lock: pr.lock || "raise" }))
+        .sort((a, b) => b.level - a.level),
+    } : undefined;
     const first = chosen[0];
     this.send(ctx, userId, {
       customPacketType: "masteryMenu",
+      points,
       maxChosen: this.maxChosen, tierNames: this.tierNames, tierHours: this.tierHours, categories: this.categories,
       skills: this.skills.map((k) => ({ id: k.id, category: k.category, label: k.label, title: k.title, description: k.description, tiers: k.tiers })),
       chosen,
@@ -607,6 +807,7 @@ export class MasterySystem implements System {
   // ── Ranks, marker spells, actor values ──────────────────────────────────────
 
   private rankFor(points: number): number {
+    if (this.points) return Math.max(0, P.tierOfLevel(points));
     let rank = 0;
     for (let i = 0; i < this.tierHours.length; i++) if (points >= this.tierHours[i]) rank = i;
     return rank;
@@ -614,7 +815,7 @@ export class MasterySystem implements System {
 
   private syncRank(ctx: SystemContext, actorId: number, rec: MasteryRecord, id: string, userId: number): void {
     const prog = rec.skills[id]; if (!prog) return;
-    const oldRank = prog.rank; const newRank = this.rankFor(prog.points);
+    const oldRank = prog.rank; const newRank = this.rankFor(prog.level);
     if (newRank < oldRank) this.revokeAbove(ctx, actorId, prog, id, newRank);
     prog.rank = newRank;
     this.applySpells(ctx, actorId, rec, id);
@@ -728,12 +929,36 @@ export class MasterySystem implements System {
       for (let t = 1; t <= this.tierHours.length; t++) list.push(ids.get(`DBO_Skill_${k.id}_T${t}`) || 0);
       if (list.some((v) => v)) this.spells[k.id] = list;
     }
+    this.indexCandidates();
+  }
+
+  private indexCandidates(): void {
+    this.candidates = new Map();
+    const add = (kind: string, id: string) => {
+      const list = this.candidates.get(kind) || [];
+      if (list.indexOf(id) === -1) list.push(id);
+      this.candidates.set(kind, list);
+    };
+    for (const [id, r] of Object.entries(this.rules)) {
+      if (r.craftKeywords.size || r.craftStations.size) add("craft", id);
+      if (r.activatePrefixes.length || r.activateTypes.size) add("activate", id);
+      if (r.eatIngredient) add("eat", id);
+      if (r.killKeywords.size) add("kill", id);
+      if (r.hitKeywords.size) add("hit", id);
+      if (r.spellSchools.size) add("cast", id);
+      if (r.damageTakenWhileArmored) add("hurt", id);
+    }
+    add("prayer", "priest");
+    add("lock", "lockpicking");
   }
 
   // ── Lookups ─────────────────────────────────────────────────────────────────
 
   private weaponClass(ctx: SystemContext, sourceId: number): string {
     const hit = this.weaponCache.get(sourceId); if (hit !== undefined) return hit;
+    // The C++ damage formula calls a hit unarmed when its source is exactly this form
+    // (TES5DamageFormula.cpp `IsUnarmedAttack`). Name it here without depending on the DNAM byte.
+    if ((sourceId >>> 0) === UNARMED_WEAPON) { this.weaponCache.set(sourceId, "HandToHand"); return "HandToHand"; }
     const res = this.lookup(ctx, sourceId); let cls = "";
     if (res && String(res.record.type || "") === "WEAP") {
       const dnam = (res.record.fields || []).find((f: any) => f.type === "DNAM" && f.data instanceof Uint8Array && f.data.byteLength);
@@ -905,11 +1130,40 @@ export class MasterySystem implements System {
       if (!raw || typeof raw !== "object") return null;
       const r = raw as any;
       const rec = emptyRecord();
+      if (this.points && r.skills && typeof r.skills === "object") {
+        const v2 = Number(r.v) === 2;
+        rec.v = 2; rec.respecs = Math.max(0, Number(r.respecs) || 0);
+        rec.day = typeof r.day === "string" ? r.day : undefined;
+        rec.spentToday = Math.max(0, Number(r.spentToday) || 0);
+        const wasChosen = new Set(stringList(r.order));
+        for (const id of Object.keys(r.skills)) {
+          if (!this.def(id)) continue;
+          const src = r.skills[id] || {};
+          // A v2 record stores the level under `level`; `points` beside it is only the derived shim the
+          // gameplay layer reads. Records written by the mismatched build carry no `level` at all, so
+          // fall back to `points` rather than resetting them to zero.
+          const level = v2 ? Math.max(0, Math.min(P.MAX_LEVEL, Math.floor(Number(src.level ?? src.points) || 0)))
+            : P.levelFromOldPoints(Number(src.points) || 0).level;
+          const xp = v2 ? Math.max(0, Number(src.xp) || 0) : P.levelFromOldPoints(Number(src.points) || 0).xp;
+          const lock: P.Lock = src.lock === "hold" || src.lock === "lower" ? src.lock : (v2 || wasChosen.has(id) ? "raise" : "hold");
+          rec.skills[id] = {
+            level, xp, lock, rank: Math.max(0, P.tierOfLevel(level)),
+            lastPointAt: Math.max(0, Number(src.lastPointAt) || 0),
+            granted: Array.isArray(src.granted) ? src.granted.map((v: unknown) => Number(v) >>> 0).filter((v: number) => v) : [],
+            bucket: src.bucket && typeof src.bucket === "object" ? { tokens: Number(src.bucket.tokens) || 0, at: Number(src.bucket.at) || 0 } : undefined,
+            ring: Array.isArray(src.ring) ? src.ring.filter((e: any) => e && Number.isFinite(e.h) && Number.isFinite(e.at)).map((e: any) => ({ h: Number(e.h), at: Number(e.at) })) : undefined,
+            day: typeof src.day === "string" ? src.day : undefined,
+            spentToday: Math.max(0, Number(src.spentToday) || 0),
+          };
+        }
+        rec.order = P.derivedOrder(rec as unknown as P.PointRecord);
+        return rec;
+      }
       if (r.skills && typeof r.skills === "object") {
         rec.order = stringList(r.order).filter((id) => this.def(id));
         for (const id of rec.order) {
           const p = r.skills[id] || {};
-          rec.skills[id] = { points: Math.max(0, Math.floor(Number(p.points) || 0)), lastPointAt: Math.max(0, Number(p.lastPointAt) || 0), rank: Math.min(this.tierHours.length - 1, Math.max(0, Number(p.rank) || 0)), granted: Array.isArray(p.granted) ? p.granted.map((v: unknown) => Number(v) >>> 0).filter((v: number) => v) : [] };
+          rec.skills[id] = { level: Math.max(0, Math.floor(Number(p.points) || 0)), lastPointAt: Math.max(0, Number(p.lastPointAt) || 0), rank: Math.min(this.tierHours.length - 1, Math.max(0, Number(p.rank) || 0)), granted: Array.isArray(p.granted) ? p.granted.map((v: unknown) => Number(v) >>> 0).filter((v: number) => v) : [] };
         }
         rec.respecs = Math.max(0, Number(r.respecs) || 0);
         return rec;
@@ -917,13 +1171,21 @@ export class MasterySystem implements System {
       // Legacy one-profession record from Alduinak's mastery: keep its hours under the same id when it exists.
       if (typeof r.profession === "string" && this.def(r.profession)) {
         rec.order = [r.profession];
-        rec.skills[r.profession] = { points: Math.max(0, Math.floor(Number(r.points) || 0)), lastPointAt: Number(r.lastPointAt) || 0, rank: 0, granted: [] };
+        rec.skills[r.profession] = { level: Math.max(0, Math.floor(Number(r.points) || 0)), lastPointAt: Number(r.lastPointAt) || 0, rank: 0, granted: [] };
       }
       return rec;
     } catch { return null; }
   }
 
   private write(ctx: SystemContext, actorId: number, rec: MasteryRecord): void {
+    if (this.points) {
+      for (const [, prog] of Object.entries(rec.skills)) prog.rank = Math.max(0, P.tierOfLevel(prog.level));
+      rec.order = P.derivedOrder(rec as unknown as P.PointRecord);
+      rec.v = 2;
+    }
+    // `points` is the name gamemode.js, labour.js and dungeons.js read. Derive it from `level` on every
+    // save, exactly as `order` and `rank` are, so nothing outside this file has to change.
+    for (const prog of Object.values(rec.skills)) (prog as unknown as Record<string, unknown>).points = prog.level;
     try { (ctx.svr as Mp).set(actorId, MASTERY_PROP, rec); } catch (e) { this.log(`[skills] write failed for ${actorId.toString(16)}: ${e}`); }
   }
 
@@ -939,6 +1201,9 @@ export class MasterySystem implements System {
   }
   private notice(ctx: SystemContext, userId: number, text: string): void { this.send(ctx, userId, { customPacketType: "masteryNotice", text }); }
 
+  private points: P.PointConfig | null = null;      // set only when skills.json turns the point system on
+  private candidates = new Map<string, string[]>();  // event kind -> the skills that could possibly match it
+  private lastRefuseMs = new Map<number, number>();
   private skills: SkillDef[] = [];
   private categories: Array<{ id: string; label: string }> = [];
   private tierHours = DEFAULT_TIER_HOURS.slice();
@@ -956,6 +1221,8 @@ export class MasterySystem implements System {
   private playerKeyword = 0;
   private neighborsFailed = false;
   private events: ActivityEvent[] = [];
+  // counted per window: events drained by kind, points credited by skill, and who was involved
+  private creditStats = { events: new Map<string, number>(), credits: new Map<string, number>(), actors: new Set<number>(), suppressed: 0, since: 0 };
   private lastChooseMs = new Map<number, number>();
   private lastDenyMs = new Map<number, number>();
   private respecUntil = new Map<number, number>();

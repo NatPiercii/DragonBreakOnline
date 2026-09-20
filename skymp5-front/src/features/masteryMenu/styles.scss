@@ -384,3 +384,323 @@ $border-dim: rgba(143, 211, 208, 0.2);
     }
   }
 }
+
+// Point system (server\SKILLS_DESIGN.md). The Wheel is the Aurbis, its spokes the lives a character
+// could lead; a Dragon Break makes all of them true at once, which is the conceit the pool leans on.
+// Masser and Secunda are Lorkhan's sundered flesh, so waxing and waning name what rises and what gives way.
+.mastery {
+  &__corner--pool {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 14px;
+  }
+
+  &__pool-figure {
+    @include dbo-title;
+    font-size: 34px;
+    line-height: 1;
+    color: $dbo-aqua;
+    text-shadow: 0 0 18px rgba(143, 211, 208, 0.35);
+  }
+
+  &__pool-of {
+    font-size: 17px;
+    color: $text-dim;
+  }
+
+  &__pool-word {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: $text-dim;
+  }
+
+  &__pool-bar {
+    width: 100%;
+    height: 3px;
+    background: rgba(143, 211, 208, 0.16);
+    overflow: hidden;
+
+    i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(143, 211, 208, 0.45), $dbo-aqua);
+      transition: width $medium;
+    }
+  }
+
+  &__moon {
+    margin-right: 7px;
+    font-size: 11px;
+    opacity: 0.85;
+
+    &--raise { color: $dbo-aqua; }
+    &--hold { color: $text-dim; }
+    &--lower { color: #c9a23f; }
+  }
+
+  &__item-level {
+    float: right;
+    font-variant-numeric: tabular-nums;
+    color: $text-dim;
+  }
+
+  &__creed {
+    margin: -6px 0 14px;
+    font-style: italic;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(143, 211, 208, 0.62);
+  }
+
+  &__thread {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: min(520px, 100%);
+  }
+
+  &__level-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  &__level {
+    @include dbo-title;
+    font-size: 54px;
+    line-height: 1;
+    color: $text;
+    text-shadow: 0 0 22px rgba(143, 211, 208, 0.28);
+  }
+
+  &__level-of {
+    font-size: 13px;
+    color: $text-dim;
+  }
+
+  &__level-tier {
+    @include dbo-title;
+    font-size: 16px;
+    color: $dbo-aqua;
+    letter-spacing: 0.14em;
+  }
+
+  &__level-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(143, 211, 208, 0.14);
+    border: 1px solid $border-dim;
+
+    i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(143, 211, 208, 0.35), $dbo-aqua);
+      transition: width $medium;
+    }
+  }
+
+  &__locks {
+    display: flex;
+    gap: 8px;
+  }
+
+  &__lock {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 15px;
+    background: rgba(9, 28, 31, 0.6);
+    border: 1px solid $border-dim;
+    color: $text-dim;
+    font-family: $dbo-ui-font;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color $fast, border-color $fast, background $fast;
+
+    &:hover { color: $text; border-color: $border; }
+
+    &--on {
+      color: $dbo-text;
+      border-color: $dbo-aqua;
+      background: rgba(143, 211, 208, 0.12);
+      box-shadow: inset 0 0 18px rgba(143, 211, 208, 0.12);
+    }
+  }
+
+  &__lock-glyph { font-size: 14px; }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Lorkhan pass, 2026-09-20. The Wheel behind the pool count, the locks coloured as the two moons,
+// and the take-up offer for a combat skill the server has banked work for. Appended rather than
+// woven in, so the whole pass can be lifted out again without touching the working menu above.
+// ---------------------------------------------------------------------------------------------
+
+$masser: #c98a3a;          // the red-gold moon: what waxes
+$secunda: #cfdcdc;         // the pale moon: what is held
+
+.mastery {
+  // --- the Wheel -----------------------------------------------------------------------------
+  &__corner--pool {
+    position: relative;
+    isolation: isolate;
+  }
+
+  &__wheel {
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 74px;
+    height: 74px;
+    opacity: 0.5;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  &__wheel-rim {
+    fill: none;
+    stroke: rgba(143, 211, 208, 0.28);
+    stroke-width: 1.2;
+  }
+
+  &__wheel-hub {
+    fill: none;
+    stroke: rgba(143, 211, 208, 0.45);
+    stroke-width: 1.4;
+  }
+
+  &__wheel-spoke {
+    stroke: rgba(143, 211, 208, 0.16);
+    stroke-width: 1.4;
+    transition: stroke 320ms ease;
+
+    &--lit {
+      stroke: $masser;
+      opacity: 0.85;
+    }
+  }
+
+  // --- the pool figure reads as the headline it is -------------------------------------------
+  &__pool-figure {
+    font-family: $dbo-title-font;
+    letter-spacing: 0.04em;
+  }
+
+  &__pool-word {
+    letter-spacing: 0.17em;
+    text-transform: uppercase;
+    font-size: 0.68em;
+    color: $dbo-text-dim;
+  }
+
+  // --- Masser and Secunda ---------------------------------------------------------------------
+  &__lock--on {
+    border-color: rgba(201, 138, 58, 0.55);
+  }
+
+  &__moon--raise,
+  &__lock--on .mastery__lock-glyph {
+    color: $masser;
+  }
+
+  &__moon--hold {
+    color: $secunda;
+  }
+
+  &__moon--lower {
+    color: rgba(143, 211, 208, 0.45);
+  }
+
+  &__level {
+    font-family: $dbo-title-font;
+    color: $dbo-silver;
+  }
+
+  &__level-bar > i {
+    background: linear-gradient(90deg, $dbo-aqua-deep, $masser);
+  }
+
+  // --- the offer ------------------------------------------------------------------------------
+  &__offer {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: flex-start;
+    border-left: 2px solid $masser;
+    padding: 4px 0 4px 16px;
+  }
+
+  &__offer-line {
+    margin: 0;
+    color: $dbo-text;
+    font-style: italic;
+    line-height: 1.55;
+  }
+
+  &__offer-banked {
+    display: block;
+    margin-top: 6px;
+    font-style: normal;
+    font-size: 0.86em;
+    letter-spacing: 0.06em;
+    color: $dbo-text-dim;
+  }
+
+  &__takeup {
+    font-family: $dbo-ui-font;
+    font-size: 0.94em;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: #14231f;
+    background: linear-gradient(180deg, lighten($masser, 10%), $masser);
+    border: 1px solid rgba(201, 138, 58, 0.9);
+    border-radius: 2px;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: filter $fast, transform $fast;
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.12);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  // --- the creed carries the Dragon Break, so give it room -------------------------------------
+  &__creed {
+    font-family: $dbo-book-font;
+    font-style: italic;
+    color: rgba(215, 227, 227, 0.72);
+    border-top: 1px solid rgba(143, 211, 208, 0.16);
+    border-bottom: 1px solid rgba(143, 211, 208, 0.16);
+    padding: 12px 0;
+    line-height: 1.6;
+  }
+
+  &__epithet {
+    font-family: $dbo-title-font;
+    letter-spacing: 0.2em;
+    color: $masser;
+    text-transform: uppercase;
+  }
+
+  &__group-name {
+    letter-spacing: 0.2em;
+    color: rgba(143, 211, 208, 0.55);
+  }
+}

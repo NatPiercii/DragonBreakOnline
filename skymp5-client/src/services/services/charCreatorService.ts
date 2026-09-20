@@ -8,6 +8,7 @@ import { showUi } from "./widgetMenuUtil";
 import { BrowserMessageEvent, Menu, MenuOpenEvent } from "skyrimPlatform";
 import { logTrace, logError } from "../../logging";
 import { applyAppearanceToPlayer, Appearance } from "../../sync/appearance";
+import { reenforceServerSpells } from "../../sync/spell";
 
 // Preview payloads larger than this are ignored (malformed or hostile page state).
 const MAX_PREVIEW_JSON = 32 * 1024;
@@ -104,10 +105,32 @@ export class CharCreatorService extends ClientListener {
     });
   }
 
+  // The race menu grants race and Player-record spells (Flames, Healing, the racial power) as it
+  // closes. On a freshly created character that happens after the last login enforcement pass, so
+  // without a second round they stick for the life of the character. Measured 2026-09-20: JOIN at
+  // 01:49:31.8, last pass at +20 s, creation finished 01:49:52.0 - 240 ms too late.
+  private reenforceSpellsAfterCreation(): void {
+    [1, 3, 6, 10].forEach((seconds) => {
+      this.sp.Utility.wait(seconds).then(() => {
+        try {
+          const player = this.sp.Game.getPlayer();
+          if (!player) return;
+          const changed = reenforceServerSpells(player);
+          if (changed > 0) {
+            logTrace(this, 'spells re-enforced after creation at', seconds, 's:', changed, 'change(s)');
+          }
+        } catch (e) {
+          logError(this, `spell re-enforcement failed: ${e}`);
+        }
+      });
+    });
+  }
+
   private close(): void {
     this.menuOpen = false;
     this.config = undefined;
     logTrace(this, 'closing character creator');
+    this.reenforceSpellsAfterCreation();
     const js =
       "(function(){" +
       "if(!window.skyrimPlatform||!window.skyrimPlatform.widgets)return;" +

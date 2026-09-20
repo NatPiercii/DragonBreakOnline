@@ -61,6 +61,19 @@ export const enforceSpells = (actor: Actor, spellIds: Array<number>): number => 
   return changed;
 };
 
+// The server's list as of the last CreateActor. The enforcement passes are keyed to login, but the
+// race menu grants race and Player-record spells as it closes - which is after the last pass on a
+// freshly created character - so the list has to survive for a second round.
+let serverSpells: Array<number> | null = null;
+
+export const rememberServerSpells = (spellIds: Array<number>): void => {
+  serverSpells = spellIds.map((id) => id >>> 0);
+};
+
+// Re-applies the remembered list. Returns 0 when no CreateActor has been seen yet.
+export const reenforceServerSpells = (actor: Actor): number =>
+  serverSpells ? enforceSpells(actor, serverSpells) : 0;
+
 export const learnSpells = (actor: Actor, spellsIds: Array<number>) => {
   for (let spellId of spellsIds) {
     const spell = Spell.from(Game.getFormEx(spellId));
