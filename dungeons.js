@@ -144,6 +144,7 @@ module.exports = (api) => {
   const zonesFor = (d, diff) => {
     const out = [];
     let n = 0;
+    let ambushed = 0;
     const province = (POOLS.provinces || {})[d.id] || provinceOfDungeon(d);
     const next = {};   // family (and boss) -> next archetype index, from a random start so each claim differs
 
@@ -170,7 +171,11 @@ module.exports = (api) => {
         if (diff.mult < 1 && Math.random() > diff.mult) continue;          // fewer of them
         const count = 1 + (diff.mult > 1 && Math.random() < diff.mult - 1 ? 1 : 0); // sometimes a second one
         // Anchor = Bethesda's own (disabled) actor ref on that spot: the spawn appears there, not at a player.
-        const zone = { Name: `${ZONE_PREFIX}${d.id}:${n++}`, ID: z.cell, POS: npc.pos, Size: 100000, NPC: [{ id, count }], Despawn: 0, Respawn: 0, Kind: kind, Prespawn: true };
+        // An ambusher lay in a linked coffin or pod in vanilla; neither its packages nor the link survive a
+        // PlaceAtMe spawn, so it waits for somebody within AMBUSH_REACH instead of standing in the open
+        const ambush = isAmbusher(npc.ref);
+        if (ambush) ambushed++;
+        const zone = { Name: `${ZONE_PREFIX}${d.id}:${n++}`, ID: z.cell, POS: npc.pos, Size: ambush ? AMBUSH_REACH : 100000, NPC: [{ id, count }], Despawn: 0, Respawn: 0, Kind: kind, Prespawn: !ambush, Ambush: ambush };
         // Anchor ref is optional — if it resolves, the spawn appears exactly on that ref; if not, it falls
         // back to the baked POS which is still Bethesda's placement coordinate.
         if (npc.ref) {
@@ -182,6 +187,7 @@ module.exports = (api) => {
         out.push(zone);
       }
     }
+    if (ambushed) log(`dungeon ${d.id}: ${ambushed} of ${out.length} enemies wait in ambush within ${AMBUSH_REACH} units`);
     return out;
   };
   const writeSpawnZones = () => {
@@ -527,6 +533,37 @@ module.exports = (api) => {
     sourceCache.set(baseId, found);
     return found;
   };
+  // ---- ambushes ----------------------------------------------------------------------------------
+  // Vanilla ambushers (draugr in alcoves, dwarven spiders in pipes, falmer in wall pods, rieklings in barrels)
+  // get ambushSleepPackage and friends from their Lvl* template and a linked coffin ref on the placement.
+  // A spawned concrete base carries neither, so they stand in the open. The zone waits for a player instead.
+  const AMBUSH_REACH = 1200;
+  const TEMPLATE_USE_AI_PACKAGES = 0x20;
+  const packageSource = (baseId) => {
+    for (let id = baseId >>> 0, depth = 0; id && depth < 8; depth++) {
+      const res = espmOf(id);
+      if (!res || String(res.record.type) !== 'NPC_') return null;
+      const acbs = fieldsOf(res, 'ACBS')[0];
+      const tflags = acbs && acbs.data.byteLength >= 20 ? viewOf(acbs.data).getUint16(18, true) : 0;
+      const tplt = fieldsOf(res, 'TPLT')[0];
+      const next = tplt ? globalIdAt(res, tplt.data) : 0;
+      if (!next || !(tflags & TEMPLATE_USE_AI_PACKAGES)) return res;
+      id = next;
+    }
+    return null;
+  };
+  const packagesOf = (res) => (res ? fieldsOf(res, 'PKID').map((f) => edidOf(globalIdAt(res, f.data))) : []);
+  const ambushCache = new Map();
+  // The placement's own template supplies an ambush package. What the concrete base we spawn carries does not
+  // matter: in vanilla its packages never apply, because Use AI Packages is off all the way down the chain.
+  const isAmbusher = (refDesc) => {
+    const base = refDesc ? placedBase(refDesc) : 0;
+    if (!base) return false;
+    if (ambushCache.has(base)) return ambushCache.get(base);
+    const res = packagesOf(packageSource(base)).some((n) => /ambush/i.test(n));
+    ambushCache.set(base, res);
+    return res;
+  };
   const placedBase = (refDesc) => { const res = espmOf(idOf(refDesc)); const name = res && String(res.record.type) === 'ACHR' ? fieldsOf(res, 'NAME')[0] : null; return name ? globalIdAt(res, name.data) : 0; };
   const factionKey = (src) => src ? src.factions.map((f) => `${f.id}:${f.rank}`).sort().join(',') + `|${src.crime}` : '';
   const factionNames = (src) => src ? src.factions.map((f) => edidOf(f.id)).sort().concat(src.crime ? [`crime ${edidOf(src.crime)}`] : []).join(', ') || 'none' : 'from leveled pick';
@@ -552,6 +589,15 @@ module.exports = (api) => {
       const k = `${npc.edid} [${factionNames(loss.want)}] spawned as ${edidOf(idOf(opt[1]))} [${factionNames(loss.got)}]`;
       byPlacement.set(k, (byPlacement.get(k) || 0) + 1);
     }
+    let ambushers = 0;
+    const ambushBy = new Map();
+    for (const d of DATA.dungeons || []) for (const z of d.zones || []) for (const npc of z.npcs || []) {
+      const opt = (npc.options || [])[0];
+      if (!npc.ref || !opt) continue;
+      if (isAmbusher(npc.ref)) { ambushers++; ambushBy.set(d.id, (ambushBy.get(d.id) || 0) + 1); }
+    }
+    const ambushTop = [...ambushBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, n]) => `${k} ${n}`);
+    log(`dungeon ambush audit: ${ambushers} placements in ${ambushBy.size} dungeons wait in ambush; most: ${ambushTop.join(', ')}`);
     const top = [...byPlacement.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => `${n}x ${k}`);
     log(`dungeon faction audit: ${lost} of ${slots} placements spawn without their template's factions (${byPlacement.size} kinds, ${Date.now() - t0} ms); top: ${top.join(' | ')}`);
   }
