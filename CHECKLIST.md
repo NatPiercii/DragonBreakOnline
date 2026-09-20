@@ -1,5 +1,34 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (16:14): login hang measured, and the landing trap removed
+
+**User decision: leave the content fix for now** (2026-09-20). Skyrim is closed by the playtest lock and no
+live path reaches a Skyrim login point, so nothing is urgent. Do not re-open this without asking.
+
+What the measurement says, from `ck-mcp\login_spot_check.py` (new, reads the whole load order and reports
+the nearest **placed living actor** to every spawn, landing, gate and temple; `--safe X Y` searches Tamriel
+for a clear spot). Results in `server\login-spot-check.json`.
+- The rule that predicts the hang is **placed living actors in the loaded grid (~12,288 units)**, not
+  distance to chickens. Bruma's worlds now hold **0** living placed actors, which is why logins there work;
+  Tamriel still holds **3,691**. Server-spawned creatures do not trigger it - Bruma logs in fine with 3,329
+  spawn zones running - so the trigger is specifically plugin-placed ACHRs loading with the cell.
+- Old Whiterun landing: 0 living actors within 4,096, 8 within 8,192, **44 within 12,288** (11 cows, 8
+  chickens, 5 goats, guards, horses, the carriage driver, JK's Outskirts NPCs). Nearest is
+  `WhiterunPlayerHorse` at 4,685.
+- **Every Skyrim respawn temple has living actors inside the loaded grid** (Windhelm 616, Riften 1,299,
+  Whiterun 1,629, Falkreath 2,127, Solitude 2,490, Markarth 833). Hub gates too, but a gate is a teleport
+  while alive and only a *login* hangs. The temples matter the moment Skyrim opens: die in Skyrim, log in
+  later, hang.
+- The nearest hang-free spot to Whiterun is about **35,000 units** away, so a landing cannot be both near
+  the city and clear without a content change.
+- [x] **Trap removed (LIVE 16:14)**: `gamemode.js`'s hardcoded landing default was the old Whiterun spot, so
+  a missing or reset `gamemode-config.json` sent every fresh character into the hang. It now defaults to the
+  Pale Pass arrival, matching the live config.
+- [ ] When Skyrim opens, the options are: disable the ~44 actors around one landing (scoped, the Bruma
+  precedent), or all 3,691 in Tamriel (the "server spawns all actors" rule applied to Skyrim, which needs
+  server-side humanoid spawns first, or Skyrim is empty of guards and citizens), or land in wilderness 35k
+  out. Re-run `login_spot_check.py` after any curation pass to confirm the points are clear.
+
 ## Added 2026-09-20 (15:50): Daedra worship is not one crime, and a permission allowlist
 
 Nat, awake: *"for the unlawful list, be lore accurate please, certain daedra are fine like malacath"*.

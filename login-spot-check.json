@@ -1,0 +1,128 @@
+[
+ {
+  "point": "landing (gamemode default, old Whiterun spot)",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 4685,
+  "base": "WhiterunPlayerHorse",
+  "verdict": "HANGS A LOGIN"
+ },
+ {
+  "point": "landing (configured: Pale Pass arrival)",
+  "world": "a764b:BSHeartland.esm",
+  "nearestLivingActor": 1000000000000,
+  "base": "-",
+  "verdict": "clear"
+ },
+ {
+  "point": "respawn temple: whiterun",
+  "world": "1a26f:Skyrim.esm",
+  "nearestLivingActor": 1629,
+  "base": "EncCow",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "respawn temple: windhelm",
+  "world": "1691d:Skyrim.esm",
+  "nearestLivingActor": 616,
+  "base": "EncChicken",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "respawn temple: riften",
+  "world": "16bb4:Skyrim.esm",
+  "nearestLivingActor": 1299,
+  "base": "Snilf",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "respawn temple: markarth",
+  "world": "16d71:Skyrim.esm",
+  "nearestLivingActor": 833,
+  "base": "GuardMarkarthImperialExterior",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "respawn temple: solitude",
+  "world": "37edf:Skyrim.esm",
+  "nearestLivingActor": 2490,
+  "base": "GuardSolitudeImperialWarroom",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "respawn temple: falkreath",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 2127,
+  "base": "EncGoatDomestic",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "respawn temple: bruma (Pale Pass)",
+  "world": "a764b:BSHeartland.esm",
+  "nearestLivingActor": 1000000000000,
+  "base": "-",
+  "verdict": "clear (not a login point today)"
+ },
+ {
+  "point": "hub gate: Whiterun",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 646,
+  "base": "WhiterunPlayerHorse",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Riften",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 583,
+  "base": "CarriageDriverRiften",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Solitude",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 254,
+  "base": "EncChicken",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Windhelm",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 2467,
+  "base": "0WHBridgeVendorGenericPeddler",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Markarth",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 375,
+  "base": "MarkarthPlayerHorse",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Falkreath",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 1113,
+  "base": "EncGoatDomestic",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Morthal",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 1975,
+  "base": "ccBGSSSE001_MiscMorthal_LvlBanditWizardImperialM",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Dawnstar",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 1259,
+  "base": "GuardDawnstarSonsJailer",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ },
+ {
+  "point": "hub gate: Winterhold",
+  "world": "3c:Skyrim.esm",
+  "nearestLivingActor": 1154,
+  "base": "EncGoatDomestic",
+  "verdict": "HANGS A LOGIN (not a login point today)"
+ }
+]

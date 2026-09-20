@@ -737,7 +737,11 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
 // The game cannot load a save straight into the hub worldspace (the spawn save crashes on load), so
 // characters spawn at a vanilla Tamriel point and are moved into the hub with an ordinary teleport.
 // Where fresh characters spawn (server-settings.json startPoints); gamemode-config.json "landing" overrides it.
-const LANDING = Object.assign({ world: TAMRIEL, pos: [22659, -8697, -3594], radius: 2500 }, cfg.landing || {});
+// The default is the Pale Pass arrival, not the old Whiterun spot: a login next to a placed living actor
+// hangs the client (HANDOFF 14), and `ck-mcp\login_spot_check.py` counts 44 of them inside the loaded grid
+// of the Whiterun spot against none anywhere in the Bruma worlds. A config without "landing" used to send
+// every fresh character to the hang.
+const LANDING = Object.assign({ world: 'a764b:BSHeartland.esm', pos: [48236.2, 260600.4, 20405.1], angleZ: 135, radius: 2500 }, cfg.landing || {});
 const HUB = { cellOrWorldDesc: '17482:DragonBreak Hub.esp', pos: [2122.2, 2079.6, 3], rot: [0, 0, 22.9] };
 const moveToHubIfLanding = (a) => {
   try {
@@ -2087,61 +2091,3 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
