@@ -250,6 +250,28 @@
         }
       ]
     },
+    "DragonBreak Online Edits.esp:125BFC": {
+      "names": [
+        "Azura"
+      ],
+      "editorId": "DBO_ShrineOfAzura",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BC9",
+          "where": "BSHeartland",
+          "pos": [
+            93439.9,
+            194860.5,
+            2199.6
+          ]
+        }
+      ]
+    },
     "Dragonborn.esm:039E34": {
       "names": [
         "Boethiah"
@@ -313,6 +335,28 @@
             -183.4,
             -148.0,
             141.3
+          ]
+        }
+      ]
+    },
+    "DragonBreak Online Edits.esp:125BFD": {
+      "names": [
+        "Boethiah"
+      ],
+      "editorId": "DBO_ShrineOfBoethiah",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BFB",
+          "where": "BSHeartland",
+          "pos": [
+            91567.8,
+            195486.9,
+            1502.3
           ]
         }
       ]
@@ -385,6 +429,28 @@
         }
       ]
     },
+    "DragonBreak Online Edits.esp:125BFE": {
+      "names": [
+        "Hermaeus Mora"
+      ],
+      "editorId": "DBO_ShrineOfHermaeusMora",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BCD",
+          "where": "BSHeartland",
+          "pos": [
+            93780.5,
+            193278.3,
+            2089.7
+          ]
+        }
+      ]
+    },
     "DragonBreak Online Edits.esp:1112C5": {
       "names": [
         "Hircine"
@@ -392,26 +458,17 @@
       "editorId": "DBO_ShrineOfHircine",
       "type": "ACTI",
       "isBaseObject": true,
-      "placements": 2,
-      "inPlaytest": 0,
-      "inBruma": 0,
+      "placements": 3,
+      "inPlaytest": 1,
+      "inBruma": 1,
       "sample": [
         {
-          "refr": "DragonBreak Online Edits.esp:1112C6",
-          "where": "Tamriel",
+          "refr": "DragonBreak Online Edits.esp:125BCA",
+          "where": "BSHeartland",
           "pos": [
-            -4507.6,
-            -83201.5,
-            3008.5
-          ]
-        },
-        {
-          "refr": "DragonBreak Online Edits.esp:1112C7",
-          "where": "DLC2SolstheimWorld",
-          "pos": [
-            50651.6,
-            67816.6,
-            9513.2
+            94031.8,
+            195026.3,
+            2817.0
           ]
         }
       ]
@@ -551,62 +608,17 @@
       "editorId": "ShrineOfMalacath",
       "type": "ACTI",
       "isBaseObject": true,
-      "placements": 10,
-      "inPlaytest": 0,
-      "inBruma": 0,
+      "placements": 11,
+      "inPlaytest": 1,
+      "inBruma": 1,
       "sample": [
         {
-          "refr": "DragonBreak.esp:00EF5C",
-          "where": "Tamriel",
+          "refr": "DragonBreak Online Edits.esp:125BF7",
+          "where": "BSHeartland",
           "pos": [
-            158953.4,
-            3051.4,
-            -4045.9
-          ]
-        },
-        {
-          "refr": "DragonBreak.esp:00EF2B",
-          "where": "Tamriel",
-          "pos": [
-            134862.8,
-            -111205.5,
-            10877.3
-          ]
-        },
-        {
-          "refr": "DragonBreak.esp:00EC89",
-          "where": "Tamriel",
-          "pos": [
-            -152793.5,
-            80438.0,
-            -5564.8
-          ]
-        },
-        {
-          "refr": "DragonBreak.esp:00ECFC",
-          "where": "Tamriel",
-          "pos": [
-            -146377.1,
-            -24035.4,
-            -456.2
-          ]
-        },
-        {
-          "refr": "DragonBreak.esp:00B377",
-          "where": "Tamriel",
-          "pos": [
-            -76847.0,
-            -45868.1,
-            2327.4
-          ]
-        },
-        {
-          "refr": "DragonBreak.esp:0023BE",
-          "where": "Tamriel",
-          "pos": [
-            -57193.1,
-            -88386.3,
-            -1745.3
+            94840.8,
+            193835.5,
+            2353.3
           ]
         }
       ]
@@ -681,6 +693,28 @@
       "inBruma": 0,
       "sample": []
     },
+    "DragonBreak Online Edits.esp:125C00": {
+      "names": [
+        "Mehrunes Dagon"
+      ],
+      "editorId": "DBO_ShrineOfMehrunesDagon",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BE2",
+          "where": "BSHeartland",
+          "pos": [
+            94361.3,
+            194251.9,
+            2240.9
+          ]
+        }
+      ]
+    },
     "Dragonborn.esm:03A481": {
       "names": [
         "Mephala"
@@ -730,54 +764,51 @@
         }
       ]
     },
-    "Skyrim.esm:04E4D5": {
+    "DragonBreak Online Edits.esp:125BFF": {
       "names": [
-        "Meridia"
+        "Mephala"
       ],
-      "editorId": "DA09MeridiaStatue",
+      "editorId": "DBO_ShrineOfMephala",
       "type": "ACTI",
       "isBaseObject": true,
-      "placements": 6,
-      "inPlaytest": 4,
-      "inBruma": 0,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
       "sample": [
         {
-          "refr": "BSHeartland.esm:0DC2BC",
-          "where": "CYRCrowhavenBurialHalls",
+          "refr": "DragonBreak Online Edits.esp:125BCB",
+          "where": "BSHeartland",
           "pos": [
-            2284.2,
-            2156.1,
-            -220.2
-          ]
-        },
-        {
-          "refr": "BSHeartland.esm:0DC2BD",
-          "where": "CYRCrowhavenBurialHalls",
-          "pos": [
-            2284.2,
-            4207.6,
-            -220.2
-          ]
-        },
-        {
-          "refr": "BSHeartland.esm:0DC271",
-          "where": "CYRCrowhavenBurialHalls",
-          "pos": [
-            5466.7,
-            2173.8,
-            -229.0
-          ]
-        },
-        {
-          "refr": "BSHeartland.esm:0DC272",
-          "where": "CYRCrowhavenBurialHalls",
-          "pos": [
-            5466.7,
-            4223.3,
-            -229.0
+            94089.4,
+            193298.2,
+            2371.6
           ]
         }
       ]
+    },
+    "Skyrim.esm:04E4D6": {
+      "names": [
+        "Meridia"
+      ],
+      "editorId": null,
+      "type": null,
+      "isBaseObject": false,
+      "placements": 0,
+      "inPlaytest": 0,
+      "inBruma": 0,
+      "sample": []
+    },
+    "DragonBreak Online Edits.esp:125BF8": {
+      "names": [
+        "Meridia"
+      ],
+      "editorId": null,
+      "type": null,
+      "isBaseObject": false,
+      "placements": 0,
+      "inPlaytest": 0,
+      "inBruma": 0,
+      "sample": []
     },
     "Skyrim.esm:0C7B72": {
       "names": [
@@ -790,6 +821,50 @@
       "inPlaytest": 0,
       "inBruma": 0,
       "sample": []
+    },
+    "DragonBreak Online Edits.esp:125C01": {
+      "names": [
+        "Molag Bal"
+      ],
+      "editorId": "DBO_ShrineOfMolagBal",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BCC",
+          "where": "BSHeartland",
+          "pos": [
+            93400.3,
+            193368.9,
+            2068.6
+          ]
+        }
+      ]
+    },
+    "DragonBreak Online Edits.esp:125C02": {
+      "names": [
+        "Namira"
+      ],
+      "editorId": "DBO_ShrineOfNamira",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BCF",
+          "where": "BSHeartland",
+          "pos": [
+            94869.9,
+            194367.0,
+            2603.4
+          ]
+        }
+      ]
     },
     "Skyrim.esm:10E8B0": {
       "names": [
@@ -822,6 +897,50 @@
         }
       ]
     },
+    "DragonBreak Online Edits.esp:125C03": {
+      "names": [
+        "Nocturnal"
+      ],
+      "editorId": "DBO_ShrineOfNocturnal",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BD2",
+          "where": "BSHeartland",
+          "pos": [
+            93046.8,
+            193651.5,
+            2080.1
+          ]
+        }
+      ]
+    },
+    "DragonBreak Online Edits.esp:125C04": {
+      "names": [
+        "Peryite"
+      ],
+      "editorId": "DBO_ShrineOfPeryite",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BD3",
+          "where": "BSHeartland",
+          "pos": [
+            95106.7,
+            193436.5,
+            2421.7
+          ]
+        }
+      ]
+    },
     "DragonBreak Online Edits.esp:1112C8": {
       "names": [
         "Sanguine"
@@ -829,26 +948,17 @@
       "editorId": "DBO_ShrineOfSanguine",
       "type": "ACTI",
       "isBaseObject": true,
-      "placements": 2,
-      "inPlaytest": 0,
-      "inBruma": 0,
+      "placements": 3,
+      "inPlaytest": 1,
+      "inBruma": 1,
       "sample": [
         {
-          "refr": "DragonBreak Online Edits.esp:1112CA",
-          "where": "DA14Interior",
+          "refr": "DragonBreak Online Edits.esp:125BD4",
+          "where": "BSHeartland",
           "pos": [
-            3653.0,
-            2628.1,
-            -620.5
-          ]
-        },
-        {
-          "refr": "DragonBreak Online Edits.esp:1112C9",
-          "where": "Tamriel",
-          "pos": [
-            136799.5,
-            -70448.5,
-            14887.8
+            92851.4,
+            194095.1,
+            2037.1
           ]
         }
       ]
@@ -860,17 +970,17 @@
       "editorId": "DBO_ShrineOfSheogorath",
       "type": "ACTI",
       "isBaseObject": true,
-      "placements": 1,
-      "inPlaytest": 0,
-      "inBruma": 0,
+      "placements": 2,
+      "inPlaytest": 1,
+      "inBruma": 1,
       "sample": [
         {
-          "refr": "DragonBreak Online Edits.esp:1112CC",
-          "where": "Tamriel",
+          "refr": "DragonBreak Online Edits.esp:125BD5",
+          "where": "BSHeartland",
           "pos": [
-            -47437.0,
-            99695.3,
-            -12893.7
+            93118.2,
+            194518.2,
+            2122.7
           ]
         }
       ]
@@ -993,6 +1103,28 @@
       "inPlaytest": 0,
       "inBruma": 0,
       "sample": []
+    },
+    "DragonBreak Online Edits.esp:125C05": {
+      "names": [
+        "Vaermina"
+      ],
+      "editorId": "DBO_ShrineOfVaermina",
+      "type": "ACTI",
+      "isBaseObject": true,
+      "placements": 1,
+      "inPlaytest": 1,
+      "inBruma": 1,
+      "sample": [
+        {
+          "refr": "DragonBreak Online Edits.esp:125BD6",
+          "where": "BSHeartland",
+          "pos": [
+            94469.5,
+            195139.4,
+            2533.7
+          ]
+        }
+      ]
     },
     "Skyrim.esm:0D987B": {
       "names": [

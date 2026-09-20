@@ -1,5 +1,55 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (15:00): every Prince is prayable, at one test site
+
+Nat placed a statue of every Daedric Prince at the Namira shrine site in the Creation Kit, as one
+central place to test worship, and saved to `DragonBreak Online Edits.tes` because the CK could not
+rename over the plugin. Server restarted 14:52:26, **18 `[error]` lines**, `unresolved: none`,
+harnesses green. The boot line moved **`9 reachable` -> `24 reachable`**.
+
+### The save was fine; the shrines were not
+
+- [x] **Nothing was lost in the CK round-trip**, checked before promoting with the new
+  `py ck-mcp\comparesave.py`: all 101 `DBO_*` spells, all 10 RACE overrides, same 52 masters. The
+  file came back **25 KB smaller** purely because the CK recompacts what it rewrites - worth knowing,
+  because a smaller file after a save looks exactly like data loss.
+- [x] **Thirteen of the fifteen statues were STATICS.** The engine fires no activation on a static,
+  so `prayer.js` never hears about it: they were scenery. Only `ShrineOfMalacath` and the vanilla
+  `DA09MeridiaStatue` were activators. This is the single easiest mistake to make in the CK, because
+  a STAT and an ACTI look identical once placed.
+- [x] **Meridia needed only data**: she is named by *reference* on purpose, so the new placement was
+  added beside the Kilkreath one rather than switching her to the base, which would have turned her
+  four Crowhaven scenery twins into shrines.
+
+### The fix
+
+- [x] **`DBO_ShrineActivators2.pas`**: ten new `DBO_ShrineOf<Prince>` ACTI records at
+  `125BFC-125C05`, each **cloned from `DBO_ShrineOfHircine` and given the exact mesh of the statue
+  Nat chose**, so nothing changed visually. Hircine, Sanguine and
+  Sheogorath already had DBO activators on those same meshes and were reused, not duplicated.
+- [x] **All thirteen references repointed** at their activator, so the statue *is* the shrine rather
+  than something standing next to one. Verified in the written plugin before promoting: 13 of 13,
+  masters still 52.
+- [x] Every mesh comes from `man_DaedricShrines.esp` or `Skyrim.esm`, both already masters of DLE,
+  so no master was added and DLE's self-index could not shift.
+- [x] `skills.json` gained the ten new ids; census re-run; **24 of 26 deities now reachable**.
+
+**Only Auri-El and Clavicus Vile are still unreachable** - Auri-El's one shrine is in the Forgotten
+Vale, and no Clavicus Vile statue was placed. One more statue would close it.
+
+- [ ] Two placements look accidental and are worth a glance in the CK: `BSMApoHMShrine01` sits at
+  **[0, 0, 0]** in cell `0A7646`, and `DA07ShrineofMehrunesDagonExitTrigger` is a quest trigger
+  rather than a shrine. Neither is wired to anything.
+- [ ] **Still nothing knelt at.** Twenty-four gods now have somewhere to pray and not one prayer has
+  been said.
+
+### The runner missed two error dialogs
+
+`tools\run-sseedit-script.ps1` reads error dialogs so a compile failure shows in the console, but it
+only matched boxes titled `SSEScript 4.1.5f`. xEdit's rename failures come up titled plainly
+**`Error`**, so two went unread and the diagnosis came from the log instead. Now matches `Error` and
+`Warning` too.
+
 ## Added 2026-09-20 (13:40): the deity picker, the last piece of the brief
 
 Front widget `deityPicker` (id 36), built and deployed to both UI folders; `prayer.js` drives it.
@@ -75,6 +125,21 @@ no bot has ever logged into the live server on 7777.**
   gameplay timer layer 1.1 s -> 0.07 s of CPU a minute. Traffic and CPU did not move across the three runs
   (61,951 / 60,742 / 61,253 msg/s at 20.6 / 20.3 / 17.4% CPU), which is the point: the cost was never in
   the gameplay layer. A forced hot reload with 100 bots connected costs `meet` 2.48 ms, once.
+- [x] **Many-lease check** (the four-lease numbers could not show a leases-times-ids cost): 100 bots on
+  twenty dungeon doors, thirteen leases granted holding 225 living enemies against the four-lease run's 135.
+  `dungeons.arm` 0.80 -> 0.86 ms mean, `dungeons.tick` 1.11 -> 1.53 ms; still linear in leases it would have
+  been 2.6 and 3.6. Growth now tracks enemies, not leases.
+- [x] **The sandbox server that "vanished" was killed from outside, not a crash.** Restarting the live
+  server by sweeping `CommandLine -like '*skymp5-server*'` matches every copy of the bundle, so it stopped
+  the sandbox too - three times, each within a second of a `server-exit.log` line (14:16:48, 14:28:36,
+  14:43:52). The perf session owns the last two; **14:16:48 is unattributed** (an earlier note pinned it on
+  a plugin sync, which was withdrawn: the ESP it cited has been written again since, so its timestamp
+  proves nothing). There is **no** evidence of a server dying with many dungeons open.
+  Fixed on the harness side: the sandbox's copy of the bundle is now `dbo-loadtest-server.js`, so no sweep
+  for the live server can hit it. Worth adopting the other half too: **restart sweeps should match on the
+  working directory or the port, never on the bundle name.** (A marker argument is not an option -
+  `settings.ts:95` runs argparse's `parse_args()` with no arguments defined, so the server refuses any
+  unknown flag.)
 - [ ] **Orphan dungeon zones after an unclean stop**: a lease that was open when the server died leaves its
   zones in `NPC-Spawns.json`, and `npcSpawnSystem` tries to place them for the ~13 s until `dungeons.js`
   clears them at load (73 `failed to spawn` lines measured in one boot). Self-correcting, but it will look

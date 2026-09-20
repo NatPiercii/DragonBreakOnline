@@ -12,6 +12,13 @@ live server reports `blessings 22 resolved, 4 server-side, 0 broken`. The same s
 Unarmed its five marker spells at `1209CA-1209CE` (`DBO_UnarmedMarkers.pas`), so boot now reads
 `unresolved: none` and `18 skills have marker spells`.
 
+**Every Prince can be prayed to** (2026-09-20 15:00). Nat placed a statue of each at the Namira
+shrine site as one central test ground; thirteen went in as STATICS, which the engine never fires an
+activation on, so `DBO_ShrineActivators2.pas` gave each Prince an activator using that same statue
+mesh and repointed the references at it. The boot line reads `44 shrine ids, 24 reachable`. Only **Auri-El**
+(his one shrine is in the Forgotten Vale, though an Akatosh shrine will hear him) and **Clavicus Vile**
+(no statue placed) are still out of reach.
+
 **The picker is built** (2026-09-20 13:40): front widget `deityPicker`, id 36, offered automatically to
 any character out of the race menu with no god, and reopened with `/deity`. The **first choice is free
 and needs no shrine**; a later turn is gated by the 7-day cooldown alone, because the brief puts
@@ -84,7 +91,11 @@ reachable shrines in Bruma county before any of this work:**
 | Stendarr | 25 | 4 | 3 |
 | Talos | 56 | 6 | 4 |
 | Zenithar | 23 | 6 | 2 |
-| **every Daedric Prince** | — | — | **0** |
+| **every Daedric Prince** | — | — | **0 at the time** |
+
+That last row was true until 20 September, when a statue of every Prince went in at the Namira site
+and was wired to an activator. Fourteen of the sixteen now have exactly one reachable shrine; see the
+note at the top.
 
 The Cyrodiil wayshrines were added to the Divines anyway, because a wayshrine is a shrine a traveller
 will walk up to. Note that **seven of the nine are base objects with no placement at all**: only
