@@ -22,7 +22,7 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg, every } = api;
-  const C = Object.assign({ enabled: true, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
   const GATE_WIDGET_ID = 31;
   const LOCKPICK_BASE = 0x0000000a;
   const GOLD_BASE = 0x0000000f;
@@ -574,6 +574,73 @@ module.exports = (api) => {
     const got = factionSource(spawnedBase);
     return got && got.id === want.id ? null : factionKey(want) === factionKey(got) ? null : { want, got };
   };
+  // ---- outfits -----------------------------------------------------------------------------------
+  // A placement whose template names its own outfit (Morag Tong, Baan Malur bandits, Ysgramor's ghosts,
+  // the Windhelm vampire knights) spawns as a base with a different one, so it looks like a generic bandit.
+  // The engine only ever wears one outfit, so the placement's pieces are handed over and equipped on top.
+  // Nothing is taken away: the client's applyEquipment strips an actor bare, which would lose the skins that
+  // draugr and falmer wear as outfits, so equipment is never set on a spawned actor.
+  const TEMPLATE_USE_INVENTORY = 0x100;
+  const outfitOf = (baseId) => {
+    for (let id = baseId >>> 0, depth = 0; id && depth < 8; depth++) {
+      const res = espmOf(id);
+      if (!res || String(res.record.type) !== 'NPC_') return 0;
+      const acbs = fieldsOf(res, 'ACBS')[0];
+      const tflags = acbs && acbs.data.byteLength >= 20 ? viewOf(acbs.data).getUint16(18, true) : 0;
+      const tplt = fieldsOf(res, 'TPLT')[0];
+      const next = tplt ? globalIdAt(res, tplt.data) : 0;
+      if (!next || !(tflags & TEMPLATE_USE_INVENTORY)) {
+        const doft = fieldsOf(res, 'DOFT')[0];
+        return doft ? globalIdAt(res, doft.data) : 0;
+      }
+      id = next;
+    }
+    return 0;
+  };
+  // Armour an outfit puts on, with each leveled list resolved by the difficulty the lease runs at
+  const outfitArmour = (outfitId, mode, depth) => {
+    const res = espmOf(outfitId);
+    if (!res || depth > 4) return [];
+    const type = String(res.record.type);
+    if (type === 'ARMO') return [outfitId];
+    if (type === 'LVLI') {
+      const entries = fieldsOf(res, 'LVLO').filter((f) => f.data.byteLength >= 8)
+        .map((f) => [viewOf(f.data).getUint16(0, true), globalIdAt(res, f.data.subarray(4))]);
+      const pickId = pickOption(entries.map(([lvl, itemId]) => [lvl, itemId]), mode);
+      return pickId ? outfitArmour(Number(pickId), mode, depth + 1) : [];
+    }
+    if (type !== 'OTFT') return [];
+    const out = [];
+    for (const f of fieldsOf(res, 'INAM')) {
+      for (let at = 0; at + 4 <= f.data.byteLength; at += 4) out.push(...outfitArmour(globalIdAt(res, f.data.subarray(at)), mode, depth + 1));
+    }
+    return out;
+  };
+  // The placement's own outfit, when it has one and the base we spawn wears a different one
+  const outfitLoss = (placementBase, spawnedBase, mode) => {
+    const want = outfitOf(placementBase);
+    if (!want || want === outfitOf(spawnedBase)) return null;
+    const armour = outfitArmour(want, mode, 0);
+    return armour.length ? { outfit: want, armour } : null;
+  };
+  const dress = (id, armour) => {
+    let entries = [];
+    try { const inv = mp.get(id, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : []; } catch (e) { return 0; }
+    let added = 0;
+    for (const itemId of armour) {
+      if (entries.some((e) => (Number(e.baseId) >>> 0) === (itemId >>> 0))) continue;
+      entries.push({ baseId: itemId >>> 0, count: 1 });
+      added++;
+    }
+    try { mp.set(id, 'inventory', { entries }); } catch (e) { log('outfit inventory failed', id.toString(16), e.message); return 0; }
+    const self = { type: 'form', desc: mp.getDescFromId(id) };
+    for (const itemId of armour) {
+      try { mp.callPapyrusFunction('method', 'Actor', 'EquipItem', self, [{ type: 'espm', desc: mp.getDescFromId(itemId >>> 0) }, true, true]); }
+      catch (e) { log('outfit equip failed', id.toString(16), e.message); }
+    }
+    return added;
+  };
+
   if (!globalThis.__dboFactionAudited) {
     globalThis.__dboFactionAudited = true;
     const t0 = Date.now();
@@ -596,6 +663,17 @@ module.exports = (api) => {
       if (!npc.ref || !opt) continue;
       if (isAmbusher(npc.ref)) { ambushers++; ambushBy.set(d.id, (ambushBy.get(d.id) || 0) + 1); }
     }
+    let dressed = 0;
+    const dressBy = new Map();
+    for (const d of DATA.dungeons || []) for (const z of d.zones || []) for (const npc of z.npcs || []) {
+      const opt = (npc.options || [])[Math.floor(((npc.options || []).length) / 2)];
+      if (!npc.ref || !opt) continue;
+      if (!outfitLoss(placedBase(npc.ref), idOf(opt[1]), 'mid')) continue;
+      dressed++;
+      dressBy.set(d.id, (dressBy.get(d.id) || 0) + 1);
+    }
+    const dressTop = [...dressBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${k} ${n}`);
+    log(`dungeon outfit audit: ${dressed} placements in ${dressBy.size} dungeons lose their template's outfit (restoreOutfits ${C.restoreOutfits ? 'on' : 'off'}); most: ${dressTop.join(', ')}`);
     const ambushTop = [...ambushBy.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, n]) => `${k} ${n}`);
     log(`dungeon ambush audit: ${ambushers} placements in ${ambushBy.size} dungeons wait in ambush; most: ${ambushTop.join(', ')}`);
     const top = [...byPlacement.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => `${n}x ${k}`);
@@ -612,13 +690,21 @@ module.exports = (api) => {
       const zone = (lease.zones || []).find((z) => z.Name === tag);
       const pBase = zone && zone.Anchor ? placedBase(zone.Anchor) : 0;
       const sBase = idOf(baseDesc);
-      const loss = pBase ? factionLoss(pBase, sBase) : null;
-      if (!loss) continue;
-      try { mp.set(id, 'ff_factions', { f: loss.want.factions.map((x) => [x.id, x.rank]), c: loss.want.crime }); } catch (e) { log('ff_factions set failed', id.toString(16), e.message); continue; }
+      if (!pBase) continue;
       const pair = `${pBase}>${sBase}`;
-      if (lease.factionPairs.has(pair)) continue;
-      lease.factionPairs.add(pair);
-      log(`dungeon ${lease.id} factions: ${edidOf(pBase)} (${zone.Kind}) spawned as ${edidOf(sBase)} [${factionNames(loss.got)}], given [${factionNames(loss.want)}]`);
+      const first = !lease.factionPairs.has(pair);
+      if (first) lease.factionPairs.add(pair);
+      const loss = factionLoss(pBase, sBase);
+      if (loss) {
+        try { mp.set(id, 'ff_factions', { f: loss.want.factions.map((x) => [x.id, x.rank]), c: loss.want.crime }); } catch (e) { log('ff_factions set failed', id.toString(16), e.message); }
+        if (first) log(`dungeon ${lease.id} factions: ${edidOf(pBase)} (${zone.Kind}) spawned as ${edidOf(sBase)} [${factionNames(loss.got)}], given [${factionNames(loss.want)}]`);
+      }
+      const diff = (DIFFICULTIES.find((x) => x.id === lease.difficulty) || DIFFICULTIES[1]);
+      const outfit = C.restoreOutfits ? outfitLoss(pBase, sBase, diff.pick) : null;
+      if (outfit) {
+        const added = dress(id, outfit.armour);
+        if (first) log(`dungeon ${lease.id} outfit: ${edidOf(pBase)} spawned as ${edidOf(sBase)}, given ${edidOf(outfit.outfit)} (${outfit.armour.map((x) => edidOf(x)).join(', ')})${added ? '' : ', already carried'}`);
+      }
     }
   };
   every('dungeons.arm', 2000, () => {
