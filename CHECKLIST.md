@@ -1704,6 +1704,33 @@ From `_reviews\2026-09-19-daily-review.md`, "Scaling to 100 concurrent players".
 - [x] Checker fix on the way: descs whose plugin name has an apostrophe (JK's Castle Volkihar, JK's Fort Dawnguard,
   JK's Whiterun's Outskirts, OCW_Obscure's...) were silently skipped (40 in doors.json); they are checked now.
 
+## Added 2026-09-20: a placement's own outfit reaches the actor again
+
+- [x] **What was actually lost.** Most "outfit" differences are not losses: the placement supplies none and the
+  spawned base brings its own. The real set is **193 placements in 37 dungeons**, and they are the identity
+  ones: Morag Tong in Solstheim bandit armour, the Baan Malur bandits without `MorrowindLvlBanditArmourOutfit`,
+  Ysgramor's Tomb ghosts in bandit gear instead of draugr armour, the Windhelm vampire knights, the Silver Hand
+  shield variants. Boot line: `dungeon outfit audit: 193 placements in 37 dungeons ... (restoreOutfits on)`.
+- [x] **The server cannot dress a spawned actor.** Found by bot test after the first version logged what it gave
+  and changed nothing: an npc's inventory is only ever sent to the npc's own user (`VisitPropertiesMode::All`,
+  `PartOne.cpp` 826-830) and `SpSnippet::Execute` returns early unless the actor was created as a player
+  (`SpSnippet.cpp` 25-31), so neither the items nor an `EquipItem` call leaves the server.
+  **The same limit applies to the weapons `armLease` hands out**, which means enemy arming has only ever
+  changed the corpse, not what the enemy fights with. Worth its own look.
+- [x] **How it works now** (server `f79fd71`, fork `02fa1a1`): `giveWorn` puts the pieces in the actor's
+  inventory for the corpse and names them in the neighbour-visible `ff_outfit`; `formView.applyOutfit` adds and
+  equips them client-side, once per value, next to `applyFactions`. Nothing is removed, because the client's
+  `applyEquipment` strips an actor bare and would lose the skins draugr and falmer wear as outfits.
+- [x] **A leveled list with Use All is a whole outfit**, not a choice between pieces (`LeveledListBase.h`
+  `UseAll = 0x04`). Before reading LVLF, a full soldier outfit resolved to a single helmet.
+- [x] **Verified on the wire**: a Fort Caractacus claim sends `ff_outfit` lists of five and six pieces to a real
+  client, e.g. `[81623, 81625, 81626, 81627, 80562]`, alongside the faction lists. What only the game can show
+  is the equip itself, the same boundary as the factions.
+- [x] Live: `dungeons.restoreOutfits` is **on** in `gamemode-config.json` (a live file, not in git). Set it to
+  false and touch `gamemode.js` to turn it off. The client half needs a relaunch: bundle md5 `7009ed45`,
+  previous one in `_client-bundle-backupsefore-outfit-20260920-181437\`.
+- [ ] Not done: the 994 AI data, 910 script and 244 spell losses, and the pose an ambusher should hold.
+
 ## Added 2026-09-20: ambushers wait for you again
 
 The same template loss as the factions, the other half of it. A vanilla ambusher gets `ambushSleepPackage`,
