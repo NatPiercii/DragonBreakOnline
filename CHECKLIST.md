@@ -1,5 +1,176 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (15:50): Daedra worship is not one crime, and a permission allowlist
+
+Nat, awake: *"for the unlawful list, be lore accurate please, certain daedra are fine like malacath"*.
+Server restarted **15:49:30**, **18 `[error]` lines**, `prayer on: 26 deities, 45 shrine ids, 25
+reachable`, `blessings 22 resolved, 0 broken`. `skills.json` backed up to `skills.json.bak-lawful-154716`
+first. Prayer harness **all checks passing**.
+
+- [x] **The blanket `lawful: false` on all sixteen Princes is gone.** It was one boilerplate string
+  repeated sixteen times, which is both wrong and useless. **Malacath, Azura and Meridia are now
+  `lawful: true`** with no `unlawfulWhere` at all: Orc strongholds worship Malacath in the open and
+  Orsinium is an Imperial vassal; Azura's shrine is a public pilgrimage site with a resident
+  priestess; Meridia's sphere is the destruction of undead, which runs *with* Arkay and Stendarr.
+- [x] **The other thirteen each carry their own reason**, and the harness now asserts all thirteen
+  are **distinct**. Severity is carried in the prose, so there was **no schema change and no front
+  rebuild** - `lawful` is still the boolean `prayer.js` and the picker already read.
+  Hunted: Mehrunes Dagon, Molag Bal, Namira, Boethiah, Vaermina. Criminal: Mephala, Nocturnal,
+  Hircine. Forbidden on paper and ignored in practice: Sanguine, Sheogorath, Hermaeus Mora, Clavicus
+  Vile, Peryite.
+- [x] **Mehrunes Dagon's line is Bruma-specific**, which is the best hook on the list: the Great Gate
+  of 3E 433 opened outside these walls, and Beyond Skyrim has already renamed the Great Chapel of
+  Talos here to the **Cathedral of St Martin**, after the man who died ending that invasion.
+- [x] **`prayer.js` now says the deity's own reason** instead of one generic line for every Prince,
+  and says nothing at all at the three legal shrines. Hot reload, no rebuild.
+- [x] **The Tribunal's "good Daedra" were not used as the model, deliberately.** Azura, Boethiah and
+  Mephala are Dunmer temple doctrine; two of that three are among the most criminal under Imperial
+  law. `skills.json` carries a `_lawComment` saying so, because it is the obvious wrong turn for the
+  next person.
+- [x] **Two harness checks rewritten, not worked around.** "every Prince is marked unlawful" was
+  asserting exactly the behaviour this changes; it is now three checks (the legal three, the
+  proscribed thirteen, and the distinctness of their reasons).
+
+- [ ] **Nothing still acts on any of it.** No guard reads `lawful`; the player is told once and
+  nobody stops them. Making it a real crime is a faction decision and a big change.
+- [ ] **Not tested in play**, like the rest of prayer.
+
+### Found on the way out: the slow-motion guard has a hole, and a "flaky" test was reporting it
+
+`tests\labour-harness.js` failed **5 runs in 25**, always on the same check, *"a sweep played at half
+speed is refused"*. It is not a bad assertion - it was **intermittently revealing a real hole**, and
+passing whenever the random bands happened to make the round long enough.
+
+- **The slow-motion guard is the same flat `lagGraceMs: 2500` that pays for transport**
+  (`labour.js:293`, `judge()`), and at half speed the excess *equals the round's own length*. So the
+  cheat is only caught once a round runs longer than 2,500 ms. A **6-strike tier-5 round finishes in
+  roughly 1,800-2,400 ms**, under the grace - so a player can draw the whole sweep out to double
+  length, which makes a timing game trivial, and nothing fires. High tier is the *easiest* to cheat,
+  which is backwards.
+- **`gamemode.js`'s skinning judge is the same shape** (`judgeSkin`, `SKIN.lagGraceMs: 2500`, 3 cuts),
+  so it has the same property by construction. Not separately measured.
+- **Not fixed, deliberately.** Catching it needs a proportional test - the excess measured against
+  the round's own length rather than one absolute - and `labour.js:36` says in as many words to
+  *"read a playtest's worth out of server.log before tightening this"*. **Nobody has played yet, so
+  there is no `lag=` distribution to calibrate against**, and a threshold guessed now would refuse
+  honest players on a bad connection. This is a balance call that wants real latency data first.
+- [x] **The test is deterministic now**, 30 runs of 30 passing: one check that slow motion *is*
+  refused once the round outlasts the grace, and one named `KNOWN GAP` asserting today's behaviour
+  with the reasoning inline, so whoever tightens the guard gets a failing test pointing at it.
+- [ ] Separately, `tests\skinning-harness.js` is still the **other** flaky one (~1 run in 30, the
+  evenly-spaced forgery case) and is untouched - that one really is a test asserting an absolute over
+  a random seam.
+
+### A permission allowlist, replacing seventy dead one-liners
+
+- [x] `.claude\settings.local.json` rewritten. The old list was ~70 command strings recorded verbatim
+  from past sessions (`node fixwheel.js`, a specific `grep -o` with an escaped brace count, a
+  scratchpad path from a dead session id) - none could ever match again. It is now general rules:
+  the file tools, read-only shell, `node`/`py`/`npm run`, read-only git plus `add`/`commit`, the
+  read-only creation-kit MCP tools, and the documented hidden `run-logged.cmd` start.
+- [x] **`git push` is in `ask`, not `allow`**, so it always stops for a human - the standing "back up
+  the local git before a push" rule made structural rather than remembered.
+- [x] `git reset --hard`, `git clean -fd` and `Remove-Item -Recurse` are in **`ask`, not `deny`**, on
+  purpose: `git reset --hard backup/pre-push-<stamp>` is the documented rollback, and denying it
+  would block the recovery it exists for. Only `rm -rf` is denied outright.
+
+## Added 2026-09-20 (14:44): floating and clipping NPCs, four fixes (LIVE, client rebuild included)
+
+Diagnosis first, from `formView.ts`, `movementApply.ts` and `npcSpawnSystem.ts`. A `translateTo` moves a
+reference with collision off for the whole translation (the project's own finding, commit `853117b`); the
+symptom in HANDOFF section 15 is "x/y parked at the target, z creeping at the leftover speed". Five client
+fixes had been layered on that since 09-15 and it still happened, so the gap was in **when** the nets fire.
+- [x] **Ragdoll leak** (`client\src\sync\movementApply.ts`). The ragdoll early return (`Variable10 < -999`)
+  bailed out without stopping the in-flight translation or restoring collision, so a knocked-down copy whose
+  get-up event was lost slid on with collision off for as long as it lived. It now settles first. Combat
+  knockdowns are common, so this was the main suspect for floating during a fight.
+- [x] **Stale sit pose** (`client\src\sync\animation.ts`). `restoreSitCollisionIfMoving` only recovered a lost
+  get-up for a *moving* copy; a standing one kept collision off for life. It now also recovers when the engine
+  does not hold the actor in furniture (`getSitState() !== 0`), which is the honest test for "the get-up was
+  lost". A copy the engine really has sitting still keeps collision off.
+- [x] **`isSliding` detector** (`npcSpawnSystem.ts`). `isStranded` needs `dz >= 600` AND `dxy <= 384`, so a
+  float offset sideways matches nothing: **it has never fired once in this project's log history**. The new
+  test flags x/y frozen while z creeps 0.5-64 units per poll, at least 250 off the slot, for three polls -
+  the signature of a translation nobody stopped, in either direction, so it catches sinking too.
+- [x] **Void spots are remembered** (`npcSpawnSystem.ts`). `fallenSpots` was in-memory and was *wiped on every
+  despawn*, so each lease and each restart re-learned the same floorless spots at two dropped NPCs apiece
+  (the log shows Serpent's Trail slot 5 falling on four separate occasions). Now persisted to
+  `server\npc-fallen-spots.json`, kept across despawns and restarts, forgotten only on an admin reset.
+  Seeded from the log evidence with the 11 spots already proved floorless (Serpent's Trail x7, Red Ruby
+  Cave, Bleak Falls Barrow). Delete the file to make the server try every spot again.
+
+**Verification, since the user could not test in game:**
+- Client fixes driven against the real compiled code with a stubbed engine (`esbuild` bundle of the two
+  modules): 9 checks pass. **Control**: the same tests against the pre-fix sources from HEAD fail exactly the
+  4 checks that target the fixes and pass the other 5, so the tests can fail.
+- Detector: 8 offline checks - fires within 10 s on a float in either direction, and does **not** fire for an
+  NPC standing on a ledge 700 above its slot, one walking, a real fall, jitter near the slot, or a drift that
+  changes direction. False fires were the risk: a wrong one destroys an NPC mid-fight.
+- **Live, via the bot harness** (`--host-npcs --drift-hosted`): 12 fires on the real server, each at 278-286
+  off its spot (FLOAT_LIFT 250 plus three polls, as designed), each followed by destroy-and-replace and a
+  refill, and no false fires across 48 other zones of standing NPCs.
+- [ ] **Still unverified, and only a player can**: whether havok actually re-takes the body, i.e. whether the
+  NPC stops floating on screen. `stopTranslation` plus collision-on is the one engine fact in this chain with
+  no primary source - the CK wiki is behind a bot check and creationkit.com is down - and
+  `movementApply.ts:175` already warns "stopTranslation does not reliably hand the reference back to havok".
+- [ ] Measured, not fixed: spawn placement is **not** the cause. Every zone holds one NPC, so the invented
+  ring slots are never used, and both generators anchor on the placement's own vanilla ACHR, so `PlaceAtMe`
+  births each actor on Bethesda's spot. 36 falls and 11 void slots in all logs, 0 strands.
+- [ ] From the harness, worth knowing before a 100-player night: 34 hosted NPCs raised the movement fan-out
+  from 66,643 to 77,117 messages a second (+16%), about 43x each hosted actor's own rate. At the live budget
+  of 150 NPCs all hosted that is roughly another 46,000 a second on top of the players.
+
+## Added 2026-09-20 (15:40): the wildlife faction gap does not exist, and now it is measured
+
+The handed queue (mining kinds, deity data, the shrine path, Unarmed's markers) was already finished
+by the three runs before this one, so this run took the one open item nobody had checked: the
+`_reviews` note that **the `ff_factions` repair lives only in `dungeons.js`, so `wildlife.js` and
+generic `NPC-Spawns.json` zones get no faction repair.** Hot reload only, no rebuild. Nobody online,
+no lease open, **18 `[error]` lines** before and after.
+
+**The answer is that there is nothing to repair.** `wildlife faction audit: 0 of 3185 placements
+spawn without their template's factions, 3185 defer to the leveled pick (0 kinds, 45 ms)`.
+
+- [x] **Every one of the 3,185 wildlife wrappers defers.** `LvlAnimalMountainSnowPredator` and its
+  kind *are* NPC_ records, not leveled lists - I guessed they were LVLNs and the measurement said
+  otherwise - but all 3,185 carry ACBS template flag `Use Factions` **set** and template down to an
+  LVLN, so the faction walk leaves the NPC_ chain with nothing of its own to give. Resolving the
+  leveled list therefore loses nothing. **This is the whole difference from the dungeons**, where
+  2,320 of 3,500 defer and the other 1,180 own their factions - 390 of which disagree with what gets
+  spawned.
+- [x] **There are no generic zones either.** `NPC-Spawns.json` holds `wild:` 3185 and nothing else;
+  `dungeon:*` entries exist only while a lease runs. So the "generic zones get no repair" half of the
+  note is empty too.
+
+### The zero was checked against a known answer before it was believed
+
+A clean audit result and an audit that reads nothing look identical. So the same module was run over
+`dungeons.json` as a negative control and reproduced **390 of 3500**, matching `dungeons.js`'s own
+boot audit of 390 exactly (its 3501 counts one slot whose option resolves to id 0, which this one
+skips). Only then was the wildlife zero trusted. The control has been removed again.
+
+### What shipped
+
+- [x] **`server\factions.js` (new)**: the espm side of the faction question as one module - the TPLT
+  walk to the record whose SNAM list actually applies, `factionLoss`, the `ff_factions` payload
+  shape, and a reusable `audit()`. Pure: give it `mp` and it answers questions about records. It
+  **cache-busts itself** on require, because a hot reload re-requires `wildlife.js` but would
+  otherwise keep a stale copy of this - that cost two reload cycles to notice (`undefined deferred`).
+- [x] **`wildlife.js`**: a once-per-process audit and a clause on the boot line. The verdict is kept
+  on `globalThis` so the summary still carries it after a reload, when the audit itself is skipped.
+- [x] It audits **the option actually picked** (`pickOption` with the placement's own safe-zone
+  pick), not `options[0]` as the dungeon audit does. The pick is what spawns.
+
+- [ ] **`dungeons.js` still carries its own copy of this logic** (~30 lines, lines 501-540). The two
+  are now proven to agree, so the swap is safe, but it was left alone deliberately: the file had been
+  written by another session at 14:54 and there is no functional gain from touching a system that is
+  verified in game.
+- [ ] **Unchanged and still true**: `applyFactions` landing the factions on the actor has never been
+  seen in game. Bots have no engine, so no bot run can ever show it. It needs one player standing in
+  a vampire lair watching whether the thralls still fight the vampires.
+- [ ] The other half of the same root cause is untouched and still open: ambush AI packages (967
+  slots), AI data (994), scripts (910), outfits/inventory (460), spells (244).
+
 ## Added 2026-09-20 (15:00): every Prince is prayable, at one test site
 
 Nat placed a statue of every Daedric Prince at the Namira shrine site in the Creation Kit, as one
@@ -175,8 +346,27 @@ no bot has ever logged into the live server on 7777.**
   clears them at load (73 `failed to spawn` lines measured in one boot). Self-correcting, but it will look
   alarming in the log after any crash during a dungeon evening. The harness strips them before it starts
   the sandbox; the server could do the same one step earlier in boot.
-- [ ] **Still to run**: `--host-npcs` (bots host and drive the NPCs near them, which is how a real crowd
-  multiplies the fan-out), and a run with the bots on a second machine for real bytes/s.
+- [x] **NPC hosting measured** (`--host-npcs`, 100 bots, 240 s each): no seeded npcs 60,742 msg/s out ->
+  npcs present but unhosted 66,643 -> npcs hosted by the bots **77,117**. Only **34** hosted npcs and 243
+  extra inbound messages a second produced **10,474 more outbound**, i.e. ~43 listeners per hosted actor.
+  At the live npc budget of 150 all hosted that is roughly **another 46,000 messages a second on top of the
+  players' 62,000**. Whatever interest management is chosen must cover hosted actors, not just players.
+- [x] **`isSliding` verified on the live path** (the detector added 2026-09-20 14:44): four bots took host of
+  a zone npc each and reported it with x/y frozen and z rising 6 u/s. It fired 12 times, each at 278-286
+  units off the spot (FLOAT_LIFT 250 plus its three confirming polls), destroyed and replaced each one, and
+  never fired on the npcs standing still in the same world.
+- [ ] **Three traps found while doing it**, all worth knowing outside the harness:
+  - **Bruma has almost no wildlife where the players are**: of 3,185 `wild:*` zones, 2,612 are in Tamriel and
+    345 in the Bruma worldspace, with exactly **one** within 5,000 units of the city. Every other number in
+    the review is therefore player-to-player traffic in a world with no npcs near the crowd.
+  - **A zone that leaves `NPC-Spawns.json` while its npcs live orphans them forever**: they stay alive,
+    streamed and hostable, but `checkMisplaced` only walks `zone.spawned`, so no detector can correct them.
+    (Found because `wildlife.js` deleted seeded zones named `wild:*` - it owns that prefix, as `dungeons.js`
+    owns `dungeon:*`.)
+  - **A server killed while players are connected leaves their characters enabled in the world**: on the next
+    boot they stream to everybody and any client can take host of them. Same family as the orphan dungeon
+    zones; the logout grace never ran.
+- [ ] **Still to run**: bots on a second machine for real bytes/s without the relay hop.
 
 ## Added 2026-09-20 (13:30): every scale term in weightOf is live, and the offsets were measured
 
