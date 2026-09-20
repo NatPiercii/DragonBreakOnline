@@ -510,6 +510,19 @@ module.exports = (api) => {
     audit(`DEITY ${who(a)} ${faith ? 'turned to' : 'took'} ${d.name}`);
   }, { help: 'your god; /deity <name> at that god\'s shrine to take or change it' });
 
+  // A blessing id that does not resolve is silent: the prayer succeeds, the roll lands and the
+  // worshipper is told the god "gives no sign". Count them at boot so a mistyped form id shows up
+  // in the log rather than in somebody's play session.
+  const blessingCheck = (() => {
+    const out = { ok: 0, server: 0, broken: [] };
+    for (const d of DEITIES) {
+      if (d.blessingSource === 'server') { out.server++; continue; }
+      if (blessingIdOf(d)) out.ok++; else out.broken.push(d.name);
+    }
+    return out;
+  })();
+  if (blessingCheck.broken.length) log(`prayer: ${blessingCheck.broken.length} blessing(s) do not resolve: ${blessingCheck.broken.join(', ')}`);
+
   const reachable = DEITIES.filter((d) => Number(d.inBruma) > 0).length;
-  log(`prayer ${CFG.enabled ? 'on' : 'off'}: ${DEITIES.length} deities, ${shrineIndex().size} shrine ids, ${reachable} reachable under the region lock; ${VERSES} verses of ${VERSE_MS} ms, ${SLACK_MS} ms slack, ${Math.round(SHRINE_COOLDOWN_MS / 60000)} min per shrine, conversion every ${CONVERSION_DAYS} day(s)`);
+  log(`prayer ${CFG.enabled ? 'on' : 'off'}: ${DEITIES.length} deities, ${shrineIndex().size} shrine ids, ${reachable} reachable under the region lock; ${VERSES} verses of ${VERSE_MS} ms, ${SLACK_MS} ms slack, ${Math.round(SHRINE_COOLDOWN_MS / 60000)} min per shrine, conversion every ${CONVERSION_DAYS} day(s); blessings ${blessingCheck.ok} resolved, ${blessingCheck.server} server-side, ${blessingCheck.broken.length} broken`);
 };

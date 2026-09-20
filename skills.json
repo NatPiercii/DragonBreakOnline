@@ -980,15 +980,15 @@
           "6c9f1:Skyrim.esm",
           "61b54:BSHeartland.esm"
         ],
-        "blessing": "<pending: DBO_BlessingOfDibella>",
+        "blessing": "1209bf:DragonBreak Online Edits.esp",
         "placements": 21,
         "inPlaytest": 4,
         "inBruma": 3,
         "sphere": "Beauty, love and art. Her temple at Markarth keeps the Sybil; her Cyrodiilic chapels teach that beauty is a form of worship.",
         "boon": "Illusion +10.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyIllusion (3eb27:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. Beauty and the arts of the mind; charm is Illusion when there is nobody to charm by talking. Bethesda's AltarDibellaSpell (fb995) is left untouched - skills.json simply stops pointing at it.",
-        "replacedBoon": "Persuasion +10, vanilla (dead: no NPCs to persuade)."
+        "blessingSource": "vanilla",
+        "replacedBoon": "Persuasion +10, vanilla (dead: no NPCs to persuade).",
+        "blessingEditorId": "DBO_BlessingOfDibella"
       },
       {
         "id": "julianos",
@@ -1078,21 +1078,22 @@
           "100780:Skyrim.esm",
           "61b59:BSHeartland.esm"
         ],
-        "blessing": "fb99a:Skyrim.esm",
+        "blessing": "1209c1:DragonBreak Online Edits.esp",
         "note": "Openly worshipping Talos is a crime in Cyrodiil in 4E 201. prayer.js warns a Talos worshipper the first time they pray, and nothing else happens: whether the guards care is a faction decision for Nat, not a prayer one. private.dboLawful already exists if it should.",
-        "blessingEditorId": "AltarTalosSpell",
         "placements": 56,
         "inPlaytest": 6,
         "inBruma": 4,
         "sphere": "Tiber Septim, the man who became the Ninth Divine and founded the Empire that outlawed him.",
-        "boon": "Shouts return 20% sooner.",
+        "boon": "Two-handed +10.",
         "alsoKnownAs": [
           "Ysmir",
           "Hjalti Early-Beard"
         ],
         "blessingSource": "vanilla",
         "lawful": false,
-        "unlawfulWhere": "The Empire, under the White-Gold Concordat. Bruma is Imperial and the Thalmor keep a Justiciar presence."
+        "unlawfulWhere": "The Empire, under the White-Gold Concordat. Bruma is Imperial and the Thalmor keep a Justiciar presence.",
+        "replacedBoon": "Shouts return 20% sooner - dead, or at least unconfirmed: nobody has established that shouts work on this server at all, and a boon nobody can verify is not a boon.",
+        "blessingEditorId": "DBO_BlessingOfTalos"
       },
       {
         "id": "zenithar",
@@ -1102,7 +1103,7 @@
           "d987b:Skyrim.esm",
           "61b5a:BSHeartland.esm"
         ],
-        "blessing": "<pending: DBO_BlessingOfZenithar>",
+        "blessing": "1209c0:DragonBreak Online Edits.esp",
         "placements": 23,
         "inPlaytest": 6,
         "inBruma": 2,
@@ -1112,9 +1113,9 @@
           "Z'en (Bosmeri)",
           "Tsun (Nordic, disputed)"
         ],
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyCarryWeight (3eb01:Skyrim.esm) at magnitude 50, duration 28800, keeping CureDiseaseEffect. The god of work and honest trade, on a server whose entire economy is players hauling ore, ingots and firewood to each other. Carry weight is the most Zenithar thing that exists here, and no shrine uses it. Bethesda's AltarZenitharSpell (fb99b) is left untouched.",
-        "replacedBoon": "Speechcraft +10, vanilla (dead: no merchants, no barter)."
+        "blessingSource": "vanilla",
+        "replacedBoon": "Speechcraft +10, vanilla (dead: no merchants, no barter).",
+        "blessingEditorId": "DBO_BlessingOfZenithar"
       },
       {
         "id": "auriel",
@@ -1199,18 +1200,18 @@
         "shrines": [
           "3a481:Dragonborn.esm"
         ],
-        "blessing": "<pending: DBO_BlessingOfMephala>",
+        "blessing": "1209c4:DragonBreak Online Edits.esp",
         "placements": 4,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Lies, sex and secret murder; the Webspinner, who taught the Morag Tong their trade.",
         "boon": "Alchemy +10.",
-        "blessingSource": "pending",
+        "blessingSource": "vanilla",
         "note": "Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone. Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone.",
         "lawful": false,
         "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyAlchemy (3eb18:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. The Webspinner taught the Morag Tong, and the Morag Tong kill with poison. There is an Alchemist skill and player-made poison is real. Bethesda's DLC2AltarMephalaSpell (3bcfd) is left untouched.",
-        "replacedBoon": "Speechcraft +10, vanilla (dead: no NPCs)."
+        "replacedBoon": "Speechcraft +10, vanilla (dead: no NPCs).",
+        "blessingEditorId": "DBO_BlessingOfMephala"
       },
       {
         "id": "mehrunes",
@@ -1219,17 +1220,17 @@
         "shrines": [
           "bf2b6:Skyrim.esm"
         ],
-        "blessing": "<author: Boon of Mehrunes Dagon>",
+        "blessing": "1209c3:DragonBreak Online Edits.esp",
         "placements": 0,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Destruction, change, revolution and ambition. Bruma above all others has met him: the Great Gate opened here, and Martin broke it.",
         "boon": "Destruction +10.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyDestruction (3eb26:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. Now that an alchemy-family effect is known to work in a shrine spell, Dagon gets the school of ruin itself instead of sharing Malacath's Damage. Bruma is the one place in Tamriel where that matters: the Great Gate opened here.",
+        "blessingSource": "vanilla",
         "lawful": false,
         "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "Damage +10%, which duplicated half of Malacath's."
+        "replacedBoon": "Damage +10%, which duplicated half of Malacath's.",
+        "blessingEditorId": "DBO_BlessingOfMehrunesDagon"
       },
       {
         "id": "molagbal",
@@ -1238,17 +1239,17 @@
         "shrines": [
           "c7b72:Skyrim.esm"
         ],
-        "blessing": "<author: Boon of Molag Bal>",
+        "blessing": "1209c5:DragonBreak Online Edits.esp",
         "placements": 0,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Domination and the enslavement of mortals. The King of Rape; the father of vampires; the reason a black soul gem is black.",
         "boon": "Conjuration +10.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyConjuration (3eb25:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. No new magic effect is needed after all. Conjuration is binding, thralldom and soul trap - Molag Bal is the reason a black soul gem is black, and domination of a soul is exactly his sphere.",
+        "blessingSource": "vanilla",
         "lawful": false,
         "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "An absorb-health effect that would have had to be authored from scratch."
+        "replacedBoon": "An absorb-health effect that would have had to be authored from scratch.",
+        "blessingEditorId": "DBO_BlessingOfMolagBal"
       },
       {
         "id": "nocturnal",
@@ -1275,17 +1276,17 @@
         "shrines": [
           "1112c5:DragonBreak Online Edits.esp"
         ],
-        "blessing": "<author: Boon of Hircine>",
+        "blessing": "1209c2:DragonBreak Online Edits.esp",
         "note": "DBO_ShrineOfHircine activators on the Daedric Shrines AIO statues: Falkreath forest (BearCaveMill cell) and Solstheim (Snowclad Ruins). Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
         "placements": 2,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "The Hunt, the Chase and the Great Game. The Huntsman of the Princes; werewolves are his.",
         "boon": "Stamina returns 10% faster - the hunt never tires.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell, swap its effect for FortifyStaminaRateFFSelf (fb98b:Skyrim.esm) at magnitude 10, duration 28800, and keep CureDiseaseEffect. That MGEF is vanilla, is part of Bethesda's own shrine family, and no shrine in the game uses it - so nothing has to be authored but the SPEL.",
+        "blessingSource": "vanilla",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "blessingEditorId": "DBO_BlessingOfHircine"
       },
       {
         "id": "meridia",
@@ -1294,18 +1295,19 @@
         "shrines": [
           "4e4d6:Skyrim.esm"
         ],
-        "blessing": "<author: Boon of Meridia>",
+        "blessing": "1209c8:DragonBreak Online Edits.esp",
         "note": "The vanilla Kilkreath activator, named as a single REFR on purpose (CHECKLIST 2026-09-14): its base DA09MeridiaStatue also stands four times in CYRCrowhavenBurialHalls as scenery, and those must not become shrines. It is in Skyrim, so it is unreachable under the Bruma region lock.",
         "placements": 1,
         "inPlaytest": 0,
         "inBruma": 0,
         "isReference": true,
         "sphere": "The energies of living things, and a hatred of the undead so total that she is counted a Daedric Prince mostly by process of elimination.",
-        "boon": "The undead flee you.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarArkaySpell and swap its effect for TurnUndeadFFMassSelfArea (8c1aa:Skyrim.esm), duration 28800. This is Dawnbreaker's sphere expressed as a blessing, and it is the only boon in the list that does nothing at all against the living - which is exactly right for Meridia.",
+        "boon": "Health regenerates 25% faster.",
+        "blessingSource": "vanilla",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "replacedBoon": "The undead flee you, on TurnUndeadFFMassSelfArea - wrong, and only found by dumping the template: a shrine blessing is a fire-and-forget SELF spell, so a mass-self-area turn undead fires once at the shrine and never again.",
+        "blessingEditorId": "DBO_BlessingOfMeridia"
       },
       {
         "id": "sanguine",
@@ -1390,56 +1392,57 @@
         "name": "Namira",
         "kind": "daedra",
         "shrines": [],
-        "blessing": "",
+        "blessing": "1209c9:DragonBreak Online Edits.esp",
         "placements": 0,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "The ancient darkness, decay, and everything that revolts: spirits, spiders, the eaten dead.",
         "boon": "Sneak raised by 10, and you see in the dark.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell, keep FortifySneakFFSelf (10e8af:Skyrim.esm) at 10, and ADD NightEyeEffect (6b10c:Skyrim.esm) at duration 28800. Two effects on one spell, exactly as Malacath's already has three. Nocturnal hides you from others; Namira shows you what is in the dark with you.",
+        "blessingSource": "vanilla",
         "note": "The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell. The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell.",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "blessingEditorId": "DBO_BlessingOfNamira"
       },
       {
         "id": "peryite",
         "name": "Peryite",
         "kind": "daedra",
         "shrines": [],
-        "blessing": "",
+        "blessing": "1209c6:DragonBreak Online Edits.esp",
         "placements": 0,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Pestilence, and the ordering of the lowest realms. The weakest of the Princes, and the one most concerned with tidiness.",
         "boon": "Poison resisted by 50%.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchResistPoison (90041:Skyrim.esm) at magnitude 50, duration 28800, keeping CureDiseaseEffect. There is no resist-disease magic effect anywhere in this load order - only CureDiseaseEffect, which cures. AlchResistPoison is the nearest thing to the Taskmaster's sphere and, unlike a disease resistance nobody would ever notice, poison is real here: players brew it.",
+        "blessingSource": "vanilla",
         "lawful": false,
         "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "A resist-disease effect that does not exist, with Fortify Block as a stand-in."
+        "replacedBoon": "A resist-disease effect that does not exist, with Fortify Block as a stand-in.",
+        "blessingEditorId": "DBO_BlessingOfPeryite"
       },
       {
         "id": "vaermina",
         "name": "Vaermina",
         "kind": "daedra",
         "shrines": [],
-        "blessing": "",
+        "blessing": "1209c7:DragonBreak Online Edits.esp",
         "placements": 0,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Dreams and nightmares, and the memories torn out of them.",
         "boon": "You see as if dreaming.",
-        "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for NightEyeEffect (6b10c:Skyrim.esm), duration 28800. The dream-sight. If Vaermina should instead touch sleep, that belongs with the needs system and not with a spell.",
+        "blessingSource": "vanilla",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "blessingEditorId": "DBO_BlessingOfVaermina"
       }
     ],
     "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens.",
     "_lore": "The roster is the canonical one for Cyrodiil, not whoever happened to have a shrine already: the Nine Divines plus Auri-El, and Oblivion's fifteen Daedric shrines plus Mephala. JYGGALAG IS DELIBERATELY ABSENT - he was Sheogorath until the Greymarch ended in 3E 433 and has walked free since, but he has no cult, no shrine and no worshippers in 4E 201, and a shrine to him would be the one thing in this list that lore actually forbids. Every boon below is grounded in the Prince's sphere, and every magic effect it names exists in this load order (measured by ck-mcp\\blessings.py; see server\\blessing-effects.json).",
-    "_blessingSource": "vanilla = a real SPEL that works today. server = prayer.js does it, no Creation Kit work at all. pending = one new SPEL, and blessingRecipe says exactly which existing MGEF to point it at - no new magic effect is needed for any of them except Molag Bal.",
-    "_deadStats": "NO BOON MAY BE A DEAD STAT. This server is entirely player-run: no merchants, no dialogue, no barter, and no speech skill among the eighteen. Persuasion, Speechcraft and Pickpocket therefore do nothing at all, and four boons that used them have been replaced (see replacedBoon). Where the replacement overrides a vanilla shrine, Bethesda's record is left untouched on disk and skills.json simply points elsewhere, so reverting is one line. Check any new boon against what this server actually runs: combat and the damage formula, health/magicka/stamina and their regen, carry weight, sneak, the magic schools, alchemy, lockpicking, and the needs meter - all real; anything that needs an NPC to talk to - not."
+    "_blessingSource": "vanilla = a real SPEL that works today, whether Bethesda's or one of the eleven DBO_BlessingOf* records authored on 2026-09-20 by SSEEdit 4.1.5f\\Edit Scripts\\DBO_Blessings.pas. server = prayer.js does it and no record exists. pending = a boon still waiting on a spell; there are none left.",
+    "_deadStats": "NO BOON MAY BE A DEAD STAT. This server is entirely player-run: no merchants, no dialogue, no barter, and no speech skill among the eighteen. Persuasion, Speechcraft and Pickpocket therefore do nothing at all, and four boons that used them have been replaced (see replacedBoon). Where the replacement overrides a vanilla shrine, Bethesda's record is left untouched on disk and skills.json simply points elsewhere, so reverting is one line. Check any new boon against what this server actually runs: combat and the damage formula, health/magicka/stamina and their regen, carry weight, sneak, the magic schools, alchemy, lockpicking, and the needs meter - all real; anything that needs an NPC to talk to - not.",
+    "_authored": "The eleven DBO_BlessingOf* SPELs live at DragonBreak Online Edits.esp:1209BF-1209C9. Each is a copy of AltarNocturnalSpell - a fire-and-forget SELF spell, NOT a constant ability - with one effect swapped and CureDiseaseEffect kept, 28800 s. Namira is the exception: she keeps Fortify Sneak and her second effect is Night Eye instead of cure disease, which suits the Prince of decay. Re-running the script is safe; it leaves records that already exist alone."
   },
   "respec": {
     "_comment": "Standing stones are the only place to change your three chosen skills. Activating a stone opens the K menu in respec mode.",

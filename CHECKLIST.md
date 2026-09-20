@@ -1,5 +1,60 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (13:00): the plugin debt is paid - 16 records authored in xEdit
+
+Server restarted 12:58:25. **18 `[error]` lines.** Boot now reads `resolved 113/129 form(s),
+unresolved: none` and **`18 skills have marker spells`** - the `5 marker spell(s) missing` line that
+has been there since Unarmed shipped is gone. `prayer.js` gained a boot check that resolves every
+blessing id against the live load order: **`blessings 22 resolved, 4 server-side, 0 broken`.**
+
+- [x] **Eleven `DBO_BlessingOf*` SPELs** at `DragonBreak Online Edits.esp:1209BF-1209C9`, written by
+  `SSEEdit 4.1.5f\Edit Scripts\DBO_Blessings.pas`. Each is a copy of `AltarNocturnalSpell` with one
+  effect swapped and `CureDiseaseEffect` kept, duration 28800. Namira is the deliberate exception:
+  Fortify Sneak **plus Night Eye**, and no cure disease, which suits the Prince of decay.
+- [x] **Unarmed's five marker spells** at `1209CA-1209CE` (`DBO_UnarmedMarkers.pas`), copies of the
+  onehanded markers. `masterySystem` resolves them purely by editor id (`masterySystem.ts:904`), so
+  the name is the whole contract; a marker is an empty Ability with a null EFID and carries no magic
+  effect at all.
+- [x] Verified **before** promoting anything: 16 records present in the written plugin, read back with
+  `esplib`, and **52 masters, unchanged** - no new master, so no DLE self-index shift.
+- [x] Promoted the `.save` over the original, synced `server\data\` with node stopped, hashes match.
+  Backups in `ckmcp-backups\pre-blessings-*` and `pre-markers-*`.
+- [x] `skills.json` points at the new records; `blessingSource` is now **vanilla 22 / server 4**, with
+  **nothing pending**.
+
+### Two boons changed on the way, both for cause
+
+- [x] **Talos: shout cooldown -> Two-handed +10** (Nat's call). The shout boon was the fifth dead stat
+  nobody had confirmed works here. Tiber Septim took Tamriel with a blade in both hands.
+- [x] **Meridia: "the undead flee you" -> health regenerates 25% faster.** Found by dumping the
+  template byte for byte before writing the script: **a shrine blessing is a fire-and-forget SELF
+  spell carrying an 8-hour effect, not a constant-effect ability.** A mass-self-area turn undead in
+  that shape fires once, at the shrine, and never again. Health regeneration is also closer to her
+  actual sphere, which the lore states as the energies of living things.
+
+### The xEdit pipeline is a tool now, and it cost three gotchas to get there
+
+`tools\run-sseedit-script.ps1` runs a script headless and answers the dialogs `-autoexit` does not.
+All three of these produced a silent exit 0 with nothing done:
+
+- **`-D:` and `-P:` must be quoted into the command line.** Passing them as separate PowerShell
+  `-ArgumentList` elements does not quote them: xEdit reads the data path as `E:\DragonBreak`, logs
+  `Warning: Could not find plugin list`, and exits having run nothing.
+- **`-script:` wants the script's full path**, not its unit name. Given a bare name it falls back to
+  a "Select a script to execute" file picker and waits for a human. The runner now detects that and
+  kills the run instead of hanging - this is the failure that once sat for eight hours.
+- **`template` is a reserved identifier** in xEdit's script engine: `Identifier redeclared: 'template'`.
+  The runner now reads error dialogs itself and prints them, so a compile error shows up in the
+  console instead of needing someone to look at the screen.
+- The known `.save` behaviour held exactly as the memory note says: xEdit cannot rename its output
+  over a plugin the creation-kit MCP has open, so it leaves `<plugin>.save.<stamp>` beside it. The
+  runner reports leftovers and **deliberately does not promote them itself** - overwriting a plugin
+  is not a helper's decision.
+- A run immediately after a plugin change is **slow** (~25 min, I/O-bound): xEdit rebuilds and re-saves
+  its reference cache for the changed file. It is working, not hung - check CPU rather than assuming.
+
+- [ ] **Nothing is tested in play.** Sixteen records exist and resolve; not one has been cast.
+
 ## Added 2026-09-20 (12:20): no boon may be a dead stat
 
 Nat: *"change sanguine, there is no NPCs"* / *"like everything is player ran so."* Hot-reload only;

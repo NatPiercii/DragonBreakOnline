@@ -1,13 +1,19 @@
 # DragonBreak Online: deities, shrines and prayer
 
-**Status:** built, 2026-09-20 12:20. Written as design at 03:10 from Nat's brief; sections 3 to 8 were
+**Status:** built and authored, 2026-09-20 13:00. Written as design at 03:10 from Nat's brief; sections 3 to 8 were
 then **corrected against measurement** when the thing was actually built, because three of the claims in
 them were wrong. The corrections are marked. `server\prayer.js` is the implementation, its harness is
 `server\tests\prayer-harness.js`, and the shrine census it rests on is `server\shrine-placements.json`
 (regenerate with `py ck-mcp\shrines.py`).
 
-**Still open, all in section 8**: whether Talos and Daedra worship should actually be a crime in Imperial
-Bruma, and the eight blessing spells that still have to be authored in the Creation Kit.
+**Every blessing spell now exists.** Eleven `DBO_BlessingOf*` SPELs were authored on 2026-09-20 at
+`DragonBreak Online Edits.esp:1209BF-1209C9` by `SSEEdit 4.1.5f\Edit Scripts\DBO_Blessings.pas`, and the
+live server reports `blessings 22 resolved, 4 server-side, 0 broken`. The same sitting finally gave
+Unarmed its five marker spells at `1209CA-1209CE` (`DBO_UnarmedMarkers.pas`), so boot now reads
+`unresolved: none` and `18 skills have marker spells`.
+
+**Still open, in section 8**: whether Talos and Daedra worship should actually be a crime in Imperial
+Bruma, and the deity picker, which is front work.
 
 ## 1. The brief, as given
 
@@ -30,8 +36,7 @@ The `deities` block already specifies the picker (*"a popup right after characte
 `deityMenu` -> client `deityChoose`, stored per character"*). ~~and carries the nine Divines with their
 shrine form ids and `BlessingOf*` spells.~~ **Both halves of that were wrong** and are corrected in
 sections 3 and 5: it carried twenty-one deities, not nine, and no `BlessingOf*` record exists anywhere
-in this load order. The roster is now twenty-six and every blessing names a real form id or says plainly
-that it is pending.
+in this load order. The roster is now twenty-six and every blessing names a real form id.
 
 **The `prayer` event kind was already wired**: `masterySystem` does `add("prayer", "priest")` in its
 candidate map and `matches()` has a `case "prayer"`. `prayer.js` now emits it, so nothing on the server
@@ -166,39 +171,39 @@ pray at all.
 |---|---|
 | Akatosh | Magicka returns 10% faster |
 | Arkay | Health +25 |
-| Dibella | Illusion +10 (was Persuasion; see above) |
+| Dibella | Illusion +10 (was Persuasion) |
 | Julianos | Magicka +25 |
 | Kynareth | Stamina +25 |
 | Mara | Restoration +10 |
 | Stendarr | Block +10 |
-| Talos | Shouts return 20% sooner |
-| Zenithar | Carry weight +50 (was Speechcraft; see above) |
+| Talos | Two-handed +10 (was a shout-cooldown boon, which may not work here at all) |
+| Zenithar | Carry weight +50 (was Speechcraft) |
 | Auri-El | Marksman +10, 12 h |
 
 ### The Princes
 
-`blessingSource` says who owes the work: **vanilla** = a real spell that works today, **server** =
-`prayer.js` does it and the Creation Kit is not involved at all, **pending** = one new SPEL, and the
-entry's `blessingRecipe` names exactly which existing effect to point it at.
+`blessingSource` says where the boon comes from: **live** = a real spell, whether Bethesda's or one of
+the eleven authored on 2026-09-20; **server** = `prayer.js` does it and no record exists at all.
+**Nothing is pending any more.**
 
 | Prince | Sphere, in a line | Boon | Source |
 |---|---|---|---|
 | Azura | Dusk and dawn, prophecy | Resist Magic 10% | vanilla |
 | Boethiah | Plots, murder, the teacher who tests | One-handed +10 | vanilla |
 | Malacath | The sworn oath and the spurned | Damage +10%, Block +15 | vanilla |
-| Mephala | Lies, secrets, the Webspinner | Alchemy +10 | pending |
+| Mephala | Lies, secrets, the Webspinner | Alchemy +10 | live |
 | Nocturnal | Night, luck, things not where they were left | Sneak +10 | vanilla |
 | **Sheogorath** | **Madness** | **another god's blessing, a different one each time** | **server, done** |
 | Clavicus Vile | Bargains granted exactly as worded | a boon you name, at a price | server, not built |
 | Hermaeus Mora | Knowledge, memory, fate | what you read teaches you more | server, not built |
-| Hircine | The Hunt and the Great Game | Stamina returns 10% faster | pending |
-| Mehrunes Dagon | Destruction and revolution; **Bruma's own Gate** | Destruction +10 | pending |
-| Meridia | Life energies; hatred of the undead | the undead flee you | pending |
-| Molag Bal | Domination; the harvest of souls | Conjuration +10 | pending |
-| Namira | The ancient darkness, decay, revulsion | Sneak +10 **and** night vision | pending |
-| Peryite | Pestilence and the natural order | Poison resisted by 50% | pending |
+| Hircine | The Hunt and the Great Game | Stamina returns 10% faster | live |
+| Mehrunes Dagon | Destruction and revolution; **Bruma's own Gate** | Destruction +10 | live |
+| Meridia | Life energies; the energies of living things | Health regenerates 25% faster | live |
+| Molag Bal | Domination; the harvest of souls | Conjuration +10 | live |
+| Namira | The ancient darkness, decay, revulsion | Sneak +10 **and** night vision | live |
+| Peryite | Pestilence and the natural order | Poison resisted by 50% | live |
 | Sanguine | Revelry and indulgence | **hunger comes on half as fast** | **server, done** |
-| Vaermina | Dreams and nightmares | you see as if dreaming | pending |
+| Vaermina | Dreams and nightmares | You see as if dreaming | live |
 
 **Sheogorath is the one worth noticing.** He is the only Prince whose boon is *more* lore-accurate as
 code than as a record: the Madgod has no blessing of his own and hands over somebody else's, rolled
@@ -307,9 +312,9 @@ whole list that lore actively forbids.
   boon grounded in their sphere, **no deity needs a new magic effect**, and none of them rests on a
   stat this server does not run. The two decisions left open this morning - Molag Bal's absorb-health
   and Mehrunes Dagon duplicating Malacath - both dissolved once the alchemy-family effects turned out
-  to be usable in a shrine spell. What remains is labour, not design: **eight `pending` SPELs to
-  author**, each with a `blessingRecipe` in `skills.json` naming the exact record to copy and the
-  exact effect to point at. Fold them into the pass that still owes Unarmed its five marker spells.
+  to be usable in a shrine spell. ~~What remains is labour, not design: eight pending SPELs to
+  author.~~ **Those are written too** - eleven of them in the end, at `1209BF-1209C9`, plus Unarmed's
+  five markers at `1209CA-1209CE` in the same sitting. Nothing about the boons is outstanding.
 - **Whether a Daedric devotee is lawful** - the only one of the original three still fully open.
   `lawful: false` and `unlawfulWhere` are now written onto every Prince **and onto Talos**, and
   `prayer.js` warns the worshipper once and does nothing else. `private.dboLawful` exists and the
