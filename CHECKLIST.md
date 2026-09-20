@@ -69,10 +69,17 @@ no bot has ever logged into the live server on 7777.**
   25 minutes, no disconnects, memory flat at ~1 GB, and 61,951 messages a second leaving the server at 100
   players against 736 arriving. Real wire bytes, measured through the harness's counting relay: 8.8 KiB/s
   per player, so about 3.8 MB/s out at 100. JSON is 4.6x the wire size.
-- [x] **Re-measured after the two per-player timer fixes** (`6f68fc3` officials cache, `e07b09c` movetrace
-  gate): `lawful` 6.99 -> 1.1-2.0 ms mean at 100 players, `moveTrace` 0.47 -> 0.00, the whole gameplay
-  timer layer 1.1 s -> 0.11 s of CPU a minute. Traffic and CPU unchanged, which is the point: the cost was
-  never in the gameplay layer. A forced hot reload with 100 bots connected costs `meet` 2.48 ms once.
+- [x] **Re-measured after three per-player timer fixes the same afternoon** (`6f68fc3` officials cache,
+  `e07b09c` movetrace gate, `86da0d6` dungeon id walk): at 100 players `lawful` 6.99 -> 1.0-2.0 ms mean,
+  `moveTrace` 0.47 -> 0.00, `dungeons.arm` 1.53 -> 0.80, `dungeons.tick` 2.09 -> 1.11, and the whole
+  gameplay timer layer 1.1 s -> 0.07 s of CPU a minute. Traffic and CPU did not move across the three runs
+  (61,951 / 60,742 / 61,253 msg/s at 20.6 / 20.3 / 17.4% CPU), which is the point: the cost was never in
+  the gameplay layer. A forced hot reload with 100 bots connected costs `meet` 2.48 ms, once.
+- [ ] **Orphan dungeon zones after an unclean stop**: a lease that was open when the server died leaves its
+  zones in `NPC-Spawns.json`, and `npcSpawnSystem` tries to place them for the ~13 s until `dungeons.js`
+  clears them at load (73 `failed to spawn` lines measured in one boot). Self-correcting, but it will look
+  alarming in the log after any crash during a dungeon evening. The harness strips them before it starts
+  the sandbox; the server could do the same one step earlier in boot.
 - [ ] **Still to run**: `--host-npcs` (bots host and drive the NPCs near them, which is how a real crowd
   multiplies the fan-out), and a run with the bots on a second machine for real bytes/s.
 
@@ -1274,7 +1281,11 @@ From `_reviews\2026-09-19-daily-review.md`, "Scaling to 100 concurrent players".
   running) throws both caches away, so a form id the engine reuses in that gap cannot inherit a stale zone.
   Measured with 4 fake leases and 600 ids against a mock mp, identical seen/armed sets either way: 10 arm ticks
   plus a dungeon tick went from **24,617 engine reads to 420**. `lease.gone` became a module-level `gone` with
-  the same meaning. The harness re-measures both lines with 4 leases at 100 bots.
+  the same meaning. **Verified by the harness at 100 bots with 4 leases**: `dungeons.arm` 1.38-1.41 -> 0.80 mean
+  (max 2.06 -> 1.37), `dungeons.tick` 1.67-2.05 -> 1.11 mean (max 2.60 -> 1.40), and that run carried more
+  spawned actors than the before-run (Sedor 36 zones, Rielle and Red Ruby 19 each), so the gain is understated.
+  What is left per lease is real work: one `isDead` read per living enemy per tick. A 20-lease run is queued to
+  confirm it now scales with enemies rather than with leases x ids.
 - [x] **officials.json read per player, found by the bot harness (LIVE 2026-09-20 13:35)**. The 25-bot step of
   `tools\loadtest` reported `lawful` at 2.5 ms max against every other timer under 0.3 ms. Cause: playermenu's
   15 s lawful tick calls `refreshLawful` per online player, and that reaches `ranksOf` -> `readOfficials`, which
