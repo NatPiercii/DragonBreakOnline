@@ -335,12 +335,32 @@ whole list that lore actively forbids.
   to be usable in a shrine spell. ~~What remains is labour, not design: eight pending SPELs to
   author.~~ **Those are written too** - eleven of them in the end, at `1209BF-1209C9`, plus Unarmed's
   five markers at `1209CA-1209CE` in the same sitting. Nothing about the boons is outstanding.
-- **Whether a Daedric devotee is lawful** - the only one of the original three still fully open.
-  `lawful: false` and `unlawfulWhere` are now written onto every Prince **and onto Talos**, and
-  `prayer.js` warns the worshipper once and does nothing else. `private.dboLawful` exists and the
-  guards read it. Wiring the two together is a faction decision, not a prayer one: it would make
-  Talos worship and Daedra worship into the first real crimes in the game, in the county where the
-  Thalmor keep a Justiciar. That is a good story and a big change.
+- ~~**Whether a Daedric devotee is lawful.**~~ **Answered 2026-09-20 (Nat: "be lore accurate, certain
+  daedra are fine like malacath").** The blanket `lawful: false` on all sixteen Princes was wrong and
+  is gone.
+  - **Three are openly legal** and carry `lawful: true` with no `unlawfulWhere`: **Malacath** (Orc
+    strongholds worship him in the open, Orsinium is an Imperial vassal and Orcs are citizens),
+    **Azura** (her shrine is a public pilgrimage site with a resident priestess and nobody is
+    charged), **Meridia** (her sphere is the destruction of undead, which runs *with* Arkay and
+    Stendarr rather than against them).
+  - **The other thirteen are proscribed, and each carries its own reason** rather than one line for
+    all of them, because the law is pressed nothing alike across them. The severity lives in the
+    prose, so no schema change and no front rebuild were needed:
+    **hunted** - Mehrunes Dagon, Molag Bal, Namira, Boethiah, Vaermina;
+    **criminal** - Mephala, Nocturnal, Hircine;
+    **forbidden on paper, ignored in practice** - Sanguine, Sheogorath, Hermaeus Mora, Clavicus Vile,
+    Peryite.
+  - **Mehrunes Dagon is the sharpest of the lot, and it is local.** The Great Gate of 3E 433 opened
+    outside Bruma's walls, and Beyond Skyrim has already renamed the Great Chapel of Talos there to
+    the **Cathedral of St Martin** - the man who died ending that invasion. Nowhere in Tamriel is
+    Dagon's name worse to speak.
+  - **The Tribunal's "good Daedra" are not the Empire's.** Azura, Boethiah and Mephala are Dunmer
+    temple doctrine; Boethiah's sacrament is the murder of one's own follower and Mephala's is the
+    assassin's contract, so two of that three are among the most criminal here. Imperial law is the
+    frame, not Morrowind's.
+  - **Still nothing acts on it.** `prayer.js` now tells the worshipper the specific reason once, and
+    that is all. `private.dboLawful` exists and the guards read it; wiring the two together remains a
+    faction decision and a big change.
 - **Hermaeus Mora's boon is the one worth building next**, and it is not a Creation Kit job. "What you
   read teaches you more" lands exactly on the Scholar skill and the reading mini-game this server
   already has - no other Prince's sphere maps onto an existing system that cleanly. It needs the read

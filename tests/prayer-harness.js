@@ -293,8 +293,24 @@ check('and says whose it was', /hands you the blessing of /.test(res.said), res.
 
 // 18. Talos in an Imperial county, and the Princes. Data only - nothing may act on it.
 check('Talos is marked unlawful', choiceOf('talos').lawful === false);
-check('every Prince is marked unlawful', SKILLS.deities.choices.filter((c) => c.kind === 'daedra')
-  .every((c) => c.lawful === false));
+// Not every Prince: Malacath, Azura and Meridia are openly legal in an Imperial county (Orc
+// strongholds worship Malacath in the open, Azura's shrine is a public pilgrimage site with a
+// resident priestess, and Meridia's sphere runs with Arkay rather than against him). The rest are
+// proscribed and must each carry their own reason, because the law is pressed very differently on
+// Mehrunes Dagon in Bruma than on Sanguine.
+const LEGAL_PRINCES = ['malacath', 'azura', 'meridia'];
+const princes = SKILLS.deities.choices.filter((c) => c.kind === 'daedra');
+check('the three legal Princes are marked lawful', LEGAL_PRINCES.every((id) => {
+  const c = princes.find((p) => p.id === id);
+  return c && c.lawful !== false && !c.unlawfulWhere;
+}), LEGAL_PRINCES.join(', '));
+const proscribed = princes.filter((c) => !LEGAL_PRINCES.includes(c.id));
+check('every other Prince is marked unlawful', proscribed.every((c) => c.lawful === false),
+  `${proscribed.length} proscribed of ${princes.length}`);
+check('and each carries its own reason, not one line for all of them',
+  proscribed.every((c) => typeof c.unlawfulWhere === 'string' && c.unlawfulWhere.length > 20)
+  && new Set(proscribed.map((c) => c.unlawfulWhere)).size === proscribed.length,
+  `${new Set(proscribed.map((c) => c.unlawfulWhere)).size} distinct reasons`);
 props.set(ACTOR + '|private.dboDeity', { id: 'talos', name: 'Talos', kind: 'divine', at: 1, convertedAt: 1 });
 props.delete(ACTOR + '|private.prayedShrines');
 const TALOS_SHRINE = 0x2006;

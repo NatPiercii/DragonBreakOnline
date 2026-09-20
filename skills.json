@@ -1,1493 +1,1491 @@
 {
-  "_comment": "DragonBreak Online skill template. Consumed by the extended mastery system (see SKILLS_DESIGN.md). Tiers are 1-5; thresholds are hours of server-verified activity in that skill. Every <...> is a form id to fill once the marker spells exist in DragonBreak Online Edits.esp.",
-  "maxChosen": 3,
-  "tierNames": [
+ "_comment": "DragonBreak Online skill template. Consumed by the extended mastery system (see SKILLS_DESIGN.md). Tiers are 1-5; thresholds are hours of server-verified activity in that skill. Every <...> is a form id to fill once the marker spells exist in DragonBreak Online Edits.esp.",
+ "maxChosen": 3,
+ "tierNames": [
+  "Novice",
+  "Apprentice",
+  "Journeyman",
+  "Expert",
+  "Master"
+ ],
+ "tierHours": [
+  0,
+  10,
+  30,
+  70,
+  150
+ ],
+ "_pointSystemComment": "The use-based point system from server/SKILLS_DESIGN.md. While enabled is false the server runs the three-chosen-skills ladder above and nothing here is read. Turning it on converts each character's record the first time it is read: hours become levels at 30 units an hour, so everyone lands in the tier they already hold. pool is the total levels one character may hold across all skills, capPerSkill the ceiling for one, seatAbove/seatCount the Seat rule (how many skills may pass 90), expertAbove/expertCount the same for 75, transferFloor the level no skill falls below when another takes from it, bucketBurst/bucketPerHour the token bucket that caps work per hour, dailyCaps the per-skill ceiling per day by band, characterDaily the whole character's.",
+ "pointSystem": {
+  "enabled": true,
+  "pool": 300,
+  "capPerSkill": 100,
+  "seatAbove": 90,
+  "seatCount": 1,
+  "expertAbove": 75,
+  "expertCount": 3,
+  "transferFloor": 25,
+  "firstTouchCost": 1,
+  "bucketBurst": 20,
+  "bucketPerHour": 30,
+  "dailyCaps": {
+   "low": 360,
+   "expert": 180,
+   "master": 60
+  },
+  "characterDaily": 1080
+ },
+ "swapCooldownDays": 7,
+ "categories": [
+  {
+   "id": "combat",
+   "label": "Combat"
+  },
+  {
+   "id": "profession",
+   "label": "Professions"
+  },
+  {
+   "id": "support",
+   "label": "Support"
+  }
+ ],
+ "skills": [
+  {
+   "id": "twohanded",
+   "category": "combat",
+   "label": "Two-Handed",
+   "title": "The Greatblade",
+   "description": "Greatswords, battleaxes and warhammers. Tiers raise your proficiency and the vanilla Two-Handed skill grows only through this.",
+   "vanillaSkills": [
+    "TwoHanded"
+   ],
+   "counts": {
+    "hitKeywords": [
+     "ActorTypeNPC",
+     "ActorTypeAnimal",
+     "ActorTypeCreature",
+     "ActorTypeUndead",
+     "ActorTypeDaedra",
+     "ActorTypeDragon"
+    ],
+    "weaponTypes": [
+     "Greatsword",
+     "Battleaxe",
+     "Warhammer"
+    ]
+   },
+   "tiers": [
+    "Basic strikes",
+    "Power attacks cost less",
+    "+10% damage",
+    "+20% damage, faster swings",
+    "+30% damage, master power attacks"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "archery",
+   "category": "combat",
+   "label": "Archery",
+   "title": "The Far Shot",
+   "description": "Bows and crossbows. Tiers raise proficiency and the vanilla Archery skill grows only through this.",
+   "vanillaSkills": [
+    "Archery"
+   ],
+   "counts": {
+    "hitKeywords": [
+     "ActorTypeNPC",
+     "ActorTypeAnimal",
+     "ActorTypeCreature",
+     "ActorTypeUndead",
+     "ActorTypeDaedra",
+     "ActorTypeDragon"
+    ],
+    "weaponTypes": [
+     "Bow",
+     "Crossbow"
+    ]
+   },
+   "tiers": [
+    "Basic shots",
+    "Steadier aim",
+    "+10% damage",
+    "+20% damage, faster draw",
+    "+30% damage, zoom and slow time"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "onehanded",
+   "category": "combat",
+   "label": "One-Handed",
+   "title": "The Quick Edge",
+   "description": "Swords, axes, maces and daggers. Tiers raise proficiency and the vanilla One-Handed skill grows only through this.",
+   "vanillaSkills": [
+    "OneHanded"
+   ],
+   "counts": {
+    "hitKeywords": [
+     "ActorTypeNPC",
+     "ActorTypeAnimal",
+     "ActorTypeCreature",
+     "ActorTypeUndead",
+     "ActorTypeDaedra",
+     "ActorTypeDragon"
+    ],
+    "weaponTypes": [
+     "Sword",
+     "WarAxe",
+     "Mace",
+     "Dagger"
+    ]
+   },
+   "tiers": [
+    "Basic strikes",
+    "Power attacks cost less",
+    "+10% damage",
+    "+20% damage, dual-wield flow",
+    "+30% damage, master power attacks"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "defense",
+   "category": "combat",
+   "label": "Defense",
+   "title": "The Wall",
+   "description": "Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor.",
+   "vanillaSkills": [
+    "Block",
+    "LightArmor",
+    "HeavyArmor"
+   ],
+   "counts": {
+    "blockEvents": true,
+    "damageTakenWhileArmored": true
+   },
+   "tiers": [
+    "Light armor, basic blocking",
+    "Medium armor, blocks cost less stamina",
+    "Heavy armor, shield bash",
+    "+15% armor, power bash, arrows deflected",
+    "+30% armor, blocks reflect part of the blow, no stagger from small hits"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "arcane",
+   "category": "combat",
+   "label": "Arcane Arts",
+   "title": "The Ordered Mind",
+   "description": "Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the well in the Hall of the Elements to start). Three spells known at a time; the tier decides the highest spell rank you may learn.",
+   "vanillaSkills": [
+    "Destruction",
+    "Conjuration",
+    "Illusion"
+   ],
+   "counts": {
+    "spellCastSchools": [
+     "Destruction",
+     "Conjuration",
+     "Illusion"
+    ]
+   },
+   "spellSlots": 3,
+   "spellRankByTier": [
     "Novice",
     "Apprentice",
-    "Journeyman",
+    "Adept",
     "Expert",
     "Master"
-  ],
-  "tierHours": [
-    0,
+   ],
+   "tiers": [
+    "Novice spells",
+    "Apprentice spells",
+    "Adept spells",
+    "Expert spells",
+    "Master spells"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ],
+   "studyAt": "spellStudyPoints"
+  },
+  {
+   "id": "unarmed",
+   "category": "combat",
+   "label": "Unarmed",
+   "title": "The Closed Fist",
+   "description": "Fists, claws and the discipline to use them. The only skill that needs nothing in your hands, and the one a Khajiit is born into: the server already reads a Khajiit's claws as a weapon. Tiers raise unarmed damage and nothing else grows it.",
+   "vanillaSkills": [],
+   "counts": {
+    "hitKeywords": [
+     "ActorTypeNPC",
+     "ActorTypeAnimal",
+     "ActorTypeCreature",
+     "ActorTypeUndead",
+     "ActorTypeDaedra",
+     "ActorTypeDragon"
+    ],
+    "weaponTypes": [
+     "HandToHand"
+    ]
+   },
+   "tiers": [
+    "Bare-knuckle blows",
+    "Power attacks cost less",
+    "+10% damage",
+    "+20% damage, faster combinations",
+    "+30% damage, disarming strikes"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "blacksmith",
+   "category": "profession",
+   "label": "Blacksmith",
+   "title": "The Forge-Bound",
+   "description": "Only a Blacksmith may use the forge, the workbench and the grindstone. Tiers decide which metals you may work and how well you improve gear.",
+   "vanillaSkills": [
+    "Smithing"
+   ],
+   "gates": {
+    "stations": [
+     "isBlacksmithForge",
+     "isBlacksmithAnvil",
+     "isBlacksmithWorkbench",
+     "isSmelter",
+     "CraftingBlacksmithSharpeningWheel"
+    ]
+   },
+   "counts": {
+    "craftKeywords": [
+     "CraftingSmithingForge",
+     "CraftingSmithingSkyforge",
+     "DLC2CraftingSmithingSkaalForge",
+     "DLC1CraftingDawnguard"
+    ],
+    "craftStations": [
+     "isBlacksmithForge",
+     "isBlacksmithAnvil",
+     "isSmelter"
+    ]
+   },
+   "tiers": [
+    "Iron, hide, leather",
+    "Steel, elven, dwarven",
+    "Orcish, glass, scaled",
+    "Ebony, dragon",
+    "Daedric; legendary improvement"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "alchemist",
+   "category": "profession",
+   "label": "Alchemist",
+   "title": "The Patient Hand",
+   "description": "Only an Alchemist may use the alchemy lab. Tiers decide the strength of the potions and poisons you can brew.",
+   "vanillaSkills": [
+    "Alchemy"
+   ],
+   "gates": {
+    "stations": [
+     "isAlchemy",
+     "CraftingAlchemyWorkbench"
+    ]
+   },
+   "counts": {
+    "activatePrefixes": [
+     "CraftingAlchemyWorkbench"
+    ],
+    "activateTypes": [
+     "FLOR",
+     "TREE"
+    ],
+    "eatIngredient": true
+   },
+   "tiers": [
+    "Weak potions",
+    "Standard potions",
+    "Strong potions",
+    "Potent potions, poisons",
+    "Legendary brews"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "woodcutter",
+   "category": "profession",
+   "label": "Woodcutter",
+   "title": "The Grain Reader",
+   "description": "Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield.",
+   "vanillaSkills": [],
+   "gates": {
+    "stations": [
+     "WoodChoppingBlock",
+     "DLC2WoodChoppingBlock",
+     "CharcoalKiln",
+     "LumberMill",
+     "FarmLumbermill"
+    ]
+   },
+   "counts": {
+    "activatePrefixes": [
+     "WoodChoppingBlock",
+     "DLC2WoodChoppingBlock",
+     "LumberMill",
+     "FarmLumbermill"
+    ]
+   },
+   "chopStrikesByTier": [
+    4,
+    8,
+    12,
+    16,
+    20
+   ],
+   "millFirewoodByTier": [
     10,
-    30,
-    70,
-    150
-  ],
-  "_pointSystemComment": "The use-based point system from server/SKILLS_DESIGN.md. While enabled is false the server runs the three-chosen-skills ladder above and nothing here is read. Turning it on converts each character's record the first time it is read: hours become levels at 30 units an hour, so everyone lands in the tier they already hold. pool is the total levels one character may hold across all skills, capPerSkill the ceiling for one, seatAbove/seatCount the Seat rule (how many skills may pass 90), expertAbove/expertCount the same for 75, transferFloor the level no skill falls below when another takes from it, bucketBurst/bucketPerHour the token bucket that caps work per hour, dailyCaps the per-skill ceiling per day by band, characterDaily the whole character's.",
-  "pointSystem": {
-    "enabled": true,
-    "pool": 300,
-    "capPerSkill": 100,
-    "seatAbove": 90,
-    "seatCount": 1,
-    "expertAbove": 75,
-    "expertCount": 3,
-    "transferFloor": 25,
-    "firstTouchCost": 1,
-    "bucketBurst": 20,
-    "bucketPerHour": 30,
-    "dailyCaps": {
-      "low": 360,
-      "expert": 180,
-      "master": 60
-    },
-    "characterDaily": 1080
+    14,
+    18,
+    22,
+    26
+   ],
+   "millCooldownMinutes": 30,
+   "tiers": [
+    "4 strikes, rough charcoal",
+    "8 strikes",
+    "12 strikes, good charcoal",
+    "16 strikes",
+    "20 strikes, fine charcoal, best mill yield"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
   },
-  "swapCooldownDays": 7,
-  "categories": [
-    {
-      "id": "combat",
-      "label": "Combat"
-    },
-    {
-      "id": "profession",
-      "label": "Professions"
-    },
-    {
-      "id": "support",
-      "label": "Support"
-    }
-  ],
-  "skills": [
-    {
-      "id": "twohanded",
-      "category": "combat",
-      "label": "Two-Handed",
-      "title": "The Greatblade",
-      "description": "Greatswords, battleaxes and warhammers. Tiers raise your proficiency and the vanilla Two-Handed skill grows only through this.",
-      "vanillaSkills": [
-        "TwoHanded"
-      ],
-      "counts": {
-        "hitKeywords": [
-          "ActorTypeNPC",
-          "ActorTypeAnimal",
-          "ActorTypeCreature",
-          "ActorTypeUndead",
-          "ActorTypeDaedra",
-          "ActorTypeDragon"
-        ],
-        "weaponTypes": [
-          "Greatsword",
-          "Battleaxe",
-          "Warhammer"
-        ]
-      },
-      "tiers": [
-        "Basic strikes",
-        "Power attacks cost less",
-        "+10% damage",
-        "+20% damage, faster swings",
-        "+30% damage, master power attacks"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "archery",
-      "category": "combat",
-      "label": "Archery",
-      "title": "The Far Shot",
-      "description": "Bows and crossbows. Tiers raise proficiency and the vanilla Archery skill grows only through this.",
-      "vanillaSkills": [
-        "Archery"
-      ],
-      "counts": {
-        "hitKeywords": [
-          "ActorTypeNPC",
-          "ActorTypeAnimal",
-          "ActorTypeCreature",
-          "ActorTypeUndead",
-          "ActorTypeDaedra",
-          "ActorTypeDragon"
-        ],
-        "weaponTypes": [
-          "Bow",
-          "Crossbow"
-        ]
-      },
-      "tiers": [
-        "Basic shots",
-        "Steadier aim",
-        "+10% damage",
-        "+20% damage, faster draw",
-        "+30% damage, zoom and slow time"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "onehanded",
-      "category": "combat",
-      "label": "One-Handed",
-      "title": "The Quick Edge",
-      "description": "Swords, axes, maces and daggers. Tiers raise proficiency and the vanilla One-Handed skill grows only through this.",
-      "vanillaSkills": [
-        "OneHanded"
-      ],
-      "counts": {
-        "hitKeywords": [
-          "ActorTypeNPC",
-          "ActorTypeAnimal",
-          "ActorTypeCreature",
-          "ActorTypeUndead",
-          "ActorTypeDaedra",
-          "ActorTypeDragon"
-        ],
-        "weaponTypes": [
-          "Sword",
-          "WarAxe",
-          "Mace",
-          "Dagger"
-        ]
-      },
-      "tiers": [
-        "Basic strikes",
-        "Power attacks cost less",
-        "+10% damage",
-        "+20% damage, dual-wield flow",
-        "+30% damage, master power attacks"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "defense",
-      "category": "combat",
-      "label": "Defense",
-      "title": "The Wall",
-      "description": "Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor.",
-      "vanillaSkills": [
-        "Block",
-        "LightArmor",
-        "HeavyArmor"
-      ],
-      "counts": {
-        "blockEvents": true,
-        "damageTakenWhileArmored": true
-      },
-      "tiers": [
-        "Light armor, basic blocking",
-        "Medium armor, blocks cost less stamina",
-        "Heavy armor, shield bash",
-        "+15% armor, power bash, arrows deflected",
-        "+30% armor, blocks reflect part of the blow, no stagger from small hits"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "arcane",
-      "category": "combat",
-      "label": "Arcane Arts",
-      "title": "The Ordered Mind",
-      "description": "Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the well in the Hall of the Elements to start). Three spells known at a time; the tier decides the highest spell rank you may learn.",
-      "vanillaSkills": [
-        "Destruction",
-        "Conjuration",
-        "Illusion"
-      ],
-      "counts": {
-        "spellCastSchools": [
-          "Destruction",
-          "Conjuration",
-          "Illusion"
-        ]
-      },
-      "spellSlots": 3,
-      "spellRankByTier": [
-        "Novice",
-        "Apprentice",
-        "Adept",
-        "Expert",
-        "Master"
-      ],
-      "tiers": [
-        "Novice spells",
-        "Apprentice spells",
-        "Adept spells",
-        "Expert spells",
-        "Master spells"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ],
-      "studyAt": "spellStudyPoints"
-    },
-    {
-      "id": "unarmed",
-      "category": "combat",
-      "label": "Unarmed",
-      "title": "The Closed Fist",
-      "description": "Fists, claws and the discipline to use them. The only skill that needs nothing in your hands, and the one a Khajiit is born into: the server already reads a Khajiit's claws as a weapon. Tiers raise unarmed damage and nothing else grows it.",
-      "vanillaSkills": [],
-      "counts": {
-        "hitKeywords": [
-          "ActorTypeNPC",
-          "ActorTypeAnimal",
-          "ActorTypeCreature",
-          "ActorTypeUndead",
-          "ActorTypeDaedra",
-          "ActorTypeDragon"
-        ],
-        "weaponTypes": [
-          "HandToHand"
-        ]
-      },
-      "tiers": [
-        "Bare-knuckle blows",
-        "Power attacks cost less",
-        "+10% damage",
-        "+20% damage, faster combinations",
-        "+30% damage, disarming strikes"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "blacksmith",
-      "category": "profession",
-      "label": "Blacksmith",
-      "title": "The Forge-Bound",
-      "description": "Only a Blacksmith may use the forge, the workbench and the grindstone. Tiers decide which metals you may work and how well you improve gear.",
-      "vanillaSkills": [
-        "Smithing"
-      ],
-      "gates": {
-        "stations": [
-          "isBlacksmithForge",
-          "isBlacksmithAnvil",
-          "isBlacksmithWorkbench",
-          "isSmelter",
-          "CraftingBlacksmithSharpeningWheel"
-        ]
-      },
-      "counts": {
-        "craftKeywords": [
-          "CraftingSmithingForge",
-          "CraftingSmithingSkyforge",
-          "DLC2CraftingSmithingSkaalForge",
-          "DLC1CraftingDawnguard"
-        ],
-        "craftStations": [
-          "isBlacksmithForge",
-          "isBlacksmithAnvil",
-          "isSmelter"
-        ]
-      },
-      "tiers": [
-        "Iron, hide, leather",
-        "Steel, elven, dwarven",
-        "Orcish, glass, scaled",
-        "Ebony, dragon",
-        "Daedric; legendary improvement"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "alchemist",
-      "category": "profession",
-      "label": "Alchemist",
-      "title": "The Patient Hand",
-      "description": "Only an Alchemist may use the alchemy lab. Tiers decide the strength of the potions and poisons you can brew.",
-      "vanillaSkills": [
-        "Alchemy"
-      ],
-      "gates": {
-        "stations": [
-          "isAlchemy",
-          "CraftingAlchemyWorkbench"
-        ]
-      },
-      "counts": {
-        "activatePrefixes": [
-          "CraftingAlchemyWorkbench"
-        ],
-        "activateTypes": [
-          "FLOR",
-          "TREE"
-        ],
-        "eatIngredient": true
-      },
-      "tiers": [
-        "Weak potions",
-        "Standard potions",
-        "Strong potions",
-        "Potent potions, poisons",
-        "Legendary brews"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "woodcutter",
-      "category": "profession",
-      "label": "Woodcutter",
-      "title": "The Grain Reader",
-      "description": "Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield.",
-      "vanillaSkills": [],
-      "gates": {
-        "stations": [
-          "WoodChoppingBlock",
-          "DLC2WoodChoppingBlock",
-          "CharcoalKiln",
-          "LumberMill",
-          "FarmLumbermill"
-        ]
-      },
-      "counts": {
-        "activatePrefixes": [
-          "WoodChoppingBlock",
-          "DLC2WoodChoppingBlock",
-          "LumberMill",
-          "FarmLumbermill"
-        ]
-      },
-      "chopStrikesByTier": [
-        4,
-        8,
-        12,
-        16,
-        20
-      ],
-      "millFirewoodByTier": [
-        10,
-        14,
-        18,
-        22,
-        26
-      ],
-      "millCooldownMinutes": 30,
-      "tiers": [
-        "4 strikes, rough charcoal",
-        "8 strikes",
-        "12 strikes, good charcoal",
-        "16 strikes",
-        "20 strikes, fine charcoal, best mill yield"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "miner",
-      "category": "profession",
-      "label": "Miner",
-      "title": "The Deep Delver",
-      "description": "Only a Miner may work ore veins. Tiers decide which ores you can mine and how much a vein gives.",
-      "vanillaSkills": [],
-      "gates": {
-        "stations": [
-          "MineOre",
-          "CYRMineOre",
-          "PickaxeMining"
-        ]
-      },
-      "counts": {
-        "_comment": "PickaxeMining is deliberately NOT here: Bruma has 169 PickaxeMining* FURN markers and a bare activation on one would credit the skill with no minigame and no ore. It stays in gates.stations so the markers remain miner-only.",
-        "activatePrefixes": [
-          "MineOre",
-          "CYRMineOre"
-        ]
-      },
-      "oreByTier": [
-        [
-          "Copper",
-          "Iron",
-          "Corundum"
-        ],
-        [
-          "Silver",
-          "Quicksilver"
-        ],
-        [
-          "Orichalcum",
-          "Moonstone",
-          "Gold"
-        ],
-        [
-          "Malachite"
-        ],
-        [
-          "Ebony"
-        ]
-      ],
-      "yieldMultiplierByTier": [
-        1,
-        1.2,
-        1.4,
-        1.7,
-        2
-      ],
-      "tiers": [
-        "Copper, iron, corundum",
-        "Silver, quicksilver",
-        "Orichalcum, moonstone",
-        "Ebony, malachite",
-        "Double yield from every vein"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "tailor",
-      "category": "profession",
-      "label": "Tailor",
-      "title": "The Fine Thread",
-      "description": "Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew.",
-      "vanillaSkills": [],
-      "gates": {
-        "stations": [
-          "MCE_CraftingLoom",
-          "MCE_Loom",
-          "TailorBench"
-        ]
-      },
-      "counts": {
-        "craftKeywords": [
-          "MCE_CraftingLoom",
-          "TailorBench"
-        ]
-      },
-      "tiers": [
-        "Common clothes",
-        "Fine clothes, padded armor",
-        "Noble clothes, studded medium armor",
-        "Scaled medium armor",
-        "Masterwork garments"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "skinner",
-      "category": "support",
-      "label": "Skinner",
-      "title": "The Far Tracker",
-      "description": "Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get.",
-      "vanillaSkills": [],
-      "gates": {
-        "stations": [
-          "isTanning",
-          "CraftingTanningRack"
-        ],
-        "skinning": true
-      },
-      "counts": {
-        "killKeywords": [
-          "ActorTypeAnimal"
-        ],
-        "craftKeywords": [
-          "CraftingTanningRack"
-        ]
-      },
-      "tiers": [
-        "Hide, 1 leather per pelt",
-        "Leather strips",
-        "2 leather per pelt",
-        "Fine leather",
-        "3 leather per pelt, rare pelts intact"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "scholar",
-      "category": "support",
-      "label": "Scholar",
-      "title": "The Ink-Stained",
-      "description": "Only a Scholar may read the books of the world. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll.",
-      "vanillaSkills": [],
-      "gates": {
-        "books": true
-      },
-      "counts": {
-        "activateTypes": [
-          "BOOK"
-        ]
-      },
-      "bookDropChanceByTier": [
-        0.15,
-        0.25,
-        0.35,
-        0.45,
-        0.55
-      ],
-      "tomeDropChanceByTier": [
-        0,
-        0.02,
-        0.04,
-        0.07,
-        0.1
-      ],
-      "tiers": [
-        "Read common books",
-        "Better copies",
-        "Rare books",
-        "Scrolls",
-        "Spell tomes"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "enchanter",
-      "category": "support",
-      "label": "Enchanter",
-      "title": "The Rune-Wright",
-      "description": "Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong.",
-      "vanillaSkills": [
-        "Enchanting"
-      ],
-      "gates": {
-        "stations": [
-          "isEnchanting",
-          "CraftingEnchantingWorkbench"
-        ],
-        "weaponOnly": true
-      },
-      "counts": {
-        "craftStations": [
-          "isEnchanting"
-        ]
-      },
-      "tiers": [
-        "Fire, frost, shock",
-        "Soul trap, absorb stamina",
-        "Absorb health, paralyze",
-        "Chaos, absorb magicka",
-        "Dual enchantments"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "priest",
-      "category": "support",
-      "label": "Priest",
-      "title": "The Hand of the Divines",
-      "description": "Restoration and Alteration. The only way to learn healing and warding spells, studied at any spell study point. Praying at a shrine counts as Priest work and raises the odds of a blessing.",
-      "vanillaSkills": [
-        "Restoration",
-        "Alteration"
-      ],
-      "counts": {
-        "spellCastSchools": [
-          "Restoration",
-          "Alteration"
-        ],
-        "prayer": true
-      },
-      "spellSlots": 3,
-      "spellRankByTier": [
-        "Novice",
-        "Apprentice",
-        "Adept",
-        "Expert",
-        "Master"
-      ],
-      "tiers": [
-        "Novice spells",
-        "Apprentice spells",
-        "Adept spells",
-        "Expert spells",
-        "Master spells"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ],
-      "studyAt": "spellStudyPoints"
-    },
-    {
-      "id": "cook",
-      "category": "support",
-      "label": "Cook",
-      "title": "The Hearthkeeper",
-      "description": "Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare.",
-      "vanillaSkills": [],
-      "gates": {
-        "stations": [
-          "isCookingSpit",
-          "isSmallCookingPot",
-          "CraftingCookingPot",
-          "CraftingCookingFireSpit",
-          "BYOHOven"
-        ]
-      },
-      "counts": {
-        "craftKeywords": [
-          "CraftingCookpot",
-          "BYOHCraftingOven"
-        ]
-      },
-      "tiers": [
-        "Simple meals",
-        "Hearty meals",
-        "Feast dishes",
-        "Restorative dishes",
-        "Banquet fare with long buffs"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    },
-    {
-      "id": "harvesting",
-      "category": "support",
-      "label": "Harvesting",
-      "title": "The Gleaner",
-      "description": "Gathering from the world's resource nodes: plants, mushrooms, nests, and gold pouches. Without this skill a node gives little or nothing; tiers raise both the chance of a yield and the amount.",
-      "vanillaSkills": [],
-      "gates": {
-        "nodes": true
-      },
-      "counts": {
-        "activateTypes": [
-          "FLOR",
-          "TREE"
-        ],
-        "activatePrefixes": [
-          "CoinPurse",
-          "GoldPouch"
-        ]
-      },
-      "yieldChanceByTier": [
-        0.6,
-        0.7,
-        0.8,
-        0.9,
-        1
-      ],
-      "yieldMultiplierByTier": [
-        1,
-        1.25,
-        1.5,
-        1.75,
-        2
-      ],
-      "unskilled": {
-        "yieldChance": 0.25,
-        "yieldMultiplier": 0.5
-      },
-      "tiers": [
-        "Common plants",
-        "Rare plants, nests",
-        "Double chance on gold pouches",
-        "+75% yield",
-        "Double yield, every node"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ],
-      "harvestablePlacedItems": {
-        "_comment": "placed ingredient refs treated as nodes (Harvesting roll, then empty until respawn) instead of blocked clutter; matched by base EditorID prefix",
-        "prefixes": [
-          "HangingRabbit",
-          "HangingPheasant",
-          "HangingGarlic",
-          "GarlicBraid",
-          "HangingElvesEar",
-          "HangingFrostMirriam",
-          "DriedElvesEar",
-          "DriedFrostMirriam",
-          "HangingSalmon",
-          "SalmonRack",
-          "HangingHerb"
-        ],
-        "respawnMinutes": 1440
-      },
-      "nodeKinds": {
-        "_comment": "everything Harvesting rolls on",
-        "kinds": [
-          "FLOR (all flora: flowers, mushrooms, nests, planted crops such as cabbage, potato, leek, wheat, gourd, carrot, tomato, farm rows)",
-          "TREE harvestables (apple, snowberry, juniper, jazbay and any tree or bush with a harvest ingredient)",
-          "gold pouches (CoinPurse activators)",
-          "hanging food and herb bundles (see harvestablePlacedItems)",
-          "Hearthfire garden and planter soil (BYOH planters)"
-        ]
-      }
-    },
-    {
-      "id": "lockpicking",
-      "category": "profession",
-      "label": "Lockpicking",
-      "title": "The Quiet Hand",
-      "description": "Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt.",
-      "vanillaSkills": [
-        "Lockpicking"
-      ],
-      "gates": {
-        "pickable": [
-          "player-owned doors (housing locks)",
-          "dungeon loot chests"
-        ]
-      },
-      "counts": {
-        "lockOpened": true
-      },
-      "lockLevelByTier": [
-        "Novice",
-        "Apprentice",
-        "Adept",
-        "Expert",
-        "Master"
-      ],
-      "tiers": [
-        "Novice locks",
-        "Apprentice locks",
-        "Adept locks, fewer picks broken",
-        "Expert locks",
-        "Master locks, silent entry"
-      ],
-      "markerSpells": [
-        "<T1>",
-        "<T2>",
-        "<T3>",
-        "<T4>",
-        "<T5>"
-      ]
-    }
-  ],
-  "vanillaLevel": {
-    "cap": 5,
-    "perks": "disabled",
-    "levelFrom": "sum of tiers across the three chosen skills divided by 3, rounded down",
-    "perLevel": "+10 to one of Health, Magicka, Stamina chosen by the player"
-  },
-  "minigames": {
-    "mining": "timing bar, one strike per hit inside the green zone, strikes per vein by Miner tier",
-    "woodcutting": "rhythm press, strikes per sitting by Woodcutter tier (4-20)",
-    "reading": "word-order or timed page turn, result rolls the Scholar tables",
-    "lumberMill": "no mini-game, 30-minute cooldown per player per mill, yield by Woodcutter tier"
-  },
-  "spellStudyPoints": [
-    {
-      "name": "The well in the Hall of the Elements",
-      "cell": "1380e:Skyrim.esm",
-      "refr": "108d6f:Skyrim.esm",
-      "radiusMeters": 6,
-      "schools": [
-        "Destruction",
-        "Conjuration",
-        "Illusion",
-        "Restoration",
-        "Alteration"
-      ],
-      "_comment": "add more entries later: temples, mage towers, a court wizard's study"
-    }
-  ],
-  "praying": {
-    "_comment": "Anyone can pray, but only at a shrine of the deity chosen after character creation. Other shrines answer with a notice and no roll. Priests get better odds and skill progress. server\\prayer.js reads deities.choices[].shrines, NOT the shrines map below - that map is kept only as a quick index of the Divines.",
-    "shrines": {
-      "Akatosh": [
-        "d9883:Skyrim.esm",
-        "61b52:BSHeartland.esm"
-      ],
-      "Arkay": [
-        "71854:Skyrim.esm",
-        "61b53:BSHeartland.esm"
-      ],
-      "Dibella": [
-        "d9881:Skyrim.esm",
-        "61b54:BSHeartland.esm"
-      ],
-      "Julianos": [
-        "d9885:Skyrim.esm",
-        "61b55:BSHeartland.esm"
-      ],
-      "Kynareth": [
-        "d987f:Skyrim.esm",
-        "61b56:BSHeartland.esm"
-      ],
-      "Mara": [
-        "d9887:Skyrim.esm",
-        "61b57:BSHeartland.esm"
-      ],
-      "Stendarr": [
-        "d987d:Skyrim.esm",
-        "61b58:BSHeartland.esm"
-      ],
-      "Talos": [
-        "100780:Skyrim.esm",
-        "61b59:BSHeartland.esm"
-      ],
-      "Zenithar": [
-        "d987b:Skyrim.esm",
-        "61b5a:BSHeartland.esm"
-      ]
-    },
-    "cooldownMinutesPerShrine": 60,
-    "blessingChance": {
-      "everyone": 0.02,
-      "priestByTier": [
-        0.05,
-        0.1,
-        0.15,
-        0.2,
-        0.3
-      ]
-    },
-    "blessingDurationHoursByTier": [
-      8,
-      8,
-      12,
-      16,
-      24
+  {
+   "id": "miner",
+   "category": "profession",
+   "label": "Miner",
+   "title": "The Deep Delver",
+   "description": "Only a Miner may work ore veins. Tiers decide which ores you can mine and how much a vein gives.",
+   "vanillaSkills": [],
+   "gates": {
+    "stations": [
+     "MineOre",
+     "CYRMineOre",
+     "PickaxeMining"
+    ]
+   },
+   "counts": {
+    "_comment": "PickaxeMining is deliberately NOT here: Bruma has 169 PickaxeMining* FURN markers and a bare activation on one would credit the skill with no minigame and no ore. It stays in gates.stations so the markers remain miner-only.",
+    "activatePrefixes": [
+     "MineOre",
+     "CYRMineOre"
+    ]
+   },
+   "oreByTier": [
+    [
+     "Copper",
+     "Iron",
+     "Corundum"
     ],
-    "priestActivityPoint": true,
-    "minigame": "hold the prayer key through three verses; releasing early ends the prayer with no roll",
-    "onlyOwnDeity": true,
-    "verses": 3,
-    "verseSeconds": 6,
-    "holdSlackMs": 500
-  },
-  "deities": {
-    "_comment": "Picked after character creation, or by praying at a shrine while godless (server\\prayer.js offers it). Stored per character in private.dboDeity. Praying works only at your own deity's shrines, or at an aspect of them (see auriel.aspectOf). Conversion: /deity <name> at that deity's shrine, conversionCooldownDays apart, current blessing removed. The menu key the brief asks for is front work and is not built; /deity is the stopgap.",
-    "conversionCooldownDays": 7,
-    "choices": [
-      {
-        "id": "akatosh",
-        "name": "Akatosh",
-        "kind": "divine",
-        "shrines": [
-          "d9883:Skyrim.esm",
-          "61b52:BSHeartland.esm"
-        ],
-        "blessing": "fb988:Skyrim.esm",
-        "blessingEditorId": "AltarAkatoshSpell",
-        "placements": 40,
-        "inPlaytest": 18,
-        "inBruma": 3,
-        "sphere": "Time. Chief of the Divines, the Dragon God whose covenant with Alessia binds the Empire.",
-        "boon": "Magicka returns 10% faster.",
-        "alsoKnownAs": [
-          "Auri-El (Aldmeri)",
-          "Alduin (Nordic, disputed)",
-          "Bormahu"
-        ],
-        "blessingSource": "vanilla"
-      },
-      {
-        "id": "arkay",
-        "name": "Arkay",
-        "kind": "divine",
-        "shrines": [
-          "71854:Skyrim.esm",
-          "61b53:BSHeartland.esm"
-        ],
-        "blessing": "fb994:Skyrim.esm",
-        "blessingEditorId": "AltarArkaySpell",
-        "placements": 50,
-        "inPlaytest": 8,
-        "inBruma": 4,
-        "sphere": "The cycle of birth and death, and the sanctity of the grave. His priests bury the dead so they stay buried.",
-        "boon": "Health raised by 25.",
-        "alsoKnownAs": [
-          "Tu'whacca (Yokudan)",
-          "Orkey (Nordic)"
-        ],
-        "blessingSource": "vanilla"
-      },
-      {
-        "id": "dibella",
-        "name": "Dibella",
-        "kind": "divine",
-        "shrines": [
-          "d9881:Skyrim.esm",
-          "6c9f1:Skyrim.esm",
-          "61b54:BSHeartland.esm"
-        ],
-        "blessing": "1209bf:DragonBreak Online Edits.esp",
-        "placements": 21,
-        "inPlaytest": 4,
-        "inBruma": 3,
-        "sphere": "Beauty, love and art. Her temple at Markarth keeps the Sybil; her Cyrodiilic chapels teach that beauty is a form of worship.",
-        "boon": "Illusion +10.",
-        "blessingSource": "vanilla",
-        "replacedBoon": "Persuasion +10, vanilla (dead: no NPCs to persuade).",
-        "blessingEditorId": "DBO_BlessingOfDibella"
-      },
-      {
-        "id": "julianos",
-        "name": "Julianos",
-        "kind": "divine",
-        "shrines": [
-          "d9885:Skyrim.esm",
-          "61b55:BSHeartland.esm"
-        ],
-        "blessing": "fb996:Skyrim.esm",
-        "blessingEditorId": "AltarJulianosSpell",
-        "placements": 21,
-        "inPlaytest": 6,
-        "inBruma": 4,
-        "sphere": "Wisdom, logic, literature and law. Patron of mages and of the Elder Council that writes the Empire down.",
-        "boon": "Magicka raised by 25.",
-        "alsoKnownAs": [
-          "Jhunal (Nordic)"
-        ],
-        "blessingSource": "vanilla"
-      },
-      {
-        "id": "kynareth",
-        "name": "Kynareth",
-        "kind": "divine",
-        "shrines": [
-          "d987f:Skyrim.esm",
-          "61b56:BSHeartland.esm"
-        ],
-        "blessing": "fb997:Skyrim.esm",
-        "blessingEditorId": "AltarKynarethSpell",
-        "placements": 23,
-        "inPlaytest": 8,
-        "inBruma": 4,
-        "sphere": "Air, wind, sky and the elements. The only Divine who was present at the making and stayed.",
-        "boon": "Stamina raised by 25.",
-        "alsoKnownAs": [
-          "Kyne (Nordic), the Kiss at the End"
-        ],
-        "blessingSource": "vanilla"
-      },
-      {
-        "id": "mara",
-        "name": "Mara",
-        "kind": "divine",
-        "shrines": [
-          "d9887:Skyrim.esm",
-          "61b57:BSHeartland.esm"
-        ],
-        "blessing": "fb998:Skyrim.esm",
-        "blessingEditorId": "AltarMaraSpell",
-        "placements": 21,
-        "inPlaytest": 4,
-        "inBruma": 2,
-        "sphere": "Love, compassion and the hearth. The Mother-Goddess, worshipped in every province under one name or another.",
-        "boon": "Restoration raised by 10.",
-        "alsoKnownAs": [
-          "Mara (universal)"
-        ],
-        "blessingSource": "vanilla"
-      },
-      {
-        "id": "stendarr",
-        "name": "Stendarr",
-        "kind": "divine",
-        "shrines": [
-          "d987d:Skyrim.esm",
-          "61b58:BSHeartland.esm"
-        ],
-        "blessing": "fb999:Skyrim.esm",
-        "blessingEditorId": "AltarStendarrSpell",
-        "placements": 25,
-        "inPlaytest": 4,
-        "inBruma": 3,
-        "sphere": "Mercy, charity and justice; the shield against the unnatural. His Vigilants hunt Daedra and the undead.",
-        "boon": "Block raised by 10.",
-        "alsoKnownAs": [
-          "Stuhn (Nordic)"
-        ],
-        "blessingSource": "vanilla"
-      },
-      {
-        "id": "talos",
-        "name": "Talos",
-        "kind": "divine",
-        "shrines": [
-          "100780:Skyrim.esm",
-          "61b59:BSHeartland.esm"
-        ],
-        "blessing": "1209c1:DragonBreak Online Edits.esp",
-        "note": "Openly worshipping Talos is a crime in Cyrodiil in 4E 201. prayer.js warns a Talos worshipper the first time they pray, and nothing else happens: whether the guards care is a faction decision for Nat, not a prayer one. private.dboLawful already exists if it should.",
-        "placements": 56,
-        "inPlaytest": 6,
-        "inBruma": 4,
-        "sphere": "Tiber Septim, the man who became the Ninth Divine and founded the Empire that outlawed him.",
-        "boon": "Two-handed +10.",
-        "alsoKnownAs": [
-          "Ysmir",
-          "Hjalti Early-Beard"
-        ],
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "The Empire, under the White-Gold Concordat. Bruma is Imperial and the Thalmor keep a Justiciar presence.",
-        "replacedBoon": "Shouts return 20% sooner - dead, or at least unconfirmed: nobody has established that shouts work on this server at all, and a boon nobody can verify is not a boon.",
-        "blessingEditorId": "DBO_BlessingOfTalos"
-      },
-      {
-        "id": "zenithar",
-        "name": "Zenithar",
-        "kind": "divine",
-        "shrines": [
-          "d987b:Skyrim.esm",
-          "61b5a:BSHeartland.esm"
-        ],
-        "blessing": "1209c0:DragonBreak Online Edits.esp",
-        "placements": 23,
-        "inPlaytest": 6,
-        "inBruma": 2,
-        "sphere": "Work, commerce and honest labour. The god who says wealth follows craft, and never the other way round.",
-        "boon": "Carry weight +50.",
-        "alsoKnownAs": [
-          "Z'en (Bosmeri)",
-          "Tsun (Nordic, disputed)"
-        ],
-        "blessingSource": "vanilla",
-        "replacedBoon": "Speechcraft +10, vanilla (dead: no merchants, no barter).",
-        "blessingEditorId": "DBO_BlessingOfZenithar"
-      },
-      {
-        "id": "auriel",
-        "name": "Auri-El",
-        "kind": "divine",
-        "shrines": [
-          "c86b:Dawnguard.esm"
-        ],
-        "blessing": "11360:Dawnguard.esm",
-        "note": "The Aldmeri name for Akatosh, not a separate god. prayer.js treats the two as one: a worshipper of either may pray at either shrine. Auri-El's only shrine is in the Forgotten Vale, so in practice this lets a Snow-Elf-faithed character use the Akatosh chapels of Cyrodiil.",
-        "blessingEditorId": "DLC1AltarAurielSpell",
-        "placements": 4,
-        "inPlaytest": 0,
-        "inBruma": 0,
-        "sphere": "The Aldmeri aspect of Akatosh, worshipped by the Snow Elves as the founder of their line.",
-        "boon": "Marksman raised by 10, for half a day.",
-        "blessingSource": "vanilla",
-        "aspectOf": "akatosh"
-      },
-      {
-        "id": "malacath",
-        "name": "Malacath",
-        "kind": "daedra",
-        "shrines": [
-          "5db6:DragonBreak.esp",
-          "23bb:DragonBreak.esp"
-        ],
-        "blessing": "5db8:DragonBreak.esp",
-        "note": "Custom shrine activator placed at six strongholds and Gol-Kharzum.",
-        "blessingEditorId": "AltarMalacathSpell",
-        "placements": 11,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "The sworn oath, the broken curse, and every people the others cast out. Trinimac was, and Malacath is.",
-        "boon": "Damage raised by 10% and Block by 15.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
-      },
-      {
-        "id": "azura",
-        "name": "Azura",
-        "kind": "daedra",
-        "shrines": [
-          "92492:Skyrim.esm",
-          "3a484:Dragonborn.esm",
-          "125bfc:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "3bcfb:Dragonborn.esm",
-        "blessingEditorId": "DLC2AltarAzuraSpell",
-        "placements": 8,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Dusk and dawn, prophecy, and the Moonshadow. The kindest of the Princes, which is not saying much.",
-        "boon": "Magic resisted by 10%.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
-      },
-      {
-        "id": "boethiah",
-        "name": "Boethiah",
-        "kind": "daedra",
-        "shrines": [
-          "39e34:Dragonborn.esm",
-          "125bfd:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "3bcfc:Dragonborn.esm",
-        "note": "Vanilla Skyrim shrine is a static; only the Solstheim one activates.",
-        "blessingEditorId": "DLC2AltarBoethiahSpell",
-        "placements": 9,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Plots, secret murder, treason - and the teacher who makes the Chimer strong by testing them to destruction.",
-        "boon": "One-handed raised by 10.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
-      },
-      {
-        "id": "mephala",
-        "name": "Mephala",
-        "kind": "daedra",
-        "shrines": [
-          "3a481:Dragonborn.esm",
-          "125bff:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c4:DragonBreak Online Edits.esp",
-        "placements": 5,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Lies, sex and secret murder; the Webspinner, who taught the Morag Tong their trade.",
-        "boon": "Alchemy +10.",
-        "blessingSource": "vanilla",
-        "note": "Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone. Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone.",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "Speechcraft +10, vanilla (dead: no NPCs).",
-        "blessingEditorId": "DBO_BlessingOfMephala"
-      },
-      {
-        "id": "mehrunes",
-        "name": "Mehrunes Dagon",
-        "kind": "daedra",
-        "shrines": [
-          "bf2b6:Skyrim.esm",
-          "125c00:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c3:DragonBreak Online Edits.esp",
-        "placements": 1,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Destruction, change, revolution and ambition. Bruma above all others has met him: the Great Gate opened here, and Martin broke it.",
-        "boon": "Destruction +10.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "Damage +10%, which duplicated half of Malacath's.",
-        "blessingEditorId": "DBO_BlessingOfMehrunesDagon"
-      },
-      {
-        "id": "molagbal",
-        "name": "Molag Bal",
-        "kind": "daedra",
-        "shrines": [
-          "c7b72:Skyrim.esm",
-          "125c01:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c5:DragonBreak Online Edits.esp",
-        "placements": 1,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Domination and the enslavement of mortals. The King of Rape; the father of vampires; the reason a black soul gem is black.",
-        "boon": "Conjuration +10.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "An absorb-health effect that would have had to be authored from scratch.",
-        "blessingEditorId": "DBO_BlessingOfMolagBal"
-      },
-      {
-        "id": "nocturnal",
-        "name": "Nocturnal",
-        "kind": "daedra",
-        "shrines": [
-          "10e8b0:Skyrim.esm",
-          "125c03:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "10e8ae:Skyrim.esm",
-        "blessingEditorId": "AltarNocturnalSpell",
-        "placements": 3,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Night and darkness, luck, and things that are not where they were left. The Nightingales answer to her; nobody else gets an answer.",
-        "boon": "Sneak raised by 10.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
-      },
-      {
-        "id": "hircine",
-        "name": "Hircine",
-        "kind": "daedra",
-        "shrines": [
-          "1112c5:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c2:DragonBreak Online Edits.esp",
-        "note": "DBO_ShrineOfHircine activators on the Daedric Shrines AIO statues: Falkreath forest (BearCaveMill cell) and Solstheim (Snowclad Ruins). Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
-        "placements": 3,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "The Hunt, the Chase and the Great Game. The Huntsman of the Princes; werewolves are his.",
-        "boon": "Stamina returns 10% faster - the hunt never tires.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "blessingEditorId": "DBO_BlessingOfHircine"
-      },
-      {
-        "id": "meridia",
-        "name": "Meridia",
-        "kind": "daedra",
-        "shrines": [
-          "4e4d6:Skyrim.esm",
-          "125bf8:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c8:DragonBreak Online Edits.esp",
-        "note": "Named by REFERENCE, not by base, on purpose: the base DA09MeridiaStatue also stands four times in CYRCrowhavenBurialHalls as scenery and those must not become shrines. Two references are named - the vanilla Kilkreath activator (4e4d6, in Skyrim) and the one placed at the Namira test site on 2026-09-20 (125bf8).",
-        "placements": 2,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "isReference": true,
-        "sphere": "The energies of living things, and a hatred of the undead so total that she is counted a Daedric Prince mostly by process of elimination.",
-        "boon": "Health regenerates 25% faster.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "The undead flee you, on TurnUndeadFFMassSelfArea - wrong, and only found by dumping the template: a shrine blessing is a fire-and-forget SELF spell, so a mass-self-area turn undead fires once at the shrine and never again.",
-        "blessingEditorId": "DBO_BlessingOfMeridia"
-      },
-      {
-        "id": "sanguine",
-        "name": "Sanguine",
-        "kind": "daedra",
-        "shrines": [
-          "1112c8:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "",
-        "note": "DBO_ShrineOfSanguine activators: the Rift (33,-18) and inside Misty Grove. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
-        "placements": 3,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Revelry, debauchery and passionate indulgence. The only Prince most people would drink with twice.",
-        "boon": "Hunger comes on half as fast - the feast does not end.",
-        "blessingSource": "server",
-        "blessingRecipe": "Copy AltarDibellaSpell exactly; FortifyPersuasionFFSelf (fb98a:Skyrim.esm) at 10, duration 28800. It duplicates Dibella's boon, which is left deliberate: she charms and he carouses, and vanilla already gives Zenithar and Mephala the same Speechcraft.",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "blessingImplemented": true,
-        "hungerHalf": true,
-        "blessingDesign": "Persuasion was the wrong answer twice over: it does nothing here, and it was the least Sanguine thing on the list. The Prince of indulgence belongs on the one system this server has that is actually about appetite - private.needs. While blessed, hunger accrues at half rate. prayer.js exposes __dboPrayerHungerMult and the gamemode's needs tick multiplies by it; no plugin work, no spell, nothing for the Creation Kit to do.",
-        "replacedBoon": "Persuasion +10 (dead: no NPCs to persuade)."
-      },
-      {
-        "id": "sheogorath",
-        "name": "Sheogorath",
-        "kind": "daedra",
-        "shrines": [
-          "1112cb:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "<author: Boon of Sheogorath>",
-        "note": "DBO_ShrineOfSheogorath activator in the Hjaalmarch marsh (-12,24) near Morthal. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
-        "placements": 2,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Madness. Was Jyggalag, and will be again, and is not, and both of those are true.",
-        "boon": "Whatever he feels like. A different god's blessing every time, chosen at random.",
-        "blessingSource": "server",
-        "blessingDesign": "The one boon that is more lore-accurate as code than as a record: prayer.js rolls one of the OTHER deities' blessings and grants that instead. The Madgod needs no spell of his own, and a worshipper who prays twice gets two different gods. Implemented in prayer.js as `capricious: true`.",
-        "blessingImplemented": true,
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "capricious": true
-      },
-      {
-        "id": "clavicusvile",
-        "name": "Clavicus Vile",
-        "kind": "daedra",
-        "shrines": [
-          "1c4e8:Skyrim.esm"
-        ],
-        "blessing": "",
-        "placements": 2,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Power through bargains. Every wish is granted exactly as worded, and the wording is never yours.",
-        "boon": "The bargain: you name the boon you want and Vile takes a price for it.",
-        "blessingSource": "server",
-        "blessingDesign": "A boon of another god, granted in full, against a standing cost - reduced maximum health for as long as it lasts. prayer.js can do this with no new record: it already grants and revokes spells. Needs a choice step in the widget, which is why it is not built yet.",
-        "blessingImplemented": false,
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "note": "DA03ClavicusVileShrine, the vanilla Haemar's Shame shrine, which is a TACT (a talking activator) rather than an ACTI - it is activated the same way. Placed at the Bruma test site on 2026-09-20; the base is named, so the Skyrim one counts too."
-      },
-      {
-        "id": "hermaeusmora",
-        "name": "Hermaeus Mora",
-        "kind": "daedra",
-        "shrines": [
-          "125bfe:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "",
-        "placements": 1,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Knowledge, memory and the fate of all things. He does not bargain; he collects.",
-        "boon": "What you read teaches you more.",
-        "blessingSource": "server",
-        "blessingDesign": "The one Prince whose sphere lands exactly on a system this server already has: the Scholar skill and the reading mini-game. While blessed, a finished reading round is worth more. Not built because the weight lives in masterySystem (a TS rebuild), not in the gamemode.",
-        "blessingImplemented": false,
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
-      },
-      {
-        "id": "namira",
-        "name": "Namira",
-        "kind": "daedra",
-        "shrines": [
-          "125c02:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c9:DragonBreak Online Edits.esp",
-        "placements": 1,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "The ancient darkness, decay, and everything that revolts: spirits, spiders, the eaten dead.",
-        "boon": "Sneak raised by 10, and you see in the dark.",
-        "blessingSource": "vanilla",
-        "note": "The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell. The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell.",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "blessingEditorId": "DBO_BlessingOfNamira"
-      },
-      {
-        "id": "peryite",
-        "name": "Peryite",
-        "kind": "daedra",
-        "shrines": [
-          "125c04:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c6:DragonBreak Online Edits.esp",
-        "placements": 1,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Pestilence, and the ordering of the lowest realms. The weakest of the Princes, and the one most concerned with tidiness.",
-        "boon": "Poison resisted by 50%.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "replacedBoon": "A resist-disease effect that does not exist, with Fortify Block as a stand-in.",
-        "blessingEditorId": "DBO_BlessingOfPeryite"
-      },
-      {
-        "id": "vaermina",
-        "name": "Vaermina",
-        "kind": "daedra",
-        "shrines": [
-          "125c05:DragonBreak Online Edits.esp"
-        ],
-        "blessing": "1209c7:DragonBreak Online Edits.esp",
-        "placements": 1,
-        "inPlaytest": 1,
-        "inBruma": 1,
-        "sphere": "Dreams and nightmares, and the memories torn out of them.",
-        "boon": "You see as if dreaming.",
-        "blessingSource": "vanilla",
-        "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
-        "blessingEditorId": "DBO_BlessingOfVaermina"
-      }
+    [
+     "Silver",
+     "Quicksilver"
     ],
-    "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens.",
-    "_lore": "The roster is the canonical one for Cyrodiil, not whoever happened to have a shrine already: the Nine Divines plus Auri-El, and Oblivion's fifteen Daedric shrines plus Mephala. JYGGALAG IS DELIBERATELY ABSENT - he was Sheogorath until the Greymarch ended in 3E 433 and has walked free since, but he has no cult, no shrine and no worshippers in 4E 201, and a shrine to him would be the one thing in this list that lore actually forbids. Every boon below is grounded in the Prince's sphere, and every magic effect it names exists in this load order (measured by ck-mcp\\blessings.py; see server\\blessing-effects.json).",
-    "_blessingSource": "vanilla = a real SPEL that works today, whether Bethesda's or one of the eleven DBO_BlessingOf* records authored on 2026-09-20 by SSEEdit 4.1.5f\\Edit Scripts\\DBO_Blessings.pas. server = prayer.js does it and no record exists. pending = a boon still waiting on a spell; there are none left.",
-    "_deadStats": "NO BOON MAY BE A DEAD STAT. This server is entirely player-run: no merchants, no dialogue, no barter, and no speech skill among the eighteen. Persuasion, Speechcraft and Pickpocket therefore do nothing at all, and four boons that used them have been replaced (see replacedBoon). Where the replacement overrides a vanilla shrine, Bethesda's record is left untouched on disk and skills.json simply points elsewhere, so reverting is one line. Check any new boon against what this server actually runs: combat and the damage formula, health/magicka/stamina and their regen, carry weight, sneak, the magic schools, alchemy, lockpicking, and the needs meter - all real; anything that needs an NPC to talk to - not.",
-    "_authored": "The eleven DBO_BlessingOf* SPELs live at DragonBreak Online Edits.esp:1209BF-1209C9. Each is a copy of AltarNocturnalSpell - a fire-and-forget SELF spell, NOT a constant ability - with one effect swapped and CureDiseaseEffect kept, 28800 s. Namira is the exception: she keeps Fortify Sneak and her second effect is Night Eye instead of cure disease, which suits the Prince of decay. Re-running the script is safe; it leaves records that already exist alone.",
-    "_testSite": "Nat placed a statue of every Prince at the Namira shrine site (CYRNamirasShrineExterior and around it, grid 23,47) on 2026-09-20 as one central place to test worship. They went in as STATICS, which the engine never fires an activation on; DBO_ShrineActivators2.pas gave each Prince a DBO_ShrineOf* ACTI using that same statue mesh and repointed the references at it, so the statue itself is the shrine."
-  },
-  "respec": {
-    "_comment": "Standing stones are the only place to change your three chosen skills. Activating a stone opens the K menu in respec mode.",
-    "where": "standing stones (vanilla DoomStone activators: Warrior, Mage, Thief, Lover, Steed, Lady, Lord, Apprentice, Atronach, Ritual, Serpent, Shadow, Tower)",
-    "firstRespecFree": true,
-    "goldCostAfterFirst": 1200,
-    "whatHappens": "drop any of the three skills and pick replacements; dropped skills lose all tier progress; no swap cooldown applies at a stone (the gold is the cost)",
-    "keepsDeity": true
-  },
-  "worldPickup": {
-    "_comment": "Nothing lying in the world can be picked up with E. Loose items placed by the plugins are not loot. Resources come from nodes (Harvesting, Mining, Woodcutter), containers, crafting and trade. Items dropped by players (dynamic ff-space refs) stay pickable so trading and dropping keep working.",
-    "blockPlacedItems": true,
-    "allowPlayerDropped": true,
-    "nodes": [
-      "FLOR",
-      "TREE",
-      "gold pouches (CoinPurse activators)",
-      "ore veins",
-      "chopping blocks",
-      "books (Scholar)",
-      "hanging food and herb bundles (Harvesting)"
+    [
+     "Orichalcum",
+     "Moonstone",
+     "Gold"
     ],
-    "farmsAndFields": "Open to everyone with the Harvesting skill. No ownership lock on crops: protecting a field is roleplay (guards, patrols, bounties), not a mechanic."
+    [
+     "Malachite"
+    ],
+    [
+     "Ebony"
+    ]
+   ],
+   "yieldMultiplierByTier": [
+    1,
+    1.2,
+    1.4,
+    1.7,
+    2
+   ],
+   "tiers": [
+    "Copper, iron, corundum",
+    "Silver, quicksilver",
+    "Orichalcum, moonstone",
+    "Ebony, malachite",
+    "Double yield from every vein"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
   },
-  "edition": {
-    "decision": "Skyrim SE 1.6.1170 with the four free base creations only. No Anniversary Edition requirement.",
-    "revisit": "Alternative Armors packs (crafting variety) and player homes, launch-day decision only."
+  {
+   "id": "tailor",
+   "category": "profession",
+   "label": "Tailor",
+   "title": "The Fine Thread",
+   "description": "Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew.",
+   "vanillaSkills": [],
+   "gates": {
+    "stations": [
+     "MCE_CraftingLoom",
+     "MCE_Loom",
+     "TailorBench"
+    ]
+   },
+   "counts": {
+    "craftKeywords": [
+     "MCE_CraftingLoom",
+     "TailorBench"
+    ]
+   },
+   "tiers": [
+    "Common clothes",
+    "Fine clothes, padded armor",
+    "Noble clothes, studded medium armor",
+    "Scaled medium armor",
+    "Masterwork garments"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "skinner",
+   "category": "support",
+   "label": "Skinner",
+   "title": "The Far Tracker",
+   "description": "Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get.",
+   "vanillaSkills": [],
+   "gates": {
+    "stations": [
+     "isTanning",
+     "CraftingTanningRack"
+    ],
+    "skinning": true
+   },
+   "counts": {
+    "killKeywords": [
+     "ActorTypeAnimal"
+    ],
+    "craftKeywords": [
+     "CraftingTanningRack"
+    ]
+   },
+   "tiers": [
+    "Hide, 1 leather per pelt",
+    "Leather strips",
+    "2 leather per pelt",
+    "Fine leather",
+    "3 leather per pelt, rare pelts intact"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "scholar",
+   "category": "support",
+   "label": "Scholar",
+   "title": "The Ink-Stained",
+   "description": "Only a Scholar may read the books of the world. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll.",
+   "vanillaSkills": [],
+   "gates": {
+    "books": true
+   },
+   "counts": {
+    "activateTypes": [
+     "BOOK"
+    ]
+   },
+   "bookDropChanceByTier": [
+    0.15,
+    0.25,
+    0.35,
+    0.45,
+    0.55
+   ],
+   "tomeDropChanceByTier": [
+    0,
+    0.02,
+    0.04,
+    0.07,
+    0.1
+   ],
+   "tiers": [
+    "Read common books",
+    "Better copies",
+    "Rare books",
+    "Scrolls",
+    "Spell tomes"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "enchanter",
+   "category": "support",
+   "label": "Enchanter",
+   "title": "The Rune-Wright",
+   "description": "Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong.",
+   "vanillaSkills": [
+    "Enchanting"
+   ],
+   "gates": {
+    "stations": [
+     "isEnchanting",
+     "CraftingEnchantingWorkbench"
+    ],
+    "weaponOnly": true
+   },
+   "counts": {
+    "craftStations": [
+     "isEnchanting"
+    ]
+   },
+   "tiers": [
+    "Fire, frost, shock",
+    "Soul trap, absorb stamina",
+    "Absorb health, paralyze",
+    "Chaos, absorb magicka",
+    "Dual enchantments"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "priest",
+   "category": "support",
+   "label": "Priest",
+   "title": "The Hand of the Divines",
+   "description": "Restoration and Alteration. The only way to learn healing and warding spells, studied at any spell study point. Praying at a shrine counts as Priest work and raises the odds of a blessing.",
+   "vanillaSkills": [
+    "Restoration",
+    "Alteration"
+   ],
+   "counts": {
+    "spellCastSchools": [
+     "Restoration",
+     "Alteration"
+    ],
+    "prayer": true
+   },
+   "spellSlots": 3,
+   "spellRankByTier": [
+    "Novice",
+    "Apprentice",
+    "Adept",
+    "Expert",
+    "Master"
+   ],
+   "tiers": [
+    "Novice spells",
+    "Apprentice spells",
+    "Adept spells",
+    "Expert spells",
+    "Master spells"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ],
+   "studyAt": "spellStudyPoints"
+  },
+  {
+   "id": "cook",
+   "category": "support",
+   "label": "Cook",
+   "title": "The Hearthkeeper",
+   "description": "Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare.",
+   "vanillaSkills": [],
+   "gates": {
+    "stations": [
+     "isCookingSpit",
+     "isSmallCookingPot",
+     "CraftingCookingPot",
+     "CraftingCookingFireSpit",
+     "BYOHOven"
+    ]
+   },
+   "counts": {
+    "craftKeywords": [
+     "CraftingCookpot",
+     "BYOHCraftingOven"
+    ]
+   },
+   "tiers": [
+    "Simple meals",
+    "Hearty meals",
+    "Feast dishes",
+    "Restorative dishes",
+    "Banquet fare with long buffs"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
+  },
+  {
+   "id": "harvesting",
+   "category": "support",
+   "label": "Harvesting",
+   "title": "The Gleaner",
+   "description": "Gathering from the world's resource nodes: plants, mushrooms, nests, and gold pouches. Without this skill a node gives little or nothing; tiers raise both the chance of a yield and the amount.",
+   "vanillaSkills": [],
+   "gates": {
+    "nodes": true
+   },
+   "counts": {
+    "activateTypes": [
+     "FLOR",
+     "TREE"
+    ],
+    "activatePrefixes": [
+     "CoinPurse",
+     "GoldPouch"
+    ]
+   },
+   "yieldChanceByTier": [
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1
+   ],
+   "yieldMultiplierByTier": [
+    1,
+    1.25,
+    1.5,
+    1.75,
+    2
+   ],
+   "unskilled": {
+    "yieldChance": 0.25,
+    "yieldMultiplier": 0.5
+   },
+   "tiers": [
+    "Common plants",
+    "Rare plants, nests",
+    "Double chance on gold pouches",
+    "+75% yield",
+    "Double yield, every node"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ],
+   "harvestablePlacedItems": {
+    "_comment": "placed ingredient refs treated as nodes (Harvesting roll, then empty until respawn) instead of blocked clutter; matched by base EditorID prefix",
+    "prefixes": [
+     "HangingRabbit",
+     "HangingPheasant",
+     "HangingGarlic",
+     "GarlicBraid",
+     "HangingElvesEar",
+     "HangingFrostMirriam",
+     "DriedElvesEar",
+     "DriedFrostMirriam",
+     "HangingSalmon",
+     "SalmonRack",
+     "HangingHerb"
+    ],
+    "respawnMinutes": 1440
+   },
+   "nodeKinds": {
+    "_comment": "everything Harvesting rolls on",
+    "kinds": [
+     "FLOR (all flora: flowers, mushrooms, nests, planted crops such as cabbage, potato, leek, wheat, gourd, carrot, tomato, farm rows)",
+     "TREE harvestables (apple, snowberry, juniper, jazbay and any tree or bush with a harvest ingredient)",
+     "gold pouches (CoinPurse activators)",
+     "hanging food and herb bundles (see harvestablePlacedItems)",
+     "Hearthfire garden and planter soil (BYOH planters)"
+    ]
+   }
+  },
+  {
+   "id": "lockpicking",
+   "category": "profession",
+   "label": "Lockpicking",
+   "title": "The Quiet Hand",
+   "description": "Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt.",
+   "vanillaSkills": [
+    "Lockpicking"
+   ],
+   "gates": {
+    "pickable": [
+     "player-owned doors (housing locks)",
+     "dungeon loot chests"
+    ]
+   },
+   "counts": {
+    "lockOpened": true
+   },
+   "lockLevelByTier": [
+    "Novice",
+    "Apprentice",
+    "Adept",
+    "Expert",
+    "Master"
+   ],
+   "tiers": [
+    "Novice locks",
+    "Apprentice locks",
+    "Adept locks, fewer picks broken",
+    "Expert locks",
+    "Master locks, silent entry"
+   ],
+   "markerSpells": [
+    "<T1>",
+    "<T2>",
+    "<T3>",
+    "<T4>",
+    "<T5>"
+   ]
   }
+ ],
+ "vanillaLevel": {
+  "cap": 5,
+  "perks": "disabled",
+  "levelFrom": "sum of tiers across the three chosen skills divided by 3, rounded down",
+  "perLevel": "+10 to one of Health, Magicka, Stamina chosen by the player"
+ },
+ "minigames": {
+  "mining": "timing bar, one strike per hit inside the green zone, strikes per vein by Miner tier",
+  "woodcutting": "rhythm press, strikes per sitting by Woodcutter tier (4-20)",
+  "reading": "word-order or timed page turn, result rolls the Scholar tables",
+  "lumberMill": "no mini-game, 30-minute cooldown per player per mill, yield by Woodcutter tier"
+ },
+ "spellStudyPoints": [
+  {
+   "name": "The well in the Hall of the Elements",
+   "cell": "1380e:Skyrim.esm",
+   "refr": "108d6f:Skyrim.esm",
+   "radiusMeters": 6,
+   "schools": [
+    "Destruction",
+    "Conjuration",
+    "Illusion",
+    "Restoration",
+    "Alteration"
+   ],
+   "_comment": "add more entries later: temples, mage towers, a court wizard's study"
+  }
+ ],
+ "praying": {
+  "_comment": "Anyone can pray, but only at a shrine of the deity chosen after character creation. Other shrines answer with a notice and no roll. Priests get better odds and skill progress. server\\prayer.js reads deities.choices[].shrines, NOT the shrines map below - that map is kept only as a quick index of the Divines.",
+  "shrines": {
+   "Akatosh": [
+    "d9883:Skyrim.esm",
+    "61b52:BSHeartland.esm"
+   ],
+   "Arkay": [
+    "71854:Skyrim.esm",
+    "61b53:BSHeartland.esm"
+   ],
+   "Dibella": [
+    "d9881:Skyrim.esm",
+    "61b54:BSHeartland.esm"
+   ],
+   "Julianos": [
+    "d9885:Skyrim.esm",
+    "61b55:BSHeartland.esm"
+   ],
+   "Kynareth": [
+    "d987f:Skyrim.esm",
+    "61b56:BSHeartland.esm"
+   ],
+   "Mara": [
+    "d9887:Skyrim.esm",
+    "61b57:BSHeartland.esm"
+   ],
+   "Stendarr": [
+    "d987d:Skyrim.esm",
+    "61b58:BSHeartland.esm"
+   ],
+   "Talos": [
+    "100780:Skyrim.esm",
+    "61b59:BSHeartland.esm"
+   ],
+   "Zenithar": [
+    "d987b:Skyrim.esm",
+    "61b5a:BSHeartland.esm"
+   ]
+  },
+  "cooldownMinutesPerShrine": 60,
+  "blessingChance": {
+   "everyone": 0.02,
+   "priestByTier": [
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.3
+   ]
+  },
+  "blessingDurationHoursByTier": [
+   8,
+   8,
+   12,
+   16,
+   24
+  ],
+  "priestActivityPoint": true,
+  "minigame": "hold the prayer key through three verses; releasing early ends the prayer with no roll",
+  "onlyOwnDeity": true,
+  "verses": 3,
+  "verseSeconds": 6,
+  "holdSlackMs": 500
+ },
+ "deities": {
+  "_comment": "Picked after character creation, or by praying at a shrine while godless (server\\prayer.js offers it). Stored per character in private.dboDeity. Praying works only at your own deity's shrines, or at an aspect of them (see auriel.aspectOf). Conversion: /deity <name> at that deity's shrine, conversionCooldownDays apart, current blessing removed. The menu key the brief asks for is front work and is not built; /deity is the stopgap.",
+  "conversionCooldownDays": 7,
+  "choices": [
+   {
+    "id": "akatosh",
+    "name": "Akatosh",
+    "kind": "divine",
+    "shrines": [
+     "d9883:Skyrim.esm",
+     "61b52:BSHeartland.esm"
+    ],
+    "blessing": "fb988:Skyrim.esm",
+    "blessingEditorId": "AltarAkatoshSpell",
+    "placements": 40,
+    "inPlaytest": 18,
+    "inBruma": 3,
+    "sphere": "Time. Chief of the Divines, the Dragon God whose covenant with Alessia binds the Empire.",
+    "boon": "Magicka returns 10% faster.",
+    "alsoKnownAs": [
+     "Auri-El (Aldmeri)",
+     "Alduin (Nordic, disputed)",
+     "Bormahu"
+    ],
+    "blessingSource": "vanilla"
+   },
+   {
+    "id": "arkay",
+    "name": "Arkay",
+    "kind": "divine",
+    "shrines": [
+     "71854:Skyrim.esm",
+     "61b53:BSHeartland.esm"
+    ],
+    "blessing": "fb994:Skyrim.esm",
+    "blessingEditorId": "AltarArkaySpell",
+    "placements": 50,
+    "inPlaytest": 8,
+    "inBruma": 4,
+    "sphere": "The cycle of birth and death, and the sanctity of the grave. His priests bury the dead so they stay buried.",
+    "boon": "Health raised by 25.",
+    "alsoKnownAs": [
+     "Tu'whacca (Yokudan)",
+     "Orkey (Nordic)"
+    ],
+    "blessingSource": "vanilla"
+   },
+   {
+    "id": "dibella",
+    "name": "Dibella",
+    "kind": "divine",
+    "shrines": [
+     "d9881:Skyrim.esm",
+     "6c9f1:Skyrim.esm",
+     "61b54:BSHeartland.esm"
+    ],
+    "blessing": "1209bf:DragonBreak Online Edits.esp",
+    "placements": 21,
+    "inPlaytest": 4,
+    "inBruma": 3,
+    "sphere": "Beauty, love and art. Her temple at Markarth keeps the Sybil; her Cyrodiilic chapels teach that beauty is a form of worship.",
+    "boon": "Illusion +10.",
+    "blessingSource": "vanilla",
+    "replacedBoon": "Persuasion +10, vanilla (dead: no NPCs to persuade).",
+    "blessingEditorId": "DBO_BlessingOfDibella"
+   },
+   {
+    "id": "julianos",
+    "name": "Julianos",
+    "kind": "divine",
+    "shrines": [
+     "d9885:Skyrim.esm",
+     "61b55:BSHeartland.esm"
+    ],
+    "blessing": "fb996:Skyrim.esm",
+    "blessingEditorId": "AltarJulianosSpell",
+    "placements": 21,
+    "inPlaytest": 6,
+    "inBruma": 4,
+    "sphere": "Wisdom, logic, literature and law. Patron of mages and of the Elder Council that writes the Empire down.",
+    "boon": "Magicka raised by 25.",
+    "alsoKnownAs": [
+     "Jhunal (Nordic)"
+    ],
+    "blessingSource": "vanilla"
+   },
+   {
+    "id": "kynareth",
+    "name": "Kynareth",
+    "kind": "divine",
+    "shrines": [
+     "d987f:Skyrim.esm",
+     "61b56:BSHeartland.esm"
+    ],
+    "blessing": "fb997:Skyrim.esm",
+    "blessingEditorId": "AltarKynarethSpell",
+    "placements": 23,
+    "inPlaytest": 8,
+    "inBruma": 4,
+    "sphere": "Air, wind, sky and the elements. The only Divine who was present at the making and stayed.",
+    "boon": "Stamina raised by 25.",
+    "alsoKnownAs": [
+     "Kyne (Nordic), the Kiss at the End"
+    ],
+    "blessingSource": "vanilla"
+   },
+   {
+    "id": "mara",
+    "name": "Mara",
+    "kind": "divine",
+    "shrines": [
+     "d9887:Skyrim.esm",
+     "61b57:BSHeartland.esm"
+    ],
+    "blessing": "fb998:Skyrim.esm",
+    "blessingEditorId": "AltarMaraSpell",
+    "placements": 21,
+    "inPlaytest": 4,
+    "inBruma": 2,
+    "sphere": "Love, compassion and the hearth. The Mother-Goddess, worshipped in every province under one name or another.",
+    "boon": "Restoration raised by 10.",
+    "alsoKnownAs": [
+     "Mara (universal)"
+    ],
+    "blessingSource": "vanilla"
+   },
+   {
+    "id": "stendarr",
+    "name": "Stendarr",
+    "kind": "divine",
+    "shrines": [
+     "d987d:Skyrim.esm",
+     "61b58:BSHeartland.esm"
+    ],
+    "blessing": "fb999:Skyrim.esm",
+    "blessingEditorId": "AltarStendarrSpell",
+    "placements": 25,
+    "inPlaytest": 4,
+    "inBruma": 3,
+    "sphere": "Mercy, charity and justice; the shield against the unnatural. His Vigilants hunt Daedra and the undead.",
+    "boon": "Block raised by 10.",
+    "alsoKnownAs": [
+     "Stuhn (Nordic)"
+    ],
+    "blessingSource": "vanilla"
+   },
+   {
+    "id": "talos",
+    "name": "Talos",
+    "kind": "divine",
+    "shrines": [
+     "100780:Skyrim.esm",
+     "61b59:BSHeartland.esm"
+    ],
+    "blessing": "1209c1:DragonBreak Online Edits.esp",
+    "note": "Openly worshipping Talos is a crime in Cyrodiil in 4E 201. prayer.js warns a Talos worshipper the first time they pray, and nothing else happens: whether the guards care is a faction decision for Nat, not a prayer one. private.dboLawful already exists if it should.",
+    "placements": 56,
+    "inPlaytest": 6,
+    "inBruma": 4,
+    "sphere": "Tiber Septim, the man who became the Ninth Divine and founded the Empire that outlawed him.",
+    "boon": "Two-handed +10.",
+    "alsoKnownAs": [
+     "Ysmir",
+     "Hjalti Early-Beard"
+    ],
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "The Empire, under the White-Gold Concordat. Bruma is Imperial and the Thalmor keep a Justiciar presence.",
+    "replacedBoon": "Shouts return 20% sooner - dead, or at least unconfirmed: nobody has established that shouts work on this server at all, and a boon nobody can verify is not a boon.",
+    "blessingEditorId": "DBO_BlessingOfTalos"
+   },
+   {
+    "id": "zenithar",
+    "name": "Zenithar",
+    "kind": "divine",
+    "shrines": [
+     "d987b:Skyrim.esm",
+     "61b5a:BSHeartland.esm"
+    ],
+    "blessing": "1209c0:DragonBreak Online Edits.esp",
+    "placements": 23,
+    "inPlaytest": 6,
+    "inBruma": 2,
+    "sphere": "Work, commerce and honest labour. The god who says wealth follows craft, and never the other way round.",
+    "boon": "Carry weight +50.",
+    "alsoKnownAs": [
+     "Z'en (Bosmeri)",
+     "Tsun (Nordic, disputed)"
+    ],
+    "blessingSource": "vanilla",
+    "replacedBoon": "Speechcraft +10, vanilla (dead: no merchants, no barter).",
+    "blessingEditorId": "DBO_BlessingOfZenithar"
+   },
+   {
+    "id": "auriel",
+    "name": "Auri-El",
+    "kind": "divine",
+    "shrines": [
+     "c86b:Dawnguard.esm"
+    ],
+    "blessing": "11360:Dawnguard.esm",
+    "note": "The Aldmeri name for Akatosh, not a separate god. prayer.js treats the two as one: a worshipper of either may pray at either shrine. Auri-El's only shrine is in the Forgotten Vale, so in practice this lets a Snow-Elf-faithed character use the Akatosh chapels of Cyrodiil.",
+    "blessingEditorId": "DLC1AltarAurielSpell",
+    "placements": 4,
+    "inPlaytest": 0,
+    "inBruma": 0,
+    "sphere": "The Aldmeri aspect of Akatosh, worshipped by the Snow Elves as the founder of their line.",
+    "boon": "Marksman raised by 10, for half a day.",
+    "blessingSource": "vanilla",
+    "aspectOf": "akatosh"
+   },
+   {
+    "id": "malacath",
+    "name": "Malacath",
+    "kind": "daedra",
+    "shrines": [
+     "5db6:DragonBreak.esp",
+     "23bb:DragonBreak.esp"
+    ],
+    "blessing": "5db8:DragonBreak.esp",
+    "note": "Custom shrine activator placed at six strongholds and Gol-Kharzum.",
+    "blessingEditorId": "AltarMalacathSpell",
+    "placements": 11,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "The sworn oath, the broken curse, and every people the others cast out. Trinimac was, and Malacath is.",
+    "boon": "Damage raised by 10% and Block by 15.",
+    "blessingSource": "vanilla",
+    "lawful": true
+   },
+   {
+    "id": "azura",
+    "name": "Azura",
+    "kind": "daedra",
+    "shrines": [
+     "92492:Skyrim.esm",
+     "3a484:Dragonborn.esm",
+     "125bfc:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "3bcfb:Dragonborn.esm",
+    "blessingEditorId": "DLC2AltarAzuraSpell",
+    "placements": 8,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Dusk and dawn, prophecy, and the Moonshadow. The kindest of the Princes, which is not saying much.",
+    "boon": "Magic resisted by 10%.",
+    "blessingSource": "vanilla",
+    "lawful": true
+   },
+   {
+    "id": "boethiah",
+    "name": "Boethiah",
+    "kind": "daedra",
+    "shrines": [
+     "39e34:Dragonborn.esm",
+     "125bfd:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "3bcfc:Dragonborn.esm",
+    "note": "Vanilla Skyrim shrine is a static; only the Solstheim one activates.",
+    "blessingEditorId": "DLC2AltarBoethiahSpell",
+    "placements": 9,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Plots, secret murder, treason - and the teacher who makes the Chimer strong by testing them to destruction.",
+    "boon": "One-handed raised by 10.",
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "Her sacrament is the murder of one's own follower. Imperial law draws no line between a rite and a killing, whatever the Tribunal once taught."
+   },
+   {
+    "id": "mephala",
+    "name": "Mephala",
+    "kind": "daedra",
+    "shrines": [
+     "3a481:Dragonborn.esm",
+     "125bff:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c4:DragonBreak Online Edits.esp",
+    "placements": 5,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Lies, sex and secret murder; the Webspinner, who taught the Morag Tong their trade.",
+    "boon": "Alchemy +10.",
+    "blessingSource": "vanilla",
+    "note": "Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone. Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone.",
+    "lawful": false,
+    "unlawfulWhere": "Secrets, and the assassin's contract. The Morag Tong holds a licence in Morrowind and is outlawed everywhere else; in Cyrodiil her worship is read as conspiracy before it is read as faith.",
+    "replacedBoon": "Speechcraft +10, vanilla (dead: no NPCs).",
+    "blessingEditorId": "DBO_BlessingOfMephala"
+   },
+   {
+    "id": "mehrunes",
+    "name": "Mehrunes Dagon",
+    "kind": "daedra",
+    "shrines": [
+     "bf2b6:Skyrim.esm",
+     "125c00:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c3:DragonBreak Online Edits.esp",
+    "placements": 1,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Destruction, change, revolution and ambition. Bruma above all others has met him: the Great Gate opened here, and Martin broke it.",
+    "boon": "Destruction +10.",
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "Bruma above every other place in Tamriel. The Great Gate of 3E 433 opened outside these walls and the city was all but lost; the cathedral at its heart is dedicated to St Martin, who died ending that invasion. To kneel to Dagon here is not heresy, it is the war returning.",
+    "replacedBoon": "Damage +10%, which duplicated half of Malacath's.",
+    "blessingEditorId": "DBO_BlessingOfMehrunesDagon"
+   },
+   {
+    "id": "molagbal",
+    "name": "Molag Bal",
+    "kind": "daedra",
+    "shrines": [
+     "c7b72:Skyrim.esm",
+     "125c01:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c5:DragonBreak Online Edits.esp",
+    "placements": 1,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Domination and the enslavement of mortals. The King of Rape; the father of vampires; the reason a black soul gem is black.",
+    "boon": "Conjuration +10.",
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "Domination, and vampirism with it. The Imperial courts read his cult as enslavement and murder in one, and a confessed worshipper is hunted rather than tried.",
+    "replacedBoon": "An absorb-health effect that would have had to be authored from scratch.",
+    "blessingEditorId": "DBO_BlessingOfMolagBal"
+   },
+   {
+    "id": "nocturnal",
+    "name": "Nocturnal",
+    "kind": "daedra",
+    "shrines": [
+     "10e8b0:Skyrim.esm",
+     "125c03:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "10e8ae:Skyrim.esm",
+    "blessingEditorId": "AltarNocturnalSpell",
+    "placements": 3,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Night and darkness, luck, and things that are not where they were left. The Nightingales answer to her; nobody else gets an answer.",
+    "boon": "Sneak raised by 10.",
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "Patron of thieves, and of the Nightingales sworn to her. The kneeling is not itself the crime - the oath taken at her altar is."
+   },
+   {
+    "id": "hircine",
+    "name": "Hircine",
+    "kind": "daedra",
+    "shrines": [
+     "1112c5:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c2:DragonBreak Online Edits.esp",
+    "note": "DBO_ShrineOfHircine activators on the Daedric Shrines AIO statues: Falkreath forest (BearCaveMill cell) and Solstheim (Snowclad Ruins). Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
+    "placements": 3,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "The Hunt, the Chase and the Great Game. The Huntsman of the Princes; werewolves are his.",
+    "boon": "Stamina returns 10% faster - the hunt never tires.",
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "The Hunt, and the lycanthropy that comes with it. The Vigil of Stendarr hunts his followers, and a werewolf in an Imperial county is put down rather than charged.",
+    "blessingEditorId": "DBO_BlessingOfHircine"
+   },
+   {
+    "id": "meridia",
+    "name": "Meridia",
+    "kind": "daedra",
+    "shrines": [
+     "4e4d6:Skyrim.esm",
+     "125bf8:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c8:DragonBreak Online Edits.esp",
+    "note": "Named by REFERENCE, not by base, on purpose: the base DA09MeridiaStatue also stands four times in CYRCrowhavenBurialHalls as scenery and those must not become shrines. Two references are named - the vanilla Kilkreath activator (4e4d6, in Skyrim) and the one placed at the Namira test site on 2026-09-20 (125bf8).",
+    "placements": 2,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "isReference": true,
+    "sphere": "The energies of living things, and a hatred of the undead so total that she is counted a Daedric Prince mostly by process of elimination.",
+    "boon": "Health regenerates 25% faster.",
+    "blessingSource": "vanilla",
+    "lawful": true,
+    "replacedBoon": "The undead flee you, on TurnUndeadFFMassSelfArea - wrong, and only found by dumping the template: a shrine blessing is a fire-and-forget SELF spell, so a mass-self-area turn undead fires once at the shrine and never again.",
+    "blessingEditorId": "DBO_BlessingOfMeridia"
+   },
+   {
+    "id": "sanguine",
+    "name": "Sanguine",
+    "kind": "daedra",
+    "shrines": [
+     "1112c8:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "",
+    "note": "DBO_ShrineOfSanguine activators: the Rift (33,-18) and inside Misty Grove. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
+    "placements": 3,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Revelry, debauchery and passionate indulgence. The only Prince most people would drink with twice.",
+    "boon": "Hunger comes on half as fast - the feast does not end.",
+    "blessingSource": "server",
+    "blessingRecipe": "Copy AltarDibellaSpell exactly; FortifyPersuasionFFSelf (fb98a:Skyrim.esm) at 10, duration 28800. It duplicates Dibella's boon, which is left deliberate: she charms and he carouses, and vanilla already gives Zenithar and Mephala the same Speechcraft.",
+    "lawful": false,
+    "unlawfulWhere": "Drink and revelry, which the Empire's own feast days already brush up against. Forbidden on paper and ignored in practice.",
+    "blessingImplemented": true,
+    "hungerHalf": true,
+    "blessingDesign": "Persuasion was the wrong answer twice over: it does nothing here, and it was the least Sanguine thing on the list. The Prince of indulgence belongs on the one system this server has that is actually about appetite - private.needs. While blessed, hunger accrues at half rate. prayer.js exposes __dboPrayerHungerMult and the gamemode's needs tick multiplies by it; no plugin work, no spell, nothing for the Creation Kit to do.",
+    "replacedBoon": "Persuasion +10 (dead: no NPCs to persuade)."
+   },
+   {
+    "id": "sheogorath",
+    "name": "Sheogorath",
+    "kind": "daedra",
+    "shrines": [
+     "1112cb:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "<author: Boon of Sheogorath>",
+    "note": "DBO_ShrineOfSheogorath activator in the Hjaalmarch marsh (-12,24) near Morthal. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
+    "placements": 2,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Madness. Was Jyggalag, and will be again, and is not, and both of those are true.",
+    "boon": "Whatever he feels like. A different god's blessing every time, chosen at random.",
+    "blessingSource": "server",
+    "blessingDesign": "The one boon that is more lore-accurate as code than as a record: prayer.js rolls one of the OTHER deities' blessings and grants that instead. The Madgod needs no spell of his own, and a worshipper who prays twice gets two different gods. Implemented in prayer.js as `capricious: true`.",
+    "blessingImplemented": true,
+    "lawful": false,
+    "unlawfulWhere": "Madness. Cyrodiil treats the Mad God as superstition rather than sedition - a shrine to him draws warding signs from the neighbours, not the Legion.",
+    "capricious": true
+   },
+   {
+    "id": "clavicusvile",
+    "name": "Clavicus Vile",
+    "kind": "daedra",
+    "shrines": [
+     "1c4e8:Skyrim.esm"
+    ],
+    "blessing": "",
+    "placements": 2,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Power through bargains. Every wish is granted exactly as worded, and the wording is never yours.",
+    "boon": "The bargain: you name the boon you want and Vile takes a price for it.",
+    "blessingSource": "server",
+    "blessingDesign": "A boon of another god, granted in full, against a standing cost - reduced maximum health for as long as it lasts. prayer.js can do this with no new record: it already grants and revokes spells. Needs a choice step in the widget, which is why it is not built yet.",
+    "blessingImplemented": false,
+    "lawful": false,
+    "unlawfulWhere": "Bargains. Proscribed like the rest, but the courts care what was traded away - a name, a soul, a life - far more than they care about the prayer.",
+    "note": "DA03ClavicusVileShrine, the vanilla Haemar's Shame shrine, which is a TACT (a talking activator) rather than an ACTI - it is activated the same way. Placed at the Bruma test site on 2026-09-20; the base is named, so the Skyrim one counts too."
+   },
+   {
+    "id": "hermaeusmora",
+    "name": "Hermaeus Mora",
+    "kind": "daedra",
+    "shrines": [
+     "125bfe:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "",
+    "placements": 1,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Knowledge, memory and the fate of all things. He does not bargain; he collects.",
+    "boon": "What you read teaches you more.",
+    "blessingSource": "server",
+    "blessingDesign": "The one Prince whose sphere lands exactly on a system this server already has: the Scholar skill and the reading mini-game. While blessed, a finished reading round is worth more. Not built because the weight lives in masterySystem (a TS rebuild), not in the gamemode.",
+    "blessingImplemented": false,
+    "lawful": false,
+    "unlawfulWhere": "Forbidden knowledge. Half of any College's restricted shelf is his under another name, so a scholar caught at it is disciplined far more often than charged."
+   },
+   {
+    "id": "namira",
+    "name": "Namira",
+    "kind": "daedra",
+    "shrines": [
+     "125c02:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c9:DragonBreak Online Edits.esp",
+    "placements": 1,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "The ancient darkness, decay, and everything that revolts: spirits, spiders, the eaten dead.",
+    "boon": "Sneak raised by 10, and you see in the dark.",
+    "blessingSource": "vanilla",
+    "note": "The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell. The Ring of Namira feeds you on corpses, which this server could do properly - it already has corpse looting and skinning. That version belongs with the needs system, not with a spell.",
+    "lawful": false,
+    "unlawfulWhere": "Cannibalism. Her rite requires eating the dead - a capital crime in every Imperial province, and an offence against Arkay on top of it.",
+    "blessingEditorId": "DBO_BlessingOfNamira"
+   },
+   {
+    "id": "peryite",
+    "name": "Peryite",
+    "kind": "daedra",
+    "shrines": [
+     "125c04:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c6:DragonBreak Online Edits.esp",
+    "placements": 1,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Pestilence, and the ordering of the lowest realms. The weakest of the Princes, and the one most concerned with tidiness.",
+    "boon": "Poison resisted by 50%.",
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "Pestilence. His cultists are few and already sick; the Empire quarantines them more often than it prosecutes them.",
+    "replacedBoon": "A resist-disease effect that does not exist, with Fortify Block as a stand-in.",
+    "blessingEditorId": "DBO_BlessingOfPeryite"
+   },
+   {
+    "id": "vaermina",
+    "name": "Vaermina",
+    "kind": "daedra",
+    "shrines": [
+     "125c05:DragonBreak Online Edits.esp"
+    ],
+    "blessing": "1209c7:DragonBreak Online Edits.esp",
+    "placements": 1,
+    "inPlaytest": 1,
+    "inBruma": 1,
+    "sphere": "Dreams and nightmares, and the memories torn out of them.",
+    "boon": "You see as if dreaming.",
+    "blessingSource": "vanilla",
+    "lawful": false,
+    "unlawfulWhere": "Nightmares harvested out of sleeping people, who cannot refuse her. The courts treat that as torture and nothing softer.",
+    "blessingEditorId": "DBO_BlessingOfVaermina"
+   }
+  ],
+  "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens.",
+  "_lore": "The roster is the canonical one for Cyrodiil, not whoever happened to have a shrine already: the Nine Divines plus Auri-El, and Oblivion's fifteen Daedric shrines plus Mephala. JYGGALAG IS DELIBERATELY ABSENT - he was Sheogorath until the Greymarch ended in 3E 433 and has walked free since, but he has no cult, no shrine and no worshippers in 4E 201, and a shrine to him would be the one thing in this list that lore actually forbids. Every boon below is grounded in the Prince's sphere, and every magic effect it names exists in this load order (measured by ck-mcp\\blessings.py; see server\\blessing-effects.json).",
+  "_blessingSource": "vanilla = a real SPEL that works today, whether Bethesda's or one of the eleven DBO_BlessingOf* records authored on 2026-09-20 by SSEEdit 4.1.5f\\Edit Scripts\\DBO_Blessings.pas. server = prayer.js does it and no record exists. pending = a boon still waiting on a spell; there are none left.",
+  "_deadStats": "NO BOON MAY BE A DEAD STAT. This server is entirely player-run: no merchants, no dialogue, no barter, and no speech skill among the eighteen. Persuasion, Speechcraft and Pickpocket therefore do nothing at all, and four boons that used them have been replaced (see replacedBoon). Where the replacement overrides a vanilla shrine, Bethesda's record is left untouched on disk and skills.json simply points elsewhere, so reverting is one line. Check any new boon against what this server actually runs: combat and the damage formula, health/magicka/stamina and their regen, carry weight, sneak, the magic schools, alchemy, lockpicking, and the needs meter - all real; anything that needs an NPC to talk to - not.",
+  "_authored": "The eleven DBO_BlessingOf* SPELs live at DragonBreak Online Edits.esp:1209BF-1209C9. Each is a copy of AltarNocturnalSpell - a fire-and-forget SELF spell, NOT a constant ability - with one effect swapped and CureDiseaseEffect kept, 28800 s. Namira is the exception: she keeps Fortify Sneak and her second effect is Night Eye instead of cure disease, which suits the Prince of decay. Re-running the script is safe; it leaves records that already exist alone.",
+  "_testSite": "Nat placed a statue of every Prince at the Namira shrine site (CYRNamirasShrineExterior and around it, grid 23,47) on 2026-09-20 as one central place to test worship. They went in as STATICS, which the engine never fires an activation on; DBO_ShrineActivators2.pas gave each Prince a DBO_ShrineOf* ACTI using that same statue mesh and repointed the references at it, so the statue itself is the shrine.",
+  "_lawComment": "lawful/unlawfulWhere are Imperial law as it stands in Bruma, not Dunmer temple doctrine - the Tribunal's \"good Daedra\" (Azura, Boethiah, Mephala) are not the three the Empire tolerates. Malacath, Azura and Meridia are openly legal; the rest are proscribed, and unlawfulWhere carries how hard that is enforced, from \"hunted\" (Mehrunes Dagon, Molag Bal, Namira, Boethiah, Vaermina) down to \"ignored in practice\" (Sanguine, Sheogorath, Hermaeus Mora, Clavicus Vile, Peryite). Talos is unlawful under the Concordat. prayer.js reads only the boolean; the prose is what a player is told."
+ },
+ "respec": {
+  "_comment": "Standing stones are the only place to change your three chosen skills. Activating a stone opens the K menu in respec mode.",
+  "where": "standing stones (vanilla DoomStone activators: Warrior, Mage, Thief, Lover, Steed, Lady, Lord, Apprentice, Atronach, Ritual, Serpent, Shadow, Tower)",
+  "firstRespecFree": true,
+  "goldCostAfterFirst": 1200,
+  "whatHappens": "drop any of the three skills and pick replacements; dropped skills lose all tier progress; no swap cooldown applies at a stone (the gold is the cost)",
+  "keepsDeity": true
+ },
+ "worldPickup": {
+  "_comment": "Nothing lying in the world can be picked up with E. Loose items placed by the plugins are not loot. Resources come from nodes (Harvesting, Mining, Woodcutter), containers, crafting and trade. Items dropped by players (dynamic ff-space refs) stay pickable so trading and dropping keep working.",
+  "blockPlacedItems": true,
+  "allowPlayerDropped": true,
+  "nodes": [
+   "FLOR",
+   "TREE",
+   "gold pouches (CoinPurse activators)",
+   "ore veins",
+   "chopping blocks",
+   "books (Scholar)",
+   "hanging food and herb bundles (Harvesting)"
+  ],
+  "farmsAndFields": "Open to everyone with the Harvesting skill. No ownership lock on crops: protecting a field is roleplay (guards, patrols, bounties), not a mechanic."
+ },
+ "edition": {
+  "decision": "Skyrim SE 1.6.1170 with the four free base creations only. No Anniversary Edition requirement.",
+  "revisit": "Alternative Armors packs (crafting variety) and player homes, launch-day decision only."
+ }
 }

@@ -342,16 +342,21 @@ module.exports = (api) => {
       const mins = Math.ceil((until - Date.now()) / 60000);
       return deny(casterId, `You have prayed here recently. This shrine will hear you again in ${mins} minute${mins === 1 ? '' : 's'}.`);
     }
-    // Bruma is Imperial. The White-Gold Concordat outlawed Talos, and Daedra worship has always been
+    // Bruma is Imperial. The White-Gold Concordat outlawed Talos, and most Daedra worship is
     // proscribed - Beyond Skyrim has already renamed the Great Chapel of Talos to the Cathedral of
-    // St Martin for exactly this reason. Said once per character, and nothing follows from it: no
-    // guard reads `lawful`, deliberately. Whether the law has teeth is a faction decision.
+    // St Martin for exactly this reason. NOT all of it, though: Malacath, Azura and Meridia are
+    // openly legal and carry `lawful: true`, so nothing is said at their shrines. The rest differ
+    // enormously in how hard the law is pressed - Mehrunes Dagon in Bruma of all cities against
+    // Sanguine's drinking - so the reason comes from the deity's own `unlawfulWhere` rather than one
+    // line for all of them. Said once per character, and nothing follows from it: no guard reads
+    // `lawful`, deliberately. Whether the law has teeth is a faction decision.
     if (d.lawful === false && !faith.warnedUnlawful) {
       faith.warnedUnlawful = true;
       setFaith(casterId, faith);
+      const why = String(d.unlawfulWhere || '').trim();
       personal(casterId, d.kind === 'divine'
         ? 'You kneel to Talos in an Imperial county. The Concordat calls that a crime, and the Thalmor keep a Justiciar in Bruma. Nobody stops you.'
-        : `You kneel to a Prince in an Imperial county. ${d.name} is proscribed here, and the shrine is hidden for a reason. Nobody stops you.`);
+        : `You kneel to ${d.name} in an Imperial county.${why ? ' ' + why : ` ${d.name} is proscribed here, and the shrine is hidden for a reason.`} Nobody stops you.`);
     }
     const rec = baseId ? baseRecord(baseId) : null;
     const shrineName = (rec && rec.record && rec.record.name) || `Shrine of ${d.name}`;
