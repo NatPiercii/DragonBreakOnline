@@ -1,0 +1,39 @@
+{
+  "_comment": "Defaults for tools\\loadtest. Every value here can be overridden on the command line; see README.md.",
+
+  "profileIdBase": 900001,
+  "botsPerHost": 10,
+  "connectGapMs": 250,
+
+  "movementMs": 130,
+  "runSpeed": 350,
+  "pauseMs": 4000,
+  "avEveryMs": 5000,
+  "raceMenuMs": 4000,
+  "chatEveryMs": [45000, 150000],
+  "warpStep": 3000,
+  "entranceReach": 400,
+  "dungeonHoldMs": 180000,
+  "hostNpcs": false,
+  "hostNpcsMax": 3,
+
+  "_spread": "Where the bots play. 'arrival' is the Pale Pass spot every hub gate leads to (gamemode-config.json playtest.arrival); 'city' is Bruma itself, which is where a hundred players would actually be. groundZ is approximate on purpose: the server has no ground.",
+  "spread": "city",
+  "places": {
+    "arrival": { "world": "a764b:BSHeartland.esm", "pos": [48236.2, 260600.4, 20405.1], "radius": 2500, "groundZ": 20405.1 },
+    "city": { "world": "a764b:BSHeartland.esm", "pos": [58000, 202500, 7560], "radius": 4000, "groundZ": 7560 }
+  },
+
+  "_dungeons": "Dungeons a claimer bot may take. Entrance data comes from server\\dungeons.json; these are Bruma-world entrances with room for a party.",
+  "dungeons": [
+    { "id": "CYRSerpentsTrailLocation", "difficulty": "normal" },
+    { "id": "CYRFortHorunnLocation", "difficulty": "normal" },
+    { "id": "CYRAngaLocation", "difficulty": "normal" },
+    { "id": "CYRBeastsMawLocation", "difficulty": "normal" }
+  ],
+
+  "steps": [10, 25, 50, 100],
+  "stepSeconds": 300,
+  "cooldownSeconds": 25,
+  "metricsEveryMs": 5000
+}

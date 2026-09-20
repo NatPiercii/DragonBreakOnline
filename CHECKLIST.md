@@ -287,7 +287,7 @@ has just left the race menu is standing in the hub and could not reach a shrine 
 - [ ] **Untested in play, like everything else here.** 74 harness checks and a boot line
   (`deity menu opened for ...`), and nothing else.
 
-## Added 2026-09-20: headless load-test harness `tools\loadtest` (LIVE, sandbox only)
+## Added 2026-09-20: headless load-test harness `server\tools\loadtest` (LIVE, sandbox only)
 
 Answers the daily review's "Load test before any real 100-player night". Full write-up with the numbers:
 `_reviews\2026-09-20-load-test-harness.md`. **No change to `fork\` or `server\` was needed to build it, and
@@ -1282,7 +1282,7 @@ Reported in game as "walls moving where the swinging axe trap should be, there's
   the rest may block a route) - revisit only if something looks wrong in game.
 - [x] **Deployed 2026-09-19 23:2x**: both servers and the loadtest harness stopped (they hold the plugin open),
   then the dev copy copied over `server\data\`. All three paths are md5 `23deb7f4`, 3,986,835 bytes.
-  Note `tools\loadtest\sandbox\data\DragonBreak Online Edits.esp` is a **hard link** to `server\data\`'s copy
+  Note `server\tools\loadtest\sandbox\data\DragonBreak Online Edits.esp` is a **hard link** to `server\data\`'s copy
   (one inode, two links), so the sandbox always sees the same file - and its `server-settings.json` carries the
   full 105-plugin load order, so both servers lock the plugin while they run.
 - [x] **Survived the 2026-09-20 14:50 rewrite of DLE** (md5 8e615b1f, 4,339,991 bytes, 29,316 records; someone
@@ -1578,7 +1578,7 @@ From `_reviews\2026-09-19-daily-review.md`, "Scaling to 100 concurrent players".
   What is left per lease is real work: one `isDead` read per living enemy per tick. A 20-lease run is queued to
   confirm it now scales with enemies rather than with leases x ids.
 - [x] **officials.json read per player, found by the bot harness (LIVE 2026-09-20 13:35)**. The 25-bot step of
-  `tools\loadtest` reported `lawful` at 2.5 ms max against every other timer under 0.3 ms. Cause: playermenu's
+  `server\tools\loadtest` reported `lawful` at 2.5 ms max against every other timer under 0.3 ms. Cause: playermenu's
   15 s lawful tick calls `refreshLawful` per online player, and that reaches `ranksOf` -> `readOfficials`, which
   was a `readFileSync` + `JSON.parse` per call. One blocking disk read per player per tick. Measured warm:
   25 players 1.44 ms, 100 players 4.66 ms, and worse under IO contention. `readOfficials` now keeps the file as
@@ -1646,7 +1646,7 @@ Step 2 (ff_factions) is deployed and needs an in-game pass; the user chose it af
   kind `factions` with `sent`/`applied`, where applied = getFactionRank read back equal. Live bundle md5
   82a5b592 (ec62938 + the vitals commits) in the dev copy and client-dist. Relaunch needed.
 - [x] **Verified on the wire with the bot harness 2026-09-20 15:2x** (the user could not test in game). A probe
-  built on `tools\loadtest` (`lib/` used read-only, driver in the session scratchpad, sandbox on 7787, live
+  built on `server\tools\loadtest` (`lib/` used read-only, driver in the session scratchpad, sandbox on 7787, live
   server untouched) logged in one bot, claimed Gutted Mine on Adept and recorded every message it received
   through the real `MpClientPlugin.dll`. Result: 985 `createActor` messages, 63 for dynamic actors, and
   **38 of them carry `ff_factions`**, value `{"f":[[135085873,0]],"c":0}`. 135085873 is `0x080D3F31` =

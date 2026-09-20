@@ -1,0 +1,18 @@
+# Everything here is generated. The harness itself is the .js, .cs, .cmd, .ps1, .json and .md files.
+#
+# server\.gitignore excludes tools\ entirely, so this folder is tracked only because it was force-added
+# (git add -f). That also means "git add ." will never pick up a new file here by itself: add it explicitly.
+
+# The isolated server instance: a copy of the bundle, hardlinks to 528 MB of plugins, its own world
+sandbox/
+
+# BotHost.exe and the per-bot copies of MpClientPlugin.dll
+bin/
+
+# Run output
+reports/
+*.log
+*.err
+
+# The empty password file the native plugin looks for next to the working directory
+Data/
