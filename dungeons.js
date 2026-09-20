@@ -606,7 +606,12 @@ module.exports = (api) => {
     if (type === 'LVLI') {
       const entries = fieldsOf(res, 'LVLO').filter((f) => f.data.byteLength >= 8)
         .map((f) => [viewOf(f.data).getUint16(0, true), globalIdAt(res, f.data.subarray(4))]);
-      const pickId = pickOption(entries.map(([lvl, itemId]) => [lvl, itemId]), mode);
+      const lvlf = fieldsOf(res, 'LVLF')[0];
+      // Use All (LeveledListBase.h): the list is a whole outfit, not a choice between pieces
+      if (lvlf && lvlf.data.byteLength >= 1 && (lvlf.data[0] & 0x04)) {
+        return entries.flatMap(([, itemId]) => outfitArmour(itemId, mode, depth + 1));
+      }
+      const pickId = pickOption(entries, mode);
       return pickId ? outfitArmour(Number(pickId), mode, depth + 1) : [];
     }
     if (type !== 'OTFT') return [];
@@ -623,21 +628,24 @@ module.exports = (api) => {
     const armour = outfitArmour(want, mode, 0);
     return armour.length ? { outfit: want, armour } : null;
   };
-  const dress = (id, armour) => {
+  // An npc's inventory never leaves the server (VisitPropertiesMode::All is the owner only) and a snippet is
+  // never sent for one (SpSnippet::Execute returns early unless the actor was created as a player), so the
+  // server cannot equip a spawned actor. The items go into its inventory for the corpse, and the list goes to
+  // the clients in ff_outfit, which formView equips.
+  const giveWorn = (id, items) => {
     let entries = [];
     try { const inv = mp.get(id, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : []; } catch (e) { return 0; }
     let added = 0;
-    for (const itemId of armour) {
+    for (const itemId of items) {
       if (entries.some((e) => (Number(e.baseId) >>> 0) === (itemId >>> 0))) continue;
       entries.push({ baseId: itemId >>> 0, count: 1 });
       added++;
     }
-    try { mp.set(id, 'inventory', { entries }); } catch (e) { log('outfit inventory failed', id.toString(16), e.message); return 0; }
-    const self = { type: 'form', desc: mp.getDescFromId(id) };
-    for (const itemId of armour) {
-      try { mp.callPapyrusFunction('method', 'Actor', 'EquipItem', self, [{ type: 'espm', desc: mp.getDescFromId(itemId >>> 0) }, true, true]); }
-      catch (e) { log('outfit equip failed', id.toString(16), e.message); }
-    }
+    try { mp.set(id, 'inventory', { entries }); } catch (e) { log('worn inventory failed', id.toString(16), e.message); return 0; }
+    let worn = [];
+    try { const cur = mp.get(id, 'ff_outfit'); if (Array.isArray(cur)) worn = cur.slice(); } catch (e) { /* not set yet */ }
+    for (const itemId of items) if (!worn.includes(itemId >>> 0)) worn.push(itemId >>> 0);
+    try { mp.set(id, 'ff_outfit', worn); } catch (e) { log('ff_outfit set failed', id.toString(16), e.message); }
     return added;
   };
 
@@ -702,7 +710,7 @@ module.exports = (api) => {
       const diff = (DIFFICULTIES.find((x) => x.id === lease.difficulty) || DIFFICULTIES[1]);
       const outfit = C.restoreOutfits ? outfitLoss(pBase, sBase, diff.pick) : null;
       if (outfit) {
-        const added = dress(id, outfit.armour);
+        const added = giveWorn(id, outfit.armour);
         if (first) log(`dungeon ${lease.id} outfit: ${edidOf(pBase)} spawned as ${edidOf(sBase)}, given ${edidOf(outfit.outfit)} (${outfit.armour.map((x) => edidOf(x)).join(', ')})${added ? '' : ', already carried'}`);
       }
     }

@@ -95,6 +95,7 @@ makeProp('ff_charTag', true);    // the character's #TAG, drawn faintly under th
 makeProp('ff_hostile', true);    // npcSpawnSystem's "attacks on sight" flag, read by the client to raise Aggression
 makeProp('ff_companionOf', true);// companion owner id, tells clients actor is friendly companion
 makeProp('ff_factions', true);   // dungeons.js: the placement template's factions, applied by the client to the spawned actor
+makeProp('ff_outfit', true);     // dungeons.js: armour a spawned actor should wear, equipped by the client
 
 let nonce = Date.now();
 const deliver = (actorId, line) => { try { mp.set(actorId, CHAT_PROP, `${++nonce}${US}${line}`); } catch (e) { log('deliver failed', actorId, e.message); } };
@@ -2091,3 +2092,4 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
