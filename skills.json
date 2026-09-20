@@ -980,14 +980,15 @@
           "6c9f1:Skyrim.esm",
           "61b54:BSHeartland.esm"
         ],
-        "blessing": "fb995:Skyrim.esm",
-        "blessingEditorId": "AltarDibellaSpell",
+        "blessing": "<pending: DBO_BlessingOfDibella>",
         "placements": 21,
         "inPlaytest": 4,
         "inBruma": 3,
         "sphere": "Beauty, love and art. Her temple at Markarth keeps the Sybil; her Cyrodiilic chapels teach that beauty is a form of worship.",
-        "boon": "Persuasion raised by 10.",
-        "blessingSource": "vanilla"
+        "boon": "Illusion +10.",
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyIllusion (3eb27:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. Beauty and the arts of the mind; charm is Illusion when there is nobody to charm by talking. Bethesda's AltarDibellaSpell (fb995) is left untouched - skills.json simply stops pointing at it.",
+        "replacedBoon": "Persuasion +10, vanilla (dead: no NPCs to persuade)."
       },
       {
         "id": "julianos",
@@ -1101,18 +1102,19 @@
           "d987b:Skyrim.esm",
           "61b5a:BSHeartland.esm"
         ],
-        "blessing": "fb99b:Skyrim.esm",
-        "blessingEditorId": "AltarZenitharSpell",
+        "blessing": "<pending: DBO_BlessingOfZenithar>",
         "placements": 23,
         "inPlaytest": 6,
         "inBruma": 2,
         "sphere": "Work, commerce and honest labour. The god who says wealth follows craft, and never the other way round.",
-        "boon": "Speechcraft raised by 10.",
+        "boon": "Carry weight +50.",
         "alsoKnownAs": [
           "Z'en (Bosmeri)",
           "Tsun (Nordic, disputed)"
         ],
-        "blessingSource": "vanilla"
+        "blessingSource": "pending",
+        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyCarryWeight (3eb01:Skyrim.esm) at magnitude 50, duration 28800, keeping CureDiseaseEffect. The god of work and honest trade, on a server whose entire economy is players hauling ore, ingots and firewood to each other. Carry weight is the most Zenithar thing that exists here, and no shrine uses it. Bethesda's AltarZenitharSpell (fb99b) is left untouched.",
+        "replacedBoon": "Speechcraft +10, vanilla (dead: no merchants, no barter)."
       },
       {
         "id": "auriel",
@@ -1197,17 +1199,18 @@
         "shrines": [
           "3a481:Dragonborn.esm"
         ],
-        "blessing": "3bcfd:Dragonborn.esm",
-        "blessingEditorId": "DLC2AltarMephalaSpell",
+        "blessing": "<pending: DBO_BlessingOfMephala>",
         "placements": 4,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Lies, sex and secret murder; the Webspinner, who taught the Morag Tong their trade.",
-        "boon": "Speechcraft raised by 10.",
-        "blessingSource": "vanilla",
+        "boon": "Alchemy +10.",
+        "blessingSource": "pending",
         "note": "Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone. Not one of Oblivion's fifteen: she is kept because her Solstheim shrine is real and Beyond Skyrim has modelled CYRShrineMephalaTEMP in an Ayleid ruin. Her vanilla boon duplicates Zenithar's; Illusion or Pickpocket would suit the Webspinner better, but it is Bethesda's record and is left alone.",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyAlchemy (3eb18:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. The Webspinner taught the Morag Tong, and the Morag Tong kill with poison. There is an Alchemist skill and player-made poison is real. Bethesda's DLC2AltarMephalaSpell (3bcfd) is left untouched.",
+        "replacedBoon": "Speechcraft +10, vanilla (dead: no NPCs)."
       },
       {
         "id": "mehrunes",
@@ -1221,11 +1224,12 @@
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Destruction, change, revolution and ambition. Bruma above all others has met him: the Great Gate opened here, and Martin broke it.",
-        "boon": "Damage raised by 10% - the Razor's edge.",
+        "boon": "Destruction +10.",
         "blessingSource": "pending",
-        "blessingRecipe": "Copy AltarMalacathSpell (5db8:DragonBreak.esp) and keep FortifyDamageFFSelf (5dba:DragonBreak.esp) alone, without the Block effect, so Dagon cuts and Malacath endures. A Fortify Destruction MGEF would be truer to his sphere, but none exists in the FFSelf family and Dagon is a destroyer of things rather than a school of magic.",
+        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyDestruction (3eb26:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. Now that an alchemy-family effect is known to work in a shrine spell, Dagon gets the school of ruin itself instead of sharing Malacath's Damage. Bruma is the one place in Tamriel where that matters: the Great Gate opened here.",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "replacedBoon": "Damage +10%, which duplicated half of Malacath's."
       },
       {
         "id": "molagbal",
@@ -1239,11 +1243,12 @@
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Domination and the enslavement of mortals. The King of Rape; the father of vampires; the reason a black soul gem is black.",
-        "boon": "What you kill feeds you.",
+        "boon": "Conjuration +10.",
         "blessingSource": "pending",
-        "blessingRecipe": "The only boon needing a NEW magic effect: an absorb-health-on-strike, which the FFSelf family has no equivalent of. AbsorbHealthConstant (91f7a:Skyrim.esm) is the nearest vanilla effect to copy. If that is more work than it is worth, FortifyHealthFFSelf at 25 is the safe stand-in, though it says nothing about domination.",
+        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchFortifyConjuration (3eb25:Skyrim.esm) at magnitude 10, duration 28800, keeping CureDiseaseEffect. No new magic effect is needed after all. Conjuration is binding, thralldom and soul trap - Molag Bal is the reason a black soul gem is black, and domination of a soul is exactly his sphere.",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "replacedBoon": "An absorb-health effect that would have had to be authored from scratch."
       },
       {
         "id": "nocturnal",
@@ -1309,17 +1314,21 @@
         "shrines": [
           "1112c8:DragonBreak Online Edits.esp"
         ],
-        "blessing": "<author: Boon of Sanguine>",
+        "blessing": "",
         "note": "DBO_ShrineOfSanguine activators: the Rift (33,-18) and inside Misty Grove. Named by its DBO_ShrineOf* base ACTI, which exists only on the statues the 2026-09-14 activator pass placed.",
         "placements": 2,
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Revelry, debauchery and passionate indulgence. The only Prince most people would drink with twice.",
-        "boon": "Persuasion raised by 10 - nobody argues with the life of the feast.",
-        "blessingSource": "pending",
+        "boon": "Hunger comes on half as fast - the feast does not end.",
+        "blessingSource": "server",
         "blessingRecipe": "Copy AltarDibellaSpell exactly; FortifyPersuasionFFSelf (fb98a:Skyrim.esm) at 10, duration 28800. It duplicates Dibella's boon, which is left deliberate: she charms and he carouses, and vanilla already gives Zenithar and Mephala the same Speechcraft.",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "blessingImplemented": true,
+        "hungerHalf": true,
+        "blessingDesign": "Persuasion was the wrong answer twice over: it does nothing here, and it was the least Sanguine thing on the list. The Prince of indulgence belongs on the one system this server has that is actually about appetite - private.needs. While blessed, hunger accrues at half rate. prayer.js exposes __dboPrayerHungerMult and the gamemode's needs tick multiplies by it; no plugin work, no spell, nothing for the Creation Kit to do.",
+        "replacedBoon": "Persuasion +10 (dead: no NPCs to persuade)."
       },
       {
         "id": "sheogorath",
@@ -1403,11 +1412,12 @@
         "inPlaytest": 0,
         "inBruma": 0,
         "sphere": "Pestilence, and the ordering of the lowest realms. The weakest of the Princes, and the one most concerned with tidiness.",
-        "boon": "Disease cannot touch you.",
+        "boon": "Poison resisted by 50%.",
         "blessingSource": "pending",
-        "blessingRecipe": "Needs a Resist Disease magic effect; the FFSelf family has none, and CureDiseaseEffect (fbff5) cures rather than resists. Peryite is the lowest-value boon of the set and should be authored last. Spellbreaker is his artifact, so FortifyBlockFFSelf (fb991) at 10 is a defensible stand-in that needs no new MGEF at all.",
+        "blessingRecipe": "Copy AltarNocturnalSpell and swap its effect for AlchResistPoison (90041:Skyrim.esm) at magnitude 50, duration 28800, keeping CureDiseaseEffect. There is no resist-disease magic effect anywhere in this load order - only CureDiseaseEffect, which cures. AlchResistPoison is the nearest thing to the Taskmaster's sphere and, unlike a disease resistance nobody would ever notice, poison is real here: players brew it.",
         "lawful": false,
-        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason."
+        "unlawfulWhere": "Daedra worship is proscribed throughout the Empire; the shrines of Cyrodiil are hidden for that reason.",
+        "replacedBoon": "A resist-disease effect that does not exist, with Fortify Block as a stand-in."
       },
       {
         "id": "vaermina",
@@ -1428,7 +1438,8 @@
     ],
     "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens.",
     "_lore": "The roster is the canonical one for Cyrodiil, not whoever happened to have a shrine already: the Nine Divines plus Auri-El, and Oblivion's fifteen Daedric shrines plus Mephala. JYGGALAG IS DELIBERATELY ABSENT - he was Sheogorath until the Greymarch ended in 3E 433 and has walked free since, but he has no cult, no shrine and no worshippers in 4E 201, and a shrine to him would be the one thing in this list that lore actually forbids. Every boon below is grounded in the Prince's sphere, and every magic effect it names exists in this load order (measured by ck-mcp\\blessings.py; see server\\blessing-effects.json).",
-    "_blessingSource": "vanilla = a real SPEL that works today. server = prayer.js does it, no Creation Kit work at all. pending = one new SPEL, and blessingRecipe says exactly which existing MGEF to point it at - no new magic effect is needed for any of them except Molag Bal."
+    "_blessingSource": "vanilla = a real SPEL that works today. server = prayer.js does it, no Creation Kit work at all. pending = one new SPEL, and blessingRecipe says exactly which existing MGEF to point it at - no new magic effect is needed for any of them except Molag Bal.",
+    "_deadStats": "NO BOON MAY BE A DEAD STAT. This server is entirely player-run: no merchants, no dialogue, no barter, and no speech skill among the eighteen. Persuasion, Speechcraft and Pickpocket therefore do nothing at all, and four boons that used them have been replaced (see replacedBoon). Where the replacement overrides a vanilla shrine, Bethesda's record is left untouched on disk and skills.json simply points elsewhere, so reverting is one line. Check any new boon against what this server actually runs: combat and the damage formula, health/magicka/stamina and their regen, carry weight, sneak, the magic schools, alchemy, lockpicking, and the needs meter - all real; anything that needs an NPC to talk to - not."
   },
   "respec": {
     "_comment": "Standing stones are the only place to change your three chosen skills. Activating a stone opens the K menu in respec mode.",

@@ -292,7 +292,41 @@ wallClock += 61 * 60000; virtual = 17500000;
 r = activate(TALOS_SHRINE);
 check('and is not warned a second time', !!r.w && !/Concordat/.test(r.said), r.said);
 
-// 19. every deity in the roster is complete enough to show a player
+// 19. Sanguine's boon is not a spell at all: it slows the appetite meter. The blessing still has to
+// be worn and still has to expire, and the gamemode's needs tick asks prayer.js for the multiplier.
+const SANG = choiceOf('sanguine');
+check('Sanguine carries no spell and is marked hungerHalf', SANG.hungerHalf === true
+  && SANG.blessingSource === 'server' && !/^[0-9a-f]+:/i.test(String(SANG.blessing)),
+  JSON.stringify({ h: SANG.hungerHalf, s: SANG.blessingSource, b: SANG.blessing }));
+const SANG_SHRINE = 0x2007;
+props.set(SANG_SHRINE + '|baseDesc', SANG.shrines[0]);
+records.set(idOf(SANG.shrines[0]), { record: { type: 'ACTI', editorId: 'DBO_ShrineOfSanguine', name: 'Shrine of Sanguine' } });
+props.set(ACTOR + '|private.dboDeity', { id: 'sanguine', name: 'Sanguine', kind: 'daedra', at: 1, convertedAt: 1, warnedUnlawful: true });
+props.delete(ACTOR + '|private.prayedShrines');
+props.delete(ACTOR + '|private.dboBlessing');
+check('appetite is normal before the prayer', globalThis.__dboPrayerHungerMult(ACTOR) === 1);
+const roll3 = Math.random;
+Math.random = () => 0;
+wallClock += 61 * 60000; virtual = 18000000;
+const w7 = activate(SANG_SHRINE).w;
+res = report(w7, wholeHold(w7), w7.totalMs, 100, 18000000);
+Math.random = roll3;
+const feast = props.get(ACTOR + '|private.dboBlessing');
+check('a boon with no spell is still worn', verdictOf(res.log) === 'held' && !!feast
+  && feast.deity === 'sanguine' && !feast.spell, JSON.stringify(feast));
+check('and no spell was cast for it', !res.papyrus.some((p) => p[0] === 'AddSpell'), JSON.stringify(res.papyrus));
+check('hunger now comes on half as fast', globalThis.__dboPrayerHungerMult(ACTOR) === 0.5);
+wallClock += 25 * 3600000;                 // past the longest blessing duration
+check('and at full rate again once it lapses', globalThis.__dboPrayerHungerMult(ACTOR) === 1);
+wallClock -= 25 * 3600000;
+
+// 20. the rule Nat set: no boon may be a dead stat. There are no NPCs and no barter here, so
+// anything resting on Persuasion, Speechcraft or Pickpocket does nothing whatever it says.
+const dead = SKILLS.deities.choices.filter((c) => /persuasion|speechcraft|pickpocket|barter|better prices|haggl/i.test(String(c.boon)));
+check('no boon rests on a stat this server does not run', dead.length === 0,
+  dead.map((c) => c.name + ': ' + c.boon).join(' | '));
+
+// 21. every deity in the roster is complete enough to show a player
 const holes = SKILLS.deities.choices.filter((c) => !c.sphere || !c.boon || !c.blessingSource);
 check('every deity carries a sphere, a boon and a blessing source', holes.length === 0,
   holes.map((c) => c.id).join(', '));

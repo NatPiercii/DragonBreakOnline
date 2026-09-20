@@ -1,5 +1,55 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (12:20): no boon may be a dead stat
+
+Nat: *"change sanguine, there is no NPCs"* / *"like everything is player ran so."* Hot-reload only;
+reloaded 11:55:36, **18 `[error]` lines**, no `needs tick failed`. Harness **56 checks, all passing**.
+
+**It was four boons, not one.** Persuasion, Speechcraft and Pickpocket do nothing here - no merchants,
+no dialogue, no barter, and no speech skill among the eighteen. That killed Sanguine's, which was
+mine, **and Dibella's, Zenithar's and Mephala's, which are Bethesda's**.
+
+| | was | is now |
+|---|---|---|
+| Sanguine | Persuasion +10 | **hunger comes on half as fast**, implemented, no spell at all |
+| Dibella | Persuasion +10 (vanilla) | Illusion +10 |
+| Zenithar | Speechcraft +10 (vanilla) | **Carry weight +50** |
+| Mephala | Speechcraft +10 (vanilla) | Alchemy +10 |
+
+- [x] **Bethesda's records are left untouched on disk.** `skills.json` stops pointing at the vanilla
+  `Altar*Spell` and points at a `<pending: DBO_BlessingOf*>` instead, so reverting is one line and no
+  plugin was edited. Every changed entry keeps a `replacedBoon` line saying what went and why.
+- [x] **Zenithar is the one that matters.** The god of work and honest trade, on a server whose entire
+  economy is players hauling ore, ingots and firewood to each other - carry weight is the most
+  Zenithar thing that exists here, and no shrine in the game uses it.
+- [x] **Sanguine stopped being a spell.** The Prince of indulgence belongs on the one system this
+  server has that is about appetite. While the boon is worn hunger accrues at half rate: `prayer.js`
+  exposes `__dboPrayerHungerMult` and the needs tick multiplies by it. No plugin, no record, nothing
+  for the Creation Kit; `grantBlessing` now wears a boon that has no spell behind it. Harness covers
+  that it applies, that no spell is cast, and that it lapses.
+- [x] **`deities._deadStats` records the rule** so the next pass does not re-introduce one, and a
+  harness check fails if any boon mentions persuasion, speechcraft, pickpocket or barter.
+
+### The palette turned out to be much wider, and it closed both open questions
+
+`AltarMaraSpellWHAnvil` (WindhelmSSE.esp) uses **`AlchFortifySmithing`** - proof that an
+**alchemy-family MGEF works inside a shrine spell**. That was the unlock:
+
+- [x] **Mehrunes Dagon** takes `AlchFortifyDestruction` (`3eb26`) and no longer shares Malacath's
+  Damage - the school of ruin itself, in the county whose Great Gate he opened.
+- [x] **Molag Bal** takes `AlchFortifyConjuration` (`3eb25`) - binding, thralldom and soul trap, and
+  he is the reason a black soul gem is black. **So no deity needs a new magic effect any more**; the
+  absorb-health that was going to have to be authored is not needed.
+- [x] **Peryite** takes `AlchResistPoison` (`90041`). There is no resist-disease effect anywhere in
+  this load order - only `CureDiseaseEffect`, which cures - and poison is real here because players
+  brew it.
+
+**What remains on the boons is labour, not design**: eight `pending` SPELs, each with a
+`blessingRecipe` in `skills.json` naming the record to copy and the effect to point at.
+
+- [ ] Open question I did not act on: **Talos gives a shout-cooldown boon and I have not confirmed
+  shouts work on this server at all.** Worth one in-game check before it counts as a real boon.
+
 ## Added 2026-09-20 (12:00): the lore pass on the deities, and every boon designed
 
 Nat, on waking: *"make everything lore accurate, especially with the boons. As for the daedric shrines,

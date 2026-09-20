@@ -1020,7 +1020,10 @@ const needsTick = () => {
     try {
       if (creationPending(a)) continue;
       const n = needsOf(a);
-      n.hunger = Math.min(100, n.hunger + (Number(NEEDS.hungerPerHour) || 0) * dt);
+      // Sanguine's boon is a slower appetite, not a spell - prayer.js answers 0.5 while it is worn
+      // and 1 otherwise. A missing module leaves the rate exactly where it was.
+      const appetite = globalThis.__dboPrayerHungerMult ? Number(globalThis.__dboPrayerHungerMult(a)) || 1 : 1;
+      n.hunger = Math.min(100, n.hunger + (Number(NEEDS.hungerPerHour) || 0) * dt * appetite);
       applyNeedsStage(a, n, true);
       const warnMs = (Number(NEEDS.warnEveryMinutes) || 0) * 60000;
       if (warnMs && n.hunger >= 90 && Date.now() - n.warnedAt > warnMs) { n.warnedAt = Date.now(); system(a, 'Your stomach aches with hunger.'); }
@@ -2066,6 +2069,8 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
+
 
 
 

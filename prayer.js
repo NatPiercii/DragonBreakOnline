@@ -152,7 +152,7 @@ module.exports = (api) => {
   // This is the only boon in the list that is more lore-accurate as code than as a record, and it is
   // the only one that needed no Creation Kit work at all. skills.json marks him `capricious: true`.
   const capriceOf = (d) => {
-    const pool = DEITIES.filter((x) => x.id !== d.id && blessingIdOf(x));
+    const pool = DEITIES.filter((x) => x.id !== d.id && (blessingIdOf(x) || x.hungerHalf));
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   };
 
@@ -165,18 +165,34 @@ module.exports = (api) => {
       return got;
     }
     const spell = blessingIdOf(d);
+    // A boon does not have to be a spell. Sanguine's is a change to the appetite meter and has no
+    // record at all, so "no spell" is only a failure when the deity has nothing server-side either.
+    const serverSide = !!d.hungerHalf;
     clearBlessing(a, null);
-    if (!spell) {
-      // Every Prince without a vanilla Altar<Name>Spell lands here. The prayer still succeeded and
-      // still counted; there is simply nothing to hand over until the SPEL records are authored.
+    if (!spell && !serverSide) {
+      // Every Prince still waiting on its SPEL lands here. The prayer succeeded and counted; there
+      // is simply nothing to hand over yet.
       personal(a, `${d.name} hears you, and gives no sign. (No blessing exists for ${d.name} yet.)`);
       log(`prayer: ${display(a)} earned a blessing from ${d.name}, which has no spell record`);
       return false;
     }
-    if (!castSpell(a, spell, true)) return false;
+    if (spell && !castSpell(a, spell, true)) return false;
     const until = Date.now() + Math.max(1, hours) * 3600000;
     try { mp.set(a, 'private.dboBlessing', { deity: d.id, spell, until }); } catch (e) { /* not fatal */ }
     return true;
+  };
+
+  // Sanguine's boon is not a spell and could not be one: the Prince of indulgence belongs on the
+  // appetite meter, and appetite is the gamemode's (private.needs), not the engine's. The needs tick
+  // multiplies its hunger step by this, so a blessed worshipper feasts and does not pay for it.
+  // Persuasion, which he had before, does nothing at all on a server with no NPCs to persuade.
+  globalThis.__dboPrayerHungerMult = (a) => {
+    try {
+      const b = blessingOf(a);
+      if (!b || Number(b.until) <= Date.now()) return 1;
+      const d = deityById(b.deity);
+      return d && d.hungerHalf ? 0.5 : 1;
+    } catch (e) { return 1; }
   };
 
   // A blessing is worn, not held: nothing else expires it, so the module does.

@@ -1,13 +1,13 @@
 # DragonBreak Online: deities, shrines and prayer
 
-**Status:** built, 2026-09-20 11:00. Written as design at 03:10 from Nat's brief; sections 3 to 7 were
+**Status:** built, 2026-09-20 12:20. Written as design at 03:10 from Nat's brief; sections 3 to 8 were
 then **corrected against measurement** when the thing was actually built, because three of the claims in
 them were wrong. The corrections are marked. `server\prayer.js` is the implementation, its harness is
 `server\tests\prayer-harness.js`, and the shrine census it rests on is `server\shrine-placements.json`
 (regenerate with `py ck-mcp\shrines.py`).
 
-**Still open, all in section 7**: which Princes are pickable, what a Daedric blessing does, whether
-Daedric worship is unlawful in Imperial Bruma.
+**Still open, all in section 8**: whether Talos and Daedra worship should actually be a crime in Imperial
+Bruma, and the eight blessing spells that still have to be authored in the Creation Kit.
 
 ## 1. The brief, as given
 
@@ -106,13 +106,56 @@ Clavicus Vile, Hermaeus Mora, Namira, Peryite, Vaermina. **Jyggalag is deliberat
 8 hours. Measured by `py ck-mcp\blessings.py` into `server\blessing-effects.json`.
 
 Every boon below is built from a magic effect **that already exists in this load order**, so the
-Creation Kit work is always "a new SPEL pointing at an existing MGEF" and never "a new MGEF" - with
-one exception, Molag Bal, which is called out as such.
+Creation Kit work is always "a new SPEL pointing at an existing MGEF" and never "a new MGEF" - for
+every deity without exception, once the alchemy-family effects came into play (see below).
 
-### The Divines - left mechanically alone
+### No boon may be a dead stat
 
-These are the blessings every Skyrim player already knows and every other mod already assumes.
-Rewriting them is a change lore does not ask for. What was added is the lore: each entry now carries
+Nat, on reading the first pass: *"change sanguine, there is no NPCs... like everything is player ran
+so."* **Persuasion, Speechcraft and Pickpocket do nothing on this server.** There are no merchants, no
+dialogue and no barter - players trade with players - and there is no speech skill among the eighteen.
+That killed four boons, not one: Sanguine's, which was mine, and **Dibella's, Zenithar's and
+Mephala's, which are Bethesda's**.
+
+Where the replacement overrides a vanilla shrine, **Bethesda's record is left untouched on disk** and
+`skills.json` simply stops pointing at it, so reverting is one line. Each changed entry keeps a
+`replacedBoon` line saying what it was and why it went.
+
+| | was | is now |
+|---|---|---|
+| Sanguine | Persuasion +10 | **hunger comes on half as fast** - the feast does not end |
+| Dibella | Persuasion +10 (vanilla) | Illusion +10 - charm is Illusion with nobody to talk to |
+| Zenithar | Speechcraft +10 (vanilla) | **Carry weight +50** |
+| Mephala | Speechcraft +10 (vanilla) | Alchemy +10 - the Webspinner taught the Morag Tong, who kill with poison |
+
+**Zenithar is the one that matters.** The god of work and honest trade, on a server whose whole
+economy is players hauling ore, ingots and firewood to each other: carry weight is the most Zenithar
+thing that exists here, and no shrine in the game uses it.
+
+**Sanguine stopped being a spell.** The Prince of indulgence belongs on the one system this server has
+that is actually about appetite - `private.needs`. While the boon is worn, hunger accrues at half
+rate: `prayer.js` exposes `__dboPrayerHungerMult` and the needs tick multiplies by it. No plugin, no
+record, nothing for the Creation Kit. It is implemented and the harness covers it, including that it
+lapses.
+
+**The palette got much wider on the way, and it closed both open questions.**
+`AltarMaraSpellWHAnvil` (WindhelmSSE.esp) uses `AlchFortifySmithing`, which proves an **alchemy-family
+MGEF works inside a shrine spell**. So: **Mehrunes Dagon** takes `AlchFortifyDestruction` and no longer
+shares Malacath's Damage - the school of ruin itself, in the county whose Great Gate he opened.
+**Molag Bal** takes `AlchFortifyConjuration` - binding, thralldom and soul trap, and he is the reason
+a black soul gem is black - so **no new magic effect has to be authored for anybody**. **Peryite**
+takes `AlchResistPoison`, because there is no resist-disease effect anywhere in this load order and
+poison is real here: players brew it.
+
+**Check any future boon against what this server actually runs.** Real: combat and the damage formula,
+health/magicka/stamina and their regen, carry weight, sneak, the magic schools, alchemy, lockpicking,
+the needs meter. Not real: anything needing an NPC to talk to.
+
+### The Divines - otherwise left mechanically alone
+
+Apart from Dibella and Zenithar above, these are the blessings every Skyrim player already knows and
+every other mod already assumes. Rewriting them is a change lore does not ask for. What was added is
+the lore: each entry now carries
 its `sphere` and, where the same god has other names, `alsoKnownAs` (Kyne, Jhunal, Stuhn, Tu'whacca,
 Z'en). **Auri-El carries `aspectOf: akatosh`** - he is not a second god but the Aldmeri name for the
 first, and `prayer.js` lets a worshipper of either kneel at either's shrine. That matters in practice:
@@ -123,13 +166,13 @@ pray at all.
 |---|---|
 | Akatosh | Magicka returns 10% faster |
 | Arkay | Health +25 |
-| Dibella | Persuasion +10 |
+| Dibella | Illusion +10 (was Persuasion; see above) |
 | Julianos | Magicka +25 |
 | Kynareth | Stamina +25 |
 | Mara | Restoration +10 |
 | Stendarr | Block +10 |
 | Talos | Shouts return 20% sooner |
-| Zenithar | Speechcraft +10 |
+| Zenithar | Carry weight +50 (was Speechcraft; see above) |
 | Auri-El | Marksman +10, 12 h |
 
 ### The Princes
@@ -143,18 +186,18 @@ entry's `blessingRecipe` names exactly which existing effect to point it at.
 | Azura | Dusk and dawn, prophecy | Resist Magic 10% | vanilla |
 | Boethiah | Plots, murder, the teacher who tests | One-handed +10 | vanilla |
 | Malacath | The sworn oath and the spurned | Damage +10%, Block +15 | vanilla |
-| Mephala | Lies, secrets, the Webspinner | Speechcraft +10 | vanilla |
+| Mephala | Lies, secrets, the Webspinner | Alchemy +10 | pending |
 | Nocturnal | Night, luck, things not where they were left | Sneak +10 | vanilla |
 | **Sheogorath** | **Madness** | **another god's blessing, a different one each time** | **server, done** |
 | Clavicus Vile | Bargains granted exactly as worded | a boon you name, at a price | server, not built |
 | Hermaeus Mora | Knowledge, memory, fate | what you read teaches you more | server, not built |
 | Hircine | The Hunt and the Great Game | Stamina returns 10% faster | pending |
-| Mehrunes Dagon | Destruction and revolution; **Bruma's own Gate** | Damage +10% | pending |
+| Mehrunes Dagon | Destruction and revolution; **Bruma's own Gate** | Destruction +10 | pending |
 | Meridia | Life energies; hatred of the undead | the undead flee you | pending |
-| Molag Bal | Domination; the harvest of souls | what you kill feeds you | pending, **needs a new MGEF** |
+| Molag Bal | Domination; the harvest of souls | Conjuration +10 | pending |
 | Namira | The ancient darkness, decay, revulsion | Sneak +10 **and** night vision | pending |
-| Peryite | Pestilence and the natural order | disease cannot touch you | pending |
-| Sanguine | Revelry and indulgence | Persuasion +10 | pending |
+| Peryite | Pestilence and the natural order | Poison resisted by 50% | pending |
+| Sanguine | Revelry and indulgence | **hunger comes on half as fast** | **server, done** |
 | Vaermina | Dreams and nightmares | you see as if dreaming | pending |
 
 **Sheogorath is the one worth noticing.** He is the only Prince whose boon is *more* lore-accurate as
@@ -260,15 +303,13 @@ whole list that lore actively forbids.
 - ~~**Which Daedric Princes are pickable.**~~ **Answered: all of them.** Nat is placing hidden shrines
   through Cyrodiil, so the roster is the canonical sixteen rather than whoever had a statue, and the
   picker greys out a god by `inBruma` rather than by omission. Nothing to decide.
-- ~~**What a Daedric blessing does.**~~ **Designed, section 5.** Every Prince now has a boon grounded
-  in their sphere, and every one of them is built from a magic effect that already exists - so the
-  Creation Kit work is a SPEL each, never a new magic effect. **One genuine decision is left inside
-  this: Molag Bal.** "What you kill feeds you" is the only boon needing a new MGEF (an absorb-health,
-  nearest vanilla `AbsorbHealthConstant 91f7a`). If that is not worth the work, `FortifyHealthFFSelf`
-  at 25 is the stand-in, though it says nothing about domination. **Also open:** Mehrunes Dagon gets
-  Damage +10%, which duplicates half of Malacath's, because the shrine-effect family has no Fortify
-  Destruction. A new Destruction MGEF would be truer to the Prince of the Oblivion Crisis, and Bruma
-  is the one place in Tamriel where that matters most.
+- ~~**What a Daedric blessing does.**~~ **Designed and fully closed, section 5.** Every Prince has a
+  boon grounded in their sphere, **no deity needs a new magic effect**, and none of them rests on a
+  stat this server does not run. The two decisions left open this morning - Molag Bal's absorb-health
+  and Mehrunes Dagon duplicating Malacath - both dissolved once the alchemy-family effects turned out
+  to be usable in a shrine spell. What remains is labour, not design: **eight `pending` SPELs to
+  author**, each with a `blessingRecipe` in `skills.json` naming the exact record to copy and the
+  exact effect to point at. Fold them into the pass that still owes Unarmed its five marker spells.
 - **Whether a Daedric devotee is lawful** - the only one of the original three still fully open.
   `lawful: false` and `unlawfulWhere` are now written onto every Prince **and onto Talos**, and
   `prayer.js` warns the worshipper once and does nothing else. `private.dboLawful` exists and the
