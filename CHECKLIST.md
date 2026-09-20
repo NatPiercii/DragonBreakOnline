@@ -1684,6 +1684,37 @@ From `_reviews\2026-09-19-daily-review.md`, "Scaling to 100 concurrent players".
 - [x] Checker fix on the way: descs whose plugin name has an apostrophe (JK's Castle Volkihar, JK's Fort Dawnguard,
   JK's Whiterun's Outskirts, OCW_Obscure's...) were silently skipped (40 in doors.json); they are checked now.
 
+## Added 2026-09-20: ambushers wait for you again
+
+The same template loss as the factions, the other half of it. A vanilla ambusher gets `ambushSleepPackage`,
+`AmbushPatrolLinkCustom01` and `AmbushSandboxEditorLocation512` from its own `Lvl*` template, plus an XLKR link
+on the placement to the thing it hides in: `CreatureAlcoveBgMarker` for draugr, `FalmerWallPod01` for falmer,
+patrol idle markers elsewhere. 871 of 888 such placements carry that link. A PlaceAtMe spawn gets neither the
+packages nor the link, so they stood in the open and charged as soon as the cell loaded.
+
+- [ ] **The packages themselves cannot be restored.** Vanilla Papyrus has no call that adds a package
+  (`AddPackageOverride` is PapyrusUtil, which is not installed), the typings have `getLinkedRef` but no setter,
+  so a spawned actor cannot be linked to its coffin, and `formView` cannot put it in the furniture either.
+  Baking the packages into new NPC_ records in a plugin would still leave the per-reference link missing.
+- [x] **What is restored is the timing** (fork `90bfec3`, server `2ed07b3`): a zone may be marked `Ambush`, and
+  such a zone ignores both the dungeon-wide fill and the pre-spawn, waiting for a player within its own radius.
+  `zonesFor` marks a placement from the records, not the editor id: walk the template chain to the record that
+  supplies packages and look for one whose name says ambush. 971 placements in 95 dungeons qualify, most in
+  Dustman's Cairn (50), Forelhost (32) and Nchardak (30); those zones are written with `Size` 1200 and no
+  pre-spawn. Boot line: `dungeon ambush audit: 971 placements in 95 dungeons wait in ambush`.
+- [x] **Verified with the bot harness on the sandbox**, since the user could not test in game:
+  a Northfringe Sanctum claim went from `33 prespawned` to `15 prespawned, 18 held back`, and the bot counted
+  exactly 15 dynamic actors. Then an A/B on one spot: two zones, one ordinary and one `Ambush`. With the bot
+  1,500 units away only the ordinary one existed; walking in produced exactly one new actor, the ambush one.
+- [ ] **Staged, not live**: `server\dist_back\skymp5-server.js` holds the new bundle (backup in
+  `server\_alduinak-build-before-ambush-20260920-171034\`) but the running server still has the old one, so
+  the flag is ignored until it restarts. The restart needs the user; a deploy is blocked for me.
+- [ ] Not covered by this: the pose. An ambusher still stands rather than lying in its alcove, and the other
+  aspects the template loses (994 AI data, 910 script, 460 inventory or outfit, 244 spells) are untouched.
+- Worth knowing: interior cells have independent coordinates, so an ambush spot 3,000 units away in the list
+  may be in another cell entirely. Two probe runs were wasted walking a bot at coordinates from a cell it was
+  not in.
+
 ## Added 2026-09-19 (afternoon): dungeon actors spawn without their placement template's factions
 
 Step 2 (ff_factions) is deployed and needs an in-game pass; the user chose it after Red Ruby Cave 14:24.
