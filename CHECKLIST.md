@@ -55,6 +55,29 @@ All three of these produced a silent exit 0 with nothing done:
 
 - [ ] **Nothing is tested in play.** Sixteen records exist and resolve; not one has been cast.
 
+### Another session had written to the same plugin, and it survived
+
+A race retune landed at **11:36**, before my passes: Khajiit `Unarmed Damage` **4 -> 14** (Argonian stays
+10), and Altmer / Orc / Redguard restatted. `RACES_DESIGN.md` carries it and is **still uncommitted** -
+left alone, it is not mine.
+
+- [x] **Verified my writes did not clobber it**, rather than assuming: `py ck-mcp\raceverify.py` compares
+  every RACE record against the pre-blessings backup and reports **10 of 10 byte-identical**. It also
+  reads Unarmed Damage without guessing the RACE DATA layout - it derives the offset (0x60) by finding
+  the one position where every race lands on a sane float and the known shape holds. Live values:
+  **Khajiit 14, Argonian 10, everyone else 4.**
+- This is the parallel-session hazard the memory note warns about, and the check is cheap. Re-run
+  `raceverify.py` after any future plugin pass.
+
+### The published artifacts were corrected to match
+
+- [x] **The Wheel of Skills** - said Unarmed Damage was "10 for Khajiit and Argonian", said mining still
+  reported itself as a 0.5 activation, and said Unarmed's five markers did not exist. All three were
+  true this morning and none is now.
+- [x] **Time to Mastery** - said "seventeen skills", and that no weight input was wired in.
+- [x] **Bloodlines of Tamriel** - checked, already current with the 11:36 retune. No change.
+- [x] **The Nine and the Sixteen** - the deity sheet, written today and kept current.
+
 ## Added 2026-09-20 (12:20): no boon may be a dead stat
 
 Nat: *"change sanguine, there is no NPCs"* / *"like everything is player ran so."* Hot-reload only;
