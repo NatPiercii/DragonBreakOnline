@@ -1455,8 +1455,23 @@ Step 2 (ff_factions) is deployed and needs an in-game pass; the user chose it af
   `removeFromAllFactions()`, `setFactionRank(f, rank)` per entry, `setCrimeFaction(c)`. It reports `npcDrift`
   kind `factions` with `sent`/`applied`, where applied = getFactionRank read back equal. Live bundle md5
   82a5b592 (ec62938 + the vitals commits) in the dev copy and client-dist. Relaunch needed.
-- [ ] **In-game pass**: claim Red Ruby Cave again. Thralls should stand with the vampires, not fight them.
-  `server.log` should show the `factions:` lines and `npcDrift ... factions: {"sent":1,"applied":1}`.
+- [x] **Verified on the wire with the bot harness 2026-09-20 15:2x** (the user could not test in game). A probe
+  built on `tools\loadtest` (`lib/` used read-only, driver in the session scratchpad, sandbox on 7787, live
+  server untouched) logged in one bot, claimed Gutted Mine on Adept and recorded every message it received
+  through the real `MpClientPlugin.dll`. Result: 985 `createActor` messages, 63 for dynamic actors, and
+  **38 of them carry `ff_factions`**, value `{"f":[[135085873,0]],"c":0}`. 135085873 is `0x080D3F31` =
+  BSHeartland.esm `CYRVampireThrallFaction`, rank 0, no crime faction, which is exactly what the 19 thrall
+  placements there should be given. The server log for the same claim shows the matching 19 `factions:` lines.
+  So the server sets it, the property survives the neighbour filter (`PartOne.cpp:838-853` drops a custom prop
+  unless it is visible by owner AND by neighbours; `makeProp('ff_factions', true)` sets both), and it reaches a
+  real client's network layer inside the actor's own creation message.
+  Worth knowing for the next probe: custom properties travel in `customPropsJsonDumps`, NOT in `props`, and an
+  NPC `createActor` carries no `baseRecordType` (that field belongs to `UpdatePropertyMessage`). Two wrong
+  assumptions about those cost two empty runs.
+- [ ] **Still unverified, and only the game can show it**: that the client's `applyFactions` actually puts the
+  factions on the actor, and that thralls then leave the vampires alone. Bots have no engine, so nothing applies
+  them and no `npcDrift ... factions` line can appear in a bot run. In game, claim Red Ruby Cave or Gutted Mine
+  and look for `npcDrift ... factions: {"sent":1,"applied":1}` plus thralls standing with the vampires.
 - [x] **Found on the way, fixed (`dungeons.js`)**: `mp.getAllForms(0xff)` fills a cache on its first call and
   never refreshes it (`WorldState.cpp` 897-925). The 09-18 `liveForms` filter in `armLease` and `trackNpcs`
   therefore skipped every actor spawned after the first call of a process. Since 09-18: no arming (the last
