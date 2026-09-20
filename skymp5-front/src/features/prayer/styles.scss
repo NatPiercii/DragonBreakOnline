@@ -1,0 +1,155 @@
+// The prayer mini-game in the DragonBreak palette (src/dbo-theme.scss): a quiet shrine panel, the
+// three verses in the book face, and one long hold bar that fills while the worshipper kneels.
+// A Daedric shrine wears the amber of the warnings rather than the aqua glow - the same panel,
+// lit by something else.
+@import '../../dbo-theme.scss';
+
+.prayer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 54;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: $dbo-ui-font;
+
+  &__fade {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(8, 25, 28, 0.38), rgba(3, 10, 12, 0.88) 100%);
+  }
+
+  &__shrine {
+    position: relative;
+    pointer-events: auto;
+    width: min(620px, 90vw);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 28px 32px 24px;
+    @include dbo-panel;
+  }
+
+  &__title {
+    margin: 0;
+    @include dbo-title;
+    font-size: clamp(20px, 2.2vw, 30px);
+    text-align: center;
+  }
+
+  &__hint {
+    margin: 0;
+    color: $dbo-text-dim;
+    font-family: $dbo-book-font;
+    font-size: 16px;
+    font-style: italic;
+    text-align: center;
+  }
+
+  &__verses {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  // A verse not yet reached is barely there; the one being spoken is lit; a verse already said
+  // stays legible but steps back, so the eye always lands on the line that matters.
+  &__verse {
+    margin: 0;
+    padding: 8px 14px;
+    font-family: $dbo-book-font;
+    font-size: 17px;
+    text-align: center;
+    color: rgba(215, 227, 227, 0.28);
+    border-left: 2px solid transparent;
+    transition: color $dbo-fast, border-color $dbo-fast, background $dbo-fast;
+
+    &--now {
+      color: $dbo-silver;
+      background: rgba(143, 211, 208, 0.08);
+      border-left-color: $dbo-border-strong;
+      text-shadow: 0 0 14px rgba(143, 211, 208, 0.45);
+    }
+
+    &--past {
+      color: rgba(215, 227, 227, 0.55);
+      border-left-color: $dbo-stone-dark;
+    }
+  }
+
+  &__hold {
+    position: relative;
+    height: 46px;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.34);
+    border: 1px solid $dbo-border;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    transition: border-color $dbo-fast, box-shadow $dbo-fast;
+
+    &--down {
+      border-color: $dbo-border-strong;
+      box-shadow: $dbo-glow;
+    }
+
+    &--win {
+      border-color: $dbo-border-strong;
+      box-shadow: 0 0 22px rgba(143, 211, 208, 0.4);
+    }
+
+    &--lose {
+      border-color: rgba(201, 70, 58, 0.8);
+      opacity: 0.7;
+    }
+  }
+
+  &__hold-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    background: linear-gradient(90deg, rgba(47, 124, 128, 0.55), rgba(143, 211, 208, 0.34));
+    transition: width 100ms linear;
+  }
+
+  &__hold-label {
+    position: relative;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-size: 13px;
+    color: $dbo-text-dim;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  &__button {
+    @include dbo-button;
+  }
+
+  // A Prince is not a Divine and the shrine should not look like one
+  &--daedric &__verse--now {
+    background: rgba(201, 138, 58, 0.08);
+    border-left-color: rgba(201, 138, 58, 0.8);
+    text-shadow: 0 0 14px rgba(201, 138, 58, 0.45);
+  }
+
+  &--daedric &__hold-fill {
+    background: linear-gradient(90deg, rgba(122, 79, 30, 0.55), rgba(201, 138, 58, 0.34));
+  }
+
+  &--daedric &__hold--down {
+    border-color: rgba(201, 138, 58, 0.85);
+    box-shadow: 0 0 18px rgba(201, 138, 58, 0.3);
+  }
+}

@@ -157,7 +157,11 @@ interface ResolvedRules {
 
 const POINT_REFUSE_NOTICE_MS = 600000;
 
-const ACTIVITY_KINDS = ["craft", "activate", "eat", "kill", "hit", "cast", "hurt", "prayer", "lock"] as const;
+// "mine", "chop" and "read" are activations that finished a mini-game rather than a bare touch: they
+// are matched exactly like "activate" (same reach, same prefix and type rules) but weighed higher,
+// because a round of work is not one keypress. Nothing but the weight and the novelty ring tells them
+// apart from "activate", so a kind missing from this list is dropped silently by enqueue().
+const ACTIVITY_KINDS = ["craft", "activate", "mine", "chop", "read", "eat", "kill", "hit", "cast", "hurt", "prayer", "lock"] as const;
 type ActivityKind = typeof ACTIVITY_KINDS[number];
 
 interface ActivityEvent {
@@ -431,7 +435,7 @@ export class MasterySystem implements System {
         if (!kdef || kdef.category !== "combat") continue;
         if (!this.matches(ctx, id, rules, ev)) continue;
         const bank = prog || (rec.skills[id] = emptyProgress());
-        bank.shadow = (bank.shadow || 0) + P.weightOf({ kind: ev.kind }) * mult;
+        bank.shadow = (bank.shadow || 0) + P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * mult;
         changed = true;
         if (!bank.offered && bank.shadow >= P.unitsForLevel(1)) {
           bank.offered = true;
@@ -443,7 +447,10 @@ export class MasterySystem implements System {
       if (!this.matches(ctx, id, rules, ev)) continue;
       const rep = P.repetitionFactor(prog.ring || [], this.noveltyOf(ev), now);
       prog.ring = rep.ring;
-      const units = P.weightOf({ kind: ev.kind }) * rep.factor * mult;
+      // `value` is the scale term weightOf asks for per kind (ore band, product value, target health).
+      // It was never passed before, so every weight sat at its v=0 base and every scaling term in
+      // weightOf was dead; an emitter that does not send one still gets that base.
+      const units = P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * rep.factor * mult;
       const before = prog.level;
       const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now);
       changed = true;
@@ -524,7 +531,7 @@ export class MasterySystem implements System {
         if (!byKeyword && !rules.craftStations.size) return false;
         return this.benchInReach(ctx, ev.actorId, bench, (keywords) => byKeyword || Array.from(rules.craftStations).some((k) => keywords.has(k)));
       }
-      case "activate": {
+      case "activate": case "mine": case "chop": case "read": {
         const refrId = ev.detail["refrId"];
         const loc = this.locationOf(ctx, ev.actorId);
         if (!loc || !this.inReach(ctx, loc, refrId) || this.isDisabled(ctx, refrId)) return false;
@@ -941,7 +948,9 @@ export class MasterySystem implements System {
     };
     for (const [id, r] of Object.entries(this.rules)) {
       if (r.craftKeywords.size || r.craftStations.size) add("craft", id);
-      if (r.activatePrefixes.length || r.activateTypes.size) add("activate", id);
+      // The mini-game kinds match through the same rules as a bare activation, so a skill that can be
+      // credited by touching a thing can also be credited by working it.
+      if (r.activatePrefixes.length || r.activateTypes.size) { add("activate", id); add("mine", id); add("chop", id); add("read", id); }
       if (r.eatIngredient) add("eat", id);
       if (r.killKeywords.size) add("kill", id);
       if (r.hitKeywords.size) add("hit", id);

@@ -26,6 +26,7 @@ import InteractPrompt from './features/interactPrompt';
 import Hud from './features/hud';
 import Reading from './features/reading';
 import Labour from './features/labour';
+import Prayer from './features/prayer';
 import Pigeon from './features/pigeon';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
@@ -253,6 +254,8 @@ const Constructor = props => {
       return <Reading data={rend} />;
     case 'labour':
       return <Labour data={rend} />;
+    case 'prayer':
+      return <Prayer data={rend} />;
     case 'pigeon':
       return <Pigeon data={rend} />;
     case 'skinning':
