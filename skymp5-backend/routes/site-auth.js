@@ -28,6 +28,8 @@ const PLAYER_FORM_FILE = /^[0-9a-f]+\.json$/
 // Gold001, the same id masterySystem.ts and bountyBoardSystem.ts use
 const GOLD_BASE_ID   = 0x0000000f
 const STORE_CACHE_MS = 3000
+// A stalled Discord member lookup takes about a minute to fail; the badge stops waiting long before nginx's 60 s
+const ACCESS_DEADLINE_MS = 8000
 
 // Secure comes from config: TLS ends at Cloudflare, so the request itself always looks like plain http
 const SECURE = config.websiteUrl.startsWith('https:')
@@ -239,18 +241,31 @@ router.get('/callback', checkCallback, visitorLimiter, siteLimiter, async (req, 
 async function accessOf(discordId) {
   const row = players.load()[discordId]
   if (bans.isBanned({ discordId, hwid: row && row.hwid })) return { allowed: false, reason: 'banned' }
-  const access = await serverAccess.getDiscordAccess(discordId)
-  return { allowed: access.allowed === true, reason: access.allowed === true ? null : (access.error || null) }
+
+  let timer
+  const deadline = new Promise(resolve => { timer = setTimeout(resolve, ACCESS_DEADLINE_MS, null) })
+  try {
+    const access = await Promise.race([serverAccess.getDiscordAccess(discordId), deadline])
+    if (!access) {
+      console.warn(`[site-auth] Discord access lookup took over ${ACCESS_DEADLINE_MS} ms`)
+      return { allowed: false, reason: 'accessUnavailable' }
+    }
+    return { allowed: access.allowed === true, reason: access.allowed === true ? null : (access.error || null) }
+  } catch (err) {
+    console.error('[site-auth] Discord access lookup failed:', err.message)
+    return { allowed: false, reason: 'accessUnavailable' }
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
-// GET /api/site/whoami: the signed-in account, built field by field
-router.get('/whoami', async (req, res) => {
+// GET /api/site/whoami: the signed-in account, built field by field from local files only
+router.get('/whoami', (req, res) => {
   try {
     const session = currentSession(req)
     if (!session) return res.json({ signedIn: false })
 
-    const row    = players.load()[session.discordId]
-    const access = await accessOf(session.discordId)
+    const row = players.load()[session.discordId]
     res.json({
       signedIn: true,
       discord: {
@@ -262,10 +277,21 @@ router.get('/whoami', async (req, res) => {
         createdAt:         row && typeof row.createdAt === 'string' ? row.createdAt : null,
         lastLauncherLogin: row && typeof row.lastSeenAt === 'string' ? row.lastSeenAt : null,
       },
-      access,
     })
   } catch (err) {
     console.error('[site-auth] whoami error:', err.message)
+    res.status(500).json({ error: 'internal' })
+  }
+})
+
+// GET /api/site/access: the access badge, a request of its own because it may wait on Discord
+router.get('/access', async (req, res) => {
+  try {
+    const session = currentSession(req)
+    if (!session) return res.status(401).json({ error: 'signedOut' })
+    res.json(await accessOf(session.discordId))
+  } catch (err) {
+    console.error('[site-auth] access error:', err.message)
     res.status(500).json({ error: 'internal' })
   }
 })

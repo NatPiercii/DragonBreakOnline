@@ -12,7 +12,8 @@ roll it back.
   message for each `?error=` value (`cancelled`, `state`, `discord`, `unconfigured`); the
   value itself is never shown.
 - **Signed in:** an account panel (Discord name and avatar, access badge, account created,
-  last launcher sign-in, Sign out), then a "Your characters" grid. A card opens that
+  last launcher sign-in, Sign out), then a "Your characters" grid. The badge fills in when
+  its own request answers, so the characters never wait on Discord. A card opens that
   character's detail view (`#c=<key>`, picked in the page with no extra request).
 - **Never played:** "No characters yet" and the launcher download. Signing in on the
   website creates no game account; the only thing written is the website session.
@@ -45,7 +46,7 @@ the dashboard flow is for staff only.
    compares it with the `state` query in constant time before any Discord call. Then it
    exchanges the code, reads `/users/@me`, stores a session and sets `db_site`
    (`Path=/`, lifetime `SITE_SESSION_TTL_HOURS`).
-3. The page calls `whoami` and `characters` with that cookie.
+3. The page calls `whoami` with that cookie, then `characters` and `access` side by side.
 
 Details:
 
@@ -81,6 +82,7 @@ redirects, errors and 404s. No route takes a profile id or form id from the brow
 | `GET /api/site/login` | nothing | 302 to Discord. 302 to `/profile.html?error=unconfigured` when `DISCORD_CLIENT_ID` is empty. |
 | `GET /api/site/callback` | state cookie | 302 to `/profile.html` on success. On failure 302 to `/profile.html?error=cancelled` (Discord sent `?error`), `?error=state` (state cookie missing or different; Discord is not called) or `?error=discord` (no code, or Discord refused or failed). Plain-text 429 over the rate limit. |
 | `GET /api/site/whoami` | cookie (optional) | 200 `{"signedIn":false}`, or 200 with the account shape below. 500 `{"error":"internal"}` on an unexpected error. |
+| `GET /api/site/access` | cookie | 200 `{"allowed":...,"reason":...}`, see [access](#access). 401 `{"error":"signedOut"}`. 500 `{"error":"internal"}` on an unexpected error. |
 | `GET /api/site/characters` | cookie | 200 `{"characters":[...]}`, empty for a Discord account with no profile or no characters. 401 `{"error":"signedOut"}`. 503 `{"error":"storeUnavailable"}` when `CHANGEFORMS_DIR` is missing or unreadable. |
 | `POST /api/site/logout` | cookie, `Origin` | 204: revokes the session and clears `db_site`. 403 `{"error":"badOrigin"}` unless `Origin` equals the origin of `WEBSITE_URL`. |
 
@@ -90,10 +92,11 @@ redirects, errors and 404s. No route takes a profile id or form id from the brow
 {
   "signedIn": true,
   "discord": { "name": "...", "avatarUrl": "https://cdn.discordapp.com/avatars/... or null" },
-  "account": { "hasProfile": true, "createdAt": "ISO or null", "lastLauncherLogin": "ISO or null" },
-  "access":  { "allowed": false, "reason": "banned | serverLocked | notWhitelisted | null" }
+  "account": { "hasProfile": true, "createdAt": "ISO or null", "lastLauncherLogin": "ISO or null" }
 }
 ```
+
+It reads local files only, so it answers at once.
 
 - `discord.name` is Discord's `global_name`, else `username`, and `avatarUrl` is built from
   the avatar hash. Both are taken at sign-in, so they change only at the next sign-in.
@@ -101,11 +104,24 @@ redirects, errors and 404s. No route takes a profile id or form id from the brow
   `createdAt` is `players.json` `createdAt`: when the backend first made the player's row
   (launcher sign-in, game connection, or staff adding the player). `lastLauncherLogin` is
   `players.json` `lastSeenAt`, which only the launcher sign-in writes.
-- `access` follows the game's own gates. `reason` is `banned` when `data/bans.json` matches
-  the Discord id or the `players.json` hwid, as the game's session and connection checks do
+
+### access
+
+```json
+{ "allowed": false, "reason": "banned | serverLocked | notWhitelisted | accessUnavailable | null" }
+```
+
+- It follows the game's own gates. `reason` is `banned` when `data/bans.json` matches the
+  Discord id or the `players.json` hwid, as the game's session and connection checks do
   (`routes/master-api.js`); bans set in game or on the dashboard only write that file.
   Otherwise it is `serverAccess.getDiscordAccess(discordId)` cut down to `allowed` and
-  `error`. When the Discord role lookup fails, the role list reads as empty
+  `error`.
+- The Discord lookup gets 8 s (`ACCESS_DEADLINE_MS`). If it takes longer or throws, the
+  answer is `accessUnavailable`, shown as "Unknown", and one line is logged. The lookup
+  keeps running and fills the bot's 60 s role cache, so a reload soon after usually
+  answers at once. Without the deadline a stalled Discord takes about a minute to fail
+  (discord.js retries, then the HTTP fallback), and nginx gives up at 60 s.
+- When the Discord role lookup fails quickly, the role list reads as empty
   (`sources/discord/bot.js` `getMemberRoles`), so a whitelisted player shows as
   `notWhitelisted` while Discord is unreachable. The page says so beside the badge.
 
@@ -164,9 +180,9 @@ Titles follow what the game applies to each character:
 
 ## Privacy rules
 
-Every output object is built field by field (`toSiteCharacter` and the `whoami` handler);
-nothing is passed through from a stored record. `players.decorate()`, `getByProfileId()` and
-`list()` are never called, because they copy whole rows.
+Every output object is built field by field (`toSiteCharacter`, `accessOf` and the
+`whoami` handler); nothing is passed through from a stored record. `players.decorate()`,
+`getByProfileId()` and `list()` are never called, because they copy whole rows.
 
 Never sent to a browser:
 
@@ -417,6 +433,7 @@ to roll back: the updater resets that checkout to `origin/main`.
 | No race or location on any character | No name table yet (the game server has not restarted on the new build, or the scan failed: see its log line), `NAME_TABLE_PATH` is wrong, or, for location only, `SITE_SHOW_LOCATION=off`. |
 | Titles always "None" | There is no `data/faction-whitelist.json` and no `officials.json` (the live state on 2026-09-21), or `ZONES_DIR` is wrong. |
 | A whitelisted player shows "Not whitelisted" | The Discord role lookup failed: bot token, guild id, or a Discord outage. |
+| Access badge shows "Unknown" | The Discord lookup took over 8 s or threw (`[site-auth] Discord access lookup` in the log). Each new Discord connection from CT 115 has taken about 5 s (slow DNS). |
 | Plain-text 429 on sign-in | More than 5 sign-ins in one minute from one visitor address, or more than 60 across the whole site. |
 
 ## Testing without a real Discord sign-in

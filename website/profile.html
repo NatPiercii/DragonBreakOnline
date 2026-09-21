@@ -58,7 +58,7 @@
     <img id="avatar" alt="" hidden>
     <div class="who">
       <div class="head"><span id="discordName" class="name"></span><span id="accessBadge"></span></div>
-      <p id="accessHint" class="meta" hidden>Not whitelisted also shows when Discord cannot be reached. If you have the role, check again later.</p>
+      <p id="accessHint" class="meta" hidden></p>
       <div class="row"><span class="k">Account created</span><span id="created" class="v"></span></div>
       <div class="row"><span class="k">Last launcher sign-in</span><span id="lastLauncher" class="v"></span></div>
       <div class="actions">
@@ -105,7 +105,11 @@ const STATUS={
   permaDead:['Perma-dead','bad','Perma-dead'],
   creating:['In creation','warn','In creation']
 };
-const ACCESS={banned:['Banned','bad'],serverLocked:['Server locked','warn'],notWhitelisted:['Not whitelisted','warn']};
+const ACCESS={banned:['Banned','bad'],serverLocked:['Server locked','warn'],notWhitelisted:['Not whitelisted','warn'],accessUnavailable:['Unknown','warn']};
+const ACCESS_HINTS={
+  notWhitelisted:'Not whitelisted also shows when Discord cannot be reached. If you have the role, check again later.',
+  accessUnavailable:'Your access could not be checked right now. Reload the page to try again.'
+};
 let characters=[];
 
 function show(view){for(const id of ['loading','lanOnly','unavailable','signedOut','signedIn'])$(id).hidden=id!==view;}
@@ -137,9 +141,7 @@ function showSignInError(){
 function renderAccount(me){
   if(discordAvatar(me.discord.avatarUrl)){$('avatar').src=me.discord.avatarUrl;$('avatar').hidden=false;}
   $('discordName').textContent=me.discord.name||'Discord user';
-  const access=me.access.allowed?['Whitelisted','ok']:(pick(ACCESS,me.access.reason)||['No access','warn']);
-  $('accessBadge').replaceChildren(badge(access[0],access[1]));
-  $('accessHint').hidden=me.access.allowed||me.access.reason!=='notWhitelisted';
+  $('accessBadge').replaceChildren(el('span','k','Checking access\u2026'));
   $('created').textContent=date(me.account.createdAt)||'No game account yet';
   $('lastLauncher').textContent=date(me.account.lastLauncherLogin,true)||'Never';
 }
@@ -190,6 +192,19 @@ function route(){
   if(c)$('detail').scrollIntoView({block:'nearest'});
 }
 
+// Loaded apart from the account panel: the access check may wait on Discord, the rest is local
+async function loadAccess(){
+  let a=null;
+  try{const r=await fetch('/api/site/access',{cache:'no-store'});if(r.ok)a=await r.json();}catch(e){}
+  const known=!!a&&typeof a.allowed==='boolean';
+  const reason=known?(a.allowed?null:a.reason):'accessUnavailable';
+  const access=known&&a.allowed?['Whitelisted','ok']:(pick(ACCESS,reason)||['No access','warn']);
+  $('accessBadge').replaceChildren(badge(access[0],access[1]));
+  const hint=pick(ACCESS_HINTS,reason);
+  $('accessHint').textContent=hint||'';
+  $('accessHint').hidden=!hint;
+}
+
 async function loadCharacters(){
   let r=null,body=null;
   try{r=await fetch('/api/site/characters',{cache:'no-store'});body=await r.json();}catch(e){}
@@ -226,7 +241,7 @@ async function main(){
   if(!me.signedIn)return show('signedOut');
   renderAccount(me);
   show('signedIn');
-  await loadCharacters();
+  await Promise.all([loadCharacters(),loadAccess()]);
 }
 main().catch(()=>show('unavailable'));
 </script></body></html>
