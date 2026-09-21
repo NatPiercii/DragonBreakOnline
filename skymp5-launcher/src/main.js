@@ -25,6 +25,11 @@ const nexus  = require('./nexus')
 const ini    = require('./ini')
 const gameversion = require('./gameversion')
 
+// Settings stay in the folder named after the launcher's original product name.
+const USER_DATA_DIR = path.join(app.getPath('appData'), 'DragonBreak Online Launcher')
+fs.mkdirSync(USER_DATA_DIR, { recursive: true })
+app.setPath('userData', USER_DATA_DIR)
+
 const isDev = process.argv.includes('--dev')
 
 // Always log installs: a packaged launcher that fails on a player's machine is
