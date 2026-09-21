@@ -3,6 +3,7 @@
 
 const router        = require('express').Router()
 const crypto        = require('crypto')
+const fs            = require('fs')
 const rateLimit     = require('express-rate-limit')
 const config        = require('../config')
 const oauth         = require('../sources/discord/oauth')
@@ -10,12 +11,18 @@ const siteSessions  = require('../sources/siteSessions')
 const players       = require('../sources/players')
 const profiles      = require('../sources/profiles')
 const serverAccess  = require('../sources/serverAccess')
+const { charFromCf, fileChangeForms } = require('../sources/characters')
 
 const STATE_COOKIE   = 'db_site_state'
 const SESSION_COOKIE = 'db_site'
 const STATE_TTL_MS   = 10 * 60 * 1000
 const CALLBACK_PATH  = '/api/site/callback'
 const PROFILE_PAGE   = '/profile.html'
+// Runtime-created forms have no plugin part in their file name, and every player character is one
+const PLAYER_FORM_FILE = /^[0-9a-f]+\.json$/
+// Gold001, the same id masterySystem.ts and bountyBoardSystem.ts use
+const GOLD_BASE_ID   = 0x0000000f
+const STORE_CACHE_MS = 3000
 
 // Secure comes from config: TLS ends at Cloudflare, so the request itself always looks like plain http
 const SECURE = config.websiteUrl.startsWith('https:')
@@ -65,6 +72,78 @@ function currentSession(req) {
 function profileIdOf(discordId) {
   const id = profiles.load().map[discordId]
   return Number.isInteger(id) ? id : null
+}
+
+// Characters in the changeForms store with their file's mtime; throws when the directory is unreadable
+let storeCache = { at: 0, forms: [] }
+function readStore() {
+  if (Date.now() - storeCache.at < STORE_CACHE_MS) return storeCache.forms
+  fs.accessSync(config.changeFormsDir, fs.constants.R_OK)
+  const forms = []
+  for (const [file, cf] of fileChangeForms(config.changeFormsDir, PLAYER_FORM_FILE)) {
+    const char = charFromCf(cf)
+    if (!char) continue
+    let mtime
+    try { mtime = fs.statSync(file).mtime } catch { continue }
+    forms.push({ cf, char, mtime })
+  }
+  storeCache = { at: Date.now(), forms }
+  return forms
+}
+
+function dynamicFields(cf) {
+  return cf.dynamicFields && typeof cf.dynamicFields === 'object' ? cf.dynamicFields : {}
+}
+
+// A character stamped with a different Discord id is never shown, even when its profileId matches
+function ownedBy(cf, discordId) {
+  const stamped = dynamicFields(cf)['private.indexed.discordId']
+  return stamped === undefined || stamped === null || stamped === discordId
+}
+
+function percent(fraction) {
+  return Number.isFinite(fraction) ? Math.round(Math.min(1, Math.max(0, fraction)) * 100) : null
+}
+
+function characterName(cf, appearance) {
+  if (typeof cf.displayName === 'string' && cf.displayName) return cf.displayName
+  if (appearance && typeof appearance.name === 'string' && appearance.name) return appearance.name
+  return appearance ? 'Unnamed' : 'Unnamed (in creation)'
+}
+
+// Same tests as the select screen and creation flow in skymp5-server/ts/systems/spawn.ts
+function characterStatus(cf, char, df) {
+  if (df['private.permaDead'] === true) return 'permaDead'
+  if (char.dead) return 'dead'
+  if (!char.appearance || cf.isRaceMenuOpen === true || df['private.creationPending'] === true) return 'creating'
+  return 'alive'
+}
+
+// Built field by field: nothing from the changeform is passed through whole
+function toSiteCharacter({ cf, char, mtime }) {
+  const df         = dynamicFields(cf)
+  const appearance = char.appearance
+  const mastery    = df['private.mastery']
+  const tag        = df['private.charTag']
+  return {
+    key:        String(char.formDesc),
+    name:       characterName(cf, appearance),
+    status:     characterStatus(cf, char, df),
+    sex:        appearance && typeof appearance.isFemale === 'boolean' ? (appearance.isFemale ? 'female' : 'male') : null,
+    weight:     appearance && Number.isFinite(appearance.weight) ? appearance.weight : null,
+    vitals: {
+      health:   percent(char.health),
+      magicka:  percent(char.magicka),
+      stamina:  percent(char.stamina),
+    },
+    gold:       char.inventory.reduce((n, e) => n + (e && e.baseId === GOLD_BASE_ID && Number.isInteger(e.count) ? e.count : 0), 0),
+    itemStacks: char.inventory.length,
+    masteries:  mastery && Array.isArray(mastery.order) ? mastery.order.length : 0,
+    tag:        typeof tag === 'string' && tag.length === 4 ? tag : null,
+    race:       null,
+    location:   null,
+    lastSaved:  mtime.toISOString(),
+  }
 }
 
 // GET /api/site/login: binds a random state to this browser, then sends it to Discord
@@ -132,6 +211,28 @@ router.get('/whoami', async (req, res) => {
     console.error('[site-auth] whoami error:', err.message)
     res.status(500).json({ error: 'internal' })
   }
+})
+
+// GET /api/site/characters: the signed-in player's own characters, oldest first
+router.get('/characters', (req, res) => {
+  const session = currentSession(req)
+  if (!session) return res.status(401).json({ error: 'signedOut' })
+
+  const profileId = profileIdOf(session.discordId)
+  if (profileId === null) return res.json({ characters: [] })
+
+  let forms
+  try { forms = readStore() }
+  catch (err) {
+    console.error('[site-auth] changeForms store unreadable:', err.message)
+    return res.status(503).json({ error: 'storeUnavailable' })
+  }
+
+  const characters = forms
+    .filter(({ cf, char }) => char.profileId === profileId && !char.deleted && ownedBy(cf, session.discordId))
+    .sort((a, b) => parseInt(a.char.formDesc, 16) - parseInt(b.char.formDesc, 16))
+    .map(toSiteCharacter)
+  res.json({ characters })
 })
 
 // POST /api/site/logout: same-origin only, so another site cannot sign the visitor out
