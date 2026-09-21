@@ -112,6 +112,30 @@ Bump `LATEST_VERSION` and `DOWNLOAD_URL` in `routes/version.js` to a published G
 already did this for 2.1.16. `CLIENT_VERSION` is the version players see for the client package.
 Bump it when the zip changes so launchers pick up the new zip.
 
+### 4. Extra files: DragonBreak's own plugins, BSAs and assets (launcher 2.1.17+)
+
+Added 2026-09-21. This is the channel for every file that no Nexus page hosts and git cannot hold.
+
+| Piece | Where |
+|---|---|
+| The files, laid out like the game root (`Data/DragonBreak.esp`, `Data/meshes/...`) | `build/client-files/extra/` (`EXTRA_FILES_DIR` overrides). On the dev server: `/opt/alduinak/build/client-files/extra/` |
+| The list: path, size, sha256, plus a content-hash `version` | `data/extra-files.json`, built by `npm run extra` **after** the files are copied |
+| Endpoints | `GET /api/files/extra` (the list) and `GET /api/files/extra/<path>` (a file). Both under `/api/files` because the public nginx forwards only `/api` paths; `/files/...` gets its 404 |
+
+The launcher (`syncExtraFiles` in `main.js`) compares every file by size and sha256, with the hashes
+cached by size + mtime, downloads only the ones that differ to `<file>.part`, verifies them and swaps
+them in. It runs in both install flows. The Play button turns to UPDATE when the list's version changes
+or a file's size is wrong, and Check Files verifies every file, with Repair Client Files as the fix. It
+refuses to write while Skyrim is running.
+
+On 2026-09-21 the list held 148 files, 930.5 MB: the 9 plugins, the 4 BSAs and 135 loose assets.
+Tested against the live server from an empty folder: all 148 downloaded and verified in 193 s.
+
+**After a plugin edit on Nat's box:** `bash dev-server.sh deploy-plugins` from the working root puts the
+9 plugins into the game server's `/opt/skyrim-data` (restarting it only if one changed), into
+`extra/`, and rebuilds the list. It also updates `deploy/skyrim-data/SHA256SUMS`, so commit and push
+that. For a new or changed BSA or loose asset, copy it into `extra/Data/` and run `npm run extra`.
+
 ---
 
 ## Fix these before players install
@@ -130,6 +154,10 @@ has the stale one, so every player who installed on 2026-09-20 runs a different 
 server. Rebuild the zip from the current plugins with the steps above.
 
 ### B. DragonBreak's own BSAs ship through no channel
+
+**Solved by channel 4** once launcher 2.1.17 is released: the BSAs and loose assets are published in
+`extra/` on the dev server. Until players have 2.1.17 they still need `_release\DragonBreak-assets-*.zip`
+by hand. The history below is kept for the record.
 
 These archives exist in Nat's dev game `Data` folder and are **in neither the manifest nor the zip**,
 and not in the MO2 install:
