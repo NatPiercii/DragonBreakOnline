@@ -64,9 +64,12 @@ Details:
 - Discord calls go through `sources/discord/oauth.js`, shared with the launcher and
   dashboard flows, with a 20 s deadline per request. From CT 115 each call took about 5 s
   in testing (slow DNS), so a sign-in can take 5 to 10 s.
-- The callback allows 60 requests a minute for the whole site, because every website
-  visitor reaches the backend from the same proxy address. Over the limit it returns a
-  plain-text 429. The limit protects the Discord application the launcher shares.
+- Only callbacks that pass the state check count toward the rate limits. Every website
+  visitor reaches the backend from the same proxy hop, so each visitor is told apart by the
+  `CF-Connecting-IP` address Cloudflare adds: 5 callbacks a minute per address. Requests
+  without that header (LAN, test copies) skip the per-visitor limit. On top of that, 60
+  callbacks a minute for the whole site protect the Discord application the launcher
+  shares. Over either limit the callback returns a plain-text 429.
 
 ## Routes
 
@@ -414,7 +417,7 @@ to roll back: the updater resets that checkout to `origin/main`.
 | No race or location on any character | No name table yet (the game server has not restarted on the new build, or the scan failed: see its log line), `NAME_TABLE_PATH` is wrong, or, for location only, `SITE_SHOW_LOCATION=off`. |
 | Titles always "None" | There is no `data/faction-whitelist.json` and no `officials.json` (the live state on 2026-09-21), or `ZONES_DIR` is wrong. |
 | A whitelisted player shows "Not whitelisted" | The Discord role lookup failed: bot token, guild id, or a Discord outage. |
-| Plain-text 429 on sign-in | More than 60 sign-ins in one minute across the whole site. |
+| Plain-text 429 on sign-in | More than 5 sign-ins in one minute from one visitor address, or more than 60 across the whole site. |
 
 ## Testing without a real Discord sign-in
 
@@ -437,6 +440,9 @@ The copied data holds real player data (hwid, IP addresses); delete the copy whe
   server can build the table (`mp.getIdFromDesc` is native), so they are checked after
   deployment. Places from DragonBreak plugins may have display names or only editor ids.
 - The table's size and scan time for the full DragonBreak load order.
+- That `CF-Connecting-IP` reaches the backend through the Cloudflare tunnel and nginx
+  (Cloudflare documents it for proxied traffic, and nginx passes request headers on). If it
+  does not, only the site-wide sign-in limit applies.
 - `appearanceDump.name` may be a mask label while a character is masked, and the writers
   of `private.permaDead` and `private.charTag` are in the gamemode.
 - The page was tested against a stub DOM, not viewed in a real browser before deployment.

@@ -4,6 +4,7 @@
 const router        = require('express').Router()
 const crypto        = require('crypto')
 const fs            = require('fs')
+const net           = require('net')
 const rateLimit     = require('express-rate-limit')
 const config        = require('../config')
 const oauth         = require('../sources/discord/oauth')
@@ -34,14 +35,32 @@ const SECURE = config.websiteUrl.startsWith('https:')
 let websiteOrigin = null
 try { websiteOrigin = new URL(config.websiteUrl).origin } catch { /* malformed WEBSITE_URL: logout refuses every Origin */ }
 
-// Every website user arrives from the same proxy address, so this one limit is global; it guards the Discord app shared with the launcher
-const callbackLimiter = rateLimit({
+// Every website user reaches the backend through the same proxy hop; Cloudflare puts the visitor's own address in CF-Connecting-IP
+function visitorIp(req) {
+  const ip = req.get('cf-connecting-ip')
+  return typeof ip === 'string' && net.isIP(ip) ? ip : null
+}
+
+const limitOptions = {
   windowMs: 60 * 1000,
-  max: 60,
-  keyGenerator: () => 'site-callback',
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many sign-ins right now. Please try again in a minute.',
+}
+
+// Per visitor, so one client cannot use up the site-wide budget; requests without the header meet only the site-wide limit
+const visitorLimiter = rateLimit({
+  ...limitOptions,
+  max: 5,
+  skip: req => !visitorIp(req),
+  keyGenerator: req => rateLimit.ipKeyGenerator(visitorIp(req)),
+})
+
+// Site-wide backstop for the Discord app shared with the launcher
+const siteLimiter = rateLimit({
+  ...limitOptions,
+  max: 60,
+  keyGenerator: () => 'site-callback',
 })
 
 router.use((_req, res, next) => {
@@ -185,17 +204,21 @@ router.get('/login', (_req, res) => {
   res.redirect(oauth.authorizeUrl({ redirectUri: config.discordSiteRedirectUri, state }))
 })
 
-// GET /api/site/callback: Discord's redirect; the state is checked before any Discord call, and nothing but the site session is written
-router.get('/callback', callbackLimiter, async (req, res) => {
+// Discord's redirect is checked against the state cookie first, so only requests that would call Discord count toward the limits
+function checkCallback(req, res, next) {
   setCookie(res, STATE_COOKIE, '', CALLBACK_PATH, 0)
   const { code, state, error } = req.query
 
   if (error) return res.redirect(`${PROFILE_PAGE}?error=cancelled`)
   if (!sameSecret(state, readCookie(req, STATE_COOKIE))) return res.redirect(`${PROFILE_PAGE}?error=state`)
   if (typeof code !== 'string' || !code) return res.redirect(`${PROFILE_PAGE}?error=discord`)
+  next()
+}
 
+// GET /api/site/callback: Discord's redirect; the state is checked before any Discord call, and nothing but the site session is written
+router.get('/callback', checkCallback, visitorLimiter, siteLimiter, async (req, res) => {
   try {
-    const tokenData = await oauth.exchangeCode({ code, redirectUri: config.discordSiteRedirectUri })
+    const tokenData = await oauth.exchangeCode({ code: req.query.code, redirectUri: config.discordSiteRedirectUri })
     const user      = await oauth.getUser(tokenData.access_token)
     if (typeof user.id !== 'string' || !user.id) throw new Error('Discord returned a user without an id')
 
