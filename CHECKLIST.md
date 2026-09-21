@@ -1,5 +1,43 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-21 (07:15): a won skinning round now credits the Skinner (scheduled run)
+
+The scheduled brief's queue (mining event kind, deity data, shrine path, Unarmed marker spells) is
+**stale - all four were already shipped**, and I re-checked each rather than trusting the 20:25 note:
+`labour.js:328` emits `'mine'` with the ore band and `'chop'`; `skills.json` holds 9 BSHeartland
+wayshrines, `conversionCooldownDays: 7` and the Daedric entries; `prayer.js:439` emits `'prayer'`;
+boot says `18 skills have marker spells` with no "missing". **The brief should be rewritten before
+it runs again.** Its other two premises are also out of date (see the 21:00 handover below): the
+starting-spell bug was not C++ and is fixed, and the error baseline is 12, not 18.
+
+So the run took the one open item of the same shape as queue item 1, from the 21:00 handover.
+
+- [x] **Measured first, and the handover overstated it.** It said skinner "maps to no kind at all" and
+  ranks 1-4 are unreachable. Wrong: `skinner.counts` has `killKeywords: ActorTypeAnimal` and
+  `craftKeywords: CraftingTanningRack`, so a held Skinner *was* credited for animal kills and tanning.
+  What was true: **the skinning itself credited nothing** - `"skin"` was not an activity kind and the
+  won round emitted no event.
+- [x] **The fix, in four places that must agree** (the harness now checks all four):
+  `masterySystem.ts` `ACTIVITY_KINDS` + `matches` (`skillId === "skinner"`, like prayer/priest) +
+  `indexCandidates` (`add("skin", "skinner")`); `skillPoints.ts` `weightOf` `"skin"` =
+  `clampW(1 + min(1, value / 100))`, value being the best pelt's gold (`peltsWorth`, 0..300), so a fox
+  is 1.0, like a chop, and a 100g+ pelt is 2.0, like ebony ore; `gamemode.js` emits
+  `'skin'` on a **won** round only, after the pelts are given.
+- [x] **Only a held trade is credited.** Skinner has a station, so the unopened branch skips it; a
+  non-Skinner who skins a fox (allowed since Nat's 2026-09-20 call) earns nothing toward Skinner until
+  they touch a tanning rack. Deliberate: it keeps the "a trade is opened at its station" rule intact.
+- [x] Verified: `build-ts` type-check clean; `"prayer","lock","skin"]`, `case"skin":return r==="skinner"`
+  and the weight present in the **deployed** `server\dist_back\skymp5-server.js`; skillPoints 151,
+  skill-openings (5 new checks), mastery-values 46, prayer, labour, skinning, mastery-damage all pass.
+  **Local server booted 07:11: 12 `[error]` lines (the baseline), skills/prayer/stations boot lines
+  unchanged**, then stopped again because it was not running before. Backup
+  `_dist_back-backups\before-skin-20260921-071049`.
+- [ ] **Not deployed to the server PC** (`10.0.0.132`). This run only reached the local copy. To go
+  live there: copy `server\dist_back\skymp5-server.js(.map)` and `server\gamemode.js`, restart node.
+  The bundle change needs the restart; `gamemode.js` alone would emit an event the old bundle drops.
+- [ ] **Unplayed.** Ready to test: take up Skinner at a tanning rack, skin a fox, the K menu should move.
+- [ ] Committed locally in both repos, **not pushed** (no say-so this run).
+
 ## Added 2026-09-21 (01:00): the hub spawn is SOLVED - one ESL flag on one plugin
 
 The block below was written at 00:15 with the spawn unsolved. It is solved; full account in

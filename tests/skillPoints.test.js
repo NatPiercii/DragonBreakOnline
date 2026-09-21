@@ -60,12 +60,14 @@ eq('removeUnits never goes under the floor', S.removeUnits(26, 0, 99999, 25).lev
 eq('removeUnits reports what it took', S.removeUnits(50, 0, 40, 25).taken, 40, 0.001);
 
 // weights stay inside 0.5..3
-for (const k of ['craft', 'kill', 'hit', 'cast', 'hurt', 'mine', 'chop', 'read', 'activate', 'eat', 'nonsense']) {
+for (const k of ['craft', 'kill', 'hit', 'cast', 'hurt', 'mine', 'skin', 'chop', 'read', 'activate', 'eat', 'nonsense']) {
   const w = S.weightOf({ kind: k, value: 99999 });
   eq(`weight ${k} in range`, w >= 0.5 && w <= 3, true);
 }
 eq('a rabbit is worth less than a giant', S.weightOf({ kind: 'kill', value: 20 }) < S.weightOf({ kind: 'kill', value: 400 }), true);
 eq('iron ore is worth less than ebony', S.weightOf({ kind: 'mine', value: 0 }) < S.weightOf({ kind: 'mine', value: 4 }), true);
+eq('a fox pelt is worth less than a cave bear', S.weightOf({ kind: 'skin', value: 0 }) < S.weightOf({ kind: 'skin', value: 300 }), true);
+eq('a skin is never below a chop', S.weightOf({ kind: 'skin', value: 0 }) >= S.weightOf({ kind: 'chop' }), true);
 
 // ── the scale terms, now that emitters actually pass a value (2026-09-20) ────────────────────────
 // Every kind that takes a value must rise with it and must not sit at the flat base any more.

@@ -84,6 +84,7 @@ const kindsOf = (sk) => {
   if (has('damageTakenWhileArmored')) out.add('hurt');
   if (sk.id === 'priest') out.add('prayer');           // added unconditionally by indexCandidates
   if (sk.id === 'lockpicking') out.add('lock');
+  if (sk.id === 'skinner') out.add('skin');
   return out;
 };
 
@@ -107,7 +108,16 @@ check('eight skills open at a station', SKILLS.skills.length - stationless.lengt
 
 // Every banking skill must answer to a kind something actually emits, or the bank never fills.
 // These are the emitters in server\*.js plus masterySystem's own hit/kill/cast/hurt paths.
-const EMITTED = new Set(['activate', 'read', 'mine', 'chop', 'lock', 'prayer', 'craft', 'eat', 'kill', 'hit', 'cast', 'hurt']);
+const EMITTED = new Set(['activate', 'read', 'mine', 'chop', 'lock', 'prayer', 'skin', 'craft', 'eat', 'kill', 'hit', 'cast', 'hurt']);
+
+// A won skinning round is the Skinner's own work (added 2026-09-21). All four halves must agree or
+// the event is enqueued and dropped: the kind list, the candidate map, the match, and the emitter.
+const GAMEMODE = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
+check('"skin" is an activity kind', /const ACTIVITY_KINDS = \[[^\]]*"skin"/.test(MASTERY_TS));
+check('"skin" is indexed to the skinner', /add\("skin", "skinner"\)/.test(MASTERY_TS));
+check('"skin" matches the skinner', /case "skin": return skillId === "skinner";/.test(MASTERY_TS));
+check('"skin" has its own weight', /case "skin": return clampW/.test(POINTS_TS));
+check('gamemode emits "skin" on a won round', /__alduinakMasteryEvent\('skin', a, \{ refrId: ses\.corpse, value: peltsWorth\(pelts\) \}\)/.test(GAMEMODE));
 for (const { sk, kinds } of stationless) {
   check(`${sk.id} answers to a kind that is emitted`,
     Array.from(kinds).some((k) => EMITTED.has(k)));

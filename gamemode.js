@@ -1821,6 +1821,9 @@ onUi('skinning', (a, args) => {
       if (giveItem(a, Number(p.baseId) >>> 0, count)) { const r = recordOf(Number(p.baseId) >>> 0); got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'pelt')}`); }
     }
     text = got.length ? `The hide comes away clean: ${got.join(', ')}.` : 'The hide comes away, but there is nothing to keep.';
+    // The work itself credits the Skinner, weighed by the best pelt's gold value (skillPoints.weightOf
+    // "skin"). Only a held trade is credited: skinner has a station, so an untaken one is skipped.
+    try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('skin', a, { refrId: ses.corpse, value: peltsWorth(pelts) }); } catch (e) { /* no skill system */ }
   }
   // One line per verdict: clean cuts of those needed, slips, how many cuts were taken, the last cut
   // and the report's own clock, the lag between that clock and the server's, and how far off centre
