@@ -7,9 +7,10 @@ const path = require('path')
 const SKYMP_PORT = parseInt(process.env.SKYMP_PORT || '7777', 10)
 const WEBSITE_URL = process.env.WEBSITE_URL || 'http://localhost:4001'
 const SITE_SESSION_TTL_HOURS = parseFloat(process.env.SITE_SESSION_TTL_HOURS)
-const CHANGEFORMS_DIR = process.env.CHANGEFORMS_DIR
-  || path.join(__dirname, '..', 'build', 'dist', 'server', 'world', 'changeForms')
-const NAME_TABLE_PATH = process.env.NAME_TABLE_PATH || path.join(CHANGEFORMS_DIR, '..', '..', 'name-table.json')
+// The game server's working directory; the character store under it may be a symlink to another folder
+const GAME_SERVER_DIR = path.join(__dirname, '..', 'build', 'dist', 'server')
+const CHANGEFORMS_DIR = process.env.CHANGEFORMS_DIR || path.join(GAME_SERVER_DIR, 'world', 'changeForms')
+const NAME_TABLE_PATH = process.env.NAME_TABLE_PATH || path.join(GAME_SERVER_DIR, 'name-table.json')
 
 // Website profile switches: 'off' hides the field; unset, empty or 'on' shows it
 const siteShows = (value) => String(value || '').trim().toLowerCase() !== 'off'

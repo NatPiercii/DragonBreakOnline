@@ -225,7 +225,7 @@ Server Manager shows them in its "Website profiles" group. On CT 115 they go in
 | `DISCORD_SITE_REDIRECT_URI` | `WEBSITE_URL` + `/api/site/callback` | Must be registered, exactly, under Redirects in the Discord application. |
 | `SITE_SESSION_TTL_HOURS` | `24` | Any positive number; anything else means 24. |
 | `CHANGEFORMS_DIR` | `build/dist/server/world/changeForms` in the repo | The game server's `<databaseName>/changeForms`. File driver only. |
-| `NAME_TABLE_PATH` | `name-table.json` two folders above `CHANGEFORMS_DIR` | The game server writes it in its working directory. |
+| `NAME_TABLE_PATH` | `build/dist/server/name-table.json` in the repo | The game server writes it in its working directory. |
 | `ZONES_DIR` | the folder of `NAME_TABLE_PATH` | Folder with `zones.json` and `officials.json`, also the game server's working directory. |
 | `SITE_SHOW_LOCATION` | on | `off` (any case) hides location. Anything else shows it. |
 | `SITE_SHOW_FACTIONS` | on | `off` (any case) hides titles. Anything else shows them. |
@@ -235,10 +235,13 @@ Server Manager shows them in its "Website profiles" group. On CT 115 they go in
 database name `world`, and `build/dist/server/world` is a symlink to
 `/opt/skymp-state/world`. So leave `CHANGEFORMS_DIR`, `NAME_TABLE_PATH` and `ZONES_DIR`
 unset: the defaults reach the live store through the symlink and the name table and zones
-in the game server's folder. If you set `CHANGEFORMS_DIR=/opt/skymp-state/world/changeForms`,
-also set `NAME_TABLE_PATH=/opt/alduinak/build/dist/server/name-table.json`, or the name
-table and zones default to `/opt/skymp-state`, which is wrong. Neither unit sets `User=`,
-so both run as root and can read these files.
+in the game server's folder. Setting `CHANGEFORMS_DIR` does not move the other two. Neither
+unit sets `User=`, so both run as root and can read these files.
+
+The backend logs one `[jsonCache] <path> not readable (ENOENT)` line the first time a name
+table, `zones.json` or `officials.json` it looks for is missing, and again each time one
+disappears after being found. Until the game server has written its first name table, or
+while nobody holds an office, that line is expected.
 
 ## The name table
 
@@ -432,7 +435,7 @@ to roll back: the updater resets that checkout to `origin/main`.
 | `?error=discord` | The redirect is not registered in the Discord portal or differs from `DISCORD_SITE_REDIRECT_URI`, the client secret is wrong, or Discord is unreachable. The backend log has `[site-auth] callback error:` with Discord's reason. |
 | "Sign-out failed" | 403 `badOrigin`: `WEBSITE_URL` is not the page's origin. |
 | "Your characters cannot be read right now" | 503 `storeUnavailable`: `CHANGEFORMS_DIR` is missing or unreadable (`[site-auth] changeForms store unreadable` in the log). |
-| No race or location on any character | No name table yet (the game server has not restarted on the new build, or the scan failed: see its log line), `NAME_TABLE_PATH` is wrong, or, for location only, `SITE_SHOW_LOCATION=off`. |
+| No race or location on any character | No name table yet (the game server has not restarted on the new build, or the scan failed: see its log line), `NAME_TABLE_PATH` is wrong (the backend log names the path it tried in a `[jsonCache]` line), or, for location only, `SITE_SHOW_LOCATION=off`. |
 | Titles always "None" | There is no `data/faction-whitelist.json` and no `officials.json` (the live state on 2026-09-21), or `ZONES_DIR` is wrong. |
 | A whitelisted player shows "Not whitelisted" | The Discord role lookup failed: bot token, guild id, or a Discord outage. |
 | Access badge shows "Unknown" | The Discord lookup took over 8 s or threw (`[site-auth] Discord access lookup` in the log). Each new Discord connection from CT 115 has taken about 5 s (slow DNS). |
