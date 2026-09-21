@@ -192,6 +192,7 @@ export class BountyBoardSystem implements System {
     if (userId < 0) return true;
     this.sessions.set(userId, { zoneId: zone.id, refr: targetId });
     this.sendMenu(ctx, userId, "open");
+    this.notifyOpened(casterId, zone.id);
     return true;
   }
 
@@ -240,6 +241,12 @@ export class BountyBoardSystem implements System {
     }
     this.sessions.set(userId, board);
     this.sendMenu(ctx, userId, "open");
+    this.notifyOpened(actorId, board.zoneId);
+  }
+
+  // The gamemode hands over pigeons waiting for this player whenever they open a board
+  private notifyOpened(actorId: number, zoneId: string): void {
+    try { (globalThis as any).__dboBoardOpened?.(actorId, zoneId); } catch (e) { this.log(`[board] open hook failed: ${e}`); }
   }
 
   private nearestBoard(ctx: SystemContext, actorId: number): BoardSession | null {
