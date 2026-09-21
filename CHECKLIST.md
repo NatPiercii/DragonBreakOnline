@@ -49,6 +49,20 @@ in the root `CLAUDE.md`, section "The development server".
 - [x] **21:02 UTC, from the Pale Pass wolf report**: the spawn watcher on the Linux server died after the first rename-over save, so dungeon leases and wildlife changes stopped reaching the spawner (fork `c07e1b8`, verified 3 of 3 saves reload). 33 Cyrodiil wildlife placements on cells with no navmesh are skipped (`de35f801`); BSHeartland navmeshes only 524 of 2381 Cyrodiil cells, the rest is Beyond Skyrim work in progress. The Pale Pass wolves themselves stand on navmeshed cells; the server spawned exactly 1 per zone, so the extra and sunken wolves a second player saw are client-side copies of the known spawn desync (NPC_REBUILD.md phase 1), not extra spawns.
 - [ ] **Measure the duplicate wolves with two players**: npcDrift on the wolf ids while the second player walks in; compare what each client shows against the one server actor.
 
+### 22:55 UTC playtest batch (Nat report of 2026-09-21 evening) - live, not yet played
+
+- [x] Sparks/Flames: concentration spells sent ~10 hits/s each at the full per-second magnitude (80 dps vs vanilla 8); now 1 accepted hit/s. NPC hits on players were x2 by default; `damageMultFormulaSettings.multiplier` 1.
+- [x] Body gold 40% at 0.3x the difficulty range; dungeon food replaced by salt, produce filtered from ingredient pools.
+- [x] Dungeon time-out walks everyone inside to the entrance (was members only) and converts XTEL radians to degrees.
+- [x] Dungeon scaling: enemy level band from the highest character level at the door (vanillaLevel rule), count x party size (0.7 solo..1.8 six) x difficulty.
+- [x] Jarls/Counts/Barons appoint Stewards, Chieftains Banes, 5 each (`/appoint`, config appointRules). No Baron rank exists yet; the Count of Bruma stands in.
+- [x] Pigeons: stored always, read by opening any notice board; login says how many wait. Stored letters were never delivered before.
+- [x] Client 0.3.4: lingering race ability dispelled (Nord frost resist on Orcs), party window finds members, nameplate above the health bar, chat no longer steals focus in game menus (stuck Tab).
+- [ ] Needs Nat: Hufsa form id (not in any plugin or data); rob-a-player design; Baron rank zones; charcoal tier table (skills.json and SKILLS_DESIGN disagree), blacksmith or woodcutter; Orc Clan armor recipes reverse ORC_CLAN_RECORDS.md (relics never craftable).
+- [ ] Planned, one DLE plugin pass: orcish recipes need a DBO_Office_Chieftain marker, province markers gate recipes by region, charcoal grades as ingot ingredients.
+- [ ] Sync, needs two-player measurement: summon abilities (flame cloak hitting party), scamps wandering, daedra lords following, invulnerable spawns / too-distant hits, Pale Pass wolf duplicates.
+- [ ] Save errors 19:07-19:26 (invalid UTF-8 in one actor field, cleared by restart); watch for recurrence.
+
 ### Open - decisions for Nat
 
 - [x] ~~**Players cannot launch until the plugins reach them.**~~ Fixed by 0.3.3 above. The backend still serves the 2026-09-18 client
