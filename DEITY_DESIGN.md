@@ -16,11 +16,13 @@ Unarmed its five marker spells at `1209CA-1209CE` (`DBO_UnarmedMarkers.pas`), so
 shrine site as one central test ground; thirteen went in as STATICS, which the engine never fires an
 activation on, so `DBO_ShrineActivators2.pas` gave each Prince an activator using that same statue
 mesh and repointed the references at it. Clavicus Vile was already among them, placed with the
-vanilla Haemar's Shame quest shrine. The boot line reads `45 shrine ids, 25 reachable`.
+vanilla Haemar's Shame quest shrine. The boot line reads `45 shrine ids, 26 reachable` (25 until 2026-09-21, see below).
 
-**Only Auri-El has no shrine of his own here, and it costs nothing:** he is Akatosh under the
-Aldmeri name and `prayer.js` treats the two as one faith, so any Akatosh chapel in Bruma will hear
-him. Every character on the server has somewhere to pray.
+**Auri-El now has a shrine of his own in Bruma county** (2026-09-21): Nat placed `DLC1ShrineofAuriel`
+as `DragonBreak Online Edits.esp:12AE03` in BSHeartland near (57257, 205947, 7716). Before that he
+had none here, which cost nothing: he is Akatosh under the Aldmeri name and `prayer.js` treats the
+two as one faith, so any Akatosh chapel in Bruma hears him too. Every character on the server has
+somewhere to pray.
 
 **The picker is built** (2026-09-20 13:40): front widget `deityPicker`, id 36, offered automatically to
 any character out of the race menu with no god, and reopened with `/deity`. The **first choice is free
@@ -184,8 +186,8 @@ the lore: each entry now carries
 its `sphere` and, where the same god has other names, `alsoKnownAs` (Kyne, Jhunal, Stuhn, Tu'whacca,
 Z'en). **Auri-El carries `aspectOf: akatosh`** - he is not a second god but the Aldmeri name for the
 first, and `prayer.js` lets a worshipper of either kneel at either's shrine. That matters in practice:
-Auri-El's one shrine is in the Forgotten Vale, so without it a Snow-Elf-faithed character could never
-pray at all.
+vanilla puts Auri-El's one shrine in the Forgotten Vale, so without it a Snow-Elf-faithed character could
+never pray at all. (Since 2026-09-21 there is also a placed one in Bruma county.)
 
 | Divine | Boon (vanilla, 8 h) |
 |---|---|

@@ -1,5 +1,26 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-21 (11:25): Auri-El has a shrine in Bruma
+
+- [x] **Nat placed `DLC1ShrineofAuriel`** (`Dawnguard.esm:00C86B`, the base `skills.json` already names)
+  as `DragonBreak Online Edits.esp:12AE03`, BSHeartland cell `09FF1A`, at (57257, 205947, 7716),
+  scale 1.87, not disabled. `py ck-mcp\shrines.py` re-run: Auri-El 4 placements -> 5, **1 in the
+  playtest region and 1 in Bruma county** (was 0).
+- [x] **`skills.json` auriel `inBruma`/`inPlaytest` 0 -> 1**, `placements` 5, note rewritten. This is
+  not cosmetic: `prayer.js` reads `inBruma` for the boot count *and* for the picker's `reachable` flag,
+  so without it the picker would still have marked Auri-El unreachable.
+- [x] **Plugin copied into `server\data\`** (node stopped first; `cmp` identical to the dev copy). The
+  hard link to `tools\loadtest\sandbox\data\` got the new version too.
+- [x] Restarted 11:23 with 0 online and no lease open: **12 `[error]` lines (baseline)**, boot now reads
+  `26 deities, 45 shrine ids, 26 reachable under the region lock` (was 25).
+- [ ] **Unplayed.** Test: a character with Auri-El (or Akatosh) kneels at the new shrine; the prayer
+  widget should open and a completed prayer should credit Priest.
+- [ ] **The client package is stale.** `server\client-dist\Data\` (20:48 yesterday) and
+  `forkuild\client-files\` hold the old DLE, so a remote player would not see the shrine and their
+  plugin would differ from the server's. Left alone on purpose: repackaging is Nat's call. Jake's
+  `server\data\` needs the new file too.
+- [x] `DEITY_DESIGN.md` corrected (it said Auri-El has no shrine here and the boot line reads 25).
+
 ## Added 2026-09-21 (10:40): every notice board works
 
 - [x] **Root cause: no board in Skyrim had ever worked.** `zones.ts` listed Tamriel and the city

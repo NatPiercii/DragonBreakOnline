@@ -129,44 +129,17 @@
       "editorId": "DLC1ShrineofAuriel",
       "type": "ACTI",
       "isBaseObject": true,
-      "placements": 4,
-      "inPlaytest": 0,
-      "inBruma": 0,
+      "placements": 5,
+      "inPlaytest": 1,
+      "inBruma": 1,
       "sample": [
         {
-          "refr": "Dawnguard.esm:011BF3",
-          "where": "DLC1DarkfallCave01",
+          "refr": "DragonBreak Online Edits.esp:12AE03",
+          "where": "BSHeartland",
           "pos": [
-            4884.5,
-            1554.0,
-            -2780.3
-          ]
-        },
-        {
-          "refr": "Dawnguard.esm:012435",
-          "where": "DLC1FalmerTemple01",
-          "pos": [
-            4000.2,
-            -2338.7,
-            6879.9
-          ]
-        },
-        {
-          "refr": "Dawnguard.esm:00C86E",
-          "where": "DLC01FalmerValley",
-          "pos": [
-            -27938.9,
-            -18475.6,
-            7981.3
-          ]
-        },
-        {
-          "refr": "Dawnguard.esm:00C86D",
-          "where": "DLC01FalmerValley",
-          "pos": [
-            -27602.3,
-            -18813.7,
-            7981.3
+            57257.1,
+            205947.5,
+            7716.2
           ]
         }
       ]
