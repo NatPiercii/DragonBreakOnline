@@ -1062,7 +1062,7 @@ html, body {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
@@ -1115,6 +1115,71 @@ html, body {
   font-size: calc(10px * var(--text-scale));
   letter-spacing: 1px;
   color: rgba(215, 227, 227, 0.3);
+}
+
+/* Ranked board (races of the realm) */
+.metric-board {
+  grid-column: 1 / -1;
+  background: rgba(8, 25, 28, 0.5);
+  border: 1px solid var(--glass-border);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.metric-board-row {
+  display: grid;
+  grid-template-columns: 22px 110px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: calc(13px * var(--text-scale));
+  color: var(--parchment);
+}
+
+.metric-board-rank {
+  color: var(--parchment-dim);
+  text-align: right;
+}
+
+.metric-board-row--first .metric-board-rank,
+.metric-board-row--first .metric-board-label {
+  color: var(--gold-bright);
+}
+
+.metric-board-bar {
+  height: 8px;
+  background: rgba(143, 211, 208, 0.08);
+  overflow: hidden;
+}
+
+.metric-board-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(to right, var(--aqua-deep), var(--aqua));
+}
+
+.metric-board-row--first .metric-board-fill {
+  background: linear-gradient(to right, #9c8a52, var(--gold));
+}
+
+.metric-board-value {
+  text-align: right;
+  font-weight: 600;
+}
+
+.metrics-footnote {
+  grid-column: 1 / -1;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: calc(10px * var(--text-scale));
+  letter-spacing: 1px;
+  color: rgba(215, 227, 227, 0.3);
+  text-align: right;
+}
+
+.metrics-footnote--stale {
+  color: var(--amber);
 }
 
 /* Discord topbar widget */

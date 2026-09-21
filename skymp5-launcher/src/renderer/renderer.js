@@ -1553,28 +1553,53 @@ async function loadMetrics() {
     return
   }
 
-  const m = result.metrics
+  const m = result.metrics || {}
+  const world = result.world
+
+  // World stats come as sections the backend lays out: card rows and ranked boards
+  if (world && Array.isArray(world.sections)) {
+    for (const s of world.sections) {
+      if (s.type === 'cards') for (const c of s.cards || []) metricsGrid.appendChild(metricCard(c.label, c.value, c.sub))
+      if (s.type === 'board') metricsGrid.appendChild(metricBoard(s.title, s.rows || []))
+    }
+    const when = world.updatedAt ? new Date(world.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+    metricsGrid.appendChild(el('div', 'metrics-footnote' + (world.stale ? ' metrics-footnote--stale' : ''),
+      world.stale ? `Last updated ${when}; the server has not reported since.` : `Updated ${when}. Refreshes every minute.`))
+  }
 
   const connects    = m['skymp_connects_total']    ?? null
   const disconnects = m['skymp_disconnects_total'] ?? null
-  const online      = (connects !== null && disconnects !== null)
-    ? Math.max(0, connects - disconnects)
-    : null
-
   const logins      = m['skymp_logins_total']       ?? null
   const loginErrors = m['skymp_login_errors_total'] ?? null
-  const rpcs        = m['skymp_rpc_calls_total']    ?? null
   const tickAvg     = m['skymp_tick_duration_seconds_sum'] != null && m['skymp_tick_duration_seconds_count']
     ? (m['skymp_tick_duration_seconds_sum'] / m['skymp_tick_duration_seconds_count'] * 1000)
     : null
 
   const fmt = v => v != null ? v.toLocaleString() : '—'
-  const fmtMs = v => v != null ? `${v.toFixed(1)} ms` : '—'
+  if (!world && connects !== null && disconnects !== null) {
+    metricsGrid.appendChild(metricCard('Online Now', fmt(Math.max(0, connects - disconnects)), `${fmt(connects)} connects / ${fmt(disconnects)} disconnects`))
+  }
+  if (logins !== null) metricsGrid.appendChild(metricCard('Total Logins', fmt(logins), loginErrors !== null ? `${fmt(loginErrors)} errors` : null))
+  if (tickAvg !== null) metricsGrid.appendChild(metricCard('Avg Tick Duration', `${tickAvg.toFixed(1)} ms`, null))
+}
 
-  metricsGrid.appendChild(metricCard('Online Now',       fmt(online),      online !== null ? `${fmt(connects)} connects / ${fmt(disconnects)} disconnects` : null))
-  metricsGrid.appendChild(metricCard('Total Logins',     fmt(logins),      loginErrors !== null ? `${fmt(loginErrors)} errors` : null))
-  metricsGrid.appendChild(metricCard('RPC Calls',        fmt(rpcs),        null))
-  metricsGrid.appendChild(metricCard('Avg Tick Duration', fmtMs(tickAvg),  null))
+function metricBoard(title, rows) {
+  const board = el('div', 'metric-board')
+  board.appendChild(el('div', 'metric-label', title))
+  if (!rows.length) board.appendChild(el('div', 'metric-sub', 'No characters yet.'))
+  for (const r of rows) {
+    const row = el('div', 'metric-board-row' + (r.rank === 1 ? ' metric-board-row--first' : ''))
+    row.appendChild(el('span', 'metric-board-rank', String(r.rank)))
+    row.appendChild(el('span', 'metric-board-label', r.label))
+    const bar = el('span', 'metric-board-bar')
+    const fill = el('span', 'metric-board-fill')
+    fill.style.width = `${Math.max(4, Math.round((Number(r.share) || 0) * 100))}%`
+    bar.appendChild(fill)
+    row.appendChild(bar)
+    row.appendChild(el('span', 'metric-board-value', r.value))
+    board.appendChild(row)
+  }
+  return board
 }
 
 // Init
