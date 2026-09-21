@@ -92,6 +92,13 @@ npm run merge         # builds skymp-client.zip and data/files-version.json
 `populate` deliberately skips plugins and deletes the folder first. If you run `populate` and then
 `merge` straight away, the 9 plugins are gone and players cannot load the game.
 
+**Second trap (2026-09-21): `populate` needs the full CI client build.** A box that only runs
+`npm run build` in `skymp5-client` has `skymp5-client.js` alone in `fork/build/dist/client/Data`;
+the DLLs, CEF runtime and UI come from CI. `populate` still wipes `root/Data` first, then warns
+`required client files are MISSING`. Recover by extracting the last good `skymp-client.zip` into
+`root/`, compare it against a working game `Data` folder, then copy the current `skymp5-client.js`
+and the 9 plugins over it and `merge`. Skip `populate` entirely on such a box.
+
 **Never modify `skymp-client.zip` in place** with .NET `ZipArchive` (PowerShell `Compress-Archive
 -Update` and similar). The launcher extracts with `adm-zip`, which cannot read the result, and fails
 with `ADM-ZIP: No descriptor present` after a full download. Always rebuild with `npm run merge`.
@@ -110,6 +117,11 @@ Bump it when the zip changes so launchers pick up the new zip.
 ## Fix these before players install
 
 ### A. The published zip's `DragonBreak Online Edits.esp` is stale
+
+**Fixed 2026-09-21 18:08 UTC:** client package **0.3.3** is published on the dev server (which serves
+`dragonbreakonline.com`) with all 9 plugins matching `deploy/skyrim-data/SHA256SUMS` (DLE is now
+`a13379432b16`, the Auri-El shrine version). Checked with adm-zip (246/246 hashes) and by downloading it
+back through the public URL. The history below is kept for the record.
 
 The zip in `build/client-files` (built 2026-09-20 22:47) holds a copy of `DragonBreak Online
 Edits.esp` from **20:27:46** (4 340 414 bytes, sha `252135a1eb04`). The server and dev copies were
