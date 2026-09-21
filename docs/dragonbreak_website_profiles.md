@@ -40,8 +40,11 @@ its own redirect URI and its own session store. The launcher flow is not reused 
 creates a profile id and a `players.json` row for every visitor and mints a game token;
 the dashboard flow is for staff only.
 
-1. `GET /api/site/login` sets the `db_site_state` cookie (32 random bytes,
-   `Path=/api/site/callback`, 10 minutes) and redirects to Discord with scope `identify`.
+1. `GET /api/site/login` first sends a visitor on any other host (for example `www.`) to
+   the same path on the host of `DISCORD_SITE_REDIRECT_URI`, because the state cookie is
+   host-only and Discord returns to that host. There it sets the `db_site_state` cookie
+   (32 random bytes, `Path=/api/site/callback`, 10 minutes) and redirects to Discord with
+   scope `identify`.
 2. Discord redirects to `GET /api/site/callback`. The backend clears the state cookie and
    compares it with the `state` query in constant time before any Discord call. Then it
    exchanges the code, reads `/users/@me`, stores a session and sets `db_site`
@@ -81,7 +84,7 @@ redirects, errors and 404s. No route takes a profile id or form id from the brow
 
 | Route | Needs | Responses |
 |---|---|---|
-| `GET /api/site/login` | nothing | 302 to Discord. 302 to `/profile.html?error=unconfigured` when `DISCORD_CLIENT_ID` is empty. |
+| `GET /api/site/login` | nothing | 302 to Discord. 302 to `/profile.html?error=unconfigured` when `DISCORD_CLIENT_ID` is empty. 302 to `/api/site/login` on the redirect URI's host when the request came in on another host. |
 | `GET /api/site/callback` | state cookie | 302 to `/profile.html` on success. On failure 302 to `/profile.html?error=cancelled` (Discord sent `?error`), `?error=state` (state cookie missing or different; Discord is not called) or `?error=discord` (no code, or Discord refused or failed). Plain-text 429 over the rate limit. |
 | `GET /api/site/whoami` | cookie (optional) | 200 `{"signedIn":false}`, or 200 with the account shape below. 500 `{"error":"internal"}` on an unexpected error. |
 | `GET /api/site/access` | cookie | 200 `{"allowed":...,"reason":...}`, see [access](#access). 401 `{"error":"signedOut"}`. 500 `{"error":"internal"}` on an unexpected error. |
@@ -373,8 +376,10 @@ buttons point at `/api/site/login`, which is a 404 until the nginx block exists.
    ```
 
    `proxy_pass` must be the same target as the existing `/api/users/login-discord` block
-   (the host's forward to the backend's port 4000). `^~` keeps the regex locations, such
-   as the `.zip` rule, from matching these paths. Do not add it to `:80`. Then run
+   (the host's forward to the backend's port 4000). Keep `proxy_set_header Host $host`:
+   `/api/site/login` compares the visitor's host with the redirect URI's host. `^~` keeps
+   the regex locations, such as the `.zip` rule, from matching these paths. Do not add it
+   to `:80`. Then run
    `docker exec <container> nginx -t && docker exec <container> nginx -s reload`, and from
    outside `curl -si https://dragonbreakonline.com/api/site/whoami` gives
    `{"signedIn":false}`.
@@ -431,7 +436,8 @@ to roll back: the updater resets that checkout to `origin/main`.
 |---|---|
 | Home page buttons give 404, or the profile page says "public site only" on the public address | The nginx `/api/site/` block is missing from `:81`. |
 | `?error=unconfigured` | `DISCORD_CLIENT_ID` is empty in `backend.env`. |
-| `?error=state` | The state cookie did not come back: the sign-in started on another host (LAN, `www.`), took over 10 minutes, or the browser blocks cookies. |
+| `?error=state` | The state cookie did not come back: the sign-in took over 10 minutes or the browser blocks cookies. |
+| "Too many redirects" on sign-in | The nginx `/api/site/` block does not pass `Host`, so the backend never sees the redirect URI's host and `/login` keeps redirecting. |
 | `?error=discord` | The redirect is not registered in the Discord portal or differs from `DISCORD_SITE_REDIRECT_URI`, the client secret is wrong, or Discord is unreachable. The backend log has `[site-auth] callback error:` with Discord's reason. |
 | "Sign-out failed" | 403 `badOrigin`: `WEBSITE_URL` is not the page's origin. |
 | "Your characters cannot be read right now" | 503 `storeUnavailable`: `CHANGEFORMS_DIR` is missing or unreadable (`[site-auth] changeForms store unreadable` in the log). |

@@ -39,6 +39,10 @@ const SECURE = config.websiteUrl.startsWith('https:')
 let websiteOrigin = null
 try { websiteOrigin = new URL(config.websiteUrl).origin } catch { /* malformed WEBSITE_URL: logout refuses every Origin */ }
 
+// Sign-in must start on the host Discord returns to, or the host-only state cookie never comes back
+let loginUrl = null
+try { loginUrl = new URL('/api/site/login', config.discordSiteRedirectUri) } catch { /* malformed redirect URI: sign-in starts on any host */ }
+
 // Every website user reaches the backend through the same proxy hop; Cloudflare puts the visitor's own address in CF-Connecting-IP
 function visitorIp(req) {
   const ip = req.get('cf-connecting-ip')
@@ -199,10 +203,11 @@ function toSiteCharacter({ cf, char, mtime }, names, account) {
 }
 
 // GET /api/site/login: binds a random state to this browser, then sends it to Discord
-router.get('/login', (_req, res) => {
+router.get('/login', (req, res) => {
   if (!config.discordClientId || !config.discordSiteRedirectUri) {
     return res.redirect(`${PROFILE_PAGE}?error=unconfigured`)
   }
+  if (loginUrl && String(req.hostname || '').toLowerCase() !== loginUrl.hostname) return res.redirect(loginUrl.href)
   const state = crypto.randomBytes(32).toString('hex')
   setCookie(res, STATE_COOKIE, state, CALLBACK_PATH, STATE_TTL_MS)
   res.redirect(oauth.authorizeUrl({ redirectUri: config.discordSiteRedirectUri, state }))
