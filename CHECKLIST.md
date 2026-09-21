@@ -86,8 +86,8 @@ So the run took the one open item of the same shape as queue item 1, from the 21
   **Local server booted 07:11: 12 `[error]` lines (the baseline), skills/prayer/stations boot lines
   unchanged**, then stopped again because it was not running before. Backup
   `_dist_back-backups\before-skin-20260921-071049`.
-- [ ] **Not deployed to the server PC** (`10.0.0.132`). This run only reached the local copy. To go
-  live there: copy `server\dist_back\skymp5-server.js(.map)` and `server\gamemode.js`, restart node.
+- [ ] **Not deployed to production.** This run only reached the local copy. (The home server PC
+  `10.0.0.132` was retired later on 2026-09-21; production is Jake's host.) To go live: copy `server\dist_back\skymp5-server.js(.map)` and `server\gamemode.js`, restart node.
   The bundle change needs the restart; `gamemode.js` alone would emit an event the old bundle drops.
 - [ ] **Unplayed.** Ready to test: take up Skinner at a tanning rack, skin a fox, the K menu should move.
 - [ ] Committed locally in both repos, **not pushed** (no say-so this run).
