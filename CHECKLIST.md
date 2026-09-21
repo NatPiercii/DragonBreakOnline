@@ -1,5 +1,37 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-21 (13:00 CDT): the dev server now runs DragonBreak
+
+The dev server (`ssh dragonbreak-dev`, the `skymp` LXC on Jake's host, also what `dragonbreakonline.com`
+serves the launcher from) was running a different world: Jake's 96-plugin order without any DragonBreak
+plugin, and the fork's 2 KB placeholder gamemode. Nat chose the full switch. How to work with the box is
+in the root `CLAUDE.md`, section "The development server".
+
+- [x] **GitHub first**: `backup-git.cmd`, then `fork` `14c0cd9` (`deploy/skyrim-data` `loadorder.txt` +
+  `SHA256SUMS` = our 105 plugins, the source of truth Jake's tooling reads) and this commit.
+- [x] **Switched 17:44 UTC**: 105 plugins verified by SHA-256 in `/opt/skyrim-data`; the gameplay layer beside
+  the build with `gamemodePath: dbo-gamemode.js` (the auto-updater's build overwrites `gamemode.js` with the
+  placeholder); settings merged (loadOrder, startPoints, blockedSpells, characterSelect, movementValidation...,
+  Discord `master`/auth keys untouched); **fresh world**. Backup `/opt/skymp-backups/pre-dragonbreak-20260921T174415Z`,
+  old plugins `/opt/skyrim-data.bak-20260921T174415Z`. Record: `fork\deploy\skyrim-data\switch-ct-to-dragonbreak.sh`.
+- [x] Boot: skills 113/129 resolved, 18 skills with marker spells, hub found, Bruma lock on, prayer 26/26
+  reachable, **1 `[error]`** (`discordAuth is missing, skipping Discord ban system` - pre-existing).
+  The 17:49 auto-update left it alone; a `deploy-gameplay` hot reload works.
+- [x] `bash dev-server.sh deploy-gameplay` (new): tracked `server\*.js/json` -> live, one reload, keeps the
+  server's `admins`.
+
+### Open - decisions for Nat
+
+- [ ] **Players cannot launch until the plugins reach them.** The backend still serves the 2026-09-18 client
+  zip (v0.3.2) with none of the 9 DragonBreak/Lost Ark plugins, and the launcher refuses to start the game
+  when a load-order plugin is missing. Today only a manual install of `_release\DragonBreak-plugins-*.zip`
+  gets someone in. Fix: rebuild the zip (LAUNCHER_FILES_GUIDE) now, and build the per-file launcher sync
+  (memory note `launcher-must-sync-non-nexus-files`) for plugins + BSAs + assets.
+- [ ] **Admins on the dev server**: `gamemode-config.json` `admins` shipped **empty** (the local `[1]` is an
+  offline test id; on Discord, profile 1 is whoever registered first). Set Discord `adminRoles` or real ids.
+- [ ] `discordAuth` is missing from the server settings, so the Discord ban system is off.
+- [ ] Old characters on the dev server were not migrated (fresh world; 13 files backed up).
+
 ## Added 2026-09-21 (11:25): Auri-El has a shrine in Bruma
 
 - [x] **Nat placed `DLC1ShrineofAuriel`** (`Dawnguard.esm:00C86B`, the base `skills.json` already names)
