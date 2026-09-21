@@ -30,9 +30,9 @@ export interface Zone {
 
 const ZONES_FILE = "zones.json";
 const OFFICIALS_FILE = "officials.json";
-const TAMRIEL_DESCS = ["3c:Skyrim.esm"];
+const TAMRIEL_DESCS = ["3c:skyrim.esm"];
 // City worldspaces share Tamriel's coordinate frame, so a board in WhiterunWorld resolves like one outside the walls.
-const CITY_WORLD_DESCS = ["1a26f:Skyrim.esm", "1691d:Skyrim.esm", "16bb4:Skyrim.esm", "16d71:Skyrim.esm", "37edf:Skyrim.esm"];
+const CITY_WORLD_DESCS = ["1a26f:skyrim.esm", "1691d:skyrim.esm", "16bb4:skyrim.esm", "16d71:skyrim.esm", "37edf:skyrim.esm"];
 
 const numList = (v: unknown): number[] => Array.isArray(v) ? v.map(Number).filter(Number.isFinite) : [];
 const strList = (v: unknown): string[] => Array.isArray(v) ? v.map(String) : [];

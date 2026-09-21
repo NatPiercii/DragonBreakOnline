@@ -4,7 +4,7 @@ import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { espmRefrFieldId } from "./formIdUtil";
 import { readAdminRoleConfig, adminTierOf, AdminRoleConfig } from "./adminRoles";
-import { getZones, Zones, Zone } from "./zones";
+import { getZones, Zones, Zone, normDesc } from "./zones";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -54,9 +54,12 @@ const DEFAULT_BASE_DESCS = [
   "900:DragonBreak Harvest.esp",    // RP_NoticeBoard
   "901:DragonBreak Harvest.esp",    // RP_NoticeBoardCandle
   "902:DragonBreak Harvest.esp",    // RP_NoticeBoardWall
+  "360ba:Gray Fox Cowl.esm",        // manny_GF_Cont_AlikrNoticeBoard
 ];
 
 const STORE_FILE = "notice-boards.json";
+// Every placed board (ck-mcp/board_spots.py), so static boards and unclicked ones are reachable by N and /board
+const SPOTS_FILE = "notice-board-spots.json";
 const GOLD_BASE_ID = 0x0000000f;
 
 const DEFAULT_COST_GOLD = 30;
@@ -149,6 +152,7 @@ export class BountyBoardSystem implements System {
     }
     this.storePath = path.join(this.zones.dataDir || process.cwd(), STORE_FILE);
     this.loadStore();
+    this.loadSpots(mp);
 
     this.installActivationHook(ctx);
     // A character switch mid-connection voids the session, same as trade.
@@ -244,12 +248,12 @@ export class BountyBoardSystem implements System {
     try { pos = mp.get(actorId, "pos"); } catch { return null; }
     if (!Array.isArray(pos)) return null;
     let where = "";
-    try { where = String(mp.get(actorId, "worldOrCellDesc") || ""); } catch { /* distance check only */ }
+    try { where = normDesc(mp.get(actorId, "worldOrCellDesc")); } catch { /* distance check only */ }
     let best: BoardSession | null = null;
     let bestD2 = this.maxDistance * this.maxDistance;
     this.knownBoards.forEach((zoneId, refrId) => {
       const spot = this.boardSpot(ctx, refrId);
-      if (!spot || (where && spot.where && spot.where !== where)) return;
+      if (!spot || (where && spot.where && normDesc(spot.where) !== where)) return;
       const dx = Number(pos[0]) - spot.pos[0];
       const dy = Number(pos[1]) - spot.pos[1];
       const dz = Number(pos[2]) - spot.pos[2];
@@ -512,6 +516,28 @@ export class BountyBoardSystem implements System {
   // ── Board resolution ────────────────────────────────────────────────────────
 
   // A placed ref with a board base belongs to the zone its position falls in.
+  private loadSpots(mp: Mp): void {
+    const file = path.join(this.zones.dataDir || process.cwd(), SPOTS_FILE);
+    let spots: any[] = [];
+    try { spots = JSON.parse(fs.readFileSync(file, "utf8")).spots || []; }
+    catch (e) { this.log(`[board] ${SPOTS_FILE} unreadable, only boards someone activates are known: ${e}`); return; }
+    let seeded = 0;
+    const unzoned: string[] = [];
+    for (const s of spots) {
+      const pos = Array.isArray(s && s.pos) ? s.pos.map(Number) : [];
+      if (pos.length < 3 || !s.ref || !s.where) continue;
+      let refrId = 0;
+      try { refrId = mp.getIdFromDesc(String(s.ref)) >>> 0; } catch { /* plugin not loaded */ }
+      if (!refrId) continue;
+      const zone = s.zone ? this.zones.byId(String(s.zone)) : this.zones.zoneAt(s.where, pos);
+      if (!zone) { unzoned.push(String(s.ref)); continue; }
+      this.spotCache.set(refrId, { pos, where: String(s.where) });
+      this.knownBoards.set(refrId, zone.id);
+      seeded++;
+    }
+    this.log(`[board] ${seeded} of ${spots.length} placed boards known${unzoned.length ? `, outside every zone: ${unzoned.join(", ")}` : ""}`);
+  }
+
   private zoneOfBoard(ctx: SystemContext, refrId: number): Zone | null {
     if (!this.boardBaseIds.size || !refrId) return null;
     const known = this.knownBoards.get(refrId);
