@@ -130,6 +130,7 @@ const backendEnv = [
   { key: 'SITE_SESSION_TTL_HOURS', label: 'Website sign-in hours', type: 'number', group: 'Website profiles', help: 'How long a website sign-in lasts. Empty = 24.' },
   { key: 'CHANGEFORMS_DIR',        label: 'Character store',       type: 'text',   group: 'Website profiles', help: 'The game server\'s <databaseName>/changeForms folder, read for the profile page. Empty = build/dist/server/world/changeForms.' },
   { key: 'NAME_TABLE_PATH',        label: 'Name table',            type: 'text',   group: 'Website profiles', help: 'name-table.json the game server writes at start, for race and place names on the profile page. Empty = two folders above the character store.' },
+  { key: 'ZONES_DIR',              label: 'Zones folder',          type: 'text',   group: 'Website profiles', help: 'Folder with the game server\'s zones.json and officials.json, for hold titles on the profile page. Empty = the name table\'s folder.' },
   { key: 'SITE_SHOW_LOCATION',     label: 'Show location',         type: 'select', group: 'Website profiles', options: ['on', 'off'], help: 'Profile page shows the worldspace or cell name a character is in, never coordinates. Empty = on.' },
   { key: 'SITE_SHOW_FACTIONS',     label: 'Show faction titles',   type: 'select', group: 'Website profiles', options: ['on', 'off'], help: 'Profile page shows faction and hold titles. Empty = on.' },
 

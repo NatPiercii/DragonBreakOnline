@@ -9,6 +9,7 @@ const WEBSITE_URL = process.env.WEBSITE_URL || 'http://localhost:4001'
 const SITE_SESSION_TTL_HOURS = parseFloat(process.env.SITE_SESSION_TTL_HOURS)
 const CHANGEFORMS_DIR = process.env.CHANGEFORMS_DIR
   || path.join(__dirname, '..', 'build', 'dist', 'server', 'world', 'changeForms')
+const NAME_TABLE_PATH = process.env.NAME_TABLE_PATH || path.join(CHANGEFORMS_DIR, '..', '..', 'name-table.json')
 
 // Website profile switches: 'off' hides the field; unset, empty or 'on' shows it
 const siteShows = (value) => String(value || '').trim().toLowerCase() !== 'off'
@@ -25,7 +26,9 @@ module.exports = {
   // Game server's file-database character store (<server dir>/<databaseName>/changeForms), read by the website profile routes
   changeFormsDir: CHANGEFORMS_DIR,
   // name-table.json the game server writes into its working directory at start (race and place names)
-  nameTablePath: process.env.NAME_TABLE_PATH || path.join(CHANGEFORMS_DIR, '..', '..', 'name-table.json'),
+  nameTablePath: NAME_TABLE_PATH,
+  // Folder with the game server's zones.json and officials.json (hold offices); the gamemode keeps both in its working directory
+  zonesDir: process.env.ZONES_DIR || path.dirname(NAME_TABLE_PATH),
 
   // Game server connection (used for status checks and metrics)
   skyrimServerHost: process.env.SKYMP_HOST || '127.0.0.1',
@@ -84,6 +87,8 @@ module.exports = {
   siteSessionTtlHours: SITE_SESSION_TTL_HOURS > 0 ? SITE_SESSION_TTL_HOURS : 24,
   // Profile page shows the worldspace or cell name a character is in, never coordinates
   siteShowLocation: siteShows(process.env.SITE_SHOW_LOCATION),
+  // Profile page shows the faction and hold titles the player holds
+  siteShowFactions: siteShows(process.env.SITE_SHOW_FACTIONS),
 
   // Discord bot (role-based access): token/guild used to fetch member roles at login; the bot needs "Server Members Intent" enabled in the Developer Portal
   discordBotToken: process.env.DISCORD_BOT_TOKEN || '',

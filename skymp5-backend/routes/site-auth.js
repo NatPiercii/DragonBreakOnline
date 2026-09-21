@@ -12,6 +12,8 @@ const players       = require('../sources/players')
 const profiles      = require('../sources/profiles')
 const serverAccess  = require('../sources/serverAccess')
 const nameTable     = require('../sources/nameTable')
+const officials     = require('../sources/officials')
+const factions      = require('../sources/factionWhitelist')
 const { charFromCf, fileChangeForms } = require('../sources/characters')
 
 const STATE_COOKIE   = 'db_site_state'
@@ -120,8 +122,32 @@ function characterStatus(cf, char, df) {
   return 'alive'
 }
 
+// Titles for every character of the account: hold offices are per profile, faction rows per Discord id with an optional character slot
+function accountTitles(profileId, discordId) {
+  let rows = []
+  try { rows = factions.getPlayerGameFactions(discordId) }
+  catch (err) { console.error('[site-auth] faction whitelist unreadable:', err.message) }
+  return { offices: officials.officesOf(profileId), factions: rows }
+}
+
+// The titles the game applies to the character in this slot: offices first like housingSystem.holdRanks, then faction rows for every slot or this one (filterAccessForSlot)
+function titlesOf(account, slot) {
+  const rows   = account.factions.filter(f => f.slot === null || (Number.isInteger(slot) && f.slot === slot))
+  const seen   = new Set()
+  const titles = []
+  for (const { title, group } of [...account.offices, ...rows]) {
+    if (typeof title !== 'string' || !title) continue
+    const groupName = typeof group === 'string' ? group : ''
+    const key       = `${title}\n${groupName}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    titles.push({ title, group: groupName })
+  }
+  return titles
+}
+
 // Built field by field: nothing from the changeform is passed through whole, and position is never read
-function toSiteCharacter({ cf, char, mtime }, names) {
+function toSiteCharacter({ cf, char, mtime }, names, account) {
   const df         = dynamicFields(cf)
   const appearance = char.appearance
   const mastery    = df['private.mastery']
@@ -143,6 +169,7 @@ function toSiteCharacter({ cf, char, mtime }, names) {
     tag:        typeof tag === 'string' && tag.length === 4 ? tag : null,
     race:       nameTable.raceOf(names, appearance && appearance.raceId),
     location:   config.siteShowLocation ? nameTable.placeOf(names, char.worldOrCell) : null,
+    titles:     account ? titlesOf(account, df['private.charSlot']) : null,
     lastSaved:  mtime.toISOString(),
   }
 }
@@ -230,10 +257,11 @@ router.get('/characters', (req, res) => {
   }
 
   const names      = nameTable.load()
+  const account    = config.siteShowFactions ? accountTitles(profileId, session.discordId) : null
   const characters = forms
     .filter(({ cf, char }) => char.profileId === profileId && !char.deleted && ownedBy(cf, session.discordId))
     .sort((a, b) => parseInt(a.char.formDesc, 16) - parseInt(b.char.formDesc, 16))
-    .map(form => toSiteCharacter(form, names))
+    .map(form => toSiteCharacter(form, names, account))
   res.json({ characters })
 })
 
