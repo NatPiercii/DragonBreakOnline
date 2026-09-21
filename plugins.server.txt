@@ -19,8 +19,6 @@
 *TrueHUD.esl
 *Sentinel - Master Plugin.esp
 *DragonBreak Built.esp
-*RaceMenu.esp
-*RaceMenuPlugin.esp
 *JKs Skyrim.esp
 *WindhelmSSE.esp
 *JK's Whiterun's Outskirts.esp
@@ -43,6 +41,8 @@
 *DragonBreak Whiterun.esp
 *notice board.esp
 *SkyUI_SE.esp
+*RaceMenu.esp
+*RaceMenuPlugin.esp
 *JK's Markarth Outskirts.esp
 *XPMSE.esp
 *JK's Riften Outskirts.esp
