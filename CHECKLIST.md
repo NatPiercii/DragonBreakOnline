@@ -32,7 +32,7 @@ in the root `CLAUDE.md`, section "The development server".
   live server: 148/148 downloaded and verified in 193 s, recheck 0.2 s, repairs exactly the damaged files.
 - [x] `bash dev-server.sh deploy-plugins` (new): the 9 plugins -> game server (restart only if changed) +
   sync folder + `SHA256SUMS`. No-op run verified.
-- [ ] **Launcher 2.1.17 is built, not released** (`fork\build\launcher\DragonBreakLauncher.exe`, contents
+- [x] **Launcher 2.1.17 RELEASED** 18:5x UTC: GitHub `launcher-v2.1.17` (asset sha256 `230cafdc...`, identical to the build), `routes/version.js` offers it (`6d7e70a`); `dragonbreakonline.com/api/version` confirms. Nat tested it first. Was: built, not released (`fork\build\launcher\DragonBreakLauncher.exe`, contents
   checked). Nat: install it, press Play once, then publish GitHub release `launcher-v2.1.17` with that exe
   and bump `LATEST_VERSION` + `DOWNLOAD_URL` in `skymp5-backend/routes/version.js`. Until then players still
   need `_release\DragonBreak-assets-*.zip` by hand for the BSAs and meshes.
