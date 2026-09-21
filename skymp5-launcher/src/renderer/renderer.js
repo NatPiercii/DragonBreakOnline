@@ -196,13 +196,13 @@ async function loadGameSettingsTab() {
     if (h && h.ok) {
       const chat = Array.isArray(h.chatFocus) ? (h.chatFocus.find(c => c !== 28) || h.chatFocus[0] || 20) : 20
       setKey('hk-chat', chat)
-      setKey('hk-cursor', h.freeCursor != null ? h.freeCursor : 64)
-      setKey('hk-housing', h.housing != null ? h.housing : 35)
+      setKey('hk-cursor', h.freeCursor != null ? h.freeCursor : 66)
+      setKey('hk-housing', h.housing != null ? h.housing : 45)
       setKey('hk-personal', h.personal != null ? h.personal : 22)
-      setKey('hk-faction', h.faction != null ? h.faction : 34)
+      setKey('hk-faction', h.faction != null ? h.faction : 61)
       setKey('hk-voice-ptt', h.voicePtt != null ? h.voicePtt : 47)
       setKey('hk-admin', h.adminMenu != null ? h.adminMenu : 65)
-      setKey('hk-hide-ui', h.hideUi != null ? h.hideUi : 59)
+      setKey('hk-hide-ui', h.hideUi != null ? h.hideUi : 60)
     }
   } catch (err) { /* settings tab is best-effort */ }
 }

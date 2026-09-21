@@ -446,6 +446,7 @@ ipcMain.handle('graphics:save', (_e, g) => {
 ipcMain.handle('hotkeys:load', () => {
   try {
     const c = readClientSettings()
+    migrateHotkeyDefaults(c)
     const numOrNull = (v) => (typeof v === 'number' ? v : null)
     return {
       ok: true,
@@ -468,6 +469,7 @@ ipcMain.handle('hotkeys:save', (_e, h) => {
   try {
     h = h || {}
     const c = readClientSettings()
+    migrateHotkeyDefaults(c)
     if (Array.isArray(h.chatFocus))        c.chatFocusKeyCodes  = h.chatFocus.filter(n => typeof n === 'number')
     if (typeof h.freeCursor === 'number')  c.freeCursorKeyCode  = h.freeCursor
     if (typeof h.housing === 'number')     c.housingMenuKeyCode = h.housing
@@ -2913,16 +2915,25 @@ async function runMO2Install(opts = {}) {
  * @param {object} srv        Active server entry { address, port }
  * @param {object} serverInfo Cached serverinfo { offlineMode, masterKey, masterUrl }
  */
+// Moves bindings still on the pre-2.1.19 defaults (faction G, cursor F6, housing H, hide UI F1) to the current ones
+function migrateHotkeyDefaults(prev) {
+  if (prev.dboHotkeyDefaults >= 2) return
+  const old = { factionMenuKeyCode: [34, 61], freeCursorKeyCode: [64, 66], housingMenuKeyCode: [35, 45], hideUiKeyCode: [59, 60] }
+  for (const [k, [from, to]] of Object.entries(old)) if (prev[k] === from) prev[k] = to
+  prev.dboHotkeyDefaults = 2
+}
+
 function writeClientSettings(destPath, srv, serverInfo) {
   // Start fresh every time - do not preserve stale keys from previous writes.
   // Exception: user hotkey bindings, owned by the settings UI; a launch must never reset them to defaults.
   const HOTKEY_KEYS = [
     'chatFocusKeyCodes', 'freeCursorKeyCode', 'housingMenuKeyCode',
     'factionMenuKeyCode', 'personalMenuKeyCode',
-    'voicePushToTalkKeyCode', 'adminMenuKeyCode', 'hideUiKeyCode',
+    'voicePushToTalkKeyCode', 'adminMenuKeyCode', 'hideUiKeyCode', 'dboHotkeyDefaults',
   ]
   let prev = {}
   try { prev = JSON.parse(fs.readFileSync(destPath, 'utf8')) || {} } catch { /* first run */ }
+  migrateHotkeyDefaults(prev)
   const settings = {}
   for (const k of HOTKEY_KEYS) if (prev[k] !== undefined) settings[k] = prev[k]
 
