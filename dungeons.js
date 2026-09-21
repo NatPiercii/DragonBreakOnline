@@ -22,7 +22,14 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg, every } = api;
-  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  // goldChance/goldMult: coin used to be in EVERY container - chestLoot always added some, smallLoot
+  // added some half the time, and smallLoot's "nothing rolled" fallback added some again. With ~88
+  // containers in a lease that is a flood. Now a chest carries coin goldChance of the time and the
+  // amount is scaled by goldMult. A boss chest always carries coin whatever goldChance says.
+  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  const GOLD_CHANCE = Math.max(0, Math.min(1, Number(C.goldChance)));
+  const GOLD_MULT = Math.max(0, Number(C.goldMult));
+  const goldAmount = (n) => Math.max(1, Math.round(n * GOLD_MULT));
   const GATE_WIDGET_ID = 31;
   const LOCKPICK_BASE = 0x0000000a;
   const GOLD_BASE = 0x0000000f;
@@ -255,7 +262,7 @@ module.exports = (api) => {
   const addEntry = (entries, item, count) => { if (!item) return; const id = idOf(item.id); if (!id) return; const hit = entries.find((e) => e.baseId === id); if (hit) hit.count += count; else entries.push({ baseId: id, count }); };
   const chestLoot = (diff, boss, ok = ALL_OK) => {
     const entries = [];
-    addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)));
+    if (boss || Math.random() < GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)));
     if (boss || Math.random() < 0.45) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), rnd(1, 2));
     if (boss && Math.random() < 0.7) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
     if (Math.random() < 0.4) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 3));
@@ -274,12 +281,14 @@ module.exports = (api) => {
   const smallLoot = (diff, edid, ok = ALL_OK) => {
     const entries = [];
     const foodish = /food|barrel|basket|sack|cupboard|pantry|crate/i.test(edid || '');
-    if (Math.random() < (foodish ? 0.25 : 0.5)) addEntry(entries, { id: 'f:Skyrim.esm' }, rnd(1, Math.max(2, diff.gold[0] * 2)));
+    if (Math.random() < (foodish ? 0.5 : 1) * GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, Math.max(2, diff.gold[0] * 2))));
     if (Math.random() < (foodish ? 0.8 : 0.35)) addEntry(entries, pickFrom(pool('food', 0, ok)), rnd(1, 2));
     if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 2));
     if (Math.random() < 0.15) addEntry(entries, pickFrom(potionPool(Math.max(0, diff.potionTier - 1), ok)), 1);
     if (Math.random() < 0.12) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(3, 8));
-    if (!entries.length) addEntry(entries, { id: 'f:Skyrim.esm' }, rnd(1, 3));
+    // An urn that rolled nothing used to be topped up with coin, which is a third guaranteed source.
+    // Most of the time it should simply be empty; looting a bare sack is honest.
+    if (!entries.length && Math.random() < GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, 3)));
     return entries;
   };
   const fillChests = (d, diff, lease) => {

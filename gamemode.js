@@ -1624,6 +1624,12 @@ const stashPelts = (actorId) => {
 const SKIN_WIDGET_ID = 33;
 const SKIN = Object.assign({
   cuts: 3, misses: 2, seconds: 15,
+  // The most a pelt may be worth at each Skinner rank, and the chance of a second pelt at that rank.
+  // Bands come from the census in ck-mcp\pelts.py: fox and goat 5, deer/wolf/cow 10, horse and ice
+  // wolf 15, sabre cat 25, mountain lion 35, snow sabre cat 40, bear and troll 50-60, snow and brown
+  // bear 75, and one 300 outlier.
+  tierValueCap: [12, 38, 62, 100, 1000000],
+  bonusByTier: [0, 0.1, 0.2, 0.35, 0.5],
   // How far behind the server's clock the widget's may sit: the packet out, the mount in the
   // browser, the report back. Every verdict logs its measured lag ("lag="); read a playtest's worth
   // out of server.log before tightening this.
@@ -1637,7 +1643,28 @@ const skinSessions = globalThis.__dboSkinRounds || (globalThis.__dboSkinRounds =
 const skinSpent = globalThis.__dboSkinSpent || (globalThis.__dboSkinSpent = new Map()); // nonce -> when judged
 const skinDeny = new Map();
 const skinSay = (a, text) => { if (Date.now() - (skinDeny.get(a) || 0) > 1500) { skinDeny.set(a, Date.now()); personal(a, text); } return false; };
-const skinnerTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.order) || !r.order.includes('skinner')) return -1; const p = r.skills && r.skills.skinner; return p ? Math.max(0, Number(p.rank) || 0) : 0; };
+// Anyone may skin a simple animal (Nat's call, 2026-09-20). Holding the trade is no longer the price
+// of entry: it widens the seam, slows the blade, raises the chance of a second pelt, and is what lets
+// you take the rarer beasts at all.
+const skinnerTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.order) || !r.order.includes('skinner')) return 0; const p = r.skills && r.skills.skinner; return p ? Math.max(0, Number(p.rank) || 0) : 0; };
+// A pelt's gold value is the honest rarity signal, and it is already in the record: MISC keeps it at
+// DATA offset 0 (measured over the whole load order by ck-mcp\itemvalues.py). The census that set the
+// bands is ck-mcp\pelts.py: 38 skinnable records running 0 (fox, goat) to 300 (a Windhelm cave bear).
+const peltValueCache = new Map();
+const peltValue = (baseId) => {
+  if (peltValueCache.has(baseId)) return peltValueCache.get(baseId);
+  let v = 0;
+  const rec = recordOf(baseId);
+  const data = rec && (rec.record.fields || []).find((f) => f.type === 'DATA' && f.data instanceof Uint8Array && f.data.byteLength >= 4);
+  if (data) { try { v = new DataView(data.data.buffer, data.data.byteOffset, data.data.byteLength).getUint32(0, true); } catch (e) { v = 0; } }
+  peltValueCache.set(baseId, v);
+  return v;
+};
+const peltsWorth = (pelts) => (pelts || []).reduce((m, p) => Math.max(m, peltValue(Number(p.baseId) >>> 0)), 0);
+// The highest pelt value a tier may take, and what rank the next band needs
+const tierCap = (tier) => { const caps = Array.isArray(SKIN.tierValueCap) ? SKIN.tierValueCap : [12, 38, 62, 100, 1e9]; return Number(caps[Math.min(Math.max(tier, 0), caps.length - 1)]) || 0; };
+const rankForValue = (value) => { const caps = Array.isArray(SKIN.tierValueCap) ? SKIN.tierValueCap : [12, 38, 62, 100, 1e9]; for (let i = 0; i < caps.length; i++) if (value <= Number(caps[i])) return i; return caps.length - 1; };
+const RANK_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
 const edidWords = (edid, fallback) => String(edid || '').replace(/^(CYR|BSK|DLC\d+)?(Enc|Lvl)?/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || fallback;
 const creatureName = (id) => { try { const r = recordOf(mp.getIdFromDesc(String(mp.get(id, 'baseDesc')))); return edidWords(r && r.record.editorId, 'animal').toLowerCase(); } catch (e) { return 'animal'; } };
 // mulberry32: the seams come from the round's seed, so the seed in a verdict line rebuilds the round
@@ -1677,7 +1704,12 @@ globalThis.__dboSkin = (targetId, casterId) => {
   if (!pelts.length) return skinSay(casterId, 'There is nothing worth skinning on this one.');
   if (mp.get(targetId, 'private.dboSkinned') === true) return skinSay(casterId, 'This one has already been skinned.');
   const tier = skinnerTier(casterId);
-  if (tier < 0) return skinSay(casterId, 'Only a Skinner can take the pelt.');
+  // Simple animals for anyone; the rarer the beast, the higher the rank it takes to work the hide.
+  const worth = peltsWorth(pelts);
+  if (worth > tierCap(tier)) {
+    const need = rankForValue(worth);
+    return skinSay(casterId, `This hide is beyond your hand. A ${RANK_NAMES[Math.min(need, RANK_NAMES.length - 1)]} Skinner could take it.`);
+  }
   const round = skinRound(casterId, tier, targetId, creatureName(targetId));
   skinSessions.set(casterId, round);
   openWidget(casterId, skinPacket(round), true);
@@ -1736,7 +1768,8 @@ onUi('skinning', (a, args) => {
   if (win) {
     try { mp.set(ses.corpse, 'private.dboSkinned', true); } catch (e) { /* corpse gone */ }
     for (const p of pelts) {
-      const count = (Number(p.count) || 1) + (ses.tier >= 4 && Math.random() < 0.5 ? 1 : 0);
+      const bonus = Array.isArray(SKIN.bonusByTier) ? Number(SKIN.bonusByTier[Math.min(Math.max(ses.tier, 0), SKIN.bonusByTier.length - 1)]) || 0 : 0;
+      const count = (Number(p.count) || 1) + (Math.random() < bonus ? 1 : 0);
       if (giveItem(a, Number(p.baseId) >>> 0, count)) { const r = recordOf(Number(p.baseId) >>> 0); got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'pelt')}`); }
     }
     text = got.length ? `The hide comes away clean: ${got.join(', ')}.` : 'The hide comes away, but there is nothing to keep.';
@@ -2043,6 +2076,24 @@ const DOOR_NAMES = (() => {
 })();
 log(`door names: ${Object.keys(DOOR_NAMES).length}`);
 
+// ---- can each trade actually be taken up where the players are? --------------------------------
+// Eight skills are opened only by setting a hand on a station, and a station that stands nowhere the
+// region lock allows makes the whole trade unreachable with nothing in the log to say so. That is the
+// shape of the bug the deity pass found for prayer, and Tailor has it today: its looms are all in
+// Skyrim. Regenerate the census with `py ck-mcp\stations.py` after any station or region change.
+try {
+  const census = JSON.parse(fs.readFileSync(path.resolve('station-placements.json'), 'utf8')).skills || {};
+  const dead = [], thin = [], names = [];
+  for (const [id, s] of Object.entries(census)) {
+    if (!s.inPlaytest) dead.push(id); else if (s.inPlaytest < 10) thin.push(`${id} ${s.inPlaytest}`);
+    for (const n of s.unmatchedStationNames || []) names.push(n);
+  }
+  log(`trade stations: ${Object.keys(census).length} gated trade(s), ${dead.length} unreachable under the region lock` +
+      `${dead.length ? ` (${dead.join(', ')} - CANNOT BE TAKEN UP)` : ''}` +
+      `${thin.length ? `, thin: ${thin.join(', ')}` : ''}` +
+      `${names.length ? `, station name(s) matching no record: ${Array.from(new Set(names)).join(', ')}` : ''}`);
+} catch (e) { log('station-placements.json unreadable (run py ck-mcp\\stations.py):', e.message); }
+
 // ---- hunting contracts paid from the zone treasury (server\contracts.js, config "contracts") ---
 try {
   const CONTRACTS_JS = path.resolve('contracts.js');
@@ -2092,4 +2143,7 @@ try {
   delete require.cache[MOVETRACE_JS];
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
+
+
+
 
