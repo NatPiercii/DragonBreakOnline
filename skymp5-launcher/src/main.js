@@ -1371,9 +1371,11 @@ ipcMain.handle('files:updateCheck', async () => {
     // A failed modpack install also flips the Play button to UPDATE so one
     // click re-runs the install and self-heals the incomplete state.
     const modpackFailed = store.get('mo2Enabled') && store.get('modpackState') === 'failed'
+    let extrasCurrent = true
+    try { extrasCurrent = extrasUpToDate(await fetchExtraManifest(), gamePath) } catch { /* backend hiccup: keep Play */ }
     return {
       ok: true,
-      updateAvailable: vd.version !== store.get('filesVersion') || !allPresent || modpackFailed,
+      updateAvailable: vd.version !== store.get('filesVersion') || !allPresent || modpackFailed || !extrasCurrent,
       serverVersion:   vd.version,
     }
   } catch {
@@ -2156,6 +2158,20 @@ async function checkFilesImpl() {
     await yieldNow()
   }
 
+  // DragonBreak files (repaired with the client files, which re-runs syncExtraFiles)
+  if (gameOk) {
+    progress('Checking DragonBreak files…')
+    let ev = null
+    try { ev = await fetchExtraManifest() }
+    catch (err) { notes.push(`DragonBreak files: could not read the server list (${err.message}), section skipped.`) }
+    const files = extraEntries(ev, gamePath)
+    for (let i = 0; i < files.length; i++) {
+      const full = path.join(gamePath, ...files[i].path.split('/'))
+      await verifyFile(full, files[i], show(full), 'client')
+      if ((i + 1) % CHECK_PROGRESS_EVERY === 0) { progress(`Checking DragonBreak files… ${i + 1}/${files.length}`); await yieldNow() }
+    }
+  }
+
   // Modlist
   progress('Fetching the install manifest…')
   let manifest = null
@@ -2304,6 +2320,103 @@ function extractClientZip(zipPath, destDir, onProgress) {
   return total
 }
 
+// Extra files: DragonBreak's own plugins, BSAs and assets that no Nexus page hosts, synced per file from /api/files/extra
+
+const extraFileUrl = rel => `${config.apiUrl}/files/extra/${rel.split('/').map(encodeURIComponent).join('/')}`
+
+async function fetchExtraManifest() {
+  try { return await fetchJSON(`${config.apiUrl}/api/files/extra`) }
+  catch (err) { if (err.statusCode === 404) return null; throw err }
+}
+
+// Entries with a sha256 whose path stays inside the game's Data folder
+function extraEntries(vd, skyrimPath) {
+  const data = path.resolve(skyrimPath, 'Data') + path.sep
+  return (vd && Array.isArray(vd.files) ? vd.files : []).filter(f =>
+    f && typeof f.path === 'string' && /^[0-9a-f]{64}$/i.test(String(f.sha256)) &&
+    path.resolve(skyrimPath, ...f.path.split('/')).startsWith(data))
+}
+
+// Cheap check for the Play button: same manifest version and every file present at its published size
+function extrasUpToDate(vd, skyrimPath) {
+  if (!vd) return true
+  if (vd.version !== store.get('extraFilesVersion')) return false
+  return extraEntries(vd, skyrimPath).every(f => {
+    try { return fs.statSync(mo2.lp(path.join(skyrimPath, ...f.path.split('/')))).size === f.size } catch { return false }
+  })
+}
+
+async function renameRetry(from, to) {
+  for (let i = 0; ; i++) {
+    try { return fs.renameSync(from, to) } catch (err) {
+      // Defender and a running game briefly lock freshly written files
+      if (i >= 9 || !['EBUSY', 'EPERM', 'EACCES'].includes(err.code)) throw err
+      await new Promise(r => setTimeout(r, 500))
+    }
+  }
+}
+
+async function syncExtraFiles(skyrimPath, force = false) {
+  let vd
+  try { vd = await fetchExtraManifest() } catch (err) { return { success: false, error: `Could not read the DragonBreak file list: ${err.message}` } }
+  if (!vd || (!force && extrasUpToDate(vd, skyrimPath))) return { success: true, count: 0 }
+  const files = extraEntries(vd, skyrimPath)
+  const progress = (file, index, total) => send('install:progress', { phase: 'download', file, index, total, skipped: false })
+
+  // Hashes are cached by size + mtime across launches, so only new or changed files are read in full
+  const cache = store.get('extraHashCache') || {}
+  const stale = []
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i]
+    const full = mo2.lp(path.join(skyrimPath, ...f.path.split('/')))
+    progress(`Checking DragonBreak files… ${i + 1}/${files.length}`, i + 1, files.length)
+    let st = null
+    try { st = fs.statSync(full) } catch { /* missing */ }
+    if (!st || st.size !== f.size) { stale.push(f); continue }
+    const c = cache[f.path]
+    let sha = c && c.size === st.size && c.mtimeMs === st.mtimeMs ? c.sha256 : ''
+    if (!sha) {
+      try { sha = (await mo2.sha256FileAsync(full)).toLowerCase() } catch { stale.push(f); continue }
+      cache[f.path] = { size: st.size, mtimeMs: st.mtimeMs, sha256: sha }
+    }
+    if (sha !== f.sha256.toLowerCase()) stale.push(f)
+  }
+
+  if (stale.length && await gameProcessRunning()) {
+    store.set('extraHashCache', cache)
+    return { success: false, error: 'Close Skyrim first: some DragonBreak files need updating and the game holds them open.' }
+  }
+  const mb = n => (n / 1048576).toFixed(1)
+  const totalBytes = stale.reduce((s, f) => s + f.size, 0)
+  let doneBytes = 0
+  try {
+    for (let i = 0; i < stale.length; i++) {
+      const f = stale[i]
+      const full = mo2.lp(path.join(skyrimPath, ...f.path.split('/')))
+      const part = `${full}.part`
+      fs.mkdirSync(path.dirname(full), { recursive: true })
+      await downloadToFile(extraFileUrl(f.path), part, received =>
+        progress(`Downloading ${f.path.split('/').pop()} (${i + 1}/${stale.length}) ${mb(doneBytes + received)} / ${mb(totalBytes)} MB`, doneBytes + received, totalBytes))
+      const sha = (await mo2.sha256FileAsync(part)).toLowerCase()
+      if (sha !== f.sha256.toLowerCase()) {
+        try { fs.unlinkSync(part) } catch {}
+        throw new Error(`${f.path} arrived damaged (checksum mismatch)`)
+      }
+      await renameRetry(part, full)
+      const st = fs.statSync(full)
+      cache[f.path] = { size: st.size, mtimeMs: st.mtimeMs, sha256: sha }
+      doneBytes += f.size
+    }
+  } catch (err) {
+    store.set('extraHashCache', cache)
+    return { success: false, error: `Updating DragonBreak files failed: ${err.message}` }
+  }
+  store.set('extraHashCache', cache)
+  store.set('extraFilesVersion', vd.version)
+  log(`[extra] ${stale.length} of ${files.length} DragonBreak file(s) updated, version ${vd.version}`)
+  return { success: true, count: stale.length }
+}
+
 // Client files install core
 // Shared by the direct and MO2 installers: version check, download, extract, client settings.
 
@@ -2334,6 +2447,8 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
     const needsDownload = force || serverVersion !== store.get('filesVersion') || !allPresent
 
     if (!needsDownload) {
+      const extras = await syncExtraFiles(skyrimPath)
+      if (!extras.success) return extras
       log('[install] Files up to date, updating settings only')
       writeClientSettings(clientSettingsPath, srv, serverInfo)
       return { success: true, upToDate: true }
@@ -2373,6 +2488,9 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
                'The server admin needs to add the preloader files to the client package and rebuild it (npm run merge).',
       }
     }
+
+    const extras = await syncExtraFiles(skyrimPath, force)
+    if (!extras.success) return extras
 
     // 4. Write server settings
     writeClientSettings(clientSettingsPath, srv, serverInfo)
