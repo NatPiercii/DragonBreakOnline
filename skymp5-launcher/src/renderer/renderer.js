@@ -1051,8 +1051,7 @@ btnConnect.addEventListener('click', async () => {
       return
     }
 
-    // A cached "not allowed" may be stale (role granted since, Discord lookup recovered, login expired): ask again.
-    // updateLockState() is a no-op here because playBusy is set.
+    // A cached "not allowed" may be stale (role granted, lookup recovered, login expired), so ask again
     if (discordUser && !serverAllowed) await loadServerInfo()
 
     // Launch prerequisites. A pending update or first-run install still runs and refreshes the files.
@@ -1217,11 +1216,8 @@ async function loadServerInfo() {
   // `allowed` is session-aware: false only when a valid session was sent and the
   // backend rejected it (locked/not whitelisted).  Without a session it
   // defaults to true - access is re-checked after Discord login.
-  // `sessionExpired` (set by main, which already cleared the stored login) is
-  // checked regardless of discordUser: this can resolve before loadSettings
-  // restores the user, and the expired session's allowed:false must not read as
-  // "not on the whitelist".
   if (info.sessionExpired) {
+    // Main already cleared the login; checked even before loadSettings restores discordUser
     discordUser   = null
     serverAllowed = true
     renderTopbarDiscord()

@@ -587,7 +587,6 @@ ipcMain.handle('gameHotkeys:save', (_e, keys) => {
 //     (resolution is player-owned: it comes from the seeded ini, or the
 //      Settings tab default when the ini doesn't specify one)
 //   • Wait unbound (T, pad Back) → controlmap override (waiting is disabled here)
-//   • controller off → SkyrimPrefs.ini [MAIN] bGamepadEnable=0
 function applyForcedServerDefaults(gamePath) {
   // One-time repair for profiles created before resolution became
   // player-owned: earlier builds force-stamped 1920x1080 into the profile
@@ -624,11 +623,7 @@ function applyForcedServerDefaults(gamePath) {
     }
   }
 
-  // Controller off: with bGamepadEnable=1 (Bethesda's template default, copied in when the profile
-  // prefs are seeded) a keyboard/mouse player spawns unable to move or look although the keys reach
-  // the engine. New profiles get it from seedProfilePrefs; this one-time pass migrates existing ones.
-  // Separate from forcedDefaultsApplied so existing installs get it too; players who use a
-  // controller can turn it back on in-game. Only an existing file: a stub would block the later seed.
+  // bGamepadEnable=1 leaves keyboard/mouse players unable to move; skip a missing file so the seed still runs
   if (!store.get('gamepadDefaultApplied') && fs.existsSync(skyrimPrefsPath())) {
     try {
       ini.write(skyrimPrefsPath(), { MAIN: { bGamepadEnable: '0' } })
@@ -733,8 +728,7 @@ ipcMain.handle('api:serverinfo', async () => {
   let info
   try { info = await fetchJSON(`${config.apiUrl}/api/serverinfo`, headers) }
   catch { return null }
-  // The backend answers sessionValid:false both with no session and with an unknown one; only
-  // the latter means the stored login expired (and its allowed:false is not a whitelist verdict).
+  // sessionValid:false with a session sent means the stored login expired, not a whitelist verdict
   if (session && info && info.sessionValid === false) {
     log('[discord] stored session is no longer valid - cleared, user must log in again')
     clearDiscordAuth()
@@ -1297,8 +1291,7 @@ function gameVersionProblem() {
 }
 
 // Seed the MO2 profile SkyrimPrefs.ini from the player's own prefs, then
-// rewrite the server's forced window mode (borderless) and controller-off on
-// top (Bethesda's template ships bGamepadEnable=1). Resolution is
+// rewrite the server's forced window mode (borderless) and controller-off on top. Resolution is
 // deliberately NOT rewritten: it stays whatever the player's ini says, and
 // the Settings tab only shows 1080p as a fallback when the ini has none.
 function seedProfilePrefs(skyrimPath) {
@@ -1782,8 +1775,7 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
       }
       log('[launch] launch-check passed')
     } catch (err) {
-      // 401 = the backend no longer knows this session (sessions expire after 24h);
-      // launching anyway only ends in "not authorized" in game, so ask for a fresh login.
+      // 401: the session expired and launching would only end in "not authorized", so ask for a fresh login
       if (err.statusCode === 401) {
         log('[launch] Discord session expired - cleared, user must log in again')
         clearDiscordAuth()

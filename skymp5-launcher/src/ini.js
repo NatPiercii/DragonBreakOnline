@@ -72,8 +72,7 @@ function write(filePath, edits) {
 
   // Track which keys still need to be written, per section.
   const remaining = {}
-  // Skyrim matches section and key names case-insensitively ([MAIN] vs [Main]); so do we,
-  // keeping the file's own spelling, or an edit would land in a duplicate section the game ignores.
+  // Section and key names match case-insensitively like Skyrim, keeping the file's own spelling
   const sectionByLower = {}
   for (const s of Object.keys(edits)) {
     remaining[s] = new Set(Object.keys(edits[s]))
