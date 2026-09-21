@@ -162,7 +162,8 @@ const POINT_REFUSE_NOTICE_MS = 600000;
 // are matched exactly like "activate" (same reach, same prefix and type rules) but weighed higher,
 // because a round of work is not one keypress. Nothing but the weight and the novelty ring tells them
 // apart from "activate", so a kind missing from this list is dropped silently by enqueue().
-const ACTIVITY_KINDS = ["craft", "activate", "mine", "chop", "read", "eat", "kill", "hit", "cast", "hurt", "prayer", "lock"] as const;
+// "skin" is a won skinning round (gamemode.js judges it), bound to the Skinner as "prayer" is to the Priest.
+const ACTIVITY_KINDS = ["craft", "activate", "mine", "chop", "read", "eat", "kill", "hit", "cast", "hurt", "prayer", "lock", "skin"] as const;
 type ActivityKind = typeof ACTIVITY_KINDS[number];
 
 // Where an item's gold value sits, per record type. Measured over this whole load order rather than
@@ -602,6 +603,7 @@ export class MasterySystem implements System {
       }
       case "prayer": return skillId === "priest";
       case "lock": return skillId === "lockpicking";
+      case "skin": return skillId === "skinner";
       default: return false;
     }
   }
@@ -1011,6 +1013,7 @@ export class MasterySystem implements System {
     }
     add("prayer", "priest");
     add("lock", "lockpicking");
+    add("skin", "skinner");
   }
 
   // ── Lookups ─────────────────────────────────────────────────────────────────

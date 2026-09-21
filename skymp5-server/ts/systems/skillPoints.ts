@@ -101,6 +101,7 @@ export const weightOf = ({ kind, value = 0 }: WeightInput): number => {
     case "cast": return clampW(0.5 + Math.min(1.0, v / 150));        // magicka cost
     case "hurt": return clampW(0.5 + Math.min(1.5, v / 40));         // damage taken
     case "mine": return clampW(1 + Math.min(1, v / 4));              // ore band 0..4
+    case "skin": return clampW(1 + Math.min(1, v / 100));            // pelt gold value 0..300, 100+ is Master
     case "chop": case "read": case "lock": case "prayer": return 1;
     case "activate": case "eat": return 0.5;
     default: return 0.5;
