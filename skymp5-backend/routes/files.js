@@ -38,6 +38,19 @@ router.get('/version', (_req, res) => {
   }
 })
 
+// GET /api/files/extra - per-file manifest of the extra files (build-extra-manifest.js); 404 means none are published
+
+const EXTRA_PATH = path.join(__dirname, '..', 'data', 'extra-files.json')
+
+router.get('/extra', (_req, res) => {
+  if (!fs.existsSync(EXTRA_PATH)) return res.status(404).json({ error: 'No extra files published. Run `npm run extra` on the server.' })
+  try {
+    res.json(JSON.parse(fs.readFileSync(EXTRA_PATH, 'utf8')))
+  } catch {
+    res.status(500).json({ error: 'Could not read the extra files manifest.' })
+  }
+})
+
 // GET /api/files/zip
 
 router.get('/zip', filesRateLimiter, (req, res) => {

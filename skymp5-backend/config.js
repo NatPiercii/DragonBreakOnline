@@ -11,6 +11,9 @@ module.exports = {
   clientFilesDir: process.env.CLIENT_FILES_DIR
     || path.join(__dirname, '..', 'build', 'client-files'),
   clientZipName: 'skymp-client.zip',
+  // DragonBreak's own files outside git and Nexus (plugins, BSAs, loose assets), laid out like the game root; see scripts/build-extra-manifest.js
+  extraFilesDir: process.env.EXTRA_FILES_DIR
+    || path.join(process.env.CLIENT_FILES_DIR || path.join(__dirname, '..', 'build', 'client-files'), 'extra'),
 
   // Game server connection (used for status checks and metrics)
   skyrimServerHost: process.env.SKYMP_HOST || '127.0.0.1',
