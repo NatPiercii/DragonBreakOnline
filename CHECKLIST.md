@@ -1,5 +1,58 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## HANDOVER to the daily-code-review session (written 2026-09-20 21:00, read this first)
+
+Nat asked me to talk to you directly. `send_message` refuses to deliver to a scheduled-task session
+and this session is one itself, so this block is the channel. **Three things your brief tells you are
+true are now false** - it is worth correcting them before you plan a run around them.
+
+### Your brief is wrong on three counts, and one of them will waste your whole run
+
+- **"The starting-spell bug ... fix is C++. Do not re-investigate."** It was not C++ and it is
+  **fixed and confirmed in game**. Battle Cry and `RaceNord` (which is what carries the 50% frost
+  resistance) are RACE spells, removable client-side with `Actor.removeSpell` + `dispelSpell`;
+  Flames and Healing are on the vanilla Player NPC_ `Skyrim.esm:000007` and came off with an xEdit
+  override in DLE. `RaceSpellsService` derives its strip set from the race records at runtime, so it
+  needs no per-race list.
+- **"The clean baseline is 18 `[error]` lines."** It is **12** since the Player record override.
+  Same single `ScampServer.cpp:1084` type, fewer of them. Do not treat 12 as a regression.
+- **`SERVER_AUTHORITY.md` says to clamp damage in `onHitDamageAttempt`.** It cannot -
+  `gamemode.js:1896` states it only returns a bool. But `masteryBonusDamage` shows the working
+  technique: let the hit land, read the health lost, then write `percentages`. **Resistances are
+  therefore enforceable with no C++**, which contradicts the Bloodlines codex's "waiting on the
+  damage judge". Nat has not decided whether to build it.
+
+### What I left half-built, deliberately, in case it is yours
+
+**Skinning is open to everyone now** (Nat's call): rank no longer gates entry, it gates which beast
+and how well. Bands are keyed on the pelt's own gold value from a census (`ck-mcp\pelts.py`, 38 hides
+0-300g), configured in `gamemode-config.json` -> `skinning.tierValueCap` / `bonusByTier`.
+
+**But the ladder has no first rung, and I did not build it because it looks like your work.** A
+successful skin emits no mastery event; `"skin"` is not in `ACTIVITY_KINDS` (`masterySystem.ts:165`,
+dropped at `:325`); and `skinner` maps to no kind at all. Ranks 1-4 are unreachable, so every band
+above Novice is theoretical. If your skill-openings pass already covers it, take it.
+
+### Weight my claims accordingly
+
+I shipped **two regressions tonight**, both from "safety" guards I added, both caught only because
+Nat retested rather than trusting my verification. The second is the instructive one: I checked
+`hasSpell` in the same frame as `removeSpell`, the engine updates the list later, so every spell
+looked unremovable and was written off permanently. **My record-level and file-level verification was
+sound; my reasoning about engine timing was not.** When I write "verified but unplayed" in these
+blocks, read it as ready-to-test, not done.
+
+### Not claimed by me, still open
+
+- **620+ `OnHit ... too distant` in one 40-minute session** (759 `[error]` against the 18 baseline of
+  the time). That single line is the ogre-not-attacking, invulnerable-on-spawn and floating-wolves
+  cluster - one root cause, needs the actor-layer rebuild, not a patch.
+- **Crash 19:39:25**: a `kDeleted` Flame Atronach inside `MovementControllerNPC`, `rcx = 0`. An
+  unguarded sibling of `Refr pointer expired`.
+- `tests\labour-harness.js` carries a check named **`KNOWN GAP`** that asserts today's behaviour on
+  purpose: the slow-motion guard is a flat 2500 ms, so a round shorter than that can be played at
+  half speed undetected. Tighten the guard and that test fails by design, pointing at the reasoning.
+
 ## Added 2026-09-20 (20:25): four whole systems credited nobody, and Tailor cannot be opened in Bruma
 
 Every item in this session's brief (the mining event kind, the deity data, the shrine activation path,
