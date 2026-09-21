@@ -12,8 +12,8 @@ roll it back.
   message for each `?error=` value (`cancelled`, `state`, `discord`, `unconfigured`); the
   value itself is never shown.
 - **Signed in:** an account panel (Discord name and avatar, access badge, account created,
-  last launcher sign-in, Sign out), then a "Your characters" grid. The badge fills in when
-  its own request answers, so the characters never wait on Discord. A card opens that
+  last launcher sign-in, launcher download, Sign out), then a "Your characters" grid. The
+  badge fills in when its own request answers, so the characters never wait on Discord. A card opens that
   character's detail view (`#c=<key>`, picked in the page with no extra request).
 - **Never played:** "No characters yet" and the launcher download. Signing in on the
   website creates no game account; the only thing written is the website session.
@@ -84,7 +84,7 @@ redirects, errors and 404s. No route takes a profile id or form id from the brow
 
 | Route | Needs | Responses |
 |---|---|---|
-| `GET /api/site/login` | nothing | 302 to Discord. 302 to `/profile.html?error=unconfigured` when `DISCORD_CLIENT_ID` is empty. 302 to `/api/site/login` on the redirect URI's host when the request came in on another host. |
+| `GET /api/site/login` | nothing | 302 to Discord. 302 to `/profile.html?error=unconfigured` when `DISCORD_CLIENT_ID` is empty. 302 to `/api/site/login` on the redirect URI's host when the request came in on another host. 302 to `/profile.html` when the visitor is already signed in, so the home page's "Log in with Discord" buttons take a returning player straight to the profile. |
 | `GET /api/site/callback` | state cookie | 302 to `/profile.html` on success. On failure 302 to `/profile.html?error=cancelled` (Discord sent `?error`), `?error=state` (state cookie missing or different; Discord is not called) or `?error=discord` (no code, or Discord refused or failed). Plain-text 429 over the rate limit. |
 | `GET /api/site/whoami` | cookie (optional) | 200 `{"signedIn":false}`, or 200 with the account shape below. 500 `{"error":"internal"}` on an unexpected error. |
 | `GET /api/site/access` | cookie | 200 `{"allowed":...,"reason":...}`, see [access](#access). 401 `{"error":"signedOut"}`. 500 `{"error":"internal"}` on an unexpected error. |

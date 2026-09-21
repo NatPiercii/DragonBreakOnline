@@ -208,6 +208,8 @@ router.get('/login', (req, res) => {
     return res.redirect(`${PROFILE_PAGE}?error=unconfigured`)
   }
   if (loginUrl && String(req.hostname || '').toLowerCase() !== loginUrl.hostname) return res.redirect(loginUrl.href)
+  // Already signed in: straight to the profile, without another Discord round trip or a second session
+  if (currentSession(req)) return res.redirect(PROFILE_PAGE)
   const state = crypto.randomBytes(32).toString('hex')
   setCookie(res, STATE_COOKIE, state, CALLBACK_PATH, STATE_TTL_MS)
   res.redirect(oauth.authorizeUrl({ redirectUri: config.discordSiteRedirectUri, state }))
