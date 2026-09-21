@@ -7,6 +7,11 @@ const path = require('path')
 const SKYMP_PORT = parseInt(process.env.SKYMP_PORT || '7777', 10)
 const WEBSITE_URL = process.env.WEBSITE_URL || 'http://localhost:4001'
 const SITE_SESSION_TTL_HOURS = parseFloat(process.env.SITE_SESSION_TTL_HOURS)
+const CHANGEFORMS_DIR = process.env.CHANGEFORMS_DIR
+  || path.join(__dirname, '..', 'build', 'dist', 'server', 'world', 'changeForms')
+
+// Website profile switches: 'off' hides the field; unset, empty or 'on' shows it
+const siteShows = (value) => String(value || '').trim().toLowerCase() !== 'off'
 
 module.exports = {
   // Client files bucket
@@ -18,8 +23,9 @@ module.exports = {
     || path.join(process.env.CLIENT_FILES_DIR || path.join(__dirname, '..', 'build', 'client-files'), 'extra'),
 
   // Game server's file-database character store (<server dir>/<databaseName>/changeForms), read by the website profile routes
-  changeFormsDir: process.env.CHANGEFORMS_DIR
-    || path.join(__dirname, '..', 'build', 'dist', 'server', 'world', 'changeForms'),
+  changeFormsDir: CHANGEFORMS_DIR,
+  // name-table.json the game server writes into its working directory at start (race and place names)
+  nameTablePath: process.env.NAME_TABLE_PATH || path.join(CHANGEFORMS_DIR, '..', '..', 'name-table.json'),
 
   // Game server connection (used for status checks and metrics)
   skyrimServerHost: process.env.SKYMP_HOST || '127.0.0.1',
@@ -76,6 +82,8 @@ module.exports = {
   discordSiteRedirectUri: process.env.DISCORD_SITE_REDIRECT_URI || `${WEBSITE_URL}/api/site/callback`,
   // Fixed lifetime of a website sign-in, in hours
   siteSessionTtlHours: SITE_SESSION_TTL_HOURS > 0 ? SITE_SESSION_TTL_HOURS : 24,
+  // Profile page shows the worldspace or cell name a character is in, never coordinates
+  siteShowLocation: siteShows(process.env.SITE_SHOW_LOCATION),
 
   // Discord bot (role-based access): token/guild used to fetch member roles at login; the bot needs "Server Members Intent" enabled in the Developer Portal
   discordBotToken: process.env.DISCORD_BOT_TOKEN || '',

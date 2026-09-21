@@ -11,6 +11,7 @@ const siteSessions  = require('../sources/siteSessions')
 const players       = require('../sources/players')
 const profiles      = require('../sources/profiles')
 const serverAccess  = require('../sources/serverAccess')
+const nameTable     = require('../sources/nameTable')
 const { charFromCf, fileChangeForms } = require('../sources/characters')
 
 const STATE_COOKIE   = 'db_site_state'
@@ -119,8 +120,8 @@ function characterStatus(cf, char, df) {
   return 'alive'
 }
 
-// Built field by field: nothing from the changeform is passed through whole
-function toSiteCharacter({ cf, char, mtime }) {
+// Built field by field: nothing from the changeform is passed through whole, and position is never read
+function toSiteCharacter({ cf, char, mtime }, names) {
   const df         = dynamicFields(cf)
   const appearance = char.appearance
   const mastery    = df['private.mastery']
@@ -140,8 +141,8 @@ function toSiteCharacter({ cf, char, mtime }) {
     itemStacks: char.inventory.length,
     masteries:  mastery && Array.isArray(mastery.order) ? mastery.order.length : 0,
     tag:        typeof tag === 'string' && tag.length === 4 ? tag : null,
-    race:       null,
-    location:   null,
+    race:       nameTable.raceOf(names, appearance && appearance.raceId),
+    location:   config.siteShowLocation ? nameTable.placeOf(names, char.worldOrCell) : null,
     lastSaved:  mtime.toISOString(),
   }
 }
@@ -228,10 +229,11 @@ router.get('/characters', (req, res) => {
     return res.status(503).json({ error: 'storeUnavailable' })
   }
 
+  const names      = nameTable.load()
   const characters = forms
     .filter(({ cf, char }) => char.profileId === profileId && !char.deleted && ownedBy(cf, session.discordId))
     .sort((a, b) => parseInt(a.char.formDesc, 16) - parseInt(b.char.formDesc, 16))
-    .map(toSiteCharacter)
+    .map(form => toSiteCharacter(form, names))
   res.json({ characters })
 })
 
