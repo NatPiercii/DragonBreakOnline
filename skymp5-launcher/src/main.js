@@ -2322,7 +2322,7 @@ function extractClientZip(zipPath, destDir, onProgress) {
 
 // Extra files: DragonBreak's own plugins, BSAs and assets that no Nexus page hosts, synced per file from /api/files/extra
 
-const extraFileUrl = rel => `${config.apiUrl}/files/extra/${rel.split('/').map(encodeURIComponent).join('/')}`
+const extraFileUrl = rel => `${config.apiUrl}/api/files/extra/${rel.split('/').map(encodeURIComponent).join('/')}`
 
 async function fetchExtraManifest() {
   try { return await fetchJSON(`${config.apiUrl}/api/files/extra`) }

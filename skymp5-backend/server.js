@@ -66,8 +66,8 @@ app.use(express.json({
 
 // Static file serving: root/ is installed into Skyrim/ (Data/ sub-dir)
 app.use('/files/root', express.static(path.join(config.clientFilesDir, 'root')))
-// Extra files for the launcher's syncExtraFiles, outside the zip rate limit (a first install fetches ~150)
-app.use('/files/extra', express.static(config.extraFilesDir, { dotfiles: 'deny', index: false }))
+// Extra files for the launcher's syncExtraFiles, under /api/files because the public proxy forwards only /api paths
+app.use('/api/files/extra', express.static(config.extraFilesDir, { dotfiles: 'deny', index: false, redirect: false }))
 
 // News images: served at /images/<filename>
 app.use('/images', express.static(path.join(__dirname, 'public', 'images')))
