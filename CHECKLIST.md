@@ -20,9 +20,26 @@ in the root `CLAUDE.md`, section "The development server".
 - [x] `bash dev-server.sh deploy-gameplay` (new): tracked `server\*.js/json` -> live, one reload, keeps the
   server's `admins`.
 
+### Later the same day: the launcher delivers DragonBreak's own files
+
+- [x] **Client package 0.3.3 published** (18:08 UTC) with the current 9 plugins; adm-zip opened all 246
+  files with matching hashes, and a download through `dragonbreakonline.com` was byte-identical. Launchers
+  now find the plugins the 105-plugin load order lists, so players can start the game again.
+- [x] **Per-file sync built** (fork `4531516`, `8aaecfe`, `9ad72e3`): `GET /api/files/extra` lists 148 files
+  (9 plugins, 4 BSAs, 135 loose assets, 930.5 MB) with sha256; the launcher's `syncExtraFiles` downloads
+  only what differs. Files live under `/api/files/extra/<path>` because **the public nginx forwards only
+  `/api` paths** (a first test got its 404 on `/files/extra`). A harness ran the real function against the
+  live server: 148/148 downloaded and verified in 193 s, recheck 0.2 s, repairs exactly the damaged files.
+- [x] `bash dev-server.sh deploy-plugins` (new): the 9 plugins -> game server (restart only if changed) +
+  sync folder + `SHA256SUMS`. No-op run verified.
+- [ ] **Launcher 2.1.17 is built, not released** (`fork\build\launcher\DragonBreakLauncher.exe`, contents
+  checked). Nat: install it, press Play once, then publish GitHub release `launcher-v2.1.17` with that exe
+  and bump `LATEST_VERSION` + `DOWNLOAD_URL` in `skymp5-backend/routes/version.js`. Until then players still
+  need `_release\DragonBreak-assets-*.zip` by hand for the BSAs and meshes.
+
 ### Open - decisions for Nat
 
-- [ ] **Players cannot launch until the plugins reach them.** The backend still serves the 2026-09-18 client
+- [x] ~~**Players cannot launch until the plugins reach them.**~~ Fixed by 0.3.3 above. The backend still serves the 2026-09-18 client
   zip (v0.3.2) with none of the 9 DragonBreak/Lost Ark plugins, and the launcher refuses to start the game
   when a load-order plugin is missing. Today only a manual install of `_release\DragonBreak-plugins-*.zip`
   gets someone in. Fix: rebuild the zip (LAUNCHER_FILES_GUIDE) now, and build the per-file launcher sync
