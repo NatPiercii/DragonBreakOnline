@@ -93,7 +93,7 @@ let regents: RegentInfo = { line: [], activeProfileId: null, actingName: null, c
 
 /**
  * Hold (faction) management for the fixed-holds model. Press the faction key
- * (default G) to ask the server for your hold's roster; the server validates
+ * (default F3) to ask the server for your factions; the server validates
  * that you may manage a hold and replies with the member list plus regent info.
  *
  * Protocol - all messages are {@link MsgType.CustomPacket} with a JSON dump.
@@ -134,7 +134,7 @@ export class FactionService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
 
-    this.menuKey = readMenuKeyCode(this.sp, "factionMenuKeyCode", DxScanCode.G);
+    this.menuKey = readMenuKeyCode(this.sp, "factionMenuKeyCode", DxScanCode.F3);
     const language = readMenuLanguage(this.sp);
     if (language in translations) {
       strings = translations[language as keyof typeof translations];
@@ -154,7 +154,7 @@ export class FactionService extends ClientListener {
     }
     if (isMenuHotkeyBlocked(this.sp, this.controller)) {
       if (this.sp.browser.isFocused()) {
-        notifyNextUpdate(this.controller, this.sp, "Faction menu: press Escape to leave the chat box, then G.");
+        notifyNextUpdate(this.controller, this.sp, "Faction menu: press Escape to leave the chat box, then F3.");
       }
       return;
     }
@@ -176,7 +176,7 @@ export class FactionService extends ClientListener {
       return;
     }
     // Ask the server for the roster; it decides whether we may manage a hold.
-    notifyNextUpdate(this.controller, this.sp, "Requesting your hold roster…");
+    notifyNextUpdate(this.controller, this.sp, "Opening your factions…");
     sendCustomPacket(this.controller, { customPacketType: "factionMenuRequest" });
   }
 
@@ -410,7 +410,7 @@ export class FactionService extends ClientListener {
     window.skyrimPlatform.widgets.set(others.concat([widget]));
   };
 
-  private menuKey: DxScanCode = DxScanCode.G;
+  private menuKey: DxScanCode = DxScanCode.F3;
   private menuOpen = false;
   private pendingAdd = false;
 }
