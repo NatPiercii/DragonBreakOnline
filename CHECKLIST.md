@@ -27,8 +27,13 @@ in the root `CLAUDE.md`, section "The development server".
   when a load-order plugin is missing. Today only a manual install of `_release\DragonBreak-plugins-*.zip`
   gets someone in. Fix: rebuild the zip (LAUNCHER_FILES_GUIDE) now, and build the per-file launcher sync
   (memory note `launcher-must-sync-non-nexus-files`) for plugins + BSAs + assets.
-- [ ] **Admins on the dev server**: `gamemode-config.json` `admins` shipped **empty** (the local `[1]` is an
-  offline test id; on Discord, profile 1 is whoever registered first). Set Discord `adminRoles` or real ids.
+- [x] **Admins on the dev server** (18:03 UTC): `adminRoles` in its server-settings = senior Owners
+  `1494126527489507369`, developer Dragon Break Dev `1494491999305338981`, gm GM `1494126618065506425` (names
+  checked through the Discord API). Boot: `tier roles senior 1 / developer 1 / gm 1`. `admins` stays empty.
+- [ ] **Whitelist**: already enforced by the backend with the role **"Whitlisted"** (`WHITELIST_ROLE_ID` in
+  `/opt/dragonbreak/backend.env`). The id Nat gave, `234362720420364288`, is **not a role in the guild**
+  (a 2016 snowflake; the guild is 2026) - not applied, because an unknown role locks everyone out. Admins
+  need the whitelist role too to join. Override lives in `skymp5-backend/data/server-access.json` (read per login).
 - [ ] `discordAuth` is missing from the server settings, so the Discord ban system is off.
 - [ ] Old characters on the dev server were not migrated (fresh world; 13 files backed up).
 
