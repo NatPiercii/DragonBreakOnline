@@ -5,6 +5,8 @@ require('dotenv').config()
 const path = require('path')
 
 const SKYMP_PORT = parseInt(process.env.SKYMP_PORT || '7777', 10)
+const WEBSITE_URL = process.env.WEBSITE_URL || 'http://localhost:4001'
+const SITE_SESSION_TTL_HOURS = parseFloat(process.env.SITE_SESSION_TTL_HOURS)
 
 module.exports = {
   // Client files bucket
@@ -68,7 +70,12 @@ module.exports = {
   discordDashboardRedirectUri: process.env.DISCORD_DASHBOARD_REDIRECT_URI
     || 'http://localhost:4000/auth/dashboard/callback',
   // Public URL of the website (used to redirect back after OAuth).
-  websiteUrl: process.env.WEBSITE_URL || 'http://localhost:4001',
+  websiteUrl: WEBSITE_URL,
+
+  // Website sign-in (routes/site-auth.js): a third redirect URI, registered in the Discord application like the other two
+  discordSiteRedirectUri: process.env.DISCORD_SITE_REDIRECT_URI || `${WEBSITE_URL}/api/site/callback`,
+  // Fixed lifetime of a website sign-in, in hours
+  siteSessionTtlHours: SITE_SESSION_TTL_HOURS > 0 ? SITE_SESSION_TTL_HOURS : 24,
 
   // Discord bot (role-based access): token/guild used to fetch member roles at login; the bot needs "Server Members Intent" enabled in the Developer Portal
   discordBotToken: process.env.DISCORD_BOT_TOKEN || '',

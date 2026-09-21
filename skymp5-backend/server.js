@@ -48,6 +48,7 @@ const rolePermissionsRoute  = require('./routes/role-permissions')
 const serverAccessRoute     = require('./routes/server-access')
 const playersRoute          = require('./routes/players')
 const launchCheckRoute      = require('./routes/launch-check')
+const siteAuthRoute         = require('./routes/site-auth')
 
 const app  = express()
 const PORT = process.env.PORT || 4000
@@ -99,6 +100,7 @@ app.use('/api/role-permissions',  rolePermissionsRoute)
 app.use('/api/server-access',      serverAccessRoute)
 app.use('/api/players',            playersRoute)
 app.use('/api/launch-check',       launchCheckRoute)
+app.use('/api/site',               siteAuthRoute)
 
 app.listen(PORT, () => {
   console.log(`DragonBreak backend running on http://localhost:${PORT}`)
