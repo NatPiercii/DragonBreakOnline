@@ -46,6 +46,9 @@ in the root `CLAUDE.md`, section "The development server".
 - [ ] **`serverdataDragonBreak Online Edits.esp` is still the old `a13379...`**: the local game server started at 11:23 by another session holds it open. Copy the dev Data file over once that server is stopped. The dev server, the launcher sync and `_release` already have `9c5d676c`.
 - [ ] `DBO_OrcAbility.pas` header claims the Breton copy needs no text change; it did (SPEL DESC). Fixed in data; the script comment is now wrong if it is ever rerun.
 
+- [x] **21:02 UTC, from the Pale Pass wolf report**: the spawn watcher on the Linux server died after the first rename-over save, so dungeon leases and wildlife changes stopped reaching the spawner (fork `c07e1b8`, verified 3 of 3 saves reload). 33 Cyrodiil wildlife placements on cells with no navmesh are skipped (`de35f801`); BSHeartland navmeshes only 524 of 2381 Cyrodiil cells, the rest is Beyond Skyrim work in progress. The Pale Pass wolves themselves stand on navmeshed cells; the server spawned exactly 1 per zone, so the extra and sunken wolves a second player saw are client-side copies of the known spawn desync (NPC_REBUILD.md phase 1), not extra spawns.
+- [ ] **Measure the duplicate wolves with two players**: npcDrift on the wolf ids while the second player walks in; compare what each client shows against the one server actor.
+
 ### Open - decisions for Nat
 
 - [x] ~~**Players cannot launch until the plugins reach them.**~~ Fixed by 0.3.3 above. The backend still serves the 2026-09-18 client
