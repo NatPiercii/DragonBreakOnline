@@ -1,4 +1,4 @@
-import { scanRecords, espmDesc, cstr, LogFn, EspmRecord } from "./espmEditorIds";
+import { scanRecords, espmDesc, cstr, fieldOf, LogFn, EspmRecord } from "./espmEditorIds";
 
 // Playable hair from mod plugins for the character creator; vanilla hair already ships in skymp5-front's headparts.json.
 // Every mod hair is offered to all playable races on top of the races its own RNAM FormList names.
@@ -39,7 +39,6 @@ interface HairDraft {
 }
 
 const u32 = (b: Buffer): number => (b.length >= 4 ? b.readUInt32LE(0) : 0);
-const fieldOf = (rec: EspmRecord, type: string): Buffer | undefined => rec.fields.find((f) => f.type === type)?.data;
 const descOf = (rec: EspmRecord, formId: number): string => espmDesc(formId, rec.masters, rec.owner);
 const pluginOf = (desc: string): string => desc.slice(desc.indexOf(":") + 1).toLowerCase();
 

@@ -38,6 +38,10 @@ const toBaseId = (v: unknown): number | null => {
   return null;
 };
 
+// Race editor id as players read it: "DarkElfRace" -> "Dark Elf"
+export const raceLabel = (edid: string): string =>
+  edid.replace(/Race$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+
 // Validate a "startingItems" setting into {baseId,count} stacks; null if absent or malformed
 function parseStartingItems(raw: unknown): { baseId: number; count: number }[] | null {
   if (!Array.isArray(raw)) return null;
@@ -402,8 +406,7 @@ export class Spawn implements System {
       const raceId = appearance && typeof appearance.raceId === "number" ? appearance.raceId : 0;
       if (!raceId) return "";
       const rec = mp.lookupEspmRecordById(raceId);
-      const edid = String(rec?.record?.editorId || "");
-      return edid.replace(/Race$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+      return raceLabel(String(rec?.record?.editorId || ""));
     } catch { return ""; }
   }
 

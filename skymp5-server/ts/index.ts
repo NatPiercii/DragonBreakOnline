@@ -39,6 +39,7 @@ import { UntouchableSystem } from "./systems/untouchableSystem";
 import { CompanionSystem } from "./systems/companionSystem";
 import { ConjurationSystem } from "./systems/conjurationSystem";
 import { VitalsRelaySystem } from "./systems/vitalsRelaySystem";
+import { NameTableSystem } from "./systems/nameTable";
 import { EventEmitter } from "events";
 import { pid } from "process";
 import * as fs from "fs";
@@ -243,6 +244,7 @@ const main = async () => {
     new VitalsRelaySystem(log),
     new DiscordBanSystem(),
     new MasterApiBalanceSystem(log, maxPlayers, master, port, masterKey, offlineMode),
+    new NameTableSystem(log),
   );
 
   setupStreams(scampNative.getScampNative());

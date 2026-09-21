@@ -56,6 +56,8 @@ type Visit = (type: number, formId: number, data: Buffer | null) => boolean;
 
 export const cstr = (b: Buffer): string => b.toString("latin1").replace(/\0+$/, "");
 
+export const fieldOf = (rec: EspmRecord, type: string): Buffer | undefined => rec.fields.find((f) => f.type === type)?.data;
+
 // Plugin-local form id to "hex:Plugin" using the masters of the plugin it was read from
 export const espmDesc = (formId: number, masters: string[], owner: string): string => {
   const high = formId >>> 24;
