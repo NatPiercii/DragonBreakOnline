@@ -6,6 +6,7 @@ import { TimersService } from "./timersService";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, storage } from "skyrimPlatform";
 import { COMPANION_HUD_KEY } from "./companionService";
+import { remoteIdToLocalId } from "../../view/worldViewMisc";
 
 const HUD_WIDGET_ID = 29;
 const PARTY_WIDGET_ID = 32;
@@ -127,10 +128,13 @@ export class DboRelayService extends ClientListener {
     const companions = Array.isArray(hud) ? hud as Array<{ id: number; name: string; leftMs: number; staying: boolean }> : [];
     const members = this.partyData && Array.isArray(this.partyData["members"]) ? this.partyData["members"] as Array<Record<string, unknown>> : [];
     if (!members.length && !companions.length) { if (this.partyKey) { this.partyKey = ""; this.removeWidget(PARTY_WIDGET_ID); } return; }
+    const selfId = this.partyData ? Number(this.partyData["self"]) || 0 : 0;
     const rows = members.map((m) => {
-      const row: Record<string, unknown> = { id: Number(m["id"]) || 0, name: String(m["name"] || "?"), leader: !!m["leader"], far: true };
+      const remoteId = Number(m["id"]) || 0;
+      const row: Record<string, unknown> = { id: remoteId, name: String(m["name"] || "?"), leader: !!m["leader"], far: true };
       try {
-        const a = Actor.from(this.sp.Game.getFormEx(Number(m["id"]) || 0));
+        // Members arrive as server ids; other players exist here under their local copy's id, and the player is not a copy
+        const a = remoteId === selfId ? this.sp.Game.getPlayer() : Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(remoteId)));
         if (a && a.is3DLoaded()) { row["far"] = false; row["dead"] = a.isDead(); row["health"] = Math.round(a.getActorValuePercentage("Health") * 100); }
       } catch { /* not loaded */ }
       return row;
