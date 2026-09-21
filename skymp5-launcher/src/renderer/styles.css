@@ -5,17 +5,38 @@
   padding: 0;
 }
 
-/* Tokens */
+/* Tokens - the DragonBreak Online palette, matching skymp5-front/src/dbo-theme.scss */
+/* From the hourglass logo: deep teal-black grounds, pale aqua glow, silver serif titles. */
+/* Aqua frames everything, gold is reserved for buttons. Keep in step with dbo-theme.scss. */
 :root {
-  --gold:         #c9a227;
-  --gold-bright:  #e8c44a;
-  --gold-glow:    rgba(201, 162, 39, 0.4);
-  --parchment:    #e8e0d0;
-  --parchment-dim: rgba(232, 224, 208, 0.5);
-  --glass-bg:     rgba(6, 4, 2, 0.6);
-  --glass-bg-lt:  rgba(12, 8, 4, 0.42);
-  --glass-border: rgba(201, 162, 39, 0.16);
-  --glass-border-bright: rgba(201, 162, 39, 0.45);
+  --ground:       #08191c;
+  --ground-2:     #0f2a2e;
+  --ground-3:     #16383d;
+
+  --aqua:         #8fd3d0;
+  --aqua-dim:     #5fb3b3;
+  --aqua-deep:    #2f7c80;
+
+  --silver:       #e6ecec;
+  --parchment:    #d7e3e3;
+  --parchment-dim: rgba(215, 227, 227, 0.62);
+
+  --gold:         #e8d6a0;
+  --gold-bright:  #f4e8c4;
+  --gold-glow:    rgba(232, 214, 160, 0.4);
+  --gold-fill:    rgba(232, 214, 160, 0.16);
+  --gold-fill-hover: rgba(232, 214, 160, 0.34);
+  --gold-border:  rgba(232, 214, 160, 0.55);
+
+  --amber:        #c98a3a;
+  --red:          #c9463a;
+
+  --glass-bg:     rgba(12, 34, 38, 0.88);
+  --glass-bg-lt:  rgba(12, 34, 38, 0.62);
+  --glass-border: rgba(143, 211, 208, 0.22);
+  --glass-border-bright: rgba(143, 211, 208, 0.55);
+  --glow:         0 0 18px rgba(143, 211, 208, 0.25);
+
   --topbar-h:     52px;
   --bottombar-h:  66px;
   --text-scale:  1.12;
@@ -39,19 +60,28 @@ html, body {
   background-image: url('../../assets/background.gif');
   background-size: cover;
   background-position: center 20%;
+  /* The backdrop is a warm sunset; cool and dim it so it sits behind the UI instead of competing */
+  filter: saturate(0.45) hue-rotate(-18deg) brightness(0.45) contrast(1.05);
 }
 
-/* Subtle darkening so text stays readable */
+/* Teal vignette: dusk rather than neutral grey, dark enough everywhere that panels read cleanly */
 .bg::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    160deg,
-    rgba(0,0,0,0.35) 0%,
-    rgba(0,0,0,0.18) 50%,
-    rgba(0,0,0,0.55) 100%
-  );
+  background:
+    radial-gradient(
+      ellipse at 58% 38%,
+      rgba(8, 25, 28, 0.55) 0%,
+      rgba(8, 25, 28, 0.82) 55%,
+      rgba(4, 14, 16, 0.96) 100%
+    ),
+    linear-gradient(
+      160deg,
+      rgba(15, 42, 46, 0.55) 0%,
+      rgba(8, 25, 28, 0.45) 45%,
+      rgba(4, 14, 16, 0.8) 100%
+    );
 }
 
 /* App shell */
@@ -66,7 +96,7 @@ html, body {
 /* TOP BAR */
 .topbar {
   height: var(--topbar-h);
-  background: rgba(4, 2, 1, 0.72);
+  background: rgba(6, 20, 23, 0.72);
   backdrop-filter: blur(24px) saturate(1.3);
   -webkit-backdrop-filter: blur(24px) saturate(1.3);
   border-bottom: 1px solid var(--glass-border);
@@ -87,19 +117,16 @@ html, body {
   flex-shrink: 0;
 }
 
+/* The hourglass mark itself, which is where the whole palette comes from */
 .logo-emblem {
   width: 36px;
   height: 36px;
   border: 1px solid var(--glass-border-bright);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Cinzel Decorative', 'Cinzel', serif;
-  font-size: 16px;
-  font-weight: 700;
-  color: #ff2222;
-  background: rgba(255, 34, 34, 0.08);
-  box-shadow: 0 0 12px rgba(255, 34, 34, 0.15);
+  border-radius: 7px;
+  object-fit: cover;
+  background: rgba(143, 211, 208, 0.08);
+  box-shadow: 0 0 14px rgba(143, 211, 208, 0.28);
+  flex-shrink: 0;
 }
 
 .logo-text-block {
@@ -108,13 +135,14 @@ html, body {
   line-height: 1.1;
 }
 
+/* Silver lettering lit by the aqua glow, the way the title reads on the logo */
 .logo-name {
   font-family: 'Cinzel', serif;
   font-size: calc(16px * var(--text-scale));
   font-weight: 700;
   letter-spacing: 4px;
-  color: #ff2222;
-  text-shadow: 0 0 16px rgba(255, 34, 34, 0.4);
+  color: var(--silver);
+  text-shadow: 0 0 14px rgba(143, 211, 208, 0.5), 0 2px 6px rgba(0, 0, 0, 0.8);
 }
 
 .logo-tagline {
@@ -122,7 +150,7 @@ html, body {
   font-size: calc(9px * var(--text-scale));
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: rgba(228, 210, 168, 0.4);
+  color: rgba(143, 211, 208, 0.55);
 }
 
 /* Top nav links */
@@ -140,7 +168,7 @@ html, body {
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
   letter-spacing: 2px;
-  color: rgba(232, 224, 208, 0.5);
+  color: rgba(215, 227, 227, 0.5);
   cursor: pointer;
   text-decoration: none;
   border: 1px solid transparent;
@@ -170,7 +198,7 @@ html, body {
   height: 32px;
   background: transparent;
   border: 1px solid transparent;
-  color: rgba(201, 162, 39, 0.45);
+  color: rgba(143, 211, 208, 0.45);
   font-size: 16px;
   cursor: pointer;
   border-radius: 2px;
@@ -184,8 +212,8 @@ html, body {
 .btn-gear:hover {
   border-color: var(--glass-border);
   color: var(--gold-bright);
-  background: rgba(201,162,39,0.08);
-  box-shadow: 0 0 10px rgba(201,162,39,0.15);
+  background: rgba(143, 211, 208,0.08);
+  box-shadow: 0 0 10px rgba(143, 211, 208,0.15);
 }
 
 .win-btn {
@@ -193,7 +221,7 @@ html, body {
   height: 26px;
   background: transparent;
   border: none;
-  color: rgba(232, 224, 208, 0.28);
+  color: rgba(215, 227, 227, 0.28);
   cursor: pointer;
   font-size: 12px;
   border-radius: 2px;
@@ -209,7 +237,7 @@ html, body {
 }
 
 .win-btn.close:hover {
-  background: rgba(160, 40, 30, 0.75);
+  background: rgba(201, 70, 58, 0.75);
   color: #fff;
 }
 
@@ -242,15 +270,15 @@ html, body {
   align-items: center;
   gap: 6px;
   padding: 4px 12px 4px 10px;
-  background: rgba(6, 4, 2, 0.55);
+  background: rgba(8, 25, 28, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(160, 40, 30, 0.4);
+  border: 1px solid rgba(201, 70, 58, 0.4);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(11px * var(--text-scale));
   font-weight: 600;
   letter-spacing: 2px;
-  color: rgba(220, 100, 90, 0.9);
+  color: rgba(201, 70, 58, 0.9);
 }
 
 .badge-status.online {
@@ -262,7 +290,7 @@ html, body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(220, 100, 90, 0.9);
+  background: rgba(201, 70, 58, 0.9);
   flex-shrink: 0;
 }
 
@@ -273,7 +301,7 @@ html, body {
 
 .badge-players {
   padding: 4px 12px;
-  background: rgba(6, 4, 2, 0.55);
+  background: rgba(8, 25, 28, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--glass-border);
@@ -281,7 +309,7 @@ html, body {
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
   letter-spacing: 2px;
-  color: rgba(232, 224, 208, 0.55);
+  color: rgba(215, 227, 227, 0.55);
 }
 
 .read-more {
@@ -289,7 +317,7 @@ html, body {
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
   letter-spacing: 2.5px;
-  color: rgba(201, 162, 39, 0.55);
+  color: rgba(143, 211, 208, 0.55);
   cursor: pointer;
   text-decoration: none;
   transition: color 0.2s;
@@ -320,14 +348,14 @@ html, body {
   font-size: calc(10px * var(--text-scale));
   font-weight: 500;
   letter-spacing: 1.5px;
-  color: rgba(232, 224, 208, 0.28);
+  color: rgba(215, 227, 227, 0.28);
 }
 
 /* Modlist panel */
 .modlist-panel {
   flex: 1;
   overflow-y: auto;
-  background: rgba(6, 4, 2, 0.48);
+  background: rgba(8, 25, 28, 0.48);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
@@ -340,24 +368,24 @@ html, body {
   align-items: center;
   gap: 8px;
   padding: 7px 12px;
-  border-bottom: 1px solid rgba(201, 162, 39, 0.07);
+  border-bottom: 1px solid rgba(143, 211, 208, 0.07);
   transition: background 0.15s;
 }
 
 .modlist-item:last-child { border-bottom: none; }
 
-.modlist-item:hover { background: rgba(201, 162, 39, 0.05); }
+.modlist-item:hover { background: rgba(143, 211, 208, 0.05); }
 
 .mod-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: rgba(232, 224, 208, 0.15);
+  background: rgba(215, 227, 227, 0.15);
 }
 
 .mod-dot--enabled  { background: rgba(100, 190, 100, 0.75); }
-.mod-dot--disabled { background: rgba(232, 224, 208, 0.15); }
+.mod-dot--disabled { background: rgba(215, 227, 227, 0.15); }
 
 .mod-name {
   font-family: 'Barlow Condensed', sans-serif;
@@ -372,7 +400,7 @@ html, body {
 }
 
 .modlist-item--disabled .mod-name {
-  color: rgba(232, 224, 208, 0.35);
+  color: rgba(215, 227, 227, 0.35);
 }
 
 .mod-badge {
@@ -387,9 +415,9 @@ html, body {
 }
 
 .mod-badge--required {
-  background: rgba(201, 162, 39, 0.12);
-  border: 1px solid rgba(201, 162, 39, 0.28);
-  color: rgba(201, 162, 39, 0.75);
+  background: rgba(143, 211, 208, 0.12);
+  border: 1px solid rgba(143, 211, 208, 0.28);
+  color: rgba(143, 211, 208, 0.75);
 }
 
 .mod-badge--auto {
@@ -405,24 +433,24 @@ html, body {
   text-transform: uppercase;
   padding: 1px 5px;
   border-radius: 3px;
-  background: rgba(160, 120, 20, 0.18);
-  border: 1px solid rgba(180, 134, 24, 0.45);
-  color: rgba(196, 152, 40, 0.9);
+  background: rgba(143, 211, 208, 0.18);
+  border: 1px solid rgba(143, 211, 208, 0.45);
+  color: rgba(143, 211, 208, 0.9);
   text-decoration: none;
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .mod-nexus-link:hover {
-  background: rgba(160, 120, 20, 0.32);
-  color: rgba(160, 120, 20, 1);
+  background: rgba(143, 211, 208, 0.32);
+  color: rgba(143, 211, 208, 1);
 }
 
 .mod-version {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(10px * var(--text-scale));
   letter-spacing: 0.5px;
-  color: rgba(232, 224, 208, 0.28);
+  color: rgba(215, 227, 227, 0.28);
   flex-shrink: 0;
 }
 
@@ -470,7 +498,7 @@ html, body {
 }
 
 .news-card:hover {
-  border-color: rgba(201, 162, 39, 0.35);
+  border-color: rgba(143, 211, 208, 0.35);
   box-shadow: 0 4px 24px rgba(0,0,0,0.4);
 }
 
@@ -504,7 +532,7 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 55%, rgba(6,3,1,0.75) 100%);
+  background: linear-gradient(to bottom, transparent 55%, rgba(8, 25, 28,0.75) 100%);
 }
 
 .news-card-body {
@@ -540,7 +568,7 @@ html, body {
   font-size: calc(12px * var(--text-scale));
   font-weight: 400;
   letter-spacing: 0.3px;
-  color: rgba(232, 224, 208, 0.6);
+  color: rgba(215, 227, 227, 0.6);
   line-height: 1.5;
 }
 
@@ -548,7 +576,7 @@ html, body {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(11px * var(--text-scale));
   letter-spacing: 0.5px;
-  color: rgba(232, 224, 208, 0.35);
+  color: rgba(215, 227, 227, 0.35);
   margin-top: auto;
   display: flex;
   align-items: center;
@@ -592,7 +620,7 @@ html, body {
   font-size: calc(9px * var(--text-scale));
   font-weight: 500;
   letter-spacing: 2.5px;
-  color: rgba(232, 224, 208, 0.28);
+  color: rgba(215, 227, 227, 0.28);
   text-transform: uppercase;
 }
 
@@ -602,7 +630,7 @@ html, body {
   transition: color 0.2s;
   font-weight: 500;
   letter-spacing: 1.5px;
-  color: rgba(232, 224, 208, 0.65);
+  color: rgba(215, 227, 227, 0.65);
 }
 
 /* Read-only notice: updating runs from the Play button */
@@ -645,10 +673,10 @@ html, body {
 .btn-play {
   height: 100%;
   padding: 0 48px;
-  background: linear-gradient(to bottom, #ff2222 0%, #d91414 100%);
+  background: linear-gradient(to bottom, #e8d6a0 0%, #c9ad72 100%);
   border: none;
   border-left: 1px solid rgba(255,255,255,0.1);
-  color: rgba(30, 6, 6, 0.95);
+  color: rgba(8, 25, 28, 0.95);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(18px * var(--text-scale));
   font-weight: 700;
@@ -656,17 +684,17 @@ html, body {
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: -4px 0 20px rgba(255, 34, 34, 0.25);
+  box-shadow: -4px 0 20px rgba(232, 214, 160, 0.25);
 }
 
 .btn-play:hover {
-  background: linear-gradient(to bottom, #ff4f4f 0%, #ea2a2a 100%);
-  box-shadow: -4px 0 30px rgba(255, 34, 34, 0.4);
+  background: linear-gradient(to bottom, #f4e8c4 0%, #e8d6a0 100%);
+  box-shadow: -4px 0 30px rgba(232, 214, 160, 0.45);
   letter-spacing: 6px;
 }
 
 .btn-play:active {
-  background: linear-gradient(to bottom, #d91414 0%, #b60f0f 100%);
+  background: linear-gradient(to bottom, #c9ad72 0%, #b09456 100%);
 }
 
 /* SETTINGS MODAL */
@@ -725,14 +753,14 @@ html, body {
   height: 28px;
   background: transparent;
   border: none;
-  color: rgba(232, 224, 208, 0.3);
+  color: rgba(215, 227, 227, 0.3);
   cursor: pointer;
   font-size: 12px;
   border-radius: 2px;
   transition: background 0.15s, color 0.15s;
 }
 
-.modal-close:hover { background: rgba(160,40,30,0.65); color: #fff; }
+.modal-close:hover { background: rgba(201, 70, 58,0.65); color: #fff; }
 
 .modal-body {
   padding: 22px 24px;
@@ -755,7 +783,7 @@ html, body {
   font-weight: 500;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: rgba(201, 162, 39, 0.5);
+  color: rgba(143, 211, 208, 0.5);
 }
 
 .setting-path-row {
@@ -767,7 +795,7 @@ html, body {
 .setting-path-row .setting-input { flex: 1; }
 
 .setting-input {
-  background: rgba(6, 4, 2, 0.5);
+  background: rgba(8, 25, 28, 0.5);
   border: 1px solid var(--glass-border);
   color: var(--parchment);
   font-family: 'Barlow Condensed', sans-serif;
@@ -778,8 +806,8 @@ html, body {
   transition: border-color 0.2s;
 }
 
-.setting-input::placeholder { color: rgba(232,224,208,0.2); }
-.setting-input:focus { border-color: rgba(201,162,39,0.5); }
+.setting-input::placeholder { color: rgba(215, 227, 227,0.2); }
+.setting-input:focus { border-color: rgba(143, 211, 208,0.5); }
 .setting-input:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -789,7 +817,7 @@ html, body {
   padding: 0 14px;
   background: var(--glass-bg-lt);
   border: 1px solid var(--glass-border);
-  color: rgba(232, 224, 208, 0.5);
+  color: rgba(215, 227, 227, 0.5);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(13px * var(--text-scale));
   cursor: pointer;
@@ -813,7 +841,7 @@ html, body {
 .install-status {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(13px * var(--text-scale));
-  color: rgba(232,224,208,0.45);
+  color: rgba(215, 227, 227,0.45);
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -821,15 +849,15 @@ html, body {
   text-overflow: ellipsis;
 }
 
-.setting-warning { color: #c9a227; }
+.setting-warning { color: #8fd3d0; }
 
 .install-buttons-row { flex-wrap: wrap; }
 
 .install-progress {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(13px * var(--text-scale));
-  color: rgba(232,224,208,0.45);
-  background: rgba(6, 4, 2, 0.5);
+  color: rgba(215, 227, 227,0.45);
+  background: rgba(8, 25, 28, 0.5);
   border: 1px solid var(--glass-border);
   margin: 6px 0 0;
   padding: 8px 10px;
@@ -845,7 +873,7 @@ html, body {
   padding: 9px 18px;
   background: transparent;
   border: 1px solid var(--glass-border);
-  color: rgba(201,162,39,0.6);
+  color: rgba(143, 211, 208,0.6);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
@@ -872,7 +900,7 @@ html, body {
   transition: all 0.2s;
 }
 
-.btn-save:hover { background: linear-gradient(to bottom, #e8c240, #c49a28); }
+.btn-save:hover { background: linear-gradient(to bottom, #f4e8c4, #c9ad72); }
 
 /* Server info strip */
 .server-info-strip {
@@ -881,7 +909,7 @@ html, body {
   gap: 10px;
   margin-bottom: 16px;
   padding: 6px 12px;
-  background: rgba(6, 4, 2, 0.45);
+  background: rgba(8, 25, 28, 0.45);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--glass-border);
@@ -892,7 +920,7 @@ html, body {
 }
 
 .sinfo-item {
-  color: rgba(232, 224, 208, 0.5);
+  color: rgba(215, 227, 227, 0.5);
   white-space: nowrap;
 }
 
@@ -928,7 +956,7 @@ html, body {
 .metrics-loading {
   grid-column: 1 / -1;
   text-align: center;
-  color: rgba(232,224,208,0.3);
+  color: rgba(215, 227, 227,0.3);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(13px * var(--text-scale));
   letter-spacing: 2px;
@@ -936,7 +964,7 @@ html, body {
 }
 
 .metric-card {
-  background: rgba(6, 4, 2, 0.5);
+  background: rgba(8, 25, 28, 0.5);
   border: 1px solid var(--glass-border);
   padding: 14px 16px;
   display: flex;
@@ -957,7 +985,7 @@ html, body {
   font-weight: 500;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: rgba(201, 162, 39, 0.5);
+  color: rgba(143, 211, 208, 0.5);
 }
 
 .metric-value {
@@ -973,7 +1001,7 @@ html, body {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(10px * var(--text-scale));
   letter-spacing: 1px;
-  color: rgba(232, 224, 208, 0.3);
+  color: rgba(215, 227, 227, 0.3);
 }
 
 /* Discord topbar widget */
@@ -1070,7 +1098,7 @@ html, body {
 }
 
 .discord-topbar-logout:hover {
-  background: rgba(160, 40, 30, 0.65);
+  background: rgba(201, 70, 58, 0.65);
   color: #fff;
 }
 
@@ -1078,8 +1106,8 @@ html, body {
 .footer-server-select {
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(201, 162, 39, 0.3);
-  color: rgba(232, 224, 208, 0.65);
+  border-bottom: 1px solid rgba(143, 211, 208, 0.3);
+  color: rgba(215, 227, 227, 0.65);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(13px * var(--text-scale));
   font-weight: 500;
@@ -1115,7 +1143,7 @@ html, body {
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: rgba(232, 224, 208, 0.35);
+  color: rgba(215, 227, 227, 0.35);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
@@ -1126,7 +1154,7 @@ html, body {
   margin-bottom: -1px;
 }
 
-.modal-tab:hover { color: rgba(232, 224, 208, 0.7); }
+.modal-tab:hover { color: rgba(215, 227, 227, 0.7); }
 
 .modal-tab.active {
   color: var(--gold);
@@ -1147,17 +1175,17 @@ html, body {
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: rgba(232, 224, 208, 0.15);
+  background: rgba(215, 227, 227, 0.15);
 }
 
 .vortex-status-dot.dot-ok   { background: #6abf5e; }
-.vortex-status-dot.dot-warn { background: #c9a227; }
+.vortex-status-dot.dot-warn { background: #8fd3d0; }
 
 .vortex-status-text {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(12px * var(--text-scale));
   letter-spacing: 0.5px;
-  color: rgba(232, 224, 208, 0.45);
+  color: rgba(215, 227, 227, 0.45);
 }
 
 .btn-detect-vortex {
@@ -1165,7 +1193,7 @@ html, body {
   padding: 7px 14px;
   background: transparent;
   border: 1px solid var(--glass-border);
-  color: rgba(201, 162, 39, 0.6);
+  color: rgba(143, 211, 208, 0.6);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
@@ -1176,7 +1204,7 @@ html, body {
   margin-top: 4px;
 }
 
-.btn-detect-vortex:hover    { border-color: rgba(201,162,39,0.5); color: var(--gold); }
+.btn-detect-vortex:hover    { border-color: rgba(143, 211, 208,0.5); color: var(--gold); }
 .btn-detect-vortex:disabled { opacity: 0.4; cursor: default; }
 
 .setting-checkbox-row {
@@ -1199,15 +1227,15 @@ html, body {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(12px * var(--text-scale));
   letter-spacing: 0.5px;
-  color: rgba(232, 224, 208, 0.6);
+  color: rgba(215, 227, 227, 0.6);
   user-select: none;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar       { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(201,162,39,0.18); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(201,162,39,0.32); }
+::-webkit-scrollbar-thumb { background: rgba(143, 211, 208,0.18); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(143, 211, 208,0.32); }
 
 /* Panel error / empty states (news & modlist) */
 .panel-error {
@@ -1222,7 +1250,7 @@ html, body {
 }
 
 .panel-error-text {
-  color: #c9a96a;
+  color: #8fd3d0;
   font-size: calc(15px * var(--text-scale));
   letter-spacing: 0.4px;
 }
@@ -1230,9 +1258,9 @@ html, body {
 .panel-error-retry {
   padding: 6px 22px;
   background: transparent;
-  border: 1px solid #c9a96a;
+  border: 1px solid #8fd3d0;
   border-radius: 4px;
-  color: #c9a96a;
+  color: #8fd3d0;
   font-family: inherit;
   font-size: calc(13px * var(--text-scale));
   letter-spacing: 1px;
@@ -1264,8 +1292,8 @@ html, body {
   font-size: calc(13px * var(--text-scale));
   font-weight: 600;
   letter-spacing: 1.2px;
-  color: #e8b33c;
-  border: 1px solid rgba(232, 179, 60, 0.45);
+  color: var(--amber);
+  border: 1px solid rgba(201, 138, 58, 0.5);
   border-radius: 4px;
   padding: 4px 10px;
   white-space: nowrap;
@@ -1283,9 +1311,9 @@ html, body {
 /* Nexus topbar button - darker yellow */
 .btn-nexus-topbar {
   padding: 5px 13px;
-  background: rgba(160, 120, 20, 0.18);
-  border: 1px solid rgba(180, 134, 24, 0.45);
-  color: rgba(196, 152, 40, 0.9);
+  background: rgba(143, 211, 208, 0.18);
+  border: 1px solid rgba(143, 211, 208, 0.45);
+  color: rgba(143, 211, 208, 0.9);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(10px * var(--text-scale));
   font-weight: 600;
@@ -1297,7 +1325,7 @@ html, body {
 }
 
 .btn-nexus-topbar:hover:not(:disabled) {
-  background: rgba(160, 120, 20, 0.32);
+  background: rgba(143, 211, 208, 0.32);
 }
 
 .btn-nexus-topbar:disabled {
@@ -1309,13 +1337,13 @@ html, body {
 /* Nexus logged-in chip - dark yellow, overrides the discord blurple */
 .nexus-topbar-user,
 #nexus-topbar-slot .discord-topbar-user {
-  background: rgba(160, 120, 20, 0.12);
-  border: 1px solid rgba(180, 134, 24, 0.35);
+  background: rgba(143, 211, 208, 0.12);
+  border: 1px solid rgba(143, 211, 208, 0.35);
 }
 
 .nexus-topbar-user .discord-topbar-name,
 #nexus-topbar-slot .discord-topbar-name {
-  color: rgba(196, 152, 40, 0.92);
+  color: rgba(143, 211, 208, 0.92);
 }
 
 /* Settings tab: collapsible sections */
@@ -1337,7 +1365,7 @@ html, body {
   user-select: none;
 }
 .settings-collapse > summary::-webkit-details-marker { display: none; }
-.settings-collapse > summary::before { content: '▸ '; color: rgba(201, 162, 39, 0.6); }
+.settings-collapse > summary::before { content: '▸ '; color: rgba(143, 211, 208, 0.6); }
 .settings-collapse[open] > summary::before { content: '▾ '; }
 .settings-collapse > summary:hover { color: var(--gold-bright); }
 
@@ -1361,7 +1389,7 @@ button.hotkey-btn {
   text-align: left;
   cursor: pointer;
 }
-button.hotkey-btn:hover:not(:disabled) { border-color: rgba(201, 162, 39, 0.5); }
+button.hotkey-btn:hover:not(:disabled) { border-color: rgba(143, 211, 208, 0.5); }
 button.hotkey-btn--capturing {
   border-color: var(--gold);
   color: var(--gold);
