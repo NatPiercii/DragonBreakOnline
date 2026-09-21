@@ -81,6 +81,7 @@ import { SweetCameraEnforcementService } from "./services/services/sweetCameraEn
 import { ServerJsVerificationService } from "./services/services/serverJsVerificationService";
 import { SweetTaffyEvalService } from "./services/services/sweetTaffyEvalService";
 import { NotificationService } from "./services/services/notificationService";
+import { RaceSpellsService } from "./services/services/raceSpellsService";
 import { ConnectionWatchdogService } from "./services/services/connectionWatchdogService";
 import { KickService } from "./services/services/kickService";
 import { MenuMediaService } from "./services/services/menuMediaService";
@@ -176,7 +177,8 @@ const main = () => {
       new MagicSyncService(sp, controller),
       new ProfilingService(sp, controller),
       new ServerJsVerificationService(sp, controller),
-      new NotificationService(sp, controller)
+      new NotificationService(sp, controller),
+      new RaceSpellsService(sp, controller)
     ];
     SpApiInteractor.setup(listeners);
   } catch (e) {
