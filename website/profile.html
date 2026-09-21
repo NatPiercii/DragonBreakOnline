@@ -117,7 +117,7 @@ function show(view){for(const id of ['loading','lanOnly','unavailable','signedOu
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function badge(text,cls){return el('span','badge '+cls,text);}
 function row(k,v){const r=el('div','row');r.append(el('span','k',k),typeof v==='string'?el('span','v',v):v);return r;}
-function pick(map,key){return typeof key==='string'&&Object.hasOwn(map,key)?map[key]:null;}
+function pick(map,key){return typeof key==='string'&&Object.prototype.hasOwnProperty.call(map,key)?map[key]:null;}
 function statusOf(c){return pick(STATUS,c.status)||['Unknown','warn','Unknown'];}
 function date(iso,withTime){
   const d=new Date(iso);
