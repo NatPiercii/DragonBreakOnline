@@ -45,7 +45,9 @@ the dashboard flow is for staff only.
 2. Discord redirects to `GET /api/site/callback`. The backend clears the state cookie and
    compares it with the `state` query in constant time before any Discord call. Then it
    exchanges the code, reads `/users/@me`, stores a session and sets `db_site`
-   (`Path=/`, lifetime `SITE_SESSION_TTL_HOURS`).
+   (`Path=/api/site`, lifetime `SITE_SESSION_TTL_HOURS`). Only `/api/site/*` reads it, so
+   the browser does not send it with page loads or to other proxied services such as
+   `/api/status`.
 3. The page calls `whoami` with that cookie, then `characters` and `access` side by side.
 
 Details:
@@ -386,7 +388,7 @@ buttons point at `/api/site/login`, which is a 404 until the nginx block exists.
 8. **Verify.**
    - In a private window: Log in with Discord, approve on Discord, and `/profile.html`
      lists your characters; open one.
-   - DevTools: `db_site` is HttpOnly, Secure, SameSite=Lax, Path=/.
+   - DevTools: `db_site` is HttpOnly, Secure, SameSite=Lax, Path=/api/site.
    - Sign out returns to the signed-out view. "Sign-out failed" means `WEBSITE_URL` is not
      the origin in the address bar (for example `www.` versus the bare domain).
    - With a Discord account that has never played, `sha256sum` of `profiles.json` and

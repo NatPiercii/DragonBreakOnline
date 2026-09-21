@@ -22,6 +22,8 @@ const STATE_COOKIE   = 'db_site_state'
 const SESSION_COOKIE = 'db_site'
 const STATE_TTL_MS   = 10 * 60 * 1000
 const CALLBACK_PATH  = '/api/site/callback'
+// Only /api/site reads the session, so the browser sends it nowhere else on the host
+const SESSION_PATH   = '/api/site'
 const PROFILE_PAGE   = '/profile.html'
 // Runtime-created forms have no plugin part in their file name, and every player character is one
 const PLAYER_FORM_FILE = /^[0-9a-f]+\.json$/
@@ -229,7 +231,7 @@ router.get('/callback', checkCallback, visitorLimiter, siteLimiter, async (req, 
       username:  String(user.global_name || user.username || ''),
       avatar:    oauth.avatarUrl(user),
     })
-    setCookie(res, SESSION_COOKIE, token, '/', config.siteSessionTtlHours * 60 * 60 * 1000)
+    setCookie(res, SESSION_COOKIE, token, SESSION_PATH, config.siteSessionTtlHours * 60 * 60 * 1000)
     res.redirect(PROFILE_PAGE)
   } catch (err) {
     console.error('[site-auth] callback error:', err.message)
@@ -325,7 +327,7 @@ router.post('/logout', (req, res) => {
   if (!websiteOrigin || req.get('origin') !== websiteOrigin) return res.status(403).json({ error: 'badOrigin' })
   const token = readCookie(req, SESSION_COOKIE)
   if (token) siteSessions.revoke(token)
-  setCookie(res, SESSION_COOKIE, '', '/', 0)
+  setCookie(res, SESSION_COOKIE, '', SESSION_PATH, 0)
   res.status(204).end()
 })
 
