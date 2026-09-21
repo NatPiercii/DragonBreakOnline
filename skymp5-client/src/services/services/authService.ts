@@ -62,7 +62,7 @@ const translations = {
     updateCaption: 'новинка',
     updateAvailable: 'ура! вышло обновление',
     downloadAt: 'спешите скачать на',
-    openSkympNet: 'открыть skymp.net',
+    openSkympNet: 'открыть dragonbreakonline.com',
     updateDownloadHint: 'Перейти на страницу скачивания обновления',
     oops: 'упс',
     join: 'вступить',
@@ -90,7 +90,7 @@ const translations = {
     updateCaption: 'Update',
     updateAvailable: 'a new update is available!',
     downloadAt: 'download it at',
-    openSkympNet: 'open skymp.net',
+    openSkympNet: 'open dragonbreakonline.com',
     updateDownloadHint: 'Go to the update download page',
     oops: 'oops',
     join: 'join',
@@ -316,13 +316,13 @@ export class AuthService extends ClientListener {
         this.sp.win32.loadUrl(this.patreonUrl);
         break;
       case events.updateRequired:
-        this.sp.win32.loadUrl("https://skymp.net/UpdInstall");
+        this.sp.win32.loadUrl("https://dragonbreakonline.com/");
         break;
       case events.backToLogin:
         this.sp.browser.executeJavaScript(new FunctionInfo(this.browsersideWidgetSetter).getText({ events, browserState, authData: authData, strings }));
         break;
       case events.joinDiscord:
-        this.sp.win32.loadUrl("https://discord.gg/9KhSZ6zjGT");
+        this.sp.win32.loadUrl("https://discord.gg/wcC9DfAgFe");
         break;
       case events.quitGame:
         logTrace(this, 'quitGame requested, exiting process');
@@ -481,7 +481,7 @@ export class AuthService extends ClientListener {
         },
         {
           type: "text",
-          text: "skymp.net",
+          text: "dragonbreakonline.com",
           tags: []
         },
         {
@@ -739,7 +739,7 @@ export class AuthService extends ClientListener {
 
   private playerEverSawActualGameplay = false;
 
-  private readonly githubUrl = "https://github.com/skyrim-multiplayer/skymp";
-  private readonly patreonUrl = "https://www.patreon.com/skymp";
+  private readonly githubUrl = "https://github.com/NatPiercii/DragonBreakOnline";
+  private readonly patreonUrl = "https://dragonbreakonline.com/";
   private readonly pluginAuthDataName = `auth-data-no-load`;
 }

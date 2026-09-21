@@ -37,7 +37,7 @@ export class SettingsService extends ClientListener {
   }
 
   public getMasterUrl() {
-    return this.normalizeUrl((this.sp.settings["skymp5-client"]["master"] as string) || "https://gateway.skymp.net");
+    return this.normalizeUrl((this.sp.settings["skymp5-client"]["master"] as string) || "https://dragonbreakonline.com");
   }
 
   public makeMasterApiClient(): IHttpClientWithCallback {
