@@ -784,7 +784,11 @@ const openCreator = (a) => {
 };
 // New characters spawn straight into the hub. A client that has not reported arriving there in time is sent
 // the long way, to the landing a save always loads into and on into the hub, still behind the black screen.
-const HUB_SPAWN_WAIT_MS = 12000;
+// This MUST outlast the client's own spawn loop, which retries SPAWN_MAX_ATTEMPTS (30) times a second
+// before giving up (remoteServer.ts). At 12000 the server always won that race: the fallback teleport
+// aborts the client mid-spawn ("Spawn loop stopped by a server teleport"), so a hub that took longer
+// than 12 s to load could never be reached and every new character went the long way via the landing.
+const HUB_SPAWN_WAIT_MS = 35000;
 const LANDING_LOC = { cellOrWorldDesc: LANDING.world, pos: LANDING.pos, rot: [0, 0, Number(LANDING.angleZ) || 135] };
 const fallBackToLanding = (a) => {
   if (creation.get(a) !== 'spawning' || !creationPending(a)) return;
