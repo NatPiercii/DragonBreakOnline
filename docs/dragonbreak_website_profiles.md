@@ -193,7 +193,7 @@ Never sent to a browser:
 
 | Data | Why |
 |---|---|
-| Discord id, profile id | The Discord id stays in the server-side session. The profile id is the key other backend routes are indexed by. |
+| Discord id, profile id | The Discord id stays in the server-side session. The one exception is the viewer's own id inside `whoami`'s `avatarUrl`, because Discord's CDN path contains it; no other account's id is ever sent. The profile id is the key other backend routes are indexed by. |
 | `players.json` `hwid`, `lastIp`, `notes` | Sensitive, or written by staff. Only `createdAt` and `lastSeenAt` are read. |
 | Discord roles and access settings | `getDiscordAccess` also returns `roles` and `settings` (which include `lockedDiscordIds`); only `allowed` and `error` are copied. |
 | `position`, `angle`, `spawnPoint*` | Exact coordinates, at most about 30 s old, would let anyone track a player. Location is a worldspace or cell name only. |
