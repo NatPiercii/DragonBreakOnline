@@ -670,7 +670,9 @@ export class FormView {
         ])[0];
         const resolution = getScreenResolution();
         const textXPos = Math.round(headScreenPos[0] * resolution.width);
-        const textYPos = Math.round((1 - headScreenPos[1]) * resolution.height);
+        // Head + 32 is where TrueHUD draws the health bar (fInfoBarOffsetZ 30); the name and #TAG stack above it
+        const barYPos = Math.round((1 - headScreenPos[1]) * resolution.height);
+        const textYPos = barYPos - FormView.nameAboveBarPx;
 
         if (!this.textNameId && headScreenPos[2] > 0) {
           this.createdTagName = this.tagName(refr);
@@ -1031,7 +1033,8 @@ export class FormView {
   }
 
   // Screen-space pixels between the name line and the actor id line
-  private static readonly actorIdLineOffset = 18;
+  private static readonly actorIdLineOffset = 24;
+  private static readonly nameAboveBarPx = 46;
   private static readonly adminHideReapplyMs = 1000;
   // Skyrim.esm GhostEtherealFXShader, the Become Ethereal look
   private static readonly adminGhostShaderId = 0x64d67;
