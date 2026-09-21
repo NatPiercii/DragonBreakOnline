@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dragon Break - Your profile</title>
+<link rel="icon" href="dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dbo.css">
+<style>
+ [hidden]{display:none!important}
+ .hero{text-align:center;padding:1.5rem 0 1rem}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem}
+ .grid .panel{padding:1.1rem 1.2rem}
+ .grid h3{font-family:var(--title);color:var(--silver);font-size:.95rem;letter-spacing:.1em;text-transform:uppercase;margin:.1rem 0 .5rem}
+ .grid p{margin:0;color:var(--text-dim);font-size:.92rem}
+ .gate{text-align:center}
+ .gate .lock{font-size:.82rem;color:var(--text-dim);margin-top:.8rem;line-height:1.55}
+ a.card{display:block;color:inherit;text-decoration:none;transition:border-color 140ms ease}
+ a.card:hover,a.card:focus-visible{border-color:var(--border-strong)}
+ .card .badge{margin-bottom:.55rem}
+ .account{display:flex;gap:1.2rem;align-items:flex-start;flex-wrap:wrap}
+ .account img{width:64px;height:64px;border-radius:50%;border:1px solid var(--border)}
+ .account .who{flex:1;min-width:220px}
+ .name{font-family:var(--title);color:var(--silver);font-size:1.15rem;letter-spacing:.08em;word-break:break-word}
+ .head{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:.6rem}
+ .actions{margin-top:1.2rem}
+ .v div+div{margin-top:.2rem}
+</style></head><body>
+<img class="wm" src="dbo-watermark.png" alt="">
+<div class="wrap">
+
+<div class="hero">
+  <h1>Dragon Break</h1>
+  <div class="tag">Your profile</div>
+</div>
+
+<p id="loading" class="meta" style="text-align:center">Checking your sign-in&hellip;</p>
+
+<div id="lanOnly" class="note" hidden><b>Sign-in works on the public site only.</b>
+  Open this page through the public web address to sign in.</div>
+
+<div id="unavailable" class="note" hidden><b>Your profile is unavailable right now.</b>
+  Please try again in a few minutes.</div>
+
+<div id="signedOut" hidden>
+  <h2>Sign in</h2>
+  <div class="panel gate">
+    <p>Sign in with your Discord account to see your characters.</p>
+    <div id="signInError" class="note" style="text-align:left" hidden></div>
+    <a class="btn dl" href="/api/site/login">Log in with Discord</a>
+    <div class="lock">Discord only tells us who you are. Signing in here creates no game account.</div>
+  </div>
+</div>
+
+<div id="signedIn" hidden>
+  <h2>Your account</h2>
+  <div class="panel account">
+    <img id="avatar" alt="" hidden>
+    <div class="who">
+      <div class="head"><span id="discordName" class="name"></span><span id="accessBadge"></span></div>
+      <p id="accessHint" class="meta" hidden>Not whitelisted also shows when Discord cannot be reached. If you have the role, check again later.</p>
+      <div class="row"><span class="k">Account created</span><span id="created" class="v"></span></div>
+      <div class="row"><span class="k">Last launcher sign-in</span><span id="lastLauncher" class="v"></span></div>
+      <div class="actions">
+        <button id="signOut" class="ghost" type="button">Sign out</button>
+        <span id="signOutError" class="bad" hidden>Sign-out failed. Please reload the page and try again.</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Your characters</h2>
+  <p id="charsLoading" class="meta">Loading your characters&hellip;</p>
+  <div id="charsError" class="note" hidden><b>Your characters cannot be read right now.</b> Please try again in a few minutes.</div>
+
+  <div id="empty" class="panel gate" hidden>
+    <p><b>No characters yet.</b></p>
+    <p>Get the launcher, sign in there with this Discord account, then create your character in game.</p>
+    <a class="btn dl" href="/downloads/SkyMPLauncher.zip">Download the launcher</a>
+  </div>
+
+  <div id="list" class="grid" hidden></div>
+
+  <div id="detail" class="panel" hidden>
+    <div class="head"><span id="detailName" class="name"></span><span id="detailBadge"></span></div>
+    <div id="detailRows"></div>
+    <div class="actions"><a class="btn ghost" href="#">Back to your characters</a></div>
+  </div>
+</div>
+
+<footer><a href="/">Dragon Break</a> &middot; time runs differently here</footer>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const DOT=' \u00b7 ';
+// Fixed text for each ?error= value the sign-in callback sends; the value itself is never shown
+const SIGN_IN_ERRORS={
+  cancelled:'Sign-in was cancelled on Discord.',
+  state:'Your sign-in expired or was started in another browser. Please try again.',
+  discord:'Discord could not complete the sign-in. Please try again in a minute.',
+  unconfigured:'Website sign-in is not set up yet. Please try again later.'
+};
+const STATUS={
+  alive:['Alive','ok','Alive'],
+  dead:['Dead','warn','Dead (awaiting respawn)'],
+  permaDead:['Perma-dead','bad','Perma-dead'],
+  creating:['In creation','warn','In creation']
+};
+const ACCESS={banned:['Banned','bad'],serverLocked:['Server locked','warn'],notWhitelisted:['Not whitelisted','warn']};
+let characters=[];
+
+function show(view){for(const id of ['loading','lanOnly','unavailable','signedOut','signedIn'])$(id).hidden=id!==view;}
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
+function badge(text,cls){return el('span','badge '+cls,text);}
+function row(k,v){const r=el('div','row');r.append(el('span','k',k),typeof v==='string'?el('span','v',v):v);return r;}
+function pick(map,key){return typeof key==='string'&&Object.hasOwn(map,key)?map[key]:null;}
+function statusOf(c){return pick(STATUS,c.status)||['Unknown','warn','Unknown'];}
+function date(iso,withTime){
+  const d=new Date(iso);
+  if(typeof iso!=='string'||isNaN(d))return null;
+  return withTime?d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):d.toLocaleDateString(undefined,{dateStyle:'medium'});
+}
+function pct(n){return Number.isInteger(n)?n+'%':'unknown';}
+function sexText(s){return s==='female'?'Female':s==='male'?'Male':null;}
+function masteryText(n){return n>0?n+(n===1?' mastery':' masteries'):'No masteries yet';}
+function placeText(p){return p&&p.label?p.label+(p.editorId?' (editor ID)':''):null;}
+function titleText(t){return t.group?t.title+DOT+t.group:t.title;}
+function vitalsText(v){v=v||{};return 'Health '+pct(v.health)+DOT+'Magicka '+pct(v.magicka)+DOT+'Stamina '+pct(v.stamina);}
+// The backend builds avatar links on Discord's CDN only; anything else is dropped
+function discordAvatar(u){try{return typeof u==='string'&&new URL(u).origin==='https://cdn.discordapp.com';}catch(e){return false;}}
+
+function showSignInError(){
+  const msg=pick(SIGN_IN_ERRORS,new URLSearchParams(location.search).get('error'));
+  if(msg){$('signInError').textContent=msg;$('signInError').hidden=false;}
+  if(location.search)history.replaceState(null,'',location.pathname+location.hash);
+}
+
+function renderAccount(me){
+  if(discordAvatar(me.discord.avatarUrl)){$('avatar').src=me.discord.avatarUrl;$('avatar').hidden=false;}
+  $('discordName').textContent=me.discord.name||'Discord user';
+  const access=me.access.allowed?['Whitelisted','ok']:(pick(ACCESS,me.access.reason)||['No access','warn']);
+  $('accessBadge').replaceChildren(badge(access[0],access[1]));
+  $('accessHint').hidden=me.access.allowed||me.access.reason!=='notWhitelisted';
+  $('created').textContent=date(me.account.createdAt)||'No game account yet';
+  $('lastLauncher').textContent=date(me.account.lastLauncherLogin,true)||'Never';
+}
+
+function card(c){
+  const a=el('a','panel card');
+  a.href='#c='+encodeURIComponent(c.key);
+  const st=statusOf(c);
+  a.append(el('h3','',c.name),badge(st[0],st[1]));
+  const meta=[c.race&&c.race.label,sexText(c.sex),c.tag&&'#'+c.tag].filter(Boolean).join(DOT);
+  if(meta)a.append(el('p','',meta));
+  a.append(el('p','',vitalsText(c.vitals)));
+  return a;
+}
+
+function renderDetail(c){
+  const st=statusOf(c);
+  $('detailName').textContent=c.name;
+  $('detailBadge').replaceChildren(badge(st[0],st[1]));
+  const rows=[row('Status',st[2])];
+  if(c.race&&c.race.label)rows.push(row('Race',c.race.label));
+  if(sexText(c.sex))rows.push(row('Sex',sexText(c.sex)));
+  if(Number.isFinite(c.weight))rows.push(row('Body weight',String(Math.round(c.weight))));
+  if(placeText(c.location))rows.push(row('Location',placeText(c.location)));
+  if(Array.isArray(c.titles)){
+    const titles=c.titles.filter(t=>t&&typeof t.title==='string');
+    const list=el('span','v',titles.length?null:'None');
+    for(const t of titles)list.append(el('div','',titleText(t)));
+    rows.push(row('Titles',list));
+  }
+  if(c.tag)rows.push(row('Tag','#'+c.tag));
+  const v=c.vitals||{};
+  rows.push(row('Health',pct(v.health)),row('Magicka',pct(v.magicka)),row('Stamina',pct(v.stamina)));
+  rows.push(row('Gold',String(c.gold)),row('Items carried',c.itemStacks+(c.itemStacks===1?' stack':' stacks')),row('Masteries',masteryText(c.masteries)));
+  rows.push(row('Record last saved',date(c.lastSaved,true)||'unknown'));
+  $('detailRows').replaceChildren(...rows);
+}
+
+// Detail view is picked client-side from #c=<key>, with no extra request
+function route(){
+  const m=/^#c=(.+)$/.exec(location.hash);
+  let key=null;
+  if(m){try{key=decodeURIComponent(m[1]);}catch(e){}}
+  const c=characters.find(x=>x.key===key);
+  if(c)renderDetail(c);
+  $('detail').hidden=!c;
+  $('list').hidden=!!c||!characters.length;
+  if(c)$('detail').scrollIntoView({block:'nearest'});
+}
+
+async function loadCharacters(){
+  let r=null,body=null;
+  try{r=await fetch('/api/site/characters',{cache:'no-store'});body=await r.json();}catch(e){}
+  $('charsLoading').hidden=true;
+  if(r&&r.status===401)return show('signedOut');
+  if(!r||!r.ok||!body||!Array.isArray(body.characters)){$('charsError').hidden=false;return;}
+  characters=body.characters.filter(c=>c&&typeof c.key==='string'&&typeof c.name==='string');
+  if(!characters.length){$('empty').hidden=false;return;}
+  try{$('list').replaceChildren(...characters.map(card));route();}
+  catch(e){characters=[];$('list').hidden=$('detail').hidden=true;$('charsError').hidden=false;}
+}
+
+$('signOut').addEventListener('click',async()=>{
+  $('signOut').disabled=true;
+  $('signOutError').hidden=true;
+  try{
+    const r=await fetch('/api/site/logout',{method:'POST',cache:'no-store'});
+    if(r.status===204)return location.replace('/profile.html');
+  }catch(e){}
+  $('signOut').disabled=false;
+  $('signOutError').hidden=false;
+});
+window.addEventListener('hashchange',route);
+
+async function main(){
+  showSignInError();
+  let r;
+  try{r=await fetch('/api/site/whoami',{cache:'no-store'});}catch(e){return show('unavailable');}
+  // The LAN listener does not proxy /api/site/, and the sign-in cookie belongs to the public host
+  if(r.status===404)return show('lanOnly');
+  let me=null;
+  try{if(r.ok)me=await r.json();}catch(e){}
+  if(!me)return show('unavailable');
+  if(!me.signedIn)return show('signedOut');
+  renderAccount(me);
+  show('signedIn');
+  await loadCharacters();
+}
+main().catch(()=>show('unavailable'));
+</script></body></html>

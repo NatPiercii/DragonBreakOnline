@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dragon Break</title>
+<link rel="icon" href="dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dbo.css">
+<style>
+ .hero{text-align:center;padding:1.5rem 0 2.5rem}
+ .hero img.mark{width:120px;opacity:.9;filter:drop-shadow(0 0 20px rgba(143,211,208,.5))}
+ .lede{max-width:620px;margin:1.3rem auto 0;color:var(--text-dim);font-size:1.06rem}
+ .cta{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap;margin-top:2rem}
+ .discord{background:rgba(88,101,242,.18);color:#c3c9ff;border-color:rgba(88,101,242,.6)}
+ .discord:hover{background:rgba(88,101,242,.34);border-color:rgba(88,101,242,.95)}
+ .status-strip{display:flex;justify-content:center;align-items:center;gap:.6rem;margin-top:1.7rem;font-size:.9rem;color:var(--text-dim)}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem}
+ .grid .panel{padding:1.1rem 1.2rem}
+ .grid h3{font-family:var(--title);color:var(--silver);font-size:.95rem;letter-spacing:.1em;text-transform:uppercase;margin:.1rem 0 .5rem}
+ .grid p{margin:0;color:var(--text-dim);font-size:.92rem}
+ .gate{text-align:center}
+ .gate .lock{font-size:.82rem;color:var(--text-dim);margin-top:.8rem;line-height:1.55}
+ .steplist{max-width:640px;margin:1.2rem auto 0;text-align:left;color:var(--text-dim);font-size:.95rem}
+ .steplist li{margin:.45rem 0}
+</style></head><body>
+<img class="wm" src="dbo-watermark.png" alt="">
+<div class="wrap">
+
+<div class="hero">
+  <img class="mark" src="dbo-watermark.png" alt="">
+  <h1>Dragon Break</h1>
+  <div class="tag">Skyrim Special Edition &middot; Persistent Multiplayer</div>
+  <p class="lede">A shared Skyrim. One province, many travellers &mdash; holds and strongholds with their own
+     officials, property you can claim, notice boards, trade, and a world that keeps turning while you are away.</p>
+  <div class="cta">
+    <a class="btn discord" id="joinBtn" href="#" style="display:none">Join the Discord</a>
+    <a class="btn dl" href="/api/site/login">Log in with Discord</a>
+  </div>
+  <div class="status-strip"><span id="dot" class="dot down"></span><span id="statusline">checking the server&hellip;</span></div>
+</div>
+
+<h2>What it is</h2>
+<div class="grid">
+  <div class="panel"><h3>A living province</h3><p>Holds, strongholds and regions each keep their own officials,
+    notice boards and property registry. Ownership and rank mean something.</p></div>
+  <div class="panel"><h3>Make a living</h3><p>Gathering, crafting, trade and bounty work. Skills advance with
+    time spent, and going hungry slows you down.</p></div>
+  <div class="panel"><h3>Play together</h3><p>Parties, companions, shared dungeons and an in-world chat and
+    emote system &mdash; on vanilla Skyrim Special Edition plus SKSE.</p></div>
+</div>
+
+<h2>How to get in</h2>
+<div class="panel gate">
+  <ol class="steplist">
+    <li><b>Join the Discord</b> and introduce yourself.</li>
+    <li><b>Get the <span class="ok">Whitelisted</span> role</b> from a member of staff.</li>
+    <li><b>Sign in with Discord</b> here to see your characters and get the launcher.</li>
+  </ol>
+  <div class="cta" style="margin-top:1.4rem">
+    <a class="btn discord" id="joinBtn2" href="#" style="display:none">Join the Discord</a>
+    <a class="btn dl" href="/api/site/login">Log in with Discord</a>
+  </div>
+  <div class="lock">You own a copy of Skyrim Special Edition &mdash; we do not distribute the game.
+    The connection details are shared with whitelisted members only.</div>
+</div>
+
+<footer>Dragon Break &middot; time runs differently here</footer>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+(async()=>{try{const c=await(await fetch('site-config.json',{cache:'no-store'})).json();
+  if(c.discordInvite){for(const id of ['joinBtn','joinBtn2']){const b=$(id);if(b){b.href=c.discordInvite;b.style.display='inline-block';}}}
+}catch(e){}})();
+(async()=>{try{const d=await(await fetch('/api/status',{cache:'no-store'})).json();
+  const up=d.service==='active'&&d.port_bound;
+  $('dot').className='dot '+(up?'up':'down');
+  $('statusline').innerHTML=up?'<span class="ok">Server online</span>':'<span class="bad">Server offline</span>';
+}catch(e){$('statusline').textContent='server status unavailable';}})();
+</script></body></html>
