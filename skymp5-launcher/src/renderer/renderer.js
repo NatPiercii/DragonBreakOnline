@@ -6,7 +6,7 @@ document.getElementById('btn-close').addEventListener('click',    () => window.e
 // External nav links
 const EXTERNAL_URLS = {
   website: 'https://dragonbreakonline.com/',           // e.g. 'https://example.com'
-  discord: 'https://discord.gg/Pkxdgt6W8q',   // e.g. 'https://discord.gg/...'
+  discord: 'https://discord.gg/wcC9DfAgFe',
 }
 
 document.querySelectorAll('.topnav-link[data-href]').forEach(link => {
