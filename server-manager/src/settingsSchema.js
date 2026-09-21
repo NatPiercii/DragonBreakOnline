@@ -125,6 +125,14 @@ const backendEnv = [
   { key: 'ADMIN_URL',             label: 'Admin service URL',     type: 'text',   group: 'Admin dashboard', help: 'Local SkyMP-Admin service - never expose publicly.' },
   { key: 'ADMIN_TOKEN',           label: 'Admin token',           type: 'secret', group: 'Admin dashboard' },
 
+  // Website profiles (the website's "Log in with Discord", /api/site/*)
+  { key: 'DISCORD_SITE_REDIRECT_URI', label: 'Website redirect URI', type: 'text', group: 'Website profiles', help: 'Website sign-in callback; add it under Redirects in the Discord app. Empty = WEBSITE_URL + /api/site/callback.' },
+  { key: 'SITE_SESSION_TTL_HOURS', label: 'Website sign-in hours', type: 'number', group: 'Website profiles', help: 'How long a website sign-in lasts. Empty = 24.' },
+  { key: 'CHANGEFORMS_DIR',        label: 'Character store',       type: 'text',   group: 'Website profiles', help: 'The game server\'s <databaseName>/changeForms folder, read for the profile page. Empty = build/dist/server/world/changeForms.' },
+  { key: 'NAME_TABLE_PATH',        label: 'Name table',            type: 'text',   group: 'Website profiles', help: 'name-table.json the game server writes at start, for race and place names on the profile page. Empty = two folders above the character store.' },
+  { key: 'SITE_SHOW_LOCATION',     label: 'Show location',         type: 'select', group: 'Website profiles', options: ['on', 'off'], help: 'Profile page shows the worldspace or cell name a character is in, never coordinates. Empty = on.' },
+  { key: 'SITE_SHOW_FACTIONS',     label: 'Show faction titles',   type: 'select', group: 'Website profiles', options: ['on', 'off'], help: 'Profile page shows faction and hold titles. Empty = on.' },
+
   // Metrics
   { key: 'METRICS_USER',     label: 'Metrics user',     type: 'text',   group: 'Metrics' },
   { key: 'METRICS_PASSWORD', label: 'Metrics password', type: 'secret', group: 'Metrics' },
