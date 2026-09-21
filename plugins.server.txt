@@ -84,7 +84,6 @@
 *RelightingSkyrim_SSE.esp
 *OCW_Obscure's_CollegeofWinterhold.esp
 *OCW_CellSettings.esp
-*OCW_TGCoW_FEPatch.esp
 *PipeSmokingSE.esp
 *The Great City of Dawnstar.esp
 *The Great City of Falkreath.esp
