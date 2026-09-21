@@ -287,6 +287,11 @@ let serverLocked        = false
 // by re-fetching /api/serverinfo with X-Session).  Defaults true so unauthed
 // users are not blocked before they have a chance to log in.
 let serverAllowed       = true
+// Whether this server wants a Discord login at all. An offline-mode server has no
+// authentication to perform and may have no Discord app configured, so demanding a
+// login there is a gate nobody can pass. Defaults true: a server that does not say
+// otherwise (or whose serverinfo has not loaded) keeps the old behaviour.
+let serverNeedsDiscord  = true
 
 // Re-evaluates Play button state whenever lock/whitelist state changes.
 // Call this after login, logout, and initial serverinfo load.
@@ -1058,7 +1063,7 @@ btnConnect.addEventListener('click', async () => {
         ? 'Server is currently locked - you are not on the allow list.'
         : 'You are not on the server whitelist.')
     }
-    if (!discordUser) blockers.push('Login with Discord first - use the button in the toolbar.')
+    if (!discordUser && serverNeedsDiscord) blockers.push('Login with Discord first - use the button in the toolbar.')
 
     if (blockers.length > 0 && !updateAvailable && !needsGameCopy) {
       showWarning(blockers[0])
@@ -1199,6 +1204,7 @@ async function loadServerInfo() {
     modeSep.hidden = false
   }
 
+  serverNeedsDiscord = info.discordAuthRequired !== false
   if (info.discordAuthRequired) {
     discEl.hidden  = false
     discSep.hidden = false
