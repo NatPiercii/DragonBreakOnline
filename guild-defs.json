@@ -1,0 +1,262 @@
+{
+  "_comment": "Player factions (server\\guilds.js). Separate from hold offices in zones.json/officials.json. Each faction lists its ranks top to bottom; every rank maps to one role, and the role decides the permissions (roles below). Secret factions (the Daedric cults, the Thieves Guild, the Dark Brotherhood, Clan Volkihar) show their roster only to their own members. Membership lives in guilds.json (runtime, gitignored).",
+  "roles": {
+    "leader": { "invite": true, "kick": true, "setRank": true },
+    "officer": { "invite": true, "kick": true },
+    "sergeant": { "invite": true },
+    "mage": {},
+    "blacksmith": {},
+    "tailor": {},
+    "member": {}
+  },
+  "roleCaps": { "leader": 1, "blacksmith": 3, "tailor": 3 },
+  "templates": {
+    "hold": [
+      { "title": "Hold Marshal", "role": "leader" },
+      { "title": "Thane", "role": "officer" },
+      { "title": "Housecarl", "role": "sergeant" },
+      { "title": "Hold Wizard", "role": "mage" },
+      { "title": "Hold Smith", "role": "blacksmith" },
+      { "title": "Clothier", "role": "tailor" },
+      { "title": "Guard", "role": "member" },
+      { "title": "Citizen", "role": "member" }
+    ],
+    "stronghold": [
+      { "title": "Chief", "role": "leader" },
+      { "title": "Hunt-Master", "role": "officer" },
+      { "title": "Warrior", "role": "sergeant" },
+      { "title": "Clan Mystic", "role": "mage" },
+      { "title": "Forge-Wife", "role": "blacksmith" },
+      { "title": "Tanner", "role": "tailor" },
+      { "title": "Blood-Kin", "role": "member" }
+    ],
+    "cult": [
+      { "title": "High Priest", "role": "leader" },
+      { "title": "Priest", "role": "officer" },
+      { "title": "Zealot", "role": "sergeant" },
+      { "title": "Cult Mage", "role": "mage" },
+      { "title": "Cult Smith", "role": "blacksmith" },
+      { "title": "Robe-Maker", "role": "tailor" },
+      { "title": "Devotee", "role": "member" },
+      { "title": "Initiate", "role": "member" }
+    ]
+  },
+  "factions": [
+    { "id": "hold-whiterun", "name": "Whiterun Hold", "kind": "hold", "zone": "whiterun", "template": "hold" },
+    { "id": "hold-riften", "name": "The Rift", "kind": "hold", "zone": "riften", "template": "hold" },
+    { "id": "hold-solitude", "name": "Haafingar", "kind": "hold", "zone": "solitude", "template": "hold" },
+    { "id": "hold-windhelm", "name": "Eastmarch", "kind": "hold", "zone": "windhelm", "template": "hold" },
+    { "id": "hold-markarth", "name": "The Reach", "kind": "hold", "zone": "markarth", "template": "hold" },
+    { "id": "hold-falkreath", "name": "Falkreath Hold", "kind": "hold", "zone": "falkreath", "template": "hold" },
+    { "id": "hold-morthal", "name": "Hjaalmarch", "kind": "hold", "zone": "morthal", "template": "hold" },
+    { "id": "hold-dawnstar", "name": "The Pale", "kind": "hold", "zone": "dawnstar", "template": "hold" },
+    { "id": "hold-winterhold", "name": "Winterhold Hold", "kind": "hold", "zone": "winterhold", "template": "hold" },
+    { "id": "county-bruma", "name": "County of Bruma", "kind": "hold", "zone": "bruma", "ranks": [
+      { "title": "Knight-Captain", "role": "leader" },
+      { "title": "Knight", "role": "officer" },
+      { "title": "Guard Sergeant", "role": "sergeant" },
+      { "title": "Battlemage", "role": "mage" },
+      { "title": "Armorer", "role": "blacksmith" },
+      { "title": "Clothier", "role": "tailor" },
+      { "title": "Guard", "role": "member" },
+      { "title": "Citizen", "role": "member" }
+    ] },
+
+    { "id": "clan-gol-kharzum", "name": "Clan Gol-Kharzum", "kind": "stronghold", "zone": "gol-kharzum", "template": "stronghold" },
+    { "id": "clan-mor-khazgur", "name": "Clan Mor Khazgur", "kind": "stronghold", "zone": "mor-khazgur", "template": "stronghold" },
+    { "id": "clan-dushnikh-yal", "name": "Clan Dushnikh Yal", "kind": "stronghold", "zone": "dushnikh-yal", "template": "stronghold" },
+    { "id": "clan-largashbur", "name": "Clan Largashbur", "kind": "stronghold", "zone": "largashbur", "template": "stronghold" },
+    { "id": "clan-narzulbur", "name": "Clan Narzulbur", "kind": "stronghold", "zone": "narzulbur", "template": "stronghold" },
+    { "id": "clan-cracked-tusk", "name": "Clan Cracked Tusk", "kind": "stronghold", "zone": "cracked-tusk", "template": "stronghold" },
+
+    { "id": "college-of-winterhold", "name": "College of Winterhold", "kind": "guild", "ranks": [
+      { "title": "Arch-Mage", "role": "leader" },
+      { "title": "Master Wizard", "role": "officer" },
+      { "title": "Senior Wizard", "role": "sergeant" },
+      { "title": "Wizard", "role": "mage" },
+      { "title": "College Smith", "role": "blacksmith" },
+      { "title": "Robe-Weaver", "role": "tailor" },
+      { "title": "Scholar", "role": "member" },
+      { "title": "Apprentice", "role": "member" }
+    ] },
+    { "id": "synod", "name": "The Synod", "kind": "guild", "ranks": [
+      { "title": "Chancellor of the Synod", "role": "leader" },
+      { "title": "Magister", "role": "officer" },
+      { "title": "Senior Magister", "role": "sergeant" },
+      { "title": "Mage of the Synod", "role": "mage" },
+      { "title": "Synod Artificer", "role": "blacksmith" },
+      { "title": "Synod Robe-Maker", "role": "tailor" },
+      { "title": "Associate", "role": "member" },
+      { "title": "Initiate", "role": "member" }
+    ] },
+    { "id": "college-of-whispers", "name": "College of Whispers", "kind": "guild", "ranks": [
+      { "title": "Master of Whispers", "role": "leader" },
+      { "title": "Keeper of Secrets", "role": "officer" },
+      { "title": "Senior Whisperer", "role": "sergeant" },
+      { "title": "Whisperer", "role": "mage" },
+      { "title": "College Artificer", "role": "blacksmith" },
+      { "title": "Robe-Maker", "role": "tailor" },
+      { "title": "Scholar", "role": "member" },
+      { "title": "Novice", "role": "member" }
+    ] },
+    { "id": "fighters-guild", "name": "Fighters Guild", "kind": "guild", "ranks": [
+      { "title": "Guildmaster", "role": "leader" },
+      { "title": "Champion", "role": "officer" },
+      { "title": "Guardian", "role": "sergeant" },
+      { "title": "Guild Battlemage", "role": "mage" },
+      { "title": "Guild Armorer", "role": "blacksmith" },
+      { "title": "Outfitter", "role": "tailor" },
+      { "title": "Swordsman", "role": "member" },
+      { "title": "Associate", "role": "member" }
+    ] },
+    { "id": "companions", "name": "The Companions", "kind": "guild", "ranks": [
+      { "title": "Harbinger", "role": "leader" },
+      { "title": "Member of the Circle", "role": "officer" },
+      { "title": "Shield-Sibling", "role": "sergeant" },
+      { "title": "Skyforge Smith", "role": "blacksmith" },
+      { "title": "Outfitter", "role": "tailor" },
+      { "title": "Companion", "role": "member" },
+      { "title": "Whelp", "role": "member" }
+    ] },
+    { "id": "bards-college", "name": "Bards College", "kind": "guild", "ranks": [
+      { "title": "Headmaster", "role": "leader" },
+      { "title": "Master Bard", "role": "officer" },
+      { "title": "Bard", "role": "sergeant" },
+      { "title": "Instrument Maker", "role": "blacksmith" },
+      { "title": "Costumer", "role": "tailor" },
+      { "title": "Student", "role": "member" }
+    ] },
+    { "id": "imperial-legion", "name": "Imperial Legion", "kind": "guild", "ranks": [
+      { "title": "General", "role": "leader" },
+      { "title": "Legate", "role": "officer" },
+      { "title": "Centurion", "role": "sergeant" },
+      { "title": "Battlemage", "role": "mage" },
+      { "title": "Legion Smith", "role": "blacksmith" },
+      { "title": "Quartermaster", "role": "tailor" },
+      { "title": "Legionnaire", "role": "member" },
+      { "title": "Auxiliary", "role": "member" }
+    ] },
+    { "id": "stormcloaks", "name": "Stormcloaks", "kind": "guild", "ranks": [
+      { "title": "General", "role": "leader" },
+      { "title": "Stormblade", "role": "officer" },
+      { "title": "Snow-Hammer", "role": "sergeant" },
+      { "title": "Stormcloak Smith", "role": "blacksmith" },
+      { "title": "Outfitter", "role": "tailor" },
+      { "title": "Ice-Veins", "role": "member" },
+      { "title": "Unblooded", "role": "member" }
+    ] },
+    { "id": "vigil-of-stendarr", "name": "Vigil of Stendarr", "kind": "guild", "ranks": [
+      { "title": "Keeper", "role": "leader" },
+      { "title": "Warden", "role": "officer" },
+      { "title": "Vigilant Sergeant", "role": "sergeant" },
+      { "title": "Priest of Stendarr", "role": "mage" },
+      { "title": "Vigil Smith", "role": "blacksmith" },
+      { "title": "Vigil Tailor", "role": "tailor" },
+      { "title": "Vigilant", "role": "member" },
+      { "title": "Initiate", "role": "member" }
+    ] },
+    { "id": "dawnguard", "name": "Dawnguard", "kind": "guild", "ranks": [
+      { "title": "Leader of the Dawnguard", "role": "leader" },
+      { "title": "Veteran Vampire Hunter", "role": "officer" },
+      { "title": "Vampire Hunter", "role": "sergeant" },
+      { "title": "Dawnguard Mage", "role": "mage" },
+      { "title": "Crossbow Smith", "role": "blacksmith" },
+      { "title": "Outfitter", "role": "tailor" },
+      { "title": "Dawnguard", "role": "member" },
+      { "title": "Recruit", "role": "member" }
+    ] },
+    { "id": "blades", "name": "The Blades", "kind": "guild", "ranks": [
+      { "title": "Grandmaster", "role": "leader" },
+      { "title": "Master", "role": "officer" },
+      { "title": "Blade", "role": "sergeant" },
+      { "title": "Blades Smith", "role": "blacksmith" },
+      { "title": "Outfitter", "role": "tailor" },
+      { "title": "Blade", "role": "member" },
+      { "title": "Initiate", "role": "member" }
+    ] },
+    { "id": "thalmor", "name": "Thalmor", "kind": "guild", "ranks": [
+      { "title": "First Emissary", "role": "leader" },
+      { "title": "Justiciar", "role": "officer" },
+      { "title": "Inquisitor", "role": "sergeant" },
+      { "title": "Thalmor Wizard", "role": "mage" },
+      { "title": "Thalmor Smith", "role": "blacksmith" },
+      { "title": "Robe-Maker", "role": "tailor" },
+      { "title": "Thalmor Soldier", "role": "member" },
+      { "title": "Agent", "role": "member" }
+    ] },
+    { "id": "thieves-guild", "name": "Thieves Guild", "kind": "guild", "secret": true, "ranks": [
+      { "title": "Guild Master", "role": "leader" },
+      { "title": "Second", "role": "officer" },
+      { "title": "Shadowfoot", "role": "sergeant" },
+      { "title": "Shadow Mage", "role": "mage" },
+      { "title": "Guild Fence-Smith", "role": "blacksmith" },
+      { "title": "Guild Tailor", "role": "tailor" },
+      { "title": "Prowler", "role": "member" },
+      { "title": "Footpad", "role": "member" }
+    ] },
+    { "id": "dark-brotherhood", "name": "Dark Brotherhood", "kind": "guild", "secret": true, "ranks": [
+      { "title": "Listener", "role": "leader" },
+      { "title": "Speaker", "role": "officer" },
+      { "title": "Silencer", "role": "sergeant" },
+      { "title": "Shadowscale Mage", "role": "mage" },
+      { "title": "Sanctuary Smith", "role": "blacksmith" },
+      { "title": "Shrouded Tailor", "role": "tailor" },
+      { "title": "Assassin", "role": "member" },
+      { "title": "Murderer", "role": "member" }
+    ] },
+    { "id": "clan-volkihar", "name": "Clan Volkihar", "kind": "guild", "secret": true, "ranks": [
+      { "title": "Vampire Lord", "role": "leader" },
+      { "title": "Vampire Elder", "role": "officer" },
+      { "title": "Vampire", "role": "sergeant" },
+      { "title": "Blood Mage", "role": "mage" },
+      { "title": "Castle Smith", "role": "blacksmith" },
+      { "title": "Castle Tailor", "role": "tailor" },
+      { "title": "Fledgling", "role": "member" },
+      { "title": "Thrall", "role": "member" }
+    ] },
+
+    { "id": "cult-azura", "name": "Faithful of Azura", "kind": "cult", "prince": "Azura", "secret": true, "ranks": [
+      { "title": "Voice of Dawn and Dusk", "role": "leader" }, { "title": "Priest of Azura", "role": "officer" }, { "title": "Moonshadow Zealot", "role": "sergeant" },
+      { "title": "Star-Seer", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Robe-Maker", "role": "tailor" }, { "title": "Faithful", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-boethiah", "name": "Cult of Boethiah", "kind": "cult", "prince": "Boethiah", "secret": true, "ranks": [
+      { "title": "Champion of Boethiah", "role": "leader" }, { "title": "Priest of Plots", "role": "officer" }, { "title": "Deceiver", "role": "sergeant" },
+      { "title": "Cult Mage", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Robe-Maker", "role": "tailor" }, { "title": "Devotee", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-clavicus-vile", "name": "Worshippers of Clavicus Vile", "kind": "cult", "prince": "Clavicus Vile", "secret": true, "template": "cult" },
+    { "id": "cult-hermaeus-mora", "name": "Seekers of Hermaeus Mora", "kind": "cult", "prince": "Hermaeus Mora", "secret": true, "ranks": [
+      { "title": "Keeper of Forbidden Lore", "role": "leader" }, { "title": "Seeker", "role": "officer" }, { "title": "Lurker", "role": "sergeant" },
+      { "title": "Scribe of Apocrypha", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Robe-Maker", "role": "tailor" }, { "title": "Devotee", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-hircine", "name": "Hircine's Hunters", "kind": "cult", "prince": "Hircine", "secret": true, "ranks": [
+      { "title": "Alpha", "role": "leader" }, { "title": "Hunt-Master", "role": "officer" }, { "title": "Stalker", "role": "sergeant" },
+      { "title": "Moon-Shaman", "role": "mage" }, { "title": "Bone-Smith", "role": "blacksmith" }, { "title": "Hide-Worker", "role": "tailor" }, { "title": "Hunter", "role": "member" }, { "title": "Prey-Blooded", "role": "member" } ] },
+    { "id": "cult-mehrunes-dagon", "name": "Mythic Dawn", "kind": "cult", "prince": "Mehrunes Dagon", "secret": true, "ranks": [
+      { "title": "Grand Master", "role": "leader" }, { "title": "Magus", "role": "officer" }, { "title": "Guardian of the Dawn", "role": "sergeant" },
+      { "title": "Adept", "role": "mage" }, { "title": "Dawn Armorer", "role": "blacksmith" }, { "title": "Robe-Weaver", "role": "tailor" }, { "title": "Acolyte", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-mephala", "name": "Cult of Mephala", "kind": "cult", "prince": "Mephala", "secret": true, "ranks": [
+      { "title": "Weaver of the Web", "role": "leader" }, { "title": "Spinner", "role": "officer" }, { "title": "Whisper", "role": "sergeant" },
+      { "title": "Web-Mage", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Silk-Weaver", "role": "tailor" }, { "title": "Devotee", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-meridia", "name": "Order of Meridia", "kind": "cult", "prince": "Meridia", "secret": true, "ranks": [
+      { "title": "Radiant Champion", "role": "leader" }, { "title": "Priest of the Light", "role": "officer" }, { "title": "Purifier", "role": "sergeant" },
+      { "title": "Lightbearer", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Robe-Maker", "role": "tailor" }, { "title": "Devotee", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-molag-bal", "name": "Cult of Molag Bal", "kind": "cult", "prince": "Molag Bal", "secret": true, "ranks": [
+      { "title": "Voice of the Harvester", "role": "leader" }, { "title": "Dominator", "role": "officer" }, { "title": "Enforcer", "role": "sergeant" },
+      { "title": "Soul-Binder", "role": "mage" }, { "title": "Chain-Smith", "role": "blacksmith" }, { "title": "Robe-Maker", "role": "tailor" }, { "title": "Devotee", "role": "member" }, { "title": "Thrall", "role": "member" } ] },
+    { "id": "cult-namira", "name": "Namira's Coven", "kind": "cult", "prince": "Namira", "secret": true, "ranks": [
+      { "title": "Mistress of the Coven", "role": "leader" }, { "title": "Elder of the Coven", "role": "officer" }, { "title": "Feaster", "role": "sergeant" },
+      { "title": "Rot-Witch", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Shroud-Maker", "role": "tailor" }, { "title": "Coven Member", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-nocturnal", "name": "Nightingales of Nocturnal", "kind": "cult", "prince": "Nocturnal", "secret": true, "ranks": [
+      { "title": "Nightingale Sentinel", "role": "leader" }, { "title": "Nightingale", "role": "officer" }, { "title": "Shadow", "role": "sergeant" },
+      { "title": "Twilight Adept", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Cowl-Maker", "role": "tailor" }, { "title": "Devotee", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-peryite", "name": "The Afflicted", "kind": "cult", "prince": "Peryite", "secret": true, "ranks": [
+      { "title": "Taskmaster", "role": "leader" }, { "title": "Plague-Priest", "role": "officer" }, { "title": "Afflicted Zealot", "role": "sergeant" },
+      { "title": "Pestilent Mage", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Robe-Maker", "role": "tailor" }, { "title": "Afflicted", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-sanguine", "name": "Revelers of Sanguine", "kind": "cult", "prince": "Sanguine", "secret": true, "ranks": [
+      { "title": "Master of Revels", "role": "leader" }, { "title": "Hedonist", "role": "officer" }, { "title": "Carouser", "role": "sergeant" },
+      { "title": "Rose-Mage", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Costumer", "role": "tailor" }, { "title": "Reveler", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-sheogorath", "name": "Cult of the Mad God", "kind": "cult", "prince": "Sheogorath", "secret": true, "ranks": [
+      { "title": "Duke of Madness", "role": "leader" }, { "title": "Mad Priest", "role": "officer" }, { "title": "Zealot", "role": "sergeant" },
+      { "title": "Lunatic Mage", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Motley-Maker", "role": "tailor" }, { "title": "Madman", "role": "member" }, { "title": "Initiate", "role": "member" } ] },
+    { "id": "cult-vaermina", "name": "Priests of Vaermina", "kind": "cult", "prince": "Vaermina", "secret": true, "ranks": [
+      { "title": "Dream-Warden", "role": "leader" }, { "title": "Priest of Vaermina", "role": "officer" }, { "title": "Nightmare Zealot", "role": "sergeant" },
+      { "title": "Dreamweaver", "role": "mage" }, { "title": "Cult Smith", "role": "blacksmith" }, { "title": "Robe-Maker", "role": "tailor" }, { "title": "Dreamer", "role": "member" }, { "title": "Initiate", "role": "member" } ] }
+  ]
+}

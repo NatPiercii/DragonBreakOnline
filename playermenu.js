@@ -34,7 +34,9 @@ module.exports = (api) => {
   const isOnline = (a) => onlineActors().includes(a);
   const knownBy = (a) => { const v = get(a, KNOWN_PROP, []); return Array.isArray(v) ? v.map((x) => Number(x) >>> 0) : []; };
   const isMasked = (a) => !!String(get(a, MASK_PROP, '') || '');
-  const isLawful = (a) => { try { return isAdmin(a) || ranksOf(profileOf(a)).length > 0; } catch (e) { return false; } };
+  // Court Mages, Shamans and Wisewomen hold office without guard powers
+  const UNLAWFUL_RANKS = new Set(['courtmage', 'shaman', 'wisewoman']);
+  const isLawful = (a) => { try { return isAdmin(a) || ranksOf(profileOf(a)).some((m) => !UNLAWFUL_RANKS.has(m.rank)); } catch (e) { return false; } };
   const nameFor = (viewer, a) => (isMasked(a) ? C.maskName : knownBy(viewer).includes(a >>> 0) ? nameOf(a) : 'Stranger');
   const distance = (a, b) => {
     const la = get(a, 'locationalData', null), lb = get(b, 'locationalData', null);
@@ -100,6 +102,7 @@ module.exports = (api) => {
     const entries = [{ id: 'trade', label: 'Trade' }];
     if (!knownBy(t).includes(a >>> 0)) entries.push({ id: 'introduce', label: 'Introduce' });
     entries.push({ id: 'inspect', label: 'Inspect' }, { id: 'party', label: 'Invite to Party' });
+    try { if (typeof globalThis.__dboFactionMenuEntries === 'function') entries.push(...globalThis.__dboFactionMenuEntries(a, t)); } catch (e) { /* factions not loaded */ }
     if (get(a, LAWFUL_PROP, false) === true) {
       const r = get(t, RESTRAINED_PROP, null) || {};
       entries.push({ id: 'search', label: 'Search' });
@@ -126,6 +129,7 @@ module.exports = (api) => {
     if (id === 'introduce') return introduce(a, t);
     if (id === 'inspect') return openMenu(a, t, 'inspect', inspectLines(a, t));
     if (id === 'party') return runCommand(a, 'party', `invite #${tagOf(t)}`);
+    if (typeof globalThis.__dboFactionMenuAction === 'function' && globalThis.__dboFactionMenuAction(a, id, t)) return;
   });
 
   // ---- masks ----------------------------------------------------------------------------------------

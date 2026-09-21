@@ -12,6 +12,7 @@ zone-spawns.json
 *.tmp
 notice-boards.json
 officials.json
+guilds.json
 *.log
 *.log.*
 server.log*

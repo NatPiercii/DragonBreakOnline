@@ -731,7 +731,12 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       for (const h of hs) { if (!a) break; try { h(a, Array.isArray(content.args) ? content.args : [], Number(content.widget) || 0); } catch (e) { log('ui event failed', content.event, e.message); } }
       return;
     }
-    // Mirror admin panel actions (Insert key) into the audit log; AdminSystem enforces them.
+    // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
+    if (content.customPacketType === 'factionMenuRequest') {
+      const a = actorOf(userId); if (a && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);
+      return;
+    }
+    // Mirror admin panel actions (F7) into the audit log; AdminSystem enforces them.
     if (content.customPacketType === 'adminAction') {
       const a = actorOf(userId); if (!a || !isAdmin(a)) return;
       const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier'].filter(k => content[k] !== undefined).map(k => `${k}=${content[k]}`).join(' ');
@@ -904,6 +909,7 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboDungeonLoginCheck) globalThis.__dboDungeonLoginCheck(a); } catch (e) { log('dungeon login check failed', e.message); }
     giveStarterKit(a);
     try { indexName(a); } catch (e) { /* offline lookup only */ }
+    try { if (globalThis.__dboFactionLogin) globalThis.__dboFactionLogin(a); } catch (e) { log('faction login failed', e.message); }
     const waiting = pigeonsWaiting(a);
     if (waiting) system(a, `${waiting} pigeon${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you at the notice boards.`);
     try { pushHud(a, needsOf(a), true); } catch (e) { /* hud later */ }
@@ -1338,7 +1344,7 @@ const ranksOf = (profileId) => {
 };
 // Seat holders appoint their own officers (config appointRules: holder rank -> { appointable rank: max per zone }).
 // Bruma is ruled by a Count; count stands in for the Baron until a baron rank exists.
-const APPOINT_RULES = Object.assign({ jarl: { steward: 5 }, baron: { steward: 5 }, count: { steward: 5 }, chieftain: { bane: 5 } }, cfg.appointRules || {});
+const APPOINT_RULES = Object.assign({ jarl: { steward: 5, courtmage: 2 }, baron: { steward: 5, courtmage: 2 }, count: { steward: 5, courtmage: 2 }, chieftain: { bane: 5, shaman: 1, wisewoman: 1 } }, cfg.appointRules || {});
 const appointCap = (a, z, rank) => {
   if (isAdmin(a)) return Infinity;
   let cap = 0;
@@ -1365,7 +1371,7 @@ registerChatCommand('appoint', (a, args) => {
   personal(a, `${display(t)} is now ${rankTitle(rank)} of ${z.name}.`);
   system(t, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
   audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${who(t)} ${rankTitle(rank)} of ${z.name}`);
-}, { help: '<player|#TAG> <zone> <rank> make someone an official (admins; Jarls, Counts and Barons name Stewards, Chieftains name Banes, 5 each)' });
+}, { help: '<player|#TAG> <zone> <rank> make someone an official (admins; Jarls, Counts and Barons name 5 Stewards and 2 Court Mages, Chieftains 5 Banes, a Shaman and a Wise-Woman)' });
 registerChatCommand('dismiss', (a, args) => {
   const m = args.trim().match(/^(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG> <zone>');
   const t = findByName(m[1]); if (!t) return personal(a, 'No such player online.');
@@ -2201,6 +2207,13 @@ try {
   const runCommand = (a, name, argStr) => { const c = commands.get(name); if (c && (!c.admin || isAdmin(a))) c.fn(a, argStr); };
   require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, cfg, every });
 } catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; }
+
+// ---- player factions: guilds, holds, clans, cults (server\guilds.js, guild-defs.json) -------------
+try {
+  const GUILDS_JS = path.resolve('guilds.js');
+  delete require.cache[GUILDS_JS];
+  require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, findByName, audit, who, cfg });
+} catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
