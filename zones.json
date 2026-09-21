@@ -291,6 +291,14 @@
       "worldspaces": [
         "800:Dragonborn.esm"
       ]
+    },
+    {
+      "id": "alikr",
+      "name": "Alik'r Desert",
+      "officials": [],
+      "worldspaces": [
+        "200000:Gray Fox Cowl.esm"
+      ]
     }
   ],
   "sovereignty": {
