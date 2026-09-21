@@ -1,5 +1,47 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-21 (01:00): the hub spawn is SOLVED - one ESL flag on one plugin
+
+The block below was written at 00:15 with the spawn unsolved. It is solved; full account in
+**`server\HUB_SPAWN_BUG.md`**. Two players, on separate machines, are now in the game together.
+
+- [x] **Cause:** `AlternateHighPolyHead_SE.esp` was ESL-flagged in the copy the client loads and not in
+  `server\data\` - otherwise byte-for-byte the same plugin. The client put it in the `0xFE` space, so
+  every later index was one lower on the client alone. The hub was `0x25` server side and `0x24`
+  client side; `startPoints` pointed at a form that did not exist on the client, the move was a no-op,
+  and every player stayed at the player's default editor location: Riverwood's Sleeping Giant Inn.
+- [x] **Found from a crash log's `PLUGINS:` block**, which prints the runtime load order with indices,
+  after eleven static hypotheses had all come back "correct". Ask for a crash log before computing
+  plugin indices from files on disk.
+- [x] **Fixed**: ESL copy into `server\data\` and dev `Data\`, `startPoints` -> `0x24017482`.
+  Blast radius checked first - all generated data uses desc-style ids, and the only hard-coded
+  numeric at a shifted index was `startPoints` itself.
+- [x] **Gates confirmed working** (*"You step through the gate to Bruma"*). A finished character is now
+  also sent to the arrival automatically, since the hub is allowed by the region lock and nothing else
+  would ever move them.
+- [x] **Admin confirmed working** - but it lives in **two files**. See below.
+
+### Open, for tomorrow - details in HUB_SPAWN_BUG.md
+
+- [ ] **RaceMenu shows the stock menu, not its sliders.** Everything on the DBO side checks out:
+  `skee64.dll` loads, both RaceMenu plugins are active, `RaceMenu.bsa` is installed and holds the only
+  copy of `racesex_menu.swf`. **First check: the MO2 Archives tab** - the profile's `archives.txt` is
+  empty, and `RaceMenu.bsa` probably is not ticked. If it is, test `showracemenu` in the console to
+  separate "archive not loading" from "server opens the menu too early".
+- [ ] **Orc still has Nord frost resistance.** The client fix is deployed; retest on a character
+  created now that the spawn works before treating it as new. Deeper fix `DBO_PlayerRecord.pas` is
+  scoped and not promoted.
+- [ ] **Admin lives in two files.** `gamemode-config.json` `admins` hot-reloads and covers the gamemode
+  and `/whoami`; `server-settings.json` `adminProfileIds` is **boot only** and is what the **admin
+  panel** reads. Being `tier senior` in chat while the panel refuses you means the second list is
+  missing your id. Menu key is **Insert** (launcher `adminMenuKeyCode` 210), not the client's F7.
+- [ ] **Remove `spawnTrace`** from `gamemode.js`, or set `"spawnTrace": false`.
+- [x] **The `1001` profile explained**: `login.ts:275` refuses an admin profile id from a non-loopback IP
+  in offline mode and substitutes `1000 + userId`. Adding your own id to `adminProfileIds` and
+  connecting over the LAN therefore *removes* your admin. Keep test ids in `gamemode-config.json`
+  `admins` only. **Production will use Discord verification and role-based admin** (`adminRoles`),
+  which closes this and the unguarded `admins` list together.
+
 ## Added 2026-09-21 (00:15): the first two-player session - the server is reachable, the spawn is not
 
 Nat and a friend both reached character creation on a server running on a **second machine**, from the

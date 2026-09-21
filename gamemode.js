@@ -817,6 +817,20 @@ const moveToHubWhenReady = (a, why) => {
   setTimeout(tick, 3000);
 };
 // Chain onto the server's appearance hook (spawn.ts installed its own before the gamemode loaded).
+// Leaving the Realm once a character is made. Only moves someone who is actually still in the hub
+// and has finished creation, so a re-opened creator or an already-departed player is left alone.
+const sendToArrival = (a) => {
+  try {
+    if (mp.get(a, 'isOnline') === false) return;
+    if (creationPending(a)) return;
+    const here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase();
+    if (here !== String(HUB.cellOrWorldDesc).toLowerCase()) return;
+    mp.set(a, 'locationalData', LANDING_LOC);
+    creation.delete(a);
+    setFade(a, false);
+    log(`sent ${display(a)} from the Realm to the arrival`);
+  } catch (e) { log('send to arrival failed', e.message); }
+};
 // The original is stored once so a hot reload re-wraps the same function instead of stacking.
 if (!globalThis.__dboAppearanceHookPrev) {
   const cur = typeof mp.onUpdateAppearanceAttempt === 'function' ? mp.onUpdateAppearanceAttempt : null;
@@ -829,6 +843,10 @@ const appearanceHook = (actorId, appearance, isAllowed) => {
   if (isAllowed) { try { moveToHubWhenReady(actorId >>> 0, 'creator closed'); } catch (e) { log('hub move schedule failed', e.message); } }
   // The kit at login skips characters still in creation; finishCreation resets the inventory first, so wait past it.
   if (isAllowed) setTimeout(() => { try { giveStarterKit(actorId >>> 0); } catch (e) { log('starter kit after creation failed', e.message); } }, 6000);
+  // Creation ends in the Realm and the gates there are scenery: they carry no XTEL, so they teleport
+  // nobody. playtest.js allows the hub, so nothing evicts a finished character either, and without
+  // this they stay in the Realm for good. Send them to the arrival once the kit has landed.
+  if (isAllowed) setTimeout(() => sendToArrival(actorId >>> 0), 9000);
   return result;
 };
 appearanceHook.__dbo = true;
