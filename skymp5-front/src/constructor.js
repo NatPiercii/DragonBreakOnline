@@ -29,6 +29,7 @@ import Labour from './features/labour';
 import Prayer from './features/prayer';
 import DeityPicker from './features/deityPicker';
 import Pigeon from './features/pigeon';
+import Faction from './features/faction';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
@@ -261,6 +262,8 @@ const Constructor = props => {
       return <DeityPicker data={rend} />;
     case 'pigeon':
       return <Pigeon data={rend} />;
+    case 'faction':
+      return <Faction data={rend} />;
     case 'skinning':
       return <Skinning data={rend} />;
     case 'characterSelect':
