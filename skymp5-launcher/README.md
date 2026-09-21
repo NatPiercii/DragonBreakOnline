@@ -1,4 +1,4 @@
-# DragonBreak Online Launcher
+# DragonBreak Launcher
 
 Desktop launcher for the DragonBreak SkyMP server. Handles Discord authentication, client file installation, mod management via Mod Organizer 2, and launching Skyrim through SKSE.
 Original by the SkyMP team: https://github.com/F02K/SkyMP-Launcher

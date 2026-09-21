@@ -2,7 +2,7 @@
   "name": "dragonbreak-launcher",
   "version": "2.1.19",
   "description": "Launcher for the DragonBreak server",
-  "productName": "DragonBreak Online Launcher",
+  "productName": "DragonBreak Launcher",
   "main": "src/main.js",
   "author": "F02K and Suraru",
   "license": "MIT",
@@ -26,7 +26,7 @@
   },
   "build": {
     "appId": "com.dragonbreak.launcher",
-    "productName": "DragonBreak Online Launcher",
+    "productName": "DragonBreak Launcher",
     "directories": {
       "output": "../build/launcher"
     },
