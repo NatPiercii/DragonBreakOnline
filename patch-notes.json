@@ -1,0 +1,86 @@
+[
+  {
+    "title": "Factions Have Arrived",
+    "date": "2026-09-21",
+    "tag": "New Feature",
+    "version": "Client 0.3.6",
+    "body": "Tamriel's great powers are open for membership. Press F3 to see your factions, who is in them and who is online.",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "46 factions: every Hold, the County of Bruma, the Orc strongholds, the great guilds and orders, and a secret cult for each Daedric Prince.",
+          "Each faction uses its own lore titles, from Apprentice to Arch-Mage.",
+          "Invite players from the F3 menu, or press X on a player and pick Invite.",
+          "Leaders set ranks and pass leadership on. Officers can remove lower ranks, and Sergeants can recruit.",
+          "Up to 3 Blacksmiths and 3 Tailors per faction. Faction gear crafting comes later.",
+          "Secret factions hide their members from outsiders."
+        ]
+      },
+      {
+        "heading": "Offices",
+        "items": [
+          "Jarls, Counts and Barons can each appoint 2 Court Mages.",
+          "Chieftains appoint a Shaman and a Wise-Woman."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Launcher 2.1.19: DragonBreak Launcher",
+    "date": "2026-09-21",
+    "tag": "Update",
+    "version": "Launcher 2.1.19",
+    "sections": [
+      {
+        "items": [
+          "The launcher is now called DragonBreak Launcher. Your settings and sign-in carry over.",
+          "Patch notes like these now appear here after every update.",
+          "Default keys no longer clash: Factions F3, free cursor F8, hide UI F2, housing X.",
+          "The Discord button opens the DragonBreak Online server."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Playtest Fixes",
+    "date": "2026-09-21",
+    "tag": "Hotfix",
+    "sections": [
+      {
+        "heading": "World",
+        "items": [
+          "New characters no longer land stuck in Riverwood.",
+          "Wildlife no longer spawns in spots creatures cannot walk, such as the Pale Pass wolves.",
+          "Dungeons now scale to your party's size and highest level.",
+          "Dungeon loot now includes food, and bodies carry less gold."
+        ]
+      },
+      {
+        "heading": "Combat and characters",
+        "items": [
+          "Concentration spells such as Sparks deal damage once per second per target.",
+          "Racial abilities such as Nord frost resistance no longer linger after they end.",
+          "Character creation shows RaceMenu's sliders again."
+        ]
+      },
+      {
+        "heading": "Interface",
+        "items": [
+          "The party list shows the right distance for each member.",
+          "Names and titles above players are spaced properly.",
+          "Chat no longer steals focus while a menu is open, so Tab and menus no longer get stuck.",
+          "Pigeon letters wait for you at any notice board.",
+          "Stewards and Banes can be appointed, up to 5 each."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Your Launcher Keeps Itself Current",
+    "date": "2026-09-21",
+    "tag": "Update",
+    "version": "Launcher 2.1.17",
+    "body": "The launcher now downloads DragonBreak's own plugins, archives and assets, and fetches only the files that changed. No manual installs after an update."
+  }
+]
