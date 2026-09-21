@@ -878,36 +878,10 @@ const LOGIN_WAIT_MS = 15 * 60000;
 // userId -> the interval waiting for that user's character; a hot reload drops the old waiters first.
 if (globalThis.__dboLoginWaits) { for (const t of globalThis.__dboLoginWaits.values()) clearInterval(t); }
 globalThis.__dboLoginWaits = new Map();
-// Diagnostic for the hub spawn: the client reports its position to the server every tick, so polling
-// worldOrCellDesc here shows where it really went, which printConsole-only client traces cannot.
-// Set cfg.spawnTrace false (or delete this block) once the spawn lands in the hub.
-const spawnTrace = (a) => {
-  if (cfg.spawnTrace === false) return;
-  const want = String(HUB.cellOrWorldDesc).toLowerCase();
-  const started = Date.now();
-  let last = '';
-  const tick = () => {
-    try {
-      if (mp.get(a, 'isOnline') === false) return;
-      const el = Math.round((Date.now() - started) / 1000);
-      const desc = String(mp.get(a, 'worldOrCellDesc') || '');
-      const p = mp.get(a, 'pos') || [];
-      const line = `${desc} [${(p[0] | 0)},${(p[1] | 0)},${(p[2] | 0)}]`;
-      if (line !== last) {
-        log(`spawnTrace ${display(a)} +${el}s ${line}${desc.toLowerCase() === want ? '  <-- IN THE HUB' : ''}`);
-        last = line;
-      }
-      if (el < 45) setTimeout(tick, 1000);
-      else log(`spawnTrace ${display(a)} ended, stage=${creation.get(a) || 'none'}`);
-    } catch (e) { log('spawnTrace failed', e.message); }
-  };
-  setTimeout(tick, 500);
-};
 const onCharacterReady = (userId, a) => {
   connectedAt.set(a, Date.now());
   // A new character is carried through the landing into the hub behind a black screen
   if (creationPending(a)) { creation.set(a, 'spawning'); setFade(a, true); setTimeout(() => fallBackToLanding(a), HUB_SPAWN_WAIT_MS); }
-  spawnTrace(a);
   // Seed the remembered outfit from the save before the client's undressed login reports replace it.
   try { const worn = wornOf(mp.get(a, 'equipment')); if (worn.length) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0])); } catch (e) { /* nothing saved */ }
   setTimeout(() => { if (actorOf(userId) === a && !creationPending(a)) { try { redress(a); } catch (e) { log('redress failed', e.message); } } }, 12000);

@@ -73,7 +73,9 @@ The block below was written at 00:15 with the spawn unsolved. It is solved; full
   and `/whoami`; `server-settings.json` `adminProfileIds` is **boot only** and is what the **admin
   panel** reads. Being `tier senior` in chat while the panel refuses you means the second list is
   missing your id. Menu key is **Insert** (launcher `adminMenuKeyCode` 210), not the client's F7.
-- [ ] **Remove `spawnTrace`** from `gamemode.js`, or set `"spawnTrace": false`.
+- [x] **`spawnTrace` removed** from `gamemode.js` (2026-09-21, dev box).
+- [ ] **Client crash on jump at Pale Pass** (00:21:05, `SkyrimSE.exe+079F43C`, `JumpHandler`, null
+  read at `+0x218`). Unexplained; see `HUB_SPAWN_BUG.md` item 3.
 - [x] **The `1001` profile explained**: `login.ts:275` refuses an admin profile id from a non-loopback IP
   in offline mode and substitutes `1000 + userId`. Adding your own id to `adminProfileIds` and
   connecting over the LAN therefore *removes* your admin. Keep test ids in `gamemode-config.json`

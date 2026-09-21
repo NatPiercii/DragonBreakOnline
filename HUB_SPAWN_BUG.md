@@ -126,11 +126,28 @@ deeper fix is already scoped and **not promoted**: `DBO_PlayerRecord.pas` overri
 record in DLE to strip its spells and its 16-item starting kit; the first run removed 16 of 16 items
 but 0 spells because the `Spells` element path does not exist on `NPC_`.
 
-### 3. Housekeeping
+### 3. Client crash on jump at Pale Pass (2026-09-21 00:21:05, Nat's machine)
 
-- **`spawnTrace` is still live in `gamemode.js`** - a diagnostic that logs the player's world and
-  position every second for 45 s after a character is ready. Remove it, or set `"spawnTrace": false`
-  in `gamemode-config.json`.
+`EXCEPTION_ACCESS_VIOLATION` at `SkyrimSE.exe+079F43C` (`mov ecx, [rax+0x218]`, **rax = 0**),
+8 min 48 s into the session. The stack is the input path: `PlayerControls` -> **`JumpHandler`** ->
+a `ButtonEvent`, so **the player pressed jump** and the handler dereferenced a null pointer.
+Player "Argy" (`0x14`) in cell `CYRPalePassExterior01` (`0x0809FF8A`, BSHeartland).
+
+OpenAnimationReplacer (`Hooks.cpp:633 InputFunc`) and CommunityShaders (`PollInputDevices` thunk)
+appear on the stack only as input-dispatch hooks passing the event through - **not established as
+the cause.** The crash log's load order matches the server (`Regular: 61`, Hub at `[24]`), so this
+is not the ESL issue.
+
+**Unverified - do not treat as a cause yet:** the timing fits `sendToArrival` moving the player from
+the hub to Pale Pass, so the first thing to measure is whether the jump landed while the player's
+character controller / 3D was still missing after that teleport. Next steps: resolve functions
+42423 and 42338 (Address Library ids on the stack) to their names, find what sits at `+0x218` of
+the object in rax, and check `server.log` around 00:21 for a teleport of Argy just before it.
+
+### 4. Housekeeping
+
+- ~~`spawnTrace` diagnostic~~ - **removed from `gamemode.js` 2026-09-21** (dev box; reaches the
+  server PC with the next `gamemode.js` copy).
 - **Admin in offline mode, and why adding your id can take it away.** Two lists, two behaviours:
   - `gamemode-config.json` -> `admins` - gamemode commands and `/whoami`, **hot-reloads**
   - `server-settings.json` -> `adminProfileIds` - the **admin panel** (`AdminSystem`/`adminRoles.ts`),
