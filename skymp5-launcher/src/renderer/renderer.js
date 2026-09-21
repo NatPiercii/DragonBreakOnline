@@ -201,7 +201,7 @@ async function loadGameSettingsTab() {
       setKey('hk-personal', h.personal != null ? h.personal : 22)
       setKey('hk-faction', h.faction != null ? h.faction : 34)
       setKey('hk-voice-ptt', h.voicePtt != null ? h.voicePtt : 47)
-      setKey('hk-admin', h.adminMenu != null ? h.adminMenu : 210)
+      setKey('hk-admin', h.adminMenu != null ? h.adminMenu : 65)
       setKey('hk-hide-ui', h.hideUi != null ? h.hideUi : 59)
     }
   } catch (err) { /* settings tab is best-effort */ }
