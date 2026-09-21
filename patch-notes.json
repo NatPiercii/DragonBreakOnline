@@ -1,5 +1,21 @@
 [
   {
+    "title": "Server Stats Come Alive",
+    "date": "2026-09-21",
+    "tag": "New Feature",
+    "version": "Launcher 2.1.20",
+    "sections": [
+      {
+        "items": [
+          "The STATS window shows who is online now and today's peak.",
+          "Races of the Realm ranks every race by how many characters play it.",
+          "See how much gold players hold, carried and in their house storage.",
+          "The stats refresh every minute."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Factions Have Arrived",
     "date": "2026-09-21",
     "tag": "New Feature",
