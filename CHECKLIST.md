@@ -1,5 +1,59 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-21 (00:15): the first two-player session - the server is reachable, the spawn is not
+
+Nat and a friend both reached character creation on a server running on a **second machine**, from the
+internet, through the launcher. That is the thing that had never happened. What does not work is the
+spawn into the hub, and it has its own write-up: **`server\HUB_SPAWN_BUG.md`** - read that before
+touching the spawn path, most of the obvious causes are already eliminated there.
+
+### Shipped and verified
+
+- [x] **The server runs on the server PC** (`10.0.0.132`), reachable at `68.63.59.17`. `listenHost`
+  `0.0.0.0`; `uiListenHost` stays `127.0.0.1` because port 3000 exposes `/rpc/:rpcClassName`.
+  Ports opened and forwarded: **UDP 7777** and **TCP 4000** only.
+- [x] **Three launcher fixes for offline-mode servers** (`abca872`, `817741f`, pushed). This is the
+  first server run with `offlineMode` on and two guards assumed every server has Discord auth and a
+  certificate: the download guard refused plain http, and both the profile id and the PLAY button
+  demanded a Discord login that **no Discord application existed to satisfy**. The download guard now
+  allows plain http from the exact origin the build is configured for and nothing else; the installer
+  stays https-only. An offline server mints a profile id once and keeps it, never `1`.
+- [x] **The install manifest is published** - 106 mods, 100 plugins, compiled from Nat's reference MO2
+  install at `C:\DragonBreak`. The first compile failed wanting to inline 1058 MB of base64: ten mods
+  ship as `.rar` and the bundled `7za` cannot read RAR, so it fell back to embedding the extracted
+  files. Pointing `DRAGONBREAK_7Z` at the full 7-Zip the launcher already ships fixed it.
+- [x] **The client package carries the nine plugins that are on no Nexus page** - the seven
+  DragonBreak ones and the two LostArk ones, which sat loose in the game Data and were therefore in
+  no MO2 mod. They are **not** removed from the load order on purpose: at positions 63-64, and form
+  ids here are `plugin index << 24 | local id`, so dropping them shifts every later index and
+  invalidates the ids baked into `dungeons.json`, `loot.json` and the rest.
+- [x] **`HUB_SPAWN_WAIT_MS` 12000 -> 35000** (`4f458f05`). The client's spawn loop retries 30 times a
+  second; the server gave up at twelve and its fallback teleport aborted the client mid-spawn. The
+  direct hub spawn could never complete. Fixed, proven by the trace, **and the symptom remains** -
+  which is what makes the rest of it interesting.
+- [x] **`charCreator` disabled** (`server-settings.json`, boot only). Nat prefers RaceMenu to the
+  custom creator widget, and the widget would not close.
+
+### A mistake worth recording
+
+Adding two plugins to `skymp-client.zip` with .NET's `ZipArchive` in **Update** mode corrupted it for
+`adm-zip`, which is what the launcher extracts with: a clean 174.3 MB download then
+`Install failed: ADM-ZIP: No descriptor present`, for both players. **Never patch that zip in place.**
+Add the files to its source under `build\client-files\root\` and rebuild with `npm run merge`, which
+uses `archiver`. The rebuilt zip was validated by opening it with `adm-zip` itself and extracting all
+267 entries before shipping - that check is the one that should have run the first time.
+
+### Open
+
+- [ ] **The hub spawn.** Every character lands in Riverwood; the server thinks they are in the hub.
+  See `HUB_SPAWN_BUG.md`. The missing reading is the in-game console (`~`) line
+  `Spawn loop gave up: still in <hex>` - `printConsole` goes nowhere else, which was checked.
+- [ ] **RaceMenu shows the vanilla menu.** `skee64.dll` loads and `RaceMenu.bsa` is installed, and the
+  full UI was seen earlier the same evening. Test `showracemenu` in the console first.
+- [ ] **A temporary `spawnTrace` diagnostic is live in `gamemode.js`.** Remove it, or set
+  `"spawnTrace": false` in `gamemode-config.json`, once the spawn is fixed.
+- [ ] **`world-old\`** on the server PC is the pre-wipe world. Delete it when nobody wants it back.
+
 ## HANDOVER to the daily-code-review session (written 2026-09-20 21:00, read this first)
 
 Nat asked me to talk to you directly. `send_message` refuses to deliver to a scheduled-task session
