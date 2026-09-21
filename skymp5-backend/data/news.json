@@ -1,9 +1,8 @@
 [
   {
-    "title": "The Launcher Has Arrived",
-    "body":  "The SkyMP launcher is now available. Stay tuned for further updates.",
-    "date":  "Jun 11, 2026",
-    "tag":   "UPDATE",
-    "image": "/images/news-launcher-release.gif"
+    "title": "Welcome to DragonBreak Online",
+    "date": "2026-09-21",
+    "tag": "Update",
+    "body": "Patch notes appear here after every update. Join the Discord for playtest times and announcements."
   }
 ]
