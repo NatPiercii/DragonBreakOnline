@@ -1,11 +1,15 @@
 # What the launcher delivers, and what to publish to it
 
 For Jake (and Jake's Claude), who hosts the production server and backend. Written 2026-09-21 from
-Nat's dev box after the first two-player test. Nat's home server PC is retired as a host; nothing
-below assumes it.
+Nat's dev box after the first two-player test, updated the same day. Nat's home server PC is retired
+as a host; nothing below assumes it.
 
 **Read "Fix these before players install" first** - there are two known gaps in what is published
-today.
+today. Then "What changed on 2026-09-21" for the server update.
+
+The code lives in `github.com/NatPiercii/DragonBreakOnline`: branch `main` (server systems, client,
+launcher, this backend) and branch `server` (the gameplay layer: `gamemode.js`, its modules and data).
+The two branches are separate histories and never merge.
 
 ---
 
@@ -138,6 +142,25 @@ Two ways to ship them. It's Nat's and Jake's call:
 
 Either way, the BSAs must also sit next to the plugins in the server's `data\` if anything on the
 server reads them. Today nothing does, since the server only reads records.
+
+---
+
+## What changed on 2026-09-21 that the server needs
+
+Pull both branches, then:
+
+| Change | Files | To apply |
+|---|---|---|
+| **Notice boards work everywhere.** Before, no board in Skyrim worked: `zones.ts` compared lowercased worldspace ids against `"3c:Skyrim.esm"`. All 28 placed boards are now loaded at boot, static ones included, and are reachable with N or `/board`. | `main`: `bountyBoardSystem.ts`, `zones.ts`. `server`: `notice-board-spots.json` (new), `zones.json` (adds an `alikr` region) | `npm run build-ts` in `skymp5-server`, copy `build/dist/server/dist_back/*` to the server's `dist_back/`, restart. Expect the boot line `[board] 28 of 28 placed boards known`. |
+| **Housing now finds Skyrim holds.** It uses the same zone lookup, so `housingSystem` resolves Skyrim positions to holds for the first time. | same bundle | same restart |
+| **Skinning credits the Skinner skill.** | `main`: `masterySystem.ts`, `skillPoints.ts`. `server`: `gamemode.js` | same bundle, plus the new `gamemode.js`. Ship both together: the new `gamemode.js` sends an event the old bundle drops. |
+| **Finished characters go to Bruma automatically**, and the spawn diagnostic is removed. | `server`: `gamemode.js` | hot-reloads on save |
+
+None of these touch the launcher or the client package.
+
+`notice-board-spots.json` is generated from the plugins by `py ck-mcp\board_spots.py`, run on Nat's
+dev box. If the load order changes, ask Nat to regenerate it; the server logs any board it cannot
+place in a zone.
 
 ---
 
