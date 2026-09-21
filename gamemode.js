@@ -910,6 +910,7 @@ const onCharacterReady = (userId, a) => {
     giveStarterKit(a);
     try { indexName(a); } catch (e) { /* offline lookup only */ }
     try { if (globalThis.__dboFactionLogin) globalThis.__dboFactionLogin(a); } catch (e) { log('faction login failed', e.message); }
+    try { if (globalThis.__dboWorldStatsSeen) globalThis.__dboWorldStatsSeen(a); } catch (e) { /* stats only */ }
     const waiting = pigeonsWaiting(a);
     if (waiting) system(a, `${waiting} pigeon${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you at the notice boards.`);
     try { pushHud(a, needsOf(a), true); } catch (e) { /* hud later */ }
@@ -2214,6 +2215,13 @@ try {
   delete require.cache[GUILDS_JS];
   require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, findByName, audit, who, cfg });
 } catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
+
+// ---- launcher Server Stats: online, races, gold held (server\worldstats.js -> server-stats.json) ----
+try {
+  const WORLDSTATS_JS = path.resolve('worldstats.js');
+  delete require.cache[WORLDSTATS_JS];
+  require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf });
+} catch (e) { log('worldstats.js failed to load:', e.stack || e.message); globalThis.__dboWorldStatsSeen = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {

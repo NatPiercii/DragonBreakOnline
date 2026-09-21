@@ -41,3 +41,5 @@ pigeon-cooldowns.json
 
 # Stray launcher stdout/stderr from a failed run-logged.cmd invocation
 _launch-*.txt
+server-stats.json
+server-stats.json.tmp
