@@ -42,6 +42,10 @@ in the root `CLAUDE.md`, section "The development server".
   on `status: "online"`. `/usr/local/bin/skymp-api.py` `live()` now adds `status` (backup in
   `/opt/skymp-backups/skymp-api.py.*`). **Jake: that script is outside git** - keep the field if you replace it.
 
+- [x] **19:21-19:48 UTC, from play reports**: RaceMenu loads after SkyUI (SkyUI_SE.bsa shipped its own `racesex_menu.swf`, fork `85673a0`, SurWR blocked spell `0x18315AA6` -> `0x16315AA6`); `discordAuth` added on the dev server so Discord roles reach the game (admin panel); Orcish Blood description fixed in DLE (`9c5d676c`, fork `a5dc516`, one record changed, an xEdit re-save that altered 93 records was rejected). All in `OPS_HANDOFF_2026-09-21_claude-nate.md`.
+- [ ] **`serverdataDragonBreak Online Edits.esp` is still the old `a13379...`**: the local game server started at 11:23 by another session holds it open. Copy the dev Data file over once that server is stopped. The dev server, the launcher sync and `_release` already have `9c5d676c`.
+- [ ] `DBO_OrcAbility.pas` header claims the Breton copy needs no text change; it did (SPEL DESC). Fixed in data; the script comment is now wrong if it is ever rerun.
+
 ### Open - decisions for Nat
 
 - [x] ~~**Players cannot launch until the plugins reach them.**~~ Fixed by 0.3.3 above. The backend still serves the 2026-09-18 client
