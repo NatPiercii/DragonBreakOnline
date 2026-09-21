@@ -535,34 +535,6 @@ function backendModule(name) {
   return require(path.join(config.paths.backend, 'sources', name))
 }
 
-// Build a character record from a changeform (file JSON or mongo doc); null if not a character.
-function charFromCf(cf) {
-  if (!cf || cf.recType !== 1) return null            // 1 = ACHR (a character)
-  const profileId = Number(cf.profileId)
-  if (!Number.isFinite(profileId) || profileId < 0) return null
-  // The store embeds appearanceDump as an object; very old file saves held a JSON string.
-  let appearance = null
-  if (cf.appearanceDump && typeof cf.appearanceDump === 'object') appearance = cf.appearanceDump
-  else if (typeof cf.appearanceDump === 'string') { try { appearance = JSON.parse(cf.appearanceDump) } catch {} }
-  const name = cf.displayName || (appearance && appearance.name) || cf.formDesc || '(unnamed)'
-  return {
-    profileId,
-    formDesc: cf.formDesc,
-    name,
-    disabled: !!cf.isDisabled,
-    dead: !!cf.isDead,
-    worldOrCell: cf.worldOrCellDesc,
-    position: Array.isArray(cf.position) ? cf.position : null,
-    health: cf.healthPercentage,
-    magicka: cf.magickaPercentage,
-    stamina: cf.staminaPercentage,
-    inventory: (cf.inv && Array.isArray(cf.inv.entries)) ? cf.inv.entries : [],
-    spellCount: Array.isArray(cf.learnedSpells) ? cf.learnedSpells.length : 0,
-    spawnDelay: cf.spawnDelay,
-    appearance,
-  }
-}
-
 function readJsonOrNull(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return null }
 }
@@ -597,18 +569,11 @@ async function withMongoChangeForms(settings, fn) {
   } finally { await client.close() }
 }
 
-// File driver: yields [file, changeForm] for every parseable json in the store.
-function* fileChangeForms(settings) {
+// File driver: yields [file, changeForm] for every parseable json in <databaseName>/changeForms.
+function fileChangeForms(settings) {
   const dbName = settings.databaseName || 'world'
   const dbDir = path.isAbsolute(dbName) ? dbName : path.join(config.paths.serverDir, dbName)
-  const changeForms = path.join(dbDir, 'changeForms')
-  for (const entry of (fs.existsSync(changeForms) ? fs.readdirSync(changeForms) : [])) {
-    if (!entry.endsWith('.json')) continue
-    const file = path.join(changeForms, entry)
-    let cf
-    try { cf = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { continue }
-    yield [file, cf]
-  }
+  return backendModule('characters').fileChangeForms(path.join(dbDir, 'changeForms'))
 }
 
 // Read the game server's character store (changeForms) and group by profileId.
@@ -618,6 +583,7 @@ let _charError = ''
 async function readCharactersByProfile() {
   if (Date.now() - _charCache.at < 3000) return _charCache.map
   const map = new Map()
+  const { charFromCf } = backendModule('characters')
   const add = cf => {
     const c = charFromCf(cf)
     if (!c) return

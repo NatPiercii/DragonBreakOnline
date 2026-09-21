@@ -15,6 +15,10 @@ module.exports = {
   extraFilesDir: process.env.EXTRA_FILES_DIR
     || path.join(process.env.CLIENT_FILES_DIR || path.join(__dirname, '..', 'build', 'client-files'), 'extra'),
 
+  // Game server's file-database character store (<server dir>/<databaseName>/changeForms), read by the website profile routes
+  changeFormsDir: process.env.CHANGEFORMS_DIR
+    || path.join(__dirname, '..', 'build', 'dist', 'server', 'world', 'changeForms'),
+
   // Game server connection (used for status checks and metrics)
   skyrimServerHost: process.env.SKYMP_HOST || '127.0.0.1',
   skyrimServerPort: SKYMP_PORT,
