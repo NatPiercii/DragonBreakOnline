@@ -155,7 +155,7 @@ server. Rebuild the zip from the current plugins with the steps above.
 
 ### B. DragonBreak's own BSAs ship through no channel
 
-**Solved by channel 4** once launcher 2.1.17 is released: the BSAs and loose assets are published in
+**Solved by channel 4** (launcher 2.1.17, released 2026-09-21): the BSAs and loose assets are published in
 `extra/` on the dev server. Until players have 2.1.17 they still need `_release\DragonBreak-assets-*.zip`
 by hand. The history below is kept for the record.
 
