@@ -73010,6 +73010,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlAnimalForestPredator",
 "world": "a764b:BSHeartland.esm",
@@ -73058,6 +73059,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlAnimalForestPredator",
 "world": "a764b:BSHeartland.esm",
@@ -73106,6 +73108,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlAnimalForestPredator",
 "world": "a764b:BSHeartland.esm",
@@ -73154,6 +73157,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlWolf",
 "world": "a764b:BSHeartland.esm",
@@ -73178,6 +73182,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlWolf",
 "world": "a764b:BSHeartland.esm",
@@ -73202,6 +73207,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlAnimalForestPredator",
 "world": "a764b:BSHeartland.esm",
@@ -73250,6 +73256,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "troll",
 "edid": "CYREncTrollRiver",
 "world": "a764b:BSHeartland.esm",
@@ -73270,6 +73277,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "bear",
 "edid": "CYRLvlBearAll",
 "world": "a764b:BSHeartland.esm",
@@ -73294,6 +73302,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "deer",
 "edid": "CYREncDeer",
 "world": "a764b:BSHeartland.esm",
@@ -73314,6 +73323,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "deer",
 "edid": "CYREncDeer",
 "world": "a764b:BSHeartland.esm",
@@ -73334,6 +73344,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "deer",
 "edid": "CYREncDeer",
 "world": "a764b:BSHeartland.esm",
@@ -73682,6 +73693,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYREncWolfTimber",
 "world": "a764b:BSHeartland.esm",
@@ -73702,6 +73714,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYREncWolfTimber",
 "world": "a764b:BSHeartland.esm",
@@ -73722,6 +73735,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYREncWolfTimber",
 "world": "a764b:BSHeartland.esm",
@@ -73742,6 +73756,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYREncWolfTimber",
 "world": "a764b:BSHeartland.esm",
@@ -73762,6 +73777,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlAnimalForestPredator",
 "world": "a764b:BSHeartland.esm",
@@ -73810,6 +73826,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "deer",
 "edid": "CYRLvlAnimalForestPrey",
 "world": "a764b:BSHeartland.esm",
@@ -73830,6 +73847,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "wolf",
 "edid": "CYRLvlWolf",
 "world": "a764b:BSHeartland.esm",
@@ -76266,6 +76284,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "fox",
 "edid": "LvlAmbientCreaturesSnow",
 "world": "a764b:BSHeartland.esm",
@@ -80202,6 +80221,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80230,6 +80250,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80258,6 +80279,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80286,6 +80308,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80314,6 +80337,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80342,6 +80366,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80370,6 +80395,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80398,6 +80424,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80426,6 +80453,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -80454,6 +80482,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "mudcrab",
 "edid": "CYRLvlMudcrab",
 "world": "a764b:BSHeartland.esm",
@@ -81822,6 +81851,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "deer",
 "edid": "CYRLvlAnimalForestPrey",
 "world": "a764b:BSHeartland.esm",
@@ -81842,6 +81872,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "bear",
 "edid": "CYRLvlBearAll",
 "world": "a764b:BSHeartland.esm",
@@ -81866,6 +81897,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "frosttroll",
 "edid": "CYREncFrostTrollWarningBeforeAttack",
 "world": "a764b:BSHeartland.esm",
@@ -81886,6 +81918,7 @@
 ]
 },
 {
+"noNavmesh": true,
 "kind": "goat",
 "edid": "LvlAnimalMountainSnowPrey",
 "world": "a764b:BSHeartland.esm",

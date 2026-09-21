@@ -48,6 +48,9 @@ module.exports = (api) => {
     for (const pl of DATA.placements || []) {
       if (out.length >= C.maxZones) break;
       if (!pl.ref || !Array.isArray(pl.pos)) continue;
+      // No navmesh in the placement's cell (BSHeartland covers 524 of 2381 Cyrodiil cells): the creature cannot path
+      // and sinks or slides. Skipped, but still counted, so every later wild:* zone keeps its name.
+      if (pl.noNavmesh) { n++; continue; }
       const id = pickOption(pl.options, pickFor(pl));
       if (!id) continue;
       out.push({ Name: `${PREFIX}${pl.kind}:${n++}`, ID: pl.world, POS: pl.pos, Size: C.radius, Anchor: pl.ref, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds });
@@ -132,5 +135,5 @@ module.exports = (api) => {
   }
 
   const zones = writeZones();
-  log(`wildlife ${C.enabled ? 'on' : 'off'}: ${(DATA.placements || []).length} placements -> ${zones} zones, ${campChests.size} giant camp chests, radius ${C.radius}, despawn ${C.despawnSeconds}s, respawn ${C.respawnSeconds}s${globalThis.__dboWildFactionAudit || ''}`);
+  log(`wildlife ${C.enabled ? 'on' : 'off'}: ${(DATA.placements || []).length} placements -> ${zones} zones (${(DATA.placements || []).filter((p) => p.noNavmesh).length} skipped, no navmesh), ${campChests.size} giant camp chests, radius ${C.radius}, despawn ${C.despawnSeconds}s, respawn ${C.respawnSeconds}s${globalThis.__dboWildFactionAudit || ''}`);
 };
