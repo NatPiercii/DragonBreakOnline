@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as path from "path";
 import * as chokidar from "chokidar";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, WORLD_LOADED_EVENT } from "./system";
@@ -991,9 +992,15 @@ export class NpcSpawnSystem implements System {
     this.saveSpawns();
   }
 
+  // Watches the folder, not the file: wildlife.js and dungeons.js save by rename, which leaves a Linux file watch on the replaced inode
   private watchFile(): void {
-    const watcher = chokidar.watch(ZONES_FILE, { persistent: true, ignoreInitial: true, awaitWriteFinish: true });
-    const schedule = () => this.scheduleReload();
+    const target = path.resolve(ZONES_FILE);
+    const folder = path.dirname(target);
+    const watcher = chokidar.watch(folder, {
+      persistent: true, ignoreInitial: true, awaitWriteFinish: true, depth: 0,
+      ignored: (p: string) => { const abs = path.resolve(p); return abs !== folder && abs !== target; },
+    });
+    const schedule = (p: string) => { if (path.resolve(p) === target) this.scheduleReload(); };
     watcher.on("add", schedule);
     watcher.on("change", schedule);
     watcher.on("unlink", schedule);
