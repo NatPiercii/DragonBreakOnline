@@ -98,8 +98,11 @@ redirects, errors and 404s. No route takes a profile id or form id from the brow
   `createdAt` is `players.json` `createdAt`: when the backend first made the player's row
   (launcher sign-in, game connection, or staff adding the player). `lastLauncherLogin` is
   `players.json` `lastSeenAt`, which only the launcher sign-in writes.
-- `access` is `serverAccess.getDiscordAccess(discordId)` cut down to `allowed` and `error`.
-  When the Discord role lookup fails, the role list reads as empty
+- `access` follows the game's own gates. `reason` is `banned` when `data/bans.json` matches
+  the Discord id or the `players.json` hwid, as the game's session and connection checks do
+  (`routes/master-api.js`); bans set in game or on the dashboard only write that file.
+  Otherwise it is `serverAccess.getDiscordAccess(discordId)` cut down to `allowed` and
+  `error`. When the Discord role lookup fails, the role list reads as empty
   (`sources/discord/bot.js` `getMemberRoles`), so a whitelisted player shows as
   `notWhitelisted` while Discord is unreachable. The page says so beside the badge.
 
@@ -174,7 +177,8 @@ Never sent to a browser:
 | Item and equipment names | The client supplies them, and housing keys carry a credential in their name. Only the stack count and the gold total are sent. |
 | Appearance internals (head parts, tints, morphs, colours) | Nothing resolves them, and the page does not need them. |
 | Faction row details (`permission`, `requirementId`, `factionId`, `scope`, `slot`, numeric `rank`, notes, creator) | Staff data. Only `title` and `group` are sent. |
-| `consoleCommandsAllowed`, `learnedSpells`, `effects`, engine factions, balances, bans | Staff markers, or nothing resolves them. |
+| `consoleCommandsAllowed`, `learnedSpells`, `effects`, engine factions, balances | Staff markers, or nothing resolves them. |
+| Ban records (`bans.json` reason, hwid, IP, who banned) | Staff data. A match only turns the access reason into `banned`. |
 | Other accounts' characters | Anonymity and the mask system. Owner decision 3. |
 | Online status | The backend cannot see it, and `isDisabled` does not mean offline. |
 

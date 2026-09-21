@@ -11,6 +11,7 @@ const siteSessions  = require('../sources/siteSessions')
 const players       = require('../sources/players')
 const profiles      = require('../sources/profiles')
 const serverAccess  = require('../sources/serverAccess')
+const bans          = require('../sources/bans')
 const nameTable     = require('../sources/nameTable')
 const officials     = require('../sources/officials')
 const factions      = require('../sources/factionWhitelist')
@@ -211,6 +212,14 @@ router.get('/callback', callbackLimiter, async (req, res) => {
   }
 })
 
+// The game's gates for this account: the bans.json snapshot by Discord id or hwid (master-api.js session check), then the Discord roles
+async function accessOf(discordId) {
+  const row = players.load()[discordId]
+  if (bans.isBanned({ discordId, hwid: row && row.hwid })) return { allowed: false, reason: 'banned' }
+  const access = await serverAccess.getDiscordAccess(discordId)
+  return { allowed: access.allowed === true, reason: access.allowed === true ? null : (access.error || null) }
+}
+
 // GET /api/site/whoami: the signed-in account, built field by field
 router.get('/whoami', async (req, res) => {
   try {
@@ -218,7 +227,7 @@ router.get('/whoami', async (req, res) => {
     if (!session) return res.json({ signedIn: false })
 
     const row    = players.load()[session.discordId]
-    const access = await serverAccess.getDiscordAccess(session.discordId)
+    const access = await accessOf(session.discordId)
     res.json({
       signedIn: true,
       discord: {
@@ -230,10 +239,7 @@ router.get('/whoami', async (req, res) => {
         createdAt:         row && typeof row.createdAt === 'string' ? row.createdAt : null,
         lastLauncherLogin: row && typeof row.lastSeenAt === 'string' ? row.lastSeenAt : null,
       },
-      access: {
-        allowed: access.allowed === true,
-        reason:  access.allowed === true ? null : (access.error || null),
-      },
+      access,
     })
   } catch (err) {
     console.error('[site-auth] whoami error:', err.message)
