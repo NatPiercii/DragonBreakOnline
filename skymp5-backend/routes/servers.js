@@ -7,17 +7,24 @@ const config = require('../config')
 // Last heartbeat received from the game server via POST /:key
 let heartbeat = null
 
+// A second entry on the LAN address when SERVER_LAN_ADDRESS is set. Players outside the house reach
+// the server through the public address, but a player inside it only can if the router supports NAT
+// loopback, and many do not. Offering both lets the launcher's server picker choose the one that works.
 router.get('/', (_req, res) => {
-  res.json([
-    {
-      name:    heartbeat?.name    ?? config.serverName,
-      address: config.skyrimServerAddress,
-      port:    config.skyrimServerPort,
-      online:  heartbeat?.online  ?? null,
-      maxPlayers: heartbeat?.maxPlayers ?? config.serverMaxPlayers,
-      lastSeen:   heartbeat?.lastSeen   ?? null,
-    },
-  ])
+  const entry = (name, address) => ({
+    name,
+    address,
+    port:       config.skyrimServerPort,
+    online:     heartbeat?.online     ?? null,
+    maxPlayers: heartbeat?.maxPlayers ?? config.serverMaxPlayers,
+    lastSeen:   heartbeat?.lastSeen   ?? null,
+  })
+  const name = heartbeat?.name ?? config.serverName
+  const list = [entry(name, config.skyrimServerAddress)]
+  if (config.serverLanAddress && config.serverLanAddress !== config.skyrimServerAddress) {
+    list.push(entry(`${name} (LAN)`, config.serverLanAddress))
+  }
+  res.json(list)
 })
 
 // Called by the SkyMP in-game client for the game server's host/port; sessionValid/allowed are extra UI hints when X-Session is sent

@@ -16,6 +16,8 @@ module.exports = {
   skyrimServerHost: process.env.SKYMP_HOST || '127.0.0.1',
   skyrimServerPort: SKYMP_PORT,
   skyrimServerAddress: process.env.SERVER_ADDRESS || process.env.SKYMP_HOST || '127.0.0.1',
+  // Optional LAN address, offered as a second server entry for players inside the same network
+  serverLanAddress: process.env.SERVER_LAN_ADDRESS || '',
 
   // UI/metrics port: defaults to 3000 for the standard 7777 game port, else game port + 1.
   skympUiPort: parseInt(process.env.SKYMP_UI_PORT, 10) || (SKYMP_PORT === 7777 ? 3000 : SKYMP_PORT + 1),
