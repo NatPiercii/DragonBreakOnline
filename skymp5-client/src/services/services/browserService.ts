@@ -63,7 +63,8 @@ export class BrowserService extends ClientListener {
         this.sp.browser.executeJavaScript(unfocusEventString);
       }
     }
-    if (canFocus && !this.sp.browser.isFocused() &&
+    // Enter also confirms dialogue lines and message boxes; taking chat focus there left the keyboard locked
+    if (canFocus && !this.sp.browser.isFocused() && !this.sp.Utility.isInMenuMode() &&
         this.chatFocusKeys.some((key) => e.isDown([key]))) {
       this.sp.browser.setFocused(true);
       this.sp.browser.executeJavaScript(focusEventString);
@@ -99,6 +100,8 @@ export class BrowserService extends ClientListener {
 
   private onMenuOpen(e: MenuOpenEvent) {
     if (this.isBadMenu(e.name)) {
+      // A hidden browser that keeps focus swallows every key with no cursor to show it
+      this.unfocus();
       this.sp.browser.setVisible(false);
       this.badMenusOpen.add(e.name);
     } else if (e.name === Menu.HUD && !this.uiHidden) {
