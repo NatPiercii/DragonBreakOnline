@@ -16,6 +16,7 @@ export class RaceSpellsService extends ClientListener {
     private foreignByRace = new Map<number, number[]>();
     private stubborn = new Set<number>();
     private attempts = new Map<number, number>();
+    private lingering = new Map<number, number>();
     private lastRaceId = -1;
 
     constructor(private sp: Sp, private controller: CombinedController) {
@@ -40,6 +41,7 @@ export class RaceSpellsService extends ClientListener {
         if (raceId !== this.lastRaceId) {
             this.lastRaceId = raceId;
             this.attempts.clear();
+            this.lingering.clear();
             this.stubborn.clear();
         }
         this.strip(player, race, raceId);
@@ -90,11 +92,12 @@ export class RaceSpellsService extends ClientListener {
                 continue;
             }
             const form = Game.getFormEx(id);
-            if (!form || !player.hasSpell(form)) {
+            const spell = form ? Spell.from(form) : null;
+            if (!form || !spell) {
                 continue;
             }
-            const spell = Spell.from(form);
-            if (!spell) {
+            if (!player.hasSpell(form)) {
+                this.dispelLingering(player, spell, id);
                 continue;
             }
             player.removeSpell(spell);
@@ -112,6 +115,29 @@ export class RaceSpellsService extends ClientListener {
                 this.stubborn.add(id);
                 logTrace(this, `${id.toString(16)} still present after ${tries} passes; inherited from the base record, not retrying`);
             }
+        }
+    }
+
+    // A race change can leave the old race's ability running with the spell already gone from the list
+    private dispelLingering(player: Actor, spell: Spell, id: number) {
+        const tries = this.lingering.get(id) || 0;
+        if (tries >= GIVE_UP_AFTER) {
+            return;
+        }
+        let active = false;
+        for (let i = 0; i < spell.getNumEffects(); i++) {
+            if (player.hasMagicEffect(spell.getNthEffectMagicEffect(i))) {
+                active = true;
+                break;
+            }
+        }
+        if (!active) {
+            return;
+        }
+        player.dispelSpell(spell);
+        this.lingering.set(id, tries + 1);
+        if (tries === 0) {
+            logTrace(this, `dispelling lingering ${id.toString(16)} (effect active, spell not held, race change)`);
         }
     }
 }
