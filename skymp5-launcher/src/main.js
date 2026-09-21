@@ -1435,11 +1435,21 @@ ipcMain.handle('app:checkUpdate', async () => {
 // Reject remote plain-HTTP downloads of payloads we run or extract: guards
 // against MITM tampering and https->http redirect downgrades. Loopback stays
 // allowed so the http://localhost dev backend still works.
+//
+// The configured backend is also allowed over plain http. Its address is compiled
+// into this build (config.apiUrl), not supplied at runtime, and the launcher already
+// takes the modlist, the install manifest and every sha256 from it - anyone able to
+// tamper with the payload on that path could tamper with the hashes too, so requiring
+// https here buys nothing while blocking a server that has no certificate. This does
+// NOT cover the self-update installer, which executes code and stays https-only.
 function assertSecureDownloadUrl(url) {
   if (/^https:/i.test(url)) return
   let host = ''
   try { host = new URL(url).hostname } catch {}
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return
+  try {
+    if (new URL(url).origin === new URL(config.apiUrl).origin) return
+  } catch { /* unparsable apiUrl: fall through and refuse */ }
   throw new Error(`Refusing to download over an insecure (non-HTTPS) URL: ${url}`)
 }
 
@@ -2817,8 +2827,17 @@ function writeClientSettings(destPath, srv, serverInfo) {
   settings['server-master-key'] = serverInfo?.masterKey || null
 
   if (offlineMode) {
-    const profileId = store.get('gameProfileId')
-    if (profileId == null) throw new Error('No profileId in store - login with Discord before playing')
+    // Offline mode is not authentication: the client simply states which profile it is, so there is
+    // nothing for a Discord login to prove and an offline server may have no Discord app configured
+    // at all. Mint an id once and keep it, so the character behind it survives relaunches.
+    // Never 1: that is the conventional admin id in adminProfileIds, and handing it out would make
+    // every offline player share one character and one set of admin rights.
+    let profileId = store.get('gameProfileId')
+    if (profileId == null) {
+      profileId = Math.floor(Math.random() * 2000000000) + 2
+      store.set('gameProfileId', profileId)
+      log('[writeClientSettings] offline server, no Discord login: minted profileId', profileId)
+    }
     settings['gameData'] = { profileId }
   } else {
     // Write auth-data-no-load.js so the SkyMP in-game client finds pre-existing
