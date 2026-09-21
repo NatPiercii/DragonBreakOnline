@@ -461,18 +461,24 @@ export class MasterySystem implements System {
     for (const id of this.candidates.get(ev.kind) || []) {
       const rules = this.rules[id]; if (!rules) continue;
       const prog = rec.skills[id];
-      // A trade is opened at its station, not by accident - but combat has no station to walk to, so an
-      // unopened skill banks its work instead of losing it and offers itself once there is a level's worth.
+      // A trade is opened at its station, not by accident - but a skill with no station declared in
+      // `gates` has nowhere to walk to and so no opening move at all, and every unit it earns is thrown
+      // away for ever. Those skills bank their work instead and offer themselves once there is a level's
+      // worth. Combat was the first such family; prayer, reading, lockpicking and harvesting are the rest,
+      // and each was silently crediting nobody (measured 2026-09-20: a character who had prayed and taken
+      // a deity had no `priest` record at all).
       if (!prog || prog.level < 1) {
-        const kdef = this.def(id);
-        if (!kdef || kdef.category !== "combat") continue;
+        if (rules.gateStations.size || rules.gatePrefixes.length) continue;
         if (!this.matches(ctx, id, rules, ev)) continue;
         const bank = prog || (rec.skills[id] = emptyProgress());
         bank.shadow = (bank.shadow || 0) + P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * mult;
         changed = true;
         if (!bank.offered && bank.shadow >= P.unitsForLevel(1)) {
           bank.offered = true;
-          this.notice(ctx, userId, `You have fought often enough this way to call it your own. Open your skills (K) to take up ${this.labelOf(id)}.`);
+          const enough = this.def(id)?.category === "combat"
+            ? "You have fought often enough this way to call it your own."
+            : "You have done this often enough to call it your own.";
+          this.notice(ctx, userId, `${enough} Open your skills (K) to take up ${this.labelOf(id)}.`);
           this.sendMenu(ctx, userId);
         }
         continue;
@@ -835,7 +841,20 @@ export class MasterySystem implements System {
       customPacketType: "masteryMenu",
       points,
       maxChosen: this.maxChosen, tierNames: this.tierNames, tierHours: this.tierHours, categories: this.categories,
-      skills: this.skills.map((k) => ({ id: k.id, category: k.category, label: k.label, title: k.title, description: k.description, tiers: k.tiers })),
+      // `openable` tells the menu how this skill is taken up at all, because the two answers want
+      // different words: a trade is opened by walking to its station, a stationless skill by working
+      // at it until the bank offers. `hint` names the station in a player's words (skills.json
+      // `gates.hint`) - without it the menu said "set your hand to its work" for a skill whose work
+      // is a deer corpse, which read as "skinning is broken" in the 2026-09-20 playtest.
+      skills: this.skills.map((k) => {
+        const r = this.rules[k.id];
+        const station = !!r && (r.gateStations.size > 0 || r.gatePrefixes.length > 0);
+        return {
+          id: k.id, category: k.category, label: k.label, title: k.title, description: k.description, tiers: k.tiers,
+          openable: station ? "station" : "work",
+          hint: String((k.gates as Record<string, unknown>)["hint"] || ""),
+        };
+      }),
       chosen,
       respec: { open: (this.respecUntil.get(actorId) || 0) > Date.now(), free: this.firstRespecFree && rec.respecs === 0, cost: this.respecGold, count: rec.respecs },
       // legacy fields for the old menu

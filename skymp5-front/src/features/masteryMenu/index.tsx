@@ -12,6 +12,10 @@ interface SkillDef {
   title: string;
   description: string;
   tiers: string[];
+  // How this skill is taken up at all: at a station you walk to, or by working at it until the server
+  // offers. `hint` names the station in a player's words. Both come from masterySystem.sendMenu.
+  openable?: 'station' | 'work';
+  hint?: string;
 }
 
 interface Category {
@@ -62,7 +66,9 @@ interface PointState {
   expertCount: number;
   transferFloor: number;
   held: HeldSkill[];
-  // Combat skills the server has banked work for and is offering to open (see masterySystem.onTakeUp).
+  // Skills with no station the server has banked work for and is offering to open (masterySystem
+  // .onTakeUp). Combat was the first family; prayer, reading, lockpicking and harvesting joined it on
+  // 2026-09-20, which is why the offer line is no longer worded for fighting alone.
   offers?: Array<{ id: string; banked: number }>;
 }
 
@@ -265,7 +271,9 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
                       offerOf(current.id) ? (
                         <div className="mastery__offer">
                           <p className="mastery__offer-line">
-                            You have fought often enough this way to call it your own.
+                            {current.category === 'combat'
+                              ? 'You have fought often enough this way to call it your own.'
+                              : 'You have done this often enough to call it your own.'}
                             <span className="mastery__offer-banked">
                               {(offerOf(current.id) as { banked: number }).banked} unit(s) of work already stand to your name.
                             </span>
@@ -276,7 +284,9 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
                         </div>
                       ) : (
                       <p className="mastery__played mastery__played--muted">
-                        Untaken. Set your hand to its work and the first spoke is yours.
+                        {current.openable === 'work'
+                          ? 'Untaken. Work at it and it will offer itself once there is a level’s worth to your name.'
+                          : `Untaken. Set your hand to ${current.hint || 'its station'} and the first spoke is yours.`}
                       </p>
                       )
                     )}
