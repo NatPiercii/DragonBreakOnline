@@ -1317,48 +1317,66 @@ function buildErrorState(message, onRetry) {
   return box
 }
 
-function buildNewsCard(item) {
-  const card = document.createElement('div')
-  card.className = 'news-card'
+function el(tag, className, text) {
+  const e = document.createElement(tag)
+  if (className) e.className = className
+  if (text != null) e.textContent = text
+  return e
+}
 
-  const imgWrap = document.createElement('div')
-  imgWrap.className = 'news-card-image'
+function formatNewsDate(value) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? new Date(value + 'T12:00:00') : null
+  return d && !isNaN(d) ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : (value || '')
+}
+
+// Patch notes come as sections [{ heading, items }] or a flat notes list
+function buildNewsNotes(item) {
+  const sections = Array.isArray(item.sections) ? item.sections
+    : Array.isArray(item.notes) ? [{ heading: '', items: item.notes }] : []
+  const wrap = el('div', 'news-notes')
+  for (const s of sections) {
+    if (!s || !Array.isArray(s.items) || !s.items.length) continue
+    if (s.heading) wrap.appendChild(el('div', 'news-notes-heading', s.heading))
+    const ul = el('ul', 'news-notes-list')
+    for (const line of s.items) ul.appendChild(el('li', null, line))
+    wrap.appendChild(ul)
+  }
+  return wrap.childNodes.length ? wrap : null
+}
+
+function buildNewsCard(item, featured) {
+  const card = el('article', 'news-card' + (featured ? ' news-card--featured' : ''))
+
+  const banner = el('div', 'news-card-banner')
   if (item.image) {
-    const img = document.createElement('img')
+    const img = el('img')
     img.src = item.image
-    img.alt = item.title
-    imgWrap.appendChild(img)
+    img.alt = ''
+    img.addEventListener('error', () => { img.remove(); banner.classList.remove('news-card-banner--image') })
+    banner.classList.add('news-card-banner--image')
+    banner.appendChild(img)
   }
+  const head = el('div', 'news-card-head')
+  const meta = el('div', 'news-card-meta')
+  meta.appendChild(el('span', 'news-card-tag news-card-tag--' + String(item.tag || 'update').toLowerCase().replace(/[^a-z]+/g, '-'), item.tag || 'Update'))
+  if (item.version) meta.appendChild(el('span', 'news-card-version', item.version))
+  head.appendChild(meta)
+  head.appendChild(el('div', 'news-card-title', item.title))
+  head.appendChild(el('div', 'news-card-date', formatNewsDate(item.date)))
+  banner.appendChild(head)
+  card.appendChild(banner)
 
-  const body = document.createElement('div')
-  body.className = 'news-card-body'
+  const body = el('div', 'news-card-body')
+  if (item.body) body.appendChild(el('p', 'news-card-desc', item.body))
+  const notes = buildNewsNotes(item)
+  if (notes) body.appendChild(notes)
+  if (body.childNodes.length) card.appendChild(body)
 
-  const tag = document.createElement('div')
-  tag.className = 'news-card-tag'
-  tag.textContent = item.tag || 'UPDATE'
-
-  const title = document.createElement('div')
-  title.className = 'news-card-title'
-  title.textContent = item.title
-
-  const date = document.createElement('div')
-  date.className = 'news-card-date'
-  date.textContent = item.date
-
-  body.appendChild(tag)
-  body.appendChild(title)
-
-  if (item.body) {
-    const desc = document.createElement('div')
-    desc.className = 'news-card-desc'
-    desc.textContent = item.body
-    body.appendChild(desc)
+  // Older entries open on click so the feed stays short
+  if (!featured && body.childNodes.length) {
+    card.classList.add('news-card--collapsible')
+    card.addEventListener('click', () => card.classList.toggle('news-card--open'))
   }
-
-  body.appendChild(date)
-
-  card.appendChild(imgWrap)
-  card.appendChild(body)
   return card
 }
 
@@ -1379,7 +1397,7 @@ async function loadNews() {
     return
   }
 
-  result.items.forEach(item => newsGrid.appendChild(buildNewsCard(item)))
+  result.items.forEach((item, i) => newsGrid.appendChild(buildNewsCard(item, i === 0)))
 }
 
 // Modlist
