@@ -157,7 +157,7 @@ Sixteen skills plus Harvesting, seventeen in total: five combat, six profession,
 | **alchemist** | prof | `eat` INGR + FLOR/TREE activate | `:392`, `:382-391` | **PARTIAL — brewing never counts.** No `craftKeywords` entry at all; `activatePrefixes: ["CraftingAlchemyWorkbench"]` is a keyword name used as an editor-id prefix and matches no FURN |
 | **woodcutter** | prof | `activate` by editor-id prefix, fired by hand after a server-judged round | `labour.js:308` | **exists** |
 | **miner** | prof | same | `labour.js:308` | **exists**, plus a free-credit hole — see §6 |
-| **tailor** | prof | `craft` at `MCE_CraftingLoom` / `TailorBench` | `:375-381` | **UNVERIFIED.** `TailorBench` exists nowhere in the load order; `MCE_CraftingLoom` exists in `MoreCraftableEquipment.esp`. Whether any MCE loom COBJ carries that BNAM has not been checked |
+| **tailor** | prof | `craft` at `MCE_CraftingLoom` / `TailorBench` | `:375-381` | **MEASURED 2026-09-20** (`ck-mcp\stations.py`, `server\station-placements.json`). `TailorBench` and `MCE_Loom` match no record at all. `MCE_CraftingLoom` resolves to one base, `MCECraftingLoomMarker`, with **13 placements, every one of them in Skyrim** (Radiant Raiment, Dragonsreach, the Blue Palace, Understone Keep). **Tailor therefore cannot be opened or credited anywhere in Bruma** - it is dead content for the whole playtest. Bruma's only weaving props are `bskSpinningwheel` (a STAT, which never fires an activation) and a merchant chest |
 | **lockpicking** | prof | `lock` | fired **only** from `dungeons.js:650` | **partial** — picking a housing door sends nothing |
 | **skinner** | sup | `kill` on `ActorTypeAnimal` + tanning-rack `craft` | `:393-405` | **exists**, but the skinning minigame itself (`gamemode.js:1623-1700`) fires **no** mastery event |
 | **scholar** | sup | `activate` BOOK, fired on a won reading | `gamemode.js:1395` | **exists** |
@@ -515,7 +515,7 @@ Week 1 delivers the two things the owner actually asked for — crafted-only ebo
 |---|---|---|
 | Credit the **Enchanter**, and scale `MAX_HEALTH_STEP` / `ENCHANT_MARGIN` by level | `craftedExtrasSystem.ts` | server TS |
 | **Alchemist** brewing: add a real `craftKeywords` entry; remove the bogus `activatePrefixes` | `skills.json` (+ verify the keyword resolves) | data + boot |
-| **Tailor**: verify MCE loom COBJs carry `MCE_CraftingLoom`; drop `TailorBench` | verification first | — |
+| ~~**Tailor**: verify MCE loom COBJs carry `MCE_CraftingLoom`; drop `TailorBench`~~ **Measured 2026-09-20: all 13 loom placements are in Skyrim, so Tailor is unreachable under the Bruma lock. Needs a loom placed in Bruma (content) or the trade closed until Skyrim opens.** | Nat's content call | — |
 | **Priest** prayer producer; **lockpicking** on housing doors; **skinning** minigame fires its event | `gamemode.js` | hot reload |
 | **Defense** credit from server-computed damage reduction; delete or implement `blockEvents` | `masterySystem.ts` | server TS |
 
@@ -659,12 +659,15 @@ So the new work is the **dependency**, not the stations. What it needs:
 Agreed in conversation the night the point system first went live. Nat approved the combat and magic shapes
 ("everything looks really good"); the numbers below are proposals to be tuned, not settled values.
 
-### 14.1 Opening a combat skill: shadow progress, then an offer
+### 14.1 Opening a skill with no station: shadow progress, then an offer
+
+**Built, and live for all ten stationless skills since 2026-09-20.** Shipped for combat at 03:15 and
+extended at 20:25 - see the note at the end of this section.
 
 The "a trade is opened at its station, not by accident" rule (§5.3, `masterySystem.ts:418`) works for trades
 because you walk to a forge deliberately. Combat happens *to* you - a bandit swings, you swing back, and that
-is not a career choice. Five combat skills plus scholar, priest, lockpicking and harvesting therefore have no
-opening move at all today, and cannot be levelled.
+is not a career choice. Six combat skills plus scholar, priest, lockpicking and harvesting therefore had no
+opening move at all, and could not be levelled.
 
 **The shape:** an unopened skill accrues a hidden counter. When it crosses one level's worth of units (10 at
 Novice), the player gets a notice and the K menu offers *"Take up One-Handed - 1 spoke"*. The pool point is
@@ -681,6 +684,14 @@ Why this one over the alternatives:
 
 **Cheap fallback if the shadow counter is too much for a first pass:** open on the first credited act but
 defer the pool cost until level 2. Muddier, because the skill exists before the player chose it.
+
+**As built (2026-09-20).** The branch keys on *"this skill declares no `gates.stations`"*, not on category,
+so the two rules partition the eighteen skills with no overlap and no gap: eight trades open at a station,
+ten open by banking. The first version tested `category === "combat"` and left priest, scholar, harvesting
+and lockpicking crediting nobody at all. `server\tests\skill-openings-harness.js` asserts the partition and
+that the category test does not come back. Acts needed before the offer, at 10 units a level: 10 prayers,
+10 locks, 10 books, 20 plants, 20 hits. **`gates.nodes` on harvesting is superseded by this** - it was
+parsed, carried into `ResolvedRules` and read nowhere, and harvesting now opens by banking instead.
 
 ### 14.2 Magic stays two skills, with per-school familiarity inside them
 

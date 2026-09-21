@@ -1,0 +1,154 @@
+{
+ "Skyrim.esm:02AC62": {
+  "edid": "DA05SindingsSkin",
+  "value": 0
+ },
+ "Skyrim.esm:0D4B35": {
+  "edid": "FoxPelt",
+  "value": 5
+ },
+ "Skyrim.esm:03AD8E": {
+  "edid": "GoatHide",
+  "value": 5
+ },
+ "BSHeartland.esm:071A7E": {
+  "edid": "CYRFoxPeltGray",
+  "value": 6
+ },
+ "Skyrim.esm:0D4BE7": {
+  "edid": "FoxPeltSnow",
+  "value": 7
+ },
+ "BSHeartland.esm:071A7D": {
+  "edid": "CYRFoxPeltBlack",
+  "value": 7
+ },
+ "Skyrim.esm:0D284D": {
+  "edid": "DeerHide02",
+  "value": 10
+ },
+ "Skyrim.esm:0CF89E": {
+  "edid": "DeerPelt",
+  "value": 10
+ },
+ "Skyrim.esm:03AD90": {
+  "edid": "DeerHide",
+  "value": 10
+ },
+ "Skyrim.esm:03AD8F": {
+  "edid": "CowHide",
+  "value": 10
+ },
+ "Skyrim.esm:03AD74": {
+  "edid": "WolfPelt",
+  "value": 10
+ },
+ "Dawnguard.esm:01199A": {
+  "edid": "DLC1SabreCatHide",
+  "value": 10
+ },
+ "Dawnguard.esm:011999": {
+  "edid": "DLC1DeerHide",
+  "value": 10
+ },
+ "BSHeartland.esm:003C88": {
+  "edid": "CYRWolfPelt",
+  "value": 10
+ },
+ "BSHeartland.esm:0679BD": {
+  "edid": "CYRDeerPelt",
+  "value": 10
+ },
+ "Skyrim.esm:03AD93": {
+  "edid": "HorseHide",
+  "value": 15
+ },
+ "Skyrim.esm:03AD75": {
+  "edid": "WolfIcePelt",
+  "value": 15
+ },
+ "Journey to Baan Malur.esp:202FC6": {
+  "edid": "AlitHideOlive",
+  "value": 15
+ },
+ "Skyrim.esm:0FE6A9": {
+  "edid": "WerewolfPelt",
+  "value": 20
+ },
+ "BSAssets.esm:601B09": {
+  "edid": "BSKRhinoVltHide",
+  "value": 20
+ },
+ "Gray Fox Cowl.esm:023C38": {
+  "edid": "manny_GF_DesertWolfPelt",
+  "value": 20
+ },
+ "Skyrim.esm:03AD6D": {
+  "edid": "SabreCatPelt",
+  "value": 25
+ },
+ "Journey to Baan Malur.esp:3555AD": {
+  "edid": "KhajiitPelt",
+  "value": 25
+ },
+ "BSAssets.esm:6026E2": {
+  "edid": "CYRMinotaurHide",
+  "value": 30
+ },
+ "BSAssets.esm:6018AD": {
+  "edid": "BSKWolfTimberPelt",
+  "value": 30
+ },
+ "BSHeartland.esm:0D51BB": {
+  "edid": "CYRMountainLionPelt",
+  "value": 35
+ },
+ "Skyrim.esm:03AD6E": {
+  "edid": "SabreCatSnowPelt",
+  "value": 40
+ },
+ "Journey to Baan Malur.esp:019D0C": {
+  "edid": "GwarHide",
+  "value": 40
+ },
+ "Skyrim.esm:03AD52": {
+  "edid": "BearPelt",
+  "value": 50
+ },
+ "Update.esm:DA0BF2": {
+  "edid": "IAMITrollCavePelt",
+  "value": 50
+ },
+ "Update.esm:DA0BF3": {
+  "edid": "IAMITrollWinterPelt",
+  "value": 50
+ },
+ "Skyrim.esm:03AD53": {
+  "edid": "BearCavePelt",
+  "value": 60
+ },
+ "Journey to Baan Malur.esp:000854": {
+  "edid": "KagoutiHide",
+  "value": 60
+ },
+ "Journey to Baan Malur.esp:01EE31": {
+  "edid": "GwarTigerHide",
+  "value": 65
+ },
+ "Skyrim.esm:03AD54": {
+  "edid": "BearSnowPelt",
+  "value": 75
+ },
+ "BSHeartland.esm:05EF6C": {
+  "edid": "CYRBearBrownPelt",
+  "value": 75
+ },
+ "Gray Fox Cowl.esm:006A52": {
+  "edid": "manny_GF_AncestralCheetahPelt",
+  "value": 75
+ },
+ "WindhelmSSE.esp:2BA5F2": {
+  "edid": "BearCavePeltWH",
+  "value": 300
+ }
+}

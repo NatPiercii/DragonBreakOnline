@@ -9,5 +9,13 @@
  "dungeon:CYRSerpentsTrailLocation:4:0": 2,
  "dungeon:CYRSerpentsTrailLocation:5:0": 2,
  "dungeon:CYRSerpentsTrailLocation:5:1": 2,
- "dungeon:CYRSerpentsTrailLocation:8:1": 2
+ "dungeon:CYRSerpentsTrailLocation:8:1": 2,
+ "dungeon:CYRRedRubyCaveLocation:5:0": 0,
+ "dungeon:CYRRedRubyCaveLocation:11:0": 1,
+ "dungeon:CYRRedRubyCaveLocation:8:0": 1,
+ "dungeon:CYRRedRubyCaveLocation:10:0": 1,
+ "dungeon:CYRFrostfireGladeLocation:6:0": 0,
+ "dungeon:CYRFrostfireGladeLocation:1:1": 1,
+ "dungeon:CYRFrostfireGladeLocation:10:0": 0,
+ "dungeon:CYRAngaLocation:16:0": 1
 }

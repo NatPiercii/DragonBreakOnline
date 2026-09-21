@@ -285,6 +285,7 @@
     "Smithing"
    ],
    "gates": {
+    "hint": "a forge, an anvil or a smelter",
     "stations": [
      "isBlacksmithForge",
      "isBlacksmithAnvil",
@@ -331,6 +332,7 @@
     "Alchemy"
    ],
    "gates": {
+    "hint": "an alchemy table",
     "stations": [
      "isAlchemy",
      "CraftingAlchemyWorkbench"
@@ -369,6 +371,7 @@
    "description": "Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield.",
    "vanillaSkills": [],
    "gates": {
+    "hint": "a chopping block",
     "stations": [
      "WoodChoppingBlock",
      "DLC2WoodChoppingBlock",
@@ -423,6 +426,7 @@
    "description": "Only a Miner may work ore veins. Tiers decide which ores you can mine and how much a vein gives.",
    "vanillaSkills": [],
    "gates": {
+    "hint": "an ore vein",
     "stations": [
      "MineOre",
      "CYRMineOre",
@@ -488,6 +492,7 @@
    "description": "Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew.",
    "vanillaSkills": [],
    "gates": {
+    "hint": "a loom (NOTE: no loom stands anywhere in Bruma - see server\\station-placements.json)",
     "stations": [
      "MCE_CraftingLoom",
      "MCE_Loom",
@@ -523,6 +528,7 @@
    "description": "Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get.",
    "vanillaSkills": [],
    "gates": {
+    "hint": "a tanning rack",
     "stations": [
      "isTanning",
      "CraftingTanningRack"
@@ -606,6 +612,7 @@
     "Enchanting"
    ],
    "gates": {
+    "hint": "an arcane enchanter",
     "stations": [
      "isEnchanting",
      "CraftingEnchantingWorkbench"
@@ -681,6 +688,7 @@
    "description": "Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare.",
    "vanillaSkills": [],
    "gates": {
+    "hint": "a cooking pot or spit",
     "stations": [
      "isCookingSpit",
      "isSmallCookingPot",

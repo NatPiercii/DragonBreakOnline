@@ -1,5 +1,197 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-20 (20:25): four whole systems credited nobody, and Tailor cannot be opened in Bruma
+
+Every item in this session's brief (the mining event kind, the deity data, the shrine activation path,
+the unarmed marker spells) was already shipped by the sessions between 03:20 and 20:10, so the run went
+looking for the next hole of the same shape instead. It found two, one of them proved by Nat's own
+change form.
+
+### Prayer, reading, lockpicking and harvesting credited nothing, to anyone, ever
+
+`creditPoints` skips a skill with no record - *"a trade is opened at its station, not by accident"* - and
+the 03:15 shadow-banking pass carved out one exception, `category === "combat"`. The other four
+stationless skills were left in the hole: **priest, scholar, harvesting and lockpicking have no
+`gates.stations`, so `firstTouch` can never fire for them, and the banking branch refused them.** Every
+`prayer`, `read`, `lock` and plant `activate` event was enqueued, matched, and dropped on the floor.
+
+- [x] **Measured before changing anything.** `world\changeForms\b.json` after tonight's playtest:
+  `private.dboDeity: { name: "Malacath" }` - Nat prayed and took a deity - and the mastery record holds
+  `arcane` (shadow 0.84), `onehanded` and `miner`. **There is no `priest` key at all.** The combat
+  skills banked; the prayer did not.
+- [x] **The fix is one condition, not a new rule**: the unopened branch now skips a skill that *has* a
+  station and banks for one that does not, instead of testing the category. Combat keeps behaving
+  exactly as it did. Nothing was invented - this is the mechanism Nat already accepted and played, now
+  applied to the family it was always the answer for.
+- [x] The offer line was worded for fighting in both the server notice and the front widget; both now
+  branch on category. `masterySystem.ts` type-check clean, verified in the built bundle
+  (`You have done this often enough` present, the `category !== "combat"` test gone), deployed,
+  **server restarted 20:20:57, 12 `[error]` lines - all the known ScampServer boot noise, nothing new.**
+- [x] **`server\tests\skill-openings-harness.js` (new, 60 checks)** holds it shut: it reads the live
+  `skills.json` and the live TS and asserts every skill has exactly one opening move, that the branch
+  did not get its category test back, and that each banking skill answers to a kind something actually
+  emits. **All harnesses pass**: skill-openings 60, skillPoints 148, mastery-values 46, prayer, labour,
+  skinning, mastery-damage.
+
+**The numbers Nat's balance call needs** (a level's worth is 10 units, and banking does not apply the
+repetition decay):
+
+| skill | acts before the take-up offer |
+|---|---|
+| priest | 10 prayers (60 min per shrine, 25 shrines reachable) |
+| lockpicking | 10 locks |
+| scholar | 10 books - **at 30 minutes a book that is five hours**, effectively still out of reach |
+| harvesting | 20 plants |
+| the six combat skills | 20 hits / casts / blows taken (unchanged) |
+
+- [ ] **Scholar's ten books is the one that looks wrong.** Either `read` is worth more than 1, or a book
+  should credit per page rather than per book. Nat's call.
+
+### Tailor cannot be taken up anywhere in Bruma - the same shape as the shrine bug
+
+`ck-mcp\stations.py` (new) censuses every base object that satisfies a skill's `gates.stations` - keyword
+first, editor-id prefix for the rest, exactly as `masterySystem` tests them - and counts placements inside
+the playtest region. Output: `server\station-placements.json`.
+
+| trade | base objects | placements | reachable under the lock |
+|---|---|---|---|
+| miner | 579 | 4153 | 516 |
+| cook | 7 | 660 | 106 |
+| blacksmith | 37 | 887 | 59 |
+| alchemist | 3 | 293 | 40 |
+| skinner | 3 | 294 | 26 |
+| woodcutter | 8 | 275 | 26 |
+| enchanter | 8 | 181 | 25 |
+| **tailor** | **1** | **13** | **0** |
+
+- [x] **Tailor's only station base is `MCECraftingLoomMarker`, and all 13 of its placements are in
+  Skyrim** (Radiant Raiment, Dragonsreach, the Blue Palace, Understone Keep…). `MCE_Loom` and
+  `TailorBench` match no record in this load order at all. A loom census over every FURN/ACTI/STAT found
+  nothing usable in Bruma either: `bskSpinningwheel` is reachable but is a **STAT**, which the engine
+  never fires an activation for, and `CYRMerchantBrumaTailorChest` is a merchant container. **So Tailor
+  is dead content for the whole playtest**, and its `counts` are `craftKeywords` on the same absent loom,
+  so it cannot even be credited once held.
+- [x] **It is no longer silent.** `gamemode.js` reads the census at boot and logs
+  `trade stations: 8 gated trade(s), 1 unreachable under the region lock (tailor - CANNOT BE TAKEN UP),
+  station name(s) matching no record: BYOHOven, MCE_Loom, TailorBench, CharcoalKiln, LumberMill`.
+  Re-run `py ck-mcp\stations.py` after any station or region change.
+- [ ] **Nat's call**: place a loom in Bruma through DLE (content authoring), point Tailor at a station
+  that does exist there, or accept that Tailor is closed until Skyrim opens and say so in the menu.
+  `CharcoalKiln` and `LumberMill` matching nothing is expected - they are the charcoal chain's
+  aspirational names, not a bug.
+
+### "Skinning is broken" was a dead-end message
+
+Report #6 from the playtest, now answered: **a Skinner is made at a tanning rack**, and there are 26
+reachable ones. The corpse said only *"Only a Skinner can take the pelt"*, which names no way forward -
+a corpse is not a gated station and never can be one.
+
+- [x] `gamemode.js` now says *"Only a Skinner can take the pelt. Set your hand to a tanning rack to take
+  up the trade."* Hot-reloaded 20:17, 0 new errors.
+- [x] **The K menu tells you how each skill opens.** `sendMenu` carries `openable: "station" | "work"`
+  and a `hint` per skill; `skills.json` gained a player-facing `gates.hint` for all eight trades ("an ore
+  vein", "a tanning rack", "an arcane enchanter"…). The menu's line for an untaken skill was *"Set your
+  hand to its work"* for everything, including skills whose work is a deer corpse or a prayer. Front
+  rebuilt and deployed to both UI paths, backup `_ui-build-backups\before-openable-20260920-202028`.
+  **No client rebuild was needed** - `masteryService` mirrors `skills` as an opaque array, so the two new
+  fields ride through untouched.
+
+### Still open from this run
+
+- [ ] **None of it has been played.** The take-up offer for a Priest or a Scholar, the new menu lines and
+  the tanning-rack hint are all verified statically and in the built bundles, never on screen.
+- [ ] **`gates.nodes` is still a dead field** (`harvesting` declares it, `ResolvedRules` carries it,
+  nothing reads it). Harvesting now opens by banking instead, so the field is superseded rather than
+  broken - delete it or wire it, but do not leave it looking load-bearing.
+- [ ] Deliberately not touched: anything needing the native build, the join path, `Refr pointer expired`,
+  bot load testing, and the `DBO_PlayerRecord.pas` re-run the 20:10 session left in flight.
+
+## Added 2026-09-20 (20:10): the first real playtest, and the starting-spell bug was never C++
+
+Nat played for ~40 minutes as **Argosh, an Orc**, and reported nine things. Several long-standing
+claims in HANDOFF turned out to be wrong, and the headline is that **the point system works in play**.
+
+### The gate passed, and nobody had watched it before
+
+`world\changeForms\b.json` after the session: `miner: { level: 1, points: 1, xp: 10, spentToday: 1 }`
+and `arcane: { shadow: 0.84 }`. **`level` and `points` are both written and agree**, which is exactly
+what the 01:25 fix was for, and the level survived a logout. Also confirmed in play:
+`labour win Argosh mining/iron t1 6/6 of 8 err=0.36` (an `err` of 0.36 is a human playing, not a
+computed round), the racial stat spread (**105/80/115** on screen), prayer, and the deity picker.
+
+### The starting-spell bug was fixed client side, and the "C++ only" verdict was wrong
+
+HANDOFF said this needed the native build. It did not, and it also had the mechanism wrong.
+
+- [x] **Measured first** with the new `py ck-mcp\racespells.py`, which dumps the SPLO list of every
+  playable RACE from the winning override. **Battle Cry and Resist Frost are RACE spells**
+  (`PowerNordBattleCry`, and `RaceNord` is the record that carries the 50% frost resistance).
+  **Flames and Healing are on no race at all** - HANDOFF claimed they came from the RACE record.
+- [x] **`RaceSpellsService` (new, client)**: derives the strip set from the race records at runtime -
+  every spell some other playable race grants that yours does not - so nothing is hardcoded per race
+  and a plugin retune needs no code change. It `dispelSpell`s as well as `removeSpell`s, because an
+  ability keeps its active effect until a cell change. Type-check clean, verified in the built
+  bundle, deployed to both paths. Backup `_client-bundle-backups\before-racespells-20260920-194833`.
+- [x] **Confirmed in game**: Battle Cry and Resist Frost gone, Berserker Rage kept.
+- [x] **A bug in the first build, caught by the retest**: Flames and Healing could not be removed, so
+  the service retried and re-dispelled them **every 4 seconds forever**. It now gives up after one
+  failed attempt. The cause is a hard engine rule: **Papyrus `RemoveSpell` cannot remove a spell
+  inherited from the actor's base record**, the same rule as the server's `IsSpellLearnedFromBase`.
+
+### One vanilla record was causing two separate complaints
+
+`Skyrim.esm:000007` (the Player NPC_) carries `SPLO: Flames, Healing, PCHealRateCombat` **and** a
+16-entry `CNTO`: iron weapons, shield, 2 torches, lockpicks, potions, The Book of the Dragonborn and
+**140 gold**. The engine applies both client side when it builds the player, which is exactly Nat's
+*"it adds this stuff then takes it away"* - the server then overwrites the inventory with its own.
+
+- [ ] **`DBO_PlayerRecord.pas` (new) overrides that record in DLE** and strips both, keeping
+  `PCHealRateCombat` (combat health regen, not a starting spell). First run removed **16 of 16 items
+  but 0 spells** - the `Spells` element path does not exist on NPC_. The script now reports the real
+  element names and handles a flat SPLO layout. **Not promoted**: the live plugin is untouched
+  (md5 `8e615b1f`, identical to the backup) and the incomplete output is parked at
+  `ckmcp-backups\pre-playerrecord-20260920-200421\partial-items-only.esp.save`. Re-running.
+
+### Orcs have no passive ability, and that is correct
+
+Nat expected one. The dump settles it: every playable race has a `Race<Name>` ability **and** a
+`Power<Name>` power except **OrcRace, which has only `RaceOrcBerserk`**. That is vanilla. **The Orc
+passive that was added is the stat spread**, which lives in RACE `DATA` and never shows under Active
+Effects - and it is working (105/80/115). A visible Orc ability would be a new record and a design
+call.
+
+### 620 refused hits explain three of the nine reports at once
+
+The session logged **759 `[error]` lines against a baseline of 18**, and they are almost all one line:
+
+```
+364x  OnHit - aggressor and targetRef are too distant. Aggressor: ff00000b
+119x  ... ff00008a      117x  ... ff00002c
+```
+
+That is the documented failure - a spawned NPC's cell is never updated by movement, the disagreeing
+update is dropped, and **every hit on that actor is refused from then on**. So **#3 "the ogre was on
+the ground but not attacking", #5 "enemies are invulnerable for a moment" and #7 "floating timber
+wolves that no-clip" are one bug with a number on it**, and Nat's own read was right: it needs the
+actor-layer rebuild in `NPC_REBUILD.md`, not a patch. Rats inside a wall at Anga (#8) is the same
+missing floor check.
+
+### Gold, and the rest
+
+- [x] **#9 gold cut 74%**, hot-reloaded 19:49, 0 new errors. Coin was in **every** container by three
+  separate guaranteed paths. Now `goldChance: 0.35` / `goldMult: 0.6` under `dungeons` in
+  `gamemode-config.json`. Simulated over 4,000 leases at Adept: **523 -> 135 gold**, containers
+  carrying coin **78/88 -> 33/88**. Boss chests still always carry coin.
+- [x] **#6 skinning is not broken**: the character's record is `order: ["miner"]`, so `skinnerTier`
+  returns -1 and `__dboSkin` answers *"Only a Skinner can take the pelt"* - a personal message with
+  no log line, which is why nothing was captured. **Open question: is there any way to become a
+  Skinner?** `firstTouch` only fires at a gated station and a deer corpse is not one. If there is
+  none this is the same family as the mining first-touch deadlock.
+- [ ] **#4 Discord streaming lags the in-game UI.** Untouched, lowest value of the nine.
+- [ ] **The crash** (19:39:25, `EXCEPTION_ACCESS_VIOLATION`): a **`kDeleted` Flame Atronach** inside
+  `MovementControllerNPC`, `rcx = 0`. A destroyed actor still being driven by its movement
+  controller - a conjurer's summon in Anga. Same family as `Refr pointer expired` but unguarded.
+
 ## Added 2026-09-20 (16:14): login hang measured, and the landing trap removed
 
 **User decision: leave the content fix for now** (2026-09-20). Skyrim is closed by the playtest lock and no
