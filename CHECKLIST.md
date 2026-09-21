@@ -1,5 +1,14 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-21: hosting moves to Jake; the home server PC is retired
+
+Nat's home server PC (`10.0.0.132`, public `68.63.59.17`) will not host the game - movement was laggy
+on it. **Jake runs the server side on his own.** Every "copy this to the server PC" note below is
+superseded; read it as "Jake's setup needs this". Production uses Discord verification and role-based
+admin (`adminRoles`). Two things Jake's setup must get right that git will not bring him:
+`server\data\` byte-identical to the client plugins (the ESL lesson in `HUB_SPAWN_BUG.md`), and a
+`server-settings.json` whose `startPoints` matches the client's computed index.
+
 ## Added 2026-09-21 (07:15): a won skinning round now credits the Skinner (scheduled run)
 
 The scheduled brief's queue (mining event kind, deity data, shrine path, Unarmed marker spells) is
