@@ -1,5 +1,20 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-21 (late): the faction system
+
+Nat's spec is in the memory note `nat-design-decisions-2026-09-21`. Faction leaders are separate from hold officials.
+
+- [x] `server\guild-defs.json` (tracked): 46 factions. 9 holds, the county of Bruma, 6 orc clans, 12 guilds (the College of Winterhold is independent of its hold), and 3 secret guilds. Plus 15 secret Daedric cults, one per Prince except Malacath. Each faction has lore titles over the shared roles leader/officer/sergeant/mage/blacksmith/tailor/member. Caps: 1 leader, 3 blacksmiths, 3 tailors.
+- [x] `server\guilds.js`: membership in `guilds.json` (runtime, gitignored, keyed by actor id). Invites last 2 minutes. Leaders set ranks, and naming a new leader steps the old one down. Officers kick lower ranks. Secret rosters are hidden from outsiders. Admins see every faction and name the first leader with `/faction leader <player> <id>`.
+- [x] F3 opens the menu (front widget `faction`, id 37; the prayer picker already had 36). X on a player lists "Invite to <faction>".
+- [x] Offices: rulers appoint 2 Court Mages, and chieftains a Shaman and a Wise-Woman. Those offices carry no guard powers.
+- [x] Live: client 0.3.6, gameplay deploy 23:37 UTC.
+- [ ] **Launcher 2.1.19 release**: the build carries the F3 default, and the old hotkey defaults no longer clash (hide UI was F1, the same key as nametags). Players who saved launcher settings keep G for factions until then. Needs Nat to approve a gh device code; then bump `LATEST_VERSION`/`DOWNLOAD_URL` in `routes/version.js`.
+- [ ] Name the first leaders in game (`/faction leader`). Nobody leads anything yet.
+- [ ] Office mechanics are still only proposals. Court Mage: advises and acts for the ruler, posts decrees and bounties, draws a stipend. Shaman: Malacath rites that bless nearby clan members. Wise-Woman: healer and brewer. Faction Mage: enchants faction gear and supplies potions.
+- [ ] Faction gear crafting (marker spell per faction and role, and `HasSpell` recipes) waits until Nat reopens crafting.
+- [ ] To watch: 101 "resolved context ... reason=exception" lines at 23:19 UTC, a `profileId` read on the vanished actor 0xff000004 (before this deploy).
+
 ## Added 2026-09-21 (13:00 CDT): the dev server now runs DragonBreak
 
 The dev server (`ssh dragonbreak-dev`, the `skymp` LXC on Jake's host, also what `dragonbreakonline.com`
