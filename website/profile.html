@@ -22,6 +22,7 @@
  .account img{width:64px;height:64px;border-radius:50%;border:1px solid var(--border)}
  .account .who{flex:1;min-width:220px}
  .name{font-family:var(--title);color:var(--silver);font-size:1.15rem;letter-spacing:.08em;word-break:break-word}
+ h3.name{margin:0;font-weight:400}
  .head{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:.6rem}
  .actions{margin-top:1.2rem}
  .v div+div{margin-top:.2rem}
@@ -46,7 +47,7 @@
   <h2>Sign in</h2>
   <div class="panel gate">
     <p>Sign in with your Discord account to see your characters.</p>
-    <div id="signInError" class="note" style="text-align:left" hidden></div>
+    <div id="signInError" class="note" role="alert" style="text-align:left" hidden></div>
     <a class="btn dl" href="/api/site/login">Log in with Discord</a>
     <div class="lock">Discord only tells us who you are. Signing in here creates no game account.</div>
   </div>
@@ -64,14 +65,14 @@
       <div class="actions">
         <a class="btn ghost" href="/downloads/SkyMPLauncher.zip">Download the launcher</a>
         <button id="signOut" class="ghost" type="button">Sign out</button>
-        <span id="signOutError" class="bad" hidden>Sign-out failed. Please reload the page and try again.</span>
+        <span id="signOutError" class="bad" role="alert" hidden>Sign-out failed. Please reload the page and try again.</span>
       </div>
     </div>
   </div>
 
   <h2>Your characters</h2>
   <p id="charsLoading" class="meta">Loading your characters&hellip;</p>
-  <div id="charsError" class="note" hidden><b>Your characters cannot be read right now.</b> Please try again in a few minutes.</div>
+  <div id="charsError" class="note" role="alert" hidden><b>Your characters cannot be read right now.</b> Please try again in a few minutes.</div>
 
   <div id="empty" class="panel gate" hidden>
     <p><b>No characters yet.</b></p>
@@ -82,7 +83,7 @@
   <div id="list" class="grid" hidden></div>
 
   <div id="detail" class="panel" hidden>
-    <div class="head"><span id="detailName" class="name"></span><span id="detailBadge"></span></div>
+    <div class="head"><h3 id="detailName" class="name" tabindex="-1"></h3><span id="detailBadge"></span></div>
     <div id="detailRows"></div>
     <div class="actions"><a class="btn ghost" href="#">Back to your characters</a></div>
   </div>
@@ -112,6 +113,7 @@ const ACCESS_HINTS={
   accessUnavailable:'Your access could not be checked right now. Reload the page to try again.'
 };
 let characters=[];
+let openKey=null;
 
 function show(view){for(const id of ['loading','lanOnly','unavailable','signedOut','signedIn'])$(id).hidden=id!==view;}
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
@@ -190,7 +192,10 @@ function route(){
   if(c)renderDetail(c);
   $('detail').hidden=!c;
   $('list').hidden=!!c||!characters.length;
-  if(c)$('detail').scrollIntoView({block:'nearest'});
+  // The link that was used is hidden now, so focus moves to the new view: the character's name, or back to its card
+  if(c)$('detailName').focus();
+  else if(openKey!==null){const i=characters.findIndex(x=>x.key===openKey);if(i>=0)$('list').children[i].focus();}
+  openKey=c?c.key:null;
 }
 
 // Loaded apart from the account panel: the access check may wait on Discord, the rest is local
