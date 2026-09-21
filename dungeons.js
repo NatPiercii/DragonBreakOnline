@@ -26,7 +26,7 @@ module.exports = (api) => {
   // added some half the time, and smallLoot's "nothing rolled" fallback added some again. With ~88
   // containers in a lease that is a flood. Now a chest carries coin goldChance of the time and the
   // amount is scaled by goldMult. A boss chest always carries coin whatever goldChance says.
-  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
   const GOLD_CHANCE = Math.max(0, Math.min(1, Number(C.goldChance)));
   const GOLD_MULT = Math.max(0, Number(C.goldMult));
   const goldAmount = (n) => Math.max(1, Math.round(n * GOLD_MULT));
@@ -85,7 +85,8 @@ module.exports = (api) => {
   const whereIs = (a) => { try { return normDesc(mp.get(a, 'worldOrCellDesc')); } catch (e) { return ''; } };
   const dungeonAround = (a) => cellToDungeon.get(whereIs(a)) || null;
   const distance = (a, pos, world) => { try { if (world && normDesc(mp.get(a, 'worldOrCellDesc')) !== normDesc(world)) return Infinity; const p = mp.get(a, 'pos'); return Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]); } catch (e) { return Infinity; } };
-  const teleport = (a, where, pos, rot) => { try { mp.set(a, 'locationalData', { cellOrWorldDesc: where, pos, rot: rot || [0, 0, 0] }); return true; } catch (e) { log('teleport failed', e.message); return false; } };
+  // dungeons.json rotations are XTEL radians; locationalData takes degrees (captureSystem.ts converts the same way)
+  const teleport = (a, where, pos, rot) => { try { mp.set(a, 'locationalData', { cellOrWorldDesc: where, pos, rot: (rot || [0, 0, 0]).map((x) => (Number(x) || 0) * 180 / Math.PI) }); return true; } catch (e) { log('teleport failed', e.message); return false; } };
   const glow = (a, refs, on, kind) => { for (let i = 0; i < refs.length; i += 150) sendPacket(a, { customPacketType: 'dboGlow', refs: refs.slice(i, i + 150), on: !!on, kind: kind || 'loot' }); };
   // A ref can be glowing as either kind, and "off" only matches the kind it is sent with
   const glowOff = (a, refs) => { glow(a, refs, false, 'loot'); glow(a, refs, false, 'locked'); };
@@ -148,7 +149,27 @@ module.exports = (api) => {
     return pool[Math.floor(Math.random() * pool.length)][1];
   };
 
-  const zonesFor = (d, diff) => {
+  // Scaling by the party at the door: enemy level follows the highest character level (skills.json vanillaLevel:
+  // tiers of the three chosen skills / 3, cap 5), shifted by difficulty; enemy count follows how many came
+  const LEVEL_BANDS = Object.assign({ 1: [1, 6], 2: [1, 9], 3: [5, 14], 4: [9, 21], 5: [13, 25], 6: [19, 30], 7: [25, 40] }, C.levelBands || {});
+  const DIFF_SHIFT = Object.assign({ story: -1, normal: 0, hard: 1, nightmare: 2 }, C.levelShift || {});
+  const charLevel = (a) => {
+    try {
+      const r = mp.get(a, 'private.mastery');
+      const tiers = (r && Array.isArray(r.order) ? r.order : []).map((id) => 1 + Math.max(0, Number(((r.skills || {})[id] || {}).rank) || 0)).sort((x, y) => y - x).slice(0, 3);
+      return Math.max(1, Math.min(5, Math.floor(tiers.reduce((sum, t) => sum + t, 0) / 3)));
+    } catch (e) { return 1; }
+  };
+  const pickScaled = (options, lvl, diff, boss) => {
+    const band = LEVEL_BANDS[Math.max(1, Math.min(7, lvl + (Number(DIFF_SHIFT[diff.id]) || 0) + (boss ? 1 : 0)))] || LEVEL_BANDS[1];
+    const inBand = (options || []).filter((o) => o[0] >= band[0] && o[0] <= band[1]);
+    if (inBand.length) return inBand[Math.floor(Math.random() * inBand.length)][1];
+    const below = (options || []).filter((o) => o[0] <= band[1]).sort((x, y) => y[0] - x[0]);
+    return below.length ? below[0][1] : pickOption(options, 'low');
+  };
+  // Solo 0.7, two 1.0, four 1.6, six 1.8 enemies per placement, before the difficulty multiplier
+  const partyCountMult = (n) => Math.max(Number(C.countMin) || 0.6, Math.min(Number(C.countMax) || 1.8, (Number(C.countBase) || 0.4) + (Number(C.countPerPlayer) || 0.3) * n));
+  const zonesFor = (d, diff, scale = { lvl: 1, n: 1 }) => {
     const out = [];
     let n = 0;
     let ambushed = 0;
@@ -173,10 +194,12 @@ module.exports = (api) => {
           kind = arch.kind;
         }
 
-        const id = pickOption(opts, diff.pick);
+        const id = pickScaled(opts, scale.lvl, diff, !!(entry && entry.boss));
         if (!id || !Array.isArray(npc.pos)) continue;
-        if (diff.mult < 1 && Math.random() > diff.mult) continue;          // fewer of them
-        const count = 1 + (diff.mult > 1 && Math.random() < diff.mult - 1 ? 1 : 0); // sometimes a second one
+        const m = diff.mult * partyCountMult(scale.n);
+        if (m < 1 && Math.random() > m) continue;                                           // fewer of them
+        const extra = Math.max(0, m - 1);
+        const count = 1 + Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);          // more for a bigger party
         // Anchor = Bethesda's own (disabled) actor ref on that spot: the spawn appears there, not at a player.
         // An ambusher lay in a linked coffin or pod in vanilla; neither its packages nor the link survive a
         // PlaceAtMe spawn, so it waits for somebody within AMBUSH_REACH instead of standing in the open
@@ -239,6 +262,10 @@ module.exports = (api) => {
     };
   };
   const ALL_OK = () => true;
+  // Dungeons hold provisions, not meals: salt keeps, bread and stew do not. Extra items via config dungeons.provisions
+  const PROVISIONS = [{ id: '34cdf:Skyrim.esm', name: 'SaltPile' }].concat(Array.isArray(C.provisions) ? C.provisions : []);
+  const EDIBLE = /^(?:BSK|CYR|els|BYOH|DLC2)?(?:Garlic|Wheat|Rice|RiceGrains|Saltrice|Onion|RedOnion|Sugarcane|BirdEggd*|HawkEggd*|Blackberries|Blueberries|Rasberries|Critterw*Fishw*|SalmonRoed*)/i;
+  const lootIngredients = (ok) => pool('ingredients', 0, ok).filter((it) => !EDIBLE.test(it.name));
   const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
   // Vanilla names potions by numeric strength, not by word: RestoreHealth01 is Minor, 03 Plentiful, 05
   // Extreme, 06 Ultimate; Resist* uses 25/50/75/100. The old word-matching tiers returned an empty array at
@@ -265,7 +292,7 @@ module.exports = (api) => {
     if (boss || Math.random() < GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)));
     if (boss || Math.random() < 0.45) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), rnd(1, 2));
     if (boss && Math.random() < 0.7) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
-    if (Math.random() < 0.4) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 3));
+    if (Math.random() < 0.4) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 3));
     if (Math.random() < 0.25) addEntry(entries, pickFrom(pool('materials', 0, ok)), rnd(1, 2));
     if (diff.id !== 'story' && Math.random() < (boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear, ok)), 1);
     if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(5, 15));
@@ -282,8 +309,8 @@ module.exports = (api) => {
     const entries = [];
     const foodish = /food|barrel|basket|sack|cupboard|pantry|crate/i.test(edid || '');
     if (Math.random() < (foodish ? 0.5 : 1) * GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, Math.max(2, diff.gold[0] * 2))));
-    if (Math.random() < (foodish ? 0.8 : 0.35)) addEntry(entries, pickFrom(pool('food', 0, ok)), rnd(1, 2));
-    if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 2));
+    if (Math.random() < (foodish ? 0.5 : 0.1)) addEntry(entries, pickFrom(PROVISIONS), rnd(1, 2));
+    if (Math.random() < 0.3) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 2));
     if (Math.random() < 0.15) addEntry(entries, pickFrom(potionPool(Math.max(0, diff.potionTier - 1), ok)), 1);
     if (Math.random() < 0.12) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(3, 8));
     // An urn that rolled nothing used to be topped up with coin, which is a third guaranteed source.
@@ -314,8 +341,11 @@ module.exports = (api) => {
   const startLease = (leaderActor, d, entrance, diff) => {
     const leaderPid = profileOf(leaderActor);
     const members = new Set(partyMembers(leaderPid));
-    const zones = zonesFor(d, diff);
-    const lease = { id: d.id, name: d.name, difficulty: diff.id, leader: leaderPid, members, startedAt: Date.now(), endsAt: Date.now() + C.leaseMinutes * 60000, warned: false, lastInsideAt: Date.now(), locked: new Map(), unlocked: new Set(), looted: new Set(), zones, totalNpcs: zones.reduce((n, z) => n + z.NPC[0].count, 0), seenNpcs: new Set(), deadNpcs: new Set(), entrance, province: (POOLS.provinces || {})[d.id] || provinceOfDungeon(d) };
+    const present = [...members].map(actorByProfile).filter((a) => a && (a === leaderActor || distance(a, entrance.doorPos || entrance.pos, entrance.world || entrance.cell) <= C.entranceReach));
+    if (!present.includes(leaderActor)) present.push(leaderActor);
+    const scale = { lvl: Math.max(1, ...present.map(charLevel)), n: present.length };
+    const zones = zonesFor(d, diff, scale);
+    const lease = { id: d.id, name: d.name, difficulty: diff.id, leader: leaderPid, members, startedAt: Date.now(), endsAt: Date.now() + C.leaseMinutes * 60000, warned: false, lastInsideAt: Date.now(), locked: new Map(), unlocked: new Set(), looted: new Set(), zones, totalNpcs: zones.reduce((n, z) => n + z.NPC[0].count, 0), seenNpcs: new Set(), deadNpcs: new Set(), entrance, province: (POOLS.provinces || {})[d.id] || provinceOfDungeon(d), partyLevel: scale.lvl, partySize: scale.n };
     const share = Number((C.lockedShare || {})[diff.id]) || 0;
     const levels = LOCK_BY_DIFF[diff.id] || [];
     if (share > 0 && levels.length) {
@@ -335,7 +365,7 @@ module.exports = (api) => {
         if (teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) { moved++; system(a, `${d.name} is yours for ${C.leaseMinutes} minutes (${diff.label}). Clear every enemy and open every big chest to finish early. ${lease.locked.size ? lease.locked.size + ' chest' + (lease.locked.size === 1 ? ' is' : 's are') + ' locked.' : ''}`); glowLease(a, lease, d); }
       }
       audit(`DUNGEON ${who(leaderActor)} claimed ${d.name} on ${diff.label} with ${members.size} member(s), ${zones.length} enemies (${placed >= 0 ? placed + ' placed before entry' : 'placed on entry'}), ${filled} containers filled, ${lease.locked.size} locked`);
-      log(`dungeon ${d.id} claimed by ${display(leaderActor)}: ${diff.id}, ${moved} moved in, ${zones.length} enemies, ${placed} prespawned, ${filled} containers`);
+      log(`dungeon ${d.id} claimed by ${display(leaderActor)}: ${diff.id}, party level ${lease.partyLevel} x${lease.partySize}, ${moved} moved in, ${zones.length} enemies, ${placed} prespawned, ${filled} containers`);
     };
     // Enemies stand on their spots before anyone arrives; the party waits for that, at most a few seconds
     const spawnNow = globalThis.__alduinakNpcSpawnNow;
@@ -363,6 +393,17 @@ module.exports = (api) => {
         system(a, `${lease.name} is cleared. Take your time leaving; it rests ${C.cooldownMinutes} minutes for you afterwards.`);
       } else {
         system(a, `Your claim on ${lease.name} has ended. It rests ${C.cooldownMinutes} minutes for you.`);
+      }
+    }
+    // Anyone else still inside (not in the party, or joined late) is walked out to the same door when time runs out
+    if (d && why !== 'cleared') {
+      const e = lease.entrance || (d.entrances || []).find((x) => x && Array.isArray(x.pos));
+      for (const a of onlineActors()) {
+        if (lease.members.has(profileOf(a))) continue;
+        const inside = dungeonAround(a);
+        if (!inside || inside.id !== lease.id || !e) continue;
+        teleport(a, e.world || e.cell, e.pos, e.rot);
+        system(a, `The claim on ${lease.name} has ended. You find yourself back at the entrance.`);
       }
     }
     // Emptied chests stay empty (CONT reloot is forbidden in server-settings); enemies go with the zones.
@@ -917,10 +958,10 @@ module.exports = (api) => {
   const itemName = (baseId) => { const r = recordOf(baseId); return String((r && r.editorId) || 'something').replace(/^(Food|Potion)/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'something'; };
   const corpseLoot = (diff, ok = ALL_OK) => {
     const entries = [];
-    addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, rnd(diff.gold[0], diff.gold[1])));
-    if (Math.random() < 0.6) addEntry(entries, pickFrom(pool('food', 0, ok)), 1);
+    // A body carried coin every time at up to 25 (Adept); now 40% of bodies carry about a third of that
+    if (Math.random() < Math.max(0, Math.min(1, Number(C.bodyGoldChance)))) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(rnd(diff.gold[0], diff.gold[1]) * Math.max(0, Number(C.bodyGoldMult)))));
     if (Math.random() < 0.25) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
-    if (Math.random() < 0.2) addEntry(entries, pickFrom(pool('ingredients', 0, ok)), rnd(1, 2));
+    if (Math.random() < 0.2) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 2));
     return entries;
   };
   // false = handled (nothing opens), null = not a lease humanoid
