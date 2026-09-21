@@ -37,6 +37,11 @@ in the root `CLAUDE.md`, section "The development server".
   and bump `LATEST_VERSION` + `DOWNLOAD_URL` in `skymp5-backend/routes/version.js`. Until then players still
   need `_release\DragonBreak-assets-*.zip` by hand for the BSAs and meshes.
 
+- [x] **Launcher said OFFLINE for everyone** (every version): the public nginx sends `/api/status` to
+  `skymp-api` (`/status/public`), which answered `{service, port_bound}`, while the launcher shows online only
+  on `status: "online"`. `/usr/local/bin/skymp-api.py` `live()` now adds `status` (backup in
+  `/opt/skymp-backups/skymp-api.py.*`). **Jake: that script is outside git** - keep the field if you replace it.
+
 ### Open - decisions for Nat
 
 - [x] ~~**Players cannot launch until the plugins reach them.**~~ Fixed by 0.3.3 above. The backend still serves the 2026-09-18 client
