@@ -476,13 +476,16 @@ const deliverPigeon = (toActor, fromName, text, sentAt) => {
   const when = sentAt ? new Date(sentAt).toISOString().replace('T', ' ').slice(0, 16) : '';
   deliver(toActor, `[[PM]]Pigeon from ${fromName}|${text}${when ? `  (${when})` : ''}`);
 };
+// Letters are only read at a notice board: bountyBoardSystem calls this whenever a player opens one
+globalThis.__dboBoardOpened = (actorId) => flushPigeons(Number(actorId) >>> 0);
+const pigeonsWaiting = (actorId) => { try { const box = mp.get(actorId, 'private.pigeons'); return Array.isArray(box) ? box.length : 0; } catch (e) { return 0; } };
 const flushPigeons = (actorId) => {
   try {
     const box = mp.get(actorId, 'private.pigeons');
     if (!Array.isArray(box) || !box.length) return;
     for (const m of box) deliverPigeon(actorId, m.from, m.text, m.at);
     mp.set(actorId, 'private.pigeons', []);
-    system(actorId, `${box.length} pigeon${box.length === 1 ? '' : 's'} waited for you.`);
+    system(actorId, `${box.length} pigeon${box.length === 1 ? '' : 's'} waited for you at the notice board.`);
   } catch (e) { log('pigeon flush failed', e.message); }
 };
 // Pigeons fly from notice boards: the board opens the coop window, and the fee goes to that board's town
@@ -503,20 +506,21 @@ const sendPigeon = (a, to, rawText, zoneId) => {
   if (!to || to === a) return { ok: false, text: 'Choose who the letter is for.' };
   if (!admin && !metOf(a).includes(to)) return { ok: false, text: 'Your pigeon does not know the way to someone you have never met.' };
   try {
+    // Every letter lands at the notice boards and waits there; nobody reads a pigeon in the field
     const online = onlineActors().includes(to);
-    const box = online ? null : (Array.isArray(mp.get(to, 'private.pigeons')) ? mp.get(to, 'private.pigeons') : []);
-    if (box && box.length >= PIGEON_MAX_UNREAD) return { ok: false, text: 'Their coop is full. Try again later.' };
+    const box = Array.isArray(mp.get(to, 'private.pigeons')) ? mp.get(to, 'private.pigeons') : [];
+    if (box.length >= PIGEON_MAX_UNREAD) return { ok: false, text: 'Their coop is full. Try again later.' };
     const price = admin ? 0 : pigeonFee(a, to);
     if (price > 0 && !takeGold(a, price)) return { ok: false, text: `A pigeon to ${nameOf(to)} costs ${price} gold, and you do not have it.` };
     const paid = price > 0 ? depositToTreasury(zoneId, price) : 0;
     notePigeonSent(p);
     const blocked = mp.get(to, 'private.pigeonBlock');
     if (Array.isArray(blocked) && blocked.includes(p)) return { ok: true, text: 'Your pigeon flew off and never came back.' };
-    if (online) deliverPigeon(to, display(a), text, 0);
-    else { box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(to, 'private.pigeons', box); }
+    box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(to, 'private.pigeons', box);
+    if (online) system(to, 'A pigeon has arrived for you. Read it at any notice board.');
     const zone = zoneId ? zoneById(zoneId) : null;
     log(`pigeon ${who(a)} -> ${nameOf(to)} #${tagOf(to)}${price > 0 ? ` (${price} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
-    return { ok: true, text: `Your pigeon flies to ${nameOf(to)}${online ? '' : ', who will read it on their return'}${price > 0 ? `. ${price} gold${zone ? ` to the ${zone.name} treasury` : ''}` : ''}.` };
+    return { ok: true, text: `Your pigeon flies to ${nameOf(to)}, who will read it at a notice board${price > 0 ? `. ${price} gold${zone ? ` to the ${zone.name} treasury` : ''}` : ''}.` };
   } catch (e) { return { ok: false, text: 'The pigeon refused to fly: ' + e.message }; }
 };
 const openPigeonCoop = (a, result, resultKind) => {
@@ -899,6 +903,9 @@ const onCharacterReady = (userId, a) => {
     // Anyone who logs in inside a dungeon they no longer hold is put back outside its entrance
     try { if (globalThis.__dboDungeonLoginCheck) globalThis.__dboDungeonLoginCheck(a); } catch (e) { log('dungeon login check failed', e.message); }
     giveStarterKit(a);
+    try { indexName(a); } catch (e) { /* offline lookup only */ }
+    const waiting = pigeonsWaiting(a);
+    if (waiting) system(a, `${waiting} pigeon${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you at the notice boards.`);
     try { pushHud(a, needsOf(a), true); } catch (e) { /* hud later */ }
   }, 8000);
 };
@@ -1329,20 +1336,36 @@ const ranksOf = (profileId) => {
   for (const z of zoneList()) for (const r of (z.officials || [])) if (((o[z.id] || {})[r] || []).map(Number).includes(profileId)) out.push({ zone: z, rank: r });
   return out;
 };
+// Seat holders appoint their own officers (config appointRules: holder rank -> { appointable rank: max per zone }).
+// Bruma is ruled by a Count; count stands in for the Baron until a baron rank exists.
+const APPOINT_RULES = Object.assign({ jarl: { steward: 5 }, baron: { steward: 5 }, count: { steward: 5 }, chieftain: { bane: 5 } }, cfg.appointRules || {});
+const appointCap = (a, z, rank) => {
+  if (isAdmin(a)) return Infinity;
+  let cap = 0;
+  for (const m of ranksOf(profileOf(a))) if (m.zone.id === z.id) cap = Math.max(cap, Number((APPOINT_RULES[m.rank] || {})[rank]) || 0);
+  return cap;
+};
 registerChatCommand('appoint', (a, args) => {
   const m = args.trim().match(/^(\S+)\s+(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /appoint <player|#TAG> <zone> <rank>   zones: ' + zoneList().map((z) => z.id).join(' '));
   const t = findByName(m[1]); if (!t) return personal(a, 'No such player online. Use their name or #TAG.');
   const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone. Zones: ' + zoneList().map((x) => x.id).join(' '));
   const rank = m[3].toLowerCase(); if (!(z.officials || []).includes(rank)) return personal(a, `${z.name} has the ranks: ${(z.officials || []).map(rankTitle).join(', ')}.`);
   const pid = profileOf(t); if (!(pid >= 0)) return personal(a, 'That character has no profile id.');
+  const cap = appointCap(a, z, rank);
+  if (!cap) return personal(a, `Only an admin, or a seat that may name a ${rankTitle(rank)}, can appoint one in ${z.name}.`);
   const o = readOfficials(); o[z.id] = o[z.id] || {};
+  if (!isAdmin(a)) {
+    const held = Object.keys(o[z.id]).find((r) => (o[z.id][r] || []).map(Number).includes(pid));
+    if (held && !appointCap(a, z, held)) return personal(a, `${display(t)} already holds ${rankTitle(held)} of ${z.name}; you cannot replace that.`);
+    if (((o[z.id][rank] || []).map(Number).filter((x) => x !== pid)).length >= cap) return personal(a, `${z.name} already has ${cap} ${rankTitle(rank)}s. Dismiss one first.`);
+  }
   for (const r of Object.keys(o[z.id])) o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== pid); // one rank per zone
   o[z.id][rank] = (o[z.id][rank] || []).concat([pid]);
   try { writeOfficials(o); } catch (e) { return personal(a, 'Could not write officials.json: ' + e.message); }
   personal(a, `${display(t)} is now ${rankTitle(rank)} of ${z.name}.`);
   system(t, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
-  audit(`GM ${who(a)} appointed ${who(t)} ${rankTitle(rank)} of ${z.name}`);
-}, { admin: true, help: '<player|#TAG> <zone> <rank> make someone an official' });
+  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${who(t)} ${rankTitle(rank)} of ${z.name}`);
+}, { help: '<player|#TAG> <zone> <rank> make someone an official (admins; Jarls, Counts and Barons name Stewards, Chieftains name Banes, 5 each)' });
 registerChatCommand('dismiss', (a, args) => {
   const m = args.trim().match(/^(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG> <zone>');
   const t = findByName(m[1]); if (!t) return personal(a, 'No such player online.');
@@ -1350,11 +1373,12 @@ registerChatCommand('dismiss', (a, args) => {
   const pid = profileOf(t); const o = readOfficials(); let had = null;
   for (const r of Object.keys(o[z.id] || {})) { if ((o[z.id][r] || []).map(Number).includes(pid)) had = r; o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== pid); }
   if (!had) return personal(a, `${display(t)} holds no rank in ${z.name}.`);
+  if (!appointCap(a, z, had)) return personal(a, `You cannot dismiss a ${rankTitle(had)} of ${z.name}.`);
   try { writeOfficials(o); } catch (e) { return personal(a, 'Could not write officials.json: ' + e.message); }
   personal(a, `${display(t)} is no longer ${rankTitle(had)} of ${z.name}.`);
   system(t, `You are no longer ${rankTitle(had)} of ${z.name}.`);
-  audit(`GM ${who(a)} dismissed ${who(t)} as ${rankTitle(had)} of ${z.name}`);
-}, { admin: true, help: '<player|#TAG> <zone> remove an official' });
+  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} dismissed ${who(t)} as ${rankTitle(had)} of ${z.name}`);
+}, { help: '<player|#TAG> <zone> remove an official you may appoint' });
 registerChatCommand('officials', (a, args) => {
   const o = readOfficials(); const want = args.trim() ? zoneById(args.trim()) : null;
   const lines = [];
@@ -2012,7 +2036,21 @@ if (typeof globalThis.__dboPrevHitDamageAttempt === 'undefined') {
   globalThis.__dboPrevHitDamageAttempt = typeof mp.onHitDamageAttempt === 'function' && !mp.onHitDamageAttempt.__dbo ? mp.onHitDamageAttempt : null;
 }
 const MAX_DAMAGE_CAP = 350;
-const hitDamageAttemptHook = (aggressorId, targetId, sourceId, damage) => {
+// SPEL SPIT: castType is the u32 at offset 16, 2 = concentration (libespm SPEL.h SPITData)
+const concCache = globalThis.__dboConcCache instanceof Map ? globalThis.__dboConcCache : (globalThis.__dboConcCache = new Map());
+const concLast = globalThis.__dboConcLast instanceof Map ? globalThis.__dboConcLast : (globalThis.__dboConcLast = new Map());
+const isConcentration = (src) => {
+  if (concCache.has(src)) return concCache.get(src);
+  let yes = false;
+  const r = recordOf(src);
+  if (r && String(r.record.type) === 'SPEL') {
+    const spit = (r.record.fields || []).find((f) => f && f.type === 'SPIT' && f.data instanceof Uint8Array && f.data.byteLength >= 20);
+    if (spit) yes = new DataView(spit.data.buffer, spit.data.byteOffset, spit.data.byteLength).getUint32(16, true) === 2;
+  }
+  concCache.set(src, yes);
+  return yes;
+};
+const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
   const agg = Number(aggressorId) >>> 0;
   const tgt = Number(targetId) >>> 0;
   const src = Number(sourceId) >>> 0;
@@ -2029,6 +2067,15 @@ const hitDamageAttemptHook = (aggressorId, targetId, sourceId, damage) => {
   if (!isAdmin(agg) && dmg > MAX_DAMAGE_CAP) {
     log(`damageRefused: ${dmg.toFixed(1)} from ${display(agg)} on ${display(tgt)} (source 0x${src.toString(16)})`);
     return false;
+  }
+
+  // 2b. A concentration spell (Sparks, Flames) sends a hit per engine hit event, each carrying the full per-second
+  // magnitude, so a beam dealt about 10x vanilla. One accepted hit per caster, target and spell each second.
+  if (dmg > 0 && isConcentration(src)) {
+    const key = `${agg}:${tgt}:${src}`, now = Date.now();
+    if (now - (concLast.get(key) || 0) < 1000) return false;
+    concLast.set(key, now);
+    if (concLast.size > 512) for (const [k, t] of concLast) if (now - t > 5000) concLast.delete(k);
   }
 
   const prev = globalThis.__dboPrevHitDamageAttempt;
