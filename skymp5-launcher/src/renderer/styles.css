@@ -1117,6 +1117,44 @@ html, body {
   color: rgba(215, 227, 227, 0.3);
 }
 
+/* World clock card with the moon */
+.metric-clock {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: rgba(8, 25, 28, 0.5);
+  border: 1px solid var(--glass-border);
+  padding: 14px 16px;
+}
+
+.metric-clock-moon {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 10px rgba(232, 214, 160, 0.35));
+}
+
+.metric-clock-moon svg { width: 100%; height: 100%; }
+.moon-lit { fill: #efe6c8; }
+.moon-dark { fill: #0b1c1f; stroke: rgba(232, 214, 160, 0.25); stroke-width: 0.5; }
+
+.metric-clock-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.metric-clock-phase {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: calc(12px * var(--text-scale));
+  letter-spacing: 1px;
+  color: var(--aqua);
+}
+
+.metric-clock-phase--full { color: var(--gold-bright); }
+
 /* Ranked board (races of the realm) */
 .metric-board {
   grid-column: 1 / -1;

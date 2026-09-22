@@ -1560,6 +1560,7 @@ async function loadMetrics() {
   if (world && Array.isArray(world.sections)) {
     for (const s of world.sections) {
       if (s.type === 'cards') for (const c of s.cards || []) metricsGrid.appendChild(metricCard(c.label, c.value, c.sub))
+      if (s.type === 'clock') metricsGrid.appendChild(metricClock(s))
       if (s.type === 'board') metricsGrid.appendChild(metricBoard(s.title, s.rows || []))
     }
     const when = world.updatedAt ? new Date(world.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
@@ -1581,6 +1582,49 @@ async function loadMetrics() {
   }
   if (logins !== null) metricsGrid.appendChild(metricCard('Total Logins', fmt(logins), loginErrors !== null ? `${fmt(loginErrors)} errors` : null))
   if (tickAvg !== null) metricsGrid.appendChild(metricCard('Avg Tick Duration', `${tickAvg.toFixed(1)} ms`, null))
+}
+
+// World clock card: the hour keeps ticking at the server's timescale until the next refresh
+let clockTimer = 0
+function metricClock(s) {
+  const card = el('div', 'metric-clock')
+  const moon = el('div', 'metric-clock-moon')
+  moon.innerHTML = moonSvg(s.phase)
+  card.appendChild(moon)
+  const body = el('div', 'metric-clock-body')
+  body.appendChild(el('div', 'metric-label', 'World Clock'))
+  const time = el('div', 'metric-value metric-clock-time', '')
+  body.appendChild(time)
+  body.appendChild(el('div', 'metric-sub', s.date))
+  const phase = s.phaseName ? s.phaseName.charAt(0).toUpperCase() + s.phaseName.slice(1) : ''
+  body.appendChild(el('div', 'metric-clock-phase' + (s.phase === 0 ? ' metric-clock-phase--full' : ''), phase ? `Moons: ${phase}${s.phase === 0 ? ' — beware the beast' : ''}` : ''))
+  body.appendChild(el('div', 'metric-sub', `${s.weather ? s.weather.charAt(0).toUpperCase() + s.weather.slice(1) + ' over Bruma · ' : ''}a game day every ${(24 / (s.timeScale || 1)).toFixed(0)} real hours`))
+  card.appendChild(body)
+  const since = Date.parse(s.at || '') || Date.now()
+  const tick = () => {
+    const h = (s.hour + (Date.now() - since) * (s.timeScale || 1) / 3600000) % 24
+    const hh = Math.floor(h), mm = Math.floor((h - hh) * 60)
+    time.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}${h >= 20 || h < 6 ? ' · night' : ''}`
+  }
+  tick()
+  if (clockTimer) clearInterval(clockTimer)
+  clockTimer = setInterval(() => { if (modalMetrics.hidden || !document.body.contains(time)) { clearInterval(clockTimer); clockTimer = 0; return } tick() }, 1000)
+  return card
+}
+
+// Eight phases, 0 full and 4 new; the dark side is drawn over a lit disc
+function moonSvg(phase) {
+  const r = 26, c = 30
+  const p = ((Number(phase) || 0) % 8 + 8) % 8
+  if (p === 0) return `<svg viewBox="0 0 60 60"><circle cx="${c}" cy="${c}" r="${r}" class="moon-lit"/></svg>`
+  if (p === 4) return `<svg viewBox="0 0 60 60"><circle cx="${c}" cy="${c}" r="${r}" class="moon-dark"/></svg>`
+  const k = Math.cos(p / 8 * 2 * Math.PI), rx = Math.abs(k) * r
+  const waning = p < 4
+  // Right half is dark while waning, left half while waxing; the terminator bulges toward the lit side after the quarter
+  const side = waning ? 1 : 0
+  const sweep = k >= 0 ? (waning ? 0 : 1) : (waning ? 1 : 0)
+  const d = `M ${c} ${c - r} A ${r} ${r} 0 0 ${side} ${c} ${c + r} A ${rx} ${r} 0 0 ${sweep} ${c} ${c - r} Z`
+  return `<svg viewBox="0 0 60 60"><circle cx="${c}" cy="${c}" r="${r}" class="moon-lit"/><path d="${d}" class="moon-dark"/></svg>`
 }
 
 function metricBoard(title, rows) {
