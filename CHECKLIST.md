@@ -11,6 +11,9 @@
   to the player from the same widget. Everyone else sees "Unowned. Property is granted by the hold's Jarl, Steward or
   Chieftain." `housingOpenClaims: true` in server-settings restores open claims. Existing records untouched. Front rebuilt.
 - [ ] Property claimed before this change stays with whoever grabbed it; a manager can Revoke it from the door.
+- [x] Nat 05:10: "only barons/stewards and jarls/count should be able to assign containers and houses in their respective area."
+  MANAGER_RANKS = jarl, baron, steward, count (+ chieftain, bane for sovereign strongholds), any admin tier. No zone has a
+  `baron` office yet (Bruma's Count stands in, gamemode.js APPOINT_RULES); "baron" added to MANAGER_RANKS for when one exists.
 
 
 ## Added 2026-09-22 (night): Discord feedback of 21 Sep 23:00
