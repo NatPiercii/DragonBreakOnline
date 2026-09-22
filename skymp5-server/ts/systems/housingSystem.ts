@@ -358,7 +358,7 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "Only the owner, the Jarl or the Steward cuts keys here.");
       return;
     }
-    const keyName = this.keyNameOf(primary, rec);
+    const keyName = this.keyNameOf(ctx, primary, rec);
     if (!this.giveKey(ctx, actorId, keyName)) {
       this.notice(ctx, userId, "You are carrying too many keys.");
       return;
@@ -464,7 +464,8 @@ export class HousingSystem implements System {
     const hold = this.holdOf(ctx, primary);
     if (hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1)) return true;
     const credential = this.keyCredential(primary, rec);
-    return Array.from(v.keys).some((n) => this.isKeyFor(n, credential));
+    const expected = this.keyNameOf(ctx, primary, rec);
+    return Array.from(v.keys).some((n) => this.isKeyFor(n, credential, expected));
   }
 
   // One inventory read and one access read per actor, not per claimed ref.
@@ -596,13 +597,42 @@ export class HousingSystem implements System {
     return rec.serial > 1 ? `(${tag}-${rec.serial})` : `(${tag})`;
   }
 
-  private keyNameOf(primary: number, rec: PropertyRecord): string {
+  // Keys read as keys, not as serial numbers: "Key to the Jerall View Inn".
+  // A name is only marked when it would clash with another property's name or
+  // when the locks have been re-cut, and both are rare. An unnamed property
+  // keeps the old form, because there is nothing to call its key.
+  // Keys cut before this still open their door: the credential is still taken.
+  private keyNameOf(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
     const label = (rec.name || "").trim();
-    return `${label ? label + " " : "Property "}Key ${this.keyCredential(primary, rec)}`;
+    if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
+    const rank = this.labelRank(ctx, primary, label);
+    const base = rank > 1 ? `Key to the ${label}, the ${this.ordinal(rank)}` : `Key to the ${label}`;
+    if (rec.serial <= 1) return base;
+    return `${base} (recut${rec.serial > 2 ? " " + (rec.serial - 1) : ""})`;
   }
 
-  private isKeyFor(name: unknown, credential: string): boolean {
-    return typeof name === "string" && name.endsWith(credential);
+  // Where this property stands among the ones sharing its name, lowest ref id
+  // first. Two "Red Diamond"s must not answer to one key.
+  private labelRank(ctx: SystemContext, primary: number, label: string): number {
+    const want = label.toLowerCase();
+    let rank = 1;
+    for (const other of this.claimed) {
+      if (other === primary || other > primary) continue;
+      const rec = this.read(ctx, other) as PropertyRecord | null;
+      if (rec && ((rec.name || "").trim().toLowerCase()) === want) rank++;
+    }
+    return rank;
+  }
+
+  private ordinal(n: number): string {
+    const words = ["", "", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+    return words[n] || `${n}th`;
+  }
+
+  private isKeyFor(name: unknown, credential: string, expected?: string): boolean {
+    if (typeof name !== "string") return false;
+    if (expected && name === expected) return true;
+    return name.endsWith(credential);
   }
 
   // Pull the current keys from everyone online and move the serial on, so any
@@ -610,13 +640,14 @@ export class HousingSystem implements System {
   private reKey(ctx: SystemContext, primary: number, rec: PropertyRecord): void {
     const mp = ctx.svr as Mp;
     const credential = this.keyCredential(primary, rec);
+    const expected = this.keyNameOf(ctx, primary, rec);
     for (const userId of this.onlineUsers(ctx)) {
       const actorId = this.actorOf(ctx, userId);
       if (!actorId) continue;
       try {
         const inv = mp.get(actorId, "inventory");
         const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
-        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && this.isKeyFor(e?.name, credential)));
+        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && this.isKeyFor(e?.name, credential, expected)));
         if (kept.length !== entries.length) mp.set(actorId, "inventory", { entries: kept });
       } catch { /* actor gone */ }
     }
