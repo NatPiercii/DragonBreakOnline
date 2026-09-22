@@ -1,5 +1,47 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (18:45 UTC): UI scale, corpse looting, key names, log sweep
+
+With Nat, from the live log plus his notes doc and the Discord reports. Nothing pushed or deployed yet.
+
+- [x] **UI auto-scale** (Athny, 3840x2160; notes p3/p4 "maybe an auto-scale for GUI?"). The widgets are laid
+  out in px against 1920x1080, so a 4K screen halved them. `main.scss` now puts `zoom: var(--dbo-ui-scale)`
+  on `html` and shrinks the root's own box by the same factor, and all 66 raw `vw`/`vh` became
+  `--dbo-vw`/`--dbo-vh` (measured: Chromium does **not** rescale viewport units under `zoom`, so `100vw`
+  would have overflowed 2x). `utils/UiScale.js` picks `min(w/1920, h/1080)` clamped to 1..3, remembers a
+  manual `window.dboSetUiScale(n)` in localStorage, and `uiScaleService.ts` carries a launcher `uiScale`
+  override across. **Verified on the built bundle in a real browser**: a fixed 100x40 box measures
+  100x40 / 150x60 / 200x80 at scale 1 / 1.5 / 2 while staying pinned to the true screen corner.
+  Front + client rebuilt and copied to the dev install and `server\client-dist`.
+- [x] **A dead player's body yields two things and a cut of the coin** (Nat). Two random stacks plus 15% of
+  the purse, keys never taken, body marked searched so it cannot be farmed, flag cleared on each death.
+  `gamemode.js`, commit `0aa1fb2c`, hot-reloadable.
+- [x] **Key names** (Nat: "keys need proper names too, i think the numbers are ugly", screenshot
+  `CATFIGHT GUILD KEY (8000EEB)`). `housingSystem.ts` now cuts **"Key to the Catfight Guild"**; a mark is
+  added only when two properties share a name (", the second", ordered by ref id so it is stable) or the
+  locks were re-cut (" (recut)"). Old keys still open their door, because the credential suffix is still
+  accepted. An unnamed property keeps the old form. **Renaming a property now invalidates its keys** -
+  that needs saying in the notice text, it is not said yet.
+- [ ] **Key theft "extremely rare"** (Nat) is not done. Nothing pickpockets a key today, and corpse looting
+  now excludes them, so the only route left is a live-robbery rule when one exists.
+- [x] **Log sweep, 15,118 `[error]` lines.** Biggest live source was 2,074 x `Unable to change values
+  without Actor attached`: the client sends `UpdateAnimVariables` twice a second from the moment it
+  connects, and `OnUpdateAnimVariables` threw for every one until the character loaded. It is a pure relay
+  with nothing to relay, so it now returns quietly (`ActionListener.cpp`).
+- [x] `Expected record 0x10012c6 to be MGEF, but found REFR` (6x after BSK casts) is the record-local id
+  bug from the 17:40 block, already fixed in the working tree. The 11,374 `TickSaveStorage` UTF-8 parse
+  failures are historical: all of them fall in 19:07-19:26 on 21 Sep and none has recurred.
+- [ ] **Gray Fox Cowl doors go nowhere.** `366c0/366c1/366c2:Gray Fox Cowl.esm` each logged
+  `No destination found for this teleport door` while a player tried them in turn (04:21 on 22 Sep). Same
+  class as the known orphan door destinations; it is quest-mod content, so it needs a plugin decision.
+- [ ] Left from Nat's notes doc, not started: Khajiit customisation, the god picker being small and a
+  floating menu, skinning too tedious, roadside bandit scenes, sprint changing voice distance on repeat,
+  respawn at the temple door instead of by the shrine, pigeons reaching people who never introduced
+  themselves, the mining minigame's space bar, vitals to ~300 each, and the launcher items (lag,
+  "Discord Login Required" after login, "Read More", the Installing hover).
+- [ ] **Rielle: the button that progresses the dungeon does nothing.** Not in the log; needs a look at
+  whether it is one of the 209 puzzle blockers disabled in DLE or an unimplemented script.
+
 ## Added 2026-09-22 (18:00 UTC, unattended run): the crash on jump is a null character controller
 
 Nothing pushed, nothing deployed, nobody was here to ask. One gitignored live file was changed, see the
