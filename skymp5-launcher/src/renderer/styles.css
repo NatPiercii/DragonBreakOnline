@@ -351,6 +351,24 @@ html, body {
   color: rgba(215, 227, 227, 0.28);
 }
 
+/* Link to the Nexus collection in the modlist header */
+.modlist-collection {
+  margin-left: auto;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: calc(10px * var(--text-scale));
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(143, 211, 208, 0.7);
+  text-decoration: none;
+  border: 1px solid transparent;
+  padding: 2px 6px;
+}
+
+.modlist-collection:hover {
+  color: var(--gold-bright);
+  border-color: var(--glass-border);
+}
+
 /* Modlist panel */
 .modlist-panel {
   flex: 1;

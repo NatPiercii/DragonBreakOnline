@@ -1492,6 +1492,10 @@ function buildModItem(mod) {
 }
 
 // Keep a reference to the last-loaded modlist so the install handler can use it.
+// The whole modlist as one Nexus collection, for players who prefer to grab it there
+const NEXUS_COLLECTION_URL = 'https://www.nexusmods.com/games/skyrimspecialedition/collections/2zbqu6'
+document.getElementById('modlist-collection').addEventListener('click', (e) => { e.preventDefault(); window.electronAPI.openExternal(NEXUS_COLLECTION_URL) })
+
 let currentModlist = []
 
 async function loadModlist() {
