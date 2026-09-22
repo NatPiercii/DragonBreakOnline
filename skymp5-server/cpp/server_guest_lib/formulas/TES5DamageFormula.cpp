@@ -5,6 +5,7 @@
 #include "SpellCastData.h"
 #include "WorldState.h"
 #include "libespm/espm.h"
+#include <spdlog/spdlog.h>
 
 namespace internal {
 
@@ -35,7 +36,8 @@ private:
   [[nodiscard]] float CalcArmorRatingComponent(
     const Inventory::Entry& opponentEquipmentEntry) const;
   [[nodiscard]] float CalcOpponentArmorRating() const;
-  [[nodiscard]] float CalcMagicEffects(const Effects& effects) const;
+  [[nodiscard]] float CalcMagicEffects(const espm::LookupResult& owner,
+                                       const Effects& effects) const;
   [[nodiscard]] float DetermineDamageFromSource(uint32_t source) const;
   [[nodiscard]] float CalcUnarmedDamage() const;
   [[nodiscard]] float CalcArmorDamagePenalty() const;
@@ -68,12 +70,23 @@ float TES5DamageFormulaImpl::CalcWeaponRating() const
   return GetBaseWeaponDamage();
 }
 
-float TES5DamageFormulaImpl::CalcMagicEffects(const Effects& effects) const
+// `owner` is the record the effects were read out of: libespm hands back the
+// raw field bytes, so every form id in them is still in that plugin's own
+// master index space and has to be mapped before it can be looked up.
+float TES5DamageFormulaImpl::CalcMagicEffects(const espm::LookupResult& owner,
+                                              const Effects& effects) const
 {
+  const auto& browser = espmProvider->GetEspm().GetBrowser();
   float armorRating = 0.f;
   for (const auto& effect : effects) {
+    const auto effectLookup =
+      browser.LookupById(owner.ToGlobalId(effect.effectId));
+    const auto magicEffect = espm::Convert<espm::MGEF>(effectLookup.rec);
+    if (!magicEffect) {
+      continue;
+    }
     const auto actorValueType =
-      espm::GetData<espm::MGEF>(effect.effectId, espmProvider).data.primaryAV;
+      magicEffect->GetData(espmProvider->GetEspmCache()).data.primaryAV;
     if (actorValueType == espm::ActorValue::DamageResist) {
       armorRating += effect.magnitude;
     }
@@ -84,23 +97,33 @@ float TES5DamageFormulaImpl::CalcMagicEffects(const Effects& effects) const
 float TES5DamageFormulaImpl::CalcArmorRatingComponent(
   const Inventory::Entry& opponentEquipmentEntry) const
 {
-  if (opponentEquipmentEntry.GetWorn() != Inventory::Worn::None &&
-      espm::GetRecordType(opponentEquipmentEntry.baseId, espmProvider) ==
-        espm::ARMO::kType) {
-    const auto armorData =
-      espm::GetData<espm::ARMO>(opponentEquipmentEntry.baseId, espmProvider);
-    // TODO(#458): take other components into account
-    auto ac = static_cast<float>(armorData.baseRatingX100) / 100;
-    if (armorData.enchantmentFormId) {
-      // TODO(#632) refactor this effect with actor effect system
-      const auto enchantmentData =
-        espm::GetData<espm::ENCH>(armorData.enchantmentFormId, espmProvider);
-      ac += CalcMagicEffects(enchantmentData.effects);
-    }
-
-    return ac;
+  if (opponentEquipmentEntry.GetWorn() == Inventory::Worn::None) {
+    return 0;
   }
-  return 0;
+
+  const auto& browser = espmProvider->GetEspm().GetBrowser();
+  const auto armorLookup = browser.LookupById(opponentEquipmentEntry.baseId);
+  const auto armor = espm::Convert<espm::ARMO>(armorLookup.rec);
+  if (!armor) {
+    return 0;
+  }
+
+  const auto armorData = armor->GetData(espmProvider->GetEspmCache());
+  // TODO(#458): take other components into account
+  auto ac = static_cast<float>(armorData.baseRatingX100) / 100;
+  if (armorData.enchantmentFormId) {
+    // TODO(#632) refactor this effect with actor effect system
+    const auto enchantmentLookup =
+      browser.LookupById(armorLookup.ToGlobalId(armorData.enchantmentFormId));
+    const auto enchantment = espm::Convert<espm::ENCH>(enchantmentLookup.rec);
+    if (enchantment) {
+      ac += CalcMagicEffects(
+        enchantmentLookup,
+        enchantment->GetData(espmProvider->GetEspmCache()).effects);
+    }
+  }
+
+  return ac;
 }
 
 float TES5DamageFormulaImpl::CalcOpponentArmorRating() const
@@ -108,7 +131,14 @@ float TES5DamageFormulaImpl::CalcOpponentArmorRating() const
   float combinedArmorRating = 0;
   auto eq = target.GetEquipment();
   for (auto& entry : eq.inv.entries) {
-    combinedArmorRating += CalcArmorRatingComponent(entry);
+    // One unreadable worn item must not throw: the packet handler abandons the
+    // whole hit on an exception, which leaves the wearer unkillable.
+    try {
+      combinedArmorRating += CalcArmorRatingComponent(entry);
+    } catch (const std::exception& e) {
+      spdlog::debug("CalcOpponentArmorRating - skipped worn item {:#x}: {}",
+                    entry.baseId, e.what());
+    }
   }
   return combinedArmorRating;
 }
@@ -200,7 +230,19 @@ float TES5SpellDamageFormulaImpl::GetBaseSpellDamage() const
   const auto spellData =
     espm::GetData<espm::SPEL>(spellCastData.spell, espmProvider);
 
-  float damage = 0.f;
+  // EFID holds a record-local form id: it only means anything through the spell's own file
+  const auto spellLookup =
+    espmProvider->GetEspm().GetBrowser().LookupById(spellCastData.spell);
+
+  // A spell's damage is what its card shows. Every shock spell also carries a
+  // PerkDisintegrate effect at magnitude 200, a health threshold rather than
+  // damage, and counting it made Sparks hit for 208 and Lightning Bolt for 225.
+  // Those riders are flagged HideInUI and no visible damage effect is, so the
+  // visible ones are the spell's damage. Creature attacks, vampire sun damage
+  // and Expel Daedra have no visible effect at all, so a spell with none falls
+  // back to its whole total rather than dealing nothing.
+  float visibleDamage = 0.f;
+  float totalDamage = 0.f;
 
   for (const auto& effect : spellData.effects) {
 
@@ -208,8 +250,8 @@ float TES5SpellDamageFormulaImpl::GetBaseSpellDamage() const
       continue;
     }
 
-    auto magicEffect =
-      espm::GetData<espm::MGEF>(effect.effectFormId, espmProvider);
+    auto magicEffect = espm::GetData<espm::MGEF>(
+      spellLookup.ToGlobalId(effect.effectFormId), espmProvider);
 
     const bool needAddDamage =
       magicEffect.data.IsFlagSet(espm::MGEF::Flags::Hostile) ||
@@ -218,10 +260,13 @@ float TES5SpellDamageFormulaImpl::GetBaseSpellDamage() const
     if (needAddDamage &&
         magicEffect.data.primaryAV == espm::ActorValue::Health) {
 
-      damage += effect.effectItem->magnitude;
+      totalDamage += effect.effectItem->magnitude;
+      if (!magicEffect.data.IsFlagSet(espm::MGEF::Flags::HideInUI)) {
+        visibleDamage += effect.effectItem->magnitude;
+      }
     }
   }
-  return damage;
+  return visibleDamage > 0.f ? visibleDamage : totalDamage;
 }
 
 float TES5SpellDamageFormulaImpl::CalculateDamage() const

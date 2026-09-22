@@ -40,6 +40,13 @@ void EatItemEvent::OnFireSuccess(WorldState* worldState)
   } else {
     return;
   }
+
+  // EFID holds a record-local form id: it only means anything through the potion's own file
+  const auto lookupResult =
+    worldState->GetEspm().GetBrowser().LookupById(baseId);
+  for (auto& effect : effects) {
+    effect.effectId = lookupResult.ToGlobalId(effect.effectId);
+  }
   std::unordered_set<std::string> modFiles = { worldState->espmFiles.begin(),
                                                worldState->espmFiles.end() };
   bool hasSweetpie = modFiles.count("SweetPie.esp");
