@@ -61,10 +61,12 @@ function worldSections() {
   const gold = w.gold || {}
   const races = Array.isArray(w.races) ? w.races : []
   const top = races.reduce((m, r) => Math.max(m, r.count), 0) || 1
+  const c = w.clock
   return {
     updatedAt: w.updatedAt,
     stale: !(age < STALE_MS),
     sections: [
+      ...(c ? [{ type: 'clock', hour: Number(c.hour) || 0, date: `${c.day} ${c.month}, 4E ${c.year}`, phase: Number(c.phase) || 0, phaseName: String(c.phaseName || ''), night: !!c.night, timeScale: Number(c.timeScale) || 1, weather: String(c.weather || ''), at: w.updatedAt }] : []),
       { type: 'cards', cards: [
         { label: 'Online Now', value: n(w.online), sub: `Peak today ${n(w.peakToday)}` },
         { label: 'Characters', value: n(w.characters), sub: `${n(w.players)} players` },
