@@ -1379,7 +1379,7 @@ ipcMain.handle('files:updateCheck', async () => {
     // click re-runs the install and self-heals the incomplete state.
     const modpackFailed = store.get('mo2Enabled') && store.get('modpackState') === 'failed'
     let extrasCurrent = true
-    try { extrasCurrent = extrasUpToDate(await fetchExtraManifest(), gamePath) } catch { /* backend hiccup: keep Play */ }
+    if (!store.get('dboFilesDisabled')) { try { extrasCurrent = extrasUpToDate(await fetchExtraManifest(), gamePath) } catch { /* backend hiccup: keep Play */ } }
     return {
       ok: true,
       updateAvailable: vd.version !== store.get('filesVersion') || !allPresent || modpackFailed || !extrasCurrent,
@@ -2173,7 +2173,8 @@ async function checkFilesImpl() {
   // DragonBreak files (repaired with the client files, which re-runs syncExtraFiles)
   if (gameOk) {
     progress('Checking DragonBreak files…')
-    const files = extraEntries(ev, gamePath)
+    const files = store.get('dboFilesDisabled') ? [] : extraEntries(ev, gamePath)
+    if (store.get('dboFilesDisabled')) notes.push('DragonBreak files are disabled (Settings > Repair > Enable DragonBreak Files); PLAY enables them again.')
     for (let i = 0; i < files.length; i++) {
       const full = path.join(gamePath, ...files[i].path.split('/'))
       await verifyFile(full, files[i], show(full), 'client')
@@ -2250,6 +2251,76 @@ async function checkFilesImpl() {
   log(`[check] done: ${issues.length} issue(s)`)
   return { ok: true, issues, notes }
 }
+
+// DragonBreak files on/off: the per-file sync's plugins, archives and assets leave the game copy so the
+// same install can join another server, and come back on Enable or on the next PLAY here.
+const removeEmptyParents = (file, stopAt) => {
+  let dir = path.dirname(file)
+  while (dir.length > stopAt.length && dir.startsWith(stopAt)) {
+    try { if (fs.readdirSync(dir).length) break; fs.rmdirSync(dir) } catch { break }
+    dir = path.dirname(dir)
+  }
+}
+ipcMain.handle('extras:state', () => ({
+  disabled: !!store.get('dboFilesDisabled'),
+  count: (store.get('extraFilesInstalled') || []).length,
+  baseDir: store.get('baseDirPath') || DEFAULT_BASE_DIR,
+}))
+ipcMain.handle('extras:disable', async () => {
+  try {
+    const gamePath = effectiveGamePath()
+    if (!gamePath) return { success: false, error: 'No game copy is installed.' }
+    if (await gameProcessRunning()) return { success: false, error: 'Close Skyrim first.' }
+    let paths = store.get('extraFilesInstalled') || []
+    try { paths = extraEntries(await fetchExtraManifest(), gamePath).map(f => f.path) } catch { /* offline: the remembered list */ }
+    const dataDir = path.join(gamePath, 'Data')
+    let removed = 0
+    for (const p of paths) {
+      const full = path.join(gamePath, ...p.split('/'))
+      try { fs.unlinkSync(mo2.lp(full)); removed++ } catch { /* already gone */ }
+      removeEmptyParents(full, dataDir)
+    }
+    store.set('dboFilesDisabled', true)
+    store.set('extraHashCache', {})
+    log(`[extras] disabled: removed ${removed} of ${paths.length} DragonBreak file(s)`)
+    return { success: true, removed, total: paths.length }
+  } catch (err) { return { success: false, error: err.message } }
+})
+ipcMain.handle('extras:enable', async () => {
+  try {
+    const gamePath = effectiveGamePath()
+    if (!gamePath) return { success: false, error: 'No game copy is installed.' }
+    if (await gameProcessRunning()) return { success: false, error: 'Close Skyrim first.' }
+    store.set('dboFilesDisabled', false)
+    const r = await syncExtraFiles(gamePath)
+    if (r.success) log(`[extras] enabled: ${r.count} file(s) restored`)
+    return r
+  } catch (err) { return { success: false, error: err.message } }
+})
+// Uninstall: the whole install location (game copy, MO2, mods, downloads) goes; the launcher and its settings stay
+ipcMain.handle('install:uninstall', async () => {
+  try {
+    const base = store.get('baseDirPath') || DEFAULT_BASE_DIR
+    if (await gameProcessRunning()) return { success: false, error: 'Close Skyrim first.' }
+    if (!fs.existsSync(base)) return { success: true, removed: false, base }
+    // Refuse anything that is not our own layout, so a wrong path never wipes a real folder
+    const ours = fs.existsSync(path.join(base, 'skyrim', 'vanilla-copy-complete.json')) || fs.existsSync(path.join(base, 'ModOrganizer.exe')) || fs.existsSync(path.join(base, 'portable.txt'))
+    if (!ours) return { success: false, error: `${base} does not look like a DragonBreak install; nothing was removed.` }
+    const win = BrowserWindow.getAllWindows()[0]
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning', buttons: ['Uninstall', 'Cancel'], defaultId: 1, cancelId: 1,
+      title: 'Uninstall DragonBreak',
+      message: 'Remove the DragonBreak install?',
+      detail: `This deletes ${base}: the game copy, Mod Organizer, every downloaded mod and the DragonBreak files. Your Steam copy of Skyrim and this launcher's settings are not touched.`,
+    })
+    if (response !== 0) return { success: false, cancelled: true }
+    send('install:progress', { phase: 'uninstall', file: 'Removing the DragonBreak install…', index: 0, total: 0, skipped: false })
+    await new Promise((resolve, reject) => fs.rm(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 }, err => err ? reject(err) : resolve()))
+    for (const k of ['filesVersion', 'modpackState', 'extraHashCache', 'extraFilesInstalled', 'dboFilesDisabled', 'cachedServers']) store.delete(k)
+    log(`[uninstall] removed ${base}`)
+    return { success: true, removed: true, base }
+  } catch (err) { return { success: false, error: err.message } }
+})
 
 // Shared download + extract helpers
 
@@ -2371,8 +2442,9 @@ async function renameRetry(from, to) {
 async function syncExtraFiles(skyrimPath, force = false) {
   let vd
   try { vd = await fetchExtraManifest() } catch (err) { return { success: false, error: `Could not read the DragonBreak file list: ${err.message}` } }
-  if (!vd || (!force && extrasUpToDate(vd, skyrimPath))) return { success: true, count: 0 }
+  if (!vd || (!force && extrasUpToDate(vd, skyrimPath))) { store.set('extraFilesInstalled', extraEntries(vd, skyrimPath).map(f => f.path)); return { success: true, count: 0 } }
   const files = extraEntries(vd, skyrimPath)
+  store.set('extraFilesInstalled', files.map(f => f.path))
   const progress = (file, index, total) => send('install:progress', { phase: 'download', file, index, total, skipped: false })
 
   // Hashes are cached by size + mtime across launches, so only new or changed files are read in full
@@ -2458,6 +2530,7 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
     const allPresent    = clientFilesPresent(skyrimPath)
     const needsDownload = force || serverVersion !== store.get('filesVersion') || !allPresent
 
+    if (store.get('dboFilesDisabled')) { log('[install] DragonBreak files were disabled; enabling them for this launch'); store.set('dboFilesDisabled', false) }
     if (!needsDownload) {
       const extras = await syncExtraFiles(skyrimPath)
       if (!extras.success) return extras

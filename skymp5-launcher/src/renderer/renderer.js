@@ -20,7 +20,7 @@ document.querySelectorAll('.topnav-link[data-href]').forEach(link => {
 const modalOverlay = document.getElementById('modal-settings')
 
 // loadSettings re-runs main's registry auto-detect and refreshes the path fields.
-function openModal() { modalOverlay.hidden = false; loadSettings(); loadGameSettingsTab() }
+function openModal() { modalOverlay.hidden = false; loadSettings(); loadGameSettingsTab(); refreshExtrasState() }
 function closeModal() { endCapture(true); modalOverlay.hidden = true }
 
 document.getElementById('btn-gear').addEventListener('click', openModal)
@@ -540,7 +540,9 @@ const btnRepairClient  = document.getElementById('btn-repair-client')
 const btnRepairModlist = document.getElementById('btn-repair-modlist')
 const btnRepairAll     = document.getElementById('btn-repair-all')
 const btnCheckFiles    = document.getElementById('btn-check-files')
-const REPAIR_BUTTONS   = [btnRepairMo2, btnRepairGame, btnRepairSkse, btnRepairClient, btnRepairModlist, btnRepairAll, btnCheckFiles]
+const btnExtrasToggle  = document.getElementById('btn-extras-toggle')
+const btnUninstall     = document.getElementById('btn-uninstall')
+const REPAIR_BUTTONS   = [btnRepairMo2, btnRepairGame, btnRepairSkse, btnRepairClient, btnRepairModlist, btnRepairAll, btnCheckFiles, btnExtrasToggle, btnUninstall]
 const isolatedGroup    = document.getElementById('isolated-install-group')
 
 // locks the modlist repair until there's a game to manage
@@ -859,6 +861,38 @@ btnRepairModlist.addEventListener('click', () => {
   withRepairLock(repairModlist)
 })
 btnCheckFiles.addEventListener('click', () => withRepairLock(checkFiles))
+
+// DragonBreak files on/off
+let extrasDisabled = false
+async function refreshExtrasState() {
+  try {
+    const st = await window.electronAPI.extrasState()
+    extrasDisabled = !!st.disabled
+    btnExtrasToggle.textContent = extrasDisabled ? 'Enable DragonBreak Files' : 'Disable DragonBreak Files'
+    btnExtrasToggle.classList.toggle('btn-attention', extrasDisabled)
+  } catch { /* leave the label */ }
+}
+btnExtrasToggle.addEventListener('click', () => withRepairLock(async () => {
+  if (extrasDisabled) {
+    installLog('Enabling DragonBreak files…')
+    const r = await window.electronAPI.extrasEnable()
+    installLog(r.success ? `DragonBreak files enabled (${r.count} file(s) restored) ✓` : `Enable failed: ${r.error}`)
+  } else {
+    installLog('Disabling DragonBreak files…')
+    const r = await window.electronAPI.extrasDisable()
+    installLog(r.success ? `DragonBreak files disabled: ${r.removed} file(s) removed. This install can join other servers now; PLAY puts them back.` : `Disable failed: ${r.error}`)
+  }
+  await refreshExtrasState()
+  refreshPlayState()
+}))
+btnUninstall.addEventListener('click', () => withRepairLock(async () => {
+  const r = await window.electronAPI.uninstall()
+  if (r.cancelled) return
+  installLog(r.success ? (r.removed ? `Uninstalled: ${r.base} removed. Press PLAY to install again.` : 'Nothing to uninstall.') : `Uninstall failed: ${r.error}`)
+  await refreshExtrasState()
+  refreshPlayState()
+}))
+refreshExtrasState()
 
 btnRepairAll.addEventListener('click', () => withRepairLock(async () => {
   const steps = [

@@ -1,6 +1,6 @@
 {
   "name": "dragonbreak-launcher",
-  "version": "2.1.22",
+  "version": "2.1.23",
   "description": "Launcher for the DragonBreak server",
   "productName": "DragonBreak Launcher",
   "main": "src/main.js",

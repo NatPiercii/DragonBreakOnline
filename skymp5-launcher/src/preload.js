@@ -64,6 +64,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   installSkse:    (opts) => ipcRenderer.invoke('install:skse', opts),
   // Read-only scan of every section - { ok, issues: [{ kind, path, fix }], notes }
   checkFiles:     () => ipcRenderer.invoke('install:check'),
+  // DragonBreak files on/off and the full uninstall (Settings > Repair)
+  extrasState:    () => ipcRenderer.invoke('extras:state'),
+  extrasDisable:  () => ipcRenderer.invoke('extras:disable'),
+  extrasEnable:   () => ipcRenderer.invoke('extras:enable'),
+  uninstall:      () => ipcRenderer.invoke('install:uninstall'),
   onInstallProgress: (cb) =>
     ipcRenderer.on('install:progress', (_e, data) => cb(data)),
   onInstallComplete: (cb) =>
