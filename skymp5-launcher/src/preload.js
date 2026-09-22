@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   copyText:       (text) => ipcRenderer.invoke('clipboard:write', text),
   onInstallProgress: (cb) =>
     ipcRenderer.on('install:progress', (_e, data) => cb(data)),
+  onInstallLog: (cb) =>
+    ipcRenderer.on('install:log', (_e, msg) => cb(msg)),
   onInstallComplete: (cb) =>
     ipcRenderer.on('install:complete',  (_e, data) => cb(data)),
   removeInstallListeners: () => {

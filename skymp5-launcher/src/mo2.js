@@ -466,9 +466,9 @@ function serverPluginLines(loadOrder) {
  * Point the nxm:// protocol at our portable instance so Nexus
  * "Mod Manager Download" buttons feed MO2's downloads folder.
  */
-function registerNxmHandler() {
+function registerNxmHandler(handlerExe) {
   const root       = getRoot()
-  const nxmHandler = path.join(root, 'nxmhandler.exe')
+  const nxmHandler = handlerExe || path.join(root, 'nxmhandler.exe')
 
   fs.writeFileSync(path.join(root, 'nxmhandler.ini'), [
     '[handlers]',

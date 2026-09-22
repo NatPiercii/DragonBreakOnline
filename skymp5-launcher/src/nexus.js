@@ -178,6 +178,38 @@ function downloadFile(url, destPath, onProgress, redirectsLeft = 5) {
  * deterministically (`…-{modId}-{fileId}…`) so re-runs reuse it.
  * PREMIUM ONLY (uses the download-link API).
  */
+/**
+ * Download link for a file from an nxm:// link ("Mod Manager Download" on the site). The key and
+ * expiry the site puts in the link let a free account use the same endpoint Premium does.
+ */
+async function getDownloadLinkWithKey(auth, nexusId, fileId, key, expires) {
+  const q = `?key=${encodeURIComponent(key)}&expires=${encodeURIComponent(expires)}`
+  const links = await apiGet(auth, `/v1/games/${GAME}/mods/${nexusId}/files/${fileId}/download_link.json${q}`)
+  if (!Array.isArray(links) || links.length === 0 || !links[0].URI) {
+    throw new Error('Nexus gave no download link for that click (the link may have expired; click Mod Manager Download again).')
+  }
+  return links[0].URI
+}
+
+/** The file record behind a mod file id: name, size, version. */
+function fileInfo(auth, nexusId, fileId) {
+  return apiGet(auth, `/v1/games/${GAME}/mods/${nexusId}/files/${fileId}.json`)
+}
+
+/** Download a keyed link into downloadsDir under the same archive name the Premium path uses. */
+async function downloadWithKey(auth, nexusId, fileId, key, expires, fileName, downloadsDir, onProgress) {
+  const url         = await getDownloadLinkWithKey(auth, nexusId, fileId, key, expires)
+  const ext         = path.extname(fileName) || '.zip'
+  const base        = path.basename(fileName, ext)
+  const archiveName = `${base}-${nexusId}-${fileId}${ext}`
+  const destPath    = path.join(downloadsDir, archiveName)
+  fs.mkdirSync(downloadsDir, { recursive: true })
+  const tmp = destPath + '.unfinished'
+  await downloadFile(url, tmp, onProgress)
+  fs.renameSync(tmp, destPath)
+  return archiveName
+}
+
 async function downloadFileEntry(auth, nexusId, file, downloadsDir, onProgress) {
   const url         = await getDownloadLink(auth, nexusId, file.fileId)
   const ext         = path.extname(file.fileName) || '.zip'
@@ -407,6 +439,9 @@ module.exports = {
   validateKey,
   oauthUserInfo,
   getDownloadLink,
+  getDownloadLinkWithKey,
+  fileInfo,
+  downloadWithKey,
   downloadFileEntry,
   ssoLogin,
   oauthLogin,

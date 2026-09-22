@@ -32,6 +32,11 @@ app.setPath('userData', USER_DATA_DIR)
 
 const isDev = process.argv.includes('--dev')
 
+// One launcher at a time: a "Mod Manager Download" click on Nexus starts a second copy with the nxm:// link,
+// which is handed to the running one (second-instance) and the copy quits.
+const singleInstance = app.requestSingleInstanceLock()
+if (!singleInstance) app.quit()
+
 // Always log installs: a packaged launcher that fails on a player's machine is
 // undiagnosable without one. Dev builds keep using the temp path.
 const LOG_FILE = isDev
@@ -268,6 +273,11 @@ function createWindow() {
 app.whenReady().then(() => {
   ensureSkyrimPath()
   createWindow()
+  app.on('second-instance', (_e, argv) => {
+    if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+    handleNxmArgv(argv)
+  })
+  handleNxmArgv(process.argv)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -1066,7 +1076,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
     let serverInfo = null
     try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
     mo2.ensureInstance(dst, serverInfo?.loadOrder)
-    mo2.registerNxmHandler()
+    mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
     seedProfilePrefs(src)
 
     store.set('isolatedGame', true)
@@ -1964,7 +1974,7 @@ ipcMain.handle('install:mo2only', async (_e, opts) => {
         let serverInfo = null
         try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
         mo2.ensureInstance(gamePath, serverInfo?.loadOrder)
-        mo2.registerNxmHandler()
+        mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
         applyForcedServerDefaults(gamePath)
       }
     }
@@ -2656,6 +2666,46 @@ function nexusNamePattern(modId, displayName, version) {
   return new RegExp(`^(?=.*${verRe})(?=.*(?:${base}))`, 'i')
 }
 
+// nxm:// links from "Mod Manager Download" on Nexus: the site puts a one-time key in the link, and with it a
+// free account may fetch the file through the API. The archive lands in the downloads folder under the name
+// the install expects, so the next PLAY picks it up; anything the manifest does not list is downloaded as named.
+const nxmLog = msg => { log(`[nxm] ${msg}`); send('install:log', msg) }
+function handleNxmArgv(argv) {
+  for (const a of argv || []) if (typeof a === 'string' && /^nxm:\/\//i.test(a)) handleNxmLink(a)
+}
+let nxmQueue = Promise.resolve()
+function handleNxmLink(link) {
+  nxmQueue = nxmQueue.then(() => handleNxmLinkNow(link)).catch(err => nxmLog(`Nexus download failed: ${err.message}`))
+}
+async function handleNxmLinkNow(link) {
+  let u
+  try { u = new URL(link) } catch { return nxmLog(`Ignored an unreadable link: ${link}`) }
+  const m = u.pathname.match(/^\/mods\/(\d+)\/files\/(\d+)/)
+  if (u.hostname.toLowerCase() !== 'skyrimspecialedition' || !m) return nxmLog(`Ignored a link that is not a Skyrim Special Edition file: ${link}`)
+  const modId = Number(m[1]), fileId = Number(m[2])
+  const key = u.searchParams.get('key') || '', expires = u.searchParams.get('expires') || ''
+  if (!key || !expires) return nxmLog('That link has no download key; use the Mod Manager Download button on the Nexus file page.')
+  const auth = await getNexusAuth()
+  if (!auth) return nxmLog('Sign in to Nexus with the button in the top bar, then click Mod Manager Download again.')
+  const downloadsDir = mo2.getDownloadsDir()
+  let expected = null
+  try {
+    const manifest = await fetchJSON(`${config.apiUrl}/api/install-manifest`)
+    expected = (manifest.archives || []).find(a => a.source && a.source.type === 'nexus' && Number(a.source.modId) === modId && Number(a.source.fileId) === fileId) || null
+  } catch { /* the name comes from Nexus instead */ }
+  let fileName = expected ? expected.name : ''
+  if (!fileName) { try { const info = await nexus.fileInfo(auth, modId, fileId); fileName = info.file_name || `${modId}-${fileId}.zip` } catch { fileName = `${modId}-${fileId}.zip` } }
+  const mb = n => (n / 1048576).toFixed(1)
+  const name = await nexus.downloadWithKey(auth, modId, fileId, key, expires, fileName, downloadsDir, (r, t) => {
+    send('install:progress', { phase: 'download', file: `Downloading ${fileName} ${mb(r)}${t ? ' / ' + mb(t) : ''} MB`, index: 0, total: 0, skipped: false })
+  })
+  if (expected && expected.hash && !mo2.verifyArchive(path.join(downloadsDir, name), expected.hash)) {
+    try { fs.unlinkSync(path.join(downloadsDir, name)) } catch {}
+    return nxmLog(`${fileName}: the download does not match the version the server expects; open the file page from the download list and pick the listed version.`)
+  }
+  nxmLog(`Downloaded ${fileName}${expected ? ' (verified)' : ''}. Press PLAY when the list is done.`)
+}
+
 // Open the MO2 downloads folder (archive staging) + the backend page listing the
 // file-pinned Nexus links, once per install run. `missing` narrows the page to
 // the archives this install still needs, so nothing already downloaded is listed.
@@ -2731,7 +2781,7 @@ async function runMO2Install(opts = {}) {
     let serverInfo = null
     try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
     mo2.ensureInstance(skyrimPath, serverInfo?.loadOrder)
-    mo2.registerNxmHandler()
+    mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
     seedProfilePrefs(store.get('skyrimPath') || skyrimPath)
     applyForcedServerDefaults(skyrimPath)
 

@@ -735,6 +735,8 @@ document.getElementById('btn-copy-log').addEventListener('click', async () => {
   setTimeout(() => { btn.textContent = 'Copy Log' }, 1500)
 })
 
+window.electronAPI.onInstallLog(msg => installLog(msg))
+
 function formatInstallProgress({ phase, file, index, total, skipped }) {
   if (phase === 'download' || phase === 'check') return file
   if (phase === 'mods') return total > 0 ? `[mods ${index}/${total}] ${file}` : file

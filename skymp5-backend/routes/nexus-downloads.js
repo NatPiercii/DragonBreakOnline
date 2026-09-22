@@ -85,9 +85,11 @@ router.get('/', (req, res) => {
   res.type('text/html').send(page(`
   <h1>DragonBreak mod downloads</h1>
   <div class="note">
-    <p><strong>Ctrl+click</strong> (Cmd+click on macOS) each link below to open it in a background tab, then click
-    <strong>Slow Download</strong> on each Nexus page. Do about <strong>5 at a time</strong> so Nexus doesn't throttle you.</p>
-    <p>Move every zip/7z archive you download into your <code>DragonBreak/downloads</code> folder, which the launcher opened for you.</p>
+    <p>Keep the launcher open. Open each link below and click <strong>Mod Manager Download</strong> on the Nexus page
+    (free accounts have it, next to Slow Download): the DragonBreak launcher catches the download and puts the file where
+    the install expects it. Do about <strong>5 at a time</strong> so Nexus doesn't throttle you.</p>
+    <p>If Mod Manager Download does nothing on your PC, use <strong>Slow Download</strong> and move the zip/7z into your
+    <code>DragonBreak/downloads</code> folder, which the launcher opened for you. Press <strong>PLAY</strong> in the launcher when the list is done.</p>
     ${hiddenCount > 0 ? `<p>${hiddenCount} mod${hiddenCount === 1 ? '' : 's'} you already downloaded ${hiddenCount === 1 ? 'is' : 'are'} hidden.</p>` : ''}
     ${shown.length ? `<p>
       <button class="open-all" id="open-batch">Open the first ${Math.min(5, shown.length)} links</button>
