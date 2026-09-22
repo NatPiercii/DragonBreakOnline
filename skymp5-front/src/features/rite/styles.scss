@@ -1,0 +1,131 @@
+// A rite of turning: a sweeping marker over a narrow strike zone, blood-red when the rite can kill for good
+@import '../../dbo-theme.scss';
+
+.rite {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 56;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: $dbo-ui-font;
+
+  &__fade {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(8, 25, 28, 0.5), rgba(3, 10, 12, 0.9) 100%);
+
+    &--deadly {
+      background: radial-gradient(circle at center, rgba(40, 6, 6, 0.55), rgba(10, 2, 2, 0.92) 100%);
+    }
+  }
+
+  &__panel {
+    position: relative;
+    pointer-events: auto;
+    width: min(640px, 92vw);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 26px 30px 22px;
+    @include dbo-panel;
+  }
+
+  &__title {
+    margin: 0;
+    @include dbo-title;
+    font-size: clamp(22px, 2.4vw, 32px);
+    text-align: center;
+  }
+
+  &__flavor {
+    margin: 0;
+    text-align: center;
+    color: $dbo-text-dim;
+    font-size: 15px;
+    font-style: italic;
+  }
+
+  &__pips {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  &__pip {
+    width: 12px;
+    height: 12px;
+    transform: rotate(45deg);
+    border: 1px solid $dbo-border;
+    background: rgba(0, 0, 0, 0.3);
+
+    &--hit { background: $dbo-gold; border-color: $dbo-gold-border; }
+    &--miss { background: #b8322a; border-color: #6e1a14; }
+  }
+
+  &__bar {
+    position: relative;
+    height: 28px;
+    margin: 6px 0;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid $dbo-border;
+  }
+
+  &__zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: $dbo-gold-fill;
+    border-left: 1px solid $dbo-gold-border;
+    border-right: 1px solid $dbo-gold-border;
+  }
+
+  &__marker {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 4px;
+    margin-left: -2px;
+    background: $dbo-text;
+    box-shadow: 0 0 8px rgba(215, 227, 227, 0.8);
+
+    &--struck { background: $dbo-gold; }
+  }
+
+  &__hint {
+    margin: 0;
+    text-align: center;
+    color: $dbo-text-dim;
+    font-size: 14px;
+  }
+
+  &__result {
+    color: $dbo-gold;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  &__button {
+    font-family: $dbo-ui-font;
+    font-size: 15px;
+    padding: 7px 20px;
+    cursor: pointer;
+    color: $dbo-text;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid $dbo-border;
+
+    &:disabled { opacity: 0.45; cursor: default; }
+
+    &--primary {
+      border-color: $dbo-gold-border;
+      background: $dbo-gold-fill;
+    }
+  }
+}

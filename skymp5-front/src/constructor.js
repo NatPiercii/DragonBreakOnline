@@ -31,6 +31,7 @@ import DeityPicker from './features/deityPicker';
 import Pigeon from './features/pigeon';
 import Faction from './features/faction';
 import MailMarkers from './features/mailMarkers';
+import Rite from './features/rite';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
@@ -267,6 +268,8 @@ const Constructor = props => {
       return <Faction data={rend} />;
     case 'mailMarkers':
       return <MailMarkers data={rend} />;
+    case 'rite':
+      return <Rite data={rend} />;
     case 'skinning':
       return <Skinning data={rend} />;
     case 'characterSelect':
