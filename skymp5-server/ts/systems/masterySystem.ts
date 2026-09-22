@@ -553,13 +553,14 @@ export class MasterySystem implements System {
     if (changed) this.write(ctx, ev.actorId, rec);
   }
 
-  // 0 < mult <= 1 from the needs record; anything missing or odd counts as fed.
+  // 0 < mult <= 1 from the needs record times the raid penalty (dungeons.js private.partyXpMult); anything missing or odd counts as 1
   private xpMultOf(ctx: SystemContext, actorId: number): number {
-    try {
-      const needs = (ctx.svr as Mp).get(actorId, "private.needs");
-      const m = Number(needs && typeof needs === "object" ? needs.xpMult : 1);
-      return Number.isFinite(m) && m > 0 && m <= 1 ? m : 1;
-    } catch { return 1; }
+    const mp = ctx.svr as Mp;
+    const clamp = (v: unknown) => { const m = Number(v); return Number.isFinite(m) && m > 0 && m <= 1 ? m : 1; };
+    let mult = 1;
+    try { const needs = mp.get(actorId, "private.needs"); mult *= clamp(needs && typeof needs === "object" ? needs.xpMult : 1); } catch { /* fed */ }
+    try { mult *= clamp(mp.get(actorId, "private.partyXpMult")); } catch { /* no party */ }
+    return mult;
   }
 
   private matches(ctx: SystemContext, skillId: string, rules: ResolvedRules, ev: ActivityEvent): boolean {
