@@ -10,6 +10,7 @@
           "The STATS window shows who is online now and today's peak.",
           "Races of the Realm ranks every race by how many characters play it.",
           "See how much gold players hold, carried and in their house storage.",
+          "Only real player characters count: NPCs, unfinished and fallen characters are left out, and deleted characters drop off.",
           "The stats refresh every minute."
         ]
       }
