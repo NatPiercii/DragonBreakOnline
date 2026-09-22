@@ -27,6 +27,10 @@ DamageMultFormula::Settings ParseConfig(const nlohmann::json& config)
   }
 
   settings.multiplier = config.at("multiplier").get<float>();
+  // NPC spells scale separately; without the key they follow the physical multiplier
+  settings.magicMultiplier = config.contains("magicMultiplier")
+    ? config.at("magicMultiplier").get<float>()
+    : settings.multiplier;
 
   return settings;
 }
@@ -71,7 +75,7 @@ float DamageMultFormula::CalculateDamage(
   }
 
   if (IsNonPlayerBaseId(aggressor) && !IsNonPlayerBaseId(target)) {
-    baseDamage *= settings.multiplier;
+    baseDamage *= settings.magicMultiplier;
   }
 
   return baseDamage;

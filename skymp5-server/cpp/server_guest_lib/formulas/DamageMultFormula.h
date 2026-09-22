@@ -22,6 +22,7 @@ public:
   struct Settings
   {
     float multiplier = 2.f;
+    float magicMultiplier = 2.f;
   };
 
 private:
