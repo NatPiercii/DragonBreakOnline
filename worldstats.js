@@ -70,7 +70,8 @@ module.exports = (api) => {
       const profileId = profileOf(a);
       if (!isCharacter(a, profileId)) { ST.chars.delete(a); continue; }
       let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { ST.chars.delete(a); continue; }
-      const race = app && app.raceId ? raceName(app.raceId) : 'Unknown';
+      const realRace = (globalThis.__dboBeastOriginalRace && globalThis.__dboBeastOriginalRace(a)) || (app && app.raceId);
+      const race = realRace ? raceName(realRace) : 'Unknown';
       ST.counted.push(`${nameOf(a)} (${race})`);
       races.set(race, (races.get(race) || 0) + 1);
       carried += goldIn(a);

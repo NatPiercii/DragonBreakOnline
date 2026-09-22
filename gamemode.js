@@ -472,22 +472,29 @@ const findAnyByName = (query) => {
   } catch (e) { log('name lookup failed', e.message); }
   return 0;
 };
-const deliverPigeon = (toActor, fromName, text, sentAt) => {
-  const when = sentAt ? new Date(sentAt).toISOString().replace('T', ' ').slice(0, 16) : '';
-  deliver(toActor, `[[PM]]Pigeon from ${fromName}|${text}${when ? `  (${when})` : ''}`);
+// ---- letters: kept in private.pigeons ({ id, from, fromProfile, text, at, read }), read in the coop's Letters tab ----
+const LETTERS_KEPT = 30;
+const lettersOf = (a) => {
+  let box = []; try { box = mp.get(a, 'private.pigeons'); } catch (e) { return []; }
+  return (Array.isArray(box) ? box : []).map((m, i) => Object.assign({}, m, { id: String(m.id || `${m.at || 0}-${i}`) }));
 };
-// Letters are only read at a notice board: bountyBoardSystem calls this whenever a player opens one
-globalThis.__dboBoardOpened = (actorId) => flushPigeons(Number(actorId) >>> 0);
-const pigeonsWaiting = (actorId) => { try { const box = mp.get(actorId, 'private.pigeons'); return Array.isArray(box) ? box.length : 0; } catch (e) { return 0; } };
-const flushPigeons = (actorId) => {
+// Unread letters are never dropped; the oldest read ones go once the coop holds more than LETTERS_KEPT
+const saveLetters = (a, list) => {
+  const sorted = list.slice().sort((x, y) => (y.at || 0) - (x.at || 0));
+  let spare = sorted.length - LETTERS_KEPT;
+  const kept = spare > 0 ? sorted.reverse().filter((m) => !(spare > 0 && m.read && spare--)).reverse() : sorted;
+  mp.set(a, 'private.pigeons', kept);
+};
+const pigeonsWaiting = (a) => lettersOf(a).filter((m) => !m.read).length;
+// Board positions for the client's floating letter marker (notice-board-spots.json, the same list bountyBoardSystem reads)
+const BOARD_REFS = (() => {
   try {
-    const box = mp.get(actorId, 'private.pigeons');
-    if (!Array.isArray(box) || !box.length) return;
-    for (const m of box) deliverPigeon(actorId, m.from, m.text, m.at);
-    mp.set(actorId, 'private.pigeons', []);
-    system(actorId, `${box.length} pigeon${box.length === 1 ? '' : 's'} waited for you at the notice board.`);
-  } catch (e) { log('pigeon flush failed', e.message); }
-};
+    return (JSON.parse(fs.readFileSync(path.resolve('notice-board-spots.json'), 'utf8')).spots || [])
+      .map((s) => { try { return mp.getIdFromDesc(String(s.ref)) >>> 0; } catch (e) { return 0; } }).filter(Boolean);
+  } catch (e) { log('notice-board-spots.json unreadable, no letter markers', e.message); return []; }
+})();
+const sendMailState = (a) => sendPacket(a, { customPacketType: 'dboMail', unread: pigeonsWaiting(a), boards: BOARD_REFS });
+globalThis.__dboBoardOpened = (actorId) => sendMailState(Number(actorId) >>> 0);
 // Pigeons fly from notice boards: the board opens the coop window, and the fee goes to that board's town
 const PIGEON_WIDGET_ID = 34;
 const pigeonNonces = new Map(); // actorId -> nonce of the coop window it has open
@@ -508,22 +515,23 @@ const sendPigeon = (a, to, rawText, zoneId) => {
   try {
     // Every letter lands at the notice boards and waits there; nobody reads a pigeon in the field
     const online = onlineActors().includes(to);
-    const box = Array.isArray(mp.get(to, 'private.pigeons')) ? mp.get(to, 'private.pigeons') : [];
-    if (box.length >= PIGEON_MAX_UNREAD) return { ok: false, text: 'Their coop is full. Try again later.' };
+    const box = lettersOf(to);
+    if (box.filter((m) => !m.read).length >= PIGEON_MAX_UNREAD) return { ok: false, text: 'Their coop is full. Try again later.' };
     const price = admin ? 0 : pigeonFee(a, to);
     if (price > 0 && !takeGold(a, price)) return { ok: false, text: `A pigeon to ${nameOf(to)} costs ${price} gold, and you do not have it.` };
     const paid = price > 0 ? depositToTreasury(zoneId, price) : 0;
     notePigeonSent(p);
     const blocked = mp.get(to, 'private.pigeonBlock');
     if (Array.isArray(blocked) && blocked.includes(p)) return { ok: true, text: 'Your pigeon flew off and never came back.' };
-    box.push({ from: display(a), fromProfile: p, text, at: Date.now() }); mp.set(to, 'private.pigeons', box);
-    if (online) system(to, 'A pigeon has arrived for you. Read it at any notice board.');
+    const at = Date.now();
+    box.push({ id: `${at.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, from: display(a), fromProfile: p, text, at, read: false }); saveLetters(to, box);
+    if (online) { personal(to, 'A pigeon has brought you a letter. Read it at any notice board.'); sendMailState(to); }
     const zone = zoneId ? zoneById(zoneId) : null;
     log(`pigeon ${who(a)} -> ${nameOf(to)} #${tagOf(to)}${price > 0 ? ` (${price} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
     return { ok: true, text: `Your pigeon flies to ${nameOf(to)}, who will read it at a notice board${price > 0 ? `. ${price} gold${zone ? ` to the ${zone.name} treasury` : ''}` : ''}.` };
   } catch (e) { return { ok: false, text: 'The pigeon refused to fly: ' + e.message }; }
 };
-const openPigeonCoop = (a, result, resultKind) => {
+const openPigeonCoop = (a, result, resultKind, view) => {
   const zoneId = boardZoneNear(a);
   const zone = zoneId ? zoneById(zoneId) : null;
   const admin = isAdmin(a);
@@ -540,7 +548,8 @@ const openPigeonCoop = (a, result, resultKind) => {
   openWidget(a, {
     type: 'pigeon', id: PIGEON_WIDGET_ID, nonce, boardName: zone ? zone.name : 'The',
     contacts, gold: goldOf(a), cooldownMinutes: admin || left <= 0 ? 0 : Math.ceil(left / 60000), maxText: PIGEON_MAX_TEXT,
-    result, resultKind,
+    letters: lettersOf(a).sort((x, y) => (y.at || 0) - (x.at || 0)).map((m) => ({ id: m.id, from: m.from, text: m.text, at: m.at || 0, read: !!m.read })),
+    view: view || (pigeonsWaiting(a) ? 'letters' : 'send'), result, resultKind,
   }, true);
 };
 registerChatCommand('pigeonblock', (a, args) => {
@@ -889,6 +898,8 @@ if (globalThis.__dboLoginWaits) { for (const t of globalThis.__dboLoginWaits.val
 globalThis.__dboLoginWaits = new Map();
 const onCharacterReady = (userId, a) => {
   connectedAt.set(a, Date.now());
+  // A crash mid-transform leaves the beast race stored; put the real one back before anything reads it
+  try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, 'login'); } catch (e) { log('beast revert on login failed', e.message); }
   // A new character is carried through the landing into the hub behind a black screen
   if (creationPending(a)) { creation.set(a, 'spawning'); setFade(a, true); setTimeout(() => fallBackToLanding(a), HUB_SPAWN_WAIT_MS); }
   // Seed the remembered outfit from the save before the client's undressed login reports replace it.
@@ -912,7 +923,8 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboFactionLogin) globalThis.__dboFactionLogin(a); } catch (e) { log('faction login failed', e.message); }
     try { if (globalThis.__dboWorldStatsSeen) globalThis.__dboWorldStatsSeen(a); } catch (e) { /* stats only */ }
     const waiting = pigeonsWaiting(a);
-    if (waiting) system(a, `${waiting} pigeon${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you at the notice boards.`);
+    if (waiting) personal(a, `${waiting} unread letter${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you at the notice boards.`);
+    sendMailState(a);
     try { pushHud(a, needsOf(a), true); } catch (e) { /* hud later */ }
   }, 8000);
 };
@@ -955,6 +967,8 @@ setTimeout(() => { for (const a of onlineActors()) { try { giveStarterKit(a); pu
 globalThis.__dboHandlers.disconnect = (userId) => {
   const a = actorOf(userId); if (a) audit(`LEAVE ${who(a)}`);
   if (a && globalThis.__dboPlayerMenuLeave) globalThis.__dboPlayerMenuLeave(a);
+  // A beast race must never be saved as the character's own
+  if (a && globalThis.__dboBeastRevert) { try { globalThis.__dboBeastRevert(a, 'logout'); } catch (e) { log('beast revert on logout failed', e.message); } }
   // Logging out inside a dungeon would put them back inside it next time, in a claim that is not theirs
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   connected.delete(userId);
@@ -1284,13 +1298,24 @@ onUi('npcDrift', (a, args) => {
   log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 400)}`);
 });
 const refusePigeon = (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); personal(a, 'Pigeons are sent from a notice board. Walk up to one and use it.'); };
-onUi('pigeonOpen', (a) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a); });
+onUi('pigeonOpen', (a, args) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a, undefined, undefined, args[0] === 'letters' || args[0] === 'send' ? args[0] : undefined); });
+// Letters: opening one marks it read, and a letter can be thrown away; both answer with a fresh Letters tab
+const updateLetter = (a, args, change) => {
+  if (String(args[0]) !== pigeonNonces.get(a)) return;
+  const id = String(args[1] || ''); const box = lettersOf(a); const i = box.findIndex((m) => m.id === id);
+  if (i < 0) return;
+  if (change === 'delete') box.splice(i, 1); else if (box[i].read) return; else box[i].read = true;
+  saveLetters(a, box); sendMailState(a);
+  openPigeonCoop(a, change === 'delete' ? 'The letter goes into the fire.' : undefined, change === 'delete' ? 'sent' : undefined, 'letters');
+};
+onUi('pigeonRead', (a, args) => updateLetter(a, args, 'read'));
+onUi('pigeonDelete', (a, args) => updateLetter(a, args, 'delete'));
 onUi('pigeonSend', (a, args) => {
   if (String(args[0]) !== pigeonNonces.get(a)) return;
   const zoneId = boardZoneNear(a);
   if (!zoneId) return refusePigeon(a);
   const r = sendPigeon(a, Number(args[1]) >>> 0, args[2], zoneId);
-  openPigeonCoop(a, r.text, r.ok ? 'sent' : 'refused');
+  openPigeonCoop(a, r.text, r.ok ? 'sent' : 'refused', 'send');
 });
 onUi('pigeonClose', (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); });
 onUi('close', (a, args, widgetId) => { if (widgetId === PIGEON_WIDGET_ID) pigeonNonces.delete(a); });
@@ -1862,6 +1887,7 @@ onUi('skinningCancel', (a) => { skinSessions.delete(a); closeWidget(a, SKIN_WIDG
 
 if (typeof globalThis.__dboPrevDeath === 'undefined') globalThis.__dboPrevDeath = typeof mp.onDeath === 'function' && !mp.onDeath.__dbo ? mp.onDeath : null;
 const deathHook = (actorId, killerId, ...rest) => {
+  try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(actorId, 'death'); } catch (e) { log('beast revert on death failed', e.message); }
   try { setDeathTemple(Number(actorId) >>> 0); } catch (e) { log('death temple failed', e.message); }
   // MpActor::Kill adds the death item after firing this event, so the pelt only exists a tick later
   setTimeout(() => { try { stashPelts(Number(actorId) >>> 0); } catch (e) { log('pelt stash failed', e.message); } }, 50);
@@ -1901,6 +1927,7 @@ takeHook.__dbo = true;
 mp.onTakeItem = takeHook;
 if (typeof globalThis.__dboPrevCast === 'undefined') globalThis.__dboPrevCast = typeof mp.onSpellCast === 'function' && !mp.onSpellCast.__dbo ? mp.onSpellCast : null;
 const castHook = (casterId, spellId, ...rest) => {
+  try { if (globalThis.__dboBeastCast) globalThis.__dboBeastCast(casterId, spellId); } catch (e) { log('beast cast failed', e.message); }
   if ((cfg.debug || {}).logSpellCasts) { try { const r = recordOf(Number(spellId) >>> 0); log(`cast ${display(Number(casterId) >>> 0)} -> ${r ? r.record.editorId : (Number(spellId) >>> 0).toString(16)}`); } catch (e) { /* trace only */ } }
   const prev = globalThis.__dboPrevCast;
   if (prev) { try { return prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
@@ -2253,6 +2280,13 @@ try {
   delete require.cache[WORLDSTATS_JS];
   require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand });
 } catch (e) { log('worldstats.js failed to load:', e.stack || e.message); globalThis.__dboWorldStatsSeen = null; }
+
+// ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
+try {
+  const BEASTFORM_JS = path.resolve('beastform.js');
+  delete require.cache[BEASTFORM_JS];
+  require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors });
+} catch (e) { log('beastform.js failed to load:', e.stack || e.message); globalThis.__dboBeastCast = null; globalThis.__dboBeastRevert = null; globalThis.__dboBeastOriginalRace = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
