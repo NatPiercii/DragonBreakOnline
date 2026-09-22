@@ -12,10 +12,11 @@
   "roleCaps": { "leader": 1, "blacksmith": 3, "tailor": 3 },
   "templates": {
     "hold": [
-      { "title": "Hold Marshal", "role": "leader" },
+      { "title": "Jarl", "role": "leader" },
+      { "title": "Guard Captain", "role": "officer" },
       { "title": "Thane", "role": "officer" },
       { "title": "Housecarl", "role": "sergeant" },
-      { "title": "Hold Wizard", "role": "mage" },
+      { "title": "Court Wizard", "role": "mage" },
       { "title": "Hold Smith", "role": "blacksmith" },
       { "title": "Clothier", "role": "tailor" },
       { "title": "Guard", "role": "member" },
@@ -23,11 +24,13 @@
     ],
     "stronghold": [
       { "title": "Chief", "role": "leader" },
+      { "title": "Stronghold Guard Commander", "role": "officer" },
       { "title": "Hunt-Master", "role": "officer" },
       { "title": "Warrior", "role": "sergeant" },
       { "title": "Clan Mystic", "role": "mage" },
       { "title": "Forge-Wife", "role": "blacksmith" },
       { "title": "Tanner", "role": "tailor" },
+      { "title": "Stronghold Guard", "role": "member" },
       { "title": "Blood-Kin", "role": "member" }
     ],
     "cult": [
@@ -52,7 +55,8 @@
     { "id": "hold-dawnstar", "name": "The Pale", "kind": "hold", "zone": "dawnstar", "template": "hold" },
     { "id": "hold-winterhold", "name": "Winterhold Hold", "kind": "hold", "zone": "winterhold", "template": "hold" },
     { "id": "county-bruma", "name": "County of Bruma", "kind": "hold", "zone": "bruma", "ranks": [
-      { "title": "Knight-Captain", "role": "leader" },
+      { "title": "Count", "role": "leader" },
+      { "title": "Guard Captain", "role": "officer" },
       { "title": "Knight", "role": "officer" },
       { "title": "Guard Sergeant", "role": "sergeant" },
       { "title": "Battlemage", "role": "mage" },
@@ -205,7 +209,7 @@
       { "title": "Murderer", "role": "member" }
     ] },
     { "id": "clan-volkihar", "name": "Clan Volkihar", "kind": "guild", "secret": true, "ranks": [
-      { "title": "Vampire Lord", "role": "leader" },
+      { "title": "Lord of Castle Volkihar", "role": "leader" },
       { "title": "Vampire Elder", "role": "officer" },
       { "title": "Vampire", "role": "sergeant" },
       { "title": "Blood Mage", "role": "mage" },
@@ -213,6 +217,48 @@
       { "title": "Castle Tailor", "role": "tailor" },
       { "title": "Fledgling", "role": "member" },
       { "title": "Thrall", "role": "member" }
+    ] },
+
+    { "id": "cyrodiil-vampyrum-order", "name": "Cyrodiil Vampyrum Order", "kind": "guild", "secret": true, "requires": "vampire", "ranks": [
+      { "title": "Patriarch", "role": "leader" },
+      { "title": "Elder of the Blood", "role": "officer" },
+      { "title": "Kin-Warden", "role": "sergeant" },
+      { "title": "Blood-Magister", "role": "mage" },
+      { "title": "Bonesmith", "role": "blacksmith" },
+      { "title": "Shroud-Weaver", "role": "tailor" },
+      { "title": "Courtier", "role": "member" },
+      { "title": "Fledgling", "role": "member" }
+    ] },
+
+    { "id": "crimson-scars", "name": "Crimson Scars", "kind": "guild", "secret": true, "requires": "vampire", "ranks": [
+      { "title": "Bloodmaster", "role": "leader" },
+      { "title": "Silencer", "role": "officer" },
+      { "title": "Executioner", "role": "sergeant" },
+      { "title": "Blood Witch", "role": "mage" },
+      { "title": "Bladesmith", "role": "blacksmith" },
+      { "title": "Seamstress", "role": "tailor" },
+      { "title": "Scar", "role": "member" }
+    ] },
+
+    { "id": "bloodmist-clan", "name": "Bloodmist Clan", "kind": "guild", "secret": true, "requires": "vampire", "ranks": [
+      { "title": "Clan Mother", "role": "leader" },
+      { "title": "Mist Elder", "role": "officer" },
+      { "title": "Stalker", "role": "sergeant" },
+      { "title": "Mistcaller", "role": "mage" },
+      { "title": "Forge-Kin", "role": "blacksmith" },
+      { "title": "Veil-Weaver", "role": "tailor" },
+      { "title": "Bloodkin", "role": "member" }
+    ] },
+
+    { "id": "pack-of-the-jerall", "name": "Hircine's Pack of the Jerall", "kind": "pack", "secret": true, "requires": "werewolf", "ranks": [
+      { "title": "Pack Leader", "role": "leader" },
+      { "title": "Packmaster", "role": "officer" },
+      { "title": "Hunter", "role": "sergeant" },
+      { "title": "Moonspeaker", "role": "mage" },
+      { "title": "Bone-Carver", "role": "blacksmith" },
+      { "title": "Hide-Worker", "role": "tailor" },
+      { "title": "Pack-Sibling", "role": "member" },
+      { "title": "Pup", "role": "member" }
     ] },
 
     { "id": "cult-azura", "name": "Faithful of Azura", "kind": "cult", "prince": "Azura", "secret": true, "ranks": [

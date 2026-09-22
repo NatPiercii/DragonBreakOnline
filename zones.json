@@ -9,7 +9,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         18313,
@@ -32,7 +34,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         173137,
@@ -55,7 +59,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         -74344,
@@ -78,7 +84,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         135039,
@@ -101,7 +109,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         -171097,
@@ -124,7 +134,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         -30296,
@@ -140,7 +152,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         -38640,
@@ -155,7 +169,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         30808,
@@ -171,7 +187,9 @@
         "jarl",
         "steward",
         "commander",
-        "courtmage"
+        "courtmage",
+        "guardcaptain",
+        "guard"
       ],
       "capital": [
         109208,
@@ -188,7 +206,9 @@
         "chieftain",
         "bane",
         "shaman",
-        "wisewoman"
+        "wisewoman",
+        "strongholdcommander",
+        "strongholdguard"
       ],
       "center": [
         -76847,
@@ -205,7 +225,9 @@
         "chieftain",
         "bane",
         "shaman",
-        "wisewoman"
+        "wisewoman",
+        "strongholdcommander",
+        "strongholdguard"
       ],
       "center": [
         -152793,
@@ -222,7 +244,9 @@
         "chieftain",
         "bane",
         "shaman",
-        "wisewoman"
+        "wisewoman",
+        "strongholdcommander",
+        "strongholdguard"
       ],
       "center": [
         -146377,
@@ -239,7 +263,9 @@
         "chieftain",
         "bane",
         "shaman",
-        "wisewoman"
+        "wisewoman",
+        "strongholdcommander",
+        "strongholdguard"
       ],
       "center": [
         134863,
@@ -256,7 +282,9 @@
         "chieftain",
         "bane",
         "shaman",
-        "wisewoman"
+        "wisewoman",
+        "strongholdcommander",
+        "strongholdguard"
       ],
       "center": [
         158953,
@@ -273,7 +301,9 @@
         "chieftain",
         "bane",
         "shaman",
-        "wisewoman"
+        "wisewoman",
+        "strongholdcommander",
+        "strongholdguard"
       ],
       "center": [
         -57193,
@@ -293,7 +323,8 @@
         "count",
         "steward",
         "captain",
-        "courtmage"
+        "courtmage",
+        "guard"
       ],
       "worldspaces": [
         "a764b:BSHeartland.esm"
@@ -309,7 +340,9 @@
     {
       "id": "solstheim",
       "name": "Solstheim",
-      "officials": [],
+      "officials": [
+        "guard"
+      ],
       "worldspaces": [
         "800:Dragonborn.esm"
       ]
@@ -317,7 +350,9 @@
     {
       "id": "alikr",
       "name": "Alik'r Desert",
-      "officials": [],
+      "officials": [
+        "guard"
+      ],
       "worldspaces": [
         "200000:Gray Fox Cowl.esm"
       ]
@@ -334,9 +369,13 @@
     "chieftain": "Chieftain",
     "bane": "Bane",
     "count": "Count",
-    "captain": "Captain of the Guard",
+    "captain": "Guard Captain",
     "courtmage": "Court Mage",
     "shaman": "Shaman",
-    "wisewoman": "Wise-Woman"
+    "wisewoman": "Wise-Woman",
+    "guardcaptain": "Guard Captain",
+    "guard": "Guard",
+    "strongholdcommander": "Stronghold Guard Commander",
+    "strongholdguard": "Stronghold Guard"
   }
 }

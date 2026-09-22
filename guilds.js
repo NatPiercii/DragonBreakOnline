@@ -66,6 +66,9 @@ module.exports = (api) => {
   const lowestRank = (fid) => FACTIONS.get(fid).ranks.length - 1;
   const outranks = (fid, a, b) => { const ea = entryOf(fid, a), eb = entryOf(fid, b); return !!ea && (!eb || ea.rank < eb.rank); };
 
+  // A clan or pack with requires takes only that kind (supernatural.js); admins are not bound by it
+  const fits = (a, f) => !f || !f.requires || isAdmin(a) || (typeof globalThis.__dboSuperKind === 'function' && globalThis.__dboSuperKind(a) === f.requires);
+
   // ---- invites ------------------------------------------------------------------------------------
   const invitesOf = (t) => (ST.invites.get(t >>> 0) || []).filter((i) => Date.now() - i.at < INVITE_MS);
   const invite = (a, t, fid) => {
@@ -74,6 +77,7 @@ module.exports = (api) => {
     if (!isAdmin(a) && !can(fid, a, 'invite')) return `Your rank in ${f.name} cannot invite.`;
     if (!t || t === a || !isOnline(t)) return 'They must be online.';
     if (entryOf(fid, t)) return `${nameOf(t)} is already in ${f.name}.`;
+    if (!fits(t, f)) return `${nameOf(t)} could never belong to ${f.name}.`;
     const list = invitesOf(t).filter((i) => i.fid !== fid);
     list.push({ fid, from: a >>> 0, at: Date.now() });
     ST.invites.set(t >>> 0, list);
@@ -84,6 +88,7 @@ module.exports = (api) => {
   const accept = (t, fid) => {
     const inv = invitesOf(t).find((i) => i.fid === fid);
     if (!inv) return 'That invitation has expired or never came.';
+    if (!fits(t, FACTIONS.get(fid))) return `${FACTIONS.get(fid).name} is not for your kind.`;
     ST.invites.set(t >>> 0, invitesOf(t).filter((i) => i.fid !== fid));
     const f = FACTIONS.get(fid);
     const err = setMember(fid, t, lowestRank(fid));
@@ -216,6 +221,21 @@ module.exports = (api) => {
     }
     personal(a, 'Usage: /faction [menu|list|accept [id]|invite <player> [id]]  admins: /faction leader <player> <id>, /faction remove <name> <id>');
   }, { help: '[menu|list|accept|invite] your factions (F3 opens the menu)' });
+
+  // ---- packs: the leader runs with the pale coat, and a packmate who kills them in beast form takes the pack
+  const packs = () => [...FACTIONS.values()].filter((f) => f.kind === 'pack');
+  const leaderRankOf = (f) => f.ranks.findIndex((r) => r.role === 'leader');
+  globalThis.__dboGuildIsPackLeader = (a) => packs().some((f) => { const e = entryOf(f.id, a); return !!e && e.rank === leaderRankOf(f); });
+  globalThis.__dboGuildPackChallenge = (victim, killer) => {
+    for (const f of packs()) {
+      const lead = leaderRankOf(f); const ev = entryOf(f.id, victim), ek = entryOf(f.id, killer);
+      if (!ev || !ek || ev.rank !== lead) continue;
+      ev.rank = Math.min(lead + 1, lowestRank(f.id));
+      const err = setMember(f.id, killer, lead); if (err) { log(`pack challenge: ${err}`); continue; }
+      for (const m of Object.keys(rosterOf(f.id)).map(Number)) if (isOnline(m)) personal(m, `${nameOf(killer)} has brought down ${nameOf(victim)} and leads ${f.name} now.`);
+      audit(`FACTION ${who(killer)} took ${f.name} from ${who(victim)} by challenge`);
+    }
+  };
 
   // Names and tags follow a character across renames and masks being taken off
   globalThis.__dboFactionLogin = (a) => {
