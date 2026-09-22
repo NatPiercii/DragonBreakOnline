@@ -1,5 +1,21 @@
 [
   {
+    "title": "Play Elsewhere, Come Back Anytime",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Launcher 2.1.23",
+    "sections": [
+      {
+        "items": [
+          "Settings > Repair: Disable DragonBreak Files removes our plugins, archives and assets from the game copy so it can join other servers. PLAY or Enable puts them back.",
+          "Settings > Repair: Uninstall removes the whole DragonBreak install after a confirmation. Your Steam copy and launcher settings stay.",
+          "Check Files no longer stops with an error.",
+          "The modlist panel links to the full DragonBreak collection on Nexus."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Check Files Tells the Truth",
     "date": "2026-09-22",
     "tag": "Hotfix",
