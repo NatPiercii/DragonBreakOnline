@@ -1,5 +1,20 @@
 [
   {
+    "title": "Check Files Tells the Truth",
+    "date": "2026-09-22",
+    "tag": "Hotfix",
+    "version": "Launcher 2.1.22",
+    "sections": [
+      {
+        "items": [
+          "Check Files no longer reports DragonBreak Online Edits.esp as corrupt: the client package now carries the same copy the game server runs.",
+          "Log files a mod writes into its own folder are no longer flagged as stray files.",
+          "A plugins.txt rewritten by Mod Organizer is only noted; the launcher restores the server order at every launch."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Moons in Your Launcher",
     "date": "2026-09-22",
     "tag": "Update",
