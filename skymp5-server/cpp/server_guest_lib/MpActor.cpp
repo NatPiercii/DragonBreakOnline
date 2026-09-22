@@ -603,8 +603,11 @@ bool MpActor::RefusePotionOnCooldown(const espm::LookupResult& lookupRes,
   // Undo the local gain without an echo window, which would freeze values
   std::vector<espm::ActorValue> restoredValues;
   for (const auto& effect : data.effects) {
+    // EFID holds a record-local form id: it only means anything through the potion's own file
     const espm::ActorValue av =
-      espm::GetData<espm::MGEF>(effect.effectId, worldState).data.primaryAV;
+      espm::GetData<espm::MGEF>(lookupRes.ToGlobalId(effect.effectId),
+                                worldState)
+        .data.primaryAV;
     const bool isValue = av == espm::ActorValue::Health ||
       av == espm::ActorValue::Stamina || av == espm::ActorValue::Magicka;
     if (isValue &&
