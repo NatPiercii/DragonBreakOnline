@@ -13,9 +13,22 @@
   --ground-2:     #0f2a2e;
   --ground-3:     #16383d;
 
-  --aqua:         #8fd3d0;
-  --aqua-dim:     #5fb3b3;
-  --aqua-deep:    #2f7c80;
+  /* Heart and Hourglass: each section wears the hue of its part of the world (see the domain rules below) */
+  --hue-aqua:        143, 211, 208;
+  --hue-aedric:      224, 186, 98;
+  --hue-lorkhan:     214, 84, 84;
+  --hue-dragonbreak: 168, 140, 236;
+  --hue-bronze:      208, 142, 84;
+  --accent-rgb:      var(--hue-aqua);
+  --accent-dim-rgb:  95, 179, 179;
+  --accent-deep-rgb: 47, 124, 128;
+
+  --aqua:         rgb(var(--accent-rgb));
+  --aqua-dim:     rgb(var(--accent-dim-rgb));
+  --aqua-deep:    rgb(var(--accent-deep-rgb));
+  --aqua-fixed:   #8fd3d0;
+  --aedric-gold:  rgb(224, 186, 98);
+  --lorkhan-red:  rgb(214, 84, 84);
 
   --silver:       #e6ecec;
   --parchment:    #d7e3e3;
@@ -29,13 +42,13 @@
   --gold-border:  rgba(232, 214, 160, 0.55);
 
   --amber:        #c98a3a;
-  --red:          #c9463a;
+  --red:          #d65454;
 
   --glass-bg:     rgba(12, 34, 38, 0.88);
   --glass-bg-lt:  rgba(12, 34, 38, 0.62);
-  --glass-border: rgba(143, 211, 208, 0.22);
-  --glass-border-bright: rgba(143, 211, 208, 0.55);
-  --glow:         0 0 18px rgba(143, 211, 208, 0.25);
+  --glass-border: rgba(var(--accent-rgb), 0.22);
+  --glass-border-bright: rgba(var(--accent-rgb), 0.55);
+  --glow:         0 0 18px rgba(var(--accent-rgb), 0.25);
 
   --topbar-h:     52px;
   --bottombar-h:  66px;
@@ -124,8 +137,8 @@ html, body {
   border: 1px solid var(--glass-border-bright);
   border-radius: 7px;
   object-fit: cover;
-  background: rgba(143, 211, 208, 0.08);
-  box-shadow: 0 0 14px rgba(143, 211, 208, 0.28);
+  background: rgba(var(--accent-rgb), 0.08);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.28);
   flex-shrink: 0;
 }
 
@@ -142,7 +155,7 @@ html, body {
   font-weight: 700;
   letter-spacing: 4px;
   color: var(--silver);
-  text-shadow: 0 0 14px rgba(143, 211, 208, 0.5), 0 2px 6px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 0 14px rgba(var(--accent-rgb), 0.5), 0 2px 6px rgba(0, 0, 0, 0.8);
 }
 
 .logo-tagline {
@@ -150,7 +163,7 @@ html, body {
   font-size: calc(9px * var(--text-scale));
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: rgba(143, 211, 208, 0.55);
+  color: rgba(var(--accent-rgb), 0.55);
 }
 
 /* Top nav links */
@@ -198,7 +211,7 @@ html, body {
   height: 32px;
   background: transparent;
   border: 1px solid transparent;
-  color: rgba(143, 211, 208, 0.45);
+  color: rgba(var(--accent-rgb), 0.45);
   font-size: 16px;
   cursor: pointer;
   border-radius: 2px;
@@ -212,8 +225,8 @@ html, body {
 .btn-gear:hover {
   border-color: var(--glass-border);
   color: var(--gold-bright);
-  background: rgba(143, 211, 208,0.08);
-  box-shadow: 0 0 10px rgba(143, 211, 208,0.15);
+  background: rgba(var(--accent-rgb), 0.08);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.15);
 }
 
 .win-btn {
@@ -317,7 +330,7 @@ html, body {
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
   letter-spacing: 2.5px;
-  color: rgba(143, 211, 208, 0.55);
+  color: rgba(var(--accent-rgb), 0.55);
   cursor: pointer;
   text-decoration: none;
   transition: color 0.2s;
@@ -358,7 +371,7 @@ html, body {
   font-size: calc(10px * var(--text-scale));
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: rgba(143, 211, 208, 0.7);
+  color: rgba(var(--accent-rgb), 0.7);
   text-decoration: none;
   border: 1px solid transparent;
   padding: 2px 6px;
@@ -386,13 +399,13 @@ html, body {
   align-items: center;
   gap: 8px;
   padding: 7px 12px;
-  border-bottom: 1px solid rgba(143, 211, 208, 0.07);
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.07);
   transition: background 0.15s;
 }
 
 .modlist-item:last-child { border-bottom: none; }
 
-.modlist-item:hover { background: rgba(143, 211, 208, 0.05); }
+.modlist-item:hover { background: rgba(var(--accent-rgb), 0.05); }
 
 .mod-dot {
   width: 6px;
@@ -433,9 +446,9 @@ html, body {
 }
 
 .mod-badge--required {
-  background: rgba(143, 211, 208, 0.12);
-  border: 1px solid rgba(143, 211, 208, 0.28);
-  color: rgba(143, 211, 208, 0.75);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  color: rgba(var(--accent-rgb), 0.75);
 }
 
 .mod-badge--auto {
@@ -451,17 +464,17 @@ html, body {
   text-transform: uppercase;
   padding: 1px 5px;
   border-radius: 3px;
-  background: rgba(143, 211, 208, 0.18);
-  border: 1px solid rgba(143, 211, 208, 0.45);
-  color: rgba(143, 211, 208, 0.9);
+  background: rgba(var(--accent-rgb), 0.18);
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  color: rgba(var(--accent-rgb), 0.9);
   text-decoration: none;
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .mod-nexus-link:hover {
-  background: rgba(143, 211, 208, 0.32);
-  color: rgba(143, 211, 208, 1);
+  background: rgba(var(--accent-rgb), 0.32);
+  color: rgba(var(--accent-rgb), 1);
 }
 
 .mod-version {
@@ -519,7 +532,7 @@ html, body {
 }
 
 .news-card:hover {
-  border-color: rgba(143, 211, 208, 0.35);
+  border-color: rgba(var(--accent-rgb), 0.35);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 }
 
@@ -532,7 +545,7 @@ html, body {
   padding: 14px 16px 12px;
   background:
     radial-gradient(ellipse at 85% 0%, rgba(232, 214, 160, 0.16), transparent 55%),
-    radial-gradient(ellipse at 0% 100%, rgba(143, 211, 208, 0.18), transparent 60%),
+    radial-gradient(ellipse at 0% 100%, rgba(var(--accent-rgb), 0.18), transparent 60%),
     linear-gradient(135deg, var(--ground-3) 0%, var(--ground) 100%);
   border-bottom: 1px solid var(--glass-border);
   overflow: hidden;
@@ -601,7 +614,7 @@ html, body {
 
 .news-card-tag--hotfix { color: #f0a79f; border-color: rgba(201, 70, 58, 0.6); background: rgba(201, 70, 58, 0.16); }
 .news-card-tag--new-feature,
-.news-card-tag--feature { color: var(--aqua); border-color: var(--glass-border-bright); background: rgba(143, 211, 208, 0.12); }
+.news-card-tag--feature { color: var(--aqua); border-color: var(--glass-border-bright); background: rgba(var(--accent-rgb), 0.12); }
 
 .news-card-version {
   font-family: 'Barlow Condensed', sans-serif;
@@ -914,7 +927,7 @@ html, body {
   font-weight: 500;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: rgba(143, 211, 208, 0.5);
+  color: rgba(var(--accent-rgb), 0.5);
 }
 
 .setting-path-row {
@@ -938,7 +951,7 @@ html, body {
 }
 
 .setting-input::placeholder { color: rgba(215, 227, 227,0.2); }
-.setting-input:focus { border-color: rgba(143, 211, 208,0.5); }
+.setting-input:focus { border-color: rgba(var(--accent-rgb), 0.5); }
 .setting-input:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -980,7 +993,7 @@ html, body {
   text-overflow: ellipsis;
 }
 
-.setting-warning { color: #8fd3d0; }
+.setting-warning { color: rgb(var(--accent-rgb)); }
 
 .install-buttons-row { flex-wrap: wrap; }
 
@@ -1004,7 +1017,7 @@ html, body {
   padding: 9px 18px;
   background: transparent;
   border: 1px solid var(--glass-border);
-  color: rgba(143, 211, 208,0.6);
+  color: rgba(var(--accent-rgb), 0.6);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
@@ -1116,7 +1129,7 @@ html, body {
   font-weight: 500;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: rgba(143, 211, 208, 0.5);
+  color: rgba(var(--accent-rgb), 0.5);
 }
 
 .metric-value {
@@ -1206,7 +1219,7 @@ html, body {
 
 .metric-board-bar {
   height: 8px;
-  background: rgba(143, 211, 208, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
   overflow: hidden;
 }
 
@@ -1340,7 +1353,7 @@ html, body {
 .footer-server-select {
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(143, 211, 208, 0.3);
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.3);
   color: rgba(215, 227, 227, 0.65);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(13px * var(--text-scale));
@@ -1413,7 +1426,7 @@ html, body {
 }
 
 .vortex-status-dot.dot-ok   { background: #6abf5e; }
-.vortex-status-dot.dot-warn { background: #8fd3d0; }
+.vortex-status-dot.dot-warn { background: rgb(var(--accent-rgb)); }
 
 .vortex-status-text {
   font-family: 'Barlow Condensed', sans-serif;
@@ -1427,7 +1440,7 @@ html, body {
   padding: 7px 14px;
   background: transparent;
   border: 1px solid var(--glass-border);
-  color: rgba(143, 211, 208, 0.6);
+  color: rgba(var(--accent-rgb), 0.6);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(11px * var(--text-scale));
   font-weight: 500;
@@ -1438,7 +1451,7 @@ html, body {
   margin-top: 4px;
 }
 
-.btn-detect-vortex:hover    { border-color: rgba(143, 211, 208,0.5); color: var(--gold); }
+.btn-detect-vortex:hover    { border-color: rgba(var(--accent-rgb), 0.5); color: var(--gold); }
 .btn-detect-vortex:disabled { opacity: 0.4; cursor: default; }
 
 .setting-checkbox-row {
@@ -1468,8 +1481,8 @@ html, body {
 /* Scrollbar */
 ::-webkit-scrollbar       { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(143, 211, 208,0.18); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(143, 211, 208,0.32); }
+::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb), 0.18); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb), 0.32); }
 
 /* Repair tab: the uninstall button and a toggle that needs attention */
 .btn-detect-vortex.btn-danger { border-color: rgba(201, 70, 58, 0.55); color: rgba(240, 167, 159, 0.95); }
@@ -1494,7 +1507,7 @@ html, body {
 }
 
 .panel-error-text {
-  color: #8fd3d0;
+  color: rgb(var(--accent-rgb));
   font-size: calc(15px * var(--text-scale));
   letter-spacing: 0.4px;
 }
@@ -1502,9 +1515,9 @@ html, body {
 .panel-error-retry {
   padding: 6px 22px;
   background: transparent;
-  border: 1px solid #8fd3d0;
+  border: 1px solid rgb(var(--accent-rgb));
   border-radius: 4px;
-  color: #8fd3d0;
+  color: rgb(var(--accent-rgb));
   font-family: inherit;
   font-size: calc(13px * var(--text-scale));
   letter-spacing: 1px;
@@ -1555,9 +1568,9 @@ html, body {
 /* Nexus topbar button - darker yellow */
 .btn-nexus-topbar {
   padding: 5px 13px;
-  background: rgba(143, 211, 208, 0.18);
-  border: 1px solid rgba(143, 211, 208, 0.45);
-  color: rgba(143, 211, 208, 0.9);
+  background: rgba(var(--accent-rgb), 0.18);
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  color: rgba(var(--accent-rgb), 0.9);
   font-family: 'Barlow Condensed', sans-serif;
   font-size: calc(10px * var(--text-scale));
   font-weight: 600;
@@ -1569,7 +1582,7 @@ html, body {
 }
 
 .btn-nexus-topbar:hover:not(:disabled) {
-  background: rgba(143, 211, 208, 0.32);
+  background: rgba(var(--accent-rgb), 0.32);
 }
 
 .btn-nexus-topbar:disabled {
@@ -1581,13 +1594,13 @@ html, body {
 /* Nexus logged-in chip - dark yellow, overrides the discord blurple */
 .nexus-topbar-user,
 #nexus-topbar-slot .discord-topbar-user {
-  background: rgba(143, 211, 208, 0.12);
-  border: 1px solid rgba(143, 211, 208, 0.35);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
 }
 
 .nexus-topbar-user .discord-topbar-name,
 #nexus-topbar-slot .discord-topbar-name {
-  color: rgba(143, 211, 208, 0.92);
+  color: rgba(var(--accent-rgb), 0.92);
 }
 
 /* Settings tab: collapsible sections */
@@ -1609,7 +1622,7 @@ html, body {
   user-select: none;
 }
 .settings-collapse > summary::-webkit-details-marker { display: none; }
-.settings-collapse > summary::before { content: '▸ '; color: rgba(143, 211, 208, 0.6); }
+.settings-collapse > summary::before { content: '▸ '; color: rgba(var(--accent-rgb), 0.6); }
 .settings-collapse[open] > summary::before { content: '▾ '; }
 .settings-collapse > summary:hover { color: var(--gold-bright); }
 
@@ -1633,8 +1646,53 @@ button.hotkey-btn {
   text-align: left;
   cursor: pointer;
 }
-button.hotkey-btn:hover:not(:disabled) { border-color: rgba(143, 211, 208, 0.5); }
+button.hotkey-btn:hover:not(:disabled) { border-color: rgba(var(--accent-rgb), 0.5); }
 button.hotkey-btn--capturing {
   border-color: var(--gold);
   color: var(--gold);
 }
+
+
+/* ---- Heart and Hourglass (2026-09-22): section domains and the fracture line ---- */
+/* aqua: play and status. aedric: news. bronze: the modlist. dragonbreak: settings. lorkhan: repair and troubleshooting. */
+.domain-aedric      { --accent-rgb: var(--hue-aedric);      --accent-dim-rgb: 181, 145, 64;  --accent-deep-rgb: 122, 94, 36; }
+.domain-lorkhan     { --accent-rgb: var(--hue-lorkhan);     --accent-dim-rgb: 170, 52, 52;   --accent-deep-rgb: 110, 30, 32; }
+.domain-dragonbreak { --accent-rgb: var(--hue-dragonbreak); --accent-dim-rgb: 126, 102, 200; --accent-deep-rgb: 78, 60, 138; }
+.domain-bronze      { --accent-rgb: var(--hue-bronze);      --accent-dim-rgb: 164, 104, 54;  --accent-deep-rgb: 104, 64, 32; }
+.domain-aqua        { --accent-rgb: var(--hue-aqua);        --accent-dim-rgb: 95, 179, 179;  --accent-deep-rgb: 47, 124, 128; }
+
+/* The domain hue breaks into Aedric gold at the centre of every section's top edge; the Heart glows under it */
+.fracture {
+  position: relative;
+  background-image:
+    linear-gradient(90deg, transparent 4%, rgba(var(--accent-rgb), 0.85) 30%, var(--aedric-gold) 50%, rgba(var(--accent-rgb), 0.85) 70%, transparent 96%),
+    radial-gradient(ellipse 60% 120px at 50% 0%, rgba(214, 84, 84, 0.12), transparent 70%),
+    linear-gradient(180deg, rgba(var(--accent-deep-rgb), 0.28), transparent 160px);
+  background-size: 100% 2px, 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: top, top, top;
+}
+
+.modal-box.fracture { background-color: rgba(8, 5, 2, 0.92); }
+
+/* A divider with the Heart set in its middle */
+.heart-rule {
+  position: relative;
+  height: 1px;
+  margin: 14px 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.7) 25%, var(--aedric-gold) 50%, rgba(var(--accent-rgb), 0.7) 75%, transparent);
+}
+.heart-rule::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--lorkhan-red);
+  box-shadow: 0 0 8px rgba(214, 84, 84, 0.75);
+}
+
+.modal-tab.active { color: rgb(var(--accent-rgb)); border-color: rgba(var(--accent-rgb), 0.8); }

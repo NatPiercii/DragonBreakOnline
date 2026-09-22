@@ -474,6 +474,10 @@ ipcMain.handle('hotkeys:load', () => {
       voicePtt:   numOrNull(c.voicePushToTalkKeyCode),
       adminMenu:  numOrNull(c.adminMenuKeyCode),
       hideUi:     numOrNull(c.hideUiKeyCode),
+      skills:     numOrNull(c.masteryMenuKeyCode),
+      bounty:     numOrNull(c.bountyBoardMenuKeyCode),
+      emote:      numOrNull(c.emoteWheelKeyCode),
+      nametag:    numOrNull(c.nametagKeyCode),
     }
   } catch (err) {
     return { ok: false, error: err.message }
@@ -493,6 +497,10 @@ ipcMain.handle('hotkeys:save', (_e, h) => {
     if (typeof h.voicePtt === 'number')    c.voicePushToTalkKeyCode = h.voicePtt
     if (typeof h.adminMenu === 'number')   c.adminMenuKeyCode = h.adminMenu
     if (typeof h.hideUi === 'number')      c.hideUiKeyCode = h.hideUi
+    if (typeof h.skills === 'number')      c.masteryMenuKeyCode = h.skills
+    if (typeof h.bounty === 'number')      c.bountyBoardMenuKeyCode = h.bounty
+    if (typeof h.emote === 'number')       c.emoteWheelKeyCode = h.emote
+    if (typeof h.nametag === 'number')     c.nametagKeyCode = h.nametag
     const p = clientSettingsPath()
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.writeFileSync(p, JSON.stringify(c, null, 2))
@@ -3103,7 +3111,7 @@ function writeClientSettings(destPath, srv, serverInfo) {
   const HOTKEY_KEYS = [
     'chatFocusKeyCodes', 'freeCursorKeyCode', 'housingMenuKeyCode',
     'factionMenuKeyCode', 'personalMenuKeyCode',
-    'voicePushToTalkKeyCode', 'adminMenuKeyCode', 'hideUiKeyCode', 'dboHotkeyDefaults',
+    'voicePushToTalkKeyCode', 'adminMenuKeyCode', 'hideUiKeyCode', 'masteryMenuKeyCode', 'bountyBoardMenuKeyCode', 'emoteWheelKeyCode', 'nametagKeyCode', 'dboHotkeyDefaults',
   ]
   let prev = {}
   try { prev = JSON.parse(fs.readFileSync(destPath, 'utf8')) || {} } catch { /* first run */ }

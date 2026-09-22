@@ -93,7 +93,7 @@ function getKey(id) { const el = document.getElementById(id); return el ? (parse
 
 // Press-to-bind capture. Backspace unbinds server hotkeys only: gameHotkeys:save
 // drops code 0, so an unbound game key would silently keep its old binding.
-const SERVER_HOTKEY_IDS = ['hk-chat', 'hk-cursor', 'hk-housing', 'hk-personal', 'hk-faction', 'hk-voice-ptt', 'hk-admin', 'hk-hide-ui']
+const SERVER_HOTKEY_IDS = ['hk-chat', 'hk-cursor', 'hk-housing', 'hk-personal', 'hk-faction', 'hk-voice-ptt', 'hk-admin', 'hk-hide-ui', 'hk-skills', 'hk-bounty', 'hk-emote', 'hk-nametag']
 const GAME_HOTKEY_IDS = ['ghk-activate', 'ghk-jump', 'ghk-sprint', 'ghk-sneak', 'ghk-shout', 'ghk-pov']
 
 let activeCapture = null
@@ -203,6 +203,10 @@ async function loadGameSettingsTab() {
       setKey('hk-voice-ptt', h.voicePtt != null ? h.voicePtt : 47)
       setKey('hk-admin', h.adminMenu != null ? h.adminMenu : 65)
       setKey('hk-hide-ui', h.hideUi != null ? h.hideUi : 60)
+      setKey('hk-skills', h.skills != null ? h.skills : 37)
+      setKey('hk-bounty', h.bounty != null ? h.bounty : 49)
+      setKey('hk-emote', h.emote != null ? h.emote : 48)
+      setKey('hk-nametag', h.nametag != null ? h.nametag : 59)
     }
   } catch (err) { /* settings tab is best-effort */ }
 }
@@ -251,6 +255,10 @@ async function saveGameSettingsTab() {
       voicePtt:   getKey('hk-voice-ptt'),
       adminMenu:  getKey('hk-admin'),
       hideUi:     getKey('hk-hide-ui'),
+      skills:     getKey('hk-skills'),
+      bounty:     getKey('hk-bounty'),
+      emote:      getKey('hk-emote'),
+      nametag:    getKey('hk-nametag'),
     })
   } catch (err) { /* best-effort */ }
 }
