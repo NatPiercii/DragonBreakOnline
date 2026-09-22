@@ -1,5 +1,58 @@
 [
   {
+    "title": "Blood and Moonlight",
+    "date": "2026-09-22",
+    "tag": "New Feature",
+    "version": "Client 0.3.8",
+    "body": "Vampirism and lycanthropy come to DragonBreak, and the world now keeps one clock for everyone.",
+    "sections": [
+      {
+        "heading": "One world, one sky",
+        "items": [
+          "Time of day, the date and the moons are the same for every player. A game day passes every four real hours.",
+          "Weather is shared too: if it snows over Bruma, it snows for everyone there.",
+          "/time tells you the hour, the date and the moons."
+        ]
+      },
+      {
+        "heading": "Vampires",
+        "items": [
+          "A vampire's blows can pass Sanguinare Vampiris. You have three days to cure it with a Cure Disease potion or a prayer.",
+          "When the fever peaks you face the Blood Fever. Survive it and you rise a vampire; fail and it takes you.",
+          "Stages grow each day you go unfed: the sun burns harder and fire bites deeper. Feed on a restrained foe or a fresh corpse to reset.",
+          "Molag Bal's Embrace, at his shrine, makes a pure-blood of those who survive it. Some never wake.",
+          "The Blood Crown: one pure-blood holds the Vampire Lord form. Slay the holder to take it.",
+          "The Cyrodiil Vampyrum Order, the Crimson Scars and the Bloodmist Clan open their doors to vampires."
+        ]
+      },
+      {
+        "heading": "Werewolves",
+        "items": [
+          "A werewolf's bite can pass Sanies Lupinus; the same three days to cure it, then Hircine's Hunt decides your fate.",
+          "Beast Form four times a day, 150 seconds each. Feeding on a corpse in beast form adds 30 seconds.",
+          "Under a full moon at night, outdoors, the beast may take you against your will. Hircine's own, blessed at his shrine, are spared that.",
+          "Silver hurts. Anyone nearby sees you change.",
+          "Hircine's Pack of the Jerall: its leader wears the pale coat, and a packmate who brings the leader down in beast form takes the pack."
+        ]
+      },
+      {
+        "heading": "Cures and rites",
+        "items": [
+          "Touch a shrine and say /rite: Molag Bal and Hircine give their gifts, Arkay and Stendarr lift a curse for a filled black soul gem.",
+          "You cannot be both. Each curse ends the other."
+        ]
+      },
+      {
+        "heading": "Holds and parties",
+        "items": [
+          "Holds have Guards and a Guard Captain; strongholds a Stronghold Guard and a Stronghold Guard Commander. Hold factions are led by their Jarl, Bruma by its Count.",
+          "A party holds 6. Past that it becomes a raid of up to 12, and skill gain is halved for everyone in it.",
+          "Party leaders can remove members from the X menu."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Letters, Beast Forms and Fixes",
     "date": "2026-09-22",
     "tag": "Update",
