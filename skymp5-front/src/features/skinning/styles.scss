@@ -23,7 +23,7 @@
   &__panel {
     position: relative;
     pointer-events: auto;
-    width: min(640px, 90vw);
+    width: min(640px, calc(90 * var(--dbo-vw)));
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -43,7 +43,7 @@
   &__title {
     margin: 0;
     @include dbo-title;
-    font-size: clamp(20px, 2.2vw, 28px);
+    font-size: clamp(20px, calc(2.2 * var(--dbo-vw)), 28px);
     text-align: center;
   }
 

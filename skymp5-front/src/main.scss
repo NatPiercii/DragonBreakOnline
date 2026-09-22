@@ -1,3 +1,22 @@
+// UI scale. The widgets are laid out in px against a 1920x1080 screen, so on a
+// 4K display every panel came out at half its intended size. `zoom` on the root
+// draws the whole tree larger while the page still measures itself in the old
+// coordinates; shrinking the root's own box by the same factor keeps it exactly
+// one screen, and fixed/absolute corners still land on the real screen corners.
+// --dbo-vw / --dbo-vh replace raw vw/vh, which zoom does not rescale.
+:root {
+  --dbo-ui-scale: 1;
+  --dbo-vw: calc(1vw / var(--dbo-ui-scale));
+  --dbo-vh: calc(1vh / var(--dbo-ui-scale));
+}
+
+html {
+  zoom: var(--dbo-ui-scale);
+  width: calc(100vw / var(--dbo-ui-scale));
+  height: calc(100vh / var(--dbo-ui-scale));
+  overflow: hidden;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -9,13 +28,15 @@
 }
 
 body {
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   font-family: 'Futura Condensed', 'Din-pro', sans-serif;
 }
 
 .App {
-  width: 100vw;
-  height: 100vh;
+  width: calc(100 * var(--dbo-vw));
+  height: calc(100 * var(--dbo-vh));
   display: flex;
   justify-content: center;
   align-items: center;

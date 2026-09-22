@@ -22,8 +22,8 @@ $trade-border: rgba(143, 211, 208, 0.42);
   &__window {
     pointer-events: auto;
     position: relative;
-    width: min(1180px, 94vw);
-    height: min(780px, 88vh);
+    width: min(1180px, calc(94 * var(--dbo-vw)));
+    height: min(780px, calc(88 * var(--dbo-vh)));
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -130,7 +130,7 @@ $trade-border: rgba(143, 211, 208, 0.42);
     justify-content: space-between;
     align-items: center;
     padding: 5px 8px;
-    font-size: clamp(15px, 1.2vw, 18px);
+    font-size: clamp(15px, calc(1.2 * var(--dbo-vw)), 18px);
     color: $trade-gold;
     border-bottom: 1px solid rgba(143, 211, 208, 0.12);
 
@@ -232,8 +232,8 @@ $trade-border: rgba(143, 211, 208, 0.42);
 
   @media (max-width: 900px), (max-height: 640px) {
     &__window {
-      width: 96vw;
-      height: 92vh;
+      width: calc(96 * var(--dbo-vw));
+      height: calc(92 * var(--dbo-vh));
       padding: 12px 14px 14px;
     }
   }

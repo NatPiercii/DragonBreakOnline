@@ -4,7 +4,7 @@
     width: 320px;
     height: 100%;
     text-align: center;
-    font-size: 1.6vw;
+    font-size: calc(1.6 * var(--dbo-vw));
     text-overflow: ellipsis;
     word-wrap: unset;
     white-space: nowrap;

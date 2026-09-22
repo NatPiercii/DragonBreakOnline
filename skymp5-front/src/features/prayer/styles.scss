@@ -25,7 +25,7 @@
   &__shrine {
     position: relative;
     pointer-events: auto;
-    width: min(620px, 90vw);
+    width: min(620px, calc(90 * var(--dbo-vw)));
     display: flex;
     flex-direction: column;
     gap: 18px;
@@ -36,7 +36,7 @@
   &__title {
     margin: 0;
     @include dbo-title;
-    font-size: clamp(20px, 2.2vw, 30px);
+    font-size: clamp(20px, calc(2.2 * var(--dbo-vw)), 30px);
     text-align: center;
   }
 

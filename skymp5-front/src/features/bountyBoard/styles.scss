@@ -29,8 +29,8 @@ $ink-dim: rgba(20, 40, 43, 0.62);
   &__frame {
     position: relative;
     pointer-events: auto;
-    width: min(1060px, 92vw);
-    height: min(700px, 88vh);
+    width: min(1060px, calc(92 * var(--dbo-vw)));
+    height: min(700px, calc(88 * var(--dbo-vh)));
     display: grid;
     grid-template-rows: 72px 46px minmax(0, 1fr) 64px;
     @include dbo-panel;
@@ -43,7 +43,7 @@ $ink-dim: rgba(20, 40, 43, 0.62);
     display: grid;
     place-items: center;
     @include dbo-title;
-    font-size: clamp(24px, 2.6vw, 36px);
+    font-size: clamp(24px, calc(2.6 * var(--dbo-vw)), 36px);
     border-bottom: 1px solid $dbo-border;
   }
 
@@ -286,8 +286,8 @@ $ink-dim: rgba(20, 40, 43, 0.62);
 
   @media (max-width: 900px), (max-height: 640px) {
     &__frame {
-      width: 96vw;
-      height: 92vh;
+      width: calc(96 * var(--dbo-vw));
+      height: calc(92 * var(--dbo-vh));
       grid-template-rows: 56px 42px minmax(0, 1fr) 88px;
     }
 

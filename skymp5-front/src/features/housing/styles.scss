@@ -35,7 +35,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
   &__panel {
     position: relative;
     pointer-events: auto;
-    width: min(420px, 92vw);
+    width: min(420px, calc(92 * var(--dbo-vw)));
     padding: 26px 24px 20px;
     display: flex;
     flex-direction: column;
@@ -78,7 +78,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
   &__title {
     margin: 0;
     color: $text-bright;
-    font-size: clamp(20px, 2vw, 26px);
+    font-size: clamp(20px, calc(2 * var(--dbo-vw)), 26px);
     font-weight: 400;
     letter-spacing: 0.08em;
     text-transform: uppercase;

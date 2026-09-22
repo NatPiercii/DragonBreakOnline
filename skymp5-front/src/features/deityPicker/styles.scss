@@ -24,8 +24,8 @@
   &__panel {
     position: relative;
     pointer-events: auto;
-    width: min(880px, 94vw);
-    max-height: 88vh;
+    width: min(880px, calc(94 * var(--dbo-vw)));
+    max-height: calc(88 * var(--dbo-vh));
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -38,7 +38,7 @@
   &__title {
     margin: 0;
     @include dbo-title;
-    font-size: clamp(20px, 2.2vw, 30px);
+    font-size: clamp(20px, calc(2.2 * var(--dbo-vw)), 30px);
     text-align: center;
   }
 
@@ -243,6 +243,6 @@
 
   @media (max-width: 720px) {
     &__body { grid-template-columns: 1fr; }
-    &__panel { max-height: 92vh; }
+    &__panel { max-height: calc(92 * var(--dbo-vh)); }
   }
 }

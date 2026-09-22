@@ -12,7 +12,7 @@
   filter: drop-shadow(0 0 10px rgba(143, 211, 208, 0.35)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
 
   // The art ships inside the bundle (src/img/dbo-watermark.png); the <img> only sizes the box.
-  width: clamp(72px, 7vw, 140px);
+  width: clamp(72px, calc(7 * var(--dbo-vw)), 140px);
   aspect-ratio: 420 / 520;
   background: url('../../img/dbo-watermark.png') center / contain no-repeat;
 

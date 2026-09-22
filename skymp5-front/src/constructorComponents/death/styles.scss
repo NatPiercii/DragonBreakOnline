@@ -12,7 +12,7 @@
 
   &__panel {
     width: 620px;
-    max-width: 90vw;
+    max-width: calc(90 * var(--dbo-vw));
     padding: 40px 44px;
     background: rgba(8, 8, 10, 0.92);
     border: 1px solid #5a4a32;

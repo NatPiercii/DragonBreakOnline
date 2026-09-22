@@ -28,7 +28,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
   z-index: 60;
   display: grid;
   place-items: center;
-  padding: 3vh 3vw;
+  padding: calc(3 * var(--dbo-vh)) calc(3 * var(--dbo-vw));
   font-family: 'Futura Condensed', 'Roboto Condensed', sans-serif;
 
   &__fade {
@@ -43,12 +43,12 @@ $text-muted: rgba(215, 227, 227, 0.62);
   &__stage {
     position: relative;
     z-index: 1;
-    width: min(1180px, 94vw);
-    min-height: min(720px, 88vh);
+    width: min(1180px, calc(94 * var(--dbo-vw)));
+    min-height: min(720px, calc(88 * var(--dbo-vh)));
     display: grid;
     grid-template-columns: minmax(570px, 1fr) 340px;
     align-items: center;
-    gap: clamp(24px, 4vw, 58px);
+    gap: clamp(24px, calc(4 * var(--dbo-vw)), 58px);
     filter: drop-shadow(0 30px 46px rgba(0, 0, 0, 0.84));
   }
 
@@ -61,7 +61,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
 
   &__wheel-wrap {
     position: relative;
-    width: min(690px, 51vw, 74vh);
+    width: min(690px, calc(51 * var(--dbo-vw)), calc(74 * var(--dbo-vh)));
     aspect-ratio: 1;
     display: grid;
     place-items: center;
@@ -157,7 +157,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
     max-width: 78%;
     margin: 0;
     color: $text-bright;
-    font-size: clamp(16px, 1.8vw, 26px);
+    font-size: clamp(16px, calc(1.8 * var(--dbo-vw)), 26px);
     font-weight: 400;
     line-height: 1.1;
     text-transform: uppercase;
@@ -231,7 +231,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
   &__preview-name {
     margin: 0;
     color: $text-bright;
-    font-size: clamp(24px, 2vw, 32px);
+    font-size: clamp(24px, calc(2 * var(--dbo-vw)), 32px);
     font-weight: 400;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -256,7 +256,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
       z-index: 1;
       max-width: 84%;
       // Preview gifs are 113x200; render them at twice natural size
-      height: min(400px, 56vh);
+      height: min(400px, calc(56 * var(--dbo-vh)));
       object-fit: contain;
       object-position: center bottom;
       opacity: 0.95;
@@ -287,7 +287,7 @@ $text-muted: rgba(215, 227, 227, 0.62);
     place-items: start center;
 
     &__stage {
-      width: 96vw;
+      width: calc(96 * var(--dbo-vw));
       min-height: auto;
       grid-template-columns: 1fr;
       gap: 22px;
@@ -295,11 +295,11 @@ $text-muted: rgba(215, 227, 227, 0.62);
     }
 
     &__wheel-wrap {
-      width: min(650px, 88vw, 62vh);
+      width: min(650px, calc(88 * var(--dbo-vw)), calc(62 * var(--dbo-vh)));
     }
 
     &__preview {
-      width: min(460px, 92vw);
+      width: min(460px, calc(92 * var(--dbo-vw)));
       justify-self: center;
       min-height: 430px;
     }

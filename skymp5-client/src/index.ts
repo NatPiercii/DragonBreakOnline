@@ -38,6 +38,7 @@ import { WorldCleanerService } from "./services/services/worldCleanerService";
 import { CompanionService } from "./services/services/companionService";
 import { LoadOrderVerificationService } from "./services/services/loadOrderVerificationService";
 import { BrowserService } from "./services/services/browserService";
+import { UiScaleService } from "./services/services/uiScaleService";
 import { AuthService } from "./services/services/authService";
 import { CharacterSelectService } from "./services/services/characterSelectService";
 import { CharCreatorService } from "./services/services/charCreatorService";
@@ -139,6 +140,7 @@ const main = () => {
       new CompanionService(sp, controller),
       new LoadOrderVerificationService(sp, controller),
       new BrowserService(sp, controller),
+      new UiScaleService(sp, controller),
       new AuthService(sp, controller),
       new CharacterSelectService(sp, controller),
       new CharCreatorService(sp, controller),
