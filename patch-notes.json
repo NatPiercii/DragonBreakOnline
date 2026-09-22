@@ -1,5 +1,32 @@
 [
   {
+    "title": "Sturdier Travellers",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.10",
+    "sections": [
+      {
+        "heading": "Vitals",
+        "items": [
+          "Everyone starts sturdier: base health is up by 100, magicka and stamina by 50, for every race. Racial differences stay on top of that."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Beast Form and Vampire Lord work: cast the power, or type /beast (and /beast revert). The power must have been granted to you.",
+          "Werewolves of the pack and holders of the Blood Crown have their forms without an admin grant."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Shooting a bow no longer unequips your arrows."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Creations Cache Crash",
     "date": "2026-09-22",
     "tag": "Hotfix",
