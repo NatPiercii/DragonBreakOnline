@@ -657,6 +657,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
   if (globalThis.__dboCorpseLoot && globalThis.__dboCorpseLoot(targetId >>> 0, casterId >>> 0) === false) return false;
+  if (globalThis.__dboLootBody && globalThis.__dboLootBody(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboSkin && globalThis.__dboSkin(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboCampChest) { const v = globalThis.__dboCampChest(targetId >>> 0, casterId >>> 0); if (v === false) return false; }
   if (blockPlacedPickup(targetId >>> 0, casterId >>> 0)) return false;
@@ -1913,8 +1914,62 @@ onUi('skinning', (a, args) => {
 });
 onUi('skinningCancel', (a) => { skinSessions.delete(a); closeWidget(a, SKIN_WIDGET_ID); });
 
+// ---- a dead player's body: two things and a cut of the coin, once ------------------------------
+// Nat's rule (2026-09-22): a corpse is not a free kit. The first searcher takes two random stacks
+// and 15% of the coin. Keys are never taken, so a stolen key cannot come off a body. The body is
+// spent after one search, and everything left comes back with the player when they rise.
+const BODY_LOOT_STACKS = 2;
+const BODY_LOOT_GOLD = 0.15;
+globalThis.__dboLootBody = (targetId, casterId) => {
+  if (targetId === casterId || profileOf(targetId) <= 0 || profileOf(casterId) <= 0) return undefined;
+  try { if (mp.get(targetId, 'isDead') !== true) return undefined; } catch (e) { return undefined; }
+  try { if (mp.get(targetId, 'private.dboBodySearched') === true) { personal(casterId, 'This body has already been searched.'); return false; } } catch (e) { /* first search */ }
+
+  let inv = null; try { inv = mp.get(targetId, 'inventory'); } catch (e) { return undefined; }
+  const entries = (inv && Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
+  // Keys stay on the body; coin is taken as a share, not as one of the two things.
+  const pickable = entries.filter((e) => {
+    const baseId = Number(e.baseId) >>> 0;
+    if (!baseId || baseId === GOLD_BASE || (Number(e.count) || 0) <= 0) return false;
+    const r = recordOf(baseId);
+    return !r || String(r.record.type) !== 'KEYM';
+  });
+  const taken = [];
+  for (let i = 0; i < BODY_LOOT_STACKS && pickable.length; i++) {
+    const pick = pickable.splice(Math.floor(Math.random() * pickable.length), 1)[0];
+    const copy = Object.assign({}, pick); delete copy.worn; delete copy.wornLeft;
+    taken.push(copy);
+    pick.count = 0;
+  }
+  const purse = entries.filter((e) => (Number(e.baseId) >>> 0) === GOLD_BASE).reduce((s, e) => s + (Number(e.count) || 0), 0);
+  let coin = purse > 0 ? Math.max(1, Math.floor(purse * BODY_LOOT_GOLD)) : 0;
+  let left = coin;
+  for (const e of entries) { if ((Number(e.baseId) >>> 0) !== GOLD_BASE || left <= 0) continue; const off = Math.min(Number(e.count) || 0, left); e.count -= off; left -= off; }
+
+  if (!taken.length && !coin) { personal(casterId, 'There is nothing on this body worth taking.'); }
+  else {
+    try { mp.set(targetId, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) }); } catch (e) { log('body loot: could not take from the body', e.message); return undefined; }
+    try {
+      const mine = mp.get(casterId, 'inventory') || { entries: [] };
+      const got = Array.isArray(mine.entries) ? mine.entries.map((e) => Object.assign({}, e)) : [];
+      for (const t of taken) got.push(t);
+      if (coin) { const g = got.find((e) => (Number(e.baseId) >>> 0) === GOLD_BASE && !e.worn); if (g) g.count = (Number(g.count) || 0) + coin; else got.push({ baseId: GOLD_BASE, count: coin }); }
+      mp.set(casterId, 'inventory', { entries: got });
+    } catch (e) { log('body loot: could not hand over', e.message); }
+    const named = taken.map((t) => { const r = recordOf(Number(t.baseId) >>> 0); return `${t.count > 1 ? t.count + 'x ' : ''}${t.name || edidWords(r && r.record.editorId, 'something')}`; });
+    if (coin) named.push(`${coin} gold`);
+    personal(casterId, `You take ${named.join(' and ')} from ${nameOf(targetId)}.`);
+    personal(targetId, `${nameOf(casterId)} searched your body and took ${named.join(' and ')}.`);
+    audit(`BODY ${who(casterId)} searched ${who(targetId)} and took ${named.join(', ')}`);
+  }
+  try { mp.set(targetId, 'private.dboBodySearched', true); } catch (e) { /* the flag is a nicety */ }
+  return false;
+};
+
 if (typeof globalThis.__dboPrevDeath === 'undefined') globalThis.__dboPrevDeath = typeof mp.onDeath === 'function' && !mp.onDeath.__dbo ? mp.onDeath : null;
 const deathHook = (actorId, killerId, ...rest) => {
+  // Each death makes the body searchable once more
+  try { mp.set(Number(actorId) >>> 0, 'private.dboBodySearched', false); } catch (e) { /* not a player */ }
   try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(actorId, 'death'); } catch (e) { log('beast revert on death failed', e.message); }
   try { setDeathTemple(Number(actorId) >>> 0); } catch (e) { log('death temple failed', e.message); }
   // MpActor::Kill adds the death item after firing this event, so the pelt only exists a tick later
