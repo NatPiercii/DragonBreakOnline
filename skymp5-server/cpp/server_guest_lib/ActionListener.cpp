@@ -1560,7 +1560,10 @@ void ActionListener::OnUpdateAnimVariables(
 {
   const MpActor* myActor = partOne.serverState.ActorByUser(rawMsgData.userId);
   if (!myActor) {
-    throw std::runtime_error("Unable to change values without Actor attached");
+    // The client sends these twice a second from the moment it connects, so
+    // every login logged one throw per packet until the character loaded.
+    // There is nothing to relay without an actor, so drop it quietly.
+    return;
   }
 
   SendToNeighbours(myActor->idx, rawMsgData);
