@@ -742,10 +742,14 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       for (const h of hs) { if (!a) break; try { h(a, Array.isArray(content.args) ? content.args : [], Number(content.widget) || 0); } catch (e) { log('ui event failed', content.event, e.message); } }
       return;
     }
-    // The client saw a beast power cast (BeastFormService); the server decides and transforms
+    // The client saw a beast power cast (BeastFormService); the server decides and transforms.
+    // Always logged: a cast that reaches here and still does not transform is the only way to tell
+    // a client that never relayed from a server that refused.
     if (content.customPacketType === 'dboBeastRequest') {
       const a = actorOf(userId); const spell = Number(content.spell) >>> 0;
+      log(`beast request from user ${userId} actor ${a ? a.toString(16) : 'none'} spell ${spell.toString(16)}`);
       if (a && spell && typeof globalThis.__dboBeastRequest === 'function') { try { globalThis.__dboBeastRequest(a, spell); } catch (e) { log('beast request failed', e.message); } }
+      else log('beast request dropped: no actor, no spell, or beastform.js is not loaded');
       return;
     }
     // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
@@ -2412,7 +2416,7 @@ try {
   const BEASTFORM_JS = path.resolve('beastform.js');
   delete require.cache[BEASTFORM_JS];
   require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors });
-} catch (e) { log('beastform.js failed to load:', e.stack || e.message); globalThis.__dboBeastCast = null; globalThis.__dboBeastRevert = null; globalThis.__dboBeastOriginalRace = null; globalThis.__dboBeastTransform = null; }
+} catch (e) { log('beastform.js failed to load:', e.stack || e.message); for (const k of ['__dboBeastCast', '__dboBeastRevert', '__dboBeastOriginalRace', '__dboBeastTransform', '__dboBeastRequest', '__dboBeastAdmin', '__dboBeastHolds']) globalThis[k] = null; }
 
 // ---- vampirism and lycanthropy (server\supernatural.js) ------------------------------------------------
 try {

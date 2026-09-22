@@ -25,17 +25,22 @@ module.exports = (api) => {
   const spellArg = (id) => ({ type: 'espm', desc: mp.getDescFromId(id) });
   const stateOf = (a) => { try { const s = mp.get(a, 'private.beast'); return s && s.form && s.original ? s : null; } catch (e) { return null; } };
 
-  const transform = (a, key, forced) => {
+  // Returns '' when the change happened and a reason when it did not. Every exit says why: a transform that
+  // fails in silence is indistinguishable from a cast that never reached the server.
+  const tryTransform = (a, key, forced) => {
     const f = FORMS[key];
-    if (!f || !f.race || stateOf(a)) return false;
-    try { if (mp.get(a, 'isDead')) return false; } catch (e) { return false; }
+    if (!f) return `there is no form called '${key}'`;
+    if (!f.race || !f.power) return `${key} is not in this load order (race ${f.race.toString(16)}, power ${f.power.toString(16)})`;
+    const s = stateOf(a);
+    if (s) return `already in ${FORMS[s.form] ? FORMS[s.form].name : s.form}; revert first`;
+    try { if (mp.get(a, 'isDead')) return 'the dead do not change shape'; } catch (e) { return `no actor to change (${e.message})`; }
     // Read the look first: __dboBeastAllow spends one of the day's changes, and a transform that fails after it
     // for want of an appearance would spend it for nothing
     let original = null; try { original = mp.get(a, 'appearance'); } catch (e) { /* none */ }
-    if (!original || !original.raceId) return false;
+    if (!original || !original.raceId) return 'this character has no appearance yet';
     // supernatural.js decides who may change: the daily limit, the Blood Crown
     const refusal = typeof globalThis.__dboBeastAllow === 'function' ? globalThis.__dboBeastAllow(a, key, !!forced) : null;
-    if (refusal) { personal(a, refusal); return false; }
+    if (refusal) return refusal;
     mp.set(a, 'private.beast', { form: key, original, at: Date.now(), until: f.seconds ? Date.now() + f.seconds * 1000 : 0 });
     papyrus(a, 'UnequipAll', []);
     mp.set(a, 'appearance', Object.assign({}, original, { raceId: f.race }));
@@ -45,7 +50,14 @@ module.exports = (api) => {
     audit(`BEAST ${who(a)} took ${f.name}`);
     witness(a, key === 'werewolf' ? 'twist into a beast' : 'rise into a Vampire Lord');
     try { if (globalThis.__dboBeastChanged) globalThis.__dboBeastChanged(a, key, true); } catch (e) { log('beast change hook failed', e.message); }
-    return true;
+    return '';
+  };
+  const transform = (a, key, forced) => {
+    const why = tryTransform(a, key, forced);
+    if (!why) return true;
+    personal(a, why.charAt(0).toUpperCase() + why.slice(1) + '.');
+    log(`beastform: ${display(a)} could not take ${key}: ${why}`);
+    return false;
   };
   // Anyone close enough sees the change
   const witness = (a, what) => {
@@ -77,6 +89,7 @@ module.exports = (api) => {
     if (id === REVERT_POWER && stateOf(a)) { revert(a, 'revert power'); return true; }
     const key = byPower.get(id);
     if (!key) return false;
+    log(`beastform: ${display(a)} cast ${FORMS[key].name} (${id.toString(16)})`);
     const s = stateOf(a);
     if (s && s.form === key && key === 'vampirelord') { revert(a, 'cast again'); return true; }
     // The cast reaches here from the client (castHook, or the dboBeastRequest relay), so it is a request and not
@@ -106,7 +119,7 @@ module.exports = (api) => {
     if (!t || !f) return personal(a, 'Usage: /beastform <player|#TAG|me> <werewolf|vampirelord> [grant|remove|now|revert]');
     const k = key === 'vampire' ? 'vampirelord' : key;
     const mode = String(op || 'grant').toLowerCase();
-    if (mode === 'now') return personal(a, transform(t, k, true) ? `${display(t)} transformed.` : `${display(t)} could not transform (dead or already in a form).`);
+    if (mode === 'now') { const why = tryTransform(t, k, true); return personal(a, why ? `${display(t)} could not transform: ${why}.` : `${display(t)} transformed.`); }
     if (mode === 'revert') return personal(a, revert(t, `reverted by ${display(a)}`) ? `${display(t)} reverted.` : `${display(t)} is not transformed.`);
     const ok = papyrus(t, mode === 'remove' ? 'RemoveSpell' : 'AddSpell', mode === 'remove' ? [spellArg(f.power)] : [spellArg(f.power), false]);
     try { mp.set(t, k === 'vampirelord' ? 'private.vampireLordGrant' : 'private.werewolfGrant', mode !== 'remove'); } catch (e) { /* offline */ }
@@ -129,9 +142,28 @@ module.exports = (api) => {
   const takeForm = (a, key) => {
     if (stateOf(a)) return revert(a, 'asked to revert') ? 'You return to your own shape.' : 'You are not transformed.';
     if (!holdsPower(a, key)) return key === 'werewolf' ? 'The beast blood is not in you.' : 'Only a Vampire Lord can take that form.';
-    return transform(a, key) ? '' : 'You cannot change right now.';
+    transform(a, key);   // says why itself when it refuses
+    return '';
   };
   globalThis.__dboBeastRequest = (a, spellId) => globalThis.__dboBeastCast(a, spellId);
+  // The admin panel and /beastform drive the change directly, so an admin never depends on the cast relay
+  globalThis.__dboBeastAdmin = (a, key, op) => {
+    const k = key === 'vampire' ? 'vampirelord' : String(key || 'werewolf').toLowerCase();
+    if (!FORMS[k]) return `Unknown form '${key}'`;
+    if (op === 'revert') return revert(a, 'reverted from the admin panel') ? `${display(a)} is back in their own shape.` : `${display(a)} is not transformed.`;
+    if (op === 'revoke') {
+      papyrus(a, 'RemoveSpell', [spellArg(FORMS[k].power)]);
+      try { mp.set(a, k === 'vampirelord' ? 'private.vampireLordGrant' : 'private.werewolfGrant', false); } catch (e) { /* offline */ }
+      revert(a, 'the power was taken back');
+      return `${display(a)} no longer has ${FORMS[k].name}.`;
+    }
+    const why = tryTransform(a, k, true);
+    return why ? `${display(a)} could not change: ${why}.` : `${display(a)} took ${FORMS[k].name}.`;
+  };
+  globalThis.__dboBeastHolds = (a) => ({
+    werewolf: holdsPower(a, 'werewolf'), vampirelord: holdsPower(a, 'vampirelord'),
+    form: (stateOf(a) || {}).form || null,
+  });
   registerChatCommand('beast', (a, args) => {
     const w = String(args || '').trim().toLowerCase();
     if (stateOf(a) || w === 'revert' || w === 'off') { const r = takeForm(a, stateOf(a) ? stateOf(a).form : 'werewolf'); if (r) personal(a, r); return; }
