@@ -1,5 +1,14 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (night): Discord feedback of 21 Sep 23:00
+
+- [x] **Enemy damage buffed** (Nat, Boris): `damageMultFormulaSettings.multiplier` 1 -> **2** in the live `server-settings.json` (NPC hits on players only; restart 04:2x UTC). Not tracked in git.
+- [x] **Prayer "Rise" did nothing** (Boris): after the verdict the round is gone, so the cancel event was ignored and the window stayed; Rise now closes it.
+- [ ] **Beast forms**: engine-native change archetypes (36/46) start the client's own transformation and lock the controls; client 0.3.11 dispels the effect on cast and asks the server. First real test of the server race swap still pending.
+- [ ] "Visage of Mizund does not shoot steam" (Boris): a modded item's projectile/effect not showing; unverified, needs the item id and a second observer (is it the caster or others who see nothing?).
+- [ ] Dual casting (Boris, Johann, Athny): today double flames does not do double damage server-side. Suggestion from the players: dual cast = 50% magicka cost instead of double damage, or a mage specialization toggle. Design call for Nat.
+- [ ] Trade request popup screenshot (Athny, 23:15): nothing broken reported, keep an eye on it.
+
 ## Added 2026-09-22 (late): vitals, beast forms, arrows, log sweep
 
 - [x] **Player vitals**: DLE Player record (NPC_ 000007) ACBS offsets 50/50/50 -> 150/100/100 (`scratchpad player_vitals.py`, one subrecord changed, verified against the backup over all 29,326 records). Races keep their deltas in the RACE records. Damage stays server-authoritative.
