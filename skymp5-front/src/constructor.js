@@ -30,6 +30,7 @@ import Prayer from './features/prayer';
 import DeityPicker from './features/deityPicker';
 import Pigeon from './features/pigeon';
 import Faction from './features/faction';
+import MailMarkers from './features/mailMarkers';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
@@ -264,6 +265,8 @@ const Constructor = props => {
       return <Pigeon data={rend} />;
     case 'faction':
       return <Faction data={rend} />;
+    case 'mailMarkers':
+      return <MailMarkers data={rend} />;
     case 'skinning':
       return <Skinning data={rend} />;
     case 'characterSelect':

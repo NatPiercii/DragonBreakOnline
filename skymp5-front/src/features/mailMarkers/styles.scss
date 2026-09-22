@@ -1,0 +1,67 @@
+// Floating letter over a notice board: parchment envelope, red wax seal, a slow bob
+@import '../../dbo-theme.scss';
+
+.mailMarkers {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+
+  &__marker {
+    position: absolute;
+    transform-origin: 50% 100%;
+  }
+
+  &__bob {
+    position: relative;
+    animation: mailMarkers-bob 2.4s ease-in-out infinite;
+    filter: drop-shadow(0 0 8px rgba(232, 214, 160, 0.55)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
+  }
+
+  &__icon {
+    display: block;
+    width: 44px;
+    height: 33px;
+  }
+
+  &__paper {
+    fill: #efe2bd;
+    stroke: #8a6d33;
+    stroke-width: 2;
+  }
+
+  &__fold {
+    fill: none;
+    stroke: #8a6d33;
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+
+  &__seal {
+    fill: #b8322a;
+    stroke: #6e1a14;
+    stroke-width: 1.5;
+  }
+
+  &__count {
+    position: absolute;
+    top: -8px;
+    right: -10px;
+    min-width: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    font-family: $dbo-ui-font;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    color: #1a1206;
+    background: $dbo-gold;
+    border: 1px solid #8a6d33;
+  }
+}
+
+@keyframes mailMarkers-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}

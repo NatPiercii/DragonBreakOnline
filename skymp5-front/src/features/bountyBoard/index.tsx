@@ -149,6 +149,8 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
               <span className="bountyBoard__tab-count">{allNotes.filter((n) => n.tab === t.id).length}</span>
             </button>
           ))}
+          {/* Letters live in the gamemode's pigeon coop; the tab hands over to it */}
+          <button className="bountyBoard__tab" onClick={() => { send('dbo:pigeonOpen', 'letters'); send(ev.close); }}>Letters</button>
         </div>
 
         {notes.length ? (
@@ -180,7 +182,7 @@ const BountyBoard = ({ data }: { data: BountyBoardData }) => {
             >
               {postLabel}
             </button>
-            <button className="bountyBoard__button" onClick={() => { send('dbo:pigeonOpen'); send(ev.close); }}>Send a pigeon</button>
+            <button className="bountyBoard__button" onClick={() => { send('dbo:pigeonOpen', 'send'); send(ev.close); }}>Send a pigeon</button>
             <button className="bountyBoard__button" onClick={() => send(ev.close)}>Close</button>
           </div>
         </div>

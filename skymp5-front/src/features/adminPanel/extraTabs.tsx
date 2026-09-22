@@ -303,6 +303,7 @@ export const PowersTab = ({ events }: { events: Record<string, string> }) => {
         </div>
         <div className="admin-panel__power">
           <Button text="Give werewolf form" width={200} height={40} onClick={() => adminAction(events, 'giveWerewolf', target())} />
+          <Button text="Give Vampire Lord form" width={200} height={40} onClick={() => adminAction(events, 'giveVampireLord', target())} />
           <span className="admin-panel__hint">The Beast Form power (vanilla WerewolfChange)</span>
         </div>
       </div>

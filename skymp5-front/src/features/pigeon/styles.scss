@@ -192,4 +192,79 @@
       cursor: default;
     }
   }
+
+  &__tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: -4px;
+  }
+
+  &__tab {
+    font-family: $dbo-ui-font;
+    font-size: 15px;
+    padding: 6px 16px;
+    cursor: pointer;
+    color: $dbo-text-dim;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid $dbo-border;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    &--active {
+      color: $dbo-text;
+      border-color: $dbo-gold-border;
+      background: $dbo-gold-fill;
+    }
+  }
+
+  &__badge {
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    color: #1a1206;
+    background: $dbo-gold;
+  }
+
+  &__contact--unread &__contact-name {
+    color: $dbo-gold;
+  }
+
+  &__seal {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: #b8322a;
+    box-shadow: 0 0 6px rgba(184, 50, 42, 0.8);
+  }
+
+  &__read-head {
+    color: $dbo-text-dim;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+
+  &__read {
+    flex: 1;
+    min-height: 160px;
+    padding: 12px 14px;
+    color: $dbo-text;
+    font-size: 16px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid $dbo-border;
+  }
+
+  &__read-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
 }

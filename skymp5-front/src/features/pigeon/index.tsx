@@ -7,6 +7,7 @@ import './styles.scss';
 // with the price of the flight already worked out; the server takes the gold.
 //
 //   Browser -> client -> server: sendMessage('dbo:pigeonSend', nonce, recipientId, text)
+//   Letters tab:                 sendMessage('dbo:pigeonRead' | 'dbo:pigeonDelete', nonce, letterId)
 //   Close:                       sendMessage('dbo:pigeonClose', nonce)
 export interface PigeonContact {
   id: number;
@@ -14,6 +15,14 @@ export interface PigeonContact {
   tag: string;
   online: boolean;
   price: number;
+}
+
+export interface PigeonLetter {
+  id: string;
+  from: string;
+  text: string;
+  at: number;
+  read: boolean;
 }
 
 export interface PigeonData {
@@ -24,6 +33,8 @@ export interface PigeonData {
   gold: number;
   cooldownMinutes: number;
   maxText: number;
+  letters?: PigeonLetter[];
+  view?: 'letters' | 'send';
   result?: string;
   resultKind?: 'sent' | 'refused';
 }
@@ -44,14 +55,27 @@ const Pigeon = ({ data }: { data: PigeonData }) => {
   const [selectedId, setSelectedId] = useState<number | null>(contacts.length ? contacts[0].id : null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const letters = data.letters || [];
+  const unread = letters.filter((l) => !l.read).length;
+  const [view, setView] = useState<'letters' | 'send'>(data.view || 'send');
+  const [letterId, setLetterId] = useState<string | null>(null);
 
   // A fresh window from the server (a new nonce) ends the wait; a sent pigeon clears the letter
   useEffect(() => {
     setBusy(false);
     if (data.resultKind === 'sent') setText('');
+    if (data.view) setView(data.view);
+    if (letterId !== null && !letters.some((l) => l.id === letterId)) setLetterId(null);
     if (selectedId !== null && !contacts.some((c) => c.id === selectedId)) setSelectedId(contacts.length ? contacts[0].id : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.nonce]);
+
+  const letter = letters.filter((l) => l.id === letterId)[0] || null;
+  const openLetter = (l: PigeonLetter) => {
+    setLetterId(l.id);
+    if (!l.read) send('dbo:pigeonRead', data.nonce, l.id);
+  };
+  const when = (at: number) => (at ? new Date(at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 
   const chosen = contacts.filter((c) => c.id === selectedId)[0] || null;
   const trimmed = text.trim();
@@ -83,10 +107,43 @@ const Pigeon = ({ data }: { data: PigeonData }) => {
       <div className="pigeon__fade" />
       <div className="pigeon__panel">
         <h1 className="pigeon__title">{data.boardName} Pigeon Coop</h1>
+        <div className="pigeon__tabs">
+          <button className={'pigeon__tab' + (view === 'letters' ? ' pigeon__tab--active' : '')} onClick={() => setView('letters')}>
+            Letters{unread ? <span className="pigeon__badge">{unread}</span> : null}
+          </button>
+          <button className={'pigeon__tab' + (view === 'send' ? ' pigeon__tab--active' : '')} onClick={() => setView('send')}>Send a pigeon</button>
+        </div>
         {data.result && (
           <p className={'pigeon__result pigeon__result--' + (data.resultKind || 'sent')}>{data.result}</p>
         )}
 
+        {view === 'letters' ? (
+          <div className="pigeon__body">
+            <div className="pigeon__contacts">
+              {letters.length ? letters.map((l) => (
+                <button key={l.id} className={'pigeon__contact' + (l.id === letterId ? ' pigeon__contact--selected' : '') + (l.read ? '' : ' pigeon__contact--unread')} onClick={() => openLetter(l)}>
+                  <span className="pigeon__contact-name">{l.read ? null : <span className="pigeon__seal" />}{l.from}</span>
+                  <span className="pigeon__contact-meta">{when(l.at)}</span>
+                </button>
+              )) : (
+                <p className="pigeon__empty">No letters wait for you here.</p>
+              )}
+            </div>
+            <div className="pigeon__letter">
+              {letter ? (
+                <>
+                  <div className="pigeon__read-head">From {letter.from}, {when(letter.at)}</div>
+                  <div className="pigeon__read">{letter.text}</div>
+                  <div className="pigeon__read-actions">
+                    <button className="pigeon__button" disabled={busy} onClick={() => { setBusy(true); send('dbo:pigeonDelete', data.nonce, letter.id); }}>Burn this letter</button>
+                  </div>
+                </>
+              ) : (
+                <p className="pigeon__empty">{letters.length ? 'Choose a letter to read it.' : 'When a pigeon brings you a letter, you read it here.'}</p>
+              )}
+            </div>
+          </div>
+        ) : (
         <div className="pigeon__body">
           <div className="pigeon__contacts">
             {contacts.length ? contacts.map((c) => (
@@ -118,11 +175,12 @@ const Pigeon = ({ data }: { data: PigeonData }) => {
             <span className="pigeon__count">{trimmed.length} / {maxText}</span>
           </div>
         </div>
+        )}
 
         <div className="pigeon__footer">
-          <span className="pigeon__hint">{hint}</span>
+          <span className="pigeon__hint">{view === 'letters' ? (unread ? unread + ' unread letter' + (unread === 1 ? '' : 's') + '.' : 'All letters read.') : hint}</span>
           <div className="pigeon__actions">
-            <button className="pigeon__button pigeon__button--primary" disabled={!canSend} onClick={submit}>{sendLabel}</button>
+            {view === 'send' && <button className="pigeon__button pigeon__button--primary" disabled={!canSend} onClick={submit}>{sendLabel}</button>}
             <button className="pigeon__button" onClick={() => send('dbo:pigeonClose', data.nonce)}>Close</button>
           </div>
         </div>
