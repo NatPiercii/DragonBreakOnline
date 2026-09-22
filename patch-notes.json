@@ -1,5 +1,36 @@
 [
   {
+    "title": "Every Place Has a Name",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.13",
+    "sections": [
+      {
+        "heading": "Admin panel",
+        "items": [
+          "Teleport no longer hides anything. It used to stop at 250 rows, which left 341 places in Skyrim reachable only by guessing their name; the list now pages through everything and groups by worldspace under the region chips.",
+          "Half the teleport points were named after map coordinates (\"Solstheim World 11,11\") because the game keeps those names in a separate table the tools were not reading. They read them now: 376 nameless points became 2, and the two that are left genuinely have no name.",
+          "Item names came out of the same table, so \"cc BGSSSE025 Amber Battleaxe\" is now \"Amber Battleaxe\" and \"Favor Amren Iron Sword\" is \"Amren’s Family Sword\".",
+          "Skills, Items and Powers share one dropdown of yourself and everyone online instead of three boxes you typed a name into.",
+          "Delete character, IP ban and temp ban ask once before they fire."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Granting Beast Form or Vampire Lord from the admin panel did not let anyone change shape, and nothing said why. The panel can now Grant the power, Transform, Revert and Revoke directly, for werewolf and Vampire Lord both, and it shows which of the two a character holds and what shape they are in.",
+          "Any refusal to change shape now says what stopped it, in chat and in the log, instead of nothing happening."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Fire burns vampires and silver bites werewolves again. The extra damage was being worked out and then thrown away before it reached the target."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Harder Foes, Granted Homes",
     "date": "2026-09-22",
     "tag": "Update",
