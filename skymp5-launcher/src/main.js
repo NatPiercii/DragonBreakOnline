@@ -673,6 +673,15 @@ function applyForcedServerDefaults(gamePath) {
       ini.write(dest, { 'Bethesda.net': { bEnablePlatform: '0' } })
       log('[defaults] disabled the Bethesda.net platform in the profile Skyrim.ini')
     }
+    // Skyrim Platform writes the spawn save to My GamesSkyrim Special EditionSaves and asks the engine to load it by
+    // name; an ini seeded from a Vortex profile points SLocalSavePath at a subfolder, so the engine never finds it and
+    // the player stays on the main menu after Create.
+    const general = ini.read(dest)['General'] || {}
+    const savePath = String(general['SLocalSavePath'] || '').trim()
+    if (savePath && savePath.replace(/[\/]+$/, '').toLowerCase() !== 'saves') {
+      ini.write(dest, { General: { SLocalSavePath: 'Saves\' } })
+      log(`[defaults] profile Skyrim.ini SLocalSavePath was "${savePath}"; reset to Saves\ so the spawn save is found`)
+    }
   } catch (err) {
     log('[defaults] could not write the profile Skyrim.ini:', err.message)
   }
