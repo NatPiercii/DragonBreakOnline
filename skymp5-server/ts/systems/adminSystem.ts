@@ -603,6 +603,7 @@ export class AdminSystem implements System {
           } catch (e) { this.log(`AdminSystem: AddSpell ${desc} failed: ${e}`); }
         }
         const formName = action === "giveWerewolf" ? "werewolf beast form" : "Vampire Lord form";
+        if (action !== "giveSpells") { try { mp.set(who.actorId, action === "giveWerewolf" ? "private.werewolfGrant" : "private.vampireLordGrant", true); } catch { /* offline */ } }
         this.adminLog(`profile ${adminProfile} gave ${action === "giveSpells" ? `${n} spells` : formName} to ${whom}`);
         this.reply(mp, userId, n > 0, action === "giveSpells" ? `${n} spells given to ${who.name}` : `${who.name} can now take ${formName}`);
         return;
