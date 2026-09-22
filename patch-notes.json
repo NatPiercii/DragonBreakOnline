@@ -1,5 +1,18 @@
 [
   {
+    "title": "Creations Cache Crash",
+    "date": "2026-09-22",
+    "tag": "Hotfix",
+    "version": "Launcher 2.1.26",
+    "sections": [
+      {
+        "items": [
+          "Fixed a crash before the main menu for players who had used the Bethesda Creations menu: the game choked on its cached Creations list. The launcher now clears that cache at every launch. DragonBreak never uses that content."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Mods Without Premium",
     "date": "2026-09-22",
     "tag": "Update",
