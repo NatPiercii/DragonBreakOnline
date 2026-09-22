@@ -578,7 +578,7 @@
 ]
 },
 {
-"name": "Shrine of Namira 23,47",
+"name": "Shrine of Daedra",
 "region": "Cyrodiil",
 "world": "a764b:BSHeartland.esm",
 "worldName": "Heartland",
@@ -610,7 +610,7 @@
 ]
 },
 {
-"name": "Skyrim",
+"name": "Skyrim 9,66",
 "region": "Cyrodiil",
 "world": "a764b:BSHeartland.esm",
 "worldName": "Heartland",
@@ -1074,6 +1074,54 @@
 ]
 },
 {
+"name": "Abandoned Lodge",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+35746.61,
+52079.63,
+5896.0
+],
+"rot": [
+0,
+0,
+276.83611686
+]
+},
+{
+"name": "Altar of Thrond",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+48656.08,
+59823.85,
+7370.37
+],
+"rot": [
+0,
+0,
+66.463128
+]
+},
+{
+"name": "Ashfallow Citadel",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+66672.3,
+41648.67,
+3787.9
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Ashimmidarum",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1098,6 +1146,150 @@
 871.94,
 -36258.78,
 3064.09
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Beast Stone",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+62810.95,
+58376.45,
+6622.21
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Benkongerike",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+48813.89,
+80247.45,
+8050.2
+],
+"rot": [
+0,
+0,
+331.35307056
+]
+},
+{
+"name": "Bloodskal Barrow",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+26130.02,
+46940.96,
+1373.48
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Bristleback Cave",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+18448.05,
+83246.55,
+647.08
+],
+"rot": [
+0,
+0,
+30.080295
+]
+},
+{
+"name": "Brodir Grove",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+43753.21,
+43974.86,
+3944.41
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Broken Tusk Mine",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+22620.9,
+80018.6,
+5310.97
+],
+"rot": [
+0,
+0,
+85.9437
+]
+},
+{
+"name": "Bujold's Retreat",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+80275.75,
+58550.36,
+754.6
+],
+"rot": [
+0,
+0,
+274.05727056
+]
+},
+{
+"name": "Castle Karstaag Caverns",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+36832.0,
+88320.0,
+4691.09
+],
+"rot": [
+0,
+0,
+270.00072792
+]
+},
+{
+"name": "Castle Karstaag Ruins",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+33312.0,
+89920.0,
+6357.67
 ],
 "rot": [
 0,
@@ -1138,6 +1330,22 @@
 ]
 },
 {
+"name": "Damphall Mine",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+25737.72,
+55271.11,
+2752.85
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Dres Slaver's Camp",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1170,6 +1378,22 @@
 ]
 },
 {
+"name": "Earth Stone",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+22957.96,
+30934.89,
+819.11
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Eastern Kalbthurz",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1183,6 +1407,22 @@
 0,
 0,
 302.70517056
+]
+},
+{
+"name": "Fahlbtharz",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+30921.02,
+65459.87,
+9537.58
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -1218,6 +1458,22 @@
 ]
 },
 {
+"name": "Fort Frostmoth",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+52458.89,
+23940.01,
+1768.0
+],
+"rot": [
+0,
+0,
+351.40660056
+]
+},
+{
 "name": "Fort Tulis",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1247,6 +1503,22 @@
 0,
 0,
 0.0
+]
+},
+{
+"name": "Frossel",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+73270.63,
+84588.76,
+400.0
+],
+"rot": [
+0,
+0,
+87.37609499999999
 ]
 },
 {
@@ -1282,6 +1554,134 @@
 ]
 },
 {
+"name": "Glacial Cave",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+46898.89,
+92687.06,
+403.54
+],
+"rot": [
+0,
+0,
+267.18177456
+]
+},
+{
+"name": "Gyldenhul Barrow",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+84516.15,
+72408.0,
+570.88
+],
+"rot": [
+0,
+0,
+151.83387
+]
+},
+{
+"name": "Haknir's Shoal",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+67552.0,
+82272.0,
+377.03
+],
+"rot": [
+0,
+0,
+180.00048528
+]
+},
+{
+"name": "Headwaters of Harstrad",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+54028.2,
+77963.46,
+4126.280000000001
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Highpoint Tower",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+49334.44,
+38003.54,
+4773.49
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Horker Island",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+88251.55,
+70979.45,
+789.88
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Hrodulf's House",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+43975.73,
+19472.48,
+1311.28
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Hrothmund's Barrow",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+43520.38,
+75283.82,
+9935.72
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Ink Lagoon",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1295,6 +1695,38 @@
 0,
 0,
 205.30231056
+]
+},
+{
+"name": "Kagrumez",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+55880.05,
+50199.02,
+4720.56
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Kolbjorn Barrow",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+38040.0,
+25760.0,
+1728.0
+],
+"rot": [
+0,
+0,
+300.00080879999996
 ]
 },
 {
@@ -1346,6 +1778,22 @@
 ]
 },
 {
+"name": "Moesring Pass",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+43061.91,
+68108.2,
+12481.96
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Monger Mill",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1359,6 +1807,86 @@
 0,
 0,
 251.13895056
+]
+},
+{
+"name": "Nchardak",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+84722.05,
+40363.0,
+648.15
+],
+"rot": [
+0,
+0,
+126.05076000000001
+]
+},
+{
+"name": "Northshore Landing",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+22750.7,
+92429.55,
+572.9200000000001
+],
+"rot": [
+0,
+0,
+239.67979056000001
+]
+},
+{
+"name": "Old Attius Farm",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+34665.79,
+23258.71,
+633.67
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Ramshackle Trading Post",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+57695.13,
+43971.99,
+4254.58
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Raven Rock",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+30883.74,
+35049.73,
+466.04
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -1394,6 +1922,22 @@
 ]
 },
 {
+"name": "Saering's Watch",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+42883.88,
+83949.16,
+8393.2
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Saxhleel Camp",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1402,6 +1946,54 @@
 -18262.06,
 -73466.6,
 5840.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Skaal Village",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+73452.1,
+70789.54,
+3711.02
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Skyrim 3,6",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+13982.35,
+23713.4,
+2547.28
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Snowclad Ruins",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+50727.32,
+69890.45,
+9125.16
 ],
 "rot": [
 0,
@@ -1426,470 +2018,6 @@
 ]
 },
 {
-"name": "Solstheim World 10,20",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-42883.88,
-83949.16,
-8393.2
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 11,11",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-43753.21,
-43974.86,
-3944.41
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 11,17",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-43061.91,
-68108.2,
-12481.96
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 11,18",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-43520.38,
-75283.82,
-9935.72
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 11,23",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-46898.89,
-92687.06,
-403.54
-],
-"rot": [
-0,
-0,
-267.18177456
-]
-},
-{
-"name": "Solstheim World 11,5",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-43975.73,
-19472.48,
-1311.28
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 12,15",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-48656.08,
-59823.85,
-7370.37
-],
-"rot": [
-0,
-0,
-66.463128
-]
-},
-{
-"name": "Solstheim World 12,17",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-50727.32,
-69890.45,
-9125.16
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 12,20",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-48813.89,
-80247.45,
-8050.2
-],
-"rot": [
-0,
-0,
-331.35307056
-]
-},
-{
-"name": "Solstheim World 12,9",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-49334.44,
-38003.54,
-4773.49
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 13,19",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-54028.2,
-77963.46,
-4126.280000000001
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 13,6",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-52458.89,
-23940.01,
-1768.0
-],
-"rot": [
-0,
-0,
-351.40660056
-]
-},
-{
-"name": "Solstheim World 14,11",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-57695.13,
-43971.99,
-4254.58
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 14,12",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-55880.05,
-50199.02,
-4720.56
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 14,15",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-56313.24,
-59652.5,
-9375.94
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 15,14",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-62810.95,
-58376.45,
-6622.21
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 15,18",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-63355.01,
-75108.6,
-2468.36
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 16,10",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-66672.3,
-41648.67,
-3787.9
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 16,14",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-67273.75,
-58587.34,
-5682.85
-],
-"rot": [
-0,
-0,
-57.2958
-]
-},
-{
-"name": "Solstheim World 16,20",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-67552.0,
-82272.0,
-377.03
-],
-"rot": [
-0,
-0,
-180.00048528
-]
-},
-{
-"name": "Solstheim World 18,17",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-73452.1,
-70789.54,
-3711.02
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 18,21",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-73270.63,
-84588.76,
-400.0
-],
-"rot": [
-0,
-0,
-87.37609499999999
-]
-},
-{
-"name": "Solstheim World 18,6",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-75484.06,
-23834.89,
-2179.19
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 18,8",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-72853.98,
-34654.51,
-1556.82
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 20,14",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-80275.75,
-58550.36,
-754.6
-],
-"rot": [
-0,
-0,
-274.05727056
-]
-},
-{
-"name": "Solstheim World 21,10",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-84722.05,
-40363.0,
-648.15
-],
-"rot": [
-0,
-0,
-126.05076000000001
-]
-},
-{
-"name": "Solstheim World 21,18",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-84516.15,
-72408.0,
-570.88
-],
-"rot": [
-0,
-0,
-151.83387
-]
-},
-{
-"name": "Solstheim World 22,17",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-88251.55,
-70979.45,
-789.88
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 3,6",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-13982.35,
-23713.4,
-2547.28
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
 "name": "Solstheim World 5,-32",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
@@ -1906,14 +2034,14 @@
 ]
 },
 {
-"name": "Solstheim World 5,16",
+"name": "Sun Stone",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
 "worldName": "Solstheim World",
 "pos": [
-21588.2,
-64459.33,
-3624.17
+72853.98,
+34654.51,
+1556.82
 ],
 "rot": [
 0,
@@ -1922,30 +2050,14 @@
 ]
 },
 {
-"name": "Solstheim World 5,20",
+"name": "Tel Mithryn",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
 "worldName": "Solstheim World",
 "pos": [
-18448.05,
-83246.55,
-647.08
-],
-"rot": [
-0,
-0,
-30.080295
-]
-},
-{
-"name": "Solstheim World 6,11",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-26130.02,
-46940.96,
-1373.48
+75484.06,
+23834.89,
+2179.19
 ],
 "rot": [
 0,
@@ -1954,211 +2066,19 @@
 ]
 },
 {
-"name": "Solstheim World 6,13",
+"name": "Temple of Miraak",
 "region": "Morrowind",
 "world": "800:Dragonborn.esm",
 "worldName": "Solstheim World",
 "pos": [
-25737.72,
-55271.11,
-2752.85
+56313.24,
+59652.5,
+9375.94
 ],
 "rot": [
 0,
 0,
 0.0
-]
-},
-{
-"name": "Solstheim World 6,20",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-22620.9,
-80018.6,
-5310.97
-],
-"rot": [
-0,
-0,
-85.9437
-]
-},
-{
-"name": "Solstheim World 6,23",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-22750.7,
-92429.55,
-572.9200000000001
-],
-"rot": [
-0,
-0,
-239.67979056000001
-]
-},
-{
-"name": "Solstheim World 6,8",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-22957.96,
-30934.89,
-819.11
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 8,16",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-30921.02,
-65459.87,
-9537.58
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 8,19",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-33691.57,
-76147.09,
-8817.77
-],
-"rot": [
-0,
-0,
-348.54181056
-]
-},
-{
-"name": "Solstheim World 8,22",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-33312.0,
-89920.0,
-6357.67
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 8,6",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-34665.79,
-23258.71,
-633.67
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 8,9",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-30883.74,
-35049.73,
-466.04
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 9,13",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-35746.61,
-52079.63,
-5896.0
-],
-"rot": [
-0,
-0,
-276.83611686
-]
-},
-{
-"name": "Solstheim World 9,22",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-36832.0,
-88320.0,
-4691.09
-],
-"rot": [
-0,
-0,
-270.00072792
-]
-},
-{
-"name": "Solstheim World 9,3",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-36220.38,
-11291.64,
-647.34
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solstheim World 9,6",
-"region": "Morrowind",
-"world": "800:Dragonborn.esm",
-"worldName": "Solstheim World",
-"pos": [
-38040.0,
-25760.0,
-1728.0
-],
-"rot": [
-0,
-0,
-300.00080879999996
 ]
 },
 {
@@ -2194,6 +2114,102 @@
 ]
 },
 {
+"name": "Thirsk Mead Hall",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+67273.75,
+58587.34,
+5682.85
+],
+"rot": [
+0,
+0,
+57.2958
+]
+},
+{
+"name": "Water Stone",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+21588.2,
+64459.33,
+3624.17
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "White Ridge Barrow",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+33691.57,
+76147.09,
+8817.77
+],
+"rot": [
+0,
+0,
+348.54181056
+]
+},
+{
+"name": "Wind Stone",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+63355.01,
+75108.6,
+2468.36
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Wreck of the Strident Squall",
+"region": "Morrowind",
+"world": "800:Dragonborn.esm",
+"worldName": "Solstheim World",
+"pos": [
+36220.38,
+11291.64,
+647.34
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Apocrypha",
+"region": "Other",
+"world": "1c0b2:Dragonborn.esm",
+"worldName": "Apocrypha World",
+"pos": [
+2428.025146484375,
+4480.998046875,
+1400.586669921875
+],
+"rot": [
+0,
+0,
+-180.00006937050819
+]
+},
+{
 "name": "Blackreach",
 "region": "Other",
 "world": "1ee62:Skyrim.esm",
@@ -2210,23 +2226,7 @@
 ]
 },
 {
-"name": "Book01Dungeon",
-"region": "Other",
-"world": "1c0b2:Dragonborn.esm",
-"worldName": "Apocrypha World",
-"pos": [
-2428.025146484375,
-4480.998046875,
-1400.586669921875
-],
-"rot": [
-0,
-0,
--180.00006937050819
-]
-},
-{
-"name": "Castle Volkihar -5,-4",
+"name": "Castle Volkihar",
 "region": "Other",
 "world": "1408:Dawnguard.esm",
 "worldName": "Soul Cairn",
@@ -2242,7 +2242,23 @@
 ]
 },
 {
-"name": "Mzinchaleft",
+"name": "Hall of Heroes",
+"region": "Other",
+"world": "2ee41:Skyrim.esm",
+"worldName": "Sovngarde",
+"pos": [
+64563.2109375,
+93543.109375,
+8933.03125
+],
+"rot": [
+0,
+0,
+-180.00006937050819
+]
+},
+{
+"name": "Mzinchaleft -2,5",
 "region": "Other",
 "world": "1ee62:Skyrim.esm",
 "worldName": "Blackreach",
@@ -2258,7 +2274,7 @@
 ]
 },
 {
-"name": "Raldbthar",
+"name": "Raldbthar 3,-2",
 "region": "Other",
 "world": "1ee62:Skyrim.esm",
 "worldName": "Blackreach",
@@ -2290,23 +2306,7 @@
 ]
 },
 {
-"name": "Sovngarde Hallof Heroes",
-"region": "Other",
-"world": "2ee41:Skyrim.esm",
-"worldName": "Sovngarde",
-"pos": [
-64563.2109375,
-93543.109375,
-8933.03125
-],
-"rot": [
-0,
-0,
--180.00006937050819
-]
-},
-{
-"name": "Tower Of Mzark",
+"name": "Tower of Mzark",
 "region": "Other",
 "world": "1ee62:Skyrim.esm",
 "worldName": "Blackreach",
@@ -2338,211 +2338,51 @@
 ]
 },
 {
-"name": "Dawnstar",
+"name": "Abandoned House",
 "region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
 "pos": [
--107278.98,
-90052.13,
--6438.0
+-175704.953125,
+6128.7890625,
+-3115.18701171875
 ],
 "rot": [
 0,
 0,
-0.0
+-180.00005571012497
 ]
 },
 {
-"name": "Falkreath",
+"name": "Abandoned Shack",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
 "worldName": "Tamriel",
 "pos": [
--76108.5,
--115049.44,
-1697.87
+-34081.84,
+93829.61,
+-13795.02
 ],
 "rot": [
 0,
 0,
-0.0
+74.48454
 ]
 },
 {
-"name": "Helgen",
+"name": "Addvar's House",
 "region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
 "pos": [
--21592.0,
--115428.0,
-1095.0
+-56631.3984375,
+105252.453125,
+-8537.5595703125
 ],
 "rot": [
 0,
 0,
-180.0
-]
-},
-{
-"name": "Ivarstead",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-71756.0,
--58285.0,
--366.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Markarth",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--148272.0,
--14648.0,
--8064.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Morthal",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--81440.0,
-55820.0,
--14428.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Riften",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-185976.0,
--84808.0,
--5276.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Riverwood",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-14042.0,
--52498.0,
-455.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Rorikstead",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--84892.0,
--47140.0,
--5366.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solitude",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--106720.0,
-82020.0,
--4700.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Whiterun",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-20120.0,
--7408.0,
--3550.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Windhelm",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-134860.0,
-40496.0,
--12284.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Winterhold",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-198956.0,
-116996.0,
--8900.0
-],
-"rot": [
-0,
-0,
-0.0
+50.000018131220344
 ]
 },
 {
@@ -2562,7 +2402,23 @@
 ]
 },
 {
-"name": "Alftand",
+"name": "Alchemist's Shack",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+71488.0,
+-84160.0,
+10720.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Alftand (Alftand World)",
 "region": "Skyrim",
 "world": "69857:Skyrim.esm",
 "worldName": "Alftand World",
@@ -2575,6 +2431,22 @@
 0,
 0,
 -105.00003705103397
+]
+},
+{
+"name": "Alftand (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+78347.01,
+77408.62,
+-4179.42
+],
+"rot": [
+0,
+0,
+22.91832
 ]
 },
 {
@@ -2610,6 +2482,166 @@
 ]
 },
 {
+"name": "Amren's House",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+21897.626953125,
+-3891.449951171875,
+-2829.603759765625
+],
+"rot": [
+0,
+0,
+-45.125337698328494
+]
+},
+{
+"name": "Ancestor Glade",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-13272.54,
+-95940.77,
+9692.43
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Ancient's Ascent",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-1541.26,
+-99092.73,
+15597.39
+],
+"rot": [
+0,
+0,
+185.24878056
+]
+},
+{
+"name": "Anga's Mill",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+111621.89,
+32315.97,
+-11813.1
+],
+"rot": [
+0,
+0,
+16.615782
+]
+},
+{
+"name": "Angarvunde",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+113490.73,
+-97166.72,
+13531.75
+],
+"rot": [
+0,
+0,
+202.91880528
+]
+},
+{
+"name": "Angeline's Aromatics",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-63395.2109375,
+106395.6875,
+-8321.8740234375
+],
+"rot": [
+0,
+0,
+170.00006779332162
+]
+},
+{
+"name": "Angi's Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-26613.97,
+-104900.12,
+12603.69
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Anise's Cabin",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+667.69,
+-52576.5,
+1792.0
+],
+"rot": [
+0,
+0,
+40.10706
+]
+},
+{
+"name": "Ansilvund",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+174572.47,
+-35182.52,
+794.48
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Arcadia's Cauldron",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+25183.685546875,
+-8992.1279296875,
+-3301.455810546875
+],
+"rot": [
+0,
+0,
+-123.54085855994225
+]
+},
+{
 "name": "Arch-Mage's Tower",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -2623,6 +2655,86 @@
 0,
 0,
 45.00012132
+]
+},
+{
+"name": "Arcwind Point",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+66949.97,
+-99471.28,
+17365.59
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Aretino Residence",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+132084.484375,
+36280.9140625,
+-12122.8046875
+],
+"rot": [
+0,
+0,
+-90.00003468525409
+]
+},
+{
+"name": "Arkngthamz",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-139019.11,
+-31984.97,
+1234.76
+],
+"rot": [
+0,
+0,
+123.18597
+]
+},
+{
+"name": "Arnleif and Sons Trading Company",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-174645.375,
+6050.1015625,
+-3218.40966796875
+],
+"rot": [
+0,
+0,
+150.0000509785652
+]
+},
+{
+"name": "Atheron Residence",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+139370.6875,
+39316.1953125,
+-13251.9609375
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -2642,6 +2754,54 @@
 ]
 },
 {
+"name": "Autumnshade Clearing",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+153153.23,
+-79512.03,
+9622.51
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Autumnwatch Tower",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+84059.26,
+-99526.07,
+16061.83
+],
+"rot": [
+0,
+0,
+268.32769056
+]
+},
+{
+"name": "Avanchnzel",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+122073.01,
+-107290.07,
+13560.59
+],
+"rot": [
+0,
+0,
+352.00247688
+]
+},
+{
 "name": "Bandit Treehouse",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -2655,6 +2815,54 @@
 0,
 0,
 176.65441056
+]
+},
+{
+"name": "Bannermist Tower",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-57304.63,
+-62109.05,
+1831.11
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Bard's Leap Summit",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-91689.07,
+-35972.17,
+2020.06
+],
+"rot": [
+0,
+0,
+5.72958
+]
+},
+{
+"name": "Battle-Born Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+33696.0,
+-4928.0,
+-4224.0
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -2690,6 +2898,22 @@
 ]
 },
 {
+"name": "Bee and Barb",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+173342.109375,
+-95198.3125,
+11200.0
+],
+"rot": [
+0,
+0,
+45.000017342627046
+]
+},
+{
 "name": "Beggar's Row",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
@@ -2719,6 +2943,54 @@
 0,
 0,
 146.4592796467781
+]
+},
+{
+"name": "Belyn Hlaalu's House",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+138647.859375,
+40031.43359375,
+-12968.5771484375
+],
+"rot": [
+0,
+0,
+-180.00006937050819
+]
+},
+{
+"name": "Bits and Pieces",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-62915.49609375,
+105653.0,
+-8342.8095703125
+],
+"rot": [
+0,
+0,
+-17.891188324284553
+]
+},
+{
+"name": "Black-Briar Lodge",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+197982.97,
+-97498.5,
+9888.74
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -2754,6 +3026,134 @@
 ]
 },
 {
+"name": "Bleak Falls Barrow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+1482.46,
+-41162.32,
+5790.51
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Bleakcoast Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+145834.14,
+90932.18,
+-13599.93
+],
+"rot": [
+0,
+0,
+20.05353
+]
+},
+{
+"name": "Bleakwind Basin",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+1538.88,
+1305.98,
+-5731.57
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Bleakwind Bluff",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-105457.1,
+14530.07,
+1315.45
+],
+"rot": [
+0,
+0,
+347.10941556
+]
+},
+{
+"name": "Blind Cliff Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-141784.84,
+23524.71,
+-7934.22
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Blizzard Rest",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+39159.85,
+39374.94,
+-8636.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Bloated Man's Grotto",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-37646.53,
+-36967.41,
+-3523.07
+],
+"rot": [
+0,
+0,
+179.908812
+]
+},
+{
+"name": "Bloodlet Throne",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+335.92,
+-110710.48,
+16087.65
+],
+"rot": [
+0,
+0,
+228.22063056000002
+]
+},
+{
 "name": "Bloodworks (00WH The Pit Worldspace)",
 "region": "Skyrim",
 "world": "38c22:WindhelmSSE.esp",
@@ -2786,6 +3186,22 @@
 ]
 },
 {
+"name": "Blue Palace",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-51765.93,
+100954.72,
+-8482.41
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Bluesky Hall",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -2799,6 +3215,70 @@
 0,
 0,
 -123.5408858807087
+]
+},
+{
+"name": "Bolli's House",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+174922.015625,
+-93181.1953125,
+11205.1640625
+],
+"rot": [
+0,
+0,
+-90.00003468525409
+]
+},
+{
+"name": "Bonechill Passage",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+2534.86,
+-90975.26,
+8805.4
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Bonestrewn Crest",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+132782.62,
+-12013.74,
+-7814.19
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Boulderfall Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+145918.84,
+-68556.68,
+10871.55
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -2834,6 +3314,22 @@
 ]
 },
 {
+"name": "Breezehome",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+21895.09765625,
+-7884.14501953125,
+-3446.75048828125
+],
+"rot": [
+0,
+0,
+-17.1877588429749
+]
+},
+{
 "name": "Brightflour Bakery",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -2847,6 +3343,166 @@
 0,
 0,
 -172.27590129890442
+]
+},
+{
+"name": "Brinewater Grotto",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-54049.48,
+131833.75,
+-13298.04
+],
+"rot": [
+0,
+0,
+341.95279356000003
+]
+},
+{
+"name": "Broken Fang Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-50831.61,
+-14939.19,
+-5484.55
+],
+"rot": [
+0,
+0,
+180.00048528
+]
+},
+{
+"name": "Broken Helm Hollow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+191590.83,
+-109394.97,
+10923.89
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Broken Limb Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+111747.7,
+-14306.34,
+-11148.77
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Broken Oar Grotto",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-66962.87,
+141811.98,
+-13579.26
+],
+"rot": [
+0,
+0,
+40.10706
+]
+},
+{
+"name": "Broken Tower Redoubt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-108567.98,
+40085.24,
+-5167.63
+],
+"rot": [
+0,
+0,
+29.220858
+]
+},
+{
+"name": "Bronze Water Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+83828.56,
+42748.43,
+-8656.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Brood Cavern",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-55217.25,
+43482.8,
+-8317.16
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Bruca's Leap Redoubt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-124953.65,
+63580.45,
+-8915.55
+],
+"rot": [
+0,
+0,
+137.69326656
+]
+},
+{
+"name": "Brunwulf Free-Winter's House",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+136629.859375,
+36230.1015625,
+-12137.806640625
+],
+"rot": [
+0,
+0,
+90.00003468525409
 ]
 },
 {
@@ -2866,6 +3522,22 @@
 ]
 },
 {
+"name": "Bthardamz",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-163984.23,
+45861.83,
+-3712.0
+],
+"rot": [
+0,
+0,
+20.05353
+]
+},
+{
 "name": "Cairn Hollow",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -2879,6 +3551,70 @@
 0,
 0,
 0.0
+]
+},
+{
+"name": "Calcelmo's Laboratory",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-178898.15625,
+3393.142333984375,
+-569.39404296875
+],
+"rot": [
+0,
+0,
+75.0000254892826
+]
+},
+{
+"name": "Calixto's House of Curiosities",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+137673.8125,
+35790.08984375,
+-12243.85546875
+],
+"rot": [
+0,
+0,
+-90.00003468525409
+]
+},
+{
+"name": "Candlehearth Hall",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+135098.625,
+36648.1640625,
+-12195.8232421875
+],
+"rot": [
+0,
+0,
+-180.00006937050819
+]
+},
+{
+"name": "Carlotta Valentia's House",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+20864.0,
+-4480.0,
+-2905.07568359375
+],
+"rot": [
+0,
+0,
+100.00003626244069
 ]
 },
 {
@@ -2898,7 +3634,55 @@
 ]
 },
 {
-"name": "Castle Volkihar 1,0",
+"name": "Castle Dour, Emperor's Tower",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-60304.0,
+106848.0,
+-6851.33544921875
+],
+"rot": [
+0,
+0,
+180.00006937050819
+]
+},
+{
+"name": "Castle Fletcher",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-62471.140625,
+107548.9140625,
+-7840.76904296875
+],
+"rot": [
+0,
+0,
+-171.9744303015232
+]
+},
+{
+"name": "Castle Volkihar (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-177218.92,
+147389.3,
+-12407.96
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Castle Volkihar (Vampire Castle Courtyard)",
 "region": "Skyrim",
 "world": "7202:Dawnguard.esm",
 "worldName": "Vampire Castle Courtyard",
@@ -2914,19 +3698,35 @@
 ]
 },
 {
-"name": "cc BGSSSE025 Root Dungeon",
+"name": "Chillfurrow Farm",
 "region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--62547.76171875,
-106269.171875,
--8346.884765625
+31524.33,
+-10250.59,
+-4055.6499999999996
 ],
 "rot": [
 0,
 0,
-45.000017342627046
+117.81162396
+]
+},
+{
+"name": "Chillwind Depths",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-101071.12,
+58377.38,
+-11869.96
+],
+"rot": [
+0,
+0,
+271.62219906
 ]
 },
 {
@@ -2946,6 +3746,102 @@
 ]
 },
 {
+"name": "Clearpine Pond",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-108572.21,
+96024.71,
+-7616.63
+],
+"rot": [
+0,
+0,
+276.92206056
+]
+},
+{
+"name": "Clearspring Tarn",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+133092.92,
+-54772.02,
+9166.7
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Cliffside Retreat",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-107785.15,
+56745.64,
+-7543.97
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "College of Winterhold",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+116258.92,
+111530.13,
+-7656.0
+],
+"rot": [
+0,
+0,
+45.00012132
+]
+},
+{
+"name": "Crabber's Shanty",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-71485.6,
+44119.19,
+-12096.48
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Cracked Tusk Keep",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-55069.85,
+-87685.7,
+-2288.12
+],
+"rot": [
+0,
+0,
+210.00056616
+]
+},
+{
 "name": "Cracked Tusk Mine",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -2962,6 +3858,102 @@
 ]
 },
 {
+"name": "Cradle Stone Tower",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-99712.8,
+-33860.88,
+2598.98
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Cradlecrush Rock",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+92382.28,
+-5393.02,
+-8293.13
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Cragslane Cavern",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+167053.7,
+-34010.23,
+-1565.72
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Cragwallow Slope",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+155934.03,
+-2257.89,
+-6199.46
+],
+"rot": [
+0,
+0,
+111.72681
+]
+},
+{
+"name": "Cronvangr Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+119817.65,
+-5293.93,
+-11873.98
+],
+"rot": [
+0,
+0,
+94.53806999999999
+]
+},
+{
+"name": "Crystaldrift Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+161077.42,
+-119788.99,
+11491.21
+],
+"rot": [
+0,
+0,
+137.50992
+]
+},
+{
 "name": "Cult of Tsun",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
@@ -2975,6 +3967,22 @@
 0,
 0,
 -17.89850004440546
+]
+},
+{
+"name": "Dainty Sload",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-51839.71,
+122304.42,
+-13616.05
+],
+"rot": [
+0,
+0,
+196.70794056
 ]
 },
 {
@@ -3010,6 +4018,134 @@
 ]
 },
 {
+"name": "Darkfall Cave (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-154519.33,
+72470.8,
+-5182.64
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Darkfall Grotto (Darkfall Passage World)",
+"region": "Skyrim",
+"world": "4bea:Dawnguard.esm",
+"worldName": "Darkfall Passage World",
+"pos": [
+-155335.484375,
+78180.109375,
+713.97314453125
+],
+"rot": [
+0,
+0,
+-76.77615534632206
+]
+},
+{
+"name": "Darkfall Grotto (Falmer Valley)",
+"region": "Skyrim",
+"world": "bb5:Dawnguard.esm",
+"worldName": "Falmer Valley",
+"pos": [
+-2465.10107421875,
+16644.703125,
+2130.5224609375
+],
+"rot": [
+0,
+0,
+127.48028085536957
+]
+},
+{
+"name": "Darklight Tower",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+149284.67,
+-115996.98,
+12607.29
+],
+"rot": [
+0,
+0,
+228.22063056000002
+]
+},
+{
+"name": "Darkshade",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+81787.93,
+-1865.86,
+-9539.8
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Darkwater Crossing",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+120427.78,
+-33954.4,
+-9718.45
+],
+"rot": [
+0,
+0,
+25.78311
+]
+},
+{
+"name": "Darkwater Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+113334.16,
+-46457.66,
+-6452.29
+],
+"rot": [
+0,
+0,
+358.10447958
+]
+},
+{
+"name": "Dawnstar",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+30808.15,
+106138.28,
+-13857.29
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Dawnstar Prison",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -3026,7 +4162,71 @@
 ]
 },
 {
-"name": "Deepwood Redoubt",
+"name": "Dawnstar Sanctuary",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+31376.12,
+113969.71,
+-13752.0
+],
+"rot": [
+0,
+0,
+150.401475
+]
+},
+{
+"name": "Dead Crone Rock",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-180419.69,
+-19103.91,
+6652.75
+],
+"rot": [
+0,
+0,
+212.70492792000002
+]
+},
+{
+"name": "Dead Men's Respite",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-67284.11,
+52917.94,
+-10624.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Deep Folk Crossing",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-168905.09,
+59403.28,
+-4357.68
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Deepwood Redoubt (Deepwood Redoubt World)",
 "region": "Skyrim",
 "world": "29ab7:Skyrim.esm",
 "worldName": "Deepwood Redoubt World",
@@ -3042,19 +4242,35 @@
 ]
 },
 {
-"name": "Deepwood Redoubt World -30,20",
+"name": "Deepwood Redoubt (Tamriel)",
 "region": "Skyrim",
-"world": "29ab7:Skyrim.esm",
-"worldName": "Deepwood Redoubt World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--123922.57,
-79920.09,
--2228.0
+-132981.61,
+80260.66,
+-4872.58
 ],
 "rot": [
 0,
 0,
-75.18927834
+210.00056616
+]
+},
+{
+"name": "Dimhollow Crypt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+5444.96,
+64838.25,
+-4881.42
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -3071,6 +4287,22 @@
 0,
 0,
 225.35584056
+]
+},
+{
+"name": "Dragon Bridge Overlook",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-104248.06,
+68533.12,
+-7703.82
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -3095,14 +4327,78 @@
 "world": "1a26f:Skyrim.esm",
 "worldName": "Whiterun World",
 "pos": [
-28680.1640625,
-2045.7158203125,
-776.6356201171875
+26871.64,
+209.05,
+-1592.36
 ],
 "rot": [
 0,
 0,
--135.00004861278535
+0.0
+]
+},
+{
+"name": "Dragontooth Crater",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-141731.94,
+50230.08,
+-3590.33
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Drelas' Cottage",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-30648.56,
+26970.15,
+-4274.37
+],
+"rot": [
+0,
+0,
+20.05353
+]
+},
+{
+"name": "Driftshade Refuge",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+55736.64,
+79560.29,
+-4951.81
+],
+"rot": [
+0,
+0,
+90.00024264
+]
+},
+{
+"name": "Druadach Redoubt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-153779.8,
+58854.89,
+-5897.33
+],
+"rot": [
+0,
+0,
+51.56622
 ]
 },
 {
@@ -3154,6 +4450,38 @@
 ]
 },
 {
+"name": "Dushnikh Yal",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-145542.66,
+-22742.33,
+-988.3199999999999
+],
+"rot": [
+0,
+0,
+252.97241615999997
+]
+},
+{
+"name": "Duskglow Crevice",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+46034.06,
+59378.51,
+-7367.84
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Duskgourd Mine",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -3162,6 +4490,102 @@
 135912.52,
 -113036.95,
 11002.14
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Dustman's Cairn",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-17461.4,
+18255.03,
+-6182.86
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Dwemer Museum",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-178448.796875,
+2003.2723388671875,
+-105.36720275878906
+],
+"rot": [
+0,
+0,
+-15.000005780875682
+]
+},
+{
+"name": "East Empire Company Warehouse",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-66223.09,
+98838.51,
+-13817.81
+],
+"rot": [
+0,
+0,
+331.35307056
+]
+},
+{
+"name": "Eastmarch Imperial Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+174721.75,
+-19865.08,
+-1864.0
+],
+"rot": [
+0,
+0,
+45.63037512
+]
+},
+{
+"name": "Eldergleam Sanctuary",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+119987.52,
+-22521.09,
+-9671.17
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Eldersblood Peak",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-41375.18,
+35963.88,
+2666.32
 ],
 "rot": [
 0,
@@ -3183,6 +4607,38 @@
 0,
 0,
 0.0
+]
+},
+{
+"name": "Embershard Mine",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+8248.99,
+-57382.94,
+1554.98
+],
+"rot": [
+0,
+0,
+333.64490256
+]
+},
+{
+"name": "Endon's House",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-175963.28125,
+6497.3486328125,
+-2674.529052734375
+],
+"rot": [
+0,
+0,
+165.00003968396186
 ]
 },
 {
@@ -3218,6 +4674,38 @@
 ]
 },
 {
+"name": "Evergreen Grove",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-51017.67,
+-67845.02,
+-828.24
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Evette San's House",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-56170.8671875,
+104975.796875,
+-8462.787109375
+],
+"rot": [
+0,
+0,
+40.00001313893795
+]
+},
+{
 "name": "Eye of Cyrodiil",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -3231,6 +4719,54 @@
 0,
 0,
 170.83315728
+]
+},
+{
+"name": "Faldar's Tooth",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+145743.56,
+-92383.42,
+12508.58
+],
+"rot": [
+0,
+0,
+47.555513999999995
+]
+},
+{
+"name": "Falkreath",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-30296.33,
+-86283.9,
+-3042.81
+],
+"rot": [
+0,
+0,
+238.24739556
+]
+},
+{
+"name": "Falkreath Imperial Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-68047.05,
+-51560.11,
+526.73
+],
+"rot": [
+0,
+0,
+231.08542056
 ]
 },
 {
@@ -3250,14 +4786,14 @@
 ]
 },
 {
-"name": "Fallowstone Cave World End 48,-20",
+"name": "Falkreath Stormcloak Camp",
 "region": "Skyrim",
-"world": "204c7:Skyrim.esm",
-"worldName": "Fallowstone Cave World End",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-195274.16,
--82001.08,
-1981.01
+39501.36,
+-74989.62,
+13491.45
 ],
 "rot": [
 0,
@@ -3266,35 +4802,35 @@
 ]
 },
 {
-"name": "Falmer Valley 5,1",
+"name": "Fallowstone Cave",
 "region": "Skyrim",
-"world": "bb5:Dawnguard.esm",
-"worldName": "Falmer Valley",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-20252.88,
-5160.73,
-843.85
+193224.64,
+-84050.38,
+10745.7
+],
+"rot": [
+0,
+0,
+346.24997856
+]
+},
+{
+"name": "Fellglow Keep",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+63808.29,
+9247.29,
+-753.96
 ],
 "rot": [
 0,
 0,
 0.0
-]
-},
-{
-"name": "Falmer Valley Temple",
-"region": "Skyrim",
-"world": "bb5:Dawnguard.esm",
-"worldName": "Falmer Valley",
-"pos": [
--22298.177734375,
--13162.17578125,
-8368.0
-],
-"rot": [
-0,
-0,
--135.00004861278535
 ]
 },
 {
@@ -3314,6 +4850,246 @@
 ]
 },
 {
+"name": "Folgunthur",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-47866.49,
+91436.53,
+-13324.65
+],
+"rot": [
+0,
+0,
+348.54181056
+]
+},
+{
+"name": "Forebears' Holdout",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-85229.89,
+68069.48,
+-11166.97
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Forelhost",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+184396.08,
+-113416.77,
+18738.03
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Forgotten Vale",
+"region": "Skyrim",
+"world": "bb5:Dawnguard.esm",
+"worldName": "Falmer Valley",
+"pos": [
+20252.88,
+5160.73,
+843.85
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Forgotten Vale Cave",
+"region": "Skyrim",
+"world": "bb5:Dawnguard.esm",
+"worldName": "Falmer Valley",
+"pos": [
+18177.458984375,
+14715.421875,
+1129.918212890625
+],
+"rot": [
+0,
+0,
+-152.97947618250848
+]
+},
+{
+"name": "Forsaken Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+87222.71,
+50363.6,
+-6393.16
+],
+"rot": [
+0,
+0,
+45.00012132
+]
+},
+{
+"name": "Fort Amol",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+100335.92,
+-22860.76,
+-9248.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Fort Dawnguard",
+"region": "Skyrim",
+"world": "1db8:Dawnguard.esm",
+"worldName": "Hunter HQ World",
+"pos": [
+6685.68,
+1015.64,
+-1736.39
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Fort Dunstad",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+28971.44,
+61698.91,
+-8471.68
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Fort Fellhammer",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+42938.78,
+70896.49,
+-8750.58
+],
+"rot": [
+0,
+0,
+320.73042924000003
+]
+},
+{
+"name": "Fort Greenwall",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+167975.92,
+-72408.7,
+9182.49
+],
+"rot": [
+0,
+0,
+199.57273056
+]
+},
+{
+"name": "Fort Greymoor",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-13759.42,
+-8447.58,
+-5488.0
+],
+"rot": [
+0,
+0,
+50.993262
+]
+},
+{
+"name": "Fort Hraggstad",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-112292.05,
+114083.42,
+-5338.29
+],
+"rot": [
+0,
+0,
+303.70211748
+]
+},
+{
+"name": "Fort Kastav",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+112485.68,
+53760.88,
+-2968.26
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Fort Neugrad",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+33279.24,
+-91842.0,
+13245.8
+],
+"rot": [
+0,
+0,
+90.00024264
+]
+},
+{
 "name": "Fort Snowhawk",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -3327,6 +5103,22 @@
 0,
 0,
 45.00012132
+]
+},
+{
+"name": "Fort Sungard",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-72571.38,
+-24475.15,
+246.52
+],
+"rot": [
+0,
+0,
+83.07891
 ]
 },
 {
@@ -3346,7 +5138,55 @@
 ]
 },
 {
-"name": "Frostmere Crypt",
+"name": "Four Skull Lookout",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-132699.81,
+22432.12,
+-4140.97
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Froki's Shack",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+95860.41,
+-101620.56,
+18852.75
+],
+"rot": [
+0,
+0,
+34.37748
+]
+},
+{
+"name": "Frostflow Lighthouse",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+64339.89,
+88970.59,
+-4881.32
+],
+"rot": [
+0,
+0,
+180.00048528
+]
+},
+{
+"name": "Frostmere Crypt (Frostmere Crypt World)",
 "region": "Skyrim",
 "world": "c97eb:Skyrim.esm",
 "worldName": "Frostmere Crypt World",
@@ -3359,6 +5199,86 @@
 0,
 0,
 -25.000009065610172
+]
+},
+{
+"name": "Frostmere Crypt (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+10241.5,
+71188.25,
+-9568.0
+],
+"rot": [
+0,
+0,
+180.48176999999998
+]
+},
+{
+"name": "Gallows Rock",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+100513.66,
+5877.52,
+-7836.16
+],
+"rot": [
+0,
+0,
+302.70517056
+]
+},
+{
+"name": "Geirmund's Hall",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+89472.66,
+-64540.47,
+11065.94
+],
+"rot": [
+0,
+0,
+74.48454
+]
+},
+{
+"name": "Giant's Grove",
+"region": "Skyrim",
+"world": "204c7:Skyrim.esm",
+"worldName": "Fallowstone Cave World End",
+"pos": [
+195274.16,
+-82001.08,
+1981.01
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Gjukar's Monument",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-62275.79,
+-9459.04,
+-5837.35
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -3375,6 +5295,54 @@
 0,
 0,
 129.77204236779212
+]
+},
+{
+"name": "Glenmoril Coven",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-78689.48,
+-55425.25,
+4301.62
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Gloombound Mine",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+159835.14,
+5184.55,
+-3506.91
+],
+"rot": [
+0,
+0,
+65.89017
+]
+},
+{
+"name": "Gloomreach",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-100254.3,
+-24965.62,
+-5218.28
+],
+"rot": [
+0,
+0,
+205.30231056
 ]
 },
 {
@@ -3410,6 +5378,22 @@
 ]
 },
 {
+"name": "Goldenglow Estate",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+155666.19,
+-97516.89,
+11183.64
+],
+"rot": [
+0,
+0,
+169.05698748
+]
+},
+{
 "name": "Graystone Lodge",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
@@ -3426,6 +5410,38 @@
 ]
 },
 {
+"name": "Graywinter Watch",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+49824.22,
+-2452.27,
+-2739.7
+],
+"rot": [
+0,
+0,
+353.12547456
+]
+},
+{
+"name": "Greenspring Hollow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-27123.6,
+15155.51,
+-6905.79
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Greymoor Fields",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -3439,6 +5455,22 @@
 0,
 0,
 268.32769056
+]
+},
+{
+"name": "Greywater Grotto",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+14989.25,
+-90292.41,
+10853.79
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -3490,6 +5522,38 @@
 ]
 },
 {
+"name": "Guldun Rock",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+72850.61,
+-10225.92,
+-304.63
+],
+"rot": [
+0,
+0,
+13.178034
+]
+},
+{
+"name": "Haafingar Stormcloak Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-92573.87,
+89628.8,
+-12136.44
+],
+"rot": [
+0,
+0,
+5.87854908
+]
+},
+{
 "name": "Haelga's Bunkhouse",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
@@ -3506,19 +5570,67 @@
 ]
 },
 {
-"name": "Hags End",
+"name": "Haemar's Shame",
 "region": "Skyrim",
-"world": "29ab7:Skyrim.esm",
-"worldName": "Deepwood Redoubt World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--124069.96875,
-80715.25,
--2929.0
+54739.71,
+-81395.8,
+15468.75
 ],
 "rot": [
 0,
 0,
--50.80834057266712
+166.92558372000002
+]
+},
+{
+"name": "Hag Rock Redoubt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-173318.17,
+-17115.7,
+4382.81
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Hag's Cure",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-176255.078125,
+922.9353637695312,
+-2936.0
+],
+"rot": [
+0,
+0,
+20.711077327644826
+]
+},
+{
+"name": "Hag's End",
+"region": "Skyrim",
+"world": "29ab7:Skyrim.esm",
+"worldName": "Deepwood Redoubt World",
+"pos": [
+-123922.57,
+79920.09,
+-2228.0
+],
+"rot": [
+0,
+0,
+75.18927834
 ]
 },
 {
@@ -3538,6 +5650,22 @@
 ]
 },
 {
+"name": "Half-Moon Mill",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-42817.49,
+-58192.09,
+1018.63
+],
+"rot": [
+0,
+0,
+16.902261
+]
+},
+{
 "name": "Hall of Relics",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
@@ -3551,6 +5679,22 @@
 0,
 0,
 -180.00006937050819
+]
+},
+{
+"name": "Hall of the Dead (Markarth World)",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-177740.296875,
+1528.215576171875,
+-2232.319580078125
+],
+"rot": [
+0,
+0,
+146.3218152103901
 ]
 },
 {
@@ -3586,6 +5730,70 @@
 ]
 },
 {
+"name": "Hall of the Vigilant",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+20037.64,
+67241.62,
+-8059.6
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Halldir's Cairn",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-42999.38,
+-96533.42,
+201.06
+],
+"rot": [
+0,
+0,
+322.75870056
+]
+},
+{
+"name": "Halted Stream Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+16500.28,
+18918.97,
+-4113.38
+],
+"rot": [
+0,
+0,
+39.14449056
+]
+},
+{
+"name": "Hamvir's Rest",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-18760.39,
+21080.1,
+-6464.66
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Happy Homestead General Goods",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -3602,6 +5810,38 @@
 ]
 },
 {
+"name": "Harmugstahl",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-137142.45,
+55392.14,
+-7698.87
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Heartwood Mill",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+133151.11,
+-95797.19,
+10790.06
+],
+"rot": [
+0,
+0,
+325.33701156
+]
+},
+{
 "name": "Heimskr's House",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -3615,6 +5855,182 @@
 0,
 0,
 -37.08090877221823
+]
+},
+{
+"name": "Hela's Folly",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+51131.5,
+124633.03,
+-13936.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Helgen",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+18350.4,
+-79480.97,
+9268.41
+],
+"rot": [
+0,
+0,
+84.98113056000001
+]
+},
+{
+"name": "High Gate Ruins",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-19007.56,
+106130.19,
+-12570.49
+],
+"rot": [
+0,
+0,
+159.46567056
+]
+},
+{
+"name": "High Hrothgar",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+52070.79,
+-36267.07,
+22633.35
+],
+"rot": [
+0,
+0,
+176.184585
+]
+},
+{
+"name": "Hillgrund's Tomb",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+80895.8,
+-17224.87,
+-5756.89
+],
+"rot": [
+0,
+0,
+264.03050556
+]
+},
+{
+"name": "Hjaalmarch Imperial Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-19539.53,
+79464.11,
+-13703.71
+],
+"rot": [
+0,
+0,
+180.72814194
+]
+},
+{
+"name": "Hjaalmarch Stormcloak Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-10857.73,
+84544.58,
+-12728.0
+],
+"rot": [
+0,
+0,
+87.05523852
+]
+},
+{
+"name": "Hjerim",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+130640.046875,
+41639.18359375,
+-11793.5009765625
+],
+"rot": [
+0,
+0,
+90.00003468525409
+]
+},
+{
+"name": "Hlaalu Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+146687.11,
+33898.2,
+-13625.36
+],
+"rot": [
+0,
+0,
+83.54873556
+]
+},
+{
+"name": "Hob's Fall Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+68591.04,
+96020.15,
+-12104.0
+],
+"rot": [
+0,
+0,
+211.03189056
+]
+},
+{
+"name": "Hollyfrost Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+149758.33,
+35760.76,
+-13172.95
+],
+"rot": [
+0,
+0,
+75.916935
 ]
 },
 {
@@ -3746,6 +6162,54 @@
 ]
 },
 {
+"name": "Honeystrand Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+79467.5,
+-76043.88,
+11076.58
+],
+"rot": [
+0,
+0,
+151.83387
+]
+},
+{
+"name": "Honningbrew Meadery",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+30929.93,
+-17710.78,
+-4296.71
+],
+"rot": [
+0,
+0,
+225.0006066
+]
+},
+{
+"name": "Honorhall Orphanage",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+171834.609375,
+-99198.890625,
+11185.626953125
+],
+"rot": [
+0,
+0,
+90.00003468525409
+]
+},
+{
 "name": "House Gray-Mane",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -3810,6 +6274,38 @@
 ]
 },
 {
+"name": "House of Clan Shatter-Shield",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+130611.125,
+39540.94140625,
+-12088.6416015625
+],
+"rot": [
+0,
+0,
+90.00022593061924
+]
+},
+{
+"name": "House of Clan Snow-Shod",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+174720.0,
+-94842.0,
+11199.0654296875
+],
+"rot": [
+0,
+0,
+-90.00003468525409
+]
+},
+{
 "name": "House of Clan Wave-Breaker",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
@@ -3826,35 +6322,35 @@
 ]
 },
 {
-"name": "Hunter HQ Location Interior",
+"name": "Hunter's Rest",
 "region": "Skyrim",
-"world": "1db8:Dawnguard.esm",
-"worldName": "Hunter HQ World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-7877.7255859375,
-71.60684967041016,
--896.0
-],
-"rot": [
-0,
-0,
--15.481431836664676
-]
-},
-{
-"name": "Hunter HQ World 2,0",
-"region": "Skyrim",
-"world": "1db8:Dawnguard.esm",
-"worldName": "Hunter HQ World",
-"pos": [
-6685.68,
-1015.64,
--1736.39
+-56671.73,
+-54925.42,
+1623.15
 ],
 "rot": [
 0,
 0,
 0.0
+]
+},
+{
+"name": "Icewater Jetty",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-151118.11,
+122293.65,
+-13851.31
+],
+"rot": [
+0,
+0,
+309.86714556
 ]
 },
 {
@@ -3906,7 +6402,119 @@
 ]
 },
 {
-"name": "Japhets Folly",
+"name": "Ilinalta's Deep",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-30266.24,
+-49106.42,
+824.47
+],
+"rot": [
+0,
+0,
+289.71048312
+]
+},
+{
+"name": "Inner Sanctum",
+"region": "Skyrim",
+"world": "bb5:Dawnguard.esm",
+"worldName": "Falmer Valley",
+"pos": [
+-22298.177734375,
+-13162.17578125,
+8368.0
+],
+"rot": [
+0,
+0,
+-135.00004861278535
+]
+},
+{
+"name": "Irkngthand",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+77330.65,
+26481.13,
+-6412.38
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Ironback Hideout",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-92048.54,
+112676.59,
+-2974.46
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Ironbind Barrow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+70652.49,
+57152.88,
+-4004.54
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Ivarstead",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+76374.61,
+-64262.79,
+10882.83
+],
+"rot": [
+0,
+0,
+58.72819499999999
+]
+},
+{
+"name": "Jala's House",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-55900.0,
+104277.0,
+-8678.0
+],
+"rot": [
+0,
+0,
+135.7296496808052
+]
+},
+{
+"name": "Japhet's Folly",
 "region": "Skyrim",
 "world": "94b35:Skyrim.esm",
 "worldName": "Japhets Folly World",
@@ -3919,6 +6527,22 @@
 0,
 0,
 40.10741107184887
+]
+},
+{
+"name": "Jorrvaskr",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+28244.0,
+-4220.0,
+-2504.0
+],
+"rot": [
+0,
+0,
+90.00003468525409
 ]
 },
 {
@@ -3938,6 +6562,38 @@
 ]
 },
 {
+"name": "Journeyman's Nook",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+132555.17,
+80185.86,
+-9694.46
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Kagrenzel",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+191763.44,
+-29428.79,
+8344.26
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Karlsten's House",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -3954,19 +6610,163 @@
 ]
 },
 {
-"name": "Karthspire",
+"name": "Karthspire (Karthspire Redoubt World)",
 "region": "Skyrim",
 "world": "35699:Skyrim.esm",
 "worldName": "Karthspire Redoubt World",
 "pos": [
-130399.02,
--2040.9,
-2978.06
+127058.984375,
+-2171.323486328125,
+3253.8154296875
 ],
 "rot": [
 0,
 0,
-270.722655
+110.05372314569951
+]
+},
+{
+"name": "Karthspire (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-132336.83,
+6655.9,
+-7098.83
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Karthspire Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-129040.0,
+9360.0,
+-7920.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Karthwasten",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-132747.61,
+38548.57,
+-6129.74
+],
+"rot": [
+0,
+0,
+253.53964458
+]
+},
+{
+"name": "Katla's Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-74344.16,
+96470.01,
+-11448.0
+],
+"rot": [
+0,
+0,
+31.982515560000003
+]
+},
+{
+"name": "Kjenstag Ruins",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-18316.04,
+72236.74,
+-12715.02
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Knifepoint Ridge",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-70131.27,
+-66860.66,
+2841.18
+],
+"rot": [
+0,
+0,
+271.19248056
+]
+},
+{
+"name": "Kolskeggr Mine",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-148569.27,
+14191.61,
+-5924.94
+],
+"rot": [
+0,
+0,
+359.42801256
+]
+},
+{
+"name": "Korvanjund",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+55348.7,
+34571.23,
+-8108.38
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Kynesgrove",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+134946.92,
+11395.24,
+-12135.95
+],
+"rot": [
+0,
+0,
+92.77335936
 ]
 },
 {
@@ -4002,6 +6802,22 @@
 ]
 },
 {
+"name": "Labyrinthian (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-18640.75,
+42158.88,
+-7784.6
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Lainalten",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4018,51 +6834,259 @@
 ]
 },
 {
-"name": "Markarth Abandoned House",
+"name": "Largashbur",
 "region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--175704.953125,
-6128.7890625,
--3115.18701171875
+135308.03,
+-110597.0,
+11205.81
 ],
 "rot": [
 0,
 0,
--180.00005571012497
+0.0
 ]
 },
 {
-"name": "Markarth Arnleifand Sons Trading Company",
+"name": "Last Vigil",
 "region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--174645.375,
-6050.1015625,
--3218.40966796875
+195469.75,
+-74126.79,
+15469.29
 ],
 "rot": [
 0,
 0,
-150.0000509785652
+0.0
 ]
 },
 {
-"name": "Markarth Endons House",
+"name": "Left Hand Mine",
 "region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--175963.28125,
-6497.3486328125,
--2674.529052734375
+-165486.5,
+-313.71,
+-4293.2
 ],
 "rot": [
 0,
 0,
-165.00003968396186
+70.473834
+]
+},
+{
+"name": "Liar's Retreat",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-113431.45,
+50797.19,
+-6144.0
+],
+"rot": [
+0,
+0,
+31.249129319999998
+]
+},
+{
+"name": "Loreius Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+32789.25,
+26084.46,
+-6697.4
+],
+"rot": [
+0,
+0,
+347.99750045999997
+]
+},
+{
+"name": "Lost Echo Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-127416.27,
+101409.52,
+-7432.27
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Lost Knife Hideout",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+95320.98,
+-28958.37,
+-9406.91
+],
+"rot": [
+0,
+0,
+163.29303000000002
+]
+},
+{
+"name": "Lost Prospect Mine",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+197183.44,
+-90006.86,
+7611.96
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Lost Tongue Overlook",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+173660.03,
+-124358.77,
+17384.33
+],
+"rot": [
+0,
+0,
+16.46108334
+]
+},
+{
+"name": "Lost Valkygg",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-12525.4,
+46844.58,
+-6785.18
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Lost Valley Redoubt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-89949.95,
+-36677.4,
+1931.57
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Lower Steepfall Burrow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-130864.29,
+120263.76,
+-13599.03
+],
+"rot": [
+0,
+0,
+154.69866000000002
+]
+},
+{
+"name": "Lund's Hut",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-91151.81,
+17541.57,
+-3720.35
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Mara's Eye Pond",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+108486.84,
+8720.02,
+-9314.89
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Marise Aravel's House",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+175081.4375,
+-96689.5625,
+10763.8994140625
+],
+"rot": [
+0,
+0,
+-101.56229232952595
+]
+},
+{
+"name": "Markarth",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-174024.3,
+5255.48,
+-3258.36
+],
+"rot": [
+0,
+0,
+269.29026
 ]
 },
 {
@@ -4082,54 +7106,6 @@
 ]
 },
 {
-"name": "Markarth Hags Cure",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--176255.078125,
-922.9353637695312,
--2936.0
-],
-"rot": [
-0,
-0,
-20.711077327644826
-]
-},
-{
-"name": "Markarth Hallofthe Dead",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--177740.296875,
-1528.215576171875,
--2232.319580078125
-],
-"rot": [
-0,
-0,
-146.3218152103901
-]
-},
-{
-"name": "Markarth Ogmunds House",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--174921.5,
-6358.04541015625,
--2702.395263671875
-],
-"rot": [
-0,
-0,
-172.00005718045236
-]
-},
-{
 "name": "Markarth Ruins",
 "region": "Skyrim",
 "world": "16d71:Skyrim.esm",
@@ -4143,22 +7119,6 @@
 0,
 0,
 16.226236911213398
-]
-},
-{
-"name": "Markarth Shrineof Talos",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--175897.90625,
-4749.73974609375,
--2665.83447265625
-],
-"rot": [
-0,
-0,
--105.00003705103397
 ]
 },
 {
@@ -4178,38 +7138,6 @@
 ]
 },
 {
-"name": "Markarth Silver Blood Inn",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--174538.46875,
-4971.02978515625,
--3242.26123046875
-],
-"rot": [
-0,
-0,
-39.27058624080419
-]
-},
-{
-"name": "Markarth Smelter Overseers House",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--173169.3125,
-1739.0325927734375,
--3389.665283203125
-],
-"rot": [
-0,
-0,
--35.18866907286644
-]
-},
-{
 "name": "Markarth Stables",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4218,134 +7146,6 @@
 -171172.39,
 6876.6,
 -3868.49
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Markarth Templeof Dibella",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--176860.0,
-4485.001953125,
--1677.0
-],
-"rot": [
-0,
-0,
--104.99994825854301
-]
-},
-{
-"name": "Markarth Treasury House",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--177083.625,
-6453.5576171875,
--2679.17236328125
-],
-"rot": [
-0,
-0,
-165.00025825009345
-]
-},
-{
-"name": "Markarth Vlindrel Hall",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--174939.703125,
-7467.25439453125,
--1826.8839111328125
-],
-"rot": [
-0,
-0,
-129.2705150580883
-]
-},
-{
-"name": "Markarth Warrens",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--174708.09375,
-3660.19091796875,
--3915.1103515625
-],
-"rot": [
-0,
-0,
-150.0000509785652
-]
-},
-{
-"name": "Markarth Wizards Quarters",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--178448.796875,
-2003.2723388671875,
--105.36720275878906
-],
-"rot": [
-0,
-0,
--15.000005780875682
-]
-},
-{
-"name": "Markarth Wizards Quarters02",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--178898.15625,
-3393.142333984375,
--569.39404296875
-],
-"rot": [
-0,
-0,
-75.0000254892826
-]
-},
-{
-"name": "Markarth World -42,1",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--174024.3,
-5255.48,
--3258.36
-],
-"rot": [
-0,
-0,
-269.29026
-]
-},
-{
-"name": "Markarth World -44,1",
-"region": "Skyrim",
-"world": "16d71:Skyrim.esm",
-"worldName": "Markarth World",
-"pos": [
--178915.64,
-3565.22,
--2119.0
 ],
 "rot": [
 0,
@@ -4367,6 +7167,22 @@
 0,
 0,
 166.86776924071313
+]
+},
+{
+"name": "Meeko's Shack",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-72132.37,
+76174.05,
+-12595.54
+],
+"rot": [
+0,
+0,
+60.16059
 ]
 },
 {
@@ -4402,6 +7218,54 @@
 ]
 },
 {
+"name": "Mistveil Keep",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+173481.64,
+-99978.98,
+11586.25
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Mistwatch",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+137472.0,
+-34240.0,
+-9685.4
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Mixwater Mill",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+109029.09,
+-6468.94,
+-13106.47
+],
+"rot": [
+0,
+0,
+308.43475056
+]
+},
+{
 "name": "Moldering Ruins",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4415,6 +7279,38 @@
 0,
 0,
 0.0
+]
+},
+{
+"name": "Mor Khazgur",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-151658.45,
+81846.96,
+-5516.79
+],
+"rot": [
+0,
+0,
+274.05727056
+]
+},
+{
+"name": "Morthal",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-38639.74,
+66734.3,
+-13180.29
+],
+"rot": [
+0,
+0,
+84.51130500000001
 ]
 },
 {
@@ -4434,6 +7330,70 @@
 ]
 },
 {
+"name": "Morvunskar",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+119160.63,
+19394.4,
+-10110.07
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Moss Mother Cavern",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-56529.45,
+-49859.12,
+1368.0
+],
+"rot": [
+0,
+0,
+194.80572
+]
+},
+{
+"name": "Mount Anthor",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+95163.15,
+67274.68,
+323.37
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Movarth's Lair",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-31903.55,
+77294.69,
+-13443.91
+],
+"rot": [
+0,
+0,
+36.096354
+]
+},
+{
 "name": "Mustering Hall",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
@@ -4447,6 +7407,54 @@
 0,
 0,
 -180.00006937050819
+]
+},
+{
+"name": "Mzinchaleft 2,20",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+6983.83,
+83956.08,
+-10886.97
+],
+"rot": [
+0,
+0,
+315.00084924
+]
+},
+{
+"name": "Mzulft",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+167807.67,
+-13281.94,
+-3801.99
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Narzulbur",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+158053.62,
+10036.13,
+-3659.55
+],
+"rot": [
+0,
+0,
+0.0
 ]
 },
 {
@@ -4466,6 +7474,70 @@
 ]
 },
 {
+"name": "New Gnisis Cornerclub",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+140312.0625,
+39815.703125,
+-13037.15234375
+],
+"rot": [
+0,
+0,
+-134.9997071032047
+]
+},
+{
+"name": "Nightcaller Temple",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+40560.0,
+101184.0,
+-6320.0
+],
+"rot": [
+0,
+0,
+350.78780592
+]
+},
+{
+"name": "Nightgate Inn",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+73827.37,
+46034.7,
+-6071.29
+],
+"rot": [
+0,
+0,
+355.13082756
+]
+},
+{
+"name": "Nilheim",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+100682.92,
+-58661.61,
+11921.97
+],
+"rot": [
+0,
+0,
+322.75870056
+]
+},
+{
 "name": "Niranye's House",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
@@ -4482,6 +7554,70 @@
 ]
 },
 {
+"name": "North Brittleshin Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-23244.13,
+-34273.73,
+-4023.92
+],
+"rot": [
+0,
+0,
+176.65441056
+]
+},
+{
+"name": "North Cold Rock Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-47481.76,
+37647.79,
+-2763.52
+],
+"rot": [
+0,
+0,
+24.637194
+]
+},
+{
+"name": "North Shriekwind Bastion",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-27043.31,
+-71144.67,
+2134.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "North Skybound Watch",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+32799.31,
+-60907.64,
+13809.99
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Northwatch Harbor",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4495,6 +7631,150 @@
 0,
 0,
 91.67328
+]
+},
+{
+"name": "Northwatch Keep",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-144429.89,
+117428.24,
+-13522.95
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Northwind Mine",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+151221.0,
+-45274.86,
+3706.67
+],
+"rot": [
+0,
+0,
+357.13618056
+]
+},
+{
+"name": "Northwind Summit",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+151002.84,
+-53453.42,
+13296.52
+],
+"rot": [
+0,
+0,
+357.13618056
+]
+},
+{
+"name": "Ogmund's House",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-174921.5,
+6358.04541015625,
+-2702.395263671875
+],
+"rot": [
+0,
+0,
+172.00005718045236
+]
+},
+{
+"name": "Olava the Feebles House",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+22156.78515625,
+-9275.494140625,
+-3551.060546875
+],
+"rot": [
+0,
+0,
+-1.3504424336761236
+]
+},
+{
+"name": "Old Hroldan",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-114541.54,
+-6795.56,
+-5239.88
+],
+"rot": [
+0,
+0,
+84.51130500000001
+]
+},
+{
+"name": "Orotheim",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-67686.01,
+36949.39,
+-8190.67
+],
+"rot": [
+0,
+0,
+163.29303000000002
+]
+},
+{
+"name": "Orphan Rock",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+36185.92,
+-69266.57,
+13108.34
+],
+"rot": [
+0,
+0,
+291.24601056
+]
+},
+{
+"name": "Orphan's Tear",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-120724.02,
+129226.57,
+-13788.66
+],
+"rot": [
+0,
+0,
+28.6479
 ]
 },
 {
@@ -4519,14 +7799,30 @@
 "world": "1691d:Skyrim.esm",
 "worldName": "Windhelm World",
 "pos": [
-134730.28125,
-42719.5,
--11761.9755859375
+134899.38,
+41679.26,
+-11708.48
 ],
 "rot": [
 0,
 0,
-175.9437415154457
+0.0
+]
+},
+{
+"name": "Pale Imperial Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-2159.26,
+101148.73,
+-11030.75
+],
+"rot": [
+0,
+0,
+225.23551938
 ]
 },
 {
@@ -4546,6 +7842,406 @@
 ]
 },
 {
+"name": "Pale Stormcloak Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+87883.61,
+35185.57,
+-8363.75
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Peak's Shade Tower",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-17962.85,
+-87702.87,
+1615.06
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Pelagia Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+19263.99,
+-16976.2,
+-4470.99
+],
+"rot": [
+0,
+0,
+270.00072792
+]
+},
+{
+"name": "Pilgrim's Trench",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+83391.33,
+117696.29,
+-17400.62
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Pinefrost Tower",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-142901.27,
+99301.4,
+-3906.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Pinemoon Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-116902.43,
+92399.13,
+-7254.15
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Pinepeak Cavern",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+75298.43,
+-54368.77,
+10321.14
+],
+"rot": [
+0,
+0,
+315.59672556000004
+]
+},
+{
+"name": "Pinewatch",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-9403.51,
+-76356.99,
+2851.12
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Proudspire Manor",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-55824.0,
+105424.0,
+-8688.0
+],
+"rot": [
+0,
+0,
+-139.89261048731805
+]
+},
+{
+"name": "Purewater Run",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-158278.45,
+-20197.83,
+1101.11
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Radiant Raiments",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-63786.3125,
+104633.171875,
+-8310.40625
+],
+"rot": [
+0,
+0,
+-17.91820856230259
+]
+},
+{
+"name": "Ragnvald",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-173684.12,
+26640.24,
+-67.03
+],
+"rot": [
+0,
+0,
+299.5997382
+]
+},
+{
+"name": "Raldbthar 21,4",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+87391.0,
+17980.0,
+560.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Rannveig's Fast",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-47295.46,
+26143.58,
+-3848.37
+],
+"rot": [
+0,
+0,
+24.350715
+]
+},
+{
+"name": "Ravenscar Hollow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-91591.09,
+126460.16,
+-13732.8
+],
+"rot": [
+0,
+0,
+355.70378556
+]
+},
+{
+"name": "Reach Imperial Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-161881.86,
+35446.16,
+-2859.66
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Reach Stormcloak Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-119234.29,
+50267.85,
+-8244.54
+],
+"rot": [
+0,
+0,
+359.42801256
+]
+},
+{
+"name": "Reachcliff Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-133685.33,
+-11703.22,
+-5265.33
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Reachcliff Secret Entrance",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-148452.92,
+-12832.78,
+-3840.55
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Reachwater Rock",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-140947.84,
+-3609.05,
+-7216.98
+],
+"rot": [
+0,
+0,
+221.161788
+]
+},
+{
+"name": "Reachwind Eyrie",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-139694.88,
+-12857.35,
+-1272.54
+],
+"rot": [
+0,
+0,
+45.83664
+]
+},
+{
+"name": "Rebel's Cairn",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-109696.0,
+23216.0,
+37.31
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Red Eagle Redoubt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-125628.23,
+15531.68,
+-4847.3
+],
+"rot": [
+0,
+0,
+68.75496
+]
+},
+{
+"name": "Red Road Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+21856.07,
+79660.22,
+-10120.71
+],
+"rot": [
+0,
+0,
+176.65441056
+]
+},
+{
+"name": "Redoran's Retreat",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-15254.3,
+7226.89,
+-7305.2
+],
+"rot": [
+0,
+0,
+30.366774000000003
+]
+},
+{
 "name": "Redwater Den",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4554,6 +8250,22 @@
 135828.86,
 -75774.84,
 11615.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Refugees' Rest",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+170414.73,
+37535.54,
+-9335.9
 ],
 "rot": [
 0,
@@ -4578,62 +8290,78 @@
 ]
 },
 {
-"name": "Riften Beeand Barb",
+"name": "Rift Imperial Camp",
 "region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-173342.109375,
--95198.3125,
-11200.0
+80817.92,
+-87948.71,
+11108.22
 ],
 "rot": [
 0,
 0,
-45.000017342627046
+182.38399056
 ]
 },
 {
-"name": "Riften Bolli House",
+"name": "Rift Stormcloak Camp",
 "region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-174922.015625,
--93181.1953125,
-11205.1640625
+115540.9,
+-64977.63,
+11184.0
 ],
 "rot": [
 0,
 0,
--90.00003468525409
+90.71071056
 ]
 },
 {
-"name": "Riften Honorhall Orphanage",
+"name": "Rift Watchtower",
 "region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-171834.609375,
--99198.890625,
-11185.626953125
+122814.35,
+-66093.77,
+12049.25
 ],
 "rot": [
 0,
 0,
-90.00003468525409
+0.0
 ]
 },
 {
-"name": "Riften Houseof Clan Snow Shod",
+"name": "Riften",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
 "worldName": "Riften World",
 "pos": [
-174720.0,
--94842.0,
-11199.0654296875
+173415.2,
+-96600.15,
+11168.01
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Riften Hall of the Dead",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+176472.0,
+-97472.0,
+11143.265625
 ],
 "rot": [
 0,
@@ -4658,39 +8386,7 @@
 ]
 },
 {
-"name": "Riften Marise Aravels House",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-175081.4375,
--96689.5625,
-10763.8994140625
-],
-"rot": [
-0,
-0,
--101.56229232952595
-]
-},
-{
-"name": "Riften Mausoleum",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-176472.0,
--97472.0,
-11143.265625
-],
-"rot": [
-0,
-0,
--90.00003468525409
-]
-},
-{
-"name": "Riften Mercer House Interior",
+"name": "Riften Mercer's House",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
 "worldName": "Riften World",
@@ -4719,22 +8415,6 @@
 0,
 0,
 0.0
-]
-},
-{
-"name": "Riften Pawned Prawn",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-172292.0,
--95488.0,
-11200.0
-],
-"rot": [
-0,
-0,
-90.00003468525409
 ]
 },
 {
@@ -4770,7 +8450,103 @@
 ]
 },
 {
-"name": "Riften Romlyn Dreths House",
+"name": "Riften Stables",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+173136.91,
+-90911.7,
+11166.38
+],
+"rot": [
+0,
+0,
+79.068204
+]
+},
+{
+"name": "Rimerock Burrow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-143621.08,
+105373.64,
+-7303.02
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Riverside Shack",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+121265.52,
+6841.38,
+-13520.47
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Riverwood",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+21941.02,
+-44792.43,
+-76.02000000000001
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Roadside Ruins",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-43392.99,
+-78762.32,
+-2828.09
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Robber's Gorge",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-80784.0,
+47328.0,
+-12224.0
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Romlyn Dreth's House",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
 "worldName": "Riften World",
@@ -4778,86 +8554,6 @@
 173161.1875,
 -98714.1015625,
 10753.2568359375
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Riften Templeof Mara",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-176322.8125,
--97021.734375,
-11456.0166015625
-],
-"rot": [
-0,
-0,
--90.00003468525409
-]
-},
-{
-"name": "Riften Thieves Guild Headquarters",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-176848.796875,
--97511.15625,
-10978.4326171875
-],
-"rot": [
-0,
-0,
--180.00006937050819
-]
-},
-{
-"name": "Riften Valindors House",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-175088.28125,
--97357.3359375,
-10763.8994140625
-],
-"rot": [
-0,
-0,
--79.58363047642707
-]
-},
-{
-"name": "Riften World 42,-24 (Riften World) 42,-24",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-173481.64,
--99978.98,
-11586.25
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Riften World 42,-24 (Riften World) 42,-24",
-"region": "Skyrim",
-"world": "16bb4:Skyrim.esm",
-"worldName": "Riften World",
-"pos": [
-173415.2,
--96600.15,
-11168.01
 ],
 "rot": [
 0,
@@ -4882,6 +8578,54 @@
 ]
 },
 {
+"name": "Rorikstead",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-84302.12,
+6952.01,
+-4233.68
+],
+"rot": [
+0,
+0,
+319.89391056
+]
+},
+{
+"name": "Ruins of Bthalft",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+87427.05,
+-86991.86,
+12059.47
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Ruins of Rkund",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+154614.36,
+-125430.34,
+14962.92
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Rundi's Site",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4895,6 +8639,118 @@
 0,
 0,
 42.97185
+]
+},
+{
+"name": "Ruunvald Excavation",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+182671.7,
+-59176.18,
+9698.78
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Saarthal",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+92005.15,
+91812.23,
+-11362.98
+],
+"rot": [
+0,
+0,
+90.00024264
+]
+},
+{
+"name": "Sacellum of Boethiah",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+161866.31,
+26717.74,
+-3936.33
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Sadri's Used Wares",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+140494.390625,
+38657.8203125,
+-12897.978515625
+],
+"rot": [
+0,
+0,
+-90.00003468525409
+]
+},
+{
+"name": "Salvius Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-164369.48,
+5654.13,
+-4434.7
+],
+"rot": [
+0,
+0,
+353.69843255999996
+]
+},
+{
+"name": "Sarethi Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+112594.89,
+-70922.4,
+11581.47
+],
+"rot": [
+0,
+0,
+238.24739556
+]
+},
+{
+"name": "Secunda's Kiss",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-3030.5,
+-28057.26,
+-3678.1
+],
+"rot": [
+0,
+0,
+173.78962056
 ]
 },
 {
@@ -4914,6 +8770,22 @@
 ]
 },
 {
+"name": "Serpent's Bluff Redoubt",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-96798.43,
+-5846.11,
+2023.99
+],
+"rot": [
+0,
+0,
+260.21460528
+]
+},
+{
 "name": "Serpent's Trail 3,-26",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4930,6 +8802,22 @@
 ]
 },
 {
+"name": "Severio Pelagias' House",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+23549.146484375,
+-7044.87548828125,
+-3118.715087890625
+],
+"rot": [
+0,
+0,
+-166.67249406251906
+]
+},
+{
 "name": "Seviana's House",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4943,6 +8831,118 @@
 0,
 0,
 180.00048528
+]
+},
+{
+"name": "Shadowgreen Cavern",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-75329.05,
+124194.55,
+-12658.0
+],
+"rot": [
+0,
+0,
+185.24878056
+]
+},
+{
+"name": "Sharpslope Cave",
+"region": "Skyrim",
+"world": "bb5:Dawnguard.esm",
+"worldName": "Falmer Valley",
+"pos": [
+-24228.6875,
+17863.580078125,
+3191.93359375
+],
+"rot": [
+0,
+0,
+89.5643504226923
+]
+},
+{
+"name": "Shearpoint",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+69753.99,
+19533.77,
+1470.84
+],
+"rot": [
+0,
+0,
+30.939732000000003
+]
+},
+{
+"name": "Shimmermist Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+47535.82,
+10424.58,
+-3043.34
+],
+"rot": [
+0,
+0,
+42.97185
+]
+},
+{
+"name": "Shor's Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+162923.75,
+-60529.57,
+7226.24
+],
+"rot": [
+0,
+0,
+245.40937055999999
+]
+},
+{
+"name": "Shor's Watchtower",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+168745.72,
+-51129.52,
+5712.0
+],
+"rot": [
+0,
+0,
+337.08265056000005
+]
+},
+{
+"name": "Shrine of Azura",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+111395.2,
+77770.03,
+2443.63
+],
+"rot": [
+0,
+0,
+314.16433056
 ]
 },
 {
@@ -4978,6 +8978,22 @@
 ]
 },
 {
+"name": "Shrine of Mehrunes Dagon",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-624.84,
+51726.97,
+595.3
+],
+"rot": [
+0,
+0,
+206.73470556
+]
+},
+{
 "name": "Shrine of Mephala",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -4994,7 +9010,7 @@
 ]
 },
 {
-"name": "Shrine of Namira -40,7",
+"name": "Shrine of Namira",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
 "worldName": "Tamriel",
@@ -5042,6 +9058,134 @@
 ]
 },
 {
+"name": "Shrine of Talos",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-175897.90625,
+4749.73974609375,
+-2665.83447265625
+],
+"rot": [
+0,
+0,
+-105.00003705103397
+]
+},
+{
+"name": "Shrine to Peryite",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-145330.05,
+39731.73,
+-122.53999999999999
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Shroud Hearth Barrow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+79475.87,
+-62330.43,
+11664.0
+],
+"rot": [
+0,
+0,
+49.297306320000004
+]
+},
+{
+"name": "Shrouded Grove",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+58938.76,
+43054.04,
+-8672.29
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Sightless Pit",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+99977.41,
+78693.8,
+-5367.86
+],
+"rot": [
+0,
+0,
+113.159205
+]
+},
+{
+"name": "Silent Moons Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+2903.73,
+15858.53,
+-4278.33
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Silver-Blood Inn",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-174538.46875,
+4971.02978515625,
+-3242.26123046875
+],
+"rot": [
+0,
+0,
+39.27058624080419
+]
+},
+{
+"name": "Silverdrift Lair",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+59246.52,
+53587.25,
+-7653.84
+],
+"rot": [
+0,
+0,
+353.67551424
+]
+},
+{
 "name": "Skuldafn",
 "region": "Skyrim",
 "world": "278dd:Skyrim.esm",
@@ -5074,6 +9218,134 @@
 ]
 },
 {
+"name": "Sky Haven Temple",
+"region": "Skyrim",
+"world": "35699:Skyrim.esm",
+"worldName": "Karthspire Redoubt World",
+"pos": [
+130399.02,
+-2040.9,
+2978.06
+],
+"rot": [
+0,
+0,
+270.722655
+]
+},
+{
+"name": "Skyborn Altar",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-5305.2,
+48248.64,
+403.83
+],
+"rot": [
+0,
+0,
+25.78311
+]
+},
+{
+"name": "Skytemple Ruins",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+119881.54,
+121615.3,
+-10478.77
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Sleeping Tree Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-39379.32,
+-18163.83,
+-5414.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Smelter Overseer's House",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-173169.3125,
+1739.0325927734375,
+-3389.665283203125
+],
+"rot": [
+0,
+0,
+-35.18866907286644
+]
+},
+{
+"name": "Snapleg Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+116396.75,
+-55510.1,
+5605.56
+],
+"rot": [
+0,
+0,
+174.75218999999998
+]
+},
+{
+"name": "Snow Veil Sanctum",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+145508.58,
+71698.12,
+-9287.42
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Snow-Shod Farm",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+165899.84,
+-108707.37,
+11321.86
+],
+"rot": [
+0,
+0,
+304.13756556000004
+]
+},
+{
 "name": "Snowhawk",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -5090,67 +9362,35 @@
 ]
 },
 {
-"name": "Solitude Addvars House",
+"name": "Snowpoint Beacon",
 "region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--56631.3984375,
-105252.453125,
--8537.5595703125
+53805.7,
+70741.63,
+-1275.82
 ],
 "rot": [
 0,
 0,
-50.000018131220344
+0.0
 ]
 },
 {
-"name": "Solitude Angelines Aromatics",
+"name": "Solitude",
 "region": "Skyrim",
 "world": "37edf:Skyrim.esm",
 "worldName": "Solitude World",
 "pos": [
--63395.2109375,
-106395.6875,
--8321.8740234375
+-64943.0,
+104648.0,
+-8362.01
 ],
 "rot": [
 0,
 0,
-170.00006779332162
-]
-},
-{
-"name": "Solitude Bards College",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--53854.0,
-104099.0,
--8961.4033203125
-],
-"rot": [
-0,
-0,
-135.8369656514168
-]
-},
-{
-"name": "Solitude Bits And Pieces",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--62915.49609375,
-105653.0,
--8342.8095703125
-],
-"rot": [
-0,
-0,
--17.891188324284553
+83.78937791999999
 ]
 },
 {
@@ -5167,38 +9407,6 @@
 0,
 0,
 -164.4842645945549
-]
-},
-{
-"name": "Solitude Blue Palace",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--60676.9296875,
-110457.15625,
--7216.0
-],
-"rot": [
-0,
-0,
--135.00004861278535
-]
-},
-{
-"name": "Solitude Castle Dour Emperors Tower",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--60304.0,
-106848.0,
--6851.33544921875
-],
-"rot": [
-0,
-0,
-180.00006937050819
 ]
 },
 {
@@ -5234,38 +9442,6 @@
 ]
 },
 {
-"name": "Solitude Evette Sans House",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--56170.8671875,
-104975.796875,
--8462.787109375
-],
-"rot": [
-0,
-0,
-40.00001313893795
-]
-},
-{
-"name": "Solitude Fletcher",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--62471.140625,
-107548.9140625,
--7840.76904296875
-],
-"rot": [
-0,
-0,
--171.9744303015232
-]
-},
-{
 "name": "Solitude Jail",
 "region": "Skyrim",
 "world": "37edf:Skyrim.esm",
@@ -5282,19 +9458,19 @@
 ]
 },
 {
-"name": "Solitude Jalas House",
+"name": "Solitude Lighthouse",
 "region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--55900.0,
-104277.0,
--8678.0
+-47781.56,
+128632.23,
+-12843.54
 ],
 "rot": [
 0,
 0,
-135.7296496808052
+0.0
 ]
 },
 {
@@ -5314,35 +9490,19 @@
 ]
 },
 {
-"name": "Solitude Proudspire Manor",
+"name": "Solitude Sawmill",
 "region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--55824.0,
-105424.0,
--8688.0
+-78243.84,
+91172.88,
+-13693.82
 ],
 "rot": [
 0,
 0,
--139.89261048731805
-]
-},
-{
-"name": "Solitude Radiant Raiments",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--63786.3125,
-104633.171875,
--8310.40625
-],
-"rot": [
-0,
-0,
--17.91820856230259
+64.457775
 ]
 },
 {
@@ -5367,78 +9527,14 @@
 "world": "37edf:Skyrim.esm",
 "worldName": "Solitude World",
 "pos": [
--55439.83203125,
-104236.765625,
--8733.8037109375
+-62547.76171875,
+106269.171875,
+-8346.884765625
 ],
 "rot": [
 0,
 0,
-315.0001043229103
-]
-},
-{
-"name": "Solitude Vittoria Vicis House",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--57119.20703125,
-107499.8984375,
--8533.474609375
-],
-"rot": [
-0,
-0,
--90.00003468525409
-]
-},
-{
-"name": "Solitude Winking Skeever",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--64530.14453125,
-105551.046875,
--8317.6083984375
-],
-"rot": [
-0,
-0,
-130.00004782419205
-]
-},
-{
-"name": "Solitude World -13,25",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--51765.93,
-100954.72,
--8482.41
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Solitude World -16,26",
-"region": "Skyrim",
-"world": "37edf:Skyrim.esm",
-"worldName": "Solitude World",
-"pos": [
--64943.0,
-104648.0,
--8362.01
-],
-"rot": [
-0,
-0,
-83.78937791999999
+45.000017342627046
 ]
 },
 {
@@ -5450,6 +9546,214 @@
 -117661.1,
 6256.96,
 -5355.4
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "South Brittleshin Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-19772.93,
+-50326.63,
+2367.52
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "South Cold Rock Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-47526.35,
+32109.52,
+-1603.47
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "South Shriekwind Bastion",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-24357.18,
+-77668.46,
+1809.12
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "South Skybound Watch",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+21064.99,
+-69234.73,
+10956.35
+],
+"rot": [
+0,
+0,
+248.27416055999998
+]
+},
+{
+"name": "Southfringe Sanctum",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+31992.09,
+-105983.98,
+16744.99
+],
+"rot": [
+0,
+0,
+189.5345064
+]
+},
+{
+"name": "Statue to Meridia",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-94075.48,
+99077.05,
+-6961.5
+],
+"rot": [
+0,
+0,
+251.71190856
+]
+},
+{
+"name": "Steamcrag Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+143525.11,
+-9970.85,
+-9451.92
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Steepfall Burrow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-128561.06,
+114960.88,
+-10494.62
+],
+"rot": [
+0,
+0,
+180.48176999999998
+]
+},
+{
+"name": "Stendarr's Beacon",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+197150.83,
+-116937.0,
+13455.12
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Stillborn Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+128703.98,
+64120.88,
+-6021.77
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Stonehill Bluff",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+16748.33,
+43798.6,
+-1108.51
+],
+"rot": [
+0,
+0,
+279.78685056
+]
+},
+{
+"name": "Stonehills",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-7283.33,
+64266.83,
+-11397.73
+],
+"rot": [
+0,
+0,
+94.53806999999999
+]
+},
+{
+"name": "Stony Creek Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+174741.98,
+-24827.78,
+-3286.07
 ],
 "rot": [
 0,
@@ -5474,1207 +9778,7 @@
 ]
 },
 {
-"name": "Tamriel -1,-7",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--3030.5,
--28057.26,
--3678.1
-],
-"rot": [
-0,
-0,
-173.78962056
-]
-},
-{
-"name": "Tamriel -1,12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--5305.2,
-48248.64,
-403.83
-],
-"rot": [
-0,
-0,
-25.78311
-]
-},
-{
-"name": "Tamriel -1,25",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--2159.26,
-101148.73,
--11030.75
-],
-"rot": [
-0,
-0,
-225.23551938
-]
-},
-{
-"name": "Tamriel -10,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--42817.49,
--58192.09,
-1018.63
-],
-"rot": [
-0,
-0,
-16.902261
-]
-},
-{
-"name": "Tamriel -10,-24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--42999.38,
--96533.42,
-201.06
-],
-"rot": [
-0,
-0,
-322.75870056
-]
-},
-{
-"name": "Tamriel -10,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--39379.32,
--18163.83,
--5414.76
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -10,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--41375.18,
-35963.88,
-2666.32
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -11,-19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--43392.99,
--78762.32,
--2828.09
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -11,1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--46078.73,
-2081.43,
--6393.22
-],
-"rot": [
-0,
-0,
-97.40286
-]
-},
-{
-"name": "Tamriel -12,-17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--51017.67,
--67845.02,
--828.24
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -12,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--50831.61,
--14939.19,
--5484.55
-],
-"rot": [
-0,
-0,
-180.00048528
-]
-},
-{
-"name": "Tamriel -12,22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--47866.49,
-91436.53,
--13324.65
-],
-"rot": [
-0,
-0,
-348.54181056
-]
-},
-{
-"name": "Tamriel -12,26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--48837.0,
-107198.0,
--13485.0
-],
-"rot": [
-0,
-0,
-15.00004044
-]
-},
-{
-"name": "Tamriel -12,31",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--47781.56,
-128632.23,
--12843.54
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -12,6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--47295.46,
-26143.58,
--3848.37
-],
-"rot": [
-0,
-0,
-24.350715
-]
-},
-{
-"name": "Tamriel -12,8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--47526.35,
-32109.52,
--1603.47
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -12,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--47481.76,
-37647.79,
--2763.52
-],
-"rot": [
-0,
-0,
-24.637194
-]
-},
-{
-"name": "Tamriel -13,-21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--55069.85,
--87685.7,
--2288.12
-],
-"rot": [
-0,
-0,
-210.00056616
-]
-},
-{
-"name": "Tamriel -13,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--55217.25,
-43482.8,
--8317.16
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -13,30",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--51839.71,
-122304.42,
--13616.05
-],
-"rot": [
-0,
-0,
-196.70794056
-]
-},
-{
-"name": "Tamriel -13,32",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--54049.48,
-131833.75,
--13298.04
-],
-"rot": [
-0,
-0,
-341.95279356000003
-]
-},
-{
-"name": "Tamriel -14,-12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--56529.45,
--49859.12,
-1368.0
-],
-"rot": [
-0,
-0,
-194.80572
-]
-},
-{
-"name": "Tamriel -14,-13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--56671.73,
--54925.42,
-1623.15
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -14,-15",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--57304.63,
--62109.05,
-1831.11
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -14,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--55914.28,
-79726.09,
--13844.78
-],
-"rot": [
-0,
-0,
-45.83664
-]
-},
-{
-"name": "Tamriel -15,-2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--62275.79,
--9459.04,
--5837.35
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -15,-9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--60412.62,
--38381.41,
--676.84
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -15,1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--62784.13,
-2443.53,
--5342.22
-],
-"rot": [
-0,
-0,
-91.67328
-]
-},
-{
-"name": "Tamriel -16,13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--67284.11,
-52917.94,
--10624.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -16,24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--66223.09,
-98838.51,
--13817.81
-],
-"rot": [
-0,
-0,
-331.35307056
-]
-},
-{
-"name": "Tamriel -16,35",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--66962.87,
-141811.98,
--13579.26
-],
-"rot": [
-0,
-0,
-40.10706
-]
-},
-{
-"name": "Tamriel -17,-13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--68047.05,
--51560.11,
-526.73
-],
-"rot": [
-0,
-0,
-231.08542056
-]
-},
-{
-"name": "Tamriel -17,-16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--70131.27,
--66860.66,
-2841.18
-],
-"rot": [
-0,
-0,
-271.19248056
-]
-},
-{
-"name": "Tamriel -17,-20",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--70966.06,
--80572.62,
--394.83
-],
-"rot": [
-0,
-0,
-25.78311
-]
-},
-{
-"name": "Tamriel -17,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--71485.6,
-44119.19,
--12096.48
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -17,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--70775.61,
-21483.23,
--5532.67
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -17,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--67686.01,
-36949.39,
--8190.67
-],
-"rot": [
-0,
-0,
-163.29303000000002
-]
-},
-{
-"name": "Tamriel -18,-6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--72571.38,
--24475.15,
-246.52
-],
-"rot": [
-0,
-0,
-83.07891
-]
-},
-{
-"name": "Tamriel -18,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--72132.37,
-76174.05,
--12595.54
-],
-"rot": [
-0,
-0,
-60.16059
-]
-},
-{
-"name": "Tamriel -18,24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--74344.16,
-96470.01,
--11448.0
-],
-"rot": [
-0,
-0,
-31.982515560000003
-]
-},
-{
-"name": "Tamriel -18,30",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--75329.05,
-124194.55,
--12658.0
-],
-"rot": [
-0,
-0,
-185.24878056
-]
-},
-{
-"name": "Tamriel -19,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--78689.48,
--55425.25,
-4301.62
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -19,22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--78243.84,
-91172.88,
--13693.82
-],
-"rot": [
-0,
-0,
-64.457775
-]
-},
-{
-"name": "Tamriel -19,27",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--79067.29,
-111308.16,
--2537.89
-],
-"rot": [
-0,
-0,
-339.22551348
-]
-},
-{
-"name": "Tamriel -2,-19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--9403.51,
--76356.99,
-2851.12
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -2,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--7283.33,
-64266.83,
--11397.73
-],
-"rot": [
-0,
-0,
-94.53806999999999
-]
-},
-{
-"name": "Tamriel -20,12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--80784.0,
-47328.0,
--12224.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -21,17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--85229.89,
-68069.48,
--11166.97
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -21,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--84302.12,
-6952.01,
--4233.68
-],
-"rot": [
-0,
-0,
-319.89391056
-]
-},
-{
-"name": "Tamriel -22,-9 (Tamriel) -22,-9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--89949.95,
--36677.4,
-1931.57
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -22,-9 (Tamriel) -22,-9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--91689.07,
--35972.17,
-2020.06
-],
-"rot": [
-0,
-0,
-5.72958
-]
-},
-{
-"name": "Tamriel -22,28",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--92048.54,
-112676.59,
--2974.46
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -22,31",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--91591.09,
-126460.16,
--13732.8
-],
-"rot": [
-0,
-0,
-355.70378556
-]
-},
-{
-"name": "Tamriel -22,4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--91151.81,
-17541.57,
--3720.35
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -23,22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--92573.87,
-89628.8,
--12136.44
-],
-"rot": [
-0,
-0,
-5.87854908
-]
-},
-{
-"name": "Tamriel -23,24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--94075.48,
-99077.05,
--6961.5
-],
-"rot": [
-0,
-0,
-251.71190856
-]
-},
-{
-"name": "Tamriel -24,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--96798.43,
--5846.11,
-2023.99
-],
-"rot": [
-0,
-0,
-260.21460528
-]
-},
-{
-"name": "Tamriel -24,-6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--100254.3,
--24965.62,
--5218.28
-],
-"rot": [
-0,
-0,
-205.30231056
-]
-},
-{
-"name": "Tamriel -24,-8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--99712.8,
--33860.88,
-2598.98
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -24,26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--97493.83,
-107386.21,
--5621.54
-],
-"rot": [
-0,
-0,
-85.9437
-]
-},
-{
-"name": "Tamriel -24,28",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--96269.96,
-115525.7,
--4114.98
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -25,14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--101071.12,
-58377.38,
--11869.96
-],
-"rot": [
-0,
-0,
-271.62219906
-]
-},
-{
-"name": "Tamriel -25,17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--104248.06,
-68533.12,
--7703.82
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -26,14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--107785.15,
-56745.64,
--7543.97
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -26,4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--105457.1,
-14530.07,
-1315.45
-],
-"rot": [
-0,
-0,
-347.10941556
-]
-},
-{
-"name": "Tamriel -27,10",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--108567.98,
-40085.24,
--5167.63
-],
-"rot": [
-0,
-0,
-29.220858
-]
-},
-{
-"name": "Tamriel -27,23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--108572.21,
-96024.71,
--7616.63
-],
-"rot": [
-0,
-0,
-276.92206056
-]
-},
-{
-"name": "Tamriel -27,28",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--112292.05,
-114083.42,
--5338.29
-],
-"rot": [
-0,
-0,
-303.70211748
-]
-},
-{
-"name": "Tamriel -27,6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--109696.0,
-23216.0,
-37.31
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -28,-2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--114541.54,
--6795.56,
--5239.88
-],
-"rot": [
-0,
-0,
-84.51130500000001
-]
-},
-{
-"name": "Tamriel -28,-8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--114984.01,
--31214.49,
-449.14
-],
-"rot": [
-0,
-0,
-190.97836056
-]
-},
-{
-"name": "Tamriel -28,12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--113431.45,
-50797.19,
--6144.0
-],
-"rot": [
-0,
-0,
-31.249129319999998
-]
-},
-{
-"name": "Tamriel -29,12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--119234.29,
-50267.85,
--8244.54
-],
-"rot": [
-0,
-0,
-359.42801256
-]
-},
-{
-"name": "Tamriel -29,23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--116902.43,
-92399.13,
--7254.15
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -29,32",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--120724.02,
-129226.57,
--13788.66
-],
-"rot": [
-0,
-0,
-28.6479
-]
-},
-{
-"name": "Tamriel -29,7",
+"name": "Sundered Towers",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
 "worldName": "Tamriel",
@@ -6690,3955 +9794,51 @@
 ]
 },
 {
-"name": "Tamriel -3,-2",
+"name": "Sunderstone Gorge",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
 "worldName": "Tamriel",
 "pos": [
--13759.42,
--8447.58,
--5488.0
+-60412.62,
+-38381.41,
+-676.84
 ],
 "rot": [
 0,
 0,
-50.993262
-]
-},
-{
-"name": "Tamriel -3,-23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--13272.54,
--95940.77,
-9692.43
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -3,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--12525.4,
-46844.58,
--6785.18
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -3,21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--10857.73,
-84544.58,
--12728.0
-],
-"rot": [
-0,
-0,
-87.05523852
-]
-},
-{
-"name": "Tamriel -31,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--124953.65,
-63580.45,
--8915.55
-],
-"rot": [
-0,
-0,
-137.69326656
-]
-},
-{
-"name": "Tamriel -31,25",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--127416.27,
-101409.52,
--7432.27
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -31,28",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--128561.06,
-114960.88,
--10494.62
-],
-"rot": [
-0,
-0,
-180.48176999999998
-]
-},
-{
-"name": "Tamriel -31,4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--125628.23,
-15531.68,
--4847.3
-],
-"rot": [
-0,
-0,
-68.75496
-]
-},
-{
-"name": "Tamriel -32,2 (Tamriel) -32,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--129040.0,
-9360.0,
--7920.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -32,2 (Tamriel) -32,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--132336.83,
-6655.9,
--7098.83
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -32,20",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--132981.61,
-80260.66,
--4872.58
-],
-"rot": [
-0,
-0,
-210.00056616
-]
-},
-{
-"name": "Tamriel -32,23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--130324.42,
-92287.09,
--6695.67
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -32,29",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--130864.29,
-120263.76,
--13599.03
-],
-"rot": [
-0,
-0,
-154.69866000000002
-]
-},
-{
-"name": "Tamriel -32,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--132699.81,
-22432.12,
--4140.97
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -32,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--132747.61,
-38548.57,
--6129.74
-],
-"rot": [
-0,
-0,
-253.53964458
-]
-},
-{
-"name": "Tamriel -33,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--133685.33,
--11703.22,
--5265.33
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -33,14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--137142.45,
-55392.14,
--7698.87
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -34,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--140947.84,
--3609.05,
--7216.98
-],
-"rot": [
-0,
-0,
-221.161788
-]
-},
-{
-"name": "Tamriel -34,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--139694.88,
--12857.35,
--1272.54
-],
-"rot": [
-0,
-0,
-45.83664
-]
-},
-{
-"name": "Tamriel -34,-8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--139019.11,
--31984.97,
-1234.76
-],
-"rot": [
-0,
-0,
-123.18597
-]
-},
-{
-"name": "Tamriel -35,10",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--145330.05,
-39731.73,
--122.53999999999999
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -35,12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--141731.94,
-50230.08,
--3590.33
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -35,24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--142901.27,
-99301.4,
--3906.76
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -35,26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--143621.08,
-105373.64,
--7303.02
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -35,29",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--144429.89,
-117428.24,
--13522.95
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -35,6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--141784.84,
-23524.71,
--7934.22
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -36,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--148452.92,
--12832.78,
--3840.55
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -36,-6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--145542.66,
--22742.33,
--988.3199999999999
-],
-"rot": [
-0,
-0,
-252.97241615999997
-]
-},
-{
-"name": "Tamriel -36,3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--148569.27,
-14191.61,
--5924.94
-],
-"rot": [
-0,
-0,
-359.42801256
-]
-},
-{
-"name": "Tamriel -37,20",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--151658.45,
-81846.96,
--5516.79
-],
-"rot": [
-0,
-0,
-274.05727056
-]
-},
-{
-"name": "Tamriel -37,30",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--151118.11,
-122293.65,
--13851.31
-],
-"rot": [
-0,
-0,
-309.86714556
-]
-},
-{
-"name": "Tamriel -37,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--150412.83,
-20214.94,
--3079.41
-],
-"rot": [
-0,
-0,
-81.64651500000001
-]
-},
-{
-"name": "Tamriel -38,14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--153779.8,
-58854.89,
--5897.33
-],
-"rot": [
-0,
-0,
-51.56622
-]
-},
-{
-"name": "Tamriel -38,18",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--154519.33,
-72470.8,
--5182.64
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -39,-5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--158278.45,
--20197.83,
-1101.11
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -4,-21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--17962.85,
--87702.87,
-1615.06
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -4,18",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--18316.04,
-72236.74,
--12715.02
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -4,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--15254.3,
-7226.89,
--7305.2
-],
-"rot": [
-0,
-0,
-30.366774000000003
-]
-},
-{
-"name": "Tamriel -4,4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--17461.4,
-18255.03,
--6182.86
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -40,0",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--165486.5,
--313.71,
--4293.2
-],
-"rot": [
-0,
-0,
-70.473834
-]
-},
-{
-"name": "Tamriel -40,1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--164369.48,
-5654.13,
--4434.7
-],
-"rot": [
-0,
-0,
-353.69843255999996
-]
-},
-{
-"name": "Tamriel -40,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--163984.23,
-45861.83,
--3712.0
-],
-"rot": [
-0,
-0,
-20.05353
-]
-},
-{
-"name": "Tamriel -40,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--161881.86,
-35446.16,
--2859.66
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -41,15",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--168905.09,
-59403.28,
--4357.68
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -42,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--173318.17,
--17115.7,
-4382.81
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -42,7",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--173684.12,
-26640.24,
--67.03
-],
-"rot": [
-0,
-0,
-299.5997382
-]
-},
-{
-"name": "Tamriel -43,36",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--177218.92,
-147389.3,
--12407.96
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -44,-5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--180419.69,
--19103.91,
-6652.75
-],
-"rot": [
-0,
-0,
-212.70492792000002
-]
-},
-{
-"name": "Tamriel -5,-12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--19772.93,
--50326.63,
-2367.52
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -5,10",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--18640.75,
-42158.88,
--7784.6
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -5,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--19539.53,
-79464.11,
--13703.71
-],
-"rot": [
-0,
-0,
-180.72814194
-]
-},
-{
-"name": "Tamriel -5,26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--19007.56,
-106130.19,
--12570.49
-],
-"rot": [
-0,
-0,
-159.46567056
-]
-},
-{
-"name": "Tamriel -5,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--18760.39,
-21080.1,
--6464.66
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -6,-19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--24357.18,
--77668.46,
-1809.12
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -6,-26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--26613.97,
--104900.12,
-12603.69
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -6,-8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--23244.13,
--34273.73,
--4023.92
-],
-"rot": [
-0,
-0,
-176.65441056
-]
-},
-{
-"name": "Tamriel -6,22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--23079.79,
-88176.74,
--13714.18
-],
-"rot": [
-0,
-0,
-353.69843255999996
-]
-},
-{
-"name": "Tamriel -7,-12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--30266.24,
--49106.42,
-824.47
-],
-"rot": [
-0,
-0,
-289.71048312
-]
-},
-{
-"name": "Tamriel -7,-17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--27043.31,
--71144.67,
-2134.76
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -7,-21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--30296.33,
--86283.9,
--3042.81
-],
-"rot": [
-0,
-0,
-238.24739556
-]
-},
-{
-"name": "Tamriel -7,4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--27123.6,
-15155.51,
--6905.79
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -7,7",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--30648.56,
-26970.15,
--4274.37
-],
-"rot": [
-0,
-0,
-20.05353
-]
-},
-{
-"name": "Tamriel -8,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--32442.31,
--55637.39,
-783.03
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel -8,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--31903.55,
-77294.69,
--13443.91
-],
-"rot": [
-0,
-0,
-36.096354
-]
-},
-{
-"name": "Tamriel -8,23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--34081.84,
-93829.61,
--13795.02
-],
-"rot": [
-0,
-0,
-74.48454
-]
-},
-{
-"name": "Tamriel -9,-9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--37646.53,
--36967.41,
--3523.07
-],
-"rot": [
-0,
-0,
-179.908812
-]
-},
-{
-"name": "Tamriel -9,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--38639.74,
-66734.3,
--13180.29
-],
-"rot": [
-0,
-0,
-84.51130500000001
-]
-},
-{
-"name": "Tamriel 0,-10",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-1482.46,
--41162.32,
-5790.51
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 0,-13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-667.69,
--52576.5,
-1792.0
-],
-"rot": [
-0,
-0,
-40.10706
-]
-},
-{
-"name": "Tamriel 0,-24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--1541.26,
--99092.73,
-15597.39
-],
-"rot": [
-0,
-0,
-185.24878056
-]
-},
-{
-"name": "Tamriel 0,-27",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-335.92,
--110710.48,
-16087.65
-],
-"rot": [
-0,
-0,
-228.22063056000002
-]
-},
-{
-"name": "Tamriel 0,0",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-1538.88,
-1305.98,
--5731.57
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 0,13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
--624.84,
-51726.97,
-595.3
-],
-"rot": [
-0,
-0,
-206.73470556
-]
-},
-{
-"name": "Tamriel 1,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-2806.98,
--59215.85,
-1500.49
-],
-"rot": [
-0,
-0,
-228.22063056000002
-]
-},
-{
-"name": "Tamriel 1,-22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-2534.86,
--90975.26,
-8805.4
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 1,14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-5821.23,
-56397.97,
-241.58
-],
-"rot": [
-0,
-0,
-275.01984
-]
-},
-{
-"name": "Tamriel 1,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-5444.96,
-64838.25,
--4881.42
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 1,4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-2903.73,
-15858.53,
--4278.33
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 10,-18",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-39501.36,
--74989.62,
-13491.45
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 10,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-41828.3,
--14683.13,
--1742.94
-],
-"rot": [
-0,
-0,
-66.82982112
-]
-},
-{
-"name": "Tamriel 10,10",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-39159.85,
-39374.94,
--8636.76
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 10,17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-42938.78,
-70896.49,
--8750.58
-],
-"rot": [
-0,
-0,
-320.73042924000003
-]
-},
-{
-"name": "Tamriel 10,25",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-40560.0,
-101184.0,
--6320.0
-],
-"rot": [
-0,
-0,
-350.78780592
-]
-},
-{
-"name": "Tamriel 11,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-44570.14,
-46989.29,
--8881.83
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 11,14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-46034.06,
-59378.51,
--7367.84
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 12,-1 (Tamriel) 12,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-49824.22,
--2452.27,
--2739.7
-],
-"rot": [
-0,
-0,
-353.12547456
-]
-},
-{
-"name": "Tamriel 12,-1 (Tamriel) 12,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-50863.04,
--5304.17,
--1327.6
-],
-"rot": [
-0,
-0,
-229.1832
-]
-},
-{
-"name": "Tamriel 12,3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-47535.82,
-10424.58,
--3043.34
-],
-"rot": [
-0,
-0,
-42.97185
-]
-},
-{
-"name": "Tamriel 12,30",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-51131.5,
-124633.03,
--13936.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 13,-20",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-54739.71,
--81395.8,
-15468.75
-],
-"rot": [
-0,
-0,
-166.92558372000002
-]
-},
-{
-"name": "Tamriel 13,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-51979.77,
--16247.25,
--629.91
-],
-"rot": [
-0,
-0,
-182.38399056
-]
-},
-{
-"name": "Tamriel 13,-9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-52070.79,
--36267.07,
-22633.35
-],
-"rot": [
-0,
-0,
-176.184585
-]
-},
-{
-"name": "Tamriel 13,17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-53805.7,
-70741.63,
--1275.82
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 13,23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-51947.7,
-95472.13,
--6804.51
-],
-"rot": [
-0,
-0,
-219.62626056000002
-]
-},
-{
-"name": "Tamriel 14,-12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-56368.15,
--48511.39,
-36442.58
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 14,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-58938.76,
-43054.04,
--8672.29
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 14,13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-59246.52,
-53587.25,
--7653.84
-],
-"rot": [
-0,
-0,
-353.67551424
-]
-},
-{
-"name": "Tamriel 14,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-55736.64,
-79560.29,
--4951.81
-],
-"rot": [
-0,
-0,
-90.00024264
-]
-},
-{
-"name": "Tamriel 14,8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-55348.7,
-34571.23,
--8108.38
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 16,-24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-66949.97,
--99471.28,
-17365.59
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 16,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-63808.29,
-9247.29,
--753.96
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 16,22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-64339.89,
-88970.59,
--4881.32
-],
-"rot": [
-0,
-0,
-180.00048528
-]
-},
-{
-"name": "Tamriel 17,-21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-71488.0,
--84160.0,
-10720.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 17,14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-70652.49,
-57152.88,
--4004.54
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 17,23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-68591.04,
-96020.15,
--12104.0
-],
-"rot": [
-0,
-0,
-211.03189056
-]
-},
-{
-"name": "Tamriel 17,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-69753.99,
-19533.77,
-1470.84
-],
-"rot": [
-0,
-0,
-30.939732000000003
-]
-},
-{
-"name": "Tamriel 17,8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-67922.71,
-30777.96,
--6890.69
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 18,-13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-75298.43,
--54368.77,
-10321.14
-],
-"rot": [
-0,
-0,
-315.59672556000004
-]
-},
-{
-"name": "Tamriel 18,-2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-72850.61,
--10225.92,
--304.63
-],
-"rot": [
-0,
-0,
-13.178034
-]
-},
-{
-"name": "Tamriel 18,0",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-74450.35,
--1043.84,
--4228.76
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 18,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-73827.37,
-46034.7,
--6071.29
-],
-"rot": [
-0,
-0,
-355.13082756
-]
-},
-{
-"name": "Tamriel 18,26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-71827.42,
-106133.61,
--10977.48
-],
-"rot": [
-0,
-0,
-246.37194
-]
-},
-{
-"name": "Tamriel 19,-15",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-79475.87,
--62330.43,
-11664.0
-],
-"rot": [
-0,
-0,
-49.297306320000004
-]
-},
-{
-"name": "Tamriel 19,-16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-76374.61,
--64262.79,
-10882.83
-],
-"rot": [
-0,
-0,
-58.72819499999999
-]
-},
-{
-"name": "Tamriel 19,-19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-79467.5,
--76043.88,
-11076.58
-],
-"rot": [
-0,
-0,
-151.83387
-]
-},
-{
-"name": "Tamriel 19,15",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-76030.86,
-62787.89,
--742.67
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 19,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-78347.01,
-77408.62,
--4179.42
-],
-"rot": [
-0,
-0,
-22.91832
-]
-},
-{
-"name": "Tamriel 19,6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-77330.65,
-26481.13,
--6412.38
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 2,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-8248.99,
--57382.94,
-1554.98
-],
-"rot": [
-0,
-0,
-333.64490256
-]
-},
-{
-"name": "Tamriel 2,20",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-6983.83,
-83956.08,
--10886.97
-],
-"rot": [
-0,
-0,
-315.00084924
-]
-},
-{
-"name": "Tamriel 20,-21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-80817.92,
--87948.71,
-11108.22
-],
-"rot": [
-0,
-0,
-182.38399056
-]
-},
-{
-"name": "Tamriel 20,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-80895.8,
--17224.87,
--5756.89
-],
-"rot": [
-0,
-0,
-264.03050556
-]
-},
-{
-"name": "Tamriel 20,0",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-81787.93,
--1865.86,
--9539.8
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 20,10",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-83828.56,
-42748.43,
--8656.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 20,29",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-83391.33,
-117696.29,
--17400.62
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 21,-21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-87427.05,
--86991.86,
-12059.47
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 21,-24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-84059.26,
--99526.07,
-16061.83
-],
-"rot": [
-0,
-0,
-268.32769056
-]
-},
-{
-"name": "Tamriel 21,12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-87222.71,
-50363.6,
--6393.16
-],
-"rot": [
-0,
-0,
-45.00012132
-]
-},
-{
-"name": "Tamriel 21,4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-87391.0,
-17980.0,
-560.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 21,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-87883.61,
-35185.57,
--8363.75
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 22,-16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-89472.66,
--64540.47,
-11065.94
-],
-"rot": [
-0,
-0,
-74.48454
-]
-},
-{
-"name": "Tamriel 22,22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-92005.15,
-91812.23,
--11362.98
-],
-"rot": [
-0,
-0,
-90.00024264
-]
-},
-{
-"name": "Tamriel 23,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-92382.28,
--5393.02,
--8293.13
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 23,-25",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-95860.41,
--101620.56,
-18852.75
-],
-"rot": [
-0,
-0,
-34.37748
-]
-},
-{
-"name": "Tamriel 23,-7",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-95320.98,
--28958.37,
--9406.91
-],
-"rot": [
-0,
-0,
-163.29303000000002
-]
-},
-{
-"name": "Tamriel 23,13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-94301.63,
-53066.91,
--3480.27
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 23,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-95163.15,
-67274.68,
-323.37
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 23,29",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-94632.97,
-120811.84,
--13416.66
-],
-"rot": [
-0,
-0,
-95.82149592
-]
-},
-{
-"name": "Tamriel 24,-6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-100335.92,
--22860.76,
--9248.76
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 24,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-99977.41,
-78693.8,
--5367.86
-],
-"rot": [
-0,
-0,
-113.159205
-]
-},
-{
-"name": "Tamriel 25,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-100682.92,
--58661.61,
-11921.97
-],
-"rot": [
-0,
-0,
-322.75870056
-]
-},
-{
-"name": "Tamriel 25,1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-100513.66,
-5877.52,
--7836.16
-],
-"rot": [
-0,
-0,
-302.70517056
-]
-},
-{
-"name": "Tamriel 25,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-103645.71,
-20255.21,
--7967.66
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 26,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-108486.84,
-8720.02,
--9314.89
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 27,-17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-112594.89,
--70922.4,
-11581.47
-],
-"rot": [
-0,
-0,
-238.24739556
-]
-},
-{
-"name": "Tamriel 27,-2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-109029.09,
--6468.94,
--13106.47
-],
-"rot": [
-0,
-0,
-308.43475056
-]
-},
-{
-"name": "Tamriel 27,-20",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-112108.89,
--82836.67,
-11187.92
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 27,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-111747.7,
--14306.34,
--11148.77
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 27,13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-112485.68,
-53760.88,
--2968.26
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 27,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-111395.2,
-77770.03,
-2443.63
-],
-"rot": [
-0,
-0,
-314.16433056
-]
-},
-{
-"name": "Tamriel 27,8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-111621.89,
-32315.97,
--11813.1
-],
-"rot": [
-0,
-0,
-16.615782
-]
-},
-{
-"name": "Tamriel 28,-11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-113334.16,
--46457.66,
--6452.29
-],
-"rot": [
-0,
-0,
-358.10447958
-]
-},
-{
-"name": "Tamriel 28,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-116396.75,
--55510.1,
-5605.56
-],
-"rot": [
-0,
-0,
-174.75218999999998
-]
-},
-{
-"name": "Tamriel 28,-16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-115540.9,
--64977.63,
-11184.0
-],
-"rot": [
-0,
-0,
-90.71071056
-]
-},
-{
-"name": "Tamriel 28,-24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-113490.73,
--97166.72,
-13531.75
-],
-"rot": [
-0,
-0,
-202.91880528
-]
-},
-{
-"name": "Tamriel 28,27",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-116258.92,
-111530.13,
--7656.0
-],
-"rot": [
-0,
-0,
-45.00012132
-]
-},
-{
-"name": "Tamriel 29,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-119817.65,
--5293.93,
--11873.98
-],
-"rot": [
-0,
-0,
-94.53806999999999
-]
-},
-{
-"name": "Tamriel 29,-5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-119987.52,
--22521.09,
--9671.17
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 29,-8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-120427.78,
--33954.4,
--9718.45
-],
-"rot": [
-0,
-0,
-25.78311
-]
-},
-{
-"name": "Tamriel 29,30",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-119881.54,
-121615.3,
--10478.77
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 29,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-119160.63,
-19394.4,
--10110.07
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 3,17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-10241.5,
-71188.25,
--9568.0
-],
-"rot": [
-0,
-0,
-180.48176999999998
-]
-},
-{
-"name": "Tamriel 3,8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-10419.26,
-31079.82,
--767.45
-],
-"rot": [
-0,
-0,
-319.89391056
-]
-},
-{
-"name": "Tamriel 30,-16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-122814.35,
--66093.77,
-12049.25
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 30,-26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-122073.01,
--107290.07,
-13560.59
-],
-"rot": [
-0,
-0,
-352.00247688
-]
-},
-{
-"name": "Tamriel 30,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-121265.52,
-6841.38,
--13520.47
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 31,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-128703.98,
-64120.88,
--6021.77
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 31,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-126388.91,
-76667.81,
--7735.23
-],
-"rot": [
-0,
-0,
-334.21786055999996
-]
-},
-{
-"name": "Tamriel 32,-13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-133092.92,
--54772.02,
-9166.7
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 32,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-132782.62,
--12013.74,
--7814.19
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 32,-7",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-130939.14,
--28770.11,
--10494.59
-],
-"rot": [
-0,
-0,
-65.89017
-]
-},
-{
-"name": "Tamriel 32,20",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-132555.17,
-80185.86,
--9694.46
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 33,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-134199.8,
--3132.15,
--9604.76
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 33,-23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-133151.11,
--95797.19,
-10790.06
-],
-"rot": [
-0,
-0,
-325.33701156
-]
-},
-{
-"name": "Tamriel 33,-27",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-135308.03,
--110597.0,
-11205.81
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 33,3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-134946.92,
-11395.24,
--12135.95
-],
-"rot": [
-0,
-0,
-92.77335936
-]
-},
-{
-"name": "Tamriel 33,6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-135885.88,
-26101.39,
--12284.47
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 34,-8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-137472.0,
--34240.0,
--9685.4
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 35,-2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-143525.11,
--9970.85,
--9451.92
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 35,13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-145204.47,
-55116.42,
--11311.95
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 36,-17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-145918.84,
--68556.68,
-10871.55
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 36,-23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-145743.56,
--92383.42,
-12508.58
-],
-"rot": [
-0,
-0,
-47.555513999999995
-]
-},
-{
-"name": "Tamriel 36,-28",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-149284.67,
--115996.98,
-12607.29
-],
-"rot": [
-0,
-0,
-228.22063056000002
-]
-},
-{
-"name": "Tamriel 36,18",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-145508.58,
-71698.12,
--9287.42
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 36,22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-145834.14,
-90932.18,
--13599.93
-],
-"rot": [
-0,
-0,
-20.05353
-]
-},
-{
-"name": "Tamriel 36,8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-146687.11,
-33898.2,
--13625.36
-],
-"rot": [
-0,
-0,
-83.54873556
-]
-},
-{
-"name": "Tamriel 37,-11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-151221.0,
--45274.86,
-3706.67
-],
-"rot": [
-0,
-0,
-357.13618056
-]
-},
-{
-"name": "Tamriel 37,-13",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-151002.84,
--53453.42,
-13296.52
-],
-"rot": [
-0,
-0,
-357.13618056
-]
-},
-{
-"name": "Tamriel 37,-19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-153153.23,
--79512.03,
-9622.51
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 37,28",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-151704.28,
-116451.33,
--12550.27
-],
-"rot": [
-0,
-0,
-180.48176999999998
-]
-},
-{
-"name": "Tamriel 37,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-149758.33,
-35760.76,
--13172.95
-],
-"rot": [
-0,
-0,
-75.916935
-]
-},
-{
-"name": "Tamriel 38,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-155934.03,
--2257.89,
--6199.46
-],
-"rot": [
-0,
-0,
-111.72681
-]
-},
-{
-"name": "Tamriel 38,-24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-155666.19,
--97516.89,
-11183.64
-],
-"rot": [
-0,
-0,
-169.05698748
-]
-},
-{
-"name": "Tamriel 38,-31",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-154614.36,
--125430.34,
-14962.92
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 39,-29",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-161077.42,
--119788.99,
-11491.21
-],
-"rot": [
-0,
-0,
-137.50992
-]
-},
-{
-"name": "Tamriel 39,1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-159835.14,
-5184.55,
--3506.91
-],
-"rot": [
-0,
-0,
-65.89017
-]
-},
-{
-"name": "Tamriel 39,12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-157767.08,
-47259.23,
--13308.47
-],
-"rot": [
-0,
-0,
-280.74942000000004
-]
-},
-{
-"name": "Tamriel 39,2",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-158053.62,
-10036.13,
--3659.55
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 4,-19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-18350.4,
--79480.97,
-9268.41
-],
-"rot": [
-0,
-0,
-84.98113056000001
-]
-},
-{
-"name": "Tamriel 4,-22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-14989.25,
--90292.41,
-10853.79
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 4,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-18312.82,
--10665.46,
--4526.24
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 4,11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-16748.33,
-43798.6,
--1108.51
-],
-"rot": [
-0,
-0,
-279.78685056
-]
-},
-{
-"name": "Tamriel 4,5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-16500.28,
-18918.97,
--4113.38
-],
-"rot": [
-0,
-0,
-39.14449056
-]
-},
-{
-"name": "Tamriel 40,-15",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-162923.75,
--60529.57,
-7226.24
-],
-"rot": [
-0,
-0,
-245.40937055999999
-]
-},
-{
-"name": "Tamriel 40,7",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-161866.31,
-26717.74,
--3936.33
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 40,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-162680.27,
-37573.92,
--10004.8
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 41,-12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-168745.72,
--51129.52,
-5712.0
-],
-"rot": [
-0,
-0,
-337.08265056000005
-]
-},
-{
-"name": "Tamriel 41,-18",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-167975.92,
--72408.7,
-9182.49
-],
-"rot": [
-0,
-0,
-199.57273056
-]
-},
-{
-"name": "Tamriel 41,-27",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-165899.84,
--108707.37,
-11321.86
-],
-"rot": [
-0,
-0,
-304.13756556000004
-]
-},
-{
-"name": "Tamriel 41,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-167807.67,
--13281.94,
--3801.99
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 41,-8",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-167053.7,
--34010.23,
--1565.72
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 42,-22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-173136.91,
--90911.7,
-11166.38
-],
-"rot": [
-0,
-0,
-79.068204
-]
-},
-{
-"name": "Tamriel 42,-27",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-171146.16,
--110243.08,
-12786.55
-],
-"rot": [
-0,
-0,
-337.08265056000005
-]
-},
-{
-"name": "Tamriel 42,-30",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-173660.03,
--124358.77,
-17384.33
-],
-"rot": [
-0,
-0,
-16.46108334
-]
-},
-{
-"name": "Tamriel 42,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-171429.02,
-65473.44,
--11841.3
-],
-"rot": [
-0,
-0,
-8.59437
-]
-},
-{
-"name": "Tamriel 42,9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-170414.73,
-37535.54,
--9335.9
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 43,-5",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-174721.75,
--19865.08,
--1864.0
-],
-"rot": [
-0,
-0,
-45.63037512
-]
-},
-{
-"name": "Tamriel 43,-6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-174741.98,
--24827.78,
--3286.07
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 43,-9",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-174572.47,
--35182.52,
-794.48
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 44,-12",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-179728.61,
--47142.41,
-3068.74
-],
-"rot": [
-0,
-0,
-188.59485528
-]
-},
-{
-"name": "Tamriel 45,-14",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-182671.7,
--59176.18,
-9698.78
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 45,-28",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-184396.08,
--113416.77,
-18738.03
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 47,-21",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-193224.64,
--84050.38,
-10745.7
-],
-"rot": [
-0,
-0,
-346.24997856
-]
-},
-{
-"name": "Tamriel 47,-27",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-191590.83,
--109394.97,
-10923.89
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 47,-7",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-191763.44,
--29428.79,
-8344.26
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 48,-18",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-195469.75,
--74126.79,
-15469.29
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 48,-22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-197183.44,
--90006.86,
-7611.96
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 48,-24",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-197982.97,
--97498.5,
-9888.74
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 48,-29",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-197150.83,
--116937.0,
-13455.12
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 5,-11",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-21941.02,
--44792.43,
--76.02000000000001
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 5,-17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-21064.99,
--69234.73,
-10956.35
-],
-"rot": [
-0,
-0,
-248.27416055999998
-]
-},
-{
-"name": "Tamriel 5,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-19263.99,
--16976.2,
--4470.99
-],
-"rot": [
-0,
-0,
-270.00072792
-]
-},
-{
-"name": "Tamriel 5,16",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-20037.64,
-67241.62,
--8059.6
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 5,19",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-21856.07,
-79660.22,
--10120.71
-],
-"rot": [
-0,
-0,
-176.65441056
-]
-},
-{
-"name": "Tamriel 5,23",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-19349.81,
-92519.38,
--11622.61
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 7,15",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-28971.44,
-61698.91,
--8471.68
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 8,-1",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-33696.0,
--4928.0,
--4224.0
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 8,-15",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-32799.31,
--60907.64,
-13809.99
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Tamriel 8,-22",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-33279.24,
--91842.0,
-13245.8
-],
-"rot": [
-0,
-0,
-90.00024264
-]
-},
-{
-"name": "Tamriel 8,-26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-31992.09,
--105983.98,
-16744.99
-],
-"rot": [
-0,
-0,
-189.5345064
-]
-},
-{
-"name": "Tamriel 8,-3",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-31524.33,
--10250.59,
--4055.6499999999996
-],
-"rot": [
-0,
-0,
-117.81162396
-]
-},
-{
-"name": "Tamriel 8,-4",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-30929.93,
--17710.78,
--4296.71
-],
-"rot": [
-0,
-0,
-225.0006066
-]
-},
-{
-"name": "Tamriel 8,26",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-30808.15,
-106138.28,
--13857.29
-],
-"rot": [
-0,
-0,
 0.0
 ]
 },
 {
-"name": "Tamriel 8,28",
+"name": "Swindler's Den",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
 "worldName": "Tamriel",
 "pos": [
-31376.12,
-113969.71,
--13752.0
+-46078.73,
+2081.43,
+-6393.22
 ],
 "rot": [
 0,
 0,
-150.401475
+97.40286
 ]
 },
 {
-"name": "Tamriel 8,3",
+"name": "Talking Stone Camp",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
 "worldName": "Tamriel",
 "pos": [
-31343.06,
-12925.82,
--4930.61
+-70775.61,
+21483.23,
+-5532.67
 ],
 "rot": [
 0,
 0,
 0.0
-]
-},
-{
-"name": "Tamriel 8,6",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-32789.25,
-26084.46,
--6697.4
-],
-"rot": [
-0,
-0,
-347.99750045999997
-]
-},
-{
-"name": "Tamriel 9,-17",
-"region": "Skyrim",
-"world": "3c:Skyrim.esm",
-"worldName": "Tamriel",
-"pos": [
-36185.92,
--69266.57,
-13108.34
-],
-"rot": [
-0,
-0,
-291.24601056
 ]
 },
 {
@@ -10674,6 +9874,70 @@
 ]
 },
 {
+"name": "Temple of Dibella",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-176860.0,
+4485.001953125,
+-1677.0
+],
+"rot": [
+0,
+0,
+-104.99994825854301
+]
+},
+{
+"name": "Temple of Kynareth",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+23241.03125,
+-3403.58837890625,
+-2902.383056640625
+],
+"rot": [
+0,
+0,
+-135.00004861278535
+]
+},
+{
+"name": "Temple of Mara",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+176322.8125,
+-97021.734375,
+11456.0166015625
+],
+"rot": [
+0,
+0,
+-90.00003468525409
+]
+},
+{
+"name": "Temple of Talos",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+133991.625,
+38708.78515625,
+-12141.0576171875
+],
+"rot": [
+0,
+0,
+90.00033521368503
+]
+},
+{
 "name": "Temple of the Divines",
 "region": "Skyrim",
 "world": "37edf:Skyrim.esm",
@@ -10706,7 +9970,23 @@
 ]
 },
 {
-"name": "Thalmor Embassy",
+"name": "Thalmor Embassy (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-79067.29,
+111308.16,
+-2537.89
+],
+"rot": [
+0,
+0,
+339.22551348
+]
+},
+{
+"name": "Thalmor Embassy (Windhelm World)",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
 "worldName": "Windhelm World",
@@ -10719,6 +9999,38 @@
 0,
 0,
 180.00006937050819
+]
+},
+{
+"name": "The Apprentice Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-55914.28,
+79726.09,
+-13844.78
+],
+"rot": [
+0,
+0,
+45.83664
+]
+},
+{
+"name": "The Atronach Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+130939.14,
+-28770.11,
+-10494.59
+],
+"rot": [
+0,
+0,
+65.89017
 ]
 },
 {
@@ -10754,6 +10066,38 @@
 ]
 },
 {
+"name": "The Bards College",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-53854.0,
+104099.0,
+-8961.4033203125
+],
+"rot": [
+0,
+0,
+135.8369656514168
+]
+},
+{
+"name": "The Blue Palace",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-60676.9296875,
+110457.15625,
+-7216.0
+],
+"rot": [
+0,
+0,
+-135.00004861278535
+]
+},
+{
 "name": "The Chill",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -10786,6 +10130,22 @@
 ]
 },
 {
+"name": "The Guardian Stones",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+2806.98,
+-59215.85,
+1500.49
+],
+"rot": [
+0,
+0,
+228.22063056000002
+]
+},
+{
 "name": "The Iron Halls",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
@@ -10802,7 +10162,7 @@
 ]
 },
 {
-"name": "The Katariah",
+"name": "The Katariah (Katariah World)",
 "region": "Skyrim",
 "world": "c350d:Skyrim.esm",
 "worldName": "Katariah World",
@@ -10815,6 +10175,102 @@
 0,
 0,
 0.0
+]
+},
+{
+"name": "The Katariah (Tamriel)",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-48837.0,
+107198.0,
+-13485.0
+],
+"rot": [
+0,
+0,
+15.00004044
+]
+},
+{
+"name": "The Lady Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-32442.31,
+-55637.39,
+783.03
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "The Lord Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+5821.23,
+56397.97,
+241.58
+],
+"rot": [
+0,
+0,
+275.01984
+]
+},
+{
+"name": "The Lover Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-150412.83,
+20214.94,
+-3079.41
+],
+"rot": [
+0,
+0,
+81.64651500000001
+]
+},
+{
+"name": "The Pawned Prawn",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+172292.0,
+-95488.0,
+11200.0
+],
+"rot": [
+0,
+0,
+90.00003468525409
+]
+},
+{
+"name": "The Ritual Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+50863.04,
+-5304.17,
+-1327.6
+],
+"rot": [
+0,
+0,
+229.1832
 ]
 },
 {
@@ -10850,6 +10306,86 @@
 ]
 },
 {
+"name": "The Serpent Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+151704.28,
+116451.33,
+-12550.27
+],
+"rot": [
+0,
+0,
+180.48176999999998
+]
+},
+{
+"name": "The Shadow Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+171146.16,
+-110243.08,
+12786.55
+],
+"rot": [
+0,
+0,
+337.08265056000005
+]
+},
+{
+"name": "The Steed Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-96269.96,
+115525.7,
+-4114.98
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "The Tower Stone",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+71827.42,
+106133.61,
+-10977.48
+],
+"rot": [
+0,
+0,
+246.37194
+]
+},
+{
+"name": "The Warrens",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-174708.09375,
+3660.19091796875,
+-3915.1103515625
+],
+"rot": [
+0,
+0,
+150.0000509785652
+]
+},
+{
 "name": "The Weave and Thread",
 "region": "Skyrim",
 "world": "16bb4:Skyrim.esm",
@@ -10882,6 +10418,54 @@
 ]
 },
 {
+"name": "The Winking Skeever",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-64530.14453125,
+105551.046875,
+-8317.6083984375
+],
+"rot": [
+0,
+0,
+130.00004782419205
+]
+},
+{
+"name": "Thieves Guild Headquarters",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+176848.796875,
+-97511.15625,
+10978.4326171875
+],
+"rot": [
+0,
+0,
+-180.00006937050819
+]
+},
+{
+"name": "Throat of the World",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+56368.15,
+-48511.39,
+36442.58
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Titus' House",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -10895,6 +10479,22 @@
 0,
 0,
 -108.8617522564888
+]
+},
+{
+"name": "Tolvald's Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+179728.61,
+-47142.41,
+3068.74
+],
+"rot": [
+0,
+0,
+188.59485528
 ]
 },
 {
@@ -10914,19 +10514,195 @@
 ]
 },
 {
+"name": "Traitor's Post",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+162680.27,
+37573.92,
+-10004.8
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Treasury House",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-177083.625,
+6453.5576171875,
+-2679.17236328125
+],
+"rot": [
+0,
+0,
+165.00025825009345
+]
+},
+{
+"name": "Treva's Watch",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+112108.89,
+-82836.67,
+11187.92
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Tumble Arch Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+67922.71,
+30777.96,
+-6890.69
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Twilight Sepulcher",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-70966.06,
+-80572.62,
+-394.83
+],
+"rot": [
+0,
+0,
+25.78311
+]
+},
+{
 "name": "Understone Keep",
 "region": "Skyrim",
 "world": "16d71:Skyrim.esm",
 "worldName": "Markarth World",
 "pos": [
--179040.0,
-3308.0,
--2112.0
+-178915.64,
+3565.22,
+-2119.0
 ],
 "rot": [
 0,
 0,
-75.0000254892826
+0.0
+]
+},
+{
+"name": "Ustengrav",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-23079.79,
+88176.74,
+-13714.18
+],
+"rot": [
+0,
+0,
+353.69843255999996
+]
+},
+{
+"name": "Uthgerd's House",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+21416.322265625,
+-4548.6904296875,
+-2846.140869140625
+],
+"rot": [
+0,
+0,
+-74.35751619451047
+]
+},
+{
+"name": "Uttering Hills Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+103645.71,
+20255.21,
+-7967.66
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Valindor's House",
+"region": "Skyrim",
+"world": "16bb4:Skyrim.esm",
+"worldName": "Riften World",
+"pos": [
+175088.28125,
+-97357.3359375,
+10763.8994140625
+],
+"rot": [
+0,
+0,
+-79.58363047642707
+]
+},
+{
+"name": "Valtheim Towers",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+74450.35,
+-1043.84,
+-4228.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Valthume",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-114984.01,
+-31214.49,
+449.14
+],
+"rot": [
+0,
+0,
+190.97836056
 ]
 },
 {
@@ -10962,6 +10738,54 @@
 ]
 },
 {
+"name": "Viola Giordano's House",
+"region": "Skyrim",
+"world": "1691d:Skyrim.esm",
+"worldName": "Windhelm World",
+"pos": [
+131672.859375,
+39566.1171875,
+-11995.58984375
+],
+"rot": [
+0,
+0,
+270.0000972255707
+]
+},
+{
+"name": "Vittoria Vici's House",
+"region": "Skyrim",
+"world": "37edf:Skyrim.esm",
+"worldName": "Solitude World",
+"pos": [
+-57119.20703125,
+107499.8984375,
+-8533.474609375
+],
+"rot": [
+0,
+0,
+-90.00003468525409
+]
+},
+{
+"name": "Vlindrel Hall",
+"region": "Skyrim",
+"world": "16d71:Skyrim.esm",
+"worldName": "Markarth World",
+"pos": [
+-174939.703125,
+7467.25439453125,
+-1826.8839111328125
+],
+"rot": [
+0,
+0,
+129.2705150580883
+]
+},
+{
 "name": "Volkihar Keep",
 "region": "Skyrim",
 "world": "7202:Dawnguard.esm",
@@ -10975,6 +10799,38 @@
 0,
 0,
 75.6761461569786
+]
+},
+{
+"name": "Volskygge",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-130324.42,
+92287.09,
+-6695.67
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Volunruud",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+10419.26,
+31079.82,
+-767.45
+],
+"rot": [
+0,
+0,
+319.89391056
 ]
 },
 {
@@ -11010,6 +10866,38 @@
 ]
 },
 {
+"name": "Warmaiden's",
+"region": "Skyrim",
+"world": "1a26f:Skyrim.esm",
+"worldName": "Whiterun World",
+"pos": [
+20878.943359375,
+-8725.5947265625,
+-3504.139892578125
+],
+"rot": [
+0,
+0,
+90.00003468525409
+]
+},
+{
+"name": "Wayward Pass",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+76030.86,
+62787.89,
+-742.67
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Western Kalbthurz",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -11026,67 +10914,67 @@
 ]
 },
 {
-"name": "Whiterun Amrens House",
+"name": "Weynon Stones",
 "region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-21897.626953125,
--3891.449951171875,
--2829.603759765625
+44570.14,
+46989.29,
+-8881.83
 ],
 "rot": [
 0,
 0,
--45.125337698328494
+0.0
 ]
 },
 {
-"name": "Whiterun Arcadias Cauldron",
+"name": "Whistling Mine",
 "region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-25183.685546875,
--8992.1279296875,
--3301.455810546875
+126388.91,
+76667.81,
+-7735.23
 ],
 "rot": [
 0,
 0,
--123.54085855994225
+334.21786055999996
 ]
 },
 {
-"name": "Whiterun Breezehome",
+"name": "White River Watch",
 "region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-21895.09765625,
--7884.14501953125,
--3446.75048828125
+41828.3,
+-14683.13,
+-1742.94
 ],
 "rot": [
 0,
 0,
--17.1877588429749
+66.82982112
 ]
 },
 {
-"name": "Whiterun Carlotta Valentias House",
+"name": "Whiterun",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
 "worldName": "Whiterun World",
 "pos": [
-20864.0,
--4480.0,
--2905.07568359375
+19855.23,
+-7422.51,
+-3518.62
 ],
 "rot": [
 0,
 0,
-100.00003626244069
+0.0
 ]
 },
 {
@@ -11122,6 +11010,22 @@
 ]
 },
 {
+"name": "Whiterun Imperial Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-62784.13,
+2443.53,
+-5342.22
+],
+"rot": [
+0,
+0,
+91.67328
+]
+},
+{
 "name": "Whiterun Jail",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
@@ -11135,38 +11039,6 @@
 0,
 0,
 135.00004861278535
-]
-},
-{
-"name": "Whiterun Jorrvaskr",
-"region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
-"pos": [
-28244.0,
--4220.0,
--2504.0
-],
-"rot": [
-0,
-0,
-90.00003468525409
-]
-},
-{
-"name": "Whiterun Olavathe Feebles House",
-"region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
-"pos": [
-22156.78515625,
--9275.494140625,
--3551.060546875
-],
-"rot": [
-0,
-0,
--1.3504424336761236
 ]
 },
 {
@@ -11186,39 +11058,39 @@
 ]
 },
 {
-"name": "Whiterun Severio Pelagias House",
+"name": "Whiterun Stables",
 "region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-23549.146484375,
--7044.87548828125,
--3118.715087890625
+18312.82,
+-10665.46,
+-4526.24
 ],
 "rot": [
 0,
 0,
--166.67249406251906
+0.0
 ]
 },
 {
-"name": "Whiterun Templeof Kynareth",
+"name": "Whiterun Stormcloak Camp",
 "region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-23241.03125,
--3403.58837890625,
--2902.383056640625
+51979.77,
+-16247.25,
+-629.91
 ],
 "rot": [
 0,
 0,
--135.00004861278535
+182.38399056
 ]
 },
 {
-"name": "Whiterun Underforge Interior",
+"name": "Whiterun Underforge",
 "region": "Skyrim",
 "world": "1a26f:Skyrim.esm",
 "worldName": "Whiterun World",
@@ -11234,62 +11106,14 @@
 ]
 },
 {
-"name": "Whiterun Uthgerd The Unbrokens House",
+"name": "Whitewatch Tower",
 "region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-21416.322265625,
--4548.6904296875,
--2846.140869140625
-],
-"rot": [
-0,
-0,
--74.35751619451047
-]
-},
-{
-"name": "Whiterun Warmaidens",
-"region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
-"pos": [
-20878.943359375,
--8725.5947265625,
--3504.139892578125
-],
-"rot": [
-0,
-0,
-90.00003468525409
-]
-},
-{
-"name": "Whiterun World 5,-2",
-"region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
-"pos": [
-19855.23,
--7422.51,
--3518.62
-],
-"rot": [
-0,
-0,
-0.0
-]
-},
-{
-"name": "Whiterun World 7,0",
-"region": "Skyrim",
-"world": "1a26f:Skyrim.esm",
-"worldName": "Whiterun World",
-"pos": [
-26871.64,
-209.05,
--1592.36
+31343.06,
+12925.82,
+-4930.61
 ],
 "rot": [
 0,
@@ -11335,110 +11159,14 @@
 "world": "1691d:Skyrim.esm",
 "worldName": "Windhelm World",
 "pos": [
-139526.5,
-39321.17578125,
--12397.9931640625
-],
-"rot": [
-0,
-0,
-90.00003468525409
-]
-},
-{
-"name": "Windhelm Aretino Residence",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-132084.484375,
-36280.9140625,
--12122.8046875
-],
-"rot": [
-0,
-0,
--90.00003468525409
-]
-},
-{
-"name": "Windhelm Atheron Residence",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-139370.6875,
-39316.1953125,
--13251.9609375
+135025.78,
+35596.59,
+-12405.47
 ],
 "rot": [
 0,
 0,
 0.0
-]
-},
-{
-"name": "Windhelm Belyn Hlaalus House",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-138647.859375,
-40031.43359375,
--12968.5771484375
-],
-"rot": [
-0,
-0,
--180.00006937050819
-]
-},
-{
-"name": "Windhelm Brunwulf Free Winters House",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-136629.859375,
-36230.1015625,
--12137.806640625
-],
-"rot": [
-0,
-0,
-90.00003468525409
-]
-},
-{
-"name": "Windhelm Calixtos House Of Curiosities",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-137673.8125,
-35790.08984375,
--12243.85546875
-],
-"rot": [
-0,
-0,
--90.00003468525409
-]
-},
-{
-"name": "Windhelm Candlehearth Hall",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-135098.625,
-36648.1640625,
--12195.8232421875
-],
-"rot": [
-0,
-0,
--180.00006937050819
 ]
 },
 {
@@ -11458,39 +11186,7 @@
 ]
 },
 {
-"name": "Windhelm Hjerim",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-130640.046875,
-41639.18359375,
--11793.5009765625
-],
-"rot": [
-0,
-0,
-90.00003468525409
-]
-},
-{
-"name": "Windhelm House Of Clan Shatter Shield",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-130611.125,
-39540.94140625,
--12088.6416015625
-],
-"rot": [
-0,
-0,
-90.00022593061924
-]
-},
-{
-"name": "Windhelm House Of The Dead",
+"name": "Windhelm Hall of the Dead",
 "region": "Skyrim",
 "world": "1691d:Skyrim.esm",
 "worldName": "Windhelm World",
@@ -11503,22 +11199,6 @@
 0,
 0,
 -179.99972786092758
-]
-},
-{
-"name": "Windhelm New Gnisis Cornerclub",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-140312.0625,
-39815.703125,
--13037.15234375
-],
-"rot": [
-0,
-0,
--134.9997071032047
 ]
 },
 {
@@ -11538,62 +11218,14 @@
 ]
 },
 {
-"name": "Windhelm Sadris Used Wares",
+"name": "Windhelm Stables",
 "region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-140494.390625,
-38657.8203125,
--12897.978515625
-],
-"rot": [
-0,
-0,
--90.00003468525409
-]
-},
-{
-"name": "Windhelm Temple Of Talos",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-133991.625,
-38708.78515625,
--12141.0576171875
-],
-"rot": [
-0,
-0,
-90.00033521368503
-]
-},
-{
-"name": "Windhelm Viola Giordanos House",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-131672.859375,
-39566.1171875,
--11995.58984375
-],
-"rot": [
-0,
-0,
-270.0000972255707
-]
-},
-{
-"name": "Windhelm World 33,10",
-"region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
-"pos": [
-134899.38,
-41679.26,
--11708.48
+135885.88,
+26101.39,
+-12284.47
 ],
 "rot": [
 0,
@@ -11602,14 +11234,14 @@
 ]
 },
 {
-"name": "Windhelm World 33,9",
+"name": "Windward Ruins",
 "region": "Skyrim",
-"world": "1691d:Skyrim.esm",
-"worldName": "Windhelm World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
-135025.78,
-35596.59,
--12405.47
+19349.81,
+92519.38,
+-11622.61
 ],
 "rot": [
 0,
@@ -11634,6 +11266,22 @@
 ]
 },
 {
+"name": "Winterhold Imperial Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+51947.7,
+95472.13,
+-6804.51
+],
+"rot": [
+0,
+0,
+219.62626056000002
+]
+},
+{
 "name": "Winterhold Prison",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -11642,6 +11290,22 @@
 100961.24,
 93360.21,
 -8128.51
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Winterhold Stormcloak Camp",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+145204.47,
+55116.42,
+-11311.95
 ],
 "rot": [
 0,
@@ -11663,6 +11327,38 @@
 0,
 0,
 -57.29526382995844
+]
+},
+{
+"name": "Witchmist Grove",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+134199.8,
+-3132.15,
+-9604.76
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Wolfskull Cave",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+-97493.83,
+107386.21,
+-5621.54
+],
+"rot": [
+0,
+0,
+85.9437
 ]
 },
 {
@@ -11698,6 +11394,22 @@
 ]
 },
 {
+"name": "Wreck of the Winter War",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+171429.02,
+65473.44,
+-11841.3
+],
+"rot": [
+0,
+0,
+8.59437
+]
+},
+{
 "name": "Yisra's Site",
 "region": "Skyrim",
 "world": "3c:Skyrim.esm",
@@ -11711,6 +11423,22 @@
 0,
 0,
 0.0
+]
+},
+{
+"name": "Yngol Barrow",
+"region": "Skyrim",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
+"pos": [
+157767.08,
+47259.23,
+-13308.47
+],
+"rot": [
+0,
+0,
+280.74942000000004
 ]
 },
 {
@@ -11730,67 +11458,35 @@
 ]
 },
 {
-"name": "z Falmer Valley01 (Darkfall Passage World)",
+"name": "Yorgrim Overlook",
 "region": "Skyrim",
-"world": "4bea:Dawnguard.esm",
-"worldName": "Darkfall Passage World",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--155335.484375,
-78180.109375,
-713.97314453125
+94301.63,
+53066.91,
+-3480.27
 ],
 "rot": [
 0,
 0,
--76.77615534632206
+0.0
 ]
 },
 {
-"name": "z Falmer Valley01 (Falmer Valley)",
+"name": "Ysgramor's Tomb",
 "region": "Skyrim",
-"world": "bb5:Dawnguard.esm",
-"worldName": "Falmer Valley",
+"world": "3c:Skyrim.esm",
+"worldName": "Tamriel",
 "pos": [
--2465.10107421875,
-16644.703125,
-2130.5224609375
+94632.97,
+120811.84,
+-13416.66
 ],
 "rot": [
 0,
 0,
-127.48028085536957
-]
-},
-{
-"name": "z Falmer Valley02",
-"region": "Skyrim",
-"world": "bb5:Dawnguard.esm",
-"worldName": "Falmer Valley",
-"pos": [
--24228.6875,
-17863.580078125,
-3191.93359375
-],
-"rot": [
-0,
-0,
-89.5643504226923
-]
-},
-{
-"name": "z Falmer Valley03",
-"region": "Skyrim",
-"world": "bb5:Dawnguard.esm",
-"worldName": "Falmer Valley",
-"pos": [
-18177.458984375,
-14715.421875,
-1129.918212890625
-],
-"rot": [
-0,
-0,
--152.97947618250848
+95.82149592
 ]
 }
 ]
