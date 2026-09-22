@@ -1,5 +1,18 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (05:00): enemy damage is physical-only, property is granted
+
+- [x] **Nat, in play: "npc magic damage is good".** `damageMultFormulaSettings.multiplier` scales NPC spells as well as
+  hits (both `DamageMultFormula::CalculateDamage` overloads), so the x2 from 04:45 had doubled NPC magic too. New
+  optional `magicMultiplier` key (C++, defaults to `multiplier` when absent); live settings are
+  `{ multiplier: 2, magicMultiplier: 1 }`. Read at boot only: magic stays x2 until the updater's build restarts the server.
+- [x] **"anyone is able to claim any buildings."** housingSystem let any player claim any unowned door or container. Now a
+  claim needs a manager (Jarl/Steward/Chieftain/Bane/Count of the zone, or any admin tier); they Claim, then Grant ownership
+  to the player from the same widget. Everyone else sees "Unowned. Property is granted by the hold's Jarl, Steward or
+  Chieftain." `housingOpenClaims: true` in server-settings restores open claims. Existing records untouched. Front rebuilt.
+- [ ] Property claimed before this change stays with whoever grabbed it; a manager can Revoke it from the door.
+
+
 ## Added 2026-09-22 (night): Discord feedback of 21 Sep 23:00
 
 - [x] **Enemy damage buffed** (Nat, Boris): `damageMultFormulaSettings.multiplier` 1 -> **2** in the live `server-settings.json` (NPC hits on players only; restart 04:2x UTC). Not tracked in git.

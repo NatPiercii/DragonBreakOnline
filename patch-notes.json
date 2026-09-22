@@ -1,5 +1,37 @@
 [
   {
+    "title": "Harder Foes, Granted Homes",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.12",
+    "sections": [
+      {
+        "heading": "Combat",
+        "items": [
+          "Enemy weapon and claw hits on players now land at twice the damage. Enemy spells are unchanged; they were already where they should be."
+        ]
+      },
+      {
+        "heading": "Property",
+        "items": [
+          "Houses, shops and containers are no longer claimed by whoever walks up to them. A hold's Jarl, Steward or Chieftain (or an admin) claims a property and grants it to a player from the same menu. Existing owners keep what they hold."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Casting Beast Form or Vampire Lord no longer locks your controls: the game's own change is cancelled at once and the server does the transformation."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "The Rise button in prayer closes the window after the shrine has answered."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Sturdier Travellers",
     "date": "2026-09-22",
     "tag": "Update",
