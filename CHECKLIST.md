@@ -1,5 +1,79 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (19:05 UTC): the admin panel, real location names, beast forms
+
+Live: fork `e961201`, gameplay deploy 18:49 UTC, game server restart 18:52:36 UTC, **client package 0.3.13**
+published 18:59 UTC. Nothing else on the box was touched. `online:0` at every push.
+
+- [x] **Beast Form granted from the admin panel did not let anyone morph, and the log said nothing.**
+  The grant itself was never the problem: `adminSystem.ts:606` sets `private.werewolfGrant` and AddSpell
+  lands. `transform()` in `beastform.js` returned a bare `false` at four separate exits, and the
+  `dboBeastRequest` relay logged nothing at all, so **a client that never relayed looked exactly like a
+  server that refused**. Now `tryTransform()` returns the reason, which goes to the player and the log, and
+  the relay logs every arrival with the actor and the spell id.
+- [x] **The panel drives the change itself**, for werewolf and Vampire Lord both: Grant power / Transform now
+  / Revert / Revoke (`__dboBeastAdmin`, action `beastForm`). Transform now goes straight to `beastform.js`
+  and **does not depend on the power's cast reaching the server**, so an admin can always change shape.
+  The tab shows, per character, whether each power is not granted, held, or worn right now (`__dboBeastHolds`).
+- [ ] **Still unknown: whether the client's cast relay works at all.** The client *is* shipped with it (the
+  published `skymp5-client.js` has `dboBeastRequest`) and the ids match (`beastform on: werewolf ... power
+  92c48`), but no `beast request from user` line has ever appeared. Next time somebody casts the power,
+  that line either appears (server-side problem, now with a reason attached) or it does not
+  (`BeastFormService.onSpellCast` never fires for a power). One cast settles it.
+
+- [x] **376 of 737 teleport points were named after map coordinates.** A localized plugin stores FULL as a
+  uint32 string id, so `admin_catalog.py` fell back to the editor id or to the cell coordinates. New
+  `ck-mcp\bsastrings.py` reads the `.STRINGS`/`.DLSTRINGS`/`.ILSTRINGS` tables, loose or out of a BSA
+  (Skyrim.esm's are in `Skyrim - Interface.bsa`, 67,414 strings). **376 -> 2**, and those two markers have no
+  name in the data. 718 rows, down from 737 only because door-derived duplicates of a now-named marker are
+  dropped; every old name survives except "Hags End", which is "Hag's End". Item names improved with them
+  ("cc BGSSSE025 Amber Battleaxe" -> "Amber Battleaxe", "Favor Amren Iron Sword" -> "Amren's Family Sword").
+- [x] **The Teleport tab hid 341 Skyrim locations**: it stopped dead at 250 rows with "narrow the search".
+  Lists now reveal a page at a time, teleport groups by worldspace under the region chips, search covers
+  name + world + region, and a region present in the data but missing from the hardcoded list is no longer
+  invisible.
+- [x] Skills, Items and Powers share one target dropdown (you, then everyone online) instead of three
+  free-text "name or #TAG" boxes; a target who logs out resets it. Delete character, IP ban and temp ban ask
+  once. The panel imports `dbo-theme` instead of its own copy of the palette; filter rows wrap.
+- [x] Fire on a vampire and silver on a werewolf apply again: `superBonusDamage()` read health as a bare
+  identifier, `mp.get(tgt, percentages)`, and its own catch swallowed the ReferenceError.
+  `server\tests\super-damage-harness.js` is 18 checks, 8 of which fail against the previous revision.
+
+### The client package publish path is booby-trapped - read before publishing
+
+The dev server **cannot** build a client package. `/opt/alduinak/skymp5-backend/sources/client` and
+`/opt/alduinak/build/client-files/root` both hold the **18 September** client (no `dboBeastRequest`), and the
+Linux build never produces `Platform/UI` at all ("Building client-deps is disabled on non-Windows setups").
+**Running the documented `npm run populate && npm run merge` there would publish a four-day-old client to
+every player.** `LAUNCHER_FILES_GUIDE.md` line 88 also says to copy the 9 plugins in after populate, and that
+is still true: `populate-files.js` skips them on purpose and the published zip does contain all 9.
+
+How 0.3.13 was published instead, which is how 0.3.11 must have been done:
+1. The local `fork\build\client-files\root` was checked against the live `data/files-version.json`: **247
+   files, byte-identical**, so a local merge could only change what was deliberately changed.
+2. The new front build replaced `root\Data\Platform\UI\`; the manifest diff was **one file**,
+   `Data/Platform/UI/build.js`, nothing added, nothing removed. (`dbo-watermark.png` sits loose in that
+   folder and is not produced by webpack, so it is left alone.)
+3. `CLIENT_VERSION` 0.3.12 -> **0.3.13**, `npm run merge` locally, opened with adm-zip as the launcher does
+   (267 entries, all readable, 9 plugins present, the UI bundle carrying the new code).
+4. Uploaded to `/tmp` while the backend was still serving, then backend stopped, backup taken
+   (`/opt/skymp-backups/skymp-client.zip.bak-20260922T185910Z` and the matching
+   `files-version.json.bak-`), files installed, version bumped, backend started: **downtime under 10 s**.
+5. Verified through the public URL: `/api/version` reports clientVersion 0.3.13, `/api/files/version` has 247
+   files with the new UI sha256 `cf4fa332...` matching the local file, and `/api/files/zip` is
+   182,847,780 bytes, the exact size of the uploaded zip.
+- [ ] **Worth fixing properly**: either teach the Linux build to produce the front, or move the package build
+  into a script on this PC so it is not a sequence of remembered steps. Also note `files-version.json` was
+  stamped **0.3.11** while `routes/version.js` already said 0.3.12, so the const had been bumped without a
+  re-merge; the two agree again at 0.3.13.
+
+### Open
+
+- [ ] Nobody has pressed the new buttons in game. Grant, Transform now, Revert and Revoke are untested, as is
+  the reworked Teleport tab. The server side is verified only by type-check and by the boot log being clean.
+- [ ] `/api/manifest` and `/api/files-version` are 404 on this backend; the launcher uses `/api/files/version`
+  and `/api/files/zip`. `LAUNCHER_FILES_GUIDE.md` names `/api/manifest`, which no longer exists.
+
 ## Added 2026-09-22 (18:45 UTC): UI scale, corpse looting, key names, log sweep
 
 With Nat, from the live log plus his notes doc and the Discord reports. Nothing pushed or deployed yet.
