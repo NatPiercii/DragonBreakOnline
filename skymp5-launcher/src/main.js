@@ -682,6 +682,15 @@ function applyForcedServerDefaults(gamePath) {
       ini.write(dest, { General: { SLocalSavePath: 'Saves\\' } })
       log(`[defaults] profile Skyrim.ini SLocalSavePath was "${savePath}"; reset to Saves\\ so the spawn save is found`)
     }
+    // sTestFileN lines force-load plugins regardless of plugins.txt (Vortex and the vanilla launcher leave them
+    // behind); the server's load order is the only one allowed, so they go.
+    try {
+      const raw = fs.readFileSync(dest, 'utf8')
+      const eol = raw.includes('\r\n') ? '\r\n' : '\n'
+      const kept = raw.split(/\r?\n/).filter(l => !/^\s*sTestFile\d+\s*=/i.test(l))
+      const dropped = raw.split(/\r?\n/).length - kept.length
+      if (dropped > 0) { fs.writeFileSync(dest, kept.join(eol)); log(`[defaults] removed ${dropped} sTestFile line(s) from the profile Skyrim.ini`) }
+    } catch { /* the ini is rewritten on the next launch */ }
   } catch (err) {
     log('[defaults] could not write the profile Skyrim.ini:', err.message)
   }
