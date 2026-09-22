@@ -409,7 +409,9 @@ module.exports = (api) => {
 
   onUi('prayerCancel', (a, args) => {
     const round = sessions.get(a);
-    if (!round || String(args[0]) !== round.nonce) return;
+    // After the verdict the round is already gone: Rise only closes the window
+    if (!round) return closeWidget(a, WIDGET_ID);
+    if (String(args[0]) !== round.nonce) return;
     finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose');
   });
 
