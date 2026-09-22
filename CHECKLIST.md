@@ -1,5 +1,35 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (19:30 UTC): Heart and Hourglass UI; voice plan
+
+- [x] **Palette A live in client 0.3.14** (fork `639d8ae`, `820831c`). Each widget wears its domain's hue via a
+  `data-domain` wrapper in `constructor.js`: aedric gold (prayer, deity picker), lorkhan crimson (rite, bounty
+  board, dungeon gate, death), dragonbreak violet (mastery, reading), bronze (labour, skinning, housing, pigeon,
+  mail, trade), aqua for the rest. 142 teal literals in 19 widgets now follow `dbo-accent()` at runtime; `dbo-panel`
+  has the fracture line and the Heart's glow. Checked by rendering the same panel in all five domains.
+  Package check: only `UI/build.js` changed (plus the DLE that another session had already published to `extra/`,
+  same sha `9ea0ae21`); adm-zip opens all 267 entries; public manifest and zip size match.
+- [ ] **Launcher (commit `377e24a`) is not released**: the same palette on its sections, plus Skills (K), Bounty
+  Board (N), Emote Wheel (B) and Nametags (F1) hotkeys. Needs a launcher build + GitHub release + `LATEST_VERSION`.
+- [ ] Not moved to the theme: skillsMenu/testMenu/animList (upstream dev widgets), login (already grey/crimson).
+  X (player interact) and the Alt voice-mode tap are still hard-coded in the client.
+
+### Voice chat: what exists and what is left
+Built and never switched on: `voiceSystem.ts` mints LiveKit tokens, `VoiceManager.js` (CEF) joins the room with
+push-to-talk, whisper/talk/shout (Left Alt), distance falloff and lip sync. **The live server has no `voiceChat`
+block and no LiveKit server runs anywhere.** The shipped `SkyrimPlatformImpl.dll` has `enable-media-stream` and
+`use-fake-ui-for-media-stream`, so the game's browser can open a mic without a native build.
+Nat chose **self-hosting on Jake's box**. Remaining, in order:
+1. Jake: forward TCP 7881 and one UDP port (7882, LiveKit `rtc.udp_port`) to CT115, plus a TLS route for the
+   signal port 7880 (or a public nginx `location` for it). This is `host-network`: claim through Nat.
+2. Install `livekit-server` in CT115 as a systemd unit, `node_ip` = the public address; add
+   `voiceChat { enabled, url, apiKey, apiSecret, room }` to server-settings (restart).
+3. Launcher Voice tab: mic and speaker picker (store device **labels**, not ids: Chromium device ids are salted
+   per origin, so an id from the launcher means nothing in CEF), mic volume, incoming volume, push-to-talk or
+   voice activation plus sensitivity, test meter; written to `skymp5-client-settings.txt`.
+4. Client/CEF: apply the label to `getUserMedia` / `setSinkId`, a GainNode for mic volume, master volume.
+5. Per-player louder/quieter/mute on the existing X menu (a local preference, no new panel); a HUD mode marker.
+
 ## Added 2026-09-22 (19:10 UTC): shock magic stopped one-shotting, magicka 150, corpse looting
 
 All live, with Nat present and approving. Rollbacks are in `OPS_HANDOFF_2026-09-21_claude-nate.md`.
