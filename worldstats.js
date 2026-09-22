@@ -14,12 +14,14 @@ module.exports = (api) => {
   const GOLD = 0x0000000f;
   const HOUSING_OWNER_PROP = 'private.indexed.housingOwner';
 
-  // Character ids survive reloads; mp.getAllForms is filled once per process, so later characters join on login
+  // Character ids are learned at login and kept in the stats file, so a restart does not probe every dynamic
+  // form (getAllForms lists destroyed ids too, and each probe logs an engine error)
   const ST = globalThis.__dboWorldStats || (globalThis.__dboWorldStats = { chars: new Set(), seeded: false, peak: { day: '', online: 0 } });
   if (!ST.seeded) {
     ST.seeded = true;
-    try { for (const id of mp.getAllForms(0xff) || []) { const a = Number(id) >>> 0; if (profileOf(a) >= 0) ST.chars.add(a); } }
-    catch (e) { log('worldstats seed failed', e.message); }
+    let prev = null; try { prev = JSON.parse(fs.readFileSync(OUT, 'utf8')); } catch (e) { /* first run */ }
+    if (prev && Array.isArray(prev.ids)) { for (const id of prev.ids) ST.chars.add(Number(id) >>> 0); if (prev.peak) ST.peak = prev.peak; }
+    else { try { for (const id of mp.getAllForms(0xff) || []) { const a = Number(id) >>> 0; if (profileOf(a) >= 0) ST.chars.add(a); } log('worldstats: first run, seeded from every dynamic form once'); } catch (e) { log('worldstats seed failed', e.message); } }
   }
   globalThis.__dboWorldStatsSeen = (a) => ST.chars.add(Number(a) >>> 0);
 
@@ -85,6 +87,7 @@ module.exports = (api) => {
       online: online.length, peakToday: ST.peak.online,
       characters: [...races.values()].reduce((n, c) => n + c, 0), players: profiles.size,
       gold: { total: carried + stored, carried, stored },
+      ids: [...ST.chars], peak: ST.peak,
       clock: (() => { try { return globalThis.__dboClock ? globalThis.__dboClock.summary() : null; } catch (e) { return null; } })(),
       races: [...races.entries()].map(([race, count]) => ({ race, count })).sort((x, y) => y.count - x.count || x.race.localeCompare(y.race)),
     };

@@ -2321,6 +2321,23 @@ try {
   require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, findByName, audit, who, cfg });
 } catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
 
+// ---- announcements: `bash dev-server.sh announce '<text>'` writes announce.json; every online player sees it once ----
+const ANNOUNCE_PATH = path.resolve('announce.json');
+const announceSeen = globalThis.__dboAnnounceSeen || (globalThis.__dboAnnounceSeen = { at: 0 });
+every('announce', 5000, () => {
+  let a = null; try { a = JSON.parse(fs.readFileSync(ANNOUNCE_PATH, 'utf8')); } catch (e) { return; }
+  const at = Number(a && a.at) || 0; const text = String(a && a.text || '').trim();
+  if (!text || at <= announceSeen.at || Date.now() - at > 600000) { announceSeen.at = Math.max(announceSeen.at, at); return; }
+  announceSeen.at = at;
+  for (const o of onlineActors()) { system(o, text); personal(o, text); }
+  log(`announcement to ${onlineActors().length} player(s): ${text}`);
+});
+registerChatCommand('announce', (a, args) => {
+  const text = String(args || '').trim(); if (!text) return personal(a, 'Usage: /announce <text>');
+  for (const o of onlineActors()) { system(o, text); personal(o, text); }
+  audit(`ANNOUNCE ${who(a)}: ${text}`);
+}, { admin: true, help: '<text> tell every online player, on screen and in chat' });
+
 // ---- the world clock and weather (server\worldclock.js) ----------------------------------------------
 try {
   const WORLDCLOCK_JS = path.resolve('worldclock.js');
