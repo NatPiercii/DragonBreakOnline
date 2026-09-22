@@ -29,11 +29,13 @@ module.exports = (api) => {
     const f = FORMS[key];
     if (!f || !f.race || stateOf(a)) return false;
     try { if (mp.get(a, 'isDead')) return false; } catch (e) { return false; }
+    // Read the look first: __dboBeastAllow spends one of the day's changes, and a transform that fails after it
+    // for want of an appearance would spend it for nothing
+    let original = null; try { original = mp.get(a, 'appearance'); } catch (e) { /* none */ }
+    if (!original || !original.raceId) return false;
     // supernatural.js decides who may change: the daily limit, the Blood Crown
     const refusal = typeof globalThis.__dboBeastAllow === 'function' ? globalThis.__dboBeastAllow(a, key, !!forced) : null;
     if (refusal) { personal(a, refusal); return false; }
-    let original = null; try { original = mp.get(a, 'appearance'); } catch (e) { /* none */ }
-    if (!original || !original.raceId) return false;
     mp.set(a, 'private.beast', { form: key, original, at: Date.now(), until: f.seconds ? Date.now() + f.seconds * 1000 : 0 });
     papyrus(a, 'UnequipAll', []);
     mp.set(a, 'appearance', Object.assign({}, original, { raceId: f.race }));
@@ -77,6 +79,10 @@ module.exports = (api) => {
     if (!key) return false;
     const s = stateOf(a);
     if (s && s.form === key && key === 'vampirelord') { revert(a, 'cast again'); return true; }
+    // The cast reaches here from the client (castHook, or the dboBeastRequest relay), so it is a request and not
+    // proof of anything: check the power is held, exactly as /beast does. Without this any client could ask for a
+    // form it was never granted.
+    if (!holdsPower(a, key)) { personal(a, key === 'werewolf' ? 'The beast blood is not in you.' : 'Only a Vampire Lord can take that form.'); return true; }
     transform(a, key);
     return true;
   };
