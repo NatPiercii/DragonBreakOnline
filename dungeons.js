@@ -26,7 +26,7 @@ module.exports = (api) => {
   // added some half the time, and smallLoot's "nothing rolled" fallback added some again. With ~88
   // containers in a lease that is a flood. Now a chest carries coin goldChance of the time and the
   // amount is scaled by goldMult. A boss chest always carries coin whatever goldChance says.
-  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, raidMax: 12, raidXpMult: 0.5, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
   const GOLD_CHANCE = Math.max(0, Math.min(1, Number(C.goldChance)));
   const GOLD_MULT = Math.max(0, Number(C.goldMult));
   const goldAmount = (n) => Math.max(1, Math.round(n * GOLD_MULT));
@@ -991,11 +991,14 @@ module.exports = (api) => {
   };
 
   // ---- party -----------------------------------------------------------------------------------
+  // A party past partyMax is a raid: masterySystem reads private.partyXpMult and slows every member's skill gain
+  const isRaid = (p) => !!p && p.members.size > C.partyMax;
+  const setRaidMult = (pid, on) => { const x = actorByProfile(pid); if (!x) return; try { mp.set(x, 'private.partyXpMult', on ? C.raidXpMult : 1); } catch (e) { /* offline */ } };
   const pushParty = (p) => {
     const members = p ? [...p.members].map((m) => { const x = actorByProfile(m); return x ? { id: x, name: nameOf(x), leader: m === p.leader } : null; }).filter(Boolean) : [];
-    if (p) for (const m of p.members) { const x = actorByProfile(m); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
+    if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, isRaid(p)); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
   };
-  const clearPartyPanel = (pid) => { const x = actorByProfile(pid); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, []); };
+  const clearPartyPanel = (pid) => { setRaidMult(pid, false); const x = actorByProfile(pid); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, []); };
   const leaveParty = (pid, quiet) => {
     const leader = ST.memberOf.get(pid); if (leader === undefined) return;
     const p = ST.parties.get(leader);
@@ -1021,7 +1024,7 @@ module.exports = (api) => {
         const t = findByName(arg); if (!t) return personal(a, 'No such player. /party invite <name|#TAG>');
         if (t === a) return personal(a, 'You are already with yourself.');
         if (p && p.leader !== pid) return personal(a, 'Only the party leader invites.');
-        if (p && p.members.size >= C.partyMax) return personal(a, `A party holds ${C.partyMax}.`);
+        if (p && p.members.size >= C.raidMax) return personal(a, `A raid holds at most ${C.raidMax}.`);
         if (partyOf(profileOf(t))) return personal(a, `${display(t)} is already in a party.`);
         ST.invites.set(profileOf(t), { from: pid, at: Date.now() });
         personal(a, `Invited ${display(t)}. They have two minutes to /party accept.`);
@@ -1035,9 +1038,11 @@ module.exports = (api) => {
         let lp = ST.parties.get(inv.from);
         const leaderActor = actorByProfile(inv.from); if (!leaderActor) return personal(a, 'They are gone.');
         if (!lp) { lp = { leader: inv.from, leaderName: display(leaderActor), members: new Set([inv.from]) }; ST.parties.set(inv.from, lp); ST.memberOf.set(inv.from, inv.from); }
-        if (lp.members.size >= C.partyMax) return personal(a, 'That party is full.');
+        if (lp.members.size >= C.raidMax) return personal(a, 'That raid is full.');
+        const wasRaid = isRaid(lp);
         lp.members.add(pid); ST.memberOf.set(pid, inv.from);
-        for (const m of lp.members) { const x = actorByProfile(m); if (x) system(x, `${display(a)} joined the party (${lp.members.size}/${C.partyMax}).`); }
+        for (const m of lp.members) { const x = actorByProfile(m); if (x) system(x, `${display(a)} joined the ${isRaid(lp) ? 'raid' : 'party'} (${lp.members.size}/${isRaid(lp) ? C.raidMax : C.partyMax}).`); }
+        if (isRaid(lp) && !wasRaid) for (const m of lp.members) { const x = actorByProfile(m); if (x) personal(x, `More than ${C.partyMax} makes this a raid: skill gain is halved while it lasts.`); }
         pushParty(lp);
         return;
       }
@@ -1051,10 +1056,11 @@ module.exports = (api) => {
       default: {
         if (!p) return personal(a, 'Not in a party. /party invite <name|#TAG>, /party accept, /party leave, /party kick <name>.');
         const names = [...p.members].map((m) => { const x = actorByProfile(m); return (x ? display(x) : `#${m}`) + (m === p.leader ? ' (leader)' : ''); });
-        return personal(a, `Party (${p.members.size}/${C.partyMax}): ${names.join(', ')}`);
+        return personal(a, `${isRaid(p) ? 'Raid' : 'Party'} (${p.members.size}/${isRaid(p) ? C.raidMax : C.partyMax}): ${names.join(', ')}`);
       }
     }
-  }, { help: 'invite|accept|decline|leave|kick: group up for dungeons' });
+  }, { help: 'invite|accept|decline|leave|kick: group up for dungeons (6 a party, up to 12 a raid at half skill gain)' });
+  globalThis.__dboPartyLeaderOf = (a) => { const p = partyOf(profileOf(a)); return p ? p.leader : null; };
   registerChatCommand('dungeon', (a, args) => {
     const sub = args.trim().toLowerCase();
     if (sub.startsWith('end ') && isAdmin(a)) {
