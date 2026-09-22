@@ -741,6 +741,12 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       for (const h of hs) { if (!a) break; try { h(a, Array.isArray(content.args) ? content.args : [], Number(content.widget) || 0); } catch (e) { log('ui event failed', content.event, e.message); } }
       return;
     }
+    // The client saw a beast power cast (BeastFormService); the server decides and transforms
+    if (content.customPacketType === 'dboBeastRequest') {
+      const a = actorOf(userId); const spell = Number(content.spell) >>> 0;
+      if (a && spell && typeof globalThis.__dboBeastRequest === 'function') { try { globalThis.__dboBeastRequest(a, spell); } catch (e) { log('beast request failed', e.message); } }
+      return;
+    }
     // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
     if (content.customPacketType === 'factionMenuRequest') {
       const a = actorOf(userId); if (a && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);

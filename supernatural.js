@@ -391,6 +391,7 @@ module.exports = (api) => {
     for (const o of onlineActors()) sendPacket(o, { customPacketType: 'dboPale', actor: a >>> 0, shader: PALE_SHADER, on: !!on });
   };
   globalThis.__dboSuperKind = (a) => kindOf(a);
+  globalThis.__dboSuperCrownHolder = () => crownHolder();
   globalThis.__dboSuperLogin = (a) => {
     const i = G.revoke.indexOf(a >>> 0);
     if (i >= 0) { removeSpell(a, VAMPIRE_LORD_POWER); G.revoke.splice(i, 1); saveG(); }

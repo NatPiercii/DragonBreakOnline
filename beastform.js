@@ -103,10 +103,36 @@ module.exports = (api) => {
     if (mode === 'now') return personal(a, transform(t, k, true) ? `${display(t)} transformed.` : `${display(t)} could not transform (dead or already in a form).`);
     if (mode === 'revert') return personal(a, revert(t, `reverted by ${display(a)}`) ? `${display(t)} reverted.` : `${display(t)} is not transformed.`);
     const ok = papyrus(t, mode === 'remove' ? 'RemoveSpell' : 'AddSpell', mode === 'remove' ? [spellArg(f.power)] : [spellArg(f.power), false]);
-    if (k === 'vampirelord') try { mp.set(t, 'private.vampireLordGrant', mode !== 'remove'); } catch (e) { /* offline */ }
+    try { mp.set(t, k === 'vampirelord' ? 'private.vampireLordGrant' : 'private.werewolfGrant', mode !== 'remove'); } catch (e) { /* offline */ }
     audit(`BEAST GM ${who(a)} ${mode === 'remove' ? 'took' : 'gave'} ${f.name} ${mode === 'remove' ? 'from' : 'to'} ${who(t)}`);
     personal(a, ok ? `${display(t)} ${mode === 'remove' ? 'no longer has' : 'now has'} the ${f.name} power.` : 'That failed; see the server log.');
   }, { admin: true, help: '<player> <werewolf|vampirelord> [grant|remove|now|revert] beast form powers' });
+
+  // The power's cast never reaches the server (the client relays hand casts only), so the form is also taken by
+  // chat or by the client's own cast event (dboBeastRequest). The power itself must have been granted.
+  const holdsPower = (a, key) => {
+    try {
+      if (mp.get(a, key === 'werewolf' ? 'private.werewolfGrant' : 'private.vampireLordGrant') === true) return true;
+      const kind = typeof globalThis.__dboSuperKind === 'function' ? globalThis.__dboSuperKind(a) : null;
+      if (key === 'werewolf' && kind === 'werewolf') return true;
+      const crown = typeof globalThis.__dboSuperCrownHolder === 'function' ? globalThis.__dboSuperCrownHolder() : 0;
+      if (key === 'vampirelord' && crown === (a >>> 0)) return true;
+    } catch (e) { /* offline */ }
+    return false;
+  };
+  const takeForm = (a, key) => {
+    if (stateOf(a)) return revert(a, 'asked to revert') ? 'You return to your own shape.' : 'You are not transformed.';
+    if (!holdsPower(a, key)) return key === 'werewolf' ? 'The beast blood is not in you.' : 'Only a Vampire Lord can take that form.';
+    return transform(a, key) ? '' : 'You cannot change right now.';
+  };
+  globalThis.__dboBeastRequest = (a, spellId) => globalThis.__dboBeastCast(a, spellId);
+  registerChatCommand('beast', (a, args) => {
+    const w = String(args || '').trim().toLowerCase();
+    if (stateOf(a) || w === 'revert' || w === 'off') { const r = takeForm(a, stateOf(a) ? stateOf(a).form : 'werewolf'); if (r) personal(a, r); return; }
+    const key = /vamp/.test(w) ? 'vampirelord' : /were|wolf|beast/.test(w) || !w ? 'werewolf' : '';
+    if (!key) return personal(a, 'Usage: /beast [werewolf|vampirelord|revert]');
+    const r = takeForm(a, key); if (r) personal(a, r);
+  }, { help: '[werewolf|vampirelord|revert] take or leave your beast form (or cast the power)' });
 
   log(`beastform on: ${Object.entries(FORMS).map(([k, f]) => `${k} race ${f.race.toString(16)} power ${f.power.toString(16)}${f.seconds ? ` ${f.seconds}s` : ''}`).join(', ')}, revert ${REVERT_POWER.toString(16)}`);
 };
