@@ -1,5 +1,47 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (19:10 UTC): shock magic stopped one-shotting, magicka 150, corpse looting
+
+All live, with Nat present and approving. Rollbacks are in `OPS_HANDOFF_2026-09-21_claude-nate.md`.
+
+- [x] **Shock spells were hitting for +200.** Every shock spell carries a hidden `PerkDisintegrate*`
+  effect at magnitude 200. That number is the disintegrate perk's health threshold, not damage, but the
+  effect is flagged Hostile + Detrimental with `primaryAV = Health`, which is exactly the test
+  `GetBaseSpellDamage` used. The live log reconciles to the point: **Sparks 8+200=208, Lightning Bolt
+  25+0.2+200=225, Chain Lightning 40+0.2+200=240, Lightning Storm 75+200=275**, against 150 health.
+  Fire and frost were never wrong because their riders use Confidence and SpeedMult, not Health, which
+  is why Flames logged 8, Firebolt 25 and Fireball 40 all along.
+- [x] **The fix is "damage is what the spell card shows".** Of the effects on those spells every rider
+  and perk gate carries `HideInUI` and no real damage effect does. **A blanket skip was wrong and the
+  simulation caught it**: run over all 1,800 SPEL records in the load order it zeroed **60** spells whose
+  only damage effect is hidden, including every `VampireSunDamage` stage, `DLC1VampireLordSunDamage`,
+  Expel and Banish Daedra, the Miraak breath streams and the modded creature spit attacks. With a
+  fallback to the whole total when nothing is visible, **exactly 11 spells change and none reaches zero**.
+  fork main `c7c2057`, native build, restart 19:08:59, **0 `[error]` lines since**.
+  Harness: `scratchpad simdamage.py`, worth keeping for the next damage change.
+- [x] **Magicka 100 -> 150** (DLE Player record, one record changed of 29,326). Nat: "i just dont want
+  people to feel like they have an unlimited pool". At 100 an adept spell was **uncastable**, not merely
+  expensive: base costs from the records are Fireball 86 and Chain Lightning 124, which the engine's
+  low-skill multiplier turns into roughly 133 and 192. 150 makes Fireball castable at ~89% of the bar and
+  leaves Chain Lightning out of reach without a racial or an enchant. **Health 150 and stamina 100 are
+  unchanged, so no NPC damage re-scaling.**
+- [ ] **Raising base magicka dilutes racial variety**, it does not create it: an Altmer's +50 is +50% of
+  a 100 pool, +33% of 150, +17% of 300. If races should feel distinct, widen the RACE deltas. Nat's note
+  asked for both from one change; they pull opposite ways.
+- [ ] **Magicka regeneration is unverified.** Pool size is the floor; regen is what decides whether the
+  pool feels unlimited. Nobody has measured what a player actually gets back per second here.
+- [x] **A dead player's body yields two random stacks and 15% of their coin** (Nat), keys never taken,
+  body spent after one search, searchable again on the next death, remainder returns when they rise.
+  server `0aa1fb2c`, hot reload.
+- [x] **UI auto-scale** and **property key names** went out on the parallel session's push (`2c91c22`,
+  `1b0fb3d`). Keys now read "Key to the Jerall View Inn"; old keys still open their door.
+- [ ] **Renaming a property invalidates its keys** under the new naming. Defensible, but the notice does
+  not say so yet.
+- [ ] **Dual wield power attack costs no stamina** (Nat). Still open: the investigation into where a
+  stamina charge belongs had not returned when this shipped.
+- [ ] Vanilla Lightning Bolt is **25**, not 40. 40 is Chain Lightning. An earlier note in this file had it
+  wrong.
+
 ## Added 2026-09-22 (19:05 UTC): the admin panel, real location names, beast forms
 
 Live: fork `e961201`, gameplay deploy 18:49 UTC, game server restart 18:52:36 UTC, **client package 0.3.13**
