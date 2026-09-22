@@ -1,5 +1,39 @@
 [
   {
+    "title": "Letters, Beast Forms and Fixes",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.7",
+    "sections": [
+      {
+        "heading": "Letters",
+        "items": [
+          "Notice boards have a Letters tab. Read your pigeon letters there, and burn the ones you do not want.",
+          "A sealed letter now floats over nearby notice boards while you have unread mail.",
+          "Letters no longer flash across your screen or pour into chat."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Werewolf Beast Form works: cast it to take the form for 150 seconds.",
+          "Vampire Lords can take their form and cast Revert Form to return.",
+          "Death or logging out always returns you to your own body."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Fixed the missing Engine Fixes file that stopped the game from starting after a fresh install or repair.",
+          "Your gear goes back on right after you log in instead of 12 seconds later.",
+          "Turning back at a dungeon entrance no longer leaves you stuck in a loading state.",
+          "New /unstuck command: return to your area's respawn point once every 25 minutes. It cannot be used during a fight with another player.",
+          "Carry has been removed from the player menu."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Server Stats Come Alive",
     "date": "2026-09-21",
     "tag": "New Feature",
