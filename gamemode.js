@@ -1645,6 +1645,28 @@ const zoneOfActor = (a) => {
   if (!zone) { let last = null; try { last = mp.get(a, 'private.lastOutside'); } catch (e) { /* none */ } if (last && last.world) zone = zoneAtPlace(last.world, last.pos); }
   return zone;
 };
+// ---- /unstuck: walk out to the respawn temple of the area you are in ------------------------------
+const UNSTUCK = Object.assign({ cooldownMinutes: 25, pvpCombatSeconds: 60 }, cfg.unstuck || {});
+const pvpAt = globalThis.__dboPvpAt = globalThis.__dboPvpAt || new Map(); // actorId -> last PvP hit given or taken
+registerChatCommand('unstuck', (a) => {
+  const admin = isAdmin(a);
+  try { if (mp.get(a, 'isDead')) return personal(a, 'You cannot use /unstuck while dead.'); } catch (e) { /* alive */ }
+  try { const r = mp.get(a, 'private.restrained'); if (r && (r.boundHands || r.carried || r.captorActorId)) return personal(a, 'You cannot use /unstuck while restrained or carried.'); } catch (e) { /* free */ }
+  const fought = Date.now() - (pvpAt.get(a) || 0);
+  if (!admin && fought < UNSTUCK.pvpCombatSeconds * 1000) return personal(a, `You are in combat with another player. Try again in ${Math.ceil((UNSTUCK.pvpCombatSeconds * 1000 - fought) / 1000)} seconds.`);
+  const last = Number(mp.get(a, 'private.unstuckAt')) || 0;
+  const wait = last + UNSTUCK.cooldownMinutes * 60000 - Date.now();
+  if (!admin && wait > 0) return personal(a, `/unstuck is ready again in ${Math.ceil(wait / 60000)} minute${Math.ceil(wait / 60000) === 1 ? '' : 's'}.`);
+  const zone = zoneOfActor(a) || 'bruma';
+  const t = templeFor(zone) || templeFor('bruma');
+  if (!t) return personal(a, 'There is no respawn point for this area. Ask a GM for help.');
+  try {
+    mp.set(a, 'locationalData', { cellOrWorldDesc: t.world, pos: t.pos, rot: [0, 0, Number(t.rotZ) || 0] });
+    mp.set(a, 'private.unstuckAt', Date.now());
+  } catch (e) { log('unstuck failed', e.message); return personal(a, 'That did not work. Ask a GM for help.'); }
+  personal(a, `You find your way back to safety. /unstuck is ready again in ${UNSTUCK.cooldownMinutes} minutes.`);
+  audit(`UNSTUCK ${who(a)} from ${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} to the ${zone} respawn`);
+}, { help: `move to the respawn point of your area (every ${UNSTUCK.cooldownMinutes} min, not in PvP combat)` });
 const setDeathTemple = (a) => {
   try { if (!(Number(mp.get(a, 'profileId')) >= 0)) return; } catch (e) { return; }
   const zone = zoneOfActor(a);
@@ -1891,6 +1913,7 @@ if (typeof globalThis.__dboPrevEquip === 'undefined') globalThis.__dboPrevEquip 
 const wornOf = (equipment) => { const entries = equipment && equipment.inv && Array.isArray(equipment.inv.entries) ? equipment.inv.entries : []; return entries.filter((e) => e && (e.worn || e.wornLeft)).map((e) => ({ baseId: Number(e.baseId) >>> 0, left: !!e.wornLeft })); };
 const connectedAt = globalThis.__dboConnectedAt = globalThis.__dboConnectedAt || new Map(); // actorId -> epoch ms of the last connect
 const WORN_GRACE_MS = 15000;
+const redressAt = new Map(); // actorId -> last login re-dress triggered by a naked report
 const equipHook = (actorId, equipment, isAllowed, ...rest) => {
   // The client reports its equipment while it is still dressing after login (an empty or naked
   // report), and the engine has already stored that. Keep our own copy of the last outfit that
@@ -1900,6 +1923,11 @@ const equipHook = (actorId, equipment, isAllowed, ...rest) => {
     const worn = wornOf(equipment);
     const fresh = Date.now() - (connectedAt.get(a) || 0) < WORN_GRACE_MS;
     if (isAllowed && worn.length && !fresh) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0]));
+    // The naked login report is the moment to dress, not the 12 s fallback in onCharacterReady
+    if (isAllowed && !worn.length && fresh && !creationPending(a) && Date.now() - (redressAt.get(a) || 0) > 2000) {
+      redressAt.set(a, Date.now());
+      setTimeout(() => { try { redress(a); } catch (e) { log('redress failed', e.message); } }, 250);
+    }
   } catch (e) { log('lastWorn save failed', e.message); }
   if ((cfg.debug || {}).logEquipment) {
     try {
@@ -2090,6 +2118,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
     try { if (prev(agg, tgt, src, dmg) === false) return false; }
     catch (e) { /* ignore */ }
   }
+
+  // PvP combat: both sides are marked, so /unstuck cannot be used to leave a fight
+  if (dmg > 0 && agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0) { const now = Date.now(); pvpAt.set(agg, now); pvpAt.set(tgt, now); }
 
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
