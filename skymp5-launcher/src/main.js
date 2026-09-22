@@ -666,6 +666,22 @@ function applyForcedServerDefaults(gamePath) {
   } catch (err) {
     log('[defaults] could not write Skyrim.ccc:', err.message)
   }
+  // Creations manifests the engine cached from Bethesda.net (Creations menu) are parsed at startup, and a
+  // malformed one throws inside the engine ("invalid stoull argument" in InstalledContent, 20-30 s in, before the
+  // main menu). The copy never uses that content, so the cache is emptied every launch.
+  try {
+    const dir = path.join(gamePath, 'Creations')
+    if (fs.existsSync(dir)) {
+      let n = 0
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name)
+        try { fs.rmSync(p, { recursive: true, force: true }); n++ } catch { /* locked by the game */ }
+      }
+      if (n) log(`[defaults] emptied the Creations cache (${n} entr${n === 1 ? 'y' : 'ies'})`)
+    }
+  } catch (err) {
+    log('[defaults] could not clear the Creations cache:', err.message)
+  }
   // Profile ini: kill the Bethesda.net platform, which drives the "AE content available for download" prompt and the CC news.
   try {
     const dest = path.join(mo2.getProfileDir(), 'skyrim.ini')
