@@ -2220,7 +2220,7 @@ try {
 try {
   const WORLDSTATS_JS = path.resolve('worldstats.js');
   delete require.cache[WORLDSTATS_JS];
-  require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf });
+  require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand });
 } catch (e) { log('worldstats.js failed to load:', e.stack || e.message); globalThis.__dboWorldStatsSeen = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------

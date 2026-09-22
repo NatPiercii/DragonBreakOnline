@@ -8,7 +8,7 @@
 module.exports = (api) => {
   const fs = require('fs');
   const path = require('path');
-  const { mp, log, every, onlineActors, profileOf } = api;
+  const { mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand } = api;
 
   const OUT = path.resolve('server-stats.json');
   const GOLD = 0x0000000f;
@@ -50,16 +50,28 @@ module.exports = (api) => {
     return total;
   };
 
+  // A played character: owned by a profile's slot list, creation finished, not perma-dead. Deleted ones are destroyed and drop out.
+  const isCharacter = (a, profileId) => {
+    try {
+      if (!(profileId >= 0)) return false;
+      const own = mp.getActorsByProfileId(profileId);
+      if (!Array.isArray(own) || !own.map((x) => Number(x) >>> 0).includes(a)) return false;
+      return mp.get(a, 'private.charCreatorPending') !== true && mp.get(a, 'private.permaDead') !== true;
+    } catch (e) { return false; }
+  };
+
   const snapshot = () => {
     const online = onlineActors();
     for (const a of online) ST.chars.add(a >>> 0);
     const races = new Map(); const profiles = new Set();
     let carried = 0, stored = 0;
+    ST.counted = [];
     for (const a of [...ST.chars]) {
       const profileId = profileOf(a);
-      if (!(profileId >= 0)) { ST.chars.delete(a); continue; }
+      if (!isCharacter(a, profileId)) { ST.chars.delete(a); continue; }
       let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { ST.chars.delete(a); continue; }
       const race = app && app.raceId ? raceName(app.raceId) : 'Unknown';
+      ST.counted.push(`${nameOf(a)} (${race})`);
       races.set(race, (races.get(race) || 0) + 1);
       carried += goldIn(a);
       if (!profiles.has(profileId)) { profiles.add(profileId); stored += storedGold(profileId); }
@@ -86,5 +98,10 @@ module.exports = (api) => {
   };
   every('worldStats', 60000, write);
   const first = write();
-  log(`worldstats on: ${first.characters} characters (${first.players} players), ${first.online} online, ${first.gold.total} gold held, ${first.races.length} races`);
+  log(`worldstats on: ${first.characters} characters (${first.players} players), ${first.online} online, ${first.gold.total} gold held, ${first.races.length} races: ${ST.counted.join(', ')}`);
+
+  registerChatCommand('stats', (a) => {
+    const s = write();
+    personal(a, `Server Stats counts ${s.characters} characters (${s.players} players): ${ST.counted.join(', ') || 'none'}. Gold held ${s.gold.total}.`);
+  }, { admin: true, help: 'who the launcher Server Stats counts, refreshed now' });
 };
