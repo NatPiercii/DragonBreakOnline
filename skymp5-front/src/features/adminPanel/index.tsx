@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import './styles.scss';
-import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PanelBan, MasteryTarget } from './extraTabs';
+import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PanelBan, MasteryTarget, TargetOption, BeastState } from './extraTabs';
 
 // One roster row as merged by the server (online actor data + backend record).
 interface PanelPlayer {
@@ -16,6 +16,7 @@ interface PanelPlayer {
   online: boolean;
   ping: number | null;
   m?: PanelMastery; // online rows only, absent on older servers
+  b?: BeastState; // beast powers held and the shape worn, online rows only
 }
 
 // One character's profession standing (masterySystem.ts MasterySummary).
@@ -91,6 +92,7 @@ export interface AdminPanelData {
   itemsVersion?: number; // bumped when window.__dboAdminItems arrives
   locationsVersion?: number; // bumped when window.__dboAdminLocations arrives
   masteryTarget?: MasteryTarget | null; // the Skills tab's player, arrives after adminMasteryRequest
+  me?: { a: string; b?: BeastState }; // the admin's own row, which the roster leaves out
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -238,7 +240,6 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
   const [tab, setTab] = useState<Tab>('debug');
   const [search, setSearch] = useState('');
   const [onlineOnly, setOnlineOnly] = useState(false);
-  const [locSearch, setLocSearch] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
   const [npcSub, setNpcSub] = useState<NpcSub>('list');
   const [zoneForm, setZoneForm] = useState<ZoneForm>(EMPTY_ZONE_FORM);
@@ -260,7 +261,6 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
 
   const ev = data.events || {};
   const players = data.players || [];
-  const locations = data.locations || [];
   const modes = data.modes || [];
   const npcZones = data.npcZones || [];
   const debug = data.debug || null;
@@ -297,8 +297,10 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
   if (actionsEnabled && selectedPlayer && selectedPlayer.a) masteryRows.push({ key: 'sel', who: selectedPlayer.n || '(no name)', target: selectedPlayer.a, m: selectedPlayer.m });
   const canGrant = !!ev.masteryGrant && isGrantAmount(grantHours);
 
-  const locFilter = locSearch.trim().toLowerCase();
-  const shownLocations = locations.filter((l) => !locFilter || l.name.toLowerCase().indexOf(locFilter) !== -1);
+  // Every tab that acts on somebody picks from the same list: you first, then everyone online
+  const targets: TargetOption[] = [{ id: '', label: 'You', beast: data.me ? data.me.b : undefined }].concat(
+    players.filter((pl) => pl.online && pl.a).map((pl) => ({ id: pl.a as string, label: pl.n || '(no name)', beast: pl.b })),
+  );
 
   const openTab = (id: Tab): void => {
     setTab(id);
@@ -506,9 +508,9 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
           </div>
         ) : null}
 
-        {tab === 'skills' ? <SkillsTab events={ev} masteryTarget={data.masteryTarget || null} /> : null}
-        {tab === 'items' ? <ItemsTab events={ev} itemsVersion={data.itemsVersion || 0} /> : null}
-        {tab === 'powers' ? <PowersTab events={ev} /> : null}
+        {tab === 'skills' ? <SkillsTab events={ev} masteryTarget={data.masteryTarget || null} targets={targets} /> : null}
+        {tab === 'items' ? <ItemsTab events={ev} itemsVersion={data.itemsVersion || 0} targets={targets} /> : null}
+        {tab === 'powers' ? <PowersTab events={ev} targets={targets} /> : null}
 
         {tab === 'teleport' ? <TeleportTab events={ev} locationsVersion={data.locationsVersion || 0} /> : null}
 

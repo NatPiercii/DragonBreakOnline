@@ -38,6 +38,7 @@ type Mp = any;
 //                     { customPacketType: "adminLocationsRequest" }  -> adminLocations  (settings locations + admin-locations.json map markers)
 //                     { customPacketType: "adminAction", action: "giveItem", item, count, targetName? }
 //                     { customPacketType: "adminAction", action: "giveSpells" | "giveShouts" | "giveWerewolf" | "giveVampireLord", targetName? }
+//                     { customPacketType: "adminAction", action: "beastForm", form: "werewolf" | "vampirelord", op: "now" | "revert" | "revoke", targetName? }
 //                     A missing target/targetName means the admin themself; targetName takes a name, a name prefix or #TAG.
 //   Server -> Client: { customPacketType: "adminMastery", targetName, detail }
 //                     { customPacketType: "adminItems", categories: [{ id, label, items: [[desc, name, plugin?]] }] }
@@ -267,6 +268,7 @@ export class AdminSystem implements System {
         online: true,
         ping: pings.get(p.userId) ?? null,
         m: this.mastery.summaryOf(ctx, p.actorId),
+        b: this.beastOf(p.actorId),
       };
       if (p.profileId > 0) byProfile.set(p.profileId, row);
       else extra.push(row);
@@ -275,6 +277,13 @@ export class AdminSystem implements System {
     const rows = Array.from(byProfile.values()).concat(extra);
     rows.sort((a, b) => (a.online === b.online) ? a.p - b.p : (a.online ? -1 : 1));
     return rows;
+  }
+
+  // Which beast powers a character holds and what shape they are in, from server\beastform.js
+  private beastOf(actorId: number): { werewolf: boolean; vampirelord: boolean; form: string | null } | undefined {
+    const holds = (globalThis as any).__dboBeastHolds;
+    if (typeof holds !== "function") return undefined;
+    try { return holds(actorId); } catch { return undefined; }
   }
 
   private modesFor(adminProfile: number): Array<{ id: string; label: string; active: boolean }> {
@@ -384,6 +393,7 @@ export class AdminSystem implements System {
             caps,
             mastery: this.mastery.summaryOf(ctx, myActorId),
             bans: this.bans.list(),
+            me: { a: myActorId.toString(16), b: this.beastOf(myActorId) },
           }));
         } catch (e) {
           this.log(`AdminSystem: adminMenu reply failed: ${e}`);
@@ -450,7 +460,7 @@ export class AdminSystem implements System {
       this.reply(mp, userId, !!lifted, lifted ? `Ban on ${lifted.name || lifted.ip} lifted` : "No such ban");
       return;
     }
-    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord"].indexOf(action) !== -1) {
+    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "beastForm"].indexOf(action) !== -1) {
       const who = this.resolveTarget(mp, myActorId, content);
       if (!who) { this.reply(mp, userId, false, "No online player by that name"); return; }
       this.selfServiceAction(ctx, mp, userId, myActorId, adminProfile, action, who, content);
@@ -589,6 +599,20 @@ export class AdminSystem implements System {
         mp.set(who.actorId, "inventory", { entries });
         this.adminLog(`profile ${adminProfile} spawned ${count}x ${desc} for ${whom}`);
         this.reply(mp, userId, true, `${count}x given to ${who.name}`);
+        return;
+      }
+      // Change shape, drop it, or take the power back. server\beastform.js owns the transform, so an admin
+      // never has to get the power's cast through the client to see whether it works.
+      if (action === "beastForm") {
+        const form = String(content["form"] ?? "werewolf");
+        const op = String(content["op"] ?? "now");
+        const run = (globalThis as any).__dboBeastAdmin;
+        if (typeof run !== "function") { this.reply(mp, userId, false, "beastform.js is not loaded on the server"); return; }
+        let said = "";
+        try { said = String(run(who.actorId, form, op) ?? ""); }
+        catch (e) { this.log(`AdminSystem: beastForm ${form}/${op} failed: ${e}`); this.reply(mp, userId, false, "Beast form failed, see server log"); return; }
+        this.adminLog(`profile ${adminProfile} ran beast form ${form} ${op} on ${whom}`);
+        this.reply(mp, userId, said.indexOf("could not") === -1, said || "Done");
         return;
       }
       const powers = this.powers();

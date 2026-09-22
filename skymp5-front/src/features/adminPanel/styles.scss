@@ -1,10 +1,12 @@
 // Tabbed admin panel: Debug read-outs / Players roster / Teleport locations / Mode toggles / NPC zones. Trade-window chrome.
+// The palette comes from the shared theme, so the panel follows it instead of drifting on its own copy.
+@import '../../dbo-theme.scss';
 
-$admin-gold: #8fd3d0;
-$admin-gold-dim: #5fb3b3;
-$admin-bg: rgba(12, 34, 38, 0.94);
+$admin-gold: $dbo-aqua;
+$admin-gold-dim: $dbo-aqua-dim;
+$admin-bg: $dbo-panel;
 $admin-pane-bg: rgba(8, 25, 28, 0.5);
-$admin-border: rgba(143, 211, 208, 0.42);
+$admin-border: $dbo-border;
 $admin-online: #6fce6f;
 
 // Skyrim card art: 280px corner knotwork, frame rule ~65px in, opaque black interior.
@@ -135,7 +137,8 @@ $admin-row-gutter: 16px;
   &__filters {
     display: flex;
     align-items: center;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 10px 16px;
   }
 
   &__search,
@@ -504,7 +507,26 @@ $admin-row-gutter: 16px;
   &__itempane { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   &__list--items { max-height: 420px; }
   &__powers { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
-  &__power { display: flex; align-items: center; gap: 16px; }
+  &__power {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    padding: 10px 12px; background: $admin-pane-bg; border: 1px solid $dbo-stone-dark;
+    .admin-panel__actions { gap: 10px; flex-wrap: wrap; }
+  }
+
+  // ---- 2026-09-22: the shared target picker, the sub filter row and progressive reveal ----------
+  &__picker {
+    display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+    .admin-panel__label { margin-right: 0; }
+    .admin-panel__select { margin-left: 0; min-width: 170px; }
+  }
+  &__filters--sub {
+    flex-wrap: wrap; gap: 6px; margin-top: 6px; padding-top: 6px;
+    border-top: 1px solid rgba(143, 211, 208, 0.18);
+  }
+  &__more {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 8px 0 4px;
+  }
 }
 
 .admin-panel__select {
