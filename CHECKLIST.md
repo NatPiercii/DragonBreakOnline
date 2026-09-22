@@ -1,5 +1,19 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22: Blood and Moonlight (world clock, vampires, werewolves, raids)
+
+Design pages: Factions https://claude.ai/artifact/WrQiufHXqnBbL7irYWbkYq , Supernatural https://claude.ai/artifact/S7e61j2TcVREcS1NUrn6dp (research in the 2026-09-22 session: engine, feasibility, UESP lore).
+
+- [x] `server\worldclock.js`: the server owns GameDaysPassed (epoch + timescale 6 = a game day per 4 real hours), calendar, moon phase (8 phases x 3 days, phase 0 full) and per-zone weather kinds; `dboClock` every 20 s and on login; client `timeService.ts` writes the globals and forces the region's weather of that kind outdoors. `/time`, admin `/settime`, `/timescale`, `/setweather`. State `worldclock.json`.
+- [x] `server\supernatural.js`: infection on hits (vampire 10%, werewolf bite 5%), 3 game days incubation, cure by Cure Disease potion (eat hook) or a Divine prayer; fever opens the **rite** widget (timed strike bar, 5 rounds); `/rite` at Molag Bal (Embrace, pure-blood) / Hircine (Great Hunt, blessed) with a 33% perma-death on failure (`private.permaDead`), Arkay/Stendarr cure for a filled black soul gem. Vampire stages 1-4 (sun damage outdoors by day via percentages, fire weakness after the hit, vampire race variant look), feeding on restrained players (X menu) or fresh humanoid corpses (activate). Blood Crown in `supernatural.json`: one Vampire Lord power holder, passes to a vampire killer. Werewolf: Beast Form 4 changes per real day, full-moon forced changes (1 in 10 per game hour, night, outdoors, unblessed), silver weakness, +30 s per corpse, pack leader pale coat (`dboPale`, GhostWolfSpiritFXShader), pack challenge. Admin `/curse`.
+- [x] `server\beastform.js` asks `__dboBeastAllow` first, witnesses within 3000 units, `__dboBeastChanged` hook.
+- [x] Factions: 50 (vampire clans + Hircine's Pack of the Jerall with `requires`), guard offices and titles, Jarl/Count lead the hold factions; rulers appoint Guard Captain + 20 Guards (Bruma: `captain`), chieftains a Stronghold Guard Commander + 20 Stronghold Guards.
+- [x] Parties: 6, raids 7-12 at `raidXpMult` 0.5 (`private.partyXpMult`, read by masterySystem), X-menu Remove from Party.
+- [x] Live: client 0.3.8, fork `bff017c`, server `9bd8d8af`+.
+- [ ] **Untested in game**: every transform path (setRace on the own client, remote rebuild, re-dress on revert), the rite timing (latency 120 ms + slack 160 ms may need tuning), weather forcing per region (BSHeartland uses DefaultClimate: only clear/cloudy exist there, so rain/snow fall back to cloudy), sun damage rate (0.6%/10 s per stage), forced change at full moon. Needs a two-player session.
+- [ ] Vampire Lord flight/levitation and the feeding animation are not synced (design note); the form is a race swap plus claws.
+- [ ] Website: the Guides section + invite fix wait on the owner (`claude-nate-handover/website-guides`). The Supernatural artifact is still private: Nat must share it ("Anyone with the link") before the website links to it.
+
 ## Added 2026-09-21 (late): the faction system
 
 Nat's spec is in the memory note `nat-design-decisions-2026-09-21`. Faction leaders are separate from hold officials.
