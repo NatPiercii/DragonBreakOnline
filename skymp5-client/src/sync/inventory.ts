@@ -483,6 +483,29 @@ export const applyInventory = (
   ignoreWorn = false
 ): boolean => {
   resetBase(refr);
+  // Adding or removing arrows from the quiver stack unequips it; the ammo that was equipped goes back on after the apply
+  const isPlayer = refr.getFormID() === 0x14;
+  const playerActor = isPlayer ? Actor.from(refr) : null;
+  let equippedAmmo: Form | null = null;
+  if (playerActor) {
+    for (const e of newInventory.entries) {
+      const f = Game.getFormEx(e.baseId);
+      if (f && Ammo.from(f) && playerActor.isEquipped(f)) { equippedAmmo = f; break; }
+    }
+  }
+  const res0 = applyInventoryInner(refr, newInventory, enableCrashProtection, ignoreWorn);
+  if (playerActor && equippedAmmo && !playerActor.isEquipped(equippedAmmo)) {
+    try { playerActor.equipItem(equippedAmmo, false, true); } catch { /* next apply */ }
+  }
+  return res0;
+};
+
+const applyInventoryInner = (
+  refr: ObjectReference,
+  newInventory: Inventory,
+  enableCrashProtection: boolean,
+  ignoreWorn = false
+): boolean => {
   const target = withoutPlayerEnchantments(newInventory);
   const reverted = refr.getFormID() === 0x14 && revertBaseIds.size ? new Set(revertBaseIds) : undefined;
   if (reverted) {
