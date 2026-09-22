@@ -86,7 +86,7 @@ const Housing = ({ data }: { data: HousingData }) => {
 
         {!canLock ? (
           <p className="housing__empty">
-            {view === 'claimable' ? 'Nobody has claimed this yet.' : "This isn't yours."}
+            {view === 'claimable' ? 'Nobody has claimed this yet.' : !data.owned ? "Unowned. Property is granted by the hold's Jarl, Steward or Chieftain." : "This isn't yours."}
           </p>
         ) : null}
 

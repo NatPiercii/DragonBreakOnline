@@ -10,9 +10,10 @@ type Mp = any;
 
 // ── Housing: claims, locks and keys ───────────────────────────────────────────
 //
-// Players claim any unowned door or container they are standing at by pressing
-// the housing key. Owners lock it, name it, cut keys, hand ownership over, or
-// give it up. A locked property refuses activation for everyone, owner included,
+// Property is granted: a hold official (MANAGER_RANKS) or an admin claims an unowned
+// door or container from the housing key and hands it to a player, unless
+// `housingOpenClaims` is true, when anyone may claim. Owners lock it, name it, cut
+// keys, hand ownership over, or give it up. A locked property refuses activation for everyone, owner included,
 // until someone with access (owner, hold official, admin or key holder) unlocks
 // it from the menu; RefDecorService mirrors the lock into the engine as a Master
 // lock so every player sees a locked door.
@@ -57,6 +58,7 @@ const DEFAULT_MAX_DISTANCE = 512;
 const DECOR_PUSH_INTERVAL_MS = 4000;
 const REQUEST_COOLDOWN_MS = 500;
 const CHANGE_FAILED = "That cannot be changed right now.";
+const NOT_GRANTED = "Property here is granted by the hold's Jarl, Steward or Chieftain.";
 
 // Ranks that manage property in their own zone: the Jarl and Steward of a hold, the
 // Chieftain and Bane of a sovereign stronghold (zones.json). A stronghold's radius wins
@@ -131,6 +133,7 @@ export class HousingSystem implements System {
     if (Number.isFinite(maxClaims) && maxClaims > 0) this.maxClaims = maxClaims;
     const maxDistance = Number(all?.["housingMaxDistance"]);
     if (Number.isFinite(maxDistance) && maxDistance > 0) this.maxDistance = maxDistance;
+    this.openClaims = all?.["housingOpenClaims"] === true;
 
     this.roleCfg = readAdminRoleConfig(all);
     this.zones = getZones(this.log);
@@ -245,7 +248,7 @@ export class HousingSystem implements System {
     const isManager = this.isManager(ctx, actorId, primary);
 
     switch (action) {
-      case "claim": this.doClaim(ctx, userId, actorId, primary, rec); break;
+      case "claim": this.doClaim(ctx, userId, actorId, primary, rec, isManager); break;
       case "abandon": this.doAbandon(ctx, userId, actorId, primary, rec, isOwner, isManager); break;
       case "revoke": this.doRevoke(ctx, userId, actorId, primary, rec, isManager); break;
       case "lock": this.doLock(ctx, userId, actorId, primary, rec, true); break;
@@ -259,9 +262,13 @@ export class HousingSystem implements System {
     }
   }
 
-  private doClaim(ctx: SystemContext, userId: number, actorId: number, primary: number, rec: PropertyRecord): void {
+  private doClaim(ctx: SystemContext, userId: number, actorId: number, primary: number, rec: PropertyRecord, isManager: boolean): void {
     if (rec.owner !== 0) {
       this.notice(ctx, userId, "Somebody already owns this.");
+      return;
+    }
+    if (!isManager && !this.openClaims) {
+      this.notice(ctx, userId, NOT_GRANTED);
       return;
     }
     const profileId = this.profileOf(ctx, actorId);
@@ -428,7 +435,7 @@ export class HousingSystem implements System {
     if (isOwner) view = "owner";
     else if (isManager) view = "manager";
     else if (holdsKey) view = "keyholder";
-    else if (primary && !owned) view = "claimable";
+    else if (primary && !owned && this.openClaims) view = "claimable";
     else view = "denied";
 
     this.send(ctx, userId, {
@@ -930,6 +937,7 @@ export class HousingSystem implements System {
   private zoneCache = new Map<number, string | null>();
   private maxClaims = DEFAULT_MAX_CLAIMS;
   private maxDistance = DEFAULT_MAX_DISTANCE;
+  private openClaims = false;
   private decorDirty = false;
   private lastDecorMs = 0;
 }
