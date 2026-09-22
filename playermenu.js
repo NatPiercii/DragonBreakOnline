@@ -101,7 +101,11 @@ module.exports = (api) => {
   const menuFor = (a, t) => {
     const entries = [{ id: 'trade', label: 'Trade' }];
     if (!knownBy(t).includes(a >>> 0)) entries.push({ id: 'introduce', label: 'Introduce' });
-    entries.push({ id: 'inspect', label: 'Inspect' }, { id: 'party', label: 'Invite to Party' });
+    entries.push({ id: 'inspect', label: 'Inspect' });
+    const leaderOf = typeof globalThis.__dboPartyLeaderOf === 'function' ? globalThis.__dboPartyLeaderOf : () => null;
+    if (leaderOf(a) === profileOf(a) && leaderOf(t) === profileOf(a)) entries.push({ id: 'partykick', label: 'Remove from Party' });
+    else entries.push({ id: 'party', label: 'Invite to Party' });
+    try { if (typeof globalThis.__dboSuperMenuEntries === 'function') entries.push(...globalThis.__dboSuperMenuEntries(a, t)); } catch (e) { /* no curses */ }
     try { if (typeof globalThis.__dboFactionMenuEntries === 'function') entries.push(...globalThis.__dboFactionMenuEntries(a, t)); } catch (e) { /* factions not loaded */ }
     if (get(a, LAWFUL_PROP, false) === true) {
       const r = get(t, RESTRAINED_PROP, null) || {};
@@ -129,6 +133,8 @@ module.exports = (api) => {
     if (id === 'introduce') return introduce(a, t);
     if (id === 'inspect') return openMenu(a, t, 'inspect', inspectLines(a, t));
     if (id === 'party') return runCommand(a, 'party', `invite #${tagOf(t)}`);
+    if (id === 'partykick') return runCommand(a, 'party', `kick #${tagOf(t)}`);
+    if (typeof globalThis.__dboSuperMenuAction === 'function' && globalThis.__dboSuperMenuAction(a, id, t)) return;
     if (typeof globalThis.__dboFactionMenuAction === 'function' && globalThis.__dboFactionMenuAction(a, id, t)) return;
   });
 

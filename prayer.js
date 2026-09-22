@@ -461,6 +461,7 @@ module.exports = (api) => {
       }
     }
     finish(a, round, true, text, 'win');
+    try { if (globalThis.__dboSuperPrayed) globalThis.__dboSuperPrayed(a, d.id); } catch (e) { /* no curses */ }
   });
 
   const daysLeft = (faith) => {

@@ -651,6 +651,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboPrayerActivate && globalThis.__dboPrayerActivate(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboSuperActivate && globalThis.__dboSuperActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboCoinPurse && globalThis.__dboCoinPurse(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
@@ -900,6 +901,8 @@ const onCharacterReady = (userId, a) => {
   connectedAt.set(a, Date.now());
   // A crash mid-transform leaves the beast race stored; put the real one back before anything reads it
   try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, 'login'); } catch (e) { log('beast revert on login failed', e.message); }
+  try { if (globalThis.__dboSuperLogin) globalThis.__dboSuperLogin(a); } catch (e) { log('supernatural login failed', e.message); }
+  try { if (globalThis.__dboClock) globalThis.__dboClock.sendTo(a); } catch (e) { /* clock later */ }
   // A new character is carried through the landing into the hub behind a black screen
   if (creationPending(a)) { creation.set(a, 'spawning'); setFade(a, true); setTimeout(() => fallBackToLanding(a), HUB_SPAWN_WAIT_MS); }
   // Seed the remembered outfit from the save before the client's undressed login reports replace it.
@@ -969,6 +972,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboPlayerMenuLeave) globalThis.__dboPlayerMenuLeave(a);
   // A beast race must never be saved as the character's own
   if (a && globalThis.__dboBeastRevert) { try { globalThis.__dboBeastRevert(a, 'logout'); } catch (e) { log('beast revert on logout failed', e.message); } }
+  if (a && globalThis.__dboSuperLeave) { try { globalThis.__dboSuperLeave(a); } catch (e) { /* no rite */ } }
   // Logging out inside a dungeon would put them back inside it next time, in a claim that is not theirs
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   connected.delete(userId);
@@ -1146,7 +1150,7 @@ const eatHook = (actorId, baseId, ...rest) => {
   let verdict;
   const prev = globalThis.__dboPrevEat;
   if (prev) { try { verdict = prev(actorId, baseId, ...rest); } catch (e) { log('eat hook chain failed', e.message); } }
-  if (verdict !== false) { try { onEat(Number(actorId) >>> 0, Number(baseId) >>> 0); } catch (e) { log('eat handling failed', e.message); } }
+  if (verdict !== false) { try { onEat(Number(actorId) >>> 0, Number(baseId) >>> 0); } catch (e) { log('eat handling failed', e.message); } try { if (globalThis.__dboSuperEat) globalThis.__dboSuperEat(Number(actorId) >>> 0, Number(baseId) >>> 0); } catch (e) { log('supernatural eat failed', e.message); } }
   return verdict;
 };
 eatHook.__dbo = true;
@@ -1892,6 +1896,7 @@ const deathHook = (actorId, killerId, ...rest) => {
   // MpActor::Kill adds the death item after firing this event, so the pelt only exists a tick later
   setTimeout(() => { try { stashPelts(Number(actorId) >>> 0); } catch (e) { log('pelt stash failed', e.message); } }, 50);
   try { if (globalThis.__dboChampionDeath) globalThis.__dboChampionDeath(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('champion death failed', e.message); }
+  try { if (globalThis.__dboSuperDeath) globalThis.__dboSuperDeath(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('supernatural death failed', e.message); }
   try { if (globalThis.__dboContractKill && killerId) globalThis.__dboContractKill(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('contract kill failed', e.message); }
   try { if (globalThis.__dboTrimCorpse) globalThis.__dboTrimCorpse(Number(actorId) >>> 0); } catch (e) { log('corpse trim failed', e.message); }
   const prev = globalThis.__dboPrevDeath;
@@ -1909,6 +1914,8 @@ const hitDamageHook = (aggressorId, targetId, sourceId, damage, ...rest) => {
   // so the tier's share has to be on the target by the time it looks.
   try { dealt += masteryBonusDamage(agg, tgt, dealt); } catch (e) { log('mastery damage failed', e.message); }
   try { if (globalThis.__dboChampionHit) globalThis.__dboChampionHit(agg, tgt, dealt); } catch (e) { log('champion hit failed', e.message); }
+  try { dealt += superBonusDamage(agg, tgt, Number(sourceId) >>> 0, dealt); } catch (e) { log('supernatural damage failed', e.message); }
+  try { if (globalThis.__dboSuperHit && dealt > 0) globalThis.__dboSuperHit(agg, tgt); } catch (e) { log('supernatural hit failed', e.message); }
   const prev = globalThis.__dboPrevHitDamage;
   if (prev) { try { return prev(aggressorId, targetId, sourceId, dealt, ...rest); } catch (e) { log('hit damage chain failed', e.message); } }
   return undefined;
@@ -2075,6 +2082,19 @@ const masteryDamageMult = (aggressorId, sourceId) => {
   const bonus = Number((MASTERY_DMG.byTier || [])[rank]) || 0;
   return bonus > 0 ? 1 + bonus : 1;
 };
+// A vampire burns under fire and a werewolf under silver (supernatural.js): the extra comes off after the engine's hit
+const superBonusDamage = (agg, tgt, src, damage) => {
+  const pend = globalThis.__dboSuperPending; globalThis.__dboSuperPending = null;
+  if (!pend || pend.agg !== agg || pend.tgt !== tgt || !(damage > 0)) return 0;
+  let now = null; try { now = mp.get(tgt, percentages); } catch (e) { return 0; }
+  if (!now || !(now.health > 0)) return 0;
+  const dealtPct = pend.health - now.health;
+  if (!(dealtPct > 0)) return 0;
+  const health = Math.max(0.01, now.health - dealtPct * (pend.mult - 1));
+  if (!(health < now.health)) return 0;
+  try { mp.set(tgt, percentages, { health, magicka: now.magicka, stamina: now.stamina }); } catch (e) { return 0; }
+  return damage * ((now.health - health) / dealtPct);
+};
 // onHitDamageAttempt fires, the engine applies the damage, onHitDamage fires - all inside one C++
 // call, so one pending record is enough. Returns the extra damage in points, for the hit credit.
 const masteryBonusDamage = (agg, tgt, damage) => {
@@ -2148,6 +2168,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
 
   // PvP combat: both sides are marked, so /unstuck cannot be used to leave a fight
   if (dmg > 0 && agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0) { const now = Date.now(); pvpAt.set(agg, now); pvpAt.set(tgt, now); }
+  // Fire on a vampire, silver on a werewolf: note the health now, the extra comes off in onHitDamage
+  globalThis.__dboSuperPending = null;
+  try { const m = globalThis.__dboSuperDamageMult ? Number(globalThis.__dboSuperDamageMult(agg, tgt, src)) : 1; if (m > 1 && dmg > 0) { const p = mp.get(tgt, 'percentages'); if (p && p.health > 0) globalThis.__dboSuperPending = { agg, tgt, mult: m, health: p.health }; } } catch (e) { /* not an actor */ }
 
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
@@ -2281,12 +2304,28 @@ try {
   require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand });
 } catch (e) { log('worldstats.js failed to load:', e.stack || e.message); globalThis.__dboWorldStatsSeen = null; }
 
+// ---- the world clock and weather (server\worldclock.js) ----------------------------------------------
+try {
+  const WORLDCLOCK_JS = path.resolve('worldclock.js');
+  delete require.cache[WORLDCLOCK_JS];
+  require(WORLDCLOCK_JS)({ mp, log, personal, system, registerChatCommand, sendPacket, onlineActors, every, zoneOfActor, audit, who, cfg });
+} catch (e) { log('worldclock.js failed to load:', e.stack || e.message); globalThis.__dboClock = null; }
+
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {
   const BEASTFORM_JS = path.resolve('beastform.js');
   delete require.cache[BEASTFORM_JS];
   require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors });
-} catch (e) { log('beastform.js failed to load:', e.stack || e.message); globalThis.__dboBeastCast = null; globalThis.__dboBeastRevert = null; globalThis.__dboBeastOriginalRace = null; }
+} catch (e) { log('beastform.js failed to load:', e.stack || e.message); globalThis.__dboBeastCast = null; globalThis.__dboBeastRevert = null; globalThis.__dboBeastOriginalRace = null; globalThis.__dboBeastTransform = null; }
+
+// ---- vampirism and lycanthropy (server\supernatural.js) ------------------------------------------------
+try {
+  const SUPERNATURAL_JS = path.resolve('supernatural.js');
+  delete require.cache[SUPERNATURAL_JS];
+  // Feeding counts as a meal for the hunger meter
+  const needsFeed = (a) => { if (!NEEDS.enabled) return; const n = needsOf(a); n.hunger = Math.max(0, n.hunger - (Number((NEEDS.restore || {}).meal) || 0)); saveNeeds(a, n); applyNeedsStage(a, n, false); };
+  require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, cfg });
+} catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave']) globalThis[k] = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
