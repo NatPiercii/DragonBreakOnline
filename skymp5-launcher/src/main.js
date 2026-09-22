@@ -2018,6 +2018,7 @@ function crc32File(p) {
 async function checkFilesImpl() {
   const issues = []
   const notes  = []
+  let ev = null // the per-file sync manifest, shared by the client-files and DragonBreak-files sections
   const root   = mo2.getRoot()
   const show   = p => {
     const r = path.relative(root, p)
@@ -2122,7 +2123,6 @@ async function checkFilesImpl() {
     // Client files. The per-file sync (DragonBreak files) owns anything it lists, so those are checked
     // against its manifest below; the zip's copy of a plugin can lag behind it.
     progress('Checking client files…')
-    let ev = null
     try { ev = await fetchExtraManifest() }
     catch (err) { notes.push(`DragonBreak files: could not read the server list (${err.message}), section skipped.`) }
     const syncOwned = new Set(extraEntries(ev, gamePath).map(x => x.path.toLowerCase()))
