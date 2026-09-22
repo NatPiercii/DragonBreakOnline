@@ -75,7 +75,11 @@ module.exports = (api) => {
   const broadcast = () => { for (const a of onlineActors()) sendPacket(a, packetFor(a)); };
   every('worldClock', C.broadcastSeconds * 1000, broadcast);
 
-  globalThis.__dboClock = { gameDays, hour, isNight, isFullMoon, moonPhase, weatherFor, text: clockText, sendTo: (a) => sendPacket(a, packetFor(a)) };
+  globalThis.__dboClock = {
+    gameDays, hour, isNight, isFullMoon, moonPhase, weatherFor, text: clockText, sendTo: (a) => sendPacket(a, packetFor(a)),
+    // For the launcher Stats window (worldstats.js)
+    summary: () => { const c = calendar(); return { gameDays: gameDays(), timeScale: ST.timeScale, hour: hour(), day: c.day, month: MONTHS[c.month], year: c.year, phase: moonPhase(), phaseName: PHASES[moonPhase()], night: isNight(), weather: KINDS[weatherOf('bruma')] }; },
+  };
 
   registerChatCommand('time', (a) => personal(a, `It is ${clockText()}`), { help: 'the time, date and the moons' });
   registerChatCommand('settime', (a, args) => {

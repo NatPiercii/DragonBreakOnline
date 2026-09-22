@@ -2301,19 +2301,19 @@ try {
   require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, findByName, audit, who, cfg });
 } catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
 
-// ---- launcher Server Stats: online, races, gold held (server\worldstats.js -> server-stats.json) ----
-try {
-  const WORLDSTATS_JS = path.resolve('worldstats.js');
-  delete require.cache[WORLDSTATS_JS];
-  require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand });
-} catch (e) { log('worldstats.js failed to load:', e.stack || e.message); globalThis.__dboWorldStatsSeen = null; }
-
 // ---- the world clock and weather (server\worldclock.js) ----------------------------------------------
 try {
   const WORLDCLOCK_JS = path.resolve('worldclock.js');
   delete require.cache[WORLDCLOCK_JS];
   require(WORLDCLOCK_JS)({ mp, log, personal, system, registerChatCommand, sendPacket, onlineActors, every, zoneOfActor, audit, who, cfg });
 } catch (e) { log('worldclock.js failed to load:', e.stack || e.message); globalThis.__dboClock = null; }
+
+// ---- launcher Server Stats: online, races, gold held (server\worldstats.js -> server-stats.json) ----
+try {
+  const WORLDSTATS_JS = path.resolve('worldstats.js');
+  delete require.cache[WORLDSTATS_JS];
+  require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand });
+} catch (e) { log('worldstats.js failed to load:', e.stack || e.message); globalThis.__dboWorldStatsSeen = null; }
 
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {

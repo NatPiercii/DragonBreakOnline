@@ -85,6 +85,7 @@ module.exports = (api) => {
       online: online.length, peakToday: ST.peak.online,
       characters: [...races.values()].reduce((n, c) => n + c, 0), players: profiles.size,
       gold: { total: carried + stored, carried, stored },
+      clock: (() => { try { return globalThis.__dboClock ? globalThis.__dboClock.summary() : null; } catch (e) { return null; } })(),
       races: [...races.entries()].map(([race, count]) => ({ race, count })).sort((x, y) => y.count - x.count || x.race.localeCompare(y.race)),
     };
   };

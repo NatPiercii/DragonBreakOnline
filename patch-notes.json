@@ -1,5 +1,20 @@
 [
   {
+    "title": "The Moons in Your Launcher",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Launcher 2.1.21",
+    "sections": [
+      {
+        "items": [
+          "The STATS window shows the world clock: the hour, the date and the phase of the moons, with a moon that fills and wanes.",
+          "A full moon is marked. Werewolves, plan your nights.",
+          "It also shows the weather over Bruma and how fast the day turns."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Blood and Moonlight",
     "date": "2026-09-22",
     "tag": "New Feature",
