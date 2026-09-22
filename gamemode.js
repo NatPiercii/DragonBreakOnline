@@ -1174,6 +1174,20 @@ log(`loaded: ${commands.size} commands, ${ADMIN_PROFILES.size} admin profile id(
 log(`TAMRIEL desc = ${JSON.stringify(TAMRIEL)}`);
 try { const hub = mp.getIdFromDesc('17482:DragonBreak Hub.esp'); log(`hub worldspace id = 0x${(hub >>> 0).toString(16)} (desc back: ${mp.getDescFromId(hub)})`); } catch (e) { log('hub id lookup failed', e.message); }
 try { log(`onlinePlayers raw = ${JSON.stringify(mp.get(0, 'onlinePlayers'))}`); } catch (e) { log('onlinePlayers get failed', e.message); }
+// Every character of a profile, online or not: the actors are destroyed and the slots free up (character select refreshes on relog)
+registerChatCommand('wipechars', (a, args) => {
+  const q = args.trim();
+  let pid = /^d+$/.test(q) ? Number(q) : -1;
+  if (pid < 0) { const t = findAnyByName(q); if (t > 0) pid = profileOf(t); }
+  if (!(pid >= 0)) return personal(a, 'Usage: /wipechars <profile id|name|#TAG>');
+  let ids = []; try { ids = (mp.getActorsByProfileId(pid) || []).map((x) => Number(x) >>> 0); } catch (e) { return personal(a, 'Lookup failed: ' + e.message); }
+  if (!ids.length) return personal(a, `Profile ${pid} has no characters.`);
+  const names = ids.map((id) => `${nameOf(id)} (${id.toString(16)})`);
+  let n = 0;
+  for (const id of ids) { try { const u = userOf(id); if (u >= 0) system(id, 'Your character was wiped by an admin.'); mp.destroyActor(id); n++; } catch (e) { log(`wipechars: destroy ${id.toString(16)} failed: ${e.message}`); } }
+  audit(`GM ${who(a)} wiped ${n} character(s) of profile ${pid}: ${names.join(', ')}`);
+  personal(a, `Wiped ${n} of ${ids.length} character(s) of profile ${pid}: ${names.join(', ')}.`);
+}, { admin: true, help: '<profile id|name|#TAG> destroy every character of that account' });
 registerChatCommand('fixloc', (a, args) => {
   const t = args.trim() ? findByName(args.trim()) : a; if (!t) return personal(a, 'No such player.');
   try {
