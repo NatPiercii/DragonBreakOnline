@@ -58,14 +58,14 @@ const DEFAULT_MAX_DISTANCE = 512;
 const DECOR_PUSH_INTERVAL_MS = 4000;
 const REQUEST_COOLDOWN_MS = 500;
 const CHANGE_FAILED = "That cannot be changed right now.";
-const NOT_GRANTED = "Property here is granted by the hold's Jarl, Steward or Chieftain.";
+const NOT_GRANTED = "Property here is granted by its ruler (Jarl, Baron or Count) or their Steward.";
 
-// Ranks that manage property in their own zone: the Jarl and Steward of a hold, the
+// Ranks that manage property in their own zone: the Jarl (or Baron) and Steward of a hold, the
 // Chieftain and Bane of a sovereign stronghold (zones.json). A stronghold's radius wins
 // over the surrounding hold, so hold officials have no say inside it and vice versa.
 // Managers claim, revoke, rename, transfer, re-key and cut keys for any property there.
 // The Count of Bruma (zones.json region "bruma") manages property the way a Jarl does.
-const MANAGER_RANKS = ["jarl", "steward", "chieftain", "bane", "count"];
+const MANAGER_RANKS = ["jarl", "baron", "steward", "chieftain", "bane", "count"];
 
 // Interior cells that belong to a hold, kept as a fallback for interiors whose exterior
 // door the server cannot place (old HoldClaims table, slugs mapped to zones.json ids).
