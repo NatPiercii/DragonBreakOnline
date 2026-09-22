@@ -728,11 +728,10 @@ function installLog(msg) {
 document.getElementById('btn-copy-log').addEventListener('click', async () => {
   const btn = document.getElementById('btn-copy-log')
   const lines = installLogLines.concat(installLiveLine ? [installLiveLine] : [])
-  const text = `DragonBreak Launcher ${document.getElementById('launcher-version')?.textContent || ''}
-` + (lines.length ? lines.join('
-') : '(log is empty)')
+  const version = (document.getElementById('launcher-version') || {}).textContent || ''
+  const text = 'DragonBreak Launcher ' + version + '\n' + (lines.length ? lines.join('\n') : '(log is empty)')
   const ok = await window.electronAPI.copyText(text)
-  btn.textContent = ok ? 'Copied ✓' : 'Copy failed'
+  btn.textContent = ok ? 'Copied \u2713' : 'Copy failed'
   setTimeout(() => { btn.textContent = 'Copy Log' }, 1500)
 })
 
