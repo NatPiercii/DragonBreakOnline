@@ -53,6 +53,8 @@ import { DboGlowService } from "./services/services/dboGlowService";
 import { RemoteVitalsService } from "./services/services/remoteVitalsService";
 import { HostedDriftService } from "./services/services/hostedDriftService";
 import { InteractionPromptService } from "./services/services/interactionPromptService";
+import { BoardMailService } from "./services/services/boardMailService";
+import { BeastFormService } from "./services/services/beastFormService";
 import { RestraintService } from "./services/services/restraintService";
 import { CaptureConsentService } from "./services/services/captureConsentService";
 import { SearchService } from "./services/services/searchService";
@@ -151,6 +153,8 @@ const main = () => {
       new RemoteVitalsService(sp, controller),
       new HostedDriftService(sp, controller),
       new InteractionPromptService(sp, controller),
+      new BoardMailService(sp, controller),
+      new BeastFormService(sp, controller),
       new RestraintService(sp, controller),
       new CaptureConsentService(sp, controller),
       new SearchService(sp, controller),
