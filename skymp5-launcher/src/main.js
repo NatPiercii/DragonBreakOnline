@@ -690,6 +690,23 @@ function applyForcedServerDefaults(gamePath) {
   } catch (err) {
     log('[defaults] could not clear the Creations cache:', err.message)
   }
+  // The catalog itself lives outside the game folder, in %LOCALAPPDATA%, so emptying Creations above never reached
+  // it. A CSV2_<uuid> entry in there makes the engine stoull a uuid and throw the same "invalid stoull argument"
+  // (Leerod, 2026-09-22 17:16, still on 2.1.26). It is a Bethesda.net cache this copy never reads, and a machine
+  // with no catalog at all launches fine, so it is moved aside rather than parsed. Kept, not deleted: it belongs to
+  // the player's own Skyrim, which rebuilds it the next time they open the Creations menu.
+  try {
+    const local = process.env.LOCALAPPDATA
+    const catalog = local ? path.join(local, 'Skyrim Special Edition', 'ContentCatalog.txt') : null
+    if (catalog && fs.existsSync(catalog) && fs.statSync(catalog).size > 0) {
+      const kept = catalog + '.dbo-disabled'
+      try { fs.rmSync(kept, { force: true }) } catch { /* first run */ }
+      fs.renameSync(catalog, kept)
+      log(`[defaults] moved the Creations content catalog aside (kept as ${path.basename(kept)})`)
+    }
+  } catch (err) {
+    log('[defaults] could not move the Creations content catalog aside:', err.message)
+  }
   // Profile ini: kill the Bethesda.net platform, which drives the "AE content available for download" prompt and the CC news.
   try {
     const dest = path.join(mo2.getProfileDir(), 'skyrim.ini')
