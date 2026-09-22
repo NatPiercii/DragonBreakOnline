@@ -2383,9 +2383,11 @@ function downloadClientZip(tempPath, onProgress) {
 /**
  * Extract the zip at zipPath into destDir, preserving the internal path structure.
  * Calls onProgress(entryName, index, total) for each file entry.
- * Returns the number of files extracted.
+ * Returns the number of files extracted. Files are written with the async API and the loop
+ * yields between entries, so the window keeps painting (a synchronous loop over the 170 MB
+ * client zip left Windows showing "Not Responding" for the whole extraction).
  */
-function extractClientZip(zipPath, destDir, onProgress) {
+async function extractClientZip(zipPath, destDir, onProgress) {
   const zip     = new AdmZip(zipPath)
   const entries = zip.getEntries().filter(e => !e.isDirectory)
   const total   = entries.length
@@ -2399,8 +2401,10 @@ function extractClientZip(zipPath, destDir, onProgress) {
     if (resolved !== root && !resolved.startsWith(root + path.sep)) {
       throw new Error(`Refusing to extract entry outside the target directory: ${entry.entryName}`)
     }
-    zip.extractEntryTo(entry.entryName, destDir, /* maintainEntryPath */ true, /* overwrite */ true)
     if (onProgress) onProgress(entry.entryName, i + 1, total)
+    await new Promise(r => setImmediate(r))
+    await fs.promises.mkdir(path.dirname(resolved), { recursive: true })
+    await fs.promises.writeFile(resolved, entry.getData())
   }
 
   return total
@@ -2560,7 +2564,7 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
     try { settingsSnapshot = fs.readFileSync(clientSettingsPath, 'utf8') } catch { /* first install */ }
     // An interrupted extract must show as an update on the next Play
     store.set('filesVersion', '')
-    const extracted = extractClientZip(tempZip, skyrimPath, (file, i, total) => {
+    const extracted = await extractClientZip(tempZip, skyrimPath, (file, i, total) => {
       send('install:progress', { phase: 'extract', file, index: i, total, skipped: false })
     })
     if (settingsSnapshot !== null) {
