@@ -1,5 +1,66 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (18:00 UTC, unattended run): the crash on jump is a null character controller
+
+Nothing pushed, nothing deployed, nobody was here to ask. One gitignored live file was changed, see the
+warning at the end of this block. The run's brief queued three items; **two of them were already closed**
+by work on 20-21 Sep, so the run spent itself on the third plus a review that found a second half of the
+bug the 17:40 block above describes.
+
+- [x] **Client crash on jump: measured, not theorised** (`HUB_SPAWN_BUG.md` item 3, rewritten in full).
+  `42423` is **`JumpHandler::ProcessButton`** and `42338` is **`PlayerControls::ProcessEvent`** - read out of
+  `SkyrimSE.exe`'s own vtables (`VTABLE_JumpHandler` AE id 208731 slot 4; `VTABLE_PlayerControls[0]` slot 1)
+  after parsing `versionlib-1-6-1170-0.bin`, which resolves 42423 -> `0x79F380` and matches the crash log's
+  `+0xBC` exactly. `+0x218` is **`bhkCharacterController::flags`**, so `rax = 0` is
+  `Actor::GetCharController()` returning null. **It has happened twice**, 23 minutes apart, identical to the
+  register: 2026-09-20 23:58:11 at 74 s uptime in `RiverwoodSleepingGiantInn` (where a character sits before
+  the spawn move lands) and 2026-09-21 00:21:05 at Pale Pass (the playtest arrival spot itself). Both are our
+  own teleport boundaries, and both of our teleport paths keep the player in control with no loading screen:
+  the 30 x 1 s `moveRefrToPosition` spawn loop in `remoteServer.ts`, and
+  `safeRemoveRagdollFromWorld` -> `Actor.ForceRemoveRagdollFromWorld()` -> `.then()` -> `once("update")`
+  before every other move.
+- [ ] **No fix shipped, on purpose.** The reliable one is a C++ hook on 42423 that returns early on a null
+  controller (CI flatrim build). The cheap one is blocking movement input across a teleport, but whether that
+  stops `ProcessButton` being reached is unread engine behaviour. Reproduce first: connect and hold space for
+  the first 30 s. **Static disassembly is off the table** - the retail exe has a `.bind` Steam section and
+  `.text` measures 7.997 bits of entropy, so it is encrypted on disk; this needs a live debugger.
+- [x] The two readers are saved as `server\tools\crashlog\versionlib.py` and `vtable.py`, with the format and
+  the caveats in their docstrings. **`server\tools\` is gitignored**, so they live on this PC only; move them
+  if they should survive a clone.
+- [x] **The record-local id bug also bites worn enchantments** (fork working tree, uncommitted, complements the
+  17:40 block above and does not overlap it). `TES5DamageFormulaImpl::CalcArmorRatingComponent` looked an
+  `ARMO`'s `EITM` up raw, and `CalcMagicEffects` did the same with every `ENCH` effect. Proof from the live log:
+  a GM spawned `17ae5:Gray Fox Cowl.esm`, equipped it, and the server logged `Record 0x3020119 doesn't exist`
+  in bursts of three from then on - `0x020119` is `manny_GF_Ench_GrayCowl`, the cowl's own enchantment, and
+  `Gray Fox Cowl.esm` sits at global index `0x0A`. Both now map through the owning record's
+  `LookupResult::ToGlobalId`, and `CalcOpponentArmorRating` wraps each worn item in a try/catch, **because
+  `ScampServer::Tick` logs and abandons the whole packet on a throw**: one unreadable worn item made its wearer
+  unkillable. That is a candidate cause for "invulnerable spawns" further down this file.
+- [x] Same bug in `MpActor::RefusePotionOnCooldown` (`MpActor.cpp:607`): the ALCH effect ids it reads to undo a
+  cooldown-refused drink were raw, so drinking a modded potion twice inside the cooldown threw and dropped the
+  packet. Mapped through `lookupRes.ToGlobalId`. A full scan of every `espm::GetData<...>` call site in
+  `skymp5-server/cpp` found no other unmapped field read; the rest take global ids (`entry.baseId`,
+  `hitData.source`, `spellCastData.spell`).
+- [ ] **All of it is C++ and none of it is committed.** `TES5DamageFormula.cpp` holds this run's hunks *and* the
+  17:40 run's spell-path hunk, so committing it would commit another session's work; left in the working tree
+  deliberately. Nat: `backup-git.cmd`, check `/api/servers` shows `"online":0`, then one push of fork `main`
+  and let the updater's native build restart the server.
+- [x] **Brief item "RaceMenu shows the stock menu" was already solved on 2026-09-21** and the leading theory in
+  `HUB_SPAWN_BUG.md` was wrong: not MO2's `archives.txt`, not timing - `SkyUI_SE.bsa` ships its own
+  `racesex_menu.swf` and the later plugin's archive wins (fork `85673a0`). Doc corrected.
+- [x] **Brief item "Orc with Nord frost resistance" was already solved on 2026-09-20 21:00** (RACE spells off
+  client-side in `RaceSpellsService`, Player `NPC_` spells off in DLE). `DBO_PlayerRecord.pas` does not need the
+  spell-element path after all. Doc corrected.
+- [x] **`server\data\DragonBreak Online Edits.esp` refreshed** - it had been stuck on `a13379...` since 11:23 on
+  21 Sep because a local server held it open, while the dev `Data\` copy, `/opt/skyrim-data`, the launcher's
+  extra-files folder and `fork\deploy\skyrim-data\SHA256SUMS` all carry `315769e4...`. **`deploy-plugins`
+  defaults to `server\data` as its source**, so the next run of it without `DBO_PLUGIN_SRC` would have pushed
+  the old file to the live server and to every launcher, silently undoing the Orcish Blood description fix and
+  the 150/100/100 Player vitals. All nine deployed plugins now match the dev `Data\` copy byte for byte.
+  **This file is gitignored and live - Nat, no commit carries it.** Old copy kept beside it as
+  `.bak-20260922-124418`. Note `server\tools\loadtest\sandbox\data\` was hard-linked to it and keeps the old
+  version; left alone as bot-testing scope.
+
 ## Added 2026-09-22 (17:40 UTC, unattended run): no modded spell has ever dealt damage
 
 Nothing was pushed and nothing was deployed: Nat was asleep, players had been online 30 minutes earlier, and

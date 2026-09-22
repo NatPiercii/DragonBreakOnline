@@ -81,9 +81,16 @@ a finished character to the arrival 9 s after the starter kit.
 
 ## STILL OPEN - for the next session
 
-### 1. RaceMenu shows the vanilla menu, not its sliders
+### 1. RaceMenu shows the vanilla menu, not its sliders - SOLVED 2026-09-21
 
-**Symptom:** the race menu offers only Sex / Presets / Skin Tone / Weight with Race/Body/Head/Face
+**It was not the BSA and not the timing. `SkyUI_SE.bsa` ships its own `racesex_menu.swf`**, and the
+later plugin's archive wins, so SkyUI's vanilla-style menu replaced RaceMenu's. Fixed by moving
+`RaceMenu.esp` and `RaceMenuPlugin.esp` after `SkyUI_SE.esp` in `fork\deploy\skyrim-data\loadorder.txt`
+(fork `85673a0`). That shifted regular indices `0x0f`-`0x1c` down by two; the only numeric id in that
+band was SurWR's blocked spell, `0x18315AA6` -> `0x16315AA6` in `server-settings.json`. The MO2
+`archives.txt` theory below is wrong and is kept only as a record of what was eliminated.
+
+**Original symptom:** the race menu offers only Sex / Presets / Skin Tone / Weight with Race/Body/Head/Face
 tabs - the stock `RaceSexMenu`. RaceMenu's own panel (ALL/RACE/BODY/HEAD filter, Sliders / Presets /
 Camera / Sculpt) does not appear. The full UI **was** seen earlier the same evening, so it can work.
 
@@ -109,9 +116,15 @@ This is a mod-manager setting, not a server one - nothing to restart.
 engine opens the stock menu. Test with `showracemenu` in the console - full RaceMenu UI there means
 the mod is fine and the fix is to delay `setRaceMenuOpen` server side.
 
-### 2. An Orc still has Nord frost resistance
+### 2. An Orc still has Nord frost resistance - SOLVED 2026-09-20 21:00
 
-`RaceSpellsService` **is** in the deployed client bundle (9 references) and the checklist records it
+Two sources, two fixes, both confirmed in play (HANDOFF section 0). **Battle Cry and `RaceNord`** are
+RACE spells and come off client-side with `Actor.removeSpell` + `dispelSpell` in `RaceSpellsService`;
+**Flames and Healing** sit on the vanilla Player `NPC_ Skyrim.esm:000007`, which Papyrus cannot touch,
+and came off with a DLE override that also stripped that record's 16-item kit and its 140 gold. The
+`DBO_PlayerRecord.pas` spell-element problem described below no longer needs solving. Do not reopen.
+
+**Original note:** `RaceSpellsService` **is** in the deployed client bundle (9 references) and the checklist records it
 confirmed working on 2026-09-20 at 20:10. Two reasons it may not be firing now, both plausible:
 
 - The service derives the strip set from the player's race at runtime, and creation has only just
@@ -138,11 +151,79 @@ appear on the stack only as input-dispatch hooks passing the event through - **n
 the cause.** The crash log's load order matches the server (`Regular: 61`, Hub at `[24]`), so this
 is not the ESL issue.
 
-**Unverified - do not treat as a cause yet:** the timing fits `sendToArrival` moving the player from
-the hub to Pale Pass, so the first thing to measure is whether the jump landed while the player's
-character controller / 3D was still missing after that teleport. Next steps: resolve functions
-42423 and 42338 (Address Library ids on the stack) to their names, find what sits at `+0x218` of
-the object in rax, and check `server.log` around 00:21 for a teleport of Argy just before it.
+#### Measured 2026-09-22. It is a null character controller, and it has happened twice.
+
+**The ids, resolved against `versionlib-1-6-1170-0.bin` and the exe's own vtables** (not guessed;
+the reader and the vtable dump are reproducible, see "How this was measured" below):
+
+| id | RVA | what it is | how that was established |
+|---|---|---|---|
+| 42423 | `0x79F380` | **`JumpHandler::ProcessButton`** | it is **slot 4** of `VTABLE_JumpHandler` (CommonLibSSE-NG AE id 208731, RVA `0x18B6F40`) read straight out of `SkyrimSE.exe`; slot 4 is `ProcessButton` in `PlayerInputHandler`'s vtable order |
+| 42338 | `0x79A970` | **`PlayerControls::ProcessEvent`** | **slot 1** of `VTABLE_PlayerControls[0]`, which is `BSTEventSink<InputEvent*>`; `PlayerControls::Ctor` is the adjacent id 42336 at `0x79A4C0` |
+
+**What `+0x218` is.** In CommonLibSSE-NG the only 32-bit member at `0x218` that a jump handler would
+read is `bhkCharacterController::flags` (`REX::EnumSet<CHARACTER_FLAGS, uint32_t>`), whose bits are
+`kCanJump` (1<<10), `kJumping` (1<<13), `kAllowJumpNoContact` (1<<4) and `kSupport` (1<<8) - exactly
+what `ProcessButton` has to test. `mov ecx, [rax+0x218]` with `rax = 0` is therefore
+**`Actor::GetCharController()` returning null**, which it does by design:
+`return currentProcess ? currentProcess->GetCharController() : nullptr`.
+
+**It is not a one-off. Two crashes, 23 minutes apart, identical to the register:**
+
+| | crash | uptime | character | ParentCell |
+|---|---|---|---|---|
+| 1 | 2026-09-20 23:58:11 | **00:01:14** | "Test Argosh" | `RiverwoodSleepingGiantInn` `0x000133C6` |
+| 2 | 2026-09-21 00:21:05 | 00:08:48 | "Argy" | `CYRPalePassExterior01` `0x0809FF8A` |
+
+Both have `RAX 0`, `RDX 2`, `RDI 2`, `R8 1`, `R11 7` and the same `ButtonEvent*` static - one code path.
+**Both cells are teleport boundaries of ours.** Sleeping Giant Inn is the player reference's default
+editor location, i.e. where a character sits *before* the spawn move lands; Pale Pass is literally the
+playtest arrival spot (`gamemode-config.json` -> `playtest.arrival`, world `a764b:BSHeartland.esm`).
+
+**The window is ours, not vanilla's.** Vanilla never has this gap because a teleport goes through a
+loading screen that eats input. Two SkyMP paths keep the player in control while the engine rebuilds:
+
+1. `remoteServer.ts` spawn loop - up to `SPAWN_MAX_ATTEMPTS` (30) `TESModPlatform.moveRefrToPosition`
+   calls, one per second, with no loading screen. That is a ~30 s window at every login, and crash 1
+   lands 74 s into the session in the pre-move cell.
+2. every other teleport - `ragdollService.safeRemoveRagdollFromWorld(actor, cb)` calls Papyrus
+   `Actor.ForceRemoveRagdollFromWorld()`, then waits for a `.then()` **and** a `once("update")` before
+   it moves the actor. The actor is out of the havok world across that gap.
+
+**Not yet established:** which of the two windows crash 2 fell in, and whether
+`ForceRemoveRagdollFromWorld` nulls the controller pointer or only detaches the ragdoll. The server
+side cannot be checked from this PC - `server.log` here has a gap from 00:02:30 to 07:11:12 on
+2026-09-21, because that session was played against the retired home server PC.
+
+**Fix options, none shipped (a theory must not be deployed here):**
+
+- **C++, the reliable one.** Hook `JumpHandler::ProcessButton` (AE id 42423) in SkyrimPlatform and
+  return early when `PlayerCharacter::GetSingleton()->GetCharController()` is null. Ten lines, cannot
+  regress anything else, but it needs a CI flatrim build.
+- **TypeScript, cheap but unproven.** Block movement input for the duration of a teleport
+  (`Game.disablePlayerControls`) and clear it on the frame the move lands. Risk: a missed re-enable
+  strands the player, and whether it actually stops `ProcessButton` being called has not been checked
+  against the engine - `CanProcess` gating is unread.
+- Either way, **measure first**: log `Game.getPlayer().getWorldSpace()` / 3D state each frame of the
+  spawn loop and around `safeRemoveRagdollFromWorld`, then jump on purpose during it. Reproduction
+  recipe: connect, and spam space bar for the first 30 seconds.
+
+**How this was measured** (so it can be redone): the two readers are committed as
+`server\tools\crashlog\versionlib.py` and `server\tools\crashlog\vtable.py`.
+
+```
+py server\tools\crashlog\versionlib.py "Skyrim Special Edition - dev\Data\SKSE\Plugins\versionlib-1-6-1170-0.bin" 42423
+py server\tools\crashlog\vtable.py 208731 6
+```
+
+`versionlib-1-6-1170-0.bin` is Address Library format 2 - int32 format, 4x int32 version,
+length-prefixed module name, int32 pointer size, int32 count, then delta-encoded (id, offset) pairs;
+parsing it yields 428,461 entries with zero bytes left over, and 42423 -> `0x79F380` matches the crash
+log's `+0xBC` exactly. Vtables were read from the `.rdata` of `C:\DragonBreak\skyrim\SkyrimSE.exe` via
+its PE section table. **Disassembly of that exe
+is impossible**: it carries a `.bind` section (Steam wrapper) and `.text` measures 7.997 bits of
+entropy, i.e. encrypted on disk. Anything needing real instructions needs a live debugger, not the
+file.
 
 ### 4. Housekeeping
 
