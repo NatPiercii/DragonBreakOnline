@@ -2110,13 +2110,13 @@ const masteryDamageMult = (aggressorId, sourceId) => {
 const superBonusDamage = (agg, tgt, src, damage) => {
   const pend = globalThis.__dboSuperPending; globalThis.__dboSuperPending = null;
   if (!pend || pend.agg !== agg || pend.tgt !== tgt || !(damage > 0)) return 0;
-  let now = null; try { now = mp.get(tgt, percentages); } catch (e) { return 0; }
+  let now = null; try { now = mp.get(tgt, 'percentages'); } catch (e) { return 0; }
   if (!now || !(now.health > 0)) return 0;
   const dealtPct = pend.health - now.health;
   if (!(dealtPct > 0)) return 0;
   const health = Math.max(0.01, now.health - dealtPct * (pend.mult - 1));
   if (!(health < now.health)) return 0;
-  try { mp.set(tgt, percentages, { health, magicka: now.magicka, stamina: now.stamina }); } catch (e) { return 0; }
+  try { mp.set(tgt, 'percentages', { health, magicka: now.magicka, stamina: now.stamina }); } catch (e) { return 0; }
   return damage * ((now.health - health) / dealtPct);
 };
 // onHitDamageAttempt fires, the engine applies the damage, onHitDamage fires - all inside one C++
