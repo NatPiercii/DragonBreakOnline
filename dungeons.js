@@ -891,8 +891,14 @@ module.exports = (api) => {
     if (distance(a, p.entrance.doorPos || p.entrance.pos, p.entrance.world || p.entrance.cell) > C.entranceReach) { log(`dungeon refused ${who(a)}: ${d.id} claim from beyond ${C.entranceReach} units of the entrance`); return personal(a, 'You have wandered from the entrance.'); }
     startLease(a, d, p.entrance, diff);
   });
-  onUi('dungeonCancel', (a) => { ST.pending.delete(a); closeWidget(a, GATE_WIDGET_ID); });
-  onUi('close', (a, args, widgetId) => { if (widgetId === GATE_WIDGET_ID) ST.pending.delete(a); });
+  // The refused door leaves the client half into its load; putting them back at the entrance finishes it
+  const turnBack = (a) => {
+    const p = ST.pending.get(a); ST.pending.delete(a);
+    const e = p && p.entrance && Array.isArray(p.entrance.pos) ? p.entrance : null;
+    if (e && teleport(a, e.world || e.cell, e.pos, e.rot)) log(`${display(a)} turned back at ${p.dungeonId}; put back at the entrance`);
+  };
+  onUi('dungeonCancel', (a) => { turnBack(a); closeWidget(a, GATE_WIDGET_ID); });
+  onUi('close', (a, args, widgetId) => { if (widgetId === GATE_WIDGET_ID) turnBack(a); });
 
   // ---- corpses: a body yields loot, not a full kit ------------------------------------------------
   const recordOf = (baseId) => { try { const r = mp.lookupEspmRecordById(baseId >>> 0); return r && r.record ? r.record : null; } catch (e) { return null; } };
