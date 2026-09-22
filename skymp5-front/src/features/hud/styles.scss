@@ -9,7 +9,7 @@
   z-index: 14;
   pointer-events: none;
   opacity: 0.62;
-  filter: drop-shadow(0 0 10px rgba(143, 211, 208, 0.35)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 0 10px dbo-accent(0.35)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
 
   // The art ships inside the bundle (src/img/dbo-watermark.png); the <img> only sizes the box.
   width: clamp(72px, calc(7 * var(--dbo-vw)), 140px);
@@ -44,8 +44,8 @@
   width: 232px;
   font-family: $dbo-ui-font;
   background: linear-gradient(180deg, rgba(15, 42, 46, 0.78), rgba(8, 25, 28, 0.86));
-  border: 1px solid rgba(143, 211, 208, 0.38);
-  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(143, 211, 208, 0.14), 0 6px 14px rgba(0, 0, 0, 0.6);
+  border: 1px solid dbo-accent(0.38);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 12px dbo-accent(0.14), 0 6px 14px rgba(0, 0, 0, 0.6);
 
   &__row {
     position: relative;
@@ -54,7 +54,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 12px 10px;
-    border-bottom: 1px solid rgba(143, 211, 208, 0.18);
+    border-bottom: 1px solid dbo-accent(0.18);
 
     &:last-child { border-bottom: 0; }
   }
@@ -111,7 +111,7 @@
     height: 3px;
     margin-top: 2px;
     background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(143, 211, 208, 0.25);
+    border: 1px solid dbo-accent(0.25);
   }
 
   &__fill {
@@ -195,7 +195,7 @@
     background:
       linear-gradient(180deg, rgba(20, 52, 56, 0.92), rgba(6, 20, 23, 0.95)),
       repeating-linear-gradient(115deg, rgba(0, 0, 0, 0.25) 0 2px, transparent 2px 6px);
-    box-shadow: inset 0 0 0 1px rgba(143, 211, 208, 0.42), inset 0 2px 5px rgba(0, 0, 0, 0.85), 0 3px 8px rgba(0, 0, 0, 0.65);
+    box-shadow: inset 0 0 0 1px dbo-accent(0.42), inset 0 2px 5px rgba(0, 0, 0, 0.85), 0 3px 8px rgba(0, 0, 0, 0.65);
   }
 
   &__fill {
@@ -224,7 +224,7 @@
   &__ticks {
     position: absolute;
     inset: 0;
-    background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), rgba(143, 211, 208, 0.38) calc(25% - 1px) 25%);
+    background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), dbo-accent(0.38) calc(25% - 1px) 25%);
     mix-blend-mode: screen;
   }
 
@@ -252,8 +252,8 @@
   padding: 8px 12px;
   font-family: $dbo-ui-font;
   background: linear-gradient(180deg, rgba(15, 42, 46, 0.78), rgba(8, 25, 28, 0.86));
-  border: 1px solid rgba(143, 211, 208, 0.38);
-  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(143, 211, 208, 0.14), 0 6px 14px rgba(0, 0, 0, 0.6);
+  border: 1px solid dbo-accent(0.38);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 12px dbo-accent(0.14), 0 6px 14px rgba(0, 0, 0, 0.6);
   transition: border-color $dbo-fast, box-shadow $dbo-fast;
 
   &__icon {
@@ -290,8 +290,8 @@
 
     &--on {
       color: $dbo-silver;
-      background: rgba(143, 211, 208, 0.12);
-      border-color: rgba(143, 211, 208, 0.45);
+      background: dbo-accent(0.12);
+      border-color: dbo-accent(0.45);
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
     }
   }
@@ -305,19 +305,19 @@
 
   &--talking {
     border-color: $dbo-aqua;
-    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 18px rgba(143, 211, 208, 0.5), 0 6px 14px rgba(0, 0, 0, 0.6);
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45), 0 0 18px dbo-accent(0.5), 0 6px 14px rgba(0, 0, 0, 0.6);
 
     .dboVoice__icon {
       background-color: #ffffff;
       opacity: 1;
-      filter: drop-shadow(0 0 6px rgba(143, 211, 208, 0.95));
+      filter: drop-shadow(0 0 6px dbo-accent(0.95));
     }
 
     .dboVoice__mode--on { color: $dbo-aqua; }
 
     .dboVoice__hint {
       color: $dbo-aqua;
-      text-shadow: 0 0 8px rgba(143, 211, 208, 0.8);
+      text-shadow: 0 0 8px dbo-accent(0.8);
     }
   }
 }

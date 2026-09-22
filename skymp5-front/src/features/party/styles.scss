@@ -10,8 +10,8 @@
   pointer-events: auto;
   font-family: $dbo-ui-font;
   background: rgba(8, 25, 28, 0.62);
-  border: 1px solid rgba(143, 211, 208, 0.35);
-  box-shadow: 0 0 12px rgba(143, 211, 208, 0.12), 0 6px 16px rgba(0, 0, 0, 0.6);
+  border: 1px solid dbo-accent(0.35);
+  box-shadow: 0 0 12px dbo-accent(0.12), 0 6px 16px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 
   &__bar {
@@ -20,8 +20,8 @@
     justify-content: space-between;
     padding: 4px 10px;
     cursor: move;
-    background: rgba(143, 211, 208, 0.1);
-    border-bottom: 1px solid rgba(143, 211, 208, 0.25);
+    background: dbo-accent(0.1);
+    border-bottom: 1px solid dbo-accent(0.25);
     user-select: none;
   }
 
@@ -67,7 +67,7 @@
   &__bar-track {
     position: relative;
     height: 8px;
-    border: 1px solid rgba(143, 211, 208, 0.5);
+    border: 1px solid dbo-accent(0.5);
     background: rgba(0, 0, 0, 0.55);
   }
 
@@ -95,10 +95,10 @@
     width: 14px;
     height: 14px;
     cursor: nwse-resize;
-    background: linear-gradient(135deg, transparent 50%, rgba(143, 211, 208, 0.6) 50%);
+    background: linear-gradient(135deg, transparent 50%, dbo-accent(0.6) 50%);
   }
 }
 
-.dboParty__row--summon { opacity: 0.92; padding-left: 10px; border-left: 2px solid rgba(143, 211, 208, 0.45); }
+.dboParty__row--summon { opacity: 0.92; padding-left: 10px; border-left: 2px solid dbo-accent(0.45); }
 .dboParty__timer { float: right; font-size: 12px; opacity: 0.75; margin-left: 6px; }
 .dboParty__tag { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-left: 6px; padding: 0 4px; border: 1px solid rgba(232, 214, 160, 0.55); color: #e8d6a0; }

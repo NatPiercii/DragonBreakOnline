@@ -18,3 +18,13 @@
     height: 50px;
     background-color: red;
 }
+
+@import './dbo-theme.scss';
+
+// Each widget wears its domain's hue; constructor.js sets data-domain on a box-less wrapper
+.dbo-domain { display: contents; }
+.dbo-domain[data-domain='aqua'] { @include dbo-domain($dbo-hue-aqua); }
+.dbo-domain[data-domain='aedric'] { @include dbo-domain($dbo-hue-aedric); }
+.dbo-domain[data-domain='lorkhan'] { @include dbo-domain($dbo-hue-lorkhan); }
+.dbo-domain[data-domain='dragonbreak'] { @include dbo-domain($dbo-hue-dragonbreak); }
+.dbo-domain[data-domain='bronze'] { @include dbo-domain($dbo-hue-bronze); }

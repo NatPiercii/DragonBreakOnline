@@ -1,6 +1,8 @@
+@import '../../dbo-theme.scss';
+
 // Custom activate prompt beside the vanilla key glyph (about 47% across, 62% down); the glyph stays, only the wording is ours. Never interactive.
 
-$gold: #8fd3d0;
+$gold: dbo-accent();
 $text: #d7e3e3;
 
 .interactPrompt {

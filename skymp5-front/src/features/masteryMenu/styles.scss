@@ -9,7 +9,7 @@ $gold: $dbo-aqua;
 $text: $dbo-text;
 $text-dim: $dbo-text-dim;
 $border: $dbo-border;
-$border-dim: rgba(143, 211, 208, 0.2);
+$border-dim: dbo-accent(0.2);
 
 .mastery {
   position: fixed;
@@ -91,7 +91,7 @@ $border-dim: rgba(143, 211, 208, 0.2);
     font-size: 13px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    text-shadow: 0 0 8px rgba(143, 211, 208, 0.35);
+    text-shadow: 0 0 8px dbo-accent(0.35);
   }
 
   &__item {
@@ -112,12 +112,12 @@ $border-dim: rgba(143, 211, 208, 0.2);
 
     &:hover {
       color: #fff;
-      background: rgba(143, 211, 208, 0.08);
+      background: dbo-accent(0.08);
     }
 
     &--viewing {
       color: $dbo-aqua;
-      background: rgba(143, 211, 208, 0.14);
+      background: dbo-accent(0.14);
       border-left-color: $dbo-aqua;
     }
 
@@ -152,7 +152,7 @@ $border-dim: rgba(143, 211, 208, 0.2);
     position: relative;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
-    background: radial-gradient(ellipse at top, rgba(143, 211, 208, 0.08), transparent 55%), linear-gradient(180deg, rgba(15, 42, 46, 0.6), rgba(8, 25, 28, 0.9));
+    background: radial-gradient(ellipse at top, dbo-accent(0.08), transparent 55%), linear-gradient(180deg, rgba(15, 42, 46, 0.6), rgba(8, 25, 28, 0.9));
     border-right: 1px solid $border-dim;
     overflow: hidden;
   }
@@ -167,7 +167,7 @@ $border-dim: rgba(143, 211, 208, 0.2);
     font-weight: 400;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    text-shadow: 0 0 14px rgba(143, 211, 208, 0.35);
+    text-shadow: 0 0 14px dbo-accent(0.35);
 
     &::after {
       content: '';
@@ -245,7 +245,7 @@ $border-dim: rgba(143, 211, 208, 0.2);
 
     &--reached {
       opacity: 1;
-      background: linear-gradient(90deg, rgba(143, 211, 208, 0.12), transparent);
+      background: linear-gradient(90deg, dbo-accent(0.12), transparent);
     }
   }
 
@@ -403,7 +403,7 @@ $border-dim: rgba(143, 211, 208, 0.2);
     font-size: 34px;
     line-height: 1;
     color: $dbo-aqua;
-    text-shadow: 0 0 18px rgba(143, 211, 208, 0.35);
+    text-shadow: 0 0 18px dbo-accent(0.35);
   }
 
   &__pool-of {
@@ -421,13 +421,13 @@ $border-dim: rgba(143, 211, 208, 0.2);
   &__pool-bar {
     width: 100%;
     height: 3px;
-    background: rgba(143, 211, 208, 0.16);
+    background: dbo-accent(0.16);
     overflow: hidden;
 
     i {
       display: block;
       height: 100%;
-      background: linear-gradient(90deg, rgba(143, 211, 208, 0.45), $dbo-aqua);
+      background: linear-gradient(90deg, dbo-accent(0.45), $dbo-aqua);
       transition: width $medium;
     }
   }
@@ -453,7 +453,7 @@ $border-dim: rgba(143, 211, 208, 0.2);
     font-style: italic;
     font-size: 13px;
     line-height: 1.5;
-    color: rgba(143, 211, 208, 0.62);
+    color: dbo-accent(0.62);
   }
 
   &__thread {
@@ -475,7 +475,7 @@ $border-dim: rgba(143, 211, 208, 0.2);
     font-size: 54px;
     line-height: 1;
     color: $text;
-    text-shadow: 0 0 22px rgba(143, 211, 208, 0.28);
+    text-shadow: 0 0 22px dbo-accent(0.28);
   }
 
   &__level-of {
@@ -493,13 +493,13 @@ $border-dim: rgba(143, 211, 208, 0.2);
   &__level-bar {
     width: 100%;
     height: 6px;
-    background: rgba(143, 211, 208, 0.14);
+    background: dbo-accent(0.14);
     border: 1px solid $border-dim;
 
     i {
       display: block;
       height: 100%;
-      background: linear-gradient(90deg, rgba(143, 211, 208, 0.35), $dbo-aqua);
+      background: linear-gradient(90deg, dbo-accent(0.35), $dbo-aqua);
       transition: width $medium;
     }
   }
@@ -529,8 +529,8 @@ $border-dim: rgba(143, 211, 208, 0.2);
     &--on {
       color: $dbo-text;
       border-color: $dbo-aqua;
-      background: rgba(143, 211, 208, 0.12);
-      box-shadow: inset 0 0 18px rgba(143, 211, 208, 0.12);
+      background: dbo-accent(0.12);
+      box-shadow: inset 0 0 18px dbo-accent(0.12);
     }
   }
 
@@ -567,18 +567,18 @@ $secunda: #cfdcdc;         // the pale moon: what is held
 
   &__wheel-rim {
     fill: none;
-    stroke: rgba(143, 211, 208, 0.28);
+    stroke: dbo-accent(0.28);
     stroke-width: 1.2;
   }
 
   &__wheel-hub {
     fill: none;
-    stroke: rgba(143, 211, 208, 0.45);
+    stroke: dbo-accent(0.45);
     stroke-width: 1.4;
   }
 
   &__wheel-spoke {
-    stroke: rgba(143, 211, 208, 0.16);
+    stroke: dbo-accent(0.16);
     stroke-width: 1.4;
     transition: stroke 320ms ease;
 
@@ -616,7 +616,7 @@ $secunda: #cfdcdc;         // the pale moon: what is held
   }
 
   &__moon--lower {
-    color: rgba(143, 211, 208, 0.45);
+    color: dbo-accent(0.45);
   }
 
   &__level {
@@ -686,8 +686,8 @@ $secunda: #cfdcdc;         // the pale moon: what is held
     font-family: $dbo-book-font;
     font-style: italic;
     color: rgba(215, 227, 227, 0.72);
-    border-top: 1px solid rgba(143, 211, 208, 0.16);
-    border-bottom: 1px solid rgba(143, 211, 208, 0.16);
+    border-top: 1px solid dbo-accent(0.16);
+    border-bottom: 1px solid dbo-accent(0.16);
     padding: 12px 0;
     line-height: 1.6;
   }
@@ -701,6 +701,6 @@ $secunda: #cfdcdc;         // the pale moon: what is held
 
   &__group-name {
     letter-spacing: 0.2em;
-    color: rgba(143, 211, 208, 0.55);
+    color: dbo-accent(0.55);
   }
 }

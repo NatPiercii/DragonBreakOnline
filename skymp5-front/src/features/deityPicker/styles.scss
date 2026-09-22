@@ -62,7 +62,7 @@
 
     &--taken {
       border-left-color: $dbo-border-strong;
-      background: rgba(143, 211, 208, 0.1);
+      background: dbo-accent(0.1);
     }
 
     &--refused {
@@ -120,7 +120,7 @@
     cursor: pointer;
     transition: background $dbo-fast, border-color $dbo-fast, color $dbo-fast;
 
-    &:hover { background: rgba(143, 211, 208, 0.08); }
+    &:hover { background: dbo-accent(0.08); }
 
     &:focus-visible {
       outline: 1px solid $dbo-border-strong;
@@ -128,7 +128,7 @@
     }
 
     &--on {
-      background: rgba(143, 211, 208, 0.12);
+      background: dbo-accent(0.12);
       border-left-color: $dbo-aqua;
       color: $dbo-silver;
     }

@@ -287,4 +287,18 @@ const Constructor = props => {
   }
 };
 
-export default Constructor;
+// Which part of the world each widget belongs to; anything unlisted keeps the aqua glow (dbo-theme.scss)
+const DOMAINS = {
+  prayer: 'aedric', deityPicker: 'aedric',
+  rite: 'lorkhan', bountyBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan',
+  mastery: 'dragonbreak', reading: 'dragonbreak',
+  labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze',
+};
+
+const DomainConstructor = props => (
+  <div className="dbo-domain" data-domain={DOMAINS[props.elem && props.elem.type] || 'aqua'}>
+    <Constructor {...props} />
+  </div>
+);
+
+export default DomainConstructor;

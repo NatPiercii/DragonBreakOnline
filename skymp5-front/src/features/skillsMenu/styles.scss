@@ -1,3 +1,5 @@
+@import '../../dbo-theme.scss';
+
 $level-0: rgb(157, 158, 158);
 $font-color: rgba(157, 158, 158, 0.75);
 $level-1: #7175d6;
@@ -8,6 +10,7 @@ $level-4: #a062c9;
 $regular: 200ms;
 
 .skill-container {
+  @include dbo-domain($dbo-hue-dragonbreak);
   width: 100%;
   position: absolute;
   z-index: 100;

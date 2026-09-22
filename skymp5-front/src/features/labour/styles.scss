@@ -87,7 +87,7 @@
 
     &--win {
       border-color: $dbo-border-strong;
-      box-shadow: 0 0 22px rgba(143, 211, 208, 0.4);
+      box-shadow: 0 0 22px dbo-accent(0.4);
     }
 
     &--lose {
@@ -100,7 +100,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    background: linear-gradient(180deg, rgba(143, 211, 208, 0.34), rgba(47, 124, 128, 0.22));
+    background: linear-gradient(180deg, dbo-accent(0.34), dbo-accent-deep(0.22));
     border-left: 1px solid $dbo-border-strong;
     border-right: 1px solid $dbo-border-strong;
   }
@@ -117,7 +117,7 @@
 
   // The seam is worked in stone, the block in wood
   &--mining &__band {
-    background: linear-gradient(180deg, rgba(143, 211, 208, 0.34), rgba(47, 124, 128, 0.22));
+    background: linear-gradient(180deg, dbo-accent(0.34), dbo-accent-deep(0.22));
   }
 
   &--chopping &__band {

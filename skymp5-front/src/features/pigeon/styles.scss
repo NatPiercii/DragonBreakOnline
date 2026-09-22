@@ -89,7 +89,7 @@
 
     &--selected {
       border-color: $dbo-border-strong;
-      background: rgba(47, 124, 128, 0.22);
+      background: dbo-accent-deep(0.22);
       box-shadow: $dbo-glow;
     }
   }
@@ -120,7 +120,7 @@
 
     &--online {
       background: $dbo-aqua;
-      box-shadow: 0 0 6px rgba(143, 211, 208, 0.7);
+      box-shadow: 0 0 6px dbo-accent(0.7);
     }
   }
 

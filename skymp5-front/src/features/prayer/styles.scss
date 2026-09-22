@@ -72,9 +72,9 @@
 
     &--now {
       color: $dbo-silver;
-      background: rgba(143, 211, 208, 0.08);
+      background: dbo-accent(0.08);
       border-left-color: $dbo-border-strong;
-      text-shadow: 0 0 14px rgba(143, 211, 208, 0.45);
+      text-shadow: 0 0 14px dbo-accent(0.45);
     }
 
     &--past {
@@ -101,7 +101,7 @@
 
     &--win {
       border-color: $dbo-border-strong;
-      box-shadow: 0 0 22px rgba(143, 211, 208, 0.4);
+      box-shadow: 0 0 22px dbo-accent(0.4);
     }
 
     &--lose {
@@ -115,7 +115,7 @@
     top: 0;
     bottom: 0;
     left: 0;
-    background: linear-gradient(90deg, rgba(47, 124, 128, 0.55), rgba(143, 211, 208, 0.34));
+    background: linear-gradient(90deg, dbo-accent-deep(0.55), dbo-accent(0.34));
     transition: width 100ms linear;
   }
 

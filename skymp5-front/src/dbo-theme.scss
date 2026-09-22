@@ -2,26 +2,62 @@
 // glow, grey stone frames, silver serif titles, a touch of amber in the nebula. Every custom
 // widget imports this; nothing hard-codes a colour of its own.
 
+// ---- Heart and Hourglass (2026-09-22) -------------------------------------------------------------
+// The teal ground stays; the accent is no longer one teal everywhere. Every widget belongs to a part of the
+// world and wears its hue, set once by constructor.js (data-domain on the widget's wrapper):
+//   aqua        social and general: chat, party, faction, HUD frame, menus (the hourglass glow)
+//   aedric      the divine: prayer, the deity picker (the gold of the Eight and Akatosh)
+//   lorkhan     blood and danger: rites, curses, bounties, dungeon gates, death (the Heart)
+//   dragonbreak magic, lore and time: skills and mastery, books (the fractured timeline)
+//   bronze      work and trade: labour, skinning, housing, mail, trading
+// Hues are "r, g, b" triplets so any alpha can be taken at runtime: dbo-accent(0.4).
+$dbo-hue-aqua: (143, 211, 208) (95, 179, 179) (47, 124, 128);
+$dbo-hue-aedric: (224, 186, 98) (181, 145, 64) (122, 94, 36);
+$dbo-hue-lorkhan: (214, 84, 84) (170, 52, 52) (110, 30, 32);
+$dbo-hue-dragonbreak: (168, 140, 236) (126, 102, 200) (78, 60, 138);
+$dbo-hue-bronze: (208, 142, 84) (164, 104, 54) (104, 64, 32);
+
+@function dbo-triplet($rgb) { @return unquote('#{nth($rgb, 1)}, #{nth($rgb, 2)}, #{nth($rgb, 3)}'); }
+
+// Sets the accent for everything inside; widgets normally get it from constructor.js instead
+@mixin dbo-domain($hue) {
+  --dbo-accent-rgb: #{dbo-triplet(nth($hue, 1))};
+  --dbo-accent-dim-rgb: #{dbo-triplet(nth($hue, 2))};
+  --dbo-accent-deep-rgb: #{dbo-triplet(nth($hue, 3))};
+}
+
+@function dbo-accent($a: 1) { @return unquote('rgba(var(--dbo-accent-rgb, 143, 211, 208), #{$a})'); }
+@function dbo-accent-dim($a: 1) { @return unquote('rgba(var(--dbo-accent-dim-rgb, 95, 179, 179), #{$a})'); }
+@function dbo-accent-deep($a: 1) { @return unquote('rgba(var(--dbo-accent-deep-rgb, 47, 124, 128), #{$a})'); }
+
+// Fixed hues, for meaning that must not follow the domain (a health bar is red in a prayer window too)
+$dbo-aedric-gold: rgb(224, 186, 98);
+$dbo-lorkhan-red: rgb(214, 84, 84);
+$dbo-dragonbreak-violet: rgb(168, 140, 236);
+$dbo-bronze: rgb(208, 142, 84);
+
 $dbo-ground: #08191c;                 // deepest background (the dark sand)
 $dbo-ground-2: #0f2a2e;               // panel body
 $dbo-ground-3: #16383d;               // raised panel / hover
 $dbo-stone: #5d6b6e;                  // hourglass frame grey
 $dbo-stone-dark: #3a4548;
 $dbo-stone-light: #8c9a9c;
-$dbo-aqua: #8fd3d0;                   // the glow
-$dbo-aqua-dim: #5fb3b3;
-$dbo-aqua-deep: #2f7c80;
+// The glow follows the widget's domain (aqua unless constructor.js says otherwise); $dbo-aqua-fixed never moves
+$dbo-aqua: dbo-accent();
+$dbo-aqua-dim: dbo-accent-dim();
+$dbo-aqua-deep: dbo-accent-deep();
+$dbo-aqua-fixed: #8fd3d0;
 $dbo-silver: #e6ecec;                 // title lettering
 $dbo-text: #d7e3e3;
 $dbo-text-dim: rgba(215, 227, 227, 0.62);
 $dbo-amber: #c98a3a;                  // nebula warmth, for warnings and gold
-$dbo-red: #c9463a;
+$dbo-red: $dbo-lorkhan-red;             // danger is the Heart's red
 
 $dbo-panel: rgba(12, 34, 38, 0.94);
 $dbo-panel-soft: rgba(12, 34, 38, 0.82);
-$dbo-border: rgba(143, 211, 208, 0.42);
-$dbo-border-strong: rgba(143, 211, 208, 0.75);
-$dbo-glow: 0 0 18px rgba(143, 211, 208, 0.25);
+$dbo-border: dbo-accent(0.42);
+$dbo-border-strong: dbo-accent(0.75);
+$dbo-glow: 0 0 18px dbo-accent(0.25);
 $dbo-shadow: 0 24px 48px rgba(0, 0, 0, 0.8);
 
 $dbo-title-font: 'Bankir-Retro', 'Trajan Pro', 'Cinzel', Georgia, serif;
@@ -30,11 +66,35 @@ $dbo-book-font: Georgia, 'Times New Roman', serif;
 
 $dbo-fast: 140ms ease;
 
-// A framed panel in the house style.
+// A framed panel in the house style. Along the top runs the fracture line, the domain hue breaking into the
+// gold of the Aedra at its centre, and under it the faint red of the Heart glows through the stone.
 @mixin dbo-panel {
-  background: linear-gradient(180deg, $dbo-ground-2, $dbo-ground);
-  border: 1px solid $dbo-border;
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5), $dbo-glow, $dbo-shadow;
+  background:
+    linear-gradient(90deg, transparent 4%, dbo-accent(0.85) 30%, $dbo-aedric-gold 50%, dbo-accent(0.85) 70%, transparent 96%) top / 100% 2px no-repeat,
+    radial-gradient(ellipse 55% 38% at 50% 0%, rgba(214, 84, 84, 0.16), transparent 70%),
+    linear-gradient(180deg, dbo-accent-deep(0.42), dbo-accent-deep(0.14) 45%, dbo-accent-deep(0.05) 100%),
+    linear-gradient(180deg, $dbo-ground-2, $dbo-ground);
+  border: 1px solid dbo-accent(0.6);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 dbo-accent(0.25), $dbo-glow, $dbo-shadow;
+}
+
+// A divider: the fracture line with the Heart set in its middle. Give it an element of its own.
+@mixin dbo-rule {
+  position: relative;
+  height: 1px;
+  margin: 10px 0;
+  background: linear-gradient(90deg, transparent, dbo-accent(0.7) 25%, $dbo-aedric-gold 50%, dbo-accent(0.7) 75%, transparent);
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    background: $dbo-lorkhan-red;
+    box-shadow: 0 0 8px rgba(214, 84, 84, 0.75);
+  }
 }
 
 @mixin dbo-title {
@@ -43,7 +103,7 @@ $dbo-fast: 140ms ease;
   font-weight: 400;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  text-shadow: 0 0 12px rgba(143, 211, 208, 0.45), 0 2px 6px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 0 12px dbo-accent(0.5), 0 2px 6px rgba(0, 0, 0, 0.8);
 }
 
 // Buttons: light, translucent gold on every custom panel.
