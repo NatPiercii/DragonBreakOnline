@@ -2119,8 +2119,13 @@ async function checkFilesImpl() {
     if (!fs.existsSync(path.join(mo2.getModsDir(), 'SKSE', 'meta.ini'))) add('missing', 'mods/SKSE/meta.ini', 'skse')
     await yieldNow()
 
-    // Client files
+    // Client files. The per-file sync (DragonBreak files) owns anything it lists, so those are checked
+    // against its manifest below; the zip's copy of a plugin can lag behind it.
     progress('Checking client files…')
+    let ev = null
+    try { ev = await fetchExtraManifest() }
+    catch (err) { notes.push(`DragonBreak files: could not read the server list (${err.message}), section skipped.`) }
+    const syncOwned = new Set(extraEntries(ev, gamePath).map(x => x.path.toLowerCase()))
     let vd = null
     try { vd = await fetchJSON(`${config.apiUrl}/api/files/version`) }
     catch (err) { notes.push(`Client files: could not read the server version (${err.message}), version and checksum checks skipped.`) }
@@ -2143,7 +2148,7 @@ async function checkFilesImpl() {
         const l    = f.path.toLowerCase()
         listed.add(l)
         // Launcher-owned files are rewritten on every launch, so the published hash never matches
-        if (CLIENT_OWN_FILE_RES.some(re => re.test(l))) continue
+        if (CLIENT_OWN_FILE_RES.some(re => re.test(l)) || syncOwned.has(l)) continue
         await verifyFile(full, f, show(full), 'client')
         if ((i + 1) % CHECK_PROGRESS_EVERY === 0) { progress(`Checking client files… ${i + 1}/${files.length}`); await yieldNow() }
       }
@@ -2168,9 +2173,6 @@ async function checkFilesImpl() {
   // DragonBreak files (repaired with the client files, which re-runs syncExtraFiles)
   if (gameOk) {
     progress('Checking DragonBreak files…')
-    let ev = null
-    try { ev = await fetchExtraManifest() }
-    catch (err) { notes.push(`DragonBreak files: could not read the server list (${err.message}), section skipped.`) }
     const files = extraEntries(ev, gamePath)
     for (let i = 0; i < files.length; i++) {
       const full = path.join(gamePath, ...files[i].path.split('/'))
@@ -2207,7 +2209,7 @@ async function checkFilesImpl() {
       }
       for (const rel of mo2.listFilesRel(dir)) {
         const l = rel.toLowerCase()
-        if (l === 'meta.ini' || expected.has(l)) continue
+        if (l === 'meta.ini' || expected.has(l) || /\.log(\.\d+)?$/.test(l)) continue
         add('extra', `mods/${folder}/${rel}`, 'modlist')
       }
       await yieldNow()
@@ -2230,7 +2232,10 @@ async function checkFilesImpl() {
       try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
       const enabled  = lines => lines.filter(l => l.startsWith('*')).join('\n')
       const accepted = [manifest.plugins, mo2.serverPluginLines(serverInfo?.loadOrder)].filter(a => a.length).map(enabled)
-      if (!accepted.includes(enabled(plugins))) add('corrupt', `profiles/${mo2.PROFILE}/plugins.txt (load order drift)`, 'modlist')
+      if (!accepted.includes(enabled(plugins))) {
+        if (mo2.serverPluginLines(serverInfo?.loadOrder).length) notes.push(`Modlist: profiles/${mo2.PROFILE}/plugins.txt was rewritten by MO2; the launcher restores the server order at every launch.`)
+        else add('corrupt', `profiles/${mo2.PROFILE}/plugins.txt (load order drift)`, 'modlist')
+      }
     }
     const modlist = readLines(path.join(profile, 'modlist.txt'))
     if (modlist) {
