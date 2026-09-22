@@ -1,5 +1,20 @@
 [
   {
+    "title": "Mods Without Premium",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Launcher 2.1.25",
+    "sections": [
+      {
+        "items": [
+          "Free Nexus accounts can now let the launcher download mods: click Mod Manager Download on the Nexus page and the launcher fetches the file for you. No more moving zips by hand.",
+          "Sign in to Nexus in the launcher first, keep it open, and press PLAY when the download list is done.",
+          "Only one launcher window runs at a time."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Stuck on the Main Menu No More",
     "date": "2026-09-22",
     "tag": "Hotfix",
