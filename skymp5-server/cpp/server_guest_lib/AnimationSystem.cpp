@@ -162,6 +162,19 @@ void AnimationSystem::InitAdditionalCallbacks()
       },
     },
     {
+      "attackStartSprint",
+      [](MpActor* actor) {
+        constexpr float defaultModifier = 15.f;
+        actor->DamageActorValue(espm::ActorValue::Stamina, defaultModifier);
+      },
+    },
+
+  };
+
+  // Vanilla charges stamina for a power attack. The whole table below used to sit behind hasSweetpie,
+  // which is false on any server without SweetPie.esp, so no attack of any kind cost stamina here.
+  const AnimationCallbacks powerAttackCallbacks = {
+    {
       "attackPowerStartInPlace",
       [](MpActor* actor) {
         constexpr float defaultModifier = 30.f;
@@ -211,22 +224,17 @@ void AnimationSystem::InitAdditionalCallbacks()
       },
     },
     {
-      "attackStartSprint",
-      [](MpActor* actor) {
-        constexpr float defaultModifier = 15.f;
-        actor->DamageActorValue(espm::ActorValue::Stamina, defaultModifier);
-      },
-    },
-    {
       "attackPowerStart_2HMSprint",
       [](MpActor* actor) {
         constexpr float defaultModifier = 30.f;
         actor->DamageActorValue(espm::ActorValue::Stamina, defaultModifier);
       },
     },
-
   };
+  animationCallbacks.insert(powerAttackCallbacks.begin(),
+                            powerAttackCallbacks.end());
 
+  // SweetPie's own economy, where every swing, jump and bow draw costs stamina too, stays opt-in.
   if (hasSweetpie) {
     animationCallbacks.insert(additionalCallbacks.begin(),
                               additionalCallbacks.end());
