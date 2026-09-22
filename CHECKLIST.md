@@ -1,5 +1,14 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (late): vitals, beast forms, arrows, log sweep
+
+- [x] **Player vitals**: DLE Player record (NPC_ 000007) ACBS offsets 50/50/50 -> 150/100/100 (`scratchpad player_vitals.py`, one subrecord changed, verified against the backup over all 29,326 records). Races keep their deltas in the RACE records. Damage stays server-authoritative.
+- [x] **Beast forms**: the hand-cast relay never carries powers, so casts of Beast Form / Vampire Lord never reached the server (9 grants, 0 casts). Now: the client relays a beast power cast as `dboBeastRequest`, and `/beast [werewolf|vampirelord|revert]` works for anyone granted (`private.werewolfGrant` / `vampireLordGrant`, set by the admin panel and /beastform), pack werewolves and the Blood Crown holder.
+- [x] **Arrows**: applyInventory re-equips the player's ammo after each inventory apply (the quiver stack add/remove unequipped it).
+- [x] **Announcements**: `bash dev-server.sh announce '<text>'` (announce.json watched every 5 s) and admin `/announce`; on screen and in chat.
+- [x] worldstats no longer probes every dynamic form at boot (ids persist in server-stats.json; one-time fallback seed).
+- [ ] **Log sweep findings (2026-09-22)**: (a) "Record 0x3020119 / 0x1007982 doesn't exist" via console.error after BSKGreaterToxicMissile / manny_GF_Spell_AncientVision casts: raw plugin-local ids; espmMagic, masterySystem and the gamemode all map through toGlobalRecordId and catch, so the caller is still unlocated (32/day, cosmetic). (b) 12 x HTTP 403 logins at 01:42 UTC from one session: a non-whitelisted account. (c) Known noise: hosting handoffs, Bruma scripts calling unimplemented Papyrus, "too distant" hits.
+
 ## Added 2026-09-22: Blood and Moonlight (world clock, vampires, werewolves, raids)
 
 Design pages: Factions https://claude.ai/artifact/WrQiufHXqnBbL7irYWbkYq , Supernatural https://claude.ai/artifact/S7e61j2TcVREcS1NUrn6dp (research in the 2026-09-22 session: engine, feasibility, UESP lore).
