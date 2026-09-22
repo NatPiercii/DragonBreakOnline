@@ -4,7 +4,7 @@
 // X on another player: the client asks for the menu (dbo event "playerMenu" [targetId]) and this answers
 // with the entries the viewer may use right now:
 //   everyone:                 Trade, Introduce (until the target knows you), Inspect, Invite to Party
-//   admins and zone officials: Search, Restrain / Uncuff, Carry / Put down
+//   admins and zone officials: Search, Restrain / Uncuff, Put down
 // Trade, Search, Restrain, Uncuff, Carry and Put down go from the client straight to the server systems,
 // which check private.dboLawful themselves; Introduce, Inspect and Invite come back here as dbo events.
 //
@@ -107,8 +107,8 @@ module.exports = (api) => {
       const r = get(t, RESTRAINED_PROP, null) || {};
       entries.push({ id: 'search', label: 'Search' });
       entries.push(r.boundHands ? { id: 'release', label: 'Uncuff' } : { id: 'capture', label: 'Restrain' });
+      // Carry is off the menu (Nat, 2026-09-22); Put down stays so a carry already under way can end
       if (r.carried && Number(r.carrierActorId) >>> 0 === a >>> 0) entries.push({ id: 'putdown', label: 'Put down' });
-      else if (!r.carried) entries.push({ id: 'carry', label: 'Carry' });
     }
     return entries;
   };
