@@ -1,5 +1,76 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-22 (17:40 UTC, unattended run): no modded spell has ever dealt damage
+
+Nothing was pushed and nothing was deployed: Nat was asleep, players had been online 30 minutes earlier, and
+`game-server` was unclaimed. Everything below is committed locally and waits on Nat for the push and the deploy.
+
+**The run's queue was already finished before it started.** The brief still described the state of 2026-09-20 03:20
+and asked for the `'mine'`/`'chop'` emit, the deity shrine lists, the shrine mastery event and the five Unarmed
+marker spells. All four shipped on 20-21 Sep; the live boot line reads `18 skills have marker spells` and
+`prayer on: 26 deities, 45 shrine ids, 26 reachable under the region lock ... conversion every 7 day(s)`. The
+run went to a review of the code that shipped on 21-22 Sep and has never been played.
+
+- [x] **Every spell from a plugin other than Skyrim.esm is silently dropped, hit and all.**
+  `TES5SpellDamageFormulaImpl::GetBaseSpellDamage` looked a magic effect up by the raw `EFID` value, which is a
+  **record-local** id. Upstream's own `GetRestorativeEffects` maps the same field with `spellLookup.ToGlobalId()`;
+  this one did not. For a spell in BSAssets.esm (load index 0x07, one master) the self-index 0x01 is never
+  remapped, so `BSKGreaterToxicMissile`'s effect `BSAssets.esm:007982` is looked up as `0x01007982`, `espm::GetData`
+  throws, and nothing catches it between there and the packet handler: no damage, no ward check, no
+  `onHitDamageAttempt`/`onHitDamage`, so no mastery credit and no supernatural infection either.
+  **Measured, not argued**: of the 23 distinct spells that have ever produced an `OnSpellHit ... damage` line in
+  `/var/log/skymp-server.log`, **every single one is a Skyrim.esm id** (index 0x00, where the mapping is the
+  identity by luck). The modded casts appear only as `[console] [error] Record 0x1007982 doesn't exist`.
+- [x] The same class of bug in `EatItemEvent::OnFireSuccess`: ALCH effects go straight from `Effects::GetData`
+  (which stores the raw `EFID` bytes) into `ApplyMagicEffects`, so **a potion or food from any non-vanilla plugin
+  applies no effect server-side**. Both fixes are in the fork working tree, four lines each, mirroring code that
+  already works in `ActionListener.cpp`.
+- [ ] **Neither is built, and neither is committed.** A parallel session is editing `TES5DamageFormula.cpp` at the
+  same time (`CalcMagicEffects`/`CalcArmorRatingComponent`, the same record-local id bug on ARMO enchantments, plus
+  a try/catch so an unreadable worn item cannot abandon a hit). Their work and these two hunks sit together,
+  uncommitted, and do not overlap. **Nat: this is C++, so it needs the push to fork `main` and the updater's
+  native build.** Check `/api/servers` shows `"online":0` first.
+- This corrects the 2026-09-22 log sweep block below, which recorded finding (a) as "the caller is still unlocated
+  (32/day, cosmetic)". The caller is located and it is not cosmetic.
+
+- [x] **The vampire fire weakness and the werewolf silver weakness never applied** (gameplay layer, hot reload).
+  `gamemode.js superBonusDamage()` read and wrote health as a bare identifier, `mp.get(tgt, percentages)` instead
+  of `mp.get(tgt, 'percentages')`. That is a ReferenceError, and the function's own `catch` swallowed it and
+  returned 0, so the multiplier `__dboSuperDamageMult` computes was thrown away and **not one line was ever
+  logged**. Nobody had been cursed yet (0 `SUPERNATURAL`/`BLOODCROWN` audit lines in the whole log), so no play
+  session could have caught it.
+  New `server\tests\super-damage-harness.js` lifts the real function out of `gamemode.js` and runs it against a
+  stub `mp`: 18 checks pass on the fix and 8 of them fail on `git show HEAD:gamemode.js`, including
+  "x1.5 leaves health at: got 0.9, want 0.85" and "reports extra damage: got 0, want 10".
+- [x] **Anyone could take a beast form they were never granted.** `__dboBeastRequest` (the client's
+  `dboBeastRequest` relay, added yesterday) went straight to `__dboBeastCast`, which calls `transform()` with no
+  `holdsPower` check, while `/beast` checks it. `__dboBeastAllow` only gates the daily limit for an actor who is
+  *already* a werewolf, so a request from anyone else was allowed. The check now lives in `__dboBeastCast`, so
+  both the cast hook and the relay are covered; `/beastform ... now` and the full-moon change pass `forced` and
+  are unaffected.
+- [x] A refused transform no longer spends one of the day's four changes: `transform()` reads the appearance
+  before `__dboBeastAllow`, which is what records the use.
+
+### Read in review, left alone, for whoever plays it first
+
+- A vampire or a werewolf in beast form who activates a humanoid corpse less than 10 minutes old **feeds instead
+  of looting** (`__dboSuperActivate` sits above `__dboCorpseLoot` and `__dboSkin` in the activate chain) and the
+  loot window never opens. The second press loots, because `fedOn` has the corpse by then. Left as it is: it
+  reads like a deliberate order, but it will surprise.
+- `globalThis.__dboSuperForfeitIfDead` is defined in `supernatural.js` and called from nowhere.
+- `supernatural.js` dereferences `stateOf()` without a guard in `becomeVampire`, `becomeWerewolf`, `feed`,
+  `/rite` and `/curse`; `stateOf` returns null when `mp.get` throws. Only reachable for an actor that has just
+  gone, and every path is already inside a caught handler, so it is noise rather than a bug.
+- `guilds.js __dboGuildPackChallenge` demotes the old pack leader before `setMember` can fail, which on the error
+  branch would leave the pack with nobody leading it.
+- The 11,374 `TickSaveStorage ... ill-formed UTF-8 byte ... re-saving` lines are all from the known 19:07-19:26
+  incident on 21 Sep and none since. Worth knowing why it matters if it comes back: one bad string in one change
+  form failed the whole upsert, the retry ran ten times a second for nineteen minutes, and only the restart
+  cleared it. While it runs, nothing is being saved for anybody.
+- Today's error budget is 2,986 lines, 2,074 of them `Unable to change values without Actor attached`. That is
+  `ActionListener::OnUpdateAnimVariables` throwing for a client with no actor attached yet (login, or just after
+  a disconnect). Harmless, C++, and the message is from the neighbouring `OnSpellCast` and describes the wrong thing.
+
 ## Added 2026-09-22 (05:00): enemy damage is physical-only, property is granted
 
 - [x] **Nat, in play: "npc magic damage is good".** `damageMultFormulaSettings.multiplier` scales NPC spells as well as
@@ -32,7 +103,7 @@
 - [x] **Arrows**: applyInventory re-equips the player's ammo after each inventory apply (the quiver stack add/remove unequipped it).
 - [x] **Announcements**: `bash dev-server.sh announce '<text>'` (announce.json watched every 5 s) and admin `/announce`; on screen and in chat.
 - [x] worldstats no longer probes every dynamic form at boot (ids persist in server-stats.json; one-time fallback seed).
-- [ ] **Log sweep findings (2026-09-22)**: (a) "Record 0x3020119 / 0x1007982 doesn't exist" via console.error after BSKGreaterToxicMissile / manny_GF_Spell_AncientVision casts: raw plugin-local ids; espmMagic, masterySystem and the gamemode all map through toGlobalRecordId and catch, so the caller is still unlocated (32/day, cosmetic). (b) 12 x HTTP 403 logins at 01:42 UTC from one session: a non-whitelisted account. (c) Known noise: hosting handoffs, Bruma scripts calling unimplemented Papyrus, "too distant" hits.
+- [ ] **Log sweep findings (2026-09-22)**: (a) "Record 0x3020119 / 0x1007982 doesn't exist" via console.error after BSKGreaterToxicMissile / manny_GF_Spell_AncientVision casts: raw plugin-local ids; espmMagic, masterySystem and the gamemode all map through toGlobalRecordId and catch, so the caller is still unlocated (32/day, cosmetic). **Located 2026-09-22 17:40 and it is not cosmetic: `TES5SpellDamageFormulaImpl::GetBaseSpellDamage` in the C++, and it costs the whole hit. See the top block.** (b) 12 x HTTP 403 logins at 01:42 UTC from one session: a non-whitelisted account. (c) Known noise: hosting handoffs, Bruma scripts calling unimplemented Papyrus, "too distant" hits.
 
 ## Added 2026-09-22: Blood and Moonlight (world clock, vampires, werewolves, raids)
 
