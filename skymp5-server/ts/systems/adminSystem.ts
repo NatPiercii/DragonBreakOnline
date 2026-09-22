@@ -37,7 +37,7 @@ type Mp = any;
 //                     { customPacketType: "adminItemsRequest" }  -> adminItems
 //                     { customPacketType: "adminLocationsRequest" }  -> adminLocations  (settings locations + admin-locations.json map markers)
 //                     { customPacketType: "adminAction", action: "giveItem", item, count, targetName? }
-//                     { customPacketType: "adminAction", action: "giveSpells" | "giveShouts" | "giveWerewolf", targetName? }
+//                     { customPacketType: "adminAction", action: "giveSpells" | "giveShouts" | "giveWerewolf" | "giveVampireLord", targetName? }
 //                     A missing target/targetName means the admin themself; targetName takes a name, a name prefix or #TAG.
 //   Server -> Client: { customPacketType: "adminMastery", targetName, detail }
 //                     { customPacketType: "adminItems", categories: [{ id, label, items: [[desc, name, plugin?]] }] }
@@ -450,7 +450,7 @@ export class AdminSystem implements System {
       this.reply(mp, userId, !!lifted, lifted ? `Ban on ${lifted.name || lifted.ip} lifted` : "No such ban");
       return;
     }
-    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf"].indexOf(action) !== -1) {
+    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord"].indexOf(action) !== -1) {
       const who = this.resolveTarget(mp, myActorId, content);
       if (!who) { this.reply(mp, userId, false, "No online player by that name"); return; }
       this.selfServiceAction(ctx, mp, userId, myActorId, adminProfile, action, who, content);
@@ -593,8 +593,8 @@ export class AdminSystem implements System {
       }
       const powers = this.powers();
       if (!powers) { this.reply(mp, userId, false, "admin-powers.json is missing on the server"); return; }
-      if (action === "giveSpells" || action === "giveWerewolf") {
-        const list: string[] = action === "giveSpells" ? powers.spells.map((x) => x[0]) : [powers.werewolf];
+      if (action === "giveSpells" || action === "giveWerewolf" || action === "giveVampireLord") {
+        const list: string[] = action === "giveSpells" ? powers.spells.map((x) => x[0]) : [action === "giveWerewolf" ? powers.werewolf : powers.vampirelord].filter((x): x is string => !!x);
         let n = 0;
         for (const desc of list) {
           try {
@@ -602,8 +602,9 @@ export class AdminSystem implements System {
             n++;
           } catch (e) { this.log(`AdminSystem: AddSpell ${desc} failed: ${e}`); }
         }
-        this.adminLog(`profile ${adminProfile} gave ${action === "giveSpells" ? `${n} spells` : "werewolf beast form"} to ${whom}`);
-        this.reply(mp, userId, n > 0, action === "giveSpells" ? `${n} spells given to ${who.name}` : `${who.name} can now take beast form`);
+        const formName = action === "giveWerewolf" ? "werewolf beast form" : "Vampire Lord form";
+        this.adminLog(`profile ${adminProfile} gave ${action === "giveSpells" ? `${n} spells` : formName} to ${whom}`);
+        this.reply(mp, userId, n > 0, action === "giveSpells" ? `${n} spells given to ${who.name}` : `${who.name} can now take ${formName}`);
         return;
       }
       if (action === "giveShouts") {
@@ -626,7 +627,7 @@ export class AdminSystem implements System {
   }
 
   // admin-powers.json from ck-mcp/admin_powers.py: tome spells, shouts with their words, the werewolf power
-  private powers(): { spells: Array<[string, string]>; shouts: Array<{ shout: string; name: string; words: string[] }>; werewolf: string } | null {
+  private powers(): { spells: Array<[string, string]>; shouts: Array<{ shout: string; name: string; words: string[] }>; werewolf: string; vampirelord?: string } | null {
     try { return JSON.parse(fs.readFileSync(path.resolve("admin-powers.json"), "utf8")); } catch { return null; }
   }
 
