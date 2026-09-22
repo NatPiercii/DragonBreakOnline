@@ -1,5 +1,21 @@
 [
   {
+    "title": "Stuck on the Main Menu No More",
+    "date": "2026-09-22",
+    "tag": "Hotfix",
+    "version": "Launcher 2.1.24",
+    "sections": [
+      {
+        "items": [
+          "Creating a character no longer leaves some players on the main menu. If you ever used Vortex, its save-folder setting had been copied into the DragonBreak profile; the launcher now resets it at every launch.",
+          "Leftover plugin force-load lines from other launchers are removed from the profile, so your load order always matches the server.",
+          "The install window no longer shows Not Responding while the client files unpack.",
+          "Settings > Repair has a Copy Log button, and the log text can be selected. Paste it in Discord when you ask for help."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Play Elsewhere, Come Back Anytime",
     "date": "2026-09-22",
     "tag": "Update",
