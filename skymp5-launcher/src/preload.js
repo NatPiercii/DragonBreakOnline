@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   extrasDisable:  () => ipcRenderer.invoke('extras:disable'),
   extrasEnable:   () => ipcRenderer.invoke('extras:enable'),
   uninstall:      () => ipcRenderer.invoke('install:uninstall'),
+  copyText:       (text) => ipcRenderer.invoke('clipboard:write', text),
   onInstallProgress: (cb) =>
     ipcRenderer.on('install:progress', (_e, data) => cb(data)),
   onInstallComplete: (cb) =>

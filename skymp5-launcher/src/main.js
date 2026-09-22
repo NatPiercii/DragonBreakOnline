@@ -4,7 +4,7 @@ if (!require('electron').app.isPackaged) {
   require('dotenv').config()
 }
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron')
 
 // Basic/Remote display adapters (RDP, VMs, servers) bugcheck the video
 // scheduler when Chromium drives them; the launcher UI does not need the GPU.
@@ -698,6 +698,9 @@ ipcMain.handle('dialog:openFolder', async (_e, title) => {
   })
   return result.canceled ? null : result.filePaths[0]
 })
+
+// Copy Log in the Repair tab
+ipcMain.handle('clipboard:write', (_e, text) => { try { clipboard.writeText(String(text || '')); return true } catch { return false } })
 
 // Open external URL - http/https only
 ipcMain.on('open:external', (_e, url) => {

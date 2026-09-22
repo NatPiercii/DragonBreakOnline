@@ -724,6 +724,18 @@ function installLog(msg) {
   renderInstallProgress()
 }
 
+// The log as players see it, for a support post
+document.getElementById('btn-copy-log').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-copy-log')
+  const lines = installLogLines.concat(installLiveLine ? [installLiveLine] : [])
+  const text = `DragonBreak Launcher ${document.getElementById('launcher-version')?.textContent || ''}
+` + (lines.length ? lines.join('
+') : '(log is empty)')
+  const ok = await window.electronAPI.copyText(text)
+  btn.textContent = ok ? 'Copied ✓' : 'Copy failed'
+  setTimeout(() => { btn.textContent = 'Copy Log' }, 1500)
+})
+
 function formatInstallProgress({ phase, file, index, total, skipped }) {
   if (phase === 'download' || phase === 'check') return file
   if (phase === 'mods') return total > 0 ? `[mods ${index}/${total}] ${file}` : file
