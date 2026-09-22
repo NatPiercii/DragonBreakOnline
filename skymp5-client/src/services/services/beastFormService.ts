@@ -2,7 +2,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { Race, SpellCastEvent } from "skyrimPlatform";
+import { Race, Spell, SpellCastEvent } from "skyrimPlatform";
 import { sendCustomPacket } from "./customPacketUtil";
 import { logError, logTrace } from "../../logging";
 
@@ -19,12 +19,24 @@ export class BeastFormService extends ClientListener {
     this.controller.on("spellCast", (e) => this.onSpellCast(e));
   }
 
-  // Beast Form, Vampire Lord and Revert Form are powers; the server runs the change (server\beastform.js)
+  // Beast Form, Vampire Lord and Revert Form are powers whose effects are engine-native transformation archetypes
+  // (36 and 46): cast locally they start the engine's own change, which locks the controls and never finishes here.
+  // The effect is dispelled at once, the controls come back, and the server runs the change (server\beastform.js).
   private onSpellCast(e: SpellCastEvent): void {
     if (!e.caster || e.caster.getFormID() !== 0x14 || !e.spell) return;
     const id = e.spell.getFormID();
     if (!BEAST_POWERS.has(id)) return;
+    this.controller.once("update", () => {
+      const player = this.sp.Game.getPlayer();
+      const spell = Spell.from(this.sp.Game.getFormEx(id));
+      if (player && spell) { try { player.dispelSpell(spell); } catch { /* not active */ } }
+      this.restoreControls();
+    });
     sendCustomPacket(this.controller, { customPacketType: "dboBeastRequest", spell: id });
+  }
+
+  private restoreControls(): void {
+    try { this.sp.Game.enablePlayerControls(true, true, true, true, true, true, true, true, 0); } catch { /* menu */ }
   }
 
   private onBeastMessage(event: ConnectionMessage<CustomPacketMessage>): void {
@@ -43,6 +55,7 @@ export class BeastFormService extends ClientListener {
         if (beast) player.unequipAll();
         player.setRace(race);
         if (beast) this.sp.Game.forceThirdPerson();
+        this.restoreControls();
         logTrace(this, beast ? "Took beast form" : "Returned to own race", raceId.toString(16));
       } catch (e) {
         logError(this, "setRace failed", e);
