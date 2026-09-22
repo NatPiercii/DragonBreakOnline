@@ -1374,7 +1374,11 @@ const ranksOf = (profileId) => {
 };
 // Seat holders appoint their own officers (config appointRules: holder rank -> { appointable rank: max per zone }).
 // Bruma is ruled by a Count; count stands in for the Baron until a baron rank exists.
-const APPOINT_RULES = Object.assign({ jarl: { steward: 5, courtmage: 2 }, baron: { steward: 5, courtmage: 2 }, count: { steward: 5, courtmage: 2 }, chieftain: { bane: 5, shaman: 1, wisewoman: 1 } }, cfg.appointRules || {});
+const APPOINT_RULES = Object.assign({
+  jarl: { steward: 5, courtmage: 2, guardcaptain: 1, guard: 20 }, baron: { steward: 5, courtmage: 2, guardcaptain: 1, guard: 20 }, count: { steward: 5, courtmage: 2, captain: 1, guard: 20 },
+  guardcaptain: { guard: 20 }, captain: { guard: 20 }, commander: { guard: 20 },
+  chieftain: { bane: 5, shaman: 1, wisewoman: 1, strongholdcommander: 1, strongholdguard: 20 }, strongholdcommander: { strongholdguard: 20 },
+}, cfg.appointRules || {});
 const appointCap = (a, z, rank) => {
   if (isAdmin(a)) return Infinity;
   let cap = 0;
@@ -1401,7 +1405,7 @@ registerChatCommand('appoint', (a, args) => {
   personal(a, `${display(t)} is now ${rankTitle(rank)} of ${z.name}.`);
   system(t, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
   audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${who(t)} ${rankTitle(rank)} of ${z.name}`);
-}, { help: '<player|#TAG> <zone> <rank> make someone an official (admins; Jarls, Counts and Barons name 5 Stewards and 2 Court Mages, Chieftains 5 Banes, a Shaman and a Wise-Woman)' });
+}, { help: '<player|#TAG> <zone> <rank> make someone an official (admins; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards)' });
 registerChatCommand('dismiss', (a, args) => {
   const m = args.trim().match(/^(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG> <zone>');
   const t = findByName(m[1]); if (!t) return personal(a, 'No such player online.');
