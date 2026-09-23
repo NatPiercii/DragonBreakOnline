@@ -1,4 +1,4 @@
-// Floating letter over a notice board: parchment envelope, red wax seal, a slow bob
+// Floating pigeon-post medallion over a notice board: gold rim, sealed letter, a slow bob and a soft pulse
 @import '../../dbo-theme.scss';
 
 .mailMarkers {
@@ -15,38 +15,84 @@
   &__bob {
     position: relative;
     animation: mailMarkers-bob 2.4s ease-in-out infinite;
-    filter: drop-shadow(0 0 8px rgba(232, 214, 160, 0.55)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
+    filter: drop-shadow(0 0 10px rgba(224, 186, 98, 0.6)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.85));
+  }
+
+  &__pulse {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 52px;
+    height: 52px;
+    margin: -26px 0 0 -26px;
+    border-radius: 50%;
+    border: 2px solid rgba(224, 186, 98, 0.8);
+    animation: mailMarkers-pulse 2.4s ease-out infinite;
   }
 
   &__icon {
+    position: relative;
     display: block;
-    width: 44px;
-    height: 33px;
+    width: 52px;
+    height: 52px;
+  }
+
+  &__disc {
+    stroke: $dbo-aedric-gold;
+    stroke-width: 2.5;
+  }
+
+  &__inner {
+    fill: none;
+    stroke: rgba(224, 186, 98, 0.35);
+    stroke-width: 1;
+  }
+
+  &__feather {
+    fill: #e6ecec;
+    stroke: #8c9a9c;
+    stroke-width: 1;
+  }
+
+  &__quill {
+    fill: none;
+    stroke: #8c9a9c;
+    stroke-width: 1.2;
+    stroke-linecap: round;
   }
 
   &__paper {
-    fill: #efe2bd;
     stroke: #8a6d33;
-    stroke-width: 2;
+    stroke-width: 1.5;
   }
 
   &__fold {
     fill: none;
     stroke: #8a6d33;
-    stroke-width: 2;
+    stroke-width: 1.5;
     stroke-linejoin: round;
+    stroke-linecap: round;
+
+    &--back {
+      stroke: rgba(138, 109, 51, 0.55);
+    }
   }
 
   &__seal {
     fill: #b8322a;
     stroke: #6e1a14;
-    stroke-width: 1.5;
+    stroke-width: 1.2;
+  }
+
+  &__sealMark {
+    fill: #e8a39a;
+    opacity: 0.8;
   }
 
   &__count {
     position: absolute;
-    top: -8px;
-    right: -10px;
+    top: -6px;
+    right: -8px;
     min-width: 20px;
     padding: 0 5px;
     border-radius: 10px;
@@ -56,7 +102,7 @@
     line-height: 20px;
     text-align: center;
     color: #1a1206;
-    background: $dbo-gold;
+    background: $dbo-aedric-gold;
     border: 1px solid #8a6d33;
   }
 }
@@ -64,4 +110,9 @@
 @keyframes mailMarkers-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
+}
+
+@keyframes mailMarkers-pulse {
+  0% { transform: scale(0.85); opacity: 0.85; }
+  100% { transform: scale(1.55); opacity: 0; }
 }

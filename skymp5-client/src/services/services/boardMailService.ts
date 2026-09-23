@@ -14,6 +14,10 @@ const POLL_MS = 100;
 // Board top plus a little air; the reach keeps markers to boards the player could walk to now
 const HEIGHT_ABOVE_BOARD = 190;
 const MAX_DISTANCE = 4000;
+// Nat: the letter showed through walls. A board counts only while the player can see it (Actor.hasLOS, re-checked
+// every LOS_MS per board), or when standing right at it, where hasLOS can flicker on the board's own mesh
+const LOS_MS = 500;
+const ALWAYS_SHOW_WITHIN = 300;
 
 interface Marker { x: number; y: number; near: number }
 
@@ -64,6 +68,7 @@ export class BoardMailService extends ClientListener {
       if (!ref || !ref.is3DLoaded()) continue;
       const distance = player.getDistance(ref);
       if (distance > MAX_DISTANCE) continue;
+      if (distance > ALWAYS_SHOW_WITHIN && !this.inSight(player, ref, id)) continue;
       const [p] = worldPointToScreenPoint([ref.getPositionX(), ref.getPositionY(), ref.getPositionZ() + HEIGHT_ABOVE_BOARD]);
       if (!(p[2] > 0 && p[0] > 0 && p[0] < 1 && p[1] > 0 && p[1] < 1)) continue;
       out.push({ x: p[0], y: 1 - p[1], near: 1 - distance / MAX_DISTANCE });
@@ -77,6 +82,17 @@ export class BoardMailService extends ClientListener {
     window.skyrimPlatform.widgets.set(others.concat([widget]));
   };
 
+  private inSight(player: { hasLOS(r: ObjectReference | null): boolean }, ref: ObjectReference, id: number): boolean {
+    const now = Date.now();
+    const cached = this.los.get(id);
+    if (cached && now - cached.at < LOS_MS) return cached.seen;
+    let seen = false;
+    try { seen = player.hasLOS(ref); } catch { seen = false; }
+    this.los.set(id, { seen, at: now });
+    return seen;
+  }
+
+  private los = new Map<number, { seen: boolean; at: number }>();
   private boards: number[] = [];
   private lastPollMs = 0;
   private lastKey = "";
