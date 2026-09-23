@@ -1,4 +1,6 @@
 import * as fs from "fs";
+import { extraSlotsFor, isPriorityPatron, reservedSlots } from "./patronTiers";
+import { kickWithReason } from "./kickUtil";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { filterAccessForSlot } from "../backendFactionApi";
@@ -154,6 +156,7 @@ export class Spawn implements System {
     this.installEquipmentHook(ctx);
 
     const listenerFn = (userId: number, userProfileId: number, discordRoleIds: string[], discordId?: string, access?: unknown) => {
+      if (!this.admit(ctx, userId, discordRoleIds || [])) return;
       if (this.characterSelect) {
         const auth = { profileId: userProfileId, roles: discordRoleIds, discordId, access };
         this.authCache.set(userId, auth);
@@ -165,6 +168,28 @@ export class Spawn implements System {
     };
     ctx.gm.on("spawnAllowed", listenerFn);
     (ctx.svr as any)._onSpawnAllowed = listenerFn;
+  }
+
+  // The last reservedSlots places of maxPlayers are kept for priority patrons (Grand Champion) and staff
+  private admit(ctx: SystemContext, userId: number, roles: string[]): boolean {
+    const reserved = reservedSlots();
+    if (reserved <= 0) return true;
+    const mp = ctx.svr as unknown as Mp;
+    const all = this.settingsObject.allSettings as Record<string, unknown> | null;
+    const staff = Object.values((all?.["adminRoles"] as Record<string, unknown>) || {})
+      .flatMap((v) => (Array.isArray(v) ? v.map(String) : []))
+      .concat(Array.isArray(all?.["adminRoleIds"]) ? (all!["adminRoleIds"] as unknown[]).map(String) : []);
+    if (isPriorityPatron(roles, staff)) return true;
+    let others = 0;
+    for (let u = 0; u < 1024; u++) {
+      if (u === userId) continue;
+      try { if (mp.isConnected(u)) others++; } catch { /* free slot */ }
+    }
+    const open = Math.max(0, Number(this.settingsObject.maxPlayers) - reserved);
+    if (others < open) return true;
+    this.log("Refused user", userId, "(server holds its last " + reserved + " places for priority members; " + others + " online)");
+    kickWithReason(mp, userId, "The server is full for now: its last places are held for Grand Champions and staff. Please try again in a little while.");
+    return false;
   }
 
   customPacket(userId: number, type: string, content: Content, ctx: SystemContext): void {
@@ -278,16 +303,23 @@ export class Spawn implements System {
     } catch { return ""; }
   }
 
-  private slotMap(ctx: SystemContext, profileId: number): (number | undefined)[] {
+  // Base slots from characterSelectMaxCharacters plus the Patreon tier's extra slots (patron-tiers.json)
+  private slotsFor(userId: number): number {
+    const auth = this.authCache.get(userId);
+    return Math.min(10, this.maxCharacters + (auth ? extraSlotsFor(auth.roles) : 0));
+  }
+
+  // Characters past a lapsed tier's slots are not deleted, only left off the list until the slots return
+  private slotMap(ctx: SystemContext, profileId: number, max: number): (number | undefined)[] {
     const mp = ctx.svr as unknown as Mp;
-    const slots: (number | undefined)[] = new Array(this.maxCharacters).fill(undefined);
+    const slots: (number | undefined)[] = new Array(max).fill(undefined);
     const unassigned: number[] = [];
     for (const a of ctx.svr.getActorsByProfileId(profileId)) {
       // Crash handle for deleting characters
       let s: unknown;
       try { s = mp.get(a, "private.charSlot"); }
       catch { continue; }
-      if (Number.isInteger(s) && (s as number) >= 0 && (s as number) < this.maxCharacters && slots[s as number] === undefined) {
+      if (Number.isInteger(s) && (s as number) >= 0 && (s as number) < max && slots[s as number] === undefined) {
         slots[s as number] = a;
       } else {
         unassigned.push(a);
@@ -375,7 +407,8 @@ export class Spawn implements System {
 
   private sendCharacterList(ctx: SystemContext, userId: number, profileId: number): void {
     const mp = ctx.svr as unknown as Mp;
-    const characters = this.slotMap(ctx, profileId).map((actorId, i) =>
+    const max = this.slotsFor(userId);
+    const characters = this.slotMap(ctx, profileId, max).map((actorId, i) =>
       actorId !== undefined
         ? {
           name: this.characterName(ctx, actorId) || `Character ${i + 1}`,
@@ -386,16 +419,16 @@ export class Spawn implements System {
         }
         : null);
     ctx.svr.sendCustomPacket(userId, JSON.stringify({
-      customPacketType: "characterSelectMenu", maxCharacters: this.maxCharacters, characters,
+      customPacketType: "characterSelectMenu", maxCharacters: max, characters,
     }));
   }
 
   private onSelectCharacter(ctx: SystemContext, userId: number, slot: number): void {
     const auth = this.pending.get(userId);
-    if (!auth || !Number.isInteger(slot) || slot < 0 || slot >= this.maxCharacters) return;
+    if (!auth || !Number.isInteger(slot) || slot < 0 || slot >= this.slotsFor(userId)) return;
 
     const mp = ctx.svr as unknown as Mp;
-    const slots = this.slotMap(ctx, auth.profileId);
+    const slots = this.slotMap(ctx, auth.profileId, this.slotsFor(userId));
     let actorId = slots[slot];
     const isNew = actorId === undefined;
 
@@ -666,9 +699,9 @@ export class Spawn implements System {
 
   private onDeleteCharacter(ctx: SystemContext, userId: number, slot: number): void {
     const auth = this.pending.get(userId);
-    if (!auth || !Number.isInteger(slot) || slot < 0 || slot >= this.maxCharacters) return;
+    if (!auth || !Number.isInteger(slot) || slot < 0 || slot >= this.slotsFor(userId)) return;
 
-    const actorId = this.slotMap(ctx, auth.profileId)[slot];
+    const actorId = this.slotMap(ctx, auth.profileId, this.slotsFor(userId))[slot];
     if (actorId !== undefined) {
       // Perma-dead characters may be deleted too (destroying the body) so a perma-death cannot lock the slot forever
       this.cancelPark(actorId);
