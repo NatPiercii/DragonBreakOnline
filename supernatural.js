@@ -30,6 +30,9 @@ module.exports = (api) => {
     forcedChangeChance: 0.10, beastChangesPerDay: 1,
     beastFeedSeconds: 30, corpseFreshMinutes: 10,
     permaDeathChance: 0.33,
+    // Claws deal the race's unarmed damage (werewolf 20, Vampire Lord 10) and the server runs none of the beast perks,
+    // so a beast hit weaker than a sword. Multiplies a beast player's melee hit: 50 and 35 against an unarmoured target.
+    beastMeleeMult: { werewolf: 2.5, vampirelord: 3.5 },
     rite: { rounds: 5, needFever: 3, needVoluntary: 4, leadMs: 700, timeoutMs: 7000, latencyMs: 120, slackMs: 160 },
   }, cfg.supernatural || {});
 
@@ -293,12 +296,24 @@ module.exports = (api) => {
   const beastForm = (a) => { try { const b = mp.get(a, 'private.beast'); return b && b.form ? b.form : null; } catch (e) { return null; } };
 
   // Extra damage multiplier for the target of a hit (fire on vampires, silver on werewolves)
+  const MAGIC_TYPES = new Set(['SPEL', 'ENCH', 'SCRL', 'ALCH', 'INGR', 'EXPL', 'HAZD']);
+  const clawLogged = new Set();
+  // A beast holds no weapon, so any non-magic hit it lands is its claws
+  const beastMeleeMult = (agg, src) => {
+    const form = isPlayer(agg) ? beastForm(agg) : null;
+    if (!form) return 1;
+    let type = ''; try { const r = recordOf(Number(src) >>> 0); type = r ? String(r.type) : ''; } catch (e) { /* none */ }
+    if (MAGIC_TYPES.has(type)) return 1;
+    if (!clawLogged.has(form)) { clawLogged.add(form); log(`supernatural: ${form} claw hit carries source 0x${(Number(src) >>> 0).toString(16)} (${type || 'no record'})`); }
+    return Number((C.beastMeleeMult || {})[form]) || 1;
+  };
   globalThis.__dboSuperDamageMult = (agg, tgt, src) => {
+    const beast = beastMeleeMult(agg, src);
     const s = isPlayer(tgt) ? stateOf(tgt) : null;
-    if (!s || !s.kind) return 1;
-    if (s.kind === 'vampire' && isFireSource(src)) return 1 + C.fireWeaknessPerStage * Math.max(1, s.stage) * (s.pure ? 0.5 : 1);
-    if (s.kind === 'werewolf' && isSilverSource(src)) return 1 + C.silverWeakness;
-    return 1;
+    if (!s || !s.kind) return beast;
+    if (s.kind === 'vampire' && isFireSource(src)) return beast * (1 + C.fireWeaknessPerStage * Math.max(1, s.stage) * (s.pure ? 0.5 : 1));
+    if (s.kind === 'werewolf' && isSilverSource(src)) return beast * (1 + C.silverWeakness);
+    return beast;
   };
   // An accepted hit may carry a curse
   globalThis.__dboSuperHit = (agg, tgt) => {
