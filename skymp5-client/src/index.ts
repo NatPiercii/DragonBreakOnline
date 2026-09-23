@@ -56,6 +56,7 @@ import { HostedDriftService } from "./services/services/hostedDriftService";
 import { InteractionPromptService } from "./services/services/interactionPromptService";
 import { BoardMailService } from "./services/services/boardMailService";
 import { BeastFormService } from "./services/services/beastFormService";
+import { ParalysisService } from "./services/services/paralysisService";
 import { PaleCoatService } from "./services/services/paleCoatService";
 import { RestraintService } from "./services/services/restraintService";
 import { CaptureConsentService } from "./services/services/captureConsentService";
@@ -158,6 +159,7 @@ const main = () => {
       new InteractionPromptService(sp, controller),
       new BoardMailService(sp, controller),
       new BeastFormService(sp, controller),
+      new ParalysisService(sp, controller),
       new PaleCoatService(sp, controller),
       new RestraintService(sp, controller),
       new CaptureConsentService(sp, controller),
