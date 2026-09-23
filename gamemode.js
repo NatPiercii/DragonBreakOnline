@@ -2027,6 +2027,57 @@ const castHook = (casterId, spellId, ...rest) => {
 };
 castHook.__dbo = true;
 mp.onSpellCast = castHook;
+// Runes (Ash Rune) carry their paralysis on the explosion's enchantment, not on the spell the hit names, so the
+// server's own paralysis never saw it. onSpellHit fires only for an accepted hit (god mode and wards refuse first).
+const PARALYSIS_ARCHETYPE = 21, HIDE_IN_UI = 0x8000;
+const fieldsOf = (lr, type) => ((lr && lr.record && lr.record.fields) || []).filter((f) => f.type === type && f.data instanceof Uint8Array);
+const u32At = (f, off) => (f && f.data.byteLength >= off + 4 ? new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(off, true) : 0);
+const globalAt = (lr, local) => { try { return local ? lr.toGlobalRecordId(local) >>> 0 : 0; } catch (e) { return 0; } };
+// Longest visible Paralysis effect in an EFID/EFIT list, in seconds
+const paralysisIn = (lr) => {
+  let seconds = 0; const efids = fieldsOf(lr, 'EFID'), efits = fieldsOf(lr, 'EFIT');
+  efids.forEach((f, i) => {
+    const data = fieldsOf(recordOf(globalAt(lr, u32At(f, 0))), 'DATA')[0];
+    if (u32At(data, 0x40) === PARALYSIS_ARCHETYPE && !(u32At(data, 0) & HIDE_IN_UI)) seconds = Math.max(seconds, u32At(efits[i], 8));
+  });
+  return seconds;
+};
+const explosionParalysis = globalThis.__dboExplosionParalysis = globalThis.__dboExplosionParalysis || new Map(); // spell -> seconds
+const explosionParalysisOf = (spellId) => {
+  if (explosionParalysis.has(spellId)) return explosionParalysis.get(spellId);
+  let seconds = 0;
+  const spell = recordOf(spellId);
+  if (spell && spell.record.type === 'SPEL' && !paralysisIn(spell)) {
+    for (const f of fieldsOf(spell, 'EFID')) {
+      const mgef = recordOf(globalAt(spell, u32At(f, 0)));
+      const data = fieldsOf(mgef, 'DATA')[0];
+      // MGEF DATA: projectile 0x48, explosion 0x4c; a rune's explosion is on its projectile (PROJ DATA 0x24)
+      const proj = recordOf(globalAt(mgef, u32At(data, 0x48)));
+      for (const expl of [recordOf(globalAt(mgef, u32At(data, 0x4c))), proj && recordOf(globalAt(proj, u32At(fieldsOf(proj, 'DATA')[0], 0x24)))]) {
+        if (!expl || expl.record.type !== 'EXPL') continue;
+        const ench = recordOf(globalAt(expl, u32At(fieldsOf(expl, 'EITM')[0], 0)));
+        if (ench) seconds = Math.max(seconds, paralysisIn(ench));
+      }
+    }
+  }
+  explosionParalysis.set(spellId, seconds);
+  return seconds;
+};
+if (typeof globalThis.__dboPrevSpellHit === 'undefined') globalThis.__dboPrevSpellHit = typeof mp.onSpellHit === 'function' && !mp.onSpellHit.__dbo ? mp.onSpellHit : null;
+const spellHitHook = (aggressorId, targetId, spellId, ...rest) => {
+  try {
+    const tgt = Number(targetId) >>> 0, seconds = explosionParalysisOf(Number(spellId) >>> 0);
+    if (seconds > 0 && profileOf(tgt) >= 0 && tgt !== (Number(aggressorId) >>> 0)) {
+      sendPacket(tgt, { customPacketType: 'dboParalyse', seconds });
+      log(`paralysis: ${display(tgt)} held ${seconds} s by ${display(Number(aggressorId) >>> 0)} (spell ${(Number(spellId) >>> 0).toString(16)})`);
+    }
+  } catch (e) { log('spell hit paralysis failed', e.message); }
+  const prev = globalThis.__dboPrevSpellHit;
+  if (prev) { try { return prev(aggressorId, targetId, spellId, ...rest); } catch (e) { log('spell hit chain failed', e.message); } }
+  return undefined;
+};
+spellHitHook.__dbo = true;
+mp.onSpellHit = spellHitHook;
 // Equipment trace: what the client reports as worn and whether the server took it (debug.logEquipment).
 if (typeof globalThis.__dboPrevEquip === 'undefined') globalThis.__dboPrevEquip = typeof mp.onUpdateEquipmentAttempt === 'function' && !mp.onUpdateEquipmentAttempt.__dbo ? mp.onUpdateEquipmentAttempt : null;
 const wornOf = (equipment) => { const entries = equipment && equipment.inv && Array.isArray(equipment.inv.entries) ? equipment.inv.entries : []; return entries.filter((e) => e && (e.worn || e.wornLeft)).map((e) => ({ baseId: Number(e.baseId) >>> 0, left: !!e.wornLeft })); };
@@ -2041,7 +2092,9 @@ const equipHook = (actorId, equipment, isAllowed, ...rest) => {
     const a = Number(actorId) >>> 0;
     const worn = wornOf(equipment);
     const fresh = Date.now() - (connectedAt.get(a) || 0) < WORN_GRACE_MS;
-    if (isAllowed && worn.length && !fresh) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0]));
+    // A beast form's outfit (the Vampire Lord's robes) is not the character's: a revert re-dresses from lastWorn
+    let beast = null; try { beast = mp.get(a, 'private.beast'); } catch (e) { /* not an actor */ }
+    if (isAllowed && worn.length && !fresh && !(beast && beast.form)) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0]));
     // The naked login report is the moment to dress, not the 12 s fallback in onCharacterReady
     if (isAllowed && !worn.length && fresh && !creationPending(a) && Date.now() - (redressAt.get(a) || 0) > 2000) {
       redressAt.set(a, Date.now());
