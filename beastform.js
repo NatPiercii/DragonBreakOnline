@@ -150,7 +150,8 @@ module.exports = (api) => {
     sendPacket(a, { customPacketType: 'dboBeast', race: Number(s.original.raceId) >>> 0, beast: false, form: s.form, wear: [] });
     for (const id of WEAR[s.form] || []) setCount(a, id, 0);
     learn(a, s.form, false);
-    setTimeout(() => { try { redress(a); } catch (e) { log('beastform re-dress failed', e.message); } }, 1500);
+    // Skipped if another form was taken in the meantime: a revert straight into werewolf dressed the wolf in armour
+    setTimeout(() => { try { if (!stateOf(a)) redress(a); } catch (e) { log('beastform re-dress failed', e.message); } }, 1500);
     log(`${display(a)} left ${FORMS[s.form] ? FORMS[s.form].name : s.form} (${why})`);
     try { if (globalThis.__dboBeastChanged) globalThis.__dboBeastChanged(a, s.form, false); } catch (e) { log('beast change hook failed', e.message); }
     return true;
