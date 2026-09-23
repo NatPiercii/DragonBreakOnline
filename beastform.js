@@ -119,7 +119,11 @@ module.exports = (api) => {
     // (only the abPreventRemoval robes survived). The client unequips before it swaps race.
     const wear = WEAR[key] || [];
     for (const id of wear) setCount(a, id, 1);
-    mp.set(a, 'appearance', beastAppearance(original, f.race));
+    // Other clients crash building a remote actor of the Vampire Lord race (xXPussy and Flo'Riahn looped on joining
+    // near one, 2026-09-23 20:58), so until the crash is found they keep seeing the real appearance. Only the owner's
+    // client swaps race (dboBeast). Config beastform.vampireLordRemoteRace: true turns the remote race back on.
+    const remoteRace = key !== 'vampirelord' || ((api.cfg || {}).beastform || {}).vampireLordRemoteRace === true;
+    if (remoteRace) mp.set(a, 'appearance', beastAppearance(original, f.race));
     learn(a, key, true);
     sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true, form: key, wear, abilities: packetAbilities(key) });
     personal(a, key === 'werewolf' ? `The beast takes you for ${f.seconds} seconds.` : 'You take the form of a Vampire Lord. Press 9, then your Shout key, to revert.');
