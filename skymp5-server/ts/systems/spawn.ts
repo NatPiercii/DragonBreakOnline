@@ -1,11 +1,14 @@
 import * as fs from "fs";
 import { extraSlotsFor, isPriorityPatron, reservedSlots } from "./patronTiers";
+import { nameKey } from "./nameFilter";
 import { kickWithReason } from "./kickUtil";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { filterAccessForSlot } from "../backendFactionApi";
 import { validateResult, CharCreatorConfig } from "./charCreatorData";
 import { scanModHair, ModHairCatalog } from "./hairCatalog";
+
+const NAME_INDEX_PROP = "private.indexed.charName";
 
 type Mp = any;
 
@@ -293,6 +296,15 @@ export class Spawn implements System {
   private applyAuthProps(mp: Mp, actorId: number, profileId: number,
     roles: string[], discordId?: string, access?: unknown): void {
     mp.set(actorId, "private.discordRoles", roles);
+    // Characters made before the name index existed are not in it, so uniqueness would not see them.
+    // Fill it in the first time each one is touched, from the name it already carries.
+    try {
+      if (!mp.get(actorId, NAME_INDEX_PROP)) {
+        const appearance = mp.get(actorId, "appearance");
+        const existing = appearance && typeof appearance.name === "string" ? nameKey(appearance.name) : "";
+        if (existing) mp.set(actorId, NAME_INDEX_PROP, existing);
+      }
+    } catch { /* form vanished or no appearance yet */ }
     if (discordId !== undefined &&
       mp.get(actorId, "private.indexed.discordId") !== discordId) {
       mp.set(actorId, "private.indexed.discordId", discordId);
@@ -314,6 +326,20 @@ export class Spawn implements System {
   }
 
   // Characters past a lapsed tier's slots are not deleted, only left off the list until the slots return
+  // findFormsByPropertyValue only answers for private.indexed.* properties, which the world state keeps in a map
+  private nameTaken(ctx: SystemContext, key: string, selfId: number): boolean {
+    if (!key) return false;
+    const mp = ctx.svr as unknown as Mp;
+    try {
+      const found = mp.findFormsByPropertyValue(NAME_INDEX_PROP, key);
+      if (!Array.isArray(found)) return false;
+      return found.some((id: number) => (id >>> 0) !== (selfId >>> 0));
+    } catch (e) {
+      this.log("Name uniqueness check failed, letting the name through:", e);
+      return false;
+    }
+  }
+
   private slotMap(ctx: SystemContext, profileId: number, max: number): (number | undefined)[] {
     const mp = ctx.svr as unknown as Mp;
     const slots: (number | undefined)[] = new Array(max).fill(undefined);
@@ -680,9 +706,17 @@ export class Spawn implements System {
       this.sendCharCreatorError(ctx, userId, "This race is locked for your account");
       return;
     }
+    // One character to a name, server wide. The key folds case, spacing and punctuation, so "C'had"
+    // cannot sit beside "Chad"; two different full names still stand, "Chad Borick" beside "Chad Floran".
+    const key = nameKey(res.clean.name);
+    if (this.nameTaken(ctx, key, actorId)) {
+      this.sendCharCreatorError(ctx, userId, "Someone already goes by that name. Choose another");
+      return;
+    }
 
     try {
       mp.set(actorId, "appearance", res.clean.appearance);
+      mp.set(actorId, NAME_INDEX_PROP, key);
       mp.set(actorId, "private.rp", {
         species: res.clean.species,
         race: res.clean.race,

@@ -1,3 +1,4 @@
+import { checkName } from "./nameFilter";
 // Server-side mirror of skymp5-front/src/features/charCreator/data/races.js.
 // Slugs and form ids MUST stay in sync with that file; change them together.
 
@@ -236,10 +237,13 @@ export function validateResult(data: unknown, config: CharCreatorConfig): Valida
   if (rawName.length > MAX_RAW_NAME) {
     return fail("Names are 2-30 characters: letters, spaces, apostrophes, and hyphens");
   }
-  const name = stripControl(rawName).trim();
+  const name = stripControl(rawName).trim().replace(/\s+/g, " ");
   if (name.length < NAME_MIN || name.length > NAME_MAX || !NAME_RE.test(name)) {
     return fail("Names are 2-30 characters: letters, spaces, apostrophes, and hyphens");
   }
+  // Shape and word list (nameFilter.ts); uniqueness is checked by spawn.ts, which can see every character
+  const shaped = checkName(name);
+  if (!shaped.ok) return fail(shaped.error ?? "That name will not do here");
 
   const rawBackstory = typeof d.backstory === "string" ? d.backstory : "";
   if (rawBackstory.length > MAX_BACKSTORY) return fail("Backstory is too long");
