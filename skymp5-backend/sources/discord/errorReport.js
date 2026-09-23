@@ -6,7 +6,7 @@
 const https = require('https')
 const config = require('../../config')
 
-const REQUEST_TIMEOUT_MS = 30 * 1000
+const REQUEST_TIMEOUT_MS = 15 * 1000
 
 function request(method, path, { json, multipart } = {}) {
   return new Promise((resolve, reject) => {
@@ -20,7 +20,8 @@ function request(method, path, { json, multipart } = {}) {
       headers['Content-Type'] = 'application/json'
     }
     if (body) headers['Content-Length'] = body.length
-    const req = https.request({ hostname: 'discord.com', path: `/api/v10${path}`, method, headers }, res => {
+    // IPv4 only: in CT 115 the default lookup waits ~5 s on an AAAA answer that never comes, an IPv4 one takes ~30 ms
+    const req = https.request({ hostname: 'discord.com', path: `/api/v10${path}`, method, headers, family: 4 }, res => {
       let text = ''
       res.on('data', c => { text += c })
       res.on('end', () => {
@@ -31,9 +32,10 @@ function request(method, path, { json, multipart } = {}) {
         reject(err)
       })
     })
+    // A plain timer, as in oauth.js: req.setTimeout would inherit the default agent's 5 s socket timeout during the lookup
+    const timer = setTimeout(() => req.destroy(new Error(`discord ${method} ${path} timed out`)), REQUEST_TIMEOUT_MS)
+    req.on('close', () => clearTimeout(timer))
     req.on('error', reject)
-    // A stalled Discord upload must not hold a report forever; the caller logs the failure
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error(`discord ${method} ${path} timed out`)))
     if (body) req.write(body)
     req.end()
   })
