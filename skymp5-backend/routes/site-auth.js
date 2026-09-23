@@ -4,7 +4,6 @@
 const router        = require('express').Router()
 const crypto        = require('crypto')
 const fs            = require('fs')
-const net           = require('net')
 const rateLimit     = require('express-rate-limit')
 const config        = require('../config')
 const oauth         = require('../sources/discord/oauth')
@@ -19,6 +18,7 @@ const factions      = require('../sources/factionWhitelist')
 const { charFromCf, fileChangeForms } = require('../sources/characters')
 const { progressOf } = require('../sources/progress')
 const problemReport = require('../sources/problemReport')
+const { visitorIp } = require('../sources/visitorIp')
 
 const STATE_COOKIE   = 'db_site_state'
 const SESSION_COOKIE = 'db_site'
@@ -45,11 +45,6 @@ try { websiteOrigin = new URL(config.websiteUrl).origin } catch { /* malformed W
 let loginUrl = null
 try { loginUrl = new URL('/api/site/login', config.discordSiteRedirectUri) } catch { /* malformed redirect URI: sign-in starts on any host */ }
 
-// Every website user reaches the backend through the same proxy hop; Cloudflare puts the visitor's own address in CF-Connecting-IP
-function visitorIp(req) {
-  const ip = req.get('cf-connecting-ip')
-  return typeof ip === 'string' && net.isIP(ip) ? ip : null
-}
 
 const limitOptions = {
   windowMs: 60 * 1000,
@@ -332,30 +327,34 @@ router.get('/characters', (req, res) => {
   res.json({ characters })
 })
 
+// POST /api/site/report: the website report form, same-origin only and filed under the signed-in Discord account.
+// The origin and session checks and the rate limit all run before the 2 MB body is read.
+function reportSender(req, res, next) {
+  if (!websiteOrigin || req.get('origin') !== websiteOrigin) return res.status(403).json({ error: 'badOrigin' })
+  const session = currentSession(req)
+  if (!session) return res.status(401).json({ error: 'signedOut' })
+  req.siteSession = session
+  next()
+}
+
 // One account can file a handful of reports per window, however many tabs it opens
 const reportLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 12,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: req => `d:${currentSession(req)?.discordId || 'none'}`,
+  keyGenerator: req => `d:${req.siteSession.discordId}`,
   message: { error: 'tooMany' },
 })
 
-// POST /api/site/report: the website report form, same-origin only and filed under the signed-in Discord name
-router.post('/report', require('express').json({ limit: '2mb' }), (req, res, next) => {
-  if (!websiteOrigin || req.get('origin') !== websiteOrigin) return res.status(403).json({ error: 'badOrigin' })
-  if (!currentSession(req)) return res.status(401).json({ error: 'signedOut' })
-  next()
-}, reportLimiter, (req, res) => {
-  const session = currentSession(req)
-  const reporter = { name: String(session.username || 'Unknown player'), verified: true,
-                     profileId: profileIdOf(session.discordId) }
+router.post('/report', reportSender, reportLimiter, problemReport.parseReport, (req, res) => {
+  const session = req.siteSession
+  const reporter = { name: session.username, verified: true, profileId: profileIdOf(session.discordId),
+                     discordId: session.discordId }
   const body = req.body && typeof req.body === 'object' ? req.body : {}
-  const result = problemReport.prepare(reporter, { ...body, source: 'site' })
-  res.status(result.status).json(result.json)
-  if (result.send) result.send()
+  return problemReport.respond(res, reporter, { ...body, source: 'site' })
 })
+router.use('/report', problemReport.bodyErrors)
 
 // POST /api/site/logout: same-origin only, so another site cannot sign the visitor out
 router.post('/logout', (req, res) => {

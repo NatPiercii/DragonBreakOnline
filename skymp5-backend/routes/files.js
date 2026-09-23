@@ -13,6 +13,7 @@ const fs     = require('fs')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const config = require('../config')
 const problemReport = require('../sources/problemReport')
+const { visitorIp } = require('../sources/visitorIp')
 const { lookupSession } = require('./master-api')
 
 const ZIP_PATH     = path.join(config.clientFilesDir, config.clientZipName)
@@ -72,31 +73,45 @@ router.get('/zip', filesRateLimiter, (req, res) => {
 // POST /api/files/report - the launcher's "send logs to staff" button and its crash path; the game uses it too.
 // Under /api/files because the public proxy forwards only a fixed list of /api paths and this one is on it.
 
-// Who is reporting: a live play session is verified, anything the sender claims for itself is labelled as such
+// Headers only, so the rate limit runs before the body is read; a live play session is verified
 function identifyReporter(req, _res, next) {
   const session = req.headers['x-session'] ? lookupSession(req.headers['x-session']) : null
-  const claimed = typeof req.body?.discordUsername === 'string' ? req.body.discordUsername.slice(0, 32) : ''
   req.reporter = session
-    ? { name: session.username, verified: true, profileId: session.profileId }
-    : { name: claimed ? `${claimed} (unverified)` : 'Unknown player', verified: false, profileId: null }
+    ? { name: session.username, verified: true, profileId: session.profileId, discordId: session.discordId || null }
+    : { name: null, verified: false, profileId: null, discordId: null }
   next()
 }
 
-// Signed-in players each get their own budget; an unverified X-Session header no longer buys a fresh one
+// Every request arrives through the same relay, so an unverified sender is told apart by Cloudflare's visitor address
+const anonKey = req => `anon:${ipKeyGenerator(visitorIp(req) || req.ip)}`
 const reportLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  limit: req => (req.reporter.verified ? 12 : 30),
+  limit: req => (req.reporter.verified ? 12 : 10),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: req => (req.reporter.verified ? `p:${req.reporter.profileId}` : `anon:${ipKeyGenerator(req.ip)}`),
+  keyGenerator: req => (req.reporter.verified ? `p:${req.reporter.profileId}` : anonKey(req)),
   message: { error: 'Too many reports from this launcher. Wait a few minutes and try again.' },
 })
-
-router.post('/report', express.json({ limit: '2mb' }), identifyReporter, reportLimiter, (req, res) => {
-  const body = req.body || {}
-  const result = problemReport.prepare(req.reporter, { ...body, source: body.source === 'game' ? 'game' : 'launcher' })
-  res.status(result.status).json(result.json)
-  if (result.send) result.send()
+// A ceiling on all unverified reports together, for when the visitor address is missing or rotated
+const anonymousCeiling = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 120,
+  standardHeaders: false,
+  legacyHeaders: false,
+  skip: req => req.reporter.verified,
+  keyGenerator: () => 'anon:all',
+  message: { error: 'Too many reports right now. Wait a few minutes and try again.' },
 })
+
+router.post('/report', identifyReporter, reportLimiter, anonymousCeiling, problemReport.parseReport, (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {}
+  if (!req.reporter.verified) {
+    // Anything the sender claims for itself is labelled as such
+    const claimed = typeof body.discordUsername === 'string' ? problemReport.cleanName(body.discordUsername.slice(0, 32)) : ''
+    req.reporter.name = claimed && claimed !== 'Unknown player' ? `${claimed} (unverified)` : 'Unknown player'
+  }
+  return problemReport.respond(res, req.reporter, { ...body, source: body.source === 'game' ? 'game' : 'launcher' })
+})
+router.use(problemReport.bodyErrors)
 
 module.exports = router
