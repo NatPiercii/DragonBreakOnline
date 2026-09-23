@@ -2520,6 +2520,24 @@ function downloadClientZip(tempPath, onProgress) {
  * yields between entries, so the window keeps painting (a synchronous loop over the 170 MB
  * client zip left Windows showing "Not Responding" for the whole extraction).
  */
+async function sameContent(file, data) {
+  try {
+    const st = await fs.promises.stat(file)
+    if (st.size !== data.length) return false
+    return (await fs.promises.readFile(file)).equals(data)
+  } catch { return false }
+}
+
+async function writeRetry(file, data) {
+  for (let i = 0; ; i++) {
+    try { return await fs.promises.writeFile(file, data) } catch (err) {
+      // Defender and a running game briefly lock files; a lock that outlasts ~5 s is reported with the file named
+      if (i >= 9 || !['EBUSY', 'EPERM', 'EACCES'].includes(err.code)) throw err
+      await new Promise(r => setTimeout(r, 500))
+    }
+  }
+}
+
 async function extractClientZip(zipPath, destDir, onProgress) {
   const zip     = new AdmZip(zipPath)
   const entries = zip.getEntries().filter(e => !e.isDirectory)
@@ -2537,7 +2555,11 @@ async function extractClientZip(zipPath, destDir, onProgress) {
     if (onProgress) onProgress(entry.entryName, i + 1, total)
     await new Promise(r => setImmediate(r))
     await fs.promises.mkdir(path.dirname(resolved), { recursive: true })
-    await fs.promises.writeFile(resolved, entry.getData())
+    const data = entry.getData()
+    // An unchanged file is left alone: another program holding it open (Dark and Darker's TavernComn service held
+    // SkyrimPlatformCEF.exe, 2026-09-23) used to abort the whole update over a file with nothing new in it
+    if (await sameContent(resolved, data)) continue
+    await writeRetry(resolved, data)
   }
 
   return total
