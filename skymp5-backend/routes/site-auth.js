@@ -18,6 +18,7 @@ const officials     = require('../sources/officials')
 const factions      = require('../sources/factionWhitelist')
 const { charFromCf, fileChangeForms } = require('../sources/characters')
 const { progressOf } = require('../sources/progress')
+const problemReport = require('../sources/problemReport')
 
 const STATE_COOKIE   = 'db_site_state'
 const SESSION_COOKIE = 'db_site'
@@ -329,6 +330,31 @@ router.get('/characters', (req, res) => {
     .sort((a, b) => parseInt(a.char.formDesc, 16) - parseInt(b.char.formDesc, 16))
     .map(form => toSiteCharacter(form, names, account))
   res.json({ characters })
+})
+
+// One account can file a handful of reports per window, however many tabs it opens
+const reportLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => `d:${currentSession(req)?.discordId || 'none'}`,
+  message: { error: 'tooMany' },
+})
+
+// POST /api/site/report: the website report form, same-origin only and filed under the signed-in Discord name
+router.post('/report', require('express').json({ limit: '2mb' }), (req, res, next) => {
+  if (!websiteOrigin || req.get('origin') !== websiteOrigin) return res.status(403).json({ error: 'badOrigin' })
+  if (!currentSession(req)) return res.status(401).json({ error: 'signedOut' })
+  next()
+}, reportLimiter, (req, res) => {
+  const session = currentSession(req)
+  const reporter = { name: String(session.username || 'Unknown player'), verified: true,
+                     profileId: profileIdOf(session.discordId) }
+  const body = req.body && typeof req.body === 'object' ? req.body : {}
+  const result = problemReport.prepare(reporter, { ...body, source: 'site' })
+  res.status(result.status).json(result.json)
+  if (result.send) result.send()
 })
 
 // POST /api/site/logout: same-origin only, so another site cannot sign the visitor out
