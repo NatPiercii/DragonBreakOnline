@@ -32,6 +32,7 @@ declare const id: number;
  *                     opens (or refreshes) that widget; focus true grabs the mouse like a menu.
  *   Server -> Client: { customPacketType: "dboWidget", close: <id> }   removes it.
  *   Server -> Client: { customPacketType: "dboNotice", text }          on-screen notification.
+ *   Server -> Client: { customPacketType: "dboBanner", text, seconds } message across the middle of the screen.
  *   Browser -> Server: window.skyrimPlatform.sendMessage("dbo:<event>", ...args) is forwarded as
  *                     { customPacketType: "dbo", event: "<event>", args: [...], widget: <open id> }.
  *
@@ -179,6 +180,11 @@ export class DboRelayService extends ClientListener {
     if (type === "dboParty") { this.partyData = content; this.partyKey = ""; this.nextPassive = 0; return; }
     if (type === "dboNotice") {
       if (typeof content["text"] === "string") notifyNextUpdate(this.controller, this.sp, content["text"]);
+      return;
+    }
+    if (type === "dboBanner") {
+      const text = typeof content["text"] === "string" ? content["text"] : "";
+      if (text) this.sp.browser.executeJavaScript(`window.__dboBanner && window.__dboBanner(${JSON.stringify(text)}, ${Number(content["seconds"]) || 4});`);
       return;
     }
     if (type === "dboFade") { this.setFade(!!content["on"]); return; }

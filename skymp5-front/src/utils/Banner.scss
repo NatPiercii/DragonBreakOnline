@@ -1,0 +1,50 @@
+@import '../dbo-theme.scss';
+
+.dboBanner {
+  position: fixed;
+  left: 50%;
+  top: 30%;
+  z-index: 10000;
+  max-width: 60vw;
+  padding: 6px 48px;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  background: radial-gradient(ellipse 60% 100% at 50% 50%, rgba(8, 25, 28, 0.82), rgba(8, 25, 28, 0) 100%);
+
+  &--in {
+    visibility: visible;
+    animation: dboBannerIn 400ms ease forwards;
+  }
+
+  &--out {
+    animation: dboBannerOut 400ms ease forwards;
+  }
+
+  &__text {
+    padding: 10px 0;
+    color: $dbo-silver;
+    font-family: $dbo-title-font;
+    font-size: 26px;
+    line-height: 1.35;
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 12px dbo-accent(0.5), 0 2px 6px rgba(0, 0, 0, 0.9);
+  }
+
+  &__rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, dbo-accent(0.7) 25%, $dbo-aedric-gold 50%, dbo-accent(0.7) 75%, transparent);
+  }
+}
+
+@keyframes dboBannerIn {
+  from { opacity: 0; transform: translate(-50%, -40%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@keyframes dboBannerOut {
+  from { opacity: 1; }
+  to { opacity: 0; visibility: hidden; }
+}

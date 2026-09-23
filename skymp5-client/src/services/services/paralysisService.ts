@@ -31,6 +31,8 @@ export class ParalysisService extends ClientListener {
 
   // A timed SpeedMult change; the engine only re-reads movement speed after a carry weight change, hence the nudge
   private onStatus(content: Record<string, unknown>): void {
+    // Text-only notices are for clients without the banner; this one shows the server's dboBanner instead
+    if (content["kind"] === "notice") return;
     const seconds = Math.max(0, Math.min(60, Number(content["seconds"]) || 0));
     const speed = Math.max(-90, Math.min(0, Number(content["speedMult"]) || 0));
     if (!seconds) return;

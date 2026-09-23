@@ -11,6 +11,7 @@ import './utils/VoiceManager';
 import './utils/MainMenuMedia';
 import './utils/UiScale';
 import './utils/PanelScale';
+import './utils/Banner';
 
 import './main.scss';
 
