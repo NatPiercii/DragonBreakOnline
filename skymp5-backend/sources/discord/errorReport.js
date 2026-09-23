@@ -1,10 +1,12 @@
 'use strict'
-// Opens a thread in the error-report forum for one launcher problem: the title is the reporter's
-// Discord name, the body is the summary, and the logs ride along as .txt attachments.
+// Opens a thread in the error-report forum for one problem report: the title is the reporter's
+// Discord name, the body is the summary, and the logs and any screenshot ride along as attachments.
 // Same shape as audit.js (plain https, bot token, retry once on a rate limit) so there is nothing new to learn.
 
 const https = require('https')
 const config = require('../../config')
+
+const REQUEST_TIMEOUT_MS = 30 * 1000
 
 function request(method, path, { json, multipart } = {}) {
   return new Promise((resolve, reject) => {
@@ -30,6 +32,8 @@ function request(method, path, { json, multipart } = {}) {
       })
     })
     req.on('error', reject)
+    // A stalled Discord upload must not hold a report forever; the caller logs the failure
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error(`discord ${method} ${path} timed out`)))
     if (body) req.write(body)
     req.end()
   })
@@ -48,7 +52,7 @@ function buildMultipart(payload, files) {
     parts.push(Buffer.from('\r\n'))
   }
   field('payload_json', JSON.stringify(payload), null, 'application/json')
-  files.forEach((f, i) => field(`files[${i}]`, f.text, f.name, 'text/plain; charset=utf-8'))
+  files.forEach((f, i) => field(`files[${i}]`, f.data || f.text, f.name, f.type || 'text/plain; charset=utf-8'))
   parts.push(Buffer.from(`--${boundary}--\r\n`))
   return { boundary, body: Buffer.concat(parts) }
 }
@@ -78,12 +82,12 @@ async function createThread(channelId, payload, files) {
   }
 }
 
-// files: [{ name, text }]. Returns the thread id, or null when no forum channel is configured.
+// files: [{ name, text }] logs or [{ name, data, type }] binaries. Returns the thread id, or null when no forum channel is configured.
 async function postReport({ title, summary, files = [] }) {
   const channelId = config.discordErrorForumChannelId
   if (!channelId || !config.discordBotToken) return null
   const payload = {
-    name: String(title || 'Launcher report').slice(0, 100),
+    name: String(title || 'Problem report').slice(0, 100),
     message: {
       content: String(summary || '').slice(0, 1900),
       allowed_mentions: { parse: [] },
