@@ -15,10 +15,21 @@ export class UiScaleService extends ClientListener {
     const scale = this.readSetting();
     try {
       this.sp.browser.executeJavaScript(
-        `if (window.dboSetUiScale) window.dboSetUiScale(${scale});`,
+        `if (window.dboSetUiScale) window.dboSetUiScale(${scale}); if (window.dboResetPanelScales) window.dboResetPanelScales(${this.readResetStamp()});`,
       );
     } catch {
       // the front applies its automatic scale without us
+    }
+  }
+
+  // The launcher's "reset panel sizes" stamps a time; the front clears per-panel sizes once per new stamp
+  private readResetStamp(): number {
+    try {
+      const settings = this.sp.settings["skymp5-client"] as any;
+      const n = settings ? Number(settings["panelScaleReset"]) : 0;
+      return n > 0 ? n : 0;
+    } catch {
+      return 0;
     }
   }
 

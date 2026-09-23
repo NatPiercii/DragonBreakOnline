@@ -36,6 +36,7 @@ import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
 import Party from './features/party';
+import { panelScaleOf } from './utils/PanelScale';
 
 const styles = [
   'BUTTON_STYLE_GITHUB',
@@ -295,10 +296,26 @@ const DOMAINS = {
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze',
 };
 
-const DomainConstructor = props => (
-  <div className="dbo-domain" data-domain={DOMAINS[props.elem && props.elem.type] || 'aqua'}>
-    <Constructor {...props} />
-  </div>
-);
+// Each panel also carries its own size (utils/PanelScale.js): Ctrl + wheel over it
+const DomainConstructor = props => {
+  const type = (props.elem && props.elem.type) || '';
+  const [scale, setScale] = useState(panelScaleOf(type));
+  useEffect(() => {
+    const onChange = (e) => { if (e.detail === type || e.detail === '*') setScale(panelScaleOf(type)); };
+    window.addEventListener('dbo:panelScale', onChange);
+    return () => window.removeEventListener('dbo:panelScale', onChange);
+  }, [type]);
+  const scaled = scale !== 1;
+  return (
+    <div
+      className={'dbo-domain' + (scaled ? ' dbo-domain--scaled' : '')}
+      data-domain={DOMAINS[type] || 'aqua'}
+      data-panel={type || undefined}
+      style={scaled ? { '--dbo-panel-scale': scale } : undefined}
+    >
+      <Constructor {...props} />
+    </div>
+  );
+};
 
 export default DomainConstructor;

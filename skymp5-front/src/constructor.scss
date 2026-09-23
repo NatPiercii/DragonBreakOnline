@@ -28,3 +28,33 @@
 .dbo-domain[data-domain='lorkhan'] { @include dbo-domain($dbo-hue-lorkhan); }
 .dbo-domain[data-domain='dragonbreak'] { @include dbo-domain($dbo-hue-dragonbreak); }
 .dbo-domain[data-domain='bronze'] { @include dbo-domain($dbo-hue-bronze); }
+
+// A resized panel becomes its own zoomed screen: fixed children lay out inside it (the transform makes it their
+// containing block), so corners and centring stay where they were, only bigger or smaller
+.dbo-domain--scaled {
+  display: block;
+  position: fixed;
+  left: 0;
+  top: 0;
+  zoom: var(--dbo-panel-scale);
+  width: calc(100vw / var(--dbo-ui-scale) / var(--dbo-panel-scale));
+  height: calc(100vh / var(--dbo-ui-scale) / var(--dbo-panel-scale));
+  transform: translateZ(0);
+  pointer-events: none;
+}
+// Zero specificity: a widget root that sets its own pointer-events keeps it
+:where(.dbo-domain--scaled) > * { pointer-events: auto; }
+
+.dbo-panel-scale-badge {
+  position: fixed;
+  z-index: 100000;
+  transform: translate(12px, -28px);
+  padding: 3px 8px;
+  font: 14px 'Futura Condensed', 'Roboto Condensed', sans-serif;
+  color: #e8d6a0;
+  background: rgba(8, 25, 28, 0.9);
+  border: 1px solid rgba(232, 214, 160, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
