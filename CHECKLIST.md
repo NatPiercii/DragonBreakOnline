@@ -1,6 +1,6 @@
 # DragonBreak Online checklist (2026-09-14)
 
-## Added 2026-09-23 (evening, with Nat): jails, cell doors and sentences - committed, NOT pushed or deployed
+## Added 2026-09-23 (evening, with Nat): jails, cell doors and sentences - LIVE (loaded 22:47:45 UTC, 27 jail zones)
 
 Nat: jail/prison zones with no /unstuck; a cell door takes a prisoner for a set time, unlocks when it is served,
 can be lockpicked, logging out does not count, and the prisoner is told when the time is served.
@@ -36,7 +36,7 @@ can be lockpicked, logging out does not count, and the prisoner is told when the
   comes from the server's refusal message).
 - [ ] Untested in game.
 
-## Added 2026-09-23 (evening, with Nat): enemies float, sink, slide and hurt each other - measured, two fixes committed
+## Added 2026-09-23 (evening, with Nat): enemies float, sink, slide and hurt each other - measured; both fixes LIVE (server hot reload, client 0.3.28)
 
 Nat: "they float still and phase under maps", "slide around without walking animations sometimes", Florain testing a
 dungeon (Plundered Mine on Master, claimed 21:58:56 UTC, live while this was written).
@@ -67,7 +67,7 @@ dungeon (Plundered Mine on Master, claimed 21:58:56 UTC, live while this was wri
 - [ ] **Deploy**: server fix = push `server` + `deploy-gameplay` (no lease open, nobody mid-dungeon); client fixes need a
   client package. Client bundle built (`fork\build\dist\client`), NOT copied to the package staging folder.
 
-## Added 2026-09-23 (evening, with Nat): the reading mini-game overhaul - committed, NOT pushed or deployed
+## Added 2026-09-23 (evening, with Nat): the reading mini-game overhaul - LIVE (server 22:47:45 UTC, reading screen in client 0.3.28)
 
 Nat: "overhaul the book reading mini game. make the time go slower".
 
@@ -90,7 +90,7 @@ Nat: "overhaul the book reading mini game. make the time go slower".
   is fine. So: client package with the front, then `deploy-gameplay`. Needs Nat's go and the owner's claims.
 - [ ] Untested in game.
 
-## Added 2026-09-23 (evening, with Nat): Well Rested, Well Fed and inn beds - committed, NOT pushed or deployed
+## Added 2026-09-23 (evening, with Nat): Well Rested, Well Fed and inn beds - LIVE (loaded 22:47:45 UTC)
 
 Nat's spec: a bed you own or rent at an inn logs you out from a prompt; 30 minutes away gives Well Rested for the
 next 2 real hours (faster health regen) and Well Fed (slower hunger, 2 hours); rent is paid at the bed, the inn's
