@@ -1,428 +1,465 @@
 [
- {
-  "title": "Power Attacks Cost Stamina",
-  "date": "2026-09-22",
-  "tag": "Fix",
-  "version": "Server",
-  "sections": [
-   {
-    "heading": "Stamina",
-    "items": [
-     "Power attacks now cost stamina. They never did: the whole table of stamina costs for attacking was switched off on this server by a flag meant for a different server, so nothing you did with a weapon ever drained the bar.",
-     "A power attack costs 30 of your 100 stamina, so three of them empty you. Ordinary swings, jumping and drawing a bow still cost nothing."
+  {
+    "title": "Your Size, Your Voice, Your Tier",
+    "date": "2026-09-23",
+    "tag": "Update",
+    "version": "Client 0.3.15, Launcher 2.1.28",
+    "sections": [
+      {
+        "heading": "Resize anything",
+        "items": [
+          "Every panel can now be sized on its own: hold Ctrl and turn the mouse wheel over it. That includes your vitals and the voice indicator (release the mouse first to reach them). Ctrl and middle click puts a panel back.",
+          "The launcher has an Interface size setting for everything at once, and a button that resets every panel."
+        ]
+      },
+      {
+        "heading": "Voice",
+        "items": [
+          "A new Voice tab in the launcher: pick your microphone and speakers, set how loud you sound and how loud others are, and choose push to talk or voice activation with a live meter.",
+          "Face a player and press X to make their voice louder, quieter, or mute it. It is remembered on your PC.",
+          "Voice chat itself switches on as soon as its server is reachable; we will announce it."
+        ]
+      },
+      {
+        "heading": "Patreon benefits",
+        "items": [
+          "Extra character slots now follow your tier: Traveler 1, Adventurer 2, Pathfinder 3, Grand Champion 4, and Pre-Alpha Testers get one more on top.",
+          "Identity rerolls: /reroll reopens the character creator on your character (race, look and name) and keeps your skills, gear and progress. Adventurer 1, Pathfinder 2, Grand Champion 1 per character. /tokens shows what you have left.",
+          "The last 40 places on the server are held for Grand Champions."
+        ]
+      },
+      {
+        "heading": "Hotkeys",
+        "items": [
+          "Every in-game key can now be changed in the launcher, including Interact, Mask, Voice Range, Skills, Bounty Board, Emote Wheel and Nametags."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Launcher 2.1.27",
-    "items": [
-     "Fixes a crash about twenty seconds into launch, before the main menu, for anyone who owns Creation Club content. The game was choking on its Creations catalogue; the launcher now moves that file aside before starting, keeping a copy.",
-     "The previous version only cleared part of it, which is why the crash came back."
+  },
+  {
+    "title": "Power Attacks Cost Stamina",
+    "date": "2026-09-22",
+    "tag": "Fix",
+    "version": "Server",
+    "sections": [
+      {
+        "heading": "Stamina",
+        "items": [
+          "Power attacks now cost stamina. They never did: the whole table of stamina costs for attacking was switched off on this server by a flag meant for a different server, so nothing you did with a weapon ever drained the bar.",
+          "A power attack costs 30 of your 100 stamina, so three of them empty you. Ordinary swings, jumping and drawing a bow still cost nothing."
+        ]
+      },
+      {
+        "heading": "Launcher 2.1.27",
+        "items": [
+          "Fixes a crash about twenty seconds into launch, before the main menu, for anyone who owns Creation Club content. The game was choking on its Creations catalogue; the launcher now moves that file aside before starting, keeping a copy.",
+          "The previous version only cleared part of it, which is why the crash came back."
+        ]
+      }
     ]
-   }
-  ]
- },
- {
-  "title": "Shock Magic Stops One-Shotting You",
-  "date": "2026-09-22",
-  "tag": "Fix",
-  "version": "Server",
-  "sections": [
-   {
-    "heading": "Shock spells",
-    "items": [
-     "Every shock spell was hitting for about 200 points more than it should. Sparks was landing 208 damage a tick instead of 8, Lightning Bolt 225 instead of 25, Chain Lightning 240 instead of 40 and Lightning Storm 275 instead of 75, which killed most people outright.",
-     "The cause: shock spells carry a hidden effect for the Disintegrate perk whose magnitude of 200 is a health threshold, not damage, and the server was adding it to the spell's damage. Fire and frost were never affected, which is why only shock felt broken.",
-     "Shock now deals its normal damage. Nothing else in the game changed: the rule was checked against all 1,800 spells in the load order and exactly eleven shock spells moved."
+  },
+  {
+    "title": "Shock Magic Stops One-Shotting You",
+    "date": "2026-09-22",
+    "tag": "Fix",
+    "version": "Server",
+    "sections": [
+      {
+        "heading": "Shock spells",
+        "items": [
+          "Every shock spell was hitting for about 200 points more than it should. Sparks was landing 208 damage a tick instead of 8, Lightning Bolt 225 instead of 25, Chain Lightning 240 instead of 40 and Lightning Storm 275 instead of 75, which killed most people outright.",
+          "The cause: shock spells carry a hidden effect for the Disintegrate perk whose magnitude of 200 is a health threshold, not damage, and the server was adding it to the spell's damage. Fire and frost were never affected, which is why only shock felt broken.",
+          "Shock now deals its normal damage. Nothing else in the game changed: the rule was checked against all 1,800 spells in the load order and exactly eleven shock spells moved."
+        ]
+      },
+      {
+        "heading": "Magicka",
+        "items": [
+          "Your magicka pool goes from 100 to 150. At 100 an adept spell could not be cast at all, because Fireball alone costs about 133. Health and stamina are unchanged, so nothing about enemy damage changes with it."
+        ]
+      },
+      {
+        "heading": "Looting the dead",
+        "items": [
+          "A dead player's body no longer hands over everything they were carrying. Whoever searches it first takes two random things and a fifteenth of their coin, and the body is spent after that. House keys are never taken.",
+          "Everything left on the body comes back with the player when they rise."
+        ]
+      },
+      {
+        "heading": "Interface",
+        "items": [
+          "The interface now scales to your screen. On a 1440p or 4K display every panel was drawn at the size it would be on a 1080p monitor, which made it tiny; it is now sized to match. Nothing gets smaller than it was.",
+          "Property keys are named after the property. A key now reads \"Key to the Jerall View Inn\" instead of carrying a form id in brackets. Keys you already hold still work."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Magicka",
-    "items": [
-     "Your magicka pool goes from 100 to 150. At 100 an adept spell could not be cast at all, because Fireball alone costs about 133. Health and stamina are unchanged, so nothing about enemy damage changes with it."
+  },
+  {
+    "title": "Every Place Has a Name",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.13",
+    "sections": [
+      {
+        "heading": "Admin panel",
+        "items": [
+          "Teleport no longer hides anything. It used to stop at 250 rows, which left 341 places in Skyrim reachable only by guessing their name; the list now pages through everything and groups by worldspace under the region chips.",
+          "Half the teleport points were named after map coordinates (\"Solstheim World 11,11\") because the game keeps those names in a separate table the tools were not reading. They read them now: 376 nameless points became 2, and the two that are left genuinely have no name.",
+          "Item names came out of the same table, so \"cc BGSSSE025 Amber Battleaxe\" is now \"Amber Battleaxe\" and \"Favor Amren Iron Sword\" is \"Amren’s Family Sword\".",
+          "Skills, Items and Powers share one dropdown of yourself and everyone online instead of three boxes you typed a name into.",
+          "Delete character, IP ban and temp ban ask once before they fire."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Granting Beast Form or Vampire Lord from the admin panel did not let anyone change shape, and nothing said why. The panel can now Grant the power, Transform, Revert and Revoke directly, for werewolf and Vampire Lord both, and it shows which of the two a character holds and what shape they are in.",
+          "Any refusal to change shape now says what stopped it, in chat and in the log, instead of nothing happening."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Fire burns vampires and silver bites werewolves again. The extra damage was being worked out and then thrown away before it reached the target."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Looting the dead",
-    "items": [
-     "A dead player's body no longer hands over everything they were carrying. Whoever searches it first takes two random things and a fifteenth of their coin, and the body is spent after that. House keys are never taken.",
-     "Everything left on the body comes back with the player when they rise."
+  },
+  {
+    "title": "Harder Foes, Granted Homes",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.12",
+    "sections": [
+      {
+        "heading": "Combat",
+        "items": [
+          "Enemy weapon and claw hits on players now land at twice the damage. Enemy spells are unchanged; they were already where they should be."
+        ]
+      },
+      {
+        "heading": "Property",
+        "items": [
+          "Houses, shops and containers are no longer claimed by whoever walks up to them. A hold's Jarl, Steward or Chieftain (or an admin) claims a property and grants it to a player from the same menu. Existing owners keep what they hold."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Casting Beast Form or Vampire Lord no longer locks your controls: the game's own change is cancelled at once and the server does the transformation."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "The Rise button in prayer closes the window after the shrine has answered."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Interface",
-    "items": [
-     "The interface now scales to your screen. On a 1440p or 4K display every panel was drawn at the size it would be on a 1080p monitor, which made it tiny; it is now sized to match. Nothing gets smaller than it was.",
-     "Property keys are named after the property. A key now reads \"Key to the Jerall View Inn\" instead of carrying a form id in brackets. Keys you already hold still work."
+  },
+  {
+    "title": "Sturdier Travellers",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.10",
+    "sections": [
+      {
+        "heading": "Vitals",
+        "items": [
+          "Everyone starts sturdier: base health is up by 100, magicka and stamina by 50, for every race. Racial differences stay on top of that."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Beast Form and Vampire Lord work: cast the power, or type /beast (and /beast revert). The power must have been granted to you.",
+          "Werewolves of the pack and holders of the Blood Crown have their forms without an admin grant."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Shooting a bow no longer unequips your arrows."
+        ]
+      }
     ]
-   }
-  ]
- },
- {
-  "title": "Every Place Has a Name",
-  "date": "2026-09-22",
-  "tag": "Update",
-  "version": "Client 0.3.13",
-  "sections": [
-   {
-    "heading": "Admin panel",
-    "items": [
-     "Teleport no longer hides anything. It used to stop at 250 rows, which left 341 places in Skyrim reachable only by guessing their name; the list now pages through everything and groups by worldspace under the region chips.",
-     "Half the teleport points were named after map coordinates (\"Solstheim World 11,11\") because the game keeps those names in a separate table the tools were not reading. They read them now: 376 nameless points became 2, and the two that are left genuinely have no name.",
-     "Item names came out of the same table, so \"cc BGSSSE025 Amber Battleaxe\" is now \"Amber Battleaxe\" and \"Favor Amren Iron Sword\" is \"Amren’s Family Sword\".",
-     "Skills, Items and Powers share one dropdown of yourself and everyone online instead of three boxes you typed a name into.",
-     "Delete character, IP ban and temp ban ask once before they fire."
+  },
+  {
+    "title": "Creations Cache Crash",
+    "date": "2026-09-22",
+    "tag": "Hotfix",
+    "version": "Launcher 2.1.26",
+    "sections": [
+      {
+        "items": [
+          "Fixed a crash before the main menu for players who had used the Bethesda Creations menu: the game choked on its cached Creations list. The launcher now clears that cache at every launch. DragonBreak never uses that content."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Beast forms",
-    "items": [
-     "Granting Beast Form or Vampire Lord from the admin panel did not let anyone change shape, and nothing said why. The panel can now Grant the power, Transform, Revert and Revoke directly, for werewolf and Vampire Lord both, and it shows which of the two a character holds and what shape they are in.",
-     "Any refusal to change shape now says what stopped it, in chat and in the log, instead of nothing happening."
+  },
+  {
+    "title": "Mods Without Premium",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Launcher 2.1.25",
+    "sections": [
+      {
+        "items": [
+          "Free Nexus accounts can now let the launcher download mods: click Mod Manager Download on the Nexus page and the launcher fetches the file for you. No more moving zips by hand.",
+          "Sign in to Nexus in the launcher first, keep it open, and press PLAY when the download list is done.",
+          "Only one launcher window runs at a time."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Fixes",
-    "items": [
-     "Fire burns vampires and silver bites werewolves again. The extra damage was being worked out and then thrown away before it reached the target."
+  },
+  {
+    "title": "Stuck on the Main Menu No More",
+    "date": "2026-09-22",
+    "tag": "Hotfix",
+    "version": "Launcher 2.1.24",
+    "sections": [
+      {
+        "items": [
+          "Creating a character no longer leaves some players on the main menu. If you ever used Vortex, its save-folder setting had been copied into the DragonBreak profile; the launcher now resets it at every launch.",
+          "Leftover plugin force-load lines from other launchers are removed from the profile, so your load order always matches the server.",
+          "The install window no longer shows Not Responding while the client files unpack.",
+          "Settings > Repair has a Copy Log button, and the log text can be selected. Paste it in Discord when you ask for help."
+        ]
+      }
     ]
-   }
-  ]
- },
- {
-  "title": "Harder Foes, Granted Homes",
-  "date": "2026-09-22",
-  "tag": "Update",
-  "version": "Client 0.3.12",
-  "sections": [
-   {
-    "heading": "Combat",
-    "items": [
-     "Enemy weapon and claw hits on players now land at twice the damage. Enemy spells are unchanged; they were already where they should be."
+  },
+  {
+    "title": "Play Elsewhere, Come Back Anytime",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Launcher 2.1.23",
+    "sections": [
+      {
+        "items": [
+          "Settings > Repair: Disable DragonBreak Files removes our plugins, archives and assets from the game copy so it can join other servers. PLAY or Enable puts them back.",
+          "Settings > Repair: Uninstall removes the whole DragonBreak install after a confirmation. Your Steam copy and launcher settings stay.",
+          "Check Files no longer stops with an error.",
+          "The modlist panel links to the full DragonBreak collection on Nexus."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Property",
-    "items": [
-     "Houses, shops and containers are no longer claimed by whoever walks up to them. A hold's Jarl, Steward or Chieftain (or an admin) claims a property and grants it to a player from the same menu. Existing owners keep what they hold."
+  },
+  {
+    "title": "Check Files Tells the Truth",
+    "date": "2026-09-22",
+    "tag": "Hotfix",
+    "version": "Launcher 2.1.22",
+    "sections": [
+      {
+        "items": [
+          "Check Files no longer reports DragonBreak Online Edits.esp as corrupt: the client package now carries the same copy the game server runs.",
+          "Log files a mod writes into its own folder are no longer flagged as stray files.",
+          "A plugins.txt rewritten by Mod Organizer is only noted; the launcher restores the server order at every launch."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Beast forms",
-    "items": [
-     "Casting Beast Form or Vampire Lord no longer locks your controls: the game's own change is cancelled at once and the server does the transformation."
+  },
+  {
+    "title": "The Moons in Your Launcher",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Launcher 2.1.21",
+    "sections": [
+      {
+        "items": [
+          "The STATS window shows the world clock: the hour, the date and the phase of the moons, with a moon that fills and wanes.",
+          "A full moon is marked. Werewolves, plan your nights.",
+          "It also shows the weather over Bruma and how fast the day turns."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Fixes",
-    "items": [
-     "The Rise button in prayer closes the window after the shrine has answered."
+  },
+  {
+    "title": "Blood and Moonlight",
+    "date": "2026-09-22",
+    "tag": "New Feature",
+    "version": "Client 0.3.8",
+    "body": "Vampirism and lycanthropy come to DragonBreak, and the world now keeps one clock for everyone.",
+    "sections": [
+      {
+        "heading": "One world, one sky",
+        "items": [
+          "Time of day, the date and the moons are the same for every player. A game day passes every four real hours.",
+          "Weather is shared too: if it snows over Bruma, it snows for everyone there.",
+          "/time tells you the hour, the date and the moons."
+        ]
+      },
+      {
+        "heading": "Vampires",
+        "items": [
+          "A vampire's blows can pass Sanguinare Vampiris. You have three days to cure it with a Cure Disease potion or a prayer.",
+          "When the fever peaks you face the Blood Fever. Survive it and you rise a vampire; fail and it takes you.",
+          "Stages grow each day you go unfed: the sun burns harder and fire bites deeper. Feed on a restrained foe or a fresh corpse to reset.",
+          "Molag Bal's Embrace, at his shrine, makes a pure-blood of those who survive it. Some never wake.",
+          "The Blood Crown: one pure-blood holds the Vampire Lord form. Slay the holder to take it.",
+          "The Cyrodiil Vampyrum Order, the Crimson Scars and the Bloodmist Clan open their doors to vampires."
+        ]
+      },
+      {
+        "heading": "Werewolves",
+        "items": [
+          "A werewolf's bite can pass Sanies Lupinus; the same three days to cure it, then Hircine's Hunt decides your fate.",
+          "Beast Form four times a day, 150 seconds each. Feeding on a corpse in beast form adds 30 seconds.",
+          "Under a full moon at night, outdoors, the beast may take you against your will. Hircine's own, blessed at his shrine, are spared that.",
+          "Silver hurts. Anyone nearby sees you change.",
+          "Hircine's Pack of the Jerall: its leader wears the pale coat, and a packmate who brings the leader down in beast form takes the pack."
+        ]
+      },
+      {
+        "heading": "Cures and rites",
+        "items": [
+          "Touch a shrine and say /rite: Molag Bal and Hircine give their gifts, Arkay and Stendarr lift a curse for a filled black soul gem.",
+          "You cannot be both. Each curse ends the other."
+        ]
+      },
+      {
+        "heading": "Holds and parties",
+        "items": [
+          "Holds have Guards and a Guard Captain; strongholds a Stronghold Guard and a Stronghold Guard Commander. Hold factions are led by their Jarl, Bruma by its Count.",
+          "A party holds 6. Past that it becomes a raid of up to 12, and skill gain is halved for everyone in it.",
+          "Party leaders can remove members from the X menu."
+        ]
+      }
     ]
-   }
-  ]
- },
- {
-  "title": "Sturdier Travellers",
-  "date": "2026-09-22",
-  "tag": "Update",
-  "version": "Client 0.3.10",
-  "sections": [
-   {
-    "heading": "Vitals",
-    "items": [
-     "Everyone starts sturdier: base health is up by 100, magicka and stamina by 50, for every race. Racial differences stay on top of that."
+  },
+  {
+    "title": "Letters, Beast Forms and Fixes",
+    "date": "2026-09-22",
+    "tag": "Update",
+    "version": "Client 0.3.7",
+    "sections": [
+      {
+        "heading": "Letters",
+        "items": [
+          "Notice boards have a Letters tab. Read your pigeon letters there, and burn the ones you do not want.",
+          "A sealed letter now floats over nearby notice boards while you have unread mail.",
+          "Letters no longer flash across your screen or pour into chat."
+        ]
+      },
+      {
+        "heading": "Beast forms",
+        "items": [
+          "Werewolf Beast Form works: cast it to take the form for 150 seconds.",
+          "Vampire Lords can take their form and cast Revert Form to return.",
+          "Death or logging out always returns you to your own body."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Fixed the missing Engine Fixes file that stopped the game from starting after a fresh install or repair.",
+          "Your gear goes back on right after you log in instead of 12 seconds later.",
+          "Turning back at a dungeon entrance no longer leaves you stuck in a loading state.",
+          "New /unstuck command: return to your area's respawn point once every 25 minutes. It cannot be used during a fight with another player.",
+          "Carry has been removed from the player menu."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Beast forms",
-    "items": [
-     "Beast Form and Vampire Lord work: cast the power, or type /beast (and /beast revert). The power must have been granted to you.",
-     "Werewolves of the pack and holders of the Blood Crown have their forms without an admin grant."
+  },
+  {
+    "title": "Server Stats Come Alive",
+    "date": "2026-09-21",
+    "tag": "New Feature",
+    "version": "Launcher 2.1.20",
+    "sections": [
+      {
+        "items": [
+          "The STATS window shows who is online now and today's peak.",
+          "Races of the Realm ranks every race by how many characters play it.",
+          "See how much gold players hold, carried and in their house storage.",
+          "Only real player characters count: NPCs, unfinished and fallen characters are left out, and deleted characters drop off.",
+          "The stats refresh every minute."
+        ]
+      }
     ]
-   },
-   {
-    "heading": "Fixes",
-    "items": [
-     "Shooting a bow no longer unequips your arrows."
+  },
+  {
+    "title": "Factions Have Arrived",
+    "date": "2026-09-21",
+    "tag": "New Feature",
+    "version": "Client 0.3.6",
+    "body": "Tamriel's great powers are open for membership. Press F3 to see your factions, who is in them and who is online.",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "46 factions: every Hold, the County of Bruma, the Orc strongholds, the great guilds and orders, and a secret cult for each Daedric Prince.",
+          "Each faction uses its own lore titles, from Apprentice to Arch-Mage.",
+          "Invite players from the F3 menu, or press X on a player and pick Invite.",
+          "Leaders set ranks and pass leadership on. Officers can remove lower ranks, and Sergeants can recruit.",
+          "Up to 3 Blacksmiths and 3 Tailors per faction. Faction gear crafting comes later.",
+          "Secret factions hide their members from outsiders."
+        ]
+      },
+      {
+        "heading": "Offices",
+        "items": [
+          "Jarls, Counts and Barons can each appoint 2 Court Mages.",
+          "Chieftains appoint a Shaman and a Wise-Woman."
+        ]
+      }
     ]
-   }
-  ]
- },
- {
-  "title": "Creations Cache Crash",
-  "date": "2026-09-22",
-  "tag": "Hotfix",
-  "version": "Launcher 2.1.26",
-  "sections": [
-   {
-    "items": [
-     "Fixed a crash before the main menu for players who had used the Bethesda Creations menu: the game choked on its cached Creations list. The launcher now clears that cache at every launch. DragonBreak never uses that content."
+  },
+  {
+    "title": "Launcher 2.1.19: DragonBreak Launcher",
+    "date": "2026-09-21",
+    "tag": "Update",
+    "version": "Launcher 2.1.19",
+    "sections": [
+      {
+        "items": [
+          "The launcher is now called DragonBreak Launcher. Your settings and sign-in carry over.",
+          "Patch notes like these now appear here after every update.",
+          "Default keys no longer clash: Factions F3, free cursor F8, hide UI F2, housing X.",
+          "The Discord button opens the DragonBreak Online server."
+        ]
+      }
     ]
-   }
-  ]
- },
- {
-  "title": "Mods Without Premium",
-  "date": "2026-09-22",
-  "tag": "Update",
-  "version": "Launcher 2.1.25",
-  "sections": [
-   {
-    "items": [
-     "Free Nexus accounts can now let the launcher download mods: click Mod Manager Download on the Nexus page and the launcher fetches the file for you. No more moving zips by hand.",
-     "Sign in to Nexus in the launcher first, keep it open, and press PLAY when the download list is done.",
-     "Only one launcher window runs at a time."
+  },
+  {
+    "title": "Playtest Fixes",
+    "date": "2026-09-21",
+    "tag": "Hotfix",
+    "sections": [
+      {
+        "heading": "World",
+        "items": [
+          "New characters no longer land stuck in Riverwood.",
+          "Wildlife no longer spawns in spots creatures cannot walk, such as the Pale Pass wolves.",
+          "Dungeons now scale to your party's size and highest level.",
+          "Dungeon loot now includes food, and bodies carry less gold."
+        ]
+      },
+      {
+        "heading": "Combat and characters",
+        "items": [
+          "Concentration spells such as Sparks deal damage once per second per target.",
+          "Racial abilities such as Nord frost resistance no longer linger after they end.",
+          "Character creation shows RaceMenu's sliders again."
+        ]
+      },
+      {
+        "heading": "Interface",
+        "items": [
+          "The party list shows the right distance for each member.",
+          "Names and titles above players are spaced properly.",
+          "Chat no longer steals focus while a menu is open, so Tab and menus no longer get stuck.",
+          "Pigeon letters wait for you at any notice board.",
+          "Stewards and Banes can be appointed, up to 5 each."
+        ]
+      }
     ]
-   }
-  ]
- },
- {
-  "title": "Stuck on the Main Menu No More",
-  "date": "2026-09-22",
-  "tag": "Hotfix",
-  "version": "Launcher 2.1.24",
-  "sections": [
-   {
-    "items": [
-     "Creating a character no longer leaves some players on the main menu. If you ever used Vortex, its save-folder setting had been copied into the DragonBreak profile; the launcher now resets it at every launch.",
-     "Leftover plugin force-load lines from other launchers are removed from the profile, so your load order always matches the server.",
-     "The install window no longer shows Not Responding while the client files unpack.",
-     "Settings > Repair has a Copy Log button, and the log text can be selected. Paste it in Discord when you ask for help."
-    ]
-   }
-  ]
- },
- {
-  "title": "Play Elsewhere, Come Back Anytime",
-  "date": "2026-09-22",
-  "tag": "Update",
-  "version": "Launcher 2.1.23",
-  "sections": [
-   {
-    "items": [
-     "Settings > Repair: Disable DragonBreak Files removes our plugins, archives and assets from the game copy so it can join other servers. PLAY or Enable puts them back.",
-     "Settings > Repair: Uninstall removes the whole DragonBreak install after a confirmation. Your Steam copy and launcher settings stay.",
-     "Check Files no longer stops with an error.",
-     "The modlist panel links to the full DragonBreak collection on Nexus."
-    ]
-   }
-  ]
- },
- {
-  "title": "Check Files Tells the Truth",
-  "date": "2026-09-22",
-  "tag": "Hotfix",
-  "version": "Launcher 2.1.22",
-  "sections": [
-   {
-    "items": [
-     "Check Files no longer reports DragonBreak Online Edits.esp as corrupt: the client package now carries the same copy the game server runs.",
-     "Log files a mod writes into its own folder are no longer flagged as stray files.",
-     "A plugins.txt rewritten by Mod Organizer is only noted; the launcher restores the server order at every launch."
-    ]
-   }
-  ]
- },
- {
-  "title": "The Moons in Your Launcher",
-  "date": "2026-09-22",
-  "tag": "Update",
-  "version": "Launcher 2.1.21",
-  "sections": [
-   {
-    "items": [
-     "The STATS window shows the world clock: the hour, the date and the phase of the moons, with a moon that fills and wanes.",
-     "A full moon is marked. Werewolves, plan your nights.",
-     "It also shows the weather over Bruma and how fast the day turns."
-    ]
-   }
-  ]
- },
- {
-  "title": "Blood and Moonlight",
-  "date": "2026-09-22",
-  "tag": "New Feature",
-  "version": "Client 0.3.8",
-  "body": "Vampirism and lycanthropy come to DragonBreak, and the world now keeps one clock for everyone.",
-  "sections": [
-   {
-    "heading": "One world, one sky",
-    "items": [
-     "Time of day, the date and the moons are the same for every player. A game day passes every four real hours.",
-     "Weather is shared too: if it snows over Bruma, it snows for everyone there.",
-     "/time tells you the hour, the date and the moons."
-    ]
-   },
-   {
-    "heading": "Vampires",
-    "items": [
-     "A vampire's blows can pass Sanguinare Vampiris. You have three days to cure it with a Cure Disease potion or a prayer.",
-     "When the fever peaks you face the Blood Fever. Survive it and you rise a vampire; fail and it takes you.",
-     "Stages grow each day you go unfed: the sun burns harder and fire bites deeper. Feed on a restrained foe or a fresh corpse to reset.",
-     "Molag Bal's Embrace, at his shrine, makes a pure-blood of those who survive it. Some never wake.",
-     "The Blood Crown: one pure-blood holds the Vampire Lord form. Slay the holder to take it.",
-     "The Cyrodiil Vampyrum Order, the Crimson Scars and the Bloodmist Clan open their doors to vampires."
-    ]
-   },
-   {
-    "heading": "Werewolves",
-    "items": [
-     "A werewolf's bite can pass Sanies Lupinus; the same three days to cure it, then Hircine's Hunt decides your fate.",
-     "Beast Form four times a day, 150 seconds each. Feeding on a corpse in beast form adds 30 seconds.",
-     "Under a full moon at night, outdoors, the beast may take you against your will. Hircine's own, blessed at his shrine, are spared that.",
-     "Silver hurts. Anyone nearby sees you change.",
-     "Hircine's Pack of the Jerall: its leader wears the pale coat, and a packmate who brings the leader down in beast form takes the pack."
-    ]
-   },
-   {
-    "heading": "Cures and rites",
-    "items": [
-     "Touch a shrine and say /rite: Molag Bal and Hircine give their gifts, Arkay and Stendarr lift a curse for a filled black soul gem.",
-     "You cannot be both. Each curse ends the other."
-    ]
-   },
-   {
-    "heading": "Holds and parties",
-    "items": [
-     "Holds have Guards and a Guard Captain; strongholds a Stronghold Guard and a Stronghold Guard Commander. Hold factions are led by their Jarl, Bruma by its Count.",
-     "A party holds 6. Past that it becomes a raid of up to 12, and skill gain is halved for everyone in it.",
-     "Party leaders can remove members from the X menu."
-    ]
-   }
-  ]
- },
- {
-  "title": "Letters, Beast Forms and Fixes",
-  "date": "2026-09-22",
-  "tag": "Update",
-  "version": "Client 0.3.7",
-  "sections": [
-   {
-    "heading": "Letters",
-    "items": [
-     "Notice boards have a Letters tab. Read your pigeon letters there, and burn the ones you do not want.",
-     "A sealed letter now floats over nearby notice boards while you have unread mail.",
-     "Letters no longer flash across your screen or pour into chat."
-    ]
-   },
-   {
-    "heading": "Beast forms",
-    "items": [
-     "Werewolf Beast Form works: cast it to take the form for 150 seconds.",
-     "Vampire Lords can take their form and cast Revert Form to return.",
-     "Death or logging out always returns you to your own body."
-    ]
-   },
-   {
-    "heading": "Fixes",
-    "items": [
-     "Fixed the missing Engine Fixes file that stopped the game from starting after a fresh install or repair.",
-     "Your gear goes back on right after you log in instead of 12 seconds later.",
-     "Turning back at a dungeon entrance no longer leaves you stuck in a loading state.",
-     "New /unstuck command: return to your area's respawn point once every 25 minutes. It cannot be used during a fight with another player.",
-     "Carry has been removed from the player menu."
-    ]
-   }
-  ]
- },
- {
-  "title": "Server Stats Come Alive",
-  "date": "2026-09-21",
-  "tag": "New Feature",
-  "version": "Launcher 2.1.20",
-  "sections": [
-   {
-    "items": [
-     "The STATS window shows who is online now and today's peak.",
-     "Races of the Realm ranks every race by how many characters play it.",
-     "See how much gold players hold, carried and in their house storage.",
-     "Only real player characters count: NPCs, unfinished and fallen characters are left out, and deleted characters drop off.",
-     "The stats refresh every minute."
-    ]
-   }
-  ]
- },
- {
-  "title": "Factions Have Arrived",
-  "date": "2026-09-21",
-  "tag": "New Feature",
-  "version": "Client 0.3.6",
-  "body": "Tamriel's great powers are open for membership. Press F3 to see your factions, who is in them and who is online.",
-  "sections": [
-   {
-    "heading": "Factions",
-    "items": [
-     "46 factions: every Hold, the County of Bruma, the Orc strongholds, the great guilds and orders, and a secret cult for each Daedric Prince.",
-     "Each faction uses its own lore titles, from Apprentice to Arch-Mage.",
-     "Invite players from the F3 menu, or press X on a player and pick Invite.",
-     "Leaders set ranks and pass leadership on. Officers can remove lower ranks, and Sergeants can recruit.",
-     "Up to 3 Blacksmiths and 3 Tailors per faction. Faction gear crafting comes later.",
-     "Secret factions hide their members from outsiders."
-    ]
-   },
-   {
-    "heading": "Offices",
-    "items": [
-     "Jarls, Counts and Barons can each appoint 2 Court Mages.",
-     "Chieftains appoint a Shaman and a Wise-Woman."
-    ]
-   }
-  ]
- },
- {
-  "title": "Launcher 2.1.19: DragonBreak Launcher",
-  "date": "2026-09-21",
-  "tag": "Update",
-  "version": "Launcher 2.1.19",
-  "sections": [
-   {
-    "items": [
-     "The launcher is now called DragonBreak Launcher. Your settings and sign-in carry over.",
-     "Patch notes like these now appear here after every update.",
-     "Default keys no longer clash: Factions F3, free cursor F8, hide UI F2, housing X.",
-     "The Discord button opens the DragonBreak Online server."
-    ]
-   }
-  ]
- },
- {
-  "title": "Playtest Fixes",
-  "date": "2026-09-21",
-  "tag": "Hotfix",
-  "sections": [
-   {
-    "heading": "World",
-    "items": [
-     "New characters no longer land stuck in Riverwood.",
-     "Wildlife no longer spawns in spots creatures cannot walk, such as the Pale Pass wolves.",
-     "Dungeons now scale to your party's size and highest level.",
-     "Dungeon loot now includes food, and bodies carry less gold."
-    ]
-   },
-   {
-    "heading": "Combat and characters",
-    "items": [
-     "Concentration spells such as Sparks deal damage once per second per target.",
-     "Racial abilities such as Nord frost resistance no longer linger after they end.",
-     "Character creation shows RaceMenu's sliders again."
-    ]
-   },
-   {
-    "heading": "Interface",
-    "items": [
-     "The party list shows the right distance for each member.",
-     "Names and titles above players are spaced properly.",
-     "Chat no longer steals focus while a menu is open, so Tab and menus no longer get stuck.",
-     "Pigeon letters wait for you at any notice board.",
-     "Stewards and Banes can be appointed, up to 5 each."
-    ]
-   }
-  ]
- },
- {
-  "title": "Your Launcher Keeps Itself Current",
-  "date": "2026-09-21",
-  "tag": "Update",
-  "version": "Launcher 2.1.17",
-  "body": "The launcher now downloads DragonBreak's own plugins, archives and assets, and fetches only the files that changed. No manual installs after an update."
- }
+  },
+  {
+    "title": "Your Launcher Keeps Itself Current",
+    "date": "2026-09-21",
+    "tag": "Update",
+    "version": "Launcher 2.1.17",
+    "body": "The launcher now downloads DragonBreak's own plugins, archives and assets, and fetches only the files that changed. No manual installs after an update."
+  }
 ]
