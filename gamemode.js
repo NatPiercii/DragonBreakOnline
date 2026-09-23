@@ -752,6 +752,12 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       else log('beast request dropped: no actor, no spell, or beastform.js is not loaded');
       return;
     }
+    // The client used a beast power with the Shout key (BeastFormService); beastform.js gives it its effect on others
+    if (content.customPacketType === 'dboBeastPower') {
+      const a = actorOf(userId); const spell = Number(content.spell) >>> 0;
+      if (a && spell && typeof globalThis.__dboBeastPower === 'function') { try { globalThis.__dboBeastPower(a, spell); } catch (e) { log('beast power failed', e.message); } }
+      return;
+    }
     // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
     if (content.customPacketType === 'factionMenuRequest') {
       const a = actorOf(userId); if (a && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);
@@ -2067,6 +2073,7 @@ if (typeof globalThis.__dboPrevSpellHit === 'undefined') globalThis.__dboPrevSpe
 const spellHitHook = (aggressorId, targetId, spellId, ...rest) => {
   try {
     const tgt = Number(targetId) >>> 0, seconds = explosionParalysisOf(Number(spellId) >>> 0);
+    if (globalThis.__dboBeastSpellHit) globalThis.__dboBeastSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
     if (seconds > 0 && profileOf(tgt) >= 0 && tgt !== (Number(aggressorId) >>> 0)) {
       sendPacket(tgt, { customPacketType: 'dboParalyse', seconds });
       log(`paralysis: ${display(tgt)} held ${seconds} s by ${display(Number(aggressorId) >>> 0)} (spell ${(Number(spellId) >>> 0).toString(16)})`);
@@ -2276,6 +2283,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
   const src = Number(sourceId) >>> 0;
   const dmg = Number(damage) || 0;
   globalThis.__dboMasteryPending = null;
+
+  // 0. A Vampire Lord in Mist Form or bats cannot be touched (beastform.js)
+  try { if (globalThis.__dboBeastEthereal && globalThis.__dboBeastEthereal(tgt)) return false; } catch (e) { /* not loaded */ }
 
   // 1. Refuse attack if aggressor has bound hands
   try {

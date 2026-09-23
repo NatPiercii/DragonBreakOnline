@@ -19,10 +19,10 @@ module.exports = (api) => {
   };
   const REVERT_POWER = idOf('cd5c:Dawnguard.esm');
   // What the Vampire Lord wears. Vanilla equips DLC1ClothesVampireLordArmor (DLC1PlayerVampireQuest's
-  // DLC1VampireLordArmor property); Nat wanted him to look better, so he gets Harkon's royal robes and the cape
-  // (slots 36 and 35, both race-locked to the Vampire Lord). Given on the change, taken back on the revert.
+  // DLC1VampireLordArmor property); Nat wanted him to look better, so he gets Harkon's royal robes. Harkon's cape
+  // (15bc1) is left off: on the player it rendered very shiny and hung without physics. Taken back on the revert.
   const WEAR = {
-    vampirelord: [idOf('11a85:Dawnguard.esm'), idOf('15bc1:Dawnguard.esm')].filter(Boolean),
+    vampirelord: [idOf('11a85:Dawnguard.esm'), idOf('15bc1:Dawnguard.esm')].filter(Boolean).slice(0, 1),
     werewolf: [],
   };
   // Every spell a form uses, learned server-side for the length of the form: the server strips an unlearned spell from
@@ -30,6 +30,8 @@ module.exports = (api) => {
   // right/left/voice are what the client equips and binds to keys 1-9 (beastFormService.ts); passive are abilities,
   // hidden are the spells those abilities cast (bat bites, talon poison, grip damage). Ids read out of the load order.
   const spell = (desc, name) => ({ id: idOf(desc), name });
+  // A werewolf howl is a shout (SHOU + word of power) in vanilla; the voice slot will not cast the bare spell
+  const howl = (spellDesc, shoutDesc, wordDesc, name) => ({ id: idOf(spellDesc), shout: idOf(shoutDesc), word: idOf(wordDesc), name });
   const ABILITIES = {
     vampirelord: {
       // Drain05Alt: 15 health/magicka/stamina absorbed + 50 damage a hit. 09Alt (vanilla's level 41+) dealt 175,
@@ -46,7 +48,9 @@ module.exports = (api) => {
     werewolf: {
       // Summon Wolves is left out: its wolves are placed by a Papyrus script that never runs here
       right: [], left: [],
-      voice: [spell('cf793:Skyrim.esm', 'Howl of Terror'), spell('cf78c:Skyrim.esm', 'Howl of the Pack (detect life)')],
+      // HowlWerewolfFear (cf790, word cf78e, casts cf791) and HowlWerewolfDetectLife (ce218, word ce219, casts ce217)
+      voice: [howl('cf791:Skyrim.esm', 'cf790:Skyrim.esm', 'cf78e:Skyrim.esm', 'Howl of Terror'),
+        howl('ce217:Skyrim.esm', 'ce218:Skyrim.esm', 'ce219:Skyrim.esm', 'Howl of the Pack (detect life)')],
       passive: [], hidden: [],
     },
   };
@@ -54,7 +58,7 @@ module.exports = (api) => {
   const learn = (a, key, on) => { for (const sp of allSpells(key)) papyrus(a, on ? 'AddSpell' : 'RemoveSpell', on ? [spellArg(sp.id), false] : [spellArg(sp.id)]); };
   const packetAbilities = (key) => {
     const x = ABILITIES[key]; if (!x) return null;
-    const ids = (list) => list.filter((sp) => sp.id).map((sp) => ({ id: sp.id, name: sp.name }));
+    const ids = (list) => list.filter((sp) => sp.id).map((sp) => Object.assign({ id: sp.id, name: sp.name }, sp.shout ? { shout: sp.shout, word: sp.word } : {}));
     return { right: ids(x.right), left: ids(x.left), voice: ids(x.voice), passive: ids(x.passive) };
   };
   // Keys 1.. pick the left-hand spell, the keys after them the power on the voice key (Z by default)
@@ -172,6 +176,55 @@ module.exports = (api) => {
     if (!holdsPower(a, key)) { personal(a, key === 'werewolf' ? 'The beast blood is not in you.' : 'Only a Vampire Lord can take that form.'); return true; }
     transform(a, key);
     return true;
+  };
+  // Powers run by the engine on the caster's client only, so nobody else ever felt them. The client reports the
+  // Shout key with the equipped power (dboBeastPower) and the server gives the power its effect on other players.
+  const TERROR_RADIUS = 1500, TERROR_SECONDS = 10;
+  const DRAIN = idOf('19324:Dawnguard.esm');
+  const DRAIN_HEAL = 15 / 450;   // Drain05Alt absorbs 15 health; a Vampire Lord has 450 (race 300 + Player 150)
+  const ST = globalThis.__dboBeastPowers = globalThis.__dboBeastPowers || { cooldown: new Map(), ethereal: new Map() };
+  const ethereal = (a, seconds) => { ST.ethereal.set(a, Date.now() + seconds * 1000); personal(a, `You cannot be touched for ${seconds} seconds.`); return true; };
+  const terror = (a, spellId) => {
+    let here = null, pos = null; try { here = mp.get(a, 'worldOrCellDesc'); pos = mp.get(a, 'pos'); } catch (e) { return false; }
+    let n = 0;
+    for (const t of api.onlineActors()) {
+      if (t === a) continue;
+      try {
+        const p = mp.get(t, 'pos');
+        if (mp.get(t, 'worldOrCellDesc') !== here || Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]) > TERROR_RADIUS || mp.get(t, 'isDead')) continue;
+        // The hit chain decides who can be touched at all (god mode refuses)
+        if (typeof mp.onHitDamageAttempt === 'function' && mp.onHitDamageAttempt(a, t, spellId, 0) === false) continue;
+        const pc = mp.get(t, 'percentages');
+        mp.set(t, 'percentages', { health: pc.health, magicka: pc.magicka, stamina: 0 });
+        sendPacket(t, { customPacketType: 'dboStatus', kind: 'terror', seconds: TERROR_SECONDS, speedMult: -50, text: `A howl freezes your blood. You are terrified for ${TERROR_SECONDS} seconds.` });
+        n++;
+      } catch (e) { /* elsewhere */ }
+    }
+    personal(a, n ? `Your howl terrifies ${n} ${n === 1 ? 'soul' : 'souls'}.` : 'Your howl echoes, but no one is near enough to hear it.');
+    log(`beastform: ${display(a)} Howl of Terror, ${n} terrified`);
+    return true;
+  };
+  const POWERS = new Map([
+    [idOf('cf791:Skyrim.esm'), { name: 'Howl of Terror', form: 'werewolf', cooldown: 30, run: (a, id) => terror(a, id) }],
+    [idOf('38ba:Dawnguard.esm'), { name: 'Mist Form', form: 'vampirelord', cooldown: 20, run: (a) => ethereal(a, 15) }],
+    [idOf('38b9:Dawnguard.esm'), { name: 'Bats', form: 'vampirelord', cooldown: 3, run: (a) => ethereal(a, 3) }],
+  ]);
+  globalThis.__dboBeastPower = (a, spellId) => {
+    a = Number(a) >>> 0; spellId = Number(spellId) >>> 0;
+    const pw = POWERS.get(spellId), s = stateOf(a);
+    if (!pw || !s || s.form !== pw.form) return;
+    const key = `${a}:${spellId}`, now = Date.now(), ready = ST.cooldown.get(key) || 0;
+    if (now < ready) return personal(a, `${pw.name} is not ready for another ${Math.ceil((ready - now) / 1000)} seconds.`);
+    ST.cooldown.set(key, now + pw.cooldown * 1000);
+    pw.run(a, spellId);
+  };
+  // gamemode's hit hook refuses every hit on a player in Mist Form or bats
+  globalThis.__dboBeastEthereal = (t) => (ST.ethereal.get(Number(t) >>> 0) || 0) > Date.now();
+  // gamemode's onSpellHit: Vampiric Drain gives back what it absorbs (the server applies only the damage)
+  globalThis.__dboBeastSpellHit = (agg, tgt, spellId) => {
+    if ((Number(spellId) >>> 0) !== DRAIN || agg === tgt) return;
+    const s = stateOf(agg); if (!s || s.form !== 'vampirelord') return;
+    try { const pc = mp.get(agg, 'percentages'); if (pc.health > 0) mp.set(agg, 'percentages', { health: Math.min(1, pc.health + DRAIN_HEAL), magicka: pc.magicka, stamina: pc.stamina }); } catch (e) { /* gone */ }
   };
   globalThis.__dboBeastRevert = (a, why) => revert(Number(a) >>> 0, why || 'forced');
   globalThis.__dboBeastTransform = (a, key, forced) => transform(Number(a) >>> 0, key, forced);
