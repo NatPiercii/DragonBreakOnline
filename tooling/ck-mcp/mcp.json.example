@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "creation-kit": {
+      "command": "py",
+      "args": ["E:\\DragonBreak Online Dev files\\ck-mcp\\server.py"],
+      "env": {
+        "CKMCP_DATA": "E:\\DragonBreak Online Dev files\\Skyrim Special Edition - dev\\Data",
+        "CKMCP_BACKUPS": "E:\\DragonBreak Online Dev files\\ckmcp-backups",
+        "CKMCP_PLUGINS": "E:\\DragonBreak Online Dev files\\server\\plugins.server.txt"
+      }
+    }
+  }
+}

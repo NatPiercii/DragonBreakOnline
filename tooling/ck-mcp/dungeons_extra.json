@@ -1,0 +1,13 @@
+{
+ "_comment": "Dungeons the plugins never tagged LocTypeDungeon (or gave no location), by entrance cell editor id. dungeons_survey.py adds them with every interior behind their own load doors. User list 2026-09-16.",
+ "cells": [
+  "CYRBrumaCaverns",
+  "CYREchoCave01",
+  "CYRFingerbowlcave01",
+  "CYROutlawEndreCave",
+  "CYRFrostironmine01",
+  "CYRFortCaractacus01",
+  "CYRFortColdcorn01",
+  "CYRVilverin"
+ ]
+}

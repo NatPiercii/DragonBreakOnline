@@ -1,0 +1,20 @@
+#!/bin/sh
+# Pre-commit hook for the server repo (server\.git). Refuses a commit whose staged .js/.json carries a form desc
+# ('39cf5:Skyrim.esm') that is missing from the server load order, deleted, in an unloaded plugin, out of range,
+# or clearly the wrong record type. It checks what is staged, not the working tree. See ck-mcp\verify_formids.py.
+#
+# Install:  copy this file to server\.git\hooks\pre-commit
+# Skip once: git commit --no-verify
+TOP="$(git rev-parse --show-toplevel)"
+PY="/c/Users/Lost_/AppData/Local/Python/pythoncore-3.14-64/python.exe"
+[ -x "$PY" ] || PY=py
+"$PY" "$TOP/../ck-mcp/verify_formids.py" --staged --repo "$TOP" -q
+rc=$?
+if [ $rc -eq 2 ]; then
+  echo "pre-commit: verify_formids could not read the load order, form ids NOT checked" >&2
+  exit 0
+fi
+if [ $rc -ne 0 ]; then
+  echo "pre-commit: fix the form ids above, or commit with --no-verify if they are intended" >&2
+fi
+exit $rc
