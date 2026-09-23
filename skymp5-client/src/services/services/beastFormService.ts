@@ -2,12 +2,24 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { Actor, Perk, Race, Spell, SpellCastEvent } from "skyrimPlatform";
+import { ActiveEffectApplyRemoveEvent, Actor, Perk, Race, Spell, SpellCastEvent } from "skyrimPlatform";
 import { sendCustomPacket } from "./customPacketUtil";
 import { logError, logTrace } from "../../logging";
 
 // WerewolfChange 92c48, DLC1VampireChange 0200283b, DLC1RevertForm 0200cd5c (load order: Dawnguard is index 02)
 const BEAST_POWERS = new Set([0x00092c48, 0x0200283b, 0x0200cd5c]);
+
+// spellCast never fired for these: they are Powers and Lesser Powers cast from the voice slot, and the whole
+// server log held zero beast requests while ordinary spells relayed fine. The magic effect is applied either
+// way, so the effect is what we watch. Ids read out of the load order, not recalled.
+const BEAST_EFFECT_TO_POWER = new Map<number, number>([
+  [0x00092c45, 0x00092c48], // WerewolfChangeEffect -> WerewolfChange
+  [0x0200283c, 0x0200283b], // DLC1VampireChangeEffect -> DLC1VampireChange
+  [0x0200cd5b, 0x0200cd5c], // DLC1RevertEffect -> DLC1RevertForm
+]);
+
+// spellCast and effectStart can both land for one cast; the server only needs to hear once
+const REQUEST_DEBOUNCE_MS = 1500;
 
 // What the beast actually gets. The vanilla transform is a Papyrus script on the change spell's magic effect,
 // and those script events never reach this client, so a race swap alone leaves the player with fists: no spells,
@@ -49,6 +61,7 @@ export class BeastFormService extends ClientListener {
     super();
     this.controller.emitter.on("customPacketMessage", (e) => this.onBeastMessage(e));
     this.controller.on("spellCast", (e) => this.onSpellCast(e));
+    this.controller.on("effectStart", (e) => this.onEffectStart(e));
     this.controller.on("update", () => this.onCameraCheck());
   }
 
@@ -59,14 +72,32 @@ export class BeastFormService extends ClientListener {
     if (!e.caster || e.caster.getFormID() !== 0x14 || !e.spell) return;
     const id = e.spell.getFormID();
     if (!BEAST_POWERS.has(id)) return;
+    this.requestBeast(id);
+  }
+
+  // The reliable path: a Power fires no spellCast, but its effect always starts
+  private onEffectStart(e: ActiveEffectApplyRemoveEvent): void {
+    if (!e.target || e.target.getFormID() !== 0x14 || !e.effect) return;
+    const power = BEAST_EFFECT_TO_POWER.get(e.effect.getFormID());
+    if (power === undefined) return;
+    this.requestBeast(power);
+  }
+
+  private requestBeast(id: number): void {
+    const now = Date.now();
+    if (now - (this.lastRequestAt.get(id) ?? 0) < REQUEST_DEBOUNCE_MS) return;
+    this.lastRequestAt.set(id, now);
     this.controller.once("update", () => {
       const player = this.sp.Game.getPlayer();
       const spell = Spell.from(this.sp.Game.getFormEx(id));
       if (player && spell) { try { player.dispelSpell(spell); } catch { /* not active */ } }
       this.restoreControls();
     });
+    logTrace(this, "Beast power used, asking the server", id.toString(16));
     sendCustomPacket(this.controller, { customPacketType: "dboBeastRequest", spell: id });
   }
+
+  private lastRequestAt = new Map<number, number>();
 
   private restoreControls(): void {
     try { this.sp.Game.enablePlayerControls(true, true, true, true, true, true, true, true, 0); } catch { /* menu */ }
