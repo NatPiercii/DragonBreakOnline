@@ -48258,6 +48258,13 @@
 "name": "WEDL03CyrodilicBrandy",
 "value": 150
 }
+],
+"recipes": [
+{
+"id": "12ae17:DragonBreak Online Edits.esp",
+"name": "DBO_RecipeRevivePotion",
+"value": 300
+}
 ]
 }
 }

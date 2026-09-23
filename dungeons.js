@@ -306,6 +306,8 @@ module.exports = (api) => {
     if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(5, 15));
     if (Math.random() < 0.2) addEntry(entries, pickFrom(pool('lockpicks', 0, ok)), rnd(1, 3));
     if (diff.soulgem > 0 && Math.random() < diff.soulgem * (boss ? 2 : 1)) addEntry(entries, pickFrom(soulPool(diff.soulTier, ok)), 1);
+    // Recipe notes (the Draught of Revival): a rare find in a boss chest
+    if (boss && Math.random() < 0.05) addEntry(entries, pickFrom(pool('recipes', 0, ok)), 1);
     const gearChance = boss ? 1 : 0.2;
     if (Math.random() < gearChance) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'weapons' : 'armor', diff.gear, ok)), 1);
     const enchChance = boss ? diff.bossEnch : diff.ench;
