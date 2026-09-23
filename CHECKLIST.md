@@ -1,5 +1,16 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23: tooling handover for Jake's dependency audit
+
+- [x] `server\tooling\` (commit `01818f63`, not pushed yet): snapshot of ck-mcp (45 py), 31 DBO xEdit scripts,
+  `dev-server.sh` + `backup-git.cmd`, `CLIENT_BUILD.md`. Refresh with `bash server/tooling/refresh.sh` after
+  editing the originals; it blocks IP addresses and credential-shaped text. `dev-server.sh` no longer names the host.
+- [x] Six third-party plugins in `server\data` differ from the Nexus copies (recipes in 4, disabled refs in 2),
+  same records and masters. `py ck-mcp\thirdparty_diff.py`; table in `tooling\README.md`.
+- [ ] Decide whether players get the server's six edited copies through the extra-files channel.
+- [ ] Reply to Jake: draft `REPLY_TO_JAKE_2026-09-23.md` in the root, `[Nat: ...]` lines open.
+- [ ] Push `server` (run `backup-git.cmd` first).
+
 ## Added 2026-09-23 (02:25 UTC): newbrumacityedits.esp merged into DragonBreak Online Edits.esp
 
 - [x] Nat's `newbrumacityedits (1).esp` (106 records) overlaid onto DLE, the child winning: 18 new REFRs renumbered
