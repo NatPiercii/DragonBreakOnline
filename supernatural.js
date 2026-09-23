@@ -27,7 +27,7 @@ module.exports = (api) => {
     incubationDays: 3,
     sunPerStage: 0.006, sunFloor: 0.05,
     fireWeaknessPerStage: 0.25, silverWeakness: 0.5,
-    forcedChangeChance: 0.10, beastChangesPerDay: 4,
+    forcedChangeChance: 0.10, beastChangesPerDay: 1,
     beastFeedSeconds: 30, corpseFreshMinutes: 10,
     permaDeathChance: 0.33,
     rite: { rounds: 5, needFever: 3, needVoluntary: 4, leadMs: 700, timeoutMs: 7000, latencyMs: 120, slackMs: 160 },
@@ -378,10 +378,20 @@ module.exports = (api) => {
     if (isAdmin(a) || forced) return null;
     const s = stateOf(a);
     if (key === 'vampirelord') return crownHolder() === (a >>> 0) || mp.get(a, 'private.vampireLordGrant') === true ? null : 'Only the holder of the Blood Crown can take the form of a Vampire Lord.';
+    // Once per in-game day, which is the design and not a real day: the world clock owns the calendar
     if (key === 'werewolf' && s.kind === 'werewolf' && !s.blessed) {
-      const uses = (Array.isArray(s.beastUses) ? s.beastUses : []).filter((t) => Date.now() - t < 86400000);
-      if (uses.length >= C.beastChangesPerDay) return `The beast within is spent: ${C.beastChangesPerDay} changes a day, the next in ${Math.ceil((uses[0] + 86400000 - Date.now()) / 60000)} minutes.`;
-      uses.push(Date.now()); s.beastUses = uses; saveState(a, s);
+      const clock = globalThis.__dboClock;
+      const now = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : null;
+      if (now !== null) {
+        const day = Math.floor(now);
+        const used = s.beastDay === day ? (Number(s.beastDayUses) || 0) : 0;
+        if (used >= C.beastChangesPerDay) {
+          let scale = 6; try { scale = Number(clock.summary().timeScale) || 6; } catch (e) { /* default */ }
+          const mins = Math.max(1, Math.ceil((1 - (now - day)) * 1440 / scale));
+          return `The beast within is spent for today. It stirs again when the day turns, about ${mins} minute${mins === 1 ? '' : 's'} from now.`;
+        }
+        s.beastDay = day; s.beastDayUses = used + 1; saveState(a, s);
+      }
     }
     return null;
   };
