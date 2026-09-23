@@ -51,3 +51,6 @@ announce.json
 
 # Patreon identity rerolls spent (patrons.js)
 patron-tokens.json
+
+# Operator restore queue for permadead characters (supernatural.js)
+revive.json

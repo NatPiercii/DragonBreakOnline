@@ -307,7 +307,40 @@ module.exports = (api) => {
     try { mp.set(a, 'private.permaDead', true); mp.set(a, 'isDead', true); } catch (e) { log(`supernatural: perma death failed on ${display(a)}: ${e.message}`); }
     endCurse(a, why);
     audit(`PERMADEATH ${who(a)} (${why})`);
+    // Nat: the player is logged out with the news; the character screen then shows the slot dead and locked
+    const text = `${nameOf(a)} has died, and this life is over. You will be returned to the menu.`;
+    personal(a, text); sendPacket(a, { customPacketType: 'dboNotice', text });
+    setTimeout(() => {
+      try { if (mp.get(a, 'private.permaDead') !== true) return; const u = mp.getUserByActor(a); if (u >= 0) { mp.kick(u); log(`supernatural: ${display(a)} logged out after permadeath`); } } catch (e) { /* already gone */ }
+    }, 8000);
   };
+  // Lifts a permadeath: the character can be chosen again and wakes alive
+  const restoreCharacter = (t, by) => {
+    let dead = false; try { dead = mp.get(t, 'private.permaDead') === true; } catch (e) { return false; }
+    if (!dead) return false;
+    mp.set(t, 'private.permaDead', false);
+    try { mp.set(t, 'isDead', false); } catch (e) { /* revived on login */ }
+    audit(`SUPERNATURAL ${who(t)} restored from permadeath by ${by}`);
+    return true;
+  };
+  // Online by name or tag, offline by #TAG
+  const findCharacter = (q) => {
+    const online = findByName(q); if (online) return online;
+    const m = String(q || '').trim().toLowerCase().match(/#([a-z0-9]{4})$/);
+    if (!m) return 0;
+    try { const r = mp.findFormsByPropertyValue('private.indexed.tagKey', m[1]); return Array.isArray(r) && r.length === 1 ? Number(r[0]) >>> 0 : 0; } catch (e) { return 0; }
+  };
+  // Operators restore from the box: write ["#TAG", ...] to revive.json; it is read within 10 s and removed
+  const REVIVE_PATH = path.resolve('revive.json');
+  every('superRevive', 10000, () => {
+    if (!fs.existsSync(REVIVE_PATH)) return;
+    let list = []; try { list = JSON.parse(fs.readFileSync(REVIVE_PATH, 'utf8')); } catch (e) { log(`supernatural: revive.json unreadable: ${e.message}`); }
+    try { fs.unlinkSync(REVIVE_PATH); } catch (e) { /* removed already */ }
+    for (const q of Array.isArray(list) ? list : []) {
+      const t = findCharacter(q);
+      log(`supernatural: revive.json ${q}: ${!t ? 'no such character' : restoreCharacter(t, 'revive.json') ? `restored ${display(t)}` : `${display(t)} was not permanently dead`}`);
+    }
+  });
 
   // ---- the rite mini-game -------------------------------------------------------------------------------
   const RITE_ID = 39;
@@ -341,9 +374,11 @@ module.exports = (api) => {
     showRite(a, r);
     log(`supernatural: ${display(a)} began ${RITES[type].title}`);
   };
-  const judge = (a, r, hit, why) => {
+  const judge = (a, r, hit, why, detail) => {
     if (rites.get(a) !== r) return;
     clearTimeout(r.timer);
+    const rd = r.current;
+    log(`supernatural: rite ${display(a)} ${RITES[r.type].title} round ${r.round + 1}/${C.rite.rounds} ${hit ? 'hit' : `miss (${why})`}, zone ${rd.center.toFixed(2)}+-${(rd.width / 2).toFixed(2)}, period ${rd.period} ms${detail ? `, ${detail}` : ''}`);
     if (hit) r.hits++; else r.misses++;
     r.round++;
     const def = RITES[r.type];
@@ -370,9 +405,10 @@ module.exports = (api) => {
   onUi('riteStrike', (a, args) => {
     const r = rites.get(a); if (!r || String(args[0]) !== r.nonce || !r.current) return;
     const t = Date.now() - r.current.startsAt - C.rite.latencyMs;
-    if (t < -C.rite.slackMs) return;
+    if (t < -C.rite.slackMs) return log(`supernatural: rite ${display(a)} strike ignored, ${Math.round(-t)} ms before round ${r.round + 1} began`);
     const inZone = (x) => Math.abs(markerAt(r.current, x) - r.current.center) <= r.current.width / 2;
-    judge(a, r, [t - C.rite.slackMs, t, t + C.rite.slackMs].some(inZone), 'off the mark');
+    const seen = [t - C.rite.slackMs, t, t + C.rite.slackMs].map((x) => markerAt(r.current, x).toFixed(2)).join('/');
+    judge(a, r, [t - C.rite.slackMs, t, t + C.rite.slackMs].some(inZone), 'off the mark', `struck ${Math.round(t)} ms in, marker ${seen}`);
   });
   const forfeit = (a) => { const r = rites.get(a); if (r) { r.misses = C.rite.rounds; finishRite(a, r, false); } };
   onUi('riteClose', (a) => forfeit(a));
@@ -647,7 +683,12 @@ module.exports = (api) => {
     const [name, what] = String(args || '').trim().split(/\s+/);
     const t = name === 'me' || !name ? a : findByName(name);
     const w = String(what || '').toLowerCase();
-    if (!t || !['vampire', 'purevampire', 'werewolf', 'blessedwerewolf', 'infectvampire', 'infectwerewolf', 'cure', 'crown', 'status', 'fever'].includes(w)) return personal(a, 'Usage: /curse <player|me> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|status>');
+    if (w === 'restore') {
+      const c = findCharacter(name);
+      if (!c) return personal(a, 'No such character: use their #TAG for someone offline.');
+      return personal(a, restoreCharacter(c, `GM ${nameOf(a)}`) ? `${display(c)} is restored and can be played again.` : `${display(c)} is not permanently dead.`);
+    }
+    if (!t || !['vampire', 'purevampire', 'werewolf', 'blessedwerewolf', 'infectvampire', 'infectwerewolf', 'cure', 'crown', 'status', 'fever'].includes(w)) return personal(a, 'Usage: /curse <player|me> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|status|restore>');
     if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease for ${(gameDays() - s.disease.since).toFixed(1)} days` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
     if (w === 'vampire' || w === 'purevampire') becomeVampire(t, w === 'purevampire');
     else if (w === 'werewolf' || w === 'blessedwerewolf') becomeWerewolf(t, w === 'blessedwerewolf');
@@ -658,7 +699,7 @@ module.exports = (api) => {
     else if (w === 'crown') { if (kindOf(t) !== 'vampire') becomeVampire(t, true); takeCrown(t, `given it by GM ${nameOf(a)}`); }
     audit(`SUPERNATURAL GM ${who(a)} /curse ${display(t)} ${w}`);
     personal(a, `Done: ${display(t)} ${w}.`);
-  }, { admin: true, help: '<player|me> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|status>' });
+  }, { admin: true, help: '<player|me|#TAG> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|status|restore>' });
 
   log(`supernatural on: sanguinare ${SANGUINARE.toString(16)}, ${VAMPIRE_RACES.size} vampire races, crown ${G.crown ? G.crown.name : 'unclaimed'}, cure effects ${CURE_EFFECTS.size}, pale shader ${PALE_SHADER.toString(16)}`);
 };
