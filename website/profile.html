@@ -26,11 +26,25 @@
  .head{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:.6rem}
  .actions{margin-top:1.2rem}
  .v div+div{margin-top:.2rem}
+ .dlicon{position:absolute;top:1.1rem;right:1.1rem;display:inline-flex;align-items:center;justify-content:center;width:2.6rem;height:2.6rem;border:1px solid var(--border);border-radius:50%;color:var(--silver);background:rgba(0,0,0,.25);transition:border-color 140ms ease,color 140ms ease}
+ .dlicon:hover,.dlicon:focus-visible{border-color:var(--border-strong);color:#e8d6a0}
+ .dlicon svg{width:1.25rem;height:1.25rem}
+ .hero{position:relative}
+ .skills{margin-top:.4rem}
+ .skill{display:grid;grid-template-columns:9.5rem 1fr 3.2rem;gap:.6rem;align-items:center;font-size:.9rem;margin:.28rem 0}
+ .skill .bar{height:.45rem;border-radius:.3rem;background:rgba(255,255,255,.07);overflow:hidden}
+ .skill .bar span{display:block;height:100%;background:#c48a3a}
+ .skill .pts{text-align:right;color:#e8d6a0;font-variant-numeric:tabular-nums}
+ .stat{color:var(--text-dim);font-size:.86rem;margin:.35rem 0 0}
 </style></head><body>
 <img class="wm" src="dbo-watermark.png" alt="">
 <div class="wrap">
 
 <div class="hero">
+  <a class="dlicon" data-launcher href="https://github.com/NatPiercii/DragonBreakOnline/releases"
+     title="Download DragonBreak Launcher" aria-label="Download DragonBreak Launcher">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+  </a>
   <h1>Dragon Break</h1>
   <div class="tag">Your profile</div>
 </div>
@@ -64,6 +78,7 @@
       <div class="row"><span class="k">Last launcher sign-in</span><span id="lastLauncher" class="v"></span></div>
       <div class="actions">
         <a class="btn ghost" data-launcher href="https://github.com/NatPiercii/DragonBreakOnline/releases">Download DragonBreak Launcher</a>
+        <a class="btn ghost" id="staffLink" href="/dashboard.html" hidden>Staff dashboard</a>
         <button id="signOut" class="ghost" type="button">Sign out</button>
         <span id="signOutError" class="bad" role="alert" hidden>Sign-out failed. Please reload the page and try again.</span>
       </div>
@@ -157,6 +172,12 @@ function card(c){
   const meta=[c.race&&c.race.label,sexText(c.sex),c.tag&&'#'+c.tag].filter(Boolean).join(DOT);
   if(meta)a.append(el('p','',meta));
   a.append(el('p','',vitalsText(c.vitals)));
+  const pr=c.progress||{};
+  const top=Array.isArray(pr.skills)&&pr.skills[0];
+  const facts=[Number.isFinite(pr.skillPoints)&&pr.skillPoints?pr.skillPoints+' skill points':null,
+               top?'best: '+top.label:null,
+               Array.isArray(pr.factions)&&pr.factions.length?pr.factions.map(f=>f.name).join(', '):null].filter(Boolean);
+  if(facts.length)a.append(el('p','stat',facts.join(DOT)));
   return a;
 }
 
@@ -179,7 +200,27 @@ function renderDetail(c){
   const v=c.vitals||{};
   rows.push(row('Health',pct(v.health)),row('Magicka',pct(v.magicka)),row('Stamina',pct(v.stamina)));
   rows.push(row('Gold',String(c.gold)),row('Items carried',c.itemStacks+(c.itemStacks===1?' stack':' stacks')),row('Masteries',masteryText(c.masteries)));
+  const pr=c.progress||{};
+  if(Array.isArray(pr.factions)){
+    const list=el('span','v',pr.factions.length?null:'None yet');
+    for(const f of pr.factions)list.append(el('div','',f.rank?f.name+DOT+f.rank:f.name));
+    rows.push(row('Clan and factions',list));
+  }
+  if(pr.deity&&pr.deity.name)rows.push(row('Worships',pr.deity.name));
+  if(Number.isFinite(pr.shrinesPrayed))rows.push(row('Shrines prayed at',String(pr.shrinesPrayed)));
+  if(Number.isFinite(pr.peopleMet))rows.push(row('People met',String(pr.peopleMet)));
   rows.push(row('Record last saved',date(c.lastSaved,true)||'unknown'));
+  if(Array.isArray(pr.skills)&&pr.skills.length){
+    const box=el('div','skills');
+    const max=Math.max(...pr.skills.map(s=>s.points),1);
+    for(const sk of pr.skills){
+      const line=el('div','skill');
+      const bar=el('span','bar');const fill=el('span','');fill.style.width=Math.round(sk.points/max*100)+'%';bar.append(fill);
+      line.append(el('span','',sk.label+(sk.level?' '+sk.level:'')),bar,el('span','pts',String(sk.points)));
+      box.append(line);
+    }
+    rows.push(row('Skills ('+pr.skillPoints+' points)',box));
+  }
   $('detailRows').replaceChildren(...rows);
 }
 
@@ -241,6 +282,11 @@ async function loadLauncherUrl(){
     if(/^https:\/\//.test(downloadUrl))for(const a of document.querySelectorAll('a[data-launcher]'))a.href=downloadUrl;}catch(e){}
 }
 
+// The link is a convenience only: the dashboard checks the role itself on every request
+async function showStaffLink(){
+  try{const r=await fetch('/api/site/staff/me',{cache:'no-store'});const me=await r.json();if(me&&me.staff)$('staffLink').hidden=false;}catch(e){}
+}
+
 async function main(){
   showSignInError();
   let r;
@@ -253,7 +299,7 @@ async function main(){
   if(!me.signedIn)return show('signedOut');
   renderAccount(me);
   show('signedIn');
-  await Promise.all([loadCharacters(),loadAccess()]);
+  await Promise.all([loadCharacters(),loadAccess(),showStaffLink()]);
 }
 loadLauncherUrl();
 main().catch(()=>show('unavailable'));
