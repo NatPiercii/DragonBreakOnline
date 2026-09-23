@@ -41,7 +41,9 @@ module.exports = (api) => {
     oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 2 },
     // Sea Salt Deposits (Saltdeposits.esp, copied into DragonBreak.esp) and the geodes of Whistling Mine: the Miner tier (0 based)
     // that opens them, the chance of a rarer salt with the salt, and the cells whose geodes give soul gems
-    extraOreTier: { salt: 0, geode: 1 },
+    extraOreTier: { salt: 0, geode: 1, amethyst: 1, topaz: 1, ruby: 2, sapphire: 2, emerald: 3, diamond: 4 },
+    // Every other geode gives the gem it is named for (the CYR ones name it in their MineOreScript Ore property)
+    gemOre: { amethyst: '63b46:Skyrim.esm', topaz: '602427:BSAssets.esm', ruby: '63b42:Skyrim.esm', sapphire: '63b44:Skyrim.esm', emerald: '63b43:Skyrim.esm', diamond: '63b47:Skyrim.esm' },
     saltBonusChance: 0.1,
     saltBonus: { '3ad5f:Skyrim.esm': 5, '3ad5e:Skyrim.esm': 4, '3ad60:Skyrim.esm': 1 },
     geodeCells: ['161e7:Skyrim.esm'],
@@ -69,7 +71,7 @@ module.exports = (api) => {
     tin: '601c4f:BSAssets.esm',
     salt: '34cdf:Skyrim.esm',
     firewood: '6f993:Skyrim.esm',
-  }, CFG.items || {});
+  }, CFG.gemOre || {}, CFG.items || {});
 
   const MINER = (skills.skills || []).find((k) => k.id === 'miner') || {};
   const WOODCUTTER = (skills.skills || []).find((k) => k.id === 'woodcutter') || {};
@@ -117,7 +119,9 @@ module.exports = (api) => {
   const nodeOf = (targetId, edid) => {
     if (/SeaSalt/i.test(edid)) return 'salt';
     if (!/^(?:CYR|BSK)MineGem/i.test(edid)) return '';
-    try { return GEODE_CELLS.has(mp.getIdFromDesc(String(mp.get(targetId, 'worldOrCellDesc'))) >>> 0) ? 'geode' : ''; } catch (e) { return ''; }
+    try { if (GEODE_CELLS.has(mp.getIdFromDesc(String(mp.get(targetId, 'worldOrCellDesc'))) >>> 0)) return 'geode'; } catch (e) { return ''; }
+    const gem = (/MineGem([A-Za-z]+?)\d/i.exec(edid) || [])[1];
+    return gem && (CFG.gemOre || {})[gem.toLowerCase()] ? gem.toLowerCase() : '';
   };
   const weighted = (table) => {
     const entries = Object.entries(table || {}).filter(([, w]) => Number(w) > 0);
@@ -239,7 +243,7 @@ module.exports = (api) => {
     const rests = restsOf(casterId, 'private.minedVeins');
     const until = Number(rests[targetId.toString(16)]) || 0;
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
-    const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' ? 'Geode' : `${titleCase(ore)} Seam`, targetId);
+    const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' || (CFG.gemOre || {})[ore] ? 'Geode' : `${titleCase(ore)} Seam`, targetId);
     round.ore = ore;
     return startRound(casterId, round);
   };
@@ -373,6 +377,7 @@ module.exports = (api) => {
       text = !ok ? 'The seam gives way, but you cannot carry any more.'
         : round.ore === 'geode' ? `The geode cracks open: ${itemName(gem)}.`
         : round.ore === 'salt' ? `You scrape out ${count} Salt Pile${count === 1 ? '' : 's'}${bonus ? ` and some ${itemName(bonus)}` : ''}.`
+        : (CFG.gemOre || {})[round.ore] ? `The geode cracks open: ${count} ${titleCase(round.ore)}${count === 1 ? '' : 's'}.`
         : `The seam gives way: ${count} ${titleCase(round.ore)} Ore.`;
       if (ok) audit(`MINE ${who(a)} worked a ${round.ore} seam (tier ${round.tier + 1}) -> ${count} ${gem ? itemName(gem) : 'ore'}${bonus ? ` + ${itemName(bonus)}` : ''}`);
     } else {

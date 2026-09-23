@@ -9,7 +9,8 @@
         "heading": "Mining",
         "items": [
           "Sea Salt Deposits can now be mined. Work one like an ore seam to scrape out Salt Piles, and now and then some Frost, Fire or Void Salts with them. Any Miner can work them.",
-          "The geodes of Whistling Mine can now be cracked open by a Miner of the second tier. Each holds one empty soul gem: usually a Petty or Lesser one, sometimes a Common or Greater, and rarely a Grand. Never a Black one."
+          "The geodes of Whistling Mine can now be cracked open by a Miner of the second tier. Each holds one empty soul gem: usually a Petty or Lesser one, sometimes a Common or Greater, and rarely a Grand. Never a Black one.",
+          "Every other geode now gives the gem it is named for: Amethyst and Topaz from the second Miner tier, Ruby and Sapphire from the third, Emerald from the fourth, Diamond at the fifth."
         ]
       }
     ]
