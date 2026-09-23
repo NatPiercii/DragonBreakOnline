@@ -303,6 +303,8 @@ module.exports = (api) => {
     personal(a, blessed ? 'Hircine marks you as his own. The beast answers when you call, and only then.' : 'The fever breaks into a howl. You are a werewolf. Beast Form is yours once a day, and the hungrier you are, the more often the beast takes you whether you will it or not.');
     audit(`SUPERNATURAL ${who(a)} became a ${blessed ? 'Hircine-blessed ' : ''}werewolf`);
   };
+  // Skyrim's own on-screen notification (client dboStatus handler, 0.3.24+) plus the same line in chat
+  const onScreen = (a, text) => { sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text }); return personal(a, text); };
   const permaKill = (a, why) => {
     try { mp.set(a, 'private.permaDead', true); mp.set(a, 'isDead', true); } catch (e) { log(`supernatural: perma death failed on ${display(a)}: ${e.message}`); }
     endCurse(a, why);
@@ -442,7 +444,7 @@ module.exports = (api) => {
     const waitMs = failedAt + C.riteFailCooldownHours * 3600000 - Date.now();
     if ((deity === 'molagbal' || deity === 'hircine') && waitMs > 0) {
       const h = Math.floor(waitMs / 3600000), m = Math.ceil((waitMs % 3600000) / 60000);
-      return personal(a, `The shrine is cold to you since you failed its rite. Try again in ${h ? `${h}h ` : ''}${m}m.`);
+      return onScreen(a, `The shrine is cold to you since you failed its rite. Try again in ${h ? `${h}h ` : ''}${m}m.`);
     }
     log(`rite ${display(a)} '${arg}' shrine=${deity || 'none'} kind=${(s && s.kind) || 'mortal'}`);
     if (!deity) return personal(a, 'Rites are made at a shrine: touch one of Molag Bal, Hircine, Arkay or Stendarr, then say /rite.');
@@ -591,7 +593,9 @@ module.exports = (api) => {
         if (used >= C.beastChangesPerDay) {
           let scale = 6; try { scale = Number(clock.summary().timeScale) || 6; } catch (e) { /* default */ }
           const mins = Math.max(1, Math.ceil((1 - (now - day)) * 1440 / scale));
-          return `The beast within is spent for today. It stirs again when the day turns, about ${mins} minute${mins === 1 ? '' : 's'} from now.`;
+          const spent = `The beast within is spent for today. It stirs again when the day turns, about ${mins} minute${mins === 1 ? '' : 's'} from now.`;
+          sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text: spent });
+          return spent;
         }
         s.beastDay = day; s.beastDayUses = used + 1; saveState(a, s);
       }

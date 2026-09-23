@@ -219,7 +219,11 @@ module.exports = (api) => {
     const pw = POWERS.get(spellId), s = stateOf(a);
     if (!pw || !s || s.form !== pw.form) return;
     const key = `${a}:${spellId}`, now = Date.now(), ready = ST.cooldown.get(key) || 0;
-    if (now < ready) return personal(a, `${pw.name} is not ready for another ${Math.ceil((ready - now) / 1000)} seconds.`);
+    if (now < ready) {
+      const text = `${pw.name} is not ready for another ${Math.ceil((ready - now) / 1000)} seconds.`;
+      sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text });
+      return personal(a, text);
+    }
     ST.cooldown.set(key, now + pw.cooldown * 1000);
     pw.run(a, spellId);
   };
