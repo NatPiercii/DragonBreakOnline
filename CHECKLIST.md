@@ -1,5 +1,19 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23 (late): the endless Dwemer dive - ON HOLD (Nat, 23:40 UTC)
+
+A playtester's Discord to-do "Endless Dungeons" (elevators into chained random Dwemer/Falmer floors, harder and
+better-looted with depth, boss floors). Nat asked how feasible it is, then put it on hold after the first step.
+
+- [x] Floor pool: `tools\depths_build.py` (force-added, `tools\` is ignored) writes `depths.json` from the load order,
+  ~10 s: 72 interior cells of the Dwemer ruins and Falmer hives, 60 usable (28 Dwemer, 32 Falmer), each with its load
+  doors (where each leads) and landing spots (XTEL). Real cells, nothing duplicated; enemies and chests stay in
+  `dungeons.json`. Server `bad2077e`, committed, **not pushed** (the server session's key is not on GitHub yet).
+  Nothing reads `depths.json`.
+- [ ] Not started: `depths.js` (a floor claims its cell like a lease, spawns depth-scaled enemies, exits glow on
+  clear, the exit door moves the party to the next free cell); check that internal load doors reach the server's
+  activate handler; boss-wave data for the Aetherium Forge (no placements of its own); the elevator.
+
 ## Added 2026-09-23 (evening, with Nat): jails, cell doors and sentences - LIVE (loaded 22:47:45 UTC, 27 jail zones)
 
 Nat: jail/prison zones with no /unstuck; a cell door takes a prisoner for a set time, unlocks when it is served,
