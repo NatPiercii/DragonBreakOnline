@@ -152,6 +152,8 @@ export class BeastFormService extends ClientListener {
         // Vanilla keeps a beast in third person; the player could flip back and see a broken camera
         this.beastRace = beast ? raceId : 0;
         if (beast) this.sp.Game.forceThirdPerson();
+        // Server calls for the change (AddSpell) can land after this frame; equip again once they have
+        this.reapplyAt = beast ? [Date.now() + 1000, Date.now() + 3000] : [];
         this.restoreControls();
         logTrace(this, beast ? "Took beast form" : "Returned to own race", raceId.toString(16));
       } catch (e) {
@@ -229,12 +231,14 @@ export class BeastFormService extends ClientListener {
   // The camera is forced once on the change; this keeps it there for as long as the form lasts
   private onCameraCheck(): void {
     if (!this.beastRace) return;
+    if (this.reapplyAt.length && Date.now() >= this.reapplyAt[0]) { this.reapplyAt.shift(); this.applyHands(); }
     try {
       if (this.sp.Game.getCameraState() === FIRST_PERSON_CAMERA) this.sp.Game.forceThirdPerson();
     } catch { /* no camera yet */ }
   }
 
   private beastRace = 0;
+  private reapplyAt: number[] = [];
 
   // Sneak toggles the stance, the same key vanilla uses, read from the player's own bindings
   private onButtonEvent(e: ButtonEvent): void {
