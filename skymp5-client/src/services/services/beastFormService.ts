@@ -2,7 +2,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { ActiveEffectApplyRemoveEvent, Actor, Armor, ButtonEvent, DxScanCode, GlobalVariable, InputDeviceType, Perk, Race, Spell, SpellCastEvent } from "skyrimPlatform";
+import { ActiveEffectApplyRemoveEvent, Actor, Armor, ButtonEvent, DxScanCode, GlobalVariable, InputDeviceType, Perk, Race, Shout, Spell, SpellCastEvent, WordOfPower } from "skyrimPlatform";
 import { sendCustomPacket } from "./customPacketUtil";
 import { logError, logTrace } from "../../logging";
 
@@ -35,7 +35,8 @@ interface BeastLoadout { perks: number[] }
 // Server -> Client in dboBeast: what the form casts, learned server-side by server\beastform.js (ABILITIES).
 // Vanilla blocks the Inventory and Magic menus in both beast forms, so the game equips for the player:
 // right hand fixed, keys 1.. pick the left-hand spell, the keys after them the power on the voice key.
-interface BeastSpell { id: number; name: string }
+// shout/word: a werewolf howl, which vanilla gives as a shout; the voice slot does not cast the bare spell
+interface BeastSpell { id: number; name: string; shout?: number; word?: number }
 interface BeastAbilities { right: BeastSpell[]; left: BeastSpell[]; voice: BeastSpell[]; passive: BeastSpell[] }
 
 // The Vampire Lord has two stances and vanilla drives them from DLC1PlayerVampireChangeScript:
@@ -178,6 +179,8 @@ export class BeastFormService extends ClientListener {
       const spell = Spell.from(this.sp.Game.getFormEx(sp.id));
       if (!spell) { logError(this, "beast spell not in the load order", sp.id.toString(16)); continue; }
       try { if (beast) player.addSpell(spell, false); else player.removeSpell(spell); spells++; } catch { /* already held */ }
+      const shout = sp.shout ? Shout.from(this.sp.Game.getFormEx(sp.shout)) : null;
+      if (shout) { try { if (beast) player.addShout(shout); else player.removeShout(shout); } catch { /* already held */ } }
     }
     this.lastAbilities = beast ? this.abilities : null;
     if (raceId === VAMPIRE_RACE) {
@@ -196,8 +199,12 @@ export class BeastFormService extends ClientListener {
     if (!a || !player) return;
     const grounded = this.beastRace === VAMPIRE_RACE && this.vampireStance === VL_STATE_WALKING;
     const slot = (list: BeastSpell[], index: number, source: number) => {
+      const entry = list.length && !(grounded && source !== SLOT_VOICE) ? list[index % list.length] : null;
+      if (entry && entry.shout) { this.equipShout(player, entry); return; }
       const current = player.getEquippedSpell(source);
-      const want = list.length && !(grounded && source !== SLOT_VOICE) ? Spell.from(this.sp.Game.getFormEx(list[index % list.length].id)) : null;
+      const want = entry ? Spell.from(this.sp.Game.getFormEx(entry.id)) : null;
+      // Only on a difference: this also runs once a second, and re-equipping would cut off a cast
+      if (want && current && current.getFormID() === want.getFormID()) return;
       try {
         if (want) player.equipSpell(want, source);
         else if (current) player.unequipSpell(current, source);
@@ -206,6 +213,19 @@ export class BeastFormService extends ClientListener {
     slot(a.right, 0, SLOT_RIGHT);
     slot(a.left, this.leftIndex, SLOT_LEFT);
     slot(a.voice, this.voiceIndex, SLOT_VOICE);
+  }
+
+  private equipShout(player: Actor, entry: BeastSpell): void {
+    const shout = Shout.from(this.sp.Game.getFormEx(entry.shout || 0));
+    if (!shout) { logError(this, "howl not in the load order", (entry.shout || 0).toString(16)); return; }
+    const current = player.getEquippedShout();
+    if (current && current.getFormID() === shout.getFormID()) return;
+    try {
+      const word = WordOfPower.from(this.sp.Game.getFormEx(entry.word || 0));
+      if (word) { this.sp.Game.teachWord(word); this.sp.Game.unlockWord(word); }
+      player.addShout(shout);
+      player.equipShout(shout);
+    } catch (e) { logError(this, "howl equip failed", e); }
   }
 
   // Keys 1-9: first the left-hand spells, then the powers, in the order the server's legend lists them
@@ -232,6 +252,9 @@ export class BeastFormService extends ClientListener {
   private onCameraCheck(): void {
     if (!this.beastRace) return;
     if (this.reapplyAt.length && Date.now() >= this.reapplyAt[0]) { this.reapplyAt.shift(); this.applyHands(); }
+    // Something in the engine empties the Vampire Lord's hands a few seconds into the form (Argosh, 20:38); put back
+    // what was chosen once a second. applyHands only equips on a difference.
+    if (Date.now() >= this.nextHandsCheck) { this.nextHandsCheck = Date.now() + 1000; this.applyHands(); }
     try {
       if (this.sp.Game.getCameraState() === FIRST_PERSON_CAMERA) this.sp.Game.forceThirdPerson();
     } catch { /* no camera yet */ }
@@ -239,14 +262,35 @@ export class BeastFormService extends ClientListener {
 
   private beastRace = 0;
   private reapplyAt: number[] = [];
+  private nextHandsCheck = 0;
 
   // Sneak toggles the stance, the same key vanilla uses, read from the player's own bindings
   private onButtonEvent(e: ButtonEvent): void {
     if (!this.beastRace || !e.isDown || e.device !== InputDeviceType.Keyboard) return;
     if (this.onAbilityKey(e.code)) return;
+    if (e.code === this.shoutKey()) { this.reportPower(); return; }
     if (this.beastRace !== VAMPIRE_RACE || e.code !== this.sneakKey()) return;
     this.setVampireStance(this.vampireStance === VL_STATE_LEVITATING ? VL_STATE_WALKING : VL_STATE_LEVITATING);
   }
+
+  // The server gives a power its effect on other players (Howl of Terror, Mist Form, Bats); it keeps the cooldowns
+  private reportPower(): void {
+    const a = this.abilities;
+    if (!a || !a.voice.length || Date.now() - this.lastPowerAt < 1000) return;
+    this.lastPowerAt = Date.now();
+    const entry = a.voice[this.voiceIndex % a.voice.length];
+    sendCustomPacket(this.controller, { customPacketType: "dboBeastPower", spell: entry.id });
+  }
+
+  private shoutKey(): number {
+    if (this.cachedShoutKey !== 0) return this.cachedShoutKey;
+    try { this.cachedShoutKey = this.sp.Input.getMappedKey("Shout", 0) || DxScanCode.Z; }
+    catch { this.cachedShoutKey = DxScanCode.Z; }
+    return this.cachedShoutKey;
+  }
+
+  private lastPowerAt = 0;
+  private cachedShoutKey = 0;
 
   private sneakKey(): number {
     if (this.cachedSneakKey !== 0) return this.cachedSneakKey;
@@ -278,7 +322,12 @@ const parseAbilities = (raw: unknown): BeastAbilities | null => {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const list = (x: unknown): BeastSpell[] => Array.isArray(x)
-    ? x.map((e) => ({ id: Number((e as Record<string, unknown>)["id"]) >>> 0, name: String((e as Record<string, unknown>)["name"] || "") })).filter((e) => e.id)
+    ? x.map((e) => {
+      const r = e as Record<string, unknown>;
+      const out: BeastSpell = { id: Number(r["id"]) >>> 0, name: String(r["name"] || "") };
+      if (r["shout"]) { out.shout = Number(r["shout"]) >>> 0; out.word = Number(r["word"]) >>> 0; }
+      return out;
+    }).filter((e) => e.id)
     : [];
   return { right: list(r["right"]), left: list(r["left"]), voice: list(r["voice"]), passive: list(r["passive"]) };
 };
