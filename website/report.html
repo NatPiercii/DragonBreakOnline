@@ -109,7 +109,7 @@ const $=id=>document.getElementById(id);
 const MAX_IMAGE_BYTES=680*1024, LOG_TAIL_BYTES=180*1024;
 const ERRORS={413:'The report is too large. Leave out one of the logs and try again.',502:'The report could not be filed just now. Try again in a minute, or tell a staff member in Discord.',
   429:'Too many reports just now. Wait a few minutes and try again.',503:'Reporting is switched off on the server right now. Tell a staff member in Discord.'};
-let shot=null, reportId=null, previewUrl=null, encoding=false;
+let shot=null, reportId=null, previewUrl=null, encoding=false, shotGen=0;
 
 function show(view){for(const id of ['loading','lanOnly','unavailable','signedOut','form','sent'])$(id).hidden=id!==view;}
 function status(text,bad){$('status').textContent=text;$('status').className=bad?'bad':'';}
@@ -147,19 +147,23 @@ function clearPreview(){
 }
 
 $('shot').addEventListener('change',async()=>{
+  // Only the newest pick may finish: an older, slower encode is dropped when it returns
+  const gen=++shotGen;
   clearPreview();status('');
   const file=$('shot').files[0];
-  if(!file)return;
+  if(!file){encoding=false;$('send').disabled=false;return;}
   // Send waits until the picture is ready, so an early click cannot drop it
   encoding=true;$('send').disabled=true;status('Preparing the screenshot\u2026');
   try{
     const blob=await encode(file);
-    shot={blob,data:await base64(blob)};
+    const data=await base64(blob);
+    if(gen!==shotGen)return;
+    shot={blob,data};
     previewUrl=URL.createObjectURL(blob);
     $('previewImg').src=previewUrl;
     $('includeShot').checked=true;$('preview').hidden=false;status('');
-  }catch(e){status('That image could not be read. Try a PNG or JPEG screenshot.',true);}
-  finally{encoding=false;$('send').disabled=false;}
+  }catch(e){if(gen===shotGen)status('That image could not be read. Try a PNG or JPEG screenshot.',true);}
+  finally{if(gen===shotGen){encoding=false;$('send').disabled=false;}}
 });
 
 $('note').addEventListener('input',()=>{$('noteCount').textContent=$('note').value.length;});
