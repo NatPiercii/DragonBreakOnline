@@ -430,14 +430,20 @@
     "stations": [
      "MineOre",
      "CYRMineOre",
-     "PickaxeMining"
+     "PickaxeMining",
+     "12SeaSalt",
+     "CYRMineGem",
+     "BSKMineGem"
     ]
    },
    "counts": {
     "_comment": "PickaxeMining is deliberately NOT here: Bruma has 169 PickaxeMining* FURN markers and a bare activation on one would credit the skill with no minigame and no ore. It stays in gates.stations so the markers remain miner-only.",
     "activatePrefixes": [
      "MineOre",
-     "CYRMineOre"
+     "CYRMineOre",
+     "12SeaSalt",
+     "CYRMineGem",
+     "BSKMineGem"
     ]
    },
    "oreByTier": [

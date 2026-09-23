@@ -38,7 +38,15 @@ module.exports = (api) => {
     // Both clocks are monotonic (QPC), so only crystal drift between the two machines (200 ppm over
     // a 30 s round is 6 ms) and the widget's 1 ms quantisation can make the difference negative.
     clockSlackMs: 50,
-    oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1 },
+    oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 2 },
+    // Sea Salt Deposits (Saltdeposits.esp, copied into DragonBreak.esp) and the geodes of Whistling Mine: the Miner tier (0 based)
+    // that opens them, the chance of a rarer salt with the salt, and the cells whose geodes give soul gems
+    extraOreTier: { salt: 0, geode: 1 },
+    saltBonusChance: 0.1,
+    saltBonus: { '3ad5f:Skyrim.esm': 5, '3ad5e:Skyrim.esm': 4, '3ad60:Skyrim.esm': 1 },
+    geodeCells: ['161e7:Skyrim.esm'],
+    // Empty soul gems by weight; never black
+    geodeGems: { '2e4e2:Skyrim.esm': 40, '2e4e4:Skyrim.esm': 30, '2e4e6:Skyrim.esm': 18, '2e4f4:Skyrim.esm': 9, '2e4fc:Skyrim.esm': 3 },
     firewoodByTier: [3, 4, 5, 6, 8],
     veinRestMinutes: 45,
     blockRestMinutes: 10,
@@ -59,6 +67,7 @@ module.exports = (api) => {
     stalhrim: '2b06b:Dragonborn.esm',
     copper: '601c50:BSAssets.esm',
     tin: '601c4f:BSAssets.esm',
+    salt: '34cdf:Skyrim.esm',
     firewood: '6f993:Skyrim.esm',
   }, CFG.items || {});
 
@@ -103,11 +112,31 @@ module.exports = (api) => {
     return m[1].toLowerCase();
   };
 
+  // A Sea Salt Deposit anywhere, and a geode in one of CFG.geodeCells (Whistling Mine), are worked like a seam
+  const GEODE_CELLS = new Set((CFG.geodeCells || []).map((d) => { try { return mp.getIdFromDesc(d) >>> 0; } catch (e) { return 0; } }));
+  const nodeOf = (targetId, edid) => {
+    if (/SeaSalt/i.test(edid)) return 'salt';
+    if (!/^(?:CYR|BSK)MineGem/i.test(edid)) return '';
+    try { return GEODE_CELLS.has(mp.getIdFromDesc(String(mp.get(targetId, 'worldOrCellDesc'))) >>> 0) ? 'geode' : ''; } catch (e) { return ''; }
+  };
+  const weighted = (table) => {
+    const entries = Object.entries(table || {}).filter(([, w]) => Number(w) > 0);
+    let roll = Math.random() * entries.reduce((n, [, w]) => n + Number(w), 0);
+    for (const [d, w] of entries) { roll -= Number(w); if (roll <= 0) return d; }
+    return entries.length ? entries[entries.length - 1][0] : '';
+  };
+  const itemName = (desc) => {
+    try { const r = mp.lookupEspmRecordById(idOf(desc)); const f = r && r.record && r.record.fields && r.record.fields.find((x) => x.type === 'FULL'); if (f && typeof f.data === 'string') return f.data; } catch (e) { /* no name */ }
+    return ({ '34cdf:Skyrim.esm': 'Salt Pile', '3ad5f:Skyrim.esm': 'Frost Salts', '3ad5e:Skyrim.esm': 'Fire Salts', '3ad60:Skyrim.esm': 'Void Salts',
+      '2e4e2:Skyrim.esm': 'a Petty Soul Gem', '2e4e4:Skyrim.esm': 'a Lesser Soul Gem', '2e4e6:Skyrim.esm': 'a Common Soul Gem', '2e4f4:Skyrim.esm': 'a Greater Soul Gem', '2e4fc:Skyrim.esm': 'a Grand Soul Gem' })[desc] || 'something';
+  };
+
   // Ores the tier may work, counting every tier below it
   const oresUpTo = (tier) => {
     const byTier = MINER.oreByTier || [];
     const out = [];
     for (let i = 0; i <= Math.min(tier, byTier.length - 1); i++) for (const ore of byTier[i] || []) out.push(String(ore).toLowerCase());
+    for (const [ore, t] of Object.entries(CFG.extraOreTier || {})) if (Number(t) <= tier) out.push(ore);
     return out;
   };
 
@@ -116,6 +145,7 @@ module.exports = (api) => {
   // ebony). An ore absent from oreByTier cannot be mined at all (oresUpTo refuses it), so the 0 here
   // is only a floor.
   const oreBand = (ore) => {
+    if ((CFG.extraOreTier || {})[ore] !== undefined) return Number(CFG.extraOreTier[ore]) || 0;
     const byTier = MINER.oreByTier || [];
     for (let i = 0; i < byTier.length; i++) {
       if ((byTier[i] || []).some((o) => String(o).toLowerCase() === ore)) return i;
@@ -196,7 +226,7 @@ module.exports = (api) => {
   };
 
   const mine = (targetId, casterId, rec) => {
-    const ore = oreOf(String(rec.record.editorId || ''));
+    const ore = oreOf(String(rec.record.editorId || '')) || nodeOf(targetId, String(rec.record.editorId || ''));
     if (!ore) return false;
     const tier = tierOf(casterId, 'miner');
     // Not a miner yet: fall through rather than deny, so masterySystem's activation gate can grant
@@ -204,12 +234,12 @@ module.exports = (api) => {
     // activate chain before that gate ever runs - the skill could then never be opened at all.
     if (tier < 0) return false;
     if (liveRound(casterId)) return true;
-    if (!ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
+    if (ore !== 'geode' && !ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
     if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${titleCase(ore)} is beyond your skill. Work the seams you know first.`);
     const rests = restsOf(casterId, 'private.minedVeins');
     const until = Number(rests[targetId.toString(16)]) || 0;
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
-    const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), `${titleCase(ore)} Seam`, targetId);
+    const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' ? 'Geode' : `${titleCase(ore)} Seam`, targetId);
     round.ore = ore;
     return startRound(casterId, round);
   };
@@ -233,7 +263,7 @@ module.exports = (api) => {
     if (!rec || !rec.record) return false;
     const type = String(rec.record.type || '');
     const edid = String(rec.record.editorId || '');
-    if (type === 'ACTI' && /^(CYR)?MineOre|^DLC2MineOre/.test(edid)) return mine(targetId, casterId, rec);
+    if (type === 'ACTI' && (/^(CYR)?MineOre|^DLC2MineOre/.test(edid) || nodeOf(targetId, edid))) return mine(targetId, casterId, rec);
     if (type === 'FURN' && /^(DLC2)?WoodChoppingBlock/i.test(edid)) return chop(targetId, casterId);
     return false;
   };
@@ -334,12 +364,17 @@ module.exports = (api) => {
     if (round.kind === 'mining') {
       const base = Number((CFG.oreYieldByOre || {})[round.ore]) || 1;
       const mult = tierValue(MINER.yieldMultiplierByTier, round.tier, 1);
-      const count = Math.max(1, Math.round(base * mult));
-      const ok = giveItem(a, idOf(ITEMS[round.ore]), count);
-      text = ok
-        ? `The seam gives way: ${count} ${titleCase(round.ore)} Ore.`
-        : 'The seam gives way, but you cannot carry any more.';
-      if (ok) audit(`MINE ${who(a)} worked a ${round.ore} seam (tier ${round.tier + 1}) -> ${count} ore`);
+      const count = round.ore === 'geode' ? 1 : Math.max(1, Math.round(base * mult));
+      // A geode holds one soul gem; salt sometimes comes with a rarer salt
+      const gem = round.ore === 'geode' ? weighted(CFG.geodeGems) : '';
+      const bonus = round.ore === 'salt' && Math.random() < (Number(CFG.saltBonusChance) || 0) ? weighted(CFG.saltBonus) : '';
+      const ok = giveItem(a, idOf(gem || ITEMS[round.ore]), count);
+      if (ok && bonus) giveItem(a, idOf(bonus), 1);
+      text = !ok ? 'The seam gives way, but you cannot carry any more.'
+        : round.ore === 'geode' ? `The geode cracks open: ${itemName(gem)}.`
+        : round.ore === 'salt' ? `You scrape out ${count} Salt Pile${count === 1 ? '' : 's'}${bonus ? ` and some ${itemName(bonus)}` : ''}.`
+        : `The seam gives way: ${count} ${titleCase(round.ore)} Ore.`;
+      if (ok) audit(`MINE ${who(a)} worked a ${round.ore} seam (tier ${round.tier + 1}) -> ${count} ${gem ? itemName(gem) : 'ore'}${bonus ? ` + ${itemName(bonus)}` : ''}`);
     } else {
       const count = Math.max(1, Math.round(tierValue(CFG.firewoodByTier, round.tier, 3)));
       const ok = giveItem(a, idOf(ITEMS.firewood), count);
