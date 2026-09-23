@@ -66,6 +66,37 @@
       border-color: rgba(201, 138, 58, 0.7);
       box-shadow: 0 0 18px rgba(201, 138, 58, 0.3);
     }
+
+    // A wrong reading: a short shake and an amber edge.
+    &--shake {
+      animation: reading-shake 0.45s ease-in-out;
+      border-color: rgba(201, 138, 58, 0.7);
+    }
+  }
+
+  &__hint--feedback {
+    color: $dbo-amber;
+    font-style: normal;
+  }
+
+  &__answer {
+    margin: -4px 0 0;
+    color: $dbo-text-dim;
+    font-family: $dbo-book-font;
+    font-size: 16px;
+    text-align: center;
+
+    em {
+      color: $dbo-text;
+    }
+  }
+
+  &__keys {
+    margin: -4px 0 0;
+    color: $dbo-text-dim;
+    font-size: 12px;
+    text-align: center;
+    opacity: 0.8;
   }
 
   &__line-empty {
@@ -107,12 +138,42 @@
       background: linear-gradient(170deg, #cfe8e6, #a9d6d3 60%, #8fc9c6);
       border-color: $dbo-aqua-dim;
     }
+
+    // Already right from the start: fixed in place until the round ends.
+    &--locked {
+      border-color: $dbo-aqua;
+      box-shadow: 0 0 10px dbo-accent(0.45);
+      cursor: default;
+
+      &:hover:not(:disabled) {
+        transform: none;
+      }
+    }
+  }
+
+  &__candle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 14px 0;
+  }
+
+  &__time {
+    min-width: 3.2em;
+    color: $dbo-text-dim;
+    font-size: 14px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+
+    &--low {
+      color: $dbo-amber;
+    }
   }
 
   &__candle {
     position: relative;
+    flex: 1;
     height: 12px;
-    margin: 6px 14px 0;
     border: 1px solid $dbo-border-strong;
     background: rgba(8, 25, 28, 0.7);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
@@ -145,4 +206,12 @@
   &__button {
     @include dbo-button;
   }
+}
+
+@keyframes reading-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
 }
