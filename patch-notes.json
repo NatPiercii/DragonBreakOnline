@@ -1,5 +1,50 @@
 [
   {
+    "title": "Fallen, Not Finished",
+    "date": "2026-09-23",
+    "tag": "Update",
+    "version": "Client 0.3.27",
+    "sections": [
+      {
+        "heading": "Falling in battle",
+        "items": [
+          "A player who falls is now down, not dead. You lie where you fell for 60 seconds before waking at the temple, and a banner tells you so.",
+          "Only a Priest of the fourth tier can raise the fallen: cast Healing Hands or Heal Other on them, or Grand Healing with them close by. They get up where they lay with a quarter of their health.",
+          "Someone who fought you in the last minute cannot raise you.",
+          "Tired of waiting? Type /respawn to wake at the temple at once.",
+          "A hostile player can finish off someone who is down, sending them to the temple. Creatures and bandits leave the fallen alone.",
+          "Alchemists will soon be able to brew a potion that raises the fallen."
+        ]
+      },
+      {
+        "heading": "Friendly fire",
+        "items": [
+          "Party members, and their summons and companions, now take a fifth of the damage from each other. A stray sword or fireball can no longer kill a friend outright."
+        ]
+      },
+      {
+        "heading": "Summons and companions",
+        "items": [
+          "The companion panel no longer keeps showing a summon after it dies or its time runs out.",
+          "A summon told to attack something it cannot reach no longer stands still until you leave the area. Once you are far enough away, it gives up and comes back to you."
+        ]
+      },
+      {
+        "heading": "Messages",
+        "items": [
+          "Important messages, such as an ability that is not ready yet, now appear across the middle of your screen instead of only in chat.",
+          "When a character's life ends for good, you now see it and are returned to the menu, where that character is marked as dead."
+        ]
+      },
+      {
+        "heading": "Launcher",
+        "items": [
+          "The launcher downloads one small new file, DragonBreak Nexus Patches. It carries changes the server already made to a few mods (crafting recipes and notice boards), so your game now matches the server exactly."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Beasts Unleashed",
     "date": "2026-09-23",
     "tag": "Update",
