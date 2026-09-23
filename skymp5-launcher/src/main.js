@@ -475,7 +475,6 @@ ipcMain.handle('hotkeys:load', () => {
       adminMenu:  numOrNull(c.adminMenuKeyCode),
       hideUi:     numOrNull(c.hideUiKeyCode),
       skills:     numOrNull(c.masteryMenuKeyCode),
-      bounty:     numOrNull(c.bountyBoardMenuKeyCode),
       emote:      numOrNull(c.emoteWheelKeyCode),
       nametag:    numOrNull(c.nametagKeyCode),
       voiceMode:  numOrNull(c.voiceModeKeyCode),
@@ -526,7 +525,6 @@ ipcMain.handle('hotkeys:save', (_e, h) => {
     if (typeof h.adminMenu === 'number')   c.adminMenuKeyCode = h.adminMenu
     if (typeof h.hideUi === 'number')      c.hideUiKeyCode = h.hideUi
     if (typeof h.skills === 'number')      c.masteryMenuKeyCode = h.skills
-    if (typeof h.bounty === 'number')      c.bountyBoardMenuKeyCode = h.bounty
     if (typeof h.emote === 'number')       c.emoteWheelKeyCode = h.emote
     if (typeof h.nametag === 'number')     c.nametagKeyCode = h.nametag
     if (typeof h.voiceMode === 'number')   c.voiceModeKeyCode = h.voiceMode
@@ -3158,7 +3156,7 @@ function writeClientSettings(destPath, srv, serverInfo) {
   const HOTKEY_KEYS = [
     'chatFocusKeyCodes', 'freeCursorKeyCode', 'housingMenuKeyCode',
     'factionMenuKeyCode', 'personalMenuKeyCode',
-    'voicePushToTalkKeyCode', 'adminMenuKeyCode', 'hideUiKeyCode', 'masteryMenuKeyCode', 'bountyBoardMenuKeyCode', 'emoteWheelKeyCode', 'nametagKeyCode', 'dboHotkeyDefaults',
+    'voicePushToTalkKeyCode', 'adminMenuKeyCode', 'hideUiKeyCode', 'masteryMenuKeyCode', 'emoteWheelKeyCode', 'nametagKeyCode', 'dboHotkeyDefaults',
     'playerActionKeyCode', 'voiceModeKeyCode', 'maskToggleKeyCode', 'voice', 'uiScale', 'panelScaleReset',
   ]
   let prev = {}

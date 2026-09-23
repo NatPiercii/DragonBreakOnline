@@ -1,6 +1,6 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customPacketUtil";
-import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuHotkeyBlocked } from "./widgetMenuUtil";
+import { openFormMenu, closeFormMenu } from "./widgetMenuUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
@@ -55,13 +55,14 @@ let info: BoardInfo = {
 
 /**
  * Notice board menu: opens when a board is activated (the server pushes the
- * menu), or on N near a board the server already knows. One board per hold,
+ * menu). One board per hold,
  * three tabs (Hold Notices for officials, Shop Ads, Citizen Notices). Reading
  * is free; a Shop or Citizen post costs gold, taken server-side.
  *
  * Protocol - all messages are MsgType.CustomPacket with a JSON dump.
  *
- *   Client -> Server: { "customPacketType": "bountyBoardOpenRequest" }
+ *   (bountyBoardOpenRequest is still accepted server-side; the gamemode's
+ *    /board command reaches the same handler. The client no longer sends it.)
  *   Server -> Client: { "customPacketType": "bountyBoardMenu", "board", "boardName",
  *                       "reason", "costGold", "gold", "maxTextLen", "maxNotes",
  *                       "expiryDays", "tabs", "notes" }
@@ -84,10 +85,9 @@ export class BountyBoardService extends ClientListener {
       sendCustomPacket(this.controller, { customPacketType: "bountyBoardClose" });
     });
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
-
-    this.menuKey = readMenuKeyCode(this.sp, "bountyBoardMenuKeyCode", DxScanCode.N);
   }
 
+  // A board is opened by activating it. The only key left here closes the menu.
   private onButtonEvent(e: ButtonEvent): void {
     // Gamepad idCodes are bitmasks that alias onto keyboard scancodes
     if (e.device !== InputDeviceType.Keyboard) return;
@@ -95,9 +95,6 @@ export class BountyBoardService extends ClientListener {
       this.closeMenu();
       return;
     }
-    if (e.code !== this.menuKey || !e.isDown || this.menuOpen) return;
-    if (isMenuHotkeyBlocked(this.sp, this.controller)) return;
-    sendCustomPacket(this.controller, { customPacketType: "bountyBoardOpenRequest" });
   }
 
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
@@ -200,6 +197,5 @@ export class BountyBoardService extends ClientListener {
     window.skyrimPlatform.widgets.set(others.concat([widget]));
   };
 
-  private menuKey: DxScanCode = DxScanCode.N;
   private menuOpen = false;
 }
