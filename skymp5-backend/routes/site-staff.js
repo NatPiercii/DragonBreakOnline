@@ -22,9 +22,17 @@ router.use((_req, res, next) => {
   next()
 })
 
+// The bot's HTTP fallback has no timeout of its own, so a slow Discord would hang the page: give up and refuse
+const ROLE_CHECK_MS = 8000
+function withDeadline(promise) {
+  let timer
+  const deadline = new Promise(resolve => { timer = setTimeout(() => resolve(false), ROLE_CHECK_MS) })
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer))
+}
+
 async function isStaff(discordId) {
   for (const roleId of config.siteStaffRoleIds) {
-    try { if (await discordBot.memberHasRole(discordId, roleId)) return true }
+    try { if (await withDeadline(discordBot.memberHasRole(discordId, roleId))) return true }
     catch (err) { console.error('[site-staff] role lookup failed:', err.message) }
   }
   return false
