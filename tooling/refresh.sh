@@ -14,6 +14,7 @@ cp "$ROOT/ck-mcp/git-hooks/pre-commit" "$HERE/ck-mcp/git-hooks/"
 cp "$ROOT/.mcp.json" "$HERE/ck-mcp/mcp.json.example"
 
 cp "$ROOT/Skyrim Special Edition - dev/Edit Scripts"/DBO_*.pas "$HERE/xedit-scripts/"
+cp "$ROOT/Skyrim Special Edition - dev/Edit Scripts/DBO_NexusPatches_list.txt" "$HERE/xedit-scripts/"
 cp "$ROOT/SSEEdit 4.1.5f/Edit Scripts"/DBO*.pas "$HERE/xedit-scripts/"
 
 cp "$ROOT/dev-server.sh" "$ROOT/backup-git.cmd" "$HERE/ops/"

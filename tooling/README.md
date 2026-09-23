@@ -31,11 +31,27 @@ Python 3.14, `pip install mcp` for `server.py` only, SSEEdit 4.1.5 for the `.pas
 `-autoload -script:X.pas -autoexit -D:"<Data>" -P:"<root>\server\plugins.server.txt"`). Generators take
 2-20 minutes each and must be re-run after any load-order or DragonBreak plugin change.
 
-## The six edited third-party plugins
+## DragonBreak Nexus Patches.esp: the six edited third-party plugins
 
-The server's `data\` copies of six Nexus plugins differ from the Nexus files in the reference MO2 install.
-Record counts, master lists and header flags are unchanged, so form ids line up on both sides. That is
-why nothing has visibly broken. `py ck-mcp\thirdparty_diff.py` prints this table.
+Until 2026-09-23 the server's `data\` copies of six Nexus plugins differed from the Nexus files players
+install. Record counts, master lists and header flags were unchanged, so form ids lined up and nothing
+visibly broke, but players and the server ran different records. Under MO2 a file in `Data` loses to the
+same file in a mod folder, so the edited copies could not be shipped to players.
+
+The edits now live in `DragonBreak Nexus Patches.esp`, loaded last and shipped through the launcher's
+extra-files channel, and every machine runs the six Nexus originals. `xedit-scripts/DBO_NexusPatches.pas`
+built it from `DBO_NexusPatches_list.txt` (783 records). It left out 36 records that a later plugin already
+overrides (26 in DragonBreak Online Edits, 12 in the two notice-board compatibility patches, 1 in
+JK's North), because their winning version was already that later one. It also carries the 40 parent
+CELL/WRLD records, copied from their winning override so they change nothing. Checked byte by byte against
+the edited copies: identical apart from remapped form ids. The exceptions are xEdit sorting each recipe's
+ingredient list (the server matches ingredients by count, not order) and zeroing an unused junk
+condition parameter in 9 Immersive Armors recipes. The edited copies are kept in
+`server\_nexus-edited-backup-20260923\`.
+
+**Rule from here: never edit a third-party plugin in place. Put the change in this patch.**
+`py ck-mcp\thirdparty_diff.py` compares `server\data` with the MO2 install and should report no changes.
+What the patch changes (the diff before the switch):
 
 | Plugin | Changed records | What changed |
 |---|---|---|

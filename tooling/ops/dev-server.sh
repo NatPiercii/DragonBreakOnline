@@ -10,7 +10,7 @@
 #   bash dev-server.sh logs [unit] [lines]    skymp: /var/log/skymp-server.log; other units: journal
 #   bash dev-server.sh run '<command>'        one command on the server, non-interactive
 #   bash dev-server.sh deploy-gameplay        push server\*.js/json (tracked) live; hot-reloads, keeps admins
-#   bash dev-server.sh deploy-plugins         the 9 non-Nexus plugins -> game server + launcher sync; updates SHA256SUMS
+#   bash dev-server.sh deploy-plugins         the 10 DragonBreak-owned plugins -> game server + launcher sync; updates SHA256SUMS
 #   bash dev-server.sh deploy-news            server\patch-notes.json (committed) -> launcher news feed, no restart
 #   bash dev-server.sh announce '<text>'      on-screen + chat message to every online player (gamemode announce.json)
 #   bash dev-server.sh restart <unit> --yes   restart a unit; refuses without --yes
@@ -63,14 +63,15 @@ case "${1:-status}" in
       rm -rf "$T" /tmp/claude-nate-gameplay.tar; echo "installed; previous files in $B"; sleep 8
       sudo -n tail -n 400 /var/log/skymp-server.log | grep -E "\[gamemode\] loaded|\[error\]" | tail -5' ;;
   deploy-plugins)
-    # The 9 non-Nexus plugins in server\data -> /opt/skyrim-data (game server, restarted only if one changed) and the
+    # The 10 DragonBreak-owned plugins in server\data -> /opt/skyrim-data (game server, restarted only if one changed) and the
     # launcher's extra files (then its manifest is rebuilt). Updates fork\deploy\skyrim-data\SHA256SUMS; commit + push that.
     ROOT="$(cd "$(dirname "$0")" && pwd)"
     SUMS="$ROOT/fork/deploy/skyrim-data/SHA256SUMS"
     # DBO_PLUGIN_SRC overrides serverdata, e.g. the dev Data copy while a local server holds serverdata open
     SRC="${DBO_PLUGIN_SRC:-$ROOT/server/data}"
     PLUGINS=("DragonBreak.esp" "DragonBreak Built.esp" "DragonBreak Dungeons.esp" "DragonBreak Harvest.esp" "DragonBreak Hub.esp"
-      "DragonBreak Whiterun.esp" "DragonBreak Online Edits.esp" "LostArk_Kamen.esp" "[Kirax] Lost Ark Reborn Paladin Legendary.esp")
+      "DragonBreak Whiterun.esp" "DragonBreak Online Edits.esp" "LostArk_Kamen.esp" "[Kirax] Lost Ark Reborn Paladin Legendary.esp"
+      "DragonBreak Nexus Patches.esp")
     node -e 'const fs=require("fs"),crypto=require("crypto"),path=require("path");const [sums,data,...names]=process.argv.slice(1);
       let s=fs.readFileSync(sums,"utf8");let n=0;for(const p of names){const h=crypto.createHash("sha256").update(fs.readFileSync(path.join(data,p))).digest("hex");
       const re=new RegExp("^[0-9a-f]{64}  "+p.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"$","m");if(!re.test(s))throw new Error("not in SHA256SUMS: "+p);
@@ -84,7 +85,11 @@ for f in "$T"/*; do n=$(basename "$f"); cmp -s "$f" "$D/$n" || changed+=("$n"); 
 if [ ${#changed[@]} -gt 0 ]; then
   mkdir -p "$B"; for n in "${changed[@]}"; do cp -a "$D/$n" "$B/" 2>/dev/null || true; done
   systemctl stop skymp
-  for n in "${changed[@]}"; do install -m 644 -o root -g root "$T/$n" "$D/$n"; sed -i "s|^[0-9a-f]\{64\}  $(printf '%s' "$n" | sed 's/[][\.*^$|]/\\&/g')\$|$(sha256sum < "$T/$n" | cut -c1-64)  $n|" "$D/SHA256SUMS"; done
+  for n in "${changed[@]}"; do
+    install -m 644 -o root -g root "$T/$n" "$D/$n"; h=$(sha256sum < "$T/$n" | cut -c1-64)
+    if grep -qF "  $n" "$D/SHA256SUMS"; then sed -i "s|^[0-9a-f]\{64\}  $(printf '%s' "$n" | sed 's/[][\.*^$|]/\\&/g')\$|$h  $n|" "$D/SHA256SUMS"
+    else printf '%s  %s\n' "$h" "$n" >> "$D/SHA256SUMS"; fi
+  done
   systemctl start skymp
   echo "game server: ${#changed[@]} plugin(s) replaced and restarted (old copies in $B): ${changed[*]}"
 else
