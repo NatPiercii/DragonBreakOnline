@@ -39,8 +39,11 @@
   }
  ],
  "reading": {
-  "_comment": "Scholar book mini-game: seconds the candle burns, minutes before the same book can be read again, minutes after a failed read.",
-  "seconds": 25,
+  "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",
+  "baseSeconds": 30,
+  "secondsPerWord": 6,
+  "wrongPenaltySeconds": 8,
+  "wordsByTier": [[5, 7], [6, 8], [7, 9], [8, 10], [9, 12]],
   "cooldownMinutes": 30,
   "loseCooldownMinutes": 2
  },

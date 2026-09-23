@@ -1482,7 +1482,16 @@ registerChatCommand('officials', (a, args) => {
 // A placed BOOK can never be picked up. A Scholar who uses one gets a shuffled sentence and the
 // candle; the server judges the order and rolls the Scholar tables (copy of the book, and at the
 // higher tiers a scroll or a spell tome from readables.json). Work is credited to the skill on a win.
-const READ = Object.assign({ enabled: true, seconds: 25, cooldownMinutes: 30, loseCooldownMinutes: 2, minWords: 6, maxWords: 9 }, cfg.reading || {});
+// The candle is baseSeconds plus secondsPerWord for each word, and the sentence grows with the
+// Scholar's tier (wordsByTier). A wrong reading is not the end: it burns wrongPenaltySeconds off the
+// candle, and the words already right from the start lock in. The server holds the deadline; the
+// candle on screen is only a picture of it. A Cyrodiil book (a Beyond Skyrim plugin) reads a Cyrodiil line.
+const READ = Object.assign({
+  enabled: true, baseSeconds: 30, secondsPerWord: 6, wrongPenaltySeconds: 8, graceMs: 2500,
+  cooldownMinutes: 30, loseCooldownMinutes: 2,
+  wordsByTier: [[5, 7], [6, 8], [7, 9], [8, 10], [9, 12]],
+}, cfg.reading || {});
+const candleMs = (words) => Math.round((Number(READ.baseSeconds) + Number(READ.secondsPerWord) * words) * 1000);
 const READ_WIDGET_ID = 30;
 const SKILLS_DEF = (() => { try { return JSON.parse(fs.readFileSync(path.resolve('skills.json'), 'utf8')); } catch (e) { return {}; } })();
 const SCHOLAR = ((SKILLS_DEF.skills || []).find((k) => k.id === 'scholar')) || {};
@@ -1528,7 +1537,54 @@ const READ_LINES = [
   'Vampires drink from the cup that Molag Bal poured',
   'Windhelm was old when the Empire was still an idea',
   'Talos was a man before the Thalmor said otherwise',
+  'The Nine watch over Skyrim',
+  'Mead warms cold Nord hands',
+  'Snow covers the graves of heroes',
+  'Old Nord tombs are never truly empty',
+  'Skyrim remembers every insult and forgets every kindness before the thaw',
+  'In Riften the Thieves Guild runs the market more than the Jarl',
+  'Seven thousand steps lead the pilgrim up to High Hrothgar',
 ];
+// Read from a book placed by a Beyond Skyrim plugin, which is every book the Bruma playtest can reach.
+const READ_LINES_CYRODIIL = [
+  'Bruma remembers the Great War',
+  'Candles burn low in Bruma winters',
+  'The mountain wind never truly rests',
+  'Bruma welcomes travellers who pay the toll',
+  'Ice holds the lake until spring',
+  'Nibenese merchants count every coin twice',
+  'Martin Septim shattered the Amulet of Kings',
+  'Goats graze where the snow melts first',
+  'Snow buries the careless and the brave alike',
+  'The Jerall Mountains stand between two proud peoples',
+  'Cloud Ruler Temple watches the pass above Bruma',
+  'The Legion marches on roads the Legion built',
+  'The Countess keeps the treasury and the peace',
+  'Ayleid ruins sleep beneath the forests of Cyrodiil',
+  'Skingrad wine is poured at every noble table',
+  'Leyawiin smells of the sea and the swamp',
+  'Cheydinhal keeps its river and its Dunmer quarter',
+  'The Arena crowd cheers loudest for the fallen',
+  'Bruma keeps its gates shut against the northern wind',
+  'Every road in Cyrodiil leads to the Imperial City',
+  'The Elder Council speaks while the throne stays silent',
+  'Colovian highlanders trust a sword more than a senator',
+  'Oblivion gates opened across Cyrodiil in a single night',
+  'Frost comes early to the northern roads of Cyrodiil',
+  'A Bruma guard knows every face at the gate',
+  'Hunters bring pelts down from the hills to trade',
+  'The Imperial City rises from the heart of Lake Rumare',
+  'Welkynd stones still glow in the dark of Ayleid halls',
+  'Chorrol stands in the shade of its great old oak',
+  'The oldest houses in Bruma were built by Nords from Skyrim',
+  'Winter nights in Bruma are long enough to read three books',
+  'Every Countess of Bruma has sworn to hold the northern pass',
+  'When the Dragonfires went out all of Tamriel held its breath',
+  'A scholar at the Arcane University reads while the whole city sleeps',
+  'Traders crossing the Jerall Mountains pay in coin and in frostbitten fingers',
+  "The Emperor's roads were paved so the Legion could march in any season",
+];
+const CYRODIIL_PLUGINS = new Set(['bsheartland.esm', 'bsassets.esm']);
 const readSessions = new Map(); // actorId -> { nonce, refId, baseId, title, original, shuffled, startedAt, tier }
 const readDeny = new Map();
 const masteryOf = (a) => { try { const r = mp.get(a, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } };
@@ -1536,7 +1592,19 @@ const scholarTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.
 const readsOf = (a) => { try { const r = mp.get(a, 'private.scholarReads'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
 const humanize = (edid) => String(edid || 'a book').replace(/^(DLC\d|Book\d*|DA\d+|MS\d+|MQ\d+)/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'a book';
 const shuffleIdx = (n) => { const idx = [...Array(n).keys()]; for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; } return idx; };
-const readLine = () => { const pool = READ_LINES.filter((l) => { const n = l.split(' ').length; return n >= READ.minWords && n <= READ.maxWords; }); return (pool.length ? pool : READ_LINES)[Math.floor(Math.random() * (pool.length ? pool : READ_LINES).length)]; };
+// A line as long as the tier asks for, from the book's own province; the whole list if none fits.
+const readLine = (tier, cyrodiil) => {
+  const lines = cyrodiil ? READ_LINES_CYRODIIL : READ_LINES;
+  const band = (READ.wordsByTier || [])[Math.max(0, Math.min(tier, (READ.wordsByTier || []).length - 1))] || [6, 9];
+  const pool = lines.filter((l) => { const n = l.split(' ').length; return n >= band[0] && n <= band[1]; });
+  const from = pool.length ? pool : lines;
+  return from[Math.floor(Math.random() * from.length)];
+};
+// The widget as the server sees the round: the candle length for the picture, and what is left of it.
+const readWidget = (ses, extra) => Object.assign({
+  type: 'reading', id: READ_WIDGET_ID, nonce: ses.nonce, title: ses.title, words: ses.shuffled.map((i) => ses.original[i]),
+  seconds: Math.round(ses.candleMs / 1000), endsInMs: Math.max(0, ses.deadline - Date.now()), locked: ses.locked, attempt: ses.attempts,
+}, extra || {});
 globalThis.__dboReadBook = (targetId, casterId) => {
   if (!READ.enabled || targetId >= 0xff000000) return false;
   let rec = null; try { rec = mp.lookupEspmRecordById(mp.getIdFromDesc(String(mp.get(targetId, 'baseDesc')))); } catch (e) { return false; }
@@ -1546,15 +1614,24 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   const tier = scholarTier(casterId);
   const deny = (text) => { if (Date.now() - (readDeny.get(casterId) || 0) > 1500) { readDeny.set(casterId, Date.now()); personal(casterId, text); } return true; };
   if (tier < 0) return deny('Only a Scholar may read the books of the world.');
-  if (readSessions.has(casterId)) return true;
+  // A round nobody answered (the reader disconnected, or the client never sent the guttered candle) expires
+  // rather than blocking every book until a restart.
+  const open = readSessions.get(casterId);
+  if (open && Date.now() < open.deadline + READ.graceMs + 10000) return true;
+  readSessions.delete(casterId);
   const key = targetId.toString(16); const reads = readsOf(casterId);
   const until = Number(reads[key]) || 0;
   if (until > Date.now()) return deny(`You read this not long ago. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
-  const line = readLine(); const original = line.split(' ');
-  let shuffled = shuffleIdx(original.length); if (shuffled.every((v, i) => v === i)) shuffled = shuffled.slice(1).concat(shuffled.slice(0, 1));
+  const cyrodiil = CYRODIIL_PLUGINS.has(String(mp.get(targetId, 'baseDesc')).split(':')[1].toLowerCase());
+  const line = readLine(tier, cyrodiil); const original = line.split(' ');
+  let shuffled = shuffleIdx(original.length);
+  // Never hand out a sentence that already reads right, word for word (a repeated word can do that too).
+  for (let tries = 0; tries < 10 && shuffled.every((v, i) => original[v] === original[i]); tries++) shuffled = shuffleIdx(original.length);
   const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-  readSessions.set(casterId, { nonce, refId: targetId, baseId, title, original, shuffled, startedAt: Date.now(), tier });
-  if (!openWidget(casterId, { type: 'reading', id: READ_WIDGET_ID, nonce, title, words: shuffled.map((i) => original[i]), seconds: READ.seconds }, true)) readSessions.delete(casterId);
+  const ms = candleMs(original.length);
+  const ses = { nonce, refId: targetId, baseId, title, original, shuffled, startedAt: Date.now(), deadline: Date.now() + ms, candleMs: ms, tier, locked: [], attempts: 0 };
+  readSessions.set(casterId, ses);
+  if (!openWidget(casterId, readWidget(ses), true)) readSessions.delete(casterId);
   return true;
 };
 const endRead = (a) => { readSessions.delete(a); closeWidget(a, READ_WIDGET_ID); };
@@ -1562,11 +1639,30 @@ onUi('readingCancel', (a) => endRead(a));
 onUi('close', (a, args, widgetId) => { if (widgetId === READ_WIDGET_ID) readSessions.delete(a); });
 onUi('reading', (a, args) => {
   const ses = readSessions.get(a); if (!ses || String(args[0]) !== ses.nonce) return;
-  const elapsed = Date.now() - ses.startedAt;
   let order = []; try { order = JSON.parse(String(args[1] || '[]')); } catch (e) { order = []; }
   if (!Array.isArray(order)) order = [];
   const n = ses.original.length;
-  const win = elapsed <= READ.seconds * 1000 + 2500 && order.length === n && order.every((v, k) => Number.isInteger(v) && v >= 0 && v < n && ses.shuffled[v] === k);
+  const valid = order.every((v) => Number.isInteger(v) && v >= 0 && v < n) && new Set(order).size === order.length
+    && ses.locked.every((v, k) => order[k] === v);
+  // Judged by the words, not by which card carried them: two cards reading "the" are interchangeable.
+  const words = valid ? order.map((i) => ses.original[ses.shuffled[i]]) : [];
+  const inTime = Date.now() <= ses.deadline + READ.graceMs;
+  const right = valid && order.length === n && words.every((w, k) => w === ses.original[k]);
+  if (inTime && valid && !right && order.length) {
+    // A wrong reading costs candle, not the round. What is right from the start stays put.
+    let k = 0; while (k < words.length && words[k] === ses.original[k]) k++;
+    ses.locked = order.slice(0, k);
+    ses.attempts++;
+    ses.deadline -= Number(READ.wrongPenaltySeconds) * 1000;
+    if (Date.now() < ses.deadline) {
+      const feedback = k
+        ? `Not quite. The first ${k === 1 ? 'word is' : `${k} words are`} right. The candle burns lower.`
+        : 'Not quite. Even the first word is wrong. The candle burns lower.';
+      openWidget(a, readWidget(ses, { feedback }), true);
+      return;
+    }
+  }
+  const win = inTime && right;
   const reads = readsOf(a);
   const results = [];
   if (win) {
@@ -1592,10 +1688,10 @@ onUi('reading', (a, args) => {
   for (const k of Object.keys(reads)) if (Number(reads[k]) < Date.now()) delete reads[k];
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
   const text = win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.';
-  openWidget(a, { type: 'reading', id: READ_WIDGET_ID, nonce: ses.nonce, title: ses.title, words: ses.shuffled.map((i) => ses.original[i]), seconds: READ.seconds, result: text, resultKind: win ? 'win' : 'lose' }, false);
+  openWidget(a, readWidget(ses, { result: text, resultKind: win ? 'win' : 'lose', endsInMs: 0, answer: win ? undefined : ses.original.join(' ') }), false);
   readSessions.delete(a);
 });
-log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, ${READ.seconds}s candle, ${READ.cooldownMinutes} min per book`);
+log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim and ${READ_LINES_CYRODIIL.length} Cyrodiil lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);
 
 // ---- dungeons: one-hour leases, parties, difficulty, locked chests (server\dungeons.js) --------
 try {
