@@ -55,28 +55,32 @@
   &__panel {
     position: absolute;
     left: 56%;
-    top: 47%;
+    top: 43%;
     transform: translateX(-50%);
-    width: min(640px, calc(50 * var(--dbo-vw)));
-    max-height: calc(48 * var(--dbo-vh));
-    overflow-y: auto;
+    width: min(660px, calc(52 * var(--dbo-vw)));
+    // The panel itself never scrolls: the heading and the Play button stay put and
+    // only the slot list moves, so the one control that matters is always on screen.
+    max-height: calc(55 * var(--dbo-vh));
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 30px 34px 26px;
+    gap: 12px;
+    padding: 26px 30px 22px;
     @include dbo-panel;
   }
 
   &__heading {
     margin: 0;
+    flex: 0 0 auto;
     @include dbo-title;
-    font-size: clamp(22px, calc(2.2 * var(--dbo-vw)), 32px);
+    font-size: clamp(20px, calc(1.9 * var(--dbo-vw)), 28px);
     letter-spacing: 0.16em;
     text-transform: uppercase;
   }
 
   &__sub {
-    margin: 0 0 6px;
+    margin: 0 0 2px;
+    flex: 0 0 auto;
     color: $dbo-text-dim;
     font-family: $dbo-book-font;
     font-style: italic;
@@ -86,16 +90,31 @@
   &__slots {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 9px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 10px;
+    margin-right: -4px;
+    // Softens the top and bottom cut so a scrolled list does not end on a hard edge
+    mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+
+    &::-webkit-scrollbar { width: 6px; }
+    &::-webkit-scrollbar-track { background: rgba(4, 12, 14, 0.5); }
+    &::-webkit-scrollbar-thumb {
+      background: dbo-accent(0.4);
+      border: 1px solid dbo-accent(0.15);
+    }
+    &::-webkit-scrollbar-thumb:hover { background: dbo-accent(0.65); }
   }
 
   // One card per slot: sigil, name block, actions.
   &__slot {
     display: grid;
-    grid-template-columns: 74px 1fr auto;
+    grid-template-columns: 58px 1fr auto;
     align-items: center;
-    gap: 18px;
-    padding: 18px 20px;
+    gap: 16px;
+    padding: 12px 16px;
     background: $dbo-panel-soft;
     border: 1px solid $dbo-border;
     cursor: pointer;
@@ -116,6 +135,14 @@
       border-style: dashed;
 
       .dboSelect__name { color: $dbo-text-dim; }
+      // The title face has no '+', so it falls back to a stray glyph
+      .dboSelect__sigil {
+        font-family: $dbo-ui-font;
+        font-size: 24px;
+        color: dbo-accent(0.75);
+
+        &::before { background: linear-gradient(160deg, dbo-accent(0.1), rgba(8, 25, 28, 0.9)); }
+      }
     }
 
     &--dead {
@@ -128,20 +155,28 @@
   }
 
   // The diamond mark: first letter of the name, or + on an empty slot.
+  // The diamond is the pseudo-element, not the box: the glyph is a bare text node,
+  // so a counter-rotation on `> *` never reached it and every initial sat on its side.
   &__sigil {
+    position: relative;
     display: grid;
     place-items: center;
-    width: 64px;
-    height: 64px;
+    width: 50px;
+    height: 50px;
     justify-self: center;
-    background: linear-gradient(160deg, dbo-accent(0.22), rgba(8, 25, 28, 0.9));
-    border: 1px solid $dbo-border;
-    transform: rotate(45deg);
     color: $dbo-silver;
     font-family: $dbo-title-font;
-    font-size: 26px;
+    font-size: 22px;
 
-    > * { transform: rotate(-45deg); }
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(160deg, dbo-accent(0.22), rgba(8, 25, 28, 0.9));
+      border: 1px solid $dbo-border;
+      transform: rotate(45deg);
+    }
   }
 
   &__who {
@@ -222,7 +257,10 @@
     align-items: stretch;
     justify-content: space-between;
     gap: 14px;
-    margin-top: 4px;
+    flex: 0 0 auto;
+    margin-top: 2px;
+    padding-top: 14px;
+    border-top: 1px solid dbo-accent(0.22);
   }
 
   &__button {

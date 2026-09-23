@@ -25,6 +25,7 @@ interface CharacterSlot {
 }
 
 const WIDGET_ID = 7;
+const SAW_GAMEPLAY_KEY = "dboCharSelectSawGameplay";
 const MENU_REQUEST_RETRY_MS = 4000;
 const MENU_REQUEST_GIVE_UP_MS = 90000;
 const MENU_RECONNECT_RETRY_MS = 12000;
@@ -114,7 +115,9 @@ export class CharacterSelectService extends ClientListener {
     this.controller.on("menuOpen", (e) => this.onMenuOpen(e));
     this.controller.on("tick", () => this.onTick());
     // "update" fires only in-game, so the first one marks the initial spawn.
+    // gameLoad covers a world load the first update was missed on.
     this.controller.once("update", () => { this.sawGameplay = true; });
+    this.controller.emitter.on("gameLoad", () => { this.sawGameplay = true; });
     // The hide UI key drops focus; the modal must be clickable again once shown
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (!e.hidden && this.menuOpen) this.sp.browser.setFocused(true); });
 
@@ -292,7 +295,21 @@ export class CharacterSelectService extends ClientListener {
   };
 
   private menuOpen = false;
-  private sawGameplay = false;
+  // Quitting to the main menu can reload the script context, which used to reset this
+  // to false and wedge the reopen off for the rest of the session: sp.storage survives it.
+  private get sawGameplay(): boolean {
+    try {
+      if (this.sp.storage[SAW_GAMEPLAY_KEY] === true) return true;
+    } catch { /* storage unavailable, fall back to the field */ }
+    return this.sawGameplayFallback;
+  }
+
+  private set sawGameplay(value: boolean) {
+    this.sawGameplayFallback = value;
+    try { this.sp.storage[SAW_GAMEPLAY_KEY] = value; } catch { /* storage unavailable */ }
+  }
+
+  private sawGameplayFallback = false;
   private wantMenuSince = 0;
   private lastMenuAttempt = 0;
   private lastReconnect = 0;

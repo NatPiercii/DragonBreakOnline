@@ -250,7 +250,11 @@ export class Spawn implements System {
   // Rapid repeats or requests right after actor assign skip the grace scheduling: packet spam / stale menu events must not park a body that is being played
   private onMenuRequest(ctx: SystemContext, userId: number): void {
     const auth = this.authCache.get(userId);
-    if (!auth) return; // not authenticated yet
+    if (!auth) {
+      // Silent until now, which made a failed reopen indistinguishable from a request that never arrived
+      this.log("Character select requested by user", userId, "before authentication, ignored");
+      return;
+    }
     if (!this.pending.has(userId)) {
       const now = Date.now();
       const mayPark = now - (this.lastMenuRequestMs.get(userId) ?? 0) >= REQUEST_COOLDOWN_MS &&
