@@ -2654,6 +2654,13 @@ try {
   require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf: (a) => needsOf(a).hunger, cfg });
 } catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave']) globalThis[k] = null; }
 
+// ---- friendly fire and the down state (server\downed.js): after supernatural.js, whose hooks it wraps -------
+try {
+  const DOWNED_JS = path.resolve('downed.js');
+  delete require.cache[DOWNED_JS];
+  require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg });
+} catch (e) { log('downed.js failed to load:', e.stack || e.message); globalThis.__dboReviveWith = null; globalThis.__dboIsDowned = null; }
+
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
   const PLAYTEST_JS = path.resolve('playtest.js');
