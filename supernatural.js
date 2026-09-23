@@ -238,7 +238,9 @@ module.exports = (api) => {
   onUi('close', (a, args, widgetId) => { if (widgetId === RITE_ID) forfeit(a); });
 
   // ---- /rite at a shrine -----------------------------------------------------------------------------------
-  const lastShrine = (a) => { const m = globalThis.__dboPrayerLastShrine; const v = m && m.get(a); return v && Date.now() - v.at < 120000 ? v.deityId : null; };
+  // Nat: 30 s to confirm was too short. A touch counts for 10 minutes, a /rite waits 5 minutes for its confirm
+  const SHRINE_MEMORY_MS = 10 * 60000, CONFIRM_MS = 5 * 60000;
+  const lastShrine = (a) => { const m = globalThis.__dboPrayerLastShrine; const v = m && m.get(a); return v && Date.now() - v.at < SHRINE_MEMORY_MS ? v.deityId : null; };
   const pendingRite = new Map(); // actorId -> { type, at }
   const invOf = (a) => { try { return ((mp.get(a, 'inventory') || {}).entries || []); } catch (e) { return []; } };
   const takeOne = (a, baseId) => {
@@ -253,22 +255,23 @@ module.exports = (api) => {
     if (rites.has(a)) return personal(a, 'You are already in a rite.');
     if (arg === 'confirm') {
       const p = pendingRite.get(a); pendingRite.delete(a);
-      if (!p || Date.now() - p.at > 30000) return personal(a, 'There is nothing to confirm. Touch the shrine and say /rite again.');
+      if (!p || Date.now() - p.at > CONFIRM_MS) return personal(a, 'There is nothing to confirm. Touch the shrine and say /rite again.');
       return startRite(a, p.type);
     }
     const deity = lastShrine(a);
+    log(`rite ${display(a)} '${arg}' shrine=${deity || 'none'} kind=${(s && s.kind) || 'mortal'}`);
     if (!deity) return personal(a, 'Rites are made at a shrine: touch one of Molag Bal, Hircine, Arkay or Stendarr, then say /rite.');
     if (deity === 'molagbal') {
       if (s.kind === 'vampire' && s.pure) return personal(a, 'Your blood is already his.');
       if (s.kind === 'werewolf') return personal(a, 'Molag Bal will not take what Hircine has marked. Be cured first.');
       pendingRite.set(a, { type: 'embrace', at: Date.now() });
-      return personal(a, "Molag Bal's Embrace makes a pure-blood of those who survive it. Many do not, and some never wake again. Say /rite confirm within 30 seconds to kneel.");
+      return personal(a, "Molag Bal's Embrace makes a pure-blood of those who survive it. Many do not, and some never wake again. Say /rite confirm within 5 minutes to kneel.");
     }
     if (deity === 'hircine') {
       if (s.kind === 'werewolf' && s.blessed) return personal(a, 'The Huntsman already knows your scent.');
       if (s.kind === 'vampire') return personal(a, 'Hircine hunts the living, not the dead. Be cured first.');
       pendingRite.set(a, { type: 'hunt', at: Date.now() });
-      return personal(a, "The Great Hunt: Hircine chases you, and if you run true he names you his. If he catches you, you may never rise. Say /rite confirm within 30 seconds to run.");
+      return personal(a, "The Great Hunt: Hircine chases you, and if you run true he names you his. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
     }
     if (deity === 'arkay' || deity === 'stendarr') {
       if (!s.kind) return personal(a, s.disease ? 'Pray here to break the fever; the rite is for those already turned.' : 'You carry no curse to lift.');
