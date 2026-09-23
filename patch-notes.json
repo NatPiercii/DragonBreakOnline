@@ -1,5 +1,27 @@
 [
  {
+  "title": "Power Attacks Cost Stamina",
+  "date": "2026-09-22",
+  "tag": "Fix",
+  "version": "Server",
+  "sections": [
+   {
+    "heading": "Stamina",
+    "items": [
+     "Power attacks now cost stamina. They never did: the whole table of stamina costs for attacking was switched off on this server by a flag meant for a different server, so nothing you did with a weapon ever drained the bar.",
+     "A power attack costs 30 of your 100 stamina, so three of them empty you. Ordinary swings, jumping and drawing a bow still cost nothing."
+    ]
+   },
+   {
+    "heading": "Launcher 2.1.27",
+    "items": [
+     "Fixes a crash about twenty seconds into launch, before the main menu, for anyone who owns Creation Club content. The game was choking on its Creations catalogue; the launcher now moves that file aside before starting, keeping a copy.",
+     "The previous version only cleared part of it, which is why the crash came back."
+    ]
+   }
+  ]
+ },
+ {
   "title": "Shock Magic Stops One-Shotting You",
   "date": "2026-09-22",
   "tag": "Fix",

@@ -1,5 +1,35 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23 (00:45 UTC): no attack ever cost stamina; Leerod's launch crash
+
+- [x] **Power attacks cost stamina again** (Nat: "Duel Wield Power Attack doesn't use any stamina").
+  It was never about dual wield. **Every** attack stamina cost lives in `AnimationSystem::
+  InitAdditionalCallbacks` behind `if (hasSweetpie)`, and `hasSweetpie` is
+  `worldState->HasEspmFile("SweetPie.esp")`, which this server has never loaded. The whole table was dead
+  code: no attack, jump, bow draw, sprint or block has ever drained the bar here.
+  The eight power attack callbacks now register unconditionally at the 30 points they already carried
+  (`DamageActorValue` takes raw points and divides by max, so 30 of a 100 pool = three power attacks,
+  close to vanilla). SweetPie's own economy, where every ordinary swing and jump costs stamina, stays
+  behind the flag: that is its design, not vanilla's. fork main `3de5dbc`.
+  Checked before shipping: the client relays every animation event except empty ones and `DrinkPotion_*`
+  (`sendInputsService.ts`), so `attackPowerStartDualWield` does reach the callback, and the client's own
+  `updateActorValuesAfterAnimation` only resyncs on landing and death, so nothing is charged twice.
+- [ ] **Unverified in play:** whether the player's own engine *also* deducts stamina locally for a power
+  attack, which would double the cost. Nat's report says it currently costs nothing at all, so the
+  server charge should be the only one, but that needs one swing in game to confirm.
+- [x] **Leerod's launch crash, second occurrence** (2026-09-22 17:16, 20 s in, before the main menu).
+  `std::invalid_argument: "invalid stoull argument"` in `InstalledContent` on the `InitTESThread`.
+  Launcher 2.1.26 emptied `<game>\Creations`, but the file the engine actually parses is
+  **`%LOCALAPPDATA%\Skyrim Special Edition\ContentCatalog.txt`**, which the launcher never touched. His
+  stack carries that path next to `CSV2_a12aacea-74b0-4260-9b63-dddc8f30ec79` and "Dawnfang & Duskfang",
+  so the engine is calling `stoull` on a uuid. **Launcher 2.1.27** renames it to
+  `ContentCatalog.txt.dbo-disabled` rather than deleting it, because it belongs to the player's own
+  Skyrim and is rebuilt the next time they open the Creations menu. Evidence it is the right fix: a
+  machine with no catalog at all (Nat's) launches fine.
+- [ ] **2.1.27 is committed, not released.** It needs a launcher build, a GitHub release and
+  `LATEST_VERSION` / `DOWNLOAD_URL` in `skymp5-backend/routes/version.js`. Until then Leerod is still on
+  2.1.26 and will still crash; the manual workaround is to rename that file himself.
+
 ## Added 2026-09-22 (19:30 UTC): Heart and Hourglass UI; voice plan
 
 - [x] **Palette A live in client 0.3.14** (fork `639d8ae`, `820831c`). Each widget wears its domain's hue via a
