@@ -93,6 +93,13 @@ std::unique_ptr<espm::CombineBrowser> Combiner::Combine()
     const PluginSlot ownRaw{ false, static_cast<uint32_t>(m) };
     toComb->Set(ownRaw, slots[i]);
     toRaw->Set(slots[i], ownRaw);
+    // A reference whose high byte is past the file's own index also means the file itself. Gray Fox Cowl.esm
+    // (2 masters) numbers its records 0x02xxxxxx but writes every reference as 0x03xxxxxx, and its worldspace
+    // is populated in the vanilla game, so the engine must read it that way. Without this, those ids map to
+    // kInvalid and every lookup through them throws. toRaw is left alone: a combined id maps back to ownRaw.
+    for (uint32_t over = static_cast<uint32_t>(m) + 1; over <= 0xFD; ++over) {
+      toComb->Set(PluginSlot{ false, over }, slots[i]);
+    }
 
     src.toComb = std::move(toComb);
     src.toRaw = std::move(toRaw);
