@@ -27,7 +27,7 @@
  .count{color:var(--text-dim);font-size:.8rem;text-align:right}
  .submit{margin-top:1.8rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
  #status{color:var(--text-dim);font-size:.92rem}
- #status.bad{color:var(--red)}
+ #status.bad{color:#e0897f}
 </style></head><body>
 <img class="wm" src="dbo-watermark.png" alt="">
 <div class="wrap">
@@ -57,14 +57,14 @@
   <div class="field">
     <h3>What happened?</h3>
     <p>What you were doing, what you expected, and what went wrong instead.</p>
-    <textarea id="note" maxlength="600" placeholder="I was fighting near Whiterun when the game froze..."></textarea>
+    <textarea id="note" maxlength="600" aria-label="What happened" placeholder="I was fighting near Whiterun when the game froze..."></textarea>
     <div class="count"><span id="noteCount">0</span> / 600</div>
   </div>
 
   <div class="field">
     <h3>Screenshot</h3>
     <p>In game, press <b>Print Screen</b>. Community Shaders saves the picture, usually in the <code>Screenshots</code> folder inside your Skyrim game folder. Any screenshot works, including one from Steam or the Windows Snipping Tool.</p>
-    <input id="shot" type="file" accept="image/png,image/jpeg,image/bmp,image/webp">
+    <input id="shot" type="file" accept="image/png,image/jpeg,image/bmp,image/webp" aria-label="Screenshot">
     <div id="preview" class="preview" hidden>
       <img id="previewImg" alt="The screenshot that will be sent">
       <label><input id="includeShot" type="checkbox" checked> Include this screenshot</label>
@@ -74,16 +74,16 @@
 
   <div class="field">
     <h3>Logs</h3>
-    <p>Add whichever of these you have. Paste a path into the file picker's address bar to jump straight to it. On the GOG edition the folder is <code>Skyrim Special Edition GOG</code>.</p>
+    <p>Add whichever of these you have. Paste a path into the file picker's address bar to jump straight to it. If your Documents folder is kept in OneDrive, look under <code>OneDrive\Documents</code> instead. The GOG, Epic and Microsoft Store editions use <code>Skyrim Special Edition GOG</code>, <code>EPIC</code> or <code>MS</code> in place of <code>Skyrim Special Edition</code>.</p>
     <div><b>Launcher log</b></div>
     <div class="path"><code>%APPDATA%\DragonBreak Online Launcher\install.log</code><button type="button" class="ghost" data-copy>Copy</button></div>
-    <input id="launcherLog" type="file" accept=".log,.txt,text/plain">
+    <input id="launcherLog" type="file" accept=".log,.txt,text/plain" aria-label="Launcher log">
     <div style="margin-top:1rem"><b>Game log</b></div>
     <div class="path"><code>%USERPROFILE%\Documents\My Games\Skyrim Special Edition\SKSE\skyrim-platform.log</code><button type="button" class="ghost" data-copy>Copy</button></div>
-    <input id="gameLog" type="file" accept=".log,.txt,text/plain">
+    <input id="gameLog" type="file" accept=".log,.txt,text/plain" aria-label="Game log">
     <div style="margin-top:1rem"><b>SKSE log</b></div>
     <div class="path"><code>%USERPROFILE%\Documents\My Games\Skyrim Special Edition\SKSE\skse64.log</code><button type="button" class="ghost" data-copy>Copy</button></div>
-    <input id="skseLog" type="file" accept=".log,.txt,text/plain">
+    <input id="skseLog" type="file" accept=".log,.txt,text/plain" aria-label="SKSE log">
     <p class="meta">Windows account names, passwords and session tokens are removed from logs before staff see them.</p>
   </div>
 
@@ -105,11 +105,11 @@
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-// The server accepts a 700 KiB JPEG; logs keep their last 250 KB, where the failure is
-const MAX_IMAGE_BYTES=680*1024, LOG_TAIL_BYTES=250*1024;
-const ERRORS={401:'Your sign-in has expired. Reload the page and sign in again.',413:'The report is too large. Leave out one of the logs and try again.',
+// The server accepts a 700 KiB JPEG and keeps the last 180 KB of each log, where the failure is
+const MAX_IMAGE_BYTES=680*1024, LOG_TAIL_BYTES=180*1024;
+const ERRORS={413:'The report is too large. Leave out one of the logs and try again.',502:'The report could not be filed just now. Try again in a minute, or tell a staff member in Discord.',
   429:'Too many reports just now. Wait a few minutes and try again.',503:'Reporting is switched off on the server right now. Tell a staff member in Discord.'};
-let shot=null, reportId=null;
+let shot=null, reportId=null, previewUrl=null, encoding=false;
 
 function show(view){for(const id of ['loading','lanOnly','unavailable','signedOut','form','sent'])$(id).hidden=id!==view;}
 function status(text,bad){$('status').textContent=text;$('status').className=bad?'bad':'';}
@@ -118,12 +118,14 @@ function newReportId(){return window.crypto&&crypto.randomUUID?crypto.randomUUID
 async function tail(input){
   const file=input.files&&input.files[0];
   if(!file)return '';
-  return file.slice(Math.max(0,file.size-LOG_TAIL_BYTES)).text();
+  try{return await file.slice(Math.max(0,file.size-LOG_TAIL_BYTES)).text();}
+  catch(e){throw new Error('unreadable:'+file.name);}
 }
 
 // Re-encoding drops the file's metadata and keeps the upload small; quality steps down until it fits
 async function encode(file){
   const bmp=await createImageBitmap(file);
+  try{
   for(const [edge,quality] of [[1920,.8],[1920,.7],[1600,.7],[1280,.7],[1280,.55]]){
     const scale=Math.min(1,edge/Math.max(bmp.width,bmp.height));
     const c=document.createElement('canvas');
@@ -132,22 +134,32 @@ async function encode(file){
     const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',quality));
     if(blob&&blob.size<=MAX_IMAGE_BYTES)return blob;
   }
+  }finally{bmp.close();}
   throw new Error('tooLarge');
 }
 function base64(blob){
   return new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result).split(',')[1]);fr.onerror=reject;fr.readAsDataURL(blob);});
 }
 
+function clearPreview(){
+  shot=null;$('preview').hidden=true;
+  if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null;}
+}
+
 $('shot').addEventListener('change',async()=>{
-  shot=null;$('preview').hidden=true;status('');
+  clearPreview();status('');
   const file=$('shot').files[0];
   if(!file)return;
+  // Send waits until the picture is ready, so an early click cannot drop it
+  encoding=true;$('send').disabled=true;status('Preparing the screenshot\u2026');
   try{
     const blob=await encode(file);
     shot={blob,data:await base64(blob)};
-    $('previewImg').src=URL.createObjectURL(blob);
-    $('includeShot').checked=true;$('preview').hidden=false;
+    previewUrl=URL.createObjectURL(blob);
+    $('previewImg').src=previewUrl;
+    $('includeShot').checked=true;$('preview').hidden=false;status('');
   }catch(e){status('That image could not be read. Try a PNG or JPEG screenshot.',true);}
+  finally{encoding=false;$('send').disabled=false;}
 });
 
 $('note').addEventListener('input',()=>{$('noteCount').textContent=$('note').value.length;});
@@ -158,27 +170,37 @@ for(const b of document.querySelectorAll('[data-copy]')){
   });
 }
 
+// The sign-in opens in a new tab so what the player has typed and picked stays on this page
+function signInAgain(){
+  const s=$('status');s.textContent='Your sign-in has expired. ';s.className='bad';
+  const a=document.createElement('a');a.href='/api/site/login';a.target='_blank';a.rel='noopener';a.textContent='Sign in again in a new tab';
+  s.append(a,document.createTextNode(', then press Send report here once more.'));
+}
+
 $('form').addEventListener('submit',async ev=>{
   ev.preventDefault();
-  const body={note:$('note').value.trim(),launcherLog:await tail($('launcherLog')),gameLog:await tail($('gameLog')),skseLog:await tail($('skseLog'))};
+  if(encoding)return;
+  let body;
+  try{body={note:$('note').value.trim(),launcherLog:await tail($('launcherLog')),gameLog:await tail($('gameLog')),skseLog:await tail($('skseLog'))};}
+  catch(e){return status('Could not read '+String(e.message).replace(/^unreadable:/,'')+'. Pick the file again, or leave it out.',true);}
   if(shot&&$('includeShot').checked)body.screenshot={type:'image/jpeg',data:shot.data};
   if(!body.note&&!body.launcherLog&&!body.gameLog&&!body.skseLog&&!body.screenshot)return status('Describe the problem or attach something first.',true);
   // The same id on a retry lets the server drop a duplicate if the first attempt did arrive
   if(!reportId)reportId=newReportId();
   if(reportId)body.reportId=reportId;
-  $('send').disabled=true;status('Sending…');
+  $('send').disabled=true;status('Sending\u2026');
   let r;
   try{r=await fetch('/api/site/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
   catch(e){$('send').disabled=false;return status('Could not reach the server. Check your connection and try again.',true);}
   $('send').disabled=false;
   if(r.ok){reportId=null;return show('sent');}
-  if(r.status===401)return show('signedOut');
+  if(r.status===401)return signInAgain();
   let msg=ERRORS[r.status];
   if(!msg&&r.status===400){try{const j=await r.json();if(j&&typeof j.error==='string')msg=j.error;}catch(e){}}
   status(msg||'The report could not be sent. Tell a staff member in Discord.',true);
 });
 
-$('again').addEventListener('click',()=>{$('form').reset();shot=null;$('preview').hidden=true;$('noteCount').textContent='0';status('');show('form');});
+$('again').addEventListener('click',()=>{$('form').reset();clearPreview();$('noteCount').textContent='0';status('');show('form');});
 
 async function main(){
   let r;
