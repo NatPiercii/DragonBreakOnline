@@ -255,6 +255,7 @@ module.exports = (api) => {
     if (rites.has(a)) return personal(a, 'You are already in a rite.');
     if (arg === 'confirm') {
       const p = pendingRite.get(a); pendingRite.delete(a);
+      log(`rite ${display(a)} 'confirm' pending=${p ? `${p.type} ${Math.round((Date.now() - p.at) / 1000)}s ago` : 'none'}`);
       if (!p || Date.now() - p.at > CONFIRM_MS) return personal(a, 'There is nothing to confirm. Touch the shrine and say /rite again.');
       return startRite(a, p.type);
     }
