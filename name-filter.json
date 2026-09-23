@@ -1,0 +1,23 @@
+{
+  "_comment": "Character name rules for DragonBreak Online. Read by fork skymp5-server/ts/systems/nameFilter.ts on character creation, re-read when this file's mtime changes so edits need no restart. Names are also checked for shape (see maxWords/allowMidWordCaps) and for uniqueness across every character on the server, which is not configured here.",
+  "maxWords": 3,
+  "minLength": 2,
+  "maxLength": 30,
+  "maxRepeatedLetters": 2,
+  "_blockedComment": "Matched after the name is lowercased, leetspeak is folded (0->o, 1->i, 3->e, 4->a, 5->s, 7->t, @->a, $->s) and every character that is not a letter is removed, so 'xXP.u_s_s.yXx' is caught by 'pussy'. Substring match, so keep entries short and specific: a short entry like 'ass' would reject 'Cassandra', which is why it is not here.",
+  "blocked": [
+    "anal", "anus", "arsehole", "asshole", "bastard", "bitch", "blowjob",
+    "bollock", "boner", "buttplug", "chink", "clitoris", "cocksuck", "coon",
+    "cunt", "dickhead", "dildo", "ejaculat", "faggot", "fellatio", "fuck",
+    "handjob", "hentai", "incest", "jizz", "kike", "labia", "masturbat",
+    "molest", "nigga", "nigger", "paedo", "pedophile", "penis", "porn",
+    "prostitut", "pussy", "queef", "rape", "rapist", "retard", "rimjob",
+    "scrotum", "semen", "shit", "slut", "spastic", "testicle", "titties",
+    "tranny", "twat", "vagina", "wanker", "whore"
+  ],
+  "_reservedComment": "Names nobody may take: staff-looking names and the obvious impersonations.",
+  "reserved": [
+    "admin", "administrator", "moderator", "gamemaster", "dragonbreak",
+    "server", "system", "console", "staff", "owner", "developer"
+  ]
+}
