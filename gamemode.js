@@ -651,6 +651,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboPrayerActivate && globalThis.__dboPrayerActivate(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboRestActivate && globalThis.__dboRestActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboSuperActivate && globalThis.__dboSuperActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboCoinPurse && globalThis.__dboCoinPurse(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
@@ -942,6 +943,8 @@ const onCharacterReady = (userId, a) => {
     audit(`JOIN ${who(a)}${tierOf(a) ? ' as ' + tierOf(a) : ''}`);
     if (creationPending(a)) startCreationInHub(a);
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
+    // Waking from a bed (rest.js) before the hunger stage is applied
+    try { if (globalThis.__dboRestLogin) globalThis.__dboRestLogin(a); } catch (e) { log('rest login failed', e.message); }
     needsOnConnect(a);
     if (globalThis.__dboPlayerMenuReady) globalThis.__dboPlayerMenuReady(a);
     // A lease that ended while the player was offline never told this client to stop glowing
@@ -1108,7 +1111,9 @@ const needsTick = () => {
       const n = needsOf(a);
       // Sanguine's boon is a slower appetite, not a spell - prayer.js answers 0.5 while it is worn
       // and 1 otherwise. A missing module leaves the rate exactly where it was.
-      const appetite = globalThis.__dboPrayerHungerMult ? Number(globalThis.__dboPrayerHungerMult(a)) || 1 : 1;
+      // Well Fed (rest.js) slows it the same way, and the two multiply.
+      const appetite = (globalThis.__dboPrayerHungerMult ? Number(globalThis.__dboPrayerHungerMult(a)) || 1 : 1)
+        * (globalThis.__dboRestHungerMult ? Number(globalThis.__dboRestHungerMult(a)) || 1 : 1);
       n.hunger = Math.min(100, n.hunger + (Number(NEEDS.hungerPerHour) || 0) * dt * appetite);
       applyNeedsStage(a, n, true);
       const warnMs = (Number(NEEDS.warnEveryMinutes) || 0) * 60000;
@@ -2437,6 +2442,13 @@ try {
   delete require.cache[PRAYER_JS];
   require(PRAYER_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, skills: SKILLS_DEF });
 } catch (e) { log('prayer.js failed to load:', e.stack || e.message); globalThis.__dboPrayerActivate = null; }
+
+// ---- beds, inn rooms, Well Rested and Well Fed (server\rest.js, config "rest", beds.json) ---------
+try {
+  const REST_JS = path.resolve('rest.js');
+  delete require.cache[REST_JS];
+  require(REST_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, sendPacket, userOf, takeGold, depositToTreasury, giveItem, zoneOfActor, distanceMeters });
+} catch (e) { log('rest.js failed to load:', e.stack || e.message); globalThis.__dboRestActivate = null; globalThis.__dboRestLogin = null; globalThis.__dboRestHungerMult = null; }
 
 // ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
 try {
