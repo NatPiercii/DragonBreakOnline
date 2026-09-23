@@ -254,6 +254,9 @@ router.get('/:key/sessions/:session', async (req, res) => {
   entry.expiresAt = Date.now() + SESSION_TTL
   saveSessions()
 
+  try { players.markGameJoin(entry.discordId) }
+  catch (err) { console.error('[master-api] could not record game join:', err.message) }
+
   res.json({
     user: {
       id:        entry.profileId,

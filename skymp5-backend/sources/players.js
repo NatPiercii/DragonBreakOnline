@@ -106,6 +106,17 @@ function updateIdentity(discordId, { hwid, ip } = {}) {
   return current
 }
 
+// The game server accepted this player's session: the only timestamp that means they entered the world.
+// lastSeenAt is the launcher's Discord sign-in, which happens even when a player never joins.
+function markGameJoin(discordId) {
+  const id = String(discordId || '').trim()
+  if (!id) return
+  const data = load()
+  if (!data[id]) return
+  data[id].lastGameJoinAt = new Date().toISOString()
+  save(data)
+}
+
 function updateByProfileId(profileId, patch) {
   const discordId = profiles.getDiscordIdByProfileId(profileId)
   if (!discordId) {
@@ -177,6 +188,7 @@ function decorate(player) {
 }
 
 module.exports = {
+  markGameJoin,
   load,
   save,
   list,
