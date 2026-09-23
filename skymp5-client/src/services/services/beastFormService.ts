@@ -32,6 +32,22 @@ const WEREWOLF_RACE = 0x000cdd84;
 
 interface BeastLoadout { perks: number[]; spells: number[] }
 
+// Vanilla blocks the Inventory and Magic menus in both beast forms, so nothing the player is merely
+// *given* can ever be reached: the game equips for you. That is why the howls and the Vampire Lord's
+// spells did nothing. Papyrus slots: 0 left hand, 1 right hand, 2 voice.
+interface BeastEquip { left?: number; right?: number; voice?: number }
+
+const BEAST_EQUIP: Record<number, BeastEquip> = {
+  // Vampiric Drain in the right, Raise Dead in the left, Revert Form on the voice key
+  [VAMPIRE_RACE]: { right: 0x02019ad7, left: 0x02013ecb, voice: 0x0200cd5c },
+  // One howl can be held at a time and the menu is shut, so Terror is the one put on the voice key
+  [WEREWOLF_RACE]: { voice: 0x000cf793 },
+};
+const SLOT_LEFT = 0;
+const SLOT_RIGHT = 1;
+const SLOT_VOICE = 2;
+
+
 const BEAST_LOADOUT: Record<number, BeastLoadout> = {
   [VAMPIRE_RACE]: {
     // DLC1VampiricBite, UnearthlyWill, PoisonTalons, NightCloak, PowerOfTheGrave, VampiricGrip,
@@ -146,7 +162,26 @@ export class BeastFormService extends ClientListener {
       if (!spell) { logError(this, "beast spell not in the load order", id.toString(16)); continue; }
       try { if (beast) player.addSpell(spell, false); else player.removeSpell(spell); spells++; } catch { /* already held */ }
     }
+    this.applyEquip(player, raceId, beast);
     logTrace(this, beast ? "Beast loadout granted" : "Beast loadout removed", `${perks} perk(s), ${spells} spell(s)`);
+  }
+
+  // Without this the player is holding nothing and cannot open a menu to fix it
+  private applyEquip(player: Actor, raceId: number, beast: boolean): void {
+    const equip = BEAST_EQUIP[raceId];
+    if (!equip) return;
+    const slots: Array<[number | undefined, number]> = [
+      [equip.left, SLOT_LEFT], [equip.right, SLOT_RIGHT], [equip.voice, SLOT_VOICE],
+    ];
+    for (const [id, slot] of slots) {
+      if (id === undefined) continue;
+      const spell = Spell.from(this.sp.Game.getFormEx(id));
+      if (!spell) { logError(this, "beast equip spell not in the load order", id.toString(16)); continue; }
+      try {
+        if (beast) player.equipSpell(spell, slot);
+        else player.unequipSpell(spell, slot);
+      } catch { /* the form may already be gone */ }
+    }
   }
 
   // The camera is forced once on the change; this keeps it there for as long as the form lasts
