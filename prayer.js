@@ -327,6 +327,7 @@ module.exports = (api) => {
 
     // From here on the target IS a shrine: the vanilla blessing must not fire whatever we answer.
     lastShrine.set(casterId, { deityId: d.id, at: Date.now() });
+    log(`shrine touch ${display(casterId)} ${d.name}`);
     if (liveRound(casterId)) return true;
 
     const faith = faithOf(casterId);
