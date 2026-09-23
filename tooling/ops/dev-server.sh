@@ -15,6 +15,11 @@
 #   bash dev-server.sh announce '<text>'      on-screen + chat message to every online player (gamemode announce.json)
 #   bash dev-server.sh restart <unit> --yes   restart a unit; refuses without --yes
 #   bash dev-server.sh shell                  interactive shell (needs a real terminal)
+#   bash dev-server.sh send <path>... [--to <dir>]   copy files or folders into ~/inbox (or ~/<dir>) on the server
+#   bash dev-server.sh sync-claude            bring the server's Claude session up to date: docs, memory, repo clones
+#
+# The same script runs ON the server too (~/dragonbreak/dev-server.sh, kept there by sync-claude): it notices the
+# hostname and runs every command locally instead of over SSH. deploy-plugins, send and sync-claude are PC-only.
 #
 # Layout on the server:
 #   skymp.service                /opt/alduinak/build/dist/server, gamemodePath dbo-gamemode.js, log /var/log/skymp-server.log
@@ -25,6 +30,11 @@
 set -u
 HOST=dragonbreak-dev
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=20 "$HOST")
+ON_BOX=0; [ "$(hostname)" = "skymp" ] && ON_BOX=1
+[ "$ON_BOX" = 1 ] && SSH=(bash -c)
+# Copy one local file to a path on the server
+to_server() { if [ "$ON_BOX" = 1 ]; then cp "$1" "$2"; else scp -q "$1" "$HOST:$2"; fi; }
+pc_only() { [ "$ON_BOX" = 1 ] && { echo "$1 runs from Nat's PC, not on the server" >&2; exit 2; }; return 0; }
 UNITS="skymp dragonbreak-backend skymp-api dbprofile-test-backend tailscaled"
 
 case "${1:-status}" in
@@ -44,12 +54,13 @@ case "${1:-status}" in
     # dbo-gamemode.js (the fork build overwrites gamemode.js with its placeholder on every auto-update) and
     # lands last, so the hot reload fires once with every module already in place. The server's own
     # gamemode-config.json `admins` list is kept. skills.json and server-settings are read at boot only.
+    # housing.json and jails.json are runtime state the server writes; copying the repo's would wipe live claims.
     ROOT="$(cd "$(dirname "$0")" && pwd)/server"
     STAGE="$(mktemp -d)"; mkdir -p "$STAGE/g"
-    git -C "$ROOT" ls-files | grep -E '^[^/]+\.(js|json)$' | grep -v -E '^(package|companions|patch-notes)\.json$' \
+    git -C "$ROOT" ls-files | grep -E '^[^/]+\.(js|json)$' | grep -v -E '^(package|companions|patch-notes|housing|jails)\.json$' \
       | while read -r f; do cp "$ROOT/$f" "$STAGE/g/"; done
     mv "$STAGE/g/gamemode.js" "$STAGE/g/dbo-gamemode.js"
-    ( cd "$STAGE" && tar -cf g.tar -C g . ) && scp -q "$STAGE/g.tar" "$HOST:/tmp/claude-nate-gameplay.tar" || exit 1
+    ( cd "$STAGE" && tar -cf g.tar -C g . ) && to_server "$STAGE/g.tar" /tmp/claude-nate-gameplay.tar || exit 1
     rm -rf "$STAGE"
     "${SSH[@]}" 'set -e; S=/opt/alduinak/build/dist/server; T=$(mktemp -d); tar -xf /tmp/claude-nate-gameplay.tar -C "$T"
       B=/opt/skymp-backups/gameplay-$(date -u +%Y%m%dT%H%M%SZ); sudo -n mkdir -p "$B"
@@ -63,6 +74,7 @@ case "${1:-status}" in
       rm -rf "$T" /tmp/claude-nate-gameplay.tar; echo "installed; previous files in $B"; sleep 8
       sudo -n tail -n 400 /var/log/skymp-server.log | grep -E "\[gamemode\] loaded|\[error\]" | tail -5' ;;
   deploy-plugins)
+    pc_only deploy-plugins
     # The 10 DragonBreak-owned plugins in server\data -> /opt/skyrim-data (game server, restarted only if one changed) and the
     # launcher's extra files (then its manifest is rebuilt). Updates fork\deploy\skyrim-data\SHA256SUMS; commit + push that.
     ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -76,7 +88,7 @@ case "${1:-status}" in
       let s=fs.readFileSync(sums,"utf8");let n=0;for(const p of names){const h=crypto.createHash("sha256").update(fs.readFileSync(path.join(data,p))).digest("hex");
       const re=new RegExp("^[0-9a-f]{64}  "+p.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"$","m");if(!re.test(s))throw new Error("not in SHA256SUMS: "+p);
       const next=s.replace(re,h+"  "+p);if(next!==s){n++;s=next}}fs.writeFileSync(sums,s);console.log("SHA256SUMS: "+n+" line(s) changed")' "$SUMS" "$SRC" "${PLUGINS[@]}" || exit 1
-    ( cd "$SRC" && tar -cf - "${PLUGINS[@]}" ) | ssh -o BatchMode=yes "$HOST" 'rm -rf /tmp/claude-nate-plugins && mkdir -p /tmp/claude-nate-plugins && tar -xf - -C /tmp/claude-nate-plugins' || exit 1
+    ( cd "$SRC" && tar -cf - "${PLUGINS[@]}" ) | "${SSH[@]}" 'rm -rf /tmp/claude-nate-plugins && mkdir -p /tmp/claude-nate-plugins && tar -xf - -C /tmp/claude-nate-plugins' || exit 1
     "${SSH[@]}" 'sudo -n bash -s' <<'REMOTE'
 set -euo pipefail
 T=/tmp/claude-nate-plugins; D=/opt/skyrim-data; X=/opt/alduinak/build/client-files/extra/Data; B=/opt/skymp-backups/plugins-$(date -u +%Y%m%dT%H%M%SZ)
@@ -116,7 +128,7 @@ REMOTE
     ROOT="$(cd "$(dirname "$0")" && pwd)/server"; F="$(mktemp)"
     git -C "$ROOT" show HEAD:patch-notes.json > "$F" || { echo 'commit server\patch-notes.json first' >&2; exit 1; }
     node -e 'const a=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(!Array.isArray(a)||!a.length||!a.every(i=>i&&i.title))throw new Error("patch-notes.json must be a non-empty array of entries with a title");console.log(a.length+" entries, newest: "+a[0].title)' "$F" || exit 1
-    scp -q "$F" "$HOST:/tmp/claude-nate-news.json" && rm -f "$F" || exit 1
+    to_server "$F" /tmp/claude-nate-news.json && rm -f "$F" || exit 1
     "${SSH[@]}" 'set -e; D=/opt/alduinak/skymp5-backend/data
       [ -f $D/news.live.json ] && sudo -n cp -a $D/news.live.json /opt/skymp-backups/news.live-$(date -u +%Y%m%dT%H%M%SZ).json
       sudo -n install -m 644 -o root -g root /tmp/claude-nate-news.json $D/.news.live.json.new && sudo -n mv $D/.news.live.json.new $D/news.live.json
@@ -124,7 +136,22 @@ REMOTE
     curl -s --max-time 20 "https://dragonbreakonline.com/api/news?v=$(date +%s)" \
       | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s);console.log("public feed: "+a.length+" entries, newest: "+(a[0]||{}).title)})' ;;
   shell)
+    [ "$ON_BOX" = 1 ] && exec bash
     exec ssh "$HOST" ;;
+  send)
+    pc_only send
+    shift; DEST=inbox; FILES=()
+    while [ $# -gt 0 ]; do if [ "$1" = "--to" ]; then DEST="$2"; shift 2; else FILES+=("$1"); shift; fi; done
+    [ ${#FILES[@]} -gt 0 ] || { echo "usage: dev-server.sh send <path>... [--to <dir under ~>]" >&2; exit 2; }
+    case "$DEST" in /*|*..*) echo "--to is a folder under the server's home, e.g. dragonbreak/notes" >&2; exit 2;; esac
+    for p in "${FILES[@]}"; do
+      [ -e "$p" ] || { echo "no such file: $p" >&2; exit 1; }
+      ( cd "$(dirname "$p")" && tar -cf - "$(basename "$p")" ) | "${SSH[@]}" "mkdir -p ~/'$DEST' && tar -xf - -C ~/'$DEST'" || exit 1
+      echo "sent $p -> ~/$DEST/$(basename "$p")"
+    done ;;
+  sync-claude)
+    pc_only sync-claude
+    bash "$(cd "$(dirname "$0")" && pwd)/sync-server-claude.sh" ;;
   *)
     sed -n '2,24p' "$0"; exit 2 ;;
 esac
