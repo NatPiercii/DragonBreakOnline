@@ -241,7 +241,8 @@ module.exports = (api) => {
   // Nat: 30 s to confirm was too short. A touch counts for 10 minutes, a /rite waits 5 minutes for its confirm
   const SHRINE_MEMORY_MS = 10 * 60000, CONFIRM_MS = 5 * 60000;
   const lastShrine = (a) => { const m = globalThis.__dboPrayerLastShrine; const v = m && m.get(a); return v && Date.now() - v.at < SHRINE_MEMORY_MS ? v.deityId : null; };
-  const pendingRite = new Map(); // actorId -> { type, at }
+  // Survives hot reloads: a deploy between /rite and /rite confirm used to lose it
+  const pendingRite = globalThis.__dboPendingRite || (globalThis.__dboPendingRite = new Map()); // actorId -> { type, at }
   const invOf = (a) => { try { return ((mp.get(a, 'inventory') || {}).entries || []); } catch (e) { return []; } };
   const takeOne = (a, baseId) => {
     const entries = invOf(a).map((e) => Object.assign({}, e));
