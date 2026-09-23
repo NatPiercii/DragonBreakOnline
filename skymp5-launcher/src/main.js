@@ -1524,6 +1524,8 @@ async function guardLaunch(launch) {
 
 ipcMain.handle('game:isRunning', gameProcessRunning)
 
+let pendingReportId = null
+
 // Electron can fail to resolve Documents on a broken profile; the collector then falls back to the home folder
 function documentsDirOrNull() {
   try { return app.getPath('documents') } catch { return null }
@@ -1552,18 +1554,21 @@ ipcMain.handle('report:send', async (_e, { note } = {}) => {
     if (previous && !payload.launcherLog) payload.launcherLog = report.redact(previous)
     if (!payload.launcherLog) return { ok: false, error: 'No launcher log to send yet.' }
 
-    // One id per click: a retry the server already filed comes back as a duplicate instead of a second thread
-    payload.reportId = crypto.randomUUID()
+    // The id is kept until a send succeeds, so a retry of a report the server did file is not filed twice
+    if (!pendingReportId) pendingReportId = crypto.randomUUID()
+    payload.reportId = pendingReportId
     // The server now waits for Discord before answering, so this allows longer than the usual 10 s
     const res = await postJSON(`${config.apiUrl}/api/files/report`, payload,
                                session ? { 'x-session': session } : {}, 30_000)
     log(`[report] filed ${payload.reportId}${res && res.thread ? ` as thread ${res.thread}` : ''}`)
+    pendingReportId = null
     return { ok: true }
   } catch (err) {
     log(`[report] failed: ${err.statusCode || ''} ${err.message}`)
     if (err.statusCode === 429) return { ok: false, error: 'Too many reports just now. Wait a few minutes.' }
     if (err.statusCode === 503) return { ok: false, error: 'Reporting is switched off on the server.' }
     if (err.statusCode === 413) return { ok: false, error: 'The report is too large to send.' }
+    if (err.statusCode === 502) return { ok: false, error: 'The report could not be filed just now. Try again in a minute.' }
     return { ok: false, error: 'Could not reach the server. Tell a staff member directly.' }
   }
 })
