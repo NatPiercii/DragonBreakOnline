@@ -18,6 +18,74 @@ module.exports = (api) => {
     vampirelord: { name: 'Vampire Lord', race: idOf('283a:Dawnguard.esm'), power: idOf('283b:Dawnguard.esm'), seconds: 0 },
   };
   const REVERT_POWER = idOf('cd5c:Dawnguard.esm');
+  // What the Vampire Lord wears. Vanilla equips DLC1ClothesVampireLordArmor (DLC1PlayerVampireQuest's
+  // DLC1VampireLordArmor property); Nat wanted him to look better, so he gets Harkon's royal robes and the cape
+  // (slots 36 and 35, both race-locked to the Vampire Lord). Given on the change, taken back on the revert.
+  const WEAR = {
+    vampirelord: [idOf('11a85:Dawnguard.esm'), idOf('15bc1:Dawnguard.esm')].filter(Boolean),
+    werewolf: [],
+  };
+  // Every spell a form uses, learned server-side for the length of the form: the server strips an unlearned spell from
+  // the equipment the client reports and refuses its casts and hits, which is why no beast spell ever reached anyone.
+  // right/left/voice are what the client equips and binds to keys 1-9 (beastFormService.ts); passive are abilities,
+  // hidden are the spells those abilities cast (bat bites, talon poison, grip damage). Ids read out of the load order.
+  const spell = (desc, name) => ({ id: idOf(desc), name });
+  const ABILITIES = {
+    vampirelord: {
+      // Drain05Alt: 15 health/magicka/stamina absorbed + 50 damage a hit. 09Alt (vanilla's level 41+) dealt 175,
+      // more than a whole player health bar here
+      right: [spell('19324:Dawnguard.esm', 'Vampiric Drain')],
+      left: [spell('13ecb:Dawnguard.esm', 'Raise Dead'), spell('8a6f:Dawnguard.esm', 'Corpse Curse'),
+        spell('16909:Dawnguard.esm', 'Summon Gargoyle'), spell('38b7:Dawnguard.esm', "Vampire's Grip")],
+      // Revert Form last, so the default power on the Shout key is never the one that ends the form
+      voice: [spell('38b9:Dawnguard.esm', 'Bats'), spell('38ba:Dawnguard.esm', 'Mist Form'), spell('38bc:Dawnguard.esm', 'Supernatural Reflexes'),
+        spell('38b8:Dawnguard.esm', 'Detect Life'), spell('cd5c:Dawnguard.esm', 'Revert Form')],
+      passive: [spell('126b8:Dawnguard.esm', 'Night Cloak')],
+      hidden: [spell('126b7:Dawnguard.esm', 'Night Cloak bite'), spell('59a1:Dawnguard.esm', 'Poison Talons'), spell('e7da:Dawnguard.esm', 'Grip damage')],
+    },
+    werewolf: {
+      // Summon Wolves is left out: its wolves are placed by a Papyrus script that never runs here
+      right: [], left: [],
+      voice: [spell('cf793:Skyrim.esm', 'Howl of Terror'), spell('cf78c:Skyrim.esm', 'Howl of the Pack (detect life)')],
+      passive: [], hidden: [],
+    },
+  };
+  const allSpells = (key) => { const x = ABILITIES[key]; return x ? [...x.right, ...x.left, ...x.voice, ...x.passive, ...x.hidden].filter((sp) => sp.id) : []; };
+  const learn = (a, key, on) => { for (const sp of allSpells(key)) papyrus(a, on ? 'AddSpell' : 'RemoveSpell', on ? [spellArg(sp.id), false] : [spellArg(sp.id)]); };
+  const packetAbilities = (key) => {
+    const x = ABILITIES[key]; if (!x) return null;
+    const ids = (list) => list.filter((sp) => sp.id).map((sp) => ({ id: sp.id, name: sp.name }));
+    return { right: ids(x.right), left: ids(x.left), voice: ids(x.voice), passive: ids(x.passive) };
+  };
+  // Keys 1.. pick the left-hand spell, the keys after them the power on the voice key (Z by default)
+  const legend = (key) => {
+    const x = ABILITIES[key]; if (!x) return [];
+    const lines = [];
+    let n = 1;
+    if (key === 'werewolf') lines.push('Attack with your claws (left and right click, hold for a power attack). Activate a fresh body to feed and stay in the form longer.');
+    else lines.push('Sneak switches between flight (spells) and the ground (claws). In flight: right click drains, left click casts the chosen left-hand spell.');
+    const l = x.left.filter((sp) => sp.id).map((sp) => `${n++} ${sp.name}`);
+    if (l.length) lines.push(`Left hand: ${l.join(', ')}`);
+    const v = x.voice.filter((sp) => sp.id).map((sp) => `${n++} ${sp.name}`);
+    if (v.length) lines.push(`Power, used with your Shout key: ${v.join(', ')}`);
+    lines.push('Type /forms to see this again.');
+    return lines;
+  };
+  const setCount = (a, baseId, want) => {
+    try {
+      const inv = mp.get(a, 'inventory') || { entries: [] };
+      const entries = (inv.entries || []).filter((e) => (Number(e.baseId) >>> 0) !== baseId);
+      if (want > 0) entries.push({ baseId, count: want });
+      mp.set(a, 'inventory', Object.assign({}, inv, { entries }));
+    } catch (e) { log(`beastform: inventory change failed on ${display(a)}: ${e.message}`); }
+  };
+  // Remote clients build the beast from this appearance. The real head parts, tints, morphs and face texture belong
+  // to a head the beast body does not have, and every one of them was being attached to it on other players'
+  // clients (two crashed on the first Vampire Lord, 2026-09-23). The beast gets a bare appearance; the real one is
+  // kept in private.beast and put back on the revert.
+  const beastAppearance = (original, race) => Object.assign({}, original, {
+    raceId: race, headpartIds: [], tints: [], options: [], presets: [], headTextureSetId: 0,
+  });
   const byPower = new Map(Object.entries(FORMS).filter(([, f]) => f.power && f.race).map(([k, f]) => [f.power, k]));
 
   const self = (a) => ({ type: 'form', desc: mp.getDescFromId(a) });
@@ -43,10 +111,13 @@ module.exports = (api) => {
     if (refusal) return refusal;
     mp.set(a, 'private.beast', { form: key, original, at: Date.now(), until: f.seconds ? Date.now() + f.seconds * 1000 : 0 });
     papyrus(a, 'UnequipAll', []);
-    mp.set(a, 'appearance', Object.assign({}, original, { raceId: f.race }));
-    sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true });
-    if (key === 'vampirelord' && REVERT_POWER) papyrus(a, 'AddSpell', [spellArg(REVERT_POWER), false]);
-    personal(a, key === 'werewolf' ? `The beast takes you for ${f.seconds} seconds.` : 'You take the form of a Vampire Lord. Cast Revert Form to return.');
+    const wear = WEAR[key] || [];
+    for (const id of wear) setCount(a, id, 1);
+    mp.set(a, 'appearance', beastAppearance(original, f.race));
+    learn(a, key, true);
+    sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true, form: key, wear, abilities: packetAbilities(key) });
+    personal(a, key === 'werewolf' ? `The beast takes you for ${f.seconds} seconds.` : 'You take the form of a Vampire Lord. Press 9, then your Shout key, to revert.');
+    for (const line of legend(key)) personal(a, line);
     audit(`BEAST ${who(a)} took ${f.name}`);
     witness(a, key === 'werewolf' ? 'twist into a beast' : 'rise into a Vampire Lord');
     try { if (globalThis.__dboBeastChanged) globalThis.__dboBeastChanged(a, key, true); } catch (e) { log('beast change hook failed', e.message); }
@@ -75,8 +146,9 @@ module.exports = (api) => {
       mp.set(a, 'appearance', s.original);
       mp.set(a, 'private.beast', null);
     } catch (e) { log(`beastform: revert failed on ${display(a)}: ${e.message}`); return false; }
-    sendPacket(a, { customPacketType: 'dboBeast', race: Number(s.original.raceId) >>> 0, beast: false });
-    if (s.form === 'vampirelord' && REVERT_POWER) papyrus(a, 'RemoveSpell', [spellArg(REVERT_POWER)]);
+    sendPacket(a, { customPacketType: 'dboBeast', race: Number(s.original.raceId) >>> 0, beast: false, form: s.form, wear: [] });
+    for (const id of WEAR[s.form] || []) setCount(a, id, 0);
+    learn(a, s.form, false);
     setTimeout(() => { try { redress(a); } catch (e) { log('beastform re-dress failed', e.message); } }, 1500);
     log(`${display(a)} left ${FORMS[s.form] ? FORMS[s.form].name : s.form} (${why})`);
     try { if (globalThis.__dboBeastChanged) globalThis.__dboBeastChanged(a, s.form, false); } catch (e) { log('beast change hook failed', e.message); }
@@ -109,6 +181,12 @@ module.exports = (api) => {
       if (s && s.until && Date.now() >= s.until) revert(a, 'time up');
     }
   });
+
+  registerChatCommand('forms', (a) => {
+    const s = stateOf(a);
+    if (!s) return personal(a, 'You are in your own shape. In a beast form this lists its abilities and keys.');
+    for (const line of legend(s.form)) personal(a, line);
+  }, { help: 'the abilities and keys of the beast form you are in' });
 
   // Admins: grant or take the power, or force a form for testing
   registerChatCommand('beastform', (a, args) => {
