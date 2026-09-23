@@ -122,7 +122,7 @@ module.exports = (api) => {
     // Other clients crash building a remote actor of the Vampire Lord race (xXPussy and Flo'Riahn looped on joining
     // near one, 2026-09-23 20:58), so until the crash is found they keep seeing the real appearance. Only the owner's
     // client swaps race (dboBeast). Config beastform.vampireLordRemoteRace: true turns the remote race back on.
-    const remoteRace = key !== 'vampirelord' || ((api.cfg || {}).beastform || {}).vampireLordRemoteRace === true;
+    const remoteRace = key !== 'vampirelord' || globalThis.__dboVampireLordRemote === true;
     if (remoteRace) mp.set(a, 'appearance', beastAppearance(original, f.race));
     learn(a, key, true);
     sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true, form: key, wear, abilities: packetAbilities(key) });
@@ -241,6 +241,13 @@ module.exports = (api) => {
       if (s && s.until && Date.now() >= s.until) revert(a, 'time up');
     }
   });
+
+  // For a controlled crash test: with it on, other clients build the Vampire Lord body again (takes effect on the next change)
+  registerChatCommand('vlremote', (a, args) => {
+    const v = String(args || '').trim().toLowerCase();
+    if (v === 'on' || v === 'off') { globalThis.__dboVampireLordRemote = v === 'on'; audit(`GM ${who(a)} set Vampire Lord remote body ${v}`); }
+    personal(a, `Other players ${globalThis.__dboVampireLordRemote === true ? 'see the Vampire Lord body' : 'see the real appearance of a Vampire Lord'} (applies on the next change).`);
+  }, { admin: true, help: '[on|off] whether other players see the Vampire Lord body (crash test)' });
 
   registerChatCommand('forms', (a) => {
     const s = stateOf(a);
