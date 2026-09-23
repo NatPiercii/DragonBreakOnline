@@ -60,6 +60,15 @@ const corsOrigins = [config.websiteUrl, config.dashboardPublicUrl]
 app.use(cors({ origin: corsOrigins }))
 console.log(`[cors] allowed origins: ${corsOrigins.join(', ')}`)
 
+// Problem reports carry a screenshot and logs, far past the 100 kB default below; parsed here first so the global parser skips them
+const REPORT_PATHS = ['/api/files/report', '/api/site/report']
+app.use(REPORT_PATHS, express.json({ limit: '2mb' }))
+app.use(REPORT_PATHS, (err, _req, res, next) => {
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'The report is too large.' })
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'The report is not valid JSON.' })
+  next(err)
+})
+
 // Capture the raw request body so the webhook route can verify GitHub's HMAC-SHA256 signature
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf },
