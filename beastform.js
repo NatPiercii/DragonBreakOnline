@@ -51,7 +51,8 @@ module.exports = (api) => {
       // HowlWerewolfFear (cf790, word cf78e, casts cf791) and HowlWerewolfDetectLife (ce218, word ce219, casts ce217)
       voice: [howl('cf791:Skyrim.esm', 'cf790:Skyrim.esm', 'cf78e:Skyrim.esm', 'Howl of Terror'),
         howl('ce217:Skyrim.esm', 'ce218:Skyrim.esm', 'ce219:Skyrim.esm', 'Howl of the Pack (detect life)')],
-      passive: [], hidden: [],
+      // What the body casts by itself: the power attack's knockback and the feeding victim's hold (both were refused)
+      passive: [], hidden: [spell('f3f0a:Skyrim.esm', 'Knockback'), spell('106396:Skyrim.esm', 'Feeding hold')],
     },
   };
   const allSpells = (key) => { const x = ABILITIES[key]; return x ? [...x.right, ...x.left, ...x.voice, ...x.passive, ...x.hidden].filter((sp) => sp.id) : []; };
