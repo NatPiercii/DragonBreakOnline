@@ -131,6 +131,10 @@ export class SendInputsService extends ClientListener {
         if (!owner) {
           return;
         }
+        // An unloaded hosted actor has no AI or physics here; going silent lets a nearby player take it over
+        if (_refrId && !owner.is3DLoaded()) {
+          return;
+        }
 
         const refrIdStr = `${_refrId}`;
         const sendMovementRateMs = 130;
