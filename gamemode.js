@@ -894,10 +894,12 @@ mp.onUpdateAppearanceAttempt = appearanceHook;
 const redress = (a) => {
   let saved = []; try { saved = mp.get(a, 'private.lastWorn') || []; } catch (e) { return; }
   if (!Array.isArray(saved) || !saved.length) return;
-  let current = []; try { current = wornOf(mp.get(a, 'equipment')); } catch (e) { /* none */ }
-  if (current.length) return;
   let entries = []; try { const inv = mp.get(a, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return; }
   const owned = new Set(entries.map((e) => Number(e.baseId) >>> 0));
+  // Worn items no longer owned do not count: a Vampire Lord's robe stays "worn" in the stored equipment after the revert
+  // takes it back, and that alone skipped every re-dress after one (Argosh came back naked, 20:48 and 20:58)
+  let current = []; try { current = wornOf(mp.get(a, 'equipment')).filter((w) => owned.has(Number(w.baseId) >>> 0)); } catch (e) { /* none */ }
+  if (current.length) return;
   let n = 0;
   for (const item of saved) {
     const baseId = Number(Array.isArray(item) ? item[0] : item) >>> 0;
