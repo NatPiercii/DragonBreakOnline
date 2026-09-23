@@ -7,6 +7,7 @@
 #include "WorldState.h"
 #include "gamemode_events/CraftEvent.h"
 #include <algorithm>
+#include <set>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
@@ -150,7 +151,7 @@ bool CraftService::ConsiderRecipeCandidate(
   bool finalConsiderationResult = true;
 
   if (me.has_value()) {
-    bool evalRes = EvaluateCraftRecipeConditions(*me, cobjData);
+    bool evalRes = EvaluateCraftRecipeConditions(*me, cobjData, lookupRes);
     if (!evalRes) {
       spdlog::info("CraftService::ConsiderRecipeCandidate - Craft recipe "
                    "conditions are not met");
@@ -230,12 +231,30 @@ void CraftService::UseCraftRecipe(MpActor* me, const espm::COBJ* recipeUsed,
 }
 
 bool CraftService::EvaluateCraftRecipeConditions(
-  MpActor* me, const espm::COBJ::Data& recipeData)
+  MpActor* me, const espm::COBJ::Data& recipeData,
+  const espm::LookupResult& recipeLookup)
 {
+  // A form parameter in a recipe's condition is record-local, like every form id read out of a record: it names
+  // a form only through the recipe's own file. Raw, a Beyond Skyrim recipe's GetItemCount(CYRWolfPelt) counted a
+  // Dawnguard record and every Cyrodiil tanning recipe was refused
+  static const std::set<std::string> kFormParameterFunctions = {
+    "GetItemCount",   "GetEquipped",       "GetIsRace",
+    "HasSpell",       "SpellHasKeyword",   "WornHasKeyword",
+    "WornApparelHasKeywordCount",          "SkympWornHasKeywordCount",
+    "SkympGetDamageSourceHasKeyword",      "SkympGetIsDamageSource"
+  };
   std::vector<Condition> conditions;
-  std::transform(recipeData.conditions.begin(), recipeData.conditions.end(),
-                 std::back_inserter(conditions),
-                 [&](const auto& ctda) { return Condition::FromCtda(ctda); });
+  std::transform(
+    recipeData.conditions.begin(), recipeData.conditions.end(),
+    std::back_inserter(conditions), [&](const auto& ctda) {
+      Condition condition = Condition::FromCtda(ctda);
+      const uint32_t raw = ctda.GetDefaultData().firstParameter;
+      if (raw != 0 && kFormParameterFunctions.count(condition.function)) {
+        condition.parameter1 =
+          fmt::format("0x{:X}", recipeLookup.ToGlobalId(raw));
+      }
+      return condition;
+    });
 
   // TODO: aggressor and target terms are not relevant for crafting
   const MpActor& aggressor = *me;
