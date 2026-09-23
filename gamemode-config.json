@@ -39,9 +39,9 @@
   }
  ],
  "jail": {
-  "_comment": "Jail zones and sentences (server\\jail.js). cells are the jail zones set here; admins add more in game with /jail add (kept in jails.json, untracked). No /unstuck inside a jail or while serving. A guard or official uses a cell door with a player in reach to imprison them for one of minutes; time counts only while the prisoner is online and in the jail. pickChance: a non-Lockpicker's chance to pick a cell door, a Lockpicker's at Novice, what each tier adds, the ceiling; a failure breaks the pick.",
+  "_comment": "Jail zones and sentences (server\\jail.js). Every jail and prison in the load order is in jail-cells.json (ck-mcp/jails.py, 25 cells); cells adds more here, and admins add more in game with /jail add (kept in jails.json, untracked). No /unstuck inside a jail or while serving. A guard or official uses a cell door with a player in reach to imprison them for one of minutes; time counts only while the prisoner is online and in the jail. pickChance: a non-Lockpicker's chance to pick a cell door, a Lockpicker's at Novice, what each tier adds, the ceiling; a failure breaks the pick.",
   "enabled": true,
-  "cells": ["6c410:BSHeartland.esm"],
+  "cells": [],
   "minutes": [5, 10, 15, 30, 60, 120],
   "extendMinutes": 10,
   "pickChance": { "anyone": 0.15, "lockpicker": 0.35, "perTier": 0.1, "max": 0.85 }

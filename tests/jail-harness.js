@@ -180,7 +180,7 @@ check('...and it counts at once', /in a jail/.test(globalThis.__dboJailUnstuck(G
 jail.fn(GUARD, 'remove');
 check('/jail remove undoes it', globalThis.__dboJailUnstuck(GUARD) === null && JSON.parse(fs.readFileSync('jails.json', 'utf8')).cells.length === 0);
 at(GUARD, JAIL_CELL, [100, 0, 0]); jail.fn(GUARD, 'remove');
-check('a jail from the config cannot be removed in game', /set in gamemode-config/.test(said(GUARD)));
+check('a jail from the config cannot be removed in game', /comes from the load order or gamemode-config/.test(said(GUARD)));
 
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });
