@@ -100,6 +100,7 @@ app.use('/api/role-permissions',  rolePermissionsRoute)
 app.use('/api/server-access',      serverAccessRoute)
 app.use('/api/players',            playersRoute)
 app.use('/api/launch-check',       launchCheckRoute)
+app.use('/api/site/staff', require('./routes/site-staff'))
 app.use('/api/site',               siteAuthRoute)
 
 app.listen(PORT, () => {
