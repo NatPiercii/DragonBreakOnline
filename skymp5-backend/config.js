@@ -100,6 +100,8 @@ module.exports = {
   discordGuildId:  process.env.DISCORD_GUILD_ID  || '',
   // Channel that receives the audit log (role changes, permission edits, GM actions relayed by the game server)
   discordLogChannelId: process.env.DISCORD_LOG_CHANNEL_ID || '',
+  // Forum channel that launcher problem reports open a thread in, one thread per reporter
+  discordErrorForumChannelId: process.env.DISCORD_ERROR_FORUM_CHANNEL_ID || '',
 
   // Server lockdown: when true only serverLockedAllowList IDs can connect; others get loginFailedServerLocked from the TS server and the launcher shows "Server locked"
   serverLocked:          process.env.SERVER_LOCKED === 'true',
