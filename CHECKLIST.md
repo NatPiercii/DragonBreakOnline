@@ -1,5 +1,38 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23 (01:30 UTC): voice settings, per-panel resize, Patreon slots, rerolls and reserved places
+
+Live: fork `6e20da3`, server `patrons` deploy 01:24, client 0.3.15, launcher 2.1.28 (GitHub release, offered by
+`/api/version`), boot clean (0 `[error]`).
+
+- [x] **Voice, client side done.** Front mixes every voice through WebAudio into one `<audio>` (Chromium 108 has no
+  `AudioContext.setSinkId`), so per-player gain can go past 100%; mic through its own gain, published as a processed
+  track, push-to-talk / voice activation mute and unmute it; devices matched by **name** (ids are salted per origin);
+  LiveKit's own mic stays as fallback. X menu: Voice louder / quieter / Mute voice (only while voice is on).
+  Launcher Voice tab: devices, volumes, activation, meter with sensitivity line. Voice range key configurable.
+- [ ] **Voice server: installed, switched off.** LiveKit 1.13.7 (`livekit.service`, checksum verified,
+  `/etc/livekit.yaml` 0600) on 7880/tcp 7881/tcp 7882/udp; `voiceChat` in server-settings with `enabled: false`.
+  **Needs Jake to forward those three ports** (request in `OPS_HANDOFF_2026-09-22_claude-nate.md`), then
+  `enabled: true` and restart `skymp`. Nobody has heard a voice yet: untested end to end.
+- [x] **Every panel resizable**: Ctrl + wheel over it, 50-250%, per panel type, multiplies the global size; a
+  resized panel becomes its own zoomed screen (fixed + zoom + transform), so centred panels stay centred and corner
+  pieces stay in corners. Checked in the browser pane on the dungeon gate (centred) and the HUD (corners).
+  Launcher: Interface size (the client read `uiScale`, nothing wrote it) and "reset every panel". The HUD is one
+  panel: vitals, hunger and the voice indicator size together.
+- [x] **Every hotkey in the launcher**, including Interact (moves both property and player menus), Mask, Voice Range.
+- [x] **Patreon tiers** (`server\patron-tiers.json`, tracked; role ids from Nat): slots = 1 + best tier's extra
+  (Traveler 1 .. Owner 5) + Pre-Alpha's 1, capped at 10; a lapsed tier hides characters past its slots, never
+  deletes them. **40 reserved places**: non-priority players are refused (with a reason) once only 40 of maxPlayers
+  (100) are left; priority = Owner, GM, Grand Champion tiers and every `adminRoles` role. No waiting line (Nat's
+  choice). **Rerolls**: `/reroll` (+ `confirm`) reopens RaceMenu in place, spent only when the creator closes;
+  `/tokens`. Owner/GM unlimited, Grand Champion 1 per character, Pathfinder 2 and Adventurer 1 in total.
+  Tests: `tests\patrons-harness.js` 15/15, slot rules 10/10 against the real file.
+- [ ] **Nat: tell the owner that `spawn.ts` changed** (it is on claude-dragonbreak's feature/website-profiles list).
+  The change is a hook: `slotsFor()`, a `max` argument to `slotMap()`, and `admit()` at the top of `spawnAllowed`.
+- [ ] Untested in game: a reroll on a real character (race change leaves the old race's abilities until the
+  C++ starting-spell fix ships), slot counts per tier at character select, the refusal message.
+- [ ] Launcher needs players to install 2.1.28 once; older launchers do not write `voice`, `uiScale` or the new keys.
+
 ## Added 2026-09-23 (00:45 UTC): no attack ever cost stamina; Leerod's launch crash
 
 - [x] **Power attacks cost stamina again** (Nat: "Duel Wield Power Attack doesn't use any stamina").
