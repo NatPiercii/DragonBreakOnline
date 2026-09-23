@@ -7,7 +7,7 @@ const fs   = require('fs')
 const os   = require('os')
 const path = require('path')
 
-const PER_FILE_BYTES = 160 * 1024   // the proxy caps the whole request at 1 MB
+const PER_FILE_BYTES = 160 * 1024   // the proxy caps the whole request at 2 MB
 const REDACTIONS = [
   [/([A-Za-z]:[\\/]Users[\\/])[^\\/\r\n"'<>|]+/gi, '$1<user>'],
   [/((?:key|nmm_key)=)[A-Za-z0-9._~-]{6,}/gi, '$1<redacted>'],
@@ -37,24 +37,28 @@ function tail(file, bytes = PER_FILE_BYTES) {
   } catch { return null }
 }
 
-// The game and SKSE write here; present only after the game has been launched at least once
-function gameLogCandidates() {
-  const docs = path.join(os.homedir(), 'Documents', 'My Games', 'Skyrim Special Edition', 'SKSE')
-  const names = ['skse64.log', 'SkyrimPlatform.log', 'skymp5-client.log']
-  return names.map(n => path.join(docs, n))
+// SKSE and SkyrimPlatform write here; present only after the game has been launched at least once.
+// documentsDir comes from Electron because a OneDrive-moved Documents folder is not under the home folder.
+const GAME_LOGS = [['skyrim-platform.log', 'gameLog'], ['skse64.log', 'skseLog']]
+
+function gameLogCandidates(documentsDir, variants) {
+  const out = []
+  for (const [name, field] of GAME_LOGS) {
+    for (const variant of variants) out.push({ file: path.join(documentsDir, 'My Games', variant, 'SKSE', name), field })
+  }
+  return out
 }
 
 // context: whatever the launcher already knows (versions, install dir, the step that failed)
-function collect({ userDataDir, installDir, context = {} }) {
+function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Skyrim Special Edition'], context = {} }) {
   const files = {}
   const launcher = tail(path.join(userDataDir, 'install.log'))
   if (launcher) files.launcherLog = redact(launcher)
 
-  for (const candidate of gameLogCandidates()) {
-    const text = tail(candidate, 80 * 1024)
-    if (!text) continue
-    files[files.gameLog ? 'clientLog' : 'gameLog'] = redact(`== ${path.basename(candidate)} ==\n${text}`)
-    if (files.clientLog) break
+  for (const { file, field } of gameLogCandidates(documentsDir || path.join(os.homedir(), 'Documents'), myGamesVariants)) {
+    if (files[field]) continue
+    const text = tail(file, 80 * 1024)
+    if (text) files[field] = redact(text)
   }
 
   if (installDir) {

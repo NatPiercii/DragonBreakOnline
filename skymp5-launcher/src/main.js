@@ -1531,8 +1531,10 @@ ipcMain.handle('report:send', async (_e, { note } = {}) => {
   const session = store.get('gameSession')
   try {
     const payload = report.collect({
-      userDataDir: app.getPath('userData'),
-      installDir:  store.get('skyrimPath') || '',
+      userDataDir:     app.getPath('userData'),
+      installDir:      store.get('skyrimPath') || '',
+      documentsDir:    app.getPath('documents'),
+      myGamesVariants: MYGAMES_VARIANTS,
       context: {
         launcherVersion: app.getVersion(),
         filesVersion:    store.get('filesVersion') || '',
@@ -1553,6 +1555,7 @@ ipcMain.handle('report:send', async (_e, { note } = {}) => {
     log(`[report] failed: ${err.statusCode || ''} ${err.message}`)
     if (err.statusCode === 429) return { ok: false, error: 'Too many reports just now. Wait a few minutes.' }
     if (err.statusCode === 503) return { ok: false, error: 'Reporting is switched off on the server.' }
+    if (err.statusCode === 413) return { ok: false, error: 'The report is too large to send.' }
     return { ok: false, error: 'Could not reach the server. Tell a staff member directly.' }
   }
 })
