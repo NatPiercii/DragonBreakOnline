@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Time to Mastery - Dragon Break</title>
+<meta name="description" content="How characters grow and what each level opens.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd li{margin:0}
+.gd{--ink:#0f2a2e;--ink-soft:#3a4548;--ground:#e6ecec;--panel:#e6ecec;--rule:#d7e3e3;--accent:#2f7c80;--accent-soft:#e6ecec;--warn:#7a2d2a;--warn-soft:#e6ecec;--display:'Cinzel','Trajan Pro',Georgia,serif;--body:'Roboto Condensed','Futura Condensed',sans-serif;--mono:ui-monospace,Consolas,monospace}
+.gd{--ink:#e6ecec;--ink-soft:#8c9a9c;--ground:#08191c;--panel:#0f2a2e;--rule:#16383d;--accent:#8fd3d0;--accent-soft:#0f2a2e;--warn:#e0897f;--warn-soft:#08191c}
+.gd{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+.gd .g-wrap{max-width:800px;margin:0 auto;padding-inline:20px;padding-block:48px 72px;display:flex;flex-direction:column;gap:34px}
+.gd .g-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+.gd h1{font-family:var(--display);font-weight:600;font-size:clamp(30px, 6vw, 42px);line-height:1.12;margin:0 0 12px;text-wrap:balance}
+.gd .g-standfirst{font-size:18px;color:var(--ink-soft);margin:0;max-width:62ch}
+.gd h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid var(--rule);text-wrap:balance}
+.gd h3{font-weight:600;font-size:15px;letter-spacing:0.02em;margin:20px 0 2px}
+.gd p{margin:10px 0;max-width:66ch}
+.gd section > p:first-of-type{margin-top:12px}
+.gd ul{margin:10px 0;padding-left:20px;max-width:66ch}
+.gd li{margin:6px 0}
+.gd code,.gd .g-mono{font-family:var(--mono);font-size:0.87em}
+.gd code{background:var(--accent-soft);padding:1px 5px;border-radius:3px}
+.gd strong{font-weight:600}
+.gd .g-note{color:var(--ink-soft);font-size:14.5px}
+.gd .g-tablewrap{overflow-x:auto;margin:14px 0}
+.gd table{border-collapse:collapse;width:100%;font-size:14.5px}
+.gd th,.gd td{text-align:left;padding:7px 14px 7px 0;border-bottom:1px solid var(--rule);vertical-align:top;white-space:nowrap}
+.gd th{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:500}
+.gd td.g-num,.gd th.g-num{text-align:right;font-variant-numeric:tabular-nums;padding-right:14px}
+.gd tr.g-mark td{font-weight:600}
+.gd tr.g-mark td:first-child{color:var(--accent)}
+.gd caption{caption-side:bottom;text-align:left;padding-top:8px;font-size:13.5px;color:var(--ink-soft)}
+.gd .g-callout{background:var(--panel);border-left:3px solid var(--accent);padding:16px 18px}
+.gd .g-callout p{margin:0}
+.gd .g-callout--warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.gd .g-facts{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:1px;background:var(--rule);border:1px solid var(--rule)}
+.gd .g-fact{background:var(--panel);padding:14px 16px}
+.gd .g-fact dt{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 4px}
+.gd .g-fact dd{margin:0;font-family:var(--display);font-size:25px;line-height:1.1;font-variant-numeric:tabular-nums}
+.gd .g-fact .g-unit{font-family:var(--body);font-size:13px;color:var(--ink-soft);display:block;margin-top:3px}
+.gd footer{border-top:1px solid var(--rule);padding-top:16px;color:var(--ink-soft);font-size:14px}
+@media (max-width: 460px){.gd .g-fact dd{font-size:21px}}
+.gd{--accent:#8fd3d0;--accent-soft:rgba(143,211,208,.12);--body:'Roboto Condensed','Futura Condensed',sans-serif;--display:'Cinzel','Trajan Pro',Georgia,serif;--ground:transparent;--ink:#d7e3e3;--ink-soft:rgba(215,227,227,.62);--mono:ui-monospace,Consolas,monospace;--panel:rgba(12,34,38,.94);--rule:rgba(143,211,208,.22);--warn:#c98a3a;--warn-soft:rgba(201,138,58,.16)}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · player guide</div><h1>Time to Mastery</h1></div>
+<main class="gd">
+<div class="g-wrap">
+  <header>
+    <p class="g-standfirst">What it actually costs to raise a skill from nothing to 100: hours at the anvil, days on the calendar, and the four things that quietly halve your rate.</p>
+  </header>
+  <section>
+    <h2>The short answer</h2>
+    <p>Progress is measured in <strong>hours of validated work on that one skill</strong>, not hours logged in. Wandering, talking and travelling are worth nothing. These are the numbers for work you actually do:</p>
+    <div class="g-tablewrap">
+      <table>
+        <caption>Calendar columns assume you spend that long working <em>this</em> skill, every day, without a day off.</caption>
+        <thead><tr><th>Level</th><th class="g-num">Hours of work</th><th class="g-num">1 h/day</th><th class="g-num">2 h/day</th><th class="g-num">4 h/day</th></tr></thead>
+        <tbody>
+          <tr><td>1 — first touch</td><td class="g-num">0.3</td><td class="g-num">1 day</td><td class="g-num">1 day</td><td class="g-num">1 day</td></tr>
+          <tr><td>10</td><td class="g-num">3</td><td class="g-num">4 days</td><td class="g-num">2 days</td><td class="g-num">1 day</td></tr>
+          <tr class="g-mark"><td>25 — Apprentice</td><td class="g-num">8</td><td class="g-num">9 days</td><td class="g-num">5 days</td><td class="g-num">3 days</td></tr>
+          <tr class="g-mark"><td>50 — Journeyman</td><td class="g-num">25</td><td class="g-num">25 days</td><td class="g-num">13 days</td><td class="g-num">7 days</td></tr>
+          <tr class="g-mark"><td>75 — Expert</td><td class="g-num">58</td><td class="g-num">59 days</td><td class="g-num">30 days</td><td class="g-num">15 days</td></tr>
+          <tr class="g-mark"><td>90 — Master</td><td class="g-num">98</td><td class="g-num">99 days</td><td class="g-num">50 days</td><td class="g-num">25 days</td></tr>
+          <tr><td>95 — ebony</td><td class="g-num">132</td><td class="g-num">132 days</td><td class="g-num">66 days</td><td class="g-num">41 days</td></tr>
+          <tr><td>100 — daedric</td><td class="g-num">198</td><td class="g-num">199 days</td><td class="g-num">100 days</td><td class="g-num">75 days</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Read the last two rows carefully: the 4 h/day column stops pulling ahead near the top, because past level 90 a skill accepts only <strong>two hours of work a day</strong> and ignores the rest. Nothing you do buys that down.</p>
+  </section>
+  <section>
+    <h2>What one hour of work actually holds</h2>
+    <p>Each skill carries its own bucket that fills at <strong>30 units an hour</strong> and holds 20 at most. Every act you perform spends from that bucket, and when it is empty the work still happens — the sword still swings, the ingot still comes out — it just stops counting until the bucket refills.</p>
+    <dl class="g-facts">
+      <div class="g-fact"><dt>Refill</dt><dd>30<span class="g-unit">units per hour, per skill</span></dd></div>
+      <div class="g-fact"><dt>Stored</dt><dd>20<span class="g-unit">units waiting when you log in</span></dd></div>
+      <div class="g-fact"><dt>Most acts</dt><dd>0.5<span class="g-unit">units each</span></dd></div>
+      <div class="g-fact"><dt>A worked vein</dt><dd>1–2<span class="g-unit">units, by ore</span></dd></div>
+      <div class="g-fact"><dt>To saturate</dt><dd>60<span class="g-unit">acts an hour, one a minute</span></dd></div>
+    </dl>
+    <p>Two consequences worth knowing. First, the bucket is <em>per skill</em>, so alternating between the forge and the mine costs neither one anything — two skills can run at full rate in the same hour. Second, because it holds 20 units, a player who logs in after a break has about forty minutes of stored progress waiting; short sessions are not punished.</p>
+    <p>Not everything is worth 0.5. A finished mining round is worth <strong>1.0 for copper and up to 2.0 for ebony</strong>, a chopped block and a read book 1.0 each, and prayer and a picked lock 1.0. So a Novice miner is ten veins rather than twenty, and the better the seam the fewer it takes.</p>
+  </section>
+  <section>
+    <h2>The four things that slow you down</h2>
+    <h3>1. Doing the same thing over and over</h3>
+    <p>Repeating the same recipe, the same ore vein or the same target is worth less each time: the ninth in an hour is worth half, and it bottoms out at <strong>a third</strong>. Grinding one iron dagger over and over needs roughly 180 acts an hour to fill the same bucket that 60 varied acts fill. Move between veins, vary what you forge, hunt different beasts.</p>
+    <h3>2. Starving</h3>
+    <p>At hunger 90 your work counts for <strong>a quarter</strong> until you eat. Hunger climbs 12 an hour online, so a long unbroken session reaches starving in under eight hours. Carry food; it is the cheapest rate increase in the game.</p>
+    <h3>3. Not having taken up the trade</h3>
+    <p>Nothing counts until you open the skill at its own station — a forge, a vein, a tanning rack. Swinging a pickaxe as an untrained traveller earns exactly nothing, however long you do it. Opening a trade costs <strong>one point</strong> from your pool.</p>
+    <h3>4. The daily ceiling, once you are high</h3>
+    <p>Below 75 the ceiling is 360 units, which needs twelve hours on one skill to reach — effectively no limit. From 75 it drops to 180 (six hours), and from 90 to 60 (two hours). That is the wall, and it is deliberate.</p>
+  </section>
+  <section>
+    <h2>What a single level costs</h2>
+    <div class="g-tablewrap">
+      <table>
+        <caption>"Same thing repeated" assumes the worst case, a third value, which is what pure grinding gets you.</caption>
+        <thead><tr><th>Levels</th><th class="g-num">Work</th><th class="g-num">Varied acts</th><th class="g-num">Same thing repeated</th><th class="g-num">Fastest possible</th></tr></thead>
+        <tbody>
+          <tr><td>1 – 24</td><td class="g-num">20 min</td><td class="g-num">20</td><td class="g-num">60</td><td class="g-num">—</td></tr>
+          <tr><td>25 – 49</td><td class="g-num">40 min</td><td class="g-num">40</td><td class="g-num">120</td><td class="g-num">—</td></tr>
+          <tr><td>50 – 74</td><td class="g-num">1 h 20</td><td class="g-num">80</td><td class="g-num">240</td><td class="g-num">—</td></tr>
+          <tr><td>75 – 89</td><td class="g-num">2 h 40</td><td class="g-num">160</td><td class="g-num">480</td><td class="g-num">2 a day</td></tr>
+          <tr><td>90 – 94</td><td class="g-num">6 h 40</td><td class="g-num">400</td><td class="g-num">1,200</td><td class="g-num">1 per 3⅓ days</td></tr>
+          <tr><td>95 – 99</td><td class="g-num">13 h 20</td><td class="g-num">800</td><td class="g-num">2,400</td><td class="g-num">1 per 6⅔ days</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="g-callout">
+      <p><strong>90 to 100 takes fifty days, minimum.</strong> Three thousand units of work against a ceiling of sixty a day. Played perfectly, with no wasted act and no day missed, that is seven weeks. A masterwork smith is a person the server watched become one.</p>
+    </div>
+  </section>
+  <section>
+    <h2>Breadth or depth</h2>
+    <p>You hold <strong>300 points</strong> across all eighteen skills, one point per level. Since the buckets are separate, the only real question is where you spend your hours. Two hours a day for a month buys either of these:</p>
+    <div class="g-tablewrap">
+      <table>
+        <thead><tr><th>How you spend it</th><th>After 30 days</th></tr></thead>
+        <tbody>
+          <tr><td>All 2 h on one skill</td><td>That skill at <strong>75</strong> — Expert, and one of your three</td></tr>
+          <tr><td>30 min each on four skills</td><td>Four skills at <strong>35</strong> — all Apprentice, none notable</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only three skills may sit above 75, and only one of those may pass 90. In practice the pool binds first: a Seat at 100 with two Experts at 89 already spends 278 of your 300, leaving 22 points for everything else you touch. Choose the trade you want to be known for before you spend a hundred hours on it.</p>
+    <p>Points only ever leave a skill when a gain would push you past 300, and you decide which one gives way: mark skills <strong>Waning</strong> to spend them, <strong>Held</strong> to protect them. Nothing falls below 25, nothing decays while you are offline, and if nothing can give way the gain is refused with a notice rather than taken silently.</p>
+  </section>
+  <section>
+    <h2>Working it efficiently</h2>
+    <ul>
+      <li><strong>Eat first.</strong> A quarter rate is worse than any other mistake on this list.</li>
+      <li><strong>Bring variety, not volume.</strong> Sixty different acts beat two hundred identical ones.</li>
+      <li><strong>Work two trades in the same session.</strong> Separate buckets, no penalty — smelt while the mine respawns.</li>
+      <li><strong>An hour a day beats seven hours on Sunday</strong> once you pass 75, because the ceiling resets daily and unspent days are simply gone.</li>
+      <li><strong>Stop at the ceiling.</strong> Past 90, two hours is the whole day's allowance; the third hour is for roleplay, not progress.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>What may still change</h2>
+    <div class="g-callout g-callout--warn">
+      <p><strong>Ore is wired in; the rest is not yet.</strong> A mining round now carries its ore band, so ebony really is worth more than copper. But a craft, a kill, a hit, a blow taken and a spell cast are all still worth their 0.5 base, whatever the product was worth or the target's health — the scale term was never being passed at all, and now that it is, those emitters still have to send one. So <strong>for everything but mining the act counts are floors, and the hour counts are what really holds</strong>. The hours-to-level ladder is not expected to change; what changes is how few acts it takes to fill an hour.</p>
+    </div>
+  </section>
+  <footer>
+    <p>Figures generated from the live engine on 20 September 2026, revised that afternoon for the mining weight and the eighteenth skill — <span class="g-mono">skillPoints.ts</span> and the <span class="g-mono">pointSystem</span> block of <span class="g-mono">skills.json</span>. Design rationale is in <span class="g-mono">server/SKILLS_DESIGN.md</span>.</p>
+  </footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/skills.html">Skill System</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>

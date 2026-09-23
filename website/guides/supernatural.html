@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vampires &amp; Werewolves - Dragon Break</title>
+<meta name="description" content="Vampirism, lycanthropy, the moons and the cures.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd li{margin:0}
+.gd{--ground:#08191c;--surface:#0f2a2e;--raised:#16383d;--line:#3a4548;--line-soft:#16383d;--aqua:#8fd3d0;--aqua-soft:rgba(143,211,208,.12);--text:#e6ecec;--text-2:#d7e3e3;--muted:#8c9a9c;--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.13);--blood:#e0897f;--blood-deep:#7a2d2a;--blood-soft:rgba(224,137,127,.12);--moon-lit:#e6ecec;--moon-dark:#16383d;--moon-glow:rgba(232,214,160,.35);--shadow:0 10px 28px rgba(0,0,0,.28);color-scheme:dark}
+.gd *{box-sizing:border-box}
+.gd{background:var(--ground);color:var(--text-2);font-family:'Roboto Condensed','Futura Condensed',sans-serif;font-size:18px;line-height:1.5;padding-inline:16px;padding-block:0 64px}
+.gd .g-wrap{max-width:1080px;margin:0 auto}
+.gd h1,.gd h2,.gd h3{font-family:'Cinzel','Trajan Pro',Georgia,serif;color:var(--text);text-wrap:balance;margin:0;font-weight:600}
+.gd p{margin:0}
+.gd ul{margin:0;padding-left:1.1em}
+.gd a{color:var(--aqua)}
+.gd :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.gd b,.gd strong{color:var(--text);font-weight:600}
+.gd .g-eyebrow{font-size:14px;letter-spacing:.22em;text-transform:uppercase;color:var(--aqua);font-weight:600}
+.gd .g-hero{padding-block:48px 30px;display:grid;gap:14px;border-bottom:1px solid var(--line)}
+.gd .g-hero h1{font-size:clamp(32px,6vw,56px);letter-spacing:.03em;line-height:1.05}
+.gd .g-hero h1 .g-amp{color:var(--gold);font-weight:500}
+.gd .g-hero p{max-width:60ch;font-size:20px}
+.gd .g-jump{display:flex;flex-wrap:wrap;gap:8px}
+.gd .g-btn{display:inline-block;font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:600;font-size:15px;letter-spacing:.06em;text-decoration:none;color:var(--gold-ink);background:var(--gold);border-radius:4px;padding:6px 14px}
+.gd .g-btn.g-ghost{background:transparent;color:var(--gold);border:1px solid var(--gold)}
+.gd section{padding-block:44px 0}
+.gd .g-sec-head{display:grid;gap:6px;margin-bottom:22px}
+.gd .g-sec-head h2{font-size:clamp(26px,4vw,36px)}
+.gd .g-sec-head p{max-width:64ch;color:var(--muted)}
+.gd .g-vamp .g-sec-head .g-eyebrow{color:var(--blood)}
+.gd h3{font-size:18px;letter-spacing:.03em}
+.gd .g-sub{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:30px 0 12px;font-weight:600}
+.gd .g-clock{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:6px;overflow:hidden}
+.gd .g-clock div{background:var(--surface);padding:16px 18px;display:grid;gap:4px}
+.gd .g-clock p{color:var(--muted);font-size:16px}
+.gd .g-timeline{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:0;counter-reset:step}
+.gd .g-timeline li{position:relative;padding:34px 14px 0 0;display:grid;gap:4px;align-content:start}
+.gd .g-timeline li::before{content:"";position:absolute;left:0;right:0;top:11px;height:2px;background:var(--line)}
+.gd .g-timeline li:last-child::before{right:auto;width:24px}
+.gd .g-timeline li::after{counter-increment:step;content:counter(step);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--ground);border:2px solid var(--accent);color:var(--accent);font:600 13px/20px 'Cinzel','Trajan Pro',Georgia,serif;text-align:center}
+.gd .g-timeline li:last-child::after{background:var(--accent);color:var(--gold-ink)}
+.gd .g-timeline .g-when{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.gd .g-timeline p{font-size:16px;color:var(--muted)}
+.gd .g-vamp{--accent:var(--blood)}
+.gd .g-wolf{--accent:var(--aqua)}
+@media (max-width:720px){.gd .g-timeline{grid-template-columns:1fr;gap:18px}
+.gd .g-timeline li{padding:0 0 0 38px}
+.gd .g-timeline li::before{left:11px;right:auto;top:26px;bottom:-20px;width:2px;height:auto}
+.gd .g-timeline li:last-child::before{display:none}}
+.gd .g-warn{margin-top:22px;border:1px solid var(--accent);background:linear-gradient(90deg,var(--accent-soft),transparent 80%);border-radius:6px;padding:16px 18px;display:grid;gap:6px}
+.gd .g-vamp .g-warn{--accent-soft:var(--blood-soft)}
+.gd .g-wolf .g-warn{--accent-soft:var(--aqua-soft)}
+.gd .g-warn h3{color:var(--text)}
+.gd .g-warn .g-label{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.gd .g-table-wrap{overflow-x:auto;border:1px solid var(--line-soft);border-radius:6px;background:var(--surface)}
+.gd table{border-collapse:collapse;width:100%;min-width:520px}
+.gd th,.gd td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.gd thead th{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.gd tbody tr:last-child td{border-bottom:0}
+.gd td.g-stage{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:700;font-size:22px;color:var(--blood);width:4.5em}
+.gd .g-pips{display:inline-flex;gap:4px;vertical-align:middle}
+.gd .g-pips i{width:16px;height:8px;border-radius:2px;background:var(--line)}
+.gd .g-pips i.g-on{background:var(--blood)}
+.gd .g-pips.g-fire i.g-on{background:var(--gold)}
+.gd .g-lvl{margin-left:8px;color:var(--muted);font-size:15px}
+.gd .g-tnote{margin-top:10px;font-size:16px;color:var(--muted)}
+.gd .g-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.gd .g-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:6px;padding:18px 20px;display:grid;gap:8px;align-content:start}
+.gd .g-card p,.gd .g-card li{font-size:17px}
+.gd .g-card ul{display:grid;gap:4px}
+.gd .g-card.g-crown{border-color:var(--gold);background:linear-gradient(160deg,var(--gold-soft),transparent 60%),var(--surface)}
+.gd .g-card.g-crown h3{color:var(--gold)}
+.gd .g-pill{display:inline-block;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);color:var(--muted);border-radius:3px;padding:0 6px;margin-left:6px;vertical-align:2px}
+.gd .g-pill.g-secret{color:var(--blood);border-color:var(--blood)}
+.gd .g-names{list-style:none;padding:0;display:grid;gap:6px}
+.gd .g-names li{display:flex;justify-content:space-between;gap:10px;align-items:baseline;border-top:1px dotted var(--line-soft);padding-top:6px}
+.gd .g-names li:first-child{border-top:0;padding-top:0}
+.gd .g-timer{display:grid;gap:6px;margin-top:4px}
+.gd .g-bar{display:flex;height:14px;border-radius:3px;overflow:hidden;background:var(--line-soft)}
+.gd .g-bar .g-base{flex:150;background:var(--aqua)}
+.gd .g-bar .g-plus{flex:30;background:var(--gold);border-left:2px solid var(--surface)}
+.gd .g-scale{display:grid;grid-template-columns:75fr 75fr 30fr;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gd .g-moon-panel{background:var(--surface);border:1px solid var(--line-soft);border-radius:6px;padding:20px;display:grid;gap:16px}
+.gd .g-moon-scroll{overflow-x:auto}
+.gd .g-moon-scroll svg{display:block;width:100%;min-width:560px;height:auto}
+.gd .g-moon-scroll text{font-family:'Roboto Condensed','Futura Condensed',sans-serif;fill:var(--muted);font-size:13px;letter-spacing:.06em}
+.gd .g-moon-scroll text.g-hi{fill:var(--gold);font-weight:600}
+.gd .g-rule{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:17px}
+.gd .g-cond{border:1px solid var(--line);border-radius:999px;padding:2px 12px;color:var(--text)}
+.gd .g-op{color:var(--muted)}
+.gd .g-odds{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:700;color:var(--gold-ink);background:var(--gold);border-radius:4px;padding:2px 10px}
+.gd .g-oneonly{margin-top:44px;border-block:1px solid var(--line);padding-block:26px;display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.gd .g-oneonly svg{width:64px;height:64px}
+.gd .g-oneonly h2{font-size:24px}
+.gd .g-oneonly p{color:var(--muted);max-width:62ch}
+@media (max-width:520px){.gd .g-oneonly{grid-template-columns:1fr}
+.gd{font-size:17px}}
+.gd .g-admin{margin-top:26px;font-size:16px;color:var(--muted)}
+.gd code{font-family:ui-monospace,Consolas,monospace;font-size:.85em;background:var(--raised);color:var(--text);padding:1px 6px;border-radius:3px}
+.gd footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);display:grid;gap:10px}
+.gd footer ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:16px}
+.gd footer p{font-size:15px;color:var(--muted)}
+.gd{--accent:#8fd3d0;--accent-soft:rgba(143,211,208,.12);--aqua:#8fd3d0;--aqua-soft:rgba(143,211,208,.12);--blood:#e0897f;--blood-deep:#7a2d2a;--blood-soft:rgba(224,137,127,.12);--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.16);--ground:transparent;--line:rgba(143,211,208,.22);--line-soft:rgba(143,211,208,.13);--moon-dark:#1a3a3f;--moon-glow:rgba(232,214,160,.35);--moon-lit:#e6ecec;--muted:rgba(215,227,227,.62);--raised:rgba(22,56,61,.94);--surface:rgba(12,34,38,.94);--text:#d7e3e3;--text-2:#d7e3e3}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · Supernatural</div><h1>Vampires &amp; Werewolves</h1></div>
+<main class="gd">
+<div class="g-wrap">
+<header class="g-hero">
+  <p>Two ancient curses, both drawn from the lore of Tamriel. How you catch them, how you survive the turning, what they give, and what they cost.</p>
+  <div class="g-jump"><a class="g-btn" href="#vampirism">Vampirism</a><a class="g-btn g-ghost" href="#lycanthropy">Lycanthropy</a></div>
+</header>
+<section>
+  <div class="g-sec-head"><div class="g-eyebrow">Shared world</div><h2 id="clock">One sky for everyone</h2>
+  <p>The server keeps the clock, the calendar, the moons and the weather. When it is night for you, it is night for every player in Tamriel.</p></div>
+  <div class="g-clock">
+    <div><h3>Day and night</h3><p>Sunrise burns the same vampire on every screen at once.</p></div>
+    <div><h3>Moon phases</h3><p>A full moon rises for the whole server, not just for you.</p></div>
+    <div><h3>Weather</h3><p>Storms and overcast skies are shared, and they matter to anyone who fears the sun.</p></div>
+  </div>
+</section>
+<section id="vampirism" class="g-vamp">
+  <div class="g-sec-head"><div class="g-eyebrow">Molag Bal's curse</div><h2 id="v-h">Vampirism</h2>
+  <p>Vampirism begins as a disease, <em>Sanguinare Vampiris</em>. Left alone, it ends in undeath.</p></div>
+  <ol class="g-timeline">
+    <li><span class="g-when">Infection</span><h3>Bitten</h3><p>Every hit from a vampire carries a 10% chance of Sanguinare Vampiris.</p></li>
+    <li><span class="g-when">3 in-game days</span><h3>Incubation</h3><p>Still curable: a Cure Disease potion or a shrine blessing ends it.</p></li>
+    <li><span class="g-when">The fever peaks</span><h3>Blood Fever</h3><p>A timed ritual trial. Fail and you die, and the disease burns out with you.</p></li>
+    <li><span class="g-when">Turned</span><h3>Stage 1 vampire</h3><p>You wake undead. From here, hunger sets the pace.</p></li>
+  </ol>
+  <div class="g-warn">
+    <span class="g-label">The other road</span>
+    <h3>Molag Bal's Embrace</h3>
+    <p>A voluntary rite at a shrine of Molag Bal, and the only way to pure blood. Few who take it survive, as with the Daughters of Coldharbour: failing the rite can mean <strong>permanent death</strong> for your character.</p>
+  </div>
+  <div class="g-sub">Stages of hunger</div>
+  <div class="g-table-wrap">
+    <table>
+      <thead><tr><th>Stage</th><th>Reached</th><th>Sunlight, outdoors by day</th><th>Weakness to fire</th></tr></thead>
+      <tbody>
+        <tr><td class="g-stage">1</td><td>Just fed</td><td><span class="g-pips"><i class="g-on"></i><i></i><i></i><i></i></span><span class="g-lvl">Slight</span></td><td><span class="g-pips g-fire"><i class="g-on"></i><i></i><i></i><i></i></span><span class="g-lvl">Slight</span></td></tr>
+        <tr><td class="g-stage">2</td><td>1 day unfed</td><td><span class="g-pips"><i class="g-on"></i><i class="g-on"></i><i></i><i></i></span><span class="g-lvl">Moderate</span></td><td><span class="g-pips g-fire"><i class="g-on"></i><i class="g-on"></i><i></i><i></i></span><span class="g-lvl">Moderate</span></td></tr>
+        <tr><td class="g-stage">3</td><td>2 days unfed</td><td><span class="g-pips"><i class="g-on"></i><i class="g-on"></i><i class="g-on"></i><i></i></span><span class="g-lvl">Heavy</span></td><td><span class="g-pips g-fire"><i class="g-on"></i><i class="g-on"></i><i class="g-on"></i><i></i></span><span class="g-lvl">Heavy</span></td></tr>
+        <tr><td class="g-stage">4</td><td>3+ days unfed</td><td><span class="g-pips"><i class="g-on"></i><i class="g-on"></i><i class="g-on"></i><i class="g-on"></i></span><span class="g-lvl">Severe</span></td><td><span class="g-pips g-fire"><i class="g-on"></i><i class="g-on"></i><i class="g-on"></i><i class="g-on"></i></span><span class="g-lvl">Severe</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="g-tnote">One stage per in-game day without feeding. At every stage you are immune to disease.</p>
+  <div class="g-sub">Blood, crown and cure</div>
+  <div class="g-cards">
+    <div class="g-card"><h3>Feeding</h3>
+      <p>Feed on a humanoid who is restrained, downed, or freshly slain: use the <strong>X</strong> menu on them, or activate the corpse. Feeding returns you to Stage 1.</p></div>
+    <div class="g-card g-crown"><h3>The Blood Crown</h3>
+      <p>Molag Bal grants the Vampire Lord gift to <strong>one champion in Cyrodiil</strong> at a time. Any vampire who slays the holder takes it, so the clans are always at war over it.</p></div>
+    <div class="g-card"><h3>The cure</h3>
+      <ul><li><strong>Falion's rite</strong>: bring a filled black soul gem to a shrine of Arkay or Stendarr.</li>
+      <li><strong>Lycanthropy</strong> also cures vampirism, at its own price.</li></ul></div>
+    <div class="g-card"><h3>The clans</h3>
+      <ul class="g-names">
+        <li><span>Cyrodiil Vampyrum Order</span><span class="g-pill g-secret">Secret</span></li>
+        <li><span>Crimson Scars</span><span class="g-pill g-secret">Secret</span></li>
+        <li><span>Bloodmist Clan</span><span class="g-pill g-secret">Secret</span></li>
+        <li><span>Clan Volkihar</span><span class="g-pill g-secret">Secret</span></li>
+      </ul></div>
+    <div class="g-card"><h3>The hunters</h3>
+      <ul class="g-names"><li><span>Vigilants of Stendarr</span></li><li><span>Dawnguard</span></li><li><span>Order of the Virtuous Blood</span></li></ul></div>
+  </div>
+</section>
+<section id="lycanthropy" class="g-wolf">
+  <div class="g-sec-head"><div class="g-eyebrow">Hircine's gift</div><h2 id="w-h">Lycanthropy</h2>
+  <p>Lycanthropy passes by bite as <em>Sanies Lupinus</em>. Those who survive it belong to the Huntsman.</p></div>
+  <ol class="g-timeline">
+    <li><span class="g-when">Infection</span><h3>Bitten</h3><p>A werewolf's bite can pass on Sanies Lupinus.</p></li>
+    <li><span class="g-when">3 in-game days</span><h3>Incubation</h3><p>The same curable window: a Cure Disease potion or a shrine blessing.</p></li>
+    <li><span class="g-when">The fever peaks</span><h3>Hircine's Hunt</h3><p>The trial of the beast. Fail and you die.</p></li>
+    <li><span class="g-when">Turned</span><h3>Werewolf</h3><p>The beast lives under your skin from now on.</p></li>
+  </ol>
+  <div class="g-warn">
+    <span class="g-label">The other road</span>
+    <h3>The rite of Hircine</h3>
+    <p>Seek the change willingly at a shrine of Hircine. The Huntsman does not forgive weakness: failing the rite risks <strong>permanent death</strong>.</p>
+  </div>
+  <div class="g-sub">The beast</div>
+  <div class="g-cards">
+    <div class="g-card"><h3>Beast form</h3>
+      <p>Change at will <strong>once per in-game day</strong> for 150 seconds. Each corpse you feed on adds 30 seconds and heals you.</p>
+      <div class="g-timer" aria-label="150 seconds of beast form, plus 30 seconds per feeding">
+        <div class="g-bar"><span class="g-base"></span><span class="g-plus"></span></div>
+        <div class="g-scale"><span>0 s</span><span style="text-align:right">150 s</span><span style="text-align:right">+30 s</span></div>
+      </div></div>
+    <div class="g-card"><h3>Drawbacks</h3>
+      <ul><li>Weakness to silver.</li><li>No gear in beast form.</li><li>A change someone witnesses marks you.</li><li>Hircine claims your soul when you die.</li></ul></div>
+    <div class="g-card g-crown"><h3>Pack leader</h3>
+      <p>Each pack has one leader. Defeat the current leader <strong>in beast form</strong> to take the place. By old tradition, only the pack leader wears the white coat.</p></div>
+  </div>
+  <div class="g-sub">The full moon</div>
+  <div class="g-moon-panel">
+    <div class="g-moon-scroll"><svg viewBox="0 0 680 160" role="img"><circle cx="45" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><text x="45" y="128" text-anchor="middle">New</text><circle cx="129" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><path d="M129.00,52 A26 26 0 0 1 129.00,104 A18.38 26 0 0 0 129.00,52Z" fill="var(--moon-lit)" /><text x="129" y="128" text-anchor="middle">Waxing</text><text x="129" y="143" text-anchor="middle">crescent</text><circle cx="213" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><path d="M213.00,52 A26 26 0 0 1 213.00,104Z" fill="var(--moon-lit)" /><text x="213" y="128" text-anchor="middle">First</text><text x="213" y="143" text-anchor="middle">quarter</text><circle cx="297" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><path d="M297.00,52 A26 26 0 0 1 297.00,104 A18.38 26 0 0 1 297.00,52Z" fill="var(--moon-lit)" /><text x="297" y="128" text-anchor="middle">Waxing</text><text x="297" y="143" text-anchor="middle">gibbous</text><circle cx="381" cy="78" r="38" fill="var(--moon-glow)" /><circle cx="381" cy="78" r="31" fill="none" stroke="var(--gold)" stroke-width="1.5" /><circle cx="381" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><circle cx="381" cy="78" r="26" fill="var(--moon-lit)" /><text x="381" y="128" text-anchor="middle" class="g-hi">Full</text><circle cx="465" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><path d="M465.00,52 A26 26 0 0 0 465.00,104 A18.38 26 0 0 0 465.00,52Z" fill="var(--moon-lit)" /><text x="465" y="128" text-anchor="middle">Waning</text><text x="465" y="143" text-anchor="middle">gibbous</text><circle cx="549" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><path d="M549.00,52 A26 26 0 0 0 549.00,104Z" fill="var(--moon-lit)" /><text x="549" y="128" text-anchor="middle">Last</text><text x="549" y="143" text-anchor="middle">quarter</text><circle cx="633" cy="78" r="26" fill="var(--moon-dark)" stroke="var(--line)" stroke-width="1" /><path d="M633.00,52 A26 26 0 0 0 633.00,104 A18.38 26 0 0 1 633.00,52Z" fill="var(--moon-lit)" /><text x="633" y="128" text-anchor="middle">Waning</text><text x="633" y="143" text-anchor="middle">crescent</text><text x="381" y="24" text-anchor="middle" class="g-hi">THE CHANGE MAY COME</text></svg></div>
+    <div class="g-rule" aria-label="Involuntary change rule">
+      <span class="g-cond">Night</span><span class="g-op">+</span><span class="g-cond">Full moon</span><span class="g-op">+</span><span class="g-cond">Outdoors</span><span class="g-op">→</span>
+      <span>each in-game hour,</span><span class="g-odds">1 in 10</span><span>chance you change whether you want to or not.</span>
+    </div>
+    <p style="color:var(--muted);font-size:16px">This follows the old full-moon curse of Daggerfall and the rule of the Ring of Hircine. Stay indoors on a full-moon night if you have secrets to keep.</p>
+  </div>
+  <div class="g-sub">Packs and hunters</div>
+  <div class="g-cards">
+    <div class="g-card"><h3>The packs</h3>
+      <ul class="g-names">
+        <li><span>The Circle</span><span class="g-pill">Companions</span></li>
+        <li><span>Hircine's Pack of the Jerall</span><span class="g-pill g-secret">Secret</span></li>
+      </ul>
+      <p style="color:var(--muted);font-size:16px">The Circle is the Companions' inner circle, already a rank inside that faction.</p></div>
+    <div class="g-card"><h3>The hunters</h3>
+      <ul class="g-names"><li><span>The Silver Hand</span></li><li><span>Vigilants of Stendarr</span></li></ul></div>
+  </div>
+</section>
+<div class="g-oneonly">
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="24" cy="32" r="18" fill="none" stroke="var(--blood)" stroke-width="3" />
+    <circle cx="40" cy="32" r="18" fill="none" stroke="var(--aqua)" stroke-width="3" />
+    <line x1="14" y1="50" x2="50" y2="14" stroke="var(--gold)" stroke-width="3" stroke-linecap="round" />
+  </svg>
+  <div><h2>One curse only</h2>
+  <p>No one is both vampire and werewolf. Taking one cures the other: Hircine's blood drives out Molag Bal's, and Molag Bal's drives out Hircine's.</p></div>
+</div>
+<p class="g-admin">For staff: the admin panel has <b>Give werewolf form</b> and <b>Give Vampire Lord form</b>, and <code>/beastform</code> does the same from chat.</p>
+<footer>
+  <div class="g-eyebrow">Lore sources (UESP)</div>
+  <ul>
+    <li><a href="https://en.uesp.net/wiki/Lore:Vampire" target="_blank" rel="noopener noreferrer">Vampire</a></li>
+    <li><a href="https://en.uesp.net/wiki/Lore:Lycanthropy" target="_blank" rel="noopener noreferrer">Lycanthropy</a></li>
+    <li><a href="https://en.uesp.net/wiki/Lore:Cyrodiil_Vampyrum_Order" target="_blank" rel="noopener noreferrer">Cyrodiil Vampyrum Order</a></li>
+    <li><a href="https://en.uesp.net/wiki/Lore:Daughters_of_Coldharbour" target="_blank" rel="noopener noreferrer">Daughters of Coldharbour</a></li>
+    <li><a href="https://en.uesp.net/wiki/Lore:An_Accounting_of_Werewolves" target="_blank" rel="noopener noreferrer">An Accounting of Werewolves</a></li>
+    <li><a href="https://en.uesp.net/wiki/Lore:Hircine" target="_blank" rel="noopener noreferrer">Hircine</a></li>
+    <li><a href="https://en.uesp.net/wiki/Lore:Moons" target="_blank" rel="noopener noreferrer">Moons</a></li>
+  </ul>
+  <p>DragonBreak Online is a fan-made roleplay server for The Elder Scrolls V: Skyrim Special Edition. This page describes the agreed design; details may change as the systems go live.</p>
+</footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/skills.html">Skill System</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>

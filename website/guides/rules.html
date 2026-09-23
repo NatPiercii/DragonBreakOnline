@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blood and Law - Dragon Break</title>
+<meta name="description" content="The nineteen rules of play, numbered so they can be cited.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd li{margin:0}
+.gd{--ground:#08191c;--surface:#0f2a2e;--raised:#16383d;--line:#3a4548;--line-soft:#16383d;--aqua:#8fd3d0;--aqua-dim:#5fb3b3;--aqua-soft:rgba(143,211,208,.10);--text:#e6ecec;--text-2:#d7e3e3;--muted:#8c9a9c;--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.12);--blood:#e0897f;--blood-soft:rgba(224,137,127,.10);color-scheme:dark}
+.gd *{box-sizing:border-box}
+.gd{background:var(--ground);color:var(--text-2);font-family:'Roboto Condensed','Futura Condensed',sans-serif;font-size:18px;line-height:1.55;padding-inline:16px;padding-block:0 64px}
+.gd .g-wrap{max-width:820px;margin:0 auto}
+.gd h1,.gd h2,.gd h3{font-family:'Cinzel','Trajan Pro',Georgia,serif;color:var(--text);text-wrap:balance;margin:0;font-weight:600}
+.gd p{margin:0}
+.gd a{color:var(--aqua)}
+.gd b,.gd strong{color:var(--text);font-weight:600}
+.gd :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.gd .g-eyebrow{font-size:14px;letter-spacing:.22em;text-transform:uppercase;color:var(--aqua);font-weight:600}
+.gd .g-hero{padding-block:48px 28px;display:grid;gap:14px;border-bottom:1px solid var(--line)}
+.gd .g-hero h1{font-size:clamp(32px,6vw,54px);letter-spacing:.03em;line-height:1.05}
+.gd .g-hero p{max-width:58ch;font-size:20px}
+.gd .g-terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:6px;overflow:hidden;margin-top:34px}
+.gd .g-term{background:var(--surface);padding:15px 18px;display:grid;gap:3px;align-content:start}
+.gd .g-term dt{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-size:17px;color:var(--gold);font-weight:700;letter-spacing:.04em}
+.gd .g-term dd{margin:0;font-size:16px;color:var(--muted)}
+.gd .g-group{padding-block:40px 0;display:grid;gap:18px}
+.gd .g-group > header{display:grid;gap:4px;border-bottom:1px solid var(--line-soft);padding-bottom:10px}
+.gd .g-group h2{font-size:clamp(22px,3.4vw,28px);letter-spacing:.02em}
+.gd .g-group .g-span{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums}
+.gd .g-rules{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.gd .g-rulecard{background:var(--surface);border:1px solid var(--line-soft);border-radius:6px;padding:18px 20px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:baseline}
+.gd .g-n{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:700;font-size:26px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums;min-width:1.6ch;text-align:right}
+.gd .g-rulecard h3{font-size:19px;letter-spacing:.02em;align-self:center}
+.gd .g-body{grid-column:2;display:grid;gap:9px}
+.gd .g-body p{max-width:62ch;font-size:17.5px}
+.gd .g-body p.g-soft{color:var(--muted)}
+.gd .g-nlr{display:inline-flex;align-items:baseline;gap:8px;background:var(--gold-soft);border:1px solid var(--gold);border-radius:4px;padding:4px 12px;margin-top:2px}
+.gd .g-nlr .g-big{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:700;font-size:22px;color:var(--gold);font-variant-numeric:tabular-nums}
+.gd .g-nlr .g-lab{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.gd .g-limits .g-rulecard{border-color:var(--blood);background:linear-gradient(170deg,var(--blood-soft),transparent 62%),var(--surface)}
+.gd .g-limits .g-n,.gd .g-limits h3{color:var(--blood)}
+.gd .g-limits .g-group-note{color:var(--blood);font-size:16px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.gd footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);display:grid;gap:8px}
+.gd footer p{font-size:15.5px;color:var(--muted);max-width:66ch}
+@media (max-width:520px){.gd{font-size:17px}
+.gd .g-hero{padding-block:34px 22px}
+.gd .g-rulecard{grid-template-columns:1fr;gap:8px}
+.gd .g-n{text-align:left;font-size:22px}
+.gd .g-body{grid-column:1}}
+@media (prefers-reduced-motion: reduce){.gd *{animation:none!important;transition:none!important}}
+.gd{--aqua:#8fd3d0;--aqua-dim:#5fb3b3;--aqua-soft:rgba(143,211,208,.12);--blood:#e0897f;--blood-soft:rgba(224,137,127,.12);--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.16);--ground:transparent;--line:rgba(143,211,208,.22);--line-soft:rgba(143,211,208,.13);--muted:rgba(215,227,227,.62);--raised:rgba(22,56,61,.94);--surface:rgba(12,34,38,.94);--text:#d7e3e3;--text-2:#d7e3e3}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · Server rules</div><h1>Blood and Law</h1></div>
+<main class="gd">
+<div class="g-wrap">
+<header class="g-hero">
+  <p>Nineteen rules that govern play on DragonBreak. They are numbered so they can be cited: staff and players refer to them by number.</p>
+</header>
+<dl class="g-terms">
+  <div class="g-term"><dt>IC</dt><dd>In character. Your character's own knowledge and actions.</dd></div>
+  <div class="g-term"><dt>OOC</dt><dd>Out of character. You, the player, speaking as yourself.</dd></div>
+  <div class="g-term"><dt>NLR</dt><dd>New Life Rule. What your character forgets on death — rule 9.</dd></div>
+</dl>
+<section class="g-group">
+  <header><div class="g-span">Rules 1–4</div><h2>Playing in character</h2></header>
+  <ol class="g-rules">
+    <li class="g-rulecard"><span class="g-n">1</span><h3>Remain In Character During Active RP</h3>
+      <div class="g-body"><p>When involved in an active RP scene, remain in character. OOC communication should be kept to designated methods unless necessary to resolve a technical issue or misunderstanding.</p></div></li>
+    <li class="g-rulecard"><span class="g-n">2</span><h3>No Metagaming</h3>
+      <div class="g-body"><p>You may only act on information your character has learned in-game. Information obtained through Discord, streams, OOC conversations, or another character you play cannot be used IC.</p></div></li>
+    <li class="g-rulecard"><span class="g-n">3</span><h3>No Powergaming</h3>
+      <div class="g-body"><p>Do not use game mechanics to force unreasonable outcomes or gain advantages that would not make sense within RP. Skyrim's mechanics exist to support roleplay, not replace it.</p></div></li>
+    <li class="g-rulecard"><span class="g-n">4</span><h3>No Exploiting Game Mechanics</h3>
+      <div class="g-body"><p>Do not abuse bugs, glitches, terrain, loading zones, AI behavior, animations, or other game mechanics to gain an unfair advantage during RP or combat. If a mechanic clearly produces an unintended advantage that your character would not reasonably have, do not use it.</p></div></li>
+  </ol>
+</section>
+<section class="g-group">
+  <header><div class="g-span">Rules 5–6</div><h2>Before blades are drawn</h2></header>
+  <ol class="g-rules">
+    <li class="g-rulecard"><span class="g-n">5</span><h3>Roleplay Before Combat</h3>
+      <div class="g-body">
+        <p>PvP must have a reasonable IC cause and should generally involve appropriate escalation before combat begins. Randomly attacking or killing another player without sufficient RP justification is prohibited.</p>
+        <p class="g-soft">Immediate violence may be appropriate when the circumstances reasonably justify it, such as an ambush, assassination, ongoing battle, or immediate defense of yourself or another person.</p>
+      </div></li>
+    <li class="g-rulecard"><span class="g-n">6</span><h3>Value Your Life</h3>
+      <div class="g-body">
+        <p>Characters should react reasonably to situations where their life is in serious danger. Being heavily outnumbered, surrounded, captured, or threatened with deadly force should influence your character's actions.</p>
+        <p class="g-soft">This does not mean every character must surrender. Reckless, courageous, fanatical, or stubborn characters are allowed, but their behavior should remain believable.</p>
+      </div></li>
+  </ol>
+</section>
+<section class="g-group">
+  <header><div class="g-span">Rules 7–9</div><h2>Death and what follows</h2></header>
+  <ol class="g-rules">
+    <li class="g-rulecard"><span class="g-n">7</span><h3>Defeat &amp; Character Death</h3>
+      <div class="g-body"><p>Being defeated in combat does not mean your character is permanently dead. <strong>Permanent character death is determined by the player</strong> unless otherwise established through an approved server event or system.</p></div></li>
+    <li class="g-rulecard"><span class="g-n">8</span><h3>Do Not Immediately Return After Death</h3>
+      <div class="g-body"><p>If your character dies during an active conflict, you may not respawn and immediately return to that conflict. Your death triggers the server's New Life Rule.</p></div></li>
+    <li class="g-rulecard"><span class="g-n">9</span><h3>New Life Rule (NLR)</h3>
+      <div class="g-body">
+        <p>Upon death, your character forgets the 30 minutes immediately preceding their death.</p>
+        <p class="g-nlr"><span class="g-big">30</span><span class="g-lab">minutes forgotten</span></p>
+        <p>Information, events, identities, conversations, and circumstances learned during those 30 minutes may no longer be used by your character.</p>
+        <p class="g-soft">You may not use OOC knowledge to reconstruct what happened or immediately return to the location of your death to continue the same conflict.</p>
+      </div></li>
+  </ol>
+</section>
+<section class="g-group">
+  <header><div class="g-span">Rules 10–13</div><h2>Mercy, capture and crime</h2></header>
+  <ol class="g-rules">
+    <li class="g-rulecard"><span class="g-n">10</span><h3>Yielding &amp; Surrender</h3>
+      <div class="g-body">
+        <p>Players should be given a reasonable opportunity to surrender when circumstances allow. Once a character clearly yields, their surrender should be respected as part of the RP.</p>
+        <p class="g-soft">Surrender does not protect a character from reasonable IC consequences.</p>
+      </div></li>
+    <li class="g-rulecard"><span class="g-n">11</span><h3>Capture &amp; Imprisonment</h3>
+      <div class="g-body"><p>Characters may be arrested, captured, questioned, or imprisoned as part of RP. Captivity should remain interactive and reasonable and should not be used solely to prevent another player from participating in the server for excessive periods.</p></div></li>
+    <li class="g-rulecard"><span class="g-n">12</span><h3>Crime Is Roleplay</h3>
+      <div class="g-body">
+        <p>Theft, murder, banditry, assassination, corruption, kidnapping, and other criminal activities are permitted when supported by reasonable IC motivation and RP.</p>
+        <p class="g-soft">Characters who commit crimes should also expect appropriate IC consequences from guards, authorities, factions, bounty hunters, or other characters.</p>
+      </div></li>
+    <li class="g-rulecard"><span class="g-n">13</span><h3>No Combat Logging</h3>
+      <div class="g-body">
+        <p>Do not intentionally disconnect or leave the game to avoid an active RP situation, combat, capture, arrest, or other immediate IC consequence.</p>
+        <p class="g-soft">If you crash or disconnect unexpectedly, return to the scene when reasonably possible.</p>
+      </div></li>
+  </ol>
+</section>
+<section class="g-group">
+  <header><div class="g-span">Rules 14–15</div><h2>Authority and scale</h2></header>
+  <ol class="g-rules">
+    <li class="g-rulecard"><span class="g-n">14</span><h3>Faction Authority Must Be Established IC</h3>
+      <div class="g-body">
+        <p>Military ranks, political authority, noble titles, religious positions, faction leadership, and similar positions of influence must be established through character creation or earned through RP.</p>
+        <p class="g-soft">Players may not simply declare themselves to hold significant authority within the world.</p>
+      </div></li>
+    <li class="g-rulecard"><span class="g-n">15</span><h3>Large-Scale Conflict Requires Staff Coordination</h3>
+      <div class="g-body">
+        <p>Wars, sieges, settlement attacks, faction raids, coups, and other actions capable of significantly altering the server world require staff coordination and approval.</p>
+        <p class="g-soft">Normal fights, arrests, political disputes, and smaller conflicts do not require staff approval simply because characters belong to opposing factions.</p>
+      </div></li>
+  </ol>
+</section>
+<section class="g-group">
+  <header><div class="g-span">Rules 16–17</div><h2>The spirit of it</h2></header>
+  <ol class="g-rules">
+    <li class="g-rulecard"><span class="g-n">16</span><h3>Skyrim Mechanics Do Not Override RP</h3>
+      <div class="g-body"><p>Something being mechanically possible in Skyrim does not automatically make it acceptable within RP. Players are expected to consider what reasonably makes sense for their character and the situation.</p></div></li>
+    <li class="g-rulecard"><span class="g-n">17</span><h3>Prioritize Roleplay Over Winning</h3>
+      <div class="g-body">
+        <p>DragonBreak is a collaborative roleplaying server. Do not approach RP solely with the goal of winning every fight, argument, political conflict, or encounter.</p>
+        <p class="g-soft">Allow your character to face consequences, setbacks, defeats, and changes. The actions of other characters should matter.</p>
+      </div></li>
+  </ol>
+</section>
+<section class="g-group g-limits">
+  <header>
+    <div class="g-span g-group-note">Rules 18–19 · No IC exception</div>
+    <h2>Hard limits</h2>
+  </header>
+  <ol class="g-rules">
+    <li class="g-rulecard"><span class="g-n">18</span><h3>No Sexual Roleplay / ERP</h3>
+      <div class="g-body">
+        <p>Sexual roleplay and Erotic Roleplay (ERP) are prohibited on DragonBreak. This includes sexually explicit interactions, descriptions, emotes, voice roleplay, or using in-game actions or animations to depict sexual activity.</p>
+        <p class="g-soft">Romance between characters is permitted, but sexual activity must remain off-screen and may not be actively roleplayed. If a scene would become sexual, fade to black and move on.</p>
+      </div></li>
+    <li class="g-rulecard"><span class="g-n">19</span><h3>All Characters Must Be Adults</h3>
+      <div class="g-body">
+        <p>All player characters on DragonBreak must be 18 years of age or older.</p>
+        <p class="g-soft">Players may not create, portray, or roleplay as a minor, regardless of whether the character is involved in romantic or sexual content.</p>
+      </div></li>
+  </ol>
+</section>
+<footer>
+  <div class="g-eyebrow">About these rules</div>
+  <p>These nineteen are the agreed rules of play. Where a rule and a staff ruling disagree, the ruling stands for that scene and the page gets corrected afterwards.</p>
+  <p>DragonBreak Online is a fan-made roleplay server for The Elder Scrolls V: Skyrim Special Edition.</p>
+</footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/skills.html">Skill System</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>

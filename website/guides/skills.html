@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Wheel of Skills - Dragon Break</title>
+<meta name="description" content="Trades, ranks and how skill points are earned.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd li{margin:0}
+.gd{--ink:#0f2a2e;--ink-soft:#3a4548;--ground:#e6ecec;--panel:#e6ecec;--rule:#d7e3e3;--accent:#2f7c80;--accent-soft:#e6ecec;--warn:#7a2d2a;--warn-soft:#e6ecec;--good:#3a4548;--good-soft:#e6ecec;--display:'Cinzel','Trajan Pro',Georgia,serif;--body:'Roboto Condensed','Futura Condensed',sans-serif;--mono:ui-monospace,Consolas,monospace}
+.gd{--ink:#e6ecec;--ink-soft:#8c9a9c;--ground:#08191c;--panel:#0f2a2e;--rule:#16383d;--accent:#8fd3d0;--accent-soft:#0f2a2e;--warn:#e0897f;--warn-soft:#08191c;--good:#5fb3b3;--good-soft:#08191c}
+.gd{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+.gd .g-wrap{max-width:780px;margin:0 auto;padding-inline:20px;padding-block:48px 72px;display:flex;flex-direction:column;gap:34px}
+.gd .g-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+.gd h1{font-family:var(--display);font-weight:600;font-size:clamp(30px, 6vw, 42px);line-height:1.12;margin:0 0 12px;text-wrap:balance}
+.gd .g-standfirst{font-size:18px;color:var(--ink-soft);margin:0;max-width:62ch}
+.gd h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid var(--rule);text-wrap:balance}
+.gd h3{font-family:var(--body);font-weight:600;font-size:15px;letter-spacing:0.02em;margin:18px 0 2px}
+.gd p{margin:10px 0;max-width:66ch}
+.gd section > p:first-of-type{margin-top:12px}
+.gd ul{margin:10px 0;padding-left:20px;max-width:66ch}
+.gd li{margin:5px 0}
+.gd code,.gd .g-mono{font-family:var(--mono);font-size:0.87em}
+.gd code{background:var(--accent-soft);padding:1px 5px;border-radius:3px}
+.gd strong{font-weight:600}
+.gd .g-tablewrap{overflow-x:auto;margin:14px 0}
+.gd table{border-collapse:collapse;width:100%;font-size:14.5px}
+.gd th,.gd td{text-align:left;padding:7px 12px 7px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.gd th{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:500;white-space:nowrap}
+.gd td.g-num,.gd th.g-num{text-align:right;font-variant-numeric:tabular-nums;padding-right:0}
+.gd .g-ladder td:first-child{font-family:var(--display)}
+.gd .g-callout{background:var(--panel);border-left:3px solid var(--accent);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.gd .g-callout p{margin:0}
+.gd .g-callout--warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.gd .g-callout--good{border-left-color:var(--good);background:var(--good-soft)}
+.gd .g-facts{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:1px;background:var(--rule);border:1px solid var(--rule)}
+.gd .g-fact{background:var(--panel);padding:14px 16px}
+.gd .g-fact dt{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 4px}
+.gd .g-fact dd{margin:0;font-family:var(--display);font-size:25px;line-height:1.1;font-variant-numeric:tabular-nums}
+.gd .g-fact .g-unit{font-family:var(--body);font-size:13px;color:var(--ink-soft);display:block;margin-top:3px}
+.gd .g-moons{display:flex;flex-direction:column;gap:0;border:1px solid var(--rule)}
+.gd .g-moon{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--rule)}
+.gd .g-moon:last-child{border-bottom:0}
+.gd .g-moon .g-glyph{font-size:20px;color:var(--accent);line-height:1.3}
+.gd .g-moon .g-name{font-weight:600}
+.gd .g-moon .g-what{color:var(--ink-soft);font-size:14.5px}
+.gd footer{border-top:1px solid var(--rule);padding-top:16px;color:var(--ink-soft);font-size:14px}
+@media (max-width: 460px){.gd .g-fact dd{font-size:21px}}
+.gd{--accent:#8fd3d0;--accent-soft:rgba(143,211,208,.12);--body:'Roboto Condensed','Futura Condensed',sans-serif;--display:'Cinzel','Trajan Pro',Georgia,serif;--good:#5fb3b3;--good-soft:rgba(95,179,179,.14);--ground:transparent;--ink:#d7e3e3;--ink-soft:rgba(215,227,227,.62);--mono:ui-monospace,Consolas,monospace;--panel:rgba(12,34,38,.94);--rule:rgba(143,211,208,.22);--warn:#c98a3a;--warn-soft:rgba(201,138,58,.16)}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · skills</div><h1>The Wheel of Skills</h1></div>
+<main class="gd">
+<div class="g-wrap">
+  <header>
+    <p class="g-standfirst">Replacing three chosen skills and five hour-gated tiers with a single pool of 300 points spread across eighteen skills. Everyone can dabble in everything; almost nobody can master more than one thing.</p>
+  </header>
+  <section>
+    <h2>The shape of it</h2>
+    <p>Every skill runs 0 to 100. Level 0 means untouched, and you take a trade up simply by using its station. A character holds <strong>300 points total</strong>, so holding all eighteen skills at Novice costs 18 points, while one master costs a third of everything you have.</p>
+    <dl class="g-facts">
+      <div class="g-fact"><dt>Pool</dt><dd>300<span class="g-unit">across all skills</span></dd></div>
+      <div class="g-fact"><dt>Per skill</dt><dd>100<span class="g-unit">hard ceiling</span></dd></div>
+      <div class="g-fact"><dt>Above 90</dt><dd>1<span class="g-unit">skill only, the Seat</span></dd></div>
+      <div class="g-fact"><dt>Above 75</dt><dd>3<span class="g-unit">skills only</span></dd></div>
+    </dl>
+    <p>That last pair is the point of the design. Ebony is meant to need a Miner at 95 and daedric a Blacksmith at 95 to 100, and since one character can hold only one skill above 90, a daedric cuirass needs a master smith, a master miner and a master conjurer who are three different people. Scarcity is what forces them to deal with each other.</p>
+  </section>
+  <section>
+    <h2>Eighteen, not seventeen: the Closed Fist</h2>
+    <p><strong>Unarmed</strong> joined the combat group on 20 September. Fists, claws and the discipline to use them — the only skill that needs nothing in your hands, and the one a Khajiit is born into.</p>
+    <p>That last part is not flavour. The server's damage formula already computes unarmed damage from the race record's own <code>Unarmed Damage</code> field, and that field reads <strong>14 for a Khajiit, 10 for an Argonian and 4 for everyone else</strong>. Khajiit claws were server-authoritative before the skill existed; Unarmed simply gives them somewhere to grow.</p>
+    <p>The two were identical at 10 until the racial pass on 20 September raised the Khajiit. That was not a buff for its own sake: Argonians also carry a 50% disease resistance, and seeing in the dark changes no number the server checks, so a Khajiit had <em>no server-enforceable trait of their own at all</em>. Rawlith Khaj is the iconic set of claws, so the split went their way. The field sits outside the 300-point pool, so it costs them nothing here.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th>The Closed Fist</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td>Bare-knuckle blows</td></tr>
+          <tr><td>Apprentice</td><td>Power attacks cost less</td></tr>
+          <tr><td>Journeyman</td><td>+10% damage</td></tr>
+          <tr><td>Expert</td><td>+20% damage, faster combinations</td></tr>
+          <tr><td>Master</td><td>+30% damage, disarming strikes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Vanilla Skyrim folds unarmed into One-Handed's perk tree and has no skill for it, so this is a discipline the base game does not offer. For a roleplay server it also buys brawls: tavern fights, prisoners and disputes settled without drawing steel.</p>
+  </section>
+  <section>
+    <h2>Taking up a combat skill</h2>
+    <p>A trade is opened at its station — you touch a forge and you are a smith. Combat has no station to walk to, which for a while meant the five combat skills (now six) could not be opened at all: you were refused for not holding the skill, by the same code that would have granted it.</p>
+    <p>The answer is <strong>shadow progress</strong>. An unopened combat skill quietly banks the work you do with it instead of discarding it. Once it has banked a level's worth, it offers itself:</p>
+    <div class="g-callout">
+      <p><em>“You have fought often enough this way to call it your own. Open your skills (K) to take up Unarmed.”</em></p>
+    </div>
+    <p>Accepting spends the pool point and <strong>pays back everything banked</strong>, so the fighting you did before agreeing is credited rather than lost. Declining costs nothing and the bank keeps filling. A stray arrow never spends a point on Archery behind your back, which was the whole reason the station rule existed.</p>
+  </section>
+  <section>
+    <h2>How points are earned</h2>
+    <p>Only the server grants points, and only from events it validated itself: a craft where it checked the bench and the ingredients, a kill where it checked the cell and the distance, an ore vein where it judged the swings. A modified client cannot inject progress.</p>
+    <p>Work is metered by a <strong>token bucket</strong>: 20 units held at most, refilling 30 an hour. The bucket decides how much progress an hour can hold; the act's weight (0.5 to 3.0) only decides which work fills it. Hunger slows it, the same multiplier the old system used. Doing the same thing to the same target repeatedly decays: the ninth identical act in an hour is worth half, and that counter is stored on the character, so relogging does not reset it.</p>
+    <h3>Time to climb, saturated</h3>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th class="g-num">Hours</th><th>Daily ceiling</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td class="g-num">—</td><td>360 units</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td class="g-num">8</td><td>360 units</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td class="g-num">25</td><td>360 units</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td class="g-num">58</td><td>180 units</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td class="g-num">98</td><td>60 units</td></tr>
+          <tr><td>Ebony</td><td class="g-num">95</td><td class="g-num">132</td><td>60 units</td></tr>
+          <tr><td>Daedric</td><td class="g-num">100</td><td class="g-num">198</td><td>60 units</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The daily ceiling at the top is deliberate. Even played perfectly, 90 to 100 takes about <strong>50 real days</strong>, which no amount of grinding or AFK macroing can buy down. The five tiers survive as bands of level, so every existing gate, marker spell and recipe condition keeps working untouched.</p>
+  </section>
+  <section>
+    <h2>How points are lost</h2>
+    <p>Nothing decays while you are offline, ever. A skill only falls when another rises past your 300 and has to take the points from somewhere. The player decides where from, using the moons — Masser and Secunda being Lorkhan's sundered flesh, which is the conceit the menu runs on.</p>
+    <div class="g-moons">
+      <div class="g-moon"><span class="g-glyph">◒</span><span><span class="g-name">Waxing</span><br><span class="g-what">Rises with use. Gives way only when nothing is waning.</span></span></div>
+      <div class="g-moon"><span class="g-glyph">●</span><span><span class="g-name">Held</span><br><span class="g-what">Never falls. Your trade is safe while you swing a sword.</span></span></div>
+      <div class="g-moon"><span class="g-glyph">◓</span><span><span class="g-name">Waning</span><br><span class="g-what">The first to give way when something else rises.</span></span></div>
+    </div>
+    <p>Nothing ever drops below level 25, and if no skill can give, the gain is refused with a notice rather than silently lost. A standing stone still opens the respec window for deliberate reshaping.</p>
+  </section>
+  <section>
+    <h2>What happens to existing characters</h2>
+    <p>Old records convert the first time they are read, at 30 units per hour worked. Every character lands inside the tier they already hold, slightly above its floor:</p>
+    <div class="g-tablewrap">
+      <table>
+        <thead><tr><th>Old record</th><th class="g-num">Hours</th><th class="g-num">Becomes level</th><th>Tier</th></tr></thead>
+        <tbody>
+          <tr><td>Apprentice</td><td class="g-num">10</td><td class="g-num">27</td><td>Apprentice, unchanged</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">30</td><td class="g-num">53</td><td>Journeyman, unchanged</td></tr>
+          <tr><td>Expert</td><td class="g-num">70</td><td class="g-num">79</td><td>Expert, unchanged</td></tr>
+          <tr><td>Master</td><td class="g-num">150</td><td class="g-num">96</td><td>Master, unchanged</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Three maxed skills convert to 288 of the 300 pool, so no existing character can be over cap and nobody needs a refund. Their old three skills start Waxing, everything else Held, so nobody starts bleeding progress they did not agree to. Two changes are pure gifts: they can now hold more than three skills, and the old "drop a skill and lose every hour" rule is gone.</p>
+  </section>
+  <section>
+    <h2>Running it</h2>
+    <p>The whole thing sits behind one switch, currently <strong>on</strong> for local testing:</p>
+    <ul>
+      <li><code>server/skills.json</code> → <code>pointSystem.enabled</code>. Set <code>false</code> and restart to fall back to the old ladder; the record keeps both shapes, so nothing is lost either way.</li>
+      <li>That file is read <strong>at boot</strong>, so flipping it needs a server restart, not a gamemode reload.</li>
+      <li>Engine lives in <code>masterySystem.ts</code> with the arithmetic split into <code>skillPoints.ts</code> (server rebuild). The menu is a front rebuild; the lock control needed a client rebuild too, so players re-download.</li>
+      <li>Progress is stored per character in <code>private.mastery</code> as a v2 record. <code>order</code> and <code>rank</code> are still written as derived fields, which is why no other system needed changing.</li>
+    </ul>
+    <h3>What to watch in the log</h3>
+    <ul>
+      <li><code>[skills] ready: 18 skills, point system ON: pool 300, cap 100 ...</code> at boot confirms which mode is live.</li>
+      <li>A credit-rate line every 15 minutes: events by kind, units credited by skill, and how many came from characters with no skill yet. That is the tuning data.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>Honest status</h2>
+    <div class="g-callout g-callout--good">
+      <p><strong>Proven in play, 20 September.</strong> A character took up a trade at an ore vein, worked six veins and a forge, and the record kept its level across a save, a logout <em>and</em> a server restart. The credit log reported real units per skill for the first time. The arithmetic also has 110 tests covering the bands, the caps, the bucket, repetition decay, donor selection and the migration.</p>
+    </div>
+    <div class="g-callout g-callout--warn">
+      <p><strong>The first live test found a blocker, since fixed.</strong> The two halves of the engine disagreed on what to call a skill's level — <code>points</code> on one side, <code>level</code> on the other — with four casts switching off the type checking exactly where they met. Every point earned was discarded on the next read while the daily meter still counted it. <code>level</code> is now canonical and <code>points</code> is written beside it as a derived shim, so nothing outside that one file had to change.</p>
+    </div>
+    <div class="g-callout g-callout--warn">
+      <p><strong>Weights are still mostly provisional, but mining is fixed.</strong> It used to report itself as a generic activation worth 0.5 rather than a mine worth 1.0 to 2.0, so the ore-band term never ran and a Novice level cost twenty separate veins. Mining, chopping and reading now each report their own kind, and mining carries the ore band as its weight — copper 1.0, ebony 2.0 — so a Novice level is ten copper veins rather than twenty. <strong>Craft, kill, hit, hurt and cast are still flat</strong>: the wider bug was that no caller ever passed the scale term at all, so every one of those sat at its 0.5 base whatever the product was worth or the target's health. The plumbing is in now; the emitters still have to send a value. A week of the credit log should set them, rather than us guessing.</p>
+    </div>
+    <div class="g-callout g-callout--warn">
+      <p><strong>Crafting is not gated yet.</strong> "Ebony and daedric are crafted only, never found" holds on the loot side, but no recipe carries its skill condition yet, and nothing reads a marker spell at a forge. The markers themselves are all there now: <strong>Unarmed's five were written on 20 September</strong> (<code>DBO_Skill_unarmed_T1..T5</code> at <code>1209CA-1209CE</code>), which takes the plugin to ninety and clears the <code>5 marker spell(s) missing</code> line that had been in every boot since the skill shipped. Boot now reads <code>unresolved: none</code>. What is left is the recipe conditions.</p>
+    </div>
+  </section>
+  <footer>
+    <p>Written 20 September 2026; revised the same night for Unarmed and the combat openings, and again that afternoon for the mining weight, the Khajiit claws and the marker spells. Full design, including the parts we rejected and the open decisions, is in <span class="g-mono">server/SKILLS_DESIGN.md</span>.</p>
+  </footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>

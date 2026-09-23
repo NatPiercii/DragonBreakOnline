@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Nine and the Sixteen - Dragon Break</title>
+<meta name="description" content="Gods, shrines, prayer and blessings.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd li{margin:0}
+.gd{--ground:#08191c;--ground-2:#0f2a2e;--ground-3:#16383d;--panel:rgba(15,42,46,0.94);--stone:#5d6b6e;--stone-dark:#3a4548;--stone-light:#8c9a9c;--aqua:#8fd3d0;--aqua-dim:#5fb3b3;--aqua-deep:#2f7c80;--amber:#c98a3a;--amber-dim:rgba(201,138,58,0.55);--gold:#e8d6a0;--red:#c9463a;--silver:#e6ecec;--text:#d7e3e3;--text-dim:rgba(215,227,227,0.62);--text-faint:rgba(215,227,227,0.38);--border:rgba(143,211,208,0.42);--border-soft:rgba(143,211,208,0.18);--glow:0 0 18px rgba(143,211,208,0.18);--display:'Cinzel','Trajan Pro',Georgia,serif;--body:'Roboto Condensed','Futura Condensed',sans-serif;--ui:'Roboto Condensed','Futura Condensed',sans-serif}
+.gd *{box-sizing:border-box}
+.gd{margin:0;background:radial-gradient(1100px 620px at 50% -10%, #12313650 0%, #08191c00 70%),
+    var(--ground);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.gd .g-wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:56px 88px;display:flex;flex-direction:column;gap:56px}
+.gd .g-mast{display:flex;flex-direction:column;gap:18px}
+.gd .g-eyebrow{font-family:var(--ui);font-size:12px;letter-spacing:0.34em;text-transform:uppercase;color:var(--aqua-dim)}
+.gd h1{font-family:var(--display);font-weight:600;font-size:clamp(34px, 6vw, 60px);line-height:1.05;letter-spacing:0.02em;margin:0;color:var(--silver);text-wrap:balance;text-shadow:0 0 34px rgba(143,211,208,0.16)}
+.gd .g-standfirst{margin:0;max-width:62ch;font-size:18px;color:var(--text-dim);font-style:italic}
+.gd .g-rule{height:1px;background:linear-gradient(90deg, var(--border), rgba(143,211,208,0.04))}
+.gd section{display:flex;flex-direction:column;gap:20px}
+.gd h2{font-family:var(--display);font-weight:600;font-size:clamp(21px, 2.6vw, 27px);margin:0;color:var(--silver);letter-spacing:0.015em;text-wrap:balance}
+.gd h3{font-family:var(--ui);font-weight:600;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:var(--aqua-dim);margin:0}
+.gd p{margin:0;max-width:68ch}
+.gd p + p{margin-top:0.85em}
+.gd a{color:var(--aqua)}
+.gd strong{color:var(--silver);font-weight:600}
+.gd em.g-q{color:var(--text-dim)}
+.gd code,.gd .g-mono{font-family:ui-monospace,Consolas,monospace;font-size:0.855em;color:var(--gold);background:rgba(232,214,160,0.07);border:1px solid rgba(232,214,160,0.16);border-radius:2px;padding:0.1em 0.38em;white-space:nowrap}
+.gd .g-loop{display:grid;grid-template-columns:repeat(auto-fit, minmax(178px, 1fr));gap:1px;background:var(--border-soft);border:1px solid var(--border-soft)}
+.gd .g-step{background:var(--ground-2);padding:20px 18px;display:flex;flex-direction:column;gap:7px}
+.gd .g-step-n{font-family:var(--ui);font-size:11px;letter-spacing:0.24em;color:var(--aqua-deep);text-transform:uppercase}
+.gd .g-step-t{font-family:var(--display);font-size:16px;color:var(--silver)}
+.gd .g-step-d{font-size:14.5px;color:var(--text-dim);line-height:1.5}
+.gd .g-numbers{display:grid;grid-template-columns:repeat(auto-fit, minmax(146px, 1fr));gap:22px 26px;padding:22px 24px;background:var(--ground-2);border-left:2px solid var(--aqua-deep)}
+.gd .g-num{display:flex;flex-direction:column;gap:2px}
+.gd .g-num-v{font-family:var(--display);font-size:25px;color:var(--aqua);font-variant-numeric:tabular-nums;line-height:1.15}
+.gd .g-num-l{font-family:var(--ui);font-size:12.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-faint)}
+.gd figure{margin:0;display:flex;flex-direction:column;gap:10px}
+.gd figcaption{font-size:14px;color:var(--text-faint);font-style:italic}
+.gd .g-round-box{overflow-x:auto}
+.gd .g-round-box svg{display:block;min-width:460px}
+.gd .g-god{display:grid;grid-template-columns:190px 1fr 210px;gap:4px 22px;padding:15px 0 16px;border-top:1px solid var(--border-soft);align-items:start}
+.gd .g-god:last-child{border-bottom:1px solid var(--border-soft)}
+.gd .g-god-name{font-family:var(--display);font-size:17px;color:var(--silver);line-height:1.3}
+.gd .g-god-alias{display:block;font-family:var(--ui);font-size:12px;letter-spacing:0.08em;color:var(--text-faint);text-transform:uppercase;margin-top:2px}
+.gd .g-god-sphere{font-size:15px;color:var(--text-dim);line-height:1.5}
+.gd .g-god-boon{font-family:var(--ui);font-size:15px;color:var(--text);display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+.gd .g-daedra .g-god-name{color:var(--gold)}
+.gd .g-daedra{border-top-color:rgba(201,138,58,0.16)}
+.gd .g-daedra:last-child{border-bottom-color:rgba(201,138,58,0.16)}
+.gd .g-chip{font-family:var(--ui);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;padding:2px 8px;border:1px solid;white-space:nowrap}
+.gd .g-chip--live{color:var(--aqua);border-color:var(--border);background:rgba(143,211,208,0.08)}
+.gd .g-chip--server{color:var(--aqua);border-color:var(--aqua);background:rgba(143,211,208,0.16)}
+.gd .g-chip--pending{color:var(--amber);border-color:var(--amber-dim);background:rgba(201,138,58,0.09)}
+.gd .g-chip--soon{color:var(--stone-light);border-color:var(--stone-dark)}
+.gd .g-legend{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:14px;color:var(--text-dim)}
+.gd .g-legend span.g-pair{display:inline-flex;align-items:center;gap:8px}
+.gd .g-note{padding:18px 22px;background:var(--ground-2);border-left:2px solid var(--aqua-deep);font-size:15.5px}
+.gd .g-note--amber{border-left-color:var(--amber)}
+.gd .g-note--amber strong{color:var(--gold)}
+.gd .g-work{display:flex;flex-direction:column;gap:1px;background:var(--border-soft)}
+.gd .g-work-row{background:var(--ground-2);padding:15px 20px;display:grid;grid-template-columns:150px 1fr;gap:4px 20px;align-items:baseline}
+.gd .g-work-god{font-family:var(--display);font-size:16px;color:var(--gold)}
+.gd .g-work-god.g-divine{color:var(--aqua)}
+.gd .g-work-do{font-size:15px;color:var(--text-dim);line-height:1.55}
+.gd .g-work-do b{color:var(--text);font-weight:600}
+.gd table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:520px}
+.gd .g-table-box{overflow-x:auto}
+.gd th{font-family:var(--ui);font-size:11.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-faint);text-align:left;font-weight:500;padding:0 14px 9px 0;border-bottom:1px solid var(--border-soft)}
+.gd td{padding:9px 14px 9px 0;border-bottom:1px solid rgba(143,211,208,0.08);color:var(--text-dim);vertical-align:top}
+.gd td:first-child{color:var(--text)}
+.gd td.g-n{font-variant-numeric:tabular-nums}
+.gd footer{font-family:var(--ui);font-size:13px;color:var(--text-faint);letter-spacing:0.04em;border-top:1px solid var(--border-soft);padding-top:20px}
+@media (max-width: 720px){.gd .g-god{grid-template-columns:1fr;gap:6px}
+.gd .g-god-boon{flex-direction:row;align-items:center;flex-wrap:wrap}
+.gd .g-work-row{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){.gd *{animation:none !important;transition:none !important}}
+.gd{--amber:#c98a3a;--amber-dim:rgba(201,138,58,.55);--aqua:#8fd3d0;--aqua-deep:#2f7c80;--aqua-dim:#5fb3b3;--body:'Roboto Condensed','Futura Condensed',sans-serif;--border:rgba(143,211,208,.42);--border-soft:rgba(143,211,208,.18);--display:'Cinzel','Trajan Pro',Georgia,serif;--glow:0 0 18px rgba(143,211,208,.25);--gold:#e8d6a0;--ground:transparent;--ground-2:#0f2a2e;--ground-3:#16383d;--panel:rgba(12,34,38,.94);--red:#c9463a;--silver:#e6ecec;--stone:#5d6b6e;--stone-dark:#3a4548;--stone-light:#8c9a9c;--text:#d7e3e3;--text-dim:rgba(215,227,227,.62);--text-faint:rgba(215,227,227,.38);--ui:'Roboto Condensed','Futura Condensed',sans-serif}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · design reference</div><h1>The Nine and the Sixteen</h1></div>
+<main class="gd">
+<div class="g-wrap">
+  <header class="g-mast">
+    <p class="g-standfirst">Who a character may worship, what each god gives, and the ten spell records
+      still owed to the Creation Kit.</p>
+    <div class="g-rule"></div>
+  </header>
+  <section>
+    <h2>How religion works</h2>
+    <p>A character holds <strong>one god at a time</strong> and may only pray at that god's shrines.
+      Praying is a mini-game the server issues and the server judges: three verses run in turn and
+      the worshipper holds the prayer key from the first word to the last. A completed prayer always
+      credits the <strong>Priest</strong> skill. It only rarely earns the blessing.</p>
+    <div class="g-loop">
+      <div class="g-step">
+        <div class="g-step-n">First</div>
+        <div class="g-step-t">Take a god</div>
+        <div class="g-step-d">The picker opens on its own once you are out of the race menu. The first
+          choice is free and needs no shrine. <code>/deity</code> reopens it.</div>
+      </div>
+      <div class="g-step">
+        <div class="g-step-n">Then</div>
+        <div class="g-step-t">Kneel</div>
+        <div class="g-step-d">Activating your own shrine opens the round. Another god's shrine answers
+          with a notice and no roll.</div>
+      </div>
+      <div class="g-step">
+        <div class="g-step-n">Hold</div>
+        <div class="g-step-t">Three verses</div>
+        <div class="g-step-d">Eighteen seconds. Let go for more than half a second in any one verse and
+          the prayer ends with nothing.</div>
+      </div>
+      <div class="g-step">
+        <div class="g-step-n">Rarely</div>
+        <div class="g-step-t">The boon</div>
+        <div class="g-step-d">A roll on completion. A Priest's hands are far steadier than anyone
+          else's.</div>
+      </div>
+    </div>
+    <div class="g-numbers">
+      <div class="g-num"><div class="g-num-v">2%</div><div class="g-num-l">Anyone</div></div>
+      <div class="g-num"><div class="g-num-v">5–30%</div><div class="g-num-l">Priest, by tier</div></div>
+      <div class="g-num"><div class="g-num-v">8–24 h</div><div class="g-num-l">Boon lasts</div></div>
+      <div class="g-num"><div class="g-num-v">60 min</div><div class="g-num-l">Per shrine</div></div>
+      <div class="g-num"><div class="g-num-v">7 days</div><div class="g-num-l">Between conversions</div></div>
+      <div class="g-num"><div class="g-num-v">26</div><div class="g-num-l">Gods</div></div>
+    </div>
+    <figure>
+      <div class="g-round-box">
+        <svg viewBox="0 0 640 132" role="img">
+          <text x="0" y="13" fill="#8c9a9c" font-size="11" letter-spacing="2">THE ROUND — 18 SECONDS</text>
+          <rect x="0" y="26" width="205" height="34" fill="#0f2a2e" stroke="#2f7c80" stroke-width="1"></rect>
+          <rect x="213" y="26" width="205" height="34" fill="#0f2a2e" stroke="#2f7c80" stroke-width="1"></rect>
+          <rect x="426" y="26" width="205" height="34" fill="#0f2a2e" stroke="#2f7c80" stroke-width="1"></rect>
+          <text x="102" y="47" fill="#e6ecec" font-size="13" text-anchor="middle">first verse</text>
+          <text x="315" y="47" fill="#e6ecec" font-size="13" text-anchor="middle">second verse</text>
+          <text x="528" y="47" fill="#e6ecec" font-size="13" text-anchor="middle">third verse</text>
+          <text x="0" y="86" fill="#8c9a9c" font-size="11" letter-spacing="2">KEY HELD</text>
+          <rect x="0" y="94" width="330" height="9" fill="#8fd3d0"></rect>
+          <rect x="341" y="94" width="290" height="9" fill="#8fd3d0"></rect>
+          <line x1="335" y1="90" x2="335" y2="107" stroke="#c98a3a" stroke-width="1"></line>
+          <text x="335" y="122" fill="#c98a3a" font-size="11" text-anchor="middle">300 ms flicker — forgiven</text>
+          <text x="0" y="72" fill="#5d6b6e" font-size="10">0s</text>
+          <text x="209" y="72" fill="#5d6b6e" font-size="10">6s</text>
+          <text x="422" y="72" fill="#5d6b6e" font-size="10">12s</text>
+          <text x="631" y="72" fill="#5d6b6e" font-size="10" text-anchor="end">18s</text>
+        </svg>
+      </div>
+      <figcaption>The widget reports only when the key was down. The server replays the verse windows
+        against those spans and decides for itself, so editing the widget changes what the worshipper
+        sees and not what the gods give.</figcaption>
+    </figure>
+    <h3>The picker</h3>
+    <p>The menu opens on its own the moment a character is out of the race menu with no god — and
+      to every existing character too, since none of them has one. It is a watcher rather than a
+      creation hook, which is why it catches both. <code>/deity</code> reopens it at any time.</p>
+    <p>Two columns of names beside a reading pane: <strong>Divines keyed aqua, Princes amber</strong>,
+      the same split the prayer widget uses. Each name carries its marks — <em>yours</em>,
+      <em>no shrine</em>, <em>unlawful</em> — and the pane gives the sphere, the boon, and whether
+      there is anywhere you could actually pray. <strong>The first choice is free and needs no
+      shrine</strong>; a later turn is gated by the seven days and nothing else, because the brief
+      puts conversion on a menu key rather than a pilgrimage.</p>
+    <p>The widget sends one thing, <code>deityChoose</code> with a nonce and an id. The server judges
+      it and re-sends the whole panel with a notice, so the menu never decides anything itself and a
+      stale nonce changes nothing — the same contract as the prayer round.</p>
+    <div class="g-note">
+      <strong>Two rules worth knowing.</strong> <strong>Auri-El is Akatosh</strong> under the Aldmeri
+      name, so a worshipper of either may kneel at either's shrine — without that, a Snow-Elf-faithed
+      character could never pray at all, his one shrine being in the Forgotten Vale.
+      And <strong>Talos and every Prince are unlawful</strong>: Bruma is Imperial, the Concordat
+      outlawed Talos, and Beyond Skyrim has already renamed its Great Chapel of Talos to the Cathedral
+      of St Martin. The server says so once and nothing follows from it — whether the guards care is
+      still an open decision.
+    </div>
+  </section>
+  <section>
+    <h2>No boon may be a dead stat</h2>
+    <p>Everything here is player-run: no merchants, no dialogue, no barter, and no speech skill among
+      the eighteen. <strong>Persuasion, Speechcraft and Pickpocket therefore do nothing at all</strong>,
+      which killed four boons — one of mine and three of Bethesda's.</p>
+    <div class="g-table-box">
+      <table>
+        <thead><tr><th>God</th><th>Was</th><th>Is now</th></tr></thead>
+        <tbody>
+          <tr><td>Sanguine</td><td>Persuasion +10</td><td>Hunger comes on half as fast</td></tr>
+          <tr><td>Dibella</td><td>Persuasion +10 <em class="g-q">(vanilla)</em></td><td>Illusion +10</td></tr>
+          <tr><td>Zenithar</td><td>Speechcraft +10 <em class="g-q">(vanilla)</em></td><td>Carry weight +50</td></tr>
+          <tr><td>Mephala</td><td>Speechcraft +10 <em class="g-q">(vanilla)</em></td><td>Alchemy +10</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Where the replacement overrides a vanilla shrine, <strong>Bethesda's record is left untouched on
+      disk</strong> — <code>skills.json</code> simply stops pointing at it, so reverting any one of
+      these is a single line. <strong>Zenithar is the one that matters</strong>: the god of work and
+      honest trade, on a server whose whole economy is players hauling ore, ingots and firewood to each
+      other. Carry weight is the most Zenithar thing that exists here, and no shrine in the game uses it.</p>
+  </section>
+  <section>
+    <h2>The Divines</h2>
+    <p class="g-legend">
+      <span class="g-pair"><span class="g-chip g-chip--live">live</span> a real spell, resolving on the server</span>
+      <span class="g-pair"><span class="g-chip g-chip--server">server</span> no record at all — the gamemode does it</span>
+      <span class="g-pair"><span class="g-chip g-chip--soon">designed</span> not built yet</span>
+    </p>
+    <div>
+      <div class="g-god">
+        <div class="g-god-name">Akatosh<span class="g-god-alias">Auri-El · Bormahu</span></div>
+        <div class="g-god-sphere">Time. Chief of the Divines, whose covenant with Alessia binds the Empire.</div>
+        <div class="g-god-boon">Magicka returns 10% faster <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Arkay<span class="g-god-alias">Tu'whacca · Orkey</span></div>
+        <div class="g-god-sphere">The cycle of birth and death. His priests bury the dead so they stay buried.</div>
+        <div class="g-god-boon">Health +25 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Dibella</div>
+        <div class="g-god-sphere">Beauty, love and art. Her chapels teach that beauty is a form of worship.</div>
+        <div class="g-god-boon">Illusion +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Julianos<span class="g-god-alias">Jhunal</span></div>
+        <div class="g-god-sphere">Wisdom, logic and law. Patron of mages and of the Council that writes the Empire down.</div>
+        <div class="g-god-boon">Magicka +25 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Kynareth<span class="g-god-alias">Kyne, the Kiss at the End</span></div>
+        <div class="g-god-sphere">Air, wind and sky. The only Divine present at the making who stayed.</div>
+        <div class="g-god-boon">Stamina +25 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Mara</div>
+        <div class="g-god-sphere">Love, compassion and the hearth. Worshipped in every province under one name or another.</div>
+        <div class="g-god-boon">Restoration +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Stendarr<span class="g-god-alias">Stuhn</span></div>
+        <div class="g-god-sphere">Mercy and justice; the shield against the unnatural. His Vigilants hunt Daedra.</div>
+        <div class="g-god-boon">Block +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Talos<span class="g-god-alias">Ysmir · Hjalti Early-Beard</span></div>
+        <div class="g-god-sphere">The man who became the Ninth and founded the Empire that outlawed him. Unlawful in Bruma.</div>
+        <div class="g-god-boon">Two-handed +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Zenithar<span class="g-god-alias">Z'en</span></div>
+        <div class="g-god-sphere">Work and honest trade. Wealth follows craft, never the other way round.</div>
+        <div class="g-god-boon">Carry weight +50 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Auri-El<span class="g-god-alias">an aspect of Akatosh</span></div>
+        <div class="g-god-sphere">The Aldmeri Akatosh, held by the Snow Elves as the founder of their line.</div>
+        <div class="g-god-boon">Marksman +10, 12 h <span class="g-chip g-chip--live">live</span></div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>The Princes</h2>
+    <p>Cyrodiil's Daedric shrines are <strong>Oblivion's fifteen</strong>, and that is the roster,
+      plus Mephala, who has a real shrine on Solstheim. <strong>Jyggalag is deliberately absent</strong>
+      — free since the Greymarch ended, but with no cult and no worshippers in 4E 201. He is the one
+      entry lore actively forbids.</p>
+    <div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Azura</div>
+        <div class="g-god-sphere">Dusk and dawn, prophecy, the Moonshadow. The kindest of them, which is not saying much.</div>
+        <div class="g-god-boon">Magic resisted 10% <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Boethiah</div>
+        <div class="g-god-sphere">Plots and secret murder — and the teacher who makes the Chimer strong by testing them to destruction.</div>
+        <div class="g-god-boon">One-handed +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Clavicus Vile</div>
+        <div class="g-god-sphere">Power through bargains. Every wish granted exactly as worded, and the wording is never yours.</div>
+        <div class="g-god-boon">A boon you name, at a price <span class="g-chip g-chip--soon">designed</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Hermaeus Mora</div>
+        <div class="g-god-sphere">Knowledge, memory and fate. He does not bargain; he collects.</div>
+        <div class="g-god-boon">What you read teaches you more <span class="g-chip g-chip--soon">designed</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Hircine</div>
+        <div class="g-god-sphere">The Hunt and the Great Game. The Huntsman; werewolves are his.</div>
+        <div class="g-god-boon">Stamina returns 10% faster <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Malacath</div>
+        <div class="g-god-sphere">The sworn oath, the broken curse, and every people the others cast out. Trinimac was, and Malacath is.</div>
+        <div class="g-god-boon">Damage +10%, Block +15 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Mehrunes Dagon</div>
+        <div class="g-god-sphere">Destruction and ambition. Bruma above all has met him: the Great Gate opened here, and Martin broke it.</div>
+        <div class="g-god-boon">Destruction +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Mephala</div>
+        <div class="g-god-sphere">Lies, sex and secret murder; the Webspinner, who taught the Morag Tong their trade.</div>
+        <div class="g-god-boon">Alchemy +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Meridia</div>
+        <div class="g-god-sphere">The energies of living things, and a hatred of the undead so total she is counted a Prince by elimination.</div>
+        <div class="g-god-boon">Health regenerates 25% faster <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Molag Bal</div>
+        <div class="g-god-sphere">Domination and the enslavement of mortals. The father of vampires; the reason a black soul gem is black.</div>
+        <div class="g-god-boon">Conjuration +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Namira</div>
+        <div class="g-god-sphere">The ancient darkness and everything that revolts: spirits, spiders, the eaten dead.</div>
+        <div class="g-god-boon">Sneak +10 and night vision <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Nocturnal</div>
+        <div class="g-god-sphere">Night, luck, and things not where they were left. The Nightingales answer to her; nobody else gets an answer.</div>
+        <div class="g-god-boon">Sneak +10 <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Peryite</div>
+        <div class="g-god-sphere">Pestilence, and the ordering of the lowest realms. The weakest Prince, and the one most concerned with tidiness.</div>
+        <div class="g-god-boon">Poison resisted 50% <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Sanguine</div>
+        <div class="g-god-sphere">Revelry and passionate indulgence. The only Prince most people would drink with twice.</div>
+        <div class="g-god-boon">Hunger comes on half as fast <span class="g-chip g-chip--server">server</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Sheogorath</div>
+        <div class="g-god-sphere">Madness. Was Jyggalag, and will be again, and is not, and both of those are true.</div>
+        <div class="g-god-boon">Another god's boon, rolled fresh each prayer <span class="g-chip g-chip--server">server</span></div>
+      </div>
+      <div class="g-god g-daedra">
+        <div class="g-god-name">Vaermina</div>
+        <div class="g-god-sphere">Dreams and nightmares, and the memories torn out of them.</div>
+        <div class="g-god-boon">You see as if dreaming <span class="g-chip g-chip--live">live</span></div>
+      </div>
+    </div>
+    <div class="g-note g-note--amber">
+      <strong>Sheogorath is the one worth noticing.</strong> The Madgod has no blessing of his own and
+      should not have one, so he hands over somebody else's, rolled fresh every prayer. It is the only
+      boon in the list that is <em>more</em> lore-accurate as code than as a record, and the only one
+      that needed no Creation Kit work at all. <strong>Sanguine</strong> is the other: the Prince of
+      indulgence belongs on the appetite meter, not on a spell.
+    </div>
+  </section>
+  <section>
+    <h2>Which gods can actually be prayed to</h2>
+    <p>Measured, not assumed — <code>py ck-mcp\shrines.py</code> counts every reference of every
+      shrine base in the load order. <strong>Twenty-five of the twenty-six can be prayed to today — in practice, all of them.</strong>
+      The nine Divines always could; the Princes arrived on 20 September, when a statue of each was
+      placed at the Namira shrine site as one central place to test worship.</p>
+    <div class="g-table-box">
+      <table>
+        <thead><tr><th>Divine</th><th class="g-n">Placed</th><th class="g-n">In region</th><th class="g-n">In Bruma county</th></tr></thead>
+        <tbody>
+          <tr><td>Akatosh</td><td class="g-n">40</td><td class="g-n">18</td><td class="g-n">3</td></tr>
+          <tr><td>Arkay</td><td class="g-n">50</td><td class="g-n">8</td><td class="g-n">4</td></tr>
+          <tr><td>Dibella</td><td class="g-n">21</td><td class="g-n">4</td><td class="g-n">3</td></tr>
+          <tr><td>Julianos</td><td class="g-n">21</td><td class="g-n">6</td><td class="g-n">4</td></tr>
+          <tr><td>Kynareth</td><td class="g-n">23</td><td class="g-n">8</td><td class="g-n">4</td></tr>
+          <tr><td>Mara</td><td class="g-n">21</td><td class="g-n">4</td><td class="g-n">2</td></tr>
+          <tr><td>Stendarr</td><td class="g-n">25</td><td class="g-n">4</td><td class="g-n">3</td></tr>
+          <tr><td>Talos</td><td class="g-n">56</td><td class="g-n">6</td><td class="g-n">4</td></tr>
+          <tr><td>Zenithar</td><td class="g-n">23</td><td class="g-n">6</td><td class="g-n">2</td></tr>
+          <tr><td>Every Prince</td><td class="g-n">—</td><td class="g-n">—</td><td class="g-n">1 each</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Beyond Skyrim reuses the <em>vanilla</em> Skyrim shrine bases through its own chapels —
+      <code>ShrineofAkatosh</code> stands in <code>CYRBrumaCathedralofStMartin</code>. That is why the
+      Divines were reachable all along.</p>
+    <p><strong>Auri-El alone has no shrine of his own here</strong>, and it costs his worshippers nothing:
+      his single shrine is in the Forgotten Vale, but he is Akatosh under another name, so any Akatosh
+      chapel in Bruma will hear him. Every character on the server has somewhere to pray.</p>
+    <h3>The test site, and the trap it walked into</h3>
+    <p>Beyond Skyrim had already built <strong>Namira's shrine</strong> —
+      <code>CYRNamirasShrineExterior</code>, grid <strong>(23, 47)</strong>, ninety-nine references of
+      snow, bone piles, cobwebs, red-eye lights and evil cairns. On 20 September a statue of every
+      Prince went in around it, so worship could be tested in one place instead of across a province.
+      Clavicus Vile is there too, using the vanilla quest shrine from Haemar's Shame.</p>
+    <p><strong>Thirteen of the fifteen went in as STATICS, and a static is scenery.</strong> The engine
+      fires no activation on one, so the server never hears about it — and in the Creation Kit a
+      STAT and an ACTI look exactly the same once placed. Only <code>ShrineOfMalacath</code> and the
+      vanilla <code>DA09MeridiaStatue</code> were activators and worked.</p>
+    <p>The fix kept every placement where it was: ten new <code>DBO_ShrineOf&lt;Prince&gt;</code>
+      activators at <code>125BFC–125C05</code>, each cloned from <code>DBO_ShrineOfHircine</code>
+      and given <strong>the exact mesh of the statue already standing there</strong>, and then all
+      thirteen references repointed at them. Nothing moved and nothing looks different; the statue
+      simply <em>is</em> the shrine now. Every mesh comes from <code>man_DaedricShrines.esp</code> or
+      <code>Skyrim.esm</code>, both already masters of the plugin, so no master was added.</p>
+  </section>
+  <section>
+    <h2>The records, as written</h2>
+    <p><strong>Done.</strong> Eleven blessing spells at
+      <code>DragonBreak Online Edits.esp:1209BF–1209C9</code>, written by
+      <code>Edit Scripts\DBO_Blessings.pas</code>, plus Unarmed's five long-missing marker spells at
+      <code>1209CA–1209CE</code> in the same sitting. <strong>Not one needed a new magic
+      effect</strong> — every effect below already existed.
+      <code>AltarMaraSpellWHAnvil</code> uses <code>AlchFortifySmithing</code>, which is the proof
+      that an alchemy-family effect works inside a shrine spell; that is what made the last few
+      possible.</p>
+    <p>Each is the same shape: copy <code>AltarNocturnalSpell</code>, rename it
+      <code>DBO_BlessingOf&lt;God&gt;</code>, swap the one effect, keep
+      <code>CureDiseaseEffect</code>, duration <strong>28800</strong>. Worth knowing for the next one:
+      that template is a <strong>fire-and-forget self spell carrying an 8-hour effect, not a
+      constant-effect ability</strong> — which is exactly why Meridia could not have a turn-undead.
+      In that shape it would fire once, at the shrine, and never again.</p>
+    <div class="g-work">
+      <div class="g-work-row"><div class="g-work-god g-divine">Dibella</div><div class="g-work-do"><b>AlchFortifyIllusion</b> <code>3eb27</code> at 10. Charm is Illusion when there is nobody to charm by talking.</div></div>
+      <div class="g-work-row"><div class="g-work-god g-divine">Zenithar</div><div class="g-work-do"><b>AlchFortifyCarryWeight</b> <code>3eb01</code> at 50. The trader's burden, and no shrine in the game uses it.</div></div>
+      <div class="g-work-row"><div class="g-work-god g-divine">Talos</div><div class="g-work-do"><b>AlchFortifyTwoHanded</b> <code>3eb1a</code> at 10. Tiber Septim took Tamriel with a blade in both hands.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Hircine</div><div class="g-work-do"><b>FortifyStaminaRateFFSelf</b> <code>fb98b</code> at 10. Already in Bethesda's shrine family and used by no shrine at all.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Mehrunes Dagon</div><div class="g-work-do"><b>AlchFortifyDestruction</b> <code>3eb26</code> at 10. The school of ruin itself, rather than sharing Malacath's Damage.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Mephala</div><div class="g-work-do"><b>AlchFortifyAlchemy</b> <code>3eb18</code> at 10. The Morag Tong kill with poison, and players brew it.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Molag Bal</div><div class="g-work-do"><b>AlchFortifyConjuration</b> <code>3eb25</code> at 10. Binding, thralldom and soul trap.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Peryite</div><div class="g-work-do"><b>AlchResistPoison</b> <code>90041</code> at 50. There is no resist-disease effect anywhere in this load order.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Vaermina</div><div class="g-work-do"><b>NightEyeEffect</b> <code>6b10c</code>. The dream-sight.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Namira</div><div class="g-work-do"><b>Two</b> effects: keep <b>FortifySneakFFSelf</b> <code>10e8af</code> at 10 and <em>add</em> <b>NightEyeEffect</b> <code>6b10c</code>. Nocturnal hides you from others; Namira shows you what is in the dark with you.</div></div>
+      <div class="g-work-row"><div class="g-work-god">Meridia</div><div class="g-work-do"><b>AlchFortifyHealRate</b> <code>3eb06</code> at 25. Her sphere is the energies of living things, which is health regeneration exactly.</div></div>
+    </div>
+    <div class="g-note">
+      Every effect id above is <code>:Skyrim.esm</code>, and the plugin gained no new master — still
+      52, so no self-index shift. <code>skills.json</code> points at the new records, both
+      <code>server\data\</code> and the dev Data are in sync, and the server has restarted. It reports
+      <strong><code>blessings 22 resolved, 4 server-side, 0 broken</code></strong>, which is the real
+      check: those ids resolve against the live load order, not a test mock.
+      <code>DBO_Skill_unarmed_T1..T5</code> went in beside them, so boot finally reads
+      <code>unresolved: none</code> and <code>18 skills have marker spells</code>. Ten shrine
+      activators followed at <code>125BFC–125C05</code>, taking the boot line to
+      <code>44 shrine ids, 24 reachable</code>.
+    </div>
+    <div class="g-note g-note--amber">
+      <strong>For whoever writes the next one.</strong> Three things each produced a silent exit 0 with
+      nothing done, and all three are now handled by <code>tools\run-sseedit-script.ps1</code>:
+      <code>-D:</code> and <code>-P:</code> must be <em>quoted</em> into the command line or xEdit reads
+      the data path as <code>E:\DragonBreak</code>; <code>-script:</code> wants a full path or it falls
+      back to a file picker and waits for a human; and <strong><code>template</code> is a reserved
+      identifier</strong> in xEdit's script engine. A run straight after a plugin change also takes
+      around twenty-five minutes while xEdit rebuilds its reference cache — check CPU before assuming
+      it has hung.
+    </div>
+  </section>
+  <section>
+    <h2>Still open</h2>
+    <p><strong>Whether the law has teeth.</strong> <code>lawful: false</code> is written onto Talos and
+      every Prince, and <code>private.dboLawful</code> already exists with the guards reading it. Wiring
+      the two together would make Talos worship and Daedra worship the first real crimes in the game, in
+      the county where the Thalmor keep a Justiciar. Good story, big change.</p>
+    <p><strong>Hermaeus Mora is the best thing left to build, and it is not Creation Kit work.</strong>
+      “What you read teaches you more” lands exactly on the Scholar skill and the reading
+      mini-game; no other Prince's sphere maps onto an existing system that cleanly. It needs the read
+      weight multiplied in <code>masterySystem</code>, so a server rebuild.</p>
+    <p><strong>A real menu key.</strong> The picker itself is built, but <code>/deity</code> is what
+      opens it. A hotkey means a client rebuild and a player re-download, so it should ride along
+      with the next one rather than cost a relaunch of its own.</p>
+    <p><strong>Nothing here has been knelt at.</strong> The whole path is covered by
+      <code>server\tests\prayer-harness.js</code> and by the boot log, and by nothing else.</p>
+  </section>
+  <footer>
+    DragonBreak Online · <span class="g-mono" style="background:none;border:none;padding:0;color:inherit">server\DEITY_DESIGN.md</span>,
+    <span class="g-mono" style="background:none;border:none;padding:0;color:inherit">server\prayer.js</span>,
+    <span class="g-mono" style="background:none;border:none;padding:0;color:inherit">server\skills.json</span>
+    · census by <span class="g-mono" style="background:none;border:none;padding:0;color:inherit">ck-mcp\shrines.py</span>
+    and <span class="g-mono" style="background:none;border:none;padding:0;color:inherit">ck-mcp\blessings.py</span>
+  </footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/skills.html">Skill System</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>
