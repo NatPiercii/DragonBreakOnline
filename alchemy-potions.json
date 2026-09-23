@@ -1,0 +1,1549 @@
+{
+ "_comment": "Vanilla Skyrim.esm potions and poisons by first magic effect, weakest to strongest (ck-mcp generated 2026-09-23). alchemy.js gives the nearest of these for a potion mixed at an alchemy lab.",
+ "effects": {
+  "03eb08": {
+   "effect": "AlchFortifyStaminaRate",
+   "potions": [
+    {
+     "id": "03eb11:Skyrim.esm",
+     "edid": "FortifyStaminaRate01",
+     "mag": 50,
+     "dur": 300
+    },
+    {
+     "id": "03eb12:Skyrim.esm",
+     "edid": "FortifyStaminaRate02",
+     "mag": 60,
+     "dur": 300
+    },
+    {
+     "id": "039b0c:Skyrim.esm",
+     "edid": "FortifyStaminaRate03",
+     "mag": 70,
+     "dur": 300
+    },
+    {
+     "id": "03eb14:Skyrim.esm",
+     "edid": "FortifyStaminaRate04",
+     "mag": 80,
+     "dur": 300
+    },
+    {
+     "id": "0ffa02:Skyrim.esm",
+     "edid": "FortifyStaminaRate05",
+     "mag": 100,
+     "dur": 300
+    }
+   ]
+  },
+  "03eaf9": {
+   "effect": "AlchFortifyStamina",
+   "potions": [
+    {
+     "id": "03eafd:Skyrim.esm",
+     "edid": "FortifyStamina01",
+     "mag": 20,
+     "dur": 300
+    },
+    {
+     "id": "0ffa01:Skyrim.esm",
+     "edid": "FortifyStamina05",
+     "mag": 100,
+     "dur": 60
+    },
+    {
+     "id": "03eb00:Skyrim.esm",
+     "edid": "FortifyStamina02",
+     "mag": 40,
+     "dur": 300
+    },
+    {
+     "id": "03eafe:Skyrim.esm",
+     "edid": "FortifyStamina03",
+     "mag": 60,
+     "dur": 300
+    },
+    {
+     "id": "03eaff:Skyrim.esm",
+     "edid": "FortifyStamina04",
+     "mag": 80,
+     "dur": 300
+    }
+   ]
+  },
+  "03eb07": {
+   "effect": "AlchFortifyMagickaRate",
+   "potions": [
+    {
+     "id": "03eb0d:Skyrim.esm",
+     "edid": "FortifyMagickaRate01",
+     "mag": 50,
+     "dur": 300
+    },
+    {
+     "id": "03eb0e:Skyrim.esm",
+     "edid": "FortifyMagickaRate02",
+     "mag": 60,
+     "dur": 300
+    },
+    {
+     "id": "03eb0f:Skyrim.esm",
+     "edid": "FortifyMagickaRate03",
+     "mag": 70,
+     "dur": 300
+    },
+    {
+     "id": "03eb10:Skyrim.esm",
+     "edid": "FortifyMagickaRate04",
+     "mag": 80,
+     "dur": 300
+    },
+    {
+     "id": "0ffa00:Skyrim.esm",
+     "edid": "FortifyMagickaRate05",
+     "mag": 100,
+     "dur": 300
+    }
+   ]
+  },
+  "03eb06": {
+   "effect": "AlchFortifyHealRate",
+   "potions": [
+    {
+     "id": "03eb09:Skyrim.esm",
+     "edid": "FortifyHealRate01",
+     "mag": 50,
+     "dur": 300
+    },
+    {
+     "id": "03eb0a:Skyrim.esm",
+     "edid": "FortifyHealRate02",
+     "mag": 60,
+     "dur": 300
+    },
+    {
+     "id": "03eb0b:Skyrim.esm",
+     "edid": "FortifyHealRate03",
+     "mag": 70,
+     "dur": 300
+    },
+    {
+     "id": "03eb0c:Skyrim.esm",
+     "edid": "FortifyHealRate04",
+     "mag": 80,
+     "dur": 300
+    },
+    {
+     "id": "0ff9ff:Skyrim.esm",
+     "edid": "FortifyHealRate05",
+     "mag": 100,
+     "dur": 300
+    }
+   ]
+  },
+  "03eb01": {
+   "effect": "AlchFortifyCarryWeight",
+   "potions": [
+    {
+     "id": "03eb02:Skyrim.esm",
+     "edid": "FortifyCarry01",
+     "mag": 20,
+     "dur": 300
+    },
+    {
+     "id": "03eb05:Skyrim.esm",
+     "edid": "FortifyCarry02",
+     "mag": 30,
+     "dur": 300
+    },
+    {
+     "id": "03eb03:Skyrim.esm",
+     "edid": "FortifyCarry03",
+     "mag": 40,
+     "dur": 300
+    },
+    {
+     "id": "03eb04:Skyrim.esm",
+     "edid": "FortifyCarry04",
+     "mag": 50,
+     "dur": 300
+    },
+    {
+     "id": "0ff9fe:Skyrim.esm",
+     "edid": "FortifyCarry05",
+     "mag": 60,
+     "dur": 300
+    }
+   ]
+  },
+  "03eaf8": {
+   "effect": "AlchFortifyMagicka",
+   "potions": [
+    {
+     "id": "03eaf7:Skyrim.esm",
+     "edid": "FortifyMagicka01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "03eafa:Skyrim.esm",
+     "edid": "FortifyMagicka02",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "03eafb:Skyrim.esm",
+     "edid": "FortifyMagicka03",
+     "mag": 60,
+     "dur": 60
+    },
+    {
+     "id": "03eafc:Skyrim.esm",
+     "edid": "FortifyMagicka04",
+     "mag": 80,
+     "dur": 60
+    },
+    {
+     "id": "0ff9fd:Skyrim.esm",
+     "edid": "FortifyMagicka05",
+     "mag": 100,
+     "dur": 60
+    }
+   ]
+  },
+  "03eaf3": {
+   "effect": "AlchFortifyHealth",
+   "potions": [
+    {
+     "id": "03eaf2:Skyrim.esm",
+     "edid": "FortifyHealth01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "03eaf4:Skyrim.esm",
+     "edid": "FortifyHealth02",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "03eaf6:Skyrim.esm",
+     "edid": "FortifyHealth03",
+     "mag": 60,
+     "dur": 60
+    },
+    {
+     "id": "03eaf5:Skyrim.esm",
+     "edid": "FortifyHealth04",
+     "mag": 80,
+     "dur": 60
+    },
+    {
+     "id": "0ff9fc:Skyrim.esm",
+     "edid": "FortifyHealth05",
+     "mag": 100,
+     "dur": 60
+    }
+   ]
+  },
+  "0d6947": {
+   "effect": "AlchFortifyPersuasion",
+   "potions": [
+    {
+     "id": "0d6948:Skyrim.esm",
+     "edid": "FortifySkillPersuasion01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "0d6949:Skyrim.esm",
+     "edid": "FortifySkillPersuasion02",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "0d697f:Skyrim.esm",
+     "edid": "FortifySkillPersuasion03",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "0d6980:Skyrim.esm",
+     "edid": "FortifySkillPersuasion04",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb42": {
+   "effect": "AlchDamageHealth",
+   "potions": [
+    {
+     "id": "03a5a4:Skyrim.esm",
+     "edid": "DamageHealth01",
+     "mag": 15,
+     "dur": 0
+    },
+    {
+     "id": "073f31:Skyrim.esm",
+     "edid": "DamageHealth02",
+     "mag": 25,
+     "dur": 0
+    },
+    {
+     "id": "073f32:Skyrim.esm",
+     "edid": "DamageHealth03",
+     "mag": 35,
+     "dur": 0
+    },
+    {
+     "id": "073f34:Skyrim.esm",
+     "edid": "DamageHealth05",
+     "mag": 65,
+     "dur": 0
+    }
+   ]
+  },
+  "0ae722": {
+   "effect": "AlchCureDisease",
+   "potions": [
+    {
+     "id": "0ae723:Skyrim.esm",
+     "edid": "CureDisease",
+     "mag": 100,
+     "dur": 0
+    }
+   ]
+  },
+  "073f30": {
+   "effect": "AlchParalysis",
+   "potions": [
+    {
+     "id": "065a6a:Skyrim.esm",
+     "edid": "Paralyze01",
+     "mag": 0,
+     "dur": 3
+    },
+    {
+     "id": "074a38:Skyrim.esm",
+     "edid": "Paralyze02",
+     "mag": 0,
+     "dur": 5
+    },
+    {
+     "id": "074a39:Skyrim.esm",
+     "edid": "Paralyze03",
+     "mag": 0,
+     "dur": 7
+    },
+    {
+     "id": "074a3a:Skyrim.esm",
+     "edid": "Paralyze04",
+     "mag": 0,
+     "dur": 10
+    },
+    {
+     "id": "074a3b:Skyrim.esm",
+     "edid": "Paralyze05",
+     "mag": 0,
+     "dur": 15
+    }
+   ]
+  },
+  "073f2b": {
+   "effect": "AlchDamageMagickaRate",
+   "potions": [
+    {
+     "id": "073f90:Skyrim.esm",
+     "edid": "DamageMagickaRecovery01",
+     "mag": 100,
+     "dur": 10
+    },
+    {
+     "id": "073f91:Skyrim.esm",
+     "edid": "DamageMagickaRecovery02",
+     "mag": 100,
+     "dur": 20
+    },
+    {
+     "id": "073f92:Skyrim.esm",
+     "edid": "DamageMagickaRecovery03",
+     "mag": 100,
+     "dur": 30
+    },
+    {
+     "id": "073f93:Skyrim.esm",
+     "edid": "DamageMagickaRecovery04",
+     "mag": 100,
+     "dur": 45
+    },
+    {
+     "id": "073f94:Skyrim.esm",
+     "edid": "DamageMagickaRecovery05",
+     "mag": 100,
+     "dur": 60
+    }
+   ]
+  },
+  "073f2c": {
+   "effect": "AlchDamageStaminaRate",
+   "potions": [
+    {
+     "id": "073f8b:Skyrim.esm",
+     "edid": "DamageStaminaRate01",
+     "mag": 100,
+     "dur": 15
+    },
+    {
+     "id": "073f8c:Skyrim.esm",
+     "edid": "DamageStaminaRate02",
+     "mag": 100,
+     "dur": 30
+    },
+    {
+     "id": "073f8d:Skyrim.esm",
+     "edid": "DamageStaminaRate03",
+     "mag": 100,
+     "dur": 45
+    },
+    {
+     "id": "073f8e:Skyrim.esm",
+     "edid": "DamageStaminaRate04",
+     "mag": 100,
+     "dur": 60
+    }
+   ]
+  },
+  "073f51": {
+   "effect": "AlchWeaknessMagic",
+   "potions": [
+    {
+     "id": "065a6e:Skyrim.esm",
+     "edid": "WeaknessMagic01",
+     "mag": 40,
+     "dur": 30
+    },
+    {
+     "id": "073f56:Skyrim.esm",
+     "edid": "WeaknessMagic02",
+     "mag": 55,
+     "dur": 30
+    },
+    {
+     "id": "073f57:Skyrim.esm",
+     "edid": "WeaknessMagic03",
+     "mag": 70,
+     "dur": 30
+    },
+    {
+     "id": "073f58:Skyrim.esm",
+     "edid": "WeaknessMagic04",
+     "mag": 85,
+     "dur": 30
+    },
+    {
+     "id": "073f59:Skyrim.esm",
+     "edid": "WeaknessMagic05",
+     "mag": 100,
+     "dur": 30
+    }
+   ]
+  },
+  "073f2f": {
+   "effect": "AlchWeaknessShock",
+   "potions": [
+    {
+     "id": "073f52:Skyrim.esm",
+     "edid": "WeaknessShock01",
+     "mag": 40,
+     "dur": 30
+    },
+    {
+     "id": "065a6d:Skyrim.esm",
+     "edid": "WeaknessShock02",
+     "mag": 55,
+     "dur": 30
+    },
+    {
+     "id": "073f53:Skyrim.esm",
+     "edid": "WeaknessShock03",
+     "mag": 70,
+     "dur": 30
+    },
+    {
+     "id": "073f54:Skyrim.esm",
+     "edid": "WeaknessShock04",
+     "mag": 85,
+     "dur": 30
+    },
+    {
+     "id": "073f55:Skyrim.esm",
+     "edid": "WeaknessShock05",
+     "mag": 100,
+     "dur": 30
+    }
+   ]
+  },
+  "073f2e": {
+   "effect": "AlchWeaknessFrost",
+   "potions": [
+    {
+     "id": "065a6c:Skyrim.esm",
+     "edid": "WeaknessFrost01",
+     "mag": 40,
+     "dur": 30
+    },
+    {
+     "id": "073f4d:Skyrim.esm",
+     "edid": "WeaknessFrost02",
+     "mag": 55,
+     "dur": 30
+    },
+    {
+     "id": "073f4e:Skyrim.esm",
+     "edid": "WeaknessFrost03",
+     "mag": 70,
+     "dur": 30
+    },
+    {
+     "id": "073f4f:Skyrim.esm",
+     "edid": "WeaknessFrost04",
+     "mag": 85,
+     "dur": 30
+    },
+    {
+     "id": "073f50:Skyrim.esm",
+     "edid": "WeaknessFrost05",
+     "mag": 100,
+     "dur": 30
+    }
+   ]
+  },
+  "073f2d": {
+   "effect": "AlchWeaknessFire",
+   "potions": [
+    {
+     "id": "065a6b:Skyrim.esm",
+     "edid": "WeaknessFire01",
+     "mag": 40,
+     "dur": 30
+    },
+    {
+     "id": "073f49:Skyrim.esm",
+     "edid": "WeaknessFire02",
+     "mag": 55,
+     "dur": 30
+    },
+    {
+     "id": "073f4a:Skyrim.esm",
+     "edid": "WeaknessFire03",
+     "mag": 70,
+     "dur": 30
+    },
+    {
+     "id": "073f4b:Skyrim.esm",
+     "edid": "WeaknessFire04",
+     "mag": 85,
+     "dur": 30
+    },
+    {
+     "id": "073f4c:Skyrim.esm",
+     "edid": "WeaknessFire05",
+     "mag": 100,
+     "dur": 30
+    }
+   ]
+  },
+  "10de5e": {
+   "effect": "AlchDamageStaminaDuration",
+   "potions": [
+    {
+     "id": "065a71:Skyrim.esm",
+     "edid": "DamageStaminaLinger01",
+     "mag": 1,
+     "dur": 30
+    },
+    {
+     "id": "073f45:Skyrim.esm",
+     "edid": "DamageStaminaLinger02",
+     "mag": 2,
+     "dur": 30
+    },
+    {
+     "id": "073f46:Skyrim.esm",
+     "edid": "DamageStaminaLinger03",
+     "mag": 3,
+     "dur": 30
+    },
+    {
+     "id": "073f47:Skyrim.esm",
+     "edid": "DamageStaminaLinger04",
+     "mag": 4,
+     "dur": 30
+    },
+    {
+     "id": "073f48:Skyrim.esm",
+     "edid": "DamageStaminaLinger05",
+     "mag": 5,
+     "dur": 30
+    }
+   ]
+  },
+  "03a2c6": {
+   "effect": "AlchDamageStamina",
+   "potions": [
+    {
+     "id": "065a66:Skyrim.esm",
+     "edid": "DamageStamina01",
+     "mag": 30,
+     "dur": 0
+    },
+    {
+     "id": "073f41:Skyrim.esm",
+     "edid": "DamageStamina02",
+     "mag": 50,
+     "dur": 0
+    },
+    {
+     "id": "073f42:Skyrim.esm",
+     "edid": "DamageStamina03",
+     "mag": 70,
+     "dur": 0
+    },
+    {
+     "id": "073f43:Skyrim.esm",
+     "edid": "DamageStamina04",
+     "mag": 100,
+     "dur": 0
+    },
+    {
+     "id": "073f44:Skyrim.esm",
+     "edid": "DamageStamina05",
+     "mag": 130,
+     "dur": 0
+    }
+   ]
+  },
+  "10de5f": {
+   "effect": "AlchDamageMagickaDuration",
+   "potions": [
+    {
+     "id": "065a70:Skyrim.esm",
+     "edid": "DamageMagickaLinger01",
+     "mag": 1,
+     "dur": 10
+    },
+    {
+     "id": "073f3d:Skyrim.esm",
+     "edid": "DamageMagickaLinger02",
+     "mag": 1,
+     "dur": 15
+    },
+    {
+     "id": "073f3e:Skyrim.esm",
+     "edid": "DamageMagickaLinger03",
+     "mag": 2,
+     "dur": 15
+    },
+    {
+     "id": "073f3f:Skyrim.esm",
+     "edid": "DamageMagickaLinger04",
+     "mag": 2,
+     "dur": 20
+    },
+    {
+     "id": "073f40:Skyrim.esm",
+     "edid": "DamageMagickaLinger05",
+     "mag": 3,
+     "dur": 20
+    }
+   ]
+  },
+  "03a2b6": {
+   "effect": "AlchDamageMagicka",
+   "potions": [
+    {
+     "id": "065a65:Skyrim.esm",
+     "edid": "DamageMagicka01",
+     "mag": 30,
+     "dur": 0
+    },
+    {
+     "id": "073f39:Skyrim.esm",
+     "edid": "DamageMagicka02",
+     "mag": 50,
+     "dur": 0
+    },
+    {
+     "id": "073f3a:Skyrim.esm",
+     "edid": "DamageMagicka03",
+     "mag": 70,
+     "dur": 0
+    },
+    {
+     "id": "073f3b:Skyrim.esm",
+     "edid": "DamageMagicka04",
+     "mag": 100,
+     "dur": 0
+    },
+    {
+     "id": "073f3c:Skyrim.esm",
+     "edid": "DamageMagicka05",
+     "mag": 130,
+     "dur": 0
+    }
+   ]
+  },
+  "10aa4a": {
+   "effect": "AlchDamageHealthDuration",
+   "potions": [
+    {
+     "id": "065a6f:Skyrim.esm",
+     "edid": "DamageHealthLinger01",
+     "mag": 1,
+     "dur": 10
+    },
+    {
+     "id": "073f35:Skyrim.esm",
+     "edid": "DamageHealthLinger02",
+     "mag": 1,
+     "dur": 15
+    },
+    {
+     "id": "073f36:Skyrim.esm",
+     "edid": "DamageHealthLinger03",
+     "mag": 2,
+     "dur": 15
+    },
+    {
+     "id": "073f37:Skyrim.esm",
+     "edid": "DamageHealthLinger04",
+     "mag": 2,
+     "dur": 20
+    },
+    {
+     "id": "073f38:Skyrim.esm",
+     "edid": "DamageHealthLinger05",
+     "mag": 3,
+     "dur": 20
+    }
+   ]
+  },
+  "109add": {
+   "effect": "AlchCurePoison",
+   "potions": [
+    {
+     "id": "065a64:Skyrim.esm",
+     "edid": "CurePoison",
+     "mag": 100,
+     "dur": 0
+    }
+   ]
+  },
+  "03ac2d": {
+   "effect": "AlchWaterbreathing",
+   "potions": [
+    {
+     "id": "03ac2e:Skyrim.esm",
+     "edid": "Waterbreathing01",
+     "mag": 0,
+     "dur": 15
+    },
+    {
+     "id": "03ac2f:Skyrim.esm",
+     "edid": "Waterbreathing02",
+     "mag": 0,
+     "dur": 30
+    },
+    {
+     "id": "03ac30:Skyrim.esm",
+     "edid": "Waterbreathing03",
+     "mag": 0,
+     "dur": 45
+    },
+    {
+     "id": "03ac31:Skyrim.esm",
+     "edid": "Waterbreathing04",
+     "mag": 0,
+     "dur": 60
+    }
+   ]
+  },
+  "039e51": {
+   "effect": "AlchResistMagic",
+   "potions": [
+    {
+     "id": "039e52:Skyrim.esm",
+     "edid": "ResistMagic25",
+     "mag": 10,
+     "dur": 60
+    },
+    {
+     "id": "039e53:Skyrim.esm",
+     "edid": "ResistMagic50",
+     "mag": 15,
+     "dur": 60
+    },
+    {
+     "id": "039e54:Skyrim.esm",
+     "edid": "ResistMagic75",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "039e55:Skyrim.esm",
+     "edid": "ResistMagic100",
+     "mag": 25,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb29": {
+   "effect": "AlchFortifyEnchanting",
+   "potions": [
+    {
+     "id": "039cfb:Skyrim.esm",
+     "edid": "FortifySkillEnchanting01",
+     "mag": 10,
+     "dur": 60
+    },
+    {
+     "id": "039d02:Skyrim.esm",
+     "edid": "FortifySkillEnchanting02",
+     "mag": 15,
+     "dur": 60
+    },
+    {
+     "id": "039d0a:Skyrim.esm",
+     "edid": "FortifySkillEnchanting03",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "039d12:Skyrim.esm",
+     "edid": "FortifySkillEnchanting04",
+     "mag": 25,
+     "dur": 60
+    }
+   ]
+  },
+  "0ffa05": {
+   "effect": "AlchRestoreStaminaAll",
+   "potions": [
+    {
+     "id": "039cf3:Skyrim.esm",
+     "edid": "RestoreStamina06",
+     "mag": 9999,
+     "dur": 0
+    }
+   ]
+  },
+  "03eb16": {
+   "effect": "AlchRestoreStamina",
+   "potions": [
+    {
+     "id": "03eae5:Skyrim.esm",
+     "edid": "RestoreStamina01",
+     "mag": 25,
+     "dur": 0
+    },
+    {
+     "id": "039be8:Skyrim.esm",
+     "edid": "RestoreStamina02",
+     "mag": 50,
+     "dur": 0
+    },
+    {
+     "id": "03eae7:Skyrim.esm",
+     "edid": "RestoreStamina03",
+     "mag": 75,
+     "dur": 0
+    },
+    {
+     "id": "03eae8:Skyrim.esm",
+     "edid": "RestoreStamina04",
+     "mag": 100,
+     "dur": 0
+    },
+    {
+     "id": "03eae6:Skyrim.esm",
+     "edid": "RestoreStamina05",
+     "mag": 150,
+     "dur": 0
+    }
+   ]
+  },
+  "0ffa04": {
+   "effect": "AlchRestoreMagickaAll",
+   "potions": [
+    {
+     "id": "039be7:Skyrim.esm",
+     "edid": "RestoreMagicka06",
+     "mag": 9999,
+     "dur": 0
+    }
+   ]
+  },
+  "03eb17": {
+   "effect": "AlchRestoreMagicka",
+   "potions": [
+    {
+     "id": "03eae0:Skyrim.esm",
+     "edid": "RestoreMagicka01",
+     "mag": 25,
+     "dur": 0
+    },
+    {
+     "id": "03eae1:Skyrim.esm",
+     "edid": "RestoreMagicka02",
+     "mag": 50,
+     "dur": 0
+    },
+    {
+     "id": "03eae2:Skyrim.esm",
+     "edid": "RestoreMagicka03",
+     "mag": 75,
+     "dur": 0
+    },
+    {
+     "id": "03eae4:Skyrim.esm",
+     "edid": "RestoreMagicka04",
+     "mag": 100,
+     "dur": 0
+    },
+    {
+     "id": "039be6:Skyrim.esm",
+     "edid": "RestoreMagicka05",
+     "mag": 150,
+     "dur": 0
+    }
+   ]
+  },
+  "0ffa03": {
+   "effect": "AlchRestoreHealthAll",
+   "potions": [
+    {
+     "id": "039be5:Skyrim.esm",
+     "edid": "RestoreHealth06",
+     "mag": 9999,
+     "dur": 0
+    }
+   ]
+  },
+  "03eb15": {
+   "effect": "AlchRestoreHealth",
+   "potions": [
+    {
+     "id": "03eadd:Skyrim.esm",
+     "edid": "RestoreHealth01",
+     "mag": 25,
+     "dur": 0
+    },
+    {
+     "id": "03eade:Skyrim.esm",
+     "edid": "RestoreHealth02",
+     "mag": 50,
+     "dur": 0
+    },
+    {
+     "id": "03eadf:Skyrim.esm",
+     "edid": "RestoreHealth03",
+     "mag": 75,
+     "dur": 0
+    },
+    {
+     "id": "03eae3:Skyrim.esm",
+     "edid": "RestoreHealth04",
+     "mag": 100,
+     "dur": 0
+    },
+    {
+     "id": "039be4:Skyrim.esm",
+     "edid": "RestoreHealth05",
+     "mag": 150,
+     "dur": 0
+    }
+   ]
+  },
+  "03eaec": {
+   "effect": "AlchResistShock",
+   "potions": [
+    {
+     "id": "039be1:Skyrim.esm",
+     "edid": "ResistShock25",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "03eaee:Skyrim.esm",
+     "edid": "ResistShock50",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "039be3:Skyrim.esm",
+     "edid": "ResistShock75",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "03eaf1:Skyrim.esm",
+     "edid": "ResistShock100",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eaeb": {
+   "effect": "AlchResistFrost",
+   "potions": [
+    {
+     "id": "039b8a:Skyrim.esm",
+     "edid": "ResistFrost25",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "03eaed:Skyrim.esm",
+     "edid": "ResistFrost50",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "039bdf:Skyrim.esm",
+     "edid": "ResistFrost75",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "03eaf0:Skyrim.esm",
+     "edid": "ResistFrost100",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eaea": {
+   "effect": "AlchResistFire",
+   "potions": [
+    {
+     "id": "039b4a:Skyrim.esm",
+     "edid": "ResistFire25",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "03eae9:Skyrim.esm",
+     "edid": "ResistFire50",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "039b4b:Skyrim.esm",
+     "edid": "ResistFire75",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "03eaef:Skyrim.esm",
+     "edid": "ResistFire100",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb1a": {
+   "effect": "AlchFortifyTwoHanded",
+   "potions": [
+    {
+     "id": "03eb2b:Skyrim.esm",
+     "edid": "FortifySkillTwoHanded01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "039974:Skyrim.esm",
+     "edid": "FortifySkillTwoHanded02",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "039980:Skyrim.esm",
+     "edid": "FortifySkillTwoHanded03",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "039aa6:Skyrim.esm",
+     "edid": "FortifySkillTwoHanded04",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb23": {
+   "effect": "AlchFortifyBarter",
+   "potions": [
+    {
+     "id": "03eb35:Skyrim.esm",
+     "edid": "FortifySkillBarter01",
+     "mag": 10,
+     "dur": 30
+    },
+    {
+     "id": "039970:Skyrim.esm",
+     "edid": "FortifySkillBarter02",
+     "mag": 15,
+     "dur": 30
+    },
+    {
+     "id": "039971:Skyrim.esm",
+     "edid": "FortifySkillBarter03",
+     "mag": 20,
+     "dur": 30
+    },
+    {
+     "id": "039973:Skyrim.esm",
+     "edid": "FortifySkillBarter04",
+     "mag": 25,
+     "dur": 30
+    }
+   ]
+  },
+  "03eb22": {
+   "effect": "AlchFortifySneak",
+   "potions": [
+    {
+     "id": "03eb33:Skyrim.esm",
+     "edid": "FortifySkillSneak01",
+     "mag": 10,
+     "dur": 60
+    },
+    {
+     "id": "039968:Skyrim.esm",
+     "edid": "FortifySkillSneak02",
+     "mag": 15,
+     "dur": 60
+    },
+    {
+     "id": "039969:Skyrim.esm",
+     "edid": "FortifySkillSneak03",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "03996f:Skyrim.esm",
+     "edid": "FortifySkillSneak04",
+     "mag": 25,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb1d": {
+   "effect": "AlchFortifySmithing",
+   "potions": [
+    {
+     "id": "03eb2e:Skyrim.esm",
+     "edid": "FortifySkillSmithing01",
+     "mag": 20,
+     "dur": 30
+    },
+    {
+     "id": "03995d:Skyrim.esm",
+     "edid": "FortifySkillSmithing02",
+     "mag": 30,
+     "dur": 30
+    },
+    {
+     "id": "039962:Skyrim.esm",
+     "edid": "FortifySkillSmithing03",
+     "mag": 40,
+     "dur": 30
+    },
+    {
+     "id": "039967:Skyrim.esm",
+     "edid": "FortifySkillSmithing04",
+     "mag": 50,
+     "dur": 30
+    }
+   ]
+  },
+  "03eb28": {
+   "effect": "AlchFortifyRestoration",
+   "potions": [
+    {
+     "id": "03eb3a:Skyrim.esm",
+     "edid": "FortifySkillRestoration01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "03995a:Skyrim.esm",
+     "edid": "FortifySkillRestoration02",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "03995b:Skyrim.esm",
+     "edid": "FortifySkillRestoration03",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "03995c:Skyrim.esm",
+     "edid": "FortifySkillRestoration04",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb20": {
+   "effect": "AlchFortifyPickpocket",
+   "potions": [
+    {
+     "id": "03eb31:Skyrim.esm",
+     "edid": "FortifySkillPickpocket01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "039957:Skyrim.esm",
+     "edid": "FortifySkillPickpocket02",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "039959:Skyrim.esm",
+     "edid": "FortifySkillPickpocket03",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "039958:Skyrim.esm",
+     "edid": "FortifySkillPickpocket04",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb19": {
+   "effect": "AlchFortifyOneHanded",
+   "potions": [
+    {
+     "id": "03eb2a:Skyrim.esm",
+     "edid": "FortifySkillOneHanded01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "039954:Skyrim.esm",
+     "edid": "FortifySkillOneHanded02",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "039955:Skyrim.esm",
+     "edid": "FortifySkillOneHanded03",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "039956:Skyrim.esm",
+     "edid": "FortifySkillOneHanded04",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb27": {
+   "effect": "AlchFortifyIllusion",
+   "potions": [
+    {
+     "id": "03eb39:Skyrim.esm",
+     "edid": "FortifySkillIllusion01",
+     "mag": 25,
+     "dur": 60
+    },
+    {
+     "id": "03994f:Skyrim.esm",
+     "edid": "FortifySkillIllusion02",
+     "mag": 50,
+     "dur": 60
+    },
+    {
+     "id": "039950:Skyrim.esm",
+     "edid": "FortifySkillIllusion03",
+     "mag": 75,
+     "dur": 60
+    },
+    {
+     "id": "039951:Skyrim.esm",
+     "edid": "FortifySkillIllusion04",
+     "mag": 100,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb1b": {
+   "effect": "AlchFortifyMarksman",
+   "potions": [
+    {
+     "id": "03eb2c:Skyrim.esm",
+     "edid": "FortifySkillMarksman01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "039949:Skyrim.esm",
+     "edid": "FortifySkillMarksman02",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "03994b:Skyrim.esm",
+     "edid": "FortifySkillMarksman03",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "03994e:Skyrim.esm",
+     "edid": "FortifySkillMarksman04",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb21": {
+   "effect": "AlchFortifyLockpicking",
+   "potions": [
+    {
+     "id": "039930:Skyrim.esm",
+     "edid": "FortifySkillLockpicking01",
+     "mag": 20,
+     "dur": 30
+    },
+    {
+     "id": "039945:Skyrim.esm",
+     "edid": "FortifySkillLockpicking02",
+     "mag": 30,
+     "dur": 30
+    },
+    {
+     "id": "039946:Skyrim.esm",
+     "edid": "FortifySkillLockpicking03",
+     "mag": 40,
+     "dur": 30
+    },
+    {
+     "id": "039948:Skyrim.esm",
+     "edid": "FortifySkillLockpicking04",
+     "mag": 50,
+     "dur": 30
+    }
+   ]
+  },
+  "03eb1f": {
+   "effect": "AlchFortifyLightArmor",
+   "potions": [
+    {
+     "id": "03eb30:Skyrim.esm",
+     "edid": "FortifySkillLightArmor01",
+     "mag": 10,
+     "dur": 60
+    },
+    {
+     "id": "0398fd:Skyrim.esm",
+     "edid": "FortifySkillLightArmor02",
+     "mag": 15,
+     "dur": 60
+    },
+    {
+     "id": "039903:Skyrim.esm",
+     "edid": "FortifySkillLightArmor03",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "039904:Skyrim.esm",
+     "edid": "FortifySkillLightArmor04",
+     "mag": 25,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb1e": {
+   "effect": "AlchFortifyHeavyArmor",
+   "potions": [
+    {
+     "id": "03eb2f:Skyrim.esm",
+     "edid": "FortifySkillHeavyArmor01",
+     "mag": 10,
+     "dur": 60
+    },
+    {
+     "id": "0398f4:Skyrim.esm",
+     "edid": "FortifySkillHeavyArmor02",
+     "mag": 15,
+     "dur": 60
+    },
+    {
+     "id": "0398f5:Skyrim.esm",
+     "edid": "FortifySkillHeavyArmor03",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "0398f6:Skyrim.esm",
+     "edid": "FortifySkillHeavyArmor04",
+     "mag": 25,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb26": {
+   "effect": "AlchFortifyDestruction",
+   "potions": [
+    {
+     "id": "03eb38:Skyrim.esm",
+     "edid": "FortifySkillDestruction01",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "0398ee:Skyrim.esm",
+     "edid": "FortifySkillDestruction02",
+     "mag": 30,
+     "dur": 60
+    },
+    {
+     "id": "0398f1:Skyrim.esm",
+     "edid": "FortifySkillDestruction03",
+     "mag": 40,
+     "dur": 60
+    },
+    {
+     "id": "0398f3:Skyrim.esm",
+     "edid": "FortifySkillDestruction04",
+     "mag": 50,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb25": {
+   "effect": "AlchFortifyConjuration",
+   "potions": [
+    {
+     "id": "03eb37:Skyrim.esm",
+     "edid": "FortifySkillConjuration01",
+     "mag": 25,
+     "dur": 60
+    },
+    {
+     "id": "0398ad:Skyrim.esm",
+     "edid": "FortifySkillConjuration02",
+     "mag": 50,
+     "dur": 60
+    },
+    {
+     "id": "0398ec:Skyrim.esm",
+     "edid": "FortifySkillConjuration03",
+     "mag": 75,
+     "dur": 60
+    },
+    {
+     "id": "0398ed:Skyrim.esm",
+     "edid": "FortifySkillConjuration04",
+     "mag": 100,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb1c": {
+   "effect": "AlchFortifyBlock",
+   "potions": [
+    {
+     "id": "03eb32:Skyrim.esm",
+     "edid": "FortifySkillBlock01",
+     "mag": 10,
+     "dur": 60
+    },
+    {
+     "id": "03989b:Skyrim.esm",
+     "edid": "FortifySkillBlock02",
+     "mag": 15,
+     "dur": 60
+    },
+    {
+     "id": "0398ab:Skyrim.esm",
+     "edid": "FortifySkillBlock03",
+     "mag": 20,
+     "dur": 60
+    },
+    {
+     "id": "0398ac:Skyrim.esm",
+     "edid": "FortifySkillBlock04",
+     "mag": 25,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb24": {
+   "effect": "AlchFortifyAlteration",
+   "potions": [
+    {
+     "id": "03eb36:Skyrim.esm",
+     "edid": "FortifySkillAlteration01",
+     "mag": 25,
+     "dur": 60
+    },
+    {
+     "id": "03988e:Skyrim.esm",
+     "edid": "FortifySkillAlteration02",
+     "mag": 50,
+     "dur": 60
+    },
+    {
+     "id": "039899:Skyrim.esm",
+     "edid": "FortifySkillAlteration03",
+     "mag": 75,
+     "dur": 60
+    },
+    {
+     "id": "03989a:Skyrim.esm",
+     "edid": "FortifySkillAlteration04",
+     "mag": 100,
+     "dur": 60
+    }
+   ]
+  },
+  "03eb3d": {
+   "effect": "AlchInvisibillity",
+   "potions": [
+    {
+     "id": "03eb3e:Skyrim.esm",
+     "edid": "Invisibility01",
+     "mag": 0,
+     "dur": 20
+    },
+    {
+     "id": "03eb41:Skyrim.esm",
+     "edid": "Invisibility04",
+     "mag": 0,
+     "dur": 50
+    },
+    {
+     "id": "03eb40:Skyrim.esm",
+     "edid": "Invisibility02",
+     "mag": 0,
+     "dur": 30
+    },
+    {
+     "id": "03eb3f:Skyrim.esm",
+     "edid": "Invisibility03",
+     "mag": 0,
+     "dur": 40
+    }
+   ]
+  }
+ }
+}

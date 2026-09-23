@@ -2660,6 +2660,12 @@ try {
   delete require.cache[DOWNED_JS];
   require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg });
 } catch (e) { log('downed.js failed to load:', e.stack || e.message); globalThis.__dboReviveWith = null; globalThis.__dboIsDowned = null; }
+// ---- alchemy at the ordinary labs: the nearest vanilla potion for a client-side mix (server alchemy.js) ------------
+try {
+  const ALCHEMY_JS = path.resolve('alchemy.js');
+  delete require.cache[ALCHEMY_JS];
+  require(ALCHEMY_JS)({ mp, log, personal, audit, display, who });
+} catch (e) { log('alchemy.js failed to load:', e.stack || e.message); mp.onCraftUnmatched = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
 try {
