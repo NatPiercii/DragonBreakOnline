@@ -110,7 +110,8 @@ module.exports = (api) => {
     const refusal = typeof globalThis.__dboBeastAllow === 'function' ? globalThis.__dboBeastAllow(a, key, !!forced) : null;
     if (refusal) return refusal;
     mp.set(a, 'private.beast', { form: key, original, at: Date.now(), until: f.seconds ? Date.now() + f.seconds * 1000 : 0 });
-    papyrus(a, 'UnequipAll', []);
+    // No server UnequipAll: it reached the client after the change and stripped the spells it had just equipped
+    // (only the abPreventRemoval robes survived). The client unequips before it swaps race.
     const wear = WEAR[key] || [];
     for (const id of wear) setCount(a, id, 1);
     mp.set(a, 'appearance', beastAppearance(original, f.race));
