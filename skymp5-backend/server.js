@@ -66,7 +66,7 @@ const globalJson = express.json({
 })
 // Problem reports are parsed by their own routes, up to 2 MB and only after the sender checks and rate limit
 const REPORT_PATHS = new Set(['/api/files/report', '/api/site/report'])
-app.use((req, res, next) => (REPORT_PATHS.has(req.path.toLowerCase().replace(/\/+$/, '')) ? next() : globalJson(req, res, next)))
+app.use((req, res, next) => (REPORT_PATHS.has(req.path.toLowerCase().replace(/\/{2,}/g, '/').replace(/\/+$/, '')) ? next() : globalJson(req, res, next)))
 
 // Static file serving: root/ is installed into Skyrim/ (Data/ sub-dir)
 app.use('/files/root', express.static(path.join(config.clientFilesDir, 'root')))
@@ -105,6 +105,8 @@ app.use('/api/players',            playersRoute)
 app.use('/api/launch-check',       launchCheckRoute)
 app.use('/api/site/staff', require('./routes/site-staff'))
 app.use('/api/site',               siteAuthRoute)
+// Body-parser failures on any route answer in JSON; NODE_ENV is unset here, so the default handler would send a stack trace
+app.use(require('./sources/problemReport').bodyErrors)
 
 app.listen(PORT, () => {
   console.log(`DragonBreak backend running on http://localhost:${PORT}`)

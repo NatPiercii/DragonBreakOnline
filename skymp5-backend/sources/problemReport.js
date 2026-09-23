@@ -34,19 +34,18 @@ function text(value) {
 
 // Names go into a thread title and a bold header line, so control characters and markdown are neutralised
 function cleanName(value) {
-  const name = text(value).replace(/[\x00-\x1f\x7f\u200b-\u200f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 64)
+  const name = [...text(value).replace(/[\x00-\x1f\x7f\u00ad\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim()]
+    .slice(0, 64).join('').trim()
   return name || 'Unknown player'
 }
-const escapeMarkdown = s => s.replace(/[\\*_~`|>#[\]()]/g, '\\$&')
+// '<' and ':' too, so a typed mention or link cannot render as one
+const escapeMarkdown = s => s.replace(/[\\*_~`|<>#[\]():]/g, '\\$&')
 
-// reporterKey scopes the id, so one sender can never mark another sender's report as a duplicate
-function claimReport(key) {
+// Keyed per sender, so one sender can never mark another sender's report as a duplicate
+function seenReport(key) {
   const now = Date.now()
-  for (const [id, entry] of seenReports) if (now - entry.at > DEDUPE_MS) seenReports.delete(id)
-  const seen = seenReports.get(key)
-  if (seen) return seen.state
-  seenReports.set(key, { state: 'pending', at: now })
-  return null
+  for (const [id, entry] of seenReports) if (entry.state === 'done' && now - entry.at > DEDUPE_MS) seenReports.delete(id)
+  return seenReports.get(key) || null
 }
 
 function decodeScreenshot(shot) {
@@ -95,9 +94,13 @@ async function submit(reporter, body) {
     ? body.reportId : crypto.randomUUID()
   const who = reporter.discordId ? `d:${reporter.discordId}` : reporter.profileId != null ? `p:${reporter.profileId}` : 'anon'
   const dedupeKey = `${who}:${reportId}`
-  const seen = claimReport(dedupeKey)
-  if (seen === 'done') return { status: 200, json: { ok: true, reportId, duplicate: true } }
-  if (seen === 'pending') return { status: 202, json: { ok: true, reportId, pending: true } }
+  const seen = seenReport(dedupeKey)
+  if (seen && seen.state === 'done') return { status: 200, json: { ok: true, reportId, duplicate: true } }
+  // A copy sent while the first is still posting gets the first one's real outcome, not a hopeful answer
+  if (seen) {
+    const first = await seen.promise
+    return first.status === 200 ? { status: 200, json: { ...first.json, duplicate: true } } : first
+  }
 
   const name = cleanName(reporter.name)
   const lines = [`**${escapeMarkdown(name)}** reported a problem ${SOURCES[source]}.`]
@@ -116,18 +119,24 @@ async function submit(reporter, body) {
   const logs = files.filter(f => f.text !== undefined).length
   lines.push('', `_${logs} log file(s)${shot.data ? ', 1 screenshot' : ''}, ${redactions} redaction(s) applied by the server._`)
 
-  try {
-    const thread = await postReport({ title: name, summary: lines.join('\n'), files })
-    seenReports.set(dedupeKey, { state: 'done', at: Date.now() })
-    audit.log(`REPORT problem ${SOURCES[source]} from ${name}`
-              + `${reporter.discordId ? ` (discord ${reporter.discordId})` : ''}`
-              + `${reporter.profileId != null ? ` (profile ${reporter.profileId})` : ''}${thread ? ` -> thread ${thread}` : ''}`)
-    return { status: 200, json: { ok: true, reportId, thread } }
-  } catch (err) {
-    seenReports.delete(dedupeKey)
-    console.error(`[report] ${reportId} from ${name} could not be filed:`, err.message)
-    return { status: 502, json: { error: 'Could not file the report. Tell a staff member directly.' } }
-  }
+  const entry = { state: 'pending', at: Date.now() }
+  entry.promise = (async () => {
+    try {
+      const thread = await postReport({ title: name, summary: lines.join('\n'), files })
+      entry.state = 'done'
+      entry.at = Date.now()
+      audit.log(`REPORT problem ${SOURCES[source]} from ${name}`
+                + `${reporter.discordId ? ` (discord ${reporter.discordId})` : ''}`
+                + `${reporter.profileId != null ? ` (profile ${reporter.profileId})` : ''}${thread ? ` -> thread ${thread}` : ''}`)
+      return { status: 200, json: { ok: true, reportId, thread } }
+    } catch (err) {
+      seenReports.delete(dedupeKey)
+      console.error(`[report] ${reportId} from ${name} could not be filed:`, err.message)
+      return { status: 502, json: { error: 'Could not file the report. Tell a staff member directly.' } }
+    }
+  })()
+  seenReports.set(dedupeKey, entry)
+  return entry.promise
 }
 
 // Sends the reply for a submit() result; an unexpected throw still answers in JSON
@@ -141,13 +150,13 @@ async function respond(res, reporter, body) {
   }
 }
 
-// Body-parser failures on a report path answer in JSON instead of the default HTML page with a stack trace
+// Body-parser failures answer in JSON instead of the default HTML page with a stack trace
 function bodyErrors(err, _req, res, next) {
   if (!err || typeof err.type !== 'string' || !/^(entity\.|encoding\.|charset\.|request\.)/.test(err.type)) return next(err)
   const status = err.type === 'entity.too.large' ? 413
     : err.type === 'encoding.unsupported' || err.type === 'charset.unsupported' ? 415 : 400
-  const error = status === 413 ? 'The report is too large.'
-    : status === 415 ? 'Send the report as plain, uncompressed JSON.' : 'The report is not valid JSON.'
+  const error = status === 413 ? 'The request is too large.'
+    : status === 415 ? 'Send plain, uncompressed JSON.' : 'The request is not valid JSON.'
   res.status(status).json({ error })
 }
 

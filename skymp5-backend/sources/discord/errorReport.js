@@ -7,9 +7,13 @@ const https = require('https')
 const config = require('../../config')
 
 const REQUEST_TIMEOUT_MS = 15 * 1000
+// Everything one report does with Discord, retries included, ends inside this, under the launcher's 30 s wait
+const REPORT_DEADLINE_MS = 25 * 1000
 
-function request(method, path, { json, multipart } = {}) {
+function request(method, path, { json, multipart, deadline } = {}) {
   return new Promise((resolve, reject) => {
+    const allowed = Math.min(REQUEST_TIMEOUT_MS, deadline ? deadline - Date.now() : REQUEST_TIMEOUT_MS)
+    if (allowed <= 0) return reject(new Error(`discord ${method} ${path} skipped: report deadline passed`))
     let body
     const headers = { Authorization: `Bot ${config.discordBotToken}` }
     if (multipart) {
@@ -33,7 +37,7 @@ function request(method, path, { json, multipart } = {}) {
       })
     })
     // A plain timer, as in oauth.js: req.setTimeout would inherit the default agent's 5 s socket timeout during the lookup
-    const timer = setTimeout(() => req.destroy(new Error(`discord ${method} ${path} timed out`)), REQUEST_TIMEOUT_MS)
+    const timer = setTimeout(() => req.destroy(new Error(`discord ${method} ${path} timed out`)), allowed)
     req.on('close', () => clearTimeout(timer))
     req.on('error', reject)
     if (body) req.write(body)
@@ -59,25 +63,26 @@ function buildMultipart(payload, files) {
   return { boundary, body: Buffer.concat(parts) }
 }
 
-async function createThread(channelId, payload, files) {
+async function createThread(channelId, payload, files, deadline) {
   const mp = buildMultipart(payload, files)
   try {
-    return await request('POST', `/channels/${channelId}/threads`, { multipart: mp })
+    return await request('POST', `/channels/${channelId}/threads`, { multipart: mp, deadline })
   } catch (err) {
     if (err.statusCode === 429) {
       let wait = 1000
       try { wait = Math.min((JSON.parse(err.body).retry_after || 1) * 1000 + 250, 20000) } catch { /* default */ }
+      if (Date.now() + wait >= deadline) throw err
       await new Promise(r => setTimeout(r, wait))
-      return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(payload, files) })
+      return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(payload, files), deadline })
     }
     // Forums can require a tag; retry once with the closest available one rather than losing the report
     if (err.statusCode === 400 && /tag/i.test(err.body || '')) {
-      const channel = await request('GET', `/channels/${channelId}`)
+      const channel = await request('GET', `/channels/${channelId}`, { deadline })
       const tags = channel.available_tags || []
       const pick = tags.find(t => /bug|error|launcher|report/i.test(t.name)) || tags[0]
       if (pick) {
         const retry = { ...payload, applied_tags: [pick.id] }
-        return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(retry, files) })
+        return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(retry, files), deadline })
       }
     }
     throw err
@@ -96,7 +101,7 @@ async function postReport({ title, summary, files = [] }) {
       attachments: files.map((f, i) => ({ id: i, filename: f.name })),
     },
   }
-  const thread = await createThread(channelId, payload, files)
+  const thread = await createThread(channelId, payload, files, Date.now() + REPORT_DEADLINE_MS)
   return thread && thread.id
 }
 
