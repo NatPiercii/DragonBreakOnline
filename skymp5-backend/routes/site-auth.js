@@ -17,6 +17,7 @@ const nameTable     = require('../sources/nameTable')
 const officials     = require('../sources/officials')
 const factions      = require('../sources/factionWhitelist')
 const { charFromCf, fileChangeForms } = require('../sources/characters')
+const { progressOf } = require('../sources/progress')
 
 const STATE_COOKIE   = 'db_site_state'
 const SESSION_COOKIE = 'db_site'
@@ -198,6 +199,7 @@ function toSiteCharacter({ cf, char, mtime }, names, account) {
     race:       nameTable.raceOf(names, appearance && appearance.raceId),
     location:   config.siteShowLocation ? nameTable.placeOf(names, char.worldOrCell) : null,
     titles:     account ? titlesOf(account, df['private.charSlot']) : null,
+    progress:   progressOf(df, char.formDesc),
     lastSaved:  mtime.toISOString(),
   }
 }
@@ -339,3 +341,5 @@ router.post('/logout', (req, res) => {
 })
 
 module.exports = router
+// Shared with the staff dashboard route so both read sessions and characters the same way
+module.exports.internals = { currentSession, readStore, toSiteCharacter, profileIdOf, dynamicFields }

@@ -26,6 +26,7 @@ module.exports = {
 
   // Game server's file-database character store (<server dir>/<databaseName>/changeForms), read by the website profile routes
   changeFormsDir: CHANGEFORMS_DIR,
+  gameServerDir: process.env.GAME_SERVER_DIR || GAME_SERVER_DIR,
   // name-table.json the game server writes into its working directory at start (race and place names)
   nameTablePath: NAME_TABLE_PATH,
   // Folder with the game server's zones.json and officials.json (hold offices); the gamemode keeps both in its working directory
@@ -90,6 +91,9 @@ module.exports = {
   siteShowLocation: siteShows(process.env.SITE_SHOW_LOCATION),
   // Profile page shows the faction and hold titles the player holds
   siteShowFactions: siteShows(process.env.SITE_SHOW_FACTIONS),
+  // Discord roles that may open the staff dashboard: Owners and Dragon Break Dev. GM is deliberately absent.
+  siteStaffRoleIds: (process.env.SITE_STAFF_ROLE_IDS || '1494126527489507369,1494491999305338981')
+    .split(',').map(s => s.trim()).filter(Boolean),
 
   // Discord bot (role-based access): token/guild used to fetch member roles at login; the bot needs "Server Members Intent" enabled in the Developer Portal
   discordBotToken: process.env.DISCORD_BOT_TOKEN || '',
