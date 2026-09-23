@@ -255,6 +255,15 @@ export class BeastFormService extends ClientListener {
     // Something in the engine empties the Vampire Lord's hands a few seconds into the form (Argosh, 20:38); put back
     // what was chosen once a second. applyHands only equips on a difference.
     if (Date.now() >= this.nextHandsCheck) { this.nextHandsCheck = Date.now() + 1000; this.applyHands(); }
+    // Watchers see a walking beast glide: the sender calls itself Standing whenever SpeedSampled reads 0
+    // (movementGet getRunMode). Measured, not guessed: the server logs this every 2 s while in form
+    if (Date.now() >= this.nextDiagAt) {
+      this.nextDiagAt = Date.now() + 2000;
+      try {
+        const p = this.sp.Game.getPlayer();
+        if (p) sendCustomPacket(this.controller, { customPacketType: "dboBeastDiag", speedSampled: p.getAnimationVariableFloat("SpeedSampled"), running: p.isRunning(), sprinting: p.isSprinting() });
+      } catch { /* no player */ }
+    }
     try {
       if (this.sp.Game.getCameraState() === FIRST_PERSON_CAMERA) this.sp.Game.forceThirdPerson();
     } catch { /* no camera yet */ }
@@ -263,6 +272,7 @@ export class BeastFormService extends ClientListener {
   private beastRace = 0;
   private reapplyAt: number[] = [];
   private nextHandsCheck = 0;
+  private nextDiagAt = 0;
 
   // Sneak toggles the stance, the same key vanilla uses, read from the player's own bindings
   private onButtonEvent(e: ButtonEvent): void {

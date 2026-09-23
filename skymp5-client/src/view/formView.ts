@@ -27,6 +27,10 @@ type AdminView = "visible" | "hidden" | "ghost";
 
 // A copy nobody drives this far from where the server holds it is re-seated, not left standing there
 const STRANDED_UNITS = 512;
+// Werewolf (Skyrim 0CDD84) and Vampire Lord (Dawnguard 00283A). A watcher crashed updating a remote werewolf's
+// behaviour graph one second after the race swap respawned it; the new copy's first moments are left alone
+const BEAST_RACE_IDS = new Set([0x000cdd84, 0x0200283a]);
+const BEAST_SPAWN_SETTLE_MS = 1500;
 // A hosted copy this far from the server position has its updates refused, so it is snapped back
 const RESYNC_UNITS = 3000;
 
@@ -569,7 +573,7 @@ export class FormView {
       }
     }
 
-    if (refr.is3DLoaded()) {
+    if (refr.is3DLoaded() && !this.isSettlingBeast(model)) {
       if (model.animation) {
         if (alreadyHosted) {
           // The server echoes our own AI's animations back; replaying them restarts swings and can turn collision off
@@ -615,7 +619,8 @@ export class FormView {
           screenPoint[2] < 1;
         if (isOnScreen != this.isOnScreen) {
           this.isOnScreen = isOnScreen;
-          if (isOnScreen && Date.now() - this.lastNiNodeUpdateMs >= FormView.niNodeUpdateMinIntervalMs) {
+          // Never on a beast copy: the queued 3D reset holds a raw actor pointer and the beast graph is the one that crashed
+          if (isOnScreen && !this.isBeastCopy(model) && Date.now() - this.lastNiNodeUpdateMs >= FormView.niNodeUpdateMinIntervalMs) {
             this.lastNiNodeUpdateMs = Date.now();
             actor.queueNiNodeUpdate();
             // The rebuilt 3D drops effect shaders
@@ -639,7 +644,8 @@ export class FormView {
           !isBadMenuShown() &&
           Date.now() - this.eqState.lastEqMoment > 500 &&
           Date.now() - this.spawnMoment > -1 &&
-          this.spawnMoment > 0
+          this.spawnMoment > 0 &&
+          !this.isSettlingBeast(model)
         ) {
           //if (this.spawnMoment > 0 && Date.now() - this.spawnMoment > 5000) {
           if (applyEquipment(ac, model.equipment)) {
@@ -905,6 +911,14 @@ export class FormView {
       destroyText(this.textActorIdId);
       this.textActorIdId = undefined;
     }
+  }
+
+  private isBeastCopy(model: FormModel): boolean {
+    return !!model.appearance && BEAST_RACE_IDS.has(Number(model.appearance.raceId) >>> 0);
+  }
+
+  private isSettlingBeast(model: FormModel): boolean {
+    return this.isBeastCopy(model) && (this.spawnMoment === 0 || Date.now() - this.spawnMoment < BEAST_SPAWN_SETTLE_MS);
   }
 
   private getAppearanceBasedBase(): number {
