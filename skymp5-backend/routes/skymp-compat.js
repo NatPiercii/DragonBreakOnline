@@ -275,50 +275,53 @@ function escapeHtml(s) {
 }
 
 // End-of-OAuth page; autoClose tries window.close(), which browsers only honour for some external-app-opened tabs, so the message stays as a fallback
+// Styled by the website's own stylesheet (same origin through the public proxy), so it always matches the site
 function authPage({ ok, title, message, autoClose = false }) {
-  const accent = ok ? '#c8a25f' : '#c0564f'
-  const mark   = ok ? '&#10003;' : '&#10007;'
+  const tone = ok ? 'ok' : 'bad'
+  const mark = ok ? '&#10003;' : '&#10007;'
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DragonBreak - ${escapeHtml(title)}</title>
+<title>Dragon Break - ${escapeHtml(title)}</title>
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
 <style>
-  html, body { height: 100%; margin: 0; }
-  body {
-    display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(ellipse at center, #16120d 0%, #0b0906 70%);
-    color: #d8cdb8; font-family: Georgia, 'Times New Roman', serif;
-    text-align: center;
-  }
-  .card { padding: 2.5rem 3rem; max-width: 26rem; }
-  .mark {
-    width: 4rem; height: 4rem; margin: 0 auto 1.25rem; border-radius: 50%;
-    border: 2px solid ${accent}; color: ${accent};
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.8rem;
-  }
-  h1 {
-    margin: 0 0 .75rem; font-size: 1.5rem; font-weight: normal;
-    color: ${accent}; letter-spacing: .12em; text-transform: uppercase;
-  }
-  p { margin: 0; line-height: 1.6; font-size: 1rem; }
-  .note { margin-top: 1.5rem; font-size: .85rem; color: #857a66; }
+  body { background: #08191c; color: #d7e3e3; font-family: 'Roboto Condensed', sans-serif; }
+  .wrap { max-width: 560px; }
+  .hero { text-align: center; padding: 2.5rem 0 1.2rem; }
+  .hero h1 { font-size: clamp(1.8rem, 6vw, 2.6rem); }
+  .panel { text-align: center; padding: 2rem 1.6rem; }
+  .mark { width: 3.6rem; height: 3.6rem; margin: 0 auto 1rem; border-radius: 50%; border: 2px solid currentColor;
+          display: flex; align-items: center; justify-content: center; font-size: 1.6rem; }
+  .panel h2 { margin: 0 0 .7rem; border: 0; padding: 0; }
+  .panel p { margin: 0; }
+  .panel .meta { margin-top: 1.2rem; }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="mark">${mark}</div>
-    <h1>${escapeHtml(title)}</h1>
-    <p>${message}</p>
-    <p class="note" id="note">${autoClose ? 'This tab will close itself…' : ''}</p>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap">
+  <div class="hero">
+    <h1>Dragon Break</h1>
+    <div class="tag">Launcher sign-in</div>
   </div>
+  <div class="panel">
+    <div class="mark ${tone}">${mark}</div>
+    <h2 class="${tone}">${escapeHtml(title)}</h2>
+    <p>${message}</p>
+    <p class="meta" id="note">${autoClose ? 'This tab will close itself&hellip;' : ''}</p>
+  </div>
+  <footer>Dragon Break &middot; time runs differently here</footer>
+</div>
 ${autoClose ? `<script>
   window.close()
   setTimeout(function () {
     var n = document.getElementById('note')
-    if (n) n.textContent = 'You can close this tab now.'
+    if (n) n.textContent = 'You can close this tab now and return to the launcher.'
   }, 600)
 </script>` : ''}
 </body>
