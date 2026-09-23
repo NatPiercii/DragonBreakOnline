@@ -54,6 +54,10 @@ module.exports = (api) => {
   // ---- data ------------------------------------------------------------------------------------
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { log(`${file} unreadable`, e.message); return fallback; } };
   const DATA = readJson('dungeons.json', { dungeons: [] });
+  // Sites the generator counts as dungeons that are not (Nat: Lakeside Retreat). Dropped before anything is built
+  // from them, so no gate, no lease, and their containers stay ordinary. More ids via config dungeons.exclude.
+  const EXCLUDED = new Set(['CYRLakesideRetreatLocation'].concat(Array.isArray(C.exclude) ? C.exclude : []));
+  DATA.dungeons = (DATA.dungeons || []).filter((d) => !EXCLUDED.has(d.id));
   const LOOT = (readJson('loot.json', { pools: {} }).pools) || {};
   const byId = new Map();            // dungeon id -> dungeon
   const outsideDoors = new Map();    // outside door refId -> { d, entrance }
@@ -246,6 +250,9 @@ module.exports = (api) => {
   const GOBLIN_GEAR = /^BSKGoblin|^CYRArmorGoblinShield/;
   // dungeons.json already carries Beyond Skyrim's own location keywords, so no generator re-run is needed.
   // Vilverin is an Ayleid ruin BS keyworded only as a cave, hence the id list.
+  // Nat: ebony and daedric never come out of a dungeon (chests, bodies, corpses, or what an enemy is armed with).
+  // Matched on the editor id, so the enchanted variants and the ingot go too. Config dungeons.bannedLoot overrides.
+  const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric/i;
   const lootOk = (lease) => {
     const prov = lease && lease.province;
     const d = lease ? byId.get(lease.id) : null;
@@ -255,6 +262,7 @@ module.exports = (api) => {
     const ayleid = has(/Ayleid/i) || /^CYR(Anga|Rielle|Sedor|Vilverin)/i.test((d && d.id) || '');
     const goblin = has(/GoblinDen/i);
     return (it) => {
+      if (BANNED_LOOT.test(it.name)) return false;
       if (AYLEID_GEAR.test(it.name)) return ayleid;
       if (GOBLIN_GEAR.test(it.name)) return goblin;
       if (nordic && NORDIC_GEAR.test(it.name)) return true;
@@ -919,6 +927,7 @@ module.exports = (api) => {
       const baseId = Number(e.baseId) >>> 0; const rec = recordOf(baseId); const type = rec ? String(rec.type) : '';
       const count = Number(e.count) || 0;
       if (baseId === GOLD_BASE) { kept.push({ baseId, count: Math.min(count, diff.gold[1]) }); continue; }
+      if (rec && BANNED_LOOT.test(String(rec.editorId || ''))) continue;
       if (type === 'AMMO') { kept.push({ baseId, count: Math.min(count, 15) }); continue; }
       if (type === 'ALCH' || type === 'INGR' || type === 'MISC' || type === 'SLGM' || type === 'KEYM' || type === 'BOOK' || type === 'SCRL') { kept.push({ baseId, count }); continue; }
       if (type === 'WEAP') { if (!weaponKept && Math.random() < (isEnchanted(rec) ? diff.ench * 3 : 0.25)) { weaponKept = true; kept.push({ baseId, count: 1 }); } continue; }
