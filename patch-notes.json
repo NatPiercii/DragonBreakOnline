@@ -1,5 +1,20 @@
 [
   {
+    "title": "Salt and Stone",
+    "date": "2026-09-23",
+    "tag": "Update",
+    "version": "Server",
+    "sections": [
+      {
+        "heading": "Mining",
+        "items": [
+          "Sea Salt Deposits can now be mined. Work one like an ore seam to scrape out Salt Piles, and now and then some Frost, Fire or Void Salts with them. Any Miner can work them.",
+          "The geodes of Whistling Mine can now be cracked open by a Miner of the second tier. Each holds one empty soul gem: usually a Petty or Lesser one, sometimes a Common or Greater, and rarely a Grand. Never a Black one."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Draught of Revival",
     "date": "2026-09-23",
     "tag": "Update",
@@ -8,10 +23,10 @@
       {
         "heading": "A potion that raises the fallen",
         "items": [
-          "Alchemists of the fourth tier can now brew the Draught of Revival. Drink it while facing a fallen ally and they get up where they lay with a quarter of their health.",
+          "Alchemists of the fourth tier can now brew the Draught of Revival. Carry one to a fallen ally and press E on them to pour it in: they get up where they lay with a quarter of their health. Drinking it while facing them works too.",
           "First you need the recipe. It turns up rarely in the chests of a dungeon's strongest foes. Read it once and you know it for good.",
           "To brew it, use an alchemy lab, then say /brew revive while you stand there. It takes two measures of wheat, one of troll fat and one salt pile.",
-          "If nobody fallen lies before you when you drink it, you keep the draught."
+          "A draught is only used up when it raises someone."
         ]
       }
     ]
