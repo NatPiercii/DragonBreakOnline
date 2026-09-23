@@ -55,8 +55,14 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   const launcher = tail(path.join(userDataDir, 'install.log'))
   if (launcher) files.launcherLog = redact(launcher)
 
+  // A player with more than one edition installed has a log per edition; the most recently written one is this session's
+  const newest = {}
   for (const { file, field } of gameLogCandidates(documentsDir || path.join(os.homedir(), 'Documents'), myGamesVariants)) {
-    if (files[field]) continue
+    let mtime
+    try { mtime = fs.statSync(file).mtimeMs } catch { continue }
+    if (!newest[field] || mtime > newest[field].mtime) newest[field] = { file, mtime }
+  }
+  for (const [field, { file }] of Object.entries(newest)) {
     const text = tail(file, 80 * 1024)
     if (text) files[field] = redact(text)
   }

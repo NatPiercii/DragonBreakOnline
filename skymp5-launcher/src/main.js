@@ -1524,6 +1524,11 @@ async function guardLaunch(launch) {
 
 ipcMain.handle('game:isRunning', gameProcessRunning)
 
+// Electron can fail to resolve Documents on a broken profile; the collector then falls back to the home folder
+function documentsDirOrNull() {
+  try { return app.getPath('documents') } catch { return null }
+}
+
 // Send this launcher's logs to staff. The backend redacts again, then files them as a thread in the
 // error-report forum under the player's Discord name.
 ipcMain.handle('report:send', async (_e, { note } = {}) => {
@@ -1533,7 +1538,7 @@ ipcMain.handle('report:send', async (_e, { note } = {}) => {
     const payload = report.collect({
       userDataDir:     app.getPath('userData'),
       installDir:      store.get('skyrimPath') || '',
-      documentsDir:    app.getPath('documents'),
+      documentsDir:    documentsDirOrNull(),
       myGamesVariants: MYGAMES_VARIANTS,
       context: {
         launcherVersion: app.getVersion(),
@@ -1547,9 +1552,12 @@ ipcMain.handle('report:send', async (_e, { note } = {}) => {
     if (previous && !payload.launcherLog) payload.launcherLog = report.redact(previous)
     if (!payload.launcherLog) return { ok: false, error: 'No launcher log to send yet.' }
 
+    // One id per click: a retry the server already filed comes back as a duplicate instead of a second thread
+    payload.reportId = crypto.randomUUID()
+    // The server now waits for Discord before answering, so this allows longer than the usual 10 s
     const res = await postJSON(`${config.apiUrl}/api/files/report`, payload,
-                               session ? { 'x-session': session } : {})
-    log(`[report] filed${res && res.thread ? ` as thread ${res.thread}` : ''}`)
+                               session ? { 'x-session': session } : {}, 30_000)
+    log(`[report] filed ${payload.reportId}${res && res.thread ? ` as thread ${res.thread}` : ''}`)
     return { ok: true }
   } catch (err) {
     log(`[report] failed: ${err.statusCode || ''} ${err.message}`)
@@ -3350,7 +3358,7 @@ function fetchJSON(url, headers = {}, redirectsLeft = 3) {
 
 // POST JSON and parse the JSON reply. No redirect following: launch-check and
 // friends are same-origin API calls where a redirect means misconfiguration.
-function postJSON(url, body, headers = {}) {
+function postJSON(url, body, headers = {}, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
     const mod    = url.startsWith('https') ? https : http
     const urlObj = new URL(url)
@@ -3379,7 +3387,7 @@ function postJSON(url, body, headers = {}) {
       })
     })
     req.on('error', reject)
-    req.setTimeout(10_000, () => { req.destroy(); reject(new Error(`Request timed out: ${url}`)) })
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error(`Request timed out: ${url}`)) })
     req.write(payload)
     req.end()
   })
