@@ -2387,6 +2387,16 @@ const isConcentration = (src) => {
   concCache.set(src, yes);
   return yes;
 };
+// Two actors that are neither players nor anyone's companion, standing in the same dungeon cell: a lease's own enemies
+const cellKey = (id) => { const d = String(mp.get(id, 'worldOrCellDesc') || ''); const i = d.indexOf(':'); const n = parseInt(d.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : d.slice(0, i).toLowerCase()) + ':' + d.slice(i + 1).toLowerCase(); };
+const dungeonAllies = (a, b) => {
+  try {
+    if (profileOf(a) >= 0 || profileOf(b) >= 0) return false;
+    if (mp.get(a, 'private.dboCompanion') || mp.get(b, 'private.dboCompanion')) return false;
+    const cell = cellKey(a);
+    return cell === cellKey(b) && !!globalThis.__dboDungeonCells && globalThis.__dboDungeonCells.has(cell);
+  } catch (e) { return false; }
+};
 const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
   const agg = Number(aggressorId) >>> 0;
   const tgt = Number(targetId) >>> 0;
@@ -2417,6 +2427,10 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
     concLast.set(key, now);
     if (concLast.size > 512) for (const [k, t] of concLast) if (now - t > 5000) concLast.delete(k);
   }
+
+  // 2c. Enemies of one dungeon never hurt each other. The host's engine reports every actor a spell touched, so a
+  // bandit's Chain Lightning arced through its own allies for full damage (Plundered Mine, 2026-09-23).
+  if (dmg > 0 && agg !== tgt && dungeonAllies(agg, tgt)) return false;
 
   const prev = globalThis.__dboPrevHitDamageAttempt;
   if (prev) {
