@@ -102,3 +102,4 @@ DragonBreak.esp
 Armors of the Velothi.esp
 Armors of the Velothi Pt2.esp
 DragonBreak Online Edits.esp
+DragonBreak Nexus Patches.esp

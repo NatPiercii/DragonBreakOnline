@@ -131,8 +131,14 @@ refuses to write while Skyrim is running.
 On 2026-09-21 the list held 148 files, 930.5 MB: the 9 plugins, the 4 BSAs and 135 loose assets.
 Tested against the live server from an empty folder: all 148 downloaded and verified in 193 s.
 
+**Since 2026-09-23 a 10th plugin ships only through this channel:** `DragonBreak Nexus Patches.esp`, last in
+the load order. It carries DragonBreak's changes to six Nexus mods (Armors of the Velothi I/II, Immersive
+Armors, Immersive Weapons, TGCotN Winterhold, notice board), so players and the server both run those six
+unedited. It is not in the client zip. Under MO2 a file in `Data` loses to the same file in a mod folder,
+so a changed third-party plugin can never ship here; it has to go into this patch.
+
 **After a plugin edit on Nat's box:** `bash dev-server.sh deploy-plugins` from the working root puts the
-9 plugins into the game server's `/opt/skyrim-data` (restarting it only if one changed), into
+10 plugins into the game server's `/opt/skyrim-data` (restarting it only if one changed), into
 `extra/`, and rebuilds the list. It also updates `deploy/skyrim-data/SHA256SUMS`, so commit and push
 that. For a new or changed BSA or loose asset, copy it into `extra/Data/` and run `npm run extra`.
 
