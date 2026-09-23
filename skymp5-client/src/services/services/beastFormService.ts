@@ -145,6 +145,10 @@ export class BeastFormService extends ClientListener {
         if (!player || !race) { logError(this, "race not found", raceId.toString(16)); return; }
         if (beast) player.unequipAll();
         player.setRace(race);
+        // Vanilla brackets the change with Game.SetBeastForm(True/False) (PlayerWerewolfChangeScript,
+        // DLC1PlayerVampireChangeScript), and that flag is what shuts the menus. Those scripts never run here,
+        // so the menus stayed shut after a revert until a relaunch (Argosh, 2026-09-23).
+        try { this.sp.Game.setBeastForm(beast); } catch (e) { logError(this, "setBeastForm failed", e); }
         this.applyLoadout(player, raceId, beast);
         // Vanilla keeps a beast in third person; the player could flip back and see a broken camera
         this.beastRace = beast ? raceId : 0;
