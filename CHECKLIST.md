@@ -1,5 +1,20 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23 (02:25 UTC): newbrumacityedits.esp merged into DragonBreak Online Edits.esp
+
+- [x] Nat's `newbrumacityedits (1).esp` (106 records) overlaid onto DLE, the child winning: 18 new REFRs renumbered
+  `DLE:12AE04..12AE15`, 87 BSHeartland overrides, 1 DLE override (`341164C7`), 15 deletions, 4 LAND, 2 PACK, 12 CELL
+  (12 of the 106 replaced records DLE already had). The child's master order differed from DLE's in 41 places, so
+  every form id was remapped by master name. Tool: `ck-mcp\merge_into_dle.py` (byte-level, no xEdit re-save).
+  Proof: 247 changed form id fields each name the same record; every other DLE record byte-identical; creation-kit
+  validate ok (29,326 -> 29,420 records, HEDR matches, 0 unresolvable), 0 dangling, 0 broken doors, deletions
+  2,525 -> 2,540. DLE sha `3397aa4e`.
+- [x] Installed in dev Data and `server\data`; dev server (`deploy-plugins`, restart 02:19, 0 errors), launcher sync,
+  client package 0.3.16, `_release\DragonBreak-plugins-20260922.zip` rebuilt. Backups:
+  `ckmcp-backups\pre-brumacity-20260922-211913\`, `/opt/skymp-backups/plugins-20260923T021952Z`.
+- [ ] Not looked at in game. The 15 deletions are real deletions (as authored), not disable-and-sink.
+- [ ] Do not load `newbrumacityedits.esp` alongside DLE: its records now live inside DLE.
+
 ## Added 2026-09-23 (02:15 UTC): the character screen, the N hotkey, client package 0.3.16
 
 Nat: "needs to look better". Rendered the real built bundle at 1080p in headless Chrome with a mock
