@@ -114,6 +114,10 @@ module.exports = (api) => {
       // Carry is off the menu (Nat, 2026-09-22); Put down stays so a carry already under way can end
       if (r.carried && Number(r.carrierActorId) >>> 0 === a >>> 0) entries.push({ id: 'putdown', label: 'Put down' });
     }
+    // Voice volume is a preference on the listener's own PC; offered only while voice chat is on (voiceSystem.ts)
+    if (globalThis.__dboVoiceEnabled === true) {
+      entries.push({ id: 'voice:louder', label: 'Voice louder' }, { id: 'voice:quieter', label: 'Voice quieter' }, { id: 'voice:mute', label: 'Mute voice' });
+    }
     return entries;
   };
   const openMenu = (a, t, mode, lines) => sendPacket(a, {
@@ -134,6 +138,7 @@ module.exports = (api) => {
     if (id === 'inspect') return openMenu(a, t, 'inspect', inspectLines(a, t));
     if (id === 'party') return runCommand(a, 'party', `invite #${tagOf(t)}`);
     if (id === 'partykick') return runCommand(a, 'party', `kick #${tagOf(t)}`);
+    if (id.startsWith('voice:')) return sendPacket(a, { customPacketType: 'dboVoicePeer', identity: (t >>> 0).toString(16), op: id.slice(6), name: nameFor(a, t) });
     if (typeof globalThis.__dboSuperMenuAction === 'function' && globalThis.__dboSuperMenuAction(a, id, t)) return;
     if (typeof globalThis.__dboFactionMenuAction === 'function' && globalThis.__dboFactionMenuAction(a, id, t)) return;
   });
