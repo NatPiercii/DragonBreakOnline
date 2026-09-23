@@ -651,6 +651,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboPrayerActivate && globalThis.__dboPrayerActivate(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboJailActivate && globalThis.__dboJailActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboRestActivate && globalThis.__dboRestActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboSuperActivate && globalThis.__dboSuperActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboCoinPurse && globalThis.__dboCoinPurse(targetId >>> 0, casterId >>> 0)) return false;
@@ -945,6 +946,7 @@ const onCharacterReady = (userId, a) => {
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
     // Waking from a bed (rest.js) before the hunger stage is applied
     try { if (globalThis.__dboRestLogin) globalThis.__dboRestLogin(a); } catch (e) { log('rest login failed', e.message); }
+    try { if (globalThis.__dboJailLogin) globalThis.__dboJailLogin(a); } catch (e) { log('jail login failed', e.message); }
     needsOnConnect(a);
     if (globalThis.__dboPlayerMenuReady) globalThis.__dboPlayerMenuReady(a);
     // A lease that ended while the player was offline never told this client to stop glowing
@@ -1827,6 +1829,8 @@ registerChatCommand('unstuck', (a) => {
   const admin = isAdmin(a);
   try { if (mp.get(a, 'isDead')) return personal(a, 'You cannot use /unstuck while dead.'); } catch (e) { /* alive */ }
   try { const r = mp.get(a, 'private.restrained'); if (r && (r.boundHands || r.carried || r.captorActorId)) return personal(a, 'You cannot use /unstuck while restrained or carried.'); } catch (e) { /* free */ }
+  // No walking out of a jail, or out of a sentence (jail.js)
+  if (!admin && globalThis.__dboJailUnstuck) { const why = globalThis.__dboJailUnstuck(a); if (why) return personal(a, why); }
   const fought = Date.now() - (pvpAt.get(a) || 0);
   if (!admin && fought < UNSTUCK.pvpCombatSeconds * 1000) return personal(a, `You are in combat with another player. Try again in ${Math.ceil((UNSTUCK.pvpCombatSeconds * 1000 - fought) / 1000)} seconds.`);
   const last = Number(mp.get(a, 'private.unstuckAt')) || 0;
@@ -2560,6 +2564,13 @@ try {
   delete require.cache[REST_JS];
   require(REST_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, sendPacket, userOf, takeGold, depositToTreasury, giveItem, zoneOfActor, distanceMeters });
 } catch (e) { log('rest.js failed to load:', e.stack || e.message); globalThis.__dboRestActivate = null; globalThis.__dboRestLogin = null; globalThis.__dboRestHungerMult = null; }
+
+// ---- jails, cell doors and sentences (server\jail.js, config "jail", jails.json) ------------------
+try {
+  const JAIL_JS = path.resolve('jail.js');
+  delete require.cache[JAIL_JS];
+  require(JAIL_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, isAdmin, distanceMeters });
+} catch (e) { log('jail.js failed to load:', e.stack || e.message); globalThis.__dboJailActivate = null; globalThis.__dboJailLogin = null; globalThis.__dboJailUnstuck = null; }
 
 // ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
 try {

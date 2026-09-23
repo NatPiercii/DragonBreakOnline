@@ -54,3 +54,6 @@ patron-tokens.json
 
 # Operator restore queue for permadead characters (supernatural.js)
 revive.json
+
+# Jail zones added in game with /jail add (jail.js)
+jails.json
