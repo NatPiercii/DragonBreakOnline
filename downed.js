@@ -146,7 +146,7 @@ module.exports = (api) => {
         try {
           if (isPlayer(a) && mp.get(a, 'private.permaDead') !== true) {
             S.downed.set(a, { at: Date.now(), by: Number(killerId) >>> 0 });
-            banner(a, `You are down. A Priest's healing or a revive potion can raise you. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8);
+            banner(a, `You are down. A Priest's healing, or an ally pressing E on you with a Draught of Revival, can raise you. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8);
             log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
           }
         } catch (e) { log(`downed: death handling failed: ${e.message}`); }
@@ -341,6 +341,23 @@ module.exports = (api) => {
           }
         } catch (e) { log(`downed: revive potion failed: ${e.message}`); }
         return out;
+      };
+    }
+  }
+
+  // Nat: the Draught is used on the fallen, not drunk. E on a downed player while carrying one pours it into them.
+  // The gamemode re-installs its activate hook on every reload before this module loads, so this never stacks.
+  if (POTION) {
+    const innerActivate = mp.onActivate;
+    if (typeof innerActivate === 'function') {
+      mp.onActivate = function (targetId, casterId, ...rest) {
+        const t = Number(targetId) >>> 0, a = Number(casterId) >>> 0;
+        try {
+          if (t !== a && S.downed.has(t) && isDead(t) && countOf(a, POTION) > 0) {
+            if (revive(t, a, 'a Draught of Revival')) { addItem(a, POTION, -1); return false; }
+          }
+        } catch (e) { log(`downed: revive by hand failed: ${e.message}`); }
+        return innerActivate.call(this, targetId, casterId, ...rest);
       };
     }
   }
