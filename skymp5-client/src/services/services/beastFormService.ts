@@ -2,7 +2,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { ActiveEffectApplyRemoveEvent, Actor, Perk, Race, Spell, SpellCastEvent } from "skyrimPlatform";
+import { ActiveEffectApplyRemoveEvent, Actor, ButtonEvent, DxScanCode, GlobalVariable, InputDeviceType, Perk, Race, Spell, SpellCastEvent } from "skyrimPlatform";
 import { sendCustomPacket } from "./customPacketUtil";
 import { logError, logTrace } from "../../logging";
 
@@ -43,6 +43,16 @@ const BEAST_EQUIP: Record<number, BeastEquip> = {
   // One howl can be held at a time and the menu is shut, so Terror is the one put on the voice key
   [WEREWOLF_RACE]: { voice: 0x000cf793 },
 };
+// The Vampire Lord has two stances and vanilla drives them from DLC1PlayerVampireChangeScript:
+// an animation event to the behaviour graph, and a global the rest of the game reads.
+// The script's own description of that global: "0 = Not a Vampire Lord, 1 = Walking, 2 = Levitating".
+// Without it the player hovers with no melee at all, which is what "no melee" was.
+const VL_STATE_GLOBAL = 0x02015fc8; // DLC1VampireLevitateStateGlobal
+const VL_STATE_NONE = 0;
+const VL_STATE_WALKING = 1;
+const VL_STATE_LEVITATING = 2;
+const ANIM_LAND = "LandStart";
+const ANIM_LEVITATE = "LevitateStart";
 const SLOT_LEFT = 0;
 const SLOT_RIGHT = 1;
 const SLOT_VOICE = 2;
@@ -78,6 +88,7 @@ export class BeastFormService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onBeastMessage(e));
     this.controller.on("spellCast", (e) => this.onSpellCast(e));
     this.controller.on("effectStart", (e) => this.onEffectStart(e));
+    this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("update", () => this.onCameraCheck());
   }
 
@@ -163,6 +174,10 @@ export class BeastFormService extends ClientListener {
       try { if (beast) player.addSpell(spell, false); else player.removeSpell(spell); spells++; } catch { /* already held */ }
     }
     this.applyEquip(player, raceId, beast);
+    if (raceId === VAMPIRE_RACE) {
+      // Vanilla starts the Vampire Lord hovering; sneak drops it into melee
+      this.setVampireStance(beast ? VL_STATE_LEVITATING : VL_STATE_NONE);
+    }
     logTrace(this, beast ? "Beast loadout granted" : "Beast loadout removed", `${perks} perk(s), ${spells} spell(s)`);
   }
 
@@ -193,4 +208,35 @@ export class BeastFormService extends ClientListener {
   }
 
   private beastRace = 0;
+
+  // Sneak toggles the stance, the same key vanilla uses, read from the player's own bindings
+  private onButtonEvent(e: ButtonEvent): void {
+    if (this.beastRace !== VAMPIRE_RACE || !e.isDown || e.device !== InputDeviceType.Keyboard) return;
+    if (e.code !== this.sneakKey()) return;
+    this.setVampireStance(this.vampireStance === VL_STATE_LEVITATING ? VL_STATE_WALKING : VL_STATE_LEVITATING);
+  }
+
+  private sneakKey(): number {
+    if (this.cachedSneakKey !== 0) return this.cachedSneakKey;
+    try { this.cachedSneakKey = this.sp.Input.getMappedKey("Sneak", 0) || DxScanCode.LeftControl; }
+    catch { this.cachedSneakKey = DxScanCode.LeftControl; }
+    return this.cachedSneakKey;
+  }
+
+  private setVampireStance(state: number): void {
+    this.vampireStance = state;
+    try {
+      const g = GlobalVariable.from(this.sp.Game.getFormEx(VL_STATE_GLOBAL));
+      if (g) g.setValue(state);
+    } catch { /* not in this load order */ }
+    if (state === VL_STATE_NONE) return;
+    try {
+      const player = this.sp.Game.getPlayer();
+      if (player) this.sp.Debug.sendAnimationEvent(player, state === VL_STATE_LEVITATING ? ANIM_LEVITATE : ANIM_LAND);
+    } catch { /* no player */ }
+    logTrace(this, "Vampire Lord stance", state === VL_STATE_LEVITATING ? "levitating" : "walking");
+  }
+
+  private vampireStance = VL_STATE_NONE;
+  private cachedSneakKey = 0;
 }
