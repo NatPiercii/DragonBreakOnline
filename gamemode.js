@@ -752,6 +752,12 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       else log('beast request dropped: no actor, no spell, or beastform.js is not loaded');
       return;
     }
+    // Measurement for the gliding beast: what the beast's own client reads for its locomotion (every 2 s in form)
+    if (content.customPacketType === 'dboBeastDiag') {
+      const a = actorOf(userId);
+      if (a) log(`beastdiag ${display(a)} speedSampled=${Number(content.speedSampled).toFixed(1)} running=${!!content.running} sprinting=${!!content.sprinting}`);
+      return;
+    }
     // The client used a beast power with the Shout key (BeastFormService); beastform.js gives it its effect on others
     if (content.customPacketType === 'dboBeastPower') {
       const a = actorOf(userId); const spell = Number(content.spell) >>> 0;
