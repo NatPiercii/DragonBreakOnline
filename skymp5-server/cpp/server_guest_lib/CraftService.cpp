@@ -6,6 +6,7 @@
 #include "RawMessageData.h"
 #include "WorldState.h"
 #include "gamemode_events/CraftEvent.h"
+#include "gamemode_events/CustomEvent.h"
 #include <algorithm>
 #include <set>
 #include <fmt/format.h>
@@ -58,10 +59,18 @@ void CraftService::OnCraftItem(const RawMessageData& rawMsgData,
     FindRecipe(me, workbenchKeywordIds, br, inputObjects, resultObjectId);
 
   if (recipesList.empty()) {
-    return spdlog::error(
+    spdlog::error(
       "Recipe not found: inputObjects={}, workbenchId={:#x}, "
       "resultObjectId={:#x}",
       inputObjects.ToJson().dump(), workbenchId, resultObjectId);
+    // An alchemy lab mixes on the client and makes a potion no plugin holds, so no recipe can match it. The
+    // gamemode may still honour the craft (server alchemy.js); CustomEvent prepends the actor's form id
+    CustomEvent unmatched(
+      me->GetFormId(), "onCraftUnmatched",
+      nlohmann::json::array({ workbenchId, resultObjectId, inputObjects.ToJson() })
+        .dump());
+    unmatched.Fire(&partOne.worldState);
+    return;
   }
 
   if (recipesList.size() > 1) {
