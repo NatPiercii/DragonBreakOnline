@@ -36,13 +36,19 @@ export class HostedDriftService extends ClientListener {
 
     const hosted = storage["hosted"];
     const ids = Array.isArray(hosted) ? (hosted as number[]) : [];
+    const live = new Set(ids.map((raw) => Number(raw) % 0x100000000));
+    this.hostedSince.forEach((_, id) => { if (!live.has(id)) this.hostedSince.delete(id); });
+    this.loadedSince.forEach((_, id) => { if (!live.has(id)) this.loadedSince.delete(id); });
     let checked = 0;
     let split = 0;
     for (const raw of ids) {
       const remoteId = Number(raw) % 0x100000000;
+      if (!this.hostedSince.has(remoteId)) this.hostedSince.set(remoteId, now);
       try {
         const localId = remoteIdToLocalId(remoteId);
         const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
+        if (!ac || !ac.is3DLoaded()) this.loadedSince.delete(remoteId);
+        else if (!this.loadedSince.has(remoteId)) this.loadedSince.set(remoteId, now);
         if (!ac || ac.getFormID() === 0x14 || ac.isDead() || !ac.is3DLoaded()) continue;
         const node = NODES.find(([name]) => NetImmerse.hasNode(ac, name, false));
         if (!node) {
@@ -76,6 +82,8 @@ export class HostedDriftService extends ClientListener {
           kind: "split", remoteId: remoteId.toString(16), base: this.baseName(ac), node: nodeName,
           ref: ref.map(Math.round), bone: bone.map(Math.round), dxy: Math.round(dxy), dz: Math.round(dz),
           splitForMs: now - since, attempt: attempts, inCombat: ac.isInCombat(), weaponDrawn: ac.isWeaponDrawn(),
+          hostedForMs: now - (this.hostedSince.get(remoteId) ?? now), loadedForMs: now - (this.loadedSince.get(remoteId) ?? now),
+          fromPlayer: Math.round(this.fromPlayer(ref)),
         });
         ac.stopTranslation();
         setRefrCollision(ac.getFormID(), true);
@@ -89,6 +97,11 @@ export class HostedDriftService extends ClientListener {
       this.nextHeartbeat = now + HEARTBEAT_MS;
       this.send({ kind: "heartbeat", hosted: ids.length, checked, split });
     }
+  }
+
+  private fromPlayer(pos: number[]): number {
+    const p = Game.getPlayer();
+    return p ? Math.hypot(p.getPositionX() - pos[0], p.getPositionY() - pos[1], p.getPositionZ() - pos[2]) : -1;
   }
 
   private baseName(ac: Actor): string {
@@ -111,5 +124,7 @@ export class HostedDriftService extends ClientListener {
   private splitSince = new Map<number, number>();
   private repairedAt = new Map<number, number>();
   private attempts = new Map<number, number>();
+  private hostedSince = new Map<number, number>();
+  private loadedSince = new Map<number, number>();
   private reported = new Set<string>();
 }
