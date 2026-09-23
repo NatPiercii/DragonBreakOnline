@@ -3,11 +3,11 @@
 // Discord app settings must list DISCORD_DASHBOARD_REDIRECT_URI under Redirects
 
 const { Router }              = require('express')
+const https                   = require('https')
 const crypto                  = require('crypto')
 const config                  = require('../config')
 const sessions                = require('../sources/dashboardSessions')
 const discordBot              = require('../sources/discordBot')
-const oauth                   = require('../sources/discord/oauth')
 const { resolvePermissions, hasPermission } = require('../sources/permissions')
 
 const router  = Router()
@@ -37,7 +37,15 @@ router.get('/url', (req, res) => {
   pending.set(state, { redirectUrl })
   setTimeout(() => pending.delete(state), 10 * 60 * 1000)
 
-  res.json({ url: oauth.authorizeUrl({ redirectUri: config.discordDashboardRedirectUri, state }) })
+  const params = new URLSearchParams({
+    client_id:     config.discordClientId,
+    redirect_uri:  config.discordDashboardRedirectUri,
+    response_type: 'code',
+    scope:         'identify',
+    state,
+  })
+
+  res.json({ url: `https://discord.com/api/oauth2/authorize?${params}` })
 })
 
 // GET /auth/dashboard/callback: Discord redirects here; on success issue a session and redirect to the website with the token, on failure redirect with ?error=<reason>
@@ -61,8 +69,8 @@ router.get('/callback', async (req, res) => {
   pending.delete(state)
 
   try {
-    const tokenData   = await oauth.exchangeCode({ code, redirectUri: config.discordDashboardRedirectUri })
-    const user        = await oauth.getUser(tokenData.access_token)
+    const tokenData   = await _tokenExchange(code)
+    const user        = await _getUser(tokenData.access_token)
 
     const roleIds     = await discordBot.getMemberRoles(user.id)
     const permissions = resolvePermissions(roleIds)
@@ -77,7 +85,9 @@ router.get('/callback', async (req, res) => {
     }
 
     const username = user.global_name || user.username
-    const avatar   = oauth.avatarUrl(user)
+    const avatar   = user.avatar
+      ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
+      : null
 
     const token = sessions.create(user.id, username, avatar, roleIds, permissions)
     // Fragment, not query string: fragments never reach the server, keeping the token out of access logs, history sync and Referer headers
@@ -105,5 +115,55 @@ router.post('/logout', (req, res) => {
   if (token) sessions.revoke(token)
   res.json({ ok: true })
 })
+
+// Discord helpers
+
+function _tokenExchange(code) {
+  return new Promise((resolve, reject) => {
+    const body = new URLSearchParams({
+      client_id:     config.discordClientId,
+      client_secret: config.discordClientSecret,
+      grant_type:    'authorization_code',
+      code,
+      redirect_uri:  config.discordDashboardRedirectUri,
+    }).toString()
+
+    const req = https.request({
+      hostname: 'discord.com',
+      path:     '/api/oauth2/token',
+      method:   'POST',
+      headers: {
+        'Content-Type':   'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, res => {
+      let data = ''
+      res.on('data', c => { data += c })
+      res.on('end', () => {
+        const json = JSON.parse(data)
+        if (json.error) reject(new Error(json.error_description || json.error))
+        else resolve(json)
+      })
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
+
+function _getUser(accessToken) {
+  return new Promise((resolve, reject) => {
+    const req = https.get({
+      hostname: 'discord.com',
+      path:     '/api/users/@me',
+      headers:  { Authorization: `Bearer ${accessToken}` },
+    }, res => {
+      let data = ''
+      res.on('data', c => { data += c })
+      res.on('end', () => resolve(JSON.parse(data)))
+    })
+    req.on('error', reject)
+  })
+}
 
 module.exports = router

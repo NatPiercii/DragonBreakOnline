@@ -24,12 +24,12 @@
  */
 
 const router  = require('express').Router()
+const https   = require('https')
 const crypto  = require('crypto')
 const fs      = require('fs')
 const path    = require('path')
 const config  = require('../config')
 const players = require('../sources/players')
-const oauth   = require('../sources/discord/oauth')
 
 // Launcher-supplied hardware id: printable chars only, capped length; returns '' when unusable
 function sanitizeHwid(value) {
@@ -108,7 +108,15 @@ router.get('/login-discord', (req, res) => {
     console.log(`[skymp-compat] auth started (state ${String(state).slice(0, 8)}…)`)
   }
 
-  res.redirect(oauth.authorizeUrl({ redirectUri: config.discordRedirectUri, state }))
+  const params = new URLSearchParams({
+    client_id:     config.discordClientId,
+    redirect_uri:  config.discordRedirectUri,
+    response_type: 'code',
+    scope:         'identify',
+    state,
+  })
+
+  res.redirect(`https://discord.com/api/oauth2/authorize?${params}`)
 })
 
 // GET /api/users/login-discord/callback
@@ -141,8 +149,15 @@ router.get('/login-discord/callback', async (req, res) => {
   }
 
   try {
-    const tokenData = await oauth.exchangeCode({ code, redirectUri: config.discordRedirectUri })
-    const user      = await oauth.getUser(tokenData.access_token)
+    const tokenData = await discordTokenExchange({
+      client_id:     config.discordClientId,
+      client_secret: config.discordClientSecret,
+      grant_type:    'authorization_code',
+      code,
+      redirect_uri:  config.discordRedirectUri,
+    })
+
+    const user = await discordGetUser(tokenData.access_token)
 
     const { createSession } = require('./master-api')
     const { session, profileId } = createSession({
@@ -158,7 +173,9 @@ router.get('/login-discord/callback', async (req, res) => {
       profileId,
       discordId:           user.id,
       username,
-      avatar:              oauth.avatarUrl(user),
+      avatar: user.avatar
+        ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
+        : null,
     })
     saveAuthStates()
     console.log(`[skymp-compat] auth completed for ${username} (state ${String(state).slice(0, 8)}…)`)
@@ -306,6 +323,55 @@ ${autoClose ? `<script>
 </script>` : ''}
 </body>
 </html>`
+}
+
+// Discord API helpers
+
+function discordTokenExchange(params) {
+  return new Promise((resolve, reject) => {
+    const body = new URLSearchParams(params).toString()
+    const req  = https.request(
+      {
+        hostname: 'discord.com',
+        path:     '/api/oauth2/token',
+        method:   'POST',
+        headers:  {
+          'Content-Type':   'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      res => {
+        let data = ''
+        res.on('data', c => { data += c })
+        res.on('end', () => {
+          const json = JSON.parse(data)
+          if (json.error) reject(new Error(json.error_description || json.error))
+          else resolve(json)
+        })
+      }
+    )
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
+
+function discordGetUser(accessToken) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      {
+        hostname: 'discord.com',
+        path:     '/api/users/@me',
+        headers:  { Authorization: `Bearer ${accessToken}` },
+      },
+      res => {
+        let data = ''
+        res.on('data', c => { data += c })
+        res.on('end', () => resolve(JSON.parse(data)))
+      }
+    )
+    req.on('error', reject)
+  })
 }
 
 module.exports = router
