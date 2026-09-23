@@ -871,6 +871,8 @@ const appearanceHook = (actorId, appearance, isAllowed) => {
   const prev = globalThis.__dboAppearanceHookPrev;
   if (prev) { try { result = prev.call(mp, actorId, appearance, isAllowed) !== false; } catch (e) { log('appearance hook chain failed', e.message); } }
   if (isAllowed) { try { moveToHubWhenReady(actorId >>> 0, 'creator closed'); } catch (e) { log('hub move schedule failed', e.message); } }
+  // An identity reroll (patrons.js) is spent only once the creator closes with the new look
+  if (isAllowed) { try { if (globalThis.__dboRerollDone) globalThis.__dboRerollDone(actorId >>> 0); } catch (e) { log('reroll finish failed', e.message); } }
   // The kit at login skips characters still in creation; finishCreation resets the inventory first, so wait past it.
   if (isAllowed) setTimeout(() => { try { giveStarterKit(actorId >>> 0); } catch (e) { log('starter kit after creation failed', e.message); } }, 6000);
   // Creation ends in the Realm and the gates there are scenery: they carry no XTEL, so they teleport
@@ -2417,6 +2419,13 @@ try {
   delete require.cache[BEASTFORM_JS];
   require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors });
 } catch (e) { log('beastform.js failed to load:', e.stack || e.message); for (const k of ['__dboBeastCast', '__dboBeastRevert', '__dboBeastOriginalRace', '__dboBeastTransform', '__dboBeastRequest', '__dboBeastAdmin', '__dboBeastHolds']) globalThis[k] = null; }
+
+// ---- Patreon identity rerolls (serverpatrons.js, tiers in patron-tiers.json) --------------------------
+try {
+  const PATRONS_JS = path.resolve('patrons.js');
+  delete require.cache[PATRONS_JS];
+  require(PATRONS_JS)({ mp, log, personal, system, registerChatCommand, audit, who, display, profileOf, rolesOf, isAdmin, findByName });
+} catch (e) { log('patrons.js failed to load:', e.stack || e.message); globalThis.__dboRerollDone = null; globalThis.__dboRerollsLeft = null; }
 
 // ---- vampirism and lycanthropy (server\supernatural.js) ------------------------------------------------
 try {

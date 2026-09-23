@@ -48,3 +48,6 @@ worldclock.json.tmp
 supernatural.json
 supernatural.json.tmp
 announce.json
+
+# Patreon identity rerolls spent (patrons.js)
+patron-tokens.json

@@ -391,6 +391,8 @@ module.exports = (api) => {
     for (const o of onlineActors()) sendPacket(o, { customPacketType: 'dboPale', actor: a >>> 0, shader: PALE_SHADER, on: !!on });
   };
   globalThis.__dboSuperKind = (a) => kindOf(a);
+  // After an identity reroll a vampire wears the vampire variant of the race just chosen
+  globalThis.__dboSuperReapplyLook = (a) => { if (kindOf(a) === 'vampire') setLookRace(a, true); };
   globalThis.__dboSuperCrownHolder = () => crownHolder();
   globalThis.__dboSuperLogin = (a) => {
     const i = G.revoke.indexOf(a >>> 0);
