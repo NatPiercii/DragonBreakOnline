@@ -809,6 +809,25 @@ document.getElementById('btn-open-install').addEventListener('click', async () =
   if (!r.success) alert(`Could not open the install folder: ${r.error}`)
 })
 
+// Troubleshooting: send the logs to staff
+const reportButton = document.getElementById('btn-send-report')
+const reportStatus = document.getElementById('report-status')
+const reportNote   = document.getElementById('report-note')
+reportButton.addEventListener('click', async () => {
+  reportButton.disabled = true
+  const wasSaying = reportStatus.textContent
+  reportStatus.textContent = 'Sending your logs...'
+  const r = await window.electronAPI.sendReport(reportNote.value || '')
+  if (r && r.ok) {
+    reportStatus.textContent = 'Sent. Staff can see it in the error-report channel under your Discord name.'
+    reportNote.value = ''
+  } else {
+    reportStatus.textContent = (r && r.error) || 'Could not send the report.'
+    reportButton.disabled = false
+    setTimeout(() => { reportStatus.textContent = wasSaying }, 8000)
+  }
+})
+
 // Troubleshooting: manual launch buttons
 const troubleLaunchStatus = document.getElementById('trouble-launch-status')
 

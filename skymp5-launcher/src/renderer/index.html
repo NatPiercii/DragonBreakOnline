@@ -374,6 +374,16 @@
         <div class="tab-panel domain-lorkhan" id="tab-trouble" hidden>
 
           <div class="settings-group">
+            <label class="setting-label">Send your logs to staff</label>
+            <input type="text" class="setting-input" id="report-note" maxlength="300"
+                   placeholder="What went wrong? (optional)">
+            <button class="btn-detect-vortex" id="btn-send-report">Report a Problem</button>
+            <p class="setting-hint" id="report-status">Sends this launcher's log, and the game log if there is
+              one, to the staff channel under your Discord name. Your Windows username, download links and
+              sign-in tokens are removed first.</p>
+          </div>
+
+          <div class="settings-group">
             <label class="setting-label">Portable Skyrim Mode</label>
             <label class="setting-checkbox-row">
               <input type="checkbox" id="setting-isolated-game" />

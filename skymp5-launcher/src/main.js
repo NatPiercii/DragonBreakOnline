@@ -24,6 +24,7 @@ const mo2    = require('./mo2')
 const nexus  = require('./nexus')
 const ini    = require('./ini')
 const gameversion = require('./gameversion')
+const report = require('./report')
 
 // Settings stay in the folder named after the launcher's original product name.
 const USER_DATA_DIR = path.join(app.getPath('appData'), 'DragonBreak Online Launcher')
@@ -51,7 +52,9 @@ function log(...args) {
 
 try {
   fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true })
-  // Truncate per run so the file stays small and always covers the last attempt
+  // Keep the previous run: a player who hits an error usually reopens the launcher before asking for
+  // help, and truncating here would throw away the log of the run that actually failed.
+  try { if (fs.existsSync(LOG_FILE)) fs.renameSync(LOG_FILE, LOG_FILE.replace(/\.log$/, '.prev.log')) } catch { }
   fs.writeFileSync(LOG_FILE, `=== dragonbreak install log ${new Date().toISOString()} ===\n`)
 } catch { }
 
@@ -1520,6 +1523,39 @@ async function guardLaunch(launch) {
 }
 
 ipcMain.handle('game:isRunning', gameProcessRunning)
+
+// Send this launcher's logs to staff. The backend redacts again, then files them as a thread in the
+// error-report forum under the player's Discord name.
+ipcMain.handle('report:send', async (_e, { note } = {}) => {
+  const user    = store.get('discordUser') || null
+  const session = store.get('gameSession')
+  try {
+    const payload = report.collect({
+      userDataDir: app.getPath('userData'),
+      installDir:  store.get('skyrimPath') || '',
+      context: {
+        launcherVersion: app.getVersion(),
+        filesVersion:    store.get('filesVersion') || '',
+        mo2Enabled:      store.get('mo2Enabled') ? 'yes' : 'no',
+        discordUsername: user && user.username ? user.username : '',
+        note:            typeof note === 'string' ? note.slice(0, 300) : '',
+      },
+    })
+    const previous = report.tail(path.join(app.getPath('userData'), 'install.prev.log'))
+    if (previous && !payload.launcherLog) payload.launcherLog = report.redact(previous)
+    if (!payload.launcherLog) return { ok: false, error: 'No launcher log to send yet.' }
+
+    const res = await postJSON(`${config.apiUrl}/api/files/report`, payload,
+                               session ? { 'x-session': session } : {})
+    log(`[report] filed${res && res.thread ? ` as thread ${res.thread}` : ''}`)
+    return { ok: true }
+  } catch (err) {
+    log(`[report] failed: ${err.statusCode || ''} ${err.message}`)
+    if (err.statusCode === 429) return { ok: false, error: 'Too many reports just now. Wait a few minutes.' }
+    if (err.statusCode === 503) return { ok: false, error: 'Reporting is switched off on the server.' }
+    return { ok: false, error: 'Could not reach the server. Tell a staff member directly.' }
+  }
+})
 
 // Launcher update check
 ipcMain.handle('app:checkUpdate', async () => {
