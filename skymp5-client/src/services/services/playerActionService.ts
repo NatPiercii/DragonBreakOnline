@@ -1,6 +1,6 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, notifyNextUpdate, parseCustomPacket } from "./customPacketUtil";
-import { openFormMenu, closeFormMenu, isMenuHotkeyBlocked } from "./widgetMenuUtil";
+import { openFormMenu, closeFormMenu, isMenuHotkeyBlocked, readMenuKeyCode } from "./widgetMenuUtil";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
 import { isRemotePlayerCharacter, localIdToRemoteId } from "../../view/worldViewMisc";
 import { logTrace } from "../../logging";
@@ -55,11 +55,17 @@ let menuMode = 'menu';
 export class PlayerActionService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
+    // Interact follows the housing key unless set on its own: both are "X, the shared interact key" by default
+    this.interactKey = readMenuKeyCode(sp, "playerActionKeyCode", readMenuKeyCode(sp, "housingMenuKeyCode", DxScanCode.X));
+    this.maskKey = readMenuKeyCode(sp, "maskToggleKeyCode", DxScanCode.H);
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onMenuPacket(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
   }
+
+  private interactKey: number = DxScanCode.X;
+  private maskKey: number = DxScanCode.H;
 
   private onButtonEvent(e: ButtonEvent): void {
     if (!e.isDown) return;
@@ -70,9 +76,9 @@ export class PlayerActionService extends ClientListener {
     }
     // The engine stamps the live control map's event name on every device, so a rebind applies at once
     // DragonBreak Online: the interaction menu lives on the X key (keyboard only), not on Activate.
-    const xPressed = e.device === InputDeviceType.Keyboard && e.code === DxScanCode.X;
+    const xPressed = e.device === InputDeviceType.Keyboard && e.code === this.interactKey;
     // H pulls a mask up or down; the gamemode dresses the character and swaps the shown name
-    const hPressed = e.device === InputDeviceType.Keyboard && e.code === DxScanCode.H;
+    const hPressed = e.device === InputDeviceType.Keyboard && e.code === this.maskKey;
     if ((!xPressed && !hPressed) || this.menuOpen) {
       return;
     }

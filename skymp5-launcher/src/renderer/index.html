@@ -143,6 +143,7 @@
       <div class="modal-tabs">
         <button class="modal-tab active" data-tab="install">Repair</button>
         <button class="modal-tab" data-tab="settings">Settings</button>
+        <button class="modal-tab" data-tab="voice">Voice</button>
         <button class="modal-tab" data-tab="trouble">Troubleshooting</button>
       </div>
 
@@ -277,11 +278,31 @@
           </details>
 
           <details class="settings-collapse">
+            <summary>Interface</summary>
+            <div class="collapse-grid">
+            <div class="settings-group">
+              <label class="setting-label" for="ui-scale">Interface size</label>
+              <select class="setting-input" id="ui-scale">
+                <option value="0">Automatic</option>
+                <option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option>
+                <option value="1.1">110%</option><option value="1.25">125%</option><option value="1.5">150%</option>
+                <option value="1.75">175%</option><option value="2">200%</option><option value="2.5">250%</option><option value="3">300%</option>
+              </select>
+            </div>
+            <div class="settings-group">
+              <label class="setting-label">Panel sizes</label>
+              <button type="button" class="setting-input" id="ui-reset-panels">Reset every panel to its default size</button>
+            </div>
+            <p class="setting-hint span-2">Every panel in game can be resized on its own: hold Ctrl and turn the mouse wheel over it (release the mouse first to reach the vitals and other HUD pieces). Sizes are remembered per panel.</p>
+            </div>
+          </details>
+
+          <details class="settings-collapse">
             <summary>Server Hotkeys</summary>
             <div class="collapse-grid">
             <div class="settings-group"><label class="setting-label">Activate Chat</label><button type="button" class="setting-input hotkey-btn" id="hk-chat"></button></div>
             <div class="settings-group"><label class="setting-label">Release Mouse</label><button type="button" class="setting-input hotkey-btn" id="hk-cursor"></button></div>
-            <div class="settings-group"><label class="setting-label">Housing Menu</label><button type="button" class="setting-input hotkey-btn" id="hk-housing"></button></div>
+            <div class="settings-group"><label class="setting-label">Interact (players, property)</label><button type="button" class="setting-input hotkey-btn" id="hk-housing"></button></div>
             <div class="settings-group"><label class="setting-label">Personal Menu</label><button type="button" class="setting-input hotkey-btn" id="hk-personal"></button></div>
             <div class="settings-group"><label class="setting-label">Faction Menu</label><button type="button" class="setting-input hotkey-btn" id="hk-faction"></button></div>
             <div class="settings-group"><label class="setting-label">Skills Menu</label><button type="button" class="setting-input hotkey-btn" id="hk-skills"></button></div>
@@ -289,9 +310,11 @@
             <div class="settings-group"><label class="setting-label">Emote Wheel</label><button type="button" class="setting-input hotkey-btn" id="hk-emote"></button></div>
             <div class="settings-group"><label class="setting-label">Nametags</label><button type="button" class="setting-input hotkey-btn" id="hk-nametag"></button></div>
             <div class="settings-group"><label class="setting-label">Voice Push-to-Talk</label><button type="button" class="setting-input hotkey-btn" id="hk-voice-ptt"></button></div>
+            <div class="settings-group"><label class="setting-label">Voice Range (whisper, talk, shout)</label><button type="button" class="setting-input hotkey-btn" id="hk-voice-mode"></button></div>
+            <div class="settings-group"><label class="setting-label">Mask Up or Down</label><button type="button" class="setting-input hotkey-btn" id="hk-mask"></button></div>
             <div class="settings-group"><label class="setting-label">Admin Menu</label><button type="button" class="setting-input hotkey-btn" id="hk-admin"></button></div>
             <div class="settings-group"><label class="setting-label">Hide Interface</label><button type="button" class="setting-input hotkey-btn" id="hk-hide-ui"></button></div>
-            <p class="setting-hint span-2">Click a key, then press the new binding. Esc cancels, Backspace unbinds. Enter always focuses chat. Changes apply after the client reloads. The player interaction menu uses the Activate key from Game Hotkeys.</p>
+            <p class="setting-hint span-2">Click a key, then press the new binding. Esc cancels, Backspace unbinds. Enter always focuses chat. Changes apply after the client reloads. Interact opens the menu on a player and the property menu on a door or container.</p>
             </div>
           </details>
 
@@ -312,6 +335,43 @@
         </div>
 
         <!-- Troubleshooting tab -->
+        <!-- Voice tab -->
+        <div class="tab-panel domain-aqua" id="tab-voice" hidden>
+          <div class="settings-group">
+            <label class="setting-label" for="voice-input">Microphone</label>
+            <select class="setting-input" id="voice-input"><option value="">System default</option></select>
+          </div>
+          <div class="settings-group">
+            <label class="setting-label" for="voice-output">Speakers or headset</label>
+            <select class="setting-input" id="voice-output"><option value="">System default</option></select>
+          </div>
+          <div class="settings-group">
+            <label class="setting-label" for="voice-mic-gain">Your voice volume <span class="setting-value" id="voice-mic-gain-out">100%</span></label>
+            <input type="range" class="setting-range" id="voice-mic-gain" min="0" max="200" step="5" value="100">
+          </div>
+          <div class="settings-group">
+            <label class="setting-label" for="voice-out-vol">Other players' volume <span class="setting-value" id="voice-out-vol-out">100%</span></label>
+            <input type="range" class="setting-range" id="voice-out-vol" min="0" max="200" step="5" value="100">
+          </div>
+          <div class="settings-group">
+            <label class="setting-label" for="voice-activation">Transmit</label>
+            <select class="setting-input" id="voice-activation">
+              <option value="ptt">Push to talk</option>
+              <option value="vad">Voice activation</option>
+            </select>
+          </div>
+          <div class="settings-group" id="voice-sens-group">
+            <label class="setting-label" for="voice-sens">Activation sensitivity</label>
+            <input type="range" class="setting-range" id="voice-sens" min="5" max="300" step="5" value="60">
+            <div class="voice-meter" title="Speak: the bar should cross the line when you talk, not when you breathe">
+              <div class="voice-meter__level" id="voice-meter-level"></div>
+              <div class="voice-meter__line" id="voice-meter-line"></div>
+            </div>
+          </div>
+          <hr class="heart-rule">
+          <p class="setting-hint">The meter listens while this tab is open. In game, Left Alt switches between whisper, talk and shout (how far you carry). To make one player louder, quieter or silent, face them and press X. Your choice is kept on this PC. Save Settings, then relaunch the game.</p>
+        </div>
+
         <div class="tab-panel domain-lorkhan" id="tab-trouble" hidden>
 
           <div class="settings-group">

@@ -1696,3 +1696,10 @@ button.hotkey-btn--capturing {
 }
 
 .modal-tab.active { color: rgb(var(--accent-rgb)); border-color: rgba(var(--accent-rgb), 0.8); }
+
+/* Voice tab: the mic meter with the activation threshold drawn across it */
+.voice-meter { position: relative; height: 10px; margin-top: 8px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(var(--accent-rgb), 0.35); }
+.voice-meter__level { height: 100%; width: 0; background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.6), var(--aedric-gold)); transition: width 60ms linear; }
+.voice-meter__line { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--lorkhan-red); box-shadow: 0 0 6px rgba(214, 84, 84, 0.8); }
+.setting-range { width: 100%; accent-color: rgb(var(--accent-rgb)); }
+.setting-value { float: right; color: rgb(var(--accent-rgb)); }

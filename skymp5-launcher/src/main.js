@@ -478,7 +478,35 @@ ipcMain.handle('hotkeys:load', () => {
       bounty:     numOrNull(c.bountyBoardMenuKeyCode),
       emote:      numOrNull(c.emoteWheelKeyCode),
       nametag:    numOrNull(c.nametagKeyCode),
+      voiceMode:  numOrNull(c.voiceModeKeyCode),
+      mask:       numOrNull(c.maskToggleKeyCode),
     }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
+
+// Voice tab and Interface section: player preferences that live beside the hotkeys in the client settings file
+ipcMain.handle('clientprefs:load', () => {
+  try {
+    const c = readClientSettings()
+    return { ok: true, voice: c.voice && typeof c.voice === 'object' ? c.voice : {}, uiScale: Number(c.uiScale) || 0, panelScaleReset: Number(c.panelScaleReset) || 0 }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
+
+ipcMain.handle('clientprefs:save', (_e, p) => {
+  try {
+    p = p || {}
+    const c = readClientSettings()
+    if (p.voice && typeof p.voice === 'object') c.voice = p.voice
+    if (typeof p.uiScale === 'number') { if (p.uiScale > 0) c.uiScale = p.uiScale; else delete c.uiScale }
+    if (typeof p.panelScaleReset === 'number' && p.panelScaleReset > 0) c.panelScaleReset = p.panelScaleReset
+    const f = clientSettingsPath()
+    fs.mkdirSync(path.dirname(f), { recursive: true })
+    fs.writeFileSync(f, JSON.stringify(c, null, 2))
+    return { ok: true }
   } catch (err) {
     return { ok: false, error: err.message }
   }
@@ -491,7 +519,7 @@ ipcMain.handle('hotkeys:save', (_e, h) => {
     migrateHotkeyDefaults(c)
     if (Array.isArray(h.chatFocus))        c.chatFocusKeyCodes  = h.chatFocus.filter(n => typeof n === 'number')
     if (typeof h.freeCursor === 'number')  c.freeCursorKeyCode  = h.freeCursor
-    if (typeof h.housing === 'number')     c.housingMenuKeyCode = h.housing
+    if (typeof h.housing === 'number')     { c.housingMenuKeyCode = h.housing; c.playerActionKeyCode = h.housing }
     if (typeof h.faction === 'number')     c.factionMenuKeyCode = h.faction
     if (typeof h.personal === 'number')    c.personalMenuKeyCode = h.personal
     if (typeof h.voicePtt === 'number')    c.voicePushToTalkKeyCode = h.voicePtt
@@ -501,6 +529,8 @@ ipcMain.handle('hotkeys:save', (_e, h) => {
     if (typeof h.bounty === 'number')      c.bountyBoardMenuKeyCode = h.bounty
     if (typeof h.emote === 'number')       c.emoteWheelKeyCode = h.emote
     if (typeof h.nametag === 'number')     c.nametagKeyCode = h.nametag
+    if (typeof h.voiceMode === 'number')   c.voiceModeKeyCode = h.voiceMode
+    if (typeof h.mask === 'number')        c.maskToggleKeyCode = h.mask
     const p = clientSettingsPath()
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.writeFileSync(p, JSON.stringify(c, null, 2))
@@ -3129,6 +3159,7 @@ function writeClientSettings(destPath, srv, serverInfo) {
     'chatFocusKeyCodes', 'freeCursorKeyCode', 'housingMenuKeyCode',
     'factionMenuKeyCode', 'personalMenuKeyCode',
     'voicePushToTalkKeyCode', 'adminMenuKeyCode', 'hideUiKeyCode', 'masteryMenuKeyCode', 'bountyBoardMenuKeyCode', 'emoteWheelKeyCode', 'nametagKeyCode', 'dboHotkeyDefaults',
+    'playerActionKeyCode', 'voiceModeKeyCode', 'maskToggleKeyCode', 'voice', 'uiScale', 'panelScaleReset',
   ]
   let prev = {}
   try { prev = JSON.parse(fs.readFileSync(destPath, 'utf8')) || {} } catch { /* first run */ }

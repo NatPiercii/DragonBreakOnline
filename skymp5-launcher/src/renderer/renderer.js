@@ -93,7 +93,7 @@ function getKey(id) { const el = document.getElementById(id); return el ? (parse
 
 // Press-to-bind capture. Backspace unbinds server hotkeys only: gameHotkeys:save
 // drops code 0, so an unbound game key would silently keep its old binding.
-const SERVER_HOTKEY_IDS = ['hk-chat', 'hk-cursor', 'hk-housing', 'hk-personal', 'hk-faction', 'hk-voice-ptt', 'hk-admin', 'hk-hide-ui', 'hk-skills', 'hk-bounty', 'hk-emote', 'hk-nametag']
+const SERVER_HOTKEY_IDS = ['hk-chat', 'hk-cursor', 'hk-housing', 'hk-personal', 'hk-faction', 'hk-voice-ptt', 'hk-admin', 'hk-hide-ui', 'hk-skills', 'hk-bounty', 'hk-emote', 'hk-nametag', 'hk-voice-mode', 'hk-mask']
 const GAME_HOTKEY_IDS = ['ghk-activate', 'ghk-jump', 'ghk-sprint', 'ghk-sneak', 'ghk-shout', 'ghk-pov']
 
 let activeCapture = null
@@ -207,6 +207,8 @@ async function loadGameSettingsTab() {
       setKey('hk-bounty', h.bounty != null ? h.bounty : 49)
       setKey('hk-emote', h.emote != null ? h.emote : 48)
       setKey('hk-nametag', h.nametag != null ? h.nametag : 59)
+      setKey('hk-voice-mode', h.voiceMode != null ? h.voiceMode : 56)
+      setKey('hk-mask', h.mask != null ? h.mask : 35)
     }
   } catch (err) { /* settings tab is best-effort */ }
 }
@@ -259,9 +261,123 @@ async function saveGameSettingsTab() {
       bounty:     getKey('hk-bounty'),
       emote:      getKey('hk-emote'),
       nametag:    getKey('hk-nametag'),
+      voiceMode:  getKey('hk-voice-mode'),
+      mask:       getKey('hk-mask'),
     })
+    await saveClientPrefs()
   } catch (err) { /* best-effort */ }
 }
+
+// ---- Voice tab and Interface section (skymp5-client-settings.txt "voice", "uiScale", "panelScaleReset") ----
+const voiceEl = (id) => document.getElementById(id)
+let voicePrefs = {}
+let panelReset = 0
+let meter = null
+
+function syncVoiceLabels() {
+  voiceEl('voice-mic-gain-out').textContent = voiceEl('voice-mic-gain').value + '%'
+  voiceEl('voice-out-vol-out').textContent = voiceEl('voice-out-vol').value + '%'
+  voiceEl('voice-sens-group').hidden = voiceEl('voice-activation').value !== 'vad'
+  // The line sits where the threshold is on the same 0..0.3 scale the meter uses
+  voiceEl('voice-meter-line').style.left = Math.min(100, (Number(voiceEl('voice-sens').value) / 1000) / 0.3 * 100) + '%'
+}
+
+async function fillDevices() {
+  try {
+    // Device names stay hidden until the page has used a microphone once
+    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()) } catch { /* no mic */ }
+    const all = await navigator.mediaDevices.enumerateDevices()
+    for (const [id, kind, saved] of [['voice-input', 'audioinput', voicePrefs.inputLabel], ['voice-output', 'audiooutput', voicePrefs.outputLabel]]) {
+      const sel = voiceEl(id)
+      sel.innerHTML = '<option value="">System default</option>'
+      for (const d of all.filter(x => x.kind === kind && x.label && x.deviceId !== 'default' && x.deviceId !== 'communications')) {
+        const o = document.createElement('option'); o.value = d.label; o.textContent = d.label; sel.appendChild(o)
+      }
+      if (saved && ![...sel.options].some(o => o.value === saved)) {
+        const o = document.createElement('option'); o.value = saved; o.textContent = saved + ' (not connected)'; sel.appendChild(o)
+      }
+      sel.value = saved || ''
+    }
+  } catch { /* no media devices: defaults only */ }
+}
+
+async function startMeter() {
+  stopMeter()
+  try {
+    const all = await navigator.mediaDevices.enumerateDevices()
+    const label = voiceEl('voice-input').value
+    const dev = label ? all.find(d => d.kind === 'audioinput' && d.label === label) : null
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: dev ? { deviceId: { exact: dev.deviceId } } : true })
+    const ctx = new AudioContext()
+    const src = ctx.createMediaStreamSource(stream)
+    const gain = ctx.createGain()
+    const an = ctx.createAnalyser(); an.fftSize = 512
+    src.connect(gain); gain.connect(an)
+    const buf = new Float32Array(an.fftSize)
+    const tick = () => {
+      if (!meter) return
+      gain.gain.value = Number(voiceEl('voice-mic-gain').value) / 100
+      an.getFloatTimeDomainData(buf)
+      let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+      const rms = Math.sqrt(sum / buf.length)
+      voiceEl('voice-meter-level').style.width = Math.min(100, rms / 0.3 * 100) + '%'
+      meter.raf = requestAnimationFrame(tick)
+    }
+    meter = { stream, ctx, raf: 0 }
+    tick()
+  } catch { voiceEl('voice-meter-level').style.width = '0%' }
+}
+
+function stopMeter() {
+  if (!meter) return
+  cancelAnimationFrame(meter.raf)
+  meter.stream.getTracks().forEach(t => t.stop())
+  meter.ctx.close()
+  meter = null
+}
+
+async function loadClientPrefs() {
+  try {
+    const p = await window.electronAPI.clientPrefsLoad()
+    if (!p || !p.ok) return
+    voicePrefs = p.voice || {}
+    panelReset = Number(p.panelScaleReset) || 0
+    voiceEl('ui-scale').value = String(Number(p.uiScale) || 0)
+    if (voiceEl('ui-scale').value === '') voiceEl('ui-scale').value = '0'
+    voiceEl('voice-mic-gain').value = Math.round((voicePrefs.micGain ?? 1) * 100)
+    voiceEl('voice-out-vol').value = Math.round((voicePrefs.outputVolume ?? 1) * 100)
+    voiceEl('voice-activation').value = voicePrefs.activation === 'vad' ? 'vad' : 'ptt'
+    voiceEl('voice-sens').value = Math.round((voicePrefs.vadThreshold ?? 0.06) * 1000)
+    syncVoiceLabels()
+    await fillDevices()
+  } catch { /* best-effort */ }
+}
+
+async function saveClientPrefs() {
+  await window.electronAPI.clientPrefsSave({
+    uiScale: Number(voiceEl('ui-scale').value) || 0,
+    panelScaleReset: panelReset,
+    voice: {
+      inputLabel: voiceEl('voice-input').value,
+      outputLabel: voiceEl('voice-output').value,
+      micGain: Number(voiceEl('voice-mic-gain').value) / 100,
+      outputVolume: Number(voiceEl('voice-out-vol').value) / 100,
+      activation: voiceEl('voice-activation').value,
+      vadThreshold: Number(voiceEl('voice-sens').value) / 1000,
+    },
+  })
+}
+
+;['voice-mic-gain', 'voice-out-vol', 'voice-sens', 'voice-activation'].forEach(id => voiceEl(id).addEventListener('input', syncVoiceLabels))
+voiceEl('voice-input').addEventListener('change', () => { if (meter) startMeter() })
+voiceEl('ui-reset-panels').addEventListener('click', () => {
+  panelReset = Date.now()
+  voiceEl('ui-reset-panels').textContent = 'Panels will reset on the next launch (Save Settings)'
+})
+document.querySelectorAll('.modal-tab').forEach(tab => tab.addEventListener('click', () => {
+  if (tab.dataset.tab === 'voice') startMeter(); else stopMeter()
+}))
+loadClientPrefs()
 
 // Form fields
 const fieldSkyrimPath   = document.getElementById('setting-skyrim-path')

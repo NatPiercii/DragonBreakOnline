@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   graphicsSave: (g) => ipcRenderer.invoke('graphics:save', g),
   hotkeysLoad:  ()  => ipcRenderer.invoke('hotkeys:load'),
   hotkeysSave:  (h) => ipcRenderer.invoke('hotkeys:save', h),
+  clientPrefsLoad: ()  => ipcRenderer.invoke('clientprefs:load'),
+  clientPrefsSave: (p) => ipcRenderer.invoke('clientprefs:save', p),
   gameHotkeysLoad: ()  => ipcRenderer.invoke('gameHotkeys:load'),
   gameHotkeysSave: (k) => ipcRenderer.invoke('gameHotkeys:save', k),
 
