@@ -46,7 +46,6 @@ module.exports = (api) => {
     gemOre: { amethyst: '63b46:Skyrim.esm', topaz: '602427:BSAssets.esm', ruby: '63b42:Skyrim.esm', sapphire: '63b44:Skyrim.esm', emerald: '63b43:Skyrim.esm', diamond: '63b47:Skyrim.esm' },
     saltBonusChance: 0.1,
     saltBonus: { '3ad5f:Skyrim.esm': 5, '3ad5e:Skyrim.esm': 4, '3ad60:Skyrim.esm': 1 },
-    geodeCells: ['161e7:Skyrim.esm'],
     // Empty soul gems by weight; never black
     geodeGems: { '2e4e2:Skyrim.esm': 40, '2e4e4:Skyrim.esm': 30, '2e4e6:Skyrim.esm': 18, '2e4f4:Skyrim.esm': 9, '2e4fc:Skyrim.esm': 3 },
     firewoodByTier: [3, 4, 5, 6, 8],
@@ -111,15 +110,15 @@ module.exports = (api) => {
   const oreOf = (edid) => {
     const m = /^(?:CYR)?MineOre([A-Za-z]+?)\d/.exec(edid) || /^DLC2MineOre([A-Za-z]+?)\d/.exec(edid);
     if (!m) return '';
-    return m[1].toLowerCase();
+    // The vanilla Geode Veins (Whistling Mine, Blackreach) are MineOreBlackreach*: soul gems, not ore
+    const ore = m[1].toLowerCase();
+    return ore === 'blackreach' ? 'geode' : ore;
   };
 
-  // A Sea Salt Deposit anywhere, and a geode in one of CFG.geodeCells (Whistling Mine), are worked like a seam
-  const GEODE_CELLS = new Set((CFG.geodeCells || []).map((d) => { try { return mp.getIdFromDesc(d) >>> 0; } catch (e) { return 0; } }));
+  // A Sea Salt Deposit and a Beyond Skyrim gem geode are worked like a seam
   const nodeOf = (targetId, edid) => {
     if (/SeaSalt/i.test(edid)) return 'salt';
     if (!/^(?:CYR|BSK)MineGem/i.test(edid)) return '';
-    try { if (GEODE_CELLS.has(mp.getIdFromDesc(String(mp.get(targetId, 'worldOrCellDesc'))) >>> 0)) return 'geode'; } catch (e) { return ''; }
     const gem = (/MineGem([A-Za-z]+?)\d/i.exec(edid) || [])[1];
     return gem && (CFG.gemOre || {})[gem.toLowerCase()] ? gem.toLowerCase() : '';
   };
