@@ -1,5 +1,39 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23 (02:15 UTC): the character screen, the N hotkey, client package 0.3.16
+
+Nat: "needs to look better". Rendered the real built bundle at 1080p in headless Chrome with a mock
+widget payload rather than reading the SCSS, which is how the first two of these were found.
+
+- [x] **The Play button was below the fold.** `__panel` scrolled as one piece with
+  `max-height: 48vh`, so at seven slots the only way to start the game was to scroll down for it.
+  The panel is a fixed frame now: heading and the Play row are `flex: 0 0 auto`, only `__slots`
+  scrolls (`min-height: 0`), with a styled thumb instead of the white default scrollbar Nat's
+  screenshot showed and a `mask-image` fade at the cut. Rows tightened; three slots and Play fit at 1080p.
+- [x] **Every diamond sigil was rotated 45 degrees.** The diamond is made by rotating the box and
+  counter-rotating `> *`, but the glyph is a bare text node so `> *` never matched it. Initials sat on
+  their side and the `+` on an empty slot read as a stray `×`. The diamond is a `::before` now
+  (`z-index: -1`) and the glyph is never rotated.
+- [x] **Exit to main menu reopens character select.** It was already written and had never once fired:
+  **zero `Reopening character select` lines in the whole server log.** The gate is `sawGameplay`, a plain
+  field, and quitting to the main menu can reload the script context, resetting it to false for the rest
+  of the session. It lives in `sp.storage` now and `gameLoad` sets it as well as the first `update`.
+  `spawn.ts` also gained a log line for a menu request that arrives before authentication, which used to
+  be dropped in silence. **`spawn.ts` is on claude-dragonbreak's list; the owner has been told.**
+- [x] **Notice board N hotkey removed** (Nat: "we dont need N"). E has worked on every board since the
+  zones fix, boot reads `28 of 28 placed boards known` and there are no `outside every zone` lines left.
+  Gone from the client service, the launcher settings, its UI row and the key list. The server still
+  accepts `bountyBoardOpenRequest` because `/board` reaches the same handler.
+- [x] **Client package 0.3.16 published.** `populate` deliberately skipped (this box has no CI client
+  build; the guide's second trap). Staged files copied over `build/client-files/root`, all 9 plugins
+  sha-matched against `server\data` first, `npm run merge`, **verified readable by the launcher's own
+  adm-zip** (267 entries, no harness leaked) before upload. Uploaded to a temp path with the backend
+  still serving the old zip, swapped with the backend stopped, sha `8a46d09f...` identical end to end.
+  `/api/version` reads 0.3.16 and `/api/files/zip` serves 182,856,198 bytes.
+- [ ] **Untested in game.** The character screen was judged from a headless render, not a launch; and
+  nobody has yet exited to the main menu on 0.3.16 to confirm the reopen fires. If it still does not,
+  the new `spawn.ts` log line says whether the request is arriving at all.
+
 ## Added 2026-09-23 (01:30 UTC): voice settings, per-panel resize, Patreon slots, rerolls and reserved places
 
 Live: fork `6e20da3`, server `patrons` deploy 01:24, client 0.3.15, launcher 2.1.28 (GitHub release, offered by
