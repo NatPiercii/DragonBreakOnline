@@ -1,5 +1,122 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23 (evening, with Nat): jails, cell doors and sentences - committed, NOT pushed or deployed
+
+Nat: jail/prison zones with no /unstuck; a cell door takes a prisoner for a set time, unlocks when it is served,
+can be lockpicked, logging out does not count, and the prisoner is told when the time is served.
+
+- [x] `server\jail.js` (new module, hot reload) + four hooks in `gamemode.js` (activate chain before rest, `/unstuck`,
+  login notice, loader), config `"jail"`. Server `0d6e9bf7`. `tests\jail-harness.js` 47/47.
+- [x] **Every jail and prison is a jail zone** (Nat: "alllllll jails and prisons, even skyrims"), server `aa1cfed6`:
+  `jail-cells.json` from the new `ck-mcp\jails.py`, **25 cells**: interiors named Jail/Prison plus Bruma's and Kvatch's
+  castle dungeons, Cidhna Mine and the cells under Dragonsreach; dungeon-lease interiors excluded. Measured and
+  rejected as signals: a FACT's `JAIL` is the release marker outside (Bruma's is in the Great Hall), and jail-door
+  models sit in banks, shops, sewers and bandit forts. Re-run the generator after a plugin change.
+- [x] **`WindhelmPrison01` (`21594:Skyrim.esm`) is a jail** (Nat): `AbandonedPrisonLocation` is in
+  `dungeons.exclude` (gamemode-config), `ck-mcp\jails.py` honours that list, 27 jails. The spare template cell
+  `AbandonedPrisonDUPLICATE002` counts as a jail too now (named Prison); nothing in it changed.
+- [x] **Jail zones**: interior cells. Admins add more in game with `/jail add`,
+  `/jail remove`, `/jail list`, kept in `jails.json` (runtime, **gitignored**). No `/unstuck` inside a jail or anywhere
+  while serving (admins exempt).
+- [x] **Cell door** = a door in a jail zone that is not a load door (`doors.json`). A guard/official
+  (`private.dboLawful`) or admin with a player within 8 m gets "Imprison <name>" -> 5/10/15/30/60/120 min; the door
+  closes (`isOpen`), `private.dboCell` on the door, `private.dboSentence` on the prisoner. An empty cell door is an
+  ordinary door. At an occupied door a guard can release early, add 10 min, relock a picked door, or open it.
+- [x] **Time served** counts only online **and inside the jail** (5 s ticks, at most one tick credited across any
+  gap, nothing persisted between logins). Served -> "Your time is served. The cell door is unlocked." `/sentence` shows
+  what is left. An escape leaves the sentence standing and not counting.
+- [x] **Lockpicking**: the client unlocks every engine lock and sends door activations to the server, so this is the
+  `dungeons.js` model, a server roll: 15% without the Lockpicking skill, 35% at Novice +10% a tier, max 85%; a failure
+  breaks a lockpick, 3 s between tries. A success credits the Lockpicking skill (`lock` event).
+- [x] **Found on the way: `deploy-gameplay` would have wiped the live housing claims.** `housing.json` is tracked in
+  git (it is `[]`), and the deploy copies every tracked `*.json` over the live one. `dev-server.sh` (root, not in git)
+  now skips `housing.json` and `jails.json`. Refresh `server\tooling\` with `bash server/tooling/refresh.sh`.
+- [ ] Not built: bound hands are not freed by the jail (captureSystem has no hook the gamemode can call); the guard
+  uncuffs through the bars with X, and the guard is reminded. No engine lock is shown on the door (the "Locked" text
+  comes from the server's refusal message).
+- [ ] Untested in game.
+
+## Added 2026-09-23 (evening, with Nat): enemies float, sink, slide and hurt each other - measured, two fixes committed
+
+Nat: "they float still and phase under maps", "slide around without walking animations sometimes", Florain testing a
+dungeon (Plundered Mine on Master, claimed 21:58:56 UTC, live while this was written).
+
+- [x] **Measured, live log since 21 Sep**: the client's split detector (`hostedDriftService`, host only) fired 49 times:
+  body **below** its reference 24, **above** 22, sideways 3; 13 needed a 2nd or 3rd repair. Not only wildlife: Master
+  Conjurer x8, Bandit Erudite, Frost Troll, Ogre Groundling (21:57 today, in combat, sunk 275 straight down). The server's
+  own checks (`checkMisplaced`) fired only 9 times, 5 of them a translation sinking with x/y frozen: the server sees the
+  host's stream only, so most floating/sinking happens on a screen without the server noticing.
+- [x] **Enemies hurt each other** (seen live): `ff000062`'s Chain Lightning (`Skyrim.esm:045F9D`) hit five of its own
+  allies for 40 each, every cast, plus Florain. `gamemode.js` `dungeonAllies`: `onHitDamageAttempt` refuses a hit when
+  both sides are non-player, non-companion actors in the same dungeon cell. Server `f497f995`, hot reload.
+- [x] **A host kept driving actors it could not see.** `sendInputsService.sendMovement` sent every hosted actor with a
+  local form, 3D loaded or not. Florain in the mine still hosted 18 outdoor animals and kept broadcasting their frozen
+  last positions; the server counted that as a live host (takeover needs 2 s of silence, `ActionListener.cpp`), so
+  anyone outside saw them frozen or gliding with no AI. Now a hosted actor that is not 3D loaded gets no movement sent,
+  and the nearest player who can simulate it takes over. Fork `b9642b3`, client build.
+- [x] Split reports now carry `hostedForMs`, `loadedForMs`, `fromPlayer` (fork `b183d2e`), to tell a body lost at
+  load / host change from one lost mid-fight or at the edge of the loaded area. **The root cause of the split is still
+  not proven**; this is the measurement for it.
+- [x] Checked and ruled out: `setCollision(true)` (run on every echoed packet on the host) only clears
+  `kCollisionsDisabled` on the reference (CommonLibSSE-NG `b93280e` `TESObjectREFR::SetCollision`), so it is not what
+  pulls a body away. No periodic StartCombat/EvaluatePackage on enemies.
+- [ ] Known, not changed: observers apply each packet at once with a 200 ms TranslateTo and no jitter buffer
+  (`movementApply.ts`); the server echoes a host's own movement back to it (`SendToNeighbours` has no sender exclusion).
+  Candidates for the sliding once the new reports come in; both are the fragile `formView`/`movementApply` path
+  (HANDOFF 17, 19), so not touched blind.
+- [ ] **Deploy**: server fix = push `server` + `deploy-gameplay` (no lease open, nobody mid-dungeon); client fixes need a
+  client package. Client bundle built (`fork\build\dist\client`), NOT copied to the package staging folder.
+
+## Added 2026-09-23 (evening, with Nat): the reading mini-game overhaul - committed, NOT pushed or deployed
+
+Nat: "overhaul the book reading mini game. make the time go slower".
+
+- [x] **Slower candle**: 30 s + 6 s a word, so 66 s for six words where it was a flat 25 s (config `reading`:
+  `baseSeconds`, `secondsPerWord`; the old `seconds` key is gone).
+- [x] **A wrong reading costs time, not the round**: -8 s of candle (`wrongPenaltySeconds`), the words already right
+  from the start lock in, the line shakes, the round goes on. The server holds the deadline and sends what is left
+  (`endsInMs`) with each verdict. A lost round shows the sentence. No auto-submit on the last word; Enter reads it
+  out, Backspace takes back the last unlocked word.
+- [x] **Length by Scholar tier** (`wordsByTier`, Novice 5-7 to Master 9-12) and **36 Cyrodiil lines** for books from
+  BSHeartland/BSAssets (every book the Bruma lock reaches); 7 more Skyrim lines so each band has some.
+- [x] Two bugs fixed: the order was judged by card, so two cards of the same word ("the", "Legion") could not swap;
+  a round nobody answered (disconnect mid-read) blocked every book for that character until a restart.
+- [x] Server `f576bafc` (gamemode.js, gamemode-config.json, `tests\reading-harness.js` 16-17/17, it cuts the reading
+  section out of gamemode.js and runs it); fork `5724cf1` (front). Front built and rendered in the browser pane with
+  mock payloads (fresh round, wrong-reading verdict with locks, lost round); copied to `fork\build\client-files\root`,
+  the dev install and `server\client-dist`.
+- [ ] **Deploy order matters**: the new front must reach players with or before the gameplay change. An old front on
+  the new server freezes after a wrong reading until "Give up" (it never un-sends). The new front on the old server
+  is fine. So: client package with the front, then `deploy-gameplay`. Needs Nat's go and the owner's claims.
+- [ ] Untested in game.
+
+## Added 2026-09-23 (evening, with Nat): Well Rested, Well Fed and inn beds - committed, NOT pushed or deployed
+
+Nat's spec: a bed you own or rent at an inn logs you out from a prompt; 30 minutes away gives Well Rested for the
+next 2 real hours (faster health regen) and Well Fed (slower hunger, 2 hours); rent is paid at the bed, the inn's
+owner gets it and 10% goes to the hold; a rented bed is locked to its renter.
+
+- [x] `server\rest.js` (new module, hot reload), four hooks in `gamemode.js` (activate chain after prayer, login
+  before `needsOnConnect`, the hunger tick's appetite, the loader). `server\beds.json` from the new `ck-mcp\beds.py`:
+  200 bed FURN (editor id names a bed/bedroll, child beds excluded) and 21 inn cells. **Bruma: Jerall View (1 bed +
+  3 in the basement) and the Restful Watchman (4)**; the Watchman's cell is `CYRBrumaTheRestfulWatchman`, so it is
+  listed by hand. Server `5ced67ff`.
+- [x] **The heal is server-side on purpose.** Hunger's regen penalties use Papyrus `SetActorValue`, which runs only on
+  the client ("will not affect server calculations", PapyrusActor.cpp), and `CropRegeneration` caps regen at the
+  race's base rate, so a *faster* client HealRateMult would be cut back to normal. Well Rested instead adds
+  0.4% of max health per second through `percentages` every 5 s (races regenerate 0.5-1.0, DLE RACE DATA), paused
+  60 s after PvP. Well Fed multiplies hunger by 0.5, stacking with Sanguine's boon.
+- [x] Rent: 10 gold for 24 real hours (Nat named no price; vanilla's room is 10). Owner = whoever holds a housing
+  claim whose door or partner stands in the inn's interior; no owner (every inn today: `housing.json` is `[]` live)
+  means the hold treasury gets all 10. Sleeping is refused while restrained, dead or within 60 s of PvP.
+  The prompt reuses the front's context menu through the relay (`dbo:restChoose`), so no client or front rebuild.
+  `/rest` shows time left. All tunable under `"rest"` in gamemode-config (defaults in rest.js).
+- [x] `tests\rest-harness.js` 40/40 (caught a real bug: an owned house's exterior door counted the whole worldspace as
+  "your house"; only interior cells count now). prayer and labour harnesses still pass.
+- [ ] **Deploy**: `backup-git.cmd`, push `server`, `bash dev-server.sh deploy-gameplay`, then patch notes. Needs Nat's
+  go and the owner's `game-server` claim.
+- [ ] Untested in game: the kick message, the context menu opened from a bed, the heal pulse's feel.
+
 ## Added 2026-09-23 (19:15 UTC, with Nat): beast form rework, dungeon loot, Ash Rune, Gray Fox; all pushed
 
 Pushed on Nat's word with `online:0`: fork `main` (the Gray Fox libespm fix merged from `claude-nate/overrange-self-index`,
@@ -120,6 +237,27 @@ measured instead.
 - [x] Production 18:40 UTC: live on CT115, healthy, patch in `/api/files/extra` (see `OPS_HANDOFF_2026-09-23_claude-nate.md`).
   The fork push also shipped 3 beast-form/paralysis commits from another session (`55b6874`, `b750abd`, `2541a7c`);
   their client half needs a client package before players see it.
+- [x] Client package **0.3.22** published 19:16 UTC with that client half (only `skymp5-client.js` changed; fork
+  `4354d87`, cherry-picked so the unpushed libespm commits `edd9bac`/`c4acc47` stayed local). Local `main` still has
+  the pre-cherry-pick copy `1ddd1c1`: `git pull --rebase` drops it before the next push of `main`.
+- [x] No patch note for the beast-form work: Nat wants players to discover it (2026-09-23).
+- [x] **Centred banner, client 0.3.26** (live 22:07 UTC): `window.__dboBanner(text, seconds)` in the front
+  (`utils/Banner.js`), a `dboBanner` packet in the client relay; `supernatural.js`/`beastform.js` send it for cooldowns and
+  the permadeath notice. **Next package builder:** pull `main` first (`50f9cce`) and build the front and the client from
+  it. The local `fork\build\client-files\root\Data\Platform\UI\build.js` is the reading-desk build **without** the banner.
+  Shipping it as is would take the banner away again (the client script in that folder is already 0.3.27's).
+- [x] **Client 0.3.27** (22:28 UTC): companion panel clears when the last summon goes; a summon leashes out of an
+  unreachable attack order past 1500 units; summons not loaded near the owner are reported (`loaded:false`, `cell`,
+  `ownerCell` in the `npcDrift ... companion:` lines).
+- [ ] **Summon won't follow until you leave the dungeon** (Nat, 2026-09-23): not reproduced in today's logs (all four
+  summons were outdoors). The panel's "FAR" means the summon was not loaded near the owner. Next time it happens, read
+  the `companion:` lines for that player: `loaded:false` with `cell` differing from `ownerCell` means the server placed
+  it in the wrong cell (`companionSystem.locationNear` uses the owner's `worldOrCellDesc` at the moment of the summon).
+- [x] Rites log every round (`supernatural: rite <who> <rite> round n/5 hit|miss ...`), permadeath logs the player out
+  with a notice, `/curse <#TAG> restore` + `revive.json` lift it (`10714e79`, live 21:54). Flo'Riahn #Z7EG restored.
+- [ ] Watch the first rite rounds in the log: two real attempts scored 1/5 and 2/5. Tune `rite.latencyMs`/`slackMs` from
+  the "struck N ms in, marker a/b/c" numbers, not by guess. The logout-after-permadeath is untested in game.
+- [ ] `gamemode.js` `/wipechars`: `/^d+$/` should be `/^\d+$/`, so a bare profile id never parses (name/#TAG works).
   The load-test sandbox's `data\` follows dev Data by hardlink but its own `loadOrder` (100 entries) lacks the patch.
 - [x] Decide whether players get the server's six edited copies through the extra-files channel. **Not through
   extra files:** they land in the real `Data`, and under MO2 (launcher default) the Nexus copy in `mods\<mod>\`
