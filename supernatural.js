@@ -303,15 +303,19 @@ module.exports = (api) => {
     personal(a, blessed ? 'Hircine marks you as his own. The beast answers when you call, and only then.' : 'The fever breaks into a howl. You are a werewolf. Beast Form is yours once a day, and the hungrier you are, the more often the beast takes you whether you will it or not.');
     audit(`SUPERNATURAL ${who(a)} became a ${blessed ? 'Hircine-blessed ' : ''}werewolf`);
   };
-  // Skyrim's own on-screen notification (client dboStatus handler, 0.3.24+) plus the same line in chat
-  const onScreen = (a, text) => { sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text }); return personal(a, text); };
+  // Across the middle of the screen (dboBanner, client 0.3.26+), Skyrim's notification for older clients, and chat
+  const onScreen = (a, text, seconds) => {
+    sendPacket(a, { customPacketType: 'dboBanner', text, seconds: seconds || 4 });
+    sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text });
+    return personal(a, text);
+  };
   const permaKill = (a, why) => {
     try { mp.set(a, 'private.permaDead', true); mp.set(a, 'isDead', true); } catch (e) { log(`supernatural: perma death failed on ${display(a)}: ${e.message}`); }
     endCurse(a, why);
     audit(`PERMADEATH ${who(a)} (${why})`);
     // Nat: the player is logged out with the news; the character screen then shows the slot dead and locked
     const text = `${nameOf(a)} has died, and this life is over. You will be returned to the menu.`;
-    personal(a, text); sendPacket(a, { customPacketType: 'dboNotice', text });
+    onScreen(a, text, 7);
     setTimeout(() => {
       try { if (mp.get(a, 'private.permaDead') !== true) return; const u = mp.getUserByActor(a); if (u >= 0) { mp.kick(u); log(`supernatural: ${display(a)} logged out after permadeath`); } } catch (e) { /* already gone */ }
     }, 8000);
@@ -594,6 +598,7 @@ module.exports = (api) => {
           let scale = 6; try { scale = Number(clock.summary().timeScale) || 6; } catch (e) { /* default */ }
           const mins = Math.max(1, Math.ceil((1 - (now - day)) * 1440 / scale));
           const spent = `The beast within is spent for today. It stirs again when the day turns, about ${mins} minute${mins === 1 ? '' : 's'} from now.`;
+          sendPacket(a, { customPacketType: 'dboBanner', text: spent, seconds: 4 });
           sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text: spent });
           return spent;
         }

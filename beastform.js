@@ -221,6 +221,7 @@ module.exports = (api) => {
     const key = `${a}:${spellId}`, now = Date.now(), ready = ST.cooldown.get(key) || 0;
     if (now < ready) {
       const text = `${pw.name} is not ready for another ${Math.ceil((ready - now) / 1000)} seconds.`;
+      sendPacket(a, { customPacketType: 'dboBanner', text, seconds: 3 });
       sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text });
       return personal(a, text);
     }
