@@ -200,6 +200,44 @@ module.exports = (api) => {
   // The old Hircine blessing belongs to a pack's Alpha now; an admin can still set it (/curse ... blessedwerewolf)
   const spared = (a, s) => isAlpha(a) || !!(s && s.blessed);
 
+  // ---- silver: a werewolf or vampire can neither wear it nor strike with it (Nat) --------------------------
+  // Silver is the silver weapon keyword or "silver" in the editor id, which also catches rings, amulets and circlets
+  const silverCache = new Map();
+  const isSilverItem = (id) => {
+    id = Number(id) >>> 0;
+    if (silverCache.has(id)) return silverCache.get(id);
+    const r = recordOf(id);
+    const v = !!r && (hasKeyword(id, KW.silver) || /silver/i.test(String(r.editorId || '')));
+    if (silverCache.size > 4096) silverCache.clear();
+    silverCache.set(id, v); return v;
+  };
+  const silverWarned = new Map();
+  every('superSilver', 2000, () => {
+    for (const a of onlineActors()) {
+      const s = stateOf(a); if (!s || !s.kind) continue;
+      let eq = null; try { eq = mp.get(a, 'equipment'); } catch (e) { continue; }
+      const entries = eq && eq.inv && Array.isArray(eq.inv.entries) ? eq.inv.entries : [];
+      for (const e of entries) {
+        if (!e || !(e.worn || e.wornLeft) || !isSilverItem(e.baseId)) continue;
+        papyrus(a, 'UnequipItem', [spell(Number(e.baseId) >>> 0), false, true]);
+        const last = silverWarned.get(a) || 0;
+        if (Date.now() - last > 10000) { silverWarned.set(a, Date.now()); personal(a, s.kind === 'vampire' ? 'The silver sears your cold skin, and you tear it off.' : 'The silver burns like fire. The beast in you will not bear it.'); }
+      }
+    }
+  });
+  // The gamemode sets its hit hook on every reload before this module loads, so this wrapper never stacks
+  {
+    const inner = mp.onHitDamageAttempt;
+    if (typeof inner === 'function') {
+      const silverHook = function (agg, tgt, src, ...rest) {
+        try { const s = stateOf(Number(agg) >>> 0); if (s && s.kind && isPlayer(Number(agg) >>> 0) && isSilverItem(src)) return false; } catch (e) { /* not an actor */ }
+        return inner.call(this, agg, tgt, src, ...rest);
+      };
+      silverHook.__dbo = true;
+      mp.onHitDamageAttempt = silverHook;
+    }
+  }
+
   // ---- the Blood Crown ----------------------------------------------------------------------------------
   const CROWN_PATH = path.resolve('supernatural.json');
   const readJson = (p, f) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { return f; } };
