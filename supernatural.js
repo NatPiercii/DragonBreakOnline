@@ -20,7 +20,7 @@ module.exports = (api) => {
   const fs = require('fs');
   const path = require('path');
   const { mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin,
-    findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, cfg } = api;
+    findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf, cfg } = api;
 
   const C = Object.assign({
     infectVampire: 0.10, infectWerewolf: 0.05, infectFeed: 0.10,
@@ -30,6 +30,16 @@ module.exports = (api) => {
     forcedChangeChance: 0.10, beastChangesPerDay: 1,
     beastFeedSeconds: 30, corpseFreshMinutes: 10,
     permaDeathChance: 0.33,
+    // Nat: a failed rite at Molag Bal's or Hircine's shrine waits a real day before another try
+    riteFailCooldownHours: 24,
+    // Nat: the average werewolf goes feral. Chance per real minute that the beast takes them unprepared, from sated
+    // (hunger 0) to starving (hunger 100), multiplied at night and more under a full moon. Only a pack's Alpha is spared
+    feralPerMinute: { sated: 0.005, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
+    // Share of the way from the character's own skin colour to a bloodless pallor (beast races fade less)
+    vampirePallor: 0.55, vampirePallorBeast: 0.25,
+    // Nat: covering up shields a vampire from the sun. Share of the burn each covered part takes away (sums to 1),
+    // and how much of the burn full cover removes
+    sunCover: { head: 0.35, body: 0.35, hands: 0.15, feet: 0.15 }, sunCoverMax: 0.8,
     // Claws deal the race's unarmed damage (werewolf 20, Vampire Lord 10) and the server runs none of the beast perks,
     // so a beast hit weaker than a sword. Multiplies a beast player's melee hit: 50 and 35 against an unarmoured target.
     beastMeleeMult: { werewolf: 2.5, vampirelord: 3.5 },
@@ -101,6 +111,95 @@ module.exports = (api) => {
     sendPacket(a, { customPacketType: 'dboBeast', race: next, beast: false });
   };
 
+  // ---- the tells: a werewolf's eyes turn gold, a vampire's eyes turn and the skin goes bloodless -------------
+  // Head parts read out of Skyrim.esm with their valid-race lists: human vampire eyes are valid on every humanoid
+  // vampire race (elves and orcs included); Dark and Wood Elves take the Demon eyes, having no yellow of their own.
+  const pair = (m, f) => [idOf(`${m}:Skyrim.esm`), idOf(`${f}:Skyrim.esm`)];
+  const TELL_EYES = {
+    werewolf: { human: pair('24245', '40224'), highelf: pair('51627', '40209'), elf: pair('2425e', '401a7'), orc: pair('9250a', '40222'), khajiit: pair('ee873', 'ee87d'), argonian: pair('9d5fa', 'a2f13') },
+    vampire: { human: pair('e7aeb', '7291e'), highelf: pair('e7aeb', '7291e'), elf: pair('e7aeb', '7291e'), orc: pair('4020e', '107b98'), khajiit: pair('ee875', 'ee87f'), argonian: pair('9d76b', 'a2f12') },
+  };
+  const FAMILY = new Map([['13746', 'human'], ['13741', 'human'], ['13744', 'human'], ['13748', 'human'], ['13743', 'highelf'], ['13742', 'elf'],
+    ['13749', 'elf'], ['13747', 'orc'], ['13745', 'khajiit'], ['13740', 'argonian']].map(([r, f]) => [idOf(`${r}:Skyrim.esm`), f]).filter(([r]) => r));
+  const familyOf = (race) => FAMILY.get(race) || FAMILY.get(MORTAL_RACES.get(race)) || null;
+  const isEyePart = (id) => fieldIds(recordOf(id), 'PNAM')[0] === 2;
+  const PALE = [0xe8, 0xe6, 0xec];
+  const blend = (rgb, t) => [16, 8, 0].reduce((acc, sh, i) => acc | (Math.round(((rgb >> sh) & 0xff) * (1 - t) + PALE[i] * t) << sh), 0);
+  const isToneTint = (t) => /SkinTone\.dds$/i.test(String((t && t.texturePath) || ''));
+  // Idempotent: run on every slow tick, so a reroll, a relog or a beast revert gets the tells back
+  const ensureTells = (a, s) => {
+    if (!s || !s.kind || beastForm(a)) return;
+    let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return; }
+    if (!app || !Array.isArray(app.headpartIds)) return;
+    const fam = familyOf(Number(app.raceId) >>> 0); const want = fam ? ((TELL_EYES[s.kind] || {})[fam] || [])[app.isFemale ? 1 : 0] : 0;
+    if (!want || app.headpartIds.includes(want)) return;
+    const idx = app.headpartIds.findIndex((h) => isEyePart(Number(h) >>> 0));
+    if (idx < 0) return;
+    const next = Object.assign({}, app, { headpartIds: app.headpartIds.slice() });
+    const look = { kind: s.kind, eye: want, prevEye: next.headpartIds[idx] };
+    next.headpartIds[idx] = want;
+    if (s.kind === 'vampire') {
+      const t = fam === 'khajiit' || fam === 'argonian' ? C.vampirePallorBeast : C.vampirePallor;
+      look.prevSkin = next.skinColor; next.skinColor = blend(Number(next.skinColor) >>> 0, t);
+      next.tints = (next.tints || []).map((x) => { if (!isToneTint(x)) return x; look.prevTone = x.argb; const argb = Number(x.argb) >>> 0; return Object.assign({}, x, { argb: ((argb & 0xff000000) | blend(argb & 0xffffff, t)) | 0 }); });
+    }
+    s.look = look; saveState(a, s);
+    mp.set(a, 'appearance', next);
+    log(`supernatural: ${display(a)} shows the ${s.kind}'s tells`);
+  };
+  const clearTells = (a, s) => {
+    const look = s && s.look; if (!look) return;
+    s.look = null;
+    let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return; }
+    if (!app || !Array.isArray(app.headpartIds)) return;
+    const next = Object.assign({}, app, { headpartIds: app.headpartIds.map((h) => ((Number(h) >>> 0) === look.eye ? look.prevEye : h)) });
+    if (look.prevSkin !== undefined) next.skinColor = look.prevSkin;
+    if (look.prevTone !== undefined) next.tints = (next.tints || []).map((x) => (isToneTint(x) ? Object.assign({}, x, { argb: look.prevTone }) : x));
+    mp.set(a, 'appearance', next);
+  };
+
+  // ---- a vampire's spells, as vanilla's PlayerVampireQuestScript hands them out by stage -------------------
+  // Drain and Raise Thrall grow with the stage; Vampire's Sight from the first, Seduction from the second,
+  // Embrace of Shadows at the fourth. Learned server-side, or the server strips and refuses them.
+  const sk = (h) => idOf(`${h}:Skyrim.esm`);
+  const VAMP_DRAIN = [0, sk('8d5bf'), sk('8d5c0'), sk('8d5c1'), sk('8d5c2')];
+  const VAMP_THRALL = [0, sk('ed0a4'), sk('ed0a5'), sk('ed0a6'), sk('ed0a7')];
+  const VAMP_SIGHT = sk('c4de1'), VAMP_SEDUCTION = sk('c4de2'), VAMP_EMBRACE = sk('88821');
+  const vampSpellsFor = (stage) => {
+    const n = Math.max(1, Math.min(4, stage || 1));
+    return [VAMP_DRAIN[n], VAMP_THRALL[n], VAMP_SIGHT, n >= 2 ? VAMP_SEDUCTION : 0, n >= 4 ? VAMP_EMBRACE : 0].filter(Boolean);
+  };
+  const syncVampSpells = (a, s) => {
+    const want = s && s.kind === 'vampire' ? vampSpellsFor(s.stage) : [];
+    const had = Array.isArray(s && s.spells) ? s.spells : [];
+    for (const id of had) if (!want.includes(id)) removeSpell(a, id);
+    for (const id of want) if (!had.includes(id)) addSpell(a, id);
+    if (s) { s.spells = want; saveState(a, s); }
+  };
+  // gamemode's onSpellHit: a vampire's drain gives back some of what it takes (the server applies only the damage)
+  const VAMP_DRAIN_SET = new Set(VAMP_DRAIN.filter(Boolean));
+  globalThis.__dboSuperSpellHit = (agg, tgt, spellId) => {
+    if (agg === tgt || !VAMP_DRAIN_SET.has(Number(spellId) >>> 0)) return;
+    const p = health(agg); if (p && p.health > 0) setHealth(agg, p.health + 0.03);
+  };
+  // How much of a vampire's skin their worn gear hides from the sun, 0..1, from each worn item's BOD2 slots
+  // (30 head, 31 hair, 42 circlet = head; 32 body; 33 hands; 37 feet)
+  const coverOf = (a) => {
+    let eq = null; try { eq = mp.get(a, 'equipment'); } catch (e) { return 0; }
+    const entries = eq && eq.inv && Array.isArray(eq.inv.entries) ? eq.inv.entries : [];
+    let slots = 0;
+    for (const e of entries) {
+      if (!e || !(e.worn || e.wornLeft)) continue;
+      const bod = recordOf(Number(e.baseId) >>> 0); const f = bod && (bod.fields || []).find((x) => x.type === 'BOD2' || x.type === 'BODT');
+      slots |= u32s(f)[0] || 0;
+    }
+    const cv = C.sunCover;
+    return ((slots & 0x1003) ? cv.head : 0) + ((slots & 0x4) ? cv.body : 0) + ((slots & 0x8) ? cv.hands : 0) + ((slots & 0x80) ? cv.feet : 0);
+  };
+  const isAlpha = (a) => { try { return typeof globalThis.__dboGuildIsPackLeader === 'function' && !!globalThis.__dboGuildIsPackLeader(a); } catch (e) { return false; } };
+  // The old Hircine blessing belongs to a pack's Alpha now; an admin can still set it (/curse ... blessedwerewolf)
+  const spared = (a, s) => isAlpha(a) || !!(s && s.blessed);
+
   // ---- the Blood Crown ----------------------------------------------------------------------------------
   const CROWN_PATH = path.resolve('supernatural.json');
   const readJson = (p, f) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { return f; } };
@@ -143,7 +242,8 @@ module.exports = (api) => {
   const endCurse = (a, why) => {
     const s = stateOf(a); if (!s || !s.kind) return;
     if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, why);
-    if (s.kind === 'vampire') { setLookRace(a, false); dropCrown(a, why); }
+    clearTells(a, s);
+    if (s.kind === 'vampire') { s.kind = null; syncVampSpells(a, s); s.kind = 'vampire'; setLookRace(a, false); dropCrown(a, why); }
     if (s.kind === 'werewolf') removeSpell(a, BEAST_POWER);
     audit(`SUPERNATURAL ${who(a)} is no longer a ${s.kind} (${why})`);
     Object.assign(s, { kind: null, stage: 0, pure: false, blessed: false });
@@ -153,6 +253,7 @@ module.exports = (api) => {
     endCurse(a, 'became a vampire');
     const s = stateOf(a); Object.assign(s, { kind: 'vampire', disease: null, stage: 1, lastFed: gameDays(), pure: !!pure });
     saveState(a, s); removeSpell(a, SANGUINARE); setLookRace(a, true);
+    syncVampSpells(a, s); ensureTells(a, stateOf(a));
     personal(a, pure ? 'You rise from Molag Bal\'s embrace a pure-blood.' : 'The fever passes, and a cold hunger takes its place. You are a vampire.');
     audit(`SUPERNATURAL ${who(a)} became a ${pure ? 'pure-blood ' : ''}vampire`);
     if (pure && !crownHolder()) takeCrown(a, 'claimed the vacant Blood Crown');
@@ -160,8 +261,8 @@ module.exports = (api) => {
   const becomeWerewolf = (a, blessed) => {
     endCurse(a, 'became a werewolf');
     const s = stateOf(a); Object.assign(s, { kind: 'werewolf', disease: null, stage: 0, blessed: !!blessed, beastDay: -1 });
-    saveState(a, s); addSpell(a, BEAST_POWER);
-    personal(a, blessed ? 'Hircine marks you as his own. The beast answers when you call, and only then.' : 'The fever breaks into a howl. You are a werewolf: Beast Form is yours once a day.');
+    saveState(a, s); addSpell(a, BEAST_POWER); ensureTells(a, stateOf(a));
+    personal(a, blessed ? 'Hircine marks you as his own. The beast answers when you call, and only then.' : 'The fever breaks into a howl. You are a werewolf. Beast Form is yours once a day, and the hungrier you are, the more often the beast takes you whether you will it or not.');
     audit(`SUPERNATURAL ${who(a)} became a ${blessed ? 'Hircine-blessed ' : ''}werewolf`);
   };
   const permaKill = (a, why) => {
@@ -221,7 +322,9 @@ module.exports = (api) => {
     log(`supernatural: ${display(a)} ${won ? 'survived' : 'failed'} ${def.title} (${r.hits}/${C.rite.rounds})`);
     if (r.type === 'fever_vampire') return won ? becomeVampire(a, false) : (cureDisease(a, 'the fever took them'), personal(a, 'The fever takes you, and burns itself out with your life.'), mp.set(a, 'isDead', true));
     if (r.type === 'fever_werewolf') return won ? becomeWerewolf(a, false) : (cureDisease(a, 'the hunt took them'), personal(a, 'The Huntsman catches you. The beast dies with you.'), mp.set(a, 'isDead', true));
-    if (won) return r.type === 'embrace' ? becomeVampire(a, true) : becomeWerewolf(a, true);
+    // Nat: the blessing belongs to a pack's Alpha, not to anyone who survives the Hunt
+    if (won) return r.type === 'embrace' ? becomeVampire(a, true) : becomeWerewolf(a, false);
+    try { mp.set(a, 'private.riteFailedAt', Date.now()); } catch (e) { /* offline */ }
     if (Math.random() < C.permaDeathChance) { personal(a, `${def.title} claims you. This life is over.`); return permaKill(a, `failed ${def.title}`); }
     personal(a, `${def.title} breaks you, but lets you live to wake again.`);
     try { mp.set(a, 'isDead', true); } catch (e) { /* dead already */ }
@@ -261,6 +364,12 @@ module.exports = (api) => {
       return startRite(a, p.type);
     }
     const deity = lastShrine(a);
+    let failedAt = 0; try { failedAt = Number(mp.get(a, 'private.riteFailedAt')) || 0; } catch (e) { /* none */ }
+    const waitMs = failedAt + C.riteFailCooldownHours * 3600000 - Date.now();
+    if ((deity === 'molagbal' || deity === 'hircine') && waitMs > 0) {
+      const h = Math.floor(waitMs / 3600000), m = Math.ceil((waitMs % 3600000) / 60000);
+      return personal(a, `The shrine is cold to you since you failed its rite. Try again in ${h ? `${h}h ` : ''}${m}m.`);
+    }
     log(`rite ${display(a)} '${arg}' shrine=${deity || 'none'} kind=${(s && s.kind) || 'mortal'}`);
     if (!deity) return personal(a, 'Rites are made at a shrine: touch one of Molag Bal, Hircine, Arkay or Stendarr, then say /rite.');
     if (deity === 'molagbal') {
@@ -270,10 +379,10 @@ module.exports = (api) => {
       return personal(a, "Molag Bal's Embrace makes a pure-blood of those who survive it. Many do not, and some never wake again. Say /rite confirm within 5 minutes to kneel.");
     }
     if (deity === 'hircine') {
-      if (s.kind === 'werewolf' && s.blessed) return personal(a, 'The Huntsman already knows your scent.');
+      if (s.kind === 'werewolf') return personal(a, 'The Huntsman already knows your scent.');
       if (s.kind === 'vampire') return personal(a, 'Hircine hunts the living, not the dead. Be cured first.');
       pendingRite.set(a, { type: 'hunt', at: Date.now() });
-      return personal(a, "The Great Hunt: Hircine chases you, and if you run true he names you his. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
+      return personal(a, "The Great Hunt: Hircine chases you, and if you run true the beast is yours, hunger and all. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
     }
     if (deity === 'arkay' || deity === 'stendarr') {
       if (!s.kind) return personal(a, s.disease ? 'Pray here to break the fever; the rite is for those already turned.' : 'You carry no curse to lift.');
@@ -399,7 +508,7 @@ module.exports = (api) => {
     const s = stateOf(a);
     if (key === 'vampirelord') return crownHolder() === (a >>> 0) || mp.get(a, 'private.vampireLordGrant') === true ? null : 'Only the holder of the Blood Crown can take the form of a Vampire Lord.';
     // Once per in-game day, which is the design and not a real day: the world clock owns the calendar
-    if (key === 'werewolf' && s.kind === 'werewolf' && !s.blessed) {
+    if (key === 'werewolf' && s.kind === 'werewolf' && !spared(a, s)) {
       const clock = globalThis.__dboClock;
       const now = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : null;
       if (now !== null) {
@@ -445,8 +554,10 @@ module.exports = (api) => {
       }
       if (s.kind === 'vampire') {
         const stage = Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day))));
-        if (stage !== s.stage) { s.stage = stage; saveState(a, s); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
+        if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
+        else if (!Array.isArray(s.spells) || !s.spells.length) syncVampSpells(a, s);
       }
+      if (s.kind) ensureTells(a, s);
     }
   });
   every('superSun', 10000, () => {
@@ -456,8 +567,10 @@ module.exports = (api) => {
       const kind = c.weatherFor(a);
       const shade = kind === 0 ? 1 : kind === 1 ? 0.5 : 0.25;
       const p = health(a); if (!p || p.health <= C.sunFloor) continue;
-      setHealth(a, Math.max(C.sunFloor, p.health - C.sunPerStage * Math.max(1, s.stage) * shade * (s.pure ? 0.5 : 1)));
-      const last = sunWarned.get(a) || 0; if (Date.now() - last > 120000) { sunWarned.set(a, Date.now()); personal(a, 'The sun burns your skin.'); }
+      const cover = coverOf(a);
+      setHealth(a, Math.max(C.sunFloor, p.health - C.sunPerStage * Math.max(1, s.stage) * shade * (s.pure ? 0.5 : 1) * (1 - C.sunCoverMax * cover)));
+      const last = sunWarned.get(a) || 0;
+      if (Date.now() - last > 120000) { sunWarned.set(a, Date.now()); personal(a, cover >= 0.99 ? 'The sun presses on you, but your wrappings hold it off.' : cover > 0 ? 'The sun finds your bare skin and burns it.' : 'The sun burns your skin. Cover your face, body, hands and feet to lessen it.'); }
     }
   });
   const sunWarned = new Map();
@@ -467,9 +580,26 @@ module.exports = (api) => {
     const h = Math.floor(c.gameDays() * 24); if (h === lastHour) return; lastHour = h;
     if (!c.isNight() || !c.isFullMoon()) return;
     for (const a of onlineActors()) {
-      const s = stateOf(a); if (!s || s.kind !== 'werewolf' || s.blessed || beastForm(a) || !isOutdoors(a)) continue;
+      const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || !isOutdoors(a)) continue;
       if (Math.random() >= C.forcedChangeChance) continue;
       personal(a, 'The full moon calls, and the beast answers without you.');
+      if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
+    }
+  });
+
+  // Nat: the beast comes when the werewolf is hungry and least ready for it, not when they choose
+  every('superFeral', 60000, () => {
+    const c = clock();
+    for (const a of onlineActors()) {
+      const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a)) continue;
+      try { if (mp.get(a, 'isDead')) continue; } catch (e) { continue; }
+      const hunger = typeof hungerOf === 'function' ? Math.max(0, Math.min(100, Number(hungerOf(a)) || 0)) : 50;
+      let p = C.feralPerMinute.sated + (C.feralPerMinute.starving - C.feralPerMinute.sated) * hunger / 100;
+      if (c && c.isNight()) p *= c.isFullMoon() ? C.feralFullMoonMult : C.feralNightMult;
+      if (Math.random() >= p) continue;
+      personal(a, hunger >= 60 ? 'Hunger claws its way up your throat, and the beast tears free.' : 'Something wakes in your blood, and the beast takes you without asking.');
+      quietNear(a, `${nameOf(a)} doubles over, and something tears its way out of them.`, 3000);
+      log(`supernatural: ${display(a)} went feral (hunger ${Math.round(hunger)}, chance ${(p * 100).toFixed(1)}%/min)`);
       if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
     }
   });

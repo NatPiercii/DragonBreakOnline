@@ -2087,6 +2087,7 @@ const spellHitHook = (aggressorId, targetId, spellId, ...rest) => {
   try {
     const tgt = Number(targetId) >>> 0, seconds = explosionParalysisOf(Number(spellId) >>> 0);
     if (globalThis.__dboBeastSpellHit) globalThis.__dboBeastSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
+    if (globalThis.__dboSuperSpellHit) globalThis.__dboSuperSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
     if (seconds > 0 && profileOf(tgt) >= 0 && tgt !== (Number(aggressorId) >>> 0)) {
       sendPacket(tgt, { customPacketType: 'dboParalyse', seconds });
       log(`paralysis: ${display(tgt)} held ${seconds} s by ${display(Number(aggressorId) >>> 0)} (spell ${(Number(spellId) >>> 0).toString(16)})`);
@@ -2516,7 +2517,7 @@ try {
   delete require.cache[SUPERNATURAL_JS];
   // Feeding counts as a meal for the hunger meter
   const needsFeed = (a) => { if (!NEEDS.enabled) return; const n = needsOf(a); n.hunger = Math.max(0, n.hunger - (Number((NEEDS.restore || {}).meal) || 0)); saveNeeds(a, n); applyNeedsStage(a, n, false); };
-  require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, cfg });
+  require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf: (a) => needsOf(a).hunger, cfg });
 } catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave']) globalThis[k] = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------
