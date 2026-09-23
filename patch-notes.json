@@ -1,5 +1,46 @@
 [
   {
+    "title": "Beasts Unleashed",
+    "date": "2026-09-23",
+    "tag": "Update",
+    "version": "Client 0.3.23",
+    "sections": [
+      {
+        "heading": "Werewolves and Vampire Lords",
+        "items": [
+          "Beast forms finally work for everyone around you. Until now the server never learned a beast spell, so your drains, summons, bats and howls did nothing to anyone else. They all land now.",
+          "When you change, the chat lists every ability and the key for it. Type /forms to see it again.",
+          "Keys 1 to 9 choose your abilities without a menu. As a Vampire Lord, 1 to 4 pick the spell in your left hand (Raise Dead, Corpse Curse, Summon Gargoyle, Vampire's Grip) and 5 to 9 pick the power on your Shout key (Bats, Mist Form, Supernatural Reflexes, Detect Life, Revert Form). As a werewolf, 1 and 2 pick your howl.",
+          "Claws hit much harder: a werewolf's swipe does about 50 and a Vampire Lord's about 35, double on a power attack.",
+          "Sneak drops a Vampire Lord to the ground to fight with his claws, hands empty, and lifts him back into the air for spells.",
+          "Vampiric Drain no longer takes a whole health bar in one hit.",
+          "The Vampire Lord now wears Harkon's royal robes and cape.",
+          "Your menus come back when you change back. They used to stay locked until you restarted the game.",
+          "Seeing a Vampire Lord should no longer crash the people around him."
+        ]
+      },
+      {
+        "heading": "Magic",
+        "items": [
+          "Ash Rune now encases whoever steps on it in ash for 30 seconds, as it should."
+        ]
+      },
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Ebony and Daedric gear, and Ebony ingots, no longer turn up in dungeon chests or on the dead.",
+          "Lakeside Retreat is no longer a dungeon."
+        ]
+      },
+      {
+        "heading": "Argonians",
+        "items": [
+          "An Argonian's tail and feet now match the rest of the body. They were wearing an older skin that did not match."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Bruma Rebuilt",
     "date": "2026-09-23",
     "tag": "World",
