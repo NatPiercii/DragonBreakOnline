@@ -90,6 +90,7 @@ export class VoiceSystem implements System {
     }
 
     this.enabled = vc.enabled !== false && !!(this.url && this.apiKey && this.apiSecret);
+    (globalThis as any).__dboVoiceEnabled = this.enabled;
     const modeDesc = this.modes.map(m => `${m.label} ${Math.round(m.units / 70)}m`).join(", ");
     this.log(`VoiceSystem: ${this.enabled ? `enabled, room '${this.room}', modes: ${modeDesc}` : "disabled (missing url/apiKey/apiSecret or enabled=false)"}`);
   }

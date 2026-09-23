@@ -6,6 +6,8 @@
 //   setPtt(bool)              push-to-talk: enable/disable the mic track
 //   setMode(key)              Alt+V cycles whisper/talk/shout; the range goes out on the data channel so listeners attenuate by the SPEAKER's loudness
 //   setPeers({ identityHex: distanceUnits })  refresh distances ~every 400ms; peers absent from the map are out of range
+//   setPrefs({ inputLabel, outputLabel, micGain, outputVolume, activation: 'ptt'|'vad', vadThreshold })  launcher Voice tab
+//   adjustPeer(identityHex, 'louder'|'quieter'|'mute'|'unmute'|'reset')  X menu; remembered per character on this PC
 // Events back to the game (window.skyrimPlatform.sendMessage):
 //   'voice::ready', 'voice::micDenied', 'voice::error' <text>,
 //   'voice::speaking' <json array of {id, level}: own voice plus audible speakers, every 150 ms while anyone talks, [] once when quiet>
@@ -19,6 +21,15 @@ import shoutImg from '../img/voice/Shout.png';
 const UNSUB_HYSTERESIS = 1.15;   // unsubscribe only past range*this (no flapping)
 const BANNER_MS = 1400;          // how long the mode banner stays up
 const SPEAKING_TICK_MS = 150;    // lip sync report cadence while someone talks
+const VAD_TICK_MS = 50;
+const VAD_HOLD_MS = 400;         // voice activation stays open this long after the level drops
+const PEER_STEP = 0.25;
+const PEER_MAX = 2;
+const PEERS_KEY = 'dboVoicePeers';
+const DEFAULT_PREFS = { inputLabel: '', outputLabel: '', micGain: 1, outputVolume: 1, activation: 'ptt', vadThreshold: 0.06 };
+
+const readPeers = () => { try { return JSON.parse(window.localStorage.getItem(PEERS_KEY)) || {}; } catch (e) { return {}; } };
+const clampNum = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
 const MODE_IMG = { whisper: whisperImg, talk: talkImg, shout: shoutImg };
 // Fallbacks; the server sends the real list in connect()
 const DEFAULT_MODES = [
@@ -46,6 +57,188 @@ class VoiceManager {
     this.bannerTimer = null;
     this.lastPeersAt = 0;
     this.lastSpeaking = '[]';
+    this.prefs = Object.assign({}, DEFAULT_PREFS);
+    this.peerPrefs = readPeers(); // identity -> { gain, muted }
+    this.mix = null;           // { ctx, master, dest, out } once built
+    this.peerNodes = new Map(); // identity -> { source, gain }
+    this.mic = null;           // { stream, ctx, gain, analyser, track, pub }
+    this.vadOpenUntil = 0;
+    this.transmitting = false;
+  }
+
+  // ---- launcher prefs ------------------------------------------------------------------------------
+  setPrefs(p) {
+    if (!p || typeof p !== 'object') return;
+    const prev = this.prefs;
+    this.prefs = {
+      inputLabel: typeof p.inputLabel === 'string' ? p.inputLabel : prev.inputLabel,
+      outputLabel: typeof p.outputLabel === 'string' ? p.outputLabel : prev.outputLabel,
+      micGain: clampNum(p.micGain, 0, 2, prev.micGain),
+      outputVolume: clampNum(p.outputVolume, 0, 2, prev.outputVolume),
+      activation: p.activation === 'vad' ? 'vad' : p.activation === 'ptt' ? 'ptt' : prev.activation,
+      vadThreshold: clampNum(p.vadThreshold, 0.005, 0.5, prev.vadThreshold),
+    };
+    if (this.mic) this.mic.gain.gain.value = this.prefs.micGain;
+    if (this.mix) this.mix.master.gain.value = this.prefs.outputVolume;
+    if (this.prefs.outputLabel !== prev.outputLabel) this.applySink();
+    if (this.prefs.inputLabel !== prev.inputLabel && this.room) this.restartMic();
+    this.updateTransmit();
+  }
+
+  // Chromium salts device ids per origin, so the launcher sends names and they are matched here
+  async deviceIdFor(kind, label) {
+    if (!label) return '';
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      const hit = all.find((d) => d.kind === kind && d.label === label)
+        || all.find((d) => d.kind === kind && d.label && d.label.indexOf(label) !== -1);
+      return hit ? hit.deviceId : '';
+    } catch (e) { return ''; }
+  }
+
+  // ---- playback: every voice through one mix -------------------------------------------------------
+  ensureMix() {
+    if (this.mix) return this.mix;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const master = ctx.createGain();
+      master.gain.value = this.prefs.outputVolume;
+      const dest = ctx.createMediaStreamDestination();
+      master.connect(dest);
+      const out = document.createElement('audio');
+      out.autoplay = true;
+      out.srcObject = dest.stream;
+      document.body.appendChild(out);
+      this.mix = { ctx, master, dest, out };
+      this.applySink();
+      const p = out.play(); if (p && p.catch) p.catch(() => { /* autoplay is unlocked by the CEF switch */ });
+    } catch (e) {
+      this.mix = null; // falls back to per-element volume
+    }
+    return this.mix;
+  }
+
+  async applySink() {
+    const id = await this.deviceIdFor('audiooutput', this.prefs.outputLabel);
+    const els = this.mix ? [this.mix.out] : Array.from(this.audioEls.values());
+    for (const el of els) {
+      if (typeof el.setSinkId === 'function') { try { await el.setSinkId(id || 'default'); } catch (e) { /* device gone: stays on default */ } }
+    }
+  }
+
+  attachPeer(identity, track) {
+    const el = track.attach();
+    document.body.appendChild(el);
+    this.audioEls.set(identity, el);
+    const mix = this.ensureMix();
+    if (mix && track.mediaStreamTrack) {
+      try {
+        // A remote WebRTC stream only reaches WebAudio while an element also plays it; keep that element silent
+        el.muted = true;
+        const source = mix.ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+        const gain = mix.ctx.createGain();
+        gain.gain.value = 0;
+        source.connect(gain).connect(mix.master);
+        this.peerNodes.set(identity, { source, gain });
+        if (mix.ctx.state === 'suspended') mix.ctx.resume().catch(() => {});
+      } catch (e) { el.muted = false; }
+    }
+    this.applyVolume(identity);
+  }
+
+  detachPeer(identity) {
+    const el = this.audioEls.get(identity);
+    if (el) { el.remove(); this.audioEls.delete(identity); }
+    const n = this.peerNodes.get(identity);
+    if (n) { try { n.source.disconnect(); n.gain.disconnect(); } catch (e) { /* gone */ } this.peerNodes.delete(identity); }
+  }
+
+  peerFactor(identity) {
+    const p = this.peerPrefs[identity];
+    if (!p) return 1;
+    return p.muted ? 0 : clampNum(p.gain, 0, PEER_MAX, 1);
+  }
+
+  adjustPeer(identity, op, label) {
+    const id = String(identity || '').toLowerCase();
+    if (!id) return null;
+    const p = Object.assign({ gain: 1, muted: false }, this.peerPrefs[id]);
+    if (op === 'louder') { p.gain = Math.min(PEER_MAX, p.gain + PEER_STEP); p.muted = false; }
+    else if (op === 'quieter') p.gain = Math.max(PEER_STEP, p.gain - PEER_STEP);
+    else if (op === 'mute') p.muted = true;
+    else if (op === 'unmute') p.muted = false;
+    else if (op === 'reset') { p.gain = 1; p.muted = false; }
+    if (p.gain === 1 && !p.muted) delete this.peerPrefs[id]; else this.peerPrefs[id] = p;
+    try { window.localStorage.setItem(PEERS_KEY, JSON.stringify(this.peerPrefs)); } catch (e) { /* session only */ }
+    this.applyVolume(id);
+    const said = p.muted ? 'muted' : Math.round(p.gain * 100) + '%';
+    sendToGame('voice::peer', (label ? label + ' ' : '') + said);
+    return said;
+  }
+
+  // ---- microphone: device, gain, push-to-talk or voice activation ---------------------------------
+  async startMic() {
+    const deviceId = await this.deviceIdFor('audioinput', this.prefs.inputLabel);
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: Object.assign({ echoCancellation: true, noiseSuppression: true, autoGainControl: true }, deviceId ? { deviceId: { exact: deviceId } } : {}),
+    });
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = ctx.createMediaStreamSource(stream);
+    const gain = ctx.createGain();
+    gain.gain.value = this.prefs.micGain;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    const dest = ctx.createMediaStreamDestination();
+    source.connect(gain);
+    gain.connect(analyser);
+    gain.connect(dest);
+    const track = dest.stream.getAudioTracks()[0];
+    const pub = await this.room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
+    await pub.mute();
+    this.mic = { stream, ctx, gain, analyser, track, pub, buf: new Float32Array(analyser.fftSize) };
+    this.transmitting = false;
+  }
+
+  async stopMic() {
+    const m = this.mic;
+    this.mic = null;
+    if (!m) return;
+    try { if (this.room) await this.room.localParticipant.unpublishTrack(m.track, true); } catch (e) { /* room gone */ }
+    try { m.stream.getTracks().forEach((t) => t.stop()); m.ctx.close(); } catch (e) { /* closed */ }
+  }
+
+  async restartMic() {
+    await this.stopMic();
+    try { await this.startMic(); } catch (e) { sendToGame('voice::micDenied', String(e && e.message || e)); }
+    this.updateTransmit();
+  }
+
+  micLevel() {
+    const m = this.mic;
+    if (!m) return 0;
+    m.analyser.getFloatTimeDomainData(m.buf);
+    let sum = 0;
+    for (let i = 0; i < m.buf.length; i++) sum += m.buf[i] * m.buf[i];
+    return Math.sqrt(sum / m.buf.length);
+  }
+
+  // Open while push-to-talk is held, or while voice activation hears you (and briefly after)
+  updateTransmit() {
+    const vad = this.prefs.activation === 'vad' && this.mic && Date.now() < this.vadOpenUntil;
+    const want = !!(this.ptt || vad);
+    if (want === this.transmitting) return;
+    this.transmitting = want;
+    window.dispatchEvent(new CustomEvent('dbo:voicePtt', { detail: want }));
+    if (this.mic) {
+      const p = want ? this.mic.pub.unmute() : this.mic.pub.mute();
+      if (p && p.catch) p.catch(() => { /* retried on the next change */ });
+    }
+  }
+
+  vadTick() {
+    if (this.prefs.activation !== 'vad' || !this.mic) return;
+    if (this.micLevel() >= this.prefs.vadThreshold) this.vadOpenUntil = Date.now() + VAD_HOLD_MS;
+    this.updateTransmit();
   }
 
   applyCfg(cfg) {
@@ -81,22 +274,16 @@ class VoiceManager {
 
       room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (track.kind !== Track.Kind.Audio) return;
-        const stale = this.audioEls.get(participant.identity);
-        if (stale) stale.remove(); // never leave an orphan playing unmanaged
-        const el = track.attach();
-        el.volume = 0; // silent until proximity says otherwise
-        document.body.appendChild(el);
-        this.audioEls.set(participant.identity, el);
-        this.applyVolume(participant.identity);
+        this.detachPeer(participant.identity); // never leave an orphan playing unmanaged
+        this.attachPeer(participant.identity, track);
       });
       room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
         if (track.kind !== Track.Kind.Audio) return;
         track.detach().forEach((el) => el.remove());
-        this.audioEls.delete(participant.identity);
+        this.detachPeer(participant.identity);
       });
       room.on(RoomEvent.ParticipantDisconnected, (participant) => {
-        const el = this.audioEls.get(participant.identity);
-        if (el) { el.remove(); this.audioEls.delete(participant.identity); }
+        this.detachPeer(participant.identity);
         delete this.peerRanges[participant.identity];
       });
       room.on(RoomEvent.ParticipantConnected, () => {
@@ -113,8 +300,7 @@ class VoiceManager {
         } catch (e) { /* not ours */ }
       });
       room.on(RoomEvent.Disconnected, () => {
-        this.audioEls.forEach((el) => el.remove());
-        this.audioEls.clear();
+        Array.from(this.audioEls.keys()).forEach((id) => this.detachPeer(id));
         this.peerRanges = {};
         this.emitSpeaking();
         // Intentional teardowns null this.room first; report only real drops or the game re-requests tokens forever
@@ -131,16 +317,18 @@ class VoiceManager {
       // Expose the room only once connected so setPtt cannot hit a not-yet-connected room and mis-report micDenied
       this.room = room;
       this.publishRange();
-      if (this.ptt) {
-        try { await room.localParticipant.setMicrophoneEnabled(true); } catch (e) { /* applied on next press */ }
-      } else {
-        // Pre-warm: the first mic open runs Chromium's device stack in-process
-        // and can hitch; do it at connect so the first PTT only unmutes
+      // Opening the mic here also pre-warms Chromium's device stack, so the first press only unmutes
+      try {
+        await this.startMic();
+      } catch (e) {
+        this.mic = null;
         try {
           await room.localParticipant.setMicrophoneEnabled(true);
           await room.localParticipant.setMicrophoneEnabled(false);
-        } catch (e) { /* micDenied is reported on the first real PTT */ }
+        } catch (e2) { /* micDenied is reported on the first real press */ }
       }
+      this.transmitting = false;
+      this.updateTransmit();
       sendToGame('voice::ready');
     } catch (e) {
       this.room = null;
@@ -153,12 +341,13 @@ class VoiceManager {
 
   async disconnect() {
     const room = this.room;
+    await this.stopMic();
     this.room = null;
     this.lastToken = null;
     if (room) {
       try { await room.disconnect(); } catch (e) { /* already gone */ }
     }
-    this.audioEls.forEach((el) => el.remove());
+    Array.from(this.audioEls.keys()).forEach((id) => this.detachPeer(id));
     this.audioEls.clear();
     this.peerRanges = {};
     this.emitSpeaking();
@@ -180,8 +369,8 @@ class VoiceManager {
 
   async setPtt(down) {
     this.ptt = !!down;
-    // The banner doubles as the transmit indicator: solid while the mic is open, hidden on release
-    // The HUD status panel (features/hud) shows transmit state; the old banner image is retired.
+    if (this.mic) { this.updateTransmit(); return; }
+    // Fallback path (LiveKit's own microphone): the HUD status panel shows transmit state
     window.dispatchEvent(new CustomEvent('dbo:voicePtt', { detail: this.ptt }));
     if (!this.room) return;
     try {
@@ -224,8 +413,11 @@ class VoiceManager {
   }
 
   applyVolume(identity) {
+    const g = this.gainFor(identity) * this.peerFactor(identity);
+    const n = this.peerNodes.get(identity);
+    if (n) { n.gain.gain.value = g; return; }
     const el = this.audioEls.get(identity);
-    if (el) el.volume = this.gainFor(identity);
+    if (el) el.volume = Math.min(1, g * Math.min(1, this.prefs.outputVolume));
   }
 
   setPeers(distances) {
@@ -286,7 +478,7 @@ setInterval(() => {
   if (!vm.room) return;
   if (vm.lastPeersAt && Date.now() - vm.lastPeersAt > 5000) {
     vm.distances = {};
-    vm.audioEls.forEach((el) => { el.volume = 0; });
+    vm.audioEls.forEach((el, id) => vm.applyVolume(id));
   }
   if (!vm.lastRangePublishAt || Date.now() - vm.lastRangePublishAt > 20000) {
     vm.publishRange();
@@ -295,5 +487,6 @@ setInterval(() => {
 
 // Lip sync clock: LiveKit's speaker event is edge-triggered, range and loudness change between edges
 setInterval(() => window.__alduinakVoice.emitSpeaking(), SPEAKING_TICK_MS);
+setInterval(() => window.__alduinakVoice.vadTick(), VAD_TICK_MS);
 
 export default window.__alduinakVoice;

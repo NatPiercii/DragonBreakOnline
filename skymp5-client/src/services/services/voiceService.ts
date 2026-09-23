@@ -32,6 +32,8 @@ export class VoiceService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.voiceKey = readMenuKeyCode(sp, "voicePushToTalkKeyCode", DxScanCode.V);
+    // Left Alt tap by default; any other key cycles the mode on its own press
+    this.modeKey = readMenuKeyCode(sp, "voiceModeKeyCode", DxScanCode.LeftAlt);
     // The mode used to be set only when a voice server answered; without one Left Alt did nothing.
     const persisted = this.readPersistedMode();
     this.mode = this.modes.some(m => m.key === persisted) ? persisted : "talk";
@@ -41,13 +43,26 @@ export class VoiceService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.on("update", () => this.onUpdate());
     // Fresh game connection = fresh voice session; also kills ghost rooms that would outlive a disconnect back to the main menu
-    this.controller.emitter.on("browserWindowLoaded", () => { if (this.mode) setTimeout(() => this.announceMode(this.mode), 1500); });
+    this.controller.emitter.on("browserWindowLoaded", () => { if (this.mode) setTimeout(() => this.announceMode(this.mode), 1500); setTimeout(() => this.pushPrefs(), 1500); });
     this.controller.emitter.on("connectionAccepted", () => this.resetSession());
     this.controller.emitter.on("connectionFailed", () => this.resetSession());
     this.controller.emitter.on("connectionDenied", () => this.resetSession());
   }
 
   private voiceKey: DxScanCode;
+  private modeKey: number = DxScanCode.LeftAlt;
+
+  // The launcher's Voice tab writes skymp5-client-settings.txt "voice"; the front applies devices, volumes and activation
+  private pushPrefs(): void {
+    try {
+      const settings = this.sp.settings["skymp5-client"] as any;
+      const v = settings && typeof settings.voice === "object" ? settings.voice : null;
+      if (!v) return;
+      this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.setPrefs(${JSON.stringify(v)})`);
+    } catch (e) {
+      logTrace(this, `voice prefs not applied: ${e}`);
+    }
+  }
   private disabledByServer = false;
   private connectedForRefrId = 0;
   private pendingRefrId = 0;
@@ -74,12 +89,17 @@ export class VoiceService extends ClientListener {
   private onButtonEventImpl(e: ButtonEvent) {
     if (e.device !== InputDeviceType.Keyboard) return;
 
+    if (this.modeKey !== DxScanCode.LeftAlt && e.code === this.modeKey) {
+      if (e.isDown && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
+      return;
+    }
+
     // Track Alt: a plain tap of Left Alt cycles whisper -> talk -> shout; Alt+V still does too
     if (e.code === DxScanCode.LeftAlt || e.code === DxScanCode.RightAlt) {
       if (e.isDown) { this.altDown = true; this.altUsedAsModifier = false; }
       else if (e.isUp) {
         this.altDown = false;
-        if (e.code === DxScanCode.LeftAlt && !this.altUsedAsModifier && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
+        if (e.code === DxScanCode.LeftAlt && this.modeKey === DxScanCode.LeftAlt && !this.altUsedAsModifier && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
       }
       return;
     }
@@ -168,6 +188,9 @@ export class VoiceService extends ClientListener {
     if (kind === "voice::ready") {
       // Only the front's ack marks the session healthy; a connect call landing on an unloaded page never acks and the 5s loop retries
       this.connectedForRefrId = this.pendingRefrId;
+    } else if (kind === "voice::peer") {
+      const text = String(e.arguments[1] || "");
+      if (text) this.controller.once("update", () => showSystemNotification(this.sp, `Voice: ${text}`));
     } else if (kind === "voice::micDenied") {
       if (!this.micDeniedShown) {
         this.micDeniedShown = true;
@@ -197,6 +220,14 @@ export class VoiceService extends ClientListener {
     try {
       content = JSON.parse(event.message.contentJsonDump);
     } catch (e) {
+      return;
+    }
+    // X menu on a player: louder, quieter, mute; a preference on this PC, the server only relays the choice
+    if (content["customPacketType"] === "dboVoicePeer") {
+      const id = String(content["identity"] ?? "");
+      const op = String(content["op"] ?? "");
+      const label = String(content["name"] ?? "");
+      if (id && op) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.adjustPeer(${JSON.stringify(id)}, ${JSON.stringify(op)}, ${JSON.stringify(label)})`);
       return;
     }
     if (content["customPacketType"] !== "voiceToken") return;
@@ -230,6 +261,7 @@ export class VoiceService extends ClientListener {
       this.announceMode(this.mode);
     }
 
+    this.pushPrefs();
     const cfg = { modes: this.modes, mode: this.mode };
     this.pendingRefrId = this.myRefrId();
     this.sp.browser.executeJavaScript(
