@@ -1858,10 +1858,23 @@ const setDeathTemple = (a) => {
 // A spawned creature's pelts and hides are set aside on the corpse (private.dboPelts) and the body is
 // emptied, so the only way to a pelt is skinning it (__dboSkin).
 const PELT = /pelt|hide|skin$|fur$|pelts$/i;
+// Nat: an ogre gets a proper drop. Beyond Skyrim's ogres carry 3 random hides they hunted (CYRLootOgreAnimalPart75,
+// LootGiantAnimalPart75), which the stash used to hand out as the ogre's own skin; skinning one now takes Ogre Tooth
+// (BSAssets.esm BSKOgreTooth, already on both ogre death item lists) and the hides stay lootable
+const SKIN_TROPHIES = [{ re: /ogre/i, items: [{ desc: '6026c6:BSAssets.esm', count: 2 }] }];
+const trophyFor = (actorId) => {
+  let edid = ''; try { const r = recordOf(mp.getIdFromDesc(String(mp.get(actorId, 'baseDesc')))); edid = r ? String(r.record.editorId || '') : ''; } catch (e) { return null; }
+  const t = SKIN_TROPHIES.find((x) => x.re.test(edid)); if (!t) return null;
+  const items = t.items.map((i) => { let baseId = 0; try { baseId = mp.getIdFromDesc(i.desc) >>> 0; } catch (e) { /* not loaded */ } return { baseId, count: i.count }; }).filter((i) => i.baseId);
+  return items.length ? items : null;
+};
 const stashPelts = (actorId) => {
   if (actorId < 0xff000000) return;
   let tag = ''; try { tag = String(mp.get(actorId, 'private.npcSpawner') || ''); } catch (e) { return; }
   if (!tag) return;
+  // A creature whose skin is not what it carries: its own trophy goes to the stash, the hides it hunted stay loot
+  const trophy = trophyFor(actorId);
+  if (trophy) { try { mp.set(actorId, 'private.dboPelts', trophy); } catch (e) { log('trophy stash failed', e.message); } return; }
   let entries = []; try { const inv = mp.get(actorId, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return; }
   const pelts = entries.filter((e) => { const r = recordOf(Number(e.baseId) >>> 0); return r && String(r.record.type) === 'MISC' && PELT.test(String(r.record.editorId || '')); }).map((e) => ({ baseId: Number(e.baseId) >>> 0, count: Number(e.count) || 1 }));
   if (!pelts.length && !tag.startsWith('wild:')) return;
