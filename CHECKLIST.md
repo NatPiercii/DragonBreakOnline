@@ -1,15 +1,133 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-23 (19:15 UTC, with Nat): beast form rework, dungeon loot, Ash Rune, Gray Fox; all pushed
+
+Pushed on Nat's word with `online:0`: fork `main` (the Gray Fox libespm fix merged from `claude-nate/overrange-self-index`,
+plus the client commits another session's push had already carried), server `b7de125e`..`3d1674e5` + `086b775b`.
+
+- [x] **Beast spells never worked for anyone else**: the server strips an unlearned spell from the reported equipment and
+  refuses its casts and hits (live log: Drain and Raise Dead stripped, 285 refused Night Cloak bites, 14 Poison Talons).
+  `beastform.js ABILITIES` is now the one list: learned server-side on the change, unlearned on the revert, sent in
+  `dboBeast`; the client equips from it and binds keys 1-9 (left-hand spell, then the Shout-key power), with a notice
+  per pick and a legend on the change (`/forms`). Drain05Alt (65 a hit) replaces 09Alt (175, a whole health bar).
+  Summon Wolves dropped (Papyrus places its wolves). Revert Form is key 9, last, so the default power never ends the form.
+- [x] **Vampire Lord crashed other clients (likely)**: they rebuilt him from the Orc's head parts, tints and morphs on a
+  headless body. The broadcast beast appearance is bare now. Unconfirmed without Grimgor's or Leerod's crash log.
+- [x] **Menus stayed shut after a revert**: `Game.SetBeastForm` was set by nothing we run and cleared by nothing. Client
+  sets and clears it with the race swap (fork `55b6874`).
+- [x] **Vampire Lord looks the part**: Harkon's royal robes + the cape, given on the change, taken back on the revert,
+  never saved as `lastWorn` (the revert re-dresses from it).
+- [x] **Beast melee x2.5 (werewolf) / x3.5 (Vampire Lord)** on top of race unarmed 20 / 10 (`supernatural.beastMeleeMult`).
+  First claw hit per form logs its source id: confirm it reads `0x1f4`.
+- [x] **Vampire Lord's hands empty on the ground** so he fights with claws, re-armed in flight (vanilla GroundStart).
+- [x] **Ash Rune paralyses**: its paralysis is on projectile -> explosion -> EITM; `gamemode.js onSpellHit` follows it and
+  sends `dboParalyse` (30 s), the client's `ParalysisService` holds the player. Ash Shell stays on the C++ path; the
+  17:38 test that "failed" was on Grimgor with god mode toggled seconds before.
+- [x] **Dungeons**: no Ebony or Daedric loot anywhere a dungeon hands out (chests, bodies, corpse kit; 868 entries, the
+  ingot included); Lakeside Retreat dropped from the dungeon list (`dungeons.exclude` for more).
+- [x] **Gray Fox Cowl.esm** over-range self index mapped to the file itself (libespm `Combiner.cpp`).
+- [ ] Untested in game, all of it. Watch for: `supernatural: <form> claw hit carries source`, `paralysis: ... held 30 s`,
+  no more `OnHit ... cannot hit with spell 20126b7`, no `Record 0xffffffff` after Ancient Vision, boot time with the
+  10k Hammerfell refs now resolvable.
+- [ ] Not done: Vampire Lord bite/blood, level-based beast abilities (health, resist damage), howl as a real shout,
+  server-spawned Summon Wolves, health floor on revert. Argonian tail/feet (`Smooth Argonians.esp` tail TXST over FVAR)
+  waits on Nat's go for a DLE override. Launcher window mode: needs Leerod's answer (greyed out, or no effect?).
+  Ebony Ingot: Nat to say whether it should stay lootable.
+
+## Added 2026-09-23 (17:10 UTC, unattended run `dragonbreak-continue-build`): the Gray Fox fix exists, on a side branch
+
+Nothing pushed, nothing deployed, no live or gitignored file changed. This ran alongside the 16:55 run below and
+reached the same finding independently.
+
+- [x] **The Combiner.cpp edit the 16:55 block saw appear and vanish was this run.** It is committed on the local
+  branch **`claude-nate/overrange-self-index`** (fork `097a75e` + `102ee39`, 8 lines in `libespm/src/Combiner.cpp`
+  pass 2: raw indices from own+1 through 0xFD map to the file's own slot in `toComb` only). It was kept off `main`
+  on purpose so no push can take it by accident. `main`'s working tree is clean. **Not compiled** (no C++ build here).
+  Nat, to ship it: `git merge claude-nate/overrange-self-index` on `main`, then `backup-git.cmd`, `/api/servers`
+  `online:0`, push, and the updater's native build. After that, `Record 0xffffffff` after an Ancient Vision cast should
+  stop, and the boot's world state gains the 10,321 Hammerfell REFRs + 311 ACHRs whose bases now resolve. Watch boot
+  time and memory once. Side effect worth knowing: Skyrim.esm's one out-of-range header (`GMST 0x0123C00E`) now maps to
+  `0x0023C00E` in by-type listings; it is a GMST and nothing reads it.
+- [x] **Scope, the other fields as well**: the scan over every plugin in `plugins.server.txt` covered EFID, EITM,
+  REFR/ACHR NAME, LVLO, CNTO, SPLO, PKID, COBJ CNAM, TPLT, RNAM, NPC SNAM/INAM, XLKR. **Gray Fox Cowl.esm is the only
+  plugin with any**: 10,992 references (REFR NAME 10,321, ACHR NAME 311, NPC PKID 181, SNAM 84, CNTO 39, SPEL/ENCH EFID
+  24, EITM 8, COBJ 7, LVLO 7, SPLO 6, INAM 4).
+- [x] **Record-local id sweep of everything the C++ sweep left out: no live bug.** Client (`skymp5-client\src` never
+  parses espm data), server `ts` systems (`formIdUtil.ts` helpers map through `toGlobalRecordId`; espmMagic,
+  craftedExtras, mastery, npcSpawn, soulTrap, gathering, housing, bountyBoard all mapped), `server\*.js`
+  (`globalIdAt`/`globalOf`/PFIG mapped, JSON ids read through `getIdFromDesc`), `ck-mcp\*.py` (every generator emits
+  `hex:plugin` descs through `LoadOrder.canon`, never numeric global ids). Only blemishes: `ck-mcp\markerspells.py:60`
+  canonicalises a DLE SPEL's perk against Skyrim.esm's master list (a print-only script), and two unreachable local-id
+  fallbacks (`craftedExtrasSystem.ts:498`, `gamemode.js:1606`). Note for future code: `lookupEspmRecordById(...).record.id`
+  is the raw file-local id; use the id you passed in.
+- [x] **The record-local C++ fixes of 22 Sep are live** (`c7c2057`, `65207b1`): since the 19:08 restart the only
+  `Record 0x...` line is Gray Fox's `0xffffffff`. **Still unverified**: no non-Skyrim.esm spell has hit anything since
+  (spells hit: `10f7ed`, `2dd29`, `12fd0`, `1c789`, all Skyrim.esm), so "a modded spell deals damage" awaits a player.
+- [x] Live log otherwise: the 85 `reason=exception` blocks are `isDead` read off a door ref after a door activation;
+  every JS caller catches it, the C++ just logs before rethrowing. `Refr pointer expired` (28) follows corpse clean-up.
+  Neither drops a player action. Supernatural, beast and faction code: loaded, 0 players have used any of it, so
+  nothing to measure yet. No new client crash logs on this PC since 21 Sep; the jump crash is unchanged.
+- [ ] Nat's open decisions: none answered in this file since the last run (deities, Tailor loom, Scholar books,
+  skinning weight, dual casting, Hufsa / rob / Barons / charcoal).
+
+## Added 2026-09-23 (16:55 UTC, scheduled run): Gray Fox Cowl.esm cannot be read server-side
+
+Nothing edited in code, nothing deployed, nothing committed. **The brief's queue was already done, for the fourth
+run running.** Checked on the live box, not from notes: `labour.js:328` emits `'mine'` (ore band) / `'chop'`;
+`skills.json` pairs every divine with its `BSHeartland.esm:061B5x` wayshrine, cooldown 7, Daedric entries present;
+`prayer.js:441` emits `'prayer'`; boot 04:21 reads `18 skills have marker spells` and `prayer on: 26 deities, 45 shrine
+ids, 26 reachable`. **Nat: the `daily-code-review` brief still describes 20 Sep; rewrite or retire it.** So the run
+measured instead.
+
+- [x] **Log sweep since the 04:21 boot**: one 6-minute session, 3 `[error]` lines. Two are the known
+  `reason=exception` noise; the third is `Record 0xffffffff doesn't exist`, same millisecond as a cast of
+  `manny_GF_Spell_AncientVision`. The 22 Sep EFID fix did land (`0x3020119`, `0x1007982` stopped after 22 Sep 05:00),
+  but `0xffffffff` has come after every Ancient Vision cast before and since (18 in the whole log).
+- [x] **Cause, measured: Gray Fox Cowl.esm writes its own references one index too high.** It has 2 masters,
+  its record headers use `0x02` (31,713 records), but its references to its own records use `0x03`.
+  libespm's `IdMapping` (fork `libespm/src/Combiner.cpp`, pass 2) maps only index == master count to the file itself,
+  so `0x03......` maps to `kInvalid` (`0xFFFFFFFF`) and `espm::GetData` throws. xEdit's FAQ gives the rule the
+  engine follows: with 3 masters, "everything starting with 03 (or higher!) belongs to the file you are dumping"
+  (tes5edit.github.io/docs/10-fo3edit-faq.html, 10.4.11). That is why the mod works in single player.
+  **It is the Nexus original**: sha256 `f9fa7c18...`, identical to `E:\Vortex Mods\...\Gray Fox Cowl.esm`,
+  the dev Data copy and `SHA256SUMS`. We did not break it.
+- [x] **Scope, measured over all 104 plugins in `server\data`** (scratch `efid_scan.py`, EFID in SPEL/ENCH/ALCH/SCRL/INGR):
+  only Gray Fox Cowl.esm has out-of-range effect ids, in 22 of its 29 magic records. Its spells, its enchantments (the
+  Gray Cowl itself, Umbra, Eagle Eye, Springheel Jak's boots, Ocato) and its three standing stones all fail server-side.
+  `DuneripperFireball` deals no damage, and `PraetorianRegen` never heals. **Wider than magic**: 10,321 REFRs and
+  311 ACHRs in the plugin name their base object with `0x03`, so the Hammerfell worlds' placed objects are
+  unresolvable server-side too. **Harmless today**: Hammerfell is outside the Bruma region lock. **It will break the
+  day Hammerfell opens**, and it matters now only for anyone carrying a Gray Fox item into Bruma.
+- [ ] **The fix is C++ in libespm**: in `Combiner.cpp` pass 2, also map every raw index above the file's own to the
+  file itself (`toComb` only; `toRaw` keeps mapping back to the own slot). **Another session was editing exactly this
+  during the run**: at 16:46 UTC the file held that loop with a comment naming Gray Fox Cowl, and by 16:47:36 it was back
+  to HEAD. I did not touch it. Nat: find out whose it is before anyone writes it again. It needs a push to fork `main`
+  (native rebuild; `/api/servers` `online:0` first). After it ships, `Record 0xffffffff` after an Ancient Vision cast
+  should stop. Also watch whether the 10k newly resolvable Hammerfell refs change anything at boot.
+
 ## Added 2026-09-23: tooling handover for Jake's dependency audit
 
-- [x] `server\tooling\` (commit `01818f63`, not pushed yet): snapshot of ck-mcp (45 py), 31 DBO xEdit scripts,
+- [x] `server\tooling\` (commit `01818f63`): snapshot of ck-mcp (45 py), 31 DBO xEdit scripts,
   `dev-server.sh` + `backup-git.cmd`, `CLIENT_BUILD.md`. Refresh with `bash server/tooling/refresh.sh` after
   editing the originals; it blocks IP addresses and credential-shaped text. `dev-server.sh` no longer names the host.
 - [x] Six third-party plugins in `server\data` differ from the Nexus copies (recipes in 4, disabled refs in 2),
   same records and masters. `py ck-mcp\thirdparty_diff.py`; table in `tooling\README.md`.
-- [ ] Decide whether players get the server's six edited copies through the extra-files channel.
+- [x] **DragonBreak Nexus Patches.esp built** (xEdit `DBO_NexusPatches.pas`, 783 records + 40 winning CELL/WRLD,
+  36 records skipped because a later plugin already wins; byte-verified; creation-kit validate ok, 0 dangling; local
+  boot identical to 21 Sep). `server\data` + dev Data now hold the Nexus originals (edited copies in
+  `server\_nexus-edited-backup-20260923\`), the patch is last in `plugins.server.txt`, local `server-settings.json`,
+  fork `loadorder.txt`/`SHA256SUMS` (`c6f1248`, not pushed until the server is empty).
+- [x] Production 18:40 UTC: live on CT115, healthy, patch in `/api/files/extra` (see `OPS_HANDOFF_2026-09-23_claude-nate.md`).
+  The fork push also shipped 3 beast-form/paralysis commits from another session (`55b6874`, `b750abd`, `2541a7c`);
+  their client half needs a client package before players see it.
+  The load-test sandbox's `data\` follows dev Data by hardlink but its own `loadOrder` (100 entries) lacks the patch.
+- [x] Decide whether players get the server's six edited copies through the extra-files channel. **Not through
+  extra files:** they land in the real `Data`, and under MO2 (launcher default) the Nexus copy in `mods\<mod>\`
+  overrides them, so MO2 players would keep the old records. Options: a DragonBreak patch plugin appended last
+  (recommended: no third-party redistribution, server goes back to Nexus originals), or the edited copies as their
+  own archive in the install manifest (needs a manifest rebuild from `C:\DragonBreak`, and re-hosts Nexus files).
 - [ ] Reply to Jake: draft `REPLY_TO_JAKE_2026-09-23.md` in the root, `[Nat: ...]` lines open.
-- [ ] Push `server` (run `backup-git.cmd` first).
+- [x] Pushed to `server` 2026-09-23 (`ae8543ff..a3a567c1`, backup `backup/pre-push-20260923-115119`).
 
 ## Added 2026-09-23 (02:25 UTC): newbrumacityedits.esp merged into DragonBreak Online Edits.esp
 
@@ -74,6 +192,10 @@ Live: fork `6e20da3`, server `patrons` deploy 01:24, client 0.3.15, launcher 2.1
   `/etc/livekit.yaml` 0600) on 7880/tcp 7881/tcp 7882/udp; `voiceChat` in server-settings with `enabled: false`.
   **Needs Jake to forward those three ports** (request in `OPS_HANDOFF_2026-09-22_claude-nate.md`), then
   `enabled: true` and restart `skymp`. Nobody has heard a voice yet: untested end to end.
+  **2026-09-23 17:10 UTC: Nat reported the ports forwarded, but nothing arrives.** From outside, 50.116.28.194:2222
+  answers while 7880/7881 tcp are closed, and a tcpdump on CT115 during probes of all three ports (7882 udp included)
+  caught 0 packets. LiveKit itself answers locally (`10.10.10.2:7880` HTTP 200; `node_ip: 50.116.28.194`). The forward
+  stops at the router or the Proxmox host. Voice left `enabled: false`, no restart.
 - [x] **Every panel resizable**: Ctrl + wheel over it, 50-250%, per panel type, multiplies the global size; a
   resized panel becomes its own zoomed screen (fixed + zoom + transform), so centred panels stay centred and corner
   pieces stay in corners. Checked in the browser pane on the dungeon gate (centred) and the HUD (corners).

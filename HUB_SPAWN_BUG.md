@@ -195,6 +195,10 @@ loading screen that eats input. Two SkyMP paths keep the player in control while
 side cannot be checked from this PC - `server.log` here has a gap from 00:02:30 to 07:11:12 on
 2026-09-21, because that session was played against the retired home server PC.
 
+**Status 2026-09-23 17:10 UTC (unattended run):** no recurrence on this PC since 2026-09-21 (no new
+`crash-*.log` in the dev copy, `Documents\My Games\...\SKSE` or `C:\DragonBreak`). Still unmeasured which window
+it is. The diagnostic below needs a client build and a relaunch, so it waits for a session with Nat present.
+
 **Fix options, none shipped (a theory must not be deployed here):**
 
 - **C++, the reliable one.** Hook `JumpHandler::ProcessButton` (AE id 42423) in SkyrimPlatform and
