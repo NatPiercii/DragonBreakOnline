@@ -18,6 +18,14 @@ export { isOwnCompanion, isAnyCompanion };
 
 const PLAYER_ID = 0x14;
 const PLAYER_FACTION = 0xdb1;
+// Cell and worldspace of a reference, for the diagnostic report
+const whereOf = (ref: ObjectReference | null): string => {
+  try {
+    if (!ref) return "none";
+    const cell = ref.getParentCell(), world = ref.getWorldSpace();
+    return `${cell ? cell.getFormID().toString(16) : "-"}/${world ? world.getFormID().toString(16) : "-"}`;
+  } catch { return "?"; }
+};
 const TWIN_SOULS_PERK = 0xd5f1c;
 // Vanilla summoning flash (SummonTargetFXActivator), played where a companion appears and where it vanishes
 const SUMMON_FX = 0x07cd55;
@@ -49,6 +57,8 @@ interface LocalState {
   aliasFailed: boolean;
   reportAt: number;
   fightingTarget: number;
+  // When the last follow order went to the server after leashing out of an attack order
+  leashSentAt: number;
   // Stuck watch: last sampled position, when it stopped moving, and when it was last lifted out
   stuckPos?: number[];
   stuckSince: number;
@@ -113,6 +123,8 @@ export class CompanionService extends ClientListener {
     }
     this.companions = list;
     storage[COMPANION_IDS_KEY] = list.map((c) => c.id);
+    // The update loop idles once the list is empty, so the panel is refreshed here or the last row stays on screen
+    this.publishHud(Date.now());
     Array.from(this.local.keys()).forEach((id) => {
       if (!list.some((c) => c.id === id)) {
         const gone = this.local.get(id);
@@ -171,7 +183,9 @@ export class CompanionService extends ClientListener {
       this.controller.lookupListener(WorldCleanerService).sweepBurst(CompanionService.cleanerBurstMs);
     }
     this.reportPerks(now);
-    if (!this.companions.length || now - this.lastApplyMs < CompanionService.applyIntervalMs) {
+    // With no companions left it still runs once more for the last one's vanishing flash and alias
+    const idle = !this.companions.length && !this.pendingFx.length && !this.pendingAliasClear.length;
+    if (idle || now - this.lastApplyMs < CompanionService.applyIntervalMs) {
       return;
     }
     this.lastApplyMs = now;
@@ -189,6 +203,7 @@ export class CompanionService extends ClientListener {
     for (const c of this.companions) {
       const actor = this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.id)));
       if (!actor || actor.isDead() || !actor.is3DLoaded()) {
+        if (!actor || !actor.isDead()) this.reportAway(c.id, actor, player, now);
         continue;
       }
       // Set up as an ally at once: the summon's own AI runs before our host grant and would pick a fight with its caster
@@ -205,7 +220,18 @@ export class CompanionService extends ClientListener {
         }
         continue;
       }
-      const target = c.target ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.target))) : null;
+      let target = c.target ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.target))) : null;
+      // An attack order it cannot carry out used to strand the summon where it stood: past the leash it drops the order
+      if (target && !target.isDead() && actor.getDistance(player) > CompanionService.combatLeashDistance) {
+        actor.stopCombat();
+        state.fightingTarget = 0;
+        state.followResult = "left an order " + Math.round(actor.getDistance(player)) + " away";
+        if (now - state.leashSentAt > CompanionService.orderRepeatMs) {
+          state.leashSentAt = now;
+          sendCustomPacket(this.controller, { customPacketType: "companionCommand", action: "follow", companionId: c.id });
+        }
+        target = null;
+      }
       if (target && !target.isDead()) {
         if (state.driven) {
           state.driven = false;
@@ -346,7 +372,7 @@ export class CompanionService extends ClientListener {
   private stateFor(remoteId: number, actor: Actor): LocalState {
     let state = this.local.get(remoteId);
     if (!state || state.localId !== actor.getFormID()) {
-      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0, stuckSince: 0, unstuckAt: 0, driven: false };
+      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0, leashSentAt: 0, stuckSince: 0, unstuckAt: 0, driven: false };
       this.local.set(remoteId, state);
       this.prepare(actor);
       if (!this.announced.has(remoteId)) {
@@ -591,8 +617,24 @@ export class CompanionService extends ClientListener {
         combatTarget: (actor.getCombatTarget()?.getFormID() ?? 0).toString(16), aiDisabled: actor.isAIEnabled() === false,
         following: state.following, follow: state.followResult, weaponDrawn: actor.isWeaponDrawn(), moved,
         deleted: actor.isDeleted(), disabled: actor.isDisabled(), loaded: actor.is3DLoaded(), var10: Math.round(actor.getActorValue("Variable10")), speedMult: Math.round(actor.getActorValue("SpeedMult")), driven: state.driven,
+        cell: whereOf(actor), ownerCell: whereOf(player),
         localId: actor.getFormID().toString(16), at: here.map(Math.round), owner: [player.getPositionX(), player.getPositionY(), player.getPositionZ()].map(Math.round),
         package: (actor.getCurrentPackage()?.getFormID() ?? 0).toString(16), aliasSlot: state.aliasSlot,
+      }],
+    });
+  }
+
+  // A companion that is not loaded here is still reported with both cells, so a summon left in another cell shows up
+  private reportAway(remoteId: number, actor: Actor | null, player: Actor, now: number): void {
+    if (now - (this.awayReportAt.get(remoteId) || 0) < CompanionService.reportMs) return;
+    this.awayReportAt.set(remoteId, now);
+    let at: number[] | null = null;
+    try { if (actor) at = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()].map(Math.round); } catch { /* no position */ }
+    sendCustomPacket(this.controller, {
+      customPacketType: "dbo", event: "npcDrift", args: [{
+        kind: "companion", remoteId: remoteId.toString(16), loaded: false, exists: !!actor, hosted: isRemoteHostedByMe(remoteId),
+        disabled: actor ? actor.isDisabled() : null, cell: whereOf(actor), ownerCell: whereOf(player),
+        localId: (actor ? actor.getFormID() : 0).toString(16), at, owner: [player.getPositionX(), player.getPositionY(), player.getPositionZ()].map(Math.round),
       }],
     });
   }
@@ -631,6 +673,7 @@ export class CompanionService extends ClientListener {
   private pendingBurstAt = 0;
   // Position at the last report, to tell a companion that will not move from one that is keeping up
   private reportPos = new Map<number, number[]>();
+  private awayReportAt = new Map<number, number>();
 
   private static readonly applyIntervalMs = 250;
   private static readonly orderRepeatMs = 2000;
