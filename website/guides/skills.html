@@ -11,9 +11,9 @@
 <style>
 .gd li{margin:0}
 .gd{--ink:#0f2a2e;--ink-soft:#3a4548;--ground:#e6ecec;--panel:#e6ecec;--rule:#d7e3e3;--accent:#2f7c80;--accent-soft:#e6ecec;--warn:#7a2d2a;--warn-soft:#e6ecec;--good:#3a4548;--good-soft:#e6ecec;--display:'Cinzel','Trajan Pro',Georgia,serif;--body:'Roboto Condensed','Futura Condensed',sans-serif;--mono:ui-monospace,Consolas,monospace}
-.gd{--ink:#e6ecec;--ink-soft:#8c9a9c;--ground:#08191c;--panel:#0f2a2e;--rule:#16383d;--accent:#8fd3d0;--accent-soft:#0f2a2e;--warn:#e0897f;--warn-soft:#08191c;--good:#5fb3b3;--good-soft:#08191c;color-scheme:dark}
+.gd{--ink:#e6ecec;--ink-soft:#8c9a9c;--ground:#08191c;--panel:#0f2a2e;--rule:#16383d;--accent:#8fd3d0;--accent-soft:#0f2a2e;--warn:#e0897f;--warn-soft:#08191c;--good:#5fb3b3;--good-soft:#08191c}
 .gd{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
-.gd .g-wrap{max-width:820px;margin:0 auto;padding-inline:20px;padding-block:48px 72px;display:flex;flex-direction:column;gap:34px}
+.gd .g-wrap{max-width:780px;margin:0 auto;padding-inline:20px;padding-block:48px 72px;display:flex;flex-direction:column;gap:34px}
 .gd .g-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
 .gd h1{font-family:var(--display);font-weight:600;font-size:clamp(30px, 6vw, 42px);line-height:1.12;margin:0 0 12px;text-wrap:balance}
 .gd .g-standfirst{font-size:18px;color:var(--ink-soft);margin:0;max-width:62ch}
@@ -47,18 +47,6 @@
 .gd .g-moon .g-glyph{font-size:20px;color:var(--accent);line-height:1.3}
 .gd .g-moon .g-name{font-weight:600}
 .gd .g-moon .g-what{color:var(--ink-soft);font-size:14.5px}
-.gd .g-grouphead{font-family:var(--display);font-size:18px;font-weight:600;margin:26px 0 0;display:flex;align-items:baseline;gap:10px}
-.gd .g-grouphead .g-count{font-family:var(--mono);font-size:11px;letter-spacing:0.14em;color:var(--ink-soft);border:1px solid var(--rule);border-radius:2px;padding:1px 7px}
-.gd .g-groupblurb{color:var(--ink-soft);font-size:15px;margin:4px 0 0}
-.gd .g-skills{display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:14px;margin-top:14px;align-items:start}
-.gd .g-skill{background:var(--panel);border:1px solid var(--rule);padding:16px 18px;display:flex;flex-direction:column;gap:8px}
-.gd .g-skillhead{display:flex;flex-direction:column;gap:1px}
-.gd .g-skill h4{font-family:var(--display);font-weight:600;font-size:17px;margin:0;line-height:1.2}
-.gd .g-skill .g-epithet{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent)}
-.gd .g-skilldesc{margin:0;font-size:14.5px;color:var(--ink-soft);max-width:none}
-.gd .g-tiers{margin:2px 0 0;padding-left:0;list-style:none;counter-reset:tier;display:flex;flex-direction:column;gap:3px}
-.gd .g-tiers li{display:grid;grid-template-columns:20px 1fr;gap:8px;font-size:14px;margin:0;align-items:baseline}
-.gd .g-tiers li::before{counter-increment:tier;content:counter(tier);font-family:var(--mono);font-size:11px;color:var(--accent);text-align:right}
 .gd footer{border-top:1px solid var(--rule);padding-top:16px;color:var(--ink-soft);font-size:14px}
 @media (max-width: 460px){.gd .g-fact dd{font-size:21px}}
 .gd{--accent:#8fd3d0;--accent-soft:rgba(143,211,208,.12);--body:'Roboto Condensed','Futura Condensed',sans-serif;--display:'Cinzel','Trajan Pro',Georgia,serif;--good:#5fb3b3;--good-soft:rgba(95,179,179,.14);--ground:transparent;--ink:#d7e3e3;--ink-soft:rgba(215,227,227,.62);--mono:ui-monospace,Consolas,monospace;--panel:rgba(12,34,38,.94);--rule:rgba(143,211,208,.22);--warn:#c98a3a;--warn-soft:rgba(201,138,58,.16)}
@@ -88,117 +76,264 @@
     </dl>
     <p>That last pair is the point of the design. Ebony is meant to need a Miner at 95 and daedric a Blacksmith at 95 to 100, and since one character can hold only one skill above 90, a daedric cuirass needs a master smith, a master miner and a master conjurer who are three different people. Scarcity is what forces them to deal with each other.</p>
   </section>
-<section>
-  <h2>The eighteen</h2>
-  <p>Every skill on the server, with the five tiers each one climbs. Tier names are the same bands everywhere — Novice, Apprentice, Journeyman, Expert, Master — so a gate written against one skill reads the same on any other.</p>
-  <h3 class="g-grouphead">Combat <span class="g-count">6</span></h3>
-  <p class="g-groupblurb">Six ways to end a fight. None of them has a station to walk to, so each is opened by shadow progress once you have fought that way often enough.</p>
-  <div class="g-skills">
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Two-Handed</h4><span class="g-epithet">The Greatblade</span></div>
-      <p class="g-skilldesc">Greatswords, battleaxes and warhammers. Tiers raise your proficiency and the vanilla Two-Handed skill grows only through this.</p>
-      <ol class="g-tiers"><li>Basic strikes</li><li>Power attacks cost less</li><li>+10% damage</li><li>+20% damage, faster swings</li><li>+30% damage, master power attacks</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Archery</h4><span class="g-epithet">The Far Shot</span></div>
-      <p class="g-skilldesc">Bows and crossbows. Tiers raise proficiency and the vanilla Archery skill grows only through this.</p>
-      <ol class="g-tiers"><li>Basic shots</li><li>Steadier aim</li><li>+10% damage</li><li>+20% damage, faster draw</li><li>+30% damage, zoom and slow time</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>One-Handed</h4><span class="g-epithet">The Quick Edge</span></div>
-      <p class="g-skilldesc">Swords, axes, maces and daggers. Tiers raise proficiency and the vanilla One-Handed skill grows only through this.</p>
-      <ol class="g-tiers"><li>Basic strikes</li><li>Power attacks cost less</li><li>+10% damage</li><li>+20% damage, dual-wield flow</li><li>+30% damage, master power attacks</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Defense</h4><span class="g-epithet">The Wall</span></div>
-      <p class="g-skilldesc">Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor.</p>
-      <ol class="g-tiers"><li>Light armor, basic blocking</li><li>Medium armor, blocks cost less stamina</li><li>Heavy armor, shield bash</li><li>+15% armor, power bash, arrows deflected</li><li>+30% armor, blocks reflect part of the blow, no stagger from small hits</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Arcane Arts</h4><span class="g-epithet">The Ordered Mind</span></div>
-      <p class="g-skilldesc">Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the well in the Hall of the Elements to start). Three spells known at a time; the tier decides the highest spell rank you may learn.</p>
-      <ol class="g-tiers"><li>Novice spells</li><li>Apprentice spells</li><li>Adept spells</li><li>Expert spells</li><li>Master spells</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Unarmed</h4><span class="g-epithet">The Closed Fist</span></div>
-      <p class="g-skilldesc">Fists, claws and the discipline to use them. The only skill that needs nothing in your hands, and the one a Khajiit is born into: the server already reads a Khajiit's claws as a weapon. Tiers raise unarmed damage and nothing else grows it.</p>
-      <ol class="g-tiers"><li>Bare-knuckle blows</li><li>Power attacks cost less</li><li>+10% damage</li><li>+20% damage, faster combinations</li><li>+30% damage, disarming strikes</li></ol>
-    </article>
-  </div>
-  <h3 class="g-grouphead">Professions <span class="g-count">6</span></h3>
-  <p class="g-groupblurb">Gated crafts. Only the holder of the skill may use its station, which is what makes a smith worth knowing.</p>
-  <div class="g-skills">
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Blacksmith</h4><span class="g-epithet">The Forge-Bound</span></div>
-      <p class="g-skilldesc">Only a Blacksmith may use the forge, the workbench and the grindstone. Tiers decide which metals you may work and how well you improve gear.</p>
-      <ol class="g-tiers"><li>Iron, hide, leather</li><li>Steel, elven, dwarven</li><li>Orcish, glass, scaled</li><li>Ebony, dragon</li><li>Daedric; legendary improvement</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Alchemist</h4><span class="g-epithet">The Patient Hand</span></div>
-      <p class="g-skilldesc">Only an Alchemist may use the alchemy lab. Tiers decide the strength of the potions and poisons you can brew.</p>
-      <ol class="g-tiers"><li>Weak potions</li><li>Standard potions</li><li>Strong potions</li><li>Potent potions, poisons</li><li>Legendary brews</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Woodcutter</h4><span class="g-epithet">The Grain Reader</span></div>
-      <p class="g-skilldesc">Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield.</p>
-      <ol class="g-tiers"><li>4 strikes, rough charcoal</li><li>8 strikes</li><li>12 strikes, good charcoal</li><li>16 strikes</li><li>20 strikes, fine charcoal, best mill yield</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Miner</h4><span class="g-epithet">The Deep Delver</span></div>
-      <p class="g-skilldesc">Only a Miner may work ore veins. Tiers decide which ores you can mine and how much a vein gives.</p>
-      <ol class="g-tiers"><li>Copper, iron, corundum</li><li>Silver, quicksilver</li><li>Orichalcum, moonstone</li><li>Ebony, malachite</li><li>Double yield from every vein</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Tailor</h4><span class="g-epithet">The Fine Thread</span></div>
-      <p class="g-skilldesc">Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew.</p>
-      <ol class="g-tiers"><li>Common clothes</li><li>Fine clothes, padded armor</li><li>Noble clothes, studded medium armor</li><li>Scaled medium armor</li><li>Masterwork garments</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Lockpicking</h4><span class="g-epithet">The Quiet Hand</span></div>
-      <p class="g-skilldesc">Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt.</p>
-      <ol class="g-tiers"><li>Novice locks</li><li>Apprentice locks</li><li>Adept locks, fewer picks broken</li><li>Expert locks</li><li>Master locks, silent entry</li></ol>
-    </article>
-  </div>
-  <h3 class="g-grouphead">Support <span class="g-count">6</span></h3>
-  <p class="g-groupblurb">The skills that feed everything else: what you gather, read, cook, skin, enchant and pray for.</p>
-  <div class="g-skills">
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Skinner</h4><span class="g-epithet">The Far Tracker</span></div>
-      <p class="g-skilldesc">Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get.</p>
-      <ol class="g-tiers"><li>Hide, 1 leather per pelt</li><li>Leather strips</li><li>2 leather per pelt</li><li>Fine leather</li><li>3 leather per pelt, rare pelts intact</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Scholar</h4><span class="g-epithet">The Ink-Stained</span></div>
-      <p class="g-skilldesc">Only a Scholar may read the books of the world. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll.</p>
-      <ol class="g-tiers"><li>Read common books</li><li>Better copies</li><li>Rare books</li><li>Scrolls</li><li>Spell tomes</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Enchanter</h4><span class="g-epithet">The Rune-Wright</span></div>
-      <p class="g-skilldesc">Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong.</p>
-      <ol class="g-tiers"><li>Fire, frost, shock</li><li>Soul trap, absorb stamina</li><li>Absorb health, paralyze</li><li>Chaos, absorb magicka</li><li>Dual enchantments</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Priest</h4><span class="g-epithet">The Hand of the Divines</span></div>
-      <p class="g-skilldesc">Restoration and Alteration. The only way to learn healing and warding spells, studied at any spell study point. Praying at a shrine counts as Priest work and raises the odds of a blessing.</p>
-      <ol class="g-tiers"><li>Novice spells</li><li>Apprentice spells</li><li>Adept spells</li><li>Expert spells</li><li>Master spells</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Cook</h4><span class="g-epithet">The Hearthkeeper</span></div>
-      <p class="g-skilldesc">Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare.</p>
-      <ol class="g-tiers"><li>Simple meals</li><li>Hearty meals</li><li>Feast dishes</li><li>Restorative dishes</li><li>Banquet fare with long buffs</li></ol>
-    </article>
-    <article class="g-skill">
-      <div class="g-skillhead"><h4>Harvesting</h4><span class="g-epithet">The Gleaner</span></div>
-      <p class="g-skilldesc">Gathering from the world's resource nodes: plants, mushrooms, nests, and gold pouches. Without this skill a node gives little or nothing; tiers raise both the chance of a yield and the amount.</p>
-      <ol class="g-tiers"><li>Common plants</li><li>Rare plants, nests</li><li>Double chance on gold pouches</li><li>+75% yield</li><li>Double yield, every node</li></ol>
-    </article>
-  </div>
-</section>
+  <section>
+    <h2>The eighteen</h2>
+    <p>Every skill on the Wheel, with what each of its five tiers unlocks. A tier starts at the level shown: Novice at 1, Apprentice at 25, Journeyman at 50, Expert at 75 and Master at 90. Eight skills open at a station; the other ten are taken up by doing the work.</p>
+    <h3>Combat &middot; 6</h3>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Two-Handed &middot; The Greatblade</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Basic strikes</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Power attacks cost less</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>+10% damage</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>+20% damage, faster swings</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>+30% damage, master power attacks</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Greatswords, battleaxes and warhammers. Tiers raise your proficiency and the vanilla Two-Handed skill grows only through this. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Archery &middot; The Far Shot</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Basic shots</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Steadier aim</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>+10% damage</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>+20% damage, faster draw</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>+30% damage, zoom and slow time</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Bows and crossbows. Tiers raise proficiency and the vanilla Archery skill grows only through this. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>One-Handed &middot; The Quick Edge</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Basic strikes</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Power attacks cost less</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>+10% damage</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>+20% damage, dual-wield flow</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>+30% damage, master power attacks</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Swords, axes, maces and daggers. Tiers raise proficiency and the vanilla One-Handed skill grows only through this. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Defense &middot; The Wall</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Light armor, basic blocking</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Medium armor, blocks cost less stamina</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Heavy armor, shield bash</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>+15% armor, power bash, arrows deflected</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>+30% armor, blocks reflect part of the blow, no stagger from small hits</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Arcane Arts &middot; The Ordered Mind</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Novice spells</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Apprentice spells</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Adept spells</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Expert spells</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Master spells</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the well in the Hall of the Elements to start). Three spells known at a time; the tier decides the highest spell rank you may learn. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Unarmed &middot; The Closed Fist</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Bare-knuckle blows</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Power attacks cost less</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>+10% damage</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>+20% damage, faster combinations</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>+30% damage, disarming strikes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Fists, claws and the discipline to use them. The only skill that needs nothing in your hands, and the one a Khajiit is born into: the server already reads a Khajiit's claws as a weapon. Tiers raise unarmed damage and nothing else grows it. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <h3>Professions &middot; 6</h3>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Blacksmith &middot; The Forge-Bound</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Iron, hide, leather</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Steel, elven, dwarven</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Orcish, glass, scaled</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Ebony, dragon</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Daedric; legendary improvement</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only a Blacksmith may use the forge, the workbench and the grindstone. Tiers decide which metals you may work and how well you improve gear. Taken up at a forge, an anvil or a smelter.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Alchemist &middot; The Patient Hand</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Weak potions</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Standard potions</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Strong potions</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Potent potions, poisons</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Legendary brews</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only an Alchemist may use the alchemy lab. Tiers decide the strength of the potions and poisons you can brew. Taken up at an alchemy table.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Woodcutter &middot; The Grain Reader</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>4 strikes, rough charcoal</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>8 strikes</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>12 strikes, good charcoal</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>16 strikes</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>20 strikes, fine charcoal, best mill yield</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield. Taken up at a chopping block.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Miner &middot; The Deep Delver</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Copper, iron, corundum</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Silver, quicksilver</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Orichalcum, moonstone</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Ebony, malachite</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Double yield from every vein</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only a Miner may work ore veins. Tiers decide which ores you can mine and how much a vein gives. Taken up at an ore vein.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Tailor &middot; The Fine Thread</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Common clothes</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Fine clothes, padded armor</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Noble clothes, studded medium armor</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Scaled medium armor</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Masterwork garments</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew. Taken up at a loom.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Lockpicking &middot; The Quiet Hand</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Novice locks</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Apprentice locks</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Adept locks, fewer picks broken</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Expert locks</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Master locks, silent entry</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <h3>Support &middot; 6</h3>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Skinner &middot; The Far Tracker</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Hide, 1 leather per pelt</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Leather strips</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>2 leather per pelt</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Fine leather</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>3 leather per pelt, rare pelts intact</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get. Taken up at a tanning rack.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Scholar &middot; The Ink-Stained</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Read common books</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Better copies</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Rare books</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Scrolls</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Spell tomes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only a Scholar may read the books of the world. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Enchanter &middot; The Rune-Wright</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Fire, frost, shock</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Soul trap, absorb stamina</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Absorb health, paralyze</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Chaos, absorb magicka</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Dual enchantments</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong. Taken up at an arcane enchanter.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Priest &middot; The Hand of the Divines</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Novice spells</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Apprentice spells</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Adept spells</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Expert spells</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Master spells</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Restoration and Alteration. The only way to learn healing and warding spells, studied at any spell study point. Praying at a shrine counts as Priest work and raises the odds of a blessing. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Cook &middot; The Hearthkeeper</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Simple meals</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Hearty meals</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Feast dishes</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>Restorative dishes</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Banquet fare with long buffs</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare. Taken up at a cooking pot or spit.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th class="g-num">Level</th><th>Harvesting &middot; The Gleaner</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Common plants</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>Rare plants, nests</td></tr>
+          <tr><td>Journeyman</td><td class="g-num">50</td><td>Double chance on gold pouches</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>+75% yield</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>Double yield, every node</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Gathering from the world's resource nodes: plants, mushrooms, nests, and gold pouches. Without this skill a node gives little or nothing; tiers raise both the chance of a yield and the amount. Taken up by doing it: the work banks until there is a level&rsquo;s worth, then the skill is offered.</p>
+  </section>
   <section>
     <h2>Eighteen, not seventeen: the Closed Fist</h2>
     <p><strong>Unarmed</strong> joined the combat group on 20 September. Fists, claws and the discipline to use them — the only skill that needs nothing in your hands, and the one a Khajiit is born into.</p>
     <p>That last part is not flavour. The server's damage formula already computes unarmed damage from the race record's own <code>Unarmed Damage</code> field, and that field reads <strong>14 for a Khajiit, 10 for an Argonian and 4 for everyone else</strong>. Khajiit claws were server-authoritative before the skill existed; Unarmed simply gives them somewhere to grow.</p>
     <p>The two were identical at 10 until the racial pass on 20 September raised the Khajiit. That was not a buff for its own sake: Argonians also carry a 50% disease resistance, and seeing in the dark changes no number the server checks, so a Khajiit had <em>no server-enforceable trait of their own at all</em>. Rawlith Khaj is the iconic set of claws, so the split went their way. The field sits outside the 300-point pool, so it costs them nothing here.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Tier</th><th>The Closed Fist</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td>Bare-knuckle blows</td></tr>
+          <tr><td>Apprentice</td><td>Power attacks cost less</td></tr>
+          <tr><td>Journeyman</td><td>+10% damage</td></tr>
+          <tr><td>Expert</td><td>+20% damage, faster combinations</td></tr>
+          <tr><td>Master</td><td>+30% damage, disarming strikes</td></tr>
+        </tbody>
+      </table>
+    </div>
     <p>Vanilla Skyrim folds unarmed into One-Handed's perk tree and has no skill for it, so this is a discipline the base game does not offer. For a roleplay server it also buys brawls: tavern fights, prisoners and disputes settled without drawing steel.</p>
   </section>
   <section>
@@ -288,7 +423,7 @@
     </div>
   </section>
   <footer>
-    <p>Written 20 September 2026; revised the same night for Unarmed and the combat openings, and again that afternoon for the mining weight, the Khajiit claws and the marker spells. The eighteen skills and their tiers are generated from the live <span class="g-mono">server/skills.json</span>, read 23 September 2026. Full design, including the parts we rejected and the open decisions, is in <span class="g-mono">server/SKILLS_DESIGN.md</span>.</p>
+    <p>Written 20 September 2026; the full list of eighteen added 23 September; revised the same night for Unarmed and the combat openings, and again that afternoon for the mining weight, the Khajiit claws and the marker spells. Full design, including the parts we rejected and the open decisions, is in <span class="g-mono">server/SKILLS_DESIGN.md</span>.</p>
   </footer>
 </div>
 </main>
