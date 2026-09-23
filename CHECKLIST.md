@@ -10,7 +10,7 @@
   validate ok (29,326 -> 29,420 records, HEDR matches, 0 unresolvable), 0 dangling, 0 broken doors, deletions
   2,525 -> 2,540. DLE sha `3397aa4e`.
 - [x] Installed in dev Data and `server\data`; dev server (`deploy-plugins`, restart 02:19, 0 errors), launcher sync,
-  client package 0.3.16, `_release\DragonBreak-plugins-20260922.zip` rebuilt. Backups:
+  client package 0.3.17 (another session had just shipped its own 0.3.16; this is theirs plus the merged DLE), `_release\DragonBreak-plugins-20260922.zip` rebuilt. Backups:
   `ckmcp-backups\pre-brumacity-20260922-211913\`, `/opt/skymp-backups/plugins-20260923T021952Z`.
 - [ ] Not looked at in game. The 15 deletions are real deletions (as authored), not disable-and-sink.
 - [ ] Do not load `newbrumacityedits.esp` alongside DLE: its records now live inside DLE.
