@@ -248,7 +248,18 @@ try {
       if (typeof ctx.value !== 'number') return;
       var p = ctx.sp.Game.getPlayer(); if (!p) return;
       if (ctx.sp.Ui.isMenuOpen('RaceSex Menu')) return;
-      if (Math.abs(p.getScale() - ctx.value) > 0.001) p.setScale(ctx.value);`,
+      if (Math.abs(p.getScale() - ctx.value) <= 0.001) return;
+      p.setScale(ctx.value);
+      // setScale moves the body but leaves the first person camera at the old
+      // height: the camera is only rebuilt when it changes person. Bounce it,
+      // and only when the player is already in first, so nobody is yanked out
+      // of third. Camera state 0 is first person (sweetCameraEnforcementService).
+      try {
+        if (ctx.sp.Game.getCameraState() === 0) {
+          ctx.sp.Game.forceThirdPerson();
+          ctx.sp.Utility.wait(0.1).then(function () { ctx.sp.Game.forceFirstPerson(); });
+        }
+      } catch (e) {}`,
     updateNeighbor: `
       if (typeof ctx.value !== 'number' || !ctx.refr) return;
       if (ctx.state.dboScale === ctx.value) return;
@@ -2366,6 +2377,30 @@ const masteryDamageMult = (aggressorId, sourceId) => {
   const bonus = Number((MASTERY_DMG.byTier || [])[rank]) || 0;
   return bonus > 0 ? 1 + bonus : 1;
 };
+// The server's hit formula counts only the bow's WEAP damage; vanilla adds the worn arrow's (AMMO DATA float at byte 8)
+const ARROWS = Object.assign({ enabled: true, scale: 1 }, cfg.arrows || {});
+const recordDamageCache = globalThis.__dboRecordDamage instanceof Map ? globalThis.__dboRecordDamage : (globalThis.__dboRecordDamage = new Map());
+const recordDamageOf = (baseId, type) => {
+  const key = `${type}:${baseId}`;
+  if (recordDamageCache.has(key)) return recordDamageCache.get(key);
+  let damage = 0;
+  const r = recordOf(baseId);
+  const data = r && String(r.record.type) === type ? fieldsOf(r, 'DATA')[0] : null;
+  if (data && data.data.byteLength >= (type === 'AMMO' ? 12 : 10)) {
+    const view = new DataView(data.data.buffer, data.data.byteOffset, data.data.byteLength);
+    damage = type === 'AMMO' ? view.getFloat32(8, true) : view.getUint16(8, true);
+  }
+  recordDamageCache.set(key, damage);
+  return damage;
+};
+const arrowDamageMult = (aggressorId, sourceId) => {
+  if (!ARROWS.enabled || weaponSkillOf(sourceId) !== 'archery') return 1;
+  const bow = recordDamageOf(sourceId, 'WEAP');
+  if (!(bow > 0)) return 1;
+  let arrow = 0;
+  try { for (const w of wornOf(mp.get(aggressorId, 'equipment'))) arrow = Math.max(arrow, recordDamageOf(w.baseId, 'AMMO')); } catch (e) { return 1; }
+  return arrow > 0 ? 1 + (arrow * (Number(ARROWS.scale) || 0)) / bow : 1;
+};
 // A vampire burns under fire and a werewolf under silver (supernatural.js): the extra comes off after the engine's hit
 const superBonusDamage = (agg, tgt, src, damage) => {
   const pend = globalThis.__dboSuperPending; globalThis.__dboSuperPending = null;
@@ -2475,7 +2510,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
 
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
-    const mult = masteryDamageMult(agg, src);
+    const mult = masteryDamageMult(agg, src) * arrowDamageMult(agg, src);
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };
