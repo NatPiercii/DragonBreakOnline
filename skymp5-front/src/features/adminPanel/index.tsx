@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import './styles.scss';
-import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PanelBan, MasteryTarget, TargetOption, BeastState } from './extraTabs';
+import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PlaceTab, PanelBan, MasteryTarget, TargetOption, BeastState } from './extraTabs';
 
 // One roster row as merged by the server (online actor data + backend record).
 interface PanelPlayer {
@@ -91,6 +91,7 @@ export interface AdminPanelData {
   bans?: PanelBan[]; // admin-bans.json entries (temp and ip bans)
   itemsVersion?: number; // bumped when window.__dboAdminItems arrives
   locationsVersion?: number; // bumped when window.__dboAdminLocations arrives
+  placeablesVersion?: number; // bumped when window.__dboAdminPlaceables arrives
   masteryTarget?: MasteryTarget | null; // the Skills tab's player, arrives after adminMasteryRequest
   me?: { a: string; b?: BeastState }; // the admin's own row, which the roster leaves out
 }
@@ -106,7 +107,7 @@ const send = (key: string, ...args: unknown[]): void => {
   }
 };
 
-type Tab = 'debug' | 'players' | 'skills' | 'items' | 'powers' | 'teleport' | 'modes' | 'npcs';
+type Tab = 'debug' | 'players' | 'skills' | 'items' | 'powers' | 'teleport' | 'place' | 'modes' | 'npcs';
 
 // Debug is open to every player; the rest render only while data.admin is true
 const TABS: Array<{ id: Tab; label: string }> = [
@@ -116,6 +117,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'items', label: 'Items' },
   { id: 'powers', label: 'Powers' },
   { id: 'teleport', label: 'Teleport' },
+  { id: 'place', label: 'Place' },
   { id: 'modes', label: 'Modes' },
   { id: 'npcs', label: 'NPCs' },
 ];
@@ -513,6 +515,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
         {tab === 'powers' ? <PowersTab events={ev} targets={targets} /> : null}
 
         {tab === 'teleport' ? <TeleportTab events={ev} locationsVersion={data.locationsVersion || 0} /> : null}
+        {tab === 'place' ? <PlaceTab events={ev} placeablesVersion={data.placeablesVersion || 0} /> : null}
 
         {tab === 'modes' ? (
           <div className="admin-panel__modes">

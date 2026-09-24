@@ -47,7 +47,7 @@ const events = {
 };
 
 // Requests the front may send through admin::request; everything else is refused here
-const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest"]);
+const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest", "adminPlaceablesRequest"]);
 
 interface DebugServer {
   name: string;
@@ -165,6 +165,7 @@ export class AdminMenuService extends ClientListener {
         // The big catalogs live in the browser (window.__dboAdminItems / __dboAdminLocations); only their version travels here
         itemsVersion: panelData.itemsVersion || 0,
         locationsVersion: panelData.locationsVersion || 0,
+        placeablesVersion: panelData.placeablesVersion || 0,
         masteryTarget: panelData.masteryTarget || null,
         events,
       };
@@ -204,6 +205,11 @@ export class AdminMenuService extends ClientListener {
       const json = JSON.stringify(Array.isArray(list) ? list : []);
       this.sp.browser.executeJavaScript(`window.${isItems ? "__dboAdminItems" : "__dboAdminLocations"} = ${json};`);
       if (isItems) panelData.itemsVersion = Date.now(); else panelData.locationsVersion = Date.now();
+      this.pushData();
+    } else if (content["customPacketType"] === "adminPlaceables") {
+      const list = content["categories"];
+      this.sp.browser.executeJavaScript(`window.__dboAdminPlaceables = ${JSON.stringify(Array.isArray(list) ? list : [])};`);
+      panelData.placeablesVersion = Date.now();
       this.pushData();
     } else if (content["customPacketType"] === "adminMastery") {
       panelData.masteryTarget = { name: String(content["targetName"] ?? ""), target: String(content["target"] ?? ""), detail: content["detail"] || null };
@@ -319,6 +325,11 @@ export class AdminMenuService extends ClientListener {
 
   private onBrowserMessage(e: BrowserMessageEvent) {
     const kind = e.arguments[0];
+    // PlacementService takes over the screen; the panel would hold the mouse and the crosshair
+    if ((kind === "admin::place" || kind === "admin::placedelete") && this.menuOpen) {
+      this.closeMenu();
+      return;
+    }
     if (kind === events.close || (kind === "menu:escape" && this.menuOpen)) {
       this.closeMenu();
       return;
@@ -357,6 +368,11 @@ export class AdminMenuService extends ClientListener {
     if (kind === events.request) {
       const type = String(e.arguments[1] ?? "");
       if (!PANEL_REQUESTS.has(type)) return;
+      // The Place tab's catalog is served by the gamemode (placement.js), not by AdminSystem
+      if (type === "adminPlaceablesRequest") {
+        sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeCatalog", args: [] });
+        return;
+      }
       let fields: Record<string, unknown> = {};
       try { fields = JSON.parse(String(e.arguments[2] ?? "{}")) || {}; } catch { fields = {}; }
       sendCustomPacket(this.controller, Object.assign({}, fields, { customPacketType: type }));

@@ -64,6 +64,7 @@ import { CaptureConsentService } from "./services/services/captureConsentService
 import { SearchService } from "./services/services/searchService";
 import { VoiceService } from "./services/services/voiceService";
 import { AdminMenuService } from "./services/services/adminMenuService";
+import { PlacementService } from "./services/services/placementService";
 import { AdminModeService } from "./services/services/adminModeService";
 // U-key personal menu disabled for now, features not needed yet
 // import { PersonalMenuService } from "./services/services/personalMenuService";
@@ -171,6 +172,7 @@ const main = () => {
       new LipSyncService(sp, controller),
       new StaticRefsService(sp, controller),
       new AdminMenuService(sp, controller),
+      new PlacementService(sp, controller),
       new AdminModeService(sp, controller),
       new FactionService(sp, controller),
       new TradeService(sp, controller),

@@ -420,3 +420,80 @@ export const PowersTab = ({ events, targets }: { events: Record<string, string>;
     </div>
   );
 };
+
+// The Place tab's catalog is handed to the browser once as window.__dboAdminPlaceables; placeablesVersion changes when it arrives
+interface PlaceCategory { id: string; label: string; kind: 'npc' | 'object'; items: Array<[string, string, string]> }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const placeables = (): PlaceCategory[] | null => ((window as any).__dboAdminPlaceables as PlaceCategory[]) || null;
+
+export const PlaceTab = ({ events, placeablesVersion }: { events: Record<string, string>; placeablesVersion: number }) => {
+  const [cat, setCat] = useState('');
+  const [search, setSearch] = useState('');
+  const [mod, setMod] = useState('');
+  const [picked, setPicked] = useState<string | null>(null);
+  const [hostile, setHostile] = useState(true);
+  const [shown, setShown] = useState(PAGE);
+  const categories = useMemo(placeables, [placeablesVersion]);
+  useEffect(() => { if (!categories) adminRequest(events, 'adminPlaceablesRequest', {}); }, []);
+  useEffect(() => { if (categories && categories.length && !cat) setCat(categories[0].id); }, [categories]);
+  const index = useMemo(() => {
+    const out: Array<{ desc: string; name: string; plugin: string; cat: string; kind: 'npc' | 'object'; hay: string }> = [];
+    for (const c of categories || []) for (const it of c.items) {
+      out.push({ desc: it[0], name: it[1], plugin: it[2] || '', cat: c.id, kind: c.kind, hay: (it[1] + ' ' + it[0]).toLowerCase() });
+    }
+    return out;
+  }, [categories]);
+  const plugins = useMemo(() => Array.from(new Set(index.map((r) => r.plugin))).filter(Boolean).sort((a, b) => a.localeCompare(b)), [index]);
+  const q = search.trim().toLowerCase();
+  const rows = useMemo(() => index.filter((r) => (q ? r.hay.indexOf(q) !== -1 : r.cat === cat) && (!mod || r.plugin === mod)), [index, q, cat, mod]);
+  useEffect(() => setShown(PAGE), [q, cat, mod]);
+  const pickedRow = index.find((r) => r.desc === picked) || null;
+  const start = (desc?: string): void => {
+    const row = index.find((r) => r.desc === (desc || picked));
+    if (!row) return;
+    send('admin::place', JSON.stringify({ desc: row.desc, kind: row.kind, name: row.name, hostile: row.kind === 'npc' && hostile }));
+  };
+  return (
+    <div className="admin-panel__body admin-panel__items">
+      <div className="admin-panel__categories">
+        {(categories || []).map((c) => (
+          <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); }}>
+            {c.label} <span className="admin-panel__count">{c.items.length}</span>
+          </button>
+        ))}
+      </div>
+      <div className="admin-panel__itempane">
+        <div className="admin-panel__filters">
+          <input className="admin-panel__search" placeholder="Search NPCs and objects" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select className="admin-panel__select" value={mod} onChange={(e) => setMod(e.target.value)}>
+            <option value="">All mods</option>
+            {plugins.map((pl) => <option key={pl} value={pl}>{pl.replace(/\.(esp|esm|esl)$/i, '')}</option>)}
+          </select>
+        </div>
+        <div className="admin-panel__list admin-panel__list--items">
+          {!categories ? <div className="admin-panel__empty">Loading the catalog</div> : rows.length === 0 ? <div className="admin-panel__empty">Nothing matches</div> : (
+            rows.slice(0, shown).map((r) => (
+              <div key={r.desc} className={'admin-panel__row admin-panel__row--clickable' + (r.desc === picked ? ' admin-panel__row--selected' : '')}
+                onClick={() => setPicked(r.desc)} onDoubleClick={() => { setPicked(r.desc); start(r.desc); }}>
+                <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
+                {q ? <span className="admin-panel__cell admin-panel__cell--discord">{r.cat}</span> : null}
+                <span className="admin-panel__cell admin-panel__cell--discord">{r.plugin.replace(/\.(esp|esm|esl)$/i, '')}</span>
+              </div>
+            ))
+          )}
+          <MoreRow shown={Math.min(shown, rows.length)} total={rows.length} onMore={() => setShown(shown + PAGE)} />
+        </div>
+        <div className="admin-panel__actions">
+          <span className="admin-panel__label">{pickedRow ? pickedRow.name : 'Pick something (double-click places)'}</span>
+          {pickedRow && pickedRow.kind === 'npc' ? (
+            <label className="admin-panel__checkbox">
+              <input type="checkbox" checked={hostile} onChange={(e) => setHostile(e.target.checked)} /> Hostile
+            </label>
+          ) : null}
+          <Button text="Place" width={110} height={32} disabled={!pickedRow} onClick={() => start()} />
+          <Button text="Delete tool" width={130} height={32} onClick={() => send('admin::placedelete')} />
+        </div>
+      </div>
+    </div>
+  );
+};
