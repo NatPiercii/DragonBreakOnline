@@ -1,5 +1,67 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-24 (03:30 UTC): play session 01:25-03:02 UTC, issues noted (nothing fixed or pushed yet, Nat: hold)
+
+Players: Argosh, Goddess Dibella, Elder Uriel, Huntan Elmgrove, Hircine, Lizard-chef, Falcius Octavio, Velisse
+Montclair, Vaelis Duskwood, plus new characters. Evidence is `/var/log/skymp-server.log` for that window.
+
+- [x] **Fixed in code 2026-09-24, not deployed (Nat: hold).** Dungeon enemies bunched on players / not taking damage:
+  measured on bandit `ff000084` (Serpents Trail 02:39:16) - placed at its zone spot (-2841,-6251), then jumped 6290
+  units to 248 from its host Lizard-chef, who streamed that to the server; everyone else's hits were "too distant".
+  Same birthplace bug as the fox bounce: every copy is `placeAtMe`'d on the player. `SpawnProcess` now seats the new
+  copy natively (`TESModPlatform.moveRefrToPosition`) before its first enable; `/driftspawn moveTo|setPosition`
+  switches it live, jump reports carry `spawn`. Needs client 0.3.34. Verify: jump reports with `fromPlayer` under
+  ~400 should stop; "too distant" count in a dungeon run should fall.
+- [x] Fixed in code: party HUD after a crash (dungeons.js `__dboPartyLogin/Logout`, harness
+  `tests/party-reconnect-harness.js`); gameplay deploy only.
+- [x] Fixed in code: Healing Hands retargets the caster's restoration channel from `OnSpellHit`, keep-alives keep the
+  target; magicka/health regen gap capped at 5 s with a timer per vital, client sends vitals every 1 s. C++ never
+  compiled locally (no build tree): CI flatrim build must pass `[CropRegeneration]` and `[ChangeValues]`.
+- [x] Fixed in code: trade menu search bar (front build only). deploy-gameplay no longer copies `NPC-Spawns.json`
+  (a regenerated wildlife file must now be copied by hand).
+- [ ] New from Nat: looting a webbed body (bodies in general) crashed - need the crash log.
+- [ ] Favorites: waiting on Nat - never sets, or lost after relog/pickup.
+
+- [ ] **Dungeon enemies "only in one room, leave the room and they despawn" (Serpents Trail 02:35-02:54).** Server side
+  all 17 prespawned enemies stayed up for the whole lease (no despawn line until the 02:53:55 release), so the
+  vanishing is on the clients. 188 "aggressor and targetRef are too distant" hit refusals, all 02:30-02:50 (the
+  dungeon run), and "not a hoster" errors climbing 6 -> 19 per 10 min: the enemies' server positions disagree with
+  what players see. Suspects, unmeasured: (a) the 0.3.32 rule that sends no movement for a hosted actor without 3D,
+  if actors across the cave count as unloaded; (b) interior neighbour streaming range. Next: npcDrift report of
+  host id, 3D state and server-vs-client distance for dungeon actors. Note Serpents Trail's zones are all in cell 01
+  because cells 02/03 have no placements in BSHeartland (02 is the jail room); 20 of 86 multi-cell dungeons have
+  a cell with no enemies at all (list: node one-liner over dungeons.json `cells` vs `zones[].cell`).
+- [ ] **A gameplay deploy ends running dungeon leases.** `NPC-Spawns.json` is tracked, so `deploy-gameplay` copies it
+  over the live one; at 01:56:20 that wiped the Plundered Mine lease zones mid-run (all 9 zones despawned, then
+  "released (left)"). Exclude `NPC-Spawns.json` from deploy-gameplay like the other runtime files, or refuse to
+  deploy while a `dungeon:*` zone exists.
+- [ ] **Healing Hands does not heal other players (code proven).** The cast event's target is always the caster
+  (SkyrimPlatform `EventHandler.cpp` reads the caster's MagicTarget), so `OnSpellCast` opens the restoration channel
+  on the caster; and `OnSpellHit` returns for anything not FireAndForget (`ActionListener.cpp` ~1932), so the hit
+  with the real target is dropped. Heal Other works, Healing Hands heals the caster. 288 restoration-channel lines
+  this session. Fix is C++ (let concentration restoratives re-target the caster's channel from `OnSpellHit`), so a
+  CI flatrim build.
+- [ ] **Magicka bar fills then drops back ("regens faster than it should") (code proven).** The client reports vitals
+  every 2000 ms at the earliest; `CropPeriodAfterLastRegen` treats any gap over 2.0 s as 1.0 s, so nearly every
+  report is cut to about half and the server sends the lower value back. Real regen is about half the intended rate;
+  the bar shows full rate for 2 s and snaps. Server-side stamina drains share the health/magicka clock. Fix: C++ cap
+  the gap (e.g. at 5 s) instead of dropping to 1 s, separate clocks per vital; optionally client sends every 1 s.
+- [ ] **Favorites bar doesn't set / keep.** Nothing blocks the menu or keys 1-8 (vanilla controlmap). Favorites are not
+  stored anywhere: login removes every item and spell and re-adds them without favorite data, and server inventory
+  rewrites re-apply the inventory mid-session. Nat to say which: never sets, or lost after relog / after picking
+  something up. Test: favorite an item + spell, wait 5 s, pick up gold, relog.
+- [ ] **Vitals don't sync well** (Nat). Largely the magicka item above; health follows the same rule at a rate too
+  small to see. Remote clones' bars come from `remoteVitalsService`, not checked yet.
+- [ ] **Trade menu needs a search bar** (Nat, feature). Front widget `skymp5-front/src/features/trade`; front build only.
+- [ ] **Quick relogs (crash or disconnect under 2 min):** Goddess Dibella 01:35:57 (108 s) and 01:48:00 (26 s),
+  Falcius Octavio 02:24:57, Velisse Montclair 02:33:47, Lizard-chef 02:46:09. Vaelis Duskwood left 03:01:08 = the
+  22:59:59 local crash (Havok, Freezewind Hollow, same as 20:58). Ask the others for crash logs.
+- [ ] Log noise with a cause: 16 each `setStage` / `isRunning` / `EnableLinkChain`, 8 `GetCurrentPackage`, 6
+  `setMotionType` Papyrus methods not found; 13 `CYRBrumaMS11BonfireActivatorScript` not found; 9 "Negative Magicka
+  found" for base `2ebe2` (offset -25); 219 "resolved context ... (reason=exception)".
+- [ ] Still open from before: main menu -> character select not reopening; fox bounce (birth-position report +
+  spawn-at-position, awaiting go); preset streamlining for the character creator; crash 20:44 (animation load).
+
 ## Added 2026-09-24 (01:30 UTC): NPC stability before launch - the split repair swaps, measured
 
 Nat: wildlife "hop up and down in place", "float and phase under the map", "rubber band too sometimes". Launch blocker.
