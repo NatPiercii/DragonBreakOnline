@@ -69,6 +69,9 @@ module.exports = (api) => {
       const downedAttempt = function (aggressorId, targetId, sourceId, damage, ...rest) {
         const agg = Number(aggressorId) >>> 0, tgt = Number(targetId) >>> 0, dmg = Number(damage) || 0;
         S.pending = null;
+        // The gamemode's hit bonuses are noted by the inner handler; a stale one would land on the respawned body
+        globalThis.__dboMasteryPending = null;
+        globalThis.__dboSuperPending = null;
         // A hostile player finishes a fallen one: the temple, now
         if (dmg > 0 && S.downed.has(tgt) && isDead(tgt) && isPlayer(agg) && !friendly(agg, tgt)) {
           finish(tgt, agg);
