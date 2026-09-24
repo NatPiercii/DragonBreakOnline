@@ -78,7 +78,17 @@
   "shopMaxRank": 3,
   "shopPriceMultiplier": 1,
   "shopCooldownDays": 7,
-  "shopTreasury": "bruma"
+  "shopTreasury": "bruma",
+  "shopProvince": "cyrodiil",
+  "shopShowForeign": false
+ },
+ "regions": {
+  "_comment": "Province rules (server\\regions.js; data regions.json from ck-mcp\\regions.py, hand rules regions-overrides.json). craft: a creation recipe is refused outside the provinces its product belongs to (turn on after the in-game rollback test). tomes: /tomes stocks only what spells.shopProvince sells; spells.shopShowForeign lists the rest as blocked rows. adminBypass: admins pass both unless /region test. failOpen: a recipe or tome with no entry is allowed and logged once. defaultPlace: the province of a place no table knows.",
+  "craft": false,
+  "tomes": true,
+  "adminBypass": true,
+  "failOpen": true,
+  "defaultPlace": "skyrim"
  },
  "reading": {
   "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",

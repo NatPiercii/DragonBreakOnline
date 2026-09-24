@@ -6,7 +6,8 @@
 // engine takes the spell back off the client (ReadBookEvent::OnFireBlocked sends Actor.RemoveSpell).
 // /spells lists studied spells, /forget frees a slot, /teach passes a spell to a nearby player, /tomes is the
 // college shop inside the Synod enclave. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
-// tome missing from it is read from its records at runtime.
+// tome missing from it is read from its records at runtime. The shop stocks only the tomes regions.js sells in
+// shopProvince; /teach carries a spell anywhere.
 //
 // State, on the character:
 //   private.dboStudied       { arcane: [spell desc...], priest: [...] }  spells learned through this system
@@ -37,6 +38,8 @@ module.exports = (api) => {
     shopPreferPlugins: ['BSHeartland.esm', 'BSAssets.esm'],
     shopExcludePlugins: ['Gray Fox Cowl.esm', 'SurWR.esp'],
     shopExcludePattern: '^(dun|MGR)|quest|FF\\d\\d',
+    shopProvince: 'cyrodiil',
+    shopShowForeign: false,
   }, cfg.spells || {});
 
   const SHOP_ID = 44;
@@ -366,6 +369,10 @@ module.exports = (api) => {
       .filter((t) => (seen.has(t.spellId) ? false : seen.add(t.spellId)));
   })();
   const priceOf = (t) => Math.max(1, Math.round(t.value * (Number(CFG.shopPriceMultiplier) || 1)));
+  // The province filter from regions.js, or null when it is not loaded or switched off
+  const regions = () => { const R = globalThis.__dboRegions; return R && R.tomesOn() ? R : null; };
+  const soldHere = (R, t) => !R || R.tomeOk(t.bookId, CFG.shopProvince);
+  const soldIn = (R, t) => { const w = R ? R.tomeWhere(t.bookId) : null; return w && w.length ? R.listNames(w) : ''; };
   const inShop = (a) => SHOP_CELLS.has(norm(get(a, 'worldOrCellDesc', '')));
   const isMember = (a) => { const g = get(a, 'private.dboGuilds', []); return Array.isArray(g) && g.some((m) => m && (CFG.shopFactions || []).includes(String(m.id))); };
   const goldOf = (a) => { const inv = get(a, 'inventory', { entries: [] }); return (Array.isArray(inv.entries) ? inv.entries : []).reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD && !e.worn ? Number(e.count) || 0 : 0), 0); };
@@ -398,14 +405,19 @@ module.exports = (api) => {
     const schools = new Set([].concat(...held.map((x) => x.s.vanillaSkills || [])));
     const gold = goldOf(a);
     const whyNot = shopRefusal(a);
+    const R = regions();
+    const admin = !!R && R.bypass(a);
     openWidget(a, {
-      type: 'tomeShop', id: SHOP_ID, nonce, title: 'The Synod: Spell Tomes', gold,
+      type: 'tomeShop', id: SHOP_ID, nonce, title: R ? `The Synod: Spell Tomes of ${R.provinceName(CFG.shopProvince)}` : 'The Synod: Spell Tomes', gold,
       canBuy: !whyNot, nextPurchaseAt: nextBuyAt(a), whyNot,
       skills: held.map((x) => ({ id: x.s.id, label: x.s.label, tier: x.tier, tierName: TIER_NAMES[x.tier], schools: (x.s.vanillaSkills || []).slice() })),
-      tomes: SHOP.filter((t) => schools.has(t.school)).map((t) => ({
-        id: descOf(t.bookId), name: t.title, spell: t.name, school: t.school, rank: t.rank, rankName: RANKS[t.rank],
-        price: priceOf(t), canAfford: gold >= priceOf(t), blocked: tomeBlock(a, t),
-      })),
+      tomes: SHOP.filter((t) => schools.has(t.school) && (soldHere(R, t) || admin || CFG.shopShowForeign)).map((t) => {
+        const foreign = !soldHere(R, t);
+        return {
+          id: descOf(t.bookId), name: foreign && admin ? `${t.title} (${soldIn(R, t) || 'sold nowhere'})` : t.title, spell: t.name, school: t.school, rank: t.rank, rankName: RANKS[t.rank],
+          price: priceOf(t), canAfford: gold >= priceOf(t), blocked: foreign && !admin ? (soldIn(R, t) ? `Sold in ${soldIn(R, t)}` : 'Not sold anywhere') : tomeBlock(a, t),
+        };
+      }),
       result: result || '', resultKind: resultKind || '',
     }, true);
   };
@@ -421,6 +433,8 @@ module.exports = (api) => {
     if (why) return { ok: false, text: why };
     const t = SHOP.find((x) => x.bookId === bookId);
     if (!t || tierOf(a, SKILL_OF_SCHOOL[t.school].id) < 0) return { ok: false, text: 'The court mage will not sell you that tome.' };
+    const R = regions();
+    if (!soldHere(R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
     const block = tomeBlock(a, t);
     if (block) return { ok: false, text: `${t.title}: ${block}.` };
     const price = priceOf(t);
@@ -462,5 +476,6 @@ module.exports = (api) => {
   onUi('spellsClose', (a) => closeMenu(a));
   onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) shopNonces.delete(a >>> 0); });
 
-  log(`spells ${CFG.enabled ? 'on' : 'off'}: ${TOMES.size} tomes known, ${STUDY_POINTS.length} study point(s), ${SHOP.length} tomes in the Synod shop, slots ${SPELL_SKILLS.map((s) => `${s.id} ${slotsOf(s.id)}`).join(', ')}`);
+  const R0 = regions();
+  log(`spells ${CFG.enabled ? 'on' : 'off'}: ${TOMES.size} tomes known, ${STUDY_POINTS.length} study point(s), ${SHOP.length} tomes in the Synod shop, slots ${SPELL_SKILLS.map((s) => `${s.id} ${slotsOf(s.id)}`).join(', ')}${R0 ? `, ${SHOP.filter((t) => soldHere(R0, t)).length} stocked for ${R0.provinceName(CFG.shopProvince)}` : ''}`);
 };
