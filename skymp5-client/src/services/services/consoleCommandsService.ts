@@ -5,6 +5,9 @@ import { MsgType } from "../../messages";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
 
 import { ClientListener, Sp, CombinedController } from "./clientListener";
+import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
+import { ConnectionMessage } from "../events/connectionMessage";
+import { CustomPacketMessage } from "../messages/customPacketMessage";
 
 enum CmdArgument {
     ObjectReference,
@@ -15,12 +18,47 @@ enum CmdArgument {
 
 type CmdName = "additem" | "equipitem" | "placeatme" | "disable" | "markfordelete" | "mp";
 
+// Console commands that run only on this machine: staff may use them, every use is reported to the server's log, and
+// anyone else is refused. Only commands whose arguments SkyrimPlatform converts (none, actor values, numbers): for any
+// other argument type the wrapper throws before it runs and the command breaks for staff too (ConsoleApi.cpp GetTypedArg)
+const LOCAL_AUDITED = [
+    "tgm", "tcl", "tfc", "tai", "tcai", "tdetect", "killall", "psb", "caqs",
+    "setav", "modav", "forceav", "restoreav", "damageav", "setscale",
+];
+
 export class ConsoleCommandsService extends ClientListener {
     constructor(private sp: Sp, private controller: CombinedController) {
         super();
         this.schemas = ConsoleCommandsService.createSchemas();
         this.setupMpCommand();
         this.setupVanilaCommands();
+        this.setupLocalAudit();
+        this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
+    }
+
+    // The server says whether this character holds console rights; until it does, local cheats are refused
+    private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
+        const content = parseCustomPacket(event);
+        if (!content || content["customPacketType"] !== "dboConsoleRights") return;
+        this.consoleRights = content["allowed"] === true;
+    }
+
+    private setupLocalAudit() {
+        for (const name of LOCAL_AUDITED) {
+            const command = this.sp.findConsoleCommand(name);
+            if (command === null) {
+                logError(this, `command`, name, `was null in setupLocalAudit`);
+                continue;
+            }
+            command.execute = (...args: unknown[]) => {
+                const refId = Number(args[0]) || 0;
+                const target = refId === 0x14 ? "player" : refId ? (localIdToRemoteId(refId) || refId).toString(16) : "";
+                const shown = args.slice(1).map((a) => String(a));
+                sendCustomPacket(this.controller, { customPacketType: "dbo", event: "consoleLocal", args: [name, target, shown] });
+                if (!this.consoleRights) this.sp.printConsole("Console commands are for staff.");
+                return this.consoleRights;
+            };
+        }
     }
 
     private static createSchemas() {
@@ -112,6 +150,7 @@ export class ConsoleCommandsService extends ClientListener {
         };
     }
 
+    private consoleRights = false;
     private readonly schemas: Map<CmdName, CmdArgument[]>;
     private readonly immuneSchema = ["mp"];
     private readonly nonVanilaCommands = ["mp"];
