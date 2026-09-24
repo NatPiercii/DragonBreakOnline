@@ -2759,6 +2759,13 @@ try {
   require(JAIL_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, isAdmin, distanceMeters });
 } catch (e) { log('jail.js failed to load:', e.stack || e.message); globalThis.__dboJailActivate = null; globalThis.__dboJailLogin = null; globalThis.__dboJailUnstuck = null; }
 
+// ---- breaking free of bound hands, /struggle (server\struggle.js, config "struggle") --------------
+try {
+  const STRUGGLE_JS = path.resolve('struggle.js');
+  delete require.cache[STRUGGLE_JS];
+  require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, distanceMeters, sendPacket });
+} catch (e) { log('struggle.js failed to load:', e.stack || e.message); globalThis.__dboOnRestrained = null; globalThis.__dboStruggling = null; }
+
 // ---- character level 1-5 and its Health/Magicka/Stamina points (charlevel.js, config "charLevel") ----
 try {
   const CHARLEVEL_JS = path.resolve('charlevel.js');
@@ -2771,8 +2778,8 @@ try {
   const PLAYERMENU_JS = path.resolve('playermenu.js');
   delete require.cache[PLAYERMENU_JS];
   const runCommand = (a, name, argStr) => { const c = commands.get(name); if (c && (!c.admin || isAdmin(a))) c.fn(a, argStr); };
-  require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, cfg, every });
-} catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; }
+  require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, zoneOfActor, cfg, every });
+} catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; globalThis.__dboInstantRestraint = null; }
 
 // ---- player factions: guilds, holds, clans, cults (server\guilds.js, guild-defs.json) -------------
 try {

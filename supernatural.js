@@ -29,6 +29,8 @@ module.exports = (api) => {
     fireWeaknessPerStage: 0.25, silverWeakness: 0.5,
     forcedChangeChance: 0.10, beastChangesPerDay: 1,
     beastFeedSeconds: 30, corpseFreshMinutes: 10,
+    // A restrained living player gives blood this often, in game days
+    feedLivingEveryDays: 1,
     permaDeathChance: 0.33,
     // Nat: a failed rite at Molag Bal's or Hircine's shrine waits a real day before another try
     riteFailCooldownHours: 24,
@@ -570,7 +572,8 @@ module.exports = (api) => {
     quietNear(a, `You see ${nameOf(a)} feed on the dead.`, 1500);
     return true;
   };
-  // X menu: Feed on a restrained living player
+  // X menu: Feed on a restrained living player, each victim once per feedLivingEveryDays
+  const livingFedAt = globalThis.__dboSuperLivingFed || (globalThis.__dboSuperLivingFed = new Map()); // victim actorId -> gameDays
   globalThis.__dboSuperMenuEntries = (a, t) => {
     if (kindOf(a) !== 'vampire') return [];
     let r = null; try { r = mp.get(t, 'private.restrained'); } catch (e) { /* none */ }
@@ -579,7 +582,10 @@ module.exports = (api) => {
   globalThis.__dboSuperMenuAction = (a, id, t) => {
     if (id !== 'super:feed') return false;
     let r = null; try { r = mp.get(t, 'private.restrained'); } catch (e) { /* none */ }
-    if (kindOf(a) === 'vampire' && r && r.boundHands) feed(a, t, false);
+    if (kindOf(a) !== 'vampire' || !r || !r.boundHands) return true;
+    const last = livingFedAt.get(t >>> 0);
+    if (last !== undefined && gameDays() - last < Number(C.feedLivingEveryDays)) { personal(a, `${nameOf(t)} has no blood left to give. Let them recover.`); return true; }
+    if (feed(a, t, false)) livingFedAt.set(t >>> 0, gameDays());
     return true;
   };
   // beastform asks before a transform; a reason string refuses it

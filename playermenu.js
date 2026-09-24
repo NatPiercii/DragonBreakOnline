@@ -4,9 +4,12 @@
 // X on another player: the client asks for the menu (dbo event "playerMenu" [targetId]) and this answers
 // with the entries the viewer may use right now:
 //   everyone:                 Trade, Introduce (until the target knows you), Inspect, Invite to Party
-//   admins and zone officials: Search, Restrain / Uncuff, Put down
+//   admins and zone officials: Search, Restrain / Uncuff, while their own hands are free
+//   whoever carries the target: Put down
 // Trade, Search, Restrain, Uncuff, Carry and Put down go from the client straight to the server systems,
 // which check private.dboLawful themselves; Introduce, Inspect and Invite come back here as dbo events.
+// Restrain is instant for an admin or for a rank held in the zone the captor stands in
+// (globalThis.__dboInstantRestraint, asked by captureSystem); anywhere else the target is asked first.
 //
 // Introductions: every character holds ff_knownIds (owner-visible), the actor ids that introduced
 // themselves to it. Clients show "Stranger" for anyone not on their list.
@@ -21,6 +24,7 @@
 module.exports = (api) => {
   const { mp, log, personal, system, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf,
     giveItem, makeProp, runCommand, cfg, every } = api;
+  const zoneOfActor = typeof api.zoneOfActor === 'function' ? api.zoneOfActor : () => null;
   const C = Object.assign({ maskItem: '808:Armors of the Velothi Pt2.esp', maskName: 'Masked Person', maxDistance: 400 }, cfg.playerMenu || {});
   const KNOWN_PROP = 'ff_knownIds';
   const LAWFUL_PROP = 'private.dboLawful';
@@ -48,6 +52,30 @@ module.exports = (api) => {
   // ---- who may restrain: admins and anyone holding a zone rank --------------------------------------
   const refreshLawful = (a) => { const v = isLawful(a); if (get(a, LAWFUL_PROP, false) !== v) { try { mp.set(a, LAWFUL_PROP, v); } catch (e) { /* not ready */ } } };
   every('lawful', 15000, () => { for (const a of onlineActors()) refreshLawful(a); });
+
+  // The zones a player stands in: the hold or region, and a stronghold inside that hold when within its radius
+  const zonesHere = (a) => {
+    const here = zoneOfActor(a);
+    const ids = new Set(here ? [String(here)] : []);
+    const zones = api.zones || {};
+    if (!here || !(zones.holds || []).some((h) => h.id === String(here))) return ids;
+    const last = get(a, 'private.lastOutside', null);
+    const pos = last && last.world === get(a, 'worldOrCellDesc', '') ? get(a, 'pos', null) : last && last.pos;
+    if (!Array.isArray(pos)) return ids;
+    for (const z of zones.strongholds || []) {
+      if (Array.isArray(z.center) && Math.hypot(pos[0] - z.center[0], pos[1] - z.center[1]) <= Number(z.radius)) ids.add(z.id);
+    }
+    return ids;
+  };
+  // Asked by captureSystem: restrain without the target's consent; an admin target is always asked unless the captor is an admin
+  globalThis.__dboInstantRestraint = (captor, target) => {
+    try {
+      if (isAdmin(captor)) return true;
+      if (isAdmin(target)) return false;
+      const here = zonesHere(captor);
+      return ranksOf(profileOf(captor)).some((m) => here.has(m.zone.id) && !UNLAWFUL_RANKS.has(m.rank));
+    } catch (e) { log('instant restraint check failed', e.message); return false; }
+  };
 
   // ---- introductions ------------------------------------------------------------------------------
   // Turns the system on for a character (an absent list means "show every name")
@@ -109,13 +137,14 @@ module.exports = (api) => {
     if (myLeader !== null) entries.push({ id: 'partyleave', label: 'Leave Party' });
     try { if (typeof globalThis.__dboSuperMenuEntries === 'function') entries.push(...globalThis.__dboSuperMenuEntries(a, t)); } catch (e) { /* no curses */ }
     try { if (typeof globalThis.__dboFactionMenuEntries === 'function') entries.push(...globalThis.__dboFactionMenuEntries(a, t)); } catch (e) { /* factions not loaded */ }
-    if (get(a, LAWFUL_PROP, false) === true) {
-      const r = get(t, RESTRAINED_PROP, null) || {};
+    const r = get(t, RESTRAINED_PROP, null) || {};
+    const own = get(a, RESTRAINED_PROP, null) || {};
+    if (get(a, LAWFUL_PROP, false) === true && !own.boundHands && !own.carried) {
       entries.push({ id: 'search', label: 'Search' });
       entries.push(r.boundHands ? { id: 'release', label: 'Uncuff' } : { id: 'capture', label: 'Restrain' });
-      // Carry is off the menu (Nat, 2026-09-22); Put down stays so a carry already under way can end
-      if (r.carried && Number(r.carrierActorId) >>> 0 === a >>> 0) entries.push({ id: 'putdown', label: 'Put down' });
     }
+    // Carry is off the menu (Nat, 2026-09-22); Put down stays so a carry already under way can end
+    if (r.carried && Number(r.carrierActorId) >>> 0 === a >>> 0) entries.push({ id: 'putdown', label: 'Put down' });
     // Voice volume is a preference on the listener's own PC; offered only while voice chat is on (voiceSystem.ts)
     if (globalThis.__dboVoiceEnabled === true) {
       entries.push({ id: 'voice:louder', label: 'Voice louder' }, { id: 'voice:quieter', label: 'Voice quieter' }, { id: 'voice:mute', label: 'Mute voice' });

@@ -46,6 +46,23 @@
   "extendMinutes": 10,
   "pickChance": { "anyone": 0.15, "lockpicker": 0.35, "perTier": 0.1, "max": 0.85 }
  },
+ "struggle": {
+  "_comment": "Breaking free of bound hands with /struggle (server\\struggle.js): strikes landed in a row, band half-width in percent of the bar (watchedBand while anyone lawful other than the captor is within watchMeters, who is told; the captor is always told and never narrows it), sweepMs for the first crossing of the bar, multiplied by speedUp after each landed strike down to minSweepMs, seconds per attempt, one miss fails. winChance is the chance a clean round frees the captive, the most a scripted client can reach. cooldownMinutes between attempts, kept on the character. nearbyMeters hear about a break-out. whileCarried false refuses a carried captive. The escape grace before recapture is captureEscapeGraceMs in server-settings.json (20000 by default).",
+  "enabled": true,
+  "strikes": 6,
+  "band": 6,
+  "watchedBand": 4.5,
+  "sweepMs": 1000,
+  "speedUp": 0.95,
+  "minSweepMs": 700,
+  "seconds": 22,
+  "hitCooldownMs": 250,
+  "winChance": 0.5,
+  "cooldownMinutes": 4,
+  "watchMeters": 3,
+  "nearbyMeters": 15,
+  "whileCarried": false
+ },
  "spells": {
   "_comment": "Spell study (server\\spells.js). A tome is learned only at a skills.json spellStudyPoints entry, by a reader with the school's skill (arcane or priest) taken up, a tier that allows the tome's rank, and a free slot; slots 0 uses the skill's spellSlots (3). /teach: a teacher at teacherMinTier (3 = Expert) teaches a known spell to a player within teachMeters at studentMinTier (1 = Apprentice) or higher; teachAtStudyPoint also requires both at a study point. /tomes: the court mage's shop in shopCells (the Synod Conclave and its basement), for members of shopFactions with arcane or priest at shopMinTier or higher, ranks up to their tier and never above shopMaxRank (3 = Expert), one tome per shopCooldownDays, price = tome value x shopPriceMultiplier, paid to the shopTreasury zone.",
   "enabled": true,
