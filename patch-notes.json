@@ -1,5 +1,34 @@
 [
   {
+    "title": "Fair Trade",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "version": "Client 0.3.35",
+    "sections": [
+      {
+        "heading": "Trade and shops",
+        "items": [
+          "The trade window now shows where the trade stands: each side's Accept is shown, there is one Accept button and a gold field, and you are warned when a change resets the other side's Accept.",
+          "The Synod's tome shop has its own panel: school tabs, books grouped by rank, a search bar, a countdown to your next weekly purchase, and a confirmation before you buy."
+        ]
+      },
+      {
+        "heading": "Party and characters",
+        "items": [
+          "The party panel has a Leave button, with a confirmation click.",
+          "Quitting to the main menu now takes you back to character select."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Drinking or eating no longer locks a drawn weapon in place.",
+          "Console commands such as god mode, no-clip and changing your stats are for staff only, and every use is logged."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Choose Your God at Creation",
     "date": "2026-09-24",
     "tag": "Update",
