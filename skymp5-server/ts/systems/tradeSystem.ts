@@ -12,7 +12,7 @@ type Mp = any;
 //
 // Server-authoritative barter between two players; lives in server core so it survives gamemode hot reloads. The shipped client TradeService speaks exactly this protocol.
 //
-// Flow: tradeRequest -> tradeInvite accept/decline -> both edit offers (tradeSetOffer resets locks) -> both tradeLock -> both tradeAccept, then the server swaps the items atomically.
+// Flow: tradeRequest -> tradeInvite accept/decline -> both edit offers (tradeSetOffer resets locks) -> each tradeLock then tradeAccept -> short confirm delay, then the server swaps the items atomically.
 // Every item trades; an offer line names one inventory entry by baseId plus its extras, and the swap moves the server's own entries with their extras intact.
 //
 // Wire protocol - every message is a CustomPacket carrying JSON:
@@ -31,10 +31,11 @@ type Mp = any;
 //     { customPacketType: "tradeCompleted" } | { customPacketType: "tradeCancelled", reason }
 //     { customPacketType: "tradeNotice", text }
 
-// Defaults; overridable via "tradeMaxDistance" / "tradeInviteTtlMs" / "tradeInviteCooldownMs".
+// Defaults; overridable via "tradeMaxDistance" / "tradeInviteTtlMs" / "tradeInviteCooldownMs" / "tradeConfirmDelayMs".
 const DEFAULT_MAX_TRADE_DISTANCE = 1024;      // game units; both must stay within this range
 const DEFAULT_INVITE_TTL_MS = 60 * 1000;      // pending invites auto-cancel after this
 const DEFAULT_INVITE_COOLDOWN_MS = 30 * 1000; // min gap between invites per initiator->target
+const DEFAULT_CONFIRM_DELAY_MS = 3000;        // both accepted -> swap after this unless anything changes
 
 // Which server entries an offer draws on; plain[i] marks a line the server only holds without its extras
 interface Resolution {
@@ -55,6 +56,7 @@ interface Session {
   acceptedB: boolean;
   active: boolean; // false while the invite is still pending the partner's reply
   inviteSeq: number; // bumped per (re-)invite so stale TTL timers no-op
+  confirmSeq: number; // bumped whenever the deal changes so a stale confirm timer no-ops
 }
 
 // ── Pure inventory helpers (operate on the JSON shape of the inventory binding; identity lives in inventoryExtras.ts) ─
@@ -129,6 +131,7 @@ export class TradeSystem implements System {
   private maxTradeDistance = DEFAULT_MAX_TRADE_DISTANCE;
   private inviteTtlMs = DEFAULT_INVITE_TTL_MS;
   private inviteCooldownMs = DEFAULT_INVITE_COOLDOWN_MS;
+  private confirmDelayMs = DEFAULT_CONFIRM_DELAY_MS;
 
   async initAsync(ctx: SystemContext): Promise<void> {
     const s = await Settings.get();
@@ -139,6 +142,8 @@ export class TradeSystem implements System {
     if (Number.isInteger(rawTtl) && rawTtl > 0) this.inviteTtlMs = rawTtl;
     const rawCooldown = Number(all?.["tradeInviteCooldownMs"]);
     if (Number.isInteger(rawCooldown) && rawCooldown >= 0) this.inviteCooldownMs = rawCooldown;
+    const rawConfirm = Number(all?.["tradeConfirmDelayMs"]);
+    if (Number.isInteger(rawConfirm) && rawConfirm >= 0) this.confirmDelayMs = rawConfirm;
 
     // A character switch mid-trade would swap items out of the NEW body; void the deal instead
     ctx.gm.on("userAssignActor", (userId: number) => {
@@ -249,6 +254,7 @@ export class TradeSystem implements System {
 
   private endSession(s: Session): void {
     s.inviteSeq++; // invalidate any outstanding invite-TTL timer
+    s.confirmSeq++;
     this.sessions.delete(s.a);
     this.sessions.delete(s.b);
   }
@@ -416,6 +422,7 @@ export class TradeSystem implements System {
       acceptedA: false, acceptedB: false,
       active: false,
       inviteSeq: 0,
+      confirmSeq: 0,
     };
     if (!this.withinRange(mp, s)) {
       this.notice(mp, userId, 'You are too far away to trade.');
@@ -470,8 +477,13 @@ export class TradeSystem implements System {
     if (offer.some((i, n) => res.plain[n] && !wasPlain.has(lineKey(i)))) {
       this.notice(mp, userId, 'The server has no saved enchantment, tempering, soul or poison on that item, so it will trade as a plain copy.');
     }
+    const partner = s.a === userId ? s.b : s.a;
+    const partnerCommitted = s.a === userId ? (s.lockedB || s.acceptedB) : (s.lockedA || s.acceptedA);
     if (s.a === userId) { s.offerA = offer; } else { s.offerB = offer; }
     this.resetCommitments(s); // the terms changed; everyone must re-lock
+    if (partnerCommitted) {
+      this.notice(mp, partner, this.nameShownTo(mp, partner, userId) + ' changed their offer. Review it and accept again.');
+    }
     this.broadcastState(mp, s);
   }
 
@@ -501,6 +513,7 @@ export class TradeSystem implements System {
     }
     if (s.a === userId) { s.lockedA = false; s.acceptedA = false; }
     else { s.lockedB = false; s.acceptedB = false; }
+    s.confirmSeq++;
     this.broadcastState(mp, s);
   }
 
@@ -509,15 +522,38 @@ export class TradeSystem implements System {
     if (!s || !s.active) {
       return;
     }
-    // Accept is only meaningful once both sides have locked their offers.
-    if (!(s.lockedA && s.lockedB)) {
+    // Accepting needs my own offer locked; the partner may lock after me, and any offer change resets both
+    if (!(s.a === userId ? s.lockedA : s.lockedB) || (s.a === userId ? s.acceptedA : s.acceptedB)) {
+      return;
+    }
+    if (!s.offerA.length && !s.offerB.length) {
+      this.notice(mp, userId, 'Nothing is being traded yet.');
       return;
     }
     if (s.a === userId) { s.acceptedA = true; } else { s.acceptedB = true; }
+    this.broadcastState(mp, s);
     if (s.acceptedA && s.acceptedB) {
-      this.completeTrade(mp, s);
+      this.armConfirm(mp, s);
+    }
+  }
+
+  // Both accepted: swap after a short delay so either side can still back out
+  private armConfirm(mp: Mp, s: Session): void {
+    const seq = ++s.confirmSeq;
+    const fire = (): void => {
+      try {
+        if (this.sessions.get(s.a) !== s || s.confirmSeq !== seq || !(s.acceptedA && s.acceptedB)) {
+          return;
+        }
+        this.completeTrade(mp, s);
+      } catch (err: any) {
+        this.log('[trade] confirm error: ' + (err && err.message));
+      }
+    };
+    if (this.confirmDelayMs > 0) {
+      setTimeout(fire, this.confirmDelayMs);
     } else {
-      this.broadcastState(mp, s);
+      fire();
     }
   }
 
@@ -531,6 +567,7 @@ export class TradeSystem implements System {
 
   // Any change to the terms of the deal voids both players' commitments.
   private resetCommitments(s: Session): void {
+    s.confirmSeq++;
     s.lockedA = false;
     s.lockedB = false;
     s.acceptedA = false;
