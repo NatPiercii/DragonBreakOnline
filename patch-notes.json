@@ -1,5 +1,26 @@
 [
   {
+    "title": "Choose Your God at Creation",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Character creation",
+        "items": [
+          "Choosing a god is now the last step of making a new character. When you finish shaping your character, the god menu opens before you leave the Realm.",
+          "Pick one then, or press Not yet to decide later: type /deity whenever you are ready. Your first choice is always free, and changing gods later still takes a week."
+        ]
+      },
+      {
+        "heading": "Combat",
+        "items": [
+          "Bows and crossbows now add your arrows' damage to every hit, as in the base game. A hunting bow with iron arrows hits about twice as hard as before, and better arrows add more.",
+          "A player finished off while down now wakes at the temple at full health."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Living Dungeons",
     "date": "2026-09-24",
     "tag": "Update",
