@@ -1,0 +1,525 @@
+// The Synod's tome shop in the DragonBreak palette: purse and weekly allowance on top, school tabs, tome cards grouped by rank
+@import '../../dbo-theme.scss';
+
+$tome-ok: #6fd39a;
+$tome-ranks: (
+  r0: $dbo-stone-light,
+  r1: $dbo-aqua-fixed,
+  r2: $dbo-dragonbreak-violet,
+  r3: $dbo-aedric-gold,
+  r4: $dbo-lorkhan-red,
+);
+
+.tomeShop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 54;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: $dbo-ui-font;
+
+  &__fade {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(8, 25, 28, 0.42), rgba(3, 10, 12, 0.85) 100%);
+  }
+
+  &__panel {
+    position: relative;
+    pointer-events: auto;
+    box-sizing: border-box;
+    width: min(1080px, calc(94 * var(--dbo-vw)));
+    height: min(780px, calc(90 * var(--dbo-vh)));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 22px 26px 16px;
+    @include dbo-panel;
+  }
+
+  &__title {
+    margin: 0;
+    @include dbo-title;
+    font-size: clamp(20px, calc(2.2 * var(--dbo-vw)), 30px);
+    text-align: center;
+  }
+
+  &__ledger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid $dbo-border;
+  }
+
+  &__coin {
+    display: inline-block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    border-radius: 50%;
+    vertical-align: -1px;
+    background: radial-gradient(circle at 35% 35%, #fff1b8, #d8b04a 55%, #8a6a1e);
+    box-shadow: 0 0 4px rgba(224, 186, 98, 0.6);
+  }
+
+  &__purse {
+    display: inline-flex;
+    align-items: center;
+    color: $dbo-gold;
+    font-size: 18px;
+    letter-spacing: 0.04em;
+  }
+
+  &__weekly {
+    padding: 4px 12px;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    border: 1px solid $dbo-border;
+    background: rgba(0, 0, 0, 0.25);
+    color: $dbo-text;
+
+    &--open {
+      color: $tome-ok;
+      border-color: rgba(111, 211, 154, 0.6);
+      background: rgba(40, 90, 55, 0.3);
+    }
+
+    &--wait {
+      color: $dbo-gold;
+      border-color: $dbo-gold-border;
+      background: $dbo-gold-fill;
+    }
+
+    &--closed {
+      color: #e8907f;
+      border-color: rgba(201, 70, 58, 0.6);
+      background: rgba(90, 30, 28, 0.3);
+    }
+  }
+
+  &__why {
+    margin: -4px 0 0;
+    text-align: right;
+    color: $dbo-text-dim;
+    font-size: 14px;
+  }
+
+  &__result {
+    margin: 0;
+    padding: 8px 12px;
+    text-align: center;
+    font-size: 15px;
+    border: 1px solid $dbo-border;
+    background: rgba(0, 0, 0, 0.25);
+    color: $dbo-text;
+
+    &--ok {
+      color: $tome-ok;
+      border-color: rgba(111, 211, 154, 0.6);
+      background: rgba(40, 90, 55, 0.35);
+    }
+
+    &--refused {
+      color: #f0a397;
+      border-color: rgba(201, 70, 58, 0.7);
+      background: rgba(90, 30, 28, 0.4);
+    }
+  }
+
+  &__skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+  }
+
+  &__skill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: $dbo-text;
+    font-size: 15px;
+
+    b {
+      font-weight: 400;
+      color: $dbo-aqua;
+    }
+  }
+
+  &__skill-schools {
+    color: $dbo-text-dim;
+    font-size: 13px;
+  }
+
+  &__pips {
+    display: inline-flex;
+    gap: 5px;
+  }
+
+  &__pip {
+    width: 7px;
+    height: 7px;
+    transform: rotate(45deg);
+    border: 1px solid dbo-accent(0.5);
+
+    &--on {
+      background: $dbo-aqua;
+      box-shadow: 0 0 6px dbo-accent(0.6);
+    }
+  }
+
+  &__tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    border-bottom: 1px solid $dbo-border;
+  }
+
+  &__tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    color: $dbo-text-dim;
+    font-family: inherit;
+    font-size: 15px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color $dbo-fast, background $dbo-fast;
+
+    &:hover {
+      color: $dbo-text;
+    }
+
+    &--active {
+      background: $dbo-ground-3;
+      border-color: $dbo-border;
+      color: $dbo-aqua;
+      text-shadow: 0 0 10px dbo-accent(0.45);
+    }
+  }
+
+  &__tab-count,
+  &__group-count {
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: dbo-accent(0.15);
+    color: $dbo-aqua-dim;
+    font-size: 12px;
+    text-align: center;
+    letter-spacing: 0;
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__chip {
+    padding: 3px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $dbo-text-dim;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid $dbo-border;
+    cursor: pointer;
+
+    &:hover {
+      color: $dbo-text;
+      border-color: $dbo-border-strong;
+    }
+
+    &--active {
+      color: $dbo-gold;
+      border-color: $dbo-gold-border;
+      background: $dbo-gold-fill;
+    }
+  }
+
+  &__search {
+    flex: 0 1 280px;
+    min-width: 160px;
+    height: 30px;
+    padding: 0 8px;
+    font-family: inherit;
+    font-size: 15px;
+    color: $dbo-text;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid $dbo-border;
+
+    &::placeholder {
+      font-family: $dbo-ui-font;
+      font-size: 15px;
+      line-height: normal;
+      color: $dbo-text-dim;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: $dbo-border-strong;
+    }
+  }
+
+  &__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.55);
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: dbo-accent(0.35);
+
+      &:hover {
+        background: dbo-accent(0.6);
+      }
+    }
+  }
+
+  &__group + &__group {
+    margin-top: 14px;
+  }
+
+  &__group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    padding-bottom: 4px;
+    font-size: 14px;
+    font-weight: 400;
+    border-bottom: 1px solid dbo-accent(0.15);
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px;
+  }
+
+  &__rank {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid;
+
+    @each $key, $hue in $tome-ranks {
+      &--#{$key} {
+        color: $hue;
+        border-color: rgba($hue, 0.6);
+        background: rgba($hue, 0.12);
+      }
+    }
+  }
+
+  &__tome {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    color: $dbo-text;
+    background: linear-gradient(180deg, dbo-accent-deep(0.18), rgba(0, 0, 0, 0.3));
+    border: 1px solid $dbo-border;
+    transition: border-color $dbo-fast, box-shadow $dbo-fast;
+
+    &:hover {
+      border-color: $dbo-border-strong;
+      box-shadow: 0 0 12px dbo-accent(0.25);
+    }
+
+    &--blocked {
+      background: rgba(0, 0, 0, 0.3);
+
+      > :not(.tomeShop__blocked) {
+        opacity: 0.45;
+        filter: grayscale(1);
+      }
+
+      &:hover {
+        border-color: $dbo-border;
+        box-shadow: none;
+      }
+    }
+
+    &--busy {
+      border-color: $dbo-gold-border-strong;
+      box-shadow: 0 0 12px rgba(232, 214, 160, 0.35);
+    }
+  }
+
+  &__tome-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__school {
+    color: $dbo-aqua-dim;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  &__spell {
+    margin-top: 2px;
+    color: $dbo-silver;
+    font-size: 19px;
+    line-height: 1.15;
+  }
+
+  &__tome-name {
+    color: $dbo-text-dim;
+    font-family: $dbo-book-font;
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  &__blocked {
+    color: $dbo-amber;
+    font-size: 13px;
+  }
+
+  &__tome-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 6px;
+  }
+
+  &__price {
+    display: inline-flex;
+    align-items: center;
+    color: $dbo-gold;
+    font-size: 16px;
+
+    &--short {
+      color: $dbo-red;
+    }
+  }
+
+  &__empty {
+    margin: 60px 0 0;
+    color: $dbo-text-dim;
+    font-size: 20px;
+    letter-spacing: 0.06em;
+    text-align: center;
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding-top: 10px;
+    border-top: 1px solid $dbo-border;
+  }
+
+  &__hint {
+    color: $dbo-text-dim;
+    font-size: 13px;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  &__button {
+    @include dbo-button;
+
+    &--small {
+      padding: 4px 14px;
+      font-size: 13px;
+    }
+  }
+
+  &__shade {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    background: rgba(3, 10, 12, 0.65);
+  }
+
+  &__confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(460px, 84%);
+    padding: 22px 24px 18px;
+    text-align: center;
+    color: $dbo-text;
+    @include dbo-panel;
+  }
+
+  &__confirm-title {
+    margin: 0;
+    @include dbo-title;
+    font-size: 20px;
+  }
+
+  &__confirm-spell {
+    margin: 0;
+    color: $dbo-text-dim;
+    font-size: 14px;
+  }
+
+  &__confirm-text {
+    margin: 4px 0 6px;
+    font-size: 16px;
+
+    b {
+      font-weight: 400;
+      color: $dbo-gold;
+    }
+  }
+
+  @media (max-width: 900px), (max-height: 640px) {
+    &__panel {
+      width: calc(96 * var(--dbo-vw));
+      height: calc(94 * var(--dbo-vh));
+      padding: 14px 16px 12px;
+    }
+
+    &__ledger,
+    &__toolbar {
+      flex-wrap: wrap;
+    }
+  }
+}

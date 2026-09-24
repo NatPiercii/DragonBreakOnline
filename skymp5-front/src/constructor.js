@@ -36,6 +36,7 @@ import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
 import Party from './features/party';
+import TomeShop from './features/tomeShop';
 import { panelScaleOf } from './utils/PanelScale';
 
 const styles = [
@@ -279,6 +280,8 @@ const Constructor = props => {
       return <DungeonGate data={rend} />;
     case 'party':
       return <Party data={rend} />;
+    case 'tomeShop':
+      return <TomeShop data={rend} />;
     case 'death':
       return (
         <DeathScreen seconds={rend.seconds} onChoice={rend.onChoice} />
@@ -292,7 +295,7 @@ const Constructor = props => {
 const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
   rite: 'lorkhan', bountyBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan',
-  mastery: 'dragonbreak', reading: 'dragonbreak',
+  mastery: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze',
 };
 
