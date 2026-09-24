@@ -1,5 +1,22 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-24 (20:05 UTC): newbrumacityedits (2).esp merged into DragonBreak Online Edits.esp - DEPLOYED 20:08 UTC
+
+- [x] Nat's `newbrumacityedits (2).esp` (141 records) is (1) plus 35 records: Fighters Guild + basement and Icewind
+  Traders cells, 11 new REFRs, 21 BSHeartland REFR overrides (16 of them deletions, as authored), 14 of (1)'s records
+  edited. Merged with `ck-mcp\merge_into_dle.py`, which now takes `--previous <old child> --previous-dle <DLE before
+  that merge>`: it replays the first merge's id assignment and checks every id against DLE, so (1)'s 18 new REFRs kept
+  `DLE:12AE04..12AE15` instead of being added twice. New REFRs `DLE:12AE18..12AE22`. Proof OK (300 form id windows,
+  0 wrong; every untouched DLE record byte-identical); 29,433 -> 29,465 records; creation-kit validate ok, 0
+  unresolvable, 0 dangling, 0 broken doors, deletions now 2,556.
+- [x] **One conflict resolved by hand: BSHeartland WRLD `0B0A764B` object bounds.** After the first merge another session
+  raised DLE's NAM9 max y 266240 -> 299008 (undocumented); (2) lowers NAM0 min y 122880 -> -4096. The result keeps
+  the union: NAM0 (-16384, -4096), NAM9 (262144, 299008). Nat: say if either edit was not meant.
+- [x] Installed in dev Data and `server\data` (identical, sha `522294fc`). Backup: `ckmcp-backups\pre-brumacity2-20260924-150221\`.
+- [x] **Deployed 20:08 UTC (Nat's go)**: `deploy-plugins` replaced DLE on the game server (restart, 0 `[error]` at boot) and in the launcher's extra files (`/api/files/extra` serves `522294fc`); old copy in `/opt/skymp-backups/plugins-20260924T200826Z`. The client package zip still holds `6255dc1b` until the next package; launchers 2.1.17+ replace it per file. Was: `deploy-plugins` (+ restart, launcher sync, commit the `SHA256SUMS`) and the
+  client package need Nat's go. `_release\DragonBreak-plugins-20260924.zip` not built (the step was declined).
+- [ ] Not looked at in game. Do not load `newbrumacityedits*.esp` alongside DLE.
+
 ## Added 2026-09-24 (evening, with Nat: "finish everything"): regions, PvP rebalance, keys, jail, Gray Fox, DevTools
 
 Nat said push both and deploy gameplay. Every harness passes (run them all with `for f in tests/*-harness.js`).
