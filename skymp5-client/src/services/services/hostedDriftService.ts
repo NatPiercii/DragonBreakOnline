@@ -5,6 +5,7 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
 import { setRefrCollision } from "../../sync/animation";
+import { SpawnProcess } from "../../view/spawnProcess";
 
 const POLL_MS = 500;
 const HEARTBEAT_MS = 30000;
@@ -48,7 +49,9 @@ export class HostedDriftService extends ClientListener {
     if (!content || content["customPacketType"] !== "npcDriftConfig") return;
     const mode = REPAIR_MODES.find((m) => m === content["repair"]);
     if (mode) this.repairMode = mode;
-    this.send({ kind: "config", repair: this.repairMode });
+    const spawn = content["spawn"];
+    if (spawn === "moveTo" || spawn === "setPosition") SpawnProcess.placeMode = spawn;
+    this.send({ kind: "config", repair: this.repairMode, spawn: SpawnProcess.placeMode });
   }
 
   private onUpdate(): void {
@@ -173,7 +176,7 @@ export class HostedDriftService extends ClientListener {
     if (canReport && boneMoved >= JUMP_UNITS) {
       t.reportedAt = now;
       this.send({
-        kind: "jump", ...common(), boneMoved: Math.round(boneMoved), refMoved: Math.round(refMoved),
+        kind: "jump", ...common(), spawn: SpawnProcess.placeMode, boneMoved: Math.round(boneMoved), refMoved: Math.round(refMoved),
         from: { ref: t.ref.map(Math.round), bone: t.bone.map(Math.round) }, to: { ref: ref.map(Math.round), bone: bone.map(Math.round) },
       });
     } else if (canReport && t.boneZ.length === HOP_SAMPLES && this.reversals(t.boneZ) >= 2

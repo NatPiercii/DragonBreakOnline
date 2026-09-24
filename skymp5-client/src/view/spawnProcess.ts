@@ -1,10 +1,15 @@
-import { ObjectReference, Game, Actor, MotionType } from "skyrimPlatform";
+import { ObjectReference, Game, Actor, MotionType, TESModPlatform, Cell, WorldSpace } from "skyrimPlatform";
 import { Appearance, applyTints } from "../sync/appearance";
 import { NiPoint3 } from "../sync/movement";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { setRefrCollision } from "../sync/animation";
 
+// "moveTo" seats the new copy at its spot natively before its first load, so a reload cannot put it back at the player
+export type SpawnPlaceMode = "moveTo" | "setPosition";
+
 export class SpawnProcess {
+  static placeMode: SpawnPlaceMode = "moveTo";
+
   constructor(
     appearance: Appearance | null,
     pos: NiPoint3,
@@ -16,7 +21,17 @@ export class SpawnProcess {
       return;
     }
 
+    if (SpawnProcess.placeMode === "moveTo") SpawnProcess.seat(refr, pos);
     refr.setPosition(...pos).then(() => this.enable(appearance, refrId));
+  }
+
+  private static seat(refr: ObjectReference, pos: NiPoint3) {
+    const player = Game.getPlayer();
+    if (!player) return;
+    const world = player.getWorldSpace();
+    const cell = world ? null : player.getParentCell();
+    if (!world && !cell) return;
+    TESModPlatform.moveRefrToPosition(refr, cell as Cell | null, world as WorldSpace | null, pos[0], pos[1], pos[2], 0, 0, 0);
   }
 
   private enable(appearance: Appearance | null, refrId: number) {
