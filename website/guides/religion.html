@@ -134,7 +134,7 @@
       <div class="g-num"><div class="g-num-v">8–24 h</div><div class="g-num-l">Boon lasts</div></div>
       <div class="g-num"><div class="g-num-v">60 min</div><div class="g-num-l">Per shrine</div></div>
       <div class="g-num"><div class="g-num-v">7 days</div><div class="g-num-l">Between conversions</div></div>
-      <div class="g-num"><div class="g-num-v">26</div><div class="g-num-l">Gods</div></div>
+      <div class="g-num"><div class="g-num-v">33</div><div class="g-num-l">Gods and faiths</div></div>
     </div>
     <figure>
       <div class="g-round-box">
@@ -161,11 +161,18 @@
         against those spans and decides for itself, so editing the widget changes what the worshipper
         sees and not what the gods give.</figcaption>
     </figure>
+    <h3>Offerings</h3>
+    <p>Say <code>/offer &lt;gold&gt;</code> at your god's shrine (anywhere, for the older faiths) to leave an
+      offering of 5 to 1000 gold. <strong>Half is consumed</strong> as the offering itself, and <strong>half
+      goes to the treasury of the town</strong> it is made in, for the temple's upkeep. For the next hour your
+      god listens more closely: your next prayer's chance of a blessing grows with the offering, up to
+      <strong>double at 100 gold</strong>, and that prayer spends it.</p>
     <h3>The picker</h3>
     <p>The menu opens on its own the moment a character is out of the race menu with no god — and
       to every existing character too, since none of them has one. It is a watcher rather than a
       creation hook, which is why it catches both. <code>/deity</code> reopens it at any time.</p>
-    <p>Two columns of names beside a reading pane: <strong>Divines keyed aqua, Princes amber</strong>,
+    <p>Columns of names beside a reading pane: <strong>Divines keyed aqua, Princes amber</strong>, and the
+      older faiths in a column of their own from the next client update,
       the same split the prayer widget uses. Each name carries its marks — <em>yours</em>,
       <em>no shrine</em>, <em>unlawful</em> — and the pane gives the sphere, the boon, and whether
       there is anywhere you could actually pray. <strong>The first choice is free and needs no
@@ -360,6 +367,52 @@
       boon in the list that is <em>more</em> lore-accurate as code than as a record, and the only one
       that needed no Creation Kit work at all. <strong>Sanguine</strong> is the other: the Prince of
       indulgence belongs on the appetite meter, not on a spell.
+    </div>
+  </section>
+  <section>
+    <h2>The older faiths</h2>
+    <p>Not every people kneels to the Divines or bargains with the Princes. Seven older faiths are open
+      to anyone, and <strong>none of them needs a shrine</strong>: kneel wherever you are and say
+      <code>/pray</code>. The same three verses, the same Priest credit, one rest of an hour between prayers.
+      Because they can be prayed to anywhere, <strong>their blessings come half as often and last half as
+      long</strong> as a shrine god's. Each boon is its people's own gift, and the Dragon Cult and the
+      Worm Cult are outlawed in the Empire.</p>
+    <div>
+      <div class="g-god">
+        <div class="g-god-name">The Hist<span class="g-god-alias">The Root</span></div>
+        <div class="g-god-sphere">The great trees of Black Marsh, older than memory, whose sap made the Saxhleel what they are. The Hist remembers, and it gives.</div>
+        <div class="g-god-boon">Histskin: once a day, health regenerates ten times faster for 60 seconds <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">The Ancestors<span class="g-god-alias">The New Temple</span></div>
+        <div class="g-god-sphere">The honoured dead of House and family, the heart of Dunmer faith. The Tribunal is gone since the Third Era; the New Temple keeps the ancestors and the three Good Daedra.</div>
+        <div class="g-god-boon">Ancestor&#x27;s Wrath: once a day, a cloak of flame burns anyone close, 10 a second for 60 seconds <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">The Yokudan Gods<span class="g-god-alias">HoonDing, Tu&#x27;whacca, Satakal</span></div>
+        <div class="g-god-sphere">The gods the Redguards brought from drowned Yokuda: Satakal the world-skin, Tu&#x27;whacca who guards the Far Shores, and HoonDing, the Make-Way god.</div>
+        <div class="g-god-boon">Adrenaline Rush: once a day, stamina comes back far faster for 60 seconds <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">The Riddle&#x27;Thar<span class="g-god-alias">The Two-Moons Dance</span></div>
+        <div class="g-god-sphere">The Khajiiti faith of Masser and Secunda, and the cosmic order that shapes every Khajiit by the moons of their birth.</div>
+        <div class="g-god-boon">Night Eye: see in the dark for 60 seconds, whenever you wish <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">Trinimac<span class="g-god-alias">The Champion of Auri-El</span></div>
+        <div class="g-god-sphere">The Aldmeri warrior god, strongest of the elven gods before Boethiah devoured him and he rose again as Malacath. Some Orsimer still keep his name, and most of their kin despise them for it.</div>
+        <div class="g-god-boon">Armor +50 and 25% of magic resisted <span class="g-chip g-chip--live">live</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">The Dragon Cult<span class="g-god-alias">The Dragon Priests</span></div>
+        <div class="g-god-sphere">Worship of the dragons as the children of Akatosh and rightful lords of mortals, served by masked Dragon Priests who ruled in their name in ancient Skyrim. An old Nordic heresy, rarely pressed in Cyrodiil.</div>
+        <div class="g-god-boon">Shouts recover 20% faster <span class="g-chip g-chip--live">live</span> <span class="g-chip g-chip--pending">unlawful</span></div>
+      </div>
+      <div class="g-god">
+        <div class="g-god-name">The Worm Cult<span class="g-god-alias">The King of Worms</span></div>
+        <div class="g-god-sphere">The followers of Mannimarco, who seek mastery over death itself. Necromancy is hunted in the Empire since the Mages Guild&#x27;s war on the King of Worms.</div>
+        <div class="g-god-boon">Magicka regenerates twice as fast <span class="g-chip g-chip--live">live</span> <span class="g-chip g-chip--pending">unlawful</span></div>
+      </div>
     </div>
   </section>
   <section>
