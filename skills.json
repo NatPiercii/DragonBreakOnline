@@ -203,7 +203,7 @@
    "category": "combat",
    "label": "Arcane Arts",
    "title": "The Ordered Mind",
-   "description": "Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the well in the Hall of the Elements to start). Three spells known at a time; the tier decides the highest spell rank you may learn.",
+   "description": "Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the Synod Conclave in Bruma to start). Three spells known at a time; the tier decides the highest spell rank you may learn.",
    "vanillaSkills": [
     "Destruction",
     "Conjuration",
