@@ -288,5 +288,12 @@
  },
  "discord": {
   "channelId": "1552157689466060850"
+ },
+ "playerMenu": {
+  "maskItemByRace": {
+   "ArgonianRace": "849:Sentinel.esp",
+   "KhajiitRace": "849:Sentinel.esp",
+   "OrcRace": "849:Sentinel.esp"
+  }
  }
 }
