@@ -200,10 +200,6 @@ export class HousingSystem implements System {
   }
 
   async updateAsync(ctx: SystemContext): Promise<void> {
-    if (!this.keyNamesMigrated) {
-      this.keyNamesMigrated = true;
-      try { this.migrateLegacyKeyNames(ctx); } catch (e) { this.log(`[housing] key-name migration failed: ${e}`); }
-    }
     const now = Date.now();
     if (now - this.lastDecorMs < DECOR_PUSH_INTERVAL_MS) return;
     this.lastDecorMs = now;
@@ -356,6 +352,7 @@ export class HousingSystem implements System {
       return;
     }
     // Keys already cut stay in rec.issued, so a rename keeps them working
+    this.freezeKeyNames(ctx, primary, rec);
     const hadKeys = !!(rec.issued && rec.issued.length);
     rec.name = name;
     if (!this.commit(ctx, userId, primary, rec)) return;
@@ -373,6 +370,7 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "Only the owner, the Jarl or the Steward cuts keys here.");
       return;
     }
+    this.freezeKeyNames(ctx, primary, rec);
     const keyName = this.keyNameToCut(ctx, primary, rec);
     const issued = (rec.issued || []).filter((n) => n !== keyName);
     issued.push(keyName);
@@ -657,10 +655,12 @@ export class HousingSystem implements System {
   }
 
   // Freezes each old record's key name; all computed before any write so no rank shifts mid-pass
+  // Reads the registry without pruning it: an unreadable record is skipped, never dropped
   private migrateLegacyKeyNames(ctx: SystemContext): void {
     const todo: Array<{ primary: number; rec: PropertyRecord; name: string }> = [];
-    for (const { primary, rec } of this.liveClaims(ctx)) {
-      if (rec.issued === null) todo.push({ primary, rec, name: this.legacyKeyName(ctx, primary, rec) });
+    for (const primary of this.claimed.slice()) {
+      const rec = this.read(ctx, primary);
+      if (rec && rec.owner !== 0 && rec.issued === null) todo.push({ primary, rec, name: this.legacyKeyName(ctx, primary, rec) });
     }
     let n = 0;
     for (const t of todo) {
@@ -668,6 +668,14 @@ export class HousingSystem implements System {
       if (this.write(ctx, t.primary, t.rec)) n++;
     }
     if (todo.length) this.log(`[housing] recorded key names for ${n}/${todo.length} properties from before key-name records`);
+  }
+
+  // Run before anything that can move a key name (a rename, a new key), with the world loaded
+  private freezeKeyNames(ctx: SystemContext, primary: number, rec: PropertyRecord): void {
+    this.migrateLegacyKeyNames(ctx);
+    if (rec.issued !== null) return;
+    const fresh = this.read(ctx, primary);
+    rec.issued = fresh && fresh.issued ? fresh.issued : ((rec.name || "").trim() ? [this.legacyKeyName(ctx, primary, rec)] : []);
   }
 
   // Where this property stands among the ones sharing its name, lowest ref id
@@ -1019,7 +1027,6 @@ export class HousingSystem implements System {
   }
 
   private claimed: number[] = [];
-  private keyNamesMigrated = false;
   private partnerCache = new Map<number, number>();
   private baseTypeCache = new Map<number, string>();
   private unclaimableLogged = new Set<number>();
