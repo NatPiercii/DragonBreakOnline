@@ -1,0 +1,35 @@
+{
+  "_comment": "Hand-maintained region rules (server\\regions.js, ck-mcp\\regions.py, ck-mcp\\loot.py). Keys are editor ids or mp descs (lowercase hex, e.g. 5ace4:Skyrim.esm). A value is 'common' (everywhere), 'none' (never sold or craftable), a province, a culture from aliases, or a list of them. Applied at runtime on save: items, recipes, tomes, places, benches. Applied only after regenerating (py ck-mcp\\loot.py, then py ck-mcp\\regions.py): families, aliases, coreSpells; the generators also apply items.",
+  "aliases": {
+    "morrowind": "solstheim",
+    "hammerfell": "cyrodiil",
+    "akavir": "cyrodiil",
+    "blackmarsh": "cyrodiil",
+    "elsweyr": "cyrodiil",
+    "summerset": ["cyrodiil", "skyrim"],
+    "valenwood": ["cyrodiil", "skyrim"],
+    "shiveringisles": "skyrim"
+  },
+  "families": {
+    "imperial": ["cyrodiil", "skyrim"],
+    "elven": ["cyrodiil", "skyrim"],
+    "daedric": ["cyrodiil", "skyrim"],
+    "glass": ["skyrim", "solstheim"],
+    "ebony": ["skyrim", "solstheim"],
+    "dwarven": ["skyrim", "solstheim"],
+    "dragon": ["skyrim", "solstheim"],
+    "orcish": ["skyrim"]
+  },
+  "coreSpells": ["Candlelight", "Oakflesh", "Bound Sword", "Conjure Familiar", "Raise Zombie", "Flames", "Frostbite", "Sparks", "Clairvoyance", "Courage", "Fury", "Healing", "Lesser Ward"],
+  "benches": {
+    "CraftingSmithingSkyforge": ["skyrim"],
+    "DLC1CraftingDawnguard": ["skyrim"],
+    "DLC1LD_CraftingForgeAetherium": ["skyrim"],
+    "DLC2StaffEnchanter": ["solstheim"],
+    "CYRCraftingAyleidWell": ["cyrodiil"]
+  },
+  "items": {},
+  "recipes": {},
+  "tomes": { "ISS_SpellTomeConjureSkeleton": ["skyrim"] },
+  "places": { "RealmofLorkhan": "none" }
+}
