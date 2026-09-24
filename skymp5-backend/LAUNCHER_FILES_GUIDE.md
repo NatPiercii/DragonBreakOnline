@@ -34,7 +34,7 @@ produces, and `startPoints` must use the client's index. It is `0x24017482` toda
 | Channel | Backend endpoint | File on the backend | Built by | In git? |
 |---|---|---|---|---|
 | 1. **Mod install** (Nexus and other third-party mods) | `/api/install-manifest` | `skymp5-backend/data/install-manifest.json` | `npm run compile-manifest -- --mo2 <MO2 root>` | **no** (`data/` is untracked) |
-| 2. **Client package** (SkyMP client plus DragonBreak's own plugins) | `/api/files`, `/api/manifest` | `build/client-files/skymp-client.zip` + `data/files-version.json` | `npm run populate`, then copy the plugins in, then `npm run merge` | **no** |
+| 2. **Client package** (SkyMP client plus DragonBreak's own plugins) | `/api/files/version`, `/api/files/zip` (the launcher's two; `/api/manifest` is 404 on the live dragonbreak-backend) | `build/client-files/skymp-client.zip` + `data/files-version.json` | `npm run populate`, then copy the plugins in, then `npm run merge` | **no** |
 | 3. **Launcher self-update** | `/api/version` | `routes/version.js` (`LATEST_VERSION`, `DOWNLOAD_URL`) | GitHub release `launcher-vX.Y.Z` | yes |
 
 Because `data/` and `build/` are untracked, **a fresh backend deploy publishes nothing** until you
