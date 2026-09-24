@@ -52,12 +52,13 @@
  ],
  "skills": [
   {
-   "id": "twohanded",
+   "id": "blunt",
    "category": "combat",
-   "label": "Two-Handed",
-   "title": "The Greatblade",
-   "description": "Greatswords, battleaxes and warhammers. Tiers raise your proficiency and the vanilla Two-Handed skill grows only through this.",
+   "label": "Blunt",
+   "title": "The Heavy Hand",
+   "description": "Maces, war axes, warhammers and battleaxes, one hand or two: the weapons that break armour and bone by weight, as Oblivion counted them. Tiers raise your proficiency, and the vanilla One-Handed and Two-Handed skills grow through this.",
    "vanillaSkills": [
+    "OneHanded",
     "TwoHanded"
    ],
    "counts": {
@@ -70,7 +71,8 @@
      "ActorTypeDragon"
     ],
     "weaponTypes": [
-     "Greatsword",
+     "WarAxe",
+     "Mace",
      "Battleaxe",
      "Warhammer"
     ]
@@ -129,13 +131,14 @@
    ]
   },
   {
-   "id": "onehanded",
+   "id": "blade",
    "category": "combat",
-   "label": "One-Handed",
-   "title": "The Quick Edge",
-   "description": "Swords, axes, maces and daggers. Tiers raise proficiency and the vanilla One-Handed skill grows only through this.",
+   "label": "Blade",
+   "title": "The Keen Edge",
+   "description": "Swords, daggers and greatswords, one hand or two. A blade is a blade: the skill that cuts and thrusts, as it was before Skyrim split the hands. Tiers raise your proficiency, and the vanilla One-Handed and Two-Handed skills grow through this.",
    "vanillaSkills": [
-    "OneHanded"
+    "OneHanded",
+    "TwoHanded"
    ],
    "counts": {
     "hitKeywords": [
@@ -148,16 +151,15 @@
     ],
     "weaponTypes": [
      "Sword",
-     "WarAxe",
-     "Mace",
-     "Dagger"
+     "Dagger",
+     "Greatsword"
     ]
    },
    "tiers": [
     "Basic strikes",
     "Power attacks cost less",
     "+35% damage",
-    "+65% damage, dual-wield flow",
+    "+65% damage, faster swings",
     "+100% damage, master power attacks"
    ],
    "markerSpells": [

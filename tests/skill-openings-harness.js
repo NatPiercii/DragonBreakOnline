@@ -131,7 +131,7 @@ console.log(`acts banked before the take-up offer (a level's worth = ${OFFER_AT}
 // `matches` then re-tests the base record, so a scholar is never credited for a vein. Report only the
 // kind each skill can really receive, or the numbers below flatter the slow ones.
 const REAL_KIND = {
-  twohanded: ['hit'], archery: ['hit'], onehanded: ['hit'], unarmed: ['hit'],
+  blunt: ['hit'], archery: ['hit'], blade: ['hit'], unarmed: ['hit'],
   defense: ['hurt'], arcane: ['cast'],
   scholar: ['read'], priest: ['prayer', 'cast'], harvesting: ['activate'], lockpicking: ['lock'],
 };

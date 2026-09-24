@@ -29,7 +29,8 @@ const block = src.slice(from, to);
 
 // ---- the mock world ----------------------------------------------------------------------------
 const IRON_SWORD = 0x12eb7, GREATSWORD = 0x1359d, LONGBOW = 0x3b562, GOLD = 0xf;
-const ANIM = { [IRON_SWORD]: 1, [GREATSWORD]: 5, [LONGBOW]: 7 }; // Sword, Greatsword, Bow
+const IRON_WAR_AXE = 0x13790, IRON_MACE = 0x13982, IRON_BATTLEAXE = 0x13980;
+const ANIM = { [IRON_SWORD]: 1, [GREATSWORD]: 5, [LONGBOW]: 7, [IRON_WAR_AXE]: 3, [IRON_MACE]: 4, [IRON_BATTLEAXE]: 6 }; // Sword, Greatsword, Bow, WarAxe, Mace, Battleaxe
 // Armor: Daedric cuirass (heavy, 49) and Glass boots (light, 11), vanilla ratings
 const DAEDRIC_CUIRASS = 0x1396b, GLASS_BOOTS = 0x13939;
 const u32 = (...v) => { const b = new Uint8Array(v.length * 4); const d = new DataView(b.buffer); v.forEach((x, i) => d.setUint32(i * 4, x, true)); return b; };
@@ -89,8 +90,11 @@ console.log('mastery damage harness');
 console.log(`  block: ${block.split('\n').length} lines, MASTERY_DMG = ${JSON.stringify(M.MASTERY_DMG)}`);
 
 // ---- 1. weapon classification (WEAP DNAM byte 0) -----------------------------------------------
-ok('sword is one-handed', M.weaponSkillOf(IRON_SWORD) === 'onehanded', true);
-ok('greatsword is two-handed', M.weaponSkillOf(GREATSWORD) === 'twohanded', true);
+ok('sword is Blade', M.weaponSkillOf(IRON_SWORD) === 'blade', true);
+ok('greatsword is Blade', M.weaponSkillOf(GREATSWORD) === 'blade', true);
+ok('war axe is Blunt', M.weaponSkillOf(IRON_WAR_AXE) === 'blunt', true);
+ok('mace is Blunt', M.weaponSkillOf(IRON_MACE) === 'blunt', true);
+ok('battleaxe and warhammer are Blunt', M.weaponSkillOf(IRON_BATTLEAXE) === 'blunt', true);
 ok('bow is archery', M.weaponSkillOf(LONGBOW) === 'archery', true);
 ok('a non-weapon source has no skill', M.weaponSkillOf(GOLD) === '', true);
 ok('the unarmed source 0x1f4 is Unarmed', M.weaponSkillOf(0x1f4) === 'unarmed', true);
@@ -98,11 +102,12 @@ ok('an unknown source has no skill', M.weaponSkillOf(0x999999) === '', true);
 
 // ---- 2. the tier table -------------------------------------------------------------------------
 for (const [rank, want] of [[0, 1], [1, 1], [2, 1.35], [3, 1.65], [4, 2]]) {
-  chosen('onehanded', rank);
+  chosen('blade', rank);
   ok(`one-handed rank ${rank}`, M.masteryDamageMult(AGG, IRON_SWORD), want);
 }
-chosen('onehanded', 4);
-ok('a greatsword does not use the one-handed tier', M.masteryDamageMult(AGG, GREATSWORD), 1);
+chosen('blade', 4);
+ok('a greatsword uses the Blade tier, one hand or two', M.masteryDamageMult(AGG, GREATSWORD), 2);
+ok('a mace does not use the Blade tier', M.masteryDamageMult(AGG, IRON_MACE), 1);
 ok('gold is not a weapon', M.masteryDamageMult(AGG, GOLD), 1);
 world.mastery.set(AGG, { order: [], skills: {} });
 ok('an unchosen skill gives nothing', M.masteryDamageMult(AGG, IRON_SWORD), 1);
@@ -110,7 +115,7 @@ world.mastery.delete(AGG);
 ok('an actor with no mastery record (an NPC) gives nothing', M.masteryDamageMult(AGG, IRON_SWORD), 1);
 
 // ---- 3. the bonus itself -----------------------------------------------------------------------
-chosen('onehanded', 4);
+chosen('blade', 4);
 world.writes.length = 0;
 let r = hit(1.0, 0.20, 10, 1.3);
 ok('x1.3 takes 30% more health', r.health, 0.74);          // 0.80 - 0.20*0.3
@@ -196,7 +201,7 @@ const disabled = new Function('mp', 'cfg', 'log', 'display', 'recordOf', 'master
   block + '\nreturn { masteryDamageMult };')(
   mp, { mastery: { damage: { enabled: false } } }, () => { }, (id) => `a${id}`,
   (id) => mp.lookupEspmRecordById(id >>> 0), (id) => world.mastery.get(id) || null, fieldsOf, wornOf);
-chosen('onehanded', 4);
+chosen('blade', 4);
 ok('"enabled": false turns the bonus off', disabled.masteryDamageMult(AGG, IRON_SWORD), 1);
 
 console.log(`\n${pass} passed, ${fail} failed`);

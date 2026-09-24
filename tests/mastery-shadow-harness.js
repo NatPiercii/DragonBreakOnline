@@ -39,14 +39,14 @@ sys.points = {
   transferFloor: 25, firstTouchCost: 1, bucketBurst: 20, bucketPerHour: 30,
   dailyCaps: { low: 360, expert: 180, master: 60 }, characterDaily: 1080,
 };
-sys.skills = [{ id: 'onehanded', category: 'combat', label: 'One-Handed', title: '', description: '', tiers: [], vanillaSkills: [], counts: {}, gates: {} }];
-sys.rules = { onehanded: { gateStations: new Set(), gatePrefixes: [] } };
-sys.candidates = new Map([['hit', ['onehanded']]]);
+sys.skills = [{ id: 'blade', category: 'combat', label: 'Blade', title: '', description: '', tiers: [], vanillaSkills: [], counts: {}, gates: {} }];
+sys.rules = { blade: { gateStations: new Set(), gatePrefixes: [] } };
+sys.candidates = new Map([['hit', ['blade']]]);
 sys.matches = () => true;
 
 const hit = (actorId) => sys.creditActivity(ctx, { kind: 'hit', actorId, detail: { targetId: NPC, sourceId: 0x12eb7 } });
 const record = () => mp.get(PLAYER, 'private.mastery') || { skills: {} };
-const bank = () => record().skills.onehanded || {};
+const bank = () => record().skills.blade || {};
 
 // 1. a character with no record at all starts banking
 hit(PLAYER);
@@ -61,7 +61,7 @@ hit(PLAYER);
 ok('20th hit makes the offer', bank().offered === true, bank());
 ok('offer notice sent', packets.some((p) => p.customPacketType === 'masteryNotice' && /One-Handed/.test(p.text)));
 const menu = packets.filter((p) => p.customPacketType === 'masteryMenu').pop();
-ok('menu lists the offer', menu && menu.points.offers.some((o) => o.id === 'onehanded' && o.banked === 10), menu && menu.points.offers);
+ok('menu lists the offer', menu && menu.points.offers.some((o) => o.id === 'blade' && o.banked === 10), menu && menu.points.offers);
 
 // 3. the offer is made once, and the flag survives further work
 const notices = packets.filter((p) => p.customPacketType === 'masteryNotice').length;
@@ -70,7 +70,7 @@ ok('offer stays set', bank().offered === true);
 ok('no repeated offer notice', packets.filter((p) => p.customPacketType === 'masteryNotice').length === notices);
 
 // 4. taking it up spends the bank
-sys.customPacket(USER, 'masteryTakeUp', { skill: 'onehanded' }, ctx);
+sys.customPacket(USER, 'masteryTakeUp', { skill: 'blade' }, ctx);
 const taken = bank();
 ok('taken up above level 1', taken.level >= 2, taken);
 ok('bank cleared', !taken.shadow && !taken.offered, taken);

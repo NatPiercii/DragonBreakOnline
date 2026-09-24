@@ -2608,7 +2608,7 @@ const MASTERY_MIN_HEALTH = 0.01;
 // WEAP DNAM byte 0 is the animation type (libespm WEAP.h): 1 Sword, 2 Dagger, 3 WarAxe, 4 Mace,
 // 5 Greatsword, 6 Battleaxe (warhammers share it), 7 Bow, 8 Staff, 9 Crossbow. Spells and staves
 // are left out: the arcane tiers buy spell ranks, not damage.
-const WEAPON_SKILL = { 1: 'onehanded', 2: 'onehanded', 3: 'onehanded', 4: 'onehanded', 5: 'twohanded', 6: 'twohanded', 7: 'archery', 9: 'archery' };
+const WEAPON_SKILL = { 1: 'blade', 2: 'blade', 5: 'blade', 3: 'blunt', 4: 'blunt', 6: 'blunt', 7: 'archery', 9: 'archery' };
 const weaponSkillCache = globalThis.__dboWeaponSkill instanceof Map ? globalThis.__dboWeaponSkill : (globalThis.__dboWeaponSkill = new Map());
 const weaponSkillOf = (sourceId) => {
   if (weaponSkillCache.has(sourceId)) return weaponSkillCache.get(sourceId);
