@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import './styles.scss';
@@ -49,20 +49,28 @@ const send = (key: string, ...args: unknown[]): void => {
   }
 };
 
+const matches = (items: UiItem[], filter: string): UiItem[] =>
+  filter ? (items || []).filter((item) => (item.name || '').toLowerCase().includes(filter)) : items;
+
 interface ItemListProps {
   items: UiItem[];
+  filter: string;
   emptyText: string;
   onItemClick?: (item: UiItem) => void;
 }
 
 // A scrollable column of "<name> (xN)" rows. Clickable when onItemClick is set.
-const ItemList = ({ items, emptyText, onItemClick }: ItemListProps) => {
+const ItemList = ({ items, filter, emptyText, onItemClick }: ItemListProps) => {
   if (!items || items.length === 0) {
     return <div className="trade__empty">{emptyText}</div>;
   }
+  const shown = matches(items, filter);
+  if (shown.length === 0) {
+    return <div className="trade__empty">No matches</div>;
+  }
   return (
     <div className="trade__list">
-      {items.map((item, n) => (
+      {shown.map((item, n) => (
         <div
           key={n + ':' + item.lineId}
           className={'trade__item' + (onItemClick ? ' trade__item--clickable' : '')}
@@ -90,6 +98,22 @@ interface CountPrompt {
 const Trade = ({ data }: { data: TradeData }) => {
   const [prompt, setPrompt] = useState<CountPrompt | null>(null);
   const [promptCount, setPromptCount] = useState(1);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => setSearch(''), [data.partnerName]);
+
+  const filter = search.trim().toLowerCase();
+
+  // Keeps typed keys from the global Escape handler; Escape clears a non-empty search first.
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Escape' && !search) {
+      return;
+    }
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+      setSearch('');
+    }
+  };
 
   const ev = data.events || ({} as TradeEvents);
   const threshold = data.stackPromptThreshold || 5;
@@ -136,14 +160,28 @@ const Trade = ({ data }: { data: TradeData }) => {
       <div className="trade__window">
         <div className="trade__header">Trade with {data.partnerName}</div>
 
+        <div className="trade__search-row">
+          <input
+            className="trade__search"
+            placeholder="Search items"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={onSearchKey}
+          />
+        </div>
+
         <div className="trade__body">
           {/* Left: my offerable inventory */}
           <div className="trade__pane trade__pane--inventory">
             <div className="trade__pane-title">
-              Your Inventory <span className="trade__lock">({(data.inventory || []).length})</span>
+              Your Inventory{' '}
+              <span className="trade__lock">
+                ({filter ? matches(data.inventory, filter).length + '/' : ''}{(data.inventory || []).length})
+              </span>
             </div>
             <ItemList
               items={data.inventory}
+              filter={filter}
               emptyText="Nothing to trade"
               onItemClick={(item) => clickItem('add', item)}
             />
@@ -175,6 +213,7 @@ const Trade = ({ data }: { data: TradeData }) => {
               </div>
               <ItemList
                 items={data.myOffer}
+                filter={filter}
                 emptyText="(empty)"
                 onItemClick={data.myLocked ? undefined : (item) => clickItem('remove', item)}
               />
@@ -186,7 +225,7 @@ const Trade = ({ data }: { data: TradeData }) => {
                 {data.theirLocked ? <span className="trade__lock">[locked]</span> : null}
                 {data.theyAccepted ? <span className="trade__lock">[trading]</span> : null}
               </div>
-              <ItemList items={data.theirOffer} emptyText="(empty)" />
+              <ItemList items={data.theirOffer} filter={filter} emptyText="(empty)" />
             </div>
           </div>
         </div>

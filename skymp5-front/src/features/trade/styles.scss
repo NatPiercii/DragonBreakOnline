@@ -46,6 +46,26 @@ $trade-border: dbo-accent(0.42);
     margin-bottom: 14px;
   }
 
+  &__search-row {
+    display: flex;
+    margin-bottom: 12px;
+  }
+
+  &__search {
+    flex: 1;
+    height: 30px;
+    padding: 0 8px;
+    font-family: inherit;
+    font-size: 15px;
+    color: $trade-gold;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid $trade-border;
+
+    &::placeholder {
+      color: $trade-gold-dim;
+    }
+  }
+
   &__body {
     flex: 1;
     min-height: 0;
