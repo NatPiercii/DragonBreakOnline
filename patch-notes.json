@@ -1,5 +1,33 @@
 [
   {
+    "title": "Skill and Steel",
+    "date": "2026-09-24",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Combat",
+        "items": [
+          "Weapon skills hit much harder: +35% damage at Journeyman, +65% at Expert and +100% at Master (was +10/20/30%). A master with a great weapon now brings down an unarmored fighter in about four blows.",
+          "Unarmed now gets its tier bonus too. Fists never did before.",
+          "Defense makes the armor you wear count for more: +25% at Apprentice, up to +250% at Master. Heavy armor worn with a high Defense skill is now what keeps you standing."
+        ]
+      },
+      {
+        "heading": "Law and property",
+        "items": [
+          "A bound prisoner is uncuffed when the cell door locks behind them.",
+          "Renaming a property no longer breaks keys already cut for it, and it can no longer hand them to another property of the same name."
+        ]
+      },
+      {
+        "heading": "The Synod tome shop",
+        "items": [
+          "The Synod sells only the spell tomes known in Cyrodiil. Tomes from Skyrim and Solstheim will be sold in their own lands."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Fair Trade",
     "date": "2026-09-24",
     "tag": "Update",

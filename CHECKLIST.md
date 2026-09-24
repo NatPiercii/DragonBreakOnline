@@ -1,5 +1,51 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-24 (evening, with Nat: "finish everything"): regions, PvP rebalance, keys, jail, Gray Fox, DevTools
+
+Nat said push both and deploy gameplay. Every harness passes (run them all with `for f in tests/*-harness.js`).
+
+- [x] **Regions committed** (server `fc3e290b`, `1d54bbee`): the paused regions work from `HANDOFF_CLOUD_2026-09-24.md`
+  item 1 was complete on disk (harness 61/61) and only needed committing. The tome filter is on (`/tomes` sells Cyrodiil
+  tomes); **the craft gate stays off** (`regions.craft: false`) until one in-game test shows a refused craft keeps its
+  materials: `/region test`, try a Skyrim-only recipe in Bruma, leave the forge, count the ingots.
+- [x] **PvP rebalance** (server `8273a192`, config `mastery` / `pvp`). Measured first from the live log: a naked player
+  has 150 health; a Master two-hander hit for 25.6 + 7.7 (x1.30), 5 hits to kill. Now weapon tiers are
+  +35/+65/+100% (4 hits, 2 with power attacks), fists use the Unarmed tier (source `0x1f4` never mapped to a skill,
+  so Unarmed's advertised bonus was never paid), and **Defense** makes worn armor count x1.25/1.75/2.5/3.5 by tier: the
+  engine takes armor at rating x 0.12 % with no skill, so the hit is scaled from the engine's reduction to the boosted
+  one and the difference given back as health after the hit. Full Daedric heavy (108) at Master Defense: 45 % off a hit
+  instead of 13 %. `pvp.damageMult` scales player-on-player hits (1). skills.json tier text says the new numbers.
+  Harness 43/43. **Watch**: `mastery damage ... x0.xx` lines (below 1 = armor gave health back); the website's Skills
+  guide still says +10/20/30 (Jake's package).
+- [x] **Housing: a rename can no longer hand keys to another property** (fork `130e83b`). Each property records the key
+  names it has cut (`rec.issued`, cleared on re-key); a door opens to those or the credential suffix. Old records are
+  frozen to the name their keys were cut under on the first update after boot (`[housing] recorded key names for n/m`).
+  A rename now keeps old keys working. New cuts take the lowest `Key to the X[, the Nth]` no other property answers to.
+  `server\tests\housing-keys-harness.js` 15/15; the same harness fails 5 checks on the old code (A's key opens B, B's
+  own keyholders locked out).
+- [x] **Jail uncuffs a bound prisoner as the door locks** (fork `ce847a4` `__dboUncuff`, server `6f5b8627`). Until the
+  server build lands the guard is still told to uncuff through the bars. Jail harness 48/48.
+- [x] `/wipechars` parses a bare profile id (`/^\d+$/`), server `0bd9b87b`.
+- [x] **Gray Fox libespm fix merged into `main`** (`36bb593`), per the 23 Sep block. After the build: no
+  `Record 0xffffffff` after an Ancient Vision cast; watch boot time and memory for the 10k newly resolvable Hammerfell refs.
+- [x] **CEF DevTools closed in release** (fork `efd145b`): both browser backends opened remote debugging on 9000;
+  now only when `SKYMP_CEF_DEBUG_PORT` names a port (NirnLab passes it straight to CEF, where 0 is off). **C++ in
+  SkyrimPlatformImpl.dll: needs a CI flatrim build and a client package**, not compiled here.
+- [ ] Still open from the handoff: client package 0.3.35 and launcher 2.1.29 (built on this PC, publishing is Nat's);
+  the deferred C++ list; Beyond Skyrim BSAs in the server's `archives` (a server-settings change and restart, Nat's call);
+  the Revival brew lab test.
+
+## Added 2026-09-24 (16:10 UTC, unattended `daily-code-review` run): brief is stale, nothing changed
+
+- [x] Earlier sessions already finished everything in the brief's queue (written 2026-09-20). Checked in the code:
+  `labour.js` emits `'mine'` with the ore band and `'chop'` (lines ~356-362); `skills.json` has the wayshrine lists,
+  `conversionCooldownDays: 7` and the Daedric deities with Imperial law; `prayer.js` emits `'prayer'` on a completed
+  prayer; the live boot reports `18 skills have marker spells` (Unarmed's T1-T5 exist). No code or data edited.
+- [x] Live boot 16:08:53 UTC (fork `2452c662`, lever gates): **0 `[error]` lines** and no JS error in the 417 lines since;
+  only the usual `weaponStaminaModifiers field is missing` info line. `online: 0` at 16:11.
+- [ ] **Nat: rewrite or retire the `daily-code-review` brief** (STATE.md already says so). It still points at the
+  Windows server, the 18-line error baseline and a finished queue; unattended runs spend their time rediscovering that.
+
 ## Added 2026-09-24 (14:50 UTC, unattended run): live-log verification, rename notice, nothing pushed
 
 - [x] **Non-Skyrim.esm spells deal damage now (verified from the live log).** `OnSpellHit ... damage` lines with a
@@ -23,7 +69,7 @@
   its whole name (`Key to the <name>`), so renaming a named property orphans every key cut before it; the owner is
   now told `Keys cut before the rename ("...") no longer open it: cut new ones.` Unnamed `Property Key (TAG)` keys
   end in the credential and keep working, so no warning there. `tsc --noEmit` clean.
-- [ ] **Housing, for Nat (design, not fixed): a rename can hand keys to another property.** Two properties sharing a
+- [x] **Housing (fixed 2026-09-24 evening, fork `130e83b`): a rename can hand keys to another property.** Two properties sharing a
   name are ranked by ref id (`labelRank`): the lower is `Key to the X`, the higher `Key to the X, the second`. If the
   lower one is renamed away, the higher one becomes rank 1 and its expected key becomes `Key to the X` - which is
   exactly the key the renamed property's old keyholders carry. They now open the other property, and its own
@@ -79,17 +125,17 @@ Montclair, Vaelis Duskwood, plus new characters. Evidence is `/var/log/skymp-ser
   host id, 3D state and server-vs-client distance for dungeon actors. Note Serpents Trail's zones are all in cell 01
   because cells 02/03 have no placements in BSHeartland (02 is the jail room); 20 of 86 multi-cell dungeons have
   a cell with no enemies at all (list: node one-liner over dungeons.json `cells` vs `zones[].cell`).
-- [ ] **A gameplay deploy ends running dungeon leases.** `NPC-Spawns.json` is tracked, so `deploy-gameplay` copies it
+- [x] **A gameplay deploy ends running dungeon leases.** `NPC-Spawns.json` is tracked, so `deploy-gameplay` copies it
   over the live one; at 01:56:20 that wiped the Plundered Mine lease zones mid-run (all 9 zones despawned, then
   "released (left)"). Exclude `NPC-Spawns.json` from deploy-gameplay like the other runtime files, or refuse to
   deploy while a `dungeon:*` zone exists.
-- [ ] **Healing Hands does not heal other players (code proven).** The cast event's target is always the caster
+- [x] **Healing Hands does not heal other players (code proven).** The cast event's target is always the caster
   (SkyrimPlatform `EventHandler.cpp` reads the caster's MagicTarget), so `OnSpellCast` opens the restoration channel
   on the caster; and `OnSpellHit` returns for anything not FireAndForget (`ActionListener.cpp` ~1932), so the hit
   with the real target is dropped. Heal Other works, Healing Hands heals the caster. 288 restoration-channel lines
   this session. Fix is C++ (let concentration restoratives re-target the caster's channel from `OnSpellHit`), so a
   CI flatrim build.
-- [ ] **Magicka bar fills then drops back ("regens faster than it should") (code proven).** The client reports vitals
+- [x] **Magicka bar fills then drops back ("regens faster than it should") (code proven).** The client reports vitals
   every 2000 ms at the earliest; `CropPeriodAfterLastRegen` treats any gap over 2.0 s as 1.0 s, so nearly every
   report is cut to about half and the server sends the lower value back. Real regen is about half the intended rate;
   the bar shows full rate for 2 s and snaps. Server-side stamina drains share the health/magicka clock. Fix: C++ cap
@@ -100,7 +146,7 @@ Montclair, Vaelis Duskwood, plus new characters. Evidence is `/var/log/skymp-ser
   something up. Test: favorite an item + spell, wait 5 s, pick up gold, relog.
 - [ ] **Vitals don't sync well** (Nat). Largely the magicka item above; health follows the same rule at a rate too
   small to see. Remote clones' bars come from `remoteVitalsService`, not checked yet.
-- [ ] **Trade menu needs a search bar** (Nat, feature). Front widget `skymp5-front/src/features/trade`; front build only.
+- [x] **Trade menu needs a search bar** (Nat, feature). Front widget `skymp5-front/src/features/trade`; front build only.
 - [ ] **Quick relogs (crash or disconnect under 2 min):** Goddess Dibella 01:35:57 (108 s) and 01:48:00 (26 s),
   Falcius Octavio 02:24:57, Velisse Montclair 02:33:47, Lizard-chef 02:46:09. Vaelis Duskwood left 03:01:08 = the
   22:59:59 local crash (Havok, Freezewind Hollow, same as 20:58). Ask the others for crash logs.
@@ -190,7 +236,7 @@ can be lockpicked, logging out does not count, and the prisoner is told when the
 - [x] **Found on the way: `deploy-gameplay` would have wiped the live housing claims.** `housing.json` is tracked in
   git (it is `[]`), and the deploy copies every tracked `*.json` over the live one. `dev-server.sh` (root, not in git)
   now skips `housing.json` and `jails.json`. Refresh `server\tooling\` with `bash server/tooling/refresh.sh`.
-- [ ] Not built: bound hands are not freed by the jail (captureSystem has no hook the gamemode can call); the guard
+- [x] Not built: bound hands are not freed by the jail (captureSystem has no hook the gamemode can call); the guard
   uncuffs through the bars with X, and the guard is reminded. No engine lock is shown on the door (the "Locked" text
   comes from the server's refusal message).
 - [ ] Untested in game.
@@ -374,7 +420,7 @@ measured instead.
   311 ACHRs in the plugin name their base object with `0x03`, so the Hammerfell worlds' placed objects are
   unresolvable server-side too. **Harmless today**: Hammerfell is outside the Bruma region lock. **It will break the
   day Hammerfell opens**, and it matters now only for anyone carrying a Gray Fox item into Bruma.
-- [ ] **The fix is C++ in libespm**: in `Combiner.cpp` pass 2, also map every raw index above the file's own to the
+- [x] **The fix is C++ in libespm**: in `Combiner.cpp` pass 2, also map every raw index above the file's own to the
   file itself (`toComb` only; `toRaw` keeps mapping back to the own slot). **Another session was editing exactly this
   during the run**: at 16:46 UTC the file held that loop with a comment naming Gray Fox Cowl, and by 16:47:36 it was back
   to HEAD. I did not touch it. Nat: find out whose it is before anyone writes it again. It needs a push to fork `main`
@@ -416,7 +462,7 @@ measured instead.
   with a notice, `/curse <#TAG> restore` + `revive.json` lift it (`10714e79`, live 21:54). Flo'Riahn #Z7EG restored.
 - [ ] Watch the first rite rounds in the log: two real attempts scored 1/5 and 2/5. Tune `rite.latencyMs`/`slackMs` from
   the "struck N ms in, marker a/b/c" numbers, not by guess. The logout-after-permadeath is untested in game.
-- [ ] `gamemode.js` `/wipechars`: `/^d+$/` should be `/^\d+$/`, so a bare profile id never parses (name/#TAG works).
+- [x] `gamemode.js` `/wipechars`: `/^d+$/` should be `/^\d+$/`, so a bare profile id never parses (name/#TAG works).
   The load-test sandbox's `data\` follows dev Data by hardlink but its own `loadOrder` (100 entries) lacks the patch.
 - [x] Decide whether players get the server's six edited copies through the extra-files channel. **Not through
   extra files:** they land in the real `Data`, and under MO2 (launcher default) the Nexus copy in `mods\<mod>\`
@@ -613,7 +659,7 @@ All live, with Nat present and approving. Rollbacks are in `OPS_HANDOFF_2026-09-
   server `0aa1fb2c`, hot reload.
 - [x] **UI auto-scale** and **property key names** went out on the parallel session's push (`2c91c22`,
   `1b0fb3d`). Keys now read "Key to the Jerall View Inn"; old keys still open their door.
-- [ ] **Renaming a property invalidates its keys** under the new naming. Defensible, but the notice does
+- [x] **Renaming a property invalidates its keys** under the new naming. Defensible, but the notice does
   not say so yet.
 - [ ] **Dual wield power attack costs no stamina** (Nat). Still open: the investigation into where a
   stamina charge belongs had not returned when this shipped.
