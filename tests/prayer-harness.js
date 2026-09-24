@@ -486,6 +486,30 @@ check('the gamemode can open the step itself', globalThis.__dboDeityCreationOpen
 delete globalThis.__dboAtCreationEnd;
 delete globalThis.__dboCreationEndDone;
 
+// the faiths prayed to anywhere (skills.json prayAnywhere)
+props.delete(ACTOR + '|private.dboDeity');
+clear();
+commands.get('pray')(ACTOR, '');
+check('/pray with no god points at /deity', /hold no god/.test(out.personals[out.personals.length - 1]));
+props.set(ACTOR + '|private.dboDeity', { id: 'akatosh', name: 'Akatosh', kind: 'divine', at: 1, convertedAt: 1 });
+clear();
+commands.get('pray')(ACTOR, '');
+check('/pray for a shrine god says to find a shrine', /prayed to at a shrine/.test(out.personals[out.personals.length - 1]) && !out.widgets.length);
+props.set(ACTOR + '|private.dboDeity', { id: 'hist', name: 'The Hist', kind: 'faith', at: 1, convertedAt: 1 });
+clear();
+commands.get('pray')(ACTOR, '');
+check('/pray for the Hist opens a prayer anywhere', out.widgets.length === 1 && out.widgets[0].type === 'prayer' && /prayer to The Hist/.test(out.widgets[0].shrine), out.widgets[0] && out.widgets[0].shrine);
+props.set(ACTOR + '|private.prayedShrines', { '1': wallClock + 30 * 60000 });
+globalThis.__dboPrayerSessions && globalThis.__dboPrayerSessions.clear && globalThis.__dboPrayerSessions.clear();
+const hist = SKILLS.deities.choices.find((c) => c.id === 'hist');
+check('the new faiths are marked rarer and shrine-free', hist && hist.prayAnywhere && hist.blessingChanceMult === 0.5 && hist.blessingHoursMult === 0.5 && hist.kind === 'faith');
+props.delete(ACTOR + '|private.dboDeity');
+globalThis.__dboDeityForget(ACTOR);
+clear();
+globalThis.__dboDeityPicker(ACTOR);
+const menu = out.widgets[0];
+check('the menu lists all seven faiths as reachable', menu && ['hist', 'ancestors', 'yokudan', 'riddlethar', 'trinimac', 'dragoncult', 'wormcult'].every((id) => (menu.choices.find((c) => c.id === id) || {}).reachable === true));
+
 Date.now = realNow;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

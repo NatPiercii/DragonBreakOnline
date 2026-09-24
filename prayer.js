@@ -218,6 +218,13 @@ module.exports = (api) => {
     'Keep my name where you can find it again',
   ];
   const OWN = {
+    hist: ['The root remembers what the branch forgets', 'I drink of the sap and am made again'],
+    ancestors: ['My fathers stand behind me and I will not shame them', 'The dead of my House watch, and I am not alone'],
+    yokudan: ['HoonDing, make the way where there is none', 'Tu\'whacca, keep the Far Shores open for my kin'],
+    riddlethar: ['The moons turn and I turn with them', 'Let me walk the Riddle-Thar and not stray from it'],
+    trinimac: ['Strength in the service of what is right', 'Let me be the shield and not the blade that turns'],
+    dragoncult: ['The dragons are the sons of Time and their word is law', 'Let my Voice be heard as theirs was heard'],
+    wormcult: ['Death is a door and I hold the key', 'What the grave takes, the King of Worms returns'],
     akatosh: ['Time turns, and I turn with it', 'The dragon does not hurry and neither shall I'],
     arkay: ['The dead are counted and none are lost', 'I will meet my hour without argument'],
     dibella: ['Let me see the world as it deserves to be seen', 'Beauty is not owed to me, but I will look for it'],
@@ -364,6 +371,25 @@ module.exports = (api) => {
     return startRound(casterId, roundFor(casterId, d, targetId, shrineName));
   };
 
+  // ── praying anywhere ────────────────────────────────────────────────────────────────────────
+  // The faiths with no shrine in Bruma (skills.json prayAnywhere: the Hist, the Ancestors, the Yokudan gods and the rest)
+  // are prayed to wherever the worshipper kneels; the same three verses, one rest for all of it, and rarer blessings.
+  const ANYWHERE_REF = 1;
+  registerChatCommand('pray', (a) => {
+    if (!CFG.enabled) return personal(a, 'Prayer is closed on this server.');
+    if (liveRound(a)) return;
+    const faith = faithOf(a);
+    const d = faith ? deityById(faith.id) : null;
+    if (!d) return personal(a, 'You hold no god. Say /deity to choose one.');
+    if (!d.prayAnywhere) return personal(a, `${d.name} is prayed to at a shrine. Find one and use it.`);
+    const until = Number(restsOf(a)[ANYWHERE_REF.toString(16)]) || 0;
+    if (until > Date.now()) {
+      const mins = Math.ceil((until - Date.now()) / 60000);
+      return personal(a, `You have prayed recently. ${d.name} will hear you again in ${mins} minute${mins === 1 ? '' : 's'}.`);
+    }
+    startRound(a, roundFor(a, d, ANYWHERE_REF, `A prayer to ${d.name}`));
+  }, { help: 'pray to a faith that needs no shrine (the Hist, the Ancestors and others)' });
+
   // ── judging ─────────────────────────────────────────────────────────────────────────────────
   // The report is a list of [down, up] spans on the widget's clock, in ms from the moment it
   // mounted. Everything the verdict needs is in those numbers and the round the server already
@@ -445,13 +471,14 @@ module.exports = (api) => {
     const tier = tierOf(a, 'priest');
     const odds = PRAY.blessingChance || {};
     const byTier = Array.isArray(odds.priestByTier) ? odds.priestByTier : [];
-    const chance = tier >= 0 && byTier.length
+    // The faiths prayed to anywhere answer more rarely and more briefly (blessingChanceMult, blessingHoursMult)
+    const chance = (tier >= 0 && byTier.length
       ? Number(byTier[Math.min(tier, byTier.length - 1)]) || 0
-      : Number(odds.everyone) || 0;
+      : Number(odds.everyone) || 0) * (d.blessingChanceMult !== undefined ? Number(d.blessingChanceMult) : 1);
     const hours = (() => {
       const list = PRAY.blessingDurationHoursByTier || [];
       const i = Math.min(Math.max(tier, 0), Math.max(0, list.length - 1));
-      return Math.max(1, Number(list[i]) || 8);
+      return Math.max(1, Math.round((Number(list[i]) || 8) * (d.blessingHoursMult !== undefined ? Number(d.blessingHoursMult) : 1)));
     })();
 
     let text = `You hold the three verses. ${d.name} takes note, and no more.`;
@@ -500,7 +527,7 @@ module.exports = (api) => {
       choices: DEITIES.map((d) => ({
         id: d.id, name: d.name, kind: d.kind,
         sphere: d.sphere || '', boon: d.boon || '',
-        reachable: Number(d.inBruma) > 0,
+        reachable: Number(d.inBruma) > 0 || !!d.prayAnywhere,
         lawful: d.lawful !== false,
         aspectOf: d.aspectOf || '',
       })),
@@ -593,9 +620,11 @@ module.exports = (api) => {
     openWidget(a, pickerPayload(a, r.text, r.ok ? 'taken' : 'refused'), false);
     if (r.ok) {
       endCreationStep(a);
-      const where = Number(d.inBruma) > 0
-        ? `Find a shrine of ${d.name} and use it to pray.`
-        : `${d.name} has no shrine you can reach yet, so there is nowhere to pray until Skyrim opens.`;
+      const where = d.prayAnywhere
+        ? `${d.name} needs no shrine: kneel anywhere and say /pray.`
+        : Number(d.inBruma) > 0
+          ? `Find a shrine of ${d.name} and use it to pray.`
+          : `${d.name} has no shrine you can reach yet, so there is nowhere to pray until Skyrim opens.`;
       personal(a, where);
     }
   });
@@ -613,10 +642,11 @@ module.exports = (api) => {
       personal(a, mine
         ? `You follow ${mine.name} - ${mine.boon || 'no boon recorded'}${daysLeft(faith) ? ` You may turn to another god in ${daysLeft(faith)} day(s).` : ' You may turn to another god.'}`
         : 'You hold no god.');
-      const list = (kind) => DEITIES.filter((d) => (d.kind === 'divine') === (kind === 'divine'))
-        .map((d) => d.name + (Number(d.inBruma) > 0 ? '' : '*')).join(', ');
+      const list = (kind) => DEITIES.filter((d) => d.kind === kind)
+        .map((d) => d.name + (Number(d.inBruma) > 0 || d.prayAnywhere ? '' : '*')).join(', ');
       personal(a, `Divines: ${list('divine')}`);
       personal(a, `Daedra: ${list('daedra')}`);
+      personal(a, `Other faiths (pray anywhere with /pray): ${list('faith')}`);
       personal(a, '* no shrine you can reach yet.');
       return;
     }
@@ -627,12 +657,12 @@ module.exports = (api) => {
       const here = lastShrine.get(a);
       if (!here || here.deityId !== d.id || Date.now() - here.at > 30000) {
         if (d.sphere) personal(a, `${d.name}. ${d.sphere}`);
-        if (d.boon) personal(a, `Boon: ${d.boon}${Number(d.inBruma) > 0 ? '' : ' (no shrine you can reach yet)'}`);
+        if (d.boon) personal(a, `Boon: ${d.boon}${Number(d.inBruma) > 0 || d.prayAnywhere ? '' : ' (no shrine you can reach yet)'}`);
       }
     }
     // The chat path keeps the pilgrimage: naming a god here means saying it at their shrine. The
     // menu does not, per the brief. A character with no god yet is not asked to walk anywhere.
-    const r = takeDeity(a, d, { atShrine: !!faith });
+    const r = takeDeity(a, d, { atShrine: !!faith && !d.prayAnywhere });
     personal(a, r.text);
   }, { help: 'open the deity menu; /deity <name> at that god\'s shrine to turn by hand' });
 
@@ -649,6 +679,6 @@ module.exports = (api) => {
   })();
   if (blessingCheck.broken.length) log(`prayer: ${blessingCheck.broken.length} blessing(s) do not resolve: ${blessingCheck.broken.join(', ')}`);
 
-  const reachable = DEITIES.filter((d) => Number(d.inBruma) > 0).length;
+  const reachable = DEITIES.filter((d) => Number(d.inBruma) > 0 || d.prayAnywhere).length;
   log(`prayer ${CFG.enabled ? 'on' : 'off'}: ${DEITIES.length} deities, ${shrineIndex().size} shrine ids, ${reachable} reachable under the region lock; ${VERSES} verses of ${VERSE_MS} ms, ${SLACK_MS} ms slack, ${Math.round(SHRINE_COOLDOWN_MS / 60000)} min per shrine, conversion every ${CONVERSION_DAYS} day(s); blessings ${blessingCheck.ok} resolved, ${blessingCheck.server} server-side, ${blessingCheck.broken.length} broken`);
 };
