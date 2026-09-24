@@ -1,5 +1,18 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-24 (00:30 UTC): floating after a teleport, then the crash on jump (third time)
+
+Argosh floated over the Alik'r terrain right after an admin-panel `teleportLoc` to Ben Erai, then crashed on jump
+at `SkyrimSE.exe+079F43C`, the same null-character-controller crash as 20 and 21 September. Detail in
+`HUB_SPAWN_BUG.md` item 3.
+
+- [x] Crash guard: fork `15397cdd` hooks `JumpHandler::ProcessButton` and skips the jump when the player has no
+  character controller. Committed, **not pushed, not built**: it is in `SkyrimPlatformImpl.dll`, so it needs a CI
+  flatrim (or Native) build and a client package on the PC.
+- [ ] The floating itself: which step of the teleport (ragdoll removal, `moveRefrToPosition`) leaves the player
+  without a controller is unmeasured. Once the guard ships, its `jump ignored` warning in the SkyrimPlatform log
+  marks each occurrence.
+
 ## Added 2026-09-23 (late): the endless Dwemer dive - ON HOLD (Nat, 23:40 UTC)
 
 A playtester's Discord to-do "Endless Dungeons" (elevators into chained random Dwemer/Falmer floors, harder and

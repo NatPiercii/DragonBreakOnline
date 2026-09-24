@@ -199,6 +199,24 @@ side cannot be checked from this PC - `server.log` here has a gap from 00:02:30 
 `crash-*.log` in the dev copy, `Documents\My Games\...\SKSE` or `C:\DragonBreak`). Still unmeasured which window
 it is. The diagnostic below needs a client build and a relaunch, so it waits for a session with Nat present.
 
+**Third crash, 2026-09-24 00:10:48 UTC** (19:10:48 local, 6 min 22 s uptime, `C:\DragonBreak\skyrim`), identical
+to the register (`RAX 0`, `RDX 2`, `RDI 2`, `R8 1`, `R11 7`), "Argosh gro-Shatul" in `mannyGFBenEraiFortressGate`
+(`0x0A200259`, Gray Fox Cowl.esm, the Alik'r). **New evidence: the player reported floating over the terrain before
+pressing jump** - what a missing character controller would look like (no collision or gravity), measured only
+by the report so far. The server log shows no server-initiated move: MovementValidation's "server moved 8" at
+00:10:33 is exactly his own 2 admin-panel `teleportLoc` (Forgotten City 00:05:48, Ben Erai 00:07:30) plus 6 Gray
+Fox Cowl doors (00:07:55-00:09:14). So the window is again one of our client teleport paths, most likely
+`teleportLoc` or the door moves, not the login spawn loop (he had been in for 6 minutes). **The player confirmed the
+floating started right after the Ben Erai `teleportLoc`**, before any door.
+
+**Crash guard committed 2026-09-24, not built or shipped:** fork `main` `15397cdd` hooks `JumpHandler::ProcessButton`
+(vtable slot 4 of `RE::VTABLE_JumpHandler`, CommonLibSSE-NG `b93280e8`, where `JumpHandler.h` and `Offsets_VTABLE.h`
+were read to confirm the slot and AE id 208731) and returns early when `PlayerCharacter::GetCharController()` is null,
+logging `JumpHandler: jump ignored, player has no character controller`. It lives in `SkyrimPlatformImpl.dll`, so it
+needs a CI flatrim (or Native) build and a client package on the PC. It stops the crash only: the floating (no
+controller after the teleport) remains, and the warning line is the measurement for finding out which teleport step
+drops the controller.
+
 **Fix options, none shipped (a theory must not be deployed here):**
 
 - **C++, the reliable one.** Hook `JumpHandler::ProcessButton` (AE id 42423) in SkyrimPlatform and
