@@ -974,6 +974,7 @@ const onCharacterReady = (userId, a) => {
     if (waiting) personal(a, `${waiting} unread letter${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you at the notice boards.`);
     sendMailState(a);
     try { pushHud(a, needsOf(a), true); } catch (e) { /* hud later */ }
+    try { if (globalThis.__dboPartyLogin) globalThis.__dboPartyLogin(a); } catch (e) { log('party login failed', e.message); }
   }, 8000);
 };
 const startLoginWait = (userId, seenActor) => {
@@ -1020,6 +1021,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboSuperLeave) { try { globalThis.__dboSuperLeave(a); } catch (e) { /* no rite */ } }
   // Logging out inside a dungeon would put them back inside it next time, in a claim that is not theirs
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
+  if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -1377,7 +1379,17 @@ onUi('npcDrift', (a, args) => {
 });
 // How hosts repair a split body; kept across reloads and sent at every join so a test needs no client build
 const DRIFT_REPAIRS = ['setPosition', 'none', 'moveTo', 'disableEnable'];
-const sendDriftConfig = (a) => sendPacket(a, { customPacketType: 'npcDriftConfig', repair: globalThis.__dboDriftRepair || 'setPosition' });
+const DRIFT_SPAWNS = ['moveTo', 'setPosition'];
+const sendDriftConfig = (a) => sendPacket(a, { customPacketType: 'npcDriftConfig', repair: globalThis.__dboDriftRepair || 'setPosition', spawn: globalThis.__dboDriftSpawn || 'moveTo' });
+// How a client seats a new NPC copy: moveTo places it natively before its first load, setPosition is the old way
+registerChatCommand('driftspawn', (a, args) => {
+  const mode = String(args[0] || '');
+  if (!DRIFT_SPAWNS.includes(mode)) return personal(a, `NPC spawn placement is ${globalThis.__dboDriftSpawn || 'moveTo'}. Use: /driftspawn ${DRIFT_SPAWNS.join('|')}`);
+  globalThis.__dboDriftSpawn = mode;
+  onlineActors().forEach(sendDriftConfig);
+  personal(a, `NPC spawn placement set to ${mode} for everyone online.`);
+  audit(`GM ${who(a)} set the NPC spawn placement to ${mode}`);
+}, { admin: true, help: '<moveTo|setPosition> how clients seat a new NPC copy' });
 registerChatCommand('driftrepair', (a, args) => {
   const mode = String(args[0] || '');
   if (!DRIFT_REPAIRS.includes(mode)) return personal(a, `Split repair is ${globalThis.__dboDriftRepair || 'setPosition'}. Use: /driftrepair ${DRIFT_REPAIRS.join('|')}`);
