@@ -1,5 +1,20 @@
 [
   {
+    "title": "No Stripping Mid-Fight",
+    "date": "2026-09-24",
+    "tag": "Combat",
+    "sections": [
+      {
+        "heading": "Armour takes time to change in a fight",
+        "items": [
+          "Putting on or taking off armour or clothing within 20 seconds of a blow, dealt or taken, now takes time: 5 seconds for each heavy piece, 3 for each light piece, 2 for clothing and jewellery, up to 30 seconds.",
+          "Until the straps are done you move slowly and your blows do not land. Changing again before you are done adds to the time.",
+          "Outside a fight nothing changes: dress and undress as you like. Weapons, spells and shields are always free to swap."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Ledger of Contacts",
     "date": "2026-09-24",
     "tag": "Update",
