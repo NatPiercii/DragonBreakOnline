@@ -976,6 +976,7 @@ const onCharacterReady = (userId, a) => {
     if (cfg.welcome) system(a, cfg.welcome);
     audit(`JOIN ${who(a)}${tierOf(a) ? ' as ' + tierOf(a) : ''}`);
     sendDriftConfig(a);
+    sendConsoleRights(a, true);
     if (creationPending(a)) startCreationInHub(a);
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
     // Waking from a bed (rest.js) before the hunger stage is applied
@@ -2243,6 +2244,32 @@ const consoleHook = (actorId, command, ...args) => {
 };
 consoleHook.__dbo = true;
 mp.onConsoleCommand = consoleHook;
+// Local-only console commands (tgm, tcl, setav...) are reported by the client's ConsoleCommandsService, which refuses
+// them unless told the character holds console rights. The server's own flag decides what the log says.
+const CONSOLE_LOCAL_PER_MIN = 20;
+const consoleLocalSeen = globalThis.__dboConsoleLocalSeen instanceof Map ? globalThis.__dboConsoleLocalSeen : (globalThis.__dboConsoleLocalSeen = new Map());
+const consoleRightsSent = globalThis.__dboConsoleRightsSent instanceof Map ? globalThis.__dboConsoleRightsSent : (globalThis.__dboConsoleRightsSent = new Map());
+const hasConsoleRights = (a) => { try { return mp.get(a, 'consoleCommandsAllowed') === true; } catch (e) { return false; } };
+const sendConsoleRights = (a, force) => {
+  const allowed = hasConsoleRights(a);
+  if (!force && consoleRightsSent.get(a) === allowed) return;
+  if (sendPacket(a, { customPacketType: 'dboConsoleRights', allowed })) consoleRightsSent.set(a, allowed);
+};
+onUi('consoleLocal', (a, args) => {
+  const now = Date.now();
+  const seen = (consoleLocalSeen.get(a) || []).filter((t) => now - t < 60000);
+  seen.push(now);
+  consoleLocalSeen.set(a, seen);
+  if (seen.length > CONSOLE_LOCAL_PER_MIN) return;
+  const clip = (v) => String(v == null ? '' : v).replace(/[\r\n`@]/g, ' ').slice(0, 60);
+  const name = clip(args[0]);
+  const target = clip(args[1]);
+  const extra = Array.isArray(args[2]) ? args[2].slice(0, 4).map(clip) : [];
+  const allowed = hasConsoleRights(a);
+  audit(`CONSOLE ${who(a)}${allowed ? '' : ' BLOCKED (no console rights)'}: ${name}${target && target !== 'player' ? ' on ' + target : ''}${extra.length ? ' ' + extra.join(' ') : ''} (local)`);
+  if (seen.length === CONSOLE_LOCAL_PER_MIN) log(`console: ${display(a)} passed ${CONSOLE_LOCAL_PER_MIN} local commands a minute; the rest this minute are not logged`);
+});
+every('consoleRights', 15000, () => { for (const a of onlineActors()) sendConsoleRights(a, false); });
 if (typeof globalThis.__dboPrevTake === 'undefined') globalThis.__dboPrevTake = typeof mp.onTakeItem === 'function' && !mp.onTakeItem.__dbo ? mp.onTakeItem : null;
 const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
   const prev = globalThis.__dboPrevTake;
