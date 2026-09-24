@@ -404,8 +404,13 @@ export class AdminMenuService extends ClientListener {
   // No spread syntax: it breaks after FunctionInfo stringification.
   private browsersideWidgetSetter = () => {
     const widget: any = Object.assign({ type: "adminPanel", id: WIDGET_ID }, panelData);
-    const others = (window.skyrimPlatform.widgets.get() || []).filter((w: any) => w.id !== WIDGET_ID);
-    window.skyrimPlatform.widgets.set(others.concat([widget]));
+    // Replaced in place: moving to the end makes React move the node, which resets every scroll inside it
+    const list = (window.skyrimPlatform.widgets.get() || []).slice();
+    let at = -1;
+    for (let i = 0; i < list.length; i++) if (list[i] && list[i].id === WIDGET_ID) at = i;
+    if (at === -1) list.push(widget);
+    else list[at] = widget;
+    window.skyrimPlatform.widgets.set(list);
   };
 
   private menuKey: DxScanCode;
