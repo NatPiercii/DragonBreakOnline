@@ -1,5 +1,35 @@
 [
   {
+    "title": "The Chill of the Grave",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Death",
+        "items": [
+          "Waking at the temple now leaves the chill of the grave on you for 20 minutes of play: stamina and magicka stay low and come back slowly, and every heal, potions included, works at half strength.",
+          "Being raised in the field by a Priest or a Draught of Revival leaves no chill.",
+          "A Priest of the second tier or higher can lift it with a healing spell, or with Grand Healing for everyone close by. Type /chill to see how long is left."
+        ]
+      },
+      {
+        "heading": "Faith",
+        "items": [
+          "Seven new faiths can be followed by anyone: the Hist, the Ancestors, the Yokudan Gods, the Riddle'Thar, Trinimac, the Dragon Cult and the Worm Cult. None of them needs a shrine: kneel anywhere and type /pray.",
+          "Their blessings come more rarely and last half as long as a shrine god's. Each draws on its people's own gift: Histskin, Ancestor's Wrath, Adrenaline Rush, Night Eye, the Lord's protection, the dragons' Voice, or a necromancer's magicka.",
+          "The Dragon Cult and the Worm Cult are outlawed in the Empire."
+        ]
+      },
+      {
+        "heading": "Letters",
+        "items": [
+          "Type /sign unsigned before sending a pigeon and your next letter goes unsigned.",
+          "A Scholar of the third tier or higher can sign a letter in someone else's name with /sign <name>. A forger below Master sometimes leaves a hand that does not quite match."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Launcher 2.1.29",
     "date": "2026-09-24",
     "tag": "Launcher",
