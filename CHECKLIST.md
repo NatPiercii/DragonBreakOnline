@@ -6,8 +6,8 @@ Argosh floated over the Alik'r terrain right after an admin-panel `teleportLoc` 
 at `SkyrimSE.exe+079F43C`, the same null-character-controller crash as 20 and 21 September. Detail in
 `HUB_SPAWN_BUG.md` item 3.
 
-- [x] Crash guard: fork `15397cdd` hooks `JumpHandler::ProcessButton` and skips the jump when the player has no
-  character controller. Committed, **not pushed, not built**: it is in `SkyrimPlatformImpl.dll`, so it needs a CI
+- [x] Crash guard: fork `00c29dee` hooks `JumpHandler::ProcessButton` and skips the jump when the player has no
+  character controller. Pushed 2026-09-24 00:18 UTC (server restart 00:21 was clean), **not built**: it is in `SkyrimPlatformImpl.dll`, so it needs a CI
   flatrim (or Native) build and a client package on the PC.
 - [ ] The floating itself: which step of the teleport (ragdoll removal, `moveRefrToPosition`) leaves the player
   without a controller is unmeasured. Once the guard ships, its `jump ignored` warning in the SkyrimPlatform log

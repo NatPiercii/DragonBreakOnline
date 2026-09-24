@@ -209,7 +209,7 @@ Fox Cowl doors (00:07:55-00:09:14). So the window is again one of our client tel
 `teleportLoc` or the door moves, not the login spawn loop (he had been in for 6 minutes). **The player confirmed the
 floating started right after the Ben Erai `teleportLoc`**, before any door.
 
-**Crash guard committed 2026-09-24, not built or shipped:** fork `main` `15397cdd` hooks `JumpHandler::ProcessButton`
+**Crash guard pushed 2026-09-24 00:18 UTC, not built or shipped:** fork `main` `00c29dee` hooks `JumpHandler::ProcessButton`
 (vtable slot 4 of `RE::VTABLE_JumpHandler`, CommonLibSSE-NG `b93280e8`, where `JumpHandler.h` and `Offsets_VTABLE.h`
 were read to confirm the slot and AE id 208731) and returns early when `PlayerCharacter::GetCharController()` is null,
 logging `JumpHandler: jump ignored, player has no character controller`. It lives in `SkyrimPlatformImpl.dll`, so it
