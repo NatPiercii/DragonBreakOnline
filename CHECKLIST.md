@@ -19,6 +19,10 @@ Montclair, Vaelis Duskwood, plus new characters. Evidence is `/var/log/skymp-ser
   compiled locally (no build tree): CI flatrim build must pass `[CropRegeneration]` and `[ChangeValues]`.
 - [x] Fixed in code: trade menu search bar (front build only). deploy-gameplay no longer copies `NPC-Spawns.json`
   (a regenerated wildlife file must now be copied by hand).
+- [x] Fixed in code (C++, needs the CI build): Nat wants dungeon enemies present everywhere in the dungeon, not only
+  near you. Visibility was a 3x3 block of 4096-unit squares in interiors too (Serpents Trail is ~9000 across); an
+  interior cell is now one square (`WorldState::IsInteriorCell`, `MpObjectReference::GridPosOf`), its records load from
+  +-16 squares, `mp.getNeighborsByPosition` follows. Watch client frame rate in the biggest interiors.
 - [ ] New from Nat: looting a webbed body (bodies in general) crashed - need the crash log.
 - [ ] Favorites: waiting on Nat - never sets, or lost after relog/pickup.
 
