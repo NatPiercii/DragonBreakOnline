@@ -1,5 +1,35 @@
 [
   {
+    "title": "Living Dungeons",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "version": "Client 0.3.34",
+    "sections": [
+      {
+        "heading": "Dungeons and enemies",
+        "items": [
+          "Every enemy in a dungeon is now there for everyone in it, wherever you stand. They no longer vanish when you leave a room, and they keep hunting you through the halls.",
+          "Enemies now appear where they belong instead of bunching up around one player. This also fixes hits that failed to land on them, and wildlife hopping or bouncing in place.",
+          "Updating the server no longer ends a dungeon run in progress."
+        ]
+      },
+      {
+        "heading": "Magic and vitals",
+        "items": [
+          "Healing Hands now heals the player you aim it at instead of yourself.",
+          "Magicka no longer fills up and then drops back while it regenerates, and your bars stay in step with the server."
+        ]
+      },
+      {
+        "heading": "Party and trade",
+        "items": [
+          "Your party's health shows again after someone crashes or relogs.",
+          "The trade window has a search bar that filters your inventory and both offers."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Salt and Stone",
     "date": "2026-09-23",
     "tag": "Update",
