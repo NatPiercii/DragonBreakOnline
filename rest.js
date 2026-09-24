@@ -1,17 +1,21 @@
 // Beds, inn rooms and rest, loaded by gamemode.js like prayer.js and labour.js.
 //
-// A bed in a house you own, or one you rent at an inn, offers "Sleep (log out)". Sleeping logs you out; log
-// back in after at least `minOfflineMinutes` and you wake Well Rested (faster health regeneration) and Well
+// A bed in a house you own, or one you rent at an inn, offers "Sleep (log out)" and "Lie down" (the next use of
+// the bed goes to the engine). Sleeping logs you out; log back in after at least `minOfflineMinutes`, with no
+// other character of yours played meanwhile, and you wake Well Rested (faster health regeneration) and Well
 // Fed (slower hunger), each for `restedHours` / `wellFedHours` of real time. Any other bed behaves as it
 // always has: you can lie in it, and nothing else happens.
 //
 // Beds and inns come from server/beds.json (ck-mcp/beds.py): a bed is a FURN whose editor id names a bed, an
-// inn is an interior cell named for one. A house is a housing claim (housingSystem.ts): its door and that
-// door's teleport partner stand in the cells the claim covers.
+// inn is an interior cell the game marks as one, listing the beds it rents (the innkeeper's RentRoomScript bed
+// and a free second bed of that room). Every other bed in an inn stays plain. A house is a housing claim
+// (housingSystem.ts) on a door pair between the outside and an interior; the claim's owner is a profile id.
 //
 // Renting is paid at the bed. The owner of the inn (whoever holds a housing claim on it) takes the rent less
-// `holdShare`, which goes to the treasury of the hold the inn stands in; an inn nobody owns pays it all to the
-// hold. A rented bed is the renter's alone until the rent runs out; anyone else is turned away.
+// `holdShare`, which goes to the treasury of the hold the inn stands in (beds.json "hold"); an inn nobody owns
+// pays it all to the hold. An owner who is offline is paid on their next login. A rented bed is the renter's
+// alone until the rent runs out; anyone else, the inn's owner included, is turned away. A player rents one bed
+// at a time across all their characters.
 //
 // Why the heal is server-side: Papyrus SetActorValue only runs on the player's client (PapyrusActor.cpp says
 // so), and the server's regeneration cap (CropRegeneration.cpp) keeps using the race's base rate, so a
@@ -19,9 +23,11 @@
 //
 // State, all on changeforms so it survives restarts:
 //   bed ref   private.dboRent     { renter, name, until }      the current rent
+//   character private.dboRentBed  { bed, until }               the bed they rent
 //   character private.dboSleep    { at, bed }                  set when they choose Sleep
 //   character private.dboRested   { until }                    Well Rested
 //   character private.dboWellFed  { until }                    Well Fed
+//   claim door private.dboRestOwed number                      rent held for an offline owner
 
 const fs = require('fs');
 const path = require('path');
@@ -55,22 +61,42 @@ module.exports = (api) => {
 
   // ---- beds.json -----------------------------------------------------------------------------------
   const idOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
-  const BEDS = new Set(), INNS = new Set();
+  // INNS: cell -> { name, hold, group, rent, door }; rent is the Set of beds it rents, or null (older data) for all.
+  const BEDS = new Set(), INNS = new Map(), RENT_BEDS = new Set();
   try {
     const data = JSON.parse(fs.readFileSync(path.resolve('beds.json'), 'utf8'));
     for (const d of Object.keys(data.beds || {})) { const id = idOf(d); if (id) BEDS.add(id); }
-    for (const d of Object.keys(data.inns || {})) { const id = idOf(d); if (id) INNS.add(id); }
+    for (const [d, v] of Object.entries(data.inns || {})) {
+      const id = idOf(d); if (!id) continue;
+      const refs = v && Array.isArray(v.rentBedRefs) ? v.rentBedRefs.map(idOf).filter(Boolean) : null;
+      if (refs) refs.forEach((r) => RENT_BEDS.add(r));
+      INNS.set(id, { name: String((v && v.name) || 'the inn'), hold: (v && v.hold) || null, group: idOf(v && v.group) || id, rent: refs ? new Set(refs) : null, door: !v || v.entrance !== false });
+    }
   } catch (e) { log('rest: beds.json unreadable:', e.message); }
+  const groupOf = (cell) => (INNS.has(cell) ? INNS.get(cell).group : cell);
+  const innName = (cell) => { const i = INNS.get(cell); if (!i) return ''; const g = INNS.get(i.group); return g ? g.name : i.name; };
+  const rentable = (bed, cell) => { const i = INNS.get(cell); return !!i && (i.rent ? i.rent.has(bed) : BEDS.has(baseOf(bed))); };
 
   const baseOf = (ref) => { try { return idOf(mp.get(ref, 'baseDesc')); } catch (e) { return 0; } };
   const cellOf = (ref) => { try { return idOf(mp.get(ref, 'worldOrCellDesc')); } catch (e) { return 0; } };
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
   const set = (id, prop, v) => { try { mp.set(id, prop, v); return true; } catch (e) { log(`rest: set ${prop} failed`, e.message); return false; } };
 
+  // ---- players ----------------------------------------------------------------------------------------
+  // Housing claims, rents and sleep belong to the player's profile, not to one character.
+  const profileOf = (a) => { const p = Number(get(a, 'profileId', -1)); return Number.isFinite(p) && p >= 0 ? p : -1; };
+  const charactersOf = (a) => {
+    const p = profileOf(a);
+    if (p < 0) return [a >>> 0];
+    let ids = []; try { ids = (mp.getActorsByProfileId(p) || []).map((x) => Number(x) >>> 0); } catch (e) { /* none */ }
+    return ids.includes(a >>> 0) ? ids : ids.concat([a >>> 0]);
+  };
+
   // ---- houses ---------------------------------------------------------------------------------------
-  // Every claim with the interior cells its door and partner stand in. housing.json is only the index of
-  // claimed doors. An exterior door's place is its worldspace, which must not count: owning a house would
-  // otherwise make every bed outdoors yours.
+  // Every claim with the interior cells it covers. housing.json is only the index of claimed doors; the
+  // owner is a profile id. Only a door pair between the outside and an interior makes a house or an inn
+  // yours: a container, or a room door inside, is not the building. An exterior door's place is its
+  // worldspace, which must not count, or owning a house would make every bed outdoors yours.
   const interiors = new Map(); // place id -> is an interior CELL
   const isInterior = (place) => {
     if (!place) return false;
@@ -84,16 +110,41 @@ module.exports = (api) => {
     let ids = [];
     try { const v = JSON.parse(fs.readFileSync(path.resolve('housing.json'), 'utf8')); if (Array.isArray(v)) ids = v.map((x) => Number(x) >>> 0); } catch (e) { return []; }
     const out = [];
-    for (const door of ids) {
+    for (const door of [...new Set(ids)].sort((x, y) => x - y)) {
       const rec = get(door, 'private.housing', null);
-      if (!rec || !(Number(rec.owner) >>> 0)) continue;
-      const cells = new Set([cellOf(door), Number(rec.partner) >>> 0 ? cellOf(Number(rec.partner) >>> 0) : 0].filter(isInterior));
-      out.push({ owner: Number(rec.owner) >>> 0, cells });
+      const partner = rec ? Number(rec.partner) >>> 0 : 0;
+      if (!rec || !(Number(rec.owner) > 0) || !partner) continue;
+      const inside = [cellOf(door), cellOf(partner)].filter(isInterior);
+      if (inside.length !== 1) continue;
+      out.push({ primary: door, owner: Number(rec.owner), ownerName: String(rec.ownerName || ''), cells: new Set(inside.map(groupOf)) });
     }
     return out;
   };
-  const ownsCell = (a, cell) => claims().some((c) => c.owner === (a >>> 0) && c.cells.has(cell));
-  const innOwner = (cell) => { const c = claims().find((x) => x.cells.has(cell)); return c ? c.owner : 0; };
+  // A claim on an inn's door covers every cell of that inn (its beds.json group). Claims are sorted by id, so
+  // an inn with two claimed entrances always pays the same one.
+  const ownsCell = (a, cell) => { const p = profileOf(a); return p >= 0 && claims().some((c) => c.owner === p && c.cells.has(groupOf(cell))); };
+  const innOwner = (cell) => claims().find((x) => x.cells.has(groupOf(cell))) || null;
+
+  // The owner's share goes to a character of theirs who is online, else it waits on the claim for their next login.
+  const payOwner = (claim, n) => {
+    const online = new Set(onlineActors().map((x) => x >>> 0));
+    let ids = []; try { ids = (mp.getActorsByProfileId(claim.owner) || []).map((x) => Number(x) >>> 0); } catch (e) { /* none */ }
+    const here = ids.find((x) => online.has(x));
+    if (here && giveItem(here, GOLD, n)) return `${n} to ${display(here)}`;
+    const owed = Number(get(claim.primary, 'private.dboRestOwed', 0)) || 0;
+    if (set(claim.primary, 'private.dboRestOwed', owed + n)) return `${n} held for ${claim.ownerName || 'profile ' + claim.owner}`;
+    return null;
+  };
+  const collectOwed = (a) => {
+    const p = profileOf(a); if (p < 0) return;
+    for (const c of claims()) {
+      if (c.owner !== p) continue;
+      const owed = Number(get(c.primary, 'private.dboRestOwed', 0)) || 0;
+      if (owed <= 0 || !set(c.primary, 'private.dboRestOwed', 0)) continue;
+      if (giveItem(a, GOLD, owed)) { personal(a, `Your inn took ${owed} gold in rent while you were away.`); audit(`REST ${who(a)} collected ${owed} gold of rent held on ${bedDesc(c.primary)}`); }
+      else set(c.primary, 'private.dboRestOwed', owed);
+    }
+  };
 
   // ---- rent -----------------------------------------------------------------------------------------
   const rentOf = (bed) => {
@@ -103,43 +154,74 @@ module.exports = (api) => {
   const clock = (ms) => { const d = new Date(ms); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`; };
   const left = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
 
-  // What this bed is to this player: 'own', 'rented' (theirs), 'taken' (someone else's rent), 'inn' (free to rent), or null.
+  // What this bed is to this player: 'rented' (theirs), 'taken' (someone else's rent), 'own', 'inn' (free to rent), or null.
   const standing = (a, bed) => {
+    const r = rentOf(bed);
+    if (r) return r.renter === (a >>> 0) ? 'rented' : 'taken';
     const cell = cellOf(bed);
     if (ownsCell(a, cell)) return 'own';
-    if (!INNS.has(cell)) return null;
-    const r = rentOf(bed);
-    if (!r) return 'inn';
-    return r.renter === (a >>> 0) ? 'rented' : 'taken';
+    return rentable(bed, cell) ? 'inn' : null;
   };
+  // The other bed this player still rents with any of their characters. Read from the characters, which are
+  // always loaded: the bed's cell may not be.
+  const rentedElsewhere = (a, bed) => {
+    for (const c of charactersOf(a)) {
+      const m = get(c, 'private.dboRentBed', null);
+      const other = m ? Number(m.bed) >>> 0 : 0;
+      if (other && !(c === (a >>> 0) && other === (bed >>> 0)) && Number(m.until) > Date.now()) return { bed: other, until: Number(m.until) };
+    }
+    return null;
+  };
+  const forText = () => { const h = Number(CFG.rentHours) || 0; return h === 24 ? 'a day' : h % 24 === 0 ? `${h / 24} days` : `${h} hours`; };
+  const where = (bed) => { const n = innName(cellOf(bed)); return n ? ` at ${n}` : ''; };
+  const bedDesc = (bed) => { try { return mp.getDescFromId(bed >>> 0); } catch (e) { return (bed >>> 0).toString(16); } };
 
   // ---- the prompt -----------------------------------------------------------------------------------
-  const pending = new Map(); // actorId -> bed ref the open prompt is about
+  // Both outlive a gamemode reload, or a prompt open during a deploy would answer nothing.
+  const pending = globalThis.__dboRestPending = globalThis.__dboRestPending || new Map(); // actorId -> bed of the open prompt
+  // actorId -> { bed, until }: the next activation of that bed goes to the engine, so the player lies down.
+  const lying = globalThis.__dboRestLying = globalThis.__dboRestLying || new Map();
+  const LIE_WINDOW_MS = 20000;
   const openPrompt = (a, bed, kind) => {
     // The context menu brings its own Close button, and shows lines only in inspect mode, so the rent's end
     // goes in the title.
     const r = rentOf(bed);
     const actions = kind === 'inn'
-      ? [{ id: 'rent', label: `Rent this bed (${CFG.rentGold} gold, ${CFG.rentHours} hours)` }]
-      : [{ id: 'sleep', label: 'Sleep (log out)' }];
+      ? [{ id: 'rent', label: `Rent this bed: ${CFG.rentGold} gold for ${forText()}` }]
+      : [{ id: 'sleep', label: 'Sleep (log out)' }, { id: 'lie', label: 'Lie down (use the bed again)' }];
     pending.set(a >>> 0, bed >>> 0);
     openWidget(a, {
       type: 'contextMenu', id: WIDGET_ID, mode: 'menu',
-      targetName: kind === 'own' ? 'Your bed' : kind === 'rented' && r ? `Your bed until ${clock(r.until)}` : 'Inn bed',
+      targetName: kind === 'own' ? 'Your bed' : kind === 'rented' && r ? `Your bed${where(bed)} until ${clock(r.until)}` : `A bed for rent${where(bed)}`,
       actions, events: { action: 'dbo:restChoose', close: 'dbo:restClose' },
     }, true);
+    log(`rest: ${who(a)} opened the ${kind} prompt for bed ${bedDesc(bed)}${where(bed)}`);
   };
   const closePrompt = (a) => { pending.delete(a >>> 0); closeWidget(a, WIDGET_ID); };
 
   // Called from the gamemode's activate chain; true means handled (the activation is refused).
   globalThis.__dboRestActivate = (target, caster) => {
-    if (!CFG.enabled || !BEDS.has(baseOf(target))) return false;
+    if (!CFG.enabled || !(RENT_BEDS.has(target >>> 0) || BEDS.has(baseOf(target)))) return false;
+    const l = lying.get(caster >>> 0);
+    if (l) {
+      lying.delete(caster >>> 0);
+      if (l.bed === (target >>> 0) && l.until > Date.now()) { const k = standing(caster, target); if (k === 'own' || k === 'rented') return false; }
+    }
     const kind = standing(caster, target);
     if (!kind) return false;
     if (kind === 'taken') {
       const r = rentOf(target);
       personal(caster, `This bed is rented${r && r.name ? ` by ${r.name}` : ''} until ${r ? clock(r.until) : 'later'}.`);
+      log(`rest: ${who(caster)} turned away from bed ${bedDesc(target)}, rented by ${r ? r.name : '?'}`);
       return true;
+    }
+    if (kind === 'inn') {
+      const m = rentedElsewhere(caster, target);
+      if (m) {
+        personal(caster, `You already rent a bed${where(m.bed)} until ${clock(m.until)}. One bed at a time.`);
+        log(`rest: ${who(caster)} already rents bed ${bedDesc(m.bed)}; refused bed ${bedDesc(target)}`);
+        return true;
+      }
     }
     openPrompt(caster, target, kind);
     return true;
@@ -147,20 +229,24 @@ module.exports = (api) => {
 
   const payRent = (a, bed) => {
     const price = Math.max(0, Math.round(Number(CFG.rentGold) || 0));
-    if (price && !takeGold(a, price)) { personal(a, `You need ${price} gold to rent this bed.`); return false; }
-    const zone = zoneOfActor(a);
-    const owner = innOwner(cellOf(bed));
-    const holdCut = owner ? Math.round(price * (Number(CFG.holdShare) || 0)) : price;
-    const ownerCut = price - holdCut;
-    const toHold = holdCut ? depositToTreasury(zone, holdCut) : 0;
-    let toOwner = 0;
-    if (ownerCut) {
-      if (giveItem(owner, GOLD, ownerCut)) toOwner = ownerCut;
-      else if (depositToTreasury(zone, ownerCut)) log(`rest: owner ${owner.toString(16)} could not be paid; ${ownerCut} gold went to ${zone}`);
+    if (price && !takeGold(a, price)) {
+      personal(a, `You need ${price} gold to rent this bed.`);
+      log(`rest: ${who(a)} could not pay ${price} gold for bed ${bedDesc(bed)}`);
+      return false;
     }
-    set(bed, 'private.dboRent', { renter: a >>> 0, name: display(a), until: Date.now() + CFG.rentHours * HOUR });
-    audit(`REST ${who(a)} rented bed ${mp.getDescFromId(bed >>> 0)} for ${price} gold: ${toOwner} to ${owner ? display(owner) : 'no owner'}, ${toHold} to ${zone || 'no hold'}`);
-    personal(a, `You rent the bed for ${price} gold until ${clock(Date.now() + CFG.rentHours * HOUR)}. It is yours alone until then.`);
+    const cell = cellOf(bed);
+    const zone = (INNS.get(cell) && INNS.get(cell).hold) || zoneOfActor(a);
+    const owner = innOwner(cell);
+    let holdCut = owner ? Math.round(price * (Number(CFG.holdShare) || 0)) : price;
+    const ownerCut = price - holdCut;
+    let toOwner = ownerCut ? payOwner(owner, ownerCut) : null;
+    if (ownerCut && !toOwner) { log(`rest: owner profile ${owner.owner} could not be paid; ${ownerCut} gold goes to ${zone || 'no hold'}`); holdCut = price; toOwner = null; }
+    const toHold = holdCut ? depositToTreasury(zone, holdCut) : 0;
+    const until = Date.now() + CFG.rentHours * HOUR;
+    set(bed, 'private.dboRent', { renter: a >>> 0, name: display(a), until });
+    set(a, 'private.dboRentBed', { bed: bed >>> 0, until });
+    audit(`REST ${who(a)} rented bed ${bedDesc(bed)}${where(bed)} for ${price} gold: ${toOwner || (owner ? `0 to ${owner.ownerName || 'the owner'}` : '0 to no owner')}, ${toHold} to ${zone || 'no hold'}${holdCut && !toHold ? ' (no treasury)' : ''}`);
+    personal(a, `You rent the bed for ${price} gold until ${clock(until)}. It is yours alone until then. Choose Sleep to log out and wake Well Rested.`);
     return true;
   };
 
@@ -171,7 +257,7 @@ module.exports = (api) => {
     const pvp = globalThis.__dboPvpAt instanceof Map ? globalThis.__dboPvpAt.get(a >>> 0) || 0 : 0;
     if (Date.now() - pvp < CFG.pvpPauseSeconds * 1000) return personal(a, 'You cannot sleep in the middle of a fight.');
     set(a, 'private.dboSleep', { at: Date.now(), bed: bed >>> 0 });
-    audit(`REST ${who(a)} went to sleep in bed ${mp.getDescFromId(bed >>> 0)}`);
+    audit(`REST ${who(a)} went to sleep in bed ${bedDesc(bed)}${where(bed)}`);
     const reason = `You lie down and sleep. Stay away at least ${CFG.minOfflineMinutes} minutes to wake Well Rested.`;
     try { sendPacket(a, { customPacketType: 'kicked', reason }); } catch (e) { /* the kick still lands */ }
     const user = userOf(a);
@@ -181,21 +267,26 @@ module.exports = (api) => {
   onUi('restChoose', (a, args) => {
     const bed = pending.get(a >>> 0); const choice = String(args[0] || '');
     closePrompt(a);
-    if (!bed || choice === 'cancel') return;
+    if (choice === 'cancel') return;
+    if (!bed) { log(`rest: ${who(a)} chose ${choice} with no bed prompt on record`); return personal(a, 'Use the bed again.'); }
     if (distanceMeters(a, bed) > REACH_M) return personal(a, 'You are too far from the bed.');
     const kind = standing(a, bed);
     if (choice === 'rent') {
       if (kind === 'taken') return personal(a, 'Someone else has just rented this bed.');
       if (kind !== 'inn') return;
+      const m = rentedElsewhere(a, bed);
+      if (m) return personal(a, `You already rent a bed${where(m.bed)} until ${clock(m.until)}. One bed at a time.`);
       if (payRent(a, bed)) openPrompt(a, bed, 'rented');
       return;
     }
-    if (choice === 'sleep') {
+    if (choice === 'sleep' || choice === 'lie') {
       if (kind !== 'own' && kind !== 'rented') return personal(a, 'This is not your bed to sleep in.');
-      sleep(a, bed);
+      if (choice === 'sleep') return sleep(a, bed);
+      lying.set(a >>> 0, { bed: bed >>> 0, until: Date.now() + LIE_WINDOW_MS });
+      personal(a, 'Use the bed again to lie down.');
     }
   });
-  onUi('restClose', (a) => closePrompt(a));
+  onUi('restClose', (a) => { if (pending.has(a >>> 0)) log(`rest: ${who(a)} closed the bed prompt`); closePrompt(a); });
   onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) pending.delete(a >>> 0); });
 
   // ---- waking ---------------------------------------------------------------------------------------
@@ -204,6 +295,13 @@ module.exports = (api) => {
   // Called on login, before the gamemode applies the hunger stage.
   globalThis.__dboRestLogin = (a) => {
     if (!CFG.enabled) return;
+    try { collectOwed(a); } catch (e) { log('rest: owed rent failed', e.message); }
+    // Playing another character is not being away: a sleep any of the others started is void.
+    for (const c of charactersOf(a)) {
+      if (c === (a >>> 0) || !get(c, 'private.dboSleep', null)) continue;
+      set(c, 'private.dboSleep', null);
+      log(`rest: ${who(a)} logged in; the sleep of ${bedDesc(c)} on the same profile is void`);
+    }
     const s = get(a, 'private.dboSleep', null);
     if (!s || !Number(s.at)) return;
     set(a, 'private.dboSleep', null);
@@ -253,5 +351,5 @@ module.exports = (api) => {
     personal(a, lines.join(' '));
   }, { help: 'How long Well Rested and Well Fed have left' });
 
-  log(`rest ${CFG.enabled ? 'on' : 'off'}: ${BEDS.size} bed types, ${INNS.size} inn cells; sleep ${CFG.minOfflineMinutes} min for ${CFG.restedHours} h rested (+${CFG.extraHealPercentPerSecond}%/s health) and ${CFG.wellFedHours} h fed (hunger x${CFG.wellFedHungerMult}); rent ${CFG.rentGold} gold for ${CFG.rentHours} h, ${Math.round(CFG.holdShare * 100)}% to the hold`);
+  log(`rest ${CFG.enabled ? 'on' : 'off'}: ${BEDS.size} bed types, ${INNS.size} inn cells (${[...INNS.values()].filter((i) => i.hold === 'bruma' && i.door).length} with a door in bruma), ${RENT_BEDS.size} beds to rent; sleep ${CFG.minOfflineMinutes} min for ${CFG.restedHours} h rested (+${CFG.extraHealPercentPerSecond}%/s health) and ${CFG.wellFedHours} h fed (hunger x${CFG.wellFedHungerMult}); rent ${CFG.rentGold} gold for ${CFG.rentHours} h, ${Math.round(CFG.holdShare * 100)}% to the hold`);
 };
