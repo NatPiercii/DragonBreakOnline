@@ -103,8 +103,10 @@ module.exports = (api) => {
     if (!knownBy(t).includes(a >>> 0)) entries.push({ id: 'introduce', label: 'Introduce' });
     entries.push({ id: 'inspect', label: 'Inspect' });
     const leaderOf = typeof globalThis.__dboPartyLeaderOf === 'function' ? globalThis.__dboPartyLeaderOf : () => null;
-    if (leaderOf(a) === profileOf(a) && leaderOf(t) === profileOf(a)) entries.push({ id: 'partykick', label: 'Remove from Party' });
-    else entries.push({ id: 'party', label: 'Invite to Party' });
+    const myLeader = leaderOf(a);
+    if (myLeader === null || myLeader !== leaderOf(t)) entries.push({ id: 'party', label: 'Invite to Party' });
+    else if (myLeader === profileOf(a)) entries.push({ id: 'partykick', label: 'Remove from Party' });
+    if (myLeader !== null) entries.push({ id: 'partyleave', label: 'Leave Party' });
     try { if (typeof globalThis.__dboSuperMenuEntries === 'function') entries.push(...globalThis.__dboSuperMenuEntries(a, t)); } catch (e) { /* no curses */ }
     try { if (typeof globalThis.__dboFactionMenuEntries === 'function') entries.push(...globalThis.__dboFactionMenuEntries(a, t)); } catch (e) { /* factions not loaded */ }
     if (get(a, LAWFUL_PROP, false) === true) {
@@ -138,6 +140,7 @@ module.exports = (api) => {
     if (id === 'inspect') return openMenu(a, t, 'inspect', inspectLines(a, t));
     if (id === 'party') return runCommand(a, 'party', `invite #${tagOf(t)}`);
     if (id === 'partykick') return runCommand(a, 'party', `kick #${tagOf(t)}`);
+    if (id === 'partyleave') return runCommand(a, 'leave', '');
     if (id.startsWith('voice:')) return sendPacket(a, { customPacketType: 'dboVoicePeer', identity: (t >>> 0).toString(16), op: id.slice(6), name: nameFor(a, t) });
     if (typeof globalThis.__dboSuperMenuAction === 'function' && globalThis.__dboSuperMenuAction(a, id, t)) return;
     if (typeof globalThis.__dboFactionMenuAction === 'function' && globalThis.__dboFactionMenuAction(a, id, t)) return;

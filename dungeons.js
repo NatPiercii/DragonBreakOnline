@@ -1018,15 +1018,36 @@ module.exports = (api) => {
     if (!p) return;
     p.members.delete(pid);
     clearPartyPanel(pid);
-    if (leader === pid || p.members.size <= 1) {
+    for (const [to, inv] of ST.invites) if (inv.from === pid) ST.invites.delete(to);
+    if (p.members.size <= 1) {
       for (const m of p.members) { ST.memberOf.delete(m); clearPartyPanel(m); const a = actorByProfile(m); if (a && !quiet) system(a, 'The party has broken up.'); }
       ST.parties.delete(leader);
-    } else if (!quiet) {
-      pushParty(p);
-      const name = (() => { const a = actorByProfile(pid); return a ? display(a) : `#${pid}`; })();
-      for (const m of p.members) { const a = actorByProfile(m); if (a) system(a, `${name} left the party.`); }
+      return;
     }
+    let handedTo = '';
+    // The longest-standing member takes over; the party is keyed by its leader, so it moves
+    if (leader === pid) {
+      const next = [...p.members][0];
+      const na = actorByProfile(next);
+      p.leader = next; p.leaderName = na ? display(na) : `#${next}`;
+      ST.parties.delete(leader); ST.parties.set(next, p);
+      for (const m of p.members) ST.memberOf.set(m, next);
+      handedTo = p.leaderName;
+      if (na) personal(na, 'You now lead the party.');
+    }
+    pushParty(p);
+    if (quiet) return;
+    const name = (() => { const a = actorByProfile(pid); return a ? display(a) : `#${pid}`; })();
+    for (const m of p.members) { const a = actorByProfile(m); if (a) system(a, `${name} left the party.${handedTo ? ` ${handedTo} now leads it.` : ''}`); }
   };
+  const leaveCommand = (a) => {
+    const pid = profileOf(a);
+    if (!partyOf(pid)) return personal(a, 'You are not in a party.');
+    leaveParty(pid);
+    personal(a, 'You left the party.');
+  };
+  registerChatCommand('leave', (a) => leaveCommand(a), { help: 'leave your party' });
+  onUi('partyLeave', (a) => leaveCommand(a));
   registerChatCommand('party', (a, args) => {
     const [sub, ...rest] = args.trim().split(/\s+/); const arg = rest.join(' ');
     const pid = profileOf(a);
@@ -1059,7 +1080,7 @@ module.exports = (api) => {
         return;
       }
       case 'decline': ST.invites.delete(pid); return personal(a, 'Declined.');
-      case 'leave': if (!p) return personal(a, 'You are not in a party.'); leaveParty(pid); return personal(a, 'You left the party.');
+      case 'leave': return leaveCommand(a);
       case 'kick': {
         if (!p || p.leader !== pid) return personal(a, 'Only the leader kicks.');
         const t = findByName(arg); if (!t || !p.members.has(profileOf(t))) return personal(a, 'They are not in your party.');
@@ -1068,7 +1089,7 @@ module.exports = (api) => {
       default: {
         if (!p) return personal(a, 'Not in a party. /party invite <name|#TAG>, /party accept, /party leave, /party kick <name>.');
         const names = [...p.members].map((m) => { const x = actorByProfile(m); return (x ? display(x) : `#${m}`) + (m === p.leader ? ' (leader)' : ''); });
-        return personal(a, `${isRaid(p) ? 'Raid' : 'Party'} (${p.members.size}/${isRaid(p) ? C.raidMax : C.partyMax}): ${names.join(', ')}`);
+        return personal(a, `${isRaid(p) ? 'Raid' : 'Party'} (${p.members.size}/${isRaid(p) ? C.raidMax : C.partyMax}): ${names.join(', ')}. /leave to leave it.`);
       }
     }
   }, { help: 'invite|accept|decline|leave|kick: group up for dungeons (6 a party, up to 12 a raid at half skill gain)' });
