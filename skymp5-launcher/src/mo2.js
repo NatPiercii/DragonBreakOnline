@@ -1237,37 +1237,97 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
 const CC_FILE_RE = /^cc[a-z]{3}sse\d{3}-.*\.(?:es[mlp]|bsa)$/i
 // AE extras the engine force-loads without a plugins.txt entry.
 const CC_EXTRAS  = new Set(['_resourcepack.esl', '_resourcepack.bsa', 'marketplacetextures.bsa'])
+const CC_DISABLED_DIR = 'disabled CC mods'
+const PLUGIN_EXT_RE = /\.es[mlp]$/i
+
+const isCcFile   = l => CC_FILE_RE.test(l) || CC_EXTRAS.has(l)
+const pluginBase = name => name.toLowerCase().replace(PLUGIN_EXT_RE, '')
+
+// The engine loads X.bsa and "X - Textures.bsa" for plugin X.
+function archiveOwnedBy(archive, bases) {
+  const b = archive.toLowerCase().replace(/\.bsa$/, '')
+  return bases.has(b) || [...bases].some(k => b.startsWith(`${k} - `))
+}
+
+function dataNames(gamePath) {
+  try { return fs.readdirSync(path.join(gamePath, 'Data')) } catch { return null }
+}
+
+// Moves parked files the predicate wants back into Data; a file already in Data is never replaced.
+function restoreParkedCc(gamePath, wanted) {
+  const parkDir = path.join(gamePath, CC_DISABLED_DIR)
+  const dataDir = path.join(gamePath, 'Data')
+  let parked = []
+  try { parked = fs.readdirSync(parkDir) } catch { return [] }
+  const present = new Set((dataNames(gamePath) || []).map(n => n.toLowerCase()))
+  const restored = []
+  for (const name of parked) {
+    const l = name.toLowerCase()
+    if (present.has(l) || !wanted(l)) continue
+    try {
+      fs.renameSync(lp(path.join(parkDir, name)), lp(path.join(dataDir, name)))
+      present.add(l)
+      restored.push(name)
+    } catch (err) {
+      _log(`could not restore ${name} from ${CC_DISABLED_DIR}: ${err.message}`)
+    }
+  }
+  if (restored.length > 0) _log(`restored ${restored.length} Creation Club file(s) from ${parkDir}: ${restored.join(', ')}`)
+  return restored
+}
 
 /**
  * Move Creation Club plugins/archives (plus the AE resource pack and
  * marketplace textures) out of <gamePath>/Data into "<gamePath>/disabled CC
  * mods". Non-portable installs play from the user's real Skyrim folder, where
- * the engine force-loads CC content via Skyrim.ccc regardless of plugins.txt
- * and fights the server's load order. Files named in serverLoadOrder are left
- * alone. Idempotent; returns the number of files moved.
+ * the engine force-loads CC content via Skyrim.ccc and fights the server's
+ * load order. Plugins named in serverLoadOrder stay, and so do their archives
+ * (X.esm keeps X.bsa and "X - Textures.bsa"). Parked files that are wanted
+ * again are moved back first. Without a load order nothing is disabled and
+ * only archives of plugins still in Data are restored. Idempotent.
  */
 function disableCcContent(gamePath, serverLoadOrder) {
-  const dataDir = path.join(gamePath, 'Data')
-  const keep = new Set((serverLoadOrder || []).map(f => path.basename(f).toLowerCase()))
-  let names = []
-  try { names = fs.readdirSync(dataDir) } catch { return 0 }
+  const names = dataNames(gamePath)
+  if (!names) return { disabled: 0, restored: [] }
+  const hasOrder = Array.isArray(serverLoadOrder) && serverLoadOrder.length > 0
+  const keep = new Set((hasOrder ? serverLoadOrder : []).map(f => path.basename(f).toLowerCase()))
+  const keptBases = new Set([...(hasOrder ? keep : names.map(n => n.toLowerCase()))]
+    .filter(f => PLUGIN_EXT_RE.test(f)).map(pluginBase))
+  const wanted = l => keep.has(l) || (l.endsWith('.bsa') && archiveOwnedBy(l, keptBases))
 
-  const destDir = path.join(gamePath, 'disabled CC mods')
-  let moved = 0
+  const restored = restoreParkedCc(gamePath, wanted)
+  if (!hasOrder) return { disabled: 0, restored }
+
+  const dataDir = path.join(gamePath, 'Data')
+  const destDir = path.join(gamePath, CC_DISABLED_DIR)
+  let disabled = 0
   for (const name of names) {
     const l = name.toLowerCase()
-    if (!(CC_FILE_RE.test(l) || CC_EXTRAS.has(l))) continue
-    if (keep.has(l)) continue   // the server actually uses it - leave it alone
+    if (!isCcFile(l) || wanted(l)) continue
     try {
       fs.mkdirSync(lp(destDir), { recursive: true })
       fs.renameSync(lp(path.join(dataDir, name)), lp(path.join(destDir, name)))
-      moved++
+      disabled++
     } catch (err) {
-      _log(`could not move ${name} to disabled CC mods: ${err.message}`)
+      _log(`could not move ${name} to ${CC_DISABLED_DIR}: ${err.message}`)
     }
   }
-  if (moved > 0) _log(`moved ${moved} Creation Club file(s) to ${destDir}`)
-  return moved
+  if (disabled > 0) _log(`moved ${disabled} Creation Club file(s) to ${destDir}`)
+  return { disabled, restored }
+}
+
+/** Kept CC/_ResourcePack plugins present in Data with no archive of their own; their objects render untextured. */
+function missingCcArchives(gamePath, serverLoadOrder) {
+  const names = dataNames(gamePath)
+  if (!names || !Array.isArray(serverLoadOrder)) return []
+  const lower = names.map(n => n.toLowerCase())
+  const present = new Set(lower)
+  const archives = lower.filter(n => n.endsWith('.bsa'))
+  return serverLoadOrder
+    .map(f => path.basename(f))
+    .filter(f => PLUGIN_EXT_RE.test(f) && isCcFile(f.toLowerCase()) && present.has(f.toLowerCase()))
+    .filter(f => !archives.some(a => archiveOwnedBy(a, new Set([pluginBase(f)]))))
+    .map(f => `${f.replace(PLUGIN_EXT_RE, '')}.bsa`)
 }
 
 // Launch
@@ -1357,7 +1417,9 @@ module.exports = {
   parseArchiveListing,
   listArchiveEntries,
   waitForDownloads,
+  CC_DISABLED_DIR,
   disableCcContent,
+  missingCcArchives,
   launchGame,
   openUI,
   getStatus,

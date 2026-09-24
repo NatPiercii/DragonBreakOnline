@@ -1308,7 +1308,9 @@ btnConnect.addEventListener('click', async () => {
       return
     }
 
-    if (!install.warning) clearWarning()
+    const warnings = [install.warning, result.warning].filter(Boolean)
+    if (warnings.length > 0) showWarning(`\u26A0 ${warnings.join(' ')}`)
+    else clearWarning()
     startLaunchWatch()
   } finally {
     playBusy = false

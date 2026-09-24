@@ -1184,6 +1184,30 @@ const FREE_CC_PLUGINS = new Set([
 ])
 const FREE_CC_BASES = [...FREE_CC_PLUGINS].map(p => p.replace(/\.es[ml]$/, ''))
 
+const DOWNGRADE_DEPOT_DATA = path.join('steamapps', 'content', 'app_489830', 'depot_489831', 'Data')
+let steamClientRootsCache = null
+
+// download_depot writes under the Steam client root, which may differ from the game's library.
+function steamClientRoots() {
+  if (!steamClientRootsCache) {
+    steamClientRootsCache = [
+      regQueryValue('HKCU\\Software\\Valve\\Steam', 'SteamPath'),
+      regQueryValue('HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam', 'InstallPath'),
+    ].filter(Boolean).map(p => path.resolve(p))
+  }
+  return steamClientRootsCache
+}
+
+// Local copies of a free CC archive the source Data lost: the Steam downgrade depot, then our own quarantine.
+function ccArchiveFallbackDirs(src) {
+  const depots = [path.resolve(src, '..', '..', '..'), ...steamClientRoots()].map(r => path.join(r, DOWNGRADE_DEPOT_DATA))
+  const seen = new Set()
+  return [...depots.map(dir => ({ dir, needPlugin: true })), { dir: path.join(src, mo2.CC_DISABLED_DIR), needPlugin: false }]
+    .filter(f => !seen.has(f.dir.toLowerCase()) && seen.add(f.dir.toLowerCase()))
+}
+const jobSource = (src, job) => job.from || path.join(src, job.sub, job.rel)
+const fileSize = p => { try { return fs.statSync(p).size } catch { return -1 } }
+
 // A Data file is vanilla if it is a known master, a free CC plugin or its BSA, or a vanilla-named BSA.
 function isVanillaDataFile(name) {
   const l = name.toLowerCase()
@@ -1213,6 +1237,26 @@ function vanillaJobs(src) {
       if (e.isFile() && isVanillaDataFile(e.name)) jobs.push({ rel: e.name, sub: 'Data' })
     }
   } catch { /* no Data dir; the SkyrimSE.exe check already guards the source */ }
+  // Free CC archives the source Data lost come from a fallback folder whose plugin matches the source build
+  const have = new Map(jobs.filter(j => j.sub === 'Data').map(j => [j.rel.toLowerCase(), j.rel]))
+  const lost = new Map()
+  for (const b of [...FREE_CC_BASES, '_resourcepack']) {
+    const plugin = have.get(`${b}.esm`) || have.get(`${b}.esl`)
+    if (plugin && !have.has(`${b}.bsa`)) lost.set(`${b}.bsa`, plugin)
+  }
+  for (const { dir, needPlugin } of lost.size ? ccArchiveFallbackDirs(src) : []) {
+    try {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const l = e.name.toLowerCase()
+        const plugin = lost.get(l)
+        if (!e.isFile() || !plugin || have.has(l)) continue
+        const sibling = fileSize(path.join(dir, plugin))
+        if (sibling === -1 ? needPlugin : sibling !== fileSize(path.join(dataDir, plugin))) continue
+        jobs.push({ rel: e.name, sub: 'Data', from: path.join(dir, e.name) })
+        have.set(l, e.name)
+      }
+    } catch { /* fallback folder absent */ }
+  }
   try {
     for (const e of fs.readdirSync(path.join(dataDir, 'Video'), { withFileTypes: true })) {
       if (e.isFile()) jobs.push({ rel: e.name, sub: path.join('Data', 'Video') })
@@ -1231,6 +1275,14 @@ function vanillaJobs(src) {
   return jobs
 }
 
+// A fallback CC archive is optional: drop the partial file and let the launch warning report it.
+function optionalCopyFailed(job, to, err) {
+  if (!job.from) return false
+  try { fs.rmSync(to, { force: true }) } catch {}
+  log(`[integrity] skipped ${job.rel} from ${job.from}: ${err.message}`)
+  return true
+}
+
 // Copy only Bethesda's vanilla files from the (possibly modded) source so the user's install stays intact.
 async function copyGameDir(src, dst) {
   const jobs = vanillaJobs(src)
@@ -1246,9 +1298,10 @@ async function copyGameDir(src, dst) {
     const to = path.join(dst, job.sub, job.rel)
     try {
       fs.mkdirSync(path.dirname(to), { recursive: true })
-      await fs.promises.copyFile(path.join(src, job.sub, job.rel), to)
+      await fs.promises.copyFile(jobSource(src, job), to)
     } catch (err) {
-      return { success: false, error: `Failed copying ${job.rel}: ${err.message}` }
+      if (!optionalCopyFailed(job, to, err)) return { success: false, error: `Failed copying ${job.rel}: ${err.message}` }
+      continue
     }
     copied++
     send('isolated:progress', `Copying vanilla game files… ${copied}/${jobs.length} (${job.rel})`)
@@ -1268,11 +1321,10 @@ async function copyGameDir(src, dst) {
 // Vanilla files in the game copy that are missing or the wrong size compared
 // to the original install.
 function vanillaMismatches(src, dir) {
-  const sizeOf = p => { try { return fs.statSync(p).size } catch { return -1 } }
   const bad = []
   for (const job of vanillaJobs(src)) {
-    const want = sizeOf(path.join(src, job.sub, job.rel))
-    if (want >= 0 && sizeOf(path.join(dir, job.sub, job.rel)) !== want) bad.push(job)
+    const want = fileSize(jobSource(src, job))
+    if (want >= 0 && fileSize(path.join(dir, job.sub, job.rel)) !== want) bad.push(job)
   }
   return bad
 }
@@ -1280,7 +1332,7 @@ function vanillaMismatches(src, dir) {
 // Vanilla integrity gate, run on every install pass. Portable copies are
 // verified against the player's original install and repaired file by file;
 // when playing from the real install there is no clean source to copy from,
-// so a failed check only warns (verify the game in Steam/GOG instead).
+// so a failed check only warns.
 async function ensureVanillaIntegrity(gamePath) {
   const portable = store.get('isolatedGame') && isolatedGameReady() && gamePath === isolatedGameDir()
   if (portable) {
@@ -1297,9 +1349,10 @@ async function ensureVanillaIntegrity(gamePath) {
       const to = path.join(gamePath, job.sub, job.rel)
       try {
         fs.mkdirSync(path.dirname(to), { recursive: true })
-        await fs.promises.copyFile(path.join(original, job.sub, job.rel), to)
+        await fs.promises.copyFile(jobSource(original, job), to)
       } catch (err) {
-        return { ok: false, error: `Vanilla file repair failed on ${job.rel}: ${err.message}` }
+        if (!optionalCopyFailed(job, to, err)) return { ok: false, error: `Vanilla file repair failed on ${job.rel}: ${err.message}` }
+        continue
       }
       done++
       send('install:progress', { phase: 'download', file: `Repairing vanilla game files… ${done}/${bad.length} (${job.rel})`, index: done, total: bad.length, skipped: false })
@@ -1311,7 +1364,7 @@ async function ensureVanillaIntegrity(gamePath) {
     .filter(m => m !== '_resourcepack.esl')
     .filter(m => !fs.existsSync(path.join(gamePath, 'Data', m)))
   if (missing.length > 0) {
-    return { ok: true, warning: `Vanilla file check failed: ${missing.join(', ')} missing from the game folder. Verify the game files in Steam/GOG Galaxy.` }
+    return { ok: true, warning: `Vanilla file check failed: ${missing.join(', ')} missing from the game folder. Restore them with the Reliquary downgrade tool (Steam) or GOG Galaxy; never verify through Steam, it updates Skyrim past 1.6.1170.` }
   }
   return { ok: true, warning: null }
 }
@@ -1725,7 +1778,7 @@ ipcMain.handle('launch:skse', () => guardLaunch(async () => {
       }
       spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
     }
-    return { success: true, loadOrderFixed: prep.loadOrderFixed }
+    return { success: true, loadOrderFixed: prep.loadOrderFixed, warning: prep.warning }
   } catch (err) {
     return { success: false, error: err.message }
   }
@@ -1832,6 +1885,12 @@ function verifyLaunchReadiness(skyrimPath, viaMO2, serverInfo) {
   return problems
 }
 
+function ccArchiveWarning(names) {
+  return `Game archives missing: ${names.join(', ')}. The game still starts, but some buildings, stalls and plants will look purple or be missing. ` +
+    `Copy only these .bsa files into your Skyrim install's Data folder from Steam\\${DOWNGRADE_DEPOT_DATA} if you have that folder, ` +
+    'otherwise run the Reliquary downgrade tool again, then press PLAY. Never verify or update Skyrim through Steam: it moves the game past 1.6.1170.'
+}
+
 async function prepareForLaunch(skyrimPath, viaMO2) {
   ensureClientDirs(skyrimPath)
 
@@ -1851,7 +1910,7 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   // Non-portable installs play from the user's real Skyrim folder: quarantine
   // Creation Club content the server doesn't use into "disabled CC mods", or
   // the engine force-loads it via Skyrim.ccc and fights the server load order.
-  // The isolated game copy never receives cc* files, so this is a no-op there.
+  // The isolated game copy only holds the free CC files, so it is skipped.
   if (skyrimPath === store.get('skyrimPath')) {
     mo2.disableCcContent(skyrimPath, serverInfo?.loadOrder)
   }
@@ -1871,6 +1930,11 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
       return { success: false, error: err.message }
     }
   }
+
+  // A CC plugin without its archive still loads, so this only warns
+  const lostArchives = mo2.missingCcArchives(skyrimPath, serverInfo?.loadOrder)
+  const warning = lostArchives.length > 0 ? ccArchiveWarning(lostArchives) : null
+  if (warning) log('[launch] ' + warning)
 
   applyControlmapOverride(skyrimPath)
 
@@ -1947,7 +2011,7 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   }
 
   // SKSE, client files, plugins, and Discord auth were all confirmed by the staging gate above.
-  return { success: true, loadOrderFixed }
+  return { success: true, loadOrderFixed, ...(warning ? { warning } : {}) }
 }
 
 const VANILLA_MASTERS = new Set([
@@ -2218,7 +2282,7 @@ async function checkFilesImpl() {
   }
   await yieldNow()
 
-  // Game copy (portable only; a real install is verified through Steam/GOG)
+  // Game copy (portable only; a real install has no clean source to compare against)
   if (portable) {
     progress('Checking the game copy…')
     const src = store.get('skyrimPath')
