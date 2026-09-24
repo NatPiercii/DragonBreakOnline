@@ -2576,8 +2576,8 @@ mp.onHostAttempt = hostAttemptHook;
 // would credit nobody: MASTERY_MIN_HEALTH keeps the bonus from landing the killing blow, and the
 // engine's next hit takes it with the killer intact.
 // Tunable in gamemode-config.json under "mastery": { "damage": { ... } }; byTier is indexed by rank
-// (0 Novice .. 4 Master) and matches what skills.json advertises: +10/+20/+30% from Journeyman.
-const MASTERY_DMG = Object.assign({ enabled: true, byTier: [0, 0, 0.10, 0.20, 0.30], log: true },
+// (0 Novice .. 4 Master) and matches what skills.json advertises: +35/+65/+100% from Journeyman.
+const MASTERY_DMG = Object.assign({ enabled: true, byTier: [0, 0, 0.35, 0.65, 1.0], log: true },
   ((cfg.mastery || {}).damage) || {});
 const MASTERY_MIN_HEALTH = 0.01;
 // WEAP DNAM byte 0 is the animation type (libespm WEAP.h): 1 Sword, 2 Dagger, 3 WarAxe, 4 Mace,
@@ -2587,7 +2587,8 @@ const WEAPON_SKILL = { 1: 'onehanded', 2: 'onehanded', 3: 'onehanded', 4: 'oneha
 const weaponSkillCache = globalThis.__dboWeaponSkill instanceof Map ? globalThis.__dboWeaponSkill : (globalThis.__dboWeaponSkill = new Map());
 const weaponSkillOf = (sourceId) => {
   if (weaponSkillCache.has(sourceId)) return weaponSkillCache.get(sourceId);
-  let skill = '';
+  // 0x1f4 is the engine's unarmed source (TES5DamageFormula IsUnarmedAttack)
+  let skill = sourceId === 0x1f4 ? 'unarmed' : '';
   const r = recordOf(sourceId);
   if (r && String(r.record.type) === 'WEAP') {
     const dnam = (r.record.fields || []).find((f) => f && f.type === 'DNAM' && f.data instanceof Uint8Array && f.data.byteLength);
@@ -2630,6 +2631,51 @@ const arrowDamageMult = (aggressorId, sourceId) => {
   try { for (const w of wornOf(mp.get(aggressorId, 'equipment'))) arrow = Math.max(arrow, recordDamageOf(w.baseId, 'AMMO')); } catch (e) { return 1; }
   return arrow > 0 ? 1 + (arrow * (Number(ARROWS.scale) || 0)) / bow : 1;
 };
+// Defense: the engine takes worn armor at its bare rating (rating x fArmorScalingFactor %, capped at fMaxArmorRating) and
+// reads no skill, so a Defense tier multiplies the rating and the hit is scaled from the engine's reduction to that one.
+// ARMO DNAM is the rating x100 (u32), BOD2 byte 4 the armor type (0 light, 1 heavy, 2 clothing). Config "mastery.defense".
+const DEFENSE = Object.assign({ enabled: true, armorMultByTier: [1, 1.25, 1.75, 2.5, 3.5], lightShare: 1 },
+  ((cfg.mastery || {}).defense) || {});
+const armorPieceCache = globalThis.__dboArmorPiece instanceof Map ? globalThis.__dboArmorPiece : (globalThis.__dboArmorPiece = new Map());
+const armorPieceOf = (baseId) => {
+  if (armorPieceCache.has(baseId)) return armorPieceCache.get(baseId);
+  let piece = null;
+  const r = recordOf(baseId);
+  if (r && String(r.record.type) === 'ARMO') {
+    const dnam = fieldsOf(r, 'DNAM')[0], bod2 = fieldsOf(r, 'BOD2')[0];
+    const u32 = (f, at) => new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(at, true);
+    if (dnam && dnam.data.byteLength >= 4) piece = { rating: u32(dnam, 0) / 100, heavy: !!bod2 && bod2.data.byteLength >= 8 && u32(bod2, 4) === 1 };
+  }
+  armorPieceCache.set(baseId, piece);
+  return piece;
+};
+const gmstFloat = (id, fallback) => {
+  const key = `gmst:${id}`;
+  if (recordDamageCache.has(key)) return recordDamageCache.get(key);
+  let v = fallback;
+  const data = fieldsOf(recordOf(id), 'DATA')[0];
+  if (data && data.data.byteLength >= 4) { const f = new DataView(data.data.buffer, data.data.byteOffset, 4).getFloat32(0, true); if (Number.isFinite(f) && f > 0) v = f; }
+  recordDamageCache.set(key, v);
+  return v;
+};
+// Below 1 when the target's Defense tier makes its armor count for more than the engine allowed it
+const defenseDamageMult = (targetId) => {
+  if (!DEFENSE.enabled) return 1;
+  const rec = masteryOf(targetId);
+  if (!rec || !Array.isArray(rec.order) || rec.order.indexOf('defense') === -1) return 1;
+  const rank = Math.max(0, Number(((rec.skills || {}).defense || {}).rank) || 0);
+  const m = Number((DEFENSE.armorMultByTier || [])[rank]) || 1;
+  if (!(m > 1)) return 1;
+  let heavy = 0, light = 0;
+  try { for (const w of wornOf(mp.get(targetId, 'equipment'))) { const p = armorPieceOf(w.baseId); if (p) { if (p.heavy) heavy += p.rating; else light += p.rating; } } } catch (e) { return 1; }
+  if (!(heavy + light > 0)) return 1;
+  const scale = gmstFloat(0x21a72, 0.12), cap = gmstFloat(0x37deb, 80);
+  const kept = (rating) => 1 - Math.min(rating * scale, cap) / 100;
+  const boosted = heavy * m + light * (1 + (m - 1) * (Number(DEFENSE.lightShare) || 0));
+  return kept(boosted) / kept(heavy + light);
+};
+// Every player-on-player hit, after skills and armor; config "pvp": { "damageMult" }
+const PVP = Object.assign({ damageMult: 1 }, cfg.pvp || {});
 // A vampire burns under fire and a werewolf under silver (supernatural.js): the extra comes off after the engine's hit
 const superBonusDamage = (agg, tgt, src, damage) => {
   const pend = globalThis.__dboSuperPending; globalThis.__dboSuperPending = null;
@@ -2652,8 +2698,9 @@ const masteryBonusDamage = (agg, tgt, damage) => {
   if (!now || !(now.health > 0)) return 0;             // the engine's hit killed it; the kill is credited
   const dealtPct = pend.health - now.health;
   if (!(dealtPct > 0)) return 0;                       // blocked, warded, or healed in between
-  const health = Math.max(MASTERY_MIN_HEALTH, now.health - dealtPct * (pend.mult - 1));
-  if (!(health < now.health)) return 0;
+  // Above 1 takes more off, below 1 (armor the Defense tier strengthened) gives part of the hit back
+  const health = Math.min(pend.health, Math.max(MASTERY_MIN_HEALTH, now.health - dealtPct * (pend.mult - 1)));
+  if (pend.mult > 1 ? !(health < now.health) : !(health > now.health)) return 0;
   try { mp.set(tgt, 'percentages', { health, magicka: now.magicka, stamina: now.stamina }); }
   catch (e) { log('mastery damage failed', e.message); return 0; }
   const extra = damage * ((now.health - health) / dealtPct);
@@ -2739,7 +2786,8 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
 
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
-    const mult = masteryDamageMult(agg, src) * arrowDamageMult(agg, src);
+    const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
+    const mult = masteryDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * pvp;
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };
