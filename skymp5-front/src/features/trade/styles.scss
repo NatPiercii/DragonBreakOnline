@@ -1,6 +1,6 @@
 @import '../../dbo-theme.scss';
 
-// Player-to-player trade window: inventory left, cancel/lock/trade center, both offers stacked right; a locked pane glows gold.
+// Player-to-player trade window: inventory left, status and accept center, both offers stacked right; a locked pane glows gold.
 
 $trade-gold: dbo-accent();
 $trade-gold-dim: dbo-accent-dim();
@@ -44,6 +44,86 @@ $trade-border: dbo-accent(0.42);
     border-bottom: 1px solid $trade-border;
     padding-bottom: 10px;
     margin-bottom: 14px;
+  }
+
+  &__banner {
+    text-align: center;
+    font-size: 17px;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    color: $trade-gold;
+    background: dbo-accent(0.08);
+    border: 1px solid dbo-accent(0.25);
+
+    &--reset {
+      color: #f0b07a;
+      border-color: #f0b07a;
+      background: rgba(120, 60, 20, 0.35);
+    }
+
+    &--final {
+      color: #fff;
+      border-color: $trade-gold;
+      background: rgba(64, 54, 30, 0.7);
+      box-shadow: 0 0 10px dbo-accent(0.45);
+    }
+  }
+
+  &__status {
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    padding: 4px 2px;
+    border: 1px solid dbo-accent(0.2);
+    color: $trade-gold-dim;
+
+    &--locked {
+      color: $trade-gold;
+      border-color: dbo-accent(0.5);
+    }
+
+    &--accepted {
+      color: #9fe3a0;
+      border-color: #6fbf73;
+      background: rgba(40, 90, 45, 0.35);
+    }
+  }
+
+  &__accept {
+    margin: 6px 0;
+    filter: drop-shadow(0 0 8px dbo-accent(0.55));
+
+    &--done {
+      filter: none;
+    }
+  }
+
+  &__gold {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0 6px;
+    font-size: 15px;
+    color: $trade-gold;
+
+    &--theirs {
+      color: #fff;
+    }
+  }
+
+  &__gold-input {
+    width: 90px;
+    height: 26px;
+    text-align: right;
+    font-family: inherit;
+    font-size: 15px;
+    color: $trade-gold;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid $trade-border;
+  }
+
+  &__gold-max {
+    color: $trade-gold-dim;
   }
 
   &__search-row {
@@ -194,12 +274,13 @@ $trade-border: dbo-accent(0.42);
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 12px;
-    flex: 0 0 128px;
+    gap: 10px;
+    flex: 0 0 150px;
   }
 
   // Scale SkyrimButton's default 30px type down to fit the compact 36px-tall action/prompt buttons.
   &__actions,
+  &__gold,
   &__prompt-row {
     .skymp-input-button .skymp-input-button_text {
       font-size: 16px;
