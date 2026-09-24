@@ -1316,10 +1316,12 @@ Napi::Value ScampServer::GetNeighborsByPosition(const Napi::CallbackInfo& info)
       NapiHelper::ExtractString(info[0], "cellOrWorldDesc"));
     auto pos = NapiHelper::ExtractNiPoint3(info[1], "pos");
 
-    auto cellX = static_cast<int32_t>(pos[0] / 4096);
-    auto cellY = static_cast<int32_t>(pos[1] / 4096);
-    auto& refs = partOne->worldState.GetNeighborsByPosition(
-      cellOrWorldDesc.ToFormId(partOne->worldState.espmFiles), cellX, cellY);
+    auto cellOrWorld = cellOrWorldDesc.ToFormId(partOne->worldState.espmFiles);
+    const bool interior = partOne->worldState.IsInteriorCell(cellOrWorld);
+    auto cellX = interior ? 0 : static_cast<int32_t>(pos[0] / 4096);
+    auto cellY = interior ? 0 : static_cast<int32_t>(pos[1] / 4096);
+    auto& refs =
+      partOne->worldState.GetNeighborsByPosition(cellOrWorld, cellX, cellY);
 
     Napi::Array arr = Napi::Array::New(info.Env(), refs.size());
     for (auto ref : refs) {

@@ -27,6 +27,9 @@
 
 namespace {
 
+// Squares of 4096 units each way an interior's records are loaded from
+constexpr int16_t kInteriorChunkReach = 16;
+
 struct RelootTimeForTypesEntry
 {
   std::string recordType;
@@ -847,17 +850,30 @@ void WorldState::SendPapyrusEvent(MpForm* form, const char* eventName,
   return vm.SendEvent(form->ToGameObject(), eventName, args, onEnter);
 }
 
+bool WorldState::IsInteriorCell(uint32_t cellOrWorld)
+{
+  auto& interior = grids[cellOrWorld].interior;
+  if (!interior.has_value()) {
+    interior = espm &&
+      espm::Convert<espm::CELL>(espm->GetBrowser().LookupById(cellOrWorld).rec) !=
+        nullptr;
+  }
+  return *interior;
+}
+
 const std::set<MpObjectReference*>& WorldState::GetNeighborsByPosition(
   uint32_t cellOrWorld, int16_t cellX, int16_t cellY)
 {
+  // Interior references all sit on square 0,0, so their records load from every square the cell can span
+  const int16_t chunkReach = IsInteriorCell(cellOrWorld) ? kInteriorChunkReach : 1;
   if (espm && !pImpl->chunkLoadingInProgress) {
     Viet::ScopedTask<bool> task([](bool& st) { st = false; },
                                 pImpl->chunkLoadingInProgress);
     pImpl->chunkLoadingInProgress = true;
 
     auto& br = espm->GetBrowser();
-    for (int16_t x = cellX - 1; x <= cellX + 1; ++x) {
-      for (int16_t y = cellY - 1; y <= cellY + 1; ++y) {
+    for (int16_t x = cellX - chunkReach; x <= cellX + chunkReach; ++x) {
+      for (int16_t y = cellY - chunkReach; y <= cellY + chunkReach; ++y) {
         const bool loaded = grids[cellOrWorld].loadedChunks[x][y];
         if (!loaded) {
           for (size_t i = 0; i < espmFiles.size(); ++i) {

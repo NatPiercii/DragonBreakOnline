@@ -128,6 +128,9 @@ public:
   const std::set<MpObjectReference*>& GetNeighborsByPosition(
     uint32_t cellOrWorld, int16_t cellX, int16_t cellY);
 
+  // An interior cell is one grid square, so everyone inside sees everything in it
+  bool IsInteriorCell(uint32_t cellOrWorld);
+
   std::shared_ptr<std::vector<uint32_t>> GetAllForms(uint32_t modIndex);
 
   // See LookupFormById comment
@@ -305,6 +308,7 @@ private:
     std::shared_ptr<GridImpl<MpObjectReference*>> grid =
       std::make_shared<GridImpl<MpObjectReference*>>();
     std::map<int16_t, std::map<int16_t, bool>> loadedChunks;
+    std::optional<bool> interior;
   };
 
   std::unordered_map<uint32_t, std::shared_ptr<MpForm>> forms;

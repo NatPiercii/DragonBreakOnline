@@ -538,10 +538,22 @@ void MpObjectReference::Enable()
   }
 }
 
+std::pair<int16_t, int16_t> MpObjectReference::GridPosOf(
+  const NiPoint3& pos)
+{
+  auto* worldState = GetParent();
+  if (worldState &&
+      worldState->IsInteriorCell(
+        GetCellOrWorld().ToFormId(worldState->espmFiles))) {
+    return { 0, 0 };
+  }
+  return GetGridPos(pos);
+}
+
 void MpObjectReference::SetPos(const NiPoint3& newPos, SetPosMode setPosMode)
 {
-  auto oldGridPos = GetGridPos(ChangeForm().position);
-  auto newGridPos = GetGridPos(newPos);
+  auto oldGridPos = GridPosOf(ChangeForm().position);
+  auto newGridPos = GridPosOf(newPos);
 
   EditChangeForm(
     [&newPos](MpChangeFormREFR& changeForm) { changeForm.position = newPos; },
@@ -723,7 +735,7 @@ void MpObjectReference::ForceSubscriptionsUpdate()
   MoveOnGrid(*gridInfo.grid);
 
   auto& was = *this->listeners;
-  auto pos = GetGridPos(GetPos());
+  auto pos = GridPosOf(GetPos());
   auto& now =
     worldState->GetNeighborsByPosition(worldOrCell, pos.first, pos.second);
 
@@ -1325,7 +1337,7 @@ void MpObjectReference::VisitNeighbours(const Visitor& visitor)
   }
 
   auto& grid = gridIterator->second;
-  auto pos = GetGridPos(GetPos());
+  auto pos = GridPosOf(GetPos());
   auto& neighbours =
     worldState->GetNeighborsByPosition(worldOrCell, pos.first, pos.second);
   for (auto neighbour : neighbours) {
@@ -1931,7 +1943,7 @@ void MpObjectReference::InitScripts()
 
 void MpObjectReference::MoveOnGrid(GridImpl<MpObjectReference*>& grid)
 {
-  auto newGridPos = GetGridPos(GetPos());
+  auto newGridPos = GridPosOf(GetPos());
   grid.Move(this, newGridPos.first, newGridPos.second);
 }
 

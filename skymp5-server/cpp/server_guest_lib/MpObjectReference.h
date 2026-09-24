@@ -228,6 +228,7 @@ private:
                           std::map<uint32_t, uint32_t>* itemsToAdd);
   void InitScripts();
   void MoveOnGrid(GridImpl<MpObjectReference*>& grid);
+  std::pair<int16_t, int16_t> GridPosOf(const NiPoint3& pos);
   void InitListenersAndEmitters();
   void SendOpenContainer(uint32_t refId);
   void CheckInteractionAbility(MpObjectReference& ac);
