@@ -1663,13 +1663,38 @@ void MpObjectReference::ActivateChilds()
 
   auto myFormId = GetFormId();
 
-  for (auto& pair : worldState->activationChildsByActivationParent[myFormId]) {
+  if (worldState->HasEspm()) {
+    worldState->LoadActivationChilds(
+      myFormId, GetCellOrWorld().ToFormId(worldState->espmFiles));
+  }
+
+  auto& childs = worldState->activationChildsByActivationParent[myFormId];
+  if (childs.empty()) {
+    return;
+  }
+
+  // One pull at a time, or two players pulling together toggle a gate twice
+  auto& pending = worldState->pendingChildActivations[myFormId];
+  if (pending > 0) {
+    spdlog::info("MpObjectReference::ActivateChilds {:x} - skipped, {} child "
+                 "activations still pending",
+                 myFormId, pending);
+    return;
+  }
+  pending = static_cast<uint32_t>(childs.size());
+
+  for (auto& pair : childs) {
     auto childRefrId = pair.first;
     auto delay = pair.second;
 
     auto delayMs = Viet::TimeUtils::To<std::chrono::milliseconds>(delay);
     worldState->SetTimer(delayMs).Then([worldState, childRefrId,
                                         myFormId](Viet::Void) {
+      auto& pendingNow = worldState->pendingChildActivations[myFormId];
+      if (pendingNow > 0) {
+        --pendingNow;
+      }
+
       auto& childForm = worldState->LookupFormById(childRefrId);
       MpObjectReference* childRefr =
         childForm ? childForm->AsObjectReference() : nullptr;
@@ -1682,7 +1707,13 @@ void MpObjectReference::ActivateChilds()
 
       // Not sure about activationSource and defaultProcessingOnly in this
       // case I'll try to keep vanilla scripts working
-      childRefr->Activate(worldState->GetFormAt<MpObjectReference>(myFormId));
+      try {
+        childRefr->Activate(
+          worldState->GetFormAt<MpObjectReference>(myFormId));
+      } catch (const std::exception& e) {
+        spdlog::warn("MpObjectReference::ActivateChilds {:x} - child {:x}: {}",
+                     myFormId, childRefrId, e.what());
+      }
     });
   }
 }

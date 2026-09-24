@@ -63,6 +63,10 @@ struct WorldState::Impl
   std::array<std::shared_ptr<std::vector<uint32_t>>, 0x100>
     allFormsByModIndexCache;
   std::vector<uint32_t> attachEspmRecordFailures;
+  // Children with their world or cell, by parent, dropped once loaded
+  std::optional<std::unordered_map<
+    uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>>
+    unloadedActivationChilds;
 };
 
 WorldState::WorldState()
@@ -676,6 +680,11 @@ bool WorldState::LoadForm(uint32_t formId, std::stringstream* optionalOutTrace)
   ANTIGO_CONTEXT_INIT(ctx);
   ctx.AddUnsigned(formId);
 
+  // A second attach would duplicate the form and re-apply its boot change form
+  if (forms.count(formId)) {
+    return true;
+  }
+
   auto& br = GetEspm().GetBrowser();
 
   auto lookupRes = br.LookupById(formId);
@@ -709,6 +718,55 @@ bool WorldState::LoadForm(uint32_t formId, std::stringstream* optionalOutTrace)
   }
 
   return attached;
+}
+
+void WorldState::LoadActivationChilds(uint32_t activationParentId,
+                                      uint32_t parentWorldOrCell)
+{
+  if (!espm) {
+    return;
+  }
+
+  auto& br = espm->GetBrowser();
+
+  if (!pImpl->unloadedActivationChilds) {
+    auto& index = pImpl->unloadedActivationChilds.emplace();
+    auto perFile = br.GetActivationChildren();
+    for (size_t i = 0; i < perFile.size(); ++i) {
+      auto mapping = br.GetCombMapping(i);
+      for (auto rec : *perFile[i]) {
+        uint32_t childId = espm::utils::GetMappedId(rec->GetId(), *mapping);
+        auto lookupRes = br.LookupById(childId);
+        // The winning override decides the links, as in MpObjectReference::Init
+        if (lookupRes.rec != rec) {
+          continue;
+        }
+        uint32_t worldOrCell =
+          espm::utils::GetMappedId(GetWorldOrCell(br, rec), *mapping);
+        auto data =
+          reinterpret_cast<const espm::REFR*>(rec)->GetData(GetEspmCache());
+        for (auto& info : data.activationParents) {
+          index[lookupRes.ToGlobalId(info.refrId)].push_back(
+            { childId, worldOrCell });
+        }
+      }
+    }
+  }
+
+  auto it = pImpl->unloadedActivationChilds->find(activationParentId);
+  if (it == pImpl->unloadedActivationChilds->end()) {
+    return;
+  }
+
+  auto childs = std::move(it->second);
+  pImpl->unloadedActivationChilds->erase(it);
+
+  for (auto [childId, worldOrCell] : childs) {
+    // Activation across worlds or cells is always refused
+    if (worldOrCell == parentWorldOrCell) {
+      LookupFormById(childId);
+    }
+  }
 }
 
 void WorldState::TickSaveStorage(const std::chrono::system_clock::time_point&)

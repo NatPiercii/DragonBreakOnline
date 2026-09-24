@@ -83,3 +83,59 @@ TEST_CASE("trapwallwood (54b15) in BleakFalls should be activatable by "
   REQUIRE(listener->numActivates[trapWallWood.GetFormId()] == 1);
   REQUIRE(listener->numActivates[plate.GetFormId()] == 1);
 }
+
+TEST_CASE("Two activations of a parent in one tick activate its child once",
+          "[ActivateParentTest]")
+{
+  PartOne& p = GetPartOne();
+
+  auto listener = std::make_shared<MyListener>();
+  p.AddListener(listener);
+
+  auto& trapWallWood = p.worldState.GetFormAt<MpObjectReference>(0x54b15);
+  auto& plate = p.worldState.GetFormAt<MpObjectReference>(0x567f2);
+
+  plate.Activate(plate);
+  plate.Activate(plate);
+  p.Tick(); // tick timers, child activations are deferred
+
+  REQUIRE(listener->numActivates[plate.GetFormId()] == 2);
+  REQUIRE(listener->numActivates[trapWallWood.GetFormId()] == 1);
+
+  plate.Activate(plate);
+  p.Tick();
+
+  REQUIRE(listener->numActivates[trapWallWood.GetFormId()] == 2);
+}
+
+TEST_CASE("An activation parent loads a child whose chunk never loaded",
+          "[ActivateParentTest][espm]")
+{
+  PartOne& p = GetPartOne();
+
+  // Keep the Sovngarde chunk loads to references
+  auto npcEnabledWas = p.worldState.npcEnabled;
+  p.worldState.npcEnabled = false;
+
+  // Sovngarde: defaultSetStageTRIG and an MQSovngardeFog two chunks away
+  constexpr uint32_t kTrigger = 0x98238;
+  constexpr uint32_t kFog = 0x90a68;
+
+  auto& trigger = p.worldState.GetFormAt<MpObjectReference>(kTrigger);
+  REQUIRE(p.worldState.LookupFormByIdNoLoad(kFog) == nullptr);
+
+  auto activationParents =
+    espm::GetData<espm::REFR>(kFog, &p.worldState).activationParents;
+  REQUIRE(activationParents.size() == 1);
+  REQUIRE(activationParents[0].refrId == kTrigger);
+
+  // Loads without activating, some Sovngarde children wait 3 s to activate
+  p.worldState.LoadActivationChilds(
+    kTrigger, trigger.GetCellOrWorld().ToFormId(p.worldState.espmFiles));
+
+  p.worldState.npcEnabled = npcEnabledWas;
+
+  REQUIRE(p.worldState.LookupFormByIdNoLoad(kFog) != nullptr);
+  REQUIRE(p.worldState.activationChildsByActivationParent[kTrigger].count(
+            kFog) == 1);
+}

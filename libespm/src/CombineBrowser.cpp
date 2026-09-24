@@ -113,6 +113,16 @@ CombineBrowser::GetRecordsByType(const char* type) const
   return res;
 }
 
+std::vector<const std::vector<const RecordHeader*>*>
+CombineBrowser::GetActivationChildren() const
+{
+  std::vector<const std::vector<const RecordHeader*>*> res;
+  for (size_t i = 0; i < pImpl->numSources; ++i) {
+    res.push_back(&pImpl->sources[i].br->GetActivationChildren());
+  }
+  return res;
+}
+
 std::vector<LookupResult> CombineBrowser::GetDistinctRecordsByType(
   const char* type) const
 {

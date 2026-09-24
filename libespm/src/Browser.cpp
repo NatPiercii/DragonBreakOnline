@@ -50,6 +50,7 @@ struct Browser::Impl
   std::vector<const RecordHeader*> quests;
   std::vector<const RecordHeader*> worlds;
   std::vector<const RecordHeader*> cells;
+  std::vector<const RecordHeader*> activationChildren;
 
   GroupStack grStack;
   std::vector<std::unique_ptr<GroupStack>> grStackCopies;
@@ -142,6 +143,12 @@ const std::vector<const RecordHeader*>& Browser::GetRecordsByType(
   throw std::runtime_error("GetRecordsByType currently supports only REFR, "
                            "COBJ, ENCH, KYWD, FACT, QUST, WRLD and CELL "
                            "records");
+}
+
+const std::vector<const RecordHeader*>& Browser::GetActivationChildren()
+  const noexcept
+{
+  return pImpl->activationChildren;
 }
 
 const std::vector<const RecordHeader*>& Browser::GetRecordsAtPos(
@@ -245,6 +252,10 @@ bool Browser::ReadAny(const GroupStack* parentGrStack)
         const auto cellOrWorld = GetWorldOrCell(*this, refr);
         const RefrKey refrKey(cellOrWorld, x, y);
         pImpl->cellOrWorldChildren[refrKey].push_back(refr);
+      }
+
+      if (utils::Is<espm::REFR>(t) && !data.activationParents.empty()) {
+        pImpl->activationChildren.push_back(recHeader);
       }
     }
 

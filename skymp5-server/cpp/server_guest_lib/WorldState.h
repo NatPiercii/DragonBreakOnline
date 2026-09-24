@@ -88,6 +88,10 @@ public:
   void RequestSave(MpObjectReference& ref);
   bool HasEspmFile(std::string_view filename) const noexcept;
 
+  // Loads a parent's activation children in its world or cell, near or far
+  void LoadActivationChilds(uint32_t activationParentId,
+                            uint32_t parentWorldOrCell);
+
   template <typename T>
   Viet::Promise<Viet::Void> SetTimer(T&& duration,
                                      uint32_t* outTimerId = nullptr)
@@ -251,6 +255,8 @@ public:
   std::unordered_map<uint32_t, uint32_t> hosters;
   std::unordered_map<uint32_t, std::map<uint32_t, float>>
     activationChildsByActivationParent;
+  // Child activation timers still pending, by parent
+  std::unordered_map<uint32_t, uint32_t> pendingChildActivations;
   std::vector<std::optional<std::chrono::system_clock::time_point>>
     lastMovUpdateByIdx;
 

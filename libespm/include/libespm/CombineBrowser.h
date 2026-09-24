@@ -29,6 +29,10 @@ public:
 
   std::vector<LookupResult> GetDistinctRecordsByType(const char* type) const;
 
+  // Per file, the REFR records with at least one activation parent
+  std::vector<const std::vector<const RecordHeader*>*> GetActivationChildren()
+    const;
+
   std::vector<const std::vector<const RecordHeader*>*> GetRecordsAtPos(
     uint32_t cellOrWorld, int16_t cellX, int16_t cellY) const;
 

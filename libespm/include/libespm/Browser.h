@@ -22,6 +22,9 @@ public:
     uint32_t worldSpaceId, CellOrGridPos cellOrGridPos) const noexcept;
   const std::vector<const RecordHeader*>& GetRecordsByType(
     const char* type) const;
+  // REFR records with at least one activation parent (XAPR)
+  const std::vector<const RecordHeader*>& GetActivationChildren()
+    const noexcept;
   const std::vector<const RecordHeader*>& GetRecordsAtPos(uint32_t cellOrWorld,
                                                           int16_t cellX,
                                                           int16_t cellY) const;
