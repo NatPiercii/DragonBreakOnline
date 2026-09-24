@@ -2,7 +2,7 @@ import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { toFormId } from "./formIdUtil";
 import { KEY_BASE_ID } from "./housingSystem";
-import { LAWFUL_PROP } from "./captureSystem";
+import { LAWFUL_PROP, RESTRAINED_PROP, isStruggling } from "./captureSystem";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -208,6 +208,10 @@ export class SearchSystem implements System {
     if (this.isDead(ctx, searcherActorId)) {
       return;
     }
+    if (this.isRestrained(ctx, searcherActorId)) {
+      this.notice(ctx, userId, "Not while you are restrained.");
+      return;
+    }
     const targetActorId = toFormId(content.target);
     if (!this.validTarget(ctx, searcherActorId, targetActorId)) {
       this.notice(ctx, userId, "Look at a player or a body to search.");
@@ -254,6 +258,12 @@ export class SearchSystem implements System {
 
     const targetUser = this.userOf(ctx, targetActorId);
     if (targetUser < 0) {
+      return;
+    }
+    // Closing a prompt takes the browser's focus, which would freeze the struggle widget mid-round
+    if (isStruggling(targetActorId)) {
+      this.consentCooldown.delete(cooldownKey);
+      this.notice(ctx, userId, `${this.nameShownTo(ctx, searcherActorId, targetActorId)} is struggling against their bonds.`);
       return;
     }
     const requestId = this.nextRequestId++;
@@ -498,6 +508,15 @@ export class SearchSystem implements System {
   private isDead(ctx: SystemContext, actorId: number): boolean {
     try {
       return (ctx.svr as Mp).get(actorId, "isDead") === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private isRestrained(ctx: SystemContext, actorId: number): boolean {
+    try {
+      const r = (ctx.svr as Mp).get(actorId, RESTRAINED_PROP);
+      return !!(r && (r.boundHands || r.carried));
     } catch {
       return false;
     }

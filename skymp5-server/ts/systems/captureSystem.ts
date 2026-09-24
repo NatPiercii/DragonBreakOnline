@@ -14,11 +14,16 @@ type Mp = any;
 //     fight, sneak or use hands.
 //   - carried: fully immobilised; the captive's client follows the carrier's
 //     clone and the server snaps the body back when it drifts. Camera stays free.
-// Flows: arresting needs the configured "manacles" item (settings.manaclesFormId)
-// in the captor's inventory, carrying needs no item. A conscious target must
-// accept a Yes/No consent prompt. A DOWNED (bleeding-out) target is
-// captured/carried instantly with no prompt, and doing so STOPS their bleedout
-// (mp.set isDead=false stands them up instead of a temple respawn).
+// Flows: a lawful player (guard, official, admin) with authority where they stand
+// (the gamemode's globalThis.__dboInstantRestraint) restrains instantly, with no
+// item and no prompt; anywhere else the target must accept a Yes/No consent prompt.
+// The captive wears a pair of shackles (settings.manaclesFormId) and may try to
+// break free with the gamemode's /struggle mini-game (server\struggle.js), which
+// frees them through globalThis.__dboBreakFree and buys a short grace from recapture.
+// Carrying needs no item, but a conscious target must accept a Yes/No consent
+// prompt. A DOWNED (bleeding-out) target is captured/carried instantly, and doing
+// so STOPS their bleedout (mp.set isDead=false stands them up instead of a temple respawn).
+// A restrained player can restrain, carry or uncuff nobody, themselves included.
 //
 // Wire protocol: all packets are MsgType.CustomPacket carrying JSON.
 //   Client -> Server:
@@ -40,18 +45,28 @@ const NOTICE_PACKET = "captureNotice";
 
 // Mirrors the captive's restraint state so the gamemode can gate its own logic
 // on it (e.g. skip its temple pass-out for a bound or carried player):
-//   mp.get(actorId, "private.restrained") -> { boundHands, carried, captorActorId, carrierActorId } | null
-const RESTRAINED_PROP = "private.restrained";
+//   mp.get(actorId, "private.restrained") -> { boundHands, carried, captorActorId, carrierActorId, addedShackle } | null
+export const RESTRAINED_PROP = "private.restrained";
 
 // Set by the gamemode on admins and zone officials (guards included): only they may restrain or carry another player
 export const LAWFUL_PROP = "private.dboLawful";
+
+// True while the gamemode's /struggle (server\struggle.js) has a round open for this captive
+export function isStruggling(actorId: number): boolean {
+  try {
+    const f = (globalThis as any).__dboStruggling;
+    return typeof f === "function" && f(actorId) === true;
+  } catch {
+    return false;
+  }
+}
 
 // A bound captive is tethered to their captor: the captive's client walks them after the captor, and the server
 // moves them over when the captor leaves the cell or gets this far ahead (squared game units)
 const LEASH_SNAP_DIST_SQ = 1500 * 1500;
 const LEASH_SNAP_BEHIND = 120;
 
-// 0 = no item requirement; set manaclesFormId in server-settings.json to gate arrests behind a carryable item
+// The shackles a captive wears (manaclesFormId in server-settings.json); 0 = no shackles shown
 const DEFAULT_MANACLES = 0;
 
 // Carry re-snap interval and min carrier movement (squared game units); throttling keeps reliable Teleport packets and rubber-banding to a minimum
@@ -71,6 +86,9 @@ const DEFAULT_CONSENT_TIMEOUT_MS = 20000;
 // The same (captor, target) pair may only be prompted this often. Overridable via "captureConsentCooldownMs".
 const DEFAULT_CONSENT_COOLDOWN_MS = 15000;
 
+// A captive who broke free cannot be restrained or carried again this soon unless downed. Overridable via "captureEscapeGraceMs".
+const DEFAULT_ESCAPE_GRACE_MS = 20000;
+
 // Server-side backstop for the client's "look at a player" rule: max capture/carry initiation range in game units (~activate range). Overridable via "captureInteractMaxDistance".
 const DEFAULT_INTERACT_MAX_DISTANCE = 256;
 
@@ -79,7 +97,7 @@ interface RestraintInfo {
   carried: boolean;
   captorActorId: number; // who applied it: release authority + disconnect cleanup
   offlineCarrierActorId?: number; // who was carrying them when they logged out
-  addedShackle?: boolean; // a pair was moved captor -> captive, remove it on release
+  addedShackle?: boolean; // the captive was given the pair they wear, remove it on release
 }
 
 interface PendingConsent {
@@ -103,6 +121,7 @@ export class CaptureSystem implements System {
   private interactMaxDistance = DEFAULT_INTERACT_MAX_DISTANCE;
   private consentTimeoutMs = DEFAULT_CONSENT_TIMEOUT_MS;
   private consentCooldownMs = DEFAULT_CONSENT_COOLDOWN_MS;
+  private escapeGraceMs = DEFAULT_ESCAPE_GRACE_MS;
 
   // targetActorId -> restraint state
   private restraints = new Map<number, RestraintInfo>();
@@ -116,18 +135,17 @@ export class CaptureSystem implements System {
   private pending = new Map<number, PendingConsent>();
   // "captorActorId:targetActorId" -> last prompt timestamp (spam guard)
   private consentCooldown = new Map<string, number>();
+  // actorId -> time until which a captive who broke free cannot be taken again
+  private escapedUntil = new Map<number, number>();
   private nextRequestId = 1;
   private lastFollowMs = 0;
 
   async initAsync(ctx: SystemContext): Promise<void> {
     const s = await Settings.get();
     this.manaclesFormId = toFormId(s.manaclesFormId, DEFAULT_MANACLES);
-    // Fail closed: a set-but-unparseable manaclesFormId must not disable the
-    // item requirement, so pin it to a form nobody can hold. Explicit "0"/"0x0" is a legitimate disable, not a parse failure.
     const rawManacles = String(s.manaclesFormId ?? "").trim();
     if (rawManacles && rawManacles !== "0" && rawManacles !== "0x0" && this.manaclesFormId === 0) {
-      this.manaclesFormId = 0xffffffff;
-      this.log(`[capture] ERROR: manaclesFormId "${s.manaclesFormId}" is not a valid form id — arrests disabled until fixed`);
+      this.log(`[capture] ERROR: manaclesFormId "${s.manaclesFormId}" is not a valid form id, captives wear no shackles until fixed`);
     }
     if (typeof s.captiveAnimEvent === "string" && s.captiveAnimEvent) {
       this.captiveAnim = s.captiveAnimEvent;
@@ -142,19 +160,21 @@ export class CaptureSystem implements System {
     if (Number.isInteger(rawTimeout) && rawTimeout > 0) this.consentTimeoutMs = rawTimeout;
     const rawCooldown = Number(all?.["captureConsentCooldownMs"]);
     if (Number.isInteger(rawCooldown) && rawCooldown >= 0) this.consentCooldownMs = rawCooldown;
+    const rawGrace = Number(all?.["captureEscapeGraceMs"]);
+    if (Number.isInteger(rawGrace) && rawGrace >= 0) this.escapeGraceMs = rawGrace;
     const rawCarriedAnim = all?.["carriedAnimEvent"];
     if (typeof rawCarriedAnim === "string" && rawCarriedAnim) this.carriedAnim = rawCarriedAnim;
     this.carryForward = this.finiteSetting(all, "carryOffsetForward", DEFAULT_CARRY_FORWARD);
     this.carryUp = this.finiteSetting(all, "carryOffsetUp", DEFAULT_CARRY_UP);
     this.carryYaw = this.finiteSetting(all, "carryYawOffset", DEFAULT_CARRY_YAW);
-    if (this.manaclesFormId === 0) {
-      this.log(`[capture] manaclesFormId not configured — arrests need no item`);
-    } else {
-      this.log(`[capture] manacles item = 0x${this.manaclesFormId.toString(16)}`);
-    }
+    this.log(this.manaclesFormId === 0
+      ? `[capture] arrests need no item; manaclesFormId not configured, captives wear no shackles; escape grace ${this.escapeGraceMs} ms`
+      : `[capture] arrests need no item; captives wear 0x${this.manaclesFormId.toString(16)}; escape grace ${this.escapeGraceMs} ms`);
     ctx.gm.on("userAssignActor", (_userId: number, actorId: number) => {
       this.onActorAssigned(ctx, actorId);
     });
+    // The gamemode's /struggle (server\struggle.js) calls this when a captive wins; true when they were restrained
+    (globalThis as any).__dboBreakFree = (actorId: number): boolean => this.breakFree(ctx, Number(actorId) >>> 0);
   }
 
   customPacket(userId: number, type: string, content: Content, ctx: SystemContext): void {
@@ -259,6 +279,25 @@ export class CaptureSystem implements System {
     try { return mp.get(actorId, LAWFUL_PROP) === true; } catch { return false; }
   }
 
+  // The gamemode (server\playermenu.js) says whether the captor has authority where they stand; without it, ask the target
+  private mayRestrainOnSight(captorActorId: number, targetActorId: number): boolean {
+    try {
+      const rule = (globalThis as any).__dboInstantRestraint;
+      return typeof rule === "function" && rule(captorActorId, targetActorId) === true;
+    } catch (e) {
+      this.log(`[capture] instant restraint hook failed: ${e}`);
+      return false;
+    }
+  }
+
+  private inEscapeGrace(actorId: number): boolean {
+    const until = this.escapedUntil.get(actorId);
+    if (until === undefined) return false;
+    if (until > Date.now()) return true;
+    this.escapedUntil.delete(actorId);
+    return false;
+  }
+
   disconnect(userId: number, ctx: SystemContext): void {
     let actorId = 0;
     try { actorId = ctx.svr.getUserActor(userId); } catch { return; }
@@ -297,11 +336,17 @@ export class CaptureSystem implements System {
     const mp = ctx.svr as Mp;
     const info = this.restraints.get(actorId);
     if (!info) {
+      let stale: any = null;
       try {
-        if (mp.get(actorId, RESTRAINED_PROP)) {
+        stale = mp.get(actorId, RESTRAINED_PROP);
+        if (stale) {
           mp.set(actorId, RESTRAINED_PROP, null);
         }
       } catch { /* form gone */ }
+      // The restraint died with the last server run: take back the pair it gave
+      if (stale && stale.boundHands && stale.addedShackle === true) {
+        this.removeShackles(ctx, actorId, true);
+      }
       return;
     }
     if (this.userOf(ctx, info.captorActorId) < 0) {
@@ -338,6 +383,10 @@ export class CaptureSystem implements System {
       return;
     }
     const targetActorId = toFormId(content.target, 0);
+    if (this.restraints.has(captorActorId)) {
+      this.notice(ctx, userId, "Not while you are restrained.");
+      return;
+    }
     if (!this.isLawful(mp, captorActorId)) {
       this.notice(ctx, userId, "Only guards, officials and admins can restrain someone.");
       return;
@@ -350,18 +399,22 @@ export class CaptureSystem implements System {
       this.notice(ctx, userId, `${this.nameOf(ctx, targetActorId)} is already restrained.`);
       return;
     }
-    if (!this.hasManacles(mp, captorActorId)) {
-      this.notice(ctx, userId, "You need manacles to restrain someone.");
+    const downed = this.isDowned(mp, targetActorId);
+    if (!downed && this.inEscapeGrace(targetActorId)) {
+      this.notice(ctx, userId, `${this.nameOf(ctx, targetActorId)} slipped your grasp.`);
       return;
     }
-    // A downed target can't answer a prompt: capture instantly and stop bleedout so the engine doesn't whisk them to a temple
-    if (this.isDowned(mp, targetActorId)) {
+    if (!downed && !this.mayRestrainOnSight(captorActorId, targetActorId)) {
+      this.requestConsent(ctx, "capture", captorActorId, targetActorId);
+      return;
+    }
+    // A downed captive is stood up so the engine doesn't whisk them to a temple
+    if (downed) {
       this.stopBleedout(ctx, targetActorId);
-      this.applyCapture(ctx, targetActorId, captorActorId);
-      this.notice(ctx, userId, `You restrained ${this.nameOf(ctx, targetActorId)}.`);
-      return;
     }
-    this.requestConsent(ctx, "capture", captorActorId, targetActorId);
+    this.applyCapture(ctx, targetActorId, captorActorId);
+    this.notice(ctx, userId, `You restrained ${this.nameOf(ctx, targetActorId)}.`);
+    this.notice(ctx, this.userOf(ctx, targetActorId), `${this.nameOf(ctx, captorActorId) || "Someone"} bound your hands.`);
   }
 
   private onCarryRequest(ctx: SystemContext, userId: number, content: Content): void {
@@ -371,6 +424,10 @@ export class CaptureSystem implements System {
       return;
     }
     const targetActorId = toFormId(content.target, 0);
+    if (this.restraints.has(carrierActorId)) {
+      this.notice(ctx, userId, "Not while you are restrained.");
+      return;
+    }
     if (!this.isLawful(mp, carrierActorId)) {
       this.notice(ctx, userId, "Only guards, officials and admins can carry someone.");
       return;
@@ -391,6 +448,10 @@ export class CaptureSystem implements System {
       this.stopBleedout(ctx, targetActorId);
       this.applyCarry(ctx, targetActorId, carrierActorId);
       this.notice(ctx, userId, `You picked up ${this.nameOf(ctx, targetActorId)}.`);
+      return;
+    }
+    if (this.inEscapeGrace(targetActorId)) {
+      this.notice(ctx, userId, `${this.nameOf(ctx, targetActorId)} slipped your grasp.`);
       return;
     }
     this.requestConsent(ctx, "carry", carrierActorId, targetActorId);
@@ -421,6 +482,14 @@ export class CaptureSystem implements System {
       return;
     }
     const targetActorId = toFormId(content.target, 0);
+    if (targetActorId === requesterActorId) {
+      this.notice(ctx, userId, "You cannot uncuff yourself.");
+      return;
+    }
+    if (this.restraints.has(requesterActorId)) {
+      this.notice(ctx, userId, "Not while you are restrained.");
+      return;
+    }
     const info = this.restraints.get(targetActorId);
     if (!info) {
       this.notice(ctx, userId, "They are not restrained.");
@@ -464,20 +533,22 @@ export class CaptureSystem implements System {
       return;
     }
 
+    if (this.restraints.has(pend.captorActorId)) {
+      return; // the asker was restrained while waiting
+    }
     if (pend.kind === "capture") {
-      if (!this.hasManacles(ctx.svr as Mp, pend.captorActorId)) {
-        this.notice(ctx, captorUser, "You no longer have manacles.");
-        return;
+      if (this.restraints.get(pend.targetActorId)?.boundHands) {
+        return; // someone else bound them while waiting
       }
       this.applyCapture(ctx, pend.targetActorId, pend.captorActorId);
       this.notice(ctx, captorUser, `${this.nameOf(ctx, pend.targetActorId)} accepted — restrained.`);
-    } else {
-      if (this.carrying.has(pend.captorActorId) || this.carriedBy.has(pend.targetActorId)) {
-        return; // state changed while waiting
-      }
-      this.applyCarry(ctx, pend.targetActorId, pend.captorActorId);
-      this.notice(ctx, captorUser, `${this.nameOf(ctx, pend.targetActorId)} accepted — carrying.`);
+      return;
     }
+    if (this.carrying.has(pend.captorActorId) || this.carriedBy.has(pend.targetActorId)) {
+      return; // state changed while waiting
+    }
+    this.applyCarry(ctx, pend.targetActorId, pend.captorActorId);
+    this.notice(ctx, captorUser, `${this.nameOf(ctx, pend.targetActorId)} accepted — carrying.`);
   }
 
   // ── State transitions ──────────────────────────────────────────────────────
@@ -486,6 +557,11 @@ export class CaptureSystem implements System {
     captorActorId: number, targetActorId: number): void {
     const targetUser = this.userOf(ctx, targetActorId);
     if (targetUser < 0) {
+      return;
+    }
+    // Closing a prompt takes the browser's focus, which would freeze the struggle widget mid-round
+    if (isStruggling(targetActorId)) {
+      this.notice(ctx, this.userOf(ctx, captorActorId), `${this.nameOf(ctx, targetActorId)} is struggling against their bonds.`);
       return;
     }
     for (const pend of this.pending.values()) {
@@ -541,6 +617,7 @@ export class CaptureSystem implements System {
         carried: info.carried,
         captorActorId: info.captorActorId,
         carrierActorId: this.carriedBy.get(targetActorId) ?? 0,
+        addedShackle: info.addedShackle === true,
       }
       : null;
     try {
@@ -554,12 +631,18 @@ export class CaptureSystem implements System {
     info.boundHands = true;
     info.captorActorId = captorActorId;
     this.restraints.set(targetActorId, info);
-    this.mirrorState(ctx, targetActorId);
-    this.sendRestraint(ctx, targetActorId, info);
-    if (this.equipShackles(ctx, targetActorId, captorActorId)) {
+    this.escapedUntil.delete(targetActorId);
+    if (this.equipShackles(ctx, targetActorId, true)) {
       info.addedShackle = true;
     }
+    this.mirrorState(ctx, targetActorId);
+    this.sendRestraint(ctx, targetActorId, info);
     this.log(`[capture] ${targetActorId.toString(16)} bound by ${captorActorId.toString(16)}`);
+    try {
+      (globalThis as any).__dboOnRestrained?.(targetActorId, captorActorId);
+    } catch (e) {
+      this.log(`[capture] restrained hook failed: ${e}`);
+    }
   }
 
   private applyCarry(ctx: SystemContext, targetActorId: number, carrierActorId: number): void {
@@ -616,6 +699,30 @@ export class CaptureSystem implements System {
     if (info?.boundHands === true) {
       this.removeShackles(ctx, targetActorId, info.addedShackle === true);
     }
+  }
+
+  // Frees a captive who won the struggle and tells whoever held them
+  private breakFree(ctx: SystemContext, targetActorId: number): boolean {
+    const info = this.restraints.get(targetActorId);
+    if (!info) {
+      return false;
+    }
+    const holders = new Set([info.captorActorId, this.carriedBy.get(targetActorId) ?? 0]);
+    this.releaseTarget(ctx, targetActorId);
+    this.dropPendingFor(targetActorId);
+    if (this.escapeGraceMs > 0) {
+      const now = Date.now();
+      for (const [id, until] of Array.from(this.escapedUntil)) {
+        if (until <= now) this.escapedUntil.delete(id);
+      }
+      this.escapedUntil.set(targetActorId, now + this.escapeGraceMs);
+    }
+    const name = this.nameOf(ctx, targetActorId) || "Your prisoner";
+    for (const holder of holders) {
+      if (holder) this.notice(ctx, this.userOf(ctx, holder), `${name} broke free of their bonds.`);
+    }
+    this.log(`[capture] ${targetActorId.toString(16)} broke free of ${info.captorActorId.toString(16)}`);
+    return true;
   }
 
   // ── Packet senders ─────────────────────────────────────────────────────────
@@ -746,22 +853,18 @@ export class CaptureSystem implements System {
     }
   }
 
-  // On initial capture one pair is MOVED from the captor so cuffs are conserved, never minted; a relog re-apply only re-equips.
-  // Returns true when a pair was moved.
-  private equipShackles(ctx: SystemContext, targetActorId: number, captorActorId?: number): boolean {
-    if (this.manaclesFormId === 0 || this.manaclesFormId === 0xffffffff) {
+  // A captive without cuffs is given a pair on capture, true when added; a relog re-apply only re-equips
+  private equipShackles(ctx: SystemContext, targetActorId: number, onCapture = false): boolean {
+    if (this.manaclesFormId === 0) {
       return false;
     }
     const mp = ctx.svr as Mp;
-    let transferred = false;
-    if (captorActorId && this.countShackles(mp, targetActorId) === 0) {
-      if (this.moveShackle(mp, captorActorId, -1)) {
-        this.moveShackle(mp, targetActorId, +1);
-        transferred = true;
-      }
+    let added = false;
+    if (onCapture && this.countShackles(mp, targetActorId) === 0) {
+      added = this.moveShackle(mp, targetActorId, +1);
     }
     if (this.countShackles(mp, targetActorId) === 0) {
-      return transferred; // nothing to equip and EquipItem must not mint one
+      return added; // nothing to equip and EquipItem must not mint one
     }
     try {
       const self = { type: "form", desc: mp.getDescFromId(targetActorId) };
@@ -771,12 +874,12 @@ export class CaptureSystem implements System {
     } catch (e) {
       this.log(`[capture] equip shackles failed: ${e}`);
     }
-    return transferred;
+    return added;
   }
 
-  // Unequip always; destroy only the one transferred pair, a captive's pre-owned cuffs are never touched.
+  // Unequip always; destroy only the one added pair, a captive's pre-owned cuffs are never touched.
   private removeShackles(ctx: SystemContext, targetActorId: number, removeOne: boolean): void {
-    if (this.manaclesFormId === 0 || this.manaclesFormId === 0xffffffff) {
+    if (this.manaclesFormId === 0) {
       return;
     }
     const mp = ctx.svr as Mp;
@@ -790,19 +893,6 @@ export class CaptureSystem implements System {
     }
     if (removeOne) {
       this.moveShackle(mp, targetActorId, -1);
-    }
-  }
-
-  private hasManacles(mp: Mp, actorId: number): boolean {
-    if (this.manaclesFormId === 0) {
-      return true; // no item requirement configured
-    }
-    try {
-      const inv = mp.get(actorId, "inventory");
-      const entries: any[] = inv && Array.isArray(inv.entries) ? inv.entries : [];
-      return entries.some((e) => (e.baseId >>> 0) === this.manaclesFormId && e.count > 0);
-    } catch {
-      return false;
     }
   }
 
