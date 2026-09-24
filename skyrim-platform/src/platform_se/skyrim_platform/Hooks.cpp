@@ -55,6 +55,30 @@ void InstallOnConsoleVPrintHook()
   Hooks::write_thunk_call<OnConsoleVPrint>(Offsets::Hooks::VPrint.address());
 }
 
+// Jump reads the player's character controller without a null check
+struct JumpHandlerProcessButton
+{
+  static void thunk(RE::JumpHandler* handler, RE::ButtonEvent* event,
+                    RE::PlayerControlsData* data)
+  {
+    auto player = RE::PlayerCharacter::GetSingleton();
+    if (!player || !player->GetCharController()) {
+      spdlog::warn(
+        "JumpHandler: jump ignored, player has no character controller");
+      return;
+    }
+    func(handler, event, data);
+  };
+  static inline REL::Relocation<decltype(&thunk)> func;
+};
+
+void InstallJumpHandlerHook()
+{
+  REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_JumpHandler[0] };
+  JumpHandlerProcessButton::func =
+    vtbl.write_vfunc(0x4, JumpHandlerProcessButton::thunk);
+}
+
 void BindNativeMethod(RE::BSScript::Internal::VirtualMachine* thisArg,
                       RE::BSScript::IFunction* func);
 
@@ -124,6 +148,7 @@ void Hooks::Install()
 {
   // InstallOnFrameUpdateHook();
   InstallOnConsoleVPrintHook();
+  InstallJumpHandlerHook();
   HookVirtualMachineBind();
 
   logger::info("CommonLib hooks installed.");
