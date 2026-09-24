@@ -46,6 +46,23 @@
   "extendMinutes": 10,
   "pickChance": { "anyone": 0.15, "lockpicker": 0.35, "perTier": 0.1, "max": 0.85 }
  },
+ "spells": {
+  "_comment": "Spell study (server\\spells.js). A tome is learned only at a skills.json spellStudyPoints entry, by a reader with the school's skill (arcane or priest) taken up, a tier that allows the tome's rank, and a free slot; slots 0 uses the skill's spellSlots (3). /teach: a teacher at teacherMinTier (3 = Expert) teaches a known spell to a player within teachMeters at studentMinTier (1 = Apprentice) or higher; teachAtStudyPoint also requires both at a study point. /tomes: the court mage's shop in shopCells (the Synod Conclave and its basement), for members of shopFactions with arcane or priest at shopMinTier or higher, ranks up to their tier and never above shopMaxRank (3 = Expert), one tome per shopCooldownDays, price = tome value x shopPriceMultiplier, paid to the shopTreasury zone.",
+  "enabled": true,
+  "slots": 0,
+  "teachMeters": 5,
+  "teacherMinTier": 3,
+  "studentMinTier": 1,
+  "teachAtStudyPoint": false,
+  "offerSeconds": 60,
+  "shopCells": ["20ff:BSHeartland.esm", "6c152:BSHeartland.esm"],
+  "shopFactions": ["synod", "college-of-winterhold", "college-of-whispers"],
+  "shopMinTier": 1,
+  "shopMaxRank": 3,
+  "shopPriceMultiplier": 1,
+  "shopCooldownDays": 7,
+  "shopTreasury": "bruma"
+ },
  "reading": {
   "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",
   "baseSeconds": 30,

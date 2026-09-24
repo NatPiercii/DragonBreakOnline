@@ -2840,6 +2840,12 @@ try {
   delete require.cache[DOWNED_JS];
   require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg });
 } catch (e) { log('downed.js failed to load:', e.stack || e.message); globalThis.__dboReviveWith = null; globalThis.__dboIsDowned = null; }
+// ---- spell study, slots, teaching and the Synod tome shop (server\spells.js, config "spells"): after downed.js, whose onReadBook it wraps ----
+try {
+  const SPELLS_JS = path.resolve('spells.js');
+  delete require.cache[SPELLS_JS];
+  require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury });
+} catch (e) { log('spells.js failed to load:', e.stack || e.message); }
 // ---- alchemy at the ordinary labs: the nearest vanilla potion for a client-side mix (server alchemy.js) ------------
 try {
   const ALCHEMY_JS = path.resolve('alchemy.js');

@@ -871,6 +871,21 @@
     "Alteration"
    ],
    "_comment": "add more entries later: temples, mage towers, a court wizard's study"
+  },
+  {
+   "name": "The Synod Conclave in Bruma",
+   "cells": [
+    "20ff:BSHeartland.esm",
+    "6c152:BSHeartland.esm"
+   ],
+   "schools": [
+    "Destruction",
+    "Conjuration",
+    "Illusion",
+    "Restoration",
+    "Alteration"
+   ],
+   "_comment": "Whole cells, no refr: anywhere in the Conclave (CYRBrumaSynodConclave) or its basement (CYRBrumaSynodBasement). Read by server\\spells.js, which also accepts cell + refr + radiusMeters."
   }
  ],
  "praying": {
