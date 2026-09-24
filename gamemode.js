@@ -785,7 +785,8 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     // Mirror admin panel actions (F7) into the audit log; AdminSystem enforces them.
     if (content.customPacketType === 'adminAction') {
       const a = actorOf(userId); if (!a || !isAdmin(a)) return;
-      const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier'].filter(k => content[k] !== undefined).map(k => `${k}=${content[k]}`).join(' ');
+      const shown = (k) => (k === 'item' && adminItemName(content.item) ? `${adminItemName(content.item)} (${content.item})` : content[k]);
+      const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier'].filter(k => content[k] !== undefined).map(k => `${k}=${shown(k)}`).join(' ');
       audit(`GM ${who(a)} admin panel: ${content.action} ${extra}`.trim());
     }
   } catch (e) { log('customPacket error', e.message); }
@@ -1148,6 +1149,19 @@ const needsOnConnect = (a) => {
 every('needs', Math.max(5, Number(NEEDS.tickSeconds) || 60) * 1000, needsTick);
 
 // What a consumed base form does to hunger: meal / snack / drink / ingredient / nothing (potions).
+// Display names of the F7 spawn catalog (admin-items.json), so the audit log names what a GM spawned
+let adminItemNames = null;
+const adminItemName = (desc) => {
+  if (!adminItemNames) {
+    adminItemNames = new Map();
+    try {
+      for (const c of JSON.parse(fs.readFileSync(path.resolve('admin-items.json'), 'utf8')).categories || []) {
+        for (const it of c.items || []) if (Array.isArray(it) && it[0]) adminItemNames.set(String(it[0]).toLowerCase(), String(it[1] || ''));
+      }
+    } catch (e) { log('admin item names unreadable', e.message); }
+  }
+  return adminItemNames.get(String(desc || '').toLowerCase()) || '';
+};
 const recordOf = (id) => { try { const r = mp.lookupEspmRecordById(id >>> 0); return r && r.record ? r : null; } catch (e) { return null; } };
 const alchIsFood = (rec) => {
   for (const f of (rec.record.fields || [])) {
