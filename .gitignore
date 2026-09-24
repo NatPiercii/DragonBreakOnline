@@ -60,3 +60,7 @@ jails.json
 
 # Terrain heights extracted from the plugins (ck-mcp/terrain_heights.py), copied to the server by hand
 terrain-heights.json
+
+# F7 Place tab: live placements and their export (placement.js)
+placements.json
+placements-export.json

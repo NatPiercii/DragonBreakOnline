@@ -2916,6 +2916,13 @@ try {
   require(JAIL_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, isAdmin, distanceMeters });
 } catch (e) { log('jail.js failed to load:', e.stack || e.message); globalThis.__dboJailActivate = null; globalThis.__dboJailLogin = null; globalThis.__dboJailUnstuck = null; }
 
+// ---- the F7 Place tab: NPCs and world objects placed by GMs (server\placement.js, admin-placeables.json) --------
+try {
+  const PLACEMENT_JS = path.resolve('placement.js');
+  delete require.cache[PLACEMENT_JS];
+  require(PLACEMENT_JS)({ mp, log, personal, audit, who, onUi, sendPacket, isAdmin, registerChatCommand });
+} catch (e) { log('placement.js failed to load:', e.stack || e.message); }
+
 // ---- breaking free of bound hands, /struggle (server\struggle.js, config "struggle") --------------
 try {
   const STRUGGLE_JS = path.resolve('struggle.js');
