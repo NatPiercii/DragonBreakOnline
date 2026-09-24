@@ -1,5 +1,21 @@
 [
   {
+    "title": "The Ledger of Contacts",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Ledgers",
+        "items": [
+          "Everyone you have spoken with in person is written into your ledger. Read it with /ledger at any notice board, inside a house you own or rent, or where a court or guild keeps one.",
+          "Contacts sort themselves under the factions you share and under Family (by a shared family name, gro- and gra- alike), then your own groups and acquaintances. File someone with /ledger group <name> Friends, or any group you like.",
+          "Keep a private note beside anyone with /ledger note <name> <text>, and send them a letter by pigeon from the ledger with /ledger letter <name> <text>.",
+          "/ledger forget <name> strikes someone out. You will know them again only after meeting in person."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Houses for Rent",
     "date": "2026-09-24",
     "tag": "Update",
