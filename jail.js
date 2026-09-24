@@ -31,6 +31,8 @@ module.exports = (api) => {
     reachMeters: 8,
     // Lockpicking: a non-Lockpicker's chance, a Lockpicker's at Novice, what each tier adds, and the ceiling.
     pickChance: { anyone: 0.15, lockpicker: 0.35, perTier: 0.1, max: 0.85 },
+    // Lock level of a cell door for the tumbler game (0 Novice .. 4 Master)
+    cellLockLevel: 2,
     pickCooldownSeconds: 3,
   }, cfg.jail || {});
 
@@ -122,6 +124,21 @@ module.exports = (api) => {
     if (now - (pickAt.get(a) || 0) < CFG.pickCooldownSeconds * 1000) return false;
     pickAt.set(a, now);
     if (!hasLockpick(a)) { personal(a, 'The cell door is locked. You would need a lockpick.'); return false; }
+    // Oblivion-style tumblers (lockpick.js); the old roll below is the fallback if that module failed to load
+    const lock = globalThis.__dboLockpick;
+    if (lock) {
+      if (lock.busy(a)) return false;
+      lock.begin(a, {
+        target: door, level: CFG.cellLockLevel, label: 'Cell door',
+        onSuccess: () => {
+          const c = get(door, 'private.dboCell', {}) || {};
+          set(door, 'private.dboCell', Object.assign({}, c, { picked: true }));
+          system(a, 'The cell door lock gives way. Push it open.');
+          audit(`JAIL ${who(a)} picked the lock of ${occ.name}'s cell ${mp.getDescFromId(door >>> 0)}`);
+        },
+      });
+      return false;
+    }
     const tier = lockpickingTier(a);
     const P = CFG.pickChance;
     const chance = Math.min(Number(P.max), tier < 0 ? Number(P.anyone) : Number(P.lockpicker) + Number(P.perTier) * tier);

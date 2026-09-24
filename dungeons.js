@@ -885,6 +885,19 @@ module.exports = (api) => {
       const tier = lockpickingTier(casterId);
       if (tier < 0) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Only a Lockpicker can open it.`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, not a Lockpicker`);
       if (tier < level) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Your Lockpicking is not yet up to it (tier ${level + 1} needed).`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, tier ${tier} below ${level}`);
+      // Oblivion-style tumblers (lockpick.js); the old roll below is the fallback if that module failed to load
+      const lock = globalThis.__dboLockpick;
+      if (lock) {
+        if (!lock.busy(casterId)) lock.begin(casterId, {
+          target: targetId, level, label: 'Chest',
+          onSuccess: (a) => {
+            lease.unlocked.add(targetId);
+            for (const pid of lease.members) { const m = actorByProfile(pid); if (m) { glow(m, [targetId], false, 'locked'); glow(m, [targetId], true, 'loot'); } }
+            system(a, `The ${LOCK_LEVELS[level]} lock gives way. Open the chest.`);
+          },
+        });
+        return false;
+      }
       const chance = Math.min(0.95, 0.55 + 0.15 * (tier - level));
       if (Math.random() < chance) {
         lease.unlocked.add(targetId);
