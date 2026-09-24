@@ -26,6 +26,7 @@ import InteractPrompt from './features/interactPrompt';
 import Hud from './features/hud';
 import Reading from './features/reading';
 import Labour from './features/labour';
+import Lockpick from './features/lockpick';
 import Prayer from './features/prayer';
 import DeityPicker from './features/deityPicker';
 import Pigeon from './features/pigeon';
@@ -260,6 +261,8 @@ const Constructor = props => {
       return <Reading data={rend} />;
     case 'labour':
       return <Labour data={rend} />;
+    case 'lockpick':
+      return <Lockpick data={rend} />;
     case 'prayer':
       return <Prayer data={rend} />;
     case 'deityPicker':
