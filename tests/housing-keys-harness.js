@@ -57,7 +57,13 @@ const opens = (primary, keyName) => sys.hasAccessWith(ctx, primary, recOf(primar
 // Legacy records: the old names still work before and after the migration
 ok('legacy A answers "Key to the X"', opens(A, 'Key to the X'));
 ok('legacy B answers "Key to the X, the second"', opens(B, 'Key to the X, the second'));
+// A registry entry whose record is not loaded yet (right after boot) must survive: 2026-09-24 the first
+// version ran this through liveClaims() on the first tick and pruned all 4 live claims from housing.json
+const UNLOADED = 0x300;
+sys.claimed.push(UNLOADED);
 sys.migrateLegacyKeyNames(ctx);
+ok('an unreadable registry entry is kept', sys.claimed.includes(UNLOADED));
+sys.claimed = sys.claimed.filter((id) => id !== UNLOADED);
 ok('migration recorded A', JSON.stringify(recOf(A).issued) === '["Key to the X"]', recOf(A).issued);
 ok('migration recorded B', JSON.stringify(recOf(B).issued) === '["Key to the X, the second"]', recOf(B).issued);
 
@@ -84,6 +90,13 @@ const r = recOf(A); sys.doRevokeKeys(ctx, USER, A, r, true, false);
 ok('revoke clears A\'s names', recOf(A).issued.length === 0, recOf(A).issued);
 ok('A\'s old named key no longer opens it', !opens(A, 'Key to the X') && !opens(A, 'Key to the Y'));
 ok('A re-cut is marked recut', /recut/.test(cut(A)), recOf(A).issued);
+
+// A rename with no migration run first freezes the old name itself (the migration runs from rename and cut)
+const E = 0x400;
+sys.claimed.push(E);
+mp.set(E, HP, legacy('Z'));
+rename(E, 'W');
+ok('a legacy property renamed first keeps its old key', opens(E, 'Key to the Z'), recOf(E).issued);
 
 // Unnamed keys still work by credential suffix
 const tag = `(${B.toString(16).toUpperCase()})`;
