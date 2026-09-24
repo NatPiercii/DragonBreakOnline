@@ -1,5 +1,22 @@
 [
   {
+    "title": "Client 0.3.37",
+    "date": "2026-09-24",
+    "version": "Client 0.3.37",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "New in this client",
+        "items": [
+          "Restart the launcher to update. The server asks for 0.3.37 from now on.",
+          "The god picker now lists the older faiths (the Hist, the Ancestors, the Yokudan gods, Riddle'Thar, Trinimac and the cults) in their own group.",
+          "Staff get a Place tab in the admin menu, to put NPCs and objects into the world for events.",
+          "Voice chat is unchanged in this update."
+        ]
+      }
+    ]
+  },
+  {
     "title": "No Stripping Mid-Fight",
     "date": "2026-09-24",
     "tag": "Combat",
