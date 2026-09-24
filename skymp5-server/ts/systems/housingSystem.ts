@@ -100,6 +100,8 @@ interface PropertyRecord {
   serial: number;
   partner: number;
   containers: number[];
+  // Key names cut at the current serial; null on records older than this field
+  issued: string[] | null;
 }
 
 // The far half of a teleport pair just points at the primary.
@@ -117,8 +119,11 @@ interface ViewerAccess {
 
 const emptyRecord = (): PropertyRecord => ({
   owner: 0, ownerName: "", name: null, locked: false,
-  serial: 1, partner: 0, containers: [],
+  serial: 1, partner: 0, containers: [], issued: [],
 });
+
+// Oldest issued key names drop off (and stop opening) past this
+const MAX_ISSUED_KEY_NAMES = 16;
 
 export class HousingSystem implements System {
   systemName = "HousingSystem";
@@ -195,6 +200,10 @@ export class HousingSystem implements System {
   }
 
   async updateAsync(ctx: SystemContext): Promise<void> {
+    if (!this.keyNamesMigrated) {
+      this.keyNamesMigrated = true;
+      try { this.migrateLegacyKeyNames(ctx); } catch (e) { this.log(`[housing] key-name migration failed: ${e}`); }
+    }
     const now = Date.now();
     if (now - this.lastDecorMs < DECOR_PUSH_INTERVAL_MS) return;
     this.lastDecorMs = now;
@@ -283,6 +292,8 @@ export class HousingSystem implements System {
     rec.owner = profileId;
     rec.ownerName = this.nameOf(ctx, actorId);
     rec.partner = this.partnerOf(ctx, primary);
+    // A stub released before rec.issued existed has no keys at this serial
+    if (rec.issued === null) rec.issued = [];
     if (!this.commit(ctx, userId, primary, rec)) return;
     this.notice(ctx, userId, "This is yours now.");
     this.sendMenu(ctx, userId, actorId, primary);
@@ -344,15 +355,12 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "That name will not do.");
       return;
     }
-    // A named key is matched by its whole name, so a rename orphans every key cut before it;
-    // unnamed "Property Key (TAG)" keys carry the credential suffix and keep working
-    const oldKey = this.keyNameOf(ctx, primary, rec);
-    const hadNamedKeys = !!(rec.name || "").trim();
+    // Keys already cut stay in rec.issued, so a rename keeps them working
+    const hadKeys = !!(rec.issued && rec.issued.length);
     rec.name = name;
     if (!this.commit(ctx, userId, primary, rec)) return;
-    const keysChanged = hadNamedKeys && this.keyNameOf(ctx, primary, rec) !== oldKey;
-    this.notice(ctx, userId, keysChanged
-      ? `Now called ${name}. Keys cut before the rename ("${oldKey}") no longer open it: cut new ones.`
+    this.notice(ctx, userId, hadKeys
+      ? `Now called ${name}. Keys already cut still open it; new ones will carry the new name.`
       : `Now called ${name}.`);
     const actorId = this.actorOf(ctx, userId);
     if (actorId) this.sendMenu(ctx, userId, actorId, primary);
@@ -365,7 +373,12 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "Only the owner, the Jarl or the Steward cuts keys here.");
       return;
     }
-    const keyName = this.keyNameOf(ctx, primary, rec);
+    const keyName = this.keyNameToCut(ctx, primary, rec);
+    const issued = (rec.issued || []).filter((n) => n !== keyName);
+    issued.push(keyName);
+    rec.issued = issued.slice(-MAX_ISSUED_KEY_NAMES);
+    // Recorded first, so a failed write never leaves a key nothing answers to
+    if (!this.commit(ctx, userId, primary, rec)) return;
     if (!this.giveKey(ctx, actorId, keyName)) {
       this.notice(ctx, userId, "You are carrying too many keys.");
       return;
@@ -471,8 +484,8 @@ export class HousingSystem implements System {
     const hold = this.holdOf(ctx, primary);
     if (hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1)) return true;
     const credential = this.keyCredential(primary, rec);
-    const expected = this.keyNameOf(ctx, primary, rec);
-    return Array.from(v.keys).some((n) => this.isKeyFor(n, credential, expected));
+    const names = this.acceptedKeyNames(ctx, primary, rec);
+    return Array.from(v.keys).some((n) => this.isKeyFor(n, credential, names));
   }
 
   // One inventory read and one access read per actor, not per claimed ref.
@@ -609,13 +622,52 @@ export class HousingSystem implements System {
   // when the locks have been re-cut, and both are rare. An unnamed property
   // keeps the old form, because there is nothing to call its key.
   // Keys cut before this still open their door: the credential is still taken.
-  private keyNameOf(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
-    const label = (rec.name || "").trim();
-    if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
-    const rank = this.labelRank(ctx, primary, label);
+  private keyNameFor(label: string, rank: number, rec: PropertyRecord): string {
     const base = rank > 1 ? `Key to the ${label}, the ${this.ordinal(rank)}` : `Key to the ${label}`;
     if (rec.serial <= 1) return base;
     return `${base} (recut${rec.serial > 2 ? " " + (rec.serial - 1) : ""})`;
+  }
+
+  // The name keys were cut under before rec.issued existed; its rank moves when another property is renamed
+  private legacyKeyName(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
+    const label = (rec.name || "").trim();
+    if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
+    return this.keyNameFor(label, this.labelRank(ctx, primary, label), rec);
+  }
+
+  // Names this property's door answers to, besides the credential suffix
+  private acceptedKeyNames(ctx: SystemContext, primary: number, rec: PropertyRecord): string[] {
+    return rec.issued ? rec.issued : [this.legacyKeyName(ctx, primary, rec)];
+  }
+
+  // The lowest "Key to the X[, the Nth]" no other claimed property answers to
+  private keyNameToCut(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
+    const label = (rec.name || "").trim();
+    if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
+    const taken = new Set<string>();
+    for (const other of this.claimed) {
+      if (other === primary) continue;
+      const o = this.read(ctx, other);
+      if (o && o.owner !== 0) for (const n of this.acceptedKeyNames(ctx, other, o)) taken.add(n);
+    }
+    for (let rank = 1; ; rank++) {
+      const name = this.keyNameFor(label, rank, rec);
+      if (!taken.has(name)) return name;
+    }
+  }
+
+  // Freezes each old record's key name; all computed before any write so no rank shifts mid-pass
+  private migrateLegacyKeyNames(ctx: SystemContext): void {
+    const todo: Array<{ primary: number; rec: PropertyRecord; name: string }> = [];
+    for (const { primary, rec } of this.liveClaims(ctx)) {
+      if (rec.issued === null) todo.push({ primary, rec, name: this.legacyKeyName(ctx, primary, rec) });
+    }
+    let n = 0;
+    for (const t of todo) {
+      t.rec.issued = (t.rec.name || "").trim() ? [t.name] : [];
+      if (this.write(ctx, t.primary, t.rec)) n++;
+    }
+    if (todo.length) this.log(`[housing] recorded key names for ${n}/${todo.length} properties from before key-name records`);
   }
 
   // Where this property stands among the ones sharing its name, lowest ref id
@@ -636,9 +688,9 @@ export class HousingSystem implements System {
     return words[n] || `${n}th`;
   }
 
-  private isKeyFor(name: unknown, credential: string, expected?: string): boolean {
+  private isKeyFor(name: unknown, credential: string, names?: string[]): boolean {
     if (typeof name !== "string") return false;
-    if (expected && name === expected) return true;
+    if (names && names.indexOf(name) !== -1) return true;
     return name.endsWith(credential);
   }
 
@@ -647,18 +699,19 @@ export class HousingSystem implements System {
   private reKey(ctx: SystemContext, primary: number, rec: PropertyRecord): void {
     const mp = ctx.svr as Mp;
     const credential = this.keyCredential(primary, rec);
-    const expected = this.keyNameOf(ctx, primary, rec);
+    const names = this.acceptedKeyNames(ctx, primary, rec);
     for (const userId of this.onlineUsers(ctx)) {
       const actorId = this.actorOf(ctx, userId);
       if (!actorId) continue;
       try {
         const inv = mp.get(actorId, "inventory");
         const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
-        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && this.isKeyFor(e?.name, credential, expected)));
+        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && this.isKeyFor(e?.name, credential, names)));
         if (kept.length !== entries.length) mp.set(actorId, "inventory", { entries: kept });
       } catch { /* actor gone */ }
     }
     rec.serial += 1;
+    rec.issued = [];
   }
 
   private giveKey(ctx: SystemContext, actorId: number, keyName: string): boolean {
@@ -818,6 +871,7 @@ export class HousingSystem implements System {
         serial: Number(r.serial) || 1,
         partner: Number(r.partner) || 0,
         containers: Array.isArray(r.containers) ? r.containers.map((c) => Number(c) >>> 0) : [],
+        issued: Array.isArray(r.issued) ? r.issued.map((n) => String(n)).slice(-MAX_ISSUED_KEY_NAMES) : null,
       };
     } catch {
       return null;
@@ -965,6 +1019,7 @@ export class HousingSystem implements System {
   }
 
   private claimed: number[] = [];
+  private keyNamesMigrated = false;
   private partnerCache = new Map<number, number>();
   private baseTypeCache = new Map<number, string>();
   private unclaimableLogged = new Set<number>();
