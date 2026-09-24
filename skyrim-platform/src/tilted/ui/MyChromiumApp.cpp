@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
@@ -89,12 +90,11 @@ void MyChromiumApp::Initialize(bool initChromium) noexcept
   settings.multi_threaded_message_loop = true;
   settings.windowless_rendering_enabled = true;
 
-#ifdef DEBUG
   settings.log_severity = LOGSEVERITY_VERBOSE;
-#else
-  settings.log_severity = LOGSEVERITY_VERBOSE;
-  settings.remote_debugging_port = 9000;
-#endif
+  // DevTools only when SKYMP_CEF_DEBUG_PORT names a port; 0 turns CEF remote debugging off
+  const char* debugPort = std::getenv("SKYMP_CEF_DEBUG_PORT");
+  const int port = debugPort ? std::atoi(debugPort) : 0;
+  settings.remote_debugging_port = port >= 1024 && port <= 65535 ? port : 0;
 
   // We want different CEFTemp paths for the different game installations
   size_t hash =

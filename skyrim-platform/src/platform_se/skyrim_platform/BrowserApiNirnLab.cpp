@@ -1,5 +1,7 @@
 #include "BrowserApiNirnLab.h"
 
+#include <cstdlib>
+
 #include <NirnLabUIPlatformAPI/API.h>
 #include <NirnLabUIPlatformAPI/SKSELoader.h>
 
@@ -12,7 +14,10 @@ void BrowserApiNirnLab::HandleSkseMessage(
 {
   logger::info("skse message type {}", a_msg->type);
   NL::UI::Settings settings{};
-  settings.remoteDebuggingPort = 9000;
+  // DevTools only when SKYMP_CEF_DEBUG_PORT names a port; 0 turns CEF remote debugging off
+  const char* debugPort = std::getenv("SKYMP_CEF_DEBUG_PORT");
+  const int port = debugPort ? std::atoi(debugPort) : 0;
+  settings.remoteDebuggingPort = port >= 1024 && port <= 65535 ? port : 0;
   // settings....mainmenu = false;
   NL::UI::SKSELoader::ProcessSKSEMessage(a_msg, &settings);
 }
