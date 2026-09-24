@@ -182,7 +182,7 @@ export class SendInputsService extends ClientListener {
 
 
         if (
-            currentTime - this.prevActorValuesUpdateTime < 2000 &&
+            currentTime - this.prevActorValuesUpdateTime < 1000 &&
             this.actorValuesNeedUpdate === false
         ) {
             return;
