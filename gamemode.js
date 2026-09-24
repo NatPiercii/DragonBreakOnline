@@ -353,9 +353,11 @@ registerChatCommand('rename', (a, args) => {
   const t = findByName(m[1]); if (!t) return personal(a, 'No such player. Use their name or #TAG.');
   const newName = m[2].trim().replace(/\s+/g, ' ');
   if (!NAME_RE.test(newName)) return personal(a, 'Names: 2-31 letters, spaces, apostrophes or hyphens, starting with a letter.');
+  const problem = nameProblem(newName, t); if (problem) return personal(a, `${problem}.`);
   try {
     const app = Object.assign({}, mp.get(t, 'appearance') || {}); const old = app.name || 'Stranger';
     app.name = newName; mp.set(t, 'appearance', app);
+    if (typeof globalThis.__dboIndexName === 'function') globalThis.__dboIndexName(t, newName);
     personal(a, `Renamed ${old} #${tagOf(t)} to ${newName}.`);
     system(t, `Your character is now named ${newName}.`);
     audit(`GM ${who(a)} renamed "${old}" -> "${newName}" (#${tagOf(t)}, profile ${profileOf(t)})`);
@@ -924,10 +926,25 @@ if (!globalThis.__dboAppearanceHookPrev) {
   const cur = typeof mp.onUpdateAppearanceAttempt === 'function' ? mp.onUpdateAppearanceAttempt : null;
   globalThis.__dboAppearanceHookPrev = cur && !cur.__dbo ? cur : null;
 }
+// Name rules live in the fork (nameFilter.ts, exposed by spawn.ts); without it every name passes as before
+const nameProblem = (name, a) => { try { return typeof globalThis.__dboNameProblem === 'function' ? globalThis.__dboNameProblem(name, a) : null; } catch (e) { return null; } };
+const NAME_REOPEN_MS = 1500;
+const refuseName = (a, problem, delayMs) => {
+  const text = `${problem}. Choose another name.`;
+  sendPacket(a, { customPacketType: 'dboBanner', text, seconds: 8 });
+  system(a, text);
+  audit(`NAME ${who(a)} refused: ${problem}`);
+  setTimeout(() => {
+    try { if (mp.get(a, 'isOnline') === false) return; mp.setRaceMenuOpen(a, false); mp.setRaceMenuOpen(a, true); }
+    catch (e) { log('name reopen failed', e.message); }
+  }, delayMs || NAME_REOPEN_MS);
+};
 const appearanceHook = (actorId, appearance, isAllowed) => {
   let result = true;
   const prev = globalThis.__dboAppearanceHookPrev;
   if (prev) { try { result = prev.call(mp, actorId, appearance, isAllowed) !== false; } catch (e) { log('appearance hook chain failed', e.message); } }
+  // A refused name keeps the creator open: nothing below runs until a good one is chosen
+  if (isAllowed) { const problem = nameProblem(appearance && appearance.name, actorId >>> 0); if (problem) { refuseName(actorId >>> 0, problem); return result; } }
   if (isAllowed) { try { moveToHubWhenReady(actorId >>> 0, 'creator closed'); } catch (e) { log('hub move schedule failed', e.message); } }
   // An identity reroll (patrons.js) is spent only once the creator closes with the new look
   if (isAllowed) { try { if (globalThis.__dboRerollDone) globalThis.__dboRerollDone(actorId >>> 0); } catch (e) { log('reroll finish failed', e.message); } }
@@ -1001,6 +1018,8 @@ const onCharacterReady = (userId, a) => {
     // Anyone who logs in inside a dungeon they no longer hold is put back outside its entrance
     try { if (globalThis.__dboDungeonLoginCheck) globalThis.__dboDungeonLoginCheck(a); } catch (e) { log('dungeon login check failed', e.message); }
     giveStarterKit(a);
+    // Characters named before the filter, or through a gap in it, are asked for a new name once they have settled
+    if (!creationPending(a)) { const problem = nameProblem(nameOf(a)); if (problem) refuseName(a, `Your name breaks the naming rules: ${problem}`, 15000); }
     try { indexName(a); } catch (e) { /* offline lookup only */ }
     try { if (globalThis.__dboFactionLogin) globalThis.__dboFactionLogin(a); } catch (e) { log('faction login failed', e.message); }
     try { if (globalThis.__dboWorldStatsSeen) globalThis.__dboWorldStatsSeen(a); } catch (e) { /* stats only */ }
