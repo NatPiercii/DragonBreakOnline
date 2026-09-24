@@ -2499,6 +2499,8 @@ const equipHook = (actorId, equipment, isAllowed, ...rest) => {
     // A beast form's outfit (the Vampire Lord's robes) is not the character's: a revert re-dresses from lastWorn
     let beast = null; try { beast = mp.get(a, 'private.beast'); } catch (e) { /* not an actor */ }
     if (isAllowed && worn.length && !fresh && !(beast && beast.form)) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0]));
+    // Armour changed in a fight costs time (armourswap.js); the login re-dress is the server's own
+    if (isAllowed && armourSwap) armourSwap.onEquip(a, worn, fresh || creationPending(a) || Date.now() - (redressAt.get(a) || 0) < 5000);
     // The naked login report is the moment to dress, not the 12 s fallback in onCharacterReady
     if (isAllowed && !worn.length && fresh && !creationPending(a) && Date.now() - (redressAt.get(a) || 0) > 2000) {
       redressAt.set(a, Date.now());
@@ -2688,6 +2690,13 @@ const gmstFloat = (id, fallback) => {
   recordDamageCache.set(key, v);
   return v;
 };
+// ---- changing armour mid-fight takes time (server\armourswap.js, config "armourSwap") --------------------------------
+let armourSwap = null;
+try {
+  const ARMOURSWAP_JS = path.resolve('armourswap.js');
+  delete require.cache[ARMOURSWAP_JS];
+  armourSwap = require(ARMOURSWAP_JS)({ mp, log, personal, sendPacket, display, profileOf, armorPieceOf, recordOf, fieldsOf, cfg });
+} catch (e) { log('armourswap.js failed to load:', e.stack || e.message); armourSwap = null; }
 // Below 1 when the target's Defense tier makes its armor count for more than the engine allowed it
 const defenseDamageMult = (targetId) => {
   if (!DEFENSE.enabled) return 1;
@@ -2783,6 +2792,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
     if (r && r.boundHands) return false;
   } catch (e) { }
 
+  // 1b. Someone still fastening armour they changed mid-fight lands no blows (armourswap.js)
+  if (dmg > 0 && agg !== tgt && armourSwap && armourSwap.busy(agg)) return false;
+
   // 2. Reject damage exceeding plausible maximums (anti-cheat clamp)
   if (!isAdmin(agg) && dmg > MAX_DAMAGE_CAP) {
     log(`damageRefused: ${dmg.toFixed(1)} from ${display(agg)} on ${display(tgt)} (source 0x${src.toString(16)})`);
@@ -2810,6 +2822,8 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
 
   // PvP combat: both sides are marked, so /unstuck cannot be used to leave a fight
   if (dmg > 0 && agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0) { const now = Date.now(); pvpAt.set(agg, now); pvpAt.set(tgt, now); }
+  // Any landed blow, PvE included, puts the players in it in combat for the armour swap timer
+  if (dmg > 0 && agg !== tgt && armourSwap) armourSwap.onHit(agg, tgt);
   // Fire on a vampire, silver on a werewolf: note the health now, the extra comes off in onHitDamage
   globalThis.__dboSuperPending = null;
   try { const m = globalThis.__dboSuperDamageMult ? Number(globalThis.__dboSuperDamageMult(agg, tgt, src)) : 1; if (m > 1 && dmg > 0) { const p = mp.get(tgt, 'percentages'); if (p && p.health > 0) globalThis.__dboSuperPending = { agg, tgt, mult: m, health: p.health }; } } catch (e) { /* not an actor */ }
