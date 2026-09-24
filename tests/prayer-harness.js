@@ -448,6 +448,44 @@ check('the offer waits while the race menu is open', !faithlessOffered());
 props.set(ACTOR + '|private.creationPending', false);
 check('and comes once they are out of it', faithlessOffered());
 
+// the god as the last step of creation: the gamemode says who is at that step and moves them on when it ends
+const moved = [];
+let atEnd = true;
+globalThis.__dboAtCreationEnd = () => atEnd;
+globalThis.__dboCreationEndDone = (a) => moved.push(a);
+const creationPick = () => {
+  props.delete(ACTOR + '|private.dboDeity');
+  globalThis.__dboDeityForget(ACTOR);
+  clear();
+  timers.get('deityPickerOffer')();
+  return out.widgets[0];
+};
+pick = creationPick();
+check('in the hub after creation the menu opens as the last step', !!pick && pick.first && /last step/i.test(pick.notice), pick && pick.notice);
+clear();
+fire('deityClose', [pick.nonce]);
+check('Not yet ends the step and moves them on, with no god', moved.length === 1 && !props.get(ACTOR + '|private.dboDeity'));
+pick = creationPick();
+clear();
+fire('deityChoose', [pick.nonce, 'mara']);
+check('choosing a god ends the step too', moved.length === 2 && (props.get(ACTOR + '|private.dboDeity') || {}).id === 'mara');
+fire('deityClose', [pick.nonce]);
+check('closing the menu afterwards does not move them twice', moved.length === 2);
+check('someone who already holds a god gets no creation step', globalThis.__dboDeityCreationOpen(ACTOR) === false);
+atEnd = false;
+pick = creationPick();
+check('outside the hub the ordinary menu opens', !!pick && !pick.notice);
+clear();
+fire('deityClose', [pick.nonce]);
+check('and closing it moves nobody', moved.length === 2);
+atEnd = true;
+props.delete(ACTOR + '|private.dboDeity');
+globalThis.__dboDeityForget(ACTOR);
+clear();
+check('the gamemode can open the step itself', globalThis.__dboDeityCreationOpen(ACTOR) === true && /last step/i.test(out.widgets[0].notice));
+delete globalThis.__dboAtCreationEnd;
+delete globalThis.__dboCreationEndDone;
+
 Date.now = realNow;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

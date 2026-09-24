@@ -887,6 +887,26 @@ const sendToArrival = (a) => {
     log(`sent ${display(a)} from the Realm to the arrival`);
   } catch (e) { log('send to arrival failed', e.message); }
 };
+// Choosing a god is the last creation step (prayer.js): the picker opens in the hub and the move to the arrival waits
+// for a choice or Not yet. A picker that never answers must not strand anyone in the Realm, whose gates teleport nobody.
+const DEITY_STEP_MAX_MS = 5 * 60000;
+const inHub = (a) => { try { return String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase() === String(HUB.cellOrWorldDesc).toLowerCase(); } catch (e) { return false; } };
+globalThis.__dboAtCreationEnd = (a) => inHub(a) && !creationPending(a);
+// The move never beats the starter kit, which lands 6 s after the creator closes
+const CREATION_MOVE_MS = 9000;
+const creatorClosedAt = globalThis.__dboCreatorClosedAt instanceof Map ? globalThis.__dboCreatorClosedAt : (globalThis.__dboCreatorClosedAt = new Map());
+globalThis.__dboCreationEndDone = (a) => {
+  const wait = Math.max(2500, CREATION_MOVE_MS - (Date.now() - (creatorClosedAt.get(a) || 0)));
+  setTimeout(() => sendToArrival(a), wait);
+};
+const endCreation = (a) => {
+  let opened = false;
+  try { opened = typeof globalThis.__dboDeityCreationOpen === 'function' && inHub(a) && globalThis.__dboDeityCreationOpen(a); }
+  catch (e) { log('deity step failed', e.message); }
+  if (!opened) return sendToArrival(a);
+  log(`${display(a)} is choosing a god before leaving the Realm`);
+  setTimeout(() => sendToArrival(a), DEITY_STEP_MAX_MS);
+};
 // The original is stored once so a hot reload re-wraps the same function instead of stacking.
 if (!globalThis.__dboAppearanceHookPrev) {
   const cur = typeof mp.onUpdateAppearanceAttempt === 'function' ? mp.onUpdateAppearanceAttempt : null;
@@ -903,8 +923,9 @@ const appearanceHook = (actorId, appearance, isAllowed) => {
   if (isAllowed) setTimeout(() => { try { giveStarterKit(actorId >>> 0); } catch (e) { log('starter kit after creation failed', e.message); } }, 6000);
   // Creation ends in the Realm and the gates there are scenery: they carry no XTEL, so they teleport
   // nobody. playtest.js allows the hub, so nothing evicts a finished character either, and without
-  // this they stay in the Realm for good. Send them to the arrival once the kit has landed.
-  if (isAllowed) setTimeout(() => sendToArrival(actorId >>> 0), 9000);
+  // this they stay in the Realm for good. Send them to the arrival once the kit has landed and a god is chosen.
+  if (isAllowed) creatorClosedAt.set(actorId >>> 0, Date.now());
+  if (isAllowed) setTimeout(() => endCreation(actorId >>> 0), CREATION_MOVE_MS);
   return result;
 };
 appearanceHook.__dbo = true;

@@ -515,6 +515,24 @@ module.exports = (api) => {
   };
   globalThis.__dboDeityPicker = (a) => openPicker(a);
 
+  // The god is the last step of character creation (Jake's to-do, skippable by Nat's call, 2026-09-24). The gamemode
+  // decides who is at that step (in the hub, creation done) and moves them on once they choose or press Not yet.
+  const CREATION_NOTICE = 'The last step before you leave the Realm. Choose now, or press Not yet and type /deity whenever you are ready.';
+  const creationStep = globalThis.__dboDeityCreationStep || (globalThis.__dboDeityCreationStep = new Set());
+  const atCreationStep = (a) => typeof globalThis.__dboAtCreationEnd === 'function' && globalThis.__dboAtCreationEnd(a);
+  const openCreationStep = (a) => {
+    if (faithOf(a)) return false;
+    creationStep.add(a);
+    if (openPicker(a, CREATION_NOTICE, '')) return true;
+    creationStep.delete(a);
+    return false;
+  };
+  globalThis.__dboDeityCreationOpen = openCreationStep;
+  const endCreationStep = (a) => {
+    if (!creationStep.delete(a)) return;
+    try { if (typeof globalThis.__dboCreationEndDone === 'function') globalThis.__dboCreationEndDone(a); } catch (e) { log('creation step end failed', e.message); }
+  };
+
   // A character out of the race menu with no god gets the picker; so does an older character who
   // never had one, which is every character alive today. Watching for it beats hooking creation:
   // private.creationPending is cleared in a TS system with no gamemode callback, and this covers
@@ -525,12 +543,14 @@ module.exports = (api) => {
         if (offered.has(a) || faithOf(a)) continue;
         if (mp.get(a, 'private.creationPending') === true) continue;
         if (mp.get(a, 'appearance') == null) continue;
-        openPicker(a);
+        // Someone who left mid-step comes back in the hub: this is still their last creation step
+        if (atCreationStep(a)) openCreationStep(a);
+        else openPicker(a);
       } catch (e) { /* not an actor yet */ }
     }
   });
   // Someone who logs out mid-pick should be offered it again next time.
-  globalThis.__dboDeityForget = (a) => { offered.delete(a); pickerNonce.delete(a); };
+  globalThis.__dboDeityForget = (a) => { offered.delete(a); pickerNonce.delete(a); creationStep.delete(a); };
 
   // Taking or changing a god. `atShrine` is the older chat path's extra rule and is not applied to
   // the menu, because the brief moved conversion onto a menu key rather than a pilgrimage.
@@ -572,13 +592,14 @@ module.exports = (api) => {
     const r = takeDeity(a, d);
     openWidget(a, pickerPayload(a, r.text, r.ok ? 'taken' : 'refused'), false);
     if (r.ok) {
+      endCreationStep(a);
       const where = Number(d.inBruma) > 0
         ? `Find a shrine of ${d.name} and use it to pray.`
         : `${d.name} has no shrine you can reach yet, so there is nowhere to pray until Skyrim opens.`;
       personal(a, where);
     }
   });
-  onUi('deityClose', (a) => { pickerNonce.delete(a); closeWidget(a, PICKER_ID); });
+  onUi('deityClose', (a) => { pickerNonce.delete(a); closeWidget(a, PICKER_ID); endCreationStep(a); });
 
   // ── /deity ──────────────────────────────────────────────────────────────────────────────────
   // The chat path, kept for anyone who would rather type than click. Bare `/deity` opens the menu.
