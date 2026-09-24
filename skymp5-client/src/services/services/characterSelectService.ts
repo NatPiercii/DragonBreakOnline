@@ -2,7 +2,7 @@ import { FunctionInfo } from "../../lib/functionInfo";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { openFormMenu, readMenuLanguage } from "./widgetMenuUtil";
-import { BrowserMessageEvent, Menu, MenuOpenEvent } from "skyrimPlatform";
+import { BrowserMessageEvent, Menu, MenuCloseEvent, MenuOpenEvent } from "skyrimPlatform";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { logTrace } from "../../logging";
@@ -29,6 +29,11 @@ const SAW_GAMEPLAY_KEY = "dboCharSelectSawGameplay";
 const MENU_REQUEST_RETRY_MS = 4000;
 const MENU_REQUEST_GIVE_UP_MS = 90000;
 const MENU_RECONNECT_RETRY_MS = 12000;
+// Leaving to the main menu stops "update" while "tick" goes on; a blocking save stops both, so ticks are counted too
+const MAIN_MENU_SILENCE_MS = 2500;
+const MAIN_MENU_SILENT_TICKS = 30;
+// The journal must have been open this close to the last update, so a load screen from a door never counts
+const JOURNAL_QUIT_WINDOW_MS = 500;
 
 // Event keys exchanged with the browser; namespaced to avoid collisions with other "browserMessage" listeners.
 const events = {
@@ -113,6 +118,8 @@ export class CharacterSelectService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("menuOpen", (e) => this.onMenuOpen(e));
+    this.controller.on("menuClose", (e) => this.onMenuClose(e));
+    this.controller.on("update", () => this.onUpdate());
     this.controller.on("tick", () => this.onTick());
     // "update" fires only in-game, so the first one marks the initial spawn.
     // gameLoad covers a world load the first update was missed on.
@@ -201,39 +208,54 @@ export class CharacterSelectService extends ClientListener {
     }
   }
 
-  // Quitting to main menu mid-session must reopen character select (the server forgets its menu state).
-  // The focused browser reply also hides the native main menu buttons, same as the initial login flow.
+  // Main Menu events only arrive on "update", which the main menu never runs: a quit is "update" stopping right after the journal
   private onMenuOpen(e: MenuOpenEvent): void {
-    if (e.name !== Menu.Main) return;
-    if (!this.sawGameplay) return; // initial boot: the auth flow drives the menu
-    // menuOpen events can arrive late (queued into SP update tasks); only act
-    // when the main menu is REALLY open right now (stale-event guard).
-    try {
-      if (!this.sp.Ui.isMenuOpen(Menu.Main)) return;
-    } catch (err) {
-      return; // native context unavailable, event is certainly stale
-    }
-    if (this.controller.lookupListener(SinglePlayerService).isSinglePlayer) return;
-    // Quitting to the main menu can drop the connection while the world unloads, which lost the one
-    // request this used to send: keep asking (reconnecting when needed) until the menu arrives
-    this.wantMenuSince = Date.now();
-    this.lastMenuAttempt = 0;
-    this.lastReconnect = Date.now();
-    this.onTick();
+    if (e.name !== Menu.Journal) return;
+    this.journalOpen = true;
+    this.journalSeenAt = Date.now();
+  }
+
+  private onMenuClose(e: MenuCloseEvent): void {
+    if (e.name !== Menu.Journal) return;
+    this.journalOpen = false;
+    this.journalSeenAt = Date.now();
+  }
+
+  private onUpdate(): void {
+    this.lastUpdateAt = Date.now();
+    this.ticksSinceUpdate = 0;
+    if (this.journalOpen) this.journalSeenAt = this.lastUpdateAt;
+  }
+
+  private leftToMainMenu(now: number): boolean {
+    if (!this.lastUpdateAt || this.handledSilenceOf === this.lastUpdateAt) return false;
+    if (this.ticksSinceUpdate < MAIN_MENU_SILENT_TICKS || now - this.lastUpdateAt < MAIN_MENU_SILENCE_MS) return false;
+    if (!this.journalSeenAt || this.lastUpdateAt - this.journalSeenAt > JOURNAL_QUIT_WINDOW_MS) return false;
+    return this.sawGameplay && !this.menuOpen && !this.controller.lookupListener(SinglePlayerService).isSinglePlayer;
   }
 
   // "update" never fires in the main menu; "tick" does
   private onTick(): void {
-    if (!this.wantMenuSince) return;
+    this.ticksSinceUpdate++;
     const now = Date.now();
-    if (this.menuOpen || now - this.wantMenuSince > MENU_REQUEST_GIVE_UP_MS) { this.wantMenuSince = 0; return; }
-    if (now - this.lastMenuAttempt < MENU_REQUEST_RETRY_MS) return;
-    this.lastMenuAttempt = now;
-    try {
-      if (!this.sp.Ui.isMenuOpen(Menu.Main)) { this.wantMenuSince = 0; return; }
-    } catch (err) {
+    if (!this.wantMenuSince && this.leftToMainMenu(now)) {
+      // Once per silence, so giving up does not restart the loop while still on the main menu
+      this.handledSilenceOf = this.lastUpdateAt;
+      this.journalOpen = false;
+      this.journalSeenAt = 0;
+      this.wantMenuSince = now;
+      this.lastMenuAttempt = 0;
+      this.lastReconnect = now;
+      logTrace(this, 'Left to the main menu from the journal, asking for character select');
+    }
+    if (!this.wantMenuSince) return;
+    // Back in the world (a load from the journal, or the selection already played): stop asking
+    if (this.menuOpen || this.lastUpdateAt > this.wantMenuSince || now - this.wantMenuSince > MENU_REQUEST_GIVE_UP_MS) {
+      this.wantMenuSince = 0;
       return;
     }
+    if (now - this.lastMenuAttempt < MENU_REQUEST_RETRY_MS) return;
+    this.lastMenuAttempt = now;
     const networking = this.controller.lookupListener(NetworkingService);
     if (networking.isConnected()) {
       // A fresh connection gets the list on its own once authenticated; a request as well is harmless (server-side guards)
@@ -313,4 +335,9 @@ export class CharacterSelectService extends ClientListener {
   private wantMenuSince = 0;
   private lastMenuAttempt = 0;
   private lastReconnect = 0;
+  private lastUpdateAt = 0;
+  private ticksSinceUpdate = 0;
+  private journalOpen = false;
+  private journalSeenAt = 0;
+  private handledSilenceOf = 0;
 }
