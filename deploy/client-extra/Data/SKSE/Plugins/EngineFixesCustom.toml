@@ -1,0 +1,15 @@
+# DragonBreak Online: overrides for SSE Engine Fixes (read after EngineFixes.toml, whose values it replaces).
+# Engine Fixes' tbbmalloc allocator crashed the client in Block::freeOwnObject while a character loaded
+# (BGSLoadFormBuffer + the Player NPC on the stack, 10 crashes 2026-09-14..23). The dev install has run with every
+# allocator override off since 2026-09-17 and has not crashed that way since. Shipped to players by the launcher.
+
+[MemoryManager]
+bOverrideMemoryManager = false
+bOverrideScrapHeap = false
+bOverrideScaleformAllocator = false
+bOverrideRenderPassCache = false
+bOverrideHavokMemorySystem = false
+bReplaceImports = false
+
+[Warnings]
+bTextureLoadFailed = false
