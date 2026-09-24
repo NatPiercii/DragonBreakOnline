@@ -3,6 +3,7 @@ import { parseCustomPacket } from "./customPacketUtil";
 import { showSystemNotification } from "./systemNotification";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
+import { GHOST_ALPHA, GHOST_SHADER_ID } from "../../lib/ghostLook";
 
 const INVIS_REAPPLY_MS = 2000;
 const LOCAL_MODES = ["god", "noclip", "ghost", "invis"];
@@ -14,6 +15,7 @@ const LOCAL_MODES = ["god", "noclip", "ghost", "invis"];
  * server-side; freecam has no SkyrimPlatform native (tfc stays a console
  * command for admins, who already hold consoleCommandsAllowed).
  * God also holds server-side (AdminSystem refuses hit damage); FormView hides remote invis admins via ff_adminModes, and shows them to admins as ghosts.
+ * Ghost looks like one: the ethereal shader and half alpha here, and to everyone else through the same mirror.
  */
 export class AdminModeService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -82,13 +84,17 @@ export class AdminModeService extends ClientListener {
           this.collisionsDisabled = on;
         }
         break;
-      case "ghost":
+      case "ghost": {
         player?.setGhost(on);
+        this.ghostly = on;
+        const shader = this.sp.EffectShader.from(this.sp.Game.getFormEx(GHOST_SHADER_ID));
+        if (player) { shader?.stop(player); if (on) shader?.play(player, -1); }
+        this.applyAlpha(true);
         break;
+      }
       case "invis":
         this.invisible = on;
-        this.lastInvisApply = Date.now();
-        player?.setAlpha(on ? 0 : 1, true);
+        this.applyAlpha(true);
         break;
       case "freecam":
         showSystemNotification(this.sp, on
@@ -106,15 +112,21 @@ export class AdminModeService extends ClientListener {
     }
   }
 
+  // Invisible wins over Ghost; with neither, the player is fully visible again
+  private applyAlpha(fade: boolean): void {
+    this.lastInvisApply = Date.now();
+    this.sp.Game.getPlayer()?.setAlpha(this.invisible ? 0 : this.ghostly ? GHOST_ALPHA : 1, fade);
+  }
+
   // Respawn and 3D reloads reset the player's alpha
   private onUpdate(): void {
-    if (!this.invisible || Date.now() - this.lastInvisApply < INVIS_REAPPLY_MS) return;
-    this.lastInvisApply = Date.now();
-    this.sp.Game.getPlayer()?.setAlpha(0, false);
+    if ((!this.invisible && !this.ghostly) || Date.now() - this.lastInvisApply < INVIS_REAPPLY_MS) return;
+    this.applyAlpha(false);
   }
 
   private collisionsDisabled = false;
   private invisible = false;
+  private ghostly = false;
   private lastInvisApply = 0;
   private localModes = new Set<string>();
 }

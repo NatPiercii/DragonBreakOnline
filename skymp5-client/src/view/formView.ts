@@ -10,6 +10,7 @@ import { SpawnProcess } from "./spawnProcess";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
 import { lastTryHost, tryHost } from "./hostAttempts";
+import { GHOST_ALPHA, GHOST_SHADER_ID } from "../lib/ghostLook";
 import { ModelApplyUtils } from "./modelApplyUtils";
 import { localIdToRemoteId } from "./worldViewMisc";
 import { SpApiInteractor } from "../services/spApiInteractor";
@@ -850,9 +851,10 @@ export class FormView {
     return typeof hostile === "boolean" ? hostile : actor.getActorValue("Aggression") >= 1;
   }
 
-  // Admin Invisible rides the neighbor-visible ff_adminModes prop; 3D reloads reset alpha and shaders, so both are reapplied
+  // Admin Invisible and Ghost ride the neighbor-visible ff_adminModes prop; 3D reloads reset alpha and shaders, so both are reapplied
   private applyAdminInvisibility(refr: ObjectReference, model: FormModel): void {
-    const view = FormView.adminViewOf(model);
+    let view = FormView.adminViewOf(model);
+    if (view === "visible" && this.spellInvisible(refr)) view = "hidden";
     if (view === "visible" && this.adminView === "visible") {
       return;
     }
@@ -866,7 +868,7 @@ export class FormView {
     const playShader = view === "ghost"
       && (!this.adminShaderOn || (this.adminShaderReplayAt > 0 && now >= this.adminShaderReplayAt));
     if (leavingGhost || playShader) {
-      const shader = EffectShader.from(Game.getFormEx(FormView.adminGhostShaderId));
+      const shader = EffectShader.from(Game.getFormEx(GHOST_SHADER_ID));
       shader?.stop(actor);
       if (playShader) {
         shader?.play(actor, -1);
@@ -875,19 +877,28 @@ export class FormView {
       this.adminShaderReplayAt = 0;
     }
     if (view !== this.adminView || now - this.lastAdminHideApply >= FormView.adminHideReapplyMs) {
-      actor.setAlpha(view === "hidden" ? 0 : view === "ghost" ? FormView.adminGhostAlpha : 1, false);
+      actor.setAlpha(view === "hidden" ? 0 : view === "ghost" ? GHOST_ALPHA : 1, false);
       this.adminView = view;
       this.lastAdminHideApply = now;
     }
   }
 
-  // Invisible admins are hidden from players and shown to admins as ghosts
+  // Invisible admins are hidden from players and shown to admins as ghosts; Ghost admins look like ghosts to everyone
   private static adminViewOf(model: FormModel): AdminView {
     const modes = (model as Record<string, unknown>)["ff_adminModes"];
-    if (!modes || typeof modes !== "object" || !(modes as Record<string, unknown>)["invis"]) {
-      return "visible";
-    }
-    return FormView.viewerIsAdmin() ? "ghost" : "hidden";
+    if (!modes || typeof modes !== "object") return "visible";
+    const m = modes as Record<string, unknown>;
+    if (m["invis"]) return FormView.viewerIsAdmin() ? "ghost" : "hidden";
+    return m["ghost"] ? "ghost" : "visible";
+  }
+
+  // A replayed Invisibility spell would otherwise draw the caster as vanilla's shimmer instead of hiding them
+  private spellInvisible(refr: ObjectReference): boolean {
+    const now = Date.now();
+    if (now - this.lastSpellInvisCheck < FormView.spellInvisCheckMs) return this.spellInvisibleSeen;
+    this.lastSpellInvisCheck = now;
+    try { this.spellInvisibleSeen = (Actor.from(refr)?.getActorValue("Invisibility") ?? 0) > 0; } catch { this.spellInvisibleSeen = false; }
+    return this.spellInvisibleSeen;
   }
 
   private static viewerIsAdmin(): boolean {
@@ -1032,6 +1043,8 @@ export class FormView {
   private adminView: AdminView = "visible";
   private adminShaderOn = false;
   private adminShaderReplayAt = 0;
+  private lastSpellInvisCheck = 0;
+  private spellInvisibleSeen = false;
   private lastAdminHideApply = 0;
   private textNameId: number | undefined = undefined;
   private textActorIdId: number | undefined = undefined;
@@ -1050,9 +1063,7 @@ export class FormView {
   private static readonly actorIdLineOffset = 24;
   private static readonly nameAboveBarPx = 46;
   private static readonly adminHideReapplyMs = 1000;
-  // Skyrim.esm GhostEtherealFXShader, the Become Ethereal look
-  private static readonly adminGhostShaderId = 0x64d67;
-  private static readonly adminGhostAlpha = 0.5;
+  private static readonly spellInvisCheckMs = 250;
   private static readonly adminShaderReplayDelayMs = 1000;
   // Draugr, falmer, chaurus, frostbite spiders, dwarven automatons, spriggans and wolves: ambush AI can start them passive
   private static readonly ambushRaces = [0xd53, 0x131f4, 0x131eb, 0x4e507, 0x53477, 0x131f1, 0x131f2, 0x131f3, 0x2013b77, 0xf3903, 0x13204, 0x401b644, 0x9aa44, 0x1320a];
