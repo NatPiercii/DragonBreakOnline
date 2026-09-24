@@ -997,6 +997,8 @@ const onCharacterReady = (userId, a) => {
     sendMailState(a);
     try { pushHud(a, needsOf(a), true); } catch (e) { /* hud later */ }
     try { if (globalThis.__dboPartyLogin) globalThis.__dboPartyLogin(a); } catch (e) { log('party login failed', e.message); }
+    sendFavorites(a);
+    try { if (globalThis.__dboCharLevelLogin) globalThis.__dboCharLevelLogin(a); } catch (e) { log('level login failed', e.message); }
   }, 8000);
 };
 const startLoginWait = (userId, seenActor) => {
@@ -1395,6 +1397,22 @@ onUi('arrived', (a, args) => {
   }
 });
 // Client HostedDriftService: an NPC this client hosts whose skeleton split from its reference (floating creatures, 2026-09-16)
+// Favorites and hotkeys 1-8 live on the character: the login rebuild re-adds every item and spell without them
+const FAVORITE_LIMIT = 200;
+const cleanFavorites = (list) => (Array.isArray(list) ? list : []).slice(0, FAVORITE_LIMIT)
+  .map((f) => ({ id: Number(f && f.id) >>> 0, hotkey: Number.isInteger(f && f.hotkey) && f.hotkey >= 0 && f.hotkey <= 7 ? f.hotkey : -1 }))
+  .filter((f) => f.id > 0 && f.id < 0xff000000);
+const sendFavorites = (a) => {
+  try {
+    const saved = mp.get(a, 'private.dboFavorites') || {};
+    sendPacket(a, { customPacketType: 'dboFavorites', items: cleanFavorites(saved.items), spells: cleanFavorites(saved.spells) });
+  } catch (e) { log('favorites send failed', e.message); }
+};
+onUi('favorites', (a, args) => {
+  const r = args[0] && typeof args[0] === 'object' ? args[0] : null;
+  if (!r) return;
+  mp.set(a, 'private.dboFavorites', { items: cleanFavorites(r.items), spells: cleanFavorites(r.spells) });
+});
 onUi('npcDrift', (a, args) => {
   const r = args[0] && typeof args[0] === 'object' ? args[0] : {};
   log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 900)}`);
@@ -2739,6 +2757,13 @@ try {
   delete require.cache[JAIL_JS];
   require(JAIL_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, isAdmin, distanceMeters });
 } catch (e) { log('jail.js failed to load:', e.stack || e.message); globalThis.__dboJailActivate = null; globalThis.__dboJailLogin = null; globalThis.__dboJailUnstuck = null; }
+
+// ---- character level 1-5 and its Health/Magicka/Stamina points (charlevel.js, config "charLevel") ----
+try {
+  const CHARLEVEL_JS = path.resolve('charlevel.js');
+  delete require.cache[CHARLEVEL_JS];
+  require(CHARLEVEL_JS)({ mp, log, personal, system, audit, display, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, sendPacket });
+} catch (e) { log('charlevel.js failed to load:', e.stack || e.message); globalThis.__dboCharLevel = null; globalThis.__dboCharLevelLogin = null; }
 
 // ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
 try {

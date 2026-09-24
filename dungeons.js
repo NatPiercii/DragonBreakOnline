@@ -153,12 +153,13 @@ module.exports = (api) => {
     return pool[Math.floor(Math.random() * pool.length)][1];
   };
 
-  // Scaling by the party at the door: enemy level follows the highest character level (skills.json vanillaLevel:
-  // tiers of the three chosen skills / 3, cap 5), shifted by difficulty; enemy count follows how many came
+  // Scaling by the party at the door: enemy level follows the highest character level (charlevel.js, 1-5;
+  // the old three-chosen-skills rule is the fallback), shifted by difficulty; enemy count follows how many came
   const LEVEL_BANDS = Object.assign({ 1: [1, 6], 2: [1, 9], 3: [5, 14], 4: [9, 21], 5: [13, 25], 6: [19, 30], 7: [25, 40] }, C.levelBands || {});
   const DIFF_SHIFT = Object.assign({ story: -1, normal: 0, hard: 1, nightmare: 2 }, C.levelShift || {});
   const charLevel = (a) => {
     try {
+      if (typeof globalThis.__dboCharLevel === 'function') return globalThis.__dboCharLevel(a);
       const r = mp.get(a, 'private.mastery');
       const tiers = (r && Array.isArray(r.order) ? r.order : []).map((id) => 1 + Math.max(0, Number(((r.skills || {})[id] || {}).rank) || 0)).sort((x, y) => y - x).slice(0, 3);
       return Math.max(1, Math.min(5, Math.floor(tiers.reduce((sum, t) => sum + t, 0) / 3)));
