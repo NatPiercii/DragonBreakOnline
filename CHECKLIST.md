@@ -26,8 +26,16 @@ Nat said push both and deploy gameplay. Every harness passes (run them all with 
 - [x] **Jail uncuffs a bound prisoner as the door locks** (fork `ce847a4` `__dboUncuff`, server `6f5b8627`). Until the
   server build lands the guard is still told to uncuff through the bars. Jail harness 48/48.
 - [x] `/wipechars` parses a bare profile id (`/^\d+$/`), server `0bd9b87b`.
-- [x] **Gray Fox libespm fix merged into `main`** (`36bb593`), per the 23 Sep block. After the build: no
-  `Record 0xffffffff` after an Ancient Vision cast; watch boot time and memory for the 10k newly resolvable Hammerfell refs.
+- [x] **Gray Fox libespm fix**: already on `main` as `4ddc32e` / `4c46a06` and live since the 16:08 build (Combiner.cpp.o
+  16:05 on the box); merging the side branch added nothing. Watch for `Record 0xffffffff` after an Ancient Vision cast.
+- [x] **Shipped 19:57-20:05 UTC** (Nat's go): server `e3c506d3` deployed, fork `276a721` built and restarted OK, 0
+  `[error]` lines at boot, patch notes "Skill and Steel" published. Logged in `OPS_HANDOFF_2026-09-24_claude-nate.md`.
+- [x] **Incident, fixed**: the first housing build (`4badca9`) ran the key-name migration on the first tick after boot,
+  before the doors' records had loaded, and `liveClaims()` pruned all 4 claims from `housing.json`. Restored by hand;
+  `276a721` migrates only before a rename or key cut and never prunes (harness 17/17 covers it).
+- [ ] **Hazard left as it was**: `liveClaims()` (decor push on every join) still drops any registry id whose record
+  reads as null. If a player joins before a claimed door's record loads, the claim leaves the index the same way. Watch
+  for `[housing] dropped` after a restart; the safer rule is to prune only records that read as ownerless stubs.
 - [x] **CEF DevTools closed in release** (fork `efd145b`): both browser backends opened remote debugging on 9000;
   now only when `SKYMP_CEF_DEBUG_PORT` names a port (NirnLab passes it straight to CEF, where 0 is off). **C++ in
   SkyrimPlatformImpl.dll: needs a CI flatrim build and a client package**, not compiled here.
