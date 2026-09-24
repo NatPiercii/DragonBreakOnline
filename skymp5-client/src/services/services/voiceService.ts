@@ -337,6 +337,7 @@ export class VoiceService extends ClientListener {
     const maxUnits = this.modes.reduce((a, m) => Math.max(a, m.units), 0) || 3150;
     const includeWithin = maxUnits * 1.2;
     const peers: Record<string, number> = {};
+    const vectors: Record<string, { d: number; az: number; fa: number; n: string }> = {};
     for (let i = 0; i < worldModel.forms.length; i++) {
       if (i === worldModel.playerCharacterFormIdx) continue;
       const form = worldModel.forms[i];
@@ -347,10 +348,36 @@ export class VoiceService extends ClientListener {
       const dy = form.movement.pos[1] - myMovement.pos[1];
       const dz = form.movement.pos[2] - myMovement.pos[2];
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist <= includeWithin) peers[form.refrId.toString(16)] = Math.round(dist);
+      if (dist > includeWithin) continue;
+      const key = form.refrId.toString(16);
+      peers[key] = Math.round(dist);
+
+      // Bearing convention is Skyrim's: atan2(dx, dy) in degrees, 0 = +Y, clockwise,
+      // the same as restraintService, companionService and downed.js use.
+      const bearing = Math.atan2(dx, dy) * 180 / Math.PI;
+
+      // az: where the speaker sits relative to the way I am looking, -180..180.
+      // The browser pans on this, so a voice comes from the side it is spoken from.
+      const myYaw = Number(myMovement.rot?.[2]) || 0;
+      const az = ((bearing - myYaw + 540) % 360) - 180;
+
+      // fa: how squarely the SPEAKER is facing ME, 1 head on, -1 turned away.
+      // Whisper uses it, so a whisper only carries to the person it is aimed at.
+      const theirYaw = Number(form.movement.rot?.[2]) || 0;
+      const backBearing = ((bearing + 180) % 360);
+      const theirOff = Math.abs(((backBearing - theirYaw + 540) % 360) - 180);
+      const fa = Math.cos(theirOff * Math.PI / 180);
+
+      // The browser knows players only by refr id, so the name rides along for the HUD
+      const nm = typeof form.appearance.name === "string" ? form.appearance.name : "";
+      vectors[key] = { d: Math.round(dist), az: Math.round(az), fa: Math.round(fa * 100) / 100, n: nm };
     }
     this.sp.browser.executeJavaScript(
       `window.__alduinakVoice && window.__alduinakVoice.setPeers(${JSON.stringify(peers)})`
+    );
+    // Sent separately and guarded, so an older browser bundle keeps working on distance alone
+    this.sp.browser.executeJavaScript(
+      `window.__alduinakVoice && window.__alduinakVoice.setPeerVectors && window.__alduinakVoice.setPeerVectors(${JSON.stringify(vectors)})`
     );
   }
 }

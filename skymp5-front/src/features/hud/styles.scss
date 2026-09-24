@@ -244,6 +244,8 @@
 // Voice box: its own card under the hunger card. The three ranges read as pips with the active one
 // lit; holding V lights the whole box and the hint reads ON AIR.
 .dboVoice {
+  // the speaker list hangs above this box, so it is the positioning context
+  position: relative;
   display: grid;
   grid-template-columns: 22px 1fr auto;
   align-items: center;
@@ -314,6 +316,26 @@
     }
 
     .dboVoice__mode--on { color: $dbo-aqua; }
+
+    // Who is speaking near you, above the voice box. Names only, at most four,
+    // so it reads at a glance without covering the screen.
+    .dboVoice__speakers {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      pointer-events: none;
+    }
+    .dboVoice__speaker {
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      color: $dbo-aqua;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      white-space: nowrap;
+    }
 
     .dboVoice__hint {
       color: $dbo-aqua;

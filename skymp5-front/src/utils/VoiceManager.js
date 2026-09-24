@@ -50,6 +50,7 @@ class VoiceManager {
     this.modes = DEFAULT_MODES;
     this.mode = 'talk';
     this.distances = {};       // identity -> game units, refreshed by setPeers
+    this.vectors = {};         // identity -> { d, az, fa } from setPeerVectors: distance, bearing, how squarely they face me
     this.peerRanges = {};      // identity -> that speaker's mode range
     this.ptt = false;
     this.audioEls = new Map(); // identity -> HTMLAudioElement
@@ -138,8 +139,13 @@ class VoiceManager {
         const source = mix.ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
         const gain = mix.ctx.createGain();
         gain.gain.value = 0;
-        source.connect(gain).connect(mix.master);
-        this.peerNodes.set(identity, { source, gain });
+        // A panner puts the voice where the speaker is standing. Without it every
+        // voice arrives dead centre, which is most of why proximity chat reads as a
+        // voice call rather than someone in the room.
+        const panner = typeof mix.ctx.createStereoPanner === 'function' ? mix.ctx.createStereoPanner() : null;
+        if (panner) source.connect(gain).connect(panner).connect(mix.master);
+        else source.connect(gain).connect(mix.master);
+        this.peerNodes.set(identity, { source, gain, panner });
         if (mix.ctx.state === 'suspended') mix.ctx.resume().catch(() => {});
       } catch (e) { el.muted = false; }
     }
@@ -150,7 +156,7 @@ class VoiceManager {
     const el = this.audioEls.get(identity);
     if (el) { el.remove(); this.audioEls.delete(identity); }
     const n = this.peerNodes.get(identity);
-    if (n) { try { n.source.disconnect(); n.gain.disconnect(); } catch (e) { /* gone */ } this.peerNodes.delete(identity); }
+    if (n) { try { n.source.disconnect(); n.gain.disconnect(); if (n.panner) n.panner.disconnect(); } catch (e) { /* gone */ } this.peerNodes.delete(identity); }
   }
 
   peerFactor(identity) {
@@ -365,6 +371,15 @@ class VoiceManager {
     if (list.length === 0 && this.lastSpeaking === json) return;
     this.lastSpeaking = json;
     sendToGame('voice::speaking', json);
+    // Same list to the HUD, which lives in this bundle, so players can see who is
+    // speaking without having to be close enough to read a mouth moving.
+    try {
+      const named = list.map((x) => {
+        const v = this.vectors[x.id];
+        return { id: x.id, level: x.level, name: (v && v.n) || '' };
+      });
+      window.dispatchEvent(new CustomEvent('dbo:voiceSpeakers', { detail: named }));
+    } catch (e) { /* no DOM */ }
   }
 
   async setPtt(down) {
@@ -403,21 +418,68 @@ class VoiceManager {
     return r > 0 ? r : this.defRange;
   }
 
+  // Which mode a speaker is in, inferred from the range they publish
+  modeKeyFor(identity) {
+    const r = this.peerRanges[identity];
+    if (!(r > 0)) return null;
+    const m = this.modes.find((x) => Math.abs(x.units - r) < 1);
+    return m ? m.key : null;
+  }
+
   gainFor(identity) {
-    const d = this.distances[identity];
+    const v = this.vectors[identity];
+    const d = v && typeof v.d === 'number' ? v.d : this.distances[identity];
     const r = this.rangeFor(identity);
     if (d === undefined || d > r) return 0;
-    const full = r / 3; // full volume in the closest third, then linear falloff
-    if (d <= full) return 1;
-    return Math.max(0, 1 - (d - full) / (r - full));
+
+    // Inverse falloff with a small full-volume core, the way sound actually behaves.
+    // The old curve held 100% across the closest THIRD of the range and then fell
+    // linearly, so everyone nearby sounded identically loud and then cut out.
+    const ref = Math.max(70, r * 0.08);
+    let g = d <= ref ? 1 : ref / (ref + 1.6 * (d - ref));
+
+    // Fade the last quarter to nothing so a voice thins out instead of vanishing
+    const t = d / r;
+    const EDGE = 0.25;
+    if (t > 1 - EDGE) g *= Math.max(0, (1 - t) / EDGE);
+
+    // A whisper only carries to whoever it is aimed at: full inside a 60 degree
+    // cone off the speaker's nose, silent outside it. fa is cos(off angle).
+    if (v && typeof v.fa === 'number' && this.modeKeyFor(identity) === 'whisper') {
+      const aim = (v.fa - 0.5) / 0.5;
+      if (aim <= 0) return 0;
+      g *= Math.min(1, aim);
+    }
+    return g;
+  }
+
+  // -1 hard left, +1 hard right. sin() collapses to centre for anything straight
+  // ahead or directly behind, which is what stereo can honestly represent.
+  panFor(identity) {
+    const v = this.vectors[identity];
+    if (!v || typeof v.az !== 'number') return 0;
+    const p = Math.sin(v.az * Math.PI / 180) * 0.85;
+    return Math.max(-1, Math.min(1, p));
   }
 
   applyVolume(identity) {
     const g = this.gainFor(identity) * this.peerFactor(identity);
     const n = this.peerNodes.get(identity);
-    if (n) { n.gain.gain.value = g; return; }
+    if (n) {
+      n.gain.gain.value = g;
+      if (n.panner) n.panner.pan.value = this.panFor(identity);
+      return;
+    }
     const el = this.audioEls.get(identity);
     if (el) el.volume = Math.min(1, g * Math.min(1, this.prefs.outputVolume));
+  }
+
+  // Sent right after setPeers by the game side. Older game builds never call it,
+  // and then everything falls back to distance alone.
+  setPeerVectors(vectors) {
+    this.vectors = vectors || {};
+    if (!this.room) return;
+    this.audioEls.forEach((el, identity) => this.applyVolume(identity));
   }
 
   setPeers(distances) {
