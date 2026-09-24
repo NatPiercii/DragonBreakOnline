@@ -3,11 +3,23 @@ import { Settings } from "../settings";
 import * as fetchRetry from "fetch-retry";
 import { loginsCounter, loginErrorsCounter } from "./metricsSystem";
 import { hasDiscordBanRole } from "./discordBanSystem";
+import { kickWithReason } from "./kickUtil";
 
 const loginFailedNotInTheDiscordServer = JSON.stringify({ customPacketType: "loginFailedNotInTheDiscordServer" });
 const loginFailedBanned = JSON.stringify({ customPacketType: "loginFailedBanned" });
 const loginFailedIpMismatch = JSON.stringify({ customPacketType: "loginFailedIpMismatch" });
 const loginFailedSessionNotFound = JSON.stringify({ customPacketType: "loginFailedSessionNotFound" });
+
+// Kick reasons for the master api's 403 session refusals (launch gate and access list)
+const loginOutdated = "Your game files are out of date. Close the game and start it again from the DragonBreak launcher to update.";
+const loginRefusedReasons: Record<string, string> = {
+  clientOutdated: loginOutdated,
+  launchCheckMissing: loginOutdated,
+  loadOrderMismatch: loginOutdated,
+  serverLocked: "The server is closed to players right now. Please try again later.",
+  notWhitelisted: "Your Discord account does not have access to this server yet.",
+};
+const loginRefusedDefault = "The server refused your login. Start the game again from the DragonBreak launcher, and ask staff if this keeps happening.";
 
 type Mp = any; // TODO
 
@@ -56,6 +68,16 @@ export class Login implements System {
     if (!response.ok) {
       if (response.status === 404) {
         ctx.svr.sendCustomPacket(userId, loginFailedSessionNotFound);
+      } else if (response.status === 403) {
+        const body = await response.json().catch(() => ({}));
+        const error = String(body?.error || "");
+        if (error === "banned") {
+          ctx.svr.sendCustomPacket(userId, loginFailedBanned);
+        } else {
+          // The client only reconnects on a silent refusal; a kick shows the reason and closes the game
+          try { kickWithReason(ctx.svr as unknown as Mp, userId, loginRefusedReasons[error] || loginRefusedDefault); } catch { }
+        }
+        throw new Error(`getUserProfile: HTTP error 403 ${error}`);
       }
       throw new Error(`getUserProfile: HTTP error ${response.status}`);
     }

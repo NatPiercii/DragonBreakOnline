@@ -159,6 +159,7 @@ interface ZoneFile {
   root: Record<string, unknown> | null;
   key: string;
   missing: boolean;
+  text: string;
 }
 
 // Field names in the file are matched case-insensitively; key must be lower case
@@ -199,6 +200,10 @@ export class NpcSpawnSystem implements System {
   // Loads run one at a time, whether the watcher or the admin panel asks
   private loadChain: Promise<void> = Promise.resolve();
   private reloadTimer: ReturnType<typeof setTimeout> | null = null;
+  // Zone file text of the last full load; an identical file is not rebuilt
+  private lastZoneText: string | null = null;
+  // Base text -> NPC_ desc or "" (plugins never change while the process runs)
+  private npcDescByText = new Map<string, string>();
   // Dead NPC actorId -> epoch ms when its corpse is destroyed
   private corpses = new Map<number, number>();
   private corpseMs = DEFAULT_CORPSE_SECONDS * 1000;
@@ -258,6 +263,11 @@ export class NpcSpawnSystem implements System {
       if (file.missing) {
         this.log(`NpcSpawnSystem: ${ZONES_FILE} not found, no zones (${reason})`);
         this.replaceZones(mp, []);
+        this.lastZoneText = null;
+        return;
+      }
+      if (file.text === this.lastZoneText) {
+        this.log(`NpcSpawnSystem: ${ZONES_FILE} unchanged, kept ${this.zones.length} zone(s) (${reason})`);
         return;
       }
       const list = file.list;
@@ -288,6 +298,7 @@ export class NpcSpawnSystem implements System {
         if (zone) zones.push(zone);
       }
       const carried = this.replaceZones(mp, zones);
+      this.lastZoneText = file.text;
       this.log(`NpcSpawnSystem: ${zones.length}/${list.length} zone(s) loaded from ${ZONES_FILE} (${reason}), carried ${carried} zone(s)`);
     } finally {
       this.loading = false;
@@ -300,7 +311,7 @@ export class NpcSpawnSystem implements System {
     try {
       text = fs.readFileSync(ZONES_FILE, "utf8");
     } catch (e: any) {
-      if (e?.code === "ENOENT") return { list: [], root: null, key: "", missing: true };
+      if (e?.code === "ENOENT") return { list: [], root: null, key: "", missing: true, text: "" };
       return `${ZONES_FILE} unreadable: ${e}`;
     }
     let parsed: unknown;
@@ -309,11 +320,11 @@ export class NpcSpawnSystem implements System {
     } catch (e) {
       return `${ZONES_FILE} is not valid JSON: ${e}`;
     }
-    if (Array.isArray(parsed)) return { list: parsed, root: null, key: "", missing: false };
+    if (Array.isArray(parsed)) return { list: parsed, root: null, key: "", missing: false, text };
     const key = pickKey(parsed, "zones");
     const list = key === undefined ? undefined : (parsed as Record<string, unknown>)[key];
     if (key === undefined || !Array.isArray(list)) return `${ZONES_FILE} must be an array or { "zones": [...] }`;
-    return { list, root: parsed as Record<string, unknown>, key, missing: false };
+    return { list, root: parsed as Record<string, unknown>, key, missing: false, text };
   }
 
   // Temp file plus rename so an interrupted write cannot truncate the zone list; a wrapper object keeps its other keys
@@ -469,6 +480,15 @@ export class NpcSpawnSystem implements System {
 
   // Base forms: "23a99:Skyrim.esm" desc or a load-order hex id; must point at an NPC_ record
   private toNpcDesc(mp: Mp, text: string): string {
+    let desc = this.npcDescByText.get(text);
+    if (desc === undefined) {
+      desc = this.lookupNpcDesc(mp, text);
+      this.npcDescByText.set(text, desc);
+    }
+    return desc;
+  }
+
+  private lookupNpcDesc(mp: Mp, text: string): string {
     try {
       let desc = text;
       if (!text.includes(":")) {
@@ -1036,10 +1056,13 @@ export class NpcSpawnSystem implements System {
   }
 
   private saveSpawns(): void {
+    const startedAt = Date.now();
     const placed = this.zones.flatMap((z) => z.spawned.map((e) => e.id));
     const ids = Array.from(new Set([...placed, ...this.corpses.keys()])).filter((id) => id > 0);
     try { fs.writeFileSync(SPAWNS_FILE, JSON.stringify(ids)); }
     catch (e) { this.log(`NpcSpawnSystem: spawns file write failed: ${e}`); }
+    const took = Date.now() - startedAt;
+    if (took > SLOW_POLL_MS) this.log(`NpcSpawnSystem: ${SPAWNS_FILE} write took ${took} ms (${ids.length} id(s))`);
   }
 
   private findZone(name: string): Zone | undefined {
