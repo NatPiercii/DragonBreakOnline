@@ -10,6 +10,8 @@ export interface FormModel extends CreateActorMessageAdditionalProps, CreateActo
   idx?: number;
   movement?: Movement;
   numMovementChanges?: number;
+  // Date.now() when the last movement for this form arrived
+  movementAt?: number;
   numAppearanceChanges?: number;
   isMyClone?: boolean;
 }

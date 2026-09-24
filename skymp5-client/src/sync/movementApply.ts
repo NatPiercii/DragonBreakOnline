@@ -83,10 +83,13 @@ const keepOffsetFromActor = (ac: Actor, m: Movement) => {
 
   if (m.runMode === "Standing") {
     if (offsetAngle === 0) {
+      stateOf(ac.getFormID()).offset = "cleared";
       return ac.clearKeepOffsetFromActor();
     }
+    stateOf(ac.getFormID()).offset = "held";
     return ac.keepOffsetFromActor(ac, 0, 0, 0, 0, 0, offsetAngle, 1, 1);
   }
+  stateOf(ac.getFormID()).offset = "moving";
   const offset = [
     3 * Math.sin((m.direction / 180) * Math.PI),
     3 * Math.cos((m.direction / 180) * Math.PI),
@@ -172,6 +175,39 @@ interface GroundSample {
 // Clones with a translateTo still running, so it can be stopped exactly once when they settle
 const translating = new Set<number>();
 
+type OffsetMode = "none" | "held" | "cleared" | "moving";
+interface ApplyState {
+  offset: OffsetMode;
+  target: NiPoint3 | null;
+  targetAt: number;
+  // Ground grade used for the last target's Z
+  grade: number;
+  // Times settleTranslation stopped a running translation or cleared a keep-offset that was not already clear
+  settles: number[];
+}
+// Per copy: the last keep-offset order and translateTo target this client gave, read by the drift sampler
+const applyStates = new Map<number, ApplyState>();
+const SETTLE_WINDOW_MS = 2000;
+
+const stateOf = (refrId: number): ApplyState => {
+  let s = applyStates.get(refrId);
+  if (!s) applyStates.set(refrId, s = { offset: "none", target: null, targetAt: 0, grade: 0, settles: [] });
+  return s;
+};
+
+export const getApplyState = (refrId: number) => {
+  const s = applyStates.get(refrId);
+  const now = Date.now();
+  return {
+    translating: translating.has(refrId),
+    offset: s ? s.offset : "none",
+    target: s ? s.target : null,
+    targetAgeMs: s && s.targetAt ? now - s.targetAt : -1,
+    grade: s ? s.grade : 0,
+    settles2s: s ? s.settles.filter((at) => now - at <= SETTLE_WINDOW_MS).length : 0,
+  };
+};
+
 // stopTranslation does not reliably hand the reference back to havok; the sit path's toggle does
 const giveBackCollision = (refrId: number): void => {
   if (isInSitPose(refrId)) {
@@ -182,14 +218,22 @@ const giveBackCollision = (refrId: number): void => {
 
 export const settleTranslation = (refr: ObjectReference): void => {
   const refrId = refr.getFormID();
-  translating.delete(refrId);
+  const s = stateOf(refrId);
+  let changed = translating.delete(refrId);
   try { refr.stopTranslation(); } catch (e) { /* not loaded */ }
   try {
     const ac = Actor.from(refr);
     if (ac) {
       ac.clearKeepOffsetFromActor();
+      if (s.offset !== "cleared" && s.offset !== "none") changed = true;
+      s.offset = "cleared";
     }
   } catch (e) { /* not loaded */ }
+  if (changed) {
+    const now = Date.now();
+    s.settles.push(now);
+    while (s.settles.length && now - s.settles[0] > SETTLE_WINDOW_MS) s.settles.shift();
+  }
   giveBackCollision(refrId);
 };
 
@@ -282,6 +326,13 @@ const translateTo = (refr: ObjectReference, m: Movement) => {
         0
       );
       translating.add(refrId);
+      const s = stateOf(refrId);
+      if (!s.target) s.target = [0, 0, 0];
+      s.target[0] = gTempTargetPos[0];
+      s.target[1] = gTempTargetPos[1];
+      s.target[2] = gTempTargetPos[2];
+      s.targetAt = Date.now();
+      s.grade = m.runMode !== "Standing" ? groundGrade : 0;
       setRefrCollision(refrId, true);
       return;
     }

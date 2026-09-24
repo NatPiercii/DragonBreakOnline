@@ -5,6 +5,7 @@ import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
 import { applyMovement, settleTranslation } from "../sync/movementApply";
+import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
@@ -451,11 +452,14 @@ export class FormView {
 
     if (model.movement) {
       let ac = Actor.from(refr);
-      if (
-        this.movState.lastApply &&
-        Date.now() - this.movState.lastApply > 1500
-      ) {
-        if (Date.now() - this.movState.lastRehost > 1000) {
+      // The server hands a host over only after 2 s of silence, so a silent host is timed from its last packet
+      // A player's own actor can never be taken over, so it keeps the old clock
+      const packetClock = model.isHostedByOther && !model.appearance && driftConfig.rehostClock === "packet";
+      const hostSilent = packetClock
+        ? !!model.movementAt && Date.now() - model.movementAt > driftConfig.rehostAfterMs
+        : !!this.movState.lastApply && Date.now() - this.movState.lastApply > 1500;
+      if (hostSilent) {
+        if (Date.now() - this.movState.lastRehost > (packetClock ? 2000 : 1000)) {
           this.movState.lastRehost = Date.now();
           const remoteId = this.remoteRefrId;
           if (ac && ac.is3DLoaded()) {

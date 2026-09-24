@@ -540,6 +540,7 @@ export class RemoteServer extends ClientListener {
     const form: FormModel = {
       idx: msg.idx,
       movement,
+      movementAt: movement ? Date.now() : undefined,
       numMovementChanges: 0,
       numAppearanceChanges: 0,
       baseId: msg.baseId,
@@ -861,6 +862,7 @@ export class RemoteServer extends ClientListener {
     }
 
     form.movement = msg.data;
+    form.movementAt = Date.now();
     if (!form.numMovementChanges) {
       form.numMovementChanges = 0;
     }
