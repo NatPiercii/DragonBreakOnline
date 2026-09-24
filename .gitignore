@@ -67,3 +67,6 @@ placements-export.json
 
 # commissions.js: posted work and gold held for it
 commissions.json
+
+# tenancy.js: rented property and deposits held
+tenancy.json

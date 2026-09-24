@@ -2950,6 +2950,14 @@ try {
     takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, boardZoneNear, zoneById, ranksOf });
 } catch (e) { log('commissions.js failed to load:', e.stack || e.message); }
 
+// ---- renting property out at its door (server\tenancy.js, config "tenancy"; housingSystem.ts __dboHousing) --------
+try {
+  const TENANCY_JS = path.resolve('tenancy.js');
+  delete require.cache[TENANCY_JS];
+  require(TENANCY_JS)({ mp, log, personal, audit, who, display, tagOf, profileOf, onlineActors, every, registerChatCommand, cfg,
+    takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, zoneById });
+} catch (e) { log('tenancy.js failed to load:', e.stack || e.message); }
+
 // ---- Oblivion-style lockpicking for cell doors and dungeon chests (server\lockpick.js, config "lockpick") -------
 try {
   const LOCKPICK_JS = path.resolve('lockpick.js');
