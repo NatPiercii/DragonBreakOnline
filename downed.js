@@ -21,6 +21,9 @@ module.exports = (api) => {
     priestTier: 4,
     hostileMs: 60000,
     reviveRange: 1500, reviveConeDeg: 25, reviveFallbackMs: 1200, groupReviveRange: 400,
+    // Death's Chill after waking at the temple: caps and the share of recovery that is kept, 1 = unchanged
+    chill: true, chillMinutes: 20, chillCureTier: 2,
+    chillStaminaCap: 0.7, chillStaminaRegen: 0.4, chillMagickaCap: 0.2, chillMagickaRegen: 0.7, chillHealthRegen: 0.5,
   }, cfg.downed || {});
 
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { log(`downed: ${desc} not in the load order`); return 0; } };
@@ -128,6 +131,84 @@ module.exports = (api) => {
     }
   }
 
+  // ---- Death's Chill ---------------------------------------------------------------------------------------
+  // Waking at the temple instead of being raised in the field leaves the chill of the grave (suggestions forum,
+  // "non-PK Death Debuff"): stamina and magicka stay low and come back slowly, and every heal, potions included, is
+  // weaker, for chillMinutes of time online. A Priest's healing lifts it. The server owns these values, so the caps
+  // and the slower recovery are enforced by taking back part of whatever came back since the last look.
+  const CHILL = 'private.dboDeathChill';
+  const chilled = S.chilled = S.chilled || new Map(); // actor -> { leftMs, at, p, savedAt }
+  const chillLeft = (a) => {
+    if (chilled.has(a)) return chilled.get(a).leftMs;
+    try { const c = mp.get(a, CHILL); return c && c.leftMs > 0 ? c.leftMs : 0; } catch (e) { return 0; }
+  };
+  const saveChill = (a, leftMs) => { try { mp.set(a, CHILL, { leftMs: Math.max(0, Math.round(leftMs)) }); } catch (e) { /* not an actor */ } };
+  const chill = (a) => {
+    if (!C.chill || !isPlayer(a) || mp.get(a, 'private.permaDead') === true) return;
+    const leftMs = C.chillMinutes * 60000;
+    chilled.set(a, { leftMs, at: Date.now(), p: null, savedAt: Date.now() });
+    saveChill(a, leftMs);
+    banner(a, `You wake at the temple with the chill of the grave in your bones. Your breath and your magic come back slowly and wounds knit poorly. A Priest's healing can lift it; otherwise it passes in ${C.chillMinutes} minutes.`, 10);
+    audit(`CHILL ${who(a)} woke at the temple with Death's Chill (${C.chillMinutes} min)`);
+  };
+  const liftChill = (a, by) => {
+    chilled.delete(a);
+    saveChill(a, 0);
+    if (by) {
+      banner(a, `${nameOf(by)}'s healing drives the chill of the grave from you.`, 5);
+      banner(by, `You lift the chill of the grave from ${nameOf(a)}.`, 3);
+      audit(`CHILL ${who(a)} lifted by ${who(by)}`);
+    } else {
+      banner(a, 'The chill of the grave leaves you.', 5);
+    }
+  };
+  const canLift = (caster, t) => {
+    if (caster === t || !isPlayer(t) || isDead(t) || !chillLeft(t)) return false;
+    if (priestTier(caster) >= C.chillCureTier) return true;
+    banner(caster, `Lifting the chill of the grave takes a Priest of tier ${C.chillCureTier}.`);
+    return false;
+  };
+  const slower = (was, now, keep, cap) => Math.min(cap, now > was ? was + (now - was) * keep : now);
+  every('deathChill', 1000, () => {
+    const now = Date.now();
+    for (const a of onlineActors()) {
+      if (!chilled.has(a)) {
+        const leftMs = chillLeft(a);
+        if (!leftMs) continue;
+        chilled.set(a, { leftMs, at: now, p: null, savedAt: now });
+      }
+      const c = chilled.get(a);
+      const p = health(a);
+      if (!p || isDead(a)) { c.at = now; c.p = null; continue; }
+      let next = p;
+      if (c.p) {
+        next = {
+          health: slower(c.p.health, p.health, C.chillHealthRegen, 1),
+          stamina: slower(c.p.stamina, p.stamina, C.chillStaminaRegen, C.chillStaminaCap),
+          magicka: slower(c.p.magicka, p.magicka, C.chillMagickaRegen, C.chillMagickaCap),
+        };
+        if (Math.abs(next.health - p.health) + Math.abs(next.stamina - p.stamina) + Math.abs(next.magicka - p.magicka) > 0.002) {
+          try { mp.set(a, 'percentages', next); } catch (e) { /* not an actor */ }
+        }
+        // Online time only, and a long gap (a stall, a reload) never burns more than a few seconds
+        c.leftMs -= Math.min(now - c.at, 5000);
+      } else {
+        next = { health: p.health, stamina: Math.min(p.stamina, C.chillStaminaCap), magicka: Math.min(p.magicka, C.chillMagickaCap) };
+        if (next.stamina !== p.stamina || next.magicka !== p.magicka) { try { mp.set(a, 'percentages', next); } catch (e) { /* not an actor */ } }
+      }
+      c.at = now;
+      c.p = next;
+      if (c.leftMs <= 0) liftChill(a, 0);
+      else if (now - c.savedAt > 15000) { c.savedAt = now; saveChill(a, c.leftMs); }
+    }
+    for (const a of [...chilled.keys()]) if (!onlineActors().includes(a)) { saveChill(a, chilled.get(a).leftMs); chilled.delete(a); }
+  });
+  registerChatCommand('chill', (a) => {
+    const left = chillLeft(a);
+    personal(a, left ? `The chill of the grave is on you for ${Math.ceil(left / 60000)} more minute(s) of play. A Priest of tier ${C.chillCureTier} or higher can lift it with a healing spell.` : 'You are free of the chill of the grave.');
+  }, { help: "how long Death's Chill lasts" });
+  globalThis.__dboDeathChillLeft = (a) => chillLeft(Number(a) >>> 0);
+
   // ---- the down state ------------------------------------------------------------------------------------
   // The engine starts its respawn timer at death with the actor's spawnDelay, so it must be set before anyone falls
   every('downedDelay', 10000, () => {
@@ -135,7 +216,10 @@ module.exports = (api) => {
       try { if (Number(mp.get(a, 'spawnDelay')) !== C.bleedoutSeconds) mp.set(a, 'spawnDelay', C.bleedoutSeconds); } catch (e) { /* not an actor */ }
     }
     const now = Date.now();
-    for (const [a, d] of S.downed) if (!isDead(a) || now - d.at > (C.bleedoutSeconds + 30) * 1000) S.downed.delete(a);
+    for (const [a, d] of S.downed) {
+      if (!isDead(a)) { S.downed.delete(a); chill(a); }
+      else if (now - d.at > (C.bleedoutSeconds + 30) * 1000) S.downed.delete(a);
+    }
     for (const [k, t] of S.fought) if (now - t > C.hostileMs) S.fought.delete(k);
     if (S.maxHp.size > 4096) S.maxHp.clear();
   });
@@ -175,6 +259,7 @@ module.exports = (api) => {
     S.downed.delete(t);
     try { const sp = mp.get(t, 'spawnPoint'); if (sp && sp.cellOrWorldDesc) mp.set(t, 'locationalData', sp); } catch (e) { log(`downed: temple move failed for ${display(t)}: ${e.message}`); }
     mp.set(t, 'isDead', false);
+    chill(t);
   };
   const finish = (t, by) => {
     audit(`FINISHED ${who(t)} by ${who(by)}`);
@@ -208,6 +293,14 @@ module.exports = (api) => {
     }
     return out.sort((x, y) => x[1] - y[1]).map((x) => x[0]);
   };
+  const chilledNear = (caster, range) => {
+    let cp = null, here = null;
+    try { cp = mp.get(caster, 'pos'); here = mp.get(caster, 'worldOrCellDesc'); } catch (e) { return []; }
+    return onlineActors().filter((t) => {
+      if (t === caster || !chillLeft(t)) return false;
+      try { const p = mp.get(t, 'pos'); return mp.get(t, 'worldOrCellDesc') === here && Math.hypot(p[0] - cp[0], p[1] - cp[1], p[2] - cp[2]) <= range; } catch (e) { return false; }
+    });
+  };
   const pendingCast = S.pendingCast = S.pendingCast || new Map();
   {
     const inner = mp.onSpellHit;
@@ -218,6 +311,8 @@ module.exports = (api) => {
           if (AIMED.has(spell) && S.downed.has(t) && isDead(t)) {
             const pc = pendingCast.get(caster); if (pc) { clearTimeout(pc); pendingCast.delete(caster); }
             if (canRaise(caster)) revive(t, caster, 'healing');
+          } else if (AIMED.has(spell) && canLift(caster, t)) {
+            liftChill(t, caster);
           }
         } catch (e) { log(`downed: spell revive failed: ${e.message}`); }
         return inner.call(this, aggressorId, targetId, spellId, ...rest);
@@ -230,6 +325,9 @@ module.exports = (api) => {
       mp.onSpellCast = function (casterId, spellId, ...rest) {
         const caster = Number(casterId) >>> 0, spell = Number(spellId) >>> 0;
         try {
+          if (AREA.has(spell)) {
+            for (const t of chilledNear(caster, C.groupReviveRange)) if (canLift(caster, t)) liftChill(t, caster);
+          }
           if (S.downed.size && AREA.has(spell)) {
             const near = downedNear(caster, C.groupReviveRange, 0);
             if (near.length && canRaise(caster)) for (const t of near) revive(t, caster, 'Grand Healing');
