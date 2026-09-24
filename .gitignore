@@ -72,3 +72,5 @@ commissions.json
 tenancy.json
 # ledger.js: ledgers placed by staff
 ledger-points.json
+# gameticket.js: the in-game ticket counter
+game-tickets.json

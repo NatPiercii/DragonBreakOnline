@@ -3001,6 +3001,15 @@ try {
     skills: SKILLS_DEF.skills || [], token: (cfg.discord || {}).botToken || auth.botToken, guildId: ((auth.guilds || [])[0] || {}).guildId });
 } catch (e) { log('discordroles.js failed to load:', e.stack || e.message); }
 
+// ---- /ticket: a private Discord ticket with staff, opened from the game (server\gameticket.js, config "tickets") -------
+try {
+  const GAMETICKET_JS = path.resolve('gameticket.js');
+  delete require.cache[GAMETICKET_JS];
+  const auth = serverSettings.discordAuth || {};
+  require(GAMETICKET_JS)({ mp, log, personal, audit, who, display, onlineActors, registerChatCommand, discordOf, profileOf, isAdmin, zoneOfActor, cfg,
+    token: (cfg.discord || {}).botToken || auth.botToken, guildId: ((auth.guilds || [])[0] || {}).guildId });
+} catch (e) { log('gameticket.js failed to load:', e.stack || e.message); }
+
 // ---- GM warbands and raids: catalog NPCs that follow the GM (server\warband.js; companionSystem.ts __dboCompanions) ------
 try {
   const WARBAND_JS = path.resolve('warband.js');
