@@ -2209,6 +2209,40 @@ const hitDamageHook = (aggressorId, targetId, sourceId, damage, ...rest) => {
 };
 hitDamageHook.__dbo = true;
 mp.onHitDamage = hitDamageHook;
+// Tilde console commands the server runs (AddItem, EquipItem, PlaceAtMe, Disable, MarkForDelete, mp) reach the audit log and so
+// Discord's server-logs. ActionListener fires onConsoleCommand before executing, so refused attempts are logged too.
+const CONSOLE_ARGS = { additem: ['ref', 'form', 'count'], equipitem: ['ref', 'form'], placeatme: ['ref', 'form'], disable: ['ref'], markfordelete: ['ref'], mp: ['ref', 'text'] };
+const consoleForm = (id) => {
+  let desc = ''; try { desc = String(mp.getDescFromId(Number(id) >>> 0) || ''); } catch (e) { /* not a form */ }
+  if (!desc) return `form ${(Number(id) >>> 0).toString(16)}`;
+  const r = recordOf(Number(id) >>> 0);
+  const name = adminItemName(desc) || (r && r.record && r.record.editorId) || '';
+  return name ? `${name} (${desc})` : desc;
+};
+const consoleRef = (id) => {
+  const ref = Number(id) >>> 0;
+  if (!ref) return 'nothing selected';
+  if (profileOf(ref) >= 0) return display(ref);
+  let base = ''; try { base = String(mp.get(ref, 'baseDesc') || ''); } catch (e) { /* not a reference */ }
+  let baseId = 0; try { baseId = base ? mp.getIdFromDesc(base) >>> 0 : 0; } catch (e) { /* unknown */ }
+  return `ref ${ref.toString(16)}${baseId ? ` (${consoleForm(baseId)})` : ''}`;
+};
+if (typeof globalThis.__dboPrevConsole === 'undefined') globalThis.__dboPrevConsole = typeof mp.onConsoleCommand === 'function' && !mp.onConsoleCommand.__dbo ? mp.onConsoleCommand : null;
+const consoleHook = (actorId, command, ...args) => {
+  try {
+    const a = Number(actorId) >>> 0;
+    const name = String(command || '');
+    const kinds = CONSOLE_ARGS[name.toLowerCase()] || [];
+    const shown = args.map((v, i) => (kinds[i] === 'ref' ? consoleRef(v) : kinds[i] === 'form' ? consoleForm(v) : String(v)));
+    let allowed = false; try { allowed = mp.get(a, 'consoleCommandsAllowed') === true; } catch (e) { /* not an actor */ }
+    audit(`CONSOLE ${who(a)}${allowed ? '' : ' REFUSED (no console rights)'}: ${name}${shown.length ? ' ' + shown.join(', ') : ''}`);
+  } catch (e) { log('console audit failed', e.message); }
+  const prev = globalThis.__dboPrevConsole;
+  if (prev) { try { return prev(actorId, command, ...args); } catch (e) { log('console chain failed', e.message); } }
+  return undefined;
+};
+consoleHook.__dbo = true;
+mp.onConsoleCommand = consoleHook;
 if (typeof globalThis.__dboPrevTake === 'undefined') globalThis.__dboPrevTake = typeof mp.onTakeItem === 'function' && !mp.onTakeItem.__dbo ? mp.onTakeItem : null;
 const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
   const prev = globalThis.__dboPrevTake;
