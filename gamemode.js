@@ -655,9 +655,10 @@ mp.onActivate = (targetId, casterId) => {
       return false;
     }
   } catch (e) { }
+  // Reach applies to actors only; a lever or trap linker activates its gate from any distance
   try {
     const q = mp.get(target, 'pos');
-    if (Array.isArray(q) && distanceMeters(caster, target) > 6.5) return false;
+    if (Array.isArray(q) && mp.get(caster, 'type') === 'MpActor' && distanceMeters(caster, target) > 6.5) return false;
   } catch (e) { }
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
