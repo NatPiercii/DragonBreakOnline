@@ -1,5 +1,23 @@
 [
   {
+    "title": "Voices That Carry",
+    "date": "2026-09-24",
+    "version": "Client 0.3.38",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Proximity voice",
+        "items": [
+          "Restart the launcher to update. The server asks for 0.3.38 from now on.",
+          "Voices now come from where the speaker stands: left, right, in front or behind.",
+          "Voices fade more naturally with distance and die away at the edge of hearing instead of cutting off.",
+          "A whisper only carries to someone in front of you.",
+          "A small list above the voice box shows who is talking."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Pick the Lock",
     "date": "2026-09-24",
     "tag": "Update",
