@@ -5,8 +5,9 @@ import { logTrace } from "../../logging";
 
 const DRINK_IDLE = "IdleDrink";
 const EAT_IDLE = "IdleEatingStandingStart";
-const DRINK_SECONDS = 2.5;
-const EAT_SECONDS = 3.5;
+// animationdatasinglefile.txt: the drink clip ends itself with IdleStop at 6.55 s; the eating start clip bites at 4.83 s, then loops
+const DRINK_SECONDS = 7;
+const EAT_SECONDS = 5.5;
 // Food whose display name contains one of these is drunk, not eaten (editor ids are not readable client-side)
 const DRINK_WORDS = ["ale", "mead", "wine", "milk", "water", "sujamma", "flin", "shein", "mazte", "matze", "skooma", "brandy", "tea", "juice", "sap", "brew", "tonic", "cider"];
 // A hotkey use happens outside any menu; accept a removal this soon after a number key
@@ -55,7 +56,8 @@ export class ConsumeAnimationService extends ClientListener {
 
     const anim = this.pickIdle(e.baseObj, isIngredient);
     logTrace(this, "Consumed", e.baseObj.getName(), "->", anim);
-    this.controller.lookupListener(EmoteService).playIdle(anim, anim === DRINK_IDLE ? DRINK_SECONDS : EAT_SECONDS);
+    const drink = anim === DRINK_IDLE;
+    this.controller.lookupListener(EmoteService).playIdle(anim, drink ? DRINK_SECONDS : EAT_SECONDS, drink);
   }
 
   private pickIdle(form: Form, isIngredient: boolean): string {

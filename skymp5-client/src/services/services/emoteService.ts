@@ -15,6 +15,8 @@ interface EmoteDef {
   label: string;
   // Idle loads an anim object (hoe, book, instrument) into the hand
   prop?: boolean;
+  // Graph event that plays the idle's own exit clip
+  exit?: string;
 }
 
 interface EmoteGroup {
@@ -84,7 +86,7 @@ const GROUPS: EmoteGroup[] = [
     label: 'Activities',
     emotes: [
       { anim: 'IdleDrink', label: 'Drink', prop: true },
-      { anim: 'IdleEatingStandingStart', label: 'Eating', prop: true },
+      { anim: 'IdleEatingStandingStart', label: 'Eating', prop: true, exit: 'AnimObjectIdleStop' },
       { anim: 'IdleLooseSweepingStart', label: 'Sweeping', prop: true },
       { anim: 'IdleHoe', label: 'Use Hoe', prop: true },
       { anim: 'IdleRitualStart', label: 'Ritual' },
@@ -148,6 +150,7 @@ export class EmoteService extends ClientListener {
       for (const emote of group.emotes) {
         this.allowedAnims.add(emote.anim);
         if (emote.prop) this.propAnims.add(emote.anim);
+        if (emote.exit) this.exitEvents.set(emote.anim, emote.exit);
       }
     }
 
@@ -202,7 +205,7 @@ export class EmoteService extends ClientListener {
     }
     if (key === events.stop) {
       this.closeMenu();
-      this.stopActiveEmote();
+      this.stopActiveEmote(true);
       return;
     }
     if (key === events.play) {
@@ -215,21 +218,38 @@ export class EmoteService extends ClientListener {
         notifyNextUpdate(this.controller, this.sp, "You cannot use emotes while restrained.");
         return;
       }
+      if (!this.canPlayIdle()) {
+        notifyNextUpdate(this.controller, this.sp, "Sheathe your weapon and stand on your feet to use emotes.");
+        return;
+      }
       this.playEmote(anim);
     }
   }
 
   /**
-   * Plays a catalog idle on the local player for a fixed time, then exits it.
-   * Used for consumption animations (drinking a potion, eating food); movement
-   * keys still break it early like any emote.
+   * Plays a catalog idle on the local player (drinking a potion, eating food)
+   * and releases it after `seconds`: an idle that `endsItself` has returned to
+   * the default state by then, any other is exited through its own exit clip.
+   * Movement keys still break it early like any emote.
    */
-  public playIdle(anim: string, seconds: number): void {
-    if (!this.allowedAnims.has(anim) || this.menuOpen || this.isPoseLocked()) return;
+  public playIdle(anim: string, seconds: number, endsItself: boolean): void {
+    if (!this.allowedAnims.has(anim) || this.menuOpen || this.isPoseLocked() || !this.canPlayIdle()) return;
     this.playEmote(anim);
+    const chain = this.chainId;
     this.sp.Utility.wait(seconds).then(() => {
-      if (this.activeEmote === anim) this.stopActiveEmote();
+      if (this.activeEmote !== anim || this.chainId !== chain) return;
+      if (endsItself) {
+        this.activeEmote = "";
+      } else {
+        this.stopActiveEmote(true);
+      }
     });
+  }
+
+  // Idles live in the unarmed standing graph; a global one like IdleForceDefaultState strands a drawn weapon there
+  private canPlayIdle(): boolean {
+    const player = this.sp.Game.getPlayer();
+    return !!player && !player.isWeaponDrawn() && !player.getFurnitureReference() && !player.isSwimming() && !player.isOnMount();
   }
 
   private playEmote(anim: string): void {
@@ -252,20 +272,25 @@ export class EmoteService extends ClientListener {
       if (this.activeEmote !== anim) return;
       const player = this.sp.Game.getPlayer();
       if (!player) return;
+      if (!this.canPlayIdle()) {
+        this.activeEmote = "";
+        return;
+      }
       this.sp.Debug.sendAnimationEvent(player, anim);
       logTrace(this, `Playing emote`, anim);
     });
   }
 
-  private stopActiveEmote(): void {
+  private stopActiveEmote(graceful = false): void {
     const anim = this.activeEmote;
     this.activeEmote = "";
-    if (anim) this.exitEmote(anim);
+    if (anim) this.exitEmote(anim, undefined, graceful);
   }
 
   // IdleForceDefaultState breaks most idles; state idles that reject it get
   // their <base>ExitStart / <base>Exit events, offset overlays need OffsetStop.
-  private exitEmote(anim: string, onDone?: () => void): void {
+  // A graceful exit tries the idle's own exit clip first.
+  private exitEmote(anim: string, onDone?: () => void, graceful = false): void {
     const chain = ++this.chainId;
     if (anim.indexOf("Offset") === 0) {
       this.controller.once("update", () => {
@@ -279,13 +304,15 @@ export class EmoteService extends ClientListener {
       return;
     }
     const base = anim.replace(/(Start|Enter)$/, "");
-    const attempts = ["IdleForceDefaultState", base + "ExitStart", base + "Exit"];
+    const ownExit = graceful ? this.exitEvents.get(anim) : undefined;
+    const attempts = [...(ownExit ? [ownExit] : []), "IdleForceDefaultState", base + "ExitStart", base + "Exit"];
     if (!this.propAnims.has(anim)) {
       this.tryExitChain(attempts, 0, chain, onDone);
       return;
     }
     // IdleForceDefaultState skips the graph's unequip state and leaves the prop in hand
-    this.tryExitChain(["IdleStop", ...attempts], 0, chain, onDone && (() => this.waitPropUnload(chain, 0, onDone)));
+    attempts.splice(ownExit ? 1 : 0, 0, "IdleStop");
+    this.tryExitChain(attempts, 0, chain, onDone && (() => this.waitPropUnload(chain, 0, onDone)));
   }
 
   // Holds a follow-up emote until the IdleStop exit has dropped the prop.
@@ -313,6 +340,11 @@ export class EmoteService extends ClientListener {
       if (chain !== this.chainId) return;
       const player = this.sp.Game.getPlayer();
       if (!player) return;
+      // Drawing, sitting, swimming or mounting already left the idle
+      if (!this.canPlayIdle()) {
+        if (onDone) onDone();
+        return;
+      }
       this.probeAnim = attempts[index];
       this.probeSucceeded = false;
       this.sp.Debug.sendAnimationEvent(player, attempts[index]);
@@ -364,6 +396,7 @@ export class EmoteService extends ClientListener {
   private activeEmote = "";
   private allowedAnims: Set<string>;
   private propAnims: Set<string>;
+  private exitEvents = new Map<string, string>();
   private probeAnim = "";
   private probeSucceeded = false;
   // Generation counter: bumping it abandons any pending exit chain.
