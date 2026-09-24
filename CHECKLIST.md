@@ -13,7 +13,7 @@
   raised DLE's NAM9 max y 266240 -> 299008 (undocumented); (2) lowers NAM0 min y 122880 -> -4096. The result keeps
   the union: NAM0 (-16384, -4096), NAM9 (262144, 299008). Nat: say if either edit was not meant.
 - [x] Installed in dev Data and `server\data` (identical, sha `522294fc`). Backup: `ckmcp-backups\pre-brumacity2-20260924-150221\`.
-- [x] **Deployed 20:08 UTC (Nat's go)**: `deploy-plugins` replaced DLE on the game server (restart, 0 `[error]` at boot) and in the launcher's extra files (`/api/files/extra` serves `522294fc`); old copy in `/opt/skymp-backups/plugins-20260924T200826Z`. The client package zip still holds `6255dc1b` until the next package; launchers 2.1.17+ replace it per file. Was: `deploy-plugins` (+ restart, launcher sync, commit the `SHA256SUMS`) and the
+- [x] **Deployed 20:08 UTC (Nat's go)**: `deploy-plugins` replaced DLE on the game server (restart, 0 `[error]` at boot) and in the launcher's extra files (`/api/files/extra` serves `522294fc`); old copy in `/opt/skymp-backups/plugins-20260924T200826Z`. Client package **0.3.36** (20:17 UTC) carries it too: built on CT 115 from the live 0.3.35 zip, only the plugin changed, adm-zip readback 278/278 through the public URL. Was: `deploy-plugins` (+ restart, launcher sync, commit the `SHA256SUMS`) and the
   client package need Nat's go. `_release\DragonBreak-plugins-20260924.zip` not built (the step was declined).
 - [ ] Not looked at in game. Do not load `newbrumacityedits*.esp` alongside DLE.
 
