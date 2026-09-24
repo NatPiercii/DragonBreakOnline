@@ -344,5 +344,6 @@
     "undying": [{ "id": "3ad5b:Skyrim.esm", "name": "daedra heart" }, { "id": "3ad76:Skyrim.esm", "name": "vampire dust" }, { "id": "6018c7:BSAssets.esm", "name": "yellow cinnabar polypore" }]
    }
   }
- }
+ },
+ "lockpick": { "enabled": true }
 }
