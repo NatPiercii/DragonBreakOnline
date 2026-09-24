@@ -1072,6 +1072,17 @@ module.exports = (api) => {
     }
   }, { help: 'invite|accept|decline|leave|kick: group up for dungeons (6 a party, up to 12 a raid at half skill gain)' });
   globalThis.__dboPartyLeaderOf = (a) => { const p = partyOf(profileOf(a)); return p ? p.leader : null; };
+  // Parties outlive a crash by profile, but the new client starts with no list and the others hold the old actor id
+  globalThis.__dboPartyLogin = (a) => {
+    const p = partyOf(profileOf(a));
+    if (p) pushParty(p);
+    else if (globalThis.__dboSetParty) globalThis.__dboSetParty(a, []);
+  };
+  // Runs after the actor has left the online list, so the others' panels drop the member until they return
+  globalThis.__dboPartyLogout = (a) => {
+    const pid = profileOf(a);
+    if (partyOf(pid)) setTimeout(() => { const p = partyOf(pid); if (p) pushParty(p); }, 2000);
+  };
   registerChatCommand('dungeon', (a, args) => {
     const sub = args.trim().toLowerCase();
     if (sub.startsWith('end ') && isAdmin(a)) {
