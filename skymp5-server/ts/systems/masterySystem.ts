@@ -454,7 +454,9 @@ export class MasterySystem implements System {
   // much of it an hour can hold, and a gain past the pool takes from a skill the player marked to fall.
   private creditPoints(ctx: SystemContext, ev: ActivityEvent): void {
     const cfg = this.points; if (!cfg) return;
-    const rec = this.read(ctx, ev.actorId); if (!rec) { this.creditStats.suppressed++; return; }
+    // A character who has never touched a station has no record yet; banking is how one starts.
+    const rec = this.read(ctx, ev.actorId) || (this.isPlayer(ctx, ev.actorId) ? emptyRecord() : null);
+    if (!rec) { this.creditStats.suppressed++; return; }
     const now = Date.now();
     const userId = this.userOf(ctx, ev.actorId);
     const mult = this.xpMultOf(ctx, ev.actorId);
@@ -480,6 +482,7 @@ export class MasterySystem implements System {
             ? "You have fought often enough this way to call it your own."
             : "You have done this often enough to call it your own.";
           this.notice(ctx, userId, `${enough} Open your skills (K) to take up ${this.labelOf(id)}.`);
+          this.write(ctx, ev.actorId, rec);
           this.sendMenu(ctx, userId);
         }
         continue;
@@ -1260,6 +1263,8 @@ export class MasterySystem implements System {
             ring: Array.isArray(src.ring) ? src.ring.filter((e: any) => e && Number.isFinite(e.h) && Number.isFinite(e.at)).map((e: any) => ({ h: Number(e.h), at: Number(e.at) })) : undefined,
             day: typeof src.day === "string" ? src.day : undefined,
             spentToday: Math.max(0, Number(src.spentToday) || 0),
+            shadow: Math.max(0, Number(src.shadow) || 0) || undefined,
+            offered: src.offered === true || undefined,
           };
         }
         rec.order = P.derivedOrder(rec as unknown as P.PointRecord);
@@ -1297,6 +1302,7 @@ export class MasterySystem implements System {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
+  private isPlayer(ctx: SystemContext, actorId: number): boolean { try { return Number((ctx.svr as Mp).get(actorId, "profileId")) >= 0; } catch { return false; } }
   private actorOf(ctx: SystemContext, userId: number): number { if (userId < 0) return 0; try { return (ctx.svr as Mp).getUserActor(userId) >>> 0; } catch { return 0; } }
   private userOf(ctx: SystemContext, actorId: number): number {
     try { const userId = (ctx.svr as Mp).getUserByActor(actorId); return userId === INVALID_USER_ID ? -1 : userId; } catch { return -1; }
