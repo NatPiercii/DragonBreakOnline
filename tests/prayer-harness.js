@@ -43,6 +43,7 @@ const records = new Map([
 ]);
 
 const out = { widgets: [], logs: [], audits: [], personals: [], events: [], papyrus: [] };
+let gold = 500, treasury = 0;
 const handlers = new Map();
 const commands = new Map();
 const timers = new Map();
@@ -71,6 +72,8 @@ const api = {
   // by hand below so a case can decide exactly when they tick.
   every: (name, ms, fn) => { timers.set(name, fn); },
   skills: SKILLS,
+  takeGold: (a, n) => { if (gold < n) return false; gold -= n; return true; },
+  treasuryHere: (a, n) => { treasury += n; return n; },
 };
 globalThis.__alduinakMasteryEvent = (kind, actorId, detail) => out.events.push({ kind, actorId, detail });
 
@@ -509,6 +512,20 @@ clear();
 globalThis.__dboDeityPicker(ACTOR);
 const menu = out.widgets[0];
 check('the menu lists all seven faiths as reachable', menu && ['hist', 'ancestors', 'yokudan', 'riddlethar', 'trinimac', 'dragoncult', 'wormcult'].every((id) => (menu.choices.find((c) => c.id === id) || {}).reachable === true));
+
+// offerings
+props.set(ACTOR + '|private.dboDeity', { id: 'hist', name: 'The Hist', kind: 'faith', at: 1, convertedAt: 1 });
+clear();
+commands.get('offer')(ACTOR, '2');
+check('an offering below the minimum is refused', /between 5 and 1000/.test(out.personals[0]) && gold === 500);
+commands.get('offer')(ACTOR, '60');
+const off = props.get(ACTOR + '|private.dboOffering');
+check('an offering to a faith prayed anywhere needs no shrine; half goes to the town', gold === 440 && treasury === 30 && off && off.deityId === 'hist' && off.gold === 60);
+props.set(ACTOR + '|private.dboDeity', { id: 'akatosh', name: 'Akatosh', kind: 'divine', at: 1, convertedAt: 1 });
+globalThis.__dboPrayerLastShrine && globalThis.__dboPrayerLastShrine.clear();
+clear();
+commands.get('offer')(ACTOR, '20');
+check('an offering to a shrine god is made at the shrine', /at their shrine/.test(out.personals[0]) && gold === 440);
 
 Date.now = realNow;
 console.log('');

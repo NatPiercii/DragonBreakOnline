@@ -20,7 +20,7 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, skills, every } = api;
+  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, skills, every, takeGold, treasuryHere } = api;
 
   const WIDGET_ID = 35;
   const CFG = Object.assign({
@@ -390,6 +390,32 @@ module.exports = (api) => {
     startRound(a, roundFor(a, d, ANYWHERE_REF, `A prayer to ${d.name}`));
   }, { help: 'pray to a faith that needs no shrine (the Hist, the Ancestors and others)' });
 
+  // ── offerings ───────────────────────────────────────────────────────────────────────────────
+  // /offer <gold> at your god's shrine (or anywhere, for a faith prayed to anywhere). Half is consumed as the offering,
+  // half goes to the treasury of the town it is made in for the temple's upkeep, and for an hour the god listens more
+  // closely: the next prayer's blessing chance grows by the offering, up to double at offerFullGold.
+  const OFFER = Object.assign({ min: 5, max: 1000, fullGold: 100, minutes: 60 }, (cfg.prayer || {}).offering || {});
+  const offeringOf = (a) => { try { const o = mp.get(a, 'private.dboOffering'); return o && o.until > Date.now() ? o : null; } catch (e) { return null; } };
+  registerChatCommand('offer', (a, argStr) => {
+    const gold = Math.floor(Number(String(argStr || '').trim()));
+    const faith = faithOf(a);
+    const d = faith ? deityById(faith.id) : null;
+    if (!d) return personal(a, 'You hold no god to make an offering to.');
+    if (!Number.isFinite(gold) || gold < OFFER.min || gold > OFFER.max) return personal(a, `Offer between ${OFFER.min} and ${OFFER.max} gold: /offer <gold>`);
+    if (!d.prayAnywhere) {
+      const here = lastShrine.get(a);
+      if (!here || !sameFaith(deityById(here.deityId), d) || Date.now() - here.at > 120000) return personal(a, `Offerings to ${d.name} are made at their shrine. Touch it first.`);
+    }
+    if (typeof takeGold !== 'function' || !takeGold(a, gold)) return personal(a, `You do not have ${gold} gold to offer.`);
+    const upkeep = Math.floor(gold / 2);
+    const kept = typeof treasuryHere === 'function' ? treasuryHere(a, upkeep) : 0;
+    const prev = offeringOf(a);
+    const total = (prev && prev.deityId === d.id ? prev.gold : 0) + gold;
+    try { mp.set(a, 'private.dboOffering', { deityId: d.id, gold: total, until: Date.now() + OFFER.minutes * 60000 }); } catch (e) { /* not an actor */ }
+    audit(`OFFERING ${who(a)} offered ${gold} gold to ${d.name}${kept ? ` (${kept} to the town for the temple)` : ''}`);
+    personal(a, `You leave ${gold} gold for ${d.name}. For the next hour, ${d.name} listens more closely.`);
+  }, { help: 'make an offering of gold to your god before praying' });
+
   // ── judging ─────────────────────────────────────────────────────────────────────────────────
   // The report is a list of [down, up] spans on the widget's clock, in ms from the moment it
   // mounted. Everything the verdict needs is in those numbers and the round the server already
@@ -481,8 +507,12 @@ module.exports = (api) => {
       return Math.max(1, Math.round((Number(list[i]) || 8) * (d.blessingHoursMult !== undefined ? Number(d.blessingHoursMult) : 1)));
     })();
 
+    // An offering to this god within the hour raises the odds, up to double, and is spent by the prayer
+    const offering = offeringOf(a);
+    const favour = offering && offering.deityId === d.id ? 1 + Math.min(offering.gold, OFFER.fullGold) / OFFER.fullGold : 1;
+    if (offering) { try { mp.set(a, 'private.dboOffering', null); } catch (e) { /* not an actor */ } }
     let text = `You hold the three verses. ${d.name} takes note, and no more.`;
-    if (Math.random() < chance) {
+    if (Math.random() < chance * favour) {
       if (grantBlessing(a, d, hours)) {
         text = `${d.name} answers. The blessing rests on you for ${hours} hours.`;
         audit(`PRAYER ${who(a)} received the blessing of ${d.name} (${hours} h, priest tier ${tier + 1})`);

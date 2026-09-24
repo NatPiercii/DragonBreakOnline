@@ -2924,7 +2924,8 @@ try {
 try {
   const PRAYER_JS = path.resolve('prayer.js');
   delete require.cache[PRAYER_JS];
-  require(PRAYER_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, skills: SKILLS_DEF });
+  require(PRAYER_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, skills: SKILLS_DEF,
+    takeGold, treasuryHere: (a, gold) => { const z = zoneOfActor(a); return depositToTreasury(z && typeof z === 'object' ? z.id : z, gold); } });
 } catch (e) { log('prayer.js failed to load:', e.stack || e.message); globalThis.__dboPrayerActivate = null; }
 
 // ---- beds, inn rooms, Well Rested and Well Fed (server\rest.js, config "rest", beds.json) ---------
