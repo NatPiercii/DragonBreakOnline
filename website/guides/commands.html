@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Commands and Systems - Dragon Break</title>
+<meta name="description" content="Every command you can type, and the systems they belong to.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd li{margin:0}
+.gd .lede{color:var(--muted);margin:0 0 14px}
+.gd table.cmds{width:100%;border-collapse:collapse;margin-top:6px}
+.gd table.cmds td{padding:7px 10px 7px 0;border-top:1px solid var(--line-soft);vertical-align:top}
+.gd table.cmds tr:first-child td{border-top:0}
+.gd .c-cmd{white-space:nowrap;font-family:ui-monospace,Consolas,monospace;color:var(--gold);font-size:16px}
+.gd .c-args{color:var(--muted);font-weight:400}
+.gd .say tr td:first-child{color:var(--aqua)}
+@media (max-width:560px){.gd table.cmds td{display:block;padding:2px 0}.gd table.cmds td:first-child{padding-top:10px}}
+.gd{--ground:#08191c;--surface:#0f2a2e;--raised:#16383d;--line:#3a4548;--line-soft:#16383d;--aqua:#8fd3d0;--aqua-dim:#5fb3b3;--aqua-soft:rgba(143,211,208,.10);--text:#e6ecec;--text-2:#d7e3e3;--muted:#8c9a9c;--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.12);--blood:#e0897f;--blood-soft:rgba(224,137,127,.10);color-scheme:dark}
+.gd *{box-sizing:border-box}
+.gd{background:var(--ground);color:var(--text-2);font-family:'Roboto Condensed','Futura Condensed',sans-serif;font-size:18px;line-height:1.55;padding-inline:16px;padding-block:0 64px}
+.gd .g-wrap{max-width:820px;margin:0 auto}
+.gd h1,.gd h2,.gd h3{font-family:'Cinzel','Trajan Pro',Georgia,serif;color:var(--text);text-wrap:balance;margin:0;font-weight:600}
+.gd p{margin:0}
+.gd a{color:var(--aqua)}
+.gd b,.gd strong{color:var(--text);font-weight:600}
+.gd :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.gd .g-eyebrow{font-size:14px;letter-spacing:.22em;text-transform:uppercase;color:var(--aqua);font-weight:600}
+.gd .g-hero{padding-block:48px 28px;display:grid;gap:14px;border-bottom:1px solid var(--line)}
+.gd .g-hero h1{font-size:clamp(32px,6vw,54px);letter-spacing:.03em;line-height:1.05}
+.gd .g-hero p{max-width:58ch;font-size:20px}
+.gd .g-terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:6px;overflow:hidden;margin-top:34px}
+.gd .g-term{background:var(--surface);padding:15px 18px;display:grid;gap:3px;align-content:start}
+.gd .g-term dt{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-size:17px;color:var(--gold);font-weight:700;letter-spacing:.04em}
+.gd .g-term dd{margin:0;font-size:16px;color:var(--muted)}
+.gd .g-group{padding-block:40px 0;display:grid;gap:18px}
+.gd .g-group > header{display:grid;gap:4px;border-bottom:1px solid var(--line-soft);padding-bottom:10px}
+.gd .g-group h2{font-size:clamp(22px,3.4vw,28px);letter-spacing:.02em}
+.gd .g-group .g-span{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums}
+.gd .g-rules{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.gd .g-rulecard{background:var(--surface);border:1px solid var(--line-soft);border-radius:6px;padding:18px 20px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:baseline}
+.gd .g-n{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:700;font-size:26px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums;min-width:1.6ch;text-align:right}
+.gd .g-rulecard h3{font-size:19px;letter-spacing:.02em;align-self:center}
+.gd .g-body{grid-column:2;display:grid;gap:9px}
+.gd .g-body p{max-width:62ch;font-size:17.5px}
+.gd .g-body p.g-soft{color:var(--muted)}
+.gd .g-nlr{display:inline-flex;align-items:baseline;gap:8px;background:var(--gold-soft);border:1px solid var(--gold);border-radius:4px;padding:4px 12px;margin-top:2px}
+.gd .g-nlr .g-big{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:700;font-size:22px;color:var(--gold);font-variant-numeric:tabular-nums}
+.gd .g-nlr .g-lab{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.gd .g-limits .g-rulecard{border-color:var(--blood);background:linear-gradient(170deg,var(--blood-soft),transparent 62%),var(--surface)}
+.gd .g-limits .g-n,.gd .g-limits h3{color:var(--blood)}
+.gd .g-limits .g-group-note{color:var(--blood);font-size:16px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.gd footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);display:grid;gap:8px}
+.gd footer p{font-size:15.5px;color:var(--muted);max-width:66ch}
+@media (max-width:520px){.gd{font-size:17px}
+.gd .g-hero{padding-block:34px 22px}
+.gd .g-rulecard{grid-template-columns:1fr;gap:8px}
+.gd .g-n{text-align:left;font-size:22px}
+.gd .g-body{grid-column:1}}
+@media (prefers-reduced-motion: reduce){.gd *{animation:none!important;transition:none!important}}
+.gd{--aqua:#8fd3d0;--aqua-dim:#5fb3b3;--aqua-soft:rgba(143,211,208,.12);--blood:#e0897f;--blood-soft:rgba(224,137,127,.12);--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.16);--ground:transparent;--line:rgba(143,211,208,.22);--line-soft:rgba(143,211,208,.13);--muted:rgba(215,227,227,.62);--raised:rgba(22,56,61,.94);--surface:rgba(12,34,38,.94);--text:#d7e3e3;--text-2:#d7e3e3}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online &middot; Reference</div><h1>Commands and Systems</h1></div>
+<main class="gd">
+<div class="g-wrap">
+
+<section class="panel"><h2>How to talk</h2>
+<p class="lede">Anything you type that is not a command is spoken aloud, and only people close enough hear it. These change how far your voice carries or mark it as something other than speech.</p>
+<table class="cmds say"><tbody>
+<tr><td class="c-cmd">(just type)</td><td>Normal speech, heard by anyone nearby.</td></tr>
+<tr><td class="c-cmd">/low</td><td>Quietly. A shorter reach than normal speech.</td></tr>
+<tr><td class="c-cmd">/whisper</td><td>Barely audible, for the person beside you.</td></tr>
+<tr><td class="c-cmd">/wide</td><td>Loudly, to a room rather than a conversation.</td></tr>
+<tr><td class="c-cmd">/shout</td><td>As far as your voice will carry.</td></tr>
+<tr><td class="c-cmd">/me <span class="c-args">&lt;action&gt;</span></td><td>An action, written as "Argosh draws his axe". <b>/melow</b> and <b>/melong</b> change the range.</td></tr>
+<tr><td class="c-cmd">/my <span class="c-args">&lt;thing&gt;</span></td><td>The same, but about something of yours: "Argosh's axe is notched".</td></tr>
+<tr><td class="c-cmd">/do <span class="c-args">&lt;detail&gt;</span></td><td>A detail of the scene with no name attached.</td></tr>
+<tr><td class="c-cmd">/looc <span class="c-args">&lt;text&gt;</span></td><td>Out of character, to people nearby. <b>/ooc</b> is the same.</td></tr>
+<tr><td class="c-cmd">/pm <span class="c-args">&lt;player&gt; &lt;text&gt;</span></td><td>A private message, wherever they are.</td></tr>
+</tbody></table>
+<p class="lede" style="margin-top:14px">Voice chat is separate: hold <b>V</b> to speak and tap <b>Left Alt</b> to switch between whisper, normal and yell. A whisper only carries to whoever you are facing; a yell reaches sixty metres.</p>
+</section>
+<section class="panel"><h2>Talking to people</h2><p class="lede">Speech carries as far as the way you say it. Plain text is normal speech.</p><table class="cmds"><tbody><tr><td class="c-cmd">/pigeonblock <span class="c-args">&lt;name|#TAG&gt;</span></td><td>toggle ignoring someone&#x27;s pigeons</td></tr></tbody></table></section>
+<section class="panel"><h2>Your character</h2><p class="lede">What you are, what you know, and how you are doing.</p><table class="cmds"><tbody><tr><td class="c-cmd">/level</td><td>your character level, progress and unspent points</td></tr><tr><td class="c-cmd">/spells</td><td>Your studied spells and free slots</td></tr><tr><td class="c-cmd">/forget <span class="c-args">&lt;number&gt;</span></td><td>forget a studied spell to free its slot</td></tr><tr><td class="c-cmd">/teach</td><td>Teach a spell to a player beside you (Arcane Arts or Priest at Expert)</td></tr><tr><td class="c-cmd">/hunger</td><td>how hungry you are</td></tr><tr><td class="c-cmd">/rest</td><td>How long Well Rested and Well Fed have left</td></tr><tr><td class="c-cmd">/deity</td><td>open the deity menu; /deity &lt;name&gt; at that god&#x27;s shrine to turn by hand</td></tr><tr><td class="c-cmd">/rite</td><td>at a shrine: Molag Bal (the Embrace), Hircine (the Great Hunt), Arkay or Stendarr (cure, filled black soul gem)</td></tr><tr><td class="c-cmd">/reroll</td><td>change this character&#x27;s race, look and name (Patreon tiers)</td></tr><tr><td class="c-cmd">/tokens</td><td>your Patreon tier and identity rerolls left</td></tr></tbody></table></section>
+<section class="panel"><h2>Groups and getting about</h2><p class="lede">Dungeons are claimed by a party, not by one person.</p><table class="cmds"><tbody><tr><td class="c-cmd">/party</td><td>invite|accept|decline|leave|kick: group up for dungeons (6 a party, up to 12 a raid at half skill gain)</td></tr><tr><td class="c-cmd">/leave</td><td>invite|accept|decline|leave|kick: group up for dungeons (6 a party, up to 12 a raid at half skill gain)</td></tr><tr><td class="c-cmd">/players</td><td>who is online</td></tr><tr><td class="c-cmd">/playtest</td><td>what part of the world is open</td></tr><tr><td class="c-cmd">/unstuck</td><td>&mdash;</td></tr></tbody></table></section>
+<section class="panel"><h2>The world</h2><p class="lede">Work, wildlife and who rules where.</p><table class="cmds"><tbody><tr><td class="c-cmd">/board</td><td>open the notice board you are standing at</td></tr><tr><td class="c-cmd">/contract</td><td>take or post hunting work</td></tr><tr><td class="c-cmd">/contracts</td><td>hunting work posted by the hold you stand in</td></tr><tr><td class="c-cmd">/dungeon</td><td>dungeon claims: what is taken, what rests for you</td></tr><tr><td class="c-cmd">/wildlife</td><td>what roams the wilds</td></tr><tr><td class="c-cmd">/champions</td><td>named beasts currently abroad</td></tr><tr><td class="c-cmd">/officials <span class="c-args">[zone]</span></td><td>who rules where</td></tr><tr><td class="c-cmd">/faction <span class="c-args">[menu|list|accept|invite]</span></td><td>your factions (F3 opens the menu)</td></tr><tr><td class="c-cmd">/appoint <span class="c-args">&lt;player|#TAG&gt; &lt;zone&gt; &lt;rank&gt;</span></td><td>make someone an official (admins; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards)</td></tr><tr><td class="c-cmd">/dismiss <span class="c-args">&lt;player|#TAG&gt; &lt;zone&gt;</span></td><td>remove an official you may appoint</td></tr><tr><td class="c-cmd">/tomes</td><td>The Synod tome shop (inside the Synod Conclave; college members, one tome a week)</td></tr></tbody></table></section>
+<section class="panel"><h2>Beast forms</h2><p class="lede">Only if you carry the gift or the curse.</p><table class="cmds"><tbody><tr><td class="c-cmd">/beast <span class="c-args">[werewolf|vampirelord|revert]</span></td><td>take or leave your beast form (or cast the power)</td></tr><tr><td class="c-cmd">/forms</td><td>the abilities and keys of the beast form you are in</td></tr></tbody></table></section>
+<section class="panel"><h2>When things go badly</h2><p class="lede">Down, gaoled, or tied up.</p><table class="cmds"><tbody><tr><td class="c-cmd">/respawn</td><td>while down: stop waiting for help and wake at the temple</td></tr><tr><td class="c-cmd">/sentence</td><td>Time left on your sentence</td></tr><tr><td class="c-cmd">/struggle</td><td>try to break free when your hands are bound</td></tr></tbody></table></section>
+<section class="panel"><h2>Reference</h2><table class="cmds"><tbody><tr><td class="c-cmd">/help</td><td>this list</td></tr></tbody></table></section>
+<section class="panel"><h2>The systems behind them</h2>
+<p class="lede">Each of these has its own guide.</p>
+<ul>
+<li><b><a href="/guides/skills.html">Skills</a></b> — eighteen of them, one pool of 300 points. You can dabble in everything and master almost nothing.</li>
+<li><b><a href="/guides/leveling.html">Levels</a></b> — what growing costs in hours, and what each level opens.</li>
+<li><b><a href="/guides/races.html">Race</a></b> — what your blood gives you, fixed at birth and free.</li>
+<li><b><a href="/guides/religion.html">Faith</a></b> — one god at a time, prayed to at their shrine for a blessing.</li>
+<li><b><a href="/guides/factions.html">Factions and holds</a></b> — who you swear to, and who rules where.</li>
+<li><b><a href="/guides/supernatural.html">Vampirism and lycanthropy</a></b> — how you catch them, and what they cost.</li>
+<li><b><a href="/guides/rules.html">The rules</a></b> — nineteen of them, numbered so they can be cited.</li>
+</ul>
+<p class="lede" style="margin-top:14px">Staff carry a further set of commands that are not listed here.</p>
+</section>
+
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/rules.html">Server Rules</a></li><li><a href="/guides/skills.html">Skill System</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>
