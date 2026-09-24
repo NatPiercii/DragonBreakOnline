@@ -88,6 +88,14 @@ const WEAPON_CLASS: Record<number, string> = {
 };
 // Warhammers share DNAM type 6 with battleaxes; both count as two-handed.
 const TWO_HANDED = new Set(["Greatsword", "Battleaxe", "Warhammer"]);
+// Blade and Blunt replaced One-Handed and Two-Handed (suggestions forum, Nat 2026-09-24): swords, daggers and greatswords
+// are Blade; axes, maces, warhammers and battleaxes Blunt, as in Oblivion. A record still holding the old ids is moved on its
+// first read by the weapons the character fought with, keeping every level: one old skill goes to the side they used, two go
+// to both with the higher on that side, so the pool, the seat limits and the character level are unchanged.
+const OLD_MELEE = ["onehanded", "twohanded"];
+const BLADE_CLASSES = new Set(["Sword", "Dagger", "Greatsword"]);
+const BLUNT_CLASSES = new Set(["WarAxe", "Mace", "Battleaxe", "Warhammer"]);
+const MELEE_TABLE = "melee-migration.json";
 // Skyrim.esm:0001F4 "Unarmed" - the source form the engine reports for a punch or a claw.
 const UNARMED_WEAPON = 0x1f4;
 
@@ -674,7 +682,7 @@ export class MasterySystem implements System {
     }
     rec.skills[skillId].level = this.tierHours[tier];
     this.syncRank(ctx, actorId, rec, skillId, userId);
-    this.applyActorValues(ctx, actorId, skillId, rec.skills[skillId].rank);
+    this.applyActorValues(ctx, actorId, skillId, rec.skills[skillId].rank, rec);
     this.write(ctx, actorId, rec);
     this.sendMenu(ctx, userId);
     return true;
@@ -715,7 +723,7 @@ export class MasterySystem implements System {
       this.pendingGrants.delete(actorId);
       const rec = this.read(ctx, actorId);
       if (!rec) return;
-      for (const id of rec.order) { this.applySpells(ctx, actorId, rec, id); this.applyActorValues(ctx, actorId, id, rec.skills[id].rank); }
+      for (const id of rec.order) { this.applySpells(ctx, actorId, rec, id); this.applyActorValues(ctx, actorId, id, rec.skills[id].rank, rec); }
       this.write(ctx, actorId, rec);
     });
   }
@@ -737,7 +745,7 @@ export class MasterySystem implements System {
     rec.skills[id].rank = this.rankFor(rec.skills[id].level);
     this.write(ctx, actorId, rec);
     this.applySpells(ctx, actorId, rec, id);
-    this.applyActorValues(ctx, actorId, id, rec.skills[id].rank);
+    this.applyActorValues(ctx, actorId, id, rec.skills[id].rank, rec);
     this.write(ctx, actorId, rec);
     this.notice(ctx, userId, `You take up ${this.labelOf(id)}.`);
     this.sendMenu(ctx, userId);
@@ -765,7 +773,7 @@ export class MasterySystem implements System {
     if (prog) { for (const spellId of prog.granted.slice()) this.removeSpell(ctx, actorId, spellId); }
     delete rec.skills[id];
     rec.order = rec.order.filter((x) => x !== id);
-    this.applyActorValues(ctx, actorId, id, -1);
+    this.applyActorValues(ctx, actorId, id, -1, rec);
   }
 
   private takeGold(ctx: SystemContext, actorId: number, amount: number): boolean {
@@ -885,7 +893,7 @@ export class MasterySystem implements System {
     prog.rank = newRank;
     this.applySpells(ctx, actorId, rec, id);
     if (newRank === oldRank) return;
-    this.applyActorValues(ctx, actorId, id, newRank);
+    this.applyActorValues(ctx, actorId, id, newRank, rec);
     this.notice(ctx, userId, newRank > oldRank ? `You are now ${this.tierNames[newRank]} in ${this.labelOf(id)}.` : `Your standing in ${this.labelOf(id)} has fallen to ${this.tierNames[newRank]}.`);
   }
 
@@ -910,12 +918,18 @@ export class MasterySystem implements System {
   }
 
   // Vanilla actor values follow the tier: 15 per tier; -1 resets to the vanilla base of 15.
-  private applyActorValues(ctx: SystemContext, actorId: number, id: string, rank: number): void {
+  // Blade and Blunt both drive OneHanded and TwoHanded, so each actor value takes the best rank among the skills held.
+  private applyActorValues(ctx: SystemContext, actorId: number, id: string, rank: number, rec: MasteryRecord | null): void {
     const d = this.def(id); if (!d || !d.vanillaSkills.length) return;
     const mp = ctx.svr as Mp;
-    const value = rank < 0 ? 15 : AV_PER_TIER * (rank + 1);
     for (const sk of d.vanillaSkills) {
       const av = AV_NAMES[sk]; if (!av) continue;
+      let best = rank;
+      for (const other of rec ? rec.order : []) {
+        const od = this.def(other);
+        if (other !== id && od && od.vanillaSkills.includes(sk) && rec!.skills[other]) best = Math.max(best, rec!.skills[other].rank);
+      }
+      const value = best < 0 ? 15 : AV_PER_TIER * (best + 1);
       try {
         const self = { type: "form", desc: mp.getDescFromId(actorId) };
         mp.callPapyrusFunction("method", "Actor", "SetActorValue", self, [av, value]);
@@ -1233,11 +1247,57 @@ export class MasterySystem implements System {
 
   // ── Storage ─────────────────────────────────────────────────────────────────
 
+  // Renames onehanded/twohanded in a stored record to blade/blunt once skills.json has made the switch
+  private migrateMelee(ctx: SystemContext, actorId: number, r: any): any {
+    if (!r || !r.skills || typeof r.skills !== "object") return r;
+    if (!this.def("blade") || !this.def("blunt") || this.def("onehanded") || this.def("twohanded")) return r;
+    const old = OLD_MELEE.filter((id) => r.skills[id]);
+    if (!old.length || r.skills.blade || r.skills.blunt) return r;
+    const levelOf = (id: string) => Number(r.skills[id].level ?? r.skills[id].points) || 0;
+    old.sort((a, b) => levelOf(b) - levelOf(a));
+    const side = this.meleeSide(ctx, actorId);
+    const other = side === "blade" ? "blunt" : "blade";
+    const moved: string[] = [];
+    old.forEach((id, i) => {
+      const to = i === 0 ? side : other;
+      const prog = Object.assign({}, r.skills[id]);
+      for (const spellId of Array.isArray(prog.granted) ? prog.granted : []) this.removeSpell(ctx, actorId, Number(spellId) >>> 0);
+      prog.granted = [];
+      r.skills[to] = prog;
+      delete r.skills[id];
+      moved.push(`${id} ${Number(prog.level ?? prog.points) || 0} -> ${to}`);
+    });
+    r.order = stringList(r.order).map((id) => (id === old[0] ? side : id === old[1] ? other : id));
+    this.log(`[skills] ${actorId.toString(16)} melee moved to Blade/Blunt (fought with ${side}): ${moved.join(", ")}`);
+    return r;
+  }
+
+  // Which of Blade or Blunt a character fought with: melee-migration.json (from the server log), else the last outfit
+  private meleeSide(ctx: SystemContext, actorId: number): "blade" | "blunt" {
+    const mp = ctx.svr as Mp;
+    if (this.meleeTable === null) {
+      try { this.meleeTable = JSON.parse(fs.readFileSync(path.resolve(MELEE_TABLE), "utf8")).byTag || {}; }
+      catch { this.meleeTable = {}; }
+    }
+    let tag = "";
+    try { tag = String(mp.get(actorId, "private.charTag") || ""); } catch { /* none */ }
+    const known = tag && this.meleeTable![tag];
+    if (known === "blade" || known === "blunt") return known;
+    let blade = 0, blunt = 0;
+    let worn: unknown = null;
+    try { worn = mp.get(actorId, "private.lastWorn"); } catch { /* none */ }
+    for (const e of Array.isArray(worn) ? worn : []) {
+      const cls = this.weaponClass(ctx, Number(Array.isArray(e) ? e[0] : e) >>> 0);
+      if (BLADE_CLASSES.has(cls)) blade++; else if (BLUNT_CLASSES.has(cls)) blunt++;
+    }
+    return blunt > blade ? "blunt" : "blade";
+  }
+
   private read(ctx: SystemContext, actorId: number): MasteryRecord | null {
     try {
       const raw = (ctx.svr as Mp).get(actorId, MASTERY_PROP);
       if (!raw || typeof raw !== "object") return null;
-      const r = raw as any;
+      const r = this.migrateMelee(ctx, actorId, raw as any);
       const rec = emptyRecord();
       if (this.points && r.skills && typeof r.skills === "object") {
         const v2 = Number(r.v) === 2;
@@ -1344,6 +1404,7 @@ export class MasterySystem implements System {
   private costCache = new Map<number, number>();
   private reachCache = new Map<number, number>();
   private weaponCache = new Map<number, string>();
+  private meleeTable: Record<string, string> | null = null;
   private schoolCache = new Map<number, string>();
   private inputCache = new Map<number, Array<{ baseId: number; count: number }>>();
   private baseCache = new Map<number, BaseInfo | null>();
