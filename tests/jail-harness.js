@@ -101,11 +101,16 @@ ui('jailChoose', GUARD, ['who:15']);
 check('then the lengths', ids().join() === 'time:15:5,time:15:10,time:15:15,time:15:30,time:15:60,time:15:120', ids());
 check('...labelled in hours past an hour', lastWidget().w.actions.map((x) => x.label).slice(-2).join() === '1 hour,2 hours');
 put(CELL_DOOR, 'isOpen', true);
+put(PRISONER, 'private.restrained', { boundHands: true });
+const uncuffed = [];
+globalThis.__dboUncuff = (id) => { uncuffed.push(id); put(id, 'private.restrained', null); return true; };
 ui('jailChoose', GUARD, ['time:15:5']);
 check('the sentence is registered on the prisoner', sentence() && sentence().totalMs === 5 * MIN && (sentence().door >>> 0) === CELL_DOOR && sentence().servedMs === 0);
 check('...and the prisoner on the door', props.get(CELL_DOOR + '|private.dboCell').prisoner === PRISONER);
 check('the door closes', props.get(CELL_DOOR + '|isOpen') === false);
 check('the prisoner is told where and for how long', /sentences you to 5 minutes in Bruma Castle Dungeon/.test(said(PRISONER)), said(PRISONER));
+check('a bound prisoner is uncuffed as the door locks', uncuffed.join() === String(PRISONER) && /bonds are taken off/.test(said(PRISONER)), uncuffed);
+delete globalThis.__dboUncuff;
 check('a made-up length is refused', (() => { ui('jailChoose', GUARD, ['time:16:9999']); return !props.get(OTHER + '|private.dboSentence'); })());
 
 // ---- the lock ----

@@ -176,8 +176,11 @@ module.exports = (api) => {
     set(door, 'private.dboCell', { prisoner: prisoner >>> 0, name: display(prisoner), picked: false });
     set(door, 'isOpen', false);
     lastSeen.delete(prisoner >>> 0);
-    system(prisoner, `${display(guard)} sentences you to ${plural(mins, 'minute')} in ${jailName(cell)}. Time counts only while you are online and in the jail. /sentence shows what is left.`);
-    personal(guard, `${display(prisoner)} is locked in for ${plural(mins, 'minute')}. The door opens when the time is served.${get(prisoner, 'private.restrained', null) ? ' Their hands are still bound: uncuff them through the bars.' : ''}`);
+    // The capture system frees their hands when it offers the hook; older server builds leave it to the guard
+    let unbound = false;
+    try { unbound = typeof globalThis.__dboUncuff === 'function' && globalThis.__dboUncuff(prisoner) === true; } catch (e) { log(`jail: uncuff failed: ${e.message}`); }
+    system(prisoner, `${display(guard)} sentences you to ${plural(mins, 'minute')} in ${jailName(cell)}.${unbound ? ' Your bonds are taken off as the door locks.' : ''} Time counts only while you are online and in the jail. /sentence shows what is left.`);
+    personal(guard, `${display(prisoner)} is locked in for ${plural(mins, 'minute')}. The door opens when the time is served.${unbound ? ' Their bonds came off at the door.' : get(prisoner, 'private.restrained', null) ? ' Their hands are still bound: uncuff them through the bars.' : ''}`);
     audit(`JAIL ${who(guard)} imprisoned ${who(prisoner)} for ${mins} min in ${jailName(cell)} (door ${mp.getDescFromId(door >>> 0)})`);
   };
 
