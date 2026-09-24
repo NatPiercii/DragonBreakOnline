@@ -247,6 +247,10 @@ is impossible**: it carries a `.bind` section (Steam wrapper) and `.text` measur
 entropy, i.e. encrypted on disk. Anything needing real instructions needs a live debugger, not the
 file.
 
+**Status 2026-09-24 14:50 UTC (unattended run):** no new jump crash. The four newer `crash-*.log` files on this PC
+(23 Sep 16:04, 19:01, 20:53, 21:44 local) are other signatures (werewolf transform, hdtSMP breakpoint, tbbmalloc
+free, BSJobs/BSLight); see the CHECKLIST block of the same time. The guard `00c29dee` still waits for a CI flatrim build.
+
 ### 4. Housekeeping
 
 - ~~`spawnTrace` diagnostic~~ - **removed from `gamemode.js` 2026-09-21** (dev box; reaches the

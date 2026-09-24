@@ -49,11 +49,16 @@ const every = (name, ms, fn) => {
   t.start = setTimeout(() => { t.start = null; t.interval = setInterval(body, ms); }, Math.round(((++timerSlot * 0.618034) % 1) * 1000));
   TIMERS.set(name, t);
 };
+// Event loop delay from every source (handlers, TS systems, native tick, GC), sampled on a 10 ms timer
+const loopDelay = globalThis.__dboLoopDelay || (globalThis.__dboLoopDelay = require('perf_hooks').monitorEventLoopDelay({ resolution: 10 }));
+loopDelay.enable();
 every('tickSummary', 60000, () => {
   const rows = [...tickStats.entries()].sort((x, y) => y[1].total - x[1].total)
     .map(([k, s]) => `${k} ${s.n}x max ${s.max.toFixed(2)} mean ${(s.total / s.n).toFixed(2)}${s.slow ? ` slow ${s.slow}` : ''}`);
   tickStats.clear();
-  if (rows.length) log(`ticks (ms, last 60 s, ${onlineActors().length} online): ${rows.join(' | ')}`);
+  rows.push(`event loop p99 ${(loopDelay.percentile(99) / 1e6).toFixed(1)} max ${(loopDelay.max / 1e6).toFixed(1)}`);
+  loopDelay.reset();
+  log(`ticks (ms, last 60 s, ${onlineActors().length} online): ${rows.join(' | ')}`);
 });
 
 // ---- debounced saves: a hot path marks its file dirty, one async write per file every few seconds -----
@@ -74,6 +79,12 @@ const writeSave = (file, s) => {
 };
 for (const [file, s] of SAVES) if (s.dirty) { try { writeSaveSync(file, s); log(`saved ${path.basename(file)} before reload`); } catch (e) { log('save flush failed', path.basename(file), e.message); } }
 every('saves', 5000, () => { for (const [file, s] of SAVES) writeSave(file, s); });
+// systemd stops the server with SIGTERM, whose default action would drop the writes still pending here
+globalThis.__dboFlushOnExit = () => { for (const [file, s] of SAVES) if (s.dirty || s.busy) { try { writeSaveSync(file, s); } catch (e) { log('save flush failed', path.basename(file), e.message); } } };
+if (!globalThis.__dboSigtermHooked) {
+  globalThis.__dboSigtermHooked = true;
+  process.once('SIGTERM', () => { try { globalThis.__dboFlushOnExit(); } finally { process.exit(0); } });
+}
 
 // Admin tiers, same rules as the server's adminRoles.ts: adminProfileIds are senior, then adminRoles
 // tiers by Discord role id (senior > developer > gm), then legacy adminRoleIds as senior.
@@ -845,7 +856,7 @@ const openCreator = (a) => {
 // before giving up (remoteServer.ts). At 12000 the server always won that race: the fallback teleport
 // aborts the client mid-spawn ("Spawn loop stopped by a server teleport"), so a hub that took longer
 // than 12 s to load could never be reached and every new character went the long way via the landing.
-const HUB_SPAWN_WAIT_MS = 35000;
+const HUB_SPAWN_WAIT_MS = 90000;
 const LANDING_LOC = { cellOrWorldDesc: LANDING.world, pos: LANDING.pos, rot: [0, 0, Number(LANDING.angleZ) || 135] };
 const fallBackToLanding = (a) => {
   if (creation.get(a) !== 'spawning' || !creationPending(a)) return;
@@ -2149,7 +2160,7 @@ onUi('skinningCancel', (a) => { skinSessions.delete(a); closeWidget(a, SKIN_WIDG
 const BODY_LOOT_STACKS = 2;
 const BODY_LOOT_GOLD = 0.15;
 globalThis.__dboLootBody = (targetId, casterId) => {
-  if (targetId === casterId || profileOf(targetId) <= 0 || profileOf(casterId) <= 0) return undefined;
+  if (targetId === casterId || !(profileOf(targetId) > 0) || !(profileOf(casterId) > 0)) return undefined;
   try { if (mp.get(targetId, 'isDead') !== true) return undefined; } catch (e) { return undefined; }
   try { if (mp.get(targetId, 'private.dboBodySearched') === true) { personal(casterId, 'This body has already been searched.'); return false; } } catch (e) { /* first search */ }
 
@@ -2415,6 +2426,20 @@ const normWorldDesc = (s) => {
   const id = parseInt(s, 16);
   return isNaN(id) ? s.toLowerCase() : id.toString(16);
 };
+// getIdFromDesc matches plugin names case-sensitively, so this takes the desc exactly as the server reports it
+const INTERIOR_BY_DESC = globalThis.__dboInteriorByDesc instanceof Map ? globalThis.__dboInteriorByDesc : (globalThis.__dboInteriorByDesc = new Map());
+const isInteriorDesc = (desc) => {
+  let interior = INTERIOR_BY_DESC.get(desc);
+  if (interior !== undefined) return interior;
+  interior = false;
+  try {
+    const id = desc.includes(':') ? mp.getIdFromDesc(desc) : parseInt(desc, 16);
+    const rec = id ? mp.lookupEspmRecordById(id) : null;
+    interior = !!(rec && rec.record && rec.record.type === 'CELL');
+  } catch (e) { log(`hostAttempt: world ${desc} not resolved: ${e.message}`); }
+  INTERIOR_BY_DESC.set(desc, interior);
+  return interior;
+};
 const hostAttemptHook = (requesterId, actorId) => {
   const req = Number(requesterId) >>> 0;
   const act = Number(actorId) >>> 0;
@@ -2424,12 +2449,15 @@ const hostAttemptHook = (requesterId, actorId) => {
     catch (e) { /* ignore */ }
   }
   if (userOf(req) === -1) return false;
+  // A logged-out character's body waiting out its grace is never driven by another player's client
+  if (profileOf(act) >= 0) return false;
   try {
     const r = mp.get(req, 'private.restrained');
     if (r && r.boundHands) return false;
   } catch (e) { /* ignore */ }
   try {
-    const reqWorld = normWorldDesc(String(mp.get(req, 'worldOrCellDesc') || ''));
+    const reqRaw = String(mp.get(req, 'worldOrCellDesc') || '').trim();
+    const reqWorld = normWorldDesc(reqRaw);
     const actWorld = normWorldDesc(String(mp.get(act, 'worldOrCellDesc') || ''));
     if (!reqWorld || !actWorld || reqWorld !== actWorld) {
       console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: world mismatch "${reqWorld}" !== "${actWorld}"`);
@@ -2439,13 +2467,7 @@ const hostAttemptHook = (requesterId, actorId) => {
     const q = mp.get(act, 'pos');
     if (Array.isArray(p) && Array.isArray(q)) {
       const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-      let isInterior = false;
-      try {
-        const id = reqWorld.includes(':') ? mp.getIdFromDesc(reqWorld) : parseInt(reqWorld, 16);
-        const rec = id ? mp.lookupEspmRecordById(id) : null;
-        if (rec && rec.record && rec.record.type === 'CELL') isInterior = true;
-      } catch (e) { /* ignore */ }
-      const maxDist = isInterior ? MAX_INTERIOR_HOST_DISTANCE : MAX_HOST_DISTANCE;
+      const maxDist = isInteriorDesc(reqRaw) ? MAX_INTERIOR_HOST_DISTANCE : MAX_HOST_DISTANCE;
       if (d > maxDist) {
         console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: distance ${Math.round(d)} > ${maxDist}`);
         return false;

@@ -8,7 +8,7 @@
 module.exports = (api) => {
   const fs = require('fs');
   const path = require('path');
-  const { mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand } = api;
+  const { mp, log, every, onlineActors, profileOf, personal, registerChatCommand } = api;
 
   const OUT = path.resolve('server-stats.json');
   const GOLD = 0x0000000f;
@@ -31,12 +31,18 @@ module.exports = (api) => {
       return (Array.isArray(inv.entries) ? inv.entries : []).reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD ? Math.max(0, Number(e.count) || 0) : 0), 0);
     } catch (e) { return 0; }
   };
+  // A record lookup copies every subrecord (a RACE has 1,300-4,000), and race editor ids never change while the process runs
+  const RACE_NAMES = globalThis.__dboRaceNames instanceof Map ? globalThis.__dboRaceNames : (globalThis.__dboRaceNames = new Map());
   const raceName = (raceId) => {
+    const id = Number(raceId) >>> 0;
+    if (RACE_NAMES.has(id)) return RACE_NAMES.get(id);
+    let name = 'Unknown';
     try {
-      const rec = mp.lookupEspmRecordById(Number(raceId) >>> 0); const edid = rec && rec.record && rec.record.editorId;
-      if (edid) return String(edid).replace(/Race(Vampire)?$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
+      const rec = mp.lookupEspmRecordById(id); const edid = rec && rec.record && rec.record.editorId;
+      if (edid) name = String(edid).replace(/Race(Vampire)?$/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
     } catch (e) { /* unknown race */ }
-    return 'Unknown';
+    RACE_NAMES.set(id, name);
+    return name;
   };
   // Every container of every property the profile owns, counted once per profile
   const storedGold = (profileId) => {
@@ -74,7 +80,7 @@ module.exports = (api) => {
       let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { ST.chars.delete(a); continue; }
       const realRace = (globalThis.__dboBeastOriginalRace && globalThis.__dboBeastOriginalRace(a)) || (app && app.raceId);
       const race = realRace ? raceName(realRace) : 'Unknown';
-      ST.counted.push(`${nameOf(a)} (${race})`);
+      ST.counted.push(`${(app && app.name) || 'Stranger'} (${race})`);
       races.set(race, (races.get(race) || 0) + 1);
       carried += goldIn(a);
       if (!profiles.has(profileId)) { profiles.add(profileId); stored += storedGold(profileId); }

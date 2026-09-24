@@ -112,14 +112,20 @@ module.exports = (api) => {
   const POOLS_KEEP = new Set(POOLS.keep || []);   // curation, Starts Dead, quest alias and set-piece refs, never swapped
   // DragonBreak's own placements stay as placed even if dungeons.json gained them after the pools were built
   const CURATED_REF = /:DragonBreak( Online Edits)?\.esp$/i;
+  // option desc -> is an NPC_; a record lookup copies every subrecord and plugins never change while the process runs
+  const NPC_OPTION = globalThis.__dboNpcOptionOk instanceof Map ? globalThis.__dboNpcOptionOk : (globalThis.__dboNpcOptionOk = new Map());
   {
     let kept = 0, dropped = 0;
     for (const f of Object.values(POOLS.families || {})) {
       for (const a of [...(f.archetypes || []), ...(f.boss || [])]) {
         // this server must know every option as an NPC_, or the slot would fail to spawn
         a.options = (a.options || []).filter((o) => {
-          let rec = null; try { rec = mp.lookupEspmRecordById(idOf(o[1])); } catch (e) { rec = null; }
-          const ok = !!(rec && rec.record && String(rec.record.type) === 'NPC_');
+          let ok = NPC_OPTION.get(o[1]);
+          if (ok === undefined) {
+            let rec = null; try { rec = mp.lookupEspmRecordById(idOf(o[1])); } catch (e) { rec = null; }
+            ok = !!(rec && rec.record && String(rec.record.type) === 'NPC_');
+            NPC_OPTION.set(o[1], ok);
+          }
           if (ok) kept++; else { dropped++; log(`dungeon pools: ${o[1]} ${o[2] || ''} is not an NPC_ on this server, dropped`); }
           return ok;
         });

@@ -1,5 +1,44 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-24 (14:50 UTC, unattended run): live-log verification, rename notice, nothing pushed
+
+- [x] **Non-Skyrim.esm spells deal damage now (verified from the live log).** `OnSpellHit ... damage` lines with a
+  nonzero amount for Dawnguard spells `20126b7` (68 hits), `20059a1` (14), `2019324` (11), `200e7da` (5). The EFID
+  record-local fix is proven in play. No `Record 0x...` line since the 22 Sep 19:08 restart except Gray Fox's
+  `0xffffffff` (last 23 Sep 04:25).
+- [x] Gray Fox fix (`claude-nate/overrange-self-index`, `097a75e` / `102ee39`) is **still not merged or pushed**.
+- [x] Supernatural / beast audit lines now appear (33): BEAST took Vampire Lord / Beast Form, SUPERNATURAL
+  Hircine-blessed werewolf, a revive.json permadeath restore; Howl of Terror logs terrified counts. No JS error
+  (`TypeError` / `is not a function` / `Cannot read`) anywhere in the live log. Power-attack stamina not checkable from
+  the log (no stamina line exists); needs a player report.
+- [x] **The 721 `resolved context ... (reason=exception)` errors since 23 Sep are log noise, not dropped packets.**
+  They are `mp.get(id, "isDead")` (645), `profileId`, `type`, `baseDesc` on stale ids or on a door/activator
+  (`formId=0x8086814` door, `0x3c12ae13` activator, both at activation). The Antigo context in `ScampServer::Get`
+  prints on unwind whether or not JS catches, and every `isDead` read in `server\*.js` / `ts\systems` on an activation
+  path is inside `try`. Real dropped actions in that window: 12 `Bad hoster is attached to caster` and 3
+  `WorldSpace doesn't match` (dungeon <-> BSHeartland).
+- [x] Log noise with a vanilla cause: 3x `CallStatic - Function not found - 'StopInstance'` (Papyrus `Sound.StopInstance`
+  from a vanilla script, right after dungeon hosts are granted). Nothing of ours calls it.
+- [x] **Housing: rename notice** (fork `587ef69`, local `main`, **not pushed, not built**). A named key is matched by
+  its whole name (`Key to the <name>`), so renaming a named property orphans every key cut before it; the owner is
+  now told `Keys cut before the rename ("...") no longer open it: cut new ones.` Unnamed `Property Key (TAG)` keys
+  end in the credential and keep working, so no warning there. `tsc --noEmit` clean.
+- [ ] **Housing, for Nat (design, not fixed): a rename can hand keys to another property.** Two properties sharing a
+  name are ranked by ref id (`labelRank`): the lower is `Key to the X`, the higher `Key to the X, the second`. If the
+  lower one is renamed away, the higher one becomes rank 1 and its expected key becomes `Key to the X` - which is
+  exactly the key the renamed property's old keyholders carry. They now open the other property, and its own
+  keyholders are locked out. Same when a lower-id property is renamed *to* an existing name. Fix options: match on
+  the credential suffix always (keys carry `(TAG)` again), or store the key name issued at cut time on the record.
+- [x] `ck-mcp\markerspells.py` canonicalises the SPIT perk and the EFID effect through DragonBreak Online Edits.esp's
+  own master list (it used `lo.plugins[0]` for the perk and printed EFID raw). Ran it: 90 markers, output unchanged
+  (no marker has a perk or an effect). ck-mcp is not in git.
+- [x] **Four new client crashes on this PC, 23 Sep (local times, `C:\DragonBreak\skyrim`), none is the jump crash:**
+  16:04 `SkyrimSE+0AC1782` (id 58524, `cmp [rcx+0x18]`) during `WerewolfBeastProject` with OpenAnimationReplacer
+  `Hooks.cpp:206` on the stack - a beast-form transform; 19:01 `EXCEPTION_BREAKPOINT` `+0B7544F` (id 62402) under
+  hdtSMP64 `ActorManager::setSkeletonsActive`; 20:53 the known EngineFixes tbbmalloc `freeOwnObject` with
+  SkyrimPlatformImpl on the stack (ids 36544/36601); 21:44 jump to `0x1` in a BSJobs thread with a `BSLight*` in RAX
+  (ids 63997/63980). Not resolved further; the werewolf one is worth a repro (transform with OAR loaded).
+
 ## Added 2026-09-24 (03:30 UTC): play session 01:25-03:02 UTC, issues noted (nothing fixed or pushed yet, Nat: hold)
 
 Players: Argosh, Goddess Dibella, Elder Uriel, Huntan Elmgrove, Hircine, Lizard-chef, Falcius Octavio, Velisse
