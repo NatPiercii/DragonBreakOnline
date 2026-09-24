@@ -5,6 +5,8 @@ const https = require('https')
 const config = require('../../config')
 const bans = require('../bans')
 const players = require('../players')
+const tickets = require('./tickets')
+const serverStatus = require('./serverStatus')
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration],
@@ -15,6 +17,16 @@ let ready = false
 client.once('ready', () => {
   ready = true
   console.log(`[discord-bot] ready as ${client.user.tag}`)
+  tickets.ensurePanel(client).catch(err => console.error('[discord-bot] ticket panel failed:', err.message))
+  serverStatus.start(client)
+})
+
+// Ticket buttons and their modals. handleInteraction returns false for anything not
+// ours, so another interaction handler can be added here without untangling this one.
+client.on('interactionCreate', interaction => {
+  tickets.handleInteraction(interaction).catch(err => {
+    console.error('[discord-bot] interaction failed:', err.message)
+  })
 })
 
 client.on('error', err => {

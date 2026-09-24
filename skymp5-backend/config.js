@@ -100,6 +100,16 @@ module.exports = {
   discordGuildId:  process.env.DISCORD_GUILD_ID  || '',
   // Channel that receives the audit log (role changes, permission edits, GM actions relayed by the game server)
   discordLogChannelId: process.env.DISCORD_LOG_CHANNEL_ID || '',
+  // Channel holding the ticket panel (the embed with the buttons)
+  discordTicketPanelChannelId: process.env.DISCORD_TICKET_PANEL_CHANNEL_ID || '',
+  // Channel holding the single auto-updating server status tile
+  discordStatusChannelId: process.env.DISCORD_STATUS_CHANNEL_ID || '',
+  // Roles that can read and answer every ticket, comma separated. Without at least one,
+  // a ticket is visible only to the person who opened it
+  discordStaffRoleIds: (process.env.DISCORD_STAFF_ROLE_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
+  // The single role pinged when a ticket opens, kept separate so every staff role can read
+  // tickets without everyone being notified for each one
+  discordTicketPingRoleId: process.env.DISCORD_TICKET_PING_ROLE_ID || '',
   // Forum channel that launcher problem reports open a thread in, one thread per reporter
   discordErrorForumChannelId: process.env.DISCORD_ERROR_FORUM_CHANNEL_ID || '',
 
