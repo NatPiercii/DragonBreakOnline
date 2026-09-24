@@ -13,8 +13,8 @@ float CropMagickaRegeneration(float newAttributeValue,
 float CropStaminaRegeneration(float newAttributeValue,
                               float secondsAfterLastRegen, MpActor* actor);
 
+// Clients report vitals about every second, so longer gaps are capped
 float CropPeriodAfterLastRegen(float secondsAfterLastRegen,
-                               float maxValidPeriod = 2.0f,
-                               float defaultPeriod = 1.0f);
+                               float maxValidPeriod = 5.0f);
 
 float CropValue(float value, float min = 0.f, float max = 1.0f);

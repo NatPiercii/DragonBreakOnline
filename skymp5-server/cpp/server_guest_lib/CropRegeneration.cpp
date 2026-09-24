@@ -121,15 +121,13 @@ float CropStaminaRegeneration(float newAttributeValue,
 }
 
 float CropPeriodAfterLastRegen(float secondsAfterLastRegen,
-                               float maxValidPeriod, float defaultPeriod)
+                               float maxValidPeriod)
 {
-  if (secondsAfterLastRegen < 0.0f) {
+  // Also catches NaN
+  if (!(secondsAfterLastRegen > 0.0f)) {
     return 0.0f;
   }
-  if (secondsAfterLastRegen > maxValidPeriod) {
-    return defaultPeriod;
-  }
-  return secondsAfterLastRegen;
+  return std::min(secondsAfterLastRegen, maxValidPeriod);
 }
 
 float CropValue(float value, float min, float max)

@@ -1,6 +1,7 @@
 #include "TestUtils.hpp"
 #include <catch2/catch_all.hpp>
 #include <chrono>
+#include <limits>
 
 #include "CropRegeneration.h"
 #include "GetBaseActorValues.h"
@@ -66,24 +67,34 @@ TEST_CASE("CropPeriodAfterLastRegen returns 0 if period < 0",
   REQUIRE(CropPeriodAfterLastRegen(-1.0f) == 0.0f);
 }
 
+TEST_CASE("CropPeriodAfterLastRegen returns 0 if period is NaN",
+          "[CropRegeneration]")
+{
+  REQUIRE(CropPeriodAfterLastRegen(std::numeric_limits<float>::quiet_NaN()) ==
+          0.0f);
+}
+
 TEST_CASE(
-  "CropPeriodAfterLastRegen returns defaultPeriod if period > maxValidPeriod",
+  "CropPeriodAfterLastRegen caps the period at maxValidPeriod if it is longer",
   "[CropRegeneration]")
 {
-  float defaultPeriod = 1.0f;
-  float maxValidPeriod = 2.0f;
-  REQUIRE(CropPeriodAfterLastRegen(2.5f, maxValidPeriod, defaultPeriod) ==
-          1.0f);
+  float maxValidPeriod = 5.0f;
+  REQUIRE(CropPeriodAfterLastRegen(7.5f, maxValidPeriod) == 5.0f);
+  REQUIRE(CropPeriodAfterLastRegen(60.0f) == 5.0f);
+}
+
+TEST_CASE("CropPeriodAfterLastRegen keeps a report gap just over two seconds",
+          "[CropRegeneration]")
+{
+  REQUIRE(CropPeriodAfterLastRegen(2.1f) == 2.1f);
 }
 
 TEST_CASE("CropPeriodAfterLastRegen returns correct value if period is in "
           "0...maxValidPeriod interval",
           "[CropRegeneration]")
 {
-  float defaultPeriod = 1.0f;
-  float maxValidPeriod = 2.0f;
-  REQUIRE(CropPeriodAfterLastRegen(1.3f, maxValidPeriod, defaultPeriod) ==
-          1.3f);
+  float maxValidPeriod = 5.0f;
+  REQUIRE(CropPeriodAfterLastRegen(1.3f, maxValidPeriod) == 1.3f);
 }
 
 TEST_CASE("CropHealthRegeneration, CropMagickaRegeneration and "

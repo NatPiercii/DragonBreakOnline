@@ -282,6 +282,48 @@ TEST_CASE("OnChangeValues crops stamina gains to regeneration but accepts "
   DoDisconnect(partOne, 0);
 }
 
+TEST_CASE("A server stamina drain does not shrink the magicka allowance",
+          "[ChangeValues]")
+{
+  PartOne& partOne = GetPartOne();
+  DoConnect(partOne, 0);
+  partOne.CreateActor(0xff000000, { 0, 0, 0 }, 0, 0x3c);
+  partOne.SetUserActor(0, 0xff000000);
+  auto& ac = partOne.worldState.GetFormAt<MpActor>(0xff000000);
+
+  auto appearance = ac.GetAppearance();
+  BaseActorValues baseValues = GetBaseActorValues(
+    &partOne.worldState, ac.GetBaseId(), appearance ? appearance->raceId : 0,
+    {});
+
+  ac.SetPercentages({ 1.0f, 0.2f, 1.0f });
+  auto past = std::chrono::steady_clock::now() - 1s;
+  ac.SetLastAttributesPercentagesUpdate(past);
+
+  ActorValues drain = ac.GetChangeForm().actorValues;
+  drain.staminaPercentage = 0.5f;
+  ac.NetSetPercentages(
+    drain, nullptr, std::vector<espm::ActorValue>{ espm::ActorValue::Stamina });
+  partOne.Messages().clear();
+
+  nlohmann::json j = nlohmann::json{ { "t", MsgType::ChangeValues },
+                                     { "data", { { "magicka", 0.9f } } } };
+  DoMessage(partOne, 0, j);
+
+  std::chrono::duration<float> elapsedTime =
+    std::chrono::steady_clock::now() - past;
+  float expectedMagicka = 0.2f +
+    baseValues.magickaRate * baseValues.magickaRateMult *
+      elapsedTime.count() / 10000.0f;
+
+  float magicka = ac.GetChangeForm().actorValues.magickaPercentage;
+  REQUIRE_THAT(magicka, Catch::Matchers::WithinAbs(expectedMagicka, 0.001f));
+  REQUIRE(magicka > 0.2f);
+
+  partOne.DestroyActor(0xff000000);
+  DoDisconnect(partOne, 0);
+}
+
 TEST_CASE("Stamina the server sends to the client restarts the stamina "
           "allowance",
           "[ChangeValues]")

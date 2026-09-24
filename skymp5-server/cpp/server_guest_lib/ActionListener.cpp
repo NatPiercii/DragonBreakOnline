@@ -1195,10 +1195,15 @@ void ActionListener::OnChangeValues(const RawMessageData& rawMsgData,
   }
 
   const auto now = std::chrono::steady_clock::now();
-  const float timeAfterRegeneration = CropPeriodAfterLastRegen(
-    actor->GetDurationOfAttributesPercentagesUpdate(now).count());
+  const float timeAfterHealthRegeneration = CropPeriodAfterLastRegen(
+    actor->GetDurationOfPercentageUpdate(espm::ActorValue::Health, now)
+      .count());
+  const float timeAfterMagickaRegeneration = CropPeriodAfterLastRegen(
+    actor->GetDurationOfPercentageUpdate(espm::ActorValue::Magicka, now)
+      .count());
   const float timeAfterStaminaRegeneration =
-    actor->GetDurationOfStaminaPercentageUpdate(now).count();
+    actor->GetDurationOfPercentageUpdate(espm::ActorValue::Stamina, now)
+      .count();
 
   const auto& currentValues = actor->GetActorValues();
 
@@ -1220,18 +1225,18 @@ void ActionListener::OnChangeValues(const RawMessageData& rawMsgData,
     if (actor->ShouldSkipRestoration(av)) {
       outVal = currentVal;
       sendOutMsg = true;
-      if (av == espm::ActorValue::Stamina) {
-        actor->SetLastStaminaPercentageUpdate(now);
-      }
+      actor->SetLastPercentageUpdate(av, now);
       return;
     }
 
     float newVal = *inputVal;
 
     if (av == espm::ActorValue::Health) {
-      newVal = CropHealthRegeneration(newVal, timeAfterRegeneration, actor);
+      newVal =
+        CropHealthRegeneration(newVal, timeAfterHealthRegeneration, actor);
     } else if (av == espm::ActorValue::Magicka) {
-      newVal = CropMagickaRegeneration(newVal, timeAfterRegeneration, actor);
+      newVal =
+        CropMagickaRegeneration(newVal, timeAfterMagickaRegeneration, actor);
     } else if (av == espm::ActorValue::Stamina) {
       newVal =
         CropStaminaRegeneration(newVal, timeAfterStaminaRegeneration, actor);
@@ -1734,7 +1739,11 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
       const auto now = std::chrono::steady_clock::now();
       RestorationChannel channel;
       channel.spellId = spellCastData.spell;
-      channel.targetId = targetActor->GetFormId();
+      // Keep-alives resend the caster as target, a beam hit's retarget must survive them
+      const bool keepsTarget = hadChannel && spellCastData.keepAlive &&
+        existing->second.spellId == spellCastData.spell;
+      channel.targetId = keepsTarget ? existing->second.targetId
+                                     : targetActor->GetFormId();
       channel.effects = restoreEffects;
       channel.hasSweetpie = hasSweetpie;
       channel.lastRefresh = now;
@@ -1929,8 +1938,30 @@ void ActionListener::OnSpellHit(MpActor* aggressor,
   }
   const auto spellData =
     espm::GetData<espm::SPEL>(hitData.source, &partOne.worldState);
-  if (!spellData.spellItem ||
-      spellData.spellItem->castType != espm::SPEL::CastType::FireAndForget) {
+  if (!spellData.spellItem) {
+    return;
+  }
+  // The beam's hit names the real target, the channel's ticks do the healing
+  if (spellData.spellItem->castType == espm::SPEL::CastType::Concentration) {
+    auto channelIt = restorationChannels.find(aggressor->GetFormId());
+    if (channelIt == restorationChannels.end() ||
+        channelIt->second.spellId != hitData.source ||
+        channelIt->second.targetId == targetActorPtr->GetFormId()) {
+      return;
+    }
+    auto& channel = channelIt->second;
+    const uint32_t previousTargetId = channel.targetId;
+    channel.targetId = targetActorPtr->GetFormId();
+    if (!GetRestorationChannelTarget(aggressor->GetFormId(), channel)) {
+      channel.targetId = previousTargetId;
+      return;
+    }
+    spdlog::info("OnSpellHit - retargeted restoration channel of spell {:x} "
+                 "from actor {:x} to actor {:x}",
+                 hitData.source, previousTargetId, channel.targetId);
+    return;
+  }
+  if (spellData.spellItem->castType != espm::SPEL::CastType::FireAndForget) {
     return;
   }
   const bool selfDelivery =
