@@ -57,3 +57,6 @@ revive.json
 
 # Jail zones added in game with /jail add (jail.js)
 jails.json
+
+# Terrain heights extracted from the plugins (ck-mcp/terrain_heights.py), copied to the server by hand
+terrain-heights.json

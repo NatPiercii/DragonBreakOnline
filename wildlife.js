@@ -14,6 +14,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 module.exports = (api) => {
   const { mp, log, personal, system, registerChatCommand, giveItem, profileOf, display, who, audit, isAdmin, cfg } = api;
@@ -65,7 +66,8 @@ module.exports = (api) => {
     } catch (e) { /* no file yet */ }
     const kept = list.filter((z) => !String((z && (z.Name || z.name)) || '').startsWith(PREFIX));
     const mine = C.enabled ? buildZones() : [];
-    const signature = JSON.stringify([C.radius, C.despawnSeconds, C.respawnSeconds, C.pick, SAFE, mine.length]);
+    // The zones themselves are in the signature, so a moved spot reaches NPC-Spawns.json on a hot reload
+    const signature = JSON.stringify([C.radius, C.despawnSeconds, C.respawnSeconds, C.pick, SAFE, mine.length, crypto.createHash('sha1').update(JSON.stringify(mine)).digest('hex')]);
     const before = list.filter((z) => String((z && (z.Name || z.name)) || '').startsWith(PREFIX)).length;
     if (before === mine.length && globalThis.__dboWildSig === signature) return mine.length;
     globalThis.__dboWildSig = signature;

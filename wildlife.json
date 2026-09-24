@@ -71085,7 +71085,7 @@
 "pos": [
 85691.34,
 169845.19,
--5645.41
+-5463.1
 ],
 "src": "49e50:BSHeartland.esm",
 "ref": "881c2:BSHeartland.esm",
@@ -71133,7 +71133,7 @@
 "pos": [
 85493.2,
 169726.73,
--5597.57
+-5397.6
 ],
 "src": "49e51:BSHeartland.esm",
 "ref": "87d8a:BSHeartland.esm",
@@ -75360,30 +75360,6 @@
 [
 1,
 "829b3:Skyrim.esm"
-]
-]
-},
-{
-"kind": "fox",
-"edid": "LvlAmbientCreaturesSnow",
-"world": "a764b:BSHeartland.esm",
-"cell": "9ff12:BSHeartland.esm",
-"pos": [
-59820.35,
-210809.06,
-7434.35
-],
-"src": "d4be9:BSHeartland.esm",
-"ref": "79d6d:BSHeartland.esm",
-"anchorDist": 2888,
-"options": [
-[
-1,
-"6dc9d:Skyrim.esm"
-],
-[
-1,
-"829b6:Skyrim.esm"
 ]
 ]
 },

@@ -1425,17 +1425,84 @@ onUi('favorites', (a, args) => {
   if (!r) return;
   mp.set(a, 'private.dboFavorites', { items: cleanFavorites(r.items), spells: cleanFavorites(r.spells) });
 });
+// Who hosts which NPC, from the "hex:distance" ids of each client's heartbeat; the C++ "Hoster of" lines stay the ground truth
+const HOST_OF = globalThis.__dboHostOf instanceof Map ? globalThis.__dboHostOf : (globalThis.__dboHostOf = new Map());
+const HOST_OF_KEEP_MS = 300000;
+const driftNote = (a, r) => {
+  const id = parseInt(String(r.remoteId || ''), 16) >>> 0;
+  if (r.kind === 'heartbeat' && typeof r.ids === 'string') {
+    const now = Date.now();
+    for (const [k, h] of HOST_OF) if (h.host === a || now - h.at > HOST_OF_KEEP_MS) HOST_OF.delete(k);
+    for (const pair of r.ids.split(',')) {
+      const [hexId, dist] = pair.split(':');
+      const n = parseInt(hexId, 16) >>> 0;
+      if (n) HOST_OF.set(n, { host: a, dist: Number(dist), at: now });
+    }
+    return '';
+  }
+  const host = (r.kind === 'remote' || r.kind === 'remoteEvent') && id ? driftHostNote(id) : '';
+  const points = driftPoints(r);
+  if (!points || !id || typeof globalThis.__dboTerrainDz !== 'function') return host;
+  const desc = String(mp.get(id, 'worldOrCellDesc') || '');
+  const dz = points.map((p) => globalThis.__dboTerrainDz(desc, p));
+  return dz.some((v) => v !== null) ? `${host} terrainDz=${dz.map(String).join('/')} world=${desc}` : host;
+};
+const driftHostNote = (id) => {
+  const h = HOST_OF.get(id);
+  if (!h) return ' host=?';
+  let dist = h.dist;
+  let sameWorld = '?';
+  try {
+    const p = mp.get(h.host, 'pos');
+    const q = mp.get(id, 'pos');
+    dist = Math.round(Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]));
+    sameWorld = String(mp.get(h.host, 'worldOrCellDesc')) === String(mp.get(id, 'worldOrCellDesc'));
+  } catch (e) { /* host or actor gone, the heartbeat distance stands */ }
+  return ` host=${display(h.host)} hostDist=${dist} sameWorld=${sameWorld} hostSeen=${Math.round((Date.now() - h.at) / 1000)}s`;
+};
+// Heights compared with the terrain per report kind: ref/bone for hosts, copy/body/srv for non-host copies
+const driftPoints = (r) => {
+  const last = (a) => (Array.isArray(a) && a.length ? a[a.length - 1] : null);
+  if ((r.kind === 'repairResult' || r.kind === 'repairLate') && r.after) return [r.after.ref, r.after.bone];
+  if (r.kind === 'split' || r.kind === 'sink') return [r.ref, r.bone];
+  if (r.kind === 'bounce') return [last(r.refPath), last(r.path)];
+  if (r.kind === 'remote' && Array.isArray(r.ref)) {
+    const body = typeof r.bodyDz === 'number' ? [r.ref[0], r.ref[1], r.ref[2] + r.bodyDz] : null;
+    return [r.ref, body, r.srv];
+  }
+  if (r.kind === 'remoteEvent') return [r.to, null, r.srv];
+  return null;
+};
 onUi('npcDrift', (a, args) => {
   const r = args[0] && typeof args[0] === 'object' ? args[0] : {};
-  log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 900)}`);
+  let note = '';
+  try { note = driftNote(a, r); } catch (e) { /* diagnostics only */ }
+  log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 900)}${note}`);
 });
-// How hosts repair a split body; kept across reloads and sent at every join so a test needs no client build
+// How hosts repair a split body, and the client drift switches (client sync\driftConfig.ts, same checks there);
+// kept across reloads and sent at every join so a test needs no client build
 const DRIFT_REPAIRS = ['setPosition', 'none', 'moveTo', 'disableEnable'];
 const DRIFT_SPAWNS = ['moveTo', 'setPosition'];
-const sendDriftConfig = (a) => sendPacket(a, { customPacketType: 'npcDriftConfig', repair: globalThis.__dboDriftRepair || 'setPosition', spawn: globalThis.__dboDriftSpawn || 'moveTo' });
+const driftRange = (min, max) => (v) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+const DRIFT_KEYS = {
+  remote: { def: true, ok: (v) => typeof v === 'boolean' },
+  remoteRadius: { def: 4096, ok: driftRange(256, 16384) },
+  remoteMax: { def: 16, ok: driftRange(0, 64) },
+  sinkReport: { def: 120, ok: driftRange(16, 1000) },
+  rehostClock: { def: 'apply', ok: (v) => v === 'packet' || v === 'apply' },
+  rehostAfterMs: { def: 2100, ok: driftRange(1000, 10000) },
+};
+const DRIFT_SET = globalThis.__dboDriftSet && typeof globalThis.__dboDriftSet === 'object' ? globalThis.__dboDriftSet : (globalThis.__dboDriftSet = {});
+const driftValue = (k) => (Object.prototype.hasOwnProperty.call(DRIFT_SET, k) ? DRIFT_SET[k] : DRIFT_KEYS[k].def);
+const sendDriftConfig = (a) => {
+  const payload = { customPacketType: 'npcDriftConfig', repair: globalThis.__dboDriftRepair || 'setPosition', spawn: globalThis.__dboDriftSpawn || 'moveTo' };
+  for (const k of Object.keys(DRIFT_KEYS)) payload[k] = driftValue(k);
+  sendPacket(a, payload);
+};
+const driftArgs = (args) => String(args || '').trim().split(/\s+/);
 // How a client seats a new NPC copy: moveTo places it natively before its first load, setPosition is the old way
 registerChatCommand('driftspawn', (a, args) => {
-  const mode = String(args[0] || '');
+  const mode = driftArgs(args)[0];
   if (!DRIFT_SPAWNS.includes(mode)) return personal(a, `NPC spawn placement is ${globalThis.__dboDriftSpawn || 'moveTo'}. Use: /driftspawn ${DRIFT_SPAWNS.join('|')}`);
   globalThis.__dboDriftSpawn = mode;
   onlineActors().forEach(sendDriftConfig);
@@ -1443,13 +1510,25 @@ registerChatCommand('driftspawn', (a, args) => {
   audit(`GM ${who(a)} set the NPC spawn placement to ${mode}`);
 }, { admin: true, help: '<moveTo|setPosition> how clients seat a new NPC copy' });
 registerChatCommand('driftrepair', (a, args) => {
-  const mode = String(args[0] || '');
+  const mode = driftArgs(args)[0];
   if (!DRIFT_REPAIRS.includes(mode)) return personal(a, `Split repair is ${globalThis.__dboDriftRepair || 'setPosition'}. Use: /driftrepair ${DRIFT_REPAIRS.join('|')}`);
   globalThis.__dboDriftRepair = mode;
   onlineActors().forEach(sendDriftConfig);
   personal(a, `Split repair set to ${mode} for everyone online.`);
   audit(`GM ${who(a)} set the split repair to ${mode}`);
 }, { admin: true, help: '<setPosition|none|moveTo|disableEnable> how hosts repair a split NPC body' });
+registerChatCommand('driftset', (a, args) => {
+  const [key, raw = ''] = driftArgs(args);
+  const spec = Object.prototype.hasOwnProperty.call(DRIFT_KEYS, key) ? DRIFT_KEYS[key] : null;
+  if (!spec) return personal(a, `Drift switches: ${Object.keys(DRIFT_KEYS).map((k) => `${k}=${driftValue(k)}`).join(', ')}. Use: /driftset <key> <value|default>`);
+  const value = raw === 'default' ? spec.def : raw === 'true' ? true : raw === 'false' ? false : raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : raw;
+  if (!spec.ok(value)) return personal(a, `${key} cannot be "${raw}"; it is ${driftValue(key)}.`);
+  if (raw === 'default') delete DRIFT_SET[key];
+  else DRIFT_SET[key] = value;
+  onlineActors().forEach(sendDriftConfig);
+  personal(a, `${key} set to ${value} for everyone online.`);
+  audit(`GM ${who(a)} set the drift switch ${key} to ${value}`);
+}, { admin: true, help: '<key> <value|default> a client drift switch; no key lists them' });
 const refusePigeon = (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); personal(a, 'Pigeons are sent from a notice board. Walk up to one and use it.'); };
 onUi('pigeonOpen', (a, args) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a, undefined, undefined, args[0] === 'letters' || args[0] === 'send' ? args[0] : undefined); });
 // Letters: opening one marks it read, and a letter can be thrown away; both answer with a fresh Letters tab
@@ -2477,7 +2556,8 @@ const hostAttemptHook = (requesterId, actorId) => {
     console.log(`[hostAttempt] Error for req=${req.toString(16)} act=${act.toString(16)}: ${e}`);
     return false;
   }
-  console.log(`[hostAttempt] Granted host of act=${act.toString(16)} to req=${req.toString(16)}`);
+  // C++ can still refuse after this (a hoster whose movement is under 2 s old keeps the actor)
+  console.log(`[hostAttempt] Host of act=${act.toString(16)} for req=${req.toString(16)} passed policy`);
   return true;
 };
 hostAttemptHook.__dbo = true;
@@ -2710,6 +2790,13 @@ try {
   delete require.cache[WILDLIFE_JS];
   require(WILDLIFE_JS)({ mp, log, personal, system, registerChatCommand, giveItem, profileOf, display, who, audit, onlineActors, isAdmin, cfg });
 } catch (e) { log('wildlife.js failed to load:', e.stack || e.message); }
+
+// ---- NPCs under the terrain (server\npcground.js, terrain-heights.json copied by hand) ------------
+try {
+  const NPCGROUND_JS = path.resolve('npcground.js');
+  delete require.cache[NPCGROUND_JS];
+  require(NPCGROUND_JS)({ mp, log, every, onlineActors, display });
+} catch (e) { log('npcground.js failed to load:', e.stack || e.message); }
 
 // ---- door names for the interaction prompt (doors.json from ck-mcp/doors.py) --------------------
 const DOOR_NAMES = (() => {
