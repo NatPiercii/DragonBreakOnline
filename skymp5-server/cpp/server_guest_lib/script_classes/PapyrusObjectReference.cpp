@@ -12,6 +12,7 @@
 #include <TimeUtils.h>
 #include <algorithm>
 #include <cstring>
+#include <set>
 
 namespace {
 constexpr uint32_t kPlayerCharacterLevel = 1;
@@ -783,19 +784,126 @@ static VarValue GetLinkedRef(VarValue self)
 
   return VarValue::None();
 }
+
+// Global form id of the Keyword argument, 0 for None
+static uint32_t KeywordIdOf(const std::vector<VarValue>& arguments)
+{
+  if (arguments.empty() ||
+      arguments[0].GetType() != VarValue::kType_Object ||
+      !static_cast<IGameObject*>(arguments[0])) {
+    return 0;
+  }
+  const auto& keywordRec = GetRecordPtr(arguments[0]);
+  return keywordRec.rec ? keywordRec.ToGlobalId(keywordRec.rec->GetId()) : 0;
+}
+
+// Global form id of the XLKR target tagged with keywordId (0 = untagged)
+static uint32_t FindLinkedRefId(WorldState* worldState, uint32_t refrId,
+                                uint32_t keywordId)
+{
+  if (!worldState || !worldState->HasEspm() || refrId >= 0xff000000) {
+    return 0;
+  }
+  auto lookupRes = worldState->GetEspm().GetBrowser().LookupById(refrId);
+  if (!lookupRes.rec) {
+    return 0;
+  }
+  auto type = lookupRes.rec->GetType();
+  if (!(type == "REFR") && !(type == "ACHR")) {
+    return 0;
+  }
+  auto data = reinterpret_cast<const espm::REFR*>(lookupRes.rec)
+                ->GetData(worldState->GetEspmCache());
+  for (const auto& link : data.linkedRefs) {
+    uint32_t linkKeywordId =
+      link.keywordId ? lookupRes.ToGlobalId(link.keywordId) : 0;
+    if (linkKeywordId == keywordId) {
+      return lookupRes.ToGlobalId(link.refrId);
+    }
+  }
+  return 0;
+}
 }
 
 VarValue PapyrusObjectReference::GetLinkedRef(
   VarValue self, const std::vector<VarValue>& arguments)
 {
-  // TODO: implement keyword argument
-  // https://ck.uesp.net/wiki/GetLinkedRef_-_ObjectReference
-  if (arguments.size() > 0 && arguments[0] != VarValue::None()) {
-    spdlog::warn(
-      "GetLinkedRef doesn't support Keyword argument at this moment");
+  uint32_t keywordId = LinkedRefUtils::KeywordIdOf(arguments);
+  if (auto selfRefr = GetFormPtr<MpObjectReference>(self)) {
+    auto worldState = selfRefr->GetParent();
+    if (auto linkedId = LinkedRefUtils::FindLinkedRefId(
+          worldState, selfRefr->GetFormId(), keywordId)) {
+      auto& linkedRef = worldState->GetFormAt<MpObjectReference>(linkedId);
+      return VarValue(std::make_shared<MpFormGameObject>(&linkedRef));
+    }
   }
 
-  return LinkedRefUtils::GetLinkedRef(self);
+  // An untagged call on a ref with only tagged links keeps the old answer
+  return keywordId ? VarValue::None() : LinkedRefUtils::GetLinkedRef(self);
+}
+
+VarValue PapyrusObjectReference::EnableLinkChain(
+  VarValue self, const std::vector<VarValue>& arguments)
+{
+  return SetLinkChainEnabled(self, arguments, true);
+}
+
+VarValue PapyrusObjectReference::DisableLinkChain(
+  VarValue self, const std::vector<VarValue>& arguments)
+{
+  return SetLinkChainEnabled(self, arguments, false);
+}
+
+// Native form of ObjectReference.psc EnableLinkChain/DisableLinkChain: the VM
+// never resolves non-native functions inherited from ObjectReference
+VarValue PapyrusObjectReference::SetLinkChainEnabled(
+  VarValue self, const std::vector<VarValue>& arguments, bool enable)
+{
+  auto selfRefr = GetFormPtr<MpObjectReference>(self);
+  if (!selfRefr) {
+    return VarValue::None();
+  }
+  auto worldState = selfRefr->GetParent();
+  uint32_t keywordId = LinkedRefUtils::KeywordIdOf(arguments);
+
+  // Vanilla passes abFadeOut to Disable and nothing to Enable
+  bool fadeOut = !enable && arguments.size() >= 2 &&
+    static_cast<bool>(arguments[1].CastToBool());
+  std::vector<VarValue> linkArguments = { VarValue(fadeOut) };
+
+  std::set<uint32_t> visited = { selfRefr->GetFormId() };
+  uint32_t current = selfRefr->GetFormId();
+  while (uint32_t next =
+           LinkedRefUtils::FindLinkedRefId(worldState, current, keywordId)) {
+    if (!visited.insert(next).second) {
+      spdlog::warn("LinkChain {:x} - chain loops back at {:x}",
+                   selfRefr->GetFormId(), next);
+      break;
+    }
+
+    auto& form = worldState->LookupFormById(next);
+    if (auto linkedRefr = form ? form->AsObjectReference() : nullptr) {
+      auto linkedSelf =
+        VarValue(std::make_shared<MpFormGameObject>(linkedRefr));
+      if (enable) {
+        Enable(linkedSelf, linkArguments);
+      } else {
+        Disable(linkedSelf, linkArguments);
+      }
+    } else {
+      // Lights, statics and collision markers are never server forms, so
+      // only the clients in range of the chain owner can switch them
+      auto serializedArgs =
+        SpSnippetFunctionGen::SerializeArguments(linkArguments, worldState);
+      for (auto listener : selfRefr->GetActorListeners()) {
+        SpSnippet(GetName(), enable ? "Enable" : "Disable", serializedArgs,
+                  next)
+          .Execute(listener, SpSnippetMode::kNoReturnResult);
+      }
+    }
+    current = next;
+  }
+  return VarValue::None();
 }
 
 VarValue PapyrusObjectReference::GetNthLinkedRef(
@@ -969,6 +1077,9 @@ void PapyrusObjectReference::Register(
   AddMethod(vm, "Is3DLoaded", &PapyrusObjectReference::Is3DLoaded);
   AddMethod(vm, "GetLinkedRef", &PapyrusObjectReference::GetLinkedRef);
   AddMethod(vm, "GetNthLinkedRef", &PapyrusObjectReference::GetNthLinkedRef);
+  AddMethod(vm, "EnableLinkChain", &PapyrusObjectReference::EnableLinkChain);
+  AddMethod(vm, "DisableLinkChain",
+            &PapyrusObjectReference::DisableLinkChain);
   AddMethod(vm, "GetParentCell", &PapyrusObjectReference::GetParentCell);
   AddMethod(vm, "GetOpenState", &PapyrusObjectReference::GetOpenState);
   AddMethod(vm, "GetAllItemsCount", &PapyrusObjectReference::GetAllItemsCount);

@@ -33,8 +33,11 @@ REFR::Data REFR::GetData(
         [[likely]] if (dataSize == 8) {
           result.linkedRefKeywordId = *reinterpret_cast<const uint32_t*>(data);
           result.linkedRefId = *reinterpret_cast<const uint32_t*>(data + 4);
+          result.linkedRefs.push_back(
+            { result.linkedRefKeywordId, result.linkedRefId });
         } else if (dataSize == 4) {
           result.linkedRefId = *reinterpret_cast<const uint32_t*>(data);
+          result.linkedRefs.push_back({ 0, result.linkedRefId });
         }
       } else if (!std::memcmp(type, "XOWN", 4)) {
         result.ownerFaction = *reinterpret_cast<const uint32_t*>(data);

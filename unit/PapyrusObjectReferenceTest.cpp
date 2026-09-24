@@ -6,6 +6,7 @@
 #include "papyrus-vm/Structures.h"
 #include "script_classes/PapyrusObjectReference.h"
 #include "script_objects/EspmGameObject.h"
+#include "script_objects/MpFormGameObject.h"
 
 using Catch::Matchers::ContainsSubstring;
 
@@ -199,4 +200,87 @@ TEST_CASE("MoveTo", "[Papyrus][ObjectReference]")
       [](PartOne::Message& msg) { return msg.j["t"] == MsgType::Teleport; });
     REQUIRE(it != messages.end());
   }
+}
+
+PartOne& GetPartOne();
+
+namespace {
+// Skull locks in cell 1522a: each links untagged to its bolt and with LinkCustom01 to the other lock
+constexpr uint32_t kSkullLockA = 0xaad7d;
+constexpr uint32_t kSkullLockB = 0xaad42;
+constexpr uint32_t kDeadBoltA = 0xaad47;
+constexpr uint32_t kDeadBoltB = 0xaad41;
+constexpr uint32_t kLinkCustom01 = 0x5d5e6;
+
+VarValue LinkCustom01(PartOne& p)
+{
+  return VarValue(std::make_shared<EspmGameObject>(
+    p.worldState.GetEspm().GetBrowser().LookupById(kLinkCustom01)));
+}
+
+uint32_t FormIdOf(const VarValue& v)
+{
+  auto refr = GetFormPtr<MpObjectReference>(v);
+  return refr ? refr->GetFormId() : 0;
+}
+}
+
+TEST_CASE("REFR keeps every XLKR with its keyword", "[espm]")
+{
+  auto& p = GetPartOne();
+  auto links =
+    espm::GetData<espm::REFR>(kSkullLockA, &p.worldState).linkedRefs;
+  REQUIRE(links.size() == 2);
+  REQUIRE(links[0].keywordId == 0);
+  REQUIRE(links[0].refrId == kDeadBoltA);
+  REQUIRE(links[1].keywordId == kLinkCustom01);
+  REQUIRE(links[1].refrId == kSkullLockB);
+}
+
+TEST_CASE("GetLinkedRef follows the keyword it is given",
+          "[Papyrus][ObjectReference][espm]")
+{
+  auto& p = GetPartOne();
+  auto& lock = p.worldState.GetFormAt<MpObjectReference>(kSkullLockA);
+
+  REQUIRE(FormIdOf(PapyrusObjectReference().GetLinkedRef(
+            lock.ToVarValue(), { VarValue::None() })) == kDeadBoltA);
+  REQUIRE(FormIdOf(PapyrusObjectReference().GetLinkedRef(
+            lock.ToVarValue(), { LinkCustom01(p) })) == kSkullLockB);
+
+  auto& bolt = p.worldState.GetFormAt<MpObjectReference>(kDeadBoltA);
+  REQUIRE(PapyrusObjectReference().GetLinkedRef(
+            bolt.ToVarValue(), { LinkCustom01(p) }) == VarValue::None());
+}
+
+TEST_CASE("DisableLinkChain and EnableLinkChain walk one keyword",
+          "[Papyrus][ObjectReference][espm]")
+{
+  auto& p = GetPartOne();
+  auto& lockA = p.worldState.GetFormAt<MpObjectReference>(kSkullLockA);
+  auto& lockB = p.worldState.GetFormAt<MpObjectReference>(kSkullLockB);
+  auto& boltA = p.worldState.GetFormAt<MpObjectReference>(kDeadBoltA);
+  auto& boltB = p.worldState.GetFormAt<MpObjectReference>(kDeadBoltB);
+
+  PapyrusObjectReference().DisableLinkChain(
+    lockA.ToVarValue(), { VarValue::None(), VarValue(false) });
+  REQUIRE(boltA.IsDisabled());
+  REQUIRE(!lockB.IsDisabled());
+  REQUIRE(!lockA.IsDisabled());
+
+  PapyrusObjectReference().EnableLinkChain(lockA.ToVarValue(),
+                                           { VarValue::None() });
+  REQUIRE(!boltA.IsDisabled());
+
+  // lockB links back to lockA, so the walk must stop before the owner
+  PapyrusObjectReference().DisableLinkChain(
+    lockA.ToVarValue(), { LinkCustom01(p), VarValue(false) });
+  REQUIRE(lockB.IsDisabled());
+  REQUIRE(!lockA.IsDisabled());
+  REQUIRE(!boltA.IsDisabled());
+  REQUIRE(!boltB.IsDisabled());
+
+  PapyrusObjectReference().EnableLinkChain(lockA.ToVarValue(),
+                                           { LinkCustom01(p) });
+  REQUIRE(!lockB.IsDisabled());
 }

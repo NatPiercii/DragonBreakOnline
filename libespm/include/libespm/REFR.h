@@ -29,6 +29,12 @@ public:
     float delay = 0.f;
   };
 
+  struct LinkedRefInfo
+  {
+    uint32_t keywordId = 0;
+    uint32_t refrId = 0;
+  };
+
   struct Data
   {
     uint32_t baseId = 0;
@@ -41,6 +47,8 @@ public:
     std::vector<ActivationParentInfo> activationParents;
     uint32_t linkedRefKeywordId = 0;
     uint32_t linkedRefId = 0;
+    // Every XLKR in record order; linkedRefId above keeps only the last one
+    std::vector<LinkedRefInfo> linkedRefs;
     uint32_t ownerFaction = 0;
   };
 

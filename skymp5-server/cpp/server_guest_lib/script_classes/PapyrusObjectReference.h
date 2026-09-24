@@ -58,6 +58,12 @@ public:
   VarValue GetNthLinkedRef(VarValue self,
                            const std::vector<VarValue>& arguments);
 
+  VarValue EnableLinkChain(VarValue self,
+                           const std::vector<VarValue>& arguments);
+
+  VarValue DisableLinkChain(VarValue self,
+                            const std::vector<VarValue>& arguments);
+
   VarValue GetParentCell(VarValue self,
                          const std::vector<VarValue>& arguments);
 
@@ -80,4 +86,9 @@ public:
 
   void Register(VirtualMachine& vm,
                 std::shared_ptr<IPapyrusCompatibilityPolicy> policy) override;
+
+private:
+  VarValue SetLinkChainEnabled(VarValue self,
+                               const std::vector<VarValue>& arguments,
+                               bool enable);
 };
