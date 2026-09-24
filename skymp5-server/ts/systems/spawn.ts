@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { extraSlotsFor, isPriorityPatron, reservedSlots } from "./patronTiers";
-import { nameKey } from "./nameFilter";
+import { nameKey, checkName } from "./nameFilter";
 import { kickWithReason } from "./kickUtil";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
@@ -550,11 +550,34 @@ export class Spawn implements System {
     catch { return false; }
   }
 
+  // Shape and word list, plus uniqueness when the character is known
+  private nameProblem(ctx: SystemContext, name: string, actorId?: number): string | null {
+    const shaped = checkName(name);
+    if (!shaped.ok) return shaped.error ?? "That name will not do here";
+    if (actorId !== undefined && this.nameTaken(ctx, nameKey(name), actorId)) return "Someone already goes by that name. Choose another";
+    return null;
+  }
+
   // Vanilla race menu path: an accepted appearance (isRaceMenuOpen) is the creation-finished moment
+  // A refused name leaves creation pending; the gamemode reopens the menu through __dboNameProblem
   private installAppearanceHook(ctx: SystemContext): void {
     const mp = ctx.svr as unknown as Mp;
+    const g = globalThis as any;
+    g.__dboNameProblem = (name: unknown, actorId?: number): string | null =>
+      this.nameProblem(ctx, typeof name === "string" ? name : "", actorId === undefined ? undefined : actorId >>> 0);
+    g.__dboIndexName = (actorId: number, name: string): void => { mp.set(actorId >>> 0, NAME_INDEX_PROP, nameKey(name)); };
     const previous = typeof mp.onUpdateAppearanceAttempt === "function" ? mp.onUpdateAppearanceAttempt : null;
     mp.onUpdateAppearanceAttempt = (actorId: number, appearance: unknown, isAllowed: boolean): boolean => {
+      if (isAllowed) {
+        const name = (appearance as { name?: unknown } | null)?.name;
+        const problem = g.__dboNameProblem(name, actorId);
+        if (problem) {
+          this.log(`[spawn] name "${String(name)}" refused for actor ${(actorId >>> 0).toString(16)}: ${problem}`);
+          isAllowed = false;
+        } else {
+          try { g.__dboIndexName(actorId, name as string); } catch { /* form vanished */ }
+        }
+      }
       if (isAllowed && this.isCreationPending(mp, actorId >>> 0)) {
         try { this.finishCreation(ctx, actorId >>> 0); }
         catch (e) { this.log(`[spawn] finishCreation failed: ${e}`); }
