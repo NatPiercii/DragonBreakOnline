@@ -2992,6 +2992,13 @@ try {
   require(LOCKPICK_JS)({ mp, log, personal, audit, who, openWidget, closeWidget, onUi, cfg });
 } catch (e) { log('lockpick.js failed to load:', e.stack || e.message); globalThis.__dboLockpick = null; }
 
+// ---- GM warbands and raids: catalog NPCs that follow the GM (server\warband.js; companionSystem.ts __dboCompanions) ------
+try {
+  const WARBAND_JS = path.resolve('warband.js');
+  delete require.cache[WARBAND_JS];
+  require(WARBAND_JS)({ mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg });
+} catch (e) { log('warband.js failed to load:', e.stack || e.message); }
+
 // ---- the F7 Place tab: NPCs and world objects placed by GMs (server\placement.js, admin-placeables.json) --------
 try {
   const PLACEMENT_JS = path.resolve('placement.js');
