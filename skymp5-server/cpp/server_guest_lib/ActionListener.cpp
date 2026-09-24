@@ -1277,9 +1277,10 @@ float CalculateCurrentHealthPercentage(const MpActor& actor, float damage,
   const uint32_t raceId = actor.GetRaceId();
   WorldState* espmProvider = actor.GetParent();
 
-  const float baseHealth =
-    GetBaseActorValues(espmProvider, baseId, raceId, actor.GetTemplateChain())
-      .health;
+  BaseActorValues maximum =
+    GetBaseActorValues(espmProvider, baseId, raceId, actor.GetTemplateChain());
+  actor.AddLevelBonus(maximum);
+  const float baseHealth = maximum.health;
 
   if (outBaseHealth) {
     *outBaseHealth = baseHealth;

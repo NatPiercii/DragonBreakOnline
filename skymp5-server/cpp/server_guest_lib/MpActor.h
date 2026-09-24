@@ -176,6 +176,9 @@ public:
   BaseActorValues GetBaseValues();
   BaseActorValues GetMaximumValues();
 
+  // Character level bonuses the gamemode keeps in private.dboAvBonus
+  void AddLevelBonus(BaseActorValues& values) const;
+
   void DropItem(const uint32_t baseId, const Inventory::Entry& entry);
   void SetIsBlockActive(bool isBlockActive);
   bool IsBlockActive() const;

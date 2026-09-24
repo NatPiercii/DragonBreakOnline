@@ -380,6 +380,7 @@ void MpActor::VisitProperties(CreateActorMessage& message,
   if (worldState && worldState->HasEspm()) {
     baseActorValues = GetBaseActorValues(worldState, baseId, raceId,
                                          ChangeForm().templateChain);
+    AddLevelBonus(baseActorValues);
   }
 
   MpChangeForm changeForm = GetChangeForm();
@@ -1827,7 +1828,30 @@ BaseActorValues MpActor::GetBaseValues()
 
 BaseActorValues MpActor::GetMaximumValues()
 {
-  return GetBaseValues();
+  auto values = GetBaseValues();
+  AddLevelBonus(values);
+  return values;
+}
+
+void MpActor::AddLevelBonus(BaseActorValues& values) const
+{
+  const auto& dump = GetDynamicFields().GetValueDump("private.dboAvBonus");
+  if (dump == "null") {
+    return;
+  }
+  const auto j = nlohmann::json::parse(dump, nullptr, false);
+  if (!j.is_object()) {
+    return;
+  }
+  auto add = [&j](const char* key, float& value) {
+    auto it = j.find(key);
+    if (it != j.end() && it->is_number()) {
+      value += std::clamp(it->get<float>(), 0.f, 1000.f);
+    }
+  };
+  add("health", values.health);
+  add("magicka", values.magicka);
+  add("stamina", values.stamina);
 }
 
 void MpActor::DropItem(const uint32_t baseId, const Inventory::Entry& entry)
