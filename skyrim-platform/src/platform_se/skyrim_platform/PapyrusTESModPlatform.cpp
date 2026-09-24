@@ -842,6 +842,153 @@ void TESModPlatform::BlockPapyrusEvents(IVM* vm, StackID stackId,
   papyrusEventsBlocked = blocked;
 }
 
+namespace {
+constexpr int32_t kNumHotkeySlots = 8;
+
+RE::ExtraHotkey* FindHotkeyExtra(RE::InventoryEntryData* entry)
+{
+  if (!entry || !entry->extraLists) {
+    return nullptr;
+  }
+  for (auto* xList : *entry->extraLists) {
+    if (auto* xHotkey = xList ? xList->GetByType<RE::ExtraHotkey>() : nullptr) {
+      return xHotkey;
+    }
+  }
+  return nullptr;
+}
+
+// Frees the slot on every item and spell, keeping them favorited
+void UnbindHotkeySlot(RE::PlayerCharacter* player, int32_t slot)
+{
+  auto favorites = RE::MagicFavorites::GetSingleton();
+  if (favorites && static_cast<uint32_t>(slot) < favorites->hotkeys.size()) {
+    favorites->hotkeys[slot] = nullptr;
+  }
+
+  auto changes = player->GetInventoryChanges();
+  if (!changes || !changes->entryList) {
+    return;
+  }
+  for (auto* entry : *changes->entryList) {
+    if (!entry || !entry->extraLists) {
+      continue;
+    }
+    for (auto* xList : *entry->extraLists) {
+      auto* xHotkey = xList ? xList->GetByType<RE::ExtraHotkey>() : nullptr;
+      if (xHotkey && xHotkey->hotkey.underlying() == slot) {
+        xHotkey->hotkey = RE::ExtraHotkey::Hotkey::kUnbound;
+      }
+    }
+  }
+}
+
+void QueueOnGameThread(std::function<void()> task)
+{
+  if (g_nativeCallRequirements.gameThrQ) {
+    g_nativeCallRequirements.gameThrQ->AddTask(
+      [task = std::move(task)](Viet::Void) { task(); });
+  }
+}
+}
+
+void TESModPlatform::SetItemFavorite(IVM* vm, StackID stackId,
+                                     RE::StaticFunctionTag*,
+                                     RE::TESForm* item, int32_t hotkey)
+{
+  auto boundObject = item ? item->As<RE::TESBoundObject>() : nullptr;
+  if (!boundObject) {
+    return;
+  }
+
+  QueueOnGameThread([=] {
+    auto player = RE::PlayerCharacter::GetSingleton();
+    auto changes = player ? player->GetInventoryChanges() : nullptr;
+    if (!changes || !changes->entryList) {
+      return;
+    }
+
+    auto counts = player->GetInventoryCounts();
+    auto it = counts.find(boundObject);
+    if (it == counts.end() || it->second <= 0) {
+      return;
+    }
+
+    RE::InventoryEntryData* entry = nullptr;
+    for (auto* e : *changes->entryList) {
+      if (e && e->object == boundObject) {
+        entry = e;
+        break;
+      }
+    }
+    if (!entry) {
+      return;
+    }
+
+    if (!FindHotkeyExtra(entry)) {
+      RE::ExtraDataList* firstList = nullptr;
+      if (entry->extraLists) {
+        for (auto* xList : *entry->extraLists) {
+          if (xList) {
+            firstList = xList;
+            break;
+          }
+        }
+      }
+      changes->SetFavorite(entry, firstList);
+    }
+
+    if (hotkey < 0 || hotkey >= kNumHotkeySlots) {
+      return;
+    }
+    UnbindHotkeySlot(player, hotkey);
+    if (auto* xHotkey = FindHotkeyExtra(entry)) {
+      xHotkey->hotkey = static_cast<RE::ExtraHotkey::Hotkey>(hotkey);
+    }
+  });
+}
+
+void TESModPlatform::SetSpellFavorite(IVM* vm, StackID stackId,
+                                      RE::StaticFunctionTag*,
+                                      RE::TESForm* spellOrShout,
+                                      int32_t hotkey)
+{
+  if (!spellOrShout ||
+      (spellOrShout->formType != RE::FormType::Spell &&
+       spellOrShout->formType != RE::FormType::Shout)) {
+    return;
+  }
+
+  QueueOnGameThread([=] {
+    auto player = RE::PlayerCharacter::GetSingleton();
+    auto favorites = RE::MagicFavorites::GetSingleton();
+    if (!player || !favorites) {
+      return;
+    }
+
+    auto& spells = favorites->spells;
+    if (std::find(spells.begin(), spells.end(), spellOrShout) ==
+        spells.end()) {
+      favorites->SetFavorite(spellOrShout);
+    }
+
+    if (hotkey < 0 || hotkey >= kNumHotkeySlots) {
+      return;
+    }
+    UnbindHotkeySlot(player, hotkey);
+    auto& hotkeys = favorites->hotkeys;
+    for (auto& bound : hotkeys) {
+      if (bound == spellOrShout) {
+        bound = nullptr;
+      }
+    }
+    while (hotkeys.size() < kNumHotkeySlots) {
+      hotkeys.push_back(nullptr);
+    }
+    hotkeys[hotkey] = spellOrShout;
+  });
+}
+
 RE::TESObjectREFR* TESModPlatform::CreateReferenceAtLocation(
   IVM* vm, StackID stackId, RE::StaticFunctionTag*, RE::TESForm* baseForm,
   RE::TESObjectCELL* cell, RE::TESWorldSpace* world, float posX, float posY,
@@ -1127,6 +1274,18 @@ bool TESModPlatform::Register(IVM* vm)
     new RE::BSScript::NativeFunction<true, decltype(CloseMenu), void,
                                      RE::StaticFunctionTag*, std::string_view>(
       "CloseMenu", "TESModPlatform", CloseMenu));
+
+  vm->BindNativeMethod(
+    new RE::BSScript::NativeFunction<true, decltype(SetItemFavorite), void,
+                                     RE::StaticFunctionTag*, RE::TESForm*,
+                                     int32_t>(
+      "SetItemFavorite", "TESModPlatform", SetItemFavorite));
+
+  vm->BindNativeMethod(
+    new RE::BSScript::NativeFunction<true, decltype(SetSpellFavorite), void,
+                                     RE::StaticFunctionTag*, RE::TESForm*,
+                                     int32_t>(
+      "SetSpellFavorite", "TESModPlatform", SetSpellFavorite));
 
   static LoadGameEvent loadGameEvent;
 

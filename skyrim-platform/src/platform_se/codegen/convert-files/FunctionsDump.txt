@@ -21740,6 +21740,31 @@
                     "useLongSignature": true
                 },
                 {
+                    "$comment": "hand-crafted entry",
+                    "arguments": [
+                        {
+                            "name": "item",
+                            "type": {
+                                "objectTypeName": "Form",
+                                "rawType": "Object"
+                            }
+                        },
+                        {
+                            "name": "hotkey",
+                            "type": {
+                                "rawType": "Int"
+                            }
+                        }
+                    ],
+                    "isLatent": false,
+                    "name": "SetItemFavorite",
+                    "offset": "0",
+                    "returnType": {
+                        "rawType": "None"
+                    },
+                    "useLongSignature": true
+                },
+                {
                     "arguments": [
                         {
                             "name": "npc",
@@ -21835,6 +21860,31 @@
                         "rawType": "None"
                     },
                     "useLongSignature": false
+                },
+                {
+                    "$comment": "hand-crafted entry",
+                    "arguments": [
+                        {
+                            "name": "spellOrShout",
+                            "type": {
+                                "objectTypeName": "Form",
+                                "rawType": "Object"
+                            }
+                        },
+                        {
+                            "name": "hotkey",
+                            "type": {
+                                "rawType": "Int"
+                            }
+                        }
+                    ],
+                    "isLatent": false,
+                    "name": "SetSpellFavorite",
+                    "offset": "0",
+                    "returnType": {
+                        "rawType": "None"
+                    },
+                    "useLongSignature": true
                 },
                 {
                     "arguments": [

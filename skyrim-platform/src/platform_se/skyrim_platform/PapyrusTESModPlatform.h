@@ -95,6 +95,12 @@ void CloseMenu(IVM* vm, StackID stackId, RE::StaticFunctionTag*,
 void BlockPapyrusEvents(IVM* vm, StackID stackId, RE::StaticFunctionTag*,
                         bool blocked);
 
+// Player only; hotkey 0..7 binds that slot, anything else only favorites
+void SetItemFavorite(IVM* vm, StackID stackId, RE::StaticFunctionTag*,
+                     RE::TESForm* item, int32_t hotkey);
+void SetSpellFavorite(IVM* vm, StackID stackId, RE::StaticFunctionTag*,
+                      RE::TESForm* spellOrShout, int32_t hotkey);
+
 RE::TESObjectREFR* CreateReferenceAtLocation(
   IVM* vm, StackID stackId, RE::StaticFunctionTag*, RE::TESForm* baseForm,
   RE::TESObjectCELL* cell, RE::TESWorldSpace* world, float posX, float posY,
