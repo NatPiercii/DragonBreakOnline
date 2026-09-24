@@ -1570,7 +1570,7 @@ registerChatCommand('officials', (a, args) => {
 }, { help: '[zone] who rules where' });
 
 // ---- Scholar: books are nodes, reading is a mini-game -----------------------------------------
-// A placed BOOK can never be picked up. A Scholar who uses one gets a shuffled sentence and the
+// A placed BOOK can never be picked up. Anyone who uses one gets a shuffled sentence and the
 // candle; the server judges the order and rolls the Scholar tables (copy of the book, and at the
 // higher tiers a scroll or a spell tome from readables.json). Work is credited to the skill on a win.
 // The candle is baseSeconds plus secondsPerWord for each word, and the sentence grows with the
@@ -1702,9 +1702,9 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   if (!rec || !rec.record || String(rec.record.type) !== 'BOOK') return false;
   const baseId = (() => { try { return mp.getIdFromDesc(String(mp.get(targetId, 'baseDesc'))) >>> 0; } catch (e) { return 0; } })();
   const title = humanize(rec.record.editorId);
-  const tier = scholarTier(casterId);
+  // Anyone may read; the work is banked toward Scholar until it is taken up, and reads at Novice until then
+  const tier = Math.max(0, scholarTier(casterId));
   const deny = (text) => { if (Date.now() - (readDeny.get(casterId) || 0) > 1500) { readDeny.set(casterId, Date.now()); personal(casterId, text); } return true; };
-  if (tier < 0) return deny('Only a Scholar may read the books of the world.');
   // A round nobody answered (the reader disconnected, or the client never sent the guttered candle) expires
   // rather than blocking every book until a restart.
   const open = readSessions.get(casterId);
