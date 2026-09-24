@@ -525,6 +525,25 @@ const goldOf = (a) => {
   try { return ((mp.get(a, 'inventory') || {}).entries || []).filter((e) => (Number(e.baseId) >>> 0) === GOLD_BASE).reduce((s, e) => s + (Number(e.count) || 0), 0); }
   catch (e) { return 0; }
 };
+// Forgery (suggestions forum, "Forgery / Espionage"): /sign sets the signature of the next letter only. Anyone may send
+// one unsigned; signing another name takes a Scholar of forgeTier, and below Master a forged hand may show. The log
+// always names the true sender.
+const FORGE = Object.assign({ forgeTier: 3, tellChance: { 3: 0.3, 4: 0.15, 5: 0 } }, cfg.forgery || {});
+const nextSignature = globalThis.__dboNextSignature instanceof Map ? globalThis.__dboNextSignature : (globalThis.__dboNextSignature = new Map());
+registerChatCommand('sign', (a, args) => {
+  const want = String(args || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+  if (!want) {
+    const s = nextSignature.get(a);
+    return personal(a, s ? `Your next letter will be signed ${s.unsigned ? 'by no one' : `"${s.name}"`}. /sign clear to sign it yourself.` : 'Your next letter carries your own name. /sign unsigned, or /sign <a name> if your hand is good enough.');
+  }
+  if (/^(clear|me|myself)$/i.test(want)) { nextSignature.delete(a); return personal(a, 'Your next letter carries your own name.'); }
+  if (/^(unsigned|none|nobody|anonymous)$/i.test(want)) { nextSignature.set(a, { unsigned: true }); return personal(a, 'Your next letter will go unsigned.'); }
+  const tier = scholarTier(a) + 1;
+  if (tier < FORGE.forgeTier) return personal(a, `Forging another's hand takes a Scholar of tier ${FORGE.forgeTier}. You can still send it unsigned.`);
+  nextSignature.set(a, { name: want, tier });
+  personal(a, `Your next letter will be signed "${want}", in a hand not your own.`);
+}, { help: 'unsigned | <a name> | clear: how your next pigeon letter is signed' });
+
 const sendPigeon = (a, to, rawText, zoneId) => {
   const text = String(rawText || '').trim().replace(/\s+/g, ' ');
   if (!text) return { ok: false, text: 'Write something for the pigeon to carry.' };
@@ -546,7 +565,13 @@ const sendPigeon = (a, to, rawText, zoneId) => {
     const blocked = mp.get(to, 'private.pigeonBlock');
     if (Array.isArray(blocked) && blocked.includes(p)) return { ok: true, text: 'Your pigeon flew off and never came back.' };
     const at = Date.now();
-    box.push({ id: `${at.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, from: display(a), fromProfile: p, text, at, read: false }); saveLetters(to, box);
+    const sig = nextSignature.get(a);
+    nextSignature.delete(a);
+    let from = display(a);
+    if (sig && sig.unsigned) from = 'Unsigned';
+    else if (sig && sig.name) from = sig.name + (Math.random() < (Number(FORGE.tellChance[sig.tier]) || 0) ? ' (the hand does not quite match)' : '');
+    box.push({ id: `${at.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, from, fromProfile: p, text, at, read: false }); saveLetters(to, box);
+    if (sig) audit(`PIGEON ${who(a)} sent ${nameOf(to)} a letter signed "${from}"`);
     if (online) { personal(to, 'A pigeon has brought you a letter. Read it at any notice board.'); sendMailState(to); }
     const zone = zoneId ? zoneById(zoneId) : null;
     log(`pigeon ${who(a)} -> ${nameOf(to)} #${tagOf(to)}${price > 0 ? ` (${price} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
