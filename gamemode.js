@@ -942,6 +942,7 @@ const onCharacterReady = (userId, a) => {
     try { mp.set(a, ADMIN_PROP, isAdmin(a)); } catch (e) { /* ignore */ }
     if (cfg.welcome) system(a, cfg.welcome);
     audit(`JOIN ${who(a)}${tierOf(a) ? ' as ' + tierOf(a) : ''}`);
+    sendDriftConfig(a);
     if (creationPending(a)) startCreationInHub(a);
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
     // Waking from a bed (rest.js) before the hunger stage is applied
@@ -1347,8 +1348,19 @@ onUi('arrived', (a, args) => {
 // Client HostedDriftService: an NPC this client hosts whose skeleton split from its reference (floating creatures, 2026-09-16)
 onUi('npcDrift', (a, args) => {
   const r = args[0] && typeof args[0] === 'object' ? args[0] : {};
-  log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 400)}`);
+  log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 900)}`);
 });
+// How hosts repair a split body; kept across reloads and sent at every join so a test needs no client build
+const DRIFT_REPAIRS = ['setPosition', 'none', 'moveTo', 'disableEnable'];
+const sendDriftConfig = (a) => sendPacket(a, { customPacketType: 'npcDriftConfig', repair: globalThis.__dboDriftRepair || 'setPosition' });
+registerChatCommand('driftrepair', (a, args) => {
+  const mode = String(args[0] || '');
+  if (!DRIFT_REPAIRS.includes(mode)) return personal(a, `Split repair is ${globalThis.__dboDriftRepair || 'setPosition'}. Use: /driftrepair ${DRIFT_REPAIRS.join('|')}`);
+  globalThis.__dboDriftRepair = mode;
+  onlineActors().forEach(sendDriftConfig);
+  personal(a, `Split repair set to ${mode} for everyone online.`);
+  audit(`GM ${who(a)} set the split repair to ${mode}`);
+}, { admin: true, help: '<setPosition|none|moveTo|disableEnable> how hosts repair a split NPC body' });
 const refusePigeon = (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); personal(a, 'Pigeons are sent from a notice board. Walk up to one and use it.'); };
 onUi('pigeonOpen', (a, args) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a, undefined, undefined, args[0] === 'letters' || args[0] === 'send' ? args[0] : undefined); });
 // Letters: opening one marks it read, and a letter can be thrown away; both answer with a fresh Letters tab
