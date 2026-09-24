@@ -13,7 +13,7 @@ import './styles.scss';
 export interface DeityChoice {
   id: string;
   name: string;
-  kind: string;          // "divine" or "daedra"
+  kind: string;          // "divine", "daedra" or "faith" (prayed to anywhere with /pray)
   sphere: string;
   boon: string;
   reachable: boolean;    // has a shrine inside the playtest region
@@ -53,7 +53,8 @@ const DeityPicker = ({ data }: { data: DeityPickerData }) => {
   useEffect(() => { setSelected(''); }, [data.nonce]);
 
   const divines = useMemo(() => choices.filter((c) => c.kind === 'divine'), [choices]);
-  const daedra = useMemo(() => choices.filter((c) => c.kind !== 'divine'), [choices]);
+  const daedra = useMemo(() => choices.filter((c) => c.kind === 'daedra'), [choices]);
+  const faiths = useMemo(() => choices.filter((c) => c.kind !== 'divine' && c.kind !== 'daedra'), [choices]);
   const shown = choices.find((c) => c.id === (selected || data.current)) || null;
   const isCurrent = !!shown && shown.id === data.current;
 
@@ -119,9 +120,15 @@ const DeityPicker = ({ data }: { data: DeityPickerData }) => {
               <h2 className="deity__group-title">The Princes</h2>
               <div className="deity__rows">{daedra.map(row)}</div>
             </div>
+            {faiths.length ? (
+              <div className="deity__group">
+                <h2 className="deity__group-title">Other Faiths</h2>
+                <div className="deity__rows">{faiths.map(row)}</div>
+              </div>
+            ) : null}
           </div>
 
-          <aside className={'deity__detail' + (shown && shown.kind !== 'divine' ? ' deity__detail--daedra' : '')}>
+          <aside className={'deity__detail' + (shown && shown.kind === 'daedra' ? ' deity__detail--daedra' : '')}>
             {shown ? (
               <>
                 <h2 className="deity__detail-name">{shown.name}</h2>
