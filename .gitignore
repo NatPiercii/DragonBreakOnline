@@ -70,3 +70,5 @@ commissions.json
 
 # tenancy.js: rented property and deposits held
 tenancy.json
+# ledger.js: ledgers placed by staff
+ledger-points.json

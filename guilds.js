@@ -126,6 +126,9 @@ module.exports = (api) => {
     }, true);
   };
   globalThis.__dboFactionMenu = (a) => openMenu(a >>> 0);
+  // ledger.js: the factions a character belongs to (offline ones too), and whether an id names a faction
+  globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); return { id: m.fid, name: f.name, title: (f.ranks[m.e.rank] || {}).title || '', secret: !!f.secret }; });
+  globalThis.__dboGuildExists = (id) => FACTIONS.has(String(id));
   const fresh = (a, args) => ST.nonces.get(a >>> 0) === String(args[0] || '');
   const reply = (a, text, fid, bad) => openMenu(a, text, bad ? 'refused' : 'ok', fid);
   const findMember = (fid, query) => {

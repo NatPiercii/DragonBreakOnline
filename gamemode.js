@@ -448,6 +448,11 @@ every('meet', MEET_TICK_MS, () => {
   }
   for (const a of changed) { try { mp.set(a, 'private.metActors', metCache.get(a).list.slice()); } catch (e) { metCache.delete(a); } }
 });
+// The ledger's "forget": struck out of one side only, and written back in by the next meeting in person
+const forgetMet = (a, b) => {
+  try { mp.set(a, 'private.metActors', metOf(a).filter((x) => x !== b)); } catch (e) { log('forget failed', e.message); }
+  metCache.delete(a);
+};
 const takeGold = (a, amount) => {
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
@@ -2957,6 +2962,14 @@ try {
   require(TENANCY_JS)({ mp, log, personal, audit, who, display, tagOf, profileOf, onlineActors, every, registerChatCommand, cfg,
     takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, zoneById });
 } catch (e) { log('tenancy.js failed to load:', e.stack || e.message); }
+
+// ---- the ledger of contacts, read at boards, homes and placed ledgers (server\ledger.js, config "ledger") ----------
+try {
+  const LEDGER_JS = path.resolve('ledger.js');
+  delete require.cache[LEDGER_JS];
+  require(LEDGER_JS)({ mp, log, personal, audit, who, nameOf, tagOf, profileOf, onlineActors, registerChatCommand, isAdmin, isWorldspace,
+    metOf, forgetMet, sendPigeon, boardZoneNear, zoneOfActor, cfg });
+} catch (e) { log('ledger.js failed to load:', e.stack || e.message); }
 
 // ---- Oblivion-style lockpicking for cell doors and dungeon chests (server\lockpick.js, config "lockpick") -------
 try {
