@@ -1275,7 +1275,7 @@ try { log(`onlinePlayers raw = ${JSON.stringify(mp.get(0, 'onlinePlayers'))}`); 
 // Every character of a profile, online or not: the actors are destroyed and the slots free up (character select refreshes on relog)
 registerChatCommand('wipechars', (a, args) => {
   const q = args.trim();
-  let pid = /^d+$/.test(q) ? Number(q) : -1;
+  let pid = /^\d+$/.test(q) ? Number(q) : -1;
   if (pid < 0) { const t = findAnyByName(q); if (t > 0) pid = profileOf(t); }
   if (!(pid >= 0)) return personal(a, 'Usage: /wipechars <profile id|name|#TAG>');
   let ids = []; try { ids = (mp.getActorsByProfileId(pid) || []).map((x) => Number(x) >>> 0); } catch (e) { return personal(a, 'Lookup failed: ' + e.message); }
