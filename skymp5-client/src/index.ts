@@ -53,6 +53,7 @@ import { DboRelayService } from "./services/services/dboRelayService";
 import { DboGlowService } from "./services/services/dboGlowService";
 import { RemoteVitalsService } from "./services/services/remoteVitalsService";
 import { HostedDriftService } from "./services/services/hostedDriftService";
+import { LevelBonusService } from "./services/services/levelBonusService";
 import { InteractionPromptService } from "./services/services/interactionPromptService";
 import { BoardMailService } from "./services/services/boardMailService";
 import { BeastFormService } from "./services/services/beastFormService";
@@ -93,6 +94,7 @@ import { MenuMediaService } from "./services/services/menuMediaService";
 import { CharacterProgressService } from "./services/services/characterProgressService";
 import { StaticRefsService } from "./services/services/staticRefsService";
 import { LipSyncService } from "./services/services/lipSyncService";
+import { FavoritesService } from "./services/services/favoritesService";
 
 once("update", () => {
   Utility.setINIBool("bAlwaysActive:General", true);
@@ -156,6 +158,7 @@ const main = () => {
       new DboGlowService(sp, controller),
       new RemoteVitalsService(sp, controller),
       new HostedDriftService(sp, controller),
+      new LevelBonusService(sp, controller),
       new InteractionPromptService(sp, controller),
       new BoardMailService(sp, controller),
       new BeastFormService(sp, controller),
@@ -188,7 +191,8 @@ const main = () => {
       new ProfilingService(sp, controller),
       new ServerJsVerificationService(sp, controller),
       new NotificationService(sp, controller),
-      new RaceSpellsService(sp, controller)
+      new RaceSpellsService(sp, controller),
+      new FavoritesService(sp, controller)
     ];
     SpApiInteractor.setup(listeners);
   } catch (e) {

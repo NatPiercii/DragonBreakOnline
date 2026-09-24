@@ -98,7 +98,7 @@ const SPAWN_MAX_ATTEMPTS = 30;
 const ARRIVAL_POLL_SECONDS = 0.5;
 const ARRIVAL_POLLS = 40;
 // Seconds after spawn at which the server's spell list is re-imposed, because the engine grants the race defaults late
-const SPELL_ENFORCE_PASSES = [1, 3, 6, 10, 15, 20];
+export const SPELL_ENFORCE_PASSES = [1, 3, 6, 10, 15, 20];
 const isRaceMenuSettling = (): boolean =>
   Ui.isMenuOpen("RaceSex Menu") || Date.now() - (Number((globalThis as any).__dboRaceMenuClosedAt) || 0) < RACE_MENU_SETTLE_MS;
 
