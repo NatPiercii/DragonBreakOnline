@@ -23,6 +23,11 @@ Montclair, Vaelis Duskwood, plus new characters. Evidence is `/var/log/skymp-ser
   near you. Visibility was a 3x3 block of 4096-unit squares in interiors too (Serpents Trail is ~9000 across); an
   interior cell is now one square (`WorldState::IsInteriorCell`, `MpObjectReference::GridPosOf`), its records load from
   +-16 squares, `mp.getNeighborsByPosition` follows. Watch client frame rate in the biggest interiors.
+- [ ] **Crash 2026-09-24 00:09 local (Vaelis Duskwood, Maw of Sedor `CYRSedorV202`):** access violation `jmp [rax]` at
+  SkyrimSE+0A883CE in Havok ragdoll stepping on an Ayleid Skeleton (`DraugrBehavior.hkb`, `hkbRagdollDriver`), with
+  Precision.dll in the call chain. Common thread across the 20:44, 20:58, 22:59 and 00:09 crashes: physical memory at
+  14.3-15.2 of 16 GB used in every one; three of the four are in Havok/animation. Next: ask Vaelis for pagefile size and
+  settings; test Precision ragdoll settings; watch memory now that every dungeon NPC is visible to everyone inside.
 - [ ] New from Nat: looting a webbed body (bodies in general) crashed - need the crash log.
 - [ ] Favorites: waiting on Nat - never sets, or lost after relog/pickup.
 
