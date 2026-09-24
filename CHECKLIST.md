@@ -348,6 +348,12 @@ Live: fork `6e20da3`, server `patrons` deploy 01:24, client 0.3.15, launcher 2.1
   answers while 7880/7881 tcp are closed, and a tcpdump on CT115 during probes of all three ports (7882 udp included)
   caught 0 packets. LiveKit itself answers locally (`10.10.10.2:7880` HTTP 200; `node_ip: 50.116.28.194`). The forward
   stops at the router or the Proxmox host. Voice left `enabled: false`, no restart.
+  **2026-09-24 00:05 UTC, re-checked: unchanged.** Inside CT115 every hop passes (livekit up, no container firewall,
+  the `voiceChat` key/secret accepted by LiveKit's `/rtc/validate`); from outside 7880/7881 tcp are refused 0/3 and
+  7882 udp never arrives, with 2222 at 3/3 as control. The path is Linode VPS -> WireGuard -> Proxmox host, both hops
+  need the three ports; the host half is written (`claude-dragonbreak`, `/root/dragonbreak-work/voice-forwards/`) and
+  waits on Jake. Re-test with `sudo bash ~/claude-nate-handover/voice-2026-09-23/voice-check.sh` (all PASS, then
+  enable). Rotate the LiveKit key before enabling (printed into a session's output; not posted).
 - [x] **Every panel resizable**: Ctrl + wheel over it, 50-250%, per panel type, multiplies the global size; a
   resized panel becomes its own zoomed screen (fixed + zoom + transform), so centred panels stay centred and corner
   pieces stay in corners. Checked in the browser pane on the dungeon gate (centred) and the HUD (corners).
