@@ -1,5 +1,22 @@
 [
   {
+    "title": "Launcher 2.1.29",
+    "date": "2026-09-24",
+    "tag": "Launcher",
+    "version": "Launcher 2.1.29",
+    "sections": [
+      {
+        "heading": "Launcher",
+        "items": [
+          "Report a Problem sends your recent game, SkyrimPlatform and SKSE logs straight to staff, with a report id you can quote on Discord.",
+          "Updates leave unchanged client files alone and retry a busy file instead of failing.",
+          "The Creation Club archives the server uses are kept in place instead of being moved aside, and any missing ones are filled in for you.",
+          "The launcher offers the update itself: accept it once and it installs in place, keeping your settings and login."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Skill and Steel",
     "date": "2026-09-24",
     "tag": "Balance",

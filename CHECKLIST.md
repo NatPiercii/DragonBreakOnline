@@ -56,7 +56,7 @@ Nat said push both and deploy gameplay. Every harness passes (run them all with 
 - [x] **CEF DevTools closed in release** (fork `efd145b`): both browser backends opened remote debugging on 9000;
   now only when `SKYMP_CEF_DEBUG_PORT` names a port (NirnLab passes it straight to CEF, where 0 is off). **C++ in
   SkyrimPlatformImpl.dll: needs a CI flatrim build and a client package**, not compiled here.
-- [ ] Still open from the handoff: client package 0.3.35 and launcher 2.1.29 (built on this PC, publishing is Nat's);
+- [x] Client package 0.3.35 (server session) and 0.3.36, launcher 2.1.29 (released 20:24 UTC, backend offers it) are out. Still open from the handoff:
   the deferred C++ list; Beyond Skyrim BSAs in the server's `archives` (a server-settings change and restart, Nat's call);
   the Revival brew lab test.
 
