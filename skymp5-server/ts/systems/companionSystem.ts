@@ -140,6 +140,7 @@ export class CompanionSystem implements System {
     try { this.mp.makeProperty(COMPANION_OF_PROP, true); } catch { }
     ctx.gm.once(WORLD_LOADED_EVENT, () => this.removeLeftovers());
     this.installHooks();
+    this.expose();
     ctx.gm.on("userAssignActor", (_userId: number, actorId: number) => {
       try {
         this.onOwnerAssigned(actorId >>> 0);
@@ -331,6 +332,28 @@ export class CompanionSystem implements System {
     if (changed) this.sendState(ownerId);
   }
 
+  // A companion let go into the world where it stands: no owner, no longer hosted by one, hostile to players or not.
+  // It keeps its tag, so the boot sweep removes it at the next restart (server/warband.js: a raid lasts until then).
+  releaseToWorld(companionId: number, hostile: boolean): boolean {
+    const c = this.companions.get(companionId >>> 0);
+    if (!c) return false;
+    const mp = this.mp;
+    this.companions.delete(c.id);
+    try { mp.set(c.id, COMPANION_OF_PROP, 0); } catch { }
+    try { mp.set(c.id, HOSTILE_PROP, !!hostile); } catch { }
+    try {
+      const loc = { cellOrWorldDesc: String(mp.get(c.id, "worldOrCellDesc")), pos: mp.getActorPos(c.id), rot: [0, 0, Number(mp.get(c.id, "angle")?.[2]) || 0] };
+      mp.set(c.id, "spawnPoint", loc);
+      mp.set(c.id, "spawnDelay", 1e9);
+    } catch { }
+    // Watching clients drop the teammate copy and build the actor again as an ordinary NPC
+    try { mp.set(c.id, "isDisabled", true); mp.set(c.id, "isDisabled", false); } catch { }
+    this.log(`CompanionSystem: ${c.kind} ${hex(c.id)} of ${hex(c.ownerId)} released into the world${hostile ? ", hostile" : ""}`);
+    this.save();
+    this.sendState(c.ownerId);
+    return true;
+  }
+
   list(ownerId: number): CompanionInfo[] {
     return this.ownedBy(ownerId).map((c) => this.toInfo(c));
   }
@@ -346,6 +369,19 @@ export class CompanionSystem implements System {
   }
 
   // ── Internals ────────────────────────────────────────────────────────────────
+
+  // server/warband.js raises GM warbands through these
+  private expose(): void {
+    (globalThis as any).__dboCompanions = {
+      spawn: (ownerId: unknown, baseId: unknown, opts?: CompanionOptions) => this.spawn(Number(ownerId) >>> 0, Number(baseId) >>> 0, opts || {}),
+      dismiss: (id: unknown) => this.dismiss(Number(id) >>> 0, "dismissed"),
+      follow: (id: unknown) => this.orderFollow(Number(id) >>> 0),
+      stay: (id: unknown) => this.orderStay(Number(id) >>> 0),
+      attack: (id: unknown, targetId: unknown) => this.orderAttack(Number(id) >>> 0, Number(targetId) >>> 0),
+      list: (ownerId: unknown) => this.list(Number(ownerId) >>> 0),
+      release: (id: unknown, hostile: unknown) => this.releaseToWorld(Number(id) >>> 0, hostile === true),
+    };
+  }
 
   private toInfo(c: Companion): CompanionInfo {
     const { id, ownerId, baseId, kind, targetId, expiresAt, persistent, source } = c;
