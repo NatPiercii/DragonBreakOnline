@@ -68,7 +68,7 @@ const ADMIN_MODES: Array<{ id: string; label: string }> = [
 ];
 
 // Modes mirrored onto the neighbors-visible ff_adminModes actor property (registered in gamemode.js)
-const MIRRORED_MODES = ["god", "smite", "healhit", "invis"];
+const MIRRORED_MODES = ["god", "smite", "healhit", "invis", "ghost"];
 
 interface TeleportLocation {
   name: string;
