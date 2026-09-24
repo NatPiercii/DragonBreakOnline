@@ -344,9 +344,16 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "That name will not do.");
       return;
     }
+    // A named key is matched by its whole name, so a rename orphans every key cut before it;
+    // unnamed "Property Key (TAG)" keys carry the credential suffix and keep working
+    const oldKey = this.keyNameOf(ctx, primary, rec);
+    const hadNamedKeys = !!(rec.name || "").trim();
     rec.name = name;
     if (!this.commit(ctx, userId, primary, rec)) return;
-    this.notice(ctx, userId, `Now called ${name}.`);
+    const keysChanged = hadNamedKeys && this.keyNameOf(ctx, primary, rec) !== oldKey;
+    this.notice(ctx, userId, keysChanged
+      ? `Now called ${name}. Keys cut before the rename ("${oldKey}") no longer open it: cut new ones.`
+      : `Now called ${name}.`);
     const actorId = this.actorOf(ctx, userId);
     if (actorId) this.sendMenu(ctx, userId, actorId, primary);
   }
