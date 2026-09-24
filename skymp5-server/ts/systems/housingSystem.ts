@@ -146,7 +146,39 @@ export class HousingSystem implements System {
     this.claimed = this.loadRegistry();
     this.installActivationHook(ctx);
     ctx.gm.on("userAssignActor", (userId: number) => this.onActorAssigned(ctx, userId));
+    this.exposeTenancy(ctx);
     this.log(`[housing] ready, ${this.claimed.length} claimed refs in the registry`);
+  }
+
+  // server/tenancy.js rents property out through these, under the same rules as the menu: the claim limit, re-keying
+  // on a new owner, and the hold's managers. grant returns an error text, or "" when the property is theirs.
+  private exposeTenancy(ctx: SystemContext): void {
+    const primary = (ref: unknown) => this.primaryOf(ctx, Number(ref) >>> 0);
+    (globalThis as any).__dboHousing = {
+      primaryOf: (ref: unknown) => primary(ref),
+      recordOf: (ref: unknown) => { const p = primary(ref); return p ? this.read(ctx, p) : null; },
+      holdOf: (ref: unknown) => { const p = primary(ref); return p ? this.holdOf(ctx, p) : ""; },
+      isManager: (actorId: unknown, ref: unknown) => { const p = primary(ref); return !!p && this.isManager(ctx, Number(actorId) >>> 0, p); },
+      grant: (ref: unknown, actorId: unknown): string => {
+        const p = primary(ref); if (!p) return "That is not a property.";
+        const actor = Number(actorId) >>> 0;
+        const profileId = this.profileOf(ctx, actor); if (!profileId) return "That is nobody.";
+        const rec = this.read(ctx, p) || emptyRecord();
+        if (rec.owner === profileId) return "";
+        if (this.countClaims(ctx, profileId) >= this.maxClaims) return `They already hold ${this.maxClaims} properties.`;
+        if (rec.owner !== 0) this.reKey(ctx, p, rec);
+        rec.owner = profileId;
+        rec.ownerName = this.nameOf(ctx, actor);
+        rec.partner = this.partnerOf(ctx, p);
+        if (rec.issued === null) rec.issued = [];
+        return this.write(ctx, p, rec) ? "" : CHANGE_FAILED;
+      },
+      release: (ref: unknown): boolean => {
+        const p = primary(ref); if (!p) return false;
+        const rec = this.read(ctx, p); if (!rec || rec.owner === 0) return true;
+        return this.release(ctx, p, rec);
+      },
+    };
   }
 
   // Locks are enforced here: a refused activation never reaches the door.
