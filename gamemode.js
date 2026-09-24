@@ -2992,6 +2992,15 @@ try {
   require(LOCKPICK_JS)({ mp, log, personal, audit, who, openWidget, closeWidget, onUi, cfg });
 } catch (e) { log('lockpick.js failed to load:', e.stack || e.message); globalThis.__dboLockpick = null; }
 
+// ---- Discord roles from the game: skills and homes (server\discordroles.js, config "discordRoles") ------------------
+try {
+  const DISCORDROLES_JS = path.resolve('discordroles.js');
+  delete require.cache[DISCORDROLES_JS];
+  const auth = serverSettings.discordAuth || {};
+  require(DISCORDROLES_JS)({ mp, log, audit, who, onlineActors, every, discordOf, profileOf, zoneById, cfg,
+    skills: SKILLS_DEF.skills || [], token: (cfg.discord || {}).botToken || auth.botToken, guildId: ((auth.guilds || [])[0] || {}).guildId });
+} catch (e) { log('discordroles.js failed to load:', e.stack || e.message); }
+
 // ---- GM warbands and raids: catalog NPCs that follow the GM (server\warband.js; companionSystem.ts __dboCompanions) ------
 try {
   const WARBAND_JS = path.resolve('warband.js');
