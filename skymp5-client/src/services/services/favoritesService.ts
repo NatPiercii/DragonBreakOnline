@@ -178,6 +178,8 @@ export class FavoritesService extends ClientListener {
   }
 
   private enableSnapshots(): void {
+    // An older SkyrimPlatform without the natives cannot restore, and its empty snapshots would overwrite the saved lists
+    if (typeof favoriteNatives.setItemFavorite !== "function" || typeof favoriteNatives.setSpellFavorite !== "function") return;
     this.snapshotsEnabled = true;
     this.snapshotAt = 0;
   }
