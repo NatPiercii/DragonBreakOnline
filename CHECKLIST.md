@@ -1,5 +1,27 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-24 (01:30 UTC): NPC stability before launch - the split repair swaps, measured
+
+Nat: wildlife "hop up and down in place", "float and phase under the map", "rubber band too sometimes". Launch blocker.
+
+- [x] **Measured from the 52 split reports since 21 Sep: the `setPosition` repair in `hostedDriftService` swaps body and
+  reference instead of joining them.** 7 of 7 repairs followed by another report within a minute moved the visible body
+  to the old reference and the reference to where the body was (chicken `ff00000e` 21:48: ref A / body B, 10 s later
+  ref B / body A; Master Conjurers, Deer, a rabbit the same). Players see the body jump between two spots: rubber band,
+  and a hop when the gap is mostly vertical. 43 of 52 splits are thousands of units sideways, not a sink.
+- [x] The server is not the cause: it re-placed spawned NPCs 9 times in the whole log (`checkMisplaced`).
+- [x] Fork `afb754e0` (client, **not pushed, not built**): the repair method comes from the gamemode
+  (`npcDriftConfig`: `setPosition` default, `none`, `moveTo`, `disableEnable`); 1 s after each repair the host reports
+  `repairResult` joined / swapped / apart; hosted actors whose body jumps 384+ units in a poll or bobs 40+ up and down
+  with the reference still are reported as `jump` / `hop`. Server `44eecab1` (**not pushed, not deployed**): admin
+  `/driftrepair <mode>`, re-sent at every join; npcDrift lines log 900 chars.
+- [ ] **Test session** (after the next client package): 10 min near Bruma wildlife per mode, `/driftrepair none`,
+  `moveTo`, `disableEnable`, then read `repairResult` / `hop` / `jump` in the log. Ship the mode that joins; if none
+  does, the stray body's origin (where the copy was first created, `SpawnProcess`: PlaceAtMe at the player, setPosition,
+  enable, resurrect) is next.
+- [ ] Not yet explained: why a body separates in the first place. The Conjurers' stray bodies sat together at one point,
+  consistent with where the copy was created rather than where it belongs.
+
 ## Added 2026-09-24 (00:30 UTC): floating after a teleport, then the crash on jump (third time)
 
 Argosh floated over the Alik'r terrain right after an admin-panel `teleportLoc` to Ben Erai, then crashed on jump
