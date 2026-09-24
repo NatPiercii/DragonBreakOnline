@@ -175,6 +175,8 @@ export class CaptureSystem implements System {
     });
     // The gamemode's /struggle (server\struggle.js) calls this when a captive wins; true when they were restrained
     (globalThis as any).__dboBreakFree = (actorId: number): boolean => this.breakFree(ctx, Number(actorId) >>> 0);
+    // The gamemode's jail (server\jail.js) calls this when it locks a captive in; true when they were restrained
+    (globalThis as any).__dboUncuff = (actorId: number): boolean => this.uncuff(ctx, Number(actorId) >>> 0);
   }
 
   customPacket(userId: number, type: string, content: Content, ctx: SystemContext): void {
@@ -699,6 +701,18 @@ export class CaptureSystem implements System {
     if (info?.boundHands === true) {
       this.removeShackles(ctx, targetActorId, info.addedShackle === true);
     }
+  }
+
+  // Frees a captive handed over to a cell; no escape grace, since they did not escape
+  private uncuff(ctx: SystemContext, targetActorId: number): boolean {
+    const info = this.restraints.get(targetActorId);
+    if (!info) {
+      return false;
+    }
+    this.releaseTarget(ctx, targetActorId);
+    this.dropPendingFor(targetActorId);
+    this.log(`[capture] ${targetActorId.toString(16)} uncuffed by the jail`);
+    return true;
   }
 
   // Frees a captive who won the struggle and tells whoever held them
