@@ -40,6 +40,17 @@ module.exports = (api) => {
     const lr = lookup(base);
     return !!lr && /alchemy/i.test(String(lr.record.editorId || ''));
   };
+  // The client names the workbench, so the brewer must stand at it (the old /brew range)
+  const LAB_REACH = 400;
+  const atLab = (a, workbenchId) => {
+    try {
+      if (String(mp.get(a, 'worldOrCellDesc')) !== String(mp.get(workbenchId, 'worldOrCellDesc'))) return false;
+      const p = mp.get(a, 'pos'), q = mp.get(workbenchId, 'pos');
+      if (!Array.isArray(p) || !Array.isArray(q)) return false;
+      const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+      return Number.isFinite(d) && d <= LAB_REACH;
+    } catch (e) { return false; }
+  };
   const alchemistTier = (a) => {
     try {
       const r = mp.get(a, 'private.mastery');
@@ -63,13 +74,32 @@ module.exports = (api) => {
 
   const brew = (a, workbenchId, inputs) => {
     if (!isLab(workbenchId)) return;
+    if (!atLab(a, workbenchId)) return log(`alchemy: ${display(a)} reported a mix at lab ${workbenchId.toString(16)} while not at it; ignored`);
     const reported = inputs && Array.isArray(inputs.entries) ? inputs.entries : [];
     // Distinct ingredients the client says went in; vanilla mixes two or three, one of each
-    const used = [...new Set(reported.map((e) => Number(e.baseId) >>> 0))].filter((id) => effectsOf(id)).slice(0, 3);
+    const used = [...new Set(reported.map((e) => Number(e.baseId) >>> 0))];
+    // Anything else is not a mix (such as the inventory re-applied while seated at the lab), so nothing is made
+    if (used.length > 3 || used.some((id) => !effectsOf(id))) {
+      log(`alchemy: ${display(a)} reported ${used.map((id) => id.toString(16)).join(' + ')}, not a lab mix; ignored`);
+      // Only ingredients, too many of them: a real mix the client misreported, so the player is told
+      if (used.length > 3 && used.every((id) => id < 0xff000000 && effectsOf(id))) tell(a, 'The lab did not recognise that mix, so nothing was brewed. Your ingredients come back when you leave the lab. Try again.');
+      return;
+    }
     if (used.length < 2) return tell(a, 'A potion needs at least two ingredients.');
     const entries = invOf(a);
     const missing = used.find((id) => countOf(entries, id) < 1);
     if (missing) { log(`alchemy: ${display(a)} reported ${missing.toString(16)} it does not hold`); return tell(a, 'You do not have those ingredients.'); }
+    // The Draught of Revival replaces the ordinary potion for its exact recipe (downed.js decides)
+    const draught = typeof globalThis.__dboLabDraught === 'function' ? globalThis.__dboLabDraught(a, used) : null;
+    if (draught && draught.potion) {
+      for (const id of used) take(entries, id, 1);
+      give(entries, draught.potion, 1);
+      try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`alchemy: inventory write failed for ${display(a)}: ${e.message}`); return; }
+      draught.brewed();
+      log(`alchemy: ${display(a)} brewed the ${draught.name} (tier ${alchemistTier(a)}) from ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')}`);
+      return;
+    }
+    const hint = draught && draught.hint ? ` ${draught.hint}` : '';
     // Effects two or more of them share; the most valuable one that a known potion carries decides the potion
     const tally = new Map();
     for (const id of used) for (const e of new Set(effectsOf(id))) tally.set(e, (tally.get(e) || 0) + 1);
@@ -84,7 +114,7 @@ module.exports = (api) => {
     give(entries, potion.id, 1);
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`alchemy: inventory write failed for ${display(a)}: ${e.message}`); return; }
     const name = potion.edid.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s+0?(\d+)$/, ' $1');
-    tell(a, `You brew ${name}.`);
+    tell(a, `You brew ${name}.${hint}`);
     log(`alchemy: ${display(a)} brewed ${potion.edid} (${pick.name}, tier ${tier}) from ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')}`);
     audit(`ALCHEMY ${who(a)} brewed ${potion.edid}`);
   };

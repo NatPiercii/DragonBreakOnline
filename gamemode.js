@@ -2869,7 +2869,13 @@ try {
   const DOWNED_JS = path.resolve('downed.js');
   delete require.cache[DOWNED_JS];
   require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg });
-} catch (e) { log('downed.js failed to load:', e.stack || e.message); globalThis.__dboReviveWith = null; globalThis.__dboIsDowned = null; }
+} catch (e) { log('downed.js failed to load:', e.stack || e.message); globalThis.__dboReviveWith = null; globalThis.__dboIsDowned = null; globalThis.__dboLabDraught = null; }
+// ---- province rules for crafting and the tome shop (server\regions.js, config "regions"): before spells.js, which asks it ----
+try {
+  const REGIONS_JS = path.resolve('regions.js');
+  delete require.cache[REGIONS_JS];
+  require(REGIONS_JS)({ mp, log, personal, audit, who, cfg, registerChatCommand, isAdmin, sendPacket });
+} catch (e) { log('regions.js failed to load:', e.stack || e.message); globalThis.__dboRegions = null; if ('__dboPrevCraft' in globalThis) mp.onCraft = globalThis.__dboPrevCraft; }
 // ---- spell study, slots, teaching and the Synod tome shop (server\spells.js, config "spells"): after downed.js, whose onReadBook it wraps ----
 try {
   const SPELLS_JS = path.resolve('spells.js');

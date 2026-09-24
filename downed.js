@@ -149,7 +149,7 @@ module.exports = (api) => {
         try {
           if (isPlayer(a) && mp.get(a, 'private.permaDead') !== true) {
             S.downed.set(a, { at: Date.now(), by: Number(killerId) >>> 0 });
-            banner(a, `You are down. A Priest's healing, or an ally pressing E on you with a Draught of Revival, can raise you. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8);
+            banner(a, `You are down. A Priest's healing or a Draught of Revival can bring you back. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8);
             log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
           }
         } catch (e) { log(`downed: death handling failed: ${e.message}`); }
@@ -249,12 +249,22 @@ module.exports = (api) => {
   }
 
   // ---- the Draught of Revival --------------------------------------------------------------------------------
-  // Learned by reading its recipe, brewed with /brew revive by an Alchemist of tier 4 at an alchemy lab (the lab's own
-  // menu mixes ingredients client-side and makes nothing on the server), drunk facing the fallen to raise them.
-  const P = Object.assign({ tier: 4, labMs: 180000, labRange: 400, ingredients: { '4b0ba:Skyrim.esm': 2, '3ad72:Skyrim.esm': 1, '34cdf:Skyrim.esm': 1 } }, C.potion || {});
+  // Learned from its recipe book, brewed at any alchemy lab from one config recipe by an Alchemist of P.tier (see alchemy.js)
+  const P = Object.assign({
+    tier: 4,
+    recipes: [[{ id: '3ad72:Skyrim.esm', name: 'troll fat' }, { id: '4da00:Skyrim.esm', name: 'fly amanita' }, { id: '6018c7:BSAssets.esm', name: 'yellow cinnabar polypore' }]],
+  }, C.potion || {});
   const POTION = idOf('12ae16:DragonBreak Online Edits.esp'), RECIPE = idOf('12ae17:DragonBreak Online Edits.esp');
   const LABS = new Set([idOf('bad0c:Skyrim.esm'), idOf('d54ff:Skyrim.esm'), idOf('bf4fa:Journey to Baan Malur.esp')].filter(Boolean));
-  const INGREDIENTS = Object.entries(P.ingredients).map(([d, n]) => [idOf(d), Number(n) || 1]).filter(([id]) => id);
+  // A lab takes two or three distinct ingredients, so a recipe outside that or with an unresolved id can never match
+  const RECIPES = (Array.isArray(P.recipes) ? P.recipes : []).map((r) => {
+    const items = Array.isArray(r) ? r : [];
+    const ids = items.map((i) => (i && i.id ? idOf(String(i.id)) : 0));
+    const set = new Set(ids);
+    return ids.length >= 2 && ids.length <= 3 && set.size === ids.length && !set.has(0) ? { ids: set, names: items.map((i) => String(i.name || i.id)) } : null;
+  }).filter(Boolean);
+  const listOf = (names) => names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+  const recipeFor = (used) => RECIPES.find((r) => r.ids.size === used.length && used.every((id) => r.ids.has(id)));
   const invOf = (a) => { try { const inv = mp.get(a, 'inventory'); return inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return []; } };
   const countOf = (a, id) => invOf(a).filter((e) => (Number(e.baseId) >>> 0) === id).reduce((n, e) => n + (Number(e.count) || 0), 0);
   const addItem = (a, id, n) => {
@@ -272,17 +282,16 @@ module.exports = (api) => {
     } catch (e) { return 0; }
   };
   const knows = (a) => { try { const r = mp.get(a, 'private.dboRecipes'); return !!(r && r.revive); } catch (e) { return false; } };
-  const lastLab = S.lastLab = S.lastLab || new Map();
+  delete S.lastLab;
 
-  if (LABS.size) {
+  if (LABS.size && POTION && RECIPES.length) {
     const inner = mp.onActivate;
     if (typeof inner === 'function') {
       mp.onActivate = function (targetId, casterId, ...rest) {
         try {
           const t = Number(targetId) >>> 0, a = Number(casterId) >>> 0;
-          if (isPlayer(a) && LABS.has(mp.getIdFromDesc(String(mp.get(t, 'baseDesc'))) >>> 0)) {
-            lastLab.set(a, { at: Date.now(), pos: mp.get(a, 'pos'), cell: mp.get(a, 'worldOrCellDesc') });
-            if (POTION && knows(a) && alchemistTier(a) >= P.tier) personal(a, 'You know the Draught of Revival: say /brew revive while you are at this table.');
+          if (isPlayer(a) && knows(a) && LABS.has(mp.getIdFromDesc(String(mp.get(t, 'baseDesc'))) >>> 0)) {
+            personal(a, `You know the Draught of Revival: mix ${listOf(RECIPES[0].names)} here.${alchemistTier(a) >= P.tier ? '' : ` Brewing it takes an Alchemist of tier ${P.tier}.`}`);
           }
         } catch (e) { /* not a lab */ }
         return inner.call(this, targetId, casterId, ...rest);
@@ -296,11 +305,15 @@ module.exports = (api) => {
     const readHook = function (actorId, baseId, ...rest) {
       const a = Number(actorId) >>> 0;
       try {
-        if ((Number(baseId) >>> 0) === RECIPE && isPlayer(a) && !knows(a)) {
-          const r = Object.assign({}, mp.get(a, 'private.dboRecipes') || {}, { revive: true });
-          mp.set(a, 'private.dboRecipes', r);
-          banner(a, `You learned the Draught of Revival.${alchemistTier(a) >= P.tier ? ' Brew it at an alchemy lab with /brew revive.' : ` Brewing it takes an Alchemist of tier ${P.tier}.`}`, 5);
-          audit(`RECIPE ${who(a)} learned the Draught of Revival`);
+        if ((Number(baseId) >>> 0) === RECIPE && isPlayer(a)) {
+          // The book's own text is out of date, so every read shows the recipe; learning is recorded once
+          const first = !knows(a);
+          if (first) {
+            mp.set(a, 'private.dboRecipes', Object.assign({}, mp.get(a, 'private.dboRecipes') || {}, { revive: true }));
+            audit(`RECIPE ${who(a)} learned the Draught of Revival`);
+          }
+          const mix = RECIPES.length ? `: mix ${listOf(RECIPES[0].names)} at an alchemy lab.` : '.';
+          banner(a, `You ${first ? 'learned' : 'know'} the Draught of Revival${mix}${alchemistTier(a) >= P.tier ? '' : ` Brewing it takes an Alchemist of tier ${P.tier}.`}`, 6);
         }
       } catch (e) { log(`downed: recipe read failed: ${e.message}`); }
       return inner ? inner.call(this, actorId, baseId, ...rest) : undefined;
@@ -308,26 +321,6 @@ module.exports = (api) => {
     readHook.__dboDowned = true;
     mp.onReadBook = readHook;
   }
-  registerChatCommand('brew', (a, args) => {
-    if (String(args || '').trim().toLowerCase() !== 'revive') return personal(a, 'Usage: /brew revive (at an alchemy lab)');
-    if (!POTION) return personal(a, 'The Draught of Revival is not in this world yet.');
-    if (!knows(a)) return personal(a, 'You do not know how to brew the Draught of Revival. Its recipe must be found and read.');
-    if (alchemistTier(a) < P.tier) return banner(a, `The Draught of Revival takes an Alchemist of tier ${P.tier}.`);
-    const lab = lastLab.get(a);
-    let here = null; try { const p = mp.get(a, 'pos'); here = lab && mp.get(a, 'worldOrCellDesc') === lab.cell ? Math.hypot(p[0] - lab.pos[0], p[1] - lab.pos[1], p[2] - lab.pos[2]) : null; } catch (e) { /* none */ }
-    if (!lab || Date.now() - lab.at > P.labMs || here === null || here > P.labRange) return personal(a, 'Use an alchemy lab first, then say /brew revive while you stand at it.');
-    const missing = INGREDIENTS.filter(([id, n]) => countOf(a, id) < n);
-    if (missing.length) return personal(a, `You are missing ingredients: the draught takes 2 wheat, 1 troll fat and 1 salt pile.`);
-    const entries = invOf(a).map((e) => Object.assign({}, e));
-    for (const [id, n] of INGREDIENTS) {
-      let left = n;
-      for (const e of entries) { if (left > 0 && (Number(e.baseId) >>> 0) === id && !e.worn) { const take = Math.min(left, Number(e.count) || 0); e.count -= take; left -= take; } }
-    }
-    mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) });
-    addItem(a, POTION, 1);
-    banner(a, 'You brewed a Draught of Revival. Drink it facing a fallen ally to raise them.', 4);
-    audit(`BREW ${who(a)} brewed a Draught of Revival`);
-  }, { help: 'revive: brew the Draught of Revival at an alchemy lab (Alchemist tier 4, recipe learned)' });
   if (POTION) {
     const inner = mp.onEatItem;
     if (typeof inner === 'function') {
@@ -368,6 +361,16 @@ module.exports = (api) => {
   // The revive potion (alchemy) calls this when it is used on a fallen player
   globalThis.__dboReviveWith = (target, by, how) => revive(Number(target) >>> 0, Number(by) >>> 0, how);
   globalThis.__dboIsDowned = (a) => S.downed.has(Number(a) >>> 0) && isDead(Number(a) >>> 0);
+  // alchemy.js asks this before an ordinary brew: the Draught for a known recipe at tier, a hint below it, else null
+  globalThis.__dboLabDraught = (a, used) => {
+    if (!POTION) return null;
+    const r = recipeFor(used); if (!r || !knows(a)) return null;
+    if (alchemistTier(a) < P.tier) return { hint: `You know the Draught of Revival, but brewing it takes an Alchemist of tier ${P.tier}. This mix made an ordinary potion.` };
+    return { potion: POTION, name: 'Draught of Revival', brewed: () => {
+      banner(a, 'You brewed a Draught of Revival. It reaches your pack as you leave the lab. Press E on a fallen ally while carrying it to raise them.', 6);
+      audit(`BREW ${who(a)} brewed a Draught of Revival at a lab`);
+    } };
+  };
 
-  log(`downed on: friendly damage ${Math.round(C.friendlyDamage * 100)}%, bleed-out ${C.bleedoutSeconds} s, revive at ${Math.round(C.reviveHealth * 100)}%, Priest tier ${C.priestTier}, ${AIMED.size} aimed + ${AREA.size} area revive spells; Draught of Revival ${POTION && RECIPE ? `on (Alchemist tier ${P.tier}, ${LABS.size} lab bases, ${INGREDIENTS.length} ingredients)` : 'off: its records are not in the load order'}`);
+  log(`downed on: friendly damage ${Math.round(C.friendlyDamage * 100)}%, bleed-out ${C.bleedoutSeconds} s, revive at ${Math.round(C.reviveHealth * 100)}%, Priest tier ${C.priestTier}, ${AIMED.size} aimed + ${AREA.size} area revive spells; Draught of Revival ${POTION && RECIPE ? `on (Alchemist tier ${P.tier}, ${LABS.size} lab bases, ${RECIPES.length} recipes)` : 'off: its records are not in the load order'}`);
 };

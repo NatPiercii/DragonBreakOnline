@@ -312,5 +312,18 @@
    "KhajiitRace": "849:Sentinel.esp",
    "OrcRace": "849:Sentinel.esp"
   }
+ },
+ "downed": {
+  "_comment": "Down state (server\\downed.js). potion: the Draught of Revival, brewed at any alchemy lab by an Alchemist of potion.tier who has read its recipe, from exactly one of potion.recipes (one of each ingredient, any order). names are shown to players (vanilla names are localized string ids, so they are given here). _alternatives are not read.",
+  "potion": {
+   "tier": 4,
+   "recipes": [
+    [{ "id": "3ad72:Skyrim.esm", "name": "troll fat" }, { "id": "4da00:Skyrim.esm", "name": "fly amanita" }, { "id": "6018c7:BSAssets.esm", "name": "yellow cinnabar polypore" }]
+   ],
+   "_alternatives": {
+    "redPolypore": [{ "id": "3ad72:Skyrim.esm", "name": "troll fat" }, { "id": "4da00:Skyrim.esm", "name": "fly amanita" }, { "id": "6018c6:BSAssets.esm", "name": "red cinnabar polypore" }],
+    "undying": [{ "id": "3ad5b:Skyrim.esm", "name": "daedra heart" }, { "id": "3ad76:Skyrim.esm", "name": "vampire dust" }, { "id": "6018c7:BSAssets.esm", "name": "yellow cinnabar polypore" }]
+   }
+  }
  }
 }
