@@ -81,6 +81,9 @@ export const checkName = (name: string): NameCheck => {
   if (name.length < r.minLength || name.length > r.maxLength) {
     return { ok: false, error: `Names are ${r.minLength}-${r.maxLength} characters` };
   }
+  if (!/^[\p{L}' -]+$/u.test(name)) {
+    return { ok: false, error: "Names use letters, spaces, apostrophes and hyphens only" };
+  }
   if (/^[' -]|[' -]$/.test(name) || /[' -]{2}/.test(name)) {
     return { ok: false, error: "Names cannot start, end or run two separators together" };
   }
