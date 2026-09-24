@@ -35,6 +35,24 @@
   &__count {
     color: $dbo-text-dim;
     font-size: 11px;
+    margin-left: auto;
+  }
+
+  &__leave {
+    margin-left: 8px;
+    padding: 1px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $dbo-text-dim;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid dbo-accent(0.35);
+    cursor: pointer;
+
+    &:hover { color: $dbo-text; border-color: dbo-accent(0.7); }
+
+    &--confirm { color: #e8907f; border-color: #e8907f; }
   }
 
   &__list {

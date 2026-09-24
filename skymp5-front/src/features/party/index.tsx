@@ -34,8 +34,19 @@ const save = (box: { x: number; y: number; w: number; h: number }): void => {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(box)); } catch { /* private mode */ }
 };
 
+const leaveParty = (): void => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  try { (window as any).skyrimPlatform.sendMessage('dbo:partyLeave'); } catch { /* outside the game */ }
+};
+
 const Party = ({ data }: { data: PartyData }) => {
   const members = data.members || [];
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  useEffect(() => {
+    if (!confirmLeave) return;
+    const t = setTimeout(() => setConfirmLeave(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirmLeave]);
   const [box, setBox] = useState(() => load() || { x: 30, y: 300, w: 240, h: 0 });
   const drag = useRef<{ mode: 'move' | 'size'; sx: number; sy: number; box: typeof box } | null>(null);
 
@@ -60,6 +71,16 @@ const Party = ({ data }: { data: PartyData }) => {
       <div className="dboParty__bar" onMouseDown={start('move')}>
         <span className="dboParty__title">{members.some((m) => !m.summon) ? 'Party' : 'Companions'}</span>
         <span className="dboParty__count">{members.length}</span>
+        {members.some((m) => !m.summon) ? (
+          <button
+            className={'dboParty__leave' + (confirmLeave ? ' dboParty__leave--confirm' : '')}
+            title="Leave the party (or type /leave)"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => { if (confirmLeave) { setConfirmLeave(false); leaveParty(); } else setConfirmLeave(true); }}
+          >
+            {confirmLeave ? 'Sure?' : 'Leave'}
+          </button>
+        ) : null}
       </div>
       <div className="dboParty__list">
         {members.map((m) => {
