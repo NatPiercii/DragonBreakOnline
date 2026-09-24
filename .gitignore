@@ -64,3 +64,6 @@ terrain-heights.json
 # F7 Place tab: live placements and their export (placement.js)
 placements.json
 placements-export.json
+
+# commissions.js: posted work and gold held for it
+commissions.json

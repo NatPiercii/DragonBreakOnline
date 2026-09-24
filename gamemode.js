@@ -2941,6 +2941,14 @@ try {
   require(JAIL_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, isAdmin, distanceMeters });
 } catch (e) { log('jail.js failed to load:', e.stack || e.message); globalThis.__dboJailActivate = null; globalThis.__dboJailLogin = null; globalThis.__dboJailUnstuck = null; }
 
+// ---- commissions: work posted at the boards, the reward held until done (server\commissions.js, config "commissions") --
+try {
+  const COMMISSIONS_JS = path.resolve('commissions.js');
+  delete require.cache[COMMISSIONS_JS];
+  require(COMMISSIONS_JS)({ mp, log, personal, audit, who, display, tagOf, profileOf, onlineActors, every, registerChatCommand, cfg,
+    takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, boardZoneNear, zoneById, ranksOf });
+} catch (e) { log('commissions.js failed to load:', e.stack || e.message); }
+
 // ---- Oblivion-style lockpicking for cell doors and dungeon chests (server\lockpick.js, config "lockpick") -------
 try {
   const LOCKPICK_JS = path.resolve('lockpick.js');
