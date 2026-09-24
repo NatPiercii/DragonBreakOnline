@@ -1,5 +1,21 @@
 [
   {
+    "title": "Pick the Lock",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Lockpicking",
+        "items": [
+          "Jail cell doors and locked dungeon chests are now picked the Oblivion way: one tumbler for each lock level, from one on a Novice lock to five on a Master lock.",
+          "Push a tumbler up and set it while it hangs at the top. Set it too early or too late and your pick may snap.",
+          "Higher Lockpicking tiers keep tumblers hanging longer and snap fewer picks. Harder locks give you less time.",
+          "You need client 0.3.37: restart the launcher."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.37",
     "date": "2026-09-24",
     "version": "Client 0.3.37",
