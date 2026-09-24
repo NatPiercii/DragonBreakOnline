@@ -1,5 +1,21 @@
 [
   {
+    "title": "Houses for Rent",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Property",
+        "items": [
+          "A hold's Jarl, Steward or other property official can now rent out an empty house at its door, for a deposit and a weekly rent (/property list).",
+          "At the door, /property shows the terms and /property interest puts your name down. If the officials offer it to you, come back and say /property accept: you pay the deposit and the first week, and the house and its keys are yours to live in.",
+          "Pay rent at the door with /property pay. Rent that falls due is announced; the officials may send a reminder, give a week's grace, or evict, in which case the hold keeps the deposit. Leave in good standing with /property leave and the deposit comes back.",
+          "Officials see what they manage with /properties."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Blade and Blunt",
     "date": "2026-09-24",
     "tag": "Update",
