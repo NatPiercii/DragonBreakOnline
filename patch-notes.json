@@ -1,5 +1,27 @@
 [
   {
+    "title": "Blade and Blunt",
+    "date": "2026-09-24",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "One-Handed and Two-Handed are gone. In their place, as in the older Elder Scrolls: Blade (swords, daggers and greatswords, one hand or two) and Blunt (maces, war axes, warhammers and battleaxes).",
+          "Your progress moves over the next time you log in, and nothing is lost. It goes to whichever of the two you actually fought with; if you had both skills, the higher one goes to the side you favoured and the other to the other side.",
+          "Tier bonuses are unchanged: +35%, +65% and +100% damage at Journeyman, Expert and Master."
+        ]
+      },
+      {
+        "heading": "Also new today",
+        "items": [
+          "Commissions: post work at a notice board with /commission post, and the reward is held by the board until the work is done. If you disagree over whether it was done, the town's officials settle it.",
+          "Offerings: /offer gold at your god's shrine before you pray. Half keeps the town's temple, and your next prayer is likelier to be answered."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Chill of the Grave",
     "date": "2026-09-24",
     "tag": "Update",
