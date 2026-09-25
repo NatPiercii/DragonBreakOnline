@@ -918,7 +918,9 @@ export class NpcSpawnSystem implements System {
   // wild:wolf:2882 (spot z 19396) 'fell' at z 14882 while 4,400 above the terrain under it (2026-09-25 17:56:40)
   private fellOut(zone: Zone, pos: number[]): boolean {
     const t = this.terrainAt(zone.cellOrWorldDesc, pos[0], pos[1]);
-    return t ? pos[2] < t.lo - FALL_BELOW_TERRAIN : pos[2] < zone.pos[2] - FALL_LIMIT;
+    // Both, where the terrain is known: the terrain file is copied by hand and a stale one must not declare falls
+    // on its own (review of 3dcd054a); the spot rule alone misfired on a long chase downhill
+    return t ? pos[2] < t.lo - FALL_BELOW_TERRAIN && pos[2] < zone.pos[2] - FALL_LIMIT : pos[2] < zone.pos[2] - FALL_LIMIT;
   }
 
   // A death starts the slot's Respawn cooldown and the corpse's own removal timer

@@ -244,7 +244,10 @@ export class SendInputsService extends ClientListener {
 
         let animSource = this.playerAnimSource.get(refrIdStr);
         if (!animSource) {
-            animSource = new AnimationSource(owner);
+            // Adding the hook throws while an engine thread is inside it; skip this copy for a frame, not every
+            // hosted copy after it (review of 48be192d)
+            try { animSource = new AnimationSource(owner); }
+            catch (e) { return; }
             this.playerAnimSource.set(refrIdStr, animSource);
         }
         const anim = animSource.getAnimation();

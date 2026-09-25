@@ -319,6 +319,8 @@ export class FormView {
 
   destroy(): void {
     this.isOnScreen = false;
+    // A reused view granted on its first frame must not read the old copy's hosting as its own (false 'pinned')
+    this.movState.wasHosted = false;
     this.lastNiNodeUpdateMs = 0;
     this.spawnMoment = 0;
     this.dealtWithRef = false;
@@ -1016,11 +1018,13 @@ export class FormView {
   private tryHostIfNeed(ac: Actor, remoteId: number, worldOrCell?: number) {
     // Our AI drives only a spawned copy with its 3D; a grant for any other goes silent (sendMovement skips an unloaded
     // copy) and holds the NPC from a player who could drive it until the server's stale-host release
-    if (!this.ready || !ac.is3DLoaded()) {
+    if (!this.ready) {
       return false;
     }
     const last = lastTryHost[remoteId];
     if (!last || Date.now() - last >= 1000) {
+      // Behind the throttle: a native call a frame for every copy nobody hosts was the cost (review of e4d1d858)
+      if (!ac.is3DLoaded()) return false;
       try {
         const pc = Game.getPlayer() as Actor;
         if (pc && ac && ac.is3DLoaded()) {
