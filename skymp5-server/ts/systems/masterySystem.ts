@@ -226,6 +226,9 @@ export class MasterySystem implements System {
 
     ctx.gm.on("userAssignActor", (userId: number, actorId: number) => this.onActorAssigned(ctx, userId, actorId >>> 0));
     (globalThis as any).__alduinakMasteryEvent = (kind: string, actorId: number, detail: unknown) => this.enqueue(kind, actorId, detail);
+    // A first touch the gameplay layer decides on: spells.js takes up a school's skill when a Novice tome is read at a
+    // spell study point (Nate, 2026-09-25). "ok", "held" (already taken up), "full" (no pool point free) or "unknown".
+    (globalThis as any).__alduinakMasteryFirstTouch = (actorId: number, skillId: string): string => this.firstTouchFromGameplay(ctx, Number(actorId) >>> 0, String(skillId));
     this.hookNativeEvents(ctx);
   }
 
@@ -820,7 +823,22 @@ export class MasterySystem implements System {
       this.notice(ctx, userId, "Your hands are full. Mark a skill to fall (K) before taking up a new trade.");
       return;
     }
-    const banked = Math.max(0, Number(prog.shadow) || 0);
+    this.completeTakeUp(ctx, actorId, userId, rec, id, Math.max(0, Number(prog.shadow) || 0));
+  }
+
+  private firstTouchFromGameplay(ctx: SystemContext, actorId: number, id: string): string {
+    const cfg = this.points; if (!cfg || !actorId || !this.def(id)) return "unknown";
+    const rec = this.read(ctx, actorId) || emptyRecord();
+    const prog = rec.skills[id];
+    if (prog && prog.level >= 1) return "held";
+    if (!P.firstTouch(rec as unknown as P.PointRecord, id, cfg)) return "full";
+    this.completeTakeUp(ctx, actorId, this.userOf(ctx, actorId), rec, id, Math.max(0, Number(prog?.shadow) || 0));
+    return "ok";
+  }
+
+  // After P.firstTouch has spent the pool point: settle the new entry, credit the banked units, write, and sync
+  private completeTakeUp(ctx: SystemContext, actorId: number, userId: number, rec: MasteryRecord, id: string, banked: number): void {
+    const cfg = this.points; if (!cfg) return;
     const fresh = rec.skills[id];
     // firstTouch rebuilds the entry as { level, xp, lock }: without granted and rank the tier-spell sync below threw
     // (playtest 2026-09-25), leaving the new skill's spells ungranted and the menu stale until the next rank change
