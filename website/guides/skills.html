@@ -409,19 +409,18 @@
     </ul>
   </section>
   <section>
-    <h2>Honest status</h2>
+    <h2>Make your name on the Wheel</h2>
+    <p>In most games you can become everything. Here you become <strong>someone</strong>. Every character has 300 points to spread across eighteen skills, from the mine and the forge to Blade, Blunt, the Closed Fist and the schools of magic. Dabble in all of them, or pour yourself into one.</p>
     <div class="g-callout g-callout--good">
-      <p><strong>Proven in play, 20 September.</strong> A character took up a trade at an ore vein, worked six veins and a forge, and the record kept its level across a save, a logout <em>and</em> a server restart. The credit log reported real units per skill for the first time. The arithmetic also has 110 tests covering the bands, the caps, the bucket, repetition decay, donor selection and the migration.</p>
+      <p><strong>Learn by doing.</strong> Eight trades open at their station and the other ten are taken up by doing the work. Swing at an ore vein, work a forge, pick up a sword: the effort banks as you go, and once there is a level&rsquo;s worth the skill is yours.</p>
     </div>
-    <div class="g-callout g-callout--warn">
-      <p><strong>The first live test found a blocker, since fixed.</strong> The two halves of the engine disagreed on what to call a skill's level — <code>points</code> on one side, <code>level</code> on the other — with four casts switching off the type checking exactly where they met. Every point earned was discarded on the next read while the daily meter still counted it. <code>level</code> is now canonical and <code>points</code> is written beside it as a derived shim, so nothing outside that one file had to change.</p>
+    <div class="g-callout g-callout--good">
+      <p><strong>Mastery that means something.</strong> Only three of your skills can rise above 75, and only one can take the Seat above 90. Nobody can be the best at everything, so the finest work in Skyrim comes from people who seek each other out: the miner, the smith and the mage.</p>
     </div>
-    <div class="g-callout g-callout--warn">
-      <p><strong>Weights are still mostly provisional, but mining is fixed.</strong> It used to report itself as a generic activation worth 0.5 rather than a mine worth 1.0 to 2.0, so the ore-band term never ran and a Novice level cost twenty separate veins. Mining, chopping and reading now each report their own kind, and mining carries the ore band as its weight — copper 1.0, ebony 2.0 — so a Novice level is ten copper veins rather than twenty. <strong>Craft, kill, hit, hurt and cast are still flat</strong>: the wider bug was that no caller ever passed the scale term at all, so every one of those sat at its 0.5 base whatever the product was worth or the target's health. The plumbing is in now; the emitters still have to send a value. A week of the credit log should set them, rather than us guessing.</p>
+    <div class="g-callout g-callout--good">
+      <p><strong>Your progress is safe.</strong> Nothing fades while you are away. When a new skill needs room, you choose what gives way under Masser and Secunda: keep your trade Held, let an old habit Wane, and no skill ever drops below 25. A standing stone lets you reshape your path on purpose.</p>
     </div>
-    <div class="g-callout g-callout--warn">
-      <p><strong>Crafting is not gated yet.</strong> "Ebony and daedric are crafted only, never found" holds on the loot side, but no recipe carries its skill condition yet, and nothing reads a marker spell at a forge. The markers themselves are all there now: <strong>Unarmed's five were written on 20 September</strong> (<code>DBO_Skill_unarmed_T1..T5</code> at <code>1209CA-1209CE</code>), which takes the plugin to ninety and clears the <code>5 marker spell(s) missing</code> line that had been in every boot since the skill shipped. Boot now reads <code>unresolved: none</code>. What is left is the recipe conditions.</p>
-    </div>
+    <p>Find a vein, a forge or a fight, and start turning the Wheel. <a href="/play.html">Get the launcher and play</a>.</p>
   </section>
   <footer>
     <p>Written 20 September 2026; the full list of eighteen added 23 September; revised the same night for Unarmed and the combat openings, and again that afternoon for the mining weight, the Khajiit claws and the marker spells. Full design, including the parts we rejected and the open decisions, is in <span class="g-mono">server/SKILLS_DESIGN.md</span>.</p>
