@@ -105,6 +105,8 @@ export class VoiceService extends ClientListener {
     }
     if (this.altDown && e.isDown) this.altUsedAsModifier = true;
     if (e.code !== this.voiceKey) return;
+    // The key went up here, so the page lost the keyboard while holding it (a window closed mid-talk): let its mic go
+    if (e.isUp) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.releaseDomPtt && window.__alduinakVoice.releaseDomPtt()`);
 
     // isHeld frames let a V hold that outlives the Alt+V cycle start transmitting once Alt releases (isDown fires only on the press frame)
     if ((e.isDown || e.isHeld) && !this.pttDown) {
@@ -262,7 +264,8 @@ export class VoiceService extends ClientListener {
     }
 
     this.pushPrefs();
-    const cfg = { modes: this.modes, mode: this.mode };
+    // The talk key, so the page can push-to-talk while one of its windows has the keyboard (the trade window)
+    const cfg = { modes: this.modes, mode: this.mode, pttScanCode: this.voiceKey };
     this.pendingRefrId = this.myRefrId();
     this.sp.browser.executeJavaScript(
       `window.__alduinakVoice && window.__alduinakVoice.connect(${JSON.stringify(url)}, ${JSON.stringify(token)}, ${JSON.stringify(cfg)})`

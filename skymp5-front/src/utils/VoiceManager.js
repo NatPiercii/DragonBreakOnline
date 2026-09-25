@@ -8,6 +8,8 @@
 //   setPeers({ identityHex: distanceUnits })  refresh distances ~every 400ms; peers absent from the map are out of range
 //   setPrefs({ inputLabel, outputLabel, micGain, outputVolume, activation: 'ptt'|'vad', vadThreshold })  launcher Voice tab
 //   adjustPeer(identityHex, 'louder'|'quieter'|'mute'|'unmute'|'reset')  X menu; remembered per character on this PC
+//   releaseDomPtt()           the game side saw the talk key go up (the page had lost the keyboard): stop the page's own
+//                             push-to-talk; cfg.pttScanCode in connect() names the launcher's talk key (DirectInput code)
 // Events back to the game (window.skyrimPlatform.sendMessage):
 //   'voice::ready', 'voice::micDenied', 'voice::error' <text>,
 //   'voice::speaking' <json array of {id, level}: own voice plus audible speakers, every 150 ms while anyone talks, [] once when quiet>
@@ -38,6 +40,26 @@ const DEFAULT_MODES = [
   { key: 'shout', label: 'Shout', units: 3150 },
 ];
 
+// DirectInput scan code -> KeyboardEvent.code, for the talk key while the page has the keyboard (letters, digits, F-keys
+// and the common keys a launcher offers; anything else leaves the page's push-to-talk off)
+const DX_TO_CODE = (() => {
+  const m = {};
+  'QWERTYUIOP'.split('').forEach((c, i) => { m[0x10 + i] = `Key${c}`; });
+  'ASDFGHJKL'.split('').forEach((c, i) => { m[0x1e + i] = `Key${c}`; });
+  'ZXCVBNM'.split('').forEach((c, i) => { m[0x2c + i] = `Key${c}`; });
+  for (let i = 1; i <= 9; i++) m[0x01 + i] = `Digit${i}`;
+  m[0x0b] = 'Digit0';
+  for (let i = 1; i <= 10; i++) m[0x3a + i] = `F${i}`;
+  m[0x57] = 'F11'; m[0x58] = 'F12';
+  Object.assign(m, { 0x0f: 'Tab', 0x29: 'Backquote', 0x3a: 'CapsLock', 0x2a: 'ShiftLeft', 0x36: 'ShiftRight', 0x1d: 'ControlLeft',
+    0x39: 'Space', 0x0c: 'Minus', 0x0d: 'Equal', 0x1a: 'BracketLeft', 0x1b: 'BracketRight', 0x2b: 'Backslash', 0x27: 'Semicolon',
+    0x28: 'Quote', 0x33: 'Comma', 0x34: 'Period', 0x35: 'Slash' });
+  return m;
+})();
+// A field the player types into keeps the letter; buttons and the rest of a window do not
+const isTextField = (el) => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
+  || (el.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'image', 'color'].includes(String(el.type || '').toLowerCase())));
+
 function sendToGame(...args) {
   try { window.skyrimPlatform.sendMessage(...args); } catch (e) { /* outside game */ }
 }
@@ -53,6 +75,8 @@ class VoiceManager {
     this.vectors = {};         // identity -> { d, az, fa } from setPeerVectors: distance, bearing, how squarely they face me
     this.peerRanges = {};      // identity -> that speaker's mode range
     this.ptt = false;
+    this.pttCode = 'KeyV';     // the talk key while the page has the keyboard (the game side sees it otherwise)
+    this.domPtt = false;       // the page's own push-to-talk is holding the mic
     this.audioEls = new Map(); // identity -> HTMLAudioElement
     this.bannerEl = null;
     this.bannerTimer = null;
@@ -251,6 +275,7 @@ class VoiceManager {
     if (!cfg || typeof cfg !== 'object') return;
     if (Array.isArray(cfg.modes) && cfg.modes.length) this.modes = cfg.modes;
     if (cfg.mode && this.modeByKey(cfg.mode)) this.mode = cfg.mode;
+    if (typeof cfg.pttScanCode === 'number') this.pttCode = DX_TO_CODE[cfg.pttScanCode] || null;
   }
 
   modeByKey(key) {
@@ -380,6 +405,12 @@ class VoiceManager {
       });
       window.dispatchEvent(new CustomEvent('dbo:voiceSpeakers', { detail: named }));
     } catch (e) { /* no DOM */ }
+  }
+
+  releaseDomPtt() {
+    if (!this.domPtt) return;
+    this.domPtt = false;
+    this.setPtt(false);
   }
 
   async setPtt(down) {
@@ -532,6 +563,21 @@ class VoiceManager {
 }
 
 window.__alduinakVoice = new VoiceManager();
+
+// Push-to-talk while a game window has the keyboard (the trade window, a menu): the game side never sees the key then,
+// because the page takes the keyboard, and players could not talk while trading (Nate, 2026-09-25). A text field keeps
+// typing the letter, and Alt+key stays the game's mode cycle.
+window.addEventListener('keydown', (e) => {
+  const vm = window.__alduinakVoice;
+  if (!vm || !vm.pttCode || e.code !== vm.pttCode || e.altKey || vm.domPtt || isTextField(document.activeElement)) return;
+  vm.domPtt = true;
+  vm.setPtt(true);
+}, true);
+window.addEventListener('keyup', (e) => {
+  const vm = window.__alduinakVoice;
+  if (vm && e.code === vm.pttCode) vm.releaseDomPtt();
+}, true);
+window.addEventListener('blur', () => { const vm = window.__alduinakVoice; if (vm) vm.releaseDomPtt(); });
 
 // Failsafe: if the game stops feeding distances (main menu, script reload), go silent instead of playing stale volumes.
 // Also heartbeat the range so listeners who missed the data packet eventually heal.
