@@ -1,5 +1,22 @@
 [
   {
+    "title": "Level Points and the Beast",
+    "date": "2026-09-25",
+    "version": "Server",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "The level-up panel no longer disappears for good. Taking beast form used to close it in a way that stopped it ever opening again, so unspent points were stranded. It reopens properly now.",
+          "If the panel still will not show, you can spend a point straight from chat: /level health, /level magicka or /level stamina. Plain /level tells you how many you have left.",
+          "Choosing a point in the panel no longer closes it when the choice does not take, which used to cost you both the panel and the point.",
+          "Players standing near you now see you turn into a beast, and see you return to mortal form afterwards."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Synod Opens Its Doors",
     "date": "2026-09-25",
     "version": "Client 0.3.42",
