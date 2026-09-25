@@ -70,17 +70,13 @@ export class DboGlowService extends ClientListener {
     for (const id of Array.from(this.glowing.keys())) this.stop(id);
   }
 
+  // Looked up every time: a native object is only valid in the frame it came from, and the cached copy made every
+  // later play() throw, which the catch above took for "not loaded yet", so dungeon chests never glowed (2026-09-25)
   private shader(kind: string): EffectShader | null {
-    if (!this.shaderForms.has(kind)) {
-      let form: EffectShader | null = null;
-      try { form = EffectShader.from(this.sp.Game.getFormEx(SHADERS[kind] || SHADERS.loot)); } catch { form = null; }
-      this.shaderForms.set(kind, form);
-    }
-    return this.shaderForms.get(kind) || null;
+    try { return EffectShader.from(this.sp.Game.getFormEx(SHADERS[kind] || SHADERS.loot)); } catch { return null; }
   }
 
   private wanted = new Map<number, string>();
   private glowing = new Map<number, string>();
   private nextPoll = 0;
-  private shaderForms = new Map<string, EffectShader | null>();
 }

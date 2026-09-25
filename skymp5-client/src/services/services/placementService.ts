@@ -48,8 +48,11 @@ export class PlacementService extends ClientListener {
     this.stop(false);
     this.active = true;
     this.pick = pick;
-    this.form = pick ? this.formOf(pick.desc) : null;
-    if (pick && !this.form) {
+    // The id, not the Form: a native object is only valid in the frame it came from, and the Form kept here made
+    // placeAtMe throw on every later frame, so no preview ever appeared (playtest 2026-09-25)
+    const form = pick ? this.formOf(pick.desc) : null;
+    this.formId = form ? form.getFormID() : 0;
+    if (pick && !this.formId) {
       Debug.notification(`${pick.name} is not in your load order.`);
       this.active = false;
       return;
@@ -71,7 +74,7 @@ export class PlacementService extends ClientListener {
     if (announce && this.active) Debug.notification("Placement mode off.");
     this.active = false;
     this.pick = null;
-    this.form = null;
+    this.formId = 0;
   }
 
   // "hex:Plugin.esm" as the catalog writes it
@@ -97,7 +100,7 @@ export class PlacementService extends ClientListener {
     if (Input.isKeyPressed(KEY.down)) this.distance = Math.max(DISTANCE.min, this.distance - DISTANCE.step);
     if (Input.isKeyPressed(KEY.pageUp)) this.height += HEIGHT_STEP;
     if (Input.isKeyPressed(KEY.pageDown)) this.height -= HEIGHT_STEP;
-    if (!this.pick || !this.form) return;
+    if (!this.pick || !this.formId) return;
 
     // Skyrim's heading: 0 is north (+Y), growing clockwise; the copy faces back toward the GM
     const yaw = player.getAngleZ();
@@ -117,7 +120,7 @@ export class PlacementService extends ClientListener {
   private showGhost(player: Actor, pos: number[], rotZ: number): void {
     let ghost = this.ghostId ? ObjectReference.from(Game.getFormEx(this.ghostId)) : null;
     if (!ghost) {
-      ghost = player.placeAtMe(this.form, 1, false, false);
+      ghost = player.placeAtMe(Game.getFormEx(this.formId), 1, false, false);
       if (!ghost) {
         logError(this, "placeAtMe returned null for", this.pick?.desc);
         return this.stop(true);
@@ -159,7 +162,7 @@ export class PlacementService extends ClientListener {
 
   private active = false;
   private pick: Pick | null = null;
-  private form: Form | null = null;
+  private formId = 0;
   private ghostId = 0;
   private distance = DISTANCE.start;
   private height = 0;
