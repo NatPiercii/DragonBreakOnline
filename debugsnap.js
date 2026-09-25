@@ -15,7 +15,7 @@ module.exports = (api) => {
   const { mp, log, every, personal, registerChatCommand, onlineActors, display, tagOf, profileOf, isAdmin, cfg } = api;
   const C = Object.assign({ dir: '/var/lib/dbo-monitor', snapMs: 5000, bugEveryMs: 60000, logFile: '/var/log/skymp-server.log',
     logTailBytes: 400000, maxNpcs: 40 }, cfg.debugSnap || {});
-  const S = globalThis.__dboDebugSnap || (globalThis.__dboDebugSnap = { bugAt: new Map() });
+  const S = globalThis.__dboDebugSnap || (globalThis.__dboDebugSnap = { bugAt: new Map(), writing: false });
   const hex = (id) => (Number(id) >>> 0).toString(16);
   const r = (v) => Math.round(Number(v));
   const terrainDz = (desc, pos) => { try { return typeof globalThis.__dboTerrainDz === 'function' ? globalThis.__dboTerrainDz(desc, pos) : null; } catch (e) { return null; } };
@@ -51,11 +51,27 @@ module.exports = (api) => {
     catch (e) { log('debugsnap: writing', file, 'failed:', e.message); return false; }
   };
 
-  every('debugSnap', C.snapMs, () => {
+  // live.json is written off the game loop: a synchronous write on a busy disk froze the server for 549 ms
+  // (2026-09-25 19:26, while a client package was being built on the same disk). One write at a time; a
+  // snapshot taken while the last one is still on its way is skipped.
+  const writeLive = (obj) => {
+    if (S.writing) return Promise.resolve(false);
+    S.writing = true;
+    const file = path.join(C.dir, 'live.json');
+    const data = JSON.stringify(obj, null, 1);
+    return fs.promises.mkdir(C.dir, { recursive: true })
+      .then(() => fs.promises.writeFile(file + '.tmp', data))
+      .then(() => fs.promises.rename(file + '.tmp', file))
+      .then(() => true)
+      .catch((e) => { log('debugsnap: writing live.json failed:', e.message); return false; })
+      .finally(() => { S.writing = false; });
+  };
+  const snap = () => {
     const players = [];
     for (const p of onlineActors()) { try { players.push(playerView(p)); } catch (e) { /* loading */ } }
-    write(path.join(C.dir, 'live.json'), { at: new Date().toISOString(), players });
-  });
+    return writeLive({ at: new Date().toISOString(), players });
+  };
+  every('debugSnap', C.snapMs, () => { snap(); });
 
   // The last minute of log lines that mention the player or one of the NPCs near them
   const recentLog = (needles) => {
@@ -86,4 +102,5 @@ module.exports = (api) => {
   }, { help: '<what went wrong>: report a bug; where you are and what is around you are saved with it' });
 
   log(`debugsnap: live snapshot every ${C.snapMs / 1000} s to ${C.dir}/live.json, /bug reports to ${C.dir}/bugs`);
+  return { snap };
 };

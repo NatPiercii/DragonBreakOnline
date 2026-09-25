@@ -15,12 +15,15 @@ const P = 0x14, WOLF = 0xff000101, FAR = 0xff000102;
 const A = { [P]: { pos: [0, 0, 100], world: 'w', profileId: 1, near: [WOLF, FAR] }, [WOLF]: { pos: [300, 0, 20], world: 'w', profileId: -1, baseDesc: '4932a:BSHeartland.esm' }, [FAR]: { pos: [3000, 0, 100], world: 'w', profileId: -1, isDead: true } };
 const mp = { get: (id, k) => { const a = A[id]; if (k === 'pos') return a.pos; if (k === 'worldOrCellDesc') return a.world; if (k === 'actorNeighbors') return a.near; if (k === 'profileId') return a.profileId; if (k === 'isDead') return !!a.isDead; if (k === 'baseDesc') return a.baseDesc; }, getHoster: (id) => (id === WOLF ? P : 0) };
 let tick; const cmds = {}; const said = []; const logs = [];
-require(path.resolve(__dirname, '..', 'debugsnap.js'))({ mp, log: (...a) => logs.push(a.join(' ')), every: (n, ms, f) => { tick = f; }, personal: (a, t) => said.push(t),
+const mod = require(path.resolve(__dirname, '..', 'debugsnap.js'))({ mp, log: (...a) => logs.push(a.join(' ')), every: (n, ms, f) => { tick = f; }, personal: (a, t) => said.push(t),
   registerChatCommand: (n, f) => { cmds[n] = f; }, onlineActors: () => [P], display: (a) => (a === P ? 'Ann Aa #AAAA' : a.toString(16)), tagOf: () => 'AAAA',
   profileOf: (a) => A[a].profileId, isAdmin: () => false, cfg: { debugSnap: { dir, logFile } } });
 let failures = 0; const check = (n, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
 
-tick();
+(async () => {
+check('the tick starts a write without waiting for it (the file lands after the tick returns)', (() => { tick(); return !fs.existsSync(path.join(dir, 'live.json')); })());
+await new Promise((r) => setTimeout(r, 50));
+check('a second snapshot while one is being written is skipped, not queued', (() => { globalThis.__dboDebugSnap.writing = true; const r = mod.snap(); globalThis.__dboDebugSnap.writing = false; return r instanceof Promise; })());
 const live = JSON.parse(fs.readFileSync(path.join(dir, 'live.json'), 'utf8'));
 const p = live.players[0];
 check('live.json lists the player with height against the terrain', p.name === 'Ann Aa #AAAA' && p.terrainDz === 0, p.terrainDz);
@@ -40,3 +43,4 @@ check('one report a minute per player', /wait a minute/.test(said.pop()) && fs.r
 
 fs.rmSync(dir, { recursive: true, force: true }); delete globalThis.__dboTerrainDz; delete globalThis.__dboDebugSnap;
 console.log(''); console.log(failures ? `${failures} FAILURES` : 'all checks passed'); process.exit(failures ? 1 : 0);
+})();
