@@ -1,5 +1,40 @@
 [
   {
+    "title": "The Server Runs the Creatures",
+    "date": "2026-09-25",
+    "version": "Client 0.3.40",
+    "tag": "Fixes",
+    "sections": [
+      {
+        "heading": "Creatures and enemies",
+        "items": [
+          "The server now decides whose game runs each creature: the nearest player who has it in view. Before, the first player to ask kept it, even after walking away, so creatures froze, floated or stopped fighting back for everyone else.",
+          "Your game now reports where a creature's body really is, not just where the game thinks it stands. This is aimed at creatures that float above the ground or sink into it.",
+          "Other players' view of a creature is steadier: less sliding past where it stopped and less snapping back."
+        ]
+      },
+      {
+        "heading": "Reporting problems",
+        "items": [
+          "New command: /bug <what went wrong>. It saves your report together with where you stand and every creature around you, so the team can see exactly what you saw. One report a minute."
+        ]
+      },
+      {
+        "heading": "Behind the scenes",
+        "items": [
+          "The server now checks every item that is dropped, stored or taken.",
+          "Staff get a live monitor of server, player and creature problems while people play."
+        ]
+      },
+      {
+        "heading": "In this client update (restart the launcher)",
+        "items": [
+          "Client 0.3.40 carries the body-position and creature-view changes above. Restart the launcher to get it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Steadier Creatures",
     "date": "2026-09-25",
     "version": "Client 0.3.39",
