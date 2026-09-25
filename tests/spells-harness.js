@@ -300,6 +300,25 @@ check('shopMaxRank caps the list', shop(OTHER).tomes.every((t) => t.rank <= 2) &
 ui('tomeClose', OTHER, [shop(OTHER).nonce], 44);
 check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHER && c[1] === 44));
 
+
+// ---- a Novice tome at a study point takes up the skill (Nate, 2026-09-25) ----
+{
+  const NEW = 0x18; online.push(NEW); at(NEW, SYNOD);
+  const calls = [];
+  globalThis.__alduinakMasteryFirstTouch = (a, id) => { calls.push([a, id]); return 'full'; };
+  check('with no free point the Novice tome is refused and says why', (await read(NEW, T.boundSword)) === false && /taking up Arcane Arts needs a free skill point/.test(said(NEW)) && studied(NEW, 'arcane').length === 0, said(NEW));
+  check('...having asked the skill system once, for arcane', calls.length === 1 && calls[0][0] === NEW && calls[0][1] === 'arcane', calls);
+  globalThis.__alduinakMasteryFirstTouch = (a, id) => { calls.push([a, id]); mastery(a, { [id]: 0 }); return 'ok'; };
+  check('an Apprentice tome does not take the skill up', (await read(NEW, T.firebolt)) === false && calls.length === 1 && /not taken up Arcane Arts.*Reading a Novice Destruction tome at a spell study point takes it up/.test(said(NEW)), said(NEW));
+  at(NEW, BRUMA);
+  check('nor does a Novice tome away from a study point', (await read(NEW, T.boundSword)) === false && calls.length === 1);
+  at(NEW, SYNOD);
+  check('a Novice tome at the Synod takes up Arcane Arts and is learned', (await read(NEW, T.boundSword)) !== false && calls.length === 2 && studied(NEW, 'arcane').length === 1, [calls, studied(NEW, 'arcane')]);
+  check('...and the take-up is audited', out.audits.some((l) => /SPELL P18 took up arcane by reading 9e2a9:Skyrim.esm/.test(l)), out.audits.slice(-3));
+  check('a second Novice tome does not ask again', (await read(NEW, T.flames)) !== false && calls.length === 2 && studied(NEW, 'arcane').length === 2);
+  delete globalThis.__alduinakMasteryFirstTouch;
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });

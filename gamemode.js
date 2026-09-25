@@ -1702,7 +1702,19 @@ const READ = Object.assign({
   enabled: true, baseSeconds: 30, secondsPerWord: 6, wrongPenaltySeconds: 8, graceMs: 2500,
   cooldownMinutes: 30, loseCooldownMinutes: 2,
   wordsByTier: [[5, 7], [6, 8], [7, 9], [8, 10], [9, 12]],
+  // A scroll pressed between the pages of a book read through, by Scholar tier (Nate, 2026-09-25: scrolls let a new
+  // mage cast, and so train Arcane Arts or Priest, before owning a spell). The tier also caps the scroll's value.
+  scrollChanceByTier: [0.2, 0.25, 0.3, 0.35, 0.4],
+  scrollMaxValueByTier: [50, 100, 250, 500, 0],
+  scrollExcludePattern: '^DLC\\d(Exp|dun)|^MGR|^dun|Empty|Quest|ENEMY',
 }, cfg.reading || {});
+// A random scroll a reader of this Scholar tier may find: within the tier's value cap, quest and empty ones left out
+const scrollFor = (tier) => {
+  const max = Number((READ.scrollMaxValueByTier || [])[Math.min(tier, 4)]) || 0;
+  let skip = null; try { skip = READ.scrollExcludePattern ? new RegExp(READ.scrollExcludePattern) : null; } catch (e) { skip = null; }
+  const pool = (READABLES.scrolls || []).filter((x) => (!max || (Number(x.value) || 0) <= max) && !(skip && skip.test(String(x.name || ''))));
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+};
 const candleMs = (words) => Math.round((Number(READ.baseSeconds) + Number(READ.secondsPerWord) * words) * 1000);
 const READ_WIDGET_ID = 30;
 const SKILLS_DEF = (() => { try { return JSON.parse(fs.readFileSync(path.resolve('skills.json'), 'utf8')); } catch (e) { return {}; } })();
@@ -1885,6 +1897,11 @@ onUi('reading', (a, args) => {
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     if (ses.baseId && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) results.push(`you copy out ${ses.title} and keep it`);
+    const scrollChance = Number((READ.scrollChanceByTier || [])[Math.min(tier, 4)]) || 0;
+    if (scrollChance > 0 && Math.random() < scrollChance) {
+      const pick = scrollFor(tier);
+      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) results.push(`a scroll was tucked between the pages: ${humanize(pick.name)}`); } catch (e) { log('readable give failed', pick.id, e.message); } }
+    }
     if (tier >= 3 && Math.random() < tomeChance) {
       const wantTome = tier >= 4 && Math.random() < 0.5;
       const pool = wantTome ? (READABLES.tomes || []).filter((t) => Number(t.rank) <= Math.max(0, tier - 2)) : (READABLES.scrolls || []);

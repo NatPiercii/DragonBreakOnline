@@ -2,7 +2,8 @@
 //
 // Reading a spell tome is refused unless the reader has taken up the school's skill (arcane: Destruction,
 // Conjuration, Illusion; priest: Restoration, Alteration), the tome's rank fits their tier, they stand at a spell
-// study point (skills.json spellStudyPoints) and a slot of that skill is free. A refused read keeps the tome and the
+// study point (skills.json spellStudyPoints) and a slot of that skill is free. A Novice tome read at a study point
+// takes the skill up for one pool point when the reader has not (masterySystem's __alduinakMasteryFirstTouch). A refused read keeps the tome and the
 // engine takes the spell back off the client (ReadBookEvent::OnFireBlocked sends Actor.RemoveSpell).
 // /spells lists studied spells, /forget frees a slot, /teach passes a spell to a nearby player, /tomes is the
 // college shop inside the Synod enclave. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
@@ -194,7 +195,7 @@ module.exports = (api) => {
     const skill = SKILL_OF_SCHOOL[sp.school];
     if (!skill) return `${sp.school} is not studied here.`;
     const tier = tierOf(a, skill.id);
-    if (tier < 0) return `${whose} not taken up ${skill.label}, the skill that studies ${sp.school}.`;
+    if (tier < 0) return `${whose} not taken up ${skill.label}, the skill that studies ${sp.school}. Reading a Novice ${sp.school} tome at a spell study point takes it up.`;
     const max = maxRankFor(skill.id, tier);
     if (sp.rank > max) return `${sp.name} is ${/^[AEIOU]/.test(RANKS[sp.rank]) ? 'an' : 'a'} ${RANKS[sp.rank]} spell. ${skill.label} at ${TIER_NAMES[tier]} allows up to ${RANKS[max]} spells.`;
     const held = studiedIds(a, skill.id);
@@ -215,6 +216,16 @@ module.exports = (api) => {
     };
     if (tome.unknown) { log(`spells: tome ${descOf(bookId)} ${tome.edid} teaches a spell that could not be classified`); return refuse('this tome belongs to no school we know.'); }
     if (knows(a, tome.spellId)) return null; // the engine keeps the tome and changes nothing
+    // A Novice tome read at a spell study point takes up its school's skill, for one pool point, the way a trade is
+    // started at its bench (Nate, 2026-09-25): a new character has no spell to cast, so Arcane Arts had no way in
+    const opens = SKILL_OF_SCHOOL[tome.school];
+    if (opens && tierOf(a, opens.id) < 0 && Number(tome.rank) === 0 && studyPointAt(a, tome.school)
+      && typeof globalThis.__alduinakMasteryFirstTouch === 'function') {
+      let took = 'unknown';
+      try { took = String(globalThis.__alduinakMasteryFirstTouch(a, opens.id)); } catch (e) { log('spells: first touch failed', e.message); }
+      if (took === 'full') return refuse(`taking up ${opens.label} needs a free skill point. Mark a skill to fall (K) first.`);
+      if (took === 'ok') audit(`SPELL ${who(a)} took up ${opens.id} by reading ${descOf(bookId)} (${tome.edid || tome.name}) at a study point`);
+    }
     const why = slotRefusal(a, tome, 'You have');
     if (why) return refuse(why);
     if (!studyPointAt(a, tome.school)) return refuse(`a tome is studied at a spell study point: ${STUDY_POINTS.filter((p) => p.schools.includes(tome.school)).map((p) => p.name).join(', ') || 'none is set'}.`);
