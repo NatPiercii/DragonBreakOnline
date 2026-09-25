@@ -96,6 +96,10 @@
   "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 },
   "arcane": { "_comment": "Extra damage for Destruction spells (schools: magic skill actor value, 20 = Destruction) by the caster's Arcane Arts rank, Novice..Master. Smaller than the weapon tiers because spells hit from range. Live magnitudes 2026-09-25: Firebolt 25, Fireball 40, Icy Spear 60.", "enabled": true, "byTier": [0, 0, 0.2, 0.35, 0.5], "schools": [20] }
  },
+ "castBlocks": {
+   "_comment": "Spells refused before the server systems see the cast (gamemode.js castHook), with what the caster is told. For spells that crash the game.",
+   "782c5:BSHeartland.esm": "Summon Will-o-the-Wisp is disabled for now: the wisp crashes the game when it appears. It will come back once that is fixed."
+ },
  "pvp": {
   "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
   "damageMult": 1.25

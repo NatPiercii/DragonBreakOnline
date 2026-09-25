@@ -2480,9 +2480,25 @@ const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
 takeHook.__dbo = true;
 mp.onTakeItem = takeHook;
 if (typeof globalThis.__dboPrevCast === 'undefined') globalThis.__dboPrevCast = typeof mp.onSpellCast === 'function' && !mp.onSpellCast.__dbo ? mp.onSpellCast : null;
+// Spells that crash the game, refused before the server systems see the cast, so a summon is never spawned.
+// Config "castBlocks": { "<spell desc>": "<what the caster is told>" }; keys starting with _ are comments.
+// CYRSummonWillotheWispSpell: the Will-o-the-Wisp's mesh (WitchlightMesh.nif, a BSLagBoneController on its
+// GlowStreak) crashes the game while the summoned actor is built (#bugs 1553191175618560051, CrashLogger 2026-09-25).
+const CAST_BLOCKS = new Map();
+for (const [desc, why] of Object.entries(cfg.castBlocks || {})) {
+  if (desc.startsWith('_')) continue;
+  let id = 0; try { id = mp.getIdFromDesc(desc) >>> 0; } catch (e) { id = 0; }
+  if (id) CAST_BLOCKS.set(id, String(why || '')); else log(`castBlocks: ${desc} is not in the load order`);
+}
 const castHook = (casterId, spellId, ...rest) => {
   try { if (globalThis.__dboBeastCast) globalThis.__dboBeastCast(casterId, spellId); } catch (e) { log('beast cast failed', e.message); }
   if ((cfg.debug || {}).logSpellCasts) { try { const r = recordOf(Number(spellId) >>> 0); log(`cast ${display(Number(casterId) >>> 0)} -> ${r ? r.record.editorId : (Number(spellId) >>> 0).toString(16)}`); } catch (e) { /* trace only */ } }
+  const blocked = CAST_BLOCKS.get(Number(spellId) >>> 0);
+  if (blocked !== undefined) {
+    try { if (profileOf(Number(casterId) >>> 0) >= 0) personal(Number(casterId) >>> 0, blocked || 'That spell does not work right now.'); } catch (e) { /* not a player */ }
+    log(`castBlocks: refused ${(Number(spellId) >>> 0).toString(16)} from ${display(Number(casterId) >>> 0)}`);
+    return false;
+  }
   const prev = globalThis.__dboPrevCast;
   if (prev) { try { return prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
   return undefined;
