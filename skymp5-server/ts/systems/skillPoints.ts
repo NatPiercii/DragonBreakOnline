@@ -284,12 +284,31 @@ export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: P
   return { gained: grown.level - before, units, tookFrom };
 };
 
-/** The first time a character sets hand to a gated station: costs one level from the pool. */
+/**
+ * The first time a character sets hand to a gated station: costs one level from the pool. With the pool full, the
+ * level comes from a skill marked to fall (highest first, never below the transfer floor), which is what the
+ * refusal message has always told players to do; a pool with nothing marked to fall still refuses (2026-09-25).
+ */
 export const firstTouch = (rec: PointRecord, id: string, cfg: PointConfig): boolean => {
   const s = rec.skills[id];
   if (s && s.level >= 1) return true;
-  const pool = Object.entries(rec.skills).map(([k, v]) => ({ id: k, level: v.level, xp: v.xp, lock: v.lock }));
-  if (poolUsed(pool) + cfg.firstTouchCost > cfg.pool) return false;
+  const pool = () => Object.entries(rec.skills).map(([k, v]) => ({ id: k, level: v.level, xp: v.xp, lock: v.lock }));
+  let over = poolUsed(pool()) + cfg.firstTouchCost - cfg.pool;
+  if (over > 0) {
+    const falling = Object.entries(rec.skills)
+      .filter(([k, v]) => k !== id && v.lock === "lower" && v.level > cfg.transferFloor)
+      .sort((x, y) => y[1].level - x[1].level);
+    const room = falling.reduce((n, [, v]) => n + (v.level - cfg.transferFloor), 0);
+    if (room < over) return false;
+    for (const [, v] of falling) {
+      if (over <= 0) break;
+      const levels = Math.min(over, v.level - cfg.transferFloor);
+      const after = removeUnits(v.level, v.xp, unitsForLevel(v.level) - unitsForLevel(v.level - levels), cfg.transferFloor);
+      over -= v.level - after.level;
+      v.level = after.level; v.xp = after.xp;
+    }
+    if (over > 0) return false;
+  }
   rec.skills[id] = { level: Math.max(1, cfg.firstTouchCost), xp: 0, lock: "raise" };
   return true;
 };
