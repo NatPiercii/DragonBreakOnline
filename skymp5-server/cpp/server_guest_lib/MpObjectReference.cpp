@@ -775,11 +775,18 @@ void MpObjectReference::UpdateHoster(uint32_t newHosterId)
 {
   auto hostedMsg = CreatePropertyMessage_(this, "isHostedByOther", "true");
   auto notHostedMsg = CreatePropertyMessage_(this, "isHostedByOther", "false");
+  // Players only, each told directly. An NPC listener has no user: GetActorToSendTo() forwards its messages to that
+  // NPC's hoster, and the test below compares with the NPC's own id, so a hoster was told once per hosted NPC nearby
+  // that its own NPC was hosted by someone else. Its client then played the NPC back from the server instead of
+  // letting its AI drive it: walking in place, fighting only what stood in front (playtest 2026-09-25)
   for (auto listener : this->GetActorListeners()) {
+    if (listener->GetUserId() == Networking::InvalidUserId) {
+      continue;
+    }
     if (newHosterId != 0 && newHosterId != listener->GetFormId()) {
-      listener->GetActorToSendTo().SendToUser(hostedMsg, true);
+      listener->SendToUser(hostedMsg, true);
     } else {
-      listener->GetActorToSendTo().SendToUser(notHostedMsg, true);
+      listener->SendToUser(notHostedMsg, true);
     }
   }
 }
