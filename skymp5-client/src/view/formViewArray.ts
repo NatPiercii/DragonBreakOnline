@@ -7,6 +7,14 @@ import { GamemodeUpdateService } from "../services/services/gamemodeUpdateServic
 export class FormViewArray {
   updateForm(form: FormModel, i: number) {
     const view = this.formViews[i];
+    // The server reuses a freed index at once: a despawn and a spawn in the same tick put a new NPC into the old
+    // one's slot, and the view kept the old copy, which then drove or showed the new NPC (a fox that stood on the
+    // player and never moved, 2026-09-25 19:31:51). A different id in the same slot gets a fresh view.
+    if (view && form.refrId !== undefined && view.getRemoteRefrId() !== form.refrId) {
+      view.destroy();
+      this.formViews[i] = new FormView(form.refrId);
+      return;
+    }
     if (!view) {
       this.formViews[i] = new FormView(form.refrId);
     } else {
