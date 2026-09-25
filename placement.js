@@ -15,6 +15,10 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, onUi, sendPacket, isAdmin, registerChatCommand } = api;
+  // Categories kept out of the catalog the client is sent. The whole catalog is 3.1 MB and the Place tab never showed it
+  // (2026-09-25); without the 27,000 Statics it is 1.1 MB, the size of the item catalog that works. The server still
+  // accepts anything in the file, so a category can be put back in config once the client loads it in parts.
+  const HIDDEN = new Set(((api.cfg || {}).placement || {}).hideCategories || ['Statics']);
 
   const CATALOG = path.resolve('admin-placeables.json');
   const REGISTRY = path.resolve('placements.json');
@@ -111,7 +115,9 @@ module.exports = (api) => {
 
   onUi('placeCatalog', (a) => {
     if (!isAdmin(a)) return;
-    sendPacket(a, { customPacketType: 'adminPlaceables', categories: loadCatalog() });
+    const categories = loadCatalog().filter((c) => !HIDDEN.has(c.id));
+    const ok = sendPacket(a, { customPacketType: 'adminPlaceables', categories });
+    log(`placement: catalog ${ok ? 'sent' : 'NOT sent'} to ${who(a)}: ${categories.reduce((n, c) => n + (c.items || []).length, 0)} placeables in ${categories.length} categories, ${JSON.stringify(categories).length} bytes`);
   });
 
   onUi('placeObject', (a, args) => {

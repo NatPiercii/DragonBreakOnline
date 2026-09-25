@@ -3031,7 +3031,7 @@ try {
 try {
   const PLACEMENT_JS = path.resolve('placement.js');
   delete require.cache[PLACEMENT_JS];
-  require(PLACEMENT_JS)({ mp, log, personal, audit, who, onUi, sendPacket, isAdmin, registerChatCommand });
+  require(PLACEMENT_JS)({ mp, log, personal, audit, who, onUi, sendPacket, isAdmin, registerChatCommand, cfg });
 } catch (e) { log('placement.js failed to load:', e.stack || e.message); }
 
 // ---- breaking free of bound hands, /struggle (server\struggle.js, config "struggle") --------------
