@@ -168,6 +168,20 @@ private:
                      std::pair<uint32_t, std::chrono::system_clock::time_point>>
     hostSeenSince;
 
+  // Takes remote from its hoster: HostStop to the hoster's user, isHostedByOther=false to the players who see it
+  void ReleaseHost(MpObjectReference& remote, const std::string& reason);
+  // Releases every reference hostered by hosterId
+  void ReleaseHostedBy(uint32_t hosterId, const std::string& reason);
+  // Applies the releases queued on unsubscribe, unless the hoster was subscribed again meanwhile
+  void TickHostReleases();
+  struct PendingHostRelease
+  {
+    uint32_t remoteId = 0;
+    uint32_t remoteIdx = 0;
+    uint32_t hosterId = 0;
+  };
+  std::vector<PendingHostRelease> pendingHostReleases;
+
   std::string SignJavaScriptSources(const std::string& src) const;
 
   struct Impl;

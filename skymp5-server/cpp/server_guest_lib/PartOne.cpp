@@ -149,6 +149,7 @@ void PartOne::Tick()
 {
   TickPacketHistoryPlaybacks();
   TickDeferredMessages();
+  TickHostReleases();
   TickStaleHosts();
   worldState.Tick();
 }
@@ -203,20 +204,86 @@ void PartOne::TickStaleHosts()
     if (!remote) {
       continue;
     }
-    auto hoster =
-      dynamic_cast<MpActor*>(worldState.LookupFormById(hosterId).get());
-    if (hoster) {
-      auto user = serverState.UserByActor(hoster);
-      if (user != Networking::InvalidUserId) {
-        SendHostStop(user, *remote);
-      }
+    ReleaseHost(*remote, fmt::format("no movement for {} s",
+                                     kStaleHostSeconds.count()));
+  }
+}
+
+void PartOne::ReleaseHost(MpObjectReference& remote, const std::string& reason)
+{
+  const uint32_t remoteId = remote.GetFormId();
+  auto it = worldState.hosters.find(remoteId);
+  if (it == worldState.hosters.end() || it->second == 0) {
+    return;
+  }
+  const uint32_t hosterId = it->second;
+  auto hoster =
+    dynamic_cast<MpActor*>(worldState.LookupFormByIdNoLoad(hosterId).get());
+  auto user =
+    hoster ? serverState.UserByActor(hoster) : Networking::InvalidUserId;
+  if (user != Networking::InvalidUserId &&
+      user != serverState.disconnectingUserId) {
+    SendHostStop(user, remote);
+  }
+  it->second = 0;
+  hostSeenSince.erase(remoteId);
+  remote.UpdateHoster(0);
+  GetLogger().info("Hoster of {0:x} released from {1:x}: {2}", remoteId,
+                   hosterId, reason);
+}
+
+// A hoster that disconnected, switched character or was destroyed kept every NPC it drove until the 5 s stale sweep
+// noticed each one; a player who had them loaded could not take over before then
+void PartOne::ReleaseHostedBy(uint32_t hosterId, const std::string& reason)
+{
+  if (hosterId == 0) {
+    return;
+  }
+  std::vector<uint32_t> hosted;
+  for (auto& [remoteId, id] : worldState.hosters) {
+    if (id == hosterId) {
+      hosted.push_back(remoteId);
     }
-    worldState.hosters[remoteId] = 0;
-    hostSeenSince.erase(remoteId);
-    remote->UpdateHoster(0);
-    GetLogger().info("Hoster of {0:x} released from {1:x}: no movement for "
-                     "{2} s",
-                     remoteId, hosterId, kStaleHostSeconds.count());
+  }
+  for (uint32_t remoteId : hosted) {
+    auto remote = dynamic_cast<MpObjectReference*>(
+      worldState.LookupFormByIdNoLoad(remoteId).get());
+    if (!remote) {
+      worldState.hosters.erase(remoteId);
+      hostSeenSince.erase(remoteId);
+      continue;
+    }
+    ReleaseHost(*remote, reason);
+  }
+}
+
+// Unsubscribe sends the hoster's client DestroyActor for the NPC (it walked out of range, changed cell, or the NPC was
+// moved away), after which its client can no longer drive it, yet it stayed the hoster: its NPC stood frozen for
+// everyone until the stale sweep. Queued, because unsubscribes happen inside listener iteration, and skipped when the
+// hoster was subscribed again in the same tick (a disable/enable, a teleport within range)
+void PartOne::TickHostReleases()
+{
+  if (pendingHostReleases.empty()) {
+    return;
+  }
+  std::vector<PendingHostRelease> pending;
+  pending.swap(pendingHostReleases);
+  for (auto& entry : pending) {
+    auto remote = dynamic_cast<MpObjectReference*>(
+      worldState.LookupFormByIdNoLoad(entry.remoteId).get());
+    if (!remote || remote->GetIdx() != entry.remoteIdx) {
+      continue;
+    }
+    auto it = worldState.hosters.find(entry.remoteId);
+    if (it == worldState.hosters.end() || it->second != entry.hosterId) {
+      continue;
+    }
+    auto& hoster = worldState.LookupFormByIdNoLoad(entry.hosterId);
+    auto hosterRefr = hoster ? hoster->AsObjectReference() : nullptr;
+    if (hosterRefr && remote->GetListeners().count(hosterRefr) > 0) {
+      continue;
+    }
+    ReleaseHost(*remote, "its hoster no longer has it (unsubscribed)");
   }
 }
 
@@ -242,6 +309,14 @@ void PartOne::BeforeRefrDestroy(MpObjectReference& refr)
   hostSeenSince.erase(formId);
   if (pImpl->actionListener) {
     pImpl->actionListener->ForgetForm(formId);
+  }
+
+  // Only players host; an NPC's destroy skips the walk over hosters
+  auto actor = refr.AsActor();
+  if (actor &&
+      (actor->GetProfileId() != -1 ||
+       serverState.UserByActor(actor) != Networking::InvalidUserId)) {
+    ReleaseHostedBy(formId, "its hoster was destroyed");
   }
 }
 
@@ -282,6 +357,15 @@ void PartOne::SetUserActor(Networking::UserId userId, uint32_t actorFormId)
       throw std::runtime_error(ss.str());
     }
 
+    // The client is sent every copy anew below and drives none of them: what it hosted through its previous
+    // character, and what this character hosted under another user, is released
+    const auto prevActor = serverState.ActorByUser(userId);
+    const uint32_t prevActorId = prevActor ? prevActor->GetFormId() : 0;
+    ReleaseHostedBy(prevActorId, "its hoster's user switched character");
+    if (actorFormId != prevActorId) {
+      ReleaseHostedBy(actorFormId, "its hoster's user switched character");
+    }
+
     // Clear actor's hoster if any.
     // HostStop message will be sent on the next attempt to update actor's
     // movement
@@ -313,6 +397,10 @@ void PartOne::SetUserActor(Networking::UserId userId, uint32_t actorFormId)
     actor.SetLastAnimEvent(std::nullopt);
 
   } else {
+    if (auto prevActor = serverState.ActorByUser(userId)) {
+      ReleaseHostedBy(prevActor->GetFormId(),
+                      "its hoster's user left its character");
+    }
     serverState.actorsMap.Erase(userId);
   }
 }
@@ -560,6 +648,16 @@ void PartOne::HandlePacket(void* partOneInstance, Networking::UserId userId,
       });
 
       this_->serverState.disconnectingUserId = userId;
+      // Its NPCs are free for the players who still see them at once, not after the stale sweep
+      if (auto actor = this_->serverState.ActorByUser(userId)) {
+        try {
+          this_->ReleaseHostedBy(actor->GetFormId(), "its hoster disconnected");
+        } catch (std::exception& e) {
+          spdlog::error("PartOne::HandlePacket - releasing hosts of user {} "
+                        "failed: {}",
+                        userId, e.what());
+        }
+      }
       for (auto& listener : this_->worldState.listeners)
         listener->OnDisconnect(userId);
       return;
@@ -1077,6 +1175,14 @@ void PartOne::Init()
     MpActor* listenerAsActor = listener->AsActor();
     if (!listenerAsActor) {
       return;
+    }
+
+    // The hoster is losing its copy (see TickHostReleases)
+    auto hosterIt = worldState.hosters.find(emitter->GetFormId());
+    if (hosterIt != worldState.hosters.end() && hosterIt->second != 0 &&
+        hosterIt->second == listener->GetFormId()) {
+      pendingHostReleases.push_back(
+        { emitter->GetFormId(), emitter->GetIdx(), listener->GetFormId() });
     }
 
     auto listenerUserId = serverState.UserByActor(listenerAsActor);
