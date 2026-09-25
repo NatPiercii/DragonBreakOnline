@@ -398,6 +398,9 @@ export class ChatService extends ClientListener {
     // persisted ff_chatMsg; treat it as already seen so it is not replayed.
     if (owner !== this.lastOwner) {
       this.lastOwner = owner;
+      // AuthService clears every widget when the server creates our actor, which a character switch does mid-session;
+      // mount again so the chat comes back (its messages live in window.chatMessages and survive)
+      this.mounted = false;
       const persisted = owner[CHAT_MSG_PROP];
       this.lastMsg = typeof persisted === "string" ? persisted : null;
     }
