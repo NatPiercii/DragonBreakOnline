@@ -2639,6 +2639,45 @@ const masteryDamageMult = (aggressorId, sourceId) => {
   const bonus = Number((MASTERY_DMG.byTier || [])[rank]) || 0;
   return bonus > 0 ? 1 + bonus : 1;
 };
+// Blessings the guide promises, made real where the server decides damage (Nat, 2026-09-25: everything server-side).
+// The damage formula reads armour only, so a "+10 skill" or "resist" blessing changed nothing before. Config
+// "blessingCombat": { enabled, attacker: { deity: { hands: one|two|bow|any, spell, mult } }, target: { deity: { spell, mult } } }.
+// Block (Stendarr, Malacath) and poison (Peryite) are not here: the server does not know a hit was blocked or poisoned.
+const BLESS_COMBAT = Object.assign({ enabled: true,
+  attacker: { talos: { hands: 'two', mult: 1.1 }, boethiah: { hands: 'one', mult: 1.1 }, auriel: { hands: 'bow', mult: 1.1 },
+    malacath: { hands: 'any', mult: 1.1 }, mehrunes: { spell: true, mult: 1.1 } },
+  target: { azura: { spell: true, mult: 0.9 }, trinimac: { spell: true, mult: 0.75 } } }, cfg.blessingCombat || {});
+const weaponHandsCache = new Map();
+// one (swords, daggers, axes, maces), two (greatswords, battleaxes, warhammers), bow (bows, crossbows), or '' when not a weapon
+const weaponHandsOf = (sourceId) => {
+  if (weaponHandsCache.has(sourceId)) return weaponHandsCache.get(sourceId);
+  let hands = '';
+  const r = recordOf(sourceId);
+  if (r && String(r.record.type) === 'WEAP') {
+    const dnam = (r.record.fields || []).find((f) => f && f.type === 'DNAM' && f.data instanceof Uint8Array && f.data.byteLength);
+    const anim = dnam ? dnam.data[0] : 0;
+    hands = anim >= 1 && anim <= 4 ? 'one' : anim === 5 || anim === 6 ? 'two' : anim === 7 || anim === 9 ? 'bow' : '';
+  }
+  weaponHandsCache.set(sourceId, hands);
+  return hands;
+};
+const isSpellSource = (sourceId) => { const r = recordOf(sourceId); return !!r && String(r.record.type) === 'SPEL'; };
+const blessedDeityOf = (a) => {
+  try { const b = mp.get(a, 'private.dboBlessing'); return b && b.deity && Number(b.until) > Date.now() ? String(b.deity) : ''; } catch (e) { return ''; }
+};
+const blessingDamageMult = (aggressorId, targetId, sourceId) => {
+  if (!BLESS_COMBAT.enabled) return 1;
+  let m = 1;
+  const atk = (BLESS_COMBAT.attacker || {})[blessedDeityOf(aggressorId)];
+  if (atk) {
+    const hands = weaponHandsOf(sourceId);
+    const fits = atk.spell ? isSpellSource(sourceId) : atk.hands === 'any' ? !!hands : hands === atk.hands;
+    if (fits) m *= Number(atk.mult) || 1;
+  }
+  const def = (BLESS_COMBAT.target || {})[blessedDeityOf(targetId)];
+  if (def && (def.spell ? isSpellSource(sourceId) : true)) m *= Number(def.mult) || 1;
+  return m;
+};
 // The server's hit formula counts only the bow's WEAP damage; vanilla adds the worn arrow's (AMMO DATA float at byte 8)
 const ARROWS = Object.assign({ enabled: true, scale: 1 }, cfg.arrows || {});
 const recordDamageCache = globalThis.__dboRecordDamage instanceof Map ? globalThis.__dboRecordDamage : (globalThis.__dboRecordDamage = new Map());
@@ -2831,7 +2870,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
-    const mult = masteryDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * pvp;
+    const mult = masteryDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };
