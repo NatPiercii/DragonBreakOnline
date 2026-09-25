@@ -214,7 +214,10 @@ module.exports = (api) => {
 
   onUi('jailChoose', (a, args) => {
     const p = pending.get(a >>> 0); const choice = String(args[0] || '');
-    closeMenu(a);
+    // Choosing a prisoner reopens this widget id as the sentence menu. Closing it first in the same tick lets the close's
+    // cursor release land after the reopen took focus (the inn prompt, 2026-09-25), so only the other paths close it.
+    const reopening = !!p && lawful(a) && choice.startsWith('who:') && distanceMeters(a, p.door) <= CFG.reachMeters;
+    if (reopening) pending.delete(a >>> 0); else closeMenu(a);
     if (!p || !lawful(a)) return;
     const door = p.door;
     if (distanceMeters(a, door) > CFG.reachMeters) return personal(a, 'You are too far from the cell door.');

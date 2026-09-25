@@ -467,10 +467,13 @@ module.exports = (api) => {
   // ---- menu answers ----------------------------------------------------------------------------------
   onUi('spellsChoose', (a, args) => {
     const p = pending.get(a >>> 0); const choice = String(args[0] || '');
-    closeMenu(a);
+    // Picking a spell to forget or a student reopens this widget id as the next menu; closing it first in the same tick
+    // loses the cursor (the inn prompt, 2026-09-25), so those paths reopen with no close in between.
+    const reopening = !!p && ((p.kind === 'forget' && choice.startsWith('pick:')) || (p.kind === 'teach' && choice.startsWith('student:')));
+    if (reopening) pending.delete(a >>> 0); else closeMenu(a);
     if (!p || choice === 'cancel') return;
     if (p.kind === 'forget') {
-      if (choice.startsWith('pick:')) { const e = studiedList(a).find((x) => x.id === idOf(choice.slice(5))); if (e) confirmForget(a, e); return; }
+      if (choice.startsWith('pick:')) { const e = studiedList(a).find((x) => x.id === idOf(choice.slice(5))); if (e) confirmForget(a, e); else closeMenu(a); return; }
       if (choice.startsWith('forget:')) return forget(a, idOf(choice.slice(7)));
       return;
     }
