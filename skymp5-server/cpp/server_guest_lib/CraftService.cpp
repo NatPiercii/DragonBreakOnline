@@ -176,6 +176,14 @@ bool CraftService::ConsiderRecipeCandidate(
 
     // Note: In the original game, setting the benchmark keyword to NONE
     // removes the recipe from all crafting stations.
+    // DragonBreak: Sentinel.esp ships 240 creation recipes with no BNAM, and
+    // players' games offer them at a forge; refusing them rolled every such
+    // craft back (#bugs "Blacksmithing Bug", 2026-09-25). A recipe with no
+    // bench keyword may be made at a smithing forge, and nowhere else.
+    constexpr uint32_t kCraftingSmithingForge = 0x88105;
+    if (cobjData.benchKeywordId == 0) {
+      recipeBenchKeywordId = kCraftingSmithingForge;
+    }
 
     bool includes =
       std::any_of(workbenchKeywordIds->begin(), workbenchKeywordIds->end(),
