@@ -1,7 +1,7 @@
 // DragonBreak Online: NPCs under the terrain. Loaded by gamemode.js on every hot reload.
 //
 // terrain-heights.json (ck-mcp/terrain_heights.py; extracted game data, not tracked, copied by hand)
-// holds the winning LAND heights of the Heartland world. Every 5 s the server position of each NPC
+// holds the winning LAND heights of the Heartland world. Every second the server position of each NPC
 // near an online player is compared with the terrain under it: "npcGround under" is logged when one
 // stays more than 48 units below it, "npcGround over" only past 600 above, since actors on rocks and
 // bridges stand above the terrain. globalThis.__dboTerrainDz answers the same for npcDrift lines.
@@ -14,7 +14,7 @@ const path = require('path');
 const FILE = 'terrain-heights.json';
 const CELL_UNITS = 4096;
 const QUAD_UNITS = 128;
-const EVERY_MS = 5000;
+const EVERY_MS = 1000;
 const UNDER_UNITS = 48;
 const UNDER_SAMPLES = 2;
 const OVER_UNITS = 600;
@@ -22,9 +22,9 @@ const LOG_EVERY_MS = 60000;
 // The server owns the ground (Nat, 2026-09-25): an NPC held this far under the terrain for UNDER_SAMPLES is lifted
 // onto it. A server move reaches the hoster as a teleport and everyone else through the hoster's stream. Only ever up,
 // and only where the nearest player stands on the same terrain data, so a wrong height cannot throw NPCs about.
-const FIX_UNITS = 96;
+const FIX_UNITS = 64;
 const FIX_LIFT = 24;
-const FIX_EVERY_MS = 15000;
+const FIX_EVERY_MS = 5000;
 const PLAYER_TRUST_UNITS = 150;
 
 const normDesc = (d) => {

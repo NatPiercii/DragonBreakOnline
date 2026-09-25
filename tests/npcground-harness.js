@@ -106,10 +106,10 @@ check('lift: two samples 200 under put it on the terrain, facing as it was', !!m
 check('lift: it is logged', count(/npcGround lifted ff000001/) === 1);
 check('lift: 900 above is never lowered', !moves.some(([id]) => id === 0xff000003));
 actors.get(0xff000001).pos[2] = heightAt(512, 512) - 200;
-now += 5000; tick(); now += 5000; tick();
-check('lift: not again within 15 s', moves.filter(([id]) => id === 0xff000001).length === 1);
-now += 15000; tick(); now += 5000; tick();
-check('lift: again after 15 s if it sank back', moves.filter(([id]) => id === 0xff000001).length === 2);
+now += 1000; tick(); now += 1000; tick();
+check('lift: not again within 5 s', moves.filter(([id]) => id === 0xff000001).length === 1);
+now += 5000; tick(); now += 1000; tick();
+check('lift: again after 5 s if it sank back', moves.filter(([id]) => id === 0xff000001).length === 2);
 lift();
 actors.get(P).pos[2] = heightAt(100, 100) - 400;
 actors.get(0xff000001).pos = [512, 512, heightAt(512, 512) - 200];
@@ -119,7 +119,7 @@ actors.get(P).pos[2] = heightAt(100, 100);
 actors.get(0xff000001).pos = [512, 512, heightAt(512, 512) - 60];
 lift();
 now += 5000; tick(); now += 5000; tick();
-check('lift: 60 under is logged but not moved (under 96)', moves.length === 0 && count(/npcGround under ff000001/) === 1);
+check('lift: 60 under is logged but not moved (under 64)', moves.length === 0 && count(/npcGround under ff000001/) === 1);
 
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);
