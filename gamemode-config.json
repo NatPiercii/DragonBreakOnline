@@ -96,8 +96,8 @@
   "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 }
  },
  "pvp": {
-  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.2 from 2026-09-25 (Nate: PvP damage buffed a bit across the board).",
-  "damageMult": 1.2
+  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged).",
+  "damageMult": 1
  },
  "pickpocket": {
    "_comment": "Sneak + X on a player (pickpocket.js). chance: chanceUntrained, or chanceByTier by Lockpicking tier, + behindBonus (outside a behindConeDegrees cone of the face), - weaponDrawnPenalty, within min/maxChance. A success takes goldShareByTier of the coin (at most goldMax) or one pocket item (never a worn copy, never a key); the victim notices noticeAfterSeconds later. Failure warns the victim at once. Waits: cooldownSeconds per thief, sameTargetMinutes per thief and victim, victimMinutes per victim. Lockpicking credit for creditMinGold or an item, never a party member, creditsPerHour at most. exclude: item descs never taken.",
