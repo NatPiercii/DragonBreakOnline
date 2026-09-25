@@ -338,15 +338,34 @@ export class RemoteServer extends ClientListener {
 
       // SkyMP containers have a 2nd, closing activation under the hood, unlike Skyrim's single activation.
 
+      // One waiter per target: a newer answer for the same target takes over, and the older waiter stops without
+      // sending its close, or it could free the seat the newer sit holds (review 2026-09-25)
+      const waiter = ++this.openWaiterNext;
+      this.openWaiters.set(remoteId, waiter);
+      const superseded = () => this.openWaiters.get(remoteId) !== waiter;
+
       (async () => {
         logTrace(this, "onOpenContainerMesage - waiting for", factName, "to be true");
-        // A sit or menu that never happens here must not hold the server's seat for ever: give up after 10 s and
-        // send the closing activation anyway (the server kept a Bruma tanning rack occupied, 2026-09-25)
-        const openDeadline = Date.now() + 10000;
-        while (!functionChecker() && Date.now() < openDeadline) await Utility.wait(0.1);
+        // A sit that never happens here must not hold the server's seat for ever: give up after 10 s and send the
+        // closing activation anyway (the server kept a Bruma tanning rack occupied, 2026-09-25). Furniture only: a
+        // container menu can open late (a lockpick, another menu) and must not be closed on the server before it does
+        const openDeadline = baseType === FormType.Furniture ? Date.now() + 10000 : Infinity;
+        while (!functionChecker() && Date.now() < openDeadline && !superseded()) await Utility.wait(0.1);
+        if (superseded()) {
+          logTrace(this, "onOpenContainerMesage - a newer answer for", remoteId.toString(16), "took over");
+          return;
+        }
+        if (!functionChecker()) {
+          logTrace(this, "onOpenContainerMesage - sit never seen, releasing", remoteId.toString(16));
+        }
 
         logTrace(this, "onOpenContainerMesage - waiting for", factName, "to be false");
-        while (functionChecker()) await Utility.wait(0.1);
+        while (functionChecker() && !superseded()) await Utility.wait(0.1);
+        if (superseded()) {
+          logTrace(this, "onOpenContainerMesage - a newer answer for", remoteId.toString(16), "took over");
+          return;
+        }
+        this.openWaiters.delete(remoteId);
 
         logTrace(this, "onOpenContainerMesage - menu closed", factName);
 
@@ -1297,5 +1316,8 @@ export class RemoteServer extends ClientListener {
   private readonly cloneCastStopMemoryMs = 2000;
   private lastCloneCastSweep = 0;
   private numSetInventory = 0;
+  // Container and furniture answers: the live waiter per target remote id (onOpenContainerMessage)
+  private openWaiters = new Map<number, number>();
+  private openWaiterNext = 0;
   private numPlayerTeleports = 0;
 }

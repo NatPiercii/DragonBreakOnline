@@ -28,6 +28,7 @@
 #include "script_storages/IScriptStorage.h"
 #include <ScopedTask.h>
 #include <TimeUtils.h>
+#include <chrono>
 #include <algorithm>
 #include <antigo/Context.h>
 #include <antigo/ResolvedContext.h>
@@ -1765,6 +1766,14 @@ bool MpObjectReference::CheckIfObjectCanStartOccupyThis(
   return false;
 }
 
+namespace {
+// When each occupant last sat on each furniture (reference id, actor id): TryOccupyFurniture tells an occupant's retry
+// from the burst of repeats a single gathering sit sends
+std::map<std::pair<uint32_t, uint32_t>, std::chrono::steady_clock::time_point>
+  g_furnitureSeatedAt;
+constexpr auto kFurnitureReseatAfter = std::chrono::milliseconds(1500);
+}
+
 bool MpObjectReference::TryOccupyFurniture(MpActor& actor,
                                            float occupationReach)
 {
@@ -1792,9 +1801,23 @@ bool MpObjectReference::TryOccupyFurniture(MpActor& actor,
 
   // The occupant activating it again sits down again. The seat is freed by the client's closing activation, which
   // it only sends after seeing the player sit and then stand; a sit that never happened on its screen left the seat
-  // held, and the occupant's own retries were refused here forever (a Bruma tanning rack, 32 refusals, 2026-09-25)
+  // held, and the occupant's own retries were refused here forever (a Bruma tanning rack, 32 refusals, 2026-09-25).
+  // Only a retry counts: a gathering sit arrives 3-4 times within milliseconds (Papyrus Activate from the chopping
+  // block or vein), and those repeats are still refused, or the player would be seated 4 times in one frame
+  // (review 2026-09-25)
+  const auto seatKey = std::make_pair(GetFormId(), actor.GetFormId());
+  const auto now = std::chrono::steady_clock::now();
   if (std::find(occupants.begin(), occupants.end(), actor.GetFormId()) !=
       occupants.end()) {
+    auto it = g_furnitureSeatedAt.find(seatKey);
+    if (it != g_furnitureSeatedAt.end() &&
+        now - it->second < kFurnitureReseatAfter) {
+      spdlog::info("MpObjectReference::TryOccupyFurniture {:x} - {:x} already "
+                   "occupies it, blocking (repeat)",
+                   GetFormId(), actor.GetFormId());
+      return false;
+    }
+    g_furnitureSeatedAt[seatKey] = now;
     spdlog::info("MpObjectReference::TryOccupyFurniture {:x} - {:x} already "
                  "occupies it, seating again",
                  GetFormId(), actor.GetFormId());
@@ -1815,6 +1838,15 @@ bool MpObjectReference::TryOccupyFurniture(MpActor& actor,
   }
 
   occupants.push_back(actor.GetFormId());
+  if (g_furnitureSeatedAt.size() > 4096) {
+    for (auto it = g_furnitureSeatedAt.begin();
+         it != g_furnitureSeatedAt.end();) {
+      it = now - it->second > std::chrono::minutes(10)
+        ? g_furnitureSeatedAt.erase(it)
+        : std::next(it);
+    }
+  }
+  g_furnitureSeatedAt[seatKey] = now;
   if (!furnitureDisableSink) {
     furnitureDisableSink.reset(
       new OccupantDisableEventSink(*worldState, this));
