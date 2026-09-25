@@ -29,6 +29,8 @@ const MAX_NAME = 64;
 const SLOT_SPACING = 96;
 // Spawn height above POS so an NPC drops onto an uneven floor instead of starting inside it
 const SPAWN_LIFT = 16;
+// A zone centre within this of the terrain stands on it, so its outer slots follow the terrain (slotGroundZ)
+const CENTRE_ON_TERRAIN = 64;
 const RETRY_MS = 30000;
 const RELOAD_DEBOUNCE_MS = 500;
 const TAG_PROP = "private.npcSpawner";
@@ -776,7 +778,29 @@ export class NpcSpawnSystem implements System {
     const size = Math.min(ringSize(ring), zone.total - first);
     const angle = (2 * Math.PI * (slot - first)) / size;
     const radius = ring * SLOT_SPACING;
-    return [zone.pos[0] + radius * Math.cos(angle), zone.pos[1] + radius * Math.sin(angle), zone.pos[2] + (slot === 0 ? 0 : SPAWN_LIFT)];
+    const x = zone.pos[0] + radius * Math.cos(angle);
+    const y = zone.pos[1] + radius * Math.sin(angle);
+    return [x, y, slot === 0 ? zone.pos[2] : this.slotGroundZ(zone, x, y)];
+  }
+
+  // Outer slots used to keep the centre's height, so on a slope the uphill ones started inside the hill and the
+  // downhill ones in the air: ogres and deer 90-230 units under the terrain in the playtest of 2026-09-25, their
+  // hosts walking them on underground and reporting it. With the terrain data server/npcground.js loads, a slot
+  // stands on the terrain under it, but only when the centre itself stands on the terrain; a centre on a rock or
+  // a bridge keeps its height for every slot, so nobody is put under the rock.
+  private slotGroundZ(zone: Zone, x: number, y: number): number {
+    const fallback = zone.pos[2] + SPAWN_LIFT;
+    const terrainAt = (globalThis as any).__dboTerrainAt as ((desc: string, x: number, y: number) => { lo: number; hi: number } | null) | undefined;
+    if (typeof terrainAt !== "function") return fallback;
+    try {
+      const centre = terrainAt(zone.cellOrWorldDesc, zone.pos[0], zone.pos[1]);
+      const here = terrainAt(zone.cellOrWorldDesc, x, y);
+      if (!centre || !here) return fallback;
+      if (zone.pos[2] < centre.lo - CENTRE_ON_TERRAIN || zone.pos[2] > centre.hi + CENTRE_ON_TERRAIN) return fallback;
+      return here.hi + SPAWN_LIFT;
+    } catch {
+      return fallback;
+    }
   }
 
   // A death starts the slot's Respawn cooldown and the corpse's own removal timer
