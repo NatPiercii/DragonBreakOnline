@@ -1196,7 +1196,12 @@ void ActionListener::OnHostAttempt(const RawMessageData& rawMsgData,
     hoster = me->GetFormId();
     remote.UpdateHoster(hoster);
 
-    // Prevents too fast host switch
+    // Prevents too fast host switch. The list only grew in OnUpdateMovement, so an NPC with a higher index
+    // than any that had moved was written past its end here
+    if (partOne.worldState.lastMovUpdateByIdx.size() <= remoteIdx) {
+      partOne.worldState.lastMovUpdateByIdx.resize(
+        static_cast<size_t>(remoteIdx) + 1);
+    }
     partOne.worldState.lastMovUpdateByIdx[remoteIdx] =
       std::chrono::system_clock::now();
 

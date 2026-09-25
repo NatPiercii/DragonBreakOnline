@@ -177,11 +177,20 @@ void PartOne::TickStaleHosts()
       continue;
     }
     const auto idx = static_cast<size_t>(remote->GetIdx());
-    // OnHostAttempt stamps a fresh hoster, so a new one gets the full grace before its first update
-    const bool heard = worldState.lastMovUpdateByIdx.size() > idx &&
-      worldState.lastMovUpdateByIdx[idx] &&
-      now - *worldState.lastMovUpdateByIdx[idx] <= kStaleHostSeconds;
-    if (!heard) {
+    // The last movement, or, for an NPC whose index has no stamp yet (the list only grows when movement is
+    // accepted), when this sweep first saw this hoster: reading "no stamp" as silence released a fresh hoster
+    // every second and refused its movement forever (2026-09-25 17:16)
+    auto& seen = hostSeenSince[remoteId];
+    if (seen.first != hosterId) {
+      seen = { hosterId, now };
+    }
+    std::chrono::system_clock::time_point last = seen.second;
+    if (worldState.lastMovUpdateByIdx.size() > idx &&
+        worldState.lastMovUpdateByIdx[idx] &&
+        *worldState.lastMovUpdateByIdx[idx] > last) {
+      last = *worldState.lastMovUpdateByIdx[idx];
+    }
+    if (now - last > kStaleHostSeconds) {
       stale.push_back({ remoteId, hosterId });
     }
   }
@@ -201,6 +210,7 @@ void PartOne::TickStaleHosts()
       }
     }
     worldState.hosters[remoteId] = 0;
+    hostSeenSince.erase(remoteId);
     remote->UpdateHoster(0);
     GetLogger().info("Hoster of {0:x} released from {1:x}: no movement for "
                      "{2} s",
