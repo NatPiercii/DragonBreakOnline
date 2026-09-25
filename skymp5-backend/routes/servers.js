@@ -3,6 +3,7 @@
 const router = require('express').Router()
 const http   = require('http')
 const config = require('../config')
+const { authorizeHeartbeat } = require('../middleware/heartbeatAuth')
 
 // Last heartbeat received from the game server via POST /:key
 let heartbeat = null
@@ -113,17 +114,45 @@ router.get('/:key/manifest.json', async (req, res) => {
 })
 
 // Called by MasterClient every 5 s: POST /api/servers/:key
-// Body: { name, maxPlayers, online }
+// Body: { name, maxPlayers, online }; the key is public, so the sender must also pass authorizeHeartbeat
+const NAME_MAX = 64
+const COUNT_MAX = 100000
+const LOG_INTERVAL_MS = 60000
+let lastRefusalLog = 0
+let lastMismatchLog = 0
+let lastVia = null
+
+const count = (v, fallback) => (Number.isInteger(v) && v >= 0 && v <= COUNT_MAX ? v : fallback)
+
 router.post('/:key', (req, res) => {
   if (req.params.key !== config.serverMasterKey) {
     return res.status(403).json({ error: 'Invalid master key.' })
   }
 
+  const auth = authorizeHeartbeat(req)
+  const now = Date.now()
+  if (!auth.ok) {
+    if (now - lastRefusalLog >= LOG_INTERVAL_MS) {
+      lastRefusalLog = now
+      console.warn(`[servers] refused heartbeat from ${req.socket?.remoteAddress} (token ${auth.token})`)
+    }
+    return res.status(403).json({ error: 'Heartbeat not authorized.' })
+  }
+  if (auth.token === 'invalid' && now - lastMismatchLog >= LOG_INTERVAL_MS) {
+    lastMismatchLog = now
+    console.warn('[servers] local heartbeat sent a wrong X-Auth-Token; masterApiAuthToken and MASTER_API_AUTH_TOKEN differ')
+  }
+  if (auth.via !== lastVia) {
+    lastVia = auth.via
+    console.log(`[servers] heartbeat accepted via ${auth.via}`)
+  }
+
   const { name, maxPlayers, online } = req.body || {}
+  const trimmed = typeof name === 'string' ? name.trim().slice(0, NAME_MAX) : ''
   heartbeat = {
-    name:       typeof name       === 'string' ? name       : config.serverName,
-    maxPlayers: typeof maxPlayers === 'number' ? maxPlayers : config.serverMaxPlayers,
-    online:     typeof online     === 'number' ? online     : null,
+    name:       trimmed || config.serverName,
+    maxPlayers: count(maxPlayers, config.serverMaxPlayers),
+    online:     count(online, null),
     lastSeen:   new Date().toISOString(),
   }
 

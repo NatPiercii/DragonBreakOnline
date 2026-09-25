@@ -52,6 +52,8 @@ module.exports = {
   serverMasterKey:    process.env.SERVER_MASTER_KEY    || '',
   masterUrl:          process.env.MASTER_URL           || 'https://api.dragonbreakonline.com/',
   masterApiAuthToken: process.env.MASTER_API_AUTH_TOKEN || '',
+  // true: heartbeats must carry X-Auth-Token even from loopback; unset also accepts a direct loopback sender without it
+  heartbeatRequireToken: process.env.HEARTBEAT_REQUIRE_TOKEN === 'true',
 
   // Discord OAuth (launcher login)
   discordClientId:     process.env.DISCORD_CLIENT_ID     || '',

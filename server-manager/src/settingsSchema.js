@@ -107,6 +107,7 @@ const backendEnv = [
   { key: 'SERVER_MASTER_KEY',      label: 'Master key',         type: 'secret', group: 'Master API', help: 'Must match server-settings.json masterKey.' },
   { key: 'MASTER_URL',             label: 'Master URL',         type: 'text',   group: 'Master API' },
   { key: 'MASTER_API_AUTH_TOKEN',  label: 'Master API auth token', type: 'secret', group: 'Master API' },
+  { key: 'HEARTBEAT_REQUIRE_TOKEN', label: 'Heartbeat needs auth token', type: 'bool', group: 'Master API', help: 'On: game-server heartbeats must send the Master API auth token. Unset: a game server on this machine is also accepted without it.' },
 
   // Discord OAuth & bot
   { key: 'DISCORD_CLIENT_ID',     label: 'Discord client ID',     type: 'text',   group: 'Discord' },
