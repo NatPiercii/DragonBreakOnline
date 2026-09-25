@@ -4,7 +4,7 @@ import { Appearance, applyAppearance } from "../sync/appearance";
 import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
-import { applyMovement, getApplyState, settleTranslation } from "../sync/movementApply";
+import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from "../sync/movementApply";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
@@ -341,6 +341,7 @@ export class FormView {
         if (ac) {
           TESModPlatform.setWeaponDrawnMode(ac, -1);
         }
+        forgetLocalCopy(refrId);
       }
     })
 

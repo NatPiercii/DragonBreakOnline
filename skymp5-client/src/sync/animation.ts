@@ -229,6 +229,23 @@ export const restoreSitCollisionIfMoving = (refr: ObjectReference, m: Movement):
   setCollision(refrId, true);
 };
 
+// Everything this module keeps per reference, for a deleted copy whose local id the engine will hand out again
+export const forgetAnimationState = (refrId: number): void => {
+  sitCollisionDisabledAt.delete(refrId);
+  refsWithDefaultAnimsDisabled.delete(refrId);
+  for (let i = allowedIdles.length - 1; i >= 0; i--) {
+    if (allowedIdles[i][0] === refrId) {
+      allowedIdles.splice(i, 1);
+    }
+  }
+  const prefix = refrId + ":";
+  allowedAnims.forEach((key) => {
+    if (key.startsWith(prefix)) {
+      allowedAnims.delete(key);
+    }
+  });
+};
+
 export const setDefaultAnimsDisabled = (
   refrId: number,
   disabled: boolean

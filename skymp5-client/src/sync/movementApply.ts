@@ -9,7 +9,8 @@ import { RespawnNeededError } from "../lib/errors";
 import { Movement, RunMode, AnimationVariables, Transform, NiPoint3 } from "./movement";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { SpApiInteractor } from "../services/spApiInteractor";
-import { isInSitPose, setRefrCollision } from "./animation";
+import { forgetAnimationState, isInSitPose, setRefrCollision } from "./animation";
+import { forgetBody } from "./bodyPos";
 import { isHostedByMe } from "../view/worldViewMisc";
 
 const sqr = (x: number) => x * x;
@@ -260,6 +261,16 @@ const getGroundGrade = (refrId: number, m: Movement): number => {
     grade,
   });
   return grade;
+};
+
+// Everything kept per local copy, called when FormView deletes one: the engine hands its id to a later reference,
+// which would inherit a running-translation mark, a keep-offset state, a ground grade, a sit pose or a body offset
+export const forgetLocalCopy = (localId: number): void => {
+  translating.delete(localId);
+  applyStates.delete(localId);
+  groundSamples.delete(localId);
+  forgetAnimationState(localId);
+  forgetBody(localId);
 };
 
 // An NPC is played back along its host's path (NPC system v2, phase 3): it moves to the reported position, timed to
