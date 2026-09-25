@@ -37,8 +37,11 @@ const TAG_PROP = "private.npcSpawner";
 // ACBS template flag: the AI data comes from the TPLT template
 const TEMPLATE_USE_AI_DATA = 0x10;
 const MAX_TEMPLATE_DEPTH = 8;
-// An NPC this far below its spawn point fell out of the world and is replaced on its spot
+// An NPC this far below its spawn point fell out of the world and is replaced on its spot (interiors, and
+// worlds without terrain data)
 const FALL_LIMIT = 3000;
+// Outdoors: this far below the terrain under the NPC
+const FALL_BELOW_TERRAIN = 1000;
 // Falls on one spot before the slot is given up: a spot with no floor would otherwise cycle forever
 const MAX_SPOT_FALLS = 2;
 // Falls nobody saw do not count against the spot, but this many give it up until a restart or an admin reset,
@@ -839,17 +842,30 @@ export class NpcSpawnSystem implements System {
   // a bridge keeps its height for every slot, so nobody is put under the rock.
   private slotGroundZ(zone: Zone, x: number, y: number): number {
     const fallback = zone.pos[2] + SPAWN_LIFT;
-    const terrainAt = (globalThis as any).__dboTerrainAt as ((desc: string, x: number, y: number) => { lo: number; hi: number } | null) | undefined;
-    if (typeof terrainAt !== "function") return fallback;
+    const centre = this.terrainAt(zone.cellOrWorldDesc, zone.pos[0], zone.pos[1]);
+    const here = centre && this.terrainAt(zone.cellOrWorldDesc, x, y);
+    if (!centre || !here) return fallback;
+    if (zone.pos[2] < centre.lo - CENTRE_ON_TERRAIN || zone.pos[2] > centre.hi + CENTRE_ON_TERRAIN) return fallback;
+    return here.hi + SPAWN_LIFT;
+  }
+
+  // Terrain height under x,y from server/npcground.js, or null: no module, no data for that world (interiors), or it threw
+  private terrainAt(desc: string, x: number, y: number): { lo: number; hi: number } | null {
+    const lookup = (globalThis as any).__dboTerrainAt as ((desc: string, x: number, y: number) => { lo: number; hi: number } | null) | undefined;
+    if (typeof lookup !== "function") return null;
     try {
-      const centre = terrainAt(zone.cellOrWorldDesc, zone.pos[0], zone.pos[1]);
-      const here = terrainAt(zone.cellOrWorldDesc, x, y);
-      if (!centre || !here) return fallback;
-      if (zone.pos[2] < centre.lo - CENTRE_ON_TERRAIN || zone.pos[2] > centre.hi + CENTRE_ON_TERRAIN) return fallback;
-      return here.hi + SPAWN_LIFT;
+      const t = lookup(desc, x, y);
+      return t && Number.isFinite(t.lo) && Number.isFinite(t.hi) ? t : null;
     } catch {
-      return fallback;
+      return null;
     }
+  }
+
+  // Outdoors the floor is the terrain under the NPC, wherever a chase took it: measured from the spot, an ogre of
+  // wild:wolf:2882 (spot z 19396) 'fell' at z 14882 while 4,400 above the terrain under it (2026-09-25 17:56:40)
+  private fellOut(zone: Zone, pos: number[]): boolean {
+    const t = this.terrainAt(zone.cellOrWorldDesc, pos[0], pos[1]);
+    return t ? pos[2] < t.lo - FALL_BELOW_TERRAIN : pos[2] < zone.pos[2] - FALL_LIMIT;
   }
 
   // A death starts the slot's Respawn cooldown and the corpse's own removal timer
@@ -874,7 +890,7 @@ export class NpcSpawnSystem implements System {
       try { pos = mp.getActorPos(entry.id); } catch { continue; }
       if (this.desyncPull && this.resyncDesynced(mp, zone, entry, pos)) continue;
       const slot = this.slotPos(zone, entry.slot);
-      const fell = pos[2] < zone.pos[2] - FALL_LIMIT;
+      const fell = this.fellOut(zone, pos);
       const leash = Math.max(LEASH_MIN, zone.radius * LEASH_RADII);
       const away = Math.hypot(pos[0] - zone.pos[0], pos[1] - zone.pos[1]);
       const strayed = !fell && away > leash;
