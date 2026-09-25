@@ -4,7 +4,7 @@ import { Appearance, applyAppearance } from "../sync/appearance";
 import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
-import { applyMovement, settleTranslation } from "../sync/movementApply";
+import { applyMovement, getApplyState, settleTranslation } from "../sync/movementApply";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
@@ -46,6 +46,25 @@ export const getScreenResolution = (): ScreenResolution => {
   }
   return _screenResolution;
 }
+
+// Copies found pinned while hosted here, reported once each (see the hosted branch of FormView.update)
+const pinReported = new Set<number>();
+const reportPin = (remoteId: number | undefined, ac: Actor, model: FormModel, pin: ReturnType<typeof getApplyState>, everApplied: boolean): void => {
+  const id = Number(remoteId) >>> 0;
+  if (!id || pinReported.has(id)) return;
+  pinReported.add(id);
+  try {
+    const base = ac.getBaseObject();
+    sendCustomPacket(SpApiInteractor.getControllerInstance(), {
+      customPacketType: "dbo", event: "npcDrift",
+      args: [{
+        kind: "pinned", remoteId: id.toString(16), base: `${base?.getName() || "?"} ${(base?.getFormID() ?? 0).toString(16)}`,
+        hostedByOther: !!model.isHostedByOther, offset: pin.offset, translating: pin.translating, targetAgeMs: pin.targetAgeMs,
+        everApplied, inCombat: ac.isInCombat(),
+      }],
+    });
+  } catch { /* reporting is best effort */ }
+};
 
 export class FormView {
   constructor(private remoteRefrId?: number) { }
@@ -438,6 +457,17 @@ export class FormView {
           clearSitPose(this.refrId);
           setRefrCollision(this.refrId, true);
         }
+        // Our own AI drives a copy we host. A remote-copy playback left on it (the keep-offset toward itself that
+        // plays the walk, or a translation) pins it: it walks in place and only fights what stands in front of it
+        // (playtest 2026-09-25, ogres and deer hosted by one player alone). Release it, and report the first time.
+        if (!isOwnCompanion(this.remoteRefrId)) {
+          const pin = getApplyState(this.refrId);
+          if (pin.translating || pin.offset === "held" || pin.offset === "moving") {
+            settleTranslation(refr);
+            ac.evaluatePackage();
+            reportPin(this.remoteRefrId, ac, model, pin, this.movState.everApplied);
+          }
+        }
       }
     } else {
       this.movState.havokSeated = false;
@@ -489,7 +519,8 @@ export class FormView {
           } catch { /* not loaded yet, the next pass seats it */ }
           this.movState.lastNumChanges = +(model.numMovementChanges as number);
           this.movState.everApplied = true;
-        } else if (model.isHostedByOther || !this.movState.everApplied) {
+        } else if (!alreadyHosted && (model.isHostedByOther || !this.movState.everApplied)) {
+          // Never for a copy we host: the server's movement for it is our own, and playing it back pins our AI
           const backup = model.movement.isWeapDrawn;
           const isDeadBackup = model.movement.isDead;
           if (forcedWeapDrawn === true || forcedWeapDrawn === false) {
