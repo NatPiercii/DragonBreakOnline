@@ -78,27 +78,11 @@
     the Wheel, and never has to be earned back.
   </p>
   <hr class="g-rule-gold">
-  <div class="g-status">
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.01" />
-    </svg>
-    <p>
-      <strong>The stats are live. The resistances are not.</strong> Every bar on this sheet is in the game
-      and enforced by the server — written into the plugin and confirmed in play. Every trait marked as
-      a hard trait still waits on a change to the server's damage judge, and is listed here as intent, not
-      as something you have today.
-    </p>
-  </div>
   <div class="g-key">
     <div>
       <h3>The Baseline</h3>
       <p>Every bar is drawn against the Imperial line — 200 health, 200 magicka, 150 stamina — the centre line on each track.
          Left of it is a shortfall, right of it a gift.</p>
-    </div>
-    <div>
-      <h3>Hard Traits</h3>
-      <p>Outlined in the bloodline's own colour. These the server enforces itself: they change what a blow
-         actually takes off you, not what your screen claims.</p>
     </div>
     <div>
       <h3>No Cost to You</h3>
@@ -155,7 +139,6 @@
       </div>
       <p class="g-data"><span><b>Regen</b> 0.5 / 3.0 / 5.0</span><span><b>Carry</b> 325</span></p>
       <div class="g-traits">
-        <span class="g-chip g-hard">Disease resistance 50%</span>
         <span class="g-chip g-hard">Claws count as a blade</span>
         <span class="g-chip">Breathes water</span>
       </div>
@@ -182,10 +165,6 @@
         <div class="g-stat"><span class="g-stat-label">Stamina</span><span class="g-track"><span class="g-fill" style="left:50%;width:12.5%"></span></span><span class="g-stat-val g-above">155</span></div>
       </div>
       <p class="g-data"><span><b>Regen</b> 1.0 / 3.0 / 5.0</span><span><b>Carry</b> 275</span></p>
-      <div class="g-traits">
-        <span class="g-chip g-hard">Poison resistance 50%</span>
-        <span class="g-chip g-hard">Disease resistance 50%</span>
-      </div>
     </article>
     <article class="g-race" style="--accent:#8c9a9c">
       <div class="g-race-head">
@@ -207,10 +186,6 @@
         <div class="g-stat"><span class="g-stat-label">Stamina</span><span class="g-track"><span class="g-fill" style="left:50%;width:0%"></span></span><span class="g-stat-val">150</span></div>
       </div>
       <p class="g-data"><span><b>Regen</b> 0.75 / 3.125 / 4.75</span><span><b>Carry</b> 300</span></p>
-      <div class="g-traits">
-        <span class="g-chip g-hard">Magic resistance 25%</span>
-        <span class="g-chip">Strongest warding in Tamriel</span>
-      </div>
     </article>
     <article class="g-race" style="--accent:#c9463a">
       <div class="g-race-head">
@@ -232,7 +207,6 @@
       </div>
       <p class="g-data"><span><b>Regen</b> 0.75 / 3.125 / 4.75</span><span><b>Carry</b> 275</span></p>
       <div class="g-traits">
-        <span class="g-chip g-hard">Fire resistance 50%</span>
         <span class="g-chip">Ancestors close at hand</span>
       </div>
     </article>
@@ -257,7 +231,6 @@
       </div>
       <p class="g-data"><span><b>Regen</b> 1.0 / 3.0 / 5.0</span><span><b>Carry</b> 300</span></p>
       <div class="g-traits">
-        <span class="g-chip g-hard">Finds more gold</span>
         <span class="g-chip">Balanced in all things</span>
       </div>
     </article>
@@ -306,7 +279,6 @@
       </div>
       <p class="g-data"><span><b>Regen</b> 0.75 / 2.875 / 5.25</span><span><b>Carry</b> 325</span></p>
       <div class="g-traits">
-        <span class="g-chip g-hard">Frost resistance 50%</span>
         <span class="g-chip">Joint greatest vitality</span>
       </div>
     </article>
@@ -332,8 +304,6 @@
       </div>
       <p class="g-data"><span><b>Regen</b> 1.0 / 2.75 / 5.5</span><span><b>Carry</b> 350</span></p>
       <div class="g-traits">
-        <span class="g-chip g-hard">Magic resistance 15%</span>
-        <span class="g-chip g-hard">Steel bites harder, enchantment holds worse</span>
         <span class="g-chip">Heaviest burden borne</span>
         <span class="g-chip">Joint greatest vitality</span>
       </div>
@@ -358,7 +328,6 @@
       </div>
       <p class="g-data"><span><b>Regen</b> 0.75 / 2.875 / 5.25</span><span><b>Carry</b> 325</span></p>
       <div class="g-traits">
-        <span class="g-chip g-hard">Poison resistance 50%</span>
         <span class="g-chip">Greatest stamina in Tamriel</span>
       </div>
     </article>
@@ -385,31 +354,12 @@
       well matters less than one that reads true.
     </p>
     <p>
-      Three sheets were retuned by hand after the first build: Redguard took the stamina crown from the Orc,
-      the Orc took a share of the Nord's health instead, and the Altmer went further out on its own axis than
-      any other race. <strong>Every bloodline still sums to exactly 550.</strong> That is the rule the whole
+      <strong>Every bloodline still sums to exactly 550.</strong> That is the rule the whole
       table is built on — points move between a race's own three stats and the total never changes, so
       no bloodline is simply better than another, only pointed somewhere else.
     </p>
-    <div class="g-ledger">
-      <div>
-        <h4>Live and enforced</h4>
-        <p>Health, magicka, stamina, regeneration and carry weight. The server reads these from the race
-           itself when your character spawns — and from your next login, not from a new character.</p>
-      </div>
-      <div>
-        <h4>Coming with the damage judge</h4>
-        <p>Every resistance on this sheet. Until that lands, a resistance would only change the number on
-           your screen — so we would rather not claim it.</p>
-      </div>
-      <div>
-        <h4>Not coming</h4>
-        <p>Once-a-day powers, race quests and kill-counters. They cannot be judged honestly by a server
-           that does not trust the client, so they stay out.</p>
-      </div>
-    </div>
   </div>
-  <footer>DragonBreak Online · Design sheet, 20 Sun's Height · Subject to the forge</footer>
+  <footer>Last updated 25 September 2026.</footer>
 </div>
 </main>
 <nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/commands.html">Commands and Systems</a></li><li><a href="/guides/skills.html">Skill System</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
