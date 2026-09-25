@@ -1981,6 +1981,12 @@ void ActionListener::OnSpellHit(MpActor* aggressor,
   const bool wardBlocked = IsWardBlocking(*aggressor, *targetActorPtr);
   // A fully blocked attack still asks the gamemode, so god mode and companions see it
   const bool blockedAttack = wardBlocked && damage > 0.f;
+  const nlohmann::json spellFlags = { { "spell", true },
+                                      { "blocked", wardBlocked },
+                                      { "power", false },
+                                      { "bash", false },
+                                      { "sneak", false },
+                                      { "unblockedDamage", damage } };
   if (wardBlocked) {
     damage *= kBlockedHitDamageMult;
     spdlog::info("OnSpellHit - ward of {:x} blocked spell {:x} of {:x}",
@@ -1989,7 +1995,8 @@ void ActionListener::OnSpellHit(MpActor* aggressor,
   }
 
   if (!FireHitDamageEvent("onHitDamageAttempt", aggressor, targetActorPtr,
-                          hitData.source, damage, blockedAttack)) {
+                          hitData.source, damage, blockedAttack,
+                          &spellFlags)) {
     return;
   }
 
@@ -2019,7 +2026,7 @@ void ActionListener::OnSpellHit(MpActor* aggressor,
                spellCastData.caster);
 
   FireHitDamageEvent("onHitDamage", aggressor, targetActorPtr, hitData.source,
-                     damage);
+                     damage, false, &spellFlags);
 
   if (!wardBlocked) {
     ApplyParalysis(*aggressor, *targetActorPtr, hitData.source);
@@ -2210,9 +2217,26 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
 
   float damage = partOne.CalculateDamage(*aggressor, targetActor, hitData);
   damage = damage < 0.f ? 0.f : damage;
+  // What the hit would have done unblocked, so the gamemode can let part of a blocked blow through (chip damage)
+  float unblockedDamage = damage;
+  if (hitData.isHitBlocked) {
+    HitData unblocked = hitData;
+    unblocked.isHitBlocked = false;
+    unblockedDamage =
+      std::max(0.f, partOne.CalculateDamage(*aggressor, targetActor, unblocked));
+  }
+  const nlohmann::json weaponFlags = {
+    { "spell", false },
+    { "blocked", static_cast<bool>(hitData.isHitBlocked) },
+    { "power", static_cast<bool>(hitData.isPowerAttack) },
+    { "bash", static_cast<bool>(hitData.isBashAttack) },
+    { "sneak", static_cast<bool>(hitData.isSneakAttack) },
+    { "unblockedDamage", unblockedDamage }
+  };
   // A fully blocked attack still asks the gamemode, so god mode and companions see it
   if (!FireHitDamageEvent("onHitDamageAttempt", aggressor, &targetActor,
-                          hitData.source, damage, hitData.isHitBlocked)) {
+                          hitData.source, damage, hitData.isHitBlocked,
+                          &weaponFlags)) {
     return;
   }
 
@@ -2240,13 +2264,14 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     healthPercentage, outBaseHealth);
 
   FireHitDamageEvent("onHitDamage", aggressor, &targetActor, hitData.source,
-                     damage);
+                     damage, false, &weaponFlags);
 }
 
 bool ActionListener::FireHitDamageEvent(const char* eventName,
                                         MpActor* aggressor, MpActor* target,
                                         uint32_t sourceId, float damage,
-                                        bool fireOnZeroDamage)
+                                        bool fireOnZeroDamage,
+                                        const nlohmann::json* hitFlags)
 {
   if (!aggressor || !target || (damage <= 0.f && !fireOnZeroDamage)) {
     return true;
@@ -2255,6 +2280,9 @@ bool ActionListener::FireHitDamageEvent(const char* eventName,
   argsJson.push_back(target->GetFormId());
   argsJson.push_back(sourceId);
   argsJson.push_back(damage);
+  if (hitFlags) {
+    argsJson.push_back(*hitFlags);
+  }
   CustomEvent hitEvent(aggressor->GetFormId(), eventName, argsJson.dump());
   return hitEvent.Fire(&partOne.worldState);
 }

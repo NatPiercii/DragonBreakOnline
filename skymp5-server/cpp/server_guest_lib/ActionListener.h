@@ -128,10 +128,12 @@ private:
                                        const RestorationChannel& channel);
   void ApplyRestorationChannelRemainder(uint32_t casterId,
                                         const RestorationChannel& channel);
-  // Returns false when a gamemode handler blocked the event
+  // Returns false when a gamemode handler blocked the event. hitFlags, when given, is passed as the handlers' fifth
+  // argument (blocked, power, bash, sneak, spell, unblockedDamage), so the gamemode can judge stagger and block.
   bool FireHitDamageEvent(const char* eventName, MpActor* aggressor,
                           MpActor* target, uint32_t sourceId, float damage,
-                          bool fireOnZeroDamage = false);
+                          bool fireOnZeroDamage = false,
+                          const nlohmann::json* hitFlags = nullptr);
 
   void OnSpellHit(MpActor* aggressor, MpObjectReference* targetRef,
                   const HitData& hitData);
