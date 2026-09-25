@@ -23,6 +23,9 @@ module.exports = (api) => {
     reviveRange: 1500, reviveConeDeg: 25, reviveFallbackMs: 1200, groupReviveRange: 400,
     // Death's Chill after waking at the temple: caps and the share of recovery that is kept, 1 = unchanged
     chill: true, chillMinutes: 20, chillCureTier: 2,
+    // The ability shown under Magic > Active Effects while the chill lasts ('<local id>:<plugin>'); empty until the
+    // record exists in a DragonBreak plugin (Nate, 2026-09-25: players could not tell why stamina crawled back)
+    chillMarkerSpell: '',
     chillStaminaCap: 0.7, chillStaminaRegen: 0.4, chillMagickaCap: 0.2, chillMagickaRegen: 0.7, chillHealthRegen: 0.5,
   }, cfg.downed || {});
 
@@ -142,18 +145,29 @@ module.exports = (api) => {
     if (chilled.has(a)) return chilled.get(a).leftMs;
     try { const c = mp.get(a, CHILL); return c && c.leftMs > 0 ? c.leftMs : 0; } catch (e) { return 0; }
   };
+  // The Active Effects entry: added when the chill starts or a chilled player comes back online, taken when it lifts
+  const markChill = (a, on) => {
+    if (!C.chillMarkerSpell) return;
+    try {
+      const spell = mp.getDescFromId(mp.getIdFromDesc(String(C.chillMarkerSpell)) >>> 0);
+      mp.callPapyrusFunction('method', 'Actor', on ? 'AddSpell' : 'RemoveSpell', { type: 'form', desc: mp.getDescFromId(a >>> 0) },
+        on ? [{ type: 'espm', desc: spell }, false] : [{ type: 'espm', desc: spell }]);
+    } catch (e) { log(`downed: chill marker ${on ? 'add' : 'remove'} failed: ${e.message}`); }
+  };
   const saveChill = (a, leftMs) => { try { mp.set(a, CHILL, { leftMs: Math.max(0, Math.round(leftMs)) }); } catch (e) { /* not an actor */ } };
   const chill = (a) => {
     if (!C.chill || !isPlayer(a) || mp.get(a, 'private.permaDead') === true) return;
     const leftMs = C.chillMinutes * 60000;
     chilled.set(a, { leftMs, at: Date.now(), p: null, savedAt: Date.now() });
     saveChill(a, leftMs);
+    markChill(a, true);
     banner(a, `You wake at the temple with the chill of the grave in your bones. Your breath and your magic come back slowly and wounds knit poorly. A Priest's healing can lift it; otherwise it passes in ${C.chillMinutes} minutes.`, 10);
     audit(`CHILL ${who(a)} woke at the temple with Death's Chill (${C.chillMinutes} min)`);
   };
   const liftChill = (a, by) => {
     chilled.delete(a);
     saveChill(a, 0);
+    markChill(a, false);
     if (by) {
       banner(a, `${nameOf(by)}'s healing drives the chill of the grave from you.`, 5);
       banner(by, `You lift the chill of the grave from ${nameOf(a)}.`, 3);
@@ -176,6 +190,7 @@ module.exports = (api) => {
         const leftMs = chillLeft(a);
         if (!leftMs) continue;
         chilled.set(a, { leftMs, at: now, p: null, savedAt: now });
+        markChill(a, true);
       }
       const c = chilled.get(a);
       const p = health(a);

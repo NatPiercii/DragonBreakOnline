@@ -25,10 +25,13 @@ set(WOLF, 'profileId', -1);
 set(PRIEST, 'private.mastery', { order: ['priest'], skills: { priest: { rank: 2 } } }); // tier 3
 set(NOVICE, 'private.mastery', { order: ['priest'], skills: { priest: { rank: 0 } } }); // tier 1
 const HEAL_OTHER = 0x12fd2, GRAND = 0xb62ee;
+const papyrus = [];
 const mp = {
   get: (id, k) => { const v = get(id, k); if (v === undefined && k === 'private.permaDead') return false; return v; },
   set: (id, k, v) => set(id, k, v),
   getIdFromDesc: (d) => parseInt(d, 16),
+  getDescFromId: (id) => (id >>> 0).toString(16),
+  callPapyrusFunction: (kind, cls, fn, self, args) => { papyrus.push([fn, parseInt(self.desc, 16), args[0].desc, args[1]]); return true; },
   onHitDamageAttempt: () => true, onHitDamage: () => undefined, onDeath: () => undefined,
   onSpellHit: () => undefined, onSpellCast: () => undefined,
 };
@@ -110,6 +113,25 @@ check('/chill says when you are free of it', /free of the chill/.test(out.person
 // permanent death is not a temple wake
 clear(); set(P, 'private.permaDead', true); die(); commands.respawn(P);
 check('a permanently dead character gets no chill', !left());
+
+// the Active Effects marker: off by default (no Papyrus call was made above), on once the record is configured
+check('with no marker configured, no ability is added or removed', !papyrus.length, JSON.stringify(papyrus));
+delete require.cache[MODULE];
+require(MODULE)({
+  mp, log: () => {}, personal: (a, t) => out.personal.push([a, t]),
+  sendPacket: (a, p) => { if (p.customPacketType === 'dboBanner') out.banners.push([a, p.text]); return true; },
+  audit: (t) => out.audits.push(t), who: (a) => 'P' + (a >>> 0).toString(16), display: (a) => 'P' + (a >>> 0).toString(16),
+  profileOf: (a) => Number(get(a, 'profileId')), nameOf: (a) => 'P' + (a >>> 0).toString(16),
+  onlineActors: () => [P, PRIEST, NOVICE], every: (n, ms, fn) => { timers[n] = fn; },
+  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: { downed: { chillMarkerSpell: 'abcd:DragonBreak Online Edits.esp' } },
+});
+set(P, 'private.permaDead', false); clear(); die(); commands.respawn(P); tick(1000);
+check('the chill adds the marker ability, silently', papyrus.some((c) => c[0] === 'AddSpell' && c[1] === P && c[2] === 'abcd' && c[3] === false), JSON.stringify(papyrus));
+const adds = papyrus.filter((c) => c[0] === 'AddSpell').length;
+tick(1000);
+check('...once, not every second', papyrus.filter((c) => c[0] === 'AddSpell').length === adds);
+for (let i = 0; i < 21 * 60; i++) tick(1000);
+check('and takes it away when the chill passes', papyrus.some((c) => c[0] === 'RemoveSpell' && c[1] === P && c[2] === 'abcd') && !left());
 
 Date.now = realNow;
 console.log('');
