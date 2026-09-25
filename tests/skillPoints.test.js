@@ -208,6 +208,20 @@ eq('first touch costs one level', r.skills.smith.level, 1);
 eq('first touch is idempotent', S.firstTouch(r, 'smith', cfg) && r.skills.smith.level, 1);
 const full = mk({ a: 150, b: 150 });
 eq('a full pool refuses a new trade', S.firstTouch(full, 'smith', cfg), false);
+const fallingPool = mk({ a: { level: 100, xp: 0, lock: 'lower' }, b: 100, c: 100 });
+eq('with a skill marked to fall, a full pool opens the trade', S.firstTouch(fallingPool, 'smith', cfg), true);
+eq('the level comes from the falling skill', fallingPool.skills.a.level, 99);
+eq('the raised skills are untouched', [fallingPool.skills.b.level, fallingPool.skills.c.level], [100, 100]);
+eq('the pool stays within its limit', Object.values(fallingPool.skills).reduce((n, x) => n + x.level, 0) <= cfg.pool, true);
+const partXp = mk({ a: { level: 60, xp: 7, lock: 'lower' }, b: 100, c: 100, d: 40 });
+eq('a falling skill part-way through a level still pays one level', S.firstTouch(partXp, 'smith', cfg) && partXp.skills.a.level, 59);
+const twoFalling = mk({ a: { level: 50, xp: 0, lock: 'lower' }, e: { level: 80, xp: 0, lock: 'lower' }, b: 100, c: 70 });
+eq('the highest falling skill pays first', S.firstTouch(twoFalling, 'smith', cfg) && [twoFalling.skills.e.level, twoFalling.skills.a.level], [79, 50]);
+const held = mk({ a: { level: 100, xp: 0, lock: 'hold' }, b: 100, c: 100 });
+eq('a held skill never pays', S.firstTouch(held, 'smith', cfg), false);
+const atFloor = mk({ a: { level: 25, xp: 0, lock: 'lower' }, b: 100, c: 100, d: 75 });
+eq('a falling skill at the floor cannot pay', S.firstTouch(atFloor, 'smith', cfg), false);
+eq('and nothing changed', atFloor.skills.a.level + '/' + (atFloor.skills.smith ? 'opened' : 'closed'), '25/closed');
 
 // the shim the gameplay layer reads
 r = mk({ smith: 80, cook: 10, bow: 0 });
