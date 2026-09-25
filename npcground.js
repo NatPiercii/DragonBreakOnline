@@ -19,6 +19,13 @@ const UNDER_UNITS = 48;
 const UNDER_SAMPLES = 2;
 const OVER_UNITS = 600;
 const LOG_EVERY_MS = 60000;
+// The server owns the ground (Nat, 2026-09-25): an NPC held this far under the terrain for UNDER_SAMPLES is lifted
+// onto it. A server move reaches the hoster as a teleport and everyone else through the hoster's stream. Only ever up,
+// and only where the nearest player stands on the same terrain data, so a wrong height cannot throw NPCs about.
+const FIX_UNITS = 96;
+const FIX_LIFT = 24;
+const FIX_EVERY_MS = 15000;
+const PLAYER_TRUST_UNITS = 150;
 
 const normDesc = (d) => {
   const s = String(d || '').trim().toLowerCase();
@@ -84,6 +91,7 @@ const dzOf = (t, z) => (z < t.lo ? z - t.lo : z > t.hi ? z - t.hi : 0);
 
 module.exports = (api) => {
   const { mp, log, every, onlineActors, display } = api;
+  const FIX = ((api.cfg || {}).npcGround || {}).fix !== false;
   const file = path.resolve(FILE);
   let mtime = 0;
   try { mtime = fs.statSync(file).mtimeMs; } catch (e) { /* no file */ }
@@ -103,6 +111,16 @@ module.exports = (api) => {
     return t ? Math.round(dzOf(t, Number(pos[2]))) : null;
   };
 
+  // The terrain data is trusted where the player near the NPC stands on it within PLAYER_TRUST_UNITS
+  const playerOnTerrain = (p, desc) => {
+    try {
+      if (String(mp.get(p, 'worldOrCellDesc') || '') !== desc) return false;
+      const pp = mp.get(p, 'pos');
+      const t = terrain.at(desc, pp[0], pp[1]);
+      return !!t && Math.abs(dzOf(t, pp[2])) <= PLAYER_TRUST_UNITS;
+    } catch (e) { return false; }
+  };
+
   const state = globalThis.__dboNpcGround instanceof Map ? globalThis.__dboNpcGround : (globalThis.__dboNpcGround = new Map());
   const hex = (id) => (id >>> 0).toString(16);
   const check = (id, near, now) => {
@@ -117,13 +135,22 @@ module.exports = (api) => {
     if (!t) return;
     const dz = dzOf(t, pos[2]);
     let s = state.get(id);
-    if (!s) state.set(id, s = { under: 0, underAt: 0, overAt: 0 });
+    if (!s) state.set(id, s = { under: 0, underAt: 0, overAt: 0, fixedAt: 0 });
     const where = () => `${hex(id)} ${base} at ${pos.map(Math.round).join(',')} terrain ${Math.round(t.lo)}..${Math.round(t.hi)} dz ${Math.round(dz)}, near ${display(near)}`;
     if (dz < -UNDER_UNITS) {
       s.under++;
       if (s.under >= UNDER_SAMPLES && now - s.underAt >= LOG_EVERY_MS) {
         s.underAt = now;
         log(`npcGround under ${where()} for ${s.under} samples`);
+      }
+      if (FIX && s.under >= UNDER_SAMPLES && dz < -FIX_UNITS && now - s.fixedAt >= FIX_EVERY_MS && playerOnTerrain(near, desc)) {
+        s.fixedAt = now;
+        s.under = 0;
+        try {
+          let rot = [0, 0, 0]; try { rot = mp.get(id, 'angle') || rot; } catch (e) { /* default */ }
+          mp.set(id, 'locationalData', { cellOrWorldDesc: desc, pos: [pos[0], pos[1], t.hi + FIX_LIFT], rot });
+          log(`npcGround lifted ${where()} onto the terrain`);
+        } catch (e) { log(`npcGround: lifting ${hex(id)} failed: ${e.message}`); }
       }
     } else {
       s.under = 0;

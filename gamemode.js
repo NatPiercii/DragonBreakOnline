@@ -2887,7 +2887,7 @@ try {
 try {
   const NPCGROUND_JS = path.resolve('npcground.js');
   delete require.cache[NPCGROUND_JS];
-  require(NPCGROUND_JS)({ mp, log, every, onlineActors, display });
+  require(NPCGROUND_JS)({ mp, log, every, onlineActors, display, cfg });
 } catch (e) { log('npcground.js failed to load:', e.stack || e.message); }
 
 // ---- door names for the interaction prompt (doors.json from ck-mcp/doors.py) --------------------

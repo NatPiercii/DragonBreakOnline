@@ -48,7 +48,7 @@ const lines = [];
 let tick = null;
 let now = 1000000;
 Date.now = () => now;
-require(NPCGROUND)({ mp, log: (...a) => lines.push(a.join(' ')), every: (name, ms, fn) => { tick = fn; }, onlineActors: () => [P, P2], display: (a) => `P${a.toString(16)}` });
+require(NPCGROUND)({ mp, log: (...a) => lines.push(a.join(' ')), every: (name, ms, fn) => { tick = fn; }, onlineActors: () => [P, P2], display: (a) => `P${a.toString(16)}`, cfg: { npcGround: { fix: false } } });
 
 let failures = 0;
 const check = (label, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };
@@ -85,10 +85,41 @@ check('a return to the ground resets the sample count', count(/npcGround under f
 // A hot reload keeps the parsed file and the per-actor state
 const before = globalThis.__dboTerrain.terrain;
 delete require.cache[NPCGROUND];
-require(NPCGROUND)({ mp, log: (...a) => lines.push(a.join(' ')), every: (name, ms, fn) => { tick = fn; }, onlineActors: () => [P, P2], display: (a) => `P${a.toString(16)}` });
+require(NPCGROUND)({ mp, log: (...a) => lines.push(a.join(' ')), every: (name, ms, fn) => { tick = fn; }, onlineActors: () => [P, P2], display: (a) => `P${a.toString(16)}`, cfg: { npcGround: { fix: false } } });
 check('reload reuses the parsed terrain', globalThis.__dboTerrain.terrain === before);
 now += 5000; tick();
 check('reload keeps the sample count', count(/npcGround under ff000001/) === 3);
+
+// ---- the lift: the server puts an NPC held under the terrain back onto it -------------------------------------
+const moves = [];
+mp.set = (id, prop, v) => { if (prop === 'locationalData') { moves.push([id, v]); actors.get(id).pos = v.pos.slice(); } };
+mp.get = ((get) => (id, prop) => (prop === 'angle' ? [0, 0, 90] : get(id, prop)))(mp.get);
+const lift = () => { delete require.cache[NPCGROUND]; globalThis.__dboNpcGround = new Map(); lines.length = 0; moves.length = 0;
+  require(NPCGROUND)({ mp, log: (...a) => lines.push(a.join(' ')), every: (name, ms, fn) => { tick = fn; }, onlineActors: () => [P, P2], display: (a) => `P${a.toString(16)}`, cfg: {} }); };
+lift();
+actors.get(0xff000001).pos = [512, 512, heightAt(512, 512) - 200];
+now += 5000; tick();
+check('lift: one sample under is not enough', moves.length === 0);
+now += 5000; tick();
+const m = moves.find(([id]) => id === 0xff000001);
+check('lift: two samples 200 under put it on the terrain, facing as it was', !!m && m[1].cellOrWorldDesc === WORLD && Math.round(m[1].pos[2]) === Math.round(heightAt(512, 512) + 24) && m[1].rot[2] === 90);
+check('lift: it is logged', count(/npcGround lifted ff000001/) === 1);
+check('lift: 900 above is never lowered', !moves.some(([id]) => id === 0xff000003));
+actors.get(0xff000001).pos[2] = heightAt(512, 512) - 200;
+now += 5000; tick(); now += 5000; tick();
+check('lift: not again within 15 s', moves.filter(([id]) => id === 0xff000001).length === 1);
+now += 15000; tick(); now += 5000; tick();
+check('lift: again after 15 s if it sank back', moves.filter(([id]) => id === 0xff000001).length === 2);
+lift();
+actors.get(P).pos[2] = heightAt(100, 100) - 400;
+actors.get(0xff000001).pos = [512, 512, heightAt(512, 512) - 200];
+now += 5000; tick(); now += 5000; tick();
+check('lift: nothing moves where the player near it is off the terrain data too', moves.length === 0 && count(/npcGround under ff000001/) === 1);
+actors.get(P).pos[2] = heightAt(100, 100);
+actors.get(0xff000001).pos = [512, 512, heightAt(512, 512) - 60];
+lift();
+now += 5000; tick(); now += 5000; tick();
+check('lift: 60 under is logged but not moved (under 96)', moves.length === 0 && count(/npcGround under ff000001/) === 1);
 
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);
