@@ -13,6 +13,7 @@ zone-spawns.json
 notice-boards.json
 officials.json
 guilds.json
+parties.json
 *.log
 *.log.*
 server.log*

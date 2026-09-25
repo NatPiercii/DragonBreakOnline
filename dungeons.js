@@ -26,7 +26,7 @@ module.exports = (api) => {
   // added some half the time, and smallLoot's "nothing rolled" fallback added some again. With ~88
   // containers in a lease that is a flood. Now a chest carries coin goldChance of the time and the
   // amount is scaled by goldMult. A boss chest always carries coin whatever goldChance says.
-  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, raidMax: 12, raidXpMult: 0.5, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, raidMax: 12, raidXpMult: 0.5, partyKeepHours: 12, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
   const GOLD_CHANCE = Math.max(0, Math.min(1, Number(C.goldChance)));
   const GOLD_MULT = Math.max(0, Number(C.goldMult));
   const goldAmount = (n) => Math.max(1, Math.round(n * GOLD_MULT));
@@ -1033,8 +1033,36 @@ module.exports = (api) => {
     const members = p ? [...p.members].map((m) => { const x = actorByProfile(m); return x ? { id: x, name: nameOf(x), leader: m === p.leader } : null; }).filter(Boolean) : [];
     if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, isRaid(p)); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
   };
+  // Parties outlive a restart or a crash: every change is written to parties.json (runtime, gitignored, beside the
+  // gamemode) and read back once per server process, unless it is older than partyKeepHours. A crash at 21:39 on
+  // 2026-09-25 dropped every party, and friendly fire went back to full strength (#bugs 1553168038717689920).
+  const PARTY_PATH = path.resolve('parties.json');
+  const saveParties = () => {
+    try {
+      const parties = [...ST.parties.values()].map((p) => ({ leader: p.leader, leaderName: p.leaderName, members: [...p.members] }));
+      fs.writeFileSync(PARTY_PATH + '.tmp', JSON.stringify({ savedAt: Date.now(), parties }));
+      fs.renameSync(PARTY_PATH + '.tmp', PARTY_PATH);
+    } catch (e) { log('parties.json write failed', e.message); }
+  };
+  const loadParties = () => {
+    let data = null;
+    try { data = JSON.parse(fs.readFileSync(PARTY_PATH, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') log('parties.json unreadable', e.message); return; }
+    const age = Date.now() - (Number(data && data.savedAt) || 0);
+    if (!(age <= C.partyKeepHours * 3600000)) return log(`parties.json is ${Math.round(age / 60000)} min old, not restored`);
+    let n = 0;
+    for (const q of (data && data.parties) || []) {
+      const leader = Number(q.leader);
+      const members = new Set((Array.isArray(q.members) ? q.members : []).map(Number).filter((m) => Number.isFinite(m) && !ST.memberOf.has(m)));
+      if (members.size < 2 || !members.has(leader) || ST.parties.has(leader)) continue;
+      ST.parties.set(leader, { leader, leaderName: String(q.leaderName || ''), members });
+      for (const m of members) ST.memberOf.set(m, leader);
+      n++;
+    }
+    log(`parties: ${n} restored from parties.json (saved ${Math.round(age / 60000)} min ago)`);
+  };
   const clearPartyPanel = (pid) => { setRaidMult(pid, false); const x = actorByProfile(pid); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, []); };
-  const leaveParty = (pid, quiet) => {
+  const leaveParty = (pid, quiet) => { const had = ST.memberOf.has(pid); leavePartyNow(pid, quiet); if (had) saveParties(); };
+  const leavePartyNow = (pid, quiet) => {
     const leader = ST.memberOf.get(pid); if (leader === undefined) return;
     const p = ST.parties.get(leader);
     ST.memberOf.delete(pid);
@@ -1097,6 +1125,7 @@ module.exports = (api) => {
         if (lp.members.size >= C.raidMax) return personal(a, 'That raid is full.');
         const wasRaid = isRaid(lp);
         lp.members.add(pid); ST.memberOf.set(pid, inv.from);
+        saveParties();
         for (const m of lp.members) { const x = actorByProfile(m); if (x) system(x, `${display(a)} joined the ${isRaid(lp) ? 'raid' : 'party'} (${lp.members.size}/${isRaid(lp) ? C.raidMax : C.partyMax}).`); }
         if (isRaid(lp) && !wasRaid) for (const m of lp.members) { const x = actorByProfile(m); if (x) personal(x, `More than ${C.partyMax} makes this a raid: skill gain is halved while it lasts.`); }
         pushParty(lp);
@@ -1148,6 +1177,8 @@ module.exports = (api) => {
     personal(a, lines.length ? lines.join('  |  ') : `${byId.size} dungeons run as one-hour claims. Walk up to an entrance to claim one.${isAdmin(a) ? ' Admin: /dungeon end <name>.' : ''}`);
   }, { help: 'dungeon claims: what is taken, what rests for you' });
 
+  // Once per server process: the parties from before the restart
+  if (!globalThis.__dboPartiesLoaded) { globalThis.__dboPartiesLoaded = true; loadParties(); }
   // After a reload every party gets its panel again.
   for (const p of ST.parties.values()) pushParty(p);
 
