@@ -128,7 +128,9 @@ export class DboRelayService extends ClientListener {
     const hud = storage[COMPANION_HUD_KEY];
     const companions = Array.isArray(hud) ? hud as Array<{ id: number; name: string; leftMs: number; staying: boolean }> : [];
     const members = this.partyData && Array.isArray(this.partyData["members"]) ? this.partyData["members"] as Array<Record<string, unknown>> : [];
-    if (!members.length && !companions.length) { if (this.partyKey) { this.partyKey = ""; this.removeWidget(PARTY_WIDGET_ID); } return; }
+    // "none" marks the panel removed: a fresh dboParty resets the key to "" to force a redraw, so testing the key for
+    // truth never removed the panel once a player left (party panel still up after leaving, 2026-09-25)
+    if (!members.length && !companions.length) { if (this.partyKey !== "none") { this.partyKey = "none"; this.removeWidget(PARTY_WIDGET_ID); } return; }
     const selfId = this.partyData ? Number(this.partyData["self"]) || 0 : 0;
     const rows = members.map((m) => {
       const remoteId = Number(m["id"]) || 0;
