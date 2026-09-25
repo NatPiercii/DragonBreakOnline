@@ -345,5 +345,6 @@
    }
   }
  },
- "lockpick": { "enabled": true }
+ "lockpick": { "enabled": true },
+ "npcGround": { "fix": false }
 }
