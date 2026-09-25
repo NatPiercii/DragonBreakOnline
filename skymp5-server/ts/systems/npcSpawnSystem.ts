@@ -41,6 +41,9 @@ const MAX_TEMPLATE_DEPTH = 8;
 const FALL_LIMIT = 3000;
 // Falls on one spot before the slot is given up: a spot with no floor would otherwise cycle forever
 const MAX_SPOT_FALLS = 2;
+// Falls nobody saw do not count against the spot, but this many give it up until a restart or an admin reset,
+// or a spot players keep walking away from would drop an NPC every time one comes back
+const MAX_UNSEEN_FALLS = 3;
 // A copy created before the client has the room loaded drops through the missing collision, so a spot
 // that has dropped an actor is only tried again once a player is this close to it
 const SAFE_RESPAWN_UNITS = 2500;
@@ -251,6 +254,7 @@ export class NpcSpawnSystem implements System {
       }
       return placed;
     });
+    (globalThis as any).__alduinakNpcGivenUp = (prefix: string): number => this.givenUpSlots(String(prefix));
   }
 
   private queueLoad(reason: string): Promise<void> {
@@ -678,8 +682,10 @@ export class NpcSpawnSystem implements System {
       const at = zone.slotReadyAt[slot];
       if (at < 0 || at > now) continue;
       // A spot that has dropped its quota of npcs into the void has no floor, in this run or any other
-      if ((this.fallenSpots.get(`${zone.name}:${slot}`) ?? 0) >= MAX_SPOT_FALLS) continue;
-      if (this.fallenSpots.has(`${zone.name}:${slot}`) && !this.playerNear(mp, zone, this.slotPos(zone, slot), SAFE_RESPAWN_UNITS)) continue;
+      // (or it dropped too many with nobody near, in this run)
+      const spot = this.spotKey(zone, slot);
+      if (this.givenUp(spot)) continue;
+      if ((this.fallenSpots.has(spot) || this.unseenFalls.has(spot)) && !this.playerNear(mp, zone, this.slotPos(zone, slot), SAFE_RESPAWN_UNITS)) continue;
       if (!entry && live >= this.maxLive) {
         if (now - this.budgetLoggedAt > BUDGET_LOG_MS) {
           this.budgetLoggedAt = now;
@@ -780,6 +786,11 @@ export class NpcSpawnSystem implements System {
 
   // Slot 0 stands on POS, the rest fill rings of 6, 12, 18... SLOT_SPACING apart so no two spawn inside each other
   private slotPos(zone: Zone, slot: number): number[] {
+    const [x, y] = this.slotXY(zone, slot);
+    return [x, y, slot === 0 ? zone.pos[2] : this.slotGroundZ(zone, x, y)];
+  }
+
+  private slotXY(zone: Zone, slot: number): number[] {
     let ring = 0;
     let first = 0;
     const ringSize = (r: number) => Math.max(1, 6 * r);
@@ -790,9 +801,35 @@ export class NpcSpawnSystem implements System {
     const size = Math.min(ringSize(ring), zone.total - first);
     const angle = (2 * Math.PI * (slot - first)) / size;
     const radius = ring * SLOT_SPACING;
-    const x = zone.pos[0] + radius * Math.cos(angle);
-    const y = zone.pos[1] + radius * Math.sin(angle);
-    return [x, y, slot === 0 ? zone.pos[2] : this.slotGroundZ(zone, x, y)];
+    return [zone.pos[0] + radius * Math.cos(angle), zone.pos[1] + radius * Math.sin(angle)];
+  }
+
+  // The fall memory is keyed by where a slot stands, not by zone name and slot number: dungeons.js numbers its
+  // zones by the placements a lease kept after its random skip, so 'dungeon:X:4:0' was a different placement on
+  // every lease: falls on different spots added up under one key, and the given-up key then emptied whichever
+  // placement drew that number next (11 slots on 2026-09-25). The zone's own height stands for the floor, so the
+  // key does not move with the terrain data under an outer slot.
+  private spotKey(zone: Zone, slot: number): string {
+    const [x, y] = this.slotXY(zone, slot);
+    return `${zone.cellOrWorldDesc.toLowerCase()}@${Math.round(x)},${Math.round(y)},${Math.round(zone.pos[2])}`;
+  }
+
+  private givenUp(spot: string): boolean {
+    return (this.fallenSpots.get(spot) ?? 0) >= MAX_SPOT_FALLS || (this.unseenFalls.get(spot) ?? 0) >= MAX_UNSEEN_FALLS;
+  }
+
+  // Slots of zones named with this prefix that will not be filled again (dungeons.js leaves them out of a lease's
+  // enemy count, or the lease could never finish early); a slot holding a live NPC is not counted
+  private givenUpSlots(prefix: string): number {
+    let n = 0;
+    for (const zone of this.zones) {
+      if (!zone.name.startsWith(prefix)) continue;
+      for (let slot = 0; slot < zone.total; slot++) {
+        if (zone.spawned.some((e) => e.slot === slot && e.id && !e.diedAt)) continue;
+        if (this.givenUp(this.spotKey(zone, slot))) n++;
+      }
+    }
+    return n;
   }
 
   // Outer slots used to keep the centre's height, so on a slope the uphill ones started inside the hill and the
@@ -867,17 +904,23 @@ export class NpcSpawnSystem implements System {
       // Not in this poll: fillSlots runs next and would give the new copy the index just freed
       zone.slotReadyAt[entry.slot] = now + REFILL_HOLD_MS;
       // A spot with no floor drops every actor placed on it, so the slot is given up after a second fall.
-      // A fall with nobody near counts for nothing: the room was not loaded, so the floor was not there yet.
+      // A fall with nobody near is not held against the spot on disk: the room was not loaded, so the floor
+      // was not there yet. It only counts towards MAX_UNSEEN_FALLS.
       if (fell) {
-        const key = `${zone.name}:${entry.slot}`;
+        const key = this.spotKey(zone, entry.slot);
         const witnessed = this.playerNear(mp, zone, slot, SAFE_RESPAWN_UNITS);
-        const falls = (this.fallenSpots.get(key) ?? 0) + (witnessed ? 1 : 0);
-        this.fallenSpots.set(key, falls);
-        if (witnessed) this.saveFallen();
-        if (falls >= MAX_SPOT_FALLS) {
-          zone.slotReadyAt[entry.slot] = NEVER_READY;
-          this.log(`NpcSpawnSystem: '${zone.name}' slot ${entry.slot} at [${slot.map((n) => Math.round(n)).join(", ")}] has dropped ${falls} npcs into the void; leaving it empty`);
+        const where = `'${zone.name}' slot ${entry.slot} at [${slot.map((n) => Math.round(n)).join(", ")}]`;
+        if (witnessed) {
+          const falls = (this.fallenSpots.get(key) ?? 0) + 1;
+          this.fallenSpots.set(key, falls);
+          this.saveFallen();
+          if (falls >= MAX_SPOT_FALLS) this.log(`NpcSpawnSystem: ${where} has dropped ${falls} npcs into the void; leaving it empty`);
+        } else {
+          const unseen = (this.unseenFalls.get(key) ?? 0) + 1;
+          this.unseenFalls.set(key, unseen);
+          if (unseen >= MAX_UNSEEN_FALLS) this.log(`NpcSpawnSystem: ${where} has dropped ${unseen} npcs with nobody near; leaving it empty until a restart or reset`);
         }
+        if (this.givenUp(key)) zone.slotReadyAt[entry.slot] = NEVER_READY;
       }
     }
   }
@@ -937,19 +980,24 @@ export class NpcSpawnSystem implements System {
     return where;
   }
 
-  // Zone slots that have dropped an NPC out of the world, by "<zone>:<slot>"
-  // 'zone:slot' -> witnessed falls. A spot with no floor is a property of the world, not of this run,
+  // spotKey -> witnessed falls. A spot with no floor is a property of the world, not of this run,
   // so it is kept on disk; deleting the file makes the server try every spot again.
   private fallenSpots = new Map<string, number>();
+  // spotKey -> falls with nobody near, this run only
+  private unseenFalls = new Map<string, number>();
 
   private loadFallen(): void {
     try {
       const raw = JSON.parse(fs.readFileSync(FALLEN_FILE, "utf8")) as Record<string, number>;
+      let legacy = 0;
       for (const [key, falls] of Object.entries(raw)) {
+        // Old '<zone>:<slot>' keys cannot be traced back to a spot (see spotKey); they are dropped at the next save
+        if (!key.includes("@")) { legacy++; continue; }
         if (typeof falls === "number" && falls > 0) this.fallenSpots.set(key, falls);
       }
       const dead = [...this.fallenSpots.values()].filter((n) => n >= MAX_SPOT_FALLS).length;
       if (this.fallenSpots.size) this.log(`NpcSpawnSystem: ${this.fallenSpots.size} spot(s) have dropped npcs before, ${dead} of them given up`);
+      if (legacy) this.log(`NpcSpawnSystem: ignored ${legacy} fallen-spot entr${legacy === 1 ? "y" : "ies"} keyed by zone and slot number in ${FALLEN_FILE}`);
     } catch { /* no file yet */ }
   }
 
@@ -1058,7 +1106,11 @@ export class NpcSpawnSystem implements System {
     // An admin reset forgets the void spots as well; otherwise they are kept, or the same slot drops
     // two more npcs into it the next time this zone fills
     if (reset) {
-      for (let slot = 0; slot < zone.total; slot++) this.fallenSpots.delete(`${zone.name}:${slot}`);
+      for (let slot = 0; slot < zone.total; slot++) {
+        const spot = this.spotKey(zone, slot);
+        this.fallenSpots.delete(spot);
+        this.unseenFalls.delete(spot);
+      }
       this.saveFallen();
     }
     this.saveSpawns();
