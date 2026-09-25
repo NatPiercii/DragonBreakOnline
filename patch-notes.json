@@ -1,5 +1,37 @@
 [
   {
+    "title": "Steadier Creatures",
+    "date": "2026-09-25",
+    "version": "Client 0.3.39",
+    "tag": "Fixes",
+    "sections": [
+      {
+        "heading": "Creatures and enemies",
+        "items": [
+          "Creatures no longer stay frozen after the player running them walks away: the server hands them to someone nearby within seconds, so they move and fight back again.",
+          "Creatures that sink into the ground are lifted back onto it by the server.",
+          "Creatures no longer snap back and forth across the map: the server refuses impossible jumps and puts them back where they belong.",
+          "Goblins and other Beyond Skyrim enemies carry their weapons again."
+        ]
+      },
+      {
+        "heading": "In this client update (restart the launcher)",
+        "items": [
+          "Locked and loot chests in dungeons glow again.",
+          "When an archer shoots, other players now see the arrow fly at the target.",
+          "Switching characters no longer hides your chat box.",
+          "Staff: the Place tab shows its preview and places again."
+        ]
+      },
+      {
+        "heading": "Skills",
+        "items": [
+          "Taking up a skill you have earned now grants its first abilities straight away."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Tickets From the Game",
     "date": "2026-09-25",
     "tag": "Update",
