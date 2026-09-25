@@ -3061,6 +3061,13 @@ try {
     token: (cfg.discord || {}).botToken || auth.botToken, channelId: ((cfg.updates || {}).channelId) || (cfg.discord || {}).channelId });
 } catch (e) { log('updates.js failed to load:', e.stack || e.message); }
 
+// The client says when its Journal (pause) menu opens and closes, so tooling/dbo-monitor can tell a quit through the
+// menus from a crash (a disconnect with the Journal still open is a quit)
+onUi('clientState', (a, args) => {
+  const st = args && args[0] && typeof args[0] === 'object' ? args[0] : {};
+  if (typeof st.journal === 'boolean') log(`clientState ${display(a)} journal ${st.journal ? 'open' : 'closed'}`);
+});
+
 // ---- /monitor: the dbo-monitor service's view for staff (server\monitor.js; tooling/dbo-monitor) -----------------
 try {
   const MONITOR_JS = path.resolve('monitor.js');

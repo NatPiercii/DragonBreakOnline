@@ -93,6 +93,8 @@ class Monitor:
         self.ground = defaultdict(list)
         self.stuck_told = set()
         self.last_activity = {}      # player name -> last time their client reported anything
+        self.journal = {}            # player name -> Journal (pause) menu open, from clientState (client 0.3.40+)
+        self.reports_journal = set() # players whose client says when the Journal opens, so silence means a crash
         self.dirty = True
 
     def new_window(self, now):
@@ -146,14 +148,25 @@ class Monitor:
         elif 'audit: JOIN ' in line:
             who = re.sub(r'.*audit: JOIN (.+?) #.*', r'\1', line.strip())
             self.count('player.join'); self.seen(who, t)
+        elif 'clientState ' in line and ' journal ' in line:
+            m2 = re.search(r'clientState (.+?) #\w{4} journal (open|closed)', line)
+            if m2:
+                self.journal[m2.group(1)] = m2.group(2) == 'open'
+                self.reports_journal.add(m2.group(1))
+                self.seen(m2.group(1), t)
         elif 'audit: LEAVE ' in line:
             who = re.sub(r'.*audit: LEAVE (.+?) #.*', r'\1', line.strip())
             silent = time.time() - self.last_activity.get(who, time.time())
             self.count('player.leave')
-            if silent >= CRASH_SILENCE_S:
+            if self.journal.pop(who, False):
+                self.count('player.quit_menu')
+            elif silent >= CRASH_SILENCE_S:
                 self.count('player.crash', silent, who)
-                # A quit through the menus is quiet too, until the client says goodbye (planned for the next client)
-                self.alert('crash:' + who + t[:16], f'**Possible crash** (or a quit through the menus): {who} went silent {int(silent)} s before disconnecting', t)
+                # A quit through the menus opens the Journal, which clients from 0.3.40 report; an older client cannot say
+                if who in self.reports_journal:
+                    self.alert('crash:' + who + t[:16], f'**Likely crash:** {who} went silent {int(silent)} s before disconnecting, not from the pause menu', t)
+                else:
+                    self.alert('crash:' + who + t[:16], f'**Possible crash** (or a quit through the menus, older client): {who} went silent {int(silent)} s before disconnecting', t)
             self.state['online'].pop(who, None)
         elif 'failed to load' in line:
             self.count('server.load_failed')
