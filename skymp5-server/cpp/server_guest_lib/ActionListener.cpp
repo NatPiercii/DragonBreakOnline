@@ -281,9 +281,28 @@ bool IsSpellInTemplateTree(const MpActor& actor, uint32_t spellId)
 }
 
 // Hosted NPCs keep no spell equipment on the server, their spell list is the gate
+// A scroll the actor holds in a hand and still has in its inventory (read once, see OnSpellCast)
+bool IsHeldScroll(const MpActor& actor, uint32_t spellId)
+{
+  if (actor.GetInventory().GetItemCount(spellId) < 1) {
+    return false;
+  }
+  for (const auto& entry : actor.GetEquippedScroll()) {
+    if (entry && entry->baseId == spellId) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool CanCastSpell(const MpActor& actor, uint32_t spellId)
 {
   if (actor.GetEquipment().IsSpellEquipped(spellId)) {
+    return true;
+  }
+  // Scrolls are items, not equipped spells: every scroll cast was refused here and the scroll never left the
+  // inventory, so it came back after each cast (2026-09-25)
+  if (IsHeldScroll(actor, spellId)) {
     return true;
   }
   return actor.GetProfileId() == -1 &&
@@ -1712,6 +1731,18 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
   if (!spellCastData.keepAlive) {
     FireGamemodeEvent(partOne.worldState, caster->GetFormId(), "onSpellCast",
                       nlohmann::json::array({ spellCastData.spell }));
+  }
+
+  // A scroll is read once: one leaves the caster's inventory per cast. The restorative handling below reads SPEL
+  // records only (GetData<SPEL> throws on a SCRL), so a scroll stops here.
+  if (!caster->GetEquipment().IsSpellEquipped(spellCastData.spell) &&
+      IsHeldScroll(*caster, spellCastData.spell)) {
+    if (!spellCastData.keepAlive) {
+      caster->RemoveItem(spellCastData.spell, 1, nullptr);
+      spdlog::info("ActionListener::OnSpellCast - {:x} read scroll {:x}",
+                   caster->GetFormId(), spellCastData.spell);
+    }
+    return;
   }
 
   const auto targetRef = std::dynamic_pointer_cast<MpObjectReference>(
