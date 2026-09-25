@@ -78,7 +78,6 @@ const store = new Store({
     gameDirPath:       '',     // legacy: pre-base-dir location of the game copy
     baseDirPath:       '',     // DragonBreak base dir: MO2 root, with the game at <base>\skyrim
     forcedDefaultsApplied: false, // server-required graphics defaults seeded once at first install
-    gamepadDefaultApplied: false, // controller turned off once (keyboard/mouse players spawn frozen otherwise)
   }
 })
 
@@ -679,11 +678,10 @@ function applyForcedServerDefaults(gamePath) {
     }
   }
 
-  // bGamepadEnable=1 leaves keyboard/mouse players unable to move; skip a missing file so the seed still runs
-  if (!store.get('gamepadDefaultApplied') && fs.existsSync(skyrimPrefsPath())) {
+  // Skyrim writes bGamepadEnable=1 back on every exit with a controller connected, and gamepad mode leaves no mouse cursor in menus
+  if (fs.existsSync(skyrimPrefsPath())) {
     try {
       ini.write(skyrimPrefsPath(), { MAIN: { bGamepadEnable: '0' } })
-      store.set('gamepadDefaultApplied', true)
       log('[defaults] turned the controller off in SkyrimPrefs.ini')
     } catch (err) {
       log('[defaults] could not turn the controller off:', err.message)
