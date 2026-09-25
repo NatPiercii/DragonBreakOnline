@@ -153,6 +153,9 @@ private:
 
   void TickPacketHistoryPlaybacks();
   void TickDeferredMessages();
+  // Frees NPCs whose hoster stopped sending their movement, so a player who has them loaded can take over
+  void TickStaleHosts();
+  std::chrono::system_clock::time_point lastStaleHostSweep;
 
   std::string SignJavaScriptSources(const std::string& src) const;
 

@@ -147,7 +147,65 @@ void PartOne::Tick()
 {
   TickPacketHistoryPlaybacks();
   TickDeferredMessages();
+  TickStaleHosts();
   worldState.Tick();
+}
+
+// A hoster sends every loaded NPC it drives every 130 ms and goes silent on the ones it unloaded, but it stayed
+// their hoster: OnHostAttempt only hands an NPC over when another client asks, so an NPC its own hoster walked
+// back to was never driven again (an ogre that would not fight back), and a hoster's trail of 36 unloaded NPCs
+// stood frozen for everyone (playtest 2026-09-25). After kStaleHostSeconds without movement the hoster is told
+// to stop and the NPC is marked unhosted, which every listener sees as isHostedByOther=false and asks for it.
+void PartOne::TickStaleHosts()
+{
+  constexpr auto kSweepEvery = std::chrono::seconds(1);
+  constexpr auto kStaleHostSeconds = std::chrono::seconds(5);
+  const auto now = std::chrono::system_clock::now();
+  if (now - lastStaleHostSweep < kSweepEvery) {
+    return;
+  }
+  lastStaleHostSweep = now;
+
+  std::vector<std::pair<uint32_t, uint32_t>> stale;
+  for (auto& [remoteId, hosterId] : worldState.hosters) {
+    if (hosterId == 0) {
+      continue;
+    }
+    auto remote = dynamic_cast<MpObjectReference*>(
+      worldState.LookupFormById(remoteId).get());
+    if (!remote) {
+      continue;
+    }
+    const auto idx = static_cast<size_t>(remote->GetIdx());
+    // OnHostAttempt stamps a fresh hoster, so a new one gets the full grace before its first update
+    const bool heard = worldState.lastMovUpdateByIdx.size() > idx &&
+      worldState.lastMovUpdateByIdx[idx] &&
+      now - *worldState.lastMovUpdateByIdx[idx] <= kStaleHostSeconds;
+    if (!heard) {
+      stale.push_back({ remoteId, hosterId });
+    }
+  }
+
+  for (auto& [remoteId, hosterId] : stale) {
+    auto remote = dynamic_cast<MpObjectReference*>(
+      worldState.LookupFormById(remoteId).get());
+    if (!remote) {
+      continue;
+    }
+    auto hoster =
+      dynamic_cast<MpActor*>(worldState.LookupFormById(hosterId).get());
+    if (hoster) {
+      auto user = serverState.UserByActor(hoster);
+      if (user != Networking::InvalidUserId) {
+        SendHostStop(user, *remote);
+      }
+    }
+    worldState.hosters[remoteId] = 0;
+    remote->UpdateHoster(0);
+    GetLogger().info("Hoster of {0:x} released from {1:x}: no movement for "
+                     "{2} s",
+                     remoteId, hosterId, kStaleHostSeconds.count());
+  }
 }
 
 uint32_t PartOne::CreateActor(uint32_t formId, const NiPoint3& pos,
