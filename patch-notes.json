@@ -1,5 +1,20 @@
 [
   {
+    "title": "Tickets From the Game",
+    "date": "2026-09-25",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Support",
+        "items": [
+          "You can now open a support ticket without leaving the game: /ticket <kind> <what happened>. Type /ticket on its own to see the kinds: player kill request, bug, map, moderation help, report a player.",
+          "It opens a private channel on Discord that only you and staff can read, the same as the #create-a-ticket panel. Staff answer you there.",
+          "Where you are standing and who is nearby are attached for you, which helps staff with reports and kill requests."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Voices That Carry",
     "date": "2026-09-24",
     "version": "Client 0.3.38",
