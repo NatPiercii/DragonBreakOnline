@@ -165,10 +165,24 @@ module.exports = (api) => {
     }
   };
 
+  // Players stand on the real ground, so their height against the terrain data measures the data itself
+  // (the lift floated an ogre the data put 212 under while it stood on the path, 2026-09-25)
+  const playerCheck = globalThis.__dboNpcGroundPlayers || (globalThis.__dboNpcGroundPlayers = { at: 0 });
   every('npcGround', EVERY_MS, () => {
     if (!terrain) return;
     const now = Date.now();
     const players = onlineActors();
+    if (now - playerCheck.at >= 5000) {
+      playerCheck.at = now;
+      for (const p of players) {
+        try {
+          const desc = String(mp.get(p, 'worldOrCellDesc') || '');
+          const pp = mp.get(p, 'pos');
+          const t = terrain.has(desc) ? terrain.at(desc, pp[0], pp[1]) : null;
+          if (t) log(`npcGround player ${display(p)} at ${pp.map(Math.round).join(',')} terrain ${Math.round(t.lo)}..${Math.round(t.hi)} dz ${Math.round(dzOf(t, pp[2]))}`);
+        } catch (e) { /* between cells */ }
+      }
+    }
     const skip = new Set(players);
     for (const p of players) {
       let near = [];
