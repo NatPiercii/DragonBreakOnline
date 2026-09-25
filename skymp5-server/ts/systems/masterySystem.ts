@@ -822,6 +822,11 @@ export class MasterySystem implements System {
     }
     const banked = Math.max(0, Number(prog.shadow) || 0);
     const fresh = rec.skills[id];
+    // firstTouch rebuilds the entry as { level, xp, lock }: without granted and rank the tier-spell sync below threw
+    // (playtest 2026-09-25), leaving the new skill's spells ungranted and the menu stale until the next rank change
+    if (!Array.isArray(fresh.granted)) fresh.granted = [];
+    if (!Number.isFinite(fresh.rank)) fresh.rank = 0;
+    if (!Number.isFinite(fresh.lastPointAt)) fresh.lastPointAt = 0;
     fresh.shadow = 0; fresh.offered = false;
     this.notice(ctx, userId, `You take up ${this.labelOf(id)}.`);
     if (banked > 0) {
@@ -900,6 +905,7 @@ export class MasterySystem implements System {
   private missingSpells(prog: SkillProgress, id: string): number[] {
     const list = this.spells[id]; if (!list) return [];
     const out: number[] = [];
+    if (!Array.isArray(prog.granted)) prog.granted = [];
     for (let i = 0; i <= prog.rank && i < list.length; i++) { const s = list[i]; if (s && prog.granted.indexOf(s) === -1) out.push(s); }
     return out;
   }
