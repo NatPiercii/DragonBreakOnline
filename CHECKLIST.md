@@ -1,6 +1,15 @@
 # DragonBreak Online checklist (2026-09-14)
 
-## Added 2026-09-25 (23:20 UTC): Sentinel armor cannot be forged (server refuses, client refunds) - PC SESSION
+## Added 2026-09-25 (23:55 UTC): Will-o-the-Wisp summon crashes the game - REFUSED ON THE SERVER, MESH FIX FOR THE PC
+
+- [x] `CYRSummonWillotheWispSpell` (782c5:BSHeartland.esm) refused by gamemode `castBlocks` (da36c430, live 23:51):
+  the summoned Will-o-the-Wisp (782c3) crashed the caster's game every time (#bugs 1553191175618560051;
+  CrashLogger: access violation at SkyrimSE.exe+021A197 reading null, in `WitchlightMesh.nif`, a
+  `BSLagBoneController` on its `GlowStreak`, while the actor is built).
+- [ ] PC session: find why the mesh crashes (lag bone controller on a server-spawned actor; the same wisp may work in
+  single player), fix it in an owned plugin or a replacement mesh, then drop the `castBlocks` entry.
+
+## Added 2026-09-25 (23:20 UTC): Sentinel armor cannot be forged (server refuses, client refunds) - FIXED ON THE SERVER 23:48
 
 - [ ] **240 Sentinel.esp creation recipes have no workbench keyword (BNAM) on the server.** `CraftService::
   ConsiderRecipeCandidate` resolves the missing BNAM to 0, finds it in no workbench's keywords and refuses the craft
@@ -15,7 +24,8 @@
   mismatch but does not block). `Sentinel - More Craftable Equipment.esp` was dropped in the 2026-09-13 cruft drop
   and is the likely source of the keywords. PC session: hash `Data\Sentinel.esp` in the Steam install players use
   against `d7e2ebc5...`, and open the dropped MCE plugin in xEdit to see whether it sets BNAM on Sentinel's COBJs.
-- [ ] **Fix (PC session, xEdit):** give the 240 recipes their station in `DragonBreak Nexus Patches.esp` (forge
+- [x] **Fixed on the server instead (fork 0a4d4c82, live 23:48):** CraftService treats a recipe with no BNAM as a
+  forge recipe. Optional later, PC session (xEdit): give the 240 recipes their station in `DragonBreak Nexus Patches.esp` (forge
   `CraftingSmithingForge 00088105` for armor and weapons; clothing to the Tailor's bench keyword), then
   `deploy-plugins`. Server and client then agree. A C++ alternative (a keyword-less recipe counts as a forge recipe)
   would make them craftable without a plugin update, but it would also switch USSEP's disabled recipes back on.
