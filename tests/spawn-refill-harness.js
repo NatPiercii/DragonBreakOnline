@@ -171,6 +171,31 @@ const live = (zone) => zone.spawned.filter((e) => e.id && !e.diedAt);
   sys.resetZone('dungeon:F:0');
   check('an admin reset forgets them', !sys.unseenFalls.has(farSpot) && sys.givenUpSlots('dungeon:F:') === 0);
 
+  // ---- 3: outdoors 'fell out of the world' is measured against the terrain under the NPC -----------------------------
+  // A mountain spot at z 19396 over a valley whose terrain lies at 10,000 (wild:wolf:2882, 2026-09-25)
+  const peak = zoneOf('wild:wolf:2882', WORLD, [75078, 238652, 19396], 1);
+  globalThis.__dboTerrainAt = (desc, x, y) => (/bsheartland/i.test(desc) ? { lo: 10000, hi: 10000 } : null);
+  check('outdoors, 4,500 below the spot but 4,900 above the terrain is not a fall', !sys.fellOut(peak, [79071, 233420, 14882]));
+  check('outdoors, 1,500 under the terrain is a fall', sys.fellOut(peak, [79071, 233420, 8500]));
+  check('outdoors, 500 under the terrain is not', !sys.fellOut(peak, [79071, 233420, 9500]));
+  const room = zoneOf('dungeon:R:0', CAVE, [0, 0, 0], 1, 0, 100000);
+  check('an interior (no terrain data) keeps 3,000 below the spot', !sys.fellOut(room, [0, 0, -2900]) && sys.fellOut(room, [0, 0, -3100]));
+  globalThis.__dboTerrainAt = () => { throw new Error('boom'); };
+  check('a failing lookup falls back to the old rule', !sys.fellOut(peak, [0, 0, 16500]) && sys.fellOut(peak, [0, 0, 16300]));
+  delete globalThis.__dboTerrainAt;
+  check('without the terrain module the old rule holds outdoors', sys.fellOut(peak, [79071, 233420, 14882]));
+  // Through a poll: the chase downhill keeps its NPC
+  globalThis.__dboTerrainAt = (desc, x, y) => (/bsheartland/i.test(desc) ? { lo: 10000, hi: 10000 } : null);
+  player.world = WORLD; player.pos = [76000, 237000, 19000];
+  sys.zones = [peak];
+  now += 20000; await poll();
+  const ogre = live(peak)[0];
+  actors.get(ogre.id).pos = [79071, 233420, 14882];
+  destroyed.length = 0;
+  await poll();
+  check('a poll leaves an NPC chasing downhill where it is', destroyed.length === 0 && live(peak).length === 1 && live(peak)[0].id === ogre.id);
+  delete globalThis.__dboTerrainAt;
+
   console.log('');
   console.log(failures ? `${failures} FAILURES` : 'all checks passed');
   process.exit(failures ? 1 : 0);
