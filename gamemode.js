@@ -2413,7 +2413,7 @@ every('consoleRights', 15000, () => { for (const a of onlineActors()) sendConsol
 try {
   const ITEMGUARDS_JS = path.resolve('itemguards.js');
   delete require.cache[ITEMGUARDS_JS];
-  require(ITEMGUARDS_JS)({ mp, log, who, recordOf });
+  require(ITEMGUARDS_JS)({ mp, log, who, recordOf, cfg });
 } catch (e) { log('itemguards.js failed to load:', e.stack || e.message); }
 if (typeof globalThis.__dboPrevTake === 'undefined') globalThis.__dboPrevTake = typeof mp.onTakeItem === 'function' && !mp.onTakeItem.__dbo ? mp.onTakeItem : null;
 const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
@@ -2559,6 +2559,36 @@ const isInteriorDesc = (desc) => {
   INTERIOR_BY_DESC.set(desc, interior);
   return interior;
 };
+// The host policy, shared with server\npcdirector.js (review 2026-09-25: the director must not trust a client's own
+// distances): the requester is online, the actor is not a player's body, the requester is not bound, both are in the
+// same world, and the server-measured distance is within reach. Returns { ok, dist, why }.
+const hostPolicy = (req, act) => {
+  if (userOf(req) === -1) return { ok: false, why: 'offline' };
+  // A logged-out character's body waiting out its grace is never driven by another player's client
+  if (profileOf(act) >= 0) return { ok: false, why: 'player body' };
+  try {
+    const r = mp.get(req, 'private.restrained');
+    if (r && r.boundHands) return { ok: false, why: 'bound' };
+  } catch (e) { /* ignore */ }
+  try {
+    const reqRaw = String(mp.get(req, 'worldOrCellDesc') || '').trim();
+    const reqWorld = normWorldDesc(reqRaw);
+    const actWorld = normWorldDesc(String(mp.get(act, 'worldOrCellDesc') || ''));
+    if (!reqWorld || !actWorld || reqWorld !== actWorld) return { ok: false, why: `world mismatch "${reqWorld}" !== "${actWorld}"` };
+    const p = mp.get(req, 'pos');
+    const q = mp.get(act, 'pos');
+    let dist = 0;
+    if (Array.isArray(p) && Array.isArray(q)) {
+      dist = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+      const maxDist = isInteriorDesc(reqRaw) ? MAX_INTERIOR_HOST_DISTANCE : MAX_HOST_DISTANCE;
+      if (dist > maxDist) return { ok: false, why: `distance ${Math.round(dist)} > ${maxDist}` };
+    }
+    return { ok: true, dist };
+  } catch (e) {
+    return { ok: false, why: String(e) };
+  }
+};
+globalThis.__dboHostPolicy = hostPolicy;
 const hostAttemptHook = (requesterId, actorId) => {
   const req = Number(requesterId) >>> 0;
   const act = Number(actorId) >>> 0;
@@ -2567,35 +2597,11 @@ const hostAttemptHook = (requesterId, actorId) => {
     try { if (prev(req, act) === false) return false; }
     catch (e) { /* ignore */ }
   }
-  if (userOf(req) === -1) return false;
-  // A logged-out character's body waiting out its grace is never driven by another player's client
-  if (profileOf(act) >= 0) return false;
-  // NPC system v2: a client that sends sight reports does not pick its own NPCs; server\npcdirector.js does
+  // NPC system v2: a client that reported this NPC does not pick it; server\npcdirector.js does
   try { if (typeof globalThis.__dboNpcDirectorRefuses === 'function' && globalThis.__dboNpcDirectorRefuses(req, act)) return false; } catch (e) { /* director off */ }
-  try {
-    const r = mp.get(req, 'private.restrained');
-    if (r && r.boundHands) return false;
-  } catch (e) { /* ignore */ }
-  try {
-    const reqRaw = String(mp.get(req, 'worldOrCellDesc') || '').trim();
-    const reqWorld = normWorldDesc(reqRaw);
-    const actWorld = normWorldDesc(String(mp.get(act, 'worldOrCellDesc') || ''));
-    if (!reqWorld || !actWorld || reqWorld !== actWorld) {
-      console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: world mismatch "${reqWorld}" !== "${actWorld}"`);
-      return false;
-    }
-    const p = mp.get(req, 'pos');
-    const q = mp.get(act, 'pos');
-    if (Array.isArray(p) && Array.isArray(q)) {
-      const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-      const maxDist = isInteriorDesc(reqRaw) ? MAX_INTERIOR_HOST_DISTANCE : MAX_HOST_DISTANCE;
-      if (d > maxDist) {
-        console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: distance ${Math.round(d)} > ${maxDist}`);
-        return false;
-      }
-    }
-  } catch (e) {
-    console.log(`[hostAttempt] Error for req=${req.toString(16)} act=${act.toString(16)}: ${e}`);
+  const v = hostPolicy(req, act);
+  if (!v.ok) {
+    if (/world mismatch|distance|^Error/.test(v.why || '')) console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: ${v.why}`);
     return false;
   }
   // C++ can still refuse after this (a hoster whose movement is under 2 s old keeps the actor)

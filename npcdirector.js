@@ -8,6 +8,11 @@
 // that reports is refused when it asks to host by itself (the director decides for it); an older client that does
 // not report keeps the old ask-to-host behaviour, and an NPC it hosts is left with it.
 //
+// A report only says "I have it loaded": every candidate must pass the gamemode's own host policy (online, same world,
+// not bound, SERVER-measured distance within reach; globalThis.__dboHostPolicy), and candidates are ranked by that
+// server distance, so a modified client cannot claim NPCs from afar (review 2026-09-25). Without mp.setHoster (an
+// older build) the director does nothing and refuses nothing.
+//
 // Left alone: companions and summons (companionSystem gives them to their owner), dead NPCs, player characters.
 // Config "npcDirector": { mode: "on" | "shadow" | "off" }. shadow logs the decisions without applying them.
 
@@ -20,6 +25,12 @@ module.exports = (api) => {
 
   const fresh = (p, now) => { const s = S.sight.get(p); return s && now - s.at <= C.freshMs ? s : null; };
   const reports = (p) => !!fresh(p, Date.now());
+  const reported = (p, npc) => { const s = fresh(p, Date.now()); return !!s && s.dist.has(npc >>> 0); };
+  const built = () => typeof mp.setHoster === 'function' && typeof mp.getHoster === 'function';
+  // The server's verdict on player p driving npc: { ok, dist } from gamemode.js's host policy
+  const policy = (p, npc) => {
+    try { return typeof globalThis.__dboHostPolicy === 'function' ? globalThis.__dboHostPolicy(p, npc) : { ok: false }; } catch (e) { return { ok: false }; }
+  };
 
   onUi('npcSight', (a, args) => {
     const list = Array.isArray(args[0]) ? args[0] : [];
@@ -53,14 +64,18 @@ module.exports = (api) => {
   // One decision pass; returns the assignments made (or that shadow mode would make)
   const decide = (now) => {
     const out = [];
-    if (C.mode === 'off') return out;
+    if (C.mode === 'off' || !built()) return out;
     const online = new Set(onlineActors().map((x) => x >>> 0));
     for (const p of S.sight.keys()) if (!online.has(p)) S.sight.delete(p);
-    // NPC -> [[player, distance]] from every fresh report
+    // NPC -> [[player, SERVER distance]] for every fresh report the host policy accepts
     const seenBy = new Map();
     for (const [p, s] of S.sight) {
       if (now - s.at > C.freshMs) continue;
-      for (const [npc, d] of s.dist) { let l = seenBy.get(npc); if (!l) seenBy.set(npc, l = []); l.push([p, d]); }
+      for (const npc of s.dist.keys()) {
+        const v = policy(p, npc);
+        if (!v.ok) continue;
+        let l = seenBy.get(npc); if (!l) seenBy.set(npc, l = []); l.push([p, Number(v.dist) || 0]);
+      }
     }
     for (const [npc, seers] of seenBy) {
       if (now - (S.changedAt.get(npc) || 0) < C.changeEveryMs) continue;
@@ -91,7 +106,8 @@ module.exports = (api) => {
 
   // gamemode.js hostAttemptHook asks this first: a reporting client does not pick its own NPCs, the director does.
   // Companions are exempt (their owner hosts them through companionSystem).
-  globalThis.__dboNpcDirectorRefuses = (requester, npc) => C.mode === 'on' && reports(requester >>> 0) && managed(npc >>> 0);
+  // Only NPCs the requester itself reported, that the director manages, and only when it can assign them
+  globalThis.__dboNpcDirectorRefuses = (requester, npc) => C.mode === 'on' && built() && reported(requester >>> 0, npc) && managed(npc >>> 0);
 
   log(`npcDirector ${C.mode}: hosts chosen from sight reports (fresh ${C.freshMs} ms, hold x${C.holdFactor} + ${C.holdUnits})`);
   return { decide };

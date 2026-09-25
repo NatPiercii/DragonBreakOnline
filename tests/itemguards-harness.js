@@ -21,7 +21,9 @@ check('an unknown record is refused (the crash)', mp.onDropItem(P, UNKNOWN, 1) =
 check('an NPC or a container record is refused', mp.onDropItem(P, NPC, 1) === false && mp.onDropItem(P, CONT, 1) === false);
 check('put: a normal put passes and reaches the earlier handler', mp.onPutItem(CHEST, P, SWORD, 1) !== false && prevCalls === 1);
 check('put: count 0, unowned and non-items are refused before it', mp.onPutItem(CHEST, P, SWORD, 0) === false && mp.onPutItem(CHEST, P, KEY, 1) === false && mp.onPutItem(CHEST, P, NPC, 1) === false && prevCalls === 1);
+inv[CHEST] = [{ baseId: KEY, count: 1 }, { baseId: 0xf, count: 50 }]; types[0xf] = 'MISC';
 check('take: a normal take passes', globalThis.__dboTakeGuard(CHEST, P, KEY, 1) !== false);
+check('take: more than the container holds is refused (gold duplication)', globalThis.__dboTakeGuard(CHEST, P, 0xf, 51) === false && globalThis.__dboTakeGuard(CHEST, P, 0xf, 50) !== false);
 check('take: count 0 is refused (fake keys)', globalThis.__dboTakeGuard(CHEST, P, KEY, 0) === false);
 check('take: non-item records are refused', globalThis.__dboTakeGuard(CHEST, P, NPC, 1) === false);
 check('refusals are logged, once a minute per actor and reason', logs.filter((l) => /ITEMGUARD refused drop by P14: 12eb7 x0 \(count below 1\)/.test(l)).length === 1);
@@ -33,5 +35,14 @@ require(path.resolve(__dirname, '..', 'itemguards.js'))({ mp, log: () => {}, who
 prevCalls = 0; mp.onPutItem(CHEST, P, SWORD, 1);
 check('after a hot reload the earlier handler runs exactly once', prevCalls === 1, prevCalls);
 
+// log mode lets it through and says what it would refuse; off installs nothing
+const logs2 = []; delete require.cache[path.resolve(__dirname, '..', 'itemguards.js')]; globalThis.__dboItemGuards = undefined;
+require(path.resolve(__dirname, '..', 'itemguards.js'))({ mp, log: (...a) => logs2.push(a.join(' ')), who: () => 'P', recordOf: (id) => (types[id] ? { record: { type: types[id] } } : null), cfg: { itemGuards: { mode: 'log' } } });
+check('log mode lets a bad drop through and logs it', mp.onDropItem(P, SWORD, 0) !== false && logs2.some((l) => /would refuse drop/.test(l)));
+delete require.cache[path.resolve(__dirname, '..', 'itemguards.js')];
+require(path.resolve(__dirname, '..', 'itemguards.js'))({ mp, log: () => {}, who: () => 'P', recordOf: () => null, cfg: { itemGuards: { mode: 'off' } } });
+check('off leaves no take guard behind', globalThis.__dboTakeGuard === null);
+prevCalls = 0;
+check('and hands drop and put back to the original handlers', !mp.onPutItem.__dboGuard && mp.onPutItem(CHEST, P, SWORD, 0) === true && prevCalls === 1 && mp.onDropItem === undefined);
 delete globalThis.__dboItemGuards; delete globalThis.__dboTakeGuard;
 console.log(''); console.log(failures ? `${failures} FAILURES` : 'all checks passed'); process.exit(failures ? 1 : 0);

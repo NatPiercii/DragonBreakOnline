@@ -5,13 +5,15 @@
 // (GameModeEvent::Fire runs OnFireSuccess only when nothing refused). So:
 //   onDropItem  [actor, baseId, count]            refuse count < 1, an unknown record, a non-item record, count > owned
 //   onPutItem   [container, actor, baseId, count] the same, against what the actor owns
-//   onTakeItem  [container, actor, baseId, count] refuse count < 1 and unknown or non-item records. The container's
-//               own count is not compared: a world container may not have written its base contents into its
-//               inventory yet, and refusing that would refuse real loot. The C++ build adds the count checks.
+//   onTakeItem  [container, actor, baseId, count] the same, against what the container holds (review 2026-09-25: an
+//               uncapped take duplicated gold between accounts). A container writes its base contents when it is
+//               opened, and a take only follows an open, so real loot is always in it.
+// Config "itemGuards": { mode: "on" | "log" | "off" }. log records what would be refused and lets it through.
 // The C++ guards and null checks follow in the next core build (defence in depth).
 
 module.exports = (api) => {
   const { mp, log, who, recordOf } = api;
+  const MODE = String((((api.cfg || {}).itemGuards) || {}).mode || 'on');
   const ITEM_TYPES = new Set(['WEAP', 'ARMO', 'AMMO', 'MISC', 'ALCH', 'INGR', 'BOOK', 'KEYM', 'SLGM', 'SCRL', 'LIGH']);
   const S = globalThis.__dboItemGuards || (globalThis.__dboItemGuards = { typeCache: new Map(), warned: new Map() });
 
@@ -38,9 +40,9 @@ module.exports = (api) => {
     if (now - (S.warned.get(key) || 0) >= 60000) {
       S.warned.set(key, now);
       if (S.warned.size > 5000) S.warned.clear();
-      log(`ITEMGUARD refused ${kind} by ${nameOf(actor)}: ${(Number(baseId) >>> 0).toString(16)} x${count} (${why})`);
+      log(`ITEMGUARD ${MODE === 'on' ? 'refused' : 'would refuse'} ${kind} by ${nameOf(actor)}: ${(Number(baseId) >>> 0).toString(16)} x${count} (${why})`);
     }
-    return false;
+    return MODE === 'on' ? false : undefined;
   };
   // null = allowed, else the reason
   const check = (baseId, count, holder) => {
@@ -66,11 +68,20 @@ module.exports = (api) => {
     mp[event] = hook;
   };
 
+  if (MODE === 'off') {
+    // A reload into off also takes the hooks an earlier load installed back out
+    for (const event of ['onDropItem', 'onPutItem']) {
+      if (mp[event] && mp[event].__dboGuard) mp[event] = globalThis[`__dboPrev_${event}`] || undefined;
+    }
+    globalThis.__dboTakeGuard = null;
+    log('itemguards: off');
+    return { check, itemType, owned };
+  }
   install('onDropItem', (actor, baseId, count) => { const why = check(baseId, count, actor); return why ? refuse('drop', actor, baseId, count, why) : undefined; });
   install('onPutItem', (container, actor, baseId, count) => { const why = check(baseId, count, actor); return why ? refuse('put', actor, baseId, count, why) : undefined; });
   // gamemode.js owns mp.onTakeItem (its takeHook); it asks this first
-  globalThis.__dboTakeGuard = (container, actor, baseId, count) => { const why = check(baseId, count); return why ? refuse('take', actor, baseId, count, why) : undefined; };
+  globalThis.__dboTakeGuard = (container, actor, baseId, count) => { const why = check(baseId, count, container); return why ? refuse('take', actor, baseId, count, why) : undefined; };
 
-  log('itemguards: drop, put and take checked (count, record, ownership)');
+  log(`itemguards ${MODE}: drop, put and take checked (count, record, what is held)`);
   return { check, itemType, owned };
 };
