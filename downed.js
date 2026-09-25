@@ -27,6 +27,8 @@ module.exports = (api) => {
     // record exists in a DragonBreak plugin (Nate, 2026-09-25: players could not tell why stamina crawled back)
     chillMarkerSpell: '',
     chillStaminaCap: 0.7, chillStaminaRegen: 0.4, chillMagickaCap: 0.2, chillMagickaRegen: 0.7, chillHealthRegen: 0.5,
+    // A rise bigger than this in one second is a potion or a heal, not regeneration: only such jumps are taken back
+    chillJumpTake: 0.05,
   }, cfg.downed || {});
 
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { log(`downed: ${desc} not in the load order`); return 0; } };
@@ -145,6 +147,32 @@ module.exports = (api) => {
     if (chilled.has(a)) return chilled.get(a).leftMs;
     try { const c = mp.get(a, CHILL); return c && c.leftMs > 0 ? c.leftMs : 0; } catch (e) { return 0; }
   };
+  // The chill slows recovery on the player's own client, through the regeneration rates (StaminaRateMult and
+  // HealRateMult through the needs system, combined with hunger; MagickaRateMult here). Taking regeneration back on
+  // the server every second fought the client's once-a-second report: bars filled and snapped back, and stamina
+  // came back at 10-31% instead of 40% (vitals review 2026-09-25). At or above a cap a bar's rate is 0.
+  S.chillRates = S.chillRates || new Map(); // actor -> { key, f: { StaminaRateMult, HealRateMult, MagickaRateMult } }
+  const rateFactors = (a, p) => {
+    const old = (S.chillRates.get(a) || {}).f || {};
+    // Hysteresis: a bar stops at its cap and starts again 3 points under it, so the rate does not flip every second
+    const atCap = (v, cap, prev) => v >= cap - 1e-6 || (prev === 0 && v >= cap - 0.03);
+    return {
+      StaminaRateMult: atCap(p.stamina, C.chillStaminaCap, old.StaminaRateMult) ? 0 : C.chillStaminaRegen,
+      HealRateMult: C.chillHealthRegen,
+      MagickaRateMult: atCap(p.magicka, C.chillMagickaCap, old.MagickaRateMult) ? 0 : C.chillMagickaRegen,
+    };
+  };
+  const setChillRates = (a, p) => {
+    const f = p ? rateFactors(a, p) : null;
+    const key = JSON.stringify(f);
+    const old = S.chillRates.get(a);
+    if ((old ? old.key : 'null') === key) return;
+    if (f) S.chillRates.set(a, { key, f }); else S.chillRates.delete(a);
+    try { if (typeof globalThis.__dboNeedsRefresh === 'function') globalThis.__dboNeedsRefresh(a); } catch (e) { /* no needs system */ }
+    try { if (typeof globalThis.__dboSetActorValue === 'function') globalThis.__dboSetActorValue(a, 'MagickaRateMult', Math.round(100 * (f ? f.MagickaRateMult : 1))); } catch (e) { /* not an actor */ }
+  };
+  globalThis.__dboChillRateMult = (a, av) => { const r = S.chillRates.get(Number(a) >>> 0); return r && r.f[av] !== undefined ? r.f[av] : 1; };
+
   // The Active Effects entry: added when the chill starts or a chilled player comes back online, taken when it lifts
   const markChill = (a, on) => {
     if (!C.chillMarkerSpell) return;
@@ -168,6 +196,7 @@ module.exports = (api) => {
     chilled.delete(a);
     saveChill(a, 0);
     markChill(a, false);
+    setChillRates(a, null);
     if (by) {
       banner(a, `${nameOf(by)}'s healing drives the chill of the grave from you.`, 5);
       banner(by, `You lift the chill of the grave from ${nameOf(a)}.`, 3);
@@ -182,7 +211,8 @@ module.exports = (api) => {
     banner(caster, `Lifting the chill of the grave takes a Priest of tier ${C.chillCureTier}.`);
     return false;
   };
-  const slower = (was, now, keep, cap) => Math.min(cap, now > was ? was + (now - was) * keep : now);
+  // Only a jump (a potion, a heal) is slowed here; natural regeneration already runs at the chill's rate on the client
+  const tame = (was, now, keep, cap) => Math.min(cap, was !== null && now - was > C.chillJumpTake ? was + (now - was) * keep : now);
   every('deathChill', 1000, () => {
     const now = Date.now();
     for (const a of onlineActors()) {
@@ -195,28 +225,24 @@ module.exports = (api) => {
       const c = chilled.get(a);
       const p = health(a);
       if (!p || isDead(a)) { c.at = now; c.p = null; continue; }
-      let next = p;
-      if (c.p) {
-        next = {
-          health: slower(c.p.health, p.health, C.chillHealthRegen, 1),
-          stamina: slower(c.p.stamina, p.stamina, C.chillStaminaRegen, C.chillStaminaCap),
-          magicka: slower(c.p.magicka, p.magicka, C.chillMagickaRegen, C.chillMagickaCap),
-        };
-        if (Math.abs(next.health - p.health) + Math.abs(next.stamina - p.stamina) + Math.abs(next.magicka - p.magicka) > 0.002) {
-          try { mp.set(a, 'percentages', next); } catch (e) { /* not an actor */ }
-        }
-        // Online time only, and a long gap (a stall, a reload) never burns more than a few seconds
-        c.leftMs -= Math.min(now - c.at, 5000);
-      } else {
-        next = { health: p.health, stamina: Math.min(p.stamina, C.chillStaminaCap), magicka: Math.min(p.magicka, C.chillMagickaCap) };
-        if (next.stamina !== p.stamina || next.magicka !== p.magicka) { try { mp.set(a, 'percentages', next); } catch (e) { /* not an actor */ } }
+      const was = c.p;
+      const next = {
+        health: tame(was ? was.health : null, p.health, C.chillHealthRegen, 1),
+        stamina: tame(was ? was.stamina : null, p.stamina, C.chillStaminaRegen, C.chillStaminaCap),
+        magicka: tame(was ? was.magicka : null, p.magicka, C.chillMagickaRegen, C.chillMagickaCap),
+      };
+      if (Math.abs(next.health - p.health) + Math.abs(next.stamina - p.stamina) + Math.abs(next.magicka - p.magicka) > 0.002) {
+        try { mp.set(a, 'percentages', next); } catch (e) { /* not an actor */ }
       }
+      setChillRates(a, next);
+      // Online time only, and a long gap (a stall, a reload) never burns more than a few seconds
+      if (was) c.leftMs -= Math.min(now - c.at, 5000);
       c.at = now;
       c.p = next;
       if (c.leftMs <= 0) liftChill(a, 0);
       else if (now - c.savedAt > 15000) { c.savedAt = now; saveChill(a, c.leftMs); }
     }
-    for (const a of [...chilled.keys()]) if (!onlineActors().includes(a)) { saveChill(a, chilled.get(a).leftMs); chilled.delete(a); }
+    for (const a of [...chilled.keys()]) if (!onlineActors().includes(a)) { saveChill(a, chilled.get(a).leftMs); chilled.delete(a); S.chillRates.delete(a); }
   });
   registerChatCommand('chill', (a) => {
     const left = chillLeft(a);

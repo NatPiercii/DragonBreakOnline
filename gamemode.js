@@ -1178,13 +1178,19 @@ const applyNeedsStage = (a, n, announce, force) => {
   const st = stageFor(n.hunger);
   // Skill progress slows with hunger: masterySystem reads private.needs.xpMult (1 = full rate).
   n.xpMult = Number(st.xpMult) > 0 && Number(st.xpMult) <= 1 ? Number(st.xpMult) : 1;
+  n.appliedValue = n.appliedValue || {};
   for (const key of Object.keys(NEEDS_AV)) {
     const want = Number(st[key]) || 0, have = Number(n.applied[key]) || 0;
-    if (want === have && !force) continue;
-    const value = Math.max(0, NEEDS_RATE_BASE + want);
+    // Death's Chill slows the same recovery (downed.js): its factor multiplies the hunger stage's rate
+    let mult = 1;
+    try { if (typeof globalThis.__dboChillRateMult === 'function') mult = Number(globalThis.__dboChillRateMult(a, NEEDS_AV[key])); } catch (e) { mult = 1; }
+    if (!(mult >= 0)) mult = 1;
+    const value = Math.max(0, Math.round((NEEDS_RATE_BASE + want) * mult));
+    if (want === have && value === n.appliedValue[key] && !force) continue;
     if (setActorValue(a, NEEDS_AV[key], value)) {
       n.applied[key] = want;
-      log(`needs ${display(a)} ${NEEDS_AV[key]} -> ${value} (${st.name}${want ? `, ${want}%` : ''})`);
+      n.appliedValue[key] = value;
+      log(`needs ${display(a)} ${NEEDS_AV[key]} -> ${value} (${st.name}${want ? `, ${want}%` : ''}${mult !== 1 ? `, chill x${mult}` : ''})`);
     }
   }
   if (n.stage !== st.name) {
@@ -1198,6 +1204,9 @@ const applyNeedsStage = (a, n, announce, force) => {
     }
   }
 };
+// downed.js asks for this when Death's Chill starts, lifts or changes a rate, so hunger and the chill stay combined
+globalThis.__dboNeedsRefresh = (a) => { try { const n = needsOf(a); applyNeedsStage(a, n, false, false); saveNeeds(a, n); } catch (e) { log('needs refresh failed', e.message); } };
+globalThis.__dboSetActorValue = (a, av, value) => setActorValue(Number(a) >>> 0, av, value);
 const needsTick = () => {
   if (!NEEDS.enabled) return;
   const dt = NEEDS.tickSeconds / 3600;

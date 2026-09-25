@@ -114,8 +114,29 @@ check('/chill says when you are free of it', /free of the chill/.test(out.person
 clear(); set(P, 'private.permaDead', true); die(); commands.respawn(P);
 check('a permanently dead character gets no chill', !left());
 
+// regeneration runs at the chill's rate on the client; the server takes back only jumps (vitals review 2026-09-25)
+const avs = [], refreshed = [];
+globalThis.__dboSetActorValue = (a, av, v) => { avs.push([a, av, v]); return true; };
+globalThis.__dboNeedsRefresh = (a) => { refreshed.push(a); };
+set(P, 'private.permaDead', false); clear(); die(); commands.respawn(P);
+set(P, 'percentages', { health: 0.4, stamina: 0.3, magicka: 0.1 }); tick(1000);
+check('while chilled the client regenerates at the chill rates', globalThis.__dboChillRateMult(P, 'StaminaRateMult') === 0.4 && globalThis.__dboChillRateMult(P, 'HealRateMult') === 0.5 && globalThis.__dboChillRateMult(P, 'MagickaRateMult') === 0.7);
+check('...stamina and health through the needs system, magicka set here', refreshed.includes(P) && avs.some(([a, av, v]) => a === P && av === 'MagickaRateMult' && v === 70), JSON.stringify(avs));
+set(P, 'percentages', { health: 0.42, stamina: 0.33, magicka: 0.12 }); tick(1000);
+check('natural regeneration is no longer taken back', Math.abs(pct().stamina - 0.33) < 1e-9 && Math.abs(pct().health - 0.42) < 1e-9 && Math.abs(pct().magicka - 0.12) < 1e-9, JSON.stringify(pct()));
+set(P, 'percentages', { health: 0.42, stamina: 0.33, magicka: 0.16 }); tick(1000);
+set(P, 'percentages', { health: 0.42, stamina: 0.33, magicka: 0.2 }); tick(1000);
+check('a bar at its cap stops regenerating (rate 0)', globalThis.__dboChillRateMult(P, 'MagickaRateMult') === 0 && avs[avs.length - 1][2] === 0, JSON.stringify(avs[avs.length - 1]));
+set(P, 'percentages', { health: 0.42, stamina: 0.33, magicka: 0.19 }); tick(1000);
+check('...and does not flip back a point under it', globalThis.__dboChillRateMult(P, 'MagickaRateMult') === 0);
+set(P, 'percentages', { health: 0.42, stamina: 0.33, magicka: 0.1 }); tick(1000);
+check('...but starts again well under it', globalThis.__dboChillRateMult(P, 'MagickaRateMult') === 0.7);
+for (let i = 0; i < 21 * 60; i++) tick(1000);
+check('when the chill passes every rate is back to normal', globalThis.__dboChillRateMult(P, 'StaminaRateMult') === 1 && avs[avs.length - 1][1] === 'MagickaRateMult' && avs[avs.length - 1][2] === 100 && !left(), JSON.stringify(avs[avs.length - 1]));
+delete globalThis.__dboSetActorValue; delete globalThis.__dboNeedsRefresh;
+
 // the Active Effects marker: off by default (no Papyrus call was made above), on once the record is configured
-check('with no marker configured, no ability is added or removed', !papyrus.length, JSON.stringify(papyrus));
+check('with no marker configured, no ability is added or removed', !papyrus.some((c) => c[0] === 'AddSpell' || c[0] === 'RemoveSpell'), JSON.stringify(papyrus));
 delete require.cache[MODULE];
 require(MODULE)({
   mp, log: () => {}, personal: (a, t) => out.personal.push([a, t]),
