@@ -3010,6 +3010,16 @@ try {
     token: (cfg.discord || {}).botToken || auth.botToken, guildId: ((auth.guilds || [])[0] || {}).guildId });
 } catch (e) { log('gameticket.js failed to load:', e.stack || e.message); }
 
+// ---- update controls: version log, /update, /schedule restart|shutdown|update (server\updates.js, config "updates") -----
+try {
+  const UPDATES_JS = path.resolve('updates.js');
+  delete require.cache[UPDATES_JS];
+  const auth = serverSettings.discordAuth || {};
+  require(UPDATES_JS)({ log, personal, audit, who, tagOf, onlineActors, every, registerChatCommand, isAdmin, tierOf, cfg,
+    sayAll: (text) => { for (const x of onlineActors()) system(x, text); },
+    token: (cfg.discord || {}).botToken || auth.botToken, channelId: ((cfg.updates || {}).channelId) || (cfg.discord || {}).channelId });
+} catch (e) { log('updates.js failed to load:', e.stack || e.message); }
+
 // ---- GM warbands and raids: catalog NPCs that follow the GM (server\warband.js; companionSystem.ts __dboCompanions) ------
 try {
   const WARBAND_JS = path.resolve('warband.js');

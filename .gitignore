@@ -74,3 +74,6 @@ tenancy.json
 ledger-points.json
 # gameticket.js: the in-game ticket counter
 game-tickets.json
+# updates.js: the version log and scheduled restarts
+update-log.json
+schedule.json
