@@ -2741,6 +2741,32 @@ const arrowDamageMult = (aggressorId, sourceId) => {
   try { for (const w of wornOf(mp.get(aggressorId, 'equipment'))) arrow = Math.max(arrow, recordDamageOf(w.baseId, 'AMMO')); } catch (e) { return 1; }
   return arrow > 0 ? 1 + (arrow * (Number(ARROWS.scale) || 0)) / bow : 1;
 };
+// Arcane Arts: the weapon tiers never touched spells, so a Master mage hit like a Novice (Nat, 2026-09-25: "magic is a bit
+// weak"). A Destruction spell the attacker cast gets the Arcane tier's share. MGEF DATA: magic skill at 0x0C, 20 = Destruction.
+// Config "mastery.arcane": { enabled, byTier (Novice..Master), schools: [actor value ids] }.
+const ARCANE_DMG = Object.assign({ enabled: true, byTier: [0, 0, 0.2, 0.35, 0.5], schools: [20] },
+  ((cfg.mastery || {}).arcane) || {});
+const spellSchoolCache = globalThis.__dboSpellSchool instanceof Map ? globalThis.__dboSpellSchool : (globalThis.__dboSpellSchool = new Map());
+const spellSchoolOf = (sourceId) => {
+  if (spellSchoolCache.has(sourceId)) return spellSchoolCache.get(sourceId);
+  let school = -1;
+  const r = recordOf(sourceId);
+  if (r && String(r.record.type) === 'SPEL') {
+    const mgef = recordOf(globalAt(r, u32At(fieldsOf(r, 'EFID')[0], 0)));
+    const data = mgef ? fieldsOf(mgef, 'DATA')[0] : null;
+    if (data && data.data.byteLength >= 0x10) school = u32At(data, 0x0c);
+  }
+  spellSchoolCache.set(sourceId, school);
+  return school;
+};
+const arcaneDamageMult = (aggressorId, sourceId) => {
+  if (!ARCANE_DMG.enabled || !(ARCANE_DMG.schools || []).includes(spellSchoolOf(sourceId))) return 1;
+  const rec = masteryOf(aggressorId);
+  if (!rec || !Array.isArray(rec.order) || rec.order.indexOf('arcane') === -1) return 1;
+  const rank = Math.max(0, Number(((rec.skills || {}).arcane || {}).rank) || 0);
+  const bonus = Number((ARCANE_DMG.byTier || [])[rank]) || 0;
+  return bonus > 0 ? 1 + bonus : 1;
+};
 // Weapon materials: vanilla keeps the tiers close (Daedric sword 14, Dragonbone 15), so Nat (2026-09-25) wanted better
 // gear to hit clearly harder. The weapon's material keyword (KWDA, matched by editor id, so no form id is assumed) adds
 // its share on top of the base damage. Config "weaponMaterials": { enabled, playersOnly, byKeyword: { editorId: bonus } }.
@@ -2935,7 +2961,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
-    const mult = masteryDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
+    const mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };

@@ -93,7 +93,8 @@
  "mastery": {
   "_comment": "Combat numbers (gamemode.js). damage.byTier: extra weapon damage by the attacker's weapon-skill rank, Novice..Master, applied after the engine's hit. defense.armorMultByTier: how many times its bare rating worn armor counts for, by the target's Defense rank (the engine alone gives rating x 0.12 %, capped at 80 %); lightShare: the part of that gain light armor gets (1 = same as heavy). Measured 2026-09-24: a naked player has 150 health; a Master two-hander with a Daedric greatsword dealt 33 a hit at the old x1.30 (5 hits). At x2.0 it is 48 (4 hits, 2 with a power attack); a full Daedric heavy set (108) worn at Master Defense takes 45 % off instead of 13 %.",
   "damage": { "byTier": [0, 0, 0.35, 0.65, 1.0], "log": true },
-  "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 }
+  "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 },
+  "arcane": { "_comment": "Extra damage for Destruction spells (schools: magic skill actor value, 20 = Destruction) by the caster's Arcane Arts rank, Novice..Master. Smaller than the weapon tiers because spells hit from range. Live magnitudes 2026-09-25: Firebolt 25, Fireball 40, Icy Spear 60.", "enabled": true, "byTier": [0, 0, 0.2, 0.35, 0.5], "schools": [20] }
  },
  "pvp": {
   "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
