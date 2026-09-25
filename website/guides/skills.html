@@ -64,7 +64,7 @@
 <main class="gd">
 <div class="g-wrap">
   <header>
-    <p class="g-standfirst">Replacing three chosen skills and five hour-gated tiers with a single pool of 300 points spread across eighteen skills. Everyone can dabble in everything; almost nobody can master more than one thing.</p>
+    <p class="g-standfirst">Eighteen skills, one pool of 300 points, and a character that is yours alone. Everyone can dabble in everything; almost nobody can master more than one thing.</p>
   </header>
   <section>
     <h2>The shape of it</h2>
@@ -379,34 +379,7 @@
   </section>
   <section>
     <h2>What happens to existing characters</h2>
-    <p>Old records convert the first time they are read, at 30 units per hour worked. Every character lands inside the tier they already hold, slightly above its floor:</p>
-    <div class="g-tablewrap">
-      <table>
-        <thead><tr><th>Old record</th><th class="g-num">Hours</th><th class="g-num">Becomes level</th><th>Tier</th></tr></thead>
-        <tbody>
-          <tr><td>Apprentice</td><td class="g-num">10</td><td class="g-num">27</td><td>Apprentice, unchanged</td></tr>
-          <tr><td>Journeyman</td><td class="g-num">30</td><td class="g-num">53</td><td>Journeyman, unchanged</td></tr>
-          <tr><td>Expert</td><td class="g-num">70</td><td class="g-num">79</td><td>Expert, unchanged</td></tr>
-          <tr><td>Master</td><td class="g-num">150</td><td class="g-num">96</td><td>Master, unchanged</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>Three maxed skills convert to 288 of the 300 pool, so no existing character can be over cap and nobody needs a refund. Their old three skills start Waxing, everything else Held, so nobody starts bleeding progress they did not agree to. Two changes are pure gifts: they can now hold more than three skills, and the old "drop a skill and lose every hour" rule is gone.</p>
-  </section>
-  <section>
-    <h2>Running it</h2>
-    <p>The whole thing sits behind one switch, currently <strong>on</strong> for local testing:</p>
-    <ul>
-      <li><code>server/skills.json</code> → <code>pointSystem.enabled</code>. Set <code>false</code> and restart to fall back to the old ladder; the record keeps both shapes, so nothing is lost either way.</li>
-      <li>That file is read <strong>at boot</strong>, so flipping it needs a server restart, not a gamemode reload.</li>
-      <li>Engine lives in <code>masterySystem.ts</code> with the arithmetic split into <code>skillPoints.ts</code> (server rebuild). The menu is a front rebuild; the lock control needed a client rebuild too, so players re-download.</li>
-      <li>Progress is stored per character in <code>private.mastery</code> as a v2 record. <code>order</code> and <code>rank</code> are still written as derived fields, which is why no other system needed changing.</li>
-    </ul>
-    <h3>What to watch in the log</h3>
-    <ul>
-      <li><code>[skills] ready: 18 skills, point system ON: pool 300, cap 100 ...</code> at boot confirms which mode is live.</li>
-      <li>A credit-rate line every 15 minutes: events by kind, units credited by skill, and how many came from characters with no skill yet. That is the tuning data.</li>
-    </ul>
+    <p>Characters from before the Wheel keep their standing. Each skill converts the first time it is read and lands inside the tier it already held, so an Expert is still an Expert. The old three skills start Waxing and everything else Held, so nothing starts slipping without your say, and you can now hold more than three skills.</p>
   </section>
   <section>
     <h2>Make your name on the Wheel</h2>
@@ -423,7 +396,7 @@
     <p>Find a vein, a forge or a fight, and start turning the Wheel. <a href="/play.html">Get the launcher and play</a>.</p>
   </section>
   <footer>
-    <p>Written 20 September 2026; the full list of eighteen added 23 September; revised the same night for Unarmed and the combat openings, and again that afternoon for the mining weight, the Khajiit claws and the marker spells. Full design, including the parts we rejected and the open decisions, is in <span class="g-mono">server/SKILLS_DESIGN.md</span>.</p>
+    <p>Last updated 25 September 2026.</p>
   </footer>
 </div>
 </main>
