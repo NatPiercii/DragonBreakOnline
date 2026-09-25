@@ -14,7 +14,8 @@ export class MasterClient implements System {
     private name: string,
     private masterKey: string,
     private updateIntervalMs = 5000,
-    private offlineMode = false
+    private offlineMode = false,
+    private authToken = ""
   ) { }
 
   async initAsync(): Promise<void> {
@@ -44,7 +45,8 @@ export class MasterClient implements System {
       const { name, maxPlayers } = this;
       const online = this.getCurrentOnline(ctx.svr);
       try {
-        await Axios.post(this.endpoint, { name, maxPlayers, online });
+        const headers = this.authToken ? { "X-Auth-Token": this.authToken } : {};
+        await Axios.post(this.endpoint, { name, maxPlayers, online }, { headers });
       } catch (e) {
         console.error(`Error updating info on master server: ${e}`);
       }

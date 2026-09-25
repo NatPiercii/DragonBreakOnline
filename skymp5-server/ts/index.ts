@@ -211,6 +211,9 @@ const main = async () => {
     port, master, maxPlayers, name, masterKey, offlineMode, gamemodePath
   } = settingsObject;
 
+  const rawAuthToken = settingsObject.allSettings?.["masterApiAuthToken"];
+  const masterApiAuthToken = typeof rawAuthToken === "string" ? rawAuthToken : "";
+
   const log = console.log;
   const systems = new Array<System>();
   // The admin panel's NPCs tab drives the spawner and its Players tab grants mastery hours.
@@ -219,7 +222,7 @@ const main = async () => {
   const companionSystem = new CompanionSystem(log);
   systems.push(
     new MetricsSystem(),
-    new MasterClient(log, port, master, maxPlayers, name, masterKey, 5000, offlineMode),
+    new MasterClient(log, port, master, maxPlayers, name, masterKey, 5000, offlineMode, masterApiAuthToken),
     new Spawn(log),
     new Login(log, maxPlayers, master, port, masterKey, offlineMode),
     // Keep AdminSystem before capture/trade: its console grant/revoke is security-relevant and must not be skipped by an earlier listener throwing
