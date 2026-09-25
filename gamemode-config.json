@@ -100,6 +100,22 @@
   "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
   "damageMult": 1.25
  },
+ "combat": {
+  "_comment": "Skill-based fights (combat.js, COMBAT_DESIGN.md), player targets only, needs the C++ hit flags. A blocked blow lets weaponChip (shieldChip with a shield) through, less chipPerDefenseTier per Defense rank; the blocker pays the rest in stamina (x shieldStaminaMult with a shield, x powerIntoShieldStaminaMult more for a power attack into a shield). At 0 stamina, or hit by a bash, the guard breaks: a stagger and guardBreakSeconds of blocked blows landing in full. Unblocked power attacks stagger; a weapon-skill rank of powerStaggerThroughWeaponBlockRank staggers through a weapon block. A bash deals bashDamageMult of the weapon and staggers unless the target's Defense rank is bashStaggerResistRank or more (3 = Expert). One stagger per target every staggerCooldownSeconds.",
+  "enabled": true,
+  "log": true,
+  "weaponChip": 0.3,
+  "shieldChip": 0.15,
+  "chipPerDefenseTier": 0.05,
+  "blockStaminaMult": 1,
+  "shieldStaminaMult": 0.5,
+  "powerIntoShieldStaminaMult": 2,
+  "guardBreakSeconds": 2,
+  "bashDamageMult": 0.25,
+  "bashStaggerResistRank": 3,
+  "powerStaggerThroughWeaponBlockRank": 4,
+  "staggerCooldownSeconds": 1.5
+ },
  "weaponMaterials": {
   "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2); a weapon without one of these gets nothing.",
   "enabled": true,

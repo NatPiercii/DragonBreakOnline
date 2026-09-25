@@ -25,6 +25,18 @@ of the blocked / power / bash / sneak flags.
   Dwarven +7 %, Elven +9 %, Nordic +11 %, Glass +13 %, Ebony/Stalhrim +17 %, Daedric +20 %, **Dragonbone +30 %**.
   Dragonbone now hits ~16 % harder than Daedric (was 7 %). 4041 of the 4372 weapons carry one of these keywords.
 
+## Built after Nat's answers (2026-09-25)
+
+Nat chose: block = chip + stamina; power attacks stagger; bash breaks guards; Defense resists the bash stagger; Arcane
+tier boosts Destruction damage and should cut magicka costs.
+- `614aa088` Arcane tier damage +20/+35/+50 % (Journeyman..Master) for Destruction spells.
+- `combat.js` + `tests/combat-harness.js` (18/18): the triangle below, config `"combat"`. It reads the C++ hit flags
+  (fork `71014c24`, other server session); chip and block stamina also need `targetMaxHealth` / `targetMaxStamina` in
+  those flags (asked for). Player targets only. Log: `combat <attacker> -> <target>: ...`.
+- Not built yet: the bash's own stamina cost (the attacker's maximum is not in the flags) and Arcane magicka costs. The
+  engine on the player's client charges magicka, reduced by the vanilla Destruction skill the tier sets (15 per tier,
+  `masterySystem.ts` AV_PER_TIER); a bigger cut needs the vanilla cost perks or a higher skill value, to be measured.
+
 ## Proposed: the combat triangle
 
 Attack beats nothing on its own; **power attack beats an open guard, block beats attacks, bash beats block.**

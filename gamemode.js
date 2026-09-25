@@ -2827,6 +2827,13 @@ try {
   delete require.cache[ARMOURSWAP_JS];
   armourSwap = require(ARMOURSWAP_JS)({ mp, log, personal, sendPacket, display, profileOf, armorPieceOf, recordOf, fieldsOf, cfg });
 } catch (e) { log('armourswap.js failed to load:', e.stack || e.message); armourSwap = null; }
+// ---- skill-based fights: block chip and stamina, guard breaks, bash, stagger (server\combat.js, config "combat") -------
+let combat = null;
+try {
+  const COMBAT_JS = path.resolve('combat.js');
+  delete require.cache[COMBAT_JS];
+  combat = require(COMBAT_JS)({ mp, log, profileOf, masteryOf, wornOf, recordOf, fieldsOf, weaponSkillOf, display, cfg });
+} catch (e) { log('combat.js failed to load:', e.stack || e.message); combat = null; }
 // Below 1 when the target's Defense tier makes its armor count for more than the engine allowed it
 const defenseDamageMult = (targetId) => {
   if (!DEFENSE.enabled) return 1;
@@ -2906,7 +2913,7 @@ const dungeonAllies = (a, b) => {
     return cell === cellKey(b) && !!globalThis.__dboDungeonCells && globalThis.__dboDungeonCells.has(cell);
   } catch (e) { return false; }
 };
-const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
+const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => {
   const agg = Number(aggressorId) >>> 0;
   const tgt = Number(targetId) >>> 0;
   const src = Number(sourceId) >>> 0;
@@ -2961,7 +2968,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
-    const mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
+    let mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
+    // Block chip and stamina, guard breaks, bash, stagger (combat.js); a bash's blow comes back scaled down
+    if (combat) { try { mult *= combat.onAttempt(agg, tgt, src, dmg, flags, mult); } catch (e) { log('combat failed', e.message); } }
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };
