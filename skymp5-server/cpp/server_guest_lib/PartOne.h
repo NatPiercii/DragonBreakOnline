@@ -129,6 +129,11 @@ public:
   void RequestPacketHistoryPlayback(Networking::UserId userId,
                                     const PacketHistory& history);
 
+  // Makes newHosterId (an online player's actor, or 0 for nobody) the one client that drives remoteId: HostStart to
+  // the new hoster, HostStop to the old, isHostedByOther to every listener. Used by OnHostAttempt and by the
+  // gamemode's mp.setHoster (NPC system v2: the server picks hosts). Throws if either form is not what it should be.
+  void AssignHoster(uint32_t remoteId, uint32_t newHosterId);
+
   void SendHostStop(Networking::UserId badHosterUserId,
                     MpObjectReference& remote);
 

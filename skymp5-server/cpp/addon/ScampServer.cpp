@@ -96,6 +96,8 @@ Napi::Object ScampServer::Init(Napi::Env env, Napi::Object exports)
       InstanceMethod("getActorCellOrWorld", &ScampServer::GetActorCellOrWorld),
       InstanceMethod("getActorName", &ScampServer::GetActorName),
       InstanceMethod("destroyActor", &ScampServer::DestroyActor),
+      InstanceMethod("setHoster", &ScampServer::SetHoster),
+      InstanceMethod("getHoster", &ScampServer::GetHoster),
       InstanceMethod("setRaceMenuOpen", &ScampServer::SetRaceMenuOpen),
       InstanceMethod("getActorsByProfileId",
                      &ScampServer::GetActorsByProfileId),
@@ -726,6 +728,28 @@ Napi::Value ScampServer::DestroyActor(const Napi::CallbackInfo& info)
     throw Napi::Error::New(info.Env(), (std::string)e.what());
   }
   return info.Env().Undefined();
+}
+
+// mp.setHoster(npcId, actorId | 0): the server chooses which client drives an NPC (NPC system v2)
+Napi::Value ScampServer::SetHoster(const Napi::CallbackInfo& info)
+{
+  auto remoteId = info[0].As<Napi::Number>().Uint32Value();
+  auto hosterId = info[1].As<Napi::Number>().Uint32Value();
+  try {
+    partOne->AssignHoster(remoteId, hosterId);
+  } catch (std::exception& e) {
+    throw Napi::Error::New(info.Env(), (std::string)e.what());
+  }
+  return info.Env().Undefined();
+}
+
+// mp.getHoster(npcId): the actor id of the client that drives it, 0 for nobody
+Napi::Value ScampServer::GetHoster(const Napi::CallbackInfo& info)
+{
+  auto remoteId = info[0].As<Napi::Number>().Uint32Value();
+  auto& hosters = partOne->worldState.hosters;
+  auto it = hosters.find(remoteId);
+  return Napi::Number::New(info.Env(), it == hosters.end() ? 0 : it->second);
 }
 
 Napi::Value ScampServer::SetRaceMenuOpen(const Napi::CallbackInfo& info)

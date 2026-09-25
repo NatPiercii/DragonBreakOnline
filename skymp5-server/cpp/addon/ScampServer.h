@@ -44,6 +44,8 @@ public:
   Napi::Value GetActorCellOrWorld(const Napi::CallbackInfo& info);
   Napi::Value GetActorName(const Napi::CallbackInfo& info);
   Napi::Value DestroyActor(const Napi::CallbackInfo& info);
+  Napi::Value SetHoster(const Napi::CallbackInfo& info);
+  Napi::Value GetHoster(const Napi::CallbackInfo& info);
   Napi::Value SetRaceMenuOpen(const Napi::CallbackInfo& info);
   Napi::Value GetActorsByProfileId(const Napi::CallbackInfo& info);
   Napi::Value SetEnabled(const Napi::CallbackInfo& info);

@@ -9,6 +9,8 @@
 #include "CustomPacketMessage.h"
 #include "DestroyActorMessage.h"
 #include "HostStopMessage.h"
+#include "ChangeValuesMessage.h"
+#include "HostStartMessage.h"
 #include "SetRaceMenuOpenMessage.h"
 #include "UpdateGameModeDataMessage.h"
 
@@ -705,6 +707,96 @@ void PartOne::RequestPacketHistoryPlayback(Networking::UserId userId,
       Playback{ history, std::chrono::steady_clock::now() };
   } else {
     throw std::runtime_error("Invalid user id " + std::to_string(userId));
+  }
+}
+
+void PartOne::AssignHoster(uint32_t remoteId, uint32_t newHosterId)
+{
+  auto remote =
+    dynamic_cast<MpObjectReference*>(worldState.LookupFormById(remoteId).get());
+  if (!remote) {
+    throw std::runtime_error(
+      fmt::format("AssignHoster: {:x} is not a reference", remoteId));
+  }
+  Networking::UserId newUser = Networking::InvalidUserId;
+  if (newHosterId) {
+    auto newHoster =
+      dynamic_cast<MpActor*>(worldState.LookupFormById(newHosterId).get());
+    if (!newHoster) {
+      throw std::runtime_error(
+        fmt::format("AssignHoster: {:x} is not an actor", newHosterId));
+    }
+    newUser = serverState.UserByActor(newHoster);
+    if (newUser == Networking::InvalidUserId) {
+      throw std::runtime_error(
+        fmt::format("AssignHoster: {:x} is not online", newHosterId));
+    }
+  }
+
+  auto& hoster = worldState.hosters[remoteId];
+  const uint32_t prevHoster = hoster;
+  // Re-granting the same hoster is kept (a client that recreated its copy asks again and needs HostStart again)
+  if (prevHoster == 0 && newHosterId == 0) {
+    return;
+  }
+  GetLogger().info("Hoster of {0:x} changed from {1:x} to {2:x}", remoteId,
+                   prevHoster, newHosterId);
+  hoster = newHosterId;
+  hostSeenSince.erase(remoteId);
+  remote->UpdateHoster(newHosterId);
+
+  // Prevents too fast host switch; the list only grows on accepted movement, so it is grown here first
+  const auto remoteIdx = static_cast<size_t>(remote->GetIdx());
+  if (worldState.lastMovUpdateByIdx.size() <= remoteIdx) {
+    worldState.lastMovUpdateByIdx.resize(remoteIdx + 1);
+  }
+  worldState.lastMovUpdateByIdx[remoteIdx] = std::chrono::system_clock::now();
+
+  auto remoteAsActor = remote->AsActor();
+  uint64_t longFormId = remote->GetFormId();
+  if (remoteAsActor && longFormId < 0xff000000) {
+    longFormId += 0x100000000;
+  }
+
+  if (newHosterId) {
+    if (remoteAsActor) {
+      remoteAsActor->EquipBestWeapon();
+    }
+    HostStartMessage message;
+    message.target = longFormId;
+    GetSendTarget().Send(newUser, message, true);
+
+    // Otherwise, health percentage would remain unsynced until someone hits npc
+    if (remoteAsActor) {
+      auto formId = remote->GetFormId();
+      worldState.SetTimer(std::chrono::seconds(1))
+        .Then([this, formId](Viet::Void) {
+          auto actor =
+            dynamic_cast<MpActor*>(worldState.LookupFormById(formId).get());
+          if (!actor) {
+            return;
+          }
+          auto changeForm = actor->GetChangeForm();
+          ChangeValuesMessage msg;
+          msg.idx = actor->GetIdx();
+          msg.data.health = changeForm.actorValues.healthPercentage;
+          msg.data.magicka = changeForm.actorValues.magickaPercentage;
+          msg.data.stamina = changeForm.actorValues.staminaPercentage;
+          actor->GetActorToSendTo().SendToUser(msg, true);
+        });
+    }
+  }
+
+  if (prevHoster) {
+    auto prevHosterActor =
+      dynamic_cast<MpActor*>(worldState.LookupFormById(prevHoster).get());
+    auto prevUser = prevHosterActor ? serverState.UserByActor(prevHosterActor)
+                                    : Networking::InvalidUserId;
+    if (prevUser != Networking::InvalidUserId && prevUser != newUser) {
+      HostStopMessage message;
+      message.target = longFormId;
+      GetSendTarget().Send(prevUser, message, true);
+    }
   }
 }
 

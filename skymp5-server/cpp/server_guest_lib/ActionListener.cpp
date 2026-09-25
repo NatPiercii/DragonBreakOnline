@@ -1191,63 +1191,9 @@ void ActionListener::OnHostAttempt(const RawMessageData& rawMsgData,
   if (hoster == 0 || !lastRemoteUpdate ||
       std::chrono::system_clock::now() - *lastRemoteUpdate >
         hostResetTimeout) {
-    partOne.GetLogger().info("Hoster of {0:x} changed from {1:x} to {2:x}",
-                             remoteId, prevHoster, me->GetFormId());
-    hoster = me->GetFormId();
-    remote.UpdateHoster(hoster);
-
-    // Prevents too fast host switch. The list only grew in OnUpdateMovement, so an NPC with a higher index
-    // than any that had moved was written past its end here
-    if (partOne.worldState.lastMovUpdateByIdx.size() <= remoteIdx) {
-      partOne.worldState.lastMovUpdateByIdx.resize(
-        static_cast<size_t>(remoteIdx) + 1);
-    }
-    partOne.worldState.lastMovUpdateByIdx[remoteIdx] =
-      std::chrono::system_clock::now();
-
-    auto remoteAsActor = remote.AsActor();
-    if (remoteAsActor) {
-      remoteAsActor->EquipBestWeapon();
-    }
-
-    uint64_t longFormId = remote.GetFormId();
-    if (remoteAsActor && longFormId < 0xff000000) {
-      longFormId += 0x100000000;
-    }
-
-    HostStartMessage message;
-    message.target = longFormId;
-    partOne.GetSendTarget().Send(rawMsgData.userId, message, true);
-
-    // Otherwise, health percentage would remain unsynced until someone hits
-    // npc
-    auto formId = remote.GetFormId();
-    partOne.worldState.SetTimer(std::chrono::seconds(1))
-      .Then([this, formId](Viet::Void) {
-        // Check if form is still here
-        auto& remote = partOne.worldState.GetFormAt<MpActor>(formId);
-
-        auto changeForm = remote.GetChangeForm();
-
-        ChangeValuesMessage msg;
-        msg.idx = remote.GetIdx();
-        msg.data.health = changeForm.actorValues.healthPercentage;
-        msg.data.magicka = changeForm.actorValues.magickaPercentage;
-        msg.data.stamina = changeForm.actorValues.staminaPercentage;
-        remote.GetActorToSendTo().SendToUser(msg, true);
-      });
-
-    auto& prevHosterForm = partOne.worldState.LookupFormById(prevHoster);
-    if (MpActor* prevHosterActor =
-          prevHosterForm ? prevHosterForm->AsActor() : nullptr) {
-      auto prevHosterUser = partOne.serverState.UserByActor(prevHosterActor);
-      if (prevHosterUser != Networking::InvalidUserId &&
-          prevHosterUser != rawMsgData.userId) {
-        HostStopMessage message;
-        message.target = longFormId;
-        partOne.GetSendTarget().Send(prevHosterUser, message, true);
-      }
-    }
+    // The grant (HostStart, HostStop to the old hoster, listeners, stamp, health resync) is shared with the
+    // gamemode's mp.setHoster, so a server-chosen host and a requested one behave the same
+    partOne.AssignHoster(remoteId, me->GetFormId());
   }
 }
 
