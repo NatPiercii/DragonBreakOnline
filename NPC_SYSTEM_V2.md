@@ -65,3 +65,15 @@ is agreed to be, and **what** it carries. A client never decides any of those; i
 | 5. Delete the nets | stranded/sliding/fell checks, drift repairs, ground lift, cleaner exemptions | both |
 
 Every phase keeps the npcDrift reports (the measuring instrument) until phase 5 shows they have nothing left to say.
+
+## Status (2026-09-25 17:35 UTC)
+
+| Phase | State |
+|---|---|
+| 1. Host reports the body | Built and tested (fork `c6b8a51f`, `sync/bodyPos.ts`, server `tests/bodypos-harness.js` 11/11); ships in client 0.3.40 |
+| 2. Server host election | C++ `PartOne::AssignHoster` + `mp.setHoster/getHoster` (fork `628f2948`), client sight reports (`e233096f`), director `server/npcdirector.js` (harness 14/14); ships with the next main push + gameplay deploy + client 0.3.40 |
+| 3. Watchers play the host's path back | Built (fork `4192708e`); ships in client 0.3.40 |
+| 4. Spawn handshake, dormancy, durable ids | Not started |
+| 5. Delete the nets | Not started; the ground lift is already off (`npcGround.fix false`) |
+
+Monitoring: `tooling/dbo-monitor` (service `dbo-monitor`, Discord #server-monitor, `/monitor` in game) replaces reading the log by hand.
