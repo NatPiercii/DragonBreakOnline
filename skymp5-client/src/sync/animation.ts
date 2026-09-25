@@ -243,7 +243,9 @@ export const setDefaultAnimsDisabled = (
 export class AnimationSource {
   constructor(refr: ObjectReference) {
     this.refrId = refr.getFormID();
-    hooks.sendAnimationEvent.add({
+    // The native hook filters by actor id, so an animation event calls only its own actor's handler, not one
+    // per copy ever hosted; the owner calls dispose when the copy is no longer hosted here
+    this.hookId = hooks.sendAnimationEvent.add({
       enter: () => { },
       leave: (ctx) => {
         if (ctx.selfId !== this.refrId) {
@@ -259,7 +261,21 @@ export class AnimationSource {
         }
         this.onSendAnimationEvent(ctx.animEventName);
       },
-    });
+    }, this.refrId, this.refrId);
+  }
+
+  // Removes the hook. False while another thread is inside the hook (the native side refuses then): try again later
+  dispose(): boolean {
+    if (this.hookId === undefined) {
+      return true;
+    }
+    try {
+      hooks.sendAnimationEvent.remove(this.hookId);
+    } catch (e) {
+      return false;
+    }
+    this.hookId = undefined;
+    return true;
   }
 
   filterMovement(mov: Movement): Movement {
@@ -316,6 +332,7 @@ export class AnimationSource {
   }
 
   private refrId = 0;
+  private hookId: number | undefined = undefined;
   private numChanges = 0;
   private animEventName = "";
 
