@@ -2409,8 +2409,16 @@ onUi('consoleLocal', (a, args) => {
   if (seen.length === CONSOLE_LOCAL_PER_MIN) log(`console: ${display(a)} passed ${CONSOLE_LOCAL_PER_MIN} local commands a minute; the rest this minute are not logged`);
 });
 every('consoleRights', 15000, () => { for (const a of onlineActors()) sendConsoleRights(a, false); });
+// ---- item guards on drop, put and take (server\itemguards.js; server-authority audit B1/B2) -------------------------
+try {
+  const ITEMGUARDS_JS = path.resolve('itemguards.js');
+  delete require.cache[ITEMGUARDS_JS];
+  require(ITEMGUARDS_JS)({ mp, log, who, recordOf });
+} catch (e) { log('itemguards.js failed to load:', e.stack || e.message); }
 if (typeof globalThis.__dboPrevTake === 'undefined') globalThis.__dboPrevTake = typeof mp.onTakeItem === 'function' && !mp.onTakeItem.__dbo ? mp.onTakeItem : null;
 const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
+  // server\itemguards.js: a count below 1 or a record that is not an item never moves (audit B2)
+  try { if (typeof globalThis.__dboTakeGuard === 'function' && globalThis.__dboTakeGuard(sourceId, actorId, baseId, count) === false) return false; } catch (e) { log('take guard failed', e.message); }
   const prev = globalThis.__dboPrevTake;
   let verdict;
   if (prev) { try { verdict = prev(sourceId, actorId, baseId, count, ...rest); } catch (e) { log('take chain failed', e.message); } }
