@@ -17,7 +17,8 @@ const sqr = (x: number) => x * x;
 // A standing actor this far above or below the reported height sank or floated locally
 const standingMaxDeltaZ = 64;
 
-export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: boolean): void => {
+// isNpc: the copy is an NPC someone else hosts (no appearance), played back rather than extrapolated (see translateTo)
+export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: boolean, isNpc?: boolean): void => {
   if (teleportIfNeed(refr, m)) {
     return;
   }
@@ -31,7 +32,7 @@ export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: bo
     SpApiInteractor.getControllerInstance().emitter.emit("newLocalLagValueCalculated", { lagUnitsNoZ });
   }
 
-  translateTo(refr, m);
+  translateTo(refr, m, !!isNpc);
 
   const ac = Actor.from(refr);
   if (!ac) {
@@ -261,11 +262,13 @@ const getGroundGrade = (refrId: number, m: Movement): number => {
   return grade;
 };
 
-const translateTo = (refr: ObjectReference, m: Movement) => {
-  let time = 0.2;
-  if (m.isInJumpState || m.runMode !== "Standing") {
-    time = 0.2;
-  }
+// An NPC is played back along its host's path (NPC system v2, phase 3): it moves to the reported position, timed to
+// arrive with the next report, with no look-ahead. Guessing ahead by speed and a slope estimate overshot on uneven
+// ground and made watched creatures bob, sink and pop out (playtest 2026-09-25). Players keep the look-ahead.
+const NPC_PLAYBACK_S = 0.13;
+
+const translateTo = (refr: ObjectReference, m: Movement, isNpc = false) => {
+  let time = isNpc ? NPC_PLAYBACK_S : 0.2;
 
   const groundGrade = getGroundGrade(refr.getFormID(), m);
 
@@ -278,8 +281,8 @@ const translateTo = (refr: ObjectReference, m: Movement) => {
   gTempTargetPos[1] = m.pos[1];
   gTempTargetPos[2] = m.pos[2];
 
-  // We do not want to add pos in case of standing-jumping
-  if (m.runMode !== "Standing") {
+  // We do not want to add pos in case of standing-jumping, nor for an NPC being played back
+  if (m.runMode !== "Standing" && !isNpc) {
     gTempTargetPos[0] += Math.sin(direction / 180 * Math.PI) * distanceAdd;
     gTempTargetPos[1] += Math.cos(direction / 180 * Math.PI) * distanceAdd;
     // Keep the extrapolated point on the slope instead of inside the hill

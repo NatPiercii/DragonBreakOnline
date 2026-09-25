@@ -504,7 +504,7 @@ export class FormView {
             const movement: Movement = isNewMovement || !this.movState.everApplied || !ac
               ? model.movement
               : { ...model.movement, runMode: "Standing", isInJumpState: false, pos: [model.movement.pos[0], model.movement.pos[1], refr.getPositionZ()] };
-            applyMovement(refr, movement, !!model.isMyClone);
+            applyMovement(refr, movement, !!model.isMyClone, !model.appearance && !model.isMyClone);
             this.movState.offsetApplied = true;
             restoreSitCollisionIfMoving(refr, movement);
           } catch (e) {
