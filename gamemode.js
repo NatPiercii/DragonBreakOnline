@@ -3068,6 +3068,13 @@ onUi('clientState', (a, args) => {
   if (typeof st.journal === 'boolean') log(`clientState ${display(a)} journal ${st.journal ? 'open' : 'closed'}`);
 });
 
+// ---- evidence while people play: live.json every 5 s and /bug snapshots (server\debugsnap.js, config "debugSnap") ----
+try {
+  const DEBUGSNAP_JS = path.resolve('debugsnap.js');
+  delete require.cache[DEBUGSNAP_JS];
+  require(DEBUGSNAP_JS)({ mp, log, every, personal, registerChatCommand, onlineActors, display, tagOf, profileOf, isAdmin, cfg });
+} catch (e) { log('debugsnap.js failed to load:', e.stack || e.message); }
+
 // ---- /monitor: the dbo-monitor service's view for staff (server\monitor.js; tooling/dbo-monitor) -----------------
 try {
   const MONITOR_JS = path.resolve('monitor.js');

@@ -168,6 +168,9 @@ class Monitor:
                 else:
                     self.alert('crash:' + who + t[:16], f'**Possible crash** (or a quit through the menus, older client): {who} went silent {int(silent)} s before disconnecting', t)
             self.state['online'].pop(who, None)
+        elif 'BUGREPORT ' in line:
+            self.count('player.bug_report')
+            self.alert('bug:' + line[-80:], '**Bug report** from ' + re.sub(r'.*BUGREPORT ', '', line.strip())[:300], t)
         elif 'failed to load' in line:
             self.count('server.load_failed')
             self.alert('load:' + line[-80:], '**Gameplay module failed to load:** ' + line.strip()[27:230], t)
