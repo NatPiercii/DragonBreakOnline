@@ -977,11 +977,12 @@ void ActionListener::OnActivate(const RawMessageData& rawMsgData,
                             : partOne.worldState.GetFormAt<MpObjectReference>(
                                 static_cast<uint32_t>(msg.data.caster)),
     kDefaultProcessingOnlyFalse, msg.data.isSecondActivation);
+  // Every activation by a hosted NPC re-equipped it and broadcast UpdateEquipment; only one with no weapon in hand
   if (hosterId) {
     auto actor =
       std::dynamic_pointer_cast<MpActor>(partOne.worldState.LookupFormById(
         static_cast<uint32_t>(msg.data.caster)));
-    if (actor) {
+    if (actor && actor->HasWeaponToEquip()) {
       actor->EquipBestWeapon();
     }
   }
@@ -1211,8 +1212,10 @@ void ActionListener::OnHostAttempt(const RawMessageData& rawMsgData,
     return;
   }
 
-  auto& hoster = partOne.worldState.hosters[remoteId];
-  const uint32_t prevHoster = hoster;
+  // find, not []: AssignHoster tells a first host by the missing entry
+  auto hosterIt = partOne.worldState.hosters.find(remoteId);
+  const uint32_t hoster =
+    hosterIt == partOne.worldState.hosters.end() ? 0 : hosterIt->second;
 
   auto remoteIdx = remote.GetIdx();
 

@@ -200,6 +200,8 @@ public:
   void SetConsoleCommandsAllowedFlag(bool newValue);
 
   void EquipBestWeapon();
+  // No weapon worn but one in the inventory: EquipBestWeapon would arm it
+  bool HasWeaponToEquip() const;
 
   void AddSpell(uint32_t spellId);
   void RemoveSpell(uint32_t spellId);

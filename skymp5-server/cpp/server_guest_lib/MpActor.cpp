@@ -214,6 +214,30 @@ void MpActor::EquipBestWeapon()
   }
 }
 
+bool MpActor::HasWeaponToEquip() const
+{
+  auto worldState = GetParent();
+  if (!worldState || !worldState->HasEspm()) {
+    return false;
+  }
+  auto& browser = worldState->GetEspm().GetBrowser();
+  auto isWeapon = [&](uint32_t baseId) {
+    return baseId != 0 &&
+      espm::Convert<espm::WEAP>(browser.LookupById(baseId).rec) != nullptr;
+  };
+  for (auto& entry : GetEquipment().inv.entries) {
+    if (entry.GetWorn() != Inventory::Worn::None && isWeapon(entry.baseId)) {
+      return false;
+    }
+  }
+  for (auto& entry : GetInventory().entries) {
+    if (entry.count > 0 && isWeapon(entry.baseId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void MpActor::AddSpell(const uint32_t spellId)
 {
   EditChangeForm([&](MpChangeForm& changeForm) {

@@ -856,15 +856,17 @@ void PartOne::AssignHoster(uint32_t remoteId, uint32_t newHosterId)
     }
   }
 
-  auto& hoster = worldState.hosters[remoteId];
-  const uint32_t prevHoster = hoster;
+  // An entry, even 0, means it was hosted before in this run: only a destroy erases an NPC's entry
+  auto hosterIt = worldState.hosters.find(remoteId);
+  const bool hostedBefore = hosterIt != worldState.hosters.end();
+  const uint32_t prevHoster = hostedBefore ? hosterIt->second : 0;
   // Re-granting the same hoster is kept (a client that recreated its copy asks again and needs HostStart again)
   if (prevHoster == 0 && newHosterId == 0) {
     return;
   }
   GetLogger().info("Hoster of {0:x} changed from {1:x} to {2:x}", remoteId,
                    prevHoster, newHosterId);
-  hoster = newHosterId;
+  worldState.hosters[remoteId] = newHosterId;
   hostSeenSince.erase(remoteId);
   remote->UpdateHoster(newHosterId);
 
@@ -882,7 +884,10 @@ void PartOne::AssignHoster(uint32_t remoteId, uint32_t newHosterId)
   }
 
   if (newHosterId) {
-    if (remoteAsActor) {
+    // Rebuilding the weapon slots broadcasts UpdateEquipment, which every client applies to its copy: on each change
+    // of host, mid-fight, the NPC was re-equipped. Only its first host, or one with a weapon to take in hand
+    if (remoteAsActor &&
+        (!hostedBefore || remoteAsActor->HasWeaponToEquip())) {
       remoteAsActor->EquipBestWeapon();
     }
     HostStartMessage message;
