@@ -365,8 +365,6 @@ export class RemoteServer extends ClientListener {
           logTrace(this, "onOpenContainerMesage - a newer answer for", remoteId.toString(16), "took over");
           return;
         }
-        this.openWaiters.delete(remoteId);
-
         logTrace(this, "onOpenContainerMesage - menu closed", factName);
 
         const message: ActivateMessage = {
@@ -379,6 +377,12 @@ export class RemoteServer extends ClientListener {
         logTrace(this, "onOpenContainerMesage - waiting", delaySeconds, "seconds before sending ActivateMessage");
 
         Utility.waitMenuMode(delaySeconds).then(() => {
+          // A newer answer may have arrived during the delay: its waiter sends the close, not this one
+          if (superseded()) {
+            logTrace(this, "onOpenContainerMesage - a newer answer for", remoteId.toString(16), "took over");
+            return;
+          }
+          this.openWaiters.delete(remoteId);
           this.controller.emitter.emit("sendMessage", {
             message: message,
             reliability: "reliable"
