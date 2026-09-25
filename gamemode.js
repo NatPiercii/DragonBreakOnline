@@ -3194,7 +3194,7 @@ try {
 try {
   const PICKPOCKET_JS = path.resolve('pickpocket.js');
   delete require.cache[PICKPOCKET_JS];
-  require(PICKPOCKET_JS)({ mp, log, personal, system, audit, who, nameOf, onlineActors, recordOf, cfg });
+  require(PICKPOCKET_JS)({ mp, log, personal, system, audit, who, nameOf, onlineActors, recordOf, adminItemName, cfg });
 } catch (e) { log('pickpocket.js failed to load:', e.stack || e.message); globalThis.__dboPickpocketEntries = null; globalThis.__dboPickpocketAction = null; }
 
 // ---- player factions: guilds, holds, clans, cults (server\guilds.js, guild-defs.json) -------------

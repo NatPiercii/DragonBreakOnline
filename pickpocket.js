@@ -3,38 +3,43 @@
 // X on another player while sneaking offers Pickpocket (playermenu.js asks __dboPickpocketEntries and hands the
 // choice to __dboPickpocketAction). The sneak state is the server's own copy of the IsSneaking animation variable,
 // which every movement packet carries (ObjectReference.GetAnimationVariableBool), read again when the attempt
-// lands, so a menu opened while crouched cannot be used standing up.
+// lands, so a menu opened while crouched cannot be used standing up. Nobody in a beast form steals or is stolen from.
 //
 // One attempt:
 //   chance   chanceUntrained, or chanceByTier by Lockpicking tier ("The Quiet Hand"), plus behindBonus from behind
-//            the target, minus weaponDrawnPenalty against a drawn weapon, kept within [minChance, maxChance]
+//            the target (outside a cone of behindConeDegrees around where it faces), minus weaponDrawnPenalty
+//            against a drawn weapon, kept within [minChance, maxChance]
 //   success  a share of the coin (goldShareByTier, at most goldMax; Master takes Nat's robbery share, 15 %) or one
-//            thing from the pockets: never worn, never a key (a stolen key must not open a house), ammunition a
-//            handful. Lockpicking is credited through the mastery 'lock' event, inside its hourly and daily limits.
+//            thing from the pockets: never a key (a stolen key must not open a house), never a copy that is worn.
+//            Worn state lives in the equipment property, not in inventory entries, so every worn copy (and the
+//            outfit saved at logout, private.lastWorn, for the seconds before the first equipment report) is held
+//            back; equipped ammunition keeps its whole stack; without a readable equipment only coin is taken.
 //            The victim notices what is gone noticeAfterSeconds later, without a name.
 //   failure  the victim is told at once, by the name they know the thief by (Stranger, Masked Person or the name).
-// A thief waits cooldownSeconds between attempts and sameTargetMinutes before trying the same person again, caught
-// or not, so nobody can be emptied. Every attempt goes to the staff audit log with its odds.
+// Waits: cooldownSeconds between a thief's attempts, sameTargetMinutes before the same thief tries the same person,
+// and victimMinutes after any theft from a person, whoever the next thief is, so nobody can be emptied.
+// Lockpicking is credited (mastery 'lock' event) only for a take worth creditMinGold or an item, never from a
+// party member, at most creditsPerHour a thief. Every attempt goes to the staff audit log with its odds.
 //
 // gamemode-config.json "pickpocket" (every key optional); enabled: false takes the entry off the menu.
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-
 module.exports = (api) => {
-  const { mp, log, personal, system, audit, who, nameOf, onlineActors, recordOf, cfg } = api;
+  const { mp, log, personal, system, audit, who, nameOf, onlineActors, recordOf, adminItemName, cfg } = api;
   const C = Object.assign({
-    enabled: true, maxDistance: 200, cooldownSeconds: 20, sameTargetMinutes: 10,
-    chanceUntrained: 0.2, chanceByTier: [0.3, 0.4, 0.5, 0.6, 0.7], behindBonus: 0.15, weaponDrawnPenalty: 0.2,
-    minChance: 0.05, maxChance: 0.85,
+    enabled: true, maxDistance: 200, maxHeight: 100, cooldownSeconds: 20, sameTargetMinutes: 10, victimMinutes: 10,
+    chanceUntrained: 0.2, chanceByTier: [0.3, 0.4, 0.5, 0.6, 0.7], behindBonus: 0.15, behindConeDegrees: 120,
+    weaponDrawnPenalty: 0.2, minChance: 0.05, maxChance: 0.85,
     goldChance: 0.5, goldShareUntrained: 0.05, goldShareByTier: [0.06, 0.08, 0.1, 0.12, 0.15], goldMax: 500,
-    ammoMax: 10, noticeAfterSeconds: 60, exclude: [],
+    ammoMax: 10, noticeAfterSeconds: 60, creditMinGold: 10, creditsPerHour: 4, exclude: [],
   }, cfg.pickpocket || {});
   const GOLD = 0x0000000f;
   const STEALABLE = new Set(['WEAP', 'ARMO', 'AMMO', 'MISC', 'ALCH', 'INGR', 'BOOK', 'SLGM', 'SCRL', 'LIGH']);
-  // lastTry: thief -> ms; pair: "thief:target" -> ms. Kept across hot reloads so a reload does not reset the waits.
+  // Kept across hot reloads so a reload does not reset the waits.
+  // lastTry: thief -> ms; pair: "thief:target" -> ms; victim: target -> ms of the last theft; credits: thief -> [ms]
   const S = globalThis.__dboPickpocket || (globalThis.__dboPickpocket = { lastTry: new Map(), pair: new Map() });
+  if (!S.victim) S.victim = new Map();
+  if (!S.credits) S.credits = new Map();
 
   const get = (a, prop, fallback) => { try { const v = mp.get(a, prop); return v === undefined || v === null ? fallback : v; } catch (e) { return fallback; } };
   const self = (a) => ({ type: 'form', desc: mp.getDescFromId(a >>> 0) });
@@ -43,6 +48,15 @@ module.exports = (api) => {
   const weaponDrawn = (a) => animBool(a, '_skymp_isWeapDrawn');
   const dead = (a) => get(a, 'isDead', false) === true;
   const handsTied = (a) => { const r = get(a, 'private.restrained', null) || {}; return !!(r.boundHands || r.carried); };
+  const inBeastForm = (a) => { const s = get(a, 'private.beast', null); return !!(s && s.form); };
+  const sameParty = (a, t) => {
+    try {
+      const of = globalThis.__dboPartyLeaderOf;
+      if (typeof of !== 'function') return false;
+      const la = of(a);
+      return la !== null && la !== undefined && la === of(t);
+    } catch (e) { return false; }
+  };
   const at = (arr, i) => (Array.isArray(arr) && arr.length ? Number(arr[Math.min(Math.max(i, 0), arr.length - 1)]) || 0 : 0);
   // -1 when the skill is not taken, else its tier 0-4
   const tierOf = (a) => {
@@ -51,14 +65,18 @@ module.exports = (api) => {
     return Math.max(0, Number(((r.skills || {}).lockpicking || {}).rank) || 0);
   };
 
-  // Distance, and whether the thief stands behind the target. Skyrim's heading is degrees clockwise from north
-  // (+Y), so a target with angle z faces (sin z, cos z); behind means the thief is on the far side of that.
+  // Horizontal and vertical distance, and whether the thief stands behind the target. Skyrim's heading is degrees
+  // clockwise from north (+Y), so a target with angle z faces (sin z, cos z); behind means outside a cone of
+  // behindConeDegrees centred on that facing (120: more than 120 degrees off the face).
   const geometry = (a, t) => {
     const la = get(a, 'locationalData', null), lt = get(t, 'locationalData', null);
     if (!la || !lt || la.cellOrWorldDesc !== lt.cellOrWorldDesc) return null;
     const dx = la.pos[0] - lt.pos[0], dy = la.pos[1] - lt.pos[1];
+    const flat = Math.hypot(dx, dy);
     const z = (Number(lt.rot && lt.rot[2]) || 0) * Math.PI / 180;
-    return { dist: Math.hypot(dx, dy, la.pos[2] - lt.pos[2]), behind: Math.sin(z) * dx + Math.cos(z) * dy < 0 };
+    const cone = (Number(C.behindConeDegrees) || 120) * Math.PI / 180;
+    const behind = flat > 0 && Math.sin(z) * dx + Math.cos(z) * dy < Math.cos(cone) * flat;
+    return { dist: Math.hypot(flat, la.pos[2] - lt.pos[2]), height: Math.abs(la.pos[2] - lt.pos[2]), behind };
   };
   const chanceFor = (tier, g, drawn) => {
     let c = tier < 0 ? Number(C.chanceUntrained) || 0 : at(C.chanceByTier, tier);
@@ -67,104 +85,139 @@ module.exports = (api) => {
     return Math.min(Number(C.maxChance), Math.max(Number(C.minChance), c));
   };
 
-  // In-game names from the admin catalog (ck-mcp/admin_catalog.py reads the STRINGS tables); editor ids otherwise
-  let names = null;
-  const catalog = () => {
-    if (names) return names;
-    names = new Map();
-    try {
-      const cat = JSON.parse(fs.readFileSync(path.resolve('admin-items.json'), 'utf8'));
-      for (const c of cat.categories || []) {
-        for (const it of c.items || []) {
-          let id = 0; try { id = mp.getIdFromDesc(String(it[0])) >>> 0; } catch (e) { continue; }
-          if (id && !names.has(id)) names.set(id, String(it[1]));
-        }
-      }
-    } catch (e) { log('pickpocket: admin-items.json unreadable, item names fall back to editor ids', e.message); }
-    return names;
-  };
   const typeOf = (id) => { const r = recordOf(id); return r && r.record ? String(r.record.type) : ''; };
+  // In-game names from the admin catalog (gamemode.js adminItemName, read once there); editor ids otherwise
   const itemName = (entry) => {
     if (entry.name) return String(entry.name);
     const id = Number(entry.baseId) >>> 0;
-    const n = catalog().get(id);
-    if (n) return n;
+    try { const n = typeof adminItemName === 'function' ? adminItemName(mp.getDescFromId(id)) : ''; if (n) return String(n); } catch (e) { /* not in the catalog */ }
     const r = recordOf(id);
     return String((r && r.record && r.record.editorId) || '').replace(/^(Armor|Clothes|Clothing|Food|Potion)/, '')
       .replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'something';
   };
-  const excluded = () => new Set((C.exclude || []).map((d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } }));
+  const excluded = () => new Set((Array.isArray(C.exclude) ? C.exclude : []).map((d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } }));
+  // baseId -> copies held back because they are worn; null when the equipment cannot be read (then coin only)
+  const wornCounts = (t) => {
+    const eq = get(t, 'equipment', null);
+    if (!eq || !eq.inv || !Array.isArray(eq.inv.entries)) return null;
+    const n = new Map();
+    for (const e of eq.inv.entries) {
+      if (!e || !(e.worn || e.wornLeft)) continue;
+      const id = Number(e.baseId) >>> 0;
+      const copies = Math.max(Number(e.count) || 0, (e.worn ? 1 : 0) + (e.wornLeft ? 1 : 0));
+      n.set(id, (n.get(id) || 0) + copies);
+    }
+    const last = get(t, 'private.lastWorn', []);
+    for (const w of Array.isArray(last) ? last : []) {
+      const id = Number(Array.isArray(w) ? w[0] : w && w.baseId) >>> 0;
+      if (id && !n.has(id)) n.set(id, 1);
+    }
+    return n;
+  };
   // An entry that is only a base id and a count, so the thief's stack of the same thing can absorb it
   const plain = (e) => Object.keys(e).every((k) => k === 'baseId' || k === 'count' || ((k === 'worn' || k === 'wornLeft') && !e[k]));
 
-  // Moves the take from the target to the thief; null when there was nothing to take. The target is written first:
-  // if the second write failed the thing is lost rather than duplicated.
+  // Moves the take from the target to the thief. Returns { got } on success, { none: true } when there was nothing to
+  // take, { error } when an inventory could not be read or written. Both inventories are read before anything is
+  // written; the target is written first, so a failed second write loses the thing rather than duplicating it.
   const steal = (a, t, tier) => {
-    const inv = get(t, 'inventory', null);
-    const entries = (inv && Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
+    let theirs = null, mine = null;
+    try { theirs = mp.get(t, 'inventory'); mine = mp.get(a, 'inventory'); } catch (e) { return { error: `inventory unreadable: ${e.message}` }; }
+    if (!theirs || !Array.isArray(theirs.entries) || !mine || !Array.isArray(mine.entries)) return { error: 'inventory unreadable' };
+    const entries = theirs.entries.map((e) => Object.assign({}, e));
+    const worn = wornCounts(t);
     const skip = excluded();
-    const purse = entries.filter((e) => (Number(e.baseId) >>> 0) === GOLD && !e.worn).reduce((s, e) => s + (Number(e.count) || 0), 0);
+    const purse = entries.filter((e) => (Number(e.baseId) >>> 0) === GOLD).reduce((s, e) => s + (Number(e.count) || 0), 0);
+    const cap = Number(C.goldMax);
+    const coinCap = Number.isFinite(cap) && cap >= 0 ? cap : purse;
+    // Spare copies per base: held minus worn; equipped ammunition keeps its whole stack
+    const held = new Map();
+    for (const e of entries) { const id = Number(e.baseId) >>> 0; held.set(id, (held.get(id) || 0) + (Number(e.count) || 0)); }
+    const spare = (id) => {
+      if (!worn) return 0;
+      const w = worn.get(id) || 0;
+      if (w > 0 && typeOf(id) === 'AMMO') return 0;
+      return Math.max(0, (held.get(id) || 0) - w);
+    };
     const pockets = entries.filter((e) => {
       const id = Number(e.baseId) >>> 0;
-      if (!id || id === GOLD || skip.has(id) || (Number(e.count) || 0) <= 0 || e.worn || e.wornLeft) return false;
+      if (!id || id === GOLD || skip.has(id) || (Number(e.count) || 0) <= 0 || spare(id) < 1) return false;
       return STEALABLE.has(typeOf(id));
     });
     let got = null;
-    if (purse > 0 && (!pockets.length || Math.random() < Number(C.goldChance))) {
+    if (purse > 0 && coinCap >= 1 && (!pockets.length || Math.random() < Number(C.goldChance))) {
       const share = tier < 0 ? Number(C.goldShareUntrained) || 0 : at(C.goldShareByTier, tier);
-      const coin = Math.min(purse, Number(C.goldMax) || purse, Math.max(1, Math.floor(purse * share)));
+      const coin = Math.min(purse, coinCap, Math.max(1, Math.floor(purse * share)));
       let left = coin;
       for (const e of entries) {
-        if ((Number(e.baseId) >>> 0) !== GOLD || e.worn || left <= 0) continue;
+        if ((Number(e.baseId) >>> 0) !== GOLD || left <= 0) continue;
         const off = Math.min(Number(e.count) || 0, left); e.count -= off; left -= off;
       }
       got = { gold: coin, label: `${coin} gold` };
     } else if (pockets.length) {
       const pick = pockets[Math.floor(Math.random() * pockets.length)];
-      const have = Number(pick.count) || 1;
-      const n = typeOf(Number(pick.baseId) >>> 0) === 'AMMO' ? Math.min(have, 1 + Math.floor(Math.random() * Math.max(1, Number(C.ammoMax) || 1))) : 1;
-      pick.count = have - n;
+      const id = Number(pick.baseId) >>> 0;
+      const most = Math.min(Number(pick.count) || 1, spare(id));
+      const n = typeOf(id) === 'AMMO' ? Math.min(most, 1 + Math.floor(Math.random() * Math.max(1, Number(C.ammoMax) || 1))) : 1;
+      pick.count = (Number(pick.count) || 1) - n;
       const item = Object.assign({}, pick, { count: n }); delete item.worn; delete item.wornLeft;
       got = { item, label: `${n > 1 ? n + ' ' : ''}${itemName(item)}` };
     }
-    if (!got) return null;
-    mp.set(t, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) });
-    try {
-      const mine = get(a, 'inventory', { entries: [] });
-      const out = Array.isArray(mine.entries) ? mine.entries.map((e) => Object.assign({}, e)) : [];
-      if (got.gold) {
-        const g = out.find((e) => (Number(e.baseId) >>> 0) === GOLD && !e.worn);
-        if (g) g.count = (Number(g.count) || 0) + got.gold; else out.push({ baseId: GOLD, count: got.gold });
-      } else {
-        const same = plain(got.item) && out.find((e) => (Number(e.baseId) >>> 0) === (Number(got.item.baseId) >>> 0) && plain(e));
-        if (same) same.count = (Number(same.count) || 0) + got.item.count; else out.push(got.item);
-      }
-      mp.set(a, 'inventory', { entries: out });
-    } catch (e) { log(`pickpocket: ${got.label} taken from ${who(t)} but not handed to ${who(a)}`, e.message); }
-    return got;
+    if (!got) return { none: true };
+    const out = mine.entries.map((e) => Object.assign({}, e));
+    if (got.gold) {
+      const g = out.find((e) => (Number(e.baseId) >>> 0) === GOLD && !e.worn);
+      if (g) g.count = (Number(g.count) || 0) + got.gold; else out.push({ baseId: GOLD, count: got.gold });
+    } else {
+      const same = plain(got.item) && out.find((e) => (Number(e.baseId) >>> 0) === (Number(got.item.baseId) >>> 0) && plain(e));
+      if (same) same.count = (Number(same.count) || 0) + got.item.count; else out.push(got.item);
+    }
+    try { mp.set(t, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) }); } catch (e) { return { error: `victim write failed: ${e.message}` }; }
+    try { mp.set(a, 'inventory', { entries: out }); } catch (e) {
+      log(`pickpocket: ${got.label} taken from ${who(t)} but not handed to ${who(a)}`, e.message);
+      return { got, handed: false };
+    }
+    return { got, handed: true };
   };
 
   const prune = (now) => {
-    const keep = Number(C.sameTargetMinutes) * 60000;
-    if (S.pair.size > 500) for (const [k, v] of S.pair) if (now - v > keep) S.pair.delete(k);
+    const pairKeep = Number(C.sameTargetMinutes) * 60000, victimKeep = Number(C.victimMinutes) * 60000;
+    if (S.pair.size > 500) for (const [k, v] of S.pair) if (now - v > pairKeep) S.pair.delete(k);
     if (S.lastTry.size > 500) for (const [k, v] of S.lastTry) if (now - v > Number(C.cooldownSeconds) * 1000) S.lastTry.delete(k);
+    if (S.victim.size > 500) for (const [k, v] of S.victim) if (now - v > victimKeep) S.victim.delete(k);
+    if (S.credits.size > 500) for (const [k, v] of S.credits) if (!v.some((x) => now - x < 3600000)) S.credits.delete(k);
+  };
+  // Lockpicking for a real take from a stranger, at most creditsPerHour a thief
+  const credit = (a, t, got, now) => {
+    if (got.gold && got.gold < Number(C.creditMinGold)) return false;
+    if (sameParty(a, t)) return false;
+    const recent = (S.credits.get(a) || []).filter((x) => now - x < 3600000);
+    if (recent.length >= Number(C.creditsPerHour)) { S.credits.set(a, recent); return false; }
+    recent.push(now); S.credits.set(a, recent);
+    try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('lock', a, { refrId: t, level: 1 }); } catch (e) { /* no skill system */ }
+    return true;
   };
 
   const attempt = (a, t, nameFor) => {
     a >>>= 0; t >>>= 0;
     const call = (viewer, x) => { try { return typeof nameFor === 'function' ? nameFor(viewer, x) : nameOf(x); } catch (e) { return 'Someone'; } };
-    if (!C.enabled || a === t) return;
+    if (a === t) return;
+    if (!C.enabled) return personal(a, 'Pickpocketing is switched off right now.');
     if (!isSneaking(a)) return personal(a, 'You have to be sneaking to pick a pocket.');
     if (handsTied(a) || dead(a)) return personal(a, 'Not with your hands like this.');
+    if (inBeastForm(a)) return personal(a, 'Not in this form.');
     if (dead(t)) return personal(a, 'They are down. Search the body instead.');
+    if (inBeastForm(t)) return personal(a, 'There is nothing to take from that.');
     const g = geometry(a, t);
-    if (!g || g.dist > Number(C.maxDistance)) return personal(a, 'Get within arm\'s reach first.');
+    if (!g || g.dist > Number(C.maxDistance) || g.height > Number(C.maxHeight)) return personal(a, 'Get within arm\'s reach first.');
     const now = Date.now();
     const wait = Number(C.cooldownSeconds) * 1000 - (now - (S.lastTry.get(a) || 0));
     if (wait > 0) return personal(a, `Steady your hands first (${Math.ceil(wait / 1000)} s).`);
     const pair = `${a}:${t}`;
     const pairWait = Number(C.sameTargetMinutes) * 60000 - (now - (S.pair.get(pair) || 0));
-    if (pairWait > 0) return personal(a, `${call(a, t)} is keeping a hand on their purse. Try again in ${Math.ceil(pairWait / 60000)} min.`);
+    const victimWait = Number(C.victimMinutes) * 60000 - (now - (S.victim.get(t) || 0));
+    const heldOff = Math.max(pairWait, victimWait);
+    if (heldOff > 0) return personal(a, `${call(a, t)} is keeping a hand on their purse. Try again in ${Math.ceil(heldOff / 60000)} min.`);
     S.lastTry.set(a, now); S.pair.set(pair, now); prune(now);
 
     const tier = tierOf(a);
@@ -178,16 +231,22 @@ module.exports = (api) => {
       audit(`THEFT ${who(a)} was caught picking the pocket of ${who(t)} (${odds})`);
       return;
     }
-    let got = null;
-    try { got = steal(a, t, tier); } catch (e) { log('pickpocket: steal failed', e.message); }
-    if (!got) {
+    let r = null;
+    try { r = steal(a, t, tier); } catch (e) { r = { error: e.message }; }
+    if (r.error) {
+      log(`pickpocket: ${who(a)} on ${who(t)} failed: ${r.error}`);
+      return personal(a, 'Your hand slips and nothing comes away.');
+    }
+    if (r.none) {
       personal(a, `${call(a, t)} has nothing in their pockets worth taking.`);
       audit(`THEFT ${who(a)} found nothing on ${who(t)} (${odds})`);
       return;
     }
+    const got = r.got;
+    S.victim.set(t, now);
+    const credited = r.handed && credit(a, t, got, now);
     personal(a, `You lift ${got.label} from ${call(a, t)} unnoticed.`);
-    audit(`THEFT ${who(a)} picked ${got.label} from ${who(t)} (${odds})`);
-    try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('lock', a, { refrId: t, level: 1 }); } catch (e) { /* no skill system */ }
+    audit(`THEFT ${who(a)} picked ${got.label} from ${who(t)} (${odds}${credited ? '' : ', no skill credit'}${r.handed ? '' : ', HAND-OVER FAILED'})`);
     const after = Number(C.noticeAfterSeconds);
     if (after > 0) {
       setTimeout(() => {
@@ -197,7 +256,7 @@ module.exports = (api) => {
   };
 
   globalThis.__dboPickpocketEntries = (a, t) => {
-    if (!C.enabled || (a >>> 0) === (t >>> 0) || dead(t) || dead(a) || handsTied(a) || !isSneaking(a)) return [];
+    if (!C.enabled || (a >>> 0) === (t >>> 0) || dead(t) || dead(a) || handsTied(a) || inBeastForm(a) || inBeastForm(t) || !isSneaking(a)) return [];
     return [{ id: 'pickpocket', label: 'Pickpocket' }];
   };
   globalThis.__dboPickpocketAction = (a, id, t, nameFor) => {
@@ -206,6 +265,6 @@ module.exports = (api) => {
     return true;
   };
 
-  log(`pickpocket ${C.enabled ? 'on' : 'off'}: sneak + X, ${Math.round(Number(C.chanceUntrained) * 100)}% untrained to ${Math.round(at(C.chanceByTier, 4) * 100)}% at Master, ${C.cooldownSeconds} s between tries, ${C.sameTargetMinutes} min per victim`);
-  return { attempt, chanceFor, geometry, steal, tierOf };
+  log(`pickpocket ${C.enabled ? 'on' : 'off'}: sneak + X, ${Math.round(Number(C.chanceUntrained) * 100)}% untrained to ${Math.round(at(C.chanceByTier, 4) * 100)}% at Master, ${C.cooldownSeconds} s between tries, ${C.sameTargetMinutes} min per victim and thief, ${C.victimMinutes} min per victim`);
+  return { attempt, chanceFor, geometry, steal, tierOf, wornCounts };
 };

@@ -805,7 +805,7 @@
    "category": "profession",
    "label": "Lockpicking",
    "title": "The Quiet Hand",
-   "description": "Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt.",
+   "description": "Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt. The same quiet hand picks pockets: sneak up on someone and press X, and the better you are, the better your odds.",
    "vanillaSkills": [
     "Lockpicking"
    ],

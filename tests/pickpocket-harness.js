@@ -31,14 +31,18 @@ let sneaking = new Set([THIEF]);
 let drawn = new Set();
 const place = (a, x, y, z) => set(a, 'locationalData', { cellOrWorldDesc: 'a764b:BSHeartland.esm', pos: [x, y, 0], rot: [0, 0, z] });
 const reset = () => {
-  for (const a of [THIEF, MARK, OTHER]) { set(a, 'isDead', false); set(a, 'private.restrained', null); set(a, 'private.mastery', null); }
+  for (const a of [THIEF, MARK, OTHER]) {
+    set(a, 'isDead', false); set(a, 'private.restrained', null); set(a, 'private.mastery', null); set(a, 'private.beast', null);
+    set(a, 'equipment', { inv: { entries: [] } }); set(a, 'private.lastWorn', []);
+  }
+  party.clear();
   place(MARK, 0, 0, 0);            // faces north (+Y)
   place(THIEF, 0, -100, 0);        // south of the mark: behind
   place(OTHER, 50, -50, 0);
   set(THIEF, 'inventory', { entries: [{ baseId: GOLD, count: 10 }, { baseId: DAGGER, count: 1 }] });
   set(MARK, 'inventory', { entries: [{ baseId: GOLD, count: 1000 }] });
   sneaking = new Set([THIEF]); drawn = new Set();
-  const S = globalThis.__dboPickpocket; if (S) { S.lastTry.clear(); S.pair.clear(); }
+  const S = globalThis.__dboPickpocket; if (S) { S.lastTry.clear(); S.pair.clear(); if (S.victim) S.victim.clear(); if (S.credits) S.credits.clear(); }
   out.personal.length = 0; out.system.length = 0; out.audits.length = 0; out.mastery.length = 0; timers.length = 0;
   rolls.length = 0;
 };
@@ -56,15 +60,20 @@ const mp = {
   },
 };
 const out = { personal: [], system: [], audits: [], mastery: [] };
+const party = new Map();   // actor -> leader
+globalThis.__dboPartyLeaderOf = (a) => (party.has(a >>> 0) ? party.get(a >>> 0) : null);
+const NAMES = { [DAGGER.toString(16)]: 'Iron Dagger' };
+const logs = [];
 globalThis.__alduinakMasteryEvent = (kind, a, detail) => out.mastery.push([kind, a >>> 0, detail]);
 let online = [THIEF, MARK, OTHER];
 const cfg = { pickpocket: { exclude: [(SWORD).toString(16)] } };
 const load = () => {
   delete require.cache[MODULE];
   return require(MODULE)({
-    mp, log: () => {}, personal: (a, t) => out.personal.push([a >>> 0, t]), system: (a, t) => out.system.push([a >>> 0, t]),
+    mp, log: (...x) => logs.push(x.join(' ')), personal: (a, t) => out.personal.push([a >>> 0, t]), system: (a, t) => out.system.push([a >>> 0, t]),
     audit: (t) => out.audits.push(t), who: (a) => 'P' + (a >>> 0).toString(16), nameOf: (a) => 'P' + (a >>> 0).toString(16),
-    onlineActors: () => online, recordOf: (id) => (RECORDS[id >>> 0] ? { record: { type: RECORDS[id >>> 0][0], editorId: RECORDS[id >>> 0][1] } } : null), cfg,
+    onlineActors: () => online, recordOf: (id) => (RECORDS[id >>> 0] ? { record: { type: RECORDS[id >>> 0][0], editorId: RECORDS[id >>> 0][1] } } : null),
+    adminItemName: (desc) => NAMES[String(desc)] || '', cfg,
   });
 };
 const M = load();
@@ -158,9 +167,8 @@ online = [THIEF, MARK, OTHER];
 
 // ---- things ---------------------------------------------------------------------------------------
 reset();
-set(MARK, 'inventory', { entries: [
-  { baseId: CUIRASS, count: 1, worn: true }, { baseId: KEY, count: 1 }, { baseId: SWORD, count: 1 }, { baseId: DAGGER, count: 2 },
-] });
+set(MARK, 'inventory', { entries: [{ baseId: CUIRASS, count: 1 }, { baseId: KEY, count: 1 }, { baseId: SWORD, count: 1 }, { baseId: DAGGER, count: 2 }] });
+set(MARK, 'equipment', { inv: { entries: [{ baseId: CUIRASS, count: 1, worn: true }] } });
 rolls.push(0.1, 0.0);                                          // success, first stealable
 act(THIEF, MARK);
 check('the only stealable thing is the dagger (worn, key and excluded are skipped)', count(MARK, DAGGER) === 1 && count(THIEF, DAGGER) === 2);
@@ -181,9 +189,95 @@ set(MARK, 'inventory', { entries: [{ baseId: GOLD, count: 100 }, { baseId: POTIO
 rolls.push(0.1, 0.9, 0.0); act(THIEF, MARK);                   // success, not gold, the potion
 check('with coin and pockets, a high roll takes a thing', count(MARK, POTION) === 0 && count(THIEF, POTION) === 1 && count(MARK, GOLD) === 100);
 reset();
-set(MARK, 'inventory', { entries: [{ baseId: CUIRASS, count: 1, worn: true }, { baseId: KEY, count: 1 }] });
+set(MARK, 'inventory', { entries: [{ baseId: CUIRASS, count: 1 }, { baseId: KEY, count: 1 }] });
+set(MARK, 'equipment', { inv: { entries: [{ baseId: CUIRASS, count: 1, worn: true }] } });
 rolls.push(0.1); act(THIEF, MARK);
 check('nothing worth taking is said and audited', /nothing in their pockets/.test(last(out.personal, THIEF)) && /found nothing/.test(out.audits[0] || '') && out.mastery.length === 0);
+
+// ---- worn state lives in equipment (review of 387e3ed5) ------------------------------------------------
+reset();
+set(MARK, 'inventory', { entries: [{ baseId: CUIRASS, count: 1 }] });
+set(MARK, 'equipment', { inv: { entries: [{ baseId: CUIRASS, count: 1, worn: true }] } });
+rolls.push(0.1, 0.0); act(THIEF, MARK);
+check('a worn cuirass (worn only in equipment) is never taken', count(MARK, CUIRASS) === 1 && count(THIEF, CUIRASS) === 0 && /nothing in their pockets/.test(last(out.personal, THIEF)));
+reset();
+set(MARK, 'inventory', { entries: [{ baseId: DAGGER, count: 2 }] });
+set(MARK, 'equipment', { inv: { entries: [{ baseId: DAGGER, count: 1, worn: true }] } });
+rolls.push(0.1, 0.0); act(THIEF, MARK);
+check('two daggers, one worn: the spare one can go', count(MARK, DAGGER) === 1 && count(THIEF, DAGGER) === 2);
+reset(); now += 3600000;
+set(MARK, 'inventory', { entries: [{ baseId: DAGGER, count: 1 }] });
+set(MARK, 'equipment', { inv: { entries: [] } }); set(MARK, 'private.lastWorn', [[DAGGER, 0]]);
+rolls.push(0.1, 0.0); act(THIEF, MARK);
+check('just after login the saved outfit is held back (private.lastWorn)', count(MARK, DAGGER) === 1);
+reset(); now += 3600000;
+set(MARK, 'inventory', { entries: [{ baseId: ARROW, count: 40 }] });
+set(MARK, 'equipment', { inv: { entries: [{ baseId: ARROW, count: 1, worn: true }] } });
+rolls.push(0.1, 0.0, 0.9); act(THIEF, MARK);
+check('equipped arrows keep their whole stack', count(MARK, ARROW) === 40);
+reset(); now += 3600000;
+set(MARK, 'inventory', { entries: [{ baseId: GOLD, count: 100 }, { baseId: DAGGER, count: 1 }] });
+set(MARK, 'equipment', null);
+rolls.push(0.1, 0.99); act(THIEF, MARK);
+check('equipment unreadable: coin only', count(MARK, DAGGER) === 1 && count(MARK, GOLD) < 100, `${count(MARK, GOLD)}`);
+
+// ---- a victim rests after any theft, whoever the next thief is ------------------------------------------
+reset(); now += 3600000;
+rolls.push(0.1, 0.1); act(THIEF, MARK);
+sneaking.add(OTHER); place(OTHER, 0, -100, 0); now += 30000;
+act(OTHER, MARK);
+check('a second thief cannot rob the same victim straight after', /keeping a hand on their purse/.test(last(out.personal, OTHER)) && count(MARK, GOLD) === 950, `${count(MARK, GOLD)}`);
+
+// ---- skill credit -----------------------------------------------------------------------------------
+reset(); now += 3600000;
+set(MARK, 'inventory', { entries: [{ baseId: GOLD, count: 50 }] });
+rolls.push(0.1, 0.1); act(THIEF, MARK);
+check('a take under creditMinGold earns no Lockpicking', count(THIEF, GOLD) === 12 && out.mastery.length === 0 && /no skill credit/.test(out.audits[0] || ''), out.audits[0]);
+reset(); now += 3600000; party.set(THIEF, THIEF); party.set(MARK, THIEF);
+rolls.push(0.1, 0.1); act(THIEF, MARK);
+check('robbing a party member earns no Lockpicking', out.mastery.length === 0 && count(THIEF, GOLD) > 10);
+reset(); now += 3600000;
+globalThis.__dboPickpocket.credits.clear();
+for (let i = 0; i < 6; i++) {
+  set(MARK, 'inventory', { entries: [{ baseId: GOLD, count: 1000 }] });
+  globalThis.__dboPickpocket.pair.clear(); globalThis.__dboPickpocket.victim.clear(); globalThis.__dboPickpocket.lastTry.clear();
+  rolls.push(0.1, 0.1); act(THIEF, MARK); now += 60000;
+}
+check('at most creditsPerHour (4) credits an hour', out.mastery.length === 4, out.mastery.length);
+
+// ---- beast forms ----------------------------------------------------------------------------------
+reset(); now += 3600000; set(THIEF, 'private.beast', { form: 'vampirelord', original: {} });
+check('a Vampire Lord on the ground is not offered Pickpocket', entries(THIEF, MARK).length === 0);
+act(THIEF, MARK);
+check('nor can it try', /Not in this form/.test(last(out.personal, THIEF)) && count(MARK, GOLD) === 1000);
+reset(); now += 3600000; set(MARK, 'private.beast', { form: 'werewolf', original: {} });
+check('a werewolf is not offered as a victim', entries(THIEF, MARK).length === 0);
+
+// ---- reach ----------------------------------------------------------------------------------------
+reset(); now += 3600000; set(THIEF, 'locationalData', { cellOrWorldDesc: 'a764b:BSHeartland.esm', pos: [0, -50, 150], rot: [0, 0, 0] });
+act(THIEF, MARK);
+check('a floor above is out of reach', /arm's reach/.test(last(out.personal, THIEF)));
+reset(); place(THIEF, 100, 0, 0);
+check('beside the shoulder (90 degrees) is not behind', M.geometry(THIEF, MARK).behind === false);
+place(THIEF, 100, -100, 0);
+check('135 degrees off the face is behind', M.geometry(THIEF, MARK).behind === true);
+
+// ---- errors and switches ------------------------------------------------------------------------------
+reset(); now += 3600000; set(THIEF, 'inventory', null);
+rolls.push(0.1, 0.1); act(THIEF, MARK);
+check('an unreadable thief inventory takes nothing and says the hand slipped', count(MARK, GOLD) === 1000 && /hand slips/.test(last(out.personal, THIEF)) && !out.audits.some((x) => /found nothing/.test(x)));
+reset(); now += 3600000;
+set(MARK, 'inventory', { entries: [{ baseId: GOLD, count: 1000 }] });
+cfg.pickpocket.goldMax = 0; load();
+set(MARK, 'inventory', { entries: [{ baseId: GOLD, count: 1000 }, { baseId: DAGGER, count: 1 }] });
+rolls.push(0.1, 0.0, 0.0); act(THIEF, MARK);
+check('goldMax 0 takes no coin', count(MARK, GOLD) === 1000 && count(MARK, DAGGER) === 0);
+delete cfg.pickpocket.goldMax;
+reset(); now += 3600000; cfg.pickpocket.enabled = false; load();
+check('switched off: no entry', entries(THIEF, MARK).length === 0);
+act(THIEF, MARK);
+check('switched off: a stale click is answered', /switched off/.test(last(out.personal, THIEF)));
+cfg.pickpocket.enabled = true; load();
 
 // ---- reload keeps the waits -------------------------------------------------------------------------
 reset(); rolls.push(0.99); act(THIEF, MARK); load(); now += 30000; act(THIEF, MARK);

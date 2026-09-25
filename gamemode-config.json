@@ -100,11 +100,11 @@
   "damageMult": 1.2
  },
  "pickpocket": {
-   "_comment": "Sneak + X on a player (pickpocket.js). chance: chanceUntrained, or chanceByTier by Lockpicking tier, + behindBonus, - weaponDrawnPenalty, within min/maxChance. A success takes goldShareByTier of the coin (at most goldMax) or one pocket item (never worn, never a key); the victim notices noticeAfterSeconds later. Failure warns the victim at once. exclude: item descs never taken.",
-   "enabled": true, "maxDistance": 200, "cooldownSeconds": 20, "sameTargetMinutes": 10,
-   "chanceUntrained": 0.2, "chanceByTier": [0.3, 0.4, 0.5, 0.6, 0.7], "behindBonus": 0.15, "weaponDrawnPenalty": 0.2, "minChance": 0.05, "maxChance": 0.85,
+   "_comment": "Sneak + X on a player (pickpocket.js). chance: chanceUntrained, or chanceByTier by Lockpicking tier, + behindBonus (outside a behindConeDegrees cone of the face), - weaponDrawnPenalty, within min/maxChance. A success takes goldShareByTier of the coin (at most goldMax) or one pocket item (never a worn copy, never a key); the victim notices noticeAfterSeconds later. Failure warns the victim at once. Waits: cooldownSeconds per thief, sameTargetMinutes per thief and victim, victimMinutes per victim. Lockpicking credit for creditMinGold or an item, never a party member, creditsPerHour at most. exclude: item descs never taken.",
+   "enabled": true, "maxDistance": 200, "maxHeight": 100, "cooldownSeconds": 20, "sameTargetMinutes": 10, "victimMinutes": 10,
+   "chanceUntrained": 0.2, "chanceByTier": [0.3, 0.4, 0.5, 0.6, 0.7], "behindBonus": 0.15, "behindConeDegrees": 120, "weaponDrawnPenalty": 0.2, "minChance": 0.05, "maxChance": 0.85,
    "goldChance": 0.5, "goldShareUntrained": 0.05, "goldShareByTier": [0.06, 0.08, 0.1, 0.12, 0.15], "goldMax": 500,
-   "ammoMax": 10, "noticeAfterSeconds": 60, "exclude": []
+   "ammoMax": 10, "noticeAfterSeconds": 60, "creditMinGold": 10, "creditsPerHour": 4, "exclude": []
  },
  "reading": {
   "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",
