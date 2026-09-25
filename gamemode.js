@@ -2562,6 +2562,8 @@ const hostAttemptHook = (requesterId, actorId) => {
   if (userOf(req) === -1) return false;
   // A logged-out character's body waiting out its grace is never driven by another player's client
   if (profileOf(act) >= 0) return false;
+  // NPC system v2: a client that sends sight reports does not pick its own NPCs; server\npcdirector.js does
+  try { if (typeof globalThis.__dboNpcDirectorRefuses === 'function' && globalThis.__dboNpcDirectorRefuses(req, act)) return false; } catch (e) { /* director off */ }
   try {
     const r = mp.get(req, 'private.restrained');
     if (r && r.boundHands) return false;
@@ -3065,6 +3067,13 @@ try {
   delete require.cache[MONITOR_JS];
   require(MONITOR_JS)({ personal, registerChatCommand, isAdmin, cfg });
 } catch (e) { log('monitor.js failed to load:', e.stack || e.message); }
+
+// ---- NPC director: the server picks NPC hosts from clients' sight reports (server\npcdirector.js, config "npcDirector") --
+try {
+  const NPCDIRECTOR_JS = path.resolve('npcdirector.js');
+  delete require.cache[NPCDIRECTOR_JS];
+  require(NPCDIRECTOR_JS)({ mp, log, every, onUi, onlineActors, display, profileOf, cfg });
+} catch (e) { log('npcdirector.js failed to load:', e.stack || e.message); globalThis.__dboNpcDirectorRefuses = null; }
 
 // ---- GM warbands and raids: catalog NPCs that follow the GM (server\warband.js; companionSystem.ts __dboCompanions) ------
 try {
