@@ -253,7 +253,11 @@ export class HostedDriftService extends ClientListener {
     }
     if (mode === "setPosition") ac.setPosition(ref[0], ref[1], ref[2]);
     else if (mode === "moveTo") ac.moveTo(ac, 0, 0, 0, true);
-    else if (mode === "disableEnable") ac.disable(false).then(() => ac.enable(false));
+    else if (mode === "disableEnable") {
+      // The disable resolves in a later frame, where the Actor fetched now is no longer valid
+      const localId = ac.getFormID();
+      ac.disable(false).then(() => Actor.from(Game.getFormEx(localId))?.enable(false));
+    }
     this.pending.set(remoteId, { due: now + REPAIR_CHECK_MS, mode, node, limit, ref, bone, late: false });
   }
 

@@ -115,15 +115,29 @@ export class SendInputsService extends ClientListener {
 
         const world = modelSource.getWorldModel();
 
+        const liveAnimSources = new Set<string>();
         targets.forEach((target) => {
             const targetFormModel = target ? this.getForm(target, world) : this.getForm(undefined, world);
             this.sendMovement(target, targetFormModel);
-            this.sendAnimation(target);
+            this.sendAnimation(target, liveAnimSources);
             this.sendAppearance(target);
             this.sendEquipment(target);
             this.sendActorValuePercentage(target, targetFormModel);
         });
+        this.pruneAnimSources(liveAnimSources);
         this.sendHostAttempts();
+    }
+
+    // A copy no longer hosted here, or gone, gives its animation hook back. They were never removed: each one ran
+    // on every animation event in the game, so frame rate decayed with every NPC hosted in a session
+    private pruneAnimSources(live: Set<string>) {
+        this.playerAnimSource.forEach((source, key) => {
+            if (live.has(key) || !source.dispose()) {
+                return;
+            }
+            this.playerAnimSource.delete(key);
+            this.lastAnimationSent.delete(key);
+        });
     }
 
     private sendMovement(_refrId?: number, form?: FormModel) {
@@ -218,7 +232,7 @@ export class SendInputsService extends ClientListener {
 
     }
 
-    private sendAnimation(_refrId?: number) {
+    private sendAnimation(_refrId: number | undefined, liveAnimSources: Set<string>) {
         const owner = this.getInputOwner(_refrId);
         if (!owner) {
           return;
@@ -226,6 +240,7 @@ export class SendInputsService extends ClientListener {
 
         // Extermly important that it's a local id since AnimationSource depends on it
         const refrIdStr = owner.getFormID().toString(16);
+        liveAnimSources.add(refrIdStr);
 
         let animSource = this.playerAnimSource.get(refrIdStr);
         if (!animSource) {

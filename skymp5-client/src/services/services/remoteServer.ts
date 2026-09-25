@@ -29,6 +29,7 @@ import { Movement } from '../../sync/movement';
 import { enforceSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
 import { setRefrCollision } from '../../sync/animation';
+import { settleTranslation } from '../../sync/movementApply';
 import { isOwnCompanion } from './companionService';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
@@ -72,6 +73,7 @@ import { UpdateAnimVariablesMessage } from '../messages/updateAnimVariablesMessa
 import { MsgType } from '../../messages';
 import { CustomPacketMessage } from '../messages/customPacketMessage';
 import { parseCustomPacket, sendCustomPacket } from './customPacketUtil';
+import { forgetHostAttempts, resetHostAttempts, sameRemoteId } from '../../view/hostAttempts';
 
 export const getPcInventory = (): Inventory | undefined => {
   const res = storage['pcInv'];
@@ -196,12 +198,17 @@ export class RemoteServer extends ClientListener {
         const localId = remoteIdToLocalId(target);
         const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
         if (!ac || ac.getFormID() === 0x14) return;
-        ac.stopTranslation();
-        setRefrCollision(ac.getFormID(), true);
+        if (isOwnCompanion(target)) {
+          // Own companions keep the follow order CompanionService gives them
+          ac.stopTranslation();
+          setRefrCollision(ac.getFormID(), true);
+        } else {
+          // Through movementApply, which also forgets the playback it tracked: stopping the engine side alone left
+          // it marked translating, and FormView reported every hand-off as a pinned copy
+          settleTranslation(ac);
+        }
         // A remote copy may have been locked sheathed; our own AI decides from here
         TESModPlatform.setWeaponDrawnMode(ac, -1);
-        // Own companions keep the follow order CompanionService gives them
-        if (!isOwnCompanion(target)) ac.clearKeepOffsetFromActor();
         // Re-seat it where it stands so havok takes it back, but never while the world is still
         // streaming: forcing a position on an actor without 3D can wedge the load.
         if (ac.is3DLoaded()) {
@@ -837,6 +844,12 @@ export class RemoteServer extends ClientListener {
     const msg = event.message;
 
     const i = this.getIdManager().getId(msg.idx);
+    // The server sends no HostStop for a form it destroys and gives its id to a later form: a stale entry would
+    // make this client drive that NPC as its own without a grant
+    const destroyedRefrId = i >= 0 ? this.worldModel.forms[i]?.refrId : undefined;
+    if (destroyedRefrId) {
+      this.forgetHosted(destroyedRefrId);
+    }
     this.worldModel.forms[i] = undefined;
     getViewFromStorage()?.syncFormArray(this.worldModel);
 
@@ -989,6 +1002,17 @@ export class RemoteServer extends ClientListener {
     }
     const i = this.getIdManager().getId(msg.idx);
     const form = this.worldModel.forms[i];
+    if (form === undefined) {
+      logError(this, `onUpdatePropertyMessage - Form with idx`, msg.idx, `not found`, msg.propName);
+      return;
+    }
+    // The server reuses a destroyed form's index at once, so a late message for the old form must not land on the
+    // new one. Its refrId has no 0x100000000 offset, the form's does for a plugin-placed actor
+    if (msg.refrId && form.refrId !== undefined && !sameRemoteId(form.refrId, msg.refrId)) {
+      logError(this, `onUpdatePropertyMessage - idx`, msg.idx, `is`, form.refrId.toString(16), `now, not`,
+        msg.refrId.toString(16), msg.propName);
+      return;
+    }
     (form as Record<string, unknown>)[msg.propName] = msgData;
   }
 
@@ -1053,7 +1077,20 @@ export class RemoteServer extends ClientListener {
     this.worldModel.playerCharacterFormIdx = -1;
     this.worldModel.playerCharacterRefrId = 0;
 
+    // Hosting belongs to the old session, and a restarted server hands out form ids from ff000000 again
+    storage['hosted'] = [];
+    resetHostAttempts();
+
     logTrace(this, "Handle connection accepted");
+  }
+
+  // Drops a remote id from the hosted list and the host-attempt queue, in either id form
+  private forgetHosted(remoteId: number): void {
+    const hosted = storage['hosted'];
+    if (Array.isArray(hosted)) {
+      storage['hosted'] = hosted.filter((x) => !sameRemoteId(Number(x), remoteId));
+    }
+    forgetHostAttempts(remoteId);
   }
 
   private onChangeValuesMessage(event: ConnectionMessage<ChangeValuesMessage>): void {

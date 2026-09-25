@@ -4,7 +4,7 @@ import { Appearance, applyAppearance } from "../sync/appearance";
 import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
-import { applyMovement, getApplyState, settleTranslation } from "../sync/movementApply";
+import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from "../sync/movementApply";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
@@ -341,6 +341,7 @@ export class FormView {
         if (ac) {
           TESModPlatform.setWeaponDrawnMode(ac, -1);
         }
+        forgetLocalCopy(refrId);
       }
     })
 
@@ -465,7 +466,11 @@ export class FormView {
           if (pin.translating || pin.offset === "held" || pin.offset === "moving") {
             settleTranslation(refr);
             ac.evaluatePackage();
-            reportPin(this.remoteRefrId, ac, model, pin, this.movState.everApplied);
+            // On the grant's first frame this is the remote playback HostStart's settle has not reached yet
+            // (update callbacks run in no fixed order), not a pin
+            if (this.movState.wasHosted) {
+              reportPin(this.remoteRefrId, ac, model, pin, this.movState.everApplied);
+            }
           }
         }
       }
@@ -473,6 +478,7 @@ export class FormView {
       this.movState.havokSeated = false;
       this.movState.weapReleased = false;
     }
+    this.movState.wasHosted = alreadyHosted;
 
     if (!model.isHostedByOther && !alreadyHosted && !isOwnCompanion(this.remoteRefrId)) {
       if (ac && this.remoteRefrId) {
@@ -488,12 +494,13 @@ export class FormView {
       const hostSilent = packetClock
         ? !!model.movementAt && Date.now() - model.movementAt > driftConfig.rehostAfterMs
         : !!this.movState.lastApply && Date.now() - this.movState.lastApply > 1500;
-      if (hostSilent) {
+      // A copy hosted here has no other sender to wait for. Asking for it again is a reliable packet a second, and
+      // once its own movement paused 2 s the server grants it again: HostStart re-seats it and restarts its package
+      if (hostSilent && !alreadyHosted) {
         if (Date.now() - this.movState.lastRehost > (packetClock ? 2000 : 1000)) {
           this.movState.lastRehost = Date.now();
           const remoteId = this.remoteRefrId;
-          if (ac && ac.is3DLoaded()) {
-            this.tryHostIfNeed(ac, remoteId as number, model.movement?.worldOrCell);
+          if (ac && remoteId && this.tryHostIfNeed(ac, remoteId, model.movement?.worldOrCell)) {
             printConsole("tryHostIfNeed - reason: not seeing movement for long time");
           }
         }
@@ -1007,6 +1014,11 @@ export class FormView {
   };
 
   private tryHostIfNeed(ac: Actor, remoteId: number, worldOrCell?: number) {
+    // Our AI drives only a spawned copy with its 3D; a grant for any other goes silent (sendMovement skips an unloaded
+    // copy) and holds the NPC from a player who could drive it until the server's stale-host release
+    if (!this.ready || !ac.is3DLoaded()) {
+      return false;
+    }
     const last = lastTryHost[remoteId];
     if (!last || Date.now() - last >= 1000) {
       try {
@@ -1055,6 +1067,8 @@ export class FormView {
     offsetApplied: false,
     weapReleased: false,
     havokSeated: false,
+    // alreadyHosted on the previous applyAll
+    wasHosted: false,
   };
   private appearanceState = this.getDefaultAppearanceState();
   private eqState = this.getDefaultEquipState();
