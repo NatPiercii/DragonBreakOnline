@@ -7,12 +7,27 @@
 // its summary: the fork commits since the last one and the patch notes published since.
 //
 // Staff: /update shows what is live and what waits on GitHub. /schedule restart|shutdown|update <when> <reason> sets one up
-// (senior and developer tiers; a reason is required); players are warned as it nears; at the time it claims game-server
-// in the ops ledger (waiting if another operator holds it), logs itself with how to undo it, and then runs:
+// (senior and developer tiers; a reason is required). Players get the countdown (Jake's addendum A1, 2026-09-25): an
+// on-screen notice and a chat line at 5 minutes ("The server restarts in 5 minutes: <reason>") and at 1 minute ("... Find
+// a safe spot."). "now" means that 5-minute countdown, and no time set with players online is shorter than it. Once the
+// countdown has begun, an empty server does not wait: it runs at once, after reading the live count again right before
+// (a player who joins in that moment keeps the countdown going). At the time it claims game-server in the ops ledger
+// (waiting five minutes if another operator holds it), logs itself with how to undo it, and then runs:
 //   restart   systemctl restart skymp
 //   shutdown  systemctl stop skymp (someone with the host starts it again: systemctl start skymp)
 //   update    touch /opt/skymp-force-update and start skymp-update.service, which builds origin/main and restarts
-// Schedules survive hot reloads and restarts (schedule.json).
+// Schedules survive hot reloads and restarts (schedule.json). Cancel works until the moment it runs.
+//
+// Requests from the website panel and the updater (control-panel design 3.5; addendum A1): JSON files in C.requestDir
+// (/var/lib/dragonbreak-control/requests), written as a temp file and renamed in:
+//   { v: 1, reqId, op: 'create' | 'cancel', kind, at, stay, id, reason, by, byTag, discordId, requestedAt }
+// Intake runs only while that folder exists, and not while /var/lib/dragonbreak-control/disabled does (the kill switch,
+// read every tick). Each file is claimed by renaming it to .taken, refused when older than 2 minutes or a reqId seen
+// before, checked (enums, at, reason, byTag web-<slug> or updater), added to the same book this tick saves, and answered
+// in done/<reqId>.json: { reqId, state: 'created' | 'merged' | 'cancelled' | 'rejected', id, at, why }. A create with no
+// 'at' (or one already past) is the countdown; an open schedule of the same kind absorbs a second create ('merged').
+// Not in this draft (server-ops Phase 2): G1 fire-time preconditions, G2 postpone cap, G4 missed entries, G5 claims held
+// through the action, and 'stay'.
 
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +38,8 @@ module.exports = (api) => {
   const { log, personal, audit, who, onlineActors, every, registerChatCommand, isAdmin, tierOf, sayAll, token, channelId, cfg } = api;
   const C = Object.assign({ enabled: true, repo: '/opt/alduinak', news: '/opt/alduinak/skymp5-backend/data/news.live.json',
     files: '/opt/alduinak/skymp5-backend/data/files-version.json', ops: '/opt/dragonbreak-ops/ops', holdFile: '/opt/skymp-dev-hold',
-    forceFile: '/opt/skymp-force-update', tiers: ['senior', 'developer'], warnMinutes: [60, 30, 15, 10, 5, 2, 1], minReason: 5, maxHours: 24 * 14 },
+    forceFile: '/opt/skymp-force-update', tiers: ['senior', 'developer'], countdownMin: 5, warnAt: [5, 1], earlyFireWhenEmpty: true,
+    requestDir: '/var/lib/dragonbreak-control/requests', killFile: '/var/lib/dragonbreak-control/disabled', minReason: 5, maxHours: 24 * 14 },
   cfg.updates || {});
   const LOG_FILE = path.resolve('update-log.json');
   const SCHED_FILE = path.resolve('schedule.json');
@@ -109,12 +125,16 @@ module.exports = (api) => {
   const fmt = (ms) => new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
   const inWords = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 120 ? `${Math.round(m / 60)} hours` : m >= 2 ? `${m} minutes` : m === 1 ? '1 minute' : 'moments'; };
   const WHAT = { restart: 'restart', shutdown: 'shut down', update: 'update and restart' };
+  const VERB = { restart: 'restarts', shutdown: 'shuts down', update: 'updates and restarts' };
+  const COUNTDOWN_MS = Math.max(0, Number(C.countdownMin) || 0) * 60000;
+  const MARKS = (Array.isArray(C.warnAt) ? C.warnAt : [5, 1]).map(Number).filter((m) => m > 0).sort((x, y) => x - y);
+  const empty = () => onlineActors().length === 0;
 
   // "now", "30m", "in 2h", "1h30m", "at 04:00" (next one, UTC), "at 2026-09-26 04:00" (UTC)
   const parseWhen = (words) => {
     const t = words.join(' ').toLowerCase().trim();
-    // "now" still gives players a minute's warning
-    if (/^now\b/.test(t)) return { at: Date.now() + 60000, used: 1 };
+    // "now" is the countdown: players get their warnings, and an empty server runs it at once
+    if (/^now\b/.test(t)) return { at: Date.now() + COUNTDOWN_MS, used: 1 };
     let m = t.match(/^(?:in\s+)?((?:\d+\s*[hm]\s*)+)/);
     if (m) {
       let ms = 0; for (const [, n, u] of m[1].matchAll(/(\d+)\s*([hm])/g)) ms += Number(n) * (u === 'h' ? 3600000 : 60000);
@@ -143,24 +163,54 @@ module.exports = (api) => {
     return run(C.ops, ['release', 'game-server', who]);
   };
 
+  // Whether an entry that is firing should still run: 'cancelled', 'joined' (an early run and a player is now online), or ''
+  const stop = (e) => {
+    const x = schedules().list.find((y) => y.id === e.id);
+    if (!x || x.cancelled) return 'cancelled';
+    if (e.early && !empty() && Date.now() < e.at) return 'joined';
+    return '';
+  };
+  // Back to counting down: the run was stopped by a join, or put off
+  const resume = (e, patch) => {
+    const book = schedules(); const x = book.list.find((y) => y.id === e.id);
+    if (x) { Object.assign(x, { firing: null, early: false }, patch || {}); writeJson(SCHED_FILE, book); }
+  };
+
   // At the time: the ledger first, then the action. A held claim postpones it five minutes and says so.
   const execute = async (e) => {
     const operator = `staff-${e.byTag}`;
     const claim = await ledger(operator, 'claim', `scheduled ${e.kind} #${e.id} by ${e.by}: ${e.reason}`);
     if (!claim.ok) {
-      const book = schedules(); const x = book.list.find((y) => y.id === e.id);
-      if (x) { x.done = false; x.at = Date.now() + 5 * 60000; x.warned = []; x.postponed = (x.postponed || 0) + 1; writeJson(SCHED_FILE, book); }
+      // Put off five minutes with fresh warnings, and no early run in between (an empty server would retry every tick)
+      const at = Date.now() + 5 * 60000;
+      resume(e, { at, warned: [], noEarlyUntil: at, postponed: (e.postponed || 0) + 1 });
       audit(`SCHEDULE #${e.id} ${e.kind} postponed 5 min: game-server is claimed in the ops ledger (${(claim.err || claim.out).slice(0, 160)})`);
-      sayAll(`The ${e.kind} is put off by five minutes.`);
+      if ((e.warned || []).length) sayAll(`The ${e.kind} is put off by five minutes.`);
+      return;
+    }
+    let why = stop(e);
+    if (why) {
+      await ledger(operator, 'release');
+      if (why === 'joined') { resume(e); audit(`SCHEDULE #${e.id} ${e.kind}: a player joined as it was about to run early; the countdown goes on`); }
       return;
     }
     const rollback = e.kind === 'shutdown' ? 'systemctl start skymp' : e.kind === 'update' ? 'git revert the new main commits and push; or restore the previous build' : 'none needed';
-    await ledger(operator, 'log', `scheduled ${e.kind} #${e.id} by ${e.by}: ${e.reason}`, rollback);
+    await ledger(operator, 'log', `scheduled ${e.kind} #${e.id} by ${e.by}${e.early ? ' (early: the server was empty)' : ''}: ${e.reason}`, rollback);
     await ledger(operator, 'release');
-    audit(`SCHEDULE #${e.id} ${e.kind} RUNNING now (by ${e.by}): ${e.reason}`);
+    // The last look, right before it runs
+    why = stop(e);
+    if (why) {
+      await ledger(operator, 'log', `scheduled ${e.kind} #${e.id} did NOT run: ${why === 'joined' ? 'a player joined, the countdown goes on' : 'cancelled'}`, 'none needed');
+      if (why === 'joined') resume(e);
+      audit(`SCHEDULE #${e.id} ${e.kind} stopped at the last moment: ${why}`);
+      return;
+    }
+    const book = schedules(); const x = book.list.find((y) => y.id === e.id);
+    if (x) { x.done = true; x.firing = null; x.ranAt = Date.now(); writeJson(SCHED_FILE, book); }
+    audit(`SCHEDULE #${e.id} ${e.kind} RUNNING now (by ${e.by})${e.early ? ', early: the server was empty' : ''}: ${e.reason}`);
     sayAll(`The server will ${WHAT[e.kind]} now: ${e.reason}`);
     if (e.kind === 'update') {
-      try { fs.writeFileSync(C.forceFile, ''); } catch (x) { log('updates: force file failed', x.message); }
+      try { fs.writeFileSync(C.forceFile, ''); } catch (err) { log('updates: force file failed', err.message); }
       const r = await run('systemctl', ['--no-block', 'start', 'skymp-update.service']);
       if (!r.ok) audit(`SCHEDULE #${e.id} update could not start the updater: ${r.err.slice(0, 160)}`);
     } else {
@@ -170,26 +220,104 @@ module.exports = (api) => {
     }
   };
 
-  every('updateSchedule', 10000, () => {
-    const book = schedules();
-    const now = Date.now();
+  // The warning for the mark just reached: the reason with every mark but the last, and the last says to find a safe spot
+  const warning = (e, left, due, first) => {
+    const last = due === MARKS[0];
+    let t = `The server ${VERB[e.kind]} in ${inWords(left)}`;
+    if (!last || first) t += `: ${e.reason}`;
+    if (last) t += `${t.endsWith('.') ? '' : '.'} Find a safe spot.`;
+    return t;
+  };
+
+  // A new schedule entry; no time with players online is shorter than the countdown
+  const add = (book, kind, at, reason, by, byTag, extra) => {
+    const e = Object.assign({ id: book.next++, kind, at: Math.max(at, Date.now() + COUNTDOWN_MS), reason: reason.slice(0, 200), by, byTag, setAt: Date.now(), warned: [] }, extra || {});
+    book.list.push(e);
+    return e;
+  };
+
+  // Requests from the website panel and the updater (see the top of this file)
+  const DONE_DIR = path.join(path.dirname(C.requestDir), 'done');
+  const REQ_MAX_AGE_MS = 2 * 60000;
+  const TAG_RX = /^(web-[a-z0-9-]{1,21}|updater)$/;
+  const answer = (reqId, out) => {
+    try { fs.mkdirSync(DONE_DIR, { recursive: true }); writeJson(path.join(DONE_DIR, `${reqId}.json`), Object.assign({ reqId, answeredAt: new Date().toISOString() }, out)); }
+    catch (err) { log('updates: could not answer request', reqId, err.message); }
+  };
+  const intake = (book) => {
+    if (!fs.existsSync(C.requestDir) || fs.existsSync(C.killFile)) return false;
+    let files = [];
+    try { files = fs.readdirSync(C.requestDir).filter((f) => f.endsWith('.json')).sort(); } catch (err) { return false; }
+    book.seenReqIds = Array.isArray(book.seenReqIds) ? book.seenReqIds : [];
     let dirty = false;
+    for (const f of files.slice(0, 10)) {
+      const src = path.join(C.requestDir, f);
+      const taken = `${src}.taken`;
+      try { fs.renameSync(src, taken); } catch (err) { continue; }      // someone else took it (the backend's .abandoned)
+      const req = readJson(taken, null);
+      const reqId = String((req && req.reqId) || '').replace(/[^\w-]/g, '').slice(0, 64) || `bad-${f.replace(/\W/g, '').slice(0, 40)}`;
+      const reject = (why) => { answer(reqId, { state: 'rejected', why }); log(`updates: request ${reqId} rejected: ${why}`); };
+      try { fs.unlinkSync(taken); } catch (err) { /* already gone */ }
+      if (!req || req.v !== 1) { reject('unreadable, or not version 1'); continue; }
+      if (book.seenReqIds.includes(reqId)) { reject('this reqId was seen before'); continue; }
+      book.seenReqIds.push(reqId); book.seenReqIds = book.seenReqIds.slice(-200); dirty = true;
+      const requestedAt = Date.parse(req.requestedAt);
+      if (!Number.isFinite(requestedAt) || Date.now() - requestedAt > REQ_MAX_AGE_MS) { reject('older than 2 minutes'); continue; }
+      const byTag = String(req.byTag || '');
+      if (!TAG_RX.test(byTag)) { reject('byTag must be web-<slug> or updater'); continue; }
+      const by = String(req.by || byTag).replace(/[^\w .()@#-]/g, '').slice(0, 60) || byTag;
+      if (req.op === 'cancel') {
+        const e = book.list.find((x) => x.id === Number(req.id) && !x.done && !x.cancelled);
+        if (!e) { reject('no open schedule has that id'); continue; }
+        e.cancelled = true;
+        audit(`SCHEDULE #${e.id} ${e.kind} CANCELLED by ${by} (request ${reqId})`);
+        if ((e.warned || []).length) sayAll(`The ${e.kind} is called off.`);
+        answer(reqId, { state: 'cancelled', id: e.id });
+        continue;
+      }
+      if (req.op !== 'create') { reject("op must be 'create' or 'cancel'"); continue; }
+      const kind = String(req.kind || '');
+      if (!WHAT[kind]) { reject('kind must be restart, update or shutdown'); continue; }
+      if (req.stay) { reject('stay is not supported yet'); continue; }
+      const reason = String(req.reason || '').replace(/\s+/g, ' ').trim();
+      if (reason.length < C.minReason) { reject('a reason is required'); continue; }
+      const at = req.at === undefined || req.at === null || req.at === '' ? Date.now() : (typeof req.at === 'number' ? req.at : Date.parse(req.at));
+      if (!Number.isFinite(at) || at - Date.now() > C.maxHours * 3600000) { reject('at is not a time within the allowed range'); continue; }
+      if (kind === 'update' && byTag !== 'updater' && fs.existsSync(C.holdFile)) { reject('the updater is on hold'); continue; }
+      const open = book.list.find((x) => !x.done && !x.cancelled && x.kind === kind);
+      if (open) { answer(reqId, { state: 'merged', id: open.id, at: new Date(open.at).toISOString() }); continue; }
+      const e = add(book, kind, at, reason, by, byTag, { reqId });
+      audit(`SCHEDULE #${e.id} ${kind} at ${fmt(e.at)} requested by ${by} (request ${reqId}): ${e.reason}`);
+      answer(reqId, { state: 'created', id: e.id, at: new Date(e.at).toISOString() });
+    }
+    return dirty;
+  };
+
+  const tick = () => {
+    const book = schedules();
+    let dirty = intake(book);
+    const now = Date.now();
+    const noOne = empty();
     for (const e of book.list) {
-      if (e.done) continue;
+      if (e.done || e.cancelled) continue;
+      if (e.firing && now - e.firing < 120000) continue;       // execute() has it
       const left = e.at - now;
-      if (left <= 0) {
-        e.done = true; dirty = true;
+      // Early: the countdown has begun and nobody is online (execute() reads the count again before it runs)
+      const early = left > 0 && C.earlyFireWhenEmpty && noOne && left <= COUNTDOWN_MS && !(now < (e.noEarlyUntil || 0));
+      if (left <= 0 || early) {
+        e.firing = now; e.early = early; dirty = true;
         writeJson(SCHED_FILE, book);
-        execute(e).catch((x) => log('updates: running a schedule failed', x.message));
+        execute(Object.assign({}, e)).catch((x) => { log('updates: running a schedule failed', x.message); resume(e); });
         continue;
       }
       e.warned = e.warned || [];
-      // The nearest mark only: a restart set 30 minutes out warns at 30, not at 60 and then 30
-      const due = C.warnMinutes.slice().sort((x, y) => x - y).find((m) => left <= m * 60000);
+      // The nearest mark only: a restart set 3 minutes out warns at 3 ("5" mark), not at 5 and then again at once
+      const due = MARKS.find((m) => left <= m * 60000);
       if (due !== undefined && !e.warned.includes(due)) {
-        for (const m of C.warnMinutes) if (m >= due && !e.warned.includes(m)) e.warned.push(m);
+        const first = !e.warned.length;
+        for (const m of MARKS) if (m >= due && !e.warned.includes(m)) e.warned.push(m);
         dirty = true;
-        sayAll(`The server will ${WHAT[e.kind]} in ${inWords(left)}: ${e.reason}`);
+        sayAll(warning(e, left, due, first));
       }
     }
     // Keep the last 20 finished or cancelled for the record
@@ -197,7 +325,8 @@ module.exports = (api) => {
     const closed = book.list.filter((e) => e.done || e.cancelled).slice(-20);
     if (open.length + closed.length !== book.list.length) { book.list = closed.concat(open); dirty = true; }
     if (dirty) writeJson(SCHED_FILE, book);
-  });
+  };
+  every('updateSchedule', 10000, tick);
 
   registerChatCommand('update', async (a) => {
     if (!isAdmin(a)) return personal(a, 'Only staff see the update controls.');
@@ -246,11 +375,13 @@ module.exports = (api) => {
       if (!waiting.length) return personal(a, 'Nothing waits on GitHub, so an update would change nothing. Use restart instead.');
       if (fs.existsSync(C.holdFile)) return personal(a, 'The updater is on hold (/opt/skymp-dev-hold). Lift the hold first, or it will not build.');
     }
-    const e = { id: book.next++, kind, at: when.at, reason: reason.slice(0, 200), by: who(a), byTag: String(api.tagOf(a) || 'staff').toLowerCase(), setAt: Date.now(), warned: [] };
-    book.list.push(e); writeJson(SCHED_FILE, book);
+    const e = add(book, kind, when.at, reason, who(a), String(api.tagOf(a) || 'staff').toLowerCase());
+    writeJson(SCHED_FILE, book);
     audit(`SCHEDULE #${e.id} ${kind} at ${fmt(e.at)} set by ${who(a)}: ${e.reason}`);
-    personal(a, `Scheduled #${e.id}: ${kind} at ${fmt(e.at)} (in ${inWords(e.at - Date.now())}). Players are warned as it nears. /schedule cancel ${e.id} to call it off.`);
+    const minutes = MARKS.length ? MARKS[MARKS.length - 1] : 0;
+    personal(a, `Scheduled #${e.id}: ${kind} at ${fmt(e.at)} (in ${inWords(e.at - Date.now())}). Players are warned ${minutes ? `from ${minutes} minutes before` : 'as it nears'}${C.earlyFireWhenEmpty ? ', and it runs early once the server is empty' : ''}. /schedule cancel ${e.id} to call it off.`);
+    tick();
   }, { admin: true, help: 'restart|shutdown|update <when> <reason> | list | cancel <n>: planned restarts, with a reason (senior and developer staff)' });
 
-  return { logVersion, parseWhen, execute };
+  return { logVersion, parseWhen, execute, tick };
 };

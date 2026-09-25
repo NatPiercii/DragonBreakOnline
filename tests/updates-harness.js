@@ -44,12 +44,19 @@ const SENIOR = 1, GM = 2, PLAYER = 3;
 const tiers = { [SENIOR]: 'senior', [GM]: 'gm' };
 const said = [], all = [], audits = [];
 const commands = {}; let tick = null;
-const mod = require(MODULE)({
-  log: () => {}, personal: (a, t) => said.push([a, t]), audit: (t) => audits.push(t), who: (a) => `staff${a}`, tagOf: (a) => `TAG${a}`,
-  onlineActors: () => [SENIOR, GM, PLAYER], every: (n, ms, fn) => { tick = fn; }, registerChatCommand: (n, fn) => { commands[n] = fn; },
-  isAdmin: (a) => !!tiers[a], tierOf: (a) => tiers[a] || null, sayAll: (t) => all.push(t), token: 'T', channelId: 'C',
-  cfg: { updates: { repo: dir, news: NEWS, files: FILES, ops: OPS, holdFile: path.join(dir, 'hold'), forceFile: path.join(dir, 'force') } },
-});
+let online = [SENIOR, GM, PLAYER];
+const CONTROL = path.join(dir, 'control'); const REQ = path.join(CONTROL, 'requests'); const DONE = path.join(CONTROL, 'done');
+const load = (extra) => {
+  delete require.cache[MODULE];
+  return require(MODULE)({
+    log: () => {}, personal: (a, t) => said.push([a, t]), audit: (t) => audits.push(t), who: (a) => `staff${a}`, tagOf: (a) => `TAG${a}`,
+    onlineActors: () => online, every: (n, ms, fn) => { tick = fn; }, registerChatCommand: (n, fn) => { commands[n] = fn; },
+    isAdmin: (a) => !!tiers[a], tierOf: (a) => tiers[a] || null, sayAll: (t) => all.push(t), token: 'T', channelId: 'C',
+    cfg: { updates: Object.assign({ repo: dir, news: NEWS, files: FILES, ops: OPS, holdFile: path.join(dir, 'hold'), forceFile: path.join(dir, 'force'),
+      requestDir: REQ, killFile: path.join(CONTROL, 'disabled') }, extra || {}) },
+  });
+};
+const mod = load();
 
 let failures = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
@@ -86,31 +93,119 @@ const run = async (cmd, a, args) => { said.length = 0; await commands[cmd](a, ar
   check('a restart is scheduled and logged', /Scheduled #1: restart at 2026-09-25 01:30 UTC \(in 30 minutes\)/.test(r) && audits.some((t) => /SCHEDULE #1 restart/.test(t)), r);
   check('/update shows it', /#1 restart at 2026-09-25 01:30 UTC/.test(await run('update', GM)));
 
-  // warnings as it nears
+  // the countdown: nothing 30 minutes out, then 5 minutes with the reason, then 1 minute
   tick();
-  check('players hear it 30 minutes out', all.some((t) => /restart in 30 minutes: clearing the lag/.test(t)), all.join(' / '));
+  check('nothing is said 30 minutes out: the countdown warns at 5 and 1', all.length === 0, all.join(' / '));
+  now += 25 * 60000; tick();
+  check('at 5 minutes: "The server restarts in 5 minutes: <reason>"', all[all.length - 1] === 'The server restarts in 5 minutes: clearing the lag after the raid', all[all.length - 1]);
   const n = all.length; tick();
   check('each warning only once', all.length === n);
-  now += 26 * 60000; tick();
-  check('then at 5 minutes', /in 4 minutes|in 5 minutes/.test(all[all.length - 1]), all[all.length - 1]);
+  now += 4 * 60000; tick();
+  check('at 1 minute: "The server restarts in 1 minute. Find a safe spot."', all[all.length - 1] === 'The server restarts in 1 minute. Find a safe spot.', all[all.length - 1]);
 
   // a held claim postpones it
-  claimHeld = true; now += 5 * 60000; tick(); await wait(); await wait();
+  claimHeld = true; now += 60000; tick(); await wait(); await wait();
   check('another operator holding game-server puts it off 5 minutes, and nothing restarts', !execs.some((x) => /systemctl/.test(x)) && audits.some((t) => /postponed 5 min/.test(t)), audits[audits.length - 1]);
-  claimHeld = false; now += 5 * 60000 + 1000; tick(); await wait(); await wait();
+  check('players who were warned hear it is put off', all[all.length - 1] === 'The restart is put off by five minutes.', all[all.length - 1]);
+  claimHeld = false; online = []; now += 60000; tick(); await wait(); await wait();
+  check('after a postponement it does not run early on an empty server (no retry every tick)', !execs.some((x) => /systemctl/.test(x)));
+  online = [SENIOR, GM, PLAYER]; now += 4 * 60000 + 1000; tick(); await wait(); await wait();
   check('then it claims, logs with a rollback, releases, and restarts without blocking',
     execs.some((x) => x.startsWith(`${OPS} claim game-server staff-tag1`)) && execs.some((x) => x.startsWith(`${OPS} log staff-tag1 scheduled restart #1`)) && execs.some((x) => x === `${OPS} release game-server staff-tag1`) && execs.some((x) => x === 'systemctl --no-block restart skymp'), execs.filter((x) => !/^git/.test(x)).join(' ; '));
+  check('and players hear it run', all[all.length - 1] === 'The server will restart now: clearing the lag after the raid', all[all.length - 1]);
+  const restarts = () => execs.filter((x) => x === 'systemctl --no-block restart skymp').length;
 
-  // cancel, shutdown and update
-  await run('schedule', SENIOR, 'shutdown 2h moving the server to new hardware');
-  r = await run('schedule', SENIOR, 'cancel 2');
-  check('a schedule can be cancelled', /Cancelled #2/.test(r) && audits.some((t) => /#2 shutdown CANCELLED/.test(t)));
+  // "now" with players online is the 5-minute countdown
+  let before = restarts();
+  r = await run('schedule', SENIOR, 'restart now the bridge is stuck');
+  check('restart now with players online starts the 5-minute countdown and warns at once', /Scheduled #2: restart at 2026-09-25 01:4\d UTC \(in 5 minutes\)/.test(r) && all[all.length - 1] === 'The server restarts in 5 minutes: the bridge is stuck', `${r} / ${all[all.length - 1]}`);
+  now += 4 * 60000; tick(); await wait();
+  check('1 minute left', all[all.length - 1] === 'The server restarts in 1 minute. Find a safe spot.' && restarts() === before);
+  now += 60000; tick(); await wait(); await wait();
+  check('at 0:00 it runs', restarts() === before + 1);
+
+  // early: the last player leaves during the countdown
+  before = restarts();
+  await run('schedule', SENIOR, 'restart now to apply the fix');
+  now += 2 * 60000; online = []; tick(); await wait(); await wait();
+  check('the last player leaving runs it at once, 3 minutes early', restarts() === before + 1 && audits.some((t) => /#3 restart RUNNING now .*early/.test(t)), audits[audits.length - 1]);
+  check('and the ledger log says it ran early', execs.some((x) => /log staff-tag1 scheduled restart #3 .*\(early: the server was empty\)/.test(x)));
+
+  // a join in the last moment keeps the countdown going
+  before = restarts(); online = [PLAYER];
+  await run('schedule', SENIOR, 'restart now memory is high');
+  now += 60000; online = []; tick(); online = [PLAYER]; await wait(); await wait();
+  check('a player joining while it is about to run early stops it; nothing restarts', restarts() === before && audits.some((t) => /#4 restart: a player joined/.test(t)), audits[audits.length - 1]);
+  now += 3 * 60000; tick(); await wait();
+  check('the countdown goes on: the 1-minute warning still comes', all[all.length - 1] === 'The server restarts in 1 minute. Find a safe spot.', all[all.length - 1]);
+  now += 60000; tick(); await wait(); await wait();
+  check('and it runs at 0:00', restarts() === before + 1);
+
+  // cancel mid-countdown
+  online = [SENIOR, GM, PLAYER]; before = restarts();
+  await run('schedule', SENIOR, 'shutdown now moving the server to new hardware');
+  now += 2 * 60000; tick();
+  r = await run('schedule', SENIOR, 'cancel 5');
+  check('a countdown can be cancelled and warned players hear it is called off', /Cancelled #5/.test(r) && all[all.length - 1] === 'The shutdown is called off.' && audits.some((t) => /#5 shutdown CANCELLED/.test(t)), all[all.length - 1]);
+  now += 4 * 60000; tick(); await wait(); await wait();
+  check('and it never runs', !execs.some((x) => x === 'systemctl --no-block stop skymp'));
+
+  // nobody online: at once
+  online = []; before = restarts();
+  r = await run('schedule', SENIOR, 'restart now nobody is on'); await wait(); await wait();
+  check('with 0 players, restart now runs at once (no countdown, no 60 s floor)', restarts() === before + 1 && /Scheduled #6/.test(r) && audits.some((t) => /#6 restart RUNNING now .*early/.test(t)), r);
+  online = [SENIOR, GM, PLAYER];
+
+  // update
   pending = 'dddd444 fix the bridge';
   r = await run('schedule', SENIOR, 'update now the bridge fix');
-  now += 61000; tick(); await wait(); await wait();
+  now += 5 * 60000 + 1000; tick(); await wait(); await wait();
   check('an update forces the updater and starts it', fs.existsSync(path.join(dir, 'force')) && execs.includes('systemctl --no-block start skymp-update.service'), r);
   fs.writeFileSync(path.join(dir, 'hold'), '');
   check('an update is refused while the updater is on hold', /on hold/.test(await run('schedule', SENIOR, 'update 10m the next fix')));
+  fs.unlinkSync(path.join(dir, 'hold'));
+
+  // requests from the updater and the website (control-panel design 3.5)
+  const req = (name, body) => fs.writeFileSync(path.join(REQ, name), JSON.stringify(Object.assign({ v: 1, op: 'create', requestedAt: new Date(now).toISOString() }, body)));
+  const done = (id) => { try { return JSON.parse(fs.readFileSync(path.join(DONE, `${id}.json`), 'utf8')); } catch (e) { return null; } };
+  tick();
+  check('no request folder, no intake (and nothing breaks)', !fs.existsSync(DONE));
+  fs.mkdirSync(REQ, { recursive: true });
+  req('a.json', { reqId: 'upd-1', kind: 'update', reason: 'new build ready: 3 commits', by: 'skymp-update', byTag: 'updater' });
+  tick();
+  let d = done('upd-1');
+  check('the updater hand-off becomes an update with the countdown', d && d.state === 'created' && Date.parse(d.at) === now + 5 * 60000 && !fs.existsSync(path.join(REQ, 'a.json')) && !fs.existsSync(path.join(REQ, 'a.json.taken')), JSON.stringify(d));
+  check('players get the 5-minute warning for it', all[all.length - 1] === 'The server updates and restarts in 5 minutes: new build ready: 3 commits', all[all.length - 1]);
+  req('b.json', { reqId: 'web-1', kind: 'update', reason: 'panel update', by: 'jake (website)', byTag: 'web-jake' });
+  tick();
+  check('a second update request is merged into the open one', (done('web-1') || {}).state === 'merged' && done('web-1').id === d.id, JSON.stringify(done('web-1')));
+  req('c.json', { reqId: 'upd-1', kind: 'restart', reason: 'replayed', byTag: 'updater' });
+  tick();
+  check('a replayed reqId is refused', /seen before/.test((done('upd-1') || {}).why || ''), JSON.stringify(done('upd-1')));
+  req('e.json', { reqId: 'old-1', kind: 'restart', reason: 'stale request', byTag: 'web-jake', requestedAt: new Date(now - 3 * 60000).toISOString() });
+  req('f.json', { reqId: 'tag-1', kind: 'restart', reason: 'bad tag here', byTag: 'claude-nate' });
+  req('g.json', { reqId: 'kind-1', kind: 'reboot', reason: 'wrong kind', byTag: 'web-jake' });
+  tick();
+  check('stale, badly tagged and unknown-kind requests are refused', /older than 2 minutes/.test(done('old-1').why) && /byTag/.test(done('tag-1').why) && /kind must be/.test(done('kind-1').why));
+  req('h.json', { reqId: 'can-1', op: 'cancel', id: d.id, reason: 'not now', by: 'jake (website)', byTag: 'web-jake' });
+  tick();
+  check('a cancel request calls it off, and warned players hear it', (done('can-1') || {}).state === 'cancelled' && all[all.length - 1] === 'The update is called off.', all[all.length - 1]);
+  fs.writeFileSync(path.join(CONTROL, 'disabled'), '');
+  req('i.json', { reqId: 'kill-1', kind: 'restart', reason: 'while disabled', byTag: 'web-jake' });
+  tick();
+  check('the kill switch file stops intake at once; the request waits untouched', !done('kill-1') && fs.existsSync(path.join(REQ, 'i.json')));
+  fs.unlinkSync(path.join(CONTROL, 'disabled')); fs.unlinkSync(path.join(REQ, 'i.json'));
+
+  // config tuning
+  const t0 = restarts();
+  load({ countdownMin: 10, warnAt: [10, 3], earlyFireWhenEmpty: false });
+  all.length = 0;
+  r = await run('schedule', SENIOR, 'restart now tuned countdown');
+  check('countdownMin 10: now is 10 minutes, warned at 10', /\(in 10 minutes\)/.test(r) && all[0] === 'The server restarts in 10 minutes: tuned countdown', `${r} / ${all[0]}`);
+  now += 7 * 60000; online = []; tick(); await wait(); await wait();
+  check('warnAt 3 is the last mark; earlyFireWhenEmpty false waits on an empty server', all[all.length - 1] === 'The server restarts in 3 minutes. Find a safe spot.' && restarts() === t0, all[all.length - 1]);
+  now += 3 * 60000; tick(); await wait(); await wait();
+  check('and runs at its time', restarts() === t0 + 1);
 
   Date.now = realNow;
   process.chdir(home);

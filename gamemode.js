@@ -3071,7 +3071,8 @@ try {
   delete require.cache[UPDATES_JS];
   const auth = serverSettings.discordAuth || {};
   require(UPDATES_JS)({ log, personal, audit, who, tagOf, onlineActors, every, registerChatCommand, isAdmin, tierOf, cfg,
-    sayAll: (text) => { for (const x of onlineActors()) system(x, text); },
+    // The staff-announcement path: on screen and in chat (addendum A1)
+    sayAll: (text) => { for (const x of onlineActors()) { system(x, text); personal(x, text); } },
     token: (cfg.discord || {}).botToken || auth.botToken, channelId: ((cfg.updates || {}).channelId) || (cfg.discord || {}).channelId });
 } catch (e) { log('updates.js failed to load:', e.stack || e.message); }
 
