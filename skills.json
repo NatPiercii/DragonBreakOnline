@@ -595,13 +595,7 @@
     0.07,
     0.1
    ],
-   "tiers": [
-    "Read common books",
-    "Better copies",
-    "Rare books",
-    "Scrolls",
-    "Spell tomes"
-   ],
+   "tiers": ["Read common books; now and then a scroll", "Better copies; now and then a novice spell tome", "Rare books", "More and stronger scrolls; apprentice spell tomes", "Adept spell tomes"],
    "markerSpells": [
     "<T1>",
     "<T2>",
