@@ -213,12 +213,20 @@ export class CharacterSelectService extends ClientListener {
     if (e.name !== Menu.Journal) return;
     this.journalOpen = true;
     this.journalSeenAt = Date.now();
+    this.sendJournalState(true);
   }
 
   private onMenuClose(e: MenuCloseEvent): void {
     if (e.name !== Menu.Journal) return;
     this.journalOpen = false;
     this.journalSeenAt = Date.now();
+    this.sendJournalState(false);
+  }
+
+  // Every quit through the menus passes the Journal (the pause menu that holds Quit), so the server's monitor counts a
+  // disconnect with it still open as a quit, and one without it as a possible crash (tooling/dbo-monitor)
+  private sendJournalState(open: boolean): void {
+    try { sendCustomPacket(this.controller, { customPacketType: "dbo", event: "clientState", args: [{ journal: open }] }); } catch { /* offline */ }
   }
 
   private onUpdate(): void {
