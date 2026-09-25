@@ -465,7 +465,11 @@ export class FormView {
           if (pin.translating || pin.offset === "held" || pin.offset === "moving") {
             settleTranslation(refr);
             ac.evaluatePackage();
-            reportPin(this.remoteRefrId, ac, model, pin, this.movState.everApplied);
+            // On the grant's first frame this is the remote playback HostStart's settle has not reached yet
+            // (update callbacks run in no fixed order), not a pin
+            if (this.movState.wasHosted) {
+              reportPin(this.remoteRefrId, ac, model, pin, this.movState.everApplied);
+            }
           }
         }
       }
@@ -473,6 +477,7 @@ export class FormView {
       this.movState.havokSeated = false;
       this.movState.weapReleased = false;
     }
+    this.movState.wasHosted = alreadyHosted;
 
     if (!model.isHostedByOther && !alreadyHosted && !isOwnCompanion(this.remoteRefrId)) {
       if (ac && this.remoteRefrId) {
@@ -1055,6 +1060,8 @@ export class FormView {
     offsetApplied: false,
     weapReleased: false,
     havokSeated: false,
+    // alreadyHosted on the previous applyAll
+    wasHosted: false,
   };
   private appearanceState = this.getDefaultAppearanceState();
   private eqState = this.getDefaultEquipState();

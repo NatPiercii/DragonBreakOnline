@@ -29,6 +29,7 @@ import { Movement } from '../../sync/movement';
 import { enforceSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
 import { setRefrCollision } from '../../sync/animation';
+import { settleTranslation } from '../../sync/movementApply';
 import { isOwnCompanion } from './companionService';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
@@ -197,12 +198,17 @@ export class RemoteServer extends ClientListener {
         const localId = remoteIdToLocalId(target);
         const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
         if (!ac || ac.getFormID() === 0x14) return;
-        ac.stopTranslation();
-        setRefrCollision(ac.getFormID(), true);
+        if (isOwnCompanion(target)) {
+          // Own companions keep the follow order CompanionService gives them
+          ac.stopTranslation();
+          setRefrCollision(ac.getFormID(), true);
+        } else {
+          // Through movementApply, which also forgets the playback it tracked: stopping the engine side alone left
+          // it marked translating, and FormView reported every hand-off as a pinned copy
+          settleTranslation(ac);
+        }
         // A remote copy may have been locked sheathed; our own AI decides from here
         TESModPlatform.setWeaponDrawnMode(ac, -1);
-        // Own companions keep the follow order CompanionService gives them
-        if (!isOwnCompanion(target)) ac.clearKeepOffsetFromActor();
         // Re-seat it where it stands so havok takes it back, but never while the world is still
         // streaming: forcing a position on an actor without 3D can wedge the load.
         if (ac.is3DLoaded()) {
