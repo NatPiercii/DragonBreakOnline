@@ -1704,9 +1704,12 @@ const READ = Object.assign({
   wordsByTier: [[5, 7], [6, 8], [7, 9], [8, 10], [9, 12]],
   // A scroll pressed between the pages of a book read through, by Scholar tier (Nate, 2026-09-25: scrolls let a new
   // mage cast, and so train Arcane Arts or Priest, before owning a spell). The tier also caps the scroll's value.
-  scrollChanceByTier: [0.2, 0.25, 0.3, 0.35, 0.4],
+  // The book cooldown is per book, not per reader (one player finished 136 readings in an hour across 99 books on
+  // 2026-09-25), so the chance stays low and a character finds at most scrollDailyCap scrolls a day.
+  scrollChanceByTier: [0.04, 0.05, 0.06, 0.07, 0.08],
   scrollMaxValueByTier: [50, 100, 250, 500, 0],
-  scrollExcludePattern: '^DLC\\d(Exp|dun)|^MGR|^dun|Empty|Quest|ENEMY',
+  scrollDailyCap: 6,
+  scrollExcludePattern: '^DLC\\d(Exp|dun)|^MGR|^dun|^TG|Empty|Quest|ENEMY',
 }, cfg.reading || {});
 // A random scroll a reader of this Scholar tier may find: within the tier's value cap, quest and empty ones left out
 const scrollFor = (tier) => {
@@ -1898,14 +1901,17 @@ onUi('reading', (a, args) => {
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     if (ses.baseId && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) results.push(`you copy out ${ses.title} and keep it`);
     const scrollChance = Number((READ.scrollChanceByTier || [])[Math.min(tier, 4)]) || 0;
-    if (scrollChance > 0 && Math.random() < scrollChance) {
+    const today = new Date().toISOString().slice(0, 10);
+    let found = null; try { found = mp.get(a, 'private.scholarScrolls'); } catch (e) { found = null; }
+    const foundToday = found && found.day === today ? Number(found.n) || 0 : 0;
+    if (scrollChance > 0 && foundToday < (Number(READ.scrollDailyCap) || 0) && Math.random() < scrollChance) {
       const pick = scrollFor(tier);
-      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) results.push(`a scroll was tucked between the pages: ${humanize(pick.name)}`); } catch (e) { log('readable give failed', pick.id, e.message); } }
+      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a scroll was tucked between the pages: ${humanize(pick.name)}`); mp.set(a, 'private.scholarScrolls', { day: today, n: foundToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
     if (tier >= 3 && Math.random() < tomeChance) {
       const wantTome = tier >= 4 && Math.random() < 0.5;
-      const pool = wantTome ? (READABLES.tomes || []).filter((t) => Number(t.rank) <= Math.max(0, tier - 2)) : (READABLES.scrolls || []);
-      const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+      const pool = wantTome ? (READABLES.tomes || []).filter((t) => Number(t.rank) <= Math.max(0, tier - 2)) : null;
+      const pick = pool ? (pool.length ? pool[Math.floor(Math.random() * pool.length)] : null) : scrollFor(tier);
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) results.push(`a ${wantTome ? 'spell tome' : 'scroll'} was pressed between the pages: ${humanize(pick.name)}`); } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
     reads[ses.refId.toString(16)] = Date.now() + READ.cooldownMinutes * 60000;
