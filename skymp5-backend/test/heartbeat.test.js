@@ -1,7 +1,7 @@
 'use strict'
 // Heartbeat authorization for POST /api/servers/:key, plus the key-only GET routes the launcher and client use
 
-const { test, before, after, mock } = require('node:test')
+const { test, before, beforeEach, after, mock } = require('node:test')
 const assert = require('node:assert/strict')
 const crypto = require('crypto')
 const http   = require('http')
@@ -26,7 +26,7 @@ delete process.env.HEARTBEAT_REQUIRE_TOKEN
 const express = require('express')
 const config  = require('../config')
 const servers = require('../routes/servers')
-const { safeEqual, isLoopbackAddress, isDirectLocal } = require('../middleware/heartbeatAuth')
+const { safeEqual, isLoopbackAddress, isDirectLocal, resetTokenLatch } = require('../middleware/heartbeatAuth')
 
 let app, server, base, gameUi
 const PUBLIC_PEER = '10.10.10.1'
@@ -85,6 +85,8 @@ before(async () => {
   base = `http://127.0.0.1:${await listen(server, '127.0.0.1')}`
 })
 
+beforeEach(() => resetTokenLatch())
+
 after(() => {
   server.close()
   gameUi.close()
@@ -130,6 +132,18 @@ test('loopback request relayed by a proxy is not treated as local', async () => 
     const res = await beat({ headers: { [h]: h === 'forwarded' ? 'for=203.0.113.9' : '203.0.113.9' } })
     assert.equal(res.status, 403, h)
   }
+})
+
+test('after one valid token, a tokenless loopback heartbeat is refused (Tailscale userspace and ssh -L look like loopback)', async () => {
+  assert.equal((await beat()).status, 200)
+  assert.equal((await beat({ token: TOKEN })).status, 200)
+  assert.equal((await beat()).status, 403)
+  assert.equal((await beat({ token: 'stale' })).status, 403)
+  assert.equal((await beat({ token: TOKEN })).status, 200)
+})
+
+test('any x-forwarded-* or via header marks a loopback peer as relayed', async () => {
+  for (const h of ['x-forwarded-host', 'x-forwarded-proto', 'via']) assert.equal((await beat({ headers: { [h]: 'x' } })).status, 403, h)
 })
 
 test('wrong master key is refused even with the right token', async () => {
