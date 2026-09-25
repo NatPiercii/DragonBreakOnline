@@ -2,9 +2,9 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, notifyNextUpdate } from "./customPacketUtil";
-import { closeWidget, showUi } from "./widgetMenuUtil";
+import { closeWidget, isMenuHotkeyBlocked, readMenuKeyCode, showUi } from "./widgetMenuUtil";
 import { FunctionInfo } from "../../lib/functionInfo";
-import { BrowserMessageEvent, ObjectReference } from "skyrimPlatform";
+import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, ObjectReference } from "skyrimPlatform";
 import { getInventory, Entry, EnchantmentEffect, effectsKey, isBoundItem, PROPERTY_KEY_BASE_ID } from "../../sync/inventory";
 import { logTrace } from "../../logging";
 
@@ -115,6 +115,21 @@ const events = {
 // Module-level state shared with the browser-side widget setters via runtime injection.
 let tradeData: any = {};
 let inviteFrom = '';
+let inviteKey = 'X';
+
+// A trade request waits without the keyboard, so it never freezes a player mid-fight; the interact key hands it the
+// cursor. PlayerActionService asks this so the same press does not also open the X menu.
+let inviteWaiting = false;
+export const isTradeInviteWaiting = (): boolean => inviteWaiting;
+
+// DirectInput scan codes of the letter keys, for naming the interact key in the prompt
+const LETTER_ROWS: Array<[number, string]> = [[0x10, 'QWERTYUIOP'], [0x1e, 'ASDFGHJKL'], [0x2c, 'ZXCVBNM']];
+const keyLabel = (code: number): string => {
+  for (const [first, letters] of LETTER_ROWS) {
+    if (code >= first && code < first + letters.length) return letters[code - first];
+  }
+  return 'the interact key';
+};
 
 /**
  * Player-to-player trading. The interact (Y) menu sends a `tradeRequest` for the
@@ -145,6 +160,26 @@ export class TradeService extends ClientListener {
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden) this.cancelOnHide(); });
+    this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
+    // The same binding PlayerActionService reads for the X menu
+    this.interactKey = readMenuKeyCode(sp, "playerActionKeyCode", readMenuKeyCode(sp, "housingMenuKeyCode", DxScanCode.X));
+    inviteKey = keyLabel(this.interactKey);
+  }
+
+  // The interact key gives a waiting trade request the cursor; Escape hands the keyboard back and the request keeps
+  // waiting. Keyboard only: gamepad idCodes alias onto keyboard scancodes.
+  private onButtonEvent(e: ButtonEvent): void {
+    if (!e.isDown || e.device !== InputDeviceType.Keyboard || !this.invitePending) return;
+    if (e.code === DxScanCode.Escape && this.inviteFocused) {
+      this.inviteFocused = false;
+      this.sp.browser.setFocused(false);
+      return;
+    }
+    if (e.code !== this.interactKey || this.inviteFocused || this.windowOpen) return;
+    if (isMenuHotkeyBlocked(this.sp, this.controller)) return;
+    this.inviteFocused = true;
+    this.sp.browser.setVisible(true);
+    this.sp.browser.setFocused(true);
   }
 
   // Hiding ends the trade on both sides like the cancel button, else the partner's next move reopens it
@@ -176,7 +211,7 @@ export class TradeService extends ClientListener {
       case "tradeState": {
         const prev = this.state;
         this.state = this.parseState(content);
-        this.closeInvite();
+        this.closeInvite(true);
         const wasLockPending = this.lockPending;
         this.lockPending = false;
         // Packet handlers run in tick context where inventory natives throw; defer to update
@@ -514,21 +549,29 @@ export class TradeService extends ClientListener {
   // Passive invite: shown without seizing input focus (like chat); a System-tab notification points at it.
   private openInvite(): void {
     this.sp.browser.executeJavaScript(
-      new FunctionInfo(this.inviteWidgetSetter).getText({ events, inviteFrom, INVITE_WIDGET_ID })
+      new FunctionInfo(this.inviteWidgetSetter).getText({ events, inviteFrom, inviteKey, INVITE_WIDGET_ID })
     );
     showUi(this.controller);
     this.sp.browser.setVisible(true);
     this.invitePending = true;
-    notifyNextUpdate(this.controller, this.sp, inviteFrom + " wants to trade with you.");
+    inviteWaiting = true;
+    notifyNextUpdate(this.controller, this.sp, inviteFrom + " wants to trade with you. Press " + inviteKey + " to answer.");
   }
 
   private closeWidget(): void {
     closeWidget(this.sp, WIDGET_ID);
   }
 
-  private closeInvite(): void {
+  // keepFocus: the trade window opens next and takes over the focus the invite held, with no release in between
+  // (a release landing after the window's own focus loses the cursor, as the inn prompt did on 2026-09-25)
+  private closeInvite(keepFocus = false): void {
     this.invitePending = false;
+    inviteWaiting = false;
     closeWidget(this.sp, INVITE_WIDGET_ID);
+    if (!this.inviteFocused) return;
+    this.inviteFocused = false;
+    if (keepFocus) this.windowOpen = true;
+    else this.sp.browser.setFocused(false);
   }
 
   private closeAll(): void {
@@ -556,7 +599,7 @@ export class TradeService extends ClientListener {
       id: INVITE_WIDGET_ID,
       caption: "Trade Request",
       elements: [
-        { type: "text", text: inviteFrom + " wants to trade with you.", tags: [] },
+        { type: "text", text: inviteFrom + " wants to trade with you. Press " + inviteKey + " to answer.", tags: [] },
         { type: "button", text: "Accept", tags: ["ELEMENT_STYLE_MARGIN_EXTENDED"], click: () => window.skyrimPlatform.sendMessage(events.inviteAccept) },
         { type: "button", text: "Decline", tags: ["ELEMENT_SAME_LINE"], click: () => window.skyrimPlatform.sendMessage(events.inviteDecline) },
       ],
@@ -571,5 +614,7 @@ export class TradeService extends ClientListener {
   private lockPending = false;
   private windowOpen = false;
   private invitePending = false;
+  private inviteFocused = false;
+  private interactKey: number = DxScanCode.X;
   private nameCache = new Map<number, string>();
 }

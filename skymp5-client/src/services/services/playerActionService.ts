@@ -7,6 +7,7 @@ import { logTrace } from "../../logging";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { isOwnCompanion } from "./companionService";
+import { isTradeInviteWaiting } from "./tradeService";
 
 // for the browser-side widget setter (executed inside the CEF browser)
 declare const window: any;
@@ -80,6 +81,10 @@ export class PlayerActionService extends ClientListener {
     // H pulls a mask up or down; the gamemode dresses the character and swaps the shown name
     const hPressed = e.device === InputDeviceType.Keyboard && e.code === this.maskKey;
     if ((!xPressed && !hPressed) || this.menuOpen) {
+      return;
+    }
+    // A waiting trade request takes the interact key (TradeService gives it the cursor)
+    if (xPressed && isTradeInviteWaiting()) {
       return;
     }
     if (isMenuHotkeyBlocked(this.sp, this.controller)) {
