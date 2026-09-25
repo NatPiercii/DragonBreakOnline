@@ -344,7 +344,8 @@ bool CanHitWithSpell(const MpActor& actor, uint32_t spellId)
 MpActor* ActionListener::SendToNeighbours(uint32_t idx,
                                           Networking::UserId userId,
                                           Networking::PacketData data,
-                                          size_t length, bool reliable)
+                                          size_t length, bool reliable,
+                                          bool checkOnly)
 {
   MpActor* myActor = partOne.serverState.ActorByUser(userId);
   // The old behavior is doing nothing in that case. This is covered by tests
@@ -390,6 +391,10 @@ MpActor* ActionListener::SendToNeighbours(uint32_t idx,
     }
   }
 
+  if (checkOnly) {
+    return actor;
+  }
+
   for (auto listener : actor->GetActorListeners()) {
     auto targetuserId = partOne.serverState.UserByActor(listener);
     if (targetuserId != Networking::InvalidUserId) {
@@ -402,10 +407,70 @@ MpActor* ActionListener::SendToNeighbours(uint32_t idx,
 
 MpActor* ActionListener::SendToNeighbours(uint32_t idx,
                                           const RawMessageData& rawMsgData,
-                                          bool reliable)
+                                          bool reliable, bool checkOnly)
 {
   return SendToNeighbours(idx, rawMsgData.userId, rawMsgData.unparsed,
-                          rawMsgData.unparsedLength, reliable);
+                          rawMsgData.unparsedLength, reliable, checkOnly);
+}
+
+// The server owns where an NPC is (Nat, 2026-09-25). A hoster's copy that jumps further in one update than any
+// NPC can move (1024 units, or 2500 units/s since the last accepted update) is not relayed and not applied, and
+// the hoster's copy is teleported back to the server's position, at most once a second. The playtest showed
+// hosted copies jumping 450-4300 units back to stale spots and every watcher seeing them rubber-band. If the
+// hoster insists for 3 s its position wins, so an NPC that really moved (a fall, a slip in the server's own
+// copy) is never frozen, which is why NPC moves used to be relayed before any check.
+bool ActionListener::RefuseNpcJump(MpActor& actor, const NiPoint3& newPos)
+{
+  constexpr float kMinJump = 1024.f;
+  constexpr float kMaxSpeed = 2500.f;
+  constexpr float kMaxDtSec = 3.f;
+  const auto kInsistFor = std::chrono::seconds(3);
+  const auto kCorrectEvery = std::chrono::seconds(1);
+  const auto kLogEvery = std::chrono::seconds(10);
+
+  const auto now = std::chrono::steady_clock::now();
+  auto& st = npcJumps[actor.GetFormId()];
+  const float dtSec =
+    st.lastAccepted.time_since_epoch().count() == 0
+    ? kMaxDtSec
+    : std::min(kMaxDtSec,
+               std::chrono::duration<float>(now - st.lastAccepted).count());
+  const float allowed = std::max(kMinJump, kMaxSpeed * dtSec);
+  const float step = (newPos - actor.GetPos()).Length();
+
+  if (step <= allowed) {
+    st.disagreeing = false;
+    st.lastAccepted = now;
+    return false;
+  }
+  if (!st.disagreeing) {
+    st.disagreeing = true;
+    st.disagreeSince = now;
+  }
+  if (now - st.disagreeSince >= kInsistFor) {
+    st.disagreeing = false;
+    st.lastAccepted = now;
+    partOne.GetLogger().info(
+      "NpcJump {:x}: the hoster held a position {:.0f} away for 3 s, taking it",
+      actor.GetFormId(), step);
+    return false;
+  }
+  if (now - st.lastCorrection >= kCorrectEvery) {
+    st.lastCorrection = now;
+    LocationalData here;
+    here.pos = actor.GetPos();
+    here.rot = actor.GetAngle();
+    here.cellOrWorldDesc = actor.GetCellOrWorld();
+    actor.Teleport(here);
+  }
+  if (now - st.lastLog >= kLogEvery) {
+    st.lastLog = now;
+    partOne.GetLogger().info(
+      "NpcJump {:x}: refused a {:.0f} step (allowed {:.0f}), hoster's copy "
+      "sent back",
+      actor.GetFormId(), step, allowed);
+  }
+  return true;
 }
 
 void ActionListener::OnCustomPacket(const RawMessageData& rawMsgData,
@@ -436,8 +501,30 @@ void ActionListener::OnUpdateMovement(const RawMessageData& rawMsgData,
   const bool isOwnActor = myActor && myActor->GetIdx() == msg.idx;
 
   // A player's refused packet must not reach other clients, so own movement is
-  // validated before it is relayed. Hosted actors keep the old order
-  auto actor = isOwnActor ? myActor : SendToNeighbours(msg.idx, rawMsgData);
+  // validated before it is relayed. A hosted NPC is checked for an impossible
+  // jump before it is relayed; everything else about it keeps the old order
+  MpActor* actor = myActor;
+  if (!isOwnActor) {
+    actor = SendToNeighbours(msg.idx, rawMsgData, false, true);
+    if (!actor) {
+      return;
+    }
+    const bool sameWorld = actor->GetCellOrWorld() ==
+      FormDesc::FromFormId(msg.data.worldOrCell,
+                           actor->GetParent()->espmFiles);
+    if (sameWorld && !actor->GetTeleportFlag() &&
+        RefuseNpcJump(*actor,
+                      NiPoint3{ msg.data.pos[0], msg.data.pos[1],
+                                msg.data.pos[2] })) {
+      return;
+    }
+    // Right after a server teleport the next packet is refused below
+    // (kInfinityPos); it was sent before the hoster saw the teleport, so
+    // watchers are not shown that stale position either
+    if (!actor->GetTeleportFlag()) {
+      SendToNeighbours(msg.idx, rawMsgData);
+    }
+  }
   if (actor) {
     bool teleportFlag = actor->GetTeleportFlag();
     actor->SetTeleportFlag(false);

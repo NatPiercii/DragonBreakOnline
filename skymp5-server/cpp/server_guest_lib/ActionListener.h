@@ -141,10 +141,22 @@ private:
   // Returns user's actor if there is attached one
   MpActor* SendToNeighbours(uint32_t idx, Networking::UserId userId,
                             Networking::PacketData data, size_t length,
-                            bool reliable);
+                            bool reliable, bool checkOnly = false);
 
   MpActor* SendToNeighbours(uint32_t idx, const RawMessageData& rawMsgData,
-                            bool reliable = false);
+                            bool reliable = false, bool checkOnly = false);
+
+  // A hosted NPC's step the server refuses (see OnUpdateMovement): the hoster's copy is sent back
+  struct NpcJumpState
+  {
+    std::chrono::steady_clock::time_point lastAccepted;
+    std::chrono::steady_clock::time_point disagreeSince;
+    std::chrono::steady_clock::time_point lastCorrection;
+    std::chrono::steady_clock::time_point lastLog;
+    bool disagreeing = false;
+  };
+  std::unordered_map<uint32_t, NpcJumpState> npcJumps;
+  bool RefuseNpcJump(MpActor& actor, const NiPoint3& newPos);
 
   PartOne& partOne;
 
