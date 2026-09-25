@@ -105,6 +105,10 @@ module.exports = (api) => {
   if (!terrain) log(`npcGround: no ${FILE}, the ground check is off`);
   else if (!cached || cached.terrain !== terrain) log(`npcGround: ${terrain.cells} terrain cells in ${terrain.worlds} world(s)`);
 
+  // npcSpawnSystem.ts gives each outer spawn slot the terrain height under it: slots spread in rings at the zone
+  // centre's height started inside the hill on every slope (ogres and deer 90-230 under, playtest 2026-09-25)
+  globalThis.__dboTerrainAt = (desc, x, y) => (terrain ? terrain.at(desc, Number(x), Number(y)) : null);
+
   globalThis.__dboTerrainDz = (desc, pos) => {
     if (!terrain || !Array.isArray(pos)) return null;
     const t = terrain.at(desc, Number(pos[0]), Number(pos[1]));
