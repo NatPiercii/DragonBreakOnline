@@ -105,7 +105,6 @@
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-// The server accepts a 700 KiB JPEG and keeps the last 180 KB of each log, where the failure is
 const MAX_IMAGE_BYTES=680*1024, LOG_TAIL_BYTES=180*1024;
 const ERRORS={413:'The report is too large. Leave out one of the logs and try again.',502:'The report could not be filed just now. Try again in a minute, or tell a staff member in Discord.',
   429:'Too many reports just now. Wait a few minutes and try again.',503:'Reporting is switched off on the server right now. Tell a staff member in Discord.'};
@@ -122,7 +121,6 @@ async function tail(input){
   catch(e){throw new Error('unreadable:'+file.name);}
 }
 
-// Re-encoding drops the file's metadata and keeps the upload small; quality steps down until it fits
 async function encode(file){
   const bmp=await createImageBitmap(file);
   try{
@@ -147,12 +145,10 @@ function clearPreview(){
 }
 
 $('shot').addEventListener('change',async()=>{
-  // Only the newest pick may finish: an older, slower encode is dropped when it returns
   const gen=++shotGen;
   clearPreview();status('');
   const file=$('shot').files[0];
   if(!file){encoding=false;$('send').disabled=false;return;}
-  // Send waits until the picture is ready, so an early click cannot drop it
   encoding=true;$('send').disabled=true;status('Preparing the screenshot\u2026');
   try{
     const blob=await encode(file);
@@ -174,7 +170,6 @@ for(const b of document.querySelectorAll('[data-copy]')){
   });
 }
 
-// The sign-in opens in a new tab so what the player has typed and picked stays on this page
 function signInAgain(){
   const s=$('status');s.textContent='Your sign-in has expired. ';s.className='bad';
   const a=document.createElement('a');a.href='/api/site/login';a.target='_blank';a.rel='noopener';a.textContent='Sign in again in a new tab';
@@ -189,7 +184,6 @@ $('form').addEventListener('submit',async ev=>{
   catch(e){return status('Could not read '+String(e.message).replace(/^unreadable:/,'')+'. Pick the file again, or leave it out.',true);}
   if(shot&&$('includeShot').checked)body.screenshot={type:'image/jpeg',data:shot.data};
   if(!body.note&&!body.launcherLog&&!body.gameLog&&!body.skseLog&&!body.screenshot)return status('Describe the problem or attach something first.',true);
-  // The same id on a retry lets the server drop a duplicate if the first attempt did arrive
   if(!reportId)reportId=newReportId();
   if(reportId)body.reportId=reportId;
   $('send').disabled=true;status('Sending\u2026');
@@ -209,7 +203,6 @@ $('again').addEventListener('click',()=>{$('form').reset();clearPreview();$('not
 async function main(){
   let r;
   try{r=await fetch('/api/site/whoami',{cache:'no-store'});}catch(e){return show('unavailable');}
-  // The LAN listener does not proxy /api/site/, and the sign-in cookie belongs to the public host
   if(r.status===404)return show('lanOnly');
   let me=null;
   try{if(r.ok)me=await r.json();}catch(e){}
