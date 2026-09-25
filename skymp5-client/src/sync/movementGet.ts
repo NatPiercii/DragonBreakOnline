@@ -1,5 +1,5 @@
 import { FormModel } from '../view/model';
-import { ObjectReference, Actor, TESModPlatform } from "skyrimPlatform";
+import { ObjectReference, Actor, Game, TESModPlatform } from "skyrimPlatform";
 import { NiPoint3, Movement, RunMode } from "./movement";
 import { ObjectReferenceEx } from '../extensions/objectReferenceEx';
 
@@ -53,6 +53,14 @@ export const getMovement = (refr: ObjectReference, form?: FormModel): Movement =
         combatTarget.getPositionZ(),
       ];
     }
+  } else if (ac && ac.isWeaponDrawn()) {
+    // The player has no combat target, so watchers' copies aimed nowhere and drew our arrows flying straight
+    // ahead into the distance; the actor under the crosshair gives them something to aim at (movementApply looks
+    // for the actor within 128 units of this point)
+    try {
+      const aimed = Actor.from(Game.getCurrentCrosshairRef());
+      if (aimed && !aimed.isDead()) lookAt = [aimed.getPositionX(), aimed.getPositionY(), aimed.getPositionZ()];
+    } catch { /* no crosshair target */ }
   }
 
   const pos = ObjectReferenceEx.getPos(refr);
