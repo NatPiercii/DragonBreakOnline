@@ -3059,6 +3059,13 @@ try {
     token: (cfg.discord || {}).botToken || auth.botToken, channelId: ((cfg.updates || {}).channelId) || (cfg.discord || {}).channelId });
 } catch (e) { log('updates.js failed to load:', e.stack || e.message); }
 
+// ---- /monitor: the dbo-monitor service's view for staff (server\monitor.js; tooling/dbo-monitor) -----------------
+try {
+  const MONITOR_JS = path.resolve('monitor.js');
+  delete require.cache[MONITOR_JS];
+  require(MONITOR_JS)({ personal, registerChatCommand, isAdmin, cfg });
+} catch (e) { log('monitor.js failed to load:', e.stack || e.message); }
+
 // ---- GM warbands and raids: catalog NPCs that follow the GM (server\warband.js; companionSystem.ts __dboCompanions) ------
 try {
   const WARBAND_JS = path.resolve('warband.js');
