@@ -465,9 +465,13 @@ module.exports = (api) => {
     }
     for (const id of lease.seenNpcs) { if (!snap.set.has(id)) lease.deadNpcs.add(id); } // swept corpse
   };
+  // Slots the spawn system has given up (a spot that dropped its NPCs through the floor) are never filled; counted,
+  // they held a lease open to the end of its hour (11 such slots in Serpent's Trail, Red Ruby Cave and Bleak Falls)
+  const givenUp = (lease) => { try { return typeof globalThis.__alduinakNpcGivenUp === 'function' ? Math.max(0, Number(globalThis.__alduinakNpcGivenUp(`${ZONE_PREFIX}${lease.id}:`)) || 0) : 0; } catch (e) { return 0; } };
+  const enemiesToClear = (lease) => Math.max(0, lease.totalNpcs - givenUp(lease));
   const isCleared = (lease) => {
     const d = byId.get(lease.id); if (!d) return false;
-    if (lease.seenNpcs.size < lease.totalNpcs) return false;
+    if (lease.seenNpcs.size < enemiesToClear(lease)) return false;
     for (const id of lease.seenNpcs) if (!lease.deadNpcs.has(id)) return false;
     for (const id of d.bigChestIds) if (!lease.looted.has(id)) return false;
     return true;
@@ -1135,7 +1139,7 @@ module.exports = (api) => {
     const lines = [];
     if (here) {
       const l = ST.leases.get(here.id);
-      if (l) { trackNpcs(l); lines.push(`${here.name}: claimed by ${l.leader === profileOf(a) ? 'you' : 'someone'} on ${l.difficulty}, ${minutesLeft(l.endsAt)} min left. Enemies ${l.deadNpcs.size}/${l.totalNpcs} down, big chests ${here.bigChestIds.filter((id) => l.looted.has(id)).length}/${here.bigChestIds.length} opened (${l.looted.size}/${here.chestIds.length} containers), ${l.locked.size - l.unlocked.size} still locked.`); }
+      if (l) { trackNpcs(l); lines.push(`${here.name}: claimed by ${l.leader === profileOf(a) ? 'you' : 'someone'} on ${l.difficulty}, ${minutesLeft(l.endsAt)} min left. Enemies ${l.deadNpcs.size}/${enemiesToClear(l)} down, big chests ${here.bigChestIds.filter((id) => l.looted.has(id)).length}/${here.bigChestIds.length} opened (${l.looted.size}/${here.chestIds.length} containers), ${l.locked.size - l.unlocked.size} still locked.`); }
       else lines.push(`${here.name}: not claimed. Enter through the door to claim it.`);
     }
     const active = [...ST.leases.values()]; if (active.length) lines.push('Claimed now: ' + active.map((l) => `${l.name} (${minutesLeft(l.endsAt)} min)`).join(', '));
