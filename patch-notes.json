@@ -1,5 +1,35 @@
 [
   {
+    "title": "Steady Ground, Quick Hands",
+    "date": "2026-09-25",
+    "version": "Server + client 0.3.43",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "The server crashes tonight are fixed. When a creature despawned, a late message about it could read memory that had already been freed and take the whole server down.",
+          "Scrolls work properly: casting one uses it up and trains Arcane Arts or Priest by its school. The server used to refuse every scroll cast, so scrolls never counted and were never used up.",
+          "Sentinel armor can be forged. The server did not recognise those recipes at the forge, cancelled the craft and handed the materials back.",
+          "Parties survive a server restart or crash, so friendly fire stays reduced inside your party afterwards.",
+          "The party and companion panels clear when the party breaks up or the companion is gone.",
+          "A trade request now says \"Press X to answer\": X gives the request your cursor and Escape hands it back. You no longer need Enter to reach the buttons.",
+          "Guard, jail and spell menus that lead to a second menu keep your cursor.",
+          "Creatures and NPCs are handled more reliably: when someone leaves or a creature is removed, the one controlling it hands it over cleanly, and a respawn shows for everyone nearby."
+        ]
+      },
+      {
+        "heading": "New",
+        "items": [
+          "Pickpocketing: sneak up on someone and press X, then choose Pickpocket. Your Lockpicking skill sets the odds, and it is easier from behind and harder against a drawn weapon. You take a little coin or one thing from their pockets, never what they are wearing and never a key. If you are caught, they know at once; if not, they notice what is missing a minute later.",
+          "Combat is more about skill: a blocked blow can still chip through and costs the blocker stamina, heavy blows can break a guard, a shield bash deals a little damage and staggers, and power attacks stagger. Veteran defenders resist being bashed off their feet.",
+          "Player-on-player damage is up 25%, better weapon materials hit harder, and Destruction spells grow stronger with your Arcane Arts tier.",
+          "Surviving Hircine's Great Hunt now gives you Sanies Lupinus instead of turning you on the spot; the fever does the turning once it runs its course."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Level Points and the Beast",
     "date": "2026-09-25",
     "version": "Server",
