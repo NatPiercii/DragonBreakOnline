@@ -110,7 +110,6 @@
 <script>
 const $=id=>document.getElementById(id);
 const DOT=' \u00b7 ';
-// Fixed text for each ?error= value the sign-in callback sends; the value itself is never shown
 const SIGN_IN_ERRORS={
   cancelled:'Sign-in was cancelled on Discord.',
   state:'Your sign-in expired or was started in another browser. Please try again.',
@@ -148,7 +147,6 @@ function masteryText(n){return n>0?n+(n===1?' mastery':' masteries'):'No masteri
 function placeText(p){return p&&p.label?p.label+(p.editorId?' (editor ID)':''):null;}
 function titleText(t){return t.group?t.title+DOT+t.group:t.title;}
 function vitalsText(v){v=v||{};return 'Health '+pct(v.health)+DOT+'Magicka '+pct(v.magicka)+DOT+'Stamina '+pct(v.stamina);}
-// The backend builds avatar links on Discord's CDN only; anything else is dropped
 function discordAvatar(u){try{return typeof u==='string'&&new URL(u).origin==='https://cdn.discordapp.com';}catch(e){return false;}}
 
 function showSignInError(){
@@ -225,7 +223,6 @@ function renderDetail(c){
   $('detailRows').replaceChildren(...rows);
 }
 
-// Detail view is picked client-side from #c=<key>, with no extra request
 function route(){
   const m=/^#c=(.+)$/.exec(location.hash);
   let key=null;
@@ -234,13 +231,11 @@ function route(){
   if(c)renderDetail(c);
   $('detail').hidden=!c;
   $('list').hidden=!!c||!characters.length;
-  // The link that was used is hidden now, so focus moves to the new view: the character's name, or back to its card
   if(c)$('detailName').focus();
   else if(openKey!==null){const i=characters.findIndex(x=>x.key===openKey);if(i>=0)$('list').children[i].focus();}
   openKey=c?c.key:null;
 }
 
-// Loaded apart from the account panel: the access check may wait on Discord, the rest is local
 async function loadAccess(){
   let a=null;
   try{const r=await fetch('/api/site/access',{cache:'no-store'});if(r.ok)a=await r.json();}catch(e){}
@@ -277,13 +272,11 @@ $('signOut').addEventListener('click',async()=>{
 });
 window.addEventListener('hashchange',route);
 
-// Point the download buttons at the launcher release the backend advertises
 async function loadLauncherUrl(){
   try{const r=await fetch('/api/version',{cache:'no-store'});const {downloadUrl}=await r.json();
     if(/^https:\/\//.test(downloadUrl))for(const a of document.querySelectorAll('a[data-launcher]'))a.href=downloadUrl;}catch(e){}
 }
 
-// The link is a convenience only: the dashboard checks the role itself on every request
 async function showStaffLink(){
   try{const r=await fetch('/api/site/staff/me',{cache:'no-store'});const me=await r.json();if(me&&me.staff)$('staffLink').hidden=false;}catch(e){}
 }
@@ -292,7 +285,6 @@ async function main(){
   showSignInError();
   let r;
   try{r=await fetch('/api/site/whoami',{cache:'no-store'});}catch(e){return show('unavailable');}
-  // The LAN listener does not proxy /api/site/, and the sign-in cookie belongs to the public host
   if(r.status===404)return show('lanOnly');
   let me=null;
   try{if(r.ok)me=await r.json();}catch(e){}
