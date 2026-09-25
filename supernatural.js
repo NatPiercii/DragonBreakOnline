@@ -5,7 +5,8 @@
 //              three game days and are cured by a Cure Disease potion or a prayer at a Divine shrine.
 //   Turning    when the fever peaks the Blood Fever / Hircine's Hunt trial opens (front widget "rite"); failing kills
 //              and burns the disease out. Molag Bal's Embrace and Hircine's rite are chosen at their shrines (/rite)
-//              and failing those can end the character for good (private.permaDead).
+//              and failing those can end the character for good (private.permaDead). Surviving Hircine's rite gives Sanies
+//              Lupinus (the turning follows its fever); surviving Molag Bal's makes a pure-blood at once.
 //   Vampires   stages 1-4, one per game day unfed; sun burns outdoors by day, fire hurts more, the look becomes the
 //              race's vampire variant. Feeding on a restrained player or a fresh humanoid corpse resets to stage 1.
 //              The Blood Crown: one pure-blood holds the Vampire Lord power; a vampire who slays the holder takes it.
@@ -403,8 +404,13 @@ module.exports = (api) => {
     log(`supernatural: ${display(a)} ${won ? 'survived' : 'failed'} ${def.title} (${r.hits}/${C.rite.rounds})`);
     if (r.type === 'fever_vampire') return won ? becomeVampire(a, false) : (cureDisease(a, 'the fever took them'), personal(a, 'The fever takes you, and burns itself out with your life.'), mp.set(a, 'isDead', true));
     if (r.type === 'fever_werewolf') return won ? becomeWerewolf(a, false) : (cureDisease(a, 'the hunt took them'), personal(a, 'The Huntsman catches you. The beast dies with you.'), mp.set(a, 'isDead', true));
-    // Nat: the blessing belongs to a pack's Alpha, not to anyone who survives the Hunt
-    if (won) return r.type === 'embrace' ? becomeVampire(a, true) : becomeWerewolf(a, false);
+    // Nat: the blessing belongs to a pack's Alpha, not to anyone who survives the Hunt. Nat 2026-09-26: surviving the Hunt
+    // gives Sanies Lupinus, not the beast; the fever runs its days and Hircine's Hunt decides, as after a bite.
+    if (won && r.type === 'hunt') {
+      if (infect(a, 'werewolf', null)) return personal(a, 'Hircine lets you go, marked. Sanies Lupinus burns in the wound; when the fever peaks, the beast will try to come out.');
+      return personal(a, 'Hircine lets you go, but his mark finds no room in you.');
+    }
+    if (won) return becomeVampire(a, true);
     try { mp.set(a, 'private.riteFailedAt', Date.now()); } catch (e) { /* offline */ }
     if (Math.random() < C.permaDeathChance) { personal(a, `${def.title} claims you. This life is over.`); return permaKill(a, `failed ${def.title}`); }
     personal(a, `${def.title} breaks you, but lets you live to wake again.`);
@@ -463,8 +469,9 @@ module.exports = (api) => {
     if (deity === 'hircine') {
       if (s.kind === 'werewolf') return personal(a, 'The Huntsman already knows your scent.');
       if (s.kind === 'vampire') return personal(a, 'Hircine hunts the living, not the dead. Be cured first.');
+      if (s.disease) return personal(a, s.disease.kind === 'werewolf' ? 'Sanies Lupinus is already in your blood. Wait for the fever.' : 'Another fever holds you. Be cured first.');
       pendingRite.set(a, { type: 'hunt', at: Date.now() });
-      return personal(a, "The Great Hunt: Hircine chases you, and if you run true the beast is yours, hunger and all. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
+      return personal(a, "The Great Hunt: Hircine chases you, and if you run true he marks you with Sanies Lupinus; when its fever peaks, the beast tries to come out. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
     }
     if (deity === 'arkay' || deity === 'stendarr') {
       if (!s.kind) return personal(a, s.disease ? 'Pray here to break the fever; the rite is for those already turned.' : 'You carry no curse to lift.');
