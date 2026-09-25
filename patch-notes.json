@@ -1,5 +1,33 @@
 [
   {
+    "title": "The Synod Opens Its Doors",
+    "date": "2026-09-25",
+    "version": "Client 0.3.42",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "New mages can now start at the Synod Conclave in Bruma: read a Novice spell tome there and you take up its school's skill (Arcane Arts for Destruction, Conjuration and Illusion; Priest for Restoration and Alteration) and learn the spell. It uses one skill point, like starting a trade at its bench.",
+          "Books you read through can now turn up a scroll tucked between the pages. The better your Scholar skill, the more often it happens and the stronger the scroll can be (up to six a day). Casting scrolls is a way to practise magic before you own a spell."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Tanning racks, chopping blocks, ore veins and other seats no longer stay taken after you walk through a door while using them, and using one again after a failed sit now works.",
+          "You can now talk with your push-to-talk key while the trade window or another game window is open."
+        ]
+      },
+      {
+        "heading": "In this client update (restart the launcher)",
+        "items": [
+          "Client 0.3.42 carries the seat and push-to-talk fixes. Restart the launcher before you log in."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Creatures Walk Again",
     "date": "2026-09-25",
     "version": "Client 0.3.41",
