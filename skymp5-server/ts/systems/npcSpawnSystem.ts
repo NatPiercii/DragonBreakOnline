@@ -198,6 +198,53 @@ const isHexId = (text: string): boolean => /^0x[0-9a-f]{1,8}$/i.test(text) || /^
 
 const entryName = (raw: unknown): string => String(pick(raw, "name") ?? "").trim().toLowerCase();
 
+// On the live server zone-spawns.json is a symlink into the world state folder; a rename onto the link would
+// replace it with a plain file in the build folder, so the write goes to the file the link points at
+const writeTarget = (file: string): string => {
+  try { return fs.realpathSync(file); } catch { }
+  try { if (fs.lstatSync(file).isSymbolicLink()) return path.resolve(path.dirname(path.resolve(file)), fs.readlinkSync(file)); } catch { }
+  return path.resolve(file);
+};
+
+// A file written off the game loop: a synchronous write of a few ids took 53-205 ms on the live disk (2026-09-24/25)
+// and stalled the poll with it. Temp file then rename, so a reader sees the old file or the new one; one write in
+// flight, and a save asked for meanwhile is written when it ends, with the state as it is then.
+class LaterWrite {
+  private writing = false;
+  private dirty = false;
+  private target = "";
+
+  constructor(private file: string, private snapshot: () => string, private log: Log, private slowMs: number) { }
+
+  save(): void {
+    this.dirty = true;
+    if (!this.writing) this.flush();
+  }
+
+  // The snapshot is taken once the current poll has run to its end, so the saves one poll asks for make one write
+  private flush(): void {
+    this.writing = true;
+    if (!this.target) this.target = writeTarget(this.file);
+    const tmp = `${this.target}.tmp`;
+    const startedAt = Date.now();
+    Promise.resolve()
+      .then(() => {
+        this.dirty = false;
+        return fs.promises.writeFile(tmp, this.snapshot());
+      })
+      .then(() => fs.promises.rename(tmp, this.target))
+      .then(() => {
+        const took = Date.now() - startedAt;
+        if (took > this.slowMs) this.log(`NpcSpawnSystem: ${this.file} write took ${took} ms, off the game loop`);
+      })
+      .catch((e) => this.log(`NpcSpawnSystem: ${this.file} write failed: ${e}`))
+      .finally(() => {
+        this.writing = false;
+        if (this.dirty) this.flush();
+      });
+  }
+}
+
 export class NpcSpawnSystem implements System {
   systemName = "NpcSpawnSystem";
   constructor(private log: Log) { }
@@ -622,8 +669,11 @@ export class NpcSpawnSystem implements System {
     const inWorld = index.byWorld.get(zone.cellOrWorldId);
     if (!inWorld || !inWorld.length) return NO_PLAYERS;
     const span = Math.ceil((zone.radius * DESPAWN_HYSTERESIS) / GRID_UNITS);
-    // A zone that spans half a worldspace (a dungeon cell) is cheaper to test against everyone
-    if (span > MAX_GRID_SPAN) return inWorld;
+    // A zone that spans half a worldspace (a dungeon cell) is cheaper to test against everyone, and so is any zone
+    // while its world holds no more players than the squares it would look up: each lookup builds a string key, and
+    // 25 of them per zone were 10 of the poll's 12 ms for 3,151 zones and 3 players. updateInside measures exactly.
+    const side = 2 * span + 1;
+    if (span > MAX_GRID_SPAN || inWorld.length <= side * side) return inWorld;
     const gx = Math.floor(zone.pos[0] / GRID_UNITS);
     const gy = Math.floor(zone.pos[1] / GRID_UNITS);
     const out: PlayerSnapshot[] = [];
@@ -642,7 +692,8 @@ export class NpcSpawnSystem implements System {
       if (zone.inside.size) zone.inside = new Set();
       return;
     }
-    const inside = new Set<number>();
+    // Built only when somebody is inside, so an empty zone allocates nothing
+    let inside: Set<number> | null = null;
     for (const p of near) {
       // Hysteresis: a player already inside only counts as gone beyond 1.5x the trigger radius
       const reach = zone.inside.has(p.id) ? zone.radius * DESPAWN_HYSTERESIS : zone.radius;
@@ -650,10 +701,12 @@ export class NpcSpawnSystem implements System {
       const dy = p.pos[1] - zone.pos[1];
       const dz = p.pos[2] - zone.pos[2];
       if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
+      if (!inside) inside = new Set<number>();
       inside.add(p.id);
       if (!zone.inside.has(p.id)) this.log(`NpcSpawnSystem: '${zone.name}' entered by ${this.actorLabel(mp, p.id)}`);
     }
-    zone.inside = inside;
+    if (inside) zone.inside = inside;
+    else if (zone.inside.size) zone.inside = new Set();
   }
 
   private actorLabel(mp: Mp, id: number): string {
@@ -1017,9 +1070,10 @@ export class NpcSpawnSystem implements System {
     } catch { /* no file yet */ }
   }
 
+  private fallenFile = new LaterWrite(FALLEN_FILE, () => JSON.stringify(Object.fromEntries(this.fallenSpots), null, 1), (msg) => this.log(msg), SLOW_POLL_MS);
+
   private saveFallen(): void {
-    try { fs.writeFileSync(FALLEN_FILE, JSON.stringify(Object.fromEntries(this.fallenSpots), null, 1)); }
-    catch (e) { this.log(`NpcSpawnSystem: fallen spots file write failed: ${e}`); }
+    this.fallenFile.save();
   }
 
   // Last seen ground position of an NPC hanging above its spot, with the number of polls it has not moved
@@ -1175,14 +1229,15 @@ export class NpcSpawnSystem implements System {
     this.saveSpawns();
   }
 
-  private saveSpawns(): void {
-    const startedAt = Date.now();
+  // Live and corpse ids for the next boot's cleanup; dungeons.js also reads it every 15 s, and a file one write late
+  // only delays what it counts
+  private spawnsFile = new LaterWrite(SPAWNS_FILE, () => {
     const placed = this.zones.flatMap((z) => z.spawned.map((e) => e.id));
-    const ids = Array.from(new Set([...placed, ...this.corpses.keys()])).filter((id) => id > 0);
-    try { fs.writeFileSync(SPAWNS_FILE, JSON.stringify(ids)); }
-    catch (e) { this.log(`NpcSpawnSystem: spawns file write failed: ${e}`); }
-    const took = Date.now() - startedAt;
-    if (took > SLOW_POLL_MS) this.log(`NpcSpawnSystem: ${SPAWNS_FILE} write took ${took} ms (${ids.length} id(s))`);
+    return JSON.stringify(Array.from(new Set([...placed, ...this.corpses.keys()])).filter((id) => id > 0));
+  }, (msg) => this.log(msg), SLOW_POLL_MS);
+
+  private saveSpawns(): void {
+    this.spawnsFile.save();
   }
 
   private findZone(name: string): Zone | undefined {
