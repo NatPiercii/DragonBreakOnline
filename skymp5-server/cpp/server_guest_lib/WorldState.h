@@ -205,6 +205,14 @@ public:
     it->second->BeforeDestroy();
 
     if (auto formIndex = dynamic_cast<FormIndex*>(form.get())) {
+      // A late packet for this index must find nothing, not the object freed below: LookupFormByIdx read the freed
+      // reference ('No permission to update actor f9404f50') and the server crashed with SIGSEGV when a despawned
+      // NPC's host was still sending its movement (2026-09-25 21:39:16)
+      const auto refr = form->AsObjectReference();
+      if (refr && formIndex->idx < refrByIdxUnreliable.size() &&
+          refrByIdxUnreliable[formIndex->idx] == refr) {
+        refrByIdxUnreliable[formIndex->idx] = nullptr;
+      }
       if (formIdxManager && !formIdxManager->DestroyID(formIndex->idx))
         throw std::runtime_error("DestroyID failed");
     }
