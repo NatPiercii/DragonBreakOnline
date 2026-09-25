@@ -1002,6 +1002,17 @@ export class RemoteServer extends ClientListener {
     }
     const i = this.getIdManager().getId(msg.idx);
     const form = this.worldModel.forms[i];
+    if (form === undefined) {
+      logError(this, `onUpdatePropertyMessage - Form with idx`, msg.idx, `not found`, msg.propName);
+      return;
+    }
+    // The server reuses a destroyed form's index at once, so a late message for the old form must not land on the
+    // new one. Its refrId has no 0x100000000 offset, the form's does for a plugin-placed actor
+    if (msg.refrId && form.refrId !== undefined && !sameRemoteId(form.refrId, msg.refrId)) {
+      logError(this, `onUpdatePropertyMessage - idx`, msg.idx, `is`, form.refrId.toString(16), `now, not`,
+        msg.refrId.toString(16), msg.propName);
+      return;
+    }
     (form as Record<string, unknown>)[msg.propName] = msgData;
   }
 
