@@ -37,10 +37,16 @@ const TAG_PROP = "private.npcSpawner";
 // ACBS template flag: the AI data comes from the TPLT template
 const TEMPLATE_USE_AI_DATA = 0x10;
 const MAX_TEMPLATE_DEPTH = 8;
-// An NPC this far below its spawn point fell out of the world and is replaced on its spot
+// An NPC this far below its spawn point fell out of the world and is replaced on its spot (interiors, and
+// worlds without terrain data)
 const FALL_LIMIT = 3000;
+// Outdoors: this far below the terrain under the NPC
+const FALL_BELOW_TERRAIN = 1000;
 // Falls on one spot before the slot is given up: a spot with no floor would otherwise cycle forever
 const MAX_SPOT_FALLS = 2;
+// Falls nobody saw do not count against the spot, but this many give it up until a restart or an admin reset,
+// or a spot players keep walking away from would drop an NPC every time one comes back
+const MAX_UNSEEN_FALLS = 3;
 // A copy created before the client has the room loaded drops through the missing collision, so a spot
 // that has dropped an actor is only tried again once a player is this close to it
 const SAFE_RESPAWN_UNITS = 2500;
@@ -77,6 +83,9 @@ const LEASH_RADII = 3;
 const NEVER_READY = -1;
 // A corpse is removed this long after death, whatever its zone does. Overridable via "npcCorpseSeconds".
 const DEFAULT_CORPSE_SECONDS = 300;
+// The server hands a destroyed form's index to the next form it creates, while the old NPC's host can still be
+// sending packets for it; a slot whose NPC was destroyed is not refilled for this long
+const REFILL_HOLD_MS = 10000;
 
 interface ZoneNpc {
   baseDesc: string;
@@ -189,6 +198,53 @@ const isHexId = (text: string): boolean => /^0x[0-9a-f]{1,8}$/i.test(text) || /^
 
 const entryName = (raw: unknown): string => String(pick(raw, "name") ?? "").trim().toLowerCase();
 
+// On the live server zone-spawns.json is a symlink into the world state folder; a rename onto the link would
+// replace it with a plain file in the build folder, so the write goes to the file the link points at
+const writeTarget = (file: string): string => {
+  try { return fs.realpathSync(file); } catch { }
+  try { if (fs.lstatSync(file).isSymbolicLink()) return path.resolve(path.dirname(path.resolve(file)), fs.readlinkSync(file)); } catch { }
+  return path.resolve(file);
+};
+
+// A file written off the game loop: a synchronous write of a few ids took 53-205 ms on the live disk (2026-09-24/25)
+// and stalled the poll with it. Temp file then rename, so a reader sees the old file or the new one; one write in
+// flight, and a save asked for meanwhile is written when it ends, with the state as it is then.
+class LaterWrite {
+  private writing = false;
+  private dirty = false;
+  private target = "";
+
+  constructor(private file: string, private snapshot: () => string, private log: Log, private slowMs: number) { }
+
+  save(): void {
+    this.dirty = true;
+    if (!this.writing) this.flush();
+  }
+
+  // The snapshot is taken once the current poll has run to its end, so the saves one poll asks for make one write
+  private flush(): void {
+    this.writing = true;
+    if (!this.target) this.target = writeTarget(this.file);
+    const tmp = `${this.target}.tmp`;
+    const startedAt = Date.now();
+    Promise.resolve()
+      .then(() => {
+        this.dirty = false;
+        return fs.promises.writeFile(tmp, this.snapshot());
+      })
+      .then(() => fs.promises.rename(tmp, this.target))
+      .then(() => {
+        const took = Date.now() - startedAt;
+        if (took > this.slowMs) this.log(`NpcSpawnSystem: ${this.file} write took ${took} ms, off the game loop`);
+      })
+      .catch((e) => this.log(`NpcSpawnSystem: ${this.file} write failed: ${e}`))
+      .finally(() => {
+        this.writing = false;
+        if (this.dirty) this.flush();
+      });
+  }
+}
+
 export class NpcSpawnSystem implements System {
   systemName = "NpcSpawnSystem";
   constructor(private log: Log) { }
@@ -214,6 +270,9 @@ export class NpcSpawnSystem implements System {
   private maxLive = DEFAULT_MAX_LIVE;
   // Pulling a desynced actor to its target removes its ragdoll mid fight and has crashed the client
   private desyncPull = false;
+  // Lower-case zone name -> epoch ms until which a zone of that name is not filled: its NPCs were destroyed by a
+  // despawn, and a reload (a dungeon lease cleared and claimed again) can bring the same name back at once
+  private heldNames = new Map<string, number>();
 
   async initAsync(ctx: SystemContext): Promise<void> {
     this.mp = ctx.svr as Mp;
@@ -245,6 +304,7 @@ export class NpcSpawnSystem implements System {
       }
       return placed;
     });
+    (globalThis as any).__alduinakNpcGivenUp = (prefix: string): number => this.givenUpSlots(String(prefix));
   }
 
   private queueLoad(reason: string): Promise<void> {
@@ -352,6 +412,12 @@ export class NpcSpawnSystem implements System {
     }
     for (const gone of this.zones) {
       if (!carried.has(gone) && gone.spawned.length) this.despawn(mp, gone);
+    }
+    const now = Date.now();
+    for (const [name, until] of Array.from(this.heldNames)) if (until <= now) this.heldNames.delete(name);
+    for (const zone of zones) {
+      const until = this.heldNames.get(zone.name.toLowerCase());
+      if (until && zone.spawned.length === 0) zone.slotReadyAt = zone.slotReadyAt.map((at) => (at < 0 ? at : Math.max(at, until)));
     }
     this.zones = zones;
     return carried.size;
@@ -603,8 +669,11 @@ export class NpcSpawnSystem implements System {
     const inWorld = index.byWorld.get(zone.cellOrWorldId);
     if (!inWorld || !inWorld.length) return NO_PLAYERS;
     const span = Math.ceil((zone.radius * DESPAWN_HYSTERESIS) / GRID_UNITS);
-    // A zone that spans half a worldspace (a dungeon cell) is cheaper to test against everyone
-    if (span > MAX_GRID_SPAN) return inWorld;
+    // A zone that spans half a worldspace (a dungeon cell) is cheaper to test against everyone, and so is any zone
+    // while its world holds no more players than the squares it would look up: each lookup builds a string key, and
+    // 25 of them per zone were 10 of the poll's 12 ms for 3,151 zones and 3 players. updateInside measures exactly.
+    const side = 2 * span + 1;
+    if (span > MAX_GRID_SPAN || inWorld.length <= side * side) return inWorld;
     const gx = Math.floor(zone.pos[0] / GRID_UNITS);
     const gy = Math.floor(zone.pos[1] / GRID_UNITS);
     const out: PlayerSnapshot[] = [];
@@ -623,7 +692,8 @@ export class NpcSpawnSystem implements System {
       if (zone.inside.size) zone.inside = new Set();
       return;
     }
-    const inside = new Set<number>();
+    // Built only when somebody is inside, so an empty zone allocates nothing
+    let inside: Set<number> | null = null;
     for (const p of near) {
       // Hysteresis: a player already inside only counts as gone beyond 1.5x the trigger radius
       const reach = zone.inside.has(p.id) ? zone.radius * DESPAWN_HYSTERESIS : zone.radius;
@@ -631,10 +701,12 @@ export class NpcSpawnSystem implements System {
       const dy = p.pos[1] - zone.pos[1];
       const dz = p.pos[2] - zone.pos[2];
       if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
+      if (!inside) inside = new Set<number>();
       inside.add(p.id);
       if (!zone.inside.has(p.id)) this.log(`NpcSpawnSystem: '${zone.name}' entered by ${this.actorLabel(mp, p.id)}`);
     }
-    zone.inside = inside;
+    if (inside) zone.inside = inside;
+    else if (zone.inside.size) zone.inside = new Set();
   }
 
   private actorLabel(mp: Mp, id: number): string {
@@ -666,8 +738,10 @@ export class NpcSpawnSystem implements System {
       const at = zone.slotReadyAt[slot];
       if (at < 0 || at > now) continue;
       // A spot that has dropped its quota of npcs into the void has no floor, in this run or any other
-      if ((this.fallenSpots.get(`${zone.name}:${slot}`) ?? 0) >= MAX_SPOT_FALLS) continue;
-      if (this.fallenSpots.has(`${zone.name}:${slot}`) && !this.playerNear(mp, zone, this.slotPos(zone, slot), SAFE_RESPAWN_UNITS)) continue;
+      // (or it dropped too many with nobody near, in this run)
+      const spot = this.spotKey(zone, slot);
+      if (this.givenUp(spot)) continue;
+      if ((this.fallenSpots.has(spot) || this.unseenFalls.has(spot)) && !this.playerNear(mp, zone, this.slotPos(zone, slot), SAFE_RESPAWN_UNITS)) continue;
       if (!entry && live >= this.maxLive) {
         if (now - this.budgetLoggedAt > BUDGET_LOG_MS) {
           this.budgetLoggedAt = now;
@@ -768,6 +842,11 @@ export class NpcSpawnSystem implements System {
 
   // Slot 0 stands on POS, the rest fill rings of 6, 12, 18... SLOT_SPACING apart so no two spawn inside each other
   private slotPos(zone: Zone, slot: number): number[] {
+    const [x, y] = this.slotXY(zone, slot);
+    return [x, y, slot === 0 ? zone.pos[2] : this.slotGroundZ(zone, x, y)];
+  }
+
+  private slotXY(zone: Zone, slot: number): number[] {
     let ring = 0;
     let first = 0;
     const ringSize = (r: number) => Math.max(1, 6 * r);
@@ -778,9 +857,35 @@ export class NpcSpawnSystem implements System {
     const size = Math.min(ringSize(ring), zone.total - first);
     const angle = (2 * Math.PI * (slot - first)) / size;
     const radius = ring * SLOT_SPACING;
-    const x = zone.pos[0] + radius * Math.cos(angle);
-    const y = zone.pos[1] + radius * Math.sin(angle);
-    return [x, y, slot === 0 ? zone.pos[2] : this.slotGroundZ(zone, x, y)];
+    return [zone.pos[0] + radius * Math.cos(angle), zone.pos[1] + radius * Math.sin(angle)];
+  }
+
+  // The fall memory is keyed by where a slot stands, not by zone name and slot number: dungeons.js numbers its
+  // zones by the placements a lease kept after its random skip, so 'dungeon:X:4:0' was a different placement on
+  // every lease: falls on different spots added up under one key, and the given-up key then emptied whichever
+  // placement drew that number next (11 slots on 2026-09-25). The zone's own height stands for the floor, so the
+  // key does not move with the terrain data under an outer slot.
+  private spotKey(zone: Zone, slot: number): string {
+    const [x, y] = this.slotXY(zone, slot);
+    return `${zone.cellOrWorldDesc.toLowerCase()}@${Math.round(x)},${Math.round(y)},${Math.round(zone.pos[2])}`;
+  }
+
+  private givenUp(spot: string): boolean {
+    return (this.fallenSpots.get(spot) ?? 0) >= MAX_SPOT_FALLS || (this.unseenFalls.get(spot) ?? 0) >= MAX_UNSEEN_FALLS;
+  }
+
+  // Slots of zones named with this prefix that will not be filled again (dungeons.js leaves them out of a lease's
+  // enemy count, or the lease could never finish early); a slot holding a live NPC is not counted
+  private givenUpSlots(prefix: string): number {
+    let n = 0;
+    for (const zone of this.zones) {
+      if (!zone.name.startsWith(prefix)) continue;
+      for (let slot = 0; slot < zone.total; slot++) {
+        if (zone.spawned.some((e) => e.slot === slot && e.id && !e.diedAt)) continue;
+        if (this.givenUp(this.spotKey(zone, slot))) n++;
+      }
+    }
+    return n;
   }
 
   // Outer slots used to keep the centre's height, so on a slope the uphill ones started inside the hill and the
@@ -790,17 +895,30 @@ export class NpcSpawnSystem implements System {
   // a bridge keeps its height for every slot, so nobody is put under the rock.
   private slotGroundZ(zone: Zone, x: number, y: number): number {
     const fallback = zone.pos[2] + SPAWN_LIFT;
-    const terrainAt = (globalThis as any).__dboTerrainAt as ((desc: string, x: number, y: number) => { lo: number; hi: number } | null) | undefined;
-    if (typeof terrainAt !== "function") return fallback;
+    const centre = this.terrainAt(zone.cellOrWorldDesc, zone.pos[0], zone.pos[1]);
+    const here = centre && this.terrainAt(zone.cellOrWorldDesc, x, y);
+    if (!centre || !here) return fallback;
+    if (zone.pos[2] < centre.lo - CENTRE_ON_TERRAIN || zone.pos[2] > centre.hi + CENTRE_ON_TERRAIN) return fallback;
+    return here.hi + SPAWN_LIFT;
+  }
+
+  // Terrain height under x,y from server/npcground.js, or null: no module, no data for that world (interiors), or it threw
+  private terrainAt(desc: string, x: number, y: number): { lo: number; hi: number } | null {
+    const lookup = (globalThis as any).__dboTerrainAt as ((desc: string, x: number, y: number) => { lo: number; hi: number } | null) | undefined;
+    if (typeof lookup !== "function") return null;
     try {
-      const centre = terrainAt(zone.cellOrWorldDesc, zone.pos[0], zone.pos[1]);
-      const here = terrainAt(zone.cellOrWorldDesc, x, y);
-      if (!centre || !here) return fallback;
-      if (zone.pos[2] < centre.lo - CENTRE_ON_TERRAIN || zone.pos[2] > centre.hi + CENTRE_ON_TERRAIN) return fallback;
-      return here.hi + SPAWN_LIFT;
+      const t = lookup(desc, x, y);
+      return t && Number.isFinite(t.lo) && Number.isFinite(t.hi) ? t : null;
     } catch {
-      return fallback;
+      return null;
     }
+  }
+
+  // Outdoors the floor is the terrain under the NPC, wherever a chase took it: measured from the spot, an ogre of
+  // wild:wolf:2882 (spot z 19396) 'fell' at z 14882 while 4,400 above the terrain under it (2026-09-25 17:56:40)
+  private fellOut(zone: Zone, pos: number[]): boolean {
+    const t = this.terrainAt(zone.cellOrWorldDesc, pos[0], pos[1]);
+    return t ? pos[2] < t.lo - FALL_BELOW_TERRAIN : pos[2] < zone.pos[2] - FALL_LIMIT;
   }
 
   // A death starts the slot's Respawn cooldown and the corpse's own removal timer
@@ -825,7 +943,7 @@ export class NpcSpawnSystem implements System {
       try { pos = mp.getActorPos(entry.id); } catch { continue; }
       if (this.desyncPull && this.resyncDesynced(mp, zone, entry, pos)) continue;
       const slot = this.slotPos(zone, entry.slot);
-      const fell = pos[2] < zone.pos[2] - FALL_LIMIT;
+      const fell = this.fellOut(zone, pos);
       const leash = Math.max(LEASH_MIN, zone.radius * LEASH_RADII);
       const away = Math.hypot(pos[0] - zone.pos[0], pos[1] - zone.pos[1]);
       const strayed = !fell && away > leash;
@@ -852,19 +970,26 @@ export class NpcSpawnSystem implements System {
       this.sliding.delete(entry.id);
       entry.id = 0;
       entry.diedAt = now;
-      zone.slotReadyAt[entry.slot] = now;
+      // Not in this poll: fillSlots runs next and would give the new copy the index just freed
+      zone.slotReadyAt[entry.slot] = now + REFILL_HOLD_MS;
       // A spot with no floor drops every actor placed on it, so the slot is given up after a second fall.
-      // A fall with nobody near counts for nothing: the room was not loaded, so the floor was not there yet.
+      // A fall with nobody near is not held against the spot on disk: the room was not loaded, so the floor
+      // was not there yet. It only counts towards MAX_UNSEEN_FALLS.
       if (fell) {
-        const key = `${zone.name}:${entry.slot}`;
+        const key = this.spotKey(zone, entry.slot);
         const witnessed = this.playerNear(mp, zone, slot, SAFE_RESPAWN_UNITS);
-        const falls = (this.fallenSpots.get(key) ?? 0) + (witnessed ? 1 : 0);
-        this.fallenSpots.set(key, falls);
-        if (witnessed) this.saveFallen();
-        if (falls >= MAX_SPOT_FALLS) {
-          zone.slotReadyAt[entry.slot] = NEVER_READY;
-          this.log(`NpcSpawnSystem: '${zone.name}' slot ${entry.slot} at [${slot.map((n) => Math.round(n)).join(", ")}] has dropped ${falls} npcs into the void; leaving it empty`);
+        const where = `'${zone.name}' slot ${entry.slot} at [${slot.map((n) => Math.round(n)).join(", ")}]`;
+        if (witnessed) {
+          const falls = (this.fallenSpots.get(key) ?? 0) + 1;
+          this.fallenSpots.set(key, falls);
+          this.saveFallen();
+          if (falls >= MAX_SPOT_FALLS) this.log(`NpcSpawnSystem: ${where} has dropped ${falls} npcs into the void; leaving it empty`);
+        } else {
+          const unseen = (this.unseenFalls.get(key) ?? 0) + 1;
+          this.unseenFalls.set(key, unseen);
+          if (unseen >= MAX_UNSEEN_FALLS) this.log(`NpcSpawnSystem: ${where} has dropped ${unseen} npcs with nobody near; leaving it empty until a restart or reset`);
         }
+        if (this.givenUp(key)) zone.slotReadyAt[entry.slot] = NEVER_READY;
       }
     }
   }
@@ -924,25 +1049,31 @@ export class NpcSpawnSystem implements System {
     return where;
   }
 
-  // Zone slots that have dropped an NPC out of the world, by "<zone>:<slot>"
-  // 'zone:slot' -> witnessed falls. A spot with no floor is a property of the world, not of this run,
+  // spotKey -> witnessed falls. A spot with no floor is a property of the world, not of this run,
   // so it is kept on disk; deleting the file makes the server try every spot again.
   private fallenSpots = new Map<string, number>();
+  // spotKey -> falls with nobody near, this run only
+  private unseenFalls = new Map<string, number>();
 
   private loadFallen(): void {
     try {
       const raw = JSON.parse(fs.readFileSync(FALLEN_FILE, "utf8")) as Record<string, number>;
+      let legacy = 0;
       for (const [key, falls] of Object.entries(raw)) {
+        // Old '<zone>:<slot>' keys cannot be traced back to a spot (see spotKey); they are dropped at the next save
+        if (!key.includes("@")) { legacy++; continue; }
         if (typeof falls === "number" && falls > 0) this.fallenSpots.set(key, falls);
       }
       const dead = [...this.fallenSpots.values()].filter((n) => n >= MAX_SPOT_FALLS).length;
       if (this.fallenSpots.size) this.log(`NpcSpawnSystem: ${this.fallenSpots.size} spot(s) have dropped npcs before, ${dead} of them given up`);
+      if (legacy) this.log(`NpcSpawnSystem: ignored ${legacy} fallen-spot entr${legacy === 1 ? "y" : "ies"} keyed by zone and slot number in ${FALLEN_FILE}`);
     } catch { /* no file yet */ }
   }
 
+  private fallenFile = new LaterWrite(FALLEN_FILE, () => JSON.stringify(Object.fromEntries(this.fallenSpots), null, 1), (msg) => this.log(msg), SLOW_POLL_MS);
+
   private saveFallen(): void {
-    try { fs.writeFileSync(FALLEN_FILE, JSON.stringify(Object.fromEntries(this.fallenSpots), null, 1)); }
-    catch (e) { this.log(`NpcSpawnSystem: fallen spots file write failed: ${e}`); }
+    this.fallenFile.save();
   }
 
   // Last seen ground position of an NPC hanging above its spot, with the number of polls it has not moved
@@ -985,17 +1116,25 @@ export class NpcSpawnSystem implements System {
     return prev.polls >= FLOAT_POLLS;
   }
 
-  // A corpse is left to its timer unless forced (admin reset); a death the poll has not seen yet starts its timer here
-  private removeNpc(mp: Mp, id: number, force = false): void {
-    if (!id) return;
+  // A corpse is left to its timer unless forced (admin reset); a death the poll has not seen yet starts its timer here.
+  // True when the actor was destroyed now.
+  private removeNpc(mp: Mp, id: number, force = false): boolean {
+    if (!id) return false;
     if (!force && !this.corpses.has(id)) {
       let dead = false;
       try { dead = mp.get(id, "isDead") === true; } catch { }
       if (dead) this.corpses.set(id, Date.now() + this.corpseMs);
     }
-    if (!force && this.corpses.has(id)) return;
+    if (!force && this.corpses.has(id)) return false;
     this.corpses.delete(id);
     try { mp.destroyActor(id); } catch { }
+    return true;
+  }
+
+  // Pushes a slot's ready time past the refill hold; a slot kept empty until reset stays so
+  private holdSlot(zone: Zone, slot: number, now: number): void {
+    const at = zone.slotReadyAt[slot];
+    if (at >= 0 && at < now + REFILL_HOLD_MS) zone.slotReadyAt[slot] = now + REFILL_HOLD_MS;
   }
 
   private sweepCorpses(mp: Mp, now: number): void {
@@ -1004,10 +1143,13 @@ export class NpcSpawnSystem implements System {
       if (at > now) continue;
       this.corpses.delete(id);
       try { mp.destroyActor(id); } catch { }
-      // The slot keeps its entry and cooldown; id 0 marks its corpse as gone
+      // The slot keeps its entry and cooldown; id 0 marks its corpse as gone. A cooldown shorter than the
+      // corpse timer has already run out, and this poll's fillSlots would reuse the index just freed.
       for (const zone of this.zones) {
         for (const entry of zone.spawned) {
-          if (entry.id === id) entry.id = 0;
+          if (entry.id !== id) continue;
+          entry.id = 0;
+          this.holdSlot(zone, entry.slot, now);
         }
       }
       removed++;
@@ -1017,20 +1159,28 @@ export class NpcSpawnSystem implements System {
     this.saveSpawns();
   }
 
-  // Cooldowns still running survive the despawn so leaving and coming back cannot skip Respawn; reset clears them and the corpses
+  // Cooldowns still running survive the despawn so leaving and coming back cannot skip Respawn; reset clears them and the corpses.
+  // A slot whose actor was destroyed here waits out the refill hold either way.
   private despawn(mp: Mp, zone: Zone, reset = false): void {
+    const destroyed: number[] = [];
     for (const entry of zone.spawned) {
-      this.removeNpc(mp, entry.id, reset);
+      if (this.removeNpc(mp, entry.id, reset)) destroyed.push(entry.slot);
     }
     this.log(`NpcSpawnSystem: '${zone.name}' despawned ${zone.spawned.length} npc(s)`);
     zone.spawned = [];
     zone.emptySince = 0;
     const now = Date.now();
     zone.slotReadyAt = zone.slotReadyAt.map((at) => reset || at < 0 || at <= now ? 0 : at);
+    for (const slot of destroyed) this.holdSlot(zone, slot, now);
+    if (destroyed.length) this.heldNames.set(zone.name.toLowerCase(), now + REFILL_HOLD_MS);
     // An admin reset forgets the void spots as well; otherwise they are kept, or the same slot drops
     // two more npcs into it the next time this zone fills
     if (reset) {
-      for (let slot = 0; slot < zone.total; slot++) this.fallenSpots.delete(`${zone.name}:${slot}`);
+      for (let slot = 0; slot < zone.total; slot++) {
+        const spot = this.spotKey(zone, slot);
+        this.fallenSpots.delete(spot);
+        this.unseenFalls.delete(spot);
+      }
       this.saveFallen();
     }
     this.saveSpawns();
@@ -1079,14 +1229,15 @@ export class NpcSpawnSystem implements System {
     this.saveSpawns();
   }
 
-  private saveSpawns(): void {
-    const startedAt = Date.now();
+  // Live and corpse ids for the next boot's cleanup; dungeons.js also reads it every 15 s, and a file one write late
+  // only delays what it counts
+  private spawnsFile = new LaterWrite(SPAWNS_FILE, () => {
     const placed = this.zones.flatMap((z) => z.spawned.map((e) => e.id));
-    const ids = Array.from(new Set([...placed, ...this.corpses.keys()])).filter((id) => id > 0);
-    try { fs.writeFileSync(SPAWNS_FILE, JSON.stringify(ids)); }
-    catch (e) { this.log(`NpcSpawnSystem: spawns file write failed: ${e}`); }
-    const took = Date.now() - startedAt;
-    if (took > SLOW_POLL_MS) this.log(`NpcSpawnSystem: ${SPAWNS_FILE} write took ${took} ms (${ids.length} id(s))`);
+    return JSON.stringify(Array.from(new Set([...placed, ...this.corpses.keys()])).filter((id) => id > 0));
+  }, (msg) => this.log(msg), SLOW_POLL_MS);
+
+  private saveSpawns(): void {
+    this.spawnsFile.save();
   }
 
   private findZone(name: string): Zone | undefined {
@@ -1172,7 +1323,7 @@ export class NpcSpawnSystem implements System {
     return true;
   }
 
-  // Destroys the zone's NPCs and clears every cooldown; it repopulates on the next poll with a player inside
+  // Destroys the zone's NPCs and clears every cooldown; it repopulates with a player inside once the refill hold is over
   resetZone(name: string): boolean {
     const zone = this.findZone(name);
     if (!zone) return false;
