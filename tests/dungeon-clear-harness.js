@@ -9,7 +9,9 @@ const os = require('os');
 const path = require('path');
 
 const DUNGEONS = path.resolve(__dirname, '..', 'dungeons.js');
-process.chdir(fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-dungeon-clear-')));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-dungeon-clear-'));
+process.chdir(dir);
+process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 global.setTimeout = () => 0;
 
 const CELL = '1234:Skyrim.esm';

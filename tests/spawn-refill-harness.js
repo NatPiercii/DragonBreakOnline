@@ -14,6 +14,15 @@ const { NpcSpawnSystem } = require(path.resolve(process.argv[2]));
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-spawn-refill-'));
 process.chdir(dir);
+process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
+// As on the live server: zone-spawns.json is a symlink into the world state folder
+fs.mkdirSync('state');
+fs.writeFileSync(path.join('state', 'zone-spawns.json'), '[]');
+fs.symlinkSync(path.join('state', 'zone-spawns.json'), 'zone-spawns.json');
+// Every file write the system starts, to count them
+const writes = [];
+const realWriteFile = fs.promises.writeFile;
+fs.promises.writeFile = (file, data, ...rest) => { writes.push({ file: String(file), data: String(data) }); return realWriteFile.call(fs.promises, file, data, ...rest); };
 let now = 1790000000000;
 Date.now = () => now;
 const realTimeout = global.setTimeout;
@@ -73,6 +82,7 @@ sys.ready = true;
 const zoneOf = (name, desc, pos, count, respawn = 1800, radius = 3000) => sys.buildZone(mp, { name, locator: desc, anchor: '', pos, radius, npcs: [{ id: '4932a:BSHeartland.esm', count }], despawnSeconds: 120, respawnSeconds: respawn, prespawn: false, ambush: false }, new Map());
 const poll = () => sys.updateAsync({ svr: mp });
 const live = (zone) => zone.spawned.filter((e) => e.id && !e.diedAt);
+const settle = () => new Promise((r) => realTimeout(r, 30));
 
 (async () => {
   // ---- 1: a slot is never refilled in the poll that destroyed its NPC ----------------------------------------------
@@ -141,6 +151,7 @@ const live = (zone) => zone.spawned.filter((e) => e.id && !e.diedAt);
   await dropOnce(d3);
   check('a second witnessed fall on the spot gives it up', sys.fallenSpots.get(spot) === 2 && d3.slotReadyAt[0] === -1, [...sys.fallenSpots]);
   check('...and the spawn system reports one given-up slot for the dungeon', sys.givenUpSlots('dungeon:D:') === 1 && sys.givenUpSlots('dungeon:E:') === 0);
+  await settle();
   const saved = JSON.parse(fs.readFileSync('npc-fallen-spots.json', 'utf8'));
   check('the saved file is keyed by spot, the old key dropped', saved[spot] === 2 && !('dungeon:D:3:0' in saved), saved);
   // Next lease: the numbering moved, the same placement is now zone 7 and zone 3 stands elsewhere
@@ -167,6 +178,7 @@ const live = (zone) => zone.spawned.filter((e) => e.id && !e.diedAt);
     if (i < 3) check(`unseen fall ${i}: counted for this run only, the slot waits for a player and then refills`, sys.unseenFalls.get(farSpot) === i && !sys.fallenSpots.has(farSpot) && waits && live(far).length === 1, [sys.unseenFalls.get(farSpot), waits, live(far).length]);
     else check('the third unseen fall gives the spot up', sys.unseenFalls.get(farSpot) === 3 && live(far).length === 0 && far.slotReadyAt[0] === -1 && sys.givenUpSlots('dungeon:F:') === 1);
   }
+  await settle();
   check('unseen falls are not written to the file', !(farSpot in JSON.parse(fs.readFileSync('npc-fallen-spots.json', 'utf8'))));
   sys.resetZone('dungeon:F:0');
   check('an admin reset forgets them', !sys.unseenFalls.has(farSpot) && sys.givenUpSlots('dungeon:F:') === 0);
@@ -195,6 +207,54 @@ const live = (zone) => zone.spawned.filter((e) => e.id && !e.diedAt);
   await poll();
   check('a poll leaves an NPC chasing downhill where it is', destroyed.length === 0 && live(peak).length === 1 && live(peak)[0].id === ogre.id);
   delete globalThis.__dboTerrainAt;
+
+  // ---- 4: the spawn files are written off the game loop -----------------------------------------------------------
+  await settle();
+  check('zone-spawns.json is still a symlink into the state folder', fs.lstatSync('zone-spawns.json').isSymbolicLink());
+  const idsOnDisk = () => JSON.parse(fs.readFileSync(path.join('state', 'zone-spawns.json'), 'utf8'));
+  const idsNow = () => [...new Set([...sys.zones.flatMap((z) => z.spawned.map((e) => e.id)), ...sys.corpses.keys()])].filter((id) => id > 0);
+  check('...and the file it points at holds the live ids', JSON.stringify(idsOnDisk()) === JSON.stringify(idsNow()), [idsOnDisk(), idsNow()]);
+  // Ten zones fill in one poll: the old code wrote the file ten times, synchronously
+  const herd = [];
+  for (let i = 0; i < 10; i++) herd.push(zoneOf(`wild:herd:${i}`, WORLD, [76000 + i * 200, 237000, 19000], 1));
+  sys.zones = [peak, ...herd];
+  writes.length = 0;
+  now += 20000;
+  const polled = poll();
+  check('the poll does not write the file itself', writes.length === 0);
+  await polled; await settle();
+  const sidecar = writes.filter((w) => /zone-spawns\.json\.tmp$/.test(w.file));
+  check('ten zones filled in one poll make one write', herd.every((z) => live(z).length === 1) && sidecar.length === 1, sidecar.length);
+  check('...to a temp file beside the real one, renamed over it', sidecar.length === 1 && path.dirname(sidecar[0].file) === fs.realpathSync('state') && !fs.existsSync(path.join('state', 'zone-spawns.json.tmp')));
+  const herdIds = herd.map((z) => live(z)[0].id);
+  check('...holding every live id', JSON.stringify(idsOnDisk()) === JSON.stringify(idsNow()) && herdIds.every((id) => idsOnDisk().includes(id)));
+  // A save asked for while a write is in flight is written after it, with the ids as they are then
+  writes.length = 0;
+  sys.saveSpawns();
+  await Promise.resolve(); await Promise.resolve();
+  sys.despawn(mp, herd[0]);
+  sys.despawn(mp, herd[1]);
+  await settle();
+  const late = writes.filter((w) => /zone-spawns\.json\.tmp$/.test(w.file));
+  check('saves during a write make one more write, not one each', late.length === 2, late.length);
+  check('...and the file ends with the latest ids', JSON.stringify(idsOnDisk()) === JSON.stringify(idsNow()) && !idsOnDisk().includes(herdIds[0]) && !idsOnDisk().includes(herdIds[1]) && idsOnDisk().includes(herdIds[2]));
+
+  // The player prefilter is a shortcut only: who is inside a zone is the same with 3 players or 30 in a world
+  const crowd = zoneOf('wild:crowd:0', WORLD, [0, 0, 0], 1);
+  const inside = (count) => {
+    const ps = [];
+    for (let i = 0; i < count; i++) ps.push({ id: 0x100 + i, world: 0x800a764b, pos: [i * 450 - 4000, (i % 5) * 700 - 1400, 0] });
+    crowd.inside = new Set([0x100 + 12]);
+    sys.updateInside(mp, crowd, sys.buildIndex(ps));
+    return [...crowd.inside].sort();
+  };
+  const brute = (count) => {
+    const out = [];
+    for (let i = 0; i < count; i++) { const x = i * 450 - 4000, y = (i % 5) * 700 - 1400; const reach = i === 12 ? 4500 : 3000; if (Math.hypot(x, y) <= reach) out.push(0x100 + i); }
+    return out.sort();
+  };
+  check('the zone holds exactly the players within reach, few players (grid skipped)', JSON.stringify(inside(20)) === JSON.stringify(brute(20)), inside(20).length);
+  check('...and many players (grid used)', JSON.stringify(inside(30)) === JSON.stringify(brute(30)), inside(30).length);
 
   console.log('');
   console.log(failures ? `${failures} FAILURES` : 'all checks passed');
