@@ -1,5 +1,26 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-25 (23:15 UTC): death and revive HUD text - FRONT WORK, NOT STARTED
+
+Player feedback, #bugs thread 1553180540029501470 (athny), with a HUD.png attached. The gameplay half is done
+and live (`downed.js` `0ac74971`: short banner on screen, full detail in chat). What is left needs a front
+build on Nat's PC, and two of the three are Nat's design calls, not ours.
+
+- [ ] **System messages in a colour of their own.** athny suggests yellow for death and server info. Today
+      every `personal()` line renders the same as player chat, so death text competes with conversation.
+      Needs a message class carried through the relay and styled in `fork/skymp5-front/src/dbo-theme.scss`.
+      Nat: confirm the colour, and whether it applies to all system lines or only death and law.
+- [ ] **Move the revive text lower.** The banner sits centre-screen. athny wants it nearer the bottom and
+      more condensed. Position lives in the front banner widget.
+- [ ] **A live countdown to revival or death.** The banner takes a static string and a duration, so a ticking
+      number cannot come from the gameplay layer without a packet per second. It belongs in the front widget:
+      send the deadline once and let the widget count down. `C.bleedoutSeconds` is 60.
+- [ ] Check whether the end-of-effect notice is enough. "The chill of the grave leaves you" already fires
+      (`downed.js` `liftChill`), so athny may simply not have seen it behind the other text.
+
+Not a bug: the text was already going to chat as well as the banner. `banner()` sends `dboBanner`, a
+`dboStatus` notice and `personal()` all three.
+
 ## Added 2026-09-24 (20:05 UTC): newbrumacityedits (2).esp merged into DragonBreak Online Edits.esp - DEPLOYED 20:08 UTC
 
 - [x] Nat's `newbrumacityedits (2).esp` (141 records) is (1) plus 35 records: Fighters Guild + basement and Icewind
