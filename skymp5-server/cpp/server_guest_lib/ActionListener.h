@@ -141,13 +141,16 @@ private:
   void SendPapyrusOnHitEvent(MpActor* aggressor, MpObjectReference* target,
                              const HitData& hitData);
 
-  // Returns user's actor if there is attached one
+  // Returns user's actor if there is attached one. echoHostedToSender false: a hosted NPC's packet is not sent back
+  // to its hoster (the sender); the sender's own actor is relayed as always
   MpActor* SendToNeighbours(uint32_t idx, Networking::UserId userId,
                             Networking::PacketData data, size_t length,
-                            bool reliable, bool checkOnly = false);
+                            bool reliable, bool checkOnly = false,
+                            bool echoHostedToSender = true);
 
   MpActor* SendToNeighbours(uint32_t idx, const RawMessageData& rawMsgData,
-                            bool reliable = false, bool checkOnly = false);
+                            bool reliable = false, bool checkOnly = false,
+                            bool echoHostedToSender = true);
 
   // A hosted NPC's step the server refuses (see OnUpdateMovement): the hoster's copy is sent back
   struct NpcJumpState

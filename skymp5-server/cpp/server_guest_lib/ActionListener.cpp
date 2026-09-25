@@ -364,7 +364,8 @@ MpActor* ActionListener::SendToNeighbours(uint32_t idx,
                                           Networking::UserId userId,
                                           Networking::PacketData data,
                                           size_t length, bool reliable,
-                                          bool checkOnly)
+                                          bool checkOnly,
+                                          bool echoHostedToSender)
 {
   MpActor* myActor = partOne.serverState.ActorByUser(userId);
   // The old behavior is doing nothing in that case. This is covered by tests
@@ -414,11 +415,14 @@ MpActor* ActionListener::SendToNeighbours(uint32_t idx,
     return actor;
   }
 
+  const bool skipSender = !echoHostedToSender && idx != myActor->GetIdx();
   for (auto listener : actor->GetActorListeners()) {
     auto targetuserId = partOne.serverState.UserByActor(listener);
-    if (targetuserId != Networking::InvalidUserId) {
-      partOne.GetSendTarget().Send(targetuserId, data, length, reliable);
+    if (targetuserId == Networking::InvalidUserId ||
+        (skipSender && targetuserId == userId)) {
+      continue;
     }
+    partOne.GetSendTarget().Send(targetuserId, data, length, reliable);
   }
 
   return actor;
@@ -426,10 +430,12 @@ MpActor* ActionListener::SendToNeighbours(uint32_t idx,
 
 MpActor* ActionListener::SendToNeighbours(uint32_t idx,
                                           const RawMessageData& rawMsgData,
-                                          bool reliable, bool checkOnly)
+                                          bool reliable, bool checkOnly,
+                                          bool echoHostedToSender)
 {
   return SendToNeighbours(idx, rawMsgData.userId, rawMsgData.unparsed,
-                          rawMsgData.unparsedLength, reliable, checkOnly);
+                          rawMsgData.unparsedLength, reliable, checkOnly,
+                          echoHostedToSender);
 }
 
 // The server owns where an NPC is (Nat, 2026-09-25). A hoster's copy that jumps further in one update than any
@@ -627,7 +633,12 @@ void ActionListener::OnUpdateAnimation(const RawMessageData& rawMsgData,
     return;
   }
 
-  auto targetActor = SendToNeighbours(msg.idx, rawMsgData);
+  // A hoster got every animation of its NPC back; its client only skipped them (formView, alreadyHosted), and a
+  // replay restarts swings and can turn collision off. Movement is still echoed: formView re-seats a hosted copy on
+  // the last relayed position once they are 3000 units apart, so without the echo it would snap back
+  constexpr bool kEchoHostedToSender = false;
+  auto targetActor =
+    SendToNeighbours(msg.idx, rawMsgData, false, false, kEchoHostedToSender);
 
   if (!targetActor) {
     return;
