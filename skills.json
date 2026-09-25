@@ -589,13 +589,13 @@
     0.55
    ],
    "tomeDropChanceByTier": [
-    0,
+    0.01,
     0.02,
     0.04,
     0.07,
     0.1
    ],
-   "tiers": ["Read common books; now and then a scroll", "Better copies; now and then a novice spell tome", "Rare books", "More and stronger scrolls; apprentice spell tomes", "Adept spell tomes"],
+   "tiers": ["Read common books; now and then a scroll, rarely a novice spell tome", "Better copies; now and then a novice spell tome", "Rare books", "More and stronger scrolls; apprentice spell tomes", "Adept spell tomes"],
    "markerSpells": [
     "<T1>",
     "<T2>",

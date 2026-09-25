@@ -1931,13 +1931,14 @@ onUi('reading', (a, args) => {
       const pick = scrollFor(tier);
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a scroll was tucked between the pages: ${humanize(pick.name)}`); mp.set(a, 'private.scholarScrolls', { day: today, n: foundToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
-    // A spell tome from Apprentice up (Nate, 2026-09-25: you should not have to be a Master to find one), by
+    // A spell tome at every Scholar tier (Nate, 2026-09-25: you should not have to be a Master to find one; 2026-09-26: a
+    // rare chance at Novice too), by
     // skills.json tomeDropChanceByTier, its rank held to the tier (Novice tomes until Expert, Apprentice at Expert, Adept
     // at Master) and at most tomeDailyCap a day, as the book cooldown is per book, not per reader. Scrolls have their
     // own roll above.
     let tomesFound = null; try { tomesFound = mp.get(a, 'private.scholarTomes'); } catch (e) { tomesFound = null; }
     const tomesToday = tomesFound && tomesFound.day === today ? Number(tomesFound.n) || 0 : 0;
-    if (tier >= 1 && tomesToday < (Number(READ.tomeDailyCap) || 0) && Math.random() < tomeChance) {
+    if (tomesToday < (Number(READ.tomeDailyCap) || 0) && Math.random() < tomeChance) {
       const pool = (READABLES.tomes || []).filter((t) => Number(t.rank) <= Math.max(0, tier - 2));
       const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
