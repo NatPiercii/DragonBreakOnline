@@ -40,10 +40,11 @@ module.exports = (api) => {
   const isDead = (a) => { try { return mp.get(a, 'isDead') === true; } catch (e) { return false; } };
   const health = (a) => { try { const p = mp.get(a, 'percentages'); return p && typeof p.health === 'number' ? p : null; } catch (e) { return null; } };
   const setHealth = (a, h) => { const p = health(a); if (p) mp.set(a, 'percentages', { health: Math.max(0, Math.min(1, h)), magicka: p.magicka, stamina: p.stamina }); };
-  const banner = (a, text, seconds) => {
+  // Only the short line goes on screen; detail belongs in chat, where it can be read back
+  const banner = (a, text, seconds, detail) => {
     sendPacket(a, { customPacketType: 'dboBanner', text, seconds: seconds || 4 });
     sendPacket(a, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text });
-    personal(a, text);
+    personal(a, detail ? `${text} ${detail}` : text);
   };
   const priestTier = (a) => {
     try {
@@ -189,7 +190,8 @@ module.exports = (api) => {
     chilled.set(a, { leftMs, at: Date.now(), p: null, savedAt: Date.now() });
     saveChill(a, leftMs);
     markChill(a, true);
-    banner(a, `You wake at the temple with the chill of the grave in your bones. Your breath and your magic come back slowly and wounds knit poorly. A Priest's healing can lift it; otherwise it passes in ${C.chillMinutes} minutes.`, 10);
+    banner(a, `The chill of the grave is in your bones. It passes in ${C.chillMinutes} minutes.`, 6,
+      "Your breath and your magic come back slowly and wounds knit poorly. A Priest's healing can lift it sooner.");
     audit(`CHILL ${who(a)} woke at the temple with Death's Chill (${C.chillMinutes} min)`);
   };
   const liftChill = (a, by) => {
@@ -274,7 +276,8 @@ module.exports = (api) => {
         try {
           if (isPlayer(a) && mp.get(a, 'private.permaDead') !== true) {
             S.downed.set(a, { at: Date.now(), by: Number(killerId) >>> 0 });
-            banner(a, `You are down. A Priest's healing or a Draught of Revival can bring you back. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8);
+            banner(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8,
+              "A Priest's healing or a Draught of Revival can bring you back where you fell.");
             log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
           }
         } catch (e) { log(`downed: death handling failed: ${e.message}`); }

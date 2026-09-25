@@ -80,7 +80,8 @@ module.exports = (api) => {
     const used = [...new Set(reported.map((e) => Number(e.baseId) >>> 0))];
     // Anything else is not a mix (such as the inventory re-applied while seated at the lab), so nothing is made
     if (used.length > 3 || used.some((id) => !effectsOf(id))) {
-      log(`alchemy: ${display(a)} reported ${used.map((id) => id.toString(16)).join(' + ')}, not a lab mix; ignored`);
+      const why = used.length > 3 ? `${used.length} distinct items` : 'an item with no alchemy effect';
+      log(`alchemy: ${display(a)} reported ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')}, not a lab mix (${why}); ignored`);
       // Only ingredients, too many of them: a real mix the client misreported, so the player is told
       if (used.length > 3 && used.every((id) => id < 0xff000000 && effectsOf(id))) tell(a, 'The lab did not recognise that mix, so nothing was brewed. Your ingredients come back when you leave the lab. Try again.');
       return;
@@ -104,9 +105,14 @@ module.exports = (api) => {
     const tally = new Map();
     for (const id of used) for (const e of new Set(effectsOf(id))) tally.set(e, (tally.get(e) || 0) + 1);
     const shared = [...tally].filter(([, n]) => n >= 2).map(([e]) => e).filter((e) => POTIONS.has(e));
-    if (!shared.length) return tell(a, 'These ingredients share no effect that makes a potion you know. You keep them.');
+    if (!shared.length) {
+      const seen = [...tally].map(([e, n]) => { const r = lookup(e); return `${r ? r.record.editorId : e.toString(16)} x${n}${POTIONS.has(e) ? '' : ' (no potion)'}`; });
+      log(`alchemy: ${display(a)} mixed ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')} and nothing matched; effects ${seen.join(', ')}`);
+      return tell(a, 'These ingredients share no effect that makes a potion you know. You keep them.');
+    }
     shared.sort((x, y) => baseCost(y) - baseCost(x));
     const pick = POTIONS.get(shared[0]);
+    if (shared.length > 1) log(`alchemy: ${display(a)} shared ${shared.map((e) => { const r = lookup(e); return `${r ? r.record.editorId : e.toString(16)}@${Math.round(baseCost(e))}`; }).join(', ')}; took the first`);
     const tier = alchemistTier(a);   // 0 without the trade, 1..5 by rank
     const index = Math.max(0, Math.min(pick.potions.length - 1, Math.round(tier / 5 * (pick.potions.length - 1))));
     const potion = pick.potions[index];
