@@ -29,6 +29,8 @@ export class NpcSightService extends ClientListener {
     const seen: Array<[string, number]> = [];
     for (const form of world.forms) {
       if (!form || form.appearance || form.isMyClone || typeof form.refrId !== "number") continue;
+      // No movement yet: not an actor the server moves (review 2026-09-25)
+      if (!form.movement) continue;
       const remoteId = form.refrId >>> 0;
       if (remoteId < 0xff000000 && !form.baseId) continue;
       try {
