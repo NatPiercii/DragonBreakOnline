@@ -52,12 +52,25 @@ const every = (name, ms, fn) => {
 // Event loop delay from every source (handlers, TS systems, native tick, GC), sampled on a 10 ms timer
 const loopDelay = globalThis.__dboLoopDelay || (globalThis.__dboLoopDelay = require('perf_hooks').monitorEventLoopDelay({ resolution: 10 }));
 loopDelay.enable();
+// Garbage collection pauses, so a slow tick can be told from a collection: tickSummary, which only formats and logs
+// one line, took 20-624 ms in the same minutes worldStats (113-1296 ms) and npcGround (118 ms with nobody online)
+// were slow, 2026-09-24/25. Observed once per process; a reload keeps the same counters.
+const gcStats = globalThis.__dboGcStats || (globalThis.__dboGcStats = (() => {
+  const s = { n: 0, total: 0, max: 0 };
+  try {
+    const { PerformanceObserver } = require('perf_hooks');
+    new PerformanceObserver((list) => { for (const e of list.getEntries()) { s.n++; s.total += e.duration; if (e.duration > s.max) s.max = e.duration; } }).observe({ entryTypes: ['gc'] });
+  } catch (e) { /* no gc entries on this runtime */ }
+  return s;
+})());
 every('tickSummary', 60000, () => {
   const rows = [...tickStats.entries()].sort((x, y) => y[1].total - x[1].total)
     .map(([k, s]) => `${k} ${s.n}x max ${s.max.toFixed(2)} mean ${(s.total / s.n).toFixed(2)}${s.slow ? ` slow ${s.slow}` : ''}`);
   tickStats.clear();
   rows.push(`event loop p99 ${(loopDelay.percentile(99) / 1e6).toFixed(1)} max ${(loopDelay.max / 1e6).toFixed(1)}`);
   loopDelay.reset();
+  rows.push(`gc ${gcStats.n}x max ${gcStats.max.toFixed(1)} total ${gcStats.total.toFixed(1)}`);
+  gcStats.n = 0; gcStats.total = 0; gcStats.max = 0;
   log(`ticks (ms, last 60 s, ${onlineActors().length} online): ${rows.join(' | ')}`);
 });
 
