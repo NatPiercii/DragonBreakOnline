@@ -456,7 +456,12 @@ void MpObjectReference::Activate(MpObjectReference& activationSource,
   }
 
   if (auto worldState = activationSource.GetParent(); worldState->HasEspm()) {
-    CheckInteractionAbility(activationSource);
+    // Not for the closing activation: it only frees the activator's own seat or container (ProcessActivateSecond), and
+    // it often arrives after the player walked through a door, where this check threw it away and the seat stayed held
+    // (a Bruma tanning rack, 2026-09-25: the close at 18:01:58.546 was refused with 'WorldSpace doesn't match')
+    if (!isSecondActivation) {
+      CheckInteractionAbility(activationSource);
+    }
 
     // Pillars puzzle Bleak Falls Barrow
     bool workaroundBypassParentsCheck = &activationSource == this;
