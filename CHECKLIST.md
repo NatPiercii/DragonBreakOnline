@@ -1,5 +1,25 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-25 (23:20 UTC): Sentinel armor cannot be forged (server refuses, client refunds) - PC SESSION
+
+- [ ] **240 Sentinel.esp creation recipes have no workbench keyword (BNAM) on the server.** `CraftService::
+  ConsiderRecipeCandidate` resolves the missing BNAM to 0, finds it in no workbench's keywords and refuses the craft
+  ("recipe one 0 is not in workbench ids ..."); the client then rolls the craft back and the player keeps the
+  materials (#bugs "Blacksmithing Bug" 1553181844378222695; 67 refused crafts in today's log, all `fe00c8xx` =
+  Sentinel.esp, light slot 0x00c). No plugin in the server order overrides those COBJs. Measured on the server copy
+  (sha256 `d7e2ebc5...`, the one in SHA256SUMS): 240 of 530 COBJ have no BNAM, e.g. `RecipeArmorTH_Iron2Gauntlets`
+  (only EDID, COCT, 2 CNTO, CNAM, NAM1). Across the whole order 254 winning COBJ lack BNAM: those 240, 7 in
+  MoreCraftableEquipment, 5 USSEP (deliberately switched off), 2 Dragonborn temper recipes.
+- [ ] **Not yet known: why the players' game offers them at a forge.** Either the engine lists a keyword-less recipe
+  at a station, or the players' Sentinel.esp differs from the server copy (the load-order check warns on a CRC
+  mismatch but does not block). `Sentinel - More Craftable Equipment.esp` was dropped in the 2026-09-13 cruft drop
+  and is the likely source of the keywords. PC session: hash `Data\Sentinel.esp` in the Steam install players use
+  against `d7e2ebc5...`, and open the dropped MCE plugin in xEdit to see whether it sets BNAM on Sentinel's COBJs.
+- [ ] **Fix (PC session, xEdit):** give the 240 recipes their station in `DragonBreak Nexus Patches.esp` (forge
+  `CraftingSmithingForge 00088105` for armor and weapons; clothing to the Tailor's bench keyword), then
+  `deploy-plugins`. Server and client then agree. A C++ alternative (a keyword-less recipe counts as a forge recipe)
+  would make them craftable without a plugin update, but it would also switch USSEP's disabled recipes back on.
+
 ## Added 2026-09-24 (20:05 UTC): newbrumacityedits (2).esp merged into DragonBreak Online Edits.esp - DEPLOYED 20:08 UTC
 
 - [x] Nat's `newbrumacityedits (2).esp` (141 records) is (1) plus 35 records: Fighters Guild + basement and Icewind
