@@ -2223,11 +2223,16 @@ void MpObjectReference::CheckInteractionAbility(MpObjectReference& refr)
   }
 }
 
+// Players only, each told directly. An NPC listener has no user and GetActorToSendTo() forwarded to its hoster, so a
+// hoster got the message once more per hosted NPC in range, and a hoster out of range of this reference got messages
+// about a form its client does not have. The NPC's own hoster still gets them as one of its listeners
 void MpObjectReference::SendMessageToActorListeners(const IMessageBase& msg,
                                                     bool reliable) const
 {
   for (auto listener : GetActorListeners()) {
-    listener->GetActorToSendTo().SendToUser(msg, true);
+    if (listener->GetUserId() != Networking::InvalidUserId) {
+      listener->SendToUser(msg, reliable);
+    }
   }
 }
 

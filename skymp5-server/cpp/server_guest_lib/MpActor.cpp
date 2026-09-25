@@ -206,8 +206,11 @@ void MpActor::EquipBestWeapon()
   UpdateEquipmentMessage msg;
   msg.data = newEq;
   msg.idx = GetIdx();
+  // Players only, each once (see SendMessageToActorListeners)
   for (auto listener : GetActorListeners()) {
-    listener->GetActorToSendTo().SendToUser(msg, true);
+    if (listener->GetUserId() != Networking::InvalidUserId) {
+      listener->SendToUser(msg, true);
+    }
   }
 }
 
