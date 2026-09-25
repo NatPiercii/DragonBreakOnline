@@ -1,0 +1,11 @@
+[Unit]
+Description=DragonBreak Online monitor (server, player and NPC problems to #server-monitor and /var/lib/dbo-monitor)
+After=skymp.service
+
+[Service]
+ExecStart=/usr/bin/python3 -u /opt/dbo-monitor/dbo_monitor.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
