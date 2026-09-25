@@ -18,6 +18,7 @@
 #include <Timer.h>
 #include <algorithm>
 #include <chrono>
+#include <deque>
 #include <functional>
 #include <list>
 #include <map>
@@ -202,6 +203,11 @@ public:
     if (outDestroyedForm)
       *outDestroyedForm = std::dynamic_pointer_cast<FormType>(it->second);
 
+    // Its host is told to stop while the reference is still whole (PartOne)
+    if (auto refr = form->AsObjectReference(); refr && beforeRefrDestroy) {
+      beforeRefrDestroy(*refr);
+    }
+
     it->second->BeforeDestroy();
 
     if (auto formIndex = dynamic_cast<FormIndex*>(form.get())) {
@@ -213,8 +219,7 @@ public:
           refrByIdxUnreliable[formIndex->idx] == refr) {
         refrByIdxUnreliable[formIndex->idx] = nullptr;
       }
-      if (formIdxManager && !formIdxManager->DestroyID(formIndex->idx))
-        throw std::runtime_error("DestroyID failed");
+      HoldBackFormIdx(formIndex->idx);
     }
 
     forms.erase(it);
@@ -267,6 +272,8 @@ public:
   std::unordered_map<uint32_t, uint32_t> pendingChildActivations;
   std::vector<std::optional<std::chrono::system_clock::time_point>>
     lastMovUpdateByIdx;
+  // Called by DestroyForm for every reference before it is torn down
+  std::function<void(MpObjectReference& refr)> beforeRefrDestroy;
 
   bool isPapyrusHotReloadEnabled = false;
 
@@ -315,6 +322,8 @@ private:
   [[nodiscard]] bool IsNpcAllowed(uint32_t refrId) const noexcept;
   [[nodiscard]] uint32_t GetFileIdx(uint32_t formId) const noexcept;
   [[nodiscard]] bool IsRelootForbidden(std::string type) const noexcept;
+  void HoldBackFormIdx(uint32_t idx);
+  void ReleaseHeldFormIdx(bool all);
 
 private:
   struct GridInfo
@@ -330,6 +339,9 @@ private:
   std::unordered_map<uint32_t, GridInfo> grids;
   std::unique_ptr<MakeID> formIdxManager;
   std::vector<MpObjectReference*> refrByIdxUnreliable;
+  // Freed form indices, oldest first, with when they were freed
+  std::deque<std::pair<uint32_t, std::chrono::steady_clock::time_point>>
+    heldFormIdx;
   espm::Loader* espm = nullptr;
   FormCallbacksFactory formCallbacksFactory;
   std::unique_ptr<espm::CompressedFieldsCache> espmCache;

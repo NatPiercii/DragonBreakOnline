@@ -83,6 +83,10 @@ void WorldState::Clear()
   forms.clear();
   grids.clear();
   formIdxManager.reset();
+  // Indices start again from 0 with the next manager
+  heldFormIdx.clear();
+  refrByIdxUnreliable.clear();
+  lastMovUpdateByIdx.clear();
 }
 
 const std::chrono::steady_clock::time_point& WorldState::GetStartPoint() const
@@ -138,14 +142,22 @@ void WorldState::AddForm(std::unique_ptr<MpForm> form, uint32_t formId,
       formIdxManager.reset(new MakeID(FormIndex::g_invalidIdx - 1));
     }
 
+    ReleaseHeldFormIdx(false);
     if (!formIdxManager->CreateID(refr->idx)) {
-      throw std::runtime_error("CreateID failed");
+      // Every index is in use or held back: reuse the held ones rather than fail
+      ReleaseHeldFormIdx(true);
+      if (!formIdxManager->CreateID(refr->idx)) {
+        throw std::runtime_error("CreateID failed");
+      }
     }
 
     if (refrByIdxUnreliable.size() <= refr->GetIdx()) {
       refrByIdxUnreliable.resize(refr->GetIdx() + 1, nullptr);
     }
     refrByIdxUnreliable[refr->GetIdx()] = refr;
+    if (lastMovUpdateByIdx.size() > refr->GetIdx()) {
+      lastMovUpdateByIdx[refr->GetIdx()].reset();
+    }
   }
 
   // MpObjectReference::Init requests save for newly created forms. That's why
@@ -997,6 +1009,35 @@ std::shared_ptr<std::vector<uint32_t>> WorldState::GetAllForms(
   }
 
   return resCache;
+}
+
+// A freed index is not handed out again for kHoldFor. MakeID gives the lowest free index at once, and the spawn system
+// destroys and creates NPCs in the same poll, so a new NPC took the index of one just despawned: its former host's
+// movement, animation and hits still in flight (or sent until its HostStop arrived) landed on the new NPC
+void WorldState::HoldBackFormIdx(uint32_t idx)
+{
+  if (!formIdxManager) {
+    return;
+  }
+  if (lastMovUpdateByIdx.size() > idx) {
+    lastMovUpdateByIdx[idx].reset();
+  }
+  heldFormIdx.push_back({ idx, std::chrono::steady_clock::now() });
+}
+
+void WorldState::ReleaseHeldFormIdx(bool all)
+{
+  constexpr auto kHoldFor = std::chrono::seconds(10);
+  const auto now = std::chrono::steady_clock::now();
+  while (!heldFormIdx.empty() &&
+         (all || now - heldFormIdx.front().second >= kHoldFor)) {
+    const uint32_t idx = heldFormIdx.front().first;
+    heldFormIdx.pop_front();
+    if (!formIdxManager || !formIdxManager->DestroyID(idx)) {
+      spdlog::error("WorldState::ReleaseHeldFormIdx - index {} was not in use",
+                    idx);
+    }
+  }
 }
 
 MpForm* WorldState::LookupFormByIdx(int idx)

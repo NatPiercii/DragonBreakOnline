@@ -87,6 +87,9 @@ public:
 
   virtual void OnUnknown(const RawMessageData& rawMsgData);
 
+  // Drops what is kept per actor for a form that is being destroyed
+  void ForgetForm(uint32_t formId);
+
   // for CraftTest.cpp
   const std::shared_ptr<CraftService>& GetCraftService() noexcept
   {

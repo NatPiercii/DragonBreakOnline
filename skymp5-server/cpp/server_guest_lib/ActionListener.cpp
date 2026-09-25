@@ -492,6 +492,11 @@ bool ActionListener::RefuseNpcJump(MpActor& actor, const NiPoint3& newPos)
   return true;
 }
 
+void ActionListener::ForgetForm(uint32_t formId)
+{
+  npcJumps.erase(formId);
+}
+
 void ActionListener::OnCustomPacket(const RawMessageData& rawMsgData,
                                     const CustomPacketMessage& msg)
 {

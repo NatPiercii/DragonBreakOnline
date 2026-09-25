@@ -158,6 +158,8 @@ private:
 
   void TickPacketHistoryPlaybacks();
   void TickDeferredMessages();
+  // Drops the hosting state of a reference WorldState is about to destroy
+  void BeforeRefrDestroy(MpObjectReference& refr);
   // Frees NPCs whose hoster stopped sending their movement, so a player who has them loaded can take over
   void TickStaleHosts();
   std::chrono::system_clock::time_point lastStaleHostSweep;

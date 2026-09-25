@@ -220,6 +220,31 @@ void PartOne::TickStaleHosts()
   }
 }
 
+// A destroyed NPC kept its hoster: the host's client never got HostStop and kept driving it and sending its movement
+// for the freed index, and hosters, hostSeenSince and npcJumps kept its entries for the rest of the run
+void PartOne::BeforeRefrDestroy(MpObjectReference& refr)
+{
+  const uint32_t formId = refr.GetFormId();
+  auto it = worldState.hosters.find(formId);
+  if (it != worldState.hosters.end()) {
+    if (it->second != 0) {
+      auto hoster = dynamic_cast<MpActor*>(
+        worldState.LookupFormByIdNoLoad(it->second).get());
+      auto user =
+        hoster ? serverState.UserByActor(hoster) : Networking::InvalidUserId;
+      if (user != Networking::InvalidUserId &&
+          user != serverState.disconnectingUserId) {
+        SendHostStop(user, refr);
+      }
+    }
+    worldState.hosters.erase(it);
+  }
+  hostSeenSince.erase(formId);
+  if (pImpl->actionListener) {
+    pImpl->actionListener->ForgetForm(formId);
+  }
+}
+
 uint32_t PartOne::CreateActor(uint32_t formId, const NiPoint3& pos,
                               float angleZ, uint32_t cellOrWorld,
                               ProfileId profileId)
@@ -919,6 +944,10 @@ void PartOne::Init()
 {
   pImpl.reset(new Impl);
   pImpl->logger.reset(new spdlog::logger{ "empty logger" });
+
+  worldState.beforeRefrDestroy = [this](MpObjectReference& refr) {
+    BeforeRefrDestroy(refr);
+  };
 
   pImpl->onSubscribe = [this](PartOneSendTargetWrapper* sendTarget,
                               MpObjectReference* emitter,
