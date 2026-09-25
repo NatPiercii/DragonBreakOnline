@@ -3190,6 +3190,13 @@ try {
   require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, zoneOfActor, cfg, every });
 } catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; globalThis.__dboInstantRestraint = null; }
 
+// ---- Pickpocket in the X menu while sneaking (server\pickpocket.js) --------------------------------
+try {
+  const PICKPOCKET_JS = path.resolve('pickpocket.js');
+  delete require.cache[PICKPOCKET_JS];
+  require(PICKPOCKET_JS)({ mp, log, personal, system, audit, who, nameOf, onlineActors, recordOf, cfg });
+} catch (e) { log('pickpocket.js failed to load:', e.stack || e.message); globalThis.__dboPickpocketEntries = null; globalThis.__dboPickpocketAction = null; }
+
 // ---- player factions: guilds, holds, clans, cults (server\guilds.js, guild-defs.json) -------------
 try {
   const GUILDS_JS = path.resolve('guilds.js');

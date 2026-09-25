@@ -6,6 +6,7 @@
 //   everyone:                 Trade, Introduce (until the target knows you), Inspect, Invite to Party
 //   admins and zone officials: Search, Restrain / Uncuff, while their own hands are free
 //   whoever carries the target: Put down
+//   while sneaking:            Pickpocket (pickpocket.js)
 // Trade, Search, Restrain, Uncuff, Carry and Put down go from the client straight to the server systems,
 // which check private.dboLawful themselves; Introduce, Inspect and Invite come back here as dbo events.
 // Restrain is instant for an admin or anyone holding a lawful rank, wherever they stand
@@ -119,6 +120,8 @@ module.exports = (api) => {
     if (myLeader === null || myLeader !== leaderOf(t)) entries.push({ id: 'party', label: 'Invite to Party' });
     else if (myLeader === profileOf(a)) entries.push({ id: 'partykick', label: 'Remove from Party' });
     if (myLeader !== null) entries.push({ id: 'partyleave', label: 'Leave Party' });
+    // Pickpocket, only while the viewer sneaks (pickpocket.js reads the server's sneak flag)
+    try { if (typeof globalThis.__dboPickpocketEntries === 'function') entries.push(...globalThis.__dboPickpocketEntries(a, t)); } catch (e) { /* pickpocket not loaded */ }
     try { if (typeof globalThis.__dboSuperMenuEntries === 'function') entries.push(...globalThis.__dboSuperMenuEntries(a, t)); } catch (e) { /* no curses */ }
     try { if (typeof globalThis.__dboFactionMenuEntries === 'function') entries.push(...globalThis.__dboFactionMenuEntries(a, t)); } catch (e) { /* factions not loaded */ }
     const r = get(t, RESTRAINED_PROP, null) || {};
@@ -155,6 +158,7 @@ module.exports = (api) => {
     if (id === 'partykick') return runCommand(a, 'party', `kick #${tagOf(t)}`);
     if (id === 'partyleave') return runCommand(a, 'leave', '');
     if (id.startsWith('voice:')) return sendPacket(a, { customPacketType: 'dboVoicePeer', identity: (t >>> 0).toString(16), op: id.slice(6), name: nameFor(a, t) });
+    if (typeof globalThis.__dboPickpocketAction === 'function' && globalThis.__dboPickpocketAction(a, id, t, nameFor)) return;
     if (typeof globalThis.__dboSuperMenuAction === 'function' && globalThis.__dboSuperMenuAction(a, id, t)) return;
     if (typeof globalThis.__dboFactionMenuAction === 'function' && globalThis.__dboFactionMenuAction(a, id, t)) return;
   });
