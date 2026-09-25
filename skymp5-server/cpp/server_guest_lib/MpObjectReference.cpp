@@ -2044,9 +2044,22 @@ std::vector<espm::CONT::ContainerObject> GetInventoryObjects(
 {
   auto& compressedFieldsCache = worldState->GetEspmCache();
 
+  // CNTO ids are local to the plugin that holds the record; AddContainerObject looks them up as load-order
+  // ids, so they are converted here, like the outfit ids below. A plugin whose master list is not a prefix
+  // of the load order (BSAssets.esm, one master) otherwise had its self-index 01 read as Update.esm, and
+  // every Beyond Skyrim goblin built from a BSAssets template spawned without its weapon (2026-09-25).
+  auto toGlobal = [](const espm::LookupResult& res,
+                     std::vector<espm::CONT::ContainerObject> objects) {
+    for (auto& object : objects) {
+      object.formId = res.ToGlobalId(object.formId);
+    }
+    return objects;
+  };
+
   auto baseContainer = espm::Convert<espm::CONT>(lookupRes.rec);
   if (baseContainer) {
-    return baseContainer->GetData(compressedFieldsCache).objects;
+    return toGlobal(lookupRes,
+                    baseContainer->GetData(compressedFieldsCache).objects);
   }
 
   auto baseNpc = espm::Convert<espm::NPC_>(lookupRes.rec);
@@ -2054,7 +2067,9 @@ std::vector<espm::CONT::ContainerObject> GetInventoryObjects(
     auto baseId = lookupRes.ToGlobalId(lookupRes.rec->GetId());
     return EvaluateTemplate<espm::NPC_::UseInventory>(
       worldState, baseId, templateChain,
-      [](const auto&, const auto& npcData) { return npcData.objects; });
+      [&toGlobal](const auto& npcLookupRes, const auto& npcData) {
+        return toGlobal(npcLookupRes, npcData.objects);
+      });
   }
 
   return {};
