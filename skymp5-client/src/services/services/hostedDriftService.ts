@@ -359,8 +359,10 @@ export class HostedDriftService extends ClientListener {
     const baseId = ac.getBaseObject()?.getFormID() ?? 0;
     if (this.locomotionBases.has(baseId)) return;
     this.locomotionBases.add(baseId);
-    if (!this.npcKeyword) this.npcKeyword = Keyword.getKeyword("ActorTypeNPC");
-    if (!this.npcKeyword || ac.hasKeyword(this.npcKeyword)) return;
+    // Fetched every time: a native object is only valid in the frame it came from, and the cached copy threw
+    // "Invalid _skyrimPlatform_indexInPool" on every later call, cutting the rest of the check short (2026-09-25)
+    const npcKeyword = Keyword.getKeyword("ActorTypeNPC");
+    if (!npcKeyword || ac.hasKeyword(npcKeyword)) return;
     const m = getMovement(ac);
     this.send({
       kind: "locomotion", remoteId: remoteId.toString(16), base: this.baseName(ac), moved: Math.round(moved),
@@ -602,7 +604,6 @@ export class HostedDriftService extends ClientListener {
   private hostedLocal = new Set<number>();
   private anims = new Map<number, Array<[string, number]>>();
   private locomotionBases = new Set<number>();
-  private npcKeyword: Keyword | null = null;
   private remote = new Map<number, RemoteTrack>();
   private remoteTimes: number[] = [];
   private remoteSent = 0;
