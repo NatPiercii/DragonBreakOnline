@@ -51,6 +51,7 @@ import { MasteryService } from "./services/services/masteryService";
 import { BountyBoardService } from "./services/services/bountyBoardService";
 import { DboRelayService } from "./services/services/dboRelayService";
 import { DboGlowService } from "./services/services/dboGlowService";
+import { NpcSightService } from "./services/services/npcSightService";
 import { RemoteVitalsService } from "./services/services/remoteVitalsService";
 import { HostedDriftService } from "./services/services/hostedDriftService";
 import { LevelBonusService } from "./services/services/levelBonusService";
@@ -157,6 +158,7 @@ const main = () => {
       new BountyBoardService(sp, controller),
       new DboRelayService(sp, controller),
       new DboGlowService(sp, controller),
+      new NpcSightService(sp, controller),
       new RemoteVitalsService(sp, controller),
       new HostedDriftService(sp, controller),
       new LevelBonusService(sp, controller),
