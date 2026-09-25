@@ -105,7 +105,8 @@ module.exports = (api) => {
   onUi('levelClose', (a) => closeWidget(a, WIDGET_ID));
 
   registerChatCommand('level', (a, args) => {
-    const arg = String((args && args[0]) || '').toLowerCase();
+    // registerChatCommand hands the argument string, not an array: args[0] was the first letter
+    const arg = String(args || '').trim().split(/\s+/)[0].toLowerCase();
     // The panel is not always reachable, so a point can always be spent from chat
     if (arg) { spend(a, arg); return; }
     const st = stateOf(a);
