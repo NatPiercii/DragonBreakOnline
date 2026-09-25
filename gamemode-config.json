@@ -96,8 +96,8 @@
   "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 }
  },
  "pvp": {
-  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged).",
-  "damageMult": 1
+  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.2 from 2026-09-25 (Nate: PvP damage buffed a bit across the board).",
+  "damageMult": 1.2
  },
  "reading": {
   "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",
