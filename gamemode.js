@@ -2741,6 +2741,32 @@ const arrowDamageMult = (aggressorId, sourceId) => {
   try { for (const w of wornOf(mp.get(aggressorId, 'equipment'))) arrow = Math.max(arrow, recordDamageOf(w.baseId, 'AMMO')); } catch (e) { return 1; }
   return arrow > 0 ? 1 + (arrow * (Number(ARROWS.scale) || 0)) / bow : 1;
 };
+// Weapon materials: vanilla keeps the tiers close (Daedric sword 14, Dragonbone 15), so Nat (2026-09-25) wanted better
+// gear to hit clearly harder. The weapon's material keyword (KWDA, matched by editor id, so no form id is assumed) adds
+// its share on top of the base damage. Config "weaponMaterials": { enabled, playersOnly, byKeyword: { editorId: bonus } }.
+const MATERIALS = Object.assign({ enabled: true, playersOnly: true, byKeyword: {} }, cfg.weaponMaterials || {});
+const materialBonusCache = globalThis.__dboMaterialBonusCache instanceof Map ? globalThis.__dboMaterialBonusCache : (globalThis.__dboMaterialBonusCache = new Map());
+if (globalThis.__dboMaterialCfg !== JSON.stringify(MATERIALS.byKeyword)) { materialBonusCache.clear(); globalThis.__dboMaterialCfg = JSON.stringify(MATERIALS.byKeyword); }
+const materialBonusOf = (sourceId) => {
+  if (materialBonusCache.has(sourceId)) return materialBonusCache.get(sourceId);
+  let bonus = 0;
+  const r = recordOf(sourceId);
+  if (r && String(r.record.type) === 'WEAP') {
+    for (const f of fieldsOf(r, 'KWDA')) {
+      for (let off = 0; off + 4 <= f.data.byteLength; off += 4) {
+        const kw = recordOf(globalAt(r, u32At(f, off)));
+        const b = kw ? Number(MATERIALS.byKeyword[String(kw.record.editorId || '')]) : NaN;
+        if (b > bonus) bonus = b;
+      }
+    }
+  }
+  materialBonusCache.set(sourceId, bonus);
+  return bonus;
+};
+const materialDamageMult = (aggressorId, sourceId) => {
+  if (!MATERIALS.enabled || (MATERIALS.playersOnly && !(profileOf(aggressorId) >= 0))) return 1;
+  return 1 + materialBonusOf(sourceId);
+};
 // Defense: the engine takes worn armor at its bare rating (rating x fArmorScalingFactor %, capped at fMaxArmorRating) and
 // reads no skill, so a Defense tier multiplies the rating and the hit is scaled from the engine's reduction to that one.
 // ARMO DNAM is the rating x100 (u32), BOD2 byte 4 the armor type (0 light, 1 heavy, 2 clothing). Config "mastery.defense".
@@ -2909,7 +2935,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage) => {
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
-    const mult = masteryDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
+    const mult = masteryDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };

@@ -96,8 +96,20 @@
   "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 }
  },
  "pvp": {
-  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged).",
-  "damageMult": 1
+  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
+  "damageMult": 1.25
+ },
+ "weaponMaterials": {
+  "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2); a weapon without one of these gets nothing.",
+  "enabled": true,
+  "playersOnly": true,
+  "byKeyword": {
+   "WeapMaterialWood": 0, "WeapMaterialIron": 0, "WeapMaterialImperial": 0, "WeapMaterialDraugr": 0, "WeapMaterialFalmer": 0,
+   "WeapMaterialSteel": 0.03, "WeapMaterialSilver": 0.05, "WeapMaterialDraugrHoned": 0.05, "WeapMaterialFalmerHoned": 0.05,
+   "WeapMaterialOrcish": 0.05, "WeapMaterialDwarven": 0.07, "WeapMaterialElven": 0.09, "DLC2WeaponMaterialNordic": 0.11,
+   "WeapMaterialGlass": 0.13, "WeapMaterialEbony": 0.17, "DLC2WeaponMaterialStalhrim": 0.17,
+   "WeapMaterialDaedric": 0.2, "DLC1WeapMaterialDragonbone": 0.3
+  }
  },
  "reading": {
   "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",
