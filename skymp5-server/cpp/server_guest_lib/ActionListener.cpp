@@ -1717,6 +1717,11 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
     return;
   }
 
+  // Decided before any handler runs, which could take or unequip the scroll
+  const bool scrollCast =
+    !caster->GetEquipment().IsSpellEquipped(spellCastData.spell) &&
+    IsHeldScroll(*caster, spellCastData.spell);
+
   SendToNeighbours(myActor->idx, rawMsgData, true);
   UpdateWardChannel(caster->GetFormId(), spellCastData);
 
@@ -1735,9 +1740,8 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
 
   // A scroll is read once: one leaves the caster's inventory per cast. The restorative handling below reads SPEL
   // records only (GetData<SPEL> throws on a SCRL), so a scroll stops here.
-  if (!caster->GetEquipment().IsSpellEquipped(spellCastData.spell) &&
-      IsHeldScroll(*caster, spellCastData.spell)) {
-    if (!spellCastData.keepAlive) {
+  if (scrollCast) {
+    if (!spellCastData.keepAlive && IsHeldScroll(*caster, spellCastData.spell)) {
       caster->RemoveItem(spellCastData.spell, 1, nullptr);
       spdlog::info("ActionListener::OnSpellCast - {:x} read scroll {:x}",
                    caster->GetFormId(), spellCastData.spell);
