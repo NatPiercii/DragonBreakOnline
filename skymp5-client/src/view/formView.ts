@@ -494,12 +494,13 @@ export class FormView {
       const hostSilent = packetClock
         ? !!model.movementAt && Date.now() - model.movementAt > driftConfig.rehostAfterMs
         : !!this.movState.lastApply && Date.now() - this.movState.lastApply > 1500;
-      if (hostSilent) {
+      // A copy hosted here has no other sender to wait for. Asking for it again is a reliable packet a second, and
+      // once its own movement paused 2 s the server grants it again: HostStart re-seats it and restarts its package
+      if (hostSilent && !alreadyHosted) {
         if (Date.now() - this.movState.lastRehost > (packetClock ? 2000 : 1000)) {
           this.movState.lastRehost = Date.now();
           const remoteId = this.remoteRefrId;
-          if (ac && ac.is3DLoaded()) {
-            this.tryHostIfNeed(ac, remoteId as number, model.movement?.worldOrCell);
+          if (ac && remoteId && this.tryHostIfNeed(ac, remoteId, model.movement?.worldOrCell)) {
             printConsole("tryHostIfNeed - reason: not seeing movement for long time");
           }
         }
@@ -1013,6 +1014,11 @@ export class FormView {
   };
 
   private tryHostIfNeed(ac: Actor, remoteId: number, worldOrCell?: number) {
+    // Our AI drives only a spawned copy with its 3D; a grant for any other goes silent (sendMovement skips an unloaded
+    // copy) and holds the NPC from a player who could drive it until the server's stale-host release
+    if (!this.ready || !ac.is3DLoaded()) {
+      return false;
+    }
     const last = lastTryHost[remoteId];
     if (!last || Date.now() - last >= 1000) {
       try {
