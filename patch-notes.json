@@ -1,5 +1,32 @@
 [
   {
+    "title": "Creatures Walk Again",
+    "date": "2026-09-25",
+    "version": "Client 0.3.41",
+    "tag": "Fixes",
+    "sections": [
+      {
+        "heading": "Creatures and enemies",
+        "items": [
+          "Fixed creatures that played their walking animation without going anywhere and only fought what stood right in front of them. The server was wrongly telling your game that another player controlled creatures your game was actually running, so it held them in place. This bug is old; it became much more visible with this evening's update.",
+          "When a creature despawns and a new one spawns in the same moment, your game now always builds a fresh copy of the new one."
+        ]
+      },
+      {
+        "heading": "Server",
+        "items": [
+          "Fixed a short freeze of the whole server that could happen while it saved its live status file."
+        ]
+      },
+      {
+        "heading": "In this client update (restart the launcher)",
+        "items": [
+          "Client 0.3.41 carries the creature fix above. The launcher will not let 0.3.40 connect, so restart it before you log in."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Server Runs the Creatures",
     "date": "2026-09-25",
     "version": "Client 0.3.40",
