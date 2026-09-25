@@ -9,6 +9,10 @@
 - [ ] PC session: find why the mesh crashes (lag bone controller on a server-spawned actor; the same wisp may work in
   single player), fix it in an owned plugin or a replacement mesh, then drop the `castBlocks` entry.
 
+- [ ] PC session, same asset pass: `CYRForceRune` (Beyond Skyrim) draws its centre glyph solid bright green (#bugs
+  1553193876355813386, screenshot from athny): a missing or wrong texture or material on the rune's effect art. The
+  circle renders; only the centre glyph is wrong. Check the rune's MGEF art / hit shader textures in the dev install.
+
 ## Added 2026-09-25 (23:20 UTC): Sentinel armor cannot be forged (server refuses, client refunds) - FIXED ON THE SERVER 23:48
 
 - [ ] **240 Sentinel.esp creation recipes have no workbench keyword (BNAM) on the server.** `CraftService::
