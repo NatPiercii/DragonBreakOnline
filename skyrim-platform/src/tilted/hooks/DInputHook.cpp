@@ -332,6 +332,13 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
   if (instanceInfo.guidInstance == GUID_SysKeyboard) {
     uint8_t rawData[256];
     HRESULT hr = IDirectInputDevice8_GetDeviceState(m_pDevice, 256, rawData);
+    // The browser is the only keyboard consumer that does not acquire before reading
+    if (hr == DIERR_INPUTLOST || hr == DIERR_NOTACQUIRED) {
+      LogAcquireFailure(m_pDevice, hr);
+      if (IDirectInputDevice8_Acquire(m_pDevice) == DI_OK) {
+        hr = IDirectInputDevice8_GetDeviceState(m_pDevice, 256, rawData);
+      }
+    }
     if (hr == DI_OK) {
       ProcessKeyboardData(rawData);
       memset(rawData, 0, 256);
