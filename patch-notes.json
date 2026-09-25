@@ -11,7 +11,10 @@
           "The level-up panel no longer disappears for good. Taking beast form used to close it in a way that stopped it ever opening again, so unspent points were stranded. It reopens properly now.",
           "If the panel still will not show, you can spend a point straight from chat: /level health, /level magicka or /level stamina. Plain /level tells you how many you have left.",
           "Choosing a point in the panel no longer closes it when the choice does not take, which used to cost you both the panel and the point.",
-          "Players standing near you now see you turn into a beast, and see you return to mortal form afterwards."
+          "Players standing near you now see you turn into a beast, and see you return to mortal form afterwards.",
+          "Logging in with unspent level points no longer leaves you unable to move. The panel used to take the keyboard; it now opens without stealing it and tells you in chat how to spend. A level gained mid-fight no longer grabs the keys either.",
+          "Renting an inn bed no longer loses your cursor. The second prompt used to appear with the mouse turning the camera instead of clicking.",
+          "The text after you go down or wake with the chill of the grave is much shorter on screen. The full explanation is in chat, where you can read it back after the banner clears."
         ]
       }
     ]
