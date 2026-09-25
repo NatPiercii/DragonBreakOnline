@@ -75,9 +75,8 @@ module.exports = (api) => {
   } catch (e) { log('rest: beds.json unreadable:', e.message); }
   const groupOf = (cell) => (INNS.has(cell) ? INNS.get(cell).group : cell);
   const innName = (cell) => { const i = INNS.get(cell); if (!i) return ''; const g = INNS.get(i.group); return g ? g.name : i.name; };
-  // rentBedRefs only lists beds carrying the rentbed marker, which most Beyond Skyrim inn beds lack, so it names
-  // the beds an inn is known to rent rather than the only ones it may: any real bed in an inn cell is rentable
-  const rentable = (bed, cell) => { const i = INNS.get(cell); return !!i && ((i.rent && i.rent.has(bed)) || BEDS.has(baseOf(bed))); };
+  // rentBedRefs lists the beds an inn actually rents; residents' and innkeepers' own beds are deliberately not in it
+  const rentable = (bed, cell) => { const i = INNS.get(cell); return !!i && (i.rent ? i.rent.has(bed) : BEDS.has(baseOf(bed))); };
 
   const baseOf = (ref) => { try { return idOf(mp.get(ref, 'baseDesc')); } catch (e) { return 0; } };
   const cellOf = (ref) => { try { return idOf(mp.get(ref, 'worldOrCellDesc')); } catch (e) { return 0; } };
