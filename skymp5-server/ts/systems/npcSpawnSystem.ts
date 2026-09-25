@@ -77,6 +77,9 @@ const LEASH_RADII = 3;
 const NEVER_READY = -1;
 // A corpse is removed this long after death, whatever its zone does. Overridable via "npcCorpseSeconds".
 const DEFAULT_CORPSE_SECONDS = 300;
+// The server hands a destroyed form's index to the next form it creates, while the old NPC's host can still be
+// sending packets for it; a slot whose NPC was destroyed is not refilled for this long
+const REFILL_HOLD_MS = 10000;
 
 interface ZoneNpc {
   baseDesc: string;
@@ -214,6 +217,9 @@ export class NpcSpawnSystem implements System {
   private maxLive = DEFAULT_MAX_LIVE;
   // Pulling a desynced actor to its target removes its ragdoll mid fight and has crashed the client
   private desyncPull = false;
+  // Lower-case zone name -> epoch ms until which a zone of that name is not filled: its NPCs were destroyed by a
+  // despawn, and a reload (a dungeon lease cleared and claimed again) can bring the same name back at once
+  private heldNames = new Map<string, number>();
 
   async initAsync(ctx: SystemContext): Promise<void> {
     this.mp = ctx.svr as Mp;
@@ -352,6 +358,12 @@ export class NpcSpawnSystem implements System {
     }
     for (const gone of this.zones) {
       if (!carried.has(gone) && gone.spawned.length) this.despawn(mp, gone);
+    }
+    const now = Date.now();
+    for (const [name, until] of Array.from(this.heldNames)) if (until <= now) this.heldNames.delete(name);
+    for (const zone of zones) {
+      const until = this.heldNames.get(zone.name.toLowerCase());
+      if (until && zone.spawned.length === 0) zone.slotReadyAt = zone.slotReadyAt.map((at) => (at < 0 ? at : Math.max(at, until)));
     }
     this.zones = zones;
     return carried.size;
@@ -852,7 +864,8 @@ export class NpcSpawnSystem implements System {
       this.sliding.delete(entry.id);
       entry.id = 0;
       entry.diedAt = now;
-      zone.slotReadyAt[entry.slot] = now;
+      // Not in this poll: fillSlots runs next and would give the new copy the index just freed
+      zone.slotReadyAt[entry.slot] = now + REFILL_HOLD_MS;
       // A spot with no floor drops every actor placed on it, so the slot is given up after a second fall.
       // A fall with nobody near counts for nothing: the room was not loaded, so the floor was not there yet.
       if (fell) {
@@ -985,17 +998,25 @@ export class NpcSpawnSystem implements System {
     return prev.polls >= FLOAT_POLLS;
   }
 
-  // A corpse is left to its timer unless forced (admin reset); a death the poll has not seen yet starts its timer here
-  private removeNpc(mp: Mp, id: number, force = false): void {
-    if (!id) return;
+  // A corpse is left to its timer unless forced (admin reset); a death the poll has not seen yet starts its timer here.
+  // True when the actor was destroyed now.
+  private removeNpc(mp: Mp, id: number, force = false): boolean {
+    if (!id) return false;
     if (!force && !this.corpses.has(id)) {
       let dead = false;
       try { dead = mp.get(id, "isDead") === true; } catch { }
       if (dead) this.corpses.set(id, Date.now() + this.corpseMs);
     }
-    if (!force && this.corpses.has(id)) return;
+    if (!force && this.corpses.has(id)) return false;
     this.corpses.delete(id);
     try { mp.destroyActor(id); } catch { }
+    return true;
+  }
+
+  // Pushes a slot's ready time past the refill hold; a slot kept empty until reset stays so
+  private holdSlot(zone: Zone, slot: number, now: number): void {
+    const at = zone.slotReadyAt[slot];
+    if (at >= 0 && at < now + REFILL_HOLD_MS) zone.slotReadyAt[slot] = now + REFILL_HOLD_MS;
   }
 
   private sweepCorpses(mp: Mp, now: number): void {
@@ -1004,10 +1025,13 @@ export class NpcSpawnSystem implements System {
       if (at > now) continue;
       this.corpses.delete(id);
       try { mp.destroyActor(id); } catch { }
-      // The slot keeps its entry and cooldown; id 0 marks its corpse as gone
+      // The slot keeps its entry and cooldown; id 0 marks its corpse as gone. A cooldown shorter than the
+      // corpse timer has already run out, and this poll's fillSlots would reuse the index just freed.
       for (const zone of this.zones) {
         for (const entry of zone.spawned) {
-          if (entry.id === id) entry.id = 0;
+          if (entry.id !== id) continue;
+          entry.id = 0;
+          this.holdSlot(zone, entry.slot, now);
         }
       }
       removed++;
@@ -1017,16 +1041,20 @@ export class NpcSpawnSystem implements System {
     this.saveSpawns();
   }
 
-  // Cooldowns still running survive the despawn so leaving and coming back cannot skip Respawn; reset clears them and the corpses
+  // Cooldowns still running survive the despawn so leaving and coming back cannot skip Respawn; reset clears them and the corpses.
+  // A slot whose actor was destroyed here waits out the refill hold either way.
   private despawn(mp: Mp, zone: Zone, reset = false): void {
+    const destroyed: number[] = [];
     for (const entry of zone.spawned) {
-      this.removeNpc(mp, entry.id, reset);
+      if (this.removeNpc(mp, entry.id, reset)) destroyed.push(entry.slot);
     }
     this.log(`NpcSpawnSystem: '${zone.name}' despawned ${zone.spawned.length} npc(s)`);
     zone.spawned = [];
     zone.emptySince = 0;
     const now = Date.now();
     zone.slotReadyAt = zone.slotReadyAt.map((at) => reset || at < 0 || at <= now ? 0 : at);
+    for (const slot of destroyed) this.holdSlot(zone, slot, now);
+    if (destroyed.length) this.heldNames.set(zone.name.toLowerCase(), now + REFILL_HOLD_MS);
     // An admin reset forgets the void spots as well; otherwise they are kept, or the same slot drops
     // two more npcs into it the next time this zone fills
     if (reset) {
@@ -1172,7 +1200,7 @@ export class NpcSpawnSystem implements System {
     return true;
   }
 
-  // Destroys the zone's NPCs and clears every cooldown; it repopulates on the next poll with a player inside
+  // Destroys the zone's NPCs and clears every cooldown; it repopulates with a player inside once the refill hold is over
   resetZone(name: string): boolean {
     const zone = this.findZone(name);
     if (!zone) return false;
