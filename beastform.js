@@ -141,12 +141,22 @@ module.exports = (api) => {
     return false;
   };
   // Anyone close enough sees the change
+  const WITNESS_RADIUS = 3000;
   const witness = (a, what) => {
-    let here = null, pos = null; try { here = mp.get(a, 'worldOrCellDesc'); pos = mp.get(a, 'pos'); } catch (e) { return; }
+    let here = null, pos = null;
+    try { here = mp.get(a, 'worldOrCellDesc'); pos = mp.get(a, 'pos'); } catch (e) { log(`beastform: no place to witness ${what}: ${e.message}`); return; }
+    let n = 0, near = 0;
     for (const o of api.onlineActors()) {
       if (o === a) continue;
-      try { const p = mp.get(o, 'pos'); if (mp.get(o, 'worldOrCellDesc') === here && Math.hypot(p[0] - pos[0], p[1] - pos[1]) < 3000) personal(o, `You see ${display(a)} ${what}.`); } catch (e) { /* elsewhere */ }
+      try {
+        const p = mp.get(o, 'pos');
+        if (mp.get(o, 'worldOrCellDesc') !== here || Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]) > WITNESS_RADIUS) continue;
+        near++;
+        personal(o, `You see ${display(a)} ${what}.`);
+        n++;
+      } catch (e) { log(`beastform: witness skipped ${o.toString(16)}: ${e.message}`); }
     }
+    log(`beastform: ${display(a)} ${what}, ${n} of ${near} near saw it`);
   };
 
   const revert = (a, why) => {
@@ -162,6 +172,7 @@ module.exports = (api) => {
     // Skipped if another form was taken in the meantime: a revert straight into werewolf dressed the wolf in armour
     setTimeout(() => { try { if (!stateOf(a)) redress(a); } catch (e) { log('beastform re-dress failed', e.message); } }, 1500);
     log(`${display(a)} left ${FORMS[s.form] ? FORMS[s.form].name : s.form} (${why})`);
+    witness(a, s.form === 'werewolf' ? 'shed the beast and stand as a mortal again' : 'sink back into mortal form');
     try { if (globalThis.__dboBeastChanged) globalThis.__dboBeastChanged(a, s.form, false); } catch (e) { log('beast change hook failed', e.message); }
     return true;
   };
