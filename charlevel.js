@@ -59,8 +59,23 @@ module.exports = (api) => {
     const st = stateOf(a);
     if (!st.pending) return;
     const actions = Object.keys(VITALS).map((av) => ({ id: av, label: `+${CFG.perLevel} ${VITALS[av]} (now +${st.spent[av]})` }));
+    // A race swap (beast form) tears the panel down client-side while the id stays taken, and the re-open is then ignored
+    closeWidget(a, WIDGET_ID);
     openWidget(a, { type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: `Level ${st.level}: ${st.pending} point${st.pending === 1 ? '' : 's'} to spend`,
       actions, events: { action: 'dbo:levelChoose', close: 'dbo:levelClose' } }, true);
+    log(`level ${display(a)} offered ${st.pending} point(s) at level ${st.level}`);
+  };
+  const spend = (a, av) => {
+    const st = stateOf(a);
+    if (!VITALS[av]) { personal(a, `Spend a point on health, magicka or stamina: /level health`); return false; }
+    if (st.pending < 1) { personal(a, 'You have no points to spend.'); return false; }
+    st.pending -= 1;
+    st.spent[av] += CFG.perLevel;
+    save(a, st);
+    sendPacket(a, { customPacketType: 'dboAvGain', [av]: CFG.perLevel });
+    personal(a, `+${CFG.perLevel} ${VITALS[av]}.${st.pending ? ` ${st.pending} more to spend.` : ''}`);
+    log(`level ${display(a)} spent a point on ${av}: ${JSON.stringify(st.spent)}`);
+    return true;
   };
 
   // Levels are never taken back: a skill giving way to the pool must not unlearn a character level
@@ -80,27 +95,27 @@ module.exports = (api) => {
   };
 
   onUi('levelChoose', (a, args) => {
-    closeWidget(a, WIDGET_ID);
     const av = String(args[0] || '');
-    const st = stateOf(a);
-    if (!VITALS[av] || st.pending < 1) return;
-    st.pending -= 1;
-    st.spent[av] += CFG.perLevel;
-    save(a, st);
-    sendPacket(a, { customPacketType: 'dboAvGain', [av]: CFG.perLevel });
-    personal(a, `+${CFG.perLevel} ${VITALS[av]}.${st.pending ? ` ${st.pending} more to spend.` : ''}`);
-    log(`level ${display(a)} spent a point on ${av}: ${JSON.stringify(st.spent)}`);
-    if (st.pending) openChoice(a);
+    // Closing first lost both the click and the panel whenever the choice did not take
+    if (!spend(a, av)) { openChoice(a); return; }
+    closeWidget(a, WIDGET_ID);
+    if (stateOf(a).pending) openChoice(a);
   });
   onUi('levelClose', (a) => closeWidget(a, WIDGET_ID));
 
-  registerChatCommand('level', (a) => {
+  registerChatCommand('level', (a, args) => {
+    const arg = String((args && args[0]) || '').toLowerCase();
+    // The panel is not always reachable, so a point can always be spent from chat
+    if (arg) { spend(a, arg); return; }
     const st = stateOf(a);
     const units = unitsOf(a);
     const next = st.level < MAX_LEVEL ? CFG.thresholds[st.level] : null;
     personal(a, `Level ${st.level} of ${MAX_LEVEL}. ${next ? `Progress to level ${st.level + 1}: ${Math.floor(Math.min(99, (units / next) * 100))}%.` : 'You have reached the highest level.'} Bonuses: Health +${st.spent.health}, Magicka +${st.spent.magicka}, Stamina +${st.spent.stamina}.`);
-    if (st.pending) openChoice(a);
-  }, { help: 'your character level, progress and unspent points' });
+    if (st.pending) {
+      personal(a, `${st.pending} unspent point${st.pending === 1 ? '' : 's'}. Choose in the panel, or type /level health, /level magicka or /level stamina.`);
+      openChoice(a);
+    }
+  }, { help: 'your character level and progress; /level <health|magicka|stamina> spends a point' });
 
   globalThis.__dboCharLevel = (a) => stateOf(a).level;
   globalThis.__dboCharLevelLogin = (a) => { if (!check(a)) openChoice(a); };
