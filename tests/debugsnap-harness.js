@@ -29,12 +29,12 @@ check('dead NPCs are marked, a host of nobody is named so', p.npcs[1].dead === t
 check('the count of NPCs they host', p.hosting === 1);
 cmds.bug(P, 'x');
 check('a report needs words', /Say what went wrong/.test(said.pop()));
-cmds.bug(P, 'the troll near me is sinking');
+cmds.bug(P, 'the troll near me\n[2026-09-25 18:00:00] is sinking');
 const files = fs.readdirSync(path.join(dir, 'bugs'));
 const bug = JSON.parse(fs.readFileSync(path.join(dir, 'bugs', files[0]), 'utf8'));
-check('/bug saves the text, the picture and who sent it', files.length === 1 && bug.text === 'the troll near me is sinking' && bug.view.npcs.length === 2 && bug.by === 'Ann Aa #AAAA');
+check('/bug saves the text, the picture and who sent it', files.length === 1 && bug.text === 'the troll near me [2026-09-25 18:00:00] is sinking' && bug.view.npcs.length === 2 && bug.by === 'Ann Aa #AAAA');
 check('with the last minute of log lines about the player and nearby NPCs only', bug.log.length === 2 && bug.log.every((l) => /ff000101|Ann Aa/.test(l)), bug.log);
-check('and a BUGREPORT line for the monitor', logs.some((l) => /^BUGREPORT Ann Aa #AAAA .*: the troll near me is sinking/.test(l)));
+check('and a BUGREPORT line for the monitor, on one line whatever the text holds', logs.some((l) => /^BUGREPORT Ann Aa #AAAA .*: the troll near me \[2026-09-25 18:00:00\] is sinking$/.test(l)) && !logs.some((l) => /\n/.test(l)));
 cmds.bug(P, 'another one right away');
 check('one report a minute per player', /wait a minute/.test(said.pop()) && fs.readdirSync(path.join(dir, 'bugs')).length === 1);
 

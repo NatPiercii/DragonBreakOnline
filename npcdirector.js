@@ -109,6 +109,7 @@ module.exports = (api) => {
   // Only NPCs the requester itself reported, that the director manages, and only when it can assign them
   globalThis.__dboNpcDirectorRefuses = (requester, npc) => C.mode === 'on' && built() && reported(requester >>> 0, npc) && managed(npc >>> 0);
 
-  log(`npcDirector ${C.mode}: hosts chosen from sight reports (fresh ${C.freshMs} ms, hold x${C.holdFactor} + ${C.holdUnits})`);
+  if (C.mode !== 'off' && !built()) log('npcDirector: mp.setHoster missing, director inactive (the server build predates it); clients keep asking to host');
+  else log(`npcDirector ${C.mode}: hosts chosen from sight reports (fresh ${C.freshMs} ms, hold x${C.holdFactor} + ${C.holdUnits})`);
   return { decide };
 };

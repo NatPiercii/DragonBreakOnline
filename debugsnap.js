@@ -70,7 +70,8 @@ module.exports = (api) => {
   };
 
   registerChatCommand('bug', (a, args) => {
-    const text = String(args || '').trim();
+    // One line: a newline in the text would forge lines in the server log (review 2026-09-25)
+    const text = String(args || '').replace(/\s+/g, ' ').trim();
     if (text.length < 5) return personal(a, 'Say what went wrong: /bug the wolf near me is floating. Where you stand and what is around you are saved with it.');
     const last = S.bugAt.get(profileOf(a)) || 0;
     if (!isAdmin(a) && Date.now() - last < C.bugEveryMs) return personal(a, 'Your last report was a moment ago; wait a minute before the next.');

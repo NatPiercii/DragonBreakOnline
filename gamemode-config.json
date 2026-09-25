@@ -346,5 +346,7 @@
   }
  },
  "lockpick": { "enabled": true },
- "npcGround": { "fix": false }
+ "npcGround": { "fix": false },
+ "npcDirector": { "mode": "on" },
+ "itemGuards": { "mode": "on" }
 }
