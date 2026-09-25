@@ -56,9 +56,10 @@ const DX_TO_CODE = (() => {
     0x28: 'Quote', 0x33: 'Comma', 0x34: 'Period', 0x35: 'Slash' });
   return m;
 })();
-// A field the player types into keeps the letter; buttons and the rest of a window do not
+// A field the player types letters into keeps the letter; buttons, number fields (the trade window's amounts, where a
+// letter cannot be typed anyway) and the rest of a window do not
 const isTextField = (el) => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
-  || (el.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'image', 'color'].includes(String(el.type || '').toLowerCase())));
+  || (el.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'image', 'color', 'number'].includes(String(el.type || '').toLowerCase())));
 
 function sendToGame(...args) {
   try { window.skyrimPlatform.sendMessage(...args); } catch (e) { /* outside game */ }

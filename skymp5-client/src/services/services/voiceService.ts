@@ -72,6 +72,7 @@ export class VoiceService extends ClientListener {
   private altDown = false;
   private altUsedAsModifier = false;
   private pttDown = false;
+  private browserWasFocused = false;
   private micDeniedShown = false;
   private nextTokenAttemptAt = 0;
   private nextPeersAt = 0;
@@ -298,6 +299,10 @@ export class VoiceService extends ClientListener {
 
     // Chat focus steals the key-up event, so drop the mic when typing starts; same when our actor despawns (character park, connection loss)
     if (this.pttDown && (this.sp.browser.isFocused() || isConsoleOpen(this.sp) || !myRefr)) this.releasePtt();
+    // A window closing takes the page's keyboard with it: let go of a talk key the page was holding (its own blur should too)
+    const focused = this.sp.browser.isFocused();
+    if (this.browserWasFocused && !focused) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.releaseDomPtt && window.__alduinakVoice.releaseDomPtt()`);
+    this.browserWasFocused = focused;
 
     // Write the chosen mode to disk shortly after it changes
     if (this.modePersistAt && now >= this.modePersistAt) {
