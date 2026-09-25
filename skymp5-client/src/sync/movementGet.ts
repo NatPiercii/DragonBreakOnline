@@ -1,7 +1,8 @@
 import { FormModel } from '../view/model';
-import { ObjectReference, Actor, Game, TESModPlatform } from "skyrimPlatform";
+import { ObjectReference, Actor, Game, NetImmerse, TESModPlatform } from "skyrimPlatform";
 import { NiPoint3, Movement, RunMode } from "./movement";
 import { ObjectReferenceEx } from '../extensions/objectReferenceEx';
+import { reportedPos, forgetBody } from './bodyPos';
 
 class PlayerCharacterSpeedCalculator {
   static savePosition(pos: NiPoint3, worldOrCell: number) {
@@ -30,6 +31,25 @@ class PlayerCharacterSpeedCalculator {
   private static lastPcPosCheck = -1;
   private static lastPcWorldOrCell = 0;
 }
+
+// Where a hosted NPC's body stands (see sync/bodyPos.ts for the rule and its tests)
+const ROOT_NODES = ["NPC Root [Root]", "BoneRoot", "Root", "Bip01"];
+const bodyPosOf = (ac: Actor): NiPoint3 => {
+  const ref = ObjectReferenceEx.getPos(ac);
+  try {
+    if (!ac.is3DLoaded()) { forgetBody(ac.getFormID()); return ref; }
+    const node = ROOT_NODES.find((name) => NetImmerse.hasNode(ac, name, false));
+    if (!node) return ref;
+    const body: NiPoint3 = [
+      NetImmerse.getNodeWorldPositionX(ac, node, false),
+      NetImmerse.getNodeWorldPositionY(ac, node, false),
+      NetImmerse.getNodeWorldPositionZ(ac, node, false),
+    ];
+    return reportedPos(ac.getFormID(), ref, body);
+  } catch {
+    return ref;
+  }
+};
 
 export const getMovement = (refr: ObjectReference, form?: FormModel): Movement => {
   const ac = Actor.from(refr);
@@ -63,7 +83,7 @@ export const getMovement = (refr: ObjectReference, form?: FormModel): Movement =
     } catch { /* no crosshair target */ }
   }
 
-  const pos = ObjectReferenceEx.getPos(refr);
+  const pos = refr.getFormID() !== 0x14 && ac ? bodyPosOf(ac) : ObjectReferenceEx.getPos(refr);
 
   let speed;
   if (refr.getFormID() !== 0x14) {
