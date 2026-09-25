@@ -266,17 +266,20 @@ module.exports = (api) => {
 
   onUi('restChoose', (a, args) => {
     const bed = pending.get(a >>> 0); const choice = String(args[0] || '');
-    closePrompt(a);
+    // Renting reopens this same widget id, and closing it in between leaves the panel up with no cursor
+    const renting = choice === 'rent';
+    if (!renting) closePrompt(a);
     if (choice === 'cancel') return;
-    if (!bed) { log(`rest: ${who(a)} chose ${choice} with no bed prompt on record`); return personal(a, 'Use the bed again.'); }
-    if (distanceMeters(a, bed) > REACH_M) return personal(a, 'You are too far from the bed.');
+    if (!bed) { if (renting) closePrompt(a); log(`rest: ${who(a)} chose ${choice} with no bed prompt on record`); return personal(a, 'Use the bed again.'); }
+    if (distanceMeters(a, bed) > REACH_M) { if (renting) closePrompt(a); return personal(a, 'You are too far from the bed.'); }
     const kind = standing(a, bed);
-    if (choice === 'rent') {
-      if (kind === 'taken') return personal(a, 'Someone else has just rented this bed.');
-      if (kind !== 'inn') return;
+    if (renting) {
+      if (kind === 'taken') { closePrompt(a); return personal(a, 'Someone else has just rented this bed.'); }
+      if (kind !== 'inn') { closePrompt(a); return; }
       const m = rentedElsewhere(a, bed);
-      if (m) return personal(a, `You already rent a bed${where(m.bed)} until ${clock(m.until)}. One bed at a time.`);
-      if (payRent(a, bed)) openPrompt(a, bed, 'rented');
+      if (m) { closePrompt(a); return personal(a, `You already rent a bed${where(m.bed)} until ${clock(m.until)}. One bed at a time.`); }
+      if (payRent(a, bed)) return openPrompt(a, bed, 'rented');
+      closePrompt(a);
       return;
     }
     if (choice === 'sleep' || choice === 'lie') {
