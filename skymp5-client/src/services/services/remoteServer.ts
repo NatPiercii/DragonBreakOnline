@@ -72,6 +72,7 @@ import { UpdateAnimVariablesMessage } from '../messages/updateAnimVariablesMessa
 import { MsgType } from '../../messages';
 import { CustomPacketMessage } from '../messages/customPacketMessage';
 import { parseCustomPacket, sendCustomPacket } from './customPacketUtil';
+import { forgetHostAttempts, resetHostAttempts, sameRemoteId } from '../../view/hostAttempts';
 
 export const getPcInventory = (): Inventory | undefined => {
   const res = storage['pcInv'];
@@ -837,6 +838,12 @@ export class RemoteServer extends ClientListener {
     const msg = event.message;
 
     const i = this.getIdManager().getId(msg.idx);
+    // The server sends no HostStop for a form it destroys and gives its id to a later form: a stale entry would
+    // make this client drive that NPC as its own without a grant
+    const destroyedRefrId = i >= 0 ? this.worldModel.forms[i]?.refrId : undefined;
+    if (destroyedRefrId) {
+      this.forgetHosted(destroyedRefrId);
+    }
     this.worldModel.forms[i] = undefined;
     getViewFromStorage()?.syncFormArray(this.worldModel);
 
@@ -1053,7 +1060,20 @@ export class RemoteServer extends ClientListener {
     this.worldModel.playerCharacterFormIdx = -1;
     this.worldModel.playerCharacterRefrId = 0;
 
+    // Hosting belongs to the old session, and a restarted server hands out form ids from ff000000 again
+    storage['hosted'] = [];
+    resetHostAttempts();
+
     logTrace(this, "Handle connection accepted");
+  }
+
+  // Drops a remote id from the hosted list and the host-attempt queue, in either id form
+  private forgetHosted(remoteId: number): void {
+    const hosted = storage['hosted'];
+    if (Array.isArray(hosted)) {
+      storage['hosted'] = hosted.filter((x) => !sameRemoteId(Number(x), remoteId));
+    }
+    forgetHostAttempts(remoteId);
   }
 
   private onChangeValuesMessage(event: ConnectionMessage<ChangeValuesMessage>): void {
