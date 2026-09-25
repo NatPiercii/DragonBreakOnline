@@ -1790,12 +1790,15 @@ bool MpObjectReference::TryOccupyFurniture(MpActor& actor,
   occupants.erase(std::remove_if(occupants.begin(), occupants.end(), isStale),
                   occupants.end());
 
+  // The occupant activating it again sits down again. The seat is freed by the client's closing activation, which
+  // it only sends after seeing the player sit and then stand; a sit that never happened on its screen left the seat
+  // held, and the occupant's own retries were refused here forever (a Bruma tanning rack, 32 refusals, 2026-09-25)
   if (std::find(occupants.begin(), occupants.end(), actor.GetFormId()) !=
       occupants.end()) {
     spdlog::info("MpObjectReference::TryOccupyFurniture {:x} - {:x} already "
-                 "occupies it, blocking",
+                 "occupies it, seating again",
                  GetFormId(), actor.GetFormId());
-    return false;
+    return true;
   }
 
   auto base = worldState->GetEspm().GetBrowser().LookupById(GetBaseId());

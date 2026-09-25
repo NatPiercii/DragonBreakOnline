@@ -340,7 +340,10 @@ export class RemoteServer extends ClientListener {
 
       (async () => {
         logTrace(this, "onOpenContainerMesage - waiting for", factName, "to be true");
-        while (!functionChecker()) await Utility.wait(0.1);
+        // A sit or menu that never happens here must not hold the server's seat for ever: give up after 10 s and
+        // send the closing activation anyway (the server kept a Bruma tanning rack occupied, 2026-09-25)
+        const openDeadline = Date.now() + 10000;
+        while (!functionChecker() && Date.now() < openDeadline) await Utility.wait(0.1);
 
         logTrace(this, "onOpenContainerMesage - waiting for", factName, "to be false");
         while (functionChecker()) await Utility.wait(0.1);
