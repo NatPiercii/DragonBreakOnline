@@ -1240,10 +1240,29 @@ void MpActor::SendAndSetDeathState(bool isDead, bool shouldTeleport)
   auto position = GetRespawnPosition();
 
   auto respawnMsg = GetDeathStateMsg(position, isDead, shouldTeleport);
-  GetActorToSendTo().SendToUser(respawnMsg, true);
+  const bool isNpc = GetUserId() == Networking::InvalidUserId;
+  if (isNpc && !isDead) {
+    // A respawn reached only the hoster, so watchers kept a corpse where it died until the hoster's next movement,
+    // and for good when nobody hosted it: RespawnEvent's isDead=false property neither revives a copy nor moves it
+    // to its spawn point. Every player who sees it gets the container, and the hoster if it does not see it
+    MpActor& hoster = GetActorToSendTo();
+    bool hosterTold = false;
+    for (auto listener : GetActorListeners()) {
+      if (listener->GetUserId() == Networking::InvalidUserId) {
+        continue;
+      }
+      listener->SendToUser(respawnMsg, true);
+      hosterTold = hosterTold || listener == &hoster;
+    }
+    if (!hosterTold && &hoster != this) {
+      hoster.SendToUser(respawnMsg, true);
+    }
+  } else {
+    GetActorToSendTo().SendToUser(respawnMsg, true);
+  }
 
   // The container only reaches the hoster; NPC viewers need the death too
-  if (isDead && GetUserId() == Networking::InvalidUserId) {
+  if (isDead && isNpc) {
     SendMessageToActorListeners(CreatePropertyMessage_(this, "isDead", "true"),
                                 true);
   }
@@ -1262,6 +1281,10 @@ void MpActor::SendAndSetDeathState(bool isDead, bool shouldTeleport)
     SetCellOrWorldObsolete(position.cellOrWorldDesc);
     SetPos(position.pos);
     SetAngle(position.rot);
+    // The hoster's next packet predates the teleport and carries the corpse's position: refused, as after Teleport
+    if (isNpc && !isDead) {
+      SetTeleportFlag(true);
+    }
   }
 }
 
