@@ -93,11 +93,40 @@
  "mastery": {
   "_comment": "Combat numbers (gamemode.js). damage.byTier: extra weapon damage by the attacker's weapon-skill rank, Novice..Master, applied after the engine's hit. defense.armorMultByTier: how many times its bare rating worn armor counts for, by the target's Defense rank (the engine alone gives rating x 0.12 %, capped at 80 %); lightShare: the part of that gain light armor gets (1 = same as heavy). Measured 2026-09-24: a naked player has 150 health; a Master two-hander with a Daedric greatsword dealt 33 a hit at the old x1.30 (5 hits). At x2.0 it is 48 (4 hits, 2 with a power attack); a full Daedric heavy set (108) worn at Master Defense takes 45 % off instead of 13 %.",
   "damage": { "byTier": [0, 0, 0.35, 0.65, 1.0], "log": true },
-  "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 }
+  "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 },
+  "arcane": { "_comment": "Extra damage for Destruction spells (schools: magic skill actor value, 20 = Destruction) by the caster's Arcane Arts rank, Novice..Master. Smaller than the weapon tiers because spells hit from range. Live magnitudes 2026-09-25: Firebolt 25, Fireball 40, Icy Spear 60.", "enabled": true, "byTier": [0, 0, 0.2, 0.35, 0.5], "schools": [20] }
  },
  "pvp": {
-  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged).",
-  "damageMult": 1
+  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
+  "damageMult": 1.25
+ },
+ "combat": {
+  "_comment": "Skill-based fights (combat.js, COMBAT_DESIGN.md), player targets only, needs the C++ hit flags. A blocked blow lets weaponChip (shieldChip with a shield) through, less chipPerDefenseTier per Defense rank; the blocker pays the rest in stamina (x shieldStaminaMult with a shield, x powerIntoShieldStaminaMult more for a power attack into a shield). At 0 stamina, or hit by a bash, the guard breaks: a stagger and guardBreakSeconds of blocked blows landing in full. Unblocked power attacks stagger; a weapon-skill rank of powerStaggerThroughWeaponBlockRank staggers through a weapon block. A bash deals bashDamageMult of the weapon and staggers unless the target's Defense rank is bashStaggerResistRank or more (3 = Expert). One stagger per target every staggerCooldownSeconds.",
+  "enabled": true,
+  "log": true,
+  "weaponChip": 0.3,
+  "shieldChip": 0.15,
+  "chipPerDefenseTier": 0.05,
+  "blockStaminaMult": 1,
+  "shieldStaminaMult": 0.5,
+  "powerIntoShieldStaminaMult": 2,
+  "guardBreakSeconds": 2,
+  "bashDamageMult": 0.25,
+  "bashStaggerResistRank": 3,
+  "powerStaggerThroughWeaponBlockRank": 4,
+  "staggerCooldownSeconds": 1.5
+ },
+ "weaponMaterials": {
+  "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2); a weapon without one of these gets nothing.",
+  "enabled": true,
+  "playersOnly": true,
+  "byKeyword": {
+   "WeapMaterialWood": 0, "WeapMaterialIron": 0, "WeapMaterialImperial": 0, "WeapMaterialDraugr": 0, "WeapMaterialFalmer": 0,
+   "WeapMaterialSteel": 0.03, "WeapMaterialSilver": 0.05, "WeapMaterialDraugrHoned": 0.05, "WeapMaterialFalmerHoned": 0.05,
+   "WeapMaterialOrcish": 0.05, "WeapMaterialDwarven": 0.07, "WeapMaterialElven": 0.09, "DLC2WeaponMaterialNordic": 0.11,
+   "WeapMaterialGlass": 0.13, "WeapMaterialEbony": 0.17, "DLC2WeaponMaterialStalhrim": 0.17,
+   "WeapMaterialDaedric": 0.2, "DLC1WeapMaterialDragonbone": 0.3
+  }
  },
  "pickpocket": {
    "_comment": "Sneak + X on a player (pickpocket.js). chance: chanceUntrained, or chanceByTier by Lockpicking tier, + behindBonus (outside a behindConeDegrees cone of the face), - weaponDrawnPenalty, within min/maxChance. A success takes goldShareByTier of the coin (at most goldMax) or one pocket item (never a worn copy, never a key); the victim notices noticeAfterSeconds later. Failure warns the victim at once. Waits: cooldownSeconds per thief, sameTargetMinutes per thief and victim, victimMinutes per victim. Lockpicking credit for creditMinGold or an item, never a party member, creditsPerHour at most. exclude: item descs never taken.",
