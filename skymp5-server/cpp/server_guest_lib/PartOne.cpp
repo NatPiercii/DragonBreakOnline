@@ -174,8 +174,9 @@ void PartOne::TickStaleHosts()
     if (hosterId == 0) {
       continue;
     }
+    // NoLoad: loading a form inside this loop over hosters could change the map under it
     auto remote = dynamic_cast<MpObjectReference*>(
-      worldState.LookupFormById(remoteId).get());
+      worldState.LookupFormByIdNoLoad(remoteId).get());
     if (!remote) {
       continue;
     }
@@ -281,6 +282,14 @@ void PartOne::TickHostReleases()
     auto& hoster = worldState.LookupFormByIdNoLoad(entry.hosterId);
     auto hosterRefr = hoster ? hoster->AsObjectReference() : nullptr;
     if (hosterRefr && remote->GetListeners().count(hosterRefr) > 0) {
+      // Unsubscribed and subscribed again in one tick (a disable/enable): the client got DestroyActor and forgot it
+      // hosts the NPC, so grant it again (HostStart) instead of leaving it held by a client that no longer drives it
+      try {
+        AssignHoster(entry.remoteId, entry.hosterId);
+      } catch (std::exception& e) {
+        GetLogger().info("Re-granting {:x} to {:x} failed: {}", entry.remoteId,
+                         entry.hosterId, e.what());
+      }
       continue;
     }
     ReleaseHost(*remote, "its hoster no longer has it (unsubscribed)");

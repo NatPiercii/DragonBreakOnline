@@ -1240,7 +1240,8 @@ void MpActor::SendAndSetDeathState(bool isDead, bool shouldTeleport)
   auto position = GetRespawnPosition();
 
   auto respawnMsg = GetDeathStateMsg(position, isDead, shouldTeleport);
-  const bool isNpc = GetUserId() == Networking::InvalidUserId;
+  // Not 'no user': a logged-out player's actor has none either, and its respawn must not be marked as an NPC teleport
+  const bool isNpc = GetProfileId() == -1;
   if (isNpc && !isDead) {
     // A respawn reached only the hoster, so watchers kept a corpse where it died until the hoster's next movement,
     // and for good when nobody hosted it: RespawnEvent's isDead=false property neither revives a copy nor moves it

@@ -137,34 +137,51 @@ void WorldState::AddForm(std::unique_ptr<MpForm> form, uint32_t formId,
   }
 
   // Assign formIndex before Init
-  if (auto refr = form->AsObjectReference()) {
+  MpObjectReference* const newRefr = form->AsObjectReference();
+  uint32_t newIdx = FormIndex::g_invalidIdx;
+  if (newRefr) {
     if (!formIdxManager) {
       formIdxManager.reset(new MakeID(FormIndex::g_invalidIdx - 1));
     }
 
     ReleaseHeldFormIdx(false);
-    if (!formIdxManager->CreateID(refr->idx)) {
+    if (!formIdxManager->CreateID(newRefr->idx)) {
       // Every index is in use or held back: reuse the held ones rather than fail
       ReleaseHeldFormIdx(true);
-      if (!formIdxManager->CreateID(refr->idx)) {
+      if (!formIdxManager->CreateID(newRefr->idx)) {
         throw std::runtime_error("CreateID failed");
       }
     }
-
-    if (refrByIdxUnreliable.size() <= refr->GetIdx()) {
-      refrByIdxUnreliable.resize(refr->GetIdx() + 1, nullptr);
-    }
-    refrByIdxUnreliable[refr->GetIdx()] = refr;
-    if (lastMovUpdateByIdx.size() > refr->GetIdx()) {
-      lastMovUpdateByIdx[refr->GetIdx()].reset();
+    newIdx = newRefr->GetIdx();
+    if (lastMovUpdateByIdx.size() > newIdx) {
+      lastMovUpdateByIdx[newIdx].reset();
     }
   }
 
   // MpObjectReference::Init requests save for newly created forms. That's why
-  // we want formIndex to be assigned before init.
-  form->Init(this, formId, optionalChangeFormToApply != nullptr);
+  // we want formIndex to be assigned before init. The index table gets the pointer only once the form is in `forms`:
+  // a throw in Init, or a duplicate id under skipChecks (insert drops the new form), left it pointing at a freed
+  // object, the same class as the 2026-09-25 SIGSEGV, and leaked the index (review of the NPC rework)
+  try {
+    form->Init(this, formId, optionalChangeFormToApply != nullptr);
+  } catch (...) {
+    if (newRefr && formIdxManager) {
+      formIdxManager->DestroyID(newIdx);
+    }
+    throw;
+  }
 
-  auto it = forms.insert({ formId, std::move(form) }).first;
+  auto [it, inserted] = forms.insert({ formId, std::move(form) });
+  if (newRefr) {
+    if (inserted) {
+      if (refrByIdxUnreliable.size() <= newIdx) {
+        refrByIdxUnreliable.resize(newIdx + 1, nullptr);
+      }
+      refrByIdxUnreliable[newIdx] = newRefr;
+    } else if (formIdxManager) {
+      formIdxManager->DestroyID(newIdx);
+    }
+  }
 
   if (optionalChangeFormToApply) {
     auto refr = it->second->AsObjectReference();
