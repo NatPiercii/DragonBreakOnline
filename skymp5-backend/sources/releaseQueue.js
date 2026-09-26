@@ -393,15 +393,19 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return true
   }
 
-  async function liveGameplay(serverTip) {
+  // Stamp, then the recorded commit, then the newest match; recordMatches compares content, as a docs commit deploys the same files
+  async function liveGameplay(serverTip, recordSha) {
     const gm = await liveFileId('gamemode.js')
-    if (!gm) return { sha: null, how: 'unknown', deployedAt: null }
+    if (!gm) return { sha: null, how: 'unknown', deployedAt: null, recordMatches: false }
     const ids = new Map()
-    if (gm.stampSha && await matchesLive(gm.stampSha, ids).catch(() => false)) return { sha: gm.stampSha, how: 'stamp', deployedAt: gm.stampAt }
-    if (!serverTip) return { sha: null, how: 'unknown', deployedAt: gm.stampAt }
+    const recordMatches = !!recordSha && await matchesLive(recordSha, ids).catch(() => false)
+    const found = (sha, how) => ({ sha, how, deployedAt: gm.stampAt, recordMatches })
+    if (gm.stampSha && await matchesLive(gm.stampSha, ids).catch(() => false)) return found(gm.stampSha, 'stamp')
+    if (recordMatches) return found(recordSha, 'matched')
+    if (!serverTip) return found(null, 'unknown')
     const out = await gitText('rev-list', '--first-parent', '-n', String(CONTENT_MATCH_DEPTH), '--end-of-options', serverTip)
-    for (const sha of out.split('\n').filter(Boolean)) if (await matchesLive(sha, ids)) return { sha, how: 'matched', deployedAt: gm.stampAt }
-    return { sha: null, how: 'modified', deployedAt: gm.stampAt }
+    for (const sha of out.split('\n').filter(Boolean)) if (await matchesLive(sha, ids)) return found(sha, 'matched')
+    return found(null, 'modified')
   }
 
   async function pluginsState(forkSha) {
@@ -438,9 +442,9 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     if (lastUpdate.state === 'unfinished') drift.add('lastUpdateUnfinished')
 
     const forkInfo = (await git(['log', '-1', '--format=%s%x00%cI', '--end-of-options', forkSha], { codes: [0, 128] })).stdout.split('\0')
-    const gameplay = await liveGameplay(serverSha)
+    const gameplay = await liveGameplay(serverSha, record?.server.sha)
     if (gameplay.how === 'modified') drift.add('gameplayModified')
-    else if (record?.server.sha && gameplay.sha && gameplay.sha !== record.server.sha) drift.add('gameplayOutsideRelease')
+    else if (record?.server.sha && gameplay.sha && !gameplay.recordMatches) drift.add('gameplayOutsideRelease')
 
     const [served, disk, newsHash, extras, plugins] = await Promise.all([
       readJson(path.join(backendDir, 'data', 'files-version.json')),

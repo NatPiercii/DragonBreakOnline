@@ -417,6 +417,25 @@ test('content match: a stamp with a verified sha, and one that does not verify',
   } finally { resetLiveGameplay() }
 })
 
+test('content match: a docs-only commit above the recorded gameplay is not drift', async () => {
+  const liveJson = consistentLive({ server: { sha: S.S1, how: 'release', since: null } })
+  try {
+    resetLiveGameplay({ 'combat.js': 'c2\n' })
+    await withQueue({ liveJson }, async q => {
+      const lv = await q.live()
+      assert.deepEqual([lv.server.sha, lv.server.how], [S.S1, 'matched'])
+      assert.deepEqual(lv.drift, [])
+    })
+    await withQueue({}, async q => assert.equal((await q.live()).server.sha, S.S2))
+    resetLiveGameplay({ 'combat.js': 'c2\n', 'dbo-gamemode.js': `module.exports = 1\n// deployed 2026-09-26T02:29:19Z server@${S.S2}\n` })
+    await withQueue({ liveJson }, async q => {
+      const lv = await q.live()
+      assert.deepEqual([lv.server.sha, lv.server.how, lv.server.base], [S.S2, 'stamp', S.S1])
+      assert.deepEqual(lv.drift, [])
+    })
+  } finally { resetLiveGameplay() }
+})
+
 test('content match: a dirty deploy or another config value gives modified', async () => {
   try {
     resetLiveGameplay({ 'combat.js': 'hand edit\n' })
