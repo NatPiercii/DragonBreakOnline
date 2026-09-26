@@ -1768,6 +1768,13 @@ const appointCap = (a, z, rank) => {
   if (isAdmin(a)) return Infinity;
   let cap = 0;
   for (const m of ranksOf(profileOf(a))) if (m.zone.id === z.id) cap = Math.max(cap, Number((APPOINT_RULES[m.rank] || {})[rank]) || 0);
+  // The leader of a faction that took this hold's capital in war names its new ruler and whoever the ruler names (realm.js)
+  try {
+    if (typeof globalThis.__dboConquerorLeads === 'function' && globalThis.__dboConquerorLeads(a, z.id)) {
+      const top = (z.officials || [])[0];
+      cap = Math.max(cap, rank === top ? 1 : Number((APPOINT_RULES[top] || {})[rank]) || 0);
+    }
+  } catch (e) { /* no realm */ }
   return cap;
 };
 // Who to appoint or dismiss: a character online or offline by name or #TAG (the server's name and tag index), or an
@@ -3470,6 +3477,14 @@ try {
   delete require.cache[GUILDS_JS];
   require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, findByName, audit, who, cfg });
 } catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
+
+// ---- territories, land markers and official war (server\realm.js, territories.json, WAR_DESIGN.md) ---------------------
+try {
+  const REALM_JS = path.resolve('realm.js');
+  delete require.cache[REALM_JS];
+  require(REALM_JS)({ mp, log, personal, system, audit, who, display, cfg, onUi, registerChatCommand, isAdmin, onlineActors, every,
+    sendPacket, ranksOf, profileOf, zoneById, readOfficials, writeOfficials });
+} catch (e) { log('realm.js failed to load:', e.stack || e.message); globalThis.__dboWarFinish = null; globalThis.__dboRealmView = null; globalThis.__dboConquerorLeads = null; globalThis.__dboConqueredZonesLedBy = null; }
 
 // ---- announcements: `bash dev-server.sh announce '<text>'` writes announce.json; every online player sees it once ----
 const ANNOUNCE_PATH = path.resolve('announce.json');

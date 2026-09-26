@@ -122,13 +122,22 @@ module.exports = (api) => {
     openWidget(a, {
       type: 'faction', id: WIDGET_ID, nonce, admin: isAdmin(a), self: a >>> 0,
       factions: list.map((fid) => factionView(a, fid)), invites, selected: focusFid || mine[0] || list[0] || '',
+      // The Realm and War tabs (realm.js): territories and their owners, wars, and what this character leads
+      realm: typeof globalThis.__dboRealmView === 'function' ? globalThis.__dboRealmView(a >>> 0) : null,
       result: result || '', resultKind: resultKind || '',
     }, true);
   };
   globalThis.__dboFactionMenu = (a) => openMenu(a >>> 0);
+  // realm.js: redraws an open panel with the result of a war action (true when one was open), and checks its nonce
+  globalThis.__dboFactionRefresh = (a, text, ok) => { if (!ST.nonces.has(a >>> 0)) return false; openMenu(a >>> 0, text, ok ? 'ok' : 'refused'); return true; };
+  globalThis.__dboFactionNonceOk = (a, nonce) => ST.nonces.get(a >>> 0) === String(nonce || '');
   // ledger.js: the factions a character belongs to (offline ones too), and whether an id names a faction
   globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); const r = f.ranks[m.e.rank] || {}; return { id: m.fid, name: f.name, title: r.title || '', role: r.role || '', kind: f.kind || '', zone: f.zone || '', secret: !!f.secret }; });
   globalThis.__dboGuildExists = (id) => FACTIONS.has(String(id));
+  // For the war system (realm.js): a faction's name and kind, and the characters on its roster (actor ids)
+  globalThis.__dboGuildInfo = (id) => { const f = FACTIONS.get(String(id)); return f ? { id: f.id, name: f.name, kind: f.kind || '', zone: f.zone || '', secret: !!f.secret } : null; };
+  globalThis.__dboGuildMembers = (id) => Object.keys(ST.members[String(id)] || {}).map((x) => Number(x) >>> 0);
+  globalThis.__dboHoldFactionOf = (zoneId) => { for (const f of FACTIONS.values()) if (f.kind === 'hold' && f.zone === zoneId) return f.id; return null; };
   const fresh = (a, args) => ST.nonces.get(a >>> 0) === String(args[0] || '');
   const reply = (a, text, fid, bad) => openMenu(a, text, bad ? 'refused' : 'ok', fid);
   const findMember = (fid, query) => {

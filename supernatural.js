@@ -326,6 +326,8 @@ module.exports = (api) => {
       try { if (mp.get(a, 'private.permaDead') !== true) return; const u = mp.getUserByActor(a); if (u >= 0) { mp.kick(u); log(`supernatural: ${display(a)} logged out after permadeath`); } } catch (e) { /* already gone */ }
     }, 8000);
   };
+  // The war system's war to the death ends a character the same way (realm.js)
+  globalThis.__dboPermaKill = (a, why) => permaKill(Number(a) >>> 0, why);
   // Lifts a permadeath: the character can be chosen again and wakes alive
   const restoreCharacter = (t, by) => {
     let dead = false; try { dead = mp.get(t, 'private.permaDead') === true; } catch (e) { return false; }

@@ -95,6 +95,8 @@ module.exports = (api) => {
       out.set('zone:' + z.id, { key: 'zone:' + z.id, name: `${z.name} treasury`, why, balance: chestGold(z) });
     };
     try { for (const m of ranksOf(profileOf(a)) || []) if (C.rulerRanks.includes(m.rank)) addZone(m.zone.id, 'you rule it'); } catch (e) { /* no ranks */ }
+    // A faction leader whose faction holds a hold's capital by conquest (realm.js)
+    try { if (typeof globalThis.__dboConqueredZonesLedBy === 'function') for (const zid of globalThis.__dboConqueredZonesLedBy(a) || []) addZone(zid, 'your faction took it'); } catch (e) { /* no realm */ }
     const guilds = typeof globalThis.__dboGuildsOf === 'function' ? (globalThis.__dboGuildsOf(a) || []) : [];
     for (const g of guilds) {
       if (g.role !== 'leader') continue;
@@ -103,6 +105,63 @@ module.exports = (api) => {
       if (!out.has(key)) out.set(key, { key, name: `${g.name} treasury`, why: 'you lead it', balance: Math.floor(Number(data().factions[g.id]) || 0) });
     }
     return [...out.values()];
+  };
+
+  // One treasury per faction for the rest of the game (realm.js: the war fee, tribute; later wages and taxes): a hold
+  // faction's is its hold's treasury chest, any other faction's is its balance in bank.json. Nobody withdraws from a
+  // treasury; only the game spends it, through spend().
+  const treasuryKeyOf = (fid) => {
+    const g = typeof globalThis.__dboGuildInfo === 'function' ? globalThis.__dboGuildInfo(fid) : null;
+    if (!g) return null;
+    if (g.zone) { const z = zoneById(g.zone); if (z && z.treasury) return 'zone:' + z.id; }
+    return 'faction:' + g.id;
+  };
+  const chestTake = (zone, n) => {
+    try {
+      const id = mp.getIdFromDesc(zone.treasury) >>> 0;
+      const inv = mp.get(id, 'inventory') || { entries: [] };
+      const entries = (Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
+      let left = n;
+      for (const e of entries) { if ((Number(e.baseId) >>> 0) !== GOLD || left <= 0) continue; const off = Math.min(Number(e.count) || 0, left); e.count -= off; left -= off; }
+      if (left > 0) return false;
+      mp.set(id, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) });
+      return true;
+    } catch (e) { log('bank: treasury chest spend failed', e.message); return false; }
+  };
+  globalThis.__dboTreasury = {
+    keyOf: treasuryKeyOf,
+    balance: (fid) => {
+      const key = treasuryKeyOf(fid); if (!key) return 0;
+      if (key.startsWith('zone:')) { const z = zoneById(key.slice(5)); return z ? chestGold(z) : 0; }
+      return Math.floor(Number(data().factions[key.slice(8)]) || 0);
+    },
+    // Takes n gold from a faction's treasury for the game's own purposes; false (and nothing taken) if it cannot
+    spend: (fid, n, why) => {
+      n = Math.floor(Number(n) || 0); const key = treasuryKeyOf(fid);
+      if (!key || n <= 0) return false;
+      if (key.startsWith('zone:')) {
+        const z = zoneById(key.slice(5)); if (!z || chestGold(z) < n || !chestTake(z, n)) return false;
+      } else {
+        const id = key.slice(8); const have = Math.floor(Number(data().factions[id]) || 0);
+        if (have < n) return false;
+        data().factions[id] = have - n;
+        try { save(); } catch (e) { data().factions[id] = have; log('bank: bank.json write failed', e.message); return false; }
+      }
+      audit(`BANK treasury of ${fid} spent ${n} gold (${why || 'unspecified'})`);
+      return true;
+    },
+    deposit: (fid, n, why) => {
+      n = Math.floor(Number(n) || 0); const key = treasuryKeyOf(fid);
+      if (!key || n <= 0) return false;
+      if (key.startsWith('zone:')) { if (depositToTreasury(key.slice(5), n) !== n) return false; }
+      else {
+        const id = key.slice(8); const have = Math.floor(Number(data().factions[id]) || 0);
+        data().factions[id] = have + n;
+        try { save(); } catch (e) { data().factions[id] = have; log('bank: bank.json write failed', e.message); return false; }
+      }
+      audit(`BANK treasury of ${fid} received ${n} gold (${why || 'unspecified'})`);
+      return true;
+    },
   };
 
   // ---- being at a bank -----------------------------------------------------------------------------------------------
