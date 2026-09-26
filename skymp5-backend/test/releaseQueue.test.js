@@ -445,6 +445,7 @@ test('content match: a dirty deploy or another config value gives modified', asy
       assert.ok(lv.drift.includes('gameplayModified'))
       const qv = await q.queue()
       assert.equal(qv.live.server, null)
+      assert.equal(qv.counts.commits.server, null)
       assert.ok(qv.warnings.some(w => /gameplay/.test(w)))
     })
     resetLiveGameplay({ 'gamemode-config.json': JSON.stringify({ ...S.CONFIG, x: 2 }) })
@@ -466,8 +467,9 @@ test('queue: rows, areas, titles, authors, reverts, docs and merges from the fix
       Backend: [short(S.A), short(S.Pp), short(S.G), short(S.H)], Launcher: [short(S.L)], Website: [short(S.F2)], Versions: [short(S.E)],
     })
     assert.deepEqual(qv.groups.map(gr => gr.area), ['Game server', 'Gameplay', 'Native client', 'Client', 'Backend', 'Launcher', 'Website', 'Versions'])
-    assert.equal(qv.docs.count, 2)
+    assert.deepEqual(qv.docs, { count: 2, fork: 1, server: 1 })
     assert.equal(qv.counts.total, 13)
+    assert.deepEqual(qv.counts.commits, { fork: Number(g('rev-list', '--count', `${S.LIVE}..${S.M2}`)), server: 3 })
     assert.equal(qv.counts.unreviewed, 13)
     assert.equal(row(qv, S.M1), undefined)
     assert.deepEqual(row(qv, S.A).flags, ['backendRestart'])

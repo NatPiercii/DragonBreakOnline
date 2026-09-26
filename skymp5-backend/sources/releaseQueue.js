@@ -908,7 +908,9 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     const defaultItems = items.filter(i => i.state === 'queued' && !i.heldReason && i.review.state === 'GO').map(i => i.id)
     const clientChanges = fork.commits.some(c => forkWalk.covered.has(c.sha) && c.cls.flags.includes('clientPack'))
 
-    const groups = new Map(), docs = { count: 0 }, counts = { total: 0, reviewed: 0, unreviewed: 0, blocked: 0, held: 0, byArea: {} }
+    const groups = new Map(), docs = { count: 0, fork: 0, server: 0 }
+    // commits: all waiting per side, merges and docs included, as git rev-list --count gives them
+    const counts = { total: 0, reviewed: 0, unreviewed: 0, blocked: 0, held: 0, byArea: {}, commits: { fork: fork.total, server: serverLive && serverSha ? server.total : null } }
     const flagSet = new Set()
     let listed = 0
     const add = (area, row) => {
@@ -939,7 +941,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       const { commits, order } = models[side]
       for (const c of [...commits].sort((a, b) => order.get(a.sha) - order.get(b.sha))) {
         if (c.parents.length > 1) continue
-        if (c.cls.area === 'Docs') { docs.count++; continue }
+        if (c.cls.area === 'Docs') { docs.count++; docs[side]++; continue }
         add(c.cls.area, toRow(c, walks[side].covered.has(c.sha)))
       }
     }
