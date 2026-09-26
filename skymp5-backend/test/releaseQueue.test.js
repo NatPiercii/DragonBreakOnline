@@ -566,6 +566,19 @@ test('reviews: a copy with the same patch id carries the GO', async () => {
   })
 })
 
+test('reviews: a clean merge of a same-change copy counts as reviewed', async () => {
+  const copy = g('commit-tree', '-p', S.LIVE, '-m', 'backend: fix the login', `${S.P}^{tree}`)
+  const merge = g('commit-tree', '-p', S.LIVE, '-p', copy, '-m', 'Merge branch copy', `${S.P}^{tree}`)
+  g('update-ref', 'refs/remotes/origin/main', merge)
+  try {
+    await withQueue({ reviews: [go(S.P)] }, async q => {
+      const qv = await q.queue()
+      assert.equal(row(qv, copy).review.state, 'sameChange')
+      assert.equal(qv.default.fork, merge)
+    })
+  } finally { g('update-ref', 'refs/remotes/origin/main', S.M2) }
+})
+
 test('reviews: the newest GO still carries over when more than 600 commits are reviewed', async () => {
   const stream = Array.from({ length: 610 }, (_, i) => ['commit refs/heads/many', `committer NatPiercii <nate@example.com> ${1758326400 + i} +0000`,
     'data <<END', `misc: many ${i}`, 'END', ...(i ? [] : [`from ${S.LIVE}`]), `M 100644 inline misc/many-${i}.txt`, 'data <<END', String(i), 'END', ''].join('\n')).join('\n')

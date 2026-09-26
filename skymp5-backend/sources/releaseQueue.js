@@ -623,6 +623,20 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     const latest = new Map()
     mine.forEach((r, i) => { for (const sha of ranges[i]) latest.set(sha, r) })
     for (const c of commits) c.review = latest.has(c.sha) ? verdictOf(latest.get(c.sha)) : NO_REVIEW
+    const open = commits.filter(c => c.review === NO_REVIEW && c.parents.length === 1)
+    if (open.length && mine.some(r => r.verdict === 'GO')) {
+      // Newest lines first, so the oldest reviews are the ones left out of the patch-id budget
+      const candidates = mine.flatMap((r, i) => [...ranges[i]].reverse().filter(sha => latest.get(sha) === r && r.verdict === 'GO' && !(byId.get(sha)?.parents.length > 1)))
+        .reverse().slice(0, 600)
+      const ids = await patchIds([...candidates, ...open.map(c => c.sha)])
+      const byPatch = new Map()
+      for (const sha of candidates) if (ids.get(sha) && !byPatch.has(ids.get(sha))) byPatch.set(ids.get(sha), sha)
+      for (const c of open) {
+        const same = ids.get(c.sha) && byPatch.get(ids.get(c.sha))
+        if (same && same !== c.sha) c.review = { ...verdictOf(latest.get(same)), state: 'sameChange', sameAs: short(same) }
+      }
+    }
+    // Merges last, oldest first, so a parent reviewed as the same change or as a clean merge counts
     for (const c of [...commits].reverse()) {
       if (c.parents.length < 2 || c.review !== NO_REVIEW) continue
       let parentsOk = true
@@ -631,18 +645,6 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
         if (!reviewed) { parentsOk = false; break }
       }
       if (parentsOk && await cleanMerge(c)) c.review = { state: 'GO', by: null, at: null, cleanMerge: true }
-    }
-    const open = commits.filter(c => c.review === NO_REVIEW && c.parents.length === 1)
-    if (!open.length || !mine.some(r => r.verdict === 'GO')) return
-    // Newest lines first, so the oldest reviews are the ones left out of the patch-id budget
-    const candidates = mine.flatMap((r, i) => [...ranges[i]].reverse().filter(sha => latest.get(sha) === r && r.verdict === 'GO' && !(byId.get(sha)?.parents.length > 1)))
-      .reverse().slice(0, 600)
-    const ids = await patchIds([...candidates, ...open.map(c => c.sha)])
-    const byPatch = new Map()
-    for (const sha of candidates) if (ids.get(sha) && !byPatch.has(ids.get(sha))) byPatch.set(ids.get(sha), sha)
-    for (const c of open) {
-      const same = ids.get(c.sha) && byPatch.get(ids.get(c.sha))
-      if (same && same !== c.sha) c.review = { ...verdictOf(latest.get(same)), state: 'sameChange', sameAs: short(same) }
     }
   }
 
