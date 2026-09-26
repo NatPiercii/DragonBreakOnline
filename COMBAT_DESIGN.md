@@ -64,6 +64,15 @@ Attack beats nothing on its own; **power attack beats an open guard, block beats
    has to be checked before choosing how.
 3. A spell hit on a caster who is charging a spell does not stagger; a bash or power attack does (from 3 above).
 
+## Option, for Nat: Force Rune staggers instead of pushing
+
+A player (athny, #bugs, 2026-09-26) expects Force Rune's ragdoll knockback (`CYRForceRune`, Beyond Skyrim) to desync
+between players: the push is physics on the caster's screen, and the target's own client never simulates it. The
+suggestion is a stagger instead. Runes reach the server as explosion hits, the way Ash Rune's paralysis is found
+(`gamemode.js` `explosionParalysis`), so a Force Rune hit on a player could call `combat.js`'s stagger (with its 1.5 s
+cooldown) and the push be taken off the effect. Not built; it needs Nat's yes and a look at how the rune's push is
+applied (the effect's archetype) before choosing how to remove it.
+
 ## What each part needs
 
 | Part | Layer | Reaches players by |
