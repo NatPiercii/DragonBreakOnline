@@ -38,6 +38,7 @@ import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
 import Party from './features/party';
 import TomeShop from './features/tomeShop';
+import Bank from './features/bank';
 import { panelScaleOf } from './utils/PanelScale';
 
 const styles = [
@@ -285,6 +286,8 @@ const Constructor = props => {
       return <Party data={rend} />;
     case 'tomeShop':
       return <TomeShop data={rend} />;
+    case 'bank':
+      return <Bank data={rend} />;
     case 'death':
       return (
         <DeathScreen seconds={rend.seconds} onChoice={rend.onChoice} />
@@ -299,7 +302,7 @@ const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
   rite: 'lorkhan', bountyBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan',
   mastery: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak',
-  labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze',
+  labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
 };
 
 // Each panel also carries its own size (utils/PanelScale.js): Ctrl + wheel over it
