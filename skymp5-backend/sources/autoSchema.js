@@ -74,7 +74,7 @@ const CLIENT_TRAIL = grammar({
   net: String.raw`connecting|connected|disconnected|login ok|login denied [A-Za-z]{1,32}|reconnect \d{1,4}|exit (?:quit|kick|auth)|menu-quit`,
   send: String.raw`CustomPacket (?:dbo ${TOK}|chat(?: /[a-z]{1,16})?|${TOK})|ConsoleCommand [A-Za-z]{1,24}|[A-Z][A-Za-z0-9]{1,39}(?: ${TGT})?`,
   recv: String.raw`SpSnippet [A-Za-z0-9_]{1,40}\.[A-Za-z0-9_]{1,40}|CustomPacket ${TOK}|[A-Z][A-Za-z0-9]{1,39}`,
-  menu: String.raw`(?:open|close) [A-Za-z0-9 _]{1,40}`,
+  menu: String.raw`(?:open|close) [A-Za-z0-9 _/]{1,40}`,
   world: String.raw`enter (?:ws|cell) ${DESC}(?: ${NAME})?|teleport ${DESC}|loadGame`,
   act: String.raw`(?:activate|open|read|eat|use|equip|unequip|drop|take|craft|cast|hit|shoot) ${TGT}`,
   life: String.raw`death|downed|revived|respawn|ragdoll`,

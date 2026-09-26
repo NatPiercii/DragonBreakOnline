@@ -12,6 +12,7 @@
     { "k": "recv", "d": "SpSnippet Actor.SetAlpha", "ok": true },
     { "k": "recv", "d": "CustomPacket {\"type\":\"letter\"}", "ok": false },
     { "k": "menu", "d": "open InventoryMenu", "ok": true },
+    { "k": "menu", "d": "open Sleep/Wait Menu", "ok": true },
     { "k": "menu", "d": "open Hey, want to trade? meet at the inn", "ok": false },
     { "k": "world", "d": "enter cell 165a7:Skyrim.esm Dragonsreach", "ok": true },
     { "k": "world", "d": "enter ws 3c:Skyrim.esm", "ok": true },
