@@ -1,7 +1,7 @@
 'use strict'
 // Auto report payload validation (docs/auto-report-v1.md §2.12): the stored record is built from known keys only
 
-const { scrub, compileContext } = require('./autoScrub')
+const { scrub, compileContext, clean } = require('./autoScrub')
 
 const CONTRACT_VERSIONS = [1]
 const MAX_PROBLEMS = 10
@@ -22,7 +22,8 @@ const REGISTER_LINE = /^\s*([A-Z][A-Z0-9]{1,5})\s+(?:0x[0-9A-Fa-f]{1,16}\s+)?\((
 const NAME_VALUE = /\b((?:Full )?Name[ \t]*:[ \t]*)[^\n]*/gi
 const QUOTED = /(\bFile:[ \t]*"[^"\n]*")|"[^"\n]*"?/g
 const SECTION_FILTERS = {
-  registers: text => text.split('\n').map(line => REGISTER_LINE.exec(line)).filter(Boolean).map(([, reg, type]) => `${reg} (${type})`).join('\n'),
+  registers: text => text.split('\n').map(line => REGISTER_LINE.exec(line)).filter(Boolean)
+    .map(([, reg, type]) => `${reg} (${type})`).join('\n'),
   relevantObjects: text => text.replace(NAME_VALUE, '$1<name>').replace(QUOTED, (_m, file) => file || '""'),
 }
 const TRAIL_MAX = 56
@@ -401,7 +402,7 @@ function scrubRecord(st, r, meta, ctx) {
   if (r.crash && r.crash.sections) {
     for (const [key, text] of Object.entries(r.crash.sections)) {
       const filter = SECTION_FILTERS[key]
-      r.crash.sections[key] = run(filter ? filter(text) : text, { field: 'crashSection', cap: SECTION_CAPS[key] })
+      r.crash.sections[key] = run(filter ? filter(clean(text)) : text, { field: 'crashSection', cap: SECTION_CAPS[key] })
     }
   }
   r.trail = scrubTrail(st, r.trail, meta.trailMax || TRAIL_MAX, run)

@@ -318,11 +318,12 @@ test('crash sections: registers keep only register and type, relevant objects lo
   body.crash.sections.registers = 'RAX 0x0                (size_t) [0]\r\nRCX 0x1D3A5B0C2D0      (TESNPC*)\r\n' +
     '\t\tName: "Lydia Johnson"\r\nRDX 0x7FF6A1B2C3D4     (char*) "Brelyna says hi"\r\nR8 0x14\r\nRSP (void*)'
   body.crash.sections.relevantObjects = '[RSP+50] 0x1D3A5B0C2D0 (TESNPC*)\n\t\tName: "Lydia Johnson"\n\t\tFull Name: Bob Otherplayer\n' +
-    '\t\tFormID: 0xFF000D2E\n\t\tFile: "Skyrim.esm"\n[RSP+68] (char*) "meet me at the inn\n(BSFixedString) "unclosed text'
+    '\t\tFormID: 0xFF000D2E\n\t\tFile: "Skyrim.esm"\n[RSP+68] (char*) "meet me at the inn\n(BSFixedString) "unclosed text\n' +
+    '\t\tNa\u200bme: Hidden Name'
   const { sections } = accepted(body).report.crash
   assert.equal(sections.registers, 'RAX (size_t)\nRCX (TESNPC*)\nRDX (char*)\nRSP (void*)')
   assert.equal(sections.relevantObjects, '[RSP+50] 0x1D3A5B0C2D0 (TESNPC*)\n\t\tName: <name>\n\t\tFull Name: <name>\n' +
-    '\t\tFormID: 0xFF000D2E\n\t\tFile: "Skyrim.esm"\n[RSP+68] (char*) ""\n(BSFixedString) ""')
+    '\t\tFormID: 0xFF000D2E\n\t\tFile: "Skyrim.esm"\n[RSP+68] (char*) ""\n(BSFixedString) ""\n\t\tName: <name>')
   // The sender's filtered form passes unchanged
   assert.equal(sections.header, fixture.header)
   const again = load('crash-ours')
