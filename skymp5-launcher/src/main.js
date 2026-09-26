@@ -394,6 +394,8 @@ ipcMain.handle('graphics:load', () => {
       width:  disp['iSize W'] || origDisp['iSize W'] || '1920',
       height: disp['iSize H'] || origDisp['iSize H'] || '1080',
       invertY: String(controls['bInvertYValues'] || '0') === '1',
+      // 80 is Skyrim's own default; the slider shows what the player has, not a guess
+      fov: num('Display', 'fDefaultWorldFOV', 80),
       texQuality: skip >= 2 ? 'low' : (skip === 1 ? 'medium' : 'high'),
       aa: val('Display', 'bUseTAA', '1') === '1' ? 'taa'
         : (val('Display', 'bFXAAEnabled', '0') === '1' ? 'fxaa' : 'off'),
@@ -422,6 +424,15 @@ ipcMain.handle('graphics:save', (_e, g) => {
     else if (g.windowMode === 'windowed')   { display['bFull Screen'] = '0'; display['bBorderless'] = '0' }
     if (g.width)  display['iSize W'] = String(g.width)
     if (g.height) display['iSize H'] = String(g.height)
+    // Field of view. Skyrim keeps the world and first person values apart and both need setting, or
+    // third person widens while first person stays put. The client re-applies these after the
+    // character creator, which sets its own close-up value and never restores it.
+    const fov = Number(g.fov)
+    if (Number.isFinite(fov) && fov >= 50 && fov <= 140) {
+      const v = String(Math.round(fov))
+      display['fDefaultWorldFOV'] = v
+      display['fDefault1stPersonFOV'] = v
+    }
     const TEX = { high: '0', medium: '1', low: '2' }
     if (TEX[g.texQuality]) display['iTexMipMapSkip'] = TEX[g.texQuality]
     if (['off', 'fxaa', 'taa'].includes(g.aa)) {
