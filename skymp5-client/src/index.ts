@@ -1,6 +1,7 @@
 import {
   Game,
   Utility,
+  on,
   once
 } from "skyrimPlatform";
 import { SkympClient } from "./services/services/skympClient";
@@ -98,11 +99,27 @@ import { StaticRefsService } from "./services/services/staticRefsService";
 import { LipSyncService } from "./services/services/lipSyncService";
 import { FavoritesService } from "./services/services/favoritesService";
 
+// Gold weighs 0.02 a coin (Nate, 2026-09-26), so a fortune is worth taking to the bank: 1,000 gold weighs 20.
+// SKSE's Form.SetWeight changes the base form in memory, so no plugin changes; it is set again after every game load.
+const GOLD_BASE = 0xf;
+const GOLD_WEIGHT = 0.02;
+const setGoldWeight = () => {
+  try {
+    const gold = Game.getFormEx(GOLD_BASE);
+    if (gold) gold.setWeight(GOLD_WEIGHT);
+  } catch {
+    // not loaded yet; the next load sets it
+  }
+};
+
 once("update", () => {
   Utility.setINIBool("bAlwaysActive:General", true);
   Game.setGameSettingInt("iDeathDropWeaponChance", 0);
   Utility.setINIFloat("fAutoVanityModeDelay:Camera", 3600);
+  setGoldWeight();
 });
+// Native calls from an event handler can refuse to run in that context, so the load hands over to the next frame
+on("loadGame", () => once("update", setGoldWeight));
 
 const main = () => {
   try {
