@@ -31,7 +31,7 @@ export interface RealmWar {
 
 export interface RealmSecret { id: string; name: string; kind: string; layer: string[]; x: number; y: number }
 export interface RealmRaids {
-  rules: { minDefendersOnline: number; cooldownDays: number; raidMinutes: number };
+  rules: { enabled?: boolean; minDefendersOnline: number; cooldownDays: number; raidMinutes: number };
   raids: { raider: string; raiderName: string; owner: string; territory: string; territoryName: string; until: number; breakIns: number }[];
   lastRaided: Record<string, number>;
 }
@@ -48,9 +48,12 @@ export interface RealmData {
   territories: RealmTerritory[];
   colours: Record<string, string>;
   wars: RealmWar[];
-  leads: { id: string; name: string; treasury: number; online: number }[];
-  rules: { minOnline: number; declareFee: number; noticeDays: number; windowsPerWar: number; windowHours: number; deathWar: boolean };
+  leads: { id: string; name: string; treasury: number; online: number; seat?: string; atSeat?: number }[];
+  rules: { enabled?: boolean; minOnline: number; declareFee: number; noticeDays: number; windowsPerWar: number; windowHours: number; deathWar: boolean; treatyMinWeeks?: number; treatyMaxWeeks?: number };
   windowChoices: number[];
+  treaties?: { a: string; aName: string; b: string; bName: string; until: number }[];
+  offers?: { id: number; from: string; fromName: string; to: string; toName: string; weeks: number; mine: boolean }[];
+  factions?: { id: string; name: string }[];
 }
 
 type Send = (key: string, ...args: unknown[]) => void;
@@ -73,6 +76,13 @@ const hexToRgb = (hex: string): [number, number, number] => {
   const v = parseInt(h[1], 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 };
+// A faction's colour from the staff table: "#base", or "#base/#stripe" for a banner with a stripe (the Companions)
+const colourOf = (realm: RealmData, owner: string): { base: string; stripe: string } => {
+  const [base, stripe] = String(realm.colours[owner] || GREY).split('/');
+  return { base: base || GREY, stripe: stripe || '' };
+};
+const swatch = (c: { base: string; stripe: string }): string =>
+  c.stripe ? `repeating-linear-gradient(135deg, ${c.base} 0 5px, ${c.stripe} 5px 8px)` : c.base;
 
 // ---- the map -------------------------------------------------------------------------------------------------------
 export const RealmMap = ({ realm, background }: { realm: RealmData; background?: { src: string; bounds: [number, number, number, number] } }) => {
@@ -105,7 +115,9 @@ export const RealmMap = ({ realm, background }: { realm: RealmData; background?:
       for (let px = 0; px < W; px += step) {
         const [x, y] = fromPx(px, py);
         const t = nearest(x, y);
-        const [r, gg, b] = hexToRgb(t ? realm.colours[t.owner] || GREY : GREY);
+        const c = t ? colourOf(realm, t.owner) : { base: GREY, stripe: '' };
+        // A striped banner: diagonal bands of the stripe colour across the base
+        const [r, gg, b] = hexToRgb(c.stripe && (px + py) % 16 < 5 ? c.stripe : c.base);
         for (let dy = 0; dy < step; dy++) for (let dx = 0; dx < step; dx++) {
           const i = ((py + dy) * W + (px + dx)) * 4;
           img.data[i] = r; img.data[i + 1] = gg; img.data[i + 2] = b; img.data[i + 3] = background ? 90 : 150;
@@ -134,8 +146,8 @@ export const RealmMap = ({ realm, background }: { realm: RealmData; background?:
         return (
           <div key={t.id} className={'realm-map__marker realm-map__marker--' + (t.kind || 'town')} style={{ left: px, top: py }}>
             {iconSrc(t.icon)
-              ? <img className="realm-map__icon" src={iconSrc(t.icon)} alt="" style={{ outlineColor: realm.colours[t.owner] || GREY }} />
-              : <span className="realm-map__dot" style={{ background: realm.colours[t.owner] || GREY }} />}
+              ? <img className="realm-map__icon" src={iconSrc(t.icon)} alt="" style={{ outlineColor: colourOf(realm, t.owner).base }} />
+              : <span className="realm-map__dot" style={{ background: swatch(colourOf(realm, t.owner)) }} />}
             <span className="realm-map__label">{t.name}</span>
           </div>
         );
@@ -164,7 +176,7 @@ export const RealmTab = ({ realm, background }: { realm: RealmData | null; backg
         <div className="realm__legend">
           {owners.map((o) => (
             <span key={o} className="realm__legend-item">
-              <span className="realm__swatch" style={{ background: realm.colours[o] || GREY }} />
+              <span className="realm__swatch" style={{ background: swatch(colourOf(realm, o)) }} />
               {(realm.territories.find((t) => t.owner === o) || { ownerName: o }).ownerName}
             </span>
           ))}
@@ -270,6 +282,11 @@ const DeclareForm = ({ realm, act, busy }: { realm: RealmData; act: Send; busy: 
       <div className="war__line war__line--dim">
         Needs {realm.rules.minOnline} of each side online (you have {me ? me.online : 0}) and {gold(realm.rules.declareFee)} gold from your treasury (it holds {gold(me ? me.treasury : 0)}).
       </div>
+      <div className="war__line war__line--dim">
+        {me && me.seat
+          ? <>Every member online must muster at {me.seat} to declare: {me.atSeat || 0} of {me.online} are there.</>
+          : <>Your faction has no seat to muster at yet; staff set one.</>}
+      </div>
       <div className="war__actions">
         <button className="faction__button faction__button--danger" disabled={busy || !goal.length || picks.length !== realm.rules.windowsPerWar}
           onClick={() => act('dbo:warDeclare', attacker, defender, goal, picks, death)}>Declare war</button>
@@ -300,16 +317,62 @@ const RaidForm = ({ realm, act, busy }: { realm: RealmData; act: Send; busy: boo
   );
 };
 
+// Peace treaties: two leaders not at war swear peace for some weeks, and neither may declare on the other meanwhile
+const Treaties = ({ realm, act, busy }: { realm: RealmData; act: Send; busy: boolean }) => {
+  const leads = realm.leads || [];
+  const [from, setFrom] = useState(leads[0] ? leads[0].id : '');
+  const others = (realm.factions || []).filter((f) => f.id !== from);
+  const [to, setTo] = useState('');
+  const min = realm.rules.treatyMinWeeks || 1, max = realm.rules.treatyMaxWeeks || 8;
+  const [weeks, setWeeks] = useState(Math.min(4, max));
+  const treaties = realm.treaties || [], offers = realm.offers || [];
+  if (!leads.length && !treaties.length) return null;
+  return (
+    <div className="war">
+      <div className="war__head"><b>Peace treaties</b></div>
+      {treaties.map((t) => <div key={t.a + t.b} className="war__line">{t.aName} and {t.bName} are sworn to peace until {when(t.until)}.</div>)}
+      {offers.map((o) => (
+        <div key={o.id} className="war__actions">
+          <span>{o.fromName} offers {o.toName} peace for {o.weeks} week{o.weeks > 1 ? 's' : ''}{o.mine ? '.' : ': waiting for their answer.'}</span>
+          {o.mine && <>
+            <button className="faction__button faction__button--primary" disabled={busy} onClick={() => act('dbo:treatyAnswer', o.id, true)}>Swear peace</button>
+            <button className="faction__button" disabled={busy} onClick={() => act('dbo:treatyAnswer', o.id, false)}>Refuse</button>
+          </>}
+        </div>
+      ))}
+      {leads.length > 0 && (
+        <div className="war__actions">
+          As <select className="faction__rank" value={from} onChange={(e) => setFrom(e.target.value)}>{leads.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+          offer <select className="faction__rank" value={to} onChange={(e) => setTo(e.target.value)}>
+            <option value="">choose a faction</option>
+            {others.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          peace for <select className="faction__rank" value={weeks} onChange={(e) => setWeeks(Number(e.target.value))}>
+            {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((n) => <option key={n} value={n}>{n} week{n > 1 ? 's' : ''}</option>)}
+          </select>
+          <button className="faction__button" disabled={busy || !to} onClick={() => act('dbo:treatyOffer', from, to, weeks)}>Offer a treaty</button>
+        </div>
+      )}
+      <div className="war__line war__line--dim">While a treaty holds, neither side may declare war on the other. At war, offer peace in the war itself.</div>
+    </div>
+  );
+};
+
 export const WarTab = ({ realm, act, busy }: { realm: RealmData | null; act: Send; busy: boolean }) => {
   if (!realm) return <p className="faction__empty">War is not open yet.</p>;
   const raids = (realm.raids && realm.raids.raids) || [];
+  // An old server sends no switch: treat that as open, as it was
+  const open = realm.rules.enabled !== false;
+  const raidsOpen = !!realm.raids && realm.raids.rules.enabled !== false;
   return (
     <div className="wars">
+      {!open && <p className="war__closed">War is closed during the alpha, until the holds and factions are set up. The map, the treasury and peace treaties work meanwhile.</p>}
       {(realm.wars || []).map((w) => <WarCard key={w.id} w={w} realm={realm} act={act} busy={busy} />)}
-      {!(realm.wars || []).length && <p className="faction__empty">No wars concern your factions.</p>}
+      {open && !(realm.wars || []).length && <p className="faction__empty">No wars concern your factions.</p>}
       {raids.map((r) => <div key={r.territory} className="war"><div className="war__head"><b>{r.raiderName}</b> is raiding <b>{r.territoryName}</b><span className="war__status war__status--active">until {when(r.until)}</span></div><div className="war__line">{r.breakIns} home{r.breakIns === 1 ? '' : 's'} broken into so far.</div></div>)}
-      <DeclareForm realm={realm} act={act} busy={busy} />
-      <RaidForm realm={realm} act={act} busy={busy} />
+      <Treaties realm={realm} act={act} busy={busy} />
+      {open && <DeclareForm realm={realm} act={act} busy={busy} />}
+      {raidsOpen && <RaidForm realm={realm} act={act} busy={busy} />}
     </div>
   );
 };

@@ -289,6 +289,7 @@
 .war__line { font-size: 13px; color: $dbo-text; &--dim { color: $dbo-text-dim; } &--death { color: #f0b4b4; } }
 .war__checks { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
 .war__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.war__closed { margin: 0; padding: 10px 12px; font-size: 13px; color: $dbo-text; border: 1px solid rgba(226, 194, 51, 0.45); border-radius: 4px; background: rgba(226, 194, 51, 0.08); }
 
 .realm-map__secret { width: 14px; height: 14px; border-radius: 50%; border: 2px dashed #c9a8ff; box-shadow: 0 0 6px rgba(168, 140, 236, 0.9); }
 .realm-map__marker--secret .realm-map__label { color: #d9c6ff; font-style: italic; }
