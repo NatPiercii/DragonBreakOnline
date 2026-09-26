@@ -366,6 +366,9 @@ test('pdb: each PDB is archived 0600 with its image hash, PE timestamp and GUID-
   assert.equal(again.already, true)
   assert.equal(again.archivedAt, index.archivedAt)
   assert.deepEqual(listing(path.join(store, 'symbols')), ['0.3.44'])
+  // A files version can be the git hash merge-files.js falls back to (§2.1)
+  archive.archivePdbs({ filesVersion: 'f8cd789', pdbDir: drop.pdbDir, dllDir: drop.dllDir, store })
+  assert.deepEqual(listing(path.join(store, 'symbols')), ['0.3.44', 'f8cd789'])
 })
 
 test('pdb: refused for a GUID no image carries, a missing image, a non-MSF file, a bad version or a version taken by other images', () => {
@@ -374,7 +377,8 @@ test('pdb: refused for a GUID no image carries, a missing image, a non-MSF file,
     [dllDrop({ platformImage: GUIDS.other }), {}, /SkyrimPlatform\.pdb: no image in --dll-dir carries its GUID/],
     [dllDrop(), { rm: 'runtime/SkyrimPlatformCEF.exe.hidden' }, /SkyrimPlatformCEF\.pdb: no \.dll or \.exe of that name in --dll-dir/],
     [dllDrop(), { write: ['pdbDir/SkyrimPlatform.pdb', 'Microsoft C/C++ program database 2.00\r\n'] }, /SkyrimPlatform\.pdb: not an MSF 7\.0 PDB/],
-    [dllDrop(), { filesVersion: '0.3.x' }, /--files-version 0\.3\.x is not a version/],
+    [dllDrop(), { filesVersion: '../0.3.44' }, /--files-version \.\.\/0\.3\.44 is not a files version/],
+    [dllDrop(), { filesVersion: '.hidden' }, /--files-version \.hidden is not a files version/],
     [dllDrop(), { rm: ['pdbDir/SkyrimPlatform.pdb', 'pdbDir/SkyrimPlatformCEF.pdb'] }, /no \.pdb file/],
   ]
   for (const [drop, change, error] of cases) {

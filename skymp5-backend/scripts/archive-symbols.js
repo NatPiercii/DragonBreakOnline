@@ -210,7 +210,7 @@ const sameFiles = (a, b) => JSON.stringify(a.map(f => [f.pdb, f.imageSha256, f.p
 
 // Returns the index; a second run with the same images is a no-op, with other images it is refused
 function archivePdbs({ filesVersion, pdbDir, dllDir, store }) {
-  if (!PATTERNS.version.test(filesVersion || '')) throw new Error(`--files-version ${filesVersion} is not a version`)
+  if (!PATTERNS.files.test(filesVersion || '')) throw new Error(`--files-version ${filesVersion} is not a files version`)
   const names = fs.readdirSync(pdbDir, { withFileTypes: true }).filter(e => e.isFile() && /\.pdb$/i.test(e.name)).map(e => e.name).sort()
   if (!names.length) throw new Error(`${pdbDir}: no .pdb file`)
   const images = findImages(dllDir, new Set(names.map(name => name.slice(0, -4).toLowerCase())))
