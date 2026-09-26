@@ -123,7 +123,8 @@ const Chat = (props) => {
   };
 
   const sendMessage = useCallback((text) => {
-    if (channel === SYSTEM_CHANNEL) return;
+    // The System tab takes /commands, so the list a message showed stays in view while you type one (athny, 2026-09-25,
+    // "QOL System Chat"); plain text typed there is said in Local, as before, and the tab follows it.
     const shout = text.match(SHOUTREGEXP);
     const shoutLen = shout
       ? shout.reduce((acc, text) => {
@@ -222,16 +223,11 @@ const Chat = (props) => {
         setEndOfContenteditable(el);
       }
     };
-    // Enter and T both focus chat; the read-only System tab hands off to Local
+    // Enter and T both focus chat in the tab that is showing; the System tab takes /commands
     const onBrowserFocused = () => {
       browserFocusedRef.current = true;
       bumpIdle();
       if (isInputHidden) return;
-      if (isSystemTab) {
-        setChannel(DEFAULT_CHANNEL);
-        requestAnimationFrame(focusInput);
-        return;
-      }
       focusInput();
     };
     // The dedicated chat key always lands in the Local tab
@@ -395,7 +391,7 @@ const Chat = (props) => {
                             unread={{ personal: hasUnreadPersonal, system: hasUnreadSystem }}
                             onSelect={(id) => {
                               setChannel(id);
-                              if (id !== SYSTEM_CHANNEL && inputRef.current) inputRef.current.focus();
+                              if (inputRef.current) inputRef.current.focus();
                             }}
                           />
                           <button
@@ -404,7 +400,7 @@ const Chat = (props) => {
                             title='Settings'
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
-                              if (inputRef.current && !isSystemTab) inputRef.current.focus();
+                              if (inputRef.current) inputRef.current.focus();
                               setSettingsOpened((open) => !open);
                             }}
                           >
@@ -417,8 +413,7 @@ const Chat = (props) => {
                             id="chatInput"
                             className={'show'}
                             type="text"
-                            readOnly={isSystemTab}
-                            placeholder={isSystemTab ? 'System messages appear here' : (placeholder !== undefined ? placeholder : '')}
+                            placeholder={isSystemTab ? 'Type a /command here; other text goes to Local' : (placeholder !== undefined ? placeholder : '')}
                             onChange={(value) => {
                               handleInput(value);
                               if (lastSendInputText + 1000 < Date.now()) {

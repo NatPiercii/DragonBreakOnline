@@ -14,7 +14,8 @@ export interface ChatChannel {
 
 export const CHAT_CHANNELS: ChatChannel[] = [
   { id: 'local',    label: 'Local',    cmd: '',          className: 'channel-local' },
-  // System: read-only feed of vanilla notifications, admin /system broadcasts and flavour text. Not typeable. (#eda841)
+  // System: vanilla notifications, admin /system broadcasts and flavour text. Takes /commands, so a list it showed stays
+  // in view; plain text typed here is said in Local. (#eda841)
   { id: 'system',   label: 'System',   cmd: '',          className: 'channel-system' },
   // Admin-to-admin chat, hidden from normal players.
   { id: 'admin',    label: 'Admin',    cmd: '/admin ',   className: 'channel-admin' },
