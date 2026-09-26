@@ -1346,6 +1346,16 @@ bool IsUnarmedAttack(const uint32_t sourceFormId)
   return sourceFormId == 0x1f4;
 }
 
+// Full health, magicka and stamina: base values plus the level and race bonus (private.dboAvBonus)
+BaseActorValues GetMaxActorValues(const MpActor& actor)
+{
+  BaseActorValues maximum = GetBaseActorValues(
+    actor.GetParent(), actor.GetBaseId(), actor.GetRaceId(),
+    actor.GetTemplateChain());
+  actor.AddLevelBonus(maximum);
+  return maximum;
+}
+
 float CalculateCurrentHealthPercentage(const MpActor& actor, float damage,
                                        float healthPercentage,
                                        float* outBaseHealth)
@@ -2189,6 +2199,10 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
 
   float healthPercentage = currentActorValues.healthPercentage;
 
+  // The server decides whether a hit was blocked, from the target's own block state below: the attacker's client
+  // cannot claim a block it never met (review SCH-2; combat.js drains the blocker's stamina on a block)
+  hitData.isHitBlocked = false;
+
   if (targetActor.IsBlockActive()) {
     if (ShouldBeBlocked(*aggressor, targetActor)) {
       bool isRemoteBowAttack = false;
@@ -2236,8 +2250,34 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     }
   }
 
+  // Power attacks and bashes stagger (combat.js). The flags come from the attacker's client, so one attacker gets at
+  // most one such hit on one target per kForcefulHitInterval, and a modified client cannot stagger-lock anyone (SCH-2)
+  if (hitData.isPowerAttack || hitData.isBashAttack) {
+    const uint64_t pair =
+      (static_cast<uint64_t>(aggressor->GetFormId()) << 32) |
+      targetActor.GetFormId();
+    auto& last = lastForcefulHit[pair];
+    if (currentHitTime - last < kForcefulHitInterval) {
+      spdlog::info("OnWeaponHit - {:x} power/bash on {:x} too soon after the "
+                   "last one, counted as a plain hit",
+                   aggressor->GetFormId(), targetActor.GetFormId());
+      hitData.isPowerAttack = false;
+      hitData.isBashAttack = false;
+    } else {
+      last = currentHitTime;
+    }
+    if (lastForcefulHit.size() > 4096) {
+      std::erase_if(lastForcefulHit, [&](const auto& entry) {
+        return currentHitTime - entry.second > std::chrono::seconds(10);
+      });
+    }
+  }
+
   float damage = partOne.CalculateDamage(*aggressor, targetActor, hitData);
   damage = damage < 0.f ? 0.f : damage;
+  // The target's full health and stamina, the base a hit is measured against, so the gamemode can turn points into the
+  // percentages it sets (block chip, block stamina): the gamemode cannot read maxima server-side
+  const BaseActorValues targetMax = GetMaxActorValues(targetActor);
   // What the hit would have done unblocked, so the gamemode can let part of a blocked blow through (chip damage)
   float unblockedDamage = damage;
   if (hitData.isHitBlocked) {
@@ -2252,7 +2292,9 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     { "power", static_cast<bool>(hitData.isPowerAttack) },
     { "bash", static_cast<bool>(hitData.isBashAttack) },
     { "sneak", static_cast<bool>(hitData.isSneakAttack) },
-    { "unblockedDamage", unblockedDamage }
+    { "unblockedDamage", unblockedDamage },
+    { "targetMaxHealth", targetMax.health },
+    { "targetMaxStamina", targetMax.stamina }
   };
   // A fully blocked attack still asks the gamemode, so god mode and companions see it
   if (!FireHitDamageEvent("onHitDamageAttempt", aggressor, &targetActor,

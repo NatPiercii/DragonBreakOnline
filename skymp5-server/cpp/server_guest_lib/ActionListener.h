@@ -182,6 +182,10 @@ private:
   static constexpr uint32_t kScrollHitsPerRead = 12;
   std::unordered_map<uint32_t, ScrollRead> scrollHits;
   bool TakeScrollHit(uint32_t casterId, uint32_t scrollId);
+  // Last power attack or bash per (attacker << 32 | target), for the stagger floor in OnWeaponHit
+  static constexpr std::chrono::milliseconds kForcefulHitInterval{ 700 };
+  std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
+    lastForcefulHit;
   std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>
     paralyzedUntil;
 
