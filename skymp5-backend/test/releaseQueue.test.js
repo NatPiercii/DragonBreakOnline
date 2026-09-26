@@ -523,7 +523,7 @@ test('targets: the default stops at the first unreviewed commit', async () => {
   await withQueue({ reviews: [go(S.B)] }, async q => {
     const qv = await q.queue()
     assert.equal(qv.default.fork, S.B)
-    assert.equal(qv.stops.fork, short(S.M1))
+    assert.deepEqual(qv.stops, { fork: { short: short(S.F1), kind: 'commit', reason: 'notReviewed' }, server: { short: short(S.S1), kind: 'commit', reason: 'notReviewed' } })
     assert.equal(row(qv, S.A).inDefault, true)
     assert.equal(row(qv, S.F1).inDefault, false)
   })
@@ -536,6 +536,7 @@ test('reviews: a later NO-GO overrides a GO, and a later GO on a descendant clea
     assert.equal(row(qv, S.A).blocked, true)
     assert.equal(qv.counts.blocked, 1)
     assert.equal(qv.default.fork, S.LIVE)
+    assert.deepEqual(qv.stops.fork, { short: short(S.A), kind: 'commit', reason: 'blocked' })
   })
   await withQueue({ reviews: [go(S.M2), verdict('NO-GO', S.A), go(S.B)] }, async q => {
     const qv = await q.queue()
@@ -549,12 +550,12 @@ test('reviews: a clean merge of reviewed parents counts, a conflict-resolved one
   await withQueue({ reviews: [go(S.B), go(S.F2, S.A)] }, async q => {
     const qv = await q.queue()
     assert.equal(qv.default.fork, S.M1)
-    assert.equal(qv.stops.fork, short(S.C))
+    assert.equal(qv.stops.fork.short, short(S.C))
   })
   await withQueue({ reviews: [go(S.G), go(S.H, S.N)] }, async q => {
     const qv = await q.queue()
     assert.equal(qv.default.fork, S.G)
-    assert.equal(qv.stops.fork, short(S.M2))
+    assert.deepEqual(qv.stops.fork, { short: short(S.M2), kind: 'merge', reason: 'notReviewed' })
   })
   assert.equal(countObjects(), objects)
   assert.deepEqual(fs.readdirSync(root).filter(n => n.startsWith('dbo-merge-')), [])
@@ -621,12 +622,23 @@ test('reviews: ranges resolve four at a time, an unknown tip waits for the next 
   try { await assert.rejects(slow.queue(), { code: 'unavailable', timedOut: true }) } finally { slow.stop() }
 })
 
+test('targets: a hidden docs commit between reviewed rows is named as the stop', async () => {
+  await withQueue({ reviews: [go(S.S1, S.S0, { repo: 'server' }), go(S.S3, S.S2, { repo: 'server' })] }, async q => {
+    const qv = await q.queue()
+    assert.equal(qv.default.server, S.S1)
+    assert.deepEqual(qv.stops.server, { short: short(S.S2), kind: 'docs', reason: 'notReviewed' })
+    assert.deepEqual([row(qv, S.S3).review.state, row(qv, S.S3).inDefault], ['GO', false])
+    assert.equal(row(qv, S.S2), undefined)
+  })
+})
+
 test('targets: a held range stops the default', async () => {
   await withQueue({ reviews: [go(S.M2)], held: [{ repo: 'fork', base: S.M1, tip: S.C, reason: 'pending Jake and Nat' }] }, async q => {
     const qv = await q.queue()
     assert.equal(row(qv, S.C).held, true)
     assert.equal(row(qv, S.C).heldReason, 'pending Jake and Nat')
     assert.equal(qv.default.fork, S.M1)
+    assert.deepEqual(qv.stops.fork, { short: short(S.C), kind: 'commit', reason: 'held' })
     assert.deepEqual(qv.held, [{ repo: 'fork', range: `${short(S.M1)}..${short(S.C)}`, reason: 'pending Jake and Nat' }])
   })
 })
@@ -637,6 +649,7 @@ test('targets: Requires-Fork stops the gameplay walk until the fork target conta
     const qv = await q.queue()
     assert.equal(row(qv, S.S3).requiresForkMet, false)
     assert.equal(qv.default.server, S.S2)
+    assert.deepEqual(qv.stops.server, { short: short(S.S3), kind: 'commit', reason: 'needsFork' })
   })
   await withQueue({ reviews: [server, go(S.M2)] }, async q => {
     const qv = await q.queue()

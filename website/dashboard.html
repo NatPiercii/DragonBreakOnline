@@ -294,6 +294,7 @@ const RESULT = { upToDate: 'up to date', hold: 'skipped for the staging hold', s
   buildFailed: 'build failed', unhealthy: 'unhealthy after an update', fetchFailed: 'could not reach GitHub' };
 const KIND = { release: 'release', manual: 'manual release', hotfix: 'hotfix', rollback: 'rollback', updater: 'automatic update', gameplay: 'deploy', client: 'published' };
 const HOW = { stamp: 'stamped', matched: 'matched' };
+const STOP_WHY = { notReviewed: 'not reviewed', held: 'held', blocked: 'NO-GO', needsFork: 'waits for a game server change' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const short = s => (s ? String(s).slice(0, 8) : '?');
@@ -444,6 +445,11 @@ function renderQueue(s) {
     if (!n.total) box.append(line('Nothing waits on GitHub.', 'dim'));
     q.groups.forEach(g => box.append(group(g)));
     if (q.docs.count) box.append(line(`Docs (${q.docs.count}, hidden)`, 'dim'));
+    // A docs commit or a merge has no row, so name it when it stops the default
+    for (const [side, name] of [['fork', 'game server'], ['server', 'gameplay']]) {
+      const st = q.stops?.[side];
+      if (st && st.kind !== 'commit') box.append(line(`The default ${name} update stops at ${st.short} (${st.kind === 'docs' ? 'docs' : 'a merge'}, ${STOP_WHY[st.reason] || st.reason})`));
+    }
     for (const h of q.held) box.append(line(`Held: ${h.repo} ${h.range}: ${h.reason}`, 'warn'));
     for (const v of q.versions) {
       const change = v.from === v.to ? `stays ${v.to}` : `${v.from || '?'} -> ${v.to}`;

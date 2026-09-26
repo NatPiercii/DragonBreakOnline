@@ -710,12 +710,19 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     let target = null, stop = null
     for (const f of chainOf(model) || []) {
       const fresh = newlyCovered(model, f, covered)
-      stop = fresh.find(c => c.held || !REVIEWED.has(c.review.state) || !ok(c)) || null
+      stop = fresh.filter(c => c.held || !REVIEWED.has(c.review.state) || !ok(c)).sort((a, b) => model.order.get(a.sha) - model.order.get(b.sha))[0] || null
       if (stop) break
       for (const c of fresh) covered.add(c.sha)
       target = f.sha
     }
-    return { target, covered, stop: stop && short(stop.sha) }
+    return { target, covered, stop: stop && stopOf(stop) }
+  }
+
+  // The earliest commit that stops the walk; merges and docs are not listed, so the page names them from here
+  function stopOf(c) {
+    const kind = c.parents.length > 1 ? 'merge' : c.cls.area === 'Docs' ? 'docs' : 'commit'
+    const reason = c.held ? 'held' : c.review.state === 'NO-GO' ? 'blocked' : REVIEWED.has(c.review.state) ? 'needsFork' : 'notReviewed'
+    return { short: short(c.sha), kind, reason }
   }
 
   // Each commit's first-parent step (the first-parent commit that ships it) and its place in shipping order
