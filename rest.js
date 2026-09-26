@@ -82,6 +82,7 @@ module.exports = (api) => {
     }
   } catch (e) { log('rest: beds.json unreadable:', e.message); }
   const groupOf = (cell) => (INNS.has(cell) ? INNS.get(cell).group : cell);
+  globalThis.__dboInnGroupOf = groupOf; // business.js finds an inn's ledger from any of its rooms
   const innName = (cell) => { const i = INNS.get(cell); if (!i) return ''; const g = INNS.get(i.group); return g ? g.name : i.name; };
   // rentBedRefs lists the beds an inn actually rents; residents' and innkeepers' own beds are deliberately not in it
   const rentable = (bed, cell) => { const i = INNS.get(cell); return !!i && (i.rent ? i.rent.has(bed) : BEDS.has(baseOf(bed))); };
@@ -181,6 +182,9 @@ module.exports = (api) => {
     }
     return null;
   };
+  // The inn's business sets its own rent (business.js), else the standard; the hold's own tax rate, else holdShare
+  const priceFor = (bed) => { try { const n = globalThis.__dboBusinessRent ? globalThis.__dboBusinessRent(cellOf(bed)) : null; if (n > 0) return n; } catch (e) { /* no ledger */ } return Math.max(0, Math.round(Number(CFG.rentGold) || 0)); };
+  const holdShareIn = (zone) => { try { if (globalThis.__dboHoldTax) return globalThis.__dboHoldTax(zone, CFG.holdShare); } catch (e) { /* no ledger */ } return Number(CFG.holdShare) || 0; };
   const forText = () => { const h = Number(CFG.rentHours) || 0; return h === 24 ? 'a day' : h % 24 === 0 ? `${h / 24} days` : `${h} hours`; };
   const where = (bed) => { const n = innName(cellOf(bed)); return n ? ` at ${n}` : ''; };
   const bedDesc = (bed) => { try { return mp.getDescFromId(bed >>> 0); } catch (e) { return (bed >>> 0).toString(16); } };
@@ -196,7 +200,7 @@ module.exports = (api) => {
     // goes in the title.
     const r = rentOf(bed);
     const actions = kind === 'inn'
-      ? [{ id: 'rent', label: `Rent this bed: ${CFG.rentGold} gold for ${forText()}` }]
+      ? [{ id: 'rent', label: `Rent this bed: ${priceFor(bed)} gold for ${forText()}` }]
       : [{ id: 'sleep', label: 'Sleep (log out)' }, { id: 'lie', label: 'Lie down (use the bed again)' }];
     pending.set(a >>> 0, bed >>> 0);
     openWidget(a, {
@@ -237,7 +241,7 @@ module.exports = (api) => {
   };
 
   const payRent = (a, bed) => {
-    const price = Math.max(0, Math.round(Number(CFG.rentGold) || 0));
+    const price = priceFor(bed);
     if (price && !takeGold(a, price)) {
       personal(a, `You need ${price} gold to rent this bed.`);
       log(`rest: ${who(a)} could not pay ${price} gold for bed ${bedDesc(bed)}`);
@@ -246,7 +250,7 @@ module.exports = (api) => {
     const cell = cellOf(bed);
     const zone = (INNS.get(cell) && INNS.get(cell).hold) || zoneOfActor(a);
     const owner = innOwner(cell);
-    let holdCut = owner ? Math.round(price * (Number(CFG.holdShare) || 0)) : price;
+    let holdCut = owner ? Math.round(price * holdShareIn(zone)) : price;
     const ownerCut = price - holdCut;
     let toOwner = ownerCut ? payOwner(owner, ownerCut) : null;
     if (ownerCut && !toOwner) { log(`rest: owner profile ${owner.owner} could not be paid; ${ownerCut} gold goes to ${zone || 'no hold'}`); holdCut = price; toOwner = null; }
@@ -255,6 +259,7 @@ module.exports = (api) => {
     set(bed, 'private.dboRent', { renter: a >>> 0, name: display(a), until });
     set(a, 'private.dboRentBed', { bed: bed >>> 0, until });
     audit(`REST ${who(a)} rented bed ${bedDesc(bed)}${where(bed)} for ${price} gold: ${toOwner || (owner ? `0 to ${owner.ownerName || 'the owner'}` : '0 to no owner')}, ${toHold} to ${zone || 'no hold'}${holdCut && !toHold ? ' (no treasury)' : ''}`);
+    try { if (globalThis.__dboBusinessLog) globalThis.__dboBusinessLog(cell, `${display(a)} rented a bed for ${price} gold (${toOwner || '0 to the owner'}, ${toHold} tax)`); } catch (e) { /* no ledger */ }
     personal(a, `You rent the bed for ${price} gold until ${clock(until)}. It is yours alone until then. Choose Sleep to log out and wake Well Rested.`);
     return true;
   };

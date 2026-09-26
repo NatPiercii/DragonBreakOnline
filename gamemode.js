@@ -846,6 +846,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboWispStalk && globalThis.__dboWispStalk(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboAyleidWell && globalThis.__dboAyleidWell(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBankActivate && globalThis.__dboBankActivate(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboBusinessActivate && globalThis.__dboBusinessActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
@@ -1161,6 +1162,7 @@ const onCharacterReady = (userId, a) => {
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
     // Waking from a bed (rest.js) before the hunger stage is applied
     try { if (globalThis.__dboRestLogin) globalThis.__dboRestLogin(a); } catch (e) { log('rest login failed', e.message); }
+    try { if (globalThis.__dboBusinessLogin) globalThis.__dboBusinessLogin(a); } catch (e) { log('business login failed', e.message); }
     try { if (globalThis.__dboJailLogin) globalThis.__dboJailLogin(a); } catch (e) { log('jail login failed', e.message); }
     needsOnConnect(a);
     if (globalThis.__dboPlayerMenuReady) globalThis.__dboPlayerMenuReady(a);
@@ -3410,6 +3412,15 @@ try {
   delete require.cache[REST_JS];
   require(REST_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, sendPacket, userOf, takeGold, depositToTreasury, giveItem, zoneOfActor, distanceMeters });
 } catch (e) { log('rest.js failed to load:', e.stack || e.message); globalThis.__dboRestActivate = null; globalThis.__dboRestLogin = null; globalThis.__dboRestHungerMult = null; }
+
+// ---- business ledgers: inn rent, the hold's tax, staff logbook, storage for rent (server\business.js, config "business") ----
+try {
+  const BUSINESS_JS = path.resolve('business.js');
+  delete require.cache[BUSINESS_JS];
+  require(BUSINESS_JS)({ mp, log, personal, audit, who, display, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors,
+    profileOf, findByName, takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, zoneOfActor, zoneById,
+    ranksOf, distanceMeters, isAdmin });
+} catch (e) { log('business.js failed to load:', e.stack || e.message); globalThis.__dboBusinessActivate = null; globalThis.__dboBusinessLogin = null; globalThis.__dboBusinessRent = null; globalThis.__dboHoldTax = null; globalThis.__dboBusinessLog = null; }
 
 // ---- jails, cell doors and sentences (server\jail.js, config "jail", jails.json) ------------------
 try {
