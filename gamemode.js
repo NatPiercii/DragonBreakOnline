@@ -2530,7 +2530,10 @@ const explosionParalysisOf = (spellId) => {
   if (explosionParalysis.has(spellId)) return explosionParalysis.get(spellId);
   let seconds = 0;
   const spell = recordOf(spellId);
-  if (spell && spell.record.type === 'SPEL' && !paralysisIn(spell)) {
+  // A paralysis scroll holds its victim on the server (C++ OnSpellHit), but the C++ cannot replay it on the victim's own
+  // client: DoCombatSpellApply takes a Spell, and a Scroll is another form type (review SCH3-3). Its own effect counts here.
+  if (spell && spell.record.type === 'SCRL') seconds = paralysisIn(spell);
+  else if (spell && spell.record.type === 'SPEL' && !paralysisIn(spell)) {
     for (const f of fieldsOf(spell, 'EFID')) {
       const mgef = recordOf(globalAt(spell, u32At(f, 0)));
       const data = fieldsOf(mgef, 'DATA')[0];
