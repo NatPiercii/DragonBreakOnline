@@ -566,6 +566,19 @@ test('reviews: a copy with the same patch id carries the GO', async () => {
   })
 })
 
+test('reviews: the newest GO still carries over when more than 600 commits are reviewed', async () => {
+  const stream = Array.from({ length: 610 }, (_, i) => ['commit refs/heads/many', `committer NatPiercii <nate@example.com> ${1758326400 + i} +0000`,
+    'data <<END', `misc: many ${i}`, 'END', ...(i ? [] : [`from ${S.LIVE}`]), `M 100644 inline misc/many-${i}.txt`, 'data <<END', String(i), 'END', ''].join('\n')).join('\n')
+  execFileSync('git', ['-C', repo, 'fast-import', '--quiet'], { input: stream, env: fixtureEnv() })
+  try {
+    await withQueue({ reviews: [go(g('rev-parse', 'refs/heads/many')), go(S.P), go(S.D)] }, async q => {
+      const qv = await q.queue()
+      assert.equal(row(qv, S.Pp).review.state, 'sameChange')
+      assert.equal(qv.default.fork, S.Pp)
+    })
+  } finally { g('update-ref', '-d', 'refs/heads/many') }
+})
+
 test('targets: a held range stops the default', async () => {
   await withQueue({ reviews: [go(S.M2)], held: [{ repo: 'fork', base: S.M1, tip: S.C, reason: 'pending Jake and Nat' }] }, async q => {
     const qv = await q.queue()

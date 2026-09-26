@@ -634,7 +634,9 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     }
     const open = commits.filter(c => c.review === NO_REVIEW && c.parents.length === 1)
     if (!open.length || !mine.some(r => r.verdict === 'GO')) return
-    const candidates = [...latest].filter(([sha, r]) => r.verdict === 'GO' && !(byId.get(sha)?.parents.length > 1)).slice(0, 600).map(([sha]) => sha)
+    // Newest lines first, so the oldest reviews are the ones left out of the patch-id budget
+    const candidates = mine.flatMap((r, i) => [...ranges[i]].reverse().filter(sha => latest.get(sha) === r && r.verdict === 'GO' && !(byId.get(sha)?.parents.length > 1)))
+      .reverse().slice(0, 600)
     const ids = await patchIds([...candidates, ...open.map(c => c.sha)])
     const byPatch = new Map()
     for (const sha of candidates) if (ids.get(sha) && !byPatch.has(ids.get(sha))) byPatch.set(ids.get(sha), sha)
