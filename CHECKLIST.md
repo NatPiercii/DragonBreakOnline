@@ -12,6 +12,9 @@
 - [ ] PC session, same asset pass: `CYRForceRune` (Beyond Skyrim) draws its centre glyph solid bright green (#bugs
   1553193876355813386, screenshot from athny): a missing or wrong texture or material on the rune's effect art. The
   circle renders; only the centre glyph is wrong. Check the rune's MGEF art / hit shader textures in the dev install.
+- [ ] PC session, xEdit: Force Rune now staggers on the server (combat.js staggerSpells, Worker C 7b49be61, live
+  00:09 on 2026-09-26), but the explosion still ragdolls, which desyncs between players. Override
+  `CYRExplosionForceRune` (BSHeartland.esm) in `DragonBreak Nexus Patches.esp` with force 0, then `deploy-plugins`.
 
 ## Added 2026-09-25 (23:20 UTC): Sentinel armor cannot be forged (server refuses, client refunds) - FIXED ON THE SERVER 23:48
 
