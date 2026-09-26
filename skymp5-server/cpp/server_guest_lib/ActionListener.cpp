@@ -30,6 +30,8 @@
 #include "UpdateAnimVariablesMessage.h"
 #include "UpdateEquipmentMessage.h"
 #include <algorithm>
+#include <cctype>
+#include <cstring>
 
 namespace FormIdCasts {
 uint32_t LongToNormal(uint64_t longFormId)
@@ -644,6 +646,10 @@ void ActionListener::OnUpdateAnimation(const RawMessageData& rawMsgData,
   if (!targetActor) {
     return;
   }
+
+  // For the power/bash measurement in OnWeaponHit: when an actor (player or hosted NPC) last started a power attack or
+  // a bash, as its own client reported it
+  NoteForcefulAnim(targetActor->GetFormId(), msg.data.animEventName);
 
   // Only process animation system and set last anim event for player's actor
   if (targetActor != myActor) {
@@ -1639,7 +1645,8 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
   if (isSourceSpell) {
     // A wall or cloak scroll hits with the spell it grants (review SCH1-R3)
     if (CanHitWithSpell(*aggressor, hitData.source) ||
-        TakeScrollGrantedHit(aggressor->GetFormId(), hitData.source)) {
+        TakeScrollGrantedHit(aggressor->GetFormId(), hitData.source,
+                             hitData.target)) {
       OnSpellHit(aggressor, targetRef, hitData);
     } else {
       spdlog::info("ActionListener::OnHit - {:x} cannot hit with spell {:x}",
@@ -2254,6 +2261,12 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
 
   // Power attacks and bashes stagger (combat.js). The flags come from the attacker's client, so one attacker gets at
   // most one such hit on one target per kForcefulHitInterval, and a modified client cannot stagger-lock anyone (SCH-2)
+  // Measurement for review SCH2-4, log only: a power or bash flag with no attackPower*/bash* start from the attacker in
+  // the last 2 s. The client sends only the newest animation per tick, so some real ones will show up here too; the
+  // counts decide whether a hard gate is possible.
+  CountUnmatchedForcefulFlag(aggressor->GetFormId(), hitData.isPowerAttack,
+                             hitData.isBashAttack, currentHitTime);
+
   if (hitData.isPowerAttack || hitData.isBashAttack) {
     const uint64_t pair =
       (static_cast<uint64_t>(aggressor->GetFormId()) << 32) |
@@ -2304,13 +2317,14 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
                           &weaponFlags)) {
     return;
   }
-  // The gamemode may have changed the target's values inside onHitDamageAttempt (combat.js: block chip, the blocker's
-  // stamina). Read them again, or NetSetPercentages below writes the earlier snapshot back over them (review SCH2-3).
-  currentActorValues = targetActor.GetChangeForm().actorValues;
-  healthPercentage = currentActorValues.healthPercentage;
-
   // A refused hit fires no events, a blocked one reaches scripts as blocked
   SendPapyrusOnHitEvent(aggressor, targetRef, hitData);
+
+  // The gamemode may have changed the target's values inside onHitDamageAttempt (combat.js: block chip, the blocker's
+  // stamina), and a script's OnHit may too. Read them again, or NetSetPercentages below writes the earlier snapshot back
+  // over them (review SCH2-3, SCH3-4).
+  currentActorValues = targetActor.GetChangeForm().actorValues;
+  healthPercentage = currentActorValues.healthPercentage;
 
   float outBaseHealth = 0.f;
   currentActorValues.healthPercentage = CalculateCurrentHealthPercentage(
@@ -2490,7 +2504,6 @@ void ActionListener::RecordScrollRead(uint32_t casterId, uint32_t scrollId)
   ScrollRead read;
   read.scrollId = scrollId;
   read.until = std::chrono::steady_clock::now() + kScrollHitWindow;
-  read.grantedHitsLeft = kScrollGrantedHitsPerRead;
   reads.push_back(std::move(read));
   if (reads.size() > kScrollReadsPerCaster) {
     reads.erase(reads.begin());
@@ -2533,21 +2546,100 @@ bool ActionListener::TakeScrollHit(uint32_t casterId, uint32_t scrollId,
   return false;
 }
 
-// The spell a wall or cloak scroll grants ticks on whoever stands in it, so it counts hits, not actors (SCH1-R3)
-bool ActionListener::TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId)
+// The spell a wall or cloak scroll grants ticks on whoever stands in it. The client reports every tick, faster than the
+// gamemode's once-a-second limit on concentration spells, so a raw hit budget ran dry in seconds (review SCH3-1): each
+// target is credited at most once a second, for up to kScrollGrantedSecondsPerTarget seconds, on up to
+// kScrollTargetsPerRead targets. A tick inside the same second is refused.
+bool ActionListener::TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
+                                          uint32_t targetId)
 {
   PruneScrollReads(scrollHits);
   const auto it = scrollHits.find(casterId);
   if (it == scrollHits.end()) {
     return false;
   }
+  const auto now = std::chrono::steady_clock::now();
   for (auto read = it->second.rbegin(); read != it->second.rend(); ++read) {
-    if (read->grantedHitsLeft == 0 ||
-        !IsSpellGrantedBy(&partOne.worldState, read->scrollId, spellId)) {
+    if (!IsSpellGrantedBy(&partOne.worldState, read->scrollId, spellId)) {
       continue;
     }
-    --read->grantedHitsLeft;
+    auto credit = read->grantedByTarget.find(targetId);
+    if (credit == read->grantedByTarget.end()) {
+      if (read->grantedByTarget.size() >= kScrollTargetsPerRead) {
+        continue;
+      }
+      read->grantedByTarget.emplace(targetId, GrantedCredit{ now, 1 });
+      return true;
+    }
+    if (now - credit->second.lastAt < std::chrono::seconds(1) ||
+        credit->second.seconds >= kScrollGrantedSecondsPerTarget) {
+      return false;
+    }
+    credit->second.lastAt = now;
+    ++credit->second.seconds;
     return true;
   }
   return false;
+}
+
+void ActionListener::NoteForcefulAnim(uint32_t actorId,
+                                      const std::string& animEventName)
+{
+  const auto startsWith = [&](const char* prefix) {
+    const size_t n = std::strlen(prefix);
+    return animEventName.size() >= n &&
+      std::equal(prefix, prefix + n, animEventName.begin(),
+                 [](char a, char b) {
+                   return std::tolower(static_cast<unsigned char>(a)) ==
+                     std::tolower(static_cast<unsigned char>(b));
+                 });
+  };
+  const bool power = startsWith("attackPower");
+  const bool bash = startsWith("bash");
+  if (!power && !bash) {
+    return;
+  }
+  auto& seen = forcefulAnims[actorId];
+  (power ? seen.powerAt : seen.bashAt) = std::chrono::steady_clock::now();
+  if (forcefulAnims.size() > 4096) {
+    const auto now = std::chrono::steady_clock::now();
+    std::erase_if(forcefulAnims, [&](const auto& entry) {
+      return now - std::max(entry.second.powerAt, entry.second.bashAt) >
+        std::chrono::seconds(30);
+    });
+  }
+}
+
+void ActionListener::CountUnmatchedForcefulFlag(
+  uint32_t aggressorId, bool power, bool bash,
+  std::chrono::steady_clock::time_point now)
+{
+  if (!power && !bash) {
+    return;
+  }
+  const auto it = forcefulAnims.find(aggressorId);
+  const auto window = std::chrono::seconds(2);
+  const bool powerMatched = it != forcefulAnims.end() &&
+    now - it->second.powerAt <= window;
+  const bool bashMatched =
+    it != forcefulAnims.end() && now - it->second.bashAt <= window;
+  if (power) {
+    ++forcefulFlagCounts.power;
+    if (!powerMatched) {
+      ++forcefulFlagCounts.powerUnmatched;
+    }
+  }
+  if (bash) {
+    ++forcefulFlagCounts.bash;
+    if (!bashMatched) {
+      ++forcefulFlagCounts.bashUnmatched;
+    }
+  }
+  if ((power && !powerMatched) || (bash && !bashMatched)) {
+    spdlog::info("OnWeaponHit - {:x} sent a {} flag with no matching "
+                 "animation in 2 s (power {}/{} unmatched, bash {}/{})",
+                 aggressorId, power ? "power" : "bash",
+                 forcefulFlagCounts.powerUnmatched, forcefulFlagCounts.power,
+                 forcefulFlagCounts.bashUnmatched, forcefulFlagCounts.bash);
+  }
 }

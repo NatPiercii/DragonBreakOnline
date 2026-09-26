@@ -11,7 +11,7 @@ SCRL::Data SCRL::GetData(CompressedFieldsCache& cache) const
   RecordHeaderAccess::IterateFields(
     this,
     [&](const char* type, uint32_t size, const char* data) {
-      if (!std::memcmp(type, "DATA", 4)) {
+      if (!std::memcmp(type, "DATA", 4) && size >= 8) {
         res.data.weight = *reinterpret_cast<const float*>(data + 0x4);
       } else if (!std::memcmp(type, "SPIT", 4) &&
                  size >= sizeof(SPEL::SPITData)) {

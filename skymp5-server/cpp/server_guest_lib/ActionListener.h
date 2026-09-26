@@ -172,27 +172,49 @@ private:
   uint32_t restorationChannelGeneration = 0;
   std::unordered_map<uint32_t, WardChannel> wardChannels;
   // A scroll read lately, whose hits may land (OnHit). Each read hits up to kScrollTargetsPerRead actors once each;
-  // the spell a wall or cloak scroll grants may tick kScrollGrantedHitsPerRead times. Up to kScrollReadsPerCaster reads
-  // are kept per caster, newest last (a rune, then another scroll).
+  // the spell a wall or cloak scroll grants ticks once a second per target, up to kScrollGrantedSecondsPerTarget
+  // seconds. Up to kScrollReadsPerCaster reads are kept per caster, newest last (a rune, then another scroll).
+  struct GrantedCredit
+  {
+    std::chrono::steady_clock::time_point lastAt{};
+    uint32_t seconds = 0;
+  };
   struct ScrollRead
   {
     uint32_t scrollId = 0;
     std::chrono::steady_clock::time_point until{};
     std::vector<uint32_t> targets;
-    uint32_t grantedHitsLeft = 0;
+    // target -> credited seconds of the spell a wall or cloak scroll grants
+    std::unordered_map<uint32_t, GrantedCredit> grantedByTarget;
   };
   static constexpr std::chrono::seconds kScrollHitWindow{ 60 };
   static constexpr size_t kScrollTargetsPerRead = 12;
-  static constexpr uint32_t kScrollGrantedHitsPerRead = 60;
+  static constexpr uint32_t kScrollGrantedSecondsPerTarget = 60;
   static constexpr size_t kScrollReadsPerCaster = 4;
   std::unordered_map<uint32_t, std::vector<ScrollRead>> scrollHits;
   void RecordScrollRead(uint32_t casterId, uint32_t scrollId);
   bool TakeScrollHit(uint32_t casterId, uint32_t scrollId, uint32_t targetId);
-  bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId);
+  bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
+                            uint32_t targetId);
   // Last power attack or bash per (attacker << 32 | target), for the stagger floor in OnWeaponHit
   static constexpr std::chrono::milliseconds kForcefulHitInterval{ 700 };
   std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
     lastForcefulHit;
+  // Measurement for review SCH2-4 (log only): an actor's last power attack and bash start, and running counts of hit
+  // flags that came without one
+  struct ForcefulAnims
+  {
+    std::chrono::steady_clock::time_point powerAt{};
+    std::chrono::steady_clock::time_point bashAt{};
+  };
+  std::unordered_map<uint32_t, ForcefulAnims> forcefulAnims;
+  struct
+  {
+    uint64_t power = 0, powerUnmatched = 0, bash = 0, bashUnmatched = 0;
+  } forcefulFlagCounts;
+  void NoteForcefulAnim(uint32_t actorId, const std::string& animEventName);
+  void CountUnmatchedForcefulFlag(uint32_t aggressorId, bool power, bool bash,
+                                  std::chrono::steady_clock::time_point now);
   std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>
     paralyzedUntil;
 

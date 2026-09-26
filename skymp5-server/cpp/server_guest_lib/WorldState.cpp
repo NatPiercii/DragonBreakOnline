@@ -939,13 +939,19 @@ void WorldState::SendPapyrusEvent(MpForm* form, const char* eventName,
 
 bool WorldState::IsInteriorCell(uint32_t cellOrWorld)
 {
-  auto& interior = grids[cellOrWorld].interior;
-  if (!interior.has_value()) {
-    interior = espm &&
-      espm::Convert<espm::CELL>(espm->GetBrowser().LookupById(cellOrWorld).rec) !=
-        nullptr;
+  // Cached apart from grids: grids[cellOrWorld] inserted an empty grid for every cell ever asked about
+  // (review of 2a0d334b; WorldStateTest:73/91)
+  const auto it = interiorCells.find(cellOrWorld);
+  if (it != interiorCells.end()) {
+    return it->second;
   }
-  return *interior;
+  if (!espm) {
+    return false; // not cached: the answer changes once the plugins are attached
+  }
+  const bool interior = espm::Convert<espm::CELL>(
+                          espm->GetBrowser().LookupById(cellOrWorld).rec) != nullptr;
+  interiorCells.emplace(cellOrWorld, interior);
+  return interior;
 }
 
 const std::set<MpObjectReference*>& WorldState::GetNeighborsByPosition(

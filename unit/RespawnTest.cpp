@@ -10,7 +10,8 @@ TEST_CASE("DeathState packed is correct if actor was killed", "[Respawn]")
 {
   PartOne& p = GetPartOne();
   DoConnect(p, 0);
-  p.CreateActor(0xff000000, { 0, 0, 0 }, 0, 0x3c);
+  // A profile id makes it a player: without one the server treats the actor as an NPC (61f13c10) and says more
+  p.CreateActor(0xff000000, { 0, 0, 0 }, 0, 0x3c, 1);
   p.SetUserActor(0, 0xff000000);
   auto& ac = p.worldState.GetFormAt<MpActor>(0xff000000);
 
@@ -45,6 +46,8 @@ TEST_CASE("An NPC's death reaches every player who sees it, not only its "
   p.CreateActor(0xff000000, { 0, 0, 0 }, 0, 0x3c);
   p.SetUserActor(0, 0xff000000);
   auto& npc = p.worldState.GetFormAt<MpActor>(0xff000001);
+  // The player must be subscribed to the NPC to be told it died (the test never subscribed it)
+  npc.ForceSubscriptionsUpdate();
 
   p.Messages().clear();
   npc.Kill();

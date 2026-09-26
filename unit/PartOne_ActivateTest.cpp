@@ -714,11 +714,17 @@ TEST_CASE("Forbidden-reloot base types are static and can't be picked up",
   auto& ac = partOne.worldState.GetFormAt<MpActor>(0xff000000);
   ac.RemoveAllItems();
 
-  const auto refrId = 0x0100122a; // PurpleMountainFlower (FLOR)
+  const auto refrId = 0x0100122a;
   auto& ref = partOne.worldState.GetFormAt<MpObjectReference>(refrId);
   REQUIRE(!ref.IsHarvested());
 
-  partOne.worldState.SetForbiddenRelootTypes({ "FLOR" });
+  // Forbid whatever this ref's base really is: it was taken for a FLOR, but its base is a TREE
+  const auto baseType = partOne.worldState.GetEspm()
+                          .GetBrowser()
+                          .LookupById(ref.GetBaseId())
+                          .rec->GetType()
+                          .ToString();
+  partOne.worldState.SetForbiddenRelootTypes({ baseType });
   ref.Activate(ac);
   partOne.Tick();
 

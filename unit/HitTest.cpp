@@ -398,7 +398,7 @@ TEST_CASE("A paralysed actor cannot attack or move", "[Hit]")
 
 namespace {
 // Answers onHitDamageAttempt the way combat.js's block chip does: it takes the target's health down inside the hook
-// and keeps the hit flags it was handed. Stays registered on the shared PartOne, so it does nothing once inactive.
+// and keeps the hit flags it was handed. GetPartOne() builds a new PartOne for each test, so the listener goes with it.
 class HitAttemptListener : public PartOneListener
 {
 public:
@@ -515,9 +515,16 @@ TEST_CASE("A block is decided from the target: IsBlocking alone blocks, the "
   scene.Hit(false);
   REQUIRE_FALSE(blocked());
 
-  listener->active = false;
+  // A player's block from the animation system alone (IsBlockActive, IsBlocking unset) blocks too
+  scene.target().SetAngle({ 0.f, 0.f, 180.f });
   scene.target().SetAnimationVariableBool(
     AnimationVariableBool::kVariable_IsBlocking, false);
+  scene.target().SetIsBlockActive(true);
+  scene.Hit(false);
+  REQUIRE(blocked());
+  scene.target().SetIsBlockActive(false);
+
+  listener->active = false;
 }
 
 TEST_CASE("Health the gamemode takes in onHitDamageAttempt is kept (block "
@@ -540,10 +547,80 @@ TEST_CASE("Health the gamemode takes in onHitDamageAttempt is kept (block "
   REQUIRE(scene.Hit(false) == Catch::Approx(0.9f - loss));
   REQUIRE(listener->lastFlags.value("blocked", false) == true);
   REQUIRE(listener->lastFlags.value("spell", true) == false);
-  REQUIRE(listener->lastFlags.value("targetMaxHealth", 0.f) > 0.f);
-  REQUIRE(listener->lastFlags.value("targetMaxStamina", 0.f) > 0.f);
+  const auto maxima = scene.target().GetMaximumValues();
+  REQUIRE(listener->lastFlags.value("targetMaxHealth", 0.f) ==
+          Catch::Approx(maxima.health));
+  REQUIRE(listener->lastFlags.value("targetMaxStamina", 0.f) ==
+          Catch::Approx(maxima.stamina));
 
   listener->active = false;
   scene.target().SetAnimationVariableBool(
     AnimationVariableBool::kVariable_IsBlocking, false);
+}
+
+TEST_CASE("A scroll's hits land only after the server used one up: each actor "
+          "once per read, and a later read keeps an earlier read's hits",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  constexpr uint32_t kCaster = 0xff000000;
+  constexpr uint32_t kFirst = 0xff000001;
+  constexpr uint32_t kSecond = 0xff000002;
+  constexpr uint32_t kThird = 0xff000003;
+  constexpr uint32_t kFireballScroll = 0x000a44ae;
+  constexpr uint32_t kHysteriaScroll = 0x000a44bd;
+
+  DoConnect(p, 0);
+  p.CreateActor(kCaster, { 0, 0, 0 }, 0, 0x3c, 1);
+  p.SetUserActor(0, kCaster);
+  p.CreateActor(kFirst, { 0, 100, 0 }, 0, 0x3c);
+  p.CreateActor(kSecond, { 100, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kThird, { -100, 0, 0 }, 0, 0x3c);
+  auto& caster = p.worldState.GetFormAt<MpActor>(kCaster);
+  caster.AddItem(kFireballScroll, 2);
+  caster.AddItem(kHysteriaScroll, 1);
+
+  auto hold = [&](uint32_t scroll) {
+    Equipment eq;
+    eq.inv.entries.push_back(Inventory::Entry(scroll, 1, kExtraWornTrue));
+    caster.SetEquipment(eq);
+  };
+  // Health one scroll hit takes (the unit PartOne's fake formula), 0 when refused
+  auto hit = [&](uint32_t target, uint32_t scroll) {
+    auto& actor = p.worldState.GetFormAt<MpActor>(target);
+    actor.SetPercentages({ 1.f, 1.f, 1.f });
+    RawMessageData rawMsgData;
+    rawMsgData.userId = 0;
+    HitMessage hitMsg;
+    hitMsg.data.aggressor = 0x14;
+    hitMsg.data.target = target;
+    hitMsg.data.source = scroll;
+    p.GetActionListener().OnHit(rawMsgData, hitMsg);
+    return 1.f - actor.GetChangeForm().actorValues.healthPercentage;
+  };
+
+  // Nothing read yet: a scroll hit is refused
+  REQUIRE(hit(kFirst, kFireballScroll) == Catch::Approx(0.f));
+
+  hold(kFireballScroll);
+  DoMessage(p, 0, MakeSpellCastMessage(kFireballScroll, false));
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+
+  // R1: one hit per actor per read, several actors per read
+  REQUIRE(hit(kFirst, kFireballScroll) > 0.f);
+  REQUIRE(hit(kFirst, kFireballScroll) == Catch::Approx(0.f));
+  REQUIRE(hit(kSecond, kFireballScroll) > 0.f);
+
+  // R2: reading another scroll keeps the first read's hits
+  hold(kHysteriaScroll);
+  DoMessage(p, 0, MakeSpellCastMessage(kHysteriaScroll, false));
+  REQUIRE(caster.GetInventory().GetItemCount(kHysteriaScroll) == 0);
+  REQUIRE(hit(kThird, kFireballScroll) > 0.f);
+  REQUIRE(hit(kFirst, kHysteriaScroll) > 0.f);
+
+  p.DestroyActor(kCaster);
+  p.DestroyActor(kFirst);
+  p.DestroyActor(kSecond);
+  p.DestroyActor(kThird);
+  DoDisconnect(p, 0);
 }
