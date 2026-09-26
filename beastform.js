@@ -210,12 +210,15 @@ module.exports = (api) => {
   const ethereal = (a, seconds) => { ST.ethereal.set(a, Date.now() + seconds * 1000); personal(a, `You cannot be touched for ${seconds} seconds.`); return true; };
   const terror = (a, spellId) => {
     let here = null, pos = null; try { here = mp.get(a, 'worldOrCellDesc'); pos = mp.get(a, 'pos'); } catch (e) { return false; }
-    let n = 0;
+    let n = 0, kin = 0;
     for (const t of api.onlineActors()) {
       if (t === a) continue;
       try {
         const p = mp.get(t, 'pos');
         if (mp.get(t, 'worldOrCellDesc') !== here || Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]) > TERROR_RADIUS || mp.get(t, 'isDead')) continue;
+        // The beast does not frighten its own kind
+        const ts = stateOf(t);
+        if (ts && ts.form === 'werewolf') { kin++; continue; }
         // The hit chain decides who can be touched at all (god mode refuses)
         if (typeof mp.onHitDamageAttempt === 'function' && mp.onHitDamageAttempt(a, t, spellId, 0) === false) continue;
         const pc = mp.get(t, 'percentages');
@@ -224,8 +227,9 @@ module.exports = (api) => {
         n++;
       } catch (e) { /* elsewhere */ }
     }
-    personal(a, n ? `Your howl terrifies ${n} ${n === 1 ? 'soul' : 'souls'}.` : 'Your howl echoes, but no one is near enough to hear it.');
-    log(`beastform: ${display(a)} Howl of Terror, ${n} terrified`);
+    const pack = kin ? ` ${kin} of your own kind ${kin === 1 ? 'stands' : 'stand'} unmoved.` : '';
+    personal(a, (n ? `Your howl terrifies ${n} ${n === 1 ? 'soul' : 'souls'}.` : 'Your howl echoes, but no one is near enough to fear it.') + pack);
+    log(`beastform: ${display(a)} Howl of Terror, ${n} terrified, ${kin} werewolf kin spared`);
     return true;
   };
   const POWERS = new Map([
