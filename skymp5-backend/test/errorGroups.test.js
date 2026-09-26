@@ -301,6 +301,57 @@ test('restart: groups reload, reports not yet saved are applied again, and none 
   assert.ok(fs.readdirSync(dir).some(f => f.startsWith('error-groups.json.bad-')))
 })
 
+test('state files: a read error keeps what is loaded and retries; a corrupt or misshapen file is moved aside', async (t) => {
+  const dir = freshDir()
+  store('script-error-on-update', { profileId: 1, at: T0 })
+  await errorGroups.kick()
+  errorGroups.flush()
+  const errors = t.mock.method(console, 'error', () => {})
+  const stateFile = path.join(dir, 'auto-state.json')
+  const aside = name => fs.readdirSync(dir).filter(f => f.startsWith(`${name}.bad-`))
+
+  // EISDIR stands in for EMFILE or EIO: nothing is replaced, moved or saved empty
+  const groupsText = fs.readFileSync(groupsFile(), 'utf8')
+  fs.rmSync(groupsFile())
+  fs.mkdirSync(groupsFile())
+  assert.throws(() => errorGroups.load(), { code: 'EISDIR' })
+  assert.equal(group(ON_UPDATE).reports, 1)
+  fs.rmdirSync(groupsFile())
+  fs.writeFileSync(groupsFile(), groupsText)
+
+  const stateText = fs.readFileSync(stateFile, 'utf8')
+  fs.rmSync(stateFile)
+  fs.mkdirSync(stateFile)
+  config.autoReportDir = path.join(dir, 'elsewhere')
+  autoStore.pending()
+  config.autoReportDir = dir
+  assert.throws(() => autoStore.pending(), { code: 'EISDIR' })
+  assert.throws(() => autoStore.pending(), { code: 'EISDIR' })
+  fs.rmdirSync(stateFile)
+  fs.writeFileSync(stateFile, stateText)
+  assert.ok(autoStore.isSeen(1, JSON.parse(stateText).profiles['1'].seen[0][0], T0))
+  assert.deepEqual(aside('auto-state.json'), [])
+
+  // Not JSON, or JSON of the wrong shape: kept aside for recovery by hand, and the next save starts a new file
+  for (const text of ['{"v":1,', '[]']) {
+    fs.writeFileSync(stateFile, text)
+    autoStore.load()
+    autoStore.save(T0)
+    assert.ok(JSON.parse(fs.readFileSync(stateFile, 'utf8')).profiles)
+    await new Promise(resolve => setTimeout(resolve, 2))
+  }
+  assert.equal(aside('auto-state.json').length, 2)
+  for (const text of ['{"v":1,', '{"v":1,"seq":4}']) {
+    fs.writeFileSync(groupsFile(), text)
+    errorGroups.load()
+    assert.equal(errorGroups.list().length, 0)
+    errorGroups.flush()
+    await new Promise(resolve => setTimeout(resolve, 2))
+  }
+  assert.equal(aside('error-groups.json').length, 2)
+  assert.equal(errors.mock.calls.length, 4)
+})
+
 test('retention janitor: reports past 30 days and stale temp files go; recent and unknown files stay', async () => {
   const dir = freshDir()
   const now = T0 + 40 * DAY

@@ -19,4 +19,21 @@ function writeAtomic(file, text, mtimeMs) {
   if (mtimeMs !== undefined) fs.utimesSync(file, new Date(), new Date(mtimeMs))
 }
 
-module.exports = { writeAtomic }
+// Parsed JSON, or null when the file is missing; a corrupt file is moved aside so no write replaces it; other read errors throw
+function readJson(file, isValid) {
+  let text
+  try { text = fs.readFileSync(file, 'utf8') }
+  catch (err) {
+    if (err.code === 'ENOENT') return null
+    throw err
+  }
+  let value
+  try { value = JSON.parse(text) } catch { value = undefined }
+  if (value !== undefined && isValid(value)) return value
+  const aside = `${file}.bad-${Date.now()}`
+  console.error(`${file} is corrupt, moved to ${path.basename(aside)}`)
+  try { fs.renameSync(file, aside) } catch (err) { console.error(`${file} not moved:`, err.message) }
+  return null
+}
+
+module.exports = { writeAtomic, readJson }

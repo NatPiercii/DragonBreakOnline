@@ -44,10 +44,17 @@ function requireVerified(req, res, next) {
   next()
 }
 
+// JSON with no stack, which senders treat as transient
+function internal(res, err) {
+  console.error('[auto-report] report not stored:', err.message)
+  res.status(500).json({ error: 'internal' })
+}
+
 // Counted per UTC day in auto-state.json, so a restart does not reset it
 function profileDailyLimit(req, res, next) {
   const now = Date.now()
-  const day = autoStore.today(req.reporter.profileId, now)
+  let day
+  try { day = autoStore.today(req.reporter.profileId, now) } catch (err) { return internal(res, err) }
   if (day.reports >= config.autoReportLimits.profilePerDay) return rateLimited(res, secondsUntil(autoStore.nextUtcDay(now), now))
   day.reports++
   autoStore.save(now)
@@ -113,8 +120,7 @@ function accept(req, res) {
     res.status(202).json({ ok: true, id: reportId, duplicate })
     if (!duplicate) errorGroups.kick()
   } catch (err) {
-    console.error('[auto-report] report not stored:', err.message)
-    res.status(500).json({ error: 'internal' })
+    internal(res, err)
   }
 }
 

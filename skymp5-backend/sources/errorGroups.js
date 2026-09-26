@@ -1,12 +1,12 @@
 'use strict'
 // Auto report groups (design §4.3, §4.4): error-groups.json under config.autoReportDir, fed in order from the store's pending list
 
-const fs = require('fs')
 const path = require('path')
 const config = require('../config')
 const autoStore = require('./autoStore')
 const sourceMaps = require('./sourceMaps')
 const { signature, compareVersions } = require('./autoSignature')
+const { readJson } = require('./atomicFile')
 
 const FILE = 'error-groups.json'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -23,25 +23,19 @@ let state = null
 let draining = null
 
 const utcDay = at => new Date(at).toISOString().slice(0, 10)
+const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v)
 const versionOf = report => (report.versions && report.versions.client) || 'unknown'
 
 // Replaces the state in memory, as a restart would: changes not yet saved are dropped and applied again from pending
+// A read error throws and keeps the old state, so grouping stops until the file can be read instead of starting empty
 function load() {
+  const dir = config.autoReportDir
+  const saved = readJson(path.join(dir, FILE), v => isObject(v) && isObject(v.groups))
   if (state) clearTimeout(state.timer)
-  state = { dir: config.autoReportDir, seq: 0, groups: {}, timer: null }
-  const file = path.join(state.dir, FILE)
-  let saved
-  try { saved = JSON.parse(fs.readFileSync(file, 'utf8')) }
-  catch (err) {
-    if (err.code === 'ENOENT') return
-    // Moved aside, so the next save cannot overwrite what might still be recovered by hand
-    const aside = `${file}.bad-${Date.now()}`
-    console.error(`[auto-report] ${FILE} unreadable, moved to ${path.basename(aside)}:`, err.message)
-    try { fs.renameSync(file, aside) } catch { /* the next save replaces it */ }
-    return
-  }
-  if (saved && saved.groups && typeof saved.groups === 'object' && !Array.isArray(saved.groups)) state.groups = saved.groups
-  state.seq = saved && Number.isSafeInteger(saved.seq) && saved.seq > 0 ? saved.seq : 0
+  state = { dir, seq: 0, groups: {}, timer: null }
+  if (!saved) return
+  state.groups = saved.groups
+  state.seq = Number.isSafeInteger(saved.seq) && saved.seq > 0 ? saved.seq : 0
   autoStore.grouped(state.seq)
 }
 

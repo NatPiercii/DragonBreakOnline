@@ -4,7 +4,7 @@
 const fs     = require('fs')
 const path   = require('path')
 const config = require('../config')
-const { writeAtomic } = require('./atomicFile')
+const { writeAtomic, readJson } = require('./atomicFile')
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SEEN_MS = 8 * DAY_MS
@@ -21,18 +21,16 @@ let state = null
 
 const utcDay = at => new Date(at).toISOString().slice(0, 10)
 const nextUtcDay = at => (Math.floor(at / DAY_MS) + 1) * DAY_MS
+const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v)
 const isPair = e => Array.isArray(e) && typeof e[0] === 'string' && Number.isFinite(e[1])
 const isPending = e => Array.isArray(e) && Number.isSafeInteger(e[0]) && e[0] > 0 && Number.isSafeInteger(e[1]) && typeof e[2] === 'string'
 
+// A read error throws and leaves the state unloaded, so the next call tries again instead of saving an empty state
 function load() {
-  state = { dir: config.autoReportDir, profiles: new Map(), seq: 0, pending: [], groupedSeq: 0 }
-  let saved
-  try { saved = JSON.parse(fs.readFileSync(path.join(state.dir, STATE_FILE), 'utf8')) }
-  catch (err) {
-    if (err.code !== 'ENOENT') console.error(`[auto-report] ${STATE_FILE} unreadable, starting empty:`, err.message)
-    return
-  }
-  const profiles = saved && typeof saved.profiles === 'object' && saved.profiles ? saved.profiles : {}
+  const dir = config.autoReportDir
+  const saved = readJson(path.join(dir, STATE_FILE), isObject) || {}
+  state = { dir, profiles: new Map(), seq: 0, pending: [], groupedSeq: 0 }
+  const profiles = isObject(saved.profiles) ? saved.profiles : {}
   for (const [id, p] of Object.entries(profiles)) {
     if (!p || typeof p !== 'object') continue
     state.profiles.set(id, {
