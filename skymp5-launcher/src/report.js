@@ -37,9 +37,33 @@ function tail(file, bytes = PER_FILE_BYTES) {
   } catch { return null }
 }
 
+// SkyrimPlatform logs the first 120 characters of every script it runs in the game's UI and every page it
+// loads (`[12:34:56:789] JS ...`, `LoadUrl ...`): chat and private messages, the character's name, the voice
+// room link. None of it explains a crash, and a report must not carry what players said to each other.
+const UI_LINE = /^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) /
+
+function dropUiLines(text) {
+  const kept = []
+  let dropped = 0
+  for (const line of text.split('\n')) {
+    if (UI_LINE.test(line)) { dropped++; continue }
+    if (dropped) { kept.push(`[${dropped} UI line(s) left out]`); dropped = 0 }
+    kept.push(line)
+  }
+  if (dropped) kept.push(`[${dropped} UI line(s) left out]`)
+  return kept.join('\n')
+}
+
+function keepEnd(text, bytes) {
+  const buf = Buffer.from(text, 'utf8')
+  if (buf.length <= bytes) return text
+  return '[earlier lines cut]\n' + buf.subarray(buf.length - bytes).toString('utf8').replace(/^[^\n]*\n/, '')
+}
+
 // SKSE and SkyrimPlatform write here; present only after the game has been launched at least once.
 // documentsDir comes from Electron because a OneDrive-moved Documents folder is not under the home folder.
 const GAME_LOGS = [['skyrim-platform.log', 'gameLog'], ['skse64.log', 'skseLog']]
+const GAME_LOG_BYTES = 80 * 1024
 
 function gameLogCandidates(documentsDir, variants) {
   const out = []
@@ -63,8 +87,9 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   found.sort((a, b) => b.mtime - a.mtime)
   for (const { file, field } of found) {
     if (files[field]) continue
-    const text = tail(file, 80 * 1024)
-    if (text) files[field] = redact(text)
+    // UI lines can be most of a session's log, so read further back and keep the end of what is left
+    const text = tail(file, 6 * GAME_LOG_BYTES)
+    if (text) files[field] = redact(keepEnd(dropUiLines(text), GAME_LOG_BYTES))
   }
 
   if (installDir) {
@@ -85,4 +110,4 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   }
 }
 
-module.exports = { collect, redact, tail }
+module.exports = { collect, redact, tail, dropUiLines }
