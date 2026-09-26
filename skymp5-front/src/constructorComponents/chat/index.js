@@ -105,7 +105,8 @@ const Chat = (props) => {
   };
 
   const addMessageToHistory = (message) => {
-    messagesHistory.current = [message, ...messagesHistory.current];
+    // The same line sent again stays one entry, so Up does not step through repeats
+    if (messagesHistory.current[0] !== message) messagesHistory.current = [message, ...messagesHistory.current];
     if (messagesHistory.current.length > MAX_HISTORY_LENGTH) {
       messagesHistory.current = messagesHistory.current.slice(0, MAX_HISTORY_LENGTH);
     }
@@ -173,7 +174,10 @@ const Chat = (props) => {
         else sendMessage(input);
       }
       if (event.key === 'Escape') releaseFocus();
-      if (event.key === 'ArrowUp' && event.ctrlKey) {
+      // Up and Down step through what you sent before while the text is one line; Ctrl+Up/Down on any line
+      const historyKey = !event.shiftKey && !event.altKey && (event.ctrlKey || !(input || '').trim().includes('\n'));
+      if (event.key === 'ArrowUp' && historyKey && messagesHistory.current.length > 0) {
+        event.preventDefault();
         if (currentMessageInHistory.current === -1) {
           writtenMessage.current = input;
         }
@@ -184,19 +188,18 @@ const Chat = (props) => {
           setEndOfContenteditable(inputRef.current);
         }
       }
-      if (event.key === 'ArrowDown' && event.ctrlKey) {
-        if (currentMessageInHistory.current >= 0) {
-          if (currentMessageInHistory.current === 0) {
-            updateInput(writtenMessage.current);
-            inputRef.current.innerText = writtenMessage.current;
-            setEndOfContenteditable(inputRef.current);
-            currentMessageInHistory.current = -1;
-          } else {
-            currentMessageInHistory.current = currentMessageInHistory.current - 1;
-            updateInput(messagesHistory.current[currentMessageInHistory.current]);
-            inputRef.current.innerText = messagesHistory.current[currentMessageInHistory.current];
-            setEndOfContenteditable(inputRef.current);
-          }
+      if (event.key === 'ArrowDown' && historyKey && currentMessageInHistory.current >= 0) {
+        event.preventDefault();
+        if (currentMessageInHistory.current === 0) {
+          updateInput(writtenMessage.current);
+          inputRef.current.innerText = writtenMessage.current;
+          setEndOfContenteditable(inputRef.current);
+          currentMessageInHistory.current = -1;
+        } else {
+          currentMessageInHistory.current = currentMessageInHistory.current - 1;
+          updateInput(messagesHistory.current[currentMessageInHistory.current]);
+          inputRef.current.innerText = messagesHistory.current[currentMessageInHistory.current];
+          setEndOfContenteditable(inputRef.current);
         }
       }
     };
