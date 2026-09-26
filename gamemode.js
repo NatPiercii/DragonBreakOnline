@@ -2549,17 +2549,53 @@ const explosionParalysisOf = (spellId) => {
   explosionParalysis.set(spellId, seconds);
   return seconds;
 };
+// The hold the C++ puts on the server (ActionListener GetParalysisSeconds): the spell's or scroll's own visible
+// paralysis, none when one of its effects also harms health
+const HOSTILE = 0x1, DETRIMENTAL = 0x4, AV_HEALTH = 24;
+const serverHold = globalThis.__dboServerParalysis = globalThis.__dboServerParalysis || new Map(); // spell -> seconds
+const serverHoldOf = (spellId) => {
+  if (serverHold.has(spellId)) return serverHold.get(spellId);
+  const spell = recordOf(spellId);
+  let seconds = 0;
+  if (spell && (spell.record.type === 'SPEL' || spell.record.type === 'SCRL')) {
+    const harms = fieldsOf(spell, 'EFID').some((f) => {
+      const data = fieldsOf(recordOf(globalAt(spell, u32At(f, 0))), 'DATA')[0];
+      return !!(u32At(data, 0) & (HOSTILE | DETRIMENTAL)) && u32At(data, 0x44) === AV_HEALTH;
+    });
+    if (!harms) seconds = paralysisIn(spell);
+  }
+  serverHold.set(spellId, seconds);
+  return seconds;
+};
+// Until when each target is held, by the C++ or by a dboParalyse. The C++ refuses a new paralysis while one runs, and
+// the client extends its hold to the latest end it is sent, so a second send while held would outlast the server's
+// (review GP-1). Kept on globalThis like the C++ map, which a reload does not clear.
+const paralysedUntil = globalThis.__dboParalysedUntil = globalThis.__dboParalysedUntil || new Map();
+// The refusals ApplyParalysis makes before holding: the caster itself, a dead or downed target, one already held, and
+// what onHitDamageAttempt refuses for a hit without damage (an ethereal beast form, a caster with bound hands)
+const paralysisRefused = (agg, tgt, now) => {
+  if (agg === tgt || (paralysedUntil.get(tgt) || 0) > now) return true;
+  try { if (mp.get(tgt, 'isDead')) return true; } catch (e) { return true; }
+  try { if (globalThis.__dboBeastEthereal && globalThis.__dboBeastEthereal(tgt)) return true; } catch (e) { /* not loaded */ }
+  try { const r = mp.get(agg, 'private.restrained'); if (r && r.boundHands) return true; } catch (e) { /* no record */ }
+  return false;
+};
 if (typeof globalThis.__dboPrevSpellHit === 'undefined') globalThis.__dboPrevSpellHit = typeof mp.onSpellHit === 'function' && !mp.onSpellHit.__dbo ? mp.onSpellHit : null;
 const spellHitHook = (aggressorId, targetId, spellId, ...rest) => {
   try {
-    const tgt = Number(targetId) >>> 0, seconds = explosionParalysisOf(Number(spellId) >>> 0);
+    const tgt = Number(targetId) >>> 0, agg = Number(aggressorId) >>> 0, spell = Number(spellId) >>> 0;
+    const seconds = explosionParalysisOf(spell), held = serverHoldOf(spell), now = Date.now();
     if (globalThis.__dboBeastSpellHit) globalThis.__dboBeastSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
     if (globalThis.__dboSuperSpellHit) globalThis.__dboSuperSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
     // Force Rune and the like stagger instead of pushing (combat.js staggerSpells)
     if (combat) combat.onSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
-    if (seconds > 0 && profileOf(tgt) >= 0 && tgt !== (Number(aggressorId) >>> 0)) {
-      sendPacket(tgt, { customPacketType: 'dboParalyse', seconds });
-      log(`paralysis: ${display(tgt)} held ${seconds} s by ${display(Number(aggressorId) >>> 0)} (spell ${(Number(spellId) >>> 0).toString(16)})`);
+    if ((seconds > 0 || held > 0) && !paralysisRefused(agg, tgt, now)) {
+      paralysedUntil.set(tgt, now + Math.max(seconds, held) * 1000);
+      if (paralysedUntil.size > 256) for (const [id, until] of paralysedUntil) if (until <= now) paralysedUntil.delete(id);
+      if (seconds > 0 && profileOf(tgt) >= 0) {
+        sendPacket(tgt, { customPacketType: 'dboParalyse', seconds });
+        log(`paralysis: ${display(tgt)} held ${seconds} s by ${display(agg)} (spell ${spell.toString(16)})`);
+      }
     }
   } catch (e) { log('spell hit paralysis failed', e.message); }
   const prev = globalThis.__dboPrevSpellHit;
