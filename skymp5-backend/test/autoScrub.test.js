@@ -72,6 +72,20 @@ test('cuts: pre-cut bounds the rules, head or tail is kept, truncation is report
     { text: `${'b'.repeat(10)} 01234567<redacted>`, truncated: false })
 })
 
+test('gameLog: lines are cut to 500 after the rules, and the tail cut keeps whole lines', () => {
+  const long = `[10:00:00:000] ${'e'.repeat(600)}`
+  assert.deepEqual(scrub(`${long}\n[10:00:00:001] ok`, { field: 'gameLog' }),
+    { text: `${long.slice(0, 500)}\n[10:00:00:001] ok`, truncated: true })
+  // A long run the rules shorten below 500 is not cut
+  assert.deepEqual(scrub(`[10:00:00:000] ${'a.b@example.org '.repeat(40)}`, { field: 'gameLog' }),
+    { text: `[10:00:00:000] ${'<email> '.repeat(40)}`, truncated: false })
+  assert.equal(scrub(`[10:00:00:000] ${'e'.repeat(484)}\ud83d\ude00`, { field: 'gameLog' }).text.length, 499)
+  // A cut that lands on a line boundary drops nothing more
+  assert.deepEqual(scrub('[10:00:00:000] one\n[10:00:00:001] two', { field: 'gameLog', cap: 18 }),
+    { text: '[10:00:00:001] two', truncated: true })
+  assert.deepEqual(scrub('[10:00:00:000] one\n[10:00:00:001] two', { field: 'gameLog', cap: 17 }), { text: '', truncated: true })
+})
+
 test('non-string input is scrubbed as text and never throws', () => {
   assert.equal(scrub(null, { field: 'message' }).text, '')
   assert.equal(scrub(undefined, { field: 'message' }).text, '')

@@ -8,6 +8,7 @@ const RULES = require('./scrub-rules.json').map(rule => ({
 
 const INVISIBLE = /[\x00-\x08\x0b-\x1f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g
 const PRE_CUT = 1.25
+const LINE_CAP = 500
 const FOLDER_MIN = 6
 const NAME_MIN = 3
 const NAME_DENY = new Set(['user', 'admin', 'administrator', 'owner', 'pc', 'desktop', 'laptop', 'windows', 'skyrim',
@@ -46,6 +47,14 @@ function cut(text, n, keep) {
   let end = n
   if (end > 0 && /[\ud800-\udbff]/.test(text[end - 1])) end--
   return text.slice(0, end)
+}
+
+// Keeps whole lines from the tail: the partial first line left by the cut goes
+function cutLines(text, n) {
+  const kept = cut(text, n, 'tail')
+  if (text[text.length - kept.length - 1] === '\n') return kept
+  const nl = kept.indexOf('\n')
+  return nl === -1 ? '' : kept.slice(nl + 1)
 }
 
 // One case-insensitive alternation, longest literal first, each literal in its own group so the replacer knows its token
@@ -136,7 +145,7 @@ for (const rule of RULES) {
 const applies = (rule, field, kind) => rule.fields.includes('*') || rule.fields.includes(field)
   || (kind !== undefined && rule.fields.includes(`${field}.${kind}`))
 
-// field is message, componentStack, trail (with kind), gameLog or crashSection; gameLog keeps its tail
+// field is message, componentStack, trail (with kind), gameLog or crashSection; gameLog keeps its tail in whole lines of at most 500
 function scrub(input, { field, kind, type, cap = Infinity, keep = field === 'gameLog' ? 'tail' : 'head' } = {}, ctx = NO_CONTEXT) {
   let text = clean(input)
   let truncated = false
@@ -150,7 +159,17 @@ function scrub(input, { field, kind, type, cap = Infinity, keep = field === 'gam
     if (!applies(rule, field, kind)) continue
     text = rule.re ? text.replace(rule.re, rule.replacement) : CODE_RULES[rule.id](text, { field, kind, type }, ctx)
   }
-  if (text.length > cap) { text = cut(text, cap, keep); truncated = true }
+  if (field === 'gameLog') {
+    const lines = text.split('\n')
+    if (lines.some(line => line.length > LINE_CAP)) {
+      text = lines.map(line => cut(line, LINE_CAP)).join('\n')
+      truncated = true
+    }
+  }
+  if (text.length > cap) {
+    text = field === 'gameLog' ? cutLines(text, cap) : cut(text, cap, keep)
+    truncated = true
+  }
   return { text, truncated }
 }
 

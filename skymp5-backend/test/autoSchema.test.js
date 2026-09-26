@@ -311,12 +311,14 @@ test('long strings are cut and flagged truncated, not refused', () => {
   body.logs = { gameLog: '[10:00:00:000] start\n' + '[10:00:00:001] log line\n'.repeat(2000) + '[10:00:00:002] the end' }
   const res = accepted(body)
   assert.equal(res.report.error.message.length, 1000)
-  assert.equal(res.report.logs.gameLog.length, 16 * 1024)
-  assert.ok(res.report.logs.gameLog.endsWith('the end'))
+  const { gameLog } = res.report.logs
+  assert.ok(gameLog.length <= 16 * 1024 && gameLog.length > 16 * 1024 - 24, String(gameLog.length))
+  assert.ok(gameLog.startsWith('[10:00:00:001] log line\n'))
+  assert.ok(gameLog.endsWith('the end'))
   assert.deepEqual(res.flags, ['truncated'])
   const launcher = load('js-fatal')
   launcher.logs.gameLog = '[10:00:00:000] log line\n'.repeat(3000)
-  assert.equal(accepted(launcher).report.logs.gameLog.length, 32 * 1024)
+  assert.equal(accepted(launcher).report.logs.gameLog, '[10:00:00:000] log line\n'.repeat(Math.floor(32 * 1024 / 24)))
 })
 
 test('trail: grammar failures and hb entries are removed and counted, the newest 56 kept, sorted by time', () => {
