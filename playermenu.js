@@ -146,8 +146,13 @@ module.exports = (api) => {
   onUi('playerMenu', (a, args) => {
     const t = Number(args[0]) >>> 0;
     refreshLawful(a); ensureKnown(a);
-    if (!validTarget(a, t)) return personal(a, 'Get closer to them first.');
-    openMenu(a, t, 'menu');
+    // One line per X press on a player: whether a menu went out, or why not (#bugs 'X not worky', 2026-09-26)
+    if (!validTarget(a, t)) {
+      log(`playerMenu ${display(a)} -> ${t.toString(16)}: refused (${!t || t === a ? 'no target' : !isOnline(t) ? 'target offline' : `${Math.round(distance(a, t))} units away`})`);
+      return personal(a, 'Get closer to them first.');
+    }
+    const sent = openMenu(a, t, 'menu');
+    log(`playerMenu ${display(a)} -> ${display(t)}: ${sent === false ? 'menu packet failed' : 'menu sent'}`);
   });
   onUi('playerAction', (a, args) => {
     const id = String(args[0] || ''); const t = Number(args[1]) >>> 0;
