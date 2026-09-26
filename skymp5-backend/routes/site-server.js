@@ -3,7 +3,7 @@
 // Staff only, with a Discord role check on every request as in site-staff.js; Owners are flagged for display only.
 //
 //   GET /api/site/staff/server                    status (5 s shared cache)
-//   GET /api/site/staff/server/queue              the queue, with ETag "q-<queueHash>" and 304 on a match
+//   GET /api/site/staff/server/queue              the queue, with an ETag over all it lists and 304 on a match
 //   GET /api/site/staff/server/releases?before=n  ten history rows older than row n
 
 const router = require('express').Router()
@@ -12,6 +12,7 @@ const config = require('../config')
 const { getHeartbeat } = require('./servers')
 const { requireStaff, isOwner } = require('./site-staff').internals
 const { createServerStatus } = require('../sources/serverStatus')
+const { queueEtag } = require('../sources/releaseQueue')
 
 const status = createServerStatus({ config, getHeartbeat })
 const releaseQueue = status.queue
@@ -47,7 +48,7 @@ router.get('/', requireStaff, statusLimiter, answer(async (req, res) => {
 
 router.get('/queue', requireStaff, queueLimiter, answer(async (req, res) => {
   const value = await releaseQueue.queue()
-  const etag = `"q-${value.hash.slice(0, 32)}"`
+  const etag = queueEtag(value)
   res.set('ETag', etag)
   if (etagMatches(req.get('if-none-match'), etag)) return res.status(304).end()
   res.json(value)

@@ -32,6 +32,7 @@ stub('routes/servers.js', { getHeartbeat: () => ({ name: 'Test', maxPlayers: 50,
 const express = require('express')
 const config = require('../config')
 const serverStatus = require('../sources/serverStatus')
+const { queueEtag } = require('../sources/releaseQueue')
 
 let F, server, base, created, skew = 0
 const systemctl = []
@@ -139,10 +140,11 @@ test('the 61st status call in a minute gives 429', async () => {
   assert.equal((await get('/api/site/staff/server', 'dev3')).status, 200)
 })
 
-test('the queue carries an ETag of its hash and answers 304 when it matches', async () => {
+test('the queue carries an ETag of what it lists and answers 304 when it matches', async () => {
   const first = await get('/api/site/staff/server/queue', 'dev')
   assert.equal(first.status, 200)
-  assert.equal(first.headers.etag, `"q-${first.json.hash.slice(0, 32)}"`)
+  assert.match(first.headers.etag, /^"q-[0-9a-f]{32}"$/)
+  assert.equal(first.headers.etag, queueEtag(first.json))
   assert.equal(first.headers['cache-control'], 'no-store, private')
   assert.equal(first.json.v, 1)
   assert.deepEqual(first.json.live, { fork: F.S.B, server: F.S.S0 })

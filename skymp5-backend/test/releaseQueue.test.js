@@ -8,7 +8,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { createReleaseQueue, parseUpdaterLog, stripStamp, commitTitle, gitSync } = require('../sources/releaseQueue')
+const { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync } = require('../sources/releaseQueue')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 const short = s => s.slice(0, 8)
@@ -728,6 +728,26 @@ test('queueHash: stable, and changed by a new tip, a verdict or a hold', async (
     assert.notEqual(reviewed, first)
     write(cfg.controlDir, { 'queue/held.json': JSON.stringify({ v: 1, ranges: [{ repo: 'fork', base: S.LIVE, tip: S.B, reason: 'wait' }] }) })
     assert.notEqual((await q.queue()).hash, reviewed)
+  } finally { q.stop() }
+})
+
+test('queue ETag: a side-branch push changes it while queueHash stays', async () => {
+  let clock = Date.parse('2026-09-26T08:00:00Z')
+  const { q } = newQueue({ now: () => clock })
+  try {
+    const first = await q.queue()
+    g('update-ref', 'refs/remotes/origin/pending', g('commit-tree', '-p', S.U2, '-m', 'client: pending three', `${S.F1}^{tree}`))
+    try {
+      clock += 31e3
+      const next = await q.queue()
+      assert.equal(next.notOnMain.find(b => b.branch === 'pending').uniqueCommits, 3)
+      assert.equal(next.hash, first.hash)
+      assert.notEqual(queueEtag(next), queueEtag(first))
+      clock += 31e3
+      const again = await q.queue()
+      assert.notEqual(again.generatedAt, next.generatedAt)
+      assert.equal(queueEtag(again), queueEtag(next))
+    } finally { g('update-ref', 'refs/remotes/origin/pending', S.U2) }
   } finally { q.stop() }
 })
 

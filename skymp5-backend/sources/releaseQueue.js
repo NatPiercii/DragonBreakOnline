@@ -77,6 +77,13 @@ function canonical(value) {
   return JSON.stringify(value ?? null)
 }
 
+// The queue's ETag: queueHash plus everything else the page lists, without the build and fetch times
+const etags = new WeakMap()
+function queueEtag(value) {
+  if (!etags.has(value)) etags.set(value, `"q-${sha256(canonical({ ...value, generatedAt: undefined, fetchedAt: undefined })).slice(0, 32)}"`)
+  return etags.get(value)
+}
+
 function parseTrailers(text) {
   return text.split('\x1f').map(t => { const i = t.indexOf(':'); return i > 0 ? { key: t.slice(0, i).trim().toLowerCase(), value: t.slice(i + 1).trim() } : null }).filter(Boolean)
 }
@@ -1075,4 +1082,4 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   return { git, live, queue, peek, peekLive, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
 }
 
-module.exports = { createReleaseQueue, parseUpdaterLog, stripStamp, commitTitle, gitSync, runFile, isSecretFile, GIT_ALLOWED }
+module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, runFile, isSecretFile, GIT_ALLOWED }
