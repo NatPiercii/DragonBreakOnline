@@ -61,7 +61,7 @@ changes. At first each territory is owned by its zone's hold faction (`county-br
 
 ## 3. The Realm Map
 
-Our own map window, opened by a key, `/map`, or the X menu.
+A tab of the faction panel (F3), beside Members and War (Nate, 2026-09-26: no new key, no separate window).
 
 - **Why not the vanilla map:** Skyrim's world map cannot have borders drawn on it. SkyrimPlatform can add or rename
   markers there, not paint areas. A window of our own can colour each territory by its owner, redraw borders live, and
@@ -81,9 +81,14 @@ Our own map window, opened by a key, `/map`, or the X menu.
   - Staff: every layer.
 
   The server decides which layers a viewer gets, so a hidden layer never reaches a client that should not see it.
-- **The keybinding:** the window itself is a front widget (the relay pattern: a `dboMap` packet from the gameplay code),
-  but the front ships in the client package, and a new key needs a client update too. So the map, the key and `/map`
-  arrive together in one client package. Suggested key: Shift+M, next to the vanilla map's M; to be confirmed in game.
+- **Icons:** each place shows the in-game map's own icon for its map marker type (`territories.json` `icon`, from the
+  marker REFR's TNAM; Castle Bruma's 224 and Bruma's 102 are Beyond Skyrim's own types). The art is exported from the
+  game's `interface/map.swf` on the PC into the front's `img/mapicons/<type>.png` (request: `PC_REQUEST_map-icons.md`);
+  until then a place is a coloured dot.
+- **Who sees a hidden layer (Nate, 2026-09-26):** a secret faction's members, and the members of any faction in its
+  circle: a werewolf pack sees the other packs, a vampire clan the other clans (Clan Volkihar counts as one). Cults see
+  only their own, pending Nate's call. The faction list follows the same rule; members outside your own faction stay hidden.
+- **It ships with the faction panel,** in the client package (the front), and needs no client script change.
 - **Live:** when ownership or a war changes, the server pushes the change to every open map.
 
 ## 4. Official war
@@ -120,8 +125,9 @@ Smaller than war, and no land changes hands.
 
 - **Raid:** a faction leader or a ruler sends a band against a territory's stores. No week's notice. The defenders are
   warned as the raid begins: a message to the territory's officials and guards, and a map ping.
-- **Pillage:** during the raid, homes and containers in the raided territory can be broken into (lockpicking, `lockpick.js`,
-  or forcing the door). Each one broken into gives up **3 items chosen at random** and **15% of the gold** in it. Gold in
+- **Pillage:** during the raid, a raider who uses the door of a claimed home in the raided territory, or one of its
+  containers, breaks in: the take comes straight out server-side (the housing system's locks are not opened). Each home or
+  container gives up **3 items chosen at random** and **15% of the gold** in it, once per raid; a home counts its containers. Gold in
   the bank, personal or treasury, is safe: the bank cannot be raided.
 - **Consequences:** raiders become wanted in that hold (the jail and bounty systems), and a territory cannot be raided again
   for **3 days**.
@@ -204,6 +210,11 @@ Werewolf pack territories are territories on a pack's secret layer. Territory wa
 the war lifecycle are built once and reused.
 
 ## 11. Build order
+
+Built 2026-09-26 (server branch `realm`, front on fork `client-0344`): phases 1 (the bank, live), 2 (map with the terrain
+image from `tools/realm-map/render.py`), 3 (ownership), 4 (taxes, wages, the Treasury tab), 5 (war), 6 (raids) and 7
+(hidden layers, Namira's shrine first). The terrain map, the icons and the war, raid and treasury tabs reach players with
+client 0.3.50.
 
 | Phase | What | Ships as |
 |---|---|---|
