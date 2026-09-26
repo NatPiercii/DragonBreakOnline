@@ -9,7 +9,12 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress } = api;
+  const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, cfg } = api;
+  // Config "beastform": vampireLordRemoteRace decides whether other clients build the Vampire Lord body.
+  // The comment below promised this flag for weeks while nothing read it, so only /vlremote worked and its
+  // value died with the process. Seeded once per process, so an admin's /vlremote survives a hot reload.
+  const CFG = Object.assign({ vampireLordRemoteRace: false }, (cfg && cfg.beastform) || {});
+  if (globalThis.__dboVampireLordRemote === undefined) globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
   // The name a viewer knows another player by: introduced, else Stranger, else Masked Person (playermenu.js).
   // Only players are named here, so there is no nameOf fallback to leak a real name if playermenu is missing.
   const nameTo = (viewer, x) => {
@@ -127,9 +132,11 @@ module.exports = (api) => {
     // (only the abPreventRemoval robes survived). The client unequips before it swaps race.
     const wear = WEAR[key] || [];
     for (const id of wear) setCount(a, id, 1);
-    // Other clients crash building a remote actor of the Vampire Lord race (xXPussy and Flo'Riahn looped on joining
-    // near one, 2026-09-23 20:58), so until the crash is found they keep seeing the real appearance. Only the owner's
-    // client swaps race (dboBeast). Config beastform.vampireLordRemoteRace: true turns the remote race back on.
+    // Off by default: other clients were thought to crash building a remote actor of the Vampire Lord race
+    // (xXPussy and Flo'Riahn looped on joining near one, 2026-09-23 20:58), but that was never confirmed with a
+    // crash log and 20:58 also carries Havok crashes on near-full RAM (CHECKLIST). While it is off, watchers see
+    // a stripped human playing Vampire Lord animations, which is the naked skating in #bugs 1552425534028251227.
+    // beastform.vampireLordRemoteRace: true, or /vlremote on, turns the remote body back on.
     const remoteRace = key !== 'vampirelord' || globalThis.__dboVampireLordRemote === true;
     if (remoteRace) mp.set(a, 'appearance', beastAppearance(original, f.race));
     learn(a, key, true);
@@ -345,5 +352,5 @@ module.exports = (api) => {
     const r = takeForm(a, key); if (r) personal(a, r);
   }, { help: '[werewolf|vampirelord|revert] take or leave your beast form (or cast the power)' });
 
-  log(`beastform on: ${Object.entries(FORMS).map(([k, f]) => `${k} race ${f.race.toString(16)} power ${f.power.toString(16)}${f.seconds ? ` ${f.seconds}s` : ''}`).join(', ')}, revert ${REVERT_POWER.toString(16)}`);
+  log(`beastform on: ${Object.entries(FORMS).map(([k, f]) => `${k} race ${f.race.toString(16)} power ${f.power.toString(16)}${f.seconds ? ` ${f.seconds}s` : ''}`).join(', ')}, revert ${REVERT_POWER.toString(16)}, Vampire Lord remote body ${globalThis.__dboVampireLordRemote === true ? 'ON' : 'off'}`);
 };
