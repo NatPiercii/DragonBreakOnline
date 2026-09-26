@@ -10,7 +10,11 @@ const path = require('path')
 const { AREA_ORDER, FORK_PATHS, classifyCommit, isDeployable } = require('./releasePaths')
 
 const GIT_ALLOWED = Object.freeze(['rev-parse', 'rev-list', 'log', 'show', 'diff', 'merge-base', 'cat-file', 'ls-tree',
-  'hash-object', 'cherry', 'patch-id', 'for-each-ref', 'status', 'merge-tree'])
+  'cherry', 'patch-id', 'for-each-ref', 'status', 'merge-tree'])
+// Options that write a file, read one outside the object store or run a configured helper
+const GIT_REFUSED_RE = /^(?:--output(?:=.*)?|--no-index|--ext-diff|--textconv|--orderfile(?:=.*)?|-O.*)$/
+// A path outside the repo, which also turns a two-path diff into diff --no-index
+const OUTSIDE_RE = /^\/|(?:^|\/)\.\.(?:\/|$)/
 const GIT_TIMEOUT_MS = 5000
 const GIT_MAX_BUFFER = 2 * 1024 * 1024
 // Values allowed after --end-of-options: shas, fixed refs, sha:path
@@ -162,12 +166,11 @@ function refused(sub) {
   return Object.assign(new Error(`git ${String(sub)} is not allowed`), { code: 'gitNotAllowed' })
 }
 
-// The allowlist, hash-object without -w, no --output, and only refs after --end-of-options
+// The allowlist, none of the refused options, no path outside the repo, and only refs after --end-of-options
 function checkGitArgs(args) {
   const sub = args[0]
   if (!GIT_ALLOWED.includes(sub)) throw refused(sub)
-  if (sub === 'hash-object' && (!args.includes('--stdin-paths') || args.slice(1).some(a => a !== '--stdin-paths' && a !== '--no-filters'))) throw refused(sub)
-  if (args.some(a => typeof a !== 'string' || /^--output(?:=|$)/.test(a))) throw refused(sub)
+  if (args.some(a => typeof a !== 'string' || GIT_REFUSED_RE.test(a) || OUTSIDE_RE.test(a))) throw refused(sub)
   const eoo = args.indexOf('--end-of-options')
   if (eoo !== -1) {
     const end = args.indexOf('--', eoo)
@@ -182,7 +185,7 @@ function gitEnv() {
   return Object.assign(env, { GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' })
 }
 
-const gitArgv = (repo, args) => ['-C', repo, '-c', 'core.quotePath=false', ...args]
+const gitArgv = (repo, args) => ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', ...args]
 
 // The same guarded call, synchronously, for the one read the backend makes while it starts
 function gitSync(repo, args, { runSync = childProcess.execFileSync } = {}) {
@@ -579,7 +582,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   async function patchIds(shas) {
     const todo = [...new Set(shas)].filter(s => !memo.has(`pid:${s}`))
     const one = async batch => {
-      const patch = await gitText('log', '-p', '--no-walk=unsorted', '--no-color', '--no-ext-diff', '--format=commit %H', '--end-of-options', ...batch)
+      const patch = await gitText('log', '-p', '--no-walk=unsorted', '--no-color', '--no-ext-diff', '--no-textconv', '--format=commit %H', '--end-of-options', ...batch)
       const ids = new Map()
       for (const line of (await git(['patch-id', '--stable'], { input: patch })).stdout.split('\n')) {
         const [pid, sha] = line.split(' ')

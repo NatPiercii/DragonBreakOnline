@@ -204,6 +204,18 @@ test('wrapper: fetch, pull, push and anything off the allowlist throw before git
   assert.equal(calls.length, 0)
 })
 
+test('wrapper: git never opens a file outside the repo or runs a configured helper', async () => {
+  const calls = []
+  const { q } = newQueue({ run: async (...a) => { calls.push(a); return { stdout: '' } } })
+  const env = path.join(root, 'backend.env')
+  for (const args of [['diff', '--no-index', env, '/etc/hostname'], ['diff', env, '/etc/hostname'], ['diff', '--end-of-options', '--', env, '/etc/hostname'],
+    ['diff', '--end-of-options', S.LIVE, S.M2, '--', '../x'], ['hash-object', '--stdin-paths'], ['log', '-p', '--ext-diff'], ['log', '-p', '--textconv'],
+    ['diff', `-O${env}`], ['diff', `--orderfile=${env}`], ['show', '--output', 'x']]) {
+    await assert.rejects(q.git(args), { code: 'gitNotAllowed' }, JSON.stringify(args))
+  }
+  assert.equal(calls.length, 0)
+})
+
 test('wrapper: the synchronous form keeps the same guard and refuses merge-tree', () => {
   const calls = []
   const runSync = (...a) => { calls.push(a); return 'ok\n' }
@@ -215,7 +227,7 @@ test('wrapper: the synchronous form keeps the same guard and refuses merge-tree'
   assert.equal(gitSync(repo, ['rev-parse', '--verify', '--end-of-options', 'HEAD'], { runSync }), 'ok\n')
   const [[file, args, opts]] = calls
   assert.equal(file, 'git')
-  assert.deepEqual(args, ['-C', repo, '-c', 'core.quotePath=false', 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
+  assert.deepEqual(args, ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
   assert.deepEqual([opts.timeout, opts.maxBuffer, opts.env.GIT_OPTIONAL_LOCKS, opts.env.GIT_TERMINAL_PROMPT], [5000, 2 * 1024 * 1024, '0', '0'])
 })
 
@@ -228,7 +240,7 @@ test('wrapper: fixed argv, clean env, 5 s timeout and 2 MB buffer', async () => 
   } finally { delete process.env.GIT_DIR }
   const [{ file, args, opts }] = calls
   assert.equal(file, 'git')
-  assert.deepEqual(args.slice(0, 4), ['-C', repo, '-c', 'core.quotePath=false'])
+  assert.deepEqual(args.slice(0, 6), ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false'])
   assert.equal(opts.env.GIT_OPTIONAL_LOCKS, '0')
   assert.equal(opts.env.GIT_TERMINAL_PROMPT, '0')
   assert.equal(opts.env.GIT_DIR, undefined)
@@ -649,7 +661,7 @@ test('queueHash: stable, and changed by a new tip, a verdict or a hold', async (
 
 test('queue: a 30 s single-flight cache', async () => {
   let clock = Date.parse('2026-09-26T08:00:00Z'), logs = 0
-  const { q } = newQueue({ now: () => clock, run: (file, args, opts) => { if (args[4] === 'log') logs++; return realRun(file, args, opts) } })
+  const { q } = newQueue({ now: () => clock, run: (file, args, opts) => { if (args[6] === 'log') logs++; return realRun(file, args, opts) } })
   try {
     const [a, b] = await Promise.all([q.queue(), q.queue()])
     assert.equal(a, b)

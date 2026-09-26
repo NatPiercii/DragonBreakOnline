@@ -53,7 +53,7 @@ test('boot: HEAD is read once, synchronously, through the guarded git wrapper', 
   assert.equal(calls.length, 1)
   const [{ file, args, opts }] = calls
   assert.equal(file, 'git')
-  assert.deepEqual(args, ['-C', F.repo, '-c', 'core.quotePath=false', 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
+  assert.deepEqual(args, ['-C', F.repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
   assert.equal(opts.timeout, 5000)
   assert.equal(opts.env.GIT_OPTIONAL_LOCKS, '0')
   assert.equal(createServerStatus({ config: { ...F.config, releaseRepo: path.join(F.root, 'none') }, queue: stubQueue() }).boot.sha, null)
