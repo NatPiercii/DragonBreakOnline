@@ -354,17 +354,66 @@ const helpGroupsFor = (a) => {
   const groups = HELP_GROUPS.map((g) => ({ key: g.key, title: g.title, names: g.names.filter(usable) }));
   const rest = [...commands.keys()].filter((n) => !placed.has(n) && usable(n)).sort();
   groups.push({ key: 'other', title: 'Other', names: rest.filter((n) => !commands.get(n).admin) });
-  if (staff) groups.push({ key: 'staff', title: 'Staff', names: rest.filter((n) => commands.get(n).admin) });
   return groups.filter((g) => g.names.length);
 };
 const helpLine = (n) => { const c = commands.get(n); return `/${n}${c && c.help ? ' - ' + c.help : ''}`; };
+
+// Staff help, in the admin chat tab. An entry is a command name (its own help text), or [command words, text] for a staff
+// power inside a player command. An entry shows only while its command exists; an admin-only command missing here is
+// listed under Other staff tools.
+const STAFF_HELP = [
+  { key: 'players', title: 'Players', items: ['kick', 'tp', 'fixloc', 'chargen', 'rename', 'sethunger', 'wipechars',
+    ['tokens', '<player|#TAG>: someone\'s Patreon tier and identity rerolls left'], 'stats'] },
+  { key: 'announce', title: 'Announcements and restarts', items: [['admin', '<text>: talk in this admin tab'], 'announce', 'schedule', 'update'] },
+  { key: 'factions', title: 'Factions', items: [['faction leader', '<player|#TAG> <faction id>: name the first leader of a faction'],
+    ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint'] },
+  { key: 'appoint', title: 'Appointments and property', items: [['appoint', '<player|#TAG> <zone> <rank>: make someone an official'],
+    ['dismiss', '<player|#TAG> <zone>: remove an official'], ['officials', '[zone]: who rules where'],
+    ['property', 'at a door, as an official: list <deposit> <weekly> | unlist | offer <name> | remind | grace | evict']] },
+  { key: 'beasts', title: 'Beasts and the supernatural', items: ['beastform', 'curse', 'vlremote', 'raid', 'warband'] },
+  { key: 'law', title: 'Law', items: ['jail'] },
+  { key: 'world', title: 'World', items: ['settime', 'setweather', 'timescale', 'region', ['dungeon end', '<dungeon id|name>: end a dungeon claim now'],
+    'placed', 'placeexport', 'masktest'] },
+  { key: 'debug', title: 'Server and debugging', items: ['monitor', 'load', 'selftest', 'npc', 'mv', 'driftset', 'driftspawn', 'driftrepair'] },
+];
+const staffSay = (a, text) => deliver(a, `[[A]]#{${C.SYS}}${text}`);
+const staffTopics = () => {
+  const listed = new Set();
+  const topics = STAFF_HELP.map((t) => ({
+    key: t.key, title: t.title,
+    items: t.items.map((it) => {
+      const words = Array.isArray(it) ? it[0] : it; const base = words.split(' ')[0]; listed.add(words);
+      if (base !== 'admin' && !commands.has(base)) return null;
+      const c = commands.get(base);
+      return { words, text: Array.isArray(it) ? it[1] : (c && c.help) || '' };
+    }).filter(Boolean),
+  }));
+  const extra = [...commands.keys()].filter((n) => commands.get(n).admin && !listed.has(n) && n !== 'adminhelp').sort();
+  topics.push({ key: 'other', title: 'Other staff tools', items: extra.map((n) => ({ words: n, text: commands.get(n).help || '' })) });
+  return topics.filter((t) => t.items.length);
+};
+const staffHelp = (a, want) => {
+  const topics = staffTopics();
+  if (!want) {
+    staffSay(a, `Staff commands by topic (only staff see this). /help admin <topic> lists a topic with usage.`);
+    for (const t of topics) staffSay(a, `${t.title} (/help admin ${t.key}): #{${C.WHITE}}${t.items.map((i) => '/' + i.words).join('  ')}`);
+    return;
+  }
+  const t = topics.find((x) => x.key === want || x.title.toLowerCase().startsWith(want));
+  if (!t) return staffSay(a, `No staff topic "${want}". Topics: ${topics.map((x) => x.key).join(', ')}.`);
+  staffSay(a, `${t.title}:`);
+  for (const i of t.items) staffSay(a, `#{${C.WHITE}}  /${i.words}${i.text ? ' - ' + i.text : ''}`);
+};
 registerChatCommand('help', (a, args) => {
   const want = String(args || '').trim().toLowerCase().replace(/^\//, '');
   const groups = helpGroupsFor(a);
+  const staffAsk = want.match(/^(?:admin|staff)(?:\s+(.*))?$/);
+  if (staffAsk && isAdmin(a)) return staffHelp(a, (staffAsk[1] || '').trim());
   if (!want) {
     personal(a, 'Commands by topic. /help <topic> lists a topic with what each command does; /help <command> explains one.');
     for (const g of groups) personal(a, `${g.title} (/help ${g.key}): ${g.names.map((n) => '/' + n).join('  ')}`);
     personal(a, 'Talking: plain text speaks. /low /whisper /wide /shout set how far you carry. /me /my /do emote. /looc out of character. /pm <player> <text> in private.');
+    if (isAdmin(a)) personal(a, 'Staff: /help admin lists the staff commands in the admin tab.');
     return;
   }
   const group = groups.find((g) => g.key === want || g.title.toLowerCase().startsWith(want));
@@ -377,6 +426,7 @@ registerChatCommand('help', (a, args) => {
   if (c && (!c.admin || isAdmin(a))) return personal(a, helpLine(want));
   personal(a, `No command or topic "${want}". Type /help for the list.`);
 }, { help: '[topic|command] this list, a topic, or one command explained' });
+registerChatCommand('adminhelp', (a, args) => staffHelp(a, String(args || '').trim().toLowerCase()), { admin: true, help: '[topic] staff commands by topic, in the admin tab' });
 registerChatCommand('players', (a) => { const n = onlineActors().map(display); personal(a, `${n.length} online: ${n.join(', ')}`); }, { help: 'who is online' });
 registerChatCommand('whoami', (a) => personal(a, `${display(a)}  actor ff${a.toString(16)}  profile ${profileOf(a)}${discordOf(a) ? '  discord ' + discordOf(a) : ''}  tier ${tierOf(a) || 'player'}`), { help: 'your name, tag and ids' });
 registerChatCommand('ping', (a) => personal(a, 'Pong!'), { help: 'connection test' });
