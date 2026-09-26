@@ -1,12 +1,13 @@
 # Auto Reports interface contract, v1
 
-`docs/auto-report-v1.md` · wire contract version **1** · document revision **1.0-rc1** (2026-09-26)
+`docs/auto-report-v1.md` · wire contract version **1** · document revision **1.0-rc2** (2026-09-26)
 
-**Status:** claude-nate reviewed revision 1.0-draft for the client, launcher and build side, and a separate privacy and security review covered the rest. Every accepted point is folded in. The list of changes is at the end, together with the points that were rejected or narrowed and the reason for each. The revision becomes `1.0` when claude-nate confirms these changes in the ops ledger. Both sides then build against it.
+**Status:** claude-nate reviewed revision 1.0-draft for the client, launcher and build side, and a separate privacy and security review covered the rest (folded into 1.0-rc1). claude-nate then reviewed 1.0-rc1 and found a privacy defect that already affects the live Report a Problem (X5, §9), and the fixes for X5 were reviewed in turn (folded into 1.0-rc2). Every accepted point is folded in. The lists of changes are at the end, together with the points that were rejected or narrowed and the reason for each. The revision becomes `1.0` when claude-nate confirms these changes in the ops ledger. Both sides then build against it.
 
 **What it implements:** the Auto Reports design that Jake approved on 2026-09-26 with all 17 recommended decisions (D1-D17), `/root/dragonbreak-jake/build/auto-reports-design.md`. §10 lists the places where this contract fills a gap in the design or changes it.
 
-**Code baselines:** alduinak `origin/main` **f8cd7897** and gameplay `origin/server` **8c638310**. Every `file:line` below refers to those commits. Appendix A lists them all.
+**Code baselines:** alduinak `origin/main` **f8cd7897** and gameplay `origin/server` **8c638310**. Every `file:line` below refers to those commits unless it says "on client-0344". Appendix A lists them all.
+- The client work builds on `client-0344` (client 0.3.47 plus `d28822bd`). There, `authService.ts` lines are about 8 higher than at f8cd7897 (`:338` is `:346`). Appendix A maps the client lines that moved.
 
 **Who builds against which part:**
 
@@ -15,7 +16,7 @@
 | Backend route, validation, scrub engine and rule file, storage, trail join, signatures, Discord output, symbol archive script | claude-jake | §1, §2.11, §2.12, §3.3, §5.4, §6 |
 | Client: `errorSink.ts`, `BreadcrumbService`, `scrub.ts`, in-game sender | claude-nate | §1.6, §1.7, §2.3, §2.9, §3.1, §4 |
 | Front: error handlers, `ErrorBoundary`, `front:error` message | claude-nate | §2.8 |
-| Launcher: `crashWatch.js`, `crashlog.js`, settings and consent writer, queue, notice | claude-nate | §1.6-§1.8, §2.2, §2.4, §3.1.8, §4 |
+| Launcher: `crashWatch.js`, `crashlog.js`, settings and consent writer, queue, notice, the installer build on CT 115 | claude-nate | §1.6-§1.8, §2.2, §2.4, §3.1.8, §4, §5.5 |
 | Gameplay: `trail.js` | claude-nate | §3.2 |
 | Build pipeline: tsconfig and webpack changes, build id, running the archive script | claude-nate, with claude-jake's script | §5 |
 
@@ -93,7 +94,7 @@ router.post('/report',
 
 **Where the token comes from:**
 - **Game client:** read `sp.getPluginSourceCode("auth-data-no-load", "PluginsNoLoad")` directly and take `.session` from `JSON.parse(text.slice(2))`, inside the sink's own `try/catch`. This is the file the launcher writes (`main.js:3337-3347`).
-  - Do not call `AuthService.readAuthDataFromDisk` (`authService.ts:430-447`). It prints a line on every call (`:431`) and sends its parse error through `logError` (`:444`), which would feed the sink.
+  - Do not call `AuthService.readAuthDataFromDisk` (`authService.ts:430-447`; `:439-457` on client-0344). It prints a line on every call (`:431`) and sends its parse error through `logError` (`:444`), which would feed the sink.
   - The sink never reports its own parse errors. It re-reads the token only while reports are waiting (§1.6).
 - **Launcher:** `store.get('gameSession')`, set at login (`main.js:930`).
 
@@ -113,7 +114,7 @@ router.post('/report',
   - The profile, Discord id and name come only from this entry. Nothing in the body identifies the sender.
 - **Session lifetime.** A session lasts 24 h. The expiry moves forward each time the game server validates it (`master-api.js:70`, `:253-255`).
   - A player who stays in game for more than 24 h can hit a 401; see §1.7.
-  - Under MO2 the game can also hold an older token than the launcher (§9, defect X2).
+  - Before client 0.3.47, the game could also hold an older token than the launcher under MO2 (§9, defect X2, now fixed).
 - **Bans.** A profile banned by Discord id or hardware id gets **403**. The check works the way `master-api.js:238-244` does.
 - **Trust label** stored with each report:
   - `verified` when `entry.launchCheck.filesOk === true` (`launch-check.js:46`, `master-api.js:114-120`); otherwise `unverified-launch`.
@@ -336,7 +337,7 @@ Then these rules apply in order, and the first match wins:
    A Task Manager kill gives code 1 and no event.
 5. **Anything else is a clean exit.** Code 0 is always clean unless rule 1 applies.
 
-O4 confirms the codes on Windows. O12 checks whether `tick` keeps running while the game is minimised, which decides how often rule 4 misfires.
+O4 confirms the codes on Windows, read as the signed `ExitCode` (§2.4). O12 checks whether `tick` keeps running while the game is minimised, which decides how often rule 4 misfires.
 
 ### 2.3 The `error` block (script-error, ui-error)
 
@@ -351,7 +352,7 @@ O4 confirms the codes on Windows. O12 checks whether `tick` keeps running while 
 | `message` | string | yes | Scrubbed, including S21 (§2.11). At most 1000. May be empty. |
 | `frames` | array | yes | Up to 12 `{fn, line, col, file}` entries. May be empty: errors raised from C++ have no JS frames. |
 | `site` | object or null | yes | `{line, col}`: where `on`, `once` or `hooks.*.add` was called (the registration site). `null` for the other `where` values. |
-| `componentStack` | string or null | no | `boundary` only. Component names only: each line is reduced to `at <Name>`, with URLs and paths removed. At most 2000. |
+| `componentStack` | string or null | no | `boundary` only. One line per component: `at <Name> (build.js:<line>:<col>)`. React 18's production build minifies component names (`skymp5-front/package.json:7`), so the position in `build.js` is what identifies the component, and the backend MAY resolve it with the front map. URLs and paths are reduced to the base name `build.js`. A line located in any other file becomes `at <Name>`. At most 2000. |
 | `count` | int 1 to 10,000,000 | yes | How many times the pre-check key had fired this session when the report was built. Frozen after that. |
 
 **Frames:**
@@ -390,16 +391,23 @@ where + "|" + (event or "") + "|" + e.name + "|" + skeleton(e.message)
    - They return the original handle `{uid, eventName}` (`EventsApi.cpp:176-180`); otherwise `unsubscribe` breaks.
 5. **Registration site.** Keep one bare `new Error()` per `on`, `once` or `hooks.*.add` call, and read its `.stack` only when that handler first fails. `once` is called often at run time (for example `customPacketUtil.ts:26-29`).
 6. **Hooks.** Wrap `enter` and `leave` on the object passed to `hooks.sendAnimationEvent.add` and `hooks.sendPapyrusEvent.add`. C++ catches their errors and rethrows only `e.what()` in a later update task (`Hook.cpp:67-71`, `:94-98`), so the `on`/`once` patch never sees them.
+   - The patched `add` passes on all four arguments, `add(handler, minSelfId, maxSelfId, pattern)` (`EventsApi.cpp:117-141`), and returns the native id.
+   - The wrappers call the original `enter` and `leave` with `this` undefined, as C++ does (`Hook.cpp:124`, `:185`).
 7. **HTTP callbacks.**
    - `HttpClient` instances get their own `get` and `post` properties (`HttpClientApi.cpp:66-73`), so there is no prototype to patch.
-   - There are three construction sites: `settingsService.ts:45`, `authService.ts:338` and `authService.ts:374`. The callback of the client built at `:338` calls `JSON.parse` on the response at `:355`.
+   - There are three construction sites: `settingsService.ts:45`, `authService.ts:338` and `authService.ts:374` (`:346` and `:382` on client-0344). The callback of the client built at `:338` calls `JSON.parse` on the response at `:355` (`:363` on client-0344).
    - So errorSink replaces `skyrimPlatform.HttpClient`, as it does `on` and `once`, with a constructor that builds the native client and wraps the callback passed to its `get` and `post`.
+   - **The wrapper calls the native method with the native instance as `this`** (`native.post.call(native, path, options, cb)`). Native `Get` and `Post` read `this.host` (`HttpClientApi.cpp:92`, `:148`).
+   - **It passes a third argument only when the caller gave a callback.** Native code picks the callback form or the promise form from whether `info[2]` is undefined (`HttpClientApi.cpp:88-90`, `:144-146`), so an added wrapper would turn a promise call into a callback call.
    - The sink's own requests use the saved original.
 8. **No `controller` wrapper.** `controller.on` and `controller.once` are the same functions as the patched `sp.on` and `sp.once`. They are captured at `spApiInteractor.ts:16-17`, after errorSink has run.
 9. **Process hooks** (`uncaughtException`, `unhandledRejection`):
    - They are installed once per process. `process` survives a hot reload; only the `skyrimPlatform` object is recreated (`SkyrimPlatform.cpp:317-318`).
+   - **They call the current sink through `globalThis.__dboAutoReport`**, never a function captured when they were installed. Otherwise, after a hot reload, they would run the old bundle's code.
    - They write a synchronous `fatal` trail entry. That entry is the only record, because `console.error` does not reach `skyrim-platform.log` (only spdlog writes that file).
 10. **errorSink has no service dependencies.** It is the first import in `index.ts`, so it must not use SettingsService or AuthService.
+    - **It is imported before `./services/services/skympClient`** (`index.ts:6` on client-0344). `remoteServer.ts:115` calls `on('update')` when its module loads, before any service is constructed.
+    - **It patches `globalThis.skyrimPlatform`**, the real object. The TypeScript namespace import (`import * as sp`) is read-only. The shipped 0.3.47 bundle confirms that services receive the real object and call `(0, X.on)(…)` on it, reading the property at every call (O2).
     - It reads the master URL from `sp.settings["skymp5-client"].master`, with the same fallback and normalisation (`settingsService.ts:39-41`, `:169-174`).
     - It reads the token as §1.3 says.
 
@@ -407,8 +415,9 @@ where + "|" + (event or "") + "|" + e.name + "|" + skeleton(e.message)
 
 **What the launcher must collect.** Both launch paths spawn detached and call `unref` (`main.js:1777`, `:1806`; `mo2.js:1343-1347`). `SkyrimSE.exe` is therefore a grandchild of the launcher, which today knows neither its pid nor its exit code.
 - **Pid.** After a launch, poll `tasklist /FI "IMAGENAME eq SkyrimSE.exe" /FO CSV /NH` every 2 s for up to `LAUNCH_GRACE_MS` (`main.js:1548`). Save `{pid, foundAt}` in `lastLaunch`.
-- **Exit code.** Run hidden PowerShell: `$p=Get-Process -Id <pid>; $null=$p.Handle; $p.WaitForExit(); [uint32]$p.ExitCode`. This is `detectedBy: "wait"`.
+- **Exit code.** Run hidden PowerShell: `$p=Get-Process -Id <pid>; $null=$p.Handle; $p.WaitForExit(); $p.ExitCode`. This is `detectedBy: "wait"`.
   - Touching `.Handle` first is required. Without it, .NET gives no exit code for a process it did not start.
+  - **Print `ExitCode` as it is, signed, and convert it in JavaScript with `>>> 0`** (`-1073741819` becomes `3221225477`, 0xC0000005). .NET `ExitCode` is a signed Int32, and every crash code is negative there. A `[uint32]` cast throws on each of them: the watcher would fall back to polling with `code: null`, `crash-nolog` would be missed, and rule 4 would call the crash a freeze.
   - If PowerShell fails, fall back to the `tasklist` poll every 5 s (`main.js:1515-1523`), with `detectedBy: "poll"` and `code: null`.
   - If the launcher was not running at the exit, `detectedBy` is `next-start`.
 - **Windows events.** Read Application log events 1000 (crash) and 1002 (hang). Match them by the pid in the event data, not by time alone.
@@ -416,6 +425,7 @@ where + "|" + (event or "") + "|" + e.name + "|" + skeleton(e.message)
   - Event 1002 has no module and no exception code. Set `module: "SkyrimSE.exe"` and the rest to `null`.
 - **Evidence copy.** At the exit, before classifying, copy both trail files and the `skyrim-platform.log` tail into `<userData>/crash-evidence/<pid>/`.
   - This is needed because SkyrimPlatform empties the log at the next game start (`main.cpp:107-108`), and a relaunch rotates the trail.
+  - The log tail goes through S0 (§2.11) as it is copied, so the copy holds no game UI lines (X5).
   - Delete the copy once the report is sent or discarded, and after 7 days at most.
 - **Crash-log folder:**
   - Use `CrashLogger.ini` `[Debug] Crashlog Directory` when it is set. Under MO2, read the ini from the Crash Logger mod folder; on a direct launch, from `Data\SKSE\Plugins\`.
@@ -443,6 +453,8 @@ where + "|" + (event or "") + "|" + e.name + "|" + skeleton(e.message)
   - This covers "Quit to main menu", and a later Quit from the main menu.
 
 An open Journal is **not** a quit marker by itself. The Journal is also open during pause and in MCM menus.
+
+**Known gap until O11 is settled.** "Quit to desktop" from the pause menu writes no marker today: it is not an `exitProcess()` call, and O11 has not yet shown which menu events come before it. A crash during that quit is therefore classified `crash`, not `crash-on-quit`, and opens a thread. O11 MUST be settled, and that path given a marker, before P5 turns the crash watcher on.
 
 **`crash`** (for `crash` and `crash-on-quit`). Patterns used below:
 - `MODULE` is `^[A-Za-z0-9_. ()+-]{1,64}$`.
@@ -516,10 +528,12 @@ The same parser produces `sections` and the parsed fields. It lives in `crashlog
   - **Client kinds:** at most 16 KB, only on the first report of a session, and only when `autoReport.trailDir` is set. The log is never in the fallback folder.
   - **Launcher kinds:** at most 32 KB, from the evidence copy (§2.4). A log read at the next launcher start is sent only when its mtime is at most `exit.at` + 60 s.
   - **Read the tail at a file position**, as `report.js:27-38` does; never read the whole file. While a handler throws every frame, the file grows by about 60 lines a second, because `EventsApi.cpp:57-70` logs each occurrence.
+  - **Read up to 6 × the cap back**, as the X5 launcher fix `559a98ca` does, because S0 can remove most of what was read. Drop the partial first line of the read window; S0 does this too.
 - **What it can hold, and the scrub rules that cover it:**
-  - The raw `e.what()` of every failing handler (`EventsApi.cpp:64`). This includes `JSON.parse` snippets of server and chat content (`networkingService.ts:126`). Covered by S20.
+  - **On the NirnLab browser backend: a `JS …` line for every script run in the game UI and a `LoadUrl …` line for every page load** (`BrowserApiNirnLab.cpp:75`, `:91`; defect X5). These hold chat including `/pm`, system notices, the character name, the voice URL and the start of the voice token. Covered by S0, which drops them whole before any other rule runs.
+  - The raw `e.what()` of every failing handler (`EventsApi.cpp:64`). This includes `JSON.parse` snippets of server and chat content (`networkingService.ts:126`). Covered by S20, and by the 500-character line cap (§2.11 step 4).
   - The names of programs in front of the game, logged by ForegroundGuard (`main.cpp:530-531`, `:613-615`, `:623-626`, via `QueryFullProcessImageNameW` at `:504`). Covered by S19.
-- Plain `printConsole` output never reaches this file (`networkingService.ts:31`).
+- Plain `printConsole` output never reaches this file (`networkingService.ts:31`, `ConsoleApi.cpp:35-44`).
 - **No other log exists in v1.** The CEF log field (`logs.cefLog`) is removed (design §1b and design §3).
 
 ### 2.7 Examples
@@ -565,9 +579,9 @@ The client sends the message scrubbed but not normalised; the backend normalises
 "error": {
   "source": "front", "where": "boundary", "event": null, "service": null, "handled": false,
   "type": "TypeError", "message": "Cannot read properties of null (reading 'map')",
-  "frames": [ { "fn": "PartyPanel", "line": 2, "col": 183244, "file": "build.js" } ],
+  "frames": [ { "fn": "Kt", "line": 2, "col": 183244, "file": "build.js" } ],
   "site": null,
-  "componentStack": "at PartyPanel\nat Widgets\nat App",
+  "componentStack": "at Kt (build.js:2:183100)\nat Ye (build.js:2:201877)\nat Zn (build.js:2:9120)",
   "count": 1
 }
 ```
@@ -638,6 +652,8 @@ if (typeof window.skyrimPlatform?.sendMessage === 'function') {
 ```
 
 - **The guard is needed.** Outside the game, `index.js:18-21` creates an empty `window.skyrimPlatform`.
+- **The handlers live in their own module, which `index.js` imports first.** Imports run before the body of `index.js`, so the `error` and `unhandledrejection` handlers are in place before `ReactDOM.render` (`index.js:27-34`).
+- **The `ErrorBoundary` fallback text MUST NOT say "press F6 to reload"** (design §1b). F6 focuses chat (`browserService.ts:21`, `:168` on client-0344). The text names a key only when a real UI reload key exists.
 - **The key must not start with `dbo:`.** `dboRelayService.ts:233-235` forwards those keys to the game server.
 - **Size.** The whole string is at most 4096. The front truncates `message` to 1000 and `stack` to 2500 before stringifying.
 - **What the front drops:**
@@ -648,7 +664,7 @@ if (typeof window.skyrimPlatform?.sendMessage === 'function') {
 - **What the client does.** It listens on `browserMessage` for `arguments[0] === 'front:error'` and parses `arguments[1]` inside `try/catch`. Then it:
   - builds the §2.3 block with `source: "front"`;
   - parses the frames from `stack`: `build.js` frames keep the base name, and frames from injected code get `file: "<injected>"`;
-  - reduces `componentStack` to names;
+  - reduces `componentStack` to names with their `build.js` positions (§2.3);
   - sets `build.front = frontBuild`;
   - runs every scrub rule. The front cannot scrub the Windows user or computer name, because CEF does not know them; the client can.
 - The UI loads from `file:///Data/Platform/UI/index.html` (`BrowserApiNirnLab.cpp:176`). Whether CEF turns its `window` errors into `Script error.` is open item O14.
@@ -676,6 +692,11 @@ if (typeof window.skyrimPlatform?.sendMessage === 'function') {
 - The CEF log (`cef_debug.log`: the front's `console.log` includes letter text), the crash log's `STACK` section, strings read from memory, minidumps, `threaddump` files, MO2 logs and screenshots.
 - Anything from `logError` arguments other than `Error` objects (§3.1.4 `err`).
 - The request path of HTTP errors (`event` is only `get` or `post`).
+- The game UI lines of `skyrim-platform.log` (`JS …` and `LoadUrl …`, defect X5): chat and `/pm`, notices, the character name, the voice URL and token. S0 drops them from `gameLog` on every sender and again on the backend (§2.11).
+
+**The client MUST NOT:**
+- listen to `consoleMessage` or wrap `printConsole`. Console text carries chat and notices, a whole custom packet on a parse error (X6), and before 0.3.47 the session token (X1);
+- log any `browserMessage` argument after `arguments[0]`, to the console or to the trail. This is true today: `authService.ts:280` and `:287` (client-0344) log only `[0]`. The trail's `ui dbo <event>` entry keeps only the key (§3.1.4). The one argument read is `front:error`'s `[1]`, which is parsed into the §2.3 block and scrubbed, never logged as it is (§2.8).
 
 ### 2.11 Scrub rules
 
@@ -691,11 +712,11 @@ Version fields, ids, build ids, numbers, enums, `fn`, modules and symbols are va
 - The canonical rules live in `skymp5-backend/sources/scrub-rules.json`, an array of `{ "id", "pattern", "flags", "replacement", "fields" }`.
 - The launcher and the client carry byte-identical copies:
   - the launcher at `src/scrub-rules.json`, replacing `report.js:11-18`;
-  - the client at `src/lib/scrub-rules.json`, imported through webpack.
+  - the client at `src/lib/scrub-rules.json`, imported through webpack (the client tsconfig needs `resolveJsonModule`, §5.2).
 
   A test compares the SHA-256 of the copies across the three trees.
 - Each side has a small engine. Patterns are built with `new RegExp(pattern, flags)` at run time, so the client's ES5 target does not matter; V8 supports lookbehind and `\p{...}`.
-- S1, S2 and S21 need run-time values or a mapping, so each engine implements them in code.
+- S0, S1, S2 and S21 need line state, run-time values or a mapping, so each engine implements them in code. Their entries in the file have `"pattern": null`.
 - All three engines must pass `scrub-cases.json` (§8).
 - The launcher and client parts must be dependency-free, ES5-safe JavaScript. The launcher packages only `src/**/*`, and the client compiles to ES5.
 
@@ -703,10 +724,16 @@ Version fields, ids, build ids, numbers, enums, `fn`, modules and symbols are va
 1. Replace `\r\n` with `\n`. Remove C0 control characters except `\n` and `\t`. Remove `\u200b-\u200f`, `\u202a-\u202e` and `\u2066-\u2069`.
 2. **Backend (senders MAY do this too):** cut the field to 1.25 × its cap, keeping the same end as step 4, so that no rule runs on more than that.
 3. Run the rules below, in order.
-4. Cut to the cap. Keep the head of messages, crash sections and trail entries; keep the tail of `gameLog`.
+4. Cut to the cap. Keep the head of messages, crash sections and trail entries; keep the tail of `gameLog`, cut at a line boundary (the partial first line left by the cut is dropped). **In `gameLog`, every line is also cut to 500 characters** here, after the rules have run. This bounds an exception line (`EventsApi.cpp:64`) that carries packet or chat text in its message.
 
 **Rules, in order:**
 
+0. **S0. Game UI lines** (`gameLog` only; defect X5). On the NirnLab browser backend, SkyrimPlatform logs the start of every script it runs in the game UI and every page it loads, and those lines hold chat, `/pm`, notices, the character name and the voice URL. S0 runs first, so that no auto payload ever carries them, whatever browser backend the player uses.
+   - **A record** is one line that starts with a timestamp, `^\[\d\d:\d\d:\d\d:\d{3}\] ` (the only pattern, set at `main.cpp:120` before the first line), plus every following line that does not. Lines are split on `\n` only, after step 1; a `\r` or U+2028 inside a line does not start a new one.
+   - **Text before the first timestamped line is dropped.** It is the rest of a record cut by the read window or by the step 2 pre-cut, and it may be the tail of a UI line.
+   - **A record whose first line matches `^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) ` is dropped whole**, its continuation lines included. `LoadUrl` logs the whole URL with its newlines (`BrowserApiNirnLab.cpp:75`), so a `data:` URL can span several lines. The `JS` line is always one line (`:83-91` replaces `\n`), but the same rule covers it.
+   - Each run of dropped lines becomes one line, `[N UI line(s) left out]`, as the X5 launcher and backend filters write it.
+   - S0 runs in linear time. The launcher also runs it when it makes the evidence copy (§2.4).
 1. **S1. Literal folders.**
    - The game folder becomes `<game>`: `process.cwd()` in the client, the install path in the launcher.
    - The Documents folder becomes `<docs>`: `app.getPath('documents')` in the launcher; in the client, `trailDir` up to `\My Games`.
@@ -887,10 +914,15 @@ The first line of `dbo-trail.jsonl` is the header:
 - **Never** `getDisplayName`, and never any actor name.
 - Descs are cached per form id, at most 2,000 entries.
 
+**Cost rules for every kind:**
+- **Build each `d` string inside the event handler.** Native objects (forms, references, actors) expire at the end of the frame, so no string is built later from a stored object.
+- **The listeners never throw.** BreadcrumbService's emitter listeners run synchronously in the send path, and `sendInputsService` sends for every hosted NPC every frame. Each listener body is in `try/catch`.
+
 **Kinds:**
 - **`net`:** `connecting`, `connected`, `disconnected`, `login ok`, `login denied <code>` (`<code>` matches `[A-Za-z]{1,32}`), `reconnect <n>`, `exit quit`, `exit kick`, `exit auth` or `menu-quit` (§2.4). The `exit …` entries are written synchronously right before `exitProcess()`.
 - **`send`:** `<MsgType>` or `<MsgType> <target>` (rule R), with the `MsgType` enum name (`messages.ts:1-37`).
   - **Listen** to the emitter events `sendMessage` and `sendMessageWithRefrId` (`networkingService.ts:16-18`), and switch on the numeric `t` first.
+  - **Register the `sendMessageWithRefrId` listener before NetworkingService's own** (`networkingService.ts:18`). That listener deletes `_refrId` from the message (`:58` on client-0344), so a later listener cannot name the target.
   - **Recorded types only:** `Activate`, `PutItem`, `TakeItem`, `DropItem`, `CraftItem`, `OnEquip`, `ConsoleCommand`, `CustomPacket`, `OpenContainer`, `SpellCast`, `PlayerBowShot`. Frequent types such as `UpdateMovement`, `Host`, `FinishSpSnippet`, `UpdateProperty` and `OnHit` are never recorded.
   - **`CustomPacket`:** `CustomPacket <type>`, where `<type>` is the content's `customPacketType` or `type`.
     - The `dbo` relay becomes `CustomPacket dbo <event>`.
@@ -902,6 +934,7 @@ The first line of `dbo-trail.jsonl` is the header:
   - For `CustomPacket`, take the type with a regex on the first 256 characters of `contentJsonDump`, without `JSON.parse`.
   - Binary messages go to `anyRawMessage` (`networkingService.ts:124-131`) and are never recorded.
 - **`menu`:** `open <MenuName>` or `close <MenuName>`, with the SkyrimPlatform menu name. `Cursor Menu`, `HUD Menu`, `Fader Menu` and `Mist Menu` are never recorded.
+  - A menu name can contain `/`: `Sleep/Wait Menu` (`ConstEnumApi.cpp:563`), the likeliest last menu before a freeze. It is the only one of the 36 names outside `[A-Za-z0-9 _]`.
 - **`world`:** polled in the 1 s flush.
   - `enter cell <desc> <name>` for an interior cell.
   - `enter ws <desc> <name>` when the worldspace changes (not for every exterior cell).
@@ -912,6 +945,7 @@ The first line of `dbo-trail.jsonl` is the header:
   - `hit`, `equip`, `unequip`, `activate` and `containerChanged` fire for every actor and container. Check the numeric ids first (the player is 0x14), and only then call `getBaseObject()` or `getName()`.
 - **`life`:** `death`, `downed`, `revived`, `respawn` or `ragdoll`.
 - **`inv`:** `add <desc> x<n>`, `remove <desc> x<n>` or `set <n> entries`.
+  - `set <n> entries` is recorded once, while a `SetInventory` is being applied. The items it adds or removes are not recorded one by one.
 - **`ui`:** `front-loaded`, `reload`, `widget open <type>`, `widget close <type>`, `focus <type>`, or `dbo <event>`. `dbo <event>` is the browser's `dbo:` key without its arguments; keys are built at run time, for example at `labour/index.tsx:132`.
 - **`err`:**
   - `<where> <Type>: <message>`, with the message scrubbed (S21 included) and cut to 100 characters;
@@ -931,7 +965,7 @@ The first line of `dbo-trail.jsonl` is the header:
 net    (?:connecting|connected|disconnected|login ok|login denied [A-Za-z]{1,32}|reconnect \d{1,4}|exit (?:quit|kick|auth)|menu-quit)
 send   (?:CustomPacket (?:dbo TOK|chat(?: /[a-z]{1,16})?|TOK)|ConsoleCommand [A-Za-z]{1,24}|[A-Z][A-Za-z0-9]{1,39}(?: TGT)?)
 recv   (?:SpSnippet [A-Za-z0-9_]{1,40}\.[A-Za-z0-9_]{1,40}|CustomPacket TOK|[A-Z][A-Za-z0-9]{1,39})
-menu   (?:open|close) [A-Za-z0-9 _]{1,40}
+menu   (?:open|close) [A-Za-z0-9 _/]{1,40}
 world  (?:enter (?:ws|cell) DESC(?: NAME)?|teleport DESC|loadGame)
 act    (?:activate|open|read|eat|use|equip|unequip|drop|take|craft|cast|hit|shoot) TGT
 life   (?:death|downed|revived|respawn|ragdoll)
@@ -1084,13 +1118,23 @@ world    DESC
 
 #### 3.2.4 Writing
 
-- **In memory:** `globalThis.__dboTrail = { rings: Map<profileId, { sessionStart, actorId, entries, dirty }>, writing }`.
+- **In memory:** `globalThis.__dboTrail = { rings: Map<profileId, { sessionStart, actorId, entries, dirty }>, writing, seq }`.
   - The state survives gamemode reloads (about 60 a day).
-  - Hooks are installed behind keep-once guards (the pattern at `downed.js:452`).
-- **Flush every 5 s**, only for rings that changed. Use `every('trail', 5000, …)` or the debugsnap loop (`debugsnap.js:74`).
-  - Write **asynchronously**: `fs.promises.writeFile(tmp, data, { mode: 0o600 })` to a unique tmp name (`<file>.<pid>.<seq>.tmp`), then `rename`, one write at a time.
+- **Load position.** `gamemode.js` loads `trail.js` last: after the `movetrace.js` loader (`gamemode.js:3378-3383`), the last loader today, and not beside debugsnap (`:3221-3226`).
+  - `supernatural.js`, `downed.js`, `regions.js` and `alchemy.js` load after debugsnap (`:3337-3369`) and wrap hooks themselves. trail's wrapper must be the outermost one to see their verdicts.
+  - The loader passes a context object, as it does for debugsnap (`:3225`): at least `mp`, `log`, `every`, `profileOf`, `cfg` and the `commands` registry (`:336-337`). trail.js records `/<word>` only for commands in that registry (§3.2.3).
+- **Wrap again on every load.** Keep-once guards (the pattern at `downed.js:452`) are wrong for these hooks, because `gamemode.js` assigns them again on every reload: `onActivate` (`:699`, `:748`), `onEatItem` (`:1307`), `onDeath` (`:2391`), `onHitDamage` (`:2408`), `onConsoleCommand` (`:2442`), `onTakeItem` (`:2486`) and `onSpellCast` (`:2512`). A kept original would hold an old gamemode function, and a wrap done once is lost at the first reload. So on every load, for each hook:
+  1. if the current `mp.onX` is trail's own wrapper (it carries a marker property such as `__dboTrail`, and keeps the function it wraps), unwrap it;
+  2. wrap the current `mp.onX`.
+
+  This leaves exactly one trail wrapper, around the current function.
+- **Explicit calls where a wrapper cannot see.** trail.js defines `globalThis.__dboTrailRec(who, k, d)`, where `who` is `{ actorId }` or `{ userId }`. It checks `d` against the §3.2.3 grammar and never throws. Callers use `globalThis.__dboTrailRec?.(…)`, so gameplay runs unchanged when trail.js failed to load.
+  - **Refusal reasons** are decided inside the checks, where no outer wrapper can see them. The item guards (`itemguards.js`, loaded at `gamemode.js:2469-2474`; `inv refused <guard> <desc>`), the hit checks (`hit refused <reason> <target>`), the craft checks (`inv refused <reason> <desc>`) and the activate checks (`activate <target> refused:<reason>`) call it where they refuse.
+  - **`connect`, `disconnect` and `customPacket`** are single slots in `globalThis.__dboHandlers` (`gamemode.js:785-791`, `:1074`, `:1095`) that gamemode.js fills again on every load, so there is nothing stable to wrap. Those handlers call it for `net connect`, `net disconnect` and `pkt …`.
+- **Flush every 5 s**, only for rings that changed, with `every('trail', 5000, …)` (`gamemode.js:46`). `every` stops the timer of the same name first, so a reload never adds a second flush loop.
+  - Write **asynchronously**: `fs.promises.writeFile(tmp, data, { mode: 0o600 })` to a unique tmp name (`<file>.<pid>.<seq>.tmp`), then `rename`, one write at a time. `seq` lives on `globalThis.__dboTrail`, so a reload never reuses a tmp name.
   - `debugsnap.js:54-68` moved `live.json` to this pattern after a synchronous write froze the server for 549 ms. The synchronous tmp-then-rename at `debugsnap.js:49-52` is not used for trails.
-- **On disconnect** (`gamemode.js:1095-1096`), set `endedAt`, `endReason: "disconnect"` and `view`, and write at once, still asynchronously.
+- **On disconnect** (the explicit call in `__dboHandlers.disconnect`, `gamemode.js:1095-1096`), set `endedAt`, `endReason: "disconnect"` and `view`, and write at once, still asynchronously.
 - **One owner for hooks.** Hooks shared with the p2p logging module (hits, downs, trades) must be wrapped only once. See D12 and O9.
 
 #### 3.2.5 Janitor and retention
@@ -1220,13 +1264,14 @@ The id is `<sha12>[-dirty].<UTC time>`, for example `f8cd78971a2b.20260927T10150
 - **`DBO_CLIENT_VERSION` MUST equal the bumped `CLIENT_VERSION`** at `routes/version.js:9`. Nothing links the two today, so the bump comes before the build.
 - Each webpack build writes a sidecar next to its bundle, `<bundle base>.build.json` with `{ "build", "clientVersion" }`. The archive script checks it (§5.4).
 - Every bundle build gets a new id, so a map always matches exactly one bundle.
-- Builds run in git worktrees owned by `nate` (for example `/tmp/claude-nate-build-0340`). Running git as root there needs `-c safe.directory=<tree>`.
+- Builds run on CT 115, in git worktrees owned by `nate` (for example `/tmp/claude-nate-build-0340`). Running git as root there needs `-c safe.directory=<tree>`. §5.5 says where every build runs.
 
 ### 5.2 Client bundle
 
-- **`skymp5-client/tsconfig.json`:** add `"sourceMap": true`.
+- **`skymp5-client/tsconfig.json`:** add `"sourceMap": true` and `"resolveJsonModule": true`.
   - Today it targets ES5 with no maps (`tsconfig.json:4`), so the webpack map resolves to compiled ES5, not to TypeScript.
-  - The front already has this setting.
+  - The front already has `sourceMap`.
+  - `resolveJsonModule` lets `scrub.ts` import `src/lib/scrub-rules.json` (§2.11). client-0344 does not set it either.
 - **`webpack.config.js:66-67`:** replace `devtool: 'inline-source-map'` with `'hidden-source-map'`.
   - This writes `skymp5-client.js.map` next to the bundle.
   - The bundle gets no inline map and no `sourceMappingURL` comment.
@@ -1301,6 +1346,41 @@ data/symbols/<filesVersion>/         0700
 - It applies the probe offset first (§2.9).
 - Development-mode maps carry no `names`, so the `function` in `src/file.ts:function` comes from the sent `fn`.
 - An unknown build makes the group `held`, and so do frames that are present but do not resolve (design §4.4).
+
+### 5.5 Where builds run
+
+**Every build runs on CT 115** (owner rule, 2026-09-24). None runs on Nate's PC:
+- the client and front webpack builds, in `nate`-owned worktrees (§5.1), each followed at once by the archive script (§5.4);
+- the client package (`populate-files.js`, `merge-files.js`), with the map and PDB guard (§5.4);
+- the launcher installer for P2, with electron-builder's NSIS target (below, O16).
+
+So no step carries a bundle, a map or a sidecar between machines. A bundle built anywhere else has no archived map: its reports resolve nothing and its groups stay held (§5.4). The PC keeps the in-game and Windows tests (§8, §9).
+
+- `TEAM.md:12` and `:43` still say the PC builds the client package and the launcher. That text is older than the owner rule.
+- The native DLLs are the exception today. They are still prebuilt drops (§5.4, O15), and a change to them, such as the X5 follow-up, waits for a native build.
+
+**Launcher installer on CT 115 (O16).** claude-nate's dry run on 2026-09-26 (`/opt/dragonbreak-handover/launcher-build-ct115/BUILD.md`) built the Windows installer on CT 115 with no wine and no system package. It matched the released 2.1.29 in layout and in its version strings.
+
+```
+cd skymp5-launcher
+npm install --no-audit --no-fund
+LANG=C.UTF-8 LC_ALL=C.UTF-8 node -r <dir>/preload.js node_modules/electron-builder/cli.js \
+  --win --x64 --publish never -c.win.signAndEditExecutable=false -c.afterPack=<dir>/afterPack.js
+```
+
+| Step | Failure on CT 115 | Fix |
+|---|---|---|
+| makensis | `main argv conversion failed!` under `LANG=C` (the `©` in the copyright) | `LANG=C.UTF-8 LC_ALL=C.UTF-8` |
+| NSIS uninstaller | electron-builder runs the uninstaller generator under wine on every platform except macOS | `preload.js` takes electron-builder's own macOS path, `UninstallerReader` |
+| App exe icon and version strings | rcedit needs wine on Linux | `afterPack.js` sets them with `resedit`, which electron-builder already uses |
+
+Still open before the P2 release:
+1. commit a `package-lock.json` for `skymp5-launcher`, so dependencies stop floating;
+2. move `preload.js` and `afterPack.js` into `skymp5-launcher/build-linux/`, with a `build:win-on-linux` script;
+3. one Windows test of install, the silent in-app update (`/S --force-run`, `main.js:1704-1726`), the uninstaller and the Start menu icon;
+4. re-check the preload on any electron-builder upgrade (pinned at 26.8.1).
+
+Publishing (the version bump, the GitHub release upload and `routes/version.js` `DOWNLOAD_URL`) needs the owner's GO.
 
 ---
 
@@ -1413,7 +1493,7 @@ The backend computes signatures. They are listed here so that senders send the f
   - the symbol meta files (§5.4).
 
   A reader MUST accept its current version and the one before.
-- **Document revision.** `1.0-rc1` becomes `1.0` when claude-nate confirms in the ledger. Later edits are 1.1, 1.2 and so on, each with a changelog entry at the end of this file.
+- **Document revision.** `1.0-rc2` becomes `1.0` when claude-nate confirms in the ledger. Later edits are 1.1, 1.2 and so on, each with a changelog entry at the end of this file.
 
 ---
 
@@ -1431,7 +1511,7 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
 7. `script-error-json-parse.json`: a raw Node 22 JSON.parse message containing a session-like snippet. It must come out as `Unexpected token in JSON`.
 8. `script-error-site-below-1.json`: a `site` that the probe offset moves below line 1. The site is removed and the report is flagged, not refused.
 9. Front errors:
-   - `ui-error-boundary.json` (with `componentStack`);
+   - `ui-error-boundary.json` (with a `componentStack` of minified names and `build.js` positions);
    - `ui-error-window.json`;
    - `ui-error-injected.json` (`file: "<injected>"`);
    - `ui-error-opaque.json` (`Script error.`, expecting `ignored`).
@@ -1498,10 +1578,17 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
 - **Tokens and paths:** `"session":"<64 hex>"` → `<redacted>`. A Discord bot-token shape, `Bearer …` and `C:\Users\Jake\…`.
 - **Foreground programs:** a ForegroundGuard line naming `chrome.exe` → `class '<app>' pid N (<app>)`.
 - **JSON snippets:** a `gameLog` line `on('update'): Unexpected token 'm', "{"a": my letter "... is not valid JSON` → no letter text left.
+- **Game UI lines (S0):**
+  - A `gameLog` with `\r\n` line ends, holding `JS window.__alduinakAddChat(…)`, `JS window.__alduinakSetNames(…)` and `LoadUrl …` lines between diagnostic lines → each run of UI lines becomes `[N UI line(s) left out]`, and every diagnostic line is kept.
+  - A multi-line `LoadUrl data:text/html,<p>hello\nBrelyna: the key...` → no `Brelyna` text left.
+  - A `gameLog` that starts in the middle of a `JS` line, as a read window leaves it → the partial line is dropped.
+  - An empty `JS` payload (`JS  ...`), and a `JS` line with a `\r` or U+2028 inside → dropped whole.
+  - A launcher line (`[2026-09-26T10:00:00.000Z] …`) and an `skse64.log` line → untouched.
+  - A 2,000-character exception line → cut to 500 characters.
 - **Control characters:** a string with C0 controls and bidi characters → removed.
 - **Signature case:** `decade` and `facade` are untouched by `<form>`.
 - **Timing:**
-  - every rule under 50 ms on 64 KB of adversarial input for that rule (runs of `a`, `"`, `a@`, `1.`, `a:`, `class '`);
+  - every rule under 50 ms on 64 KB of adversarial input for that rule (runs of `a`, `"`, `a@`, `1.`, `a:`, `class '`, and `[00:00:00:000] JS ` lines for S0);
   - the whole backend pipeline under 250 ms on a maximal 400 KB adversarial report;
   - the crash-log parser under 100 ms on 400 KB.
 
@@ -1517,12 +1604,13 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
 - `trail-singleplayer.jsonl`: no `net`, `send` or `recv`, and `hb` without `c`, so nothing is sent.
 - `trail-quit-exit.jsonl` (ends with `net exit quit`) and `trail-quit-menu.jsonl` (ends with `net menu-quit`): quit marker.
 - `trail-journal-mcm.jsonl`: the Journal is open in an MCM menu at the crash, so there is no quit marker.
-- `grammar-cases.json`: one passing and one failing `d` per kind, client and server.
+- `grammar-cases.json`: one passing and one failing `d` per kind, client and server. `menu open Sleep/Wait Menu` passes.
 
 **Launcher classification (`classify/`):** one case per §2.2 rule, plus:
 - a clean quit (code 0) with a stale heartbeat → clean;
 - an old `err` followed by heartbeats → not `js-fatal`;
 - 0xC000013A → clean;
+- PowerShell prints `-1073741819` → `exit.code` 3221225477 (0xC0000005) → `crash-nolog`, not `freeze`;
 - a crash log plus `net exit quit` → `crash-on-quit`.
 
 **Server trail (`server-trail/`):**
@@ -1533,6 +1621,7 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
 - `player <hex>` holds the actor id, not the profile id.
 - An unregistered chat command becomes `/?`.
 - A lint test that fails on any `name` field or `#TAG` pattern in a session file.
+- **`tests/trail-harness.js`** (gameplay, next to the other harnesses): loads `trail.js` twice. Each hook then carries exactly one trail wrapper, around the current gamemode function; the rings survive the reload; one flush loop runs; a refusal recorded through `__dboTrailRec` passes the grammar.
 
 **Crash logs (`crashlogs/`):**
 - At least 3 real Crash Logger logs from Nate's PC: one in our code, one third-party, and one in vanilla code. Each comes with the expected `sections` and parsed fields.
@@ -1559,7 +1648,7 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
 - `dbo-consent.json` with `errors: true` while the settings say off: still off.
 - Install path: `filesVersion` is the new version, not empty.
 
-**In game and launcher (manual, on Windows):** the design §8 in-game and launcher lists, plus:
+**In game and launcher (manual, on Windows):** the design §8 in-game and launcher lists, and the tests in the §9 table, plus the items below. Most of them need a dev client with errorSink installed first.
 - a hot reload that keeps the trail and the seen set;
 - a hotkey save mid-game that keeps reporting alive;
 - a 401 in game that ends up in `dbo-pending/` and is sent by the launcher after the next login;
@@ -1573,26 +1662,55 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
 | # | Item | Who or where |
 |---|---|---|
 | O1 | For **every** host the settings can name: the nginx body limit, `limit_req`, and whether the Cloudflare WAF blocks bodies with stack traces. The hosts are `dragonbreakonline.com` (used by the launcher, and the game's fallback) and the master host (`api.dragonbreakonline.com` by default). Also check whether the WAF can answer with a non-JSON 403. Also confirm: no `$http_x_session` in any nginx `log_format`, and no debug `error_log`; no Cloudflare Logpush of request headers; and origin traffic limited to Cloudflare, or `CF-Connecting-IP` overwritten. `visitorIp.js:6-7` trusts that header from anyone, so otherwise the per-IP limiter can be bypassed. | claude-dragonbreak, before P3 |
-| O2 | **Answered from code.** `on` and `once` are plain properties (`EventsApi.h:27-30`) on the object from `addNativeExports('skyrimPlatform', {})` (`SkyrimPlatform.cpp:317-318`), and the bundle reads the property on every call, so plain assignment works. `HttpClient` is set the same way (`HttpClientApi.h:20`). Keep the in-game test, and cover `HttpClient` in it. | Nate's PC (confirm only) |
-| O3 | Crash Logger section headings and the frame and symbol line format, from real logs | Nate's PC |
-| O4 | Exit codes for a clean quit, a kick and a Task Manager kill (§2.2) | Nate's PC |
+| O2 | **Answered from code, and confirmed from the shipped 0.3.47 bundle.** `on` and `once` are plain properties (`EventsApi.h:27-30`) on the object from `addNativeExports('skyrimPlatform', {})` (`SkyrimPlatform.cpp:317-318`). Services receive that real object and call `(0, X.on)(…)`, reading the property on every call, so assigning to `globalThis.skyrimPlatform` works (§2.3 item 10). `HttpClient` is set the same way (`HttpClientApi.h:20`). **Test:** throw from a module-level `on('update')` and from an HTTP callback; the sink catches both, and the console still prints. | Nate's PC (confirm only) |
+| O3 | Crash Logger section headings and the frame and symbol line format, from three or more real `crash-*.log` files (a fault in our DLL, in a third-party DLL and in vanilla code), with names removed | Nate's PC |
+| O4 | Exit codes for quit to desktop, a kick, a Task Manager kill and a crash, read as the signed `$p.ExitCode` (§2.2, §2.4) | Nate's PC |
 | O5 | **Answered from code.** The SKSE folder is outside MO2's virtual file system. The real MO2 issue is the fallback folder (§3.1.1). | Closed |
-| O6 | Whether the client can read `skyrim-platform.log` while SkyrimPlatform has it open. libuv opens files with full sharing, so it should work. Keep the test. | Nate's PC |
-| O7 | Node 23's `unhandledRejection` behaviour inside SkyrimPlatform, with hooks on and off | Nate's PC |
+| O6 | **Answered from code.** spdlog opens the log with `_SH_DENYNO`, and libuv opens files with full sharing, so the client can read `skyrim-platform.log` while SkyrimPlatform has it open. **Test:** the game reads the log's tail while it runs. | Nate's PC (confirm only) |
+| O7 | An unhandled rejection and a timer throw, with process hooks on and off: does the game survive, and with which exit code? (Node 23's `unhandledRejection` behaviour inside SkyrimPlatform.) | Nate's PC |
 | O8 | Forum permission overwrites (D15). Not part of the wire contract. | Before P4 |
 | O9 | Who owns the p2p logging module (D12), so that the hit, down and trade hooks are wrapped only once | Before P1 |
-| O10 | A real stack from each capture path (`on`, `once`, HTTP callback, hook, process hook, front, injected front code), saved as fixtures, to confirm the frame shapes in §2.3 | Nate's PC |
-| O11 | The menu event order for quit to desktop, quit to main menu, and quit from character select (§2.4 quit marker) | Nate's PC |
-| O12 | Whether `tick` keeps running while the game is minimised or alt-tabbed (`TickHandler.h:27-33`). This decides how many false freezes to expect. | Nate's PC |
-| O13 | Where client-written files land under MO2, including defect X2 | Nate's PC |
-| O14 | Whether CEF turns `window` errors from `file://` scripts into `Script error.` (§2.8) | Nate's PC |
+| O10 | One real stack from each capture path (`on`, `once`, HTTP callback, hook `enter` and `leave`, process hook, a front throw, injected front code), saved as fixtures, to confirm the frame shapes in §2.3 | Nate's PC |
+| O11 | The menu events for quit to desktop, quit to main menu, and quit from character select (§2.4 quit marker). **Settle before P5:** until then, a crash during "Quit to desktop" from the pause menu is a `crash`, not `crash-on-quit` (§2.4). | Nate's PC, **before P5** |
+| O12 | **Mostly answered from code.** The client sets `bAlwaysActive` (`index.ts:102` on client-0344), and `tick` runs once a frame from the SKSE task queue (`TickHandler.h:27-33`), so heartbeats should stop only on a real stall. **Test:** alt-tab and minimise for 60 s or more; do heartbeats continue? This decides how many false freezes to expect. | Nate's PC (confirm only) |
+| O13 | Under MO2: where the trail, pending and sent files land, and whether an in-game Discord sign-in writes the auth file to `overwrite\`. That sign-in still writes it, on purpose (`authService.ts:308-309` on client-0344, X2). | Nate's PC |
+| O14 | A throw from `build.js` and from `executeJavaScript` code: does CEF pass the full message, or `Script error.`? (§2.8) | Nate's PC |
 | O15 | PDBs arriving with each DLL drop (§5.4) | Before P6 |
+| O16 | **The P2 launcher release is built on CT 115**, with NSIS, where there is no wine and no system `makensis`. **Proven by claude-nate's dry run** (2026-09-26): the installer builds and matches 2.1.29 (§5.5). Still open: the lock file, moving the two scripts into the tree, one Windows install and update test, and the owner's GO to publish (§5.5). P2 blocks P3 (D2). | claude-nate, **before P2** |
+
+Most of the "Nate's PC" items need a dev client with errorSink installed first.
 
 **Existing defects found during review.** These are outside this contract; each gets its own fix and ledger entry.
-- **X1.** `writeAuthDataToDisk` prints the whole auth data, **session token included**, to the in-game console (`authService.ts:449-452`, through `logTrace`, `logging.ts:19-29`). There it shows on screen and in streams.
-- **X2.** On auto sign-in, the client writes the auth file back (`authService.ts:257-258`). Under MO2 that copy goes to `overwrite\` and then hides the launcher's newer file (`main.js:3337-3347`), so the game can send an older token.
+- **X1. Fixed in client 0.3.47** (`a893a452`). `writeAuthDataToDisk` printed the whole auth data, **session token included**, to the in-game console (`authService.ts:449-452`, through `logTrace`, `logging.ts:19-29`), where it showed on screen and in streams. It now logs only the byte count.
+  - **Follow-up, on client-0344 `d28822bd`, not yet released:** `readAuthDataFromDisk` logged the error of an unreadable auth file with its stack. A JSON parse error quotes the text around the fault, and that text is the token. It now logs only the error's name (`authService.ts:454` on client-0344).
+- **X2. Fixed in client 0.3.47** (`a893a452`). On auto sign-in, the client wrote the auth file back (`authService.ts:257-258`). Under MO2 that copy went to `overwrite\` and then hid the launcher's newer file (`main.js:3337-3347`), so the game could send an older token.
+  - An in-game Discord sign-in still writes the file (`authService.ts:308-309` on client-0344). That is intended: the token is remembered for the next launch. O13 checks where it lands under MO2.
 - **X3.** `master-api.js:82` writes `sessions.json` with no `mode: 0o600`, so a re-created file would be 0644. This is the code half of D17.
 - **X4.** The install path writes the settings with an empty `filesVersion` (`main.js:2799`, `:2821-2822`). §4.2 fixes this for `autoReport`.
+- **X5. The game UI's chat in `skyrim-platform.log`, uploaded by the live Report a Problem.** Found by claude-nate on 2026-09-26.
+  - **What is logged.** On the NirnLab browser backend, SkyrimPlatform logs the first 120 bytes of every `executeJavaScript` call (`logger::info("JS {} ...")`, newlines turned into spaces) and every whole `loadUrl` URL (`BrowserApiNirnLab.cpp:83-91`, `:75`). Info is the default `LogLevel` (`Settings.cpp:14`), and the package ships no `SkyrimPlatform.ini`. The log therefore holds (lines on client-0344):
+    - every chat line, `/pm` included (`chatService.ts:439`);
+    - system notices and banners (`systemNotification.ts:9`, `dboRelayService.ts:189`);
+    - the character name (`chatService.ts:432`);
+    - the voice connect URL and, when the URL is short, the start of the voice token (`voiceService.ts:271`).
+
+    The session token stays outside the 120 bytes only because `events` comes first in the login widget's `getText` (`authService.ts:330`, `:435` on client-0344). A reorder there would log it.
+  - **Where it goes.** The launcher's Report a Problem uploads the last 80 KiB of the log as `gameLog`, with only keys and paths redacted (`report.js:42-68`). Support also asks players to attach the file by hand in Discord, and the plaintext stays in the player's own log file. The staff error-report forum already holds attachments that carry chat lines; whether to delete them is the owner's call.
+  - **Who is affected.** The Tilted backend logs neither line (`BrowserApiTilted.cpp:83-94`, `tilted/ui/MyChromiumApp.cpp:272-291`). The default `BackendName` is `auto`, and `auto` falls back to Tilted (`BrowserApi.cpp:20-23`; the shipped `SkyrimPlatformImpl.dll` holds that message). The client zip ships no NirnLab plugin, and nothing in the repo or the backend manifests sets `nirnlab`. So a default install probably writes none of these lines, and X5 hits players who set `BackendName=nirnlab`. **Before telling players what leaked, read the `browser backend: config value is …` line in one real uploaded log.**
+  - **Fixes,** none live:
+
+    | Fix | Where | State |
+    |---|---|---|
+    | The launcher drops `JS` and `LoadUrl` lines; each run becomes `[N UI line(s) left out]`. It reads 480 KiB back, so the 80 KiB it sends is still useful. | fork `launcher-report-no-chat` `559a98ca`, `skymp5-launcher/src/report.js` | Tested on synthetic logs: no chat left, diagnostic lines kept. Needs the usual `launcher 2.1.30: …` bump commit at release, or auto-update does not deliver it. |
+    | The backend drops the same lines, for launchers up to 2.1.29 already out | same branch, `90102f66`: `sources/scrubLog.js` `dropUiLines`, `sources/problemReport.js`, `test/scrubLog.test.js` | Backend tests 20/20. `sources/` needs the owner's go. |
+    | Both copies: after a dropped UI line, keep dropping until a timestamped line, with a multi-line `LoadUrl` test. The backend: run `dropUiLines` on every `LOG_FIELDS` entry, not only `gameLog` (a pre-release launcher, `8a9c6c94`, sent this log in `clientLog`). | the two commits above | To do before release |
+    | Auto Reports: S0 (§2.11), in the shared rule file with fixtures (§8), and on the launcher's evidence copy (§2.4) | this contract | Specified here |
+    | **The real fix:** SkyrimPlatform lowers both lines to `logger::debug`, or logs only the byte length and the call name (the text up to the first `(`) for `JS`, and only the scheme and host for `LoadUrl`. The filters stay, for old DLLs and for players who raise `LogLevel`. | `BrowserApiNirnLab.cpp:75`, `:91`, in a later native build (§5.5) | Proposal |
+
+  - **Not recommended:** shipping a `SkyrimPlatform.ini` with a lower `LogLevel`. It would overwrite players' own settings and drop the info lines staff use.
+  - **By design, not covered:** exception lines. `EventsApi.cpp:64` logs the whole message of any handler's throw, and `networkingService.ts` rethrows on purpose so errors reach this log. No current path puts chat in such a message. The native follow-up can cap `what()` at a few hundred characters; the auto payload caps each line at 500 (§2.11 step 4).
+- **X6.** `authService.ts:183` and `sweetTaffyEvalService.ts:30` (client-0344) print the whole custom-packet JSON to the in-game console when it fails to parse, and the `voiceToken` packet carries the voice URL and token. This happens only on malformed server JSON, and the console never reaches `skyrim-platform.log`, so the exposure is the screen and screenshots, not reports. Fix when convenient: log the length and `customPacketType` instead.
+- **X7.** In `BrowserApi.cpp:62-89`, the `Backend::kOff` case has no `break` and falls through into `kTilted`, so `BackendName=off` still registers the Tilted browser functions. Fix in a separate native change.
 
 ---
 
@@ -1617,9 +1735,9 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
     - a `send` allow-list;
     - form descs in the server's format;
     - the `hb` pin is never sent;
-    - a grammar that the backend enforces.
-11. **The quit marker is `net exit …` or `net menu-quit`,** not "Journal open" (design §1c.4). The Journal is also open during pause and in MCM menus, and three quit paths never open it.
-12. **An explicit launcher classification order** (§2.2). A freeze needs exit code 1 or no code, so a clean quit after a long hang is not a freeze.
+    - a grammar that the backend enforces, which allows `/` in menu names (`Sleep/Wait Menu`).
+11. **The quit marker is `net exit …` or `net menu-quit`,** not "Journal open" (design §1c.4). The Journal is also open during pause and in MCM menus, and three quit paths never open it. "Quit to desktop" from the pause menu has no marker yet, so O11 is settled before P5 (§2.4).
+12. **An explicit launcher classification order** (§2.2). A freeze needs exit code 1 or no code, so a clean quit after a long hang is not a freeze. The exit code is read signed and converted in JavaScript (§2.4).
 13. **Consent changes:**
     - consent is re-checked at send time;
     - notices are tracked per profile;
@@ -1635,7 +1753,7 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
     - Design §7 says "Crashes must have `hasOurDll`". But design §4.2 gives third-party DLL crashes their own signature rule, which only makes sense if they are kept.
     - Recommendation: keep them, labelled. Jake can make it a filter later with no wire change.
 17. **Process hooks:** `console.error` does not reach `skyrim-platform.log`, although design §1a says it does. The synchronous `fatal` trail entry is the record.
-18. **No `controller` wrapper,** though design §1a kept one: the patched global already covers `controller.on`. Hook handlers get a wrapper instead (`where: "hook"`).
+18. **No `controller` wrapper,** though design §1a kept one: the patched global already covers `controller.on`. Hook handlers get a wrapper instead (`where: "hook"`), which passes all four `add` arguments on (§2.3).
 19. **Backend safeguards beyond design §7:**
     - a regression needs 2 profiles (a small change to D6);
     - held promotion needs distinct hardware ids;
@@ -1653,6 +1771,9 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
       - the dbo relay is at `dboRelayService.ts:230-236`;
       - the debugsnap loader is at `gamemode.js:3221-3226`;
       - the forum comment is at `config.js:115`.
+23. **A scrub rule for game UI lines, S0** (§2.11). The design did not know that SkyrimPlatform logs chat on the NirnLab backend (defect X5). `gameLog` stays in v1, with those lines dropped.
+24. **The `ErrorBoundary` text does not say "press F6 to reload"** (design §1b). F6 focuses chat (§2.8).
+25. **Where builds run is stated** (§5.5): every build on CT 115, including the launcher installer (O16). The design did not say, and `TEAM.md` still gives the client package and the launcher to the PC.
 
 ---
 
@@ -1747,6 +1868,43 @@ Review sources: **N** is claude-nate's client and launcher review, and **P** is 
 - **N-E4, "wrap at the only construction site, `settingsService.ts:45`": corrected.** `authService.ts:338` and `:374` also construct clients, so errorSink patches `skyrimPlatform.HttpClient` instead (§2.3).
 - **P-A3, `customPacketUtil.ts:19` as a leak path: narrowed.** That parse is caught silently. `networkingService.ts:126`, inside the `tick` handler, is a real leak path, and S20 is kept because of it.
 - **N-D2, "`data/` is mode 0700": corrected.** `data/` is 0755 today; the new `sourcemaps/` and `symbols/` folders are 0700. The sudo rule is still needed because the folder is root-owned.
+
+---
+
+## Changes in 1.0-rc2
+
+Review sources: **N2** is claude-nate's review of 1.0-rc1 (`/opt/dragonbreak-handover/auto-reports-design/REVIEW-claude-nate-2026-09-26.md`), and **R** is the review of the X5 fixes (`559a98ca`, `90102f66`, `d28822bd`). Both were checked before being folded in: the SkyrimPlatform, hook, HttpClient and menu claims at f8cd7897, the client claims at client-0344 `d28822bd`, the gameplay line numbers at 8c638310, and the launcher build at `/opt/dragonbreak-handover/launcher-build-ct115/BUILD.md`.
+
+**Accepted from N2:**
+- Item 12: the exit code is printed signed and converted with `>>> 0` in JavaScript (§2.4, O4, §8).
+- Item 10: `/` is allowed in menu names, for `Sleep/Wait Menu` (§3.1.4, §8).
+- Item 11: the pause-menu quit gap is stated, and O11 is settled before P5 (§2.4, §9, §10 item 11).
+- Item 18 and the HttpClient note: the hook wrapper passes all four `add` arguments and calls `enter` and `leave` with `this` undefined; the HttpClient wrapper calls the native method on the native instance and passes a callback only when the caller gave one (§2.3).
+- O2 confirmed from the shipped bundle: errorSink patches `globalThis.skyrimPlatform` and is imported before `skympClient` (§2.3 item 10, §9).
+- Process hooks call the current sink through `globalThis` (§2.3 item 9).
+- Per-frame cost: listeners never throw, the `sendMessageWithRefrId` listener goes before NetworkingService's, `d` is built inside the event, and one `inv set` entry per `SetInventory` (§3.1.4).
+- Front: the handlers in a module imported first, `componentStack` keeps `build.js:L:C`, and the `ErrorBoundary` text names no F6 (§2.3, §2.7, §2.8, §10 item 24).
+- trail.js: loaded last, after `movetrace.js`; re-wrapped on every load, by marker; explicit `__dboTrailRec` call sites; `every('trail', …)`; the tmp sequence on `globalThis`; the `commands` registry passed in (§3.2.4); and a reload harness (§8).
+- X5: the defect with its fixes, rule S0, the fixtures, and the §2.6 and §2.10 text (§2.4, §2.6, §2.10, §2.11, §8, §9, §10 item 23).
+- X1 and X2 marked fixed in client 0.3.47; the in-game sign-in write noted as intended; the auth-file parse error (`d28822bd`) recorded under X1 (§1.3, §9).
+- The two MUST NOTs: no `consoleMessage` or `printConsole` capture, and no `browserMessage` argument after `[0]` (§2.10).
+- O6 answered and O12 mostly answered from code; each PC item says what to test (§9, §8).
+- Where builds run, and O16, now proven by the dry run (§5.5, §9, §10 item 25).
+- `resolveJsonModule` in the client tsconfig (§2.11, §5.2).
+- The client-0344 line numbers (header, Appendix A).
+
+**Accepted from R:**
+- R1: X5's reach is stated. Only the NirnLab backend writes these lines, and the default `auto` falls back to Tilted, so a real uploaded log is checked before players are told what leaked (§9 X5).
+- R2: S0 drops a record's continuation lines, with a multi-line `LoadUrl` fixture (§2.11, §8). The two branch filters need the same change (§9 X5).
+- R3: the backend filter runs on every manual log field (§9 X5). S0 keys on SkyrimPlatform's own timestamp prefix, which no other log uses.
+- R4: the native change is recorded as the real fix, with the voice-token detail (§9 X5).
+- R5: the launcher 2.1.30 bump is part of the X5 release (§9 X5).
+- R6: each `gameLog` line is capped at 500 characters after the rules (§2.11 step 4); the native `what()` cap is left to the follow-up (§9 X5).
+- R7 and R8: recorded as defects X6 and X7 (§9).
+
+**Rejected or narrowed:**
+- **N2, "if webpack runs on the PC, add a step that sends the bundle, map and sidecar to CT 115": not needed.** Every build runs on CT 115 (owner rule, 2026-09-24; §5.5), so nothing crosses machines.
+- **N2, the authService line numbers: narrowed.** References stay at the f8cd7897 baseline, as the header says; Appendix A maps the client lines that moved on client-0344.
 
 ---
 
@@ -1862,7 +2020,7 @@ Review sources: **N** is claude-nate's client and launcher review, and **P** is 
 
 **alduinak f8cd7897, SkyrimPlatform**
 - `skyrim-platform/src/platform_lib/HttpClientApi.h:20`: `HttpClient` set as a plain property.
-- `skyrim-platform/src/platform_lib/HttpClientApi.cpp`: `:46-51` (string headers), `:66-73` (`get` and `post` set per instance), `:133-190` (`Post`, callback at `:143-146` and `:176-179`) and `:166-171` (result fields, no headers).
+- `skyrim-platform/src/platform_lib/HttpClientApi.cpp`: `:46-51` (string headers), `:66-73` (`get` and `post` set per instance), `:88-92` and `:144-148` (callback form chosen from `info[2]`; `host` read from `this`), `:133-190` (`Post`, callback at `:143-146` and `:176-179`) and `:166-171` (result fields, no headers).
 - `skyrim-platform/src/platform_lib/HttpClient.cpp`: `:22-24` (3 threads), `:75` (body as a C string), `:77-84` (default timeouts; content type from the option) and `:88-91` (status 0, no error text).
 - `skyrim-platform/src/platform_se/skyrim_platform/JsEngine.cpp`: `:49-55` (wrapper script) and `:77-82` (`RunScript`).
 - `skyrim-platform/src/platform_se/skyrim_platform/NapiHelper.h:29-34`: the script is `eval`'d.
@@ -1876,31 +2034,46 @@ Review sources: **N** is claude-nate's client and launcher review, and **P** is 
   - `:322-331`: `ClearState`.
   - `:408-412`: Node loop only on the update path.
 - `skyrim-platform/src/platform_se/skyrim_platform/Settings.h:177-182`: watched plugin folders.
-- `skyrim-platform/src/platform_se/skyrim_platform/EventsApi.cpp`: `:57-70` (`on('<ev>')` error log; `:64` is the raw `e.what()`) and `:176-180` (handle).
+- `skyrim-platform/src/platform_se/skyrim_platform/EventsApi.cpp`: `:57-70` (`on('<ev>')` error log; `:64` is the raw `e.what()`), `:117-141` (hook `add` takes four arguments) and `:176-180` (handle).
 - `skyrim-platform/src/platform_se/skyrim_platform/EventsApi.h:27-30`: `on` and `once` properties.
-- `skyrim-platform/src/platform_se/skyrim_platform/Hook.cpp`: `:67-71` and `:94-98` (hook errors rethrown as text).
+- `skyrim-platform/src/platform_se/skyrim_platform/Hook.cpp`: `:67-71` and `:94-98` (hook errors rethrown as text); `:124` and `:185` (`enter` and `leave` called with `this` undefined).
 - `skyrim-platform/src/platform_se/skyrim_platform/Win32Api.cpp:18-21`: `exitProcess` sets `quitGame`.
 - `skyrim-platform/src/platform_se/skyrim_platform/main.cpp`
   - `:96-103`: `skyrim-platform.log` in the SKSE log folder.
   - `:107-108`: log emptied at start.
+  - `:120`: log pattern `[%H:%M:%S:%e] %v`, no level field.
   - `:504`: image name.
   - `:530-531`, `:613-615`, `:623-626`: ForegroundGuard lines.
-- `skyrim-platform/src/platform_se/skyrim_platform/ConsoleApi.cpp:395-407`: `Data\Platform\Logs\`.
+- `skyrim-platform/src/platform_se/skyrim_platform/ConsoleApi.cpp`: `:35-44` (`printConsole` goes to the in-game console, not the log) and `:395-407` (`Data\Platform\Logs\`).
+- `skyrim-platform/src/platform_se/skyrim_platform/Settings.cpp`: `:14` (`LogLevel` defaults to 2, info) and `:37` (`BackendName` defaults to `auto`).
+- `skyrim-platform/src/platform_se/skyrim_platform/ConstEnumApi.cpp:563`: `Sleep/Wait Menu`.
 - `skyrim-platform/src/platform_se/skyrim_platform/DevApi.cpp:173-177`: the platform version is the constant `2.9.0`.
-- `skyrim-platform/src/platform_se/skyrim_platform/BrowserApiNirnLab.cpp:176`: UI URL.
+- `skyrim-platform/src/platform_se/skyrim_platform/BrowserApiNirnLab.cpp`: `:75` (`LoadUrl` logs the whole URL), `:83-91` (`JS` logs the first 120 bytes, `\n` turned into spaces) and `:176` (UI URL).
+- `skyrim-platform/src/platform_se/skyrim_platform/BrowserApi.cpp`: `:15-30` (backend choice; `auto` falls back to Tilted) and `:62-89` (`kOff` falls through into `kTilted`, X7).
+- `skyrim-platform/src/platform_se/skyrim_platform/BrowserApiTilted.cpp:83-94` and `skyrim-platform/src/tilted/ui/MyChromiumApp.cpp:272-291`: the Tilted path logs neither scripts nor URLs.
 - `skyrim-platform/src/platform_se/skyrim_platform/TickHandler.h:27-33`: `tick`.
 - `skyrim-platform/tools/dev_service/index.js:202-205`: PDBs deleted from the release.
 
 **Gameplay 8c638310**
 - `gamemode.js`
+  - `:46`: `every` (stops the timer of the same name first).
   - `:137`: `profileOf`.
   - `:144`: tag alphabet.
   - `:156`: `display` (`Name #TAG`).
+  - `:336-337`: `commands` and `registerChatCommand`.
+  - `:699` and `:748` (`onActivate`), `:1307` (`onEatItem`), `:2391` (`onDeath`), `:2408` (`onHitDamage`), `:2442` (`onConsoleCommand`), `:2486` (`onTakeItem`), `:2512` (`onSpellCast`): hooks assigned on every load.
+  - `:785-791`: `__dboHandlers` dispatch (`customPacket` at `:791`).
   - `:1017-1018`: `onCharacterReady` and `connectedAt`.
   - `:1032`: `JOIN`.
-  - `:1095-1096`: disconnect and `LEAVE`.
+  - `:1074`: `__dboHandlers.connect`.
+  - `:1095-1096`: `__dboHandlers.disconnect` and `LEAVE`.
+  - `:2469-2474`: `itemguards.js` loader.
   - `:3216-3219`: `clientState` Journal.
-  - `:3221-3226`: debugsnap loader.
+  - `:3221-3226`: debugsnap loader (context object at `:3225`).
+  - `:3337-3369`: `supernatural.js`, `downed.js`, `regions.js`, `spells.js` and `alchemy.js` loaders.
+  - `:3378-3383`: `movetrace.js` loader, the last one.
+- `downed.js:452`: a keep-once guard.
+- `tests/*-harness.js`: the gameplay test harnesses.
 - `debugsnap.js`
   - `:15`: `registerChatCommand`.
   - `:19`: `hex()`.
@@ -1914,9 +2087,40 @@ Review sources: **N** is claude-nate's client and launcher review, and **P** is 
 **On CT 115:**
 - `/var/lib/dbo-monitor` is 0755 and `live.json` is 0644. The umask is 0022.
 - `/opt/alduinak/skymp5-backend/data` is 0755 and root-owned.
-- The shipped client zip (2026-09-26) holds `SkyrimPlatform.dll`, `MpClientPlugin.dll`, `SkyrimPlatformImpl.dll`, `libnode.dll`, `libcef.dll` and `SkyrimPlatformCEF.exe.hidden`, and no `.map` file.
+- The shipped client zip (2026-09-26) holds `SkyrimPlatform.dll`, `MpClientPlugin.dll`, `SkyrimPlatformImpl.dll`, `libnode.dll`, `libcef.dll` and `SkyrimPlatformCEF.exe.hidden`, and no `.map` file. It ships no `SkyrimPlatform.ini` and no NirnLab plugin, and its `SkyrimPlatformImpl.dll` holds the "falling back to Tilted UI" message.
+- `/opt/dragonbreak-handover/launcher-build-ct115/BUILD.md`: the launcher dry run (O16).
+
+**alduinak client-0344 `d28822bd`** (client 0.3.47, `a8af458f`, plus the auth-file fix)
+- `skymp5-client/src/index.ts`: `:1-6` (`skyrimPlatform` imports, then `skympClient` at `:6`) and `:102` (`bAlwaysActive`).
+- `skymp5-client/src/services/services/remoteServer.ts:115`: `on('update')` at module load.
+- `skymp5-client/src/services/services/authService.ts`
+  - `:183`: the whole custom packet printed on a parse error (X6).
+  - `:252-262`: the auth file read at start and not written back (X2 fixed).
+  - `:280`, `:287`: only `arguments[0]` of a browser message is logged.
+  - `:308-309`: an in-game sign-in writes the file.
+  - `:330` and `:435`: `events` first in the login widget's `getText`.
+  - `:337`: `exitProcess` (`:329` at f8cd7897).
+  - `:346` and `:382`: `HttpClient` built (`:338` and `:374` at f8cd7897); `:363`: `JSON.parse` in the callback.
+  - `:439-457`: `readAuthDataFromDisk` (`:440` trace, `:451` `JSON.parse`, `:454` the error's name only).
+  - `:459-`: `writeAuthDataToDisk`, byte count only (X1 fixed).
+- `skymp5-client/src/services/services/chatService.ts`: `:432` (character name to the UI) and `:439` (each chat line to the UI).
+- `skymp5-client/src/services/services/systemNotification.ts:9` and `dboRelayService.ts:189`: notices and banners to the UI.
+- `skymp5-client/src/services/services/voiceService.ts:271`: voice URL and token to the UI.
+- `skymp5-client/src/services/services/browserService.ts:21`, `:168`: F6 focuses chat.
+- `skymp5-client/src/services/services/networkingService.ts`: `:18` (`sendMessageWithRefrId` listener), `:29-32` (a failed send is rethrown so it reaches the log) and `:58` (`_refrId` deleted).
+- `skymp5-client/src/services/services/sweetTaffyEvalService.ts:30`: the whole custom packet printed on a parse error (X6).
+- `skymp5-client/src/services/services/frontHotReloadService.ts:40`: the only `browser.loadUrl` caller (development only).
+- `skymp5-client/tsconfig.json`: no `sourceMap`, no `resolveJsonModule`.
+
+**Other commits**
+- `a893a452`: X1 and X2 fixed (client 0.3.47).
+- `559a98ca` and `90102f66` (fork branch `launcher-report-no-chat`): the X5 launcher and backend filters.
+- `8a9c6c94`: the pre-release launcher report that sent `skyrim-platform.log` in `clientLog`.
+- `5a5f56a2`: launcher 2.1.29, the pattern for a version bump commit.
+- `skymp5-launcher/src/main.js:1704-1726` (f8cd7897): the silent in-app update, `/S --force-run`.
 
 ## Changelog
 
 - **1.0-draft (2026-09-26):** first draft by claude-jake from the approved design, for claude-nate's review.
 - **1.0-rc1 (2026-09-26):** claude-nate's review and the privacy and security review folded in (see "Changes after review").
+- **1.0-rc2 (2026-09-26):** claude-nate's review of rc1 and the review of the X5 fixes folded in: defect X5 and scrub rule S0, X1 and X2 marked fixed, X6 and X7, the signed exit code, `/` in menu names, O11 before P5, the hook, HttpClient and process-hook forwarding rules, the trail.js load and wrap rules, `componentStack` positions, where builds run, and O16 (see "Changes in 1.0-rc2").
