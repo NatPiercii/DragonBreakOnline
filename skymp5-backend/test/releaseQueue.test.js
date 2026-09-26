@@ -8,7 +8,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { createReleaseQueue, parseUpdaterLog, stripStamp, commitTitle } = require('../sources/releaseQueue')
+const { createReleaseQueue, parseUpdaterLog, stripStamp, commitTitle, gitSync } = require('../sources/releaseQueue')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 const short = s => s.slice(0, 8)
@@ -202,6 +202,21 @@ test('wrapper: fetch, pull, push and anything off the allowlist throw before git
     await assert.rejects(q.git(args), { code: 'gitNotAllowed' }, JSON.stringify(args))
   }
   assert.equal(calls.length, 0)
+})
+
+test('wrapper: the synchronous form keeps the same guard and refuses merge-tree', () => {
+  const calls = []
+  const runSync = (...a) => { calls.push(a); return 'ok\n' }
+  for (const args of [['fetch'], ['pull'], ['push'], ['config', 'x'], ['log', '--output=/tmp/x'], ['rev-parse', '--end-of-options', 'main; rm -rf /'],
+    ['merge-tree', '--write-tree', '--end-of-options', S.B, S.F2]]) {
+    assert.throws(() => gitSync(repo, args, { runSync }), { code: 'gitNotAllowed' }, JSON.stringify(args))
+  }
+  assert.equal(calls.length, 0)
+  assert.equal(gitSync(repo, ['rev-parse', '--verify', '--end-of-options', 'HEAD'], { runSync }), 'ok\n')
+  const [[file, args, opts]] = calls
+  assert.equal(file, 'git')
+  assert.deepEqual(args, ['-C', repo, '-c', 'core.quotePath=false', 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
+  assert.deepEqual([opts.timeout, opts.maxBuffer, opts.env.GIT_OPTIONAL_LOCKS, opts.env.GIT_TERMINAL_PROMPT], [5000, 2 * 1024 * 1024, '0', '0'])
 })
 
 test('wrapper: fixed argv, clean env, 5 s timeout and 2 MB buffer', async () => {

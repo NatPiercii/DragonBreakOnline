@@ -156,6 +156,40 @@ function isTrustedVerdict(r) {
 const verdictOf = r => ({ state: r.verdict, by: r.by, at: isoOrNull(r.at) })
 const NO_REVIEW = Object.freeze({ state: 'none', by: null, at: null })
 
+const isSecretFile = file => SECRET_RE.test(path.basename(String(file)))
+
+function refused(sub) {
+  return Object.assign(new Error(`git ${String(sub)} is not allowed`), { code: 'gitNotAllowed' })
+}
+
+// The allowlist, hash-object without -w, no --output, and only refs after --end-of-options
+function checkGitArgs(args) {
+  const sub = args[0]
+  if (!GIT_ALLOWED.includes(sub)) throw refused(sub)
+  if (sub === 'hash-object' && (!args.includes('--stdin-paths') || args.slice(1).some(a => a !== '--stdin-paths' && a !== '--no-filters'))) throw refused(sub)
+  if (args.some(a => typeof a !== 'string' || /^--output(?:=|$)/.test(a))) throw refused(sub)
+  const eoo = args.indexOf('--end-of-options')
+  if (eoo !== -1) {
+    const end = args.indexOf('--', eoo)
+    if (args.slice(eoo + 1, end === -1 ? undefined : end).some(a => !REF_RE.test(a))) throw refused(sub)
+  }
+  return sub
+}
+
+function gitEnv() {
+  const env = {}
+  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_')) env[k] = v
+  return Object.assign(env, { GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' })
+}
+
+const gitArgv = (repo, args) => ['-C', repo, '-c', 'core.quotePath=false', ...args]
+
+// The same guarded call, synchronously, for the one read the backend makes while it starts
+function gitSync(repo, args, { runSync = childProcess.execFileSync } = {}) {
+  if (checkGitArgs(args) === 'merge-tree') throw refused('merge-tree')
+  return String(runSync('git', gitArgv(repo, args), { env: gitEnv(), timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, stdio: ['ignore', 'pipe', 'ignore'] }))
+}
+
 function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch = globalThis.fetch, config, services = async () => ({}) }) {
   const fsp = fs.promises
   const repo = config.releaseRepo
@@ -168,23 +202,9 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
 
   // ---- git ----
 
-  function refused(sub) {
-    return Object.assign(new Error(`git ${String(sub)} is not allowed`), { code: 'gitNotAllowed' })
-  }
-
   async function git(args, { input, codes = [0] } = {}) {
-    const sub = args[0]
-    if (!GIT_ALLOWED.includes(sub)) throw refused(sub)
-    if (sub === 'hash-object' && (!args.includes('--stdin-paths') || args.slice(1).some(a => a !== '--stdin-paths' && a !== '--no-filters'))) throw refused(sub)
-    if (args.some(a => typeof a !== 'string' || /^--output(?:=|$)/.test(a))) throw refused(sub)
-    const eoo = args.indexOf('--end-of-options')
-    if (eoo !== -1) {
-      const end = args.indexOf('--', eoo)
-      if (args.slice(eoo + 1, end === -1 ? undefined : end).some(a => !REF_RE.test(a))) throw refused(sub)
-    }
-    const env = {}
-    for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_')) env[k] = v
-    Object.assign(env, { GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' })
+    const sub = checkGitArgs(args)
+    const env = gitEnv()
     let scratch = null
     if (sub === 'merge-tree') {
       env.GIT_ALTERNATE_OBJECT_DIRECTORIES = await objectsDir()
@@ -192,8 +212,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       env.GIT_OBJECT_DIRECTORY = scratch
     }
     try {
-      const { stdout } = await run('git', ['-C', repo, '-c', 'core.quotePath=false', ...args],
-        { env, input, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER })
+      const { stdout } = await run('git', gitArgv(repo, args), { env, input, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER })
       return { code: 0, stdout: String(stdout) }
     } catch (err) {
       if (Number.isInteger(err.code) && codes.includes(err.code)) return { code: err.code, stdout: String(err.stdout || '') }
@@ -243,7 +262,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   // ---- files (never a secret) ----
 
   function guard(file) {
-    if (SECRET_RE.test(path.basename(file))) throw Object.assign(new Error('refused to open a secret file'), { code: 'secretFile' })
+    if (isSecretFile(file)) throw Object.assign(new Error('refused to open a secret file'), { code: 'secretFile' })
   }
 
   async function statOf(file) {
@@ -390,6 +409,18 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return norm(disk) === norm(stdout) ? 'match' : 'differ'
   }
 
+  // Backend runtime files changed between the commit the backend started from and the live fork
+  async function restartPending(bootSha, forkSha) {
+    if (!SHA_RE.test(bootSha || '') || !forkSha) return null
+    if (bootSha === forkSha) return false
+    return remember(`boot:${bootSha}:${forkSha}`, async () => {
+      const out = await gitText('diff', '--name-only', '-z', '--end-of-options', bootSha, forkSha, '--', 'skymp5-backend/')
+      const changed = out.split('\0').filter(Boolean)
+      const { flags } = classifyCommit('fork', changed)
+      return changed.length > 0 && (flags.includes('backendRestart') || flags.includes('backendDeps'))
+    }).catch(() => null)
+  }
+
   async function live(opts = {}) {
     const svc = { backendSince: processStart, ...(await services().catch(() => ({}))), ...opts }
     const record = validLive(await readJson(path.join(control, 'live.json')))
@@ -449,6 +480,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       news,
       launcher: disk?.launcher || null,
       clientLabel: disk?.clientLabel || null,
+      backend: { bootSha: SHA_RE.test(svc.bootSha || '') ? svc.bootSha : null, restartPending: await restartPending(svc.bootSha, forkSha) },
       website: web.result ? { matching: web.result.matching, total: web.result.total, checkedAt: web.result.checkedAt } : null,
       plugins,
       githubLive: liveRef ? (liveRef === forkSha ? 'inSync' : 'behind') : 'unknown',
@@ -917,7 +949,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       counts, flags, drift: lv.drift, blockers: block.codes, dirty: block.dirty,
       groups: groupList, held: heldRanges, docs, outside, notOnMain, versions, warnings,
     }
-    return { value, models, forkTarget }
+    return { value, models, forkTarget, live: lv }
   }
 
   async function queueKey() {
@@ -947,6 +979,9 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     if (!cache || now() - cache.at >= QUEUE_TTL_MS) queue().catch(() => {})
     return cache?.value || null
   }
+
+  // The live versions the last queue was built from, without waiting
+  const peekLive = () => cache?.live || null
 
   // "Update up to here" (2.8) from the last built queue
   function upTo(sha) {
@@ -1009,7 +1044,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return { rows: older.slice(0, 10), more: older.length > 10 }
   }
 
-  return { git, live, queue, peek, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
+  return { git, live, queue, peek, peekLive, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
 }
 
-module.exports = { createReleaseQueue, parseUpdaterLog, stripStamp, commitTitle, GIT_ALLOWED }
+module.exports = { createReleaseQueue, parseUpdaterLog, stripStamp, commitTitle, gitSync, runFile, isSecretFile, GIT_ALLOWED }
