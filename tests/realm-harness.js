@@ -176,6 +176,19 @@ check('surrender by the defender hands over the land named', realm.surrender(COU
 globalThis.__dboGuildsOf = (a) => (fighters.includes(a) ? [{ id: 'fighters-guild', role: a === GM ? 'leader' : 'member' }] : a === 5 ? [{ id: 'cult-namira', role: 'member' }] : []);
 check('a cult member sees its shrine on the map', realm.realmView(5).secret.length === 1 && realm.realmView(5).secret[0].name === 'Shrine of Namira');
 check('nobody else does', realm.realmView(GM).secret.length === 0 && realm.realmView(COUNT).secret.length === 0);
+// Circles: a pack sees another pack's grounds, a vampire clan another clan's, a cult only its own
+const info0 = globalThis.__dboGuildInfo;
+globalThis.__dboGuildInfo = (id) => ({ 'pack-a': { id, name: 'Pack A', circle: 'werewolf' }, 'pack-b': { id, name: 'Pack B', circle: 'werewolf' }, 'clan-a': { id, name: 'Clan A', circle: 'vampire' }, 'cult-namira': { id, name: 'Cult of Namira', circle: '' }, 'cult-azura': { id, name: 'Cult of Azura', circle: '' } }[id] || info0(id));
+fs.writeFileSync('territories.json', JSON.stringify(Object.assign(JSON.parse(fs.readFileSync('territories.json', 'utf8')), { secret: [
+  { id: 'grounds-b', name: 'Grounds of Pack B', layer: ['pack-b'], marker: { world: 'a764b:BSHeartland.esm', pos: [1, 1, 0] } },
+  { id: 'lair-a', name: 'Lair of Clan A', layer: ['clan-a'], marker: { world: 'a764b:BSHeartland.esm', pos: [2, 2, 0] } },
+  { id: 'namira-shrine', name: 'Shrine of Namira', layer: ['cult-namira'], marker: { world: 'a764b:BSHeartland.esm', pos: [3, 3, 0] } }] })));
+globalThis.__dboGuildsOf = (a) => ({ 201: [{ id: 'pack-a' }], 202: [{ id: 'clan-a' }], 203: [{ id: 'cult-azura' }] }[a] || []);
+const names = (a) => realm.realmView(a).secret.map((t) => t.name).sort().join(', ');
+check('a pack member sees another pack\'s grounds, not the vampires\' or the cult\'s', names(201) === 'Grounds of Pack B', names(201));
+check('a vampire clan member sees another clan\'s lair only', names(202) === 'Lair of Clan A', names(202));
+check('a cult member does not see another cult\'s shrine', names(203) === '', names(203));
+globalThis.__dboGuildInfo = info0;
 check('a hidden place is never land: the nearest public marker still owns that spot', realm.territoryAt('a764b:BSHeartland.esm', [95612, 195219, 0]).id !== 'namira-shrine');
 
 // Files

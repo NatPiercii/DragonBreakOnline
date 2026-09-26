@@ -71,6 +71,13 @@ module.exports = (api) => {
     const f = info(fid);
     return !!(f && f.kind === 'hold' && f.zone && rulesZone(a, f.zone));
   };
+  // Who sees a secret faction's places: its members, and (Nate, 2026-09-26) the members of any faction in its circle, so a
+  // werewolf pack sees the other packs' grounds and a vampire clan the other clans'; cults see only their own
+  const seesLayerOf = (a, fid) => {
+    if (memberOf(a, fid)) return true;
+    const circle = (info(fid) || {}).circle;
+    return !!circle && guildsOf(a).some((g) => (info(g.id) || {}).circle === circle);
+  };
   const factionsLedBy = (a) => {
     const out = new Set(guildsOf(a).filter((g) => g.role === 'leader').map((g) => g.id));
     try { for (const m of ranksOf(profileOf(a)) || []) if (m.zone && C.rulerRanks.includes(m.rank)) { const f = holdFactionOf(m.zone.id); if (f) out.add(f); } } catch (e) { /* none */ }
@@ -355,8 +362,8 @@ module.exports = (api) => {
       territories: territories().map((t) => ({ id: t.id, name: t.name, kind: t.kind, owner: ownerOf(t.id), ownerName: nameOfFaction(ownerOf(t.id)),
         world: t.marker.world, x: t.marker.pos[0], y: t.marker.pos[1], icon: Number.isFinite(t.icon) ? t.icon : null })),
       // Hidden layers: only members of a listed secret faction (and staff) are sent these
-      secret: ((readJson(TERRITORIES, {}) || {}).secret || []).filter((t) => t && t.marker && Array.isArray(t.layer) && (isAdmin(a) || t.layer.some((f) => memberOf(a, f))))
-        .map((t) => ({ id: t.id, name: t.name, kind: t.kind || 'secret', layer: t.layer.filter((f) => isAdmin(a) || memberOf(a, f)).map(nameOfFaction), x: t.marker.pos[0], y: t.marker.pos[1] })),
+      secret: ((readJson(TERRITORIES, {}) || {}).secret || []).filter((t) => t && t.marker && Array.isArray(t.layer) && (isAdmin(a) || t.layer.some((f) => seesLayerOf(a, f))))
+        .map((t) => ({ id: t.id, name: t.name, kind: t.kind || 'secret', layer: t.layer.filter((f) => isAdmin(a) || seesLayerOf(a, f)).map(nameOfFaction), x: t.marker.pos[0], y: t.marker.pos[1] })),
       // Map colours by faction: staff's lore table (config war.colours); a faction not in it shows grey until one is set
       colours: Object.assign({}, C.colours || {}),
       wars: live().filter((w) => memberOf(a, w.attacker) || memberOf(a, w.defender) || isAdmin(a)).map(warView),

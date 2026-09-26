@@ -45,6 +45,10 @@ module.exports = (api) => {
   };
   const rosterOf = (fid) => (ST.members[fid] = ST.members[fid] || {});
   const entryOf = (fid, a) => (ST.members[fid] || {})[String(a >>> 0)] || null;
+  // A faction's circle: the supernatural kind it takes (guild-defs "requires"), or config factions.circles for a faction
+  // whose kind is lore rather than a rule (Clan Volkihar is a vampire clan that takes thralls too)
+  const CIRCLES = Object.assign({ 'clan-volkihar': 'vampire' }, (cfg.factions || {}).circles || {});
+  const circleOf = (fid) => { const f = FACTIONS.get(String(fid)); return (f && (CIRCLES[f.id] || f.requires)) || ''; };
   const membershipsOf = (a) => [...FACTIONS.keys()].map((fid) => ({ fid, e: entryOf(fid, a) })).filter((m) => m.e);
   const rankOf = (fid, a) => { const e = entryOf(fid, a); const f = FACTIONS.get(fid); return e && f ? f.ranks[e.rank] || null : null; };
   const can = (fid, a, perm) => { const r = rankOf(fid, a); return !!(r && (ROLES[r.role] || {})[perm]); };
@@ -117,7 +121,10 @@ module.exports = (api) => {
     const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
     ST.nonces.set(a >>> 0, nonce);
     const mine = membershipsOf(a).map((m) => m.fid);
-    const list = isAdmin(a) ? [...FACTIONS.keys()] : mine;
+    // Nate, 2026-09-26: a werewolf pack's members also see the other packs, a vampire clan's the other clans (their circle);
+    // cults and everyone else see only their own. Members of a faction outside your own stay hidden (factionView).
+    const circles = new Set(mine.map(circleOf).filter(Boolean));
+    const list = isAdmin(a) ? [...FACTIONS.keys()] : mine.concat([...FACTIONS.keys()].filter((fid) => !mine.includes(fid) && circles.has(circleOf(fid))));
     const invites = invitesOf(a).map((i) => ({ factionId: i.fid, name: FACTIONS.get(i.fid).name, from: display(i.from) }));
     openWidget(a, {
       type: 'faction', id: WIDGET_ID, nonce, admin: isAdmin(a), self: a >>> 0,
@@ -136,7 +143,7 @@ module.exports = (api) => {
   globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); const r = f.ranks[m.e.rank] || {}; return { id: m.fid, name: f.name, title: r.title || '', role: r.role || '', kind: f.kind || '', zone: f.zone || '', secret: !!f.secret }; });
   globalThis.__dboGuildExists = (id) => FACTIONS.has(String(id));
   // For the war system (realm.js): a faction's name and kind, and the characters on its roster (actor ids)
-  globalThis.__dboGuildInfo = (id) => { const f = FACTIONS.get(String(id)); return f ? { id: f.id, name: f.name, kind: f.kind || '', zone: f.zone || '', secret: !!f.secret } : null; };
+  globalThis.__dboGuildInfo = (id) => { const f = FACTIONS.get(String(id)); return f ? { id: f.id, name: f.name, kind: f.kind || '', zone: f.zone || '', secret: !!f.secret, circle: circleOf(f.id) } : null; };
   globalThis.__dboGuildMembers = (id) => Object.keys(ST.members[String(id)] || {}).map((x) => Number(x) >>> 0);
   globalThis.__dboGuildRanks = (id) => { const f = FACTIONS.get(String(id)); return f ? f.ranks.map((r) => r.title) : []; };
   globalThis.__dboHoldFactionOf = (zoneId) => { for (const f of FACTIONS.values()) if (f.kind === 'hold' && f.zone === zoneId) return f.id; return null; };
