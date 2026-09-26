@@ -13,12 +13,13 @@
 // { spell, blocked, power, bash, sneak, unblockedDamage, targetMaxHealth?, targetMaxStamina? }). Without them nothing
 // changes. Blocked blows reach the gamemode with 0 damage and no onHitDamage, so chip and stamina are applied here, as
 // percentages of the maxima the C++ sends; without the maxima they are skipped and only the staggers work.
-// Rules apply to player targets only: a stagger is a Papyrus call, which reaches player actors, not server-spawned NPCs.
+// Rules apply between players only (playersOnly): a stagger is a Papyrus call, which reaches player actors, not
+// server-spawned NPCs, and NPC attackers staggering players locked them in place in PvE.
 
 module.exports = (api) => {
   const { mp, log, profileOf, masteryOf, wornOf, recordOf, fieldsOf, weaponSkillOf, display, cfg } = api;
   const C = Object.assign({
-    enabled: true, log: true,
+    enabled: true, log: true, playersOnly: true,
     weaponChip: 0.30, shieldChip: 0.15, chipPerDefenseTier: 0.05,
     blockStaminaMult: 1, shieldStaminaMult: 0.5, powerIntoShieldStaminaMult: 2,
     guardBreakSeconds: 2,
@@ -79,7 +80,8 @@ module.exports = (api) => {
   // Called from the hit hook after the other checks passed. `mult` is what the hook already applies to an unblocked blow
   // (skills, materials, PvP). Returns the extra factor for the unblocked blow (a bash's quarter), or 1.
   const onAttempt = (agg, tgt, src, dmg, flags, mult) => {
-    if (!C.enabled || !flags || typeof flags !== 'object' || flags.spell || agg === tgt || !isPlayer(tgt)) return 1;
+    // Player against player only: NPC power attacks staggered players over and over in PvE (Da'Di, 2026-09-26)
+    if (!C.enabled || !flags || typeof flags !== 'object' || flags.spell || agg === tgt || !isPlayer(tgt) || (C.playersOnly && !isPlayer(agg))) return 1;
     const now = Date.now();
     const events = [];
     let out = 1;
@@ -122,7 +124,7 @@ module.exports = (api) => {
   // From the gamemode's onSpellHit, which fires for 0-damage hits too (a ward's block excepted)
   const staggerSpellCache = new Map();
   const onSpellHit = (agg, tgt, spellId) => {
-    if (!C.enabled || agg === tgt || !isPlayer(tgt)) return;
+    if (!C.enabled || agg === tgt || !isPlayer(tgt) || (C.playersOnly && !isPlayer(agg))) return;
     if (!staggerSpellCache.has(spellId)) { const r = recordOf(spellId); staggerSpellCache.set(spellId, !!r && (C.staggerSpells || []).includes(String(r.record.editorId || ''))); }
     if (!staggerSpellCache.get(spellId)) return;
     const done = stagger(tgt);

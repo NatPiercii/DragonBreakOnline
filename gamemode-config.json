@@ -112,6 +112,7 @@
   "_comment": "Skill-based fights (combat.js, COMBAT_DESIGN.md), player targets only, needs the C++ hit flags. A blocked blow lets weaponChip (shieldChip with a shield) through, less chipPerDefenseTier per Defense rank; the blocker pays the rest in stamina (x shieldStaminaMult with a shield, x powerIntoShieldStaminaMult more for a power attack into a shield). At 0 stamina, or hit by a bash, the guard breaks: a stagger and guardBreakSeconds of blocked blows landing in full. Unblocked power attacks stagger; a weapon-skill rank of powerStaggerThroughWeaponBlockRank staggers through a weapon block. A bash deals bashDamageMult of the weapon and staggers unless the target's Defense rank is bashStaggerResistRank or more (3 = Expert). One stagger per target every staggerCooldownSeconds.",
   "enabled": true,
   "log": true,
+  "playersOnly": true,
   "weaponChip": 0.3,
   "shieldChip": 0.15,
   "chipPerDefenseTier": 0.05,

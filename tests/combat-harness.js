@@ -83,5 +83,10 @@ reset(); load().onSpellHit(1, 9, RUNE);
 ok(staggers() === 0, 'an NPC target is left alone');
 reset(); load().onSpellHit(2, 2, RUNE);
 ok(staggers() === 0, 'your own rune does not stagger you');
+// An NPC's power attack or rune never staggers a player (playersOnly)
+reset(); load().onAttempt(9, 2, SWORD, 20, { power: true, unblockedDamage: 20 }, 1);
+ok(staggers() === 0, 'an NPC power attack does not stagger a player');
+reset(); load().onSpellHit(9, 2, RUNE);
+ok(staggers() === 0, 'an NPC Force Rune does not stagger a player');
 console.log(`${pass}/${pass + fail}`);
 process.exitCode = fail ? 1 : 0;
