@@ -108,6 +108,11 @@ export class BeastFormService extends ClientListener {
       const player = this.sp.Game.getPlayer();
       const spell = Spell.from(this.sp.Game.getFormEx(id));
       if (player && spell) { try { player.dispelSpell(spell); } catch { /* not active */ } }
+      // A refused change (cooldown, the daily limit, no power) is never answered with dboBeast, so nothing
+      // clears vanilla's beast flag and the menus stay shut. Only a player who is not a beast is cleared.
+      if (!this.beastRace) {
+        try { this.sp.Game.setBeastForm(false); } catch (e) { logError(this, "setBeastForm(false) failed", e); }
+      }
       this.restoreControls();
     });
     logTrace(this, "Beast power used, asking the server", id.toString(16));
