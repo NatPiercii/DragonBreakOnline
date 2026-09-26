@@ -171,17 +171,24 @@ private:
   std::unordered_map<uint32_t, RestorationChannel> restorationChannels;
   uint32_t restorationChannelGeneration = 0;
   std::unordered_map<uint32_t, WardChannel> wardChannels;
-  // A scroll read lately, whose hits may land (OnHit); one per caster, the newest wins
+  // A scroll read lately, whose hits may land (OnHit). Each read hits up to kScrollTargetsPerRead actors once each;
+  // the spell a wall or cloak scroll grants may tick kScrollGrantedHitsPerRead times. Up to kScrollReadsPerCaster reads
+  // are kept per caster, newest last (a rune, then another scroll).
   struct ScrollRead
   {
     uint32_t scrollId = 0;
     std::chrono::steady_clock::time_point until{};
-    uint32_t hitsLeft = 0;
+    std::vector<uint32_t> targets;
+    uint32_t grantedHitsLeft = 0;
   };
   static constexpr std::chrono::seconds kScrollHitWindow{ 60 };
-  static constexpr uint32_t kScrollHitsPerRead = 12;
-  std::unordered_map<uint32_t, ScrollRead> scrollHits;
-  bool TakeScrollHit(uint32_t casterId, uint32_t scrollId);
+  static constexpr size_t kScrollTargetsPerRead = 12;
+  static constexpr uint32_t kScrollGrantedHitsPerRead = 60;
+  static constexpr size_t kScrollReadsPerCaster = 4;
+  std::unordered_map<uint32_t, std::vector<ScrollRead>> scrollHits;
+  void RecordScrollRead(uint32_t casterId, uint32_t scrollId);
+  bool TakeScrollHit(uint32_t casterId, uint32_t scrollId, uint32_t targetId);
+  bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId);
   // Last power attack or bash per (attacker << 32 | target), for the stagger floor in OnWeaponHit
   static constexpr std::chrono::milliseconds kForcefulHitInterval{ 700 };
   std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>

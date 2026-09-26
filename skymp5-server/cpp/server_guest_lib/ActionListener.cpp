@@ -1346,16 +1346,6 @@ bool IsUnarmedAttack(const uint32_t sourceFormId)
   return sourceFormId == 0x1f4;
 }
 
-// Full health, magicka and stamina: base values plus the level and race bonus (private.dboAvBonus)
-BaseActorValues GetMaxActorValues(const MpActor& actor)
-{
-  BaseActorValues maximum = GetBaseActorValues(
-    actor.GetParent(), actor.GetBaseId(), actor.GetRaceId(),
-    actor.GetTemplateChain());
-  actor.AddLevelBonus(maximum);
-  return maximum;
-}
-
 float CalculateCurrentHealthPercentage(const MpActor& actor, float damage,
                                        float healthPercentage,
                                        float* outBaseHealth)
@@ -1519,6 +1509,8 @@ bool ShouldBeBlocked(const MpActor& aggressor, const MpActor& target)
 {
   NiPoint3 targetViewDirection = target.GetViewDirection();
   NiPoint3 aggressorDirection = aggressor.GetPos() - target.GetPos();
+  // A block faces the attacker around, not up or down: height must not decide it (review SCH2-5)
+  aggressorDirection.z = 0;
   if (targetViewDirection * aggressorDirection <= 0) {
     return false;
   }
@@ -1628,7 +1620,8 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
   // WEAP, but found SCRL', so a scroll was used up and did nothing (review SCH-1, 2026-09-26). Only a scroll the server
   // just used up for this caster may hit, a few times, for a short while.
   if (isSourceScroll) {
-    if (TakeScrollHit(aggressor->GetFormId(), hitData.source)) {
+    if (TakeScrollHit(aggressor->GetFormId(), hitData.source,
+                      hitData.target)) {
       OnSpellHit(aggressor, targetRef, hitData);
     } else {
       spdlog::info("ActionListener::OnHit - {:x} has no scroll {:x} read "
@@ -1639,7 +1632,9 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
   }
 
   if (isSourceSpell) {
-    if (CanHitWithSpell(*aggressor, hitData.source)) {
+    // A wall or cloak scroll hits with the spell it grants (review SCH1-R3)
+    if (CanHitWithSpell(*aggressor, hitData.source) ||
+        TakeScrollGrantedHit(aggressor->GetFormId(), hitData.source)) {
       OnSpellHit(aggressor, targetRef, hitData);
     } else {
       spdlog::info("ActionListener::OnHit - {:x} cannot hit with spell {:x}",
@@ -1789,10 +1784,7 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
   if (scrollCast) {
     if (!spellCastData.keepAlive && IsHeldScroll(*caster, spellCastData.spell)) {
       caster->RemoveItem(spellCastData.spell, 1, nullptr);
-      auto& read = scrollHits[caster->GetFormId()];
-      read.scrollId = spellCastData.spell;
-      read.until = std::chrono::steady_clock::now() + kScrollHitWindow;
-      read.hitsLeft = kScrollHitsPerRead;
+      RecordScrollRead(caster->GetFormId(), spellCastData.spell);
       spdlog::info("ActionListener::OnSpellCast - {:x} read scroll {:x}",
                    caster->GetFormId(), spellCastData.spell);
     }
@@ -2203,7 +2195,12 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
   // cannot claim a block it never met (review SCH-2; combat.js drains the blocker's stamina on a block)
   hitData.isHitBlocked = false;
 
-  if (targetActor.IsBlockActive()) {
+  // A hosted NPC's block reaches the server only as its IsBlocking animation variable (its host's movement packet;
+  // animationSystem skips hosted NPCs), and a player's blockStart travels unreliable: either one counts. Both come
+  // from the target's side, so the attacker still cannot forge a block (review SCH2-1, SCH2-2).
+  const bool targetBlocking = targetActor.IsBlockActive() ||
+    targetActor.GetAnimationVariableBool("IsBlocking");
+  if (targetBlocking) {
     if (ShouldBeBlocked(*aggressor, targetActor)) {
       bool isRemoteBowAttack = false;
 
@@ -2277,7 +2274,7 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
   damage = damage < 0.f ? 0.f : damage;
   // The target's full health and stamina, the base a hit is measured against, so the gamemode can turn points into the
   // percentages it sets (block chip, block stamina): the gamemode cannot read maxima server-side
-  const BaseActorValues targetMax = GetMaxActorValues(targetActor);
+  const BaseActorValues targetMax = targetActor.GetMaximumValues();
   // What the hit would have done unblocked, so the gamemode can let part of a blocked blow through (chip damage)
   float unblockedDamage = damage;
   if (hitData.isHitBlocked) {
@@ -2302,6 +2299,10 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
                           &weaponFlags)) {
     return;
   }
+  // The gamemode may have changed the target's values inside onHitDamageAttempt (combat.js: block chip, the blocker's
+  // stamina). Read them again, or NetSetPercentages below writes the earlier snapshot back over them (review SCH2-3).
+  currentActorValues = targetActor.GetChangeForm().actorValues;
+  healthPercentage = currentActorValues.healthPercentage;
 
   // A refused hit fires no events, a blocked one reaches scripts as blocked
   SendPapyrusOnHitEvent(aggressor, targetRef, hitData);
@@ -2437,6 +2438,16 @@ void ActionListener::ApplyParalysis(MpActor& aggressor, MpActor& target,
   if (&executor == &aggressor.GetActorToSendTo()) {
     return;
   }
+  // DoCombatSpellApply takes a Spell; a Scroll is another form type in Papyrus, so a scroll's paralysis is kept on the
+  // server only (review SCH1-R4)
+  const auto sourceLookup =
+    partOne.GetEspm().GetBrowser().LookupById(spellId);
+  if (!espm::Convert<espm::SPEL>(sourceLookup.rec)) {
+    spdlog::info("OnSpellHit - paralysis of {:x} from {:x} is not replayed on "
+                 "{:x}'s client (not a SPEL)",
+                 target.GetFormId(), spellId, executor.GetFormId());
+    return;
+  }
   SpSnippetObjectArgument spellArg;
   spellArg.formId = spellId;
   spellArg.type = "Spell";
@@ -2467,18 +2478,71 @@ bool ActionListener::IsParalyzed(const MpActor& actor)
   return true;
 }
 
-// A scroll's hit counts only while the scroll the server used up for this caster is fresh: kScrollHitsPerRead hits
-// (an area scroll touches several actors) within kScrollHitWindow (a rune waits on the ground for its target)
-bool ActionListener::TakeScrollHit(uint32_t casterId, uint32_t scrollId)
+// Scroll reads per caster: kept kScrollHitWindow, at most kScrollReadsPerCaster (the oldest goes first)
+void ActionListener::RecordScrollRead(uint32_t casterId, uint32_t scrollId)
+{
+  auto& reads = scrollHits[casterId];
+  ScrollRead read;
+  read.scrollId = scrollId;
+  read.until = std::chrono::steady_clock::now() + kScrollHitWindow;
+  read.grantedHitsLeft = kScrollGrantedHitsPerRead;
+  reads.push_back(std::move(read));
+  if (reads.size() > kScrollReadsPerCaster) {
+    reads.erase(reads.begin());
+  }
+}
+
+namespace {
+template <class Map>
+void PruneScrollReads(Map& scrollHits)
 {
   const auto now = std::chrono::steady_clock::now();
-  std::erase_if(scrollHits,
-                [&](const auto& entry) { return entry.second.until <= now; });
+  for (auto it = scrollHits.begin(); it != scrollHits.end();) {
+    std::erase_if(it->second,
+                  [&](const auto& read) { return read.until <= now; });
+    it = it->second.empty() ? scrollHits.erase(it) : std::next(it);
+  }
+}
+}
+
+// A scroll's hit counts only on a scroll the server used up for this caster lately: each actor once per read, up to
+// kScrollTargetsPerRead actors (an area scroll touches several). Review SCH1-R1/R2.
+bool ActionListener::TakeScrollHit(uint32_t casterId, uint32_t scrollId,
+                                   uint32_t targetId)
+{
+  PruneScrollReads(scrollHits);
   const auto it = scrollHits.find(casterId);
-  if (it == scrollHits.end() || it->second.scrollId != scrollId ||
-      it->second.hitsLeft == 0) {
+  if (it == scrollHits.end()) {
     return false;
   }
-  --it->second.hitsLeft;
-  return true;
+  for (auto read = it->second.rbegin(); read != it->second.rend(); ++read) {
+    if (read->scrollId != scrollId ||
+        std::find(read->targets.begin(), read->targets.end(), targetId) !=
+          read->targets.end() ||
+        read->targets.size() >= kScrollTargetsPerRead) {
+      continue;
+    }
+    read->targets.push_back(targetId);
+    return true;
+  }
+  return false;
+}
+
+// The spell a wall or cloak scroll grants ticks on whoever stands in it, so it counts hits, not actors (SCH1-R3)
+bool ActionListener::TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId)
+{
+  PruneScrollReads(scrollHits);
+  const auto it = scrollHits.find(casterId);
+  if (it == scrollHits.end()) {
+    return false;
+  }
+  for (auto read = it->second.rbegin(); read != it->second.rend(); ++read) {
+    if (read->grantedHitsLeft == 0 ||
+        !IsSpellGrantedBy(&partOne.worldState, read->scrollId, spellId)) {
+      continue;
+    }
+    --read->grantedHitsLeft;
+    return true;
+  }
+  return false;
 }
