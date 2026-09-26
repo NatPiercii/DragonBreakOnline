@@ -66,6 +66,13 @@ check('titles are coloured apart from the commands', lines[1].text.includes('#{f
 lines = staffOut(STAFF, 'admin factions');
 const ftext = lines.map((l) => l.text.replace(/#\{[0-9a-f]{6}\}/g, '').replace('[[A]]', ''));
 check('/help admin <topic> lists usage one per line', ftext[0] === 'Factions:' && ftext[1] === '  /faction leader - <player|#TAG> <faction id>: name the first leader of a faction' && ftext.includes('  /ledgerpoint - where courts keep a ledger (staff)'), JSON.stringify(ftext));
+registerChatCommand('appoint', () => {}, { help: 'x' }); registerChatCommand('dismiss', () => {}, { help: 'x' }); registerChatCommand('officials', () => {}, { help: 'x' });
+lines = staffOut(STAFF, 'admin appoint');
+const atext = lines.map((l) => l.text.replace(/#\{[0-9a-f]{6}\}/g, '').replace('[[A]]', ''));
+check('Appointments lists /appoint, /dismiss and /officials with how to use them', atext[0] === 'Appointments and property:'
+  && atext.some((l) => l.startsWith('  /appoint - <player|#TAG> <zone> <rank>') && l.includes('/appoint alone lists the zone ids'))
+  && atext.some((l) => l.startsWith('  /dismiss - <player|#TAG> <zone>') && l.includes('must be online'))
+  && atext.some((l) => l.startsWith('  /officials - [zone]')), JSON.stringify(atext));
 lines = staffOut(STAFF, 'staff beasts');
 check('/help staff works the same as /help admin', lines.length === 2 && lines[1].text.includes('/curse - <player> <kind>'), JSON.stringify(lines.map((l) => l.text)));
 lines = staffOut(STAFF, 'admin nonsense');

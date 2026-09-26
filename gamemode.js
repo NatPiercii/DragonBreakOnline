@@ -367,8 +367,10 @@ const STAFF_HELP = [
   { key: 'announce', title: 'Announcements and restarts', items: [['admin', '<text>: talk in this admin tab'], 'announce', 'schedule', 'update'] },
   { key: 'factions', title: 'Factions', items: [['faction leader', '<player|#TAG> <faction id>: name the first leader of a faction'],
     ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint'] },
-  { key: 'appoint', title: 'Appointments and property', items: [['appoint', '<player|#TAG> <zone> <rank>: make someone an official'],
-    ['dismiss', '<player|#TAG> <zone>: remove an official'], ['officials', '[zone]: who rules where'],
+  { key: 'appoint', title: 'Appointments and property', items: [
+    ['appoint', '<player|#TAG> <zone> <rank>: make someone an official. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
+    ['dismiss', '<player|#TAG> <zone>: remove an official (they must be online; they are told). Officials may dismiss the ranks they may appoint'],
+    ['officials', '[zone]: who holds which rank where'],
     ['property', 'at a door, as an official: list <deposit> <weekly> | unlist | offer <name> | remind | grace | evict']] },
   { key: 'beasts', title: 'Beasts and the supernatural', items: ['beastform', 'curse', 'vlremote', 'raid', 'warband'] },
   { key: 'law', title: 'Law', items: ['jail'] },
