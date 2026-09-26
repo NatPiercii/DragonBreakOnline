@@ -3,7 +3,9 @@
 
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('fs')
 const http = require('http')
+const os = require('os')
 const path = require('path')
 
 // Never read a real .env
@@ -15,6 +17,7 @@ const express = require('express')
 const config = require('../config')
 const autoReport = require('../sources/autoReport')
 const versionRoute = require('../routes/version')
+const clientVersions = require('../sources/clientVersions')
 
 const CONFIG_PATH = require.resolve('../config')
 
@@ -111,4 +114,28 @@ test('GET /api/version carries the switch for the launcher', async (t) => {
   config.autoReports = 'collect'
   config.autoReportCrashWatch = true
   assert.deepEqual((await request('GET', `${base}/api/version`)).json.autoReport, { mode: 'collect', crashWatch: true, contract: [1] })
+})
+
+test('known client versions: the current release and the 10 newest archived builds, re-read after a minute', async (t) => {
+  const saved = config.autoSourceMapDir
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'auto-versions-'))
+  t.after(() => { config.autoSourceMapDir = saved; fs.rmSync(tmp, { recursive: true, force: true }) })
+  config.autoSourceMapDir = tmp
+  const dir = path.join(tmp, 'client')
+  fs.mkdirSync(dir)
+  const archive = (name, meta) => fs.writeFileSync(path.join(dir, name), typeof meta === 'string' ? meta : JSON.stringify(meta))
+  for (let patch = 30; patch <= 41; patch++) archive(`b${patch}.json`, { clientVersion: `0.3.${patch}` })
+  archive('twin.json', { clientVersion: '0.3.41' })
+  archive('forged.json', { clientVersion: '0.3.99-beta' })
+  archive('broken.json', '{')
+  archive('b50.map', '{}')
+  const current = versionRoute.readConst('CLIENT_VERSION', null)
+  const expected = new Set([current, ...Array.from({ length: 10 }, (_, i) => `0.3.${41 - i}`)])
+  const now = Date.now()
+  assert.deepEqual(await clientVersions.known(now), expected)
+  assert.equal(await clientVersions.isKnown('0.3.31'), false)
+  assert.equal(await clientVersions.isKnown(current), true)
+  archive('b42.json', { clientVersion: '0.3.42' })
+  assert.equal((await clientVersions.known(now + 1000)).has('0.3.42'), false)
+  assert.equal((await clientVersions.known(now + 60 * 1000)).has('0.3.42'), true)
 })

@@ -17,11 +17,14 @@ function stub(rel, exports) {
 }
 stub('../sources/bans', { isBanned: () => null })
 stub('../sources/players', { load: () => ({}) })
+const unknownVersions = new Set()
+stub('../sources/clientVersions', { isKnown: async version => !unknownVersions.has(version) })
 
 const config      = require('../config')
 const autoStore   = require('../sources/autoStore')
 const errorGroups = require('../sources/errorGroups')
 const autoReport  = require('../sources/autoReport')
+const sourceMaps  = require('../sources/sourceMaps')
 const { validate } = require('../sources/autoSchema')
 const { writeFixtureMaps } = require('./fixtures/auto-report/sourcemaps/fixture')
 
@@ -299,6 +302,31 @@ test('restart: groups reload, reports not yet saved are applied again, and none 
   assert.equal(errorGroups.list().length, 0)
   assert.equal(errors.mock.calls.length, 1)
   assert.ok(fs.readdirSync(dir).some(f => f.startsWith('error-groups.json.bad-')))
+})
+
+test('unknown-version: a client version outside the known list is counted with no group and no map load', async (t) => {
+  freshDir()
+  unknownVersions.add('0.2.1')
+  t.after(() => unknownVersions.clear())
+  const loads = t.mock.method(sourceMaps, 'forReport')
+  store('script-error-on-update', { profileId: 1, at: T0, patch: { versions: { client: '0.2.1' } } })
+  store('script-error-on-update', { profileId: 2, at: T0 + MIN, patch: { versions: { client: '0.2.1' } } })
+  store('js-fatal', { profileId: 3, at: T0 + 2 * MIN, patch: { versions: { client: undefined } } })
+  await errorGroups.kick()
+  assert.equal(loads.mock.calls.length, 1)
+  assert.equal(group(ON_UPDATE), null)
+  assert.equal(errorGroups.list().length, 1)
+  assert.deepEqual(errorGroups.unknownVersion(), { reports: 2, lastSeen: T0 + MIN, versions: { '0.2.1': 2 } })
+  errorGroups.flush()
+  errorGroups.load()
+  assert.deepEqual(errorGroups.unknownVersion(), { reports: 2, lastSeen: T0 + MIN, versions: { '0.2.1': 2 } })
+
+  // Forged versions cannot grow the file: past 50 of them only the total counts
+  for (let i = 0; i < 55; i++) unknownVersions.add(`9.9.${i}`)
+  for (let i = 0; i < 55; i++) store('script-error-on-update', { profileId: 4, at: T0 + (3 + i) * MIN, patch: { versions: { client: `9.9.${i}` } } })
+  await errorGroups.kick()
+  assert.equal(errorGroups.unknownVersion().reports, 57)
+  assert.equal(Object.keys(errorGroups.unknownVersion().versions).length, 50)
 })
 
 test('state files: a read error keeps what is loaded and retries; a corrupt or misshapen file is moved aside', async (t) => {

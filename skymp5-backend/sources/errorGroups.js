@@ -7,6 +7,7 @@ const autoStore = require('./autoStore')
 const sourceMaps = require('./sourceMaps')
 const { signature, compareVersions } = require('./autoSignature')
 const { readJson } = require('./atomicFile')
+const clientVersions = require('./clientVersions')
 
 const FILE = 'error-groups.json'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -17,14 +18,16 @@ const SAMPLES_PER_VERSION = 5
 const PROMOTE_PLAYERS = 2
 const REGRESSION_PLAYERS = 2
 const PROMOTION_MAX = 50
+const UNKNOWN_VERSIONS_MAX = 50
 
-// { dir, seq, groups: { [id]: group }, timer }; seq is the last pending entry applied to groups
+// { dir, seq, groups: { [id]: group }, unknownVersion, timer }; seq is the last pending entry applied to groups
 let state = null
 let draining = null
 
 const utcDay = at => new Date(at).toISOString().slice(0, 10)
 const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v)
 const versionOf = report => (report.versions && report.versions.client) || 'unknown'
+const emptyUnknown = () => ({ reports: 0, lastSeen: null, versions: {} })
 
 // Replaces the state in memory, as a restart would: changes not yet saved are dropped and applied again from pending
 // A read error throws and keeps the old state, so grouping stops until the file can be read instead of starting empty
@@ -32,9 +35,11 @@ function load() {
   const dir = config.autoReportDir
   const saved = readJson(path.join(dir, FILE), v => isObject(v) && isObject(v.groups))
   if (state) clearTimeout(state.timer)
-  state = { dir, seq: 0, groups: {}, timer: null }
+  state = { dir, seq: 0, groups: {}, unknownVersion: emptyUnknown(), timer: null }
   if (!saved) return
   state.groups = saved.groups
+  const unknown = saved.unknownVersion
+  if (isObject(unknown) && Number.isSafeInteger(unknown.reports) && isObject(unknown.versions)) state.unknownVersion = unknown
   state.seq = Number.isSafeInteger(saved.seq) && saved.seq > 0 ? saved.seq : 0
   autoStore.grouped(state.seq)
 }
@@ -49,7 +54,7 @@ function save(st) {
   clearTimeout(st.timer)
   st.timer = null
   try {
-    autoStore.writeAtomic(path.join(st.dir, FILE), JSON.stringify({ v: 1, seq: st.seq, groups: st.groups }))
+    autoStore.writeAtomic(path.join(st.dir, FILE), JSON.stringify({ v: 1, seq: st.seq, groups: st.groups, unknownVersion: st.unknownVersion }))
     if (st.dir === config.autoReportDir) autoStore.grouped(st.seq)
   } catch (err) {
     console.error(`[auto-report] ${FILE} not saved:`, err.message)
@@ -160,9 +165,19 @@ function keepsBulk(g, record) {
   return true
 }
 
+// A client version outside the known list is counted with no group and no map load (§2.12, §5.4); the list of them is capped
+function countUnknown(st, record, version) {
+  const u = st.unknownVersion
+  u.reports++
+  u.lastSeen = Math.max(u.lastSeen || 0, record.receivedAt)
+  if (u.versions[version] !== undefined || Object.keys(u.versions).length < UNKNOWN_VERSIONS_MAX) u.versions[version] = (u.versions[version] || 0) + 1
+}
+
 async function apply(st, [, profileId, reportId]) {
   const record = await autoStore.readReport(profileId, reportId)
   if (!record || !record.report || !Array.isArray(record.flags) || record.ignored) return
+  const version = record.report.versions && record.report.versions.client
+  if (version && !(await clientVersions.isKnown(version))) return countUnknown(st, record, version)
   const g = hit(st, signature(record.report, await sourceMaps.forReport(record.report)), record)
   if (keepsBulk(g, record)) return
   delete record.report.logs
@@ -196,6 +211,7 @@ function kick() {
 const idle = () => draining || Promise.resolve()
 const get = id => current().groups[id] || null
 const list = () => Object.values(current().groups)
+const unknownVersion = () => current().unknownVersion
 
 // Staff marked the group fixed; a null version stays pending until the next client version is known
 function markFixed(id, fixedInVersion, at = Date.now()) {
@@ -207,4 +223,4 @@ function markFixed(id, fixedInVersion, at = Date.now()) {
   return g
 }
 
-module.exports = { load, kick, idle, flush, get, list, markFixed }
+module.exports = { load, kick, idle, flush, get, list, unknownVersion, markFixed }
