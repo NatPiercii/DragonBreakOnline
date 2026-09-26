@@ -1,10 +1,10 @@
 'use strict'
 // Auto report storage under config.autoReportDir: one 0600 file per report, and auto-state.json for what must survive a restart
 
-const crypto = require('crypto')
 const fs     = require('fs')
 const path   = require('path')
 const config = require('../config')
+const { writeAtomic } = require('./atomicFile')
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const SEEN_MS = 8 * DAY_MS
@@ -23,20 +23,6 @@ const utcDay = at => new Date(at).toISOString().slice(0, 10)
 const nextUtcDay = at => (Math.floor(at / DAY_MS) + 1) * DAY_MS
 const isPair = e => Array.isArray(e) && typeof e[0] === 'string' && Number.isFinite(e[1])
 const isPending = e => Array.isArray(e) && Number.isSafeInteger(e[0]) && e[0] > 0 && Number.isSafeInteger(e[1]) && typeof e[2] === 'string'
-
-// A unique temp name, so two writers never share one, and a crash mid-write never leaves a truncated file; mtimeMs dates the file
-function writeAtomic(file, text, mtimeMs) {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
-  const tmp = `${file}.${crypto.randomBytes(6).toString('hex')}.tmp`
-  try {
-    fs.writeFileSync(tmp, text, { mode: 0o600, flag: 'wx' })
-    fs.renameSync(tmp, file)
-  } catch (err) {
-    fs.rmSync(tmp, { force: true })
-    throw err
-  }
-  if (mtimeMs !== undefined) fs.utimesSync(file, new Date(), new Date(mtimeMs))
-}
 
 function load() {
   state = { dir: config.autoReportDir, profiles: new Map(), seq: 0, pending: [], groupedSeq: 0 }

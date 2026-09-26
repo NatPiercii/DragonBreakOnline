@@ -15,6 +15,7 @@ const crypto             = require('crypto')
 const { execFileSync }   = require('child_process')
 const archiver           = require('archiver')
 const config             = require('../config')
+const { findSymbolFiles } = require('./archive-symbols')
 
 const ROOT = path.join(__dirname, '..')
 
@@ -125,6 +126,9 @@ async function mergeSourcesIntoRoot() {
 
   const clientFiles = copyDir(CLIENT_SRC, OUTPUT_DIR, SKIP_ALWAYS)
   console.log(`[merge] Files merged: ${clientFiles} total in ${Date.now() - startMs}ms`)
+
+  const symbols = findSymbolFiles(OUTPUT_DIR)
+  if (symbols.length > 0) throw new Error(`refusing to package source maps or PDBs: ${symbols.slice(0, 10).join(', ')}`)
 
   console.log('[merge] Building zip…')
   const zipStart = Date.now()

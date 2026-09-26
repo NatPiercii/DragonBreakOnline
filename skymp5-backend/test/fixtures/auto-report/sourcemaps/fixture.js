@@ -74,4 +74,4 @@ function writeFixtureMaps(dir, { clientVersion = '0.3.44' } = {}) {
   return { client: CLIENT_BUILD, front: FRONT_BUILD }
 }
 
-module.exports = { writeFixtureMaps, CLIENT_BUILD, FRONT_BUILD, PROBE_LINE }
+module.exports = { writeFixtureMaps, sourceMap, CLIENT_BUILD, FRONT_BUILD, PROBE_LINE }
