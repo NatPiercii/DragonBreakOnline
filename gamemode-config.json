@@ -124,6 +124,7 @@
   "bashStaggerResistRank": 3,
   "powerStaggerThroughWeaponBlockRank": 4,
   "staggerCooldownSeconds": 1.5,
+  "attackerStaggerCooldownSeconds": 3,
   "staggerSpells": ["CYRForceRune"]
  },
  "weaponMaterials": {

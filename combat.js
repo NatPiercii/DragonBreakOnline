@@ -25,7 +25,7 @@ module.exports = (api) => {
     guardBreakSeconds: 2,
     bashDamageMult: 0.25, bashStaggerResistRank: 3,
     powerStaggerThroughWeaponBlockRank: 4,
-    staggerCooldownSeconds: 1.5, staggerEvent: 'staggerStart',
+    staggerCooldownSeconds: 1.5, attackerStaggerCooldownSeconds: 3, staggerEvent: 'staggerStart',
     // Spells whose hit staggers a player instead of the explosion's ragdoll push, which only plays on the caster's
     // screen (athny, #bugs, 2026-09-26: Force Rune). Matched by editor id.
     staggerSpells: ['CYRForceRune'],
@@ -33,7 +33,7 @@ module.exports = (api) => {
 
   // actorId -> { guardBrokenUntil, staggerAt }
   const S = globalThis.__dboCombat instanceof Map ? globalThis.__dboCombat : (globalThis.__dboCombat = new Map());
-  const st = (a) => { let s = S.get(a); if (!s) { s = { guardBrokenUntil: 0, staggerAt: 0 }; S.set(a, s); } return s; };
+  const st = (a) => { let s = S.get(a); if (!s) { s = { guardBrokenUntil: 0, staggerAt: 0, causedStaggerAt: 0 }; S.set(a, s); } return s; };
 
   const isPlayer = (a) => profileOf(a) >= 0;
   const rankIn = (a, skill) => {
@@ -55,10 +55,16 @@ module.exports = (api) => {
   };
   const hasShield = (a) => { try { return wornOf(mp.get(a, 'equipment')).some((w) => isShield(w.baseId)); } catch (e) { return false; } };
 
-  const stagger = (tgt, why) => {
+  // One stagger per target every staggerCooldownSeconds, and one caused by each attacker every
+  // attackerStaggerCooldownSeconds: the power and bash flags come from the attacker's client, so a modified client
+  // could otherwise stagger-lock a player (claude-jake's review SCH-2, 2026-09-26)
+  const stagger = (tgt, agg) => {
     const s = st(tgt), now = Date.now();
     if (now - s.staggerAt < C.staggerCooldownSeconds * 1000) return false;
+    const by = agg ? st(agg) : null;
+    if (by && now - (by.causedStaggerAt || 0) < C.attackerStaggerCooldownSeconds * 1000) return false;
     s.staggerAt = now;
+    if (by) by.causedStaggerAt = now;
     try {
       mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: mp.getDescFromId(tgt) }, C.staggerEvent]);
     } catch (e) { log('combat: stagger failed', e.message); return false; }
@@ -104,17 +110,17 @@ module.exports = (api) => {
         st(tgt).guardBrokenUntil = now + C.guardBreakSeconds * 1000;
         const resisted = flags.bash && rankIn(tgt, 'defense') >= C.bashStaggerResistRank;
         events.push(`guard broken${flags.bash ? ' by a bash' : ''}`);
-        if (!resisted && stagger(tgt)) events.push('stagger');
+        if (!resisted && stagger(tgt, agg)) events.push('stagger');
       } else if (!broken && flags.power && !shield && rankIn(agg, weaponSkillOf(src)) >= C.powerStaggerThroughWeaponBlockRank) {
-        if (stagger(tgt)) events.push('stagger through the block');
+        if (stagger(tgt, agg)) events.push('stagger through the block');
       }
     } else if (dmg > 0) {
       if (flags.bash) {
         out = C.bashDamageMult;
         if (rankIn(tgt, 'defense') >= C.bashStaggerResistRank) events.push('bash, stagger resisted');
-        else if (stagger(tgt)) events.push('bash stagger');
+        else if (stagger(tgt, agg)) events.push('bash stagger');
       } else if (flags.power) {
-        if (stagger(tgt)) events.push('power stagger');
+        if (stagger(tgt, agg)) events.push('power stagger');
       }
     }
     if (C.log && events.length) log(`combat ${display(agg)} -> ${display(tgt)}: ${events.join(', ')}${flags.power ? ' [power]' : ''}${flags.bash ? ' [bash]' : ''}${flags.blocked ? ' [blocked]' : ''}`);
@@ -127,7 +133,7 @@ module.exports = (api) => {
     if (!C.enabled || agg === tgt || !isPlayer(tgt) || (C.playersOnly && !isPlayer(agg))) return;
     if (!staggerSpellCache.has(spellId)) { const r = recordOf(spellId); staggerSpellCache.set(spellId, !!r && (C.staggerSpells || []).includes(String(r.record.editorId || ''))); }
     if (!staggerSpellCache.get(spellId)) return;
-    const done = stagger(tgt);
+    const done = stagger(tgt, agg);
     if (C.log) log(`combat ${display(agg)} -> ${display(tgt)}: ${done ? 'rune stagger' : 'rune stagger skipped (cooldown)'} (spell ${spellId.toString(16)})`);
   };
 
