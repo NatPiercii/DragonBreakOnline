@@ -812,6 +812,8 @@ mp.onActivate = (targetId, casterId) => {
     const q = mp.get(target, 'pos');
     if (Array.isArray(q) && mp.get(caster, 'type') === 'MpActor' && distanceMeters(caster, target) > 6.5) return false;
   } catch (e) { }
+  // A raider breaking into a home or its container during a raid (raids.js); the take comes straight out, no lock opens
+  if (globalThis.__dboRaidActivate && globalThis.__dboRaidActivate(target, caster)) return false;
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboPrayerActivate && globalThis.__dboPrayerActivate(targetId >>> 0, casterId >>> 0)) return false;
@@ -3492,7 +3494,13 @@ try {
   delete require.cache[ECONOMY_JS];
   require(ECONOMY_JS)({ mp, log, personal, audit, who, cfg, onUi, onlineActors, every, readOfficials, zoneById });
 } catch (e) { log('economy.js failed to load:', e.stack || e.message); globalThis.__dboEconomyView = null; }
-// ---- announcements: `bash dev-server.sh announce '<text>'` writes announce.json; every online player sees it once ----
+
+// ---- raids and pillage (server\raids.js, WAR_DESIGN.md section 5) -----------------------------------------------------------
+try {
+  const RAIDS_JS = path.resolve('raids.js');
+  delete require.cache[RAIDS_JS];
+  require(RAIDS_JS)({ mp, log, personal, system, audit, who, display, cfg, onUi, onlineActors, every, recordOf, adminItemName, sendPacket });
+} catch (e) { log('raids.js failed to load:', e.stack || e.message); globalThis.__dboRaidActivate = null; globalThis.__dboRaidView = null; }// ---- announcements: `bash dev-server.sh announce '<text>'` writes announce.json; every online player sees it once ----
 const ANNOUNCE_PATH = path.resolve('announce.json');
 const announceSeen = globalThis.__dboAnnounceSeen || (globalThis.__dboAnnounceSeen = { at: 0 });
 every('announce', 5000, () => {

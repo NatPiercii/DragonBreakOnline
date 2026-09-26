@@ -360,6 +360,7 @@ module.exports = (api) => {
       leads: led.map((fid) => ({ id: fid, name: nameOfFaction(fid), treasury: globalThis.__dboTreasury ? globalThis.__dboTreasury.balance(fid) : 0, online: onlineOf(fid).length })),
       rules: { minOnline: C.minOnline, declareFee: C.declareFee, noticeDays: C.noticeDays, windowsPerWar: C.windowsPerWar, windowHours: C.windowHours, deathWar: C.deathWar },
       windowChoices: led.length ? windowChoices(Date.now()) : [],
+      raids: typeof globalThis.__dboRaidView === 'function' ? globalThis.__dboRaidView() : null,
     };
   };
   globalThis.__dboRealmView = realmView;
@@ -367,6 +368,8 @@ module.exports = (api) => {
   globalThis.__dboRealmTerritoryAt = (world, pos) => territoryAt(world, pos);
   globalThis.__dboRealmOwnerOf = (tid) => ownerOf(tid);
   globalThis.__dboRealmLeads = (a, fid) => leads(a, fid);
+  globalThis.__dboRealmMemberOf = (a, fid) => memberOf(a, fid);
+  globalThis.__dboRealmTerritoryName = (tid) => (territory(tid) || { name: tid }).name;
   globalThis.__dboRealmFactionsLedBy = (a) => factionsLedBy(a);
   globalThis.__dboRealmTerritoriesOf = (fid) => territoriesOf(fid).map((t) => t.id);
   const reply = (a, r) => { if (!(typeof globalThis.__dboFactionRefresh === 'function' && globalThis.__dboFactionRefresh(a, r.text, r.ok))) personal(a, r.text); };
