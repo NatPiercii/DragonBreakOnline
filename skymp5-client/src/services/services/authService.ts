@@ -450,7 +450,8 @@ export class AuthService extends ClientListener {
 
       return JSON.parse(data.slice(2)) || null;
     } catch (e) {
-      logError(this, `Error reading`, this.pluginAuthDataName, `from disk:`, e, `, falling back to null`);
+      // The error's name only: a JSON parse error quotes the text around the fault, which is the session token (review X1)
+      logError(this, `Error reading`, this.pluginAuthDataName, `from disk:`, e instanceof Error ? e.name : typeof e, `, falling back to null`);
       return null;
     }
   }
