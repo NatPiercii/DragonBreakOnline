@@ -111,6 +111,8 @@ const oneOf = list => v => list.includes(v)
 const matches = re => v => typeof v === 'string' && re.test(v)
 // Parsers return the value to store, or undefined when it is invalid
 const check = ok => v => (ok(v) ? v : undefined)
+// Pattern-checked text that a scrub rule would change is invalid, so it never reaches a signature or a title
+const plain = re => v => matches(re)(v) && scrub(v, { field: 'symbol' }).text === v
 const position = v => (isCount(get(v, 'line')) && isCount(get(v, 'col')) ? { line: v.line, col: v.col } : undefined)
 const setIf = (out, key, value) => { if (value !== undefined) out[key] = value }
 
@@ -172,7 +174,7 @@ function readVersions(st, v, meta) {
   setIf(out, 'files', may(st, v, 'files', 'versions.files', check(matches(PATTERNS.files))))
   setIf(out, 'launcher', may(st, v, 'launcher', 'versions.launcher', version))
   setIf(out, 'game', may(st, v, 'game', 'versions.game', version))
-  if (meta.sender === 'launcher') setIf(out, 'os', may(st, v, 'os', 'versions.os', check(matches(PATTERNS.os))))
+  if (meta.sender === 'launcher') setIf(out, 'os', may(st, v, 'os', 'versions.os', check(plain(PATTERNS.os))))
   return out
 }
 
@@ -304,7 +306,7 @@ function crashFrame(st, f, path) {
   return {
     module: loose(st, f, 'module', `${path}.module`, check(matches(PATTERNS.module))),
     offset: loose(st, f, 'offset', `${path}.offset`, check(matches(PATTERNS.offset))),
-    symbol: loose(st, f, 'symbol', `${path}.symbol`, check(matches(PATTERNS.symbol))),
+    symbol: loose(st, f, 'symbol', `${path}.symbol`, check(plain(PATTERNS.symbol))),
     alid: loose(st, f, 'alid', `${path}.alid`, check(isUint)),
   }
 }
@@ -320,7 +322,7 @@ function readCrash(st, c, meta) {
     invalid(st, 'crash.faultOffset')
     out.faultOffset = null
   }
-  out.faultSymbol = nullable(st, c, 'faultSymbol', 'crash.faultSymbol', check(matches(PATTERNS.symbol)))
+  out.faultSymbol = nullable(st, c, 'faultSymbol', 'crash.faultSymbol', check(plain(PATTERNS.symbol)))
   out.faultAlid = nullable(st, c, 'faultAlid', 'crash.faultAlid', check(isUint))
   out.hasOurDll = need(st, c, 'hasOurDll', 'crash.hasOurDll', check(isBool))
   const frames = list(st, c, 'frames', 'crash.frames', CRASH_FRAMES_MAX)

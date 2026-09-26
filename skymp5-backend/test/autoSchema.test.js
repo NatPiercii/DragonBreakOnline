@@ -246,6 +246,21 @@ test('frames with bad positions are dropped; crash frame fields are nulled one b
   assert.equal(stored.crashLoggerVersion, undefined)
 })
 
+test('symbols and the OS name that a scrub rule would change are removed and flagged', () => {
+  const crash = load('crash-ours')
+  crash.versions.os = 'Windows 10 (192.168.1.20)'
+  crash.crash.faultSymbol = 'C:\\Users\\JohnSmith\\x john.smith@gmail.com 192.168.1.20'
+  crash.crash.frames[0].symbol = 'Fn at /home/john/src/a.cpp'
+  crash.crash.frames[1].symbol = 'RE::Actor::Update std::vector<int>::push_back'
+  const res = accepted(crash)
+  assert.equal(res.report.versions.os, undefined)
+  assert.equal(res.report.crash.faultSymbol, null)
+  assert.equal(res.report.crash.frames[0].symbol, null)
+  assert.equal(res.report.crash.frames[1].symbol, 'RE::Actor::Update std::vector<int>::push_back')
+  assert.deepEqual(res.invalid, ['versions.os', 'crash.faultSymbol', 'crash.frames[0].symbol'])
+  assert.ok(!JSON.stringify(res.report).includes('John'))
+})
+
 test('a fault offset without a fault module is cleared', () => {
   const body = load('crash-no-module')
   body.crash.faultOffset = '0x1234'
