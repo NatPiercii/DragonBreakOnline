@@ -309,7 +309,17 @@ mp._onScaleReport = (pcFormId, reported) => {
   try {
     const wanted = clampScale(reported);
     const current = mp.get(pcFormId, SCALE_PROP);
+    // A body in beast form is not a source for the player's own height. Whatever a beast reports would be
+    // clamped into the human band and published as their height, and nothing restores it on revert
+    // (#bugs 1552421871008485506, size glitch after dying as a werewolf)
+    let beast = null;
+    try { beast = mp.get(pcFormId, 'private.beast'); } catch (e) { /* no actor yet */ }
+    if (beast && beast.form) {
+      log(`scale report ignored from ${display(pcFormId)} in ${beast.form}: reported ${reported}, height kept at ${current}`);
+      return;
+    }
     if (typeof current === 'number' && Math.abs(current - wanted) < 0.001) return;
+    log(`scale ${display(pcFormId)} height ${current} -> ${wanted} (reported ${reported})`);
     mp.set(pcFormId, SCALE_PROP, wanted);
     if (Math.abs(wanted - Number(reported)) > 0.001) system(pcFormId, `Height clamped to the realistic range (${SCALE_MIN} to ${SCALE_MAX}).`);
   } catch (e) { log('scale report failed', e.message); }
