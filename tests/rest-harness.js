@@ -41,6 +41,9 @@ Date.now = () => wallClock;
 const MIN = 60000, HOUR = 3600000;
 
 const ME = 0x14, OTHER = 0x15, INNKEEPER = 0x16, THIRD = 0x17, ME2 = 0x18;
+// playermenu.js names a player only once the viewer has been introduced (rest.js nameTo)
+const introduced = new Set();
+globalThis.__dboNameFor = (viewer, x) => (introduced.has(`${viewer}|${x}`) ? `P${x.toString(16)}` : 'Stranger');
 const PROFILE = { [ME]: 101, [ME2]: 101, [OTHER]: 102, [INNKEEPER]: 103, [THIRD]: 104 };
 const INN_BED = 0x7ec0f, KEEPER_BED = 0x2a2f, INN_BED2 = 0xe0adb, RESIDENT_BED = 0x29d6, OWNED_INN_BED = 0x13e41, JERALL_BED = 0x1155, BASEMENT_BED = 0x6efd1;
 const WINDPEAK_BED = 0x13d42, MOORSIDE_BED = 0x1738d, HOME_BED = 0x3004, WILD_BEDROLL = 0x3005, CHAIR = 0x3006;
@@ -167,7 +170,10 @@ check('the rent is audited with the inn and hold', out.audits.some((t) => /^REST
 check('after renting the sleep prompt opens', actionIds().join() === 'sleep,lie' && /^Your bed at Snowstone Rest until \d\d:\d\d UTC$/.test(lastWidget().w.targetName), lastWidget().w);
 
 // ---- the lock, and one bed per renter ----
-check('someone else is turned away from a rented bed', activate(INN_BED, OTHER) === true && /rented by P14/.test(lastPersonal(OTHER)), lastPersonal(OTHER));
+check('someone else is turned away from a rented bed, the renter unnamed', activate(INN_BED, OTHER) === true && /rented by Stranger/.test(lastPersonal(OTHER)), lastPersonal(OTHER));
+introduced.add(`${OTHER}|${ME}`);
+check('...and named once they have been introduced', activate(INN_BED, OTHER) === true && /rented by P14/.test(lastPersonal(OTHER)), lastPersonal(OTHER));
+introduced.delete(`${OTHER}|${ME}`);
 check('...and gets no prompt', lastWidget().a === ME);
 check("another inn's rent room is still free to them", activate(INN_BED2, OTHER) === true && actionIds().join() === 'rent');
 ui('restChoose', OTHER, ['cancel']);
@@ -198,7 +204,7 @@ check("the hold gets 10%, the inn's hold", treasury.get('solitude') === 1 && tre
 check('the audit says where the owner share went', /: 9 held for Keeper, 1 to solitude$/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 globalThis.__dboRestLogin(INNKEEPER);
 check('...and paid when the owner logs in', gold.get(INNKEEPER) === 9 && props.get(INN_DOOR + '|private.dboRestOwed') === 0 && /took 9 gold in rent/.test(lastPersonal(INNKEEPER)));
-check('the owner is turned away from a bed rented in their own inn', activate(OWNED_INN_BED, INNKEEPER) === true && /rented by P15/.test(lastPersonal(INNKEEPER)));
+check('the owner is turned away from a bed rented in their own inn', activate(OWNED_INN_BED, INNKEEPER) === true && /rented by Stranger/.test(lastPersonal(INNKEEPER)), lastPersonal(INNKEEPER));
 online.add(THIRD);
 check('a claim on the front door owns the basement too, and an online owner is paid at once', (() => { gold.set(OTHER, 100); props.set(OTHER + '|private.dboRentBed', null); rentFor(BASEMENT_BED, OTHER); return gold.get(THIRD) === 9 && gold.get(OTHER) === 90; })(), [...gold]);
 check('...the front door, not a chest or room door that comes first in the index', !props.get(CHEST + '|private.dboRestOwed') && !props.get(ROOM_DOOR + '|private.dboRestOwed') && gold.get(OTHER) === 90);

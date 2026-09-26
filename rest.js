@@ -35,6 +35,14 @@ const path = require('path');
 module.exports = (api) => {
   const { mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand,
     onlineActors, every, sendPacket, userOf, takeGold, depositToTreasury, giveItem, zoneOfActor, distanceMeters } = api;
+  // The name a viewer knows another player by: introduced, else Stranger, else Masked Person (playermenu.js).
+  // Only players are named here, so there is no nameOf fallback to leak a real name if playermenu is missing.
+  const nameTo = (viewer, x) => {
+    try {
+      if (typeof globalThis.__dboNameFor === 'function') return globalThis.__dboNameFor(Number(viewer) >>> 0, Number(x) >>> 0);
+    } catch (e) { /* playermenu not loaded */ }
+    return 'Someone';
+  };
 
   const CFG = Object.assign({
     enabled: true,
@@ -212,7 +220,7 @@ module.exports = (api) => {
     if (!kind) return false;
     if (kind === 'taken') {
       const r = rentOf(target);
-      personal(caster, `This bed is rented${r && r.name ? ` by ${r.name}` : ''} until ${r ? clock(r.until) : 'later'}.`);
+      personal(caster, `This bed is rented${r && r.renter ? ` by ${nameTo(caster, r.renter)}` : ''} until ${r ? clock(r.until) : 'later'}.`);
       log(`rest: ${who(caster)} turned away from bed ${bedDesc(target)}, rented by ${r ? r.name : '?'}`);
       return true;
     }

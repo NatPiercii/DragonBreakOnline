@@ -10,6 +10,14 @@
 
 module.exports = (api) => {
   const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress } = api;
+  // The name a viewer knows another player by: introduced, else Stranger, else Masked Person (playermenu.js).
+  // Only players are named here, so there is no nameOf fallback to leak a real name if playermenu is missing.
+  const nameTo = (viewer, x) => {
+    try {
+      if (typeof globalThis.__dboNameFor === 'function') return globalThis.__dboNameFor(Number(viewer) >>> 0, Number(x) >>> 0);
+    } catch (e) { /* playermenu not loaded */ }
+    return 'Someone';
+  };
 
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { log(`beastform: ${desc} not in the load order`); return 0; } };
   // Form ids verified against the load order (ck-mcp lookup, 2026-09-22)
@@ -152,7 +160,7 @@ module.exports = (api) => {
         const p = mp.get(o, 'pos');
         if (mp.get(o, 'worldOrCellDesc') !== here || Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]) > WITNESS_RADIUS) continue;
         near++;
-        personal(o, `You see ${display(a)} ${what}.`);
+        personal(o, `You see ${nameTo(o, a)} ${what}.`);
         n++;
       } catch (e) { log(`beastform: witness skipped ${o.toString(16)}: ${e.message}`); }
     }
