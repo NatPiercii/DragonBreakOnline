@@ -3486,6 +3486,12 @@ try {
     sendPacket, ranksOf, profileOf, zoneById, readOfficials, writeOfficials });
 } catch (e) { log('realm.js failed to load:', e.stack || e.message); globalThis.__dboWarFinish = null; globalThis.__dboRealmView = null; globalThis.__dboConquerorLeads = null; globalThis.__dboConqueredZonesLedBy = null; }
 
+// ---- taxes, wages and the weekly reckoning (server\economy.js, WAR_DESIGN.md section 7) -----------------------------------
+try {
+  const ECONOMY_JS = path.resolve('economy.js');
+  delete require.cache[ECONOMY_JS];
+  require(ECONOMY_JS)({ mp, log, personal, audit, who, cfg, onUi, onlineActors, every, readOfficials, zoneById });
+} catch (e) { log('economy.js failed to load:', e.stack || e.message); globalThis.__dboEconomyView = null; }
 // ---- announcements: `bash dev-server.sh announce '<text>'` writes announce.json; every online player sees it once ----
 const ANNOUNCE_PATH = path.resolve('announce.json');
 const announceSeen = globalThis.__dboAnnounceSeen || (globalThis.__dboAnnounceSeen = { at: 0 });

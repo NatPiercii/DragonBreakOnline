@@ -363,6 +363,12 @@ module.exports = (api) => {
     };
   };
   globalThis.__dboRealmView = realmView;
+  // For economy.js: whose land a point is on, and who leads a faction
+  globalThis.__dboRealmTerritoryAt = (world, pos) => territoryAt(world, pos);
+  globalThis.__dboRealmOwnerOf = (tid) => ownerOf(tid);
+  globalThis.__dboRealmLeads = (a, fid) => leads(a, fid);
+  globalThis.__dboRealmFactionsLedBy = (a) => factionsLedBy(a);
+  globalThis.__dboRealmTerritoriesOf = (fid) => territoriesOf(fid).map((t) => t.id);
   const reply = (a, r) => { if (!(typeof globalThis.__dboFactionRefresh === 'function' && globalThis.__dboFactionRefresh(a, r.text, r.ok))) personal(a, r.text); };
   // Every war action comes from the faction panel with its nonce first, so a stale window cannot act
   const fromPanel = (a, args) => typeof globalThis.__dboFactionNonceOk === 'function' && globalThis.__dboFactionNonceOk(a, (args || [])[0]);

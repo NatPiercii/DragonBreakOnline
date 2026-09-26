@@ -124,6 +124,7 @@ module.exports = (api) => {
       factions: list.map((fid) => factionView(a, fid)), invites, selected: focusFid || mine[0] || list[0] || '',
       // The Realm and War tabs (realm.js): territories and their owners, wars, and what this character leads
       realm: typeof globalThis.__dboRealmView === 'function' ? globalThis.__dboRealmView(a >>> 0) : null,
+      economy: typeof globalThis.__dboEconomyView === 'function' ? globalThis.__dboEconomyView(a >>> 0) : null,
       result: result || '', resultKind: resultKind || '',
     }, true);
   };
@@ -137,6 +138,7 @@ module.exports = (api) => {
   // For the war system (realm.js): a faction's name and kind, and the characters on its roster (actor ids)
   globalThis.__dboGuildInfo = (id) => { const f = FACTIONS.get(String(id)); return f ? { id: f.id, name: f.name, kind: f.kind || '', zone: f.zone || '', secret: !!f.secret } : null; };
   globalThis.__dboGuildMembers = (id) => Object.keys(ST.members[String(id)] || {}).map((x) => Number(x) >>> 0);
+  globalThis.__dboGuildRanks = (id) => { const f = FACTIONS.get(String(id)); return f ? f.ranks.map((r) => r.title) : []; };
   globalThis.__dboHoldFactionOf = (zoneId) => { for (const f of FACTIONS.values()) if (f.kind === 'hold' && f.zone === zoneId) return f.id; return null; };
   const fresh = (a, args) => ST.nonces.get(a >>> 0) === String(args[0] || '');
   const reply = (a, text, fid, bad) => openMenu(a, text, bad ? 'refused' : 'ok', fid);
