@@ -9,11 +9,11 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, cfg } = api;
+  const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, cfg, isAdmin } = api;
   // Config "beastform": vampireLordRemoteRace decides whether other clients build the Vampire Lord body.
   // The comment below promised this flag for weeks while nothing read it, so only /vlremote worked and its
   // value died with the process. Seeded once per process, so an admin's /vlremote survives a hot reload.
-  const CFG = Object.assign({ vampireLordRemoteRace: false }, (cfg && cfg.beastform) || {});
+  const CFG = Object.assign({ vampireLordRemoteRace: true, breakerUnits: 6000, breakerSeconds: 120 }, (cfg && cfg.beastform) || {});
   if (globalThis.__dboVampireLordRemote === undefined) globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
   // The name a viewer knows another player by: introduced, else Stranger, else Masked Person (playermenu.js).
   // Only players are named here, so there is no nameOf fallback to leak a real name if playermenu is missing.
@@ -139,6 +139,7 @@ module.exports = (api) => {
     // beastform.vampireLordRemoteRace: true, or /vlremote on, turns the remote body back on.
     const remoteRace = key !== 'vampirelord' || globalThis.__dboVampireLordRemote === true;
     if (remoteRace) mp.set(a, 'appearance', beastAppearance(original, f.race));
+    if (remoteRace && key === 'vampirelord') noteVlShown(a);
     learn(a, key, true);
     sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true, form: key, wear, abilities: packetAbilities(key) });
     personal(a, key === 'werewolf' ? `The beast takes you for ${f.seconds} seconds.` : 'You take the form of a Vampire Lord. Press 9, then your Shout key, to revert.');
@@ -274,8 +275,56 @@ module.exports = (api) => {
     for (const a of api.onlineActors()) {
       const s = stateOf(a);
       if (s && s.until && Date.now() >= s.until) revert(a, 'time up');
+      // A Vampire Lord walks, so the sighting the breaker measures against has to follow them
+      else if (s && s.form === 'vampirelord' && globalThis.__dboVampireLordRemote === true) noteVlShown(a);
     }
   });
+
+  // ── the Vampire Lord crash breaker ──────────────────────────────────────────────────────────────
+  // The remote Vampire Lord body is on by default, and a suspected crash beside one is the only reason it was
+  // ever off. Rather than hide the form from everyone forever on unproven evidence, it is shown and watched: a
+  // player who drops without the Journal open (a menu quit has it open, a crash does not) close to a Vampire
+  // Lord seen recently turns the remote body off by itself, puts every shown Vampire Lord back to the bare real
+  // appearance so a rejoin cannot loop, and tells the staff. It stays off until an admin says /vlremote on.
+  const BREAKER_UNITS = Number(CFG.breakerUnits) || 6000;
+  const BREAKER_MS = (Number(CFG.breakerSeconds) || 120) * 1000;
+  const vlSeen = globalThis.__dboVlSeen = globalThis.__dboVlSeen || new Map(); // vl actor -> { cell, pos, at }
+  const noteVlShown = (a) => {
+    try { vlSeen.set(a >>> 0, { cell: mp.get(a, 'worldOrCellDesc'), pos: mp.get(a, 'pos'), at: Date.now() }); } catch (e) { /* gone */ }
+  };
+  const shownVampireLords = () => api.onlineActors().filter((o) => { const s = stateOf(o); return !!s && s.form === 'vampirelord'; });
+  // Exposed so the harness can drive the breaker without a live server
+  const tripBreaker = globalThis.__dboVlBreakerTrip = (dropped, vl, cell) => {
+    globalThis.__dboVampireLordRemote = false;
+    let restored = 0;
+    for (const o of shownVampireLords()) {
+      const s = stateOf(o);
+      if (!s || !s.original) continue;
+      try { mp.set(o, 'appearance', s.original); restored++; } catch (e) { log(`vlbreaker: fallback failed for ${display(o)}: ${e.message}`); }
+    }
+    vlSeen.clear();
+    audit(`VLBREAKER tripped: ${dropped} dropped near ${vl} at ${cell}`);
+    log(`vlbreaker: tripped by ${dropped} near ${vl} at ${cell}; remote Vampire Lord body OFF, ${restored} restored to the fallback, /vlremote on to try again`);
+    for (const o of api.onlineActors()) {
+      try { if (typeof isAdmin === 'function' && isAdmin(o)) personal(o, `The Vampire Lord remote body turned itself off: ${dropped} dropped beside one. Ask them for their crash log, then /vlremote on to try again.`); } catch (e) { /* offline */ }
+    }
+  };
+  globalThis.__dboVlBreakerDrop = (a, journalOpen) => {
+    if (globalThis.__dboVampireLordRemote !== true) return false;  // already off, nothing to trip
+    if (journalOpen === true) return false;                        // quit through the menu, not a crash
+    let cell = null, pos = null;
+    try { cell = mp.get(a, 'worldOrCellDesc'); pos = mp.get(a, 'pos'); } catch (e) { return false; }
+    const now = Date.now();
+    for (const [vl, seen] of [...vlSeen]) {
+      if (now - seen.at > BREAKER_MS) { vlSeen.delete(vl); continue; }
+      if (vl === (a >>> 0)) continue;                              // the Vampire Lord's own drop is not evidence
+      if (!seen.pos || !pos || seen.cell !== cell) continue;
+      if (Math.hypot(pos[0] - seen.pos[0], pos[1] - seen.pos[1], pos[2] - seen.pos[2]) > BREAKER_UNITS) continue;
+      tripBreaker(display(a), display(vl), String(cell));
+      return true;
+    }
+    return false;
+  };
 
   // For a controlled crash test: with it on, other clients build the Vampire Lord body again (takes effect on the next change)
   registerChatCommand('vlremote', (a, args) => {

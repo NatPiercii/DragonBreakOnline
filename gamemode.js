@@ -1193,6 +1193,12 @@ setTimeout(() => { for (const a of onlineActors()) { try { giveStarterKit(a); pu
 globalThis.__dboHandlers.disconnect = (userId) => {
   const a = actorOf(userId); if (a) audit(`LEAVE ${who(a)}`);
   if (a && globalThis.__dboPlayerMenuLeave) globalThis.__dboPlayerMenuLeave(a);
+  // Before the revert below clears the beast state: a drop with the Journal closed may be a crash next to a
+  // Vampire Lord, and the breaker needs the position and the state while they still exist
+  if (a && globalThis.__dboVlBreakerDrop) {
+    try { globalThis.__dboVlBreakerDrop(a, globalThis.__dboJournalOpen.get(a >>> 0) === true); } catch (e) { log('vl breaker failed', e.message); }
+  }
+  if (a) globalThis.__dboJournalOpen.delete(a >>> 0);
   // A beast race must never be saved as the character's own
   if (a && globalThis.__dboBeastRevert) { try { globalThis.__dboBeastRevert(a, 'logout'); } catch (e) { log('beast revert on logout failed', e.message); } }
   if (a && globalThis.__dboSuperLeave) { try { globalThis.__dboSuperLeave(a); } catch (e) { /* no rite */ } }
@@ -3376,9 +3382,14 @@ try {
 
 // The client says when its Journal (pause) menu opens and closes, so tooling/dbo-monitor can tell a quit through the
 // menus from a crash (a disconnect with the Journal still open is a quit)
+// A quit through the menu has the Journal open, a crash does not: the only thing that tells the two apart
+globalThis.__dboJournalOpen = globalThis.__dboJournalOpen || new Map();
 onUi('clientState', (a, args) => {
   const st = args && args[0] && typeof args[0] === 'object' ? args[0] : {};
-  if (typeof st.journal === 'boolean') log(`clientState ${display(a)} journal ${st.journal ? 'open' : 'closed'}`);
+  if (typeof st.journal === 'boolean') {
+    globalThis.__dboJournalOpen.set(a >>> 0, st.journal);
+    log(`clientState ${display(a)} journal ${st.journal ? 'open' : 'closed'}`);
+  }
 });
 
 // ---- evidence while people play: live.json every 5 s and /bug snapshots (server\debugsnap.js, config "debugSnap") ----
@@ -3487,7 +3498,7 @@ try {
 try {
   const BEASTFORM_JS = path.resolve('beastform.js');
   delete require.cache[BEASTFORM_JS];
-  require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors, cfg });
+  require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors, cfg, isAdmin });
 } catch (e) { log('beastform.js failed to load:', e.stack || e.message); for (const k of ['__dboBeastCast', '__dboBeastRevert', '__dboBeastOriginalRace', '__dboBeastTransform', '__dboBeastRequest', '__dboBeastAdmin', '__dboBeastHolds']) globalThis[k] = null; }
 
 // ---- Patreon identity rerolls (serverpatrons.js, tiers in patron-tiers.json) --------------------------
