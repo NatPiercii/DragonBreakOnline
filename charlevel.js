@@ -66,16 +66,18 @@ module.exports = (api) => {
       actions, events: { action: 'dbo:levelChoose', close: 'dbo:levelClose' } }, !!focus);
     log(`level ${display(a)} offered ${st.pending} point(s) at level ${st.level}${focus ? ' (focused)' : ''}`);
   };
-  const spend = (a, av) => {
+  // n points at once (athny, suggestions, 2026-09-26: "/level health 3"); asking for more than is left spends what is left
+  const spend = (a, av, n = 1) => {
     const st = stateOf(a);
-    if (!VITALS[av]) { personal(a, `Spend a point on health, magicka or stamina: /level health`); return false; }
+    if (!VITALS[av]) { personal(a, `Spend a point on health, magicka or stamina: /level health, or several: /level health 3`); return false; }
     if (st.pending < 1) { personal(a, 'You have no points to spend.'); return false; }
-    st.pending -= 1;
-    st.spent[av] += CFG.perLevel;
+    const count = Math.min(st.pending, Math.max(1, Math.floor(Number(n) || 1)));
+    st.pending -= count;
+    st.spent[av] += CFG.perLevel * count;
     save(a, st);
-    sendPacket(a, { customPacketType: 'dboAvGain', [av]: CFG.perLevel });
-    personal(a, `+${CFG.perLevel} ${VITALS[av]}.${st.pending ? ` ${st.pending} more to spend.` : ''}`);
-    log(`level ${display(a)} spent a point on ${av}: ${JSON.stringify(st.spent)}`);
+    sendPacket(a, { customPacketType: 'dboAvGain', [av]: CFG.perLevel * count });
+    personal(a, `+${CFG.perLevel * count} ${VITALS[av]}.${st.pending ? ` ${st.pending} more to spend.` : ''}`);
+    log(`level ${display(a)} spent ${count} point${count === 1 ? '' : 's'} on ${av}: ${JSON.stringify(st.spent)}`);
     return true;
   };
 
@@ -106,18 +108,19 @@ module.exports = (api) => {
 
   registerChatCommand('level', (a, args) => {
     // registerChatCommand hands the argument string, not an array: args[0] was the first letter
-    const arg = String(args || '').trim().split(/\s+/)[0].toLowerCase();
-    // The panel is not always reachable, so a point can always be spent from chat
-    if (arg) { spend(a, arg); return; }
+    const words = String(args || '').trim().split(/\s+/);
+    const arg = words[0].toLowerCase();
+    // The panel is not always reachable, so points can always be spent from chat: /level health, /level health 3
+    if (arg) { spend(a, arg, words[1] === undefined ? 1 : words[1]); return; }
     const st = stateOf(a);
     const units = unitsOf(a);
     const next = st.level < MAX_LEVEL ? CFG.thresholds[st.level] : null;
     personal(a, `Level ${st.level} of ${MAX_LEVEL}. ${next ? `Progress to level ${st.level + 1}: ${Math.floor(Math.min(99, (units / next) * 100))}%.` : 'You have reached the highest level.'} Bonuses: Health +${st.spent.health}, Magicka +${st.spent.magicka}, Stamina +${st.spent.stamina}.`);
     if (st.pending) {
-      personal(a, `${st.pending} unspent point${st.pending === 1 ? '' : 's'}. Choose in the panel, or type /level health, /level magicka or /level stamina.`);
+      personal(a, `${st.pending} unspent point${st.pending === 1 ? '' : 's'}. Choose in the panel, or type /level health, /level magicka or /level stamina, with a number to spend several (/level health 3).`);
       openChoice(a, true);
     }
-  }, { help: 'your character level and progress; /level <health|magicka|stamina> spends a point' });
+  }, { help: 'your character level and progress; /level <health|magicka|stamina> [n] spends points' });
 
   globalThis.__dboCharLevel = (a) => stateOf(a).level;
   // Never focused at login: a focused panel held the keyboard and the player could not move until it was closed

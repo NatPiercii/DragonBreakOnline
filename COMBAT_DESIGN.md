@@ -70,8 +70,13 @@ A player (athny, #bugs, 2026-09-26) expects Force Rune's ragdoll knockback (`CYR
 between players: the push is physics on the caster's screen, and the target's own client never simulates it. The
 suggestion is a stagger instead. Runes reach the server as explosion hits, the way Ash Rune's paralysis is found
 (`gamemode.js` `explosionParalysis`), so a Force Rune hit on a player could call `combat.js`'s stagger (with its 1.5 s
-cooldown) and the push be taken off the effect. Not built; it needs Nat's yes and a look at how the rune's push is
-applied (the effect's archetype) before choosing how to remove it.
+cooldown) and the push be taken off the effect.
+
+Nat said yes (2026-09-26). **Built**: `combat.js` `staggerSpells` (`["CYRForceRune"]`, by editor id) staggers a player a
+listed spell hits; `onSpellHit` fires for its 0-damage hit. The push itself is the explosion's physics, not an effect:
+`CYRForceRune` (BSHeartland `06FA2C`, Alteration, archetype 1 Script) -> `CYRForceRuneProjectile` ->
+`CYRExplosionForceRune` (force 128, damage 2, radius 320, no enchantment). Removing it needs an override with force 0
+in `DragonBreak Nexus Patches.esp` (PC session); until then the caster may still see the target thrown.
 
 ## What each part needs
 

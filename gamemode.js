@@ -2547,6 +2547,8 @@ const spellHitHook = (aggressorId, targetId, spellId, ...rest) => {
     const tgt = Number(targetId) >>> 0, seconds = explosionParalysisOf(Number(spellId) >>> 0);
     if (globalThis.__dboBeastSpellHit) globalThis.__dboBeastSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
     if (globalThis.__dboSuperSpellHit) globalThis.__dboSuperSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
+    // Force Rune and the like stagger instead of pushing (combat.js staggerSpells)
+    if (combat) combat.onSpellHit(Number(aggressorId) >>> 0, tgt, Number(spellId) >>> 0);
     if (seconds > 0 && profileOf(tgt) >= 0 && tgt !== (Number(aggressorId) >>> 0)) {
       sendPacket(tgt, { customPacketType: 'dboParalyse', seconds });
       log(`paralysis: ${display(tgt)} held ${seconds} s by ${display(Number(aggressorId) >>> 0)} (spell ${(Number(spellId) >>> 0).toString(16)})`);

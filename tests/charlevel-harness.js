@@ -39,5 +39,11 @@ ok(globalThis.__dboCharLevel(1) === 5, 'a skill giving way never lowers the leve
 ok(api.mp.get(1, 'private.dboLevel').pending === 3, 'unspent points carry over');
 handlers.levelChoose(1, ['bogus']);
 ok(api.mp.get(1, 'private.dboLevel').pending === 3, 'an unknown choice is ignored');
+// /level <vital> <n> spends several at once (3 pending here); asking for more than is left spends what is left
+cmds.level(1, 'stamina 2');
+ok(api.mp.get(1, 'private.dboLevel').pending === 1 && api.mp.get(1, 'private.dboAvBonus').stamina === 20, '/level stamina 2 spends two points');
+ok(packets.length && JSON.stringify(packets[packets.length - 1]).includes('"stamina":20'), 'one gain packet carries both points');
+cmds.level(1, 'magicka 5');
+ok(api.mp.get(1, 'private.dboLevel').pending === 0 && api.mp.get(1, 'private.dboAvBonus').magicka === 10, '/level magicka 5 with one left spends one');
 console.log(fails ? `${fails} FAILURES` : 'all passed');
 process.exit(fails ? 1 : 0);

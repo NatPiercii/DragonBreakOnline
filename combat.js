@@ -25,6 +25,9 @@ module.exports = (api) => {
     bashDamageMult: 0.25, bashStaggerResistRank: 3,
     powerStaggerThroughWeaponBlockRank: 4,
     staggerCooldownSeconds: 1.5, staggerEvent: 'staggerStart',
+    // Spells whose hit staggers a player instead of the explosion's ragdoll push, which only plays on the caster's
+    // screen (athny, #bugs, 2026-09-26: Force Rune). Matched by editor id.
+    staggerSpells: ['CYRForceRune'],
   }, cfg.combat || {});
 
   // actorId -> { guardBrokenUntil, staggerAt }
@@ -116,6 +119,16 @@ module.exports = (api) => {
     return out;
   };
 
+  // From the gamemode's onSpellHit, which fires for 0-damage hits too (a ward's block excepted)
+  const staggerSpellCache = new Map();
+  const onSpellHit = (agg, tgt, spellId) => {
+    if (!C.enabled || agg === tgt || !isPlayer(tgt)) return;
+    if (!staggerSpellCache.has(spellId)) { const r = recordOf(spellId); staggerSpellCache.set(spellId, !!r && (C.staggerSpells || []).includes(String(r.record.editorId || ''))); }
+    if (!staggerSpellCache.get(spellId)) return;
+    const done = stagger(tgt);
+    if (C.log) log(`combat ${display(agg)} -> ${display(tgt)}: ${done ? 'rune stagger' : 'rune stagger skipped (cooldown)'} (spell ${spellId.toString(16)})`);
+  };
+
   const forget = (a) => S.delete(a);
-  return { onAttempt, forget, isShield };
+  return { onAttempt, onSpellHit, forget, isShield };
 };

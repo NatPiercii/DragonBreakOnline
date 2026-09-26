@@ -3,7 +3,8 @@
 const path = require('path');
 const cfg = JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'gamemode-config.json'), 'utf8'));
 const SHIELD = 0x500, SWORD = 0x600;
-const RECS = { [SHIELD]: { type: 'ARMO', fields: [{ type: 'BOD2', data: (() => { const d = new Uint8Array(8); new DataView(d.buffer).setUint32(0, 1 << 9, true); return d; })() }] } };
+const RUNE = 0x806fa2c, FIREBALL = 0x1c789;
+const RECS = { [RUNE]: { type: 'SPEL', editorId: 'CYRForceRune', fields: [] }, [FIREBALL]: { type: 'SPEL', editorId: 'Fireball', fields: [] }, [SHIELD]: { type: 'ARMO', fields: [{ type: 'BOD2', data: (() => { const d = new Uint8Array(8); new DataView(d.buffer).setUint32(0, 1 << 9, true); return d; })() }] } };
 let P, EQ, calls, MAST;
 const reset = () => {
   P = { 1: { health: 1, magicka: 1, stamina: 1 }, 2: { health: 1, magicka: 1, stamina: 1 } };
@@ -71,5 +72,16 @@ reset(); ok(load().onAttempt(1, 9, SWORD, 20, { power: true }, 1) === 1 && stagg
 reset(); ok(load().onAttempt(1, 2, SWORD, 20, undefined, 1) === 1, 'no flags, no change');
 reset(); load().onAttempt(1, 2, SWORD, 0, { blocked: true, unblockedDamage: 40 }, 1);
 ok(near(P[2].health, 1) && near(P[2].stamina, 1), 'no maxima: chip and stamina skipped');
+// Force Rune staggers a player it hits; other spells, NPC targets and the cooldown do not
+reset(); load().onSpellHit(1, 2, RUNE);
+ok(staggers() === 1, 'Force Rune staggers a player');
+load().onSpellHit(1, 2, RUNE);
+ok(staggers() === 1, 'a second rune inside the cooldown does not');
+reset(); load().onSpellHit(1, 2, FIREBALL);
+ok(staggers() === 0, 'Fireball does not stagger');
+reset(); load().onSpellHit(1, 9, RUNE);
+ok(staggers() === 0, 'an NPC target is left alone');
+reset(); load().onSpellHit(2, 2, RUNE);
+ok(staggers() === 0, 'your own rune does not stagger you');
 console.log(`${pass}/${pass + fail}`);
 process.exitCode = fail ? 1 : 0;
