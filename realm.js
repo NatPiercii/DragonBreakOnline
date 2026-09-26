@@ -333,8 +333,11 @@ module.exports = (api) => {
       const here = territoryAt(worldOf(victim), posOf(victim));
       if (!here || !w.goal.includes(here.id)) continue;
       if (typeof globalThis.__dboPermaKill !== 'function') { log('realm: a war-to-the-death kill, but permaKill is not loaded'); return false; }
-      audit(`WAR ${w.id}: ${who(killer)} killed ${who(victim)} in a war to the death`);
       globalThis.__dboPermaKill(victim, `killed by ${display(killer)} in the war to the death between ${nameOfFaction(w.attacker)} and ${nameOfFaction(w.defender)}`);
+      // Only a character that really went counts; otherwise downed.js wakes them at the temple as usual (Worker B)
+      let gone = false; try { gone = mp.get(victim, 'private.permaDead') === true; } catch (e) { gone = false; }
+      if (!gone) { log(`realm: war-to-the-death kill of ${display(victim)} did not take; waking at the temple instead`); return false; }
+      audit(`WAR ${w.id}: ${who(killer)} killed ${who(victim)} in a war to the death`);
       return true;
     }
     return false;
@@ -349,7 +352,10 @@ module.exports = (api) => {
   const realmView = (a) => {
     const led = factionsLedBy(a);
     return {
-      territories: territories().map((t) => ({ id: t.id, name: t.name, kind: t.kind, owner: ownerOf(t.id), ownerName: nameOfFaction(ownerOf(t.id)) })),
+      territories: territories().map((t) => ({ id: t.id, name: t.name, kind: t.kind, owner: ownerOf(t.id), ownerName: nameOfFaction(ownerOf(t.id)),
+        world: t.marker.world, x: t.marker.pos[0], y: t.marker.pos[1] })),
+      // Map colours by faction: staff's lore table (config war.colours); a faction not in it shows grey until one is set
+      colours: Object.assign({}, C.colours || {}),
       wars: live().filter((w) => memberOf(a, w.attacker) || memberOf(a, w.defender) || isAdmin(a)).map(warView),
       leads: led.map((fid) => ({ id: fid, name: nameOfFaction(fid), treasury: globalThis.__dboTreasury ? globalThis.__dboTreasury.balance(fid) : 0, online: onlineOf(fid).length })),
       rules: { minOnline: C.minOnline, declareFee: C.declareFee, noticeDays: C.noticeDays, windowsPerWar: C.windowsPerWar, windowHours: C.windowHours, deathWar: C.deathWar },

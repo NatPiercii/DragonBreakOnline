@@ -40,14 +40,14 @@ globalThis.__dboTreasury = {
   deposit: (f, n) => { treasury[f] = (treasury[f] || 0) + n; return true; },
 };
 let officials = { bruma: { count: [1], guard: [2, 3] } };
-const killed = [];
-globalThis.__dboPermaKill = (a, why) => killed.push({ a, why });
+const killed = []; const permaDead = new Set(); let permaFails = false;
+globalThis.__dboPermaKill = (a, why) => { killed.push({ a, why }); if (!permaFails) permaDead.add(a); };
 
 const out = { personal: [], system: [], audits: [] };
 const handlers = new Map(); const timers = new Map();
 const api = {
   mp: {
-    get: (a, p) => (p === 'pos' ? pos.get(a) : p === 'worldOrCellDesc' ? world.get(a) : p === 'isDead' ? dead.has(a) : undefined),
+    get: (a, p) => (p === 'pos' ? pos.get(a) : p === 'worldOrCellDesc' ? world.get(a) : p === 'isDead' ? dead.has(a) : p === 'private.permaDead' ? permaDead.has(a) : undefined),
     getIdFromDesc: (d) => ({ 'a764b:BSHeartland.esm': 0x20a764b }[d] || 0x1),
   },
   log: () => {}, personal: (a, t) => out.personal.push({ a, t }), system: (a, t) => out.system.push({ a, t }), audit: (t) => out.audits.push(t),
@@ -130,6 +130,9 @@ check('no permadeath off the contested land', globalThis.__dboWarFinish(5, GM) =
 standAt([5], 'applewatch');
 check('an enemy\'s killing blow on contested land in a window ends the character', globalThis.__dboWarFinish(5, GM) === true && killed.length === 1 && killed[0].a === 5);
 check('a blow between members of the same side is not war', globalThis.__dboWarFinish(6, 2) === false);
+permaFails = true; standAt([7], 'applewatch');
+check('if the permadeath does not take, the victim wakes at the temple instead', globalThis.__dboWarFinish(7, GM) === false && !permaDead.has(7));
+permaFails = false;
 
 // The capital falls: officials lose their ranks; the winner's leader appoints
 standAt(bruma, 'pale-pass'); standAt(fighters, 'bruma');
