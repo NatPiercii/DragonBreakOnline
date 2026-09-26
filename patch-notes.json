@@ -1,5 +1,39 @@
 [
   {
+    "title": "The Great Hunt: werewolves reworked (planned)",
+    "date": "2026-09-26",
+    "version": "Planned, not live yet",
+    "tag": "Coming Soon",
+    "sections": [
+      {
+        "heading": "What is coming",
+        "items": [
+          "Becoming a werewolf stays easy. Surviving as one will be hard. Every new werewolf starts as a weak Fledgling and climbs the ranks by living as one: transforming, hunting and feeding.",
+          "Werewolf ranks grow with every creature you feed on. Players are worth far more than animals, but you can rank up on animals alone if you'd rather not hunt people. It just takes longer.",
+          "Higher ranks bring more armor, health and stamina in beast form, a longer transformation, new howls, and more control over the change. The highest ranks can change and change back at will.",
+          "New howls unlocked by rank: Howl of Rage (speed and regeneration), Howl of the Hunt (track your prey), and at Alpha, Howl of the Pack, which gives your packmates the rage.",
+          "Every howl is heard across the land: \"A howl echoes through <region>\". Hunters will know where to look, so howl with care.",
+          "Neglect the beast and it takes you: a werewolf who goes too long without changing and feeding may turn at night without warning. A feral werewolf howls on its own and must feed before it can change back.",
+          "Packs will claim territories and hunt there for more rank. Rival packs can declare a territory war and fight for the land over a week.",
+          "Werewolves of different ranks will look different, so a seasoned hunter can tell a Fledgling from an Alpha.",
+          "Silver ends a werewolf for good. A werewolf in beast form is fair game, and a hunter who goes looking for one takes the same risk."
+        ]
+      },
+      {
+        "heading": "Already in the game",
+        "items": [
+          "Feeding in beast form keeps the change going longer, hunger and the full moon can force a change, silver hurts, and each pack is led by a pale-coated Alpha who can be challenged."
+        ]
+      },
+      {
+        "heading": "Where this stands",
+        "items": [
+          "This is a plan, not an update. It will arrive in stages, and details will change as we build and test it. Designed by swag and the DragonBreak team."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Easier Chat, Clearer Help",
     "date": "2026-09-26",
     "version": "Server + client 0.3.48",
