@@ -1,5 +1,15 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-26 (04:00 UTC): summon scrolls never cast - CLIENT/ENGINE, NEEDS AN IN-GAME TEST
+
+- [ ] #bugs 1553254532333445211 (thefabled.): the Flame Thrall scroll summons nothing and is not used up. The server got
+  no SpellCast for it, nor for Conjure Flame Atronach Scroll (equipped 03:41, 03:44): no gamemode 'cast' line and no
+  OnSpellCast refusal (they all log at info). magicSyncService relays every player spellCast event, so the engine never
+  cast it locally, which also explains the scroll not being spent. Only FireballScroll has ever been cast (9x, all
+  2026-09-25/26). The server side is ready: espmMagic.spellEffects reads SCRL, ConjurationSystem spawns from it.
+  Next: in game on the dev client, cast a summon scroll with the console open (skymp5-client logs), note whether the
+  cast animation plays; compare a summon spell (works: ISS_ConjureSkeleton) and a TargetLocation scroll.
+
 ## Added 2026-09-26 (00:35 UTC): FOV wrong at login; an FOV slider - NATIVE (skyrim-platform), NOT STARTED
 
 - [ ] #bugs 1553201600716087427 (thefabled.): the field of view is wrong after logging in; they also want an FOV slider.
