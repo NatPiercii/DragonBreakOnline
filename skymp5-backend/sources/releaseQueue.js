@@ -162,6 +162,13 @@ const NO_REVIEW = Object.freeze({ state: 'none', by: null, at: null })
 
 const isSecretFile = file => SECRET_RE.test(path.basename(String(file)))
 
+// fn over list, size calls at a time, results in list order
+async function inBatches(list, size, fn) {
+  const out = []
+  for (let i = 0; i < list.length; i += size) out.push(...await Promise.all(list.slice(i, i + size).map(fn)))
+  return out
+}
+
 function refused(sub) {
   return Object.assign(new Error(`git ${String(sub)} is not allowed`), { code: 'gitNotAllowed' })
 }
@@ -202,6 +209,9 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   const processStart = now() - process.uptime() * 1000
   const memo = new Map()
   const files = new Map()
+  // Unknown range tips, each with the FETCH_HEAD mtime it was unknown at
+  const unknownAt = new Map()
+  let fetchStamp = 0
 
   // ---- git ----
 
@@ -253,13 +263,22 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return code === 0
   }
 
-  // Commits of tip not reachable from base, at most 1000; an unknown commit gives none
-  function rangeOf(tip, base) {
-    return remember(`range:${tip}:${base}`, async () => {
-      const { code, stdout } = await git(['rev-list', '-n', '1000', '--end-of-options', tip, ...(base ? [`^${base}`] : [])], { codes: [0, 128] })
-      if (code !== 0) throw Object.assign(new Error('unknown commit'), { code: 'unknownCommit' })
-      return new Set(stdout.split('\n').filter(Boolean))
-    }).catch(() => new Set())
+  // Commits of tip not reachable from base, at most 1000; an unknown commit gives none until the next fetch, and a timeout throws
+  async function rangeOf(tip, base) {
+    const key = `range:${tip}:${base}`
+    if (unknownAt.get(key) === fetchStamp) return new Set()
+    try {
+      return await remember(key, async () => {
+        const { code, stdout } = await git(['rev-list', '-n', '1000', '--end-of-options', tip, ...(base ? [`^${base}`] : [])], { codes: [0, 128] })
+        if (code !== 0) throw Object.assign(new Error('unknown commit'), { code: 'unknownCommit' })
+        return new Set(stdout.split('\n').filter(Boolean))
+      })
+    } catch (err) {
+      if (err.code !== 'unknownCommit') throw err
+      if (unknownAt.size > 20000) unknownAt.clear()
+      unknownAt.set(key, fetchStamp)
+      return new Set()
+    }
   }
 
   // ---- files (never a secret) ----
@@ -619,7 +638,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   async function reviewCommits(side, commits, liveBase, lines) {
     const byId = new Map(commits.map(c => [c.sha, c]))
     const mine = lines.filter(r => r.repo === side)
-    const ranges = await Promise.all(mine.map(r => rangeOf(r.tip, r.base)))
+    const ranges = await inBatches(mine, 4, r => rangeOf(r.tip, r.base))
     const latest = new Map()
     mine.forEach((r, i) => { for (const sha of ranges[i]) latest.set(sha, r) })
     for (const c of commits) c.review = latest.has(c.sha) ? verdictOf(latest.get(c.sha)) : NO_REVIEW
@@ -742,18 +761,15 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   async function branchesNotMerged(mainSha, serverSha) {
     const out = await gitText('for-each-ref', '--format=%(refname:lstrip=3)%00%(objectname)', '--end-of-options', 'refs/remotes/origin/')
     const branches = out.split('\n').map(l => l.split('\0')).filter(([b, sha]) => b && SHA_RE.test(sha) && BRANCH_RE.test(b) && !['HEAD', 'main', 'server', 'live'].includes(b))
-    const results = []
-    for (let i = 0; i < branches.length; i += 4) {
-      results.push(...await Promise.all(branches.slice(i, i + 4).map(async ([branch, sha]) => {
-        const shared = async up => up && (await remember(`base:${up}:${sha}`, async () =>
-          (await git(['merge-base', '--end-of-options', up, sha], { codes: [0, 1] })).code === 0))
-        const up = (await shared(mainSha)) ? mainSha : (await shared(serverSha)) ? serverSha : null
-        if (!up) return null
-        const unique = await remember(`cherry:${up}:${sha}`, async () =>
-          (await gitText('cherry', '--end-of-options', up, sha)).split('\n').filter(l => l.startsWith('+')).length)
-        return unique ? { branch, uniqueCommits: unique, upstream: up === mainSha ? 'main' : 'server', unowned: branch.startsWith('claude/') } : null
-      })))
-    }
+    const results = await inBatches(branches, 4, async ([branch, sha]) => {
+      const shared = async up => up && (await remember(`base:${up}:${sha}`, async () =>
+        (await git(['merge-base', '--end-of-options', up, sha], { codes: [0, 1] })).code === 0))
+      const up = (await shared(mainSha)) ? mainSha : (await shared(serverSha)) ? serverSha : null
+      if (!up) return null
+      const unique = await remember(`cherry:${up}:${sha}`, async () =>
+        (await gitText('cherry', '--end-of-options', up, sha)).split('\n').filter(l => l.startsWith('+')).length)
+      return unique ? { branch, uniqueCommits: unique, upstream: up === mainSha ? 'main' : 'server', unowned: branch.startsWith('claude/') } : null
+    })
     return results.filter(Boolean).slice(0, 50)
   }
 
@@ -840,6 +856,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       readJsonLines(config.reviewsFile).then(ls => ls.filter(isTrustedVerdict)), loadHeld(), loadPacks(), loadItems(), blockers(lv),
       gitText('rev-parse', '--path-format=absolute', '--git-path', 'FETCH_HEAD').then(p => mtimeOf(p.trim())),
     ])
+    fetchStamp = fetchHead
     const models = {}
     for (const [side, set, base, tip] of [['fork', fork, forkLive, mainSha], ['server', server, serverLive, serverSha]]) {
       const byId = new Map(set.commits.map(c => [c.sha, c]))

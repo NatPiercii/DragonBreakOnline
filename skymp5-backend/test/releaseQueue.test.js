@@ -592,6 +592,33 @@ test('reviews: the newest GO still carries over when more than 600 commits are r
   } finally { g('update-ref', '-d', 'refs/heads/many') }
 })
 
+test('reviews: ranges resolve four at a time, an unknown tip waits for the next fetch, and a timeout fails the build', async () => {
+  const unknown = 'f'.repeat(40)
+  let active = 0, peak = 0, unknownCalls = 0, clock = Date.parse('2026-09-26T08:00:00Z')
+  const run = async (file, args, opts) => {
+    if (!args.includes('1000')) return realRun(file, args, opts)
+    if (args.includes(unknown)) unknownCalls++
+    peak = Math.max(peak, ++active)
+    try { return await realRun(file, args, opts) } finally { active-- }
+  }
+  const reviews = [S.A, S.B, S.M1, S.C, S.D, S.Pp, S.E, S.L, S.N, S.G, S.M2].map(t => go(t)).concat(go(unknown))
+  const { q } = newQueue({ reviews, run, now: () => clock })
+  try {
+    assert.equal((await q.queue()).default.fork, S.M2)
+    assert.equal(peak, 4)
+    clock += 31e3
+    await q.queue()
+    assert.equal(unknownCalls, 1)
+    fs.utimesSync(path.join(repo, '.git', 'FETCH_HEAD'), new Date(), new Date('2026-09-26T09:00:00Z'))
+    clock += 31e3
+    await q.queue()
+    assert.equal(unknownCalls, 2)
+  } finally { q.stop() }
+  const killed = Object.assign(new Error('killed'), { killed: true, code: null })
+  const { q: slow } = newQueue({ reviews: [go(S.B)], run: (file, args, opts) => (args.includes('1000') ? Promise.reject(killed) : realRun(file, args, opts)) })
+  try { await assert.rejects(slow.queue(), { code: 'unavailable', timedOut: true }) } finally { slow.stop() }
+})
+
 test('targets: a held range stops the default', async () => {
   await withQueue({ reviews: [go(S.M2)], held: [{ repo: 'fork', base: S.M1, tip: S.C, reason: 'pending Jake and Nat' }] }, async q => {
     const qv = await q.queue()
