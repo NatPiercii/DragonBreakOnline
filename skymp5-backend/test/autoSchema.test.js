@@ -312,6 +312,36 @@ test('crash sections are scrubbed, capped by key, unknown keys dropped', () => {
   assert.deepEqual(res.flags.sort(), ['invalidField', 'truncated'])
 })
 
+test('crash sections: registers keep only register and type, relevant objects lose names and quoted strings', () => {
+  const body = load('crash-ours')
+  const fixture = { ...body.crash.sections }
+  body.crash.sections.registers = 'RAX 0x0                (size_t) [0]\r\nRCX 0x1D3A5B0C2D0      (TESNPC*)\r\n' +
+    '\t\tName: "Lydia Johnson"\r\nRDX 0x7FF6A1B2C3D4     (char*) "Brelyna says hi"\r\nR8 0x14\r\nRSP (void*)'
+  body.crash.sections.relevantObjects = '[RSP+50] 0x1D3A5B0C2D0 (TESNPC*)\n\t\tName: "Lydia Johnson"\n\t\tFull Name: Bob Otherplayer\n' +
+    '\t\tFormID: 0xFF000D2E\n\t\tFile: "Skyrim.esm"\n[RSP+68] (char*) "meet me at the inn\n(BSFixedString) "unclosed text'
+  const { sections } = accepted(body).report.crash
+  assert.equal(sections.registers, 'RAX (size_t)\nRCX (TESNPC*)\nRDX (char*)\nRSP (void*)')
+  assert.equal(sections.relevantObjects, '[RSP+50] 0x1D3A5B0C2D0 (TESNPC*)\n\t\tName: <name>\n\t\tFull Name: <name>\n' +
+    '\t\tFormID: 0xFF000D2E\n\t\tFile: "Skyrim.esm"\n[RSP+68] (char*) ""\n(BSFixedString) ""')
+  // The sender's filtered form passes unchanged
+  assert.equal(sections.header, fixture.header)
+  const again = load('crash-ours')
+  assert.deepEqual(accepted(again).report.crash.sections, fixture)
+})
+
+test('crash section filters run in linear time', () => {
+  const body = load('crash-ours')
+  for (const unit of ['"', 'File: "', 'Name:', 'Full ', 'RAX 0x0 (', ' ']) {
+    const text = unit.repeat(Math.ceil(64 * 1024 / unit.length))
+    body.crash.sections.registers = text
+    body.crash.sections.relevantObjects = text
+    const start = process.hrtime.bigint()
+    accepted(body)
+    const ms = Number(process.hrtime.bigint() - start) / 1e6
+    assert.ok(ms < 100, `${ms.toFixed(1)} ms on runs of ${JSON.stringify(unit)}`)
+  }
+})
+
 test('component stacks keep component names with their build.js positions', () => {
   const body = load('ui-error-boundary')
   assert.equal(accepted(body).report.error.componentStack, body.error.componentStack)

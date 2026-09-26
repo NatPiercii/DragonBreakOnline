@@ -3,7 +3,7 @@
 
 const crypto = require('crypto')
 const config = require('../config')
-const { validate, ignoreReason, checkBuild, CONTRACT_VERSIONS } = require('./autoSchema')
+const { validate, ignoreReason, checkBuild, CONTRACT_VERSIONS, KINDS } = require('./autoSchema')
 const autoStore = require('./autoStore')
 const errorGroups = require('./errorGroups')
 const sourceMaps = require('./sourceMaps')
@@ -83,7 +83,9 @@ const hwidHash = hwid => (hwid ? crypto.createHash('sha256').update(`auto-report
 function store(result, { receivedAt, profileId, launchCheck, hwid }) {
   checkBuild(result, sourceMaps.meta('client', result.report.build && result.report.build.client))
   const { report, flags, invalid } = result
-  const ignored = ignoreReason(report)
+  // Launchers send their kinds only while crash watch is on (§1.8); a prerelease one could send them earlier
+  const watchOff = !config.autoReportCrashWatch && KINDS[report.kind].sender === 'launcher'
+  const ignored = watchOff ? 'crash-watch-off' : ignoreReason(report)
   if (ignored) dropBulk(report, true)
   const trust = launchCheck && launchCheck.filesOk === true ? 'verified' : 'unverified-launch'
   const record = { v: 1, receivedAt, profileId, trust, hwidHash: hwidHash(hwid), ignored, flags, invalid, report }

@@ -17,6 +17,14 @@ const SECTION_CAPS = {
   header: 4 * 1024, callStack: 24 * 1024, registers: 4 * 1024, relevantObjects: 16 * 1024,
   modules: 32 * 1024, sksePlugins: 8 * 1024, plugins: 32 * 1024, systemSpecs: 4 * 1024,
 }
+// §2.4 filters the backend runs again: registers keep `<REG> (<type>)`, relevantObjects keeps no name and no quoted string but File
+const REGISTER_LINE = /^\s*([A-Z][A-Z0-9]{1,5})\s+(?:0x[0-9A-Fa-f]{1,16}\s+)?\(([^()"\n]{1,80})\)/
+const NAME_VALUE = /\b((?:Full )?Name[ \t]*:[ \t]*)[^\n]*/gi
+const QUOTED = /(\bFile:[ \t]*"[^"\n]*")|"[^"\n]*"?/g
+const SECTION_FILTERS = {
+  registers: text => text.split('\n').map(line => REGISTER_LINE.exec(line)).filter(Boolean).map(([, reg, type]) => `${reg} (${type})`).join('\n'),
+  relevantObjects: text => text.replace(NAME_VALUE, '$1<name>').replace(QUOTED, (_m, file) => file || '""'),
+}
 const TRAIL_MAX = 56
 const ERROR_FRAMES_MAX = 12
 const CRASH_FRAMES_MAX = 24
@@ -66,7 +74,9 @@ const NAME = String.raw`[\p{L}\p{N} '.,:()-]{1,40}`
 const TOK = String.raw`[A-Za-z0-9_:.-]{1,40}`
 const TYPE = PATTERNS.type.source.slice(1, -1)
 const SVC = String.raw`[A-Za-z0-9_$]{1,64}`
-const TGT = String.raw`(?:self|player [0-9a-f]{1,8}|npc ${DESC}|${DESC}(?: ${NAME})?)`
+// Rule R: an FF-range form (player-made or player-named) is the hex only, never with a name
+const NAMED = String.raw`(?!ff[0-9a-f]{6} )${DESC}(?: ${NAME})?`
+const TGT = String.raw`(?:self|player [0-9a-f]{1,8}|npc ${DESC}|${NAMED})`
 const REASON = String.raw`[A-Za-z0-9_-]{1,32}`
 const STGT = String.raw`(?:player [0-9a-f]{1,8}|npc ${DESC}|${DESC})`
 const grammar = table => Object.fromEntries(Object.entries(table).map(([k, re]) => [k, new RegExp(`^(?:${re})$`, 'u')]))
@@ -75,7 +85,7 @@ const CLIENT_TRAIL = grammar({
   send: String.raw`CustomPacket (?:dbo ${TOK}|chat(?: /[a-z]{1,16})?|${TOK})|ConsoleCommand [A-Za-z]{1,24}|[A-Z][A-Za-z0-9]{1,39}(?: ${TGT})?`,
   recv: String.raw`SpSnippet [A-Za-z0-9_]{1,40}\.[A-Za-z0-9_]{1,40}|CustomPacket ${TOK}|[A-Z][A-Za-z0-9]{1,39}`,
   menu: String.raw`(?:open|close) [A-Za-z0-9 _/]{1,40}`,
-  world: String.raw`enter (?:ws|cell) ${DESC}(?: ${NAME})?|teleport ${DESC}|loadGame`,
+  world: String.raw`enter (?:ws|cell) ${NAMED}|teleport ${DESC}|loadGame`,
   act: String.raw`(?:activate|open|read|eat|use|equip|unequip|drop|take|craft|cast|hit|shoot) ${TGT}`,
   life: String.raw`death|downed|revived|respawn|ragdoll`,
   inv: String.raw`(?:add|remove) ${DESC} x\d{1,6}|set \d{1,5} entries`,
@@ -389,8 +399,9 @@ function scrubRecord(st, r, meta, ctx) {
     r.logs.gameLog = run(r.logs.gameLog, { field: 'gameLog', cap })
   }
   if (r.crash && r.crash.sections) {
-    for (const key of Object.keys(r.crash.sections)) {
-      r.crash.sections[key] = run(r.crash.sections[key], { field: 'crashSection', cap: SECTION_CAPS[key] })
+    for (const [key, text] of Object.entries(r.crash.sections)) {
+      const filter = SECTION_FILTERS[key]
+      r.crash.sections[key] = run(filter ? filter(text) : text, { field: 'crashSection', cap: SECTION_CAPS[key] })
     }
   }
   r.trail = scrubTrail(st, r.trail, meta.trailMax || TRAIL_MAX, run)

@@ -42,6 +42,7 @@ before(async () => {
   config.autoSourceMapDir = path.join(tmp, 'sourcemaps')
   writeFixtureMaps(config.autoSourceMapDir)
   config.autoReports = 'collect'
+  config.autoReportCrashWatch = true
   config.discordErrorForumChannelId = ''
   const app = express()
   app.use('/api/files', files)
@@ -377,6 +378,22 @@ test('ignored reports are stored as metadata only and still answer 202', async (
   assert.equal(record.ignored, 'opaque')
   assert.deepEqual(record.report.trail.entries, [])
   assert.equal(record.report.logs, undefined)
+})
+
+test('launcher kinds are ignored while crash watch is off', async (t) => {
+  config.autoReportCrashWatch = false
+  t.after(() => { config.autoReportCrashWatch = true })
+  const { token, profileId } = login()
+  const body = payload('crash-ours')
+  assert.deepEqual((await post(body, { token })).json, { ok: true, id: body.reportId, duplicate: false })
+  const record = stored(profileId, body.reportId)
+  assert.equal(record.ignored, 'crash-watch-off')
+  assert.equal(record.report.crash.sections, undefined)
+  assert.equal(record.report.logs, undefined)
+  assert.deepEqual(record.report.trail.entries, [])
+  const client = payload()
+  await post(client, { token })
+  assert.equal(stored(profileId, client.reportId).ignored, null)
 })
 
 test('503 while off, before the limiter or the session lookup', async (t) => {

@@ -34,6 +34,7 @@ const CRASH_OURS = 'Sb8c2d4d95a'
 let tmp, maps, dirs = 0
 
 before(() => {
+  config.autoReportCrashWatch = true
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'auto-groups-'))
   maps = path.join(tmp, 'sourcemaps')
   writeFixtureMaps(maps)
