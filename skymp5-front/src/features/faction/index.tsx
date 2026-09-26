@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 
 import './styles.scss';
+import { EconomyData, RealmData, RealmTab, TreasuryTab, WarTab } from './realm';
+// County Bruma's shaded relief from the game's own landscape (server tools/realm-map/render.py, --name bruma): 41 x 41 cells
+// at 256 game units a pixel, pixelX = x / 256 + 96 and pixelY = 1120 - y / 256, so these are its edges in game units
+import realmBruma from '../../img/realm-bruma.png';
+const BRUMA_MAP = { src: realmBruma, bounds: [-24576, 118784, 143360, 286720] as [number, number, number, number] };
 
 // Faction menu (server guilds.js, F3); actions go back as dbo:faction* events with the menu nonce
 export interface FactionMember {
@@ -36,6 +41,8 @@ export interface FactionData {
   factions: FactionView[];
   invites: { factionId: string; name: string; from: string }[];
   selected: string;
+  realm?: RealmData | null;
+  economy?: EconomyData | null;
   result?: string;
   resultKind?: 'ok' | 'refused' | '';
 }
@@ -57,6 +64,7 @@ const Faction = ({ data }: { data: FactionData }) => {
   const [selected, setSelected] = useState<string>(data.selected || (factions[0] ? factions[0].id : ''));
   const [inviteName, setInviteName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<'members' | 'realm' | 'war' | 'treasury'>('members');
 
   useEffect(() => {
     setBusy(false);
@@ -81,7 +89,22 @@ const Faction = ({ data }: { data: FactionData }) => {
         )}
         {data.result && <p className={'faction__result faction__result--' + (data.resultKind || 'ok')}>{data.result}</p>}
 
-        <div className="faction__body">
+        <div className="faction__tabs">
+          <button className={'faction__tab' + (tab === 'members' ? ' faction__tab--on' : '')} onClick={() => setTab('members')}>Members</button>
+          <button className={'faction__tab' + (tab === 'realm' ? ' faction__tab--on' : '')} onClick={() => setTab('realm')}>Realm</button>
+          <button className={'faction__tab' + (tab === 'war' ? ' faction__tab--on' : '')} onClick={() => setTab('war')}>
+            War{data.realm && (data.realm.wars || []).length ? ` (${data.realm.wars.length})` : ''}
+          </button>
+          {data.economy && data.economy.factions.length > 0 && (
+            <button className={'faction__tab' + (tab === 'treasury' ? ' faction__tab--on' : '')} onClick={() => setTab('treasury')}>Treasury</button>
+          )}
+        </div>
+
+        {tab === 'realm' && <div className="faction__body faction__body--wide"><RealmTab realm={data.realm || null} background={BRUMA_MAP} /></div>}
+        {tab === 'war' && <div className="faction__body faction__body--wide"><WarTab realm={data.realm || null} act={act} busy={busy} /></div>}
+        {tab === 'treasury' && <div className="faction__body faction__body--wide"><TreasuryTab economy={data.economy || null} act={act} busy={busy} /></div>}
+
+        {tab === 'members' && <div className="faction__body">
           <div className="faction__list">
             {(data.invites || []).map((i) => (
               <div key={'inv-' + i.factionId} className="faction__invite">
@@ -140,7 +163,7 @@ const Faction = ({ data }: { data: FactionData }) => {
               </>
             ) : <p className="faction__empty">Choose a faction.</p>}
           </div>
-        </div>
+        </div>}
 
         <div className="faction__footer">
           <span className="faction__hint">F3 opens this menu. X on a player invites them.</span>

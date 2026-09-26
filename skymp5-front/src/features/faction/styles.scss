@@ -240,3 +240,60 @@
     }
   }
 }
+
+// ---- tabs: Members, Realm (the map), War (realm.tsx) -------------------------------------------------------------------
+.faction__tabs { display: flex; gap: 6px; margin: 4px 0 2px; }
+.faction__tab {
+  @include dbo-button;
+  padding: 5px 14px;
+  font-size: 13px;
+  opacity: 0.7;
+  &--on { opacity: 1; }
+}
+.faction__body--wide { display: block; overflow-y: auto; }
+.faction__button--danger { border-color: rgba(214, 84, 84, 0.7); color: #f0b4b4; }
+.faction__input--small { width: 120px; flex: none; }
+
+.realm { display: flex; gap: 14px; align-items: flex-start; }
+.realm__side { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.realm__legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.realm__legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.realm__swatch { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.4); }
+.realm__list { display: flex; flex-direction: column; gap: 3px; }
+.realm__row { display: grid; grid-template-columns: 1fr 70px 1fr; gap: 6px; font-size: 13px; color: $dbo-text-dim; }
+.realm__name { color: $dbo-text; }
+.realm__note { margin: 0; font-size: 13px; color: $dbo-gold; }
+
+.realm-map {
+  position: relative;
+  flex: none;
+  border: 1px solid $dbo-border;
+  border-radius: 4px;
+  overflow: hidden;
+  background: radial-gradient(circle at 40% 40%, #3a3a33, #1d1f1c 80%);
+}
+.realm-map__terrain, .realm-map__owners { position: absolute; left: 0; top: 0; }
+.realm-map__marker { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.realm-map__dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #f4efe2; box-shadow: 0 0 4px rgba(0, 0, 0, 0.8); }
+.realm-map__marker--capital .realm-map__dot { width: 14px; height: 14px; border-radius: 2px; }
+.realm-map__icon { width: 26px; height: 26px; object-fit: contain; filter: drop-shadow(0 0 2px #000); outline: 2px solid transparent; outline-offset: 1px; border-radius: 3px; }
+.realm-map__label { margin-top: 2px; font-size: 12px; color: #f4efe2; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; }
+.realm-map__tip { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; font-size: 12px; background: rgba(0, 0, 0, 0.65); border-radius: 3px; }
+
+.wars { display: flex; flex-direction: column; gap: 12px; }
+.war { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid $dbo-border; border-radius: 4px; background: rgba(0, 0, 0, 0.2); }
+.war--declare { border-color: rgba(214, 84, 84, 0.45); }
+.war__head { display: flex; align-items: center; gap: 8px; }
+.war__status { margin-left: auto; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: $dbo-text-dim;
+  &--active { color: #f0b4b4; } }
+.war__line { font-size: 13px; color: $dbo-text; &--dim { color: $dbo-text-dim; } &--death { color: #f0b4b4; } }
+.war__checks { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.war__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+
+.realm-map__secret { width: 14px; height: 14px; border-radius: 50%; border: 2px dashed #c9a8ff; box-shadow: 0 0 6px rgba(168, 140, 236, 0.9); }
+.realm-map__marker--secret .realm-map__label { color: #d9c6ff; font-style: italic; }
+.realm__secret-head { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #c9a8ff; }
+.treasury__figure { display: inline-flex; align-items: center; gap: 5px; }
+.treasury__suffix { font-size: 12px; color: $dbo-text-dim; }
+.treasury__wages { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; }
+.treasury__wage { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
