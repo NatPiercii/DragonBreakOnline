@@ -10,15 +10,25 @@
   Next: in game on the dev client, cast a summon scroll with the console open (skymp5-client logs), note whether the
   cast animation plays; compare a summon spell (works: ISS_ConjureSkeleton) and a TargetLocation scroll.
 
-## Added 2026-09-26 (00:35 UTC): FOV wrong at login; an FOV slider - NATIVE (skyrim-platform), NOT STARTED
+## Added 2026-09-26 (00:35 UTC, rewritten 23:30 UTC): FOV wrong at login; an FOV slider - BUILT, UNPROVEN IN GAME
 
-- [ ] #bugs 1553201600716087427 (thefabled.): the field of view is wrong after logging in; they also want an FOV slider.
-  Nothing in skymp5-client, skymp5-front, the launcher or the gamemode touches FOV (only index.ts sets
-  fAutoVanityModeDelay), so the likely source is the character screen (RaceMenu camera) at login. Asked the player:
-  wider or narrower, first or third person, does it recover after a load screen.
-- [ ] The slider needs native support: the SkyrimPlatform typings have no FOV call (PlayerCamera worldFOV /
-  firstPersonFOV are not bound, and Utility.setINIFloat on fDefaultWorldFOV does not apply live). Add a binding in
-  skyrim-platform (C++, CI flatrim build), then a settings slider in the front.
+- [ ] #bugs 1553201600716087427 (thefabled.): the field of view is wrong after logging in; they also want an FOV
+  slider. The likely source is the character screen (RaceMenu sets its own close-up FOV for the face and never puts
+  it back). Asked the player: wider or narrower, first or third person, does it recover after a load screen.
+- [x] Built on fork branch `fov-slider` (`72ee0433`, off `client-0344`), type-check clean, NOT in a package yet.
+  Launcher: Field of View in the graphics settings, writing both `fDefaultWorldFOV` and `fDefault1stPersonFOV`
+  (Skyrim keeps them apart), clamped 50..140, default 80. Client: `fovService.ts` reads the pair at startup before a
+  menu can move it and re-applies it when the creator closes, then nudges the camera between persons to force a
+  rebuild.
+- [ ] **The one thing that decides whether this works**: does the restored value apply at once, or only after a
+  camera change or a load screen? The camera nudge is there to force it and nothing has tested it.
+- [ ] Correction to the earlier entry, which claimed this needed a native binding. `Utility.setINIFloat` IS bound
+  (typings line 3433, class `Utility`) and `skymp5-client/src/index.ts:104` has used it for `fAutoVanityModeDelay`
+  all along, so "no FOV call exists" was wrong and was told to a player in the thread before being corrected. The
+  separate claim that `setINIFloat` on `fDefaultWorldFOV` "does not apply live" was recorded without a test to cite,
+  unlike the wisp entry below it, so treat it as untested rather than settled. If the in-game check shows the value
+  really is ignored until a rebuild the nudge cannot force, THEN a `PlayerCamera` binding in skyrim-platform (C++, CI
+  flatrim build) is the fallback - but try the cheap route first.
 
 ## Added 2026-09-25 (23:55 UTC): Will-o-the-Wisp summon crashes the game - REFUSED ON THE SERVER, MESH FIX FOR THE PC
 
