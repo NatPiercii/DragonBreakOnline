@@ -3,6 +3,7 @@ import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { logTrace } from "../../logging";
+import { RestraintService } from "./restraintService";
 
 // Server -> Client: { customPacketType: "dboParalyse", seconds }
 //                  { customPacketType: "dboStatus", kind, seconds, speedMult, text }  (Howl of Terror)
@@ -23,7 +24,7 @@ export class ParalysisService extends ClientListener {
     if (!seconds) return;
     this.until = Math.max(this.until, Date.now() + seconds * 1000);
     this.controller.once("update", () => {
-      this.hold(true);
+      this.hold();
       try { this.sp.Debug.notification(`You are held fast for ${seconds} seconds.`); } catch { /* no hud */ }
     });
     logTrace(this, "Paralysed for", seconds);
@@ -58,20 +59,39 @@ export class ParalysisService extends ClientListener {
 
   private onUpdate(): void {
     if (this.slowApplied && Date.now() >= this.slowUntil) { this.setSpeed(-this.slowApplied); this.slowApplied = 0; }
-    if (this.until && Date.now() >= this.until) {
+    if (!this.until) return;
+    const player = this.sp.Game.getPlayer();
+    // Death and the down state own the player from here: the hold ends without letting the body move, and a revive
+    // finds no hold left over (review GP-2)
+    if (player && player.isDead()) {
       this.until = 0;
-      this.hold(false);
+      this.release(false);
+      return;
+    }
+    if (Date.now() >= this.until) {
+      this.until = 0;
+      this.release(true);
     }
   }
 
-  // (movement, fighting, camSwitch, looking, sneaking, menu, activate, journalTabs, disablePOVType)
-  private hold(on: boolean): void {
+  // Gives back the controls the hold took. A carried or bound player's own lock goes back on after it.
+  private release(freeMovement: boolean): void {
     const player = this.sp.Game.getPlayer();
     if (!player) return;
     try {
-      player.setDontMove(on);
-      if (on) this.sp.Game.disablePlayerControls(true, true, false, false, true, false, true, false, 0);
-      else this.sp.Game.enablePlayerControls(true, true, false, false, true, false, true, false, 0);
+      if (freeMovement) player.setDontMove(false);
+      this.sp.Game.enablePlayerControls(true, true, false, false, true, false, true, false, 0);
+    } catch { /* player not ready */ }
+    this.controller.lookupListener(RestraintService).reapply();
+  }
+
+  // (movement, fighting, camSwitch, looking, sneaking, menu, activate, journalTabs, disablePOVType)
+  private hold(): void {
+    const player = this.sp.Game.getPlayer();
+    if (!player || player.isDead()) return;
+    try {
+      player.setDontMove(true);
+      this.sp.Game.disablePlayerControls(true, true, false, false, true, false, true, false, 0);
     } catch { /* player not ready */ }
   }
 
