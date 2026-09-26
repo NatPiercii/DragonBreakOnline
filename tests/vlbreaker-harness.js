@@ -59,7 +59,7 @@ const asVampireLord = (a) => {
 const load = () => { delete require.cache[BEASTFORM]; require(BEASTFORM)(api); };
 const fresh = () => {
   reset();
-  delete globalThis.__dboVampireLordRemote; delete globalThis.__dboVlSeen;
+  delete globalThis.__dboVampireLordRemote; delete globalThis.__dboVlSeen; delete globalThis.__dboVlRemoteSetBy;
   load();
   asVampireLord(VL);
   timers.get('beastForms')();   // the tick records the sighting
@@ -107,6 +107,17 @@ check('the breaker tripped before the reload', globalThis.__dboVampireLordRemote
 load();
 check('...and a hot reload does not turn the remote body back on', globalThis.__dboVampireLordRemote === false);
 check('...and the boot line says off', out.logs.filter((l) => /beastform on/.test(l)).pop().includes('remote body off'));
+
+// ---- a value merely seeded from config must not outlive the config that set it ----
+fresh();
+globalThis.__dboVampireLordRemote = false;   // an older process seeded false; nobody decided it
+delete globalThis.__dboVlRemoteSetBy;
+load();
+check('a stale seed is re-seeded from config on reload', globalThis.__dboVampireLordRemote === true);
+fresh();
+globalThis.__dboVlBreakerDrop(NEAR, false);
+load();
+check('...but a breaker trip is not undone by a reload', globalThis.__dboVampireLordRemote === false);
 
 // ---- an admin can turn it back on ----
 commands.get('vlremote')(ELSEWHERE, 'on');

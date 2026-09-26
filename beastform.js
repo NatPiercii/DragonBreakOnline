@@ -11,10 +11,11 @@
 module.exports = (api) => {
   const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, cfg, isAdmin } = api;
   // Config "beastform": vampireLordRemoteRace decides whether other clients build the Vampire Lord body.
-  // The comment below promised this flag for weeks while nothing read it, so only /vlremote worked and its
-  // value died with the process. Seeded once per process, so an admin's /vlremote survives a hot reload.
+  // The comment below promised this flag for weeks while nothing read it, so only /vlremote worked and its value
+  // died with the process. A deliberate off - the breaker tripping, or an admin saying /vlremote - must survive a
+  // hot reload; a value merely seeded from config must not, or an old seed outlives the config that set it.
   const CFG = Object.assign({ vampireLordRemoteRace: true, breakerUnits: 6000, breakerSeconds: 120 }, (cfg && cfg.beastform) || {});
-  if (globalThis.__dboVampireLordRemote === undefined) globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
+  if (globalThis.__dboVlRemoteSetBy === undefined) globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
   // The name a viewer knows another player by: introduced, else Stranger, else Masked Person (playermenu.js).
   // Only players are named here, so there is no nameOf fallback to leak a real name if playermenu is missing.
   const nameTo = (viewer, x) => {
@@ -296,6 +297,7 @@ module.exports = (api) => {
   // Exposed so the harness can drive the breaker without a live server
   const tripBreaker = globalThis.__dboVlBreakerTrip = (dropped, vl, cell) => {
     globalThis.__dboVampireLordRemote = false;
+    globalThis.__dboVlRemoteSetBy = 'breaker';
     let restored = 0;
     for (const o of shownVampireLords()) {
       const s = stateOf(o);
@@ -329,7 +331,7 @@ module.exports = (api) => {
   // For a controlled crash test: with it on, other clients build the Vampire Lord body again (takes effect on the next change)
   registerChatCommand('vlremote', (a, args) => {
     const v = String(args || '').trim().toLowerCase();
-    if (v === 'on' || v === 'off') { globalThis.__dboVampireLordRemote = v === 'on'; audit(`GM ${who(a)} set Vampire Lord remote body ${v}`); }
+    if (v === 'on' || v === 'off') { globalThis.__dboVampireLordRemote = v === 'on'; globalThis.__dboVlRemoteSetBy = 'admin'; audit(`GM ${who(a)} set Vampire Lord remote body ${v}`); }
     personal(a, `Other players ${globalThis.__dboVampireLordRemote === true ? 'see the Vampire Lord body' : 'see the real appearance of a Vampire Lord'} (applies on the next change).`);
   }, { admin: true, help: '[on|off] whether other players see the Vampire Lord body (crash test)' });
 
