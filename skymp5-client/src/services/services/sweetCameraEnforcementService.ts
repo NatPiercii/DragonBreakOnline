@@ -88,7 +88,8 @@ export class SweetCameraEnforcementService extends ClientListener {
             content = JSON.parse(e.message.contentJsonDump);
         } catch (err) {
             if (err instanceof SyntaxError) {
-                logError(this, "Failed to parse custom packet contentJsonDump:", e.message.contentJsonDump, "Error:", err);
+                // The length only: a custom packet can carry chat or a token, and a parse error quotes the text (review X6)
+                logError(this, "Failed to parse custom packet contentJsonDump:", err.name, `(${String(e.message.contentJsonDump).length} chars)`);
                 return;
             }
             throw err;

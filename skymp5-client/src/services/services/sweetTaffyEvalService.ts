@@ -27,7 +27,8 @@ export class SweetTaffyEvalService extends ClientListener {
             msgContent = JSON.parse(msg.contentJsonDump);
         } catch (e) {
             if (e instanceof SyntaxError) {
-                logError(this, "onCustomPacketMessage failed to parse JSON", e.message, "json:", msg.contentJsonDump);
+                // The length only: a custom packet can carry chat or a token, and a parse error quotes the text (review X6)
+                logError(this, "onCustomPacketMessage failed to parse JSON:", e.name, `(${String(msg.contentJsonDump).length} chars)`);
                 return;
             } else {
                 throw e;
