@@ -227,8 +227,9 @@ TES5SpellDamageFormulaImpl::TES5SpellDamageFormulaImpl(
 
 float TES5SpellDamageFormulaImpl::GetBaseSpellDamage() const
 {
+  // A scroll's damage is its spell's: SCRL carries the same effects
   const auto spellData =
-    espm::GetData<espm::SPEL>(spellCastData.spell, espmProvider);
+    espm::GetSpellItemData(spellCastData.spell, espmProvider);
 
   // EFID holds a record-local form id: it only means anything through the spell's own file
   const auto spellLookup =

@@ -64,11 +64,11 @@ std::vector<espm::Effects::Effect> GetRestorativeEffects(WorldState* worldState,
   std::vector<espm::Effects::Effect> result;
   const auto spellLookup =
     worldState->GetEspm().GetBrowser().LookupById(spellId);
-  const auto spell = espm::Convert<espm::SPEL>(spellLookup.rec);
-  if (!spell) {
+  if (!espm::IsSpellItem(spellLookup.rec)) {
     return result;
   }
-  const auto spellData = spell->GetData(worldState->GetEspmCache());
+  const auto spellData =
+    espm::GetSpellItemData(spellLookup.rec, worldState->GetEspmCache());
   for (const auto& effect : spellData.effects) {
     if (!effect.effectItem || effect.effectFormId == 0) {
       continue;
@@ -120,11 +120,12 @@ void ForEachSpellEffectData(WorldState* worldState, uint32_t spellId,
 {
   auto& browser = worldState->GetEspm().GetBrowser();
   const auto spellLookup = browser.LookupById(spellId);
-  const auto spell = espm::Convert<espm::SPEL>(spellLookup.rec);
-  if (!spell) {
+  // A scroll's effects work like its spell's (SCRL carries the same SPIT and EFID/EFIT)
+  if (!espm::IsSpellItem(spellLookup.rec)) {
     return;
   }
-  const auto spellData = spell->GetData(worldState->GetEspmCache());
+  const auto spellData =
+    espm::GetSpellItemData(spellLookup.rec, worldState->GetEspmCache());
   for (const auto& effect : spellData.effects) {
     if (effect.effectFormId == 0) {
       continue;
@@ -1608,8 +1609,24 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
 
   const bool isSourceSpell =
     sourceInEspm.rec && sourceInEspm.rec->GetType() == espm::SPEL::kType;
+  const bool isSourceScroll =
+    sourceInEspm.rec && sourceInEspm.rec->GetType() == espm::SCRL::kType;
 
   const auto equipment = aggressor->GetEquipment();
+
+  // A scroll's hit is a spell hit. It went to OnWeaponHit (a held scroll is equipment) and threw 'Expected record to be
+  // WEAP, but found SCRL', so a scroll was used up and did nothing (review SCH-1, 2026-09-26). Only a scroll the server
+  // just used up for this caster may hit, a few times, for a short while.
+  if (isSourceScroll) {
+    if (TakeScrollHit(aggressor->GetFormId(), hitData.source)) {
+      OnSpellHit(aggressor, targetRef, hitData);
+    } else {
+      spdlog::info("ActionListener::OnHit - {:x} has no scroll {:x} read "
+                   "lately, hit refused",
+                   hitData.aggressor, hitData.source);
+    }
+    return;
+  }
 
   if (isSourceSpell) {
     if (CanHitWithSpell(*aggressor, hitData.source)) {
@@ -1757,11 +1774,15 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
                       nlohmann::json::array({ spellCastData.spell }));
   }
 
-  // A scroll is read once: one leaves the caster's inventory per cast. The restorative handling below reads SPEL
-  // records only (GetData<SPEL> throws on a SCRL), so a scroll stops here.
+  // A scroll is read once: one leaves the caster's inventory per cast, and its hits may land for a short while
+  // (TakeScrollHit). The restorative handling below is for spells the caster knows, so a scroll stops here.
   if (scrollCast) {
     if (!spellCastData.keepAlive && IsHeldScroll(*caster, spellCastData.spell)) {
       caster->RemoveItem(spellCastData.spell, 1, nullptr);
+      auto& read = scrollHits[caster->GetFormId()];
+      read.scrollId = spellCastData.spell;
+      read.until = std::chrono::steady_clock::now() + kScrollHitWindow;
+      read.hitsLeft = kScrollHitsPerRead;
       spdlog::info("ActionListener::OnSpellCast - {:x} read scroll {:x}",
                    caster->GetFormId(), spellCastData.spell);
     }
@@ -2037,7 +2058,7 @@ void ActionListener::OnSpellHit(MpActor* aggressor,
     return;
   }
   const auto spellData =
-    espm::GetData<espm::SPEL>(hitData.source, &partOne.worldState);
+    espm::GetSpellItemData(hitData.source, &partOne.worldState);
   if (!spellData.spellItem) {
     return;
   }
@@ -2401,5 +2422,21 @@ bool ActionListener::IsParalyzed(const MpActor& actor)
     paralyzedUntil.erase(it);
     return false;
   }
+  return true;
+}
+
+// A scroll's hit counts only while the scroll the server used up for this caster is fresh: kScrollHitsPerRead hits
+// (an area scroll touches several actors) within kScrollHitWindow (a rune waits on the ground for its target)
+bool ActionListener::TakeScrollHit(uint32_t casterId, uint32_t scrollId)
+{
+  const auto now = std::chrono::steady_clock::now();
+  std::erase_if(scrollHits,
+                [&](const auto& entry) { return entry.second.until <= now; });
+  const auto it = scrollHits.find(casterId);
+  if (it == scrollHits.end() || it->second.scrollId != scrollId ||
+      it->second.hitsLeft == 0) {
+    return false;
+  }
+  --it->second.hitsLeft;
   return true;
 }

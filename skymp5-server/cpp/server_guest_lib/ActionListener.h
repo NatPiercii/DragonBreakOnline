@@ -171,6 +171,17 @@ private:
   std::unordered_map<uint32_t, RestorationChannel> restorationChannels;
   uint32_t restorationChannelGeneration = 0;
   std::unordered_map<uint32_t, WardChannel> wardChannels;
+  // A scroll read lately, whose hits may land (OnHit); one per caster, the newest wins
+  struct ScrollRead
+  {
+    uint32_t scrollId = 0;
+    std::chrono::steady_clock::time_point until{};
+    uint32_t hitsLeft = 0;
+  };
+  static constexpr std::chrono::seconds kScrollHitWindow{ 60 };
+  static constexpr uint32_t kScrollHitsPerRead = 12;
+  std::unordered_map<uint32_t, ScrollRead> scrollHits;
+  bool TakeScrollHit(uint32_t casterId, uint32_t scrollId);
   std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>
     paralyzedUntil;
 
