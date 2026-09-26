@@ -298,6 +298,8 @@ const STOP_WHY = { notReviewed: 'not reviewed', held: 'held', blocked: 'NO-GO', 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const short = s => (s ? String(s).slice(0, 8) : '?');
+// The status's queue counts, or the last full queue while the status has none (a failed refresh leaves only unavailable)
+const freshQueue = s => (s.queue?.hash ? s.queue : srv.queue);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const line = (text, cls) => el('div', cls || '', text);
 const chip = f => el('span', HEAVY.has(f) ? 'flag warn' : 'flag', FLAGS[f] || f);
@@ -370,7 +372,7 @@ function renderHead(s) {
 function renderLive(s) {
   const box = $('srvLive'); box.textContent = '';
   const lv = s.live;
-  if (!lv) return box.append(line('Loading…', 'dim'));
+  if (!lv) return box.append(s.queue?.unavailable ? line('! Live versions cannot be read right now', 'warn') : line('Loading…', 'dim'));
   const f = lv.fork, g = lv.server, c = lv.client;
   const confirmed = f.confirmed === true ? 'confirmed' : f.confirmed === false ? 'not confirmed'
     : s.updater.lastUpdate.state === 'unknown' ? 'not in the updater log' : 'cannot confirm';
@@ -383,7 +385,7 @@ function renderLive(s) {
     lv.website?.total ? `Website ${lv.website.matching} of ${lv.website.total} pages match` : null,
     `Launcher ${lv.launcher || '?'}`];
   box.append(first, line(parts.filter(Boolean).join(' · ')));
-  for (const code of (s.queue || srv.queue || {}).drift || []) box.append(line('! ' + driftText(code, s), 'warn'));
+  for (const code of freshQueue(s)?.drift || []) box.append(line('! ' + driftText(code, s), 'warn'));
   if (c.zipMatches === false) box.append(line('! The served client zip differs from the recorded one', 'warn'));
   if (lv.githubLive === 'behind') box.append(line('The live branch on GitHub is behind what runs here.', 'dim'));
 }
@@ -430,8 +432,8 @@ function group(g) {
 
 function renderQueue(s) {
   const box = $('srvQueue'); box.textContent = '';
-  const q = srv.queue, fresh = s.queue || q;
-  if (!q) box.append(line(srv.queueFailed ? 'The list cannot be read right now.' : 'Building the list…', 'dim'));
+  const q = srv.queue, fresh = freshQueue(s), failed = srv.queueFailed || !!s.queue?.unavailable;
+  if (!q) box.append(line(failed ? 'The list cannot be read right now.' : 'Building the list…', 'dim'));
   else {
     const n = q.counts, inDefault = q.groups.reduce((a, g) => a + g.items.filter(it => it.inDefault).length, 0);
     const head = el('div', 'bar');
@@ -467,7 +469,7 @@ function renderQueue(s) {
       const bs = q.notOnMain.filter(b => b.upstream === up);
       if (bs.length) box.append(line(`Not on ${up}: ` + bs.map(b => `${b.branch} (${b.uniqueCommits}${b.unowned ? ', no owner' : ''})`).join(', '), 'dim'));
     }
-    if (srv.queueFailed) box.append(line('! The list could not be refreshed; this is the last one', 'warn'));
+    if (failed) box.append(line('! The list could not be refreshed; this is the last one', 'warn'));
   }
   for (const code of fresh?.blockers || []) box.append(line('! No update can start: ' + blockerText(code, fresh), 'bad'));
   if (fresh) box.append(line(`Checked with GitHub ${fresh.fetchedAt ? stamp(fresh.fetchedAt) : 'never'} · list built ${stamp(fresh.generatedAt)}`, 'dim'));

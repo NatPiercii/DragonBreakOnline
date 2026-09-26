@@ -1004,19 +1004,26 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return canonical([mainSha, serverSha, stamps, await packStamps()])
   }
 
-  let cache = null, inflight = null
+  let cache = null, inflight = null, failure = null
 
   function queue() {
     if (!inflight) {
       inflight = (async () => {
         const key = await queueKey()
         if (!cache || cache.key !== key || now() - cache.at >= QUEUE_TTL_MS) cache = { key, at: now(), ...(await buildQueue()) }
+        failure = null
         wantWebsite()
         return cache.value
-      })().finally(() => { inflight = null })
+      })().catch(err => {
+        failure = { code: err.timedOut ? 'timeout' : 'unavailable', at: iso(now()) }
+        throw err
+      }).finally(() => { inflight = null })
     }
     return inflight
   }
+
+  // The last failed refresh, until one succeeds
+  const lastFailure = () => failure
 
   // The last queue without waiting; a stale one starts a refresh in the background
   function peek() {
@@ -1088,7 +1095,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return { rows: older.slice(0, 10), more: older.length > 10 }
   }
 
-  return { git, live, queue, peek, peekLive, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
+  return { git, live, queue, peek, peekLive, lastFailure, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
 }
 
 module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, runFile, isSecretFile, GIT_ALLOWED }

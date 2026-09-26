@@ -186,6 +186,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
     const state = serviceState(skymp, beatAge, stopped, updater)
     const qv = releaseQueue.peek()
     const lv = releaseQueue.peekLive()
+    const failed = releaseQueue.lastFailure?.() || null
     return {
       generatedAt: isoOrNull(now()),
       controls: { mode: 'off', update: 'notYet' },
@@ -198,7 +199,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
       backend: { since: isoOrNull(boot.since), bootSha: boot.sha, restartPending: lv?.backend?.restartPending ?? null },
       updater,
       live: liveView(lv),
-      queue: queueView(qv),
+      queue: qv || failed ? { ...queueView(qv), unavailable: failed } : null,
       release: { open: null },
       schedules: [],
       history: history.slice(0, HISTORY_ROWS),

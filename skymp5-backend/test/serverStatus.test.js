@@ -116,6 +116,30 @@ test('status never waits for git: a stalled queue refresh still answers', async 
   }
 })
 
+test('a failing queue refresh shows as unavailable in the status until one succeeds', async () => {
+  let clock = T, broken = true
+  const killed = () => Object.assign(new Error('killed'), { killed: true, code: null })
+  const status = createServerStatus({
+    config: F.config, markers: F.markers, now: () => clock, getHeartbeat: () => null, run: async () => ({ stdout: showOutput() }),
+    queueDeps: { run: (...a) => (broken ? Promise.reject(killed()) : realRun(...a)), fetch: offline },
+  })
+  try {
+    assert.equal((await status.get()).queue, null)
+    await status.queue.queue().catch(() => {})
+    clock += 5e3
+    const failed = await status.get()
+    assert.equal(failed.live, null)
+    assert.deepEqual(Object.keys(failed.queue), ['unavailable'])
+    assert.equal(failed.queue.unavailable.code, 'timeout')
+    broken = false
+    await status.queue.queue().catch(() => status.queue.queue())
+    clock += 5e3
+    const ok = await status.get()
+    assert.equal(ok.queue.unavailable, null)
+    assert.ok(ok.queue.hash && ok.live)
+  } finally { status.queue.stop() }
+})
+
 test('restart pending: only backend runtime paths between the boot commit and live count', async () => {
   const cases = [[F.S.A, F.S.B, false], [F.S.A, F.S.C, true], [F.S.C, F.S.C, false], [F.S.B, F.S.C, true], [null, F.S.C, null]]
   for (const [boot, live, expected] of cases) {
