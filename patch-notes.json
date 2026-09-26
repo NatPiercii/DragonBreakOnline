@@ -1,5 +1,27 @@
 [
   {
+    "title": "Easier Chat, Clearer Help",
+    "date": "2026-09-26",
+    "version": "Server + client 0.3.48",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Chat",
+        "items": [
+          "Press Up in the chat box to bring back what you sent before, and Down to go forward again. It remembers your last 20 lines. Restart the launcher to get client 0.3.48."
+        ]
+      },
+      {
+        "heading": "Help",
+        "items": [
+          "/help is organised by topic, one line each: chat and people, your character, faith, work and the world, rule and property, groups and dungeons, and trouble.",
+          "/help <topic> lists that topic with what each command does, for example /help character. /help <command> explains one command, for example /help level.",
+          "Staff: /help admin lists the staff commands by topic in the admin tab."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Steady Ground, Quick Hands",
     "date": "2026-09-25",
     "version": "Server + client 0.3.43",
