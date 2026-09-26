@@ -1915,6 +1915,7 @@ onUi('reading', (a, args) => {
   const win = inTime && right;
   const reads = readsOf(a);
   const results = [];
+  const gained = []; // names of the items handed over, announced like the game's own "added" notices
   if (win) {
     const tier = ses.tier;
     // 'read', not 'activate': a finished reading round is worth 1.0 units against 0.5 for opening a
@@ -1922,14 +1923,14 @@ onUi('reading', (a, args) => {
     try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
-    if (ses.baseId && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) results.push(`you copy out ${ses.title} and keep it`);
+    if (ses.baseId && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) { results.push(`you copy out ${ses.title} and keep it`); gained.push(ses.title); }
     const scrollChance = Number((READ.scrollChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const today = new Date().toISOString().slice(0, 10);
     let found = null; try { found = mp.get(a, 'private.scholarScrolls'); } catch (e) { found = null; }
     const foundToday = found && found.day === today ? Number(found.n) || 0 : 0;
     if (scrollChance > 0 && foundToday < (Number(READ.scrollDailyCap) || 0) && Math.random() < scrollChance) {
       const pick = scrollFor(tier);
-      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a scroll was tucked between the pages: ${humanize(pick.name)}`); mp.set(a, 'private.scholarScrolls', { day: today, n: foundToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
+      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a scroll was tucked between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarScrolls', { day: today, n: foundToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
     // A spell tome at every Scholar tier (Nate, 2026-09-25: you should not have to be a Master to find one; 2026-09-26: a
     // rare chance at Novice too), by
@@ -1941,7 +1942,7 @@ onUi('reading', (a, args) => {
     if (tomesToday < (Number(READ.tomeDailyCap) || 0) && Math.random() < tomeChance) {
       const pool = (READABLES.tomes || []).filter((t) => Number(t.rank) <= Math.max(0, tier - 2));
       const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
-      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
+      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
     reads[ses.refId.toString(16)] = Date.now() + READ.cooldownMinutes * 60000;
     audit(`READ ${who(a)} read ${ses.title} (tier ${tier + 1}) ${results.length ? '-> ' + results.join('; ') : '-> nothing but the knowledge'}`);
@@ -1953,6 +1954,10 @@ onUi('reading', (a, args) => {
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
   const text = win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.';
   openWidget(a, readWidget(ses, { result: text, resultKind: win ? 'win' : 'lose', endsInMs: 0, answer: win ? undefined : ses.original.join(' ') }), false);
+  // Items given by the server raise no "added" notice of the game's own, and the text above goes when the window closes
+  // (#bugs 1553205828058615839): each find gets a notice and a chat line.
+  for (const name of gained) { try { notify(a, `${name} added`); } catch (e) { /* offline */ } }
+  if (gained.length) personal(a, `From your reading: ${gained.join(', ')}.`);
   readSessions.delete(a);
 });
 log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim and ${READ_LINES_CYRODIIL.length} Cyrodiil lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);
