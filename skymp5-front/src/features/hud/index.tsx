@@ -72,37 +72,13 @@ const useVoice = (): { mode: string; talking: boolean } => {
   return { mode, talking };
 };
 
-// Who else is audible and speaking right now. The front voice manager already works
-// this out for lip sync, so the HUD reuses the same list rather than deriving it twice.
-const useSpeakers = (): Array<{ id: string; name: string }> => {
-  const [speakers, setSpeakers] = useState<Array<{ id: string; name: string }>>([]);
-  useEffect(() => {
-    const onSpeakers = (e: Event) => {
-      const list = ((e as CustomEvent).detail || []) as Array<{ id: string; name?: string; level?: number }>;
-      // Own voice is in the list for lip sync; the HUD only wants other people
-      setSpeakers(list
-        .filter((x) => x && x.name)
-        .map((x) => ({ id: String(x.id), name: String(x.name) }))
-        .slice(0, 4));
-    };
-    window.addEventListener('dbo:voiceSpeakers', onSpeakers);
-    return () => window.removeEventListener('dbo:voiceSpeakers', onSpeakers);
-  }, []);
-  return speakers;
-};
-
 // Voice box: the three ranges as pips with the active one lit; the box glows while V is held.
-const Voice = ({ mode, talking, speakers }: { mode: string; talking: boolean; speakers: Array<{ id: string; name: string }> }) => {
+// It never names who is talking: a name there gave away characters the listener had not met (Nate, 2026-09-26),
+// so voices are placed by where the speaker stands and nothing else.
+const Voice = ({ mode, talking }: { mode: string; talking: boolean }) => {
   const active = VOICE_MODES.some(([id]) => id === mode) ? mode : 'talk';
   return (
     <div className={'dboVoice' + (talking ? ' dboVoice--talking' : '')} title="Hold V to talk, tap Left Alt to change range">
-      {speakers.length > 0 && (
-        <div className="dboVoice__speakers">
-          {speakers.map((s) => (
-            <span key={s.id} className="dboVoice__speaker">{s.name}</span>
-          ))}
-        </div>
-      )}
       <span className="dboVoice__icon" />
       <div className="dboVoice__modes">
         {VOICE_MODES.map(([id, label]) => (
@@ -116,7 +92,6 @@ const Voice = ({ mode, talking, speakers }: { mode: string; talking: boolean; sp
 
 const Hud = ({ data }: { data: HudData }) => {
   const { mode: voice, talking } = useVoice();
-  const speakers = useSpeakers();
   if (!data) return null;
   const hunger = clampPct(data.hunger);
   const fullness = 100 - hunger; // the meter shows how fed you are
@@ -135,7 +110,7 @@ const Hud = ({ data }: { data: HudData }) => {
             </div>
           </div>
         )}
-        <Voice mode={voice} talking={talking} speakers={speakers} />
+        <Voice mode={voice} talking={talking} />
       </div>
       <Vitals data={data} />
     </>
