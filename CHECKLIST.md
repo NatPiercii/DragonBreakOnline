@@ -1,5 +1,15 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-26 (00:35 UTC): FOV wrong at login; an FOV slider - NATIVE (skyrim-platform), NOT STARTED
+
+- [ ] #bugs 1553201600716087427 (thefabled.): the field of view is wrong after logging in; they also want an FOV slider.
+  Nothing in skymp5-client, skymp5-front, the launcher or the gamemode touches FOV (only index.ts sets
+  fAutoVanityModeDelay), so the likely source is the character screen (RaceMenu camera) at login. Asked the player:
+  wider or narrower, first or third person, does it recover after a load screen.
+- [ ] The slider needs native support: the SkyrimPlatform typings have no FOV call (PlayerCamera worldFOV /
+  firstPersonFOV are not bound, and Utility.setINIFloat on fDefaultWorldFOV does not apply live). Add a binding in
+  skyrim-platform (C++, CI flatrim build), then a settings slider in the front.
+
 ## Added 2026-09-25 (23:55 UTC): Will-o-the-Wisp summon crashes the game - REFUSED ON THE SERVER, MESH FIX FOR THE PC
 
 - [x] `CYRSummonWillotheWispSpell` (782c5:BSHeartland.esm) refused by gamemode `castBlocks` (da36c430, live 23:51):
