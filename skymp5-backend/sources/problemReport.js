@@ -33,9 +33,9 @@ function text(value) {
 }
 
 // Names go into a thread title and a bold header line, so control characters and markdown are neutralised
-function cleanName(value) {
+function cleanName(value, max = 64) {
   const name = [...text(value).replace(/[\x00-\x1f\x7f\u00ad\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim()]
-    .slice(0, 64).join('').trim()
+    .slice(0, max).join('').trim()
   return name || 'Unknown player'
 }
 // '<' and ':' too, so a typed mention or link cannot render as one

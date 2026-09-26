@@ -1,11 +1,16 @@
 'use strict'
 // Automatic error and crash reports (docs/auto-report-v1.md): POST /api/files/report with x-report-kind: auto
 
+const crypto = require('crypto')
 const config = require('../config')
-const { validate, ignoreReason, CONTRACT_VERSIONS } = require('./autoSchema')
+const { validate, ignoreReason, checkBuild, CONTRACT_VERSIONS } = require('./autoSchema')
 const autoStore = require('./autoStore')
+const errorGroups = require('./errorGroups')
+const sourceMaps = require('./sourceMaps')
 const bans = require('./bans')
 const players = require('./players')
+
+const JANITOR_MS = 6 * 60 * 60 * 1000
 
 // AUTO_REPORTS=off answers before any other work; senders drop the report and wait pauseSec
 function killSwitch(_req, res, next) {
@@ -35,6 +40,7 @@ function requireVerified(req, res, next) {
   if (!session) return res.status(401).json({ error: 'session', reason: req.headers['x-session'] ? 'invalid' : 'missing' })
   const hwid = session.hwid || (players.load()[session.discordId] || {}).hwid || null
   if (bans.isBanned({ discordId: session.discordId, hwid })) return res.status(403).json({ error: 'refused' })
+  req.reporter.hwid = hwid
   next()
 }
 
@@ -70,34 +76,51 @@ function noteOnMode() {
   console.log('[auto-report] AUTO_REPORTS=on: Discord output is not built yet, reports are collected only')
 }
 
+// Only compared for equality when a held group needs a second machine (§6.2)
+const hwidHash = hwid => (hwid ? crypto.createHash('sha256').update(`auto-report:${hwid}`).digest('hex').slice(0, 16) : null)
+
+// Builds and writes the record of a validated report; its group is worked out after the 202
+function store(result, { receivedAt, profileId, launchCheck, hwid }) {
+  checkBuild(result, sourceMaps.meta('client', result.report.build && result.report.build.client))
+  const { report, flags, invalid } = result
+  const ignored = ignoreReason(report)
+  if (ignored) dropBulk(report, true)
+  const trust = launchCheck && launchCheck.filesOk === true ? 'verified' : 'unverified-launch'
+  const record = { v: 1, receivedAt, profileId, trust, hwidHash: hwidHash(hwid), ignored, flags, invalid, report }
+  let text = JSON.stringify(record)
+  if (autoStore.today(profileId, receivedAt).bytes + Buffer.byteLength(text) > config.autoReportLimits.profileBytesPerDay) {
+    dropBulk(report, false)
+    flags.push('overBudget')
+    text = JSON.stringify(record)
+  }
+  autoStore.add(record, text)
+  return record
+}
+
 // 422 or 202; a report seen before for this profile is not stored again
 function accept(req, res) {
   try {
     noteOnMode()
     const receivedAt = Date.now()
-    const { profileId, name, session } = req.reporter
+    const { profileId, name, session, hwid } = req.reporter
     const result = validate(req.body, { receivedAt, scrubContext: { names: { discord: [name] } } })
     if (!result.ok) return res.status(result.status).json(result.json)
-    const { report, flags, invalid } = result
-    const duplicate = autoStore.isSeen(profileId, report.reportId, receivedAt)
-    if (!duplicate) {
-      const ignored = ignoreReason(report)
-      if (ignored) dropBulk(report, true)
-      const trust = session.launchCheck && session.launchCheck.filesOk === true ? 'verified' : 'unverified-launch'
-      const record = { v: 1, receivedAt, profileId, trust, ignored, flags, invalid, report }
-      let text = JSON.stringify(record)
-      if (autoStore.today(profileId, receivedAt).bytes + Buffer.byteLength(text) > config.autoReportLimits.profileBytesPerDay) {
-        dropBulk(report, false)
-        flags.push('overBudget')
-        text = JSON.stringify(record)
-      }
-      autoStore.add(record, text)
-    }
-    res.status(202).json({ ok: true, id: report.reportId, duplicate })
+    const { reportId } = result.report
+    const duplicate = autoStore.isSeen(profileId, reportId, receivedAt)
+    if (!duplicate) store(result, { receivedAt, profileId, launchCheck: session.launchCheck, hwid })
+    res.status(202).json({ ok: true, id: reportId, duplicate })
+    if (!duplicate) errorGroups.kick()
   } catch (err) {
     console.error('[auto-report] report not stored:', err.message)
     res.status(500).json({ error: 'internal' })
   }
 }
 
-module.exports = { killSwitch, versionInfo, rateLimitHandler, requireVerified, profileDailyLimit, requireJson, accept }
+// At boot: the 30-day janitor now and every 6 hours, and grouping of reports stored before a restart
+function start() {
+  const sweep = () => autoStore.janitor().catch(err => console.error('[auto-report] janitor failed:', err.message))
+  setInterval(sweep, JANITOR_MS).unref()
+  return Promise.all([sweep(), errorGroups.kick()])
+}
+
+module.exports = { killSwitch, versionInfo, rateLimitHandler, requireVerified, profileDailyLimit, requireJson, accept, store, start }

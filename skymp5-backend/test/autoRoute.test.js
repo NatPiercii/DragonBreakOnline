@@ -24,10 +24,12 @@ stub('../routes/master-api', { lookupSession: token => { lookups++; return sessi
 stub('../sources/bans', { isBanned: ({ discordId, hwid }) => (banned.has(discordId) || banned.has(hwid) ? { reason: 'test' } : null) })
 stub('../sources/players', { load: () => playerRecords })
 
-const express   = require('express')
-const config    = require('../config')
-const autoStore = require('../sources/autoStore')
-const files     = require('../routes/files')
+const express     = require('express')
+const config      = require('../config')
+const autoStore   = require('../sources/autoStore')
+const errorGroups = require('../sources/errorGroups')
+const files       = require('../routes/files')
+const { writeFixtureMaps } = require('./fixtures/auto-report/sourcemaps/fixture')
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'auto-report', 'payloads')
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -37,6 +39,8 @@ let server, base, tmp
 before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'auto-route-'))
   config.autoReportDir = path.join(tmp, 'auto')
+  config.autoSourceMapDir = path.join(tmp, 'sourcemaps')
+  writeFixtureMaps(config.autoSourceMapDir)
   config.autoReports = 'collect'
   config.discordErrorForumChannelId = ''
   const app = express()
@@ -148,6 +152,20 @@ test('202: the Discord username from the session is scrubbed, and the trust labe
   const other = payload()
   assert.equal((await post(other, { token: bare.token })).status, 202)
   assert.equal(stored(bare.profileId, other.reportId).trust, 'unverified-launch')
+})
+
+test('202, then grouping: the group, the hardware id only as a hash, and the receipt checks against the archived build', async () => {
+  const { token, profileId } = login({ hwid: 'HWID-SECRET-1' })
+  const body = payload('script-error-site-below-1')
+  assert.equal((await post(body, { token })).status, 202)
+  await errorGroups.idle()
+  const record = stored(profileId, body.reportId)
+  assert.match(record.hwidHash, /^[0-9a-f]{16}$/)
+  assert.ok(!JSON.stringify(record).includes('HWID-SECRET-1'))
+  assert.deepEqual([record.flags, record.invalid, record.report.error.site], [['invalidField'], ['error.site'], null])
+  const group = errorGroups.get('S35f713adad')
+  assert.equal(group.status, 'open')
+  assert.ok(group.players[profileId])
 })
 
 test('202 duplicate: the same reportId is stored once per profile; another profile has its own', async () => {

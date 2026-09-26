@@ -123,6 +123,8 @@ module.exports = {
   autoReports: ['collect', 'on'].includes(AUTO_REPORTS) ? AUTO_REPORTS : 'off',
   // Stored reports, groups and limiter state; every file in it is created 0600
   autoReportDir: process.env.AUTO_REPORT_DIR || path.join(__dirname, 'data', 'auto'),
+  // Archived client and front source maps with their meta files (§5.4), read to resolve stack frames
+  autoSourceMapDir: process.env.AUTO_REPORT_SOURCEMAP_DIR || path.join(__dirname, 'data', 'sourcemaps'),
   // How long a sender stays quiet after the 503 while the switch is off
   autoReportPauseSec: positiveInt(process.env.AUTO_REPORT_PAUSE_SEC, 3600),
   // Rollout P5: the launcher watches game exits and sends crash kinds only while this is true

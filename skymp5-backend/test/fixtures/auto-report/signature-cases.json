@@ -1,0 +1,531 @@
+{
+  "v": 1,
+  "about": "Golden signatures (docs/auto-report-v1.md section 6, design section 4.2). normMsg lists [input, expected]. Each case validates payloads/<payload>.json after patch (objects merge, arrays replace), with maps: true resolving against the maps written by sourcemaps/fixture.js and false for an unknown build, and must give canonical, id, held and title.",
+  "normMsg": [
+    [
+      "Cannot read properties of undefined (reading 'getFormID')",
+      "Cannot read properties of undefined (reading <s>)"
+    ],
+    [
+      "Cannot set properties of null (setting 'x')",
+      "Cannot set properties of null (setting <s>)"
+    ],
+    [
+      "Cannot read properties of undefined (reading 'it's cut off",
+      "Cannot read properties of undefined (reading <s>)"
+    ],
+    [
+      "can't equip 'Iron Dagger' on player's \"left hand\"",
+      "can't equip <s> on player's <s>"
+    ],
+    [
+      "Form 0001a2b3 not found",
+      "Form <form> not found"
+    ],
+    [
+      "Form 0001A2B3 not found",
+      "Form <form> not found"
+    ],
+    [
+      "decade facade",
+      "decade facade"
+    ],
+    [
+      "abcdef stays, a1b2c3 and 1a2b3c4d5e do not",
+      "abcdef stays, <hex> and <hex> do not"
+    ],
+    [
+      "ptr 0x7FF6A1B2 and 0xdeadbeef",
+      "ptr <hex> and <hex>"
+    ],
+    [
+      "request 3f1c2b9e-8a41-4d2e-9b7a-0c5d6e7f8a90 failed",
+      "request <uuid> failed"
+    ],
+    [
+      "Cannot load C:\\Users\\<user>\\Documents\\My Games\\x.esp now",
+      "Cannot load <path> <path> now"
+    ],
+    [
+      "<game>\\Data\\Skyrim.esm missing",
+      "<path> missing"
+    ],
+    [
+      "\\\\server\\share\\file.txt locked",
+      "<path> locked"
+    ],
+    [
+      "fetch https://api.example.org/v1/x?y=2 failed",
+      "fetch <url> failed"
+    ],
+    [
+      "open file:///Data/Platform/UI/index.html",
+      "open <url>"
+    ],
+    [
+      "read /home/u/x.json and /x",
+      "read <path> and /x"
+    ],
+    [
+      "loaded Data/Platform/UI/index.html and src\\foo.ts, and/or 1/2.5",
+      "loaded <path> and <path>, and/or <n>/<n>"
+    ],
+    [
+      "game 1.6.640.0 at 12:34, index 5 of 3, Vector3 12px",
+      "game <n> at <n>:<n>, index <n> of <n>, Vector3 12px"
+    ],
+    [
+      "Hit by Jon Snow #AB2C",
+      "Hit by <player>"
+    ],
+    [
+      "<@123456789012345678> hit <discord> and <player>",
+      "<player> hit <player> and <player>"
+    ],
+    [
+      "a:  b\n\tc  ",
+      "a: b c"
+    ],
+    [
+      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ]
+  ],
+  "cases": [
+    {
+      "name": "script-error-on-update: a direct on(update) throw",
+      "payload": "script-error-on-update",
+      "maps": true,
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|src/services/remoteServer.ts:RemoteServer.onUpdate,src/services/remoteServer.ts:?",
+      "id": "S35f713adad",
+      "held": [],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "script-error-logged: logged, then rethrown below: one group",
+      "payload": "script-error-logged",
+      "maps": true,
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|src/services/remoteServer.ts:RemoteServer.onUpdate,src/services/remoteServer.ts:?",
+      "id": "S35f713adad",
+      "held": [],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "script-error-rethrown: the same error rethrown by the on wrapper",
+      "payload": "script-error-rethrown",
+      "maps": true,
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|src/services/remoteServer.ts:RemoteServer.onUpdate,src/services/remoteServer.ts:?",
+      "id": "S35f713adad",
+      "held": [],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "script-error-logged, unknown build: held, still one group with the rethrow",
+      "payload": "script-error-logged",
+      "maps": false,
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|?:RemoteServer.onUpdate,?:?",
+      "id": "S93ede94d6d",
+      "held": [
+        "unknown-build"
+      ],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "script-error-rethrown, unknown build",
+      "payload": "script-error-rethrown",
+      "maps": false,
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|?:RemoteServer.onUpdate,?:?",
+      "id": "S93ede94d6d",
+      "held": [
+        "unknown-build"
+      ],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "the same bundle with 3 lines prepended: the probe offset fixes it",
+      "payload": "script-error-on-update",
+      "maps": true,
+      "patch": {
+        "build": {
+          "probe": {
+            "line": 215
+          }
+        },
+        "error": {
+          "frames": [
+            {
+              "fn": "RemoteServer.onUpdate",
+              "line": 48216,
+              "col": 31,
+              "file": null
+            },
+            {
+              "fn": null,
+              "line": 47113,
+              "col": 12,
+              "file": null
+            }
+          ],
+          "site": {
+            "line": 47105,
+            "col": 9
+          }
+        }
+      },
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|src/services/remoteServer.ts:RemoteServer.onUpdate,src/services/remoteServer.ts:?",
+      "id": "S35f713adad",
+      "held": [],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "a site the probe offset moves below line 1 is removed; the frames still resolve",
+      "payload": "script-error-site-below-1",
+      "maps": true,
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|src/services/remoteServer.ts:RemoteServer.onUpdate,src/services/remoteServer.ts:?",
+      "id": "S35f713adad",
+      "held": [],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "frames past the mapped code of a known build: held unresolved",
+      "payload": "script-error-on-update",
+      "maps": true,
+      "patch": {
+        "error": {
+          "frames": [
+            {
+              "fn": "RemoteServer.onUpdate",
+              "line": 68213,
+              "col": 31,
+              "file": null
+            },
+            {
+              "fn": null,
+              "line": 67110,
+              "col": 12,
+              "file": null
+            }
+          ]
+        }
+      },
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|?:RemoteServer.onUpdate,?:?",
+      "id": "S93ede94d6d",
+      "held": [
+        "unresolved"
+      ],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "sink frames, node:internal and __dbo frames are dropped",
+      "payload": "script-error-on-update",
+      "maps": true,
+      "patch": {
+        "error": {
+          "frames": [
+            {
+              "fn": "wrapped",
+              "line": 60010,
+              "col": 5,
+              "file": null
+            },
+            {
+              "fn": "__dboOn",
+              "line": 60010,
+              "col": 9,
+              "file": null
+            },
+            {
+              "fn": "emit",
+              "line": 3,
+              "col": 5,
+              "file": "node:internal/events"
+            },
+            {
+              "fn": "RemoteServer.onUpdate",
+              "line": 48213,
+              "col": 31,
+              "file": null
+            },
+            {
+              "fn": null,
+              "line": 47110,
+              "col": 12,
+              "file": null
+            }
+          ]
+        }
+      },
+      "canonical": "v1|client|TypeError|Cannot read properties of undefined (reading <s>)|src/services/remoteServer.ts:RemoteServer.onUpdate,src/services/remoteServer.ts:?",
+      "id": "S35f713adad",
+      "held": [],
+      "title": "(Auto Report) TypeError in RemoteServer.onUpdate"
+    },
+    {
+      "name": "no frames (the C++ e.what() path): event and resolved registration site",
+      "payload": "script-error-no-frames",
+      "maps": true,
+      "canonical": "v1|client|on|tick|src/services/tickService.ts|Error|Expected an object, got undefined",
+      "id": "Sc0680966fc",
+      "held": [],
+      "title": "(Auto Report) Error in tick handler"
+    },
+    {
+      "name": "no frames, unknown build",
+      "payload": "script-error-no-frames",
+      "maps": false,
+      "canonical": "v1|client|on|tick|?|Error|Expected an object, got undefined",
+      "id": "S198b74a61e",
+      "held": [
+        "unknown-build"
+      ],
+      "title": "(Auto Report) Error in tick handler"
+    },
+    {
+      "name": "HTTP callback: the webpack/bootstrap frame is dropped",
+      "payload": "script-error-http-callback",
+      "maps": true,
+      "canonical": "v1|client|SyntaxError|Unexpected end of JSON input|src/services/authService.ts:AuthService.onLoginResponse",
+      "id": "S2588c16d17",
+      "held": [],
+      "title": "(Auto Report) SyntaxError in AuthService.onLoginResponse"
+    },
+    {
+      "name": "hook handler",
+      "payload": "script-error-hook",
+      "maps": true,
+      "canonical": "v1|client|TypeError|ctx.animEventName.toLowerCase is not a function|src/services/animDebugService.ts:enter",
+      "id": "S0d2d90f6af",
+      "held": [],
+      "title": "(Auto Report) TypeError in enter"
+    },
+    {
+      "name": "JSON.parse message after S20 and S21",
+      "payload": "script-error-json-parse",
+      "maps": true,
+      "canonical": "v1|client|SyntaxError|Unexpected token in JSON|src/services/authService.ts:AuthService.readAuthDataFromDisk",
+      "id": "Sf02c96aca9",
+      "held": [],
+      "title": "(Auto Report) SyntaxError in AuthService.readAuthDataFromDisk"
+    },
+    {
+      "name": "process uncaught",
+      "payload": "script-error-process-uncaught",
+      "maps": true,
+      "canonical": "v1|client|RangeError|Maximum call stack size exceeded|src/view/formView.ts:FormView.applyAll",
+      "id": "S4e20bae799",
+      "held": [],
+      "title": "(Auto Report) RangeError in FormView.applyAll"
+    },
+    {
+      "name": "process rejection of a non-Error",
+      "payload": "script-error-process-rejection-nonerror",
+      "maps": true,
+      "canonical": "v1|client|rejection||?|NonError:string|timeout",
+      "id": "Sb2d030c831",
+      "held": [],
+      "title": "(Auto Report) NonError:string in rejection"
+    },
+    {
+      "name": "front window error through the front map",
+      "payload": "ui-error-window",
+      "maps": true,
+      "canonical": "v1|front|ReferenceError|dboHud is not defined|src/features/hud/hud.tsx:Object.onMessage",
+      "id": "Se0e107d379",
+      "held": [],
+      "title": "(Auto Report) ReferenceError in Object.onMessage"
+    },
+    {
+      "name": "front window error, no map: first frame plus the front build",
+      "payload": "ui-error-window",
+      "maps": false,
+      "canonical": "v1|front|ReferenceError|dboHud is not defined|Object.onMessage@2:99120|f8cd78971a2b.20260927T101530Z",
+      "id": "Sfa337fccdc",
+      "held": [
+        "unknown-build"
+      ],
+      "title": "(Auto Report) ReferenceError in Object.onMessage"
+    },
+    {
+      "name": "front ErrorBoundary",
+      "payload": "ui-error-boundary",
+      "maps": true,
+      "canonical": "v1|front|TypeError|Cannot read properties of null (reading <s>)|src/features/party/PartyPanel.tsx:PartyPanel",
+      "id": "S7fec24a57b",
+      "held": [],
+      "title": "(Auto Report) TypeError in PartyPanel"
+    },
+    {
+      "name": "front top frame <injected>",
+      "payload": "ui-error-injected",
+      "maps": true,
+      "canonical": "v1|front|TypeError|window.chat.push is not a function|injected:onChatMessage",
+      "id": "S0aa2945ff4",
+      "held": [],
+      "title": "(Auto Report) TypeError in onChatMessage"
+    },
+    {
+      "name": "front top frame <injected>, unknown build",
+      "payload": "ui-error-injected",
+      "maps": false,
+      "canonical": "v1|front|TypeError|window.chat.push is not a function|injected:onChatMessage",
+      "id": "S0aa2945ff4",
+      "held": [
+        "unknown-build"
+      ],
+      "title": "(Auto Report) TypeError in onChatMessage"
+    },
+    {
+      "name": "normMsg: <form> fires, decade and facade stay, a game version is a number and not <ip>",
+      "payload": "ui-error-window",
+      "maps": true,
+      "patch": {
+        "error": {
+          "message": "Form 0001a2b3 missing near decade facade in 1.6.640.0"
+        }
+      },
+      "canonical": "v1|front|ReferenceError|Form <form> missing near decade facade in <n>|src/features/hud/hud.tsx:Object.onMessage",
+      "id": "S3b9446dc64",
+      "held": [],
+      "title": "(Auto Report) ReferenceError in Object.onMessage"
+    },
+    {
+      "name": "crash in our DLL with a PDB symbol",
+      "payload": "crash-ours",
+      "maps": true,
+      "canonical": "v1|crash|EXCEPTION_ACCESS_VIOLATION|SkyrimPlatform.dll+EventsApi::SendEvent|SkyrimSE.exe+alid:37014",
+      "id": "Sb8c2d4d95a",
+      "held": [],
+      "title": "(Auto Report) Crash EXCEPTION_ACCESS_VIOLATION SkyrimPlatform.dll+EventsApi::SendEvent"
+    },
+    {
+      "name": "crash in libnode",
+      "payload": "crash-libnode",
+      "maps": true,
+      "canonical": "v1|crash|EXCEPTION_ACCESS_VIOLATION|libnode.dll+v8::internal::Heap::FatalProcessOutOfMemory|SkyrimPlatformImpl.dll+0x44A10@0.3.44",
+      "id": "S7a517dcf3b",
+      "held": [],
+      "title": "(Auto Report) Crash EXCEPTION_ACCESS_VIOLATION libnode.dll+v8::internal::Heap::FatalProcessOutOfMemo"
+    },
+    {
+      "name": "KERNELBASE and ntdll frames are skipped",
+      "payload": "crash-kernelbase-top",
+      "maps": true,
+      "canonical": "v1|crash|0xE06D7363|MpClientPlugin.dll+MpClientPlugin::Tick|SkyrimSE.exe+alid:37014",
+      "id": "S2cd6906976",
+      "held": [],
+      "title": "(Auto Report) Crash 0xE06D7363 MpClientPlugin.dll+MpClientPlugin::Tick"
+    },
+    {
+      "name": "third-party DLL: module plus exception only",
+      "payload": "crash-gpu-driver",
+      "maps": true,
+      "canonical": "v1|crash|EXCEPTION_ACCESS_VIOLATION|nvwgf2umx.dll",
+      "id": "S3388147a6d",
+      "held": [],
+      "title": "(Auto Report) Crash EXCEPTION_ACCESS_VIOLATION nvwgf2umx.dll"
+    },
+    {
+      "name": "raw offset in SkyrimSE.exe gets versions.game",
+      "payload": "crash-exe-raw-offset",
+      "maps": true,
+      "canonical": "v1|crash|EXCEPTION_ACCESS_VIOLATION|SkyrimSE.exe+0x12F3A4@1.6.1170.0|SkyrimSE.exe+alid:37014",
+      "id": "S1215181fa7",
+      "held": [],
+      "title": "(Auto Report) Crash EXCEPTION_ACCESS_VIOLATION SkyrimSE.exe+0x12F3A4"
+    },
+    {
+      "name": "fault outside any module",
+      "payload": "crash-no-module",
+      "maps": true,
+      "canonical": "v1|crash|EXCEPTION_ACCESS_VIOLATION|?|SkyrimSE.exe+alid:37014",
+      "id": "S8f3329699f",
+      "held": [],
+      "title": "(Auto Report) Crash EXCEPTION_ACCESS_VIOLATION ?"
+    },
+    {
+      "name": "crash-nolog 0xC0000409",
+      "payload": "crash-nolog-fastfail",
+      "maps": true,
+      "canonical": "v1|crash|exit:0xC0000409|SkyrimSE.exe",
+      "id": "Sa96f69a7a2",
+      "held": [],
+      "title": "(Auto Report) Crash 0xC0000409 SkyrimSE.exe"
+    },
+    {
+      "name": "freeze after a Task Manager kill",
+      "payload": "freeze-taskkill",
+      "maps": true,
+      "canonical": "v1|freeze",
+      "id": "S5590c78b9f",
+      "held": [],
+      "title": "(Auto Report) Freeze"
+    },
+    {
+      "name": "freeze from event 1002: the same single group",
+      "payload": "freeze-event1002",
+      "maps": true,
+      "canonical": "v1|freeze",
+      "id": "S5590c78b9f",
+      "held": [],
+      "title": "(Auto Report) Freeze"
+    },
+    {
+      "name": "js-fatal with no err entry",
+      "payload": "js-fatal",
+      "maps": true,
+      "canonical": "v1|js-fatal",
+      "id": "Sc9f84e59ea",
+      "held": [],
+      "title": "(Auto Report) Fatal exit"
+    },
+    {
+      "name": "js-fatal grouped by its last err entry",
+      "payload": "js-fatal",
+      "maps": true,
+      "patch": {
+        "trail": {
+          "entries": [
+            {
+              "t": 1790400980000,
+              "s": 1970,
+              "k": "recv",
+              "d": "CustomPacket dboHud",
+              "n": 12
+            },
+            {
+              "t": 1790400990000,
+              "s": 1980,
+              "k": "net",
+              "d": "connected"
+            },
+            {
+              "t": 1790400994000,
+              "s": 1994,
+              "k": "err",
+              "d": "on TypeError: Cannot read properties of undefined (reading 'getFormID')"
+            },
+            {
+              "t": 1790400995000,
+              "s": 1995,
+              "k": "fatal",
+              "d": "uncaught TypeError"
+            }
+          ]
+        }
+      },
+      "canonical": "v1|err|on|TypeError|Cannot read properties of undefined (reading <s>)",
+      "id": "S74666d3d8a",
+      "held": [],
+      "title": "(Auto Report) Fatal exit after TypeError"
+    },
+    {
+      "name": "crash on quit",
+      "payload": "crash-on-quit",
+      "maps": true,
+      "canonical": "v1|crash-on-quit|SkyrimSE.exe",
+      "id": "Scce2114ae9",
+      "held": [],
+      "title": "(Auto Report) Crash on quit SkyrimSE.exe"
+    }
+  ]
+}

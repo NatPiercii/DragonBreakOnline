@@ -1,0 +1,216 @@
+'use strict'
+// Auto report groups (design §4.3, §4.4): error-groups.json under config.autoReportDir, fed in order from the store's pending list
+
+const fs = require('fs')
+const path = require('path')
+const config = require('../config')
+const autoStore = require('./autoStore')
+const sourceMaps = require('./sourceMaps')
+const { signature, compareVersions } = require('./autoSignature')
+
+const FILE = 'error-groups.json'
+const DAY_MS = 24 * 60 * 60 * 1000
+const SAVE_DELAY_MS = 5000
+const COUNT_GAP_MS = 10 * 60 * 1000
+const DAILY_SLOTS = 14
+const SAMPLES_PER_VERSION = 5
+const PROMOTE_PLAYERS = 2
+const REGRESSION_PLAYERS = 2
+const PROMOTION_MAX = 50
+
+// { dir, seq, groups: { [id]: group }, timer }; seq is the last pending entry applied to groups
+let state = null
+let draining = null
+
+const utcDay = at => new Date(at).toISOString().slice(0, 10)
+const versionOf = report => (report.versions && report.versions.client) || 'unknown'
+
+// Replaces the state in memory, as a restart would: changes not yet saved are dropped and applied again from pending
+function load() {
+  if (state) clearTimeout(state.timer)
+  state = { dir: config.autoReportDir, seq: 0, groups: {}, timer: null }
+  const file = path.join(state.dir, FILE)
+  let saved
+  try { saved = JSON.parse(fs.readFileSync(file, 'utf8')) }
+  catch (err) {
+    if (err.code === 'ENOENT') return
+    // Moved aside, so the next save cannot overwrite what might still be recovered by hand
+    const aside = `${file}.bad-${Date.now()}`
+    console.error(`[auto-report] ${FILE} unreadable, moved to ${path.basename(aside)}:`, err.message)
+    try { fs.renameSync(file, aside) } catch { /* the next save replaces it */ }
+    return
+  }
+  if (saved && saved.groups && typeof saved.groups === 'object' && !Array.isArray(saved.groups)) state.groups = saved.groups
+  state.seq = saved && Number.isSafeInteger(saved.seq) && saved.seq > 0 ? saved.seq : 0
+  autoStore.grouped(state.seq)
+}
+
+// Reloads when the folder changes, so tests can point config.autoReportDir at a temp dir
+function current() {
+  if (!state || state.dir !== config.autoReportDir) load()
+  return state
+}
+
+function save(st) {
+  clearTimeout(st.timer)
+  st.timer = null
+  try {
+    autoStore.writeAtomic(path.join(st.dir, FILE), JSON.stringify({ v: 1, seq: st.seq, groups: st.groups }))
+    if (st.dir === config.autoReportDir) autoStore.grouped(st.seq)
+  } catch (err) {
+    console.error(`[auto-report] ${FILE} not saved:`, err.message)
+  }
+}
+
+// At most one write per 5 s; entries not yet saved stay pending in auto-state.json and are applied again after a restart
+function scheduleSave(st) {
+  if (st.timer) return
+  st.timer = setTimeout(() => save(st), SAVE_DELAY_MS)
+  st.timer.unref()
+}
+
+const flush = () => save(current())
+
+function createGroup(sig, record, reasons) {
+  const at = record.receivedAt
+  return {
+    id: sig.id, canonical: sig.canonical, title: sig.title, kind: record.report.kind,
+    type: sig.type, normMsg: sig.normMsg, frames: sig.frames,
+    status: reasons.length ? 'held' : 'open', held: reasons, trust: record.trust,
+    firstSeen: at, lastSeen: at, reports: 0, occurrences: 0, playerCount: 0,
+    kinds: {}, players: {}, versions: {}, daily: [],
+    promotion: [], promotedAt: null, fixedInVersion: null, fixedAt: null, regression: null,
+  }
+}
+
+// The day's slot, keeping the last 14 days for the week-over-week trend
+function daySlot(g, at) {
+  const day = utcDay(at)
+  let slot = g.daily.find(s => s.day === day)
+  if (!slot) {
+    slot = { day, occurrences: 0, players: [] }
+    const oldest = utcDay(at - (DAILY_SLOTS - 1) * DAY_MS)
+    g.daily = [...g.daily.filter(s => s.day >= oldest), slot].sort((a, b) => (a.day < b.day ? -1 : 1)).slice(-DAILY_SLOTS)
+  }
+  return slot
+}
+
+function open(g, at) {
+  Object.assign(g, { status: 'open', held: [], promotion: [], promotedAt: at })
+}
+
+// A held group opens on a report with nothing to hold it, or once 2 profiles on different machines hit it; suspect reports never count
+function promote(g, record, reasons, at) {
+  if (!reasons.length) return open(g, at)
+  if (reasons.includes('suspect')) return
+  const pid = String(record.profileId)
+  const entry = g.promotion.find(([p]) => p === pid)
+  if (!entry && g.promotion.length < PROMOTION_MAX) g.promotion.push([pid, record.hwidHash || null])
+  else if (entry && !entry[1] && record.hwidHash) entry[1] = record.hwidHash
+  const machines = new Set(g.promotion.map(([p, hwid]) => hwid || `profile:${p}`))
+  if (g.promotion.length >= PROMOTE_PLAYERS && machines.size >= PROMOTE_PLAYERS) open(g, at)
+}
+
+// A fixed group reopens once 2 profiles hit it at or above fixedInVersion; hits on older versions only count
+function regress(g, pid, version, at) {
+  if (!g.fixedInVersion || version === 'unknown' || compareVersions(version, g.fixedInVersion) < 0) return
+  const r = g.regression || (g.regression = { profiles: [], at: null, version: null })
+  if (!r.profiles.includes(pid)) r.profiles.push(pid)
+  if (r.profiles.length < REGRESSION_PLAYERS) return
+  g.status = 'regression'
+  Object.assign(r, { at, version })
+}
+
+// Counts the report into its group; one profile adds at most 1 occurrence per group per 10 minutes
+function hit(st, sig, record) {
+  const at = record.receivedAt
+  const { report } = record
+  const pid = String(record.profileId)
+  const version = versionOf(report)
+  const reasons = [...sig.held]
+  if (record.flags.includes('suspect')) reasons.push('suspect')
+  if (record.trust !== 'verified') reasons.push('unverified-launch')
+
+  const g = st.groups[sig.id] || (st.groups[sig.id] = createGroup(sig, record, reasons))
+  g.reports++
+  g.lastSeen = Math.max(g.lastSeen, at)
+  g.kinds[report.kind] = (g.kinds[report.kind] || 0) + 1
+  if (record.trust === 'verified') g.trust = 'verified'
+  const player = g.players[pid] || (g.players[pid] = { first: at, last: at, counted: null })
+  player.last = at
+  const ver = g.versions[version] || (g.versions[version] = { first: at, last: at, occurrences: 0, samples: [] })
+  ver.last = at
+  const slot = daySlot(g, at)
+  if (!slot.players.includes(pid)) slot.players.push(pid)
+  if (player.counted === null || at - player.counted >= COUNT_GAP_MS) {
+    player.counted = at
+    g.occurrences++
+    ver.occurrences++
+    slot.occurrences++
+  }
+  g.playerCount = Object.keys(g.players).length
+  if (g.status === 'held') promote(g, record, reasons, at)
+  else if (g.status === 'fixed') regress(g, pid, version, at)
+  return g
+}
+
+// Full logs and crash sections stay with the first 5 samples per group and version (§6.3)
+function keepsBulk(g, record) {
+  const { report } = record
+  if (!report.logs && !(report.crash && report.crash.sections)) return true
+  const { samples } = g.versions[versionOf(report)]
+  const key = `${record.profileId}-${report.reportId}`
+  if (samples.includes(key)) return true
+  if (samples.length >= SAMPLES_PER_VERSION) return false
+  samples.push(key)
+  return true
+}
+
+async function apply(st, [, profileId, reportId]) {
+  const record = await autoStore.readReport(profileId, reportId)
+  if (!record || !record.report || !Array.isArray(record.flags) || record.ignored) return
+  const g = hit(st, signature(record.report, await sourceMaps.forReport(record.report)), record)
+  if (keepsBulk(g, record)) return
+  delete record.report.logs
+  if (record.report.crash) delete record.report.crash.sections
+  record.flags.push('overSamples')
+  autoStore.rewrite(record)
+}
+
+async function drain() {
+  for (;;) {
+    const st = current()
+    const next = autoStore.pending().find(([seq]) => seq > st.seq)
+    if (!next) return
+    try { await apply(st, next) }
+    catch (err) { console.error('[auto-report] report not grouped:', err.message) }
+    st.seq = Math.max(st.seq, next[0])
+    scheduleSave(st)
+  }
+}
+
+// Groups every pending report in order, after the 202; resolves once none is left
+function kick() {
+  if (!draining) {
+    draining = drain()
+      .catch(err => console.error('[auto-report] grouping stopped:', err.message))
+      .finally(() => { draining = null })
+  }
+  return draining
+}
+
+const idle = () => draining || Promise.resolve()
+const get = id => current().groups[id] || null
+const list = () => Object.values(current().groups)
+
+// Staff marked the group fixed; a null version stays pending until the next client version is known
+function markFixed(id, fixedInVersion, at = Date.now()) {
+  const st = current()
+  const g = st.groups[id]
+  if (!g) return null
+  Object.assign(g, { status: 'fixed', fixedInVersion: fixedInVersion || null, fixedAt: at, regression: null })
+  scheduleSave(st)
+  return g
+}
+
+module.exports = { load, kick, idle, flush, get, list, markFixed }

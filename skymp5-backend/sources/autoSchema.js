@@ -465,6 +465,32 @@ function validate(body, { receivedAt = Date.now(), scrubContext } = {}) {
   return { ok: true, report: r, flags: [...st.flags], invalid: st.invalid }
 }
 
+// §2.9: lines to subtract from client bundle positions; 0 without a probe or an archived probeLine
+function probeOffset(report, meta) {
+  const probe = report.build && report.build.probe
+  return probe && meta && isCount(meta.probeLine) ? probe.line - meta.probeLine : 0
+}
+
+// §2.12 checks against the archived client meta: a version mismatch is suspect, positions moved below line 1 go
+function checkBuild(result, meta) {
+  if (!meta) return
+  const { report } = result
+  const st = { flags: new Set(result.flags), invalid: result.invalid }
+  if (meta.clientVersion && report.versions.client && meta.clientVersion !== report.versions.client) st.flags.add('suspect')
+  const e = report.error
+  if (e && e.source === 'client') {
+    const offset = probeOffset(report, meta)
+    const below = (pos, path) => {
+      if (pos.line - offset >= 1) return false
+      invalid(st, path)
+      return true
+    }
+    e.frames = e.frames.filter((f, i) => f.file !== null || !below(f, `error.frames[${i}]`))
+    if (e.site && below(e.site, 'error.site')) e.site = null
+  }
+  result.flags = [...st.flags]
+}
+
 // §2.12: why a valid report is stored as metadata only, or null
 function ignoreReason(report) {
   if (report.kind === 'ui-error' && report.error.message === 'Script error.') return 'opaque'
@@ -478,6 +504,6 @@ function ignoreReason(report) {
 }
 
 module.exports = {
-  validate, ignoreReason, CONTRACT_VERSIONS, KINDS, CAPS, SECTION_CAPS, PATTERNS,
+  validate, ignoreReason, probeOffset, checkBuild, CONTRACT_VERSIONS, KINDS, CAPS, SECTION_CAPS, PATTERNS,
   trailGrammar: { client: CLIENT_TRAIL, server: SERVER_TRAIL },
 }
