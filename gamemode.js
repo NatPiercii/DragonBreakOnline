@@ -3457,6 +3457,13 @@ try {
   require(PICKPOCKET_JS)({ mp, log, personal, system, audit, who, nameOf, onlineActors, recordOf, adminItemName, cfg });
 } catch (e) { log('pickpocket.js failed to load:', e.stack || e.message); globalThis.__dboPickpocketEntries = null; globalThis.__dboPickpocketAction = null; }
 
+// ---- Rob in the X menu: the victim answers in a panel (server\robbery.js) ---------------------------------------------
+try {
+  const ROBBERY_JS = path.resolve('robbery.js');
+  delete require.cache[ROBBERY_JS];
+  require(ROBBERY_JS)({ mp, log, personal, audit, who, onlineActors, recordOf, adminItemName, openWidget, closeWidget, onUi, sendPacket, every, cfg });
+} catch (e) { log('robbery.js failed to load:', e.stack || e.message); globalThis.__dboRobEntries = null; globalThis.__dboRobAction = null; }
+
 // ---- player factions: guilds, holds, clans, cults (server\guilds.js, guild-defs.json) -------------
 try {
   const GUILDS_JS = path.resolve('guilds.js');
