@@ -19,6 +19,23 @@ const RULES = [
   [/\b([0-9a-f]{8})[0-9a-f]{24,120}\b/gi, '$1<redacted>'],
 ]
 
+// SkyrimPlatform logs the first 120 characters of every script it runs in the game's UI and every page it loads
+// (`[12:34:56:789] JS ...`, `LoadUrl ...`): chat and private messages, character names, the voice room link.
+// Launchers up to 2.1.29 upload them, so the server leaves them out of skyrim-platform.log as well
+const UI_LINE = /^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) /
+
+function dropUiLines(input) {
+  const kept = []
+  let dropped = 0
+  for (const line of String(input == null ? '' : input).split('\n')) {
+    if (UI_LINE.test(line)) { dropped++; continue }
+    if (dropped) { kept.push(`[${dropped} UI line(s) left out]`); dropped = 0 }
+    kept.push(line)
+  }
+  if (dropped) kept.push(`[${dropped} UI line(s) left out]`)
+  return kept.join('\n')
+}
+
 const MAX_BYTES = 180 * 1024   // per file, after scrubbing: Discord renders these as attachments
 
 // Returns the text with secrets removed, how many replacements were made, and whether it was cut short.
@@ -40,4 +57,4 @@ function scrub(input, maxBytes = MAX_BYTES) {
   return { text, redactions, truncated }
 }
 
-module.exports = { scrub, MAX_BYTES }
+module.exports = { scrub, dropUiLines, MAX_BYTES }
