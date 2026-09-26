@@ -7,6 +7,9 @@
 #include "PacketParser.h"
 #include "formulas/TES5DamageFormula.h"
 #include "libespm/Loader.h"
+#include "PartOneListener.h"
+#include "gamemode_events/GameModeEvent.h"
+#include <nlohmann/json.hpp>
 
 PartOne& GetPartOne();
 extern espm::Loader l;
@@ -391,4 +394,156 @@ TEST_CASE("A paralysed actor cannot attack or move", "[Hit]")
   p.DestroyActor(kVictim);
   DoDisconnect(p, 0);
   DoDisconnect(p, 1);
+}
+
+namespace {
+// Answers onHitDamageAttempt the way combat.js's block chip does: it takes the target's health down inside the hook
+// and keeps the hit flags it was handed. Stays registered on the shared PartOne, so it does nothing once inactive.
+class HitAttemptListener : public PartOneListener
+{
+public:
+  explicit HitAttemptListener(PartOne& partOne_)
+    : partOne(partOne_)
+  {
+  }
+  void OnConnect(Networking::UserId) override {}
+  void OnDisconnect(Networking::UserId) override {}
+  void OnCustomPacket(Networking::UserId,
+                      const simdjson::dom::element&) override
+  {
+  }
+  bool OnMpApiEvent(const GameModeEvent& event) override
+  {
+    if (!active || event.GetName() != std::string("onHitDamageAttempt")) {
+      return true;
+    }
+    // [aggressor, target, source, damage, flags]: the gamemode's handler gets the same five arguments
+    auto args = nlohmann::json::parse(event.GetArgumentsJsonArray());
+    if (args.size() >= 5) {
+      lastFlags = args[4];
+    }
+    if (chipTo >= 0.f && args.size() >= 2) {
+      auto& target = partOne.worldState.GetFormAt<MpActor>(
+        args[1].get<uint32_t>());
+      ActorValues values = target.GetChangeForm().actorValues;
+      values.healthPercentage = chipTo;
+      target.SetPercentages(values);
+    }
+    return true;
+  }
+
+  PartOne& partOne;
+  bool active = true;
+  float chipTo = -1.f;
+  nlohmann::json lastFlags;
+};
+
+struct BlockScene
+{
+  static constexpr uint32_t kAggressor = 0xff000000;
+  static constexpr uint32_t kTarget = 0xff000001;
+  static constexpr uint32_t kIronDagger = 0x0001397E;
+
+  explicit BlockScene(PartOne& p_)
+    : p(p_)
+  {
+    DoConnect(p, 0);
+    p.CreateActor(kAggressor, { 0, 0, 0 }, 0, 0x3c);
+    p.SetUserActor(0, kAggressor);
+    // In front of the aggressor and facing it (angle 180 faces -y)
+    p.CreateActor(kTarget, { 0, 50, 0 }, 180, 0x3c);
+    auto& aggressor = p.worldState.GetFormAt<MpActor>(kAggressor);
+    aggressor.AddItem(kIronDagger, 1);
+    Equipment eq;
+    eq.inv.entries.push_back(Inventory::Entry(kIronDagger, 1, kExtraWornTrue));
+    aggressor.SetEquipment(eq);
+    target().SetAngle({ 0.f, 0.f, 180.f });
+  }
+  ~BlockScene()
+  {
+    p.DestroyActor(kAggressor);
+    p.DestroyActor(kTarget);
+    DoDisconnect(p, 0);
+  }
+  MpActor& target() { return p.worldState.GetFormAt<MpActor>(kTarget); }
+  // One dagger hit from full health; returns the health left
+  float Hit(bool attackerClaimsBlock)
+  {
+    target().SetPercentages({ 1.f, 1.f, 1.f });
+    auto past = std::chrono::steady_clock::now() - 10s;
+    p.worldState.GetFormAt<MpActor>(kAggressor).SetLastHitTime(kTarget, past);
+    RawMessageData rawMsgData;
+    rawMsgData.userId = 0;
+    HitMessage hitMsg;
+    hitMsg.data.aggressor = 0x14;
+    hitMsg.data.target = kTarget;
+    hitMsg.data.source = kIronDagger;
+    hitMsg.data.isHitBlocked = attackerClaimsBlock;
+    p.GetActionListener().OnHit(rawMsgData, hitMsg);
+    return target().GetChangeForm().actorValues.healthPercentage;
+  }
+  PartOne& p;
+};
+}
+
+TEST_CASE("A block is decided from the target: IsBlocking alone blocks, the "
+          "attacker cannot claim one",
+          "[Hit]")
+{
+  // The unit PartOne runs a fake damage formula (25 whatever happens), so the server's block decision is read where
+  // the gamemode gets it: the blocked flag of onHitDamageAttempt
+  PartOne& p = GetPartOne();
+  auto listener = std::make_shared<HitAttemptListener>(p);
+  p.AddListener(listener);
+  BlockScene scene(p);
+  auto blocked = [&] { return listener->lastFlags.value("blocked", true); };
+
+  // Nobody blocking: the attacker's claim of a block is ignored
+  scene.Hit(true);
+  REQUIRE_FALSE(blocked());
+
+  // A hosted NPC's block reaches the server only as its IsBlocking animation variable (the host's movement packet);
+  // IsBlockActive stays false for it, and that is enough to block
+  scene.target().SetAnimationVariableBool(
+    AnimationVariableBool::kVariable_IsBlocking, true);
+  REQUIRE_FALSE(scene.target().IsBlockActive());
+  scene.Hit(false);
+  REQUIRE(blocked());
+
+  // Blocking, but facing away: not blocked
+  scene.target().SetAngle({ 0.f, 0.f, 0.f });
+  scene.Hit(false);
+  REQUIRE_FALSE(blocked());
+
+  listener->active = false;
+  scene.target().SetAnimationVariableBool(
+    AnimationVariableBool::kVariable_IsBlocking, false);
+}
+
+TEST_CASE("Health the gamemode takes in onHitDamageAttempt is kept (block "
+          "chip), and the flags carry the target's maxima",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  auto listener = std::make_shared<HitAttemptListener>(p);
+  p.AddListener(listener);
+  BlockScene scene(p);
+  // What one hit takes with the unit's fake formula
+  const float loss = 1.f - scene.Hit(false);
+  REQUIRE(loss > 0.f);
+
+  scene.target().SetAnimationVariableBool(
+    AnimationVariableBool::kVariable_IsBlocking, true);
+  // A blocked blow: the hook chips the blocker to 0.9. The server must go on from 0.9, not write its pre-hook
+  // snapshot (1.0) back: 0.9 - loss, where it used to be 1.0 - loss
+  listener->chipTo = 0.9f;
+  REQUIRE(scene.Hit(false) == Catch::Approx(0.9f - loss));
+  REQUIRE(listener->lastFlags.value("blocked", false) == true);
+  REQUIRE(listener->lastFlags.value("spell", true) == false);
+  REQUIRE(listener->lastFlags.value("targetMaxHealth", 0.f) > 0.f);
+  REQUIRE(listener->lastFlags.value("targetMaxStamina", 0.f) > 0.f);
+
+  listener->active = false;
+  scene.target().SetAnimationVariableBool(
+    AnimationVariableBool::kVariable_IsBlocking, false);
 }

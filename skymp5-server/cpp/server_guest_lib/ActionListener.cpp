@@ -1514,10 +1514,15 @@ bool ShouldBeBlocked(const MpActor& aggressor, const MpActor& target)
   if (targetViewDirection * aggressorDirection <= 0) {
     return false;
   }
-  float angle =
-    std::acos((targetViewDirection * aggressorDirection) /
-              (targetViewDirection.Length() * aggressorDirection.Length()));
-  return angle < 1;
+  const float lengths =
+    targetViewDirection.Length() * aggressorDirection.Length();
+  if (lengths <= 0.f) {
+    return false;
+  }
+  // Guard: rounding could put the cosine of a dead-on facing above 1, where acos is NaN (not seen in the unit test)
+  const float cosine = std::clamp(
+    (targetViewDirection * aggressorDirection) / lengths, -1.f, 1.f);
+  return std::acos(cosine) < 1;
 }
 }
 
