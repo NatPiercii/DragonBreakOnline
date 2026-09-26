@@ -13,6 +13,14 @@
 
 module.exports = (api) => {
   const { mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg } = api;
+  // The name a player sees for another: their name once introduced, else Stranger, or Masked Person (playermenu.js).
+  // NPCs keep their own names. A /bug of 2026-09-26: a stranger who raised a player was named on the banner.
+  const nameTo = (viewer, x) => {
+    try {
+      if (!(profileOf(x) >= 0) || typeof globalThis.__dboNameFor !== 'function') return nameOf(x);
+      return globalThis.__dboNameFor(Number(viewer) >>> 0, Number(x) >>> 0);
+    } catch (e) { return nameOf(x); }
+  };
 
   const C = Object.assign({
     friendlyDamage: 0.2,
@@ -200,8 +208,8 @@ module.exports = (api) => {
     markChill(a, false);
     setChillRates(a, null);
     if (by) {
-      banner(a, `${nameOf(by)}'s healing drives the chill of the grave from you.`, 5);
-      banner(by, `You lift the chill of the grave from ${nameOf(a)}.`, 3);
+      banner(a, `${nameTo(a, by)}'s healing drives the chill of the grave from you.`, 5);
+      banner(by, `You lift the chill of the grave from ${nameTo(by, a)}.`, 3);
       audit(`CHILL ${who(a)} lifted by ${who(by)}`);
     } else {
       banner(a, 'The chill of the grave leaves you.', 5);
@@ -289,12 +297,12 @@ module.exports = (api) => {
   const revive = (t, by, how) => {
     const d = S.downed.get(t);
     if (!d || !isDead(t) || mp.get(t, 'private.permaDead') === true) return false;
-    if (by && hostile(sideOf(by), t)) { banner(by, `${nameOf(t)} fought you moments ago and will not take your help.`); return false; }
+    if (by && hostile(sideOf(by), t)) { banner(by, `${nameTo(by, t)} fought you moments ago and will not take your help.`); return false; }
     S.downed.delete(t);
     mp.set(t, 'isDead', false);
     setHealth(t, C.reviveHealth);
-    banner(t, `${by ? nameOf(by) : 'Someone'} raised you with ${how}.`, 5);
-    if (by) banner(by, `You raised ${nameOf(t)}.`, 3);
+    banner(t, `${by ? nameTo(t, by) : 'Someone'} raised you with ${how}.`, 5);
+    if (by) banner(by, `You raised ${nameTo(by, t)}.`, 3);
     audit(`REVIVE ${who(t)} by ${by ? who(by) : 'nobody'} (${how})`);
     return true;
   };
@@ -307,7 +315,7 @@ module.exports = (api) => {
   };
   const finish = (t, by) => {
     audit(`FINISHED ${who(t)} by ${who(by)}`);
-    banner(t, `${nameOf(by)} finished you. You wake at the temple.`, 5);
+    banner(t, `${nameTo(t, by)} finished you. You wake at the temple.`, 5);
     toTemple(t);
   };
   registerChatCommand('respawn', (a) => {

@@ -42,6 +42,8 @@ module.exports = (api) => {
   const UNLAWFUL_RANKS = new Set(['courtmage', 'shaman', 'wisewoman']);
   const isLawful = (a) => { try { return isAdmin(a) || ranksOf(profileOf(a)).some((m) => !UNLAWFUL_RANKS.has(m.rank)); } catch (e) { return false; } };
   const nameFor = (viewer, a) => (isMasked(a) ? C.maskName : knownBy(viewer).includes(a >>> 0) ? nameOf(a) : 'Stranger');
+  // Other modules name players the same way (downed.js: who raised you); a name must never skip the introductions
+  globalThis.__dboNameFor = nameFor;
   const distance = (a, b) => {
     const la = get(a, 'locationalData', null), lb = get(b, 'locationalData', null);
     if (!la || !lb || la.cellOrWorldDesc !== lb.cellOrWorldDesc) return Infinity;
