@@ -286,6 +286,13 @@ function syncVoiceLabels() {
 // mic is opened only while the Voice tab is open, with Chromium's processing off, never at launcher start.
 const RAW_MIC = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
 let devicesFilled = false
+let devicesFilling = null
+// One mic-opening fill at a time: a double click on Voice shares the first one
+function fillDevicesOnce() {
+  if (devicesFilled) return Promise.resolve()
+  if (!devicesFilling) devicesFilling = fillDevices(true).finally(() => { devicesFilling = null })
+  return devicesFilling
+}
 async function fillDevices(openMic) {
   try {
     // Device names stay hidden until the page has used a microphone once
@@ -306,13 +313,19 @@ async function fillDevices(openMic) {
   } catch { /* no media devices: defaults only */ }
 }
 
+// Every start and stop bumps the generation, so a mic that finishes opening after the tab or settings closed (or
+// after a second click started another) is closed at once instead of left open (claude-jake's review L1)
+let meterGen = 0
 async function startMeter() {
   stopMeter()
+  const gen = meterGen
   try {
     const all = await navigator.mediaDevices.enumerateDevices()
+    if (gen !== meterGen) return
     const label = voiceEl('voice-input').value
     const dev = label ? all.find(d => d.kind === 'audioinput' && d.label === label) : null
     const stream = await navigator.mediaDevices.getUserMedia({ audio: dev ? Object.assign({ deviceId: { exact: dev.deviceId } }, RAW_MIC) : RAW_MIC })
+    if (gen !== meterGen) { stream.getTracks().forEach(t => t.stop()); return }
     const ctx = new AudioContext()
     const src = ctx.createMediaStreamSource(stream)
     const gain = ctx.createGain()
@@ -334,6 +347,7 @@ async function startMeter() {
 }
 
 function stopMeter() {
+  meterGen++
   if (!meter) return
   cancelAnimationFrame(meter.raf)
   meter.stream.getTracks().forEach(t => t.stop())
@@ -381,7 +395,11 @@ voiceEl('ui-reset-panels').addEventListener('click', () => {
   voiceEl('ui-reset-panels').textContent = 'Panels will reset on the next launch (Save Settings)'
 })
 document.querySelectorAll('.modal-tab').forEach(tab => tab.addEventListener('click', () => {
-  if (tab.dataset.tab === 'voice') { (devicesFilled ? Promise.resolve() : fillDevices(true)).then(startMeter) } else stopMeter()
+  if (tab.dataset.tab === 'voice') {
+    // Closing the settings or switching tab while the names load bumps the generation: the meter then stays off
+    const gen = ++meterGen
+    fillDevicesOnce().then(() => { if (gen === meterGen && !modalOverlay.hidden) startMeter() })
+  } else stopMeter()
 }))
 loadClientPrefs()
 
