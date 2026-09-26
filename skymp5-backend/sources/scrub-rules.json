@@ -1,4 +1,5 @@
 [
+  {"id":"S0","pattern":null,"flags":null,"replacement":null,"fields":["gameLog"]},
   {"id":"S1","pattern":null,"flags":null,"replacement":null,"fields":["*"]},
   {"id":"S2","pattern":null,"flags":null,"replacement":null,"fields":["*"]},
   {"id":"S3","pattern":"([A-Za-z]:[\\\\/]Users[\\\\/])[^\\\\/\\r\\n\"'<>|]+","flags":"gi","replacement":"$1<user>","fields":["*"]},

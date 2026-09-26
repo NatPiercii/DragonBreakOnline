@@ -268,10 +268,10 @@ test('an invalid Windows event becomes null and a bad event field is nulled', ()
 test('free text is scrubbed, with the session username as <discord>', () => {
   const body = load('script-error-on-update')
   body.error.message = 'Dovah_Kiin99 at 192.168.1.20 \u202esaw a.b@example.org'
-  body.logs = { gameLog: "on('update'): Unexpected token 'm', \"{\"a\": my letter \"... is not valid JSON\nDOVAH_KIIN99 left" }
+  body.logs = { gameLog: "[10:00:00:000] on('update'): Unexpected token 'm', \"{\"a\": my letter \"... is not valid JSON\n[10:00:00:001] DOVAH_KIIN99 left" }
   const { report } = accepted(body, { scrubContext: { names: { discord: ['dovah_kiin99'] } } })
   assert.equal(report.error.message, '<discord> at <ip> saw <email>')
-  assert.equal(report.logs.gameLog, "on('update'): Unexpected token in JSON\n<discord> left")
+  assert.equal(report.logs.gameLog, "[10:00:00:000] on('update'): Unexpected token in JSON\n[10:00:00:001] <discord> left")
 })
 
 test('the JSON.parse rule rewrites SyntaxError messages and err trail entries', () => {
@@ -308,14 +308,14 @@ test('component stacks keep only component names', () => {
 test('long strings are cut and flagged truncated, not refused', () => {
   const body = load('script-error-on-update')
   body.error.message = 'm '.repeat(5000)
-  body.logs = { gameLog: 'start\n' + 'log line\n'.repeat(5000) + 'the end' }
+  body.logs = { gameLog: '[10:00:00:000] start\n' + '[10:00:00:001] log line\n'.repeat(2000) + '[10:00:00:002] the end' }
   const res = accepted(body)
   assert.equal(res.report.error.message.length, 1000)
   assert.equal(res.report.logs.gameLog.length, 16 * 1024)
   assert.ok(res.report.logs.gameLog.endsWith('the end'))
   assert.deepEqual(res.flags, ['truncated'])
   const launcher = load('js-fatal')
-  launcher.logs.gameLog = 'log line\n'.repeat(10000)
+  launcher.logs.gameLog = '[10:00:00:000] log line\n'.repeat(3000)
   assert.equal(accepted(launcher).report.logs.gameLog.length, 32 * 1024)
 })
 
@@ -391,7 +391,7 @@ test('timing: a maximal 400 KB adversarial report validates in under 250 ms', ()
   const body = load('crash-ours')
   const units = ['"', 'a@', '1.', 'a:', "class '", 'a']
   const fill = (n, i) => units[i % units.length].repeat(n).slice(0, n)
-  body.logs.gameLog = fill(60 * 1024, 0)
+  body.logs.gameLog = `[00:00:00:000] ${fill(2000, 0)}\n`.repeat(30)
   body.crash.sections = Object.fromEntries(Object.entries(SECTION_CAPS).map(([k, cap], i) => [k, fill(Math.floor(cap * 1.4), i)]))
   body.trail.entries = Array.from({ length: 56 }, (_, i) => ({ t: body.crash.crashAt - i, k: 'err', d: `on TypeError: ${fill(150, i)}` }))
   const size = Buffer.byteLength(JSON.stringify(body))

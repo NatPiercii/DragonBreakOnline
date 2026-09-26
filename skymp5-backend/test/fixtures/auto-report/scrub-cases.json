@@ -29,10 +29,64 @@
   },
   "cases": [
     {
+      "id": "s0-ui-runs-between-diagnostic-lines-crlf",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna",
+        "alduinak",
+        "voice",
+        "gate"
+      ],
+      "input": "[10:00:00:000] Main: loaded\r\n[10:00:01:000] JS window.__alduinakAddChat({\"text\":\"Brelyna: meet me at the gate\"}) ...\r\n[10:00:01:002] JS window.__alduinakSetNames({\"12ab\":\"Lydia Stormblade\"}) ...\r\n[10:00:02:000] on('update'): TypeError: x is undefined\r\n[10:00:03:000] LoadUrl https://voice.dragonbreakonline.com/room?token=abcdef0123\r\n[10:00:04:000] ForegroundGuard: game window is in front again after 3 s",
+      "expect": "[10:00:00:000] Main: loaded\n[2 UI line(s) left out]\n[10:00:02:000] on('update'): TypeError: x is undefined\n[1 UI line(s) left out]\n[10:00:04:000] ForegroundGuard: game window is in front again after 3 s"
+    },
+    {
+      "id": "s0-multi-line-load-url",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna",
+        "hello",
+        "mat"
+      ],
+      "input": "[10:00:00:000] Main: loaded\n[10:00:01:000] LoadUrl data:text/html,<p>hello\nBrelyna: the key is under the mat</p>\n\n[10:00:02:000] Main: ready",
+      "expect": "[10:00:00:000] Main: loaded\n[3 UI line(s) left out]\n[10:00:02:000] Main: ready"
+    },
+    {
+      "id": "s0-partial-first-line-dropped",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna",
+        "secret"
+      ],
+      "input": "lduinakAddChat({\"text\":\"Brelyna: my secret\"}) ...\n[10:00:02:000] Main: ready",
+      "expect": "[10:00:02:000] Main: ready"
+    },
+    {
+      "id": "s0-empty-payload-and-breaks-inside-a-line",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna"
+      ],
+      "input": "[10:00:00:000] Main: loaded\n[10:00:01:000] JS  ...\n[10:00:01:001] JS window.__alduinakAddChat(\"a\rBrelyna\u2028says hi\") ...\n[10:00:02:000] Main: ready",
+      "expect": "[10:00:00:000] Main: loaded\n[2 UI line(s) left out]\n[10:00:02:000] Main: ready"
+    },
+    {
+      "id": "s0-other-log-formats-untouched",
+      "field": "gameLog",
+      "input": "[10:00:00:000] Main: loaded\n[2026-09-26T10:00:00.000Z] launcher: game exited with code 0\nSKSE runtime: initialize (version = 2.2.6 01060970 1DA8D8B7E0F3B2C, os = 6.2 (9200))\n[10:00:01:000] JSON config read",
+      "expect": "[10:00:00:000] Main: loaded\n[2026-09-26T10:00:00.000Z] launcher: game exited with code 0\nSKSE runtime: initialize (version = 2.2.6 01060970 1DA8D8B7E0F3B2C, os = 6.2 (9200))\n[10:00:01:000] JSON config read"
+    },
+    {
+      "id": "s0-only-in-game-log",
+      "field": "message",
+      "input": "[10:00:01:000] JS window.__alduinakAddChat() failed",
+      "expect": "[10:00:01:000] JS window.__alduinakAddChat() failed"
+    },
+    {
       "id": "names-user-in-path",
       "field": "gameLog",
-      "input": "Loading C:\\Users\\jake\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt",
-      "expect": "Loading C:\\Users\\<user>\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt"
+      "input": "[10:00:00:000] Loading C:\\Users\\jake\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt",
+      "expect": "[10:00:00:000] Loading C:\\Users\\<user>\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt"
     },
     {
       "id": "names-plain-and-upper-case",
@@ -43,8 +97,8 @@
     {
       "id": "names-home-folder-differs-from-username",
       "field": "gameLog",
-      "input": "profile at C:/Users/jlake/AppData",
-      "expect": "profile at C:/Users/<user>/AppData"
+      "input": "[10:00:00:000] profile at C:/Users/jlake/AppData",
+      "expect": "[10:00:00:000] profile at C:/Users/<user>/AppData"
     },
     {
       "id": "names-special-characters-are-literal",
@@ -62,8 +116,8 @@
     {
       "id": "names-discord-username",
       "field": "gameLog",
-      "input": "logged in as Dovah_Kiin99 ok",
-      "expect": "logged in as <discord> ok"
+      "input": "[10:00:00:000] logged in as Dovah_Kiin99 ok",
+      "expect": "[10:00:00:000] logged in as <discord> ok"
     },
     {
       "id": "names-character-and-seen-player",
@@ -139,20 +193,20 @@
     {
       "id": "folders-game-both-slash-styles",
       "field": "gameLog",
-      "input": "D:\\Games\\Skyrim Special Edition\\Data\\Platform\\Logs and d:/games/skyrim special edition/SKSE",
-      "expect": "<game>\\Data\\Platform\\Logs and <game>/SKSE"
+      "input": "[10:00:00:000] D:\\Games\\Skyrim Special Edition\\Data\\Platform\\Logs and d:/games/skyrim special edition/SKSE",
+      "expect": "[10:00:00:000] <game>\\Data\\Platform\\Logs and <game>/SKSE"
     },
     {
       "id": "folders-docs-before-names",
       "field": "gameLog",
-      "input": "C:\\Users\\jake\\Documents\\My Games\\Skyrim Special Edition\\SKSE\\skse64.log",
-      "expect": "<docs>\\My Games\\Skyrim Special Edition\\SKSE\\skse64.log"
+      "input": "[10:00:00:000] C:\\Users\\jake\\Documents\\My Games\\Skyrim Special Edition\\SKSE\\skse64.log",
+      "expect": "[10:00:00:000] <docs>\\My Games\\Skyrim Special Edition\\SKSE\\skse64.log"
     },
     {
       "id": "folders-json-escaped",
       "field": "gameLog",
-      "input": "{\"path\":\"D:\\\\Games\\\\Skyrim Special Edition\\\\Data\"}",
-      "expect": "{\"path\":\"<game>\\\\Data\"}"
+      "input": "[10:00:00:000] {\"path\":\"D:\\\\Games\\\\Skyrim Special Edition\\\\Data\"}",
+      "expect": "[10:00:00:000] {\"path\":\"<game>\\\\Data\"}"
     },
     {
       "id": "folders-short-path-skipped",
@@ -164,8 +218,8 @@
           ]
         }
       },
-      "input": "C:\\G\\Data",
-      "expect": "C:\\G\\Data"
+      "input": "[10:00:00:000] C:\\G\\Data",
+      "expect": "[10:00:00:000] C:\\G\\Data"
     },
     {
       "id": "player-tag",
@@ -190,21 +244,21 @@
     {
       "id": "onedrive-organisation",
       "field": "gameLog",
-      "input": "C:\\Users\\<user>\\OneDrive - Contoso Ltd\\Documents",
-      "expect": "C:\\Users\\<user>\\OneDrive - <org>\\Documents"
+      "input": "[10:00:00:000] C:\\Users\\<user>\\OneDrive - Contoso Ltd\\Documents",
+      "expect": "[10:00:00:000] C:\\Users\\<user>\\OneDrive - <org>\\Documents"
     },
     {
       "id": "onedrive-with-raw-user",
       "field": "gameLog",
       "context": {},
-      "input": "C:\\Users\\Someone\\OneDrive - Contoso Ltd\\Documents\\x.txt",
-      "expect": "C:\\Users\\<user>\\OneDrive - <org>\\Documents\\x.txt"
+      "input": "[10:00:00:000] C:\\Users\\Someone\\OneDrive - Contoso Ltd\\Documents\\x.txt",
+      "expect": "[10:00:00:000] C:\\Users\\<user>\\OneDrive - <org>\\Documents\\x.txt"
     },
     {
       "id": "ipv4-with-port",
       "field": "gameLog",
-      "input": "connect 192.168.1.20:7777",
-      "expect": "connect <ip>"
+      "input": "[10:00:00:000] connect 192.168.1.20:7777",
+      "expect": "[10:00:00:000] connect <ip>"
     },
     {
       "id": "ipv4-end-of-sentence",
@@ -215,14 +269,14 @@
     {
       "id": "ipv4-version-numbers-survive",
       "field": "gameLog",
-      "input": "Skyrim 1.6.640.0 and 1.6.1170.0, client 0.3.44, launcher v2.1.29",
-      "expect": "Skyrim 1.6.640.0 and 1.6.1170.0, client 0.3.44, launcher v2.1.29"
+      "input": "[10:00:00:000] Skyrim 1.6.640.0 and 1.6.1170.0, client 0.3.44, launcher v2.1.29",
+      "expect": "[10:00:00:000] Skyrim 1.6.640.0 and 1.6.1170.0, client 0.3.44, launcher v2.1.29"
     },
     {
       "id": "ipv6-compressed",
       "field": "gameLog",
-      "input": "peer fe80::1ff:fe23:4567:890a closed",
-      "expect": "peer <ip> closed"
+      "input": "[10:00:00:000] peer fe80::1ff:fe23:4567:890a closed",
+      "expect": "[10:00:00:000] peer <ip> closed"
     },
     {
       "id": "ipv6-compressed-end-of-sentence",
@@ -233,14 +287,14 @@
     {
       "id": "ipv6-full-upper-case",
       "field": "gameLog",
-      "input": "2001:DB8:0:0:8:800:200C:417A",
-      "expect": "<ip>"
+      "input": "[10:00:00:000] 2001:DB8:0:0:8:800:200C:417A",
+      "expect": "[10:00:00:000] <ip>"
     },
     {
       "id": "ipv6-lookalikes-survive",
       "field": "gameLog",
-      "input": "RE::Actor::Add std::vector D3D11::Create 12:34:56 BSScript::Internal",
-      "expect": "RE::Actor::Add std::vector D3D11::Create 12:34:56 BSScript::Internal"
+      "input": "[10:00:00:000] RE::Actor::Add std::vector D3D11::Create 12:34:56 BSScript::Internal",
+      "expect": "[10:00:00:000] RE::Actor::Add std::vector D3D11::Create 12:34:56 BSScript::Internal"
     },
     {
       "id": "discord-mention",
@@ -251,64 +305,64 @@
     {
       "id": "email",
       "field": "gameLog",
-      "input": "mail a.b@example.org now",
-      "expect": "mail <email> now"
+      "input": "[10:00:00:000] mail a.b@example.org now",
+      "expect": "[10:00:00:000] mail <email> now"
     },
     {
       "id": "session-json-value",
       "field": "gameLog",
-      "input": "{\"session\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"masterApiId\":7}",
-      "expect": "{\"session\":\"<redacted>\",\"masterApiId\":7}"
+      "input": "[10:00:00:000] {\"session\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"masterApiId\":7}",
+      "expect": "[10:00:00:000] {\"session\":\"<redacted>\",\"masterApiId\":7}"
     },
     {
       "id": "session-json-value-short",
       "field": "gameLog",
-      "input": "{\"session\" : \"abc\"}",
-      "expect": "{\"session\" : \"<redacted>\"}"
+      "input": "[10:00:00:000] {\"session\" : \"abc\"}",
+      "expect": "[10:00:00:000] {\"session\" : \"<redacted>\"}"
     },
     {
       "id": "discord-bot-token",
       "field": "gameLog",
-      "input": "token for bot ZmFrZS1ub3QtYS1yZWFsLXRva2Vu.GAbCdE.abcdefghijklmnopqrstuvwxyz012345 end",
-      "expect": "token for bot <token-redacted> end"
+      "input": "[10:00:00:000] token for bot ZmFrZS1ub3QtYS1yZWFsLXRva2Vu.GAbCdE.abcdefghijklmnopqrstuvwxyz012345 end",
+      "expect": "[10:00:00:000] token for bot <token-redacted> end"
     },
     {
       "id": "bearer-token",
       "field": "gameLog",
-      "input": "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
-      "expect": "Authorization: Bearer <redacted>"
+      "input": "[10:00:00:000] Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
+      "expect": "[10:00:00:000] Authorization: Bearer <redacted>"
     },
     {
       "id": "windows-users-path-unknown-user",
       "field": "gameLog",
       "context": {},
-      "input": "C:\\Users\\Jake\\Desktop\\notes.txt",
-      "expect": "C:\\Users\\<user>\\Desktop\\notes.txt"
+      "input": "[10:00:00:000] C:\\Users\\Jake\\Desktop\\notes.txt",
+      "expect": "[10:00:00:000] C:\\Users\\<user>\\Desktop\\notes.txt"
     },
     {
       "id": "unix-home-path",
       "field": "gameLog",
       "context": {},
-      "input": "/home/jake/.config and /Users/jake/Library",
-      "expect": "/home/<user>/.config and /Users/<user>/Library"
+      "input": "[10:00:00:000] /home/jake/.config and /Users/jake/Library",
+      "expect": "[10:00:00:000] /home/<user>/.config and /Users/<user>/Library"
     },
     {
       "id": "nexus-download-key",
       "field": "gameLog",
-      "input": "https://cf.nexus/f.7z?md5=x&key=AbCdEf123456&expires=1790400000&user_id=12345",
-      "expect": "https://cf.nexus/f.7z?md5=x&key=<redacted>&expires=<redacted>&user_id=<redacted>"
+      "input": "[10:00:00:000] https://cf.nexus/f.7z?md5=x&key=AbCdEf123456&expires=1790400000&user_id=12345",
+      "expect": "[10:00:00:000] https://cf.nexus/f.7z?md5=x&key=<redacted>&expires=<redacted>&user_id=<redacted>"
     },
     {
       "id": "long-hex-run",
       "field": "gameLog",
-      "input": "hwid 0123456789abcdef0123456789abcdef01 ok",
-      "expect": "hwid 01234567<redacted> ok"
+      "input": "[10:00:00:000] hwid 0123456789abcdef0123456789abcdef01 ok",
+      "expect": "[10:00:00:000] hwid 01234567<redacted> ok"
     },
     {
       "id": "foreground-guard-line",
       "field": "gameLog",
-      "input": "ForegroundGuard: window class 'Chrome_WidgetWin_1' pid 4242 (C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe) is in front",
-      "expect": "ForegroundGuard: window class '<app>' pid 4242 (<app>) is in front"
+      "input": "[10:00:00:000] ForegroundGuard: window class 'Chrome_WidgetWin_1' pid 4242 (C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe) is in front",
+      "expect": "[10:00:00:000] ForegroundGuard: window class '<app>' pid 4242 (<app>) is in front"
     },
     {
       "id": "json-snippet-in-game-log",
@@ -316,14 +370,14 @@
       "absent": [
         "letter"
       ],
-      "input": "on('update'): Unexpected token 'm', \"{\"a\": my letter \"... is not valid JSON",
-      "expect": "on('update'): Unexpected token in JSON"
+      "input": "[10:00:00:000] on('update'): Unexpected token 'm', \"{\"a\": my letter \"... is not valid JSON",
+      "expect": "[10:00:00:000] on('update'): Unexpected token in JSON"
     },
     {
       "id": "json-quoted-snippet",
       "field": "gameLog",
-      "input": "parse failed: \"[object Object]\" is not valid JSON",
-      "expect": "parse failed: <s> is not valid JSON"
+      "input": "[10:00:00:000] parse failed: \"[object Object]\" is not valid JSON",
+      "expect": "[10:00:00:000] parse failed: <s> is not valid JSON"
     },
     {
       "id": "json-parse-session-snippet",
@@ -401,8 +455,8 @@
     {
       "id": "json-parse-not-in-game-log",
       "field": "gameLog",
-      "input": "SyntaxError: Unexpected end of JSON input",
-      "expect": "SyntaxError: Unexpected end of JSON input"
+      "input": "[10:00:00:000] SyntaxError: Unexpected end of JSON input",
+      "expect": "[10:00:00:000] SyntaxError: Unexpected end of JSON input"
     },
     {
       "id": "control-and-bidi-characters",
@@ -426,9 +480,9 @@
     {
       "id": "cap-keeps-tail-of-game-log",
       "field": "gameLog",
-      "cap": 10,
-      "input": "line1\nline2",
-      "expect": "ine1\nline2"
+      "cap": 34,
+      "input": "[10:00:00:000] line1\n[10:00:00:001] line2",
+      "expect": "00:000] line1\n[10:00:00:001] line2"
     },
     {
       "id": "cap-never-splits-a-surrogate-pair",
@@ -449,7 +503,9 @@
       "class '",
       "1:",
       "OneDrive ",
-      "Unexpected token "
+      "Unexpected token ",
+      "[00:00:00:000] JS ",
+      "[00:00:00:000] JS \n"
     ],
     "ruleMs": 50
   }

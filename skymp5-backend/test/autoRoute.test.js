@@ -243,7 +243,7 @@ test('413 over 400 KB; a body just under it is parsed and its long log cut', asy
   assert.equal(typeof res.json.error, 'string')
 
   const body = payload('crash-ours')
-  body.logs = { gameLog: 'a line of the game log\n'.repeat(16900) }
+  body.logs = { gameLog: '[10:00:00:000] game log\n'.repeat(16200) }
   const bytes = Buffer.byteLength(JSON.stringify(body))
   assert.ok(bytes > 395 * 1024 && bytes <= 400 * 1024, String(bytes))
   assert.equal((await post(body, { token })).status, 202)
@@ -348,7 +348,7 @@ test('429 per profile per UTC day, until midnight, kept across a restart', async
 test('byte budget: past 2 MB a day, logs and crash sections are dropped and the rest is kept', async (t) => {
   withLimits(t, { profileBytesPerDay: 40 * 1024 })
   const { token, profileId } = login()
-  const log = 'a line of the game log\n'.repeat(1000)
+  const log = '[10:00:00:000] a line of the game log\n'.repeat(600)
   const first = payload('crash-ours', { logs: { gameLog: log } })
   assert.equal((await post(first, { token })).status, 202)
   const kept = stored(profileId, first.reportId)

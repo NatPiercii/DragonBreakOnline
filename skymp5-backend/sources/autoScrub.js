@@ -1,5 +1,5 @@
 'use strict'
-// Auto report scrub engine (docs/auto-report-v1.md §2.11) for scrub-rules.json; S1, S2 and S21 are code
+// Auto report scrub engine (docs/auto-report-v1.md §2.11) for scrub-rules.json; S0, S1, S2 and S21 are code
 
 const RULES = require('./scrub-rules.json').map(rule => ({
   ...rule,
@@ -21,6 +21,9 @@ const S21_FORMS = [
   ['Bad control character', 'Bad control character in JSON'],
   ['Expected', 'Expected token in JSON'],
 ]
+// SkyrimPlatform's log line prefix (main.cpp:120), and the game UI records S0 drops
+const LOG_STAMP = /^\[\d\d:\d\d:\d\d:\d{3}\] /
+const UI_RECORD = /^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) /
 // The message part of a trail err entry that reports a SyntaxError
 const TRAIL_SYNTAX_ERROR = /^((?:on|once|hook|http|uncaught|rejection|window|promise|boundary) SyntaxError: |logged [A-Za-z0-9_$]{1,64}: SyntaxError: )([\s\S]*)$/
 
@@ -90,6 +93,26 @@ function compileContext(context = {}) {
 }
 const NO_CONTEXT = compileContext()
 
+// S0: text before the first stamped line goes, and each run of UI records with their continuation lines becomes a count
+function dropUiLines(text) {
+  const kept = []
+  let started = false
+  let dropping = false
+  let dropped = 0
+  for (const line of text.split('\n')) {
+    if (LOG_STAMP.test(line)) {
+      started = true
+      dropping = UI_RECORD.test(line)
+    }
+    if (!started) continue
+    if (dropping) { dropped++; continue }
+    if (dropped) { kept.push(`[${dropped} UI line(s) left out]`); dropped = 0 }
+    kept.push(line)
+  }
+  if (dropped) kept.push(`[${dropped} UI line(s) left out]`)
+  return kept.join('\n')
+}
+
 function jsonParseForm(message) {
   if (!message.includes('JSON')) return message
   const form = S21_FORMS.find(([prefix]) => message.startsWith(prefix))
@@ -97,6 +120,7 @@ function jsonParseForm(message) {
 }
 
 const CODE_RULES = {
+  S0: dropUiLines,
   S1: (text, _opts, ctx) => (ctx.S1 ? text.replace(ctx.S1.re, ctx.S1.replace) : text),
   S2: (text, _opts, ctx) => (ctx.S2 ? text.replace(ctx.S2.re, ctx.S2.replace) : text),
   S21: (text, { field, type }) => {
@@ -130,4 +154,4 @@ function scrub(input, { field, kind, type, cap = Infinity, keep = field === 'gam
   return { text, truncated }
 }
 
-module.exports = { scrub, compileContext, clean, cut, RULES }
+module.exports = { scrub, compileContext, clean, cut, dropUiLines, RULES }

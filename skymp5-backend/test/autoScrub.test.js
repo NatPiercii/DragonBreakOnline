@@ -5,7 +5,7 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { performance } = require('perf_hooks')
 
-const { scrub, compileContext, RULES } = require('../sources/autoScrub')
+const { scrub, compileContext, dropUiLines, RULES } = require('../sources/autoScrub')
 const scrubLog = require('../sources/scrubLog')
 const RULE_FILE = require('../sources/scrub-rules.json')
 const CASES = require('./fixtures/auto-report/scrub-cases.json')
@@ -25,9 +25,9 @@ function fastest(fn) {
   return best
 }
 
-test('rule file: S1-S21 in order, every rule has the contract shape and compiles', () => {
+test('rule file: S0-S21 in order, every rule has the contract shape and compiles', () => {
   const ids = RULE_FILE.map(r => r.id)
-  assert.deepEqual(ids, ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14',
+  assert.deepEqual(ids, ['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13', 'S14',
                          'S15', 'S16', 'S17', 'S18', 'S19', 'S20a', 'S20b', 'S21'])
   for (const rule of RULE_FILE) {
     assert.deepEqual(Object.keys(rule), ['id', 'pattern', 'flags', 'replacement', 'fields'], rule.id)
@@ -36,7 +36,8 @@ test('rule file: S1-S21 in order, every rule has the contract shape and compiles
     assert.ok(rule.flags.includes('g'), rule.id)
     assert.doesNotThrow(() => new RegExp(rule.pattern, rule.flags), rule.id)
   }
-  assert.deepEqual(RULE_FILE.filter(r => r.pattern === null).map(r => r.id), ['S1', 'S2', 'S21'])
+  assert.deepEqual(RULE_FILE.filter(r => r.pattern === null).map(r => r.id), ['S0', 'S1', 'S2', 'S21'])
+  assert.deepEqual(RULE_FILE.find(r => r.id === 'S0').fields, ['gameLog'])
   assert.deepEqual(RULE_FILE.find(r => r.id === 'S21').fields, ['message', 'trail.err'])
 })
 
@@ -58,14 +59,14 @@ test('cuts: pre-cut bounds the rules, head or tail is kept, truncation is report
   const head = scrub(long, { field: 'message', cap: 1000 })
   assert.equal(head.text, 'word '.repeat(200))
   assert.equal(head.truncated, true)
-  const tail = scrub(long, { field: 'gameLog', cap: 100 })
-  assert.equal(tail.text.endsWith(' <ip>'), true)
-  assert.equal(tail.text.length, 100)
+  const tail = scrub('[10:00:00:000] word\n'.repeat(100) + '[10:00:01:000] 192.168.1.20', { field: 'gameLog', cap: 100 })
+  assert.deepEqual(tail, { text: '[10:00:00:000] word\n'.repeat(4) + '[10:00:01:000] <ip>', truncated: true })
   assert.equal(scrub('short', { field: 'message', cap: 1000 }).truncated, false)
   // A secret split by the pre-cut is dropped rather than left half redacted
   assert.deepEqual(scrub('a'.repeat(8) + ' ' + '0123456789abcdef'.repeat(4), { field: 'message', cap: 30 }),
     { text: 'aaaaaaaa ', truncated: true })
-  assert.deepEqual(scrub('0123456789abcdef'.repeat(4) + ' tail', { field: 'gameLog', cap: 30 }), { text: ' tail', truncated: true })
+  assert.deepEqual(scrub('0123456789abcdef'.repeat(4) + ' tail', { field: 'message', cap: 30, keep: 'tail' }),
+    { text: ' tail', truncated: true })
   // A value that only fits after scrubbing is not truncated: lengths are measured after the rules
   assert.deepEqual(scrub(`${'b'.repeat(10)} 0123456789abcdef0123456789abcdef`, { field: 'message', cap: 40 }),
     { text: `${'b'.repeat(10)} 01234567<redacted>`, truncated: false })
@@ -98,6 +99,8 @@ test(`timing: every rule under ${CASES.timing.ruleMs} ms on ${CASES.timing.chars
       const ms = fastest(() => text.replace(compiled.re, compiled.replace))
       assert.ok(ms < CASES.timing.ruleMs, `${id} took ${ms.toFixed(1)} ms on runs of ${JSON.stringify(unit)}`)
     }
+    const s0 = fastest(() => dropUiLines(text))
+    assert.ok(s0 < CASES.timing.ruleMs, `S0 took ${s0.toFixed(1)} ms on runs of ${JSON.stringify(unit)}`)
     const s21 = fastest(() => scrub(text, { field: 'message', type: 'SyntaxError' }))
     assert.ok(s21 < CASES.timing.ruleMs * 4, `the whole pipeline took ${s21.toFixed(1)} ms on runs of ${JSON.stringify(unit)}`)
   }
