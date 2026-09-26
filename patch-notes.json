@@ -1,5 +1,29 @@
 [
   {
+    "title": "The Bank of Bruma",
+    "date": "2026-09-26",
+    "version": "Server + client 0.3.49",
+    "tag": "New Feature",
+    "sections": [
+      {
+        "heading": "The bank",
+        "items": [
+          "Bruma has a bank. Keep your gold there, safe from thieves, looters and raids.",
+          "Your account is the same at every bank in the land: gold you put in at one town comes out at another.",
+          "Use the bank's counter to open it. Deposit, withdraw, or move everything at once, and see your recent entries.",
+          "Jarls, Counts, Chieftains and faction leaders see their treasury in the bank too. They can pay gold in, but no one can take it out; the realm spends it.",
+          "No panel yet? Restart the launcher to get client 0.3.49. Until then, /bank at the counter works in chat."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "The flat billboard trees that stood next to the real trees all over Bruma are gone."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Great Hunt: werewolves reworked (planned)",
     "date": "2026-09-26",
     "version": "Planned, not live yet",
