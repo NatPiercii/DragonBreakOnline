@@ -1,8 +1,8 @@
 # Auto Reports interface contract, v1
 
-`docs/auto-report-v1.md` · wire contract version **1** · document revision **1.0-rc2** (2026-09-26)
+`docs/auto-report-v1.md` · wire contract version **1** · document revision **1.0-rc3** (2026-09-26)
 
-**Status:** claude-nate reviewed revision 1.0-draft for the client, launcher and build side, and a separate privacy and security review covered the rest (folded into 1.0-rc1). claude-nate then reviewed 1.0-rc1 and found a privacy defect that already affects the live Report a Problem (X5, §9), and the fixes for X5 were reviewed in turn (folded into 1.0-rc2). Every accepted point is folded in. The lists of changes are at the end, together with the points that were rejected or narrowed and the reason for each. The revision becomes `1.0` when claude-nate confirms these changes in the ops ledger. Both sides then build against it.
+**Status:** claude-nate reviewed revision 1.0-draft for the client, launcher and build side, and a separate privacy and security review covered the rest (folded into 1.0-rc1). claude-nate then reviewed 1.0-rc1 and found a privacy defect that already affects the live Report a Problem (X5, §9), and the fixes for X5 were reviewed in turn (folded into 1.0-rc2). 1.0-rc3 records where the backend steps 1-4 differ from the text, after a correctness, privacy and conformance review of that code; none of it changes what a sender sends. Every accepted point is folded in. The lists of changes are at the end, together with the points that were rejected or narrowed and the reason for each. The revision becomes `1.0` when claude-nate confirms these changes in the ops ledger. Both sides then build against it.
 
 **What it implements:** the Auto Reports design that Jake approved on 2026-09-26 with all 17 recommended decisions (D1-D17), `/root/dragonbreak-jake/build/auto-reports-design.md`. §10 lists the places where this contract fills a gap in the design or changes it.
 
@@ -172,7 +172,7 @@ A second 413 means the report is dropped.
 - **`attempt`** counts the attempts of one sending episode by one sender, from 1 to 5. A report taken from a queue, by either sender, starts again at 1 with `queued: true`.
 - **Backoff.** After attempt *n* fails transiently, wait 30 s × 2^(n-1) (30, 60, 120 and 240 s), plus or minus 20 % jitter. After attempt 5, queue the report (§1.7).
 - **Backend deduplication:**
-  - The key is `<profileId>:<reportId>`, kept for 8 days in `data/auto-state.json`, at most the latest 500 per profile.
+  - The key is `<profileId>:<reportId>`, kept for 8 days in `data/auto/auto-state.json`, at most the latest 500 per profile.
   - A repeat gets 202 with `duplicate: true`.
 - **One auto report in flight at a time** per sender.
 - **Consent is checked again before every send** (§4).
@@ -504,6 +504,7 @@ Every name goes because character names appear on more forms than FF-range refer
 **Never taken from a crash log:** the `STACK` section, strings read from memory, or any line outside a kept section.
 
 The same parser produces `sections` and the parsed fields. It lives in `crashlog.js` in the launcher and `sources/crashLog.js` in the backend, as identical copies (§2.11). The line formats will be confirmed against real logs (O3).
+- **Until O3 is settled, the backend has no `crashLog.js`.** It trusts the sender's parsed fields, and runs the `registers` and `relevantObjects` filters of the table above again on its own (`autoSchema.js` `SECTION_FILTERS`): a line of `registers` is kept only as `<REG> (<type>)`, and in `relevantObjects` every `Name` or `Full Name` value becomes `<name>` and every quoted string other than `File: "<plugin>"` becomes `""`. The shared parser replaces them once the real formats are known.
 
 ### 2.5 The `trail` block
 
@@ -724,13 +725,13 @@ Version fields, ids, build ids, numbers, enums, `fn`, modules and symbols are va
 1. Replace `\r\n` with `\n`. Remove C0 control characters except `\n` and `\t`. Remove `\u200b-\u200f`, `\u202a-\u202e` and `\u2066-\u2069`.
 2. **Backend (senders MAY do this too):** cut the field to 1.25 × its cap, keeping the same end as step 4, so that no rule runs on more than that.
 3. Run the rules below, in order.
-4. Cut to the cap. Keep the head of messages, crash sections and trail entries; keep the tail of `gameLog`, cut at a line boundary (the partial first line left by the cut is dropped). **In `gameLog`, every line is also cut to 500 characters** here, after the rules have run. This bounds an exception line (`EventsApi.cpp:64`) that carries packet or chat text in its message.
+4. Cut to the cap. Keep the head of messages, crash sections and trail entries; keep the tail of `gameLog`, cut at a line boundary (the partial first line left by the cut is dropped). **In `gameLog`, every line is also cut to 500 characters** here, after the rules have run and before the cut to the cap, without splitting a surrogate pair. This bounds an exception line (`EventsApi.cpp:64`) that carries packet or chat text in its message.
 
 **Rules, in order:**
 
 0. **S0. Game UI lines** (`gameLog` only; defect X5). On the NirnLab browser backend, SkyrimPlatform logs the start of every script it runs in the game UI and every page it loads, and those lines hold chat, `/pm`, notices, the character name and the voice URL. S0 runs first, so that no auto payload ever carries them, whatever browser backend the player uses.
    - **A record** is one line that starts with a timestamp, `^\[\d\d:\d\d:\d\d:\d{3}\] ` (the only pattern, set at `main.cpp:120` before the first line), plus every following line that does not. Lines are split on `\n` only, after step 1; a `\r` or U+2028 inside a line does not start a new one.
-   - **Text before the first timestamped line is dropped.** It is the rest of a record cut by the read window or by the step 2 pre-cut, and it may be the tail of a UI line.
+   - **Text before the first timestamped line is dropped,** with no `[N UI line(s) left out]` line for it. It is the rest of a record cut by the read window or by the step 2 pre-cut, and it may be the tail of a UI line. A `gameLog` with no timestamped line therefore becomes empty.
    - **A record whose first line matches `^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) ` is dropped whole**, its continuation lines included. `LoadUrl` logs the whole URL with its newlines (`BrowserApiNirnLab.cpp:75`), so a `data:` URL can span several lines. The `JS` line is always one line (`:83-91` replaces `\n`), but the same rule covers it.
    - Each run of dropped lines becomes one line, `[N UI line(s) left out]`, as the X5 launcher and backend filters write it.
    - S0 runs in linear time. The launcher also runs it when it makes the evidence copy (§2.4).
@@ -815,9 +816,10 @@ The `consent` object is stored with each report.
 
 **Removed and flagged `invalidField`, not refused:**
 - An optional or nullable field that fails its rule, such as `fn`, a frame's `module` or `symbol`, `faultSymbol`, `crashLoggerVersion`, `versions.files`, `service` or `site`.
+- A frame's `symbol`, `faultSymbol` or `versions.os` that passes its pattern but that any §2.11 rule without run-time values (S3-S20) would change: a path with a user name, an email or an IP address. These values reach group titles and keys, which outlive the reports.
 - A frame or `site` whose line is below 1 after the probe correction.
 
-Every `invalidField` report counts toward the invalid-payload mute (design §7).
+Every `invalidField` report counts toward the invalid-payload mute (design §7), and so does every 422 `schema`. A 422 `consent` or `contractVersion` does not count: it is a stale setting or an old sender, not a forgery.
 
 **Trail grammar:**
 - Each entry's `d` must match the pattern for its kind (§3.1.4, §3.2.3).
@@ -829,15 +831,18 @@ Every `invalidField` report counts toward the invalid-payload mute (design §7).
 **Stored as metadata only, not counted and not posted (`ignored`):**
 - a `ui-error` with the message `Script error.` (`opaque`);
 - a launcher kind with no DragonBreak trail entry within [event - 60 s, event], re-checked from `trail.entries` (`no-dbo-trail`);
-- a `crash.crashAt` more than 7 days before receipt, after the skew correction (`too-old`). When there is no crash block, `exit.at` is checked instead.
+- a `crash.crashAt` more than 7 days before receipt, after the skew correction (`too-old`). When there is no crash block, `exit.at` is checked instead;
+- a launcher kind while `crashWatch` is `false` (`crash-watch-off`, §1.8), which only a pre-release launcher sends.
 
 "Metadata only" means that no `logs`, no `crash.sections` and no trail entries are kept.
 
-**Counted with no thread:** a `versions.client` outside the known list (the current version plus the last 10) is counted under `unknown-version` (design §7).
+**Counted with no thread:** a `versions.client` outside the known list (the current version plus the last 10) is counted under `unknown-version` (design §7). The list is `CLIENT_VERSION` of `routes/version.js` plus the 10 newest `clientVersion` values of the archived client metas (§5.4), re-read at most once a minute. Such a report is stored but not grouped, and no map is loaded for it. A launcher report without `versions.client` is grouped as usual.
+
+**New signatures (design §7):** a profile's first 5 distinct new signatures in a UTC hour, and 15 new groups in a UTC day, open groups. Its other new signatures are stored and count nowhere; they count toward a group once another profile opens it. Signatures are computed after the 202, so the caps apply where a group would be created, not in the request.
 
 **Over the per-profile daily byte budget (2 MB):** the report is accepted with `logs` and `crash.sections` removed. Only the metadata and the trail are kept.
 
-**A muted profile** gets a plain 202; its reports are not counted.
+**A muted profile** gets a plain 202; its reports are not counted. A profile is muted for 24 hours after more than 15 distinct new signatures, or more than 20 invalid payloads, in one hour (`AUTO_REPORT_MUTE_*`). While it is muted, the body is neither validated nor stored.
 
 ---
 
@@ -956,7 +961,7 @@ The first line of `dbo-trail.jsonl` is the header:
 **Grammar the backend enforces** (§2.12). Placeholders:
 - `DESC`: see Conventions.
 - `NAME`: `[\p{L}\p{N} '.,:()-]{1,40}` (flag `u`).
-- `TGT`: `(?:self|player [0-9a-f]{1,8}|npc DESC|DESC(?: NAME)?)`.
+- `TGT`: `(?:self|player [0-9a-f]{1,8}|npc DESC|(?!ff[0-9a-f]{6} )DESC(?: NAME)?)`. The lookahead enforces rule R: an FF-range desc never carries a name.
 - `TOK`: `[A-Za-z0-9_:.-]{1,40}`.
 - `TYPE`: the §2.3 `type` pattern.
 - `SVC`: `[A-Za-z0-9_$]{1,64}`.
@@ -966,7 +971,7 @@ net    (?:connecting|connected|disconnected|login ok|login denied [A-Za-z]{1,32}
 send   (?:CustomPacket (?:dbo TOK|chat(?: /[a-z]{1,16})?|TOK)|ConsoleCommand [A-Za-z]{1,24}|[A-Z][A-Za-z0-9]{1,39}(?: TGT)?)
 recv   (?:SpSnippet [A-Za-z0-9_]{1,40}\.[A-Za-z0-9_]{1,40}|CustomPacket TOK|[A-Z][A-Za-z0-9]{1,39})
 menu   (?:open|close) [A-Za-z0-9 _/]{1,40}
-world  (?:enter (?:ws|cell) DESC(?: NAME)?|teleport DESC|loadGame)
+world  (?:enter (?:ws|cell) (?!ff[0-9a-f]{6} )DESC(?: NAME)?|teleport DESC|loadGame)
 act    (?:activate|open|read|eat|use|equip|unequip|drop|take|craft|cast|hit|shoot) TGT
 life   (?:death|downed|revived|respawn|ragdoll)
 inv    (?:(?:add|remove) DESC x\d{1,6}|set \d{1,5} entries)
@@ -1146,6 +1151,8 @@ Every 10 minutes the janitor:
 - marks a session stale when its file has `endedAt: null`, an `updatedAt` more than 10 minutes old, and its player is not online. It sets `endedAt = updatedAt` and `endReason: "stale"`.
 
 ### 3.3 Join (backend)
+
+**Not built yet.** It has no data before P2, since `trail.js` writes nothing to disk until then (§3.2.1). It is a later backend step, after P1 and P2; until it lands, stored reports carry no `serverTrail`.
 
 - **When:**
   - client kinds: at least 15 s after receipt (the 5 s write cycle plus a margin);
@@ -1403,18 +1410,19 @@ The backend computes signatures. They are listed here so that senders send the f
 
 | Kind | Canonical | Fields used |
 |---|---|---|
-| `script-error`, `ui-error` | `v1\|<source>\|<where>\|<type>\|<normMsg>\|<top 4 resolved frames as src/file.ts:function>` | `error.source`, `where`, `type`, `message`, `frames`, `build.client` or `build.front`, `build.probe` |
-| The same, with no resolvable frames | `…\|<event>\|<resolved site>\|<type>\|<normMsg>` | `error.event`, `error.site` |
-| Front, with no map | `type + normMsg + first frame`, plus the front build | `error.frames[0]`, `build.front` |
-| Front, top frame `<injected>` | `v1\|front\|<where>\|<type>\|<normMsg>\|injected:<fn>` | `error.frames[0].fn` |
-| `js-fatal` | The signature of the last `err` trail entry, otherwise `v1\|js-fatal` | `trail.entries` |
+| `script-error`, `ui-error` | `v1\|<source>\|<type>\|<normMsg>\|<top 4 frames as <src>:<function>, comma-separated>`. `<src>` is the resolved `src/file.ts`, the file of a frame outside the bundle (`node:events`), or `?` | `error.source`, `type`, `message`, `frames`, `build.client` or `build.front`, `build.probe` |
+| The same, with no frame left after the drops | `v1\|<source>\|<where>\|<event>\|<resolved site or ?>\|<type>\|<normMsg>` | `error.where`, `error.event`, `error.site` |
+| Client, with bundle frames but none resolved (unknown build, or no map) | The first row, keyed on the function names with `?` sources. The group is held (`unknown-build` or `unresolved`) until a second player hits it | `error.frames`, `build.client` |
+| Front, with bundle frames but none resolved | `v1\|front\|<type>\|<normMsg>\|<fn>@<line>:<col>\|<front build>`, from the first `build.js` frame | `error.frames`, `build.front` |
+| Front, top frame `<injected>` | `v1\|front\|<type>\|<normMsg>\|injected:<fn>` | `error.frames[0].fn` |
+| `js-fatal` | `v1\|err\|<where, or logged:<Service>>\|<type>\|<normMsg>` from the last `err` trail entry, otherwise `v1\|js-fatal` | `trail.entries` |
 | `crash` | `v1\|crash\|<exception>\|<faultModule or ?>+<symbol, alid or offset>\|<top 3 frames>` | `crash.*`, `versions.files`, `versions.game` |
 | `crash-nolog` | `v1\|crash\|exit:<code>\|<event 1000 module, or unknown>` | `exit.code`, `exit.event.module` |
 | `freeze` | `v1\|freeze` (one group; the thread tabulates the last menu and the last world) | `trail` pins |
 | `crash-on-quit` | `v1\|crash-on-quit\|<faultModule or ?>` | `crash.faultModule` |
 
 **Details:**
-- `kind` is not part of the key, so an error that is logged and then rethrown forms one group.
+- `kind` is not part of the key, so an error that is logged and then rethrown forms one group. Nor is `where` when frames are present: the logged copy has `where: "logged"` and the rethrown one `"on"` (§8 payload 2). `where` stays in the key only when no frame is left, where the handler is all that tells two errors apart.
 - The frames dropped before hashing are the sink, the wrapper, `node:internal` and `webpack/bootstrap`.
 - **Crash frames:**
   - System frames are skipped first: ntdll, KERNELBASE, KERNEL32, ucrtbase, `VCRUNTIME*` and `MSVCP*`.
@@ -1422,7 +1430,7 @@ The backend computes signatures. They are listed here so that senders send the f
   - A raw offset in our DLLs gets `versions.files` appended. A raw offset in `SkyrimSE.exe` gets `versions.game` appended.
   - A third-party DLL is keyed on module plus exception only.
   - A frame with no module is `?`. Absolute addresses are never used.
-- The backend re-parses `crash.sections.header` and `crash.sections.callStack` with the shared parser. It uses the sender's parsed fields only when that fails, which covers `crash-on-quit` (it has no sections).
+- The backend re-parses `crash.sections.header` and `crash.sections.callStack` with the shared parser. It uses the sender's parsed fields only when that fails, which covers `crash-on-quit` (it has no sections). **Until O3 settles the formats, it uses the sender's fields** (§2.4).
 - **Titles** never contain player text. They are `(Auto Report) <Type> in <resolved function>` or `(Auto Report) Crash <EXC> <module>+<symbol or offset>`. They go through `cleanName` (`problemReport.js:36-40`) without its 64-character cut, and are capped at 100.
 
 ### 6.1 What reaches Discord and how
@@ -1455,17 +1463,21 @@ The backend computes signatures. They are listed here so that senders send the f
 
 | Data | Kept |
 |---|---|
-| Raw reports (`data/autoreports.jsonl`), with the joined server-trail excerpt | 30 days. Full logs only for the first 5 samples per group and version. |
+| Raw reports, one file each: `data/auto/reports/<profileId>-<reportId>.json`, with the joined server-trail excerpt (§3.3, not built yet) | 30 days. Full logs only for the first 5 samples per group and version. |
 | `ignored` reports | Metadata only |
 | Server trail session files | 24 h |
-| Group records | Until deleted; profile ids only |
+| Group records (`data/auto/error-groups.json`) | Until deleted; profile ids only, plus the hardware hash below |
+| `hwidHash`: the first 16 hex of SHA-256 of `auto-report:<hwid>`, compared only for equality (§6.2) | In each report record (30 days), and in a held group's promotion list until the group opens |
+| New-signature counters per profile (`error-groups.json`) | Until the next UTC day |
+| Mutes and the hourly invalid-payload count per profile (`data/auto/auto-state.json`) | 24 h after the mute; the count for its hour |
+| `unknown-version` counts (`error-groups.json`) | Until deleted; versions and totals only, at most 50 versions |
 | Reply attachments | Purged after 90 days, except the starter and the first sample (D5) |
 | Seen `reportId`s | 8 days, at most 500 per profile |
 | Source maps and PDBs | Known versions, and at least 30 days |
 | Client and launcher files | `dbo-sent.jsonl` and `sent-reports.jsonl`: last 10. Queues: 5 files, 7 days. `crash-evidence/`: 7 days. |
 
-- Every stored key and file name is `<profileId>:<reportId>`, so one profile's `reportId` can never shadow another's.
-- `skymp5-backend/scripts/purge-auto-reports.js --profile <id>` removes a profile's reports, joined excerpts and seen ids. It also removes the profile's id from group records, keeping the counts.
+- Every stored key is `<profileId>:<reportId>`, and every file name `<profileId>-<reportId>.json`, so one profile's `reportId` can never shadow another's. A profile id is digits only, so `-` is unambiguous.
+- `skymp5-backend/scripts/purge-auto-reports.js --profile <id>` removes a profile's reports, joined excerpts and seen ids. It also removes the profile's id and hardware hash from group records, keeping the counts (the id becomes one anonymous key per run). **Run it with the backend stopped:** the backend keeps both state files in memory and would write the ids back.
 
 ---
 
@@ -1661,7 +1673,7 @@ Shared fixtures live in `skymp5-backend/test/fixtures/auto-report/`. The client 
 
 | # | Item | Who or where |
 |---|---|---|
-| O1 | For **every** host the settings can name: the nginx body limit, `limit_req`, and whether the Cloudflare WAF blocks bodies with stack traces. The hosts are `dragonbreakonline.com` (used by the launcher, and the game's fallback) and the master host (`api.dragonbreakonline.com` by default). Also check whether the WAF can answer with a non-JSON 403. Also confirm: no `$http_x_session` in any nginx `log_format`, and no debug `error_log`; no Cloudflare Logpush of request headers; and origin traffic limited to Cloudflare, or `CF-Connecting-IP` overwritten. `visitorIp.js:6-7` trusts that header from anyone, so otherwise the per-IP limiter can be bypassed. | claude-dragonbreak, before P3 |
+| O1 | For **every** host the settings can name: the nginx body limit, `limit_req`, and whether the Cloudflare WAF blocks bodies with stack traces. The hosts are `dragonbreakonline.com` (used by the launcher, and the game's fallback) and the master host (`api.dragonbreakonline.com` by default). Also check whether the WAF can answer with a non-JSON 403. Also confirm: no `$http_x_session` in any nginx `log_format`, and no debug `error_log`; no Cloudflare Logpush of request headers; and origin traffic limited to Cloudflare, or `CF-Connecting-IP` overwritten. `visitorIp.js:6-7` trusts that header from anyone, so otherwise the per-IP limiter can be bypassed, a victim's address can be charged, and two addresses can use up the 120 unverified requests per 10 minutes, so that every sender with an expired token gets 429 instead of 401 for a while. The backend keeps this trust until O1 is answered. | claude-dragonbreak, before P3 |
 | O2 | **Answered from code, and confirmed from the shipped 0.3.47 bundle.** `on` and `once` are plain properties (`EventsApi.h:27-30`) on the object from `addNativeExports('skyrimPlatform', {})` (`SkyrimPlatform.cpp:317-318`). Services receive that real object and call `(0, X.on)(…)`, reading the property on every call, so assigning to `globalThis.skyrimPlatform` works (§2.3 item 10). `HttpClient` is set the same way (`HttpClientApi.h:20`). **Test:** throw from a module-level `on('update')` and from an HTTP callback; the sink catches both, and the console still prints. | Nate's PC (confirm only) |
 | O3 | Crash Logger section headings and the frame and symbol line format, from three or more real `crash-*.log` files (a fault in our DLL, in a third-party DLL and in vanilla code), with names removed | Nate's PC |
 | O4 | Exit codes for quit to desktop, a kick, a Task Manager kill and a crash, read as the signed `$p.ExitCode` (§2.2, §2.4) | Nate's PC |
@@ -1774,6 +1786,10 @@ Most of the "Nate's PC" items need a dev client with errorSink installed first.
 23. **A scrub rule for game UI lines, S0** (§2.11). The design did not know that SkyrimPlatform logs chat on the NirnLab backend (defect X5). `gameLog` stays in v1, with those lines dropped.
 24. **The `ErrorBoundary` text does not say "press F6 to reload"** (design §1b). F6 focuses chat (§2.8).
 25. **Where builds run is stated** (§5.5): every build on CT 115, including the launcher installer (O16). The design did not say, and `TEAM.md` still gives the client package and the launcher to the PC.
+26. **Storage layout** (§6.3): one 0600 file per report under `data/auto/reports/`, not `data/autoreports.jsonl` (design §4.3), so the 30-day janitor and the purge delete whole files and nothing is rewritten in place. `auto-state.json` and `error-groups.json` live in `data/auto/` too.
+27. **New-signature caps** (§2.12) apply where a group would be created, after the 202, not inside `accept` (design §7): the signature needs the source map, which is loaded after the answer. Their counters are kept in `error-groups.json` with the groups and their sequence number, not in `auto-state.json` (design §4.3), so a replay after a restart makes the same decisions.
+28. **A mute lasts 24 hours** (§2.12). The design gives no duration.
+29. **A hash of the hardware id is stored** (§6.3), in reports and in held groups' promotion lists, for the distinct-machine rule of §6.2. The design said group records keep profile ids only.
 
 ---
 
@@ -1905,6 +1921,33 @@ Review sources: **N2** is claude-nate's review of 1.0-rc1 (`/opt/dragonbreak-han
 **Rejected or narrowed:**
 - **N2, "if webpack runs on the PC, add a step that sends the bundle, map and sidecar to CT 115": not needed.** Every build runs on CT 115 (owner rule, 2026-09-24; §5.5), so nothing crosses machines.
 - **N2, the authService line numbers: narrowed.** References stay at the f8cd7897 baseline, as the header says; Appendix A maps the client lines that moved on client-0344.
+
+---
+
+## Changes in 1.0-rc3
+
+Review source: **B** is the correctness, privacy and conformance review of backend steps 1-4 (`b61addf9`..`b5a7ce6c`) against rc2. The code was changed where it fell short of the contract; the text was changed where the code was right and the text was not. Nothing here changes what a sender sends.
+
+**The code now does what rc2 says** (backend commits after `4acc81f6`):
+- S0 in the rule file and the engine; the `gameLog` line cap and whole-line tail cut; the §8 S0 cases and timing units (§2.11, §8).
+- `/` in menu names, and `componentStack` lines with `build.js` positions (§3.1.4, §2.3).
+- The invalid-payload and new-signature mutes, the new-signature caps and `unknown-version` (§2.12).
+- `scripts/purge-auto-reports.js` (§6.3).
+- `--files-version` of `archive-symbols.js` takes a git hash (§2.1, §5.4).
+
+**Text changed to match the code, or to fill a gap:**
+- §6: `where` is left out of the key when frames are present, so logged and rethrown copies form one group, as §8 payload 2 requires. The rows for unresolved client and front bundles, and the `js-fatal` form, are spelled out.
+- §6.3 and §1.6: the real storage layout, the `-` in file names, and retention rows for `hwidHash`, the counters, the mutes and `unknown-version` (§10 items 26 and 29).
+- §2.12: symbols, `faultSymbol` and `versions.os` that a scrub rule would change are removed and flagged; which refusals count toward the mute; the mute's length; `crash-watch-off`; how the known-version list is built; where the new-signature caps apply (§10 items 27 and 28).
+- §2.11: text before the first timestamped line gets no count line; the line cap comes before the cut to the cap.
+- §2.4 and §6: the backend has no `crashLog.js` until O3. Meanwhile it trusts the sender's parsed fields and runs the `registers` and `relevantObjects` filters again itself.
+- §3.1.4: `TGT` and `world` refuse a name after an FF-range desc (rule R).
+- §3.3: the join is not built yet; it comes after P1 and P2.
+- O1: what an unguarded `CF-Connecting-IP` allows.
+
+**Fixture status (§8):**
+- In `test/fixtures/auto-report/` now: the S0 cases (CRLF, multi-line `LoadUrl`, a partial first line, empty payloads and breaks inside a line, other log formats), the 2,000-character line, the S0 timing units, `menu open Sleep/Wait Menu`, FF-range names refused, and the rc2 `componentStack` in `ui-error-boundary.json`. `gameLog` values use the real `[hh:mm:ss:mmm] ` prefix.
+- Not there yet: `trail/*.jsonl`, `classify/` and `settings/` (for the client and launcher side; who writes them is to be agreed in the ledger), `crashlogs/` (waits on O3) and `server-trail/` (waits on P1).
 
 ---
 
@@ -2124,3 +2167,4 @@ Review sources: **N2** is claude-nate's review of 1.0-rc1 (`/opt/dragonbreak-han
 - **1.0-draft (2026-09-26):** first draft by claude-jake from the approved design, for claude-nate's review.
 - **1.0-rc1 (2026-09-26):** claude-nate's review and the privacy and security review folded in (see "Changes after review").
 - **1.0-rc2 (2026-09-26):** claude-nate's review of rc1 and the review of the X5 fixes folded in: defect X5 and scrub rule S0, X1 and X2 marked fixed, X6 and X7, the signed exit code, `/` in menu names, O11 before P5, the hook, HttpClient and process-hook forwarding rules, the trail.js load and wrap rules, `componentStack` positions, where builds run, and O16 (see "Changes in 1.0-rc2").
+- **1.0-rc3 (2026-09-26):** the review of backend steps 1-4 folded in: the §6 canonical strings without `where`, the storage layout and retention rows, the mute, cap and `unknown-version` rules, the backend's crash-section filters until O3, FF-range names in the grammar, the join and fixture status (see "Changes in 1.0-rc3").
