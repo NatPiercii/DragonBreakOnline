@@ -172,6 +172,12 @@ now += 15 * DAY; treasury['fighters-guild'] = 30000;
 const w3 = decl(GM, ['aleswell']).war;
 check('surrender by the defender hands over the land named', realm.surrender(COUNT, w3.id).ok && realm.ownerOf('aleswell') === 'fighters-guild' && w3.status === 'ended');
 
+// Hidden layers: a cult's shrine only for its members
+globalThis.__dboGuildsOf = (a) => (fighters.includes(a) ? [{ id: 'fighters-guild', role: a === GM ? 'leader' : 'member' }] : a === 5 ? [{ id: 'cult-namira', role: 'member' }] : []);
+check('a cult member sees its shrine on the map', realm.realmView(5).secret.length === 1 && realm.realmView(5).secret[0].name === 'Shrine of Namira');
+check('nobody else does', realm.realmView(GM).secret.length === 0 && realm.realmView(COUNT).secret.length === 0);
+check('a hidden place is never land: the nearest public marker still owns that spot', realm.territoryAt('a764b:BSHeartland.esm', [95612, 195219, 0]).id !== 'namira-shrine');
+
 // Files
 check('owners and wars are kept on disk', fs.existsSync('territory-owners.json') && fs.existsSync('wars.json') && JSON.parse(fs.readFileSync('wars.json', 'utf8')).wars.length === 3);
 

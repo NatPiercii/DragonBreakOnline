@@ -1,15 +1,109 @@
 {
-  "_comment": "Territories and their land markers (WAR_DESIGN.md section 2; server/realm.js). A point belongs to the nearest land marker in its worldspace. Whoever holds a marker owns its territory; at first every territory belongs to its zone's hold faction (guild-defs.json kind 'hold'). marker: the war standard's spot (world desc, position in game units, capture radius in units, 70 units = 1 m). The positions are the places' map markers in BSHeartland.esm (LCTN LCSR MapMarkerRefType, or the location centre for Aleswell), read 2026-09-26. kind 'capital' is the hold's seat: taking it takes the hold.",
+  "_comment": "Territories and their land markers (WAR_DESIGN.md section 2; server/realm.js). A point belongs to the nearest land marker in its worldspace. Whoever holds a marker owns its territory; at first every territory belongs to its zone's hold faction (guild-defs.json kind 'hold'). marker: the war standard's spot (world desc, position in game units, capture radius in units, 70 units = 1 m). The positions are the places' map markers in BSHeartland.esm (LCTN LCSR MapMarkerRefType, or the location centre for Aleswell), read 2026-09-26. kind 'capital' is the hold's seat: taking it takes the hold. icon: the map marker type (REFR TNAM) of the place's in-game map marker, so the Realm map shows the same icon as the game's map (the icon art is exported from the game's map.swf on the PC into the front's img/mapicons/<type>.png); Castle Bruma's 224 and Bruma's 102 are Beyond Skyrim's own types. Aleswell has no map marker.",
   "territories": [
-    { "id": "bruma", "name": "Bruma", "zone": "bruma", "kind": "capital", "location": "CYRBrumaCastleLocation",
-      "marker": { "world": "a764b:BSHeartland.esm", "pos": [54211, 204105, 8390], "radius": 1500 } },
-    { "id": "applewatch", "name": "Applewatch", "zone": "bruma", "kind": "town", "location": "CYRApplewatchLocation",
-      "marker": { "world": "a764b:BSHeartland.esm", "pos": [35341, 210416, 8970], "radius": 1500 } },
-    { "id": "greenwood", "name": "Greenwood", "zone": "bruma", "kind": "village", "location": "CYRGreenwoodLocation",
-      "marker": { "world": "a764b:BSHeartland.esm", "pos": [75341, 175030, -5046], "radius": 1500 } },
-    { "id": "aleswell", "name": "Aleswell", "zone": "bruma", "kind": "village", "location": "CYRAleswellLocation",
-      "marker": { "world": "a764b:BSHeartland.esm", "pos": [63552, 156496, -4704], "radius": 1500 } },
-    { "id": "pale-pass", "name": "Pale Pass", "zone": "bruma", "kind": "fort", "location": "CYRPalePassLocation",
-      "marker": { "world": "a764b:BSHeartland.esm", "pos": [51361, 256489, 19380], "radius": 1500 } }
+    {
+      "id": "bruma",
+      "name": "Bruma",
+      "zone": "bruma",
+      "kind": "capital",
+      "location": "CYRBrumaCastleLocation",
+      "marker": {
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          54211,
+          204105,
+          8390
+        ],
+        "radius": 1500
+      },
+      "icon": 224
+    },
+    {
+      "id": "applewatch",
+      "name": "Applewatch",
+      "zone": "bruma",
+      "kind": "town",
+      "location": "CYRApplewatchLocation",
+      "marker": {
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          35341,
+          210416,
+          8970
+        ],
+        "radius": 1500
+      },
+      "icon": 2
+    },
+    {
+      "id": "greenwood",
+      "name": "Greenwood",
+      "zone": "bruma",
+      "kind": "village",
+      "location": "CYRGreenwoodLocation",
+      "marker": {
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          75341,
+          175030,
+          -5046
+        ],
+        "radius": 1500
+      },
+      "icon": 3
+    },
+    {
+      "id": "aleswell",
+      "name": "Aleswell",
+      "zone": "bruma",
+      "kind": "village",
+      "location": "CYRAleswellLocation",
+      "marker": {
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          63552,
+          156496,
+          -4704
+        ],
+        "radius": 1500
+      }
+    },
+    {
+      "id": "pale-pass",
+      "name": "Pale Pass",
+      "zone": "bruma",
+      "kind": "fort",
+      "location": "CYRPalePassLocation",
+      "marker": {
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          51361,
+          256489,
+          19380
+        ],
+        "radius": 1500
+      },
+      "icon": 6
+    }
+  ],
+  "_secretComment": "Hidden layers (WAR_DESIGN.md section 3): places only members of the listed secret factions (and staff) see on the Realm map, such as a cult's shrine, a vampire clan's lair or a pack's hunting grounds. They are never part of land ownership, taxes, raids or wars. Namira's shrine position is from daedric-sites.json (its statue, CYRMountainCliffNamira).",
+  "secret": [
+    {
+      "id": "namira-shrine",
+      "name": "Shrine of Namira",
+      "kind": "shrine",
+      "layer": [
+        "cult-namira"
+      ],
+      "marker": {
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          95612,
+          195219,
+          3297
+        ],
+        "radius": 1500
+      }
+    }
   ]
 }

@@ -353,7 +353,10 @@ module.exports = (api) => {
     const led = factionsLedBy(a);
     return {
       territories: territories().map((t) => ({ id: t.id, name: t.name, kind: t.kind, owner: ownerOf(t.id), ownerName: nameOfFaction(ownerOf(t.id)),
-        world: t.marker.world, x: t.marker.pos[0], y: t.marker.pos[1] })),
+        world: t.marker.world, x: t.marker.pos[0], y: t.marker.pos[1], icon: Number.isFinite(t.icon) ? t.icon : null })),
+      // Hidden layers: only members of a listed secret faction (and staff) are sent these
+      secret: ((readJson(TERRITORIES, {}) || {}).secret || []).filter((t) => t && t.marker && Array.isArray(t.layer) && (isAdmin(a) || t.layer.some((f) => memberOf(a, f))))
+        .map((t) => ({ id: t.id, name: t.name, kind: t.kind || 'secret', layer: t.layer.filter((f) => isAdmin(a) || memberOf(a, f)).map(nameOfFaction), x: t.marker.pos[0], y: t.marker.pos[1] })),
       // Map colours by faction: staff's lore table (config war.colours); a faction not in it shows grey until one is set
       colours: Object.assign({}, C.colours || {}),
       wars: live().filter((w) => memberOf(a, w.attacker) || memberOf(a, w.defender) || isAdmin(a)).map(warView),
