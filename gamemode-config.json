@@ -100,6 +100,10 @@
    "_comment": "Spells refused before the server systems see the cast (gamemode.js castHook), with what the caster is told. For spells that crash the game.",
    "782c5:BSHeartland.esm": "Summon Will-o-the-Wisp is disabled for now: the wisp crashes the game when it appears. It will come back once that is fixed."
  },
+ "supernatural": {
+   "_comment": "Overrides for supernatural.js defaults. huntMarkChance: the chance that surviving Hircine's Great Hunt (/rite) gives Sanies Lupinus; an unmarked survivor waits riteFailCooldownHours to run it again.",
+   "huntMarkChance": 0.5
+ },
  "pvp": {
   "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
   "damageMult": 1.25

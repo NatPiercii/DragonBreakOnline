@@ -6,7 +6,8 @@
 //   Turning    when the fever peaks the Blood Fever / Hircine's Hunt trial opens (front widget "rite"); failing kills
 //              and burns the disease out. Molag Bal's Embrace and Hircine's rite are chosen at their shrines (/rite)
 //              and failing those can end the character for good (private.permaDead). Surviving Hircine's rite gives Sanies
-//              Lupinus (the turning follows its fever); surviving Molag Bal's makes a pure-blood at once.
+//              Lupinus at huntMarkChance (the turning follows its fever), else the survivor waits riteFailCooldownHours to
+//              run again; surviving Molag Bal's makes a pure-blood at once.
 //   Vampires   stages 1-4, one per game day unfed; sun burns outdoors by day, fire hurts more, the look becomes the
 //              race's vampire variant. Feeding on a restrained player or a fresh humanoid corpse resets to stage 1.
 //              The Blood Crown: one pure-blood holds the Vampire Lord power; a vampire who slays the holder takes it.
@@ -35,6 +36,8 @@ module.exports = (api) => {
     permaDeathChance: 0.33,
     // Nat: a failed rite at Molag Bal's or Hircine's shrine waits a real day before another try
     riteFailCooldownHours: 24,
+    // Nate 2026-09-26: surviving Hircine's Hunt is a chance at Sanies Lupinus, not a promise
+    huntMarkChance: 0.5,
     // Nat: the average werewolf goes feral. Chance per real minute that the beast takes them unprepared, from sated
     // (hunger 0) to starving (hunger 100), multiplied at night and more under a full moon. Only a pack's Alpha is spared
     feralPerMinute: { sated: 0.005, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
@@ -406,9 +409,14 @@ module.exports = (api) => {
     if (r.type === 'fever_werewolf') return won ? becomeWerewolf(a, false) : (cureDisease(a, 'the hunt took them'), personal(a, 'The Huntsman catches you. The beast dies with you.'), mp.set(a, 'isDead', true));
     // Nat: the blessing belongs to a pack's Alpha, not to anyone who survives the Hunt. Nat 2026-09-26: surviving the Hunt
     // gives Sanies Lupinus, not the beast; the fever runs its days and Hircine's Hunt decides, as after a bite.
+    // Nate 2026-09-26: and only at huntMarkChance; an unmarked survivor waits as long as one who failed before running again.
     if (won && r.type === 'hunt') {
-      if (infect(a, 'werewolf', null)) return personal(a, 'Hircine lets you go, marked. Sanies Lupinus burns in the wound; when the fever peaks, the beast will try to come out.');
-      return personal(a, 'Hircine lets you go, but his mark finds no room in you.');
+      if (Math.random() < C.huntMarkChance) {
+        if (infect(a, 'werewolf', null)) return personal(a, 'Hircine lets you go, marked. Sanies Lupinus burns in the wound; when the fever peaks, the beast will try to come out.');
+        return personal(a, 'Hircine lets you go, but his mark finds no room in you.');
+      }
+      try { mp.set(a, 'private.riteUnmarkedAt', Date.now()); } catch (e) { /* offline */ }
+      return personal(a, `You outrun the Hunt, and Hircine lets you go unmarked. His shrine will hear you again in ${C.riteFailCooldownHours} hours.`);
     }
     if (won) return becomeVampire(a, true);
     try { mp.set(a, 'private.riteFailedAt', Date.now()); } catch (e) { /* offline */ }
@@ -453,6 +461,12 @@ module.exports = (api) => {
     }
     const deity = lastShrine(a);
     let failedAt = 0; try { failedAt = Number(mp.get(a, 'private.riteFailedAt')) || 0; } catch (e) { /* none */ }
+    let unmarkedAt = 0; try { unmarkedAt = Number(mp.get(a, 'private.riteUnmarkedAt')) || 0; } catch (e) { /* none */ }
+    const unmarkedWait = unmarkedAt + C.riteFailCooldownHours * 3600000 - Date.now();
+    if (deity === 'hircine' && unmarkedWait > 0) {
+      const h = Math.floor(unmarkedWait / 3600000), m = Math.ceil((unmarkedWait % 3600000) / 60000);
+      return onScreen(a, `Hircine let you go unmarked. His shrine will hear you again in ${h ? `${h}h ` : ''}${m}m.`);
+    }
     const waitMs = failedAt + C.riteFailCooldownHours * 3600000 - Date.now();
     if ((deity === 'molagbal' || deity === 'hircine') && waitMs > 0) {
       const h = Math.floor(waitMs / 3600000), m = Math.ceil((waitMs % 3600000) / 60000);
@@ -471,7 +485,7 @@ module.exports = (api) => {
       if (s.kind === 'vampire') return personal(a, 'Hircine hunts the living, not the dead. Be cured first.');
       if (s.disease) return personal(a, s.disease.kind === 'werewolf' ? 'Sanies Lupinus is already in your blood. Wait for the fever.' : 'Another fever holds you. Be cured first.');
       pendingRite.set(a, { type: 'hunt', at: Date.now() });
-      return personal(a, "The Great Hunt: Hircine chases you, and if you run true he marks you with Sanies Lupinus; when its fever peaks, the beast tries to come out. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
+      return personal(a, "The Great Hunt: Hircine chases you, and if you run true he may mark you with Sanies Lupinus; when its fever peaks, the beast tries to come out. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
     }
     if (deity === 'arkay' || deity === 'stendarr') {
       if (!s.kind) return personal(a, s.disease ? 'Pray here to break the fever; the rite is for those already turned.' : 'You carry no curse to lift.');

@@ -1,4 +1,4 @@
-// Hircine's rite: surviving the Great Hunt gives Sanies Lupinus, not the beast (Nat, 2026-09-26).
+// Hircine's rite: surviving the Great Hunt gives Sanies Lupinus, not the beast, and only at huntMarkChance (Nate, 2026-09-26).
 // Loads the real supernatural.js against a stub api and runs /rite, /rite confirm and the rite's rounds.
 // node tests/hircine-rite-harness.js   (from server/)
 'use strict';
@@ -38,13 +38,30 @@ const runRite = (win) => {
 
 atShrine('hircine'); cmds.rite(A, ''); said.length = 0; cmds.rite(A, 'confirm');
 ok(globalThis.__dboRites.has(A), 'the Great Hunt starts on /rite confirm');
+const rnd0 = Math.random; Math.random = () => 0; // the mark roll lands
 runRite(true);
+Math.random = rnd0;
 ok(!state().kind, 'surviving the Hunt does not make a werewolf');
 ok(state().disease && state().disease.kind === 'werewolf', 'surviving the Hunt gives Sanies Lupinus');
 ok(said.some((t) => /Sanies Lupinus/.test(t)), 'the player is told about the disease');
 
 said.length = 0; atShrine('hircine'); cmds.rite(A, '');
 ok(said.some((t) => /already in your blood/.test(t)), 'a second /rite while diseased is refused');
+
+// Surviving without the mark: nothing caught, and the shrine waits riteFailCooldownHours
+store.clear(); said.length = 0; globalThis.__dboRites.clear();
+atShrine('hircine'); cmds.rite(A, ''); cmds.rite(A, 'confirm');
+const rnd1 = Math.random; Math.random = () => 0.99; // the mark roll misses
+runRite(true);
+Math.random = rnd1;
+ok(!state().kind && !state().disease, 'surviving without the mark gives nothing');
+ok(said.some((t) => /unmarked/.test(t)), 'the unmarked survivor is told');
+ok(Number(store.get(`${A}|private.riteUnmarkedAt`)) > 0 && !store.get(`${A}|private.riteFailedAt`), 'the unmarked wait starts (not the failure one)');
+said.length = 0; atShrine('hircine'); cmds.rite(A, '');
+ok(!globalThis.__dboRites.has(A) && !said.some((t) => /Great Hunt/.test(t)), 'an unmarked survivor cannot run the Hunt again straight away');
+store.set(`${A}|private.riteUnmarkedAt`, Date.now() - 25 * 3600000);
+said.length = 0; atShrine('hircine'); cmds.rite(A, '');
+ok(said.some((t) => /Great Hunt/.test(t) && /may mark/.test(t)), 'after the wait the Hunt is offered again, as a chance');
 
 // Molag Bal is unchanged: surviving the Embrace makes a pure-blood at once
 store.clear(); said.length = 0; globalThis.__dboRites.clear();
