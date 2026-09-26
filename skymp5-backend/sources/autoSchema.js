@@ -40,7 +40,7 @@ const PATTERNS = {
   exceptionCode: /^0x[0-9A-F]{8}$/,
   logName: /^crash-[0-9_-]{1,40}\.log$/,
   crashLoggerVersion: /^[\w.-]{1,32}$/,
-  componentLine: /^at [A-Za-z_$][A-Za-z0-9_$.]{0,63}$/,
+  componentLine: /^at [A-Za-z_$][A-Za-z0-9_$.]{0,63}(?: \(build\.js:[1-9]\d{0,7}:[1-9]\d{0,7}\))?$/,
 }
 
 // consent: 'errors' needs consent.errors true, a list names the allowed consent.crash values
@@ -224,7 +224,7 @@ function errorFrame(st, f, path) {
   }
 }
 
-// Keeps only `at <Name>` lines; the text is scrubbed later with the other free text
+// Keeps only `at <Name>` and `at <Name> (build.js:<line>:<col>)` lines; the text is scrubbed later with the other free text
 function componentNames(st, text) {
   const lines = text.slice(0, CAPS.componentStack * 2).split('\n').map(l => l.trim()).filter(Boolean)
   const kept = lines.filter(l => PATTERNS.componentLine.test(l))

@@ -48,7 +48,7 @@
         "file": "build.js"
       }
     ],
-    "componentStack": "at PartyPanel\nat Widgets\nat App"
+    "componentStack": "at Kt (build.js:2:183100)\nat Ye (build.js:2:201877)\nat Zn (build.js:2:9120)"
   },
   "trail": {
     "source": "memory",

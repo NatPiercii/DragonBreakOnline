@@ -297,11 +297,13 @@ test('crash sections are scrubbed, capped by key, unknown keys dropped', () => {
   assert.deepEqual(res.flags.sort(), ['invalidField', 'truncated'])
 })
 
-test('component stacks keep only component names', () => {
+test('component stacks keep component names with their build.js positions', () => {
   const body = load('ui-error-boundary')
-  body.error.componentStack = 'at PartyPanel (file:///C:/Games/Skyrim/Data/Platform/UI/build.js:2:1)\nat Widgets\n  at App  \nsomething else'
+  assert.equal(accepted(body).report.error.componentStack, body.error.componentStack)
+  body.error.componentStack = 'at PartyPanel (file:///C:/Games/Skyrim/Data/Platform/UI/build.js:2:1)\nat Kt (build.js:2:183100)\n' +
+    'at Ye (vendor.js:1:5)\nat Widgets\n  at App  \nat Zn (build.js:0:1)\nsomething else'
   const res = accepted(body)
-  assert.equal(res.report.error.componentStack, 'at Widgets\nat App')
+  assert.equal(res.report.error.componentStack, 'at Kt (build.js:2:183100)\nat Widgets\nat App')
   assert.deepEqual(res.invalid, ['error.componentStack'])
 })
 
