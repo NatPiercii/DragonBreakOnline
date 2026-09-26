@@ -27,6 +27,7 @@ const autoReport  = require('../sources/autoReport')
 const sourceMaps  = require('../sources/sourceMaps')
 const { validate } = require('../sources/autoSchema')
 const { writeFixtureMaps } = require('./fixtures/auto-report/sourcemaps/fixture')
+const purgeScript = require('../scripts/purge-auto-reports')
 
 const PAYLOADS = path.join(__dirname, 'fixtures', 'auto-report', 'payloads')
 const MIN = 60 * 1000
@@ -385,6 +386,51 @@ test('mute: more than 15 new signatures in an hour mutes the profile for 24 hour
   autoStore.load()
   assert.equal(autoStore.isMuted(7, T0 + 15 * MIN + autoStore.MUTE_MS - 1), true)
   assert.equal(autoStore.isMuted(7, T0 + 15 * MIN + autoStore.MUTE_MS), false)
+})
+
+test('purge: a profile\'s reports, seen ids, counters and ids in groups go; the groups keep their counts', async (t) => {
+  const dir = freshDir()
+  const kept = store('script-error-on-update', { profileId: 2, at: T0 })
+  store('script-error-on-update', { profileId: 1, at: T0 + MIN })
+  store('crash-ours', { profileId: 1, at: T0 + 2 * MIN, verified: false, hwid: 'machine-1' })
+  await errorGroups.kick()
+  errorGroups.markFixed(ON_UPDATE, '0.3.44', T0 + 4 * MIN)
+  store('script-error-on-update', { profileId: 1, at: T0 + 5 * MIN })
+  await errorGroups.kick()
+  errorGroups.flush()
+  const counts = id => ['reports', 'occurrences', 'playerCount'].map(k => group(id)[k])
+  const before = [counts(ON_UPDATE), counts(CRASH_OURS)]
+  assert.deepEqual(group(ON_UPDATE).regression.profiles, ['1'])
+  const [[promoted, hwidHash]] = group(CRASH_OURS).promotion
+  assert.equal(promoted, '1')
+  assert.match(hwidHash, /^[0-9a-f]{16}$/)
+  fs.writeFileSync(path.join(dir, 'error-groups.json.bad-1'), '{')
+
+  const logs = t.mock.method(console, 'log', () => {})
+  assert.equal(purgeScript.main(['--profile', '1']), 0)
+  assert.match(logs.mock.calls[0].arguments[0], /profile 1: 3 report file\(s\) deleted, removed from 2 group\(s\)/)
+  assert.match(logs.mock.calls[1].arguments[0], /not edited, check or delete by hand: error-groups\.json\.bad-1/)
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'reports')), [`2-${kept.report.reportId}.json`])
+  const state = JSON.parse(fs.readFileSync(path.join(dir, 'auto-state.json'), 'utf8'))
+  assert.deepEqual(Object.keys(state.profiles), ['2'])
+  assert.ok(state.pending.every(e => e[1] !== 1))
+
+  autoStore.load()
+  errorGroups.load()
+  assert.deepEqual([counts(ON_UPDATE), counts(CRASH_OURS)], before)
+  for (const id of [ON_UPDATE, CRASH_OURS]) {
+    const g = group(id)
+    assert.ok(!('1' in g.players))
+    assert.ok(g.daily.every(slot => !slot.players.includes('1')))
+    assert.ok(Object.values(g.versions).every(v => v.samples.every(key => !key.startsWith('1-'))))
+  }
+  assert.deepEqual(group(ON_UPDATE).regression.profiles.map(p => p.startsWith('purged-')), [true])
+  assert.deepEqual(group(CRASH_OURS).promotion.map(([p, hwid]) => [p.startsWith('purged-'), hwid]), [[true, null]])
+  assert.ok(!fs.readFileSync(groupsFile(), 'utf8').includes(hwidHash))
+  assert.equal(JSON.parse(fs.readFileSync(groupsFile(), 'utf8')).profiles['1'], undefined)
+
+  assert.equal(purgeScript.main(['--profile', '../1']), 1)
+  assert.equal(purgeScript.main([]), 1)
 })
 
 test('state files: a read error keeps what is loaded and retries; a corrupt or misshapen file is moved aside', async (t) => {
