@@ -346,6 +346,43 @@ test('429 per profile per UTC day, until midnight, kept across a restart', async
   assert.equal(autoStore.today(profileId, autoStore.nextUtcDay(Date.now())).reports, 0)
 })
 
+test('invalid-payload mute: schema refusals and invalidField reports count; past the limit a plain 202 stores nothing', async (t) => {
+  withLimits(t, { muteInvalidPerHour: 3 })
+  const logs = t.mock.method(console, 'log', () => {})
+  const { token, profileId } = login()
+  const flagged = payload('script-error-on-update')
+  flagged.error.frames[0].fn = 'bad`fn'
+  assert.equal((await post(flagged, { token })).status, 202)
+  assert.deepEqual(stored(profileId, flagged.reportId).flags, ['invalidField'])
+  for (let i = 0; i < 2; i++) assert.equal((await post({ ...payload(), reportId: 'nope' }, { token })).status, 422)
+  // A consent refusal is not a forgery and does not count
+  const optedOut = payload()
+  optedOut.consent.errors = false
+  assert.equal((await post(optedOut, { token })).json.error, 'consent')
+  assert.equal(autoStore.isMuted(profileId, Date.now()), false)
+  assert.equal((await post({ ...payload(), reportId: 'nope' }, { token })).status, 422)
+  assert.equal(autoStore.isMuted(profileId, Date.now()), true)
+  assert.match(logs.mock.calls[0].arguments[0], new RegExp(`profile ${profileId} muted for 24 h: invalid reports`))
+
+  const muted = payload()
+  assert.deepEqual((await post(muted, { token })).json, { ok: true, id: muted.reportId, duplicate: false })
+  assert.equal(stored(profileId, muted.reportId), null)
+  assert.deepEqual((await post({ junk: true }, { token })).json, { ok: true, id: null, duplicate: false })
+  const pending = autoStore.pending().length
+  await errorGroups.kick()
+  assert.equal(autoStore.pending().length, pending)
+
+  // Kept across a restart; other profiles are not affected
+  autoStore.load()
+  assert.equal(JSON.parse(fs.readFileSync(stateFile(), 'utf8')).profiles[profileId].mutedUntil > Date.now(), true)
+  assert.equal((await post(payload(), { token })).status, 202)
+  assert.equal(autoStore.isMuted(profileId, Date.now()), true)
+  const other = login()
+  const fine = payload()
+  await post(fine, { token: other.token })
+  assert.ok(stored(other.profileId, fine.reportId))
+})
+
 test('byte budget: past 2 MB a day, logs and crash sections are dropped and the rest is kept', async (t) => {
   withLimits(t, { profileBytesPerDay: 40 * 1024 })
   const { token, profileId } = login()

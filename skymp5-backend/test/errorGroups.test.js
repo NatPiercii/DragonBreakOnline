@@ -329,6 +329,64 @@ test('unknown-version: a client version outside the known list is counted with n
   assert.equal(Object.keys(errorGroups.unknownVersion().versions).length, 50)
 })
 
+test('new signatures: 5 an hour and 15 a day per profile open groups; past that only known groups count', async (t) => {
+  freshDir()
+  const HOUR = 60 * MIN
+  const logs = t.mock.method(console, 'log', () => {})
+  const sig = (profileId, word, at) => store('script-error-on-update', { profileId, at, patch: { error: { message: `boom ${word}` } } })
+  const words = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf']
+  words.forEach((w, i) => sig(1, w, T0 + i * MIN))
+  sig(1, 'alpha', T0 + 20 * MIN)
+  await errorGroups.kick()
+  const titles = () => errorGroups.list().map(g => g.normMsg).sort()
+  assert.deepEqual(titles(), words.slice(0, 5).map(w => `boom ${w}`))
+  assert.equal(errorGroups.list().find(g => g.normMsg === 'boom alpha').reports, 2)
+
+  // Another profile opens the group the first could not; the capped profile then counts toward it
+  sig(2, 'foxtrot', T0 + 21 * MIN)
+  sig(1, 'foxtrot', T0 + 32 * MIN)
+  await errorGroups.kick()
+  assert.equal(errorGroups.list().find(g => g.normMsg === 'boom foxtrot').playerCount, 2)
+
+  // The next hour has room again, and the counters survive a restart with the groups
+  errorGroups.flush()
+  autoStore.load()
+  errorGroups.load()
+  sig(1, 'golf', T0 + HOUR + MIN)
+  await errorGroups.kick()
+  assert.ok(errorGroups.list().some(g => g.normMsg === 'boom golf'))
+  errorGroups.flush()
+  const saved = JSON.parse(fs.readFileSync(groupsFile(), 'utf8'))
+  assert.deepEqual(saved.profiles['1'], { hour: autoStore.hourOf(T0 + HOUR), tried: [errorGroups.list().find(g => g.normMsg === 'boom golf').id], day: '2026-09-26', created: 6 })
+
+  // 15 a day: hours 2 and 3 add 5 and 4 more, the rest of the day adds none
+  const more = Array.from({ length: 12 }, (_, i) => `more${String.fromCharCode(97 + i)}`)
+  more.slice(0, 5).forEach((w, i) => sig(1, w, T0 + 2 * HOUR + i * MIN))
+  more.slice(5, 12).forEach((w, i) => sig(1, w, T0 + 3 * HOUR + i * MIN))
+  await errorGroups.kick()
+  assert.equal(errorGroups.list().filter(g => g.players['1'] && g.firstSeen >= T0 + 2 * HOUR).length, 4 + 5)
+  assert.equal(errorGroups.list().length, 7 + 9)
+  assert.equal(autoStore.isMuted(1, T0 + 4 * HOUR), false)
+  assert.equal(logs.mock.calls.length, 0)
+})
+
+test('mute: more than 15 new signatures in an hour mutes the profile for 24 hours, kept across a restart', async (t) => {
+  freshDir()
+  const logs = t.mock.method(console, 'log', () => {})
+  for (let i = 0; i < 17; i++) store('script-error-on-update', { profileId: 7, at: T0 + i * MIN, patch: { error: { message: `burst ${'x'.repeat(i + 1)}` } } })
+  await errorGroups.kick()
+  assert.equal(errorGroups.list().length, 5)
+  assert.equal(autoStore.isMuted(7, T0 + 16 * MIN), true)
+  assert.equal(autoStore.isMuted(8, T0 + 16 * MIN), false)
+  assert.equal(logs.mock.calls.length, 1)
+  assert.match(logs.mock.calls[0].arguments[0], /profile 7 muted for 24 h: new signatures/)
+  errorGroups.flush()
+  assert.equal(JSON.parse(fs.readFileSync(groupsFile(), 'utf8')).profiles['7'].tried.length, 16)
+  autoStore.load()
+  assert.equal(autoStore.isMuted(7, T0 + 15 * MIN + autoStore.MUTE_MS - 1), true)
+  assert.equal(autoStore.isMuted(7, T0 + 15 * MIN + autoStore.MUTE_MS), false)
+})
+
 test('state files: a read error keeps what is loaded and retries; a corrupt or misshapen file is moved aside', async (t) => {
   const dir = freshDir()
   store('script-error-on-update', { profileId: 1, at: T0 })

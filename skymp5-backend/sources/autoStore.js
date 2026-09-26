@@ -6,7 +6,9 @@ const path   = require('path')
 const config = require('../config')
 const { writeAtomic, readJson } = require('./atomicFile')
 
-const DAY_MS = 24 * 60 * 60 * 1000
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+const MUTE_MS = DAY_MS
 const SEEN_MS = 8 * DAY_MS
 const SEEN_MAX = 500
 const RETENTION_MS = 30 * DAY_MS
@@ -15,12 +17,15 @@ const STATE_FILE = 'auto-state.json'
 const REPORT_NAME = /^\d+-[0-9a-f-]{36}\.json$/
 const TMP_NAME = /\.[0-9a-f]{12}\.tmp$/
 
-// { dir, profiles: Map<profileId, { day, reports, bytes, seen: Map<reportId, receivedAt> }>, seq, pending, groupedSeq }
+// { dir, profiles: Map<profileId, profile>, seq, pending, groupedSeq }
+// profile: { day, reports, bytes, seen: Map<reportId, receivedAt>, hour, invalid, mutedUntil }, invalid counted in that hour
 // Seen ids are oldest first; pending lists [seq, profileId, reportId] of stored reports the groups have not saved yet
 let state = null
 
 const utcDay = at => new Date(at).toISOString().slice(0, 10)
 const nextUtcDay = at => (Math.floor(at / DAY_MS) + 1) * DAY_MS
+const hourOf = at => Math.floor(at / HOUR_MS)
+const count = v => (Number.isSafeInteger(v) && v > 0 ? v : 0)
 const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v)
 const isPair = e => Array.isArray(e) && typeof e[0] === 'string' && Number.isFinite(e[1])
 const isPending = e => Array.isArray(e) && Number.isSafeInteger(e[0]) && e[0] > 0 && Number.isSafeInteger(e[1]) && typeof e[2] === 'string'
@@ -36,6 +41,7 @@ function load() {
     state.profiles.set(id, {
       day: String(p.day || ''), reports: Number(p.reports) || 0, bytes: Number(p.bytes) || 0,
       seen: new Map((Array.isArray(p.seen) ? p.seen : []).filter(isPair)),
+      hour: count(p.hour), invalid: count(p.invalid), mutedUntil: count(p.mutedUntil),
     })
   }
   state.pending = (Array.isArray(saved.pending) ? saved.pending : []).filter(isPending)
@@ -48,14 +54,42 @@ function current() {
   return state
 }
 
-// The profile's entry, its daily counters reset when the UTC day has changed
-function today(profileId, now) {
+function profile(profileId) {
   const { profiles } = current()
   const key = String(profileId)
   let p = profiles.get(key)
-  if (!p) profiles.set(key, p = { day: '', reports: 0, bytes: 0, seen: new Map() })
+  if (!p) profiles.set(key, p = { day: '', reports: 0, bytes: 0, seen: new Map(), hour: 0, invalid: 0, mutedUntil: 0 })
+  return p
+}
+
+// The profile's entry, its daily counters reset when the UTC day has changed
+function today(profileId, now) {
+  const p = profile(profileId)
   if (p.day !== utcDay(now)) Object.assign(p, { day: utcDay(now), reports: 0, bytes: 0 })
   return p
+}
+
+// Design §7: a muted profile gets a plain 202 and nothing it sends is stored or counted
+function isMuted(profileId, now) {
+  const p = current().profiles.get(String(profileId))
+  return Boolean(p && p.mutedUntil > now)
+}
+
+function mute(profileId, now, reason) {
+  const p = profile(profileId)
+  if (p.mutedUntil > now) return
+  p.mutedUntil = now + MUTE_MS
+  console.log(`[auto-report] profile ${profileId} muted for 24 h: ${reason}`)
+  save(now)
+}
+
+// A 422 schema refusal or an invalidField report (§2.12); past the hourly limit the profile is muted
+function countInvalid(profileId, now) {
+  const p = profile(profileId)
+  if (p.hour !== hourOf(now)) Object.assign(p, { hour: hourOf(now), invalid: 0 })
+  p.invalid++
+  if (p.invalid > config.autoReportLimits.muteInvalidPerHour) mute(profileId, now, 'invalid reports')
+  else save(now)
 }
 
 function isSeen(profileId, reportId, now) {
@@ -70,8 +104,11 @@ function save(now) {
   const out = {}
   for (const [id, p] of st.profiles) {
     for (const [reportId, at] of p.seen) if (now - at > SEEN_MS) p.seen.delete(reportId)
-    if (!p.seen.size && p.day !== utcDay(now)) st.profiles.delete(id)
-    else out[id] = { day: p.day, reports: p.reports, bytes: p.bytes, seen: [...p.seen] }
+    if (!p.seen.size && p.day !== utcDay(now) && p.hour !== hourOf(now) && p.mutedUntil <= now) st.profiles.delete(id)
+    else {
+      const { day, reports, bytes, hour, invalid, mutedUntil } = p
+      out[id] = { day, reports, bytes, seen: [...p.seen], hour, invalid, mutedUntil }
+    }
   }
   st.pending = st.pending.filter(([seq]) => seq > st.groupedSeq)
   try { writeAtomic(path.join(st.dir, STATE_FILE), JSON.stringify({ v: 1, profiles: out, seq: st.seq, pending: st.pending })) }
@@ -144,6 +181,6 @@ async function janitor(now = Date.now()) {
 }
 
 module.exports = {
-  load, today, isSeen, save, add, rewrite, readReport, pending, grouped, janitor, writeAtomic, reportFile, nextUtcDay,
-  SEEN_MS, SEEN_MAX, RETENTION_MS,
+  load, today, isSeen, isMuted, mute, countInvalid, save, add, rewrite, readReport, pending, grouped, janitor, writeAtomic,
+  reportFile, nextUtcDay, hourOf, SEEN_MS, SEEN_MAX, RETENTION_MS, MUTE_MS,
 }

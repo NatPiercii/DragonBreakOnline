@@ -3,7 +3,7 @@
 
 const crypto = require('crypto')
 const config = require('../config')
-const { validate, ignoreReason, checkBuild, CONTRACT_VERSIONS, KINDS } = require('./autoSchema')
+const { validate, ignoreReason, checkBuild, CONTRACT_VERSIONS, KINDS, PATTERNS } = require('./autoSchema')
 const autoStore = require('./autoStore')
 const errorGroups = require('./errorGroups')
 const sourceMaps = require('./sourceMaps')
@@ -106,17 +106,25 @@ function store(result, { receivedAt, profileId, launchCheck, hwid }) {
   return record
 }
 
-// 422 or 202; a report seen before for this profile is not stored again
+// 422 or 202; a report seen before for this profile is not stored again, and a muted profile's is not read
 function accept(req, res) {
   try {
     noteOnMode()
     const receivedAt = Date.now()
     const { profileId, name, session, hwid } = req.reporter
+    if (autoStore.isMuted(profileId, receivedAt)) {
+      const id = req.body && req.body.reportId
+      return res.status(202).json({ ok: true, id: typeof id === 'string' && PATTERNS.reportId.test(id) ? id : null, duplicate: false })
+    }
     const result = validate(req.body, { receivedAt, scrubContext: { names: { discord: [name] } } })
-    if (!result.ok) return res.status(result.status).json(result.json)
+    if (!result.ok) {
+      if (result.json.error === 'schema') autoStore.countInvalid(profileId, receivedAt)
+      return res.status(result.status).json(result.json)
+    }
     const { reportId } = result.report
     const duplicate = autoStore.isSeen(profileId, reportId, receivedAt)
-    if (!duplicate) store(result, { receivedAt, profileId, launchCheck: session.launchCheck, hwid })
+    const record = duplicate ? null : store(result, { receivedAt, profileId, launchCheck: session.launchCheck, hwid })
+    if (record && record.flags.includes('invalidField')) autoStore.countInvalid(profileId, receivedAt)
     res.status(202).json({ ok: true, id: reportId, duplicate })
     if (!duplicate) errorGroups.kick()
   } catch (err) {

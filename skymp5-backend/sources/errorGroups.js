@@ -20,7 +20,8 @@ const REGRESSION_PLAYERS = 2
 const PROMOTION_MAX = 50
 const UNKNOWN_VERSIONS_MAX = 50
 
-// { dir, seq, groups: { [id]: group }, unknownVersion, timer }; seq is the last pending entry applied to groups
+// { dir, seq, groups: { [id]: group }, profiles, unknownVersion, timer }; seq is the last pending entry applied to groups
+// profiles: { [profileId]: { hour, tried: [signature ids new in that hour], day, created: groups opened that day } }
 let state = null
 let draining = null
 
@@ -35,9 +36,12 @@ function load() {
   const dir = config.autoReportDir
   const saved = readJson(path.join(dir, FILE), v => isObject(v) && isObject(v.groups))
   if (state) clearTimeout(state.timer)
-  state = { dir, seq: 0, groups: {}, unknownVersion: emptyUnknown(), timer: null }
+  state = { dir, seq: 0, groups: {}, profiles: {}, unknownVersion: emptyUnknown(), timer: null }
   if (!saved) return
   state.groups = saved.groups
+  for (const [pid, p] of Object.entries(isObject(saved.profiles) ? saved.profiles : {})) {
+    if (isObject(p) && Array.isArray(p.tried)) state.profiles[pid] = p
+  }
   const unknown = saved.unknownVersion
   if (isObject(unknown) && Number.isSafeInteger(unknown.reports) && isObject(unknown.versions)) state.unknownVersion = unknown
   state.seq = Number.isSafeInteger(saved.seq) && saved.seq > 0 ? saved.seq : 0
@@ -50,11 +54,19 @@ function current() {
   return state
 }
 
+// New-signature counters from before the newest day seen can no longer count
+function pruneProfiles(st) {
+  const newest = Object.values(st.profiles).reduce((max, p) => (p.day > max ? p.day : max), '')
+  for (const [pid, p] of Object.entries(st.profiles)) if (p.day !== newest) delete st.profiles[pid]
+}
+
 function save(st) {
   clearTimeout(st.timer)
   st.timer = null
+  pruneProfiles(st)
   try {
-    autoStore.writeAtomic(path.join(st.dir, FILE), JSON.stringify({ v: 1, seq: st.seq, groups: st.groups, unknownVersion: st.unknownVersion }))
+    const { seq, groups, profiles, unknownVersion } = st
+    autoStore.writeAtomic(path.join(st.dir, FILE), JSON.stringify({ v: 1, seq, groups, profiles, unknownVersion }))
     if (st.dir === config.autoReportDir) autoStore.grouped(st.seq)
   } catch (err) {
     console.error(`[auto-report] ${FILE} not saved:`, err.message)
@@ -120,7 +132,28 @@ function regress(g, pid, version, at) {
   Object.assign(r, { at, version })
 }
 
-// Counts the report into its group; one profile adds at most 1 occurrence per group per 10 minutes
+// Design §7: a profile's first 5 new signatures an hour, and 15 a day, open groups; its other new ones count nowhere
+// More than 15 distinct new signatures in an hour mute the profile. Counted by report time, so a replay decides the same
+function admitNew(st, id, record) {
+  const at = record.receivedAt
+  const limits = config.autoReportLimits
+  const pid = String(record.profileId)
+  const p = st.profiles[pid] || (st.profiles[pid] = { hour: 0, tried: [], day: '', created: 0 })
+  if (p.hour !== autoStore.hourOf(at)) Object.assign(p, { hour: autoStore.hourOf(at), tried: [] })
+  if (p.day !== utcDay(at)) Object.assign(p, { day: utcDay(at), created: 0 })
+  let index = p.tried.indexOf(id)
+  if (index === -1) {
+    if (p.tried.length > limits.muteNewSignaturesPerHour) return false
+    index = p.tried.push(id) - 1
+    if (p.tried.length > limits.muteNewSignaturesPerHour) autoStore.mute(record.profileId, at, 'new signatures')
+  }
+  if (index >= limits.newSignaturesPerHour || p.created >= limits.newSignaturesPerDay) return false
+  p.created++
+  return true
+}
+
+// Counts the report into its group, or returns null when it would open one past the profile's cap
+// One profile adds at most 1 occurrence per group per 10 minutes
 function hit(st, sig, record) {
   const at = record.receivedAt
   const { report } = record
@@ -130,7 +163,11 @@ function hit(st, sig, record) {
   if (record.flags.includes('suspect')) reasons.push('suspect')
   if (record.trust !== 'verified') reasons.push('unverified-launch')
 
-  const g = st.groups[sig.id] || (st.groups[sig.id] = createGroup(sig, record, reasons))
+  let g = st.groups[sig.id]
+  if (!g) {
+    if (!admitNew(st, sig.id, record)) return null
+    g = st.groups[sig.id] = createGroup(sig, record, reasons)
+  }
   g.reports++
   g.lastSeen = Math.max(g.lastSeen, at)
   g.kinds[report.kind] = (g.kinds[report.kind] || 0) + 1
@@ -179,7 +216,7 @@ async function apply(st, [, profileId, reportId]) {
   const version = record.report.versions && record.report.versions.client
   if (version && !(await clientVersions.isKnown(version))) return countUnknown(st, record, version)
   const g = hit(st, signature(record.report, await sourceMaps.forReport(record.report)), record)
-  if (keepsBulk(g, record)) return
+  if (!g || keepsBulk(g, record)) return
   delete record.report.logs
   if (record.report.crash) delete record.report.crash.sections
   record.flags.push('overSamples')
