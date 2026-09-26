@@ -336,11 +336,47 @@ every('watch', 5000, () => { try { watchPlayers(); } catch (e) { log('watch fail
 const commands = new Map();
 const registerChatCommand = (name, fn, opts) => commands.set(name.toLowerCase(), { fn, admin: !!(opts && opts.admin), help: (opts && opts.help) || '' });
 
-registerChatCommand('help', (a) => {
-  const lines = [...commands.entries()].filter(([, c]) => !c.admin || isAdmin(a)).map(([n, c]) => `/${n}${c.help ? ' - ' + c.help : ''}`);
-  personal(a, 'Commands: ' + lines.join('  '));
-  personal(a, 'Chat: plain text speaks, /low /whisper /wide /shout change range, /me /my /do emote, /looc out of character, /pm <player> <text>.');
-}, { help: 'this list' });
+// /help groups, in the order shown. A command missing here is listed under Other, or under Staff when it is admin-only;
+// staff-only commands in a group are shown to staff alone.
+const HELP_GROUPS = [
+  { key: 'people', title: 'Chat and people', names: ['players', 'whoami', 'pigeonblock', 'sign', 'ledger'] },
+  { key: 'character', title: 'Your character', names: ['level', 'spells', 'forget', 'teach', 'tomes', 'hunger', 'rest', 'reroll', 'tokens'] },
+  { key: 'faith', title: 'Faith and the unseen', names: ['deity', 'pray', 'offer', 'rite', 'beast', 'forms'] },
+  { key: 'work', title: 'Work and the world', names: ['board', 'contracts', 'contract', 'commissions', 'commission', 'wildlife', 'champions', 'time', 'whereami', 'playtest'] },
+  { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'property', 'properties', 'ledgerpoint'] },
+  { key: 'groups', title: 'Groups and dungeons', names: ['party', 'leave', 'dungeon', 'faction'] },
+  { key: 'trouble', title: 'Trouble and help', names: ['unstuck', 'respawn', 'struggle', 'sentence', 'chill', 'bug', 'ticket', 'ping', 'help'] },
+];
+const helpGroupsFor = (a) => {
+  const staff = isAdmin(a);
+  const usable = (n) => { const c = commands.get(n); return !!c && (!c.admin || staff) && (n !== 'ledgerpoint' || staff); };
+  const placed = new Set(HELP_GROUPS.flatMap((g) => g.names));
+  const groups = HELP_GROUPS.map((g) => ({ key: g.key, title: g.title, names: g.names.filter(usable) }));
+  const rest = [...commands.keys()].filter((n) => !placed.has(n) && usable(n)).sort();
+  groups.push({ key: 'other', title: 'Other', names: rest.filter((n) => !commands.get(n).admin) });
+  if (staff) groups.push({ key: 'staff', title: 'Staff', names: rest.filter((n) => commands.get(n).admin) });
+  return groups.filter((g) => g.names.length);
+};
+const helpLine = (n) => { const c = commands.get(n); return `/${n}${c && c.help ? ' - ' + c.help : ''}`; };
+registerChatCommand('help', (a, args) => {
+  const want = String(args || '').trim().toLowerCase().replace(/^\//, '');
+  const groups = helpGroupsFor(a);
+  if (!want) {
+    personal(a, 'Commands by topic. /help <topic> lists a topic with what each command does; /help <command> explains one.');
+    for (const g of groups) personal(a, `${g.title} (/help ${g.key}): ${g.names.map((n) => '/' + n).join('  ')}`);
+    personal(a, 'Talking: plain text speaks. /low /whisper /wide /shout set how far you carry. /me /my /do emote. /looc out of character. /pm <player> <text> in private.');
+    return;
+  }
+  const group = groups.find((g) => g.key === want || g.title.toLowerCase().startsWith(want));
+  if (group) {
+    personal(a, `${group.title}:`);
+    for (const n of group.names) personal(a, '  ' + helpLine(n));
+    return;
+  }
+  const c = commands.get(want);
+  if (c && (!c.admin || isAdmin(a))) return personal(a, helpLine(want));
+  personal(a, `No command or topic "${want}". Type /help for the list.`);
+}, { help: '[topic|command] this list, a topic, or one command explained' });
 registerChatCommand('players', (a) => { const n = onlineActors().map(display); personal(a, `${n.length} online: ${n.join(', ')}`); }, { help: 'who is online' });
 registerChatCommand('whoami', (a) => personal(a, `${display(a)}  actor ff${a.toString(16)}  profile ${profileOf(a)}${discordOf(a) ? '  discord ' + discordOf(a) : ''}  tier ${tierOf(a) || 'player'}`), { help: 'your name, tag and ids' });
 registerChatCommand('ping', (a) => personal(a, 'Pong!'), { help: 'connection test' });
