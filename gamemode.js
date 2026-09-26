@@ -368,8 +368,8 @@ const STAFF_HELP = [
   { key: 'factions', title: 'Factions', items: [['faction leader', '<player|#TAG> <faction id>: name the first leader of a faction'],
     ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint'] },
   { key: 'appoint', title: 'Appointments and property', items: [
-    ['appoint', '<player|#TAG> <zone> <rank>: make someone an official. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
-    ['dismiss', '<player|#TAG> <zone>: remove an official (they must be online; they are told). Officials may dismiss the ranks they may appoint'],
+    ['appoint', '<player|#TAG|profile id> <zone> <rank>: make someone an official, online or offline. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
+    ['dismiss', '<player|#TAG|profile id> <zone>: remove an official, online or offline (told if online). Officials may dismiss the ranks they may appoint'],
     ['officials', '[zone]: who holds which rank where'],
     ['property', 'at a door, as an official: list <deposit> <weekly> | unlist | offer <name> | remind | grace | evict']] },
   { key: 'beasts', title: 'Beasts and the supernatural', items: ['beastform', 'curse', 'vlremote', 'raid', 'warband'] },
@@ -1753,47 +1753,73 @@ const appointCap = (a, z, rank) => {
   for (const m of ranksOf(profileOf(a))) if (m.zone.id === z.id) cap = Math.max(cap, Number((APPOINT_RULES[m.rank] || {})[rank]) || 0);
   return cap;
 };
+// Who to appoint or dismiss: a character online or offline by name or #TAG (the server's name and tag index), or an
+// account by profile id (/officials shows one when it has no name for it). Officials are kept per account, so whichever
+// of the account's characters is online is the one told.
+const accountActors = (pid) => { try { return (mp.getActorsByProfileId(pid) || []).map((x) => Number(x) >>> 0); } catch (e) { return []; } };
+const officialTarget = (query) => {
+  const q = String(query || '').trim();
+  let pid = -1; let actor = 0;
+  if (/^\d+$/.test(q)) {
+    pid = Number(q); const ids = accountActors(pid); actor = ids.find((x) => userOf(x) >= 0) || ids[0] || 0;
+  } else {
+    const t = findAnyByName(q);
+    if (t < 0) return { error: `${-t} characters are called ${q}. Use their #TAG or profile id.` };
+    if (!t) return { error: `No character called ${q}. Use their name, #TAG or profile id.` };
+    actor = t; pid = profileOf(t);
+    if (!(pid >= 0)) return { error: 'That character has no profile id.' };
+  }
+  return { pid, actor, online: onlineActors().find((x) => profileOf(x) === pid) || 0,
+    label: actor ? display(actor) : `profile ${pid}`, who: actor ? who(actor) : `profile ${pid}` };
+};
+const officialName = (pid) => {
+  const s = seen.get(Number(pid)); if (s) return s.name;
+  const ids = accountActors(Number(pid)); return ids.length ? nameOf(ids[0]) : `profile ${pid}`;
+};
 registerChatCommand('appoint', (a, args) => {
-  const m = args.trim().match(/^(\S+)\s+(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /appoint <player|#TAG> <zone> <rank>   zones: ' + zoneList().map((z) => z.id).join(' '));
-  const t = findByName(m[1]); if (!t) return personal(a, 'No such player online. Use their name or #TAG.');
+  // The name may have spaces: the zone and rank are the last two words
+  const m = args.trim().match(/^(.+?)\s+(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /appoint <player|#TAG|profile id> <zone> <rank>   zones: ' + zoneList().map((z) => z.id).join(' '));
   const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone. Zones: ' + zoneList().map((x) => x.id).join(' '));
   const rank = m[3].toLowerCase(); if (!(z.officials || []).includes(rank)) return personal(a, `${z.name} has the ranks: ${(z.officials || []).map(rankTitle).join(', ')}.`);
-  const pid = profileOf(t); if (!(pid >= 0)) return personal(a, 'That character has no profile id.');
+  const tg = officialTarget(m[1]); if (tg.error) return personal(a, tg.error);
+  if (!tg.actor) return personal(a, `Profile ${tg.pid} has no characters.`);
+  const pid = tg.pid;
   const cap = appointCap(a, z, rank);
   if (!cap) return personal(a, `Only an admin, or a seat that may name a ${rankTitle(rank)}, can appoint one in ${z.name}.`);
   const o = readOfficials(); o[z.id] = o[z.id] || {};
   if (!isAdmin(a)) {
     const held = Object.keys(o[z.id]).find((r) => (o[z.id][r] || []).map(Number).includes(pid));
-    if (held && !appointCap(a, z, held)) return personal(a, `${display(t)} already holds ${rankTitle(held)} of ${z.name}; you cannot replace that.`);
+    if (held && !appointCap(a, z, held)) return personal(a, `${tg.label} already holds ${rankTitle(held)} of ${z.name}; you cannot replace that.`);
     if (((o[z.id][rank] || []).map(Number).filter((x) => x !== pid)).length >= cap) return personal(a, `${z.name} already has ${cap} ${rankTitle(rank)}s. Dismiss one first.`);
   }
   for (const r of Object.keys(o[z.id])) o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== pid); // one rank per zone
   o[z.id][rank] = (o[z.id][rank] || []).concat([pid]);
   try { writeOfficials(o); } catch (e) { return personal(a, 'Could not write officials.json: ' + e.message); }
-  personal(a, `${display(t)} is now ${rankTitle(rank)} of ${z.name}.`);
-  system(t, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
-  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${who(t)} ${rankTitle(rank)} of ${z.name}`);
-}, { help: '<player|#TAG> <zone> <rank> make someone an official (admins; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards)' });
+  personal(a, `${tg.label} is now ${rankTitle(rank)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}`);
+  if (tg.online) system(tg.online, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
+  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${tg.who} ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
+}, { help: '<player|#TAG|profile id> <zone> <rank> make someone an official, online or not (admins; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards)' });
 registerChatCommand('dismiss', (a, args) => {
-  const m = args.trim().match(/^(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG> <zone>');
-  const t = findByName(m[1]); if (!t) return personal(a, 'No such player online.');
-  const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone.');
-  const pid = profileOf(t); const o = readOfficials(); let had = null;
+  // The name may have spaces: the zone is the last word
+  const m = args.trim().match(/^(.+?)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG|profile id> <zone>');
+  const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone. Zones: ' + zoneList().map((x) => x.id).join(' '));
+  const tg = officialTarget(m[1]); if (tg.error) return personal(a, tg.error);
+  const pid = tg.pid; const o = readOfficials(); let had = null;
   for (const r of Object.keys(o[z.id] || {})) { if ((o[z.id][r] || []).map(Number).includes(pid)) had = r; o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== pid); }
-  if (!had) return personal(a, `${display(t)} holds no rank in ${z.name}.`);
+  if (!had) return personal(a, `${tg.label} holds no rank in ${z.name}.`);
   if (!appointCap(a, z, had)) return personal(a, `You cannot dismiss a ${rankTitle(had)} of ${z.name}.`);
   try { writeOfficials(o); } catch (e) { return personal(a, 'Could not write officials.json: ' + e.message); }
-  personal(a, `${display(t)} is no longer ${rankTitle(had)} of ${z.name}.`);
-  system(t, `You are no longer ${rankTitle(had)} of ${z.name}.`);
-  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} dismissed ${who(t)} as ${rankTitle(had)} of ${z.name}`);
-}, { help: '<player|#TAG> <zone> remove an official you may appoint' });
+  personal(a, `${tg.label} is no longer ${rankTitle(had)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}`);
+  if (tg.online) system(tg.online, `You are no longer ${rankTitle(had)} of ${z.name}.`);
+  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} dismissed ${tg.who} as ${rankTitle(had)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
+}, { help: '<player|#TAG|profile id> <zone> remove an official you may appoint, online or not' });
 registerChatCommand('officials', (a, args) => {
   const o = readOfficials(); const want = args.trim() ? zoneById(args.trim()) : null;
   const lines = [];
   for (const z of zoneList()) {
     if (want && z.id !== want.id) continue;
     const parts = [];
-    for (const r of (z.officials || [])) { const ids = (o[z.id] || {})[r] || []; if (ids.length) parts.push(`${rankTitle(r)}: ${ids.map((pid) => { const s = seen.get(Number(pid)); return s ? s.name : `profile ${pid}`; }).join(', ')}`); }
+    for (const r of (z.officials || [])) { const ids = (o[z.id] || {})[r] || []; if (ids.length) parts.push(`${rankTitle(r)}: ${ids.map(officialName).join(', ')}`); }
     if (parts.length || want) lines.push(`${z.name}: ${parts.join('; ') || 'no officials'}`);
   }
   personal(a, lines.length ? lines.join('  |  ') : 'No officials appointed yet. Admins: /appoint <player> <zone> <rank>.');

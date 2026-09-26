@@ -70,8 +70,8 @@ registerChatCommand('appoint', () => {}, { help: 'x' }); registerChatCommand('di
 lines = staffOut(STAFF, 'admin appoint');
 const atext = lines.map((l) => l.text.replace(/#\{[0-9a-f]{6}\}/g, '').replace('[[A]]', ''));
 check('Appointments lists /appoint, /dismiss and /officials with how to use them', atext[0] === 'Appointments and property:'
-  && atext.some((l) => l.startsWith('  /appoint - <player|#TAG> <zone> <rank>') && l.includes('/appoint alone lists the zone ids'))
-  && atext.some((l) => l.startsWith('  /dismiss - <player|#TAG> <zone>') && l.includes('must be online'))
+  && atext.some((l) => l.startsWith('  /appoint - <player|#TAG|profile id> <zone> <rank>') && l.includes('/appoint alone lists the zone ids'))
+  && atext.some((l) => l.startsWith('  /dismiss - <player|#TAG|profile id> <zone>') && l.includes('online or offline'))
   && atext.some((l) => l.startsWith('  /officials - [zone]')), JSON.stringify(atext));
 lines = staffOut(STAFF, 'staff beasts');
 check('/help staff works the same as /help admin', lines.length === 2 && lines[1].text.includes('/curse - <player> <kind>'), JSON.stringify(lines.map((l) => l.text)));
