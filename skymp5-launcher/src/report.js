@@ -40,13 +40,18 @@ function tail(file, bytes = PER_FILE_BYTES) {
 // SkyrimPlatform logs the first 120 characters of every script it runs in the game's UI and every page it
 // loads (`[12:34:56:789] JS ...`, `LoadUrl ...`): chat and private messages, the character's name, the voice
 // room link. None of it explains a crash, and a report must not carry what players said to each other.
+const RECORD = /^\[\d\d:\d\d:\d\d:\d{3}\] /
 const UI_LINE = /^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) /
 
 function dropUiLines(text) {
   const kept = []
   let dropped = 0
+  let inUi = false
   for (const line of text.split('\n')) {
-    if (UI_LINE.test(line)) { dropped++; continue }
+    if (UI_LINE.test(line)) { dropped++; inUi = true; continue }
+    // LoadUrl logs the whole URL, newlines included: every line up to the next record belongs to it
+    if (inUi && !RECORD.test(line)) { if (line.trim()) dropped++; continue }
+    inUi = false
     if (dropped) { kept.push(`[${dropped} UI line(s) left out]`); dropped = 0 }
     kept.push(line)
   }

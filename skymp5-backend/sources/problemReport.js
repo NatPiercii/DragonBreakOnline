@@ -82,7 +82,7 @@ async function submit(reporter, body) {
   for (const [field, filename] of LOG_FIELDS) {
     const raw = text(body[field])
     if (!raw) continue
-    const cleaned = scrub(field === 'gameLog' ? dropUiLines(raw) : raw)
+    const cleaned = scrub(dropUiLines(raw))
     redactions += cleaned.redactions
     files.push({ name: filename, text: cleaned.text })
   }

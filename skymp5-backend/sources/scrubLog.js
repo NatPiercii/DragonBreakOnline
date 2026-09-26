@@ -21,14 +21,20 @@ const RULES = [
 
 // SkyrimPlatform logs the first 120 characters of every script it runs in the game's UI and every page it loads
 // (`[12:34:56:789] JS ...`, `LoadUrl ...`): chat and private messages, character names, the voice room link.
-// Launchers up to 2.1.29 upload them, so the server leaves them out of skyrim-platform.log as well
+// Launchers up to 2.1.29 upload them, so the server leaves them out as well: of every log, since a pre-release launcher
+// (8a9c6c94) sent the platform log as clientLog
+const RECORD = /^\[\d\d:\d\d:\d\d:\d{3}\] /
 const UI_LINE = /^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) /
 
 function dropUiLines(input) {
   const kept = []
   let dropped = 0
+  let inUi = false
   for (const line of String(input == null ? '' : input).split('\n')) {
-    if (UI_LINE.test(line)) { dropped++; continue }
+    if (UI_LINE.test(line)) { dropped++; inUi = true; continue }
+    // LoadUrl logs the whole URL, newlines included: every line up to the next record belongs to it
+    if (inUi && !RECORD.test(line)) { if (line.trim()) dropped++; continue }
+    inUi = false
     if (dropped) { kept.push(`[${dropped} UI line(s) left out]`); dropped = 0 }
     kept.push(line)
   }
