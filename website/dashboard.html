@@ -417,14 +417,13 @@ function group(g) {
   const d = el('details', 'grp');
   d.open = !srv.closed.has(g.area);
   d.addEventListener('toggle', () => { if (d.open) srv.closed.delete(g.area); else srv.closed.add(g.area); });
-  const inDefault = g.items.filter(it => it.inDefault).length;
-  const scope = !inDefault ? 'not in the default update' : inDefault === g.count ? 'in the default update' : `${inDefault} in the default update`;
+  // A group mixes packs, both repos and items, so the rows in the default come first, each part in ship order
+  const inDefault = g.items.filter(it => it.inDefault), rest = g.items.filter(it => !it.inDefault);
+  const scope = !inDefault.length ? 'not in the default update' : inDefault.length === g.count ? 'in the default update' : `${inDefault.length} in the default update`;
   d.append(el('summary', '', `${g.area} (${g.count}) · ${scope}`));
-  const last = g.items.findLastIndex(it => it.inDefault);
-  g.items.forEach((it, i) => {
-    if (last >= 0 && i === last + 1) d.append(el('div', 'stop', 'the default update stops here'));
-    d.append(queueRow(it));
-  });
+  inDefault.forEach(it => d.append(queueRow(it)));
+  if (inDefault.length && rest.length) d.append(el('div', 'stop', 'the default update stops here'));
+  rest.forEach(it => d.append(queueRow(it)));
   if (g.items.length < g.count) d.append(line(`${g.count - g.items.length} more not listed`, 'dim'));
   return d;
 }
