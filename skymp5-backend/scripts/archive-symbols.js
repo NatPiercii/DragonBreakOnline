@@ -30,6 +30,7 @@ const MB = 1024 * 1024
 const MAX_BYTES = { sidecar: 4096, index: MB, bundle: 64 * MB, map: 256 * MB, image: 512 * MB, pdb: 1024 * MB }
 const IMAGE_NAME = /^(.+)\.(?:dll|exe)(?:\.hidden)?$/i
 const SYMBOL_FILE = /\.(?:map|pdb)$/i
+const PACKAGED_BUNDLE = /(?:^|\/)Platform\/(?:Plugins\/skymp5-client|UI\/build)\.js$/
 const MSF_MAGIC = Buffer.from('Microsoft C/C++ MSF 7.00\r\n\x1aDS\0\0\0', 'latin1')
 const MSF_BLOCK_SIZES = [512, 1024, 2048, 4096]
 const MSF_DIR_MAX = 16 * MB
@@ -240,13 +241,15 @@ function archivePdbs({ filesVersion, pdbDir, dllDir, store }) {
   }
 }
 
-// Relative paths of source maps and PDBs under dir, which must never reach a client package
+// Relative paths of source maps, PDBs and bundles still carrying a map under dir, which must never reach a client package
 function findSymbolFiles(dir, base = dir, out = []) {
   if (!fs.existsSync(dir)) return out
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, e.name)
+    const rel = path.relative(base, full).split(path.sep).join('/')
     if (e.isDirectory()) findSymbolFiles(full, base, out)
-    else if (SYMBOL_FILE.test(e.name)) out.push(path.relative(base, full).split(path.sep).join('/'))
+    else if (SYMBOL_FILE.test(e.name)) out.push(rel)
+    else if (PACKAGED_BUNDLE.test(rel) && MAP_COMMENT.test(fs.readFileSync(full, 'latin1'))) out.push(rel)
   }
   return out
 }

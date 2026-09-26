@@ -422,6 +422,12 @@ test('packages: populate-files and merge-files refuse any source map or PDB', as
   assert.match(refused.stderr, /Refusing to copy source maps or PDBs[\s\S]*Platform\/UI\/build\.js\.map/)
   assert.deepEqual(listing(files), [])
   fs.rmSync(path.join(src, 'Platform', 'UI', 'build.js.map'))
+  // An inline map in a packaged bundle is refused like a map file
+  fs.writeFileSync(path.join(src, 'Platform', 'UI', 'build.js'), 'x\n//# sourceMappingURL=data:application/json;base64,e30=')
+  const inline = populate()
+  assert.equal(inline.status, 1)
+  assert.match(inline.stderr, /Refusing to copy source maps or PDBs[\s\S]*Platform\/UI\/build\.js\n/)
+  fs.writeFileSync(path.join(src, 'Platform', 'UI', 'build.js'), 'x')
   assert.equal(populate().status, 0)
   assert.ok(fs.existsSync(path.join(files, 'root', 'Data', 'Platform', 'UI', 'build.js')))
 
@@ -432,12 +438,19 @@ test('packages: populate-files and merge-files refuse any source map or PDB', as
   fs.writeFileSync(path.join(linked, 'hidden.map'), '{}')
   fs.symlinkSync(linked, path.join(files, 'root', 'linked'))
   assert.deepEqual(archive.findSymbolFiles(path.join(files, 'root')), ['Data/SKSE/Plugins/SkyrimPlatform.PDB'])
+  const plugins = path.join(files, 'root', 'Data', 'Platform', 'Plugins')
+  fs.mkdirSync(plugins, { recursive: true })
+  fs.writeFileSync(path.join(plugins, 'skymp5-client.js'), 'x\n//@ sourceMappingURL=skymp5-client.js.map')
+  fs.writeFileSync(path.join(plugins, 'build.js'), '//# sourceMappingURL=build.js.map')
+  assert.deepEqual(archive.findSymbolFiles(path.join(files, 'root')).sort(),
+    ['Data/Platform/Plugins/skymp5-client.js', 'Data/SKSE/Plugins/SkyrimPlatform.PDB'])
 
   const clientSource = path.join(__dirname, '..', 'sources', 'client')
   if (fs.existsSync(clientSource)) return t.skip('sources/client exists here, and the merge would copy all of it')
   for (const method of ['log', 'warn']) t.mock.method(console, method, () => {})
   config.clientFilesDir = files
   const { mergeSourcesIntoRoot } = require('../scripts/merge-files')
-  await assert.rejects(mergeSourcesIntoRoot(), /refusing to package source maps or PDBs: Data\/SKSE\/Plugins\/SkyrimPlatform\.PDB$/)
+  await assert.rejects(mergeSourcesIntoRoot(),
+    /refusing to package source maps or PDBs: (?=.*Data\/SKSE\/Plugins\/SkyrimPlatform\.PDB)(?=.*Data\/Platform\/Plugins\/skymp5-client\.js)/)
   assert.equal(fs.existsSync(path.join(files, config.clientZipName)), false)
 })
