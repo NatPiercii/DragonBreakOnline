@@ -21,7 +21,8 @@ const modalOverlay = document.getElementById('modal-settings')
 
 // loadSettings re-runs main's registry auto-detect and refreshes the path fields.
 function openModal() { modalOverlay.hidden = false; loadSettings(); loadGameSettingsTab(); refreshExtrasState() }
-function closeModal() { endCapture(true); modalOverlay.hidden = true }
+// The Voice tab's meter holds the mic open; closing the settings must let it go
+function closeModal() { endCapture(true); stopMeter(); modalOverlay.hidden = true }
 
 document.getElementById('btn-gear').addEventListener('click', openModal)
 document.getElementById('modal-close').addEventListener('click', closeModal)
@@ -280,10 +281,15 @@ function syncVoiceLabels() {
   voiceEl('voice-meter-line').style.left = Math.min(100, (Number(voiceEl('voice-sens').value) / 1000) / 0.3 * 100) + '%'
 }
 
-async function fillDevices() {
+// Opening the microphone makes Windows put a Bluetooth headset into its hands-free profile, which Discord and other apps
+// see as a device switch, and Chromium's auto gain can move the Windows mic level (player report, 2026-09-26). So the
+// mic is opened only while the Voice tab is open, with Chromium's processing off, never at launcher start.
+const RAW_MIC = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+let devicesFilled = false
+async function fillDevices(openMic) {
   try {
     // Device names stay hidden until the page has used a microphone once
-    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()) } catch { /* no mic */ }
+    if (openMic) { try { const s = await navigator.mediaDevices.getUserMedia({ audio: RAW_MIC }); s.getTracks().forEach(t => t.stop()) } catch { /* no mic */ } }
     const all = await navigator.mediaDevices.enumerateDevices()
     for (const [id, kind, saved] of [['voice-input', 'audioinput', voicePrefs.inputLabel], ['voice-output', 'audiooutput', voicePrefs.outputLabel]]) {
       const sel = voiceEl(id)
@@ -296,6 +302,7 @@ async function fillDevices() {
       }
       sel.value = saved || ''
     }
+    if (openMic) devicesFilled = true
   } catch { /* no media devices: defaults only */ }
 }
 
@@ -305,7 +312,7 @@ async function startMeter() {
     const all = await navigator.mediaDevices.enumerateDevices()
     const label = voiceEl('voice-input').value
     const dev = label ? all.find(d => d.kind === 'audioinput' && d.label === label) : null
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: dev ? { deviceId: { exact: dev.deviceId } } : true })
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: dev ? Object.assign({ deviceId: { exact: dev.deviceId } }, RAW_MIC) : RAW_MIC })
     const ctx = new AudioContext()
     const src = ctx.createMediaStreamSource(stream)
     const gain = ctx.createGain()
@@ -347,7 +354,8 @@ async function loadClientPrefs() {
     voiceEl('voice-activation').value = voicePrefs.activation === 'vad' ? 'vad' : 'ptt'
     voiceEl('voice-sens').value = Math.round((voicePrefs.vadThreshold ?? 0.06) * 1000)
     syncVoiceLabels()
-    await fillDevices()
+    // Saved names only; the mic is not touched until the Voice tab opens
+    await fillDevices(false)
   } catch { /* best-effort */ }
 }
 
@@ -373,7 +381,7 @@ voiceEl('ui-reset-panels').addEventListener('click', () => {
   voiceEl('ui-reset-panels').textContent = 'Panels will reset on the next launch (Save Settings)'
 })
 document.querySelectorAll('.modal-tab').forEach(tab => tab.addEventListener('click', () => {
-  if (tab.dataset.tab === 'voice') startMeter(); else stopMeter()
+  if (tab.dataset.tab === 'voice') { (devicesFilled ? Promise.resolve() : fillDevices(true)).then(startMeter) } else stopMeter()
 }))
 loadClientPrefs()
 
