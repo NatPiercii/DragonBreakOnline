@@ -21,6 +21,10 @@ SETTINGS = '/opt/alduinak/build/dist/server/server-settings.json'
 STATE_DIR = '/var/lib/dbo-monitor'
 STATE = os.path.join(STATE_DIR, 'state.json')
 CHANNEL = os.environ.get('DBO_MONITOR_CHANNEL', '1553093452529532929')
+# Player /bug reports: one thread each in the staff error-report forum (Jake, 2026-09-26); #server-monitor keeps the
+# server warnings. A report the forum refuses falls back to #server-monitor, so none is lost.
+BUG_FORUM = os.environ.get('DBO_BUG_FORUM', '1551740319974821949')
+bugreport_re = re.compile(r'BUGREPORT (.+? #\w{4}) (\S+\.json): (.*)$')
 WINDOW_S = 300
 KEEP_WINDOWS = 288            # 24 h
 DIGEST_S = 900
@@ -40,6 +44,24 @@ def token():
         return json.load(open(SETTINGS)).get('discordAuth', {}).get('botToken', '')
     except Exception:
         return ''
+
+
+def post_thread(forum, title, content):
+    """Opens a forum thread; True when Discord accepted it."""
+    tok = token()
+    if not tok or not CHANNEL or not forum:    # an empty DBO_MONITOR_CHANNEL (test mode) disables every post
+        return False
+    body = {'name': title[:100] or 'Bug report', 'message': {'content': content[:1900], 'allowed_mentions': {'parse': []}}}
+    req = urllib.request.Request(f'https://discord.com/api/v10/channels/{forum}/threads', method='POST',
+                                 data=json.dumps(body).encode(),
+                                 headers={'Authorization': f'Bot {tok}', 'Content-Type': 'application/json',
+                                          'User-Agent': 'dbo-monitor (DragonBreak, 1)'})
+    try:
+        urllib.request.urlopen(req, timeout=10).read()
+        return True
+    except Exception as e:
+        print('discord forum post failed:', e, flush=True)
+        return False
 
 
 def post(text):
@@ -125,6 +147,24 @@ class Monitor:
         post(line)
         self.dirty = True
 
+    def bug_report(self, line, t):
+        key = 'bug:' + line[-80:]
+        if key in self.alerted:
+            return
+        self.alerted[key] = time.time()
+        m = bugreport_re.search(line)
+        who, snap, text = (m.group(1), m.group(2), m.group(3)) if m else ('someone', '', re.sub(r'.*BUGREPORT ', '', line)[:300])
+        short = re.sub(r'\s+', ' ', text).strip()
+        title = f"{who}: {short[:80]}{'...' if len(short) > 80 else ''}"
+        content = (f'**Bug report** from {who} at {t} UTC (in-game /bug)\n\n> {text[:1500]}\n\n'
+                   + (f'Snapshot: `{snap}` (dbo_inspect.py reads it)' if snap else ''))
+        self.state['recent'].append(f'`{t[11:19]}` Bug report from {who}')
+        del self.state['recent'][:-50]
+        self.dirty = True
+        print('BUGREPORT', who, snap, flush=True)
+        if not post_thread(BUG_FORUM, title, content):
+            post(f'`{t[11:19]}` **Bug report** from {who} (the error-report forum refused it): {text[:300]}')
+
     def seen(self, who, t):
         self.last_activity[who] = time.time()
         o = self.state['online'].setdefault(who, {})
@@ -170,7 +210,7 @@ class Monitor:
             self.state['online'].pop(who, None)
         elif 'BUGREPORT ' in line:
             self.count('player.bug_report')
-            self.alert('bug:' + line[-80:], '**Bug report** from ' + re.sub(r'.*BUGREPORT ', '', line.strip())[:300], t)
+            self.bug_report(line.strip(), t)
         elif 'failed to load' in line:
             self.count('server.load_failed')
             self.alert('load:' + line[-80:], '**Gameplay module failed to load:** ' + line.strip()[27:230], t)
