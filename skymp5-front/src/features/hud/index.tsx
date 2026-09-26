@@ -90,8 +90,24 @@ const Voice = ({ mode, talking }: { mode: string; talking: boolean }) => {
   );
 };
 
+// The panels this UI can draw, told to the server (dbo:uiCaps) so it opens them only for a client that has them and
+// uses chat for an older one. The HUD first draws after login; the repeat covers a switch to another character.
+const UI_CAPS = ['bank'];
+const useUiCaps = (): void => {
+  useEffect(() => {
+    const tell = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      try { (window as any).skyrimPlatform.sendMessage('dbo:uiCaps', ...UI_CAPS); } catch { /* no bridge */ }
+    };
+    tell();
+    const t = setInterval(tell, 120000);
+    return () => clearInterval(t);
+  }, []);
+};
+
 const Hud = ({ data }: { data: HudData }) => {
   const { mode: voice, talking } = useVoice();
+  useUiCaps();
   if (!data) return null;
   const hunger = clampPct(data.hunger);
   const fullness = 100 - hunger; // the meter shows how fed you are
