@@ -11,6 +11,7 @@
     "dev": "electron . --dev",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
+    "build:win-on-linux": "LANG=C.UTF-8 LC_ALL=C.UTF-8 node -r ./build-linux/preload.js node_modules/electron-builder/cli.js --win --x64 --publish never -c.win.signAndEditExecutable=false -c.afterPack=./build-linux/afterPack.js",
     "build:linux": "electron-builder --linux",
     "build:mac": "electron-builder --mac"
   },
