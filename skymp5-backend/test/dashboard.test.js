@@ -94,6 +94,7 @@ test('an unknown gameplay queue is shown as unknown, never as nothing waiting', 
 
 test('only docs or merges waiting are counted, with the restart warning for main while auto-update is on', () => {
   assert.ok(render(S0, idle({ fork: 1, server: 0 }, 1))('srvQueue').includes(`Only docs wait (1); ${AUTO}.`))
+  assert.ok(render({ ...S0, updater: { ...S0.updater, blocked: true } }, idle({ fork: 1, server: 0 }, 1))('srvQueue').includes('Only docs wait (1).'), 'blocked updates restart nothing')
   assert.ok(render(withMode('hold-s0'), idle({ fork: 1, server: 0 }, 1))('srvQueue').includes('Only docs wait (1).'))
   assert.ok(render(withMode('release'), idle({ fork: 1, server: 0 }, 1))('srvQueue').includes('Only docs wait (1).'))
   assert.ok(render(S0, idle({ fork: 0, server: 2 }, 2, 0))('srvQueue').includes('Only docs wait (2).'))

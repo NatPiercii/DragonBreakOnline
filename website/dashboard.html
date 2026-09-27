@@ -437,7 +437,7 @@ function idleText(q, s) {
   const hidden = c.fork + c.server;
   if (!hidden) return 'Nothing waits on GitHub.';
   const what = q.docs.count >= hidden ? 'docs' : q.docs.count ? 'docs and merges' : 'merges';
-  const auto = c.fork > 0 && !['hold-s0', 'release'].includes(s.updater.mode);
+  const auto = c.fork > 0 && !['hold-s0', 'release'].includes(s.updater.mode) && !s.updater.blocked;
   return `Only ${what} wait (${hidden})${auto ? '; a push still restarts the game while auto-update is on' : ''}.`;
 }
 
