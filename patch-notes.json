@@ -1,5 +1,37 @@
 [
   {
+    "title": "Launcher 2.1.31: Vortex-Friendly Downloads",
+    "date": "2026-09-27",
+    "version": "Launcher 2.1.31",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Downloads",
+        "items": [
+          "Mods you already downloaded with Vortex are used as they are. Nothing is downloaded again or copied.",
+          "With a free Nexus account, each missing mod opens its Nexus page one at a time: click Slow download and the launcher does the rest, with nothing to move by hand. Sign in to Nexus in the top bar first.",
+          "The launcher only borrows Nexus \"Mod Manager Download\" links while an install is waiting for downloads, then gives them back to Vortex, so Vortex and its collections work normally again."
+        ]
+      },
+      {
+        "heading": "Also new",
+        "items": [
+          "The server badge shows how many people are online.",
+          "Once the game window opens, the launcher steps aside so the game gets your keyboard.",
+          "Your microphone is no longer opened when the launcher starts.",
+          "A field of view setting in Settings.",
+          "Report a Problem no longer sends your chat."
+        ]
+      },
+      {
+        "heading": "Updating",
+        "items": [
+          "The launcher offers the update the next time you open it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Great Hunt, Ranks of the Blood, and Getting Back Up",
     "date": "2026-09-27",
     "version": "Server + client 0.3.53",
