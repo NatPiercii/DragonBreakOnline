@@ -323,7 +323,7 @@ module.exports = (api) => {
     const text = `${nameOf(a)} has died, and this life is over. You will be returned to the menu.`;
     onScreen(a, text, 7);
     setTimeout(() => {
-      try { if (mp.get(a, 'private.permaDead') !== true) return; const u = mp.getUserByActor(a); if (u >= 0) { mp.kick(u); log(`supernatural: ${display(a)} logged out after permadeath`); } } catch (e) { /* already gone */ }
+      try { if (mp.get(a, 'private.permaDead') !== true) return; const u = mp.getUserByActor(a); if (u >= 0 && u !== 65535) { mp.kick(u); log(`supernatural: ${display(a)} logged out after permadeath`); } } catch (e) { /* already gone */ }
     }, 8000);
   };
   // The war system's war to the death ends a character the same way (realm.js)

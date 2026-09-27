@@ -415,5 +415,6 @@
    "cult-nocturnal": "#1b1f3a", "cult-peryite": "#9bb33c", "cult-sanguine": "#7b1e3a", "cult-sheogorath": "#b0308f", "cult-vaermina": "#5d4b8a"
   }
  },
- "raids": { "enabled": false }
+ "raids": { "enabled": false },
+ "economy": { "_comment": "Weekly taxes and wages (economy.js). Off until wages cannot pay whoever sets them and assessments are limited (review B2, 2026-09-27).", "enabled": false }
 }

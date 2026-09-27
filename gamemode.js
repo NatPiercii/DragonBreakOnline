@@ -132,7 +132,8 @@ const connected = globalThis.__dboConnected;
 // After a reload, rediscover players that were already connected.
 try { const maxPlayers = Number(mp.getServerSettings().maxPlayers) || 100; for (let u = 0; u < maxPlayers; u++) { try { if (mp.getUserActor(u)) connected.add(u); } catch (e) { /* not connected */ } } } catch (e) { /* ignore */ }
 const actorOf = (userId) => { try { return mp.getUserActor(userId) || 0; } catch (e) { return 0; } };
-const userOf = (actorId) => { try { return mp.getUserByActor(actorId); } catch (e) { return -1; } };
+// -1 when no one plays the actor: the engine answers 65535 for that, which every '>= 0' test took for a user (review ORPH-1)
+const userOf = (actorId) => { try { const u = mp.getUserByActor(actorId); return u === 65535 ? -1 : u; } catch (e) { return -1; } };
 const nameOf = (actorId) => { try { const a = mp.get(actorId, 'appearance'); return (a && a.name) || 'Stranger'; } catch (e) { return 'Stranger'; } };
 const profileOf = (actorId) => { try { return Number(mp.get(actorId, 'profileId')); } catch (e) { return -1; } };
 const discordOf = (actorId) => {
@@ -794,6 +795,22 @@ const blockPlacedPickup = (targetId, casterId) => {
   if (Date.now() - (lastPickupDeny.get(casterId) || 0) > 1500) { lastPickupDeny.set(casterId, Date.now()); personal(casterId, "That is not yours to take. Resources come from nodes, containers, crafting and trade."); }
   return true;
 };
+// A hold's treasury chest is paid into at a bank and spent by the realm; nobody but staff opens it (review B1: any rank
+// or key holder, or a lockpick on an unclaimed one, could empty it)
+const treasuryChests = () => {
+  const ids = new Set();
+  for (const z of zoneList()) { if (!z.treasury) continue; try { const id = mp.getIdFromDesc(z.treasury) >>> 0; if (id) ids.add(id); } catch (e) { /* not in this load order */ } }
+  return ids;
+};
+const treasuryRefused = (caster, target) => {
+  if (isAdmin(caster) || !treasuryChests().has(target)) return false;
+  if (Date.now() - (lastPickupDeny.get(caster) || 0) > 1500) {
+    lastPickupDeny.set(caster, Date.now());
+    personal(caster, 'This is the hold\'s treasury. Its gold is paid in at a bank and spent by the realm; no one takes it out by hand.');
+    audit(`TREASURY ${who(caster)} was refused the treasury chest ${target.toString(16)}`);
+  }
+  return true;
+};
 mp.onActivate = (targetId, casterId) => {
   const caster = Number(casterId) >>> 0;
   const target = Number(targetId) >>> 0;
@@ -807,6 +824,7 @@ mp.onActivate = (targetId, casterId) => {
       return false;
     }
   } catch (e) { }
+  if (treasuryRefused(caster, target)) return false;
   // Reach applies to actors only; a lever or trap linker activates its gate from any distance
   try {
     const q = mp.get(target, 'pos');
@@ -1488,7 +1506,7 @@ registerChatCommand('npc', (a, args) => {
     const id = parseInt(String(idText || '').replace(/^0x/i, ''), 16);
     if (!Number.isFinite(id)) return personal(a, 'Usage: /npc remove <id>, e.g. /npc remove ff0000d9');
     if (typeof globalThis.__dboOrphanRemove !== 'function') return personal(a, 'orphans.js is not loaded.');
-    return personal(a, globalThis.__dboOrphanRemove(id).text);
+    return personal(a, globalThis.__dboOrphanRemove(id, who(a)).text);
   }
   let ids = []; let zones = [];
   try { ids = JSON.parse(fs.readFileSync(path.resolve('zone-spawns.json'), 'utf8')) || []; } catch (e) { return personal(a, 'zone-spawns.json unreadable.'); }
@@ -2177,7 +2195,7 @@ const WISP = Object.assign({ enabled: true, restMinutes: 360 }, cfg.wispStalks |
 const WISP_BASES = new Set(['6025b3:bsassets.esm', '6025b4:bsassets.esm']);
 const wispRest = globalThis.__dboWispRest = globalThis.__dboWispRest || new Map(); // refId -> until
 globalThis.__dboWispStalk = (targetId, casterId) => {
-  if (!WISP.enabled || targetId >= 0xff000000 || !WISP_BASES.has(baseDescOf(targetId))) return false;
+  if (!WISP.enabled || targetId >= 0xff000000 || profileOf(casterId) < 0 || !WISP_BASES.has(baseDescOf(targetId))) return false;
   const until = wispRest.get(targetId) || 0;
   if (until > Date.now()) return sayOnce(casterId, `This wisp stalk has been picked. It grows back in about ${Math.ceil((until - Date.now()) / 3600000)} hour(s).`);
   const tier = harvestingTier(casterId);
@@ -2201,7 +2219,7 @@ const WELLS = Object.assign({ enabled: true }, cfg.ayleidWells || {});
 const WELL_BASE = '61b5b:bsheartland.esm';
 const wellSpent = globalThis.__dboWellSpent = globalThis.__dboWellSpent || new Map(); // refId -> game day it refills
 globalThis.__dboAyleidWell = (targetId, casterId) => {
-  if (!WELLS.enabled || targetId >= 0xff000000 || baseDescOf(targetId) !== WELL_BASE) return false;
+  if (!WELLS.enabled || targetId >= 0xff000000 || profileOf(casterId) < 0 || baseDescOf(targetId) !== WELL_BASE) return false;
   const clock = globalThis.__dboClock;
   const day = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : Date.now() / 86400000;
   if ((wellSpent.get(targetId) || 0) > day) return sayOnce(casterId, 'The stellar power of the Ayleid well is depleted. At midnight, when the stars shine, it will be restored.');

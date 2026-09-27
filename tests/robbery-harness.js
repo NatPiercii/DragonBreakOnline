@@ -47,6 +47,7 @@ const api = {
   every: (name, ms, fn) => timers.set(name, fn), cfg: {},
 };
 const load = () => { handlers.clear(); delete require.cache[ROB]; return require(ROB)(api); };
+const S_caps_clear = () => globalThis.__dboRobbery.caps.clear();
 load();
 const nameFor = (viewer, x) => ({ [ROBBER]: 'Stranger', [VICTIM]: 'Lydia' }[x] || 'Someone');
 
@@ -56,8 +57,8 @@ const menu = (a, t) => globalThis.__dboRobEntries(a, t);
 const act = (a, t) => { out.personal.length = 0; globalThis.__dboRobAction(a, 'rob', t, nameFor); return out.personal.map((x) => `${x.a.toString(16)}:${x.t}`).join(' | '); };
 const answer = (a, nonce, choice) => { out.personal.length = 0; handlers.get('robAnswer')(a, [nonce, choice]); return out.personal.map((x) => `${x.a.toString(16)}:${x.t}`).join(' | '); };
 
-// Rob on the menu only when the victim can answer in a panel
-check('no Rob for a target whose UI has no panel', menu(ROBBER, VICTIM).length === 0);
+// Rob on the menu whether or not the victim's UI has the panel (review C2)
+check('Rob is offered even when the target\'s UI has no panel', menu(ROBBER, VICTIM).length === 1);
 handlers.get('uiCaps')(VICTIM, ['bank', 'robPrompt']);
 check('Rob for a target with the panel', menu(ROBBER, VICTIM).length === 1 && menu(ROBBER, VICTIM)[0].id === 'rob');
 check('no Rob from far away', menu(FAR, VICTIM).length === 0);
@@ -147,6 +148,26 @@ const n2 = out.widgets[out.widgets.length - 1].w.nonce;
 load();
 answer(VICTIM, n2, 'accept');
 check('an answer after a hot reload still counts', count(VICTIM, GOLD) === 850);
+
+// A target whose UI cannot draw the panel cannot answer: it counts as Fight/Flee at once (review C2)
+now += 31 * 60000; reset();
+S_caps_clear();
+const widgetsNoPanel = out.widgets.length;
+r = act(ROBBER, VICTIM);
+check('no panel: no widget, and both are told it is Fight/Flee', out.widgets.length === widgetsNoPanel && /will not hand it over/.test(r) && /demands your coin\. You stand your ground/.test(r), r);
+check('the contest is on, so downing them lets the robber take it', (() => { downedSet.add(VICTIM); act(ROBBER, VICTIM); downedSet.delete(VICTIM); return count(VICTIM, GOLD) === 850; })());
+check('it is audited as a refusal', out.audits.some((t) => /no panel on their UI \(resists\)/.test(t)));
+
+// Never a worn copy, even when a second copy of it sits in its own stack (review M2)
+now += 31 * 60000; reset();
+handlers.get('uiCaps')(VICTIM, ['robPrompt']);
+set(VICTIM, 'inventory', { entries: [{ baseId: GOLD, count: 10 }, { baseId: HELM, count: 1, worn: true }, { baseId: HELM, count: 1 }, { baseId: DAGGER, count: 1 }] });
+set(VICTIM, 'equipment', { inv: { entries: [{ baseId: HELM, count: 1, worn: true }] } });
+act(ROBBER, VICTIM);
+answer(VICTIM, out.widgets[out.widgets.length - 1].w.nonce, 'accept');
+const inv = get(VICTIM, 'inventory').entries;
+check('the spare helmet may go, the worn one stays', inv.some((e) => e.baseId === HELM && e.worn && e.count === 1) && count(ROBBER, HELM) <= 1 && count(VICTIM, HELM) + count(ROBBER, HELM) === 2, JSON.stringify(inv));
+check('one of each kind at most', count(ROBBER, HELM) <= 1 && count(ROBBER, DAGGER) <= 1);
 
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);

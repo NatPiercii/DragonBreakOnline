@@ -36,7 +36,9 @@ module.exports = (api) => {
     if (id < 0xff000000) return 'not a spawned npc';
     let tag = '';
     try { tag = String(mp.get(id, TAG) || ''); } catch (e) { S.gone.add(id); return 'no such npc'; }
-    if (profileOf(id) >= 0 || userOf(id) >= 0) return 'a player character';
+    // The engine says 65535 when no one plays an actor (review ORPH-1: every npc was taken for a player)
+    const u = userOf(id);
+    if (profileOf(id) >= 0 || (u >= 0 && u !== 65535)) return 'a player character';
     if (!tag) return 'not placed by the spawn system';
     if (own.ids.has(id)) return `still owned by its zone ${tag}`;
     return '';
@@ -72,11 +74,11 @@ module.exports = (api) => {
     S.suspects = suspects;
   };
 
-  globalThis.__dboOrphanRemove = (id) => {
+  globalThis.__dboOrphanRemove = (id, by) => {
     id = Number(id) >>> 0;
     const why = refusal(id, owned());
     if (why) return { ok: false, text: `${id.toString(16)} is not removed: ${why}.` };
-    remove(id, 'by staff');
+    remove(id, `by staff${by ? ` (${by})` : ''}`);
     return { ok: true, text: `${id.toString(16)} removed.` };
   };
 

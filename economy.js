@@ -17,6 +17,10 @@
 //
 // Settings come from the faction panel (F3): dbo:econRate, dbo:econWage (leaders) and dbo:econValue (a property's
 // manager, a steward or equivalent). State in economy.json.
+//
+// enabled (config economy.enabled, default false): off, no reckoning runs, so no tax is charged and no wage is paid;
+// the settings can still be made. It stays off until wages can no longer pay the one who sets them and assessments are
+// limited (review B2: a ruler could pay the treasury out to himself).
 'use strict';
 
 const fs = require('fs');
@@ -24,7 +28,7 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, cfg, onUi, onlineActors, every, readOfficials, zoneById } = api;
-  const C = Object.assign({ maxTaxRate: 0.30, defaultPropertyValue: 2000, maxPropertyValue: 1000000, maxWage: 100000, reckonDay: 0, reckonHour: 0 }, cfg.economy || {});
+  const C = Object.assign({ enabled: false, maxTaxRate: 0.30, defaultPropertyValue: 2000, maxPropertyValue: 1000000, maxWage: 100000, reckonDay: 0, reckonHour: 0 }, cfg.economy || {});
   const FILE = path.resolve('economy.json');
   const WEEK = 7 * 86400000;
   const BALANCE = 'private.bankGold';
@@ -157,6 +161,7 @@ module.exports = (api) => {
   };
 
   every('economy', 60000, () => {
+    if (!C.enabled) return;
     try {
       const d = data();
       if (!d.lastReckoning) { d.lastReckoning = Date.now(); save(); return; }
@@ -201,7 +206,7 @@ module.exports = (api) => {
   globalThis.__dboEconomyView = (a) => {
     const led = fn('__dboRealmFactionsLedBy') ? fn('__dboRealmFactionsLedBy')(a) : [];
     return {
-      maxTaxRate: C.maxTaxRate, nextReckoning: nextAfter(data().lastReckoning || Date.now()),
+      enabled: !!C.enabled, maxTaxRate: C.maxTaxRate, nextReckoning: nextAfter(data().lastReckoning || Date.now()),
       factions: led.map((fid) => {
         const f = info(fid) || {};
         let ranks = [];
@@ -212,6 +217,6 @@ module.exports = (api) => {
     };
   };
 
-  log(`economy loaded: next reckoning ${new Date(nextAfter(data().lastReckoning || Date.now())).toISOString()}`);
+  log(C.enabled ? `economy loaded: next reckoning ${new Date(nextAfter(data().lastReckoning || Date.now())).toISOString()}` : 'economy loaded: OFF (economy.enabled false), no reckoning runs');
   return { reckon, nextAfter, payroll, chargeAccount };
 };
