@@ -85,7 +85,7 @@ class MonitorCase(unittest.TestCase):
                   mock.patch.object(dm.urllib.request, 'urlopen', side_effect=AssertionError('network use in a test'))):
             p.start(); self.addCleanup(p.stop)
 
-        self.fake_system(io=REAL_PSI_IO, mem=psi(0), current=REAL_CURRENT, inactive=REAL_INACTIVE_FILE, limit='max')
+        self.fake_system(io=REAL_PSI_IO, mem=psi(0), current=REAL_CURRENT, inactive=REAL_INACTIVE_FILE, limit='max', dev=psi(0))
 
     def path(self, rel):
         return os.path.join(self.tmp, rel)
@@ -95,9 +95,10 @@ class MonitorCase(unittest.TestCase):
         with open(self.path(rel), 'w') as f:
             f.write(str(text))
 
-    def fake_system(self, io=None, mem=None, current=None, inactive=None, limit=None):
+    def fake_system(self, io=None, mem=None, current=None, inactive=None, limit=None, dev=None):
         """Writes the fake /proc and /sys/fs/cgroup files the pressure check reads; None keeps a file as it is."""
         for rel, v in (('cg/io.pressure', io), ('cg/memory.pressure', mem), ('cg/memory.current', current),
+                       ('cg/user.slice/memory.pressure', dev),
                        ('cg/memory.max', limit), ('cg/memory.stat', inactive and f'anon 1\nfile 2\ninactive_file {inactive}\n')):
             if v is not None:
                 self.write(rel, v)
@@ -317,9 +318,13 @@ class FreezeTest(MonitorCase):
 
 
 class PressureTest(MonitorCase):
+    """With posting on (DBO_MONITOR_PRESSURE_POST=1); ShadowTest covers the default."""
+
     def setUp(self):
         super().setUp()
         self.active = False    # no game server here, so no tick summaries and no freeze alerts
+        p = mock.patch.object(dm, 'SHADOW', set())
+        p.start(); self.addCleanup(p.stop)
 
     def test_readers_on_real_numbers(self):
         self.assertEqual(dm.psi_full60(self.path('cg/io.pressure')), 0.58, 'full, not some')
@@ -361,6 +366,7 @@ class PressureTest(MonitorCase):
                                                   'container memory 27%, 19 min after the alert'])
 
     def test_memory_full_at_the_stall_peak(self):
+        # memory.peak is real; the 41.2 PSI is illustrative, nothing recorded PSI during the stall
         self.start('2026-09-27 00:30:00')
         self.fake_system(current=REAL_PEAK, inactive=200 * MB, mem=psi(41.2))
         self.run_until(epoch('2026-09-27 00:32:00'))
@@ -376,6 +382,14 @@ class PressureTest(MonitorCase):
         self.run_until(epoch('2026-09-27 00:32:00'))
         self.assertIn('container memory 15.7 of 16.0 GiB in use (98%)', ''.join(self.alerts('pressure')))
 
+    def test_dev_sessions_stalling_at_their_cap(self):
+        # user.slice is capped at 12G, so a dev runaway stalls there while the container stays under 90%
+        self.start('2026-09-27 00:30:00')
+        self.fake_system(dev=psi(55.0))
+        self.run_until(epoch('2026-09-27 00:32:00'))
+        self.assertEqual(self.alerts('pressure'), ['`00:32:00` **Server under pressure:** dev sessions (user.slice) memory full avg60 55.0. '
+                                                   'Biggest: user-1001.slice 11843 MB, user-0.slice 1163 MB, skymp.service 1064 MB'])
+
     def test_page_cache_is_not_memory_in_use(self):
         self.start('2026-09-27 00:30:00')
         self.fake_system(current=16500 * MB, inactive=6000 * MB)
@@ -388,6 +402,26 @@ class PressureTest(MonitorCase):
             os.remove(self.path(rel))
         self.run_until(epoch('2026-09-27 00:40:00'))
         self.assertEqual(self.alerts(), [])
+
+
+class ShadowTest(MonitorCase):
+    def test_pressure_is_journal_only_by_default(self):
+        self.active = False
+        out = io.StringIO()
+        with mock.patch.object(sys, 'stdout', out), mock.patch.object(dm, 'SHADOW', {'pressure'}):
+            self.start('2026-09-27 00:30:00')
+            self.fake_system(io=psi(34.5))
+            self.run_until(epoch('2026-09-27 00:40:00'))
+            self.fake_system(io=psi(3.0))
+            self.run_until(epoch('2026-09-27 00:50:00'))
+        self.assertEqual(self.posts, [])
+        self.assertEqual(self.mon.state['recent'], [])
+        self.assertNotIn('server.pressure', self.mon.digest_counts)
+        journal = out.getvalue().splitlines()
+        self.assertIn('PRESSURE (shadow) `00:32:00` **Server under pressure:** io full avg60 34.5. Biggest: '
+                      'user-1001.slice 11843 MB, user-0.slice 1163 MB, skymp.service 1064 MB', journal)
+        self.assertIn('PRESSURE (shadow) reading: io 34.5, memory 0.0, user.slice memory 0.0, container memory 27%', journal)
+        self.assertTrue(any(ln.startswith('PRESSURE (shadow) `00:41:00` Pressure cleared') for ln in journal), journal)
 
 
 class StartTest(MonitorCase):

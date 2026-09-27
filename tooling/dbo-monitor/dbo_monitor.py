@@ -7,8 +7,8 @@ Classes of event it knows:
   server   starts (crashed or restarted, from systemd's journal), updater results, gamemode load failures, script
            errors, C++ errors (known noise counted only), freezes (event loop p99 over 2 s twice, max over 5 s twice,
            or no tick summary for 3 min while skymp.service is active), hitches (one block of 20 s or more),
-           pressure (io or memory PSI 'full avg60' over 20, or container
-           memory over 90%, twice, with the 3 biggest cgroups)
+           pressure (io, memory or user.slice memory PSI 'full avg60' over 20, or container memory over 90%,
+           twice, with the 3 biggest cgroups; journal only until DBO_MONITOR_PRESSURE_POST=1)
   players  joins, leaves, and likely crashes (a player whose game went silent 45 s or more before the disconnect)
   npc      npcDrift split/sink/jump/remote/snap/bounce/error, npcGround under/over/lifted, hosts released,
            jumps refused, NPCs stuck in one spot, and players hosting many NPCs they no longer have loaded
@@ -44,8 +44,10 @@ FREEZE_SILENCE_S = 180        # no tick summary this long while skymp.service is
 HITCH_MS = 20000              # one block this long is a hitch alert (3 in 2026-09-21..27, each about 31 s)
 INCIDENT_REPEAT_S = 900       # an open incident re-alerts this often
 HEALTH_S = 60                 # how often the pressure and memory checks run (silence is checked every loop)
-PSI_FULL_AVG60 = 20           # io or memory PSI 'full avg60' over this in 2 checks in a row is pressure
+PSI_FULL_AVG60 = 20           # io, memory or user.slice memory PSI 'full avg60' over this in 2 checks in a row
 MEM_PCT = 90                  # container memory in use over this share of its limit in 2 checks in a row too
+# Pressure lines are unproven: journal only until DBO_MONITOR_PRESSURE_POST=1, set after 24-48 h with a build and a backup
+SHADOW = set() if os.environ.get('DBO_MONITOR_PRESSURE_POST') == '1' else {'pressure'}
 # The container's own cgroupfs files: /proc/pressure and /proc/meminfo are lxcfs (can hang), and its io PSI is the host's
 PSI_IO, PSI_MEM = '/sys/fs/cgroup/io.pressure', '/sys/fs/cgroup/memory.pressure'
 CGROUP, MEMINFO = '/sys/fs/cgroup', '/proc/meminfo'    # MemTotal (the container's limit) is read once, at start
@@ -314,8 +316,10 @@ class Monitor:
         self.alerted[key] = now
         self.say(text, t)
 
-    def say(self, text, t):
+    def say(self, text, t, key=None):
         line = f'`{t[11:19]}` {text}'
+        if key in SHADOW:    # journal only: not posted, not in /monitor
+            return print(f'{key.upper()} (shadow)', line, flush=True)
         self.state['recent'].append(line)
         del self.state['recent'][:-50]
         print('ALERT', line, flush=True)
@@ -330,11 +334,12 @@ class Monitor:
             gone = now - self.cleared.get(key, -INCIDENT_REPEAT_S)
             flap = gone < INCIDENT_REPEAT_S
             self.incidents[key] = {'since': now, 'last': now, 'flap': flap}
-            self.count('server.' + key)
-            self.say(f'{text} (back {int(gone // 60)} min after it cleared; while it comes and goes, one update per {INCIDENT_REPEAT_S // 60} min)' if flap else text, t)
+            if key not in SHADOW:
+                self.count('server.' + key)
+            self.say(f'{text} (back {int(gone // 60)} min after it cleared; while it comes and goes, one update per {INCIDENT_REPEAT_S // 60} min)' if flap else text, t, key)
         elif now - inc['last'] >= INCIDENT_REPEAT_S:
             inc['last'] = now
-            self.say(f'{text} (still going, {int((now - inc["since"]) // 60)} min{", on and off" if inc["flap"] else ""})', t)
+            self.say(f'{text} (still going, {int((now - inc["since"]) // 60)} min{", on and off" if inc["flap"] else ""})', t, key)
 
     def resolve(self, key, text, t):
         inc = self.incidents.get(key)
@@ -343,7 +348,7 @@ class Monitor:
             return    # a flap clears only at its next update (one post per interval), if still clear then
         del self.incidents[key]
         self.cleared[key] = now
-        self.say(f'{text}, {int((now - inc["since"]) // 60)} min after the alert', t)
+        self.say(f'{text}, {int((now - inc["since"]) // 60)} min after the alert', t, key)
 
     def loop_sample(self, p99, mx, online, t):
         self.last_loop, self.was_down = time.time(), False
@@ -380,17 +385,22 @@ class Monitor:
     def health(self, now):
         t = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))
         io, mem = psi_full60(PSI_IO), psi_full60(PSI_MEM)
+        dev = psi_full60(os.path.join(CGROUP, 'user.slice', 'memory.pressure'))    # capped at 12G: stalls there, not above
         if self.memtotal is None:
             self.memtotal = mem_total()
         used, lim = mem_use(self.memtotal)
         pct = 100 * used / lim if used and lim else 0
-        hot = [f'{k} full avg60 {v:.1f}' for k, v in (('io', io), ('memory', mem)) if v is not None and v > PSI_FULL_AVG60]
+        hot = [f'{k} full avg60 {v:.1f}' for k, v in (('io', io), ('memory', mem), ('dev sessions (user.slice) memory', dev))
+               if v is not None and v > PSI_FULL_AVG60]
         if pct > MEM_PCT:
             hot.append(f'container memory {used / 2**30:.1f} of {lim / 2**30:.1f} GiB in use ({pct:.0f}%)')
+        calm = max(io or 0, mem or 0, dev or 0) < PSI_FULL_AVG60 / 2 and pct < MEM_PCT - 10    # well under the lines
+        if not calm and 'pressure' in SHADOW:    # readings near or over the lines, to set them from
+            print(f'PRESSURE (shadow) reading: io {io}, memory {mem}, user.slice memory {dev}, container memory {pct:.0f}%', flush=True)
         self.pressure_high = self.pressure_high + 1 if hot else 0
         if self.pressure_high >= 2:
             self.incident('pressure', '**Server under pressure:** ' + ', '.join(hot) + '. Biggest: ' + ', '.join(top_cgroups()), t)
-        elif max(io or 0, mem or 0) < PSI_FULL_AVG60 / 2 and pct < MEM_PCT - 10:    # clears well under the lines, no flapping
+        elif calm:
             self.resolve('pressure', f'Pressure cleared: io full avg60 {io or 0:.1f}, memory full avg60 {mem or 0:.1f}, container memory {pct:.0f}%', t)
 
     def bug_report(self, line, t):
