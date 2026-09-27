@@ -5,8 +5,9 @@
 
 Classes of event it knows:
   server   starts (crashed or restarted, from systemd's journal), updater results, gamemode load failures, script
-           errors, C++ errors (known noise counted only), freezes (event loop p99 over 2 s twice, or no tick summary
-           for 3 min while skymp.service is active), pressure (io or memory PSI 'full avg60' over 20, or container
+           errors, C++ errors (known noise counted only), freezes (event loop p99 over 2 s twice, max over 5 s twice,
+           or no tick summary for 3 min while skymp.service is active), hitches (one block of 20 s or more),
+           pressure (io or memory PSI 'full avg60' over 20, or container
            memory over 90%, twice, with the 3 biggest cgroups)
   players  joins, leaves, and likely crashes (a player whose game went silent 45 s or more before the disconnect)
   npc      npcDrift split/sink/jump/remote/snap/bounce/error, npcGround under/over/lifted, hosts released,
@@ -37,10 +38,12 @@ BIG_SNAP = 1000
 ALERT_REPEAT_S = 600          # the same alert key at most once in this long
 # Freeze alert: the 2026-09-27 95-minute stall raised nothing because skymp.service stayed active
 FREEZE_P99_MS = 2000          # event loop p99 above this in 2 tick summaries in a row is a freeze
-FREEZE_OK_MS = 200            # p99 back under this closes it
+FREEZE_MAX_MS = 5000          # event loop max above this in 2 summaries in a row too: p99 hides single long blocks
+FREEZE_OK_MS = 200            # p99 back under this (and max under FREEZE_MAX_MS) closes it
 FREEZE_SILENCE_S = 180        # no tick summary this long while skymp.service is active is a freeze too
+HITCH_MS = 20000              # one block this long is a hitch alert (3 in 2026-09-21..27, each about 31 s)
 INCIDENT_REPEAT_S = 900       # an open incident re-alerts this often
-HEALTH_S = 60                 # how often the silence, pressure and memory checks run
+HEALTH_S = 60                 # how often the pressure and memory checks run (silence is checked every loop)
 PSI_FULL_AVG60 = 20           # io or memory PSI 'full avg60' over this in 2 checks in a row is pressure
 MEM_PCT = 90                  # container memory in use over this share of its limit in 2 checks in a row too
 # The container's own cgroupfs files: /proc/pressure and /proc/meminfo are lxcfs (can hang), and its io PSI is the host's
@@ -280,6 +283,7 @@ class Monitor:
         self.last_loop = time.time() # last tick summary, or server or gamemode (re)start
         self.was_down = False        # skymp.service seen stopped since: its silence clock starts when it is seen back
         self.loop_high = 0           # tick summaries in a row with p99 over FREEZE_P99_MS
+        self.max_high = 0            # tick summaries in a row with max over FREEZE_MAX_MS
         self.last_p99 = 'unknown'
         self.last_health = time.time()
         self.pressure_high = 0       # checks in a row over a pressure or memory line
@@ -342,21 +346,32 @@ class Monitor:
             return    # 0.0/0.0 is a window with no samples (first summary after the 2026-09-27 stall), not health
         self.last_p99 = f'p99 {p99:.0f} ms, max {mx:.0f} ms at {t[11:19]}'
         self.loop_high = self.loop_high + 1 if p99 > FREEZE_P99_MS else 0
+        self.max_high = self.max_high + 1 if mx > FREEZE_MAX_MS else 0
         if self.loop_high >= 2:
             self.incident('freeze', f'**Server freeze:** event loop p99 {p99:.0f} ms (max {mx:.0f} ms), over {FREEZE_P99_MS} ms in {self.loop_high} tick summaries in a row, {online} online', t)
-        elif p99 < FREEZE_OK_MS:
+        elif self.max_high >= 2:
+            self.incident('freeze', f'**Server freeze:** event loop blocked up to {mx:.0f} ms at once (p99 {p99:.0f} ms), over {FREEZE_MAX_MS} ms in {self.max_high} tick summaries in a row, {online} online', t)
+        elif p99 < FREEZE_OK_MS and mx <= FREEZE_MAX_MS:
             self.resolve('freeze', f'Server recovered: event loop p99 {p99:.0f} ms (max {mx:.0f} ms)', t)
+        if mx >= HITCH_MS and 'freeze' not in self.incidents:
+            self.alert('hitch', f'**Server hitch:** the event loop was blocked {mx / 1000:.1f} s at once in the minute to {t[11:19]} (p99 {p99:.0f} ms), {online} online', t)
+
+    def silence(self, now):
+        """Runs every loop; forks systemctl only after FREEZE_SILENCE_S of silence, or when an open freeze's repeat is due."""
+        quiet = now - self.last_loop
+        inc = self.incidents.get('freeze')
+        if quiet < FREEZE_SILENCE_S or (inc and now - inc['last'] < INCIDENT_REPEAT_S):
+            return
+        if not skymp_active():
+            self.last_loop, self.loop_high, self.max_high, self.was_down = now, 0, 0, True    # stopped: no summaries due
+        elif self.was_down:
+            self.last_loop, self.was_down = now, False    # just started: MetricsSystem is up to 9 s behind
+        else:
+            t = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))
+            self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
 
     def health(self, now):
         t = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))
-        quiet = now - self.last_loop
-        if quiet >= FREEZE_SILENCE_S:
-            if not skymp_active():
-                self.last_loop, self.loop_high, self.was_down = now, 0, True    # stopped: no summaries due
-            elif self.was_down:
-                self.last_loop, self.was_down = now, False    # just started: MetricsSystem is up to 9 s behind
-            else:
-                self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
         io, mem = psi_full60(PSI_IO), psi_full60(PSI_MEM)
         if self.memtotal is None:
             self.memtotal = mem_total()
@@ -415,7 +430,7 @@ class Monitor:
             return
         if start_re.match(line):
             self.count('server.restart')
-            self.last_loop, self.loop_high, self.was_down = time.time(), 0, False    # first summary comes 1-3 min later
+            self.last_loop, self.loop_high, self.max_high, self.was_down = time.time(), 0, 0, False    # summary in 1-3 min
             froze = self.incidents.pop('freeze', None)
             ended = f'; that ends the freeze alert from {int((time.time() - froze["since"]) // 60)} min ago' if froze else ''
             how, why = journal_start_cause()
@@ -521,6 +536,10 @@ class Monitor:
                     parts.append(f'{k} {v}' + (f' (worst {w[0]}: {w[1]})' if w and w[0] else ''))
                 post('**Last 15 min:** ' + ' | '.join(parts), digest=True)
             self.digest_counts.clear(); self.digest_worst.clear()
+        try:
+            self.silence(now)
+        except Exception as e:
+            print('silence check failed:', e, flush=True)
         if now - self.last_health >= HEALTH_S:
             self.last_health = now
             try:

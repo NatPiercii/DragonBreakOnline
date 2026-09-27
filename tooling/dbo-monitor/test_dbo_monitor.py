@@ -152,26 +152,58 @@ class FreezeTest(MonitorCase):
 
     def test_real_stall_alerts_once_repeats_every_15_min_and_recovers(self):
         self.start('2026-09-27 00:30:00')
-        for ts, online, p99, mx in STALL[:4]:
-            self.feed(ts, tick_line(ts, online, p99, mx) if p99 != 12968.8 else REAL_STALL_LINE)
-        self.assertEqual(self.alerts(), [], 'one sample over 2000 ms is not yet a freeze')
-        self.run_until(epoch('2026-09-27 00:37:57'))
+        for ts, online, p99, mx in STALL[:3]:
+            self.feed(ts, tick_line(ts, online, p99, mx))
+        self.assertEqual(self.alerts(), [], 'one max over 5000 ms is not yet a freeze')
+        self.feed(STALL[3][0], REAL_STALL_LINE)
         first = self.alerts('freeze')
-        self.assertEqual(len(first), 1)
-        self.assertIn('no tick summary for 3 min while skymp.service is active', first[0])
-        self.assertIn('p99 12969 ms, max 12969 ms at 00:33:57', first[0])
+        # max 8900 then 12969 ms: the max rule opens it with the last summary, 3 min before the silence rule could
+        self.assertEqual(first, ['`00:33:57` **Server freeze:** event loop blocked up to 12969 ms at once (p99 12969 ms), '
+                                 'over 5000 ms in 2 tick summaries in a row, 1 online'])
         self.assertEqual(self.mon.win['counts'].get('server.freeze'), 1)
+        self.run_until(epoch('2026-09-27 00:48:52'))
+        self.assertEqual(len(self.alerts('freeze')), 1, 'the silence rule adds nothing to an open freeze')
         for ts, online, p99, mx in STALL[4:]:
             self.feed(ts, tick_line(ts, online, p99, mx))
         freeze = self.alerts('freeze')
-        # opened ~00:37, repeated at 15, 30, 45, 60, 75 min, then the loop came back before the 90 min repeat
-        self.assertEqual(len(freeze), 6, freeze)
-        self.assertIn('(still going, 75 min)', freeze[-1])
+        # opened 00:33:57, repeated by the silence rule at 15, 30, 45, 60, 75 and 90 min, then the loop came back
+        self.assertEqual(len(freeze), 7, freeze)
+        self.assertTrue(freeze[1].startswith('`00:48:57` **Server freeze:** no tick summary for 15 min'), freeze[1])
+        self.assertIn('(still going, 90 min)', freeze[-1])
         rec = self.alerts('recovered')
         self.assertEqual(len(rec), 1, 'the 0.0/0.0 summary at 02:06:57 is no data, the 194.9 ms one at 02:07:57 recovers')
-        self.assertTrue(rec[0].startswith('`02:07:57` Server recovered: event loop p99 195 ms (max 3737 ms)'), rec[0])
+        self.assertEqual(rec[0], '`02:07:57` Server recovered: event loop p99 195 ms (max 3737 ms), 94 min after the alert')
         self.assertEqual(self.mon.incidents, {})
-        self.assertEqual(len(self.alerts()), 7, 'p99 1836 ms at 02:10:00 is under the 2000 ms line: no new alert')
+        self.assertEqual(len(self.alerts()), 8, 'p99 1836 ms, max 4563 ms at 02:10:00 are under the lines: no new alert')
+
+    def test_silence_alert_lands_3_min_after_the_last_summary(self):
+        self.start('2026-09-27 00:30:00')
+        self.feed('2026-09-27 00:31:34', tick_line('2026-09-27 00:31:34', 1, 11.1, 242.2))
+        self.run_until(epoch('2026-09-27 00:34:33'))
+        self.assertEqual(self.alerts(), [])
+        self.run_until(epoch('2026-09-27 00:34:39'))
+        self.assertEqual(len(self.alerts('no tick summary for 3 min')), 1, 'checked every 5 s loop, not every 60 s')
+
+    def test_real_long_blocks_under_the_freeze_lines(self):
+        # every tick summary from 2026-09-21 to 09-27 with max over 2000 ms or 10 s, outside the stall (p99 11 ms each)
+        self.start('2026-09-25 05:20:00')
+        prev = 0
+        for ts, p99, mx in [('2026-09-25 05:25:46', 11.0, 11190.4), ('2026-09-25 05:35:57', 11.5, 31289.5),
+                            ('2026-09-25 23:45:46', 11.2, 2042.6), ('2026-09-25 23:46:46', 11.4, 2713.7),
+                            ('2026-09-26 08:18:26', 11.0, 2336.2), ('2026-09-26 08:19:26', 11.0, 5356.1),
+                            ('2026-09-26 15:21:26', 11.5, 32027.7), ('2026-09-26 15:50:01', 10.9, 30819.7),
+                            ('2026-09-26 15:52:01', 11.0, 12406.8)]:
+            if epoch(ts) - prev > 60:    # jump ahead, then the ordinary summary the minute before
+                self.mon.last_loop = self.mon.last_health = self.now = float(epoch(ts) - 65)
+                before = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(epoch(ts) - 60))
+                self.feed(before, tick_line(before, 4, 11.0, 20.0))
+            self.feed(ts, tick_line(ts, 4, p99, mx))
+            prev = epoch(ts)
+        self.assertEqual(self.alerts('freeze'), [], 'the only pair over 5000 ms in a row is the stall')
+        self.assertEqual(self.alerts(), [
+            '`05:35:57` **Server hitch:** the event loop was blocked 31.3 s at once in the minute to 05:35:57 (p99 12 ms), 4 online',
+            '`15:21:26` **Server hitch:** the event loop was blocked 32.0 s at once in the minute to 15:21:26 (p99 12 ms), 4 online',
+            '`15:50:01` **Server hitch:** the event loop was blocked 30.8 s at once in the minute to 15:50:01 (p99 11 ms), 4 online'])
 
     def test_two_summaries_over_2000_ms_open_one_incident(self):
         self.start('2026-09-27 09:59:30')
