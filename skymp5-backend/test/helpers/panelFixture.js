@@ -18,6 +18,10 @@ const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 // System folders that must never appear in a response
 const PATH_RE = /\/(?:opt|var|etc|home)\//
 
+// The argv every guarded git call starts with, and the subcommand after it
+const gitPrefix = repo => ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '--no-replace-objects']
+const gitSub = args => args[args.indexOf('--no-replace-objects') + 1]
+
 function write(dir, files) {
   for (const [f, content] of Object.entries(files)) {
     const p = path.join(dir, f)
@@ -130,4 +134,4 @@ function createPanelFixture(prefix = 'dbo-panel-') {
   return { root, repo, S, config, markers, cleanup: () => fs.rmSync(root, { recursive: true, force: true }) }
 }
 
-module.exports = { createPanelFixture, showOutput, realRun, write, SECRET_RE, PURPOSE, PATH_RE }
+module.exports = { createPanelFixture, showOutput, realRun, write, gitPrefix, gitSub, SECRET_RE, PURPOSE, PATH_RE }

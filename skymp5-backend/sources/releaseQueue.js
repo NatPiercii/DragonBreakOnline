@@ -208,13 +208,14 @@ function checkGitArgs(args) {
   return sub
 }
 
+// Only what git needs, so no backend secret reaches the child and no user config is read
 function gitEnv() {
-  const env = {}
-  for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_')) env[k] = v
-  return Object.assign(env, { GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' })
+  return { PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin', LANG: 'C', HOME: '/nonexistent', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }
 }
 
-const gitArgv = (repo, args) => ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', ...args]
+// No hooks, no transport and no replace refs, whatever the repo config says
+const gitArgv = (repo, args) => ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
+  '-c', 'protocol.allow=never', '--no-replace-objects', ...args]
 
 // The same guarded call, synchronously, for the one read the backend makes while it starts
 function gitSync(repo, args, { runSync = childProcess.execFileSync } = {}) {
@@ -463,7 +464,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     if (!SHA_RE.test(bootSha || '') || !forkSha) return null
     if (bootSha === forkSha) return false
     return remember(`boot:${bootSha}:${forkSha}`, async () => {
-      const out = await gitText('diff', '--name-only', '-z', '--end-of-options', bootSha, forkSha, '--', 'skymp5-backend/')
+      const out = await gitText('diff', '--no-ext-diff', '--name-only', '-z', '--end-of-options', bootSha, forkSha, '--', 'skymp5-backend/')
       const changed = out.split('\0').filter(Boolean)
       const { flags } = classifyCommit('fork', changed)
       return changed.length > 0 && (flags.includes('backendRestart') || flags.includes('backendDeps'))
@@ -823,7 +824,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   // Website pages the default update changes, with their blob ids at live and at the target
   async function websitePlan(forkLive, forkTarget) {
     if (!forkTarget || forkTarget === forkLive) return { live: forkLive, target: forkTarget, pages: [] }
-    const changed = await gitText('diff', '--name-only', '-z', '--diff-filter=ACMR', '--end-of-options', forkLive, forkTarget, '--', 'website/')
+    const changed = await gitText('diff', '--no-ext-diff', '--name-only', '-z', '--diff-filter=ACMR', '--end-of-options', forkLive, forkTarget, '--', 'website/')
     const pages = changed.split('\0').filter(p => p.startsWith('website/')).map(p => p.slice('website/'.length)).filter(p => PAGE_RE.test(p)).slice(0, WEB_MAX_PAGES)
     const blobs = async sha => new Map((await gitText('ls-tree', '-r', '-z', '--end-of-options', sha, '--', 'website/')).split('\0')
       .map(e => /^\d+ blob ([0-9a-f]{40})\twebsite\/(.+)$/.exec(e)).filter(Boolean).map(m => [m[2], m[1]]))
@@ -927,7 +928,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     let defaultPack = null
     for (const p of waiting) {
       if (p.review.state !== 'GO' || p.heldReason || p.containsLive !== true || !(await isAncestor(p.fork, forkTarget))) continue
-      const diff = await gitText('diff', '--name-only', '--end-of-options', p.fork, forkTarget, '--', ...CLIENT_PATHS)
+      const diff = await gitText('diff', '--no-ext-diff', '--name-only', '--end-of-options', p.fork, forkTarget, '--', ...CLIENT_PATHS)
       if (!diff.trim()) { defaultPack = p; break }
     }
     for (const i of items) {

@@ -9,6 +9,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync } = require('../sources/releaseQueue')
+const { gitPrefix, gitSub } = require('./helpers/panelFixture')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 const short = s => s.slice(0, 8)
@@ -227,25 +228,45 @@ test('wrapper: the synchronous form keeps the same guard and refuses merge-tree'
   assert.equal(gitSync(repo, ['rev-parse', '--verify', '--end-of-options', 'HEAD'], { runSync }), 'ok\n')
   const [[file, args, opts]] = calls
   assert.equal(file, 'git')
-  assert.deepEqual(args, ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
+  assert.deepEqual(args, [...gitPrefix(repo), 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
   assert.deepEqual([opts.timeout, opts.maxBuffer, opts.env.GIT_OPTIONAL_LOCKS, opts.env.GIT_TERMINAL_PROMPT], [5000, 2 * 1024 * 1024, '0', '0'])
 })
 
-test('wrapper: fixed argv, clean env, 5 s timeout and 2 MB buffer', async () => {
+test('wrapper: fixed argv, a minimal env with no backend secret, 5 s timeout and 2 MB buffer', async () => {
   const calls = []
-  process.env.GIT_DIR = '/elsewhere'
+  Object.assign(process.env, { GIT_DIR: '/elsewhere', DISCORD_BOT_TOKEN: 'secret-token', GIT_CONFIG_PARAMETERS: "'core.hooksPath'='/tmp/x'" })
   try {
     const { q } = newQueue({ run: async (file, args, opts) => { calls.push({ file, args, opts }); return { stdout: 'ok\n' } } })
     assert.equal((await q.git(['rev-parse', '--end-of-options', 'HEAD'])).stdout, 'ok\n')
-  } finally { delete process.env.GIT_DIR }
+  } finally { for (const k of ['GIT_DIR', 'DISCORD_BOT_TOKEN', 'GIT_CONFIG_PARAMETERS']) delete process.env[k] }
   const [{ file, args, opts }] = calls
   assert.equal(file, 'git')
-  assert.deepEqual(args.slice(0, 6), ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false'])
-  assert.equal(opts.env.GIT_OPTIONAL_LOCKS, '0')
-  assert.equal(opts.env.GIT_TERMINAL_PROMPT, '0')
-  assert.equal(opts.env.GIT_DIR, undefined)
+  assert.deepEqual(args, [...gitPrefix(repo), 'rev-parse', '--end-of-options', 'HEAD'])
+  assert.deepEqual(opts.env, { PATH: process.env.PATH, LANG: 'C', HOME: '/nonexistent', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' })
   assert.equal(opts.timeout, 5000)
   assert.equal(opts.maxBuffer, 2 * 1024 * 1024)
+})
+
+test('wrapper: every diff runs without an external diff, and replace refs are ignored', async () => {
+  const subs = []
+  const liveJson = consistentLive({ client: { ...consistentLive().client, fork: S.PREV } })
+  const pack = { version: '0.3.47', fork: S.M1, zipSha256: 'a'.repeat(64), builtAt: '2026-09-26T07:27:14Z', builtBy: 'claude-nate', builtOn: 'skymp' }
+  g('replace', S.E, S.X1)
+  try {
+    await withQueue({
+      reviews: [go(S.M2), go('0.3.47', null, { repo: 'client' })], liveJson, svc: { bootSha: S.PREV },
+      run: (file, args, opts) => { subs.push(args.slice(args.indexOf('--no-replace-objects') + 1)); return realRun(file, args, opts) },
+    }, async (q, cfg) => {
+      write(cfg.handoverDir, { 'client-0.3.47/BUILD.json': JSON.stringify(pack) })
+      const qv = await q.queue()
+      assert.equal(qv.counts.commits.fork, Number(g('--no-replace-objects', 'rev-list', '--count', `${S.LIVE}..${S.M2}`)))
+      assert.ok(row(qv, S.E), 'the replaced commit is still listed')
+    })
+  } finally { g('replace', '-d', S.E) }
+  const diffs = subs.filter(a => a[0] === 'diff')
+  assert.ok(diffs.length >= 3, `${diffs.length} diff calls`)
+  for (const a of diffs) assert.equal(a[1], '--no-ext-diff', a.join(' '))
+  for (const a of subs.filter(a => a[0] === 'log' && a.includes('-p'))) assert.ok(a.includes('--no-ext-diff') && a.includes('--no-textconv'))
 })
 
 test('wrapper: a timeout or a missing repo is reported as unavailable', async () => {
@@ -872,7 +893,7 @@ test('queue ETag: a side-branch push changes it while queueHash stays', async ()
 
 test('queue: a 30 s single-flight cache', async () => {
   let clock = Date.parse('2026-09-26T08:00:00Z'), logs = 0
-  const { q } = newQueue({ now: () => clock, run: (file, args, opts) => { if (args[6] === 'log') logs++; return realRun(file, args, opts) } })
+  const { q } = newQueue({ now: () => clock, run: (file, args, opts) => { if (gitSub(args) === 'log') logs++; return realRun(file, args, opts) } })
   try {
     const [a, b] = await Promise.all([q.queue(), q.queue()])
     assert.equal(a, b)
