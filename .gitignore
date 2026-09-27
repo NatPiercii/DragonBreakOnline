@@ -144,6 +144,8 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 /.claude
 package-lock.json
+# The launcher's is kept, so a build on CT 115 and one on the PC use the same dependencies
+!/skymp5-launcher/package-lock.json
 
 # Docusaurus cache and generated files
 .docusaurus
