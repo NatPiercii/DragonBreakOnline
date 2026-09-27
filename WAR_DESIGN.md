@@ -59,7 +59,8 @@ that can see it). A territory earns its owner nothing by itself; the property on
 `territory-owners.json` (runtime, written by the server): `territoryId` gives the owning faction, since when, and the last
 changes. At first each territory is owned by the faction its `owner` names in `territories.json`, else by its zone's
 hold faction (`county-bruma`, `hold-whiterun`, ...). The Imperial Legion owns the forts (Nate, 2026-09-27): Fort
-Caractacus and Pale Pass start as `imperial-legion`.
+Caractacus and Pale Pass start as `imperial-legion`. Only Cyrodiil's: in the server's lore (4E 211, the Discord
+lore-archives) the Legion withdrew from Skyrim after the civil war, so Skyrim's forts stay with their holds.
 
 ## 3. The Realm Map
 
