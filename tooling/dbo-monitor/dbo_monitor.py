@@ -46,7 +46,7 @@ PSI_IO, PSI_MEM = '/proc/pressure/io', '/proc/pressure/memory'
 CGROUP, MEMINFO = '/sys/fs/cgroup', '/proc/meminfo'
 
 ts_re = re.compile(r'^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)')
-loop_re = re.compile(r'ticks \(ms, last 60 s, (\d+) online\).*\| event loop p99 ([\d.]+) max ([\d.]+)')
+loop_re = re.compile(r'ticks \(ms, last 60 s, (\d+) online\)(?:.*\| event loop p99 ([\d.]+) max ([\d.]+))?')
 drift_re = re.compile(r'npcDrift (.+?) #\w{4} (\w+): (\{.*)')
 ground_re = re.compile(r'npcGround (under|over|lifted) (ff[0-9a-f]+) (\S+) at (\S+) terrain \S+ dz (-?\d+), near (.+?) #')
 NOISE = re.compile(r"Method not found|Refr pointer expired|No permission to update actor|Recipe not found|Target actor doesn.t exist|CastPrimitivePropertyValue")
@@ -230,8 +230,10 @@ class Monitor:
 
     def loop_sample(self, p99, mx, online, t):
         self.last_loop = time.time()
+        if mx is None:    # a gamemode from before 2026-09-24 logs no event loop figures, but the loop runs
+            return self.resolve('freeze', 'Server recovered: tick summaries are back', t)
         if mx <= 0:
-            return    # 0.0/0.0 means no samples in the window (first summary after the 2026-09-27 stall), not health
+            return    # 0.0/0.0 is a window with no samples (first summary after the 2026-09-27 stall), not health
         self.last_p99 = f'p99 {p99:.0f} ms, max {mx:.0f} ms at {t[11:19]}'
         self.loop_high = self.loop_high + 1 if p99 > FREEZE_P99_MS else 0
         if self.loop_high >= 2:
@@ -293,7 +295,8 @@ class Monitor:
             return
         lm = loop_re.search(line)
         if lm:
-            self.loop_sample(float(lm.group(2)), float(lm.group(3)), lm.group(1), t)
+            p99, mx = (float(g) if g else None for g in lm.group(2, 3))
+            self.loop_sample(p99, mx, lm.group(1), t)
             return
         if 'Initialized MetricsSystem' in line:
             self.count('server.restart')

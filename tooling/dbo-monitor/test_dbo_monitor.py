@@ -116,6 +116,7 @@ class FreezeTest(MonitorCase):
     def test_regex_reads_the_real_stall_line(self):
         m = dm.loop_re.search(REAL_STALL_LINE)
         self.assertEqual(m.groups(), ('1', '12968.8', '12968.8'))
+        self.assertEqual(dm.loop_re.search(REAL_STALL_LINE.split(' | event loop')[0]).groups(), ('1', None, None))
 
     def test_real_stall_alerts_once_repeats_every_15_min_and_recovers(self):
         self.start('2026-09-27 00:30:00')
@@ -160,6 +161,14 @@ class FreezeTest(MonitorCase):
         self.feed(ts, tick_line(ts, 3, 12.0, 30.0))
         self.assertEqual(len(self.alerts('recovered')), 1)
         self.assertIn('20 min after the alert', self.alerts('recovered')[0])
+
+    def test_a_summary_without_event_loop_figures_still_counts_as_alive(self):
+        self.start('2026-09-22 01:00:00')
+        old = '[2026-09-22 01:{:02d}:46.264] [console] [info] [gamemode] ticks (ms, last 60 s, 0 online): worldStats 1x max 10.45 mean 10.45'
+        for minute in range(1, 30):
+            self.feed(f'2026-09-22 01:{minute:02d}:46', old.format(minute))
+        self.assertEqual(self.alerts(), [])
+        self.assertEqual(self.mon.loop_high, 0)
 
     def test_one_spike_is_not_a_freeze(self):
         self.start('2026-09-27 00:32:00')
