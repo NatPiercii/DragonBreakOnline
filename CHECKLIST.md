@@ -1,5 +1,36 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-27 (00:30 UTC): weapon racks, plaques and holders drop everything - UNIMPLEMENTED, NOT A REGRESSION
+
+Nate: "none work and everything falls on the ground". Diagnosed, nothing changed yet.
+
+**Why.** Racks are a pure Papyrus mechanic. The live log names the scripts itself at cell load:
+`Skipping script WeaponRackActivateSCRIPT` / `WeaponRackTriggerSCRIPT`. The client turns all Papyrus off at
+startup (`blockPapyrusEvents(true)`, `blockPapyrusEventsService.ts`), which is SkyMP's design and not something to
+undo. The server does attach the scripts (0 "not found in the script storage" warnings) but its VM cannot run what a
+rack needs: taking the weapon, creating an oriented display copy and holding it there. So the weapon is never
+taken and simply drops. Nothing in `server/*.js` or `skymp5-client` implements racks, so this has never worked here.
+
+**Do not be misled by the log.** `MpObjectReference.cpp:1999` prints "Skipping script X" for *every* script it
+examines inside `isScriptEraseNeeded`, not only the ones it erases. The erase list is just three scripts
+(`DA06PreRitualSceneTriggerScript`, `CritterSpawn`, `PlayerBookShelfContainerScript`) and the rack scripts are not
+among them. The line reads like a cause and is not one. Worth fixing to log only real erasures (C++, CI flatrim).
+
+**It is fixable server-side, as a reimplementation like labour or dungeons.** The pieces already exist:
+- [ ] `mp.onActivate` sees every activation with the record type available via `lookupEspmRecordById` - the same
+      hook the doortrace block uses, so a rack activation can be caught and answered.
+- [ ] `placeAtMe` (`skymp5-server/ts/systems/npcPlacement.ts`) places a **non-actor** reference already;
+      `companionSystem` uses it for an ash pile. So a display copy of the weapon can be created and positioned.
+- [ ] The state has to persist per rack (what is on it, whose it is) the way housing claims do.
+- [ ] Re-activating returns the weapon to the player.
+- [ ] **The real cost is the display transform.** Every rack, plaque and holder type has its own offset and
+      rotation for where the weapon sits, and vanilla reads that from authored marker data its script walks. A
+      server-side version needs a per-type offset table, generated from the rack records in ck-mcp and then
+      corrected by eye in game. That is the work, not the activation plumbing.
+- [ ] Remember `placeAtMe` then a move never reaches watchers: disable/enable after positioning, as `placeNpc` does.
+
+No census of how many racks exist in the load order: that needs ck-mcp on the PC.
+
 ## Added 2026-09-26 (04:00 UTC): summon scrolls never cast - CLIENT/ENGINE, NEEDS AN IN-GAME TEST
 
 - [ ] #bugs 1553254532333445211 (thefabled.): the Flame Thrall scroll summons nothing and is not used up. The server got
