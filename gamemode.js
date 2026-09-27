@@ -352,7 +352,7 @@ const registerChatCommand = (name, fn, opts) => commands.set(name.toLowerCase(),
 const HELP_GROUPS = [
   { key: 'people', title: 'Chat and people', names: ['players', 'whoami', 'pigeonblock', 'sign', 'ledger'] },
   { key: 'character', title: 'Your character', names: ['level', 'spells', 'forget', 'teach', 'tomes', 'hunger', 'rest', 'reroll', 'tokens'] },
-  { key: 'faith', title: 'Faith and the unseen', names: ['deity', 'pray', 'offer', 'rite', 'beast', 'forms', 'hunt'] },
+  { key: 'faith', title: 'Faith and the unseen', names: ['deity', 'pray', 'offer', 'rite', 'beast', 'forms', 'hunt', 'blood'] },
   { key: 'work', title: 'Work and the world', names: ['board', 'contracts', 'contract', 'commissions', 'commission', 'wildlife', 'champions', 'time', 'whereami', 'playtest'] },
   { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'property', 'properties', 'ledgerpoint'] },
   { key: 'groups', title: 'Groups and dungeons', names: ['party', 'leave', 'dungeon', 'faction'] },
@@ -3166,8 +3166,10 @@ const defenseDamageMult = (targetId) => {
   const boosted = heavy * m + light * (1 + (m - 1) * (Number(DEFENSE.lightShare) || 0));
   return kept(boosted) / kept(heavy + light);
 };
-// A werewolf in beast form hits harder and takes less by its rank in the Great Hunt (greathunt.js)
-const huntDamageMult = (agg, tgt) => { try { const m = typeof globalThis.__dboHuntDamageMult === 'function' ? Number(globalThis.__dboHuntDamageMult(agg, tgt)) : 1; return Number.isFinite(m) && m > 0 ? m : 1; } catch (e) { return 1; } };
+// A werewolf in beast form hits harder and takes less by its rank in the Great Hunt (greathunt.js), a vampire hits harder
+// at night by its rank (bloodranks.js)
+const rankHook = (hook, ...args) => { try { const m = typeof globalThis[hook] === 'function' ? Number(globalThis[hook](...args)) : 1; return Number.isFinite(m) && m > 0 ? m : 1; } catch (e) { return 1; } };
+const huntDamageMult = (agg, tgt) => rankHook('__dboHuntDamageMult', agg, tgt) * rankHook('__dboBloodDamageMult', agg, tgt);
 // Every player-on-player hit, after skills and armor; config "pvp": { "damageMult" }
 const PVP = Object.assign({ damageMult: 1 }, cfg.pvp || {});
 // A vampire burns under fire and a werewolf under silver (supernatural.js): the extra comes off after the engine's hit
@@ -3638,6 +3640,13 @@ try {
   delete require.cache[GREATHUNT_JS];
   require(GREATHUNT_JS)({ mp, log, personal, audit, who, sendPacket, onlineActors, profileOf, registerChatCommand, zoneOfActor, zoneById, isWorldspace, cfg });
 } catch (e) { log('greathunt.js failed to load:', e.stack || e.message); for (const k of ['__dboHuntFed', '__dboHuntKill', '__dboHuntChanged', '__dboHuntBeastSeconds', '__dboHuntFeedSeconds', '__dboHuntChangesPerDay', '__dboHuntForcedMult', '__dboHuntDamageMult', '__dboHuntReset', '__dboHuntHowled']) globalThis[k] = null; }
+
+// ---- vampire ranks: blood from feeding on people (server\bloodranks.js) -----------------------------------------------
+try {
+  const BLOODRANKS_JS = path.resolve('bloodranks.js');
+  delete require.cache[BLOODRANKS_JS];
+  require(BLOODRANKS_JS)({ mp, log, personal, audit, who, sendPacket, profileOf, registerChatCommand, cfg });
+} catch (e) { log('bloodranks.js failed to load:', e.stack || e.message); for (const k of ['__dboBloodFed', '__dboBloodSunMult', '__dboBloodThirstRate', '__dboBloodDamageMult', '__dboBloodReset']) globalThis[k] = null; }
 
 // ---- Patreon identity rerolls (serverpatrons.js, tiers in patron-tiers.json) --------------------------
 try {

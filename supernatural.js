@@ -1,7 +1,7 @@
 // DragonBreak Online: vampirism and lycanthropy. Loaded by gamemode.js on every hot reload.
 //
 // Lore basis (UESP; design page "Vampires and Werewolves"):
-//   Infection  a vampire's hit (10%) carries Sanguinare Vampiris, a werewolf's bite (5%) Sanies Lupinus; both incubate
+//   Infection  a vampire's hit (10%) carries Sanguinare Vampiris, a werewolf's bite (2%, Nate 2026-09-27) Sanies Lupinus; both incubate
 //              three game days and are cured by a Cure Disease potion or a prayer at a Divine shrine.
 //   Turning    when the fever peaks the Blood Fever / Hircine's Hunt trial opens (front widget "rite"); failing kills
 //              and burns the disease out. Molag Bal's Embrace and Hircine's rite are chosen at their shrines (/rite)
@@ -27,7 +27,8 @@ module.exports = (api) => {
     findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf, cfg } = api;
 
   const C = Object.assign({
-    infectVampire: 0.10, infectWerewolf: 0.05, infectFeed: 0.10,
+    // Werewolf harder to come by than vampirism (Nate, 2026-09-27: 5% -> 2%)
+    infectVampire: 0.10, infectWerewolf: 0.02, infectFeed: 0.10,
     incubationDays: 3,
     sunPerStage: 0.006, sunFloor: 0.05,
     fireWeaknessPerStage: 0.25, silverWeakness: 0.5,
@@ -39,7 +40,7 @@ module.exports = (api) => {
     // Nat: a failed rite at Molag Bal's or Hircine's shrine waits a real day before another try
     riteFailCooldownHours: 24,
     // Nate 2026-09-26: surviving Hircine's Hunt is a chance at Sanies Lupinus, not a promise
-    huntMarkChance: 0.5,
+    huntMarkChance: 0.25,
     // Nat: the average werewolf goes feral. Chance per real minute that the beast takes them unprepared, from sated
     // (hunger 0) to starving (hunger 100), multiplied at night and more under a full moon. Only a pack's Alpha is spared
     feralPerMinute: { sated: 0.005, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
@@ -289,7 +290,7 @@ module.exports = (api) => {
     const s = stateOf(a); if (!s || !s.kind) return;
     if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, why);
     clearTells(a, s);
-    if (s.kind === 'vampire') { s.kind = null; syncVampSpells(a, s); s.kind = 'vampire'; setLookRace(a, false); dropCrown(a, why); }
+    if (s.kind === 'vampire') { s.kind = null; syncVampSpells(a, s); s.kind = 'vampire'; setLookRace(a, false); dropCrown(a, why); if (why !== 'became a vampire' && typeof globalThis.__dboBloodReset === 'function') globalThis.__dboBloodReset(a); }
     // Hircine blessing a werewolf runs becomeWerewolf on one: the curse goes on, so the Hunt's renown stays (GH-4)
     if (s.kind === 'werewolf') { removeSpell(a, BEAST_POWER); if (why !== 'became a werewolf' && typeof globalThis.__dboHuntReset === 'function') globalThis.__dboHuntReset(a); }
     audit(`SUPERNATURAL ${who(a)} is no longer a ${s.kind} (${why})`);
@@ -580,6 +581,7 @@ module.exports = (api) => {
       if (needsFeed) try { needsFeed(a); } catch (e) { /* hunger off */ }
       if (!onCorpse) { const p = health(t); if (p) setHealth(t, Math.max(0.1, p.health - 0.25)); personal(t, `${nameOf(a)} drinks from you. You feel weak.`); if (Math.random() < C.infectFeed) infect(t, 'vampire', a); }
       personal(a, 'You drink deep. The thirst recedes.');
+      if (typeof globalThis.__dboBloodFed === 'function') { try { globalThis.__dboBloodFed(a, t, onCorpse, killedBy.get(t) || 0); } catch (e) { log('supernatural: blood rank feed failed', e.message); } }
       return true;
     }
     if (s.kind === 'werewolf' || beastForm(a) === 'werewolf') {
@@ -665,6 +667,8 @@ module.exports = (api) => {
   globalThis.__dboSuperLeave = (a) => { forfeit(a); };
   globalThis.__dboSuperForfeitIfDead = forfeit;
 
+  // A vampire's rank (bloodranks.js) slows thirst and softens the sun; 1 when it is not loaded
+  const bloodRate = (a, hook) => { try { const m = typeof globalThis[hook] === 'function' ? Number(globalThis[hook](a)) : 1; return Number.isFinite(m) && m >= 0 ? m : 1; } catch (e) { return 1; } };
   // ---- ticks: incubation, stages, sun, full moon ------------------------------------------------------------
   every('superSlow', 15000, () => {
     const day = gameDays();
@@ -677,7 +681,8 @@ module.exports = (api) => {
         continue;
       }
       if (s.kind === 'vampire') {
-        const stage = Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day))));
+        // An older vampire's thirst climbs its stages more slowly (bloodranks.js)
+        const stage = Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day)) * bloodRate(a, '__dboBloodThirstRate')));
         if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
         else if (!Array.isArray(s.spells) || !s.spells.length) syncVampSpells(a, s);
       }
@@ -692,7 +697,7 @@ module.exports = (api) => {
       const shade = kind === 0 ? 1 : kind === 1 ? 0.5 : 0.25;
       const p = health(a); if (!p || p.health <= C.sunFloor) continue;
       const cover = coverOf(a);
-      setHealth(a, Math.max(C.sunFloor, p.health - C.sunPerStage * Math.max(1, s.stage) * shade * (s.pure ? 0.5 : 1) * (1 - C.sunCoverMax * cover)));
+      setHealth(a, Math.max(C.sunFloor, p.health - C.sunPerStage * Math.max(1, s.stage) * shade * (s.pure ? 0.5 : 1) * (1 - C.sunCoverMax * cover) * bloodRate(a, '__dboBloodSunMult')));
       const last = sunWarned.get(a) || 0;
       if (Date.now() - last > 120000) { sunWarned.set(a, Date.now()); personal(a, cover >= 0.99 ? 'The sun presses on you, but your wrappings hold it off.' : cover > 0 ? 'The sun finds your bare skin and burns it.' : 'The sun burns your skin. Cover your face, body, hands and feet to lessen it.'); }
     }

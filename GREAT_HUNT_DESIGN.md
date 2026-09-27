@@ -44,6 +44,34 @@ real day, and never a partymate or another character of the werewolf's own accou
 **Howls are heard across the land:** when a werewolf howls (Howl of Terror today), everyone else online reads "A howl echoes
 through <region>", at most once a minute per werewolf.
 
+## The vampire side: ranks of the blood (Nate, 2026-09-27; `bloodranks.js`)
+
+Vampires are expected to outnumber werewolves, so their ranks mirror the Hunt at a weaker strength, and werewolf is
+harder to come by: a werewolf's bite passes it on at 2% (was 5%), and surviving Hircine's rite marks at 25% (was 50%)
+(`gamemode-config.json` `supernatural`).
+
+**Blood** (`private.bloodRanks`; a cure resets it, becoming a pure-blood keeps it), from feeding on people only:
+
+| Fed on | Blood |
+|---|---|
+| A fresh humanoid corpse | 5 |
+| A restrained living player (X menu) | 20 |
+| A player this vampire slew | 30 |
+
+The same farming rules as the Hunt for players: once per victim account per real day, never a partymate or another
+character of the vampire's own account; a slain player only if this vampire dealt the blow. Companions give nothing.
+
+| Rank | Blood | Hits at night | Sun burns | Thirst climbs |
+|---|---|---|---|---|
+| Fledgling | 0 | x1 | x1 | x1 |
+| Vampire | 100 | x1.02 | x0.9 | x0.9 |
+| Nightstalker | 300 | x1.04 | x0.8 | x0.8 |
+| Mistwalker | 700 | x1.07 | x0.7 | x0.7 |
+| Master Vampire | 1500 | x1.1 | x0.6 | x0.6 |
+
+By day a vampire's hits get no bonus (a werewolf's Elder gets x1.2 dealt and x0.8 taken in beast form). "Vampire Lord"
+stays the Blood Crown's alone. `/blood` shows the rank. All in config `bloodRanks`.
+
 ## Stage 2 (needs a client package)
 
 - New howls by rank: Howl of Rage (speed and regeneration; the speed half needs the client, since it can only slow players
