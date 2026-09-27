@@ -158,7 +158,8 @@ function versionConsts(text) {
 function isTrustedVerdict(r) {
   if (!r || r.trusted !== true || r.loginUid !== 0 || r.realUser !== 'root' || !REVIEWERS.has(r.by)) return false
   if (r.verdict !== 'GO' && r.verdict !== 'NO-GO') return false
-  if (r.repo === 'fork' || r.repo === 'server') return SHA_RE.test(r.tip) && (r.base == null || SHA_RE.test(r.base))
+  // A line without a base would cover every ancestor of its tip
+  if (r.repo === 'fork' || r.repo === 'server') return SHA_RE.test(r.tip) && SHA_RE.test(r.base)
   if (r.repo === 'client') return VERSION_RE.test(r.tip)
   if (r.repo === 'item') return ITEM_ID_RE.test(r.tip)
   return false

@@ -519,6 +519,17 @@ test('reviews: only trusted lines by claude-jake or jake count', async () => {
   })
 })
 
+test('reviews: a fork or server line without a 40-hex base is not trusted', async () => {
+  const noBase = [go(S.M2, null), { ...go(S.M2), base: undefined }, go(S.M2, short(S.LIVE)), go(S.M2, 'main'), go(S.S3, null, { repo: 'server' })]
+  await withQueue({ reviews: noBase }, async q => {
+    const qv = await q.queue()
+    assert.equal(qv.counts.reviewed, 0)
+    assert.deepEqual(qv.default, { fork: S.LIVE, server: S.S0, client: null, items: [], needsAck: false })
+    assert.equal(row(qv, S.A).review.state, 'none')
+  })
+  await withQueue({ reviews: [...noBase, go(S.M2, S.LIVE)] }, async q => assert.equal((await q.queue()).default.fork, S.M2))
+})
+
 test('targets: the default stops at the first unreviewed commit', async () => {
   await withQueue({ reviews: [go(S.B)] }, async q => {
     const qv = await q.queue()
