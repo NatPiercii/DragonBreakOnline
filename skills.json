@@ -500,7 +500,7 @@
    "description": "Only a Tailor may use the tailor's bench. All clothing and medium armor is made here; tiers decide what you can cut and sew.",
    "vanillaSkills": [],
    "gates": {
-    "hint": "a loom (NOTE: no loom stands anywhere in Bruma - see server\\station-placements.json)",
+    "hint": "a loom",
     "stations": [
      "MCE_CraftingLoom",
      "MCE_Loom",
