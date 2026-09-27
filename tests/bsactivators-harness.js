@@ -22,7 +22,7 @@ const props = new Map();
 const mp = {
   get: (id, p) => (p === 'baseDesc' ? bases[id] : props.get(id + '|' + p)),
   set: (id, p, v) => props.set(id + '|' + p, v),
-  getIdFromDesc: (d) => (d === '601924:BSAssets.esm' ? WISP_ITEM : 0),
+  getIdFromDesc: (d) => (d === '601924:BSAssets.esm' ? WISP_ITEM : d === '61b66:BSHeartland.esm' ? 0x02061b66 : 0),
 };
 const said = []; const audits = []; const given = []; const events = [];
 const personal = (a, t) => said.push({ a, t });
@@ -34,8 +34,9 @@ let day = 10.5;
 globalThis.__dboClock = { gameDays: () => day };
 globalThis.__alduinakMasteryEvent = (kind, a, d) => events.push({ kind, a, d });
 delete globalThis.__dboWispRest; delete globalThis.__dboWellSpent;
-new Function('mp', 'personal', 'log', 'audit', 'who', 'cfg', 'giveItem', 'harvestingTier', 'HARVESTING', src.slice(start, end))(
-  mp, personal, () => {}, (t) => audits.push(t), (a) => `P${a.toString(16)}`, {}, giveItem, harvestingTier, HARVESTING);
+const packets = [];
+new Function('mp', 'personal', 'log', 'audit', 'who', 'cfg', 'giveItem', 'harvestingTier', 'HARVESTING', 'sendPacket', src.slice(start, end))(
+  mp, personal, () => {}, (t) => audits.push(t), (a) => `P${a.toString(16)}`, {}, giveItem, harvestingTier, HARVESTING, (a, p) => packets.push({ a, p }));
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
@@ -58,10 +59,12 @@ check('and past that chance it crumbles, and still rests', globalThis.__dboWispS
 mp.set(ME, 'percentages', { health: 0.8, magicka: 0.1, stamina: 0.5 });
 check('an Ayleid well restores magicka and keeps health and stamina', globalThis.__dboAyleidWell(WELL, ME) === true && JSON.stringify(mp.get(ME, 'percentages')) === JSON.stringify({ health: 0.8, magicka: 1, stamina: 0.5 }));
 check('it is audited', /^WELL Pff000014 drew on the Ayleid well 20d6a3a/.test(audits[0] || ''));
+check('and the player\'s client is asked to cast Boon of the Ayleids on them', packets.length === 1 && packets[0].a === ME && packets[0].p.customPacketType === 'dboCastSelf' && packets[0].p.spell === 0x02061b66);
 mp.set(NOVICE, 'percentages', { health: 1, magicka: 0, stamina: 1 });
 now += 2000; // one message per player every 1.5 s
 check('then it is spent for everyone until midnight', globalThis.__dboAyleidWell(WELL, NOVICE) === true && mp.get(NOVICE, 'percentages').magicka === 0 && /At midnight/.test(last()));
 day = 10.99;
+check('a spent well asks for no cast', packets.length === 1);
 check('still spent before midnight', globalThis.__dboAyleidWell(WELL, NOVICE) === true && mp.get(NOVICE, 'percentages').magicka === 0);
 day = 11.01;
 check('after the world clock passes midnight it gives again', globalThis.__dboAyleidWell(WELL, NOVICE) === true && mp.get(NOVICE, 'percentages').magicka === 1);

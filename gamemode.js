@@ -2195,8 +2195,8 @@ globalThis.__dboWispStalk = (targetId, casterId) => {
 };
 
 // An Ayleid well casts Boon of the Ayleids (CYRAyleidWellSpell: Fortify Magicka 50 for 300 s, Restore Magicka 400) and
-// is then spent until the next midnight of the world clock, for everyone. The server can restore magicka; the Fortify
-// half needs a client that casts a spell on its own player, which comes with a later client package.
+// is then spent until the next midnight of the world clock, for everyone. The server restores the magicka itself, and
+// the player's client (0.3.52 and later) casts the spell on its own player for the Fortify half (dboCastSelf).
 const WELLS = Object.assign({ enabled: true }, cfg.ayleidWells || {});
 const WELL_BASE = '61b5b:bsheartland.esm';
 const wellSpent = globalThis.__dboWellSpent = globalThis.__dboWellSpent || new Map(); // refId -> game day it refills
@@ -2210,6 +2210,7 @@ globalThis.__dboAyleidWell = (targetId, casterId) => {
     mp.set(casterId, 'percentages', { health: pc.health, magicka: 1, stamina: pc.stamina });
   } catch (e) { log('ayleid well: restore failed', e.message); return true; }
   wellSpent.set(targetId, Math.floor(day) + 1);
+  try { sendPacket(casterId, { customPacketType: 'dboCastSelf', spell: mp.getIdFromDesc('61b66:BSHeartland.esm') >>> 0, text: 'Boon of the Ayleids added' }); } catch (e) { log('ayleid well: cast failed', e.message); }
   personal(casterId, 'Starlight pours from the Ayleid well into you. Your magicka is restored.');
   audit(`WELL ${who(casterId)} drew on the Ayleid well ${targetId.toString(16)}`);
   return true;
