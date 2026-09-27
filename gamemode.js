@@ -351,7 +351,7 @@ const registerChatCommand = (name, fn, opts) => commands.set(name.toLowerCase(),
 const HELP_GROUPS = [
   { key: 'people', title: 'Chat and people', names: ['players', 'whoami', 'pigeonblock', 'sign', 'ledger'] },
   { key: 'character', title: 'Your character', names: ['level', 'spells', 'forget', 'teach', 'tomes', 'hunger', 'rest', 'reroll', 'tokens'] },
-  { key: 'faith', title: 'Faith and the unseen', names: ['deity', 'pray', 'offer', 'rite', 'beast', 'forms'] },
+  { key: 'faith', title: 'Faith and the unseen', names: ['deity', 'pray', 'offer', 'rite', 'beast', 'forms', 'hunt'] },
   { key: 'work', title: 'Work and the world', names: ['board', 'contracts', 'contract', 'commissions', 'commission', 'wildlife', 'champions', 'time', 'whereami', 'playtest'] },
   { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'property', 'properties', 'ledgerpoint'] },
   { key: 'groups', title: 'Groups and dungeons', names: ['party', 'leave', 'dungeon', 'faction'] },
@@ -3141,6 +3141,8 @@ const defenseDamageMult = (targetId) => {
   const boosted = heavy * m + light * (1 + (m - 1) * (Number(DEFENSE.lightShare) || 0));
   return kept(boosted) / kept(heavy + light);
 };
+// A werewolf in beast form hits harder and takes less by its rank in the Great Hunt (greathunt.js)
+const huntDamageMult = (agg, tgt) => { try { const m = typeof globalThis.__dboHuntDamageMult === 'function' ? Number(globalThis.__dboHuntDamageMult(agg, tgt)) : 1; return Number.isFinite(m) && m > 0 ? m : 1; } catch (e) { return 1; } };
 // Every player-on-player hit, after skills and armor; config "pvp": { "damageMult" }
 const PVP = Object.assign({ damageMult: 1 }, cfg.pvp || {});
 // A vampire burns under fire and a werewolf under silver (supernatural.js): the extra comes off after the engine's hit
@@ -3259,7 +3261,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
-    let mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * pvp;
+    let mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * huntDamageMult(agg, tgt) * pvp;
     // Block chip and stamina, guard breaks, bash, stagger (combat.js); a bash's blow comes back scaled down
     if (combat) { try { mult *= combat.onAttempt(agg, tgt, src, dmg, flags, mult); } catch (e) { log('combat failed', e.message); } }
     if (mult !== 1 && dmg > 0) {
@@ -3604,6 +3606,13 @@ try {
   delete require.cache[BEASTFORM_JS];
   require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors, cfg, isAdmin });
 } catch (e) { log('beastform.js failed to load:', e.stack || e.message); for (const k of ['__dboBeastCast', '__dboBeastRevert', '__dboBeastOriginalRace', '__dboBeastTransform', '__dboBeastRequest', '__dboBeastAdmin', '__dboBeastHolds']) globalThis[k] = null; }
+
+// ---- the Great Hunt: werewolf ranks from feeding, hunting and changing (server\greathunt.js) ----------------------
+try {
+  const GREATHUNT_JS = path.resolve('greathunt.js');
+  delete require.cache[GREATHUNT_JS];
+  require(GREATHUNT_JS)({ mp, log, personal, audit, who, sendPacket, onlineActors, profileOf, registerChatCommand, zoneOfActor, zoneById, isWorldspace, cfg });
+} catch (e) { log('greathunt.js failed to load:', e.stack || e.message); for (const k of ['__dboHuntFed', '__dboHuntKill', '__dboHuntChanged', '__dboHuntBeastSeconds', '__dboHuntFeedSeconds', '__dboHuntChangesPerDay', '__dboHuntForcedMult', '__dboHuntDamageMult', '__dboHuntReset', '__dboHuntHowled']) globalThis[k] = null; }
 
 // ---- Patreon identity rerolls (serverpatrons.js, tiers in patron-tiers.json) --------------------------
 try {

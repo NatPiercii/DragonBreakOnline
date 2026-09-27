@@ -128,7 +128,10 @@ module.exports = (api) => {
     // supernatural.js decides who may change: the daily limit, the Blood Crown
     const refusal = typeof globalThis.__dboBeastAllow === 'function' ? globalThis.__dboBeastAllow(a, key, !!forced) : null;
     if (refusal) return refusal;
-    mp.set(a, 'private.beast', { form: key, original, at: Date.now(), until: f.seconds ? Date.now() + f.seconds * 1000 : 0 });
+    // The Great Hunt (greathunt.js) lengthens a werewolf's change by rank
+    const hunt = key === 'werewolf' && typeof globalThis.__dboHuntBeastSeconds === 'function' ? Number(globalThis.__dboHuntBeastSeconds(a)) : 0;
+    const seconds = Number.isFinite(hunt) && hunt > 0 ? hunt : f.seconds;
+    mp.set(a, 'private.beast', { form: key, original, at: Date.now(), until: seconds ? Date.now() + seconds * 1000 : 0 });
     // No server UnequipAll: it reached the client after the change and stripped the spells it had just equipped
     // (only the abPreventRemoval robes survived). The client unequips before it swaps race.
     const wear = WEAR[key] || [];
@@ -143,7 +146,7 @@ module.exports = (api) => {
     if (remoteRace && key === 'vampirelord') noteVlShown(a);
     learn(a, key, true);
     sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true, form: key, wear, abilities: packetAbilities(key) });
-    personal(a, key === 'werewolf' ? `The beast takes you for ${f.seconds} seconds.` : 'You take the form of a Vampire Lord. Press 9, then your Shout key, to revert.');
+    personal(a, key === 'werewolf' ? `The beast takes you for ${seconds} seconds.` : 'You take the form of a Vampire Lord. Press 9, then your Shout key, to revert.');
     for (const line of legend(key)) personal(a, line);
     audit(`BEAST ${who(a)} took ${f.name}`);
     witness(a, key === 'werewolf' ? 'twist into a beast' : 'rise into a Vampire Lord');
@@ -259,6 +262,8 @@ module.exports = (api) => {
     }
     ST.cooldown.set(key, now + pw.cooldown * 1000);
     pw.run(a, spellId);
+    // A howl is heard across the land (greathunt.js)
+    if (pw.form === 'werewolf' && /^Howl/.test(pw.name) && typeof globalThis.__dboHuntHowled === 'function') { try { globalThis.__dboHuntHowled(a, pw.name); } catch (e) { log('beastform: howl broadcast failed', e.message); } }
   };
   // gamemode's hit hook refuses every hit on a player in Mist Form or bats
   globalThis.__dboBeastEthereal = (t) => (ST.ethereal.get(Number(t) >>> 0) || 0) > Date.now();

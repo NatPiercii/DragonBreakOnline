@@ -13,7 +13,9 @@
 //              The Blood Crown: one pure-blood holds the Vampire Lord power; a vampire who slays the holder takes it.
 //   Werewolves beast form once per game day (beastform.js runs it); under a full moon at night, outdoors, each game hour
 //              has a 1 in 10 chance of a forced change unless Hircine blessed them; feeding in beast form adds 30 s;
-//              silver hurts. The leader of a pack (guild-defs kind "pack") runs with the pale spirit coat.
+//              silver hurts. The leader of a pack (guild-defs kind "pack") runs with the pale spirit coat. The Great
+//              Hunt (greathunt.js) sets these numbers by rank when it is loaded, and a werewolf in beast form feeds on
+//              any fresh corpse, beast or person.
 //   Cures      a filled black soul gem at a shrine of Arkay or Stendarr (/rite); each curse also ends the other.
 // State: private.supernatural on the character; the Blood Crown in supernatural.json (runtime, gitignored).
 'use strict';
@@ -288,7 +290,7 @@ module.exports = (api) => {
     if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, why);
     clearTells(a, s);
     if (s.kind === 'vampire') { s.kind = null; syncVampSpells(a, s); s.kind = 'vampire'; setLookRace(a, false); dropCrown(a, why); }
-    if (s.kind === 'werewolf') removeSpell(a, BEAST_POWER);
+    if (s.kind === 'werewolf') { removeSpell(a, BEAST_POWER); if (typeof globalThis.__dboHuntReset === 'function') globalThis.__dboHuntReset(a); }
     audit(`SUPERNATURAL ${who(a)} is no longer a ${s.kind} (${why})`);
     Object.assign(s, { kind: null, stage: 0, pure: false, blessed: false });
     saveState(a, s);
@@ -551,9 +553,12 @@ module.exports = (api) => {
   globalThis.__dboSuperEat = (a, baseId) => { if (isCurePotion(baseId)) cureDisease(a, 'a Cure Disease potion'); };
   globalThis.__dboSuperPrayed = (a, deityId) => { if (!['molagbal', 'hircine', 'boethiah', 'namira', 'vaermina', 'sanguine', 'peryite', 'mehrunesdagon', 'mephala', 'clavicusvile', 'hermaeusmora', 'nocturnal', 'sheogorath', 'meridia', 'azura', 'malacath'].includes(deityId)) cureDisease(a, 'a prayer'); };
   const deathAt = globalThis.__dboSuperDeaths || (globalThis.__dboSuperDeaths = new Map()); // actorId -> ms
+  const killedBy = globalThis.__dboSuperKilledBy || (globalThis.__dboSuperKilledBy = new Map()); // actorId -> killer
   globalThis.__dboSuperDeath = (victim, killer) => {
     deathAt.set(victim, Date.now());
-    if (deathAt.size > 2048) for (const [k, t] of deathAt) if (Date.now() - t > 3600000) deathAt.delete(k);
+    killedBy.set(victim, killer ? killer >>> 0 : 0);
+    if (deathAt.size > 2048) for (const [k, t] of deathAt) if (Date.now() - t > 3600000) { deathAt.delete(k); killedBy.delete(k); }
+    if (killer && typeof globalThis.__dboHuntKill === 'function') { try { globalThis.__dboHuntKill(killer >>> 0, victim >>> 0); } catch (e) { log('supernatural: hunt kill failed', e.message); } }
     if (!isPlayer(victim)) return;
     if (crownHolder() === victim && killer && isPlayer(killer) && kindOf(killer) === 'vampire') {
       const ks = stateOf(killer); ks.pure = true; saveState(killer, ks);
@@ -576,9 +581,11 @@ module.exports = (api) => {
     }
     if (s.kind === 'werewolf' || beastForm(a) === 'werewolf') {
       if (beastForm(a) !== 'werewolf' || !onCorpse) return false;
-      const b = mp.get(a, 'private.beast'); if (b && b.until) { b.until += C.beastFeedSeconds * 1000; mp.set(a, 'private.beast', b); }
+      const secs = typeof globalThis.__dboHuntFeedSeconds === 'function' ? Number(globalThis.__dboHuntFeedSeconds(a)) || C.beastFeedSeconds : C.beastFeedSeconds;
+      const b = mp.get(a, 'private.beast'); if (b && b.until) { b.until += secs * 1000; mp.set(a, 'private.beast', b); }
       const p = health(a); if (p) setHealth(a, p.health + 0.25);
-      personal(a, `You feed. The beast holds you ${C.beastFeedSeconds} seconds longer.`);
+      personal(a, `You feed. The beast holds you ${secs} seconds longer.`);
+      if (typeof globalThis.__dboHuntFed === 'function') { try { globalThis.__dboHuntFed(a, t, killedBy.get(t) || 0, isHumanoid(t)); } catch (e) { log('supernatural: hunt feed failed', e.message); } }
       return true;
     }
     return false;
@@ -587,7 +594,7 @@ module.exports = (api) => {
     if (!isPlayer(a)) return false;
     const s = stateOf(a); if (!s || (!s.kind && beastForm(a) !== 'werewolf')) return false;
     let dead = false; try { dead = !!mp.get(t, 'isDead'); } catch (e) { return false; }
-    if (!dead || fedOn.has(t) || !isHumanoid(t)) return false;
+    if (!dead || fedOn.has(t) || (!isHumanoid(t) && !(beastForm(a) === 'werewolf' && typeof globalThis.__dboHuntFed === 'function'))) return false;
     const at = deathAt.get(t);
     if (!at || Date.now() - at > C.corpseFreshMinutes * 60000) return false;
     if (!feed(a, t, true)) return false;
@@ -623,7 +630,8 @@ module.exports = (api) => {
       if (now !== null) {
         const day = Math.floor(now);
         const used = s.beastDay === day ? (Number(s.beastDayUses) || 0) : 0;
-        if (used >= C.beastChangesPerDay) {
+        const perDay = typeof globalThis.__dboHuntChangesPerDay === 'function' ? Number(globalThis.__dboHuntChangesPerDay(a)) || C.beastChangesPerDay : C.beastChangesPerDay;
+        if (used >= perDay) {
           let scale = 6; try { scale = Number(clock.summary().timeScale) || 6; } catch (e) { /* default */ }
           const mins = Math.max(1, Math.ceil((1 - (now - day)) * 1440 / scale));
           const spent = `The beast within is spent for today. It stirs again when the day turns, about ${mins} minute${mins === 1 ? '' : 's'} from now.`;
@@ -638,6 +646,7 @@ module.exports = (api) => {
   };
   // Pack leaders run with the pale spirit coat; every client in the world is told
   globalThis.__dboBeastChanged = (a, key, on) => {
+    if (key === 'werewolf' && on && typeof globalThis.__dboHuntChanged === 'function') { try { globalThis.__dboHuntChanged(a); } catch (e) { log('supernatural: hunt change failed', e.message); } }
     if (key !== 'werewolf' || typeof globalThis.__dboGuildIsPackLeader !== 'function' || !globalThis.__dboGuildIsPackLeader(a)) return;
     for (const o of onlineActors()) sendPacket(o, { customPacketType: 'dboPale', actor: a >>> 0, shader: PALE_SHADER, on: !!on });
   };
@@ -686,6 +695,8 @@ module.exports = (api) => {
     }
   });
   const sunWarned = new Map();
+  // A higher rank of the Great Hunt holds the beast back better
+  const forcedMult = (a) => { try { const m = typeof globalThis.__dboHuntForcedMult === 'function' ? Number(globalThis.__dboHuntForcedMult(a)) : 1; return Number.isFinite(m) && m >= 0 ? m : 1; } catch (e) { return 1; } };
   let lastHour = -1;
   every('superMoon', 5000, () => {
     const c = clock(); if (!c) return;
@@ -693,7 +704,7 @@ module.exports = (api) => {
     if (!c.isNight() || !c.isFullMoon()) return;
     for (const a of onlineActors()) {
       const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || !isOutdoors(a)) continue;
-      if (Math.random() >= C.forcedChangeChance) continue;
+      if (Math.random() >= C.forcedChangeChance * forcedMult(a)) continue;
       personal(a, 'The full moon calls, and the beast answers without you.');
       if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
     }
@@ -708,6 +719,7 @@ module.exports = (api) => {
       const hunger = typeof hungerOf === 'function' ? Math.max(0, Math.min(100, Number(hungerOf(a)) || 0)) : 50;
       let p = C.feralPerMinute.sated + (C.feralPerMinute.starving - C.feralPerMinute.sated) * hunger / 100;
       if (c && c.isNight()) p *= c.isFullMoon() ? C.feralFullMoonMult : C.feralNightMult;
+      p *= forcedMult(a);
       if (Math.random() >= p) continue;
       personal(a, hunger >= 60 ? 'Hunger claws its way up your throat, and the beast tears free.' : 'Something wakes in your blood, and the beast takes you without asking.');
       quietNear(a, `${nameOf(a)} doubles over, and something tears its way out of them.`, 3000);
