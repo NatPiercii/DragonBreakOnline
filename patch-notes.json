@@ -1,5 +1,39 @@
 [
   {
+    "title": "Moving Straight Away, Aleswell, and Meals That Take Time",
+    "date": "2026-09-27",
+    "version": "Client 0.3.55",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "After you load in, the game now reconnects your keyboard by itself if it isn't receiving your key presses, so you shouldn't have to alt-tab before you can move."
+        ]
+      },
+      {
+        "heading": "The world",
+        "items": [
+          "The border south of Bruma now takes in Aleswell, Fort Caractacus and the Ayleid well east of them, so you can walk there."
+        ]
+      },
+      {
+        "heading": "Eating and drinking",
+        "items": [
+          "Eating takes about 5 seconds and drinking about 7, with the time shown on screen. Your hunger goes down when you finish.",
+          "You can walk while you eat, at half speed. Sprinting, attacking or drawing a weapon stops the meal, and the rest goes to waste. If your weapon was already out, only an attack stops it.",
+          "Eating more during a meal makes it last longer."
+        ]
+      },
+      {
+        "heading": "Updating",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Expeditions from Bruma",
     "date": "2026-09-27",
     "version": "Server",
