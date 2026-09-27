@@ -3,13 +3,13 @@
 
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
-const { execFile, execFileSync } = require('child_process')
+const { execFileSync } = require('child_process')
 const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync } = require('../sources/releaseQueue')
-const { gitPrefix, gitSub } = require('./helpers/panelFixture')
+const { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, gitCommand, priorityPrefix, runFile } = require('../sources/releaseQueue')
+const { gitPrefix, gitSub, gitLine } = require('./helpers/panelFixture')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 const short = s => s.slice(0, 8)
@@ -32,8 +32,8 @@ function fixtureEnv() {
     GIT_COMMITTER_EMAIL: 'nate@example.com', GIT_AUTHOR_DATE: `${tick} +0000`, GIT_COMMITTER_DATE: `${tick} +0000`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
   }
 }
-const realRun = (file, args, opts) => new Promise((resolve, reject) =>
-  execFile(file, args, opts, (err, stdout) => (err ? reject(Object.assign(err, { stdout })) : resolve({ stdout }))))
+// The module's own runner, so stdin input (patch-id) reaches git
+const realRun = runFile
 const g = (...args) => execFileSync('git', ['-C', repo, ...args], { env: fixtureEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 
 function write(dir, files) {
@@ -227,8 +227,7 @@ test('wrapper: the synchronous form keeps the same guard and refuses merge-tree'
   assert.equal(calls.length, 0)
   assert.equal(gitSync(repo, ['rev-parse', '--verify', '--end-of-options', 'HEAD'], { runSync }), 'ok\n')
   const [[file, args, opts]] = calls
-  assert.equal(file, 'git')
-  assert.deepEqual(args, [...gitPrefix(repo), 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
+  assert.deepEqual([file, ...args], gitLine(repo, 'rev-parse', '--verify', '--end-of-options', 'HEAD'))
   assert.deepEqual([opts.timeout, opts.maxBuffer, opts.env.GIT_OPTIONAL_LOCKS, opts.env.GIT_TERMINAL_PROMPT], [5000, 2 * 1024 * 1024, '0', '0'])
 })
 
@@ -240,8 +239,7 @@ test('wrapper: fixed argv, a minimal env with no backend secret, 5 s timeout and
     assert.equal((await q.git(['rev-parse', '--end-of-options', 'HEAD'])).stdout, 'ok\n')
   } finally { for (const k of ['GIT_DIR', 'DISCORD_BOT_TOKEN', 'GIT_CONFIG_PARAMETERS']) delete process.env[k] }
   const [{ file, args, opts }] = calls
-  assert.equal(file, 'git')
-  assert.deepEqual(args, [...gitPrefix(repo), 'rev-parse', '--end-of-options', 'HEAD'])
+  assert.deepEqual([file, ...args], gitLine(repo, 'rev-parse', '--end-of-options', 'HEAD'))
   assert.deepEqual(opts.env, { PATH: process.env.PATH, LANG: 'C', HOME: '/nonexistent', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' })
   assert.equal(opts.timeout, 5000)
   assert.equal(opts.maxBuffer, 2 * 1024 * 1024)
@@ -782,6 +780,97 @@ test('reviews: ranges resolve four at a time, an unknown tip waits for the next 
   const killed = Object.assign(new Error('killed'), { killed: true, code: null })
   const { q: slow } = newQueue({ reviews: [go(S.B)], run: (file, args, opts) => (args.includes('1000') ? Promise.reject(killed) : realRun(file, args, opts)) })
   try { await assert.rejects(slow.queue(), { code: 'unavailable', timedOut: true }) } finally { slow.stop() }
+})
+
+const killedGit = () => Object.assign(new Error('killed'), { killed: true, code: null })
+const isoAt = ms => new Date(ms).toISOString()
+
+test('slow git: a merge check that times out counts as not clean for that build only', async () => {
+  let clock = Date.parse('2026-09-26T08:00:00Z'), slow = true, merges = 0
+  const run = (file, args, opts) => {
+    if (gitSub(args) !== 'merge-tree') return realRun(file, args, opts)
+    merges++
+    return slow ? Promise.reject(killedGit()) : realRun(file, args, opts)
+  }
+  const { q } = newQueue({ reviews: [go(S.B), go(S.F2, S.A)], run, now: () => clock })
+  try {
+    const qv = await q.queue()
+    assert.equal(qv.default.fork, S.B)
+    assert.deepEqual(qv.stops.fork, { short: short(S.M1), kind: 'merge', reason: 'notReviewed' })
+    assert.equal(q.lastFailure(), null)
+    slow = false
+    clock += 31e3
+    assert.equal((await q.queue()).default.fork, S.M1)
+    assert.equal(merges, 2)
+  } finally { q.stop() }
+})
+
+test('slow git: a failed build backs off 1 min, doubling up to 15, while the last queue answers', async () => {
+  let clock = Date.parse('2026-09-26T08:00:00Z'), broken = false, calls = 0
+  const run = (file, args, opts) => { calls++; return broken ? Promise.reject(killedGit()) : realRun(file, args, opts) }
+  const { q } = newQueue({ run, now: () => clock })
+  try {
+    const good = await q.queue()
+    broken = true
+    clock += 31e3
+    await assert.rejects(q.queue(), { code: 'unavailable', timedOut: true })
+    assert.deepEqual(q.lastFailure(), { code: 'timeout', at: isoAt(clock), retryAt: isoAt(clock + 60e3) })
+    const before = calls
+    clock += 59e3
+    assert.equal(await q.queue(), good)
+    assert.equal(q.peek(), good)
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(calls, before, 'no git runs while backing off')
+    const waits = []
+    for (let i = 0; i < 6; i++) {
+      clock = Date.parse(q.lastFailure().retryAt)
+      await assert.rejects(q.queue(), { code: 'unavailable' })
+      waits.push(Date.parse(q.lastFailure().retryAt) - clock)
+    }
+    assert.deepEqual(waits, [120e3, 240e3, 480e3, 900e3, 900e3, 900e3])
+    broken = false
+    clock = Date.parse(q.lastFailure().retryAt)
+    assert.equal((await q.queue()).hash, good.hash)
+    assert.equal(q.lastFailure(), null)
+    broken = true
+    clock += 31e3
+    await assert.rejects(q.queue())
+    assert.equal(Date.parse(q.lastFailure().retryAt) - clock, 60e3, 'a success resets the wait')
+  } finally { q.stop() }
+})
+
+test('slow git: a queue build has an overall deadline, and no git call starts after it', async () => {
+  const started = [], timeouts = []
+  const run = async (file, args, opts) => {
+    started.push(gitSub(args))
+    timeouts.push(opts.timeout)
+    await new Promise(resolve => setTimeout(resolve, 25))
+    return realRun(file, args, opts)
+  }
+  const { q } = newQueue({ run, deadlineMs: 150 })
+  try {
+    await assert.rejects(q.queue(), { code: 'unavailable', timedOut: true })
+    assert.equal(q.lastFailure().code, 'timeout')
+    const n = started.length
+    await new Promise(resolve => setTimeout(resolve, 300))
+    assert.equal(started.length, n)
+    assert.ok(timeouts.every(t => t > 0 && t <= 150), timeouts.join(','))
+    assert.equal((await q.git(['rev-parse', '--verify', '--end-of-options', 'HEAD'])).stdout.trim(), S.LIVE, 'a call outside a build keeps the 5 s limit')
+    assert.equal(timeouts.at(-1), 5000)
+  } finally { q.stop() }
+})
+
+test('wrapper: git runs under nice and ionice where they are on PATH, and alone where they are not', async () => {
+  const on = (...names) => file => names.some(n => file === `/usr/bin/${n}`)
+  const both = ['nice', '-n', '10', 'ionice', '-c3', '-t']
+  assert.deepEqual(priorityPrefix('/usr/local/bin:/usr/bin', on('nice', 'ionice')), both)
+  assert.deepEqual(priorityPrefix('/usr/bin', on('nice')), ['nice', '-n', '10'])
+  assert.deepEqual(priorityPrefix('/usr/bin', on('ionice')), ['ionice', '-c3', '-t'])
+  assert.deepEqual(priorityPrefix('/usr/bin', on()), [])
+  assert.deepEqual(priorityPrefix('', on('nice', 'ionice')), [])
+  assert.deepEqual(gitCommand('/r', ['status'], []), ['git', [...gitPrefix('/r'), 'status']])
+  assert.deepEqual(gitCommand('/r', ['status'], both), ['nice', [...both.slice(1), 'git', ...gitPrefix('/r'), 'status']])
+  await withQueue({}, async q => assert.equal((await q.git(['rev-parse', '--verify', '--end-of-options', 'HEAD'])).stdout.trim(), S.LIVE))
 })
 
 test('targets: a hidden docs commit between reviewed rows is named as the stop', async () => {

@@ -1,11 +1,12 @@
 'use strict'
 // A small release repo, control folder, ledger claims and updater markers for the Server panel tests, all under one mkdtemp folder
 
-const { execFile, execFileSync } = require('child_process')
+const { execFileSync } = require('child_process')
 const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { priorityPrefix, runFile } = require('../../sources/releaseQueue')
 
 const SECRET_RE = /^(?:server-settings.*\.json|backend\.env|\.env.*|sessions\.json|site-sessions\.json|auth-states\.json)$/
 const PURPOSE = 'restart for the combat fix, do not share'
@@ -21,6 +22,8 @@ const PATH_RE = /\/(?:opt|var|etc|home)\//
 // The argv every guarded git call starts with, and the subcommand after it
 const gitPrefix = repo => ['-C', repo, '-c', `safe.directory=${repo}`, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '--no-replace-objects']
 const gitSub = args => args[args.indexOf('--no-replace-objects') + 1]
+// A guarded call's whole command line, under nice and ionice where this box has them
+const gitLine = (repo, ...args) => [...priorityPrefix(), 'git', ...gitPrefix(repo), ...args]
 
 function write(dir, files) {
   for (const [f, content] of Object.entries(files)) {
@@ -30,8 +33,8 @@ function write(dir, files) {
   }
 }
 
-const realRun = (file, args, opts) => new Promise((resolve, reject) =>
-  execFile(file, args, opts, (err, stdout) => (err ? reject(Object.assign(err, { stdout })) : resolve({ stdout }))))
+// The module's own runner, so stdin input (patch-id) reaches git
+const realRun = runFile
 
 // systemctl show output for skymp then skymp-update.service, in systemd's own key order
 function showOutput(skymp = {}, updater = {}) {
@@ -134,4 +137,4 @@ function createPanelFixture(prefix = 'dbo-panel-') {
   return { root, repo, S, config, markers, cleanup: () => fs.rmSync(root, { recursive: true, force: true }) }
 }
 
-module.exports = { createPanelFixture, showOutput, realRun, write, gitPrefix, gitSub, SECRET_RE, PURPOSE, PATH_RE }
+module.exports = { createPanelFixture, showOutput, realRun, write, gitPrefix, gitSub, gitLine, SECRET_RE, PURPOSE, PATH_RE }

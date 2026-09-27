@@ -2,6 +2,7 @@
 // Release queue for the Server panel: what is live, what waits on GitHub and what the next update would ship
 // Read only: every git call goes through one guarded wrapper, and no secret file is ever opened
 
+const { AsyncLocalStorage } = require('async_hooks')
 const childProcess = require('child_process')
 const crypto = require('crypto')
 const nodeFs = require('fs')
@@ -16,6 +17,10 @@ const GIT_REFUSED_RE = /^(?:--output(?:=.*)?|--no-index|--ext-diff|--textconv|--
 // A path outside the repo, which also turns a two-path diff into diff --no-index
 const OUTSIDE_RE = /^\/|(?:^|\/)\.\.(?:\/|$)/
 const GIT_TIMEOUT_MS = 5000
+// One queue build may take this long in all; after a failure the next waits 1 min, doubling up to 15
+const QUEUE_DEADLINE_MS = 20 * 1000
+const BACKOFF_FIRST_MS = 60 * 1000
+const BACKOFF_MAX_MS = 15 * 60 * 1000
 const GIT_MAX_BUFFER = 2 * 1024 * 1024
 // Values allowed after --end-of-options: shas, fixed refs, sha:path
 const REF_RE = /^\^?(?:[0-9a-f]{7,40}|HEAD|origin\/[\w./-]+|refs\/(?:heads|remotes|tags)\/[\w./*-]*)(?:\^\{(?:commit|tree)\}|:[\w./ -]+)?$/
@@ -232,13 +237,28 @@ function readErrors(tag) {
   }
 }
 
+const canExec = file => { try { nodeFs.accessSync(file, nodeFs.constants.X_OK); return true } catch { return false } }
+
+// nice and ionice, where they are on PATH, so git yields to the game and its build; -t runs git even if the class cannot be set
+function priorityPrefix(pathEnv = process.env.PATH, isExec = canExec) {
+  const has = name => String(pathEnv || '').split(':').some(dir => dir && isExec(path.join(dir, name)))
+  return [...(has('nice') ? ['nice', '-n', '10'] : []), ...(has('ionice') ? ['ionice', '-c3', '-t'] : [])]
+}
+const PRIORITY = priorityPrefix()
+
+// The file and argv of a guarded git call
+function gitCommand(repo, args, prefix = PRIORITY) {
+  const argv = gitArgv(repo, args)
+  return prefix.length ? [prefix[0], [...prefix.slice(1), 'git', ...argv]] : ['git', argv]
+}
+
 // The same guarded call, synchronously, for the one read the backend makes while it starts
 function gitSync(repo, args, { runSync = childProcess.execFileSync } = {}) {
   if (checkGitArgs(args) === 'merge-tree') throw refused('merge-tree')
-  return String(runSync('git', gitArgv(repo, args), { env: gitEnv(), timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, stdio: ['ignore', 'pipe', 'ignore'] }))
+  return String(runSync(...gitCommand(repo, args), { env: gitEnv(), timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, stdio: ['ignore', 'pipe', 'ignore'] }))
 }
 
-function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch = globalThis.fetch, config, services = async () => ({}) }) {
+function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch = globalThis.fetch, config, services = async () => ({}), deadlineMs = QUEUE_DEADLINE_MS }) {
   const fsp = fs.promises
   const repo = config.releaseRepo
   const control = config.controlDir
@@ -251,11 +271,16 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   const unknownAt = new Map()
   const unreadable = readErrors('release-queue')
   let fetchStamp = 0
+  // The running queue build's deadline, carried into every git call it starts, including ones still running after it failed
+  const buildScope = new AsyncLocalStorage()
 
   // ---- git ----
 
   async function git(args, { input, codes = [0] } = {}) {
     const sub = checkGitArgs(args)
+    const deadline = buildScope.getStore()?.deadline
+    const timeout = deadline == null ? GIT_TIMEOUT_MS : Math.min(GIT_TIMEOUT_MS, Math.floor(deadline - performance.now()))
+    if (timeout <= 0) throw Object.assign(new Error(`git ${sub} not started: the queue build ran out of time`), { code: 'unavailable', exitCode: null, timedOut: true })
     const env = gitEnv()
     let scratch = null
     if (sub === 'merge-tree') {
@@ -264,7 +289,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       env.GIT_OBJECT_DIRECTORY = scratch
     }
     try {
-      const { stdout } = await run('git', gitArgv(repo, args), { env, input, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER })
+      const { stdout } = await run(...gitCommand(repo, args), { env, input, timeout, maxBuffer: GIT_MAX_BUFFER })
       return { code: 0, stdout: String(stdout) }
     } catch (err) {
       if (Number.isInteger(err.code) && codes.includes(err.code)) return { code: err.code, stdout: String(err.stdout || '') }
@@ -676,12 +701,13 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return out
   }
 
+  // A merge check that times out counts as not clean for this build and is asked again next time
   const cleanMerge = c => remember(`merge:${c.sha}`, async () => {
     if (c.parents.length !== 2) return false
     const { code, stdout } = await git(['merge-tree', '--write-tree', '--end-of-options', ...c.parents], { codes: [0, 1] })
     if (code !== 0) return false
     return stdout.split('\n')[0].trim() === (await gitText('rev-parse', '--verify', '--end-of-options', `${c.sha}^{tree}`)).trim()
-  })
+  }).catch(err => { if (err.timedOut) return false; throw err })
 
   // Review state of each commit on one side (2.6): latest trusted verdict, clean merges, same change as a GO
   async function reviewCommits(side, commits, liveBase, lines) {
@@ -1048,21 +1074,26 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return canonical([mainSha, serverSha, stamps, await packStamps()])
   }
 
-  let cache = null, inflight = null, failure = null
+  let cache = null, inflight = null, failure = null, lastError = null, backoff = 0
 
+  // Single flight; after a failure no build starts until failure.retryAt, and the last queue (or the error) answers meanwhile
   function queue() {
-    if (!inflight) {
-      inflight = (async () => {
-        const key = await queueKey()
-        if (!cache || cache.key !== key || now() - cache.at >= QUEUE_TTL_MS) cache = { key, at: now(), ...(await buildQueue()) }
-        failure = null
-        wantWebsite()
-        return cache.value
-      })().catch(err => {
-        failure = { code: err.timedOut ? 'timeout' : 'unavailable', at: iso(now()) }
-        throw err
-      }).finally(() => { inflight = null })
-    }
+    if (inflight) return inflight
+    if (failure && now() < Date.parse(failure.retryAt)) return cache ? Promise.resolve(cache.value) : Promise.reject(lastError)
+    inflight = buildScope.run({ deadline: performance.now() + deadlineMs }, async () => {
+      const key = await queueKey()
+      if (!cache || cache.key !== key || now() - cache.at >= QUEUE_TTL_MS) cache = { key, at: now(), ...(await buildQueue()) }
+      failure = null
+      lastError = null
+      backoff = 0
+      wantWebsite()
+      return cache.value
+    }).catch(err => {
+      backoff = Math.min(backoff ? backoff * 2 : BACKOFF_FIRST_MS, BACKOFF_MAX_MS)
+      failure = { code: err.timedOut ? 'timeout' : 'unavailable', at: iso(now()), retryAt: iso(now() + backoff) }
+      lastError = err
+      throw err
+    }).finally(() => { inflight = null })
     return inflight
   }
 
@@ -1142,4 +1173,4 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   return { git, live, queue, peek, peekLive, lastFailure, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
 }
 
-module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, runFile, isSecretFile, readErrors, GIT_ALLOWED }
+module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, gitCommand, priorityPrefix, runFile, isSecretFile, readErrors, GIT_ALLOWED }

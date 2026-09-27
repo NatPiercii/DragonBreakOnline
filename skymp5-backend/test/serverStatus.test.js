@@ -8,7 +8,7 @@ const fs = require('fs')
 const path = require('path')
 const { createServerStatus, parseShow, SYSTEMCTL_ARGS } = require('../sources/serverStatus')
 const { parseUpdaterLog } = require('../sources/releaseQueue')
-const { createPanelFixture, showOutput, realRun, write, gitPrefix, SECRET_RE, PURPOSE, PATH_RE } = require('./helpers/panelFixture')
+const { createPanelFixture, showOutput, realRun, write, gitLine, SECRET_RE, PURPOSE, PATH_RE } = require('./helpers/panelFixture')
 
 const T = Date.parse('2026-09-26T08:00:00Z')
 const at = ms => `@${Math.floor(ms / 1000)}`
@@ -52,8 +52,7 @@ test('boot: HEAD is read once, synchronously, through the guarded git wrapper', 
   assert.equal(status.boot.sha, F.S.C)
   assert.equal(calls.length, 1)
   const [{ file, args, opts }] = calls
-  assert.equal(file, 'git')
-  assert.deepEqual(args, [...gitPrefix(F.repo), 'rev-parse', '--verify', '--end-of-options', 'HEAD'])
+  assert.deepEqual([file, ...args], gitLine(F.repo, 'rev-parse', '--verify', '--end-of-options', 'HEAD'))
   assert.equal(opts.timeout, 5000)
   assert.equal(opts.env.GIT_OPTIONAL_LOCKS, '0')
   assert.equal(createServerStatus({ config: { ...F.config, releaseRepo: path.join(F.root, 'none') }, queue: stubQueue() }).boot.sha, null)
@@ -131,8 +130,10 @@ test('a failing queue refresh shows as unavailable in the status until one succe
     assert.equal(failed.live, null)
     assert.deepEqual(Object.keys(failed.queue), ['unavailable'])
     assert.equal(failed.queue.unavailable.code, 'timeout')
+    assert.equal(failed.queue.unavailable.retryAt, new Date(T + 60e3).toISOString())
     broken = false
-    await status.queue.queue().catch(() => status.queue.queue())
+    clock += 60e3
+    await status.queue.queue()
     clock += 5e3
     const ok = await status.get()
     assert.equal(ok.queue.unavailable, null)
