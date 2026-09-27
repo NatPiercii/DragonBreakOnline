@@ -181,7 +181,7 @@ void PapyrusForm::Register(VirtualMachine& vm,
   AddMethod(vm, "GetWeight", &PapyrusForm::GetWeight);
 
   // Animation events and repeating updates never reach the server
-  AddStubMethod(vm, "RegisterForAnimationEvent", VarValue(false));
+  AddStubMethod(vm, "RegisterForAnimationEvent", VarValue::None());
   AddStubMethod(vm, "RegisterForUpdate", VarValue::None());
   compatibilityPolicy = policy;
 }

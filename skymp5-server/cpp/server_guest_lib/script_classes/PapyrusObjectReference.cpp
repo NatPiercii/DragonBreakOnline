@@ -1092,6 +1092,5 @@ void PapyrusObjectReference::Register(
   AddStubMethod(vm, "SetMotionType", VarValue::None());
   AddStubMethod(vm, "SetNoFavorAllowed", VarValue::None());
   AddStubMethod(vm, "SetDestroyed", VarValue::None());
-  AddStubMethod(vm, "GetCurrentDestructionStage",
-                VarValue(static_cast<int32_t>(0)));
+  AddStubMethod(vm, "GetCurrentDestructionStage", VarValue::None());
 }
