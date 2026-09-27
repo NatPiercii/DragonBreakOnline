@@ -430,6 +430,17 @@ function group(g) {
   return d;
 }
 
+// With no row listed, what git still counts is docs or merges, unless the gameplay queue is unknown
+function idleText(q, s) {
+  const c = q.counts.commits || {};
+  if (c.fork == null || c.server == null) return 'Waiting on GitHub: unknown (the gameplay queue cannot be worked out).';
+  const hidden = c.fork + c.server;
+  if (!hidden) return 'Nothing waits on GitHub.';
+  const what = q.docs.count >= hidden ? 'docs' : q.docs.count ? 'docs and merges' : 'merges';
+  const auto = c.fork > 0 && !['hold-s0', 'release'].includes(s.updater.mode);
+  return `Only ${what} wait (${hidden})${auto ? '; a push still restarts the game while auto-update is on' : ''}.`;
+}
+
 function renderQueue(s) {
   const box = $('srvQueue'); box.textContent = '';
   const q = srv.queue, fresh = freshQueue(s), failed = srv.queueFailed || !!s.queue?.unavailable;
@@ -443,9 +454,9 @@ function renderQueue(s) {
     q.flags.forEach(f => flags.append(chip(f)));
     head.append(flags);
     box.append(head);
-    if (!n.total) box.append(line('Nothing waits on GitHub.', 'dim'));
+    if (!n.total) box.append(line(idleText(q, s), 'dim'));
     q.groups.forEach(g => box.append(group(g)));
-    if (q.docs.count) box.append(line(`Docs (${q.docs.count}, hidden)`, 'dim'));
+    if (q.docs.count && n.total) box.append(line(`Docs (${q.docs.count}, hidden)`, 'dim'));
     // A docs commit or a merge has no row, so name it when it stops the default
     for (const [side, name] of [['fork', 'game server'], ['server', 'gameplay']]) {
       const st = q.stops?.[side];
