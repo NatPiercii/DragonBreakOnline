@@ -5,7 +5,8 @@
 
 Classes of event it knows:
   server   restarts, updater results, gamemode load failures, script errors, C++ errors (known noise counted only),
-           freezes (event loop p99 over 2 s twice, or no tick summary for 3 min while skymp.service is active)
+           freezes (event loop p99 over 2 s twice, or no tick summary for 3 min while skymp.service is active),
+           pressure (io or memory PSI 'full avg60' over 20, or container memory over 90%, twice, with the top cgroups)
   players  joins, leaves, and likely crashes (a player whose game went silent 45 s or more before the disconnect)
   npc      npcDrift split/sink/jump/remote/snap/bounce/error, npcGround under/over/lifted, hosts released,
            jumps refused, NPCs stuck in one spot, and players hosting many NPCs they no longer have loaded
@@ -38,7 +39,11 @@ FREEZE_P99_MS = 2000          # event loop p99 above this in 2 tick summaries in
 FREEZE_OK_MS = 200            # p99 back under this closes it
 FREEZE_SILENCE_S = 180        # no tick summary this long while skymp.service is active is a freeze too
 INCIDENT_REPEAT_S = 900       # an open incident re-alerts this often
-HEALTH_S = 60                 # how often the silence check runs
+HEALTH_S = 60                 # how often the silence, pressure and memory checks run
+PSI_FULL_AVG60 = 20           # io or memory PSI 'full avg60' over this in 2 checks in a row is pressure
+MEM_PCT = 90                  # container memory in use over this share of its limit in 2 checks in a row too
+PSI_IO, PSI_MEM = '/proc/pressure/io', '/proc/pressure/memory'
+CGROUP, MEMINFO = '/sys/fs/cgroup', '/proc/meminfo'
 
 ts_re = re.compile(r'^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)')
 loop_re = re.compile(r'ticks \(ms, last 60 s, (\d+) online\).*\| event loop p99 ([\d.]+) max ([\d.]+)')
@@ -113,6 +118,41 @@ def skymp_active():
         return True    # systemctl stuck (as under heavy pressure) must not hide a freeze
 
 
+def psi_full60(path):
+    """'full avg60' of a /proc/pressure file, None when unreadable."""
+    try:
+        m = re.search(r'^full .*\bavg60=([\d.]+)', open(path).read(), re.M)
+        return float(m.group(1)) if m else None
+    except Exception:
+        return None
+
+
+def mem_use():
+    """(bytes in use, limit) of the container: memory.current less inactive file cache, against memory.max or MemTotal."""
+    try:
+        cur = int(open(os.path.join(CGROUP, 'memory.current')).read())
+        cache = re.search(r'^inactive_file (\d+)', open(os.path.join(CGROUP, 'memory.stat')).read(), re.M)
+        lim = open(os.path.join(CGROUP, 'memory.max')).read().strip()
+        if lim == 'max':
+            lim = int(re.search(r'^MemTotal:\s+(\d+) kB', open(MEMINFO).read(), re.M).group(1)) * 1024
+        return cur - (int(cache.group(1)) if cache else 0), int(lim)
+    except Exception:
+        return None, None
+
+
+def top_cgroups(n=3):
+    """The n biggest cgroups right under user.slice and system.slice by memory.current, as 'name N MB'."""
+    rows = []
+    for sl in ('user.slice', 'system.slice'):
+        base = os.path.join(CGROUP, sl)
+        for name in (os.listdir(base) if os.path.isdir(base) else []):
+            try:
+                rows.append((int(open(os.path.join(base, name, 'memory.current')).read()), name))
+            except Exception:
+                pass    # a plain file, or no memory controller
+    return [f'{name} {b // 1048576} MB' for b, name in sorted(rows, reverse=True)[:n]]
+
+
 class Monitor:
     def __init__(self):
         os.makedirs(STATE_DIR, exist_ok=True)
@@ -132,11 +172,12 @@ class Monitor:
         self.last_activity = {}      # player name -> last time their client reported anything
         self.journal = {}            # player name -> Journal (pause) menu open, from clientState (client 0.3.40+)
         self.reports_journal = set() # players whose client says when the Journal opens, so silence means a crash
-        self.incidents = {}          # 'freeze' -> {since, last}: at most one open incident of each kind
+        self.incidents = {}          # 'freeze' / 'pressure' -> {since, last}: at most one open incident of each kind
         self.last_loop = time.time() # last tick summary, or server or gamemode (re)start
         self.loop_high = 0           # tick summaries in a row with p99 over FREEZE_P99_MS
         self.last_p99 = 'unknown'
         self.last_health = time.time()
+        self.pressure_high = 0       # checks in a row over a pressure or memory line
         self.dirty = True
 
     def new_window(self, now):
@@ -203,6 +244,17 @@ class Monitor:
         quiet = now - self.last_loop
         if quiet >= FREEZE_SILENCE_S and skymp_active():
             self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
+        io, mem = psi_full60(PSI_IO), psi_full60(PSI_MEM)
+        used, lim = mem_use()
+        pct = 100 * used / lim if used and lim else 0
+        hot = [f'{k} full avg60 {v:.1f}' for k, v in (('io', io), ('memory', mem)) if v is not None and v > PSI_FULL_AVG60]
+        if pct > MEM_PCT:
+            hot.append(f'container memory {used / 2**30:.1f} of {lim / 2**30:.1f} GiB in use ({pct:.0f}%)')
+        self.pressure_high = self.pressure_high + 1 if hot else 0
+        if self.pressure_high >= 2:
+            self.incident('pressure', '**Server under pressure:** ' + ', '.join(hot) + '. Biggest: ' + ', '.join(top_cgroups()), t)
+        elif max(io or 0, mem or 0) < PSI_FULL_AVG60 / 2 and pct < MEM_PCT - 10:    # clears well under the lines, no flapping
+            self.resolve('pressure', f'Pressure cleared: io full avg60 {io or 0:.1f}, memory full avg60 {mem or 0:.1f}, container memory {pct:.0f}%', t)
 
     def bug_report(self, line, t):
         key = 'bug:' + line[-80:]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline tests for dbo_monitor's freeze alert: no network, no systemd, no real state dir.
+"""Offline tests for dbo_monitor's freeze and pressure alerts: no network, no systemd, no real state dir or /proc.
 
 Run: python3 tooling/dbo-monitor/test_dbo_monitor.py
 The stall samples are the real tick summaries from /var/log/skymp-server.log on 2026-09-27 (00:33-02:11Z freeze).
@@ -22,6 +22,18 @@ STALL = [
     ('2026-09-27 02:11:00', 0, 36.2, 2514.5), ('2026-09-27 02:13:52', 0, 11.6, 167.1),
     ('2026-09-27 02:14:52', 0, 11.0, 11.6),
 ]
+
+
+# Real readings on CT 115, 2026-09-27 02:34Z: /proc/pressure/io, and the container root cgroup (memory.max is 'max')
+REAL_PSI_IO = 'some avg10=0.97 avg60=3.45 avg300=4.62 total=21872940245\nfull avg10=0.70 avg60=3.28 avg300=4.47 total=21231469191\n'
+REAL_CURRENT, REAL_INACTIVE_FILE, REAL_MEMTOTAL_KB = 8138911744, 3550515200, 16777216
+REAL_PEAK = 17051009024    # memory.peak: what the runaway dev test reached during the stall
+MB = 1048576
+
+
+def psi(full60, some60=None):
+    some60 = full60 if some60 is None else some60
+    return f'some avg10=0.00 avg60={some60:.2f} avg300=0.00 total=1\nfull avg10=0.00 avg60={full60:.2f} avg300=0.00 total=1\n'
 
 
 def epoch(ts):
@@ -49,12 +61,37 @@ class MonitorCase(unittest.TestCase):
             ('STATE_DIR', self.tmp), ('STATE', os.path.join(self.tmp, 'state.json')), ('CHANNEL', ''),
             ('post', self.posts.append), ('post_thread', lambda *a: False), ('token', lambda: ''),
             ('skymp_active', lambda: self.active),
+            ('PSI_IO', self.path('proc/pressure/io')), ('PSI_MEM', self.path('proc/pressure/memory')),
+            ('CGROUP', self.path('cg')), ('MEMINFO', self.path('proc/meminfo')),
         ]:
             p = mock.patch.object(dm, target, value)
             p.start(); self.addCleanup(p.stop)
         for p in (mock.patch.object(dm.time, 'time', lambda: self.now),
                   mock.patch.object(dm.urllib.request, 'urlopen', side_effect=AssertionError('network use in a test'))):
             p.start(); self.addCleanup(p.stop)
+
+        self.fake_system(io=REAL_PSI_IO, mem=psi(0), current=REAL_CURRENT, inactive=REAL_INACTIVE_FILE, limit='max')
+
+    def path(self, rel):
+        return os.path.join(self.tmp, rel)
+
+    def write(self, rel, text):
+        os.makedirs(os.path.dirname(self.path(rel)), exist_ok=True)
+        with open(self.path(rel), 'w') as f:
+            f.write(str(text))
+
+    def fake_system(self, io=None, mem=None, current=None, inactive=None, limit=None):
+        """Writes the fake /proc and /sys/fs/cgroup files the pressure check reads; None keeps a file as it is."""
+        for rel, v in (('proc/pressure/io', io), ('proc/pressure/memory', mem), ('cg/memory.current', current),
+                       ('cg/memory.max', limit), ('cg/memory.stat', inactive and f'anon 1\nfile 2\ninactive_file {inactive}\n')):
+            if v is not None:
+                self.write(rel, v)
+        self.write('proc/meminfo', f'MemTotal:       {REAL_MEMTOTAL_KB} kB\nMemFree:          100 kB\n')
+        for rel, mb in (('user.slice/user-1001.slice', 11843), ('user.slice/user-0.slice', 1163),
+                        ('system.slice/skymp.service', 1064), ('system.slice/dbo-monitor.service', 9)):
+            self.write(f'cg/{rel}/memory.current', mb * MB)
+        self.write('cg/user.slice/memory.current', 13000 * MB)    # the slice's own file is not a child
+        os.makedirs(self.path('cg/system.slice/empty.mount'), exist_ok=True)
 
     def start(self, ts):
         """Starts the monitor at ts, as systemd would."""
@@ -149,6 +186,69 @@ class FreezeTest(MonitorCase):
         self.assertEqual(self.alerts('freeze'), [])
         self.run_until(epoch('2026-09-27 02:18:30'))
         self.assertEqual(len(self.alerts('freeze')), 1)
+
+
+class PressureTest(MonitorCase):
+    def setUp(self):
+        super().setUp()
+        self.active = False    # no game server here, so no tick summaries and no freeze alerts
+
+    def test_readers_on_real_numbers(self):
+        self.assertEqual(dm.psi_full60(self.path('proc/pressure/io')), 3.28, 'full, not some')
+        self.assertIsNone(dm.psi_full60(self.path('proc/pressure/missing')))
+        self.assertEqual(dm.mem_use(), (REAL_CURRENT - REAL_INACTIVE_FILE, REAL_MEMTOTAL_KB * 1024), 'max -> MemTotal')
+        self.write('cg/memory.max', 12884901888)
+        self.assertEqual(dm.mem_use()[1], 12884901888)
+        self.assertEqual(dm.top_cgroups(), ['user-1001.slice 11843 MB', 'user-0.slice 1163 MB', 'skymp.service 1064 MB'])
+
+    def test_calm_real_system_is_quiet(self):
+        self.start('2026-09-27 02:34:00')
+        self.run_until(epoch('2026-09-27 03:34:00'))
+        self.assertEqual(self.alerts(), [])
+
+    def test_io_pressure_two_checks_alert_repeat_and_clear(self):
+        self.start('2026-09-27 00:30:00')
+        self.fake_system(io=psi(34.5))
+        self.run_until(epoch('2026-09-27 00:31:00'))
+        self.assertEqual(self.alerts(), [], 'one check over the line is not enough')
+        self.run_until(epoch('2026-09-27 00:32:00'))
+        a = self.alerts('pressure')
+        self.assertEqual(a, ['`00:32:00` **Server under pressure:** io full avg60 34.5. '
+                             'Biggest: user-1001.slice 11843 MB, user-0.slice 1163 MB, skymp.service 1064 MB'])
+        self.assertEqual(self.mon.win['counts'].get('server.pressure'), 1)
+        self.run_until(epoch('2026-09-27 00:46:00'))
+        self.assertEqual(len(self.alerts('pressure')), 1, 'no repeat inside 15 min')
+        self.run_until(epoch('2026-09-27 00:47:00'))
+        self.assertEqual(len(self.alerts('pressure')), 2)
+        self.assertIn('(still going, 15 min)', self.alerts('pressure')[-1])
+        self.fake_system(io=psi(15.0))
+        self.run_until(epoch('2026-09-27 00:50:00'))
+        self.assertEqual(self.alerts('cleared'), [], '15 is under 20 but not calm yet')
+        self.fake_system(io=psi(3.0))
+        self.run_until(epoch('2026-09-27 00:51:00'))
+        self.assertEqual(self.alerts('cleared'), ['`00:51:00` Pressure cleared: io full avg60 3.0, memory full avg60 0.0, '
+                                                  'container memory 27%, 19 min after the alert'])
+
+    def test_memory_full_at_the_stall_peak(self):
+        self.start('2026-09-27 00:30:00')
+        self.fake_system(current=REAL_PEAK, inactive=200 * MB, mem=psi(41.2))
+        self.run_until(epoch('2026-09-27 00:32:00'))
+        a = self.alerts('pressure')
+        self.assertEqual(len(a), 1, a)
+        self.assertIn('memory full avg60 41.2, container memory 15.7 of 16.0 GiB in use (98%). Biggest: user-1001.slice', a[0])
+
+    def test_page_cache_is_not_memory_in_use(self):
+        self.start('2026-09-27 00:30:00')
+        self.fake_system(current=16500 * MB, inactive=6000 * MB)
+        self.run_until(epoch('2026-09-27 00:40:00'))
+        self.assertEqual(self.alerts(), [])
+
+    def test_unreadable_files_raise_nothing(self):
+        self.start('2026-09-27 00:30:00')
+        for rel in ('proc/pressure/io', 'proc/pressure/memory', 'cg/memory.current'):
+            os.remove(self.path(rel))
+        self.run_until(epoch('2026-09-27 00:40:00'))
+        self.assertEqual(self.alerts(), [])
 
 
 if __name__ == '__main__':
