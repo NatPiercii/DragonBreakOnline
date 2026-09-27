@@ -40,6 +40,7 @@ import Party from './features/party';
 import TomeShop from './features/tomeShop';
 import Bank from './features/bank';
 import RobPrompt from './features/robPrompt';
+import Downed from './features/downed';
 import { panelScaleOf } from './utils/PanelScale';
 
 const styles = [
@@ -291,6 +292,8 @@ const Constructor = props => {
       return <Bank data={rend} />;
     case 'robPrompt':
       return <RobPrompt data={rend} />;
+    case 'downed':
+      return <Downed data={rend} />;
     case 'death':
       return (
         <DeathScreen seconds={rend.seconds} onChoice={rend.onChoice} />
@@ -303,7 +306,7 @@ const Constructor = props => {
 // Which part of the world each widget belongs to; anything unlisted keeps the aqua glow (dbo-theme.scss)
 const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
-  rite: 'lorkhan', bountyBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan',
+  rite: 'lorkhan', bountyBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', downed: 'lorkhan',
   mastery: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
 };

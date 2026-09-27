@@ -1,0 +1,57 @@
+// The down state in the DragonBreak palette (lorkhan: danger): a compact panel in the middle of the screen
+@import '../../dbo-theme.scss';
+
+.downed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  font-family: $dbo-ui-font;
+  color: $dbo-text;
+
+  &__panel {
+    pointer-events: auto;
+    box-sizing: border-box;
+    width: min(420px, calc(90 * var(--dbo-vw)));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 22px 14px;
+    @include dbo-panel;
+  }
+
+  &__title {
+    margin: 0;
+    @include dbo-title;
+    color: $dbo-red;
+    font-size: clamp(20px, calc(2.1 * var(--dbo-vw)), 26px);
+    text-align: center;
+  }
+
+  &__text { margin: 0; color: $dbo-text-dim; font-size: 14px; line-height: 1.45; text-align: center; }
+
+  &__row { display: flex; gap: 12px; align-items: center; justify-content: center; }
+
+  &__timer {
+    min-width: 72px;
+    font-size: 22px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    color: $dbo-text;
+  }
+
+  &__button {
+    @include dbo-button;
+    padding: 9px 22px;
+    &:disabled { opacity: 0.4; cursor: default; }
+  }
+
+  &__clock { height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.4); overflow: hidden; }
+  &__fill { height: 100%; background: $dbo-red; transition: width 0.25s linear; }
+}
