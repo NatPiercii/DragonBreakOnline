@@ -61,7 +61,12 @@ ok(!/not reachable yet/.test(gutted), '...which is in Cyrodiil and reachable');
 ok(/leaseable dungeon/.test(gutted), '...and the listing warns it is a dungeon parties can clear');
 ok(/not reachable yet/.test(faction(LEADER, 'hall dark-brotherhood')), 'the Brotherhood keep the Falkreath Sanctuary, out of reach for now');
 ok(/not reachable yet/.test(faction(LEADER, 'hall thieves-guild')), 'the Thieves Guild keep the Riften cistern, out of reach for now');
-ok(/no seat at all/.test(faction(LEADER, 'hall blades')), 'the Blades have no seat while Cloud Ruler is a ruin');
+const blades = faction(LEADER, 'hall blades');
+ok(/Sky Haven Temple/.test(blades), 'the Blades keep Sky Haven Temple', blades);
+ok(/not reachable yet/.test(blades), '...out of reach for now');
+ok(/Cloud Ruler Temple above Bruma is still a ruin/.test(blades), '...and why they are not at Cloud Ruler');
+// Every faction with a seat now has one, so the no-seat path is checked against a faction that has none.
+ok(/no seat at all/.test(faction(LEADER, 'hall hold-whiterun')), 'a faction with no seat still says so');
 ok(/No such faction/.test(faction(LEADER, 'hall not-a-faction')), 'an unknown faction is refused');
 
 // ---- storage: only a leader records it, and only a property of their own ----

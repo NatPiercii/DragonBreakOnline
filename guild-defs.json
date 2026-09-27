@@ -737,7 +737,20 @@
           "title": "Initiate",
           "role": "member"
         }
-      ]
+      ],
+      "hall": {
+        "name": "Sky Haven Temple",
+        "zone": "markarth",
+        "doors": [
+          "6da92:Skyrim.esm",
+          "6da91:Skyrim.esm",
+          "6da90:Skyrim.esm",
+          "6da8d:Skyrim.esm",
+          "65ffd:Skyrim.esm",
+          "13124:Skyrim.esm"
+        ],
+        "note": "Cloud Ruler Temple above Bruma is still a ruin, so the order keeps Sky Haven; outside the Bruma lock, so not reachable during the playtest"
+      }
     },
     {
       "id": "thalmor",
