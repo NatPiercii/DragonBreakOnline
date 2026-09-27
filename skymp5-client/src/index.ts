@@ -57,6 +57,7 @@ import { NpcSightService } from "./services/services/npcSightService";
 import { RemoteVitalsService } from "./services/services/remoteVitalsService";
 import { HostedDriftService } from "./services/services/hostedDriftService";
 import { InputDiagService } from "./services/services/inputDiagService";
+import { MealService } from "./services/services/mealService";
 import { LevelBonusService } from "./services/services/levelBonusService";
 import { InteractionPromptService } from "./services/services/interactionPromptService";
 import { BoardMailService } from "./services/services/boardMailService";
@@ -184,6 +185,7 @@ const main = () => {
       new RemoteVitalsService(sp, controller),
       new HostedDriftService(sp, controller),
       new InputDiagService(sp, controller),
+      new MealService(sp, controller),
       new LevelBonusService(sp, controller),
       new InteractionPromptService(sp, controller),
       new BoardMailService(sp, controller),
