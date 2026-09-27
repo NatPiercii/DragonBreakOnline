@@ -9,7 +9,7 @@ const { createPanelFixture, showOutput, PATH_RE } = require('./helpers/panelFixt
 
 const OWNER_ROLE = 'role-owner'
 const DEV_ROLE = 'role-dev'
-const ROLES = { 'id-owner': [OWNER_ROLE], 'id-dev': [DEV_ROLE], 'id-dev2': [DEV_ROLE], 'id-dev3': [DEV_ROLE], 'id-none': [], 'id-slow': 'hang' }
+const ROLES = { 'id-owner': [OWNER_ROLE], 'id-dev': [DEV_ROLE], 'id-dev2': [DEV_ROLE], 'id-dev3': [DEV_ROLE], 'id-none': [], 'id-none2': [], 'id-slow': 'hang' }
 const USERS = Object.fromEntries(Object.keys(ROLES).map(id => [id, { discordId: id, username: id.slice(3) }]))
 
 const stub = (rel, exports) => {
@@ -22,8 +22,9 @@ require.cache[require.resolve('dotenv')] = { exports: { config: () => ({}) } }
 stub('routes/site-auth.js', {
   internals: { currentSession: req => USERS[req.headers['x-test-user']] || null, readStore: () => [], toSiteCharacter: () => ({}), profileIdOf: () => 0, dynamicFields: () => ({}) },
 })
+let roleLookups = 0
 stub('sources/discordBot.js', {
-  memberHasRole: (id, role) => (ROLES[id] === 'hang' ? new Promise(() => {}) : Promise.resolve((ROLES[id] || []).includes(role))),
+  memberHasRole: (id, role) => { roleLookups++; return ROLES[id] === 'hang' ? new Promise(() => {}) : Promise.resolve((ROLES[id] || []).includes(role)) },
 })
 stub('sources/players.js', { load: () => ({}) })
 stub('sources/nameTable.js', { load: () => ({}) })
@@ -201,4 +202,19 @@ test('no response contains a file-system path', async () => {
   assert.equal(text.includes(F.root), false)
   assert.doesNotMatch(text, /\/tmp\//)
   assert.equal(text.includes('SECRET'), false)
+})
+
+test('signed-out and non-staff callers are limited before the role check, per account or visitor address', async () => {
+  for (let i = 1; i <= 120; i++) assert.equal((await get('/api/site/staff/server/releases', 'none2')).status, 403, `call ${i}`)
+  const lookups = roleLookups
+  const limited = await get('/api/site/staff/server/releases', 'none2')
+  assert.equal(limited.status, 429)
+  assert.deepEqual(limited.json, { error: 'tooMany' })
+  assert.equal(limited.headers['cache-control'], 'no-store, private')
+  assert.equal(roleLookups, lookups, 'no Discord lookup once limited')
+  const visitor = { 'cf-connecting-ip': '203.0.113.7' }
+  for (let i = 1; i <= 120; i++) assert.equal((await get('/api/site/staff/server', null, visitor)).status, 401, `signed out ${i}`)
+  assert.equal((await get('/api/site/staff/server', null, visitor)).status, 429)
+  assert.equal((await get('/api/site/staff/server', null, { 'cf-connecting-ip': '203.0.113.8' })).status, 401, 'another visitor is not affected')
+  assert.equal((await get('/api/site/staff/server', 'owner')).status, 200, 'staff are not affected')
 })

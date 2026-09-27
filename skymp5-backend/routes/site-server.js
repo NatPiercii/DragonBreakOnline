@@ -1,6 +1,7 @@
 'use strict'
 // Staff dashboard Server panel, read only in Phase 1: game server state, what is live, the release queue and recent releases.
 // Staff only, with a Discord role check on every request as in site-staff.js; Owners are flagged for display only.
+// Every request first meets a limit per signed-in account or visitor address, so signed-out and non-staff callers are limited too.
 //
 //   GET /api/site/staff/server                    status (5 s shared cache)
 //   GET /api/site/staff/server/queue              the queue, with an ETag over all it lists and 304 on a match
@@ -11,6 +12,8 @@ const rateLimit = require('express-rate-limit')
 const config = require('../config')
 const { getHeartbeat } = require('./servers')
 const { requireStaff, isOwner } = require('./site-staff').internals
+const { currentSession } = require('./site-auth').internals
+const { visitorIp } = require('../sources/visitorIp')
 const { createServerStatus } = require('../sources/serverStatus')
 const { queueEtag } = require('../sources/releaseQueue')
 
@@ -21,6 +24,19 @@ router.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store, private')
   next()
 })
+
+// Before requireStaff, so a caller that is signed out or not staff never reaches the Discord role lookup unlimited
+router.use(rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => {
+    const session = currentSession(req)
+    return session?.discordId ? `s:${session.discordId}` : `anon:${rateLimit.ipKeyGenerator(visitorIp(req) || req.ip)}`
+  },
+  message: { error: 'tooMany' },
+}))
 
 const perStaff = limit => rateLimit({
   windowMs: 60 * 1000,
