@@ -1088,4 +1088,10 @@ void PapyrusObjectReference::Register(
   AddMethod(vm, "GetDistance", &PapyrusObjectReference::GetDistance);
   AddMethod(vm, "GetTotalItemWeight",
             &PapyrusObjectReference::GetTotalItemWeight);
+  // Havok, favors and destruction are the clients'
+  AddStubMethod(vm, "SetMotionType", VarValue::None());
+  AddStubMethod(vm, "SetNoFavorAllowed", VarValue::None());
+  AddStubMethod(vm, "SetDestroyed", VarValue::None());
+  AddStubMethod(vm, "GetCurrentDestructionStage",
+                VarValue(static_cast<int32_t>(0)));
 }

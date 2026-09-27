@@ -35,4 +35,8 @@ void PapyrusQuest::Register(
 {
   AddMethod(vm, "GetStage", &PapyrusQuest::GetStage);
   AddMethod(vm, "GetCurrentStageID", &PapyrusQuest::GetCurrentStageID);
+  // Quests do not progress server-side
+  AddStubMethod(vm, "GetStageDone", VarValue(false));
+  AddStubMethod(vm, "SetStage", VarValue(false));
+  AddStubMethod(vm, "IsRunning", VarValue(false));
 }
