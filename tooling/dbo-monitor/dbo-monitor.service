@@ -6,6 +6,8 @@ After=skymp.service
 ExecStart=/usr/bin/python3 -u /opt/dbo-monitor/dbo_monitor.py
 Restart=always
 RestartSec=10
+# Keep the monitor's ~10 MB in memory when a runaway elsewhere fills the container (live: systemctl set-property dbo-monitor MemoryLow=64M)
+MemoryLow=64M
 
 [Install]
 WantedBy=multi-user.target

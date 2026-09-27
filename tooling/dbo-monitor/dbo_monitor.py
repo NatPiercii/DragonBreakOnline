@@ -4,7 +4,11 @@
 /monitor command reads. Runs as the dbo-monitor systemd unit (root: the logs and the bot token are root-only).
 
 Classes of event it knows:
-  server   restarts, updater results, gamemode load failures, script errors, C++ errors (known noise counted only)
+  server   starts (crashed or restarted, from systemd's journal), updater results, gamemode load failures, script
+           errors, C++ errors (known noise counted only), freezes (event loop p99 over 2 s twice, max over 5 s twice,
+           or no tick summary for 3 min while skymp.service is active), hitches (one block of 20 s or more),
+           pressure (io, memory or user.slice memory PSI 'full avg60' over 20, or container memory over 90%,
+           twice, with the 3 biggest cgroups; journal only until DBO_MONITOR_PRESSURE_POST=1)
   players  joins, leaves, and likely crashes (a player whose game went silent 45 s or more before the disconnect)
   npc      npcDrift split/sink/jump/remote/snap/bounce/error, npcGround under/over/lifted, hosts released,
            jumps refused, NPCs stuck in one spot, and players hosting many NPCs they no longer have loaded
@@ -12,7 +16,7 @@ Classes of event it knows:
 State: /var/lib/dbo-monitor/state.json  { updatedAt, windows: [ { start, counts, worst, players } ...288 x 5 min ],
        recent: [ last 50 alerts ], online: { name: { lastSeen, hosted, unloaded } } }
 """
-import json, os, re, subprocess, sys, time, urllib.request
+import json, os, queue, re, subprocess, sys, threading, time, urllib.error, urllib.request
 from collections import Counter, defaultdict
 
 LOG = '/var/log/skymp-server.log'
@@ -32,8 +36,33 @@ CRASH_SILENCE_S = 45             # drift heartbeats come every 30 s, so a clean 
 UNLOADED_ALERT = 20
 BIG_SNAP = 1000
 ALERT_REPEAT_S = 600          # the same alert key at most once in this long
+# Freeze alert: the 2026-09-27 95-minute stall raised nothing because skymp.service stayed active
+FREEZE_P99_MS = 2000          # event loop p99 above this in 2 tick summaries in a row is a freeze
+FREEZE_MAX_MS = 5000          # event loop max above this in 2 summaries in a row too: p99 hides single long blocks
+FREEZE_OK_MS = 200            # p99 back under this (and max under FREEZE_MAX_MS) closes it
+FREEZE_SILENCE_S = 180        # no tick summary this long while skymp.service is active is a freeze too
+HITCH_MS = 20000              # one block this long is a hitch alert (3 in 2026-09-21..27, each about 31 s)
+INCIDENT_REPEAT_S = 900       # an open incident re-alerts this often
+HEALTH_S = 60                 # how often the pressure and memory checks run (silence is checked every loop)
+PSI_FULL_AVG60 = 20           # io, memory or user.slice memory PSI 'full avg60' over this in 2 checks in a row
+MEM_PCT = 90                  # container memory in use over this share of its limit in 2 checks in a row too
+# Pressure lines are unproven: journal only until DBO_MONITOR_PRESSURE_POST=1, set after 24-48 h with a build and a backup
+SHADOW = set() if os.environ.get('DBO_MONITOR_PRESSURE_POST') == '1' else {'pressure'}
+# The container's own cgroupfs files: /proc/pressure and /proc/meminfo are lxcfs (can hang), and its io PSI is the host's
+PSI_IO, PSI_MEM = '/sys/fs/cgroup/io.pressure', '/sys/fs/cgroup/memory.pressure'
+CGROUP, MEMINFO = '/sys/fs/cgroup', '/proc/meminfo'    # MemTotal (the container's limit) is read once, at start
+# Discord posts go out from a thread: in the 2026-09-27 stall 11 of 16 posts failed, one only after minutes
+OUTBOX_MAX = 20               # posts kept for a retry while Discord or the network is down, digests dropped first
+RETRY_S = 30                  # how often the oldest kept post is tried again
+LATE_S = 60                   # a post that goes out this late says when it was raised
 
 ts_re = re.compile(r'^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)')
+# Rules a player could fake with /bug text match only right after the logger prefix; a BUGREPORT line is handled first
+LOGGER = r'^\[[^\]]+\] \[\w+\] \[\w+\] '
+loop_re = re.compile(LOGGER + r'\[gamemode\] ticks \(ms, last 60 s, (\d+) online\):(?:.*\| event loop p99 ([\d.]+) max ([\d.]+))?')
+start_re = re.compile(LOGGER + r'Initialized MetricsSystem')
+reload_re = re.compile(LOGGER + r'\[gamemode\] loaded: ')
+bugline_re = re.compile(LOGGER + r'\[gamemode\] BUGREPORT ')
 drift_re = re.compile(r'npcDrift (.+?) #\w{4} (\w+): (\{.*)')
 ground_re = re.compile(r'npcGround (under|over|lifted) (ff[0-9a-f]+) (\S+) at (\S+) terrain \S+ dz (-?\d+), near (.+?) #')
 NOISE = re.compile(r"Method not found|Refr pointer expired|No permission to update actor|Recipe not found|Target actor doesn.t exist|CastPrimitivePropertyValue")
@@ -46,38 +75,99 @@ def token():
         return ''
 
 
-def post_thread(forum, title, content):
-    """Opens a forum thread; True when Discord accepted it."""
+def discord(path, body):
+    """One Discord API POST: 'ok', 'retry' (network trouble, rate limit, Discord down) or 'refused' (never retried)."""
     tok = token()
-    if not tok or not CHANNEL or not forum:    # an empty DBO_MONITOR_CHANNEL (test mode) disables every post
-        return False
-    body = {'name': title[:100] or 'Bug report', 'message': {'content': content[:1900], 'allowed_mentions': {'parse': []}}}
-    req = urllib.request.Request(f'https://discord.com/api/v10/channels/{forum}/threads', method='POST',
-                                 data=json.dumps(body).encode(),
+    if not tok:
+        print('discord post dropped: no bot token', flush=True)
+        return 'refused'
+    req = urllib.request.Request(f'https://discord.com/api/v10/{path}', method='POST', data=json.dumps(body).encode(),
                                  headers={'Authorization': f'Bot {tok}', 'Content-Type': 'application/json',
                                           'User-Agent': 'dbo-monitor (DragonBreak, 1)'})
     try:
         urllib.request.urlopen(req, timeout=10).read()
-        return True
+        return 'ok'
+    except urllib.error.HTTPError as e:
+        print(f'discord post failed: HTTP {e.code}', flush=True)
+        return 'retry' if e.code == 429 or e.code >= 500 else 'refused'
     except Exception as e:
-        print('discord forum post failed:', e, flush=True)
-        return False
+        print('discord post failed:', e, flush=True)
+        return 'retry'
 
 
-def post(text):
-    tok = token()
-    if not tok or not CHANNEL:
+class Outbox:
+    """Posts to Discord from a daemon thread, so a slow Discord or DNS never holds up the checks; failures are retried."""
+
+    def __init__(self):
+        self.q = queue.Queue()
+        self.kept = []       # posts waiting to go, oldest first
+        self.next_try = 0.0
+
+    def keep(self, msg):
+        self.kept.append(msg)
+        while len(self.kept) > OUTBOX_MAX:
+            drop = next((m for m in self.kept if m.get('digest')), self.kept[0])
+            self.kept.remove(drop)
+            print('discord post dropped, outbox full:', drop['text'][:80], flush=True)
+
+    def send(self, m):
+        text = m['text']
+        if time.time() - m['raised'] >= LATE_S:
+            text = f'(delayed, raised {time.strftime("%H:%M:%S", time.gmtime(m["raised"]))}) {text}'
+        if m.get('forum'):
+            body = {'name': m['title'][:100] or 'Bug report',
+                    'message': {'content': m['content'][:1900], 'allowed_mentions': {'parse': []}}}
+            r = discord(f'channels/{m["forum"]}/threads', body)
+            if r != 'refused':
+                return r
+            m['forum'] = None    # the forum refused it: the short text goes to the channel instead, so none is lost
+        return discord(f'channels/{CHANNEL}/messages', {'content': text, 'allowed_mentions': {'parse': []}})
+
+    def pump(self):
+        """Sends kept posts oldest first, 1 s apart, until the list is empty or a post has to wait for RETRY_S."""
+        while self.kept and time.time() >= self.next_try:
+            if self.send(self.kept[0]) == 'retry':
+                self.next_try = time.time() + RETRY_S
+                print(f'discord post kept for a retry ({len(self.kept)} waiting)', flush=True)
+                return
+            self.kept.pop(0)
+            time.sleep(1)
+
+    def run(self):
+        while True:
+            try:
+                wait = max(1.0, self.next_try - time.time()) if self.kept else None
+                try:
+                    self.keep(self.q.get(timeout=wait))
+                    while not self.q.empty():
+                        self.keep(self.q.get_nowait())
+                except queue.Empty:
+                    pass
+                self.pump()
+            except Exception as e:
+                print('discord outbox failed:', e, flush=True)
+                time.sleep(RETRY_S)
+
+    def start(self):
+        threading.Thread(target=self.run, name='discord', daemon=True).start()
+
+
+OUTBOX = Outbox()
+
+
+def post(text, digest=False):
+    """Queues text for the staff channel; returns at once. digest posts are the first dropped when the outbox is full."""
+    if not CHANNEL:    # an empty DBO_MONITOR_CHANNEL (test mode) disables every post
         return
     for chunk in [text[i:i + 1900] for i in range(0, len(text), 1900)]:
-        req = urllib.request.Request(f'https://discord.com/api/v10/channels/{CHANNEL}/messages', method='POST',
-                                     data=json.dumps({'content': chunk, 'allowed_mentions': {'parse': []}}).encode(),
-                                     headers={'Authorization': f'Bot {tok}', 'Content-Type': 'application/json',
-                                              'User-Agent': 'dbo-monitor (DragonBreak, 1)'})
-        try:
-            urllib.request.urlopen(req, timeout=10).read()
-        except Exception as e:
-            print('discord post failed:', e, flush=True)
-        time.sleep(1)
+        OUTBOX.q.put({'text': chunk, 'raised': time.time(), 'digest': digest})
+
+
+def post_bug(title, content, fallback):
+    """Queues a player's /bug report as a thread in BUG_FORUM; if the forum refuses it, fallback goes to the channel."""
+    if not CHANNEL:
+        return
+    OUTBOX.q.put({'text': fallback[:1900], 'raised': time.time(), 'forum': BUG_FORUM, 'title': title, 'content': content})
 
 
 def jload(s):
@@ -96,6 +186,80 @@ def jload(s):
         if m:
             d[k] = float(m.group(1))
     return d
+
+
+def skymp_active():
+    try:
+        return subprocess.run(['systemctl', 'is-active', '--quiet', 'skymp'], timeout=15).returncode == 0
+    except Exception:
+        return True    # systemctl stuck (as under heavy pressure) must not hide a freeze
+
+
+def start_cause(lines):
+    """How skymp's latest start came about, from its systemd journal lines: ('crashed', 'status=11/SEGV') after an exit
+    nobody asked for, ('restarted', '') after a stop, ('', '') when the journal does not say."""
+    last = max((i for i, ln in enumerate(lines) if 'Started skymp' in ln), default=None)
+    exited = None
+    for ln in reversed(lines[:last] if last is not None else []):
+        if 'Stopping skymp' in ln:
+            return 'restarted', ''
+        if 'Started skymp' in ln:
+            break
+        exited = exited or re.search(r'Main process exited, code=(\w+), status=(\S+)', ln)
+    if exited and not (exited.group(1) == 'exited' and exited.group(2).startswith('0/')):
+        return 'crashed', 'status=' + exited.group(2)
+    return '', ''
+
+
+def journal_start_cause():
+    try:
+        out = subprocess.run(['journalctl', '-u', 'skymp', '-o', 'cat', '-n', '40', '--no-pager'],
+                             capture_output=True, text=True, timeout=15).stdout
+        return start_cause(out.splitlines())
+    except Exception:
+        return '', ''
+
+
+def psi_full60(path):
+    """'full avg60' of a PSI file, None when unreadable."""
+    try:
+        m = re.search(r'^full .*\bavg60=([\d.]+)', open(path).read(), re.M)
+        return float(m.group(1)) if m else None
+    except Exception:
+        return None
+
+
+def mem_total():
+    """MemTotal in bytes (lxcfs shows the container's limit there), None when unreadable."""
+    try:
+        return int(re.search(r'^MemTotal:\s+(\d+) kB', open(MEMINFO).read(), re.M).group(1)) * 1024
+    except Exception:
+        return None
+
+
+def mem_use(memtotal):
+    """(bytes in use, limit) of the container: memory.current less inactive file cache, against memory.max or memtotal."""
+    try:
+        cur = int(open(os.path.join(CGROUP, 'memory.current')).read())
+        cache = re.search(r'^inactive_file (\d+)', open(os.path.join(CGROUP, 'memory.stat')).read(), re.M)
+        lim = open(os.path.join(CGROUP, 'memory.max')).read().strip()
+        lim = memtotal if lim == 'max' else int(lim)
+        return (cur - (int(cache.group(1)) if cache else 0), lim) if lim else (None, None)
+    except Exception:
+        return None, None
+
+
+def top_cgroups(n=3):
+    """The n biggest cgroups right under user.slice and system.slice by memory.current, as 'name N MB'."""
+    rows = []
+    for sl in ('user.slice', 'system.slice'):
+        base = os.path.join(CGROUP, sl)
+        for name in (os.listdir(base) if os.path.isdir(base) else []):
+            try:
+                rows.append((int(open(os.path.join(base, name, 'memory.current')).read()), name))
+            except Exception:
+                pass    # a plain file, or no memory controller
+    return [f'{name} {b // 1048576} MB' for b, name in sorted(rows, reverse=True)[:n]]
 
 
 class Monitor:
@@ -117,6 +281,16 @@ class Monitor:
         self.last_activity = {}      # player name -> last time their client reported anything
         self.journal = {}            # player name -> Journal (pause) menu open, from clientState (client 0.3.40+)
         self.reports_journal = set() # players whose client says when the Journal opens, so silence means a crash
+        self.incidents = {}          # 'freeze' / 'pressure' -> {since, last, flap}: at most one open of each kind
+        self.cleared = {}            # 'freeze' / 'pressure' -> when its last incident closed
+        self.last_loop = time.time() # last tick summary, or server or gamemode (re)start
+        self.was_down = False        # skymp.service seen stopped since: its silence clock starts when it is seen back
+        self.loop_high = 0           # tick summaries in a row with p99 over FREEZE_P99_MS
+        self.max_high = 0            # tick summaries in a row with max over FREEZE_MAX_MS
+        self.last_p99 = 'unknown'
+        self.last_health = time.time()
+        self.pressure_high = 0       # checks in a row over a pressure or memory line
+        self.memtotal = mem_total()  # read once: /proc/meminfo is lxcfs, which can hang
         self.dirty = True
 
     def new_window(self, now):
@@ -140,12 +314,94 @@ class Monitor:
         if now - self.alerted.get(key, 0) < ALERT_REPEAT_S:
             return
         self.alerted[key] = now
+        self.say(text, t)
+
+    def say(self, text, t, key=None):
         line = f'`{t[11:19]}` {text}'
+        if key in SHADOW:    # journal only: not posted, not in /monitor
+            return print(f'{key.upper()} (shadow)', line, flush=True)
         self.state['recent'].append(line)
         del self.state['recent'][:-50]
         print('ALERT', line, flush=True)
         post(line)
         self.dirty = True
+
+    def incident(self, key, text, t):
+        """Opens incident key with an alert, re-alerting every INCIDENT_REPEAT_S; one back soon after it cleared is a flap."""
+        now = time.time()
+        inc = self.incidents.get(key)
+        if inc is None:
+            gone = now - self.cleared.get(key, -INCIDENT_REPEAT_S)
+            flap = gone < INCIDENT_REPEAT_S
+            self.incidents[key] = {'since': now, 'last': now, 'flap': flap}
+            if key not in SHADOW:
+                self.count('server.' + key)
+            self.say(f'{text} (back {int(gone // 60)} min after it cleared; while it comes and goes, one update per {INCIDENT_REPEAT_S // 60} min)' if flap else text, t, key)
+        elif now - inc['last'] >= INCIDENT_REPEAT_S:
+            inc['last'] = now
+            self.say(f'{text} (still going, {int((now - inc["since"]) // 60)} min{", on and off" if inc["flap"] else ""})', t, key)
+
+    def resolve(self, key, text, t):
+        inc = self.incidents.get(key)
+        now = time.time()
+        if not inc or (inc['flap'] and now - inc['last'] < INCIDENT_REPEAT_S):
+            return    # a flap clears only at its next update (one post per interval), if still clear then
+        del self.incidents[key]
+        self.cleared[key] = now
+        self.say(f'{text}, {int((now - inc["since"]) // 60)} min after the alert', t, key)
+
+    def loop_sample(self, p99, mx, online, t):
+        self.last_loop, self.was_down = time.time(), False
+        if mx is None:    # a gamemode from before 2026-09-24 logs no event loop figures, but the loop runs
+            return self.resolve('freeze', 'Server recovered: tick summaries are back', t)
+        if mx <= 0:
+            return    # 0.0/0.0 is a window with no samples (first summary after the 2026-09-27 stall), not health
+        self.last_p99 = f'p99 {p99:.0f} ms, max {mx:.0f} ms at {t[11:19]}'
+        self.loop_high = self.loop_high + 1 if p99 > FREEZE_P99_MS else 0
+        self.max_high = self.max_high + 1 if mx > FREEZE_MAX_MS else 0
+        if self.loop_high >= 2:
+            self.incident('freeze', f'**Server freeze:** event loop p99 {p99:.0f} ms (max {mx:.0f} ms), over {FREEZE_P99_MS} ms in {self.loop_high} tick summaries in a row, {online} online', t)
+        elif self.max_high >= 2:
+            self.incident('freeze', f'**Server freeze:** event loop blocked up to {mx:.0f} ms at once (p99 {p99:.0f} ms), over {FREEZE_MAX_MS} ms in {self.max_high} tick summaries in a row, {online} online', t)
+        elif p99 < FREEZE_OK_MS and mx <= FREEZE_MAX_MS:
+            self.resolve('freeze', f'Server recovered: event loop p99 {p99:.0f} ms (max {mx:.0f} ms)', t)
+        if mx >= HITCH_MS and 'freeze' not in self.incidents:
+            self.alert('hitch', f'**Server hitch:** the event loop was blocked {mx / 1000:.1f} s at once in the minute to {t[11:19]} (p99 {p99:.0f} ms), {online} online', t)
+
+    def silence(self, now):
+        """Runs every loop; forks systemctl only after FREEZE_SILENCE_S of silence, or when an open freeze's repeat is due."""
+        quiet = now - self.last_loop
+        inc = self.incidents.get('freeze')
+        if quiet < FREEZE_SILENCE_S or (inc and now - inc['last'] < INCIDENT_REPEAT_S):
+            return
+        if not skymp_active():
+            self.last_loop, self.loop_high, self.max_high, self.was_down = now, 0, 0, True    # stopped: no summaries due
+        elif self.was_down:
+            self.last_loop, self.was_down = now, False    # just started: MetricsSystem is up to 9 s behind
+        else:
+            t = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))
+            self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
+
+    def health(self, now):
+        t = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))
+        io, mem = psi_full60(PSI_IO), psi_full60(PSI_MEM)
+        dev = psi_full60(os.path.join(CGROUP, 'user.slice', 'memory.pressure'))    # capped at 12G: stalls there, not above
+        if self.memtotal is None:
+            self.memtotal = mem_total()
+        used, lim = mem_use(self.memtotal)
+        pct = 100 * used / lim if used and lim else 0
+        hot = [f'{k} full avg60 {v:.1f}' for k, v in (('io', io), ('memory', mem), ('dev sessions (user.slice) memory', dev))
+               if v is not None and v > PSI_FULL_AVG60]
+        if pct > MEM_PCT:
+            hot.append(f'container memory {used / 2**30:.1f} of {lim / 2**30:.1f} GiB in use ({pct:.0f}%)')
+        calm = max(io or 0, mem or 0, dev or 0) < PSI_FULL_AVG60 / 2 and pct < MEM_PCT - 10    # well under the lines
+        if not calm and 'pressure' in SHADOW:    # readings near or over the lines, to set them from
+            print(f'PRESSURE (shadow) reading: io {io}, memory {mem}, user.slice memory {dev}, container memory {pct:.0f}%', flush=True)
+        self.pressure_high = self.pressure_high + 1 if hot else 0
+        if self.pressure_high >= 2:
+            self.incident('pressure', '**Server under pressure:** ' + ', '.join(hot) + '. Biggest: ' + ', '.join(top_cgroups()), t)
+        elif calm:
+            self.resolve('pressure', f'Pressure cleared: io full avg60 {io or 0:.1f}, memory full avg60 {mem or 0:.1f}, container memory {pct:.0f}%', t)
 
     def bug_report(self, line, t):
         key = 'bug:' + line[-80:]
@@ -162,8 +418,7 @@ class Monitor:
         del self.state['recent'][:-50]
         self.dirty = True
         print('BUGREPORT', who, snap, flush=True)
-        if not post_thread(BUG_FORUM, title, content):
-            post(f'`{t[11:19]}` **Bug report** from {who} (the error-report forum refused it): {text[:300]}')
+        post_bug(title, content, f'`{t[11:19]}` **Bug report** from {who} (the error-report forum refused it): {text[:300]}')
 
     def seen(self, who, t):
         self.last_activity[who] = time.time()
@@ -182,9 +437,29 @@ class Monitor:
                 self.count('server.update_failed')
                 self.alert('updatefail:' + line[-60:], '**Updater problem:** ' + line.strip()[:200], t)
             return
-        if 'Initialized MetricsSystem' in line:
+        if bugline_re.match(line):    # player text: no other rule may read it
+            self.count('player.bug_report')
+            return self.bug_report(line.strip(), t)
+        lm = loop_re.match(line)
+        if lm:
+            p99, mx = (float(g) if g else None for g in lm.group(2, 3))
+            self.loop_sample(p99, mx, lm.group(1), t)
+            return
+        if start_re.match(line):
             self.count('server.restart')
-            self.alert('restart:' + t, 'Game server started', t)
+            self.last_loop, self.loop_high, self.max_high, self.was_down = time.time(), 0, 0, False    # summary in 1-3 min
+            froze = self.incidents.pop('freeze', None)
+            if froze:
+                self.cleared['freeze'] = time.time()
+            ended = f'; that ends the freeze alert from {int((time.time() - froze["since"]) // 60)} min ago' if froze else ''
+            how, why = journal_start_cause()
+            if how == 'crashed':
+                self.count('server.crash')
+                self.alert('restart:' + t, f'**Game server crashed** ({why}) and started again{ended}', t)
+            else:
+                self.alert('restart:' + t, ('Game server restarted' if how else 'Game server started') + ended, t)
+        elif reload_re.match(line):
+            self.last_loop = time.time()    # a gamemode reload restarts the 60 s summary timer
         elif 'audit: JOIN ' in line:
             who = re.sub(r'.*audit: JOIN (.+?) #.*', r'\1', line.strip())
             self.count('player.join'); self.seen(who, t)
@@ -208,9 +483,6 @@ class Monitor:
                 else:
                     self.alert('crash:' + who + t[:16], f'**Possible crash** (or a quit through the menus, older client): {who} went silent {int(silent)} s before disconnecting', t)
             self.state['online'].pop(who, None)
-        elif 'BUGREPORT ' in line:
-            self.count('player.bug_report')
-            self.bug_report(line.strip(), t)
         elif 'failed to load' in line:
             self.count('server.load_failed')
             self.alert('load:' + line[-80:], '**Gameplay module failed to load:** ' + line.strip()[27:230], t)
@@ -281,8 +553,18 @@ class Monitor:
                 for k, v in sorted(real.items(), key=lambda kv: -kv[1]):
                     w = self.digest_worst.get(k)
                     parts.append(f'{k} {v}' + (f' (worst {w[0]}: {w[1]})' if w and w[0] else ''))
-                post('**Last 15 min:** ' + ' | '.join(parts))
+                post('**Last 15 min:** ' + ' | '.join(parts), digest=True)
             self.digest_counts.clear(); self.digest_worst.clear()
+        try:
+            self.silence(now)
+        except Exception as e:
+            print('silence check failed:', e, flush=True)
+        if now - self.last_health >= HEALTH_S:
+            self.last_health = now
+            try:
+                self.health(now)
+            except Exception as e:
+                print('health check failed:', e, flush=True)
         if self.dirty:
             self.state['updatedAt'] = int(now)
             try:
@@ -296,6 +578,7 @@ class Monitor:
 
 
 def main():
+    OUTBOX.start()
     mon = Monitor()
     procs = {
         'server': subprocess.Popen(['tail', '-n', '0', '-F', LOG], stdout=subprocess.PIPE, text=True, errors='replace'),
@@ -319,8 +602,12 @@ def main():
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == '--test':
-        # Feed stdin through the classifier without Discord or the state dir (DBO_MONITOR_CHANNEL= disables posting)
+        # Feed stdin through the classifier: never Discord, systemd or this host's pressure, whatever the environment
         STATE_DIR = os.environ.get('DBO_MONITOR_STATE', '/tmp/dbo-monitor-test'); STATE = os.path.join(STATE_DIR, 'state.json')
+        CHANNEL = BUG_FORUM = ''
+        journal_start_cause = lambda: ('', '')
+        skymp_active = lambda: False
+        Monitor.health = lambda self, now: None
         mon = Monitor()
         for ln in sys.stdin:
             mon.line(ln, 'update' if ln.startswith('UPDATE ') else 'server')
