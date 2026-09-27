@@ -41,11 +41,12 @@ let failures = 0;
 const check = (label, ok) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}`); if (!ok) failures++; };
 const last = (a) => { for (let i = said.length - 1; i >= 0; i--) if (said[i][0] === a) return said[i][1]; return ''; };
 
-commands.get('expedition')(B, '');
-check('outside the Synod, /expedition says where to go', /Synod Conclave in Bruma/.test(last(B)) && !widgets.length);
+commands.get('expeditions')(B, '');
+check('outside the two halls, /expeditions says where to go', /Synod Conclave or the Fighters Guild in Bruma/.test(last(B)) && !widgets.length);
 commands.get('expedition')(A, '');
 const list = widgets.find((w) => w[1].type === 'contextMenu');
-check('in the Synod it lists the ruins, with the county and status', !!list && /Niryastare, Kvatch County \(open\)/.test(list[1].actions[0].label));
+check('in the Synod it lists the ruins, with the county and status', !!list && /Niryastare, Kvatch County \(open\)/.test(list[1].actions[0].label) && /from the Synod Conclave/.test(list[1].targetName));
+check('/expedition works too', commands.has('expedition'));
 fire('expeditionPick', A, ['CYRNiryastareLocation']);
 const gate = widgets.find((w) => w[1].type === 'dungeonGate');
 check('picking one opens the party and difficulty panel', !!gate && gate[1].name === 'Niryastare' && gate[1].kind === 'Ayleid ruin');
@@ -57,5 +58,24 @@ props.set(`${A}|worldOrCellDesc`, RUIN);
 const r = activate(DOOR, A);
 check("the ruin's main door refuses the engine and brings them to the Synod", r === false && moves.length === 1 && moves[0][1].cellOrWorldDesc === SYNOD);
 check('with a line about the journey home', /journey back from Niryastare/.test(last(A)));
+// From the Fighters Guild: the panel opens there, a member in its basement counts as present, and home is the Guild
+const FG = 'f8d:BSHeartland.esm', FGB = '6c150:BSHeartland.esm';
+props.set(`${A}|worldOrCellDesc`, FG); props.set(`${A}|pos`, [0, -500, -221]);
+widgets.length = 0; moves.length = 0;
+commands.get('expeditions')(A, 'nir');
+const g2 = widgets.find((w) => w[1].type === 'dungeonGate');
+check('the Fighters Guild in Bruma is a starting hall too', !!g2);
+const pend = globalThis.__dboDungeons.pending.get(A);
+check('the expedition leaves from the Guild', pend && pend.entrance.from === 'the Fighters Guild' && pend.entrance.cell === FG);
+props.set(`${A}|worldOrCellDesc`, FGB);
+fire('dungeonClaim', A, [pend.nonce, 'normal']);
+check('claiming from the Guild basement is still at the entrance', !said.some((x) => x[0] === A && /wandered from the entrance/.test(x[1])));
+const lease = globalThis.__dboDungeons.leases.get('CYRNiryastareLocation');
+if (lease) {
+  props.set(`${A}|worldOrCellDesc`, RUIN); moves.length = 0;
+  activate(DOOR, A);
+  check('the main door brings the party home to the Guild', moves.length === 1 && moves[0][1].cellOrWorldDesc === FG && /to the Fighters Guild in Bruma/.test(last(A)));
+} else check('the claim started a lease', false);
+
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);

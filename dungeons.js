@@ -59,7 +59,12 @@ module.exports = (api) => {
   // ruin's main door, which brings them back. Same leases, parties and loot as any dungeon. expeditions.json holds
   // dungeons.json-style entries whose entrance is { expedition: true, cell/pos/rot: the Synod spot, inside*: the ruin }.
   const EXPEDITIONS = (readJson('expeditions.json', { expeditions: [] }).expeditions || []).map((d) => Object.assign({}, d, { expedition: true }));
-  const EXPEDITION_CELLS = new Set((C.expeditionCells || ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm']).map((x) => normDesc(x)));
+  // Expeditions leave from Bruma only: the Synod Conclave or the Fighters Guild (Nate, 2026-09-27), each hall with its
+  // basement; the party comes home to the hall it left from (its front door's arrival spot, from BSHeartland XTEL)
+  const EXPEDITION_STARTS = (C.expeditionStarts || [
+    { name: 'the Synod Conclave', cells: ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm'], cell: '20ff:BSHeartland.esm', pos: [-8.8, -578.4, -114.9], rot: [0, 0, 0] },
+    { name: 'the Fighters Guild', cells: ['f8d:BSHeartland.esm', '6c150:BSHeartland.esm'], cell: 'f8d:BSHeartland.esm', pos: [1.8, -538.2, -221.8], rot: [0, 0, 0] },
+  ]).map((x) => Object.assign({}, x, { cellSet: new Set((x.cells || []).map((c) => normDesc(c))) }));
   DATA.dungeons = (DATA.dungeons || []).concat(EXPEDITIONS.filter((x) => !(DATA.dungeons || []).some((d) => d.id === x.id)));
   // Sites the generator counts as dungeons that are not (Nat: Lakeside Retreat). Dropped before anything is built
   // from them, so no gate, no lease, and their containers stay ordinary. More ids via config dungeons.exclude.
@@ -95,6 +100,8 @@ module.exports = (api) => {
   const setCooldown = (a, dungeonId, until) => { const c = cooldownsOf(a); for (const k of Object.keys(c)) if (Number(c[k]) < Date.now()) delete c[k]; c[dungeonId] = until; try { mp.set(a, 'private.dungeonCooldowns', c); } catch (e) { log('cooldown save failed', e.message); } };
   const whereIs = (a) => { try { return normDesc(mp.get(a, 'worldOrCellDesc')); } catch (e) { return ''; } };
   const dungeonAround = (a) => cellToDungeon.get(whereIs(a)) || null;
+  // At the entrance: near the door, or for an expedition anywhere in the hall it leaves from
+  const atEntrance = (a, e) => (e && e.expedition && Array.isArray(e.startCells) ? e.startCells.includes(whereIs(a)) : distance(a, e.doorPos || e.pos, e.world || e.cell) <= C.entranceReach);
   const distance = (a, pos, world) => { try { if (world && normDesc(mp.get(a, 'worldOrCellDesc')) !== normDesc(world)) return Infinity; const p = mp.get(a, 'pos'); return Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]); } catch (e) { return Infinity; } };
   // dungeons.json rotations are XTEL radians; locationalData takes degrees (captureSystem.ts converts the same way)
   const teleport = (a, where, pos, rot) => { try { mp.set(a, 'locationalData', { cellOrWorldDesc: where, pos, rot: (rot || [0, 0, 0]).map((x) => (Number(x) || 0) * 180 / Math.PI) }); return true; } catch (e) { log('teleport failed', e.message); return false; } };
@@ -365,7 +372,7 @@ module.exports = (api) => {
   const startLease = (leaderActor, d, entrance, diff) => {
     const leaderPid = profileOf(leaderActor);
     const members = new Set(partyMembers(leaderPid));
-    const present = [...members].map(actorByProfile).filter((a) => a && (a === leaderActor || distance(a, entrance.doorPos || entrance.pos, entrance.world || entrance.cell) <= C.entranceReach));
+    const present = [...members].map(actorByProfile).filter((a) => a && (a === leaderActor || atEntrance(a, entrance)));
     if (!present.includes(leaderActor)) present.push(leaderActor);
     const scale = { lvl: Math.max(1, ...present.map(charLevel)), n: present.length };
     const zones = zonesFor(d, diff, scale);
@@ -385,7 +392,7 @@ module.exports = (api) => {
       let moved = 0;
       for (const pid of members) {
         const a = actorByProfile(pid); if (!a) continue;
-        if (a !== leaderActor && distance(a, entrance.doorPos || entrance.pos, entrance.world || entrance.cell) > C.entranceReach) { system(a, `${display(leaderActor)} has claimed ${d.name}. Use the entrance to join them.`); continue; }
+        if (a !== leaderActor && !atEntrance(a, entrance)) { system(a, `${display(leaderActor)} has claimed ${d.name}. Use the entrance to join them.`); continue; }
         if (teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) { moved++; system(a, `${d.name} is yours for ${C.leaseMinutes} minutes (${diff.label}). Clear every enemy and open every big chest to finish early. ${lease.locked.size ? lease.locked.size + ' chest' + (lease.locked.size === 1 ? ' is' : 's are') + ' locked.' : ''}`); glowLease(a, lease, d); }
       }
       audit(`DUNGEON ${who(leaderActor)} claimed ${d.name} on ${diff.label} with ${members.size} member(s), ${zones.length} enemies (${placed >= 0 ? placed + ' placed before entry' : 'placed on entry'}), ${filled} containers filled, ${lease.locked.size} locked`);
@@ -866,10 +873,11 @@ module.exports = (api) => {
     if (!C.enabled) return null;
     const inside = insideDoors.get(targetId);
     if (inside && inside.entrance.expedition) {
-      // The ruin's main door has no destination of its own: it leads home to the Synod
-      const e = inside.entrance;
+      // The ruin's main door has no destination of its own: it leads home to the hall the party left from
+      const lease = ST.leases.get(inside.d.id);
+      const e = lease && lease.entrance && lease.entrance.expedition && lease.members.has(profileOf(casterId)) ? lease.entrance : inside.entrance;
       teleport(casterId, e.cell, e.pos, e.rot);
-      system(casterId, `You make the long journey back from ${inside.d.name} to the Synod Conclave.`);
+      system(casterId, `You make the long journey back from ${inside.d.name} to ${e.from || 'the Synod Conclave'} in Bruma.`);
       return false;
     }
     if (inside) return true; // leaving is always allowed
@@ -949,7 +957,7 @@ module.exports = (api) => {
     const d = byId.get(p.dungeonId); const diff = DIFFICULTIES.find((x) => x.id === String(args[1]));
     if (!d || !diff) return;
     if (ST.leases.has(d.id)) { log(`dungeon refused ${who(a)}: ${d.id} was claimed by someone else while their gate was open`); return personal(a, `Someone claimed ${d.name} first.`); }
-    if (distance(a, p.entrance.doorPos || p.entrance.pos, p.entrance.world || p.entrance.cell) > C.entranceReach) { log(`dungeon refused ${who(a)}: ${d.id} claim from beyond ${C.entranceReach} units of the entrance`); return personal(a, 'You have wandered from the entrance.'); }
+    if (!atEntrance(a, p.entrance)) { log(`dungeon refused ${who(a)}: ${d.id} claim from beyond ${C.entranceReach} units of the entrance`); return personal(a, 'You have wandered from the entrance.'); }
     startLease(a, d, p.entrance, diff);
   });
   // The refused door leaves the client half into its load; putting them back at the entrance finishes it
@@ -963,18 +971,21 @@ module.exports = (api) => {
   // ---- expeditions from the Synod Conclave ----------------------------------------------------------
   const EXPEDITION_WIDGET_ID = 63;
   const expeditionPending = globalThis.__dboExpeditionPending = globalThis.__dboExpeditionPending || new Map(); // actor -> true while the list is open
-  const inSynod = (a) => EXPEDITION_CELLS.has(whereIs(a));
+  const startOf = (a) => EXPEDITION_STARTS.find((x) => x.cellSet.has(whereIs(a))) || null;
+  const WHERE_FROM = 'Expeditions leave from the Synod Conclave or the Fighters Guild in Bruma.';
   const expeditionStatus = (a, d) => {
     const lease = ST.leases.get(d.id);
     if (lease) return lease.members.has(profileOf(a)) ? `your party is there, ${minutesLeft(lease.endsAt)} min left` : `another party is there, ${minutesLeft(lease.endsAt)} min`;
     const cd = Number(cooldownsOf(a)[d.id]) || 0;
     return cd > Date.now() ? `rests for you ${minutesLeft(cd)} min` : 'open';
   };
-  const openExpeditions = (a) => {
+  // The ruin's entrance, leaving from (and coming home to) the hall this party is in
+  const expeditionFrom = (d, st) => Object.assign({}, d.entrances[0], { cell: st.cell, pos: st.pos, rot: st.rot, doorPos: st.pos, from: st.name, startCells: [...st.cellSet] });
+  const openExpeditions = (a, st) => {
     const list = EXPEDITIONS.map((x) => byId.get(x.id)).filter(Boolean);
     if (!list.length) return personal(a, 'No expeditions are being organised right now.');
     expeditionPending.set(a, true);
-    openWidget(a, { type: 'contextMenu', id: EXPEDITION_WIDGET_ID, mode: 'menu', targetName: 'Expeditions from the Synod: Ayleid ruins far to the south',
+    openWidget(a, { type: 'contextMenu', id: EXPEDITION_WIDGET_ID, mode: 'menu', targetName: `Expeditions from ${st.name}: Ayleid ruins far to the south`,
       actions: list.map((d) => ({ id: d.id, label: `${d.name}${d.county ? `, ${d.county}` : ''} (${expeditionStatus(a, d)})` })),
       events: { action: 'dbo:expeditionPick', close: 'dbo:expeditionClose' } }, true);
   };
@@ -983,20 +994,25 @@ module.exports = (api) => {
     closeWidget(a, EXPEDITION_WIDGET_ID);
     const d = byId.get(String(args[0] || ''));
     if (!d || !d.expedition) return;
-    if (!inSynod(a)) return personal(a, 'Expeditions leave from the Synod Conclave in Bruma.');
-    offerGate(a, d, d.entrances[0]);
+    const st = startOf(a);
+    if (!st) return personal(a, WHERE_FROM);
+    offerGate(a, d, expeditionFrom(d, st));
   });
   onUi('expeditionClose', (a) => { expeditionPending.delete(a); closeWidget(a, EXPEDITION_WIDGET_ID); });
   onUi('close', (a, args, widgetId) => { if (widgetId === EXPEDITION_WIDGET_ID) expeditionPending.delete(a); });
-  registerChatCommand('expedition', (a, args) => {
+  const expeditionCommand = (a, args) => {
     if (!C.enabled) return personal(a, 'Dungeons are closed for now.');
-    if (!inSynod(a)) return personal(a, 'Expeditions leave from the Synod Conclave in Bruma. Go there and say /expedition.');
+    const st = startOf(a);
+    if (!st) return personal(a, `${WHERE_FROM} Go to either and say /expeditions.`);
     const q = String(args || '').trim().toLowerCase();
-    if (!q) return openExpeditions(a);
+    if (!q) return openExpeditions(a, st);
     const d = EXPEDITIONS.map((x) => byId.get(x.id)).find((x) => x && x.name.toLowerCase().startsWith(q));
-    if (!d) return personal(a, `No expedition to "${q}". Say /expedition for the list.`);
-    offerGate(a, d, d.entrances[0]);
-  }, { help: 'at the Synod Conclave in Bruma: set out with your party for an Ayleid ruin far to the south' });
+    if (!d) return personal(a, `No expedition to "${q}". Say /expeditions for the list.`);
+    offerGate(a, d, expeditionFrom(d, st));
+  };
+  const EXPEDITION_HELP = 'in Bruma, at the Synod Conclave or the Fighters Guild: set out with your party for an Ayleid ruin far to the south';
+  registerChatCommand('expeditions', expeditionCommand, { help: EXPEDITION_HELP });
+  registerChatCommand('expedition', expeditionCommand, { help: EXPEDITION_HELP });
   onUi('close', (a, args, widgetId) => { if (widgetId === GATE_WIDGET_ID) turnBack(a); });
 
   // ---- corpses: a body yields loot, not a full kit ------------------------------------------------
