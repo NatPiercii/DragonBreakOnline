@@ -278,6 +278,7 @@ class Monitor:
         self.reports_journal = set() # players whose client says when the Journal opens, so silence means a crash
         self.incidents = {}          # 'freeze' / 'pressure' -> {since, last}: at most one open incident of each kind
         self.last_loop = time.time() # last tick summary, or server or gamemode (re)start
+        self.was_down = False        # skymp.service seen stopped since: its silence clock starts when it is seen back
         self.loop_high = 0           # tick summaries in a row with p99 over FREEZE_P99_MS
         self.last_p99 = 'unknown'
         self.last_health = time.time()
@@ -334,7 +335,7 @@ class Monitor:
             self.say(f'{text}, {int((time.time() - inc["since"]) // 60)} min after the alert', t)
 
     def loop_sample(self, p99, mx, online, t):
-        self.last_loop = time.time()
+        self.last_loop, self.was_down = time.time(), False
         if mx is None:    # a gamemode from before 2026-09-24 logs no event loop figures, but the loop runs
             return self.resolve('freeze', 'Server recovered: tick summaries are back', t)
         if mx <= 0:
@@ -349,8 +350,13 @@ class Monitor:
     def health(self, now):
         t = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))
         quiet = now - self.last_loop
-        if quiet >= FREEZE_SILENCE_S and skymp_active():
-            self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
+        if quiet >= FREEZE_SILENCE_S:
+            if not skymp_active():
+                self.last_loop, self.loop_high, self.was_down = now, 0, True    # stopped: no summaries due
+            elif self.was_down:
+                self.last_loop, self.was_down = now, False    # just started: MetricsSystem is up to 9 s behind
+            else:
+                self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
         io, mem = psi_full60(PSI_IO), psi_full60(PSI_MEM)
         if self.memtotal is None:
             self.memtotal = mem_total()
@@ -409,13 +415,15 @@ class Monitor:
             return
         if start_re.match(line):
             self.count('server.restart')
-            self.last_loop = time.time(); self.loop_high = 0    # the first tick summary comes 1-3 min after a start
+            self.last_loop, self.loop_high, self.was_down = time.time(), 0, False    # first summary comes 1-3 min later
+            froze = self.incidents.pop('freeze', None)
+            ended = f'; that ends the freeze alert from {int((time.time() - froze["since"]) // 60)} min ago' if froze else ''
             how, why = journal_start_cause()
             if how == 'crashed':
                 self.count('server.crash')
-                self.alert('restart:' + t, f'**Game server crashed** ({why}) and started again', t)
+                self.alert('restart:' + t, f'**Game server crashed** ({why}) and started again{ended}', t)
             else:
-                self.alert('restart:' + t, 'Game server restarted' if how else 'Game server started', t)
+                self.alert('restart:' + t, ('Game server restarted' if how else 'Game server started') + ended, t)
         elif reload_re.match(line):
             self.last_loop = time.time()    # a gamemode reload restarts the 60 s summary timer
         elif 'audit: JOIN ' in line:

@@ -228,6 +228,40 @@ class FreezeTest(MonitorCase):
         self.run_until(epoch('2026-09-27 02:18:30'))
         self.assertEqual(len(self.alerts('freeze')), 1)
 
+    def test_a_start_after_a_long_stop_is_not_a_freeze(self):
+        # skymp is active up to 9 s before MetricsSystem is logged; a check in that gap used to raise a freeze
+        for started in ('2026-09-27 10:10:58', '2026-09-27 10:12:58'):    # just before a check, and before a clock reset
+            with self.subTest(started=started):
+                self.posts.clear()
+                self.start('2026-09-27 10:00:00')
+                self.feed('2026-09-27 10:00:30', tick_line('2026-09-27 10:00:30', 3, 11.0, 20.0))
+                self.active = False    # stopped at 10:01
+                self.run_until(epoch(started))
+                self.active = True
+                mt = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(epoch(started) + 9))
+                self.feed(mt, f'[{mt}.000] [console] [info] Initialized MetricsSystem')
+                self.assertEqual(self.alerts(), ['`%s` Game server started' % mt[11:]])
+                self.run_until(epoch(mt) + 170)
+                self.assertEqual(len(self.alerts()), 1)
+
+    def test_a_server_that_starts_but_never_logs_is_still_a_freeze(self):
+        self.start('2026-09-27 10:00:00')
+        self.active = False
+        self.run_until(epoch('2026-09-27 10:10:00'))
+        self.active = True    # started, then hung before MetricsSystem
+        self.run_until(epoch('2026-09-27 10:17:00'))
+        self.assertEqual(len(self.alerts('no tick summary')), 1)
+
+    def test_a_restart_ends_an_open_freeze(self):
+        self.start('2026-09-27 00:33:00')
+        self.feed('2026-09-27 00:33:57', REAL_STALL_LINE)
+        self.run_until(epoch('2026-09-27 00:40:00'))
+        self.assertIn('freeze', self.mon.incidents)
+        self.cause = ('restarted', '')
+        self.feed('2026-09-27 02:11:34', '[2026-09-27 02:11:34.367] [console] [info] Initialized MetricsSystem')
+        self.assertEqual(self.alerts()[-1], '`02:11:34` Game server restarted; that ends the freeze alert from 94 min ago')
+        self.assertEqual(self.mon.incidents, {})
+
 
 class PressureTest(MonitorCase):
     def setUp(self):
