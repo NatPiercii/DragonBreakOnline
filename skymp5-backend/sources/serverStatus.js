@@ -9,6 +9,7 @@ const { createReleaseQueue, gitSync, runFile, isSecretFile, readErrors } = requi
 const STATUS_TTL_MS = 5 * 1000
 const SYSTEMCTL_TIMEOUT_MS = 3000
 const SYSTEMCTL_ARGS = Object.freeze(['show', 'skymp', 'skymp-update.service', '--timestamp=unix', '-p', 'ActiveState,SubState,ActiveEnterTimestamp,NRestarts'])
+const SYSTEMCTL_ENV = () => ({ PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin', LANG: 'C' })
 const FRESH_BEAT_MS = 20 * 1000
 const SILENT_MS = 60 * 1000
 const RESTART_WINDOW_MS = 5 * 60 * 1000
@@ -75,7 +76,8 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
 
   const systemd = cachedFor(STATUS_TTL_MS, now, async () => {
     try {
-      const { stdout } = await run('systemctl', [...SYSTEMCTL_ARGS], { timeout: SYSTEMCTL_TIMEOUT_MS, maxBuffer: 64 * 1024 })
+      // Only PATH and LANG, so no backend secret reaches the child (as for git)
+      const { stdout } = await run('systemctl', [...SYSTEMCTL_ARGS], { env: SYSTEMCTL_ENV(), timeout: SYSTEMCTL_TIMEOUT_MS, maxBuffer: 64 * 1024 })
       const [skymp = null, updater = null] = parseShow(stdout)
       return { skymp, updater }
     } catch { return { skymp: null, updater: null } }
@@ -89,7 +91,9 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
   const releaseQueue = queue || createReleaseQueue({ config, fs, now, services, ...queueDeps })
 
   async function exists(file) {
-    try { await fsp.stat(file); return true } catch (err) { unreadable.note(file, err); return false }
+    try { await fsp.stat(file) } catch (err) { unreadable.note(file, err, 'stat'); return false }
+    unreadable.clear(file, 'stat')
+    return true
   }
   const anyExists = async files => (await Promise.all(files.map(exists))).some(Boolean)
 
@@ -101,6 +105,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
       fh = await fsp.open(file, 'r')
       const buf = Buffer.alloc(bytes)
       const { bytesRead } = await fh.read(buf, 0, bytes, 0)
+      unreadable.clear(file)
       return buf.subarray(0, bytesRead).toString('utf8')
     } catch (err) { unreadable.note(file, err); return null } finally { await fh?.close().catch(() => {}) }
   }
@@ -145,6 +150,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
   async function claims() {
     let names
     try { names = await fsp.readdir(config.opsClaimsDir) } catch (err) { unreadable.note(config.opsClaimsDir, err); return [] }
+    unreadable.clear(config.opsClaimsDir)
     const out = []
     for (const name of names.filter(n => NAME_RE.test(n)).sort().slice(0, MAX_CLAIMS)) {
       const text = await head(path.join(config.opsClaimsDir, name), 4096)

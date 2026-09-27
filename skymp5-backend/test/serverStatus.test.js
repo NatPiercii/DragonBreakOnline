@@ -88,6 +88,7 @@ test('status runs only the fixed systemctl show; the queue and live versions arr
       assert.equal(c.file, 'systemctl')
       assert.deepEqual(c.args, [...SYSTEMCTL_ARGS])
       assert.equal(c.opts.timeout, 3000)
+      assert.deepEqual(Object.keys(c.opts.env).sort(), ['LANG', 'PATH'], 'no backend secret reaches systemctl')
     }
     assert.deepEqual(SYSTEMCTL_ARGS, ['show', 'skymp', 'skymp-update.service', '--timestamp=unix', '-p', 'ActiveState,SubState,ActiveEnterTimestamp,NRestarts'])
     assert.ok(gitCalls.length > 0)
