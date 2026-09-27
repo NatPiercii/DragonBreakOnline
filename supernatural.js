@@ -290,7 +290,8 @@ module.exports = (api) => {
     if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, why);
     clearTells(a, s);
     if (s.kind === 'vampire') { s.kind = null; syncVampSpells(a, s); s.kind = 'vampire'; setLookRace(a, false); dropCrown(a, why); }
-    if (s.kind === 'werewolf') { removeSpell(a, BEAST_POWER); if (typeof globalThis.__dboHuntReset === 'function') globalThis.__dboHuntReset(a); }
+    // Hircine blessing a werewolf runs becomeWerewolf on one: the curse goes on, so the Hunt's renown stays (GH-4)
+    if (s.kind === 'werewolf') { removeSpell(a, BEAST_POWER); if (why !== 'became a werewolf' && typeof globalThis.__dboHuntReset === 'function') globalThis.__dboHuntReset(a); }
     audit(`SUPERNATURAL ${who(a)} is no longer a ${s.kind} (${why})`);
     Object.assign(s, { kind: null, stage: 0, pure: false, blessed: false });
     saveState(a, s);
@@ -557,6 +558,8 @@ module.exports = (api) => {
   globalThis.__dboSuperDeath = (victim, killer) => {
     deathAt.set(victim, Date.now());
     killedBy.set(victim, killer ? killer >>> 0 : 0);
+    // A dead id is a new corpse: dynamic ids come back, and one eaten before must not be refused now (GH-3)
+    if (globalThis.__dboSuperFedOn instanceof Set) globalThis.__dboSuperFedOn.delete(victim);
     if (deathAt.size > 2048) for (const [k, t] of deathAt) if (Date.now() - t > 3600000) { deathAt.delete(k); killedBy.delete(k); }
     if (killer && typeof globalThis.__dboHuntKill === 'function') { try { globalThis.__dboHuntKill(killer >>> 0, victim >>> 0); } catch (e) { log('supernatural: hunt kill failed', e.message); } }
     if (!isPlayer(victim)) return;

@@ -52,8 +52,16 @@ globalThis.__dboHuntKill(WOLF, DEER);
 check('a kill in beast form: 2', renown() === 17);
 globalThis.__dboHuntKill(WOLF, OTHER);
 check('killing a player earns nothing by itself', renown() === 17);
+globalThis.__dboClock = { gameDays: () => 40.2 };
 globalThis.__dboHuntChanged(WOLF);
 check('a change: 2', renown() === 19);
+globalThis.__dboHuntChanged(WOLF); globalThis.__dboHuntChanged(WOLF);
+check('a Fledgling\'s second change in a game day earns nothing, whoever skips the limit (GH-1)', renown() === 19);
+globalThis.__dboHuntChanged(OTHER);
+check('a change by someone who is not a werewolf earns nothing (GH-1)', !get(OTHER, 'private.greatHunt'));
+set(DEER + 1, 'private.dboCompanion', { owner: OTHER });
+globalThis.__dboHuntFed(WOLF, DEER + 1, WOLF, false); globalThis.__dboHuntKill(WOLF, DEER + 1);
+check('a companion or summon earns nothing, fed on or slain (GH-2)', renown() === 19);
 
 // The farming rules for players
 place(OTHER, W, [80000, 170000, 0]);
@@ -87,6 +95,13 @@ set(WOLF, 'private.beast', null);
 check('out of beast form the rank changes nothing', globalThis.__dboHuntDamageMult(WOLF, DEER) === 1 && globalThis.__dboHuntDamageMult(DEER, WOLF) === 1);
 set(WOLF, 'private.greatHunt', { renown: 1500, fedOn: {} });
 check('an Elder: 300 s, 3 changes a day, forced changes a quarter as often', globalThis.__dboHuntBeastSeconds(WOLF) === 300 && globalThis.__dboHuntChangesPerDay(WOLF) === 3 && globalThis.__dboHuntForcedMult(WOLF) === 0.25);
+
+// A config naming one point value keeps the others (GH-5)
+delete require.cache[HUNT];
+const h2 = require(HUNT)(Object.assign({}, api, { cfg: { greatHunt: { points: { animal: 7 } } } }));
+check('greatHunt.points.animal alone keeps the other values', h2.C.points.animal === 7 && h2.C.points.player === 60 && h2.C.points.change === 2);
+delete require.cache[HUNT];
+require(HUNT)(api);
 
 // The curse ends
 globalThis.__dboHuntReset(WOLF);

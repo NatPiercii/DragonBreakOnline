@@ -1,13 +1,15 @@
 // DragonBreak Online: the Great Hunt, stage 1 (patch note "The Great Hunt: werewolves reworked", designed by swag).
-// Loaded by gamemode.js after supernatural.js and beastform.js, which ask it through globalThis hooks and keep their old
-// numbers when it is missing.
+// Loaded by gamemode.js after beastform.js and before supernatural.js; both ask it through globalThis hooks when they run,
+// so the order does not matter, and they keep their old numbers when it is missing.
 //
 // Renown: a werewolf climbs the ranks by living as one. Points (config greatHunt.points), kept in private.greatHunt:
 //   feed      in beast form on a fresh corpse: an animal 5, a humanoid 10, a player 60. A player counts only when this
 //             werewolf killed them, outdoors and outside a city (greatHunt.cities), once per victim account per real
 //             day, never a partymate and never the werewolf's own account (the farming rules, 2026-09-26).
 //   kill      a creature or person slain in beast form, 2 (players give nothing here; they count when fed on)
-//   change    each transformation, 2
+//   change    each transformation, 2, for no more changes a game day than the rank allows (review GH-1: werewolves
+//             spared the daily limit, such as pack Alphas, could toggle their way to Elder)
+// Companions and summons earn nothing, fed on or slain (GH-2).
 // Ranks (greatHunt.ranks): Fledgling 0, Prowler 100, Hunter 300, Blood-Howler 700, Elder 1500. By rank index:
 //   beastSeconds        how long the change lasts (150 .. 300)
 //   feedSeconds         what a feed adds (30 .. 60)
@@ -21,6 +23,7 @@
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, sendPacket, onlineActors, profileOf, registerChatCommand, zoneOfActor, zoneById, isWorldspace, cfg } = api;
+  const G = cfg.greatHunt || {};
   const C = Object.assign({
     ranks: ['Fledgling', 'Prowler', 'Hunter', 'Blood-Howler', 'Elder'],
     thresholds: [0, 100, 300, 700, 1500],
@@ -35,7 +38,9 @@ module.exports = (api) => {
     // No renown for feeding on a player in a city: { name, world, pos, radius }; interiors never count either
     cities: [{ name: 'Bruma', world: 'a764b:BSHeartland.esm', pos: [57592, 203505], radius: 3500 }],
     howlEverySeconds: 60,
-  }, cfg.greatHunt || {});
+  }, G);
+  // A config that names one point value keeps the others (GH-5)
+  C.points = Object.assign({ animal: 5, humanoid: 10, player: 60, kill: 2, change: 2 }, G.points || {});
   const HP = 'private.greatHunt';
   const S = globalThis.__dboGreatHunt || (globalThis.__dboGreatHunt = { howledAt: new Map() });
 
@@ -50,6 +55,8 @@ module.exports = (api) => {
   const posOf = (a) => { try { return mp.get(a, 'pos'); } catch (e) { return null; } };
   const sameWorld = (x, y) => { try { return (mp.getIdFromDesc(x) >>> 0) === (mp.getIdFromDesc(y) >>> 0); } catch (e) { return x === y; } };
   const partyLeader = (a) => (typeof globalThis.__dboPartyLeaderOf === 'function' ? globalThis.__dboPartyLeaderOf(a) : null);
+  const isCompanion = (x) => { try { return !!mp.get(x, 'private.dboCompanion'); } catch (e) { return false; } };
+  const gameDay = () => { const c = globalThis.__dboClock; return c && typeof c.gameDays === 'function' ? Math.floor(c.gameDays()) : Math.floor(Date.now() / 14400000); };
   const inCity = (a) => {
     const w = worldOf(a); const p = posOf(a);
     if (!Array.isArray(p)) return true;
@@ -95,6 +102,7 @@ module.exports = (api) => {
   // ---- hooks for supernatural.js and beastform.js ------------------------------------------------------------
   // Feeding on a fresh corpse in beast form: victim is the corpse, killer who slew it (0 when unknown)
   globalThis.__dboHuntFed = (a, victim, killer, humanoid) => {
+    if (isCompanion(victim)) return 0;
     if (profileOf(victim) >= 0) {
       const s = stateOf(a); if (!s) return;
       const why = playerRefusal(a, victim, killer, s);
@@ -106,10 +114,18 @@ module.exports = (api) => {
     return award(a, 'feed', humanoid ? C.points.humanoid : C.points.animal);
   };
   globalThis.__dboHuntKill = (killer, victim) => {
-    if (!inBeast(killer) || profileOf(victim) >= 0) return;
+    if (!inBeast(killer) || profileOf(victim) >= 0 || isCompanion(victim)) return;
     award(killer, 'kill', C.points.kill);
   };
-  globalThis.__dboHuntChanged = (a) => award(a, 'change', C.points.change);
+  globalThis.__dboHuntChanged = (a) => {
+    if (!isWerewolf(a)) return 0;
+    const s = stateOf(a); if (!s) return 0;
+    const day = gameDay();
+    const paid = s.changeDay === day ? Number(s.changesPaid) || 0 : 0;
+    if (paid >= at(C.changesPerDay, a)) return 0;
+    s.changeDay = day; s.changesPaid = paid + 1; save(a, s);
+    return award(a, 'change', C.points.change);
+  };
   globalThis.__dboHuntBeastSeconds = (a) => at(C.beastSeconds, a);
   globalThis.__dboHuntFeedSeconds = (a) => at(C.feedSeconds, a);
   globalThis.__dboHuntChangesPerDay = (a) => at(C.changesPerDay, a);
