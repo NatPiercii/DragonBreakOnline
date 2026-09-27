@@ -5,7 +5,7 @@ import { EconomyData, RealmData, RealmTab, TreasuryTab, WarTab } from './realm';
 // County Bruma's shaded relief from the game's own landscape (server tools/realm-map/render.py, --name bruma): 41 x 41 cells
 // at 256 game units a pixel, pixelX = x / 256 + 96 and pixelY = 1120 - y / 256, so these are its edges in game units
 import realmBruma from '../../img/realm-bruma.png';
-const BRUMA_MAP = { src: realmBruma, bounds: [-24576, 118784, 143360, 286720] as [number, number, number, number] };
+const BRUMA_MAP = { src: realmBruma, bounds: [-16384, 122880, 143360, 266240] as [number, number, number, number] };
 
 // Faction menu (server guilds.js, F3); actions go back as dbo:faction* events with the menu nonce
 export interface FactionMember {
@@ -100,7 +100,7 @@ const Faction = ({ data }: { data: FactionData }) => {
           )}
         </div>
 
-        {tab === 'realm' && <div className="faction__body faction__body--wide"><RealmTab realm={data.realm || null} background={BRUMA_MAP} /></div>}
+        {tab === 'realm' && <div className="faction__body faction__body--wide"><RealmTab realm={data.realm || null} background={BRUMA_MAP} act={act} busy={busy} /></div>}
         {tab === 'war' && <div className="faction__body faction__body--wide"><WarTab realm={data.realm || null} act={act} busy={busy} /></div>}
         {tab === 'treasury' && <div className="faction__body faction__body--wide"><TreasuryTab economy={data.economy || null} act={act} busy={busy} /></div>}
 

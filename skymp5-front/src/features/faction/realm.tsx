@@ -30,6 +30,8 @@ export interface RealmWar {
 }
 
 export interface RealmSecret { id: string; name: string; kind: string; layer: string[]; x: number; y: number }
+// A faction's capital: one of its territories (crowned on the map), or a seat at a spot (x, y null when indoors)
+export interface RealmCapital { faction: string; factionName: string; name: string; territory: string | null; x: number | null; y: number | null }
 export interface RealmRaids {
   rules: { enabled?: boolean; minDefendersOnline: number; cooldownDays: number; raidMinutes: number };
   raids: { raider: string; raiderName: string; owner: string; territory: string; territoryName: string; until: number; breakIns: number }[];
@@ -44,12 +46,16 @@ export interface EconomyData {
 
 export interface RealmData {
   secret?: RealmSecret[];
+  capitals?: RealmCapital[];
   raids?: RealmRaids | null;
   territories: RealmTerritory[];
   colours: Record<string, string>;
   wars: RealmWar[];
-  leads: { id: string; name: string; treasury: number; online: number; seat?: string; atSeat?: number }[];
-  rules: { enabled?: boolean; minOnline: number; declareFee: number; noticeDays: number; windowsPerWar: number; windowHours: number; deathWar: boolean; treatyMinWeeks?: number; treatyMaxWeeks?: number };
+  leads: {
+    id: string; name: string; treasury: number; online: number; seat?: string; atSeat?: number;
+    capital?: string; capitalChoices?: { id: string; name: string }[]; canSetHere?: boolean; capitalChangeAt?: number; atWar?: boolean;
+  }[];
+  rules: { capitalChangeDays?: number; enabled?: boolean; minOnline: number; declareFee: number; noticeDays: number; windowsPerWar: number; windowHours: number; deathWar: boolean; treatyMinWeeks?: number; treatyMaxWeeks?: number };
   windowChoices: number[];
   treaties?: { a: string; aName: string; b: string; bName: string; until: number }[];
   offers?: { id: number; from: string; fromName: string; to: string; toName: string; weeks: number; mine: boolean }[];
@@ -66,7 +72,7 @@ const iconSrc = (type: number | null | undefined): string => {
   if (type === null || type === undefined || !ICONS) return '';
   try { const m = ICONS('./' + type + '.png'); return typeof m === 'string' ? m : (m && m.default) || ''; } catch (e) { return ''; }
 };
-const KIND_LABEL: Record<string, string> = { capital: 'Capital', town: 'Town', village: 'Village', fort: 'Fort' };
+const KIND_LABEL: Record<string, string> = { capital: 'City', town: 'Town', village: 'Village', fort: 'Fort' };
 const gold = (n: number): string => (Number(n) || 0).toLocaleString('en-US');
 const when = (ms: number): string => new Date(ms).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
@@ -84,6 +90,17 @@ const colourOf = (realm: RealmData, owner: string): { base: string; stripe: stri
 const swatch = (c: { base: string; stripe: string }): string =>
   c.stripe ? `repeating-linear-gradient(135deg, ${c.base} 0 5px, ${c.stripe} 5px 8px)` : c.base;
 
+const Crown = () => (
+  <svg className="realm-map__crown" viewBox="0 0 24 16" aria-hidden="true">
+    <path d="M2 14 L4 4 L9 9 L12 2 L15 9 L20 4 L22 14 Z" />
+  </svg>
+);
+const Banner = () => (
+  <svg className="realm-map__banner" viewBox="0 0 16 22" aria-hidden="true">
+    <path d="M2 1 L14 1 L14 17 L8 13 L2 17 Z" />
+  </svg>
+);
+
 // ---- the map -------------------------------------------------------------------------------------------------------
 export const RealmMap = ({ realm, background }: { realm: RealmData; background?: { src: string; bounds: [number, number, number, number] } }) => {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -95,7 +112,7 @@ export const RealmMap = ({ realm, background }: { realm: RealmData; background?:
   const bounds: [number, number, number, number] = background ? background.bounds
     : [Math.min(...xs) - margin, Math.min(...ys) - margin, Math.max(...xs) + margin, Math.max(...ys) + margin];
   const [minX, minY, maxX, maxY] = bounds;
-  const W = 460;
+  const W = 520;
   const H = Math.round(W * (maxY - minY) / (maxX - minX));
   const scale = W / (maxX - minX);
   const toPx = (x: number, y: number): [number, number] => [(x - minX) * scale, H - (y - minY) * scale];
@@ -143,12 +160,25 @@ export const RealmMap = ({ realm, background }: { realm: RealmData; background?:
       <canvas ref={canvas} width={W} height={H} className="realm-map__owners" />
       {ts.map((t) => {
         const [px, py] = toPx(t.x, t.y);
+        const seatOf = (realm.capitals || []).filter((c) => c.territory === t.id);
         return (
-          <div key={t.id} className={'realm-map__marker realm-map__marker--' + (t.kind || 'town')} style={{ left: px, top: py }}>
+          <div key={t.id} className={'realm-map__marker realm-map__marker--' + (t.kind || 'town') + (seatOf.length ? ' realm-map__marker--seat' : '')} style={{ left: px, top: py }}
+            title={seatOf.length ? 'Capital of ' + seatOf.map((c) => c.factionName).join(', ') : undefined}>
+            {seatOf.length > 0 && <Crown />}
             {iconSrc(t.icon)
               ? <img className="realm-map__icon" src={iconSrc(t.icon)} alt="" style={{ outlineColor: colourOf(realm, t.owner).base }} />
               : <span className="realm-map__dot" style={{ background: swatch(colourOf(realm, t.owner)) }} />}
             <span className="realm-map__label">{t.name}</span>
+          </div>
+        );
+      })}
+      {(realm.capitals || []).filter((c) => !c.territory && c.x !== null && c.y !== null).map((c) => {
+        const [px, py] = toPx(c.x as number, c.y as number);
+        const col = colourOf(realm, c.faction);
+        return (
+          <div key={'seat-' + c.faction} className="realm-map__marker realm-map__marker--guildseat" style={{ left: px, top: py, color: col.base }} title={'Capital of ' + c.factionName}>
+            <Banner />
+            <span className="realm-map__label">{c.name}</span>
           </div>
         );
       })}
@@ -166,9 +196,36 @@ export const RealmMap = ({ realm, background }: { realm: RealmData; background?:
   );
 };
 
-export const RealmTab = ({ realm, background }: { realm: RealmData | null; background?: { src: string; bounds: [number, number, number, number] } }) => {
+// A leader moves the capital: one of the faction's territories, or (not for a hold) where they stand
+const CapitalControl = ({ lead, realm, act, busy }: { lead: RealmData['leads'][number]; realm: RealmData; act: Send; busy: boolean }) => {
+  const choices = lead.capitalChoices || [];
+  const [pick, setPick] = useState(choices.find((c) => c.id !== lead.capital)?.id || '');
+  const waiting = (lead.capitalChangeAt || 0) > Date.now();
+  const blocked = lead.atWar ? 'Not while at war.' : waiting ? `It can move again ${when(lead.capitalChangeAt as number)}.` : '';
+  return (
+    <div className="realm__capital">
+      <div className="realm__capital-head"><Crown /> <b>{lead.name}</b>: capital {lead.seat || 'not chosen yet'}</div>
+      {blocked ? <div className="war__line war__line--dim">{blocked}</div> : (
+        <div className="war__actions">
+          {choices.length > 0 && <>
+            <select className="faction__rank" value={pick} onChange={(e) => setPick(e.target.value)}>
+              {choices.map((c) => <option key={c.id} value={c.id}>{c.name}{c.id === lead.capital ? ' (now)' : ''}</option>)}
+            </select>
+            <button className="faction__button" disabled={busy || !pick || pick === lead.capital} onClick={() => act('dbo:realmCapital', lead.id, pick)}>Make it the capital</button>
+          </>}
+          {lead.canSetHere && <button className="faction__button" disabled={busy} onClick={() => act('dbo:realmCapital', lead.id, 'here')}>Make where I stand our seat</button>}
+          {!choices.length && !lead.canSetHere && <span className="war__line--dim">Your hold holds no territory to make its capital.</span>}
+        </div>
+      )}
+      <div className="war__line war__line--dim">Members gather here to declare war{realm.rules.capitalChangeDays ? `; it moves once every ${realm.rules.capitalChangeDays} days` : ''}. Taking a hold's capital takes the hold.</div>
+    </div>
+  );
+};
+
+export const RealmTab = ({ realm, background, act, busy }: { realm: RealmData | null; background?: { src: string; bounds: [number, number, number, number] }; act: Send; busy: boolean }) => {
   if (!realm || !(realm.territories || []).length) return <p className="faction__empty">No land has been charted yet.</p>;
   const owners = Array.from(new Set(realm.territories.map((t) => t.owner)));
+  const capitals = realm.capitals || [];
   return (
     <div className="realm">
       <RealmMap realm={realm} background={background} />
@@ -190,6 +247,13 @@ export const RealmTab = ({ realm, background }: { realm: RealmData | null; backg
             </div>
           ))}
         </div>
+        {capitals.length > 0 && (
+          <div className="realm__list">
+            <span className="realm__section-head">Capitals</span>
+            {capitals.map((c) => <div key={c.faction} className="realm__row"><span className="realm__name">{c.factionName}</span><span className="realm__kind">{c.territory ? 'Territory' : 'Seat'}</span><span className="realm__owner">{c.name}</span></div>)}
+          </div>
+        )}
+        {(realm.leads || []).map((l) => <CapitalControl key={l.id} lead={l} realm={realm} act={act} busy={busy} />)}
         {(realm.secret || []).length > 0 && (
           <div className="realm__list">
             <span className="realm__secret-head">Known only to your circle</span>

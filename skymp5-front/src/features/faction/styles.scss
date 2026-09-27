@@ -294,6 +294,12 @@
 .realm-map__secret { width: 14px; height: 14px; border-radius: 50%; border: 2px dashed #c9a8ff; box-shadow: 0 0 6px rgba(168, 140, 236, 0.9); }
 .realm-map__marker--secret .realm-map__label { color: #d9c6ff; font-style: italic; }
 .realm__secret-head { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #c9a8ff; }
+.realm__section-head { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: $dbo-gold; }
+.realm__capital { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid $dbo-border; border-radius: 4px; background: rgba(0, 0, 0, 0.2); }
+.realm__capital-head { display: flex; align-items: center; gap: 6px; font-size: 13px; color: $dbo-text; .realm-map__crown { position: static; transform: none; } }
+.realm-map__crown { width: 18px; height: 12px; fill: $dbo-gold; filter: drop-shadow(0 0 2px #000); }
+.realm-map__marker--seat .realm-map__crown { margin-bottom: 1px; }
+.realm-map__banner { width: 14px; height: 19px; fill: currentColor; stroke: #f4efe2; stroke-width: 1.5; filter: drop-shadow(0 0 2px #000); }
 .treasury__figure { display: inline-flex; align-items: center; gap: 5px; }
 .treasury__suffix { font-size: 12px; color: $dbo-text-dim; }
 .treasury__wages { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; }
