@@ -1536,6 +1536,38 @@ function isProcessRunning(imageName) {
   })
 }
 
+// The title of SkyrimSE.exe's window, or '' until it has one (tasklist /v shows "N/A" before then)
+function gameWindowTitle() {
+  return new Promise(resolve => {
+    require('child_process').exec(
+      'tasklist /V /FO CSV /NH /FI "IMAGENAME eq SkyrimSE.exe"',
+      { timeout: 8000, windowsHide: true },
+      (err, stdout) => {
+        if (err) return resolve('')
+        const row = stdout.split(/\r?\n/).find(l => /^"SkyrimSE\.exe"/i.test(l))
+        const cells = row ? row.split('","').map(c => c.replace(/^"|"$/g, '')) : []
+        const title = cells.length ? cells[cells.length - 1] : ''
+        resolve(title && title !== 'N/A' ? title : '')
+      }
+    )
+  })
+}
+
+// Once the game's window exists the launcher steps aside. Windows gives the keyboard only to the program that last had
+// the player's input, and that was the launcher (the game starts through MO2 and the SKSE loader), so the game showed
+// in front while the launcher kept the keys: players could not move until they tabbed out (2026-09-27). Minimizing the
+// launcher hands the keyboard to the window behind it, the game. Gives up after two minutes.
+function stepAsideForGame() {
+  if (process.platform !== 'win32') return
+  const started = Date.now()
+  const tick = async () => {
+    if (!win || win.isDestroyed() || win.isMinimized()) return
+    if (await gameWindowTitle()) { if (!win.isDestroyed() && !win.isMinimized()) win.minimize(); return }
+    if (Date.now() - started < 120_000) setTimeout(tick, 1500)
+  }
+  setTimeout(tick, 1500)
+}
+
 // Lightweight update probe for the Play/Update button: compares the server's
 // published client-files version with what was last installed.
 ipcMain.handle('files:updateCheck', async () => {
@@ -1790,6 +1822,7 @@ ipcMain.handle('launch:skse', () => guardLaunch(async () => {
       }
       spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
     }
+    stepAsideForGame()
     return { success: true, loadOrderFixed: prep.loadOrderFixed, warning: prep.warning }
   } catch (err) {
     return { success: false, error: err.message }
@@ -1803,7 +1836,7 @@ ipcMain.handle('launch:viaMO2', () => guardLaunch(async () => {
   if (!mo2.isInstalled()) return { success: false, error: 'MO2 is not installed - use Repair MO2 first.' }
   const prep = await prepareForLaunch(skyrimPath, true)
   if (!prep.success) return prep
-  try { mo2.launchGame(skyrimPath); return { success: true } }
+  try { mo2.launchGame(skyrimPath); stepAsideForGame(); return { success: true } }
   catch (err) { return { success: false, error: err.message } }
 }))
 
@@ -1818,6 +1851,7 @@ ipcMain.handle('launch:direct', () => guardLaunch(async () => {
   }
   try {
     spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
+    stepAsideForGame()
     return { success: true }
   } catch (err) { return { success: false, error: err.message } }
 }))
