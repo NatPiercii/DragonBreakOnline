@@ -592,8 +592,12 @@ def main():
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == '--test':
-        # Feed stdin through the classifier without Discord or the state dir (DBO_MONITOR_CHANNEL= disables posting)
+        # Feed stdin through the classifier: never Discord, systemd or this host's pressure, whatever the environment
         STATE_DIR = os.environ.get('DBO_MONITOR_STATE', '/tmp/dbo-monitor-test'); STATE = os.path.join(STATE_DIR, 'state.json')
+        CHANNEL = BUG_FORUM = ''
+        journal_start_cause = lambda: ('', '')
+        skymp_active = lambda: False
+        Monitor.health = lambda self, now: None
         mon = Monitor()
         for ln in sys.stdin:
             mon.line(ln, 'update' if ln.startswith('UPDATE ') else 'server')

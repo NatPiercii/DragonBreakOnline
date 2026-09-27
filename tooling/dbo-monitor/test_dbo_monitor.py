@@ -4,7 +4,7 @@
 Run: python3 tooling/dbo-monitor/test_dbo_monitor.py
 The stall samples are the real tick summaries from /var/log/skymp-server.log on 2026-09-27 (00:33-02:11Z freeze).
 """
-import calendar, os, sys, tempfile, threading, time, unittest, warnings
+import calendar, io, json, os, runpy, sys, tempfile, threading, time, unittest, warnings
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -416,6 +416,25 @@ class StartTest(MonitorCase):
             self.assertEqual(self.alerts(), [text])
         self.assertEqual(self.mon.win['counts'].get('server.crash'), 1)
         self.assertEqual(self.mon.win['counts'].get('server.restart'), 3)
+
+
+class TestModeTest(unittest.TestCase):
+    def test_test_mode_cannot_reach_discord_or_systemd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lines = ['[2026-09-27 02:11:34.367] [console] [info] Initialized MetricsSystem\n',
+                     tick_line('2026-09-27 02:12:00', 1, 11.0, 9000.0) + '\n', tick_line('2026-09-27 02:13:00', 1, 11.0, 9000.0) + '\n']
+            env = {'DBO_MONITOR_CHANNEL': '1234', 'DBO_BUG_FORUM': '5678', 'DBO_MONITOR_STATE': tmp}
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, env), mock.patch.object(sys, 'argv', ['dbo_monitor.py', '--test']), \
+                    mock.patch.object(sys, 'stdin', io.StringIO(''.join(lines))), mock.patch.object(sys, 'stdout', out), \
+                    mock.patch('urllib.request.urlopen', side_effect=AssertionError('network use in --test')), \
+                    mock.patch('subprocess.run', side_effect=AssertionError('systemctl or journalctl in --test')):
+                g = runpy.run_path(dm.__file__, run_name='__main__')
+            self.assertEqual((g['CHANNEL'], g['BUG_FORUM']), ('', ''))
+            self.assertTrue(g['OUTBOX'].q.empty())
+            recent = json.loads('{' + out.getvalue().split('\n{', 1)[1])['recent']    # after the ALERT lines
+            self.assertEqual(recent[0], '`02:11:34` Game server started', 'the replayed log, not this host\'s journal')
+            self.assertIn('**Server freeze:**', recent[1])
 
 
 class OutboxTest(unittest.TestCase):
