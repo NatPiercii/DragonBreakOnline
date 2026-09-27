@@ -33,7 +33,8 @@ const audits = []; const timers = new Map();
 const api = {
   mp, log: () => {}, audit: (t) => audits.push(t), every: (n, ms, f) => timers.set(n, f),
   profileOf: (id) => { const f = forms.get(id); return f && f.profileId !== undefined ? f.profileId : -1; },
-  userOf: () => -1,
+  // The engine's answer for an actor no one plays (review ORPH-1)
+  userOf: () => 65535,
 };
 delete globalThis.__dboOrphans;
 delete require.cache[ORPHANS];

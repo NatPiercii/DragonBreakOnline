@@ -8,8 +8,8 @@
 //   Fight/Flee           both are told; if the robber downs the victim within contestMinutes, Rob on the downed victim
 //                        takes the same share with no prompt.
 //   no answer            after answerSeconds counts as Fight/Flee, so nobody is robbed while away from the keyboard.
-// Rob is offered only when the target's UI can draw the panel (it said so with dbo:uiCaps 'robPrompt'), or when the
-// target lies downed after refusing this robber. Waits: robberMinutes between one robber's attempts, victimMinutes after
+// A target whose UI cannot draw the panel (it did not say dbo:uiCaps 'robPrompt') cannot answer, so the demand counts
+// as Fight/Flee at once and both are told (review C2: such a player could never be robbed, even downed). Waits: robberMinutes between one robber's attempts, victimMinutes after
 // someone was robbed or refused a robbery. Nobody in a beast form robs or is robbed; party members cannot rob each other.
 // Every attempt, answer and take goes to the staff audit log.
 //
@@ -63,7 +63,6 @@ module.exports = (api) => {
     if (dead(t)) return 'You cannot rob them right now.';
     if (within(S.robberAt, a, C.robberMinutes)) return 'You robbed someone moments ago. Wait before you try again.';
     if (within(S.victimAt, t, C.victimMinutes)) return 'They were robbed recently. Leave them be for now.';
-    if (!hasPanel(t)) return forMenu ? 'no panel' : 'They cannot be robbed right now.';
     return '';
   };
 
@@ -123,8 +122,15 @@ module.exports = (api) => {
     for (const e of entries) { const id = Number(e.baseId) >>> 0; held.set(id, (held.get(id) || 0) + (Number(e.count) || 0)); }
     const spare = (id) => { if (!worn) return 0; const w = worn.get(id) || 0; if (w > 0 && typeOf(id) === 'AMMO') return 0; return Math.max(0, (held.get(id) || 0) - w); };
     const items = [];
-    const pockets = shuffle(entries.filter((e) => { const id = Number(e.baseId) >>> 0; return id && id !== GOLD && (Number(e.count) || 0) > 0 && spare(id) >= 1 && STEALABLE.has(typeOf(id)); }));
-    for (const e of pockets.slice(0, Math.max(0, C.itemCount))) { e.count -= 1; held.set(Number(e.baseId) >>> 0, (held.get(Number(e.baseId) >>> 0) || 0) - 1); give(e, 1); items.push(label(Number(e.baseId) >>> 0)); }
+    const pockets = shuffle(entries.filter((e) => { const id = Number(e.baseId) >>> 0; return id && id !== GOLD && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0 && spare(id) >= 1 && STEALABLE.has(typeOf(id)); }));
+    const taken = new Set();
+    for (const e of pockets) {
+      if (items.length >= Math.max(0, C.itemCount)) break;
+      const id = Number(e.baseId) >>> 0;
+      // One of each kind, and never the copy that is worn: what is spare is re-checked after every take
+      if (taken.has(id) || spare(id) < 1) continue;
+      e.count -= 1; held.set(id, (held.get(id) || 0) - 1); taken.add(id); give(e, 1); items.push(label(id));
+    }
     // A key, very rarely
     let key = null;
     const keys = entries.filter((e) => (Number(e.count) || 0) > 0 && typeOf(Number(e.baseId) >>> 0) === 'KEYM');
@@ -171,10 +177,11 @@ module.exports = (api) => {
     // Fight or flee, by choice or by silence
     S.contests.set(p.victim, { robber: p.robber, until: Date.now() + C.contestMinutes * 60000 });
     S.victimAt.set(p.victim, Date.now()); S.robberAt.set(p.robber, Date.now());
-    personal(p.robber, why === 'timeout' ? `${p.victimName} gives no answer. Take it by force, or let them go.` : `${p.victimName} refuses. Fight, or let them go.`);
+    personal(p.robber, why === 'timeout' ? `${p.victimName} gives no answer. Take it by force, or let them go.` : why === 'nopanel' ? `${p.victimName} will not hand it over. Take it by force, or let them go.` : `${p.victimName} refuses. Fight, or let them go.`);
     if (why === 'timeout') personal(p.victim, 'You gave no answer, so you stand your ground.');
+    if (why === 'nopanel') personal(p.victim, `${p.robberName} demands your coin. You stand your ground: if they bring you down, they take it.`);
     try { sendPacket(p.robber, { customPacketType: 'dboBanner', text: `${p.victimName} will not hand it over`, seconds: 3 }); } catch (e) { /* old client */ }
-    audit(`ROBBERY ${who(p.robber)} -> ${who(p.victim)}: ${why === 'timeout' ? 'no answer (resists)' : 'fight or flee'}`);
+    audit(`ROBBERY ${who(p.robber)} -> ${who(p.victim)}: ${why === 'timeout' ? 'no answer (resists)' : why === 'nopanel' ? 'no panel on their UI (resists)' : 'fight or flee'}`);
   };
 
   globalThis.__dboRobEntries = (a, t) => (refusal(a >>> 0, t >>> 0, true) === '' ? [{ id: 'rob', label: 'Rob' }] : []);
@@ -188,6 +195,7 @@ module.exports = (api) => {
     const nonce = `${a.toString(16)}-${t.toString(16)}-${Date.now().toString(36)}`;
     const p = { robber: a, victim: t, nonce, until: Date.now() + C.answerSeconds * 1000, nameFor,
       robberName: nameFor ? nameFor(t, a) : 'Someone', victimName: nameFor ? nameFor(a, t) : 'They' };
+    if (!hasPanel(t)) { finish(p, 'fight', 'nopanel'); return true; }
     S.pending.set(t, p);
     openWidget(t, { type: 'robPrompt', id: WIDGET_ID, nonce, robber: p.robberName, seconds: C.answerSeconds, goldShare: C.goldShare }, true);
     personal(a, `You demand ${p.victimName === 'They' ? 'their' : `${p.victimName}'s`} coin. They have ${C.answerSeconds} seconds to answer.`);

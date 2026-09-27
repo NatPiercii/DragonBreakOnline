@@ -35,8 +35,8 @@ globalThis.__dboClock = { gameDays: () => day };
 globalThis.__alduinakMasteryEvent = (kind, a, d) => events.push({ kind, a, d });
 delete globalThis.__dboWispRest; delete globalThis.__dboWellSpent;
 const packets = [];
-new Function('mp', 'personal', 'log', 'audit', 'who', 'cfg', 'giveItem', 'harvestingTier', 'HARVESTING', 'sendPacket', src.slice(start, end))(
-  mp, personal, () => {}, (t) => audits.push(t), (a) => `P${a.toString(16)}`, {}, giveItem, harvestingTier, HARVESTING, (a, p) => packets.push({ a, p }));
+new Function('mp', 'personal', 'log', 'audit', 'who', 'cfg', 'giveItem', 'harvestingTier', 'HARVESTING', 'sendPacket', 'profileOf', src.slice(start, end))(
+  mp, personal, () => {}, (t) => audits.push(t), (a) => `P${a.toString(16)}`, {}, giveItem, harvestingTier, HARVESTING, (a, p) => packets.push({ a, p }), (a) => (a === ME || a === NOVICE ? 1 : -1));
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
@@ -44,6 +44,7 @@ const last = () => (said[said.length - 1] || {}).t;
 let now = 1_000_000; const realNow = Date.now; Date.now = () => now;
 const rnd = Math.random;
 
+check('an npc gets nothing from a stalk or a well (review WISP-1)', globalThis.__dboWispStalk(STALK, 0xff0000aa) === false && globalThis.__dboAyleidWell(WELL, 0xff0000aa) === false);
 check('another activator passes through', globalThis.__dboWispStalk(BARREL, ME) === false && globalThis.__dboAyleidWell(BARREL, ME) === false);
 Math.random = () => 0.5;
 check('a master harvester picks a wisp stalk: double yield', globalThis.__dboWispStalk(STALK, ME) === true && given[0].id === WISP_ITEM && given[0].n === 2 && /harvest 2 Wisp Stalks/.test(last()));

@@ -52,16 +52,24 @@ const out = { personal: [], audits: [] };
 const handlers = new Map(); const timers = new Map();
 const api = {
   mp: { get, set, getActorsByProfileId: (pid) => chars[pid] || [] },
-  log: () => {}, personal: (a, t) => out.personal.push({ a, t }), audit: (t) => out.audits.push(t), who: (a) => `P${a.toString(16)}`, cfg: {},
+  log: () => {}, personal: (a, t) => out.personal.push({ a, t }), audit: (t) => out.audits.push(t), who: (a) => `P${a.toString(16)}`, cfg: { economy: { enabled: true } },
   onUi: (ev, f) => handlers.set(ev, f), onlineActors: () => [1, 100, 0x20], every: (n, ms, f) => timers.set(n, f),
   readOfficials: () => JSON.parse(JSON.stringify(officials)), zoneById: (id) => (id === 'bruma' ? { id: 'bruma', name: 'Bruma', officials: ['count', 'steward', 'guard'] } : null),
 };
 let econ;
 const load = () => { handlers.clear(); delete require.cache[ECON]; econ = require(ECON)(api); };
+
+// Off by default (review B2): no reckoning runs, so nothing is charged or paid
+api.cfg = {};
+load();
+timers.get('economy')();
+const offRan = fs.existsSync('economy.json') && !!JSON.parse(fs.readFileSync('economy.json', 'utf8')).lastReckoning;
+api.cfg = { economy: { enabled: true } };
 load();
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
+check('with economy.enabled off (the default) no reckoning runs', !offRan && globalThis.__dboEconomyView(1).enabled === true);
 const bal = (a) => get(a, 'private.bankGold') || 0;
 const ui = (ev, a, ...args) => { replies.length = 0; handlers.get(ev)(a, ['nonce', ...args]); return replies[0] || {}; };
 
