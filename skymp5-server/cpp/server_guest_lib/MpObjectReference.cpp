@@ -35,6 +35,7 @@
 #include <map>
 #include <numeric>
 #include <optional>
+#include <set>
 
 #include "OpenContainerMessage.h"
 #include "SetInventoryMessage.h"
@@ -1950,9 +1951,17 @@ void MpObjectReference::InitScripts()
                        script.scriptName) == 0) {
           scriptNames.push_back(script.scriptName);
         }
-      } else if (auto wst = GetParent())
-        wst->logger->warn("Script '{}' not found in the script storage",
-                          script.scriptName);
+      } else if (auto wst = GetParent()) {
+        // Once per name: one missing script sits on hundreds of references
+        static std::set<std::string> warnedMissing;
+        if (warnedMissing
+              .insert(std::string(script.scriptName.begin(),
+                                  script.scriptName.end()))
+              .second) {
+          wst->logger->warn("Script '{}' not found in the script storage",
+                            script.scriptName);
+        }
+      }
     }
   }
 
@@ -1991,12 +2000,19 @@ void MpObjectReference::InitScripts()
     // 1. GetStage in OnTrigger
     // 2. Unable to determine Actor for 'Game.GetPlayer' in 'OnLoad'
     // 3. USSEP OnActivate empties the shelf into the activator
+    // 4. An endless server-side loop placing dust explosions; clients run their own copy
+    // 5. Mining and notice boards are the gameplay layer's (labour.js, BountyBoardSystem)
     const bool isRemoveNeeded =
       !Utils::stricmp(val.data(), "DA06PreRitualSceneTriggerScript") ||
       !Utils::stricmp(val.data(), "CritterSpawn") ||
-      !Utils::stricmp(val.data(), "PlayerBookShelfContainerScript");
+      !Utils::stricmp(val.data(), "PlayerBookShelfContainerScript") ||
+      !Utils::stricmp(val.data(), "fxDustDropRandomSCRIPT") ||
+      !Utils::stricmp(val.data(), "MineOreScript") ||
+      !Utils::stricmp(val.data(), "manny_up_noticeboardScript");
 
-    spdlog::info("Skipping script {}", val);
+    if (isRemoveNeeded) {
+      spdlog::info("Skipping script {}", val);
+    }
 
     return isRemoveNeeded;
   };
