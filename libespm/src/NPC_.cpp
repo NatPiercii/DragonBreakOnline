@@ -27,12 +27,17 @@ NPC_::Data NPC_::GetData(
         result.isEssential = !!(flags & 0x2);
         result.isUnique = !!(flags & 0x20);
         result.isProtected = !!(flags & 0x800);
+        result.acbsFlags = flags;
+        result.level = *reinterpret_cast<const uint16_t*>(data + 8);
+        result.calcMinLevel = *reinterpret_cast<const uint16_t*>(data + 10);
         result.magickaOffset = *reinterpret_cast<const int16_t*>(data + 4);
         result.staminaOffset = *reinterpret_cast<const int16_t*>(data + 6);
         result.healthOffset = *reinterpret_cast<const int16_t*>(data + 20);
         result.templateDataFlags =
           *reinterpret_cast<const uint16_t*>(data + 18);
 
+      } else if (!std::memcmp(type, "CNAM", 4)) {
+        result.classId = *reinterpret_cast<const uint32_t*>(data);
       } else if (!std::memcmp(type, "RNAM", 4)) {
         result.race = *reinterpret_cast<const uint32_t*>(data);
       } else if (!std::memcmp(type, "OBND", 4)) {

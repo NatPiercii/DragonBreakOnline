@@ -6,6 +6,7 @@
 #include "ARMO.h"
 #include "BOOK.h"
 #include "CELL.h"
+#include "CLAS.h"
 #include "COBJ.h"
 #include "CONT.h"
 #include "DOOR.h"
