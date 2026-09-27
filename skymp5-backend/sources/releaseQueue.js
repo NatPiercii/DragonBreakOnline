@@ -36,7 +36,8 @@ const MAX_COMMITS = 300
 const GROUP_CAP = 200
 const LIST_CAP = 300
 const CONTENT_MATCH_DEPTH = 100
-const QUEUE_TTL_MS = 30 * 1000
+// The queue key covers what changes between fetches, so the TTL is only a backstop for the rest (the working tree, other gameplay files)
+const QUEUE_TTL_MS = 5 * 60 * 1000
 const WEB_EVERY_MS = 10 * 60 * 1000
 const WEB_MAX_PAGES = 60
 const WEB_TIMEOUT_MS = 10 * 1000
@@ -314,7 +315,8 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     try { return await p } catch (err) { memo.delete(key); throw err }
   }
 
-  const objectsDir = () => remember('objects', async () => (await gitText('rev-parse', '--path-format=absolute', '--git-path', 'objects')).trim())
+  const gitPath = name => remember(`path:${name}`, async () => (await gitText('rev-parse', '--path-format=absolute', '--git-path', name)).trim())
+  const objectsDir = () => gitPath('objects')
 
   async function resolve(ref) {
     const { code, stdout } = await git(['rev-parse', '--verify', '--quiet', '--end-of-options', `${ref}^{commit}`], { codes: [0, 1, 128] })
@@ -961,7 +963,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     const [fork, server, lines, held, packs, { items, refused }, block, fetchHead] = await Promise.all([
       commitsBetween('fork', forkLive, mainSha), commitsBetween('server', serverLive, serverSha),
       readJsonLines(config.reviewsFile).then(ls => ls.filter(isTrustedVerdict)), loadHeld(), loadPacks(), loadItems(), blockers(lv),
-      gitText('rev-parse', '--path-format=absolute', '--git-path', 'FETCH_HEAD').then(p => mtimeOf(p.trim())),
+      gitPath('FETCH_HEAD').then(mtimeOf),
     ])
     fetchStamp = fetchHead
     const models = {}
@@ -1091,12 +1093,20 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return { value, models, forkTarget, live: lv }
   }
 
+  // One rev-parse, the updater's last UPDATE, the service start and file mtimes: a warm /queue runs one git process
   async function queueKey() {
-    const [mainSha, serverSha] = await Promise.all([resolve('origin/main'), resolve('origin/server')])
+    const [refs, fetchHead, log, svc] = await Promise.all([
+      git(['rev-parse', '--end-of-options', 'HEAD', 'origin/main', 'origin/server'], { codes: [0, 128] }), gitPath('FETCH_HEAD'), updaterLog(),
+      services().catch(() => ({})),
+    ])
     const stamps = await Promise.all([
-      path.join(control, 'live.json'), path.join(control, 'queue', 'held.json'), path.join(control, 'queue', 'items'), config.reviewsFile,
-    ].map(mtimeOf))
-    return canonical([mainSha, serverSha, stamps, await packStamps()])
+      path.join(control, 'live.json'), path.join(control, 'queue', 'held.json'), path.join(control, 'queue', 'items'), path.join(control, 'release', 'request.json'),
+      config.reviewsFile, fetchHead, path.join(gameDir, 'dbo-gamemode.js'), path.join(gameDir, 'server-settings.json'),
+      path.join(backendDir, 'data', 'files-version.json'), path.join(backendDir, 'data', 'news.live.json'), path.join(backendDir, 'data', 'extra-files.json'),
+      path.join(backendDir, 'routes', 'version.js'), path.join(config.skyrimDataDir || '/opt/skyrim-data', 'SHA256SUMS'),
+      config.clientFilesDir && path.join(config.clientFilesDir, config.clientZipName || 'skymp-client.zip'), config.backendEnvFile || '/opt/dragonbreak/backend.env',
+    ].filter(Boolean).map(mtimeOf))
+    return canonical([refs.code, refs.stdout, log.updates.at(-1) || null, svc.skympSince ?? null, stamps, await packStamps()])
   }
 
   let cache = null, inflight = null, failure = null, lastError = null, backoff = 0
@@ -1198,4 +1208,4 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   return { git, live, queue, peek, peekLive, lastFailure, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
 }
 
-module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, gitCommand, priorityPrefix, runFile, isSecretFile, readErrors, GIT_ALLOWED }
+module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, gitCommand, priorityPrefix, runFile, isSecretFile, readErrors, GIT_ALLOWED, QUEUE_TTL_MS }

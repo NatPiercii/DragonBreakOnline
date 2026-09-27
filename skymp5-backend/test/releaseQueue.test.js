@@ -8,7 +8,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, gitCommand, priorityPrefix, runFile } = require('../sources/releaseQueue')
+const { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, gitCommand, priorityPrefix, runFile, QUEUE_TTL_MS } = require('../sources/releaseQueue')
 const { gitPrefix, gitSub, gitLine } = require('./helpers/panelFixture')
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
@@ -19,6 +19,8 @@ const VERSION_JS = (launcher, client) => `const LATEST_VERSION = '${launcher}'\n
 const NEWS = '[{"title":"Hello"}]'
 const ZIP = 'zip bytes'
 const RACES = '<h1>Races</h1>\n'
+// A clock step that always expires the queue cache
+const PAST_TTL = QUEUE_TTL_MS + 1e3
 const SUMS = `${'1'.repeat(64)}  DragonBreak.esp\n`
 
 let root, repo, liveDir, S = {}, seq = 0
@@ -175,7 +177,8 @@ function newQueue({ reviews = [], held = null, liveJson = null, log = LOG_25_SEP
   if (held) write(cfg.controlDir, { 'queue/held.json': JSON.stringify({ v: 1, ranges: held }) })
   if (liveJson) write(cfg.controlDir, { 'live.json': JSON.stringify(liveJson) })
   if (log != null) fs.writeFileSync(cfg.updaterLog, log)
-  const services = async () => ({ skympSince: Date.now() + 3600e3, backendSince: Date.now() + 3600e3, ...svc })
+  const later = Date.now() + 3600e3
+  const services = async () => ({ skympSince: later, backendSince: later, ...svc })
   const q = createReleaseQueue({ config: cfg, services, fetch: async () => { throw new Error('offline') }, ...deps })
   return { q, cfg }
 }
@@ -317,11 +320,11 @@ test('non-root: an unreadable review file is logged once and named in the warnin
     const qv = await q.queue()
     assert.equal(qv.counts.reviewed, 0)
     assert.ok(qv.warnings.includes(WARNING))
-    clock += 31e3
+    clock += PAST_TTL
     await q.queue()
     assert.deepEqual(warn.mock.calls.map(c => c.arguments.join(' ')), [`[release-queue] cannot read ${cfg.reviewsFile}: EACCES`])
     fs.chmodSync(cfg.reviewsFile, 0o644)
-    clock += 31e3
+    clock += PAST_TTL
     const fixed = await q.queue()
     assert.equal(fixed.default.fork, S.M2)
     assert.equal(fixed.warnings.includes(WARNING), false)
@@ -769,11 +772,11 @@ test('reviews: ranges resolve four at a time, an unknown tip waits for the next 
   try {
     assert.equal((await q.queue()).default.fork, S.M2)
     assert.equal(peak, 4)
-    clock += 31e3
+    clock += PAST_TTL
     await q.queue()
     assert.equal(unknownCalls, 1)
     fs.utimesSync(path.join(repo, '.git', 'FETCH_HEAD'), new Date(), new Date('2026-09-26T09:00:00Z'))
-    clock += 31e3
+    clock += PAST_TTL
     await q.queue()
     assert.equal(unknownCalls, 2)
   } finally { q.stop() }
@@ -799,7 +802,7 @@ test('slow git: a merge check that times out counts as not clean for that build 
     assert.deepEqual(qv.stops.fork, { short: short(S.M1), kind: 'merge', reason: 'notReviewed' })
     assert.equal(q.lastFailure(), null)
     slow = false
-    clock += 31e3
+    clock += PAST_TTL
     assert.equal((await q.queue()).default.fork, S.M1)
     assert.equal(merges, 2)
   } finally { q.stop() }
@@ -812,7 +815,7 @@ test('slow git: a failed build backs off 1 min, doubling up to 15, while the las
   try {
     const good = await q.queue()
     broken = true
-    clock += 31e3
+    clock += PAST_TTL
     await assert.rejects(q.queue(), { code: 'unavailable', timedOut: true })
     assert.deepEqual(q.lastFailure(), { code: 'timeout', at: isoAt(clock), retryAt: isoAt(clock + 60e3) })
     const before = calls
@@ -833,7 +836,7 @@ test('slow git: a failed build backs off 1 min, doubling up to 15, while the las
     assert.equal((await q.queue()).hash, good.hash)
     assert.equal(q.lastFailure(), null)
     broken = true
-    clock += 31e3
+    clock += PAST_TTL
     await assert.rejects(q.queue())
     assert.equal(Date.parse(q.lastFailure().retryAt) - clock, 60e3, 'a success resets the wait')
   } finally { q.stop() }
@@ -981,7 +984,7 @@ test('queueHash: stable, and changed by a new tip, a verdict or a hold', async (
     const first = (await q.queue()).hash
     assert.match(first, /^[0-9a-f]{64}$/)
     assert.equal((await withQueue({}, q2 => q2.queue())).hash, first)
-    clock += 31e3
+    clock += PAST_TTL
     assert.equal((await q.queue()).hash, first)
 
     const extra = g('commit-tree', '-p', S.M2, '-m', 'backend: late push', `${S.M2}^{tree}`)
@@ -1004,12 +1007,12 @@ test('queue ETag: a side-branch push changes it while queueHash stays', async ()
     const first = await q.queue()
     g('update-ref', 'refs/remotes/origin/pending', g('commit-tree', '-p', S.U2, '-m', 'client: pending three', `${S.F1}^{tree}`))
     try {
-      clock += 31e3
+      clock += PAST_TTL
       const next = await q.queue()
       assert.equal(next.notOnMain.find(b => b.branch === 'pending').uniqueCommits, 3)
       assert.equal(next.hash, first.hash)
       assert.notEqual(queueEtag(next), queueEtag(first))
-      clock += 31e3
+      clock += PAST_TTL
       const again = await q.queue()
       assert.notEqual(again.generatedAt, next.generatedAt)
       assert.equal(queueEtag(again), queueEtag(next))
@@ -1017,20 +1020,38 @@ test('queue ETag: a side-branch push changes it while queueHash stays', async ()
   } finally { q.stop() }
 })
 
-test('queue: a 30 s single-flight cache', async () => {
-  let clock = Date.parse('2026-09-26T08:00:00Z'), logs = 0
-  const { q } = newQueue({ now: () => clock, run: (file, args, opts) => { if (gitSub(args) === 'log') logs++; return realRun(file, args, opts) } })
+test('queue: a 5 min single-flight cache; a warm call runs one git process', async () => {
+  let clock = Date.parse('2026-09-26T08:00:00Z'), logs = 0, gits = 0
+  const { q } = newQueue({ now: () => clock, run: (file, args, opts) => { gits++; if (gitSub(args) === 'log') logs++; return realRun(file, args, opts) } })
   try {
     const [a, b] = await Promise.all([q.queue(), q.queue()])
     assert.equal(a, b)
-    const afterFirst = logs
-    clock += 10e3
+    const afterFirst = logs, gitsFirst = gits
+    clock += QUEUE_TTL_MS - 1e3
     assert.equal(await q.queue(), a)
     assert.equal(logs, afterFirst)
-    clock += 25e3
+    assert.equal(gits - gitsFirst, 1)
+    clock += 2e3
     assert.notEqual(await q.queue(), a)
     assert.ok(logs > afterFirst)
     assert.equal(q.peek().hash, a.hash)
+  } finally { q.stop() }
+})
+
+test('queue: HEAD, a fetch, an UPDATE line, a gameplay deploy or a skymp restart rebuilds it within the TTL', async () => {
+  let clock = Date.parse('2026-09-26T08:00:00Z'), logs = 0
+  const svc = { skympSince: SKYMP_ACTIVE }
+  const { q, cfg } = newQueue({ now: () => clock, svc, run: (file, args, opts) => { if (gitSub(args) === 'log') logs++; return realRun(file, args, opts) } })
+  const rebuilds = async change => { await q.queue(); const before = logs; change(); await q.queue(); return logs > before }
+  const touch = file => fs.utimesSync(file, new Date(), new Date(Date.now() + (++seq) * 1000))
+  try {
+    assert.equal(await rebuilds(() => {}), false)
+    assert.equal(await rebuilds(() => fs.appendFileSync(cfg.updaterLog, `2026-09-26T08:05:00Z up to date (${short(S.LIVE)})\n`)), false, 'a quiet updater run')
+    assert.equal(await rebuilds(() => fs.appendFileSync(cfg.updaterLog, `2026-09-26T08:10:00Z UPDATE ${short(S.LIVE)} -> ${short(S.M2)}\n`)), true, 'an UPDATE line')
+    assert.equal(await rebuilds(() => touch(path.join(repo, '.git', 'FETCH_HEAD'))), true, 'a fetch')
+    assert.equal(await rebuilds(() => touch(path.join(liveDir, 'dbo-gamemode.js'))), true, 'a gameplay deploy')
+    assert.equal(await rebuilds(() => { svc.skympSince += 60e3 }), true, 'a skymp restart')
+    try { assert.equal(await rebuilds(() => g('update-ref', 'refs/heads/main', S.PREV)), true, 'HEAD moved') } finally { g('update-ref', 'refs/heads/main', S.LIVE) }
   } finally { q.stop() }
 })
 
