@@ -71,7 +71,7 @@
           "The server badge shows how many people are online.",
           "Once the game window opens, the launcher steps aside so the game gets your keyboard.",
           "Your microphone is no longer opened when the launcher starts.",
-          "A field of view setting in Settings.",
+          "A field of view setting in Settings. Known issue: it does not work in 2.1.31, because it writes the value to a file Skyrim does not read it from. A fix is built and being tested; until then, changing it has no effect in game.",
           "Report a Problem no longer sends your chat."
         ]
       },
