@@ -52,7 +52,7 @@ const whenText = (at: number): string => {
 const Coin = () => <span className="bank__coin" />;
 
 // Digits only; keys typed here stay out of the game's and the global Escape handler, except Escape on an empty field
-const AmountInput = ({ value, onChange, onEnter }: { value: string; onChange: (v: string) => void; onEnter: () => void }) => (
+const AmountInput = ({ value, onChange, onEnter }: { value: string; onChange: (v: string) => void; onEnter?: () => void }) => (
   <input
     className="bank__amount"
     inputMode="numeric"
@@ -64,7 +64,7 @@ const AmountInput = ({ value, onChange, onEnter }: { value: string; onChange: (v
       if (e.key === 'Escape' && !value) return;
       e.stopPropagation();
       if (e.key === 'Escape') onChange('');
-      if (e.key === 'Enter') onEnter();
+      if (e.key === 'Enter' && onEnter) onEnter();
     }}
   />
 );
@@ -99,6 +99,7 @@ const Bank = ({ data }: { data: BankData }) => {
   const deposit = (all?: boolean) => (all || n > 0) && act('dbo:bankDeposit', all ? 'all' : String(n));
   const withdraw = (all?: boolean) => (all || n > 0) && act('dbo:bankWithdraw', all ? 'all' : String(n));
   const payIn = (all?: boolean) => treasury && (all || n > 0) && act('dbo:bankTreasury', treasury.key, all ? 'all' : String(n));
+  const payInOff = busy || !n || n > data.carried;
 
   return (
     <div className="bank">
@@ -123,7 +124,8 @@ const Bank = ({ data }: { data: BankData }) => {
           <div className="bank__section">
             <p className="bank__note">Your account is the same at every bank in the land. Gold kept here cannot be stolen, looted or raided.</p>
             <div className="bank__row">
-              <AmountInput value={amount} onChange={setAmount} onEnter={() => deposit()} />
+              {/* No Enter here: it cannot tell a deposit from a withdrawal */}
+              <AmountInput value={amount} onChange={setAmount} />
               <button className="bank__button" disabled={busy || !n || n > data.carried} onClick={() => deposit()}>Deposit</button>
               <button className="bank__button" disabled={busy || !n || n > data.balance} onClick={() => withdraw()}>Withdraw</button>
             </div>
@@ -140,8 +142,8 @@ const Bank = ({ data }: { data: BankData }) => {
             </div>
             <p className="bank__note">Anyone who answers for a treasury may pay into it. No one can take gold out: the realm spends it on wages, contracts and war.</p>
             <div className="bank__row">
-              <AmountInput value={amount} onChange={setAmount} onEnter={() => payIn()} />
-              <button className="bank__button" disabled={busy || !n || n > data.carried} onClick={() => payIn()}>Pay in</button>
+              <AmountInput value={amount} onChange={setAmount} onEnter={() => !payInOff && payIn()} />
+              <button className="bank__button" disabled={payInOff} onClick={() => payIn()}>Pay in</button>
             </div>
           </div>
         )}
