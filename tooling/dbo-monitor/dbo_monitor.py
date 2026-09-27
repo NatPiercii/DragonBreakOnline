@@ -15,7 +15,7 @@ Classes of event it knows:
 State: /var/lib/dbo-monitor/state.json  { updatedAt, windows: [ { start, counts, worst, players } ...288 x 5 min ],
        recent: [ last 50 alerts ], online: { name: { lastSeen, hosted, unloaded } } }
 """
-import json, os, re, subprocess, sys, time, urllib.request
+import json, os, queue, re, subprocess, sys, threading, time, urllib.error, urllib.request
 from collections import Counter, defaultdict
 
 LOG = '/var/log/skymp-server.log'
@@ -45,6 +45,10 @@ PSI_FULL_AVG60 = 20           # io or memory PSI 'full avg60' over this in 2 che
 MEM_PCT = 90                  # container memory in use over this share of its limit in 2 checks in a row too
 PSI_IO, PSI_MEM = '/proc/pressure/io', '/proc/pressure/memory'
 CGROUP, MEMINFO = '/sys/fs/cgroup', '/proc/meminfo'
+# Discord posts go out from a thread: in the 2026-09-27 stall 11 of 16 posts failed, one only after minutes
+OUTBOX_MAX = 20               # posts kept for a retry while Discord or the network is down, digests dropped first
+RETRY_S = 30                  # how often the oldest kept post is tried again
+LATE_S = 60                   # a post that goes out this late says when it was raised
 
 ts_re = re.compile(r'^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)')
 loop_re = re.compile(r'ticks \(ms, last 60 s, (\d+) online\)(?:.*\| event loop p99 ([\d.]+) max ([\d.]+))?')
@@ -60,38 +64,99 @@ def token():
         return ''
 
 
-def post_thread(forum, title, content):
-    """Opens a forum thread; True when Discord accepted it."""
+def discord(path, body):
+    """One Discord API POST: 'ok', 'retry' (network trouble, rate limit, Discord down) or 'refused' (never retried)."""
     tok = token()
-    if not tok or not CHANNEL or not forum:    # an empty DBO_MONITOR_CHANNEL (test mode) disables every post
-        return False
-    body = {'name': title[:100] or 'Bug report', 'message': {'content': content[:1900], 'allowed_mentions': {'parse': []}}}
-    req = urllib.request.Request(f'https://discord.com/api/v10/channels/{forum}/threads', method='POST',
-                                 data=json.dumps(body).encode(),
+    if not tok:
+        print('discord post dropped: no bot token', flush=True)
+        return 'refused'
+    req = urllib.request.Request(f'https://discord.com/api/v10/{path}', method='POST', data=json.dumps(body).encode(),
                                  headers={'Authorization': f'Bot {tok}', 'Content-Type': 'application/json',
                                           'User-Agent': 'dbo-monitor (DragonBreak, 1)'})
     try:
         urllib.request.urlopen(req, timeout=10).read()
-        return True
+        return 'ok'
+    except urllib.error.HTTPError as e:
+        print(f'discord post failed: HTTP {e.code}', flush=True)
+        return 'retry' if e.code == 429 or e.code >= 500 else 'refused'
     except Exception as e:
-        print('discord forum post failed:', e, flush=True)
-        return False
+        print('discord post failed:', e, flush=True)
+        return 'retry'
 
 
-def post(text):
-    tok = token()
-    if not tok or not CHANNEL:
+class Outbox:
+    """Posts to Discord from a daemon thread, so a slow Discord or DNS never holds up the checks; failures are retried."""
+
+    def __init__(self):
+        self.q = queue.Queue()
+        self.kept = []       # posts waiting to go, oldest first
+        self.next_try = 0.0
+
+    def keep(self, msg):
+        self.kept.append(msg)
+        while len(self.kept) > OUTBOX_MAX:
+            drop = next((m for m in self.kept if m.get('digest')), self.kept[0])
+            self.kept.remove(drop)
+            print('discord post dropped, outbox full:', drop['text'][:80], flush=True)
+
+    def send(self, m):
+        text = m['text']
+        if time.time() - m['raised'] >= LATE_S:
+            text = f'(delayed, raised {time.strftime("%H:%M:%S", time.gmtime(m["raised"]))}) {text}'
+        if m.get('forum'):
+            body = {'name': m['title'][:100] or 'Bug report',
+                    'message': {'content': m['content'][:1900], 'allowed_mentions': {'parse': []}}}
+            r = discord(f'channels/{m["forum"]}/threads', body)
+            if r != 'refused':
+                return r
+            m['forum'] = None    # the forum refused it: the short text goes to the channel instead, so none is lost
+        return discord(f'channels/{CHANNEL}/messages', {'content': text, 'allowed_mentions': {'parse': []}})
+
+    def pump(self):
+        """Sends kept posts oldest first, 1 s apart, until the list is empty or a post has to wait for RETRY_S."""
+        while self.kept and time.time() >= self.next_try:
+            if self.send(self.kept[0]) == 'retry':
+                self.next_try = time.time() + RETRY_S
+                print(f'discord post kept for a retry ({len(self.kept)} waiting)', flush=True)
+                return
+            self.kept.pop(0)
+            time.sleep(1)
+
+    def run(self):
+        while True:
+            try:
+                wait = max(1.0, self.next_try - time.time()) if self.kept else None
+                try:
+                    self.keep(self.q.get(timeout=wait))
+                    while not self.q.empty():
+                        self.keep(self.q.get_nowait())
+                except queue.Empty:
+                    pass
+                self.pump()
+            except Exception as e:
+                print('discord outbox failed:', e, flush=True)
+                time.sleep(RETRY_S)
+
+    def start(self):
+        threading.Thread(target=self.run, name='discord', daemon=True).start()
+
+
+OUTBOX = Outbox()
+
+
+def post(text, digest=False):
+    """Queues text for the staff channel; returns at once. digest posts are the first dropped when the outbox is full."""
+    if not CHANNEL:    # an empty DBO_MONITOR_CHANNEL (test mode) disables every post
         return
     for chunk in [text[i:i + 1900] for i in range(0, len(text), 1900)]:
-        req = urllib.request.Request(f'https://discord.com/api/v10/channels/{CHANNEL}/messages', method='POST',
-                                     data=json.dumps({'content': chunk, 'allowed_mentions': {'parse': []}}).encode(),
-                                     headers={'Authorization': f'Bot {tok}', 'Content-Type': 'application/json',
-                                              'User-Agent': 'dbo-monitor (DragonBreak, 1)'})
-        try:
-            urllib.request.urlopen(req, timeout=10).read()
-        except Exception as e:
-            print('discord post failed:', e, flush=True)
-        time.sleep(1)
+        OUTBOX.q.put({'text': chunk, 'raised': time.time(), 'digest': digest})
+
+
+def post_bug(title, content, fallback):
+    """Queues a player's /bug report as a thread in BUG_FORUM; if the forum refuses it, fallback goes to the channel."""
+    if not CHANNEL:
+        return
+    OUTBOX.q.put({'text': fallback[:1900], 'raised': time.time(), 'forum': BUG_FORUM, 'title': title, 'content': content})
 
 
 def jload(s):
@@ -299,8 +364,7 @@ class Monitor:
         del self.state['recent'][:-50]
         self.dirty = True
         print('BUGREPORT', who, snap, flush=True)
-        if not post_thread(BUG_FORUM, title, content):
-            post(f'`{t[11:19]}` **Bug report** from {who} (the error-report forum refused it): {text[:300]}')
+        post_bug(title, content, f'`{t[11:19]}` **Bug report** from {who} (the error-report forum refused it): {text[:300]}')
 
     def seen(self, who, t):
         self.last_activity[who] = time.time()
@@ -431,7 +495,7 @@ class Monitor:
                 for k, v in sorted(real.items(), key=lambda kv: -kv[1]):
                     w = self.digest_worst.get(k)
                     parts.append(f'{k} {v}' + (f' (worst {w[0]}: {w[1]})' if w and w[0] else ''))
-                post('**Last 15 min:** ' + ' | '.join(parts))
+                post('**Last 15 min:** ' + ' | '.join(parts), digest=True)
             self.digest_counts.clear(); self.digest_worst.clear()
         if now - self.last_health >= HEALTH_S:
             self.last_health = now
@@ -452,6 +516,7 @@ class Monitor:
 
 
 def main():
+    OUTBOX.start()
     mon = Monitor()
     procs = {
         'server': subprocess.Popen(['tail', '-n', '0', '-F', LOG], stdout=subprocess.PIPE, text=True, errors='replace'),

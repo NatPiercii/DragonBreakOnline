@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Offline tests for dbo_monitor's freeze, pressure and start alerts: no network, no systemd, no real state dir or /proc.
+"""Offline tests for dbo_monitor's alerts and Discord outbox: no network, no systemd, no real state dir or /proc.
 
 Run: python3 tooling/dbo-monitor/test_dbo_monitor.py
 The stall samples are the real tick summaries from /var/log/skymp-server.log on 2026-09-27 (00:33-02:11Z freeze).
 """
-import calendar, os, sys, tempfile, time, unittest, warnings
+import calendar, os, sys, tempfile, threading, time, unittest, warnings
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -68,11 +68,13 @@ class MonitorCase(unittest.TestCase):
         self.tmp = tmp.name
         self.now = 0.0
         self.posts = []
+        self.bugs = []
         self.active = True
         self.cause = ('', '')
         for target, value in [
             ('STATE_DIR', self.tmp), ('STATE', os.path.join(self.tmp, 'state.json')), ('CHANNEL', ''),
-            ('post', self.posts.append), ('post_thread', lambda *a: False), ('token', lambda: ''),
+            ('post', lambda text, digest=False: self.posts.append(text)),
+            ('post_bug', lambda *a: self.bugs.append(a)), ('token', lambda: ''),
             ('skymp_active', lambda: self.active), ('journal_start_cause', lambda: self.cause),
             ('PSI_IO', self.path('proc/pressure/io')), ('PSI_MEM', self.path('proc/pressure/memory')),
             ('CGROUP', self.path('cg')), ('MEMINFO', self.path('proc/meminfo')),
@@ -299,6 +301,111 @@ class StartTest(MonitorCase):
             self.assertEqual(self.alerts(), [text])
         self.assertEqual(self.mon.win['counts'].get('server.crash'), 1)
         self.assertEqual(self.mon.win['counts'].get('server.restart'), 3)
+
+
+class OutboxTest(unittest.TestCase):
+    """The Discord outbox on a fake clock, with a scripted discord() in place of the network."""
+
+    def setUp(self):
+        self.now = epoch('2026-09-27 00:37:00')
+        self.sent, self.script = [], []
+        for p in (mock.patch.object(dm.time, 'time', lambda: self.now),
+                  mock.patch.object(dm.time, 'sleep', lambda s: None),
+                  mock.patch.object(dm, 'CHANNEL', 'chan'), mock.patch.object(dm, 'BUG_FORUM', 'forum'),
+                  mock.patch.object(dm, 'discord', self.discord),
+                  mock.patch.object(dm.urllib.request, 'urlopen', side_effect=AssertionError('network use in a test'))):
+            p.start(); self.addCleanup(p.stop)
+        self.box = dm.Outbox()
+        p = mock.patch.object(dm, 'OUTBOX', self.box)
+        p.start(); self.addCleanup(p.stop)
+
+    def discord(self, path, body):
+        r = self.script.pop(0) if self.script else 'ok'
+        if r == 'ok':
+            self.sent.append((path, body.get('content') or body['message']['content']))
+        return r
+
+    def drain(self):
+        while not self.box.q.empty():
+            self.box.keep(self.box.q.get_nowait())
+        self.box.pump()
+
+    def test_post_only_queues(self):
+        dm.post('`00:37:00` **Server freeze:** x')
+        self.assertEqual(self.sent, [], 'post() never touches the network itself')
+        self.assertEqual(self.box.q.qsize(), 1)
+
+    def test_failed_post_is_kept_retried_and_marked_late(self):
+        self.script = ['retry']
+        dm.post('`00:37:00` **Server freeze:** x')
+        dm.post('`00:38:00` **Server under pressure:** y')
+        self.drain()
+        self.assertEqual(self.sent, [])
+        self.assertEqual(len(self.box.kept), 2)
+        self.now += 10
+        self.box.pump()
+        self.assertEqual(self.sent, [], 'no retry before RETRY_S')
+        self.now += dm.RETRY_S
+        self.box.pump()
+        self.assertEqual([c for _, c in self.sent], ['`00:37:00` **Server freeze:** x', '`00:38:00` **Server under pressure:** y'])
+        self.sent.clear()
+        self.script = ['retry', 'retry', 'retry']    # Discord still down for the next 90 s
+        dm.post('**Last 15 min:** server.freeze 1', digest=True)
+        self.drain()
+        for _ in range(3):
+            self.now += dm.RETRY_S
+            self.box.pump()
+        self.assertEqual(self.sent, [('channels/chan/messages', '(delayed, raised 00:37:40) **Last 15 min:** server.freeze 1')])
+
+    def test_refused_post_is_dropped_not_retried(self):
+        self.script = ['refused']
+        dm.post('a'); dm.post('b')
+        self.drain()
+        self.assertEqual([c for _, c in self.sent], ['b'])
+        self.assertEqual(self.box.kept, [])
+
+    def test_outbox_keeps_at_most_20_and_drops_digests_first(self):
+        self.script = ['retry']
+        dm.post('first alert')
+        dm.post('**Last 15 min:** d', digest=True)
+        for i in range(20):
+            dm.post(f'alert {i}')
+        self.drain()
+        texts = [m['text'] for m in self.box.kept]
+        self.assertEqual(len(texts), dm.OUTBOX_MAX)
+        self.assertNotIn('**Last 15 min:** d', texts)
+        self.assertNotIn('first alert', texts, 'with no digest left the oldest goes')
+        self.assertEqual(texts[-1], 'alert 19')
+
+    def test_bug_report_goes_to_the_forum_or_falls_back_to_the_channel(self):
+        dm.post_bug('Ann: wolf floats', 'Bug report body', 'fallback text')
+        self.drain()
+        self.assertEqual(self.sent, [('channels/forum/threads', 'Bug report body')])
+        self.sent.clear()
+        self.script = ['refused']
+        dm.post_bug('Ann: wolf floats', 'Bug report body', 'fallback text')
+        self.drain()
+        self.assertEqual(self.sent, [('channels/chan/messages', 'fallback text')])
+
+    def test_thread_sends_while_the_caller_moves_on(self):
+        release, done = threading.Event(), threading.Event()
+        def slow(path, body):    # Discord hanging, as the post raised at 00:52 on 2026-09-27 did for minutes
+            release.wait(5)
+            self.sent.append(body['content']); done.set()
+            return 'ok'
+        with mock.patch.object(dm, 'discord', slow):
+            self.box.start()
+            t0 = time.monotonic()
+            dm.post('`00:37:00` **Server freeze:** x')
+            self.assertLess(time.monotonic() - t0, 0.5)
+            release.set()
+            self.assertTrue(done.wait(5))
+        self.assertEqual(self.sent, ['`00:37:00` **Server freeze:** x'])
+
+    def test_test_mode_channel_posts_nothing(self):
+        with mock.patch.object(dm, 'CHANNEL', ''):
+            dm.post('x'); dm.post_bug('t', 'c', 'f')
+        self.assertTrue(self.box.q.empty())
 
 
 if __name__ == '__main__':
