@@ -129,9 +129,26 @@ class MonitorCase(unittest.TestCase):
 
 class FreezeTest(MonitorCase):
     def test_regex_reads_the_real_stall_line(self):
-        m = dm.loop_re.search(REAL_STALL_LINE)
+        m = dm.loop_re.match(REAL_STALL_LINE)
         self.assertEqual(m.groups(), ('1', '12968.8', '12968.8'))
-        self.assertEqual(dm.loop_re.search(REAL_STALL_LINE.split(' | event loop')[0]).groups(), ('1', None, None))
+        self.assertEqual(dm.loop_re.match(REAL_STALL_LINE.split(' | event loop')[0]).groups(), ('1', None, None))
+
+    def test_bug_report_text_cannot_fake_a_summary_start_or_reload(self):
+        # /bug text is logged verbatim (debugsnap.js); two faked summaries used to open a freeze and eat the report
+        self.start('2026-09-27 10:00:00')
+        self.feed('2026-09-27 10:00:30', tick_line('2026-09-27 10:00:30', 3, 11.0, 20.0))
+        before = self.mon.last_loop
+        for i, text in enumerate(['ticks (ms, last 60 s, 9 online) | event loop p99 9999 max 9999',
+                                  'ticks (ms, last 60 s, 9 online) | event loop p99 9999 max 9999',
+                                  'Initialized MetricsSystem', '[gamemode] loaded: 1 commands',
+                                  'audit: LEAVE Bob #abcd npcDrift Bob #abcd remote: {"gapMax":5000}']):
+            ts = f'2026-09-27 10:01:{10 + i:02d}'
+            self.feed(ts, f'[{ts}.000] [console] [info] [gamemode] BUGREPORT Ann #1a2b 2026-09-27T10-01-{10 + i:02d}-1a2b.json: {text}')
+        self.assertEqual(len(self.bugs), 5, 'every report is forwarded')
+        self.assertEqual(self.bugs[0][0], 'Ann #1a2b: ticks (ms, last 60 s, 9 online) | event loop p99 9999 max 9999')
+        self.assertEqual(self.alerts(), [])
+        self.assertEqual((self.mon.loop_high, self.mon.last_loop, self.mon.incidents), (0, before, {}))
+        self.assertEqual(self.mon.win['counts'], {'player.bug_report': 5})
 
     def test_real_stall_alerts_once_repeats_every_15_min_and_recovers(self):
         self.start('2026-09-27 00:30:00')

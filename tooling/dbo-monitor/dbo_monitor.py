@@ -52,7 +52,12 @@ RETRY_S = 30                  # how often the oldest kept post is tried again
 LATE_S = 60                   # a post that goes out this late says when it was raised
 
 ts_re = re.compile(r'^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)')
-loop_re = re.compile(r'ticks \(ms, last 60 s, (\d+) online\)(?:.*\| event loop p99 ([\d.]+) max ([\d.]+))?')
+# Rules a player could fake with /bug text match only right after the logger prefix; a BUGREPORT line is handled first
+LOGGER = r'^\[[^\]]+\] \[\w+\] \[\w+\] '
+loop_re = re.compile(LOGGER + r'\[gamemode\] ticks \(ms, last 60 s, (\d+) online\):(?:.*\| event loop p99 ([\d.]+) max ([\d.]+))?')
+start_re = re.compile(LOGGER + r'Initialized MetricsSystem')
+reload_re = re.compile(LOGGER + r'\[gamemode\] loaded: ')
+bugline_re = re.compile(LOGGER + r'\[gamemode\] BUGREPORT ')
 drift_re = re.compile(r'npcDrift (.+?) #\w{4} (\w+): (\{.*)')
 ground_re = re.compile(r'npcGround (under|over|lifted) (ff[0-9a-f]+) (\S+) at (\S+) terrain \S+ dz (-?\d+), near (.+?) #')
 NOISE = re.compile(r"Method not found|Refr pointer expired|No permission to update actor|Recipe not found|Target actor doesn.t exist|CastPrimitivePropertyValue")
@@ -394,12 +399,15 @@ class Monitor:
                 self.count('server.update_failed')
                 self.alert('updatefail:' + line[-60:], '**Updater problem:** ' + line.strip()[:200], t)
             return
-        lm = loop_re.search(line)
+        if bugline_re.match(line):    # player text: no other rule may read it
+            self.count('player.bug_report')
+            return self.bug_report(line.strip(), t)
+        lm = loop_re.match(line)
         if lm:
             p99, mx = (float(g) if g else None for g in lm.group(2, 3))
             self.loop_sample(p99, mx, lm.group(1), t)
             return
-        if 'Initialized MetricsSystem' in line:
+        if start_re.match(line):
             self.count('server.restart')
             self.last_loop = time.time(); self.loop_high = 0    # the first tick summary comes 1-3 min after a start
             how, why = journal_start_cause()
@@ -408,7 +416,7 @@ class Monitor:
                 self.alert('restart:' + t, f'**Game server crashed** ({why}) and started again', t)
             else:
                 self.alert('restart:' + t, 'Game server restarted' if how else 'Game server started', t)
-        elif '[gamemode] loaded: ' in line:
+        elif reload_re.match(line):
             self.last_loop = time.time()    # a gamemode reload restarts the 60 s summary timer
         elif 'audit: JOIN ' in line:
             who = re.sub(r'.*audit: JOIN (.+?) #.*', r'\1', line.strip())
@@ -433,9 +441,6 @@ class Monitor:
                 else:
                     self.alert('crash:' + who + t[:16], f'**Possible crash** (or a quit through the menus, older client): {who} went silent {int(silent)} s before disconnecting', t)
             self.state['online'].pop(who, None)
-        elif 'BUGREPORT ' in line:
-            self.count('player.bug_report')
-            self.bug_report(line.strip(), t)
         elif 'failed to load' in line:
             self.count('server.load_failed')
             self.alert('load:' + line[-80:], '**Gameplay module failed to load:** ' + line.strip()[27:230], t)
