@@ -49,6 +49,7 @@ ok(/Bruma Castle/.test(faction(LEADER, 'hall county-bruma')), 'the County sits i
 const thalmor = faction(LEADER, 'hall thalmor');
 ok(/Bruma Castle/.test(thalmor) && /shared/.test(thalmor), 'the Thalmor share Bruma Castle with the Legion', thalmor);
 ok(/alongside the Imperial Legion/.test(thalmor), '...and the reason is carried with it');
+ok(/Frostcrag Spire/.test(faction(LEADER, 'hall college-of-whispers')), 'the College of Whispers holds Frostcrag Spire');
 ok(/no seat you can reach/.test(faction(LEADER, 'hall blades')), 'the Blades have no seat while Cloud Ruler is a ruin');
 ok(/No such faction/.test(faction(LEADER, 'hall not-a-faction')), 'an unknown faction is refused');
 

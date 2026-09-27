@@ -416,7 +416,19 @@
           "title": "Novice",
           "role": "member"
         }
-      ]
+      ],
+      "hall": {
+        "name": "Frostcrag Spire",
+        "zone": "bruma",
+        "doors": [
+          "859af:BSHeartland.esm",
+          "83a59:BSHeartland.esm",
+          "83a53:BSHeartland.esm",
+          "859ad:BSHeartland.esm",
+          "c8895:BSHeartland.esm"
+        ],
+        "note": "the wizard tower on the hill above Bruma; the Synod keep the Conclave in the city"
+      }
     },
     {
       "id": "fighters-guild",
