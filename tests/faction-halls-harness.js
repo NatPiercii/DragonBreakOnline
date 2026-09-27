@@ -50,7 +50,11 @@ const thalmor = faction(LEADER, 'hall thalmor');
 ok(/Bruma Castle/.test(thalmor) && /shared/.test(thalmor), 'the Thalmor share Bruma Castle with the Legion', thalmor);
 ok(/alongside the Imperial Legion/.test(thalmor), '...and the reason is carried with it');
 ok(/Frostcrag Spire/.test(faction(LEADER, 'hall college-of-whispers')), 'the College of Whispers holds Frostcrag Spire');
-ok(/no seat you can reach/.test(faction(LEADER, 'hall blades')), 'the Blades have no seat while Cloud Ruler is a ruin');
+const dawn = faction(LEADER, 'hall cult-mehrunes-dagon');
+ok(/Mythic Dawn Museum/.test(dawn), 'the Mythic Dawn keep the museum in Dawnstar', dawn);
+ok(/not reachable yet/.test(dawn), '...and a seat outside the Bruma lock says so');
+ok(!/not reachable yet/.test(faction(LEADER, 'hall synod')), '...while a Bruma seat does not');
+ok(/no seat at all/.test(faction(LEADER, 'hall blades')), 'the Blades have no seat while Cloud Ruler is a ruin');
 ok(/No such faction/.test(faction(LEADER, 'hall not-a-faction')), 'an unknown faction is refused');
 
 // ---- storage: only a leader records it, and only a property of their own ----

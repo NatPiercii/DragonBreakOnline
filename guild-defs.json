@@ -1354,7 +1354,15 @@
           "title": "Initiate",
           "role": "member"
         }
-      ]
+      ],
+      "hall": {
+        "name": "the Mythic Dawn Museum, Dawnstar",
+        "zone": "dawnstar",
+        "doors": [
+          "153ca:DragonBreak Online Edits.esp"
+        ],
+        "note": "Silus Vesuius's museum; outside the Bruma lock, so not reachable during the playtest"
+      }
     },
     {
       "id": "cult-mephala",

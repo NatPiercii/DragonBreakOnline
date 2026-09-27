@@ -54,6 +54,8 @@ module.exports = (api) => {
     try { fs.writeFileSync(STORE_PATH + '.tmp', JSON.stringify(STORES, null, 1)); fs.renameSync(STORE_PATH + '.tmp', STORE_PATH); }
     catch (e) { log('faction-storage.json write failed', e.message); }
   };
+  // The region the playtest is locked to (playtest.js holds the real lock; this only decides wording)
+  const PLAYTEST_ZONE = String((cfg.playtest || {}).zone || 'bruma');
   const STORE_REACH = 400;
   // The claimed property the player is standing at. housing.json is the index of claimed ids the housing
   // system keeps (an array of form ids); a ref that is not loaded simply does not answer and is skipped.
@@ -311,9 +313,12 @@ module.exports = (api) => {
       if (rest[0] && !one) return personal(a, `No such faction: ${rest[0]} (/faction list)`);
       const seen = one ? [one] : [...FACTIONS.values()].filter((f) => !f.secret || isAdmin(a) || entryOf(f.id, a));
       const storeLine = (f) => { const st = storageOf(f.id); return st && (isAdmin(a) || entryOf(f.id, a)) ? `, storage: ${st.name}` : ''; };
-      const lines = seen.filter((f) => hallOf(f)).map((f) => { const h = hallOf(f); return `${f.name}: ${h.name}${h.shared ? ' (shared)' : ''}${h.note ? ` - ${h.note}` : ''}${storeLine(f)}`; });
-      if (one) return personal(a, lines[0] || `${one.name} has no seat you can reach.`);
-      return personal(a, lines.length ? `Faction halls in Bruma: ${lines.join(' | ')}` : 'No faction has a seat you can reach yet.');
+      // A seat outside the playtest's region is real but cannot be walked to yet, and saying so is kinder than
+      // letting someone hunt for it (Mythic Dawn keeps the museum in Dawnstar).
+      const reach = (h) => (h.zone && h.zone !== PLAYTEST_ZONE ? ' (not reachable yet)' : '');
+      const lines = seen.filter((f) => hallOf(f)).map((f) => { const h = hallOf(f); return `${f.name}: ${h.name}${h.shared ? ' (shared)' : ''}${reach(h)}${h.note ? ` - ${h.note}` : ''}${storeLine(f)}`; });
+      if (one) return personal(a, lines[0] || `${one.name} has no seat at all.`);
+      return personal(a, lines.length ? `Faction seats: ${lines.join(' | ')}` : 'No faction has a seat yet.');
     }
     if (s === 'accept') return personal(a, accept(a, rest[0] || (invitesOf(a)[0] || {}).fid || ''));
     if (s === 'invite') { const t = findByName(rest[0] || ''); const fid = rest[1] || (membershipsOf(a).find((m) => can(m.fid, a, 'invite')) || {}).fid; return personal(a, t ? invite(a, t, fid) : 'Usage: /faction invite <player|#TAG> [faction]'); }
