@@ -3193,7 +3193,7 @@ async function runMO2Install(opts = {}) {
       }
     }
 
-    if (reused) send('install:log', `Used ${reused} mod archive(s) already downloaded by Vortex or in ${store.get('archiveDir') || "Vortex's downloads"}, without copying them or downloading them again.`)
+    if (reused) send('install:log', `Used ${reused} mod archive(s) you already had (${store.get('archiveDir') ? `in ${store.get('archiveDir')} or Vortex's downloads` : "Vortex's downloads"}), without copying them or downloading them again.`)
 
     // 3b. Free / no-key path: open the downloads list page + MO2 staging folder
     if (needBrowser.length > 0) {
