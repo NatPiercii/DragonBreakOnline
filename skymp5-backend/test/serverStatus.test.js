@@ -235,6 +235,19 @@ test('claims: resource, operator and until only; expired claims and odd names ar
   assert.deepEqual((await createServerStatus({ config: { ...F.config, opsClaimsDir: path.join(F.root, 'none') }, markers: F.markers, runSync: () => '', queue: stubQueue(), run: async () => ({ stdout: '' }) }).get()).claims, [])
 })
 
+test('claims: an unreadable claims folder (a non-root backend) is logged, and a missing one is not', { skip: process.getuid?.() === 0 && 'root reads any file' }, async t => {
+  const warn = t.mock.method(console, 'warn', () => {})
+  const dir = path.join(F.root, 'claims-locked')
+  write(dir, { 'game-server': 'operator=claude-jake\nexpires=9999999999\n' })
+  const status = dirPath => createServerStatus({ config: { ...F.config, opsClaimsDir: dirPath }, markers: F.markers, runSync: () => '', queue: stubQueue(), run: async () => ({ stdout: '' }) })
+  fs.chmodSync(dir, 0o000)
+  try {
+    assert.deepEqual((await status(dir).get()).claims, [])
+    assert.deepEqual((await status(path.join(F.root, 'none')).get()).claims, [])
+    assert.deepEqual(warn.mock.calls.map(c => c.arguments.join(' ')), [`[server-status] cannot read ${dir}: EACCES`])
+  } finally { fs.chmodSync(dir, 0o755) }
+})
+
 test('security: no secret file is ever opened, the config files get a stat only, and nothing carries a path or a claim purpose', async t => {
   const opened = [], statted = []
   const note = (list, name) => (...a) => { if (typeof a[0] === 'string') list.push(`${name} ${a[0]}`) }

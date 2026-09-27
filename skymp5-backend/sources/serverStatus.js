@@ -4,7 +4,7 @@
 
 const nodeFs = require('fs')
 const path = require('path')
-const { createReleaseQueue, gitSync, runFile, isSecretFile } = require('./releaseQueue')
+const { createReleaseQueue, gitSync, runFile, isSecretFile, readErrors } = require('./releaseQueue')
 
 const STATUS_TTL_MS = 5 * 1000
 const SYSTEMCTL_TIMEOUT_MS = 3000
@@ -71,6 +71,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
   // The commit the backend started from, read once while it starts
   const boot = { since: now() - process.uptime() * 1000, sha: readBootSha(config.releaseRepo, runSync) }
   const restarts = { n: null, risenAt: null }
+  const unreadable = readErrors('server-status')
 
   const systemd = cachedFor(STATUS_TTL_MS, now, async () => {
     try {
@@ -88,7 +89,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
   const releaseQueue = queue || createReleaseQueue({ config, fs, now, services, ...queueDeps })
 
   async function exists(file) {
-    try { await fsp.stat(file); return true } catch { return false }
+    try { await fsp.stat(file); return true } catch (err) { unreadable.note(file, err); return false }
   }
   const anyExists = async files => (await Promise.all(files.map(exists))).some(Boolean)
 
@@ -101,7 +102,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
       const buf = Buffer.alloc(bytes)
       const { bytesRead } = await fh.read(buf, 0, bytes, 0)
       return buf.subarray(0, bytesRead).toString('utf8')
-    } catch { return null } finally { await fh?.close().catch(() => {}) }
+    } catch (err) { unreadable.note(file, err); return null } finally { await fh?.close().catch(() => {}) }
   }
 
   async function updaterState(unit, log) {
@@ -143,7 +144,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
   // Who holds which ledger resource and until when; the purpose line is never read out
   async function claims() {
     let names
-    try { names = await fsp.readdir(config.opsClaimsDir) } catch { return [] }
+    try { names = await fsp.readdir(config.opsClaimsDir) } catch (err) { unreadable.note(config.opsClaimsDir, err); return [] }
     const out = []
     for (const name of names.filter(n => NAME_RE.test(n)).sort().slice(0, MAX_CLAIMS)) {
       const text = await head(path.join(config.opsClaimsDir, name), 4096)

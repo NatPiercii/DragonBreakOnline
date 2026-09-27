@@ -213,9 +213,24 @@ function gitEnv() {
   return { PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin', LANG: 'C', HOME: '/nonexistent', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }
 }
 
-// No hooks, no transport and no replace refs, whatever the repo config says
-const gitArgv = (repo, args) => ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null',
-  '-c', 'protocol.allow=never', '--no-replace-objects', ...args]
+// safe.directory lets a non-root backend read the root-owned checkout; no hooks, no transport and no replace refs, whatever the repo config says
+const gitArgv = (repo, args) => ['-C', repo, '-c', `safe.directory=${repo}`, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false',
+  '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '--no-replace-objects', ...args]
+
+// A missing file is normal; any other read error (EACCES as a non-root user) is logged once per file until it clears
+function readErrors(tag) {
+  const failing = new Map()
+  return {
+    note(file, err) {
+      const code = err?.code || 'error'
+      if (code === 'ENOENT' || code === 'ENOTDIR') return void failing.delete(file)
+      if (failing.get(file) !== code) console.warn(`[${tag}] cannot read ${file}: ${code}`)
+      failing.set(file, code)
+    },
+    clear: file => void failing.delete(file),
+    codes: () => [...new Set(failing.values())].sort(),
+  }
+}
 
 // The same guarded call, synchronously, for the one read the backend makes while it starts
 function gitSync(repo, args, { runSync = childProcess.execFileSync } = {}) {
@@ -234,6 +249,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   const files = new Map()
   // Unknown range tips, each with the FETCH_HEAD mtime it was unknown at
   const unknownAt = new Map()
+  const unreadable = readErrors('release-queue')
   let fetchStamp = 0
 
   // ---- git ----
@@ -311,7 +327,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   }
 
   async function statOf(file) {
-    try { return await fsp.stat(file) } catch { return null }
+    try { return await fsp.stat(file) } catch (err) { unreadable.note(file, err); return null }
   }
   const mtimeOf = async file => (await statOf(file))?.mtimeMs || 0
 
@@ -324,11 +340,14 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     const hit = files.get(file)
     if (hit && hit.stamp === stamp) return hit.value
     let buf
-    if (tail && st.size > tail) {
-      const fh = await fsp.open(file, 'r')
-      try { buf = Buffer.alloc(tail); await fh.read(buf, 0, tail, st.size - tail) } finally { await fh.close() }
-      buf = buf.subarray(buf.indexOf(10) + 1)
-    } else buf = await fsp.readFile(file)
+    try {
+      if (tail && st.size > tail) {
+        const fh = await fsp.open(file, 'r')
+        try { buf = Buffer.alloc(tail); await fh.read(buf, 0, tail, st.size - tail) } finally { await fh.close() }
+        buf = buf.subarray(buf.indexOf(10) + 1)
+      } else buf = await fsp.readFile(file)
+    } catch (err) { unreadable.note(file, err); files.delete(file); return null }
+    unreadable.clear(file)
     let value = null
     try { value = parse(buf) } catch { value = null }
     files.set(file, { stamp, value })
@@ -355,13 +374,13 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     const key = `hash:${file}`, stamp = `${st.mtimeMs}:${st.size}`
     const hit = files.get(key)
     if (hit && hit.stamp === stamp) return hit.value
-    const value = await hashFile(file).catch(() => null)
+    const value = await hashFile(file).catch(err => { unreadable.note(file, err); return null })
     files.set(key, { stamp, value })
     return value
   }
 
   async function listDir(dir) {
-    try { return await fsp.readdir(dir) } catch { return [] }
+    try { return await fsp.readdir(dir) } catch (err) { unreadable.note(dir, err); return [] }
   }
 
   // ---- live (2.9) ----
@@ -1008,6 +1027,8 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     if (refused) warnings.push(`${refused} manual item(s) refused: invalid file`)
     if (serverSha && !serverLive) warnings.push('live gameplay matches no recent server commit, so its queue is unknown')
     if (fork.total > fork.commits.length || server.total > server.commits.length) warnings.push(`only the newest ${MAX_COMMITS} commits per branch are listed`)
+    const denied = unreadable.codes()
+    if (denied.length) warnings.push(`some panel files cannot be read (${denied.join(', ')}), so reviews, holds or live versions may be missing`)
     const value = {
       v: 1, hash, fetchedAt: fetchHead ? iso(fetchHead) : null, generatedAt,
       live: { fork: forkLive, server: serverLive },
@@ -1121,4 +1142,4 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   return { git, live, queue, peek, peekLive, lastFailure, upTo, releases, history, updaterLog, checkWebsite, stop: stopWebsite }
 }
 
-module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, runFile, isSecretFile, GIT_ALLOWED }
+module.exports = { createReleaseQueue, queueEtag, parseUpdaterLog, stripStamp, commitTitle, gitSync, runFile, isSecretFile, readErrors, GIT_ALLOWED }

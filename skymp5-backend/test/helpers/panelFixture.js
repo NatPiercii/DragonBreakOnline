@@ -19,7 +19,7 @@ const sha256 = s => crypto.createHash('sha256').update(s).digest('hex')
 const PATH_RE = /\/(?:opt|var|etc|home)\//
 
 // The argv every guarded git call starts with, and the subcommand after it
-const gitPrefix = repo => ['-C', repo, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '--no-replace-objects']
+const gitPrefix = repo => ['-C', repo, '-c', `safe.directory=${repo}`, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '--no-replace-objects']
 const gitSub = args => args[args.indexOf('--no-replace-objects') + 1]
 
 function write(dir, files) {

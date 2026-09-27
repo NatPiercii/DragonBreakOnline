@@ -294,6 +294,43 @@ test('wrapper: merge-tree writes only into a scratch object folder that is remov
   assert.equal(countObjects(), objects)
 })
 
+const ROOT_READS_ALL = process.getuid?.() === 0 && 'root reads any file'
+const otherOwner = opts => ({ ...opts, env: { ...opts.env, GIT_TEST_ASSUME_DIFFERENT_OWNER: '1' } })
+
+test('non-root: a checkout owned by another user is still read, through safe.directory', async () => {
+  // git's own test switch makes it treat the fixture as another user's checkout, as /opt/alduinak is for a non-root backend
+  assert.throws(() => execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], otherOwner({ env: fixtureEnv(), stdio: 'pipe' })), err => /dubious ownership/.test(String(err.stderr)))
+  await withQueue({ run: (file, args, opts) => realRun(file, args, otherOwner(opts)) }, async q => {
+    const qv = await q.queue()
+    assert.deepEqual(qv.live, { fork: S.LIVE, server: S.S0 })
+    assert.equal(qv.counts.total, 13)
+  })
+  const runSync = (file, args, opts) => execFileSync(file, args, otherOwner(opts))
+  assert.equal(gitSync(repo, ['rev-parse', '--verify', '--end-of-options', 'HEAD'], { runSync }).trim(), S.LIVE)
+})
+
+test('non-root: an unreadable review file is logged once and named in the warnings; a missing file is neither', { skip: ROOT_READS_ALL }, async t => {
+  const warn = t.mock.method(console, 'warn', () => {})
+  let clock = Date.parse('2026-09-26T08:00:00Z')
+  const { q, cfg } = newQueue({ reviews: [go(S.M2)], now: () => clock })
+  const WARNING = 'some panel files cannot be read (EACCES), so reviews, holds or live versions may be missing'
+  try {
+    fs.chmodSync(cfg.reviewsFile, 0o000)
+    const qv = await q.queue()
+    assert.equal(qv.counts.reviewed, 0)
+    assert.ok(qv.warnings.includes(WARNING))
+    clock += 31e3
+    await q.queue()
+    assert.deepEqual(warn.mock.calls.map(c => c.arguments.join(' ')), [`[release-queue] cannot read ${cfg.reviewsFile}: EACCES`])
+    fs.chmodSync(cfg.reviewsFile, 0o644)
+    clock += 31e3
+    const fixed = await q.queue()
+    assert.equal(fixed.default.fork, S.M2)
+    assert.equal(fixed.warnings.includes(WARNING), false)
+    assert.equal(warn.mock.callCount(), 1)
+  } finally { fs.chmodSync(cfg.reviewsFile, 0o644); q.stop() }
+})
+
 // ---- pure helpers ----
 
 test('titles drop a known area prefix and a trailing review note', () => {
