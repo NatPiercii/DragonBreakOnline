@@ -15,6 +15,7 @@
 #include "FLOR.h"
 #include "FLST.h"
 #include "FURN.h"
+#include "GLOB.h"
 #include "GMST.h"
 #include "HAZD.h"
 #include "INGR.h"
