@@ -10,18 +10,16 @@ import { logTrace, logError } from "../../logging";
 // howls of the Great Hunt. Spell.Cast is instant and plays no animation (CK wiki Cast - Spell), and needs the spell
 // only as a form, not in the player's list.
 const CAST_SELF = "dboCastSelf";
-// The engine reports such a cast as the player's own; magicSyncService does not relay one the server asked for
+// The engine reports such a cast as the player's own; magicSyncService does not relay the one the server asked for.
+// Each request covers one cast of that spell within the window, so the player's own casts of it still go through.
 const SERVER_CAST_MS = 3000;
 const serverCasts = new Map<number, number>(); // spell form id -> relay suppressed until
 
-export const isServerCast = (spellId: number): boolean => {
+export const consumeServerCast = (spellId: number): boolean => {
   const until = serverCasts.get(spellId);
   if (until === undefined) return false;
-  if (Date.now() > until) {
-    serverCasts.delete(spellId);
-    return false;
-  }
-  return true;
+  serverCasts.delete(spellId);
+  return Date.now() <= until;
 };
 
 export class CastSelfService extends ClientListener {
