@@ -79,6 +79,7 @@ const store = new Store({
     gameDirPath:       '',     // legacy: pre-base-dir location of the game copy
     baseDirPath:       '',     // DragonBreak base dir: MO2 root, with the game at <base>\skyrim
     forcedDefaultsApplied: false, // server-required graphics defaults seeded once at first install
+    archiveDir:        '',     // a folder of mod archives already downloaded (Vortex's), used before asking Nexus
   }
 })
 
@@ -332,13 +333,15 @@ ipcMain.handle('settings:load', async () => {
     activeServerIndex: store.get('activeServerIndex'),
     mo2Enabled:        store.get('mo2Enabled'),
     isolatedGame:      store.get('isolatedGame'),
+    archiveDir:        store.get('archiveDir') || '',
+    vortexDownloads:   vortexDownloadsDir(),
     servers,
     multiServer:       servers.length > 1,
     discordUser:       store.get('discordUser') || null,
   }
 })
 ipcMain.handle('settings:save', (_e, data) => {
-  const allowed = ['skyrimPath', 'baseDirPath', 'activeServerIndex', 'mo2Enabled', 'isolatedGame']
+  const allowed = ['skyrimPath', 'baseDirPath', 'activeServerIndex', 'mo2Enabled', 'isolatedGame', 'archiveDir']
   const clean = {}
   for (const k of allowed) if (k in data) clean[k] = data[k]
   store.set(clean)
@@ -2939,17 +2942,18 @@ async function handleNxmLinkNow(link) {
 // file-pinned Nexus links, once per install run. `missing` narrows the page to
 // the archives this install still needs, so nothing already downloaded is listed.
 let _downloadListOpened = false
-function openDownloadList(downloadsDir, missing) {
-  if (_downloadListOpened) return
-  _downloadListOpened = true
-  try { fs.mkdirSync(downloadsDir, { recursive: true }); shell.openPath(downloadsDir) } catch {}
-  const need = (missing || [])
-    .filter(a => a.source && a.source.modId)
-    .map(a => `${a.source.modId}-${a.source.fileId || 'any'}`)
-    .join(',')
-  const query = need ? `?need=${encodeURIComponent(need)}` : ''
-  shell.openExternal(`${config.apiUrl}/api/nexus-downloads${query}`)
+
+// Vortex's Skyrim SE download folder at its default place ({USERDATA}\downloads\<game id>, Vortex's
+// getDownloadPath), or '' when there is none; a moved one is set by the player (archiveDir)
+function vortexDownloadsDir() {
+  const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+  const dir = path.join(appData, 'Vortex', 'downloads', 'skyrimse')
+  return fs.existsSync(dir) ? dir : ''
 }
+const otherArchiveDirs = () => [store.get('archiveDir'), vortexDownloadsDir()].filter(d => d && fs.existsSync(d))
+
+// One Nexus page at a time for the files still missing (nxm.js)
+const nexusGuide = items => nxmLinks.createGuide(items, { open: url => shell.openExternal(url), say: msg => send('install:log', msg) })
 
 // MO2 install
 // Full modpack pipeline: MO2 itself → SkyMP client files → manifest replay.
@@ -3141,8 +3145,13 @@ async function runMO2Install(opts = {}) {
         const p = path.join(downloadsDir, name)
         if (fs.existsSync(p) && mo2.verifyArchive(p, a.hash)) return p
       }
-      return await mo2.findArchiveByHash(a.hash, a.size)   // manually moved / renamed file
+      // A manually moved / renamed file, or one Vortex already downloaded (the collection), linked in without a copy
+      const found = await mo2.findArchiveByHash(a.hash, a.size, otherArchiveDirs())
+      if (!found || path.dirname(found) === downloadsDir) return found
+      reused++
+      return mo2.adoptArchive(found)
     }
+    let reused = 0
 
     for (const a of manifest.archives.filter(x => neededArchiveIds.has(x.id))) {
       const existing = await locate(a)
@@ -3184,23 +3193,34 @@ async function runMO2Install(opts = {}) {
       }
     }
 
+    if (reused) send('install:log', `Used ${reused} mod archive(s) already downloaded by Vortex or in ${store.get('archiveDir') || "Vortex's downloads"}, without copying them or downloading them again.`)
+
     // 3b. Free / no-key path: open the downloads list page + MO2 staging folder
     if (needBrowser.length > 0) {
       // "Mod Manager Download" comes to the launcher only while it waits here; after, the links go back
       nxm.claim(nxmHandlerExe())
       nxmWaiting = true
       try {
-        openDownloadList(downloadsDir, needBrowser)
+        // Signed in to Nexus: one page at a time, and its Slow download reaches the launcher, nothing to move.
+        // Not signed in: the whole list, downloaded by hand into the downloads folder.
+        const guide = nexusAuth ? nexusGuide(needBrowser) : null
+        if (!guide) openDownloadList(downloadsDir, needBrowser)
         send('install:progress', {
           phase: 'mods',
-          file:  'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder.',
+          file:  guide
+            ? `${needBrowser.length} mod(s) to download from Nexus, one page at a time: click "Slow download" on each page the launcher opens; it downloads the file and opens the next. Mods you already have in Vortex's downloads are used as they are.`
+            : 'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder. Sign in to Nexus in the top bar first and each mod becomes one click with nothing to move.',
           index: 0, total: needBrowser.length, skipped: false,
         })
+        if (guide) guide(needBrowser.map(() => false))
         // Matched by sha256, so paths come back verified regardless of filename; the
         // namePattern only flags likely wrong-version files in the status message.
         const paths = await mo2.waitForDownloads(
           needBrowser.map(a => ({ name: a.name, hash: a.hash, size: a.size, namePattern: nexusNamePattern(a.source.modId, a.name) })),
-          (done, total, message) => send('install:progress', { phase: 'mods', file: message, index: done, total, skipped: false }),
+          (done, total, message, found) => {
+            send('install:progress', { phase: 'mods', file: message, index: done, total, skipped: false })
+            if (guide && found) guide(found)
+          },
           installAbort?.signal)
         needBrowser.forEach((a, i) => { archivePaths[a.id] = paths[i] })
       } finally {

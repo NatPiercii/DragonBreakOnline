@@ -74,6 +74,32 @@ function classify(link) {
   return u.hostname.toLowerCase() === 'skyrimspecialedition' && /^\/mods\/\d+\/files\/\d+/.test(u.pathname) ? 'file' : 'other'
 }
 
+// A file's "Mod Manager Download" page on Nexus (the link Vortex opens for free accounts): its Slow download sends an
+// nxm:// link, which the launcher downloads straight into the downloads folder
+const nexusFilePage = (modId, fileId) =>
+  `https://www.nexusmods.com/skyrimspecialedition/mods/${Number(modId)}?tab=files${fileId ? `&file_id=${Number(fileId)}` : ''}&nmm=1`
+
+// One Nexus page at a time, as Vortex does for a collection: the first missing file's page, then the next each time
+// another file arrives (found: which items are in, from waitForDownloads). Each page opens once; a file the player
+// skips stays in the wait's list.
+function createGuide(items, { open, say = () => {} }) {
+  const opened = new Set()
+  let arrived = -1
+  return function next(found) {
+    const got = found.filter(Boolean).length
+    if (got <= arrived) return null
+    arrived = got
+    const i = found.findIndex((f, j) => !f && !opened.has(j))
+    if (i < 0) return null
+    opened.add(i)
+    const a = items[i]
+    const url = nexusFilePage(a.source.modId, a.source.fileId)
+    open(url)
+    say(`Nexus page ${got + 1} of ${items.length}: ${a.name}. Click "Slow download" there; the launcher downloads it for you, nothing to move. (${url})`)
+    return i
+  }
+}
+
 function createNxm({ store, log = () => {}, ownExes = () => [], run = execFileSync, spawnFn = spawn,
   exists = fs.existsSync, platform = process.platform, now = Date.now } = {}) {
   const reg = args => run('reg', args, { timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
@@ -156,4 +182,4 @@ function createNxm({ store, log = () => {}, ownExes = () => [], run = execFileSy
   return { claim, release, forward, classify, claimed: () => !!store.get('nxmClaimed') }
 }
 
-module.exports = { createNxm, parseRegDefault, splitCommand, forwardCommand, isOwnCommand, classify, USER_KEY, USER_CMD, MACHINE_CMD }
+module.exports = { createNxm, createGuide, nexusFilePage, parseRegDefault, splitCommand, forwardCommand, isOwnCommand, classify, USER_KEY, USER_CMD, MACHINE_CMD }

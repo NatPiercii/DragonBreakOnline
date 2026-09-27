@@ -1030,24 +1030,33 @@ async function hashCached(full, st) {
   return hash
 }
 
-/** Finished (non-partial) archive files in the downloads folder, one stat pass. */
-function listDownloadArchives() {
+/** Finished (non-partial) archive files in dir, one stat pass; loose counts the other files. */
+function listArchivesIn(dir) {
   const out = []
   let names
-  try { names = fs.readdirSync(getDownloadsDir()) } catch { return out }
+  try { names = fs.readdirSync(dir) } catch { return Object.assign(out, { loose: 0 }) }
   let loose = 0
   for (const file of names) {
     if (PARTIAL_RE.test(file)) continue
     if (!ARCHIVE_RE.test(file)) { loose++; continue }
-    const full = path.join(getDownloadsDir(), file)
+    const full = path.join(dir, file)
     let st
     try { st = fs.statSync(lp(full)) } catch { continue }
     if (st.isFile()) out.push({ file, full, st })
   }
-  _looseFiles = loose
+  return Object.assign(out, { loose })
+}
+
+/** Finished (non-partial) archive files in the downloads folder, one stat pass. */
+function listDownloadArchives() {
+  const dir = getDownloadsDir()
+  const out = listArchivesIn(dir)
+  _looseFiles = out.loose
+  // Only this folder's entries: archives found in other folders (Vortex's) keep their hashes
   const present = new Set(out.map(a => a.full))
+  const inDir = key => path.dirname(key.split('\0')[0]) === dir
   for (const cache of [_archiveHashCache, _archiveListCache]) {
-    for (const key of cache.keys()) if (!present.has(key.split('\0')[0])) cache.delete(key)
+    for (const key of cache.keys()) if (inDir(key) && !present.has(key.split('\0')[0])) cache.delete(key)
   }
   return out
 }
@@ -1057,14 +1066,37 @@ function listDownloadArchives() {
  * null. Matches by content so manually moved ("Slow Download") files are found
  * regardless of filename; the size pre-filter avoids hashing partials/unrelated files.
  */
-async function findArchiveByHash(hash, size) {
+async function findArchiveByHash(hash, size, otherDirs = []) {
   if (!hash) return null
   const want = String(hash).toLowerCase()
-  for (const a of listDownloadArchives()) {
-    if (typeof size === 'number' && size > 0 && a.st.size !== size) continue
-    try { if (await hashCached(a.full, a.st) === want) return a.full } catch { /* mid-copy or locked; caller retries */ }
+  const dirs = [...new Set(otherDirs.filter(d => d && path.resolve(d) !== path.resolve(getDownloadsDir())))]
+  for (const archives of [listDownloadArchives(), ...dirs.map(listArchivesIn)]) {
+    for (const a of archives) {
+      if (typeof size === 'number' && size > 0 && a.st.size !== size) continue
+      try { if (await hashCached(a.full, a.st) === want) return a.full } catch { /* mid-copy or locked; caller retries */ }
+    }
   }
   return null
+}
+
+/**
+ * An archive found in another folder (Vortex's downloads), linked into the downloads folder under its own name so
+ * nothing is copied and a later repair finds it even if Vortex removes it. A hard link needs the same drive; otherwise,
+ * or when the name is taken, the archive is used where it is.
+ */
+function adoptArchive(full) {
+  const dir = getDownloadsDir()
+  if (path.dirname(path.resolve(full)) === path.resolve(dir)) return full
+  const dest = path.join(dir, path.basename(full))
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    if (fs.existsSync(lp(dest))) return full
+    fs.linkSync(lp(full), lp(dest))
+    return dest
+  } catch (err) {
+    _log(`[archives] using ${full} in place (${err.code || err.message})`)
+    return full
+  }
 }
 
 /**
@@ -1131,6 +1163,7 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
   const hardDeadline = Date.now() + timeoutMs * 3
   const found    = new Array(wanted.length).fill(null)
   const prevSize = new Map()    // full -> size at the previous scan; a changing size = mid-copy
+  const prevPartial = new Map() // partial download (.unfinished, .part, ...) -> size: a growing one is activity
   let mismatched = []           // settled files that look like a wanted mod but fail verification
   let progressed = false        // a file appeared/grew or an item resolved since the last tick
 
@@ -1195,6 +1228,15 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
       if (prevSize.get(a.full) !== a.st.size) progressed = true // new file, or a copy still landing
       prevSize.set(a.full, a.st.size)
     }
+    // A slow Nexus download the launcher is writing (or a browser into this folder) keeps the wait alive
+    let names = []
+    try { names = fs.readdirSync(getDownloadsDir()).filter(f => PARTIAL_RE.test(f) && !/\.meta$/i.test(f)) } catch {}
+    for (const f of names) {
+      let size = -1
+      try { size = fs.statSync(lp(path.join(getDownloadsDir(), f))).size } catch { continue }
+      if (prevPartial.get(f) !== size) progressed = true
+      prevPartial.set(f, size)
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -1211,7 +1253,8 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
         : '')
       if (onProgress) {
         onProgress(wanted.length - remaining.length, wanted.length,
-          remaining.length ? `Waiting for downloads: ${remaining.join(', ')}${note}` : 'All downloads received')
+          remaining.length ? `Waiting for downloads: ${remaining.join(', ')}${note}` : 'All downloads received',
+          found.map(Boolean))
       }
       if (remaining.length === 0) return resolve(found)
       if (Date.now() > deadline || Date.now() > hardDeadline) {
@@ -1383,6 +1426,7 @@ module.exports = {
   downloadToDownloads,
   findDownloadByFileId,
   findArchiveByHash,
+  adoptArchive,
   verifyArchive,
   sha256File,
   sha256FileAsync,
