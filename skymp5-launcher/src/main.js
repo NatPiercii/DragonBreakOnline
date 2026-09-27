@@ -821,6 +821,15 @@ ipcMain.handle('api:news', async () => {
 ipcMain.handle('api:status', async () => {
   try {
     const data = await fetchJSON(`${config.apiUrl}/api/status`)
+    // The public /api/status is answered by a status probe that carries no player count (2026-09-27: Leerod asked for
+    // one; the badge only showed ONLINE). /api/servers always has it, so the count comes from there when missing.
+    if (data && data.players == null) {
+      try {
+        const list = await fetchJSON(`${config.apiUrl}/api/servers`)
+        const online = Array.isArray(list) && list.length ? Number(list[0].online) : NaN
+        if (Number.isFinite(online)) data.players = online
+      } catch { /* no count: the badge shows ONLINE alone */ }
+    }
     return { ok: true, ...data }
   } catch {
     return { ok: false }
