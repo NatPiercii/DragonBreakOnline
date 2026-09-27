@@ -4,7 +4,8 @@
 /monitor command reads. Runs as the dbo-monitor systemd unit (root: the logs and the bot token are root-only).
 
 Classes of event it knows:
-  server   restarts, updater results, gamemode load failures, script errors, C++ errors (known noise counted only)
+  server   restarts, updater results, gamemode load failures, script errors, C++ errors (known noise counted only),
+           freezes (event loop p99 over 2 s twice, or no tick summary for 3 min while skymp.service is active)
   players  joins, leaves, and likely crashes (a player whose game went silent 45 s or more before the disconnect)
   npc      npcDrift split/sink/jump/remote/snap/bounce/error, npcGround under/over/lifted, hosts released,
            jumps refused, NPCs stuck in one spot, and players hosting many NPCs they no longer have loaded
@@ -32,8 +33,15 @@ CRASH_SILENCE_S = 45             # drift heartbeats come every 30 s, so a clean 
 UNLOADED_ALERT = 20
 BIG_SNAP = 1000
 ALERT_REPEAT_S = 600          # the same alert key at most once in this long
+# Freeze alert: the 2026-09-27 95-minute stall raised nothing because skymp.service stayed active
+FREEZE_P99_MS = 2000          # event loop p99 above this in 2 tick summaries in a row is a freeze
+FREEZE_OK_MS = 200            # p99 back under this closes it
+FREEZE_SILENCE_S = 180        # no tick summary this long while skymp.service is active is a freeze too
+INCIDENT_REPEAT_S = 900       # an open incident re-alerts this often
+HEALTH_S = 60                 # how often the silence check runs
 
 ts_re = re.compile(r'^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)')
+loop_re = re.compile(r'ticks \(ms, last 60 s, (\d+) online\).*\| event loop p99 ([\d.]+) max ([\d.]+)')
 drift_re = re.compile(r'npcDrift (.+?) #\w{4} (\w+): (\{.*)')
 ground_re = re.compile(r'npcGround (under|over|lifted) (ff[0-9a-f]+) (\S+) at (\S+) terrain \S+ dz (-?\d+), near (.+?) #')
 NOISE = re.compile(r"Method not found|Refr pointer expired|No permission to update actor|Recipe not found|Target actor doesn.t exist|CastPrimitivePropertyValue")
@@ -98,6 +106,13 @@ def jload(s):
     return d
 
 
+def skymp_active():
+    try:
+        return subprocess.run(['systemctl', 'is-active', '--quiet', 'skymp'], timeout=15).returncode == 0
+    except Exception:
+        return True    # systemctl stuck (as under heavy pressure) must not hide a freeze
+
+
 class Monitor:
     def __init__(self):
         os.makedirs(STATE_DIR, exist_ok=True)
@@ -117,6 +132,11 @@ class Monitor:
         self.last_activity = {}      # player name -> last time their client reported anything
         self.journal = {}            # player name -> Journal (pause) menu open, from clientState (client 0.3.40+)
         self.reports_journal = set() # players whose client says when the Journal opens, so silence means a crash
+        self.incidents = {}          # 'freeze' -> {since, last}: at most one open incident of each kind
+        self.last_loop = time.time() # last tick summary, or server or gamemode (re)start
+        self.loop_high = 0           # tick summaries in a row with p99 over FREEZE_P99_MS
+        self.last_p99 = 'unknown'
+        self.last_health = time.time()
         self.dirty = True
 
     def new_window(self, now):
@@ -140,12 +160,49 @@ class Monitor:
         if now - self.alerted.get(key, 0) < ALERT_REPEAT_S:
             return
         self.alerted[key] = now
+        self.say(text, t)
+
+    def say(self, text, t):
         line = f'`{t[11:19]}` {text}'
         self.state['recent'].append(line)
         del self.state['recent'][:-50]
         print('ALERT', line, flush=True)
         post(line)
         self.dirty = True
+
+    def incident(self, key, text, t):
+        """Opens incident key with an alert, then re-alerts every INCIDENT_REPEAT_S while it stays open."""
+        now = time.time()
+        inc = self.incidents.get(key)
+        if inc is None:
+            self.incidents[key] = {'since': now, 'last': now}
+            self.count('server.' + key)
+            self.say(text, t)
+        elif now - inc['last'] >= INCIDENT_REPEAT_S:
+            inc['last'] = now
+            self.say(f'{text} (still going, {int((now - inc["since"]) // 60)} min)', t)
+
+    def resolve(self, key, text, t):
+        inc = self.incidents.pop(key, None)
+        if inc:
+            self.say(f'{text}, {int((time.time() - inc["since"]) // 60)} min after the alert', t)
+
+    def loop_sample(self, p99, mx, online, t):
+        self.last_loop = time.time()
+        if mx <= 0:
+            return    # 0.0/0.0 means no samples in the window (first summary after the 2026-09-27 stall), not health
+        self.last_p99 = f'p99 {p99:.0f} ms, max {mx:.0f} ms at {t[11:19]}'
+        self.loop_high = self.loop_high + 1 if p99 > FREEZE_P99_MS else 0
+        if self.loop_high >= 2:
+            self.incident('freeze', f'**Server freeze:** event loop p99 {p99:.0f} ms (max {mx:.0f} ms), over {FREEZE_P99_MS} ms in {self.loop_high} tick summaries in a row, {online} online', t)
+        elif p99 < FREEZE_OK_MS:
+            self.resolve('freeze', f'Server recovered: event loop p99 {p99:.0f} ms (max {mx:.0f} ms)', t)
+
+    def health(self, now):
+        t = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(now))
+        quiet = now - self.last_loop
+        if quiet >= FREEZE_SILENCE_S and skymp_active():
+            self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
 
     def bug_report(self, line, t):
         key = 'bug:' + line[-80:]
@@ -182,9 +239,16 @@ class Monitor:
                 self.count('server.update_failed')
                 self.alert('updatefail:' + line[-60:], '**Updater problem:** ' + line.strip()[:200], t)
             return
+        lm = loop_re.search(line)
+        if lm:
+            self.loop_sample(float(lm.group(2)), float(lm.group(3)), lm.group(1), t)
+            return
         if 'Initialized MetricsSystem' in line:
             self.count('server.restart')
+            self.last_loop = time.time(); self.loop_high = 0    # the first tick summary comes 1-3 min after a start
             self.alert('restart:' + t, 'Game server started', t)
+        elif '[gamemode] loaded: ' in line:
+            self.last_loop = time.time()    # a gamemode reload restarts the 60 s summary timer
         elif 'audit: JOIN ' in line:
             who = re.sub(r'.*audit: JOIN (.+?) #.*', r'\1', line.strip())
             self.count('player.join'); self.seen(who, t)
@@ -283,6 +347,12 @@ class Monitor:
                     parts.append(f'{k} {v}' + (f' (worst {w[0]}: {w[1]})' if w and w[0] else ''))
                 post('**Last 15 min:** ' + ' | '.join(parts))
             self.digest_counts.clear(); self.digest_worst.clear()
+        if now - self.last_health >= HEALTH_S:
+            self.last_health = now
+            try:
+                self.health(now)
+            except Exception as e:
+                print('health check failed:', e, flush=True)
         if self.dirty:
             self.state['updatedAt'] = int(now)
             try:
