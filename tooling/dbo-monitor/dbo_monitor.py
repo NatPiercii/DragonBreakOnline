@@ -43,8 +43,9 @@ INCIDENT_REPEAT_S = 900       # an open incident re-alerts this often
 HEALTH_S = 60                 # how often the silence, pressure and memory checks run
 PSI_FULL_AVG60 = 20           # io or memory PSI 'full avg60' over this in 2 checks in a row is pressure
 MEM_PCT = 90                  # container memory in use over this share of its limit in 2 checks in a row too
-PSI_IO, PSI_MEM = '/proc/pressure/io', '/proc/pressure/memory'
-CGROUP, MEMINFO = '/sys/fs/cgroup', '/proc/meminfo'
+# The container's own cgroupfs files: /proc/pressure and /proc/meminfo are lxcfs (can hang), and its io PSI is the host's
+PSI_IO, PSI_MEM = '/sys/fs/cgroup/io.pressure', '/sys/fs/cgroup/memory.pressure'
+CGROUP, MEMINFO = '/sys/fs/cgroup', '/proc/meminfo'    # MemTotal (the container's limit) is read once, at start
 # Discord posts go out from a thread: in the 2026-09-27 stall 11 of 16 posts failed, one only after minutes
 OUTBOX_MAX = 20               # posts kept for a retry while Discord or the network is down, digests dropped first
 RETRY_S = 30                  # how often the oldest kept post is tried again
@@ -210,7 +211,7 @@ def journal_start_cause():
 
 
 def psi_full60(path):
-    """'full avg60' of a /proc/pressure file, None when unreadable."""
+    """'full avg60' of a PSI file, None when unreadable."""
     try:
         m = re.search(r'^full .*\bavg60=([\d.]+)', open(path).read(), re.M)
         return float(m.group(1)) if m else None
@@ -218,15 +219,22 @@ def psi_full60(path):
         return None
 
 
-def mem_use():
-    """(bytes in use, limit) of the container: memory.current less inactive file cache, against memory.max or MemTotal."""
+def mem_total():
+    """MemTotal in bytes (lxcfs shows the container's limit there), None when unreadable."""
+    try:
+        return int(re.search(r'^MemTotal:\s+(\d+) kB', open(MEMINFO).read(), re.M).group(1)) * 1024
+    except Exception:
+        return None
+
+
+def mem_use(memtotal):
+    """(bytes in use, limit) of the container: memory.current less inactive file cache, against memory.max or memtotal."""
     try:
         cur = int(open(os.path.join(CGROUP, 'memory.current')).read())
         cache = re.search(r'^inactive_file (\d+)', open(os.path.join(CGROUP, 'memory.stat')).read(), re.M)
         lim = open(os.path.join(CGROUP, 'memory.max')).read().strip()
-        if lim == 'max':
-            lim = int(re.search(r'^MemTotal:\s+(\d+) kB', open(MEMINFO).read(), re.M).group(1)) * 1024
-        return cur - (int(cache.group(1)) if cache else 0), int(lim)
+        lim = memtotal if lim == 'max' else int(lim)
+        return (cur - (int(cache.group(1)) if cache else 0), lim) if lim else (None, None)
     except Exception:
         return None, None
 
@@ -269,6 +277,7 @@ class Monitor:
         self.last_p99 = 'unknown'
         self.last_health = time.time()
         self.pressure_high = 0       # checks in a row over a pressure or memory line
+        self.memtotal = mem_total()  # read once: /proc/meminfo is lxcfs, which can hang
         self.dirty = True
 
     def new_window(self, now):
@@ -338,7 +347,9 @@ class Monitor:
         if quiet >= FREEZE_SILENCE_S and skymp_active():
             self.incident('freeze', f'**Server freeze:** no tick summary for {int(quiet // 60)} min while skymp.service is active (last event loop {self.last_p99})', t)
         io, mem = psi_full60(PSI_IO), psi_full60(PSI_MEM)
-        used, lim = mem_use()
+        if self.memtotal is None:
+            self.memtotal = mem_total()
+        used, lim = mem_use(self.memtotal)
         pct = 100 * used / lim if used and lim else 0
         hot = [f'{k} full avg60 {v:.1f}' for k, v in (('io', io), ('memory', mem)) if v is not None and v > PSI_FULL_AVG60]
         if pct > MEM_PCT:

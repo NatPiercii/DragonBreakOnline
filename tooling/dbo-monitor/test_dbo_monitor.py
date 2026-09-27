@@ -24,8 +24,8 @@ STALL = [
 ]
 
 
-# Real readings on CT 115, 2026-09-27 02:34Z: /proc/pressure/io, and the container root cgroup (memory.max is 'max')
-REAL_PSI_IO = 'some avg10=0.97 avg60=3.45 avg300=4.62 total=21872940245\nfull avg10=0.70 avg60=3.28 avg300=4.47 total=21231469191\n'
+# Real readings on CT 115: /sys/fs/cgroup/io.pressure at 03:05Z, the container root cgroup at 02:34Z (memory.max is 'max')
+REAL_PSI_IO = 'some avg10=0.00 avg60=0.60 avg300=1.13 total=7970387572\nfull avg10=0.00 avg60=0.58 avg300=1.10 total=7849741351\n'
 REAL_CURRENT, REAL_INACTIVE_FILE, REAL_MEMTOTAL_KB = 8138911744, 3550515200, 16777216
 REAL_PEAK = 17051009024    # memory.peak: what the runaway dev test reached during the stall
 MB = 1048576
@@ -76,7 +76,7 @@ class MonitorCase(unittest.TestCase):
             ('post', lambda text, digest=False: self.posts.append(text)),
             ('post_bug', lambda *a: self.bugs.append(a)), ('token', lambda: ''),
             ('skymp_active', lambda: self.active), ('journal_start_cause', lambda: self.cause),
-            ('PSI_IO', self.path('proc/pressure/io')), ('PSI_MEM', self.path('proc/pressure/memory')),
+            ('PSI_IO', self.path('cg/io.pressure')), ('PSI_MEM', self.path('cg/memory.pressure')),
             ('CGROUP', self.path('cg')), ('MEMINFO', self.path('proc/meminfo')),
         ]:
             p = mock.patch.object(dm, target, value)
@@ -97,7 +97,7 @@ class MonitorCase(unittest.TestCase):
 
     def fake_system(self, io=None, mem=None, current=None, inactive=None, limit=None):
         """Writes the fake /proc and /sys/fs/cgroup files the pressure check reads; None keeps a file as it is."""
-        for rel, v in (('proc/pressure/io', io), ('proc/pressure/memory', mem), ('cg/memory.current', current),
+        for rel, v in (('cg/io.pressure', io), ('cg/memory.pressure', mem), ('cg/memory.current', current),
                        ('cg/memory.max', limit), ('cg/memory.stat', inactive and f'anon 1\nfile 2\ninactive_file {inactive}\n')):
             if v is not None:
                 self.write(rel, v)
@@ -218,11 +218,14 @@ class PressureTest(MonitorCase):
         self.active = False    # no game server here, so no tick summaries and no freeze alerts
 
     def test_readers_on_real_numbers(self):
-        self.assertEqual(dm.psi_full60(self.path('proc/pressure/io')), 3.28, 'full, not some')
-        self.assertIsNone(dm.psi_full60(self.path('proc/pressure/missing')))
-        self.assertEqual(dm.mem_use(), (REAL_CURRENT - REAL_INACTIVE_FILE, REAL_MEMTOTAL_KB * 1024), 'max -> MemTotal')
+        self.assertEqual(dm.psi_full60(self.path('cg/io.pressure')), 0.58, 'full, not some')
+        self.assertIsNone(dm.psi_full60(self.path('cg/missing.pressure')))
+        total = dm.mem_total()
+        self.assertEqual(total, REAL_MEMTOTAL_KB * 1024)
+        self.assertEqual(dm.mem_use(total), (REAL_CURRENT - REAL_INACTIVE_FILE, total), 'max -> MemTotal')
+        self.assertEqual(dm.mem_use(None), (None, None), 'no MemTotal, no memory figure')
         self.write('cg/memory.max', 12884901888)
-        self.assertEqual(dm.mem_use()[1], 12884901888)
+        self.assertEqual(dm.mem_use(None)[1], 12884901888)
         self.assertEqual(dm.top_cgroups(), ['user-1001.slice 11843 MB', 'user-0.slice 1163 MB', 'skymp.service 1064 MB'])
 
     def test_calm_real_system_is_quiet(self):
@@ -261,6 +264,14 @@ class PressureTest(MonitorCase):
         self.assertEqual(len(a), 1, a)
         self.assertIn('memory full avg60 41.2, container memory 15.7 of 16.0 GiB in use (98%). Biggest: user-1001.slice', a[0])
 
+    def test_meminfo_is_read_once_at_start(self):
+        # /proc/meminfo is lxcfs: the checks must not touch it after start, where a hung lxcfs would hang the monitor
+        self.start('2026-09-27 00:30:00')
+        self.fake_system(current=REAL_PEAK, inactive=200 * MB)
+        os.remove(self.path('proc/meminfo'))
+        self.run_until(epoch('2026-09-27 00:32:00'))
+        self.assertIn('container memory 15.7 of 16.0 GiB in use (98%)', ''.join(self.alerts('pressure')))
+
     def test_page_cache_is_not_memory_in_use(self):
         self.start('2026-09-27 00:30:00')
         self.fake_system(current=16500 * MB, inactive=6000 * MB)
@@ -269,7 +280,7 @@ class PressureTest(MonitorCase):
 
     def test_unreadable_files_raise_nothing(self):
         self.start('2026-09-27 00:30:00')
-        for rel in ('proc/pressure/io', 'proc/pressure/memory', 'cg/memory.current'):
+        for rel in ('cg/io.pressure', 'cg/memory.pressure', 'cg/memory.current'):
             os.remove(self.path(rel))
         self.run_until(epoch('2026-09-27 00:40:00'))
         self.assertEqual(self.alerts(), [])
