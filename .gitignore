@@ -82,3 +82,6 @@ game-tickets.json
 # updates.js: the version log and scheduled restarts
 update-log.json
 schedule.json
+# business.js: businesses, their ledgers and rented chests; each hold's rent tax
+businesses.json
+taxes.json

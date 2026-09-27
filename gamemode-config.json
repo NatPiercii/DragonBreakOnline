@@ -109,6 +109,17 @@
   "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
   "damageMult": 1.25
  },
+ "business": {
+  "_comment": "Business ledgers (business.js). An owner opens a property as a business; owner and staff set the inn's bed rent (minRent..maxRent), keep a logbook and put chests up for rent (up to maxChestPrice a day; chestGraceHours to empty after the rent ends). Each hold's rent tax is set by taxRanks, 0..maxTax; until then rest.holdShare stands.",
+  "enabled": true,
+  "minRent": 1,
+  "maxRent": 200,
+  "maxChestPrice": 200,
+  "chestGraceHours": 72,
+  "maxTax": 0.3,
+  "taxRanks": ["jarl", "count", "steward"],
+  "maxStaff": 12
+ },
  "combat": {
   "_comment": "Skill-based fights (combat.js, COMBAT_DESIGN.md), player targets only, needs the C++ hit flags. A blocked blow lets weaponChip (shieldChip with a shield) through, less chipPerDefenseTier per Defense rank; the blocker pays the rest in stamina (x shieldStaminaMult with a shield, x powerIntoShieldStaminaMult more for a power attack into a shield). At 0 stamina, or hit by a bash, the guard breaks: a stagger and guardBreakSeconds of blocked blows landing in full. Unblocked power attacks stagger; a weapon-skill rank of powerStaggerThroughWeaponBlockRank staggers through a weapon block. A bash deals bashDamageMult of the weapon and staggers unless the target's Defense rank is bashStaggerResistRank or more (3 = Expert). One stagger per target every staggerCooldownSeconds.",
   "enabled": true,
