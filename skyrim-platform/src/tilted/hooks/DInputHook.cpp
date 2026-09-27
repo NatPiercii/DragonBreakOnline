@@ -9,6 +9,7 @@
 #include <array>
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <vector>
 
 namespace {
 std::shared_ptr<IInputListener> g_listener;
@@ -43,6 +44,111 @@ void LogAcquireFailure(IDirectInputDevice8A* device, HRESULT hr)
                keyboard ? "keyboard" : "mouse", static_cast<uint32_t>(hr),
                static_cast<void*>(foreground), className, pid,
                pid == GetCurrentProcessId() ? " (this process)" : "");
+}
+
+// Every raw input registration of this process: one per usage, and the last caller wins it
+void LogRawInputRegistrations()
+{
+  UINT count = 0;
+  GetRegisteredRawInputDevices(nullptr, &count, sizeof(RAWINPUTDEVICE));
+  std::vector<RAWINPUTDEVICE> devices(count);
+  if (count == 0 ||
+      GetRegisteredRawInputDevices(devices.data(), &count,
+                                   sizeof(RAWINPUTDEVICE)) ==
+        static_cast<UINT>(-1)) {
+    spdlog::info("DInputHook: no raw input registrations in this process");
+    return;
+  }
+  for (UINT i = 0; i < count; ++i) {
+    const RAWINPUTDEVICE& device = devices[i];
+    char className[128] = { 0 };
+    DWORD thread = 0;
+    if (device.hwndTarget) {
+      thread = GetWindowThreadProcessId(device.hwndTarget, nullptr);
+      GetClassNameA(device.hwndTarget, className, sizeof(className) - 1);
+    }
+    spdlog::info("DInputHook: raw input registration page {:#x} usage {:#x} "
+                 "flags {:#x} target {} class '{}' thread {}",
+                 device.usUsagePage, device.usUsage, device.dwFlags,
+                 static_cast<void*>(device.hwndTarget), className, thread);
+  }
+}
+
+// Keys a player presses to get going; Windows' view of them is compared with the device's own state
+constexpr int kDeafProbeKeys[] = { 'W',      'A',       'S',       'D',
+                                   'E',      'R',       'Q',       'F',
+                                   'T',      VK_SPACE,  VK_TAB,    VK_ESCAPE,
+                                   VK_RETURN, VK_OEM_3 };
+constexpr ULONGLONG kDeafMs = 300;
+constexpr ULONGLONG kDeafRetryMs = 2000;
+
+// A keyboard can stay acquired and hear nothing until an alt-tab re-acquires it (2026-09-27: after loading in, the
+// engine saw no key event for 25 s with the game in front, player controls on, no menu open and the browser unfocused).
+// When Windows sees a key down and the device does not, with the game in front, re-acquire it the same way.
+void CheckDeafKeyboard(IDirectInputDevice8A* device, const uint8_t* state)
+{
+  static ULONGLONG deafSince = 0;
+  static ULONGLONG lastHeal = 0;
+  static bool awaitingKey = false;
+  static int heals = 0;
+  const ULONGLONG now = GetTickCount64();
+
+  bool heard = false;
+  for (int i = 0; i < 256 && !heard; ++i) {
+    heard = (state[i] & 0x80) != 0;
+  }
+  if (heard) {
+    if (awaitingKey) {
+      awaitingKey = false;
+      spdlog::info("DInputHook: keyboard hears again {} ms after re-acquire #{}",
+                   now - lastHeal, heals);
+    }
+    deafSince = 0;
+    return;
+  }
+
+  int downKey = 0;
+  for (int key : kDeafProbeKeys) {
+    if (GetAsyncKeyState(key) & 0x8000) {
+      downKey = key;
+      break;
+    }
+  }
+  DWORD pid = 0;
+  GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+  if (!downKey || pid != GetCurrentProcessId()) {
+    deafSince = 0;
+    return;
+  }
+  if (!deafSince) {
+    deafSince = now;
+    return;
+  }
+  if (now - deafSince < kDeafMs || now - lastHeal < kDeafRetryMs) {
+    return;
+  }
+
+  ++heals;
+  // An overlay that swallows keys (Steam's) repeats this every 2 s; past ten, one line in fifty
+  const bool log = heals <= 10 || heals % 50 == 0;
+  if (log) {
+    spdlog::info("DInputHook: keyboard deaf for {} ms while key {:#x} is down "
+                 "with the game in front, re-acquiring (#{})",
+                 now - deafSince, downKey, heals);
+  }
+  if (heals <= 3) {
+    LogRawInputRegistrations();
+  }
+  const HRESULT unacquired = IDirectInputDevice8_Unacquire(device);
+  const HRESULT acquired = IDirectInputDevice8_Acquire(device);
+  if (log) {
+    spdlog::info("DInputHook: keyboard unacquire {:#x}, acquire {:#x}",
+                 static_cast<uint32_t>(unacquired),
+                 static_cast<uint32_t>(acquired));
+  }
+  lastHeal = now;
+  deafSince = 0;
+  awaitingKey = true;
 }
 
 void ProcessKeyboardData(uint8_t* apData)
@@ -340,6 +446,7 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
       }
     }
     if (hr == DI_OK) {
+      CheckDeafKeyboard(m_pDevice, rawData);
       ProcessKeyboardData(rawData);
       memset(rawData, 0, 256);
     }
