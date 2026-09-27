@@ -543,6 +543,15 @@ module.exports = (api) => {
   globalThis.__dboRealmTerritoryAt = (world, pos) => territoryAt(world, pos);
   globalThis.__dboRealmOwnerOf = (tid) => ownerOf(tid);
   globalThis.__dboRealmLeads = (a, fid) => leads(a, fid);
+  // Whether an account leads a faction through any of its characters: the hold's ruler rank, or a roster's leader
+  // (economy.js: nobody is paid a wage by a treasury they control, an alt included)
+  globalThis.__dboRealmLeadsAccount = (pid, fid) => {
+    const f = info(fid);
+    try { if (f && f.kind === 'hold' && f.zone && (ranksOf(pid) || []).some((m) => m.zone && m.zone.id === f.zone && C.rulerRanks.includes(m.rank))) return true; } catch (e) { /* no ranks */ }
+    let actors = [];
+    try { actors = mp.getActorsByProfileId(pid) || []; } catch (e) { /* offline or unknown */ }
+    return actors.some((x) => guildsOf(Number(x) >>> 0).some((g) => g.id === fid && g.role === 'leader'));
+  };
   globalThis.__dboRealmMemberOf = (a, fid) => memberOf(a, fid);
   globalThis.__dboRealmTerritoryName = (tid) => (territory(tid) || { name: tid }).name;
   globalThis.__dboRealmFactionsLedBy = (a) => factionsLedBy(a);

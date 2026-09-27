@@ -64,7 +64,9 @@ api.cfg = {};
 load();
 timers.get('economy')();
 const offRan = fs.existsSync('economy.json') && !!JSON.parse(fs.readFileSync('economy.json', 'utf8')).lastReckoning;
-api.cfg = { economy: { enabled: true } };
+// The flow below predates the B2 guards (economy-guards-harness.js): a wage cap as large as the treasury and a wider
+// assessment step keep its numbers
+api.cfg = { economy: { enabled: true, wageShare: 1, assessMaxStep: 3 } };
 load();
 
 let failures = 0;

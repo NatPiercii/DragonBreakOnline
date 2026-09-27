@@ -18,9 +18,14 @@
 // Settings come from the faction panel (F3): dbo:econRate, dbo:econWage (leaders) and dbo:econValue (a property's
 // manager, a steward or equivalent). State in economy.json.
 //
+// Guards (review B2: a ruler could pay the treasury out to himself, or drain a rival with an assessment):
+//   - nobody is paid a wage by a treasury their account controls (the hold's ruler, a roster's leader, and their alts),
+//     and nobody sets the wage of a rank their own account holds;
+//   - the wages paid each week are capped at wageShare of the treasury (the rest is owed, as when it runs short);
+//   - a property is assessed at most once every assessEveryDays, to at most assessMaxStep times or 1/assessMaxStep of
+//     its value, and its owner is told.
 // enabled (config economy.enabled, default false): off, no reckoning runs, so no tax is charged and no wage is paid;
-// the settings can still be made. It stays off until wages can no longer pay the one who sets them and assessments are
-// limited (review B2: a ruler could pay the treasury out to himself).
+// the settings can still be made. Switching it on is Nate's call.
 'use strict';
 
 const fs = require('fs');
@@ -28,7 +33,8 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, cfg, onUi, onlineActors, every, readOfficials, zoneById } = api;
-  const C = Object.assign({ enabled: false, maxTaxRate: 0.30, defaultPropertyValue: 2000, maxPropertyValue: 1000000, maxWage: 100000, reckonDay: 0, reckonHour: 0 }, cfg.economy || {});
+  const C = Object.assign({ enabled: false, maxTaxRate: 0.30, defaultPropertyValue: 2000, maxPropertyValue: 1000000, maxWage: 100000, reckonDay: 0, reckonHour: 0,
+    wageShare: 0.25, assessEveryDays: 7, assessMaxStep: 2 }, cfg.economy || {});
   const FILE = path.resolve('economy.json');
   const WEEK = 7 * 86400000;
   const BALANCE = 'private.bankGold';
@@ -38,7 +44,7 @@ module.exports = (api) => {
     if (S.data) return S.data;
     try { S.data = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { S.data = null; }
     const d = S.data && typeof S.data === 'object' ? S.data : {};
-    for (const k of ['rates', 'wages', 'values', 'owed', 'overdue', 'reports']) if (!d[k] || typeof d[k] !== 'object') d[k] = {};
+    for (const k of ['rates', 'wages', 'values', 'owed', 'overdue', 'reports', 'assessed']) if (!d[k] || typeof d[k] !== 'object') d[k] = {};
     if (!Number.isFinite(d.lastReckoning)) d.lastReckoning = 0;
     S.data = d;
     return d;
@@ -53,6 +59,9 @@ module.exports = (api) => {
   const accountActors = (pid) => { try { return (mp.getActorsByProfileId(pid) || []).map((x) => Number(x) >>> 0); } catch (e) { return []; } };
   const balanceOf = (a) => { try { const v = Number(mp.get(a, BALANCE)); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0; } catch (e) { return 0; } };
   const credit = (a, n) => { mp.set(a, BALANCE, balanceOf(a) + n); };
+  const profileOfActor = (a) => { try { const v = Number(mp.get(a, 'profileId')); return Number.isFinite(v) ? v : -1; } catch (e) { return -1; } };
+  // An account that controls a faction's treasury is never on its payroll (review B2)
+  const accountLeads = (pid, fid) => pid >= 0 && (fn('__dboRealmLeadsAccount') ? !!fn('__dboRealmLeadsAccount')(pid, fid) : false);
 
   // Takes n gold from the bank accounts of an account's characters, richest first; all or nothing
   const chargeAccount = (pid, n) => {
@@ -93,14 +102,18 @@ module.exports = (api) => {
       const o = (readOfficials() || {})[f.zone] || {};
       for (const [rank, pids] of Object.entries(o)) {
         const wage = Math.floor(Number(table[rank]) || 0); if (wage <= 0) continue;
-        for (const pid of pids || []) { const actor = accountActors(Number(pid))[0] || 0; out.push({ key: `p${pid}`, actor, rank, wage }); }
+        for (const pid of pids || []) {
+          if (accountLeads(Number(pid), fid)) continue;
+          const actor = accountActors(Number(pid))[0] || 0; out.push({ key: `p${pid}`, pid: Number(pid), actor, rank, wage });
+        }
       }
     } else {
       const members = fn('__dboGuildMembers') ? fn('__dboGuildMembers')(fid) : [];
       for (const actor of members) {
         const g = (fn('__dboGuildsOf') ? fn('__dboGuildsOf')(actor) : []).find((x) => x.id === fid);
         const wage = g ? Math.floor(Number(table[g.title]) || 0) : 0;
-        if (wage > 0) out.push({ key: `a${actor}`, actor, rank: g.title, wage });
+        const pid = profileOfActor(actor);
+        if (wage > 0 && !accountLeads(pid, fid)) out.push({ key: `a${actor}`, pid, actor, rank: g.title, wage });
       }
     }
     return out;
@@ -145,12 +158,22 @@ module.exports = (api) => {
         const r = report(fid);
         const owed = d.owed[fid] = d.owed[fid] || {};
         const due = [];
-        for (const [key, o] of Object.entries(owed)) due.push({ key, actor: o.actor, wage: o.gold, rank: o.rank, back: true });
+        for (const [key, o] of Object.entries(owed)) {
+          // A wage owed to someone who has since come to lead the faction is dropped, not paid
+          const pid = o.actor ? profileOfActor(o.actor) : (key[0] === 'p' ? Number(key.slice(1)) : -1);
+          if (accountLeads(pid, fid)) continue;
+          due.push({ key, actor: o.actor, wage: o.gold, rank: o.rank, back: true });
+        }
         for (const p of payroll(fid)) due.push(p);
+        // The week's wages take at most wageShare of the treasury; the rest is owed
+        let budget = Math.floor(Math.max(0, Number(C.wageShare) || 0) * T.balance(fid));
         const fresh = {};
         for (const p of due) {
-          if (p.actor && T.spend(fid, p.wage, `wage ${p.rank} ${p.key}`)) { credit(p.actor, p.wage); r.wagesPaid += p.wage; }
-          else { fresh[p.key] = { actor: p.actor, gold: ((fresh[p.key] || {}).gold || 0) + p.wage, rank: p.rank }; r.owed += p.wage; r.unpaid.push(p.key); }
+          if (p.actor && p.wage <= budget && T.spend(fid, p.wage, `wage ${p.rank} ${p.key}`)) { credit(p.actor, p.wage); r.wagesPaid += p.wage; budget -= p.wage; }
+          else {
+            if (p.actor && p.wage > budget && p.wage <= T.balance(fid)) r.capped = true;
+            fresh[p.key] = { actor: p.actor, gold: ((fresh[p.key] || {}).gold || 0) + p.wage, rank: p.rank }; r.owed += p.wage; r.unpaid.push(p.key);
+          }
         }
         d.owed[fid] = fresh;
       }
@@ -159,7 +182,7 @@ module.exports = (api) => {
       r.balance = T ? T.balance(fid) : 0;
       d.reports[fid] = r;
       audit(`ECONOMY ${nameOfFaction(fid)}: taxes ${r.income} gold from ${r.taxed} properties, ${r.overdue.length} overdue; wages ${r.wagesPaid} paid, ${r.owed} owed; treasury ${r.balance}`);
-      for (const a of onlineActors()) if (leads(a, fid)) personal(a, `The week's reckoning for ${nameOfFaction(fid)}: ${r.income} gold in taxes, ${r.wagesPaid} gold in wages${r.owed ? `, ${r.owed} gold of wages owed` : ''}${r.overdue.length ? `, ${r.overdue.length} properties overdue` : ''}. The treasury holds ${r.balance} gold.`);
+      for (const a of onlineActors()) if (leads(a, fid)) personal(a, `The week's reckoning for ${nameOfFaction(fid)}: ${r.income} gold in taxes, ${r.wagesPaid} gold in wages${r.owed ? `, ${r.owed} gold of wages owed` : ''}${r.capped ? ` (wages take at most ${Math.round(C.wageShare * 100)}% of the treasury a week)` : ''}${r.overdue.length ? `, ${r.overdue.length} properties overdue` : ''}. The treasury holds ${r.balance} gold.`);
     }
     d.lastReckoning = Date.now();
     save();
@@ -176,6 +199,14 @@ module.exports = (api) => {
   });
 
   // ---- settings from the faction panel ---------------------------------------------------------------------------------
+  // Whether a character holds a rank: its account's official rank in a hold, or its own title on a roster. (The payroll
+  // leaves out every account that leads, alts included; this only tells a leader why their own rank cannot be paid.)
+  const holdsRank = (a, fid, rank) => {
+    const f = info(fid);
+    if (f && f.kind === 'hold' && f.zone) { const pid = profileOfActor(a); return pid >= 0 && ((((readOfficials() || {})[f.zone] || {})[rank]) || []).map(Number).includes(pid); }
+    return (fn('__dboGuildsOf') ? fn('__dboGuildsOf')(a) : []).some((g) => g.id === fid && g.title === rank);
+  };
+  const days = (ms) => { const d = Math.ceil(ms / 86400000); return `${d} day${d === 1 ? '' : 's'}`; };
   const fromPanel = (a, args) => fn('__dboFactionNonceOk') ? fn('__dboFactionNonceOk')(a, (args || [])[0]) : false;
   const reply = (a, ok, text) => { if (!(fn('__dboFactionRefresh') && fn('__dboFactionRefresh')(a, text, ok))) personal(a, text); };
   onUi('econRate', (a, args) => {
@@ -192,6 +223,7 @@ module.exports = (api) => {
     const fid = String(args[1] || ''); const rank = String(args[2] || '').slice(0, 64); const gold = Math.floor(Number(args[3]));
     if (!leads(a, fid)) return reply(a, false, 'Only the leader sets wages.');
     if (!rank || !Number.isFinite(gold) || gold < 0 || gold > C.maxWage) return reply(a, false, `A wage is a whole number of gold from 0 to ${C.maxWage}.`);
+    if (gold > 0 && holdsRank(a, fid, rank)) return reply(a, false, `You hold the rank of ${rank} yourself, and nobody sets their own wage.`);
     data().wages[fid] = data().wages[fid] || {}; data().wages[fid][rank] = gold; save();
     audit(`ECONOMY ${who(a)} set ${nameOfFaction(fid)}'s weekly wage for ${rank} to ${gold}`);
     reply(a, true, `${rank}: ${gold} gold a week.`);
@@ -203,8 +235,18 @@ module.exports = (api) => {
     if (!H || !H.primaryOf(ref)) return reply(a, false, 'That is not a property.');
     if (!H.isManager(a, ref)) return reply(a, false, 'Only the officials who manage this property assess it.');
     if (!Number.isFinite(gold) || gold < 0 || gold > C.maxPropertyValue) return reply(a, false, `A value is a whole number of gold from 0 to ${C.maxPropertyValue}.`);
-    data().values[String(H.primaryOf(ref))] = gold; save();
-    audit(`ECONOMY ${who(a)} assessed property ${ref.toString(16)} at ${gold} gold`);
+    const key = String(H.primaryOf(ref));
+    const last = data().assessed[key];
+    const wait = last ? last.at + C.assessEveryDays * 86400000 - Date.now() : 0;
+    if (wait > 0) return reply(a, false, `This property was assessed recently. It can be assessed again in ${days(wait)}.`);
+    const step = Math.max(1, Number(C.assessMaxStep) || 1);
+    const prev = valueOf(Number(key));
+    const lo = Math.floor(prev / step), hi = Math.min(C.maxPropertyValue, Math.max(prev * step, C.defaultPropertyValue));
+    if (gold < lo || gold > hi) return reply(a, false, `An assessment moves a value by at most ${step} times at once: from ${lo} to ${hi} gold for this property (now ${prev}).`);
+    data().values[key] = gold; data().assessed[key] = { at: Date.now(), by: who(a), from: prev }; save();
+    audit(`ECONOMY ${who(a)} assessed property ${ref.toString(16)} at ${gold} gold (was ${prev})`);
+    const rec = H.recordOf(Number(key));
+    if (rec && rec.owner) for (const x of accountActors(rec.owner)) if (onlineActors().includes(x)) personal(x, `Your property has been assessed at ${gold} gold (it was ${prev}). Property tax is a share of that value each week.`);
     reply(a, true, `Assessed at ${gold} gold.`);
   });
 
