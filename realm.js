@@ -5,6 +5,11 @@
 // nearest marker in its worldspace.
 //
 // Official war (Nate, 2026-09-26):
+//   closed    war.enabled (off by default) opens it; until the holds and factions are set up in the alpha nobody declares
+//             and no battle runs. The map, owners and treaties work either way.
+//   muster    every online member of the declaring faction must stand at its seat: staff's (/war seat), else its capital
+//             (the capital's marker within musterRadius, 3000, or inside one of its seatCells, e.g. Castle Bruma's rooms).
+//   treaty    two leaders not at war may swear peace for 1 to 8 weeks; while it holds neither may declare on the other.
 //   declare   a faction's leader, or a hold's ruler for the hold's faction, names a defending faction and the territories
 //             it wants (the defender must own them). Both sides need minOnline (10) members online, the declarer pays
 //             declareFee (10,000 gold) from its treasury, a faction younger than protectDays (7) cannot be declared on,
@@ -38,6 +43,12 @@ module.exports = (api) => {
     windowSlots: [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, hour: 0, minute: 0 })),
     captureSeconds: 300, tickMs: 2000, defaultRadius: 1500, rulerRanks: ['jarl', 'count', 'chieftain'],
     deathWar: true,
+    // Off until the holds and factions are set up during the alpha (Nate, 2026-09-26): no declarations, no battles
+    enabled: false,
+    // Where a faction musters to declare: a hold's capital (its marker's grounds within musterRadius, and its seatCells);
+    // any other faction's seat is staff's: seats { factionId: { world, pos, radius, cells: [cell descs] } }
+    musterRadius: 3000, seats: {},
+    treatyMinWeeks: 1, treatyMaxWeeks: 8,
   }, cfg.war || {});
   const DAY = 86400000;
   const TERRITORIES = path.resolve('territories.json');
@@ -172,13 +183,75 @@ module.exports = (api) => {
   };
   const windowChoices = (declaredAt) => slotsFrom(declaredAt + C.noticeDays * DAY).slice(0, 7);
 
+  // ---- mustering at the capital ----------------------------------------------------------------------------------------
+  // A faction's seat: one staff set (/war seat, or config war.seats), else a hold's capital territory (its marker's grounds
+  // and its seatCells), else a capital the faction has taken
+  const seatOf = (fid) => {
+    const s = (wars().seats || {})[fid] || (C.seats || {})[fid];
+    if (s && s.world && Array.isArray(s.pos)) return { name: s.name || nameOfFaction(fid), world: s.world, pos: s.pos, radius: s.radius || C.musterRadius, cells: s.cells || [] };
+    const f = info(fid);
+    const cap = territories().find((t) => t.kind === 'capital' && (f && f.zone ? t.zone === f.zone : ownerOf(t.id) === fid));
+    return cap ? { name: cap.name, world: cap.marker.world, pos: cap.marker.pos, radius: C.musterRadius, cells: cap.seatCells || [] } : null;
+  };
+  const atSeat = (a, seat) => {
+    const w = worldOf(a);
+    if ((seat.cells || []).some((c) => sameWorld(w, c))) return true;
+    const p = posOf(a);
+    return Array.isArray(p) && sameWorld(w, seat.world) && Math.hypot(p[0] - seat.pos[0], p[1] - seat.pos[1], p[2] - seat.pos[2]) <= seat.radius;
+  };
+  // Nate, 2026-09-26: every online member of the declaring side must be at its capital
+  const musterRefusal = (fid) => {
+    const seat = seatOf(fid);
+    if (!seat) return `${nameOfFaction(fid)} has no seat to muster at; staff must set one before it can declare war.`;
+    const away = onlineOf(fid).filter((x) => !atSeat(x, seat));
+    return away.length ? `Every member of ${nameOfFaction(fid)} who is online must be at ${seat.name} to declare war (${away.length} ${away.length === 1 ? 'is' : 'are'} elsewhere).` : '';
+  };
+
+  // ---- peace treaties ------------------------------------------------------------------------------------------------------
+  // Two factions not at war may bind themselves to peace for some weeks; while it holds, neither may declare on the other
+  const treaties = () => { const d = wars(); if (!Array.isArray(d.treaties)) d.treaties = []; if (!Array.isArray(d.offers)) d.offers = []; d.treaties = d.treaties.filter((t) => Date.now() < t.until); return d.treaties; };
+  const treatyBetween = (x, y) => treaties().find((t) => (t.a === x && t.b === y) || (t.a === y && t.b === x)) || null;
+  const offerTreaty = (a, from, to, weeks) => {
+    if (!leads(a, from)) return { ok: false, text: 'Only a faction\'s leader, or a hold\'s ruler, offers a treaty.' };
+    if (!info(to) || to === from) return { ok: false, text: 'There is no such faction.' };
+    weeks = Math.floor(Number(weeks) || 0);
+    if (weeks < C.treatyMinWeeks || weeks > C.treatyMaxWeeks) return { ok: false, text: `A treaty runs from ${C.treatyMinWeeks} to ${C.treatyMaxWeeks} weeks.` };
+    if (live().some((w) => (w.attacker === from && w.defender === to) || (w.attacker === to && w.defender === from))) return { ok: false, text: 'You are at war with them; offer peace in the war itself.' };
+    treaties();
+    const d = wars();
+    d.offers = d.offers.filter((o) => !(o.from === from && o.to === to));
+    d.offers.push({ id: (d.nextOffer = (d.nextOffer || 0) + 1), from, to, weeks, at: Date.now() });
+    saveWars();
+    for (const x of onlineActors().filter((q) => leads(q, to))) personal(x, `${nameOfFaction(from)} offers ${nameOfFaction(to)} a peace treaty for ${weeks} week${weeks > 1 ? 's' : ''}. Answer in the faction panel (F3).`);
+    audit(`WAR ${who(a)} offers a ${weeks}-week peace treaty from ${nameOfFaction(from)} to ${nameOfFaction(to)}`);
+    return { ok: true, text: 'Treaty offered.' };
+  };
+  const answerTreaty = (a, id, accept) => {
+    treaties();
+    const d = wars(); const o = d.offers.find((x) => x.id === Number(id));
+    if (!o) return { ok: false, text: 'There is no such offer.' };
+    if (!leads(a, o.to)) return { ok: false, text: 'Only the other side\'s leader answers.' };
+    d.offers = d.offers.filter((x) => x !== o);
+    if (accept) {
+      d.treaties = d.treaties.filter((t) => !((t.a === o.from && t.b === o.to) || (t.a === o.to && t.b === o.from)));
+      d.treaties.push({ a: o.from, b: o.to, since: Date.now(), until: Date.now() + o.weeks * 7 * DAY });
+      announce(`${nameOfFaction(o.from)} and ${nameOfFaction(o.to)} have sworn peace for ${o.weeks} week${o.weeks > 1 ? 's' : ''}.`);
+    }
+    saveWars();
+    audit(`WAR ${who(a)} ${accept ? 'accepted' : 'refused'} the treaty offered by ${nameOfFaction(o.from)}`);
+    return { ok: true, text: accept ? 'Peace is sworn.' : 'You refuse the treaty.' };
+  };
+
   // Why `a` may not declare this war now, or ''
   const declareRefusal = (a, attacker, defender, goal) => {
+    if (!C.enabled) return 'War is closed during the alpha, until the holds and factions are set up.';
     if (!attacker || !leads(a, attacker)) return 'Only a faction\'s leader, or a hold\'s ruler, declares war.';
     if (!info(defender)) return 'There is no such faction.';
     if (defender === attacker) return 'A faction cannot declare war on itself.';
     if (live().some((w) => w.attacker === attacker)) return `${nameOfFaction(attacker)} already fights a war it declared.`;
     if (live().some((w) => (w.attacker === attacker && w.defender === defender) || (w.attacker === defender && w.defender === attacker))) return 'These two are already at war.';
+    const pact = treatyBetween(attacker, defender);
+    if (pact) return `${nameOfFaction(attacker)} is sworn to peace with ${nameOfFaction(defender)} until ${whenText(pact.until)}.`;
     const owned = territoriesOf(defender).map((t) => t.id);
     if (!goal.length) return 'Name the land you mean to take.';
     const bad = goal.filter((g) => !owned.includes(g));
@@ -190,6 +263,8 @@ module.exports = (api) => {
     const mine = onlineOf(attacker).length, theirs = onlineOf(defender).length;
     if (mine < C.minOnline) return `${C.minOnline} of ${nameOfFaction(attacker)} must be online to declare war (${mine} are).`;
     if (theirs < C.minOnline) return `${C.minOnline} of ${nameOfFaction(defender)} must be online to receive a declaration (${theirs} are).`;
+    const muster = musterRefusal(attacker);
+    if (muster) return muster;
     const treasury = globalThis.__dboTreasury;
     if (!treasury) return 'The treasuries are closed.';
     if (treasury.balance(attacker) < C.declareFee) return `Declaring war costs ${C.declareFee} gold from ${nameOfFaction(attacker)}'s treasury.`;
@@ -289,6 +364,7 @@ module.exports = (api) => {
 
   // ---- battle: capture at the markers ------------------------------------------------------------------------------------
   const tick = () => {
+    if (!C.enabled) return;
     const now = Date.now();
     for (const w of live()) {
       if (w.status === 'notice' && now >= w.startsAt) { w.status = 'active'; saveWars(); announce(`War: ${nameOfFaction(w.attacker)} against ${nameOfFaction(w.defender)}. The first battle window is open.`); }
@@ -367,8 +443,12 @@ module.exports = (api) => {
       // Map colours by faction: staff's lore table (config war.colours); a faction not in it shows grey until one is set
       colours: Object.assign({}, C.colours || {}),
       wars: live().filter((w) => memberOf(a, w.attacker) || memberOf(a, w.defender) || isAdmin(a)).map(warView),
-      leads: led.map((fid) => ({ id: fid, name: nameOfFaction(fid), treasury: globalThis.__dboTreasury ? globalThis.__dboTreasury.balance(fid) : 0, online: onlineOf(fid).length })),
-      rules: { minOnline: C.minOnline, declareFee: C.declareFee, noticeDays: C.noticeDays, windowsPerWar: C.windowsPerWar, windowHours: C.windowHours, deathWar: C.deathWar },
+      leads: led.map((fid) => { const seat = seatOf(fid); const on = onlineOf(fid); return { id: fid, name: nameOfFaction(fid), treasury: globalThis.__dboTreasury ? globalThis.__dboTreasury.balance(fid) : 0, online: on.length, seat: seat ? seat.name : '', atSeat: seat ? on.filter((x) => atSeat(x, seat)).length : 0 }; }),
+      rules: { enabled: !!C.enabled, minOnline: C.minOnline, declareFee: C.declareFee, noticeDays: C.noticeDays, windowsPerWar: C.windowsPerWar, windowHours: C.windowHours, deathWar: C.deathWar, treatyMinWeeks: C.treatyMinWeeks, treatyMaxWeeks: C.treatyMaxWeeks },
+      treaties: treaties().filter((t) => isAdmin(a) || memberOf(a, t.a) || memberOf(a, t.b)).map((t) => ({ a: t.a, aName: nameOfFaction(t.a), b: t.b, bName: nameOfFaction(t.b), until: t.until })),
+      offers: (wars().offers || []).filter((o) => led.includes(o.to) || led.includes(o.from)).map((o) => ({ id: o.id, from: o.from, fromName: nameOfFaction(o.from), to: o.to, toName: nameOfFaction(o.to), weeks: o.weeks, mine: led.includes(o.to) })),
+      // The factions a leader may offer a treaty to: every one that is not secret, and the land's owners
+      factions: led.length ? [...new Set((typeof globalThis.__dboFactionList === 'function' ? globalThis.__dboFactionList() : []).concat(territories().map((t) => ownerOf(t.id)), led))].filter(Boolean).map((fid) => ({ id: fid, name: nameOfFaction(fid) })) : [],
       windowChoices: led.length ? windowChoices(Date.now()) : [],
       raids: typeof globalThis.__dboRaidView === 'function' ? globalThis.__dboRaidView() : null,
     };
@@ -390,19 +470,33 @@ module.exports = (api) => {
   onUi('warPeace', (a, args) => { if (fromPanel(a, args)) reply(a, proposePeace(a, args[1], args[2], args[3])); });
   onUi('warPeaceAnswer', (a, args) => { if (fromPanel(a, args)) reply(a, answerPeace(a, args[1], !!args[2])); });
   onUi('warSurrender', (a, args) => { if (fromPanel(a, args)) reply(a, surrender(a, args[1])); });
+  onUi('treatyOffer', (a, args) => { if (fromPanel(a, args)) reply(a, offerTreaty(a, String(args[1] || ''), String(args[2] || ''), args[3])); });
+  onUi('treatyAnswer', (a, args) => { if (fromPanel(a, args)) reply(a, answerTreaty(a, args[1], !!args[2])); });
 
   // ---- staff ---------------------------------------------------------------------------------------------------------------
   registerChatCommand('war', (a, args) => {
     const [sub, x, y] = String(args || '').trim().split(/\s+/);
     if (sub === 'owner' && x && y) { if (!territory(x) || !info(y)) return personal(a, 'Usage: /war owner <territory> <faction id>'); setOwner(x, y, `set by ${display(a)}`); return personal(a, `${territory(x).name} now belongs to ${nameOfFaction(y)}.`); }
+    if (sub === 'seat' && x) {
+      if (!info(x)) return personal(a, 'Usage: /war seat <faction id> [clear], standing where it musters');
+      const d = wars(); d.seats = d.seats || {};
+      if (y === 'clear') { delete d.seats[x]; saveWars(); return personal(a, `${nameOfFaction(x)} has no seat of its own now.`); }
+      const p = posOf(a); const w = worldOf(a);
+      if (!Array.isArray(p) || !w) return personal(a, 'Your position is unknown.');
+      d.seats[x] = { name: `${nameOfFaction(x)}'s seat`, world: w, pos: p.map((v) => Math.round(v)), radius: C.musterRadius, cells: [] };
+      saveWars(); audit(`WAR seat of ${x} set by ${who(a)} at ${w} ${d.seats[x].pos.join(',')}`);
+      return personal(a, `${nameOfFaction(x)} musters here now, within ${C.musterRadius} units.`);
+    }
     if (sub === 'end' && x) { const w = live().find((q) => q.id === Number(x)); if (!w) return personal(a, 'No such war.'); endWar(w, `ended by staff (${display(a)})`); return personal(a, 'Ended.'); }
     personal(a, `Territories: ${territories().map((t) => `${t.name} (${nameOfFaction(ownerOf(t.id))})`).join(', ') || 'none'}`);
     const ws = live();
     personal(a, ws.length ? ws.map((w) => `#${w.id} ${nameOfFaction(w.attacker)} vs ${nameOfFaction(w.defender)} [${w.status}] for ${w.goal.join(', ')}; windows ${w.windows.map((q) => whenText(q.start)).join(', ')}${w.death ? `; death ${w.death}` : ''}`).join(' | ') : 'No wars.');
-    personal(a, 'Staff: /war owner <territory> <faction id>, /war end <war id>');
-  }, { admin: true, help: '[owner <territory> <faction> | end <id>] territories, owners and wars' });
+    const ts = treaties();
+    if (ts.length) personal(a, `Treaties: ${ts.map((t) => `${nameOfFaction(t.a)} and ${nameOfFaction(t.b)} until ${whenText(t.until)}`).join(' | ')}`);
+    personal(a, `War is ${C.enabled ? 'open' : 'closed (war.enabled is off)'}. Staff: /war owner <territory> <faction id>, /war end <war id>, /war seat <faction id> [clear]`);
+  }, { admin: true, help: '[owner <territory> <faction> | end <id> | seat <faction> [clear]] territories, owners, wars and seats' });
 
   every('realm', C.tickMs, () => { try { tick(); } catch (e) { log('realm: tick failed', e.message); } });
-  log(`realm loaded: ${territories().length} territories, ${live().length} war(s) under way`);
-  return { declare, answerDeath, proposePeace, answerPeace, surrender, tick, ownerOf, territoryAt, realmView, declareRefusal, windowChoices, setOwner };
+  log(`realm loaded: ${territories().length} territories, ${live().length} war(s) under way, war ${C.enabled ? 'OPEN' : 'closed (war.enabled false)'}`);
+  return { declare, answerDeath, proposePeace, answerPeace, surrender, tick, ownerOf, territoryAt, realmView, declareRefusal, windowChoices, setOwner, offerTreaty, answerTreaty, seatOf, musterRefusal };
 };

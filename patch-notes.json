@@ -1,5 +1,56 @@
 [
   {
+    "title": "The Realm, Peace Treaties and Robbery",
+    "date": "2026-09-27",
+    "version": "Server + client 0.3.50",
+    "tag": "New Feature",
+    "sections": [
+      {
+        "heading": "The Realm map",
+        "items": [
+          "The faction panel (F3) has a Realm tab: a map of the County of Bruma showing who holds each town, village, fort and the castle, in each faction's own colours. When land changes hands, the borders on the map move with it.",
+          "Every hold, clan, guild and order has its colour from the lore, such as yellow for Bruma, red for the Legion and blue for the Stormcloaks. The Companions fly red with a yellow stripe.",
+          "Some places are secret. A werewolf pack sees the other packs' hunting grounds, a vampire clan sees the other clans' lairs, and a cult sees only its own shrine. Nobody else sees them."
+        ]
+      },
+      {
+        "heading": "War (built, not open yet)",
+        "items": [
+          "The rules of war are in place, but war and raids stay closed during the alpha until the holds and factions are set up. The War tab says so.",
+          "When war opens, a Jarl, Count, Chieftain or faction leader declares it from the War tab. Both sides need 10 members online, the war costs 10,000 gold from the treasury, and there is a week's notice before three evening battle windows.",
+          "To declare, every member of your faction who is online must be gathered at your capital. For Bruma that means Castle Bruma or its grounds."
+        ]
+      },
+      {
+        "heading": "Peace treaties",
+        "items": [
+          "Leaders who are not at war can swear peace for 1 to 8 weeks from the War tab. One side offers, the other accepts. While the treaty holds, neither side can declare war on the other. This works now."
+        ]
+      },
+      {
+        "heading": "Treasury",
+        "items": [
+          "Rulers and faction leaders have a Treasury tab. There they set the weekly property tax on homes on their land (0% to 30%) and a weekly wage for each rank. Both start at zero, so nothing is taken until a ruler sets them."
+        ]
+      },
+      {
+        "heading": "Robbery",
+        "items": [
+          "You can rob someone from the X menu. They get a panel with two choices: Fight or Flee, or Accept Being Robbed. If they give no answer within 20 seconds, it counts as Fight or Flee.",
+          "Accepting hands over part of their gold and 3 random items. A key is taken only very rarely. Keep your gold in the bank."
+        ]
+      },
+      {
+        "heading": "Other changes",
+        "items": [
+          "Gold now has weight: 0.02 a coin, so 1,000 gold weighs 20.",
+          "Your field of view is restored after the character creator, instead of staying zoomed in.",
+          "Restart the launcher to get client 0.3.50."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Bank of Bruma",
     "date": "2026-09-26",
     "version": "Server + client 0.3.49",

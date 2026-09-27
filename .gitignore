@@ -14,6 +14,10 @@ notice-boards.json
 officials.json
 guilds.json
 parties.json
+bank.json
+economy.json
+wars.json
+territory-owners.json
 *.log
 *.log.*
 server.log*

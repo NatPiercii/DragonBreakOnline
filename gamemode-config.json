@@ -395,5 +395,23 @@
  "lockpick": { "enabled": true },
  "npcGround": { "fix": false },
  "npcDirector": { "mode": "on" },
- "itemGuards": { "mode": "on" }
+ "itemGuards": { "mode": "on" },
+ "war": {
+  "_comment": "War and raids stay off until the holds and factions are set up during the alpha (Nate, 2026-09-26). colours: the Realm map's lore colour per faction (Nate's picks; the cults' and the Vigil's chosen by the Prince's or the order's motif); \"base/stripe\" draws a stripe (the Companions). seats: where a faction that is not a hold musters to declare, { id: { name, world, pos, radius, cells } }.",
+  "enabled": false,
+  "seats": {},
+  "colours": {
+   "hold-whiterun": "#e8e4d8", "hold-riften": "#6b3fa0", "hold-solitude": "#7a1616", "hold-windhelm": "#2f5fb3", "hold-markarth": "#1f8a57",
+   "hold-falkreath": "#1d2f6b", "hold-morthal": "#2c5a2e", "hold-dawnstar": "#1a2744", "hold-winterhold": "#9fd3e6", "county-bruma": "#e2c233",
+   "clan-gol-kharzum": "#2c5a2e", "clan-mor-khazgur": "#c9a227", "clan-dushnikh-yal": "#6a1b2a", "clan-largashbur": "#c2a878", "clan-narzulbur": "#1a1a1a", "clan-cracked-tusk": "#9c3b2a",
+   "college-of-winterhold": "#e8e4d8", "synod": "#6b3fa0", "college-of-whispers": "#1a1a1a", "fighters-guild": "#c96a6a", "companions": "#a01d1d/#e2c233",
+   "bards-college": "#e8e4d8", "imperial-legion": "#b3201f", "stormcloaks": "#2f5fb3", "vigil-of-stendarr": "#a9adb5", "dawnguard": "#6b4a2b", "blades": "#5a2a82", "thalmor": "#c8a951",
+   "thieves-guild": "#7a7a7a", "dark-brotherhood": "#1a1a1a", "clan-volkihar": "#1d2f6b", "cyrodiil-vampyrum-order": "#6b3fa0", "crimson-scars": "#b3201f", "bloodmist-clan": "#7a1616",
+   "pack-of-the-jerall": "#3f8f3a",
+   "cult-azura": "#8c6bc8", "cult-boethiah": "#7d1128", "cult-clavicus-vile": "#c7852b", "cult-hermaeus-mora": "#5b7a2b", "cult-hircine": "#7a5a33",
+   "cult-mehrunes-dagon": "#b0161b", "cult-mephala": "#3d1f4d", "cult-meridia": "#f0d98a", "cult-molag-bal": "#3b4a5c", "cult-namira": "#5b5a2e",
+   "cult-nocturnal": "#1b1f3a", "cult-peryite": "#9bb33c", "cult-sanguine": "#7b1e3a", "cult-sheogorath": "#b0308f", "cult-vaermina": "#5d4b8a"
+  }
+ },
+ "raids": { "enabled": false }
 }

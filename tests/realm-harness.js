@@ -2,8 +2,9 @@
 // ruler, 10 online on each side, 10,000 gold from the treasury, the land must be the defender's, one offensive war, two
 // weeks before the same war again), the week's notice and three evening windows, capture only inside a window and only
 // with no defender at the marker, the capital falling (officials lose their ranks, the winner's leader may appoint),
-// peace with tribute, surrender, the war to the death (only if accepted, only in a window, only on contested land), and a
-// hot reload. Run it from this folder's parent with
+// peace with tribute, surrender, the war to the death (only if accepted, only in a window, only on contested land), a
+// hot reload, war closed while war.enabled is off, every online member mustered at the seat to declare, and peace
+// treaties that bar a declaration while they hold. Run it from this folder's parent with
 //
 //   node tests\realm-harness.js
 'use strict';
@@ -48,7 +49,7 @@ const handlers = new Map(); const timers = new Map();
 const api = {
   mp: {
     get: (a, p) => (p === 'pos' ? pos.get(a) : p === 'worldOrCellDesc' ? world.get(a) : p === 'isDead' ? dead.has(a) : p === 'private.permaDead' ? permaDead.has(a) : undefined),
-    getIdFromDesc: (d) => ({ 'a764b:BSHeartland.esm': 0x20a764b }[d] || 0x1),
+    getIdFromDesc: (d) => parseInt(String(d).split(':')[0], 16) + (/BSHeartland/.test(d) ? 0x2000000 : 0),
   },
   log: () => {}, personal: (a, t) => out.personal.push({ a, t }), system: (a, t) => out.system.push({ a, t }), audit: (t) => out.audits.push(t),
   who: (a) => `P${a}`, display: (a) => `P${a}`, cfg: {}, onUi: (ev, fn) => handlers.set(ev, fn), registerChatCommand: (n, fn) => handlers.set('/' + n, fn),
@@ -59,6 +60,9 @@ const api = {
 let realm;
 const load = () => { handlers.clear(); delete require.cache[REALM]; realm = require(REALM)(api); };
 load();
+const W = 'a764b:BSHeartland.esm';
+const SEAT = [60000, 190000, 0];
+const muster = (list) => { for (const a of list) { pos.set(a, SEAT.slice()); world.set(a, W); } };
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
@@ -73,6 +77,32 @@ check('a point belongs to the nearest marker', realm.territoryAt('a764b:BSHeartl
 
 // Declaration rules
 const decl = (a, goal, opts = {}) => realm.declare(a, opts.attacker || 'fighters-guild', opts.defender || 'county-bruma', goal, opts.picks || [], !!opts.death);
+check('war is closed while war.enabled is off (the default)', /closed during the alpha/.test(decl(GM, ['applewatch']).text) && realm.realmView(GM).rules.enabled === false);
+api.cfg = { war: { enabled: true, seats: { 'fighters-guild': { name: 'the Guildhall', world: W, pos: SEAT, radius: 500 } } } };
+load();
+check('with war.enabled on, the view says so', realm.realmView(GM).rules.enabled === true);
+// Mustering: every online member of the declaring side at its seat
+check('the declarer must muster at its seat', /must be at the Guildhall to declare war \(10 are elsewhere\)/.test(decl(GM, ['applewatch']).text), decl(GM, ['applewatch']).text);
+muster(fighters.slice(1));
+check('the leader counts too', /\(1 is elsewhere\)/.test(decl(GM, ['applewatch']).text));
+const seat = realm.seatOf('county-bruma');
+check('a hold musters at its capital: its marker\'s grounds and the castle\'s interiors', seat.name === 'Bruma' && seat.cells.length === 6 && seat.radius === 3000);
+for (const a of bruma) { world.set(a, '6c40f:BSHeartland.esm'); pos.set(a, [0, 0, 0]); }
+world.set(COUNT, W); pos.set(COUNT, marker('bruma').map((v, i) => (i === 0 ? v + 2500 : v)));
+check('the Count on the castle grounds and the court in the Great Hall are mustered', realm.musterRefusal('county-bruma') === '');
+pos.set(COUNT, marker('bruma').map((v, i) => (i === 0 ? v + 3500 : v)));
+check('one step outside the grounds is not', /1 is elsewhere/.test(realm.musterRefusal('county-bruma')));
+for (const a of bruma) { world.set(a, W); pos.set(a, [0, 0, 0]); }
+check('a faction with no seat cannot declare', /has no seat/.test(realm.musterRefusal('nobody')));
+api.isAdmin = () => true;
+pos.set(COUNT, [111, 222, 333]); world.set(COUNT, W);
+handlers.get('/war')(COUNT, 'seat county-bruma');
+check('staff may set a seat where they stand, and it comes before the capital', realm.seatOf('county-bruma').pos.join(',') === '111,222,333', out.personal[out.personal.length - 1].t);
+handlers.get('/war')(COUNT, 'seat county-bruma clear');
+check('and clear it again', realm.seatOf('county-bruma').name === 'Bruma');
+api.isAdmin = () => false;
+pos.set(COUNT, [0, 0, 0]);
+muster(fighters);
 check('only a leader declares', /Only a faction's leader/.test(decl(GM + 1, ['applewatch']).text));
 check('the land must be the defender\'s', /does not hold/.test(decl(GM, ['nowhere']).text) || /does not hold/.test(realm.declare(GM, 'fighters-guild', 'county-bruma', ['nowhere'], [], false).text));
 online = online.filter((a) => a !== 109);
@@ -83,6 +113,7 @@ online.push(10);
 treasury['fighters-guild'] = 9999;
 check('the 10,000 gold fee', /costs 10000 gold/.test(decl(GM, ['applewatch']).text));
 treasury['fighters-guild'] = 25000;
+muster(fighters);
 let r = decl(GM, ['applewatch', 'bruma'], { death: true });
 check('a valid declaration', r.ok, r.text);
 check('the fee is paid from the treasury', treasury['fighters-guild'] === 15000);
@@ -154,6 +185,7 @@ check('after a hot reload the owners stand', realm.ownerOf('bruma') === 'fighter
 // Two weeks before the same war again; peace; surrender
 realm.setOwner('bruma', 'county-bruma', 'test reset'); officials = { bruma: { count: [1] } };
 treasury['fighters-guild'] = 30000;
+muster(fighters);
 check('the same declarer waits two weeks', /too recently/.test(decl(GM, ['greenwood']).text));
 now += 15 * DAY;
 r = decl(GM, ['greenwood']);
@@ -170,7 +202,24 @@ check('only the other side answers peace', !realm.answerPeace(COUNT, w2.id, true
 check('peace with tribute ends the war', realm.answerPeace(GM, w2.id, true).ok && w2.status === 'ended' && treasury['county-bruma'] === 4000);
 now += 15 * DAY; treasury['fighters-guild'] = 30000;
 const w3 = decl(GM, ['aleswell']).war;
+check('no treaty offered to a side you are at war with', /at war with them/.test(realm.offerTreaty(GM, 'fighters-guild', 'county-bruma', 2).text));
 check('surrender by the defender hands over the land named', realm.surrender(COUNT, w3.id).ok && realm.ownerOf('aleswell') === 'fighters-guild' && w3.status === 'ended');
+
+// Peace treaties
+now += 15 * DAY;
+check('a treaty runs 1 to 8 weeks', !realm.offerTreaty(GM, 'fighters-guild', 'county-bruma', 9).ok && !realm.offerTreaty(GM, 'fighters-guild', 'county-bruma', 0).ok);
+check('only a leader offers one', !realm.offerTreaty(GM + 1, 'fighters-guild', 'county-bruma', 4).ok);
+check('the leader offers four weeks', realm.offerTreaty(GM, 'fighters-guild', 'county-bruma', 4).ok && out.personal.some((x) => x.a === COUNT && /offers County of Bruma a peace treaty for 4 weeks/.test(x.t)));
+const offer = realm.realmView(COUNT).offers[0];
+check('the other leader sees the offer as theirs to answer', offer && offer.mine === true && realm.realmView(GM).offers[0].mine === false);
+check('only the other side\'s leader answers', !realm.answerTreaty(GM, offer.id, true).ok && !realm.answerTreaty(2, offer.id, true).ok);
+check('accepted, peace is sworn', realm.answerTreaty(COUNT, offer.id, true).ok && realm.realmView(GM).treaties.length === 1 && out.system.some((x) => /sworn peace for 4 weeks/.test(x.t)));
+check('while it holds neither side may declare on the other', /sworn to peace with County of Bruma/.test(realm.declareRefusal(GM, 'fighters-guild', 'county-bruma', ['greenwood'])));
+now += 29 * DAY;
+check('after four weeks it lapses', realm.realmView(GM).treaties.length === 0 && realm.declareRefusal(GM, 'fighters-guild', 'county-bruma', ['greenwood']) === '', realm.declareRefusal(GM, 'fighters-guild', 'county-bruma', ['greenwood']));
+realm.offerTreaty(COUNT, 'county-bruma', 'fighters-guild', 2);
+const offer2 = realm.realmView(GM).offers[0];
+check('a refused offer is gone and binds nobody', realm.answerTreaty(GM, offer2.id, false).ok && realm.realmView(GM).offers.length === 0 && realm.realmView(GM).treaties.length === 0);
 
 // Hidden layers: a cult's shrine only for its members
 globalThis.__dboGuildsOf = (a) => (fighters.includes(a) ? [{ id: 'fighters-guild', role: a === GM ? 'leader' : 'member' }] : a === 5 ? [{ id: 'cult-namira', role: 'member' }] : []);

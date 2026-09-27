@@ -1,4 +1,4 @@
-// Scripted test for server\raids.js with a mock gamemode api: only a leader raids, never their own land, 5 defenders
+// Scripted test for server\raids.js with a mock gamemode api: closed unless raids.enabled, only a leader raids, never their own land, 5 defenders
 // online, 3 days between raids on the same land, the defenders warned, a raider breaking into a home (3 things across
 // its containers and 15% of their gold) or one of its containers, once each per raid, nobody else breaking in, homes on
 // other land untouched, the owner told, a failed write putting things back, and the raid ending on time.
@@ -51,16 +51,21 @@ const handlers = new Map(); const timers = new Map();
 const api = {
   mp: { get, set: (id, p, v) => { if (id === failWriteFor && p === 'inventory') throw new Error('write failed'); set(id, p, v); }, getDescFromId: (id) => id.toString(16) + ':Skyrim.esm', getActorsByProfileId: (pid) => (pid === 11 ? [11] : []) },
   log: () => {}, personal: (a, t) => out.personal.push({ a, t }), system: (a, t) => out.system.push({ a, t }), audit: (t) => out.audits.push(t),
-  who: (a) => `P${a}`, display: (a) => `P${a}`, cfg: {}, onUi: (e, f) => handlers.set(e, f), onlineActors: () => online.slice(), every: (n, ms, f) => timers.set(n, f),
+  who: (a) => `P${a}`, display: (a) => `P${a}`, cfg: { raids: { enabled: true } }, onUi: (e, f) => handlers.set(e, f), onlineActors: () => online.slice(), every: (n, ms, f) => timers.set(n, f),
   recordOf: (id) => (types[id] ? { record: { type: types[id], editorId: 'Item' } } : null), adminItemName: () => '', sendPacket: () => true,
 };
-delete require.cache[RAIDS];
-const raids = require(RAIDS)(api);
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
 const startRaid = (a, t) => { replies.length = 0; handlers.get('raidStart')(a, ['n', 'fighters-guild', t]); return replies[0] || {}; };
 
+api.cfg = {};
+delete require.cache[RAIDS];
+require(RAIDS)(api);
+check('raids are closed while raids.enabled is off (the default)', /closed during the alpha/.test(startRaid(LEADER, 'applewatch').text) && globalThis.__dboRaidView().rules.enabled === false);
+api.cfg = { raids: { enabled: true } };
+delete require.cache[RAIDS];
+const raids = require(RAIDS)(api);
 check('only the leader starts a raid', !startRaid(RAIDER, 'applewatch').ok);
 bruma = [1, 2, 3, 4];
 check('5 defenders must be online', /needs 5 of County of Bruma online/.test(startRaid(LEADER, 'applewatch').text));

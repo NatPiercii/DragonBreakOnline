@@ -93,6 +93,13 @@ A tab of the faction panel (F3), beside Members and War (Nate, 2026-09-26: no ne
 
 ## 4. Official war
 
+**Closed during the alpha** (Nate, 2026-09-26): war and raids stay switched off (`war.enabled`, `raids.enabled`) until
+the holds and factions are set up. The map, the owners, the treasury and peace treaties work meanwhile.
+
+0. **Muster.** Every member of the declaring faction who is online must be at its capital when it declares (Nate,
+   2026-09-26). A hold's capital is its capital territory: the grounds around the land marker (3000 units) and the
+   castle's own rooms (for Bruma, Castle Bruma's six interiors). Another faction musters at a seat staff set
+   (`/war seat <faction>`, where the admin stands) or at a capital it has taken; with none it cannot declare.
 1. **Declare.** A hold ruler or a faction leader declares war on another faction:
    `/war declare <faction> <territory|all> <reason>`, or from the map. The declaration names the war goal: one territory,
    several, or the whole hold.
@@ -109,6 +116,8 @@ A tab of the faction panel (F3), beside Members and War (Nate, 2026-09-26: no ne
    official of the defeated hold loses their rank, and the winner's leader appoints new ones.
 6. **End.** A war ends when its goal is taken, when the last battle window closes, or when the leaders make peace:
    `/war peace <terms>` with a tribute in gold, accepted by the other leader. Surrender is the same with no terms.
+6b. **Peace treaty.** Two leaders not at war may swear peace for 1 to 8 weeks from the faction panel: one offers, the
+   other accepts. While it holds, neither may declare war on the other. It is announced to everyone.
 7. **Record.** Every war is kept: the declaration, each capture, the outcome. The map's history view shows it.
 
 Limits against abuse:
@@ -242,6 +251,9 @@ All in config, so they can change without code.
 | Declaring on the same faction again | after two weeks |
 | Raid | 5 defenders online; break-ins give 3 random items and 15% of the gold; 3 days before the same land again |
 | Tax rate | 0% to 30%, set by the ruler or leader |
-| Faction colours | lore colours, one staff table |
+| Faction colours | Nate's table in `gamemode-config.json` `war.colours` (the Companions red with a yellow stripe); the cults' and the Vigil's picked by motif |
+| Muster | every online member at the capital (3000 units of its marker, or inside its rooms) |
+| Peace treaty | 1 to 8 weeks |
+| War and raids | off (`war.enabled`, `raids.enabled` false) until the alpha's holds and factions are set up |
 
 Still open: the exact evening slots and their time zone, and the default property values by kind of house.

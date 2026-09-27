@@ -15,7 +15,8 @@
 
 module.exports = (api) => {
   const { mp, log, personal, system, audit, who, display, cfg, onUi, onlineActors, every, recordOf, adminItemName, sendPacket } = api;
-  const C = Object.assign({ minDefendersOnline: 5, cooldownDays: 3, raidMinutes: 30, itemsPerBreakIn: 3, goldShare: 0.15 }, cfg.raids || {});
+  // enabled: off with war during the alpha (Nate, 2026-09-26); config raids.enabled true opens them
+  const C = Object.assign({ enabled: false, minDefendersOnline: 5, cooldownDays: 3, raidMinutes: 30, itemsPerBreakIn: 3, goldShare: 0.15 }, cfg.raids || {});
   const GOLD = 0x0000000f;
   const STEALABLE = new Set(['WEAP', 'ARMO', 'AMMO', 'MISC', 'ALCH', 'INGR', 'BOOK', 'SLGM', 'SCRL', 'LIGH']);
   const S = globalThis.__dboRaids || (globalThis.__dboRaids = { raids: [], lastRaided: {} });
@@ -42,6 +43,7 @@ module.exports = (api) => {
 
   // ---- starting a raid -----------------------------------------------------------------------------------------------
   const start = (a, raider, tid) => {
+    if (!C.enabled) return { ok: false, text: 'Raids are closed during the alpha, with war.' };
     if (!leads(a, raider)) return { ok: false, text: 'Only a faction\'s leader, or a hold\'s ruler, sends a raid.' };
     const owner = ownerOf(tid);
     if (!owner) return { ok: false, text: 'There is no such land.' };
@@ -146,7 +148,7 @@ module.exports = (api) => {
   const fromPanel = (a, args) => fn('__dboFactionNonceOk') ? fn('__dboFactionNonceOk')(a, (args || [])[0]) : false;
   const reply = (a, r) => { if (!(fn('__dboFactionRefresh') && fn('__dboFactionRefresh')(a, r.text, r.ok))) personal(a, r.text); };
   onUi('raidStart', (a, args) => { if (fromPanel(a, args)) reply(a, start(a, String(args[1] || ''), String(args[2] || ''))); });
-  globalThis.__dboRaidView = () => ({ rules: { minDefendersOnline: C.minDefendersOnline, cooldownDays: C.cooldownDays, raidMinutes: C.raidMinutes },
+  globalThis.__dboRaidView = () => ({ rules: { enabled: !!C.enabled, minDefendersOnline: C.minDefendersOnline, cooldownDays: C.cooldownDays, raidMinutes: C.raidMinutes },
     raids: active().map((r) => ({ raider: r.raider, raiderName: nameOfFaction(r.raider), owner: r.owner, territory: r.territory, territoryName: placeName(r.territory), until: r.until, breakIns: r.broken.filter((k) => k.startsWith('h')).length })),
     lastRaided: Object.assign({}, S.lastRaided) });
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "Territories and their land markers (WAR_DESIGN.md section 2; server/realm.js). A point belongs to the nearest land marker in its worldspace. Whoever holds a marker owns its territory; at first every territory belongs to its zone's hold faction (guild-defs.json kind 'hold'). marker: the war standard's spot (world desc, position in game units, capture radius in units, 70 units = 1 m). The positions are the places' map markers in BSHeartland.esm (LCTN LCSR MapMarkerRefType, or the location centre for Aleswell), read 2026-09-26. kind 'capital' is the hold's seat: taking it takes the hold. icon: the map marker type (REFR TNAM) of the place's in-game map marker, so the Realm map shows the same icon as the game's map (the icon art is exported from the game's map.swf on the PC into the front's img/mapicons/<type>.png); Castle Bruma's 224 and Bruma's 102 are Beyond Skyrim's own types. Aleswell has no map marker.",
+  "_comment": "Territories and their land markers (WAR_DESIGN.md section 2; server/realm.js). A point belongs to the nearest land marker in its worldspace. Whoever holds a marker owns its territory; at first every territory belongs to its zone's hold faction (guild-defs.json kind 'hold'). marker: the war standard's spot (world desc, position in game units, capture radius in units, 70 units = 1 m). The positions are the places' map markers in BSHeartland.esm (LCTN LCSR MapMarkerRefType, or the location centre for Aleswell), read 2026-09-26. kind 'capital' is the hold's seat: taking it takes the hold. icon: the map marker type (REFR TNAM) of the place's in-game map marker, so the Realm map shows the same icon as the game's map (the icon art is exported from the game's map.swf on the PC into the front's img/mapicons/<type>.png); Castle Bruma's 224 and Bruma's 102 are Beyond Skyrim's own types. Aleswell has no map marker. seatCells: a capital's interiors (Castle Bruma's great hall, Lord's Manor, barracks, service hall, guest wing and dungeon); with the grounds around its marker they are where a hold's members muster to declare war.",
   "territories": [
     {
       "id": "bruma",
@@ -16,7 +16,15 @@
         ],
         "radius": 1500
       },
-      "icon": 224
+      "icon": 224,
+      "seatCells": [
+        "6c40f:BSHeartland.esm",
+        "6c40c:BSHeartland.esm",
+        "6c40d:BSHeartland.esm",
+        "6c40e:BSHeartland.esm",
+        "72653:BSHeartland.esm",
+        "6c410:BSHeartland.esm"
+      ]
     },
     {
       "id": "applewatch",
