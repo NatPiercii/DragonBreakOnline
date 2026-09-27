@@ -332,6 +332,65 @@ test('non-root: an unreadable review file is logged once and named in the warnin
   } finally { fs.chmodSync(cfg.reviewsFile, 0o644); q.stop() }
 })
 
+test('non-root: a file the queue only stats or hashes clears its warning once readable, even after a chmod alone', { skip: ROOT_READS_ALL }, async t => {
+  const warn = t.mock.method(console, 'warn', () => {})
+  let clock = Date.parse('2026-09-26T08:00:00Z')
+  const locked = path.join(root, `locked-${++seq}`), files = path.join(root, `client-files-${seq}`)
+  write(locked, { 'backend.env': 'SECRET=1\n' })
+  write(files, { 'skymp-client.zip': ZIP })
+  const env = path.join(locked, 'backend.env'), zip = path.join(files, 'skymp-client.zip')
+  const { q } = newQueue({ liveJson: consistentLive(), now: () => clock, config: { backendEnvFile: env, clientFilesDir: files } })
+  const WARNING = 'some panel files cannot be read (EACCES), so reviews, holds or live versions may be missing'
+  try {
+    fs.chmodSync(locked, 0o000)
+    fs.chmodSync(zip, 0o000)
+    assert.ok((await q.queue()).warnings.includes(WARNING))
+    assert.equal((await q.live()).client.zipMatches, false)
+    fs.chmodSync(locked, 0o755)
+    fs.chmodSync(zip, 0o644)
+    clock += PAST_TTL
+    const fixed = await q.queue()
+    assert.equal(fixed.warnings.includes(WARNING), false, JSON.stringify(fixed.warnings))
+    assert.equal((await q.live()).client.zipMatches, true, 'the zip is hashed again although its mtime and size never changed')
+    assert.deepEqual(warn.mock.calls.map(c => c.arguments.join(' ')).sort(), [`[release-queue] cannot read ${env}: EACCES`, `[release-queue] cannot read ${zip}: EACCES`].sort())
+  } finally { fs.chmodSync(locked, 0o755); fs.chmodSync(zip, 0o644); q.stop() }
+})
+
+test('non-root: a file that can be stat-ed but not read keeps its warning', { skip: ROOT_READS_ALL }, async t => {
+  t.mock.method(console, 'warn', () => {})
+  let clock = Date.parse('2026-09-26T08:00:00Z')
+  const { q, cfg } = newQueue({ reviews: [go(S.M2)], now: () => clock })
+  const WARNING = 'some panel files cannot be read (EACCES), so reviews, holds or live versions may be missing'
+  try {
+    fs.chmodSync(cfg.reviewsFile, 0o000)
+    for (let i = 0; i < 2; i++) {
+      assert.ok((await q.queue()).warnings.includes(WARNING), `build ${i + 1}`)
+      clock += PAST_TTL
+    }
+  } finally { fs.chmodSync(cfg.reviewsFile, 0o644); q.stop() }
+})
+
+test('a client zip that is not a regular file (a FIFO) is never opened', { timeout: 10e3 }, async () => {
+  const files = path.join(root, `client-fifo-${++seq}`)
+  fs.mkdirSync(files)
+  execFileSync('mkfifo', [path.join(files, 'skymp-client.zip')])
+  await withQueue({ liveJson: consistentLive(), config: { clientFilesDir: files } }, async q => {
+    assert.equal((await q.live()).client.zipMatches, false)
+  })
+})
+
+test('non-root: a repo path with a trailing slash or through a symlink is still trusted', async () => {
+  const link = path.join(root, `repo-link-${++seq}`)
+  fs.symlinkSync(repo, link)
+  const runSync = (file, args, opts) => execFileSync(file, args, otherOwner(opts))
+  for (const releaseRepo of [`${repo}/`, link, `${link}/`]) {
+    await withQueue({ config: { releaseRepo }, run: (file, args, opts) => realRun(file, args, otherOwner(opts)) }, async q => {
+      assert.deepEqual((await q.queue()).live, { fork: S.LIVE, server: S.S0 }, releaseRepo)
+    })
+    assert.equal(gitSync(releaseRepo, ['rev-parse', '--verify', '--end-of-options', 'HEAD'], { runSync }).trim(), S.LIVE, releaseRepo)
+  }
+})
+
 // ---- pure helpers ----
 
 test('titles drop a known area prefix and a trailing review note', () => {
@@ -788,22 +847,28 @@ test('reviews: ranges resolve four at a time, an unknown tip waits for the next 
 const killedGit = () => Object.assign(new Error('killed'), { killed: true, code: null })
 const isoAt = ms => new Date(ms).toISOString()
 
-test('slow git: a merge check that times out counts as not clean for that build only', async () => {
+test('slow git: a merge check that times out counts as not clean for that build only, says so, and is asked again within a minute', async () => {
   let clock = Date.parse('2026-09-26T08:00:00Z'), slow = true, merges = 0
   const run = (file, args, opts) => {
     if (gitSub(args) !== 'merge-tree') return realRun(file, args, opts)
     merges++
     return slow ? Promise.reject(killedGit()) : realRun(file, args, opts)
   }
+  const WARNING = '1 merge check(s) timed out, so those merges show as not reviewed until the next check'
   const { q } = newQueue({ reviews: [go(S.B), go(S.F2, S.A)], run, now: () => clock })
   try {
     const qv = await q.queue()
     assert.equal(qv.default.fork, S.B)
     assert.deepEqual(qv.stops.fork, { short: short(S.M1), kind: 'merge', reason: 'notReviewed' })
+    assert.ok(qv.warnings.includes(WARNING), JSON.stringify(qv.warnings))
     assert.equal(q.lastFailure(), null)
     slow = false
-    clock += PAST_TTL
-    assert.equal((await q.queue()).default.fork, S.M1)
+    clock += 30e3
+    assert.equal(await q.queue(), qv, 'cached for the first minute')
+    clock += 31e3
+    const next = await q.queue()
+    assert.equal(next.default.fork, S.M1)
+    assert.equal(next.warnings.includes(WARNING), false)
     assert.equal(merges, 2)
   } finally { q.stop() }
 })
@@ -865,10 +930,10 @@ test('slow git: a queue build has an overall deadline, and no git call starts af
 
 test('wrapper: git runs under nice and ionice where they are on PATH, and alone where they are not', async () => {
   const on = (...names) => file => names.some(n => file === `/usr/bin/${n}`)
-  const both = ['nice', '-n', '10', 'ionice', '-c3', '-t']
+  const both = ['nice', '-n', '10', 'ionice', '-c2', '-n7', '-t']
   assert.deepEqual(priorityPrefix('/usr/local/bin:/usr/bin', on('nice', 'ionice')), both)
   assert.deepEqual(priorityPrefix('/usr/bin', on('nice')), ['nice', '-n', '10'])
-  assert.deepEqual(priorityPrefix('/usr/bin', on('ionice')), ['ionice', '-c3', '-t'])
+  assert.deepEqual(priorityPrefix('/usr/bin', on('ionice')), ['ionice', '-c2', '-n7', '-t'])
   assert.deepEqual(priorityPrefix('/usr/bin', on()), [])
   assert.deepEqual(priorityPrefix('', on('nice', 'ionice')), [])
   assert.deepEqual(gitCommand('/r', ['status'], []), ['git', [...gitPrefix('/r'), 'status']])
@@ -1038,14 +1103,18 @@ test('queue: a 5 min single-flight cache; a warm call runs one git process', asy
   } finally { q.stop() }
 })
 
-test('queue: HEAD, a fetch, an UPDATE line, a gameplay deploy or a skymp restart rebuilds it within the TTL', async () => {
+test('queue: HEAD, a fetch, an UPDATE line, a gameplay deploy, a skymp restart, an edited item or the git index rebuilds it within the TTL', async () => {
   let clock = Date.parse('2026-09-26T08:00:00Z'), logs = 0
   const svc = { skympSince: SKYMP_ACTIVE }
   const { q, cfg } = newQueue({ now: () => clock, svc, run: (file, args, opts) => { if (gitSub(args) === 'log') logs++; return realRun(file, args, opts) } })
   const rebuilds = async change => { await q.queue(); const before = logs; change(); await q.queue(); return logs > before }
   const touch = file => fs.utimesSync(file, new Date(), new Date(Date.now() + (++seq) * 1000))
+  const item = path.join(cfg.controlDir, 'queue', 'items', 'cfg-20260926-a1b2.json')
+  write(cfg.controlDir, { 'queue/items/cfg-20260926-a1b2.json': '{}' })
   try {
     assert.equal(await rebuilds(() => {}), false)
+    assert.equal(await rebuilds(() => { fs.writeFileSync(item, '{"edited":true}'); touch(item) }), true, 'a manual item edited in place')
+    assert.equal(await rebuilds(() => touch(path.join(repo, '.git', 'index'))), true, 'a staged change, reset or checkout of the live tree')
     assert.equal(await rebuilds(() => fs.appendFileSync(cfg.updaterLog, `2026-09-26T08:05:00Z up to date (${short(S.LIVE)})\n`)), false, 'a quiet updater run')
     assert.equal(await rebuilds(() => fs.appendFileSync(cfg.updaterLog, `2026-09-26T08:10:00Z UPDATE ${short(S.LIVE)} -> ${short(S.M2)}\n`)), true, 'an UPDATE line')
     assert.equal(await rebuilds(() => touch(path.join(repo, '.git', 'FETCH_HEAD'))), true, 'a fetch')
@@ -1070,7 +1139,15 @@ test('website check: only valid pages are fetched, and the result is counted', a
 
 test('website check: a page over 2 MB is an error, and the rest of it is never downloaded', async () => {
   let pulled = 0
-  const endless = () => new Response(new ReadableStream({ pull(c) { pulled += 65536; c.enqueue(new Uint8Array(65536)) } }))
+  // Errors at 16 MB: code without the cap would otherwise buffer it forever (external memory, no heap limit stops it),
+  // which is how the 27 Sep outage began. Old code fails this test on the assertion instead of filling the box.
+  const endless = () => new Response(new ReadableStream({
+    pull(c) {
+      if (pulled >= 16 * 1024 * 1024) return c.error(new Error('the reader did not stop at 2 MB'))
+      pulled += 65536
+      c.enqueue(new Uint8Array(65536))
+    },
+  }))
   await withQueue({ reviews: [go(S.M2)], fetch: async () => endless() }, async q => {
     await q.queue()
     assert.deepEqual((await q.checkWebsite()).pages, [{ page: 'guides/races.html', state: 'error' }])

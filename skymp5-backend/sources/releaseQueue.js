@@ -28,6 +28,8 @@ const SHA_RE = /^[0-9a-f]{40}$/
 const SHA256_RE = /^[0-9a-f]{64}$/
 const VERSION_RE = /^\d+\.\d+\.\d+$/
 const ITEM_ID_RE = /^[a-z]+-\d{8}-[0-9a-f]{4}$/
+const ITEM_FILE_RE = /^[a-z]+-\d{8}-[0-9a-f]{4}\.json$/
+const MAX_ITEMS = 200
 const PAGE_RE = /^[a-z0-9/_-]+\.html$/
 const BRANCH_RE = /^[\w./-]{1,100}$/
 const SECRET_RE = /^(?:server-settings.*\.json|backend\.env|\.env.*|sessions\.json|site-sessions\.json|auth-states\.json)$/
@@ -38,6 +40,7 @@ const LIST_CAP = 300
 const CONTENT_MATCH_DEPTH = 100
 // The queue key covers what changes between fetches, so the TTL is only a backstop for the rest (the working tree, other gameplay files)
 const QUEUE_TTL_MS = 5 * 60 * 1000
+const RETRY_SOON_MS = 60 * 1000
 const WEB_EVERY_MS = 10 * 60 * 1000
 const WEB_MAX_PAGES = 60
 const WEB_TIMEOUT_MS = 10 * 1000
@@ -227,29 +230,41 @@ function gitEnv() {
 const gitArgv = (repo, args) => ['-C', repo, '-c', `safe.directory=${repo}`, '-c', 'core.quotePath=false', '-c', 'core.fsmonitor=false',
   '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '--no-replace-objects', ...args]
 
-// A missing file is normal; any other read error (EACCES as a non-root user) is logged once per file until it clears
+// A missing file is normal; any other read error (EACCES as a non-root user) is logged once per file until it clears.
+// A stat failure is cleared by the next stat that works; a read failure only by a read that works, since a file can be
+// stat-able and still unreadable.
 function readErrors(tag) {
   const failing = new Map()
   return {
-    note(file, err) {
+    note(file, err, stage = 'read') {
       const code = err?.code || 'error'
       if (code === 'ENOENT' || code === 'ENOTDIR') return void failing.delete(file)
-      if (failing.get(file) !== code) console.warn(`[${tag}] cannot read ${file}: ${code}`)
-      failing.set(file, code)
+      if (failing.get(file)?.code !== code) console.warn(`[${tag}] cannot read ${file}: ${code}`)
+      failing.set(file, { code, stage })
     },
-    clear: file => void failing.delete(file),
-    codes: () => [...new Set(failing.values())].sort(),
+    clear(file, stage) {
+      if (!stage || failing.get(file)?.stage === stage) failing.delete(file)
+    },
+    codes: () => [...new Set([...failing.values()].map(f => f.code))].sort(),
   }
 }
 
 const canExec = file => { try { nodeFs.accessSync(file, nodeFs.constants.X_OK); return true } catch { return false } }
 
-// nice and ionice, where they are on PATH, so git yields to the game and its build; -t runs git even if the class cannot be set
+// nice and ionice, where they are on PATH, so git yields to the game and its build; -t runs git even if the class cannot be set.
+// The lowest best-effort IO priority, not the idle class, which can starve git outright while a build keeps the disk busy
 function priorityPrefix(pathEnv = process.env.PATH, isExec = canExec) {
   const has = name => String(pathEnv || '').split(':').some(dir => dir && isExec(path.join(dir, name)))
-  return [...(has('nice') ? ['nice', '-n', '10'] : []), ...(has('ionice') ? ['ionice', '-c3', '-t'] : [])]
+  return [...(has('nice') ? ['nice', '-n', '10'] : []), ...(has('ionice') ? ['ionice', '-c2', '-n7', '-t'] : [])]
 }
 const PRIORITY = priorityPrefix()
+
+// The checkout as git sees it (absolute, no trailing slash, symlinks resolved), so safe.directory matches it exactly
+function repoPath(repo, fsMod = nodeFs) {
+  if (!repo) return repo
+  const abs = path.resolve(String(repo))
+  try { return fsMod.realpathSync(abs) } catch { return abs }
+}
 
 // The file and argv of a guarded git call
 function gitCommand(repo, args, prefix = PRIORITY) {
@@ -260,12 +275,12 @@ function gitCommand(repo, args, prefix = PRIORITY) {
 // The same guarded call, synchronously, for the one read the backend makes while it starts
 function gitSync(repo, args, { runSync = childProcess.execFileSync } = {}) {
   if (checkGitArgs(args) === 'merge-tree') throw refused('merge-tree')
-  return String(runSync(...gitCommand(repo, args), { env: gitEnv(), timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, stdio: ['ignore', 'pipe', 'ignore'] }))
+  return String(runSync(...gitCommand(repoPath(repo), args), { env: gitEnv(), timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, stdio: ['ignore', 'pipe', 'ignore'] }))
 }
 
 function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch = globalThis.fetch, config, services = async () => ({}), deadlineMs = QUEUE_DEADLINE_MS }) {
   const fsp = fs.promises
-  const repo = config.releaseRepo
+  const repo = repoPath(config.releaseRepo, fs)
   const control = config.controlDir
   const backendDir = path.join(repo, 'skymp5-backend')
   const gameDir = config.gameServerDir
@@ -358,7 +373,10 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   }
 
   async function statOf(file) {
-    try { return await fsp.stat(file) } catch (err) { unreadable.note(file, err); return null }
+    let st
+    try { st = await fsp.stat(file) } catch (err) { unreadable.note(file, err, 'stat'); return null }
+    unreadable.clear(file, 'stat')
+    return st
   }
   const mtimeOf = async file => (await statOf(file))?.mtimeMs || 0
 
@@ -405,21 +423,28 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     })
   }
 
-  // sha256 of a large file, again only when its mtime or size changes
+  // sha256 of a regular file, again only when its mtime or size changes; a failed hash is not cached, since a chmod
+  // that fixes it moves neither
   async function cachedHash(file) {
     guard(file)
+    const key = `hash:${file}`
     const st = await statOf(file)
-    if (!st) return null
-    const key = `hash:${file}`, stamp = `${st.mtimeMs}:${st.size}`
+    if (!st || !st.isFile()) { files.delete(key); return null }
+    const stamp = `${st.mtimeMs}:${st.size}`
     const hit = files.get(key)
     if (hit && hit.stamp === stamp) return hit.value
-    const value = await hashFile(file).catch(err => { unreadable.note(file, err); return null })
+    let value
+    try { value = await hashFile(file) } catch (err) { unreadable.note(file, err); files.delete(key); return null }
+    unreadable.clear(file)
     files.set(key, { stamp, value })
     return value
   }
 
   async function listDir(dir) {
-    try { return await fsp.readdir(dir) } catch (err) { unreadable.note(dir, err); return [] }
+    let names
+    try { names = await fsp.readdir(dir) } catch (err) { unreadable.note(dir, err); return [] }
+    unreadable.clear(dir)
+    return names
   }
 
   // ---- live (2.9) ----
@@ -635,7 +660,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
 
   async function loadItems() {
     const dir = path.join(control, 'queue', 'items')
-    const names = (await listDir(dir)).filter(n => /^[a-z]+-\d{8}-[0-9a-f]{4}\.json$/.test(n)).sort().slice(0, 200)
+    const names = (await listDir(dir)).filter(n => ITEM_FILE_RE.test(n)).sort().slice(0, MAX_ITEMS)
     const items = []
     let refusedCount = 0
     for (const name of names) {
@@ -715,13 +740,18 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return out
   }
 
-  // A merge check that times out counts as not clean for this build and is asked again next time
+  // A merge check that times out counts as not clean for this build, is counted in its warnings and is asked again next time
   const cleanMerge = c => remember(`merge:${c.sha}`, async () => {
     if (c.parents.length !== 2) return false
     const { code, stdout } = await git(['merge-tree', '--write-tree', '--end-of-options', ...c.parents], { codes: [0, 1] })
     if (code !== 0) return false
     return stdout.split('\n')[0].trim() === (await gitText('rev-parse', '--verify', '--end-of-options', `${c.sha}^{tree}`)).trim()
-  }).catch(err => { if (err.timedOut) return false; throw err })
+  }).catch(err => {
+    if (!err.timedOut) throw err
+    const scope = buildScope.getStore()
+    if (scope) scope.mergeTimeouts = (scope.mergeTimeouts || 0) + 1
+    return false
+  })
 
   // Review state of each commit on one side (2.6): latest trusted verdict, clean merges, same change as a GO
   async function reviewCommits(side, commits, liveBase, lines) {
@@ -1082,6 +1112,8 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     if (fork.total > fork.commits.length || server.total > server.commits.length) warnings.push(`only the newest ${MAX_COMMITS} commits per branch are listed`)
     const denied = unreadable.codes()
     if (denied.length) warnings.push(`some panel files cannot be read (${denied.join(', ')}), so reviews, holds or live versions may be missing`)
+    const mergeTimeouts = buildScope.getStore()?.mergeTimeouts || 0
+    if (mergeTimeouts) warnings.push(`${mergeTimeouts} merge check(s) timed out, so those merges show as not reviewed until the next check`)
     const value = {
       v: 1, hash, fetchedAt: fetchHead ? iso(fetchHead) : null, generatedAt,
       live: { fork: forkLive, server: serverLive },
@@ -1090,14 +1122,16 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       counts, flags, drift: lv.drift, blockers: block.codes, dirty: block.dirty,
       groups: groupList, held: heldRanges, docs, outside, notOnMain, versions, warnings,
     }
-    return { value, models, forkTarget, live: lv }
+    return { value, models, forkTarget, live: lv, retrySoon: mergeTimeouts > 0 }
   }
 
-  // One rev-parse, the updater's last UPDATE, the service start and file mtimes: a warm /queue runs one git process
+  // One rev-parse, the updater's last UPDATE, the service start and file mtimes: a warm /queue runs one git process.
+  // The index covers a checkout, reset or staged change of the live tree; an edit that is never staged moves nothing
+  // here, so the dirtyTree blocker can lag by up to QUEUE_TTL_MS (the release tools check the tree themselves).
   async function queueKey() {
-    const [refs, fetchHead, log, svc] = await Promise.all([
-      git(['rev-parse', '--end-of-options', 'HEAD', 'origin/main', 'origin/server'], { codes: [0, 128] }), gitPath('FETCH_HEAD'), updaterLog(),
-      services().catch(() => ({})),
+    const [refs, fetchHead, index, log, svc] = await Promise.all([
+      git(['rev-parse', '--end-of-options', 'HEAD', 'origin/main', 'origin/server'], { codes: [0, 128] }), gitPath('FETCH_HEAD'), gitPath('index'),
+      updaterLog(), services().catch(() => ({})),
     ])
     const stamps = await Promise.all([
       path.join(control, 'live.json'), path.join(control, 'queue', 'held.json'), path.join(control, 'queue', 'items'), path.join(control, 'release', 'request.json'),
@@ -1105,8 +1139,16 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       path.join(backendDir, 'data', 'files-version.json'), path.join(backendDir, 'data', 'news.live.json'), path.join(backendDir, 'data', 'extra-files.json'),
       path.join(backendDir, 'routes', 'version.js'), path.join(config.skyrimDataDir || '/opt/skyrim-data', 'SHA256SUMS'),
       config.clientFilesDir && path.join(config.clientFilesDir, config.clientZipName || 'skymp-client.zip'), config.backendEnvFile || '/opt/dragonbreak/backend.env',
+      index,
     ].filter(Boolean).map(mtimeOf))
-    return canonical([refs.code, refs.stdout, log.updates.at(-1) || null, svc.skympSince ?? null, stamps, await packStamps()])
+    return canonical([refs.code, refs.stdout, log.updates.at(-1) || null, svc.skympSince ?? null, stamps, await packStamps(), await itemStamps()])
+  }
+
+  // Each manual item's mtime: an item edited in place leaves its folder's mtime alone
+  async function itemStamps() {
+    const dir = path.join(control, 'queue', 'items')
+    const names = (await listDir(dir)).filter(n => ITEM_FILE_RE.test(n)).sort().slice(0, MAX_ITEMS)
+    return Promise.all(names.map(async name => [name, await mtimeOf(path.join(dir, name))]))
   }
 
   let cache = null, inflight = null, failure = null, lastError = null, backoff = 0
@@ -1117,7 +1159,11 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     if (failure && now() < Date.parse(failure.retryAt)) return cache ? Promise.resolve(cache.value) : Promise.reject(lastError)
     inflight = buildScope.run({ deadline: performance.now() + deadlineMs }, async () => {
       const key = await queueKey()
-      if (!cache || cache.key !== key || now() - cache.at >= QUEUE_TTL_MS) cache = { key, at: now(), ...(await buildQueue()) }
+      if (!cache || cache.key !== key || now() - cache.at >= QUEUE_TTL_MS) {
+        const built = await buildQueue()
+        // A queue with timed-out merge checks is rebuilt within a minute, not after the full TTL
+        cache = { key, at: built.retrySoon ? now() - QUEUE_TTL_MS + RETRY_SOON_MS : now(), ...built }
+      }
       failure = null
       lastError = null
       backoff = 0
