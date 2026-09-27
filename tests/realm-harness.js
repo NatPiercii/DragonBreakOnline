@@ -243,7 +243,7 @@ check('a guild leader makes the spot they stand on its seat', realm.setCapital(G
 const caps = realm.realmView(GM).capitals;
 check('the view lists the hold\'s capital territory and the guild\'s seat with its map spot', caps.some((c) => c.faction === 'county-bruma' && c.territory === 'greenwood') && caps.some((c) => c.faction === 'fighters-guild' && c.territory === null && c.x === 70000 && c.y === 190000), JSON.stringify(caps));
 const mine = realm.realmView(COUNT).leads[0];
-check('the Count\'s panel offers the hold\'s territories, no spot, and says when the next move is allowed', mine.capital === 'greenwood' && mine.capitalChoices.map((c) => c.id).sort().join() === 'bruma,greenwood,pale-pass' && mine.canSetHere === false && mine.capitalChangeAt > now);
+check('the Count\'s panel offers the hold\'s territories, no spot, and says when the next move is allowed', mine.capital === 'greenwood' && mine.capitalChoices.map((c) => c.id).sort().join() === 'bruma,fort-caractacus,greenwood,pale-pass' && mine.canSetHere === false && mine.capitalChangeAt > now);
 world.set(GM, '1234:BSHeartland.esm'); now += 8 * DAY;
 check('indoors the seat is the room itself', realm.setCapital(GM, 'fighters-guild', 'here').ok && realm.seatOf('fighters-guild').cells[0] === '1234:BSHeartland.esm' && realm.seatOf('fighters-guild').name === 'Fighters Guild\'s hall');
 check('an indoor seat has no spot on the map', realm.realmView(GM).capitals.find((c) => c.faction === 'fighters-guild').x === null);
