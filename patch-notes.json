@@ -1,5 +1,23 @@
 [
   {
+    "title": "Expeditions from Bruma",
+    "date": "2026-09-27",
+    "version": "Server",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Expeditions",
+        "items": [
+          "Four Ayleid ruins far to the south of Cyrodiil are open as expeditions: Niryastare (Kvatch County), Silorn (Skingrad County), Bawn (Bravil County) and Telepe (Leyawiin County).",
+          "Set out from Bruma: in the Synod Conclave or the Fighters Guild, type /expeditions to see the ruins and whether they are free, then choose one and your difficulty. Your party in the same hall comes with you.",
+          "Each expedition is a one-hour claim like any dungeon, with its own enemies, from Ayleid undead and a lich to bandits, and chests to loot, some of them locked.",
+          "Use the ruin's great door to come home to the hall you left from. Your hour running out or logging out brings you back there too.",
+          "Joining late? Type /expeditions in the same hall to go and meet your party."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Launcher 2.1.31: Vortex-Friendly Downloads",
     "date": "2026-09-27",
     "version": "Launcher 2.1.31",
