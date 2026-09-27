@@ -25,7 +25,7 @@ export interface RealmWar {
   startsAt: number;
   windows: { start: number; end: number }[];
   death: null | 'proposed' | 'accepted' | 'refused';
-  peace: null | { by: string; from: string; tribute: number; at: number };
+  peace: null | { id?: number; by: string; from: string; tribute: number; at: number };
   captures: number;
 }
 
@@ -292,7 +292,7 @@ const WarCard = ({ w, realm, act, busy }: { w: RealmWar; realm: RealmData; act: 
       {peaceFromOther && w.peace && (
         <div className="war__actions">
           <span>Peace is offered{w.peace.tribute ? `: ${gold(w.peace.tribute)} gold paid by ${w.peace.from === w.attacker ? w.attackerName : w.defenderName}` : ''}.</span>
-          <button className="faction__button faction__button--primary" disabled={busy} onClick={() => act('dbo:warPeaceAnswer', w.id, true)}>Accept peace</button>
+          <button className="faction__button faction__button--primary" disabled={busy} onClick={() => act('dbo:warPeaceAnswer', w.id, true, w.peace ? w.peace.id : 0, w.peace ? w.peace.tribute : 0)}>Accept peace</button>
           <button className="faction__button" disabled={busy} onClick={() => act('dbo:warPeaceAnswer', w.id, false)}>Refuse</button>
         </div>
       )}
