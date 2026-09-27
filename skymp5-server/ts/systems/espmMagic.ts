@@ -19,6 +19,15 @@ export interface SpellEffect {
   magnitude: number;
   area: number;
   durationSec: number;
+  // The effect's GetIsRace conditions on the caster, e.g. Summon Skeleton's one skeleton per race
+  casterRaces: RaceCondition[];
+}
+
+interface RaceCondition {
+  raceId: number;
+  compare: number;
+  value: number;
+  or: boolean;
 }
 
 interface KeywordCondition {
@@ -30,7 +39,13 @@ interface KeywordCondition {
 // Script effect of Reanimate Corpse, Revenant and Dread Zombie that turns the zombie to ash; Dead Thrall has none
 const ASH_PILE_SCRIPT = "reanimateashpile";
 const CTDA_HAS_KEYWORD = 560;
+const CTDA_GET_IS_RACE = 69;
+const CTDA_OR = 0x01;
 const CTDA_USE_GLOBAL = 0x04;
+const CTDA_RUN_ON_SUBJECT = 0;
+const CTDA_RUN_ON_REFERENCE = 2;
+// On a server the player a spell's PlayerRef condition means is its caster
+const PLAYER_REF = 0x14;
 const ACBS_PC_LEVEL_MULT = 0x80;
 const TEMPLATE_USE_TRAITS = 0x0001;
 const TEMPLATE_USE_STATS = 0x0002;
@@ -78,6 +93,12 @@ export const spellEffects = (mp: Mp, spellId: number): SpellEffect[] => {
     let mgefId = 0;
     for (const f of spell.record.fields) {
       if (!(f?.data instanceof Uint8Array)) continue;
+      // Conditions follow the EFIT of the effect they belong to
+      if (f.type === "CTDA" && out.length && !mgefId) {
+        const race = casterRaceCondition(spell, f.data);
+        if (race) out[out.length - 1].casterRaces.push(race);
+        continue;
+      }
       if (f.type === "EFID" && f.data.byteLength >= 4) {
         mgefId = toGlobal(spell, view(f.data).getUint32(0, true));
       } else if (f.type === "EFIT" && mgefId && f.data.byteLength >= 12) {
@@ -92,6 +113,7 @@ export const spellEffects = (mp: Mp, spellId: number): SpellEffect[] => {
           magnitude: efit.getFloat32(0, true),
           area: efit.getUint32(4, true),
           durationSec: efit.getUint32(8, true),
+          casterRaces: [],
         });
         mgefId = 0;
       }
@@ -99,6 +121,33 @@ export const spellEffects = (mp: Mp, spellId: number): SpellEffect[] => {
   }
   effectCache.set(spellId, out);
   return out;
+};
+
+// A literal GetIsRace on the caster (the subject, or PlayerRef), or null for any other condition
+const casterRaceCondition = (spell: any, data: Uint8Array): RaceCondition | null => {
+  if (data.byteLength < 28) return null;
+  const v = view(data);
+  const op = v.getUint8(0);
+  if (v.getUint16(8, true) !== CTDA_GET_IS_RACE || op & CTDA_USE_GLOBAL) return null;
+  const runOn = v.getUint32(20, true);
+  if (runOn !== CTDA_RUN_ON_SUBJECT && !(runOn === CTDA_RUN_ON_REFERENCE && v.getUint32(24, true) === PLAYER_REF)) return null;
+  const raceId = toGlobal(spell, v.getUint32(12, true));
+  return raceId ? { raceId, compare: op >> 5, value: v.getFloat32(4, true), or: !!(op & CTDA_OR) } : null;
+};
+
+// The effect's caster race conditions, with OR binding tighter than AND as in the engine; true when it has none
+export const casterRacePasses = (effect: SpellEffect, raceId: number): boolean => {
+  let result = true;
+  let group = false;
+  for (const c of effect.casterRaces) {
+    group = group || compare(raceId === c.raceId ? 1 : 0, c.compare, c.value);
+    if (!c.or) {
+      result = result && group;
+      group = false;
+    }
+  }
+  const last = effect.casterRaces[effect.casterRaces.length - 1];
+  return last && last.or ? result && group : result;
 };
 
 // True when an effect of the spell runs the vanilla ReanimateAshPile script (MGEF VMAD)
