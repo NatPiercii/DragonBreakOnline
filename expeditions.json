@@ -1,0 +1,13720 @@
+{
+"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own.",
+"expeditions": [
+{
+"id": "CYRNiryastareLocation",
+"name": "Niryastare",
+"type": "ayleid",
+"keywords": [
+"LocSetCave",
+"LocTypeDungeon"
+],
+"cells": [
+{
+"desc": "ef1a9:BSHeartland.esm",
+"edid": "CYRNiryastare02",
+"name": "Niryastare 02"
+},
+{
+"desc": "ef1aa:BSHeartland.esm",
+"edid": "CYRNiryastare",
+"name": "Niryastare"
+}
+],
+"entrances": [
+{
+"cell": "20ff:BSHeartland.esm",
+"pos": [
+-8.8,
+-578.4,
+-114.9
+],
+"rot": [
+0.0,
+0.0,
+0.0
+],
+"expedition": true,
+"doorPos": [
+-8.8,
+-578.4,
+-114.9
+],
+"insideDesc": "ef1ad:BSHeartland.esm",
+"insideCell": "ef1aa:BSHeartland.esm",
+"insidePos": [
+-197.1,
+2401.9,
+393.9
+],
+"insideRot": [
+0,
+0,
+-1.4006
+]
+}
+],
+"chests": [
+{
+"ref": "ef5ab:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmallEMPTY",
+"cell": "ef1a9:BSHeartland.esm",
+"pos": [
+-475.96,
+597.08,
+569.76
+],
+"big": true
+},
+{
+"ref": "ef5ac:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmallEMPTY",
+"cell": "ef1a9:BSHeartland.esm",
+"pos": [
+-559.0,
+790.98,
+569.76
+],
+"big": true
+},
+{
+"ref": "ef5ad:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmallEMPTY",
+"cell": "ef1a9:BSHeartland.esm",
+"pos": [
+582.99,
+628.64,
+570.22
+],
+"big": true
+},
+{
+"ref": "ef5ae:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmallEMPTY",
+"cell": "ef1a9:BSHeartland.esm",
+"pos": [
+455.83,
+617.31,
+570.22
+],
+"big": true
+},
+{
+"ref": "ef5b3:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestBoss",
+"cell": "ef1a9:BSHeartland.esm",
+"pos": [
+-400.0,
+-11360.0,
+783.62
+],
+"big": true
+},
+{
+"ref": "ef2d0:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+2542.99,
+6061.99,
+-972.47
+],
+"big": true
+},
+{
+"ref": "ef2d1:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSquare",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+2250.86,
+5951.87,
+-972.2
+],
+"big": true
+},
+{
+"ref": "ef2e8:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+1552.0,
+5648.0,
+-976.0
+],
+"big": false
+},
+{
+"ref": "ef2e9:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+1024.0,
+5616.0,
+-972.0
+],
+"big": false
+},
+{
+"ref": "ef2ea:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+1536.0,
+6288.0,
+-976.0
+],
+"big": false
+},
+{
+"ref": "ef2eb:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+512.0,
+6304.0,
+-972.0
+],
+"big": false
+},
+{
+"ref": "ef2ec:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+0.0,
+6288.0,
+-972.0
+],
+"big": false
+},
+{
+"ref": "ef2ed:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+0.0,
+5600.0,
+-976.0
+],
+"big": false
+},
+{
+"ref": "ef2ee:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-1024.0,
+5632.0,
+-972.0
+],
+"big": false
+},
+{
+"ref": "ef2ef:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-1024.0,
+6288.0,
+-972.0
+],
+"big": false
+},
+{
+"ref": "ef2fe:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-1287.12,
+6129.85,
+-972.22
+],
+"big": true
+},
+{
+"ref": "ef2ff:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+226.41,
+5779.35,
+-972.47
+],
+"big": true
+},
+{
+"ref": "ef300:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmallEMPTY",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+1278.5,
+5768.49,
+-972.62
+],
+"big": true
+},
+{
+"ref": "ef345:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+0.0,
+4672.0,
+-944.0
+],
+"big": false
+},
+{
+"ref": "ef346:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+0.0,
+4608.0,
+-944.0
+],
+"big": false
+},
+{
+"ref": "ef347:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+0.0,
+4544.0,
+-944.0
+],
+"big": false
+},
+{
+"ref": "ef348:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+0.0,
+4576.0,
+-901.48
+],
+"big": false
+},
+{
+"ref": "ef349:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+0.0,
+4640.0,
+-901.48
+],
+"big": false
+},
+{
+"ref": "ef371:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-512.39,
+3825.81,
+-943.38
+],
+"big": false
+},
+{
+"ref": "ef372:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-514.98,
+3427.41,
+-941.57
+],
+"big": false
+},
+{
+"ref": "ef387:BSHeartland.esm",
+"edid": "BSKAyleidChest01EMPTY",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-11.69,
+4855.38,
+-958.57
+],
+"big": true
+},
+{
+"ref": "ef3b6:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestBossEMPTY",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-32.0,
+4208.0,
+-883.48
+],
+"big": true
+},
+{
+"ref": "ef400:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3582.82,
+2431.63,
+-955.57
+],
+"big": false
+},
+{
+"ref": "ef401:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3582.82,
+2431.63,
+-913.05
+],
+"big": false
+},
+{
+"ref": "ef402:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3582.82,
+2431.63,
+-869.55
+],
+"big": false
+},
+{
+"ref": "ef403:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3136.48,
+3231.63,
+-944.54
+],
+"big": false
+},
+{
+"ref": "ef404:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3135.77,
+3230.86,
+-902.02
+],
+"big": false
+},
+{
+"ref": "ef424:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3599.0,
+387.79,
+-317.43
+],
+"big": true
+},
+{
+"ref": "ef425:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-4031.17,
+571.09,
+-258.05
+],
+"big": false
+},
+{
+"ref": "ef426:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-4031.17,
+571.09,
+-161.49
+],
+"big": false
+},
+{
+"ref": "ef427:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-4102.42,
+538.24,
+-62.79
+],
+"big": false
+},
+{
+"ref": "ef428:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-4367.3,
+663.99,
+-62.79
+],
+"big": false
+},
+{
+"ref": "ef429:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-4112.71,
+599.33,
+40.14
+],
+"big": false
+},
+{
+"ref": "ef42a:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-4137.19,
+536.4,
+40.14
+],
+"big": false
+},
+{
+"ref": "ef42b:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-4104.8,
+600.36,
+-62.79
+],
+"big": false
+},
+{
+"ref": "ef42f:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3577.29,
+758.98,
+-315.13
+],
+"big": false
+},
+{
+"ref": "ef430:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3255.48,
+1083.17,
+-314.98
+],
+"big": false
+},
+{
+"ref": "ef431:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3577.29,
+758.98,
+-40.22
+],
+"big": false
+},
+{
+"ref": "ef432:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2581.68,
+392.99,
+-314.97
+],
+"big": false
+},
+{
+"ref": "ef433:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2556.36,
+754.27,
+-314.87
+],
+"big": false
+},
+{
+"ref": "ef434:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2054.66,
+1563.85,
+-257.42
+],
+"big": false
+},
+{
+"ref": "ef435:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2056.77,
+1554.92,
+-161.49
+],
+"big": false
+},
+{
+"ref": "ef436:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2073.67,
+1616.52,
+-62.79
+],
+"big": false
+},
+{
+"ref": "ef437:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2018.16,
+1610.42,
+-62.79
+],
+"big": false
+},
+{
+"ref": "ef438:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2052.67,
+1645.55,
+40.14
+],
+"big": false
+},
+{
+"ref": "ef439:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2042.68,
+1649.21,
+139.4
+],
+"big": false
+},
+{
+"ref": "ef43a:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2038.18,
+123.83,
+-257.97
+],
+"big": false
+},
+{
+"ref": "ef43b:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2071.9,
+129.29,
+-161.49
+],
+"big": false
+},
+{
+"ref": "ef43c:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2043.9,
+52.14,
+-62.79
+],
+"big": false
+},
+{
+"ref": "ef43d:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2059.23,
+30.18,
+40.14
+],
+"big": false
+},
+{
+"ref": "ef43e:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2045.22,
+29.66,
+139.4
+],
+"big": false
+},
+{
+"ref": "ef43f:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-1869.93,
+574.67,
+-314.63
+],
+"big": false
+},
+{
+"ref": "ef444:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3520.0,
+-1216.0,
+-320.0
+],
+"big": true
+},
+{
+"ref": "ef445:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3648.0,
+-1056.0,
+-320.0
+],
+"big": true
+},
+{
+"ref": "ef446:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3584.0,
+0.0,
+-256.0
+],
+"big": false
+},
+{
+"ref": "ef447:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3568.0,
+0.0,
+-160.0
+],
+"big": false
+},
+{
+"ref": "ef448:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3584.0,
+96.0,
+-64.0
+],
+"big": false
+},
+{
+"ref": "ef449:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3568.0,
+80.0,
+40.14
+],
+"big": false
+},
+{
+"ref": "ef44a:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3584.0,
+96.0,
+144.0
+],
+"big": false
+},
+{
+"ref": "ef44c:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2624.0,
+-448.0,
+-160.0
+],
+"big": false
+},
+{
+"ref": "ef44d:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2512.0,
+-448.0,
+-64.0
+],
+"big": false
+},
+{
+"ref": "ef44e:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2512.0,
+-448.0,
+40.14
+],
+"big": false
+},
+{
+"ref": "ef44f:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2512.0,
+-448.0,
+144.0
+],
+"big": false
+},
+{
+"ref": "ef604:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+2697.28,
+3047.33,
+-616.96
+],
+"big": true
+},
+{
+"ref": "ef605:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+2402.15,
+3822.78,
+-638.15
+],
+"big": true
+}
+],
+"zones": [
+{
+"cell": "ef1a9:BSHeartland.esm",
+"pos": [
+312.1,
+-1812.0,
+400.0
+],
+"size": 1704,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+616.2,
+-1816.3,
+400.0
+],
+"ref": "ef59d:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+8.1,
+-1807.8,
+400.0
+],
+"ref": "ef59e:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1a9:BSHeartland.esm",
+"pos": [
+290.5,
+-4038.8,
+400.0
+],
+"size": 1809,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-118.0,
+-4034.1,
+400.0
+],
+"ref": "ef5a3:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+699.1,
+-4043.6,
+400.0
+],
+"ref": "ef5a4:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+2112.1,
+5936.3,
+-971.1
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+2112.1,
+5936.3,
+-971.1
+],
+"ref": "ef30c:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-890.5,
+5950.6,
+-971.9
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+-890.5,
+5950.6,
+-971.9
+],
+"ref": "ef30d:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-397.2,
+4234.3,
+-911.5
+],
+"size": 1821,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+4.5,
+4111.7,
+-880.0
+],
+"ref": "ef3c5:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-799.0,
+4357.0,
+-943.0
+],
+"ref": "ef3c6:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3444.6,
+3035.2,
+-943.6
+],
+"size": 1587,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-3319.3,
+3174.1,
+-944.0
+],
+"ref": "ef407:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+-3569.9,
+2896.3,
+-943.2
+],
+"ref": "ef408:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3460.4,
+488.0,
+-304.0
+],
+"size": 1731,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-3784.9,
+551.3,
+-304.0
+],
+"ref": "ef42e:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+-3135.8,
+424.7,
+-304.0
+],
+"ref": "ef441:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-3521.2,
+-516.3,
+-303.2
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-3521.2,
+-516.3,
+-303.2
+],
+"ref": "ef490:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-1601.6,
+-1595.6,
+-629.1
+],
+"size": 1818,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-1382.1,
+-1950.9,
+-635.0
+],
+"ref": "ef4ee:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+-1821.1,
+-1240.3,
+-623.3
+],
+"ref": "ef4f0:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+-2072.8,
+-2541.4,
+-623.1
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+-2072.8,
+-2541.4,
+-623.1
+],
+"ref": "ef4ef:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+786.5,
+4529.1,
+-944.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+786.5,
+4529.1,
+-944.0
+],
+"ref": "ef5f4:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "ef1aa:BSHeartland.esm",
+"pos": [
+2767.8,
+3096.8,
+-624.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee2H",
+"pos": [
+2767.8,
+3096.8,
+-624.0
+],
+"ref": "ef606:BSHeartland.esm",
+"options": [
+[
+1,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+]
+]
+}
+]
+}
+],
+"county": "Kvatch County"
+},
+{
+"id": "CYRSilornLocation",
+"name": "Silorn",
+"type": "ayleid",
+"keywords": [
+"LocSetCave",
+"LocTypeDungeon"
+],
+"cells": [
+{
+"desc": "a9ed0:BSHeartland.esm",
+"edid": "CYRSilorn03",
+"name": "Silorn 03"
+},
+{
+"desc": "a9ed1:BSHeartland.esm",
+"edid": "CYRSilorn02",
+"name": "Silorn 02"
+},
+{
+"desc": "a9ed2:BSHeartland.esm",
+"edid": "CYRSilorn",
+"name": "Silorn"
+}
+],
+"entrances": [
+{
+"cell": "20ff:BSHeartland.esm",
+"pos": [
+-8.8,
+-578.4,
+-114.9
+],
+"rot": [
+0.0,
+0.0,
+0.0
+],
+"expedition": true,
+"doorPos": [
+-8.8,
+-578.4,
+-114.9
+],
+"insideDesc": "a9f5e:BSHeartland.esm",
+"insideCell": "a9ed2:BSHeartland.esm",
+"insidePos": [
+-202.8,
+-65.3,
+400.0
+],
+"insideRot": [
+0,
+0,
+-0.885
+]
+}
+],
+"chests": [
+{
+"ref": "aadd8:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed0:BSHeartland.esm",
+"pos": [
+1028.91,
+-2230.22,
+3.58
+],
+"big": true
+},
+{
+"ref": "aae39:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed0:BSHeartland.esm",
+"pos": [
+1008.0,
+-2816.0,
+93.81
+],
+"big": true
+},
+{
+"ref": "aaee4:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed0:BSHeartland.esm",
+"pos": [
+-2741.0,
+-3070.0,
+447.52
+],
+"big": true
+},
+{
+"ref": "ac697:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestBoss",
+"cell": "a9ed0:BSHeartland.esm",
+"pos": [
+-3660.14,
+-1982.27,
+399.78
+],
+"big": true
+},
+{
+"ref": "aa9ae:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-3238.01,
+-6792.06,
+-350.16
+],
+"big": true
+},
+{
+"ref": "aa9af:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-3327.3,
+-5123.1,
+-336.66
+],
+"big": true
+},
+{
+"ref": "aaa6a:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+448.89,
+-7653.42,
+126.51
+],
+"big": false
+},
+{
+"ref": "aaa72:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1029.16,
+-6623.23,
+225.21
+],
+"big": false
+},
+{
+"ref": "aaa73:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-1.54,
+-5673.25,
+29.85
+],
+"big": false
+},
+{
+"ref": "aaa76:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+3773.7,
+-8153.06,
+-348.83
+],
+"big": true
+},
+{
+"ref": "aaa78:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+3781.54,
+-9178.03,
+-350.1
+],
+"big": true
+},
+{
+"ref": "aaa79:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+3080.27,
+-9899.23,
+-350.97
+],
+"big": true
+},
+{
+"ref": "aaa7a:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+2570.98,
+-9877.37,
+-348.95
+],
+"big": true
+},
+{
+"ref": "aaaf0:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1522.95,
+-6040.48,
+30.33
+],
+"big": false
+},
+{
+"ref": "aaaf1:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1537.9,
+-6046.29,
+126.51
+],
+"big": false
+},
+{
+"ref": "aaaf3:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1536.43,
+-6107.96,
+225.21
+],
+"big": false
+},
+{
+"ref": "aaaf4:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1534.55,
+-5161.43,
+30.05
+],
+"big": false
+},
+{
+"ref": "aaaf5:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1557.07,
+-5133.54,
+126.51
+],
+"big": false
+},
+{
+"ref": "aaaf6:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1527.3,
+-5120.18,
+225.21
+],
+"big": false
+},
+{
+"ref": "aacc0:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+811.75,
+-5569.44,
+-29.19
+],
+"big": true
+},
+{
+"ref": "aadc4:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+2252.7,
+-986.29,
+-352.61
+],
+"big": true
+},
+{
+"ref": "ac4cb:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-8.77,
+-6616.72,
+40.7
+],
+"big": false
+},
+{
+"ref": "ac567:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-2901.76,
+-5744.4,
+-344.46
+],
+"big": true
+},
+{
+"ref": "ac5ac:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+442.9,
+-7649.9,
+30.31
+],
+"big": false
+},
+{
+"ref": "ac5ad:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+532.45,
+-7651.91,
+225.21
+],
+"big": false
+},
+{
+"ref": "ac5ae:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-440.38,
+-7649.73,
+30.29
+],
+"big": false
+},
+{
+"ref": "ac5af:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-446.89,
+-7647.55,
+126.51
+],
+"big": false
+},
+{
+"ref": "ac5b0:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-522.31,
+-7648.31,
+225.21
+],
+"big": false
+},
+{
+"ref": "ac5b1:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-507.47,
+-7646.48,
+328.14
+],
+"big": false
+},
+{
+"ref": "ac5b2:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+956.1,
+-6616.02,
+30.27
+],
+"big": false
+},
+{
+"ref": "ac5b3:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+957.43,
+-6630.18,
+126.51
+],
+"big": false
+},
+{
+"ref": "ac5b4:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+5.35,
+-5657.82,
+126.51
+],
+"big": false
+},
+{
+"ref": "ac5b5:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+3.38,
+-5569.48,
+225.21
+],
+"big": false
+},
+{
+"ref": "ac5b6:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+3788.16,
+-8664.46,
+-350.54
+],
+"big": true
+},
+{
+"ref": "ac5b7:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+2045.26,
+-9896.79,
+-350.86
+],
+"big": true
+},
+{
+"ref": "ac5ed:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1971.52,
+-1833.23,
+-679.01
+],
+"big": true
+},
+{
+"ref": "ac5ee:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+2100.39,
+-1743.15,
+-630.15
+],
+"big": true
+},
+{
+"ref": "ac5f0:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+2080.05,
+-1864.91,
+-738.81
+],
+"big": true
+},
+{
+"ref": "ac44f:BSHeartland.esm",
+"edid": "CYRTreasBanditChestBoss",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-5133.16,
+2564.91,
+-656.0
+],
+"big": true
+},
+{
+"ref": "ac402:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-6199.63,
+2618.16,
+-295.86
+],
+"big": false
+},
+{
+"ref": "aa35e:BSHeartland.esm",
+"edid": "BSKAyleidChest01EMPTY",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-4887.19,
+2688.29,
+-656.0
+],
+"big": true
+},
+{
+"ref": "aa42a:BSHeartland.esm",
+"edid": "CYRBarrelIngredientCommon01",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-2027.1,
+1559.31,
+-572.12
+],
+"big": false
+},
+{
+"ref": "ac3bc:BSHeartland.esm",
+"edid": "BSKAyleidChest02EMPTY",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-4942.72,
+2630.31,
+-656.51
+],
+"big": true
+},
+{
+"ref": "ac400:BSHeartland.esm",
+"edid": "CYRTreasBanditChest",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-6123.58,
+2570.3,
+-497.49
+],
+"big": true
+},
+{
+"ref": "ac401:BSHeartland.esm",
+"edid": "CYRTreasBanditChest",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-6129.98,
+2632.38,
+-397.72
+],
+"big": true
+},
+{
+"ref": "aa427:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Colovia",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-2176.21,
+1569.62,
+-576.21
+],
+"big": false
+},
+{
+"ref": "aa624:BSHeartland.esm",
+"edid": "CYRBarrelTorches",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-5150.57,
+5021.39,
+-1052.0
+],
+"big": false
+},
+{
+"ref": "aa428:BSHeartland.esm",
+"edid": "CYRBarrelEmpty",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-2135.84,
+1556.86,
+-572.51
+],
+"big": false
+},
+{
+"ref": "aa42b:BSHeartland.esm",
+"edid": "CYRTreasBanditChest",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-2108.42,
+1529.46,
+-497.49
+],
+"big": true
+},
+{
+"ref": "aa729:BSHeartland.esm",
+"edid": "CYRMiscSackLarge",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-3577.55,
+883.62,
+-544.8
+],
+"big": false
+},
+{
+"ref": "ac3bb:BSHeartland.esm",
+"edid": "BSKAyleidChest01EMPTY",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-4893.32,
+2564.6,
+-656.0
+],
+"big": true
+},
+{
+"ref": "aa429:BSHeartland.esm",
+"edid": "CYRBarrelEmpty",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-2080.6,
+1562.28,
+-572.51
+],
+"big": false
+},
+{
+"ref": "aa623:BSHeartland.esm",
+"edid": "CYRBarrelWine",
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-5125.89,
+3670.98,
+-1052.0
+],
+"big": false
+}
+],
+"zones": [
+{
+"cell": "a9ed0:BSHeartland.esm",
+"pos": [
+-2429.1,
+-3590.1,
+400.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "BSKEncAyleidLich",
+"pos": [
+-2429.1,
+-3590.1,
+400.0
+],
+"ref": "aadda:BSHeartland.esm",
+"options": [
+[
+50,
+"6026fd:BSAssets.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed0:BSHeartland.esm",
+"pos": [
+1483.0,
+-3034.9,
+16.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+1483.0,
+-3034.9,
+16.0
+],
+"ref": "ab131:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed0:BSHeartland.esm",
+"pos": [
+1068.8,
+-1838.8,
+16.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee2H",
+"pos": [
+1068.8,
+-1838.8,
+16.0
+],
+"ref": "ac6c7:BSHeartland.esm",
+"options": [
+[
+1,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+252.5,
+-6546.7,
+12.7
+],
+"size": 1657,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee2H",
+"pos": [
+-2.7,
+-6531.2,
+40.7
+],
+"ref": "aac85:BSHeartland.esm",
+"options": [
+[
+1,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+507.8,
+-6562.2,
+-15.2
+],
+"ref": "ac625:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1101.8,
+-9190.0,
+-336.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+1101.8,
+-9190.0,
+-336.0
+],
+"ref": "aaca0:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+3627.4,
+-8210.5,
+-336.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+3627.4,
+-8210.5,
+-336.0
+],
+"ref": "aacab:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+2039.0,
+-7329.9,
+-352.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+2039.0,
+-7329.9,
+-352.0
+],
+"ref": "aacac:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+1031.2,
+-5607.7,
+-16.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRdunAyleidSkeleton04Melee1H",
+"pos": [
+1031.2,
+-5607.7,
+-16.0
+],
+"ref": "aacc1:BSHeartland.esm",
+"options": [
+[
+24,
+"8747d:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+13.9,
+-3886.6,
+-336.0
+],
+"size": 1901,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-3.2,
+-3883.3,
+-336.0
+],
+"ref": "aacc2:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+514.2,
+-3866.0,
+-336.0
+],
+"ref": "aacc3:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+-469.4,
+-3910.3,
+-336.0
+],
+"ref": "aacc4:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-28.3,
+-1168.9,
+-336.0
+],
+"size": 1894,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+433.4,
+-1170.6,
+-336.0
+],
+"ref": "aacc5:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+3.9,
+-1168.0,
+-336.0
+],
+"ref": "aacc6:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+-522.1,
+-1168.1,
+-336.0
+],
+"ref": "aacc7:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed1:BSHeartland.esm",
+"pos": [
+-3386.2,
+-4730.8,
+-321.7
+],
+"size": 2073,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMelee1H",
+"pos": [
+-3677.1,
+-4123.7,
+-336.0
+],
+"ref": "ac604:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMelee2H",
+"pos": [
+-3084.8,
+-4651.8,
+-279.3
+],
+"ref": "ac605:BSHeartland.esm",
+"options": [
+[
+1,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadBow",
+"pos": [
+-3695.1,
+-4939.0,
+-335.7
+],
+"ref": "ac606:BSHeartland.esm",
+"options": [
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMelee2H",
+"pos": [
+-3087.8,
+-5208.7,
+-336.0
+],
+"ref": "ac61a:BSHeartland.esm",
+"options": [
+[
+1,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-3310.9,
+1099.6,
+-638.6
+],
+"size": 1531,
+"npcs": [
+{
+"edid": "CYRLvlBanditWizard",
+"pos": [
+-3441.2,
+1093.6,
+-640.0
+],
+"ref": "ac455:BSHeartland.esm",
+"options": [
+[
+1,
+"2da96:BSHeartland.esm"
+],
+[
+1,
+"2da9e:BSHeartland.esm"
+],
+[
+1,
+"2dab1:BSHeartland.esm"
+],
+[
+1,
+"2dab2:BSHeartland.esm"
+],
+[
+1,
+"2dab6:BSHeartland.esm"
+],
+[
+1,
+"2daca:BSHeartland.esm"
+],
+[
+1,
+"2dacc:BSHeartland.esm"
+],
+[
+5,
+"617b6:BSHeartland.esm"
+],
+[
+5,
+"617b7:BSHeartland.esm"
+],
+[
+5,
+"617b8:BSHeartland.esm"
+],
+[
+5,
+"617b9:BSHeartland.esm"
+],
+[
+5,
+"617ba:BSHeartland.esm"
+],
+[
+5,
+"617bb:BSHeartland.esm"
+],
+[
+5,
+"617bc:BSHeartland.esm"
+],
+[
+9,
+"617f1:BSHeartland.esm"
+],
+[
+9,
+"617f2:BSHeartland.esm"
+],
+[
+9,
+"617f3:BSHeartland.esm"
+],
+[
+9,
+"617f4:BSHeartland.esm"
+],
+[
+9,
+"617f5:BSHeartland.esm"
+],
+[
+9,
+"617f6:BSHeartland.esm"
+],
+[
+9,
+"617f7:BSHeartland.esm"
+],
+[
+14,
+"6267b:BSHeartland.esm"
+],
+[
+14,
+"6267c:BSHeartland.esm"
+],
+[
+14,
+"6267d:BSHeartland.esm"
+],
+[
+14,
+"6267e:BSHeartland.esm"
+],
+[
+14,
+"6267f:BSHeartland.esm"
+],
+[
+14,
+"62680:BSHeartland.esm"
+],
+[
+14,
+"62681:BSHeartland.esm"
+],
+[
+19,
+"626ab:BSHeartland.esm"
+],
+[
+19,
+"626ac:BSHeartland.esm"
+],
+[
+19,
+"626ad:BSHeartland.esm"
+],
+[
+19,
+"626ae:BSHeartland.esm"
+],
+[
+19,
+"626af:BSHeartland.esm"
+],
+[
+19,
+"626b0:BSHeartland.esm"
+],
+[
+19,
+"626b1:BSHeartland.esm"
+],
+[
+24,
+"626db:BSHeartland.esm"
+],
+[
+24,
+"626dc:BSHeartland.esm"
+],
+[
+24,
+"626dd:BSHeartland.esm"
+],
+[
+24,
+"626de:BSHeartland.esm"
+],
+[
+24,
+"626df:BSHeartland.esm"
+],
+[
+24,
+"626e0:BSHeartland.esm"
+],
+[
+24,
+"626e1:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMissile",
+"pos": [
+-3180.5,
+1105.6,
+-637.3
+],
+"ref": "ac452:BSHeartland.esm",
+"options": [
+[
+1,
+"2da97:BSHeartland.esm"
+],
+[
+1,
+"2da9f:BSHeartland.esm"
+],
+[
+1,
+"2daad:BSHeartland.esm"
+],
+[
+1,
+"2dab0:BSHeartland.esm"
+],
+[
+1,
+"2dabf:BSHeartland.esm"
+],
+[
+1,
+"2dac3:BSHeartland.esm"
+],
+[
+1,
+"2dac6:BSHeartland.esm"
+],
+[
+1,
+"2dac9:BSHeartland.esm"
+],
+[
+5,
+"617db:BSHeartland.esm"
+],
+[
+5,
+"617dc:BSHeartland.esm"
+],
+[
+5,
+"617dd:BSHeartland.esm"
+],
+[
+5,
+"617df:BSHeartland.esm"
+],
+[
+5,
+"617e0:BSHeartland.esm"
+],
+[
+5,
+"617e1:BSHeartland.esm"
+],
+[
+5,
+"617e2:BSHeartland.esm"
+],
+[
+5,
+"617e3:BSHeartland.esm"
+],
+[
+9,
+"6266e:BSHeartland.esm"
+],
+[
+9,
+"6266f:BSHeartland.esm"
+],
+[
+9,
+"62670:BSHeartland.esm"
+],
+[
+9,
+"62672:BSHeartland.esm"
+],
+[
+9,
+"62673:BSHeartland.esm"
+],
+[
+9,
+"62674:BSHeartland.esm"
+],
+[
+14,
+"6269e:BSHeartland.esm"
+],
+[
+14,
+"6269f:BSHeartland.esm"
+],
+[
+14,
+"626a0:BSHeartland.esm"
+],
+[
+14,
+"626a2:BSHeartland.esm"
+],
+[
+14,
+"626a3:BSHeartland.esm"
+],
+[
+14,
+"626a4:BSHeartland.esm"
+],
+[
+14,
+"626a5:BSHeartland.esm"
+],
+[
+14,
+"626a6:BSHeartland.esm"
+],
+[
+19,
+"626ce:BSHeartland.esm"
+],
+[
+19,
+"626cf:BSHeartland.esm"
+],
+[
+19,
+"626d0:BSHeartland.esm"
+],
+[
+19,
+"626d2:BSHeartland.esm"
+],
+[
+19,
+"626d3:BSHeartland.esm"
+],
+[
+19,
+"626d4:BSHeartland.esm"
+],
+[
+19,
+"626d5:BSHeartland.esm"
+],
+[
+19,
+"626d6:BSHeartland.esm"
+],
+[
+25,
+"626fe:BSHeartland.esm"
+],
+[
+25,
+"626ff:BSHeartland.esm"
+],
+[
+25,
+"62700:BSHeartland.esm"
+],
+[
+25,
+"62702:BSHeartland.esm"
+],
+[
+25,
+"62703:BSHeartland.esm"
+],
+[
+25,
+"62704:BSHeartland.esm"
+],
+[
+25,
+"62705:BSHeartland.esm"
+],
+[
+25,
+"62706:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-5766.2,
+3857.4,
+-642.1
+],
+"size": 1900,
+"npcs": [
+{
+"edid": "CYRLvlBanditMissile",
+"pos": [
+-5632.6,
+4338.8,
+-639.3
+],
+"ref": "ac430:BSHeartland.esm",
+"options": [
+[
+1,
+"2da97:BSHeartland.esm"
+],
+[
+1,
+"2da9f:BSHeartland.esm"
+],
+[
+1,
+"2daad:BSHeartland.esm"
+],
+[
+1,
+"2dab0:BSHeartland.esm"
+],
+[
+1,
+"2dabf:BSHeartland.esm"
+],
+[
+1,
+"2dac3:BSHeartland.esm"
+],
+[
+1,
+"2dac6:BSHeartland.esm"
+],
+[
+1,
+"2dac9:BSHeartland.esm"
+],
+[
+5,
+"617db:BSHeartland.esm"
+],
+[
+5,
+"617dc:BSHeartland.esm"
+],
+[
+5,
+"617dd:BSHeartland.esm"
+],
+[
+5,
+"617df:BSHeartland.esm"
+],
+[
+5,
+"617e0:BSHeartland.esm"
+],
+[
+5,
+"617e1:BSHeartland.esm"
+],
+[
+5,
+"617e2:BSHeartland.esm"
+],
+[
+5,
+"617e3:BSHeartland.esm"
+],
+[
+9,
+"6266e:BSHeartland.esm"
+],
+[
+9,
+"6266f:BSHeartland.esm"
+],
+[
+9,
+"62670:BSHeartland.esm"
+],
+[
+9,
+"62672:BSHeartland.esm"
+],
+[
+9,
+"62673:BSHeartland.esm"
+],
+[
+9,
+"62674:BSHeartland.esm"
+],
+[
+14,
+"6269e:BSHeartland.esm"
+],
+[
+14,
+"6269f:BSHeartland.esm"
+],
+[
+14,
+"626a0:BSHeartland.esm"
+],
+[
+14,
+"626a2:BSHeartland.esm"
+],
+[
+14,
+"626a3:BSHeartland.esm"
+],
+[
+14,
+"626a4:BSHeartland.esm"
+],
+[
+14,
+"626a5:BSHeartland.esm"
+],
+[
+14,
+"626a6:BSHeartland.esm"
+],
+[
+19,
+"626ce:BSHeartland.esm"
+],
+[
+19,
+"626cf:BSHeartland.esm"
+],
+[
+19,
+"626d0:BSHeartland.esm"
+],
+[
+19,
+"626d2:BSHeartland.esm"
+],
+[
+19,
+"626d3:BSHeartland.esm"
+],
+[
+19,
+"626d4:BSHeartland.esm"
+],
+[
+19,
+"626d5:BSHeartland.esm"
+],
+[
+19,
+"626d6:BSHeartland.esm"
+],
+[
+25,
+"626fe:BSHeartland.esm"
+],
+[
+25,
+"626ff:BSHeartland.esm"
+],
+[
+25,
+"62700:BSHeartland.esm"
+],
+[
+25,
+"62702:BSHeartland.esm"
+],
+[
+25,
+"62703:BSHeartland.esm"
+],
+[
+25,
+"62704:BSHeartland.esm"
+],
+[
+25,
+"62705:BSHeartland.esm"
+],
+[
+25,
+"62706:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+-5683.3,
+3797.2,
+-650.6
+],
+"ref": "ac45a:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+-5702.9,
+3578.9,
+-639.0
+],
+"ref": "ac45b:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMissile",
+"pos": [
+-6045.9,
+3714.8,
+-639.4
+],
+"ref": "ac458:BSHeartland.esm",
+"options": [
+[
+1,
+"2da97:BSHeartland.esm"
+],
+[
+1,
+"2da9f:BSHeartland.esm"
+],
+[
+1,
+"2daad:BSHeartland.esm"
+],
+[
+1,
+"2dab0:BSHeartland.esm"
+],
+[
+1,
+"2dabf:BSHeartland.esm"
+],
+[
+1,
+"2dac3:BSHeartland.esm"
+],
+[
+1,
+"2dac6:BSHeartland.esm"
+],
+[
+1,
+"2dac9:BSHeartland.esm"
+],
+[
+5,
+"617db:BSHeartland.esm"
+],
+[
+5,
+"617dc:BSHeartland.esm"
+],
+[
+5,
+"617dd:BSHeartland.esm"
+],
+[
+5,
+"617df:BSHeartland.esm"
+],
+[
+5,
+"617e0:BSHeartland.esm"
+],
+[
+5,
+"617e1:BSHeartland.esm"
+],
+[
+5,
+"617e2:BSHeartland.esm"
+],
+[
+5,
+"617e3:BSHeartland.esm"
+],
+[
+9,
+"6266e:BSHeartland.esm"
+],
+[
+9,
+"6266f:BSHeartland.esm"
+],
+[
+9,
+"62670:BSHeartland.esm"
+],
+[
+9,
+"62672:BSHeartland.esm"
+],
+[
+9,
+"62673:BSHeartland.esm"
+],
+[
+9,
+"62674:BSHeartland.esm"
+],
+[
+14,
+"6269e:BSHeartland.esm"
+],
+[
+14,
+"6269f:BSHeartland.esm"
+],
+[
+14,
+"626a0:BSHeartland.esm"
+],
+[
+14,
+"626a2:BSHeartland.esm"
+],
+[
+14,
+"626a3:BSHeartland.esm"
+],
+[
+14,
+"626a4:BSHeartland.esm"
+],
+[
+14,
+"626a5:BSHeartland.esm"
+],
+[
+14,
+"626a6:BSHeartland.esm"
+],
+[
+19,
+"626ce:BSHeartland.esm"
+],
+[
+19,
+"626cf:BSHeartland.esm"
+],
+[
+19,
+"626d0:BSHeartland.esm"
+],
+[
+19,
+"626d2:BSHeartland.esm"
+],
+[
+19,
+"626d3:BSHeartland.esm"
+],
+[
+19,
+"626d4:BSHeartland.esm"
+],
+[
+19,
+"626d5:BSHeartland.esm"
+],
+[
+19,
+"626d6:BSHeartland.esm"
+],
+[
+25,
+"626fe:BSHeartland.esm"
+],
+[
+25,
+"626ff:BSHeartland.esm"
+],
+[
+25,
+"62700:BSHeartland.esm"
+],
+[
+25,
+"62702:BSHeartland.esm"
+],
+[
+25,
+"62703:BSHeartland.esm"
+],
+[
+25,
+"62704:BSHeartland.esm"
+],
+[
+25,
+"62705:BSHeartland.esm"
+],
+[
+25,
+"62706:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-2183.4,
+741.4,
+-639.8
+],
+"size": 1872,
+"npcs": [
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+-2623.3,
+569.0,
+-640.0
+],
+"ref": "ac451:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMissile",
+"pos": [
+-2008.9,
+580.3,
+-639.7
+],
+"ref": "ac450:BSHeartland.esm",
+"options": [
+[
+1,
+"2da97:BSHeartland.esm"
+],
+[
+1,
+"2da9f:BSHeartland.esm"
+],
+[
+1,
+"2daad:BSHeartland.esm"
+],
+[
+1,
+"2dab0:BSHeartland.esm"
+],
+[
+1,
+"2dabf:BSHeartland.esm"
+],
+[
+1,
+"2dac3:BSHeartland.esm"
+],
+[
+1,
+"2dac6:BSHeartland.esm"
+],
+[
+1,
+"2dac9:BSHeartland.esm"
+],
+[
+5,
+"617db:BSHeartland.esm"
+],
+[
+5,
+"617dc:BSHeartland.esm"
+],
+[
+5,
+"617dd:BSHeartland.esm"
+],
+[
+5,
+"617df:BSHeartland.esm"
+],
+[
+5,
+"617e0:BSHeartland.esm"
+],
+[
+5,
+"617e1:BSHeartland.esm"
+],
+[
+5,
+"617e2:BSHeartland.esm"
+],
+[
+5,
+"617e3:BSHeartland.esm"
+],
+[
+9,
+"6266e:BSHeartland.esm"
+],
+[
+9,
+"6266f:BSHeartland.esm"
+],
+[
+9,
+"62670:BSHeartland.esm"
+],
+[
+9,
+"62672:BSHeartland.esm"
+],
+[
+9,
+"62673:BSHeartland.esm"
+],
+[
+9,
+"62674:BSHeartland.esm"
+],
+[
+14,
+"6269e:BSHeartland.esm"
+],
+[
+14,
+"6269f:BSHeartland.esm"
+],
+[
+14,
+"626a0:BSHeartland.esm"
+],
+[
+14,
+"626a2:BSHeartland.esm"
+],
+[
+14,
+"626a3:BSHeartland.esm"
+],
+[
+14,
+"626a4:BSHeartland.esm"
+],
+[
+14,
+"626a5:BSHeartland.esm"
+],
+[
+14,
+"626a6:BSHeartland.esm"
+],
+[
+19,
+"626ce:BSHeartland.esm"
+],
+[
+19,
+"626cf:BSHeartland.esm"
+],
+[
+19,
+"626d0:BSHeartland.esm"
+],
+[
+19,
+"626d2:BSHeartland.esm"
+],
+[
+19,
+"626d3:BSHeartland.esm"
+],
+[
+19,
+"626d4:BSHeartland.esm"
+],
+[
+19,
+"626d5:BSHeartland.esm"
+],
+[
+19,
+"626d6:BSHeartland.esm"
+],
+[
+25,
+"626fe:BSHeartland.esm"
+],
+[
+25,
+"626ff:BSHeartland.esm"
+],
+[
+25,
+"62700:BSHeartland.esm"
+],
+[
+25,
+"62702:BSHeartland.esm"
+],
+[
+25,
+"62703:BSHeartland.esm"
+],
+[
+25,
+"62704:BSHeartland.esm"
+],
+[
+25,
+"62705:BSHeartland.esm"
+],
+[
+25,
+"62706:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+-1918.0,
+1074.9,
+-639.7
+],
+"ref": "aa774:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-566.2,
+1072.2,
+-304.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+-566.2,
+1072.2,
+-304.0
+],
+"ref": "ac44c:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-4400.1,
+6061.6,
+-1011.1
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditBoss",
+"pos": [
+-4400.1,
+6061.6,
+-1011.1
+],
+"ref": "aa748:BSHeartland.esm",
+"options": [
+[
+1,
+"2da98:BSHeartland.esm"
+],
+[
+1,
+"2da99:BSHeartland.esm"
+],
+[
+1,
+"2daa0:BSHeartland.esm"
+],
+[
+1,
+"2daa5:BSHeartland.esm"
+],
+[
+1,
+"2daa6:BSHeartland.esm"
+],
+[
+1,
+"2daae:BSHeartland.esm"
+],
+[
+1,
+"2dab4:BSHeartland.esm"
+],
+[
+1,
+"2dab7:BSHeartland.esm"
+],
+[
+1,
+"2daba:BSHeartland.esm"
+],
+[
+1,
+"2dac0:BSHeartland.esm"
+],
+[
+1,
+"2dac1:BSHeartland.esm"
+],
+[
+14,
+"617e4:BSHeartland.esm"
+],
+[
+14,
+"617e5:BSHeartland.esm"
+],
+[
+14,
+"617e6:BSHeartland.esm"
+],
+[
+14,
+"617e7:BSHeartland.esm"
+],
+[
+14,
+"617e8:BSHeartland.esm"
+],
+[
+14,
+"617e9:BSHeartland.esm"
+],
+[
+14,
+"617ea:BSHeartland.esm"
+],
+[
+14,
+"617eb:BSHeartland.esm"
+],
+[
+14,
+"617ec:BSHeartland.esm"
+],
+[
+14,
+"617ed:BSHeartland.esm"
+],
+[
+14,
+"617ee:BSHeartland.esm"
+],
+[
+14,
+"617ef:BSHeartland.esm"
+],
+[
+25,
+"626a7:BSHeartland.esm"
+],
+[
+25,
+"626a8:BSHeartland.esm"
+],
+[
+25,
+"626a9:BSHeartland.esm"
+],
+[
+25,
+"64c3b:BSHeartland.esm"
+],
+[
+25,
+"64c3c:BSHeartland.esm"
+],
+[
+25,
+"64c3f:BSHeartland.esm"
+],
+[
+25,
+"64c40:BSHeartland.esm"
+],
+[
+25,
+"64c43:BSHeartland.esm"
+],
+[
+25,
+"64c45:BSHeartland.esm"
+],
+[
+29,
+"626d7:BSHeartland.esm"
+],
+[
+29,
+"626d8:BSHeartland.esm"
+],
+[
+29,
+"626d9:BSHeartland.esm"
+],
+[
+29,
+"64c38:BSHeartland.esm"
+],
+[
+29,
+"64c39:BSHeartland.esm"
+],
+[
+29,
+"64c41:BSHeartland.esm"
+],
+[
+29,
+"64c42:BSHeartland.esm"
+],
+[
+29,
+"64c47:BSHeartland.esm"
+],
+[
+29,
+"64c49:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-5449.0,
+2258.7,
+-640.0
+],
+"size": 1596,
+"npcs": [
+{
+"edid": "CYRLvlBanditMelee1H",
+"pos": [
+-5284.4,
+2152.1,
+-640.0
+],
+"ref": "ac457:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMeleeTank",
+"pos": [
+-5613.6,
+2365.3,
+-640.0
+],
+"ref": "ac456:BSHeartland.esm",
+"options": [
+[
+1,
+"2da93:BSHeartland.esm"
+],
+[
+1,
+"2da9b:BSHeartland.esm"
+],
+[
+1,
+"2daa2:BSHeartland.esm"
+],
+[
+1,
+"2daac:BSHeartland.esm"
+],
+[
+1,
+"2dabc:BSHeartland.esm"
+],
+[
+5,
+"617c6:BSHeartland.esm"
+],
+[
+5,
+"617c7:BSHeartland.esm"
+],
+[
+5,
+"617c8:BSHeartland.esm"
+],
+[
+5,
+"617c9:BSHeartland.esm"
+],
+[
+5,
+"617ca:BSHeartland.esm"
+],
+[
+9,
+"62659:BSHeartland.esm"
+],
+[
+9,
+"6265a:BSHeartland.esm"
+],
+[
+9,
+"6265b:BSHeartland.esm"
+],
+[
+9,
+"6265c:BSHeartland.esm"
+],
+[
+9,
+"6265d:BSHeartland.esm"
+],
+[
+14,
+"62689:BSHeartland.esm"
+],
+[
+14,
+"6268a:BSHeartland.esm"
+],
+[
+14,
+"6268b:BSHeartland.esm"
+],
+[
+14,
+"6268c:BSHeartland.esm"
+],
+[
+14,
+"6268d:BSHeartland.esm"
+],
+[
+19,
+"626b9:BSHeartland.esm"
+],
+[
+19,
+"626ba:BSHeartland.esm"
+],
+[
+19,
+"626bb:BSHeartland.esm"
+],
+[
+19,
+"626bc:BSHeartland.esm"
+],
+[
+19,
+"626bd:BSHeartland.esm"
+],
+[
+25,
+"626e9:BSHeartland.esm"
+],
+[
+25,
+"626ea:BSHeartland.esm"
+],
+[
+25,
+"626eb:BSHeartland.esm"
+],
+[
+25,
+"626ec:BSHeartland.esm"
+],
+[
+25,
+"626ed:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-6510.7,
+7766.4,
+-640.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+-6510.7,
+7766.4,
+-640.0
+],
+"ref": "ab17a:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "a9ed2:BSHeartland.esm",
+"pos": [
+-6166.1,
+3148.4,
+-639.4
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditWizard",
+"pos": [
+-6166.1,
+3148.4,
+-639.4
+],
+"ref": "ac459:BSHeartland.esm",
+"options": [
+[
+1,
+"2da96:BSHeartland.esm"
+],
+[
+1,
+"2da9e:BSHeartland.esm"
+],
+[
+1,
+"2dab1:BSHeartland.esm"
+],
+[
+1,
+"2dab2:BSHeartland.esm"
+],
+[
+1,
+"2dab6:BSHeartland.esm"
+],
+[
+1,
+"2daca:BSHeartland.esm"
+],
+[
+1,
+"2dacc:BSHeartland.esm"
+],
+[
+5,
+"617b6:BSHeartland.esm"
+],
+[
+5,
+"617b7:BSHeartland.esm"
+],
+[
+5,
+"617b8:BSHeartland.esm"
+],
+[
+5,
+"617b9:BSHeartland.esm"
+],
+[
+5,
+"617ba:BSHeartland.esm"
+],
+[
+5,
+"617bb:BSHeartland.esm"
+],
+[
+5,
+"617bc:BSHeartland.esm"
+],
+[
+9,
+"617f1:BSHeartland.esm"
+],
+[
+9,
+"617f2:BSHeartland.esm"
+],
+[
+9,
+"617f3:BSHeartland.esm"
+],
+[
+9,
+"617f4:BSHeartland.esm"
+],
+[
+9,
+"617f5:BSHeartland.esm"
+],
+[
+9,
+"617f6:BSHeartland.esm"
+],
+[
+9,
+"617f7:BSHeartland.esm"
+],
+[
+14,
+"6267b:BSHeartland.esm"
+],
+[
+14,
+"6267c:BSHeartland.esm"
+],
+[
+14,
+"6267d:BSHeartland.esm"
+],
+[
+14,
+"6267e:BSHeartland.esm"
+],
+[
+14,
+"6267f:BSHeartland.esm"
+],
+[
+14,
+"62680:BSHeartland.esm"
+],
+[
+14,
+"62681:BSHeartland.esm"
+],
+[
+19,
+"626ab:BSHeartland.esm"
+],
+[
+19,
+"626ac:BSHeartland.esm"
+],
+[
+19,
+"626ad:BSHeartland.esm"
+],
+[
+19,
+"626ae:BSHeartland.esm"
+],
+[
+19,
+"626af:BSHeartland.esm"
+],
+[
+19,
+"626b0:BSHeartland.esm"
+],
+[
+19,
+"626b1:BSHeartland.esm"
+],
+[
+24,
+"626db:BSHeartland.esm"
+],
+[
+24,
+"626dc:BSHeartland.esm"
+],
+[
+24,
+"626dd:BSHeartland.esm"
+],
+[
+24,
+"626de:BSHeartland.esm"
+],
+[
+24,
+"626df:BSHeartland.esm"
+],
+[
+24,
+"626e0:BSHeartland.esm"
+],
+[
+24,
+"626e1:BSHeartland.esm"
+]
+]
+}
+]
+}
+],
+"county": "Skingrad County"
+},
+{
+"id": "CYRBawnLocation",
+"name": "Bawn",
+"type": "ayleid",
+"keywords": [
+"LocSetCave",
+"LocTypeDungeon"
+],
+"cells": [
+{
+"desc": "b9c00:BSHeartland.esm",
+"edid": "CYRBawn03",
+"name": "Bawn 03"
+},
+{
+"desc": "b9c01:BSHeartland.esm",
+"edid": "CYRBawn02",
+"name": "Bawn 02"
+},
+{
+"desc": "b9c02:BSHeartland.esm",
+"edid": "CYRBawn01",
+"name": "Bawn 01"
+}
+],
+"entrances": [
+{
+"cell": "20ff:BSHeartland.esm",
+"pos": [
+-8.8,
+-578.4,
+-114.9
+],
+"rot": [
+0.0,
+0.0,
+0.0
+],
+"expedition": true,
+"doorPos": [
+-8.8,
+-578.4,
+-114.9
+],
+"insideDesc": "b9c04:BSHeartland.esm",
+"insideCell": "b9c02:BSHeartland.esm",
+"insidePos": [
+38.7,
+214.3,
+222.6
+],
+"insideRot": [
+0,
+0,
+0.1947
+]
+}
+],
+"chests": [
+{
+"ref": "bc330:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-1536.0,
+4192.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bc331:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-2560.0,
+4192.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bc333:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-2560.0,
+2976.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bc340:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-1536.0,
+2976.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bc34e:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestBoss",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-5120.0,
+3584.0,
+57.62
+],
+"big": true
+},
+{
+"ref": "bc35a:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+617.55,
+2099.1,
+-250.6
+],
+"big": true
+},
+{
+"ref": "bc35b:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSquare",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+66.23,
+1664.57,
+0.0
+],
+"big": true
+},
+{
+"ref": "bc3f4:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-3552.0,
+3584.0,
+71.26
+],
+"big": false
+},
+{
+"ref": "bc3f7:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-3808.0,
+3584.0,
+71.26
+],
+"big": false
+},
+{
+"ref": "bc3fb:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-4320.0,
+3584.0,
+71.26
+],
+"big": false
+},
+{
+"ref": "bc3ff:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-4064.0,
+3584.0,
+71.26
+],
+"big": false
+},
+{
+"ref": "bc417:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-4576.0,
+3584.0,
+71.26
+],
+"big": false
+},
+{
+"ref": "bc427:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-4608.0,
+4192.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bc42e:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-3584.0,
+4192.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bc430:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-3584.0,
+2976.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bc43c:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-4608.0,
+2976.0,
+40.41
+],
+"big": false
+},
+{
+"ref": "bd0d6:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestBossEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-952.53,
+2561.13,
+-63.09
+],
+"big": true
+},
+{
+"ref": "bd0dd:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+768.0,
+512.0,
+-304.0
+],
+"big": false
+},
+{
+"ref": "bd0de:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-768.0,
+1024.0,
+-304.0
+],
+"big": false
+},
+{
+"ref": "bd0ef:BSHeartland.esm",
+"edid": "CYRTreasKnapsack_Nibenay",
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-1977.7,
+3777.96,
+-63.77
+],
+"big": false
+},
+{
+"ref": "ba337:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-256.0,
+1792.0,
+392.7
+],
+"big": false
+},
+{
+"ref": "bcda7:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-7107.5,
+346.58,
+-179.9
+],
+"big": false
+},
+{
+"ref": "bd340:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-2402.34,
+1375.5,
+67.26
+],
+"big": true
+},
+{
+"ref": "ba1dc:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+969.27,
+4301.35,
+-608.96
+],
+"big": true
+},
+{
+"ref": "bb1f4:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-399.98,
+2284.36,
+-252.8
+],
+"big": false
+},
+{
+"ref": "bb1f5:BSHeartland.esm",
+"edid": "CYRBarrelIngredientCommon01",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-452.25,
+2304.06,
+-247.3
+],
+"big": false
+},
+{
+"ref": "bb1f6:BSHeartland.esm",
+"edid": "CYRBarrelEmpty",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-335.21,
+2312.11,
+-217.28
+],
+"big": false
+},
+{
+"ref": "bb1f7:BSHeartland.esm",
+"edid": "CYRMiscSackLarge",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-440.42,
+2255.8,
+-214.89
+],
+"big": false
+},
+{
+"ref": "bb20e:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmallEMPTY",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-335.61,
+2135.03,
+-302.46
+],
+"big": true
+},
+{
+"ref": "bc45f:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSquare",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+2345.54,
+3135.68,
+-608.43
+],
+"big": true
+},
+{
+"ref": "bc460:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+3434.9,
+3307.9,
+-639.3
+],
+"big": true
+},
+{
+"ref": "bc81f:BSHeartland.esm",
+"edid": "TreasAlchemySatchelUncommon",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+2811.43,
+2383.9,
+-534.05
+],
+"big": false
+},
+{
+"ref": "bc8c6:BSHeartland.esm",
+"edid": "TreasAlchemySatchelCommon",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-492.05,
+2278.35,
+-175.91
+],
+"big": false
+},
+{
+"ref": "bcd85:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-504.85,
+4206.53,
+-382.79
+],
+"big": false
+},
+{
+"ref": "bcd86:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-530.99,
+4190.87,
+-279.86
+],
+"big": false
+},
+{
+"ref": "bcd87:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainerEMPTY",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-515.21,
+4216.56,
+-487.81
+],
+"big": false
+},
+{
+"ref": "bcd88:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+1985.96,
+4675.72,
+-589.53
+],
+"big": false
+},
+{
+"ref": "bcd89:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+1985.96,
+4675.72,
+-484.25
+],
+"big": false
+},
+{
+"ref": "bcd8a:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+2004.4,
+4673.54,
+-279.86
+],
+"big": false
+},
+{
+"ref": "bd3af:BSHeartland.esm",
+"edid": "CYRBarrelTorches",
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-676.08,
+2296.05,
+-247.01
+],
+"big": false
+}
+],
+"zones": [
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-4960.0,
+3584.0,
+32.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadBossAny",
+"pos": [
+-4960.0,
+3584.0,
+32.0
+],
+"ref": "bc39c:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad2a:BSHeartland.esm"
+],
+[
+1,
+"8ad31:BSHeartland.esm"
+],
+[
+13,
+"8ad2b:BSHeartland.esm"
+],
+[
+13,
+"8ad33:BSHeartland.esm"
+],
+[
+21,
+"8ad2c:BSHeartland.esm"
+],
+[
+21,
+"8ad35:BSHeartland.esm"
+],
+[
+30,
+"8ad2d:BSHeartland.esm"
+],
+[
+30,
+"8ad37:BSHeartland.esm"
+],
+[
+40,
+"b5578:BSHeartland.esm"
+],
+[
+40,
+"b5579:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-2048.0,
+4096.0,
+32.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+-2048.0,
+4096.0,
+32.0
+],
+"ref": "bc39d:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-2080.0,
+3072.0,
+40.4
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMeleeAny",
+"pos": [
+-2080.0,
+3072.0,
+40.4
+],
+"ref": "bc39f:BSHeartland.esm",
+"options": [
+[
+1,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-77.2,
+786.5,
+-216.4
+],
+"size": 2129,
+"npcs": [
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3.7,
+1014.1,
+-216.4
+],
+"ref": "bc3a7:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-416.7,
+1023.1,
+-216.4
+],
+"ref": "bc3aa:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+450.2,
+1025.6,
+-216.4
+],
+"ref": "bc3ad:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3.7,
+470.8,
+-216.4
+],
+"ref": "bc3ae:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-416.7,
+479.8,
+-216.4
+],
+"ref": "bc3b0:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+450.2,
+482.4,
+-216.4
+],
+"ref": "bc3b1:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-215.7,
+1016.7,
+-216.4
+],
+"ref": "bcd49:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+257.1,
+1002.3,
+-216.4
+],
+"ref": "bcd4a:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+623.2,
+989.5,
+-216.4
+],
+"ref": "bcd4b:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-672.6,
+1017.7,
+-216.4
+],
+"ref": "bcd4c:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-537.3,
+507.5,
+-216.4
+],
+"ref": "bcd4d:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-440.7,
+408.0,
+-216.4
+],
+"ref": "bcd4e:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-146.1,
+2207.0,
+-216.4
+],
+"size": 1781,
+"npcs": [
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-380.4,
+2022.9,
+-216.4
+],
+"ref": "bc3b2:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+32.5,
+2013.9,
+-216.4
+],
+"ref": "bc3b9:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-90.3,
+2584.2,
+-216.4
+],
+"ref": "bc3c1:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-143.7,
+579.2,
+-216.4
+],
+"size": 1710,
+"npcs": [
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-452.2,
+605.6,
+-216.4
+],
+"ref": "bcd56:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+164.7,
+552.8,
+-216.4
+],
+"ref": "bcd67:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+541.2,
+449.2,
+-216.4
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+541.2,
+449.2,
+-216.4
+],
+"ref": "bcd63:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c00:BSHeartland.esm",
+"pos": [
+-4093.4,
+3605.7,
+16.0
+],
+"size": 1776,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+-4093.3,
+3229.5,
+16.0
+],
+"ref": "bd16c:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadMeleeAny",
+"pos": [
+-4093.5,
+3982.0,
+16.0
+],
+"ref": "bd16d:BSHeartland.esm",
+"options": [
+[
+1,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-6858.6,
+211.6,
+-247.3
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadMagic",
+"pos": [
+-6858.6,
+211.6,
+-247.3
+],
+"ref": "bc450:BSHeartland.esm",
+"options": [
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+330.6,
+357.0,
+18.2
+],
+"size": 1533,
+"npcs": [
+{
+"edid": "CYRLvlMudcrab",
+"pos": [
+238.1,
+451.9,
+17.5
+],
+"ref": "bccba:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlMudcrab",
+"pos": [
+417.0,
+391.7,
+16.0
+],
+"ref": "bccbb:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlMudcrab",
+"pos": [
+336.8,
+227.3,
+21.0
+],
+"ref": "bccbd:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-254.8,
+1789.5,
+386.6
+],
+"size": 1552,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadAny",
+"pos": [
+-174.6,
+1716.3,
+392.9
+],
+"ref": "bccbe:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadAny",
+"pos": [
+-335.9,
+1711.1,
+392.9
+],
+"ref": "bccc8:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadAny",
+"pos": [
+-253.8,
+1941.3,
+373.8
+],
+"ref": "bccc9:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-1288.8,
+1921.3,
+-11.0
+],
+"size": 1567,
+"npcs": [
+{
+"edid": "CYRLvlMudcrab",
+"pos": [
+-1132.2,
+1946.0,
+-11.0
+],
+"ref": "bdd56:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlMudcrab",
+"pos": [
+-1286.3,
+1946.6,
+-11.0
+],
+"ref": "bdd5d:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlMudcrab",
+"pos": [
+-1448.0,
+1871.4,
+-11.0
+],
+"ref": "bdd60:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-3255.4,
+1042.3,
+-295.6
+],
+"size": 1512,
+"npcs": [
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3311.6,
+958.4,
+-295.6
+],
+"ref": "bdd68:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3258.4,
+989.0,
+-295.6
+],
+"ref": "bdd69:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3289.6,
+1080.3,
+-295.6
+],
+"ref": "bdd6a:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3249.6,
+1153.8,
+-295.6
+],
+"ref": "bdd6c:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3168.0,
+1029.8,
+-295.6
+],
+"ref": "bdd6d:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c01:BSHeartland.esm",
+"pos": [
+-3082.5,
+112.3,
+-305.0
+],
+"size": 1444,
+"npcs": [
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3082.9,
+68.3,
+-305.0
+],
+"ref": "bdd6e:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3078.9,
+113.3,
+-305.0
+],
+"ref": "bdd76:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYREncSlaughterfish",
+"pos": [
+-3085.6,
+155.2,
+-305.0
+],
+"ref": "bdd77:BSHeartland.esm",
+"options": [
+[
+1,
+"d6c6f:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+2823.6,
+2449.2,
+-569.0
+],
+"size": 1499,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadAny",
+"pos": [
+2732.6,
+2487.6,
+-569.0
+],
+"ref": "bc453:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAyleidUndeadAny",
+"pos": [
+2914.7,
+2410.9,
+-569.0
+],
+"ref": "bc454:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+784.8,
+4665.7,
+-624.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAyleidUndeadAny",
+"pos": [
+784.8,
+4665.7,
+-624.0
+],
+"ref": "bcb55:BSHeartland.esm",
+"options": [
+[
+1,
+"5f057:BSHeartland.esm"
+],
+[
+1,
+"871e8:BSHeartland.esm"
+],
+[
+1,
+"8ad30:BSHeartland.esm"
+],
+[
+6,
+"8747b:BSHeartland.esm"
+],
+[
+6,
+"8747f:BSHeartland.esm"
+],
+[
+6,
+"8ad26:BSHeartland.esm"
+],
+[
+13,
+"8747c:BSHeartland.esm"
+],
+[
+13,
+"87480:BSHeartland.esm"
+],
+[
+13,
+"8ad27:BSHeartland.esm"
+],
+[
+13,
+"8ad32:BSHeartland.esm"
+],
+[
+21,
+"8747d:BSHeartland.esm"
+],
+[
+21,
+"87481:BSHeartland.esm"
+],
+[
+21,
+"8ad28:BSHeartland.esm"
+],
+[
+21,
+"8ad34:BSHeartland.esm"
+],
+[
+30,
+"8747e:BSHeartland.esm"
+],
+[
+30,
+"87482:BSHeartland.esm"
+],
+[
+30,
+"8ad29:BSHeartland.esm"
+],
+[
+30,
+"8ad36:BSHeartland.esm"
+],
+[
+40,
+"b558b:BSHeartland.esm"
+],
+[
+40,
+"b558c:BSHeartland.esm"
+],
+[
+40,
+"b558d:BSHeartland.esm"
+],
+[
+40,
+"b558e:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+-512.0,
+1928.6,
+-297.1
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAnimalSwampPredator",
+"pos": [
+-512.0,
+1928.6,
+-297.1
+],
+"ref": "bcc93:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+1,
+"5f036:BSHeartland.esm"
+],
+[
+5,
+"6da7a:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+],
+[
+12,
+"a5600:Skyrim.esm"
+],
+[
+14,
+"4932a:BSHeartland.esm"
+],
+[
+20,
+"23a8f:Skyrim.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+541.4,
+1582.4,
+-303.2
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlAnimalSwampPredator",
+"pos": [
+541.4,
+1582.4,
+-303.2
+],
+"ref": "bcc95:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+1,
+"5f036:BSHeartland.esm"
+],
+[
+5,
+"6da7a:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+],
+[
+12,
+"a5600:Skyrim.esm"
+],
+[
+14,
+"4932a:BSHeartland.esm"
+],
+[
+20,
+"23a8f:Skyrim.esm"
+]
+]
+}
+]
+},
+{
+"cell": "b9c02:BSHeartland.esm",
+"pos": [
+1646.1,
+1640.8,
+-623.8
+],
+"size": 1467,
+"npcs": [
+{
+"edid": "CYRLvlAnimalSwampPredator",
+"pos": [
+1597.9,
+1687.3,
+-623.7
+],
+"ref": "bccad:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+1,
+"5f036:BSHeartland.esm"
+],
+[
+5,
+"6da7a:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+],
+[
+12,
+"a5600:Skyrim.esm"
+],
+[
+14,
+"4932a:BSHeartland.esm"
+],
+[
+20,
+"23a8f:Skyrim.esm"
+]
+]
+},
+{
+"edid": "CYRLvlAnimalSwampPredator",
+"pos": [
+1694.2,
+1594.3,
+-623.8
+],
+"ref": "bccb9:BSHeartland.esm",
+"options": [
+[
+1,
+"38fc:BSHeartland.esm"
+],
+[
+1,
+"38fd:BSHeartland.esm"
+],
+[
+1,
+"5f036:BSHeartland.esm"
+],
+[
+5,
+"6da7a:BSHeartland.esm"
+],
+[
+10,
+"38fe:BSHeartland.esm"
+],
+[
+12,
+"a5600:Skyrim.esm"
+],
+[
+14,
+"4932a:BSHeartland.esm"
+],
+[
+20,
+"23a8f:Skyrim.esm"
+]
+]
+}
+]
+}
+],
+"county": "Bravil County"
+},
+{
+"id": "CYRTelepeLocation",
+"name": "Telepe",
+"type": "ayleid",
+"keywords": [
+"LocSetCave",
+"LocTypeDungeon"
+],
+"cells": [
+{
+"desc": "aecba:BSHeartland.esm",
+"edid": "CYRTelepe01",
+"name": "Telepe 01"
+},
+{
+"desc": "aecbc:BSHeartland.esm",
+"edid": "CYRTelepe02",
+"name": "Telepe 02"
+}
+],
+"entrances": [
+{
+"cell": "20ff:BSHeartland.esm",
+"pos": [
+-8.8,
+-578.4,
+-114.9
+],
+"rot": [
+0.0,
+0.0,
+0.0
+],
+"expedition": true,
+"doorPos": [
+-8.8,
+-578.4,
+-114.9
+],
+"insideDesc": "aed28:BSHeartland.esm",
+"insideCell": "aecba:BSHeartland.esm",
+"insidePos": [
+23.4,
+6.6,
+397.0
+],
+"insideRot": [
+0,
+0,
+0.1175
+]
+}
+],
+"chests": [
+{
+"ref": "af0d5:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+279.02,
+7305.4,
+-826.46
+],
+"big": false
+},
+{
+"ref": "af00b:BSHeartland.esm",
+"edid": "CYRBarrelOresCommon",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-888.66,
+2283.06,
+-314.18
+],
+"big": false
+},
+{
+"ref": "af033:BSHeartland.esm",
+"edid": "CYRMiscSackLarge",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-328.27,
+2063.51,
+-286.16
+],
+"big": false
+},
+{
+"ref": "af0f1:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+263.92,
+9809.29,
+-760.84
+],
+"big": false
+},
+{
+"ref": "af00c:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-333.99,
+2113.96,
+-314.74
+],
+"big": false
+},
+{
+"ref": "aefe1:BSHeartland.esm",
+"edid": "CYRMiscSack02Small",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-312.24,
+2543.17,
+-300.24
+],
+"big": false
+},
+{
+"ref": "af0d8:BSHeartland.esm",
+"edid": "CYRMiscSack02Small",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+277.76,
+7305.7,
+-741.91
+],
+"big": false
+},
+{
+"ref": "af0f3:BSHeartland.esm",
+"edid": "CYRBarrelMead01",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+279.19,
+9977.75,
+-827.5
+],
+"big": false
+},
+{
+"ref": "af00a:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-340.05,
+2176.2,
+-314.74
+],
+"big": false
+},
+{
+"ref": "aef0b:BSHeartland.esm",
+"edid": "CYRTreasBanditChest",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+1523.3,
+2157.76,
+-304.0
+],
+"big": true
+},
+{
+"ref": "aefdb:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-307.53,
+2577.65,
+-314.85
+],
+"big": false
+},
+{
+"ref": "aef01:BSHeartland.esm",
+"edid": "CYRMiscSack02Large",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+1142.7,
+1436.55,
+-289.92
+],
+"big": false
+},
+{
+"ref": "af0f2:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+271.09,
+9860.91,
+-760.84
+],
+"big": false
+},
+{
+"ref": "aef00:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+1173.22,
+1428.7,
+-314.84
+],
+"big": false
+},
+{
+"ref": "af032:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-487.97,
+2122.1,
+-296.57
+],
+"big": false
+},
+{
+"ref": "aee10:BSHeartland.esm",
+"edid": "CYRTreasBanditChest",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+827.82,
+2622.77,
+-304.0
+],
+"big": true
+},
+{
+"ref": "af031:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-528.96,
+2161.14,
+-296.57
+],
+"big": false
+},
+{
+"ref": "af182:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+4052.65,
+2706.13,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af187:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+3644.58,
+1438.24,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af291:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2379.92,
+1495.41,
+-1268.15
+],
+"big": false
+},
+{
+"ref": "af180:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+3660.06,
+2448.18,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af292:BSHeartland.esm",
+"edid": "CYRMiscSackLarge",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2395.12,
+1426.33,
+-1246.51
+],
+"big": false
+},
+{
+"ref": "af24c:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+138.42,
+3235.27,
+-947.37
+],
+"big": false
+},
+{
+"ref": "af28d:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2385.65,
+1558.36,
+-1213.01
+],
+"big": false
+},
+{
+"ref": "af132:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+5837.35,
+2032.66,
+-1264.0
+],
+"big": false
+},
+{
+"ref": "af2c7:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+-1704.4,
+1923.59,
+5.6
+],
+"big": false
+},
+{
+"ref": "af24d:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+42.81,
+3247.19,
+-955.02
+],
+"big": false
+},
+{
+"ref": "af17f:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+5098.26,
+1843.77,
+-1264.0
+],
+"big": false
+},
+{
+"ref": "af2e6:BSHeartland.esm",
+"edid": "CYRTreasExplorerLootChest",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+-181.24,
+1945.14,
+16.0
+],
+"big": true
+},
+{
+"ref": "af2b5:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+4268.14,
+3015.78,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af17e:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+5136.17,
+2246.98,
+-1264.0
+],
+"big": false
+},
+{
+"ref": "af1ed:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+6748.98,
+2542.19,
+-1676.47
+],
+"big": true
+},
+{
+"ref": "af27d:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2707.94,
+1371.03,
+-1274.98
+],
+"big": false
+},
+{
+"ref": "af28c:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2385.19,
+1520.48,
+-1211.69
+],
+"big": false
+},
+{
+"ref": "af264:BSHeartland.esm",
+"edid": "CYRTreasBanditChest",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+-174.17,
+3002.26,
+-944.0
+],
+"big": true
+},
+{
+"ref": "af185:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+4045.53,
+1451.55,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af293:BSHeartland.esm",
+"edid": "CYRMiscSack02LargeFlat",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2379.1,
+1537.55,
+-1268.15
+],
+"big": false
+},
+{
+"ref": "af142:BSHeartland.esm",
+"edid": "CYRTreasBanditChestBoss",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+5726.13,
+1893.37,
+-1264.0
+],
+"big": true
+},
+{
+"ref": "af183:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+4061.0,
+2461.49,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af27e:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2388.31,
+1654.27,
+-1276.46
+],
+"big": false
+},
+{
+"ref": "af294:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+5271.91,
+2247.99,
+-1264.42
+],
+"big": true
+},
+{
+"ref": "af2c8:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+-1711.34,
+2158.76,
+4.38
+],
+"big": false
+},
+{
+"ref": "af181:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+3651.71,
+2692.82,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af24b:BSHeartland.esm",
+"edid": "CYRMiscSackLarge",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+163.77,
+3267.24,
+-927.26
+],
+"big": false
+},
+{
+"ref": "af184:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+4037.18,
+1696.19,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af186:BSHeartland.esm",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+3636.23,
+1682.88,
+-1676.0
+],
+"big": false
+},
+{
+"ref": "af295:BSHeartland.esm",
+"edid": "CYRTreasAyleidChestSmall",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+5231.76,
+1840.4,
+-1264.42
+],
+"big": true
+},
+{
+"ref": "af24e:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+163.92,
+3068.05,
+-944.0
+],
+"big": false
+},
+{
+"ref": "af24f:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+-92.29,
+3039.36,
+-944.0
+],
+"big": false
+},
+{
+"ref": "af27c:BSHeartland.esm",
+"edid": "CYRBarrelFood01_Nibenay",
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+2398.71,
+1374.38,
+-1274.56
+],
+"big": false
+}
+],
+"zones": [
+{
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+1339.6,
+9867.0,
+-816.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMelee1H",
+"pos": [
+1339.6,
+9867.0,
+-816.0
+],
+"ref": "af2dd:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+1139.0,
+1856.8,
+-304.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMelee1H",
+"pos": [
+1139.0,
+1856.8,
+-304.0
+],
+"ref": "aef0c:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-3.8,
+4856.6,
+-731.9
+],
+"size": 1773,
+"npcs": [
+{
+"edid": "CYRLvlBanditWizard",
+"pos": [
+-5.3,
+5217.9,
+-824.4
+],
+"ref": "aeecf:BSHeartland.esm",
+"options": [
+[
+1,
+"2da96:BSHeartland.esm"
+],
+[
+1,
+"2da9e:BSHeartland.esm"
+],
+[
+1,
+"2dab1:BSHeartland.esm"
+],
+[
+1,
+"2dab2:BSHeartland.esm"
+],
+[
+1,
+"2dab6:BSHeartland.esm"
+],
+[
+1,
+"2daca:BSHeartland.esm"
+],
+[
+1,
+"2dacc:BSHeartland.esm"
+],
+[
+5,
+"617b6:BSHeartland.esm"
+],
+[
+5,
+"617b7:BSHeartland.esm"
+],
+[
+5,
+"617b8:BSHeartland.esm"
+],
+[
+5,
+"617b9:BSHeartland.esm"
+],
+[
+5,
+"617ba:BSHeartland.esm"
+],
+[
+5,
+"617bb:BSHeartland.esm"
+],
+[
+5,
+"617bc:BSHeartland.esm"
+],
+[
+9,
+"617f1:BSHeartland.esm"
+],
+[
+9,
+"617f2:BSHeartland.esm"
+],
+[
+9,
+"617f3:BSHeartland.esm"
+],
+[
+9,
+"617f4:BSHeartland.esm"
+],
+[
+9,
+"617f5:BSHeartland.esm"
+],
+[
+9,
+"617f6:BSHeartland.esm"
+],
+[
+9,
+"617f7:BSHeartland.esm"
+],
+[
+14,
+"6267b:BSHeartland.esm"
+],
+[
+14,
+"6267c:BSHeartland.esm"
+],
+[
+14,
+"6267d:BSHeartland.esm"
+],
+[
+14,
+"6267e:BSHeartland.esm"
+],
+[
+14,
+"6267f:BSHeartland.esm"
+],
+[
+14,
+"62680:BSHeartland.esm"
+],
+[
+14,
+"62681:BSHeartland.esm"
+],
+[
+19,
+"626ab:BSHeartland.esm"
+],
+[
+19,
+"626ac:BSHeartland.esm"
+],
+[
+19,
+"626ad:BSHeartland.esm"
+],
+[
+19,
+"626ae:BSHeartland.esm"
+],
+[
+19,
+"626af:BSHeartland.esm"
+],
+[
+19,
+"626b0:BSHeartland.esm"
+],
+[
+19,
+"626b1:BSHeartland.esm"
+],
+[
+24,
+"626db:BSHeartland.esm"
+],
+[
+24,
+"626dc:BSHeartland.esm"
+],
+[
+24,
+"626dd:BSHeartland.esm"
+],
+[
+24,
+"626de:BSHeartland.esm"
+],
+[
+24,
+"626df:BSHeartland.esm"
+],
+[
+24,
+"626e0:BSHeartland.esm"
+],
+[
+24,
+"626e1:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMelee1H",
+"pos": [
+-2.2,
+4495.2,
+-639.4
+],
+"ref": "aee24:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+-879.5,
+1812.0,
+-302.9
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMelee2H",
+"pos": [
+-879.5,
+1812.0,
+-302.9
+],
+"ref": "af220:BSHeartland.esm",
+"options": [
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+1942.1,
+7372.7,
+-816.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMissileArgonianM",
+"pos": [
+1942.1,
+7372.7,
+-816.0
+],
+"ref": "af2de:BSHeartland.esm",
+"options": [
+[
+1,
+"2dac9:BSHeartland.esm"
+],
+[
+1,
+"617db:BSHeartland.esm"
+],
+[
+1,
+"6266e:BSHeartland.esm"
+],
+[
+1,
+"6269e:BSHeartland.esm"
+],
+[
+1,
+"626ce:BSHeartland.esm"
+],
+[
+1,
+"626fe:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecba:BSHeartland.esm",
+"pos": [
+1555.3,
+5200.9,
+-1319.2
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+1555.3,
+5200.9,
+-1319.2
+],
+"ref": "af213:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+565.2,
+2093.4,
+-944.0
+],
+"size": 2010,
+"npcs": [
+{
+"edid": "CYRLvlBanditMissile",
+"pos": [
+913.7,
+1593.0,
+-944.0
+],
+"ref": "af2ee:BSHeartland.esm",
+"options": [
+[
+1,
+"2da97:BSHeartland.esm"
+],
+[
+1,
+"2da9f:BSHeartland.esm"
+],
+[
+1,
+"2daad:BSHeartland.esm"
+],
+[
+1,
+"2dab0:BSHeartland.esm"
+],
+[
+1,
+"2dabf:BSHeartland.esm"
+],
+[
+1,
+"2dac3:BSHeartland.esm"
+],
+[
+1,
+"2dac6:BSHeartland.esm"
+],
+[
+1,
+"2dac9:BSHeartland.esm"
+],
+[
+5,
+"617db:BSHeartland.esm"
+],
+[
+5,
+"617dc:BSHeartland.esm"
+],
+[
+5,
+"617dd:BSHeartland.esm"
+],
+[
+5,
+"617df:BSHeartland.esm"
+],
+[
+5,
+"617e0:BSHeartland.esm"
+],
+[
+5,
+"617e1:BSHeartland.esm"
+],
+[
+5,
+"617e2:BSHeartland.esm"
+],
+[
+5,
+"617e3:BSHeartland.esm"
+],
+[
+9,
+"6266e:BSHeartland.esm"
+],
+[
+9,
+"6266f:BSHeartland.esm"
+],
+[
+9,
+"62670:BSHeartland.esm"
+],
+[
+9,
+"62672:BSHeartland.esm"
+],
+[
+9,
+"62673:BSHeartland.esm"
+],
+[
+9,
+"62674:BSHeartland.esm"
+],
+[
+14,
+"6269e:BSHeartland.esm"
+],
+[
+14,
+"6269f:BSHeartland.esm"
+],
+[
+14,
+"626a0:BSHeartland.esm"
+],
+[
+14,
+"626a2:BSHeartland.esm"
+],
+[
+14,
+"626a3:BSHeartland.esm"
+],
+[
+14,
+"626a4:BSHeartland.esm"
+],
+[
+14,
+"626a5:BSHeartland.esm"
+],
+[
+14,
+"626a6:BSHeartland.esm"
+],
+[
+19,
+"626ce:BSHeartland.esm"
+],
+[
+19,
+"626cf:BSHeartland.esm"
+],
+[
+19,
+"626d0:BSHeartland.esm"
+],
+[
+19,
+"626d2:BSHeartland.esm"
+],
+[
+19,
+"626d3:BSHeartland.esm"
+],
+[
+19,
+"626d4:BSHeartland.esm"
+],
+[
+19,
+"626d5:BSHeartland.esm"
+],
+[
+19,
+"626d6:BSHeartland.esm"
+],
+[
+25,
+"626fe:BSHeartland.esm"
+],
+[
+25,
+"626ff:BSHeartland.esm"
+],
+[
+25,
+"62700:BSHeartland.esm"
+],
+[
+25,
+"62702:BSHeartland.esm"
+],
+[
+25,
+"62703:BSHeartland.esm"
+],
+[
+25,
+"62704:BSHeartland.esm"
+],
+[
+25,
+"62705:BSHeartland.esm"
+],
+[
+25,
+"62706:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+570.6,
+2315.2,
+-944.0
+],
+"ref": "af277:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMeleeAny",
+"pos": [
+211.4,
+2371.9,
+-944.0
+],
+"ref": "af276:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da94:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2da9c:BSHeartland.esm"
+],
+[
+1,
+"2daa3:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daa9:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dab8:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dabd:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac4:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+5,
+"617d4:BSHeartland.esm"
+],
+[
+5,
+"617d5:BSHeartland.esm"
+],
+[
+5,
+"617d6:BSHeartland.esm"
+],
+[
+5,
+"617d7:BSHeartland.esm"
+],
+[
+5,
+"617d8:BSHeartland.esm"
+],
+[
+5,
+"617d9:BSHeartland.esm"
+],
+[
+5,
+"617da:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+9,
+"62697:BSHeartland.esm"
+],
+[
+9,
+"62698:BSHeartland.esm"
+],
+[
+9,
+"62699:BSHeartland.esm"
+],
+[
+9,
+"6269a:BSHeartland.esm"
+],
+[
+9,
+"6269b:BSHeartland.esm"
+],
+[
+9,
+"6269c:BSHeartland.esm"
+],
+[
+9,
+"6269d:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"626c7:BSHeartland.esm"
+],
+[
+19,
+"626c8:BSHeartland.esm"
+],
+[
+19,
+"626c9:BSHeartland.esm"
+],
+[
+19,
+"626ca:BSHeartland.esm"
+],
+[
+19,
+"626cb:BSHeartland.esm"
+],
+[
+19,
+"626cc:BSHeartland.esm"
+],
+[
+19,
+"626cd:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"626f7:BSHeartland.esm"
+],
+[
+25,
+"626f8:BSHeartland.esm"
+],
+[
+25,
+"626f9:BSHeartland.esm"
+],
+[
+25,
+"626fa:BSHeartland.esm"
+],
+[
+25,
+"626fb:BSHeartland.esm"
+],
+[
+25,
+"626fc:BSHeartland.esm"
+],
+[
+25,
+"626fd:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+-1431.9,
+1800.1,
+16.2
+],
+"size": 1569,
+"npcs": [
+{
+"edid": "CYRLvlBanditWizard",
+"pos": [
+-1496.6,
+1956.5,
+16.5
+],
+"ref": "af2e0:BSHeartland.esm",
+"options": [
+[
+1,
+"2da96:BSHeartland.esm"
+],
+[
+1,
+"2da9e:BSHeartland.esm"
+],
+[
+1,
+"2dab1:BSHeartland.esm"
+],
+[
+1,
+"2dab2:BSHeartland.esm"
+],
+[
+1,
+"2dab6:BSHeartland.esm"
+],
+[
+1,
+"2daca:BSHeartland.esm"
+],
+[
+1,
+"2dacc:BSHeartland.esm"
+],
+[
+5,
+"617b6:BSHeartland.esm"
+],
+[
+5,
+"617b7:BSHeartland.esm"
+],
+[
+5,
+"617b8:BSHeartland.esm"
+],
+[
+5,
+"617b9:BSHeartland.esm"
+],
+[
+5,
+"617ba:BSHeartland.esm"
+],
+[
+5,
+"617bb:BSHeartland.esm"
+],
+[
+5,
+"617bc:BSHeartland.esm"
+],
+[
+9,
+"617f1:BSHeartland.esm"
+],
+[
+9,
+"617f2:BSHeartland.esm"
+],
+[
+9,
+"617f3:BSHeartland.esm"
+],
+[
+9,
+"617f4:BSHeartland.esm"
+],
+[
+9,
+"617f5:BSHeartland.esm"
+],
+[
+9,
+"617f6:BSHeartland.esm"
+],
+[
+9,
+"617f7:BSHeartland.esm"
+],
+[
+14,
+"6267b:BSHeartland.esm"
+],
+[
+14,
+"6267c:BSHeartland.esm"
+],
+[
+14,
+"6267d:BSHeartland.esm"
+],
+[
+14,
+"6267e:BSHeartland.esm"
+],
+[
+14,
+"6267f:BSHeartland.esm"
+],
+[
+14,
+"62680:BSHeartland.esm"
+],
+[
+14,
+"62681:BSHeartland.esm"
+],
+[
+19,
+"626ab:BSHeartland.esm"
+],
+[
+19,
+"626ac:BSHeartland.esm"
+],
+[
+19,
+"626ad:BSHeartland.esm"
+],
+[
+19,
+"626ae:BSHeartland.esm"
+],
+[
+19,
+"626af:BSHeartland.esm"
+],
+[
+19,
+"626b0:BSHeartland.esm"
+],
+[
+19,
+"626b1:BSHeartland.esm"
+],
+[
+24,
+"626db:BSHeartland.esm"
+],
+[
+24,
+"626dc:BSHeartland.esm"
+],
+[
+24,
+"626dd:BSHeartland.esm"
+],
+[
+24,
+"626de:BSHeartland.esm"
+],
+[
+24,
+"626df:BSHeartland.esm"
+],
+[
+24,
+"626e0:BSHeartland.esm"
+],
+[
+24,
+"626e1:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRLvlBanditMelee1H",
+"pos": [
+-1367.3,
+1643.7,
+16.0
+],
+"ref": "af2df:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+6375.9,
+1421.8,
+-1676.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMissile",
+"pos": [
+6375.9,
+1421.8,
+-1676.0
+],
+"ref": "af2ed:BSHeartland.esm",
+"options": [
+[
+1,
+"2da97:BSHeartland.esm"
+],
+[
+1,
+"2da9f:BSHeartland.esm"
+],
+[
+1,
+"2daad:BSHeartland.esm"
+],
+[
+1,
+"2dab0:BSHeartland.esm"
+],
+[
+1,
+"2dabf:BSHeartland.esm"
+],
+[
+1,
+"2dac3:BSHeartland.esm"
+],
+[
+1,
+"2dac6:BSHeartland.esm"
+],
+[
+1,
+"2dac9:BSHeartland.esm"
+],
+[
+5,
+"617db:BSHeartland.esm"
+],
+[
+5,
+"617dc:BSHeartland.esm"
+],
+[
+5,
+"617dd:BSHeartland.esm"
+],
+[
+5,
+"617df:BSHeartland.esm"
+],
+[
+5,
+"617e0:BSHeartland.esm"
+],
+[
+5,
+"617e1:BSHeartland.esm"
+],
+[
+5,
+"617e2:BSHeartland.esm"
+],
+[
+5,
+"617e3:BSHeartland.esm"
+],
+[
+9,
+"6266e:BSHeartland.esm"
+],
+[
+9,
+"6266f:BSHeartland.esm"
+],
+[
+9,
+"62670:BSHeartland.esm"
+],
+[
+9,
+"62672:BSHeartland.esm"
+],
+[
+9,
+"62673:BSHeartland.esm"
+],
+[
+9,
+"62674:BSHeartland.esm"
+],
+[
+14,
+"6269e:BSHeartland.esm"
+],
+[
+14,
+"6269f:BSHeartland.esm"
+],
+[
+14,
+"626a0:BSHeartland.esm"
+],
+[
+14,
+"626a2:BSHeartland.esm"
+],
+[
+14,
+"626a3:BSHeartland.esm"
+],
+[
+14,
+"626a4:BSHeartland.esm"
+],
+[
+14,
+"626a5:BSHeartland.esm"
+],
+[
+14,
+"626a6:BSHeartland.esm"
+],
+[
+19,
+"626ce:BSHeartland.esm"
+],
+[
+19,
+"626cf:BSHeartland.esm"
+],
+[
+19,
+"626d0:BSHeartland.esm"
+],
+[
+19,
+"626d2:BSHeartland.esm"
+],
+[
+19,
+"626d3:BSHeartland.esm"
+],
+[
+19,
+"626d4:BSHeartland.esm"
+],
+[
+19,
+"626d5:BSHeartland.esm"
+],
+[
+19,
+"626d6:BSHeartland.esm"
+],
+[
+25,
+"626fe:BSHeartland.esm"
+],
+[
+25,
+"626ff:BSHeartland.esm"
+],
+[
+25,
+"62700:BSHeartland.esm"
+],
+[
+25,
+"62702:BSHeartland.esm"
+],
+[
+25,
+"62703:BSHeartland.esm"
+],
+[
+25,
+"62704:BSHeartland.esm"
+],
+[
+25,
+"62705:BSHeartland.esm"
+],
+[
+25,
+"62706:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+4512.8,
+1411.3,
+-1676.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMelee1H",
+"pos": [
+4512.8,
+1411.3,
+-1676.0
+],
+"ref": "af2ec:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+5410.5,
+2041.2,
+-1264.0
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditBoss",
+"pos": [
+5410.5,
+2041.2,
+-1264.0
+],
+"ref": "af143:BSHeartland.esm",
+"options": [
+[
+1,
+"2da98:BSHeartland.esm"
+],
+[
+1,
+"2da99:BSHeartland.esm"
+],
+[
+1,
+"2daa0:BSHeartland.esm"
+],
+[
+1,
+"2daa5:BSHeartland.esm"
+],
+[
+1,
+"2daa6:BSHeartland.esm"
+],
+[
+1,
+"2daae:BSHeartland.esm"
+],
+[
+1,
+"2dab4:BSHeartland.esm"
+],
+[
+1,
+"2dab7:BSHeartland.esm"
+],
+[
+1,
+"2daba:BSHeartland.esm"
+],
+[
+1,
+"2dac0:BSHeartland.esm"
+],
+[
+1,
+"2dac1:BSHeartland.esm"
+],
+[
+14,
+"617e4:BSHeartland.esm"
+],
+[
+14,
+"617e5:BSHeartland.esm"
+],
+[
+14,
+"617e6:BSHeartland.esm"
+],
+[
+14,
+"617e7:BSHeartland.esm"
+],
+[
+14,
+"617e8:BSHeartland.esm"
+],
+[
+14,
+"617e9:BSHeartland.esm"
+],
+[
+14,
+"617ea:BSHeartland.esm"
+],
+[
+14,
+"617eb:BSHeartland.esm"
+],
+[
+14,
+"617ec:BSHeartland.esm"
+],
+[
+14,
+"617ed:BSHeartland.esm"
+],
+[
+14,
+"617ee:BSHeartland.esm"
+],
+[
+14,
+"617ef:BSHeartland.esm"
+],
+[
+25,
+"626a7:BSHeartland.esm"
+],
+[
+25,
+"626a8:BSHeartland.esm"
+],
+[
+25,
+"626a9:BSHeartland.esm"
+],
+[
+25,
+"64c3b:BSHeartland.esm"
+],
+[
+25,
+"64c3c:BSHeartland.esm"
+],
+[
+25,
+"64c3f:BSHeartland.esm"
+],
+[
+25,
+"64c40:BSHeartland.esm"
+],
+[
+25,
+"64c43:BSHeartland.esm"
+],
+[
+25,
+"64c45:BSHeartland.esm"
+],
+[
+29,
+"626d7:BSHeartland.esm"
+],
+[
+29,
+"626d8:BSHeartland.esm"
+],
+[
+29,
+"626d9:BSHeartland.esm"
+],
+[
+29,
+"64c38:BSHeartland.esm"
+],
+[
+29,
+"64c39:BSHeartland.esm"
+],
+[
+29,
+"64c41:BSHeartland.esm"
+],
+[
+29,
+"64c42:BSHeartland.esm"
+],
+[
+29,
+"64c47:BSHeartland.esm"
+],
+[
+29,
+"64c49:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "aecbc:BSHeartland.esm",
+"pos": [
+3790.7,
+2832.4,
+-1675.5
+],
+"size": 1400,
+"npcs": [
+{
+"edid": "CYRLvlBanditMelee1H",
+"pos": [
+3790.7,
+2832.4,
+-1675.5
+],
+"ref": "af2eb:BSHeartland.esm",
+"options": [
+[
+1,
+"2da92:BSHeartland.esm"
+],
+[
+1,
+"2da9a:BSHeartland.esm"
+],
+[
+1,
+"2daa7:BSHeartland.esm"
+],
+[
+1,
+"2daa8:BSHeartland.esm"
+],
+[
+1,
+"2daab:BSHeartland.esm"
+],
+[
+1,
+"2daaf:BSHeartland.esm"
+],
+[
+1,
+"2dab3:BSHeartland.esm"
+],
+[
+1,
+"2dab5:BSHeartland.esm"
+],
+[
+1,
+"2dabb:BSHeartland.esm"
+],
+[
+1,
+"2dac2:BSHeartland.esm"
+],
+[
+1,
+"2dac7:BSHeartland.esm"
+],
+[
+5,
+"617bd:BSHeartland.esm"
+],
+[
+5,
+"617be:BSHeartland.esm"
+],
+[
+5,
+"617bf:BSHeartland.esm"
+],
+[
+5,
+"617c0:BSHeartland.esm"
+],
+[
+5,
+"617c1:BSHeartland.esm"
+],
+[
+5,
+"617c2:BSHeartland.esm"
+],
+[
+5,
+"617c3:BSHeartland.esm"
+],
+[
+5,
+"617c4:BSHeartland.esm"
+],
+[
+5,
+"617c5:BSHeartland.esm"
+],
+[
+5,
+"617cb:BSHeartland.esm"
+],
+[
+5,
+"617cc:BSHeartland.esm"
+],
+[
+9,
+"617f8:BSHeartland.esm"
+],
+[
+9,
+"617f9:BSHeartland.esm"
+],
+[
+9,
+"617fa:BSHeartland.esm"
+],
+[
+9,
+"62653:BSHeartland.esm"
+],
+[
+9,
+"62654:BSHeartland.esm"
+],
+[
+9,
+"62655:BSHeartland.esm"
+],
+[
+9,
+"62656:BSHeartland.esm"
+],
+[
+9,
+"62657:BSHeartland.esm"
+],
+[
+9,
+"62658:BSHeartland.esm"
+],
+[
+14,
+"62682:BSHeartland.esm"
+],
+[
+14,
+"62683:BSHeartland.esm"
+],
+[
+14,
+"62684:BSHeartland.esm"
+],
+[
+14,
+"62685:BSHeartland.esm"
+],
+[
+14,
+"62686:BSHeartland.esm"
+],
+[
+14,
+"62687:BSHeartland.esm"
+],
+[
+14,
+"62688:BSHeartland.esm"
+],
+[
+14,
+"6270c:BSHeartland.esm"
+],
+[
+14,
+"6270d:BSHeartland.esm"
+],
+[
+19,
+"626b2:BSHeartland.esm"
+],
+[
+19,
+"626b3:BSHeartland.esm"
+],
+[
+19,
+"626b4:BSHeartland.esm"
+],
+[
+19,
+"626b5:BSHeartland.esm"
+],
+[
+19,
+"626b6:BSHeartland.esm"
+],
+[
+19,
+"626b7:BSHeartland.esm"
+],
+[
+19,
+"626b8:BSHeartland.esm"
+],
+[
+19,
+"6270e:BSHeartland.esm"
+],
+[
+19,
+"64c3a:BSHeartland.esm"
+],
+[
+25,
+"626e2:BSHeartland.esm"
+],
+[
+25,
+"626e3:BSHeartland.esm"
+],
+[
+25,
+"626e4:BSHeartland.esm"
+],
+[
+25,
+"626e5:BSHeartland.esm"
+],
+[
+25,
+"626e6:BSHeartland.esm"
+],
+[
+25,
+"626e7:BSHeartland.esm"
+],
+[
+25,
+"626e8:BSHeartland.esm"
+],
+[
+25,
+"64c37:BSHeartland.esm"
+],
+[
+25,
+"64c46:BSHeartland.esm"
+]
+]
+}
+]
+}
+],
+"county": "Leyawiin County"
+}
+]
+}
