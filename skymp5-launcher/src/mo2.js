@@ -1018,6 +1018,11 @@ function enforceModRules() {
 
 // Browser-partial and sidecar files that are never a finished archive.
 const PARTIAL_RE = /\.(meta|unfinished|part|tmp|crdownload|download)$/i
+// Nexus serves mods as 7z, zip or rar. Anything else in the downloads folder (a player's copied Data folder: esp, bsa,
+// vortex_backup, ini) is not a download: scanning it made every loose file whose name resembled a mod show up as
+// "not the exact file the server expects" (2026-09-26, a Repair All listed Skyrim.esm and every vanilla BSA).
+const ARCHIVE_RE = /\.(7z|zip|rar)$/i
+let _looseFiles = 0   // non-archive files seen by the last scan, for one hint instead of a list
 // Caches so repeated scans (the wait loop, locate) don't re-hash or re-list unchanged files.
 const _archiveHashCache = new Map()   // full -> { size, mtimeMs, hash }
 const _archiveListCache = new Map()   // full -> { size, mtimeMs, listing }
@@ -1047,13 +1052,16 @@ function listDownloadArchives() {
   const out = []
   let names
   try { names = fs.readdirSync(getDownloadsDir()) } catch { return out }
+  let loose = 0
   for (const file of names) {
     if (PARTIAL_RE.test(file)) continue
+    if (!ARCHIVE_RE.test(file)) { loose++; continue }
     const full = path.join(getDownloadsDir(), file)
     let st
     try { st = fs.statSync(lp(full)) } catch { continue }
     if (st.isFile()) out.push({ file, full, st })
   }
+  _looseFiles = loose
   const present = new Set(out.map(a => a.full))
   for (const cache of [_archiveHashCache, _archiveListCache]) {
     for (const key of cache.keys()) if (!present.has(key.split('\0')[0])) cache.delete(key)
@@ -1213,9 +1221,11 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
       try { await scan() } catch { /* transient fs error; retry next tick */ }
       if (progressed) deadline = Date.now() + timeoutMs        // the user is actively staging files
       const remaining = wanted.filter((_, i) => !found[i]).map(w => w.name || 'download')
-      const note = mismatched.length
+      const note = (mismatched.length
         ? ` (${mismatched.map(f => `${f} is not the exact file the server expects - download it through its link on the downloads page, which pins the right version; if that version is gone from Nexus the server admin must update the modlist`).join('; ')})`
-        : ''
+        : '') + (_looseFiles
+        ? ` (the downloads folder also holds ${_looseFiles} file(s) that are not mod archives, such as game files copied in by hand; they are ignored - it only needs the .7z/.zip/.rar files from Nexus)`
+        : '')
       if (onProgress) {
         onProgress(wanted.length - remaining.length, wanted.length,
           remaining.length ? `Waiting for downloads: ${remaining.join(', ')}${note}` : 'All downloads received')
