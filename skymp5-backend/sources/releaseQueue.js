@@ -40,7 +40,11 @@ const QUEUE_TTL_MS = 30 * 1000
 const WEB_EVERY_MS = 10 * 60 * 1000
 const WEB_MAX_PAGES = 60
 const WEB_TIMEOUT_MS = 10 * 1000
-const LOG_TAIL_BYTES = 1024 * 1024
+// Files are read up to these sizes: the updater log and the jsonl files from their end, deployed gameplay and generated manifests whole
+const TAIL_BYTES = 1024 * 1024
+const FILE_MAX_BYTES = 1024 * 1024
+const DATA_MAX_BYTES = 32 * 1024 * 1024
+const WEB_MAX_BYTES = 2 * 1024 * 1024
 const REVIEWERS = new Set(['claude-jake', 'jake'])
 const REVIEWED = new Set(['GO', 'sameChange', 'live'])
 const CLIENT_PATHS = FORK_PATHS.filter(r => r.flags.includes('clientPack')).flatMap(r => r.paths).map(p => p.replace(/\/\*\*$/, ''))
@@ -356,22 +360,30 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   }
   const mtimeOf = async file => (await statOf(file))?.mtimeMs || 0
 
-  // Read once per change of mtime and size; missing gives null
-  async function cachedRead(file, parse, { tail } = {}) {
+  // length bytes from start, or fewer at the end of the file
+  async function readRange(file, start, length) {
+    const fh = await fsp.open(file, 'r')
+    try {
+      const buf = Buffer.alloc(length)
+      let got = 0
+      for (let n = -1; got < length && n !== 0; got += n) n = (await fh.read(buf, got, length - got, start + got)).bytesRead
+      return buf.subarray(0, got)
+    } finally { await fh.close() }
+  }
+
+  // Read once per change of mtime and size: the whole file up to max bytes, or its last tail bytes from a line start; missing or larger gives null
+  async function cachedRead(file, parse, { tail, max = FILE_MAX_BYTES } = {}) {
     guard(file)
     const st = await statOf(file)
     if (!st || !st.isFile()) { files.delete(file); return null }
     const stamp = `${st.mtimeMs}:${st.size}`
     const hit = files.get(file)
     if (hit && hit.stamp === stamp) return hit.value
+    if (!tail && st.size > max) { unreadable.note(file, { code: 'EFBIG' }); files.set(file, { stamp, value: null }); return null }
+    const start = tail && st.size > tail ? st.size - tail : 0
     let buf
-    try {
-      if (tail && st.size > tail) {
-        const fh = await fsp.open(file, 'r')
-        try { buf = Buffer.alloc(tail); await fh.read(buf, 0, tail, st.size - tail) } finally { await fh.close() }
-        buf = buf.subarray(buf.indexOf(10) + 1)
-      } else buf = await fsp.readFile(file)
-    } catch (err) { unreadable.note(file, err); files.delete(file); return null }
+    try { buf = await readRange(file, start, st.size - start) } catch (err) { unreadable.note(file, err); files.delete(file); return null }
+    if (start) buf = buf.subarray(buf.indexOf(10) + 1)
     unreadable.clear(file)
     let value = null
     try { value = parse(buf) } catch { value = null }
@@ -379,9 +391,9 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return value
   }
 
-  const readJson = file => cachedRead(file, buf => JSON.parse(buf.toString('utf8')))
+  const readJson = (file, opts) => cachedRead(file, buf => JSON.parse(buf.toString('utf8')), opts)
   const readJsonLines = file => cachedRead(file, buf => buf.toString('utf8').split('\n').slice(-20000)
-    .map(l => { try { return JSON.parse(l) } catch { return null } }).filter(v => v && typeof v === 'object')).then(v => v || [])
+    .map(l => { try { return JSON.parse(l) } catch { return null } }).filter(v => v && typeof v === 'object'), { tail: TAIL_BYTES }).then(v => v || [])
 
   function hashFile(file) {
     guard(file)
@@ -427,7 +439,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   }
 
   async function updaterLog() {
-    const read = file => cachedRead(file, buf => buf.toString('utf8'), { tail: LOG_TAIL_BYTES }).then(t => t || '')
+    const read = file => cachedRead(file, buf => buf.toString('utf8'), { tail: TAIL_BYTES }).then(t => t || '')
     const [rotated, current] = await Promise.all([read(`${config.updaterLog}.1`), read(config.updaterLog)])
     return parseUpdaterLog(`${rotated}\n${current}`)
   }
@@ -465,7 +477,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       if (name === 'gamemode.js') { const s = stripStamp(buf); return { id: blobId(s.body), stampAt: s.at, stampSha: s.sha } }
       if (name === 'gamemode-config.json') return { id: configId(buf) }
       return { id: blobId(buf) }
-    })
+    }, { max: DATA_MAX_BYTES })
   }
 
   async function matchesLive(sha, ids) {
@@ -540,8 +552,8 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     const [served, disk, newsHash, extras, plugins] = await Promise.all([
       readJson(path.join(backendDir, 'data', 'files-version.json')),
       cachedRead(path.join(backendDir, 'routes', 'version.js'), buf => versionConsts(buf.toString('utf8'))),
-      cachedRead(path.join(backendDir, 'data', 'news.live.json'), sha256),
-      readJson(path.join(backendDir, 'data', 'extra-files.json')),
+      cachedHash(path.join(backendDir, 'data', 'news.live.json')),
+      readJson(path.join(backendDir, 'data', 'extra-files.json'), { max: DATA_MAX_BYTES }),
       pluginsState(forkSha),
     ])
     const version = VERSION_RE.test(served?.version) ? served.version : null
@@ -879,6 +891,19 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
 
   // ---- website check (background, only while the panel is watched) ----
 
+  // The body up to max bytes; a larger page is an error, and the rest is never downloaded
+  async function readCapped(res, max) {
+    if (Number(res.headers?.get?.('content-length')) > max) throw new Error('page too large')
+    const parts = []
+    let size = 0
+    for await (const chunk of res.body || []) {
+      size += chunk.length
+      if (size > max) throw new Error('page too large')
+      parts.push(chunk)
+    }
+    return Buffer.concat(parts, size)
+  }
+
   const web = { wantedAt: 0, timer: null, plan: null, result: null, running: null }
 
   function checkWebsite() {
@@ -896,7 +921,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
           if (url.origin !== origin) throw new Error('off site')
           const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(WEB_TIMEOUT_MS) })
           if (res.ok) {
-            const id = blobId(Buffer.from(await res.arrayBuffer()))
+            const id = blobId(await readCapped(res, WEB_MAX_BYTES))
             state = id === p.target ? 'target' : id === p.live ? 'live' : 'other'
           }
         } catch { state = 'error' }

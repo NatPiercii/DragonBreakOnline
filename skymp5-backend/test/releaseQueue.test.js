@@ -1036,7 +1036,7 @@ test('queue: a 30 s single-flight cache', async () => {
 
 test('website check: only valid pages are fetched, and the result is counted', async () => {
   const urls = []
-  const fetch = async url => { urls.push(String(url)); return { ok: true, arrayBuffer: async () => Buffer.from(RACES) } }
+  const fetch = async url => { urls.push(String(url)); return new Response(RACES) }
   await withQueue({ reviews: [go(S.M2)], fetch }, async q => {
     await q.queue()
     const result = await q.checkWebsite()
@@ -1045,6 +1045,54 @@ test('website check: only valid pages are fetched, and the result is counted', a
     assert.deepEqual(result.pages, [{ page: 'guides/races.html', state: 'target' }])
     assert.deepEqual((await q.live()).website, { matching: 1, total: 1, checkedAt: result.checkedAt })
   })
+})
+
+test('website check: a page over 2 MB is an error, and the rest of it is never downloaded', async () => {
+  let pulled = 0
+  const endless = () => new Response(new ReadableStream({ pull(c) { pulled += 65536; c.enqueue(new Uint8Array(65536)) } }))
+  await withQueue({ reviews: [go(S.M2)], fetch: async () => endless() }, async q => {
+    await q.queue()
+    assert.deepEqual((await q.checkWebsite()).pages, [{ page: 'guides/races.html', state: 'error' }])
+    assert.ok(pulled <= 2 * 1024 * 1024 + 4 * 65536, `${pulled} bytes pulled`)
+  })
+  const declared = async () => new Response(RACES, { headers: { 'content-length': String(3 * 1024 * 1024) } })
+  await withQueue({ reviews: [go(S.M2)], fetch: declared }, async q => {
+    await q.queue()
+    assert.equal((await q.checkWebsite()).pages[0].state, 'error')
+  })
+})
+
+test('size caps: an oversized control file is refused and named, and the review log is read from its last 1 MB', async t => {
+  const warn = t.mock.method(console, 'warn', () => {})
+  const big = JSON.stringify(consistentLive({ fork: { sha: S.A, since: null, how: 'manual' } })) + ' '.repeat(1024 * 1024)
+  const filler = JSON.stringify({ note: 'x'.repeat(200) }) + '\n'
+  const reviews = JSON.stringify(go(S.M2)) + '\n' + filler.repeat(Math.ceil(1.1 * 1024 * 1024 / filler.length)) + JSON.stringify(go(S.B)) + '\n'
+  await withQueue({}, async (q, cfg) => {
+    write(cfg.controlDir, { 'live.json': big })
+    fs.writeFileSync(cfg.reviewsFile, reviews)
+    const qv = await q.queue()
+    assert.equal(qv.live.fork, S.LIVE, 'the oversized live.json is not used')
+    assert.equal(qv.default.fork, S.B, 'only the GO in the last 1 MB counts')
+    assert.ok(qv.warnings.includes('some panel files cannot be read (EFBIG), so reviews, holds or live versions may be missing'))
+    assert.deepEqual(warn.mock.calls.map(c => c.arguments.join(' ')), [`[release-queue] cannot read ${path.join(cfg.controlDir, 'live.json')}: EFBIG`])
+  })
+})
+
+test('size caps: a deployed gameplay file of several MB is still matched', async () => {
+  const content = JSON.stringify({ cells: 'x'.repeat(3 * 1024 * 1024) }) + '\n'
+  const stream = ['commit refs/heads/srv-big', 'committer NatPiercii <nate@example.com> 1758326400 +0000', 'data <<END', 'dungeons: regenerate', 'END',
+    `from ${S.S3}`, 'M 100644 inline dungeons.json', `data ${Buffer.byteLength(content)}`, content, ''].join('\n')
+  execFileSync('git', ['-C', repo, 'fast-import', '--quiet'], { input: stream, env: fixtureEnv() })
+  const tip = g('rev-parse', 'refs/heads/srv-big')
+  g('update-ref', 'refs/remotes/origin/server', tip)
+  try {
+    resetLiveGameplay({ 'dbo-gamemode.js': 'module.exports = 2\n// deployed 2026-09-26T02:29:19Z\n', 'combat.js': 'c2\n', 'CHECKLIST.md': 'x\n', 'dungeons.json': content })
+    await withQueue({}, async q => assert.deepEqual([(await q.live()).server.sha, (await q.live()).server.how], [tip, 'matched']))
+  } finally {
+    resetLiveGameplay()
+    g('update-ref', 'refs/remotes/origin/server', S.S3)
+    g('update-ref', '-d', 'refs/heads/srv-big')
+  }
 })
 
 test('history: releases, updater runs and backups, newest first, ten per page', async () => {
@@ -1082,7 +1130,7 @@ test('security: no secret file is ever opened, and no response carries a file pa
       return t[k](...a)
     } : t[k]),
   })
-  const fetch = async () => ({ ok: true, arrayBuffer: async () => Buffer.from(RACES) })
+  const fetch = async () => new Response(RACES)
   const svc = { skympSince: Date.parse('2026-01-01T00:00:00Z'), backendSince: Date.parse('2026-01-01T00:00:00Z') }
   await withQueue({ fs: spy, fetch, svc, reviews: [go(S.M2)], liveJson: consistentLive() }, async q => {
     const out = [await q.live(), await q.queue(), await q.checkWebsite(), await q.releases()]
