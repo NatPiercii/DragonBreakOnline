@@ -41,26 +41,20 @@ No census of how many racks exist in the load order: that needs ck-mcp on the PC
   Next: in game on the dev client, cast a summon scroll with the console open (skymp5-client logs), note whether the
   cast animation plays; compare a summon spell (works: ISS_ConjureSkeleton) and a TargetLocation scroll.
 
-## Added 2026-09-26 (00:35 UTC, rewritten 23:30 UTC): FOV wrong at login; an FOV slider - BUILT, UNPROVEN IN GAME
+## Added 2026-09-26, closed 2026-09-27 (21:47 UTC): FOV wrong at login; an FOV slider - DONE, PROVEN IN GAME
 
-- [ ] #bugs 1553201600716087427 (thefabled.): the field of view is wrong after logging in; they also want an FOV
-  slider. The likely source is the character screen (RaceMenu sets its own close-up FOV for the face and never puts
-  it back). Asked the player: wider or narrower, first or third person, does it recover after a load screen.
-- [x] Built on fork branch `fov-slider` (`72ee0433`, off `client-0344`), type-check clean, NOT in a package yet.
-  Launcher: Field of View in the graphics settings, writing both `fDefaultWorldFOV` and `fDefault1stPersonFOV`
-  (Skyrim keeps them apart), clamped 50..140, default 80. Client: `fovService.ts` reads the pair at startup before a
-  menu can move it and re-applies it when the creator closes, then nudges the camera between persons to force a
-  rebuild.
-- [ ] **The one thing that decides whether this works**: does the restored value apply at once, or only after a
-  camera change or a load screen? The camera nudge is there to force it and nothing has tested it.
-- [ ] Correction to the earlier entry, which claimed this needed a native binding. `Utility.setINIFloat` IS bound
-  (typings line 3433, class `Utility`) and `skymp5-client/src/index.ts:104` has used it for `fAutoVanityModeDelay`
-  all along, so "no FOV call exists" was wrong and was told to a player in the thread before being corrected. The
-  separate claim that `setINIFloat` on `fDefaultWorldFOV` "does not apply live" was recorded without a test to cite,
-  unlike the wisp entry below it, so treat it as untested rather than settled. If the in-game check shows the value
-  really is ignored until a rebuild the nudge cannot force, THEN a `PlayerCamera` binding in skyrim-platform (C++, CI
-  flatrim build) is the fallback - but try the cheap route first.
-
+- [x] #bugs 1553201600716087427 (thefabled.). Launcher 2.1.32 is live and Nate tested it: **the field of view
+      applies right away**, so the client-side camera nudge is enough and no `PlayerCamera` binding is needed.
+- [x] Launcher: Field of View in the graphics settings. It writes `fDefaultWorldFOV` and `fDefault1stPersonFOV`
+      to the profile **Skyrim.ini [Display]** and `fDefaultFOV` to **SkyrimPrefs.ini [General]**. Three settings
+      across two files, and they are not interchangeable.
+- [x] Client: `fovService.ts` reads the pair at startup before a menu can move it and re-applies it when the
+      creator closes, then nudges the camera between persons to force a rebuild.
+- [x] Two things this entry got wrong, kept because both cost time. First it said a native binding was needed:
+      `Utility.setINIFloat` is bound and `index.ts:104` had been using it all along. Then 2.1.31 shipped writing
+      every FOV key to `SkyrimPrefs.ini [Display]`, which the game does not read, so the setting did nothing
+      while the patch note already told players it existed. **The API existing was checked; the file it had to be
+      written to was not.** Fixed in `dcb247fa`, released as 2.1.32 from `e324023f`.
 ## Added 2026-09-25 (23:55 UTC): Will-o-the-Wisp summon crashes the game - REFUSED ON THE SERVER, MESH FIX FOR THE PC
 
 - [x] `CYRSummonWillotheWispSpell` (782c5:BSHeartland.esm) refused by gamemode `castBlocks` (da36c430, live 23:51):
