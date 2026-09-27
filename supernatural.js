@@ -383,6 +383,9 @@ module.exports = (api) => {
       result: result || '',
     }, true);
   };
+  // A deadly trial never opens this soon after a login; the login-focus bugs of 2026-09-26 showed the client
+  // can still be holding the keyboard and cursor well after the player is technically in the world.
+  const RITE_LOGIN_GRACE_MS = Math.max(0, Number(C.rite.loginGraceSeconds) || 45) * 1000;
   const startRite = (a, type) => {
     if (rites.has(a)) return;
     const r = { type, nonce: `${a.toString(16)}-${Date.now().toString(36)}`, round: 0, hits: 0, misses: 0, current: null, timer: null };
@@ -391,6 +394,20 @@ module.exports = (api) => {
     r.timer = setTimeout(() => judge(a, r, false, 'too late'), C.rite.leadMs + C.rite.timeoutMs);
     showRite(a, r);
     log(`supernatural: ${display(a)} began ${RITES[type].title}`);
+  };
+  // A rite the player never touched has not been failed, it has not been played. Dying to a cursor that never
+  // appeared (swag, 2026-09-27: the Blood Fever opened a second after joining, no mouse, no space, dead) is a
+  // client fault, so a rite that takes no input at all is abandoned and comes back on a later tick.
+  // Deliberately not keyed on the `deadly` flag: that flag is display metadata carried only by the two
+  // VOLUNTARY rites, while the two fever rites that actually kill you (finishRite sets isDead for both) carry
+  // no flag at all. Keying on it would have missed the very case this was written for.
+  const untouchedAbandon = (a, r) => {
+    if (r.acted || !RITES[r.type]) return false;
+    rites.delete(a); clearTimeout(r.timer); closeWidget(a, RITE_ID);
+    personal(a, 'The moment swims and passes you by. It will come again; be ready.');
+    log(`supernatural: ${display(a)} ${RITES[r.type].title} abandoned untouched (no input at all); not counted as a failure`);
+    audit(`RITE ${who(a)} ${RITES[r.type].title} abandoned untouched, no input reached the server`);
+    return true;
   };
   const judge = (a, r, hit, why, detail) => {
     if (rites.get(a) !== r) return;
@@ -401,6 +418,7 @@ module.exports = (api) => {
     r.round++;
     const def = RITES[r.type];
     const lost = r.misses > C.rite.rounds - def.need;
+    if (lost && untouchedAbandon(a, r)) return;
     if (r.hits >= def.need || lost || r.round >= C.rite.rounds) return finishRite(a, r, !lost && r.hits >= def.need);
     r.current = newRound(r);
     r.timer = setTimeout(() => judge(a, r, false, 'too late'), C.rite.leadMs + C.rite.timeoutMs);
@@ -432,13 +450,14 @@ module.exports = (api) => {
   };
   onUi('riteStrike', (a, args) => {
     const r = rites.get(a); if (!r || String(args[0]) !== r.nonce || !r.current) return;
+    r.acted = true;
     const t = Date.now() - r.current.startsAt - C.rite.latencyMs;
     if (t < -C.rite.slackMs) return log(`supernatural: rite ${display(a)} strike ignored, ${Math.round(-t)} ms before round ${r.round + 1} began`);
     const inZone = (x) => Math.abs(markerAt(r.current, x) - r.current.center) <= r.current.width / 2;
     const seen = [t - C.rite.slackMs, t, t + C.rite.slackMs].map((x) => markerAt(r.current, x).toFixed(2)).join('/');
     judge(a, r, [t - C.rite.slackMs, t, t + C.rite.slackMs].some(inZone), 'off the mark', `struck ${Math.round(t)} ms in, marker ${seen}`);
   });
-  const forfeit = (a) => { const r = rites.get(a); if (r) { r.misses = C.rite.rounds; finishRite(a, r, false); } };
+  const forfeit = (a) => { const r = rites.get(a); if (r) { r.acted = true; r.misses = C.rite.rounds; finishRite(a, r, false); } };
   onUi('riteClose', (a) => forfeit(a));
   onUi('close', (a, args, widgetId) => { if (widgetId === RITE_ID) forfeit(a); });
 
@@ -676,6 +695,13 @@ module.exports = (api) => {
       const s = stateOf(a); if (!s) continue;
       try { if (mp.get(a, 'isDead')) continue; } catch (e) { continue; }
       if (s.disease && day - s.disease.since >= C.incubationDays && !rites.has(a)) {
+        // Not in the first moments of a session: the client is still settling, the cursor is not the player's
+        // yet, and this trial kills. It waits for the next tick instead; the fever is not going anywhere.
+        const since = Date.now() - (Number((globalThis.__dboConnectedAt || new Map()).get(a >>> 0)) || 0);
+        if (since < RITE_LOGIN_GRACE_MS) {
+          log(`supernatural: ${display(a)} fever peaked ${Math.round(since / 1000)} s after joining; holding the rite until they have settled`);
+          continue;
+        }
         personal(a, s.disease.kind === 'vampire' ? 'The fever peaks. Your heart stumbles.' : 'The fever peaks. Something inside you wants out.');
         startRite(a, s.disease.kind === 'vampire' ? 'fever_vampire' : 'fever_werewolf');
         continue;

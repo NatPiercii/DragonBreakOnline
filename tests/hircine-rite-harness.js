@@ -5,7 +5,8 @@
 const path = require('path');
 const store = new Map(); // `${id}|${prop}` -> value
 const said = [];
-const cmds = {}, ui = {};
+const cmds = {}, ui = {}, timers = {};
+const online = [];
 const noop = () => {};
 const mp = {
   get: (id, p) => store.get(`${id}|${p}`),
@@ -16,7 +17,7 @@ const mp = {
 const api = {
   mp, log: noop, audit: noop, personal: (a, t) => said.push(t), registerChatCommand: (n, f) => { cmds[n] = f; },
   onUi: (n, f) => { ui[n] = f; }, openWidget: noop, closeWidget: noop, sendPacket: noop, display: String, who: String,
-  isAdmin: () => false, findByName: () => null, onlineActors: () => [], every: noop, profileOf: (a) => a,
+  isAdmin: () => false, findByName: () => null, onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, profileOf: (a) => a,
   nameOf: String, isWorldspace: () => true, needsFeed: noop, hungerOf: () => 0, cfg: {},
 };
 require(path.resolve(__dirname, '..', 'supernatural.js'))(api);
@@ -74,6 +75,25 @@ const rnd = Math.random; Math.random = () => 0.99; // no permadeath roll
 atShrine('hircine'); cmds.rite(A, ''); cmds.rite(A, 'confirm'); runRite(false);
 Math.random = rnd;
 ok(!state().disease && !state().kind && Number(store.get(`${A}|private.riteFailedAt`)) > 0, 'losing the Hunt gives nothing and starts the cooldown');
+
+// A rite the player never touched must not kill them: swag, 2026-09-27, the Blood Fever opened a second after
+// joining with no cursor and no keyboard, and three silent timeouts killed the character. Driven by firing the
+// round timers directly rather than waiting 23 s of real time.
+const fireTimeout = () => { const r = globalThis.__dboRites.get(A); if (r && r.timer && r.timer._onTimeout) r.timer._onTimeout(); };
+store.set(`${A}|isDead`, false);
+store.set(`${A}|private.supernatural`, { disease: { kind: 'vampire', since: 0 } });
+globalThis.__dboRites.delete(A);
+online.push(A);
+globalThis.__dboConnectedAt = new Map([[A, Date.now()]]);   // just joined
+timers.superSlow();
+ok(!globalThis.__dboRites.has(A), 'a fever that peaks moments after joining does not open the rite yet');
+globalThis.__dboConnectedAt = new Map([[A, Date.now() - 600000]]);   // settled in
+timers.superSlow();
+ok(globalThis.__dboRites.has(A), '...and opens once the player has settled');
+for (let i = 0; i < 8 && globalThis.__dboRites.has(A); i++) fireTimeout();
+ok(!globalThis.__dboRites.has(A), '...and a Blood Fever nobody touched closes itself');
+ok(store.get(`${A}|isDead`) !== true, '...without killing the character who never saw it');
+ok(said.some((t) => /moment swims and passes you by/.test(t)), '...telling them it will come again');
 
 console.log(fail ? `${fail} failed` : 'all checks passed');
 process.exit(fail ? 1 : 0);
