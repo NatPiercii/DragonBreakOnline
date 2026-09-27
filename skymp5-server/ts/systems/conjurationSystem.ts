@@ -1,6 +1,6 @@
 import { System, Log, SystemContext } from "./system";
 import { CompanionSystem } from "./companionSystem";
-import { spellEffects, SpellEffect, MgefArchetype, npcLevel, keywordConditionsPass, turnsToAsh, casterRacePasses } from "./espmMagic";
+import { spellEffects, SpellEffect, MgefArchetype, npcLevel, keywordConditionsPass, turnsToAsh, pickSummon } from "./espmMagic";
 import { isPlayerActor, isNear, baseIdOf, hex } from "./actorUtil";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
@@ -73,12 +73,11 @@ export class ConjurationSystem implements System {
     if (!isPlayerActor(this.mp, casterId)) return;
     const effects = spellEffects(this.mp, spellId);
     // The first summon effect is the unperked one; perk conditions are not evaluated server-side. A spell with one summon
-    // per caster race (Summon Skeleton) conjures the caster's; a race it does not name gets its first summon
+    // per caster race (Summon Skeleton) conjures the caster's (pickSummon)
     const summons = effects.filter((e) => e.archetype === MgefArchetype.SummonCreature && e.assocId);
-    const race = this.casterRace(casterId);
-    const summon = summons.find((e) => casterRacePasses(e, race)) ?? summons[0];
-    if (summon) {
-      this.companions.spawn(casterId, summon.assocId, { kind: "summon", durationSec: this.duration(summon), source: spellId });
+    const pick = pickSummon(summons, () => this.casterRace(casterId));
+    if (pick) {
+      this.companions.spawn(casterId, pick.effect.assocId, { kind: "summon", durationSec: this.duration(pick.timed), source: spellId });
       return;
     }
     const reanimate = effects.find((e) => e.archetype === MgefArchetype.Reanimate);
