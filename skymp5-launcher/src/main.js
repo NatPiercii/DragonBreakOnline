@@ -2937,7 +2937,7 @@ function nexusNamePattern(modId, displayName, version) {
 // DragonBreak's list does not name. With no such manager, a file is downloaded as named.
 const nxmLog = msg => { log(`[nxm] ${msg}`); send('install:log', msg) }
 const NOT_A_FILE = 'That Nexus link is not a single mod file (a Vortex collection, or another game). The launcher installs '
-  + "DragonBreak's mod list itself when you press Install. To add a collection in Vortex, let Vortex handle Nexus links again in its settings."
+  + "DragonBreak's mod list itself when you press Install. To add a collection in Vortex, turn on \"Handle Mod Manager Download buttons on nexusmods.com\" in Vortex's Settings, Download tab."
 function handleNxmArgv(argv) {
   for (const a of argv || []) if (typeof a === 'string' && /^nxm:\/\//i.test(a)) handleNxmLink(a)
 }
