@@ -85,6 +85,11 @@ export class ParalysisService extends ClientListener {
     this.controller.lookupListener(RestraintService).reapply();
   }
 
+  // A restraint that rewrote the controls calls this; the hold goes back on while the paralysis lasts
+  public reassert(): void {
+    if (this.until > Date.now()) this.hold();
+  }
+
   // (movement, fighting, camSwitch, looking, sneaking, menu, activate, journalTabs, disablePOVType)
   private hold(): void {
     const player = this.sp.Game.getPlayer();
