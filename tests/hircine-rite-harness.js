@@ -95,5 +95,25 @@ ok(!globalThis.__dboRites.has(A), '...and a Blood Fever nobody touched closes it
 ok(store.get(`${A}|isDead`) !== true, '...without killing the character who never saw it');
 ok(said.some((t) => /moment swims and passes you by/.test(t)), '...telling them it will come again');
 
+// A werewolf does not catch vampirism from a vampire's bite: swag, 2026-09-27, an established werewolf was
+// handed the Blood Fever, and surviving it would have overwritten his lycanthropy. The voluntary paths still
+// convert. B is a vampire attacker; every roll lands so the only thing that can stop it is the immunity.
+const B = 8;
+globalThis.__dboRites.delete(A);
+const rndImmune = Math.random; Math.random = () => 0;
+store.set(`${B}|private.supernatural`, { kind: 'vampire', disease: null, stage: 1 });
+store.set(`${A}|private.supernatural`, { kind: 'werewolf', disease: null });
+globalThis.__dboSuperHit(B, A);
+ok(!state().disease, "a werewolf does not catch a vampire's disease from a bite");
+
+store.set(`${A}|private.supernatural`, { kind: null, disease: null });
+globalThis.__dboSuperHit(B, A);
+ok(state().disease && state().disease.kind === 'vampire', '...but a mortal still does');
+
+store.set(`${A}|private.supernatural`, { kind: 'vampire', disease: null, stage: 1 });
+cmds.curse(A, "me infectwerewolf");
+ok(state().disease && state().disease.kind === 'werewolf', '...and an admin can still convert one on purpose');
+Math.random = rndImmune;
+
 console.log(fail ? `${fail} failed` : 'all checks passed');
 process.exit(fail ? 1 : 0);

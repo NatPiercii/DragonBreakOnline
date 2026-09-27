@@ -270,8 +270,17 @@ module.exports = (api) => {
   const dropCrown = (a, why) => { if (crownHolder() !== (a >>> 0)) return; removeSpell(a, VAMPIRE_LORD_POWER); G.crown = null; saveG(); for (const v of vampiresOnline()) personal(v, 'The Blood Crown lies unclaimed.'); audit(`BLOODCROWN ${who(a)} lost it (${why})`); };
 
   // ---- becoming and ending -------------------------------------------------------------------------------
-  const infect = (t, kind, by) => {
+  // `chosen` is for the ways a player asks for this: the Great Hunt's mark and an admin's /super infect.
+  const infect = (t, kind, by, chosen) => {
     const s = stateOf(t); if (!s || s.kind === kind || s.disease) return false;
+    // A werewolf does not catch vampirism from a scratch, nor a vampire lycanthropy. Lycanthropy's immunity to
+    // disease is the vanilla rule, and surviving the other side's trial overwrites `kind`, so a random bite
+    // could silently take a curse the player never agreed to give up (swag, 2026-09-27: a werewolf was handed
+    // the Blood Fever). The voluntary rites still convert.
+    if (s.kind && !chosen) {
+      log(`supernatural: ${display(t)} is already a ${s.kind}; ${kind} disease does not take`);
+      return false;
+    }
     s.disease = { kind, since: gameDays(), by: by ? nameOf(by) : '' };
     saveState(t, s);
     if (kind === 'vampire') addSpell(t, SANGUINARE);
@@ -436,7 +445,7 @@ module.exports = (api) => {
     // Nate 2026-09-26: and only at huntMarkChance; an unmarked survivor waits as long as one who failed before running again.
     if (won && r.type === 'hunt') {
       if (Math.random() < C.huntMarkChance) {
-        if (infect(a, 'werewolf', null)) return personal(a, 'Hircine lets you go, marked. Sanies Lupinus burns in the wound; when the fever peaks, the beast will try to come out.');
+        if (infect(a, 'werewolf', null, true)) return personal(a, 'Hircine lets you go, marked. Sanies Lupinus burns in the wound; when the fever peaks, the beast will try to come out.');
         return personal(a, 'Hircine lets you go, but his mark finds no room in you.');
       }
       try { mp.set(a, 'private.riteUnmarkedAt', Date.now()); } catch (e) { /* offline */ }
@@ -776,8 +785,8 @@ module.exports = (api) => {
     if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease for ${(gameDays() - s.disease.since).toFixed(1)} days` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
     if (w === 'vampire' || w === 'purevampire') becomeVampire(t, w === 'purevampire');
     else if (w === 'werewolf' || w === 'blessedwerewolf') becomeWerewolf(t, w === 'blessedwerewolf');
-    else if (w === 'infectvampire') infect(t, 'vampire', 0);
-    else if (w === 'infectwerewolf') infect(t, 'werewolf', 0);
+    else if (w === 'infectvampire') infect(t, 'vampire', 0, true);
+    else if (w === 'infectwerewolf') infect(t, 'werewolf', 0, true);
     else if (w === 'fever') { const s = stateOf(t); if (!s.disease) return personal(a, 'They carry no disease.'); s.disease.since = gameDays() - C.incubationDays; saveState(t, s); }
     else if (w === 'cure') { cureDisease(t, `GM ${nameOf(a)}`); endCurse(t, `cured by GM ${nameOf(a)}`); }
     else if (w === 'crown') { if (kindOf(t) !== 'vampire') becomeVampire(t, true); takeCrown(t, `given it by GM ${nameOf(a)}`); }
