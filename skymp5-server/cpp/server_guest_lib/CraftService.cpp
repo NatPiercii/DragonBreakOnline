@@ -259,7 +259,7 @@ bool CraftService::EvaluateCraftRecipeConditions(
     "HasSpell",       "SpellHasKeyword",   "WornHasKeyword",
     "WornApparelHasKeywordCount",          "SkympWornHasKeywordCount",
     "SkympGetDamageSourceHasKeyword",      "SkympGetIsDamageSource",
-    "GetGlobalValue"
+    "GetGlobalValue", "GetPCIsRace"
   };
   std::vector<Condition> conditions;
   std::transform(

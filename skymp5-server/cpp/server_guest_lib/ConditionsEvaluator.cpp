@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <nlohmann/json.hpp>
+#include <set>
 #include <spdlog/spdlog.h>
 #include <sstream>
 
@@ -45,11 +46,18 @@ void ConditionsEvaluator::EvaluateConditions(
   std::vector<int> conditionResolutions;
   std::vector<float> conditionFunctionResults;
 
+  // A recipe is earned: a condition the server cannot evaluate never unlocks
+  // one (a forged craft packet made perk-, quest- or faction-locked recipes)
+  ConditionEvaluatorContext effectiveContext = context;
+  if (caller == ConditionsEvaluatorCaller::kCraft) {
+    effectiveContext.unknownFunctionsFail = true;
+  }
+
   const bool evalRes = ConditionsEvaluator::EvaluateConditionsImpl(
     conditionFunctionMap, conditions,
     enableLogging ? &conditionResolutions : nullptr,
     enableLogging ? &conditionFunctionResults : nullptr, aggressor, target,
-    context);
+    effectiveContext);
 
   std::vector<std::string> strings;
 
@@ -266,6 +274,24 @@ std::pair<bool, float> ConditionsEvaluator::EvaluateCondition(
   }
 
   if (!conditionFunction) {
+    // Crafting: the answer is unknown, so the recipe stays locked, as the
+    // player's own game shows it to a character without the perk, quest or
+    // faction (DragonBreak gives no vanilla perks and runs no quests on the
+    // server). GetBaseActorValue (277) is the one exception: skills are set
+    // on the player's game (masterySystem), the server cannot read them, and
+    // locking would roll back crafts the player's menu allowed
+    static const std::set<std::string> kCraftPermissive = { "#277" };
+    if (context.unknownFunctionsFail &&
+        !kCraftPermissive.count(condition.function)) {
+      static std::set<std::string> warned;
+      if (warned.insert(condition.function).second) {
+        spdlog::warn("ConditionsEvaluator::EvaluateCondition - Condition "
+                     "function '{}' is not implemented. Evaluating it to "
+                     "False for crafting (logged once)",
+                     condition.function);
+      }
+      return { false, -108.f };
+    }
     spdlog::warn("ConditionsEvaluator::EvaluateCondition - Condition function "
                  "'{}' doesn't exist. Evaluating condition to True",
                  condition.function);
