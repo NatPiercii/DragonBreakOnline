@@ -140,7 +140,12 @@ module.exports = (api) => {
   globalThis.__dboFactionRefresh = (a, text, ok) => { if (!ST.nonces.has(a >>> 0)) return false; openMenu(a >>> 0, text, ok ? 'ok' : 'refused'); return true; };
   globalThis.__dboFactionNonceOk = (a, nonce) => ST.nonces.get(a >>> 0) === String(nonce || '');
   // ledger.js: the factions a character belongs to (offline ones too), and whether an id names a faction
-  globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); const r = f.ranks[m.e.rank] || {}; return { id: m.fid, name: f.name, title: r.title || '', role: r.role || '', kind: f.kind || '', zone: f.zone || '', secret: !!f.secret }; });
+  const hallOf = (f) => {
+    const h = f && f.hall;
+    if (!h || !h.name) return null;
+    return { name: String(h.name), zone: h.zone || '', doors: Array.isArray(h.doors) ? h.doors.slice() : [], shared: !!h.shared, note: h.note || '' };
+  };
+  globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); const r = f.ranks[m.e.rank] || {}; return { id: m.fid, name: f.name, title: r.title || '', role: r.role || '', kind: f.kind || '', zone: f.zone || '', secret: !!f.secret, hall: hallOf(f) }; });
   globalThis.__dboGuildExists = (id) => FACTIONS.has(String(id));
   // When a faction was founded, for realm.js's protectDays: its first member's joining; a hold or stronghold is as old as
   // the land (review m6: nothing defined this, so the rule never applied)
@@ -153,7 +158,10 @@ module.exports = (api) => {
   // Every faction that is not secret, for the war section's lists (realm.js)
   globalThis.__dboFactionList = () => [...FACTIONS.values()].filter((f) => !f.secret).map((f) => f.id);
   // For the war system (realm.js): a faction's name and kind, and the characters on its roster (actor ids)
-  globalThis.__dboGuildInfo = (id) => { const f = FACTIONS.get(String(id)); return f ? { id: f.id, name: f.name, kind: f.kind || '', zone: f.zone || '', secret: !!f.secret, circle: circleOf(f.id) } : null; };
+  globalThis.__dboGuildInfo = (id) => { const f = FACTIONS.get(String(id)); return f ? { id: f.id, name: f.name, kind: f.kind || '', zone: f.zone || '', secret: !!f.secret, circle: circleOf(f.id), hall: hallOf(f) } : null; };
+  // Where a faction is seated (guild-defs.json "hall"). A home address for now: the name players are told and
+  // the doors that lead in. The Blades have none on purpose while Cloud Ruler Temple is a ruin.
+  globalThis.__dboGuildHall = (id) => { const f = FACTIONS.get(String(id)); return f ? hallOf(f) : null; };
   globalThis.__dboGuildMembers = (id) => Object.keys(ST.members[String(id)] || {}).map((x) => Number(x) >>> 0);
   globalThis.__dboGuildRanks = (id) => { const f = FACTIONS.get(String(id)); return f ? f.ranks.map((r) => r.title) : []; };
   globalThis.__dboHoldFactionOf = (zoneId) => { for (const f of FACTIONS.values()) if (f.kind === 'hold' && f.zone === zoneId) return f.id; return null; };
@@ -232,6 +240,16 @@ module.exports = (api) => {
     const s = (sub || '').toLowerCase();
     if (!s || s === 'menu') return openMenu(a);
     if (s === 'list') return personal(a, [...FACTIONS.values()].filter((f) => !f.secret || isAdmin(a) || entryOf(f.id, a)).map((f) => `${f.id} (${f.name})`).join(', '));
+    // Where a faction is seated. A hall the player cannot reach is not worth naming, so only Bruma shows while
+    // the playtest is locked there.
+    if (s === 'hall' || s === 'halls') {
+      const one = rest[0] && FACTIONS.get(String(rest[0]).toLowerCase());
+      if (rest[0] && !one) return personal(a, `No such faction: ${rest[0]} (/faction list)`);
+      const seen = one ? [one] : [...FACTIONS.values()].filter((f) => !f.secret || isAdmin(a) || entryOf(f.id, a));
+      const lines = seen.filter((f) => hallOf(f)).map((f) => { const h = hallOf(f); return `${f.name}: ${h.name}${h.shared ? ' (shared)' : ''}${h.note ? ` - ${h.note}` : ''}`; });
+      if (one) return personal(a, lines[0] || `${one.name} has no seat you can reach.`);
+      return personal(a, lines.length ? `Faction halls in Bruma: ${lines.join(' | ')}` : 'No faction has a seat you can reach yet.');
+    }
     if (s === 'accept') return personal(a, accept(a, rest[0] || (invitesOf(a)[0] || {}).fid || ''));
     if (s === 'invite') { const t = findByName(rest[0] || ''); const fid = rest[1] || (membershipsOf(a).find((m) => can(m.fid, a, 'invite')) || {}).fid; return personal(a, t ? invite(a, t, fid) : 'Usage: /faction invite <player|#TAG> [faction]'); }
     if (s === 'leader') {
