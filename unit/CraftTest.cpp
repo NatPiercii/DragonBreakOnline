@@ -1,8 +1,11 @@
 #include "TestUtils.hpp"
 #include <catch2/catch_all.hpp>
+#include <cstdio>
 
+#include "ConditionsEvaluator.h"
 #include "CraftItemMessage.h"
 #include "PacketParser.h"
+#include "condition_functions/ConditionFunctionFactory.h"
 
 using Catch::Matchers::ContainsSubstring;
 
@@ -58,8 +61,11 @@ TEST_CASE("CraftItem packet is parsed", "[Craft][espm]")
 
 TEST_CASE("Player is able to craft item", "[Craft][espm]")
 {
+  // RecipeWeaponIronDagger (da76a): no conditions. It was the steel warhammer,
+  // which needs HasPerk(SteelSmithing) and only passed while conditions the
+  // server cannot evaluate counted as met
   const Inventory requiredItems =
-    Inventory().AddItem(0x5ace4, 1).AddItem(0x800e4, 3).AddItem(0x5ace5, 4);
+    Inventory().AddItem(0x5ace4, 1).AddItem(0x800e4, 1);
   const Inventory requiredItemsForNails = Inventory().AddItem(0x5ace4, 1);
 
   PartOne& p = GetPartOne();
@@ -80,14 +86,14 @@ TEST_CASE("Player is able to craft item", "[Craft][espm]")
   RawMessageData msgData;
   msgData.userId = 0;
 
-  // Vanilla item
-  REQUIRE(ac.GetInventory().GetItemCount(0x1398a) == 0);
+  // Vanilla item (a new character already carries an iron dagger)
+  const uint32_t daggersBefore = ac.GetInventory().GetItemCount(0x1397e);
   CraftItemMessage msg1;
   msg1.data.craftInputObjects = requiredItems;
   msg1.data.workbench = workbenchId;
-  msg1.data.resultObjectId = 0x1398a;
+  msg1.data.resultObjectId = 0x1397e;
   p.GetActionListener().OnCraftItem(msgData, msg1);
-  REQUIRE(ac.GetInventory().GetItemCount(0x1398a) == 1);
+  REQUIRE(ac.GetInventory().GetItemCount(0x1397e) == daggersBefore + 1);
 
   // Hearthfires item (nails)
   REQUIRE(ac.GetInventory().GetItemCount(0x300300f) == 0);
@@ -186,4 +192,140 @@ TEST_CASE("DLC Hearthfires recipes are working", "[Craft][espm]")
     Inventory().AddItem(0x0005ACE4, 1), 0x300300F);
   REQUIRE(form.size() > 0);
   REQUIRE(form[0].rec->GetId() == 0x0200306d);
+}
+
+namespace {
+Condition MakeCondition(const std::string& function, uint32_t parameter1,
+                        float value = 1.f,
+                        const std::string& logicalOperator = "AND")
+{
+  char hex[16];
+  std::snprintf(hex, sizeof(hex), "0x%X", parameter1);
+  Condition c;
+  c.function = function;
+  c.runsOn = "Subject";
+  c.comparison = "==";
+  c.value = value;
+  c.parameter1 = hex;
+  c.parameter2 = "0x0";
+  c.logicalOperator = logicalOperator;
+  return c;
+}
+
+bool EvaluateAs(ConditionsEvaluatorCaller caller,
+                const std::vector<Condition>& conditions, const MpActor& actor)
+{
+  static const auto kFunctions =
+    ConditionFunctionFactory::CreateConditionFunctions();
+  bool result = false;
+  ConditionsEvaluator::EvaluateConditions(
+    kFunctions, ConditionsEvaluatorSettings(), caller, conditions, actor,
+    actor, [&](bool res, std::vector<std::string>&) { result = res; });
+  return result;
+}
+}
+
+TEST_CASE("A condition the server cannot evaluate locks a recipe, and only a "
+          "recipe",
+          "[Craft]")
+{
+  MpActor actor(LocationalData(), FormCallbacks::DoNothing());
+  Appearance appearance;
+  appearance.raceId = 0x13746;
+  actor.SetAppearance(&appearance);
+
+  // HasPerk (448) is not implemented, and DragonBreak gives no vanilla perks
+  const std::vector<Condition> hasPerk = { MakeCondition("#448", 0xcb412) };
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft, hasPerk, actor) ==
+          false);
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kDamageMultConditionalFormula,
+                     hasPerk, actor) == true);
+
+  // An OR group still passes on the condition the server can answer
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#448", 0xcb412, 1.f, "OR"),
+                       MakeCondition("GetIsRace", 0x13746) },
+                     actor) == true);
+
+  // GetBaseActorValue (277) stays open: skills live in the player's game
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#277", 0x10, 25.f) }, actor) == true);
+}
+
+TEST_CASE("GetPCIsRace tells a recipe the crafter's race", "[Craft]")
+{
+  MpActor actor(LocationalData(), FormCallbacks::DoNothing());
+  Appearance appearance;
+  appearance.raceId = 0x88794; // NordRaceVampire
+  actor.SetAppearance(&appearance);
+
+  // More Craftable Equipment's vampire armor: any of the vampire races, OR'd
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("GetPCIsRace", 0x8883a, 1.f, "OR"),
+                       MakeCondition("GetPCIsRace", 0x88794) },
+                     actor) == true);
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("GetPCIsRace", 0x8883a, 1.f, "OR"),
+                       MakeCondition("GetPCIsRace", 0x88840) },
+                     actor) == false);
+}
+
+// Guards what RecipeItemsMatch already does (isTemper): tempering stays out of
+// crafting while conditions fail closed
+TEST_CASE("A tempering recipe never makes an item", "[Craft][espm]")
+{
+  PartOne& p = GetPartOne();
+  auto craftService = p.GetActionListener().GetCraftService();
+  const uint32_t IronIngot = 0x5ace4, LeatherStrips = 0x800e4,
+                 IronDagger = 0x1397e;
+
+  // TemperWeaponIronDagger (adb7e): one iron ingot at a sharpening wheel
+  // (088108) "makes" the dagger itself
+  REQUIRE(craftService
+            ->FindRecipe(std::nullopt, std::vector<uint32_t>{ 0x88108 },
+                         p.GetEspm().GetBrowser(),
+                         Inventory().AddItem(IronIngot, 1), IronDagger)
+            .empty());
+
+  // The forge's RecipeWeaponIronDagger (da76a) still makes one
+  auto forge = craftService->FindRecipe(
+    std::nullopt, std::vector<uint32_t>{ 0x88105 }, p.GetEspm().GetBrowser(),
+    Inventory().AddItem(IronIngot, 1).AddItem(LeatherStrips, 1), IronDagger);
+  REQUIRE(forge.size() == 1);
+  REQUIRE(forge[0].rec->GetId() == 0xda76a);
+}
+
+TEST_CASE("A recipe that needs a vanilla perk is refused", "[Craft][espm]")
+{
+  // RecipeWeaponEbonyDagger (db8b9) needs HasPerk(EbonySmithing cb412)
+  const uint32_t EbonyIngot = 0x5ad9d, LeatherStrips = 0x800e4,
+                 EbonyDagger = 0x139ae;
+  const Inventory inputs =
+    Inventory().AddItem(EbonyIngot, 1).AddItem(LeatherStrips, 1);
+
+  PartOne& p = GetPartOne();
+  const auto workbenchId = 0x1ad6e;
+  auto& refr = p.worldState.GetFormAt<MpObjectReference>(workbenchId);
+
+  DoConnect(p, 0);
+  p.CreateActor(0xff000000, refr.GetPos(), 0,
+                refr.GetCellOrWorld().ToFormId(p.worldState.espmFiles));
+  p.SetUserActor(0, 0xff000000);
+  auto& ac = p.worldState.GetFormAt<MpActor>(0xff000000);
+  for (auto entry : inputs.entries)
+    ac.AddItem(entry.baseId, entry.count);
+
+  RawMessageData msgData;
+  msgData.userId = 0;
+  CraftItemMessage msg;
+  msg.data.craftInputObjects = inputs;
+  msg.data.workbench = workbenchId;
+  msg.data.resultObjectId = EbonyDagger;
+  p.GetActionListener().OnCraftItem(msgData, msg);
+
+  REQUIRE(ac.GetInventory().GetItemCount(EbonyDagger) == 0);
+  REQUIRE(ac.GetInventory().GetItemCount(EbonyIngot) == 1);
+
+  p.DestroyActor(0xff000000);
+  DoDisconnect(p, 0);
 }
