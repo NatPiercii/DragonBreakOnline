@@ -4,9 +4,10 @@
 /monitor command reads. Runs as the dbo-monitor systemd unit (root: the logs and the bot token are root-only).
 
 Classes of event it knows:
-  server   restarts, updater results, gamemode load failures, script errors, C++ errors (known noise counted only),
-           freezes (event loop p99 over 2 s twice, or no tick summary for 3 min while skymp.service is active),
-           pressure (io or memory PSI 'full avg60' over 20, or container memory over 90%, twice, with the top cgroups)
+  server   starts (crashed or restarted, from systemd's journal), updater results, gamemode load failures, script
+           errors, C++ errors (known noise counted only), freezes (event loop p99 over 2 s twice, or no tick summary
+           for 3 min while skymp.service is active), pressure (io or memory PSI 'full avg60' over 20, or container
+           memory over 90%, twice, with the 3 biggest cgroups)
   players  joins, leaves, and likely crashes (a player whose game went silent 45 s or more before the disconnect)
   npc      npcDrift split/sink/jump/remote/snap/bounce/error, npcGround under/over/lifted, hosts released,
            jumps refused, NPCs stuck in one spot, and players hosting many NPCs they no longer have loaded
@@ -116,6 +117,31 @@ def skymp_active():
         return subprocess.run(['systemctl', 'is-active', '--quiet', 'skymp'], timeout=15).returncode == 0
     except Exception:
         return True    # systemctl stuck (as under heavy pressure) must not hide a freeze
+
+
+def start_cause(lines):
+    """How skymp's latest start came about, from its systemd journal lines: ('crashed', 'status=11/SEGV') after an exit
+    nobody asked for, ('restarted', '') after a stop, ('', '') when the journal does not say."""
+    last = max((i for i, ln in enumerate(lines) if 'Started skymp' in ln), default=None)
+    exited = None
+    for ln in reversed(lines[:last] if last is not None else []):
+        if 'Stopping skymp' in ln:
+            return 'restarted', ''
+        if 'Started skymp' in ln:
+            break
+        exited = exited or re.search(r'Main process exited, code=(\w+), status=(\S+)', ln)
+    if exited and not (exited.group(1) == 'exited' and exited.group(2).startswith('0/')):
+        return 'crashed', 'status=' + exited.group(2)
+    return '', ''
+
+
+def journal_start_cause():
+    try:
+        out = subprocess.run(['journalctl', '-u', 'skymp', '-o', 'cat', '-n', '40', '--no-pager'],
+                             capture_output=True, text=True, timeout=15).stdout
+        return start_cause(out.splitlines())
+    except Exception:
+        return '', ''
 
 
 def psi_full60(path):
@@ -301,7 +327,12 @@ class Monitor:
         if 'Initialized MetricsSystem' in line:
             self.count('server.restart')
             self.last_loop = time.time(); self.loop_high = 0    # the first tick summary comes 1-3 min after a start
-            self.alert('restart:' + t, 'Game server started', t)
+            how, why = journal_start_cause()
+            if how == 'crashed':
+                self.count('server.crash')
+                self.alert('restart:' + t, f'**Game server crashed** ({why}) and started again', t)
+            else:
+                self.alert('restart:' + t, 'Game server restarted' if how else 'Game server started', t)
         elif '[gamemode] loaded: ' in line:
             self.last_loop = time.time()    # a gamemode reload restarts the 60 s summary timer
         elif 'audit: JOIN ' in line:

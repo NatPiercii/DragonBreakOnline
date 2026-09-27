@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline tests for dbo_monitor's freeze and pressure alerts: no network, no systemd, no real state dir or /proc.
+"""Offline tests for dbo_monitor's freeze, pressure and start alerts: no network, no systemd, no real state dir or /proc.
 
 Run: python3 tooling/dbo-monitor/test_dbo_monitor.py
 The stall samples are the real tick summaries from /var/log/skymp-server.log on 2026-09-27 (00:33-02:11Z freeze).
@@ -31,6 +31,19 @@ REAL_PEAK = 17051009024    # memory.peak: what the runaway dev test reached duri
 MB = 1048576
 
 
+# Real `journalctl -u skymp -o cat` lines (unit description shortened)
+UNIT = 'skymp.service - SkyMP dedicated server'
+J_SEGV = [f'Started {UNIT}.', 'skymp.service: Main process exited, code=killed, status=11/SEGV',
+          "skymp.service: Failed with result 'signal'.", 'skymp.service: Consumed 1min 57.303s CPU time.',
+          'skymp.service: Scheduled restart job, restart counter is at 1.', f'Started {UNIT}.']    # 2026-09-25 21:39
+J_STOP = [f'Started {UNIT}.', f'Stopping {UNIT}...', 'skymp.service: Deactivated successfully.', f'Stopped {UNIT}.',
+          'skymp.service: Consumed 4min 58.829s CPU time, 849.0M memory peak, 230.9M memory swap peak.',
+          f'Started {UNIT}.']    # 2026-09-27 02:11, after the stall
+J_EXCEPTION = [f'Started {UNIT}.', 'skymp.service: Main process exited, code=exited, status=255/EXCEPTION',
+               "skymp.service: Failed with result 'exit-code'.",
+               'skymp.service: Scheduled restart job, restart counter is at 1.', f'Started {UNIT}.']    # 2026-09-18
+
+
 def psi(full60, some60=None):
     some60 = full60 if some60 is None else some60
     return f'some avg10=0.00 avg60={some60:.2f} avg300=0.00 total=1\nfull avg10=0.00 avg60={full60:.2f} avg300=0.00 total=1\n'
@@ -60,7 +73,7 @@ class MonitorCase(unittest.TestCase):
         for target, value in [
             ('STATE_DIR', self.tmp), ('STATE', os.path.join(self.tmp, 'state.json')), ('CHANNEL', ''),
             ('post', self.posts.append), ('post_thread', lambda *a: False), ('token', lambda: ''),
-            ('skymp_active', lambda: self.active),
+            ('skymp_active', lambda: self.active), ('journal_start_cause', lambda: self.cause),
             ('PSI_IO', self.path('proc/pressure/io')), ('PSI_MEM', self.path('proc/pressure/memory')),
             ('CGROUP', self.path('cg')), ('MEMINFO', self.path('proc/meminfo')),
         ]:
@@ -258,6 +271,34 @@ class PressureTest(MonitorCase):
             os.remove(self.path(rel))
         self.run_until(epoch('2026-09-27 00:40:00'))
         self.assertEqual(self.alerts(), [])
+
+
+class StartTest(MonitorCase):
+    def test_start_cause_from_real_journal_lines(self):
+        self.assertEqual(dm.start_cause(J_SEGV), ('crashed', 'status=11/SEGV'))
+        self.assertEqual(dm.start_cause(J_STOP), ('restarted', ''))
+        self.assertEqual(dm.start_cause(J_EXCEPTION), ('crashed', 'status=255/EXCEPTION'))
+        # with the LimitCORE=infinity drop-in a SIGSEGV now leaves a core: code=dumped
+        dumped = [ln.replace('code=killed', 'code=dumped') for ln in J_SEGV]
+        self.assertEqual(dm.start_cause(dumped), ('crashed', 'status=11/SEGV'))
+        # a stop whose process then exits non-zero is still a stop; older history before the last start is ignored
+        stop_255 = J_SEGV[:-1] + [f'Started {UNIT}.', f'Stopping {UNIT}...',
+                                  'skymp.service: Main process exited, code=exited, status=255/EXCEPTION', f'Started {UNIT}.']
+        self.assertEqual(dm.start_cause(stop_255), ('restarted', ''))
+        self.assertEqual(dm.start_cause(J_STOP[-1:]), ('', ''), 'first start in the window')
+        self.assertEqual(dm.start_cause([]), ('', ''))
+
+    def test_start_alerts(self):
+        self.start('2026-09-25 21:39:00')
+        line = '[2026-09-25 21:39:28.000] [console] [info] Initialized MetricsSystem'
+        for cause, text in [(('crashed', 'status=11/SEGV'), '`21:39:28` **Game server crashed** (status=11/SEGV) and started again'),
+                            (('restarted', ''), '`21:39:28` Game server restarted'),
+                            (('', ''), '`21:39:28` Game server started')]:
+            self.posts.clear(); self.mon.alerted.clear(); self.cause = cause
+            self.mon.line(line, 'server')
+            self.assertEqual(self.alerts(), [text])
+        self.assertEqual(self.mon.win['counts'].get('server.crash'), 1)
+        self.assertEqual(self.mon.win['counts'].get('server.restart'), 3)
 
 
 if __name__ == '__main__':
