@@ -85,3 +85,5 @@ schedule.json
 # business.js: businesses, their ledgers and rented chests; each hold's rent tax
 businesses.json
 taxes.json
+# gamemode.js: every staff command of the last 7 days, for /staffstats and the daily summary
+staff-actions.json

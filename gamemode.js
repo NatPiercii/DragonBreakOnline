@@ -100,9 +100,11 @@ if (!globalThis.__dboSigtermHooked) {
 }
 
 // Admin tiers, same rules as the server's adminRoles.ts: adminProfileIds are senior, then adminRoles
-// tiers by Discord role id (senior > developer > gm), then legacy adminRoleIds as senior.
+// tiers by Discord role id (senior > developer > leadgm > gm), then legacy adminRoleIds as senior.
+// Jake and Nate, 2026-09-27: GM observes and reports (teleport, invisible/god, kick, /fixloc, /rename, announcements,
+// read-only tools); anything that creates or changes the world or the economy is Lead GM and above.
 const idList = (v) => Array.isArray(v) ? v.map(String) : [];
-const TIERS = ['senior', 'developer', 'gm'];
+const TIERS = ['senior', 'developer', 'leadgm', 'gm'];
 const tierRoles = {}; for (const t of TIERS) tierRoles[t] = idList((serverSettings.adminRoles || {})[t]);
 const legacyAdminRoles = idList(serverSettings.adminRoleIds);
 const ADMIN_PROFILES = new Set([...(serverSettings.adminProfileIds || []), ...(cfg.admins || [])].map(Number).filter(Number.isFinite));
@@ -165,6 +167,12 @@ const tierOf = (actorId) => {
   return has(legacyAdminRoles) ? 'senior' : null;
 };
 const isAdmin = (actorId) => tierOf(actorId) !== null;
+// Lead GM and above: spawning, grants, curses, world state, the console
+const isLeadStaff = (actorId) => { const t = tierOf(actorId); return t !== null && t !== 'gm'; };
+const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM', gm: 'GM' };
+// Staff commands a GM may not use (command name, or 'name sub' for one subcommand)
+const LEAD_ONLY = new Set(['beastform', 'vlremote', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
+  'jail', 'placeexport', 'staffstats', 'war', 'curse', 'schedule', 'warband', 'raid', 'settime', 'timescale', 'setweather', 'npc remove', 'dungeon end']);
 
 const onlineActors = () => {
   try { const v = mp.get(0, 'onlinePlayers'); if (Array.isArray(v) && v.length) return v.map(Number).filter(Boolean); } catch (e) { /* fall through */ }
@@ -252,11 +260,77 @@ const audit = (text) => {
   if (!discordTarget) return;
   auditQueue.push(line); if (auditQueue.length > 500) auditQueue.splice(0, auditQueue.length - 500);
 };
+// ---- staff commands: every one posted to #staff-commands and counted for 7 days (Jake and Nate, 2026-09-27) -----
+// Chat commands, admin panel actions (AdminSystem's log hook below) and console commands. staff-actions.json is runtime.
+const STAFF_CHANNEL = String((cfg.discord || {}).staffChannelId || '1553844758919774298');
+const STAFF_FILE = path.resolve('staff-actions.json');
+const staffState = globalThis.__dboStaffState || (globalThis.__dboStaffState = { queue: [], busy: false, pauseUntil: 0, list: null, dirty: false, summaryDay: '' });
+const staffList = () => {
+  if (!staffState.list) { try { const v = JSON.parse(fs.readFileSync(STAFF_FILE, 'utf8')); staffState.list = Array.isArray(v) ? v : []; } catch (e) { staffState.list = []; } }
+  return staffState.list;
+};
+const WEEK_MS = 7 * 86400000;
+// who: the staff member's name as the counts show it; what: the command word counted; detail: the full line posted
+const staffLog = (whoName, tier, what, detail) => {
+  const now = Date.now();
+  const list = staffList();
+  list.push({ at: now, who: whoName, tier: tier || '', what });
+  while (list.length && now - list[0].at > WEEK_MS) list.shift();
+  staffState.dirty = true;
+  if (discordTarget && discordTarget.kind === 'bot') {
+    staffState.queue.push(`[${new Date(now).toISOString().slice(11, 19)}] ${detail}`);
+    if (staffState.queue.length > 500) staffState.queue.splice(0, staffState.queue.length - 500);
+  }
+};
+const flushStaff = async () => {
+  if (staffState.dirty) { staffState.dirty = false; try { fs.writeFileSync(STAFF_FILE + '.tmp', JSON.stringify(staffList())); fs.renameSync(STAFF_FILE + '.tmp', STAFF_FILE); } catch (e) { log('staff-actions.json write failed', e.message); } }
+  if (staffState.busy || !staffState.queue.length || Date.now() < staffState.pauseUntil || !discordTarget || discordTarget.kind !== 'bot') return;
+  staffState.busy = true;
+  const lines = []; let size = 0;
+  while (staffState.queue.length && size + staffState.queue[0].length + 1 < 1900) { const l = staffState.queue.shift(); lines.push(l); size += l.length + 1; }
+  try { await postJson(`https://discord.com/api/v10/channels/${STAFF_CHANNEL}/messages`, { content: lines.join('\n'), allowed_mentions: { parse: [] } }, { Authorization: `Bot ${discordTarget.token}` }); }
+  catch (e) {
+    let wait = 5000; try { wait = Math.max(wait, Number(JSON.parse(e.body || '{}').retry_after || 0) * 1000); } catch (x) { /* ignore */ }
+    staffState.pauseUntil = Date.now() + wait; staffState.queue.unshift(...lines); log('discord staff post failed:', e.message);
+  }
+  staffState.busy = false;
+};
+// Counts per staff member and command over the last 7 days, most used first
+const staffSummary = (onlyWho) => {
+  const now = Date.now(); const per = new Map();
+  for (const e of staffList()) {
+    if (now - e.at > WEEK_MS || (onlyWho && !String(e.who).toLowerCase().includes(onlyWho.toLowerCase()))) continue;
+    const k = `${e.who}${e.tier ? ` (${TIER_LABEL[e.tier] || e.tier})` : ''}`;
+    const m = per.get(k) || new Map(); m.set(e.what, (m.get(e.what) || 0) + 1); per.set(k, m);
+  }
+  return [...per.entries()].map(([k, m]) => {
+    const total = [...m.values()].reduce((x, y) => x + y, 0);
+    return { k, total, text: `${k}: ${total} - ${[...m.entries()].sort((x, y) => y[1] - x[1]).map(([w, n]) => `${w} x${n}`).join(', ')}` };
+  }).sort((x, y) => y.total - x.total).map((x) => x.text);
+};
+every('staffLog', 2000, flushStaff);
+// A summary of the week in #staff-commands once a day, after midnight UTC
+every('staffSummary', 60000, () => {
+  const d = new Date(); const day = d.toISOString().slice(0, 10);
+  if (d.getUTCHours() !== 0 || staffState.summaryDay === day) return;
+  staffState.summaryDay = day;
+  const lines = staffSummary('');
+  staffState.queue.push(`**Staff commands, last 7 days** (${day})`, ...(lines.length ? lines : ['none']));
+});
+
 if (discordTarget) log(`discord audit log: ${discordTarget.kind}${discordTarget.kind === 'bot' ? ' channel ' + discordTarget.channel : ''}`);
 else log('discord audit log: not configured (gamemode-config.json discord.webhookUrl, or discordAuth in server-settings.json)');
 every('audit', 1500, flushAudit);
 // AdminSystem (teleport, summon, kick, ban, mastery, npc zones) routes its log lines through this hook.
-globalThis.__alduinakAdminLog = (text) => audit(`GM ${text}`);
+globalThis.__alduinakAdminLog = (text) => {
+  audit(`GM ${text}`);
+  // "profile 12 (gm) teleported to ..." : count it under that profile's online character when there is one
+  const m = String(text).match(/profile (\d+)(?: \(([a-z]+)\))?/);
+  const prof = m ? Number(m[1]) : -1;
+  const actor = prof >= 0 ? onlineActors().find((x) => profileOf(x) === prof) : 0;
+  const verb = (String(text).replace(/^profile \d+(?: \([a-z]+\))? /, '').split(/\s+/)[0] || 'panel').toLowerCase();
+  staffLog(actor ? display(actor) : `profile ${prof}`, actor ? tierOf(actor) : (m && m[2]) || '', `panel:${verb}`, `${actor ? display(actor) : 'staff'} (panel) ${text}`);
+};
 
 // ---- character height (RaceMenu height slider, synced and clamped) --------------------------
 // SkyMP does not sync actor scale. The client reports its own scale after RaceMenu closes, the
@@ -752,11 +826,18 @@ const handleChat = (userId, text) => {
     const t = findByName(target); if (!t) return personal(a, `No player matches "${target}".`);
     deliver(t, `[[PM]]${name}|${msg}`); return;
   }
-  if (cmd === 'system') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) { broadcast(`[[S]]#{${C.SYS}}${body}`); audit(`GM ${who(a)} /system: ${body}`); } return; }
+  if (cmd === 'system') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) { broadcast(`[[S]]#{${C.SYS}}${body}`); audit(`GM ${who(a)} /system: ${body}`); staffLog(display(a), tierOf(a), '/system', `${display(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /system ${body.slice(0, 300)}`); } return; }
   if (cmd === 'admin') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) broadcast(`[[A]]#{${C.SYS}}${name}: ${body}`, true); return; }
   const c = commands.get(cmd);
   if (!c) return personal(a, `Unknown command /${cmd}. Type /help.`);
   if (c.admin && !isAdmin(a)) return personal(a, 'Admins only.');
+  const sub = `${cmd} ${(body.split(/\s+/)[0] || '').toLowerCase()}`;
+  const staffCmd = c.admin || LEAD_ONLY.has(sub);
+  if ((LEAD_ONLY.has(cmd) || LEAD_ONLY.has(sub)) && isAdmin(a) && !isLeadStaff(a)) {
+    staffLog(display(a), tierOf(a), `/${cmd} (refused)`, `${display(a)} (GM): /${cmd} ${body.slice(0, 300)} REFUSED (Lead GM and above)`);
+    return personal(a, 'That is for a Lead GM and above.');
+  }
+  if (staffCmd && isAdmin(a)) staffLog(display(a), tierOf(a), `/${cmd}`, `${display(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /${cmd} ${body.slice(0, 300)}`);
   try { c.fn(a, body, userId); } catch (e) { log('command', cmd, 'failed', e); personal(a, 'That command failed.'); }
 };
 
@@ -2690,9 +2771,12 @@ onUi('consoleLocal', (a, args) => {
   const extra = Array.isArray(args[2]) ? args[2].slice(0, 4).map(clip) : [];
   const allowed = hasConsoleRights(a);
   audit(`CONSOLE ${who(a)}${allowed ? '' : ' BLOCKED (no console rights)'}: ${name}${target && target !== 'player' ? ' on ' + target : ''}${extra.length ? ' ' + extra.join(' ') : ''} (local)`);
+  if (isAdmin(a)) staffLog(display(a), tierOf(a), `console:${name.toLowerCase()}${allowed ? '' : ' (blocked)'}`, `${display(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}) console${allowed ? '' : ' BLOCKED'}: ${name}${target && target !== 'player' ? ' on ' + target : ''}${extra.length ? ' ' + extra.join(' ') : ''}`);
   if (seen.length === CONSOLE_LOCAL_PER_MIN) log(`console: ${display(a)} passed ${CONSOLE_LOCAL_PER_MIN} local commands a minute; the rest this minute are not logged`);
 });
-every('consoleRights', 15000, () => { for (const a of onlineActors()) sendConsoleRights(a, false); });
+// The console can spawn anything, so a GM (base tier) has none, whatever AdminSystem granted at connect
+const gmConsoleOff = (a) => { try { if (tierOf(a) === 'gm' && mp.get(a, 'consoleCommandsAllowed') === true) mp.set(a, 'consoleCommandsAllowed', false); } catch (e) { /* not an actor */ } };
+every('consoleRights', 15000, () => { for (const a of onlineActors()) { gmConsoleOff(a); sendConsoleRights(a, false); } });
 // ---- item guards on drop, put and take (server\itemguards.js; server-authority audit B1/B2) -------------------------
 try {
   const ITEMGUARDS_JS = path.resolve('itemguards.js');
@@ -3534,7 +3618,8 @@ try {
 try {
   const PLACEMENT_JS = path.resolve('placement.js');
   delete require.cache[PLACEMENT_JS];
-  require(PLACEMENT_JS)({ mp, log, personal, audit, who, onUi, sendPacket, isAdmin, registerChatCommand, cfg });
+  // Placing objects and NPCs is Lead GM and above
+  require(PLACEMENT_JS)({ mp, log, personal, audit, who, onUi, sendPacket, isAdmin: isLeadStaff, registerChatCommand, cfg });
 } catch (e) { log('placement.js failed to load:', e.stack || e.message); }
 
 // ---- breaking free of bound hands, /struggle (server\struggle.js, config "struggle") --------------
@@ -3618,6 +3703,12 @@ every('announce', 5000, () => {
   for (const o of onlineActors()) { system(o, text); personal(o, text); }
   log(`announcement to ${onlineActors().length} player(s): ${text}`);
 });
+// The 7-day staff command counts (also posted to #staff-commands daily): Lead GM and above
+registerChatCommand('staffstats', (a, args) => {
+  const lines = staffSummary(String(args || '').trim());
+  personal(a, `Staff commands, last 7 days${String(args || '').trim() ? ` matching "${String(args).trim()}"` : ''}:`);
+  (lines.length ? lines : ['none']).slice(0, 25).forEach((l) => personal(a, l));
+}, { admin: true, help: '[name] staff command counts for the last 7 days (Lead GM and above)' });
 registerChatCommand('announce', (a, args) => {
   const text = String(args || '').trim(); if (!text) return personal(a, 'Usage: /announce <text>');
   for (const o of onlineActors()) { system(o, text); personal(o, text); }
