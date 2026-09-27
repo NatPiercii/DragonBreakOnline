@@ -201,6 +201,9 @@ export class VoiceService extends ClientListener {
           showSystemNotification(this.sp, "Voice: microphone unavailable");
         });
       }
+    } else if (kind === "voice::echoLoop") {
+      // Whether playback runs through the echo-cancelling loop ("on"), or fell back to the direct mix ("off", "failed: ...")
+      logTrace(this, `voice echo loop: ${e.arguments[1]}`);
     } else if (kind === "voice::error") {
       // Room dropped: forget the session and ask for a fresh token shortly
       this.connectedForRefrId = 0;
