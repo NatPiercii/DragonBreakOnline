@@ -173,6 +173,16 @@
           </div>
 
           <div class="settings-group">
+            <label class="setting-label">Mods Already Downloaded (Vortex)</label>
+            <div class="setting-path-row">
+              <input class="setting-input" id="setting-archive-dir" type="text"
+                     placeholder="Vortex's downloads folder, if you moved it" />
+              <button class="btn-browse" id="btn-browse-archives">Browse…</button>
+            </div>
+            <p class="setting-hint" id="archive-dir-hint">Installs use mod archives already in this folder instead of downloading them again. Vortex's usual folder is checked by itself.</p>
+          </div>
+
+          <div class="settings-group">
             <label class="setting-label">Repair</label>
             <div class="vortex-status-row install-buttons-row">
               <button class="btn-detect-vortex" id="btn-repair-mo2">Repair MO2</button>
@@ -269,6 +279,10 @@
                 <option value="high">High</option>
                 <option value="ultra">Ultra</option>
               </select>
+            </div>
+            <div class="settings-group">
+              <label class="setting-label">Field of View</label>
+              <input class="setting-input" type="number" id="gfx-fov" min="50" max="140" step="1" />
             </div>
             <label class="setting-checkbox-row"><input type="checkbox" id="gfx-godrays" /><span>Godrays</span></label>
             <label class="setting-checkbox-row"><input type="checkbox" id="gfx-lensflare" /><span>Lens flare</span></label>

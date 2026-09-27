@@ -149,7 +149,7 @@ const GHK_MAP = {
 }
 const GFX_INPUT_IDS = [
   'gfx-windowmode', 'gfx-resolution', 'gfx-texquality', 'gfx-aa', 'gfx-shadowquality',
-  'gfx-decals', 'gfx-reflections', 'gfx-godrays', 'gfx-lensflare', 'gfx-ao', 'gfx-precip',
+  'gfx-decals', 'gfx-reflections', 'gfx-godrays', 'gfx-lensflare', 'gfx-ao', 'gfx-precip', 'gfx-fov',
 ]
 
 function setInputsDisabled(ids, disabled) {
@@ -173,6 +173,7 @@ async function loadGameSettingsTab() {
       const iy = document.getElementById('gfx-invert-y'); if (iy) iy.checked = !!g.invertY
       const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v }
       const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v }
+      setVal('gfx-fov', g.fov)
       setVal('gfx-texquality', g.texQuality)
       setVal('gfx-aa', g.aa)
       setVal('gfx-shadowquality', g.shadowQuality)
@@ -227,6 +228,7 @@ async function saveGameSettingsTab() {
         windowMode: wm ? wm.value : 'windowed',
         width, height,
         invertY: !!(iy && iy.checked),
+        fov:           val('gfx-fov'),
         texQuality:    val('gfx-texquality'),
         aa:            val('gfx-aa'),
         shadowQuality: val('gfx-shadowquality'),
@@ -406,6 +408,7 @@ loadClientPrefs()
 // Form fields
 const fieldSkyrimPath   = document.getElementById('setting-skyrim-path')
 const fieldBaseDir      = document.getElementById('setting-base-dir')
+const fieldArchiveDir   = document.getElementById('setting-archive-dir')
 const skyrimPathWarning = document.getElementById('skyrim-path-warning')
 
 const DETECT_FAIL_MSG = 'Could not auto-detect Skyrim - set the path manually'
@@ -482,6 +485,10 @@ async function loadSettings() {
   // Empty here means main's registry auto-detect already failed.
   setPathWarning(s.skyrimPath ? '' : DETECT_FAIL_MSG)
   fieldBaseDir.value = s.baseDirPath || ''
+  fieldArchiveDir.value = s.archiveDir || ''
+  document.getElementById('archive-dir-hint').textContent = s.vortexDownloads
+    ? `Installs use mod archives already in this folder instead of downloading them again. Vortex's folder is used by itself: ${s.vortexDownloads}`
+    : "Installs use mod archives already in this folder instead of downloading them again. Vortex's usual folder is checked by itself."
 
   // Footer server selector - dropdown when >1 server, plain text otherwise
   if (s.servers && s.servers.length > 1) {
@@ -751,6 +758,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   const data = {
     skyrimPath:   fieldSkyrimPath.value.trim(),
     baseDirPath:  fieldBaseDir.value.trim(),
+    archiveDir:   fieldArchiveDir.value.trim(),
     mo2Enabled:   fieldMo2Enabled.checked,
     isolatedGame: fieldIsolated.checked,
   }
@@ -774,6 +782,12 @@ document.getElementById('btn-browse').addEventListener('click', async () => {
 document.getElementById('btn-browse-base').addEventListener('click', async () => {
   const folder = await window.electronAPI.openFolder('Choose where to install DragonBreak (~16 GB: MO2 + game copy)')
   if (folder) fieldBaseDir.value = folder
+})
+
+// Browse a folder of mods already downloaded (Vortex's downloads)
+document.getElementById('btn-browse-archives').addEventListener('click', async () => {
+  const folder = await window.electronAPI.openFolder("Choose the folder Vortex downloads Skyrim SE mods to")
+  if (folder) fieldArchiveDir.value = folder
 })
 
 // Detect Skyrim from the registry (persists on success)

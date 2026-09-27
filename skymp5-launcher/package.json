@@ -1,6 +1,6 @@
 {
   "name": "dragonbreak-launcher",
-  "version": "2.1.29",
+  "version": "2.1.31",
   "description": "Launcher for the DragonBreak server",
   "productName": "DragonBreak Launcher",
   "main": "src/main.js",
@@ -9,8 +9,10 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "test": "node --test test/*.test.js",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
+    "build:win-on-linux": "LANG=C.UTF-8 LC_ALL=C.UTF-8 node -r ./build-linux/preload.js node_modules/electron-builder/cli.js --win --x64 --publish never -c.win.signAndEditExecutable=false -c.afterPack=./build-linux/afterPack.js",
     "build:linux": "electron-builder --linux",
     "build:mac": "electron-builder --mac"
   },
