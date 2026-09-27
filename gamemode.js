@@ -821,6 +821,8 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboRestActivate && globalThis.__dboRestActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboSuperActivate && globalThis.__dboSuperActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboCoinPurse && globalThis.__dboCoinPurse(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboWispStalk && globalThis.__dboWispStalk(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboAyleidWell && globalThis.__dboAyleidWell(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBankActivate && globalThis.__dboBankActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
@@ -2160,6 +2162,56 @@ globalThis.__dboCoinPurse = (targetId, casterId) => {
     personal(casterId, `You pocket ${gold} gold from the purse.`);
     try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('activate', casterId, { refrId: targetId }); } catch (e) { /* no skill system */ }
   }
+  return true;
+};
+
+// ---- Beyond Skyrim activators the server runs itself: wisp stalks and Ayleid wells --------------------------------
+// Their scripts (BSKWispStalkACTIVATORScript, CYRAyleidWellScript) are not in the server's script storage, so using one
+// did nothing (error review 2026-09-26 item 11). What they do comes from their VMAD properties and records.
+const nodeSay = new Map();
+const sayOnce = (a, text) => { if (Date.now() - (nodeSay.get(a) || 0) > 1500) { nodeSay.set(a, Date.now()); personal(a, text); } return true; };
+const baseDescOf = (id) => { try { return String(mp.get(id, 'baseDesc') || '').toLowerCase(); } catch (e) { return ''; } };
+
+// A wisp stalk hands over one Wisp Stalk (BSAssets 601924) like a Nirnroot; here it is a Harvesting node that then rests
+const WISP = Object.assign({ enabled: true, restMinutes: 360 }, cfg.wispStalks || {});
+const WISP_BASES = new Set(['6025b3:bsassets.esm', '6025b4:bsassets.esm']);
+const wispRest = globalThis.__dboWispRest = globalThis.__dboWispRest || new Map(); // refId -> until
+globalThis.__dboWispStalk = (targetId, casterId) => {
+  if (!WISP.enabled || targetId >= 0xff000000 || !WISP_BASES.has(baseDescOf(targetId))) return false;
+  const until = wispRest.get(targetId) || 0;
+  if (until > Date.now()) return sayOnce(casterId, `This wisp stalk has been picked. It grows back in about ${Math.ceil((until - Date.now()) / 3600000)} hour(s).`);
+  const tier = harvestingTier(casterId);
+  const unskilled = HARVESTING.unskilled || {};
+  const chance = tier >= 0 ? (Number((HARVESTING.yieldChanceByTier || [])[Math.min(tier, 4)]) || 1) : Number(unskilled.yieldChance) || 0.25;
+  const mult = tier >= 0 ? (Number((HARVESTING.yieldMultiplierByTier || [])[Math.min(tier, 4)]) || 1) : Number(unskilled.yieldMultiplier) || 0.5;
+  wispRest.set(targetId, Date.now() + WISP.restMinutes * 60000);
+  if (Math.random() > chance) return sayOnce(casterId, 'The wisp stalk crumbles in your hands.');
+  const count = Math.max(1, Math.round(mult));
+  if (giveItem(casterId, mp.getIdFromDesc('601924:BSAssets.esm') >>> 0, count)) {
+    personal(casterId, count > 1 ? `You successfully harvest ${count} Wisp Stalks.` : 'You successfully harvest Wisp Stalk.');
+    try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('activate', casterId, { refrId: targetId }); } catch (e) { /* no skill system */ }
+  }
+  return true;
+};
+
+// An Ayleid well casts Boon of the Ayleids (CYRAyleidWellSpell: Fortify Magicka 50 for 300 s, Restore Magicka 400) and
+// is then spent until the next midnight of the world clock, for everyone. The server can restore magicka; the Fortify
+// half needs a client that casts a spell on its own player, which comes with a later client package.
+const WELLS = Object.assign({ enabled: true }, cfg.ayleidWells || {});
+const WELL_BASE = '61b5b:bsheartland.esm';
+const wellSpent = globalThis.__dboWellSpent = globalThis.__dboWellSpent || new Map(); // refId -> game day it refills
+globalThis.__dboAyleidWell = (targetId, casterId) => {
+  if (!WELLS.enabled || targetId >= 0xff000000 || baseDescOf(targetId) !== WELL_BASE) return false;
+  const clock = globalThis.__dboClock;
+  const day = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : Date.now() / 86400000;
+  if ((wellSpent.get(targetId) || 0) > day) return sayOnce(casterId, 'The stellar power of the Ayleid well is depleted. At midnight, when the stars shine, it will be restored.');
+  try {
+    const pc = mp.get(casterId, 'percentages') || {};
+    mp.set(casterId, 'percentages', { health: pc.health, magicka: 1, stamina: pc.stamina });
+  } catch (e) { log('ayleid well: restore failed', e.message); return true; }
+  wellSpent.set(targetId, Math.floor(day) + 1);
+  personal(casterId, 'Starlight pours from the Ayleid well into you. Your magicka is restored.');
+  audit(`WELL ${who(casterId)} drew on the Ayleid well ${targetId.toString(16)}`);
   return true;
 };
 
