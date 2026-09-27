@@ -569,6 +569,42 @@ test('reviews: a copy with the same patch id carries the GO', async () => {
   })
 })
 
+test('reviews: a copy that differs only in whitespace does not carry the GO', async () => {
+  // fast-import, as the worktree holds untracked fixture files that a checkout would sweep up
+  const importCommit = (ref, content) => {
+    const stream = [`commit refs/heads/${ref}`, 'committer NatPiercii <nate@example.com> 1758326400 +0000', 'data <<END', 'backend: clean the scratch folder', 'END',
+      `from ${S.LIVE}`, 'M 100644 inline skymp5-backend/routes/clean.js', 'data <<END', content, 'END', ''].join('\n')
+    execFileSync('git', ['-C', repo, 'fast-import', '--quiet'], { input: stream, env: fixtureEnv() })
+    return g('rev-parse', `refs/heads/${ref}`)
+  }
+  const reviewed = importCommit('ws-reviewed', 'run("rm -rf /tmp/x")')
+  const copy = importCommit('ws-copy', 'run("rm -rf / tmp/x")')
+  const same = g('commit-tree', '-p', S.LIVE, '-m', 'backend: clean the scratch folder', `${reviewed}^{tree}`)
+  const pids = mode => execFileSync('git', ['-C', repo, 'patch-id', mode], { input: g('log', '-p', '--no-walk=unsorted', '--format=commit %H', reviewed, copy) + '\n', encoding: 'utf8' })
+    .trim().split('\n').map(l => l.split(' ')[0])
+  try {
+    // The old --stable id ignores the space, so this test fails with it
+    assert.equal(new Set(pids('--stable')).size, 1)
+    assert.equal(new Set(pids('--verbatim')).size, 2)
+    g('update-ref', 'refs/remotes/origin/main', copy)
+    await withQueue({ reviews: [go(reviewed)] }, async q => {
+      const qv = await q.queue()
+      assert.deepEqual(row(qv, copy).review, { state: 'none', by: null, at: null })
+      assert.equal(qv.default.fork, S.LIVE)
+      assert.deepEqual(qv.stops.fork, { short: short(copy), kind: 'commit', reason: 'notReviewed' })
+    })
+    g('update-ref', 'refs/remotes/origin/main', same)
+    await withQueue({ reviews: [go(reviewed)] }, async q => {
+      const qv = await q.queue()
+      assert.equal(row(qv, same).review.state, 'sameChange')
+      assert.equal(qv.default.fork, same)
+    })
+  } finally {
+    g('update-ref', 'refs/remotes/origin/main', S.M2)
+    g('branch', '-D', 'ws-reviewed', 'ws-copy')
+  }
+})
+
 test('reviews: a clean merge of a same-change copy counts as reviewed', async () => {
   const copy = g('commit-tree', '-p', S.LIVE, '-m', 'backend: fix the login', `${S.P}^{tree}`)
   const merge = g('commit-tree', '-p', S.LIVE, '-p', copy, '-m', 'Merge branch copy', `${S.P}^{tree}`)

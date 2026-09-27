@@ -609,12 +609,13 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
   }
 
   // Patch ids of non-merge commits, in batches; a batch over the buffer falls back to one commit at a time
+  // --verbatim keeps whitespace, so a copy that differs only in spacing is a different change
   async function patchIds(shas) {
     const todo = [...new Set(shas)].filter(s => !memo.has(`pid:${s}`))
     const one = async batch => {
       const patch = await gitText('log', '-p', '--no-walk=unsorted', '--no-color', '--no-ext-diff', '--no-textconv', '--format=commit %H', '--end-of-options', ...batch)
       const ids = new Map()
-      for (const line of (await git(['patch-id', '--stable'], { input: patch })).stdout.split('\n')) {
+      for (const line of (await git(['patch-id', '--verbatim'], { input: patch })).stdout.split('\n')) {
         const [pid, sha] = line.split(' ')
         if (sha) ids.set(sha, pid)
       }
