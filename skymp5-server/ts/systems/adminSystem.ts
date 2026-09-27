@@ -67,6 +67,11 @@ const ADMIN_MODES: Array<{ id: string; label: string }> = [
   { id: "healhit", label: "Heal on Hit" },
 ];
 
+// Lead GM and above only (TIER_CAPS.spawn); a GM keeps teleports, kick, observing modes and the roster
+const SPAWN_ACTIONS = new Set(["kill", "deleteCharacter", "masteryGrant", "masteryReset", "masterySetTier", "masteryDrop",
+  "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "beastForm", "npcZoneAdd", "npcZoneDelete", "npcZoneReset"]);
+const SPAWN_MODES = new Set(["smite", "healhit"]);
+
 // Modes mirrored onto the neighbors-visible ff_adminModes actor property (registered in gamemode.js)
 const MIRRORED_MODES = ["god", "smite", "healhit", "invis", "ghost"];
 
@@ -122,7 +127,8 @@ export class AdminSystem implements System {
         const actorId = mp.getUserActor(userId);
         if (!actorId) return;
         const tier = this.tierOf(mp, actorId);
-        mp.set(actorId, "consoleCommandsAllowed", tier !== null);
+        // The console can spawn anything: a GM (base tier) has none
+        mp.set(actorId, "consoleCommandsAllowed", tier !== null && TIER_CAPS[tier].spawn);
         if (tier) this.log(`AdminSystem: console granted to actor ${actorId.toString(16)} (${tier})`);
         this.resyncModes(mp, userId, actorId, tier !== null);
         // Shouts live only in the client's game, so a character given all shouts is taught them again at every login
@@ -427,8 +433,15 @@ export class AdminSystem implements System {
 
     const action = String(content["action"] ?? "");
 
+    // A GM observes and reports: creating or changing things is Lead GM and above (TIER_CAPS.spawn)
+    const mode = String(content["mode"] ?? "");
+    if (!caps.spawn && (SPAWN_ACTIONS.has(action) || (action === "toggleMode" && SPAWN_MODES.has(mode)))) {
+      this.adminLog(`profile ${adminProfile} (${tier}) was refused ${action === "toggleMode" ? `the ${mode} mode` : action} (Lead GM and above)`);
+      this.reply(mp, userId, false, "That is for a Lead GM and above");
+      return;
+    }
     if (action === "toggleMode") {
-      this.toggleMode(mp, userId, myActorId, adminProfile, String(content["mode"] ?? ""));
+      this.toggleMode(mp, userId, myActorId, adminProfile, mode);
       return;
     }
     if (action.startsWith("npcZone")) {
