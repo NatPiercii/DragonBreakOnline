@@ -60,6 +60,7 @@ import { InteractionPromptService } from "./services/services/interactionPromptS
 import { BoardMailService } from "./services/services/boardMailService";
 import { BeastFormService } from "./services/services/beastFormService";
 import { ParalysisService } from "./services/services/paralysisService";
+import { CastSelfService } from "./services/services/castSelfService";
 import { PaleCoatService } from "./services/services/paleCoatService";
 import { RestraintService } from "./services/services/restraintService";
 import { CaptureConsentService } from "./services/services/captureConsentService";
@@ -184,6 +185,7 @@ const main = () => {
       new BoardMailService(sp, controller),
       new BeastFormService(sp, controller),
       new ParalysisService(sp, controller),
+      new CastSelfService(sp, controller),
       new PaleCoatService(sp, controller),
       new RestraintService(sp, controller),
       new CaptureConsentService(sp, controller),
