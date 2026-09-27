@@ -712,7 +712,10 @@ export class FormView {
         && playerActor.getDistance(refr) <= maxNicknameDrawDistance
         && playerActor.hasLOS(refr)
         && !this.isSweetHidePerson(refr)
-        && FormView.adminViewOf(model) !== "hidden";
+        && FormView.adminViewOf(model) !== "hidden"
+        // A werewolf or Vampire Lord is not recognisable: no name and no #TAG over a beast, even to those who know the
+        // player (#bugs 'werewolf shows nametag of player', 2026-09-26)
+        && !this.isBeastCopy(model);
       if (isVisibleByPlayer) {
         const headScreenPos = worldPointToScreenPoint([
           NetImmerse.getNodeWorldPositionX(refr, headPart, false),

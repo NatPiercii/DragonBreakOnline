@@ -1,6 +1,7 @@
 import {
   Game,
   Utility,
+  on,
   once
 } from "skyrimPlatform";
 import { SkympClient } from "./services/services/skympClient";
@@ -59,6 +60,7 @@ import { InteractionPromptService } from "./services/services/interactionPromptS
 import { BoardMailService } from "./services/services/boardMailService";
 import { BeastFormService } from "./services/services/beastFormService";
 import { ParalysisService } from "./services/services/paralysisService";
+import { CastSelfService } from "./services/services/castSelfService";
 import { PaleCoatService } from "./services/services/paleCoatService";
 import { RestraintService } from "./services/services/restraintService";
 import { CaptureConsentService } from "./services/services/captureConsentService";
@@ -97,12 +99,29 @@ import { CharacterProgressService } from "./services/services/characterProgressS
 import { StaticRefsService } from "./services/services/staticRefsService";
 import { LipSyncService } from "./services/services/lipSyncService";
 import { FavoritesService } from "./services/services/favoritesService";
+import { FovService } from "./services/services/fovService";
+
+// Gold weighs 0.02 a coin (Nate, 2026-09-26), so a fortune is worth taking to the bank: 1,000 gold weighs 20.
+// SKSE's Form.SetWeight changes the base form in memory, so no plugin changes; it is set again after every game load.
+const GOLD_BASE = 0xf;
+const GOLD_WEIGHT = 0.02;
+const setGoldWeight = () => {
+  try {
+    const gold = Game.getFormEx(GOLD_BASE);
+    if (gold) gold.setWeight(GOLD_WEIGHT);
+  } catch {
+    // not loaded yet; the next load sets it
+  }
+};
 
 once("update", () => {
   Utility.setINIBool("bAlwaysActive:General", true);
   Game.setGameSettingInt("iDeathDropWeaponChance", 0);
   Utility.setINIFloat("fAutoVanityModeDelay:Camera", 3600);
+  setGoldWeight();
 });
+// Native calls from an event handler can refuse to run in that context, so the load hands over to the next frame
+on("loadGame", () => once("update", setGoldWeight));
 
 const main = () => {
   try {
@@ -166,6 +185,7 @@ const main = () => {
       new BoardMailService(sp, controller),
       new BeastFormService(sp, controller),
       new ParalysisService(sp, controller),
+      new CastSelfService(sp, controller),
       new PaleCoatService(sp, controller),
       new RestraintService(sp, controller),
       new CaptureConsentService(sp, controller),
@@ -196,7 +216,8 @@ const main = () => {
       new ServerJsVerificationService(sp, controller),
       new NotificationService(sp, controller),
       new RaceSpellsService(sp, controller),
-      new FavoritesService(sp, controller)
+      new FavoritesService(sp, controller),
+      new FovService(sp, controller)
     ];
     SpApiInteractor.setup(listeners);
   } catch (e) {

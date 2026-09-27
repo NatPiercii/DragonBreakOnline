@@ -119,8 +119,11 @@ let inviteKey = 'X';
 
 // A trade request waits without the keyboard, so it never freezes a player mid-fight; the interact key hands it the
 // cursor. PlayerActionService asks this so the same press does not also open the X menu.
-let inviteWaiting = false;
-export const isTradeInviteWaiting = (): boolean => inviteWaiting;
+// The server drops an unanswered request after 60 s (tradeSystem DEFAULT_INVITE_TTL_MS) and tells the connection that
+// got it; after a relog that is an old connection, so the request also expires here on its own (#bugs "X not worky").
+const INVITE_LOCAL_TTL_MS = 65 * 1000;
+let inviteWaitingSince = 0;
+export const isTradeInviteWaiting = (): boolean => inviteWaitingSince > 0 && Date.now() - inviteWaitingSince < INVITE_LOCAL_TTL_MS;
 
 // DirectInput scan codes of the letter keys, for naming the interact key in the prompt
 const LETTER_ROWS: Array<[number, string]> = [[0x10, 'QWERTYUIOP'], [0x1e, 'ASDFGHJKL'], [0x2c, 'ZXCVBNM']];
@@ -161,6 +164,10 @@ export class TradeService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden) this.cancelOnHide(); });
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
+    // A relog drops everything the old connection had open. A spawn of my own character (login, a new character, a
+    // respawn) drops a waiting request only: an open trade window belongs to the server's trade, which sends its own end.
+    this.controller.emitter.on("connectionDisconnect", () => this.closeAll());
+    this.controller.emitter.on("createActorMessage", (e) => { if (e.message.isMe && this.invitePending) this.closeInvite(); });
     // The same binding PlayerActionService reads for the X menu
     this.interactKey = readMenuKeyCode(sp, "playerActionKeyCode", readMenuKeyCode(sp, "housingMenuKeyCode", DxScanCode.X));
     inviteKey = keyLabel(this.interactKey);
@@ -170,6 +177,8 @@ export class TradeService extends ClientListener {
   // waiting. Keyboard only: gamepad idCodes alias onto keyboard scancodes.
   private onButtonEvent(e: ButtonEvent): void {
     if (!e.isDown || e.device !== InputDeviceType.Keyboard || !this.invitePending) return;
+    // Past the server's lifetime the request is gone there: drop the prompt instead of giving it the keyboard
+    if (!isTradeInviteWaiting()) { this.closeInvite(); return; }
     if (e.code === DxScanCode.Escape && this.inviteFocused) {
       this.inviteFocused = false;
       this.sp.browser.setFocused(false);
@@ -554,7 +563,7 @@ export class TradeService extends ClientListener {
     showUi(this.controller);
     this.sp.browser.setVisible(true);
     this.invitePending = true;
-    inviteWaiting = true;
+    inviteWaitingSince = Date.now();
     notifyNextUpdate(this.controller, this.sp, inviteFrom + " wants to trade with you. Press " + inviteKey + " to answer.");
   }
 
@@ -566,7 +575,7 @@ export class TradeService extends ClientListener {
   // (a release landing after the window's own focus loses the cursor, as the inn prompt did on 2026-09-25)
   private closeInvite(keepFocus = false): void {
     this.invitePending = false;
-    inviteWaiting = false;
+    inviteWaitingSince = 0;
     closeWidget(this.sp, INVITE_WIDGET_ID);
     if (!this.inviteFocused) return;
     this.inviteFocused = false;

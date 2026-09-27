@@ -105,7 +105,8 @@ const Chat = (props) => {
   };
 
   const addMessageToHistory = (message) => {
-    messagesHistory.current = [message, ...messagesHistory.current];
+    // The same line sent again stays one entry, so Up does not step through repeats
+    if (messagesHistory.current[0] !== message) messagesHistory.current = [message, ...messagesHistory.current];
     if (messagesHistory.current.length > MAX_HISTORY_LENGTH) {
       messagesHistory.current = messagesHistory.current.slice(0, MAX_HISTORY_LENGTH);
     }
@@ -122,7 +123,8 @@ const Chat = (props) => {
   };
 
   const sendMessage = useCallback((text) => {
-    if (channel === SYSTEM_CHANNEL) return;
+    // The System tab takes /commands, so the list a message showed stays in view while you type one (athny, 2026-09-25,
+    // "QOL System Chat"); plain text typed there is said in Local, as before, and the tab follows it.
     const shout = text.match(SHOUTREGEXP);
     const shoutLen = shout
       ? shout.reduce((acc, text) => {
@@ -173,7 +175,10 @@ const Chat = (props) => {
         else sendMessage(input);
       }
       if (event.key === 'Escape') releaseFocus();
-      if (event.key === 'ArrowUp' && event.ctrlKey) {
+      // Up and Down step through what you sent before while the text is one line; Ctrl+Up/Down on any line
+      const historyKey = !event.shiftKey && !event.altKey && (event.ctrlKey || !(input || '').trim().includes('\n'));
+      if (event.key === 'ArrowUp' && historyKey && messagesHistory.current.length > 0) {
+        event.preventDefault();
         if (currentMessageInHistory.current === -1) {
           writtenMessage.current = input;
         }
@@ -184,19 +189,18 @@ const Chat = (props) => {
           setEndOfContenteditable(inputRef.current);
         }
       }
-      if (event.key === 'ArrowDown' && event.ctrlKey) {
-        if (currentMessageInHistory.current >= 0) {
-          if (currentMessageInHistory.current === 0) {
-            updateInput(writtenMessage.current);
-            inputRef.current.innerText = writtenMessage.current;
-            setEndOfContenteditable(inputRef.current);
-            currentMessageInHistory.current = -1;
-          } else {
-            currentMessageInHistory.current = currentMessageInHistory.current - 1;
-            updateInput(messagesHistory.current[currentMessageInHistory.current]);
-            inputRef.current.innerText = messagesHistory.current[currentMessageInHistory.current];
-            setEndOfContenteditable(inputRef.current);
-          }
+      if (event.key === 'ArrowDown' && historyKey && currentMessageInHistory.current >= 0) {
+        event.preventDefault();
+        if (currentMessageInHistory.current === 0) {
+          updateInput(writtenMessage.current);
+          inputRef.current.innerText = writtenMessage.current;
+          setEndOfContenteditable(inputRef.current);
+          currentMessageInHistory.current = -1;
+        } else {
+          currentMessageInHistory.current = currentMessageInHistory.current - 1;
+          updateInput(messagesHistory.current[currentMessageInHistory.current]);
+          inputRef.current.innerText = messagesHistory.current[currentMessageInHistory.current];
+          setEndOfContenteditable(inputRef.current);
         }
       }
     };
@@ -219,16 +223,11 @@ const Chat = (props) => {
         setEndOfContenteditable(el);
       }
     };
-    // Enter and T both focus chat; the read-only System tab hands off to Local
+    // Enter and T both focus chat in the tab that is showing; the System tab takes /commands
     const onBrowserFocused = () => {
       browserFocusedRef.current = true;
       bumpIdle();
       if (isInputHidden) return;
-      if (isSystemTab) {
-        setChannel(DEFAULT_CHANNEL);
-        requestAnimationFrame(focusInput);
-        return;
-      }
       focusInput();
     };
     // The dedicated chat key always lands in the Local tab
@@ -392,7 +391,7 @@ const Chat = (props) => {
                             unread={{ personal: hasUnreadPersonal, system: hasUnreadSystem }}
                             onSelect={(id) => {
                               setChannel(id);
-                              if (id !== SYSTEM_CHANNEL && inputRef.current) inputRef.current.focus();
+                              if (inputRef.current) inputRef.current.focus();
                             }}
                           />
                           <button
@@ -401,7 +400,7 @@ const Chat = (props) => {
                             title='Settings'
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
-                              if (inputRef.current && !isSystemTab) inputRef.current.focus();
+                              if (inputRef.current) inputRef.current.focus();
                               setSettingsOpened((open) => !open);
                             }}
                           >
@@ -414,8 +413,7 @@ const Chat = (props) => {
                             id="chatInput"
                             className={'show'}
                             type="text"
-                            readOnly={isSystemTab}
-                            placeholder={isSystemTab ? 'System messages appear here' : (placeholder !== undefined ? placeholder : '')}
+                            placeholder={isSystemTab ? 'Type a /command here; other text goes to Local' : (placeholder !== undefined ? placeholder : '')}
                             onChange={(value) => {
                               handleInput(value);
                               if (lastSendInputText + 1000 < Date.now()) {

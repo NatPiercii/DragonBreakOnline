@@ -40,6 +40,8 @@ let browserState = {
   loginFailedReason: '',
 };
 let authData: RemoteAuthGameData | null = null;
+// True once authData came from this game's own Discord sign-in, false while it is the launcher's file (review X2)
+let authDataFromLogin = false;
 
 const translations = {
   "ru": {
@@ -178,7 +180,8 @@ export class AuthService extends ClientListener {
       msgContent = JSON.parse(msg.contentJsonDump);
     } catch (e) {
       if (e instanceof SyntaxError) {
-        logError(this, "onCustomPacketMessage failed to parse JSON", e.message, "json:", msg.contentJsonDump);
+        // The length only: a custom packet can carry chat or a token, and a parse error's message quotes the text (review X6)
+        logError(this, "onCustomPacketMessage failed to parse JSON:", e.name, `(${String(msg.contentJsonDump).length} chars)`);
         return;
       } else {
         throw e;
@@ -248,14 +251,15 @@ export class AuthService extends ClientListener {
     logTrace(this, `Showing widgets and starting loop`);
 
     authData = this.readAuthDataFromDisk();
+    authDataFromLogin = false;
     browserState.comment = authData ? strings.connecting : '';
     this.refreshWidgets();
     this.sp.browser.setVisible(true);
     this.sp.browser.setFocused(true);
 
-    // Auto sign-in
+    // Auto sign-in. The file is not written back: under MO2 the write lands in overwrite\ and hides the newer file the
+    // launcher writes on its next sign-in, so the game would keep sending an old token (review X2).
     if (authData) {
-      this.writeAuthDataToDisk(authData);
       this.controller.emitter.emit("authAttempt", { authGameData: { remote: authData } });
       this.authAttemptProgressIndicator = true;
     }
@@ -274,13 +278,14 @@ export class AuthService extends ClientListener {
 
   private onBrowserMessage(e: BrowserMessageEvent) {
     if (!this.isListenBrowserMessage) {
-      logTrace(this, `onBrowserMessage: isListenBrowserMessage was false, ignoring message`, JSON.stringify(e.arguments));
+      logTrace(this, `onBrowserMessage: isListenBrowserMessage was false, ignoring message`, String(e.arguments[0]));
       return;
     }
 
     const settingsService = this.controller.lookupListener(SettingsService);
 
-    logTrace(this, `onBrowserMessage:`, JSON.stringify(e.arguments));
+    // The event name only: other widgets' messages pass through here too and may carry what a player typed
+    logTrace(this, `onBrowserMessage:`, String(e.arguments[0]));
 
     const eventKey = e.arguments[0];
     switch (eventKey) {
@@ -299,7 +304,11 @@ export class AuthService extends ClientListener {
           break;
         }
 
-        this.writeAuthDataToDisk(authData);
+        // Only a token this game got from its own sign-in is saved; one read from the launcher's file is not written
+        // back (MO2 would shadow the launcher's newer file with it, review X2)
+        if (authDataFromLogin) {
+          this.writeAuthDataToDisk(authData);
+        }
         this.controller.emitter.emit("authAttempt", { authGameData: { remote: authData } });
 
         this.authAttemptProgressIndicator = true;
@@ -393,6 +402,7 @@ export class AuthService extends ClientListener {
                   this.refreshWidgets();
                   return;
                 }
+                authDataFromLogin = true;
                 authData = {
                   session: playSession,
                   masterApiId,
@@ -441,7 +451,8 @@ export class AuthService extends ClientListener {
 
       return JSON.parse(data.slice(2)) || null;
     } catch (e) {
-      logError(this, `Error reading`, this.pluginAuthDataName, `from disk:`, e, `, falling back to null`);
+      // The error's name only: a JSON parse error quotes the text around the fault, which is the session token (review X1)
+      logError(this, `Error reading`, this.pluginAuthDataName, `from disk:`, e instanceof Error ? e.name : typeof e, `, falling back to null`);
       return null;
     }
   }
@@ -449,7 +460,8 @@ export class AuthService extends ClientListener {
   private writeAuthDataToDisk(data: RemoteAuthGameData | null) {
     const content = "//" + (data ? JSON.stringify(data) : "null");
 
-    logTrace(this, `Writing`, this.pluginAuthDataName, `to disk:`, content);
+    // Never the content: it holds the session token, and the console shows on screen and on streams (review X1)
+    logTrace(this, `Writing`, this.pluginAuthDataName, `to disk:`, data ? `auth data (${content.length} bytes)` : `null`);
 
     try {
       this.sp.writePlugin(

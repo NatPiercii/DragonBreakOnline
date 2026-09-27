@@ -5,6 +5,7 @@ import { isHostedByMe, localIdToRemoteId } from "../../view/worldViewMisc";
 import { SpellCastEvent, Actor, printConsole, Game, getAnimationVariablesFromActor, ActorAnimationVariables, SpellType, SlotType, EquippedItemType, Spell, Debug } from 'skyrimPlatform'
 import { ClientListener, CombinedController, Sp } from './clientListener';
 import { logTrace } from '../../logging';
+import { isServerCast } from './castSelfService';
 
 import { MsgType } from "../../messages";
 import { SpellCastMsgData, SpellCastMessage } from "../messages/spellCastMessage";
@@ -95,6 +96,11 @@ export class MagicSyncService extends ClientListener {
                 }
                 Debug.notification("Racial powers are disabled on this server.");
             });
+            return;
+        }
+
+        // A spell the server asked this client to cast on the player is not the player's cast (castSelfService)
+        if (event.spell && isServerCast(event.spell.getFormID())) {
             return;
         }
 

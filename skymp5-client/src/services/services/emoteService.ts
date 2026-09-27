@@ -212,14 +212,17 @@ export class EmoteService extends ClientListener {
       const anim = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
       this.closeMenu();
       if (!this.allowedAnims.has(anim)) {
+        logTrace(this, `Emote not in the catalog`, anim);
         return;
       }
       if (this.isPoseLocked()) {
         notifyNextUpdate(this.controller, this.sp, "You cannot use emotes while restrained.");
         return;
       }
-      if (!this.canPlayIdle()) {
-        notifyNextUpdate(this.controller, this.sp, "Sheathe your weapon and stand on your feet to use emotes.");
+      const blocker = this.idleBlocker();
+      if (blocker) {
+        notifyNextUpdate(this.controller, this.sp, blocker);
+        logTrace(this, `Emote refused`, anim, blocker);
         return;
       }
       this.playEmote(anim);
@@ -247,9 +250,18 @@ export class EmoteService extends ClientListener {
   }
 
   // Idles live in the unarmed standing graph; a global one like IdleForceDefaultState strands a drawn weapon there
-  private canPlayIdle(): boolean {
+  private idleBlocker(): string {
     const player = this.sp.Game.getPlayer();
-    return !!player && !player.isWeaponDrawn() && !player.getFurnitureReference() && !player.isSwimming() && !player.isOnMount();
+    if (!player) return "There is no body to animate.";
+    if (player.isWeaponDrawn()) return "Sheathe your weapon to use emotes.";
+    if (player.getFurnitureReference()) return "Stand up to use emotes.";
+    if (player.isSwimming()) return "You cannot use emotes while swimming.";
+    if (player.isOnMount()) return "You cannot use emotes while mounted.";
+    return "";
+  }
+
+  private canPlayIdle(): boolean {
+    return this.idleBlocker() === "";
   }
 
   private playEmote(anim: string): void {
@@ -272,8 +284,11 @@ export class EmoteService extends ClientListener {
       if (this.activeEmote !== anim) return;
       const player = this.sp.Game.getPlayer();
       if (!player) return;
-      if (!this.canPlayIdle()) {
+      const blocker = this.idleBlocker();
+      if (blocker) {
         this.activeEmote = "";
+        notifyNextUpdate(this.controller, this.sp, blocker);
+        logTrace(this, `Emote dropped before playing`, anim, blocker);
         return;
       }
       this.sp.Debug.sendAnimationEvent(player, anim);

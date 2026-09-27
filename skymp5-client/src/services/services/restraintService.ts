@@ -325,6 +325,11 @@ export class RestraintService extends ClientListener {
     }
   }
 
+  // Another service gave the player's controls back (a paralysis ending); a carried or bound player's lock goes on again
+  public reapply(): void {
+    if (this.carried || this.boundHands) this.applyState();
+  }
+
   private applyState(): void {
     // Native game-thread calls throw "can't be called in this context" from the packet handler; defer to update.
     this.controller.once("update", () => this.applyStateNow());
