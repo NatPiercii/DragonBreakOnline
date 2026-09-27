@@ -25,6 +25,7 @@ const nexus  = require('./nexus')
 const ini    = require('./ini')
 const gameversion = require('./gameversion')
 const report = require('./report')
+const nxmLinks = require('./nxm')
 
 // Settings stay in the folder named after the launcher's original product name.
 const USER_DATA_DIR = path.join(app.getPath('appData'), 'DragonBreak Online Launcher')
@@ -82,6 +83,12 @@ const store = new Store({
 })
 
 mo2.setRootProvider(() => store.get('baseDirPath') || DEFAULT_BASE_DIR)
+
+// Nexus nxm:// links: ours only while an install waits for the player's downloads, then back to Vortex or whichever
+// manager had them (nxm.js)
+const nxm = nxmLinks.createNxm({ store, log, ownExes: () => [process.execPath, path.join(mo2.getRoot(), 'nxmhandler.exe')] })
+const nxmHandlerExe = () => (app.isPackaged ? process.execPath : path.join(mo2.getRoot(), 'nxmhandler.exe'))
+let nxmWaiting = false
 
 // Default install root for MO2 + the portable game copy when none is stored.
 const DEFAULT_BASE_DIR = 'C:\\DragonBreak'
@@ -275,6 +282,8 @@ function createWindow() {
 app.whenReady().then(() => {
   ensureSkyrimPath()
   createWindow()
+  // No install waits yet: links left with us by a crash, or by a launcher up to 2.1.29, go back
+  nxm.release()
   app.on('second-instance', (_e, argv) => {
     if (win) { if (win.isMinimized()) win.restore(); win.focus() }
     handleNxmArgv(argv)
@@ -284,6 +293,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+app.on('will-quit', () => { if (nxmWaiting) nxm.release() })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
@@ -1146,7 +1157,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
     let serverInfo = null
     try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
     mo2.ensureInstance(dst, serverInfo?.loadOrder)
-    mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
+    mo2.writeNxmHandlerIni()
     seedProfilePrefs(src)
 
     store.set('isolatedGame', true)
@@ -2157,7 +2168,7 @@ ipcMain.handle('install:mo2only', async (_e, opts) => {
         let serverInfo = null
         try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
         mo2.ensureInstance(gamePath, serverInfo?.loadOrder)
-        mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
+        mo2.writeNxmHandlerIni()
         applyForcedServerDefaults(gamePath)
       }
     }
@@ -2873,8 +2884,12 @@ function nexusNamePattern(modId, displayName, version) {
 
 // nxm:// links from "Mod Manager Download" on Nexus: the site puts a one-time key in the link, and with it a
 // free account may fetch the file through the API. The archive lands in the downloads folder under the name
-// the install expects, so the next PLAY picks it up; anything the manifest does not list is downloaded as named.
+// the install expects, so the next PLAY picks it up. A link the launcher has no use for goes on to the manager that
+// had the links before (nxm.js): any link while no install waits, a collection or another game's file, or a file
+// DragonBreak's list does not name. With no such manager, a file is downloaded as named.
 const nxmLog = msg => { log(`[nxm] ${msg}`); send('install:log', msg) }
+const NOT_A_FILE = 'That Nexus link is not a single mod file (a Vortex collection, or another game). The launcher installs '
+  + "DragonBreak's mod list itself when you press Install. To add a collection in Vortex, let Vortex handle Nexus links again in its settings."
 function handleNxmArgv(argv) {
   for (const a of argv || []) if (typeof a === 'string' && /^nxm:\/\//i.test(a)) handleNxmLink(a)
 }
@@ -2883,21 +2898,30 @@ function handleNxmLink(link) {
   nxmQueue = nxmQueue.then(() => handleNxmLinkNow(link)).catch(err => nxmLog(`Nexus download failed: ${err.message}`))
 }
 async function handleNxmLinkNow(link) {
-  let u
-  try { u = new URL(link) } catch { return nxmLog(`Ignored an unreadable link: ${link}`) }
+  const kind = nxm.classify(link)
+  if (kind === 'bad') return nxmLog(`Ignored an unreadable link: ${link}`)
+  if (kind === 'other' || !nxmWaiting) {
+    const to = nxm.forward(link)
+    if (to) return nxmLog(`Passed that Nexus link on to ${to}.`)
+    if (kind === 'other') return nxmLog(NOT_A_FILE)
+  }
+  const u = new URL(link)
   const m = u.pathname.match(/^\/mods\/(\d+)\/files\/(\d+)/)
-  if (u.hostname.toLowerCase() !== 'skyrimspecialedition' || !m) return nxmLog(`Ignored a link that is not a Skyrim Special Edition file: ${link}`)
   const modId = Number(m[1]), fileId = Number(m[2])
   const key = u.searchParams.get('key') || '', expires = u.searchParams.get('expires') || ''
   if (!key || !expires) return nxmLog('That link has no download key; use the Mod Manager Download button on the Nexus file page.')
-  const auth = await getNexusAuth()
-  if (!auth) return nxmLog('Sign in to Nexus with the button in the top bar, then click Mod Manager Download again.')
-  const downloadsDir = mo2.getDownloadsDir()
   let expected = null
   try {
     const manifest = await fetchJSON(`${config.apiUrl}/api/install-manifest`)
     expected = (manifest.archives || []).find(a => a.source && a.source.type === 'nexus' && Number(a.source.modId) === modId && Number(a.source.fileId) === fileId) || null
   } catch { /* the name comes from Nexus instead */ }
+  if (!expected) {
+    const to = nxm.forward(link)
+    if (to) return nxmLog(`That file is not on DragonBreak's list: passed it on to ${to}.`)
+  }
+  const auth = await getNexusAuth()
+  if (!auth) return nxmLog('Sign in to Nexus with the button in the top bar, then click Mod Manager Download again.')
+  const downloadsDir = mo2.getDownloadsDir()
   let fileName = expected ? expected.name : ''
   if (!fileName) { try { const info = await nexus.fileInfo(auth, modId, fileId); fileName = info.file_name || `${modId}-${fileId}.zip` } catch { fileName = `${modId}-${fileId}.zip` } }
   const mb = n => (n / 1048576).toFixed(1)
@@ -2986,7 +3010,7 @@ async function runMO2Install(opts = {}) {
     let serverInfo = null
     try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
     mo2.ensureInstance(skyrimPath, serverInfo?.loadOrder)
-    mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
+    mo2.writeNxmHandlerIni()
     seedProfilePrefs(store.get('skyrimPath') || skyrimPath)
     applyForcedServerDefaults(skyrimPath)
 
@@ -3162,19 +3186,27 @@ async function runMO2Install(opts = {}) {
 
     // 3b. Free / no-key path: open the downloads list page + MO2 staging folder
     if (needBrowser.length > 0) {
-      openDownloadList(downloadsDir, needBrowser)
-      send('install:progress', {
-        phase: 'mods',
-        file:  'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder.',
-        index: 0, total: needBrowser.length, skipped: false,
-      })
-      // Matched by sha256, so paths come back verified regardless of filename; the
-      // namePattern only flags likely wrong-version files in the status message.
-      const paths = await mo2.waitForDownloads(
-        needBrowser.map(a => ({ name: a.name, hash: a.hash, size: a.size, namePattern: nexusNamePattern(a.source.modId, a.name) })),
-        (done, total, message) => send('install:progress', { phase: 'mods', file: message, index: done, total, skipped: false }),
-        installAbort?.signal)
-      needBrowser.forEach((a, i) => { archivePaths[a.id] = paths[i] })
+      // "Mod Manager Download" comes to the launcher only while it waits here; after, the links go back
+      nxm.claim(nxmHandlerExe())
+      nxmWaiting = true
+      try {
+        openDownloadList(downloadsDir, needBrowser)
+        send('install:progress', {
+          phase: 'mods',
+          file:  'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder.',
+          index: 0, total: needBrowser.length, skipped: false,
+        })
+        // Matched by sha256, so paths come back verified regardless of filename; the
+        // namePattern only flags likely wrong-version files in the status message.
+        const paths = await mo2.waitForDownloads(
+          needBrowser.map(a => ({ name: a.name, hash: a.hash, size: a.size, namePattern: nexusNamePattern(a.source.modId, a.name) })),
+          (done, total, message) => send('install:progress', { phase: 'mods', file: message, index: done, total, skipped: false }),
+          installAbort?.signal)
+        needBrowser.forEach((a, i) => { archivePaths[a.id] = paths[i] })
+      } finally {
+        nxmWaiting = false
+        nxm.release()
+      }
     }
 
     // 3c. Replay the manifest: extract each archive once, apply directives

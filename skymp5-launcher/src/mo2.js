@@ -463,14 +463,11 @@ function serverPluginLines(loadOrder) {
 }
 
 /**
- * Point the nxm:// protocol at our portable instance so Nexus
- * "Mod Manager Download" buttons feed MO2's downloads folder.
+ * MO2's own nxmhandler.ini: its nxmhandler.exe sends Skyrim SE links to this instance. Which program Windows gives
+ * nxm:// links to is nxm.js's business, and only while an install waits for Nexus downloads.
  */
-function registerNxmHandler(handlerExe) {
-  const root       = getRoot()
-  const nxmHandler = handlerExe || path.join(root, 'nxmhandler.exe')
-
-  fs.writeFileSync(path.join(root, 'nxmhandler.ini'), [
+function writeNxmHandlerIni() {
+  fs.writeFileSync(path.join(getRoot(), 'nxmhandler.ini'), [
     '[handlers]',
     'size=1',
     '1\\games=skyrimse',
@@ -478,20 +475,6 @@ function registerNxmHandler(handlerExe) {
     '1\\arguments=',
     '',
   ].join('\r\n'))
-
-  if (process.platform !== 'win32') return
-  try {
-    // Pass argv arrays to reg.exe (no cmd.exe) so a baseDirPath containing shell
-    // metacharacters (& ^ %) cannot inject commands. The command value keeps its
-    // embedded quotes around the handler path and %1 so spaced paths still work.
-    const run = args => execFileSync('reg', args, { timeout: 5000, stdio: 'ignore' })
-    run(['add', 'HKCU\\Software\\Classes\\nxm', '/ve', '/d', 'URL:NXM Protocol', '/f'])
-    run(['add', 'HKCU\\Software\\Classes\\nxm', '/v', 'URL Protocol', '/d', '', '/f'])
-    run(['add', 'HKCU\\Software\\Classes\\nxm\\shell\\open\\command', '/ve', '/d', `"${nxmHandler}" "%1"`, '/f'])
-    _log('nxm:// handler registered')
-  } catch (err) {
-    _log('nxm handler registration failed:', err.message)
-  }
 }
 
 // Mod management
@@ -1396,7 +1379,7 @@ module.exports = {
   mo2BinaryStats,
   readMo2Stamp,
   ensureInstance,
-  registerNxmHandler,
+  writeNxmHandlerIni,
   downloadToDownloads,
   findDownloadByFileId,
   findArchiveByHash,
