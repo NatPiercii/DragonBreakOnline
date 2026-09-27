@@ -30,6 +30,8 @@
 #include "UpdateAnimVariablesMessage.h"
 #include "UpdateEquipmentMessage.h"
 #include <algorithm>
+#include <cctype>
+#include <cstring>
 
 namespace FormIdCasts {
 uint32_t LongToNormal(uint64_t longFormId)
@@ -64,11 +66,11 @@ std::vector<espm::Effects::Effect> GetRestorativeEffects(WorldState* worldState,
   std::vector<espm::Effects::Effect> result;
   const auto spellLookup =
     worldState->GetEspm().GetBrowser().LookupById(spellId);
-  const auto spell = espm::Convert<espm::SPEL>(spellLookup.rec);
-  if (!spell) {
+  if (!espm::IsSpellItem(spellLookup.rec)) {
     return result;
   }
-  const auto spellData = spell->GetData(worldState->GetEspmCache());
+  const auto spellData =
+    espm::GetSpellItemData(spellLookup.rec, worldState->GetEspmCache());
   for (const auto& effect : spellData.effects) {
     if (!effect.effectItem || effect.effectFormId == 0) {
       continue;
@@ -120,11 +122,12 @@ void ForEachSpellEffectData(WorldState* worldState, uint32_t spellId,
 {
   auto& browser = worldState->GetEspm().GetBrowser();
   const auto spellLookup = browser.LookupById(spellId);
-  const auto spell = espm::Convert<espm::SPEL>(spellLookup.rec);
-  if (!spell) {
+  // A scroll's effects work like its spell's (SCRL carries the same SPIT and EFID/EFIT)
+  if (!espm::IsSpellItem(spellLookup.rec)) {
     return;
   }
-  const auto spellData = spell->GetData(worldState->GetEspmCache());
+  const auto spellData =
+    espm::GetSpellItemData(spellLookup.rec, worldState->GetEspmCache());
   for (const auto& effect : spellData.effects) {
     if (effect.effectFormId == 0) {
       continue;
@@ -643,6 +646,10 @@ void ActionListener::OnUpdateAnimation(const RawMessageData& rawMsgData,
   if (!targetActor) {
     return;
   }
+
+  // For the power/bash measurement in OnWeaponHit: when an actor (player or hosted NPC) last started a power attack or
+  // a bash, as its own client reported it
+  NoteForcefulAnim(targetActor->GetFormId(), msg.data.animEventName);
 
   // Only process animation system and set last anim event for player's actor
   if (targetActor != myActor) {
@@ -1508,13 +1515,20 @@ bool ShouldBeBlocked(const MpActor& aggressor, const MpActor& target)
 {
   NiPoint3 targetViewDirection = target.GetViewDirection();
   NiPoint3 aggressorDirection = aggressor.GetPos() - target.GetPos();
+  // A block faces the attacker around, not up or down: height must not decide it (review SCH2-5)
+  aggressorDirection.z = 0;
   if (targetViewDirection * aggressorDirection <= 0) {
     return false;
   }
-  float angle =
-    std::acos((targetViewDirection * aggressorDirection) /
-              (targetViewDirection.Length() * aggressorDirection.Length()));
-  return angle < 1;
+  const float lengths =
+    targetViewDirection.Length() * aggressorDirection.Length();
+  if (lengths <= 0.f) {
+    return false;
+  }
+  // Guard: rounding could put the cosine of a dead-on facing above 1, where acos is NaN (not seen in the unit test)
+  const float cosine = std::clamp(
+    (targetViewDirection * aggressorDirection) / lengths, -1.f, 1.f);
+  return std::acos(cosine) < 1;
 }
 }
 
@@ -1608,11 +1622,31 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
 
   const bool isSourceSpell =
     sourceInEspm.rec && sourceInEspm.rec->GetType() == espm::SPEL::kType;
+  const bool isSourceScroll =
+    sourceInEspm.rec && sourceInEspm.rec->GetType() == espm::SCRL::kType;
 
   const auto equipment = aggressor->GetEquipment();
 
+  // A scroll's hit is a spell hit. It went to OnWeaponHit (a held scroll is equipment) and threw 'Expected record to be
+  // WEAP, but found SCRL', so a scroll was used up and did nothing (review SCH-1, 2026-09-26). Only a scroll the server
+  // just used up for this caster may hit, a few times, for a short while.
+  if (isSourceScroll) {
+    if (TakeScrollHit(aggressor->GetFormId(), hitData.source,
+                      hitData.target)) {
+      OnSpellHit(aggressor, targetRef, hitData);
+    } else {
+      spdlog::info("ActionListener::OnHit - {:x} has no scroll {:x} read "
+                   "lately, hit refused",
+                   hitData.aggressor, hitData.source);
+    }
+    return;
+  }
+
   if (isSourceSpell) {
-    if (CanHitWithSpell(*aggressor, hitData.source)) {
+    // A wall or cloak scroll hits with the spell it grants (review SCH1-R3)
+    if (CanHitWithSpell(*aggressor, hitData.source) ||
+        TakeScrollGrantedHit(aggressor->GetFormId(), hitData.source,
+                             hitData.target)) {
       OnSpellHit(aggressor, targetRef, hitData);
     } else {
       spdlog::info("ActionListener::OnHit - {:x} cannot hit with spell {:x}",
@@ -1757,11 +1791,12 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
                       nlohmann::json::array({ spellCastData.spell }));
   }
 
-  // A scroll is read once: one leaves the caster's inventory per cast. The restorative handling below reads SPEL
-  // records only (GetData<SPEL> throws on a SCRL), so a scroll stops here.
+  // A scroll is read once: one leaves the caster's inventory per cast, and its hits may land for a short while
+  // (TakeScrollHit). The restorative handling below is for spells the caster knows, so a scroll stops here.
   if (scrollCast) {
     if (!spellCastData.keepAlive && IsHeldScroll(*caster, spellCastData.spell)) {
       caster->RemoveItem(spellCastData.spell, 1, nullptr);
+      RecordScrollRead(caster->GetFormId(), spellCastData.spell);
       spdlog::info("ActionListener::OnSpellCast - {:x} read scroll {:x}",
                    caster->GetFormId(), spellCastData.spell);
     }
@@ -2037,7 +2072,7 @@ void ActionListener::OnSpellHit(MpActor* aggressor,
     return;
   }
   const auto spellData =
-    espm::GetData<espm::SPEL>(hitData.source, &partOne.worldState);
+    espm::GetSpellItemData(hitData.source, &partOne.worldState);
   if (!spellData.spellItem) {
     return;
   }
@@ -2168,7 +2203,16 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
 
   float healthPercentage = currentActorValues.healthPercentage;
 
-  if (targetActor.IsBlockActive()) {
+  // The server decides whether a hit was blocked, from the target's own block state below: the attacker's client
+  // cannot claim a block it never met (review SCH-2; combat.js drains the blocker's stamina on a block)
+  hitData.isHitBlocked = false;
+
+  // A hosted NPC's block reaches the server only as its IsBlocking animation variable (its host's movement packet;
+  // animationSystem skips hosted NPCs), and a player's blockStart travels unreliable: either one counts. Both come
+  // from the target's side, so the attacker still cannot forge a block (review SCH2-1, SCH2-2).
+  const bool targetBlocking = targetActor.IsBlockActive() ||
+    targetActor.GetAnimationVariableBool("IsBlocking");
+  if (targetBlocking) {
     if (ShouldBeBlocked(*aggressor, targetActor)) {
       bool isRemoteBowAttack = false;
 
@@ -2215,8 +2259,40 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     }
   }
 
+  // Power attacks and bashes stagger (combat.js). The flags come from the attacker's client, so one attacker gets at
+  // most one such hit on one target per kForcefulHitInterval, and a modified client cannot stagger-lock anyone (SCH-2)
+  // Measurement for review SCH2-4, log only: a power or bash flag with no attackPower*/bash* start from the attacker in
+  // the last 2 s. The client sends only the newest animation per tick, so some real ones will show up here too; the
+  // counts decide whether a hard gate is possible.
+  CountUnmatchedForcefulFlag(aggressor->GetFormId(), hitData.isPowerAttack,
+                             hitData.isBashAttack, currentHitTime);
+
+  if (hitData.isPowerAttack || hitData.isBashAttack) {
+    const uint64_t pair =
+      (static_cast<uint64_t>(aggressor->GetFormId()) << 32) |
+      targetActor.GetFormId();
+    auto& last = lastForcefulHit[pair];
+    if (currentHitTime - last < kForcefulHitInterval) {
+      spdlog::info("OnWeaponHit - {:x} power/bash on {:x} too soon after the "
+                   "last one, counted as a plain hit",
+                   aggressor->GetFormId(), targetActor.GetFormId());
+      hitData.isPowerAttack = false;
+      hitData.isBashAttack = false;
+    } else {
+      last = currentHitTime;
+    }
+    if (lastForcefulHit.size() > 4096) {
+      std::erase_if(lastForcefulHit, [&](const auto& entry) {
+        return currentHitTime - entry.second > std::chrono::seconds(10);
+      });
+    }
+  }
+
   float damage = partOne.CalculateDamage(*aggressor, targetActor, hitData);
   damage = damage < 0.f ? 0.f : damage;
+  // The target's full health and stamina, the base a hit is measured against, so the gamemode can turn points into the
+  // percentages it sets (block chip, block stamina): the gamemode cannot read maxima server-side
+  const BaseActorValues targetMax = targetActor.GetMaximumValues();
   // What the hit would have done unblocked, so the gamemode can let part of a blocked blow through (chip damage)
   float unblockedDamage = damage;
   if (hitData.isHitBlocked) {
@@ -2231,7 +2307,9 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     { "power", static_cast<bool>(hitData.isPowerAttack) },
     { "bash", static_cast<bool>(hitData.isBashAttack) },
     { "sneak", static_cast<bool>(hitData.isSneakAttack) },
-    { "unblockedDamage", unblockedDamage }
+    { "unblockedDamage", unblockedDamage },
+    { "targetMaxHealth", targetMax.health },
+    { "targetMaxStamina", targetMax.stamina }
   };
   // A fully blocked attack still asks the gamemode, so god mode and companions see it
   if (!FireHitDamageEvent("onHitDamageAttempt", aggressor, &targetActor,
@@ -2239,9 +2317,14 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
                           &weaponFlags)) {
     return;
   }
-
   // A refused hit fires no events, a blocked one reaches scripts as blocked
   SendPapyrusOnHitEvent(aggressor, targetRef, hitData);
+
+  // The gamemode may have changed the target's values inside onHitDamageAttempt (combat.js: block chip, the blocker's
+  // stamina), and a script's OnHit may too. Read them again, or NetSetPercentages below writes the earlier snapshot back
+  // over them (review SCH2-3, SCH3-4).
+  currentActorValues = targetActor.GetChangeForm().actorValues;
+  healthPercentage = currentActorValues.healthPercentage;
 
   float outBaseHealth = 0.f;
   currentActorValues.healthPercentage = CalculateCurrentHealthPercentage(
@@ -2374,6 +2457,16 @@ void ActionListener::ApplyParalysis(MpActor& aggressor, MpActor& target,
   if (&executor == &aggressor.GetActorToSendTo()) {
     return;
   }
+  // DoCombatSpellApply takes a Spell; a Scroll is another form type in Papyrus, so a scroll's paralysis is kept on the
+  // server only (review SCH1-R4)
+  const auto sourceLookup =
+    partOne.GetEspm().GetBrowser().LookupById(spellId);
+  if (!espm::Convert<espm::SPEL>(sourceLookup.rec)) {
+    spdlog::info("OnSpellHit - paralysis of {:x} from {:x} is not replayed on "
+                 "{:x}'s client (not a SPEL)",
+                 target.GetFormId(), spellId, executor.GetFormId());
+    return;
+  }
   SpSnippetObjectArgument spellArg;
   spellArg.formId = spellId;
   spellArg.type = "Spell";
@@ -2402,4 +2495,151 @@ bool ActionListener::IsParalyzed(const MpActor& actor)
     return false;
   }
   return true;
+}
+
+// Scroll reads per caster: kept kScrollHitWindow, at most kScrollReadsPerCaster (the oldest goes first)
+void ActionListener::RecordScrollRead(uint32_t casterId, uint32_t scrollId)
+{
+  auto& reads = scrollHits[casterId];
+  ScrollRead read;
+  read.scrollId = scrollId;
+  read.until = std::chrono::steady_clock::now() + kScrollHitWindow;
+  reads.push_back(std::move(read));
+  if (reads.size() > kScrollReadsPerCaster) {
+    reads.erase(reads.begin());
+  }
+}
+
+namespace {
+template <class Map>
+void PruneScrollReads(Map& scrollHits)
+{
+  const auto now = std::chrono::steady_clock::now();
+  for (auto it = scrollHits.begin(); it != scrollHits.end();) {
+    std::erase_if(it->second,
+                  [&](const auto& read) { return read.until <= now; });
+    it = it->second.empty() ? scrollHits.erase(it) : std::next(it);
+  }
+}
+}
+
+// A scroll's hit counts only on a scroll the server used up for this caster lately: each actor once per read, up to
+// kScrollTargetsPerRead actors (an area scroll touches several). Review SCH1-R1/R2.
+bool ActionListener::TakeScrollHit(uint32_t casterId, uint32_t scrollId,
+                                   uint32_t targetId)
+{
+  PruneScrollReads(scrollHits);
+  const auto it = scrollHits.find(casterId);
+  if (it == scrollHits.end()) {
+    return false;
+  }
+  for (auto read = it->second.rbegin(); read != it->second.rend(); ++read) {
+    if (read->scrollId != scrollId ||
+        std::find(read->targets.begin(), read->targets.end(), targetId) !=
+          read->targets.end() ||
+        read->targets.size() >= kScrollTargetsPerRead) {
+      continue;
+    }
+    read->targets.push_back(targetId);
+    return true;
+  }
+  return false;
+}
+
+// The spell a wall or cloak scroll grants ticks on whoever stands in it. The client reports every tick, faster than the
+// gamemode's once-a-second limit on concentration spells, so a raw hit budget ran dry in seconds (review SCH3-1): each
+// target is credited at most once a second, for up to kScrollGrantedSecondsPerTarget seconds, on up to
+// kScrollTargetsPerRead targets. A tick inside the same second is refused.
+bool ActionListener::TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
+                                          uint32_t targetId)
+{
+  PruneScrollReads(scrollHits);
+  const auto it = scrollHits.find(casterId);
+  if (it == scrollHits.end()) {
+    return false;
+  }
+  const auto now = std::chrono::steady_clock::now();
+  for (auto read = it->second.rbegin(); read != it->second.rend(); ++read) {
+    if (!IsSpellGrantedBy(&partOne.worldState, read->scrollId, spellId)) {
+      continue;
+    }
+    auto credit = read->grantedByTarget.find(targetId);
+    if (credit == read->grantedByTarget.end()) {
+      if (read->grantedByTarget.size() >= kScrollTargetsPerRead) {
+        continue;
+      }
+      read->grantedByTarget.emplace(targetId, GrantedCredit{ now, 1 });
+      return true;
+    }
+    if (now - credit->second.lastAt < std::chrono::seconds(1) ||
+        credit->second.seconds >= kScrollGrantedSecondsPerTarget) {
+      return false;
+    }
+    credit->second.lastAt = now;
+    ++credit->second.seconds;
+    return true;
+  }
+  return false;
+}
+
+void ActionListener::NoteForcefulAnim(uint32_t actorId,
+                                      const std::string& animEventName)
+{
+  const auto startsWith = [&](const char* prefix) {
+    const size_t n = std::strlen(prefix);
+    return animEventName.size() >= n &&
+      std::equal(prefix, prefix + n, animEventName.begin(),
+                 [](char a, char b) {
+                   return std::tolower(static_cast<unsigned char>(a)) ==
+                     std::tolower(static_cast<unsigned char>(b));
+                 });
+  };
+  const bool power = startsWith("attackPower");
+  const bool bash = startsWith("bash");
+  if (!power && !bash) {
+    return;
+  }
+  auto& seen = forcefulAnims[actorId];
+  (power ? seen.powerAt : seen.bashAt) = std::chrono::steady_clock::now();
+  if (forcefulAnims.size() > 4096) {
+    const auto now = std::chrono::steady_clock::now();
+    std::erase_if(forcefulAnims, [&](const auto& entry) {
+      return now - std::max(entry.second.powerAt, entry.second.bashAt) >
+        std::chrono::seconds(30);
+    });
+  }
+}
+
+void ActionListener::CountUnmatchedForcefulFlag(
+  uint32_t aggressorId, bool power, bool bash,
+  std::chrono::steady_clock::time_point now)
+{
+  if (!power && !bash) {
+    return;
+  }
+  const auto it = forcefulAnims.find(aggressorId);
+  const auto window = std::chrono::seconds(2);
+  const bool powerMatched = it != forcefulAnims.end() &&
+    now - it->second.powerAt <= window;
+  const bool bashMatched =
+    it != forcefulAnims.end() && now - it->second.bashAt <= window;
+  if (power) {
+    ++forcefulFlagCounts.power;
+    if (!powerMatched) {
+      ++forcefulFlagCounts.powerUnmatched;
+    }
+  }
+  if (bash) {
+    ++forcefulFlagCounts.bash;
+    if (!bashMatched) {
+      ++forcefulFlagCounts.bashUnmatched;
+    }
+  }
+  if ((power && !powerMatched) || (bash && !bashMatched)) {
+    spdlog::info("OnWeaponHit - {:x} sent a {} flag with no matching "
+                 "animation in 2 s (power {}/{} unmatched, bash {}/{})",
+                 aggressorId, power ? "power" : "bash",
+                 forcefulFlagCounts.powerUnmatched, forcefulFlagCounts.power,
+                 forcefulFlagCounts.bashUnmatched, forcefulFlagCounts.bash);
+  }
 }
