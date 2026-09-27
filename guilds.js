@@ -142,6 +142,14 @@ module.exports = (api) => {
   // ledger.js: the factions a character belongs to (offline ones too), and whether an id names a faction
   globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); const r = f.ranks[m.e.rank] || {}; return { id: m.fid, name: f.name, title: r.title || '', role: r.role || '', kind: f.kind || '', zone: f.zone || '', secret: !!f.secret }; });
   globalThis.__dboGuildExists = (id) => FACTIONS.has(String(id));
+  // When a faction was founded, for realm.js's protectDays: its first member's joining; a hold or stronghold is as old as
+  // the land (review m6: nothing defined this, so the rule never applied)
+  globalThis.__dboGuildFoundedAt = (id) => {
+    const f = FACTIONS.get(String(id));
+    if (!f || f.kind === 'hold' || f.kind === 'stronghold') return 0;
+    const since = Object.values(rosterOf(f.id)).map((e) => Number(e && e.since) || 0).filter((t) => t > 0);
+    return since.length ? Math.min(...since) : 0;
+  };
   // Every faction that is not secret, for the war section's lists (realm.js)
   globalThis.__dboFactionList = () => [...FACTIONS.values()].filter((f) => !f.secret).map((f) => f.id);
   // For the war system (realm.js): a faction's name and kind, and the characters on its roster (actor ids)

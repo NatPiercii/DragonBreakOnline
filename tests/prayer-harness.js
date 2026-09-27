@@ -82,7 +82,8 @@ const load = () => { delete require.cache[require.resolve(PRAYER)]; handlers.cle
 const faithlessOffered = () => {
   clear();
   const fn = timers.get('deityPickerOffer');
-  if (fn) fn();
+  // The line waits until the player has been in the world 15 s (release review PRAY-1): two ticks, time between
+  if (fn) { fn(); wallClock += 16000; fn(); }
   // Outside the creation step the offer is a chat line: an unasked-for menu must never take the keyboard (2026-09-27)
   return out.widgets.some((w) => w && w.type === 'deityPicker') || out.personals.some((p) => /\/deity/.test(String(p)));
 };
@@ -461,7 +462,7 @@ const creationPick = () => {
   props.delete(ACTOR + '|private.dboDeity');
   globalThis.__dboDeityForget(ACTOR);
   clear();
-  timers.get('deityPickerOffer')();
+  timers.get('deityPickerOffer')(); wallClock += 16000; timers.get('deityPickerOffer')();
   return out.widgets[0];
 };
 pick = creationPick();
@@ -525,6 +526,21 @@ globalThis.__dboPrayerLastShrine && globalThis.__dboPrayerLastShrine.clear();
 clear();
 commands.get('offer')(ACTOR, '20');
 check('an offering to a shrine god is made at the shrine', /at their shrine/.test(out.personals[0]) && gold === 440);
+
+// The god offer waits until the player has been in the world a while, and a relog offers it again (release review PRAY-1)
+props.delete(ACTOR + '|private.dboDeity');
+globalThis.__dboAtCreationEnd = () => false;
+globalThis.__dboDeityForget(ACTOR);
+clear(); timers.get('deityPickerOffer')();
+check('the first tick after login sends no line yet', !out.personals.some((p) => /\/deity/.test(String(p))));
+wallClock += 16000; clear(); timers.get('deityPickerOffer')();
+check('15 s later it does', out.personals.some((p) => /\/deity/.test(String(p))));
+clear(); wallClock += 16000; timers.get('deityPickerOffer')();
+check('once, not every tick', !out.personals.some((p) => /\/deity/.test(String(p))));
+globalThis.__dboDeityForget(ACTOR);
+clear(); timers.get('deityPickerOffer')(); wallClock += 16000; timers.get('deityPickerOffer')();
+check('after a logout (forgotten) it is offered again', out.personals.some((p) => /\/deity/.test(String(p))));
+delete globalThis.__dboAtCreationEnd;
 
 Date.now = realNow;
 console.log('');

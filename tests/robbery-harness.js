@@ -34,6 +34,8 @@ Math.random = () => random;
 globalThis.__dboPartyLeaderOf = (a) => (a === ROBBER || a === FRIEND ? 1 : null);
 let downedSet = new Set();
 globalThis.__dboIsDowned = (a) => downedSet.has(a);
+let downer = 0;
+globalThis.__dboDownedBy = (a) => (downedSet.has(a) ? (downer || ROBBER) : 0);
 const api = {
   mp: {
     get, set: (id, p, v) => { if (failSetFor === id && p === 'inventory') throw new Error('write failed'); set(id, p, v); },
@@ -157,6 +159,32 @@ r = act(ROBBER, VICTIM);
 check('no panel: no widget, and both are told it is Fight/Flee', out.widgets.length === widgetsNoPanel && /will not hand it over/.test(r) && /demands your coin\. You stand your ground/.test(r), r);
 check('the contest is on, so downing them lets the robber take it', (() => { downedSet.add(VICTIM); act(ROBBER, VICTIM); downedSet.delete(VICTIM); return count(VICTIM, GOLD) === 850; })());
 check('it is audited as a refusal', out.audits.some((t) => /no panel on their UI \(resists\)/.test(t)));
+
+// Only the robber who brought the victim down takes it (m2); no demand mid-fight (m3); Escape answers (C5)
+now += 31 * 60000; reset();
+handlers.get('uiCaps')(VICTIM, ['robPrompt']);
+act(ROBBER, VICTIM);
+answer(VICTIM, out.widgets[out.widgets.length - 1].w.nonce, 'fight');
+downedSet.add(VICTIM); downer = FRIEND;
+r = act(ROBBER, VICTIM);
+check('a victim someone else brought down is not the robber\'s take (m2)', count(VICTIM, GOLD) === 1000 && /Someone else brought them down/.test(r), r);
+downer = 0; downedSet.delete(VICTIM);
+now += 31 * 60000; reset();
+globalThis.__dboPvpAt = new Map([[VICTIM, now - 5000]]);
+check('no demand in the middle of a fight (m3)', menu(ROBBER, VICTIM).length === 0 && /middle of a fight/.test(act(ROBBER, VICTIM)));
+globalThis.__dboPvpAt = new Map();
+act(ROBBER, VICTIM);
+out.personal.length = 0;
+handlers.get('close')(VICTIM, [], 49);
+check('Escape on the panel answers Fight/Flee at once (C5)', !globalThis.__dboRobbery.pending.has(VICTIM) && out.personal.some((x) => x.a === ROBBER && /refuses/.test(x.t)));
+now += 31 * 60000; reset();
+act(ROBBER, VICTIM);
+set(ROBBER, 'pos', [9000, 0, 0]);
+answer(VICTIM, out.widgets[out.widgets.length - 1].w.nonce, 'accept');
+set(ROBBER, 'pos', [0, 0, 0]);
+check('a robber who stepped away before the answer still waits before demanding again (m3)', /robbed someone moments ago/.test(act(ROBBER, VICTIM)));
+globalThis.__dboRobLeave(VICTIM);
+check('a UI\'s panels are forgotten when its player leaves (C6)', !globalThis.__dboRobbery.caps.has(VICTIM));
 
 // Never a worn copy, even when a second copy of it sits in its own stack (review M2)
 now += 31 * 60000; reset();

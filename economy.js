@@ -121,9 +121,15 @@ module.exports = (api) => {
         const rate = Math.min(C.maxTaxRate, Math.max(0, Number(d.rates[fid]) || 0)); if (!rate) continue;
         const tax = Math.floor(valueOf(ref) * rate); if (tax <= 0) continue;
         const r = report(fid);
-        if (chargeAccount(rec.owner, tax) && T.deposit(fid, tax, `property tax on ${ref.toString(16)}`)) {
+        const charged = chargeAccount(rec.owner, tax);
+        if (charged && T.deposit(fid, tax, `property tax on ${ref.toString(16)}`)) {
           r.income += tax; r.taxed++;
           delete d.overdue[String(ref)];
+        } else if (charged) {
+          // The treasury refused it: the owner gets the tax back and owes nothing this week (review m1)
+          const back = accountActors(rec.owner)[0];
+          if (back) credit(back, tax);
+          log(`economy: ${nameOfFaction(fid)}'s treasury could not take ${tax} gold of tax on ${ref.toString(16)}; refunded`);
         } else {
           const o = d.overdue[String(ref)] = d.overdue[String(ref)] || { weeks: 0, gold: 0, owner: rec.owner, ownerName: rec.ownerName, faction: fid };
           o.weeks++; o.gold += tax; o.faction = fid;

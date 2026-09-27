@@ -513,6 +513,8 @@ module.exports = (api) => {
   // The revive potion (alchemy) calls this when it is used on a fallen player
   globalThis.__dboReviveWith = (target, by, how) => revive(Number(target) >>> 0, Number(by) >>> 0, how);
   globalThis.__dboIsDowned = (a) => S.downed.has(Number(a) >>> 0) && isDead(Number(a) >>> 0);
+  // Who brought a downed player down (robbery.js: only the robber who did it takes the goods), or 0
+  globalThis.__dboDownedBy = (a) => { const d = S.downed.get(Number(a) >>> 0); return d && isDead(Number(a) >>> 0) ? Number(d.by) >>> 0 : 0; };
   // alchemy.js asks this before an ordinary brew: the Draught for a known recipe at tier, a hint below it, else null
   globalThis.__dboLabDraught = (a, used) => {
     if (!POTION) return null;

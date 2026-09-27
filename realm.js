@@ -66,7 +66,13 @@ module.exports = (api) => {
 
   // State kept across hot reloads; the files are read once per process
   const S = globalThis.__dboRealm || (globalThis.__dboRealm = { owners: null, wars: null, capture: new Map() });
-  const territories = () => ((readJson(TERRITORIES, {}) || {}).territories || []).filter((t) => t && t.id && t.marker);
+  // territories.json read again only when it changes (review m7: every owner lookup read and parsed it)
+  const territoryFile = () => {
+    let at = 0; try { at = fs.statSync(TERRITORIES).mtimeMs; } catch (e) { return {}; }
+    if (!S.territoryFile || S.territoryFile.at !== at) S.territoryFile = { at, data: readJson(TERRITORIES, {}) || {} };
+    return S.territoryFile.data;
+  };
+  const territories = () => (territoryFile().territories || []).filter((t) => t && t.id && t.marker);
   const territory = (id) => territories().find((t) => t.id === id) || null;
 
   // ---- factions ------------------------------------------------------------------------------------------------------
@@ -381,26 +387,35 @@ module.exports = (api) => {
     if (!side) return { ok: false, text: 'Only the leaders of the two sides make peace.' };
     tribute = Math.max(0, Math.floor(Number(tribute) || 0));
     const from = payer === 'them' ? (side === w.attacker ? w.defender : w.attacker) : side;
-    w.peace = { by: side, from, tribute, at: Date.now() };
+    // Each offer has its own id, and accepting names it and its tribute, so terms changed after the other side read
+    // them are never the ones accepted (release review M1)
+    w.peaceSeq = (Number(w.peaceSeq) || 0) + 1;
+    w.peace = { id: w.peaceSeq, by: side, from, tribute, at: Date.now() };
     saveWars();
     const other = side === w.attacker ? w.defender : w.attacker;
     for (const d of onlineActors().filter((x) => leads(x, other))) personal(d, `${nameOfFaction(side)} offers peace${tribute ? `: ${tribute} gold paid by ${nameOfFaction(from)}` : ''}. Answer in the faction panel (F3).`);
     audit(`WAR ${w.id}: ${who(a)} offers peace (${tribute} gold from ${from})`);
     return { ok: true, text: 'Peace offered.' };
   };
-  const answerPeace = (a, id, accept) => {
+  const answerPeace = (a, id, accept, offerId, tribute) => {
     const w = live().find((x) => x.id === Number(id));
     if (!w || !w.peace) return { ok: false, text: 'There is no offer to answer.' };
     const other = w.peace.by === w.attacker ? w.defender : w.attacker;
     if (!leads(a, other)) return { ok: false, text: 'Only the other side\'s leader answers.' };
     if (!accept) { w.peace = null; saveWars(); audit(`WAR ${w.id}: ${who(a)} refused peace`); return { ok: true, text: 'You refuse the peace.' }; }
-    const { from, tribute } = w.peace;
+    if (Number(offerId) !== Number(w.peace.id) || Math.floor(Number(tribute) || 0) !== w.peace.tribute) return { ok: false, text: 'The offer has changed. Read it again before you answer.' };
+    const { from } = w.peace;
     const to = from === w.attacker ? w.defender : w.attacker;
-    if (tribute > 0) {
-      if (!globalThis.__dboTreasury.spend(from, tribute, `peace tribute to ${to}`)) return { ok: false, text: `${nameOfFaction(from)}'s treasury cannot pay ${tribute} gold.` };
-      globalThis.__dboTreasury.deposit(to, tribute, `peace tribute from ${from}`);
+    if (w.peace.tribute > 0) {
+      if (!globalThis.__dboTreasury.spend(from, w.peace.tribute, `peace tribute to ${to}`)) return { ok: false, text: `${nameOfFaction(from)}'s treasury cannot pay ${w.peace.tribute} gold.` };
+      // A tribute that cannot be paid in goes back, and there is no peace on it (review m1)
+      if (!globalThis.__dboTreasury.deposit(to, w.peace.tribute, `peace tribute from ${from}`)) {
+        globalThis.__dboTreasury.deposit(from, w.peace.tribute, `peace tribute to ${to} returned`);
+        return { ok: false, text: `${nameOfFaction(to)}'s treasury cannot take the tribute. Nothing is paid, and the war goes on.` };
+      }
     }
-    endWar(w, `peace${tribute ? `, ${nameOfFaction(from)} paying ${tribute} gold` : ''}`);
+    const tributeText = w.peace.tribute;
+    endWar(w, `peace${tributeText ? `, ${nameOfFaction(from)} paying ${tributeText} gold` : ''}`);
     return { ok: true, text: 'Peace is made.' };
   };
   const surrender = (a, id) => {
@@ -455,7 +470,8 @@ module.exports = (api) => {
       }
     }
   };
-  const isDownedOrDead = (a) => { try { return mp.get(a, 'isDead') === true; } catch (e) { return true; } };
+  // A downed player is dead to the engine (downed.js), and asked for by name too, should that ever change (review m5)
+  const isDownedOrDead = (a) => { try { return mp.get(a, 'isDead') === true || (typeof globalThis.__dboIsDowned === 'function' && !!globalThis.__dboIsDowned(a)); } catch (e) { return true; } };
 
   // ---- war to the death ----------------------------------------------------------------------------------------------------
   // downed.js asks this when an enemy finishes a downed player; true means the character died for good
@@ -506,7 +522,7 @@ module.exports = (api) => {
       // Every faction's capital that this viewer may know of: a territory (crowned on the map) or a chosen spot
       capitals: capitalsSeenBy(a),
       // Hidden layers: only members of a listed secret faction (and staff) are sent these
-      secret: ((readJson(TERRITORIES, {}) || {}).secret || []).filter((t) => t && t.marker && Array.isArray(t.layer) && (isAdmin(a) || t.layer.some((f) => seesLayerOf(a, f))))
+      secret: (territoryFile().secret || []).filter((t) => t && t.marker && Array.isArray(t.layer) && (isAdmin(a) || t.layer.some((f) => seesLayerOf(a, f))))
         .map((t) => ({ id: t.id, name: t.name, kind: t.kind || 'secret', layer: t.layer.filter((f) => isAdmin(a) || seesLayerOf(a, f)).map(nameOfFaction), x: t.marker.pos[0], y: t.marker.pos[1] })),
       // Map colours by faction: staff's lore table (config war.colours); a faction not in it shows grey until one is set
       colours: Object.assign({}, C.colours || {}),
@@ -537,7 +553,7 @@ module.exports = (api) => {
   onUi('warDeclare', (a, args) => { if (!fromPanel(a, args)) return; const [, attacker, defender, goal, picks, toDeath] = args; reply(a, declare(a, String(attacker || ''), String(defender || ''), Array.isArray(goal) ? goal : [], Array.isArray(picks) ? picks : [], !!toDeath)); });
   onUi('warDeath', (a, args) => { if (fromPanel(a, args)) reply(a, answerDeath(a, args[1], !!args[2])); });
   onUi('warPeace', (a, args) => { if (fromPanel(a, args)) reply(a, proposePeace(a, args[1], args[2], args[3])); });
-  onUi('warPeaceAnswer', (a, args) => { if (fromPanel(a, args)) reply(a, answerPeace(a, args[1], !!args[2])); });
+  onUi('warPeaceAnswer', (a, args) => { if (fromPanel(a, args)) reply(a, answerPeace(a, args[1], !!args[2], args[3], args[4])); });
   onUi('warSurrender', (a, args) => { if (fromPanel(a, args)) reply(a, surrender(a, args[1])); });
   onUi('treatyOffer', (a, args) => { if (fromPanel(a, args)) reply(a, offerTreaty(a, String(args[1] || ''), String(args[2] || ''), args[3])); });
   onUi('treatyAnswer', (a, args) => { if (fromPanel(a, args)) reply(a, answerTreaty(a, args[1], !!args[2])); });

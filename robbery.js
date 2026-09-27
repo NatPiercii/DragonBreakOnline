@@ -20,7 +20,7 @@ module.exports = (api) => {
   const { mp, log, personal, audit, who, onlineActors, recordOf, adminItemName, openWidget, closeWidget, onUi, sendPacket, every, cfg } = api;
   const C = Object.assign({
     enabled: true, maxDistance: 300, answerSeconds: 20, goldShare: 0.15, itemCount: 3, keyChance: 0.0005,
-    contestMinutes: 10, robberMinutes: 10, victimMinutes: 30,
+    contestMinutes: 10, robberMinutes: 10, victimMinutes: 30, combatSeconds: 15,
   }, cfg.robbery || {});
   const WIDGET_ID = 49;
   const GOLD = 0x0000000f;
@@ -31,6 +31,9 @@ module.exports = (api) => {
   const get = (a, prop, fallback) => { try { const v = mp.get(a, prop); return v === undefined || v === null ? fallback : v; } catch (e) { return fallback; } };
   const dead = (a) => get(a, 'isDead', false) === true;
   const downed = (a) => { try { return typeof globalThis.__dboIsDowned === 'function' && !!globalThis.__dboIsDowned(a); } catch (e) { return false; } };
+  const downedBy = (a) => { try { return typeof globalThis.__dboDownedBy === 'function' ? Number(globalThis.__dboDownedBy(a)) >>> 0 : 0; } catch (e) { return 0; } };
+  // A player hit or hitting another within combatSeconds is in a fight (gamemode.js pvpAt)
+  const inFight = (a) => { const m = globalThis.__dboPvpAt; return m instanceof Map && Date.now() - (m.get(a >>> 0) || 0) < C.combatSeconds * 1000; };
   const handsTied = (a) => { const r = get(a, 'private.restrained', null) || {}; return !!(r.boundHands || r.carried); };
   const inBeastForm = (a) => { const s = get(a, 'private.beast', null); return !!(s && s.form); };
   const online = (a) => onlineActors().includes(a >>> 0);
@@ -59,7 +62,10 @@ module.exports = (api) => {
     if (sameParty(a, t)) return 'You cannot rob a member of your own party.';
     if (pendingFor(a) || pendingFor(t)) return 'A robbery is already under way.';
     const contest = contestBy(a, t);
-    if (contest && downed(t)) return '';
+    // The robbery completes on a victim who refused, only if this robber brought them down (review m2)
+    if (contest && downed(t)) return downedBy(t) === a ? '' : 'Someone else brought them down. It is not your take.';
+    // No demand in the middle of a fight: the panel would hold the victim's hands (review m3)
+    if (inFight(a) || inFight(t)) return 'Not in the middle of a fight.';
     if (dead(t)) return 'You cannot rob them right now.';
     if (within(S.robberAt, a, C.robberMinutes)) return 'You robbed someone moments ago. Wait before you try again.';
     if (within(S.victimAt, t, C.victimMinutes)) return 'They were robbed recently. Leave them be for now.';
@@ -167,6 +173,8 @@ module.exports = (api) => {
     try { closeWidget(p.victim, WIDGET_ID); } catch (e) { /* gone */ }
     if (choice === 'accept') {
       if (!online(p.robber) || !near(p.robber, p.victim)) {
+        // The robber waits as after any demand, so stepping back cannot repeat it at once (review m3)
+        S.robberAt.set(p.robber, Date.now());
         personal(p.victim, `${p.robberName} is gone before you hand anything over.`);
         audit(`ROBBERY ${who(p.robber)} -> ${who(p.victim)}: accepted, but the robber had left`);
         return;
@@ -191,7 +199,7 @@ module.exports = (api) => {
     const why = refusal(a, t, false);
     if (why) { personal(a, why); return true; }
     // A victim who refused and now lies downed: the robbery completes
-    if (contestBy(a, t) && downed(t)) { rob(a, t, nameFor); return true; }
+    if (contestBy(a, t) && downed(t) && downedBy(t) === a) { rob(a, t, nameFor); return true; }
     const nonce = `${a.toString(16)}-${t.toString(16)}-${Date.now().toString(36)}`;
     const p = { robber: a, victim: t, nonce, until: Date.now() + C.answerSeconds * 1000, nameFor,
       robberName: nameFor ? nameFor(t, a) : 'Someone', victimName: nameFor ? nameFor(a, t) : 'They' };
@@ -204,6 +212,10 @@ module.exports = (api) => {
   };
 
   onUi('uiCaps', (a, args) => { S.caps.set(a >>> 0, new Set((args || []).map(String))); });
+  // Escape closes the panel: that is an answer, Fight/Flee, not a wait for the clock (review C5)
+  onUi('close', (a, args, widgetId) => { if (widgetId !== WIDGET_ID) return; const p = S.pending.get(a >>> 0); if (p) finish(p, 'fight', 'answer'); });
+  // A UI's panels go with its session (review C6); the HUD says them again at the next login
+  globalThis.__dboRobLeave = (a) => { S.caps.delete(a >>> 0); const p = S.pending.get(a >>> 0); if (p) finish(p, 'fight', 'timeout'); };
   onUi('robAnswer', (a, args) => {
     const p = S.pending.get(a >>> 0);
     if (!p || p.nonce !== String((args || [])[0] || '')) return;

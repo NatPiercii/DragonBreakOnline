@@ -594,6 +594,8 @@ module.exports = (api) => {
   // never had one, which is every character alive today. Watching for it beats hooking creation:
   // private.creationPending is cleared in a TS system with no gamemode callback, and this covers
   // the returning player as well as the new one.
+  const OFFER_AFTER_MS = 15000;
+  const offerReadySince = globalThis.__dboDeityReadySince || (globalThis.__dboDeityReadySince = new Map());
   every('deityPickerOffer', 7000, () => {
     for (const a of (api.onlineActors ? api.onlineActors() : [])) {
       try {
@@ -604,12 +606,20 @@ module.exports = (api) => {
         if (atCreationStep(a)) openCreationStep(a);
         // Only asked for menus take the keyboard: this offer opened the picker with focus at every login, and players
         // without a god could not move until they closed it or tabbed out (2026-09-27). A chat line instead.
-        else { offered.add(a); personal(a, 'You follow no god yet. Type /deity to choose one.'); log(`deity menu offered in chat to ${display(a)} (no god yet)`); }
+        else {
+          // The line waits until the player has been in the world a while, or it can arrive before their chat is up and
+          // be lost (release review PRAY-1)
+          const since = offerReadySince.get(a);
+          if (!since) { offerReadySince.set(a, Date.now()); continue; }
+          if (Date.now() - since < OFFER_AFTER_MS) continue;
+          offered.add(a); personal(a, 'You follow no god yet. Type /deity to choose one.'); log(`deity menu offered in chat to ${display(a)} (no god yet)`);
+        }
       } catch (e) { /* not an actor yet */ }
     }
   });
-  // Someone who logs out mid-pick should be offered it again next time.
-  globalThis.__dboDeityForget = (a) => { offered.delete(a); pickerNonce.delete(a); creationStep.delete(a); };
+  // Someone who logs out, mid-pick or before the offer reached them, is offered it again next time (gamemode.js calls this
+  // on every logout)
+  globalThis.__dboDeityForget = (a) => { offered.delete(a); offerReadySince.delete(a); pickerNonce.delete(a); creationStep.delete(a); };
 
   // Taking or changing a god. `atShrine` is the older chat path's extra rule and is not applied to
   // the menu, because the brief moved conversion onto a menu key rather than a pilgrimage.

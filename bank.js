@@ -267,6 +267,8 @@ module.exports = (api) => {
     return true;
   };
 
+  // A UI's panels go with its session (review C6); the HUD says them again at the next login
+  globalThis.__dboBankLeave = (a) => { S.caps.delete(a >>> 0); S.at.delete(a >>> 0); S.nonces.delete(a >>> 0); };
   onUi('uiCaps', (a, args) => { S.caps.set(a >>> 0, new Set((args || []).map(String))); });
   const fresh = (a, args) => S.nonces.get(a >>> 0) === String((args || [])[0] || '');
   const answer = (a, r) => (hasPanel(a) && S.nonces.has(a >>> 0) ? openPanel(a, r.text, r.ok ? 'ok' : 'refused') : personal(a, r.text));

@@ -22,9 +22,14 @@ const forms = new Map([
 ]);
 let probes = 0;
 const destroyed = [];
+let now = 1000000; Date.now = () => now;
+const HOSTED = 0xff000500;
+forms.set(HOSTED, { 'private.npcSpawner': 'wild:deer:9' });
+const hosters = new Map([[HOSTED, 0xff000014]]);
 const mp = {
   get: (id, p) => { probes++; const f = forms.get(id); if (!f) throw new Error('no form'); return f[p]; },
-  getAllForms: () => [OGRE, CHICK, WOLF, PLAYER, CHEST, GONE],
+  getAllForms: () => [OGRE, CHICK, WOLF, PLAYER, CHEST, GONE, HOSTED],
+  getHoster: (id) => hosters.get(id) || 0,
   destroyActor: (id) => { destroyed.push(id); forms.delete(id); },
 };
 let mtime = 1000;
@@ -34,7 +39,7 @@ const api = {
   mp, log: () => {}, audit: (t) => audits.push(t), every: (n, ms, f) => timers.set(n, f),
   profileOf: (id) => { const f = forms.get(id); return f && f.profileId !== undefined ? f.profileId : -1; },
   // The engine's answer for an actor no one plays (review ORPH-1)
-  userOf: () => 65535,
+  userOf: () => 65535, cfg: {},
 };
 delete globalThis.__dboOrphans;
 delete require.cache[ORPHANS];
@@ -46,22 +51,23 @@ const tick = () => timers.get('orphans')();
 
 writeSpawns([WOLF]);
 tick();
-check('the first read only marks suspects', destroyed.length === 0 && orphans.state.suspects.has(OGRE) && orphans.state.suspects.has(CHICK));
+check('the first sweep only marks suspects', destroyed.length === 0 && orphans.state.suspects.has(OGRE) && orphans.state.suspects.has(CHICK));
 check('players, untagged forms and npcs a zone lists are never suspects', !orphans.state.suspects.has(PLAYER) && !orphans.state.suspects.has(CHEST) && !orphans.state.suspects.has(WOLF));
-tick();
-check('an unchanged file gives no second opinion', destroyed.length === 0);
-// The chicken is listed again by the time of the second read (placed just before the first), the ogre is not
+check('an npc a player\'s game is running is not a suspect (ORPH-3)', !orphans.state.suspects.has(HOSTED));
+now += 60000; tick();
+check('a minute later, nothing yet', destroyed.length === 0);
+// The chicken is listed by the time of the next sweep (its id reused by a new spawn), the ogre is not
 writeSpawns([WOLF, CHICK]);
-tick();
-check('missing on two reads the spawn system wrote in between: removed', destroyed.length === 1 && destroyed[0] === OGRE);
+now += 61000; tick();
+check('still missing two minutes after it was first seen: removed, with no need for the file to change', destroyed.length === 1 && destroyed[0] === OGRE);
 check('an npc a zone lists again is spared', !destroyed.includes(CHICK) && !orphans.state.suspects.has(CHICK));
 check('the removal is audited with its base and zone', /^ORPHAN npc ff0000d9 \(5f056:BSHeartland.esm, wild:wolf:2882\) removed/.test(audits[0] || ''), audits[0]);
 const before = probes;
-writeSpawns([WOLF, CHICK]);
-tick();
-writeSpawns([WOLF, CHICK]);
-tick();
-check('a destroyed id is probed once, not on every sweep', probes - before <= 2 * 4, probes - before);
+now += 60000; tick();
+now += 60000; tick();
+check('a destroyed id is probed once, not on every sweep', probes - before <= 2 * 6, probes - before);
+check('staff cannot remove an npc a player\'s game is running either', /running it now/.test(globalThis.__dboOrphanRemove(HOSTED).text));
+hosters.delete(HOSTED);
 
 // Staff
 writeSpawns([WOLF]);

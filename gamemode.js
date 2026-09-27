@@ -436,7 +436,8 @@ registerChatCommand('help', (a, args) => {
     return;
   }
   const c = commands.get(want);
-  if (c && (!c.admin || isAdmin(a))) return personal(a, helpLine(want));
+  // ledgerpoint's usage is staff's, though players use the command's other side (review HELP-1)
+  if (c && (!c.admin || isAdmin(a)) && (want !== 'ledgerpoint' || isAdmin(a))) return personal(a, helpLine(want));
   personal(a, `No command or topic "${want}". Type /help for the list.`);
 }, { help: '[topic|command] this list, a topic, or one command explained' });
 registerChatCommand('adminhelp', (a, args) => staffHelp(a, String(args || '').trim().toLowerCase()), { admin: true, help: '[topic] staff commands by topic, in the admin tab' });
@@ -1231,6 +1232,8 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   // Logging out inside a dungeon would put them back inside it next time, in a claim that is not theirs
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
+  // What a UI said it can draw, and a deity offer already made, belong to this session (review C6, PRAY-1)
+  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -3554,7 +3557,7 @@ try {
 try {
   const ORPHANS_JS = path.resolve('orphans.js');
   delete require.cache[ORPHANS_JS];
-  require(ORPHANS_JS)({ mp, log, audit, every, profileOf, userOf });
+  require(ORPHANS_JS)({ mp, log, audit, every, profileOf, userOf, cfg });
 } catch (e) { log('orphans.js failed to load:', e.stack || e.message); globalThis.__dboOrphanRemove = null; }
 
 // ---- Rob in the X menu: the victim answers in a panel (server\robbery.js) ---------------------------------------------

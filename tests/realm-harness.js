@@ -195,11 +195,21 @@ check('a war to the death is only proposed when asked for', w2.death === null);
 check('only the defending leader can refuse a proposal that does not exist', !realm.answerDeath(COUNT, w2.id, true).ok);
 treasury['county-bruma'] = 500;
 realm.proposePeace(COUNT, w2.id, 1000, 'me');
-check('peace needs the payer to afford the tribute', !realm.answerPeace(GM, w2.id, true).ok);
+check('peace needs the payer to afford the tribute', !realm.answerPeace(GM, w2.id, true, w2.peace.id, w2.peace.tribute).ok);
 treasury['county-bruma'] = 5000;
 realm.proposePeace(COUNT, w2.id, 1000, 'me');
-check('only the other side answers peace', !realm.answerPeace(COUNT, w2.id, true).ok);
-check('peace with tribute ends the war', realm.answerPeace(GM, w2.id, true).ok && w2.status === 'ended' && treasury['county-bruma'] === 4000);
+check('only the other side answers peace', !realm.answerPeace(COUNT, w2.id, true, w2.peace.id, w2.peace.tribute).ok);
+// The offer the other side read is the one it accepts (review M1)
+const seen = { id: w2.peace.id, tribute: w2.peace.tribute };
+realm.proposePeace(COUNT, w2.id, 25000, 'them');
+check('an offer changed after it was read cannot be accepted as the old one', /offer has changed/.test(realm.answerPeace(GM, w2.id, true, seen.id, seen.tribute).text) && w2.status !== 'ended' && treasury['fighters-guild'] === 30000 - 10000);
+realm.proposePeace(COUNT, w2.id, 1000, 'me');
+// A tribute the other treasury refuses goes back, and there is no peace (review m1)
+const dep0 = globalThis.__dboTreasury.deposit;
+globalThis.__dboTreasury.deposit = (f, n) => (f === 'fighters-guild' ? false : dep0(f, n));
+check('a tribute the receiving treasury refuses goes back, and the war goes on', !realm.answerPeace(GM, w2.id, true, w2.peace.id, w2.peace.tribute).ok && treasury['county-bruma'] === 5000 && w2.status !== 'ended');
+globalThis.__dboTreasury.deposit = dep0;
+check('peace with tribute ends the war', realm.answerPeace(GM, w2.id, true, w2.peace.id, w2.peace.tribute).ok && w2.status === 'ended' && treasury['county-bruma'] === 4000);
 now += 15 * DAY; treasury['fighters-guild'] = 30000;
 const w3 = decl(GM, ['aleswell']).war;
 check('no treaty offered to a side you are at war with', /at war with them/.test(realm.offerTreaty(GM, 'fighters-guild', 'county-bruma', 2).text));

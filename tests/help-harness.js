@@ -99,5 +99,8 @@ check('staff can', out[0] === '/kick - <player>');
 out = help(PLAYER, 'nonsense');
 check('an unknown word says so and points back to /help', /Type \/help for the list/.test(out[0]));
 
+out = help(PLAYER, 'ledgerpoint');
+check('/help ledgerpoint shows a player no staff usage (review HELP-1)', out.length === 1 && /No command or topic "ledgerpoint"/.test(out[0]), JSON.stringify(out));
+check('staff still get it', /ledgerpoint/.test(help(STAFF, 'ledgerpoint')[0]));
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);
