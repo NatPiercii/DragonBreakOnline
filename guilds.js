@@ -17,7 +17,7 @@ module.exports = (api) => {
   const fs = require('fs');
   const path = require('path');
   const { mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf,
-    onlineActors, isAdmin, findByName, audit, who, cfg } = api;
+    onlineActors, isAdmin, findByName, audit, who, cfg, profileOf } = api;
 
   const WIDGET_ID = 37;
   const INVITE_MS = 2 * 60000;
@@ -43,6 +43,42 @@ module.exports = (api) => {
     try { fs.writeFileSync(STATE_PATH + '.tmp', JSON.stringify(ST.members, null, 1)); fs.renameSync(STATE_PATH + '.tmp', STATE_PATH); }
     catch (e) { log('guilds.json write failed', e.message); }
   };
+  // ---- the faction's storage ---------------------------------------------------------------------
+  // Nate 2026-09-27: recruitment and access stay roleplay. A leader claims a container through housing, locks
+  // it and cuts keys for whoever should reach it; this records only WHERE it is, so members can find it and it
+  // outlives a change of leader. Nothing here grants access, and rank-gated doors were deliberately not built:
+  // a key handed over in character does the same job and the leader keeps control of it.
+  const STORE_PATH = path.resolve('faction-storage.json');
+  const STORES = globalThis.__dboGuildStores || (globalThis.__dboGuildStores = readJson(STORE_PATH, {}));
+  const saveStores = () => {
+    try { fs.writeFileSync(STORE_PATH + '.tmp', JSON.stringify(STORES, null, 1)); fs.renameSync(STORE_PATH + '.tmp', STORE_PATH); }
+    catch (e) { log('faction-storage.json write failed', e.message); }
+  };
+  const STORE_REACH = 400;
+  // The claimed property the player is standing at. housing.json is the index of claimed ids the housing
+  // system keeps (an array of form ids); a ref that is not loaded simply does not answer and is skipped.
+  const propertyAt = (a) => {
+    let pos = null, cell = null;
+    try { pos = mp.get(a, 'pos'); cell = mp.get(a, 'worldOrCellDesc'); } catch (e) { return 0; }
+    if (!pos) return 0;
+    const claimed = readJson(path.resolve('housing.json'), []);
+    let best = 0, bestD = Infinity;
+    for (const raw of Array.isArray(claimed) ? claimed : []) {
+      const ref = Number(raw) >>> 0; if (!ref) continue;
+      try {
+        if (mp.get(ref, 'worldOrCellDesc') !== cell) continue;
+        const p = mp.get(ref, 'pos'); if (!p) continue;
+        const d = Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]);
+        if (d <= STORE_REACH && d < bestD) { bestD = d; best = ref; }
+      } catch (e) { /* not loaded right now */ }
+    }
+    return best;
+  };
+  const storageOf = (fid) => {
+    const st = STORES[fid];
+    return st && st.ref ? { ref: st.ref, name: st.name || 'the strongbox', hall: st.hall || '', by: st.by || '', at: st.at || 0 } : null;
+  };
+
   const rosterOf = (fid) => (ST.members[fid] = ST.members[fid] || {});
   const entryOf = (fid, a) => (ST.members[fid] || {})[String(a >>> 0)] || null;
   // A faction's circle: the supernatural kind it takes (guild-defs "requires"), or config factions.circles for a faction
@@ -162,6 +198,7 @@ module.exports = (api) => {
   // Where a faction is seated (guild-defs.json "hall"). A home address for now: the name players are told and
   // the doors that lead in. The Blades have none on purpose while Cloud Ruler Temple is a ruin.
   globalThis.__dboGuildHall = (id) => { const f = FACTIONS.get(String(id)); return f ? hallOf(f) : null; };
+  globalThis.__dboGuildStorage = (id) => storageOf(String(id));
   globalThis.__dboGuildMembers = (id) => Object.keys(ST.members[String(id)] || {}).map((x) => Number(x) >>> 0);
   globalThis.__dboGuildRanks = (id) => { const f = FACTIONS.get(String(id)); return f ? f.ranks.map((r) => r.title) : []; };
   globalThis.__dboHoldFactionOf = (zoneId) => { for (const f of FACTIONS.values()) if (f.kind === 'hold' && f.zone === zoneId) return f.id; return null; };
@@ -242,11 +279,39 @@ module.exports = (api) => {
     if (s === 'list') return personal(a, [...FACTIONS.values()].filter((f) => !f.secret || isAdmin(a) || entryOf(f.id, a)).map((f) => `${f.id} (${f.name})`).join(', '));
     // Where a faction is seated. A hall the player cannot reach is not worth naming, so only Bruma shows while
     // the playtest is locked there.
+    // A leader records where the faction keeps its things. Access is the leader's business: housing locks it and
+    // cuts the keys, and this never opens anything.
+    if (s === 'storage') {
+      const mine = membershipsOf(a).filter((m) => isAdmin(a) || can(m.fid, a, 'setRank'));
+      const fid = (rest[1] && String(rest[1]).toLowerCase()) || (rest[0] && FACTIONS.get(String(rest[0]).toLowerCase()) ? String(rest[0]).toLowerCase() : '') || (mine[0] || {}).fid;
+      const f = fid && FACTIONS.get(fid);
+      if (!f) return personal(a, 'Only a faction leader sets the storage. Usage: /faction storage [faction] | /faction storage clear [faction]');
+      if (!isAdmin(a) && !can(fid, a, 'setRank')) return personal(a, `Your rank in ${f.name} does not set the storage.`);
+      if (String(rest[0] || '').toLowerCase() === 'clear') {
+        if (!STORES[fid]) return personal(a, `${f.name} has no storage recorded.`);
+        delete STORES[fid]; saveStores(); audit(`FACTION ${who(a)} cleared the storage of ${f.name}`);
+        return personal(a, `${f.name} no longer has a storage recorded.`);
+      }
+      if (rest[0] && !FACTIONS.get(String(rest[0]).toLowerCase())) return personal(a, `No such faction: ${rest[0]} (/faction list)`);
+      const ref = propertyAt(a);
+      if (!ref) return personal(a, 'Stand at a claimed door or container of yours and say /faction storage again.');
+      const H = globalThis.__dboHousing;
+      const rec = H && typeof H.recordOf === 'function' ? H.recordOf(ref) : null;
+      if (!rec || !rec.owner) return personal(a, 'That property belongs to nobody yet. Have it granted first, then record it.');
+      const me = Number(profileOf(a)) || 0;
+      if (!isAdmin(a) && rec.owner !== me) return personal(a, `That property belongs to ${rec.ownerName || 'someone else'}. Record one of your own.`);
+      const hall = hallOf(f);
+      STORES[fid] = { ref: ref >>> 0, name: rec.name || 'the strongbox', hall: hall ? hall.name : '', by: nameOf(a), at: Date.now() };
+      saveStores();
+      audit(`FACTION ${who(a)} set the storage of ${f.name} to ${rec.name || ref.toString(16)}`);
+      return personal(a, `${f.name} keeps its things in ${rec.name || 'that container'}${hall ? ` at ${hall.name}` : ''}. Lock it and cut keys for whoever should reach it.`);
+    }
     if (s === 'hall' || s === 'halls') {
       const one = rest[0] && FACTIONS.get(String(rest[0]).toLowerCase());
       if (rest[0] && !one) return personal(a, `No such faction: ${rest[0]} (/faction list)`);
       const seen = one ? [one] : [...FACTIONS.values()].filter((f) => !f.secret || isAdmin(a) || entryOf(f.id, a));
-      const lines = seen.filter((f) => hallOf(f)).map((f) => { const h = hallOf(f); return `${f.name}: ${h.name}${h.shared ? ' (shared)' : ''}${h.note ? ` - ${h.note}` : ''}`; });
+      const storeLine = (f) => { const st = storageOf(f.id); return st && (isAdmin(a) || entryOf(f.id, a)) ? `, storage: ${st.name}` : ''; };
+      const lines = seen.filter((f) => hallOf(f)).map((f) => { const h = hallOf(f); return `${f.name}: ${h.name}${h.shared ? ' (shared)' : ''}${h.note ? ` - ${h.note}` : ''}${storeLine(f)}`; });
       if (one) return personal(a, lines[0] || `${one.name} has no seat you can reach.`);
       return personal(a, lines.length ? `Faction halls in Bruma: ${lines.join(' | ')}` : 'No faction has a seat you can reach yet.');
     }
