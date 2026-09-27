@@ -72,9 +72,17 @@
         ]
       },
       {
-        "heading": "The Realm map",
+        "heading": "Maps",
         "items": [
-          "The Realm tab of the faction panel (F3) shows the game's own map icons: Castle Bruma, and the town, settlement and fort markers of Applewatch, Greenwood and Pale Pass."
+          "The Realm tab of the faction panel (F3) shows the game's own map icons: Castle Bruma, and the town, settlement and fort markers of Applewatch, Greenwood and Pale Pass.",
+          "Aleswell, a town south of Bruma, and Fort Caractacus beside it are now on the world map, and on the Realm map as a town and a fort of their own."
+        ]
+      },
+      {
+        "heading": "Combat",
+        "items": [
+          "Spells cast from scrolls now count as spell hits, so a paralysis scroll holds the one it hits.",
+          "Whether a hit is blocked is now decided from the defender's side, the same for everyone."
         ]
       },
       {
