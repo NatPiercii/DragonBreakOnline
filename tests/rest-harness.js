@@ -91,7 +91,7 @@ fs.writeFileSync('housing.json', JSON.stringify([CHEST, ROOM_DOOR, HOME_DOOR, IN
 const gold = new Map([[ME, 0], [OTHER, 100], [INNKEEPER, 0], [THIRD, 0], [ME2, 0]]);
 const online = new Set([ME, OTHER]);
 const treasury = new Map();
-const out = { widgets: [], closed: 0, personals: [], systems: [], audits: [], logs: [], packets: [], kicks: [] };
+const out = { widgets: [], closed: 0, personals: [], systems: [], audits: [], logs: [], packets: [], kicks: [], enabled: [] };
 const handlers = new Map(), commands = new Map(), timers = new Map();
 let distance = 1;
 const CELLS = { 0x13870: 'CELL', 0x2936: 'CELL', 0x13a7c: 'CELL', 0x1114: 'CELL', 0x6c14f: 'CELL', 0x13a7f: 'CELL', 0x138ce: 'CELL', 0x13a5c: 'CELL', 0x3c: 'WRLD' };
@@ -103,6 +103,7 @@ const api = {
     get: (id, prop) => props.get(id + '|' + prop),
     set: (id, prop, v) => props.set(id + '|' + prop, v),
     kick: (user) => out.kicks.push(user),
+    setEnabled: (id, on) => out.enabled.push([id, on]),
     lookupEspmRecordById: (id) => (CELLS[id] ? { record: { type: CELLS[id] } } : null),
     getActorsByProfileId: (pid) => Object.keys(PROFILE).map(Number).filter((a) => PROFILE[a] === pid),
   },
@@ -247,6 +248,7 @@ activate(INN_BED, ME); ui('restChoose', ME, ['sleep']);
 check('sleeping records the time and bed', props.get(ME + '|private.dboSleep').at === wallClock && props.get(ME + '|private.dboSleep').bed === INN_BED);
 check('the client is told why before the kick', out.packets.some(([a, p]) => a === ME && p.customPacketType === 'kicked' && /30 minutes/.test(p.reason)));
 check('the player is kicked', out.kicks.length === 1 && out.kicks[0] === ME + 1000, out.kicks);
+check('and the sleeper\'s body leaves the world at once, not after the 60 s timeout and 5 minute grace', out.enabled.length === 1 && out.enabled[0][0] === ME && out.enabled[0][1] === false, JSON.stringify(out.enabled));
 check('the sleep is audited', out.audits.some((t) => /^REST P14 went to sleep in bed 7ec0f at Snowstone Rest$/.test(t)));
 check('a stranger cannot sleep in my rented bed through a stale prompt', (() => { props.set(OTHER + '|private.dboSleep', undefined); ui('restClose', OTHER); props.set(OTHER + '|private.dboRentBed', null); activate(INN_BED2, OTHER); ui('restChoose', OTHER, ['sleep']); return out.kicks.length === 1; })());
 

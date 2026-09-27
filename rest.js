@@ -270,7 +270,13 @@ module.exports = (api) => {
     const reason = `You lie down and sleep. Stay away at least ${CFG.minOfflineMinutes} minutes to wake Well Rested.`;
     try { sendPacket(a, { customPacketType: 'kicked', reason }); } catch (e) { /* the kick still lands */ }
     const user = userOf(a);
-    setTimeout(() => { try { if (userOf(a) === user && user >= 0) mp.kick(user); } catch (e) { log('rest: kick failed', e.message); } }, 300);
+    setTimeout(() => {
+      try { if (userOf(a) === user && user >= 0) mp.kick(user); } catch (e) { log('rest: kick failed', e.message); }
+      // The client drops its connection on 'kicked' without telling the server, so the server only sees it leave after
+      // its 60 s timeout, and then spawn.ts keeps the body 5 minutes against combat logging. A sleeper in a bed is not
+      // fleeing a fight (checked above), so the body leaves the world now; choosing the character again enables it.
+      try { if (userOf(a) === user) mp.setEnabled(a, false); } catch (e) { log('rest: could not take the sleeper out of the world', e.message); }
+    }, 300);
   };
 
   onUi('restChoose', (a, args) => {
