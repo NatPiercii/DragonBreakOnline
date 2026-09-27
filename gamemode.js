@@ -1478,8 +1478,16 @@ registerChatCommand('load', (a, args) => {
   }
 }, { admin: true, help: 'players, npcs, poll time and packet rates (admin)' });
 
-// The spawned npcs near you, with how far each one sits above the spot its zone asked for
-registerChatCommand('npc', (a) => {
+// The spawned npcs near you, with how far each one sits above the spot its zone asked for; /npc remove <id> takes away one
+// no zone owns any more (orphans.js)
+registerChatCommand('npc', (a, args) => {
+  const [sub, idText] = String(args || '').trim().split(/\s+/);
+  if (sub === 'remove') {
+    const id = parseInt(String(idText || '').replace(/^0x/i, ''), 16);
+    if (!Number.isFinite(id)) return personal(a, 'Usage: /npc remove <id>, e.g. /npc remove ff0000d9');
+    if (typeof globalThis.__dboOrphanRemove !== 'function') return personal(a, 'orphans.js is not loaded.');
+    return personal(a, globalThis.__dboOrphanRemove(id).text);
+  }
   let ids = []; let zones = [];
   try { ids = JSON.parse(fs.readFileSync(path.resolve('zone-spawns.json'), 'utf8')) || []; } catch (e) { return personal(a, 'zone-spawns.json unreadable.'); }
   try { zones = (JSON.parse(fs.readFileSync(path.resolve('NPC-Spawns.json'), 'utf8')).zones) || []; } catch (e) { /* names only */ }
@@ -1504,7 +1512,7 @@ registerChatCommand('npc', (a) => {
   for (const r of rows.slice(0, 6)) {
     personal(a, `  ${r.id.toString(16)} ${r.tag} ${r.d}u away, ${r.up === null ? 'spawn spot unknown' : `${r.up >= 0 ? '+' : ''}${r.up} above its spot`}${r.dead ? ', dead' : ''} @ ${JSON.stringify(r.q)}`);
   }
-}, { admin: true, help: 'spawned npcs near you and their height above their spawn spot (admin)' });
+}, { admin: true, help: '[remove <id>] spawned npcs near you and their height above their spawn spot; remove one no zone owns (admin)' });
 
 // One command that says which of our systems are actually wired, so a playtest does not start blind
 registerChatCommand('selftest', (a) => {
@@ -3465,6 +3473,13 @@ try {
   delete require.cache[PICKPOCKET_JS];
   require(PICKPOCKET_JS)({ mp, log, personal, system, audit, who, nameOf, onlineActors, recordOf, adminItemName, cfg });
 } catch (e) { log('pickpocket.js failed to load:', e.stack || e.message); globalThis.__dboPickpocketEntries = null; globalThis.__dboPickpocketAction = null; }
+
+// ---- spawned npcs no zone owns any more: removed after two reads of zone-spawns.json (server\orphans.js) ----------------
+try {
+  const ORPHANS_JS = path.resolve('orphans.js');
+  delete require.cache[ORPHANS_JS];
+  require(ORPHANS_JS)({ mp, log, audit, every, profileOf, userOf });
+} catch (e) { log('orphans.js failed to load:', e.stack || e.message); globalThis.__dboOrphanRemove = null; }
 
 // ---- Rob in the X menu: the victim answers in a panel (server\robbery.js) ---------------------------------------------
 try {
