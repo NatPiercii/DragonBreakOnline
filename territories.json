@@ -1,5 +1,5 @@
 {
-  "_comment": "Territories and their land markers (WAR_DESIGN.md section 2; server/realm.js). A point belongs to the nearest land marker in its worldspace. Whoever holds a marker owns its territory; at first every territory belongs to its zone's hold faction (guild-defs.json kind 'hold'). marker: the war standard's spot (world desc, position in game units, capture radius in units, 70 units = 1 m). The positions are the places' map markers in BSHeartland.esm (LCTN LCSR MapMarkerRefType, or the location centre for Aleswell), read 2026-09-26. kind 'capital' is the hold's seat: taking it takes the hold. icon: the map marker type (REFR TNAM) of the place's in-game map marker, so the Realm map shows the same icon as the game's map (the icon art is exported from the game's map.swf on the PC into the front's img/mapicons/<type>.png); Castle Bruma's 224 and Bruma's 102 are Beyond Skyrim's own types. Aleswell and Fort Caractacus have no map marker: Aleswell is a town (icon 2, Nate found it in game on 2026-09-27) at its location centre, and the fort next to it stands at its exterior door (CYRFortCaractacus01's door out). seatCells: a capital's interiors (Castle Bruma's great hall, Lord's Manor, barracks, service hall, guest wing and dungeon); with the grounds around its marker they are where a hold's members muster to declare war.",
+  "_comment": "Territories and their land markers (WAR_DESIGN.md section 2; server/realm.js). A point belongs to the nearest land marker in its worldspace. Whoever holds a marker owns its territory; at first every territory belongs to its zone's hold faction (guild-defs.json kind 'hold'). marker: the war standard's spot (world desc, position in game units, capture radius in units, 70 units = 1 m). The positions are the places' map markers in BSHeartland.esm (LCTN LCSR MapMarkerRefType, or the location centre for Aleswell), read 2026-09-26. kind 'capital' is the hold's seat: taking it takes the hold. icon: the map marker type (REFR TNAM) of the place's in-game map marker, so the Realm map shows the same icon as the game's map (the icon art is exported from the game's map.swf on the PC into the front's img/mapicons/<type>.png); Castle Bruma's 224 and Bruma's 102 are Beyond Skyrim's own types. Aleswell and Fort Caractacus have no map marker: Aleswell is a town (icon 2, Nate found it in game on 2026-09-27) at its location centre, and the fort next to it stands at its exterior door (CYRFortCaractacus01's door out). seatCells: a capital's interiors (Castle Bruma's great hall, Lord's Manor, barracks, service hall, guest wing and dungeon); with the grounds around its marker they are where a hold's members muster to declare war. owner: the faction that holds the territory until someone takes it; without one it starts with its zone's hold faction (Nate, 2026-09-27: the Imperial Legion owns the forts).",
   "territories": [
     {
       "id": "bruma",
@@ -81,6 +81,7 @@
       "id": "fort-caractacus",
       "name": "Fort Caractacus",
       "zone": "bruma",
+      "owner": "imperial-legion",
       "kind": "fort",
       "location": "CYRFortCaractacusLocation",
       "marker": {
@@ -98,6 +99,7 @@
       "id": "pale-pass",
       "name": "Pale Pass",
       "zone": "bruma",
+      "owner": "imperial-legion",
       "kind": "fort",
       "location": "CYRPalePassLocation",
       "marker": {

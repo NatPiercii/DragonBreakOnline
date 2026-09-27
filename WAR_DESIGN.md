@@ -57,7 +57,9 @@ fort, village, mine, wild), `marker` {worldspace, position}, optional `outline`,
 that can see it). A territory earns its owner nothing by itself; the property on it pays tax (section 7).
 
 `territory-owners.json` (runtime, written by the server): `territoryId` gives the owning faction, since when, and the last
-changes. At first each territory is owned by its zone's hold faction (`county-bruma`, `hold-whiterun`, ...).
+changes. At first each territory is owned by the faction its `owner` names in `territories.json`, else by its zone's
+hold faction (`county-bruma`, `hold-whiterun`, ...). The Imperial Legion owns the forts (Nate, 2026-09-27): Fort
+Caractacus and Pale Pass start as `imperial-legion`.
 
 ## 3. The Realm Map
 

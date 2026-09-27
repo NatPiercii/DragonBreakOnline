@@ -31,7 +31,7 @@ const pos = new Map(); const world = new Map(); const dead = new Set();
 for (const a of online) { pos.set(a, [0, 0, 0]); world.set(a, 'a764b:BSHeartland.esm'); }
 const ranks = new Map([[COUNT, [{ zone: { id: 'bruma' }, rank: 'count' }]]]);
 for (const a of bruma.slice(1)) ranks.set(a, [{ zone: { id: 'bruma' }, rank: 'guard' }]);
-globalThis.__dboGuildInfo = (id) => ({ 'county-bruma': { id, name: 'County of Bruma', kind: 'hold', zone: 'bruma' }, 'fighters-guild': { id, name: 'Fighters Guild', kind: 'guild', zone: '' } }[id] || null);
+globalThis.__dboGuildInfo = (id) => ({ 'county-bruma': { id, name: 'County of Bruma', kind: 'hold', zone: 'bruma' }, 'fighters-guild': { id, name: 'Fighters Guild', kind: 'guild', zone: '' }, 'imperial-legion': { id, name: 'Imperial Legion', kind: 'guild', zone: '' } }[id] || null);
 globalThis.__dboGuildsOf = (a) => (fighters.includes(a) ? [{ id: 'fighters-guild', role: a === GM ? 'leader' : 'member' }] : []);
 globalThis.__dboHoldFactionOf = (z) => (z === 'bruma' ? 'county-bruma' : null);
 const treasury = { 'county-bruma': 10000, 'fighters-guild': 25000 };
@@ -72,7 +72,8 @@ const standAt = (list, id) => { for (const a of list) pos.set(a, marker(id).slic
 const tickFor = (seconds) => { for (let s = 0; s < seconds; s += 2) { now += 2000; timers.get('realm')(); } };
 
 // Territories start with the hold
-check('every territory starts with the County of Bruma', T.every((t) => realm.ownerOf(t.id) === 'county-bruma'), T.length + ' territories');
+check('the forts start with the Imperial Legion', T.filter((t) => t.kind === 'fort').length === 2 && T.filter((t) => t.kind === 'fort').every((t) => realm.ownerOf(t.id) === 'imperial-legion'));
+check('every other territory starts with the County of Bruma', T.filter((t) => t.kind !== 'fort').every((t) => realm.ownerOf(t.id) === 'county-bruma'), T.length + ' territories');
 check('a point belongs to the nearest marker', realm.territoryAt('a764b:BSHeartland.esm', [36000, 210000, 0]).id === 'applewatch');
 
 // Declaration rules
@@ -237,13 +238,13 @@ check('only the leader sets the capital', !realm.setCapital(GM + 1, 'fighters-gu
 check('a hold picks one of its own territories, never another\'s or a spot', !realm.setCapital(COUNT, 'county-bruma', 'applewatch').ok && /one of its own territories/.test(realm.setCapital(COUNT, 'county-bruma', 'here').text));
 check('the Count moves the capital to Greenwood', realm.setCapital(COUNT, 'county-bruma', 'greenwood').ok && realm.seatOf('county-bruma').name === 'Greenwood' && realm.holdCapital('bruma').id === 'greenwood');
 check('the members online are told', out.personal.some((x) => x.a === 2 && /new capital: Greenwood/.test(x.t)));
-check('the capital moves once a week at most', /can move again from/.test(realm.setCapital(COUNT, 'county-bruma', 'pale-pass').text));
+check('the capital moves once a week at most', /can move again from/.test(realm.setCapital(COUNT, 'county-bruma', 'bruma').text));
 pos.set(GM, [70000, 190000, 0]); world.set(GM, W);
 check('a guild leader makes the spot they stand on its seat', realm.setCapital(GM, 'fighters-guild', 'here').ok && /^Fighters Guild's seat near /.test(realm.seatOf('fighters-guild').name));
 const caps = realm.realmView(GM).capitals;
 check('the view lists the hold\'s capital territory and the guild\'s seat with its map spot', caps.some((c) => c.faction === 'county-bruma' && c.territory === 'greenwood') && caps.some((c) => c.faction === 'fighters-guild' && c.territory === null && c.x === 70000 && c.y === 190000), JSON.stringify(caps));
 const mine = realm.realmView(COUNT).leads[0];
-check('the Count\'s panel offers the hold\'s territories, no spot, and says when the next move is allowed', mine.capital === 'greenwood' && mine.capitalChoices.map((c) => c.id).sort().join() === 'bruma,fort-caractacus,greenwood,pale-pass' && mine.canSetHere === false && mine.capitalChangeAt > now);
+check('the Count\'s panel offers the hold\'s territories (not the Legion\'s forts), no spot, and says when the next move is allowed', mine.capital === 'greenwood' && mine.capitalChoices.map((c) => c.id).sort().join() === 'bruma,greenwood' && mine.canSetHere === false && mine.capitalChangeAt > now);
 world.set(GM, '1234:BSHeartland.esm'); now += 8 * DAY;
 check('indoors the seat is the room itself', realm.setCapital(GM, 'fighters-guild', 'here').ok && realm.seatOf('fighters-guild').cells[0] === '1234:BSHeartland.esm' && realm.seatOf('fighters-guild').name === 'Fighters Guild\'s hall');
 check('an indoor seat has no spot on the map', realm.realmView(GM).capitals.find((c) => c.faction === 'fighters-guild').x === null);

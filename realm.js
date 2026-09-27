@@ -1,8 +1,8 @@
 // DragonBreak Online: territories, land markers and official war (WAR_DESIGN.md sections 2, 4 and 6). Loaded by gamemode.js.
 //
 // Territories (territories.json) each have a land marker: a spot and a capture radius. Whoever holds the marker owns the
-// territory (territory-owners.json); at first every territory belongs to its zone's hold faction. A point belongs to the
-// nearest marker in its worldspace.
+// territory (territory-owners.json); at first a territory belongs to the faction it names (owner: the Imperial Legion
+// holds the forts), else to its zone's hold faction. A point belongs to the nearest marker in its worldspace.
 //
 // Official war (Nate, 2026-09-26):
 //   closed    war.enabled (off by default) opens it; until the holds and factions are set up in the alpha nobody declares
@@ -117,7 +117,9 @@ module.exports = (api) => {
     }
     return S.owners;
   };
-  const ownerOf = (tid) => { const o = owners().owners[tid]; if (o && o.faction) return o.faction; const t = territory(tid); return t ? holdFactionOf(t.zone) : null; };
+  // Until someone takes it, a territory belongs to the faction it names (territories.json owner, e.g. the Legion's forts),
+  // else to its zone's hold faction
+  const ownerOf = (tid) => { const o = owners().owners[tid]; if (o && o.faction) return o.faction; const t = territory(tid); return t ? (t.owner && info(t.owner) ? t.owner : holdFactionOf(t.zone)) : null; };
   const setOwner = (tid, fid, why) => {
     const prev = ownerOf(tid);
     owners().owners[tid] = { faction: fid, since: Date.now() };
