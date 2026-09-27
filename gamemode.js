@@ -158,6 +158,9 @@ const tagOf = (actorId) => {
 };
 const display = (actorId) => `${nameOf(actorId)} #${tagOf(actorId)}`;
 const who = (actorId) => { const d = discordOf(actorId); return `${display(actorId)} (profile ${profileOf(actorId)}${d ? `, <@${d}>` : ''})`; };
+// A staff member as #staff-commands names them: the character, then their Discord account (a mention, which shows the
+// Discord name; the post sets allowed_mentions to none, so nobody is pinged)
+const staffWho = (actorId) => { const d = discordOf(actorId); return `${display(actorId)}${d ? ` <@${d}>` : ''}`; };
 
 const tierOf = (actorId) => {
   if (ADMIN_PROFILES.has(profileOf(actorId))) return 'senior';
@@ -329,7 +332,7 @@ globalThis.__alduinakAdminLog = (text) => {
   const prof = m ? Number(m[1]) : -1;
   const actor = prof >= 0 ? onlineActors().find((x) => profileOf(x) === prof) : 0;
   const verb = (String(text).replace(/^profile \d+(?: \([a-z]+\))? /, '').split(/\s+/)[0] || 'panel').toLowerCase();
-  staffLog(actor ? display(actor) : `profile ${prof}`, actor ? tierOf(actor) : (m && m[2]) || '', `panel:${verb}`, `${actor ? display(actor) : 'staff'} (panel) ${text}`);
+  staffLog(actor ? display(actor) : `profile ${prof}`, actor ? tierOf(actor) : (m && m[2]) || '', `panel:${verb}`, `${actor ? staffWho(actor) : 'staff'} (panel) ${text}`);
 };
 
 // ---- character height (RaceMenu height slider, synced and clamped) --------------------------
@@ -826,7 +829,7 @@ const handleChat = (userId, text) => {
     const t = findByName(target); if (!t) return personal(a, `No player matches "${target}".`);
     deliver(t, `[[PM]]${name}|${msg}`); return;
   }
-  if (cmd === 'system') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) { broadcast(`[[S]]#{${C.SYS}}${body}`); audit(`GM ${who(a)} /system: ${body}`); staffLog(display(a), tierOf(a), '/system', `${display(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /system ${body.slice(0, 300)}`); } return; }
+  if (cmd === 'system') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) { broadcast(`[[S]]#{${C.SYS}}${body}`); audit(`GM ${who(a)} /system: ${body}`); staffLog(display(a), tierOf(a), '/system', `${staffWho(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /system ${body.slice(0, 300)}`); } return; }
   if (cmd === 'admin') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) broadcast(`[[A]]#{${C.SYS}}${name}: ${body}`, true); return; }
   const c = commands.get(cmd);
   if (!c) return personal(a, `Unknown command /${cmd}. Type /help.`);
@@ -834,10 +837,10 @@ const handleChat = (userId, text) => {
   const sub = `${cmd} ${(body.split(/\s+/)[0] || '').toLowerCase()}`;
   const staffCmd = c.admin || LEAD_ONLY.has(sub);
   if ((LEAD_ONLY.has(cmd) || LEAD_ONLY.has(sub)) && isAdmin(a) && !isLeadStaff(a)) {
-    staffLog(display(a), tierOf(a), `/${cmd} (refused)`, `${display(a)} (GM): /${cmd} ${body.slice(0, 300)} REFUSED (Lead GM and above)`);
+    staffLog(display(a), tierOf(a), `/${cmd} (refused)`, `${staffWho(a)} (GM): /${cmd} ${body.slice(0, 300)} REFUSED (Lead GM and above)`);
     return personal(a, 'That is for a Lead GM and above.');
   }
-  if (staffCmd && isAdmin(a)) staffLog(display(a), tierOf(a), `/${cmd}`, `${display(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /${cmd} ${body.slice(0, 300)}`);
+  if (staffCmd && isAdmin(a)) staffLog(display(a), tierOf(a), `/${cmd}`, `${staffWho(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /${cmd} ${body.slice(0, 300)}`);
   try { c.fn(a, body, userId); } catch (e) { log('command', cmd, 'failed', e); personal(a, 'That command failed.'); }
 };
 
@@ -2822,7 +2825,7 @@ onUi('consoleLocal', (a, args) => {
   const extra = Array.isArray(args[2]) ? args[2].slice(0, 4).map(clip) : [];
   const allowed = hasConsoleRights(a);
   audit(`CONSOLE ${who(a)}${allowed ? '' : ' BLOCKED (no console rights)'}: ${name}${target && target !== 'player' ? ' on ' + target : ''}${extra.length ? ' ' + extra.join(' ') : ''} (local)`);
-  if (isAdmin(a)) staffLog(display(a), tierOf(a), `console:${name.toLowerCase()}${allowed ? '' : ' (blocked)'}`, `${display(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}) console${allowed ? '' : ' BLOCKED'}: ${name}${target && target !== 'player' ? ' on ' + target : ''}${extra.length ? ' ' + extra.join(' ') : ''}`);
+  if (isAdmin(a)) staffLog(display(a), tierOf(a), `console:${name.toLowerCase()}${allowed ? '' : ' (blocked)'}`, `${staffWho(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}) console${allowed ? '' : ' BLOCKED'}: ${name}${target && target !== 'player' ? ' on ' + target : ''}${extra.length ? ' ' + extra.join(' ') : ''}`);
   if (seen.length === CONSOLE_LOCAL_PER_MIN) log(`console: ${display(a)} passed ${CONSOLE_LOCAL_PER_MIN} local commands a minute; the rest this minute are not logged`);
 });
 // The console can spawn anything, so a GM (base tier) has none, whatever AdminSystem granted at connect
