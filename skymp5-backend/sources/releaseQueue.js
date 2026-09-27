@@ -116,7 +116,10 @@ function commitAuthor(c) {
   return { author: gitAuthor(c.name, c.email), authorFrom: 'git' }
 }
 
-// UPDATE, restarting and OK lines of skymp-update.sh (v1, and v2's "OK - now X (backup ...)")
+// How an UPDATE can fail; every one but UNHEALTHY stops before the restart, so the previous build keeps running
+const UPDATE_FAILURES = [[/^BUILD FAILED/, 'build'], [/^yarn install FAILED/, 'deps'], [/^CONFIGURE FAILED/, 'configure'], [/^reset failed/, 'reset'], [/^UNHEALTHY/, 'unhealthy']]
+
+// UPDATE, restarting, OK and failure lines of skymp-update.sh (v1, and v2's "OK - now X (backup ...)")
 function parseUpdaterLog(text) {
   const updates = []
   let lastRun = null
@@ -129,14 +132,25 @@ function parseUpdaterLog(text) {
     if ((u = /^UPDATE ([0-9a-f]{7,40}) -> ([0-9a-f]{7,40})/.exec(msg))) updates.push({ at, from: u[1], to: u[2], restartingAt: null, okAt: null, failed: null })
     else if (msg === 'restarting' && cur && !cur.okAt) cur.restartingAt = at
     else if ((u = /^OK - now ([0-9a-f]{7,40})\b/.exec(msg)) && cur && !cur.okAt && cur.to.startsWith(u[1].slice(0, cur.to.length))) cur.okAt = at
-    else if (/^BUILD FAILED/.test(msg) && cur && !cur.okAt) cur.failed = 'build'
-    else if (/^UNHEALTHY/.test(msg) && cur && !cur.okAt) cur.failed = 'unhealthy'
+    else if ((u = UPDATE_FAILURES.find(([re]) => re.test(msg))) && cur && !cur.okAt) cur.failed = u[1]
     const result = /^up to date/.test(msg) ? 'upToDate' : /^skipped: deploy hold/.test(msg) ? 'hold' : /^skipped/.test(msg) ? 'skipped'
-      : /^deferred/.test(msg) ? 'deferred' : /^OK - now/.test(msg) ? 'updated' : /^BUILD FAILED/.test(msg) ? 'buildFailed'
+      : /^deferred/.test(msg) ? 'deferred' : /^OK - now/.test(msg) ? 'updated' : /^(?:BUILD|CONFIGURE|yarn install) FAILED/.test(msg) ? 'buildFailed'
       : /^UNHEALTHY/.test(msg) ? 'unhealthy' : /^fetch failed/.test(msg) ? 'fetchFailed' : null
     if (result) lastRun = { at, result }
   }
   return { updates, lastRun }
+}
+
+const sameCommit = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a))
+const beforeRestart = u => !u.okAt && !u.restartingAt && u.failed !== 'unhealthy'
+
+// skymp-update.sh moves HEAD before it builds, so after updates that never restarted the first one's from still runs
+function notRestarted(updates, head) {
+  const last = updates.at(-1)
+  if (!last || !beforeRestart(last) || !(sameCommit(head, last.to) || sameCommit(head, last.from))) return null
+  let i = updates.length - 1
+  while (i > 0 && beforeRestart(updates[i - 1]) && sameCommit(updates[i - 1].to, updates[i].from)) i--
+  return { from: updates[i].from, index: i }
 }
 
 // The last line of a deployed dbo-gamemode.js: "// deployed <iso>", optionally with " server@<sha40>"
@@ -373,14 +387,15 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
     return parseUpdaterLog(`${rotated}\n${current}`)
   }
 
-  function confirmation(log, forkSha, skympSince) {
+  // u is the update that should have installed forkSha: the last one, or the one before a run that never restarted
+  function confirmation(log, forkSha, skympSince, u) {
     const last = log.updates.at(-1)
-    if (!last) return { confirmed: null, lastUpdate: { from: null, to: null, state: 'unknown', at: null, okAt: null, failed: null } }
+    if (!last) return { confirmed: null, okAt: null, lastUpdate: { from: null, to: null, state: 'unknown', at: null, okAt: null, failed: null } }
     const lastUpdate = { from: last.from, to: last.to, state: last.okAt ? 'ok' : 'unfinished', at: last.at, okAt: last.okAt, failed: last.failed }
-    if (!forkSha || !forkSha.startsWith(last.to)) return { confirmed: null, lastUpdate }
-    if (!last.okAt) return { confirmed: false, lastUpdate }
-    if (skympSince == null) return { confirmed: null, lastUpdate }
-    return { confirmed: skympSince >= Date.parse(last.restartingAt || last.at), lastUpdate }
+    if (!u || !forkSha || !forkSha.startsWith(u.to)) return { confirmed: null, okAt: null, lastUpdate }
+    if (!u.okAt) return { confirmed: false, okAt: null, lastUpdate }
+    if (skympSince == null) return { confirmed: null, okAt: u.okAt, lastUpdate }
+    return { confirmed: skympSince >= Date.parse(u.restartingAt || u.at), okAt: u.okAt, lastUpdate }
   }
 
   // Top-level deployable files of a server commit, name -> blob id
@@ -462,10 +477,14 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       resolve('HEAD'), resolve('origin/main'), resolve('origin/server'), resolve('origin/live'), updaterLog(),
     ])
     if (!head) throw Object.assign(new Error('release repo unavailable'), { code: 'unavailable' })
-    const forkSha = record?.fork.sha || head
+    // Without live.json HEAD is live, unless the last updates failed before the restart
+    const pending = record ? null : notRestarted(log.updates, head)
+    const running = pending && await resolve(pending.from)
+    const forkSha = record?.fork.sha || running || head
     const drift = new Set()
     if (record && head !== forkSha) drift.add('headNotLive')
-    const { confirmed, lastUpdate } = confirmation(log, forkSha, svc.skympSince)
+    const installer = running ? log.updates[pending.index - 1] || null : log.updates.at(-1)
+    const { confirmed, okAt, lastUpdate } = confirmation(log, forkSha, svc.skympSince, installer)
     if (lastUpdate.state === 'unfinished') drift.add('lastUpdateUnfinished')
 
     const forkInfo = (await git(['log', '-1', '--format=%s%x00%cI', '--end-of-options', forkSha], { codes: [0, 128] })).stdout.split('\0')
@@ -505,7 +524,7 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       record,
       fork: {
         sha: forkSha, subject: cleanText(forkInfo[0], 120) || null, at: isoOrNull(forkInfo[1]?.trim()), confirmed, headMatches: head === forkSha, head,
-        since: record?.fork.since || (confirmed ? isoOrNull(lastUpdate.okAt) : null),
+        since: record?.fork.since || (confirmed ? isoOrNull(okAt) : null),
       },
       lastUpdate,
       lastRun: log.lastRun,
@@ -514,7 +533,8 @@ function createReleaseQueue({ run = runFile, fs = nodeFs, now = Date.now, fetch 
       news,
       launcher: disk?.launcher || null,
       clientLabel: disk?.clientLabel || null,
-      backend: { bootSha: SHA_RE.test(svc.bootSha || '') ? svc.bootSha : null, restartPending: await restartPending(svc.bootSha, forkSha) },
+      // Without live.json the backend files on disk are HEAD's, even while a failed build leaves the game on an older commit
+      backend: { bootSha: SHA_RE.test(svc.bootSha || '') ? svc.bootSha : null, restartPending: await restartPending(svc.bootSha, record ? forkSha : head) },
       website: web.result ? { matching: web.result.matching, total: web.result.total, checkedAt: web.result.checkedAt } : null,
       plugins,
       githubLive: liveRef ? (liveRef === forkSha ? 'inSync' : 'behind') : 'unknown',

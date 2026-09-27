@@ -296,6 +296,15 @@ test('updater log: update, restart and OK lines are paired', () => {
   assert.equal(log.updates[1].okAt, null)
   assert.equal(log.updates[1].failed, 'build')
   assert.deepEqual(log.lastRun, { at: '2026-09-26T00:01:00Z', result: 'buildFailed' })
+  const steps = parseUpdaterLog([
+    '2026-09-26T01:00:00Z UPDATE 11111111 -> 22222222', '2026-09-26T01:00:00Z js deps changed -> yarn install', '2026-09-26T01:00:30Z yarn install FAILED',
+    '2026-09-26T02:00:00Z UPDATE 22222222 -> 33333333', '2026-09-26T02:00:00Z cmake inputs changed -> reconfigure', '2026-09-26T02:01:00Z CONFIGURE FAILED - service untouched',
+    '2026-09-26T03:00:00Z UPDATE 33333333 -> 44444444', '2026-09-26T03:00:00Z reset failed',
+    '2026-09-26T04:00:00Z UPDATE 33333333 -> 55555555', '2026-09-26T04:00:00Z building', '2026-09-26T04:03:00Z restarting', '2026-09-26T04:03:20Z UNHEALTHY after update -> ROLLING BACK to 33333333',
+  ].join('\n'))
+  assert.deepEqual(steps.updates.map(u => u.failed), ['deps', 'configure', 'reset', 'unhealthy'])
+  assert.deepEqual(parseUpdaterLog('2026-09-26T02:01:00Z CONFIGURE FAILED - service untouched').lastRun.result, 'buildFailed')
+  assert.deepEqual(parseUpdaterLog('2026-09-26T01:00:30Z yarn install FAILED').lastRun.result, 'buildFailed')
 })
 
 // ---- live (2.9) ----
@@ -313,13 +322,61 @@ test('live: the 25 Sep log excerpt confirms the live fork', async () => {
   await withQueue({ svc: { skympSince: Date.parse('2026-09-25T23:48:30Z') } }, async q => assert.equal((await q.live()).fork.confirmed, false))
 })
 
-test('live: an UPDATE with no OK is unfinished', async () => {
-  const log = `2026-09-25T23:45:02Z UPDATE 82acceef -> ${short(S.LIVE)}\n2026-09-25T23:45:02Z building\n2026-09-25T23:50:00Z BUILD FAILED - service left running on the previous build\n`
-  await withQueue({ log }, async q => {
+// The updater resets HEAD to the new commit before it builds; HEAD is S.LIVE in the fixture
+const updatedTo = (to, ...lines) => [
+  `2026-09-25T23:30:00Z UPDATE 82acceef -> ${short(S.PREV)}`, '2026-09-25T23:30:00Z building', '2026-09-25T23:31:00Z restarting',
+  `2026-09-25T23:31:20Z OK - now ${short(S.PREV)}, udp/7777 bound`, `2026-09-25T23:40:01Z up to date (${short(S.PREV)})`,
+  `2026-09-25T23:45:02Z UPDATE ${short(S.PREV)} -> ${to}`, ...lines,
+].join('\n') + '\n'
+const PREV_ACTIVE = Date.parse('2026-09-25T23:31:01Z')
+
+test('live: an UPDATE that fails before the restart leaves the old build live, and the queue lists what it did not ship', async () => {
+  const failures = {
+    build: ['2026-09-25T23:45:02Z building', '2026-09-25T23:50:00Z BUILD FAILED - service left running on the previous build'],
+    deps: ['2026-09-25T23:45:02Z js deps changed -> yarn install', '2026-09-25T23:45:40Z yarn install FAILED'],
+    configure: ['2026-09-25T23:45:02Z cmake inputs changed -> reconfigure', '2026-09-25T23:46:00Z CONFIGURE FAILED - service untouched'],
+    building: ['2026-09-25T23:45:02Z building'],
+  }
+  const waiting = Number(g('rev-list', '--count', `${S.PREV}..${S.M2}`))
+  for (const [kind, lines] of Object.entries(failures)) {
+    await withQueue({ log: updatedTo(short(S.LIVE), ...lines), svc: { skympSince: PREV_ACTIVE, bootSha: S.PREV } }, async q => {
+      const lv = await q.live()
+      assert.equal(lv.backend.restartPending, true, 'the backend files on disk are HEAD\'s')
+      assert.deepEqual([lv.lastUpdate.state, lv.lastUpdate.failed], ['unfinished', kind === 'building' ? null : kind], kind)
+      assert.ok(lv.drift.includes('lastUpdateUnfinished'), kind)
+      assert.deepEqual([lv.fork.sha, lv.fork.head, lv.fork.headMatches], [S.PREV, S.LIVE, false], kind)
+      assert.deepEqual([lv.fork.confirmed, lv.fork.since], [true, '2026-09-25T23:31:20.000Z'], kind)
+      const qv = await q.queue()
+      assert.equal(qv.live.fork, S.PREV, kind)
+      assert.equal(qv.default.fork, S.PREV, kind)
+      assert.equal(qv.counts.commits.fork, waiting, kind)
+      assert.deepEqual([row(qv, S.LIVE).title, row(qv, S.LIVE).inDefault], ['First route', false], kind)
+      assert.deepEqual(qv.groups.find(gr => gr.area === 'Backend').items.map(r => r.short), [short(S.LIVE), short(S.A), short(S.Pp), short(S.G), short(S.H)], kind)
+    })
+  }
+})
+
+test('live: a chain of failed updates goes back to the last build that ran; a restart, a rollback or a moved HEAD keeps HEAD', async () => {
+  const chain = updatedTo('abcdef12', '2026-09-25T23:50:00Z BUILD FAILED - service left running on the previous build',
+    `2026-09-26T00:00:00Z UPDATE abcdef12 -> ${short(S.LIVE)}`, '2026-09-26T00:00:30Z yarn install FAILED')
+  await withQueue({ log: chain, svc: { skympSince: PREV_ACTIVE } }, async q => {
     const lv = await q.live()
-    assert.equal(lv.lastUpdate.state, 'unfinished')
-    assert.equal(lv.fork.confirmed, false)
-    assert.ok(lv.drift.includes('lastUpdateUnfinished'))
+    assert.deepEqual([lv.fork.sha, lv.fork.confirmed, lv.lastUpdate.from], [S.PREV, true, 'abcdef12'])
+    assert.equal((await q.queue()).live.fork, S.PREV)
+  })
+  const unhealthy = updatedTo(short(S.LIVE), '2026-09-25T23:48:34Z restarting', `2026-09-25T23:48:54Z UNHEALTHY after update -> ROLLING BACK to ${short(S.PREV)}`)
+  const restarted = updatedTo(short(S.LIVE), '2026-09-25T23:48:34Z restarting')
+  const elsewhere = updatedTo('1234abcd', '2026-09-25T23:50:00Z BUILD FAILED - service left running on the previous build')
+  const unknownFrom = `2026-09-25T23:45:02Z UPDATE 82acceef -> ${short(S.LIVE)}\n2026-09-25T23:50:00Z BUILD FAILED - service left running on the previous build\n`
+  for (const [name, log, confirmed] of [['unhealthy', unhealthy, false], ['restarted', restarted, false], ['elsewhere', elsewhere, null], ['unknownFrom', unknownFrom, false]]) {
+    await withQueue({ log, svc: { skympSince: PREV_ACTIVE } }, async q => {
+      const lv = await q.live()
+      assert.deepEqual([lv.fork.sha, lv.fork.headMatches, lv.fork.confirmed, lv.lastUpdate.state], [S.LIVE, true, confirmed, 'unfinished'], name)
+      assert.equal((await q.queue()).live.fork, S.LIVE, name)
+    })
+  }
+  await withQueue({ log: updatedTo(short(S.LIVE), '2026-09-25T23:50:00Z BUILD FAILED'), liveJson: consistentLive() }, async q => {
+    assert.equal((await q.live()).fork.sha, S.LIVE, 'live.json decides when it exists')
   })
 })
 
