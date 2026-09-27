@@ -9,7 +9,7 @@
 const path = require('path');
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests\\summon-race-harness.js <bundled espmMagic.js>'); process.exit(2); }
-const { spellEffects, casterRacePasses } = require(path.resolve(bundle));
+const { spellEffects, casterRacePasses, pickSummon } = require(path.resolve(bundle));
 
 const KHAJIIT = 0x13745, ARGONIAN = 0x13740, NORD = 0x13746, KHAJIIT_VAMP = 0x88845, BRETON = 0x13741;
 const SPELL = 0x3b002922;
@@ -57,20 +57,36 @@ const mp = { lookupEspmRecordById: (id) => records.get(id >>> 0) || null };
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
-// The pick conjurationSystem.ts makes
-const pick = (spellId, race) => { const s = spellEffects(mp, spellId).filter((e) => e.archetype === 18 && e.assocId); return (s.find((e) => casterRacePasses(e, race)) || s[0] || {}).assocId; };
+// The pick conjurationSystem.ts makes (pickSummon)
+const pick = (spellId, race, m = mp) => { const s = spellEffects(m, spellId).filter((e) => e.archetype === 18 && e.assocId); const r = pickSummon(s, () => race); return r ? r.effect.assocId : undefined; };
 
 const effects = spellEffects(mp, SPELL);
 check('four summon effects, each with its caster race', effects.length === 4 && effects.every((e) => e.casterRaces.length === 1) && effects[1].casterRaces[0].raceId === ARGONIAN);
 check('a Nord conjures the human skeleton', pick(SPELL, NORD) === NPC.human, pick(SPELL, NORD).toString(16));
 check('an Argonian conjures the Argonian skeleton', pick(SPELL, ARGONIAN) === NPC.argonian);
 check('a vampire Khajiit conjures the Khajiit skeleton', pick(SPELL, KHAJIIT_VAMP) === NPC.khajiit);
-check('a race the spell does not name gets its first summon, as before', pick(SPELL, 0x999) === NPC.khajiit);
+check('a race the spell does not name gets the human summon, the one gated on NordRace (review F2)', pick(SPELL, 0x999) === NPC.human);
 const either = spellEffects(mp, 0x3b000100)[0];
 check('OR binds: Breton or Nord, subject-run conditions count', casterRacePasses(either, BRETON) && casterRacePasses(either, NORD) && !casterRacePasses(either, ARGONIAN));
 check('other conditions are not caster races', either.casterRaces.length === 2);
 check('a GetIsRace on the target is not a caster race', spellEffects(mp, 0x3b000200)[0].casterRaces.length === 0);
 check('an effect with no race conditions passes for everyone', casterRacePasses({ casterRaces: [] }, ARGONIAN));
+
+// The real record (tests/fixtures/iss-conjure-skeleton.json, read from DragonBreak.esp): 22 effects, the later ones with
+// no duration of their own (review F1), and races it does not name (review F2)
+const fx = require(path.resolve(__dirname, 'fixtures', 'iss-conjure-skeleton.json'));
+const real = new Map(Object.entries(fx.records).map(([id, r]) => [Number(id) >>> 0, { record: { type: r.type, fields: r.fields.map((f) => { const b = Buffer.from(f.hex, 'hex'); return { type: f.type, data: new Uint8Array(b.buffer, b.byteOffset, b.byteLength) }; }) }, toGlobalRecordId: (x) => x }]));
+const realMp = { lookupEspmRecordById: (id) => real.get(id >>> 0) || null };
+const REAL = ((fx.selfIndex << 24) | 0x2922) >>> 0;
+const own = (local) => ((fx.selfIndex << 24) | local) >>> 0;
+const realPick = (race) => pickSummon(spellEffects(realMp, REAL).filter((e) => e.archetype === 18 && e.assocId), () => race);
+const IMPERIAL = 0x13744, REDGUARD = 0x13748, NORD_VAMPIRE = 0x88794;
+check('the real spell has 22 summon effects', spellEffects(realMp, REAL).filter((e) => e.archetype === 18).length === 22);
+check('a Khajiit conjures the Khajiit skeleton for 60 s', realPick(KHAJIIT).effect.assocId === own(0x1e4f) && realPick(KHAJIIT).timed.durationSec === 60);
+check('a Nord conjures the human skeleton', realPick(NORD).effect.assocId === own(0x292b));
+check('an Imperial, which the spell does not name, gets the human skeleton, not the Khajiit one (F2)', realPick(IMPERIAL).effect.assocId === own(0x292b));
+check('a Redguard\'s effect has no duration, so the skeleton lasts a sibling\'s 60 s, not forever (F1)', realPick(REDGUARD).effect.durationSec === 0 && realPick(REDGUARD).timed.durationSec === 60);
+check('so does a vampire Nord\'s (F1)', realPick(NORD_VAMPIRE).timed.durationSec === 60);
 
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);
