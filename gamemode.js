@@ -1499,13 +1499,18 @@ const onEat = (a, baseId) => {
   const kind = foodKindOf(baseId);
   const restore = Number((NEEDS.restore || {})[kind]) || 0;
   if (!restore) return;
+  // Eating takes time: the hunger counts when the meal is finished (startMeal, under the ui events below)
+  if (NEEDS.mealTime !== false && startMeal(a, baseId, kind, restore)) return;
+  creditMeal(a, [{ baseId, kind, restore }]);
+};
+const creditMeal = (a, items) => {
   const n = needsOf(a);
   const before = n.hunger;
-  n.hunger = Math.max(0, n.hunger - restore);
+  n.hunger = Math.max(0, n.hunger - items.reduce((sum, it) => sum + it.restore, 0));
   applyNeedsStage(a, n, true);
   saveNeeds(a, n);
-  const rec = recordOf(baseId);
-  log(`${display(a)} ate ${rec ? rec.record.editorId : baseId.toString(16)} (${kind}): hunger ${Math.round(before)} -> ${Math.round(n.hunger)}`);
+  const names = items.map((it) => { const rec = recordOf(it.baseId); return `${rec ? rec.record.editorId : it.baseId.toString(16)} (${it.kind})`; });
+  log(`${display(a)} ate ${names.join(', ')}: hunger ${Math.round(before)} -> ${Math.round(n.hunger)}`);
 };
 // Chain onto the server's eat event (masterySystem wraps it first; the original is stored once).
 if (!globalThis.__dboPrevEat) {
@@ -1671,6 +1676,52 @@ const onUi = (event, fn) => {
   list.push(fn);
   globalThis.__dboUiEvents.set(event, list);
 };
+// ---- meals: eating takes time (Nate, 2026-09-27, from athny's and dunthril's reports) ----------------------------------
+// The engine uses the food up at once; its hunger counts only when the meal is finished. The client (MealService) slows
+// its owner to a walk and reports a sprint, an attack or a newly drawn weapon, which ends the meal with nothing counted.
+// Nothing is handed back: the food's own effects have already applied, so a refund could be eaten and cancelled again
+// and again. More food during a meal makes it longer. needs.mealTime false turns it off; needs.eatSeconds sets the times.
+const MEAL_SECONDS = Object.assign({ meal: 5.5, snack: 5.5, drink: 7, ingredient: 3 }, NEEDS.eatSeconds || {});
+const meals = globalThis.__dboMeals || (globalThis.__dboMeals = new Map()); // actorId -> { items, endsAt }
+function startMeal(a, baseId, kind, restore) {
+  const seconds = Number(MEAL_SECONDS[kind]) || 0;
+  if (seconds <= 0 || userOf(a) < 0) return false;
+  const now = Date.now();
+  const m = meals.get(a) || { items: [], endsAt: now };
+  m.items.push({ baseId, kind, restore });
+  m.endsAt = Math.max(m.endsAt, now) + seconds * 1000;
+  meals.set(a, m);
+  const left = (m.endsAt - now) / 1000;
+  const drink = m.items.every((it) => it.kind === 'drink');
+  sendPacket(a, { customPacketType: 'dboMeal', state: 'start', seconds: left, drink });
+  sendPacket(a, { customPacketType: 'dboBanner', text: `${drink ? 'Drinking' : 'Eating'}: ${Math.ceil(left)} s. You can walk; sprinting or fighting stops it.`, seconds: Math.min(Math.ceil(left), 8) });
+  return true;
+}
+const endMeal = (a, why) => {
+  const m = meals.get(a);
+  if (!m) return;
+  meals.delete(a);
+  if (why === 'done') {
+    creditMeal(a, m.items);
+    sendPacket(a, { customPacketType: 'dboMeal', state: 'done' });
+    return;
+  }
+  sendPacket(a, { customPacketType: 'dboMeal', state: 'cancelled' });
+  const drink = m.items.every((it) => it.kind === 'drink');
+  personal(a, `You stop ${drink ? 'drinking' : 'eating'}, and the rest goes to waste.`);
+  log(`${display(a)} stopped a meal (${why}): ${m.items.length} item(s) not counted`);
+};
+every('meals', 250, () => {
+  const now = Date.now();
+  for (const [a, m] of meals) {
+    if (userOf(a) < 0) { meals.delete(a); continue; } // logged out mid-meal: nothing counted
+    let dead = false;
+    try { dead = mp.get(a, 'isDead') === true; } catch (e) { dead = true; }
+    if (dead) endMeal(a, 'died');
+    else if (now >= m.endsAt) endMeal(a, 'done');
+  }
+});
+onUi('mealCancel', (a, args) => endMeal(a, String(args[0] || 'moved').replace(/[^a-z]/gi, '').slice(0, 16) || 'moved'));
 // The client reports its body really landed in a world; the creation flow steps on that (see startCreationInHub)
 onUi('arrived', (a, args) => {
   const world = Number(args[0]) >>> 0;
