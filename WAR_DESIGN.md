@@ -96,6 +96,11 @@ A tab of the faction panel (F3), beside Members and War (Nate, 2026-09-26: no ne
 **Closed during the alpha** (Nate, 2026-09-26): war and raids stay switched off (`war.enabled`, `raids.enabled`) until
 the holds and factions are set up. The map, the owners, the treasury and peace treaties work meanwhile.
 
+0. **Capital** (Nate, 2026-09-27). A faction's leader, or a hold's ruler, chooses the capital in the Realm tab: one of its
+   own territories (a hold: one in its own hold), or, for a faction that is not a hold, the spot where the leader stands
+   (indoors, the room itself). Once every 7 days, never while at war; staff set any faction's with `/war seat`. A hold
+   that has not chosen keeps its capital territory. Taking a hold's capital, chosen or not, takes the hold. The map
+   crowns capital territories and marks seats with a banner in the faction's colour.
 0. **Muster.** Every member of the declaring faction who is online must be at its capital when it declares (Nate,
    2026-09-26). A hold's capital is its capital territory: the grounds around the land marker (3000 units) and the
    castle's own rooms (for Bruma, Castle Bruma's six interiors). Another faction musters at a seat staff set

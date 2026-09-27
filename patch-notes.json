@@ -1,5 +1,40 @@
 [
   {
+    "title": "Capitals, the Silver Hand and a Skyrim Pack",
+    "date": "2026-09-27",
+    "version": "Server + client 0.3.51",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Capitals",
+        "items": [
+          "A faction's leader, or a hold's ruler, can now choose the faction's capital from the Realm tab of the faction panel (F3).",
+          "A hold picks one of its own territories. Any other faction can pick a territory it holds, or make the spot where the leader stands its seat, such as a guildhall, indoors or out.",
+          "Capitals are marked on the map: a crown over a capital territory, and a banner in the faction's colour for a seat.",
+          "A capital can move once a week, and not while the faction is at war. Taking a hold's capital, wherever its ruler has put it, takes the hold."
+        ]
+      },
+      {
+        "heading": "Factions",
+        "items": [
+          "The Companions are an honourable order of warriors again, with no werewolves. Their officers are now Elders of Jorrvaskr.",
+          "New: Hircine's Pack of Falkreath, a secret werewolf pack of Skyrim. As with every pack, only werewolves can join, and packs see each other's hunting grounds.",
+          "New: The Silver Hand, werewolf hunters who broke away from the Companions."
+        ]
+      },
+      {
+        "heading": "Other changes",
+        "items": [
+          "The map of the County of Bruma now fills its frame.",
+          "The Bruma bank counts as Bruma, so entering it no longer sends you back to Pale Pass.",
+          "A player who sleeps in a bed to log out now leaves the world at once, instead of their body standing in the inn for several minutes.",
+          "Wisp stalks can be harvested for Wisp Stalk, and the Ayleid wells restore your magicka once per night.",
+          "Restart the launcher to get client 0.3.51."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Realm, Peace Treaties and Robbery",
     "date": "2026-09-27",
     "version": "Server + client 0.3.50",

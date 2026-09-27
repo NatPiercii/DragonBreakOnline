@@ -494,6 +494,8 @@ def main():
     ap.add_argument("--ambient", type=float, default=0.45, help="brightness of a slope facing away from the light (0..1)")
     ap.add_argument("--name", default="bruma", help="output base name (default bruma)")
     ap.add_argument("--out", default=os.path.join(HERE, "out"), help="output folder")
+    ap.add_argument("--crop-to-land", action="store_true",
+                    help="drop edge rows and columns of cells that have no LAND, so the image is all landscape")
     ap.add_argument("--check", nargs="*", default=["Bruma", "Castle Bruma", "Applewatch", "Greenwood", "Aleswell",
                                                     "Pale Pass"],
                     help="places to mark in red on the debug image and print (LCTN name or editor id)")
@@ -523,6 +525,13 @@ def main():
     print("LAND overrides after %s: %s" % (world_id[0], overridden or "none"))
     for g, a, b in world.land_conflicts:
         print("  cell %s has two LAND records: %06X:%s and %06X:%s" % (g, a[1], a[0], b[1], b[0]))
+
+    if args.crop_to_land:
+        landed = [g for g in world.land_at if cx0 <= g[0] <= cx1 and cy0 <= g[1] <= cy1]
+        if landed:
+            cx0, cx1 = min(g[0] for g in landed), max(g[0] for g in landed)
+            cy0, cy1 = min(g[1] for g in landed), max(g[1] for g in landed)
+            print("cropped to the cells with LAND: %d,%d .. %d,%d" % (cx0, cy0, cx1, cy1))
 
     w, h, rows, info, field = render(world, cx0, cy0, cx1, cy1, args.ppc, args.zfactor, ambient=args.ambient)
     upp = CELL / args.ppc

@@ -9,7 +9,7 @@ and no borders; the map window adds territories, names and icons on top.
 On CT 115 (plugins in `/opt/skyrim-data`), from the root of the `server` repo:
 
 ```
-python3 tools/realm-map/render.py                     # Cyrodiil around Bruma: radius 20 cells, 16 px per cell -> out/bruma.*
+python3 tools/realm-map/render.py --crop-to-land      # Cyrodiil around Bruma (the in-game map): 16 px per cell -> out/bruma.*
 python3 tools/realm-map/render.py --name bruma-24 --ppc 24
 python3 tools/realm-map/render.py --world 3c:Skyrim.esm --name whiterun --centre 20000 -10000 --radius 10
 ```
@@ -18,6 +18,7 @@ python3 tools/realm-map/render.py --world 3c:Skyrim.esm --name whiterun --centre
 |---|---|---|
 | `--world` | `a764b:BSHeartland.esm` | worldspace as `localid:Plugin`, the form the gameplay code already uses |
 | `--centre X Y` | `57750 202700` (Bruma) | game position; the region is the cell holding it plus `--radius` cells on every side |
+| `--crop-to-land` | off | drop the edge rows and columns of cells with no LAND; Bruma is then -4,30 .. 34,64 (624 x 560), since the worldspace ends north of Pale Pass. The front's `BRUMA_MAP.bounds` must match the new bounds in the JSON |
 | `--radius` | `20` | so the default region is 41 x 41 cells (-6,29 .. 34,69) |
 | `--ppc` | `16` | pixels per cell (4096 game units); 16 gives 256 units per pixel, 656 x 656 px for the default |
 | `--zfactor`, `--ambient` | `1`, `0.45` | hillshade exaggeration, brightness of slopes turned away from the light |

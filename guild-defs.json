@@ -115,7 +115,7 @@
     ] },
     { "id": "companions", "name": "The Companions", "kind": "guild", "ranks": [
       { "title": "Harbinger", "role": "leader" },
-      { "title": "Member of the Circle", "role": "officer" },
+      { "title": "Elder of Jorrvaskr", "role": "officer" },
       { "title": "Shield-Sibling", "role": "sergeant" },
       { "title": "Skyforge Smith", "role": "blacksmith" },
       { "title": "Outfitter", "role": "tailor" },
@@ -188,6 +188,16 @@
       { "title": "Thalmor Soldier", "role": "member" },
       { "title": "Agent", "role": "member" }
     ] },
+    { "id": "silver-hand", "name": "The Silver Hand", "kind": "guild", "ranks": [
+      { "title": "Master of the Silver Hand", "role": "leader" },
+      { "title": "Skinner", "role": "officer" },
+      { "title": "Hunt-Captain", "role": "sergeant" },
+      { "title": "Hedge-Mage", "role": "mage" },
+      { "title": "Silversmith", "role": "blacksmith" },
+      { "title": "Pelt-Tanner", "role": "tailor" },
+      { "title": "Silver Hand", "role": "member" },
+      { "title": "Recruit", "role": "member" }
+    ] },
     { "id": "thieves-guild", "name": "Thieves Guild", "kind": "guild", "secret": true, "ranks": [
       { "title": "Guild Master", "role": "leader" },
       { "title": "Second", "role": "officer" },
@@ -251,6 +261,17 @@
     ] },
 
     { "id": "pack-of-the-jerall", "name": "Hircine's Pack of the Jerall", "kind": "pack", "secret": true, "requires": "werewolf", "ranks": [
+      { "title": "Pack Leader", "role": "leader" },
+      { "title": "Packmaster", "role": "officer" },
+      { "title": "Hunter", "role": "sergeant" },
+      { "title": "Moonspeaker", "role": "mage" },
+      { "title": "Bone-Carver", "role": "blacksmith" },
+      { "title": "Hide-Worker", "role": "tailor" },
+      { "title": "Pack-Sibling", "role": "member" },
+      { "title": "Pup", "role": "member" }
+    ] },
+
+    { "id": "pack-of-falkreath", "name": "Hircine's Pack of Falkreath", "kind": "pack", "secret": true, "requires": "werewolf", "ranks": [
       { "title": "Pack Leader", "role": "leader" },
       { "title": "Packmaster", "role": "officer" },
       { "title": "Hunter", "role": "sergeant" },

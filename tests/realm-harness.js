@@ -3,8 +3,8 @@
 // weeks before the same war again), the week's notice and three evening windows, capture only inside a window and only
 // with no defender at the marker, the capital falling (officials lose their ranks, the winner's leader may appoint),
 // peace with tribute, surrender, the war to the death (only if accepted, only in a window, only on contested land), a
-// hot reload, war closed while war.enabled is off, every online member mustered at the seat to declare, and peace
-// treaties that bar a declaration while they hold. Run it from this folder's parent with
+// hot reload, war closed while war.enabled is off, every online member mustered at the seat to declare, peace
+// treaties that bar a declaration while they hold, and capitals the leaders choose (conquest follows them). Run it from this folder's parent with
 //
 //   node tests\realm-harness.js
 'use strict';
@@ -93,7 +93,7 @@ check('the Count on the castle grounds and the court in the Great Hall are muste
 pos.set(COUNT, marker('bruma').map((v, i) => (i === 0 ? v + 3500 : v)));
 check('one step outside the grounds is not', /1 is elsewhere/.test(realm.musterRefusal('county-bruma')));
 for (const a of bruma) { world.set(a, W); pos.set(a, [0, 0, 0]); }
-check('a faction with no seat cannot declare', /has no seat/.test(realm.musterRefusal('nobody')));
+check('a faction with no capital cannot declare', /has no capital to muster at/.test(realm.musterRefusal('nobody')));
 api.isAdmin = () => true;
 pos.set(COUNT, [111, 222, 333]); world.set(COUNT, W);
 handlers.get('/war')(COUNT, 'seat county-bruma');
@@ -220,6 +220,30 @@ check('after four weeks it lapses', realm.realmView(GM).treaties.length === 0 &&
 realm.offerTreaty(COUNT, 'county-bruma', 'fighters-guild', 2);
 const offer2 = realm.realmView(GM).offers[0];
 check('a refused offer is gone and binds nobody', realm.answerTreaty(GM, offer2.id, false).ok && realm.realmView(GM).offers.length === 0 && realm.realmView(GM).treaties.length === 0);
+
+// Capitals: set by the leader, a hold among its own territories, once a week; conquest follows a moved capital
+now += DAY;
+check('only the leader sets the capital', !realm.setCapital(GM + 1, 'fighters-guild', 'here').ok);
+check('a hold picks one of its own territories, never another\'s or a spot', !realm.setCapital(COUNT, 'county-bruma', 'applewatch').ok && /one of its own territories/.test(realm.setCapital(COUNT, 'county-bruma', 'here').text));
+check('the Count moves the capital to Greenwood', realm.setCapital(COUNT, 'county-bruma', 'greenwood').ok && realm.seatOf('county-bruma').name === 'Greenwood' && realm.holdCapital('bruma').id === 'greenwood');
+check('the members online are told', out.personal.some((x) => x.a === 2 && /new capital: Greenwood/.test(x.t)));
+check('the capital moves once a week at most', /can move again from/.test(realm.setCapital(COUNT, 'county-bruma', 'pale-pass').text));
+pos.set(GM, [70000, 190000, 0]); world.set(GM, W);
+check('a guild leader makes the spot they stand on its seat', realm.setCapital(GM, 'fighters-guild', 'here').ok && /^Fighters Guild's seat near /.test(realm.seatOf('fighters-guild').name));
+const caps = realm.realmView(GM).capitals;
+check('the view lists the hold\'s capital territory and the guild\'s seat with its map spot', caps.some((c) => c.faction === 'county-bruma' && c.territory === 'greenwood') && caps.some((c) => c.faction === 'fighters-guild' && c.territory === null && c.x === 70000 && c.y === 190000), JSON.stringify(caps));
+const mine = realm.realmView(COUNT).leads[0];
+check('the Count\'s panel offers the hold\'s territories, no spot, and says when the next move is allowed', mine.capital === 'greenwood' && mine.capitalChoices.map((c) => c.id).sort().join() === 'bruma,greenwood,pale-pass' && mine.canSetHere === false && mine.capitalChangeAt > now);
+world.set(GM, '1234:BSHeartland.esm'); now += 8 * DAY;
+check('indoors the seat is the room itself', realm.setCapital(GM, 'fighters-guild', 'here').ok && realm.seatOf('fighters-guild').cells[0] === '1234:BSHeartland.esm' && realm.seatOf('fighters-guild').name === 'Fighters Guild\'s hall');
+check('an indoor seat has no spot on the map', realm.realmView(GM).capitals.find((c) => c.faction === 'fighters-guild').x === null);
+world.set(GM, W);
+officials = { bruma: { count: [1] } };
+realm.setOwner('bruma', 'fighters-guild', 'test');
+check('Bruma city is only land once the capital has moved', !!officials.bruma);
+realm.setOwner('greenwood', 'fighters-guild', 'test');
+check('taking the chosen capital takes the hold', !officials.bruma && globalThis.__dboConquerorLeads(GM, 'bruma') === true);
+realm.setOwner('bruma', 'county-bruma', 'test reset'); realm.setOwner('greenwood', 'county-bruma', 'test reset');
 
 // Hidden layers: a cult's shrine only for its members
 globalThis.__dboGuildsOf = (a) => (fighters.includes(a) ? [{ id: 'fighters-guild', role: a === GM ? 'leader' : 'member' }] : a === 5 ? [{ id: 'cult-namira', role: 'member' }] : []);
