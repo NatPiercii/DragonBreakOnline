@@ -23,9 +23,11 @@ export class ParalysisService extends ClientListener {
     const seconds = Math.max(0, Math.min(120, Number(content["seconds"]) || 0));
     if (!seconds) return;
     this.until = Math.max(this.until, Date.now() + seconds * 1000);
+    // quiet: a hold the server explains itself (the kneel after a revive, downed.js)
+    const quiet = content["quiet"] === true;
     this.controller.once("update", () => {
       this.hold();
-      try { this.sp.Debug.notification(`You are held fast for ${seconds} seconds.`); } catch { /* no hud */ }
+      if (!quiet) { try { this.sp.Debug.notification(`You are held fast for ${seconds} seconds.`); } catch { /* no hud */ } }
     });
     logTrace(this, "Paralysed for", seconds);
   }
