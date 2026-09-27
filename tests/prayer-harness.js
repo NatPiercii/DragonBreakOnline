@@ -83,7 +83,8 @@ const faithlessOffered = () => {
   clear();
   const fn = timers.get('deityPickerOffer');
   if (fn) fn();
-  return out.widgets.some((w) => w && w.type === 'deityPicker');
+  // Outside the creation step the offer is a chat line: an unasked-for menu must never take the keyboard (2026-09-27)
+  return out.widgets.some((w) => w && w.type === 'deityPicker') || out.personals.some((p) => /\/deity/.test(String(p)));
 };
 const fire = (ev, args) => (handlers.get(ev) || []).forEach((f) => f(ACTOR, args, 35));
 const clear = () => { out.widgets.length = 0; out.logs.length = 0; out.personals.length = 0; out.audits.length = 0; out.events.length = 0; out.papyrus.length = 0; };
@@ -477,10 +478,8 @@ check('closing the menu afterwards does not move them twice', moved.length === 2
 check('someone who already holds a god gets no creation step', globalThis.__dboDeityCreationOpen(ACTOR) === false);
 atEnd = false;
 pick = creationPick();
-check('outside the hub the ordinary menu opens', !!pick && !pick.notice);
-clear();
-fire('deityClose', [pick.nonce]);
-check('and closing it moves nobody', moved.length === 2);
+check('outside the hub no menu opens by itself (it would take the keyboard)', !pick && out.personals.some((p) => /\/deity/.test(String(p))));
+check('and nobody is moved', moved.length === 2);
 atEnd = true;
 props.delete(ACTOR + '|private.dboDeity');
 globalThis.__dboDeityForget(ACTOR);

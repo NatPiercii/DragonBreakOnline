@@ -602,7 +602,9 @@ module.exports = (api) => {
         if (mp.get(a, 'appearance') == null) continue;
         // Someone who left mid-step comes back in the hub: this is still their last creation step
         if (atCreationStep(a)) openCreationStep(a);
-        else openPicker(a);
+        // Only asked for menus take the keyboard: this offer opened the picker with focus at every login, and players
+        // without a god could not move until they closed it or tabbed out (2026-09-27). A chat line instead.
+        else { offered.add(a); personal(a, 'You follow no god yet. Type /deity to choose one.'); log(`deity menu offered in chat to ${display(a)} (no god yet)`); }
       } catch (e) { /* not an actor yet */ }
     }
   });
