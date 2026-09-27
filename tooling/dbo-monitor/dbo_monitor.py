@@ -279,7 +279,8 @@ class Monitor:
         self.last_activity = {}      # player name -> last time their client reported anything
         self.journal = {}            # player name -> Journal (pause) menu open, from clientState (client 0.3.40+)
         self.reports_journal = set() # players whose client says when the Journal opens, so silence means a crash
-        self.incidents = {}          # 'freeze' / 'pressure' -> {since, last}: at most one open incident of each kind
+        self.incidents = {}          # 'freeze' / 'pressure' -> {since, last, flap}: at most one open of each kind
+        self.cleared = {}            # 'freeze' / 'pressure' -> when its last incident closed
         self.last_loop = time.time() # last tick summary, or server or gamemode (re)start
         self.was_down = False        # skymp.service seen stopped since: its silence clock starts when it is seen back
         self.loop_high = 0           # tick summaries in a row with p99 over FREEZE_P99_MS
@@ -322,21 +323,27 @@ class Monitor:
         self.dirty = True
 
     def incident(self, key, text, t):
-        """Opens incident key with an alert, then re-alerts every INCIDENT_REPEAT_S while it stays open."""
+        """Opens incident key with an alert, re-alerting every INCIDENT_REPEAT_S; one back soon after it cleared is a flap."""
         now = time.time()
         inc = self.incidents.get(key)
         if inc is None:
-            self.incidents[key] = {'since': now, 'last': now}
+            gone = now - self.cleared.get(key, -INCIDENT_REPEAT_S)
+            flap = gone < INCIDENT_REPEAT_S
+            self.incidents[key] = {'since': now, 'last': now, 'flap': flap}
             self.count('server.' + key)
-            self.say(text, t)
+            self.say(f'{text} (back {int(gone // 60)} min after it cleared; while it comes and goes, one update per {INCIDENT_REPEAT_S // 60} min)' if flap else text, t)
         elif now - inc['last'] >= INCIDENT_REPEAT_S:
             inc['last'] = now
-            self.say(f'{text} (still going, {int((now - inc["since"]) // 60)} min)', t)
+            self.say(f'{text} (still going, {int((now - inc["since"]) // 60)} min{", on and off" if inc["flap"] else ""})', t)
 
     def resolve(self, key, text, t):
-        inc = self.incidents.pop(key, None)
-        if inc:
-            self.say(f'{text}, {int((time.time() - inc["since"]) // 60)} min after the alert', t)
+        inc = self.incidents.get(key)
+        now = time.time()
+        if not inc or (inc['flap'] and now - inc['last'] < INCIDENT_REPEAT_S):
+            return    # a flap clears only at its next update (one post per interval), if still clear then
+        del self.incidents[key]
+        self.cleared[key] = now
+        self.say(f'{text}, {int((now - inc["since"]) // 60)} min after the alert', t)
 
     def loop_sample(self, p99, mx, online, t):
         self.last_loop, self.was_down = time.time(), False
@@ -432,6 +439,8 @@ class Monitor:
             self.count('server.restart')
             self.last_loop, self.loop_high, self.max_high, self.was_down = time.time(), 0, 0, False    # summary in 1-3 min
             froze = self.incidents.pop('freeze', None)
+            if froze:
+                self.cleared['freeze'] = time.time()
             ended = f'; that ends the freeze alert from {int((time.time() - froze["since"]) // 60)} min ago' if froze else ''
             how, why = journal_start_cause()
             if how == 'crashed':

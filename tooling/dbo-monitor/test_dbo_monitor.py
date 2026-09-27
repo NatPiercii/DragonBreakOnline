@@ -226,6 +226,27 @@ class FreezeTest(MonitorCase):
         self.assertEqual(len(self.alerts('recovered')), 1)
         self.assertIn('20 min after the alert', self.alerts('recovered')[0])
 
+    def test_a_flapping_freeze_posts_once_per_interval(self):
+        # 2500, 2500, 50 ms over and over opened and closed an incident every 3 min: 12 posts in 18 min before
+        self.start('2026-09-27 09:59:30')
+        base = epoch('2026-09-27 10:00:00')
+        for i in range(18):
+            ts = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(base + 60 * i))
+            self.feed(ts, tick_line(ts, 5, [2500.0, 2500.0, 50.0][i % 3], 2600.0 if i % 3 < 2 else 60.0))
+        a = self.alerts()
+        self.assertEqual(a[:3], ['`10:01:00` **Server freeze:** event loop p99 2500 ms (max 2600 ms), over 2000 ms in 2 tick summaries in a row, 5 online',
+                                 '`10:02:00` Server recovered: event loop p99 50 ms (max 60 ms), 1 min after the alert',
+                                 '`10:04:00` **Server freeze:** event loop p99 2500 ms (max 2600 ms), over 2000 ms in 2 tick summaries in a row, 5 online '
+                                 '(back 2 min after it cleared; while it comes and goes, one update per 15 min)'])
+        self.assertEqual(len(a), 3, 'quiet until the 15 min update')
+        for i in range(18, 36):    # the 15 min update, then it settles from 10:20 and says so at the next update
+            ts = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(base + 60 * i))
+            self.feed(ts, tick_line(ts, 5, [2500.0, 2500.0, 50.0][i % 3] if i < 21 else 12.0, 2600.0 if i % 3 < 2 and i < 21 else 60.0))
+        a = self.alerts()
+        self.assertEqual(a[3:], ['`10:19:00` **Server freeze:** event loop p99 2500 ms (max 2600 ms), over 2000 ms in 2 tick summaries in a row, 5 online (still going, 15 min, on and off)',
+                                 '`10:34:00` Server recovered: event loop p99 12 ms (max 60 ms), 30 min after the alert'])
+        self.assertEqual(self.mon.incidents, {})
+
     def test_a_summary_without_event_loop_figures_still_counts_as_alive(self):
         self.start('2026-09-22 01:00:00')
         old = '[2026-09-22 01:{:02d}:46.264] [console] [info] [gamemode] ticks (ms, last 60 s, 0 online): worldStats 1x max 10.45 mean 10.45'
