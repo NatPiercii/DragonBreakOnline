@@ -7,6 +7,7 @@ import { ObjectReferenceEx } from "../../extensions/objectReferenceEx";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
 import { Movement, NiPoint3 } from "../../sync/movement";
 import { isInSitPose, setRefrCollision } from "../../sync/animation";
+import { ParalysisService } from "./paralysisService";
 
 // Vanilla behaviour-graph "offset" overlay events (no ESP required), cleared with OffsetStop.
 // All three are whitelisted in sync/animation.ts (forcedSyncAnims) so the poses sync to other players.
@@ -325,9 +326,9 @@ export class RestraintService extends ClientListener {
     }
   }
 
-  // Another service gave the player's controls back (a paralysis ending); a carried or bound player's lock goes on again
+  // Must run on update: another service gave the player's controls back (a paralysis ending); the lock goes on again this frame
   public reapply(): void {
-    if (this.carried || this.boundHands) this.applyState();
+    if (this.carried || this.boundHands) this.applyStateNow();
   }
 
   private applyState(): void {
@@ -371,6 +372,7 @@ export class RestraintService extends ClientListener {
       player.setDontMove(false);
       this.sp.Game.enablePlayerControls(true, true, true, true, true, true, true, true, 0);
     }
+    this.controller.lookupListener(ParalysisService).reassert();
   }
 
   // Overlays and state idles live on separate graph layers: the old one is left first, alone, so the sync relays both
