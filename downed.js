@@ -12,7 +12,7 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg } = api;
+  const { mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg, openWidget, closeWidget, onUi } = api;
   // The name a player sees for another: their name once introduced, else Stranger, or Masked Person (playermenu.js).
   // NPCs keep their own names. A /bug of 2026-09-26: a stranger who raised a player was named on the banner.
   const nameTo = (viewer, x) => {
@@ -26,6 +26,9 @@ module.exports = (api) => {
     friendlyDamage: 0.2,
     bleedoutSeconds: 60,
     reviveHealth: 0.25,
+    // After a revive the player kneels (the essential bleed-out pose), cannot move, attack or be hurt, and their health
+    // climbs from recoverFrom to reviveHealth over recoverSeconds; then they stand (Nate, 2026-09-27). 0 = stand at once.
+    recoverSeconds: 15, recoverFrom: 0.01,
     priestTier: 4,
     hostileMs: 60000,
     reviveRange: 1500, reviveConeDeg: 25, reviveFallbackMs: 1200, groupReviveRange: 400,
@@ -89,6 +92,8 @@ module.exports = (api) => {
         // The gamemode's hit bonuses are noted by the inner handler; a stale one would land on the respawned body
         globalThis.__dboMasteryPending = null;
         globalThis.__dboSuperPending = null;
+        // Recovering after a revive: kneeling, out of the fight both ways
+        if (S.recovering && (S.recovering.has(tgt) || S.recovering.has(agg)) && agg !== tgt) return false;
         // A hostile player finishes a fallen one: the temple, now
         if (dmg > 0 && S.downed.has(tgt) && isDead(tgt) && isPlayer(agg) && !friendly(agg, tgt)) {
           finish(tgt, agg);
@@ -260,6 +265,75 @@ module.exports = (api) => {
   }, { help: "how long Death's Chill lasts" });
   globalThis.__dboDeathChillLeft = (a) => chillLeft(Number(a) >>> 0);
 
+  // ---- the panel and the timers others see ---------------------------------------------------------------
+  // Nate, 2026-09-27 (players missed the banner and did not know why they were not sent to the temple): a panel in the
+  // middle of the downed player's screen, "You're down!", who can raise them, a live countdown and Give up; and a
+  // countdown over the downed player for everyone near them (client downedTimerService, packet dboDowned).
+  const PANEL_ID = 62;
+  const TIMER_RANGE = 6000; // units: about 85 m, the distance a downed body can be told apart
+  const secondsLeft = (d) => Math.max(0, Math.ceil((d.at + C.bleedoutSeconds * 1000 - Date.now()) / 1000));
+  // Only a client whose UI said it draws the panel (dbo:uiCaps 'downed') gets it: an unknown widget opened with the
+  // keyboard would leave an invisible panel holding the keys. Anyone else keeps the banner.
+  const caps = globalThis.__dboDownedCaps instanceof Map ? globalThis.__dboDownedCaps : (globalThis.__dboDownedCaps = new Map());
+  if (typeof onUi === 'function') onUi('uiCaps', (a, args) => { caps.set(a >>> 0, new Set((args || []).map(String))); });
+  const openPanel = (a, d) => {
+    if (typeof openWidget !== 'function' || !(caps.get(a >>> 0) || new Set()).has('downed')) {
+      banner(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8,
+        "A Priest's healing or a Draught of Revival can bring you back where you fell.");
+      return;
+    }
+    openWidget(a, { type: 'downed', id: PANEL_ID, nonce: d.nonce, seconds: secondsLeft(d),
+      title: "You're down!", text: 'You can be brought back to your feet by someone with healing magic or a Draught of Revival.' }, true);
+  };
+  // Every way out of the down state goes through here, so the panel never outlives it (it holds the keyboard)
+  const endDown = (a) => {
+    const had = S.downed.delete(a);
+    if (had && typeof closeWidget === 'function') { try { closeWidget(a, PANEL_ID); } catch (e) { /* offline */ } }
+    if (had) pushTimers(true);
+    return had;
+  };
+  const sentTimers = globalThis.__dboDownedTimersSent instanceof Map ? globalThis.__dboDownedTimersSent : (globalThis.__dboDownedTimersSent = new Map()); // viewer -> ids key
+  let lastFullPush = 0;
+  // Sends each player the downed players near them: when that set changes, and every 10 s to keep the clocks true
+  const pushTimers = (force) => {
+    const now = Date.now();
+    const full = force || now - lastFullPush > 10000;
+    if (full) lastFullPush = now;
+    const downed = [];
+    for (const [t, d] of S.downed) {
+      try { if (isDead(t)) downed.push({ t, d, cell: mp.get(t, 'worldOrCellDesc'), pos: mp.get(t, 'pos') }); } catch (e) { /* gone */ }
+    }
+    for (const p of onlineActors()) {
+      let list = [];
+      try {
+        if (downed.length) {
+          const cell = mp.get(p, 'worldOrCellDesc'), pos = mp.get(p, 'pos');
+          list = downed.filter((x) => x.t !== p && x.cell === cell && Math.hypot(x.pos[0] - pos[0], x.pos[1] - pos[1], x.pos[2] - pos[2]) <= TIMER_RANGE)
+            .map((x) => ({ id: x.t, seconds: secondsLeft(x.d) }));
+        }
+      } catch (e) { list = []; }
+      const key = list.map((x) => x.id).join(',');
+      if (!full && sentTimers.get(p) === key) continue;
+      if (!list.length && !sentTimers.get(p)) { sentTimers.delete(p); continue; }
+      try { sendPacket(p, { customPacketType: 'dboDowned', list }); } catch (e) { /* offline */ }
+      if (list.length) sentTimers.set(p, key); else sentTimers.delete(p);
+    }
+    for (const p of [...sentTimers.keys()]) if (!onlineActors().includes(p)) sentTimers.delete(p);
+  };
+  if (typeof onUi === 'function') {
+    onUi('downedGiveUp', (a, args) => {
+      const d = S.downed.get(a);
+      if (!d || String(args[0] || '') !== d.nonce || !isDead(a)) return;
+      log(`downed: ${display(a)} gave up (panel)`);
+      toTemple(a);
+    });
+  }
+  // The engine's own respawn at the end of the bleed-out gives no event: watch the downed every second
+  every('downedPanel', 1000, () => {
+    for (const [a] of S.downed) { let dead = true; try { dead = isDead(a); } catch (e) { dead = false; } if (!dead) { endDown(a); chill(a); } }
+    if (S.downed.size || sentTimers.size) pushTimers(false);
+  });
+
   // ---- the down state ------------------------------------------------------------------------------------
   // The engine starts its respawn timer at death with the actor's spawnDelay, so it must be set before anyone falls
   every('downedDelay', 10000, () => {
@@ -268,8 +342,8 @@ module.exports = (api) => {
     }
     const now = Date.now();
     for (const [a, d] of S.downed) {
-      if (!isDead(a)) { S.downed.delete(a); chill(a); }
-      else if (now - d.at > (C.bleedoutSeconds + 30) * 1000) S.downed.delete(a);
+      if (!isDead(a)) { endDown(a); chill(a); }
+      else if (now - d.at > (C.bleedoutSeconds + 30) * 1000) endDown(a);
     }
     for (const [k, t] of S.fought) if (now - t > C.hostileMs) S.fought.delete(k);
     if (S.maxHp.size > 4096) S.maxHp.clear();
@@ -283,9 +357,12 @@ module.exports = (api) => {
         const a = Number(actorId) >>> 0;
         try {
           if (isPlayer(a) && mp.get(a, 'private.permaDead') !== true) {
-            S.downed.set(a, { at: Date.now(), by: Number(killerId) >>> 0 });
-            banner(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8,
-              "A Priest's healing or a Draught of Revival can bring you back where you fell.");
+            const d = { at: Date.now(), by: Number(killerId) >>> 0, nonce: `${a.toString(16)}-${Date.now().toString(36)}` };
+            S.downed.set(a, d);
+            // The panel says it all; chat keeps a line for anyone who closes it
+            personal(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or choose Give up (or say /respawn). A Priest's healing or a Draught of Revival can bring you back where you fell.`);
+            openPanel(a, d);
+            pushTimers(true);
             log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
           }
         } catch (e) { log(`downed: death handling failed: ${e.message}`); }
@@ -298,24 +375,58 @@ module.exports = (api) => {
     const d = S.downed.get(t);
     if (!d || !isDead(t) || mp.get(t, 'private.permaDead') === true) return false;
     if (by && hostile(sideOf(by), t)) { banner(by, `${nameTo(by, t)} fought you moments ago and will not take your help.`); return false; }
-    S.downed.delete(t);
+    endDown(t);
     mp.set(t, 'isDead', false);
-    setHealth(t, C.reviveHealth);
-    banner(t, `${by ? nameTo(t, by) : 'Someone'} raised you with ${how}.`, 5);
+    if (C.recoverSeconds > 0) startRecovery(t); else setHealth(t, C.reviveHealth);
+    banner(t, `${by ? nameTo(t, by) : 'Someone'} raised you with ${how}.${C.recoverSeconds > 0 ? ' Catch your breath before you stand.' : ''}`, 5);
     if (by) banner(by, `You raised ${nameTo(by, t)}.`, 3);
     audit(`REVIVE ${who(t)} by ${by ? who(by) : 'nobody'} (${how})`);
     return true;
   };
+  // ---- recovery after a revive: kneel, heal slowly, stand ----------------------------------------------------
+  // BleedOutStart / BleedOutStop are the vanilla essential bleed-out events, sent on the player's own client through
+  // Papyrus Debug.SendAnimationEvent (as gatheringSystem.ts does for its exit idle). That is only a pose, so the rest is
+  // held here: the client holds the controls (dboParalyse, quiet), and the hit hook above refuses hits both ways.
+  S.recovering = S.recovering instanceof Map ? S.recovering : new Map(); // actor -> { at, until }
+  const anim = (a, ev) => { try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: mp.getDescFromId(a) }, ev]); } catch (e) { log(`downed: ${ev} failed for ${display(a)}: ${e.message}`); } };
+  const startRecovery = (t) => {
+    const now = Date.now();
+    S.recovering.set(t, { at: now, until: now + C.recoverSeconds * 1000 });
+    setHealth(t, C.recoverFrom);
+    try { sendPacket(t, { customPacketType: 'dboParalyse', seconds: C.recoverSeconds, quiet: true }); } catch (e) { /* offline */ }
+    // The engine's own get-up plays as the body is raised; the kneel goes on after it
+    setTimeout(() => { if (S.recovering.has(t)) anim(t, 'BleedOutStart'); }, 1200);
+    log(`downed: ${display(t)} recovering for ${C.recoverSeconds} s`);
+  };
+  const endRecovery = (t, why) => {
+    if (!S.recovering.delete(t)) return;
+    anim(t, 'BleedOutStop');
+    if (why === 'done') { setHealth(t, C.reviveHealth); banner(t, 'You are back on your feet.', 3); }
+    log(`downed: ${display(t)} recovery ended (${why})`);
+  };
+  every('downedRecovery', 1000, () => {
+    const now = Date.now();
+    for (const [t, r] of S.recovering) {
+      let dead = false, online = true;
+      try { dead = isDead(t); online = onlineActors().includes(t); } catch (e) { online = false; }
+      if (!online) { S.recovering.delete(t); continue; }
+      if (dead) { S.recovering.delete(t); continue; }
+      if (now >= r.until) { endRecovery(t, 'done'); continue; }
+      const f = (now - r.at) / (r.until - r.at);
+      setHealth(t, C.recoverFrom + (C.reviveHealth - C.recoverFrom) * f);
+    }
+  });
+
   // Wakes at the spawn point (the temple of the area, set on death) the way the engine's own respawn does
   const toTemple = (t) => {
-    S.downed.delete(t);
+    endDown(t);
     try { const sp = mp.get(t, 'spawnPoint'); if (sp && sp.cellOrWorldDesc) mp.set(t, 'locationalData', sp); } catch (e) { log(`downed: temple move failed for ${display(t)}: ${e.message}`); }
     mp.set(t, 'isDead', false);
     chill(t);
   };
   const finish = (t, by) => {
     // In a war to the death an enemy's killing blow on contested land ends the character (realm.js)
-    try { if (typeof globalThis.__dboWarFinish === 'function' && globalThis.__dboWarFinish(t, by)) { S.downed.delete(t); return; } } catch (e) { log('downed: war check failed', e.message); }
+    try { if (typeof globalThis.__dboWarFinish === 'function' && globalThis.__dboWarFinish(t, by)) { endDown(t); return; } } catch (e) { log('downed: war check failed', e.message); }
     audit(`FINISHED ${who(t)} by ${who(by)}`);
     banner(t, `${nameTo(t, by)} finished you. You wake at the temple.`, 5);
     toTemple(t);

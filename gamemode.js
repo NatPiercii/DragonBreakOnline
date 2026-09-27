@@ -3679,7 +3679,7 @@ try {
 try {
   const DOWNED_JS = path.resolve('downed.js');
   delete require.cache[DOWNED_JS];
-  require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg });
+  require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg, openWidget, closeWidget, onUi });
 } catch (e) { log('downed.js failed to load:', e.stack || e.message); globalThis.__dboReviveWith = null; globalThis.__dboIsDowned = null; globalThis.__dboLabDraught = null; }
 // ---- province rules for crafting and the tome shop (server\regions.js, config "regions"): before spells.js, which asks it ----
 try {
