@@ -20,10 +20,11 @@ const mp = {
   get: (id, k) => { const v = get(id, k); if (v === undefined && k === 'private.permaDead') return false; return v; },
   set: (id, k, v) => set(id, k, v),
   getIdFromDesc: (d) => parseInt(d, 16), getDescFromId: (id) => (id >>> 0).toString(16),
-  callPapyrusFunction: () => true,
+  callPapyrusFunction: (k, c, fn, self, args) => { if (fn === 'SendAnimationEvent') anims.push([parseInt(args[0].desc, 16), args[1]]); return true; },
   onHitDamageAttempt: () => true, onHitDamage: () => undefined, onDeath: () => undefined, onSpellHit: () => undefined, onSpellCast: () => undefined,
 };
-const widgets = [], closed = [], packets = [], timers = {}, ui = {};
+const widgets = [], closed = [], packets = [], timers = {}, ui = {}, anims = [];
+const pending = []; global.setTimeout = (fn, ms) => { pending.push(fn); return 0; };
 globalThis.__dboDownedState = undefined; globalThis.__dboDownedTimersSent = undefined;
 require(MODULE)({
   mp, log: () => {}, personal: () => {}, sendPacket: (a, p) => { packets.push([a, p]); return true; },
@@ -68,6 +69,23 @@ check('the engine respawn closes the panel', closed.some((c) => c[0] === P && c[
 closed.length = 0; die();
 globalThis.__dboReviveWith && globalThis.__dboReviveWith(P, NEAR, 'healing');
 check('a revive closes the panel', get(P, 'isDead') === false && closed.some((c) => c[0] === P && c[1] === 62));
+
+// Recovery after a revive: kneel, heal slowly, untouchable and harmless, then stand
+anims.length = 0; packets.length = 0;
+set(P, 'isDead', false); timers.downedPanel(); die();
+globalThis.__dboReviveWith(P, NEAR, 'healing');
+const hp = () => get(P, 'percentages').health;
+check('a revived player starts nearly empty', Math.abs(hp() - 0.01) < 1e-9);
+check('their controls are held, quietly', packets.some((x) => x[0] === P && x[1].customPacketType === 'dboParalyse' && x[1].seconds === 15 && x[1].quiet === true));
+pending.splice(0).forEach((f) => f());
+check('they kneel', anims.some((x) => x[0] === P && x[1] === 'BleedOutStart'));
+check('nobody can hurt them while they kneel', mp.onHitDamageAttempt(NEAR, P, 0x1f4, 20) === false);
+check('and they cannot attack', mp.onHitDamageAttempt(P, NEAR, 0x1f4, 20) === false);
+now += 7500; timers.downedRecovery();
+check('health climbs half way in half the time', Math.abs(hp() - (0.01 + 0.24 * 0.5)) < 0.01);
+now += 8000; timers.downedRecovery();
+check('at the end they stand at the revive health', anims.some((x) => x[0] === P && x[1] === 'BleedOutStop') && Math.abs(hp() - 0.25) < 1e-9);
+check('and are back in the fight', mp.onHitDamageAttempt(NEAR, P, 0x1f4, 20) !== false);
 
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);

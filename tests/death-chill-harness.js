@@ -44,7 +44,8 @@ require(MODULE)({
   audit: (t) => out.audits.push(t), who: (a) => 'P' + (a >>> 0).toString(16), display: (a) => 'P' + (a >>> 0).toString(16),
   profileOf: (a) => Number(get(a, 'profileId')), nameOf: (a) => 'P' + (a >>> 0).toString(16),
   onlineActors: () => [P, PRIEST, NOVICE], every: (n, ms, fn) => { timers[n] = fn; },
-  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: {},
+  // Recovery after a revive (kneel, slow heal) is tested in downed-panel-harness; here a revive stands at reviveHealth
+  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: { downed: { recoverSeconds: 0 } },
 });
 
 let failures = 0;

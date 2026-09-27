@@ -26,6 +26,9 @@ module.exports = (api) => {
     friendlyDamage: 0.2,
     bleedoutSeconds: 60,
     reviveHealth: 0.25,
+    // After a revive the player kneels (the essential bleed-out pose), cannot move, attack or be hurt, and their health
+    // climbs from recoverFrom to reviveHealth over recoverSeconds; then they stand (Nate, 2026-09-27). 0 = stand at once.
+    recoverSeconds: 15, recoverFrom: 0.01,
     priestTier: 4,
     hostileMs: 60000,
     reviveRange: 1500, reviveConeDeg: 25, reviveFallbackMs: 1200, groupReviveRange: 400,
@@ -89,6 +92,8 @@ module.exports = (api) => {
         // The gamemode's hit bonuses are noted by the inner handler; a stale one would land on the respawned body
         globalThis.__dboMasteryPending = null;
         globalThis.__dboSuperPending = null;
+        // Recovering after a revive: kneeling, out of the fight both ways
+        if (S.recovering && (S.recovering.has(tgt) || S.recovering.has(agg)) && agg !== tgt) return false;
         // A hostile player finishes a fallen one: the temple, now
         if (dmg > 0 && S.downed.has(tgt) && isDead(tgt) && isPlayer(agg) && !friendly(agg, tgt)) {
           finish(tgt, agg);
@@ -372,12 +377,46 @@ module.exports = (api) => {
     if (by && hostile(sideOf(by), t)) { banner(by, `${nameTo(by, t)} fought you moments ago and will not take your help.`); return false; }
     endDown(t);
     mp.set(t, 'isDead', false);
-    setHealth(t, C.reviveHealth);
-    banner(t, `${by ? nameTo(t, by) : 'Someone'} raised you with ${how}.`, 5);
+    if (C.recoverSeconds > 0) startRecovery(t); else setHealth(t, C.reviveHealth);
+    banner(t, `${by ? nameTo(t, by) : 'Someone'} raised you with ${how}.${C.recoverSeconds > 0 ? ' Catch your breath before you stand.' : ''}`, 5);
     if (by) banner(by, `You raised ${nameTo(by, t)}.`, 3);
     audit(`REVIVE ${who(t)} by ${by ? who(by) : 'nobody'} (${how})`);
     return true;
   };
+  // ---- recovery after a revive: kneel, heal slowly, stand ----------------------------------------------------
+  // BleedOutStart / BleedOutStop are the vanilla essential bleed-out events, sent on the player's own client through
+  // Papyrus Debug.SendAnimationEvent (as gatheringSystem.ts does for its exit idle). That is only a pose, so the rest is
+  // held here: the client holds the controls (dboParalyse, quiet), and the hit hook above refuses hits both ways.
+  S.recovering = S.recovering instanceof Map ? S.recovering : new Map(); // actor -> { at, until }
+  const anim = (a, ev) => { try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: mp.getDescFromId(a) }, ev]); } catch (e) { log(`downed: ${ev} failed for ${display(a)}: ${e.message}`); } };
+  const startRecovery = (t) => {
+    const now = Date.now();
+    S.recovering.set(t, { at: now, until: now + C.recoverSeconds * 1000 });
+    setHealth(t, C.recoverFrom);
+    try { sendPacket(t, { customPacketType: 'dboParalyse', seconds: C.recoverSeconds, quiet: true }); } catch (e) { /* offline */ }
+    // The engine's own get-up plays as the body is raised; the kneel goes on after it
+    setTimeout(() => { if (S.recovering.has(t)) anim(t, 'BleedOutStart'); }, 1200);
+    log(`downed: ${display(t)} recovering for ${C.recoverSeconds} s`);
+  };
+  const endRecovery = (t, why) => {
+    if (!S.recovering.delete(t)) return;
+    anim(t, 'BleedOutStop');
+    if (why === 'done') { setHealth(t, C.reviveHealth); banner(t, 'You are back on your feet.', 3); }
+    log(`downed: ${display(t)} recovery ended (${why})`);
+  };
+  every('downedRecovery', 1000, () => {
+    const now = Date.now();
+    for (const [t, r] of S.recovering) {
+      let dead = false, online = true;
+      try { dead = isDead(t); online = onlineActors().includes(t); } catch (e) { online = false; }
+      if (!online) { S.recovering.delete(t); continue; }
+      if (dead) { S.recovering.delete(t); continue; }
+      if (now >= r.until) { endRecovery(t, 'done'); continue; }
+      const f = (now - r.at) / (r.until - r.at);
+      setHealth(t, C.recoverFrom + (C.reviveHealth - C.recoverFrom) * f);
+    }
+  });
+
   // Wakes at the spawn point (the temple of the area, set on death) the way the engine's own respawn does
   const toTemple = (t) => {
     endDown(t);
