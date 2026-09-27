@@ -1,5 +1,25 @@
 [
   {
+    "title": "Launcher 2.1.32: Field of View Fixed",
+    "date": "2026-09-27",
+    "version": "Launcher 2.1.32",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "The field of view setting works now. Set it in Settings and it applies in game straight away, in first and third person and in menus. In 2.1.31 it wrote the value to a file Skyrim doesn't read it from."
+        ]
+      },
+      {
+        "heading": "Updating",
+        "items": [
+          "The launcher offers the update the next time you open it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Moving Straight Away, Aleswell, and Meals That Take Time",
     "date": "2026-09-27",
     "version": "Client 0.3.55",
@@ -71,7 +91,7 @@
           "The server badge shows how many people are online.",
           "Once the game window opens, the launcher steps aside so the game gets your keyboard.",
           "Your microphone is no longer opened when the launcher starts.",
-          "A field of view setting in Settings. Known issue: it does not work in 2.1.31, because it writes the value to a file Skyrim does not read it from. A fix is built and being tested; until then, changing it has no effect in game.",
+          "A field of view setting in Settings (it works from launcher 2.1.32 on).",
           "Report a Problem no longer sends your chat."
         ]
       },
