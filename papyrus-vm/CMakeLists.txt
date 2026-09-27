@@ -1,7 +1,7 @@
 project(papyrus-vm VERSION 1.0.0)
 include(${CMAKE_SOURCE_DIR}/cmake/apply_default_settings.cmake)
 
-file(GLOB src "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm-lib/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm-lib/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
+file(GLOB src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm-lib/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm-lib/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
 list(APPEND src "${CMAKE_SOURCE_DIR}/.clang-format")
 add_library(papyrus-vm-lib STATIC ${src})
 apply_default_settings(TARGETS papyrus-vm-lib)
@@ -13,7 +13,7 @@ target_link_libraries(papyrus-vm-lib PUBLIC viet)
 find_package(spdlog CONFIG REQUIRED)
 target_link_libraries(papyrus-vm-lib PUBLIC spdlog::spdlog)
 
-file(GLOB src "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm/*.cpp")
+file(GLOB src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/src/papyrus-vm/*.cpp")
 add_executable(papyrus-vm ${src})
 target_link_libraries(papyrus-vm PUBLIC papyrus-vm-lib)
 apply_default_settings(TARGETS papyrus-vm)

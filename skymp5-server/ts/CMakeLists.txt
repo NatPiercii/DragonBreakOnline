@@ -1,6 +1,6 @@
 include(${CMAKE_SOURCE_DIR}/cmake/yarn.cmake)
 
-file(GLOB_RECURSE sources ${CMAKE_CURRENT_LIST_DIR}/*.ts)
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/*.ts)
 
 set(out
   ${CMAKE_BINARY_DIR}/dist/server/dist_back/skymp5-server.js
