@@ -826,7 +826,9 @@ ipcMain.handle('api:status', async () => {
     if (data && data.players == null) {
       try {
         const list = await fetchJSON(`${config.apiUrl}/api/servers`)
-        const online = Array.isArray(list) && list.length ? Number(list[0].online) : NaN
+        // The selected server, picked the way activeServer() picks it from the cached list
+        const idx = Array.isArray(list) && list.length ? Math.min(store.get('activeServerIndex') || 0, list.length - 1) : -1
+        const online = idx >= 0 ? Number(list[idx].online) : NaN
         if (Number.isFinite(online)) data.players = online
       } catch { /* no count: the badge shows ONLINE alone */ }
     }
