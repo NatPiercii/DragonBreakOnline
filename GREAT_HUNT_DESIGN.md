@@ -1,8 +1,9 @@
 # The Great Hunt: werewolves reworked
 
-Status: **stage 1 built on branch `great-hunt-1`, not live.** Design by swag and the DragonBreak team (patch note "The Great
-Hunt: werewolves reworked (planned)"). Stage 1 is gameplay only: no plugin, no client package. Everything below is
-config (`gamemode-config.json` `greatHunt`), so the numbers can change without code.
+Status: **stage 1 built and approved by Nate (2026-09-27), on `server` for the next release; not live yet.** Design by
+swag and the DragonBreak team (patch note "The Great Hunt: werewolves reworked (planned)"). Stage 1 is gameplay only: no
+plugin, no client package. Everything below is config (`gamemode-config.json` `greatHunt`), so the numbers can change
+without code.
 
 ## Stage 1 (built): ranks from living as a werewolf
 
@@ -34,7 +35,8 @@ real day, and never a partymate or another character of the werewolf's own accou
 | Elder | 1500 | 300 s | 60 s | 3 | x0.25 | x0.8 / x1.2 |
 
 - "Forced changes" multiplies both the feral chance (hunger, night, full moon) and the full-moon hourly chance.
-- The damage factors ride the same hit multiplier as the skill tiers and silver (gamemode.js).
+- The damage factors ride the same hit multiplier as the skill tiers and silver (gamemode.js), against players as well as
+  creatures (Nate, 2026-09-27).
 - A pack's Alpha keeps the pale coat and is still spared forced changes, as before. "Alpha" stays the pack leader's title,
   so the top renown rank is Elder.
 - Rank-ups are announced to the werewolf (chat and banner) and audited. `/hunt` shows the rank, renown and next rank.
@@ -62,8 +64,8 @@ over a week (WAR_DESIGN.md section 10). Starts near Bruma while the region lock 
 - "Silver ends a werewolf for good" and feral changes that must feed before changing back: both need Nate's rules first
   (which silver deaths are permanent, and a time limit so no one is stuck as a beast).
 
-## Decisions for Nate
+## Decisions
 
-1. The rank names and thresholds above (Fledgling, Prowler, Hunter, Blood-Howler, Elder at 0/100/300/700/1500).
-2. Whether the damage factors apply in PvP too (they do now, like silver).
-3. The permanent-death rule for silver (stage 4).
+1. The rank names and thresholds above: **as they are** (Nate, 2026-09-27).
+2. The damage factors apply in PvP too: **yes** (Nate, 2026-09-27).
+3. Still open for Nate: the permanent-death rule for silver (stage 4).
