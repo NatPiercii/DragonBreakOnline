@@ -351,6 +351,20 @@ ipcMain.handle('settings:save', (_e, data) => {
 // Graphics edit the MO2 portable profile's SkyrimPrefs.ini. NOTE: this assumes
 // the DragonBreak profile uses profile-specific INI files; and if SSEDisplayTweaks is
 // active it may override window mode via its own ini.
+// Skyrim reads the two camera FOV settings from Skyrim.ini [Display], NOT from SkyrimPrefs.ini.
+// SkyrimPrefs only holds fDefaultFOV [General], which is the menu and inventory view.
+// The camera FOV the game will actually use, read from Skyrim.ini [Display]; falls back to whatever the
+// caller found in SkyrimPrefs so an older profile still shows a sensible number.
+function fovFromSkyrimIni(fallback) {
+  try {
+    const v = parseFloat(((ini.read(skyrimIniPath()) || {})['Display'] || {})['fDefaultWorldFOV'])
+    if (Number.isFinite(v) && v >= 50 && v <= 140) return Math.round(v)
+  } catch { /* no profile ini yet */ }
+  return fallback
+}
+function skyrimIniPath() {
+  return path.join(mo2.getProfileDir(), 'skyrim.ini')
+}
 function skyrimPrefsPath() {
   return path.join(mo2.getProfileDir(), 'skyrimprefs.ini')
 }
@@ -408,8 +422,9 @@ ipcMain.handle('graphics:load', () => {
       width:  disp['iSize W'] || origDisp['iSize W'] || '1920',
       height: disp['iSize H'] || origDisp['iSize H'] || '1080',
       invertY: String(controls['bInvertYValues'] || '0') === '1',
-      // 80 is Skyrim's own default; the slider shows what the player has, not a guess
-      fov: num('Display', 'fDefaultWorldFOV', 80),
+      // Read back from the file the game actually reads it from. 80 is Skyrim's own default, so the box
+      // shows what the player has rather than a guess.
+      fov: fovFromSkyrimIni(num('General', 'fDefaultFOV', 80)),
       texQuality: skip >= 2 ? 'low' : (skip === 1 ? 'medium' : 'high'),
       aa: val('Display', 'bUseTAA', '1') === '1' ? 'taa'
         : (val('Display', 'bFXAAEnabled', '0') === '1' ? 'fxaa' : 'off'),
@@ -433,20 +448,22 @@ ipcMain.handle('graphics:save', (_e, g) => {
   try {
     g = g || {}
     const display = {}
+    const general = {}
     if (g.windowMode === 'fullscreen')      { display['bFull Screen'] = '1'; display['bBorderless'] = '0' }
     else if (g.windowMode === 'borderless') { display['bFull Screen'] = '0'; display['bBorderless'] = '1' }
     else if (g.windowMode === 'windowed')   { display['bFull Screen'] = '0'; display['bBorderless'] = '0' }
     if (g.width)  display['iSize W'] = String(g.width)
     if (g.height) display['iSize H'] = String(g.height)
-    // Field of view. Skyrim keeps the world and first person values apart and both need setting, or
-    // third person widens while first person stays put. The client re-applies these after the
-    // character creator, which sets its own close-up value and never restores it.
+    // Field of view. Three settings in two files, and they are not interchangeable:
+    //   Skyrim.ini      [Display] fDefaultWorldFOV      third person
+    //   Skyrim.ini      [Display] fDefault1stPersonFOV  first person
+    //   SkyrimPrefs.ini [General] fDefaultFOV           menus, inventory, lockpicking
+    // 2.1.31 shipped all of it into SkyrimPrefs [Display], which the game does not read, so the setting
+    // did nothing. Both halves are written now, and the client re-applies the pair after the character
+    // creator, which sets its own close-up value and never restores it.
     const fov = Number(g.fov)
-    if (Number.isFinite(fov) && fov >= 50 && fov <= 140) {
-      const v = String(Math.round(fov))
-      display['fDefaultWorldFOV'] = v
-      display['fDefault1stPersonFOV'] = v
-    }
+    const fovValue = Number.isFinite(fov) && fov >= 50 && fov <= 140 ? String(Math.round(fov)) : ''
+    if (fovValue) general['fDefaultFOV'] = fovValue
     const TEX = { high: '0', medium: '1', low: '2' }
     if (TEX[g.texQuality]) display['iTexMipMapSkip'] = TEX[g.texQuality]
     if (['off', 'fxaa', 'taa'].includes(g.aa)) {
@@ -478,7 +495,17 @@ ipcMain.handle('graphics:save', (_e, g) => {
       ultra:  { iWaterReflectHeight: '1024', iWaterReflectWidth: '1024', bReflectLODLand: '1', bReflectLODObjects: '1', bReflectLODTrees: '1', bReflectSky: '1' },
     }
     if (REFLECTIONS[g.reflections]) edits.Water = Object.assign({ bUseWaterReflections: '1' }, REFLECTIONS[g.reflections])
+    if (Object.keys(general).length) edits.General = Object.assign({}, edits.General || {}, general)
     ini.write(skyrimPrefsPath(), edits)
+    // The two camera FOV settings live in Skyrim.ini, so they are a second write to a different file.
+    // ini.write keeps every other key, and a missing profile Skyrim.ini is seeded elsewhere at install.
+    if (fovValue && fs.existsSync(skyrimIniPath())) {
+      try {
+        ini.write(skyrimIniPath(), { Display: { fDefaultWorldFOV: fovValue, fDefault1stPersonFOV: fovValue } })
+      } catch (err) {
+        log('[graphics] could not write the field of view to Skyrim.ini:', err.message)
+      }
+    }
     return { ok: true, path: skyrimPrefsPath() }
   } catch (err) {
     return { ok: false, error: err.message }
