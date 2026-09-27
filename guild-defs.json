@@ -864,7 +864,17 @@
           "title": "Footpad",
           "role": "member"
         }
-      ]
+      ],
+      "hall": {
+        "name": "the Ragged Flagon Cistern, Riften",
+        "zone": "riften",
+        "doors": [
+          "25d83:Skyrim.esm",
+          "2d2dd:Skyrim.esm",
+          "16c1d:Skyrim.esm"
+        ],
+        "note": "outside the Bruma lock, so not reachable during the playtest"
+      }
     },
     {
       "id": "dark-brotherhood",
@@ -904,7 +914,15 @@
           "title": "Murderer",
           "role": "member"
         }
-      ]
+      ],
+      "hall": {
+        "name": "the Sanctuary near Falkreath",
+        "zone": "falkreath",
+        "doors": [
+          "25c00:Skyrim.esm"
+        ],
+        "note": "outside the Bruma lock, so not reachable during the playtest"
+      }
     },
     {
       "id": "clan-volkihar",
@@ -985,7 +1003,15 @@
           "title": "Fledgling",
           "role": "member"
         }
-      ]
+      ],
+      "hall": {
+        "name": "Gutted Mine",
+        "zone": "bruma",
+        "doors": [
+          "63a29:BSHeartland.esm"
+        ],
+        "note": "one of only two vampire lairs in Cyrodiil, and a leaseable dungeon: parties can clear it, so the Order's seat is a place it holds, not a place it is safe"
+      }
     },
     {
       "id": "crimson-scars",

@@ -54,6 +54,13 @@ const dawn = faction(LEADER, 'hall cult-mehrunes-dagon');
 ok(/Mythic Dawn Museum/.test(dawn), 'the Mythic Dawn keep the museum in Dawnstar', dawn);
 ok(/not reachable yet/.test(dawn), '...and a seat outside the Bruma lock says so');
 ok(!/not reachable yet/.test(faction(LEADER, 'hall synod')), '...while a Bruma seat does not');
+// The secret seats are only shown to their own members, so an outsider must not see them at all.
+const gutted = faction(LEADER, 'hall cyrodiil-vampyrum-order');
+ok(/Gutted Mine/.test(gutted), 'the Vampyrum Order hold Gutted Mine, a real vampire lair', gutted);
+ok(!/not reachable yet/.test(gutted), '...which is in Cyrodiil and reachable');
+ok(/leaseable dungeon/.test(gutted), '...and the listing warns it is a dungeon parties can clear');
+ok(/not reachable yet/.test(faction(LEADER, 'hall dark-brotherhood')), 'the Brotherhood keep the Falkreath Sanctuary, out of reach for now');
+ok(/not reachable yet/.test(faction(LEADER, 'hall thieves-guild')), 'the Thieves Guild keep the Riften cistern, out of reach for now');
 ok(/no seat at all/.test(faction(LEADER, 'hall blades')), 'the Blades have no seat while Cloud Ruler is a ruin');
 ok(/No such faction/.test(faction(LEADER, 'hall not-a-faction')), 'an unknown faction is refused');
 
