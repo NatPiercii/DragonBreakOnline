@@ -103,6 +103,7 @@ app.use('/api/role-permissions',  rolePermissionsRoute)
 app.use('/api/server-access',      serverAccessRoute)
 app.use('/api/players',            playersRoute)
 app.use('/api/launch-check',       launchCheckRoute)
+app.use('/api/site/staff/server', require('./routes/site-server'))
 app.use('/api/site/staff', require('./routes/site-staff'))
 app.use('/api/site',               siteAuthRoute)
 // Body-parser failures on any route answer in JSON; NODE_ENV is unset here, so the default handler would send a stack trace

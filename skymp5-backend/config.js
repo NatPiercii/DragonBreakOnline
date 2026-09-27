@@ -96,6 +96,17 @@ module.exports = {
   // Discord roles that may open the staff dashboard: Owners and Dragon Break Dev. GM is deliberately absent.
   siteStaffRoleIds: (process.env.SITE_STAFF_ROLE_IDS || '1494126527489507369,1494491999305338981')
     .split(',').map(s => s.trim()).filter(Boolean),
+  // Discord roles recognised as Owners on the staff dashboard's Server panel
+  siteOwnerRoleIds: (process.env.SITE_OWNER_ROLE_IDS || '1494126527489507369')
+    .split(',').map(s => s.trim()).filter(Boolean),
+  // Server panel sources, all read only: release control folder, live checkout, reviews, ops claims, updater log, backups, handover
+  controlDir:   process.env.DBO_CONTROL_DIR  || '/var/lib/dragonbreak-control',
+  releaseRepo:  process.env.DBO_RELEASE_REPO || '/opt/alduinak',
+  reviewsFile:  process.env.DBO_REVIEWS_FILE || '/opt/dragonbreak-ops/reviews.jsonl',
+  opsClaimsDir: process.env.DBO_OPS_CLAIMS   || '/opt/dragonbreak-ops/claims',
+  updaterLog:   process.env.DBO_UPDATER_LOG  || '/var/log/skymp-update.log',
+  backupsDir:   process.env.DBO_BACKUPS_DIR  || '/opt/skymp-backups',
+  handoverDir:  process.env.DBO_HANDOVER_DIR || '/opt/dragonbreak-handover',
 
   // Discord bot (role-based access): token/guild used to fetch member roles at login; the bot needs "Server Members Intent" enabled in the Developer Portal
   discordBotToken: process.env.DISCORD_BOT_TOKEN || '',
