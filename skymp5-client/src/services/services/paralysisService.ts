@@ -23,9 +23,11 @@ export class ParalysisService extends ClientListener {
     const seconds = Math.max(0, Math.min(120, Number(content["seconds"]) || 0));
     if (!seconds) return;
     this.until = Math.max(this.until, Date.now() + seconds * 1000);
+    // quiet: a hold the server explains itself (the kneel after a revive, downed.js)
+    const quiet = content["quiet"] === true;
     this.controller.once("update", () => {
       this.hold();
-      try { this.sp.Debug.notification(`You are held fast for ${seconds} seconds.`); } catch { /* no hud */ }
+      if (!quiet) { try { this.sp.Debug.notification(`You are held fast for ${seconds} seconds.`); } catch { /* no hud */ } }
     });
     logTrace(this, "Paralysed for", seconds);
   }
@@ -83,6 +85,11 @@ export class ParalysisService extends ClientListener {
       this.sp.Game.enablePlayerControls(true, true, false, false, true, false, true, false, 0);
     } catch { /* player not ready */ }
     this.controller.lookupListener(RestraintService).reapply();
+  }
+
+  // A restraint that rewrote the controls calls this; the hold goes back on while the paralysis lasts
+  public reassert(): void {
+    if (this.until > Date.now()) this.hold();
   }
 
   // (movement, fighting, camSwitch, looking, sneaking, menu, activate, journalTabs, disablePOVType)

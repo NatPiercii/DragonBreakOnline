@@ -135,13 +135,73 @@ class VoiceManager {
       out.autoplay = true;
       out.srcObject = dest.stream;
       document.body.appendChild(out);
-      this.mix = { ctx, master, dest, out };
+      this.mix = { ctx, master, dest, out, loop: null };
       this.applySink();
       const p = out.play(); if (p && p.catch) p.catch(() => { /* autoplay is unlocked by the CEF switch */ });
+      this.startLoopback(this.mix);
     } catch (e) {
       this.mix = null; // falls back to per-element volume
     }
     return this.mix;
+  }
+
+  // Echo cancellation. Chromium's canceller only hears audio played from a WebRTC remote track, and this mix plays from a
+  // WebAudio stream, so a player on speakers sent everyone's voices back into their mic and the others heard themselves
+  // (Discord "Proximity chat", 2026-09-27; Chromium issue 687574). The mix is sent through a local pair of peer
+  // connections and the far end is what plays, which Chromium treats as call audio. Stereo Opus keeps the panning.
+  // Until the loop connects, or if it cannot, the mix plays directly as before.
+  async startLoopback(mix) {
+    if (typeof RTCPeerConnection !== 'function') return;
+    const stereo = (sdp) => {
+      const m = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/i);
+      if (!m) return sdp;
+      const pt = m[1];
+      const re = new RegExp(`a=fmtp:${pt} ([^\\r\\n]*)`);
+      const extra = 'stereo=1;sprop-stereo=1;maxaveragebitrate=256000';
+      return re.test(sdp) ? sdp.replace(re, (line, params) => `a=fmtp:${pt} ${params};${extra}`) : sdp.replace(m[0], `${m[0]}\r\na=fmtp:${pt} ${extra}`);
+    };
+    let a = null, b = null;
+    try {
+      a = new RTCPeerConnection({ iceServers: [] });
+      b = new RTCPeerConnection({ iceServers: [] });
+      a.onicecandidate = (e) => { if (e.candidate) b.addIceCandidate(e.candidate).catch(() => {}); };
+      b.onicecandidate = (e) => { if (e.candidate) a.addIceCandidate(e.candidate).catch(() => {}); };
+      b.ontrack = (e) => {
+        try { if ('playoutDelayHint' in e.receiver) e.receiver.playoutDelayHint = 0; } catch (err) { /* not in this Chromium */ }
+        mix.out.srcObject = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
+        const p = mix.out.play(); if (p && p.catch) p.catch(() => {});
+      };
+      mix.dest.stream.getAudioTracks().forEach((t) => a.addTrack(t, mix.dest.stream));
+      const offer = await a.createOffer();
+      const offerSdp = stereo(offer.sdp);
+      await a.setLocalDescription({ type: 'offer', sdp: offerSdp });
+      await b.setRemoteDescription({ type: 'offer', sdp: offerSdp });
+      const answer = await b.createAnswer();
+      const answerSdp = stereo(answer.sdp);
+      await b.setLocalDescription({ type: 'answer', sdp: answerSdp });
+      await a.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      mix.loop = { a, b };
+      // A loop that never connects, or carries no audio, hands playback back to the direct stream
+      setTimeout(async () => {
+        let packets = 0;
+        try { (await b.getStats()).forEach((r) => { if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) packets += Number(r.packetsReceived) || 0; }); } catch (e) { /* no stats */ }
+        if (mix.loop && packets > 0) sendToGame('voice::echoLoop', `on (${packets} packets)`);
+        else { this.stopLoopback(mix); sendToGame('voice::echoLoop', `off (state ${b.connectionState}/${b.iceConnectionState}, ${packets} packets)`); }
+      }, 5000);
+    } catch (e) {
+      try { if (a) a.close(); if (b) b.close(); } catch (e2) { /* closed */ }
+      mix.loop = null;
+      mix.out.srcObject = mix.dest.stream;
+      sendToGame('voice::echoLoop', 'failed: ' + String(e && e.message || e));
+    }
+  }
+
+  stopLoopback(mix) {
+    if (!mix || !mix.loop) return;
+    try { mix.loop.a.close(); mix.loop.b.close(); } catch (e) { /* closed */ }
+    mix.loop = null;
+    mix.out.srcObject = mix.dest.stream;
+    const p = mix.out.play(); if (p && p.catch) p.catch(() => {});
   }
 
   async applySink() {

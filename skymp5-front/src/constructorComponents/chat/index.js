@@ -175,8 +175,9 @@ const Chat = (props) => {
         else sendMessage(input);
       }
       if (event.key === 'Escape') releaseFocus();
-      // Up and Down step through what you sent before while the text is one line; Ctrl+Up/Down on any line
-      const historyKey = !event.shiftKey && !event.altKey && (event.ctrlKey || !(input || '').trim().includes('\n'));
+      // Up and Down step through what you sent before while the text is one line or a recalled entry; Ctrl+Up/Down on any line
+      const historyKey = !event.shiftKey && !event.altKey &&
+        (event.ctrlKey || currentMessageInHistory.current >= 0 || !(input || '').trim().includes('\n'));
       if (event.key === 'ArrowUp' && historyKey && messagesHistory.current.length > 0) {
         event.preventDefault();
         if (currentMessageInHistory.current === -1) {

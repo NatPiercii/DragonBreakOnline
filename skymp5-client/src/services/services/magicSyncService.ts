@@ -4,12 +4,15 @@ import { isHostedByMe, localIdToRemoteId } from "../../view/worldViewMisc";
 // @ts-expect-error (TODO: Remove in 2.10.0)
 import { SpellCastEvent, Actor, printConsole, Game, getAnimationVariablesFromActor, ActorAnimationVariables, SpellType, SlotType, EquippedItemType, Spell, Debug } from 'skyrimPlatform'
 import { ClientListener, CombinedController, Sp } from './clientListener';
-import { logTrace } from '../../logging';
-import { isServerCast } from './castSelfService';
+import { logError, logTrace } from '../../logging';
+import { consumeServerCast } from './castSelfService';
 
 import { MsgType } from "../../messages";
 import { SpellCastMsgData, SpellCastMessage } from "../messages/spellCastMessage";
 import { UpdateAnimVariablesMessageMsgData } from "../messages/updateAnimVariablesMessage";
+
+// FormType.ScrollItem (skyrim-platform typings)
+const SCROLL_FORM_TYPE = 23;
 
 // Racial greater powers are disabled on this server (form ids verified against Skyrim.esm on the reference install)
 const BLOCKED_POWER_IDS = new Set([
@@ -83,7 +86,26 @@ export class MagicSyncService extends ClientListener {
 
     }
 
+    // A throw in the relay used to stop it in silence, and the server then gave the cast's scroll back (summon scrolls,
+    // #bugs 1553254532333445211): say which cast it was
     private onSpellCast(event: SpellCastEvent) {
+        try {
+            this.relaySpellCast(event);
+        } catch (e) {
+            logError(this, "spellCast not relayed:", this.describeCast(event), e);
+        }
+    }
+
+    private describeCast(event: SpellCastEvent): string {
+        const id = (form: { getFormID(): number } | null | undefined) => {
+            try { return form ? form.getFormID().toString(16) : "none"; } catch { return "unreadable"; }
+        };
+        let type = "?";
+        try { type = event.spell ? String(event.spell.getType()) : "none"; } catch { /* unreadable */ }
+        return `caster ${id(event.caster)}, spell ${id(event.spell)} (form type ${type})`;
+    }
+
+    private relaySpellCast(event: SpellCastEvent) {
         // Blocked racial powers: dispel locally, tell the player, do not relay
         if (event.caster && event.caster.getFormID() === this.playerId &&
             event.spell && BLOCKED_POWER_IDS.has(event.spell.getFormID())) {
@@ -100,8 +122,13 @@ export class MagicSyncService extends ClientListener {
         }
 
         // A spell the server asked this client to cast on the player is not the player's cast (castSelfService)
-        if (event.spell && isServerCast(event.spell.getFormID())) {
+        if (event.spell && event.caster && event.caster.getFormID() === this.playerId && consumeServerCast(event.spell.getFormID())) {
             return;
+        }
+
+        // Scrolls are traced until the summon scrolls are understood: whether the event arrives, and what it carries
+        if (event.spell && event.spell.getType() === SCROLL_FORM_TYPE && event.caster && event.caster.getFormID() === this.playerId) {
+            logTrace(this, "scroll cast relayed:", this.describeCast(event));
         }
 
         // Clone replays fire this event too, but the server only accepts our own and hosted casters
