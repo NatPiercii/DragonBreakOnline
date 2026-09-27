@@ -1,5 +1,103 @@
 [
   {
+    "title": "The Great Hunt, Ranks of the Blood, and Getting Back Up",
+    "date": "2026-09-27",
+    "version": "Server + client 0.3.53",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "The Great Hunt: werewolf ranks",
+        "items": [
+          "Every werewolf now climbs five ranks by living as one: Fledgling, Prowler, Hunter, Blood-Howler and Elder. Type /hunt to see your rank, your renown and what the next rank brings.",
+          "Renown comes from feeding in beast form (an animal 5, a person 10, a player you brought down 60), from each kill in beast form (2) and from each change (2).",
+          "In beast form you can now feed on any fresh body, animal or person.",
+          "Higher ranks stay in beast form longer (up to 5 minutes at Elder), gain more time from each feed, can change more times each game day and are forced into the change far less often. The beast also hits harder and takes less damage, up to 20% at Elder, against players too.",
+          "A player you feed on only counts if you brought them down yourself, outdoors and away from the city, once a day per person, and never your party or your own characters.",
+          "When a werewolf howls, everyone in the land hears it echo through the region.",
+          "A cure starts you over as a Fledgling."
+        ]
+      },
+      {
+        "heading": "Ranks of the blood: vampires",
+        "items": [
+          "Vampires climb their own ranks by feeding on people: Fledgling, Vampire, Nightstalker, Mistwalker and Master Vampire. Type /blood to see yours.",
+          "Blood comes from a fresh body (5), a living captive (20) or a player you brought down (30), with the same once-a-day rules as the Hunt.",
+          "Each rank makes your hits land harder at night (up to 10%), softens the sun's burn (up to 40%) and slows your thirst (up to 40%). By day there is no damage bonus.",
+          "The ranks of the blood are gentler than the Hunt's, since vampires are more common. Vampire Lord stays the Blood Crown's alone."
+        ]
+      },
+      {
+        "heading": "Becoming a werewolf is harder",
+        "items": [
+          "A werewolf's bite now passes on the curse 2% of the time (it was 5%), and surviving Hircine's rite brings it 25% of the time (it was 50%)."
+        ]
+      },
+      {
+        "heading": "Going down and getting back up",
+        "items": [
+          "When you go down, a panel shows how long you have left, who can raise you, and a Give Up button that takes you to the temple.",
+          "Players near someone who is down see a countdown over them.",
+          "After a revive you are not straight back in the fight: you kneel for 15 seconds while your health climbs back to a quarter, and until you stand nobody can hit you and you cannot hit anyone."
+        ]
+      },
+      {
+        "heading": "Business ledgers",
+        "items": [
+          "Own an inn or a shop? Stand inside and type /business open <name> to keep its ledger. /business shows your takings and /business collect pays them out.",
+          "Set the price of your beds with /business rent <gold>, keep a logbook only you and your staff can read with /business note <text>, and take someone on with /business staff add <name>.",
+          "Rent out storage: /business chest <gold a day>, then open the chest. Renters choose 1, 3 or 7 days. A rented chest is theirs alone, with 3 days' grace to empty it afterwards.",
+          "A share of every bed and chest rent goes to the hold. Its Jarl, Count or Steward sets that tax, up to 30%, with /tax <percent>.",
+          "Takings earned while you are offline are paid when you log in."
+        ]
+      },
+      {
+        "heading": "Treasuries",
+        "items": [
+          "Every hold's treasury is now kept in the bank instead of a chest. The gold the chests held has moved into the bank."
+        ]
+      },
+      {
+        "heading": "Crafting and gathering",
+        "items": [
+          "Tundra Cotton now grows in the hills east of Bruma. Pick it to spin thread.",
+          "Tailors get a loom in Bruma right after this update, so Tundra Cotton becomes thread and clothes can be made.",
+          "The Tailor skill's hint no longer shows a leftover development note."
+        ]
+      },
+      {
+        "heading": "Magic",
+        "items": [
+          "Summon Skeleton now raises the skeleton that matches your race. Imperials and other races it does not list get a human skeleton instead of one that never appeared, and every summoned skeleton now leaves when its time is up.",
+          "Ayleid wells now give the Fortify Magicka half of the Boon of the Ayleids as well as refilling your magicka."
+        ]
+      },
+      {
+        "heading": "The Realm map",
+        "items": [
+          "The Realm tab of the faction panel (F3) shows the game's own map icons: Castle Bruma, and the town, settlement and fort markers of Applewatch, Greenwood and Pale Pass."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Voice chat: a fix for the echo that players on speakers sent back to everyone.",
+          "Timber Wolves and summoned Dremora Lords now have the health their level gives them, not a flat 100.",
+          "Robbery: only the one who brought you down can rob you, nobody can make a demand in the middle of a fight, and pressing Escape on the robbery panel refuses at once (fight or flee).",
+          "The offer to choose a god no longer gets lost when you log in.",
+          "A paralysis hold lasts its full time even if someone carries or ties you up and lets go.",
+          "In the bank, pressing Enter in the amount box no longer makes a deposit on its own.",
+          "Up and Down keep stepping through your chat history after a message of several lines."
+        ]
+      },
+      {
+        "heading": "Updating",
+        "items": [
+          "Restart the launcher to get client 0.3.53. The new plugin with the Tundra Cotton comes with it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Capitals, the Silver Hand and a Skyrim Pack",
     "date": "2026-09-27",
     "version": "Server + client 0.3.51",
@@ -118,7 +216,7 @@
       {
         "heading": "What is coming",
         "items": [
-          "Becoming a werewolf stays easy. Surviving as one will be hard. Every new werewolf starts as a weak Fledgling and climbs the ranks by living as one: transforming, hunting and feeding.",
+          "Surviving as a werewolf will be hard. Every new werewolf starts as a weak Fledgling and climbs the ranks by living as one: transforming, hunting and feeding.",
           "Werewolf ranks grow with every creature you feed on. Players are worth far more than animals, but you can rank up on animals alone if you'd rather not hunt people. It just takes longer.",
           "Higher ranks bring more armor, health and stamina in beast form, a longer transformation, new howls, and more control over the change. The highest ranks can change and change back at will.",
           "New howls unlocked by rank: Howl of Rage (speed and regeneration), Howl of the Hunt (track your prey), and at Alpha, Howl of the Pack, which gives your packmates the rage.",
@@ -138,7 +236,7 @@
       {
         "heading": "Where this stands",
         "items": [
-          "This is a plan, not an update. It will arrive in stages, and details will change as we build and test it. Designed by swag and the DragonBreak team."
+          "Stage 1, the werewolf ranks, is in the game: see \"The Great Hunt, Ranks of the Blood, and Getting Back Up\". The rest arrives in stages, and details will change as we build and test it. Designed by swag and the DragonBreak team."
         ]
       }
     ]
