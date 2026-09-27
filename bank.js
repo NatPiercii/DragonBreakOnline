@@ -7,9 +7,10 @@
 //
 // Treasuries (Nate, 2026-09-26): a hold's ruler (Jarl, Count, Chieftain) and a faction's leader also see the treasuries
 // they answer for. Anyone of them may pay their own gold in; nobody may take gold out, to prevent corruption. The game
-// spends treasuries itself (contracts, board fees, and later wages and the war fee). A hold's treasury is its treasury
-// chest (zones.json "treasury", seeded by gamemode.js), so everything that already pays into or out of it keeps working;
-// a faction without land keeps its treasury as a balance in bank.json.
+// spends treasuries itself (contracts, board fees, and later wages and the war fee). Every treasury is a balance in
+// bank.json, a hold's under zones (Nate, 2026-09-27: gold in the bank, not a chest anyone can break into). A hold's old
+// treasury chest (zones.json "treasury", seeded once by gamemode.js) is swept every minute: whatever gold it holds moves
+// into the hold's balance, which carried the chests over and still catches what pays into a chest (BountyBoardSystem).
 //
 // The panel (widget 48, type 'bank') opens only for a client whose UI said it has one (dbo:uiCaps from the HUD); anyone
 // else gets the same bank in chat, /bank at a bank, so an older client is never handed a window it cannot draw.
@@ -21,7 +22,7 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, takeGold, giveItem,
-    goldOf, depositToTreasury, zoneById, zoneOfActor, ranksOf, profileOf, distanceMeters } = api;
+    goldOf, depositToTreasury, zoneById, zoneList, zoneOfActor, ranksOf, profileOf, distanceMeters, every } = api;
 
   const C = Object.assign({
     activators: ['5:DragonBreak.esp'], reachMeters: 8, sessionMinutes: 15, maxTransaction: 10000000,
@@ -50,6 +51,7 @@ module.exports = (api) => {
     if (S.data) return S.data;
     try { S.data = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { S.data = null; }
     if (!S.data || typeof S.data !== 'object' || typeof S.data.factions !== 'object' || !S.data.factions) S.data = { factions: {} };
+    if (typeof S.data.zones !== 'object' || !S.data.zones) S.data.zones = {};
     return S.data;
   };
   // Written through a temporary file, so a crash mid-write never leaves half a ledger
@@ -81,18 +83,47 @@ module.exports = (api) => {
   };
 
   // ---- treasuries --------------------------------------------------------------------------------------------------
-  const chestGold = (zone) => {
+  // A hold's treasury: its balance in bank.json, after moving in whatever gold its old chest holds
+  const sweepChest = (zone) => {
+    if (!zone || !zone.treasury) return;
     try {
-      const inv = mp.get(mp.getIdFromDesc(zone.treasury) >>> 0, 'inventory') || {};
-      return (inv.entries || []).filter((e) => (Number(e.baseId) >>> 0) === GOLD).reduce((s, e) => s + (Number(e.count) || 0), 0);
-    } catch (e) { return 0; }
+      const id = mp.getIdFromDesc(zone.treasury) >>> 0; if (!id) return;
+      const inv = mp.get(id, 'inventory');
+      if (!inv || !Array.isArray(inv.entries)) return;
+      const gold = inv.entries.filter((e) => (Number(e.baseId) >>> 0) === GOLD).reduce((s, e) => s + (Number(e.count) || 0), 0);
+      if (!(gold > 0)) return;
+      const had = Math.floor(Number(data().zones[zone.id]) || 0);
+      data().zones[zone.id] = had + gold;
+      try { save(); } catch (e) { data().zones[zone.id] = had; log('bank: bank.json write failed', e.message); return; }
+      mp.set(id, 'inventory', { entries: inv.entries.filter((e) => (Number(e.baseId) >>> 0) !== GOLD) });
+      audit(`BANK ${gold} gold moved from the ${zone.id} treasury chest into its bank balance (now ${had + gold})`);
+    } catch (e) { log(`bank: sweeping the ${zone.id} treasury chest failed`, e.message); }
   };
+  const zoneGold = (zone) => { sweepChest(zone); return Math.floor(Number(data().zones[zone.id]) || 0); };
+  const zoneAdd = (zone, n) => {
+    const had = Math.floor(Number(data().zones[zone.id]) || 0);
+    data().zones[zone.id] = had + n;
+    try { save(); return true; } catch (e) { data().zones[zone.id] = had; log('bank: bank.json write failed', e.message); return false; }
+  };
+  const zoneTake = (zone, n) => {
+    const had = zoneGold(zone);
+    if (had < n) return false;
+    data().zones[zone.id] = had - n;
+    try { save(); return true; } catch (e) { data().zones[zone.id] = had; log('bank: bank.json write failed', e.message); return false; }
+  };
+  // For gamemode.js depositToTreasury and contracts.js: a hold's treasury by zone id
+  globalThis.__dboTreasuryZone = {
+    balance: (zoneId) => { const z = zoneById(zoneId); return z && z.treasury ? zoneGold(z) : 0; },
+    deposit: (zoneId, n) => { n = Math.floor(Number(n) || 0); const z = zoneById(zoneId); return z && z.treasury && n > 0 && zoneAdd(z, n) ? n : 0; },
+    spend: (zoneId, n) => { n = Math.floor(Number(n) || 0); const z = zoneById(zoneId); return !!(z && z.treasury && n > 0 && zoneTake(z, n)); },
+  };
+  if (typeof every === 'function' && typeof zoneList === 'function') every('bankSweep', 60000, () => { for (const z of zoneList()) if (z.treasury) sweepChest(z); });
   // The treasuries a character answers for: the holds they rule, and the factions they lead (a hold faction's is its hold's)
   const treasuriesOf = (a) => {
     const out = new Map();
     const addZone = (zoneId, why) => {
       const z = zoneById(zoneId); if (!z || !z.treasury || out.has('zone:' + z.id)) return;
-      out.set('zone:' + z.id, { key: 'zone:' + z.id, name: `${z.name} treasury`, why, balance: chestGold(z) });
+      out.set('zone:' + z.id, { key: 'zone:' + z.id, name: `${z.name} treasury`, why, balance: zoneGold(z) });
     };
     try { for (const m of ranksOf(profileOf(a)) || []) if (C.rulerRanks.includes(m.rank)) addZone(m.zone.id, 'you rule it'); } catch (e) { /* no ranks */ }
     // A faction leader whose faction holds a hold's capital by conquest (realm.js)
@@ -108,31 +139,19 @@ module.exports = (api) => {
   };
 
   // One treasury per faction for the rest of the game (realm.js: the war fee, tribute; later wages and taxes): a hold
-  // faction's is its hold's treasury chest, any other faction's is its balance in bank.json. Nobody withdraws from a
-  // treasury; only the game spends it, through spend().
+  // faction's is its hold's balance, any other faction's its own, both in bank.json. Nobody withdraws from a treasury;
+  // only the game spends it, through spend().
   const treasuryKeyOf = (fid) => {
     const g = typeof globalThis.__dboGuildInfo === 'function' ? globalThis.__dboGuildInfo(fid) : null;
     if (!g) return null;
     if (g.zone) { const z = zoneById(g.zone); if (z && z.treasury) return 'zone:' + z.id; }
     return 'faction:' + g.id;
   };
-  const chestTake = (zone, n) => {
-    try {
-      const id = mp.getIdFromDesc(zone.treasury) >>> 0;
-      const inv = mp.get(id, 'inventory') || { entries: [] };
-      const entries = (Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
-      let left = n;
-      for (const e of entries) { if ((Number(e.baseId) >>> 0) !== GOLD || left <= 0) continue; const off = Math.min(Number(e.count) || 0, left); e.count -= off; left -= off; }
-      if (left > 0) return false;
-      mp.set(id, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) });
-      return true;
-    } catch (e) { log('bank: treasury chest spend failed', e.message); return false; }
-  };
   globalThis.__dboTreasury = {
     keyOf: treasuryKeyOf,
     balance: (fid) => {
       const key = treasuryKeyOf(fid); if (!key) return 0;
-      if (key.startsWith('zone:')) { const z = zoneById(key.slice(5)); return z ? chestGold(z) : 0; }
+      if (key.startsWith('zone:')) { const z = zoneById(key.slice(5)); return z ? zoneGold(z) : 0; }
       return Math.floor(Number(data().factions[key.slice(8)]) || 0);
     },
     // Takes n gold from a faction's treasury for the game's own purposes; false (and nothing taken) if it cannot
@@ -140,7 +159,7 @@ module.exports = (api) => {
       n = Math.floor(Number(n) || 0); const key = treasuryKeyOf(fid);
       if (!key || n <= 0) return false;
       if (key.startsWith('zone:')) {
-        const z = zoneById(key.slice(5)); if (!z || chestGold(z) < n || !chestTake(z, n)) return false;
+        const z = zoneById(key.slice(5)); if (!z || !zoneTake(z, n)) return false;
       } else {
         const id = key.slice(8); const have = Math.floor(Number(data().factions[id]) || 0);
         if (have < n) return false;

@@ -578,6 +578,9 @@ const takeGold = (a, amount) => {
 };
 // Returns what was deposited; a zone without a treasury keeps nothing
 const depositToTreasury = (zoneId, amount) => {
+  // A hold's treasury is its balance in the bank (bank.js); the chest is only the fallback if bank.js is not loaded
+  const T = globalThis.__dboTreasuryZone;
+  if (T && typeof T.deposit === 'function') return T.deposit(typeof zoneId === 'object' && zoneId ? zoneId.id : zoneId, Math.floor(Number(amount) || 0));
   const zone = zoneId ? zoneById(zoneId) : null;
   if (!zone || !zone.treasury || amount <= 0) return 0;
   try {
@@ -3673,7 +3676,7 @@ try {
   const BANK_JS = path.resolve('bank.js');
   delete require.cache[BANK_JS];
   require(BANK_JS)({ mp, log, personal, audit, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, takeGold, giveItem,
-    goldOf, depositToTreasury, zoneById, zoneOfActor, ranksOf, profileOf, distanceMeters });
+    goldOf, depositToTreasury, zoneById, zoneList, zoneOfActor, ranksOf, profileOf, distanceMeters, every });
 } catch (e) { log('bank.js failed to load:', e.stack || e.message); globalThis.__dboBankActivate = null; }
 // ---- alchemy at the ordinary labs: the nearest vanilla potion for a client-side mix (server alchemy.js) ------------
 try {

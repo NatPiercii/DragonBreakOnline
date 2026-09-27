@@ -73,8 +73,11 @@ module.exports = (api) => {
     return out;
   })();
 
+  // A hold's treasury is its balance in the bank (bank.js __dboTreasuryZone); the chest is only the fallback without it
+  const bankTreasury = () => (globalThis.__dboTreasuryZone && typeof globalThis.__dboTreasuryZone.spend === 'function' ? globalThis.__dboTreasuryZone : null);
   const treasuryGold = (zone) => {
     if (!zone || !zone.treasury) return 0;
+    if (bankTreasury()) return bankTreasury().balance(zone.id);
     try {
       const inv = mp.get(mp.getIdFromDesc(zone.treasury) >>> 0, 'inventory');
       const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
@@ -86,6 +89,7 @@ module.exports = (api) => {
   // Returns what was actually paid; the hold cannot pay what it does not have
   const payFromTreasury = (zone, amount) => {
     if (amount <= 0 || !zone || !zone.treasury) return 0;
+    if (bankTreasury()) { const paid = Math.min(bankTreasury().balance(zone.id), amount); return paid > 0 && bankTreasury().spend(zone.id, paid) ? paid : 0; }
     try {
       const chestId = mp.getIdFromDesc(zone.treasury) >>> 0;
       const inv = mp.get(chestId, 'inventory');

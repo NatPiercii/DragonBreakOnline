@@ -26,7 +26,7 @@ set(BANK_BRUMA, 'baseDesc', '5:DragonBreak.esp'); set(BANK_FALK, 'baseDesc', '5:
 let near = new Set([`${COUNT}|${BANK_BRUMA}`, `${GUILDMASTER}|${BANK_BRUMA}`, `${PEASANT}|${BANK_BRUMA}`]);
 
 const out = { personal: [], widgets: [], closed: 0, audits: [] };
-const handlers = new Map();
+const handlers = new Map(); const timers = new Map();
 let failTake = false, failGive = false, failTreasury = false;
 const zones = { bruma: { id: 'bruma', name: 'Bruma', treasury: '79b22:BSHeartland.esm' }, falkreath: { id: 'falkreath', name: 'Falkreath', treasury: null } };
 globalThis.__dboGuildsOf = (a) => (a === GUILDMASTER ? [{ id: 'fighters-guild', name: 'Fighters Guild', role: 'leader', zone: '' }, { id: 'county-bruma', name: 'County of Bruma', role: 'member', zone: 'bruma' }] : a === COUNT ? [{ id: 'county-bruma', name: 'County of Bruma', role: 'leader', zone: 'bruma' }] : []);
@@ -41,8 +41,10 @@ const api = {
   takeGold: (a, n) => { if (failTake || goldOf(a) < n) return false; inv(a, goldOf(a) - n); return true; },
   giveItem: (a, base, n) => { if (failGive) return false; inv(a, goldOf(a) + n); return true; },
   goldOf,
-  depositToTreasury: (zid, n) => { if (failTreasury || zid !== 'bruma') return 0; inv(CHEST, goldOf(CHEST) + n); return n; },
-  zoneById: (id) => zones[id] || null, zoneOfActor: () => 'bruma',
+  // As gamemode.js's: into the hold's bank balance
+  depositToTreasury: (zid, n) => (failTreasury ? 0 : globalThis.__dboTreasuryZone.deposit(zid, n)),
+  zoneById: (id) => zones[id] || null, zoneList: () => Object.values(zones), zoneOfActor: () => 'bruma',
+  every: (name, ms, fn) => timers.set(name, fn),
   ranksOf: (pid) => (pid === 1 ? [{ zone: zones.bruma, rank: 'count' }] : pid === 3 ? [{ zone: zones.bruma, rank: 'steward' }] : []),
   profileOf: (a) => ({ [COUNT]: 1, [GUILDMASTER]: 2, [PEASANT]: 3 }[a] || -1),
   distanceMeters: (a, b) => (near.has(`${a}|${b}`) ? 2 : 50),
@@ -52,6 +54,13 @@ load();
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
+const treasury = () => globalThis.__dboTreasuryZone.balance('bruma');
+
+// A hold's treasury is its bank balance: the old chest's gold (seeded 10,000) moves in at the first sweep (Nate, 2026-09-27)
+timers.get('bankSweep')();
+check('the sweep moves the chest\'s gold into the Bruma balance and leaves the chest without gold', goldOf(CHEST) === 0 && JSON.parse(fs.readFileSync('bank.json', 'utf8')).zones.bruma === 10000 && out.audits.some((t) => /10000 gold moved from the bruma treasury chest/.test(t)));
+inv(CHEST, 250);
+check('gold paid into the chest later (board fees) is swept in the same way', treasury() === 10250 && goldOf(CHEST) === 0);
 const last = () => out.personal[out.personal.length - 1].t;
 const cmd = (a, args) => { out.personal.length = 0; handlers.get('/bank')(a, args); return out.personal.map((x) => x.t).join(' | '); };
 const activate = (a, ref) => globalThis.__dboBankActivate(ref, a);
@@ -88,10 +97,10 @@ check('the same account at another town\'s bank', /Withdrew 70 gold\. Your balan
 // Treasuries: the Count pays in, a peasant and a steward have none, no withdrawal exists
 check('a peasant answers for no treasury', /no such treasury/.test(cmd(PEASANT, 'treasury bruma 10')));
 activate(COUNT, BANK_BRUMA);
-check('the Count sees the Bruma treasury in chat', out.personal.some((x) => x.a === COUNT && /Bruma treasury: 10000 gold \(you rule it\)/.test(x.t)));
-check('the Count pays into the Bruma treasury', /Paid 500 gold into the Bruma treasury\. No one can take it out/.test(cmd(COUNT, 'treasury bruma 500')) && goldOf(CHEST) === 10500 && goldOf(COUNT) === 4500);
+check('the Count sees the Bruma treasury in chat', out.personal.some((x) => x.a === COUNT && /Bruma treasury: 10250 gold \(you rule it\)/.test(x.t)));
+check('the Count pays into the Bruma treasury', /Paid 500 gold into the Bruma treasury\. No one can take it out/.test(cmd(COUNT, 'treasury bruma 500')) && treasury() === 10750 && goldOf(COUNT) === 4500);
 failTreasury = true;
-check('a treasury that refuses gold hands it back', /returned to you/.test(cmd(COUNT, 'treasury bruma 100')) && goldOf(COUNT) === 4500 && goldOf(CHEST) === 10500);
+check('a treasury that refuses gold hands it back', /returned to you/.test(cmd(COUNT, 'treasury bruma 100')) && goldOf(COUNT) === 4500 && treasury() === 10750);
 failTreasury = false;
 const mod = load();
 check('a ruler and a hold faction leader see one Bruma treasury, not two', mod.treasuriesOf(COUNT).length === 1);
@@ -99,10 +108,10 @@ activate(GUILDMASTER, BANK_BRUMA);
 check('a guild leader sees their landless faction treasury, not the hold they are only a member of', mod.treasuriesOf(GUILDMASTER).map((t) => t.key).join(',') === 'faction:fighters-guild');
 check('pays into it by name', /Paid 1000 gold into the Fighters Guild treasury/.test(cmd(GUILDMASTER, 'treasury fighters 1000')) && goldOf(GUILDMASTER) === 2000);
 check('bank.json holds the faction treasury', JSON.parse(fs.readFileSync('bank.json', 'utf8')).factions['fighters-guild'] === 1000);
-const chestBefore = goldOf(CHEST), gmGold = goldOf(GUILDMASTER);
+const chestBefore = treasury(), gmGold = goldOf(GUILDMASTER);
 cmd(GUILDMASTER, 'withdraw 500'); cmd(GUILDMASTER, 'treasury fighters -500'); cmd(COUNT, 'withdraw 500');
 check('there is no way to take gold out of a treasury: withdraw uses only your own balance, negative pay-ins are refused',
-  goldOf(CHEST) === chestBefore && JSON.parse(fs.readFileSync('bank.json', 'utf8')).factions['fighters-guild'] === 1000 && goldOf(GUILDMASTER) === gmGold);
+  treasury() === chestBefore && JSON.parse(fs.readFileSync('bank.json', 'utf8')).factions['fighters-guild'] === 1000 && goldOf(GUILDMASTER) === gmGold);
 check('the panel has no treasury withdrawal event, and the module exports none',
   [...handlers.keys()].sort().join(',') === '/bank,bankClose,bankDeposit,bankTreasury,bankWithdraw,uiCaps' && Object.keys(mod).sort().join(',') === 'balanceOf,deposit,payIn,treasuriesOf,withdraw');
 
@@ -111,14 +120,15 @@ handlers.get('uiCaps')(COUNT, ['bank']);
 out.widgets.length = 0;
 activate(COUNT, BANK_BRUMA);
 const w = out.widgets[0] && out.widgets[0].w;
-check('a UI with the panel gets widget 48', !!w && w.type === 'bank' && w.id === 48 && w.balance === 0 && w.carried === 4500 && w.where === 'Bruma' && w.treasuries.length === 1 && w.treasuries[0].balance === 10500, JSON.stringify(w));
+check('a UI with the panel gets widget 48', !!w && w.type === 'bank' && w.id === 48 && w.balance === 0 && w.carried === 4500 && w.where === 'Bruma' && w.treasuries.length === 1 && w.treasuries[0].balance === 10750, JSON.stringify(w));
 handlers.get('bankDeposit')(COUNT, [w.nonce, '1000']);
 const w2 = out.widgets[out.widgets.length - 1].w;
 check('a deposit from the panel answers in the panel', w2.balance === 1000 && w2.resultKind === 'ok' && /Deposited 1000/.test(w2.result));
 handlers.get('bankWithdraw')(COUNT, ['stale-nonce', '1000']);
 check('a stale window is ignored', get(COUNT, 'private.bankGold') === 1000);
 handlers.get('bankTreasury')(COUNT, [w2.nonce, 'zone:bruma', 'all']);
-check('treasury pay-in from the panel', goldOf(COUNT) === 0 && goldOf(CHEST) === 14000, `${goldOf(COUNT)} ${goldOf(CHEST)}`);
+check('treasury pay-in from the panel', goldOf(COUNT) === 0 && treasury() === 14250, `${goldOf(COUNT)} ${treasury()}`);
+check('the game spends it through the bank', globalThis.__dboTreasuryZone.spend('bruma', 250) === true && treasury() === 14000 && globalThis.__dboTreasuryZone.spend('bruma', 999999) === false && treasury() === 14000);
 handlers.get('bankClose')(COUNT, []);
 check('closing clears the window', out.closed === 1);
 
