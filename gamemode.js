@@ -456,7 +456,7 @@ const STAFF_HELP = [
   { key: 'factions', title: 'Factions', items: [['faction leader', '<player|#TAG> <faction id>: name the first leader of a faction'],
     ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint'] },
   { key: 'appoint', title: 'Appointments and property', items: [
-    ['appoint', '<player|#TAG|profile id> <zone> <rank>: make someone an official, online or offline. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
+    ['appoint', '<player|#TAG|profile id> <zone> <rank> [override]: make someone an official, online or offline. A Jarl must be a Nord or an Imperial; only the Owners may add override. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
     ['dismiss', '<player|#TAG|profile id> <zone>: remove an official, online or offline (told if online). Officials may dismiss the ranks they may appoint'],
     ['officials', '[zone]: who holds which rank where'],
     ['property', 'at a door, as an official: list <deposit> <weekly> | unlist | offer <name> | remind | grace | evict']] },
@@ -1973,9 +1973,24 @@ const officialName = (pid) => {
   const s = seen.get(Number(pid)); if (s) return s.name;
   const ids = accountActors(Number(pid)); return ids.length ? nameOf(ids[0]) : `profile ${pid}`;
 };
+// Skyrim's law in the server's lore (4E 211, the Discord lore-archives): only a Nord or an Imperial sits as Jarl. The
+// Owners may seat anyone else by adding "override" (Nate, 2026-09-27). The race is the character's own, under any beast
+// form; officials are kept per account, so the rule reads the character named (or, for a profile id, the one found).
+const JARL_RACE = /^(Nord|Imperial)Race(Vampire)?$/;
+const raceEdidOf = (actor) => {
+  let race = 0;
+  try { race = typeof globalThis.__dboBeastOriginalRace === 'function' ? Number(globalThis.__dboBeastOriginalRace(actor)) >>> 0 : 0; } catch (e) { race = 0; }
+  if (!race) { try { const app = mp.get(actor, 'appearance'); race = app ? Number(app.raceId) >>> 0 : 0; } catch (e) { race = 0; } }
+  if (!race) return '';
+  try { const r = mp.lookupEspmRecordById(race); return String((r && r.record && r.record.editorId) || ''); } catch (e) { return ''; }
+};
+// "DarkElfRaceVampire" -> "a Dark Elf"
+const raceLabel = (edid) => { const n = String(edid).replace(/Race(Vampire)?$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'); return n ? `${/^[AEIOU]/.test(n) ? 'an' : 'a'} ${n}` : 'of no known race'; };
 registerChatCommand('appoint', (a, args) => {
+  // An Owner's trailing "override" lifts the Jarl rule for this appointment
+  const ov = args.trim().match(/^(.*\S)\s+override$/i); const override = !!ov;
   // The name may have spaces: the zone and rank are the last two words
-  const m = args.trim().match(/^(.+?)\s+(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /appoint <player|#TAG|profile id> <zone> <rank>   zones: ' + zoneList().map((z) => z.id).join(' '));
+  const m = (ov ? ov[1] : args).trim().match(/^(.+?)\s+(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /appoint <player|#TAG|profile id> <zone> <rank>   zones: ' + zoneList().map((z) => z.id).join(' '));
   const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone. Zones: ' + zoneList().map((x) => x.id).join(' '));
   const rank = m[3].toLowerCase(); if (!(z.officials || []).includes(rank)) return personal(a, `${z.name} has the ranks: ${(z.officials || []).map(rankTitle).join(', ')}.`);
   const tg = officialTarget(m[1]); if (tg.error) return personal(a, tg.error);
@@ -1983,6 +1998,15 @@ registerChatCommand('appoint', (a, args) => {
   const pid = tg.pid;
   const cap = appointCap(a, z, rank);
   if (!cap) return personal(a, `Only an admin, or a seat that may name a ${rankTitle(rank)}, can appoint one in ${z.name}.`);
+  if (override && tierOf(a) !== 'senior') return personal(a, 'Only the Owners can override the Jarl rule.');
+  let overridden = '';
+  if (rank === 'jarl') {
+    const race = raceEdidOf(tg.actor);
+    if (!JARL_RACE.test(race)) {
+      if (!override) return personal(a, `${tg.label} is ${raceLabel(race)}. By Skyrim's law only a Nord or an Imperial may sit as Jarl.${tierOf(a) === 'senior' ? ' As an Owner you may add "override" to seat them anyway.' : ''}`);
+      overridden = raceLabel(race);
+    }
+  }
   const o = readOfficials(); o[z.id] = o[z.id] || {};
   if (!isAdmin(a)) {
     const held = Object.keys(o[z.id]).find((r) => (o[z.id][r] || []).map(Number).includes(pid));
@@ -1994,8 +2018,8 @@ registerChatCommand('appoint', (a, args) => {
   try { writeOfficials(o); } catch (e) { return personal(a, 'Could not write officials.json: ' + e.message); }
   personal(a, `${tg.label} is now ${rankTitle(rank)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}`);
   if (tg.online) system(tg.online, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
-  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${tg.who} ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
-}, { help: '<player|#TAG|profile id> <zone> <rank> make someone an official, online or not (admins; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards)' });
+  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${tg.who} ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}${overridden ? ` (Jarl rule overridden by an Owner: ${overridden})` : ''}`);
+}, { help: '<player|#TAG|profile id> <zone> <rank> [override] make someone an official, online or not (admins; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards). A Jarl must be a Nord or an Imperial; only the Owners may add override' });
 registerChatCommand('dismiss', (a, args) => {
   // The name may have spaces: the zone is the last word
   const m = args.trim().match(/^(.+?)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG|profile id> <zone>');
