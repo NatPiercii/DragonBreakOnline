@@ -1,456 +1,695 @@
 {
- "admins": [
-  1
- ],
- "landing": {
-  "_comment": "Where fresh characters spawn (must match server-settings.json startPoints). The gamemode moves them into the hub from here. Bruma arrival while the Whiterun landing hangs the first load.",
-  "world": "a764b:BSHeartland.esm",
-  "pos": [
-   48236.2,
-   260600.4,
-   20405.1
+  "admins": [
+    1
   ],
-  "radius": 2500
- },
- "rangesMeters": {
-  "whisper": 3,
-  "low": 8,
-  "say": 20,
-  "wide": 35,
-  "shout": 80,
-  "emote": 20,
-  "emoteLow": 8,
-  "emoteLong": 35,
-  "looc": 20,
-  "loocLow": 8,
-  "loocLong": 35
- },
- "welcome": "Welcome to DragonBreak Online. Type /help for commands.",
- "starterKit": [
-  {
-   "id": "e3c16:Skyrim.esm",
-   "count": 1,
-   "name": "Pickaxe"
-  },
-  {
-   "id": "2f2f4:Skyrim.esm",
-   "count": 1,
-   "name": "Woodcutter's Axe"
-  }
- ],
- "jail": {
-  "_comment": "Jail zones and sentences (server\\jail.js). Every jail and prison in the load order is in jail-cells.json (ck-mcp/jails.py, 25 cells); cells adds more here, and admins add more in game with /jail add (kept in jails.json, untracked). No /unstuck inside a jail or while serving. A guard or official uses a cell door with a player in reach to imprison them for one of minutes; time counts only while the prisoner is online and in the jail. pickChance: a non-Lockpicker's chance to pick a cell door, a Lockpicker's at Novice, what each tier adds, the ceiling; a failure breaks the pick.",
-  "enabled": true,
-  "cells": [],
-  "minutes": [5, 10, 15, 30, 60, 120],
-  "extendMinutes": 10,
-  "pickChance": { "anyone": 0.15, "lockpicker": 0.35, "perTier": 0.1, "max": 0.85 }
- },
- "struggle": {
-  "_comment": "Breaking free of bound hands with /struggle (server\\struggle.js): strikes landed in a row, band half-width in percent of the bar (watchedBand while anyone lawful other than the captor is within watchMeters, who is told; the captor is always told and never narrows it), sweepMs for the first crossing of the bar, multiplied by speedUp after each landed strike down to minSweepMs, seconds per attempt, one miss fails. winChance is the chance a clean round frees the captive, the most a scripted client can reach. cooldownMinutes between attempts, kept on the character. nearbyMeters hear about a break-out. whileCarried false refuses a carried captive. The escape grace before recapture is captureEscapeGraceMs in server-settings.json (20000 by default).",
-  "enabled": true,
-  "strikes": 6,
-  "band": 6,
-  "watchedBand": 4.5,
-  "sweepMs": 1000,
-  "speedUp": 0.95,
-  "minSweepMs": 700,
-  "seconds": 22,
-  "hitCooldownMs": 250,
-  "winChance": 0.5,
-  "cooldownMinutes": 4,
-  "watchMeters": 3,
-  "nearbyMeters": 15,
-  "whileCarried": false
- },
- "spells": {
-  "_comment": "Spell study (server\\spells.js). A tome is learned only at a skills.json spellStudyPoints entry, by a reader with the school's skill (arcane or priest) taken up, a tier that allows the tome's rank, and a free slot; slots 0 uses the skill's spellSlots (3). /teach: a teacher at teacherMinTier (3 = Expert) teaches a known spell to a player within teachMeters at studentMinTier (1 = Apprentice) or higher; teachAtStudyPoint also requires both at a study point. /tomes: the court mage's shop in shopCells (the Synod Conclave and its basement), for members of shopFactions with arcane or priest at shopMinTier or higher, ranks up to their tier and never above shopMaxRank (3 = Expert), one tome per shopCooldownDays, price = tome value x shopPriceMultiplier, paid to the shopTreasury zone.",
-  "enabled": true,
-  "slots": 0,
-  "teachMeters": 5,
-  "teacherMinTier": 3,
-  "studentMinTier": 1,
-  "teachAtStudyPoint": false,
-  "offerSeconds": 60,
-  "shopCells": ["20ff:BSHeartland.esm", "6c152:BSHeartland.esm"],
-  "shopFactions": ["synod", "college-of-winterhold", "college-of-whispers"],
-  "shopMinTier": 1,
-  "shopMaxRank": 3,
-  "shopPriceMultiplier": 1,
-  "shopCooldownDays": 7,
-  "shopTreasury": "bruma",
-  "shopProvince": "cyrodiil",
-  "shopShowForeign": false
- },
- "regions": {
-  "_comment": "Province rules (server\\regions.js; data regions.json from ck-mcp\\regions.py, hand rules regions-overrides.json). craft: a creation recipe is refused outside the provinces its product belongs to (turn on after the in-game rollback test). tomes: /tomes stocks only what spells.shopProvince sells; spells.shopShowForeign lists the rest as blocked rows. adminBypass: admins pass both unless /region test. failOpen: a recipe or tome with no entry is allowed and logged once. defaultPlace: the province of a place no table knows.",
-  "craft": false,
-  "tomes": true,
-  "adminBypass": true,
-  "failOpen": true,
-  "defaultPlace": "skyrim"
- },
- "factionGear": {
-  "_comment": "Faction gear (server\\factiongear.js; list faction-gear.json from tools/faction_gear.py): a faction's armor and weapons are crafted only by its Blacksmith (forge) or Tailor (loom, tanning rack) rank or its leader. enabled: on (Nate, 2026-09-28: make faction gear turned on); false turns it off for players, and an admin's /factiongear test still holds them to it either way. adminBypass: admins pass unless in test mode.",
-  "enabled": true,
-  "adminBypass": true
- },
- "mastery": {
-  "_comment": "Combat numbers (gamemode.js). damage.byTier: extra weapon damage by the attacker's weapon-skill rank, Novice..Master, applied after the engine's hit. defense.armorMultByTier: how many times its bare rating worn armor counts for, by the target's Defense rank (the engine alone gives rating x 0.12 %, capped at 80 %); lightShare: the part of that gain light armor gets (1 = same as heavy). Measured 2026-09-24: a naked player has 150 health; a Master two-hander with a Daedric greatsword dealt 33 a hit at the old x1.30 (5 hits). At x2.0 it is 48 (4 hits, 2 with a power attack); a full Daedric heavy set (108) worn at Master Defense takes 45 % off instead of 13 %.",
-  "damage": { "byTier": [0, 0, 0.35, 0.65, 1.0], "log": true },
-  "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 },
-  "arcane": { "_comment": "Extra damage for Destruction spells (schools: magic skill actor value, 20 = Destruction) by the caster's Arcane Arts rank, Novice..Master. Smaller than the weapon tiers because spells hit from range. Live magnitudes 2026-09-25: Firebolt 25, Fireball 40, Icy Spear 60.", "enabled": true, "byTier": [0, 0, 0.2, 0.35, 0.5], "schools": [20] }
- },
- "castBlocks": {
-   "_comment": "Spells refused before the server systems see the cast (gamemode.js castHook), with what the caster is told. For spells that crash the game.",
-   "782c5:BSHeartland.esm": "Summon Will-o-the-Wisp is disabled for now: the wisp crashes the game when it appears. It will come back once that is fixed."
- },
- "supernatural": {
-   "_comment": "Overrides for supernatural.js defaults. huntMarkChance: the chance that surviving Hircine's Great Hunt (/rite) gives Sanies Lupinus; an unmarked survivor waits riteFailCooldownHours to run it again. infectWerewolf: a werewolf's bite's chance to pass it on. Nate, 2026-09-27: werewolf harder to come by than vampirism, 0.5 -> 0.25 and 0.05 -> 0.02.",
-   "huntMarkChance": 0.25,
-   "infectWerewolf": 0.02
- },
- "pvp": {
-  "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
-  "damageMult": 1.25
- },
- "business": {
-  "_comment": "Business ledgers (business.js). An owner opens a property as a business; owner and staff set the inn's bed rent (minRent..maxRent), keep a logbook and put chests up for rent (up to maxChestPrice a day; chestGraceHours to empty after the rent ends). Each hold's rent tax is set by taxRanks, 0..maxTax; until then rest.holdShare stands.",
-  "enabled": true,
-  "minRent": 1,
-  "maxRent": 200,
-  "maxChestPrice": 200,
-  "chestGraceHours": 72,
-  "maxTax": 0.3,
-  "taxRanks": ["jarl", "count", "steward"],
-  "maxStaff": 12
- },
- "combat": {
-  "_comment": "Skill-based fights (combat.js, COMBAT_DESIGN.md), player targets only, needs the C++ hit flags. A blocked blow lets weaponChip (shieldChip with a shield) through, less chipPerDefenseTier per Defense rank; the blocker pays the rest in stamina (x shieldStaminaMult with a shield, x powerIntoShieldStaminaMult more for a power attack into a shield). At 0 stamina, or hit by a bash, the guard breaks: a stagger and guardBreakSeconds of blocked blows landing in full. Unblocked power attacks stagger; a weapon-skill rank of powerStaggerThroughWeaponBlockRank staggers through a weapon block. A bash deals bashDamageMult of the weapon and staggers unless the target's Defense rank is bashStaggerResistRank or more (3 = Expert). One stagger per target every staggerCooldownSeconds.",
-  "enabled": true,
-  "log": true,
-  "playersOnly": true,
-  "weaponChip": 0.3,
-  "shieldChip": 0.15,
-  "chipPerDefenseTier": 0.05,
-  "blockStaminaMult": 1,
-  "shieldStaminaMult": 0.5,
-  "powerIntoShieldStaminaMult": 2,
-  "guardBreakSeconds": 2,
-  "bashDamageMult": 0.25,
-  "bashStaggerResistRank": 3,
-  "powerStaggerThroughWeaponBlockRank": 4,
-  "staggerCooldownSeconds": 1.5,
-  "attackerStaggerCooldownSeconds": 3,
-  "staggerSpells": ["CYRForceRune", "CYRForceRuneScroll"],
-  "pushSpells": { "VoiceUnrelentingForce1": 0, "VoiceUnrelentingForce2": 4, "VoiceUnrelentingForce3": 8 },
-  "pushCooldownSeconds": 2,
-  "disarmSpells": ["VoiceDisarm1", "VoiceDisarm2", "VoiceDisarm3"],
-  "disarmCooldownSeconds": 10,
-  "dismaySpells": { "VoiceDismayingShout1": 5, "VoiceDismayingShout2": 8, "VoiceDismayingShout3": 12 },
-  "dismaySpeedMult": -50
- },
- "salvage": {
-  "_comment": "Breaking gear and books down into materials (salvage.js, salvage.json from tooling/make_salvage.py). Using a smelter (Blacksmith), tanning rack (Skinner), loom (Tailor) or writing desk (Scholar) offers what the player carries that it can take apart. A share of the item's recipe comes back by the player's tier in that skill (shareByTier, Novice..Master), rounded down, at least one of the main material; a Blacksmith needs the tier that works the main metal. Books: a bound book gives bookPaper paper (the paper item) and bookStrips leather strips, a note notePaper paper. pageSize rows per page; the first row works the station, arming one pass for useWindowSeconds.",
-  "enabled": true,
-  "shareByTier": [0.25, 0.35, 0.5, 0.6, 0.75],
-  "pageSize": 7,
-  "useWindowSeconds": 20,
-  "reachMeters": 6.5,
-  "paper": "7cba1:BSHeartland.esm",
-  "leatherStrips": "800e4:Skyrim.esm",
-  "bookPaper": 2,
-  "bookStrips": 1,
-  "notePaper": 1
- },
- "weaponMaterials": {
-  "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2); a weapon without one of these gets nothing.",
-  "enabled": true,
-  "playersOnly": true,
-  "byKeyword": {
-   "WeapMaterialWood": 0, "WeapMaterialIron": 0, "WeapMaterialImperial": 0, "WeapMaterialDraugr": 0, "WeapMaterialFalmer": 0,
-   "WeapMaterialSteel": 0.03, "WeapMaterialSilver": 0.05, "WeapMaterialDraugrHoned": 0.05, "WeapMaterialFalmerHoned": 0.05,
-   "WeapMaterialOrcish": 0.05, "WeapMaterialDwarven": 0.07, "WeapMaterialElven": 0.09, "DLC2WeaponMaterialNordic": 0.11,
-   "WeapMaterialGlass": 0.13, "WeapMaterialEbony": 0.17, "DLC2WeaponMaterialStalhrim": 0.17,
-   "WeapMaterialDaedric": 0.2, "DLC1WeapMaterialDragonbone": 0.3
-  }
- },
- "pickpocket": {
-   "_comment": "Sneak + X on a player (pickpocket.js). chance: chanceUntrained, or chanceByTier by Lockpicking tier, + behindBonus (outside a behindConeDegrees cone of the face), - weaponDrawnPenalty, within min/maxChance. A success takes goldShareByTier of the coin (at most goldMax) or one pocket item (never a worn copy, never a key); the victim notices noticeAfterSeconds later. Failure warns the victim at once. Waits: cooldownSeconds per thief, sameTargetMinutes per thief and victim, victimMinutes per victim. Lockpicking credit for creditMinGold or an item, never a party member, creditsPerHour at most. exclude: item descs never taken.",
-   "enabled": true, "maxDistance": 200, "maxHeight": 100, "cooldownSeconds": 20, "sameTargetMinutes": 10, "victimMinutes": 10,
-   "chanceUntrained": 0.2, "chanceByTier": [0.3, 0.4, 0.5, 0.6, 0.7], "behindBonus": 0.15, "behindConeDegrees": 120, "weaponDrawnPenalty": 0.2, "minChance": 0.05, "maxChance": 0.85,
-   "goldChance": 0.5, "goldShareUntrained": 0.05, "goldShareByTier": [0.06, 0.08, 0.1, 0.12, 0.15], "goldMax": 500,
-   "ammoMax": 10, "noticeAfterSeconds": 60, "creditMinGold": 10, "creditsPerHour": 4, "exclude": []
- },
- "reading": {
-  "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",
-  "baseSeconds": 30,
-  "secondsPerWord": 6,
-  "wrongPenaltySeconds": 8,
-  "wordsByTier": [[5, 7], [6, 8], [7, 9], [8, 10], [9, 12]],
-  "cooldownMinutes": 30,
-  "loseCooldownMinutes": 2
- },
- "champions": {
-  "_comment": "Named champion spawns: chance a hostile wildlife or dungeon spawn is promoted, how much bigger it stands, the share of each hit given back to it (0.5 is roughly double health), the gold each fighter is paid, the chance of a gem on top, and the share of the damage a player needs to count as a fighter.",
-  "enabled": false,
-  "wildChance": 0.05,
-  "dungeonChance": 0.08,
-  "scale": 1.14,
-  "toughness": 0.5,
-  "goldReward": [
-   25,
-   120
-  ],
-  "gemChance": 0.35,
-  "creditShare": 0.1
- },
- "labour": {
-  "_comment": "Mining and woodcutting mini-game: seconds per round, strike band half-width in percent of the bar by tier, seconds the marker takes to cross the bar by tier, how many strikes a vein needs, ore per vein before the tier multiplier, firewood per block by tier, and the rest each node takes afterwards.",
-  "enabled": true,
-  "seconds": 30,
-  "bandByTier": [
-   7,
-   8,
-   9,
-   11,
-   13
-  ],
-  "sweepByTier": [
-   1.5,
-   1.4,
-   1.3,
-   1.2,
-   1.1
-  ],
-  "oreStrikes": 6,
-  "firewoodByTier": [
-   3,
-   4,
-   5,
-   6,
-   8
-  ],
-  "veinRestMinutes": 45,
-  "blockRestMinutes": 10,
-  "failRestMinutes": 2
- },
- "needs": {
-  "_comment": "Hunger: 0 sated .. 100 starving, rises only while online. Stages apply regen penalties on the owner client (StaminaRateMult / HealRateMult, percent) and xpMult scales skill progress (0.25 = a quarter rate). Food kinds by ALCH food flag + editor-id words; potions/poisons give 0.",
-  "enabled": true,
-  "hungerPerHour": 12,
-  "tickSeconds": 60,
-  "warnEveryMinutes": 10,
-  "stages": [
-   {
-    "at": 0,
-    "name": "Sated",
-    "staminaRateMult": 0,
-    "healRateMult": 0
-   },
-   {
-    "at": 50,
-    "name": "Peckish",
-    "staminaRateMult": 0,
-    "healRateMult": 0
-   },
-   {
-    "at": 75,
-    "name": "Hungry",
-    "staminaRateMult": -35,
-    "healRateMult": -50
-   },
-   {
-    "at": 90,
-    "name": "Starving",
-    "staminaRateMult": -70,
-    "healRateMult": -100,
-    "xpMult": 0.25
-   }
-  ],
-  "restore": {
-   "meal": 35,
-   "snack": 15,
-   "drink": 8,
-   "ingredient": 4
-  },
-  "mealWords": [
-   "stew",
-   "soup",
-   "steak",
-   "roast",
-   "pie",
-   "chop",
-   "cooked",
-   "grilled",
-   "chowder",
-   "porridge",
-   "fondue",
-   "haunch",
-   "meal",
-   "dumpling",
-   "sweetroll",
-   "cake",
-   "baked"
-  ],
-  "drinkWords": [
-   "ale",
-   "mead",
-   "wine",
-   "milk",
-   "water",
-   "sujamma",
-   "flin",
-   "shein",
-   "mazte",
-   "matze",
-   "skooma",
-   "brandy",
-   "tea",
-   "juice",
-   "sap",
-   "brew",
-   "tonic",
-   "cider"
-  ]
- },
- "debug": {
-  "logSpellCasts": true,
-  "logEquipment": true,
-  "logPlayerLocations": true
- },
- "wildlife": {
-  "_comment": "Outdoor creatures from wildlife.json: spawn radius (units), despawn when nobody is near, respawn after a kill, which leveled option (low/mid/high), giant camp chest cooldown per player.",
-  "enabled": true,
-  "radius": 3000,
-  "despawnSeconds": 240,
-  "respawnSeconds": 1800,
-  "pick": "mid",
-  "campLootMinutes": 60,
-  "safeZones": [
-   {
-    "_comment": "Pale Pass arrival for the Bruma playtest: only the weakest creature of each spot (no ogres or trolls on the first stretch of road).",
+  "landing": {
+    "_comment": "Where fresh characters spawn (must match server-settings.json startPoints). The gamemode moves them into the hub from here. Bruma arrival while the Whiterun landing hangs the first load.",
     "world": "a764b:BSHeartland.esm",
     "pos": [
-     48236.2,
-     260600.4
+      48236.2,
+      260600.4,
+      20405.1
     ],
-    "radius": 25000,
-    "pick": "low"
-   },
-   {
-    "_comment": "Bruma city surroundings (user request 2026-09-16): weakest creature of each spot, so wolves instead of ogres around the walls.",
-    "world": "a764b:BSHeartland.esm",
-    "pos": [
-     57750,
-     202700
-    ],
-    "radius": 25000,
-    "pick": "low"
-   }
-  ]
- },
- "playtest": {
-  "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",
-  "enabled": true,
-  "name": "Bruma",
-  "arrival": {
-   "_comment": "Cyrodiil side of the Pale Pass road: arrival marker of the Skyrim border door 14df:BSHeartland.esm (its return door 656df is blocked).",
-   "world": "a764b:BSHeartland.esm",
-   "pos": [
-    48236.2,
-    260600.4,
-    20405.1
-   ],
-   "rotZ": 135
+    "radius": 2500
   },
-  "allowedWorlds": [
-   "a764b:BSHeartland.esm",
-   "6ade1:BSHeartland.esm",
-   "7f126:BSHeartland.esm",
-   "b95a6:BSHeartland.esm"
+  "rangesMeters": {
+    "whisper": 3,
+    "low": 8,
+    "say": 20,
+    "wide": 35,
+    "shout": 80,
+    "emote": 20,
+    "emoteLow": 8,
+    "emoteLong": 35,
+    "looc": 20,
+    "loocLow": 8,
+    "loocLong": 35
+  },
+  "welcome": "Welcome to DragonBreak Online. Type /help for commands.",
+  "starterKit": [
+    {
+      "id": "e3c16:Skyrim.esm",
+      "count": 1,
+      "name": "Pickaxe"
+    },
+    {
+      "id": "2f2f4:Skyrim.esm",
+      "count": 1,
+      "name": "Woodcutter's Axe"
+    }
   ],
-  "allowedPlugins": [
-   "bsheartland.esm",
-   "bsassets.esm"
-  ],
-  "allowedCells": [
-   "130040:DragonBreak Online Edits.esp"
-  ],
-  "blockedDoors": [
-   "877c2:BSHeartland.esm",
-   "656df:BSHeartland.esm"
-  ],
-  "graceSeconds": 60,
-  "checkSeconds": 5
- },
- "pigeons": {
-  "_comment": "Pigeon price: baseFee plus goldPerKm for the distance flown, capped at maxFee; a pigeon to another land costs maxFee. Paid into the treasury of the hold it is sent from.",
-  "baseFee": 5,
-  "goldPerKm": 10,
-  "maxFee": 50
- },
- "respawnTemples": {
-  "_comment": "Bruma deaths respawn at the cathedral door (user decision 2026-09-16). The login hang there was vanilla creature pathing, fixed by disabling Bruma's plugin creatures (HANDOFF section 14). Hub gates still lead to the Pale Pass arrival.",
-  "bruma": {
-   "world": "a764b:BSHeartland.esm",
-   "pos": [
-    59150.7,
-    201644.9,
-    7560.6
-   ],
-   "rotZ": 0
+  "jail": {
+    "_comment": "Jail zones and sentences (server\\jail.js). Every jail and prison in the load order is in jail-cells.json (ck-mcp/jails.py, 25 cells); cells adds more here, and admins add more in game with /jail add (kept in jails.json, untracked). No /unstuck inside a jail or while serving. A guard or official uses a cell door with a player in reach to imprison them for one of minutes; time counts only while the prisoner is online and in the jail. pickChance: a non-Lockpicker's chance to pick a cell door, a Lockpicker's at Novice, what each tier adds, the ceiling; a failure breaks the pick.",
+    "enabled": true,
+    "cells": [],
+    "minutes": [
+      5,
+      10,
+      15,
+      30,
+      60,
+      120
+    ],
+    "extendMinutes": 10,
+    "pickChance": {
+      "anyone": 0.15,
+      "lockpicker": 0.35,
+      "perTier": 0.1,
+      "max": 0.85
+    }
+  },
+  "struggle": {
+    "_comment": "Breaking free of bound hands with /struggle (server\\struggle.js): strikes landed in a row, band half-width in percent of the bar (watchedBand while anyone lawful other than the captor is within watchMeters, who is told; the captor is always told and never narrows it), sweepMs for the first crossing of the bar, multiplied by speedUp after each landed strike down to minSweepMs, seconds per attempt, one miss fails. winChance is the chance a clean round frees the captive, the most a scripted client can reach. cooldownMinutes between attempts, kept on the character. nearbyMeters hear about a break-out. whileCarried false refuses a carried captive. The escape grace before recapture is captureEscapeGraceMs in server-settings.json (20000 by default).",
+    "enabled": true,
+    "strikes": 6,
+    "band": 6,
+    "watchedBand": 4.5,
+    "sweepMs": 1000,
+    "speedUp": 0.95,
+    "minSweepMs": 700,
+    "seconds": 22,
+    "hitCooldownMs": 250,
+    "winChance": 0.5,
+    "cooldownMinutes": 4,
+    "watchMeters": 3,
+    "nearbyMeters": 15,
+    "whileCarried": false
+  },
+  "spells": {
+    "_comment": "Spell study (server\\spells.js). A tome is learned only at a skills.json spellStudyPoints entry, by a reader with the school's skill (arcane or priest) taken up, a tier that allows the tome's rank, and a free slot; slots 0 uses the skill's spellSlots (3). /teach: a teacher at teacherMinTier (3 = Expert) teaches a known spell to a player within teachMeters at studentMinTier (1 = Apprentice) or higher; teachAtStudyPoint also requires both at a study point. /tomes: the court mage's shop in shopCells (the Synod Conclave and its basement), for members of shopFactions with arcane or priest at shopMinTier or higher, ranks up to their tier and never above shopMaxRank (3 = Expert), one tome per shopCooldownDays, price = tome value x shopPriceMultiplier, paid to the shopTreasury zone.",
+    "enabled": true,
+    "slots": 0,
+    "teachMeters": 5,
+    "teacherMinTier": 3,
+    "studentMinTier": 1,
+    "teachAtStudyPoint": false,
+    "offerSeconds": 60,
+    "shopCells": [
+      "20ff:BSHeartland.esm",
+      "6c152:BSHeartland.esm"
+    ],
+    "shopFactions": [
+      "synod",
+      "college-of-winterhold",
+      "college-of-whispers"
+    ],
+    "shopMinTier": 1,
+    "shopMaxRank": 3,
+    "shopPriceMultiplier": 1,
+    "shopCooldownDays": 7,
+    "shopTreasury": "bruma",
+    "shopProvince": "cyrodiil",
+    "shopShowForeign": false
+  },
+  "regions": {
+    "_comment": "Province rules (server\\regions.js; data regions.json from ck-mcp\\regions.py, hand rules regions-overrides.json). craft: a creation recipe is refused outside the provinces its product belongs to (turn on after the in-game rollback test). tomes: /tomes stocks only what spells.shopProvince sells; spells.shopShowForeign lists the rest as blocked rows. adminBypass: admins pass both unless /region test. failOpen: a recipe or tome with no entry is allowed and logged once. defaultPlace: the province of a place no table knows.",
+    "craft": false,
+    "tomes": true,
+    "adminBypass": true,
+    "failOpen": true,
+    "defaultPlace": "skyrim"
+  },
+  "factionGear": {
+    "_comment": "Faction gear (server\\factiongear.js; list faction-gear.json from tools/faction_gear.py): a faction's armor and weapons are crafted only by its Blacksmith (forge) or Tailor (loom, tanning rack) rank or its leader. enabled: on (Nate, 2026-09-28: make faction gear turned on); false turns it off for players, and an admin's /factiongear test still holds them to it either way. adminBypass: admins pass unless in test mode.",
+    "enabled": true,
+    "adminBypass": true
+  },
+  "mastery": {
+    "_comment": "Combat numbers (gamemode.js). damage.byTier: extra weapon damage by the attacker's weapon-skill rank, Novice..Master, applied after the engine's hit. defense.armorMultByTier: how many times its bare rating worn armor counts for, by the target's Defense rank (the engine alone gives rating x 0.12 %, capped at 80 %); lightShare: the part of that gain light armor gets (1 = same as heavy). Measured 2026-09-24: a naked player has 150 health; a Master two-hander with a Daedric greatsword dealt 33 a hit at the old x1.30 (5 hits). At x2.0 it is 48 (4 hits, 2 with a power attack); a full Daedric heavy set (108) worn at Master Defense takes 45 % off instead of 13 %.",
+    "damage": {
+      "byTier": [
+        0,
+        0,
+        0.35,
+        0.65,
+        1.0
+      ],
+      "log": true
+    },
+    "defense": {
+      "enabled": true,
+      "armorMultByTier": [
+        1,
+        1.25,
+        1.75,
+        2.5,
+        3.5
+      ],
+      "lightShare": 1
+    },
+    "arcane": {
+      "_comment": "Extra damage for Destruction spells (schools: magic skill actor value, 20 = Destruction) by the caster's Arcane Arts rank, Novice..Master. Smaller than the weapon tiers because spells hit from range. Live magnitudes 2026-09-25: Firebolt 25, Fireball 40, Icy Spear 60.",
+      "enabled": true,
+      "byTier": [
+        0,
+        0,
+        0.2,
+        0.35,
+        0.5
+      ],
+      "schools": [
+        20
+      ]
+    }
+  },
+  "castBlocks": {
+    "_comment": "Spells refused before the server systems see the cast (gamemode.js castHook), with what the caster is told. For spells that crash the game.",
+    "782c5:BSHeartland.esm": "Summon Will-o-the-Wisp is disabled for now: the wisp crashes the game when it appears. It will come back once that is fixed."
+  },
+  "supernatural": {
+    "_comment": "Overrides for supernatural.js defaults. huntMarkChance: the chance that surviving Hircine's Great Hunt (/rite) gives Sanies Lupinus; an unmarked survivor waits riteFailCooldownHours to run it again. infectWerewolf: a werewolf's bite's chance to pass it on. Nate, 2026-09-27: werewolf harder to come by than vampirism, 0.5 -> 0.25 and 0.05 -> 0.02.",
+    "huntMarkChance": 0.25,
+    "infectWerewolf": 0.02
+  },
+  "pvp": {
+    "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
+    "damageMult": 1.25
+  },
+  "business": {
+    "_comment": "Business ledgers (business.js). An owner opens a property as a business; owner and staff set the inn's bed rent (minRent..maxRent), keep a logbook and put chests up for rent (up to maxChestPrice a day; chestGraceHours to empty after the rent ends). Each hold's rent tax is set by taxRanks, 0..maxTax; until then rest.holdShare stands.",
+    "enabled": true,
+    "minRent": 1,
+    "maxRent": 200,
+    "maxChestPrice": 200,
+    "chestGraceHours": 72,
+    "maxTax": 0.3,
+    "taxRanks": [
+      "jarl",
+      "count",
+      "steward"
+    ],
+    "maxStaff": 12
+  },
+  "combat": {
+    "_comment": "Skill-based fights (combat.js, COMBAT_DESIGN.md), player targets only, needs the C++ hit flags. A blocked blow lets weaponChip (shieldChip with a shield) through, less chipPerDefenseTier per Defense rank; the blocker pays the rest in stamina (x shieldStaminaMult with a shield, x powerIntoShieldStaminaMult more for a power attack into a shield). At 0 stamina, or hit by a bash, the guard breaks: a stagger and guardBreakSeconds of blocked blows landing in full. Unblocked power attacks stagger; a weapon-skill rank of powerStaggerThroughWeaponBlockRank staggers through a weapon block. A bash deals bashDamageMult of the weapon and staggers unless the target's Defense rank is bashStaggerResistRank or more (3 = Expert). One stagger per target every staggerCooldownSeconds.",
+    "enabled": true,
+    "log": true,
+    "playersOnly": true,
+    "weaponChip": 0.3,
+    "shieldChip": 0.15,
+    "chipPerDefenseTier": 0.05,
+    "blockStaminaMult": 1,
+    "shieldStaminaMult": 0.5,
+    "powerIntoShieldStaminaMult": 2,
+    "guardBreakSeconds": 2,
+    "bashDamageMult": 0.25,
+    "bashStaggerResistRank": 3,
+    "powerStaggerThroughWeaponBlockRank": 4,
+    "staggerCooldownSeconds": 1.5,
+    "attackerStaggerCooldownSeconds": 3,
+    "staggerSpells": [
+      "CYRForceRune",
+      "CYRForceRuneScroll"
+    ],
+    "pushSpells": {
+      "VoiceUnrelentingForce1": 0,
+      "VoiceUnrelentingForce2": 4,
+      "VoiceUnrelentingForce3": 8
+    },
+    "pushCooldownSeconds": 2,
+    "disarmSpells": [
+      "VoiceDisarm1",
+      "VoiceDisarm2",
+      "VoiceDisarm3"
+    ],
+    "disarmCooldownSeconds": 10,
+    "dismaySpells": {
+      "VoiceDismayingShout1": 5,
+      "VoiceDismayingShout2": 8,
+      "VoiceDismayingShout3": 12
+    },
+    "dismaySpeedMult": -50
+  },
+  "salvage": {
+    "_comment": "Breaking gear and books down into materials (salvage.js, salvage.json from tooling/make_salvage.py). Using a smelter (Blacksmith), tanning rack (Skinner), loom (Tailor) or writing desk (Scholar) offers what the player carries that it can take apart. A share of the item's recipe comes back by the player's tier in that skill (shareByTier, Novice..Master), rounded down, at least one of the main material; a Blacksmith needs the tier that works the main metal. Books: a bound book gives bookPaper paper (the paper item) and bookStrips leather strips, a note notePaper paper. pageSize rows per page; the first row works the station, arming one pass for useWindowSeconds.",
+    "enabled": true,
+    "shareByTier": [
+      0.25,
+      0.35,
+      0.5,
+      0.6,
+      0.75
+    ],
+    "pageSize": 7,
+    "useWindowSeconds": 20,
+    "reachMeters": 6.5,
+    "paper": "7cba1:BSHeartland.esm",
+    "leatherStrips": "800e4:Skyrim.esm",
+    "bookPaper": 2,
+    "bookStrips": 1,
+    "notePaper": 1
+  },
+  "weaponMaterials": {
+    "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2); a weapon without one of these gets nothing.",
+    "enabled": true,
+    "playersOnly": true,
+    "byKeyword": {
+      "WeapMaterialWood": 0,
+      "WeapMaterialIron": 0,
+      "WeapMaterialImperial": 0,
+      "WeapMaterialDraugr": 0,
+      "WeapMaterialFalmer": 0,
+      "WeapMaterialSteel": 0.03,
+      "WeapMaterialSilver": 0.05,
+      "WeapMaterialDraugrHoned": 0.05,
+      "WeapMaterialFalmerHoned": 0.05,
+      "WeapMaterialOrcish": 0.05,
+      "WeapMaterialDwarven": 0.07,
+      "WeapMaterialElven": 0.09,
+      "DLC2WeaponMaterialNordic": 0.11,
+      "WeapMaterialGlass": 0.13,
+      "WeapMaterialEbony": 0.17,
+      "DLC2WeaponMaterialStalhrim": 0.17,
+      "WeapMaterialDaedric": 0.2,
+      "DLC1WeapMaterialDragonbone": 0.3
+    }
+  },
+  "pickpocket": {
+    "_comment": "Sneak + X on a player (pickpocket.js). chance: chanceUntrained, or chanceByTier by Lockpicking tier, + behindBonus (outside a behindConeDegrees cone of the face), - weaponDrawnPenalty, within min/maxChance. A success takes goldShareByTier of the coin (at most goldMax) or one pocket item (never a worn copy, never a key); the victim notices noticeAfterSeconds later. Failure warns the victim at once. Waits: cooldownSeconds per thief, sameTargetMinutes per thief and victim, victimMinutes per victim. Lockpicking credit for creditMinGold or an item, never a party member, creditsPerHour at most. exclude: item descs never taken.",
+    "enabled": true,
+    "maxDistance": 200,
+    "maxHeight": 100,
+    "cooldownSeconds": 20,
+    "sameTargetMinutes": 10,
+    "victimMinutes": 10,
+    "chanceUntrained": 0.2,
+    "chanceByTier": [
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "behindBonus": 0.15,
+    "behindConeDegrees": 120,
+    "weaponDrawnPenalty": 0.2,
+    "minChance": 0.05,
+    "maxChance": 0.85,
+    "goldChance": 0.5,
+    "goldShareUntrained": 0.05,
+    "goldShareByTier": [
+      0.06,
+      0.08,
+      0.1,
+      0.12,
+      0.15
+    ],
+    "goldMax": 500,
+    "ammoMax": 10,
+    "noticeAfterSeconds": 60,
+    "creditMinGold": 10,
+    "creditsPerHour": 4,
+    "exclude": []
+  },
+  "reading": {
+    "_comment": "Scholar book mini-game. The candle burns baseSeconds + secondsPerWord for each word of the sentence; a wrong reading burns wrongPenaltySeconds off it and locks in the words already right. wordsByTier is the sentence length (min, max) per Scholar tier, Novice to Master. cooldownMinutes before the same book can be read again, loseCooldownMinutes after the candle gutters.",
+    "baseSeconds": 30,
+    "secondsPerWord": 6,
+    "wrongPenaltySeconds": 8,
+    "wordsByTier": [
+      [
+        5,
+        7
+      ],
+      [
+        6,
+        8
+      ],
+      [
+        7,
+        9
+      ],
+      [
+        8,
+        10
+      ],
+      [
+        9,
+        12
+      ]
+    ],
+    "cooldownMinutes": 30,
+    "loseCooldownMinutes": 2
+  },
+  "champions": {
+    "_comment": "Named champion spawns: chance a hostile wildlife or dungeon spawn is promoted, how much bigger it stands, the share of each hit given back to it (0.5 is roughly double health), the gold each fighter is paid, the chance of a gem on top, and the share of the damage a player needs to count as a fighter.",
+    "enabled": false,
+    "wildChance": 0.05,
+    "dungeonChance": 0.08,
+    "scale": 1.14,
+    "toughness": 0.5,
+    "goldReward": [
+      25,
+      120
+    ],
+    "gemChance": 0.35,
+    "creditShare": 0.1
+  },
+  "labour": {
+    "_comment": "Mining and woodcutting mini-game: seconds per round, strike band half-width in percent of the bar by tier, seconds the marker takes to cross the bar by tier, how many strikes a vein needs, ore per vein before the tier multiplier, firewood per block by tier, and the rest each node takes afterwards.",
+    "enabled": true,
+    "seconds": 30,
+    "bandByTier": [
+      7,
+      8,
+      9,
+      11,
+      13
+    ],
+    "sweepByTier": [
+      1.5,
+      1.4,
+      1.3,
+      1.2,
+      1.1
+    ],
+    "oreStrikes": 6,
+    "firewoodByTier": [
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
+    "veinRestMinutes": 45,
+    "blockRestMinutes": 10,
+    "failRestMinutes": 2
+  },
+  "needs": {
+    "_comment": "Hunger: 0 sated .. 100 starving, rises only while online. Stages apply regen penalties on the owner client (StaminaRateMult / HealRateMult, percent) and xpMult scales skill progress (0.25 = a quarter rate). Food kinds by ALCH food flag + editor-id words; potions/poisons give 0.",
+    "enabled": true,
+    "hungerPerHour": 12,
+    "tickSeconds": 60,
+    "warnEveryMinutes": 10,
+    "stages": [
+      {
+        "at": 0,
+        "name": "Sated",
+        "staminaRateMult": 0,
+        "healRateMult": 0
+      },
+      {
+        "at": 50,
+        "name": "Peckish",
+        "staminaRateMult": 0,
+        "healRateMult": 0
+      },
+      {
+        "at": 75,
+        "name": "Hungry",
+        "staminaRateMult": -35,
+        "healRateMult": -50
+      },
+      {
+        "at": 90,
+        "name": "Starving",
+        "staminaRateMult": -70,
+        "healRateMult": -100,
+        "xpMult": 0.25
+      }
+    ],
+    "restore": {
+      "meal": 35,
+      "snack": 15,
+      "drink": 8,
+      "ingredient": 4
+    },
+    "mealWords": [
+      "stew",
+      "soup",
+      "steak",
+      "roast",
+      "pie",
+      "chop",
+      "cooked",
+      "grilled",
+      "chowder",
+      "porridge",
+      "fondue",
+      "haunch",
+      "meal",
+      "dumpling",
+      "sweetroll",
+      "cake",
+      "baked"
+    ],
+    "drinkWords": [
+      "ale",
+      "mead",
+      "wine",
+      "milk",
+      "water",
+      "sujamma",
+      "flin",
+      "shein",
+      "mazte",
+      "matze",
+      "skooma",
+      "brandy",
+      "tea",
+      "juice",
+      "sap",
+      "brew",
+      "tonic",
+      "cider"
+    ]
+  },
+  "debug": {
+    "logSpellCasts": true,
+    "logEquipment": true,
+    "logPlayerLocations": true
+  },
+  "wildlife": {
+    "_comment": "Outdoor creatures from wildlife.json: spawn radius (units), despawn when nobody is near, respawn after a kill, which leveled option (low/mid/high), giant camp chest cooldown per player.",
+    "enabled": true,
+    "radius": 3000,
+    "despawnSeconds": 240,
+    "respawnSeconds": 1800,
+    "pick": "mid",
+    "campLootMinutes": 60,
+    "safeZones": [
+      {
+        "_comment": "Pale Pass arrival for the Bruma playtest: only the weakest creature of each spot (no ogres or trolls on the first stretch of road).",
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          48236.2,
+          260600.4
+        ],
+        "radius": 25000,
+        "pick": "low"
+      },
+      {
+        "_comment": "Bruma city surroundings (user request 2026-09-16): weakest creature of each spot, so wolves instead of ogres around the walls.",
+        "world": "a764b:BSHeartland.esm",
+        "pos": [
+          57750,
+          202700
+        ],
+        "radius": 25000,
+        "pick": "low"
+      }
+    ]
+  },
+  "playtest": {
+    "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",
+    "enabled": true,
+    "name": "Bruma",
+    "arrival": {
+      "_comment": "Cyrodiil side of the Pale Pass road: arrival marker of the Skyrim border door 14df:BSHeartland.esm (its return door 656df is blocked).",
+      "world": "a764b:BSHeartland.esm",
+      "pos": [
+        48236.2,
+        260600.4,
+        20405.1
+      ],
+      "rotZ": 135
+    },
+    "allowedWorlds": [
+      "a764b:BSHeartland.esm",
+      "6ade1:BSHeartland.esm",
+      "7f126:BSHeartland.esm",
+      "b95a6:BSHeartland.esm"
+    ],
+    "allowedPlugins": [
+      "bsheartland.esm",
+      "bsassets.esm"
+    ],
+    "allowedCells": [
+      "130040:DragonBreak Online Edits.esp"
+    ],
+    "blockedDoors": [
+      "877c2:BSHeartland.esm",
+      "656df:BSHeartland.esm"
+    ],
+    "graceSeconds": 60,
+    "checkSeconds": 5
+  },
+  "pigeons": {
+    "_comment": "Pigeon price: baseFee plus goldPerKm for the distance flown, capped at maxFee; a pigeon to another land costs maxFee. Paid into the treasury of the hold it is sent from.",
+    "baseFee": 5,
+    "goldPerKm": 10,
+    "maxFee": 50
+  },
+  "respawnTemples": {
+    "_comment": "Bruma deaths respawn at the cathedral door (user decision 2026-09-16). The login hang there was vanilla creature pathing, fixed by disabling Bruma's plugin creatures (HANDOFF section 14). Hub gates still lead to the Pale Pass arrival.",
+    "bruma": {
+      "world": "a764b:BSHeartland.esm",
+      "pos": [
+        59150.7,
+        201644.9,
+        7560.6
+      ],
+      "rotZ": 0
+    }
+  },
+  "dungeons": {
+    "_comment": "exclude: dungeon ids never leased. AbandonedPrisonLocation is out because its main cell is now Windhelm's prison, a jail (Nat, 2026-09-23); its other cell is the spare prison template.",
+    "restoreOutfits": true,
+    "exclude": [
+      "AbandonedPrisonLocation"
+    ]
+  },
+  "discord": {
+    "channelId": "1552157689466060850"
+  },
+  "playerMenu": {
+    "maskItemByRace": {
+      "ArgonianRace": "849:Sentinel.esp",
+      "KhajiitRace": "849:Sentinel.esp",
+      "OrcRace": "849:Sentinel.esp"
+    }
+  },
+  "downed": {
+    "_comment": "Down state (server\\downed.js). potion: the Draught of Revival, brewed at any alchemy lab by an Alchemist of potion.tier who has read its recipe, from exactly one of potion.recipes (one of each ingredient, any order). names are shown to players (vanilla names are localized string ids, so they are given here). _alternatives are not read.",
+    "potion": {
+      "tier": 4,
+      "recipes": [
+        [
+          {
+            "id": "3ad72:Skyrim.esm",
+            "name": "troll fat"
+          },
+          {
+            "id": "4da00:Skyrim.esm",
+            "name": "fly amanita"
+          },
+          {
+            "id": "6018c7:BSAssets.esm",
+            "name": "yellow cinnabar polypore"
+          }
+        ]
+      ],
+      "_alternatives": {
+        "redPolypore": [
+          {
+            "id": "3ad72:Skyrim.esm",
+            "name": "troll fat"
+          },
+          {
+            "id": "4da00:Skyrim.esm",
+            "name": "fly amanita"
+          },
+          {
+            "id": "6018c6:BSAssets.esm",
+            "name": "red cinnabar polypore"
+          }
+        ],
+        "undying": [
+          {
+            "id": "3ad5b:Skyrim.esm",
+            "name": "daedra heart"
+          },
+          {
+            "id": "3ad76:Skyrim.esm",
+            "name": "vampire dust"
+          },
+          {
+            "id": "6018c7:BSAssets.esm",
+            "name": "yellow cinnabar polypore"
+          }
+        ]
+      }
+    }
+  },
+  "lockpick": {
+    "enabled": true
+  },
+  "npcGround": {
+    "fix": false
+  },
+  "npcDirector": {
+    "mode": "on"
+  },
+  "itemGuards": {
+    "mode": "on"
+  },
+  "war": {
+    "_comment": "War and raids stay off until the holds and factions are set up during the alpha (Nate, 2026-09-26). colours: the Realm map's lore colour per faction (Nate's picks; the cults' and the Vigil's chosen by the Prince's or the order's motif); \"base/stripe\" draws a stripe (the Companions). seats: where a faction that is not a hold musters to declare, { id: { name, world, pos, radius, cells } }.",
+    "enabled": false,
+    "seats": {},
+    "colours": {
+      "hold-whiterun": "#e8e4d8",
+      "hold-riften": "#6b3fa0",
+      "hold-solitude": "#7a1616",
+      "hold-windhelm": "#2f5fb3",
+      "hold-markarth": "#1f8a57",
+      "hold-falkreath": "#1d2f6b",
+      "hold-morthal": "#2c5a2e",
+      "hold-dawnstar": "#1a2744",
+      "hold-winterhold": "#9fd3e6",
+      "county-bruma": "#e2c233",
+      "clan-gol-kharzum": "#2c5a2e",
+      "clan-mor-khazgur": "#c9a227",
+      "clan-dushnikh-yal": "#6a1b2a",
+      "clan-largashbur": "#c2a878",
+      "clan-narzulbur": "#1a1a1a",
+      "clan-cracked-tusk": "#9c3b2a",
+      "college-of-winterhold": "#e8e4d8",
+      "synod": "#6b3fa0",
+      "college-of-whispers": "#1a1a1a",
+      "fighters-guild": "#c96a6a",
+      "companions": "#a01d1d/#e2c233",
+      "bards-college": "#e8e4d8",
+      "imperial-legion": "#b3201f",
+      "stormcloaks": "#2f5fb3",
+      "vigil-of-stendarr": "#a9adb5",
+      "dawnguard": "#6b4a2b",
+      "blades": "#5a2a82",
+      "thalmor": "#c8a951",
+      "thieves-guild": "#7a7a7a",
+      "dark-brotherhood": "#1a1a1a",
+      "clan-volkihar": "#1d2f6b",
+      "cyrodiil-vampyrum-order": "#6b3fa0",
+      "crimson-scars": "#b3201f",
+      "bloodmist-clan": "#7a1616",
+      "pack-of-the-jerall": "#3f8f3a",
+      "pack-of-falkreath": "#6b5a45",
+      "silver-hand": "#c7ccd4",
+      "cult-azura": "#8c6bc8",
+      "cult-boethiah": "#7d1128",
+      "cult-clavicus-vile": "#c7852b",
+      "cult-hermaeus-mora": "#5b7a2b",
+      "cult-hircine": "#7a5a33",
+      "cult-mehrunes-dagon": "#b0161b",
+      "cult-mephala": "#3d1f4d",
+      "cult-meridia": "#f0d98a",
+      "cult-molag-bal": "#3b4a5c",
+      "cult-namira": "#5b5a2e",
+      "cult-nocturnal": "#1b1f3a",
+      "cult-peryite": "#9bb33c",
+      "cult-sanguine": "#7b1e3a",
+      "cult-sheogorath": "#b0308f",
+      "cult-vaermina": "#5d4b8a"
+    }
+  },
+  "raids": {
+    "enabled": false
+  },
+  "economy": {
+    "_comment": "Weekly taxes and wages (economy.js). On from 2026-09-28 (Nate: \"economy needs to fully be turned on\"); the review B2 guards are in economy.js.",
+    "enabled": true
+  },
+  "contracts": {
+    "enabled": false
   }
- },
- "dungeons": {
-  "_comment": "exclude: dungeon ids never leased. AbandonedPrisonLocation is out because its main cell is now Windhelm's prison, a jail (Nat, 2026-09-23); its other cell is the spare prison template.",
-  "restoreOutfits": true,
-  "exclude": ["AbandonedPrisonLocation"]
- },
- "discord": {
-  "channelId": "1552157689466060850"
- },
- "playerMenu": {
-  "maskItemByRace": {
-   "ArgonianRace": "849:Sentinel.esp",
-   "KhajiitRace": "849:Sentinel.esp",
-   "OrcRace": "849:Sentinel.esp"
-  }
- },
- "downed": {
-  "_comment": "Down state (server\\downed.js). potion: the Draught of Revival, brewed at any alchemy lab by an Alchemist of potion.tier who has read its recipe, from exactly one of potion.recipes (one of each ingredient, any order). names are shown to players (vanilla names are localized string ids, so they are given here). _alternatives are not read.",
-  "potion": {
-   "tier": 4,
-   "recipes": [
-    [{ "id": "3ad72:Skyrim.esm", "name": "troll fat" }, { "id": "4da00:Skyrim.esm", "name": "fly amanita" }, { "id": "6018c7:BSAssets.esm", "name": "yellow cinnabar polypore" }]
-   ],
-   "_alternatives": {
-    "redPolypore": [{ "id": "3ad72:Skyrim.esm", "name": "troll fat" }, { "id": "4da00:Skyrim.esm", "name": "fly amanita" }, { "id": "6018c6:BSAssets.esm", "name": "red cinnabar polypore" }],
-    "undying": [{ "id": "3ad5b:Skyrim.esm", "name": "daedra heart" }, { "id": "3ad76:Skyrim.esm", "name": "vampire dust" }, { "id": "6018c7:BSAssets.esm", "name": "yellow cinnabar polypore" }]
-   }
-  }
- },
- "lockpick": { "enabled": true },
- "npcGround": { "fix": false },
- "npcDirector": { "mode": "on" },
- "itemGuards": { "mode": "on" },
- "war": {
-  "_comment": "War and raids stay off until the holds and factions are set up during the alpha (Nate, 2026-09-26). colours: the Realm map's lore colour per faction (Nate's picks; the cults' and the Vigil's chosen by the Prince's or the order's motif); \"base/stripe\" draws a stripe (the Companions). seats: where a faction that is not a hold musters to declare, { id: { name, world, pos, radius, cells } }.",
-  "enabled": false,
-  "seats": {},
-  "colours": {
-   "hold-whiterun": "#e8e4d8", "hold-riften": "#6b3fa0", "hold-solitude": "#7a1616", "hold-windhelm": "#2f5fb3", "hold-markarth": "#1f8a57",
-   "hold-falkreath": "#1d2f6b", "hold-morthal": "#2c5a2e", "hold-dawnstar": "#1a2744", "hold-winterhold": "#9fd3e6", "county-bruma": "#e2c233",
-   "clan-gol-kharzum": "#2c5a2e", "clan-mor-khazgur": "#c9a227", "clan-dushnikh-yal": "#6a1b2a", "clan-largashbur": "#c2a878", "clan-narzulbur": "#1a1a1a", "clan-cracked-tusk": "#9c3b2a",
-   "college-of-winterhold": "#e8e4d8", "synod": "#6b3fa0", "college-of-whispers": "#1a1a1a", "fighters-guild": "#c96a6a", "companions": "#a01d1d/#e2c233",
-   "bards-college": "#e8e4d8", "imperial-legion": "#b3201f", "stormcloaks": "#2f5fb3", "vigil-of-stendarr": "#a9adb5", "dawnguard": "#6b4a2b", "blades": "#5a2a82", "thalmor": "#c8a951",
-   "thieves-guild": "#7a7a7a", "dark-brotherhood": "#1a1a1a", "clan-volkihar": "#1d2f6b", "cyrodiil-vampyrum-order": "#6b3fa0", "crimson-scars": "#b3201f", "bloodmist-clan": "#7a1616",
-   "pack-of-the-jerall": "#3f8f3a", "pack-of-falkreath": "#6b5a45", "silver-hand": "#c7ccd4",
-   "cult-azura": "#8c6bc8", "cult-boethiah": "#7d1128", "cult-clavicus-vile": "#c7852b", "cult-hermaeus-mora": "#5b7a2b", "cult-hircine": "#7a5a33",
-   "cult-mehrunes-dagon": "#b0161b", "cult-mephala": "#3d1f4d", "cult-meridia": "#f0d98a", "cult-molag-bal": "#3b4a5c", "cult-namira": "#5b5a2e",
-   "cult-nocturnal": "#1b1f3a", "cult-peryite": "#9bb33c", "cult-sanguine": "#7b1e3a", "cult-sheogorath": "#b0308f", "cult-vaermina": "#5d4b8a"
-  }
- },
- "raids": { "enabled": false },
- "economy": { "_comment": "Weekly taxes and wages (economy.js). On from 2026-09-28 (Nate: \"economy needs to fully be turned on\"); the review B2 guards are in economy.js.", "enabled": true }
 }
