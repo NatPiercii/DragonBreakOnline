@@ -123,6 +123,8 @@ module.exports = {
   // The single role pinged when a ticket opens, kept separate so every staff role can read
   // tickets without everyone being notified for each one
   discordTicketPingRoleId: process.env.DISCORD_TICKET_PING_ROLE_ID || '',
+  // Staff-only channel that gets a closed ticket's transcript; unset or unusable saves it under data/ticket-transcripts
+  discordTicketTranscriptChannelId: process.env.DISCORD_TICKET_TRANSCRIPT_CHANNEL_ID || '',
   // Public #bugs forum and #suggestions channel the ticket panel links to; an empty value shows the plain channel name
   discordBugsForumChannelId: process.env.DISCORD_BUGS_FORUM_CHANNEL_ID ?? '1551936720713416755',
   discordSuggestionsChannelId: process.env.DISCORD_SUGGESTIONS_CHANNEL_ID || '',

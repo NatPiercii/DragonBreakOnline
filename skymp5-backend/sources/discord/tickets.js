@@ -11,6 +11,7 @@ const fs = require('fs')
 const path = require('path')
 const config = require('../../config')
 const audit = require('./audit')
+const transcript = require('./ticketTranscript')
 
 const STATE_FILE = path.join(__dirname, '..', '..', 'data', 'tickets.json')
 
@@ -155,13 +156,28 @@ async function openTicket(interaction, typeId, summary) {
   return { channel, number, type }
 }
 
-async function closeTicket(interaction) {
+const closing = new Set()
+
+// The channel is deleted only once its transcript is kept somewhere; otherwise it stays open
+async function closeTicket(interaction, { wait = 5000, transcripts = transcript } = {}) {
   const channel = interaction.channel
-  await interaction.reply({ content: 'Closing in 5 seconds.' })
-  audit.log(`TICKET closed #${channel.name} by ${interaction.user.tag} (${interaction.user.id})`)
-  setTimeout(() => {
-    channel.delete('ticket closed').catch(err => console.error('[tickets] delete failed:', err.message))
-  }, 5000)
+  if (closing.has(channel.id)) return interaction.reply({ content: 'This ticket is already closing.', ephemeral: true })
+  closing.add(channel.id)
+  try {
+    await interaction.reply({ content: 'Closing in 5 seconds.' })
+    audit.log(`TICKET closed #${channel.name} by ${interaction.user.tag} (${interaction.user.id})`)
+    await new Promise(resolve => setTimeout(resolve, wait))
+    try {
+      audit.log(`TICKET transcript of #${channel.name} ${await transcripts.save(channel, interaction.user)}`)
+    } catch (err) {
+      console.error(`[tickets] transcript of #${channel.name} failed, channel kept:`, err.message)
+      await channel.send('The transcript could not be saved, so this channel stays open. Tell a staff member.').catch(() => {})
+      return
+    }
+    await channel.delete('ticket closed').catch(err => console.error('[tickets] delete failed:', err.message))
+  } finally {
+    closing.delete(channel.id)
+  }
 }
 
 // Posts the panel once. Safe to call on every boot: it edits its own message if it is still there.
@@ -243,4 +259,4 @@ async function handleInteraction(interaction) {
   return true
 }
 
-module.exports = { TYPES, ensurePanel, handleInteraction }
+module.exports = { TYPES, ensurePanel, handleInteraction, closeTicket }
