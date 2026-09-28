@@ -137,7 +137,10 @@ export class MasteryService extends ClientListener {
       if (this.menuOpen) this.closeMenu();
       return;
     }
-    if (typeof key !== "string" || !key.startsWith("mastery:") || !this.menuOpen) return;
+    // Same trap the emote wheel fell into: browserWindowLoaded clears menuOpen without removing the widget, and
+    // the menu then ignores every click in silence. A mastery: message can only come from the open menu.
+    if (typeof key !== "string" || !key.startsWith("mastery:")) return;
+    this.menuOpen = true;
 
     if (key === events.close) {
       this.closeMenu();
