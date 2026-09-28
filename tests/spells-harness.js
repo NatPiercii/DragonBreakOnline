@@ -1,6 +1,7 @@
 // Scripted test for server\spells.js: loads the real module with a mock gamemode api and walks the spell study gate
-// (study point, skill taken up, rank by tier, three slots), the runtime classification of a tome missing from
-// spell-tomes.json, /spells and /forget, /teach between two players, and the Synod tome shop panel.
+// (study point, skill taken up, rank by tier), the runtime classification of a tome missing from spell-tomes.json, the
+// spellbook and its 3 prepared spells (changed only at a magic college; Nate, 2026-09-28), bringing an existing
+// character over, /teach between two players, and the Synod tome shop panel.
 // No server and no game: run it from this folder's parent with
 //
 //   node tests\spells-harness.js
@@ -135,6 +136,7 @@ const cmd = (name, a, args) => commands.get(name).fn(a, args || '');
 const said = (a) => { const l = out.said.filter((p) => p[0] === a); return l.length ? l[l.length - 1][1] : ''; };
 const lastWidget = (a) => { const l = out.widgets.filter((w) => w.a === a); return l.length ? l[l.length - 1].w : null; };
 const studied = (a, skill) => ((props.get(a + '|private.dboStudied') || {})[skill] || []);
+const prepared = (a) => props.get(a + '|private.dboPrepared') || [];
 // The engine's side of a read: the hook decides, then OnFireSuccess learns the spell unless it is known; the slot is
 // written on the next turn of the event loop
 const read = async (a, tome) => {
@@ -148,7 +150,7 @@ const read = async (a, tome) => {
 (async () => {
 
 // ---- boot ----
-check('boot line counts the tomes and both study points', out.logs.some((l) => /spells on: \d+ tomes known, 2 study point\(s\), \d+ tomes in the Synod shop, slots arcane 3, priest 3/.test(l)), out.logs);
+check('boot line counts the tomes and both study points', out.logs.some((l) => /spells on: \d+ tomes known, 2 study point\(s\), \d+ tomes in the Synod shop, 3 prepared, changed in 7 college cell\(s\)/.test(l)), out.logs);
 check('the read hook wraps the handler that was there', mp.onReadBook.__dboSpellsInner === original);
 load();
 check('a reload unwraps its own wrapper instead of stacking', mp.onReadBook.__dboSpellsInner === original);
@@ -158,48 +160,82 @@ check('a book that teaches nothing goes to the engine untouched', (await read(MA
 mastery(MAGE, { arcane: 0 });
 at(MAGE, BRUMA, [0, 0, 0]);
 check('refused outside a study point', (await read(MAGE, T.flames)) === false && /spell study point: The well in the Hall of the Elements, The Synod Conclave in Bruma/.test(said(MAGE)) && /You keep the tome/.test(said(MAGE)), said(MAGE));
-check('...no slot is used', studied(MAGE, 'arcane').length === 0);
+check('...nothing goes into the spellbook', studied(MAGE, 'arcane').length === 0);
 check('...and the refusal is audited', /SPELL P14 refused tome 9cd51:Skyrim.esm/.test(out.audits[out.audits.length - 1]), out.audits);
 at(MAGE, SYNOD, [0, 0, 0]);
 check('refused when the skill is not taken up (Alteration is Priest)', (await read(MAGE, T.candlelight)) === false && /You have not taken up Priest, the skill that studies Alteration/.test(said(MAGE)), said(MAGE));
 check('refused when the rank is above the tier', (await read(MAGE, T.firebolt)) === false && /Firebolt is an Apprentice spell. Arcane Arts at Novice allows up to Novice spells/.test(said(MAGE)), said(MAGE));
 check('learned at the Synod: a tome read from its records (Flames)', (await read(MAGE, T.flames)) !== false && studied(MAGE, 'arcane').join() === T.flames[1], studied(MAGE, 'arcane'));
-check('...the player is told the slot count', /You study Flames \(Destruction, Novice\)\. Arcane Arts slots: 1 of 3/.test(said(MAGE)), said(MAGE));
-check('...and the learning is audited', /SPELL P14 learned 12fcd:Skyrim.esm Flames from tome 9cd51:Skyrim.esm \(arcane 1\/3\)/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
+check('...and prepared at once while there is room', /You study Flames \(Destruction, Novice\)\. It is prepared\. Prepared: 1 of 3/.test(said(MAGE)) && prepared(MAGE).join() === T.flames[1], said(MAGE));
+check('...and the learning is audited', /SPELL P14 learned 12fcd:Skyrim.esm Flames from tome 9cd51:Skyrim.esm \(book 1, prepared 1\/3\)/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 const before = out.said.length;
-check('a tome of a spell already known is left to the engine and takes no slot', (await read(MAGE, T.flames)) !== false && studied(MAGE, 'arcane').length === 1 && out.said.length === before);
+check('a tome of a spell already known is left to the engine and adds nothing', (await read(MAGE, T.flames)) !== false && studied(MAGE, 'arcane').length === 1 && out.said.length === before);
 at(MAGE, SYNOD_BASEMENT, [900, 900, 0]);
 check('the whole basement cell is a study point too', (await read(MAGE, T.frostbite)) !== false && studied(MAGE, 'arcane').length === 2);
 mp.onReadBook(MAGE, idOf(T.sparks[0]));
 await new Promise((res) => setTimeout(res, 5));
-check('a spell the engine does not learn (a base or race spell) takes no slot', studied(MAGE, 'arcane').length === 2 && out.logs.some((l) => /but the engine did not learn 2dd2a:Skyrim.esm/.test(l)));
+check('a spell the engine does not learn (a base or race spell) does not go into the book', studied(MAGE, 'arcane').length === 2 && out.logs.some((l) => /but the engine did not learn 2dd2a:Skyrim.esm/.test(l)));
 at(MAGE, HALL, [2000, 0, 0]);
 check('the Hall of the Elements needs the well within its radius', (await read(MAGE, T.sparks)) === false && studied(MAGE, 'arcane').length === 2);
 at(MAGE, HALL, [100, 0, 0]);
 check('...and works beside it', (await read(MAGE, T.sparks)) !== false && studied(MAGE, 'arcane').length === 3);
 at(MAGE, SYNOD, [0, 0, 0]);
-check('refused when all slots are full', (await read(MAGE, T.boundSword)) === false && /All 3 Arcane Arts slots are full \(Flames, Frostbite, Sparks\)\. \/forget one first/.test(said(MAGE)), said(MAGE));
+check('no limit on the spellbook: a fourth spell is learned', (await read(MAGE, T.boundSword)) !== false && studied(MAGE, 'arcane').length === 4, studied(MAGE, 'arcane'));
+check('...but with 3 prepared it waits in the book: the engine gives it back', !known(MAGE).has(idOf(T.boundSword[1])) && prepared(MAGE).length === 3 && papyrus.some((p) => p[0] === 'RemoveSpell' && p[2] === T.boundSword[1]) && /Your 3 prepared spells are full, so it waits in your spellbook\. Prepared spells are changed at a magic college/.test(said(MAGE)), said(MAGE));
+check('its tome read again is refused and kept: it is in the book', (await read(MAGE, T.boundSword)) === false && /Bound Sword is already in your spellbook\. You keep the tome/.test(said(MAGE)) && studied(MAGE, 'arcane').length === 4, said(MAGE));
 known(MAGE).add(idOf(HEALING));
-check('spells known before study began take no slot', studied(MAGE, 'arcane').length === 3);
+check('spells known before study began are not in the book and take no prepared place', prepared(MAGE).length === 3 && !studied(MAGE, 'priest').length);
 
-// ---- /spells and /forget ----
+// ---- the spellbook panel (/spells) ----
 mastery(PRIEST, { priest: 0 });
+const widgetsBefore = out.widgets.length;
 cmd('spells', MAGE);
-check('/spells lists each skill with slots', out.said.some((s) => s[0] === MAGE && /Arcane Arts \(Novice, up to Novice spells\): 3 of 3 slots: 1\. Flames \(Destruction, Novice\), 2\. Frostbite/.test(s[1]) && /Priest: not taken up/.test(s[1])), out.said.slice(-2));
-cmd('forget', MAGE, '9');
-check('/forget with a bad number is refused', /Pick a number from 1 to 3/.test(said(MAGE)));
-cmd('forget', MAGE, '2');
-check('/forget <n> asks to confirm first', lastWidget(MAGE).id === 45 && lastWidget(MAGE).actions.map((x) => x.id).join() === `forget:${T.frostbite[1]},cancel`, lastWidget(MAGE));
-ui('spellsChoose', MAGE, ['cancel']);
-check('...keeping it changes nothing', studied(MAGE, 'arcane').length === 3);
-cmd('forget', MAGE, '');
-check('/forget alone lists the studied spells', lastWidget(MAGE).actions.length === 3 && lastWidget(MAGE).actions[1].id === `pick:${T.frostbite[1]}`);
-ui('spellsChoose', MAGE, [`pick:${T.frostbite[1]}`]);
-ui('spellsChoose', MAGE, [`forget:${T.frostbite[1]}`]);
-check('forgetting frees the slot', studied(MAGE, 'arcane').join() === [T.flames[1], T.sparks[1]].join(), studied(MAGE, 'arcane'));
-check('...and removes the spell server-side through Actor.RemoveSpell', papyrus.some((p) => p[0] === 'RemoveSpell' && p[2] === T.frostbite[1]) && !known(MAGE).has(idOf(T.frostbite[1])));
-check('...audited', /SPELL P14 forgot 2b96b:Skyrim.esm Frost ?bite \(arcane, server removed it\)/i.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
-check('the freed slot takes a new tome', (await read(MAGE, T.boundSword)) !== false && studied(MAGE, 'arcane').length === 3);
+check('a client that has not said it draws the spellbook gets the book in chat, no panel', out.widgets.length === widgetsBefore && /Prepared \(3 of 3\): Flames, Frostbite, Sparks\. In your spellbook: Bound Sword\. Update the game/.test(said(MAGE)), said(MAGE));
+for (const x of [MAGE, OTHER, PRIEST, STUDENT]) ui('uiCaps', x, ['bank', 'spellbook']);
+cmd('spells', MAGE);
+let book = lastWidget(MAGE);
+check('/spells opens the spellbook panel', book && book.type === 'spellbook' && book.id === 58 && book.max === 3 && book.events.prepare === 'dbo:spellbookPrepare', book);
+check('...with the 3 prepared and all 4 in the book, the waiting one marked', book.prepared.map((x) => x.name).join() === 'Flames,Frostbite,Sparks' && book.known.length === 4 && book.known.find((x) => x.name === 'Bound Sword').prepared === false, book);
+check('...and at the Synod it may change them', book.atCollege === true && book.hint === '');
+cmd('forget', MAGE);
+check('the hidden /forget opens the spellbook and says nothing is forgotten now', lastWidget(MAGE).type === 'spellbook' && /Spells are no longer forgotten: put one away in your spellbook instead/.test(lastWidget(MAGE).result) && studied(MAGE, 'arcane').length === 4, lastWidget(MAGE).result);
+check('...a hidden alias, as Worker B made it', commands.get('forget').opts && commands.get('forget').opts.hidden === true);
+cmd('spells', MAGE, 'forget 2');
+check('/spells forget <n> does the same, forgetting nothing', lastWidget(MAGE).type === 'spellbook' && /no longer forgotten/.test(lastWidget(MAGE).result) && studied(MAGE, 'arcane').length === 4);
+cmd('spells', MAGE);
+book = lastWidget(MAGE);
+ui('spellbookPrepare', MAGE, [book.nonce, T.boundSword[1]], 58);
+book = lastWidget(MAGE);
+check('a fourth cannot be prepared while 3 are', book.resultKind === 'refused' && /All 3 prepared places are taken\. Put one away first/.test(book.result) && !known(MAGE).has(idOf(T.boundSword[1])), book.result);
+ui('spellbookUnprepare', MAGE, [book.nonce, T.frostbite[1]], 58);
+book = lastWidget(MAGE);
+check('putting one away takes it off the character and keeps it in the book', book.resultKind === 'ok' && !known(MAGE).has(idOf(T.frostbite[1])) && prepared(MAGE).length === 2 && studied(MAGE, 'arcane').includes(T.frostbite[1]), book.result);
+ui('spellbookPrepare', MAGE, [book.nonce, T.boundSword[1]], 58);
+book = lastWidget(MAGE);
+check('then the waiting one is prepared through Actor.AddSpell', book.resultKind === 'ok' && known(MAGE).has(idOf(T.boundSword[1])) && prepared(MAGE).includes(T.boundSword[1]) && /Bound Sword is prepared\. Prepared: 3 of 3/.test(book.result), book.result);
+check('...both audited', out.audits.some((t) => /SPELL P14 put away 2b96b:Skyrim.esm/.test(t)) && out.audits.some((t) => /SPELL P14 prepared 211eb:Skyrim.esm/.test(t)));
+ui('spellbookUnprepare', MAGE, ['stale-nonce', T.flames[1]], 58);
+check('a stale panel changes nothing', known(MAGE).has(idOf(T.flames[1])) && prepared(MAGE).length === 3);
+at(MAGE, BRUMA, [0, 0, 0]);
+cmd('spells', MAGE);
+book = lastWidget(MAGE);
+check('outside a college the book opens to read, with the hint', book.atCollege === false && /changed at a magic college: the Synod Conclave in Bruma, or the College of Winterhold/.test(book.hint));
+ui('spellbookUnprepare', MAGE, [book.nonce, T.flames[1]], 58);
+check('...and nothing can be changed there', lastWidget(MAGE).resultKind === 'refused' && known(MAGE).has(idOf(T.flames[1])) && prepared(MAGE).length === 3);
+at(MAGE, SYNOD, [0, 0, 0]);
+
+// ---- bringing an existing character over ----
+// OTHER studied four spells under the old slots and holds all four; no prepared list yet
+props.set(OTHER + '|private.dboStudied', { arcane: [T.flames[1], T.frostbite[1], T.sparks[1], T.boundSword[1]] });
+for (const t of [T.flames, T.frostbite, T.sparks, T.boundSword]) known(OTHER).add(idOf(t[1]));
+cmd('spells', OTHER);
+check('an existing character keeps the first 3 prepared', prepared(OTHER).join() === [T.flames[1], T.frostbite[1], T.sparks[1]].join(), prepared(OTHER));
+check('...the rest go back into the book, and they are told', !known(OTHER).has(idOf(T.boundSword[1])) && studied(OTHER, 'arcane').length === 4 && out.said.some((x) => x[0] === OTHER && /Spells are now prepared, 3 at a time\. Prepared: Flames, Frostbite, Sparks\. In your spellbook: Bound Sword/.test(x[1])));
+const saidBefore = out.said.length;
+cmd('spells', OTHER);
+check('...once', out.said.length === saidBefore && prepared(OTHER).length === 3);
+cmd('spells', PRIEST);
+check('a character with no studied spells starts with none prepared, quietly', Array.isArray(props.get(PRIEST + '|private.dboPrepared')) && prepared(PRIEST).length === 0);
 
 // ---- /teach ----
 mastery(MAGE, { arcane: 2 });
@@ -234,8 +270,8 @@ check('an offer lapses after a minute', /The offer has lapsed/.test(said(STUDENT
 cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']); ui('spellsChoose', MAGE, [`lesson:16:${T.flames[1]}`]);
 ui('spellsOffer', STUDENT, ['accept']);
 check('accepting grants the spell through Actor.AddSpell', papyrus.some((p) => p[0] === 'AddSpell' && p[1] === STUDENT && p[2] === T.flames[1]) && known(STUDENT).has(idOf(T.flames[1])));
-check('...fills a slot', studied(STUDENT, 'arcane').join() === T.flames[1] && /Mage teaches you Flames \(Destruction, Novice\)\. Arcane Arts slots: 1 of 3/.test(said(STUDENT)), said(STUDENT));
-check('...and is audited', /SPELL P14 taught P16 12fcd:Skyrim.esm Flames \(arcane 1\/3\)/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
+check('...into the spellbook, prepared while there is room', studied(STUDENT, 'arcane').join() === T.flames[1] && prepared(STUDENT).join() === T.flames[1] && /Mage teaches you Flames \(Destruction, Novice\)\. It is prepared\. Prepared: 1 of 3/.test(said(STUDENT)), said(STUDENT));
+check('...and is audited', /SPELL P14 taught P16 12fcd:Skyrim.esm Flames \(book 1, prepared 1\/3\)/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']); ui('spellsChoose', MAGE, [`lesson:16:${T.flames[1]}`]);
 check('a spell the student knows is not offered again', /Student already knows Flames/.test(said(MAGE)), said(MAGE));
 

@@ -1,17 +1,23 @@
-// Spell study, slots, unlearning, teaching and the Synod tome shop, loaded by gamemode.js like jail.js.
+// Spell study, the spellbook and prepared spells, teaching and the Synod tome shop, loaded by gamemode.js like jail.js.
 //
 // Reading a spell tome is refused unless the reader has taken up the school's skill (arcane: Destruction,
 // Conjuration, Illusion; priest: Restoration, Alteration), the tome's rank fits their tier, they stand at a spell
 // study point (skills.json spellStudyPoints) and a slot of that skill is free. A Novice tome read at a study point
 // takes the skill up for one pool point when the reader has not (masterySystem's __alduinakMasteryFirstTouch). A refused read keeps the tome and the
 // engine takes the spell back off the client (ReadBookEvent::OnFireBlocked sends Actor.RemoveSpell).
-// /spells lists studied spells, /forget frees a slot, /teach passes a spell to a nearby player, /tomes is the
-// college shop inside the Synod enclave. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
+// Prepared spells (Nate, 2026-09-28: "a panel to set what 3 spells you want active/prepared at a time instead of
+// unlearning/forgetting a spell"): every spell studied or taught stays in the character's spellbook, with no limit, and
+// at most `prepared` (3) of them, whatever their school, are on the character at a time (Actor.AddSpell / RemoveSpell).
+// The spellbook panel (/spells, front widget "spellbook") shows them all; the prepared ones are changed only at a magic
+// college (prepareCells: the Synod Conclave, the College of Winterhold; the College of Whispers has no hall yet).
+// Spells known before study (race, start) are the engine's and take no place. /forget is retired.
+// /teach passes a spell to a nearby player, /tomes is the college shop inside the Synod enclave. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
 // tome missing from it is read from its records at runtime. The shop stocks only the tomes regions.js sells in
 // shopProvince; /teach carries a spell anywhere.
 //
 // State, on the character:
-//   private.dboStudied       { arcane: [spell desc...], priest: [...] }  spells learned through this system
+//   private.dboStudied       { arcane: [spell desc...], priest: [...] }  the spellbook: every spell learned through this system
+//   private.dboPrepared      [spell desc...]                           the prepared ones, at most `prepared`
 //   private.dboTomeBoughtAt  ms of the last shop purchase
 
 const fs = require('fs');
@@ -23,7 +29,10 @@ module.exports = (api) => {
 
   const CFG = Object.assign({
     enabled: true,
-    slots: 0,
+    // How many studied spells are on the character at once, and where they are changed (the magic colleges)
+    prepared: 3,
+    prepareCells: ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm',                             // the Synod Conclave, Bruma
+      '1380e:Skyrim.esm', '1380f:Skyrim.esm', 'cab91:Skyrim.esm', '13810:Skyrim.esm', 'cab92:Skyrim.esm'], // College of Winterhold halls
     teachMeters: 5,
     teacherMinTier: 3,
     studentMinTier: 1,
@@ -45,12 +54,14 @@ module.exports = (api) => {
 
   const SHOP_ID = 44;
   const MENU_ID = 45;
+  const BOOK_ID = 58;
   const GOLD = 0xf;
   const DAY = 86400000;
   const MAX_ROWS = 12;
   const RANKS = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   const AV_SCHOOL = { 18: 'Alteration', 19: 'Conjuration', 20: 'Destruction', 21: 'Illusion', 22: 'Restoration' };
   const STUDIED = 'private.dboStudied';
+  const PREPARED = 'private.dboPrepared';
   const BOUGHT = 'private.dboTomeBoughtAt';
 
   const readJson = (file) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { log(`spells: ${file} unreadable`, e.message); return null; } };
@@ -73,7 +84,6 @@ module.exports = (api) => {
   const SKILL_OF_SCHOOL = {};
   for (const s of SPELL_SKILLS) for (const school of s.vanillaSkills || []) SKILL_OF_SCHOOL[school] = s;
   const skillDef = (id) => SPELL_SKILLS.find((s) => s.id === id) || null;
-  const slotsOf = (id) => Number(CFG.slots) > 0 ? Number(CFG.slots) : Math.max(0, Number((skillDef(id) || {}).spellSlots) || 3);
   // Tier index 0..4 of a taken-up skill, -1 when not taken up
   const tierOf = (a, skillId) => {
     const r = get(a, 'private.mastery', null);
@@ -183,12 +193,36 @@ module.exports = (api) => {
     catch (e) { log(`spells: ${fn} ${descOf(spellId)} failed`, e.message); return false; }
   };
 
-  // ---- studied slots ---------------------------------------------------------------------------------
+  // ---- the spellbook (studied spells, per skill) ----------------------------------------------------------------
   const studiedOf = (a) => { const s = get(a, STUDIED, null); return s && typeof s === 'object' ? s : {}; };
   const studiedIds = (a, skillId) => (Array.isArray(studiedOf(a)[skillId]) ? studiedOf(a)[skillId] : []).map(idOf).filter(Boolean);
   const writeStudied = (a, skillId, ids) => set(a, STUDIED, Object.assign({}, studiedOf(a), { [skillId]: ids.map(descOf).filter(Boolean) }));
   const spellLabel = (sp) => `${sp.name} (${sp.school}, ${RANKS[sp.rank]})`;
-  const slotLine = (a, skillId) => `${skillDef(skillId).label} slots: ${studiedIds(a, skillId).length} of ${slotsOf(skillId)}`;
+  // ---- the spellbook and the prepared spells -------------------------------------------------------------------------
+  const MAXP = () => Math.max(0, Number(CFG.prepared) || 0);
+  const knownIds = (a) => [].concat(...SPELL_SKILLS.map((s) => studiedIds(a, s.id)));
+  const inBook = (a, spellId) => knownIds(a).includes(spellId >>> 0);
+  // null until the character has been brought over to prepared spells (migrate below)
+  const preparedOf = (a) => { const p = get(a, PREPARED, null); return Array.isArray(p) ? p.map(idOf).filter(Boolean) : null; };
+  const preparedIds = (a) => preparedOf(a) || [];
+  const writePrepared = (a, ids) => set(a, PREPARED, ids.map(descOf).filter(Boolean));
+  const preparedLine = (a) => `Prepared: ${preparedIds(a).length} of ${MAXP()}`;
+  const COLLEGE_CELLS = new Set((CFG.prepareCells || []).map(norm));
+  const atCollege = (a) => COLLEGE_CELLS.has(norm(get(a, 'worldOrCellDesc', '')));
+  const COLLEGE_HINT = 'Prepared spells are changed at a magic college: the Synod Conclave in Bruma, or the College of Winterhold.';
+  // A spell newly in the book: prepared at once while there is room (the engine already holds it after a read; a lesson
+  // adds it), else it waits in the book and the engine's copy is taken back. Returns the line to tell the player.
+  const settleNew = (a, sp, engineHasIt) => {
+    const id = (sp.spellId || sp.id) >>> 0;   // a tome carries its spell as spellId, a classified spell as id
+    const prep = preparedIds(a);
+    if (prep.length < MAXP()) {
+      if (!engineHasIt && !papyrus(a, 'AddSpell', id, [false])) return `${sp.name} is in your spellbook.`;
+      writePrepared(a, prep.concat([id]));
+      return `It is prepared. ${preparedLine(a)}.`;
+    }
+    if (engineHasIt) papyrus(a, 'RemoveSpell', id);
+    return `Your ${MAXP()} prepared spells are full, so it waits in your spellbook. ${COLLEGE_HINT}`;
+  };
 
   // Why this actor cannot hold this spell in a slot, or null
   const slotRefusal = (a, sp, whose) => {
@@ -198,8 +232,6 @@ module.exports = (api) => {
     if (tier < 0) return `${whose} not taken up ${skill.label}, the skill that studies ${sp.school}. Reading a Novice ${sp.school} tome at a spell study point takes it up.`;
     const max = maxRankFor(skill.id, tier);
     if (sp.rank > max) return `${sp.name} is ${/^[AEIOU]/.test(RANKS[sp.rank]) ? 'an' : 'a'} ${RANKS[sp.rank]} spell. ${skill.label} at ${TIER_NAMES[tier]} allows up to ${RANKS[max]} spells.`;
-    const held = studiedIds(a, skill.id);
-    if (held.length >= slotsOf(skill.id)) return `All ${slotsOf(skill.id)} ${skill.label} slots are full (${held.map((id) => (classifySpell(id) || { name: '?' }).name).join(', ')}). /forget one first.`;
     return null;
   };
 
@@ -216,6 +248,10 @@ module.exports = (api) => {
     };
     if (tome.unknown) { log(`spells: tome ${descOf(bookId)} ${tome.edid} teaches a spell that could not be classified`); return refuse('this tome belongs to no school we know.'); }
     if (knows(a, tome.spellId)) return null; // the engine keeps the tome and changes nothing
+    if (inBook(a, tome.spellId)) {
+      personal(a, `${tome.name} is already in your spellbook. You keep the tome. ${COLLEGE_HINT}`);
+      return { refuse: true };
+    }
     // A Novice tome read at a spell study point takes up its school's skill, for one pool point, the way a trade is
     // started at its bench (Nate, 2026-09-25): a new character has no spell to cast, so Arcane Arts had no way in
     const opens = SKILL_OF_SCHOOL[tome.school];
@@ -233,10 +269,12 @@ module.exports = (api) => {
     return {
       // Runs after the engine's OnFireSuccess, which skips spells the actor's race or base already grants
       commit: () => {
+        migrate(a); // a character not yet brought over is, before the new spell joins the book
         if (!knows(a, tome.spellId) || studiedIds(a, skill.id).includes(tome.spellId)) return log(`spells: ${descOf(a)} read ${descOf(bookId)} but the engine did not learn ${descOf(tome.spellId)}`);
         writeStudied(a, skill.id, studiedIds(a, skill.id).concat([tome.spellId]));
-        personal(a, `You study ${spellLabel(tome)}. ${slotLine(a, skill.id)}.`);
-        audit(`SPELL ${who(a)} learned ${descOf(tome.spellId)} ${tome.name} from tome ${descOf(bookId)} (${skill.id} ${studiedIds(a, skill.id).length}/${slotsOf(skill.id)})`);
+        const line = settleNew(a, tome, true);
+        personal(a, `You study ${spellLabel(tome)}. ${line}`);
+        audit(`SPELL ${who(a)} learned ${descOf(tome.spellId)} ${tome.name} from tome ${descOf(bookId)} (book ${knownIds(a).length}, prepared ${preparedIds(a).length}/${MAXP()})`);
       },
     };
   };
@@ -264,50 +302,90 @@ module.exports = (api) => {
   const closeMenu = (a) => { pending.delete(a >>> 0); closeWidget(a, MENU_ID); };
 
   // ---- /spells and /forget ---------------------------------------------------------------------------
-  const studiedList = (a) => {
-    const out = [];
-    for (const s of SPELL_SKILLS) for (const id of studiedIds(a, s.id)) out.push({ skill: s, id, sp: classifySpell(id) || { name: descOf(id), school: '?', rank: 0 } });
-    return out;
+  const bookNonces = globalThis.__dboSpellbookNonces instanceof Map ? globalThis.__dboSpellbookNonces : (globalThis.__dboSpellbookNonces = new Map());
+  const entryOf = (id, prepared) => { const sp = classifySpell(id) || { name: descOf(id), school: '?', rank: 0 }; return { id: descOf(id), name: sp.name, school: sp.school, rank: sp.rank, rankName: RANKS[sp.rank] || '', prepared }; };
+  const openBook = (a, result, resultKind) => {
+    const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+    bookNonces.set(a >>> 0, nonce);
+    const prep = preparedIds(a);
+    const college = atCollege(a);
+    openWidget(a, {
+      type: 'spellbook', id: BOOK_ID, nonce, max: MAXP(), atCollege: college, hint: college ? '' : COLLEGE_HINT,
+      prepared: prep.map((id) => entryOf(id, true)),
+      known: knownIds(a).map((id) => entryOf(id, prep.includes(id))).sort((x, y) => x.school.localeCompare(y.school) || x.rank - y.rank || x.name.localeCompare(y.name)),
+      result: result || '', resultKind: resultKind || '',
+      events: { prepare: 'dbo:spellbookPrepare', unprepare: 'dbo:spellbookUnprepare', close: 'dbo:spellbookClose' },
+    }, true);
+  };
+  // Nothing is forgotten now (Nate, 2026-09-28): /spells forget and the hidden /forget (Worker B's aliases) open the book
+  const RETIRED = 'Spells are no longer forgotten: put one away in your spellbook instead, at a magic college.';
+  // The panel opens only for a client whose UI said it draws it (dbo:uiCaps 'spellbook' from the HUD): an unknown
+  // widget opened with focus would leave an invisible panel holding the keys. An older client gets the book in chat.
+  const caps = globalThis.__dboSpellbookCaps instanceof Map ? globalThis.__dboSpellbookCaps : (globalThis.__dboSpellbookCaps = new Map());
+  onUi('uiCaps', (a, args) => { caps.set(a >>> 0, new Set((args || []).map(String))); });
+  const hasPanel = (a) => (caps.get(a >>> 0) || new Set()).has('spellbook');
+  const bookInChat = (a, result) => {
+    const name = (id) => (classifySpell(id) || { name: descOf(id) }).name;
+    const prep = preparedIds(a);
+    const rest = knownIds(a).filter((id) => !prep.includes(id));
+    personal(a, `${result ? result + ' ' : ''}Prepared (${prep.length} of ${MAXP()}): ${prep.map(name).join(', ') || 'none'}. In your spellbook: ${rest.map(name).join(', ') || 'nothing else'}. Update the game (restart the launcher) for the spellbook panel, where prepared spells are changed.`);
+  };
+  const openFromCommand = (a, result) => {
+    if (!CFG.enabled) return personal(a, 'Spell study is closed.');
+    migrate(a);
+    if (!hasPanel(a)) return bookInChat(a, result);
+    openBook(a, result || '', result ? 'refused' : '');
   };
   registerChatCommand('spells', (a, args) => {
-    // /spells forget [number] is the old /forget; the bare command still just lists
     const first = String(Array.isArray(args) ? args[0] : args || '').trim();
-    if (/^forget\b/i.test(first)) return forgetCommand(a, first.replace(/^forget\s*/i, ''));
-    let n = 0;
-    const parts = SPELL_SKILLS.map((s) => {
-      const tier = tierOf(a, s.id);
-      if (tier < 0) return `${s.label}: not taken up.`;
-      const held = studiedIds(a, s.id).map((id) => `${++n}. ${spellLabel(classifySpell(id) || { name: descOf(id), school: '?', rank: 0 })}`);
-      return `${s.label} (${TIER_NAMES[tier]}, up to ${RANKS[maxRankFor(s.id, tier)]} spells): ${held.length} of ${slotsOf(s.id)} slots${held.length ? ': ' + held.join(', ') : ''}.`;
-    });
-    personal(a, parts.join(' '));
-    if (n) personal(a, '/spells forget <number> frees a slot. Spells you knew before study began take no slot.');
-  }, { help: 'Your studied spells and free slots' });
+    openFromCommand(a, /^forget\b/i.test(first) ? RETIRED : '');
+  }, { help: 'your spellbook: every spell you have studied, and the prepared ones (changed at a magic college)' });
+  registerChatCommand('forget', (a) => openFromCommand(a, RETIRED), { hidden: true, help: 'retired; /spells opens your spellbook' });
 
-  const confirmForget = (a, entry) => menu(a, MENU_ID, `Forget ${entry.sp.name}?`, [
-    { id: `forget:${descOf(entry.id)}`, label: `Forget ${entry.sp.name} and free the slot` },
-    { id: 'cancel', label: 'Keep it' },
-  ], { kind: 'forget' });
-  const forgetCommand = (a, args) => {
-    const list = studiedList(a);
-    if (!list.length) return personal(a, 'You have no studied spells to forget.');
-    const n = parseInt(String(Array.isArray(args) ? args[0] : args || '').trim(), 10);
-    if (Number.isFinite(n)) {
-      if (n < 1 || n > list.length) return personal(a, `Pick a number from 1 to ${list.length}; /spells lists them.`);
-      return confirmForget(a, list[n - 1]);
+  // { ok, text } of preparing or putting away one spell
+  const changePrepared = (a, spellId, want) => {
+    if (!atCollege(a)) return { ok: false, text: COLLEGE_HINT };
+    if (!inBook(a, spellId)) return { ok: false, text: 'That spell is not in your spellbook.' };
+    const sp = classifySpell(spellId) || { id: spellId, name: descOf(spellId) };
+    const prep = preparedIds(a);
+    if (want) {
+      if (prep.includes(spellId)) return { ok: true, text: `${sp.name} is already prepared.` };
+      if (prep.length >= MAXP()) return { ok: false, text: `All ${MAXP()} prepared places are taken. Put one away first.` };
+      if (!knows(a, spellId) && !papyrus(a, 'AddSpell', spellId, [false])) return { ok: false, text: `${sp.name} would not settle. Try again.` };
+      writePrepared(a, prep.concat([spellId]));
+      audit(`SPELL ${who(a)} prepared ${descOf(spellId)} ${sp.name} (${preparedIds(a).length}/${MAXP()})`);
+      return { ok: true, text: `${sp.name} is prepared. ${preparedLine(a)}.` };
     }
-    menu(a, MENU_ID, 'Forget which spell?', list.slice(0, MAX_ROWS).map((e) => ({ id: `pick:${descOf(e.id)}`, label: `${spellLabel(e.sp)} - ${e.skill.label}` })), { kind: 'forget' });
+    if (!prep.includes(spellId)) return { ok: true, text: `${sp.name} is not prepared.` };
+    papyrus(a, 'RemoveSpell', spellId);
+    writePrepared(a, prep.filter((id) => id !== spellId));
+    audit(`SPELL ${who(a)} put away ${descOf(spellId)} ${sp.name} (${preparedIds(a).length}/${MAXP()})`);
+    return { ok: true, text: `${sp.name} goes back into your spellbook. ${preparedLine(a)}.` };
   };
-  registerChatCommand('forget', forgetCommand, { hidden: true, help: 'forget a studied spell; now /spells forget <number>' });
+  const freshBook = (a, args) => bookNonces.get(a >>> 0) === String(args[0] || '');
+  onUi('spellbookPrepare', (a, args) => { if (!freshBook(a, args)) return; const r = changePrepared(a, idOf(String(args[1] || '')), true); openBook(a, r.text, r.ok ? 'ok' : 'refused'); });
+  onUi('spellbookUnprepare', (a, args) => { if (!freshBook(a, args)) return; const r = changePrepared(a, idOf(String(args[1] || '')), false); openBook(a, r.text, r.ok ? 'ok' : 'refused'); });
+  onUi('spellbookClose', (a) => { bookNonces.delete(a >>> 0); closeWidget(a, BOOK_ID); });
 
-  const forget = (a, spellId) => {
-    const entry = studiedList(a).find((e) => e.id === spellId);
-    if (!entry) return personal(a, 'That spell is not among your studied spells.');
-    const removed = papyrus(a, 'RemoveSpell', spellId);
-    writeStudied(a, entry.skill.id, studiedIds(a, entry.skill.id).filter((id) => id !== spellId));
-    personal(a, `You let ${entry.sp.name} fade from memory. ${slotLine(a, entry.skill.id)}.`);
-    audit(`SPELL ${who(a)} forgot ${descOf(spellId)} ${entry.sp.name} (${entry.skill.id}, server ${removed ? 'removed it' : 'did not hold it'})`);
+  // Bringing a character over: the first time the server sees them after this change, the spells of their book the
+  // engine holds become prepared, up to the limit in the order they were learned; any beyond it are taken back into
+  // the book, and they are told once. A character with no studied spells just starts with none prepared.
+  const migrate = (a) => {
+    if (preparedOf(a) !== null) return;
+    const book = knownIds(a);
+    if (!book.length) { writePrepared(a, []); return; }
+    const held = learnedIds(a);
+    if (!held) return; // the engine could not say; try again later
+    const on = book.filter((id) => held.includes(id));
+    const keep = on.slice(0, MAXP()), away = on.slice(MAXP());
+    for (const id of away) papyrus(a, 'RemoveSpell', id);
+    writePrepared(a, keep);
+    if (away.length) {
+      personal(a, `Spells are now prepared, ${MAXP()} at a time. Prepared: ${keep.map((id) => (classifySpell(id) || { name: '?' }).name).join(', ')}. In your spellbook: ${away.map((id) => (classifySpell(id) || { name: '?' }).name).join(', ')}. /spells opens it. ${COLLEGE_HINT}`);
+    }
+    audit(`SPELL ${who(a)} brought over to prepared spells: ${keep.length} prepared, ${away.length} put away, book ${book.length}`);
   };
+  if (typeof api.every === 'function') api.every('spells.migrate', 20000, () => { if (!CFG.enabled) return; for (const a of onlineActors()) { try { migrate(a); } catch (e) { log('spells: migrate failed', e.message); } } });
 
   // ---- /teach ----------------------------------------------------------------------------------------
   // Spells this teacher may pass on: school spells the server has learned for them (studied or known before) in skills at teacher tier
@@ -327,7 +405,7 @@ module.exports = (api) => {
     const skill = SKILL_OF_SCHOOL[sp.school];
     if (tierOf(teacher, skill.id) < CFG.teacherMinTier) return `Teaching ${sp.school} takes ${skill.label} at ${TIER_NAMES[CFG.teacherMinTier]}.`;
     if (tierOf(student, skill.id) < CFG.studentMinTier) return `${display(student)} needs ${skill.label} at ${TIER_NAMES[CFG.studentMinTier]} or higher to be taught.`;
-    if (knows(student, sp.id)) return `${display(student)} already knows ${sp.name}.`;
+    if (knows(student, sp.id) || inBook(student, sp.id)) return `${display(student)} already knows ${sp.name}.`;
     return slotRefusal(student, sp, `${display(student)} has`);
   };
   const offers = globalThis.__dboSpellOffers instanceof Map ? globalThis.__dboSpellOffers : (globalThis.__dboSpellOffers = new Map()); // student -> offer
@@ -347,7 +425,7 @@ module.exports = (api) => {
     if (why) return personal(teacher, why);
     offers.set(student >>> 0, { teacher: teacher >>> 0, spellId, at: Date.now() });
     openWidget(student, { type: 'contextMenu', id: MENU_ID, mode: 'menu', targetName: `${display(teacher)} offers to teach you ${spellLabel(sp)}`,
-      actions: [{ id: 'accept', label: `Learn it (fills a ${SKILL_OF_SCHOOL[sp.school].label} slot)` }, { id: 'decline', label: 'Decline' }],
+      actions: [{ id: 'accept', label: 'Learn it (it goes into your spellbook)' }, { id: 'decline', label: 'Decline' }],
       events: { action: 'dbo:spellsOffer', close: 'dbo:spellsOfferClose' } }, true);
     personal(teacher, `You offer to teach ${display(student)} ${sp.name}.`);
   };
@@ -362,12 +440,13 @@ module.exports = (api) => {
     if (!sp) { personal(student, 'Your teacher can no longer teach that spell.'); return; }
     const why = teachRefusal(o.teacher, student, sp);
     if (why) { personal(student, why); personal(o.teacher, why); return; }
-    if (!papyrus(student, 'AddSpell', sp.id, [false])) { personal(student, `You already know ${sp.name}.`); return; }
     const skill = SKILL_OF_SCHOOL[sp.school];
+    migrate(student);
     writeStudied(student, skill.id, studiedIds(student, skill.id).concat([sp.id]));
-    personal(student, `${display(o.teacher)} teaches you ${spellLabel(sp)}. ${slotLine(student, skill.id)}.`);
+    const line = settleNew(student, sp, false);
+    personal(student, `${display(o.teacher)} teaches you ${spellLabel(sp)}. ${line}`);
     personal(o.teacher, `You teach ${display(student)} ${sp.name}.`);
-    audit(`SPELL ${who(o.teacher)} taught ${who(student)} ${descOf(sp.id)} ${sp.name} (${skill.id} ${studiedIds(student, skill.id).length}/${slotsOf(skill.id)})`);
+    audit(`SPELL ${who(o.teacher)} taught ${who(student)} ${descOf(sp.id)} ${sp.name} (book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
   };
   onUi('spellsOffer', (a, args) => answerOffer(a, String(args[0] || '') === 'accept'));
   onUi('spellsOfferClose', (a) => answerOffer(a, false));
@@ -473,14 +552,9 @@ module.exports = (api) => {
     const p = pending.get(a >>> 0); const choice = String(args[0] || '');
     // Picking a spell to forget or a student reopens this widget id as the next menu; closing it first in the same tick
     // loses the cursor (the inn prompt, 2026-09-25), so those paths reopen with no close in between.
-    const reopening = !!p && ((p.kind === 'forget' && choice.startsWith('pick:')) || (p.kind === 'teach' && choice.startsWith('student:')));
+    const reopening = !!p && p.kind === 'teach' && choice.startsWith('student:');
     if (reopening) pending.delete(a >>> 0); else closeMenu(a);
     if (!p || choice === 'cancel') return;
-    if (p.kind === 'forget') {
-      if (choice.startsWith('pick:')) { const e = studiedList(a).find((x) => x.id === idOf(choice.slice(5))); if (e) confirmForget(a, e); else closeMenu(a); return; }
-      if (choice.startsWith('forget:')) return forget(a, idOf(choice.slice(7)));
-      return;
-    }
     if (p.kind === 'teach') {
       if (choice.startsWith('student:')) {
         const student = parseInt(choice.slice(8), 16) >>> 0;
@@ -492,8 +566,8 @@ module.exports = (api) => {
     }
   });
   onUi('spellsClose', (a) => closeMenu(a));
-  onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) shopNonces.delete(a >>> 0); });
+  onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) shopNonces.delete(a >>> 0); if (widgetId === BOOK_ID) bookNonces.delete(a >>> 0); });
 
   const R0 = regions();
-  log(`spells ${CFG.enabled ? 'on' : 'off'}: ${TOMES.size} tomes known, ${STUDY_POINTS.length} study point(s), ${SHOP.length} tomes in the Synod shop, slots ${SPELL_SKILLS.map((s) => `${s.id} ${slotsOf(s.id)}`).join(', ')}${R0 ? `, ${SHOP.filter((t) => soldHere(R0, t)).length} stocked for ${R0.provinceName(CFG.shopProvince)}` : ''}`);
+  log(`spells ${CFG.enabled ? 'on' : 'off'}: ${TOMES.size} tomes known, ${STUDY_POINTS.length} study point(s), ${SHOP.length} tomes in the Synod shop, ${MAXP()} prepared, changed in ${COLLEGE_CELLS.size} college cell(s)${R0 ? `, ${SHOP.filter((t) => soldHere(R0, t)).length} stocked for ${R0.provinceName(CFG.shopProvince)}` : ''}`);
 };
