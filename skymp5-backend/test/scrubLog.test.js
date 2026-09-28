@@ -45,3 +45,39 @@ test('a log without timestamps (skse64.log) is untouched', () => {
   const log = 'SKSE runtime: initialize (version = 2.2.6)\nplugin SkyrimPlatform.dll loaded correctly\n'
   assert.strictEqual(dropUiLines(log), log)
 })
+
+test('IP addresses are redacted, a LAN one marked as such, and the port kept', () => {
+  const log = [
+    'connect ETIMEDOUT 81.23.145.7:7777',
+    'relay said the player is at 203.0.113.250.',
+    'LAN entry 192.168.1.20:7777 and 10.0.0.5 and 172.20.3.4',
+    'mapped [::ffff:198.51.100.9]:443',
+    'fetch failed: connect ECONNREFUSED 2a02:c7c:1234:5600::1a:443 then 2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+  ].join('\n')
+  const { text, redactions } = scrub(log)
+  assert.doesNotMatch(text, /81\.23|203\.0|198\.51|192\.168|10\.0\.0|172\.20|2a02|2001:0db8/)
+  assert.match(text, /ETIMEDOUT <ip>:7777/)
+  assert.match(text, /at <ip>\./)
+  assert.match(text, /LAN entry <lan-ip>:7777 and <lan-ip> and <lan-ip>/)
+  assert.match(text, /\[::ffff:<ip>\]:443/)
+  assert.match(text, /ECONNREFUSED <ip> then <ip>$/)
+  assert.strictEqual(redactions, 8)
+})
+
+test('version strings, loopback and log timestamps are kept', () => {
+  const log = [
+    '[version] SkyrimSE.exe = 1.5.97.0',
+    '[version] SkyrimSE.exe = 1.6.640.0',
+    'gameVersion: 1.6.1170.0',
+    'SKSE runtime: initialize (version = 2.2.6.0)',
+    'Address Library v11.0.0.0, build 2.0.3.1, loaded 1.2.3.4.5',
+    'dev server on 127.0.0.1:7777, listening on 0.0.0.0',
+    '[10:00:01:120] [Exception] std::runtime_error at 12:34:56:789',
+    'MAC 3c:7c:3f:aa:bb:cc and hash 2f4b:9ac1:77de',
+  ].join('\n')
+  const { text, redactions } = scrub(log)
+  assert.strictEqual(text, log)
+  assert.strictEqual(redactions, 0)
+  // The report's context fields are scrubbed one value at a time, without the key in front
+  assert.strictEqual(scrub('1.5.97.0').text, '1.5.97.0')
+})
