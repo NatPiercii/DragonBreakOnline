@@ -3025,6 +3025,19 @@ async function handleNxmLinkNow(link) {
 // file-pinned Nexus links, once per install run. `missing` narrows the page to
 // the archives this install still needs, so nothing already downloaded is listed.
 let _downloadListOpened = false
+// Restored for 2.1.33: ad3808ad replaced this definition with vortexDownloadsDir() but left its caller in the install,
+// so a player not signed in to Nexus hit "openDownloadList is not defined" (post-hoc review A8-1, 2026-09-28)
+function openDownloadList(downloadsDir, missing) {
+  if (_downloadListOpened) return
+  _downloadListOpened = true
+  try { fs.mkdirSync(downloadsDir, { recursive: true }); shell.openPath(downloadsDir) } catch {}
+  const need = (missing || [])
+    .filter(a => a.source && a.source.modId)
+    .map(a => `${a.source.modId}-${a.source.fileId || 'any'}`)
+    .join(',')
+  const query = need ? `?need=${encodeURIComponent(need)}` : ''
+  shell.openExternal(`${config.apiUrl}/api/nexus-downloads${query}`)
+}
 
 // Vortex's Skyrim SE download folder at its default place ({USERDATA}\downloads\<game id>, Vortex's
 // getDownloadPath), or '' when there is none; a moved one is set by the player (archiveDir)
