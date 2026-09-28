@@ -78,11 +78,24 @@
       mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 11h18a9 9 0 0 1-18 0z' fill='black'/><path d='M7 4c1 1 1 2 0 3M12 3c1 1 1 2 0 3M17 4c1 1 1 2 0 3' stroke='black' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
     }
 
+    // A coin: the same circle the ledger and the bank use, so gold reads the same everywhere
+    &--gold {
+      background-color: transparent;
+      background-image: radial-gradient(circle at 35% 35%, #fff1b8, #d8b04a 55%, #8a6a1e);
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      box-shadow: 0 0 5px rgba(224, 186, 98, 0.55);
+      opacity: 1;
+    }
+
     &--voice {
       -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M4 9v6h4l5 4V5L8 9z' fill='black'/><path d='M16 8a5 5 0 0 1 0 8M18.5 5.5a8.5 8.5 0 0 1 0 13' stroke='black' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
       mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M4 9v6h4l5 4V5L8 9z' fill='black'/><path d='M16 8a5 5 0 0 1 0 8M18.5 5.5a8.5 8.5 0 0 1 0 13' stroke='black' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
     }
   }
+
+  &__row--gold &__value { color: #e0ba62; }
 
   &__label {
     color: $dbo-silver;

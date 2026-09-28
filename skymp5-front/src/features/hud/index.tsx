@@ -16,6 +16,11 @@ export interface HudData {
   stamina?: number;
   vitalsOn?: boolean;
   watermarkOn?: boolean;
+  // The server's own count. Gold it moves (pay, rent, sales, the bank) reaches the engine as a SetInventory, which
+  // the client cannot apply while the player is looking at their own inventory, so the figure in the menu can sit
+  // still while this one is right.
+  gold?: number;
+  goldOn?: boolean;
 }
 
 const clampPct = (v: unknown): number => Math.max(0, Math.min(100, Number(v) || 0));
@@ -112,10 +117,20 @@ const Hud = ({ data }: { data: HudData }) => {
   const hunger = clampPct(data.hunger);
   const fullness = 100 - hunger; // the meter shows how fed you are
   const stage = (data.stage || '').toLowerCase();
+  const gold = Math.max(0, Math.round(Number(data.gold) || 0));
   return (
     <>
       <Watermark on={data.watermarkOn !== false} />
       <div className="dboCorner">
+        {data.goldOn !== false && data.gold !== undefined && (
+          <div className="dboStatus">
+            <div className="dboStatus__row dboStatus__row--gold" title="The gold you carry">
+              <span className="dboStatus__icon dboStatus__icon--gold" />
+              <span className="dboStatus__label">Gold</span>
+              <span className="dboStatus__value">{gold.toLocaleString('en-US')}</span>
+            </div>
+          </div>
+        )}
         {data.hungerOn !== false && (
           <div className="dboStatus">
             <div className={`dboStatus__row dboStatus__row--${stage || 'sated'}`} title={`Hunger ${Math.round(hunger)}%`}>
