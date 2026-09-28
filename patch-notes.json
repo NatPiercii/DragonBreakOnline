@@ -42,7 +42,8 @@
       {
         "heading": "Fixes",
         "items": [
-          "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too."
+          "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too.",
+          "Every bed in an inn can now be rented, not just one or two. If you own an inn, use a bed and choose \"Make this my bed\" to keep it for yourself: nobody else can rent it or sleep in it."
         ]
       },
       {

@@ -7,15 +7,25 @@
 // always has: you can lie in it, and nothing else happens.
 //
 // Beds and inns come from server/beds.json (ck-mcp/beds.py): a bed is a FURN whose editor id names a bed, an
-// inn is an interior cell the game marks as one, listing the beds it rents (the innkeeper's RentRoomScript bed
-// and a free second bed of that room). Every other bed in an inn stays plain. A house is a housing claim
-// (housingSystem.ts) on a door pair between the outside and an interior; the claim's owner is a profile id.
+// inn is an interior cell the game marks as one, with the other cells of the same inn (its "group"). Every adult
+// bed in an inn's cells is for rent, whether anyone owns the inn or not. The data's rentBedRefs (the innkeeper's
+// RentRoomScript bed and a free second bed of that room) used to be the only beds an inn rented; on Nate's
+// instruction (2026-09-28) it no longer limits anything, so residents' and innkeepers' beds rent too. A house
+// is a housing claim (housingSystem.ts) on a door pair between the outside and an interior; the claim's owner
+// is a profile id.
 //
 // Renting is paid at the bed. The owner of the inn (whoever holds a housing claim on it) takes the rent less
 // `holdShare`, which goes to the treasury of the hold the inn stands in (beds.json "hold"); an inn nobody owns
 // pays it all to the hold. An owner who is offline is paid on their next login. A rented bed is the renter's
 // alone until the rent runs out; anyone else, the inn's owner included, is turned away. A player rents one bed
 // at a time across all their characters.
+//
+// The inn's owner keeps one bed of it as their own, chosen from that bed's menu ("Make this my bed"). It sleeps
+// them free like a house bed, is never offered for rent, and turns everyone else away. Choosing another bed moves
+// it; "This is no longer my bed" puts it back up for rent. A bed under a rent cannot be chosen until the rent runs
+// out, so the owner never cuts one short. The owner's other beds they neither rent nor sleep in: they are the
+// inn's stock. The choice is stored on the claim together with the owner's profile, so it lapses as soon as
+// the claim is released or handed to someone else.
 //
 // Why the heal is server-side: Papyrus SetActorValue only runs on the player's client (PapyrusActor.cpp says
 // so), and the server's regeneration cap (CropRegeneration.cpp) keeps using the race's base rate, so a
@@ -28,6 +38,7 @@
 //   character private.dboRested   { until }                    Well Rested
 //   character private.dboWellFed  { until }                    Well Fed
 //   claim door private.dboRestOwed number                      rent held for an offline owner
+//   claim door private.dboInnOwnerBed { bed, owner }           the inn owner's own bed; void unless owner is the claim's
 
 const fs = require('fs');
 const path = require('path');
@@ -69,23 +80,23 @@ module.exports = (api) => {
 
   // ---- beds.json -----------------------------------------------------------------------------------
   const idOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
-  // INNS: cell -> { name, hold, group, rent, door }; rent is the Set of beds it rents, or null (older data) for all.
+  // INNS: cell -> { name, hold, group, door }. RENT_BEDS: every inn's rentBedRefs, which older data lacks.
   const BEDS = new Set(), INNS = new Map(), RENT_BEDS = new Set();
   try {
     const data = JSON.parse(fs.readFileSync(path.resolve('beds.json'), 'utf8'));
     for (const d of Object.keys(data.beds || {})) { const id = idOf(d); if (id) BEDS.add(id); }
     for (const [d, v] of Object.entries(data.inns || {})) {
       const id = idOf(d); if (!id) continue;
-      const refs = v && Array.isArray(v.rentBedRefs) ? v.rentBedRefs.map(idOf).filter(Boolean) : null;
-      if (refs) refs.forEach((r) => RENT_BEDS.add(r));
-      INNS.set(id, { name: String((v && v.name) || 'the inn'), hold: (v && v.hold) || null, group: idOf(v && v.group) || id, rent: refs ? new Set(refs) : null, door: !v || v.entrance !== false });
+      if (v && Array.isArray(v.rentBedRefs)) v.rentBedRefs.map(idOf).filter(Boolean).forEach((r) => RENT_BEDS.add(r));
+      INNS.set(id, { name: String((v && v.name) || 'the inn'), hold: (v && v.hold) || null, group: idOf(v && v.group) || id, door: !v || v.entrance !== false });
     }
   } catch (e) { log('rest: beds.json unreadable:', e.message); }
   const groupOf = (cell) => (INNS.has(cell) ? INNS.get(cell).group : cell);
   globalThis.__dboInnGroupOf = groupOf; // business.js finds an inn's ledger from any of its rooms
   const innName = (cell) => { const i = INNS.get(cell); if (!i) return ''; const g = INNS.get(i.group); return g ? g.name : i.name; };
-  // rentBedRefs lists the beds an inn actually rents; residents' and innkeepers' own beds are deliberately not in it
-  const rentable = (bed, cell) => { const i = INNS.get(cell); return !!i && (i.rent ? i.rent.has(bed) : BEDS.has(baseOf(bed))); };
+  // Any adult bed in an inn's cells rents (Nate, 2026-09-28). rentBedRefs no longer limits that; its beds still
+  // count, in case one stands on a base the bed list misses.
+  const rentable = (bed, cell) => INNS.has(cell) && (BEDS.has(baseOf(bed)) || RENT_BEDS.has(bed >>> 0));
 
   const baseOf = (ref) => { try { return idOf(mp.get(ref, 'baseDesc')); } catch (e) { return 0; } };
   const cellOf = (ref) => { try { return idOf(mp.get(ref, 'worldOrCellDesc')); } catch (e) { return 0; } };
@@ -134,6 +145,10 @@ module.exports = (api) => {
   // an inn with two claimed entrances always pays the same one.
   const ownsCell = (a, cell) => { const p = profileOf(a); return p >= 0 && claims().some((c) => c.owner === p && c.cells.has(groupOf(cell))); };
   const innOwner = (cell) => claims().find((x) => x.cells.has(groupOf(cell))) || null;
+  const innClaims = (cell) => { const g = groupOf(cell); return claims().filter((c) => c.cells.has(g)); };
+  // The bed this claim's owner keeps as their own. It carries the profile that chose it, so a claim released
+  // or handed on (housingSystem.ts keeps the record and changes its owner) leaves the old choice void.
+  const keptBed = (claim) => { const v = get(claim.primary, 'private.dboInnOwnerBed', null); return v && Number(v.owner) === claim.owner ? Number(v.bed) >>> 0 : 0; };
 
   // The owner's share goes to a character of theirs who is online, else it waits on the claim for their next login.
   const payOwner = (claim, n) => {
@@ -164,13 +179,19 @@ module.exports = (api) => {
   const clock = (ms) => { const d = new Date(ms); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`; };
   const left = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
 
-  // What this bed is to this player: 'rented' (theirs), 'taken' (someone else's rent), 'own', 'inn' (free to rent), or null.
+  // What this bed is to this player: 'rented' (theirs), 'taken' (someone else's rent), 'own' (their house's, or
+  // the one they keep in their inn), 'kept' (the one the inn's owner keeps), 'keep' (a free bed of their own inn,
+  // which they may keep), 'inn' (free to rent), or null. A rent comes first, so a rented bed can never be kept.
   const standing = (a, bed) => {
     const r = rentOf(bed);
     if (r) return r.renter === (a >>> 0) ? 'rented' : 'taken';
     const cell = cellOf(bed);
-    if (ownsCell(a, cell)) return 'own';
-    return rentable(bed, cell) ? 'inn' : null;
+    if (!INNS.has(cell)) return ownsCell(a, cell) ? 'own' : null;
+    if (!rentable(bed, cell)) return null;
+    const p = profileOf(a), here = innClaims(cell);
+    const keeper = here.find((c) => keptBed(c) === (bed >>> 0));
+    if (keeper) return p >= 0 && keeper.owner === p ? 'own' : 'kept';
+    return p >= 0 && here.some((c) => c.owner === p) ? 'keep' : 'inn';
   };
   // The other bed this player still rents with any of their characters. Read from the characters, which are
   // always loaded: the bed's cell may not be.
@@ -199,13 +220,15 @@ module.exports = (api) => {
     // The context menu brings its own Close button, and shows lines only in inspect mode, so the rent's end
     // goes in the title.
     const r = rentOf(bed);
-    const actions = kind === 'inn'
-      ? [{ id: 'rent', label: `Rent this bed: ${priceFor(bed)} gold for ${forText()}` }]
-      : [{ id: 'sleep', label: 'Sleep (log out)' }, { id: 'lie', label: 'Lie down (use the bed again)' }];
+    const inInn = INNS.has(cellOf(bed));
+    const actions = kind === 'inn' ? [{ id: 'rent', label: `Rent this bed: ${priceFor(bed)} gold for ${forText()}` }]
+      : kind === 'keep' ? [{ id: 'keep', label: 'Make this my bed' }]
+        : [{ id: 'sleep', label: 'Sleep (log out)' }, { id: 'lie', label: 'Lie down (use the bed again)' }]
+          .concat(kind === 'own' && inInn ? [{ id: 'unkeep', label: 'This is no longer my bed' }] : []);
     pending.set(a >>> 0, bed >>> 0);
     openWidget(a, {
       type: 'contextMenu', id: WIDGET_ID, mode: 'menu',
-      targetName: kind === 'own' ? 'Your bed' : kind === 'rented' && r ? `Your bed${where(bed)} until ${clock(r.until)}` : `A bed for rent${where(bed)}`,
+      targetName: kind === 'own' ? `Your bed${where(bed)}` : kind === 'rented' && r ? `Your bed${where(bed)} until ${clock(r.until)}` : `A bed for rent${where(bed)}`,
       actions, events: { action: 'dbo:restChoose', close: 'dbo:restClose' },
     }, true);
     log(`rest: ${who(a)} opened the ${kind} prompt for bed ${bedDesc(bed)}${where(bed)}`);
@@ -226,6 +249,11 @@ module.exports = (api) => {
       const r = rentOf(target);
       personal(caster, `This bed is rented${r && r.renter ? ` by ${nameTo(caster, r.renter)}` : ''} until ${r ? clock(r.until) : 'later'}.`);
       log(`rest: ${who(caster)} turned away from bed ${bedDesc(target)}, rented by ${r ? r.name : '?'}`);
+      return true;
+    }
+    if (kind === 'kept') {
+      personal(caster, `This bed is kept by the owner of ${innName(cellOf(target)) || 'the inn'}.`);
+      log(`rest: ${who(caster)} turned away from bed ${bedDesc(target)}, the inn owner's own`);
       return true;
     }
     if (kind === 'inn') {
@@ -264,6 +292,27 @@ module.exports = (api) => {
     return true;
   };
 
+  // The inn's owner keeps this bed, in place of any they kept before. standing() has already said it is a free
+  // bed of their inn. Should they hold two of its doors, the choice lives on the first and the others are cleared,
+  // so there is never more than one.
+  const keepBed = (a, bed) => {
+    const p = profileOf(a), mine = innClaims(cellOf(bed)).filter((c) => c.owner === p);
+    if (!mine.length) return false;
+    const before = mine.map(keptBed).find(Boolean) || 0;
+    mine.slice(1).forEach((c) => { if (keptBed(c)) set(c.primary, 'private.dboInnOwnerBed', null); });
+    if (!set(mine[0].primary, 'private.dboInnOwnerBed', { bed: bed >>> 0, owner: p })) { personal(a, 'That did not work. Try again.'); return false; }
+    audit(`REST ${who(a)} keeps bed ${bedDesc(bed)}${where(bed)} as their own${before ? `, in place of ${bedDesc(before)}` : ''}`);
+    personal(a, `This is your own bed now. Nobody else can rent it or use it.${before ? ' Your old bed is for rent again.' : ''}`);
+    return true;
+  };
+  const unkeepBed = (a, bed) => {
+    const p = profileOf(a);
+    const c = innClaims(cellOf(bed)).find((x) => x.owner === p && keptBed(x) === (bed >>> 0));
+    if (!c || !set(c.primary, 'private.dboInnOwnerBed', null)) return;
+    audit(`REST ${who(a)} no longer keeps bed ${bedDesc(bed)}${where(bed)}`);
+    personal(a, 'This bed is for rent again.');
+  };
+
   const sleep = (a, bed) => {
     if (get(a, 'isDead', false)) return personal(a, 'You cannot sleep while dead.');
     const r = get(a, 'private.restrained', null);
@@ -286,13 +335,21 @@ module.exports = (api) => {
 
   onUi('restChoose', (a, args) => {
     const bed = pending.get(a >>> 0); const choice = String(args[0] || '');
-    // Renting reopens this same widget id, and closing it in between leaves the panel up with no cursor
-    const renting = choice === 'rent';
+    // Renting and keeping reopen this same widget id, and closing it in between leaves the panel up with no cursor
+    const renting = choice === 'rent' || choice === 'keep';
     if (!renting) closePrompt(a);
     if (choice === 'cancel') return;
     if (!bed) { if (renting) closePrompt(a); log(`rest: ${who(a)} chose ${choice} with no bed prompt on record`); return personal(a, 'Use the bed again.'); }
     if (distanceMeters(a, bed) > REACH_M) { if (renting) closePrompt(a); return personal(a, 'You are too far from the bed.'); }
     const kind = standing(a, bed);
+    if (choice === 'keep') {
+      // The prompt may be stale: someone may have rented the bed since it opened
+      if (kind === 'taken' || kind === 'rented') { closePrompt(a); const r = rentOf(bed); return personal(a, `This bed is rented until ${r ? clock(r.until) : 'later'}. You can make it yours when the rent runs out.`); }
+      if (kind === 'keep' && keepBed(a, bed)) return openPrompt(a, bed, 'own');
+      closePrompt(a);
+      return;
+    }
+    if (choice === 'unkeep') { if (kind === 'own') unkeepBed(a, bed); return; }
     if (renting) {
       if (kind === 'taken') { closePrompt(a); return personal(a, 'Someone else has just rented this bed.'); }
       if (kind !== 'inn') { closePrompt(a); return; }
@@ -384,5 +441,5 @@ module.exports = (api) => {
     personal(a, lines.join(' '));
   }, { help: 'How long Well Rested and Well Fed have left' });
 
-  log(`rest ${CFG.enabled ? 'on' : 'off'}: ${BEDS.size} bed types, ${INNS.size} inn cells (${[...INNS.values()].filter((i) => i.hold === 'bruma' && i.door).length} with a door in bruma), ${RENT_BEDS.size} beds to rent; sleep ${CFG.minOfflineMinutes} min for ${CFG.restedHours} h rested (+${CFG.extraHealPercentPerSecond}%/s health) and ${CFG.wellFedHours} h fed (hunger x${CFG.wellFedHungerMult}); rent ${CFG.rentGold} gold for ${CFG.rentHours} h, ${Math.round(CFG.holdShare * 100)}% to the hold`);
+  log(`rest ${CFG.enabled ? 'on' : 'off'}: ${BEDS.size} bed types, ${INNS.size} inn cells (${[...INNS.values()].filter((i) => i.hold === 'bruma' && i.door).length} with a door in bruma), every adult bed in them to rent; sleep ${CFG.minOfflineMinutes} min for ${CFG.restedHours} h rested (+${CFG.extraHealPercentPerSecond}%/s health) and ${CFG.wellFedHours} h fed (hunger x${CFG.wellFedHungerMult}); rent ${CFG.rentGold} gold for ${CFG.rentHours} h, ${Math.round(CFG.holdShare * 100)}% to the hold`);
 };
