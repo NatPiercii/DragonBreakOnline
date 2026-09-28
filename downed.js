@@ -32,6 +32,9 @@ module.exports = (api) => {
     priestTier: 4,
     hostileMs: 60000,
     reviveRange: 1500, reviveConeDeg: 25, reviveFallbackMs: 1200, groupReviveRange: 400,
+    // Finishing is deliberate (Nate, 2026-09-28, after swag was finished 0.3 s after falling by a spell already hitting
+    // him): nothing finishes a fallen player in their first finishGraceSeconds, and then only a weapon or bare hands
+    finishGraceSeconds: 3, finishWeaponOnly: true,
     // Death's Chill after waking at the temple: caps and the share of recovery that is kept, 1 = unchanged
     chill: true, chillMinutes: 20, chillCureTier: 2,
     // The ability shown under Magic > Active Effects while the chill lasts ('<local id>:<plugin>'); empty until the
@@ -42,6 +45,12 @@ module.exports = (api) => {
     chillJumpTake: 0.05,
   }, cfg.downed || {});
 
+  // The engine's unarmed source is 0x1f4 (TES5DamageFormula IsUnarmedAttack); a bow's hit comes as the bow (WEAP)
+  const isWeaponHit = (src) => {
+    const id = Number(src) >>> 0;
+    if (id === 0x1f4) return true;
+    try { const r = mp.lookupEspmRecordById(id); return !!(r && r.record && String(r.record.type) === 'WEAP'); } catch (e) { return false; }
+  };
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { log(`downed: ${desc} not in the load order`); return 0; } };
   // Restoration spells that heal another: aimed ones revive what they hit, Grand Healing everyone close by
   const AIMED = new Set([idOf('12fd2:Skyrim.esm'), idOf('4d3f2:Skyrim.esm')].filter(Boolean));   // HealOther, HealingHands
@@ -94,9 +103,11 @@ module.exports = (api) => {
         globalThis.__dboSuperPending = null;
         // Recovering after a revive: kneeling, out of the fight both ways
         if (S.recovering && (S.recovering.has(tgt) || S.recovering.has(agg)) && agg !== tgt) return false;
-        // A hostile player finishes a fallen one: the temple, now
+        // A hostile player finishes a fallen one with a weapon or bare hands once the grace is over: the temple, now.
+        // Any other hit on a fallen player (in the grace, a spell, a lingering effect) does nothing.
         if (dmg > 0 && S.downed.has(tgt) && isDead(tgt) && isPlayer(agg) && !friendly(agg, tgt)) {
-          finish(tgt, agg);
+          const since = Date.now() - S.downed.get(tgt).at;
+          if (since >= C.finishGraceSeconds * 1000 && (!C.finishWeaponOnly || isWeaponHit(sourceId))) finish(tgt, agg);
           return false;
         }
         if (inner.call(this, aggressorId, targetId, sourceId, damage, ...rest) === false) return false;
