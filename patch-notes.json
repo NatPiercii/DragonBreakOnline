@@ -1,8 +1,8 @@
 [
   {
-    "title": "Martial Arts",
+    "title": "Martial Arts, Breaking Things Down, and a New Border",
     "date": "2026-09-28",
-    "version": "Server",
+    "version": "Server + client 0.3.58",
     "tag": "New Feature",
     "sections": [
       {
@@ -12,6 +12,23 @@
           "Every punch that lands drains your opponent's stamina, and a tired fighter hits much weaker, so a boxer who stays close can wear anyone down.",
           "Fists do little against armour; their strength is stamina and the disarm: an unarmed power attack that lands knocks the weapon out of your opponent's hands.",
           "Quarterstaves and battle staves now train and scale with Martial Arts instead of Blunt, and they partly ignore armour."
+        ]
+      },
+      {
+        "heading": "Breaking things down",
+        "items": [
+          "The breakdown menus now actually open: at a smelter, tanning rack or loom, and at the Scholars' Ledger in the Synod Conclave. Before, nothing showed up.",
+          "Items that come enchanted are never offered for breakdown, just like ones you enchant yourself.",
+          "You can drag the menu to move it, and it stays where you put it while you break things down."
+        ]
+      },
+      {
+        "heading": "The world",
+        "items": [
+          "Aleswell's border has moved to where a player showed us it looks right, and a new edge stops you falling into the pit below Fort Caractacus. Outlaw Endre's Cave stays reachable.",
+          "Aleswell and Fort Caractacus no longer show twice on the map and compass, and Fort Caractacus is spelled right.",
+          "The Book Breakdown Ledger is now the Scholars' Ledger everywhere.",
+          "More expedition boards stand in Frostcrag Spire, and all of them now say \"Read Expedition Board\" instead of \"Read Notice Board\"."
         ]
       },
       {
@@ -25,6 +42,12 @@
         "items": [
           "Several fixes from a security review of this morning's update, including breaking rings down and sharing coin from a dungeon chest.",
           "Hunting contracts are closed for a short while, and renting out storage chests is paused, while they get a fix."
+        ]
+      },
+      {
+        "heading": "For staff",
+        "items": [
+          "The Place tool can now edit, move, tilt and undo what you place, save groups as sets for events, and run warbands from its own tab. Placed NPCs now spawn like every other NPC."
         ]
       }
     ]
