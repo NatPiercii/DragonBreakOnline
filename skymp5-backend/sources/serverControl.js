@@ -76,12 +76,12 @@ function refusal(action, { unit, updating, online }) {
   return online > 0 ? 'playersOnline' : null
 }
 
-// Who stopped the server and why, from the marker a Start clears
-function markerNote(text) {
+// Who stopped the server and why, from the marker a Start (or a Restart, when it was left behind) clears
+function markerNote(text, which = 'the') {
   let m = null
   try { m = JSON.parse(text) } catch { /* a marker written by hand */ }
-  if (!m || typeof m !== 'object') return 'cleared the stopped marker'
-  return `cleared the stopped marker (${clean(m.by, 40) || '?'}, ${clean(m.at, 30) || '?'}: ${clean(m.reason, REASON_MAX)})`
+  if (!m || typeof m !== 'object') return `cleared ${which} stopped marker`
+  return `cleared ${which} stopped marker (${clean(m.by, 40) || '?'}, ${clean(m.at, 30) || '?'}: ${clean(m.reason, REASON_MAX)})`
 }
 
 function createServerControl({
@@ -125,10 +125,12 @@ function createServerControl({
   }
 
   // A ledger line for how an action ended, with the unit as systemd shows it now
-  async function logResult(job, text, undo) {
+  // A Stop whose unit stayed active removes the marker it wrote, so the marker never outlives a stop that did not happen
+  async function logResult(job, text, undo, marker = null) {
     const { skymp } = await status.units()
-    await ops(['log', OPERATOR, `Result: ${VERB[job.action]} from the website dashboard by ${job.by}: ${text}; skymp is ${skymp?.active || 'unknown'}`, undo])
-    return skymp
+    const untaken = marker != null && skymp?.active === 'active' && (await readMarker().catch(() => null)) === marker
+    const note = untaken ? await fsp.rm(markers.stopped, { force: true }).then(() => ', its stopped marker removed', () => ', its stopped marker NOT removed') : ''
+    await ops(['log', OPERATOR, `Result: ${VERB[job.action]} from the website dashboard by ${job.by}: ${text}; skymp is ${skymp?.active || 'unknown'}${note}`, untaken ? 'Nothing to roll back; the server kept running' : undo])
   }
 
   async function release() {
@@ -220,8 +222,9 @@ function createServerControl({
       if (claim.code === 2) return refuse(409, 'claimed', { holder: HELD_RE.exec(claim.stdout)?.[1] || null })
       if (claim.code !== 0) return refuse(503, 'ledgerUnavailable')
       claimed = true
-      const prev = action === 'restart' ? null : await readMarker()
-      const note = action === 'start' && prev != null ? `; ${markerNote(prev)}` : ''
+      const prev = await readMarker()
+      // Restart runs only on an active unit, so a marker there was left by a reboot or a manual start
+      const note = prev == null || action === 'stop' ? '' : `; ${markerNote(prev, action === 'restart' ? 'a leftover' : 'the')}`
       if ((await ops(['log', OPERATOR, `${purpose}${note}`, rollback[action]])).code !== 0) return refuse(503, 'ledgerUnavailable')
 
       // Read again under the claim: a player who joined, an updater run that began or a unit that moved calls it off
@@ -235,13 +238,14 @@ function createServerControl({
       job.state = 'running'
       job.issuedAt = now()
       say(`${action} requested by ${who}: ${reason}`)
+      const written = action === 'stop' ? `${JSON.stringify({ by: `${by} (website)`, reason, at: iso(job.issuedAt) })}\n` : null
       try {
-        if (action === 'stop') await writeMarker(`${JSON.stringify({ by: `${by} (website)`, reason, at: iso(job.issuedAt) })}\n`)
-        if (action === 'start' && prev != null) await fsp.rm(markers.stopped, { force: true })
+        if (written) await writeMarker(written)
+        else if (prev != null) await fsp.rm(markers.stopped, { force: true })
         await run('systemctl', [...SYSTEMCTL[action]], childOpts())
       } catch (err) {
         console.error(`[server-control] ${action} failed:`, err.message)
-        if (action !== 'restart') await restoreMarker(prev).catch(e => console.error('[server-control] marker not restored:', e.message))
+        await restoreMarker(prev).catch(e => console.error('[server-control] marker not restored:', e.message))
         finish(job, 'failed')
         say(`${action} by ${who} FAILED before systemd took it`)
         await logResult(job, 'systemctl refused it, nothing changed', 'Nothing to roll back')
@@ -254,7 +258,7 @@ function createServerControl({
         .then(async outcome => {
           finish(job, outcome)
           say(`${action} by ${who} ${OUTCOME[outcome]}`)
-          if (outcome !== 'done') await logResult(job, OUTCOME[outcome], rollback[action])
+          if (outcome !== 'done') await logResult(job, OUTCOME[outcome], rollback[action], written)
           return release()
         })
         .catch(err => console.error('[server-control] after the action:', err.message))

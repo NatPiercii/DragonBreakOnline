@@ -246,6 +246,42 @@ test('Stop is offered while systemd waits to restart a crashed server, and ends 
   assert.equal(JSON.parse(fs.readFileSync(h.markers.stopped, 'utf8')).by, 'jake (website)')
 })
 
+test('a stopped marker left behind by a reboot or a manual start: Restart clears it (noted), and restores it if systemctl refuses', async t => {
+  const LEFT = JSON.stringify({ by: 'nate (website)', reason: 'Keep it down', at: '2026-09-27T01:00:00.000Z' })
+  const h = harness({ afterCommand: systemd.up })
+  fs.writeFileSync(h.markers.stopped, LEFT)
+  assert.equal((await act(h, 'restart')).status, 202)
+  assert.equal(fs.existsSync(h.markers.stopped), false)
+  await h.idle()
+  assert.equal(h.control.job(ID).state, 'done')
+  assert.equal(h.opsCalls()[1][2], 'Restart from the website dashboard by jake: Nightly maintenance; cleared a leftover stopped marker (nate (website), 2026-09-27T01:00:00.000Z: Keep it down)')
+
+  t.mock.method(console, 'error', () => {})
+  const refused = harness({ systemctlFail: true })
+  fs.writeFileSync(refused.markers.stopped, LEFT)
+  assert.equal((await act(refused, 'restart')).status, 502)
+  assert.equal(fs.readFileSync(refused.markers.stopped, 'utf8'), LEFT)
+})
+
+test('a Stop that never took (unconfirmed, unit still active) removes the marker it wrote; one still stopping keeps it', async () => {
+  const stuck = harness({ afterCommand: () => {} })
+  assert.equal((await act(stuck, 'stop')).status, 202)
+  await stuck.idle()
+  assert.equal(stuck.control.job(ID).state, 'unconfirmed')
+  assert.equal(fs.existsSync(stuck.markers.stopped), false)
+  assert.deepEqual(stuck.opsCalls().slice(-2), [
+    ['log', 'site-owner', 'Result: Stop (stays stopped) from the website dashboard by jake: not confirmed within 2 minutes; skymp is active, its stopped marker removed', 'Nothing to roll back; the server kept running'],
+    ['release', 'game-server', 'site-owner'],
+  ])
+
+  const slow = harness({ afterCommand: h => { h.unit = { ...h.unit, active: 'deactivating', sub: 'stop-sigterm' } } })
+  await act(slow, 'stop')
+  await slow.idle()
+  assert.equal(slow.control.job(ID).state, 'unconfirmed')
+  assert.equal(JSON.parse(fs.readFileSync(slow.markers.stopped, 'utf8')).by, 'jake (website)', 'still stopping: the marker stays')
+  assert.match(slow.opsCalls().at(-2)[2], /; skymp is deactivating$/)
+})
+
 test('refusals run no ledger or systemd command: players online, players unknown, already running, not running, updating', async () => {
   const cases = [
     [{ online: 2 }, 'stop', 409, 'playersOnline'], [{ online: 1 }, 'restart', 409, 'playersOnline'],

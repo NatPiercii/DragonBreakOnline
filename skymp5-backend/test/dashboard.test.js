@@ -139,6 +139,22 @@ test('a crashed server waiting for systemd to start it again shows so, and only 
   assert.deepEqual(buttons(starting).map(b => b.disabled), [true, true, true])
 })
 
+test('the stop marker: who stopped it and why, and a warning when one is left over from before the last start', () => {
+  const at = new Date(Date.now() - 3600e3).toISOString()
+  const stopped = { ...S0, service: { ...S0.service, state: 'stopped' }, stopped: { by: 'Jake (website)', reason: 'Nightly <b>maintenance</b>', at, leftover: false } }
+  const lines = load(withControls(stopped, { online: 0 }), Q0).lines('srvHead')
+  assert.ok(lines.some(l => /^Stopped by Jake \(website\) \d\d:\d\d UTC: Nightly <b>maintenance<\/b>$/.test(l)), lines.join(' | '))
+  assert.equal(lines.some(l => l.startsWith('! A stop marker')), false)
+  const LEFT = '! A stop marker from before the server last started (a reboot or a manual start) is still there. Restart or Start removes it.'
+  const left = load(withControls({ ...S0, stopped: { ...stopped.stopped, leftover: true } }, { online: 0 }), Q0)
+  assert.ok(left.lines('srvHead').includes(LEFT))
+  assert.equal(left.lines('srvHead').some(l => l.startsWith('Stopped by')), false)
+  left.run('openControl("restart")')
+  assert.equal(left.$('ctlInfo').textContent, 'This also removes the stop marker left from before the last start.')
+  left.run('openControl("stop")')
+  assert.equal(left.$('ctlInfo').textContent, '')
+})
+
 test('with players online every button is disabled with the countdown line', () => {
   const page = load(withControls(S0), Q0)
   assert.equal(S0.players.online, 2)

@@ -388,6 +388,9 @@ function renderHead(s) {
   m.append(el('span', 'pill ' + modeTone, mode), el('span', 'dim', ` (${modeNote})`));
   bar.append(m);
   box.append(bar);
+  const st = s.stopped;
+  if (st && s.service.state === 'stopped') box.append(line(`Stopped by ${st.by || 'hand'} ${stamp(st.at)}${st.reason ? ': ' + st.reason : ''}`, 'dim'));
+  if (st?.leftover) box.append(line('! A stop marker from before the server last started (a reboot or a manual start) is still there. Restart or Start removes it.', 'warn'));
   renderControls(s, box);
   const run = [u.lastRun ? `Updater last ran ${stamp(u.lastRun.at)}: ${RESULT[u.lastRun.result] || u.lastRun.result}` : 'The updater has not run lately',
     u.building && 'building an update now', u.waiting && 'an update waits for the server to empty'].filter(Boolean);
@@ -401,7 +404,7 @@ function renderHead(s) {
 // Owner controls (1b): Start, Stop and Restart at 0 players, confirmed in the dialog; the backend checks every request again
 const ACTS = {
   start: { label: 'Start', word: 'START', title: 'Start the game server', what: 'Starts the game server. A stop made here is cleared, so automatic updates can run again.' },
-  stop: { label: 'Stop', word: 'STOP', title: 'Stop the game server', what: 'Stops the game server and keeps it stopped until an Owner presses Start. Automatic updates wait meanwhile. A host reboot starts it again.' },
+  stop: { label: 'Stop', word: 'STOP', title: 'Stop the game server', what: 'Stops the game server and keeps it stopped until an Owner presses Start. Automatic updates wait meanwhile. A host reboot starts it again and ends the stop.' },
   restart: { label: 'Restart', word: 'RESTART', title: 'Restart the game server', what: 'Restarts the game server. This dialog shows when it is back.' },
 };
 const CAN = { start: 'canStart', stop: 'canStop', restart: 'canRestart' };
@@ -492,6 +495,7 @@ function renderDialog() {
   $('ctlPlayers').textContent = `Players online now: ${n ?? 'unknown'}${Number.isFinite(at) ? ` (checked ${new Date(at).toLocaleTimeString('en-GB')})` : ''}`;
   const info = [];
   if (ctl.action === 'start' && s.updater && autoUpdate(s) && freshQueue(s)?.counts?.commits?.fork > 0) info.push('After Start, waiting commits deploy within about 5 minutes if nobody is online.');
+  if (ctl.action === 'restart' && s.stopped?.leftover) info.push('This also removes the stop marker left from before the last start.');
   if (c.setting === 'dry-run') info.push(DRY);
   $('ctlInfo').textContent = info.join(' ');
   const blocked = !ctl.job && !c[CAN[ctl.action]];

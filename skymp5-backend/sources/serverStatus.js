@@ -143,6 +143,17 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
     }
   }
 
+  // The stop marker (written by the backend's Stop or by root); one older than the unit's last start was left by a reboot or a manual start
+  async function stopMarker(unit) {
+    let st
+    try { st = await fsp.stat(markers.stopped) } catch (err) { unreadable.note(markers.stopped, err, 'stat'); return null }
+    unreadable.clear(markers.stopped, 'stat')
+    let m = null
+    try { m = JSON.parse(await head(markers.stopped, 1024)) } catch { /* not JSON: made by hand */ }
+    const text = (key, max) => (typeof m?.[key] === 'string' ? m[key].slice(0, max) : null)
+    return { by: text('by', 40), reason: text('reason', 200), at: isoOrNull(st.mtimeMs), leftover: unit?.since != null && st.mtimeMs < unit.since }
+  }
+
   // Reachable, down, unresponsive, updating, stopped or starting (control panel 3.2)
   function serviceState(unit, beatAge, stopped, updater) {
     const t = now()
@@ -197,21 +208,22 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
   }
 
   async function build() {
-    const [{ skymp, updater: updaterUnit }, log, stopped, history, claimList] = await Promise.all([
-      systemd(), releaseQueue.updaterLog().catch(() => ({ updates: [], lastRun: null })), exists(markers.stopped), releaseQueue.history().catch(() => []), claims(),
+    const [{ skymp, updater: updaterUnit }, log, history, claimList] = await Promise.all([
+      systemd(), releaseQueue.updaterLog().catch(() => ({ updates: [], lastRun: null })), releaseQueue.history().catch(() => []), claims(),
     ])
-    const updater = await updaterState(updaterUnit, log)
+    const [updater, stopped] = await Promise.all([updaterState(updaterUnit, log), stopMarker(skymp)])
     const beat = getHeartbeat()
     const beatAt = Date.parse(beat?.lastSeen || '')
     const t = now()
     const beatAge = beatAgeOf(beat, skymp, t)
-    const state = serviceState(skymp, beatAge, stopped, updater)
+    const state = serviceState(skymp, beatAge, stopped && !stopped.leftover, updater)
     const qv = releaseQueue.peek()
     const lv = releaseQueue.peekLive()
     const failed = releaseQueue.lastFailure?.() || null
     return {
       generatedAt: isoOrNull(t),
       service: { state, sub: skymp?.sub ?? null, since: isoOrNull(skymp?.since), nRestarts: skymp?.nRestarts ?? null },
+      stopped,
       players: {
         online: state === 'down' || state === 'stopped' ? 0 : freshOnline(beat, skymp, t),
         max: Number.isInteger(beat?.maxPlayers) ? beat.maxPlayers : config.serverMaxPlayers ?? null,

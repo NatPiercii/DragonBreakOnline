@@ -188,6 +188,23 @@ test('service state: reachable, starting, unresponsive, down, stopped and updati
   assert.deepEqual([crashed.service.state, crashed.service.sub], ['starting', 'auto-restart'])
 })
 
+test('the stop marker: who and why; one older than the unit\'s last start is left over and never reads as Stopped', async () => {
+  const MARK = JSON.stringify({ by: 'jake (website)', reason: 'Nightly maintenance', at: '2026-09-26T07:00:00.000Z' })
+  const since = T - 2 * 3600e3
+  const aged = (status, ms) => { fs.utimesSync(status.markers.stopped, ms / 1000, ms / 1000); return status }
+  const stopped = await aged(stubStatus({ skymp: { ActiveState: 'inactive', SubState: 'dead' }, markers: { stopped: MARK } }), since + 60e3).get()
+  assert.equal(stopped.service.state, 'stopped')
+  assert.deepEqual(stopped.stopped, { by: 'jake (website)', reason: 'Nightly maintenance', at: new Date(since + 60e3).toISOString(), leftover: false })
+  const running = await aged(stubStatus({ beat: beatAgo(5e3), markers: { stopped: MARK } }), since - 60e3).get()
+  assert.equal(running.service.state, 'reachable')
+  assert.equal(running.stopped.leftover, true)
+  const crashed = await aged(stubStatus({ skymp: { ActiveState: 'failed', SubState: 'failed' }, markers: { stopped: MARK } }), since - 60e3).get()
+  assert.deepEqual([crashed.service.state, crashed.stopped.leftover], ['down', true], 'a crash after a reboot is Down, not Stopped')
+  const byHand = await stubStatus({ skymp: { ActiveState: 'inactive', SubState: 'dead' }, markers: { stopped: 'maintenance\n' } }).get()
+  assert.deepEqual([byHand.service.state, byHand.stopped.by, byHand.stopped.reason], ['stopped', null, null])
+  assert.equal((await stubStatus({ beat: beatAgo(5e3) }).get()).stopped, null)
+})
+
 test('service state: a rising restart count is unresponsive, and the shared status is cached for 5 s', async () => {
   let clock = T, n = 1, runs = 0
   const status = stubStatus({
