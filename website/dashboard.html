@@ -54,6 +54,16 @@
  .sha{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;color:var(--text-dim);margin-right:.5rem}
  .stop{color:var(--amber);font-size:.78rem;letter-spacing:.06em;text-align:center;border-top:1px dashed var(--amber);margin:.4rem 0 .2rem}
  .srv button{font-size:.78rem;padding:.3rem .9rem;margin-top:.4rem}
+ button.danger{background:rgba(201,70,58,.12);color:#e58b80;border-color:rgba(201,70,58,.65)}
+ button.danger:hover:not(:disabled){background:rgba(201,70,58,.26);border-color:var(--red)}
+ dialog.ctl{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow),var(--glow);padding:1rem 1.2rem;width:min(460px,calc(100vw - 32px))}
+ dialog.ctl::backdrop{background:rgba(0,0,0,.65)}
+ dialog.ctl h3{font-family:var(--title);font-weight:400;color:var(--silver);letter-spacing:.1em;margin:0 0 .5rem}
+ dialog.ctl p{margin:.4rem 0;font-size:.9rem}
+ dialog.ctl label{display:block;color:var(--text-dim);font-size:.8rem;margin:.7rem 0 .2rem}
+ dialog.ctl input{width:100%;background:var(--panel-soft);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.45rem .7rem;font:inherit}
+ dialog.ctl .acts{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.6rem;margin-top:.9rem}
+ dialog.ctl button{font-size:.8rem;padding:.45rem 1rem}
  @media (max-width:600px){.srv{padding:.2rem .75rem}.blk{grid-template-columns:minmax(0,1fr)}}
 </style></head><body>
 <img class="wm" src="dbo-watermark.png" alt="">
@@ -83,6 +93,21 @@
     <div class="blk"><span class="lbl">Next update</span><div id="srvQueue"></div></div>
     <div class="blk"><span class="lbl">Recent</span><div id="srvRecent"></div></div>
   </section>
+
+  <dialog id="ctl" class="ctl" aria-labelledby="ctlTitle">
+    <form id="ctlForm">
+      <h3 id="ctlTitle"></h3>
+      <p id="ctlWhat"></p>
+      <p id="ctlPlayers" class="dim"></p>
+      <label for="ctlReason">Reason, 5 to 200 characters (kept in the ops ledger and the audit log)</label>
+      <input id="ctlReason" maxlength="200" autocomplete="off">
+      <label for="ctlWord" id="ctlWordLabel"></label>
+      <input id="ctlWord" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <p id="ctlInfo" class="dim"></p>
+      <p id="ctlResult" role="status"></p>
+      <div class="acts"><button type="button" class="ghost" id="ctlClose">Close</button><button type="submit" id="ctlGo"></button></div>
+    </form>
+  </dialog>
 
   <div class="cards" id="cards"></div>
 
@@ -298,6 +323,7 @@ const STOP_WHY = { notReviewed: 'not reviewed', held: 'held', blocked: 'NO-GO', 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const short = s => (s ? String(s).slice(0, 8) : '?');
+const autoUpdate = s => !['hold-s0', 'release'].includes(s.updater.mode) && !s.updater.blocked;
 // The status's queue counts, or the last full queue while the status has none (a failed refresh leaves only unavailable)
 const freshQueue = s => (s.queue?.hash ? s.queue : srv.queue);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -359,7 +385,8 @@ function renderHead(s) {
   const m = el('span');
   m.append(el('span', 'pill ' + modeTone, mode), el('span', 'dim', ` (${modeNote})`));
   bar.append(m);
-  box.append(bar, line(s.owner ? 'Controls arrive with the next update.' : 'Only Owners can control the server.', 'dim'));
+  box.append(bar);
+  renderControls(s, box);
   const run = [u.lastRun ? `Updater last ran ${stamp(u.lastRun.at)}: ${RESULT[u.lastRun.result] || u.lastRun.result}` : 'The updater has not run lately',
     u.building && 'building an update now', u.waiting && 'an update waits for the server to empty'].filter(Boolean);
   box.append(line(run.join(' · '), 'dim'));
@@ -368,6 +395,172 @@ function renderHead(s) {
   if (s.claims.length) box.append(line('In use: ' + s.claims.map(c => `${c.resource} by ${c.operator} until ${stamp(c.until)}`).join('; '), 'dim'));
   if (srv.statusFailed) box.append(line(`! Cannot reach the server right now; this is the status from ${stamp(s.generatedAt)}`, 'warn'));
 }
+
+// Owner controls (1b): Start, Stop and Restart at 0 players, confirmed in the dialog; the backend checks every request again
+const ACTS = {
+  start: { label: 'Start', word: 'START', title: 'Start the game server', what: 'Starts the game server. A stop made here is cleared, so automatic updates can run again.' },
+  stop: { label: 'Stop', word: 'STOP', title: 'Stop the game server', what: 'Stops the game server and keeps it stopped until an Owner presses Start. Automatic updates wait meanwhile. A host reboot starts it again.' },
+  restart: { label: 'Restart', word: 'RESTART', title: 'Restart the game server', what: 'Restarts the game server. This dialog shows when it is back.' },
+};
+const CAN = { start: 'canStart', stop: 'canStop', restart: 'canRestart' };
+const WHY = {
+  notOwner: 'Only Owners can control the server.',
+  controlsOff: 'The controls are switched off on the server.',
+  busy: 'Another action is running.',
+  claimed: 'The game server is in use in the ops ledger (see In use).',
+  playersOnline: 'Players are online: restarts with a countdown arrive with the next update.',
+  playersUnknown: 'The game server has not reported its player count lately, so Stop and Restart wait.',
+  changing: 'The server is starting or stopping.',
+  updating: 'An update is running.',
+  alreadyRunning: 'The server is already running.',
+  notRunning: 'The server is not running.',
+  useStart: 'The server is down: use Start.',
+  unavailable: 'The server state cannot be read right now.',
+};
+const RELOAD = 'The request was refused. Reload the page and try again.';
+const ERR = { ...WHY,
+  badRequest: RELOAD, badOrigin: RELOAD, badHeader: RELOAD, badContentType: RELOAD,
+  badReason: 'The reason must be 5 to 200 characters.',
+  badConfirm: 'Type the word exactly as shown.',
+  signedOut: 'Your sign-in has ended. Sign in again to use the controls.',
+  tooMany: 'Too many tries. Wait a few minutes and try again.',
+  ledgerUnavailable: 'The ops ledger cannot be reached, so nothing was changed.',
+  actionFailed: 'The server did not take the action; nothing was changed.',
+  unavailable: 'Something failed on the server. Check the panel before trying again.',
+  notFound: 'This backend has no controls yet.',
+};
+const DRY = 'Dry run: the checks run and are logged, but nothing changes.';
+const JOB_STATE = { running: 'running', done: 'done', failed: 'failed', unconfirmed: 'not confirmed within 2 minutes' };
+// The backend's reason cleaning: controls, C1, zero-width, separators and bidi marks become spaces
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g;
+const cleanReason = v => String(v || '').normalize('NFC').replace(UNSAFE, ' ').replace(/\s+/g, ' ').trim();
+const reasonOk = v => { const n = [...cleanReason(v)].length; return n >= 5 && n <= 200; };
+const ctl = { action: null, requestId: null, sending: false, job: null, result: null, timer: 0 };
+
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16)); b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+function jobLine(j) {
+  const text = `Last action: ${ACTS[j.action]?.label || j.action} by ${j.by}, ${stamp(j.requestedAt)}: ${JOB_STATE[j.state] || j.state}${j.dryRun ? ' (dry run, nothing changed)' : ''} · ${j.reason}`;
+  return line(text, j.state === 'failed' || j.state === 'unconfirmed' ? 'warn' : 'dim');
+}
+
+function renderControls(s, box) {
+  const c = s.controls;
+  if (!s.owner) box.append(line(WHY.notOwner, 'dim'));
+  else if (c?.mode !== 'zeroPlayers') box.append(line('Controls arrive with the next update.', 'dim'));
+  else {
+    const bar = el('div', 'bar');
+    for (const [action, act] of Object.entries(ACTS)) {
+      const b = el('button', action === 'start' ? '' : 'danger', act.label);
+      b.type = 'button';
+      b.disabled = !c[CAN[action]];
+      b.addEventListener('click', () => openControl(action));
+      bar.append(b);
+    }
+    box.append(bar);
+    if (c.why) box.append(line(WHY[c.why] || c.why, 'dim'));
+    if (c.setting === 'dry-run') box.append(line(DRY, 'dim'));
+  }
+  if (c?.job) box.append(jobLine(c.job));
+}
+
+function jobResult(j) {
+  const name = ACTS[j.action]?.label || j.action;
+  if (j.dryRun) return [`Dry run: ${name} passed every check. Nothing was changed.`, 'ok'];
+  return { running: [`${name} sent. Waiting for the server to confirm (up to 2 minutes)…`, 'dim'], done: [`${name} done.`, 'ok'],
+    failed: [`${name} failed. Check the panel above.`, 'bad'], unconfirmed: [`${name} was not confirmed within 2 minutes. Check the panel above.`, 'warn'] }[j.state]
+    || [`${name}: ${j.state}`, 'dim'];
+}
+
+function errorText(status, body) {
+  const code = body.error;
+  if (code === 'claimed') return `The game server is in use in the ops ledger${body.holder ? ' by ' + body.holder : ''}. Try again when it is free.`;
+  // A body the backend could not read comes back as an English sentence
+  return ERR[code] || (typeof code === 'string' && code.includes(' ') ? code : `The server answered ${status}.`);
+}
+
+function renderDialog() {
+  if (!ctl.action || !$('ctl').open) return;
+  const s = srv.status || {}, c = s.controls || {}, n = s.players?.online, at = Date.parse(s.generatedAt || '');
+  $('ctlPlayers').textContent = `Players online now: ${n ?? 'unknown'}${Number.isFinite(at) ? ` (checked ${new Date(at).toLocaleTimeString('en-GB')})` : ''}`;
+  const info = [];
+  if (ctl.action === 'start' && s.updater && autoUpdate(s) && freshQueue(s)?.counts?.commits?.fork > 0) info.push('After Start, waiting commits deploy within about 5 minutes if nobody is online.');
+  if (c.setting === 'dry-run') info.push(DRY);
+  $('ctlInfo').textContent = info.join(' ');
+  const blocked = !ctl.job && !c[CAN[ctl.action]];
+  const [text, tone] = ctl.result || (ctl.job && jobResult(ctl.job)) || (blocked && [WHY[c.why] || 'Not possible in the server\'s current state.', 'warn']) || ['', ''];
+  $('ctlResult').textContent = text;
+  $('ctlResult').className = tone;
+  $('ctlGo').disabled = ctl.sending || !!ctl.job || blocked || !reasonOk($('ctlReason').value) || $('ctlWord').value.trim() !== ACTS[ctl.action].word;
+}
+
+function openControl(action) {
+  const act = ACTS[action];
+  Object.assign(ctl, { action, requestId: uuid(), sending: false, job: null, result: null });
+  $('ctlTitle').textContent = act.title;
+  $('ctlWhat').textContent = act.what;
+  $('ctlWordLabel').textContent = `Type ${act.word} to confirm`;
+  $('ctlGo').textContent = act.label;
+  $('ctlGo').className = action === 'start' ? '' : 'danger';
+  $('ctlReason').value = $('ctlWord').value = '';
+  $('ctl').showModal();
+  $('ctlReason').focus();
+  clearInterval(ctl.timer);
+  ctl.timer = setInterval(refreshServer, 5000);
+  renderDialog();
+  refreshServer();
+}
+
+// Polls the job until systemd shows the result; the backend gives up after 2 minutes
+async function followJob(id) {
+  for (let i = 0; i < 60 && ctl.job?.id === id && ctl.job.state === 'running'; i++) {
+    await new Promise(done => setTimeout(done, 3000));
+    try {
+      const r = await request(`${SRV}/jobs/${id}`);
+      if (r.ok && ctl.job?.id === id) ctl.job = (await r.json()).job;
+    } catch { /* the next poll tries again */ }
+    renderDialog();
+  }
+  refreshServer();
+}
+
+async function sendControl(ev) {
+  ev.preventDefault();
+  if ($('ctlGo').disabled) return;
+  const { action, requestId } = ctl;
+  Object.assign(ctl, { sending: true, result: ['Sending…', 'dim'] });
+  renderDialog();
+  let r = null, body = {};
+  try {
+    r = await fetch(`${SRV}/actions/${action}`, {
+      method: 'POST', cache: 'no-store', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-DBO-Control': '1' },
+      body: JSON.stringify({ requestId, reason: cleanReason($('ctlReason').value), confirm: $('ctlWord').value.trim() }),
+    });
+    body = await r.json().catch(() => ({}));
+  } catch { /* shown below */ }
+  if (ctl.requestId !== requestId) return;
+  ctl.sending = false;
+  // The same requestId never runs twice, so sending again after a lost answer is safe
+  if (!r) ctl.result = ['Cannot reach the server. Press the button again: the same request never runs twice.', 'warn'];
+  else if (body.job) {
+    Object.assign(ctl, { job: body.job, result: r.status === 502 ? [ERR.actionFailed, 'bad'] : null });
+    followJob(body.job.id);
+  } else ctl.result = [errorText(r.status, body), 'bad'];
+  renderDialog();
+  refreshServer();
+}
+
+$('ctlForm').addEventListener('submit', sendControl);
+$('ctlReason').addEventListener('input', renderDialog);
+$('ctlWord').addEventListener('input', renderDialog);
+$('ctlClose').addEventListener('click', () => $('ctl').close());
+$('ctl').addEventListener('close', () => clearInterval(ctl.timer));
 
 function renderLive(s) {
   const box = $('srvLive'); box.textContent = '';
@@ -437,7 +630,7 @@ function idleText(q, s) {
   const hidden = c.fork + c.server;
   if (!hidden) return 'Nothing waits on GitHub.';
   const what = q.docs.count >= hidden ? 'docs' : q.docs.count ? 'docs and merges' : 'merges';
-  const auto = c.fork > 0 && !['hold-s0', 'release'].includes(s.updater.mode) && !s.updater.blocked;
+  const auto = c.fork > 0 && autoUpdate(s);
   return `Only ${what} wait (${hidden})${auto ? '; a push still restarts the game while auto-update is on' : ''}.`;
 }
 
@@ -514,7 +707,7 @@ function renderRecent(s) {
 function renderServer() {
   const s = srv.status;
   if (!s) return;
-  renderHead(s); renderLive(s); renderQueue(s); renderRecent(s);
+  renderHead(s); renderLive(s); renderQueue(s); renderRecent(s); renderDialog();
 }
 
 async function moreRecent(before) {

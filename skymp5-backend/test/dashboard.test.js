@@ -6,7 +6,9 @@ const assert = require('node:assert/strict')
 const fs = require('fs')
 const path = require('path')
 const vm = require('vm')
+const { webcrypto } = require('crypto')
 const { createServerStatus } = require('../sources/serverStatus')
+const { createServerControl } = require('../sources/serverControl')
 const { createPanelFixture, showOutput, PATH_RE } = require('./helpers/panelFixture')
 
 const DASHBOARD = path.join(__dirname, '..', '..', 'website', 'dashboard.html')
@@ -27,18 +29,22 @@ class FakeEl {
   append(...nodes) { for (const n of nodes) this.kids.push(typeof n === 'string' ? Object.assign(new FakeEl('#text'), { own: n }) : n) }
   addEventListener() {}
   setAttribute() {}
+  showModal() { this.open = true }
+  close() { this.open = false }
+  focus() {}
 }
 
-// The page with main() parked on a sign-in fetch that never answers, then one renderServer() with the given data
-function render(status, queue) {
+// The page with main() parked on a sign-in fetch that never answers (unless fetch says otherwise), then one renderServer() with the given data
+function load(status, queue, { fetch = () => new Promise(() => {}) } = {}) {
   const byId = new Map()
   const $ = id => { if (!byId.has(id)) byId.set(id, new FakeEl('div')); return byId.get(id) }
   const document = { getElementById: $, createElement: tag => new FakeEl(tag), createElementNS: (_ns, tag) => new FakeEl(tag) }
-  const ctx = vm.createContext({ document, fetch: () => new Promise(() => {}), setInterval: () => 0, setTimeout: () => 0, console, input: { status, queue } })
+  const ctx = vm.createContext({ document, fetch, crypto: webcrypto, setInterval: () => 0, clearInterval: () => {}, setTimeout: () => 0, console, input: { status, queue } })
   vm.runInContext(SCRIPT, ctx)
   vm.runInContext('srv.status = input.status; srv.queue = input.queue; renderServer()', ctx)
-  return id => $(id).kids.map(k => k.textContent)
+  return { $, run: code => vm.runInContext(code, ctx), lines: id => $(id).kids.map(k => k.textContent) }
 }
+const render = (status, queue) => load(status, queue).lines
 
 let F, status, S0, Q0
 const wire = v => JSON.parse(JSON.stringify(v))
@@ -100,4 +106,135 @@ test('only docs or merges waiting are counted, with the restart warning for main
   assert.ok(render(S0, idle({ fork: 0, server: 2 }, 2, 0))('srvQueue').includes('Only docs wait (2).'))
   assert.ok(render(S0, idle({ fork: 3, server: 0 }, 1))('srvQueue').includes(`Only docs and merges wait (3); ${AUTO}.`))
   assert.ok(render(S0, idle({ fork: 1, server: 0 }, 0))('srvQueue').includes(`Only merges wait (1); ${AUTO}.`))
+})
+
+// The status as GET / sends it, with the viewer's controls from the real serverControl
+const control = createServerControl({ status: {} })
+function withControls(s, { owner = true, setting = 'on', online = s.players.online, job, claims = [] } = {}) {
+  const st = { ...s, players: { ...s.players, online }, claims }
+  const controls = wire(control.controlsFor(st, { owner, setting }))
+  return { ...st, owner, controls: job === undefined ? controls : { ...controls, job } }
+}
+const walk = (node, out = []) => { out.push(node); node.kids.forEach(k => walk(k, out)); return out }
+const buttons = page => walk(page.$('srvHead')).filter(n => n.tag === 'button')
+const PLAYERS_ONLINE = 'Players are online: restarts with a countdown arrive with the next update.'
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+test('an Owner at 0 players gets Stop and Restart, and Start only when the server is down', () => {
+  const page = load(withControls(S0, { online: 0 }), Q0)
+  assert.deepEqual(buttons(page).map(b => [b.textContent, b.disabled, b.className]),
+    [['Start', true, ''], ['Stop', false, 'danger'], ['Restart', false, 'danger']])
+  assert.equal(page.lines('srvHead').some(l => /Only Owners|arrive with the next update|switched off/.test(l)), false)
+  const down = { ...S0, service: { ...S0.service, state: 'stopped' } }
+  assert.deepEqual(buttons(load(withControls(down, { online: 0 }), Q0)).map(b => b.disabled), [false, true, true])
+})
+
+test('with players online every button is disabled with the countdown line', () => {
+  const page = load(withControls(S0), Q0)
+  assert.equal(S0.players.online, 2)
+  assert.deepEqual(buttons(page).map(b => b.disabled), [true, true, true])
+  assert.ok(page.lines('srvHead').includes(PLAYERS_ONLINE), page.lines('srvHead').join(' | '))
+})
+
+test('a Dev sees no buttons and the Owners-only line; an older backend shows no buttons either', () => {
+  const dev = load(withControls(S0, { owner: false, online: 0 }), Q0)
+  assert.equal(buttons(dev).length, 0)
+  assert.ok(dev.lines('srvHead').includes('Only Owners can control the server.'))
+  const old = load({ ...S0, owner: true, controls: { mode: 'off', update: 'notYet' } }, Q0)
+  assert.equal(buttons(old).length, 0)
+  assert.ok(old.lines('srvHead').includes('Controls arrive with the next update.'))
+})
+
+test('the switch, the dry run and the last action are shown', () => {
+  const off = load(withControls(S0, { online: 0, setting: 'off' }), Q0)
+  assert.deepEqual(buttons(off).map(b => b.disabled), [true, true, true])
+  assert.ok(off.lines('srvHead').includes('The controls are switched off on the server.'))
+  assert.ok(load(withControls(S0, { online: 0, setting: 'dry-run' }), Q0).lines('srvHead').includes('Dry run: the checks run and are logged, but nothing changes.'))
+  const held = load(withControls(S0, { online: 0, claims: S0.claims }), Q0)
+  assert.ok(S0.claims.some(c => c.resource === 'game-server'))
+  assert.deepEqual(buttons(held).map(b => b.disabled), [true, true, true])
+  assert.ok(held.lines('srvHead').includes('The game server is in use in the ops ledger (see In use).'))
+  const job = { id: '0f8e6a52-0f7c-4d1e-9a51-3f0f2c1d9b10', action: 'restart', state: 'unconfirmed', dryRun: false, by: 'Jake', reason: 'combat fix <b>live</b>', requestedAt: new Date().toISOString(), finishedAt: null }
+  const lines = load(withControls(S0, { online: 0, job }), Q0).lines('srvHead')
+  assert.ok(lines.some(l => /^Last action: Restart by Jake, \d\d:\d\d UTC: not confirmed within 2 minutes · combat fix <b>live<\/b>$/.test(l)), lines.join(' | '))
+})
+
+// The page with a recording fetch: each action POST answers with the next reply, anything else never answers
+function withFetch(status, replies) {
+  const posts = []
+  const fetch = (url, opts = {}) => {
+    if (opts.method !== 'POST') return new Promise(() => {})
+    posts.push({ url, opts, body: JSON.parse(opts.body) })
+    const next = replies.shift()
+    return next instanceof Error ? Promise.reject(next) : Promise.resolve({ status: next.status, ok: next.status < 300, json: async () => next.body })
+  }
+  return { page: load(status, Q0, { fetch }), posts }
+}
+const fill = (page, reason, word) => { page.$('ctlReason').value = reason; page.$('ctlWord').value = word; page.run('renderDialog()') }
+const send = page => page.run('sendControl({ preventDefault() {} })')
+const result = page => page.$('ctlResult').textContent
+
+test('the dialog needs the typed word and a reason, shows the player count, and posts only the three fields', async () => {
+  const job = { id: null, action: 'restart', state: 'running', dryRun: false, by: 'Jake', reason: 'Testing the restart', requestedAt: new Date().toISOString(), finishedAt: null }
+  const { page, posts } = withFetch(withControls(S0, { online: 0 }), [{ status: 202, body: { job } }])
+  page.run('openControl("restart")')
+  assert.equal(page.$('ctl').open, true)
+  assert.equal(page.$('ctlTitle').textContent, 'Restart the game server')
+  assert.equal(page.$('ctlWordLabel').textContent, 'Type RESTART to confirm')
+  assert.match(page.$('ctlPlayers').textContent, /^Players online now: 0 \(checked /)
+  const first = page.run('ctl.requestId')
+  assert.match(first, UUID_V4)
+  for (const [reason, word] of [['', ''], ['Testing the restart', ''], ['Testing the restart', 'restart'], ['Test', 'RESTART'], ['\n\u202e \t', 'RESTART']]) {
+    fill(page, reason, word)
+    assert.equal(page.$('ctlGo').disabled, true, `${JSON.stringify(reason)} ${word}`)
+  }
+  fill(page, '  Testing\nthe restart ', ' RESTART ')
+  assert.equal(page.$('ctlGo').disabled, false)
+  job.id = first
+  await send(page)
+  assert.equal(posts.length, 1)
+  const [{ url, opts, body }] = posts
+  assert.equal(url, '/api/site/staff/server/actions/restart')
+  assert.equal(opts.method, 'POST')
+  assert.equal(opts.credentials, 'same-origin')
+  assert.deepEqual({ ...opts.headers }, { 'Content-Type': 'application/json', 'X-DBO-Control': '1' })
+  assert.deepEqual(body, { requestId: first, reason: 'Testing the restart', confirm: 'RESTART' })
+  assert.equal(result(page), 'Restart sent. Waiting for the server to confirm (up to 2 minutes)…')
+  assert.equal(page.$('ctlGo').disabled, true, 'a sent request cannot be sent again from the same dialog')
+  page.run('openControl("stop")')
+  assert.notEqual(page.run('ctl.requestId'), first, 'every dialog gets a fresh requestId')
+  assert.equal(result(page), '')
+})
+
+test('the dialog reports refusals, the dry run and a lost answer, and a lost answer resends the same requestId', async () => {
+  const dry = { id: null, action: 'stop', state: 'done', dryRun: true, by: 'Jake', reason: 'Checking the stop', requestedAt: new Date().toISOString(), finishedAt: new Date().toISOString() }
+  const { page, posts } = withFetch(withControls(S0, { online: 0 }), [
+    { status: 409, body: { error: 'playersOnline' } },
+    { status: 409, body: { error: 'claimed', holder: 'claude-nate' } },
+    { status: 413, body: { error: 'The request is too large.' } },
+    new Error('offline'),
+    { status: 202, body: { job: dry } },
+  ])
+  page.run('openControl("stop")')
+  fill(page, 'Checking the stop', 'STOP')
+  const expected = [PLAYERS_ONLINE, 'The game server is in use in the ops ledger by claude-nate. Try again when it is free.', 'The request is too large.',
+    'Cannot reach the server. Press the button again: the same request never runs twice.', 'Dry run: Stop passed every check. Nothing was changed.']
+  for (const text of expected) {
+    assert.equal(page.$('ctlGo').disabled, false)
+    await send(page)
+    assert.equal(result(page), text)
+  }
+  assert.equal(new Set(posts.map(p => p.body.requestId)).size, 1)
+  assert.ok(posts.every(p => p.url === '/api/site/staff/server/actions/stop'))
+})
+
+test('the dialog blocks the action when the status says it cannot run', () => {
+  const page = load(withControls(S0, { online: 0 }), Q0)
+  page.run('openControl("restart")')
+  fill(page, 'Testing the restart', 'RESTART')
+  assert.equal(page.$('ctlGo').disabled, false)
+  page.run('srv.status = input.status; srv.status = { ...srv.status, players: { ...srv.status.players, online: 3 }, controls: { ...srv.status.controls, canStop: false, canRestart: false, why: "playersOnline" } }; renderServer()')
+  assert.equal(page.$('ctlGo').disabled, true)
+  assert.equal(result(page), PLAYERS_ONLINE)
+  assert.match(page.$('ctlPlayers').textContent, /^Players online now: 3 /)
 })
