@@ -1,5 +1,5 @@
 {
-"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own.",
+"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own. boss: true marks an expedition's boss (dungeons.js): never thinned by difficulty, and when every boss of the claim is dead a 10-minute timer starts, after which anyone still inside is taken home. Hand-set on 2026-09-28 (Nate: 'we should add bosses'); Niryastare had none, so its nearest guard to the boss chest was promoted to an Ayleid undead boss. Keep these when regenerating.",
 "expeditions": [
 {
 "id": "CYRNiryastareLocation",
@@ -918,7 +918,7 @@
 "size": 1809,
 "npcs": [
 {
-"edid": "CYRLvlAyleidUndeadMelee1H",
+"edid": "CYRLvlAyleidUndeadBossAny",
 "pos": [
 -118.0,
 -4034.1,
@@ -928,29 +928,47 @@
 "options": [
 [
 1,
-"5f057:BSHeartland.esm"
+"8ad2a:BSHeartland.esm"
 ],
 [
-6,
-"8747b:BSHeartland.esm"
+1,
+"8ad31:BSHeartland.esm"
 ],
 [
 13,
-"8747c:BSHeartland.esm"
+"8ad2b:BSHeartland.esm"
+],
+[
+13,
+"8ad33:BSHeartland.esm"
 ],
 [
 21,
-"8747d:BSHeartland.esm"
+"8ad2c:BSHeartland.esm"
+],
+[
+21,
+"8ad35:BSHeartland.esm"
 ],
 [
 30,
-"8747e:BSHeartland.esm"
+"8ad2d:BSHeartland.esm"
+],
+[
+30,
+"8ad37:BSHeartland.esm"
 ],
 [
 40,
-"b558c:BSHeartland.esm"
+"b5578:BSHeartland.esm"
+],
+[
+40,
+"b5579:BSHeartland.esm"
 ]
-]
+],
+"boss": true,
+"bossNote": "promoted from CYRLvlAyleidUndeadMelee1H, the nearest guard to the boss chest (Nate, 2026-09-28)"
 },
 {
 "edid": "CYRLvlAyleidUndeadMelee1H",
@@ -2250,7 +2268,8 @@
 50,
 "6026fd:BSAssets.esm"
 ]
-]
+],
+"boss": true
 }
 ]
 },
@@ -6062,7 +6081,8 @@
 29,
 "64c49:BSHeartland.esm"
 ]
-]
+],
+"boss": true
 }
 ]
 },
@@ -7597,7 +7617,8 @@
 40,
 "b5579:BSHeartland.esm"
 ]
-]
+],
+"boss": true
 }
 ]
 },
@@ -13455,7 +13476,8 @@
 29,
 "64c49:BSHeartland.esm"
 ]
-]
+],
+"boss": true
 }
 ]
 },

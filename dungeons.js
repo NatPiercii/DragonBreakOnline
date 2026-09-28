@@ -26,7 +26,7 @@ module.exports = (api) => {
   // added some half the time, and smallLoot's "nothing rolled" fallback added some again. With ~88
   // containers in a lease that is a flood. Now a chest carries coin goldChance of the time and the
   // amount is scaled by goldMult. A boss chest always carries coin whatever goldChance says.
-  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, partyMax: 6, raidMax: 12, raidXpMult: 0.5, partyKeepHours: 12, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, bossReturnMinutes: 10, partyMax: 6, raidMax: 12, raidXpMult: 0.5, partyKeepHours: 12, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
   const GOLD_CHANCE = Math.max(0, Math.min(1, Number(C.goldChance)));
   const GOLD_MULT = Math.max(0, Number(C.goldMult));
   const goldAmount = (n) => Math.max(1, Math.round(n * GOLD_MULT));
@@ -235,6 +235,7 @@ module.exports = (api) => {
   const partyCountMult = (n) => Math.max(Number(C.countMin) || 0.6, Math.min(Number(C.countMax) || 1.8, (Number(C.countBase) || 0.4) + (Number(C.countPerPlayer) || 0.3) * n));
   const zonesFor = (d, diff, scale = { lvl: 1, n: 1 }) => {
     const out = [];
+    out.bosses = [];   // zone names of the claim's bosses (not written to NPC-Spawns.json: a property of the array)
     let n = 0;
     let ambushed = 0;
     const province = (POOLS.provinces || {})[d.id] || provinceOfDungeon(d);
@@ -258,12 +259,14 @@ module.exports = (api) => {
           kind = arch.kind;
         }
 
-        const id = pickScaled(opts, scale.lvl, diff, !!(entry && entry.boss));
+        // A boss: marked in the data (expeditions.json boss: true) or a boss placement in the pools
+        const boss = npc.boss === true || !!(entry && entry.boss);
+        const id = pickScaled(opts, scale.lvl, diff, boss);
         if (!id || !Array.isArray(npc.pos)) continue;
         const m = diff.mult * partyCountMult(scale.n);
-        if (m < 1 && Math.random() > m) continue;                                           // fewer of them
-        const extra = Math.max(0, m - 1);
-        const count = 1 + Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);          // more for a bigger party
+        if (!boss && m < 1 && Math.random() > m) continue;                                  // fewer of them; never the boss
+        const extra = boss ? 0 : Math.max(0, m - 1);
+        const count = 1 + Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);          // more for a bigger party; one boss
         // Anchor = Bethesda's own (disabled) actor ref on that spot: the spawn appears there, not at a player.
         // An ambusher lay in a linked coffin or pod in vanilla; neither its packages nor the link survive a
         // PlaceAtMe spawn, so it waits for somebody within AMBUSH_REACH instead of standing in the open
@@ -278,6 +281,7 @@ module.exports = (api) => {
             if (anchorId && anchorId > 0) zone.Anchor = npc.ref;
           } catch (e) { /* ref not loaded in this server's ESM set; spawn at POS instead */ }
         }
+        if (boss) out.bosses.push(zone.Name);
         out.push(zone);
       }
     }
@@ -422,6 +426,8 @@ module.exports = (api) => {
       for (const id of d.bigChestIds) if (Math.random() < share) lease.locked.set(id, levels[Math.floor(Math.random() * levels.length)]);
     }
     lease.kinds = {}; for (const z of zones) lease.kinds[z.Name] = z.Kind || '';
+    // Bosses (Nate, 2026-09-28): their zones, the live ids seen in them, and when the last one fell
+    lease.bossZones = new Set(zones.bosses || []); lease.bossIds = new Set(); lease.bossDownAt = 0; lease.bossWarned = false;
     lease.armed = new Set();
     ST.leases.set(d.id, lease);
     writeSpawnZones();
@@ -432,7 +438,7 @@ module.exports = (api) => {
       for (const pid of members) {
         const a = actorByProfile(pid); if (!a) continue;
         if (a !== leaderActor && !atEntrance(a, entrance)) { system(a, `${display(leaderActor)} has claimed ${d.name}. Use the entrance to join them.`); continue; }
-        if (teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) { moved++; system(a, `${d.name} is yours for ${C.leaseMinutes} minutes (${diff.label}). Clear every enemy and open every big chest to finish early. ${lease.locked.size ? lease.locked.size + ' chest' + (lease.locked.size === 1 ? ' is' : 's are') + ' locked.' : ''}`); glowLease(a, lease, d); }
+        if (teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) { moved++; system(a, `${d.name} is yours for ${C.leaseMinutes} minutes (${diff.label}). ${d.expedition && lease.bossZones.size ? `Defeat its master; ${C.bossReturnMinutes} minutes later the expedition heads home.` : 'Clear every enemy and open every big chest to finish early.'} ${lease.locked.size ? lease.locked.size + ' chest' + (lease.locked.size === 1 ? ' is' : 's are') + ' locked.' : ''}`); glowLease(a, lease, d); }
       }
       audit(`DUNGEON ${who(leaderActor)} claimed ${d.name} on ${diff.label} with ${members.size} member(s), ${zones.length} enemies (${placed >= 0 ? placed + ' placed before entry' : 'placed on entry'}), ${filled} containers filled, ${lease.locked.size} locked`);
       log(`dungeon ${d.id} claimed by ${display(leaderActor)}: ${diff.id}, party level ${lease.partyLevel} x${lease.partySize}, ${moved} moved in, ${zones.length} enemies, ${placed} prespawned, ${filled} containers`);
@@ -458,7 +464,8 @@ module.exports = (api) => {
       if (inside && inside.id === lease.id && d && why !== 'cleared') {
         const e = lease.entrance || (d.entrances || [])[0];
         if (e && e.pos) teleport(a, e.world || e.cell, e.pos, e.rot);
-        system(a, why === 'time' ? `Your hour in ${lease.name} is up. You find yourself back at the entrance.` : `Your claim on ${lease.name} has ended.`);
+        system(a, why === 'time' ? `Your hour in ${lease.name} is up. You find yourself back at the entrance.`
+          : why === 'returned' ? `You make the long journey back from ${lease.name} to ${e.from || 'the Synod Conclave'} in Bruma.` : `Your claim on ${lease.name} has ended.`);
       } else if (why === 'cleared') {
         system(a, `${lease.name} is cleared. Take your time leaving; it rests ${C.cooldownMinutes} minutes for you afterwards.`);
       } else {
@@ -473,7 +480,7 @@ module.exports = (api) => {
         const inside = dungeonAround(a);
         if (!inside || inside.id !== lease.id || !e) continue;
         teleport(a, e.world || e.cell, e.pos, e.rot);
-        system(a, `The claim on ${lease.name} has ended. You find yourself back at the entrance.`);
+        system(a, why === 'returned' ? `The expedition leaves ${lease.name}, and you with it, back to ${e.from || 'the Synod Conclave'} in Bruma.` : `The claim on ${lease.name} has ended. You find yourself back at the entrance.`);
       }
     }
     // Emptied chests stay empty (CONT reloot is forbidden in server-settings); enemies go with the zones.
@@ -514,6 +521,7 @@ module.exports = (api) => {
       if (lease.seenNpcs.has(id) && lease.deadNpcs.has(id)) continue;
       if (!String(snap.tags.get(id) || '').startsWith(prefix)) continue;
       lease.seenNpcs.add(id);
+      if (lease.bossZones && lease.bossZones.has(snap.tags.get(id))) lease.bossIds.add(id);
       try { if (mp.get(id, 'isDead') === true) lease.deadNpcs.add(id); } catch (e) { lease.deadNpcs.add(id); }
     }
     for (const id of lease.seenNpcs) { if (!snap.set.has(id)) lease.deadNpcs.add(id); } // swept corpse
@@ -536,6 +544,28 @@ module.exports = (api) => {
       const insideNow = [...lease.members].some((pid) => { const a = actorByProfile(pid); const dd = a ? dungeonAround(a) : null; return dd && dd.id === lease.id; });
       if (insideNow) lease.lastInsideAt = now;
       trackNpcs(lease, snap);
+      const d = byId.get(lease.id);
+      // An expedition's bosses all dead: in bossReturnMinutes everyone still inside is taken home, in case anyone is
+      // stuck (Nate, 2026-09-28). Clearing the rest does not end the claim before that, so the timer always runs out.
+      if (d && d.expedition && lease.bossZones && lease.bossZones.size) {
+        const allDown = lease.bossIds.size >= lease.bossZones.size && [...lease.bossIds].every((id) => lease.deadNpcs.has(id));
+        if (allDown && !lease.bossDownAt) {
+          lease.bossDownAt = now;
+          for (const pid of lease.members) { const a = actorByProfile(pid); if (a) system(a, `The master of ${lease.name} has fallen. In ${C.bossReturnMinutes} minutes the expedition sets out for home, and anyone still inside comes with it. /expedition leave goes now.`); }
+          audit(`DUNGEON ${lease.name}: boss down, home in ${C.bossReturnMinutes} min`);
+        }
+        if (lease.bossDownAt) {
+          const left = lease.bossDownAt + C.bossReturnMinutes * 60000 - now;
+          if (left <= 0) { endLease(lease, 'returned'); continue; }
+          if (!lease.bossWarned && left <= 2 * 60000) {
+            lease.bossWarned = true;
+            for (const pid of lease.members) { const a = actorByProfile(pid); if (a) system(a, `The expedition leaves ${lease.name} in 2 minutes.`); }
+          }
+          if (now >= lease.endsAt) { endLease(lease, 'returned'); continue; }
+          if (now - lease.lastInsideAt > C.graceMinutes * 60000) endLease(lease, 'left'); // everyone went home already
+          continue;
+        }
+      }
       if (isCleared(lease)) { endLease(lease, 'cleared'); continue; }
       if (now >= lease.endsAt) { endLease(lease, 'time'); continue; }
       if (!lease.warned && lease.endsAt - now <= C.warnMinutes * 60000) {
