@@ -123,6 +123,9 @@ module.exports = {
   // The single role pinged when a ticket opens, kept separate so every staff role can read
   // tickets without everyone being notified for each one
   discordTicketPingRoleId: process.env.DISCORD_TICKET_PING_ROLE_ID || '',
+  // Public #bugs forum and #suggestions channel the ticket panel links to; an empty value shows the plain channel name
+  discordBugsForumChannelId: process.env.DISCORD_BUGS_FORUM_CHANNEL_ID ?? '1551936720713416755',
+  discordSuggestionsChannelId: process.env.DISCORD_SUGGESTIONS_CHANNEL_ID || '',
   // Bug-tracker forum (formerly #error-report): each launcher, game or website problem report opens its own thread
   discordErrorForumChannelId: process.env.DISCORD_ERROR_FORUM_CHANNEL_ID || '',
   // JSON map {tag name: tag id} for that forum, written once its tags exist; reports go untagged without it
