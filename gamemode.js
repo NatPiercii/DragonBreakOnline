@@ -2516,7 +2516,17 @@ const PELT = /pelt|hide|skin$|fur$|pelts$/i;
 // Nat: an ogre gets a proper drop. Beyond Skyrim's ogres carry 3 random hides they hunted (CYRLootOgreAnimalPart75,
 // LootGiantAnimalPart75), which the stash used to hand out as the ogre's own skin; skinning one now takes Ogre Tooth
 // (BSAssets.esm BSKOgreTooth, already on both ogre death item lists) and the hides stay lootable
-const SKIN_TROPHIES = [{ re: /ogre/i, items: [{ desc: '6026c6:BSAssets.esm', count: 2 }] }];
+// Nat 2026-09-28: a Bawn boar could not be skinned at all (/bug from Falcius Octavio). Cyrodiil has a pelt for
+// the deer, the bear, the mountain lion and the minotaur, but nothing for the boar, so there is no hide to find
+// and the pelt rule below finds nothing. It gets a trophy instead, the way the ogre does: the tusk and a hide's
+// worth of leather. The tusk is Dragonborn's and flagged solstheim in loot.json, which does not leak it into
+// Cyrodiil's loot pool, because a trophy is handed out here rather than drawn from a province pool.
+// Its meat (BSKFoodBoarMeat) is a normal Cyrodiil item and stays lootable off the corpse.
+const SKIN_TROPHIES = [
+  { re: /ogre/i, items: [{ desc: '6026c6:BSAssets.esm', count: 2 }] },
+  // Not a wereboar: that is a person under the curse, and it should not hand out a tusk and a hide
+  { re: /(?<!were)boar/i, items: [{ desc: '1cd6f:Dragonborn.esm', count: 2 }, { desc: 'db5d2:Skyrim.esm', count: 1 }] },
+];
 const trophyFor = (actorId) => {
   let edid = ''; try { const r = recordOf(mp.getIdFromDesc(String(mp.get(actorId, 'baseDesc')))); edid = r ? String(r.record.editorId || '') : ''; } catch (e) { return null; }
   const t = SKIN_TROPHIES.find((x) => x.re.test(edid)); if (!t) return null;
@@ -2623,7 +2633,10 @@ globalThis.__dboSkin = (targetId, casterId) => {
   let pelts = null; try { pelts = mp.get(targetId, 'private.dboPelts'); } catch (e) { return null; }
   if (!Array.isArray(pelts)) return null;
   try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
-  if (!pelts.length) return skinSay(casterId, 'There is nothing worth skinning on this one.');
+  // Nothing to skin is not a refusal to touch the body. skinSay returns false, and the activate chain treats a
+  // false here as "denied", so every animal without a pelt - slaughterfish, mudcrabs, chickens, the boar before
+  // it got a trophy - could not be looted at all (Nat, 2026-09-28). Fall through instead and let the corpse open.
+  if (!pelts.length) return null;
   if (mp.get(targetId, 'private.dboSkinned') === true) return skinSay(casterId, 'This one has already been skinned.');
   const tier = skinnerTier(casterId);
   // Simple animals for anyone; the rarer the beast, the higher the rank it takes to work the hide.
