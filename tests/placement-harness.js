@@ -20,6 +20,8 @@ const REG = path.join(dir, 'state', 'placements.json');
 fs.writeFileSync('admin-placeables.json', JSON.stringify({ categories: [
   { id: 'NPCs', label: 'NPCs', kind: 'npc', items: [['1e80e:Dragonborn.esm', 'Bandit', 'Dragonborn.esm']] },
   { id: 'Crafting Stations', label: 'Crafting Stations', kind: 'object', items: [['bbcf1:Skyrim.esm', 'Blacksmith Forge', 'Skyrim.esm']] },
+  // Kept out of the whole-catalog packet, reachable through the search; 150 rows so a search needs two pages
+  { id: 'Statics', label: 'Statics', kind: 'object', items: Array.from({ length: 150 }, (_, i) => [(0x5000 + i).toString(16) + ':Skyrim.esm', `Banner Red ${i}`, i < 100 ? 'Skyrim.esm' : 'Dawnguard.esm']) },
 ] }));
 
 const GM = 0xff000001, PLAYER = 0xff000002;
@@ -42,12 +44,14 @@ const mp = {
   },
 };
 const out = { personal: [], audit: [], packets: [], log: [] };
+// Staff tier per actor (gamemode.js tierOf); the tests below change the GM's
+const TIERS = { [GM]: 'senior' };
 const ui = {};
 const commands = {};
 require(MODULE)({
   mp, log: (...xs) => out.log.push(xs.join(' ')), personal: (a, t) => out.personal.push(t), audit: (t) => out.audit.push(t), who: (a) => 'P' + (a >>> 0).toString(16),
   onUi: (ev, fn) => { ui[ev] = fn; }, sendPacket: (a, p) => { out.packets.push([a, p]); return true; },
-  isAdmin: (a) => a === GM, registerChatCommand: (n, fn) => { commands[n] = fn; },
+  isAdmin: (a) => !!TIERS[a], tierOf: (a) => TIERS[a] || null, registerChatCommand: (n, fn) => { commands[n] = fn; },
 });
 
 let failures = 0;
@@ -123,6 +127,48 @@ props.delete(far + '|private.dboPlaced');
 reset(); ui.placeDelete(GM, [far.toString(16), 'list']);
 check('a listed placement that is gone leaves the list, nothing is destroyed', !calls.some((c) => c[0] === 'Delete' || c[0] === 'destroyActor') && /already gone/.test(out.personal[0]) && !JSON.parse(fs.readFileSync(REG, 'utf8')).some((p) => p.id === far.toString(16)), out.personal[0]);
 check('a removal from the tab sends the list again', out.packets.length === 1 && out.packets[0][1].customPacketType === 'adminPlacements' && out.packets[0][1].items.length === 1);
+
+// The catalog, searched on the server a page at a time
+reset(); ui.placeMeta(GM, []);
+const meta = out.packets[0] && out.packets[0][1];
+check('placeMeta lists every category, Statics included, with counts and mods', meta && meta.customPacketType === 'adminPlaceMeta' && meta.categories.length === 3 && meta.categories[2].id === 'Statics' && meta.categories[2].count === 150 && meta.plugins.join() === 'Dawnguard.esm,Dragonborn.esm,Skyrim.esm', JSON.stringify(meta && meta.categories));
+check('a senior may do everything', meta && meta.rights.place && meta.rights.hostile && meta.rights.others);
+const search = (args) => { reset(); ui.placeSearch(GM, args); return out.packets[0] && out.packets[0][1]; };
+let r = search(['', 'Statics', '', 0]);
+check('a category is sent a page (100) at a time, with the total', r && r.customPacketType === 'adminPlaceResults' && r.items.length === 100 && r.total === 150 && r.items[0][3] === 'Statics' && r.items[0][4] === 'object');
+r = search(['', 'Statics', '', 100]);
+check('the next page starts at the offset', r && r.items.length === 50 && r.items[0][1] === 'Banner Red 100');
+r = search(['red banner 14', '', '', 0]);
+// 'Banner Red 14' and 140-149 by name, and two more whose ids hold '14' (5014, 5114)
+check('every word must match, in the name or the id, in any order', r && r.total === 13 && r.items.every((it) => ['red', 'banner', '14'].every((w) => (it[1] + ' ' + it[0]).toLowerCase().includes(w))), r && r.total);
+r = search(['banner', '', 'Dawnguard.esm', 0]);
+check('the mod filter narrows a search', r && r.total === 50);
+r = search(['forge', '', '', 0]);
+check('a search spans every category', r && r.total === 1 && r.items[0][0] === 'bbcf1:Skyrim.esm');
+reset(); ui.placeSearch(PLAYER, ['forge', '', '', 0]);
+check('a player gets no search results', out.packets.length === 0);
+
+// Rights by tier (defaults: place and hostile Lead GM and above, others' placements Developer and above)
+TIERS[GM] = 'gm';
+reset(); ui.placeMeta(GM, []);
+check('a GM sees the tab but may not place', out.packets[0][1].rights.place === false && /Lead GM and above/.test(out.packets[0][1].rights.placeNeeds));
+reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2100, 310], 0, false]);
+check('a GM is refused placing, with the tier needed', !calls.some((c) => c[0] === 'PlaceAtMe') && /Placing is Lead GM and above/.test(out.personal[0]) && /refused/.test(out.log[0]), out.personal[0]);
+TIERS[GM] = 'leadgm';
+reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2100, 310], 0, false]);
+check('a Lead GM may place', calls.some((c) => c[0] === 'PlaceAtMe'));
+const mine = globalThis.__dboPlacement.registry[globalThis.__dboPlacement.registry.length - 1];
+// Someone else's placement (profile 9)
+globalThis.__dboPlacement.registry.push(Object.assign({}, mine, { id: 'ff0008aa', by: 9 }));
+set(0xff0008aa, 'private.dboPlaced', { base: mine.base, kind: 'object', by: 9 });
+reset(); ui.placeDelete(GM, ['ff0008aa']);
+check('a Lead GM may not remove another GM\'s placement', !calls.some((c) => c[0] === 'Delete') && /Another GM placed that/.test(out.personal[0]), out.personal[0]);
+reset(); ui.placeDelete(GM, [mine.id]);
+check('a Lead GM may remove their own', calls.some((c) => c[0] === 'Delete'));
+TIERS[GM] = 'developer';
+reset(); ui.placeDelete(GM, ['ff0008aa']);
+check('a Developer may remove another GM\'s placement', calls.some((c) => c[0] === 'Delete' && c[1] === 0xff0008aa));
+TIERS[GM] = 'senior';
 
 process.chdir(home);
 fs.rmSync(dir, { recursive: true, force: true });

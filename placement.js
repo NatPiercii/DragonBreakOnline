@@ -10,21 +10,42 @@
 //                     dbo placeDelete [remoteIdHex]                         only something placed this way
 //                     dbo placeList []                                      the Place tab's "Placed near me" list
 //                     dbo placeGoto [remoteIdHex]                           move the GM next to a placement
-//   Server -> Client: { customPacketType: "adminPlaceables", categories }
+//                     dbo placeMeta []                                      categories, mods and the GM's rights
+//                     dbo placeSearch [query, category, plugin, offset]     one page of the catalog, searched here
+//   Server -> Client: { customPacketType: "adminPlaceables", categories }   (clients before the search: no Statics)
+//                     { customPacketType: "adminPlaceMeta", categories: [{ id, label, kind, count }], plugins, rights }
+//                     { customPacketType: "adminPlaceResults", query, category, plugin, offset, total, items }
 //                     { customPacketType: "adminPlacements", items: [{ id, name, kind, hostile, dist, by, at }], total, here }
 //
 // Every placeObject and placeDelete that arrives is logged with its outcome, refusals included: for three days the tab was
 // opened and nothing ever reached this file, and the log could not tell "never sent" from "refused" (2026-09-28).
+//
+// The catalog is searched here and sent a page at a time (PAGE rows), so all 44,000 placeables, Statics included, are
+// reachable without shipping megabytes to the browser. Rights go by staff tier (config placement.rights, the lowest tier
+// allowed): place (objects and friendly NPCs), hostile (hostile NPCs), others (change or remove another GM's placements).
+// Every tier sees the tab, the list and Go to.
 
 const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, onUi, sendPacket, isAdmin, registerChatCommand } = api;
-  // Categories kept out of the catalog the client is sent. The whole catalog is 3.1 MB and the Place tab never showed it
-  // (2026-09-25); without the 27,000 Statics it is 1.1 MB, the size of the item catalog that works. The server still
-  // accepts anything in the file, so a category can be put back in config once the client loads it in parts.
-  const HIDDEN = new Set(((api.cfg || {}).placement || {}).hideCategories || ['Statics']);
+  const P = (api.cfg || {}).placement || {};
+  // Categories kept out of the whole-catalog packet older clients ask for. The whole catalog is 3.1 MB and the Place tab
+  // never showed it (2026-09-25); without the 27,000 Statics it is 1.1 MB. The search below has every category.
+  const HIDDEN = new Set(P.hideCategories || ['Statics']);
+  const PAGE = 100;
+
+  // Staff tiers, highest first (gamemode.js tierOf). Without tierOf every admin counts as senior.
+  const TIER_RANK = { senior: 4, developer: 3, leadgm: 2, gm: 1 };
+  const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM', gm: 'GM' };
+  const RIGHTS = Object.assign({ place: 'leadgm', hostile: 'leadgm', others: 'developer' }, P.rights || {});
+  const tierOf = (a) => (typeof api.tierOf === 'function' ? api.tierOf(a) : (isAdmin(a) ? 'senior' : null));
+  const can = (a, right) => { const t = tierOf(a); return !!t && (TIER_RANK[t] || 0) >= (TIER_RANK[RIGHTS[right]] || 99); };
+  const needs = (right) => `${TIER_LABEL[RIGHTS[right]] || RIGHTS[right]} and above`;
+  const profile = (a) => Number(mp.get(a, 'profileId'));
+  // Another GM's placement needs the "others" right
+  const mayChange = (a, entry) => !entry || entry.by === profile(a) || can(a, 'others');
 
   const CATALOG = path.resolve('admin-placeables.json');
   // Placed things are saved in the world state, so their list belongs beside it: on the dev server world is a link into
@@ -44,12 +65,17 @@ module.exports = (api) => {
     try {
       S.catalog = JSON.parse(fs.readFileSync(CATALOG, 'utf8')).categories || [];
       S.kinds = new Map();
-      for (const c of S.catalog) for (const it of c.items || []) S.kinds.set(String(it[0]).toLowerCase(), { kind: c.kind, name: it[1] });
+      S.rows = [];
+      for (const c of S.catalog) for (const it of c.items || []) {
+        S.kinds.set(String(it[0]).toLowerCase(), { kind: c.kind, name: it[1] });
+        S.rows.push({ desc: String(it[0]), name: String(it[1]), plugin: String(it[2] || ''), cat: c.id, kind: c.kind, hay: (it[1] + ' ' + it[0]).toLowerCase() });
+      }
       log(`placement: catalog of ${S.kinds.size} placeables in ${S.catalog.length} categories`);
     } catch (e) {
       log('placement: admin-placeables.json unreadable', e.message);
       S.catalog = [];
       S.kinds = new Map();
+      S.rows = [];
     }
     return S.catalog;
   };
@@ -109,6 +135,8 @@ module.exports = (api) => {
     if (!id) return { ok: false, text: 'Aim at something first.' };
     let tag = null;
     try { tag = mp.get(id, TAG); } catch (e) { /* not a reference */ }
+    const listed = registry().find((p) => p.id === hex(id)) || null;
+    if (!mayChange(a, listed || (tag ? { by: Number(tag.by) } : null))) return { ok: false, text: `Another GM placed that; changing their placements is ${needs('others')}.` };
     if (!tag) {
       // Listed but no longer in the world (removed some other way): only the list entry goes
       const list = registry();
@@ -166,6 +194,9 @@ module.exports = (api) => {
   onUi('placeObject', (a, args) => {
     const what = `${String(args[0] || '?')} ${args[1] === 'npc' ? 'npc' : 'object'}`;
     if (!isAdmin(a)) { audit(`PLACE ${who(a)} REFUSED (not an admin)`); log(`placement: placeObject ${what} from ${who(a)} refused: not an admin`); return; }
+    const refuse = (text) => { log(`placement: placeObject ${what} from ${who(a)} refused: ${text}`); personal(a, text); };
+    if (!can(a, 'place')) return refuse(`Placing is ${needs('place')}.`);
+    if (args[1] === 'npc' && args[4] === true && !can(a, 'hostile')) return refuse(`Placing hostile NPCs is ${needs('hostile')}.`);
     loadCatalog();
     const desc = String(args[0] || '');
     const kind = args[1] === 'npc' ? 'npc' : 'object';
@@ -190,6 +221,34 @@ module.exports = (api) => {
     personal(a, r.text);
     // The Place tab's list sends its removals here too, and shows the list again afterwards
     if (args[1] === 'list') sendList(a);
+  });
+
+  onUi('placeMeta', (a) => {
+    if (!isAdmin(a)) return;
+    loadCatalog();
+    const plugins = [...new Set(S.rows.map((r) => r.plugin).filter(Boolean))].sort((x, y) => x.localeCompare(y));
+    sendPacket(a, {
+      customPacketType: 'adminPlaceMeta',
+      categories: S.catalog.map((c) => ({ id: c.id, label: c.label || c.id, kind: c.kind, count: (c.items || []).length })),
+      plugins,
+      rights: { place: can(a, 'place'), hostile: can(a, 'hostile'), others: can(a, 'others'), tier: TIER_LABEL[tierOf(a)] || '', placeNeeds: needs('place') },
+    });
+  });
+
+  // Every word of the query must appear in the name or the id; with no query, one category
+  onUi('placeSearch', (a, args) => {
+    if (!isAdmin(a)) return;
+    loadCatalog();
+    const query = String(args[0] || '').trim().toLowerCase().slice(0, 80);
+    const category = String(args[1] || '');
+    const plugin = String(args[2] || '');
+    const offset = Math.max(0, Math.floor(Number(args[3]) || 0));
+    const words = query.split(/\s+/).filter(Boolean);
+    const hits = S.rows.filter((r) => (words.length ? words.every((w) => r.hay.indexOf(w) !== -1) : r.cat === category) && (!plugin || r.plugin === plugin));
+    sendPacket(a, {
+      customPacketType: 'adminPlaceResults', query, category, plugin, offset, total: hits.length,
+      items: hits.slice(offset, offset + PAGE).map((r) => [r.desc, r.name, r.plugin, r.cat, r.kind]),
+    });
   });
 
   onUi('placeList', (a) => {
