@@ -194,7 +194,12 @@ check('/spells opens the spellbook panel', book && book.type === 'spellbook' && 
 check('...with the 3 prepared and all 4 in the book, the waiting one marked', book.prepared.map((x) => x.name).join() === 'Flames,Frostbite,Sparks' && book.known.length === 4 && book.known.find((x) => x.name === 'Bound Sword').prepared === false, book);
 check('...and at the Synod it may change them', book.atCollege === true && book.hint === '');
 cmd('forget', MAGE);
-check('/forget is retired and points at the spellbook', /Spells are no longer forgotten\. \/spells opens your spellbook/.test(said(MAGE)) && studied(MAGE, 'arcane').length === 4, said(MAGE));
+check('the hidden /forget opens the spellbook and says nothing is forgotten now', lastWidget(MAGE).type === 'spellbook' && /Spells are no longer forgotten: put one away in your spellbook instead/.test(lastWidget(MAGE).result) && studied(MAGE, 'arcane').length === 4, lastWidget(MAGE).result);
+check('...a hidden alias, as Worker B made it', commands.get('forget').opts && commands.get('forget').opts.hidden === true);
+cmd('spells', MAGE, 'forget 2');
+check('/spells forget <n> does the same, forgetting nothing', lastWidget(MAGE).type === 'spellbook' && /no longer forgotten/.test(lastWidget(MAGE).result) && studied(MAGE, 'arcane').length === 4);
+cmd('spells', MAGE);
+book = lastWidget(MAGE);
 ui('spellbookPrepare', MAGE, [book.nonce, T.boundSword[1]], 58);
 book = lastWidget(MAGE);
 check('a fourth cannot be prepared while 3 are', book.resultKind === 'refused' && /All 3 prepared places are taken\. Put one away first/.test(book.result) && !known(MAGE).has(idOf(T.boundSword[1])), book.result);
