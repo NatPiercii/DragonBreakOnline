@@ -47,9 +47,12 @@ const FLASH_MS = 2000;
 const EYE_HEIGHT = 120;
 // Aim needs the view this far below level; flatter than that, the copy stays at its distance
 const AIM_MIN_PITCH = 3;
-// Game.getCameraState(): 0 is first person (CK wiki, GetCameraState). Only used to put the view back afterwards.
+// Game.getCameraState(): 0 is first person, as SkyMP's own sweetCameraEnforcementService ("1-st person") and this
+// client's fovService and lipSyncService use it. Only used to put the view back afterwards.
 const FIRST_PERSON = 0;
-// Player.getAngleX() grows when looking down (to be confirmed in game; aim is off until Home turns it on)
+// Player.getAngleX() grows when looking down: NOT verified. Neither the typings nor the SkyMP source say, and the CK
+// wiki could not be reached (2026-09-28). Aim stays off until Home turns it on, and with aim on the readout shows the
+// raw pitch, so the first look at the floor in game settles the sign; flip this if looking down reads negative.
 const PITCH_DOWN_SIGN = 1;
 
 // A plain overlay beside the front's own widgets: the F7 panel is closed while placing, and this needs no front build.
@@ -267,7 +270,8 @@ export class PlacementService extends ClientListener {
   // With aim on and the view below level: where the look ray meets the feet's level; otherwise the set distance
   private aimDistance(player: Actor): number {
     if (!this.aim) return this.distance;
-    const pitch = player.getAngleX() * PITCH_DOWN_SIGN;
+    this.rawPitch = player.getAngleX();
+    const pitch = this.rawPitch * PITCH_DOWN_SIGN;
     if (pitch < AIM_MIN_PITCH) return this.distance;
     const d = EYE_HEIGHT / Math.tan((pitch / 180) * Math.PI);
     return Math.max(DISTANCE.min, Math.min(DISTANCE.max, d));
@@ -293,7 +297,7 @@ export class PlacementService extends ClientListener {
       const who = this.pick.kind === "npc" ? (this.pick.hostile ? "  (hostile)" : "  (friendly)") : "";
       lines.push(`${this.edit ? "EDITING" : "PLACING"}  ${this.pick.name}${who}`);
       const tilt = this.pick.kind === "object" ? `   pitch ${Math.round(signed(this.pitch))}° roll ${Math.round(signed(this.roll))}°` : "";
-      lines.push(`${m(ahead ?? this.distance)} m ahead${this.aim ? " (aim)" : ""}   height ${this.height >= 0 ? "+" : ""}${m(this.height)} m   turned ${Math.round(norm(this.turn))}°${tilt}`);
+      lines.push(`${m(ahead ?? this.distance)} m ahead${this.aim ? ` (aim, look pitch ${Math.round(this.rawPitch)}\u00b0)` : ""}   height ${this.height >= 0 ? "+" : ""}${m(this.height)} m   turned ${Math.round(norm(this.turn))}°${tilt}`);
       lines.push(`← → turn   ↑ ↓ nearer / further${this.pick.kind === "object" ? "   Shift+arrows tilt" : ""}   PgUp PgDn height   Home aim ${this.aim ? "off" : "on"}   ${step}`);
       lines.push(`Enter ${this.edit ? "move it here" : "place"}   Delete remove aimed   End undo   Backspace stop`);
     } else {
@@ -375,6 +379,8 @@ export class PlacementService extends ClientListener {
   private roll = 0;
   private step = 1;
   private aim = false;
+  // The last getAngleX() read for aim, shown on the readout (its sign is not verified yet)
+  private rawPitch = 0;
   private restoreThirdPerson = false;
   private lastTick = 0;
   private held = new Set<number>();
