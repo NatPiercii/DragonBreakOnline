@@ -369,6 +369,8 @@ module.exports = (api) => {
     if (diff.id !== 'story' && Math.random() < (boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear, ok)), 1);
     if (Math.random() < 0.3) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(5, 15));
     if (Math.random() < 0.2) addEntry(entries, pickFrom(pool('lockpicks', 0, ok)), rnd(1, 3));
+    // Torches, common: the ruins are dark (Nate, 2026-09-28); config dungeons.torchChance
+    if (Math.random() < (Number.isFinite(Number(C.torchChance)) ? Number(C.torchChance) : 0.35)) addEntry(entries, pickFrom(pool('lights', 0, ok)), rnd(1, 2));
     if (diff.soulgem > 0 && Math.random() < diff.soulgem * (boss ? 2 : 1)) addEntry(entries, pickFrom(soulPool(diff.soulTier, ok)), 1);
     // Recipe notes (the Draught of Revival): a rare find in a boss chest
     if (boss && Math.random() < 0.05) addEntry(entries, pickFrom(pool('recipes', 0, ok)), 1);
