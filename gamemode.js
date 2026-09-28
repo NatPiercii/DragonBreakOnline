@@ -3306,7 +3306,8 @@ const MASTERY_MIN_HEALTH = 0.01;
 // 5 Greatsword, 6 Battleaxe (warhammers share it), 7 Bow, 8 Staff, 9 Crossbow. Spells and staves
 // are left out: the arcane tiers buy spell ranks, not damage.
 const WEAPON_SKILL = { 1: 'blade', 2: 'blade', 5: 'blade', 3: 'blunt', 4: 'blunt', 6: 'blunt', 7: 'archery', 9: 'archery' };
-const weaponSkillCache = globalThis.__dboWeaponSkill instanceof Map ? globalThis.__dboWeaponSkill : (globalThis.__dboWeaponSkill = new Map());
+// Rebuilt on every reload: a staff cached as Blunt before martial.js existed would stay Blunt
+const weaponSkillCache = globalThis.__dboWeaponSkill = new Map();
 const weaponSkillOf = (sourceId) => {
   if (weaponSkillCache.has(sourceId)) return weaponSkillCache.get(sourceId);
   // 0x1f4 is the engine's unarmed source (TES5DamageFormula IsUnarmedAttack)
@@ -3316,6 +3317,8 @@ const weaponSkillOf = (sourceId) => {
     const dnam = (r.record.fields || []).find((f) => f && f.type === 'DNAM' && f.data instanceof Uint8Array && f.data.byteLength);
     if (dnam) skill = WEAPON_SKILL[dnam.data[0]] || '';
   }
+  // Quarterstaves and battle staves are Martial Arts (martial.js, skills.json unarmed counts.weaponIds), never Blunt
+  if (martial && martial.isStaff(sourceId)) skill = 'unarmed';
   weaponSkillCache.set(sourceId, skill);
   return skill;
 };
@@ -3326,7 +3329,9 @@ const masteryDamageMult = (aggressorId, sourceId) => {
   const rec = masteryOf(aggressorId);
   if (!rec || !Array.isArray(rec.order) || rec.order.indexOf(skill) === -1) return 1;
   const rank = Math.max(0, Number(((rec.skills || {})[skill] || {}).rank) || 0);
-  const bonus = Number((MASTERY_DMG.byTier || [])[rank]) || 0;
+  // Fists have their own, smaller table (fistByTier): their strength is the stamina they drain (martial.js)
+  const table = sourceId === 0x1f4 && Array.isArray(MASTERY_DMG.fistByTier) ? MASTERY_DMG.fistByTier : MASTERY_DMG.byTier;
+  const bonus = Number((table || [])[rank]) || 0;
   return bonus > 0 ? 1 + bonus : 1;
 };
 // Blessings the guide promises, made real where the server decides damage (Nat, 2026-09-25: everything server-side).
@@ -3485,6 +3490,13 @@ try {
   delete require.cache[COMBAT_JS];
   combat = require(COMBAT_JS)({ mp, log, profileOf, masteryOf, wornOf, recordOf, fieldsOf, weaponSkillOf, display, cfg, sendPacket });
 } catch (e) { log('combat.js failed to load:', e.stack || e.message); combat = null; }
+// ---- Martial Arts: fists drain stamina and disarm, staves pierce armour, tired blows land weaker (server\martial.js) ----
+let martial = null;
+try {
+  const MARTIAL_JS = path.resolve('martial.js');
+  delete require.cache[MARTIAL_JS];
+  martial = require(MARTIAL_JS)({ mp, log, display, profileOf, masteryOf, wornOf, armorPieceOf, gmstFloat, weaponHandsOf, skills: SKILLS_DEF, combat, cfg });
+} catch (e) { log('martial.js failed to load:', e.stack || e.message); martial = null; }
 // Below 1 when the target's Defense tier makes its armor count for more than the engine allowed it
 const defenseDamageMult = (targetId) => {
   if (!DEFENSE.enabled) return 1;
@@ -3627,6 +3639,8 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
     let mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * huntDamageMult(agg, tgt) * pvp;
+    // Tired blows, fists into armour, staves through it, the fist's stamina drain and disarm (martial.js)
+    if (martial) { try { mult *= martial.onAttempt(agg, tgt, src, dmg, flags); } catch (e) { log('martial failed', e.message); } }
     // Block chip and stamina, guard breaks, bash, stagger (combat.js); a bash's blow comes back scaled down
     if (combat) { try { mult *= combat.onAttempt(agg, tgt, src, dmg, flags, mult); } catch (e) { log('combat failed', e.message); } }
     if (mult !== 1 && dmg > 0) {

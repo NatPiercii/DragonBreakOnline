@@ -204,5 +204,17 @@ const disabled = new Function('mp', 'cfg', 'log', 'display', 'recordOf', 'master
 chosen('blade', 4);
 ok('"enabled": false turns the bonus off', disabled.masteryDamageMult(AGG, IRON_SWORD), 1);
 
+// Fists have their own tier table (Martial Arts, 2026-09-28): fistByTier for 0x1f4, byTier for every weapon
+const fistCfg = { mastery: { damage: { byTier: [0, 0, 0.35, 0.65, 1.0], fistByTier: [0, 0, 0.2, 0.35, 0.5] } } };
+const withFists = new Function('mp', 'cfg', 'log', 'display', 'recordOf', 'masteryOf', 'fieldsOf', 'wornOf',
+  block + '\nreturn { masteryDamageMult };')(
+  mp, fistCfg, () => {}, (id) => `a${id.toString(16)}`,
+  (id) => { try { const r = mp.lookupEspmRecordById(id >>> 0); return r && r.record ? r : null; } catch (e) { return null; } },
+  (id) => { try { const r = mp.get(id, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } },
+  fieldsOf, wornOf);
+world.mastery.set(AGG, { order: ['unarmed', 'blade'], skills: { unarmed: { rank: 4 }, blade: { rank: 4 } } });
+ok('a Master fist gets fistByTier (+50%)', withFists.masteryDamageMult(AGG, 0x1f4), 1.5);
+ok('...while a Master sword keeps byTier (+100%)', withFists.masteryDamageMult(AGG, IRON_SWORD), 2);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
