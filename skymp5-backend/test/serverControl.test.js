@@ -41,6 +41,7 @@ function harness({ unit = {}, updater = null, online = 0, beatAge = 5000, settin
     h.calls.push({ file, args: [...args], opts })
     if (file === OPS) {
       const sub = args[0]
+      h.onOps?.(args)
       if (opsFail[sub]) throw Object.assign(new Error('ops failed'), { code: 1, stdout: '' })
       if (sub === 'claim' && held) {
         throw Object.assign(new Error('Command failed'), { code: 2, stdout: `HELD: game-server is claimed by ${held} until 2026-09-28T12:00Z for: ${PURPOSE_SECRET}\n` })
@@ -200,7 +201,7 @@ test('Restart at 0 players waits for the new run; a failed unit or a rising rest
   await act(silent, 'restart')
   await silent.idle()
   assert.equal(silent.control.job(ID).state, 'unconfirmed')
-  assert.equal(silent.units, 1 + 40, 'one check, then 40 polls three seconds apart')
+  assert.equal(silent.units, 2 + 40, 'a check, a second one under the claim, then 40 polls three seconds apart')
   assert.deepEqual(silent.opsCalls().at(-1), ['release', 'game-server', 'site-owner'])
 })
 
@@ -260,6 +261,27 @@ test('a player who joins between the check and systemctl calls it off, logged, r
   assert.match(h.opsCalls()[2][2], /^Called off: Stop \(stays stopped\) from the website dashboard, a player joined before it ran$/)
   assert.deepEqual(h.systemctlCalls(), [])
   assert.equal(fs.existsSync(h.markers.stopped), false)
+})
+
+test('the state is read again under the claim: an update that began or a unit that moved calls it off', async () => {
+  const building = h => {
+    fs.mkdirSync(h.markers.updaterDirs[0], { recursive: true })
+    fs.writeFileSync(path.join(h.markers.updaterDirs[0], 'building'), '')
+  }
+  const cases = [
+    ['restart', 'Restart', {}, h => { h.updater = { active: 'activating', sub: 'start' } }, 'updating', 'an update began'],
+    ['stop', 'Stop (stays stopped)', {}, building, 'updating', 'an update began'],
+    ['start', 'Start', { active: 'inactive', sub: 'dead' }, h => { h.unit = { ...h.unit, active: 'active', sub: 'running' } }, 'alreadyRunning', 'the server changed (alreadyRunning)'],
+  ]
+  for (const [action, verb, unit, change, error, why] of cases) {
+    const h = harness({ unit })
+    h.onOps = args => { if (args[0] === 'claim') change(h) }
+    assert.deepEqual(await act(h, action), { status: 409, body: { error } }, action)
+    assert.deepEqual(h.opsCalls().map(a => a[0]), ['claim', 'log', 'log', 'release'], action)
+    assert.equal(h.opsCalls()[2][2], `Called off: ${verb} from the website dashboard, ${why} before it ran`)
+    assert.deepEqual(h.systemctlCalls(), [], action)
+    assert.equal(fs.existsSync(h.markers.stopped), false, action)
+  }
 })
 
 test('a systemctl failure restores the marker as it was, fails the job and releases the claim', async t => {

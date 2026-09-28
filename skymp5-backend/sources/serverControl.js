@@ -24,6 +24,7 @@ const SYSTEMCTL = Object.freeze({
 const CONFIRM = Object.freeze({ start: 'START', stop: 'STOP', restart: 'RESTART' })
 const VERB = Object.freeze({ start: 'Start', stop: 'Stop (stays stopped)', restart: 'Restart' })
 const OUTCOME = Object.freeze({ done: 'done', failed: 'FAILED', unconfirmed: 'not confirmed within 2 minutes' })
+const CALLED_OFF = Object.freeze({ playersOnline: 'a player joined', playersUnknown: 'the player count went stale', updating: 'an update began' })
 const BODY_KEYS = new Set(['requestId', 'reason', 'confirm'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const HELD_RE = /^HELD: \S+ is claimed by ([a-z][a-z0-9-]{1,30}) until (\S+)/m
@@ -207,13 +208,11 @@ function createServerControl({
       const note = action === 'start' && prev != null ? `; ${markerNote(prev)}` : ''
       if ((await ops(['log', OPERATOR, `${purpose}${note}`, rollback[action]])).code !== 0) return refuse(503, 'ledgerUnavailable')
 
-      // A player who joined since the first check calls it off
-      if (action !== 'start') {
-        const online = freshOnline(getHeartbeat(), state.unit, now())
-        if (online !== 0) {
-          await ops(['log', OPERATOR, `Called off: ${VERB[action]} from the website dashboard, a player joined before it ran`, 'Nothing to roll back'])
-          return refuse(409, online == null ? 'playersUnknown' : 'playersOnline')
-        }
+      // Read again under the claim: a player who joined, an updater run that began or a unit that moved calls it off
+      const late = refusal(action, await readState())
+      if (late) {
+        await ops(['log', OPERATOR, `Called off: ${VERB[action]} from the website dashboard, ${CALLED_OFF[late] || `the server changed (${late})`} before it ran`, 'Nothing to roll back'])
+        return refuse(late === 'unavailable' ? 503 : 409, late)
       }
 
       entry.job = job
