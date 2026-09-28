@@ -13,6 +13,10 @@ const MODULE = path.resolve(__dirname, '..', 'placement.js');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-placement-'));
 const home = process.cwd();
 process.chdir(dir);
+// As on the dev server: world is a link into the state folder, and the placement list is kept beside the world there
+fs.mkdirSync(path.join(dir, 'state', 'world'), { recursive: true });
+fs.symlinkSync(path.join(dir, 'state', 'world'), path.join(dir, 'world'), 'dir');
+const REG = path.join(dir, 'state', 'placements.json');
 fs.writeFileSync('admin-placeables.json', JSON.stringify({ categories: [
   { id: 'NPCs', label: 'NPCs', kind: 'npc', items: [['1e80e:Dragonborn.esm', 'Bandit', 'Dragonborn.esm']] },
   { id: 'Crafting Stations', label: 'Crafting Stations', kind: 'object', items: [['bbcf1:Skyrim.esm', 'Blacksmith Forge', 'Skyrim.esm']] },
@@ -37,18 +41,18 @@ const mp = {
     return null;
   },
 };
-const out = { personal: [], audit: [], packets: [] };
+const out = { personal: [], audit: [], packets: [], log: [] };
 const ui = {};
 const commands = {};
 require(MODULE)({
-  mp, log: () => {}, personal: (a, t) => out.personal.push(t), audit: (t) => out.audit.push(t), who: (a) => 'P' + (a >>> 0).toString(16),
+  mp, log: (...xs) => out.log.push(xs.join(' ')), personal: (a, t) => out.personal.push(t), audit: (t) => out.audit.push(t), who: (a) => 'P' + (a >>> 0).toString(16),
   onUi: (ev, fn) => { ui[ev] = fn; }, sendPacket: (a, p) => { out.packets.push([a, p]); return true; },
   isAdmin: (a) => a === GM, registerChatCommand: (n, fn) => { commands[n] = fn; },
 });
 
 let failures = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
-const reset = () => { calls.length = 0; out.personal.length = 0; out.audit.length = 0; out.packets.length = 0; };
+const reset = () => { calls.length = 0; out.personal.length = 0; out.audit.length = 0; out.packets.length = 0; out.log.length = 0; };
 
 reset(); ui.placeCatalog(PLAYER, []);
 check('a player gets no catalog', out.packets.length === 0);
@@ -57,6 +61,7 @@ check('a GM gets the catalog', out.packets.length === 1 && out.packets[0][1].cus
 
 reset(); ui.placeObject(PLAYER, ['1e80e:Dragonborn.esm', 'npc', [1000, 2100, 300], 90, true]);
 check('a player cannot place', !calls.some((c) => c[0] === 'PlaceAtMe') && /REFUSED/.test(out.audit[0]));
+check('the refusal is in the server log', /placeObject 1e80e:Dragonborn.esm npc from .* refused: not an admin/.test(out.log.join('\n')), out.log[0]);
 
 reset(); ui.placeObject(GM, ['dead:Nope.esp', 'npc', [1000, 2100, 300], 90, true]);
 check('something outside the catalog is refused', !calls.some((c) => c[0] === 'PlaceAtMe') && /catalog/.test(out.personal[0]), out.personal[0]);
@@ -77,7 +82,9 @@ reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2100, 310], 45
 const obj = 0xff000101;
 check('an object is moved with SetPosition and SetAngle', calls.some((c) => c[0] === 'SetPosition' && c[1] === obj && c[2][2] === 310) && calls.some((c) => c[0] === 'SetAngle' && c[1] === obj && c[2][2] === 45));
 check('an object gets no locationalData', !calls.some((c) => c[2] === 'locationalData' && c[1] === obj));
-check('both are in placements.json', JSON.parse(fs.readFileSync('placements.json', 'utf8')).length === 2);
+check('the placement is in the server log with its outcome', /placeObject bbcf1:Skyrim.esm object at 1100,2100,310 from .*: placed/.test(out.log.join('\n')), out.log.join(' | '));
+check('the list is kept beside the world, not in the server folder', fs.existsSync(REG) && !fs.existsSync('placements.json'));
+check('both are in placements.json', JSON.parse(fs.readFileSync(REG, 'utf8')).length === 2);
 
 reset(); ui.placeDelete(GM, [(0xff000999).toString(16)]);
 check('an untagged reference cannot be deleted', !calls.some((c) => c[0] === 'Delete' || c[0] === 'destroyActor') && /Only things placed/.test(out.personal[0]));
@@ -87,12 +94,35 @@ reset(); ui.placeDelete(GM, [obj.toString(16)]);
 check('a placed object is deleted with Delete', calls.some((c) => c[0] === 'Delete' && c[1] === obj) && /removed Blacksmith Forge/.test(out.audit[0]));
 reset(); ui.placeDelete(GM, [npc.toString(16)]);
 check('a placed NPC is destroyed as an actor', calls.some((c) => c[0] === 'destroyActor' && c[1] === npc));
-check('the registry is empty again', JSON.parse(fs.readFileSync('placements.json', 'utf8')).length === 0);
+check('the registry is empty again', JSON.parse(fs.readFileSync(REG, 'utf8')).length === 0);
 
 reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2100, 310], 0, false]);
 commands.placeexport(GM);
 const exp = JSON.parse(fs.readFileSync('placements-export.json', 'utf8'));
 check('/placeexport writes base, cell or world, position and rotation', exp.placements.length === 1 && exp.placements[0].base === 'bbcf1:Skyrim.esm' && exp.placements[0].cellOrWorldDesc && exp.placements[0].rot.length === 3);
+
+// The Place tab's list: nearest first, in the GM's own cell or world only
+reset(); ui.placeObject(GM, ['1e80e:Dragonborn.esm', 'npc', [1000, 3000, 300], 0, false]);
+const far = [...props.keys()].filter((k) => k.endsWith('|private.dboPlaced')).map((k) => Number(k.split('|')[0])).sort((x, y) => y - x)[0];
+// The module keeps the list in memory (globalThis.__dboPlacement), so the other world's entry goes in there
+globalThis.__dboPlacement.registry.push({ id: 'ff0007aa', base: 'bbcf1:Skyrim.esm', name: 'Elsewhere', kind: 'object', where: '3c:Skyrim.esm', pos: [0, 0, 0], rot: [0, 0, 0], by: 2, at: '' });
+reset(); ui.placeList(GM, []);
+const lp = out.packets[0] && out.packets[0][1];
+check('placeList sends the nearest placements here, nearest first', lp && lp.customPacketType === 'adminPlacements' && lp.items.length === 2 && lp.items[0].name === 'Blacksmith Forge' && lp.items[1].name === 'Bandit' && lp.here === 2 && lp.total === 3, JSON.stringify(lp));
+reset(); ui.placeList(PLAYER, []);
+check('a player gets no list', out.packets.length === 0);
+
+reset(); ui.placeGoto(GM, [far.toString(16)]);
+const tp = calls.find((c) => c[0] === 'set' && c[1] === GM && c[2] === 'locationalData');
+check('placeGoto moves the GM 2 m south of it, in its cell or world', tp && tp[3].cellOrWorldDesc === 'a764b:BSHeartland.esm' && tp[3].pos[1] === 3000 - 140 && /went to Bandit/.test(out.audit[0]), JSON.stringify(tp));
+reset(); ui.placeGoto(PLAYER, [far.toString(16)]);
+check('a player cannot use placeGoto', !calls.some((c) => c[1] === PLAYER && c[2] === 'locationalData'));
+
+// Removed some other way: the world no longer has it, so only its list entry goes
+props.delete(far + '|private.dboPlaced');
+reset(); ui.placeDelete(GM, [far.toString(16), 'list']);
+check('a listed placement that is gone leaves the list, nothing is destroyed', !calls.some((c) => c[0] === 'Delete' || c[0] === 'destroyActor') && /already gone/.test(out.personal[0]) && !JSON.parse(fs.readFileSync(REG, 'utf8')).some((p) => p.id === far.toString(16)), out.personal[0]);
+check('a removal from the tab sends the list again', out.packets.length === 1 && out.packets[0][1].customPacketType === 'adminPlacements' && out.packets[0][1].items.length === 1);
 
 process.chdir(home);
 fs.rmSync(dir, { recursive: true, force: true });

@@ -8,7 +8,13 @@
 //   Client -> Server: dbo placeCatalog []                                  the catalog, sent once as adminPlaceables
 //                     dbo placeObject [desc, kind, [x,y,z], rotZ, hostile]  degrees, in the GM's own cell or world
 //                     dbo placeDelete [remoteIdHex]                         only something placed this way
+//                     dbo placeList []                                      the Place tab's "Placed near me" list
+//                     dbo placeGoto [remoteIdHex]                           move the GM next to a placement
 //   Server -> Client: { customPacketType: "adminPlaceables", categories }
+//                     { customPacketType: "adminPlacements", items: [{ id, name, kind, hostile, dist, by, at }], total, here }
+//
+// Every placeObject and placeDelete that arrives is logged with its outcome, refusals included: for three days the tab was
+// opened and nothing ever reached this file, and the log could not tell "never sent" from "refused" (2026-09-28).
 
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +27,10 @@ module.exports = (api) => {
   const HIDDEN = new Set(((api.cfg || {}).placement || {}).hideCategories || ['Statics']);
 
   const CATALOG = path.resolve('admin-placeables.json');
-  const REGISTRY = path.resolve('placements.json');
+  // Placed things are saved in the world state, so their list belongs beside it: on the dev server world is a link into
+  // /opt/skymp-state, where a restore of the world brings back the matching list. Without a world folder, this folder.
+  const stateDir = () => { try { return path.dirname(fs.realpathSync(path.resolve('world'))); } catch (e) { return path.resolve('.'); } };
+  const REGISTRY = path.join(stateDir(), 'placements.json');
   const EXPORT = path.resolve('placements-export.json');
   // A confirm this far from the GM is refused: the preview never goes further than the client's own limit
   const MAX_REACH = 4096;
@@ -100,7 +109,16 @@ module.exports = (api) => {
     if (!id) return { ok: false, text: 'Aim at something first.' };
     let tag = null;
     try { tag = mp.get(id, TAG); } catch (e) { /* not a reference */ }
-    if (!tag) return { ok: false, text: 'Only things placed with the Place tab can be removed this way.' };
+    if (!tag) {
+      // Listed but no longer in the world (removed some other way): only the list entry goes
+      const list = registry();
+      const at = list.findIndex((p) => p.id === hex(id));
+      if (at < 0) return { ok: false, text: 'Only things placed with the Place tab can be removed this way.' };
+      const gone = list.splice(at, 1)[0];
+      saveRegistry();
+      audit(`PLACE ${who(a)} dropped ${gone.name} (${gone.base}), ref ${gone.id}, from the list: it was no longer in the world`);
+      return { ok: true, text: `${gone.name} was already gone; it is off the list now.` };
+    }
     try {
       if (tag.kind === 'npc') mp.destroyActor(id);
       else papyrus('Delete', id, []);
@@ -120,37 +138,77 @@ module.exports = (api) => {
     log(`placement: catalog ${ok ? 'sent' : 'NOT sent'} to ${who(a)}: ${categories.reduce((n, c) => n + (c.items || []).length, 0)} placeables in ${categories.length} categories, ${JSON.stringify(categories).length} bytes`);
   });
 
+  // The nearest placements in the GM's cell or world, for the Place tab's list
+  const nearby = (a, limit) => {
+    const list = registry();
+    const here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase();
+    const me = mp.get(a, 'pos') || [0, 0, 0];
+    const rows = list.filter((p) => String(p.where).toLowerCase() === here)
+      .map((p) => ({ p, d: Math.hypot(p.pos[0] - me[0], p.pos[1] - me[1], p.pos[2] - me[2]) }))
+      .sort((x, y) => x.d - y.d);
+    return { rows: rows.slice(0, limit), here: rows.length, total: list.length };
+  };
+  const sendList = (a) => {
+    const { rows, here, total } = nearby(a, 50);
+    const items = rows.map(({ p, d }) => ({ id: p.id, name: p.name, kind: p.kind, hostile: p.hostile, dist: Math.round(d / 70), by: p.by, at: p.at }));
+    sendPacket(a, { customPacketType: 'adminPlacements', items, here, total });
+  };
+
+  const goTo = (a, idHex) => {
+    const p = registry().find((x) => x.id === String(idHex || '').toLowerCase());
+    if (!p) return { ok: false, text: 'That placement is not on the list.' };
+    // 2 m to the south of it, facing north toward it (Skyrim's heading 0 is +Y)
+    mp.set(a, 'locationalData', { cellOrWorldDesc: p.where, pos: [p.pos[0], p.pos[1] - 140, p.pos[2]], rot: [0, 0, 0] });
+    audit(`PLACE ${who(a)} went to ${p.name}, ref ${p.id}`);
+    return { ok: true, text: `Moved you next to ${p.name}.` };
+  };
+
   onUi('placeObject', (a, args) => {
-    if (!isAdmin(a)) { audit(`PLACE ${who(a)} REFUSED (not an admin)`); return; }
+    const what = `${String(args[0] || '?')} ${args[1] === 'npc' ? 'npc' : 'object'}`;
+    if (!isAdmin(a)) { audit(`PLACE ${who(a)} REFUSED (not an admin)`); log(`placement: placeObject ${what} from ${who(a)} refused: not an admin`); return; }
     loadCatalog();
     const desc = String(args[0] || '');
     const kind = args[1] === 'npc' ? 'npc' : 'object';
     const pos = Array.isArray(args[2]) ? args[2].slice(0, 3).map(num) : [];
     const rotZ = num(args[3]);
-    if (pos.length !== 3 || pos.some(Number.isNaN) || Number.isNaN(rotZ)) return personal(a, 'Placement refused: a bad position.');
     let r;
-    try { r = place(a, desc, kind, pos, rotZ, args[4] === true); }
-    catch (e) { log('placement failed', e.stack || e.message); r = { ok: false, text: 'Placement failed; see the server log.' }; }
+    if (pos.length !== 3 || pos.some(Number.isNaN) || Number.isNaN(rotZ)) r = { ok: false, text: 'Placement refused: a bad position.' };
+    else {
+      try { r = place(a, desc, kind, pos, rotZ, args[4] === true); }
+      catch (e) { log('placement failed', e.stack || e.message); r = { ok: false, text: 'Placement failed; see the server log.' }; }
+    }
+    log(`placement: placeObject ${what} at ${pos.map((n) => Math.round(n)).join(',')} from ${who(a)}: ${r.ok ? 'placed' : 'refused'} (${r.text})`);
     personal(a, r.text);
   });
 
   onUi('placeDelete', (a, args) => {
-    if (!isAdmin(a)) return;
+    if (!isAdmin(a)) { log(`placement: placeDelete ${String(args[0] || '?')} from ${who(a)} refused: not an admin`); return; }
     let r;
     try { r = remove(a, args[0]); }
     catch (e) { log('placement removal failed', e.stack || e.message); r = { ok: false, text: 'Removal failed; see the server log.' }; }
+    log(`placement: placeDelete ${String(args[0] || '?')} from ${who(a)}: ${r.ok ? 'removed' : 'refused'} (${r.text})`);
+    personal(a, r.text);
+    // The Place tab's list sends its removals here too, and shows the list again afterwards
+    if (args[1] === 'list') sendList(a);
+  });
+
+  onUi('placeList', (a) => {
+    if (!isAdmin(a)) return;
+    sendList(a);
+  });
+
+  onUi('placeGoto', (a, args) => {
+    if (!isAdmin(a)) { log(`placement: placeGoto from ${who(a)} refused: not an admin`); return; }
+    let r;
+    try { r = goTo(a, args[0]); }
+    catch (e) { log('placement goto failed', e.stack || e.message); r = { ok: false, text: 'Could not move you there; see the server log.' }; }
     personal(a, r.text);
   });
 
   registerChatCommand('placed', (a) => {
-    const list = registry();
-    const here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase();
-    const me = mp.get(a, 'pos') || [0, 0, 0];
-    const near = list.filter((p) => String(p.where).toLowerCase() === here)
-      .map((p) => ({ p, d: Math.hypot(p.pos[0] - me[0], p.pos[1] - me[1]) }))
-      .sort((x, y) => x.d - y.d).slice(0, 10);
-    personal(a, `${list.length} placed in all; nearest here:`);
-    for (const { p, d } of near) personal(a, `${p.name} (${p.kind}${p.kind === 'npc' ? (p.hostile ? ', hostile' : ', friendly') : ''}) ${Math.round(d / 70)} m away, ref ${p.id}`);
+    const { rows, total } = nearby(a, 10);
+    personal(a, `${total} placed in all; nearest here:`);
+    for (const { p, d } of rows) personal(a, `${p.name} (${p.kind}${p.kind === 'npc' ? (p.hostile ? ', hostile' : ', friendly') : ''}) ${Math.round(d / 70)} m away, ref ${p.id}`);
   }, { admin: true, help: 'placements near you (Place tab)' });
 
   // Written for baking into a plugin on the PC: base, cell or world, position and rotation in degrees
