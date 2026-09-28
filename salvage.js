@@ -6,6 +6,8 @@
 // (Scholar). Using the station opens a panel listing what the player carries that it can take apart, and what each
 // gives back. The first row works the station as usual: it arms one pass, and the next use goes to the engine, the way
 // rest.js's "Lie down" does. A player without the skill, or with nothing to break down, never sees the panel.
+// Nate's book breakdown ledger (BookBreakdown, config bookBreakdownBases) exists only for this: no first row, and it
+// tells a non-Scholar or someone with no books why nothing happens.
 //
 // What comes back (salvage.json, from tooling/make_salvage.py): a share of the materials of the recipe that makes the
 // item, by the player's tier in the station's skill (shareByTier, Novice 25 % .. Master 75 %), each rounded down, with
@@ -23,6 +25,7 @@ module.exports = (api) => {
     enabled: true,
     shareByTier: [0.25, 0.35, 0.5, 0.6, 0.75],
     pageSize: 7, useWindowSeconds: 20, reachMeters: 6.5,
+    bookBreakdownBases: ['BookBreakdown'],
     paper: '7cba1:BSHeartland.esm', leatherStrips: '800e4:Skyrim.esm', bookPaper: 2, bookStrips: 1, notePaper: 1,
   }, cfg.salvage || {});
   const WIDGET_ID = 'dboSalvage';
@@ -31,7 +34,10 @@ module.exports = (api) => {
     { id: 'loom', skill: 'tailor', label: 'loom', keywords: ['MCE_CraftingLoom', 'TailorBench'] },
     { id: 'smelter', skill: 'blacksmith', label: 'smelter', keywords: ['CraftingSmelter', 'isSmelter'] },
     { id: 'tanning', skill: 'skinner', label: 'tanning rack', keywords: ['CraftingTanningRack', 'isTanning'] },
-    { id: 'desk', skill: 'scholar', label: 'writing desk', keywords: ['isWritingChair', 'isWritingTable', 'isHadvarWriteLedger'] },
+    { id: 'desk', skill: 'scholar', label: 'writing desk', books: true, keywords: ['isWritingChair', 'isWritingTable', 'isHadvarWriteLedger'] },
+    // A station made for it (DragonBreak Online Edits.esp BookBreakdown, the ledger in the Synod Conclave, 2026-09-28): its
+    // script blocks the game's own activation, so it has no "use it again" row and always answers
+    { id: 'ledger', skill: 'scholar', label: 'Book Breakdown Ledger', books: true, dedicated: true, keywords: [], bases: CFG.bookBreakdownBases || [] },
   ];
   const TIER_NAMES = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
 
@@ -66,8 +72,9 @@ module.exports = (api) => {
     if (!base) return null;
     if (stationCache.has(base)) return stationCache.get(base);
     const r = recordOf(base);
-    let found = null;
-    if (r && String(r.record.type) === 'FURN') {
+    const ed = r ? String(r.record.editorId || '') : '';
+    let found = r ? STATIONS.find((s) => (s.bases || []).includes(ed)) || null : null;
+    if (!found && r && String(r.record.type) === 'FURN') {
       const kwda = fieldsOf(r, 'KWDA')[0];
       const eds = new Set();
       for (let off = 0; kwda && off + 4 <= kwda.data.byteLength; off += 4) {
@@ -104,7 +111,7 @@ module.exports = (api) => {
 
   // What one of this item gives back at this station for this rank, or null when it cannot be broken down here
   const yieldOf = (baseId, station, rank) => {
-    if (station.id === 'desk') return bookYield(baseId);
+    if (station.books) return bookYield(baseId);
     const e = items().get(norm(descOf(baseId)));
     if (!e || e[0] !== station.id || rank < (Number(e[1]) || 0)) return null;
     const share = shareFor(rank);
@@ -155,7 +162,7 @@ module.exports = (api) => {
     const size = Math.max(1, Number(CFG.pageSize) || 7);
     const pages = Math.max(1, Math.ceil(list.length / size));
     const p = ((page % pages) + pages) % pages;
-    const actions = [{ id: 'use', label: station.id === 'desk' ? 'Sit at the desk (use it again)' : `Work the ${station.label} (use it again)` }];
+    const actions = station.dedicated ? [] : [{ id: 'use', label: station.id === 'desk' ? 'Sit at the desk (use it again)' : `Work the ${station.label} (use it again)` }];
     for (const it of list.slice(p * size, p * size + size)) {
       actions.push({ id: `b:${it.baseId}`, label: `Break down ${nameOf(descOf(it.baseId))}${it.count > 1 ? ` (${it.count})` : ''}: ${givesText(it.gives)}` });
     }
@@ -181,6 +188,8 @@ module.exports = (api) => {
       if (pass.target === (target >>> 0) && pass.until > Date.now()) return false;
     }
     const rank = rankIn(caster, station.skill);
+    if (station.dedicated && rank < 0) { personal(caster, 'Only a Scholar can break books down here.'); return true; }
+    if (station.dedicated && !breakable(caster, station, rank).length) { personal(caster, 'You carry no books to break down.'); return true; }
     if (rank < 0 || !breakable(caster, station, rank).length) return false;
     openPanel(caster, target, station, 0);
     return true;

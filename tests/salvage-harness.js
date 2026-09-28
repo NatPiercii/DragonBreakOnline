@@ -10,7 +10,7 @@ process.chdir(scratch);
 
 const IRON = 0x5ace4, STEEL = 0x5ace5, EBONY = 0x5ad9d, STRIPS = 0x800e4, LEATHER = 0xdb5d2, PAPER = 0x0807cba1;
 const SWORD = 0x12eb7, STEEL_ARMOR = 0x13952, DAEDRIC = 0x139b9, LEATHER_ARMOR = 0x3619e, BOOK = 0x1000, NOTE = 0x1001, QUEST_BOOK = 0x1002, APPLE = 0x2000;
-const SMELTER = 0x9000, SMELTER_BASE = 0x9001, RACK = 0x9002, RACK_BASE = 0x9003, LOOM = 0x9004, LOOM_BASE = 0x9005, DESK = 0x9006, DESK_BASE = 0x9007, CHAIR = 0x9008, CHAIR_BASE = 0x9009;
+const SMELTER = 0x9000, SMELTER_BASE = 0x9001, RACK = 0x9002, RACK_BASE = 0x9003, LOOM = 0x9004, LOOM_BASE = 0x9005, DESK = 0x9006, DESK_BASE = 0x9007, CHAIR = 0x9008, CHAIR_BASE = 0x9009, LEDGER = 0x900a, LEDGER_BASE = 0x900b;
 const KW = { 0x8001: 'CraftingSmelter', 0x8002: 'isSmelter', 0x8003: 'CraftingTanningRack', 0x8004: 'isTanning', 0x8005: 'MCE_CraftingLoom', 0x8006: 'isHadvarWriteLedger', 0x8007: 'FurnitureSpecial' };
 const PLAYER = 0xff000001, NOVICE = 0xff000002, NOSKILL = 0xff000003;
 const desc = (id) => (id >>> 24 === 8 ? `${(id & 0xffffff).toString(16)}:BSHeartland.esm` : `${id.toString(16)}:Skyrim.esm`);
@@ -33,10 +33,11 @@ const RECS = {
   [LOOM_BASE]: { type: 'FURN', fields: [kwda(0x8004, 0x8005)] }, // the MCE loom carries isTanning too
   [DESK_BASE]: { type: 'FURN', fields: [kwda(0x8006)] },
   [CHAIR_BASE]: { type: 'FURN', fields: [kwda(0x8007)] },
+  [LEDGER_BASE]: { type: 'ACTI', editorId: 'BookBreakdown', fields: [] },
   [BOOK]: { type: 'BOOK', fields: [bookData(0, 0)] }, [NOTE]: { type: 'BOOK', fields: [bookData(0, 255)] }, [QUEST_BOOK]: { type: 'BOOK', fields: [bookData(0x02, 0)] },
 };
 for (const [id, ed] of Object.entries(KW)) RECS[id] = { type: 'KYWD', editorId: ed, fields: [] };
-const BASE = { [SMELTER]: SMELTER_BASE, [RACK]: RACK_BASE, [LOOM]: LOOM_BASE, [DESK]: DESK_BASE, [CHAIR]: CHAIR_BASE };
+const BASE = { [SMELTER]: SMELTER_BASE, [RACK]: RACK_BASE, [LOOM]: LOOM_BASE, [DESK]: DESK_BASE, [CHAIR]: CHAIR_BASE, [LEDGER]: LEDGER_BASE };
 let INV, MAST, FAR = false;
 const said = [], widgets = [], ui = {}, logs = [];
 const reset = () => {
@@ -139,6 +140,19 @@ choose(PLAYER, `b:${BOOK}`); choose(PLAYER, `b:${NOTE}`);
 ok(count(PLAYER, PAPER) === 3 && count(PLAYER, STRIPS) === 1 && count(PLAYER, BOOK) === 0 && count(PLAYER, NOTE) === 0, 'a bound book gives 2 paper and a strip, a note 1 paper');
 INV[NOVICE] = [{ baseId: BOOK, count: 1 }];
 ok(act(DESK, NOVICE) === false, 'a non-Scholar just uses the desk');
+
+// Nate's book breakdown ledger (BookBreakdown, an activator): books only, no first row, and it always answers
+reset(); S = load();
+ok(S.stationOf(LEDGER).id === 'ledger', 'the BookBreakdown activator is a book station, found by its editor id');
+INV[PLAYER] = [{ baseId: BOOK, count: 1 }, { baseId: SWORD, count: 1 }];
+ok(act(LEDGER, PLAYER) === true, 'a Scholar with a book gets the panel');
+w = lastWidget(PLAYER);
+ok(w.actions.length === 1 && w.actions[0].id === `b:${BOOK}` && /at the Book Breakdown Ledger/.test(w.targetName), 'only the book is offered, with no "use it again" row');
+choose(PLAYER, `b:${BOOK}`);
+ok(count(PLAYER, PAPER) === 2 && count(PLAYER, STRIPS) === 1 && count(PLAYER, BOOK) === 0, 'the book breaks down there');
+ok(act(LEDGER, PLAYER) === true && /no books to break down/.test(said[said.length - 1][1]), 'with no books left it says so');
+INV[NOVICE] = [{ baseId: BOOK, count: 1 }];
+ok(act(LEDGER, NOVICE) === true && /Only a Scholar/.test(said[said.length - 1][1]) && count(NOVICE, BOOK) === 1, 'a non-Scholar is told only a Scholar can use it');
 
 // Using the station, walking away, paging
 reset(); S = load();
