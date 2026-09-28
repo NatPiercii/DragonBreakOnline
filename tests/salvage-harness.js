@@ -191,6 +191,46 @@ S = load();
 choose(PLAYER, `b:${0x7007}`);
 ok(count(PLAYER, 0x7007) === 0 && count(PLAYER, PAPER) === 2, 'a panel opened before a reload still answers after it');
 
+// A recipe that makes several at once costs a share of its materials (review A5-1): a ring made 2 per ingot is not offered
+reset(); S = load();
+const RING = 0x1cf2b, GOLD = 0x5ad9e;
+NAMES[RING] = 'Gold Ring'; NAMES[GOLD] = 'Gold Ingot';
+const table = JSON.parse(fs.readFileSync('salvage.json', 'utf8'));
+table.items[desc(RING)] = ['smelter', 1, [[desc(GOLD), 0.5]]];
+fs.writeFileSync('salvage.json', JSON.stringify(table)); fs.utimesSync('salvage.json', new Date(), new Date(Date.now() + 5000));
+INV[PLAYER] = [{ baseId: RING, count: 4 }];
+ok(act(SMELTER, PLAYER) === false && count(PLAYER, GOLD) === 0, 'a ring made 2 per ingot gives nothing back, so it is not offered');
+ok(S.yieldOf(RING, S.stationOf(SMELTER), 4) === null, '...not even to a Master');
+
+// Craft then salvage never returns more than the craft cost, for every item in the real table at every tier
+{
+  const real = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'salvage.json'), 'utf8')).items;
+  const keys = Object.keys(real);
+  fs.writeFileSync('salvage.json', JSON.stringify({ items: real })); fs.utimesSync('salvage.json', new Date(), new Date(Date.now() + 10000));
+  const byId = new Map(keys.map((k, i) => [0x0a000000 + i, k]));
+  const realDesc = mp.getDescFromId;
+  mp.getDescFromId = (id) => byId.get(id) || realDesc(id);
+  S = load();
+  const st = { smelter: S.stationOf(SMELTER), tanning: S.stationOf(RACK), loom: S.stationOf(LOOM) };
+  let worst = null, offered = 0;
+  for (const [id, k] of byId) {
+    const [station, , mats] = real[k];
+    const cost = new Map(mats.map(([d, n]) => [d.toLowerCase(), n]));
+    for (let rank = 0; rank <= 4; rank++) {
+      const gives = S.yieldOf(id, st[station], rank);
+      if (!gives) continue;
+      offered++;
+      for (const [d, n] of gives) if (!(n <= (cost.get(String(d).toLowerCase()) || 0))) worst = worst || `${k} rank ${rank}: ${n} of ${d}, cost ${cost.get(String(d).toLowerCase())}`;
+    }
+  }
+  mp.getDescFromId = realDesc;
+  // The table itself must carry the divided cost: these recipes make 2 (COBJ NAM1), so their main material costs half.
+  // With the old generator (1 ingot per ring) the check above passed and the loop was live.
+  const halves = ['1cf2b:Skyrim.esm', '3b97c:Skyrim.esm'];
+  ok(halves.every((k) => real[k] && real[k][2][0][1] === 0.5), 'the gold and silver rings (2 per ingot) cost half an ingot in the real table');
+  ok(offered > 20000 && !worst, `no craft-then-salvage loop gains anything: ${keys.length} items, ${offered} item-tier yields checked${worst ? `; first gain: ${worst}` : ''}`);
+}
+
 console.log(fails ? `${fails} FAILED` : 'all checks passed');
 fs.rmSync(scratch, { recursive: true, force: true });
 process.exit(fails ? 1 : 0);
