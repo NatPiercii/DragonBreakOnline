@@ -1,5 +1,19 @@
 [
   {
+    "title": "Leaner Expeditions",
+    "date": "2026-09-28",
+    "version": "Server",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "Every ruin now gives about half the treasure it did, least on Novice. Big chests usually hold one or two things, urns are mostly empty, the master's chest holds a handful (a raid's about half again as much), and enchanted and Ayleid finds are rarer. The finest Ayleid pieces remain Master-only."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Boss Dungeons and Raids",
     "date": "2026-09-28",
     "version": "Server",
@@ -9,7 +23,7 @@
         "heading": "Expeditions",
         "items": [
           "Expeditions are now Boss dungeons (for up to 6, one master: Niryastare and Telepe) or Raids (for up to 12: Silorn and Bawn). The Expedition Board shows which is which.",
-          "Raid masters are stronger and bring escorts, a raid holds more foes, and its boss chests and masters give twice the treasure with a better shot at rare Ayleid pieces.",
+          "Raid masters are stronger and bring escorts, a raid holds more foes, and its boss chests and masters give more treasure with a better shot at rare Ayleid pieces.",
           "Skill gain is no longer halved for a big group inside a raid ruin. There is no minimum group size, but a raid is built for many: a small party will find it very hard."
         ]
       },
