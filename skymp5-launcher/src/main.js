@@ -1701,7 +1701,7 @@ function documentsDirOrNull() {
 }
 
 // Send this launcher's logs to staff. The backend redacts again, then files them as a thread in the
-// error-report forum under the player's Discord name.
+// bug tracker forum under the player's Discord name.
 ipcMain.handle('report:send', async (_e, { note } = {}) => {
   const user    = store.get('discordUser') || null
   const session = store.get('gameSession')

@@ -859,7 +859,7 @@ reportButton.addEventListener('click', async () => {
   reportStatus.textContent = 'Sending your logs...'
   const r = await window.electronAPI.sendReport(reportNote.value || '')
   if (r && r.ok) {
-    reportStatus.textContent = 'Sent. Staff can see it in the error-report channel under your Discord name.'
+    reportStatus.textContent = 'Sent. Staff will see it in the bug tracker under your Discord name.'
     reportNote.value = ''
   } else {
     reportStatus.textContent = (r && r.error) || 'Could not send the report.'

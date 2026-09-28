@@ -1,6 +1,6 @@
 'use strict'
 // Collects what staff need to diagnose a failed install or launch and sends it to the backend, which
-// files it as a thread in the error-report forum under the player's Discord name.
+// files it as a thread in the bug tracker forum under the player's Discord name.
 // Redacts here as well as on the server: a log should not leave the machine carrying a live key.
 
 const fs   = require('fs')
