@@ -719,7 +719,7 @@ private:
       "InputDiag: 10 s with the browser focused:{} | page loaded {}, browser "
       "{}, visible {} | cursor menu {} at {},{} | Windows cursor {},{} in a "
       "{}x{} window | front {} | active {} | focus {} | capture {} | last "
-      "frame {} ms ago",
+      "frame {} ms ago | network: last tick {} ms ago, last send {} ms ago",
       counts.empty() ? std::string(" no input events") : counts,
       s.clientReady.load(), s.browserCreated.load(),
       CEFUtils::DX11RenderHandler::Visible(), s.cursorMenuOpen.load(),
@@ -728,7 +728,18 @@ private:
       haveGui ? Who(gui.hwndActive) : std::string("?"),
       haveGui ? Who(gui.hwndFocus) : std::string("?"),
       haveGui ? Who(gui.hwndCapture) : std::string("?"),
-      lastFrame && now > lastFrame ? now - lastFrame : 0);
+      lastFrame && now > lastFrame ? now - lastFrame : 0,
+      Ago(s.lastNetTickMs, now), Ago(s.lastNetSendMs, now));
+  }
+
+  // -1 for never
+  static int64_t Ago(const std::atomic<uint64_t>& at, ULONGLONG now)
+  {
+    const uint64_t then = at.load(std::memory_order_relaxed);
+    if (!then) {
+      return -1;
+    }
+    return now > then ? static_cast<int64_t>(now - then) : 0;
   }
 
   static bool IsCode(uint64_t address)

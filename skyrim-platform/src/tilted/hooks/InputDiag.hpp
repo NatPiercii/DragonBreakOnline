@@ -41,6 +41,10 @@ enum Kind : int
   kCefNotReady,
   kCefFocus,
   kCefLoad,
+  kNetTick,
+  kNetPacket,
+  kNetSend,
+  kNetEvent,
   kKindCount
 };
 
@@ -49,7 +53,8 @@ inline constexpr const char* kNames[kKindCount] = {
   "wm-input",      "wm-focus",   "di-mousemove",   "di-button",
   "di-wheel",      "di-key",     "drop-unfocused", "drop-no-cursor-menu",
   "cef-mousemove", "cef-button", "cef-wheel",      "cef-key",
-  "cef-not-ready", "cef-focus",  "cef-load"
+  "cef-not-ready", "cef-focus",  "cef-load",       "net-tick",
+  "net-packet-in", "net-send",   "net-event"
 };
 
 struct State
@@ -67,6 +72,9 @@ struct State
   std::atomic<uint64_t> frames{ 0 };
   std::atomic<uint64_t> lastFrameMs{ 0 };
   std::atomic<uint32_t> mainThreadId{ 0 };
+  // The client's calls into MpClientPlugin: does it still talk to the server
+  std::atomic<uint64_t> lastNetTickMs{ 0 };
+  std::atomic<uint64_t> lastNetSendMs{ 0 };
 };
 
 inline State& Get() noexcept
@@ -93,6 +101,12 @@ inline bool Count(Kind kind, bool always = false) noexcept
   uint64_t last = s.lastLog[kind].load(std::memory_order_relaxed);
   return now - last >= 10000 &&
     s.lastLog[kind].compare_exchange_strong(last, now);
+}
+
+// Counts an event for the summary without logging it
+inline void Tally(Kind kind) noexcept
+{
+  Get().counts[kind].fetch_add(1, std::memory_order_relaxed);
 }
 
 // A new focus period logs the first events of every kind again
