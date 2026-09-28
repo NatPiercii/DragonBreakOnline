@@ -412,6 +412,16 @@ module.exports = (api) => {
     if (/Dragonborn|DLC2Solstheim/i.test(s)) return 'solstheim';
     return 'skyrim';
   };
+  // The line on arriving in a claimed dungeon. It also flashes centre-screen (chatService's overlay), so it stays near
+  // 130 characters, three short lines (Nate, 2026-09-28: the expedition's filled past the screen).
+  const arrivalLine = (d, lease, diff) => {
+    const goal = d.expedition && lease.bossZones.size ? `Defeat its master to head home ${C.bossReturnMinutes} minutes later.`
+      : d.expedition ? 'Clear it to finish early.' : 'Clear every foe and big chest to finish early.';
+    const leave = d.expedition ? ' To leave: this door, or /expedition leave.' : '';
+    const locked = lease.locked.size ? ` ${lease.locked.size} chest${lease.locked.size === 1 ? '' : 's'} locked.` : '';
+    return `${d.name} is yours for ${C.leaseMinutes} minutes (${diff.label}). ${goal}${leave}${locked}`;
+  };
+
   const startLease = (leaderActor, d, entrance, diff) => {
     const leaderPid = profileOf(leaderActor);
     const members = new Set(partyMembers(leaderPid));
@@ -438,7 +448,7 @@ module.exports = (api) => {
       for (const pid of members) {
         const a = actorByProfile(pid); if (!a) continue;
         if (a !== leaderActor && !atEntrance(a, entrance)) { system(a, `${display(leaderActor)} has claimed ${d.name}. Use the entrance to join them.`); continue; }
-        if (teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) { moved++; system(a, `${d.name} is yours for ${C.leaseMinutes} minutes (${diff.label}). ${d.expedition && lease.bossZones.size ? `Defeat its master; ${C.bossReturnMinutes} minutes later the expedition heads home.` : 'Clear every enemy and open every big chest to finish early.'}${d.expedition ? ' Return here to leave: the door at this entrance takes you home, or say /expedition leave anywhere in the ruin.' : ''} ${lease.locked.size ? lease.locked.size + ' chest' + (lease.locked.size === 1 ? ' is' : 's are') + ' locked.' : ''}`); glowLease(a, lease, d); }
+        if (teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) { moved++; system(a, arrivalLine(d, lease, diff)); glowLease(a, lease, d); }
       }
       audit(`DUNGEON ${who(leaderActor)} claimed ${d.name} on ${diff.label} with ${members.size} member(s), ${zones.length} enemies (${placed >= 0 ? placed + ' placed before entry' : 'placed on entry'}), ${filled} containers filled, ${lease.locked.size} locked`);
       log(`dungeon ${d.id} claimed by ${display(leaderActor)}: ${diff.id}, party level ${lease.partyLevel} x${lease.partySize}, ${moved} moved in, ${zones.length} enemies, ${placed} prespawned, ${filled} containers`);
@@ -551,7 +561,7 @@ module.exports = (api) => {
         const allDown = lease.bossIds.size >= lease.bossZones.size && [...lease.bossIds].every((id) => lease.deadNpcs.has(id));
         if (allDown && !lease.bossDownAt) {
           lease.bossDownAt = now;
-          for (const pid of lease.members) { const a = actorByProfile(pid); if (a) system(a, `The master of ${lease.name} has fallen. In ${C.bossReturnMinutes} minutes the expedition sets out for home, and anyone still inside comes with it. /expedition leave goes now.`); }
+          for (const pid of lease.members) { const a = actorByProfile(pid); if (a) system(a, `The master of ${lease.name} has fallen. The expedition heads home in ${C.bossReturnMinutes} minutes, with anyone inside. /expedition leave goes now.`); }
           audit(`DUNGEON ${lease.name}: boss down, home in ${C.bossReturnMinutes} min`);
         }
         if (lease.bossDownAt) {

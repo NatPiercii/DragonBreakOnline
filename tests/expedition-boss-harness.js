@@ -87,7 +87,7 @@ dead.add(GRUNT); tick();
 check('a guard falling starts nothing', lease.bossDownAt === 0);
 dead.add(BOSS); now += 15000; tick();
 check('the boss falls: the ten minutes start', lease.bossDownAt === now, lease.bossDownAt);
-check('...and the party is told, with /expedition leave', /The master of Niryastare has fallen\. In 10 minutes .*\/expedition leave goes now/.test(last()), last());
+check('...and the party is told, with /expedition leave', /The master of Niryastare has fallen\. The expedition heads home in 10 minutes, .*\/expedition leave goes now/.test(last()), last());
 check('...and it is in the audit', audits.some((t) => /Niryastare: boss down, home in 10 min/.test(t)));
 now += 5 * MIN; tick();
 check('every enemy dead does not end the claim early', leases().has('CYRNiryastareLocation') && !moves.some(([a, v]) => a === A && v.cellOrWorldDesc === FG));
