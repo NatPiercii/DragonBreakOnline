@@ -175,4 +175,4 @@ function bodyErrors(err, _req, res, next) {
   res.status(status).json({ error })
 }
 
-module.exports = { submit, respond, bodyErrors, parserExcept, parseReport, cleanName, MAX_IMAGE_BYTES, UNSAFE_CHARS }
+module.exports = { submit, respond, bodyErrors, parserExcept, parseReport, cleanName, escapeMarkdown, MAX_IMAGE_BYTES, UNSAFE_CHARS }

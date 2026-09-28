@@ -25,6 +25,7 @@ const nexus  = require('./nexus')
 const ini    = require('./ini')
 const gameversion = require('./gameversion')
 const report = require('./report')
+const crashWatch = require('./crashWatch')
 const nxmLinks = require('./nxm')
 
 // Settings stay in the folder named after the launcher's original product name.
@@ -1617,6 +1618,28 @@ function stepAsideForGame() {
   setTimeout(tick, 1500)
 }
 
+// After a launch, watch the game and tell the server how it closed (src/crashWatch.js). One watcher at a time; it
+// only speaks for a signed-in player, and a failure here never touches the game.
+let gameWatchRunning = false
+function watchGameExit() {
+  if (process.platform !== 'win32' || gameWatchRunning) return
+  const session = store.get('gameSession')
+  if (!session) return
+  gameWatchRunning = true
+  const docs = documentsDirOrNull()
+  const run = (file, args) => new Promise((resolve, reject) =>
+    require('child_process').execFile(file, args, { windowsHide: true, maxBuffer: 64 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
+  crashWatch.watchGame({
+    run,
+    crashDirs: docs ? MYGAMES_VARIANTS.map(v => path.join(docs, 'My Games', v, 'SKSE')) : [],
+    launchedAt: Date.now(),
+    log,
+    send: note => postJSON(`${config.apiUrl}/api/files/session-end`,
+      { ...note, launcherVersion: app.getVersion(), filesVersion: store.get('filesVersion') || '' },
+      { 'x-session': store.get('gameSession') || session }),
+  }).catch(err => log(`[crashWatch] ${err.message}`)).finally(() => { gameWatchRunning = false })
+}
+
 // Lightweight update probe for the Play/Update button: compares the server's
 // published client-files version with what was last installed.
 ipcMain.handle('files:updateCheck', async () => {
@@ -1872,6 +1895,7 @@ ipcMain.handle('launch:skse', () => guardLaunch(async () => {
       spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
     }
     stepAsideForGame()
+    watchGameExit()
     return { success: true, loadOrderFixed: prep.loadOrderFixed, warning: prep.warning }
   } catch (err) {
     return { success: false, error: err.message }
@@ -1885,7 +1909,7 @@ ipcMain.handle('launch:viaMO2', () => guardLaunch(async () => {
   if (!mo2.isInstalled()) return { success: false, error: 'MO2 is not installed - use Repair MO2 first.' }
   const prep = await prepareForLaunch(skyrimPath, true)
   if (!prep.success) return prep
-  try { mo2.launchGame(skyrimPath); stepAsideForGame(); return { success: true } }
+  try { mo2.launchGame(skyrimPath); stepAsideForGame(); watchGameExit(); return { success: true } }
   catch (err) { return { success: false, error: err.message } }
 }))
 
@@ -1901,6 +1925,7 @@ ipcMain.handle('launch:direct', () => guardLaunch(async () => {
   try {
     spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
     stepAsideForGame()
+    watchGameExit()
     return { success: true }
   } catch (err) { return { success: false, error: err.message } }
 }))
@@ -3025,6 +3050,19 @@ async function handleNxmLinkNow(link) {
 // file-pinned Nexus links, once per install run. `missing` narrows the page to
 // the archives this install still needs, so nothing already downloaded is listed.
 let _downloadListOpened = false
+// Restored for 2.1.33: ad3808ad replaced this definition with vortexDownloadsDir() but left its caller in the install,
+// so a player not signed in to Nexus hit "openDownloadList is not defined" (post-hoc review A8-1, 2026-09-28)
+function openDownloadList(downloadsDir, missing) {
+  if (_downloadListOpened) return
+  _downloadListOpened = true
+  try { fs.mkdirSync(downloadsDir, { recursive: true }); shell.openPath(downloadsDir) } catch {}
+  const need = (missing || [])
+    .filter(a => a.source && a.source.modId)
+    .map(a => `${a.source.modId}-${a.source.fileId || 'any'}`)
+    .join(',')
+  const query = need ? `?need=${encodeURIComponent(need)}` : ''
+  shell.openExternal(`${config.apiUrl}/api/nexus-downloads${query}`)
+}
 
 // Vortex's Skyrim SE download folder at its default place ({USERDATA}\downloads\<game id>, Vortex's
 // getDownloadPath), or '' when there is none; a moved one is set by the player (archiveDir)
