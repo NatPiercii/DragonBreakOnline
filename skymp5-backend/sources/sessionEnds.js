@@ -15,6 +15,7 @@ const fs    = require('fs')
 const path  = require('path')
 const https = require('https')
 const config = require('../config')
+const { cleanName, escapeMarkdown } = require('./problemReport')
 
 // SESSION_ENDS_FILE lets a test write somewhere else
 const FILE = process.env.SESSION_ENDS_FILE || path.join(__dirname, '..', 'data', 'session-ends.jsonl')
@@ -23,6 +24,11 @@ const KEEP = 5000
 const MONITOR_CHANNEL = process.env.DISCORD_MONITOR_CHANNEL_ID || '1553093452529532929'
 const OUTCOMES = new Set(['crash', 'closed', 'ended'])
 const HOUR = 3600 * 1000
+// At most this many posts in #server-monitor per window, whoever sends them; past it a note is only kept, so a few
+// accounts at their own limit cannot bury the monitor's alerts (post-hoc review A8-4)
+const POST_BUDGET = 20
+const POST_WINDOW = 10 * 60 * 1000
+const recentPosts = []
 
 // A note the launcher sent, checked field by field; anything else is dropped. Returns { note } or { error }.
 function parse(body, now = Date.now()) {
@@ -46,9 +52,11 @@ const played = (ms) => {
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`
 }
 
-// The line staff read. The Discord mention shows the player's Discord name; the post pings nobody.
+// The line staff read. The Discord mention shows the player's Discord name; the post pings nobody. The name is the
+// player's own Discord display name, so markdown and masked links in it are escaped (post-hoc review A8-2).
 function describe(note, reporter) {
-  const who = reporter.discordId ? `<@${reporter.discordId}> (${reporter.name})` : reporter.name
+  const name = escapeMarkdown(cleanName(reporter.name))
+  const who = reporter.discordId ? `<@${reporter.discordId}> (${name})` : name
   const after = `after ${played(note.endedAt - note.startedAt)} in game`
   if (note.outcome === 'crash') {
     const how = note.crashLog ? 'Crash Logger wrote a log' : 'no crash log'
@@ -85,12 +93,19 @@ function postLine(content) {
 }
 
 // Keeps the note, and posts it unless it was a normal close. Resolves to { status, body } for the route.
-async function submit(reporter, body, post = postLine) {
-  const { note, error } = parse(body)
+async function submit(reporter, body, post = postLine, now = Date.now()) {
+  const { note, error } = parse(body, now)
   if (error) return { status: 400, body: { error } }
   try { keep(note, reporter) } catch (e) { return { status: 500, body: { error: 'could not store the note' } } }
-  if (note.outcome !== 'closed') await post(describe(note, reporter))
+  if (note.outcome !== 'closed' && underBudget(now)) await post(describe(note, reporter))
   return { status: 200, body: { ok: true } }
 }
 
-module.exports = { parse, describe, submit, FILE }
+function underBudget(now) {
+  while (recentPosts.length && recentPosts[0] <= now - POST_WINDOW) recentPosts.shift()
+  if (recentPosts.length >= POST_BUDGET) return false
+  recentPosts.push(now)
+  return true
+}
+
+module.exports = { parse, describe, submit, FILE, POST_BUDGET, POST_WINDOW }
