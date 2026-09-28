@@ -42,6 +42,7 @@
       {
         "heading": "Fixes",
         "items": [
+          "Expeditions: type /expedition leave to take your party home from anywhere in the ruin, if you can't find its great door.",
           "Mining: sitting at a vein's pickaxe marker no longer gives ore. Strike the seam itself.",
           "Werewolves: feeding in beast form now eases your hunger like a meal.",
           "Going down: nobody can finish you in your first 3 seconds, and after that only a weapon or bare hands can. Spells and lingering effects no longer end your down.",
