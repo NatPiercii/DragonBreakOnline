@@ -152,7 +152,7 @@ module.exports = (api) => {
   // This is the only boon in the list that is more lore-accurate as code than as a record, and it is
   // the only one that needed no Creation Kit work at all. skills.json marks him `capricious: true`.
   const capriceOf = (d) => {
-    const pool = DEITIES.filter((x) => x.id !== d.id && (blessingIdOf(x) || x.hungerHalf));
+    const pool = DEITIES.filter((x) => x.id !== d.id && (blessingIdOf(x) || x.hungerHalf || x.scholarBoon));
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   };
 
@@ -165,9 +165,10 @@ module.exports = (api) => {
       return got;
     }
     const spell = blessingIdOf(d);
-    // A boon does not have to be a spell. Sanguine's is a change to the appetite meter and has no
-    // record at all, so "no spell" is only a failure when the deity has nothing server-side either.
-    const serverSide = !!d.hungerHalf;
+    // A boon does not have to be a spell. Sanguine's is a change to the appetite meter and Hermaeus Mora's lives in
+    // the reading round and the dungeon loot; neither has a record, so "no spell" is only a failure when the deity has
+    // nothing server-side either.
+    const serverSide = !!d.hungerHalf || !!d.scholarBoon;
     clearBlessing(a, null);
     if (!spell && !serverSide) {
       // Every Prince still waiting on its SPEL lands here. The prayer succeeded and counted; there
@@ -193,6 +194,17 @@ module.exports = (api) => {
       const d = deityById(b.deity);
       return d && d.hungerHalf ? 0.5 : 1;
     } catch (e) { return 1; }
+  };
+
+  // Whether a's blessing (still running) is from a deity carrying this skills.json flag, for the boons that live in other
+  // modules: Hermaeus Mora's scholarBoon is read by the reading round (gamemode.js) and the dungeon loot (dungeons.js)
+  globalThis.__dboBlessedWith = (a, flag) => {
+    try {
+      const b = blessingOf(a);
+      if (!b || Number(b.until) <= Date.now()) return false;
+      const d = deityById(b.deity);
+      return !!(d && d[flag]);
+    } catch (e) { return false; }
   };
 
   // A blessing is worn, not held: nothing else expires it, so the module does.

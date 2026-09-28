@@ -34,6 +34,12 @@
         ]
       },
       {
+        "heading": "Hermaeus Mora",
+        "items": [
+          "His blessing now works: while you carry it, a finished reading round counts twice for your Scholar skill, and a skill book can turn up in a dungeon chest you open or a body you loot."
+        ]
+      },
+      {
         "heading": "Fixes",
         "items": [
           "Mining: sitting at a vein's pickaxe marker no longer gives ore. Strike the seam itself.",

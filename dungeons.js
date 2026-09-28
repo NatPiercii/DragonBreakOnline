@@ -53,6 +53,34 @@ module.exports = (api) => {
   // of the times it is drawn, and another is drawn instead; DaedraHeart 0.01 makes it one ingredient roll in about
   // 23,500 (the pool has 235). Config dungeons.rareLoot overrides.
   const RARE_LOOT = Object.assign({ DaedraHeart: 0.01 }, C.rareLoot || {});
+  // Hermaeus Mora's blessing (prayer.js scholarBoon; Nate, 2026-09-28: 'drops for books'): a blessed player can find a
+  // skill book in a dungeon chest they open first or a body they loot, besides its loot. The books are the catalogue's
+  // (admin-items.json) whose record teaches a skill (BOOK DATA flag 0x01) and can be taken (not 0x02).
+  const SCHOLAR_CHEST = Number.isFinite(Number(C.scholarBookChance)) ? Number(C.scholarBookChance) : 0.2;
+  const SCHOLAR_BODY = Number.isFinite(Number(C.scholarBodyChance)) ? Number(C.scholarBodyChance) : 0.1;
+  let skillBooks = null;
+  const skillBooksOf = () => {
+    if (skillBooks) return skillBooks;
+    skillBooks = [];
+    try {
+      const cat = (JSON.parse(fs.readFileSync(path.resolve('admin-items.json'), 'utf8')).categories || []).find((c) => c.id === 'Books');
+      for (const it of (cat && cat.items) || []) {
+        const id = idOf(it[0]); if (!id) continue;
+        let rec = null; try { rec = mp.lookupEspmRecordById(id); } catch (e) { /* not loaded */ }
+        const data = rec && rec.record && (rec.record.fields || []).find((f) => f && f.type === 'DATA' && f.data instanceof Uint8Array && f.data.byteLength);
+        if (data && (data.data[0] & 0x01) && !(data.data[0] & 0x02)) skillBooks.push({ id, name: String(it[1] || '') });
+      }
+    } catch (e) { log('dungeons: the skill book list could not be built', e.message); }
+    log(`dungeons: ${skillBooks.length} skill book(s) for Hermaeus Mora's blessing`);
+    return skillBooks;
+  };
+  const scholarGift = (a, chance, where) => {
+    try {
+      if (!globalThis.__dboBlessedWith || !globalThis.__dboBlessedWith(a, 'scholarBoon') || Math.random() >= chance) return;
+      const b = pickFrom(skillBooksOf());
+      if (b && giveItem(a, b.id, 1)) personal(a, `Tucked ${where}, a book: ${b.name}. Hermaeus Mora collects, and sometimes he gives.`);
+    } catch (e) { log('dungeons: scholar gift failed', e.message); }
+  };
   const pickFrom = (list) => {
     for (let i = 0; list.length && i < 8; i++) {
       const it = list[Math.floor(Math.random() * list.length)];
@@ -929,7 +957,7 @@ module.exports = (api) => {
       const lease = ST.leases.get(chest.d.id);
       // No lease left: the glow is a leftover, so stop it on this ref rather than leaving it lit
       if (!lease) { glowOff(casterId, [targetId]); return null; }
-      const opened = () => { if (!lease.looted.has(targetId)) { lease.looted.add(targetId); for (const pid of lease.members) { const a = actorByProfile(pid); if (a) glow(a, [targetId], false); } } };
+      const opened = () => { if (!lease.looted.has(targetId)) { lease.looted.add(targetId); for (const pid of lease.members) { const a = actorByProfile(pid); if (a) glow(a, [targetId], false); } scholarGift(casterId, SCHOLAR_CHEST, 'among the chest\'s things'); } };
       if (!lease.locked.has(targetId) || lease.unlocked.has(targetId)) { opened(); return null; }
       const level = lease.locked.get(targetId);
       const tier = lockpickingTier(casterId);
@@ -1114,6 +1142,7 @@ module.exports = (api) => {
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }
     personal(casterId, got.length ? `You find ${got.join(', ')}.` : 'You find nothing of use.');
+    scholarGift(casterId, SCHOLAR_BODY, 'in their pack');
     return false;
   };
 

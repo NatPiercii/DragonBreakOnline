@@ -885,45 +885,7 @@
   }
  ],
  "praying": {
-  "_comment": "Anyone can pray, but only at a shrine of the deity chosen after character creation. Other shrines answer with a notice and no roll. Priests get better odds and skill progress. server\\prayer.js reads deities.choices[].shrines, NOT the shrines map below - that map is kept only as a quick index of the Divines.",
-  "shrines": {
-   "Akatosh": [
-    "d9883:Skyrim.esm",
-    "61b52:BSHeartland.esm"
-   ],
-   "Arkay": [
-    "71854:Skyrim.esm",
-    "61b53:BSHeartland.esm"
-   ],
-   "Dibella": [
-    "d9881:Skyrim.esm",
-    "61b54:BSHeartland.esm"
-   ],
-   "Julianos": [
-    "d9885:Skyrim.esm",
-    "61b55:BSHeartland.esm"
-   ],
-   "Kynareth": [
-    "d987f:Skyrim.esm",
-    "61b56:BSHeartland.esm"
-   ],
-   "Mara": [
-    "d9887:Skyrim.esm",
-    "61b57:BSHeartland.esm"
-   ],
-   "Stendarr": [
-    "d987d:Skyrim.esm",
-    "61b58:BSHeartland.esm"
-   ],
-   "Talos": [
-    "100780:Skyrim.esm",
-    "61b59:BSHeartland.esm"
-   ],
-   "Zenithar": [
-    "d987b:Skyrim.esm",
-    "61b5a:BSHeartland.esm"
-   ]
-  },
+  "_comment": "Anyone can pray, but only at a shrine of the deity chosen after character creation. Other shrines answer with a notice and no roll. Priests get better odds and skill progress. server\\prayer.js reads deities.choices[].shrines. (The Divines' shrine index that used to sit here, read by nothing, went on 2026-09-28: Nate.)",
   "cooldownMinutesPerShrine": 60,
   "blessingChance": {
    "everyone": 0.02,
@@ -1414,10 +1376,11 @@
     "inPlaytest": 1,
     "inBruma": 1,
     "sphere": "Knowledge, memory and the fate of all things. He does not bargain; he collects.",
-    "boon": "What you read teaches you more.",
+    "boon": "What you read teaches you more, and books find you.",
     "blessingSource": "server",
-    "blessingDesign": "The one Prince whose sphere lands exactly on a system this server already has: the Scholar skill and the reading mini-game. While blessed, a finished reading round is worth more. Not built because the weight lives in masterySystem (a TS rebuild), not in the gamemode.",
-    "blessingImplemented": false,
+    "blessingDesign": "Server-side, like Sanguine's (scholarBoon): while blessed, a finished reading round counts twice for the Scholar skill (gamemode.js reading), and a dungeon chest or body can hold a skill book besides its loot (dungeons.js scholarBookChance). Nate, 2026-09-28: 'give a scholar xp and drop buff', drops for books.",
+    "scholarBoon": true,
+    "blessingImplemented": true,
     "lawful": false,
     "unlawfulWhere": "Forbidden knowledge. Half of any College's restricted shelf is his under another name, so a scholar caught at it is disciplined far more often than charged."
    },

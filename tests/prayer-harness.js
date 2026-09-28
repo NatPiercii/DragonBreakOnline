@@ -542,6 +542,17 @@ clear(); timers.get('deityPickerOffer')(); wallClock += 16000; timers.get('deity
 check('after a logout (forgotten) it is offered again', out.personals.some((p) => /\/deity/.test(String(p))));
 delete globalThis.__dboAtCreationEnd;
 
+// Hermaeus Mora's blessing lives in other modules; they ask prayer.js through __dboBlessedWith (Nate, 2026-09-28)
+check('Hermaeus Mora carries the scholarBoon flag and is implemented', choiceOf('hermaeusmora').scholarBoon === true && choiceOf('hermaeusmora').blessingImplemented === true);
+check('the Divines\' old shrine index is gone from praying', SKILLS.praying.shrines === undefined && SKILLS.praying.verses === 3);
+props.set(ACTOR + '|private.dboBlessing', { deity: 'hermaeusmora', spell: 0, until: wallClock + 3600000 });
+check('a player blessed by Hermaeus Mora has the scholar boon', globalThis.__dboBlessedWith(ACTOR, 'scholarBoon') === true);
+check('and not Sanguine\'s', globalThis.__dboBlessedWith(ACTOR, 'hungerHalf') === false);
+wallClock += 3600001;
+check('the boon ends with the blessing', globalThis.__dboBlessedWith(ACTOR, 'scholarBoon') === false);
+props.set(ACTOR + '|private.dboBlessing', null);
+check('no blessing, no boon', globalThis.__dboBlessedWith(ACTOR, 'scholarBoon') === false);
+
 Date.now = realNow;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

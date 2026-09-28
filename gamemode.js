@@ -2256,6 +2256,8 @@ onUi('reading', (a, args) => {
     // 'read', not 'activate': a finished reading round is worth 1.0 units against 0.5 for opening a
     // book. Same correction as the mining/chopping rounds in labour.js.
     try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
+    // Hermaeus Mora's blessing: what you read teaches you more, so the round counts twice (the skill's caps still hold)
+    try { if (globalThis.__dboBlessedWith && globalThis.__dboBlessedWith(a, 'scholarBoon') && typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     if (ses.baseId && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) { results.push(`you copy out ${ses.title} and keep it`); gained.push(ses.title); }
