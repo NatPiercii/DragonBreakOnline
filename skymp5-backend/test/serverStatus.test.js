@@ -80,7 +80,7 @@ test('status runs only the fixed systemctl show; the queue and live versions arr
     assert.deepEqual(s.live.fork, { sha: F.S.B, subject: 'docs: notes, data and the launcher prompt', at: s.live.fork.at, since: '2026-09-25T23:48:55.000Z', confirmed: true, headMatches: false, head: F.S.C })
     assert.deepEqual(s.live.server, { sha: F.S.S0, how: 'matched', deployedAt: '2026-09-26T02:29:19.000Z' })
     assert.deepEqual(s.backend, { since: s.backend.since, bootSha: F.S.C, restartPending: true })
-    assert.deepEqual(s.controls, { mode: 'off', update: 'notYet' })
+    assert.equal(s.controls, undefined)
     assert.deepEqual(s.release, { open: null })
     assert.deepEqual(s.schedules, [])
     assert.ok(calls.length >= 1)

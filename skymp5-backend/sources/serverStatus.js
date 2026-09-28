@@ -27,10 +27,23 @@ const MARKERS = Object.freeze({
   blocked: '/opt/skymp-update-blocked',
   buildFailed: '/opt/skymp-build-failed',
   updaterMode: '/etc/dragonbreak/updater-mode',
+  control: '/etc/dragonbreak/server-control',
   updaterDirs: Object.freeze(['/run/dbo-update', '/var/lib/dbo-update']),
 })
 
 const isoOrNull = ms => (Number.isFinite(ms) ? new Date(ms).toISOString() : null)
+
+// Age of the last heartbeat; a beat from before the current start says nothing about this run
+function beatAgeOf(beat, unit, t) {
+  const at = Date.parse(beat?.lastSeen || '')
+  return Number.isFinite(at) && (unit?.since == null || at >= unit.since) ? t - at : null
+}
+
+// Players online from a fresh beat of the current run, else null
+function freshOnline(beat, unit, t) {
+  const age = beatAgeOf(beat, unit, t)
+  return age != null && age < FRESH_BEAT_MS && Number.isInteger(beat.online) ? beat.online : null
+}
 
 // One value per ttl, with concurrent callers sharing a single run
 function cachedFor(ttl, now, fn) {
@@ -74,14 +87,16 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
   const restarts = { n: null, risenAt: null }
   const unreadable = readErrors('server-status')
 
-  const systemd = cachedFor(STATUS_TTL_MS, now, async () => {
+  // Uncached, for the controls; the status shares one read per 5 s
+  async function units() {
     try {
       // Only PATH and LANG, so no backend secret reaches the child (as for git)
       const { stdout } = await run('systemctl', [...SYSTEMCTL_ARGS], { env: SYSTEMCTL_ENV(), timeout: SYSTEMCTL_TIMEOUT_MS, maxBuffer: 64 * 1024 })
       const [skymp = null, updater = null] = parseShow(stdout)
       return { skymp, updater }
     } catch { return { skymp: null, updater: null } }
-  })
+  }
+  const systemd = cachedFor(STATUS_TTL_MS, now, units)
 
   async function services() {
     const { skymp } = await systemd()
@@ -188,18 +203,17 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
     const updater = await updaterState(updaterUnit, log)
     const beat = getHeartbeat()
     const beatAt = Date.parse(beat?.lastSeen || '')
-    // A beat from before the current start says nothing about this run
-    const beatAge = Number.isFinite(beatAt) && (skymp?.since == null || beatAt >= skymp.since) ? now() - beatAt : null
+    const t = now()
+    const beatAge = beatAgeOf(beat, skymp, t)
     const state = serviceState(skymp, beatAge, stopped, updater)
     const qv = releaseQueue.peek()
     const lv = releaseQueue.peekLive()
     const failed = releaseQueue.lastFailure?.() || null
     return {
-      generatedAt: isoOrNull(now()),
-      controls: { mode: 'off', update: 'notYet' },
+      generatedAt: isoOrNull(t),
       service: { state, since: isoOrNull(skymp?.since), nRestarts: skymp?.nRestarts ?? null },
       players: {
-        online: state === 'down' || state === 'stopped' ? 0 : beatAge != null && beatAge < FRESH_BEAT_MS && Number.isInteger(beat.online) ? beat.online : null,
+        online: state === 'down' || state === 'stopped' ? 0 : freshOnline(beat, skymp, t),
         max: Number.isInteger(beat?.maxPlayers) ? beat.maxPlayers : config.serverMaxPlayers ?? null,
         heartbeatAt: isoOrNull(beatAt),
       },
@@ -214,7 +228,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
     }
   }
 
-  return { get: cachedFor(STATUS_TTL_MS, now, build), services, queue: releaseQueue, boot }
+  return { get: cachedFor(STATUS_TTL_MS, now, build), services, units, queue: releaseQueue, boot, markers }
 }
 
-module.exports = { createServerStatus, parseShow, MARKERS, SYSTEMCTL_ARGS }
+module.exports = { createServerStatus, parseShow, freshOnline, MARKERS, SYSTEMCTL_ARGS, SYSTEMCTL_ENV, RUNNING }

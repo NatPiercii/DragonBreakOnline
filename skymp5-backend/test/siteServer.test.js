@@ -107,9 +107,12 @@ test('Dev staff get owner:false and an Owner gets owner:true, in the status and 
   assert.equal(dev.json.owner, false)
   const owner = await get('/api/site/staff/server', 'owner')
   assert.equal(owner.json.owner, true)
-  assert.deepEqual(Object.keys(owner.json).slice(0, 3), ['v', 'generatedAt', 'owner'])
   assert.equal(owner.json.v, 1)
-  assert.deepEqual(owner.json.controls, { mode: 'off', update: 'notYet' })
+  assert.deepEqual(Object.keys(owner.json).slice(0, 4), ['v', 'generatedAt', 'owner', 'controls'])
+  assert.deepEqual(owner.json.controls, {
+    mode: 'zeroPlayers', update: 'notYet', setting: 'off', owner: true, canStart: false, canStop: false, canRestart: false, why: 'controlsOff', job: null,
+  })
+  assert.equal(dev.json.controls.why, 'notOwner')
   assert.deepEqual(owner.json.release, { open: null })
   assert.deepEqual(owner.json.schedules, [])
   assert.equal(owner.json.service.state, 'reachable')

@@ -32,9 +32,13 @@ function text(value) {
   return ''
 }
 
+// Controls, soft hyphen, zero-width, line separators and bidi marks, as a regex class body shared with the server controls
+const UNSAFE_CHARS = '\\x00-\\x1f\\x7f\\u00ad\\u200b-\\u200f\\u2028-\\u202e\\u2066-\\u2069\\ufeff'
+const UNSAFE_RE = new RegExp(`[${UNSAFE_CHARS}]`, 'g')
+
 // Names go into a thread title and a bold header line, so control characters and markdown are neutralised
 function cleanName(value) {
-  const name = [...text(value).replace(/[\x00-\x1f\x7f\u00ad\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim()]
+  const name = [...text(value).replace(UNSAFE_RE, ' ').replace(/\s+/g, ' ').trim()]
     .slice(0, 64).join('').trim()
   return name || 'Unknown player'
 }
@@ -160,4 +164,4 @@ function bodyErrors(err, _req, res, next) {
   res.status(status).json({ error })
 }
 
-module.exports = { submit, respond, bodyErrors, parseReport, cleanName, MAX_IMAGE_BYTES }
+module.exports = { submit, respond, bodyErrors, parseReport, cleanName, MAX_IMAGE_BYTES, UNSAFE_CHARS }

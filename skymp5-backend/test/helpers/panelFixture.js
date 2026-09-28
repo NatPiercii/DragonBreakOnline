@@ -131,6 +131,7 @@ function createPanelFixture(prefix = 'dbo-panel-') {
     hold: path.join(markerRoot, 'opt', 'skymp-dev-hold'), stopped: path.join(markerRoot, 'opt', 'skymp-stopped'),
     blocked: path.join(markerRoot, 'opt', 'skymp-update-blocked'), buildFailed: path.join(markerRoot, 'opt', 'skymp-build-failed'),
     updaterMode: path.join(markerRoot, 'etc', 'dragonbreak', 'updater-mode'),
+    control: path.join(markerRoot, 'etc', 'dragonbreak', 'server-control'),
     updaterDirs: [path.join(markerRoot, 'run', 'dbo-update'), path.join(markerRoot, 'var', 'lib', 'dbo-update')],
   }
 
