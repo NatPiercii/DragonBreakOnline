@@ -50,6 +50,8 @@ panel rewrites the file. Field names are matched case-insensitively (`Name`,
 | `NPC` | yes | | what to place: one string, an array of strings, or objects `{ "id": "..", "count": n }`; a string is `"<base id> <count>"`, the count optional; at most 40 NPCs per zone in total |
 | `Despawn` | no | 120 | seconds after the last player left before every living NPC of the zone is destroyed (corpses keep their own 5 minute timer); `0` = never |
 | `Respawn` | no | 1800 | seconds after an NPC died before a fresh copy may stand at its spot, counted even while the zone is empty; `0` = never until the zone despawns or an admin resets it |
+| `Heading` | no | 0 | the direction every NPC of the zone faces when placed, degrees (0 = north, clockwise) |
+| `Hostile` | no | from the base | `true` or `false` overrides whether its NPCs attack players on sight, which otherwise follows each base's AI data; the F7 Place tool writes it from its Hostile box |
 
 An entry that fails a check (no `Name`, a `Name` longer than 64 characters,
 unknown `ID`, unusable `POS`, no valid NPC, more than 40 NPCs in total) is
