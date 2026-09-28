@@ -870,7 +870,12 @@ if (typeof globalThis.__dboPrevActivate === 'undefined') globalThis.__dboPrevAct
 // Nothing placed by a plugin can be picked up: items in the world are decoration, resources come
 // from nodes, containers, crafting and trade. Player-dropped items (dynamic ff-space refs) stay pickable.
 const ITEM_TYPES = new Set(['WEAP', 'ARMO', 'MISC', 'INGR', 'ALCH', 'BOOK', 'AMMO', 'KEYM', 'SLGM', 'SCRL', 'LIGH']);
-const HARVEST_ITEM_PREFIXES = ['hangingrabbit', 'hangingpheasant', 'hanginggarlic', 'garlicbraid', 'hangingelvesear', 'hangingfrostmirriam', 'driedelvesear', 'driedfrostmirriam', 'hangingsalmon', 'salmonrack', 'hangingherb'];
+const HARVEST_ITEM_PREFIXES = ['hangingrabbit', 'hangingpheasant', 'hanginggarlic', 'garlicbraid', 'hangingelvesear', 'hangingfrostmirriam', 'driedelvesear', 'driedfrostmirriam', 'hangingsalmon', 'salmonrack', 'hangingherb', 'sleepingtreesap'];
+// Nat 2026-09-28: sleeping tree sap can be taken, and the tap is then spent for an hour. The harvestables above
+// had no timer at all, so a hanging rabbit could be taken again the moment it was looked at; they share this one.
+// Keyed by the reference and kept on globalThis, so a gamemode reload does not hand everyone a fresh harvest.
+const HARVEST_MINUTES = Math.max(1, Number((cfg.harvest || {}).minutes) || 60);
+const harvestReady = globalThis.__dboHarvestReady || (globalThis.__dboHarvestReady = new Map()); // refId -> ripe again at
 const lastPickupDeny = new Map();
 const blockPlacedPickup = (targetId, casterId) => {
   if (targetId >= 0xff000000) return false;
@@ -879,7 +884,20 @@ const blockPlacedPickup = (targetId, casterId) => {
   const type = rec && rec.record ? String(rec.record.type || '') : '';
   if (!ITEM_TYPES.has(type)) return false;
   const edid = rec && rec.record ? String(rec.record.editorId || '').toLowerCase() : '';
-  if (HARVEST_ITEM_PREFIXES.some(p => edid.startsWith(p))) return false; // Harvesting nodes, handled by the skill system later
+  if (HARVEST_ITEM_PREFIXES.some(p => edid.startsWith(p))) {
+    const ref = targetId >>> 0;
+    const ready = Number(harvestReady.get(ref)) || 0;
+    const now = Date.now();
+    if (now < ready) {
+      const mins = Math.max(1, Math.ceil((ready - now) / 60000));
+      if (now - (lastPickupDeny.get(casterId) || 0) > 1500) { lastPickupDeny.set(casterId, now); personal(casterId, `Nothing has grown back here yet. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.`); }
+      return true;
+    }
+    harvestReady.set(ref, now + HARVEST_MINUTES * 60000);
+    // The map only ever grows otherwise, and a spent entry is worthless once it is ripe again
+    if (harvestReady.size > 4000) for (const [k, v] of [...harvestReady]) if (v <= now) harvestReady.delete(k);
+    return false;
+  }
   if (Date.now() - (lastPickupDeny.get(casterId) || 0) > 1500) { lastPickupDeny.set(casterId, Date.now()); personal(casterId, "That is not yours to take. Resources come from nodes, containers, crafting and trade."); }
   return true;
 };
