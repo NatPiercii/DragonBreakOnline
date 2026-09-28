@@ -1,81 +1,8 @@
 [
   {
-    "title": "Scrolls, Shouts and Faction Gear",
+    "title": "The Business Ledger, Scrolls and Shouts, the U Menu and More",
     "date": "2026-09-28",
     "version": "Client 0.3.57",
-    "tag": "Update",
-    "sections": [
-      {
-        "heading": "Shouts",
-        "items": [
-          "Shouts now work against other players, and a draugr's shouts now work on you.",
-          "Unrelenting Force: the first word staggers, while the second and third throw the target back, the third hardest.",
-          "Disarm makes the target put away the weapons in their hands. They can draw them again straight away, and nobody can be disarmed more than once every 10 seconds.",
-          "Dismaying Shout leaves the target terrified and slowed to half speed for 5, 8 or 12 seconds, by the number of words.",
-          "Only characters who have been taught shouts can use them, and only the shouts the Dragonborn learns. The breath of dragons stays with the dragons.",
-          "The Greybeards will teach the Voice one day, and it won't be easy to learn."
-        ]
-      },
-      {
-        "heading": "Breaking things down",
-        "items": [
-          "You can now break weapons, armour and books down into materials, at the station of the trade that makes them: metal at a smelter (Blacksmith), leather and hide at a tanning rack (Skinner), cloth at a loom (Tailor), and books at a writing desk, such as the ledger in the Restful Watchman (Scholar).",
-          "Use the station and choose what to break down. Your tier decides how much comes back: a quarter of the materials as a Novice, up to three quarters as a Master, and always at least one of the main material. A Blacksmith can only melt the metals their tier can work.",
-          "A book gives two sheets of paper and a leather strip, and a note or letter gives one sheet.",
-          "Nothing you are wearing or holding is ever offered. To use the station as usual, choose its first row and use it again."
-        ]
-      },
-      {
-        "heading": "Scrolls",
-        "items": [
-          "Reading a scroll now casts it. Before, the casting played, nothing happened and the scroll came back.",
-          "The scroll is used up when you cast it, as it should be.",
-          "Every kind of scroll works: fire and frost bolts, summons, armour, cloaks and paralysis."
-        ]
-      },
-      {
-        "heading": "Faction gear",
-        "items": [
-          "A faction's own armor and weapons can now only be made by that faction's smiths and tailors, or by its leader. Anyone else is told who can make it.",
-          "In a war, only fighters wearing their faction's uniform count at a standard. Wars are not open yet."
-        ]
-      },
-      {
-        "heading": "Fewer commands",
-        "items": [
-          "/help is much shorter: it lists only the commands you can use, and tells you where to go for the rest (a bank counter, a notice board, a shrine, K for skills, F3 for factions).",
-          "New /status shows your hunger, rest, Death's Chill, jail time, level points and more in one line.",
-          "Some commands were merged: /contract, /commission, /party leave, /spells forget and /property mine. The old names still work."
-        ]
-      },
-      {
-        "heading": "Inns",
-        "items": [
-          "Every bed in an inn can now be rented, not just one or two, whether or not someone owns the inn. Use a free bed to rent it.",
-          "If you own an inn, you can keep one of its beds as your own: use it and choose \"Make this my bed\". Nobody else can rent it or sleep in it, and you can sleep in it for free.",
-          "To keep a different bed, choose \"Make this my bed\" on that one instead, and your old bed goes back up for rent. \"This is no longer my bed\" puts it back up for rent too.",
-          "A bed someone is renting can't be kept until their rent runs out, so nobody is thrown out of a room they paid for.",
-          "Your inn's other beds are for your guests: as the owner you sleep only in the bed you keep. Rent prices and the hold's share are unchanged."
-        ]
-      },
-      {
-        "heading": "Fixes",
-        "items": [
-          "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too."
-        ]
-      },
-      {
-        "heading": "Getting it",
-        "items": [
-          "The launcher downloads this update the next time you press Play."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "The Business Ledger, Aleswell Open, and Fixes",
-    "date": "2026-09-28",
-    "version": "Client 0.3.56",
     "tag": "Update",
     "sections": [
       {
@@ -98,6 +25,69 @@
         "items": [
           "The weekly reckoning is on: every claimed property pays its territory's tax, set by the faction's leader or the hold's Jarl or Count, and guards and soldiers are paid their wages from the treasury.",
           "Nobody can pay themselves from a treasury they control, the week's wages are capped at a share of the treasury, and a property's value can only be reassessed once a week."
+        ]
+      },
+      {
+        "heading": "Shouts",
+        "items": [
+          "Shouts now work against other players, and a draugr's shouts now work on you.",
+          "Unrelenting Force: the first word staggers, while the second and third throw the target back, the third hardest.",
+          "Disarm makes the target put away the weapons in their hands. They can draw them again straight away, and nobody can be disarmed more than once every 10 seconds.",
+          "Dismaying Shout leaves the target terrified and slowed to half speed for 5, 8 or 12 seconds, by the number of words.",
+          "Only characters who have been taught shouts can use them, and only the shouts the Dragonborn learns. The breath of dragons stays with the dragons.",
+          "The Greybeards will teach the Voice one day, and it won't be easy to learn."
+        ]
+      },
+      {
+        "heading": "Scrolls",
+        "items": [
+          "Reading a scroll now casts it. Before, the casting played, nothing happened and the scroll came back.",
+          "The scroll is used up when you cast it, as it should be.",
+          "Every kind of scroll works: fire and frost bolts, summons, armour, cloaks and paralysis."
+        ]
+      },
+      {
+        "heading": "Your spellbook",
+        "items": [
+          "Spells now live in a spellbook with no limit, and you keep 3 of them prepared. Change which ones are prepared at a magic college (the Synod in Bruma). Type /spells to open it.",
+          "If you know more than 3 spells, your first 3 stay prepared and the rest wait in your book."
+        ]
+      },
+      {
+        "heading": "The U menu and fewer commands",
+        "items": [
+          "Press U for a menu of everything you can do, sorted by topic. /help opens it too.",
+          "/help is much shorter: it lists only the commands you can use, and tells you where to go for the rest (a bank counter, a notice board, a shrine, K for skills, F3 for factions).",
+          "New /status shows your hunger, rest, Death's Chill, jail time, level points and more in one line.",
+          "Some commands were merged: /contract, /commission, /party leave, /spells forget and /property mine. The old names still work."
+        ]
+      },
+      {
+        "heading": "Faction gear",
+        "items": [
+          "A faction's own armor and weapons can now only be made by that faction's smiths and tailors, or by its leader. Anyone else is told who can make it.",
+          "In a war, only fighters wearing their faction's uniform count at a standard. Wars are not open yet."
+        ]
+      },
+      {
+        "heading": "Inns",
+        "items": [
+          "Every bed in an inn can now be rented, not just one or two, whether or not someone owns the inn. Use a free bed to rent it.",
+          "If you own an inn, you can keep one of its beds as your own: use it and choose \"Make this my bed\". Nobody else can rent it or sleep in it, and you can sleep in it for free.",
+          "To keep a different bed, choose \"Make this my bed\" on that one instead, and your old bed goes back up for rent. \"This is no longer my bed\" puts it back up for rent too.",
+          "A bed someone is renting can't be kept until their rent runs out, so nobody is thrown out of a room they paid for.",
+          "Your inn's other beds are for your guests: as the owner you sleep only in the bed you keep. Rent prices and the hold's share are unchanged."
+        ]
+      },
+      {
+        "heading": "Breaking things down",
+        "items": [
+          "You can now break weapons, armour and books down into materials, at the station of the trade that makes them: metal at a smelter (Blacksmith), leather and hide at a tanning rack (Skinner), cloth at a loom (Tailor), and books at a writing desk, such as the ledger in the Restful Watchman (Scholar).",
+          "Use the station and choose what to break down. Your tier decides how much comes back: a quarter of the materials as a Novice, up to three quarters as a Master, and always at least one of the main material. A Blacksmith can only melt the metals their tier can work.",
+          "A book gives two sheets of paper and a leather strip, and a note or letter gives one sheet.",
+          "Only the metal, leather and cloth come back. Gems, soul gems, Daedra hearts and other ingredients in a recipe are lost.",
+          "Only plain copies can be broken down. Anything you are wearing or holding, and anything enchanted, improved, renamed or poisoned, is never offered, so you can't lose a good sword by mistake.",
+          "If you carry something to break down, the station shows the list first. To use the station as usual, choose its first row and use it again."
         ]
       },
       {
@@ -129,7 +119,8 @@
           "Going down: Give up opens after 15 seconds, so a friend has time to reach you.",
           "A Jarl must now be a Nord or an Imperial.",
           "Animals with no hide worth skinning (slaughterfish, mudcrabs, chickens) can be looted again, and a boar now gives two tusks and some leather when skinned.",
-          "Some poisons and potions could not be brewed even with the right ingredients. That's fixed."
+          "Some poisons and potions could not be brewed even with the right ingredients. That's fixed.",
+          "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too."
         ]
       },
       {
