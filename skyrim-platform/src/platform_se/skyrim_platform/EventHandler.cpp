@@ -1368,7 +1368,15 @@ EventResult EventHandler::ProcessEvent(
       caster->GetActorRuntimeData()
         .selectedSpells[RE::Actor::SlotTypes::kPowerOrShout] == spell;
 
-    const bool isCastValid = isLeftHand || isRightHand || isVoise || isInstant;
+    // A scroll is not a selected spell but an object held in a hand (ScrollItem derives from SpellItem, so the lookup
+    // above finds it), and every scroll cast was dropped here before scripts saw it: the server never learned of the
+    // cast and gave the scroll back (#bugs, 2026-09-28: "scrolls show the casting, then do nothing").
+    const bool isScroll = spell->GetFormType() == RE::FormType::Scroll;
+    const bool isScrollLeft = isScroll && caster->GetEquippedObject(true) == spell;
+    const bool isScrollRight = isScroll && caster->GetEquippedObject(false) == spell;
+
+    const bool isCastValid = isLeftHand || isRightHand || isVoise ||
+      isInstant || isScrollLeft || isScrollRight;
 
     if (!isCastValid) {
       return;
@@ -1376,7 +1384,7 @@ EventResult EventHandler::ProcessEvent(
 
     auto castingSource = RE::MagicSystem::CastingSource::kLeftHand;
 
-    if (isRightHand) {
+    if (isRightHand || (!isLeftHand && isScrollRight)) {
       castingSource = RE::MagicSystem::CastingSource::kRightHand;
     } else if (isVoise) {
       castingSource = RE::MagicSystem::CastingSource::kOther;
