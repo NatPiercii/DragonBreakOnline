@@ -962,6 +962,20 @@ mp.onActivate = (targetId, casterId) => {
       const rec = desc && mp.lookupEspmRecordById(mp.getIdFromDesc(desc));
       if (rec && rec.record && rec.record.type === 'DOOR') log(`doortrace ${display(casterId)} door ${mp.getDescFromId(targetId >>> 0)} (${desc}) allowed=${allowed}`);
     } catch (e) { /* not a door */ }
+    // TEMPORARY corpse trace (2026-09-28, "nothing happens when i try to loot the fish in water"): every
+    // activation of a dead actor, with the distance and what the chain answered, so a silent refusal can be
+    // told apart from the activation never arriving at all. Remove once the fish are understood.
+    try {
+      const t = targetId >>> 0;
+      if (t >= 0xff000000 && mp.get(t, 'isDead') === true) {
+        let base = '', d = -1, items = -1;
+        try { base = String(mp.get(t, 'baseDesc') || ''); } catch (e) { /* gone */ }
+        try { d = Math.round(distanceMeters(casterId >>> 0, t) * 10) / 10; } catch (e) { /* no pos */ }
+        try { const inv = mp.get(t, 'inventory'); items = inv && Array.isArray(inv.entries) ? inv.entries.length : -1; } catch (e) { /* none */ }
+        let pelts = null; try { pelts = mp.get(t, 'private.dboPelts'); } catch (e) { /* none */ }
+        log(`corpsetrace ${display(casterId)} -> ${mp.getDescFromId(t)} (${base}) allowed=${allowed} distance=${d}m items=${items} pelts=${Array.isArray(pelts) ? pelts.length : 'none'}`);
+      }
+    } catch (e) { /* not an actor */ }
     return allowed;
   };
 }
