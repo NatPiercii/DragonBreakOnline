@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 
 import './styles.scss';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore untyped diagnostic helper
+import { startInputDiag, stopInputDiag } from '../../utils/InputDiag';
 
 // DragonBreak title screen and character selection, opened by the client's
 // CharacterSelectService (widget type "characterSelect"). The protocol is the
@@ -55,6 +58,13 @@ const CharacterSelect = ({ data }: { data: CharacterSelectData }) => {
   useEffect(() => {
     const t = window.setTimeout(() => setShown(true), 30);
     return () => window.clearTimeout(t);
+  }, []);
+
+  // Logging only, while this screen is up: whether mouse and keyboard reach the page at all, and what is under the
+  // cursor when they do (MO2 players stuck here, 2026-09-28). Nothing about the screen's behaviour changes.
+  useEffect(() => {
+    startInputDiag('characterSelect');
+    return () => stopInputDiag();
   }, []);
 
   const selected = data.selectedSlot;

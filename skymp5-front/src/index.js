@@ -12,6 +12,7 @@ import './utils/MainMenuMedia';
 import './utils/UiScale';
 import './utils/PanelScale';
 import './utils/Banner';
+import { startPageHeartbeat } from './utils/PageHeartbeat';
 
 import './main.scss';
 
@@ -53,3 +54,6 @@ window.addEventListener("keydown", (e) => {
     try { window.skyrimPlatform.sendMessage("menu:escape"); } catch (err) { /* outside game */ }
   }
 });
+
+// Diagnostic only, for the players stuck at character select: if the page stops, the beat stops (2026-09-28)
+startPageHeartbeat();
