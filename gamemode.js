@@ -1084,6 +1084,11 @@ if (!globalThis.__dboHandlers) {
     mp.on(ev, (...args) => { const h = globalThis.__dboHandlers[ev]; if (h) h(...args); });
   }
 }
+// The client's diagnostic relay: how many lines each player has had written, kept across a hot reload so a reload
+// cannot hand someone a fresh allowance. A stuck player sends at most this many, whatever the client asks for.
+const DIAG_MAX_PER_PLAYER = 60;
+const DIAG_SEEN = globalThis.__dboDiagSeen || (globalThis.__dboDiagSeen = new Map());
+
 globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
   try {
     const content = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
@@ -1098,6 +1103,21 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       if (gate) name = gate[0];
       else { try { name = (DOOR_NAMES[mp.getDescFromId(refId).toLowerCase()] || ''); } catch (e) { /* unknown ref */ } }
       sendPacket(a, { customPacketType: 'dboDoorName', refId, name });
+      return;
+    }
+    // The client's page/input diagnostic, relayed rather than left in a file the player has to send us
+    // (pageInputDiagService). Written straight to the server log so a stuck player needs to do nothing at all.
+    if (content.customPacketType === 'dboDiag') {
+      const a = actorOf(userId);
+      const key = a || `u${userId}`;
+      const who = a ? `profile ${profileOf(a)} ${display(a)}` : `user ${userId}`;
+      let n = DIAG_SEEN.get(key) || 0;
+      for (const raw of (Array.isArray(content.lines) ? content.lines : [])) {
+        if (n >= DIAG_MAX_PER_PLAYER) break;
+        n++;
+        log(`[dboDiag] ${who} ${String(raw).slice(0, 500)}`);
+      }
+      if (n > (DIAG_SEEN.get(key) || 0)) DIAG_SEEN.set(key, n);
       return;
     }
     // Front widgets driven by this file talk back through the client's DboRelayService.
