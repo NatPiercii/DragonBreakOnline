@@ -1033,6 +1033,9 @@ mp.onActivate = (targetId, casterId) => {
       const desc = String(mp.get(targetId >>> 0, 'baseDesc') || '');
       const rec = desc && mp.lookupEspmRecordById(mp.getIdFromDesc(desc));
       if (rec && rec.record && rec.record.type === 'DOOR') log(`doortrace ${display(casterId)} door ${mp.getDescFromId(targetId >>> 0)} (${desc}) allowed=${allowed}`);
+      // TEMPORARY activator trace (2026-09-28, the Scholars' Ledger "didn't work" with nothing in the log): every
+      // activator's activation, its editor id and the chain's answer (false = a hook took it)
+      if (rec && rec.record && rec.record.type === 'ACTI') log(`acttrace ${display(casterId)} activator ${mp.getDescFromId(targetId >>> 0)} (${desc} ${rec.record.editorId || '?'}) allowed=${allowed}`);
     } catch (e) { /* not a door */ }
     return allowed;
   };
