@@ -73,19 +73,25 @@ check('something outside the catalog is refused', !calls.some((c) => c[0] === 'P
 reset(); ui.placeObject(GM, ['1e80e:Dragonborn.esm', 'npc', [1000, 9000, 300], 90, true]);
 check('too far from the GM is refused', !calls.some((c) => c[0] === 'PlaceAtMe') && /far/.test(out.personal[0]), out.personal[0]);
 
+// Placed NPCs are one-NPC zones in NPC-Spawns.json; a zone file already there keeps everything that is not placed:*
+fs.writeFileSync('NPC-Spawns.json', JSON.stringify({ _comment: 'hand', zones: [{ Name: 'wild:wolf:1', ID: '3c:Skyrim.esm', POS: [0, 0, 0], NPC: ['123 1'] }] }));
+const zonesNow = () => JSON.parse(fs.readFileSync('NPC-Spawns.json', 'utf8'));
+const lastEntry = () => globalThis.__dboPlacement.registry[globalThis.__dboPlacement.registry.length - 1];
+const zoneOf = (e) => zonesNow().zones.find((z) => z.Name === 'placed:' + e.id);
 reset(); ui.placeObject(GM, ['1e80e:Dragonborn.esm', 'npc', [1000, 2300, 300], -90, true]);
-const npc = 0xff000100;
-const loc = calls.find((c) => c[0] === 'set' && c[1] === npc && c[2] === 'locationalData');
-check('an NPC is created on the GM, then moved to the spot', calls[0][0] === 'PlaceAtMe' && calls[0][1] === GM && loc && loc[3].pos[1] === 2300 && loc[3].cellOrWorldDesc === 'a764b:BSHeartland.esm');
-check('its heading is normalised to 0-360', loc && loc[3].rot[2] === 270, loc && loc[3].rot[2]);
-check('it never respawns and is hostile as asked', props.get(npc + '|spawnDelay') === 1e9 && props.get(npc + '|ff_hostile') === true);
-check('it is re-sent to watchers (disable then enable)', calls.filter((c) => c[2] === 'isDisabled' && c[1] === npc).map((c) => c[3]).join() === 'true,false');
-check('it is tagged and logged', props.get(npc + '|private.dboPlaced').kind === 'npc' && /placed Bandit/.test(out.audit[0]), out.audit[0]);
+const npcEntry = lastEntry();
+const nz = zoneOf(npcEntry);
+check('an NPC becomes a one-NPC zone on the spot, with no PlaceAtMe', !calls.some((c) => c[0] === 'PlaceAtMe') && nz && nz.ID === 'a764b:BSHeartland.esm' && nz.POS.join() === '1000,2300,300' && nz.NPC[0].id === '1e80e:Dragonborn.esm' && nz.NPC[0].count === 1, JSON.stringify(nz));
+check('its heading is normalised to 0-360', nz && nz.Heading === 270, nz && nz.Heading);
+check('it never despawns or respawns and is hostile as asked', nz && nz.Despawn === 0 && nz.Respawn === 0 && nz.Hostile === true);
+check('the other zones and the file comment are kept', zonesNow()._comment === 'hand' && zonesNow().zones.some((z) => z.Name === 'wild:wolf:1'));
+check('its key can never be read as a reference id', /^n[0-9a-z]+$/.test(npcEntry.id) && !/^[0-9a-f]+$/.test(npcEntry.id), npcEntry.id);
+check('it is logged', /placed Bandit .*hostile.*zone placed:/.test(out.audit[0]), out.audit[0]);
 
 reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2100, 310], 45, false]);
-const obj = 0xff000101;
+const obj = parseInt(lastEntry().id, 16);
 check('an object is moved with SetPosition and SetAngle', calls.some((c) => c[0] === 'SetPosition' && c[1] === obj && c[2][2] === 310) && calls.some((c) => c[0] === 'SetAngle' && c[1] === obj && c[2][2] === 45));
-check('an object gets no locationalData', !calls.some((c) => c[2] === 'locationalData' && c[1] === obj));
+check('an object gets no locationalData and no zone', !calls.some((c) => c[2] === 'locationalData' && c[1] === obj) && zonesNow().zones.length === 2);
 check('the placement is in the server log with its outcome', /placeObject bbcf1:Skyrim.esm object at 1100,2100,310 from .*: placed/.test(out.log.join('\n')), out.log.join(' | '));
 check('the list is kept beside the world, not in the server folder', fs.existsSync(REG) && !fs.existsSync('placements.json'));
 check('both are in placements.json', JSON.parse(fs.readFileSync(REG, 'utf8')).length === 2);
@@ -96,18 +102,25 @@ reset(); ui.placeDelete(PLAYER, [obj.toString(16)]);
 check('a player cannot delete', calls.length === 0);
 reset(); ui.placeDelete(GM, [obj.toString(16)]);
 check('a placed object is deleted with Delete', calls.some((c) => c[0] === 'Delete' && c[1] === obj) && /removed Blacksmith Forge/.test(out.audit[0]));
-reset(); ui.placeDelete(GM, [npc.toString(16)]);
-check('a placed NPC is destroyed as an actor', calls.some((c) => c[0] === 'destroyActor' && c[1] === npc));
+reset(); ui.placeDelete(GM, [npcEntry.id]);
+check('a placed NPC is removed by taking its zone out; the other zones stay', !zoneOf(npcEntry) && zonesNow().zones.length === 1 && !calls.some((c) => c[0] === 'destroyActor') && /removed Bandit/.test(out.audit[0]));
+
+// Placed before the zones: an actor made with PlaceAtMe, tagged private.dboPlaced, is still destroyed as an actor
+globalThis.__dboPlacement.registry.push({ id: 'ff0006aa', base: '1e80e:Dragonborn.esm', name: 'Old Bandit', kind: 'npc', where: 'a764b:BSHeartland.esm', pos: [1000, 2000, 300], rot: [0, 0, 0], hostile: true, by: 2, at: '' });
+set(0xff0006aa, 'private.dboPlaced', { base: '1e80e:Dragonborn.esm', kind: 'npc', by: 2 });
+reset(); ui.placeDelete(GM, ['ff0006aa']);
+check('an NPC placed before the zones is still destroyed as an actor', calls.some((c) => c[0] === 'destroyActor' && c[1] === 0xff0006aa));
 check('the registry is empty again', JSON.parse(fs.readFileSync(REG, 'utf8')).length === 0);
 
 reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2100, 310], 0, false]);
+const forge = lastEntry();
 commands.placeexport(GM);
 const exp = JSON.parse(fs.readFileSync('placements-export.json', 'utf8'));
 check('/placeexport writes base, cell or world, position and rotation', exp.placements.length === 1 && exp.placements[0].base === 'bbcf1:Skyrim.esm' && exp.placements[0].cellOrWorldDesc && exp.placements[0].rot.length === 3);
 
 // The Place tab's list: nearest first, in the GM's own cell or world only
 reset(); ui.placeObject(GM, ['1e80e:Dragonborn.esm', 'npc', [1000, 3000, 300], 0, false]);
-const far = [...props.keys()].filter((k) => k.endsWith('|private.dboPlaced')).map((k) => Number(k.split('|')[0])).sort((x, y) => y - x)[0];
+const far = lastEntry();
 // The module keeps the list in memory (globalThis.__dboPlacement), so the other world's entry goes in there
 globalThis.__dboPlacement.registry.push({ id: 'ff0007aa', base: 'bbcf1:Skyrim.esm', name: 'Elsewhere', kind: 'object', where: '3c:Skyrim.esm', pos: [0, 0, 0], rot: [0, 0, 0], by: 2, at: '' });
 reset(); ui.placeList(GM, []);
@@ -116,17 +129,27 @@ check('placeList sends the nearest placements here, nearest first', lp && lp.cus
 reset(); ui.placeList(PLAYER, []);
 check('a player gets no list', out.packets.length === 0);
 
-reset(); ui.placeGoto(GM, [far.toString(16)]);
+reset(); ui.placeGoto(GM, [far.id]);
 const tp = calls.find((c) => c[0] === 'set' && c[1] === GM && c[2] === 'locationalData');
 check('placeGoto moves the GM 2 m south of it, in its cell or world', tp && tp[3].cellOrWorldDesc === 'a764b:BSHeartland.esm' && tp[3].pos[1] === 3000 - 140 && /went to Bandit/.test(out.audit[0]), JSON.stringify(tp));
-reset(); ui.placeGoto(PLAYER, [far.toString(16)]);
+reset(); ui.placeGoto(PLAYER, [far.id]);
 check('a player cannot use placeGoto', !calls.some((c) => c[1] === PLAYER && c[2] === 'locationalData'));
 
+// The actor a placed:* zone put in the world carries the zone's name: the crosshair finds its placement by it
+set(0xff000777, 'private.npcSpawner', 'placed:' + far.id);
+reset(); ui.placeSelect(GM, ['ff000777']);
+check('the select tool finds a zone NPC by the actor its zone placed', out.packets[0] && out.packets[0][1].customPacketType === 'placeEdit' && out.packets[0][1].id === far.id, JSON.stringify(out.packets[0]));
+set(0xff000778, 'private.npcSpawner', 'wild:wolf:1');
+reset(); ui.placeSelect(GM, ['ff000778']);
+check('an actor of another kind of zone is not a placement', out.packets.length === 0 && /Only things placed/.test(out.personal[0]));
+
 // Removed some other way: the world no longer has it, so only its list entry goes
-props.delete(far + '|private.dboPlaced');
-reset(); ui.placeDelete(GM, [far.toString(16), 'list']);
-check('a listed placement that is gone leaves the list, nothing is destroyed', !calls.some((c) => c[0] === 'Delete' || c[0] === 'destroyActor') && /already gone/.test(out.personal[0]) && !JSON.parse(fs.readFileSync(REG, 'utf8')).some((p) => p.id === far.toString(16)), out.personal[0]);
+props.delete(parseInt(forge.id, 16) + '|private.dboPlaced');
+reset(); ui.placeDelete(GM, [forge.id, 'list']);
+check('a listed placement that is gone leaves the list, nothing is destroyed', !calls.some((c) => c[0] === 'Delete' || c[0] === 'destroyActor') && /already gone/.test(out.personal[0]) && !JSON.parse(fs.readFileSync(REG, 'utf8')).some((p) => p.id === forge.id), out.personal[0]);
 check('a removal from the tab sends the list again', out.packets.length === 1 && out.packets[0][1].customPacketType === 'adminPlacements' && out.packets[0][1].items.length === 1);
+reset(); ui.placeDelete(GM, ['ff000777']);
+check('the crosshair removes a zone NPC through its zone', /Removed Bandit/.test(out.personal[0]) && !zoneOf(far), out.personal[0]);
 
 // The catalog, searched on the server a page at a time
 reset(); ui.placeMeta(GM, []);
@@ -171,7 +194,6 @@ check('a Developer may remove another GM\'s placement', calls.some((c) => c[0] =
 TIERS[GM] = 'senior';
 
 // ---- drop 2b: tilt, move, select, undo ----
-const lastEntry = () => globalThis.__dboPlacement.registry[globalThis.__dboPlacement.registry.length - 1];
 const angleOf = (id) => { const c = calls.filter((x) => x[0] === 'SetAngle' && x[1] === id).pop(); return c && c[2]; };
 reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1200, 2200, 300], 90, false, [10, -20]]);
 const tilted = lastEntry();
@@ -183,8 +205,7 @@ check('an NPC stays upright whatever tilt is sent', upright.rot.join() === '0,0,
 reset(); ui.placeMove(GM, [tilted.id, [1300, 2250, 310], [0, 5, 180]]);
 check('placeMove moves and turns an object, re-sent to watchers', tilted.pos.join() === '1300,2250,310' && tilted.rot.join() === '0,5,180' && calls.some((c) => c[0] === 'SetPosition' && c[2][0] === 1300) && calls.filter((c) => c[2] === 'isDisabled').length === 2 && /moved Blacksmith Forge/.test(out.audit[0]), JSON.stringify(tilted));
 reset(); ui.placeMove(GM, [upright.id, [1260, 2210, 300], [30, 30, 200]]);
-const npcLoc = calls.find((c) => c[0] === 'set' && c[2] === 'locationalData');
-check('placeMove moves an NPC with locationalData and spawnPoint, upright', npcLoc && npcLoc[3].pos[0] === 1260 && npcLoc[3].rot.join() === '0,0,200' && calls.some((c) => c[2] === 'spawnPoint'));
+check('placeMove moves a zone NPC by moving its zone, upright', zoneOf(upright) && zoneOf(upright).POS.join() === '1260,2210,300' && zoneOf(upright).Heading === 200 && !calls.some((c) => c[2] === 'locationalData'), JSON.stringify(zoneOf(upright)));
 set(GM, 'worldOrCellDesc', '3c:Skyrim.esm');
 reset(); ui.placeMove(GM, [tilted.id, [1300, 2250, 310], [0, 0, 0]]);
 check('a placement cannot be moved from another cell or world', /another cell or world/.test(out.personal[0]) && !calls.some((c) => c[0] === 'SetPosition'), out.personal[0]);
@@ -204,7 +225,7 @@ check('Undo moves the NPC back', /Moved Bandit back/.test(out.personal[0]) && up
 reset(); ui.placeUndo(GM, []);
 check('Undo moves the object back, tilt included', /Moved Blacksmith Forge back/.test(out.personal[0]) && tilted.pos.join() === '1200,2200,300' && tilted.rot.join() === '10,340,90', tilted.rot.join());
 reset(); ui.placeUndo(GM, ['list']);
-check('Undo takes back a placement and sends the list again', /Took back placing Bandit/.test(out.personal[0]) && calls.some((c) => c[0] === 'destroyActor') && !globalThis.__dboPlacement.registry.some((p) => p.id === upright.id) && out.packets.some((p) => p[1].customPacketType === 'adminPlacements'), out.personal[0]);
+check('Undo takes back a placement and sends the list again', /Took back placing Bandit/.test(out.personal[0]) && !zoneOf(upright) && !globalThis.__dboPlacement.registry.some((p) => p.id === upright.id) && out.packets.some((p) => p[1].customPacketType === 'adminPlacements'), out.personal[0]);
 
 // A removal is undone by placing the same thing again, where it stood; older steps follow the new reference
 reset(); ui.placeMove(GM, [tilted.id, [1210, 2210, 300], [0, 0, 0]]);

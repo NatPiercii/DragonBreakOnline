@@ -29,6 +29,12 @@
 // reachable without shipping megabytes to the browser. Rights go by staff tier (config placement.rights, the lowest tier
 // allowed): place (objects and friendly NPCs), hostile (hostile NPCs), others (change or remove another GM's placements).
 // Every tier sees the tab, the list and Go to.
+//
+// Placed NPCs are one-NPC zones in NPC-Spawns.json (placed:<key>, config placement.npcZone), so npcSpawnSystem spawns,
+// hosts and recovers them like every other NPC; the zone carries the GM's heading and hostile choice (Heading,
+// Hostile). They never despawn and a killed one stays dead until a restart. Their list entries have zone: true and a key
+// ('n...', never a hex reference id); the actor the zone places is found by its private.npcSpawner name. Placements from
+// before (an actor made with PlaceAtMe, tagged private.dboPlaced) keep working as they are.
 
 const fs = require('fs');
 const path = require('path');
@@ -62,6 +68,14 @@ module.exports = (api) => {
   const MAX_REACH = 4096;
   const NEVER_RESPAWN = 1e9;
   const TAG = 'private.dboPlaced';
+  const SPAWNER_TAG = 'private.npcSpawner';
+  const SPAWNS_FILE = path.resolve('NPC-Spawns.json');
+  const ZONE_PREFIX = 'placed:';
+  // radius: a player this near makes it appear; despawn: seconds after the last one left (0 = it stays)
+  const NPC_ZONE = Object.assign({ radius: 4000, despawn: 0 }, P.npcZone || {});
+  const AS_ZONES = P.npcZones !== false;
+  // 'n' + time + random, base 36: 'n' is not a hex digit, so a key is never read as a reference id
+  const newKey = () => `n${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36).padStart(3, '0')}`;
 
   const S = globalThis.__dboPlacement || (globalThis.__dboPlacement = { catalog: null, kinds: null, registry: null });
 
@@ -94,6 +108,42 @@ module.exports = (api) => {
   const saveRegistry = () => {
     try { fs.writeFileSync(REGISTRY + '.tmp', JSON.stringify(registry(), null, 1)); fs.renameSync(REGISTRY + '.tmp', REGISTRY); }
     catch (e) { log('placement: saving placements.json failed', e.message); }
+  };
+
+  const zoneOf = (e) => ({ Name: ZONE_PREFIX + e.id, ID: e.where, POS: e.pos, Size: NPC_ZONE.radius, NPC: [{ id: e.base, count: 1 }], Despawn: NPC_ZONE.despawn, Respawn: 0, Heading: (e.rot || [0, 0, 0])[2], Hostile: !!e.hostile });
+  // Rewrites the placed:* zones from the list and keeps every other zone (dungeon:*, wild:*, hand-written ones)
+  const writeZones = () => {
+    let root = null, list = [], key = 'zones', text = '';
+    try {
+      text = fs.readFileSync(SPAWNS_FILE, 'utf8');
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) list = parsed;
+      else if (parsed && typeof parsed === 'object') { root = parsed; key = Object.keys(parsed).find((k) => k.toLowerCase() === 'zones') || 'zones'; list = Array.isArray(parsed[key]) ? parsed[key] : []; }
+    } catch (e) { /* no file yet */ }
+    const isMine = (z) => String((z && (z.Name || z.name)) || '').startsWith(ZONE_PREFIX);
+    const mine = registry().filter((e) => e.zone).map(zoneOf);
+    if (JSON.stringify(list.filter(isMine)) === JSON.stringify(mine)) return;
+    const zones = list.filter((z) => !isMine(z)).concat(mine);
+    const payload = root ? Object.assign({}, root, { [key]: zones }) : { _comment: 'NPC spawn zones. dungeon:* entries belong to dungeons.js, wild:* to wildlife.js, placed:* to placement.js; all are rewritten by the server. Other entries are kept.', zones };
+    try { fs.writeFileSync(SPAWNS_FILE + '.tmp', JSON.stringify(payload, null, 1)); fs.renameSync(SPAWNS_FILE + '.tmp', SPAWNS_FILE); }
+    catch (e) { log('placement: NPC-Spawns.json write failed', e.message); }
+  };
+
+  // A list id, a reference id (hex) of something placed, or the actor a placed:* zone put in the world
+  const resolveTarget = (raw) => {
+    const s = String(raw || '').toLowerCase();
+    let entry = registry().find((p) => p.id === s) || null;
+    let ref = 0, tag = null;
+    if (!(entry && entry.zone) && /^[0-9a-f]+$/.test(s)) {
+      ref = parseInt(s, 16) >>> 0;
+      try { tag = mp.get(ref, TAG); } catch (e) { /* not a reference */ }
+      if (!tag && !entry) {
+        let zone = '';
+        try { zone = String(mp.get(ref, SPAWNER_TAG) || ''); } catch (e) { /* not a reference */ }
+        if (zone.startsWith(ZONE_PREFIX)) entry = registry().find((p) => p.id === zone.slice(ZONE_PREFIX.length).toLowerCase()) || null;
+      }
+    }
+    return { entry, ref, tag };
   };
 
   const papyrus = (fn, self, args) => mp.callPapyrusFunction('method', 'ObjectReference', fn, { type: 'form', desc: mp.getDescFromId(self) }, args);
@@ -134,6 +184,16 @@ module.exports = (api) => {
     if (!where || !Array.isArray(me)) return { ok: false, text: 'Your position is not known yet.' };
     if (!opts.anyReach && Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) > MAX_REACH) return { ok: false, text: 'Too far away to place.' };
 
+    if (kind === 'npc' && AS_ZONES) {
+      const entry = { id: newKey(), zone: true, base: desc, name: known.name, kind, where, pos: pos.map((n) => Math.round(n * 10) / 10), rot: poseRot(kind, rotIn), hostile: !!hostile, by: profile(a), at: new Date().toISOString() };
+      registry().push(entry);
+      saveRegistry();
+      writeZones();
+      if (opts.undo !== false) pushUndo(a, { op: 'placed', id: entry.id });
+      audit(`PLACE ${who(a)} placed ${known.name} (${desc}), ${hostile ? 'hostile' : 'friendly'}, at ${entry.pos.map(Math.round).join(', ')} in ${where}, zone ${ZONE_PREFIX}${entry.id}`);
+      return { ok: true, text: `Placed ${known.name}.`, entry };
+    }
+
     // PlaceAtMe starts the new reference on the GM, in the GM's cell; it is moved to the chosen spot at once
     const res = papyrus('PlaceAtMe', a, [{ type: 'espm', desc }, 1, false, false]);
     if (!res || !res.desc) return { ok: false, text: 'The server could not create it.' };
@@ -155,12 +215,22 @@ module.exports = (api) => {
   };
 
   const remove = (a, idHex, opts = {}) => {
-    const id = parseInt(String(idHex || ''), 16) >>> 0;
-    if (!id) return { ok: false, text: 'Aim at something first.' };
-    let tag = null;
-    try { tag = mp.get(id, TAG); } catch (e) { /* not a reference */ }
-    const listed = registry().find((p) => p.id === hex(id)) || null;
-    if (!mayChange(a, listed || (tag ? { by: Number(tag.by) } : null))) return { ok: false, text: `Another GM placed that; changing their placements is ${needs('others')}.` };
+    const target = resolveTarget(idHex);
+    if (!target.ref && !target.entry) return { ok: false, text: String(idHex || '') ? 'Only things placed with the Place tab can be removed this way.' : 'Aim at something first.' };
+    const listed = target.entry;
+    if (!mayChange(a, listed || (target.tag ? { by: Number(target.tag.by) } : null))) return { ok: false, text: `Another GM placed that; changing their placements is ${needs('others')}.` };
+    if (listed && listed.zone) {
+      // The zone goes from NPC-Spawns.json and npcSpawnSystem takes its NPC away on reload
+      const list = registry();
+      list.splice(list.indexOf(listed), 1);
+      saveRegistry();
+      writeZones();
+      if (opts.undo !== false) pushUndo(a, { op: 'removed', entry: Object.assign({}, listed) });
+      audit(`PLACE ${who(a)} removed ${listed.name} (${listed.base}), zone ${ZONE_PREFIX}${listed.id}`);
+      return { ok: true, text: `Removed ${listed.name}.` };
+    }
+    const id = target.ref;
+    const tag = target.tag;
     if (!tag) {
       // Listed but no longer in the world (removed some other way): only the list entry goes
       const list = registry();
@@ -188,10 +258,10 @@ module.exports = (api) => {
     const entry = registry().find((p) => p.id === String(idHex || '').toLowerCase());
     if (!entry) return { ok: false, text: 'That placement is not on the list.' };
     if (!mayChange(a, entry)) return { ok: false, text: `Another GM placed that; changing their placements is ${needs('others')}.` };
-    const id = parseInt(entry.id, 16) >>> 0;
+    const id = entry.zone ? 0 : parseInt(entry.id, 16) >>> 0;
     let tag = null;
-    try { tag = mp.get(id, TAG); } catch (e) { /* gone */ }
-    if (!tag) return { ok: false, text: `${entry.name} is no longer in the world.` };
+    if (!entry.zone) { try { tag = mp.get(id, TAG); } catch (e) { /* gone */ } }
+    if (!entry.zone && !tag) return { ok: false, text: `${entry.name} is no longer in the world.` };
     const where = String(mp.get(a, 'worldOrCellDesc') || '');
     const me = mp.get(a, 'pos');
     if (!where || !Array.isArray(me)) return { ok: false, text: 'Your position is not known yet.' };
@@ -200,11 +270,13 @@ module.exports = (api) => {
     if (!opts.anyReach && Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) > MAX_REACH) return { ok: false, text: 'Too far away to move it there.' };
     const rot = poseRot(entry.kind, rotIn);
     const from = { pos: entry.pos.slice(), rot: (entry.rot || [0, 0, 0]).slice() };
-    applyPose(id, entry.kind, entry.where, pos, rot);
+    // A zone NPC moves with its zone: the changed zone is placed again where it now stands on reload
+    if (!entry.zone) applyPose(id, entry.kind, entry.where, pos, rot);
     entry.pos = pos.map((n) => Math.round(n * 10) / 10);
     entry.rot = rot;
     entry.movedAt = new Date().toISOString();
     saveRegistry();
+    if (entry.zone) writeZones();
     if (opts.undo !== false) pushUndo(a, { op: 'moved', id: entry.id, from });
     audit(`PLACE ${who(a)} moved ${entry.name}, ref ${entry.id}, to ${entry.pos.map(Math.round).join(', ')} facing ${rot.map(Math.round).join('/')}`);
     return { ok: true, text: `Moved ${entry.name}.` };
@@ -244,6 +316,9 @@ module.exports = (api) => {
     }
     return r;
   };
+
+  // The file follows the list, also after a hot reload or a restore of the list
+  if (AS_ZONES) writeZones();
 
   onUi('placeCatalog', (a) => {
     if (!isAdmin(a)) return;
@@ -357,10 +432,8 @@ module.exports = (api) => {
   // The select tool aimed at something: if it was placed with the tab and this GM may change it, the client edits it
   onUi('placeSelect', (a, args) => {
     if (!isAdmin(a)) return;
-    const idHex = String(args[0] || '').toLowerCase();
-    const entry = registry().find((p) => p.id === idHex);
-    let tagged = false;
-    try { tagged = !!mp.get(parseInt(idHex, 16) >>> 0, TAG); } catch (e) { /* not a reference */ }
+    const { entry, tag } = resolveTarget(args[0]);
+    const tagged = !!tag;
     if (!entry) return personal(a, tagged ? 'That was placed with the tab but is missing from the list.' : 'Only things placed with the Place tab can be edited.');
     if (!mayChange(a, entry)) return personal(a, `Another GM placed that; changing their placements is ${needs('others')}.`);
     sendPacket(a, { customPacketType: 'placeEdit', id: entry.id, base: entry.base, name: entry.name, kind: entry.kind, hostile: !!entry.hostile, pos: entry.pos, rot: entry.rot || [0, 0, 0] });
