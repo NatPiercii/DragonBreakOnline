@@ -3733,7 +3733,7 @@ try {
 try {
   const CONTRACTS_JS = path.resolve('contracts.js');
   delete require.cache[CONTRACTS_JS];
-  require(CONTRACTS_JS)({ mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones: ZONES, ranksOf, profileOf, saveSoon });
+  require(CONTRACTS_JS)({ mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones: ZONES, ranksOf, profileOf, saveSoon, discordOf });
 } catch (e) { log('contracts.js failed to load:', e.stack || e.message); globalThis.__dboContractKill = null; }
 
 // ---- champions: named, tougher spawns that pay everyone who fought them (server\champions.js) --

@@ -1,9 +1,9 @@
-// Scripted test for server\contracts.js with a mock gamemode api. The hole claude-jake's review found (A1-1) is that
-// an official can post a contract for harmless quarry at a reward the hold cannot justify, take it himself, and be
-// paid out of the treasury. Until that is fixed properly the system is switched off, so this checks the switch:
-// contracts.enabled off closes posting, taking and paying, and leaves work already posted listed. It also checks that
-// appoint and dismiss are Lead GM and above, so a GM cannot make himself the official. No server and no game: run it
-// from this folder's parent with
+// Scripted test for server\contracts.js with a mock gamemode api. It covers the hole claude-jake's review found
+// (A1-1): an official posting a contract for harmless quarry at a reward the hold cannot justify, taking it himself
+// and being paid out of the treasury. Checked here: contracts.enabled off closes posting, taking and paying while
+// leaving posted work listed; the poster is recorded and cannot take his own notice, on that character or another of
+// his; a reward is capped by count and danger; and danger-0 creatures cannot be asked for at all. No server and no
+// game: run it from this folder's parent with
 //
 //   node tests/contracts-harness.js
 'use strict';
@@ -43,6 +43,9 @@ const commands = new Map();
 const zones = { holds: [{ id: 'bruma', name: 'Bruma', treasury: '79b22:BSHeartland.esm', worldspaces: ['BSHeartland.esm:BSHeartland'], capital: [0, 0] }], strongholds: [], regions: [] };
 
 let CFG = {};
+// Each section starts from an empty board: contracts.json survives a reload by design, which is what the "off"
+// section below relies on, so everywhere else has to clear it deliberately.
+const clear = () => { try { fs.unlinkSync(path.resolve('contracts.json')); } catch (e) { /* none yet */ } };
 const load = (contracts) => {
   CFG = contracts;
   out.personal.length = 0; out.audits.length = 0;
@@ -62,6 +65,7 @@ const load = (contracts) => {
     ranksOf: (pid) => RANKS[pid] || [],
     profileOf: (a) => PROFILE[a],
     saveSoon: (file, fn) => fs.writeFileSync(file, fn()),
+    discordOf: (a) => ACCOUNT[PROFILE[a]] || '',
   });
 };
 
@@ -95,12 +99,82 @@ set(0x900, 'private.npcSpawner', `wild:${standing[0].kind}:1`);
 for (let i = 0; i < 40; i++) globalThis.__dboContractKill(0x900, HUNTER);
 check('off: kills pay nothing', goldOf(HUNTER) === before, `${goldOf(HUNTER)} gold`);
 
+// ---- posting, with contracts on ----------------------------------------------------------------------------------
+clear();
+inv(CHEST, 100000);
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+check('a hunter with no rank cannot post', said(run(HUNTER, 'post wolf 5 60'), /Only an official/));
+
+// the review's case, exactly: 1 chicken at 10,000 gold
+const chicken = run(COUNT, 'post chicken 1 10000');
+check('harmless quarry is refused', !said(chicken, /^Posted/), chicken.join(' | '));
+check('...and nothing is written', posted().length === 0, `${posted().length} posted`);
+
+const overpaid = run(COUNT, 'post wolf 5 10000');
+check('a reward beyond count x danger is refused', !said(overpaid, /^Posted/), overpaid.join(' | '));
+check('...and the refusal says the most it may be', said(overpaid, /60 gold/), overpaid.join(' | '));
+check('...nothing written', posted().length === 0, `${posted().length} posted`);
+
+check('a fair reward is posted', said(run(COUNT, 'post wolf 5 60'), /^Posted/), posted().length + ' posted');
+check('...at the cap for 5 wolves', posted()[0] && posted()[0].reward === 60, posted()[0] && String(posted()[0].reward));
+check('...and the poster is recorded', posted()[0] && posted()[0].by === 11, posted()[0] && JSON.stringify(posted()[0].by));
+check('a bear is worth more than a wolf', said(run(COUNT, 'post bear 2 50'), /^Posted/), posted().map((c) => `${c.kind}:${c.reward}`).join(','));
+
+// ---- taking your own -----------------------------------------------------------------------------------------------
+const mine = run(COUNT, 'take 1');
+check('the poster cannot take his own notice', !said(mine, /^Taken/), mine.join(' | '));
+const alt = run(COUNT_ALT, 'take 1');
+check('...nor can another character of his', !said(alt, /^Taken/), alt.join(' | '));
+check('a guard who posted nothing may take it', said(run(GUARD, 'take 1'), /^Taken/), out.personal.map((p) => p.t).join(' | '));
+
+// ---- the treasury is committed at posting ------------------------------------------------------------------------
+clear();
+inv(CHEST, 50);
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+check('a reward the hold cannot cover is refused', !said(run(COUNT, 'post wolf 5 60'), /^Posted/), `${goldOf(CHEST)} in the treasury`);
+check('...and it keeps every coin it had', goldOf(CHEST) === 50, `${goldOf(CHEST)} left`);
+
+inv(CHEST, 100);
+check('an affordable notice goes up', said(run(COUNT, 'post wolf 5 60'), /^Posted/), out.personal.map((p) => p.t).join(' | '));
+check('posting takes the reward out of the treasury', goldOf(CHEST) === 40, `${goldOf(CHEST)} left`);
+check('...and a second notice it can no longer cover is refused', !said(run(COUNT, 'post wolf 5 60'), /^Posted/), `${goldOf(CHEST)} left`);
+
+run(GUARD, 'take 1');
+const guardBefore = goldOf(GUARD);
+set(0x901, 'private.npcSpawner', 'wild:wolf:1');
+for (let i = 0; i < 5; i++) globalThis.__dboContractKill(0x901, GUARD);
+check('finishing pays the hunter out of what the notice held', goldOf(GUARD) === guardBefore + 60, `${goldOf(GUARD) - guardBefore} gold`);
+check('...and the treasury is not touched a second time', goldOf(CHEST) === 40, `${goldOf(CHEST)} left`);
+check('...and the notice is gone', posted().length === 0, `${posted().length} posted`);
+
+// an expired notice hands its gold back
+clear();
+inv(CHEST, 200);
+load({ enabled: true, perZone: 0, expiryHours: 24, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+run(COUNT, 'post wolf 5 60');
+check('a posted notice is still holding the gold', goldOf(CHEST) === 140, `${goldOf(CHEST)} left`);
+const store = stored(); store.contracts[0].expiresAt = Date.now() - 1000;
+fs.writeFileSync(path.resolve('contracts.json'), JSON.stringify(store));
+load({ enabled: true, perZone: 0, expiryHours: 24, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+check('an expired notice gives the hold its gold back', goldOf(CHEST) === 200, `${goldOf(CHEST)}`);
+check('...and is off the board', posted().length === 0, `${posted().length} posted`);
+
+// notices from before rewards were set aside are dropped rather than paid
+clear();
+inv(CHEST, 500);
+fs.writeFileSync(path.resolve('contracts.json'), JSON.stringify({
+  contracts: [{ id: 'legacy1', zone: 'bruma', kind: 'chicken', count: 1, reward: 10000, postedAt: Date.now(), expiresAt: Date.now() + 3600000 }],
+  taken: { 12: { id: 'legacy1', progress: 0 } },
+}));
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+check('a notice from before the fix is dropped', !posted().some((c) => c.id === 'legacy1'), posted().map((c) => c.id).join(','));
+check('...and whoever held it is released', !stored().taken['12'], JSON.stringify(stored().taken));
 
 // ---- who may hand out a rank ---------------------------------------------------------------------------------------
 // An official's rank is what lets someone post work paid from the treasury, so appointing is not a GM's to do
 const gamemode = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
 const leadOnly = (gamemode.match(/const LEAD_ONLY = new Set\(\[([\s\S]*?)\]\);/) || [])[1] || '';
-check('appoint is Lead GM and above', /'appoint'/.test(leadOnly), leadOnly.replace(/\s+/g, ' ').slice(0, 120));
+check('appoint is Lead GM and above', /'appoint'/.test(leadOnly));
 check('dismiss is Lead GM and above', /'dismiss'/.test(leadOnly));
 
 console.log(failures ? `${failures} failure(s)` : 'all passed');
