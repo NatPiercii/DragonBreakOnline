@@ -139,7 +139,11 @@
   "attackerStaggerCooldownSeconds": 3,
   "staggerSpells": ["CYRForceRune", "CYRForceRuneScroll"],
   "pushSpells": { "VoiceUnrelentingForce1": 0, "VoiceUnrelentingForce2": 4, "VoiceUnrelentingForce3": 8 },
-  "pushCooldownSeconds": 2
+  "pushCooldownSeconds": 2,
+  "disarmSpells": ["VoiceDisarm1", "VoiceDisarm2", "VoiceDisarm3"],
+  "disarmCooldownSeconds": 10,
+  "dismaySpells": { "VoiceDismayingShout1": 5, "VoiceDismayingShout2": 8, "VoiceDismayingShout3": 12 },
+  "dismaySpeedMult": -50
  },
  "weaponMaterials": {
   "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2); a weapon without one of these gets nothing.",

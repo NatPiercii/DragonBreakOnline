@@ -2913,9 +2913,19 @@ for (const [desc, why] of Object.entries(cfg.castBlocks || {})) {
   let id = 0; try { id = mp.getIdFromDesc(desc) >>> 0; } catch (e) { id = 0; }
   if (id) CAST_BLOCKS.set(id, String(why || '')); else log(`castBlocks: ${desc} is not in the load order`);
 }
+const shoutRefusedAt = globalThis.__dboShoutRefusedAt instanceof Map ? globalThis.__dboShoutRefusedAt : (globalThis.__dboShoutRefusedAt = new Map());
 const castHook = (casterId, spellId, ...rest) => {
   try { if (globalThis.__dboBeastCast) globalThis.__dboBeastCast(casterId, spellId); } catch (e) { log('beast cast failed', e.message); }
   if ((cfg.debug || {}).logSpellCasts) { try { const r = recordOf(Number(spellId) >>> 0); log(`cast ${display(Number(casterId) >>> 0)} -> ${r ? r.record.editorId : (Number(spellId) >>> 0).toString(16)}`); } catch (e) { /* trace only */ } }
+  // A shout word a player was never given (combat.js shoutAllowed): refused here and, where it counts, at the hit
+  try {
+    if (combat && !combat.shoutAllowed(Number(casterId) >>> 0, Number(spellId) >>> 0)) {
+      const a = Number(casterId) >>> 0, now = Date.now();
+      if (now - (shoutRefusedAt.get(a) || 0) > 5000) { shoutRefusedAt.set(a, now); personal(a, 'That shout is not yours to use.'); }
+      log(`shout refused: ${display(a)} cast ${(Number(spellId) >>> 0).toString(16)} without the grant or outside the Dragonborn's shouts`);
+      return false;
+    }
+  } catch (e) { log('shout gate failed', e.message); }
   const blocked = CAST_BLOCKS.get(Number(spellId) >>> 0);
   if (blocked !== undefined) {
     try { if (profileOf(Number(casterId) >>> 0) >= 0) personal(Number(casterId) >>> 0, blocked || 'That spell does not work right now.'); } catch (e) { /* not a player */ }
@@ -3432,6 +3442,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   const src = Number(sourceId) >>> 0;
   const dmg = Number(damage) || 0;
   globalThis.__dboMasteryPending = null;
+
+  // 0a. A player's shout word counts only if they were given shouts and it is one of the Dragonborn's (combat.js)
+  try { if (combat && !combat.shoutAllowed(agg, src)) { log(`shout hit refused: ${display(agg)} -> ${display(tgt)} with ${src.toString(16)}`); return false; } } catch (e) { log('shout gate failed', e.message); }
 
   // 0. A Vampire Lord in Mist Form or bats cannot be touched (beastform.js)
   try { if (globalThis.__dboBeastEthereal && globalThis.__dboBeastEthereal(tgt)) return false; } catch (e) { /* not loaded */ }
