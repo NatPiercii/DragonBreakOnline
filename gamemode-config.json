@@ -485,5 +485,9 @@
  "contracts": {
   "_comment": "Hunting contracts (server\\contracts.js). Off since 2026-09-28 (claude-jake review A1-1: officials could post and take their own contracts and drain the hold treasury). Turn on only with the poster, cap and escrow rules in place.",
   "enabled": false
+ },
+ "tickets": {
+  "_comment": "In-game /ticket (gameticket.js, consolidation C9): the players who were within 40 m when a ticket opens are posted to this staff-only channel (#ticket-archive, named by claude-jake 2026-09-28), never into the ticket the reporter reads.",
+  "staffChannelId": "1554223778228211894"
  }
 }
