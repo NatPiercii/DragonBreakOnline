@@ -112,12 +112,23 @@ function createServerControl({
     } catch { return 'off' }
   }
 
-  // One ledger call: its exit code and output, never a throw
+  // One ledger call: its exit code and output, never a throw; why it failed (other than a held claim) is only on stderr
   async function ops(args) {
     try {
       const { stdout } = await run(opsPath, args, childOpts())
       return { code: 0, stdout: String(stdout || '') }
-    } catch (err) { return { code: Number.isInteger(err.code) ? err.code : -1, stdout: String(err.stdout || '') } }
+    } catch (err) {
+      const code = Number.isInteger(err.code) ? err.code : -1
+      if (code !== 2) console.error(`[server-control] ops ${args[0]} failed (${err.code ?? err.signal ?? '?'}):`, clean(String(err.stderr || '').split('\n')[0], 200) || 'no output')
+      return { code, stdout: String(err.stdout || '') }
+    }
+  }
+
+  // A ledger line for how an action ended, with the unit as systemd shows it now
+  async function logResult(job, text, undo) {
+    const { skymp } = await status.units()
+    await ops(['log', OPERATOR, `Result: ${VERB[job.action]} from the website dashboard by ${job.by}: ${text}; skymp is ${skymp?.active || 'unknown'}`, undo])
+    return skymp
   }
 
   async function release() {
@@ -233,15 +244,17 @@ function createServerControl({
         if (action !== 'restart') await restoreMarker(prev).catch(e => console.error('[server-control] marker not restored:', e.message))
         finish(job, 'failed')
         say(`${action} by ${who} FAILED before systemd took it`)
+        await logResult(job, 'systemctl refused it, nothing changed', 'Nothing to roll back')
         return { status: 502, body: { error: 'actionFailed', job: view(job) } }
       }
 
       following = true
       follow(job)
         .catch(err => { console.error('[server-control] follow failed:', err.message); return 'unconfirmed' })
-        .then(outcome => {
+        .then(async outcome => {
           finish(job, outcome)
           say(`${action} by ${who} ${OUTCOME[outcome]}`)
+          if (outcome !== 'done') await logResult(job, OUTCOME[outcome], rollback[action])
           return release()
         })
         .catch(err => console.error('[server-control] after the action:', err.message))

@@ -42,7 +42,7 @@ function harness({ unit = {}, updater = null, online = 0, beatAge = 5000, settin
     if (file === OPS) {
       const sub = args[0]
       h.onOps?.(args)
-      if (opsFail[sub]) throw Object.assign(new Error('ops failed'), { code: 1, stdout: '' })
+      if (opsFail[sub]) throw Object.assign(new Error('ops failed'), { code: 1, stdout: '', stderr: 'ops: ledger busy, retry\n' })
       if (sub === 'claim' && held) {
         throw Object.assign(new Error('Command failed'), { code: 2, stdout: `HELD: game-server is claimed by ${held} until 2026-09-28T12:00Z for: ${PURPOSE_SECRET}\n` })
       }
@@ -196,14 +196,17 @@ test('Restart at 0 players waits for the new run; a failed unit or a rising rest
   await act(crash, 'restart')
   await crash.idle()
   assert.equal(crash.control.job(ID).state, 'failed')
-  assert.deepEqual(crash.opsCalls().at(-1), ['release', 'game-server', 'site-owner'])
+  assert.deepEqual(crash.opsCalls().slice(-2), [
+    ['log', 'site-owner', 'Result: Restart from the website dashboard by jake: FAILED; skymp is failed', 'Nothing to undo; if it stays down, Start on the website dashboard or systemctl start skymp'],
+    ['release', 'game-server', 'site-owner'],
+  ])
 
   // Up again, then systemd restarts it on its own before any heartbeat of the new run
   const loop = harness({ afterCommand: h => { systemd.up(h); h.beating = false; h.beat.lastSeen = new Date(T0 - 3600e3).toISOString(); h.onUnits = n => { if (n === 4) h.unit.nRestarts = 1 } } })
   await act(loop, 'restart')
   await loop.idle()
   assert.equal(loop.control.job(ID).state, 'failed')
-  assert.equal(loop.units, 4)
+  assert.equal(loop.units, 4 + 1, 'the fourth read saw the restart count rise, one more for the result line')
 
   // The old run's last beat lands in the new run's first second, then the new run stays silent
   const old = harness({
@@ -222,8 +225,12 @@ test('Restart at 0 players waits for the new run; a failed unit or a rising rest
   await act(silent, 'restart')
   await silent.idle()
   assert.equal(silent.control.job(ID).state, 'unconfirmed')
-  assert.equal(silent.units, 2 + 40, 'a check, a second one under the claim, then 40 polls three seconds apart')
-  assert.deepEqual(silent.opsCalls().at(-1), ['release', 'game-server', 'site-owner'])
+  assert.equal(silent.units, 2 + 40 + 1, 'a check, a second one under the claim, 40 polls three seconds apart, then the result line')
+  assert.deepEqual(silent.opsCalls().slice(-2).map(a => a.slice(0, 3)), [
+    ['log', 'site-owner', 'Result: Restart from the website dashboard by jake: not confirmed within 2 minutes; skymp is active'],
+    ['release', 'game-server', 'site-owner'],
+  ])
+  assert.deepEqual(ok.opsCalls().map(a => a[0]), ['claim', 'log', 'release'], 'done needs no result line')
 })
 
 test('Stop is offered while systemd waits to restart a crashed server, and ends the retries', async () => {
@@ -271,9 +278,11 @@ test('a claim held by another operator refuses with the holder only, and nothing
   assert.deepEqual(h.systemctlCalls(), [])
 })
 
-test('a ledger failure refuses with 503 and releases a claim it took', async () => {
+test('a ledger failure refuses with 503, logs the ledger\'s reason and releases a claim it took', async t => {
+  const errors = t.mock.method(console, 'error', () => {})
   const claimFails = harness({ opsFail: { claim: true } })
   assert.deepEqual(await act(claimFails, 'stop'), { status: 503, body: { error: 'ledgerUnavailable' } })
+  assert.deepEqual(errors.mock.calls.map(c => c.arguments), [['[server-control] ops claim failed (1):', 'ops: ledger busy, retry']])
   assert.deepEqual(claimFails.opsCalls().map(a => a[0]), ['claim'])
   const logFails = harness({ opsFail: { log: true } })
   assert.deepEqual(await act(logFails, 'stop'), { status: 503, body: { error: 'ledgerUnavailable' } })
@@ -326,7 +335,10 @@ test('a systemctl failure restores the marker as it was, fails the job and relea
   assert.equal(res.body.error, 'actionFailed')
   assert.equal(res.body.job.state, 'failed')
   assert.equal(fs.existsSync(stop.markers.stopped), false)
-  assert.deepEqual(stop.opsCalls().at(-1), ['release', 'game-server', 'site-owner'])
+  assert.deepEqual(stop.opsCalls().slice(-2), [
+    ['log', 'site-owner', 'Result: Stop (stays stopped) from the website dashboard by jake: systemctl refused it, nothing changed; skymp is active', 'Nothing to roll back'],
+    ['release', 'game-server', 'site-owner'],
+  ])
 
   const start = harness({ unit: { active: 'inactive' }, systemctlFail: true })
   fs.writeFileSync(start.markers.stopped, '{"by":"nate","reason":"down for a while","at":"x"}\n')
