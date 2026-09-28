@@ -373,10 +373,10 @@ bool CanCastSpell(const MpActor& actor, uint32_t spellId)
   if (IsHeldScroll(actor, spellId)) {
     return true;
   }
-  if (actor.GetProfileId() != -1 &&
-      IsShoutWordSpell(actor.GetParent(), spellId)) {
-    return true;
-  }
+  // No shout word is accepted here for a player: the server cannot see which shout they hold, and an accepted cast is
+  // relayed to neighbours before the gamemode is asked (and keepAlive casts never ask it), so a modified client could
+  // make its victims replay any word's paralysis, fear or damage over time (review A4-1, 2026-09-28). A shout's hits
+  // still land through CanHitWithSpell, where the gamemode's shout gate (combat.js shoutAllowed) judges them.
   return actor.GetProfileId() == -1 &&
     (actor.IsSpellLearned(spellId) || IsSpellInTemplateTree(actor, spellId));
 }
