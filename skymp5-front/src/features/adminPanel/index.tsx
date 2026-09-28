@@ -85,8 +85,8 @@ export interface AdminPanelData {
   debug?: DebugData | null;
   npcZones?: PanelNpcZone[]; // absent on older clients
   npcZonesAt?: number; // Date.now() when npcZones arrived, the countdown base
-  caps?: { ban?: boolean }; // server-resolved tier capabilities, absent on older servers
-  tier?: string; // "senior" | "developer" | "gm", absent on older servers
+  caps?: { ban?: boolean; spawn?: boolean }; // server-resolved tier capabilities, absent on older servers
+  tier?: string; // "senior" | "developer" | "leadgm" | "gm", absent on older servers
   mastery?: PanelMastery | null; // the admin's own standing, absent on older servers
   bans?: PanelBan[]; // admin-bans.json entries (temp and ip bans)
   itemsVersion?: number; // bumped when window.__dboAdminItems arrives
@@ -292,6 +292,8 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
   const actionsEnabled = !!(selectedPlayer && selectedPlayer.online && selectedPlayer.a);
   // Hidden rather than greyed so a tier without ban never sees a dead button; the server enforces it anyway
   const canBan = !data.caps || data.caps.ban !== false;
+  // Lead GM and above (TIER_CAPS.spawn): the grants a GM is refused, hidden the same way
+  const canSpawn = !data.caps || data.caps.spawn !== false;
 
   const act = (key: string): void => {
     if (selectedPlayer && selectedPlayer.a) send(key, selectedPlayer.a);
@@ -516,7 +518,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
 
         {tab === 'skills' ? <SkillsTab events={ev} masteryTarget={data.masteryTarget || null} targets={targets} /> : null}
         {tab === 'items' ? <ItemsTab events={ev} itemsVersion={data.itemsVersion || 0} targets={targets} /> : null}
-        {tab === 'powers' ? <PowersTab events={ev} targets={targets} /> : null}
+        {tab === 'powers' ? <PowersTab events={ev} targets={targets} canSpawn={canSpawn} /> : null}
 
         {tab === 'teleport' ? <TeleportTab events={ev} locationsVersion={data.locationsVersion || 0} /> : null}
         {tab === 'place' ? <PlaceTab events={ev} placements={data.placements || null} meta={data.placeMeta || null} results={data.placeResults || null} sets={data.placeSets || null} /> : null}
