@@ -331,6 +331,7 @@ $border-dim: dbo-accent(0.2);
     gap: 14px;
     text-align: center;
     @include dbo-panel;
+    @include dbo-panel-cap;
   }
 
   &__confirm-title {

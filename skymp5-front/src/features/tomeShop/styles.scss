@@ -486,6 +486,7 @@ $tome-ranks: (
     text-align: center;
     color: $dbo-text;
     @include dbo-panel;
+    @include dbo-panel-cap;
   }
 
   &__confirm-title {

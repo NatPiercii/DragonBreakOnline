@@ -29,6 +29,7 @@
     gap: 16px;
     padding: 26px 30px 22px;
     @include dbo-panel;
+    @include dbo-panel-cap;
   }
 
   &__title {
