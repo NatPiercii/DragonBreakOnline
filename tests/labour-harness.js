@@ -338,6 +338,32 @@ res = report(w, [1, 2, 3], 3, 100, 13400000);
 check('a refused round emits nothing at all', verdictOf(res.log) !== 'win' && res.events.length === 0,
   `${res.events.length} event(s)`);
 
+// A seam's pickaxe marker is refused to players: the vanilla mining script on it paid out ore with no round and no
+// skill (Nate on Falcius, 2026-09-28). NPCs keep them for their idles; other furniture is not labour's.
+const MARKERS = [
+  [0xa001, '613a6:Skyrim.esm', 0x613a6, 'PickaxeMiningFloorMarker'],
+  [0xa002, 'e2bc7:Skyrim.esm', 0xe2bc7, 'PickaxeMiningWallMarker'],
+  [0xa003, '613a7:Skyrim.esm', 0x613a7, 'PickaxeMiningTableMarker'],
+  [0xa004, 'bd15d:Skyrim.esm', 0xbd15d, 'MS02PickaxeMiningFloorMarker'],
+  [0xa005, '3a491:Dragonborn.esm', 0x3a491, 'DLC2PickaxeMiningFloorMarker_Stalhrim'],
+];
+for (const [ref, desc, base, edid] of MARKERS) { records.set(base, { record: { type: 'FURN', editorId: edid } }); props.set(ref + '|baseDesc', desc); }
+const NPC = 0xff000123;
+props.set(ACTOR + '|profileId', 1);
+props.set(NPC + '|profileId', -1);
+out.personals.length = 0;
+for (const [ref, , , edid] of MARKERS) {
+  out.widgets.length = 0; out.items.length = 0;
+  const taken = globalThis.__dboLabour(ref, ACTOR);
+  check(`a player is refused the ${edid}`, taken === true && out.widgets.length === 0 && out.items.length === 0, `taken=${taken}`);
+}
+check('the refusal tells the player to strike the seam', out.personals.some((t) => /Strike the seam itself/.test(t)), out.personals.join(' | '));
+check('an NPC still uses a pickaxe marker', globalThis.__dboLabour(0xa001, NPC) === false);
+records.set(0xe0ba9, { record: { type: 'FURN', editorId: 'BedrollHay01FallForestDirt01F' } }); props.set(0xa010 + '|baseDesc', 'e0ba9:Skyrim.esm');
+check('other furniture is not labour\'s', globalThis.__dboLabour(0xa010, ACTOR) === false);
+setTier('woodcutter', 0); clearRests(); out.widgets.length = 0;
+check('the chopping block still opens a round', globalThis.__dboLabour(BLOCK, ACTOR) === true && out.widgets.length === 1 && out.widgets[0].kind === 'chopping');
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);

@@ -95,6 +95,9 @@ module.exports = (api) => {
     const p = r.skills && r.skills[skillId];
     return p ? Math.max(0, Number(p.rank) || 0) : 0;
   };
+  const isPlayer = (a) => { try { return Number(mp.get(a, 'profileId')) >= 0; } catch (e) { return false; } };
+  // Every pickaxe marker in the load order: Skyrim's, MS02's and Dragonborn's Stalhrim ones (Floor, Wall, Table)
+  const MINING_MARKER = /^(MS02|DLC2)?PickaxeMining(Floor|Wall|Table)Marker/i;
   const restsOf = (a, prop) => { try { const r = mp.get(a, prop); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
   const saveRests = (a, prop, rests) => {
     for (const k of Object.keys(rests)) if (Number(rests[k]) < Date.now()) delete rests[k];
@@ -268,6 +271,10 @@ module.exports = (api) => {
     const edid = String(rec.record.editorId || '');
     if (type === 'ACTI' && (/^(CYR)?MineOre|^DLC2MineOre/.test(edid) || nodeOf(targetId, edid))) return mine(targetId, casterId, rec);
     if (type === 'FURN' && /^(DLC2)?WoodChoppingBlock/i.test(edid)) return chop(targetId, casterId);
+    // A seam's pickaxe marker pays out through the vanilla mining script: no round, no skill, no rest (Nate on Falcius,
+    // 2026-09-28: refused at a gold seam, then mined it from its PickaxeMiningFloorMarker). The round on the seam
+    // replaces it, so a player never sits at one; NPCs keep them for their idles.
+    if (type === 'FURN' && MINING_MARKER.test(edid) && isPlayer(casterId)) return deny(casterId, 'Strike the seam itself to mine it.');
     return false;
   };
 
