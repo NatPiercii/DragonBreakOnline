@@ -19,7 +19,9 @@
       {
         "heading": "Scrolls",
         "items": [
-          "Reading a scroll now casts it. Before, the casting played and then nothing happened. Every kind works: fire and frost bolts, summons, armour, cloaks and paralysis."
+          "Reading a scroll now casts it. Before, the casting played, nothing happened and the scroll came back.",
+          "The scroll is used up when you cast it, as it should be.",
+          "Every kind of scroll works: fire and frost bolts, summons, armour, cloaks and paralysis."
         ]
       },
       {
