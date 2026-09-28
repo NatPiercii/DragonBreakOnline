@@ -71,11 +71,12 @@ export const TargetPicker = ({ targets, value, onChange, label }: {
 };
 
 // Long lists reveal a page at a time instead of stopping dead at a cap
-const MoreRow = ({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) => (
+// step: how many one press adds (a server page); without it, as many again as are shown
+const MoreRow = ({ shown, total, onMore, step }: { shown: number; total: number; onMore: () => void; step?: number }) => (
   total <= shown ? null : (
     <div className="admin-panel__more">
       <span className="admin-panel__hint">{shown} of {total}</span>
-      <Button text={'Show ' + Math.min(total - shown, shown) + ' more'} width={150} height={28} onClick={onMore} />
+      <Button text={'Show ' + Math.min(total - shown, step || shown) + ' more'} width={150} height={28} onClick={onMore} />
     </div>
   )
 );
@@ -421,54 +422,66 @@ export const PowersTab = ({ events, targets }: { events: Record<string, string>;
   );
 };
 
-// The Place tab's catalog is handed to the browser once as window.__dboAdminPlaceables; placeablesVersion changes when it arrives
-interface PlaceCategory { id: string; label: string; kind: 'npc' | 'object'; items: Array<[string, string, string]> }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const placeables = (): PlaceCategory[] | null => ((window as any).__dboAdminPlaceables as PlaceCategory[]) || null;
+// The Place tab's catalog is searched on the server (placement.js placeSearch) and arrives a page at a time, so all of it,
+// Statics included, is reachable without loading 44,000 rows into the browser. placeMeta gives the categories, the mods
+// and what this admin's tier may do.
+export interface PlaceMeta {
+  categories: Array<{ id: string; label: string; kind: 'npc' | 'object'; count: number }>;
+  plugins: string[];
+  rights: { place: boolean; hostile: boolean; others: boolean; tier: string; placeNeeds: string } | null;
+}
+// items: [desc, name, plugin, category, kind]
+export interface PlaceResults { query: string; category: string; plugin: string; offset: number; total: number; items: Array<[string, string, string, string, 'npc' | 'object']> }
 
 // The "Placed near me" list (server placement.js placeList), nearest first in the admin's own cell or world
 export interface PlacedItem { id: string; name: string; kind: 'npc' | 'object'; hostile?: boolean; dist: number; by?: number; at?: string }
 export interface PanelPlacements { items: PlacedItem[]; here: number; total: number; at: number }
 
-export const PlaceTab = ({ events, placeablesVersion, placements }: { events: Record<string, string>; placeablesVersion: number; placements: PanelPlacements | null }) => {
+interface PlaceRow { desc: string; name: string; plugin: string; cat: string; kind: 'npc' | 'object' }
+const SEARCH_DELAY_MS = 250;
+// Rows per search page, as placement.js sends them
+const SEARCH_PAGE = 100;
+
+export const PlaceTab = ({ events, placements, meta, results }: { events: Record<string, string>; placements: PanelPlacements | null; meta: PlaceMeta | null; results: PlaceResults | null }) => {
   const [view, setView] = useState<'catalog' | 'placed'>('catalog');
   const [placedPick, setPlacedPick] = useState<string | null>(null);
   const [cat, setCat] = useState('');
   const [search, setSearch] = useState('');
   const [mod, setMod] = useState('');
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<PlaceRow | null>(null);
   const [hostile, setHostile] = useState(true);
-  const [shown, setShown] = useState(PAGE);
-  const categories = useMemo(placeables, [placeablesVersion]);
-  useEffect(() => { if (!categories) adminRequest(events, 'adminPlaceablesRequest', {}); }, []);
-  useEffect(() => { if (categories && categories.length && !cat) setCat(categories[0].id); }, [categories]);
-  const index = useMemo(() => {
-    const out: Array<{ desc: string; name: string; plugin: string; cat: string; kind: 'npc' | 'object'; hay: string }> = [];
-    for (const c of categories || []) for (const it of c.items) {
-      out.push({ desc: it[0], name: it[1], plugin: it[2] || '', cat: c.id, kind: c.kind, hay: (it[1] + ' ' + it[0]).toLowerCase() });
-    }
-    return out;
-  }, [categories]);
-  const plugins = useMemo(() => Array.from(new Set(index.map((r) => r.plugin))).filter(Boolean).sort((a, b) => a.localeCompare(b)), [index]);
+  useEffect(() => { adminRequest(events, 'adminPlaceMeta', {}); }, []);
+  useEffect(() => { if (meta && meta.categories.length && !cat) setCat(meta.categories[0].id); }, [meta]);
   const q = search.trim().toLowerCase();
-  const rows = useMemo(() => index.filter((r) => (q ? r.hay.indexOf(q) !== -1 : r.cat === cat) && (!mod || r.plugin === mod)), [index, q, cat, mod]);
-  useEffect(() => setShown(PAGE), [q, cat, mod]);
-  const pickedRow = index.find((r) => r.desc === picked) || null;
-  const start = (desc?: string): void => {
-    const row = index.find((r) => r.desc === (desc || picked));
-    if (!row) return;
-    send('admin::place', JSON.stringify({ desc: row.desc, kind: row.kind, name: row.name, hostile: row.kind === 'npc' && hostile }));
+  // Typing waits a moment before asking the server, so a word is one search, not one per letter
+  useEffect(() => {
+    if (!q && !cat) return;
+    const t = setTimeout(() => adminRequest(events, 'adminPlaceSearch', { query: q, category: q ? '' : cat, plugin: mod, offset: 0 }), q ? SEARCH_DELAY_MS : 0);
+    return () => clearTimeout(t);
+  }, [q, cat, mod]);
+  // Only results for what is asked now; an older answer arriving late is not shown
+  const current = results && results.query === q && results.category === (q ? '' : cat) && results.plugin === mod ? results : null;
+  const rows: PlaceRow[] = useMemo(() => (current ? current.items.map((it) => ({ desc: it[0], name: it[1], plugin: it[2] || '', cat: it[3], kind: it[4] })) : []), [current]);
+  const rights = meta && meta.rights;
+  const mayPlace = !rights || rights.place;
+  const mayHostile = !rights || rights.hostile;
+  const start = (row?: PlaceRow): void => {
+    const r = row || picked;
+    if (!r || !mayPlace) return;
+    send('admin::place', JSON.stringify({ desc: r.desc, kind: r.kind, name: r.name, hostile: r.kind === 'npc' && hostile && mayHostile }));
   };
+  const more = (): void => { if (current) adminRequest(events, 'adminPlaceSearch', { query: q, category: q ? '' : cat, plugin: mod, offset: current.items.length }); };
   const placed = placements ? placements.items : [];
   const placedRow = placed.find((r) => r.id === placedPick) || null;
   const showPlaced = (): void => { setView('placed'); adminRequest(events, 'adminPlacementsRequest', {}); };
   const placedAction = (type: string): void => { if (placedRow) adminRequest(events, type, { id: placedRow.id }); };
+  const catLabel = (id: string): string => ((meta && meta.categories.find((c) => c.id === id)) || { label: id }).label;
   return (
     <div className="admin-panel__body admin-panel__items">
       <div className="admin-panel__categories">
-        {(categories || []).map((c) => (
+        {(meta ? meta.categories : []).map((c) => (
           <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q && view === 'catalog' ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); setView('catalog'); }}>
-            {c.label} <span className="admin-panel__count">{c.items.length}</span>
+            {c.label} <span className="admin-panel__count">{c.count}</span>
           </button>
         ))}
       </div>
@@ -501,33 +514,35 @@ export const PlaceTab = ({ events, placeablesVersion, placements }: { events: Re
       ) : (
       <div className="admin-panel__itempane">
         <div className="admin-panel__filters">
-          <input className="admin-panel__search" placeholder="Search NPCs and objects" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="admin-panel__search" placeholder="Search every NPC and object" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select className="admin-panel__select" value={mod} onChange={(e) => setMod(e.target.value)}>
             <option value="">All mods</option>
-            {plugins.map((pl) => <option key={pl} value={pl}>{pl.replace(/\.(esp|esm|esl)$/i, '')}</option>)}
+            {(meta ? meta.plugins : []).map((pl) => <option key={pl} value={pl}>{pl.replace(/\.(esp|esm|esl)$/i, '')}</option>)}
           </select>
         </div>
         <div className="admin-panel__list admin-panel__list--items">
-          {!categories ? <div className="admin-panel__empty">Loading the catalog</div> : rows.length === 0 ? <div className="admin-panel__empty">Nothing matches</div> : (
-            rows.slice(0, shown).map((r) => (
-              <div key={r.desc} className={'admin-panel__row admin-panel__row--clickable' + (r.desc === picked ? ' admin-panel__row--selected' : '')}
-                onClick={() => setPicked(r.desc)} onDoubleClick={() => { setPicked(r.desc); start(r.desc); }}>
+          {!meta || !current ? <div className="admin-panel__empty">{meta ? 'Searching' : 'Loading the catalog'}</div> : rows.length === 0 ? <div className="admin-panel__empty">Nothing matches</div> : (
+            rows.map((r) => (
+              <div key={r.desc} className={'admin-panel__row admin-panel__row--clickable' + (picked && r.desc === picked.desc ? ' admin-panel__row--selected' : '')}
+                onClick={() => setPicked(r)} onDoubleClick={() => { setPicked(r); start(r); }}>
                 <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
-                {q ? <span className="admin-panel__cell admin-panel__cell--discord">{r.cat}</span> : null}
+                {q ? <span className="admin-panel__cell admin-panel__cell--discord">{catLabel(r.cat)}</span> : null}
                 <span className="admin-panel__cell admin-panel__cell--discord">{r.plugin.replace(/\.(esp|esm|esl)$/i, '')}</span>
               </div>
             ))
           )}
-          <MoreRow shown={Math.min(shown, rows.length)} total={rows.length} onMore={() => setShown(shown + PAGE)} />
+          {current ? <MoreRow shown={rows.length} total={current.total} onMore={more} step={SEARCH_PAGE} /> : null}
         </div>
         <div className="admin-panel__actions">
-          <span className="admin-panel__label">{pickedRow ? pickedRow.name : 'Pick something (double-click places)'}</span>
-          {pickedRow && pickedRow.kind === 'npc' ? (
-            <label className="admin-panel__checkbox">
-              <input type="checkbox" checked={hostile} onChange={(e) => setHostile(e.target.checked)} /> Hostile
+          <span className="admin-panel__label">
+            {!mayPlace && rights ? `Placing is ${rights.placeNeeds}` : picked ? picked.name : 'Pick something (double-click places)'}
+          </span>
+          {picked && picked.kind === 'npc' && mayPlace ? (
+            <label className="admin-panel__checkbox" title={mayHostile ? '' : 'Hostile NPCs need a higher staff tier'}>
+              <input type="checkbox" checked={hostile && mayHostile} disabled={!mayHostile} onChange={(e) => setHostile(e.target.checked)} /> Hostile
             </label>
           ) : null}
-          <Button text="Place" width={110} height={32} disabled={!pickedRow} onClick={() => start()} />
+          <Button text="Place" width={110} height={32} disabled={!picked || !mayPlace} onClick={() => start()} />
           <Button text="Delete tool" width={130} height={32} onClick={() => send('admin::placedelete')} />
           <Button text="Placed near me" width={150} height={32} onClick={showPlaced} />
         </div>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import './styles.scss';
-import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PlaceTab, PanelBan, MasteryTarget, TargetOption, BeastState, PanelPlacements } from './extraTabs';
+import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PlaceTab, PanelBan, MasteryTarget, TargetOption, BeastState, PanelPlacements, PlaceMeta, PlaceResults } from './extraTabs';
 
 // One roster row as merged by the server (online actor data + backend record).
 interface PanelPlayer {
@@ -93,6 +93,8 @@ export interface AdminPanelData {
   locationsVersion?: number; // bumped when window.__dboAdminLocations arrives
   placeablesVersion?: number; // bumped when window.__dboAdminPlaceables arrives
   placements?: PanelPlacements | null; // the Place tab's "Placed near me" list, after adminPlacementsRequest
+  placeMeta?: PlaceMeta | null; // the Place tab's categories, mods and rights, after adminPlaceMeta
+  placeResults?: PlaceResults | null; // the Place tab's current catalog search, a page at a time
   masteryTarget?: MasteryTarget | null; // the Skills tab's player, arrives after adminMasteryRequest
   me?: { a: string; b?: BeastState }; // the admin's own row, which the roster leaves out
 }
@@ -516,7 +518,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
         {tab === 'powers' ? <PowersTab events={ev} targets={targets} /> : null}
 
         {tab === 'teleport' ? <TeleportTab events={ev} locationsVersion={data.locationsVersion || 0} /> : null}
-        {tab === 'place' ? <PlaceTab events={ev} placeablesVersion={data.placeablesVersion || 0} placements={data.placements || null} /> : null}
+        {tab === 'place' ? <PlaceTab events={ev} placements={data.placements || null} meta={data.placeMeta || null} results={data.placeResults || null} /> : null}
 
         {tab === 'modes' ? (
           <div className="admin-panel__modes">

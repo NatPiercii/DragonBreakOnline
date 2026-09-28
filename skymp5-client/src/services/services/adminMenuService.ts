@@ -48,7 +48,7 @@ const events = {
 
 // Requests the front may send through admin::request; everything else is refused here
 const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest", "adminPlaceablesRequest",
-  "adminPlacementsRequest", "adminPlacementRemove", "adminPlacementGoto"]);
+  "adminPlacementsRequest", "adminPlacementRemove", "adminPlacementGoto", "adminPlaceMeta", "adminPlaceSearch"]);
 
 interface DebugServer {
   name: string;
@@ -168,6 +168,8 @@ export class AdminMenuService extends ClientListener {
         locationsVersion: panelData.locationsVersion || 0,
         placeablesVersion: panelData.placeablesVersion || 0,
         placements: panelData.placements || null,
+        placeMeta: panelData.placeMeta || null,
+        placeResults: panelData.placeResults || null,
         masteryTarget: panelData.masteryTarget || null,
         events,
       };
@@ -221,6 +223,29 @@ export class AdminMenuService extends ClientListener {
         total: Number(content["total"]) || 0,
         at: Date.now(),
       };
+      this.pushData();
+    } else if (content["customPacketType"] === "adminPlaceMeta") {
+      panelData.placeMeta = {
+        categories: Array.isArray(content["categories"]) ? content["categories"] : [],
+        plugins: Array.isArray(content["plugins"]) ? content["plugins"] : [],
+        rights: content["rights"] && typeof content["rights"] === "object" ? content["rights"] : null,
+      };
+      this.pushData();
+    } else if (content["customPacketType"] === "adminPlaceResults") {
+      // One page of the server-side catalog search; a later page of the same search is appended to what is shown
+      const page = {
+        query: String(content["query"] ?? ""),
+        category: String(content["category"] ?? ""),
+        plugin: String(content["plugin"] ?? ""),
+        offset: Number(content["offset"]) || 0,
+        total: Number(content["total"]) || 0,
+        items: Array.isArray(content["items"]) ? content["items"] : [],
+      };
+      const prev = panelData.placeResults;
+      const same = prev && prev.query === page.query && prev.category === page.category && prev.plugin === page.plugin;
+      panelData.placeResults = same && page.offset > 0 && page.offset === prev.items.length
+        ? Object.assign({}, page, { offset: 0, items: prev.items.concat(page.items) })
+        : page;
       this.pushData();
     } else if (content["customPacketType"] === "adminMastery") {
       panelData.masteryTarget = { name: String(content["targetName"] ?? ""), target: String(content["target"] ?? ""), detail: content["detail"] || null };
@@ -382,6 +407,16 @@ export class AdminMenuService extends ClientListener {
       // The Place tab's catalog is served by the gamemode (placement.js), not by AdminSystem
       if (type === "adminPlaceablesRequest") {
         sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeCatalog", args: [] });
+        return;
+      }
+      if (type === "adminPlaceMeta") {
+        sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeMeta", args: [] });
+        return;
+      }
+      if (type === "adminPlaceSearch") {
+        let f: Record<string, unknown> = {};
+        try { f = JSON.parse(String(e.arguments[2] ?? "{}")) || {}; } catch { f = {}; }
+        sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeSearch", args: [String(f.query ?? ""), String(f.category ?? ""), String(f.plugin ?? ""), Number(f.offset) || 0] });
         return;
       }
       if (type === "adminPlacementsRequest" || type === "adminPlacementRemove" || type === "adminPlacementGoto") {
