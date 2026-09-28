@@ -1,6 +1,6 @@
 'use strict'
-// Opens a thread in the error-report forum for one problem report: the title is the reporter's
-// Discord name, the body is the summary, and the logs and any screenshot ride along as attachments.
+// Opens one thread per problem report in the bug-tracker forum (formerly #error-report): the title is the reporter's
+// name, the body is the summary, the logs and any screenshot ride along as attachments, and tags come from the tag map.
 // Same shape as audit.js (plain https, bot token, retry once on a rate limit) so there is nothing new to learn.
 
 const fs = require('fs')

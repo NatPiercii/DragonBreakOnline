@@ -1,6 +1,6 @@
 'use strict'
 // One problem report from the launcher, the game or the website: logs are scrubbed, a screenshot must be
-// a small JPEG from a signed-in player, and the report becomes a thread in the error-report forum.
+// a small JPEG from a signed-in player, and the report becomes its own tagged thread in the bug-tracker forum.
 
 const crypto  = require('crypto')
 const express = require('express')
