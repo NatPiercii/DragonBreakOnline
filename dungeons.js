@@ -1171,22 +1171,38 @@ module.exports = (api) => {
     for (const m of inside) { if (m === finder) continue; if (giveItem(m, GOLD_BASE, share)) { handed += share; personal(m, `${nameOf(finder)} found ${count} gold; your share is ${share}.`); } }
     return count - handed;
   };
+  // Coin taken from a lease chest: the finder already holds the whole pile, so the shares come OUT of the finder first,
+  // capped at what they still hold, and only what was removed is handed on. Paying first and taking back later minted
+  // coin for anyone who put the pile back in the chest in between (post-hoc review A7-GOLD-1, 2026-09-28).
+  const goldHeld = (a) => {
+    const inv = mp.get(a, 'inventory') || { entries: [] };
+    return (Array.isArray(inv.entries) ? inv.entries : []).reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD_BASE ? Number(e.count) || 0 : 0), 0);
+  };
+  const removeGold = (a, amount) => {
+    const inv = mp.get(a, 'inventory') || { entries: [] };
+    const entries = Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : [];
+    let left = amount;
+    for (const e of entries) { if ((Number(e.baseId) >>> 0) !== GOLD_BASE || left <= 0) continue; const take = Math.min(Number(e.count) || 0, left); e.count -= take; left -= take; }
+    mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) });
+    return amount - left;
+  };
   globalThis.__dboTakeItem = (sourceId, actorId, baseId, count) => {
     if ((baseId >>> 0) !== GOLD_BASE || count <= 0) return;
     const lease = leaseOfActor(actorId); if (!lease) return;
     const here = dungeonAround(actorId); if (!here || here.id !== lease.id) return;
     const d = byId.get(lease.id); if (!d) return;
     if (!chestRefs.has(sourceId >>> 0)) return;
-    const handed = count - splitGold(actorId, lease, count);
-    if (!handed) return;
-    // Take the shares back from the finder (they already hold the whole pile).
+    const others = [...lease.members].map((pid) => actorByProfile(pid)).filter((m) => m && m !== actorId && (dungeonAround(m) || {}).id === lease.id);
+    if (!others.length) return;
+    const share = Math.floor(count / (others.length + 1)); if (share < 1) return;
     try {
-      const inv = mp.get(actorId, 'inventory') || { entries: [] };
-      const entries = Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : [];
-      let left = handed;
-      for (const e of entries) { if ((Number(e.baseId) >>> 0) !== GOLD_BASE || left <= 0) continue; const take = Math.min(Number(e.count) || 0, left); e.count -= take; left -= take; }
-      mp.set(actorId, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) });
-      personal(actorId, `${count} gold, shared with your party: you keep ${count - handed}.`);
+      const removed = removeGold(actorId, Math.min(share * others.length, goldHeld(actorId)));
+      const each = Math.floor(removed / others.length);
+      let handed = 0;
+      if (each > 0) for (const m of others) { if (giveItem(m, GOLD_BASE, each)) { handed += each; personal(m, `${nameOf(actorId)} found ${count} gold; your share is ${each}.`); } }
+      // Whatever could not be handed on (a failed give, the odd coin of a split) goes back to the finder
+      if (removed > handed) giveItem(actorId, GOLD_BASE, removed - handed);
+      if (handed) personal(actorId, `${count} gold, shared with your party: ${handed} went to them.`);
     } catch (e) { log('gold split failed', e.message); }
   };
 
