@@ -999,6 +999,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboAyleidWell && globalThis.__dboAyleidWell(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBankActivate && globalThis.__dboBankActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBusinessActivate && globalThis.__dboBusinessActivate(targetId >>> 0, casterId >>> 0)) return false;
+  if (globalThis.__dboSalvageActivate && globalThis.__dboSalvageActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
@@ -3755,6 +3756,14 @@ try {
     profileOf, findByName, takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, zoneOfActor, zoneById,
     ranksOf, distanceMeters, isAdmin });
 } catch (e) { log('business.js failed to load:', e.stack || e.message); globalThis.__dboBusinessActivate = null; globalThis.__dboBusinessLogin = null; globalThis.__dboBusinessRent = null; globalThis.__dboHoldTax = null; globalThis.__dboBusinessLog = null; }
+
+// ---- breaking gear and books down into materials at the trade's station (server\salvage.js, salvage.json, config "salvage") ----
+try {
+  const SALVAGE_JS = path.resolve('salvage.js');
+  delete require.cache[SALVAGE_JS];
+  require(SALVAGE_JS)({ mp, log, personal, who, cfg, openWidget, closeWidget, onUi, masteryOf, recordOf, fieldsOf, giveItem, distanceMeters,
+    itemName: (d) => adminItemName(d) });
+} catch (e) { log('salvage.js failed to load:', e.stack || e.message); globalThis.__dboSalvageActivate = null; }
 
 // ---- jails, cell doors and sentences (server\jail.js, config "jail", jails.json) ------------------
 try {
