@@ -13,6 +13,7 @@ const fs     = require('fs')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const config = require('../config')
 const problemReport = require('../sources/problemReport')
+const sessionEnds = require('../sources/sessionEnds')
 const { visitorIp } = require('../sources/visitorIp')
 const { lookupSession } = require('./master-api')
 
@@ -112,6 +113,22 @@ router.post('/report', identifyReporter, reportLimiter, anonymousCeiling, proble
   }
   return problemReport.respond(res, req.reporter, { ...body, source: body.source === 'game' ? 'game' : 'launcher' })
 })
+// POST /api/files/session-end - the launcher says how the game closed: crashed, closed normally, or ended some other way
+// (sources/sessionEnds.js). Only a signed-in player's launcher is heard: a crash note names someone in #server-monitor.
+const sessionEndLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => `p:${req.reporter.profileId}`,
+  message: { error: 'Too many notes from this launcher.' },
+})
+router.post('/session-end', identifyReporter, (req, res, next) => (req.reporter.verified ? next() : res.status(401).json({ error: 'sign in first' })),
+  sessionEndLimiter, async (req, res) => {
+    const result = await sessionEnds.submit(req.reporter, req.body)
+    res.status(result.status).json(result.body)
+  })
+
 router.use(problemReport.bodyErrors)
 
 module.exports = router
