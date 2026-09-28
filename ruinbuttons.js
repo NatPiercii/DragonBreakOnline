@@ -39,13 +39,24 @@ module.exports = (api) => {
   // "call": "gamebryo" in ruin-buttons.json, as a NIF controller sequence (PlayGamebryoAnimation(name, startOver, easeIn);
   // registered on the server, which sends it to every client in the cell). Nate, 2026-09-28: PlayAnimation("Open") did
   // not move Telepe's stair on his screen, so which one a mesh needs is read from its NIF and set per target.
-  const play = (t, anim) => {
-    const gamebryo = t.call === 'gamebryo';
-    try {
-      mp.callPapyrusFunction('method', 'ObjectReference', gamebryo ? 'PlayGamebryoAnimation' : 'PlayAnimation', { type: 'form', desc: t.ref },
-        gamebryo ? [anim, true, 0.0] : [anim]);
-      return true;
-    } catch (e) { log(`ruinbuttons: ${anim} on ${t.ref} failed: ${e.message}`); return false; }
+  // Every way a target is played: its own call, then any "also" alternatives from ruin-buttons.json. Beyond Skyrim's
+  // retractable stair did not move for PlayAnimation("Open") (Nate, 2026-09-28), and which gamebryo sequence its NIF
+  // has is not known here, so it gets every plausible name; a name the NIF lacks plays nothing (the engine's
+  // PlayGamebryoAnimation returns false; a failed call only throws inside the client's snippet runner, which logs it).
+  // dir is 'open' or 'close'. True when at least one call went out.
+  const play = (t, dir) => {
+    const sent = [];
+    for (const v of [t].concat(Array.isArray(t.also) ? t.also : [])) {
+      const name = v[dir]; if (!name) continue;
+      const gamebryo = v.call === 'gamebryo';
+      const fn = gamebryo ? 'PlayGamebryoAnimation' : 'PlayAnimation';
+      try {
+        mp.callPapyrusFunction('method', 'ObjectReference', fn, { type: 'form', desc: t.ref }, gamebryo ? [name, true, 0.0] : [name]);
+        sent.push(`${fn}(${name})`);
+      } catch (e) { log(`ruinbuttons: ${fn}(${name}) on ${t.ref} failed: ${e.message}`); }
+    }
+    if (sent.length > 1 || (t.also && t.also.length)) log(`ruinbuttons: ${dir} ${t.ref} -> ${sent.join(', ') || 'nothing'}`);
+    return sent.length > 0;
   };
 
   // true: ours, and the engine's own activation (its toggling chain) is blocked
@@ -61,7 +72,7 @@ module.exports = (api) => {
       return true;
     }
     let opened = 0;
-    for (const t of button.targets || []) if (play(t, t.open)) opened++;
+    for (const t of button.targets || []) if (play(t, 'open')) opened++;
     audit(`RUINBUTTON ${who(casterId)} pressed ${button.ref} in ${ruin.name}: ${opened} of ${(button.targets || []).length} opened`);
     // Nothing reached: not recorded as open, so the next press tries again
     if (!opened) { personal(casterId, 'The button gives, but nothing stirs. Try it again in a moment.'); return true; }
@@ -75,7 +86,7 @@ module.exports = (api) => {
     for (const [group, o] of [...S.open]) {
       if (o.ruinId !== ruinId) continue;
       let closed = 0;
-      for (const t of o.targets) if (play(t, t.close)) closed++;
+      for (const t of o.targets) if (play(t, 'close')) closed++;
       S.open.delete(group); S.told.delete(group);
       log(`ruinbuttons: ${ruinId} lease over, ${closed} of ${o.targets.length} closed for the next party`);
     }

@@ -17,7 +17,24 @@
        "base": "CYRAylPitStairsRetractable01",
        "kind": "stairs",
        "open": "Open",
-       "close": "closed"
+       "close": "closed",
+       "also": [
+        {
+         "call": "gamebryo",
+         "open": "Open",
+         "close": "Close"
+        },
+        {
+         "call": "gamebryo",
+         "open": "open",
+         "close": "close"
+        },
+        {
+         "call": "gamebryo",
+         "open": "Forward",
+         "close": "Backward"
+        }
+       ]
       }
      ]
     },
@@ -139,7 +156,24 @@
        "base": "CYRAylPitStairsRetractable01",
        "kind": "stairs",
        "open": "Open",
-       "close": "closed"
+       "close": "closed",
+       "also": [
+        {
+         "call": "gamebryo",
+         "open": "Open",
+         "close": "Close"
+        },
+        {
+         "call": "gamebryo",
+         "open": "open",
+         "close": "close"
+        },
+        {
+         "call": "gamebryo",
+         "open": "Forward",
+         "close": "Backward"
+        }
+       ]
       }
      ]
     },
@@ -155,7 +189,24 @@
        "base": "CYRAylPitStairsRetractable01",
        "kind": "stairs",
        "open": "Open",
-       "close": "closed"
+       "close": "closed",
+       "also": [
+        {
+         "call": "gamebryo",
+         "open": "Open",
+         "close": "Close"
+        },
+        {
+         "call": "gamebryo",
+         "open": "open",
+         "close": "close"
+        },
+        {
+         "call": "gamebryo",
+         "open": "Forward",
+         "close": "Backward"
+        }
+       ]
       }
      ]
     }

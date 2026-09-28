@@ -21,6 +21,13 @@ DEFAULTS = {'openAnim': 'open', 'closeAnim': 'close'}     # default2StateActivat
 # What the presser is told, by what the button opens (the targets are often out of sight from the button)
 SAY = {'stairs': 'Somewhere below, stone grinds open.', 'gate': 'With a grinding of stone, the way ahead opens.'}
 AGAIN = 'The button gives, but nothing more stirs.'
+# Extra calls per base, for meshes PlayAnimation does not move (Nate, 2026-09-28: Telepe's stair did not move for
+# PlayAnimation("Open")). Until the NIF's sequence names are known, every plausible gamebryo name is tried.
+ALSO = {'CYRAylPitStairsRetractable01': [
+    {'call': 'gamebryo', 'open': 'Open', 'close': 'Close'},
+    {'call': 'gamebryo', 'open': 'open', 'close': 'close'},
+    {'call': 'gamebryo', 'open': 'Forward', 'close': 'Backward'},
+]}
 # Plugins after BSHeartland.esm that may override these references (checked for the initially-disabled flag)
 LATER = ['DragonBreak Online Edits.esp', 'DragonBreak Nexus Patches.esp']
 
@@ -110,7 +117,9 @@ def main():
                 if not found: notes.append('%s: %08x %s -> %08x %s is not a two-state activator; left to the engine' % (ruin['name'], parent, edid.get(refs[parent].get('base'), '?'), k, name)); continue
                 if r['flags'] & 0x800 or k in disabled_later: notes.append('%s: %08x %s is initially disabled; skipped' % (ruin['name'], k, name)); continue
                 kind = 'stairs' if 'stair' in name.lower() else 'gate'
-                targets.append({'ref': desc(k), 'base': name, 'kind': kind, 'open': props['openAnim'], 'close': props['closeAnim']})
+                t = {'ref': desc(k), 'base': name, 'kind': kind, 'open': props['openAnim'], 'close': props['closeAnim']}
+                if name in ALSO: t['also'] = ALSO[name]
+                targets.append(t)
             if not targets: continue
             kinds = {t['kind'] for t in targets}
             buttons.append({'ref': desc(parent), 'base': edid.get(refs[parent].get('base'), '?'), 'cell': cells[refs[parent]['cell']]['desc'],
