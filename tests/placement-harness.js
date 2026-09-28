@@ -252,6 +252,43 @@ globalThis.__dboPlacement.undo.get(2).pop();
 reset(); ui.placeUndo(GM, []);
 check('undoing a placement that is already gone says so', /already gone/.test(out.personal[0]), out.personal[0]);
 
+// ---- drop 2d: sets ----
+const SETS = path.join(dir, 'state', 'placement-sets.json');
+// In a cell of their own, away from what the tests above left placed
+set(GM, 'worldOrCellDesc', 'beef:Skyrim.esm'); set(GM, 'pos', [1000, 2000, 300]);
+reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2000, 300], 30, false]);
+reset(); ui.placeObject(GM, ['1e80e:Dragonborn.esm', 'npc', [1000, 2150, 300], 90, true]);
+reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1000, 5000, 300], 0, false]);   // 43 m away: outside a 20 m set
+reset(); ui.placeSetSave(GM, ['Camp <1>!', 20]);
+let saved = JSON.parse(fs.readFileSync(SETS, 'utf8'));
+check('a set saves the placements within the radius, by offset from the GM, beside the world state', saved['Camp 1'] && saved['Camp 1'].items.length === 2 && saved['Camp 1'].items.some((it) => it.offset.join() === '100,0,0' && it.rot[2] === 30) && saved['Camp 1'].items.some((it) => it.kind === 'npc' && it.hostile === true), JSON.stringify(saved));
+check('saving answers with the sets and the list', out.packets.some((p) => p[1].customPacketType === 'adminPlaceSets' && p[1].sets.some((x) => x.name === 'Camp 1' && x.count === 2)) && out.packets.some((p) => p[1].customPacketType === 'adminPlacements'));
+set(GM, 'pos', [5000, 6000, 400]);
+const before = globalThis.__dboPlacement.registry.length;
+reset(); ui.placeSetPlace(GM, ['Camp 1']);
+const added = globalThis.__dboPlacement.registry.slice(before);
+check('a set is put down around the GM, as one group', added.length === 2 && added.every((p) => p.group && p.group === added[0].group) && added.some((p) => p.pos.join() === '5100,6000,400') && /Put down "Camp 1": 2/.test(out.personal[0]), out.personal[0]);
+check('its NPC comes back as a hostile zone', added.some((p) => p.zone && p.hostile && zoneOf(p) && zoneOf(p).Hostile === true));
+reset(); ui.placeUndo(GM, []);
+check('one Undo takes the whole set back', /Took back the set "Camp 1": 2/.test(out.personal[0]) && !globalThis.__dboPlacement.registry.some((p) => p.group === added[0].group), out.personal[0]);
+reset(); ui.placeSetPlace(GM, ['Camp 1']);
+const again = globalThis.__dboPlacement.registry.slice(before);
+reset(); ui.placeGroupClear(GM, [again[0].id]);
+check('Clear group removes every piece of a set that was put down', /Removed the group: 2/.test(out.personal[0]) && !globalThis.__dboPlacement.registry.some((p) => p.group === again[0].group), out.personal[0]);
+reset(); ui.placeUndo(GM, []);
+check('Undo brings a cleared group back, still one group', /Brought the group back: 2/.test(out.personal[0]) && globalThis.__dboPlacement.registry.filter((p) => p.group === again[0].group).length === 2, out.personal[0]);
+TIERS[GM] = 'gm';
+reset(); ui.placeSetPlace(GM, ['Camp 1']);
+check('putting a set down needs the place right', /Placing is Lead GM and above/.test(out.personal[0]));
+TIERS[GM] = 'senior';
+reset(); ui.placeSetSave(GM, ['!!!', 20]);
+check('a set needs a usable name', /Give the set a name/.test(out.personal[0]));
+reset(); ui.placeSetDelete(GM, ['Camp 1']);
+check('a set can be deleted', /Deleted the set "Camp 1"/.test(out.personal[0]) && !JSON.parse(fs.readFileSync(SETS, 'utf8'))['Camp 1']);
+reset(); ui.placeSets(PLAYER, []);
+check('a player gets no sets', out.packets.length === 0);
+set(GM, 'worldOrCellDesc', 'a764b:BSHeartland.esm'); set(GM, 'pos', [1000, 2000, 300]);
+
 process.chdir(home);
 fs.rmSync(dir, { recursive: true, force: true });
 console.log('');
