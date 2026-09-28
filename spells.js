@@ -208,8 +208,18 @@ module.exports = (api) => {
   const writePrepared = (a, ids) => set(a, PREPARED, ids.map(descOf).filter(Boolean));
   const preparedLine = (a) => `Prepared: ${preparedIds(a).length} of ${MAXP()}`;
   const COLLEGE_CELLS = new Set((CFG.prepareCells || []).map(norm));
-  const atCollege = (a) => COLLEGE_CELLS.has(norm(get(a, 'worldOrCellDesc', '')));
-  const COLLEGE_HINT = 'Prepared spells are changed at a magic college: the Synod Conclave in Bruma, or the College of Winterhold.';
+  // The Book Breakdown Ledger (salvage.js) is a college of its own (Nate, 2026-09-28: "use the breakdown ledger to access
+  // both the book breakdown panel and spells"). The ledger a player opened the book from is kept, and every change is
+  // checked against it again: still within reach of it, as a prepare cell is checked by where they stand.
+  const LEDGER_REACH_M = 6.5;
+  const bookLedger = globalThis.__dboSpellbookLedger instanceof Map ? globalThis.__dboSpellbookLedger : (globalThis.__dboSpellbookLedger = new Map());
+  const atLedger = (a) => {
+    const ref = bookLedger.get(a >>> 0);
+    if (!ref) return false;
+    try { return distanceMeters(a, ref) <= LEDGER_REACH_M; } catch (e) { return false; }
+  };
+  const atCollege = (a) => COLLEGE_CELLS.has(norm(get(a, 'worldOrCellDesc', ''))) || atLedger(a);
+  const COLLEGE_HINT = 'Prepared spells are changed at a magic college (the Synod Conclave in Bruma, or the College of Winterhold) or at a Book Breakdown Ledger.';
   // A spell newly in the book: prepared at once while there is room (the engine already holds it after a read; a lesson
   // adds it), else it waits in the book and the engine's copy is taken back. Returns the line to tell the player.
   const settleNew = (a, sp, engineHasIt) => {
@@ -337,6 +347,7 @@ module.exports = (api) => {
     openBook(a, result || '', result ? 'refused' : '');
   };
   registerChatCommand('spells', (a, args) => {
+    bookLedger.delete(a >>> 0);
     const first = String(Array.isArray(args) ? args[0] : args || '').trim();
     openFromCommand(a, /^forget\b/i.test(first) ? RETIRED : '');
   }, { help: 'your spellbook: every spell you have studied, and the prepared ones (changed at a magic college)' });
@@ -365,7 +376,16 @@ module.exports = (api) => {
   const freshBook = (a, args) => bookNonces.get(a >>> 0) === String(args[0] || '');
   onUi('spellbookPrepare', (a, args) => { if (!freshBook(a, args)) return; const r = changePrepared(a, idOf(String(args[1] || '')), true); openBook(a, r.text, r.ok ? 'ok' : 'refused'); });
   onUi('spellbookUnprepare', (a, args) => { if (!freshBook(a, args)) return; const r = changePrepared(a, idOf(String(args[1] || '')), false); openBook(a, r.text, r.ok ? 'ok' : 'refused'); });
-  onUi('spellbookClose', (a) => { bookNonces.delete(a >>> 0); closeWidget(a, BOOK_ID); });
+  onUi('spellbookClose', (a) => { bookNonces.delete(a >>> 0); bookLedger.delete(a >>> 0); closeWidget(a, BOOK_ID); });
+  // salvage.js's ledger menu opens the book here; { ledger } is the ledger's ref, which lets spells be prepared beside it.
+  // Opened any other way (/spells), the book forgets a ledger from before.
+  globalThis.__dboOpenSpellbook = (a, opts) => {
+    const ledger = opts && Number(opts.ledger) >>> 0;
+    if (ledger) bookLedger.set(a >>> 0, ledger); else bookLedger.delete(a >>> 0);
+    const panel = !!CFG.enabled && hasPanel(a);
+    openFromCommand(a, '');
+    return panel;
+  };
 
   // Bringing a character over: the first time the server sees them after this change, the spells of their book the
   // engine holds become prepared, up to the limit in the order they were learned; any beyond it are taken back into
@@ -566,7 +586,7 @@ module.exports = (api) => {
     }
   });
   onUi('spellsClose', (a) => closeMenu(a));
-  onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) shopNonces.delete(a >>> 0); if (widgetId === BOOK_ID) bookNonces.delete(a >>> 0); });
+  onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) shopNonces.delete(a >>> 0); if (widgetId === BOOK_ID) { bookNonces.delete(a >>> 0); bookLedger.delete(a >>> 0); } });
 
   const R0 = regions();
   log(`spells ${CFG.enabled ? 'on' : 'off'}: ${TOMES.size} tomes known, ${STUDY_POINTS.length} study point(s), ${SHOP.length} tomes in the Synod shop, ${MAXP()} prepared, changed in ${COLLEGE_CELLS.size} college cell(s)${R0 ? `, ${SHOP.filter((t) => soldHere(R0, t)).length} stocked for ${R0.provinceName(CFG.shopProvince)}` : ''}`);
