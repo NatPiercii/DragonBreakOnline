@@ -11,7 +11,8 @@
 // item, by the player's tier in the station's skill (shareByTier, Novice 25 % .. Master 75 %), each rounded down, with
 // at least one of the main material. A Blacksmith needs the tier that works the main metal. Books are read from their
 // own record: a bound book gives bookPaper paper and bookStrips leather strips, a note or letter notePaper paper; a book
-// that cannot be taken (BOOK DATA flag 0x02) is never offered. Worn and equipped stacks are never offered either.
+// that cannot be taken (BOOK DATA flag 0x02) is never offered. Worn and equipped stacks are never offered either, nor an
+// enchanted, named, tempered, poisoned or charged one: only plain copies of an item are broken down.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -111,13 +112,20 @@ module.exports = (api) => {
     return out.length ? out : null;
   };
 
+  // A plain, unworn stack. An entry carrying extra data (an enchantment, a name, tempering, poison, a soul, a charge) is
+  // a different item on the same base, never counted or taken, so breaking down the plain sword cannot eat the enchanted one.
+  const EXTRA = ['enchantmentId', 'name', 'poisonId', 'soul', 'chargePercent', 'maxCharge', 'removeEnchantmentOnUnequip'];
+  const plain = (e) => !!e && !e.worn && !e.wornLeft && Number(e.count) > 0
+    && EXTRA.every((k) => e[k] === undefined || e[k] === null || e[k] === 0 || e[k] === '' || e[k] === false)
+    && !(Number(e.poisonCount) > 0) && (e.health === undefined || e.health === null || Number(e.health) === 1);
+
   // The stacks the player carries that this station can take apart: [{ baseId, count, gives }]
   const breakable = (a, station, rank) => {
     let entries = [];
     try { const inv = mp.get(a, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { entries = []; }
     const counts = new Map();
     for (const e of entries) {
-      if (!e || e.worn || e.wornLeft || !(Number(e.count) > 0)) continue;
+      if (!plain(e)) continue;
       const id = Number(e.baseId) >>> 0;
       counts.set(id, (counts.get(id) || 0) + Number(e.count));
     }
@@ -131,7 +139,7 @@ module.exports = (api) => {
     try {
       const inv = mp.get(a, 'inventory') || { entries: [] };
       const entries = Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : [];
-      const i = entries.findIndex((e) => e && (Number(e.baseId) >>> 0) === (baseId >>> 0) && !e.worn && !e.wornLeft && Number(e.count) > 0);
+      const i = entries.findIndex((e) => plain(e) && (Number(e.baseId) >>> 0) === (baseId >>> 0));
       if (i < 0) return false;
       entries[i].count = Number(entries[i].count) - 1;
       if (entries[i].count <= 0) entries.splice(i, 1);

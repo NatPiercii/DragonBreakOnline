@@ -100,6 +100,21 @@ ok(count(PLAYER, SWORD) === 1 && count(PLAYER, IRON) === 1, 'breaking one sword 
 ok(logs.some((l) => /salvage: .* broke down Iron Sword/.test(l)), 'the breakdown is logged');
 ok(/Iron Sword broken down: 1 Iron Ingot/.test(lastWidget(PLAYER).targetName), 'the panel says what came back');
 
+// Only plain copies: an enchanted, tempered or named sword on the same base is never offered or taken
+reset(); S = load();
+INV[PLAYER] = [{ baseId: SWORD, count: 1, enchantmentId: 0xff000abc, maxCharge: 500, chargePercent: 100 }, { baseId: SWORD, count: 1 }, { baseId: SWORD, count: 1, health: 1.2 }];
+act(SMELTER, PLAYER); w = lastWidget(PLAYER);
+ok(w.actions.some((x) => /^Break down Iron Sword: /.test(x.label)), 'a plain sword beside an enchanted and a tempered one is offered, counted as one');
+choose(PLAYER, `b:${SWORD}`);
+ok(INV[PLAYER].length === 3 && INV[PLAYER][0].enchantmentId && INV[PLAYER][1].health === 1.2 && count(PLAYER, IRON) === 1, 'only the plain sword is taken; the enchanted and tempered ones stay');
+reset(); S = load();
+INV[PLAYER] = [{ baseId: SWORD, count: 1, health: 1.1 }, { baseId: DAEDRIC, count: 1, name: 'Oathkeeper' }, { baseId: SWORD, count: 2, poisonId: 0x73f34, poisonCount: 1 }, { baseId: SWORD, count: 1, health: 1 }];
+act(SMELTER, PLAYER); w = lastWidget(PLAYER);
+ok(!w.actions.some((x) => /Daedric/.test(x.label)) && w.actions.filter((x) => x.id.startsWith('b:')).length === 1, 'tempered, named and poisoned copies are never offered; health exactly 1 is plain');
+reset(); S = load();
+INV[PLAYER] = [{ baseId: SWORD, count: 1, health: 1.1 }];
+ok(act(SMELTER, PLAYER) === false, 'only a tempered sword: nothing to break down, the smelter just works');
+
 // Tiers: the share and the metal gate
 reset(); S = load();
 INV[NOVICE] = [{ baseId: SWORD, count: 1 }, { baseId: DAEDRIC, count: 1 }];
