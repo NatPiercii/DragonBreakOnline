@@ -17,6 +17,8 @@ import { logTrace } from "../../logging";
 // the server as well. Logging only: this sends nothing and changes nothing.
 
 const KEY = "diag:page";
+// Data\Platform\Logs\dbo-diag-logs.txt
+const LOG_NAME = "dbo-diag";
 // A page that somehow spammed this must not fill the log or the player's report
 const MAX_LINES = 600;
 // One beat in five reaches the log, so a beat every 2 s costs a line every 10 s
@@ -62,10 +64,21 @@ export class PageInputDiagService extends ClientListener {
     this.write(`page heartbeat STOPPED: nothing for ${Math.round((now - this.lastBeatAt) / 1000)}s while character select is open (last beat #${this.beats})`);
   }
 
+  // logTrace goes to printConsole, which is the in-game console and nothing else: EventsApi.cpp says as much ("We
+  // still write to the game console as we were doing before spdlog integration"), and spdlog is what writes
+  // skyrim-platform.log. Report a Problem collects that file and skse64.log, so a diagnostic logged only with
+  // logTrace never reaches a report - which is exactly what GroundedPasta's 0.3.61 report showed: not one diag line
+  // in it. writeLogs puts them in Data\Platform\Logs\dbo-diag-logs.txt, which the launcher now collects too.
   private write(text: string): void {
     if (this.lines >= MAX_LINES) return;
     this.lines++;
-    logTrace(this, text.slice(0, 900));
+    const line = text.slice(0, 900);
+    logTrace(this, line);
+    try {
+      (this.sp as unknown as { writeLogs: (plugin: string, ...rest: unknown[]) => void }).writeLogs(LOG_NAME, line);
+    } catch (e) {
+      // An older SkyrimPlatform without writeLogs: the console still has it
+    }
     if (this.lines === MAX_LINES) logTrace(this, `(page diagnostic stopped after ${MAX_LINES} lines)`);
   }
 

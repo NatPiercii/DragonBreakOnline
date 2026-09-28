@@ -40,6 +40,8 @@ function tail(file, bytes = PER_FILE_BYTES) {
 // SKSE and SkyrimPlatform write here; present only after the game has been launched at least once.
 // documentsDir comes from Electron because a OneDrive-moved Documents folder is not under the home folder.
 const GAME_LOGS = [['skyrim-platform.log', 'gameLog'], ['skse64.log', 'skseLog']]
+// Written by the client's page/input diagnostic, relative to the game folder (and to MO2's overwrite under MO2)
+const DIAG_REL = path.join('Data', 'Platform', 'Logs', 'dbo-diag-logs.txt')
 
 function gameLogCandidates(documentsDir, variants) {
   const out = []
@@ -68,6 +70,24 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   }
 
   if (installDir) {
+    // The page/input diagnostic (skymp5-client pageInputDiagService) writes Data\Platform\Logs\dbo-diag-logs.txt,
+    // because logTrace only reaches the in-game console and never skyrim-platform.log, so a report carried none of
+    // it. Under MO2 that write is redirected into the overwrite folder rather than the install, and the players this
+    // diagnostic is for are the MO2 ones, so both places are tried, newest first.
+    // It goes into clientLog rather than a field of its own: the backend forwards a fixed list of fields
+    // (sources/problemReport.js LOG_FIELDS) and clientLog is already on it, so this needs no backend change.
+    const diagCandidates = [path.join(installDir, DIAG_REL)]
+    try { diagCandidates.push(path.join(require('./mo2').getRoot(), 'overwrite', DIAG_REL)) } catch { /* no mo2 module */ }
+    const diagFound = []
+    for (const file of diagCandidates) {
+      try { diagFound.push({ file, mtime: fs.statSync(file).mtimeMs }) } catch { /* not there */ }
+    }
+    diagFound.sort((a, b) => b.mtime - a.mtime)
+    if (diagFound.length) {
+      const diag = tail(diagFound[0].file, 60 * 1024)
+      if (diag) files.clientLog = `== page/input diagnostic (${diagFound.length > 1 ? 'newest of ' + diagFound.length + ' copies, ' : ''}${redact(diagFound[0].file)}) ==\n` + redact(diag) + '\n'
+    }
+
     // A directory listing is often the whole answer: a foreign modlist or a missing Data folder shows up here
     try {
       const entries = fs.readdirSync(installDir, { withFileTypes: true })
