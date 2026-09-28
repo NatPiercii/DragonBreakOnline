@@ -29,7 +29,14 @@ stub('routes/site-auth.js', {
   },
 })
 let roleLookups = 0
-stub('sources/discordBot.js', { memberHasRole: async (id, role) => { roleLookups++; return rolesOf(id).includes(role) } })
+stub('sources/discordBot.js', {
+  memberHasRole: async (id, role) => {
+    roleLookups++
+    if (id === 'id-owner-throw') throw new Error('Discord answered 500')
+    if (id === 'id-owner-hang') return new Promise(() => {})
+    return rolesOf(id).includes(role)
+  },
+})
 const audits = []
 stub('sources/discord/audit.js', { log: line => audits.push(line) })
 stub('sources/players.js', { load: () => ({}) })
@@ -159,6 +166,7 @@ after(() => {
 
 beforeEach(() => {
   setSwitch('on')
+  fs.rmSync(F.markers.stopped, { force: true })
   Object.assign(sim, { active: 'active', since: clock() - 3600e3, nRestarts: 0 })
   heldBy = null
   beatNow(0)
@@ -223,6 +231,22 @@ test('a Dev (staff, not an Owner) gets 403 and no action; the refusal is audited
   }
   assert.deepEqual(calls, [])
   assert.deepEqual(audits, ['WEB control refused for dev1 (id-dev1): not an Owner'])
+})
+
+test('a Discord error or a lookup that never answers fails closed: 403 notOwner, nothing runs', async t => {
+  t.mock.method(console, 'error', () => {})
+  const thrown = await post('stop', { user: 'owner-throw' })
+  assert.deepEqual([thrown.status, thrown.json], [403, { error: 'notOwner' }])
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const lookups = roleLookups
+  const pending = post('stop', { user: 'owner-hang' })
+  while (roleLookups === lookups) await new Promise(r => setImmediate(r))
+  t.mock.timers.tick(8000)
+  const hung = await pending
+  assert.deepEqual([hung.status, hung.json], [403, { error: 'notOwner' }])
+  assert.deepEqual(calls, [])
+  assert.equal(fs.existsSync(F.markers.stopped), false)
+  assert.deepEqual(audits, ['WEB control refused for owner-throw (id-owner-throw): not an Owner', 'WEB control refused for owner-hang (id-owner-hang): not an Owner'])
 })
 
 test('bad bodies: reason, typed word, requestId, unknown keys, invalid JSON and a body over 2 kB', async () => {
