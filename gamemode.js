@@ -442,7 +442,7 @@ const aliasChatCommand = (oldName, newName, note) => {
 // from players it cannot apply to. Commands merged into others are registered hidden and never appear here.
 const HELP_GROUPS = [
   { key: 'people', title: 'Chat and people', names: ['players'],
-    hints: ['Who you have met, and hiding your name: press F3.'] },
+    hints: ['Introducing yourself, trading or inspecting someone: look at them and press X.', 'Hiding your face: press H.'] },
   { key: 'character', title: 'Your character', names: ['status'],
     hints: ['Your skills: press K.', 'Spending a level: /status tells you when you have a point.',
       'Your spells: /spells. Spell tomes: the Synod Conclave in Bruma.'] },

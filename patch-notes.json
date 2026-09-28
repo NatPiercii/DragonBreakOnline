@@ -32,6 +32,14 @@
         ]
       },
       {
+        "heading": "Fewer commands",
+        "items": [
+          "/help is much shorter: it lists only the commands you can use, and tells you where to go for the rest (a bank counter, a notice board, a shrine, K for skills, F3 for factions).",
+          "New /status shows your hunger, rest, Death's Chill, jail time, level points and more in one line.",
+          "Some commands were merged: /contract, /commission, /party leave, /spells forget and /property mine. The old names still work."
+        ]
+      },
+      {
         "heading": "Fixes",
         "items": [
           "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too."
