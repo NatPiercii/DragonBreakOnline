@@ -701,6 +701,7 @@ const takeGold = (a, amount) => {
     if (!gold || (Number(gold.count) || 0) < amount) return false;
     gold.count -= amount;
     mp.set(a, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) });
+    goldChanged(a);
     return true;
   } catch (e) { log('gold take failed', e.message); return false; }
 };
@@ -1453,7 +1454,7 @@ try {
 const hudSent = globalThis.__dboHudSent = globalThis.__dboHudSent || new Map(); // actorId -> last JSON sent
 const pushHud = (a, n, force) => {
   try {
-    const v = { customPacketType: 'dboHud', hunger: Math.round(n.hunger), stage: stageFor(n.hunger).name, hungerOn: NEEDS.enabled !== false, vitalsOn: (cfg.hud || {}).vitals !== false, watermarkOn: (cfg.hud || {}).watermark !== false };
+    const v = { customPacketType: 'dboHud', hunger: Math.round(n.hunger), stage: stageFor(n.hunger).name, hungerOn: NEEDS.enabled !== false, vitalsOn: (cfg.hud || {}).vitals !== false, watermarkOn: (cfg.hud || {}).watermark !== false, gold: goldOf(a), goldOn: (cfg.hud || {}).gold !== false };
     const key = JSON.stringify(v);
     if (!force && hudSent.get(a) === key) return;
     if (typeof sendPacket === 'function' && sendPacket(a, v)) hudSent.set(a, key);
@@ -2048,6 +2049,11 @@ onUi('pigeonSend', (a, args) => {
 });
 onUi('pigeonClose', (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); });
 onUi('close', (a, args, widgetId) => { if (widgetId === PIGEON_WIDGET_ID) pigeonNonces.delete(a); });
+// Gold the server moves reaches the engine as a SetInventory, but the client cannot apply one while the player is
+// looking at their own inventory: remoteServer.ts skips the apply for as long as InventoryMenu is open (sync/equipment
+// isBadMenuShown), so the figure on screen does not move until something closes the menu. These two tell the HUD, which
+// reads the server's own count and never goes through the engine at all.
+const goldChanged = (a) => { try { if (userOf(a) >= 0) pushHud(a, needsOf(a)); } catch (e) { /* not a player yet */ } };
 const giveItem = (a, baseId, count) => {
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
@@ -2055,6 +2061,7 @@ const giveItem = (a, baseId, count) => {
     const hit = entries.find((e) => e && (Number(e.baseId) >>> 0) === (baseId >>> 0) && !e.worn);
     if (hit) hit.count = (Number(hit.count) || 0) + count; else entries.push({ baseId: baseId >>> 0, count });
     mp.set(a, 'inventory', { entries });
+    if ((baseId >>> 0) === GOLD_BASE) goldChanged(a);
     return true;
   } catch (e) { log('giveItem failed', e.message); return false; }
 };
