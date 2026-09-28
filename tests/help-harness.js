@@ -130,6 +130,14 @@ check('...and a plain player still is not', !topicsFor(PLAYER).includes('beast')
 delete globalThis.__dboSuperKind;
 check('staff see every topic, rank or not', topicsFor(STAFF).includes('rule'), topicsFor(STAFF).join(','));
 
+// The board is the way in, so the expedition commands are explained by a hint, not listed
+registerChatCommand('expedition', () => {}, { help: 'the expedition board sets one out' });
+registerChatCommand('expeditions', () => {}, { help: 'the expedition board sets one out' });
+const groupsP = helpGroupsFor(PLAYER);
+check('expedition is in no list', !groupsP.some((g) => g.names.includes('expedition') || g.names.includes('expeditions')), JSON.stringify(groupsP.map((g) => g.names)));
+check('...a hint points at the board instead', groupsP.some((g) => g.hints.some((h) => /expedition.*board|board.*expedition/i.test(h))), JSON.stringify(groupsP.flatMap((g) => g.hints)));
+check('.../help expedition still explains it', /expedition board/.test(help(PLAYER, 'expedition')[0]), help(PLAYER, 'expedition')[0]);
+
 // ---- hidden commands and aliases (spec b, c) ----
 let ran = null;
 registerChatCommand('newname', (a, args) => { ran = args; }, { help: 'the command that stayed' });

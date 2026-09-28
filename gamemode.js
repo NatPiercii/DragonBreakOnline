@@ -454,7 +454,8 @@ const HELP_GROUPS = [
       'Your business: its ledger book.', 'Where you are: /whereami.'] },
   { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'tax', 'property', 'ledgerpoint'], role: 'official' },
   { key: 'groups', title: 'Groups and dungeons', names: ['party'],
-    hints: ['Your factions: press F3.', 'A dungeon: its door, then /dungeon.'] },
+    hints: ['Your factions: press F3.', 'A dungeon: its door, then /dungeon.',
+      'An expedition: the board in the Synod Conclave or the Fighters Guild.'] },
   { key: 'trouble', title: 'Trouble and help', names: ['unstuck', 'struggle', 'bug', 'ticket', 'help'] },
 ];
 // A topic with a `role` is only shown to players it applies to: officials hold a rank somewhere, beasts carry
@@ -465,7 +466,8 @@ const HELP_GROUPS = [
 // /help <name> still explains each one; they are kept out of the list so the list stays worth reading.
 const HELP_BY_OBJECT = new Set(['bank', 'board', 'business', 'faction', 'deity', 'rite', 'tomes', 'respawn', 'skills',
   'ledger', 'chill', 'sentence', 'hunger', 'rest', 'tokens', 'whoami', 'pigeonblock', 'sign', 'level', 'spells',
-  'teach', 'reroll', 'offer', 'contract', 'commission', 'wildlife', 'champions', 'whereami', 'playtest', 'dungeon', 'ping']);
+  'teach', 'reroll', 'offer', 'contract', 'commission', 'wildlife', 'champions', 'whereami', 'playtest', 'dungeon', 'ping',
+  'expedition', 'expeditions']);
 const helpRoleOk = (a, role) => {
   if (!role) return true;
   try {
