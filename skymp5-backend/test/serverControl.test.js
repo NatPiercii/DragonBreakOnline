@@ -53,7 +53,8 @@ function harness({ unit = {}, updater = null, online = 0, beatAge = 5000, settin
     return { stdout: '', stderr: '' }
   }
   h.control = createServerControl({
-    status, getHeartbeat: () => h.beat, run: h.run, now: h.clock, wait: async ms => h.advance(ms),
+    // Once beating, the server sends a beat every few seconds, the last one a second ago
+    status, getHeartbeat: () => (h.beating ? { ...h.beat, lastSeen: new Date(h.clock() - 1000).toISOString() } : h.beat), run: h.run, now: h.clock, wait: async ms => h.advance(ms),
     audit: { log: line => h.audits.push(line) },
   })
   h.opsCalls = () => h.calls.filter(c => c.file === OPS).map(c => c.args)
@@ -69,7 +70,8 @@ const systemd = {
   up: h => {
     h.advance(1000)
     h.unit = { ...h.unit, active: 'active', sub: 'running', since: Math.floor(h.clock() / 1000) * 1000, nRestarts: 0 }
-    h.beat = { ...h.beat, online: 0, lastSeen: new Date(h.clock() + 500).toISOString() }
+    h.beat = { ...h.beat, online: 0 }
+    h.beating = true
   },
 }
 const act = (h, action, extra = {}) => h.control.perform(action, { requestId: ID, reason: 'Nightly maintenance', by: 'jake', discordId: '111', ...extra })
@@ -197,11 +199,24 @@ test('Restart at 0 players waits for the new run; a failed unit or a rising rest
   assert.deepEqual(crash.opsCalls().at(-1), ['release', 'game-server', 'site-owner'])
 
   // Up again, then systemd restarts it on its own before any heartbeat of the new run
-  const loop = harness({ afterCommand: h => { systemd.up(h); h.beat.lastSeen = new Date(T0 - 3600e3).toISOString(); h.onUnits = n => { if (n === 4) h.unit.nRestarts = 1 } } })
+  const loop = harness({ afterCommand: h => { systemd.up(h); h.beating = false; h.beat.lastSeen = new Date(T0 - 3600e3).toISOString(); h.onUnits = n => { if (n === 4) h.unit.nRestarts = 1 } } })
   await act(loop, 'restart')
   await loop.idle()
   assert.equal(loop.control.job(ID).state, 'failed')
   assert.equal(loop.units, 4)
+
+  // The old run's last beat lands in the new run's first second, then the new run stays silent
+  const old = harness({
+    afterCommand: h => {
+      h.advance(1000)
+      const since = Math.floor(h.clock() / 1000) * 1000
+      h.unit = { ...h.unit, active: 'active', since }
+      h.beat = { ...h.beat, online: 0, lastSeen: new Date(since + 200).toISOString() }
+    },
+  })
+  await act(old, 'restart')
+  await old.idle()
+  assert.equal(old.control.job(ID).state, 'unconfirmed', 'a beat from before the new run showed is not proof')
 
   const silent = harness({ afterCommand: h => { h.advance(1000); h.unit = { ...h.unit, active: 'active', since: Math.floor(h.clock() / 1000) * 1000 } } })
   await act(silent, 'restart')

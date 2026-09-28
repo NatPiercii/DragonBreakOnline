@@ -160,7 +160,7 @@ function createServerControl({
   // Polls systemd until the action shows its result: done, failed, or unconfirmed after POLLS polls
   async function follow(job) {
     const issued = Math.floor(job.issuedAt / 1000) * 1000
-    let restarts = null
+    let restarts = null, seenAt = null
     for (let i = 0; i < POLLS; i++) {
       await wait(POLL_MS)
       const { skymp: unit } = await status.units()
@@ -173,7 +173,10 @@ function createServerControl({
       if (unit.since == null || unit.since < issued) continue
       if (restarts != null && unit.nRestarts > restarts) return 'failed'
       restarts ??= unit.nRestarts
-      if (unit.active === 'active' && freshOnline(getHeartbeat(), unit, now()) != null) return 'done'
+      // since is whole seconds and the old run is gone once the new one shows, so only a beat after that proves the new run
+      seenAt ??= now()
+      const beat = getHeartbeat()
+      if (unit.active === 'active' && Date.parse(beat?.lastSeen || '') > seenAt && freshOnline(beat, unit, now()) != null) return 'done'
     }
     return 'unconfirmed'
   }
