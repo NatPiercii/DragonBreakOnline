@@ -174,8 +174,11 @@ const isAdmin = (actorId) => tierOf(actorId) !== null;
 const isLeadStaff = (actorId) => { const t = tierOf(actorId); return t !== null && t !== 'gm'; };
 const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM', gm: 'GM' };
 // Staff commands a GM may not use (command name, or 'name sub' for one subcommand)
+// appoint and dismiss are here because an official's powers are real money: a rank lets its holder post work paid
+// out of the hold treasury, so a GM who could appoint himself could pay himself (claude-jake's review, A1-1).
 const LEAD_ONLY = new Set(['beastform', 'vlremote', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
-  'jail', 'placeexport', 'staffstats', 'war', 'curse', 'schedule', 'warband', 'raid', 'settime', 'timescale', 'setweather', 'npc remove', 'dungeon end']);
+  'jail', 'placeexport', 'staffstats', 'war', 'curse', 'schedule', 'warband', 'raid', 'settime', 'timescale', 'setweather', 'npc remove', 'dungeon end',
+  'appoint', 'dismiss']);
 
 const onlineActors = () => {
   try { const v = mp.get(0, 'onlinePlayers'); if (Array.isArray(v) && v.length) return v.map(Number).filter(Boolean); } catch (e) { /* fall through */ }

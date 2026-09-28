@@ -34,6 +34,8 @@ module.exports = (api) => {
   // A hold's fauna is drawn from this far around its capital, roughly a hold's worth of ground
   const CAPITAL_REACH = 45000;
 
+  const OFF_TEXT = 'Hunting contracts are closed for now. The notice boards are quiet.';
+
   const plural = (kind) => PLURAL[kind] || `${kind}s`;
   const zoneList = () => [].concat(zones.holds || [], zones.strongholds || [], zones.regions || []);
   const zoneById = (id) => zoneList().find((z) => z.id === String(id).toLowerCase()) || null;
@@ -128,6 +130,8 @@ module.exports = (api) => {
   const refresh = () => {
     const before = state.contracts.length;
     state.contracts = state.contracts.filter((c) => c.expiresAt > Date.now());
+    // Off: what is already posted stays listed so nobody loses work in hand, but no new notice goes up
+    if (!CFG.enabled) { if (state.contracts.length !== before) save(); return; }
     for (const zone of zoneList()) {
       if (!zone.treasury) continue;
       let have = zoneContracts(zone.id).length;
@@ -175,6 +179,7 @@ module.exports = (api) => {
 
   // Death of a spawned creature: the killer's contract, if it matches, moves on
   globalThis.__dboContractKill = (npcId, killerId) => {
+    if (!CFG.enabled) return;
     const held = takenBy(killerId);
     if (!held) return;
     const c = contractById(held.id);
@@ -215,7 +220,7 @@ module.exports = (api) => {
     if (!list.length) return personal(a, `${zone.name} has no work posted. Its coffers may be empty.`);
     personal(a, `Work posted in ${zone.name} (treasury ${treasuryGold(zone)} gold):`);
     list.forEach((c, i) => personal(a, `  ${i + 1}. ${describe(c)}`));
-    personal(a, 'Take one with /contract take <number>.');
+    personal(a, CFG.enabled ? 'Take one with /contract take <number>.' : OFF_TEXT);
   };
 
   registerChatCommand('contracts', listContracts, { hidden: true, help: 'the work posted here; /contract shows it too' });
@@ -235,6 +240,7 @@ module.exports = (api) => {
     }
 
     if (verb === 'take') {
+      if (!CFG.enabled) return personal(a, OFF_TEXT);
       const zone = zoneOf(a);
       if (!zone) return personal(a, 'There is no work posted on this ground.');
       if (held) return personal(a, 'You already hold a contract. /contract abandon to give it up.');
@@ -253,6 +259,7 @@ module.exports = (api) => {
     }
 
     if (verb === 'post') {
+      if (!CFG.enabled) return personal(a, OFF_TEXT);
       const zone = zoneOf(a);
       if (!zone) return personal(a, 'You stand outside any hold.');
       if (!isOfficial(a, zone.id)) return personal(a, `Only an official of ${zone.name} posts work in its name.`);
