@@ -18,6 +18,8 @@
 #include "gamemode_events/UpdateEquipmentAttemptEvent.h"
 #include "formulas/TES5DamageFormula.h"
 #include "script_objects/EspmGameObject.h"
+#include "libespm/RecordHeaderAccess.h"
+#include <cstring>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
@@ -237,6 +239,61 @@ bool IsGrantedBoundItem(const MpActor& actor, uint32_t itemId)
   return false;
 }
 
+// A shout casts one of its words' spells (SHOU SNAM: word, spell, recovery time), not the shout itself
+std::vector<uint32_t> ShoutWordSpells(const espm::LookupResult& lookup,
+                                      espm::CompressedFieldsCache& cache)
+{
+  std::vector<uint32_t> out;
+  if (!lookup.rec || !(lookup.rec->GetType() == "SHOU")) {
+    return out;
+  }
+  espm::RecordHeaderAccess::IterateFields(
+    lookup.rec,
+    [&](const char* type, uint32_t size, const char* data) {
+      if (!std::memcmp(type, "SNAM", 4) && size >= 8) {
+        out.push_back(
+          lookup.ToGlobalId(*reinterpret_cast<const uint32_t*>(data + 4)));
+      }
+    },
+    cache);
+  return out;
+}
+
+// Every spell a shout's words cast, across the load order, read once. A player's equipped shout never reaches the
+// server (the client's voice slot reads a spell, and a shout is not one), so a player may cast and hit with any
+// shout's words (Nate, 2026-09-28: shouts did nothing to anyone).
+bool IsShoutWordSpell(WorldState* worldState, uint32_t spellId)
+{
+  static std::unordered_map<const WorldState*, std::unordered_set<uint32_t>>
+    wordsByWorld;
+  if (!worldState || !worldState->HasEspm()) {
+    return false;
+  }
+  auto it = wordsByWorld.find(worldState);
+  if (it == wordsByWorld.end()) {
+    std::unordered_set<uint32_t> words;
+    auto& browser = worldState->GetEspm().GetBrowser();
+    const auto perFile = browser.GetRecordsByType("SHOU");
+    for (size_t fileIdx = 0; fileIdx < perFile.size(); ++fileIdx) {
+      if (!perFile[fileIdx]) {
+        continue;
+      }
+      for (const espm::RecordHeader* rec : *perFile[fileIdx]) {
+        const espm::LookupResult lookup(&browser, rec,
+                                        static_cast<uint8_t>(fileIdx));
+        for (uint32_t word :
+             ShoutWordSpells(lookup, worldState->GetEspmCache())) {
+          words.insert(word);
+        }
+      }
+    }
+    spdlog::info("ActionListener: {} shout word spells in the load order",
+                 words.size());
+    it = wordsByWorld.emplace(worldState, std::move(words)).first;
+  }
+  return it->second.count(spellId) > 0;
+}
+
 // The host's engine rolls leveled templates on its own, so any spell in the base's template tree is valid
 bool IsSpellInTemplateTree(const MpActor& actor, uint32_t spellId)
 {
@@ -258,6 +315,14 @@ bool IsSpellInTemplateTree(const MpActor& actor, uint32_t spellId)
       continue;
     }
     const auto lookup = browser.LookupById(formId);
+    // A shout in the list (a draugr's Unrelenting Force) is known through the spells its words cast
+    if (lookup.rec && lookup.rec->GetType() == "SHOU") {
+      for (uint32_t word :
+           ShoutWordSpells(lookup, worldState->GetEspmCache())) {
+        pending.push_back(word);
+      }
+      continue;
+    }
     if (const auto npc = espm::Convert<espm::NPC_>(lookup.rec)) {
       const auto npcData = npc->GetData(worldState->GetEspmCache());
       for (uint32_t rawSpellId : npcData.spells) {
@@ -308,6 +373,10 @@ bool CanCastSpell(const MpActor& actor, uint32_t spellId)
   if (IsHeldScroll(actor, spellId)) {
     return true;
   }
+  if (actor.GetProfileId() != -1 &&
+      IsShoutWordSpell(actor.GetParent(), spellId)) {
+    return true;
+  }
   return actor.GetProfileId() == -1 &&
     (actor.IsSpellLearned(spellId) || IsSpellInTemplateTree(actor, spellId));
 }
@@ -352,6 +421,10 @@ bool CanHitWithSpell(const MpActor& actor, uint32_t spellId)
     return true;
   }
   if (actor.GetProfileId() == -1 && IsSpellInTemplateTree(actor, spellId)) {
+    return true;
+  }
+  if (actor.GetProfileId() != -1 &&
+      IsShoutWordSpell(actor.GetParent(), spellId)) {
     return true;
   }
   for (uint32_t knownSpellId : GetKnownSpells(actor)) {
