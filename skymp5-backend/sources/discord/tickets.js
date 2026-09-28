@@ -171,7 +171,7 @@ async function closeTicket(interaction, { wait = 5000, transcripts = transcript 
       audit.log(`TICKET transcript of #${channel.name} ${await transcripts.save(channel, interaction.user)}`)
     } catch (err) {
       console.error(`[tickets] transcript of #${channel.name} failed, channel kept:`, err.message)
-      await channel.send('The transcript could not be saved, so this channel stays open. Tell a staff member.').catch(() => {})
+      await channel.send(err.channelNote || 'The transcript could not be saved, so this channel stays open. Tell a staff member.').catch(() => {})
       return
     }
     await channel.delete('ticket closed').catch(err => console.error('[tickets] delete failed:', err.message))
