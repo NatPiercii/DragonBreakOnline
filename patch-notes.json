@@ -49,10 +49,19 @@
         ]
       },
       {
+        "heading": "Inns",
+        "items": [
+          "Every bed in an inn can now be rented, not just one or two, whether or not someone owns the inn. Use a free bed to rent it.",
+          "If you own an inn, you can keep one of its beds as your own: use it and choose \"Make this my bed\". Nobody else can rent it or sleep in it, and you can sleep in it for free.",
+          "To keep a different bed, choose \"Make this my bed\" on that one instead, and your old bed goes back up for rent. \"This is no longer my bed\" puts it back up for rent too.",
+          "A bed someone is renting can't be kept until their rent runs out, so nobody is thrown out of a room they paid for.",
+          "Your inn's other beds are for your guests: as the owner you sleep only in the bed you keep. Rent prices and the hold's share are unchanged."
+        ]
+      },
+      {
         "heading": "Fixes",
         "items": [
-          "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too.",
-          "Every bed in an inn can now be rented, not just one or two. If you own an inn, use a bed and choose \"Make this my bed\" to keep it for yourself: nobody else can rent it or sleep in it."
+          "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too."
         ]
       },
       {
