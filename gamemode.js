@@ -929,6 +929,16 @@ const HARVEST_ITEM_PREFIXES = ['hangingrabbit', 'hangingpheasant', 'hanginggarli
 // Keyed by the reference and kept on globalThis, so a gamemode reload does not hand everyone a fresh harvest.
 const HARVEST_MINUTES = Math.max(1, Number((cfg.harvest || {}).minutes) || 60);
 const harvestReady = globalThis.__dboHarvestReady || (globalThis.__dboHarvestReady = new Map()); // refId -> ripe again at
+// A torch lying in the world can be taken (Nate, 2026-09-28: the expedition ruins are too dark), once every torchMinutes
+// per torch, so a room of them is not a farm. A carryable light is a LIGH whose DATA flags (u32 at 12) have 0x2, "Can
+// Be Carried": in this load order Torch01, Torch01Shadow, Dawnguard's DLC1Torch and SovngardeWarmLight; wall sconces
+// and candles are not.
+const TORCH_MINUTES = Math.max(1, Number((cfg.harvest || {}).torchMinutes) || 120);
+const carryableLight = (rec) => {
+  if (!rec || !rec.record || String(rec.record.type) !== 'LIGH') return false;
+  const data = (rec.record.fields || []).find((f) => f && f.type === 'DATA' && f.data instanceof Uint8Array && f.data.byteLength >= 16);
+  return !!data && (new DataView(data.data.buffer, data.data.byteOffset, data.data.byteLength).getUint32(12, true) & 0x2) !== 0;
+};
 const lastPickupDeny = new Map();
 const blockPlacedPickup = (targetId, casterId) => {
   if (targetId >= 0xff000000) return false;
@@ -937,16 +947,17 @@ const blockPlacedPickup = (targetId, casterId) => {
   const type = rec && rec.record ? String(rec.record.type || '') : '';
   if (!ITEM_TYPES.has(type)) return false;
   const edid = rec && rec.record ? String(rec.record.editorId || '').toLowerCase() : '';
-  if (HARVEST_ITEM_PREFIXES.some(p => edid.startsWith(p))) {
+  const torch = carryableLight(rec);
+  if (torch || HARVEST_ITEM_PREFIXES.some(p => edid.startsWith(p))) {
     const ref = targetId >>> 0;
     const ready = Number(harvestReady.get(ref)) || 0;
     const now = Date.now();
     if (now < ready) {
       const mins = Math.max(1, Math.ceil((ready - now) / 60000));
-      if (now - (lastPickupDeny.get(casterId) || 0) > 1500) { lastPickupDeny.set(casterId, now); personal(casterId, `Nothing has grown back here yet. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.`); }
+      if (now - (lastPickupDeny.get(casterId) || 0) > 1500) { lastPickupDeny.set(casterId, now); personal(casterId, torch ? `Someone took this torch not long ago. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.` : `Nothing has grown back here yet. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.`); }
       return true;
     }
-    harvestReady.set(ref, now + HARVEST_MINUTES * 60000);
+    harvestReady.set(ref, now + (torch ? TORCH_MINUTES : HARVEST_MINUTES) * 60000);
     // The map only ever grows otherwise, and a spent entry is worthless once it is ripe again
     if (harvestReady.size > 4000) for (const [k, v] of [...harvestReady]) if (v <= now) harvestReady.delete(k);
     return false;
