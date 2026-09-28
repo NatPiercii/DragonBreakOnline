@@ -156,6 +156,9 @@ interface ResolvedRules {
   killKeywords: Set<number>;
   hitKeywords: Set<number>;
   weaponTypes: Set<string>;
+  // Weapons listed by form id (skills.json counts.weaponIds): they count for this skill whatever their class, and for
+  // no other weapon skill (Martial Arts' staves animate as battleaxes but are never Blunt)
+  weaponIds: Set<number>;
   spellSchools: Set<string>;
   damageTakenWhileArmored: boolean;
   blockEvents: boolean;
@@ -603,10 +606,15 @@ export class MasterySystem implements System {
         const targetId = ev.detail["targetId"]; const sourceId = ev.detail["sourceId"];
         const reach = this.hitReach(ctx, sourceId);
         if (reach <= 0 || this.isDead(ctx, targetId)) return false;
-        if (rules.weaponTypes.size) {
-          const cls = this.weaponClass(ctx, sourceId);
-          const ok = rules.weaponTypes.has(cls) || (cls === "Battleaxe" && rules.weaponTypes.has("Warhammer"));
-          if (!ok) return false;
+        if (rules.weaponTypes.size || rules.weaponIds.size) {
+          const src = Number(sourceId) >>> 0;
+          if (!rules.weaponIds.has(src)) {
+            // A weapon another skill lists by id is that skill's alone
+            if (this.claimedWeapons.has(src)) return false;
+            const cls = this.weaponClass(ctx, sourceId);
+            const ok = rules.weaponTypes.has(cls) || (cls === "Battleaxe" && rules.weaponTypes.has("Warhammer"));
+            if (!ok) return false;
+          }
         }
         return this.combatCounts(ctx, ev.actorId, targetId, rules.hitKeywords, reach);
       }
@@ -979,7 +987,7 @@ export class MasterySystem implements System {
 
   private async loadRules(ctx: SystemContext, dataDir: string, loadOrder: string[]): Promise<void> {
     const wanted = new Set<string>();
-    const raw: Record<string, { craftKeywords: string[]; craftStations: string[]; activatePrefixes: string[]; activateTypes: string[]; eatIngredient: boolean; killKeywords: string[]; hitKeywords: string[]; weaponTypes: string[]; spellSchools: string[]; damageTakenWhileArmored: boolean; blockEvents: boolean; gateStations: string[]; gatePrefixes: string[]; gateNodes: boolean }> = {};
+    const raw: Record<string, { craftKeywords: string[]; craftStations: string[]; activatePrefixes: string[]; activateTypes: string[]; eatIngredient: boolean; killKeywords: string[]; hitKeywords: string[]; weaponTypes: string[]; weaponIds: string[]; spellSchools: string[]; damageTakenWhileArmored: boolean; blockEvents: boolean; gateStations: string[]; gatePrefixes: string[]; gateNodes: boolean }> = {};
     const markerNames: string[] = [];
     for (const k of this.skills) {
       const c = k.counts as Record<string, unknown>; const g = k.gates as Record<string, unknown>;
@@ -988,7 +996,7 @@ export class MasterySystem implements System {
         craftKeywords: stringList(c["craftKeywords"]), craftStations: stringList(c["craftStations"]),
         activatePrefixes: stringList(c["activatePrefixes"]), activateTypes: stringList(c["activateTypes"]),
         eatIngredient: !!c["eatIngredient"], killKeywords: stringList(c["killKeywords"]), hitKeywords: stringList(c["hitKeywords"]),
-        weaponTypes: stringList(c["weaponTypes"]), spellSchools: stringList(c["spellCastSchools"]),
+        weaponTypes: stringList(c["weaponTypes"]), weaponIds: stringList(c["weaponIds"]), spellSchools: stringList(c["spellCastSchools"]),
         damageTakenWhileArmored: !!c["damageTakenWhileArmored"], blockEvents: !!c["blockEvents"],
         // Every station entry is tried as a keyword first; whatever does not resolve gates by base editor id prefix instead.
         gateStations: stations,
@@ -1019,15 +1027,18 @@ export class MasterySystem implements System {
     const stationNames = new Set<string>(); for (const k of this.skills) for (const n of raw[k.id].gateStations) stationNames.add(n);
     this.log(`[skills] resolved ${ids.size}/${names.length} form(s) in ${scan.scannedMs} ms${unresolved.length ? `, unresolved: ${unresolved.filter((n) => !n.startsWith("DBO_Skill_") && !stationNames.has(n)).join(", ") || "none"}` : ""}${missingMarkers.length ? `, ${missingMarkers.length} marker spell(s) missing` : ""}`);
     const toIds = (list: string[]): Set<number> => new Set(list.map((n) => ids.get(n) || 0).filter((v) => v));
+    const descIds = (list: string[]): Set<number> => new Set(list.map((d) => { try { return mp.getIdFromDesc(d) >>> 0; } catch (e) { return 0; } }).filter((v) => v));
+    this.claimedWeapons = new Set();
     for (const k of this.skills) {
       const r = raw[k.id];
       this.rules[k.id] = {
         craftKeywords: toIds(r.craftKeywords), craftStations: toIds(r.craftStations),
         activatePrefixes: r.activatePrefixes.map((p) => p.toLowerCase()), activateTypes: new Set(r.activateTypes.map((t) => t.toUpperCase())),
         eatIngredient: r.eatIngredient, killKeywords: toIds(r.killKeywords), hitKeywords: toIds(r.hitKeywords),
-        weaponTypes: new Set(r.weaponTypes), spellSchools: new Set(r.spellSchools), damageTakenWhileArmored: r.damageTakenWhileArmored, blockEvents: r.blockEvents,
+        weaponTypes: new Set(r.weaponTypes), weaponIds: descIds(r.weaponIds), spellSchools: new Set(r.spellSchools), damageTakenWhileArmored: r.damageTakenWhileArmored, blockEvents: r.blockEvents,
         gateStations: toIds(r.gateStations), gatePrefixes: r.gateStations.filter((n) => !ids.has(n)).map((n) => n.toLowerCase()), gateNodes: r.gateNodes,
       };
+      for (const w of this.rules[k.id].weaponIds) this.claimedWeapons.add(w);
       const list: number[] = [];
       for (let t = 1; t <= this.tierHours.length; t++) list.push(ids.get(`DBO_Skill_${k.id}_T${t}`) || 0);
       if (list.some((v) => v)) this.spells[k.id] = list;
@@ -1414,6 +1425,7 @@ export class MasterySystem implements System {
   private intervalMs = DEFAULT_POINT_INTERVAL_MINUTES * 60000;
   private spells: Record<string, number[]> = {};
   private rules: Record<string, ResolvedRules> = {};
+  private claimedWeapons: Set<number> = new Set();
   private playerKeyword = 0;
   private neighborsFailed = false;
   private events: ActivityEvent[] = [];
