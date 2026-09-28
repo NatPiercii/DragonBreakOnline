@@ -1,6 +1,6 @@
 [
   {
-    "title": "Scrolls and Shouts Work",
+    "title": "Scrolls, Shouts and Faction Gear",
     "date": "2026-09-28",
     "version": "Client 0.3.57",
     "tag": "Update",
@@ -22,6 +22,13 @@
           "Reading a scroll now casts it. Before, the casting played, nothing happened and the scroll came back.",
           "The scroll is used up when you cast it, as it should be.",
           "Every kind of scroll works: fire and frost bolts, summons, armour, cloaks and paralysis."
+        ]
+      },
+      {
+        "heading": "Faction gear",
+        "items": [
+          "A faction's own armor and weapons can now only be made by that faction's smiths and tailors, or by its leader. Anyone else is told who can make it.",
+          "In a war, only fighters wearing their faction's uniform count at a standard. Wars are not open yet."
         ]
       },
       {
