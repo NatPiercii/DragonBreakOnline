@@ -17,6 +17,15 @@
         ]
       },
       {
+        "heading": "Breaking things down",
+        "items": [
+          "You can now break weapons, armour and books down into materials, at the station of the trade that makes them: metal at a smelter (Blacksmith), leather and hide at a tanning rack (Skinner), cloth at a loom (Tailor), and books at a writing desk, such as the ledger in the Restful Watchman (Scholar).",
+          "Use the station and choose what to break down. Your tier decides how much comes back: a quarter of the materials as a Novice, up to three quarters as a Master, and always at least one of the main material. A Blacksmith can only melt the metals their tier can work.",
+          "A book gives two sheets of paper and a leather strip, and a note or letter gives one sheet.",
+          "Nothing you are wearing or holding is ever offered. To use the station as usual, choose its first row and use it again."
+        ]
+      },
+      {
         "heading": "Scrolls",
         "items": [
           "Reading a scroll now casts it. Before, the casting played, nothing happened and the scroll came back.",

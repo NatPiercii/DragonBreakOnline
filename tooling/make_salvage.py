@@ -1,0 +1,141 @@
+# Builds server/salvage.json (salvage.js): what each weapon and piece of armour breaks down into, at which station and
+# from which tier. Nate, 2026-09-28: "we need a way to breakdown armor, weapons, and any books into materials".
+#
+# An item gives back the materials of the recipe that makes it (a forge, skyforge, tanning rack or loom COBJ; the last
+# override in the load order wins). An enchanted or variant item with no recipe of its own takes its template's (WEAP
+# CNAM, ARMO TNAM). Only materials come back: ingots, ore, bone and scales, chitin, leather, strips, hides and pelts,
+# cloth and thread. Ingredients, soul gems, gems, gold and firewood never do, so nothing rare is laundered through a
+# breakdown. The station follows the recipe's main material (the one it takes most of): metal at the smelter
+# (Blacksmith), leather and hide at the tanning rack (Skinner), cloth at the loom (Tailor). A Blacksmith needs the tier
+# that works the main metal (skills.json blacksmith tiers); a recipe with a Daedra heart needs Master.
+# Books are not listed: salvage.js reads them from their own record.
+#
+# Recipe (CT 115, 2026-09-28, about a second):
+#   python3 tooling/make_salvage.py salvage.json [/opt/skyrim-data] [../fork/deploy/skyrim-data/loadorder.txt]
+import json, os, re, struct, sys, zlib
+
+OUT = sys.argv[1] if len(sys.argv) > 1 else 'salvage.json'
+DATA = sys.argv[2] if len(sys.argv) > 2 else '/opt/skyrim-data'
+ORDER = sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(__file__), '..', '..', 'fork', 'deploy', 'skyrim-data', 'loadorder.txt')
+
+CREATE = {'CraftingSmithingForge', 'CraftingSmithingSkyforge', 'DLC2CraftingSmithingSkaalForge', 'DLC1CraftingDawnguard',
+          'CraftingTanningRack', 'MCE_CraftingLoom', 'TailorBench'}
+# Material classes, by the material's editor id; the first that matches decides
+METAL = re.compile(r'^(Ingot|ingot)|Ingot|^Ore|OreStalhrim|^DragonBone$|^DragonScales$|ChitinPlate|ChaurusChitin|GlacialCrystal|DwarvenScrap|FurPlate', re.I)
+LEATHER = re.compile(r'Leather|Strips|Hide$|Hide\d*$|Pelt', re.I)
+CLOTH = re.compile(r'Thread|Linen|Cloth', re.I)
+STATION = [('smelter', 'blacksmith', METAL), ('tanning', 'skinner', LEATHER), ('loom', 'tailor', CLOTH)]
+# The Blacksmith tier (0 Novice .. 4 Master) that works each main metal, from the skills.json tiers: iron; steel, elven,
+# dwarven; orcish, glass, scaled; ebony, dragon; daedric. A metal not listed needs Journeyman.
+METAL_TIER = {'ingotiron': 0, 'bskingotcopper': 0, 'bskingotbronze': 0, 'bskingotbrass': 0, 'dwarvenscrapmetal': 0,
+              'ingotsteel': 1, 'ingotimoonstone': 1, 'ingotdwarven': 1, 'ingotcorundum': 1, 'ingotquicksilver': 1,
+              'ingotsilver': 1, 'ingotgold': 1,
+              'ingotorichalcum': 2, 'ingotmalachite': 2, 'dlc2chitinplate': 2, 'chauruschitin': 2, 'iamiboiledchitinplate': 2,
+              'iamiingotglacialcrystal': 2, 'ccbgssse025_ingotamber': 2, 'iamifurplate': 0,
+              'ingotebony': 3, 'dragonbone': 3, 'dragonscales': 3, 'dlc2orestalhrim': 3, 'ccbgssse025_ingotmadness': 3}
+MASTER_IF = {'daedraheart'}
+
+
+def subrecords(data):
+    i, n, pending = 0, len(data), None
+    while i + 6 <= n:
+        sig = data[i:i + 4]; size = struct.unpack_from('<H', data, i + 4)[0]; i += 6
+        if sig == b'XXXX':
+            pending = struct.unpack_from('<I', data, i)[0]; i += size; continue
+        if pending is not None:
+            size, pending = pending, None
+        yield sig, data[i:i + size]
+        i += size
+
+
+order = [l.strip() for l in open(ORDER) if l.strip() and not l.startswith('#')]
+case = {n.lower(): n for n in order}
+recs = {}  # (plugin lower, local id) -> record, the last override winning
+
+
+def load(name):
+    path = os.path.join(DATA, name)
+    if not os.path.exists(path):
+        return
+    buf = open(path, 'rb').read()
+    hsize = struct.unpack_from('<I', buf, 4)[0]
+    masters = [v.rstrip(b'\0').decode('cp1252') for s, v in subrecords(buf[24:24 + hsize]) if s == b'MAST']
+
+    def res(f):
+        m = f >> 24
+        return ((masters[m] if m < len(masters) else name).lower(), f & 0xffffff)
+    pos = 24 + hsize
+    while pos < len(buf):
+        size = struct.unpack_from('<I', buf, pos + 4)[0]; lab = buf[pos + 8:pos + 12]
+        if lab in (b'COBJ', b'WEAP', b'ARMO', b'MISC', b'INGR', b'KYWD'):
+            q, end = pos + 24, pos + size
+            while q < end:
+                sig = buf[q:q + 4]; rs = struct.unpack_from('<I', buf, q + 4)[0]
+                if sig == b'GRUP':
+                    q += rs; continue
+                fl, fid = struct.unpack_from('<II', buf, q + 8)
+                d = buf[q + 24:q + 24 + rs]
+                if fl & 0x40000:
+                    try: d = zlib.decompress(d[4:])
+                    except zlib.error: d = b''
+                subs = list(subrecords(d))
+                one = lambda t: next((v for s, v in subs if s == t), None)
+                e = {'t': sig.decode(), 'del': bool(fl & 0x20), 'ed': (one(b'EDID') or b'').rstrip(b'\0').decode('cp1252', 'replace'), 'full': one(b'FULL') is not None}
+                if sig == b'COBJ':
+                    e['items'] = [(res(struct.unpack_from('<I', v, 0)[0]), struct.unpack_from('<i', v, 4)[0]) for s, v in subs if s == b'CNTO']
+                    c, b = one(b'CNAM'), one(b'BNAM')
+                    e['cnam'] = res(struct.unpack_from('<I', c, 0)[0]) if c else None
+                    e['bnam'] = res(struct.unpack_from('<I', b, 0)[0]) if b else None
+                elif sig in (b'WEAP', b'ARMO'):
+                    t = one(b'CNAM' if sig == b'WEAP' else b'TNAM')
+                    e['tmpl'] = res(struct.unpack_from('<I', t, 0)[0]) if t else None
+                recs[res(fid)] = e
+                q += 24 + rs
+        pos += size
+
+
+for n in order:
+    load(n)
+ed = lambda k: (recs.get(k) or {}).get('ed', '')
+desc = lambda k: '%x:%s' % (k[1], case.get(k[0], k[0]))
+
+recipe = {}  # item -> [(material, count)], the smallest creation recipe for it
+for e in recs.values():
+    if e['t'] != 'COBJ' or e['del'] or not e.get('cnam') or ed(e['bnam']) not in CREATE:
+        continue
+    if (recs.get(e['cnam']) or {}).get('t') not in ('WEAP', 'ARMO'):
+        continue
+    mats = [(i, c) for i, c in e['items'] if c > 0 and (recs.get(i) or {}).get('t') in ('MISC', 'INGR')]
+    master = any(ed(i).lower() in MASTER_IF for i, c in mats)
+    mats = [(i, c) for i, c in mats if recs[i]['t'] == 'MISC' and any(rx.search(ed(i)) for _, _, rx in STATION)]
+    if not mats:
+        continue
+    old = recipe.get(e['cnam'])
+    if old is None or sum(c for _, c in mats) < sum(c for _, c in old[0]):
+        recipe[e['cnam']] = (mats, master)
+
+items, stats = {}, {'smelter': 0, 'tanning': 0, 'loom': 0, 'fromTemplate': 0}
+for k, e in recs.items():
+    if e['t'] not in ('WEAP', 'ARMO') or e['del'] or not e['full']:
+        continue
+    r, t, hops = recipe.get(k), e.get('tmpl'), 0
+    while r is None and t and hops < 4:
+        r = recipe.get(t); t = (recs.get(t) or {}).get('tmpl'); hops += 1
+    if r is None:
+        continue
+    mats, master = r
+    main = max(mats, key=lambda x: x[1])[0]
+    station, skill, _ = next(s for s in STATION if s[2].search(ed(main)))
+    tier = 4 if master else (METAL_TIER.get(ed(main).lower(), 2) if station == 'smelter' else 0)
+    items[desc(k)] = [station, tier, [[desc(i), c] for i, c in sorted(mats, key=lambda x: (x[0] != main, -x[1]))]]
+    stats[station] += 1
+    stats['fromTemplate'] += 1 if hops else 0
+
+names = {}
+for v in items.values():
+    for d, _ in v[2]:
+        k = (d.split(':', 1)[1].lower(), int(d.split(':', 1)[0], 16))
+        names[d] = ed(k)
+json.dump({'_comment': 'Generated by tooling/make_salvage.py (see its header): item desc -> [station, tier 0..4, [[material desc, count]...]], the main material first; materialEditorIds for the log. Read by salvage.js.',
+           'items': items, 'materialEditorIds': names}, open(OUT, 'w'), separators=(',', ':'))
+print(len(items), 'items', stats, len(names), 'materials')

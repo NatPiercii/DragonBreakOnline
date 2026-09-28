@@ -48,7 +48,7 @@ const ME = 0x14, OTHER = 0x15, INNKEEPER = 0x16, THIRD = 0x17, ME2 = 0x18;
 const introduced = new Set();
 globalThis.__dboNameFor = (viewer, x) => (introduced.has(`${viewer}|${x}`) ? `P${x.toString(16)}` : 'Stranger');
 const PROFILE = { [ME]: 101, [ME2]: 101, [OTHER]: 102, [INNKEEPER]: 103, [THIRD]: 104 };
-const INN_BED = 0x7ec0f, KEEPER_BED = 0x2a2f, INN_BED2 = 0xe0adb, RESIDENT_BED = 0x29d6, OWNED_INN_BED = 0x13e41, JERALL_BED = 0x1155, JERALL_BED2 = 0x1156, BASEMENT_BED = 0x6efd1;
+const INN_BED = 0x7ec0f, KEEPER_BED = 0x2a2f, INN_BED2 = 0xe0adb, RESIDENT_BED = 0x29d6, OWNED_INN_BED = 0x13e41, JERALL_BED = 0x1155, JERALL_BED2 = 0x6efd2, BASEMENT_BED = 0x6efd1;
 const WINDPEAK_BED = 0x13d42, MOORSIDE_BED = 0x1738d, HOME_BED = 0x3004, WILD_BEDROLL = 0x3005, CHAIR = 0x3006;
 const FROSTFRUIT = '13870:Skyrim.esm', INN_CELL = '2936:BSHeartland.esm', OWNED_INN_CELL = '13a7c:Skyrim.esm', JERALL = '1114:BSHeartland.esm', BASEMENT = '6c14f:BSHeartland.esm';
 const WINDPEAK = '13a7f:Skyrim.esm', MOORSIDE = '138ce:Skyrim.esm', HOME_CELL = '13a5c:Skyrim.esm', TAMRIEL = '3c:Skyrim.esm';
