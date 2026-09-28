@@ -21,10 +21,17 @@
 #include "TextApi.h"
 #include "TextsCollection.h"
 
+#include <hooks/InputDiag.hpp>
+
+#include <psapi.h>
+
+#include <algorithm>
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <cwchar>
 #include <functional>
+#include <iterator>
 #include <set>
 #include <string>
 #include <thread>
@@ -323,8 +330,10 @@ public:
       vkCodeDownDur[virtualKeyCode] = 0;
     }
 
-    if (!IsBrowserFocused())
+    if (!IsBrowserFocused()) {
+      CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDropUnfocused);
       return;
+    }
 
     // Switch layout if need
     bool switchLayoutDown = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) &&
@@ -356,8 +365,10 @@ public:
 
   void OnMouseWheel(int32_t delta) noexcept override
   {
-    if (!IsBrowserFocused())
+    if (!IsBrowserFocused()) {
+      CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDropUnfocused);
       return;
+    }
     if (pCursorX && pCursorY)
       if (auto app = service->GetMyChromiumApp()) {
         app->InjectMouseWheel(*pCursorX, *pCursorY, delta,
@@ -371,8 +382,13 @@ public:
     if (!ui)
       return;
 
-    if (!ui->IsMenuOpen(RE::CursorMenu::MENU_NAME))
+    if (!ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
+      if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDropNoCursorMenu)) {
+        spdlog::info("InputDiag: a mouse move was not sent to the browser: "
+                     "the Cursor Menu is closed");
+      }
       return;
+    }
 
     if (pCursorX && pCursorY)
       if (auto app = service->GetMyChromiumApp()) {
@@ -383,8 +399,10 @@ public:
 
   void OnMouseStateChange(MouseButton mouseButton, bool down) noexcept override
   {
-    if (!IsBrowserFocused())
+    if (!IsBrowserFocused()) {
+      CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDropUnfocused);
       return;
+    }
     if (pCursorX && pCursorY)
       if (auto app = service->GetMyChromiumApp()) {
         cef_mouse_button_type_t btn;
@@ -409,6 +427,24 @@ public:
     auto ui = RE::UI::GetSingleton();
     if (!ui)
       return;
+
+    // What input depends on, for the diagnostics summary on another thread
+    auto& diag = CEFUtils::InputDiag::Get();
+    diag.cursorMenuOpen.store(ui->IsMenuOpen(RE::CursorMenu::MENU_NAME),
+                              std::memory_order_relaxed);
+    if (pCursorX && pCursorY) {
+      diag.mouseX.store(static_cast<int>(*pCursorX),
+                        std::memory_order_relaxed);
+      diag.mouseY.store(static_cast<int>(*pCursorY),
+                        std::memory_order_relaxed);
+    }
+    if (auto app = service->GetMyChromiumApp()) {
+      auto client = app->GetClient();
+      diag.browserCreated.store(client && client->GetBrowser().get(),
+                                std::memory_order_relaxed);
+      diag.clientReady.store(client && client->IsReady(),
+                             std::memory_order_relaxed);
+    }
 
     if (!ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
       if (auto app = service->GetMyChromiumApp()) {
@@ -568,9 +604,258 @@ private:
       Sleep(100);
       try {
         Tick();
+        Diagnose();
       } catch (...) {
       }
     }
+  }
+
+  // Input-path diagnostics, logging only (2026-09-28: the character menu
+  // showed but no click or key reached it). The game window is subclassed to
+  // see its own messages, every one forwarded unchanged; while the browser has
+  // input focus a summary is written every 10 s; frames that stop coming are
+  // reported with where the main thread is.
+  void Diagnose()
+  {
+    if (game && game != diagWindow && IsWindow(game)) {
+      diagWindow = game;
+      WatchWindowMessages(game);
+    }
+    Summarize();
+    WatchFrames();
+  }
+
+  static inline std::atomic<WNDPROC> diagPrevProc{ nullptr };
+  static inline std::atomic<bool> diagUnicode{ false };
+
+  static LRESULT CALLBACK DiagWndProc(HWND window, UINT msg, WPARAM wParam,
+                                      LPARAM lParam)
+  {
+    CEFUtils::InputDiag::OnWindowMessage(msg, wParam, lParam);
+    const WNDPROC prev = diagPrevProc.load();
+    return diagUnicode.load()
+      ? CallWindowProcW(prev, window, msg, wParam, lParam)
+      : CallWindowProcA(prev, window, msg, wParam, lParam);
+  }
+
+  // The previous procedure is stored before the swap, so a message arriving
+  // in between still has somewhere to go; A and W match the window's own kind
+  static void WatchWindowMessages(HWND window)
+  {
+    const bool unicode = IsWindowUnicode(window) != FALSE;
+    diagUnicode.store(unicode);
+    const LONG_PTR current = unicode ? GetWindowLongPtrW(window, GWLP_WNDPROC)
+                                     : GetWindowLongPtrA(window, GWLP_WNDPROC);
+    diagPrevProc.store(reinterpret_cast<WNDPROC>(current));
+    const LONG_PTR ours = reinterpret_cast<LONG_PTR>(&DiagWndProc);
+    const LONG_PTR previous = unicode
+      ? SetWindowLongPtrW(window, GWLP_WNDPROC, ours)
+      : SetWindowLongPtrA(window, GWLP_WNDPROC, ours);
+    if (previous && previous != current) {
+      diagPrevProc.store(reinterpret_cast<WNDPROC>(previous));
+    }
+    spdlog::info("InputDiag: {} the game window's messages ({} window)",
+                 previous ? "watching" : "could not watch",
+                 unicode ? "unicode" : "ansi");
+  }
+
+  std::string Who(HWND window) const
+  {
+    if (!window) {
+      return "none";
+    }
+    if (window == game) {
+      return "game";
+    }
+    const WindowInfo info = Describe(window);
+    return "'" + std::string(info.className) + "' " + ImageName(info);
+  }
+
+  void Summarize()
+  {
+    auto& s = CEFUtils::InputDiag::Get();
+    const bool focused = CEFUtils::DInputHook::ChromeFocus();
+    const ULONGLONG now = GetTickCount64();
+    if (focused != diagFocused) {
+      diagFocused = focused;
+      CEFUtils::InputDiag::ResetLogged();
+      if (focused) {
+        for (auto& n : s.counts) {
+          n.store(0, std::memory_order_relaxed);
+        }
+        lastSummary = now;
+      }
+      return;
+    }
+    if (!focused || now - lastSummary < 10000) {
+      return;
+    }
+    lastSummary = now;
+    std::string counts;
+    for (int i = 0; i < CEFUtils::InputDiag::kKindCount; ++i) {
+      const uint32_t n = s.counts[i].exchange(0, std::memory_order_relaxed);
+      if (n) {
+        counts += ' ';
+        counts += CEFUtils::InputDiag::kNames[i];
+        counts += '=';
+        counts += std::to_string(n);
+      }
+    }
+    GUITHREADINFO gui = {};
+    gui.cbSize = sizeof(gui);
+    const DWORD gameThread =
+      game ? GetWindowThreadProcessId(game, nullptr) : 0;
+    const bool haveGui =
+      gameThread != 0 && GetGUIThreadInfo(gameThread, &gui) != FALSE;
+    POINT cursor = { 0, 0 };
+    GetCursorPos(&cursor);
+    RECT client = { 0, 0, 0, 0 };
+    if (game) {
+      ScreenToClient(game, &cursor);
+      GetClientRect(game, &client);
+    }
+    const ULONGLONG lastFrame = s.lastFrameMs.load(std::memory_order_relaxed);
+    spdlog::info(
+      "InputDiag: 10 s with the browser focused:{} | page loaded {}, browser "
+      "{}, visible {} | cursor menu {} at {},{} | Windows cursor {},{} in a "
+      "{}x{} window | front {} | active {} | focus {} | capture {} | last "
+      "frame {} ms ago",
+      counts.empty() ? std::string(" no input events") : counts,
+      s.clientReady.load(), s.browserCreated.load(),
+      CEFUtils::DX11RenderHandler::Visible(), s.cursorMenuOpen.load(),
+      s.mouseX.load(), s.mouseY.load(), cursor.x, cursor.y, client.right,
+      client.bottom, Who(GetForegroundWindow()),
+      haveGui ? Who(gui.hwndActive) : std::string("?"),
+      haveGui ? Who(gui.hwndFocus) : std::string("?"),
+      haveGui ? Who(gui.hwndCapture) : std::string("?"),
+      lastFrame && now > lastFrame ? now - lastFrame : 0);
+  }
+
+  static bool IsCode(uint64_t address)
+  {
+    MEMORY_BASIC_INFORMATION info = {};
+    if (address < 0x10000 ||
+        !VirtualQuery(reinterpret_cast<LPCVOID>(address), &info,
+                      sizeof(info))) {
+      return false;
+    }
+    constexpr DWORD kExecute = PAGE_EXECUTE | PAGE_EXECUTE_READ |
+      PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+    return info.State == MEM_COMMIT && (info.Protect & kExecute) != 0;
+  }
+
+  // Module and offset without the loader lock, which a stuck main thread may
+  // hold
+  static std::string ModuleOffset(uint64_t address)
+  {
+    HMODULE modules[1024];
+    DWORD needed = 0;
+    const HANDLE process = GetCurrentProcess();
+    if (!EnumProcessModules(process, modules, sizeof(modules), &needed)) {
+      return "";
+    }
+    const DWORD count =
+      (std::min)(needed / static_cast<DWORD>(sizeof(HMODULE)),
+                 static_cast<DWORD>(std::size(modules)));
+    for (DWORD i = 0; i < count; ++i) {
+      MODULEINFO info = {};
+      if (!GetModuleInformation(process, modules[i], &info, sizeof(info))) {
+        continue;
+      }
+      const uint64_t base = reinterpret_cast<uint64_t>(info.lpBaseOfDll);
+      if (address < base || address - base >= info.SizeOfImage) {
+        continue;
+      }
+      char name[MAX_PATH] = { 0 };
+      GetModuleBaseNameA(process, modules[i], name, MAX_PATH - 1);
+      char where[MAX_PATH + 32] = { 0 };
+      std::snprintf(where, sizeof(where), "%s+%#llx", name,
+                    static_cast<unsigned long long>(address - base));
+      return where;
+    }
+    return "";
+  }
+
+  // The main thread's instruction pointer, then code addresses found on its
+  // stack (likely callers). The thread is suspended only while its context
+  // and 1 KB of stack are copied.
+  static std::string MainThreadWhere()
+  {
+    const DWORD id = CEFUtils::InputDiag::Get().mainThreadId.load();
+    if (!id) {
+      return "unknown";
+    }
+    static const HANDLE thread =
+      OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, id);
+    if (!thread) {
+      return "unknown (no thread handle)";
+    }
+    CONTEXT context = {};
+    context.ContextFlags = CONTEXT_CONTROL;
+    uint64_t stack[128] = { 0 };
+    SIZE_T read = 0;
+    if (SuspendThread(thread) == static_cast<DWORD>(-1)) {
+      return "unknown (suspend failed)";
+    }
+    const BOOL haveContext = GetThreadContext(thread, &context);
+    if (haveContext) {
+      ReadProcessMemory(GetCurrentProcess(),
+                        reinterpret_cast<LPCVOID>(context.Rsp), stack,
+                        sizeof(stack), &read);
+    }
+    ResumeThread(thread);
+    if (!haveContext) {
+      return "unknown (no context)";
+    }
+    std::string where = ModuleOffset(context.Rip);
+    if (where.empty()) {
+      where = "an address outside every module";
+    }
+    int shown = 0;
+    for (size_t i = 0; i < read / sizeof(uint64_t) && shown < 8; ++i) {
+      if (!IsCode(stack[i])) {
+        continue;
+      }
+      const std::string frame = ModuleOffset(stack[i]);
+      if (!frame.empty()) {
+        where += " < " + frame;
+        ++shown;
+      }
+    }
+    return where;
+  }
+
+  void WatchFrames()
+  {
+    auto& s = CEFUtils::InputDiag::Get();
+    if (s.frames.load(std::memory_order_relaxed) == 0 ||
+        (game && IsIconic(game))) {
+      return;
+    }
+    const ULONGLONG now = GetTickCount64();
+    const ULONGLONG last = s.lastFrameMs.load(std::memory_order_relaxed);
+    const ULONGLONG gap = now > last ? now - last : 0;
+    if (gap < 2000) {
+      if (stallSince) {
+        spdlog::info("InputDiag: frames again after {} ms without one",
+                     last > stallSince ? last - stallSince : 0);
+        stallSince = 0;
+      }
+      return;
+    }
+    if (!stallSince) {
+      stallSince = last;
+      lastStallReport = 0;
+    }
+    if (stallReports >= 30 ||
+        (lastStallReport && now - lastStallReport < 5000)) {
+      return;
+    }
+    lastStallReport = now;
+    ++stallReports;
+    spdlog::info("InputDiag: no frame for {} ms (browser focused {}), main "
+                 "thread at {}",
+                 gap, CEFUtils::DInputHook::ChromeFocus(), MainThreadWhere());
   }
 
   void Tick()
@@ -713,6 +998,12 @@ private:
   std::set<HWND> reclaimedFrom;
   int frontLogs = 0;
   ULONGLONG lastFrontLog = 0;
+  HWND diagWindow = nullptr;
+  bool diagFocused = false;
+  ULONGLONG lastSummary = 0;
+  ULONGLONG stallSince = 0;
+  ULONGLONG lastStallReport = 0;
+  int stallReports = 0;
   std::thread thread;
 };
 
@@ -742,6 +1033,9 @@ public:
 
   bool BeginMain() override
   {
+    // WinMain's thread: the one the frame watch samples when frames stop
+    CEFUtils::InputDiag::Get().mainThreadId.store(GetCurrentThreadId());
+
     inputConverter = std::make_shared<InputConverter>();
     myInputListener = std::make_shared<MyInputListener>();
 

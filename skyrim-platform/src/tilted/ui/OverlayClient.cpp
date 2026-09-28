@@ -1,6 +1,7 @@
 #include "../ui/TextToDraw.h"
 #include <DInputHook.hpp>
 #include <Filesystem.hpp>
+#include <InputDiag.hpp>
 #include <MyCtxHandler.h>
 #include <OverlayClient.h>
 #include <filesystem>
@@ -65,10 +66,14 @@ CefRefPtr<CefFocusHandler> OverlayClient::GetFocusHandler()
 bool OverlayClient::OnSetFocus(CefRefPtr<CefBrowser> aBrowser,
                                FocusSource aSource)
 {
-  if (aSource == FOCUS_SOURCE_NAVIGATION) {
-    return true;
+  const bool refuse =
+    aSource == FOCUS_SOURCE_NAVIGATION || !DInputHook::ChromeFocus();
+  if (InputDiag::Count(InputDiag::kCefFocus, true)) {
+    spdlog::info("InputDiag: browser asked for focus (source {}), {}",
+                 aSource == FOCUS_SOURCE_NAVIGATION ? "navigation" : "system",
+                 refuse ? "refused" : "allowed");
   }
-  return !DInputHook::ChromeFocus();
+  return refuse;
 }
 
 void OverlayClient::SetBrowser(const CefRefPtr<CefBrowser>& aBrowser) noexcept
