@@ -2,10 +2,13 @@
 //
 // The Discord ticket system (skymp5-backend sources/discord/tickets.js: the #create-a-ticket panel) opens a private
 // channel for the player and staff. /ticket <kind> <text> opens the same kind of channel from the game, in the same
-// categories, and attaches what staff would otherwise have to ask for: the character, where they stand, and who was
-// nearby at that moment. The Close button carries the panel's own ticket:close id, so the backend bot closes it.
+// categories, and attaches what staff would otherwise have to ask for: the character and where they stand. Who was
+// nearby goes to the staff channel (config tickets.staffChannelId), never into the ticket, because the player reads the
+// ticket (consolidation plan 2026-09-28, C9). The Close button carries the panel's own ticket:close id, so the backend
+// bot closes it.
 //
-// Kinds (the panel's): pk Player Kill Request, bug Bug Report, map Map Changes / Bugs, mod Moderation Help, report Report Player.
+// Kinds (the panel's): pk Player Kill Request, mod Moderation Help, report Report Player. Bugs and map problems are not
+// tickets any more (plan J4): /ticket bug and /ticket map point to /bug, which files them in #bug-tracker.
 // Numbers are the game's own (G0001...), kept in game-tickets.json, so the backend's counter is never written from here.
 
 const fs = require('fs');
@@ -18,14 +21,16 @@ module.exports = (api) => {
   const C = Object.assign({
     enabled: true, cooldownMinutes: 5, nearbyMeters: 40, minText: 10, maxText: 1000,
     staffRoleIds: ['1494126527489507369', '1494491999305338981', '1494126618065506425'], pingRoleId: '1494126618065506425',
+    staffChannelId: '',   // where the nearby-players block goes; unset, it is only written to the server log
   }, cfg.tickets || {});
   const KINDS = [
     { id: 'pk', names: ['pk', 'kill'], label: 'Player Kill Request', category: 'Player Kill Requests', emoji: '⚔️' },
-    { id: 'bug', names: ['bug'], label: 'Bug Report', category: 'Bug Reports', emoji: '🐛' },
-    { id: 'map', names: ['map'], label: 'Map Changes / Bugs', category: 'Map Reports', emoji: '🗺️' },
     { id: 'mod', names: ['mod', 'help', 'moderation'], label: 'Moderation Help', category: 'Moderation Help', emoji: '🛡️' },
     { id: 'rep', names: ['report', 'rep'], label: 'Report Player', category: 'Player Reports', emoji: '🚩' },
   ];
+  // Kinds that are not tickets any more: the answer sends the player to /bug
+  const TO_BUG = ['bug', 'map'];
+  const USE_BUG = 'Use /bug <what happened>';
   const FILE = path.resolve('game-tickets.json');
   const UNITS_PER_METER = 70;
   const S = globalThis.__dboGameTickets || (globalThis.__dboGameTickets = { last: new Map() });
@@ -62,7 +67,7 @@ module.exports = (api) => {
     return made.id;
   };
 
-  // What staff would ask for: the place, and every player within earshot with their distance
+  // What staff would ask for: the place, and every player within earshot with their distance (staff eyes only)
   const context = (a) => {
     let where = '?', near = [];
     try {
@@ -83,6 +88,16 @@ module.exports = (api) => {
   };
 
   const slug = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'player';
+
+  // The reporter can read their whole ticket, so the names of the players around them go to staff only. A failure here is
+  // logged and never stops the ticket.
+  const nearbyToStaff = async (a, kind, number, channel, near) => {
+    const line = `Ticket #${number} (${kind.label}, <#${channel.id}>) opened in game by ${display(a)}. Nearby within ${C.nearbyMeters} m: ${near.join(', ') || 'nobody'}`;
+    const staffChannel = String(C.staffChannelId || '');
+    if (!/^\d{15,22}$/.test(staffChannel)) return log(`tickets: nearby for #${number} (no staff channel set): ${near.join(', ') || 'nobody'}`);
+    try { await request('POST', `/channels/${staffChannel}/messages`, { content: line.slice(0, 1900), allowed_mentions: { parse: [] } }); }
+    catch (e) { log(`tickets: nearby for #${number} not posted (${e.message}): ${near.join(', ') || 'nobody'}`); }
+  };
 
   const open = async (a, kind, text) => {
     const discordId = discordOf(a);
@@ -105,24 +120,26 @@ module.exports = (api) => {
         fields: [
           { name: 'Opened by', value: `<@${discordId}>, in game as ${display(a)}`, inline: false },
           { name: 'Where', value: where.slice(0, 1000), inline: false },
-          { name: `Nearby (within ${C.nearbyMeters} m)`, value: (near.join(', ') || 'nobody').slice(0, 1000), inline: false },
         ],
         footer: { text: 'Opened from the game with /ticket' },
       }],
       components: [{ type: 1, components: [{ type: 2, style: 4, label: 'Close', custom_id: 'ticket:close' }] }],
     });
     audit(`TICKET opened ${kind.label} #${number} in game by ${who(a)} in #${channel.name}`);
+    await nearbyToStaff(a, kind, number, channel, near);
     return { number, channel };
   };
 
   registerChatCommand('ticket', (a, args) => {
     const text = String(args || '').trim();
     const [first] = text.split(/\s+/);
+    if (TO_BUG.includes((first || '').toLowerCase())) return personal(a, USE_BUG);
     const kind = KINDS.find((k) => k.names.includes((first || '').toLowerCase()));
     if (!kind) {
       personal(a, 'Open a private ticket with staff on Discord: /ticket <kind> <what happened>. Kinds:');
       for (const k of KINDS) personal(a, `  ${k.names[0]}: ${k.label}`);
-      return personal(a, 'Where you stand and who is nearby are attached for you. Say what happened, when, and who was involved.');
+      personal(a, `  A bug or a map problem? ${USE_BUG}.`);
+      return personal(a, 'Where you stand is attached for you, and staff see who was nearby. Say what happened, when, and who was involved.');
     }
     if (!C.enabled || !token || !guildId) return personal(a, 'Tickets from the game are off right now. Use #create-a-ticket on Discord.');
     const body = text.slice(first.length).replace(/\s+/g, ' ').trim();
@@ -138,5 +155,5 @@ module.exports = (api) => {
     open(a, kind, body).then(
       (r) => personal(a, `Ticket #${r.number} is open on Discord in #${r.channel.name}. Only you and staff can read it; staff answer there.`),
       (e) => { S.last.delete(key); log('tickets: opening failed', e.message); personal(a, 'The ticket could not be opened. Use #create-a-ticket on Discord, and tell staff.'); });
-  }, { help: '<pk|bug|map|mod|report> <what happened>: a private ticket with staff on Discord' });
+  }, { help: '<pk|mod|report> <what happened>: a private ticket with staff on Discord (bugs: /bug)' });
 };

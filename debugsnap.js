@@ -5,8 +5,9 @@
 // distance, height against the terrain). tooling/dbo-inspect reads it ("live").
 //
 // /bug <what happened>: any player. Freezes the same picture for them alone plus the last minute of log lines that
-// name them or an NPC near them, into /var/lib/dbo-monitor/bugs/<time>-<tag>.json, and logs a BUGREPORT line that
-// dbo-monitor turns into an alert in #server-monitor. One per player per BUG_EVERY_MS.
+// name them or an NPC near them, into /var/lib/dbo-monitor/bugs/<time>-<tag>.json (0600: it can hold private log text),
+// and logs a BUGREPORT line that dbo-monitor posts as a thread in #bug-tracker (the old #error-report, same channel).
+// One per player per BUG_EVERY_MS.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -46,8 +47,9 @@ module.exports = (api) => {
     return out;
   };
 
+  // Snapshots are readable by root only (consolidation plan 2026-09-28): the log lines in them can name other players
   const write = (file, obj) => {
-    try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file + '.tmp', JSON.stringify(obj, null, 1)); fs.renameSync(file + '.tmp', file); return true; }
+    try { fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 }); fs.writeFileSync(file + '.tmp', JSON.stringify(obj, null, 1), { mode: 0o600 }); fs.renameSync(file + '.tmp', file); return true; }
     catch (e) { log('debugsnap: writing', file, 'failed:', e.message); return false; }
   };
 
@@ -97,8 +99,9 @@ module.exports = (api) => {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const file = path.join(C.dir, 'bugs', `${stamp}-${tagOf(a)}.json`);
     const ok = write(file, { at: new Date().toISOString(), by: display(a), text: text.slice(0, 500), view, log: recentLog(needles) });
-    log(`BUGREPORT ${display(a)} ${path.basename(file)}: ${text.slice(0, 200)}`);
-    personal(a, ok ? 'Thanks: your report and what was around you are saved for the team.' : 'The report could not be saved; please tell staff.');
+    // The whole text as saved (500): dbo-monitor copies this line into the #bug-tracker thread, which allows 1500
+    log(`BUGREPORT ${display(a)} ${path.basename(file)}: ${text.slice(0, 500)}`);
+    personal(a, ok ? 'Thanks, the staff team has your report. To add a screenshot, use Report a Problem on the website and mention the time of your /bug.' : 'The report could not be saved; please tell staff.');
   }, { help: '<what went wrong>: report a bug; where you are and what is around you are saved with it' });
 
   log(`debugsnap: live snapshot every ${C.snapMs / 1000} s to ${C.dir}/live.json, /bug reports to ${C.dir}/bugs`);

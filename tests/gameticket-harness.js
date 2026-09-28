@@ -44,44 +44,81 @@ const P = {
   [ADMIN]: { name: 'Staff', tag: 'STAF', discord: '555555555555555555', pos: [0, 0, 0], w: 'somecell' },
 };
 const said = [];
+const logs = [];
 const commands = {};
-require(MODULE)({
+const STAFF_CH = '777777777777777777';
+// The module reads cfg.tickets when it loads: load() makes a fresh instance with the given config
+const load = (tickets) => require(MODULE)({
   mp: { get: (a, k) => (k === 'pos' ? P[a].pos : k === 'worldOrCellDesc' ? P[a].w : undefined) },
-  log: () => {}, personal: (a, t) => said.push([a, t]), audit: () => {}, who: (a) => P[a].name, display: (a) => `${P[a].name} #${P[a].tag}`,
+  log: (...x) => logs.push(x.join(' ')), personal: (a, t) => said.push([a, t]), audit: () => {}, who: (a) => P[a].name, display: (a) => `${P[a].name} #${P[a].tag}`,
   onlineActors: () => [ME, NEAR, FAR, NOLINK, ADMIN], registerChatCommand: (n, fn) => { commands[n] = fn; },
   discordOf: (a) => P[a].discord, profileOf: (a) => a * 10, isAdmin: (a) => a === ADMIN, zoneOfActor: () => ({ name: 'Bruma' }),
-  cfg: {}, token: 'T', guildId: 'G',
+  cfg: tickets ? { tickets } : {}, token: 'T', guildId: 'G',
 });
+load();
 
 let failures = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
-const run = async (a, args) => { said.length = 0; commands.ticket(a, args); await new Promise((r) => setTimeout(r, 30)); return said.filter((x) => x[0] === a).map((x) => x[1]).join(' | '); };
+// Waits for the ticket's own answer rather than a fixed time: on a busy box the four fake Discord calls outran 30 ms
+const run = async (a, args) => {
+  said.length = 0; commands.ticket(a, args);
+  const mine = () => said.filter((x) => x[0] === a).map((x) => x[1]);
+  for (let t = 0; t < 400 && mine()[mine().length - 1] === 'Opening your ticket...'; t++) await new Promise((r) => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 10));   // and the staff-channel post that follows the ticket
+  return mine().join(' | ');
+};
 
 (async () => {
-  check('with no kind it lists the five', /pk: Player Kill Request.*bug: Bug Report.*map: Map Changes.*mod: Moderation Help.*report: Report Player/.test(await run(ME, '')));
-  check('too short is refused', /Say what happened/.test(await run(ME, 'bug broken')));
-  check('no Discord link sends them to the panel', /no Discord account linked/.test(await run(NOLINK, 'bug the door in the keep will not open')));
-  let r = await run(ME, 'report Flo Riahn attacked me at the Jerall gate without any roleplay');
+  let r = await run(ME, '');
+  check('with no kind it lists the three ticket kinds and points bugs to /bug', /pk: Player Kill Request.*mod: Moderation Help.*report: Report Player.*A bug or a map problem\? Use \/bug <what happened>\./.test(r) && !/Bug Report|Map Changes/.test(r), r);
+  const before = channels.length;
+  check('/ticket bug answers "Use /bug <what happened>" (consolidation C9)', (await run(ME, 'bug the door in the keep will not open')) === 'Use /bug <what happened>');
+  check('/ticket map answers the same', (await run(ME, 'map there is a hole in the wall by the gate')) === 'Use /bug <what happened>');
+  check('and neither opens a channel', channels.length === before && messages.length === 0);
+  check('too short is refused', /Say what happened/.test(await run(ME, 'mod broken')));
+  check('no Discord link sends them to the panel', /no Discord account linked/.test(await run(NOLINK, 'mod the guard in the keep will not let me out')));
+  r = await run(ME, 'report Flo Riahn attacked me at the Jerall gate without any roleplay');
   const ch = channels[channels.length - 1];
   check('a report opens a channel and tells the player where', /Ticket #G0001 is open on Discord in #rep-g0001-argosh-gro-shatul/.test(r), r);
   check('it goes in the panel\'s category, made by name the first time', channels.some((c) => c.type === 4 && c.name === 'Player Reports') && ch.parent_id === channels.find((c) => c.name === 'Player Reports').id);
   const ow = ch.permission_overwrites;
   const VIEW = 1024;
   check('only the player and staff can see it', ow.some((o) => o.id === 'G' && Number(o.deny) & VIEW) && ow.some((o) => o.id === '111111111111111111' && o.type === 1 && Number(o.allow) & VIEW) && ow.filter((o) => o.type === 0 && o.id !== 'G').length === 3);
-  const msg = messages[messages.length - 1];
+  const msg = messages.find((m) => m.channel === ch.id);
   const f = Object.fromEntries(msg.embeds[0].fields.map((x) => [x.name.replace(/ \(.*/, ''), x.value]));
   check('the message pings the player and GMs only', msg.content === '<@111111111111111111> <@&1494126618065506425>' && msg.allowed_mentions.users[0] === '111111111111111111');
   check('where they stood is attached', /Bruma, tamriel at 0, 0, 0/.test(f.Where), f.Where);
-  check('nearby players with distances, not the far one or another cell', f.Nearby === 'Flo Riahn #FLOR (10 m)', f.Nearby);
+  check('the ticket the player reads names nobody nearby (C9)', f.Nearby === undefined && !JSON.stringify(msg).includes('Flo Riahn #FLOR'), Object.keys(f).join(','));
+  check('with no staff channel set, the nearby players go to the server log only', logs.some((l) => l === 'tickets: nearby for #G0001 (no staff channel set): Flo Riahn #FLOR (10 m)') && messages.length === 1, logs.join(' / '));
   check('the Close button is the panel\'s own, so the bot closes it', msg.components[0].components[0].custom_id === 'ticket:close');
   check('an existing category is reused', (await run(ME, 'x'.repeat(5)), true) && channels.filter((c) => c.name === 'Player Kill Requests').length === 1);
-  check('a second ticket right away waits for the cooldown', /opened a ticket a moment ago/.test(await run(ME, 'bug the forge in Bruma takes my iron')));
+  check('a second ticket right away waits for the cooldown', /opened a ticket a moment ago/.test(await run(ME, 'mod the forge in Bruma takes my iron')));
   r = await run(ADMIN, 'pk Staff test of a kill request with enough words');
   check('staff are not held by the cooldown, and pk uses the existing category', /#G0002/.test(r) && channels[channels.length - 1].parent_id === '10', r);
   failNext = true;
-  r = await run(ADMIN, 'bug this one fails at Discord for the test');
+  r = await run(ADMIN, 'mod this one fails at Discord for the test');
   check('a Discord failure is reported to the player, not lost', /could not be opened/.test(r), r);
   check('the counter survives in game-tickets.json', JSON.parse(fs.readFileSync('game-tickets.json', 'utf8')).counter === 3);
+
+  // With the staff channel configured, the nearby block is posted there and nowhere else
+  load({ staffChannelId: STAFF_CH });
+  delete globalThis.__dboGameTickets.last; globalThis.__dboGameTickets.last = new Map();
+  const n0 = messages.length;
+  r = await run(ME, 'mod someone keeps blocking the Bruma gate on purpose');
+  const ticketCh = channels[channels.length - 1];
+  const staffMsg = messages.slice(n0).find((m) => m.channel === STAFF_CH);
+  const ticketMsg = messages.slice(n0).find((m) => m.channel === ticketCh.id);
+  check('with tickets.staffChannelId set, the nearby block goes to that channel', !!staffMsg && staffMsg.content === `Ticket #G0004 (Moderation Help, <#${ticketCh.id}>) opened in game by Argosh gro-Shatul #ARGO. Nearby within 40 m: Flo Riahn #FLOR (10 m)`, staffMsg && staffMsg.content);
+  check('it pings nobody', !!staffMsg && Array.isArray(staffMsg.allowed_mentions.parse) && staffMsg.allowed_mentions.parse.length === 0);
+  check('and the ticket itself still names nobody nearby', !!ticketMsg && !JSON.stringify(ticketMsg).includes('Flo Riahn #FLOR'), r);
+  failNext = false;
+  // A staff channel that refuses the post does not stop the ticket
+  const realReq2 = https.request;
+  https.request = (opts, cb) => (opts.path === `/api/v10/channels/${STAFF_CH}/messages` ? (failNext = true, realReq2(opts, cb)) : realReq2(opts, cb));
+  delete globalThis.__dboGameTickets.last; globalThis.__dboGameTickets.last = new Map();
+  r = await run(ME, 'report someone keeps blocking the Bruma gate again');
+  check('a refused staff post is logged and the ticket still opens', /Ticket #G0005 is open/.test(r) && logs.some((l) => /^tickets: nearby for #G0005 not posted \(POST \/channels\/777777777777777777\/messages: HTTP 500/.test(l)), r);
+  https.request = realReq2;
 
   https.request = realRequest;
   process.chdir(home);

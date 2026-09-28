@@ -16,10 +16,10 @@ globalThis.__dboTerrainDz = (desc, pos) => pos[2] - 100;
 const P = 0xff000014, WOLF = 0xff000101, FAR = 0xff000102;
 const A = { [P]: { pos: [0, 0, 100], world: 'w', profileId: 1, near: [WOLF, FAR] }, [WOLF]: { pos: [300, 0, 20], world: 'w', profileId: -1, baseDesc: '4932a:BSHeartland.esm' }, [FAR]: { pos: [3000, 0, 100], world: 'w', profileId: -1, isDead: true } };
 const mp = { get: (id, k) => { const a = A[id]; if (k === 'pos') return a.pos; if (k === 'worldOrCellDesc') return a.world; if (k === 'actorNeighbors') return a.near; if (k === 'profileId') return a.profileId; if (k === 'isDead') return !!a.isDead; if (k === 'baseDesc') return a.baseDesc; }, getHoster: (id) => (id === WOLF ? P : 0) };
-let tick; const cmds = {}; const said = []; const logs = [];
+let tick; let S_admin = false; const cmds = {}; const said = []; const logs = [];
 const mod = require(path.resolve(__dirname, '..', 'debugsnap.js'))({ mp, log: (...a) => logs.push(a.join(' ')), every: (n, ms, f) => { tick = f; }, personal: (a, t) => said.push(t),
   registerChatCommand: (n, f) => { cmds[n] = f; }, onlineActors: () => [P], display: (a) => (a === P ? 'Ann Aa #AAAA' : a.toString(16)), tagOf: () => 'AAAA',
-  profileOf: (a) => A[a].profileId, isAdmin: () => false, cfg: { debugSnap: { dir, logFile } } });
+  profileOf: (a) => A[a].profileId, isAdmin: () => S_admin, cfg: { debugSnap: { dir, logFile } } });
 let failures = 0; const check = (n, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
 
 (async () => {
@@ -40,9 +40,16 @@ const bug = JSON.parse(fs.readFileSync(path.join(dir, 'bugs', files[0]), 'utf8')
 check('/bug saves the text, the picture and who sent it', files.length === 1 && bug.text === 'the troll near me [2026-09-25 18:00:00] is sinking' && bug.view.npcs.length === 2 && bug.by === 'Ann Aa #AAAA');
 check('with the last minute of log lines about the player and nearby NPCs only', bug.log.length === 2 && bug.log.every((l) => /ff000101|Ann Aa/.test(l)), bug.log);
 check('and a BUGREPORT line for the monitor, on one line whatever the text holds', logs.some((l) => /^BUGREPORT Ann Aa #AAAA .*: the troll near me \[2026-09-25 18:00:00\] is sinking$/.test(l)) && !logs.some((l) => /\n/.test(l)));
+check('the reply says staff have it and how to add a screenshot (consolidation C8)', said.some((t) => t === 'Thanks, the staff team has your report. To add a screenshot, use Report a Problem on the website and mention the time of your /bug.'), said[said.length - 1]);
+check('the snapshot is readable by its owner only (0600)', (fs.statSync(path.join(dir, 'bugs', files[0])).mode & 0o777) === 0o600, (fs.statSync(path.join(dir, 'bugs', files[0])).mode & 0o777).toString(8));
+check('and the bugs folder it made is 0700', (fs.statSync(path.join(dir, 'bugs')).mode & 0o777) === 0o700, (fs.statSync(path.join(dir, 'bugs')).mode & 0o777).toString(8));
 cmds.bug(P, 'another one right away');
 check('one report a minute per player', /wait a minute/.test(said.pop()) && fs.readdirSync(path.join(dir, 'bugs')).length === 1);
 
+const long = 'the troll ' + 'x'.repeat(480) + ' END';   // 494 characters
+logs.length = 0; S_admin = true; cmds.bug(P, long);
+const line = logs.find((l) => l.startsWith('BUGREPORT '));
+check('the BUGREPORT line carries the text up to 500 characters (it logged 200)', !!line && line.endsWith(' END') && line.includes(long), line && line.length);
 fs.rmSync(dir, { recursive: true, force: true }); delete globalThis.__dboTerrainDz; delete globalThis.__dboDebugSnap;
 console.log(''); console.log(failures ? `${failures} FAILURES` : 'all checks passed'); process.exit(failures ? 1 : 0);
 })();
