@@ -8,10 +8,12 @@ const stamp = (msAgo) => new Date(Date.now() - msAgo).toISOString().replace('T',
 fs.writeFileSync(logFile, [
   `[${stamp(120000)}.000] [info] old line about ff000101 wolf`,
   `[${stamp(20000)}.000] [info] npcDrift Ann Aa #AAAA sink: {"remoteId":"ff000101"}`,
-  `[${stamp(10000)}.000] [info] Hoster of ff000101 changed from 0 to 14`,
-  `[${stamp(5000)}.000] [info] unrelated ff000999 line`, ''].join('\n'));
+  `[${stamp(10000)}.000] [info] Hoster of ff000101 changed from 0 to ff000014`,
+  // "14:14" keeps a short player id honest: with P = 0x14 the needle "14" matched any line (or clock minute) holding it
+  `[${stamp(5000)}.000] [info] unrelated ff000999 line at 14:14`, ''].join('\n'));
 globalThis.__dboTerrainDz = (desc, pos) => pos[2] - 100;
-const P = 0x14, WOLF = 0xff000101, FAR = 0xff000102;
+// A player actor id as the server hands them out (the log prints it as ff000014)
+const P = 0xff000014, WOLF = 0xff000101, FAR = 0xff000102;
 const A = { [P]: { pos: [0, 0, 100], world: 'w', profileId: 1, near: [WOLF, FAR] }, [WOLF]: { pos: [300, 0, 20], world: 'w', profileId: -1, baseDesc: '4932a:BSHeartland.esm' }, [FAR]: { pos: [3000, 0, 100], world: 'w', profileId: -1, isDead: true } };
 const mp = { get: (id, k) => { const a = A[id]; if (k === 'pos') return a.pos; if (k === 'worldOrCellDesc') return a.world; if (k === 'actorNeighbors') return a.near; if (k === 'profileId') return a.profileId; if (k === 'isDead') return !!a.isDead; if (k === 'baseDesc') return a.baseDesc; }, getHoster: (id) => (id === WOLF ? P : 0) };
 let tick; const cmds = {}; const said = []; const logs = [];
