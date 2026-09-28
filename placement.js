@@ -12,9 +12,20 @@
 //                     dbo placeGoto [remoteIdHex]                           move the GM next to a placement
 //                     dbo placeMeta []                                      categories, mods and the GM's rights
 //                     dbo placeSearch [query, category, plugin, offset]     one page of the catalog, searched here
+//                     dbo placeMove [remoteIdHex, [x,y,z], [rx,ry,rz]]      move and turn a placement (NPCs turn on Z only)
+//                     dbo placeSelect [remoteIdHex]                         the thing under the GM's crosshair, to edit it
+//                     dbo placeUndo []                                      take back the GM's last place, move or remove
+//                     dbo placeSets []                                      the saved sets (adminPlaceSets)
+//                     dbo placeSetSave [name, radiusMetres]                 save the placements around the GM as a set
+//                     dbo placeSetPlace [name]                              put a set down around the GM, as one group
+//                     dbo placeSetDelete [name]                             forget a saved set
+//                     dbo placeGroupClear [id]                              remove every piece of the group id belongs to
+//   placeObject may carry a sixth argument [pitch, roll] in degrees for objects.
 //   Server -> Client: { customPacketType: "adminPlaceables", categories }   (clients before the search: no Statics)
 //                     { customPacketType: "adminPlaceMeta", categories: [{ id, label, kind, count }], plugins, rights }
 //                     { customPacketType: "adminPlaceResults", query, category, plugin, offset, total, items }
+//                     { customPacketType: "placeEdit", id, base, name, kind, hostile, pos, rot }   answers placeSelect
+//                     { customPacketType: "adminPlaceSets", sets: [{ name, count, by, at }] }
 //                     { customPacketType: "adminPlacements", items: [{ id, name, kind, hostile, dist, by, at }], total, here }
 //
 // Every placeObject and placeDelete that arrives is logged with its outcome, refusals included: for three days the tab was
@@ -24,6 +35,12 @@
 // reachable without shipping megabytes to the browser. Rights go by staff tier (config placement.rights, the lowest tier
 // allowed): place (objects and friendly NPCs), hostile (hostile NPCs), others (change or remove another GM's placements).
 // Every tier sees the tab, the list and Go to.
+//
+// Placed NPCs are one-NPC zones in NPC-Spawns.json (placed:<key>, config placement.npcZone), so npcSpawnSystem spawns,
+// hosts and recovers them like every other NPC; the zone carries the GM's heading and hostile choice (Heading,
+// Hostile). They never despawn and a killed one stays dead until a restart. Their list entries have zone: true and a key
+// ('n...', never a hex reference id); the actor the zone places is found by its private.npcSpawner name. Placements from
+// before (an actor made with PlaceAtMe, tagged private.dboPlaced) keep working as they are.
 
 const fs = require('fs');
 const path = require('path');
@@ -53,10 +70,22 @@ module.exports = (api) => {
   const stateDir = () => { try { return path.dirname(fs.realpathSync(path.resolve('world'))); } catch (e) { return path.resolve('.'); } };
   const REGISTRY = path.join(stateDir(), 'placements.json');
   const EXPORT = path.resolve('placements-export.json');
+  // Saved sets for events: { name: { by, at, items: [{ base, kind, name, hostile, offset: [dx,dy,dz], rot }] } }
+  const SETS_FILE = path.join(stateDir(), 'placement-sets.json');
+  const SET_MAX = 60;
+  const SET_RADIUS = { def: 20, max: 60 };
   // A confirm this far from the GM is refused: the preview never goes further than the client's own limit
   const MAX_REACH = 4096;
   const NEVER_RESPAWN = 1e9;
   const TAG = 'private.dboPlaced';
+  const SPAWNER_TAG = 'private.npcSpawner';
+  const SPAWNS_FILE = path.resolve('NPC-Spawns.json');
+  const ZONE_PREFIX = 'placed:';
+  // radius: a player this near makes it appear; despawn: seconds after the last one left (0 = it stays)
+  const NPC_ZONE = Object.assign({ radius: 4000, despawn: 0 }, P.npcZone || {});
+  const AS_ZONES = P.npcZones !== false;
+  // 'n' + time + random, base 36: 'n' is not a hex digit, so a key is never read as a reference id
+  const newKey = () => `n${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36).padStart(3, '0')}`;
 
   const S = globalThis.__dboPlacement || (globalThis.__dboPlacement = { catalog: null, kinds: null, registry: null });
 
@@ -91,52 +120,130 @@ module.exports = (api) => {
     catch (e) { log('placement: saving placements.json failed', e.message); }
   };
 
+  const zoneOf = (e) => ({ Name: ZONE_PREFIX + e.id, ID: e.where, POS: e.pos, Size: NPC_ZONE.radius, NPC: [{ id: e.base, count: 1 }], Despawn: NPC_ZONE.despawn, Respawn: 0, Heading: (e.rot || [0, 0, 0])[2], Hostile: !!e.hostile });
+  // Rewrites the placed:* zones from the list and keeps every other zone (dungeon:*, wild:*, hand-written ones)
+  const writeZones = () => {
+    let root = null, list = [], key = 'zones', text = '';
+    try {
+      text = fs.readFileSync(SPAWNS_FILE, 'utf8');
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) list = parsed;
+      else if (parsed && typeof parsed === 'object') { root = parsed; key = Object.keys(parsed).find((k) => k.toLowerCase() === 'zones') || 'zones'; list = Array.isArray(parsed[key]) ? parsed[key] : []; }
+    } catch (e) { /* no file yet */ }
+    const isMine = (z) => String((z && (z.Name || z.name)) || '').startsWith(ZONE_PREFIX);
+    const mine = registry().filter((e) => e.zone).map(zoneOf);
+    if (JSON.stringify(list.filter(isMine)) === JSON.stringify(mine)) return;
+    const zones = list.filter((z) => !isMine(z)).concat(mine);
+    const payload = root ? Object.assign({}, root, { [key]: zones }) : { _comment: 'NPC spawn zones. dungeon:* entries belong to dungeons.js, wild:* to wildlife.js, placed:* to placement.js; all are rewritten by the server. Other entries are kept.', zones };
+    // Shared with dungeons.js, wildlife.js and npcSpawnSystem's panel: every writer re-reads the file, keeps what is not
+    // its own and writes in the same synchronous call, so in this one Node process no write can land between another's
+    // read and write (tests/zones-shared-harness.js). A temp name of its own, as dungeons.js has.
+    try { fs.writeFileSync(SPAWNS_FILE + '.placement.tmp', JSON.stringify(payload, null, 1)); fs.renameSync(SPAWNS_FILE + '.placement.tmp', SPAWNS_FILE); }
+    catch (e) { log('placement: NPC-Spawns.json write failed', e.message); }
+  };
+
+  // A list id, a reference id (hex) of something placed, or the actor a placed:* zone put in the world
+  const resolveTarget = (raw) => {
+    const s = String(raw || '').toLowerCase();
+    let entry = registry().find((p) => p.id === s) || null;
+    let ref = 0, tag = null;
+    if (!(entry && entry.zone) && /^[0-9a-f]+$/.test(s)) {
+      ref = parseInt(s, 16) >>> 0;
+      try { tag = mp.get(ref, TAG); } catch (e) { /* not a reference */ }
+      if (!tag && !entry) {
+        let zone = '';
+        try { zone = String(mp.get(ref, SPAWNER_TAG) || ''); } catch (e) { /* not a reference */ }
+        if (zone.startsWith(ZONE_PREFIX)) entry = registry().find((p) => p.id === zone.slice(ZONE_PREFIX.length).toLowerCase()) || null;
+      }
+    }
+    return { entry, ref, tag };
+  };
+
   const papyrus = (fn, self, args) => mp.callPapyrusFunction('method', 'ObjectReference', fn, { type: 'form', desc: mp.getDescFromId(self) }, args);
   const hex = (id) => (Number(id) >>> 0).toString(16);
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : NaN; };
 
-  const place = (a, desc, kind, pos, rotZ, hostile) => {
+  const norm = (deg) => ((deg % 360) + 360) % 360;
+  const sameWhere = (x, y) => String(x || '').toLowerCase() === String(y || '').toLowerCase();
+  // NPCs stand upright: only their heading is kept
+  const poseRot = (kind, rot) => (kind === 'npc' ? [0, 0, norm(rot[2])] : rot.map(norm));
+  // Moves a placed reference to pos/rot in where, then disables and enables it so watchers get it where it now stands
+  const applyPose = (id, kind, where, pos, rot) => {
+    if (kind === 'npc') {
+      const loc = { cellOrWorldDesc: where, pos, rot };
+      mp.set(id, 'locationalData', loc);
+      mp.set(id, 'spawnPoint', loc);
+    } else {
+      papyrus('SetPosition', id, [pos[0], pos[1], pos[2]]);
+      papyrus('SetAngle', id, [rot[0], rot[1], rot[2]]);
+    }
+    mp.set(id, 'isDisabled', true);
+    mp.set(id, 'isDisabled', false);
+  };
+
+  // Each GM's last places, moves and removals (by profile), for Undo; in memory only, so a restart forgets them
+  const UNDO_MAX = 20;
+  if (!(S.undo instanceof Map)) S.undo = new Map();
+  const undoList = (a) => { const k = profile(a); if (!S.undo.has(k)) S.undo.set(k, []); return S.undo.get(k); };
+  const pushUndo = (a, act) => { const l = undoList(a); l.push(act); if (l.length > UNDO_MAX) l.shift(); };
+
+  // opts.undo false: not recorded for Undo (Undo itself); opts.anyReach: no reach check (Undo puts things back where they were)
+  const place = (a, desc, kind, pos, rotIn, hostile, opts = {}) => {
     const known = S.kinds.get(desc.toLowerCase());
     if (!known) return { ok: false, text: 'That is not in the placement catalog.' };
     if (known.kind !== kind) return { ok: false, text: 'The catalog lists that as a different kind of thing.' };
     const where = String(mp.get(a, 'worldOrCellDesc') || '');
     const me = mp.get(a, 'pos');
     if (!where || !Array.isArray(me)) return { ok: false, text: 'Your position is not known yet.' };
-    if (Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) > MAX_REACH) return { ok: false, text: 'Too far away to place.' };
+    if (!opts.anyReach && Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) > MAX_REACH) return { ok: false, text: 'Too far away to place.' };
+
+    if (kind === 'npc' && AS_ZONES) {
+      const entry = { id: newKey(), zone: true, base: desc, name: known.name, kind, where, pos: pos.map((n) => Math.round(n * 10) / 10), rot: poseRot(kind, rotIn), hostile: !!hostile, by: profile(a), at: new Date().toISOString() };
+      registry().push(entry);
+      saveRegistry();
+      writeZones();
+      if (opts.undo !== false) pushUndo(a, { op: 'placed', id: entry.id });
+      audit(`PLACE ${who(a)} placed ${known.name} (${desc}), ${hostile ? 'hostile' : 'friendly'}, at ${entry.pos.map(Math.round).join(', ')} in ${where}, zone ${ZONE_PREFIX}${entry.id}`);
+      return { ok: true, text: `Placed ${known.name}.`, entry };
+    }
 
     // PlaceAtMe starts the new reference on the GM, in the GM's cell; it is moved to the chosen spot at once
     const res = papyrus('PlaceAtMe', a, [{ type: 'espm', desc }, 1, false, false]);
     if (!res || !res.desc) return { ok: false, text: 'The server could not create it.' };
     const id = mp.getIdFromDesc(res.desc) >>> 0;
-    const rot = [0, 0, ((rotZ % 360) + 360) % 360];
+    const rot = poseRot(kind, rotIn);
     if (kind === 'npc') {
-      const loc = { cellOrWorldDesc: where, pos, rot };
-      mp.set(id, 'locationalData', loc);
-      mp.set(id, 'spawnPoint', loc);
       mp.set(id, 'spawnDelay', NEVER_RESPAWN);
       mp.set(id, 'ff_hostile', !!hostile);
-    } else {
-      papyrus('SetPosition', id, [pos[0], pos[1], pos[2]]);
-      papyrus('SetAngle', id, [rot[0], rot[1], rot[2]]);
     }
-    // Clients already watching the GM saw it appear on them; re-sending it puts it where it now stands
-    mp.set(id, 'isDisabled', true);
-    mp.set(id, 'isDisabled', false);
+    // Clients already watching the GM saw it appear on them; applyPose re-sends it where it now stands
+    applyPose(id, kind, where, pos, rot);
     const entry = { id: hex(id), base: desc, name: known.name, kind, where, pos: pos.map((n) => Math.round(n * 10) / 10), rot, hostile: kind === 'npc' ? !!hostile : undefined, by: Number(mp.get(a, 'profileId')), at: new Date().toISOString() };
     mp.set(id, TAG, { base: desc, kind, by: entry.by, at: entry.at });
     registry().push(entry);
     saveRegistry();
+    if (opts.undo !== false) pushUndo(a, { op: 'placed', id: entry.id });
     audit(`PLACE ${who(a)} placed ${known.name} (${desc})${kind === 'npc' ? (hostile ? ', hostile' : ', friendly') : ''} at ${entry.pos.map(Math.round).join(', ')} in ${where}, ref ${entry.id}`);
-    return { ok: true, text: `Placed ${known.name}.` };
+    return { ok: true, text: `Placed ${known.name}.`, entry };
   };
 
-  const remove = (a, idHex) => {
-    const id = parseInt(String(idHex || ''), 16) >>> 0;
-    if (!id) return { ok: false, text: 'Aim at something first.' };
-    let tag = null;
-    try { tag = mp.get(id, TAG); } catch (e) { /* not a reference */ }
-    const listed = registry().find((p) => p.id === hex(id)) || null;
-    if (!mayChange(a, listed || (tag ? { by: Number(tag.by) } : null))) return { ok: false, text: `Another GM placed that; changing their placements is ${needs('others')}.` };
+  const remove = (a, idHex, opts = {}) => {
+    const target = resolveTarget(idHex);
+    if (!target.ref && !target.entry) return { ok: false, text: String(idHex || '') ? 'Only things placed with the Place tab can be removed this way.' : 'Aim at something first.' };
+    const listed = target.entry;
+    if (!mayChange(a, listed || (target.tag ? { by: Number(target.tag.by) } : null))) return { ok: false, text: `Another GM placed that; changing their placements is ${needs('others')}.` };
+    if (listed && listed.zone) {
+      // The zone goes from NPC-Spawns.json and npcSpawnSystem takes its NPC away on reload
+      const list = registry();
+      list.splice(list.indexOf(listed), 1);
+      saveRegistry();
+      writeZones();
+      if (opts.undo !== false) pushUndo(a, { op: 'removed', entry: Object.assign({}, listed) });
+      audit(`PLACE ${who(a)} removed ${listed.name} (${listed.base}), zone ${ZONE_PREFIX}${listed.id}`);
+      return { ok: true, text: `Removed ${listed.name}.` };
+    }
+    const id = target.ref;
+    const tag = target.tag;
     if (!tag) {
       // Listed but no longer in the world (removed some other way): only the list entry goes
       const list = registry();
@@ -155,9 +262,163 @@ module.exports = (api) => {
     const at = list.findIndex((p) => p.id === hex(id));
     const entry = at >= 0 ? list.splice(at, 1)[0] : null;
     saveRegistry();
+    if (entry && opts.undo !== false) pushUndo(a, { op: 'removed', entry: Object.assign({}, entry) });
     audit(`PLACE ${who(a)} removed ${entry ? entry.name : 'a placed thing'} (${tag.base || '?'}), ref ${hex(id)}`);
     return { ok: true, text: `Removed ${entry ? entry.name : 'it'}.` };
   };
+
+  const move = (a, idHex, pos, rotIn, opts = {}) => {
+    const entry = registry().find((p) => p.id === String(idHex || '').toLowerCase());
+    if (!entry) return { ok: false, text: 'That placement is not on the list.' };
+    if (!mayChange(a, entry)) return { ok: false, text: `Another GM placed that; changing their placements is ${needs('others')}.` };
+    const id = entry.zone ? 0 : parseInt(entry.id, 16) >>> 0;
+    let tag = null;
+    if (!entry.zone) { try { tag = mp.get(id, TAG); } catch (e) { /* gone */ } }
+    if (!entry.zone && !tag) return { ok: false, text: `${entry.name} is no longer in the world.` };
+    const where = String(mp.get(a, 'worldOrCellDesc') || '');
+    const me = mp.get(a, 'pos');
+    if (!where || !Array.isArray(me)) return { ok: false, text: 'Your position is not known yet.' };
+    // A move never changes the cell: the server keeps a reference's cell as it was placed
+    if (!sameWhere(where, entry.where)) return { ok: false, text: `${entry.name} is in another cell or world; go to it first.` };
+    if (!opts.anyReach && Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) > MAX_REACH) return { ok: false, text: 'Too far away to move it there.' };
+    const rot = poseRot(entry.kind, rotIn);
+    const from = { pos: entry.pos.slice(), rot: (entry.rot || [0, 0, 0]).slice() };
+    // A zone NPC moves with its zone: the changed zone is placed again where it now stands on reload
+    if (!entry.zone) applyPose(id, entry.kind, entry.where, pos, rot);
+    entry.pos = pos.map((n) => Math.round(n * 10) / 10);
+    entry.rot = rot;
+    entry.movedAt = new Date().toISOString();
+    saveRegistry();
+    if (entry.zone) writeZones();
+    if (opts.undo !== false) pushUndo(a, { op: 'moved', id: entry.id, from });
+    audit(`PLACE ${who(a)} moved ${entry.name}, ref ${entry.id}, to ${entry.pos.map(Math.round).join(', ')} facing ${rot.map(Math.round).join('/')}`);
+    return { ok: true, text: `Moved ${entry.name}.` };
+  };
+
+  const undo = (a) => {
+    const l = undoList(a);
+    const act = l.pop();
+    if (!act) return { ok: false, text: 'Nothing to undo.' };
+    let r;
+    if (act.op === 'placed') {
+      const entry = registry().find((p) => p.id === act.id);
+      // Removed since (by another GM, or by the list): nothing to take back, the step is used up
+      if (!entry) r = { ok: false, text: 'Skipped a placement that is already gone; press Undo again for the step before.' };
+      else {
+        r = remove(a, act.id, { undo: false });
+        if (r.ok) r.text = `Took back placing ${entry.name}.`;
+      }
+    } else if (act.op === 'group') {
+      let n = 0;
+      for (const id of act.ids) if (registry().some((p) => p.id === id) && remove(a, id, { undo: false }).ok) n++;
+      r = { ok: n > 0, text: n ? `Took back the set "${act.name}": ${n} placement(s).` : `The set "${act.name}" is already gone.` };
+    } else if (act.op === 'removedGroup') {
+      if (act.entries.length && !sameWhere(mp.get(a, 'worldOrCellDesc'), act.entries[0].where)) {
+        l.push(act);
+        return { ok: false, text: 'Go back to where that group stood to bring it back.' };
+      }
+      let n = 0;
+      for (const e of act.entries) {
+        const back = place(a, e.base, e.kind, e.pos, e.rot || [0, 0, 0], e.hostile, { undo: false, anyReach: true });
+        if (back.ok) { back.entry.group = e.group; n++; }
+      }
+      saveRegistry();
+      r = { ok: n > 0, text: `Brought the group back: ${n} placement(s).` };
+    } else if (act.op === 'moved') {
+      r = move(a, act.id, act.from.pos, act.from.rot, { undo: false, anyReach: true });
+      if (r.ok) r.text = r.text.replace(/^Moved (.*)\.$/, 'Moved $1 back.');
+    } else {
+      const e = act.entry;
+      if (!can(a, 'place') || (e.kind === 'npc' && e.hostile && !can(a, 'hostile'))) r = { ok: false, text: `Bringing it back is placing, which is ${needs(e.kind === 'npc' && e.hostile ? 'hostile' : 'place')}.` };
+      else if (!sameWhere(mp.get(a, 'worldOrCellDesc'), e.where)) {
+        // Kept for later: it can only be put back from its own cell or world
+        l.push(act);
+        return { ok: false, text: `Go back to where ${e.name} stood to bring it back.` };
+      } else {
+        r = place(a, e.base, e.kind, e.pos, e.rot || [0, 0, 0], e.hostile, { undo: false, anyReach: true });
+        if (r.ok) {
+          // Older steps about the removed reference now mean the new one
+          for (const x of l) if (x.id === e.id) x.id = r.entry.id;
+          r.text = `Brought ${e.name} back.`;
+        }
+      }
+    }
+    return r;
+  };
+
+  // ---- sets: a group of placements saved by offset from the GM, put down again anywhere as one group ----
+  const sets = () => {
+    if (S.sets) return S.sets;
+    try { S.sets = JSON.parse(fs.readFileSync(SETS_FILE, 'utf8')); } catch (e) { S.sets = {}; }
+    if (!S.sets || typeof S.sets !== 'object' || Array.isArray(S.sets)) S.sets = {};
+    return S.sets;
+  };
+  const saveSets = () => {
+    try { fs.writeFileSync(SETS_FILE + '.tmp', JSON.stringify(sets(), null, 1)); fs.renameSync(SETS_FILE + '.tmp', SETS_FILE); }
+    catch (e) { log('placement: saving placement-sets.json failed', e.message); }
+  };
+  const setName = (raw) => String(raw || '').replace(/[^\w '\-]/g, '').trim().slice(0, 40);
+  const sendSets = (a) => sendPacket(a, { customPacketType: 'adminPlaceSets', sets: Object.keys(sets()).sort((x, y) => x.localeCompare(y)).map((name) => ({ name, count: sets()[name].items.length, by: sets()[name].by, at: sets()[name].at })) });
+
+  const saveSet = (a, rawName, rawRadius) => {
+    const name = setName(rawName);
+    if (!name) return { ok: false, text: 'Give the set a name (letters, digits, spaces).' };
+    const existing = sets()[name];
+    if (existing && existing.by !== profile(a) && !can(a, 'others')) return { ok: false, text: `Another GM saved "${name}"; replacing it is ${needs('others')}.` };
+    const where = String(mp.get(a, 'worldOrCellDesc') || '');
+    const me = mp.get(a, 'pos');
+    if (!where || !Array.isArray(me)) return { ok: false, text: 'Your position is not known yet.' };
+    const metres = Math.max(1, Math.min(SET_RADIUS.max, Number(rawRadius) || SET_RADIUS.def));
+    const near = registry().filter((p) => sameWhere(p.where, where) && Math.hypot(p.pos[0] - me[0], p.pos[1] - me[1], p.pos[2] - me[2]) <= metres * 70 && mayChange(a, p));
+    if (!near.length) return { ok: false, text: `Nothing you may use is placed within ${metres} m of you.` };
+    if (near.length > SET_MAX) return { ok: false, text: `${near.length} placements are within ${metres} m; a set holds ${SET_MAX}. Stand closer or use a smaller radius.` };
+    const round = (n) => Math.round(n * 10) / 10;
+    sets()[name] = { by: profile(a), at: new Date().toISOString(), items: near.map((p) => ({ base: p.base, kind: p.kind, name: p.name, hostile: p.kind === 'npc' ? !!p.hostile : undefined, offset: [0, 1, 2].map((i) => round(p.pos[i] - me[i])), rot: (p.rot || [0, 0, 0]).slice() })) };
+    saveSets();
+    audit(`PLACE ${who(a)} saved the set "${name}": ${near.length} placement(s) within ${metres} m`);
+    return { ok: true, text: `Saved "${name}": ${near.length} placement(s).` };
+  };
+
+  const placeSet = (a, rawName) => {
+    const name = setName(rawName);
+    const set = sets()[name];
+    if (!set) return { ok: false, text: `No set is called "${name}".` };
+    if (!can(a, 'place')) return { ok: false, text: `Placing is ${needs('place')}.` };
+    const hostileOk = can(a, 'hostile');
+    const me = mp.get(a, 'pos');
+    if (!Array.isArray(me)) return { ok: false, text: 'Your position is not known yet.' };
+    const group = `${name}#${Date.now().toString(36)}`;
+    const ids = [];
+    let skipped = 0;
+    for (const it of set.items) {
+      const pos = [0, 1, 2].map((i) => me[i] + it.offset[i]);
+      const r = place(a, it.base, it.kind, pos, it.rot || [0, 0, 0], it.kind === 'npc' && it.hostile && hostileOk, { undo: false, anyReach: true });
+      if (r.ok) { r.entry.group = group; ids.push(r.entry.id); } else skipped++;
+    }
+    if (!ids.length) return { ok: false, text: `Nothing of "${name}" could be placed.` };
+    saveRegistry();
+    pushUndo(a, { op: 'group', ids, name });
+    audit(`PLACE ${who(a)} put down the set "${name}" (${ids.length} placement(s)${skipped ? `, ${skipped} failed` : ''}), group ${group}`);
+    return { ok: true, text: `Put down "${name}": ${ids.length} placement(s)${skipped ? `, ${skipped} could not be placed` : ''}.` };
+  };
+
+  const clearGroup = (a, idHex) => {
+    const { entry } = resolveTarget(idHex);
+    if (!entry || !entry.group) return { ok: false, text: 'That placement is not part of a set that was put down.' };
+    const members = registry().filter((p) => p.group === entry.group);
+    if (members.some((p) => !mayChange(a, p))) return { ok: false, text: `Another GM placed part of that group; changing their placements is ${needs('others')}.` };
+    const removed = [];
+    for (const p of members) {
+      const r = remove(a, p.id, { undo: false });
+      if (r.ok) removed.push(Object.assign({}, p));
+    }
+    pushUndo(a, { op: 'removedGroup', entries: removed });
+    audit(`PLACE ${who(a)} cleared the group ${entry.group}: ${removed.length} placement(s)`);
+    return { ok: true, text: `Removed the group: ${removed.length} placement(s).` };
+  };
+
+  // The file follows the list, also after a hot reload or a restore of the list
+  if (AS_ZONES) writeZones();
 
   onUi('placeCatalog', (a) => {
     if (!isAdmin(a)) return;
@@ -178,7 +439,7 @@ module.exports = (api) => {
   };
   const sendList = (a) => {
     const { rows, here, total } = nearby(a, 50);
-    const items = rows.map(({ p, d }) => ({ id: p.id, name: p.name, kind: p.kind, hostile: p.hostile, dist: Math.round(d / 70), by: p.by, at: p.at }));
+    const items = rows.map(({ p, d }) => ({ id: p.id, base: p.base, name: p.name, kind: p.kind, hostile: p.hostile, dist: Math.round(d / 70), by: p.by, at: p.at, pos: p.pos, rot: p.rot || [0, 0, 0], mine: p.by === profile(a), group: p.group || '' }));
     sendPacket(a, { customPacketType: 'adminPlacements', items, here, total });
   };
 
@@ -202,10 +463,12 @@ module.exports = (api) => {
     const kind = args[1] === 'npc' ? 'npc' : 'object';
     const pos = Array.isArray(args[2]) ? args[2].slice(0, 3).map(num) : [];
     const rotZ = num(args[3]);
+    // Objects may be tilted: [pitch, roll] in degrees; anything unusable counts as level
+    const tilt = Array.isArray(args[5]) ? args[5].slice(0, 2).map(num).map((n) => (Number.isNaN(n) ? 0 : n)) : [0, 0];
     let r;
     if (pos.length !== 3 || pos.some(Number.isNaN) || Number.isNaN(rotZ)) r = { ok: false, text: 'Placement refused: a bad position.' };
     else {
-      try { r = place(a, desc, kind, pos, rotZ, args[4] === true); }
+      try { r = place(a, desc, kind, pos, [tilt[0] || 0, tilt[1] || 0, rotZ], args[4] === true); }
       catch (e) { log('placement failed', e.stack || e.message); r = { ok: false, text: 'Placement failed; see the server log.' }; }
     }
     log(`placement: placeObject ${what} at ${pos.map((n) => Math.round(n)).join(',')} from ${who(a)}: ${r.ok ? 'placed' : 'refused'} (${r.text})`);
@@ -251,6 +514,66 @@ module.exports = (api) => {
     });
   });
 
+  onUi('placeMove', (a, args) => {
+    const idHex = String(args[0] || '');
+    if (!isAdmin(a)) { log(`placement: placeMove ${idHex} from ${who(a)} refused: not an admin`); return; }
+    const pos = Array.isArray(args[1]) ? args[1].slice(0, 3).map(num) : [];
+    const rot = Array.isArray(args[2]) ? args[2].slice(0, 3).map(num) : [];
+    let r;
+    if (pos.length !== 3 || rot.length !== 3 || pos.concat(rot).some(Number.isNaN)) r = { ok: false, text: 'Move refused: a bad position.' };
+    else {
+      try { r = move(a, idHex, pos, rot); }
+      catch (e) { log('placement move failed', e.stack || e.message); r = { ok: false, text: 'The move failed; see the server log.' }; }
+    }
+    log(`placement: placeMove ${idHex} to ${pos.map((n) => Math.round(n)).join(',')} from ${who(a)}: ${r.ok ? 'moved' : 'refused'} (${r.text})`);
+    personal(a, r.text);
+  });
+
+  // The select tool aimed at something: if it was placed with the tab and this GM may change it, the client edits it
+  onUi('placeSelect', (a, args) => {
+    if (!isAdmin(a)) return;
+    const { entry, tag } = resolveTarget(args[0]);
+    const tagged = !!tag;
+    if (!entry) return personal(a, tagged ? 'That was placed with the tab but is missing from the list.' : 'Only things placed with the Place tab can be edited.');
+    if (!mayChange(a, entry)) return personal(a, `Another GM placed that; changing their placements is ${needs('others')}.`);
+    sendPacket(a, { customPacketType: 'placeEdit', id: entry.id, base: entry.base, name: entry.name, kind: entry.kind, hostile: !!entry.hostile, pos: entry.pos, rot: entry.rot || [0, 0, 0] });
+  });
+
+  onUi('placeUndo', (a, args) => {
+    if (!isAdmin(a)) return;
+    let r;
+    try { r = undo(a); }
+    catch (e) { log('placement undo failed', e.stack || e.message); r = { ok: false, text: 'Undo failed; see the server log.' }; }
+    log(`placement: placeUndo from ${who(a)}: ${r.ok ? 'done' : 'refused'} (${r.text})`);
+    personal(a, r.text);
+    if (args[0] === 'list') sendList(a);
+  });
+
+  const setEvent = (event, fn) => onUi(event, (a, args) => {
+    if (!isAdmin(a)) return;
+    let r;
+    try { r = fn(a, args); }
+    catch (e) { log(`placement ${event} failed`, e.stack || e.message); r = { ok: false, text: 'That failed; see the server log.' }; }
+    log(`placement: ${event} ${JSON.stringify(args).slice(0, 120)} from ${who(a)}: ${r.ok ? 'done' : 'refused'} (${r.text})`);
+    personal(a, r.text);
+    sendSets(a);
+    sendList(a);
+  });
+  onUi('placeSets', (a) => { if (isAdmin(a)) sendSets(a); });
+  setEvent('placeSetSave', (a, args) => saveSet(a, args[0], args[1]));
+  setEvent('placeSetPlace', (a, args) => placeSet(a, args[0]));
+  setEvent('placeSetDelete', (a, args) => {
+    const name = setName(args[0]);
+    const set = sets()[name];
+    if (!set) return { ok: false, text: `No set is called "${name}".` };
+    if (set.by !== profile(a) && !can(a, 'others')) return { ok: false, text: `Another GM saved "${name}"; deleting it is ${needs('others')}.` };
+    delete sets()[name];
+    saveSets();
+    audit(`PLACE ${who(a)} deleted the set "${name}"`);
+    return { ok: true, text: `Deleted the set "${name}".` };
+  });
+  setEvent('placeGroupClear', (a, args) => clearGroup(a, args[0]));
+
   onUi('placeList', (a) => {
     if (!isAdmin(a)) return;
     sendList(a);
@@ -263,6 +586,12 @@ module.exports = (api) => {
     catch (e) { log('placement goto failed', e.stack || e.message); r = { ok: false, text: 'Could not move you there; see the server log.' }; }
     personal(a, r.text);
   });
+
+  registerChatCommand('placeundo', (a) => {
+    const r = undo(a);
+    log(`placement: /placeundo from ${who(a)}: ${r.ok ? 'done' : 'refused'} (${r.text})`);
+    personal(a, r.text);
+  }, { admin: true, help: 'take back your last place, move or remove (Place tab)' });
 
   registerChatCommand('placed', (a) => {
     const { rows, total } = nearby(a, 10);

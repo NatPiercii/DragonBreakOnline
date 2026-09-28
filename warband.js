@@ -8,6 +8,7 @@
 //
 //   /warband raise <name or id> [count] | follow | stay | attack <player> | unleash | settle | dismiss
 //   /raid [clear]
+// The Place tab's Warband view sends the same text as dbo warband [text] and dbo raid [text].
 //
 // companionSystem.ts exposes globalThis.__dboCompanions (spawn, follow, stay, attack, list, dismiss, release).
 
@@ -15,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg } = api;
+  const { mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg, onUi } = api;
   const C = Object.assign({ maxBand: 25, maxRaise: 10, ringRadius: 160 }, cfg.warband || {});
   // released: [{ id, name, by, at, hostile }]
   const S = globalThis.__dboWarband || (globalThis.__dboWarband = { npcs: null, names: new Map(), released: [] });
@@ -92,7 +93,7 @@ module.exports = (api) => {
       : `Your warband of ${done} stays here as friendly NPCs until the next restart; /raid clear removes them sooner.`);
   };
 
-  registerChatCommand('warband', (a, args) => {
+  const warbandCmd = (a, args) => {
     if (!isAdmin(a)) return personal(a, 'Only staff lead warbands.');
     if (!comp()) return personal(a, 'The companion system has not exposed its warband hook yet (needs the server update).');
     const text = String(args || '').trim();
@@ -125,9 +126,10 @@ module.exports = (api) => {
       return personal(a, `Your warband of ${mine.length}: ${[...count].map(([k, v]) => `${v} ${k}`).join(', ')}.`);
     }
     personal(a, 'Usage: /warband raise <name or id> [count] | follow | stay | attack <player> | unleash | settle | dismiss');
-  }, { admin: true, help: 'raise <npc> [n] | follow | stay | attack <player> | unleash | settle | dismiss: NPCs that follow you, and raids' });
+  };
+  registerChatCommand('warband', warbandCmd, { admin: true, help: 'raise <npc> [n] | follow | stay | attack <player> | unleash | settle | dismiss: NPCs that follow you, and raids' });
 
-  registerChatCommand('raid', (a, args) => {
+  const raidCmd = (a, args) => {
     if (!isAdmin(a)) return personal(a, 'Only staff run raids.');
     const alive = [];
     for (const r of S.released) {
@@ -145,5 +147,12 @@ module.exports = (api) => {
     personal(a, alive.length
       ? `${raiders} raider(s) and ${alive.length - raiders} settled NPC(s) still stand. /raid clear removes them.`
       : 'No unleashed or settled NPCs stand.');
-  }, { admin: true, help: '[clear]: unleashed raiders and settled warbands still standing' });
+  };
+  registerChatCommand('raid', raidCmd, { admin: true, help: '[clear]: unleashed raiders and settled warbands still standing' });
+
+  // The Place tab's Warband view: the same commands, sent from buttons
+  if (typeof onUi === 'function') {
+    onUi('warband', (a, args) => warbandCmd(a, String(args[0] || '')));
+    onUi('raid', (a, args) => raidCmd(a, String(args[0] || '')));
+  }
 };

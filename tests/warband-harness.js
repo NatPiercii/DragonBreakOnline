@@ -33,6 +33,7 @@ globalThis.__dboCompanions = {
 };
 const said = [];
 const commands = {};
+const ui = {};
 require(MODULE)({
   mp: {
     get: (id, k) => { if (destroyed.has(id)) throw new Error('gone'); if (k === 'pos') return [1000, 2000, 300]; if (k === 'angle') return [0, 0, 90]; if (k === 'isDead') return dead.has(id); return undefined; },
@@ -41,6 +42,7 @@ require(MODULE)({
   },
   log: () => {}, personal: (a, t) => said.push([a, t]), audit: () => {}, who: (a) => `#${a}`, isAdmin: (a) => a === GM,
   registerChatCommand: (n, fn) => { commands[n] = fn; }, findByName: (q) => (q === 'Target' ? TARGET : 0), cfg: {},
+  onUi: (ev, fn) => { ui[ev] = fn; },
 });
 
 let failures = 0;
@@ -81,6 +83,16 @@ run(GM, 'raise bandit chief 2');
 const before = companions.size;
 run(GM, 'dismiss');
 check('dismiss sends the band away', companions.size === before - 2);
+
+// The Place tab's Warband view sends the same text through dbo warband / dbo raid
+said.length = 0; ui.warband(GM, ['raise bandit chief 2']);
+check('the tab raises a warband like the command', /2 Bandit Chief follow you/.test(said.map((x) => x[1]).join(' | ')), said.map((x) => x[1]).join(' | '));
+said.length = 0; ui.warband(GM, ['dismiss']);
+check('the tab dismisses it like the command', /Dismissed 2/.test(said.map((x) => x[1]).join(' | ')));
+said.length = 0; ui.raid(GM, ['']);
+check('the tab shows the raid like the command', said.length === 1);
+said.length = 0; ui.warband(PLAYER, ['raise bandit chief']);
+check('a player cannot use the tab either', /Only staff/.test(said.map((x) => x[1]).join(' | ')));
 
 process.chdir(home);
 fs.rmSync(dir, { recursive: true, force: true });

@@ -30,6 +30,7 @@ declare -A NEEDS=(
   [summon-race]=server:skymp5-server/ts/systems/espmMagic.ts
   [spawn-refill]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-slots]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
+  [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
