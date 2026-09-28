@@ -44,7 +44,8 @@
         "items": [
           "Several fixes from a security review of this morning's update, including breaking rings down and sharing coin from a dungeon chest.",
           "Hunting contracts are closed for a short while, and renting out storage chests is paused, while they get a fix.",
-          "Long messages in the middle of the screen now wrap instead of running off the edges, and no panel is taller than the screen or cuts its text off."
+          "Long messages in the middle of the screen now wrap instead of running off the edges, and no panel is taller than the screen or cuts its text off.",
+          "Your gold now shows on the HUD, updated the moment you are paid or spend it."
         ]
       },
       {
