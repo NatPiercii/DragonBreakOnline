@@ -81,3 +81,24 @@ test('version strings, loopback and log timestamps are kept', () => {
   // The report's context fields are scrubbed one value at a time, without the key in front
   assert.strictEqual(scrub('1.5.97.0').text, '1.5.97.0')
 })
+
+test('a full IPv6 address with a port after it, as Node writes it, is redacted and the port kept', () => {
+  const log = [
+    'connect ECONNREFUSED 2a02:c7c:1234:5600:a1b2:c3d4:e5f6:7890:443',
+    'connect ECONNREFUSED 2a02:c7c:1234::a1b2:c3d4:e5f6:7890:8080',
+    'bound [2001:db8:85a3:0:0:8a2e:370:7334]:7777',
+  ].join('\n')
+  const { text, redactions } = scrub(log)
+  assert.doesNotMatch(text, /2a02|2001:db8|a1b2|7334/)
+  assert.strictEqual(text, 'connect ECONNREFUSED <ip>:443\nconnect ECONNREFUSED <ip>:8080\nbound [<ip>]:7777')
+  assert.strictEqual(redactions, 3)
+})
+
+test('link-local and unique local IPv6 addresses are marked as LAN ones', () => {
+  const log = 'via fe80::1a2b:3cff:fe4d:5e6f%eth0 and fd12:3456:789a::1 and [febf::1]:53'
+  const { text, redactions } = scrub(log)
+  assert.strictEqual(text, 'via <lan-ip>%eth0 and <lan-ip> and [<lan-ip>]:53')
+  assert.strictEqual(redactions, 3)
+  // Short hex runs that are not an address stay
+  assert.strictEqual(scrub('fdab:1234:5678 fe80 fc00:1').text, 'fdab:1234:5678 fe80 fc00:1')
+})

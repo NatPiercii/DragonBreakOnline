@@ -17,9 +17,15 @@ function ipv4(found, offset, text) {
   return lan ? '<lan-ip>' : '<ip>'
 }
 
-// Global IPv6 only (2000::/3), and only a full or '::' shortened form, so timestamps and C++ names are left alone
+// Global (2000::/3), unique local (fc00::/7) and link-local (fe80::/10, can hold the MAC) IPv6, full or '::' form only
 function ipv6(found) {
-  return found.includes('::') || found.split(':').length === 8 ? '<ip>' : found
+  const groups = found.split(':')
+  const short = found.includes('::')
+  const tag = /^f/i.test(found) ? '<lan-ip>' : '<ip>'
+  const port = groups[groups.length - 1]
+  // A ninth group, or an eighth written beside '::', can only be a port, as in Node's "ECONNREFUSED <addr>:443"
+  if (/^\d{1,5}$/.test(port) && (short ? groups.filter(Boolean).length >= 8 : groups.length === 9)) return `${tag}:${port}`
+  return short || groups.length === 8 ? tag : found
 }
 
 const RULES = [
@@ -37,7 +43,7 @@ const RULES = [
   // Long hex runs are hwids, session tokens and file hashes. Keep a short prefix so hashes stay comparable.
   [/\b([0-9a-f]{8})[0-9a-f]{24,120}\b/gi, '$1<redacted>'],
   [new RegExp(`(?<![\\w.])${OCTET}(?:\\.${OCTET}){3}(?!\\w|\\.\\d)`, 'g'), ipv4],
-  [/(?<![\w:.])[23][0-9a-f]{3}(?::[0-9a-f]{0,4}){2,7}(?![\w:])/gi, ipv6],
+  [/(?<![\w:.])(?:[23][0-9a-f]{3}|f[cd][0-9a-f]{2}|fe[89ab][0-9a-f])(?::[0-9a-f]{0,4}){2,8}(?![\w:])/gi, ipv6],
 ]
 
 // SkyrimPlatform logs the first 120 characters of every script it runs in the game's UI and every page it loads
