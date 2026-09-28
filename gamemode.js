@@ -2230,7 +2230,8 @@ registerChatCommand('officials', (a, args) => {
 // The candle is baseSeconds plus secondsPerWord for each word, and the sentence grows with the
 // Scholar's tier (wordsByTier). A wrong reading is not the end: it burns wrongPenaltySeconds off the
 // candle, and the words already right from the start lock in. The server holds the deadline; the
-// candle on screen is only a picture of it. A Cyrodiil book (a Beyond Skyrim plugin) reads a Cyrodiil line.
+// candle on screen is only a picture of it. A Cyrodiil book (a Beyond Skyrim plugin) reads a Cyrodiil line, a Skyrim
+// book a Skyrim one, and either may read a line of Tamriel at large.
 const READ = Object.assign({
   enabled: true, baseSeconds: 30, secondsPerWord: 6, wrongPenaltySeconds: 8, graceMs: 2500,
   cooldownMinutes: 30, loseCooldownMinutes: 2,
@@ -2288,7 +2289,7 @@ const READ_LINES = [
   'The Empire signed the Concordat and Skyrim has argued since',
   'Giants herd mammoths the way children herd goats',
   'Ice wraiths guard the passes that no army bothers with',
-  'A bard who lies well is paid better than one who sings well',
+  'A bard who lies well earns more than one who sings well',
   'The Dark Brotherhood listens for the Black Sacrament',
   'Morthal keeps its lanterns lit against more than the marsh',
   'Every mine in the Reach has silver and a story of blood',
@@ -2305,6 +2306,28 @@ const READ_LINES = [
   'Skyrim remembers every insult and forgets every kindness before the thaw',
   'In Riften the Thieves Guild runs the market more than the Jarl',
   'Seven thousand steps lead the pilgrim up to High Hrothgar',
+  // More from the lore books, told in our own words (Nate, 2026-09-28: more lines for the Scholar game). From The Dragon War, The Book of the Dragonborn, Olaf and the Dragon, The Night of Tears, Fall of the Snow Prince and The Falmer: A Study.
+  'Kyne gave men the Voice',
+  'Paarthurnax taught men to shout',
+  'Alduin was cast out of time',
+  'Tsun guards the bridge to Sovngarde',
+  'Olaf One-Eye captured the dragon Numinex',
+  'The Nightingales serve Nocturnal in shadow',
+  'Saarthal burned on the Night of Tears',
+  'The Snow Prince fell at the Moesring',
+  'Jurgen Windcaller turned the Voice to worship',
+  'A girl named Finna slew the Snow Prince',
+  'Dragonsreach was built to hold a captured dragon',
+  'Draugr still guard the barrows of their kings',
+  'Ysgramor sailed back from Atmora to avenge Saarthal',
+  'The Companions gather in Jorrvaskr beneath the Skyforge',
+  'The Night Mother whispers only to her Listener',
+  'The Dwemer blinded the Snow Elves below the earth',
+  'The Dragon War ended at the Throat of the World',
+  'Snow Elves held Skyrim before the Atmorans ever came',
+  'King Harald was the first to rule all of Skyrim',
+  'The Nords of Skyrim came across the sea from Atmora',
+  'Blackreach glows beneath Skyrim with light no sun ever gave',
 ];
 // Read from a book placed by a Beyond Skyrim plugin, which is every book the Bruma playtest can reach.
 const READ_LINES_CYRODIIL = [
@@ -2343,7 +2366,80 @@ const READ_LINES_CYRODIIL = [
   'When the Dragonfires went out all of Tamriel held its breath',
   'A scholar at the Arcane University reads while the whole city sleeps',
   'Traders crossing the Jerall Mountains pay in coin and in frostbitten fingers',
-  "The Emperor's roads were paved so the Legion could march in any season",
+  "The Emperor's roads were paved so the Legion could march all year",
+  // More from the lore books, told in our own words (Nate, 2026-09-28: more lines for the Scholar game). From The Adabal-a, The Remanada, The Arcturian Heresy, The Legendary Sancre Tor, The Wolf Queen and the Oblivion Crisis accounts.
+  'Pelinal fought for Saint Alessia',
+  'The Ayleids raised White-Gold Tower',
+  'Morihaus was the bull of Alessia',
+  'Akatosh blessed the blood of Alessia',
+  'Moth Priests read the Elder Scrolls',
+  'Kvatch burned under an Oblivion sky',
+  'Reman Cyrodiil held the Pale Pass',
+  'Tiber Septim was once called Hjalti',
+  'The Wolf Queen raised the dead',
+  "Anvil's harbour faces the Abecean Sea",
+  'The Ruby Throne sits in White-Gold Tower',
+  'Ayleid wells drink the light of stars',
+  'Varla stones glow in forgotten Ayleid halls',
+  'Sancre Tor sleeps in the Jerall Mountains',
+  'The Blades began as the Akaviri Dragonguard',
+  'Imperials remember Lorkhan by the name Shezarr',
+  'Pale Pass lies high in the Jerall Mountains',
+  'Tiber Septim united Tamriel and became Talos',
+  'Only one of Septim blood could light the Dragonfires',
+  'Saint Alessia led the slaves against their Ayleid masters',
+  'Martin Septim gave his life to banish Mehrunes Dagon',
+  'The Mythic Dawn opened the gates for Mehrunes Dagon',
+  'The Count of Skingrad is rarely seen by daylight',
+  'The Oblivion Crisis ended in the Temple of the One',
+  'Hjalti Early-Beard won Sancre Tor and rose as Tiber Septim',
+  'Martin Septim stood with Bruma when the Great Gate opened',
+  'The Akaviri Potentate held Cyrodiil after the Reman line ended',
+  'Pelinal Whitestrake fought for Alessia with a fury the Ayleids feared',
+  'The Great Forest hides more Ayleid ruins than any map shows',
+  'Reading an Elder Scroll slowly costs a Moth Priest his sight',
+  'Uriel Septim the Seventh was slain in the sewers below the city',
+  'Potema the Wolf Queen raised the dead to take the Ruby Throne',
+  'The War of the Red Diamond turned the Septims against each other',
+];
+// Tamriel at large, read from a book of either province: the lore books' gods, Daedra and other lands, in our own
+// words (The Monomyth, Varieties of Faith, On Oblivion, The Real Barenziah, Nerevar at Red Mountain, Galerion the
+// Mystic, Dragon Break Re-examined, The Lusty Argonian Maid; Nate, 2026-09-28).
+const READ_LINES_TAMRIEL = [
+  'Meridia despises the walking dead',
+  'Vaermina trades dreams for nightmares',
+  'The moons shape every Khajiit',
+  'Sheogorath rules the Shivering Isles',
+  "Lorkhan's heart became Red Mountain",
+  'Molag Bal made the first vampire',
+  'Yokuda sank beneath the western sea',
+  'Azura watches over dusk and dawn',
+  'The Psijics keep the Old Ways',
+  'The Hist whispers to every Argonian',
+  'Vanus Galerion founded the Mages Guild',
+  "Clavicus Vile's bargains always cost too much",
+  'Boethiah led the Chimer away from Summerset',
+  'Hermaeus Mora hoards every secret in Apocrypha',
+  'Peryite oversees the lowest orders of Oblivion',
+  'The Nords call Lorkhan by the name Shor',
+  'Lifts-Her-Tail keeps the house of Crantius Colto',
+  'Few who sail east to Akavir ever come back',
+  'Mundus is the mortal plane between Aetherius and Oblivion',
+  'Barenziah was queen of Mournhold and then of Wayrest',
+  "Kagrenac's tools struck the Heart and the Dwemer vanished",
+  'Lorkhan tricked the other gods into making the mortal world',
+  'Almalexia Sotha Sil and Vivec ruled Morrowind as living gods',
+  'Vanus Galerion left the Psijics to found the Mages Guild',
+  'The Redguards sailed east when Yokuda sank beneath the sea',
+  'Argonians are bound to the Hist trees of Black Marsh',
+  "A Khajiit's form is decided by the moons at birth",
+  "Hircine's Great Hunt begins under the light of a Bloodmoon",
+  'A Sword-Singer of Yokuda could call a blade from pure spirit',
+  'The Altmer of Summerset trace their line back to the Aldmer',
+  'Orsinium has fallen and risen more times than any other city',
+  'Every Daedric Prince rules a realm of Oblivion of their own',
+  'Nerevar fought Dagoth Ur beneath Red Mountain for the Heart of Lorkhan',
+  'The Dragon Break of Middle Dawn lasted a thousand and eight years',
 ];
 const CYRODIIL_PLUGINS = new Set(['bsheartland.esm', 'bsassets.esm']);
 const readSessions = new Map(); // actorId -> { nonce, refId, baseId, title, original, shuffled, startedAt, tier }
@@ -2353,9 +2449,9 @@ const scholarTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.
 const readsOf = (a) => { try { const r = mp.get(a, 'private.scholarReads'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
 const humanize = (edid) => String(edid || 'a book').replace(/^(DLC\d|Book\d*|DA\d+|MS\d+|MQ\d+)/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'a book';
 const shuffleIdx = (n) => { const idx = [...Array(n).keys()]; for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; } return idx; };
-// A line as long as the tier asks for, from the book's own province; the whole list if none fits.
+// A line as long as the tier asks for, from the book's own province or Tamriel at large; the whole list if none fits.
 const readLine = (tier, cyrodiil) => {
-  const lines = cyrodiil ? READ_LINES_CYRODIIL : READ_LINES;
+  const lines = (cyrodiil ? READ_LINES_CYRODIIL : READ_LINES).concat(READ_LINES_TAMRIEL);
   const band = (READ.wordsByTier || [])[Math.max(0, Math.min(tier, (READ.wordsByTier || []).length - 1))] || [6, 9];
   const pool = lines.filter((l) => { const n = l.split(' ').length; return n >= band[0] && n <= band[1]; });
   const from = pool.length ? pool : lines;
@@ -2473,7 +2569,7 @@ onUi('reading', (a, args) => {
   if (gained.length) personal(a, `From your reading: ${gained.join(', ')}.`);
   readSessions.delete(a);
 });
-log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim and ${READ_LINES_CYRODIIL.length} Cyrodiil lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);
+log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim, ${READ_LINES_CYRODIIL.length} Cyrodiil and ${READ_LINES_TAMRIEL.length} Tamriel lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);
 
 // ---- dungeons: one-hour leases, parties, difficulty, locked chests (server\dungeons.js) --------
 try {

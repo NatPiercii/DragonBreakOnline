@@ -128,14 +128,16 @@ let masterOk = true;
 for (let i = 0; i < 40; i++) { wallClock += 3 * 60000; w = open(SKYRIM_BOOK); ui('readingCancel', [w.nonce]); if (w.words.length < 9 || w.words.length > 12) masterOk = false; }
 check('a Master gets 9 to 12 words', masterOk);
 const src2 = section;
-const cyrLines = eval(src2.match(/const READ_LINES_CYRODIIL = (\[[\s\S]*?\r?\n\]);/)[1]);
+// Tamriel at large may be read from a book of either province
+const cyrLines = eval(src2.match(/const READ_LINES_CYRODIIL = (\[[\s\S]*?\r?\n\]);/)[1])
+  .concat(eval(src2.match(/const READ_LINES_TAMRIEL = (\[[\s\S]*?\r?\n\]);/)[1]));
 let cyrOk = true;
 for (let i = 0; i < 40; i++) {
   wallClock += 3 * 60000; w = open(CYRODIIL_BOOK); ui('readingCancel', [w.nonce]);
   const key = w.words.slice().sort().join(' ');
   if (!cyrLines.some((l) => l.split(' ').sort().join(' ') === key)) cyrOk = false;
 }
-check('a Cyrodiil book reads a Cyrodiil line', cyrOk);
+check('a Cyrodiil book reads a Cyrodiil line or one of Tamriel at large', cyrOk);
 
 // ---- a stale round expires ----
 props.set(READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: 0 } } });

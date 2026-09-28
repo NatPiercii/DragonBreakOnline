@@ -1,5 +1,19 @@
 [
   {
+    "title": "More to Read",
+    "date": "2026-09-28",
+    "version": "Server",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Scholar",
+        "items": [
+          "Reading a book now draws from 88 new lines of lore: Saint Alessia and Pelinal, the Remans and the Septims, the Wolf Queen, the Dragon War, the Night of Tears, the Tribunal, the Daedric Princes, the fall of Yokuda and more. Novice readers get far more short lines, so the same sentence comes up much less often."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Leaner Loot",
     "date": "2026-09-28",
     "version": "Server",
