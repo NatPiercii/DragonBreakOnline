@@ -536,15 +536,6 @@
  ],
  "shouts": [
   {
-   "shout": "4c40b:Skyrim.esm",
-   "name": "AlduinFirestormShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
    "shout": "7097b:Skyrim.esm",
    "name": "AuraWhisperShout",
    "words": [
@@ -590,165 +581,12 @@
    ]
   },
   {
-   "shout": "59327:Skyrim.esm",
-   "name": "DA13AfflictedBreathShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "18244:Dawnguard.esm",
-   "name": "DLC1DragonDrainVitalityShout02",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "181b8:Dawnguard.esm",
-   "name": "DLC1DragonDrainVitalityShout03",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "181b7:Dawnguard.esm",
-   "name": "DLC1DragonDrainVitalityShout04",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "181b6:Dawnguard.esm",
-   "name": "DLC1DragonDrainVitalityShout05",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "8442:Dawnguard.esm",
-   "name": "DLC1DragonDrainVitalityShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "c5f9:Dawnguard.esm",
-   "name": "DLC1DragonDrainVitalityShout07",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "843a:Dawnguard.esm",
-   "name": "DLC1DragonFireBallShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "843b:Dawnguard.esm",
-   "name": "DLC1DragonFireBreathShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "c5fa:Dawnguard.esm",
-   "name": "DLC1DragonFireBreathShout07",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "843c:Dawnguard.esm",
-   "name": "DLC1DragonFrostBreathShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "c5fb:Dawnguard.esm",
-   "name": "DLC1DragonFrostBreathShout07",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "843d:Dawnguard.esm",
-   "name": "DLC1DragonFrostIceStormShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "1a165:Dawnguard.esm",
-   "name": "DLC1DragonUndeadSummonShout",
-   "words": [
-    "1a162:Dawnguard.esm",
-    "1a163:Dawnguard.esm",
-    "1a164:Dawnguard.esm"
-   ]
-  },
-  {
    "shout": "8a62:Dawnguard.esm",
    "name": "DLC1DrainVitalityShout",
    "words": [
     "8a65:Dawnguard.esm",
     "8a64:Dawnguard.esm",
     "8a63:Dawnguard.esm"
-   ]
-  },
-  {
-   "shout": "15c39:Dawnguard.esm",
-   "name": "DLC1LD_ForgemasterFireballShout01",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "15c4b:Dawnguard.esm",
-   "name": "DLC1LD_ForgemasterFireballShout02",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "15c4d:Dawnguard.esm",
-   "name": "DLC1LD_ForgemasterFireballShout03",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
    ]
   },
   {
@@ -767,15 +605,6 @@
     "30d4:Dawnguard.esm",
     "30d6:Dawnguard.esm",
     "30d7:Dawnguard.esm"
-   ]
-  },
-  {
-   "shout": "bfed:Dawnguard.esm",
-   "name": "DLC1VQ05DurnehviirShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
    ]
   },
   {
@@ -815,123 +644,6 @@
    ]
   },
   {
-   "shout": "36132:Dragonborn.esm",
-   "name": "DLC2DragonFireBallShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "36131:Dragonborn.esm",
-   "name": "DLC2DragonFireBreathShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "3612b:Dragonborn.esm",
-   "name": "DLC2DragonFrostBreathShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "3612c:Dragonborn.esm",
-   "name": "DLC2DragonFrostIceStormShout06",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "23f7a:Dragonborn.esm",
-   "name": "DLC2MiraakBecomeEtherealShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "23f79:Dragonborn.esm",
-   "name": "DLC2MiraakCycloneShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "38b0f:Dragonborn.esm",
-   "name": "DLC2MiraakDragonAspectShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "38b0b:Dragonborn.esm",
-   "name": "DLC2MiraakElementalFuryShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "382f9:Dragonborn.esm",
-   "name": "DLC2MiraakFakeKillShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "38b0c:Dragonborn.esm",
-   "name": "DLC2MiraakFireBreathShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "38b0d:Dragonborn.esm",
-   "name": "DLC2MiraakFrostBreathShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "38b0e:Dragonborn.esm",
-   "name": "DLC2MiraakUnrelentingForceShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "3547b:Dragonborn.esm",
-   "name": "DLC2MiraakWhirlwindSprintShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
    "shout": "70981:Skyrim.esm",
    "name": "DisarmShout",
    "words": [
@@ -947,204 +659,6 @@
     "3291a:Skyrim.esm",
     "3291b:Skyrim.esm",
     "3291c:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "16c40:Skyrim.esm",
-   "name": "DragonDisarmShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "4dba5:Skyrim.esm",
-   "name": "DragonFireBallShout01",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f80f7:Skyrim.esm",
-   "name": "DragonFireBallShout02",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "feaa0:Skyrim.esm",
-   "name": "DragonFireBallShout03",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f8108:Skyrim.esm",
-   "name": "DragonFireBallShout04",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10c4df:Skyrim.esm",
-   "name": "DragonFireBallShout05",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "252c0:Skyrim.esm",
-   "name": "DragonFireBreathShout01",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f80f8:Skyrim.esm",
-   "name": "DragonFireBreathShout02",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "fea9d:Skyrim.esm",
-   "name": "DragonFireBreathShout03",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f8109:Skyrim.esm",
-   "name": "DragonFireBreathShout04",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10c4e0:Skyrim.esm",
-   "name": "DragonFireBreathShout05",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f80fb:Skyrim.esm",
-   "name": "DragonFrostBreathShout01",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "549b2:Skyrim.esm",
-   "name": "DragonFrostBreathShout02",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f8100:Skyrim.esm",
-   "name": "DragonFrostBreathShout03",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f810a:Skyrim.esm",
-   "name": "DragonFrostBreathShout04",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10c4e1:Skyrim.esm",
-   "name": "DragonFrostBreathShout05",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f80f9:Skyrim.esm",
-   "name": "DragonFrostIceStormShout01",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "dd607:Skyrim.esm",
-   "name": "DragonFrostIceStormShout02",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f8101:Skyrim.esm",
-   "name": "DragonFrostIceStormShout03",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "f810b:Skyrim.esm",
-   "name": "DragonFrostIceStormShout04",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10c4e2:Skyrim.esm",
-   "name": "DragonFrostIceStormShout05",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "16cf0:Skyrim.esm",
-   "name": "DragonUnrelentingForceShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
    ]
   },
   {
@@ -1184,121 +698,12 @@
    ]
   },
   {
-   "shout": "10f72d:Skyrim.esm",
-   "name": "GreybeardDisarmShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10f733:Skyrim.esm",
-   "name": "GreybeardDismay",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10f734:Skyrim.esm",
-   "name": "GreybeardElementalFuryShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10f72e:Skyrim.esm",
-   "name": "GreybeardFireBreathShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10f72f:Skyrim.esm",
-   "name": "GreybeardFrostBreathShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10f730:Skyrim.esm",
-   "name": "GreybeardIceFormShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10f732:Skyrim.esm",
-   "name": "GreybeardUnrelentingForceShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10f731:Skyrim.esm",
-   "name": "GreybeardWhirlwindSprintShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "e5f68:Skyrim.esm",
-   "name": "HowlWerewolfCallOfTheWild",
-   "words": [
-    "e5f65:Skyrim.esm",
-    "e5f66:Skyrim.esm",
-    "e5f67:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "ce218:Skyrim.esm",
-   "name": "HowlWerewolfDetectLife",
-   "words": [
-    "ce219:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "cf790:Skyrim.esm",
-   "name": "HowlWerewolfFear",
-   "words": [
-    "cf78e:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "cf79b:Skyrim.esm",
-   "name": "HowlWerewolfSummonWolves",
-   "words": [
-    "cf78f:Skyrim.esm"
-   ]
-  },
-  {
    "shout": "70980:Skyrim.esm",
    "name": "IceFormShout",
    "words": [
     "602a3:Skyrim.esm",
     "602a4:Skyrim.esm",
     "602a5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "e40cb:Skyrim.esm",
-   "name": "ImperialVoiceOfTheEmperor",
-   "words": [
-    "e40cc:Skyrim.esm"
    ]
   },
   {
@@ -1311,108 +716,12 @@
    ]
   },
   {
-   "shout": "10fe1b:Skyrim.esm",
-   "name": "LShoutDragonFrostBreath",
-   "words": [
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10fe22:Skyrim.esm",
-   "name": "L_DragonFireBallShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10fe21:Skyrim.esm",
-   "name": "L_DragonFireBreathShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10fe23:Skyrim.esm",
-   "name": "L_DragonFrostBreathShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "10fe24:Skyrim.esm",
-   "name": "L_DragonFrostIceStormShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "107580:Skyrim.esm",
-   "name": "MQ101DragonUnrelentingForceShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "2f2df:Skyrim.esm",
-   "name": "MQ105PhantomFormShout",
-   "words": [
-    "2f2cc:Skyrim.esm",
-    "2f2cd:Skyrim.esm",
-    "2f2ce:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "7a4c8:Skyrim.esm",
-   "name": "MQ105WhirlwindSprintShout",
-   "words": [
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm",
-    "ff8d7:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "101cec:Skyrim.esm",
-   "name": "MQ206AlduinFirestormShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "549b1:Skyrim.esm",
-   "name": "MQDragonIceSpikeVolleyShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
    "shout": "7097c:Skyrim.esm",
    "name": "MarkedforDeathShout",
    "words": [
     "60297:Skyrim.esm",
     "60298:Skyrim.esm",
     "60299:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "e40c4:Skyrim.esm",
-   "name": "NordBattleCry",
-   "words": [
-    "e40c5:Skyrim.esm"
    ]
   },
   {
@@ -1452,15 +761,6 @@
    ]
   },
   {
-   "shout": "9de93:Skyrim.esm",
-   "name": "UnrelentingForceShoutDraugr",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
    "shout": "2f7ba:Skyrim.esm",
    "name": "WhirlwindSprintShout",
    "words": [
@@ -1470,53 +770,12 @@
    ]
   },
   {
-   "shout": "e40d1:Skyrim.esm",
-   "name": "WoodElfBeastTongue",
-   "words": [
-    "e40d2:Skyrim.esm"
-   ]
-  },
-  {
    "shout": "5fc77:Skyrim.esm",
    "name": "animalAllegianceShout",
    "words": [
     "60291:Skyrim.esm",
     "60292:Skyrim.esm",
     "60293:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "39d28:Dragonborn.esm",
-   "name": "dlc2MKMiraakMaskShoutShout",
-   "words": [
-    "39d29:Dragonborn.esm"
-   ]
-  },
-  {
-   "shout": "e4908:Skyrim.esm",
-   "name": "dunCGAlduinFireBreathShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "b2387:Skyrim.esm",
-   "name": "dunCGDragonStormCallShout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c4:Skyrim.esm",
-    "252c5:Skyrim.esm"
-   ]
-  },
-  {
-   "shout": "5ba68:Journey to Baan Malur.esp",
-   "name": "mihailcorpruspukeshout",
-   "words": [
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm",
-    "252c3:Skyrim.esm"
    ]
   }
  ],

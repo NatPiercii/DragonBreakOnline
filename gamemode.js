@@ -3341,7 +3341,7 @@ let combat = null;
 try {
   const COMBAT_JS = path.resolve('combat.js');
   delete require.cache[COMBAT_JS];
-  combat = require(COMBAT_JS)({ mp, log, profileOf, masteryOf, wornOf, recordOf, fieldsOf, weaponSkillOf, display, cfg });
+  combat = require(COMBAT_JS)({ mp, log, profileOf, masteryOf, wornOf, recordOf, fieldsOf, weaponSkillOf, display, cfg, sendPacket });
 } catch (e) { log('combat.js failed to load:', e.stack || e.message); combat = null; }
 // Below 1 when the target's Defense tier makes its armor count for more than the engine allowed it
 const defenseDamageMult = (targetId) => {

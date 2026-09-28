@@ -17,7 +17,7 @@
 // server-spawned NPCs, and NPC attackers staggering players locked them in place in PvE.
 
 module.exports = (api) => {
-  const { mp, log, profileOf, masteryOf, wornOf, recordOf, fieldsOf, weaponSkillOf, display, cfg } = api;
+  const { mp, log, profileOf, masteryOf, wornOf, recordOf, fieldsOf, weaponSkillOf, display, cfg, sendPacket } = api;
   const C = Object.assign({
     enabled: true, log: true, playersOnly: true,
     weaponChip: 0.30, shieldChip: 0.15, chipPerDefenseTier: 0.05,
@@ -29,6 +29,11 @@ module.exports = (api) => {
     // Spells whose hit staggers a player instead of the explosion's ragdoll push, which only plays on the caster's
     // screen (athny, #bugs, 2026-09-26: Force Rune). Matched by editor id.
     staggerSpells: ['CYRForceRune'],
+    // Shouts that knock back (Nate, 2026-09-28): the push is physics on the shouter's screen only, so the server tells
+    // the victim's client to push its own player (client ShoutPushService, dboPush). Word spell editor id -> force,
+    // 0 = a stagger. From anyone, a draugr's shout included; one push per target every pushCooldownSeconds.
+    pushSpells: { VoiceUnrelentingForce1: 0, VoiceUnrelentingForce2: 4, VoiceUnrelentingForce3: 8 },
+    pushCooldownSeconds: 2,
   }, cfg.combat || {});
 
   // actorId -> { guardBrokenUntil, staggerAt }
@@ -129,8 +134,26 @@ module.exports = (api) => {
 
   // From the gamemode's onSpellHit, which fires for 0-damage hits too (a ward's block excepted)
   const staggerSpellCache = new Map();
+  const pushForceCache = new Map(); // spell -> force, or -1 when it does not push
+  const pushForceOf = (spellId) => {
+    if (!pushForceCache.has(spellId)) {
+      const r = recordOf(spellId); const f = r ? (C.pushSpells || {})[String(r.record.editorId || '')] : undefined;
+      pushForceCache.set(spellId, Number.isFinite(Number(f)) ? Number(f) : -1);
+    }
+    return pushForceCache.get(spellId);
+  };
   const onSpellHit = (agg, tgt, spellId) => {
-    if (!C.enabled || agg === tgt || !isPlayer(tgt) || (C.playersOnly && !isPlayer(agg))) return;
+    if (!C.enabled || agg === tgt || !isPlayer(tgt)) return;
+    const force = pushForceOf(spellId);
+    if (force >= 0 && typeof sendPacket === 'function') {
+      const s = st(tgt), now = Date.now();
+      if (now - (s.pushedAt || 0) < C.pushCooldownSeconds * 1000) return;
+      s.pushedAt = now;
+      try { sendPacket(tgt, { customPacketType: 'dboPush', from: agg >>> 0, force }); } catch (e) { /* offline */ }
+      if (C.log) log(`combat ${display(agg)} -> ${display(tgt)}: shout ${force ? `push ${force}` : 'stagger'} (spell ${spellId.toString(16)})`);
+      return;
+    }
+    if (C.playersOnly && !isPlayer(agg)) return;
     if (!staggerSpellCache.has(spellId)) { const r = recordOf(spellId); staggerSpellCache.set(spellId, !!r && (C.staggerSpells || []).includes(String(r.record.editorId || ''))); }
     if (!staggerSpellCache.get(spellId)) return;
     const done = stagger(tgt, agg);

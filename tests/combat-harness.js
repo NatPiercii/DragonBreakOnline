@@ -3,8 +3,9 @@
 const path = require('path');
 const cfg = JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'gamemode-config.json'), 'utf8'));
 const SHIELD = 0x500, SWORD = 0x600;
-const RUNE = 0x806fa2c, FIREBALL = 0x1c789;
-const RECS = { [RUNE]: { type: 'SPEL', editorId: 'CYRForceRune', fields: [] }, [FIREBALL]: { type: 'SPEL', editorId: 'Fireball', fields: [] }, [SHIELD]: { type: 'ARMO', fields: [{ type: 'BOD2', data: (() => { const d = new Uint8Array(8); new DataView(d.buffer).setUint32(0, 1 << 9, true); return d; })() }] } };
+const RUNE = 0x806fa2c, FIREBALL = 0x1c789, UF1 = 0x13e09, UF3 = 0x13f3a;
+const pushes = [];
+const RECS = { [UF1]: { type: 'SPEL', editorId: 'VoiceUnrelentingForce1', fields: [] }, [UF3]: { type: 'SPEL', editorId: 'VoiceUnrelentingForce3', fields: [] }, [RUNE]: { type: 'SPEL', editorId: 'CYRForceRune', fields: [] }, [FIREBALL]: { type: 'SPEL', editorId: 'Fireball', fields: [] }, [SHIELD]: { type: 'ARMO', fields: [{ type: 'BOD2', data: (() => { const d = new Uint8Array(8); new DataView(d.buffer).setUint32(0, 1 << 9, true); return d; })() }] } };
 let P, EQ, calls, MAST;
 const reset = () => {
   P = { 1: { health: 1, magicka: 1, stamina: 1 }, 2: { health: 1, magicka: 1, stamina: 1 } };
@@ -25,6 +26,7 @@ const API = {
   recordOf: (id) => (RECS[id] ? { record: RECS[id] } : null),
   fieldsOf: (lr, t) => ((lr && lr.record.fields) || []).filter((f) => f.type === t),
   weaponSkillOf: (src) => (src === SWORD ? 'blade' : ''), display: String, cfg,
+  sendPacket: (a, p) => { if (p.customPacketType === 'dboPush') pushes.push([a, p]); },
 };
 const load = () => require(path.join(__dirname, '..', 'combat.js'))(API);
 let pass = 0, fail = 0;
@@ -97,5 +99,14 @@ load3().onAttempt(1, 3, SWORD, 20, { power: true, unblockedDamage: 20 }, 1);
 ok(staggers() === 1, 'one attacker cannot stagger a second player inside its own cooldown');
 load3().onAttempt(3, 2, SWORD, 20, { power: true, unblockedDamage: 20 }, 1);
 ok(staggers() === 1, 'the target cooldown still holds against another attacker');
+// Shouts: Unrelenting Force pushes its victim on their own screen, from a draugr too; word one only staggers
+reset(); pushes.length = 0; load().onSpellHit(9, 2, UF3);
+ok(pushes.length === 1 && pushes[0][0] === 2 && pushes[0][1].from === 9 && pushes[0][1].force === 8, "a draugr's third word pushes a player hard");
+load().onSpellHit(9, 2, UF3);
+ok(pushes.length === 1, 'one push per target inside the cooldown');
+reset(); pushes.length = 0; load().onSpellHit(1, 2, UF1);
+ok(pushes.length === 1 && pushes[0][1].force === 0, 'the first word only staggers');
+reset(); pushes.length = 0; load().onSpellHit(1, 9, UF3);
+ok(pushes.length === 0, 'an NPC victim is left to the shouter\'s own game');
 console.log(`${pass}/${pass + fail}`);
 process.exitCode = fail ? 1 : 0;
