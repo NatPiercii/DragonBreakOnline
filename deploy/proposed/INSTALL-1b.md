@@ -38,21 +38,33 @@ off on the server."
 ## 1. Updater patch (claude-jake, root, on Jake's go)
 
 Why: the live updater (v1) builds and runs `systemctl restart skymp` when main moves, so a push while the server is
-stopped would start it again. The patch adds one line after the deploy-hold check (line 18):
-`if [ -e /opt/skymp-stopped ]; then say "skipped: server stopped by owner"; exit 0; fi`.
-While `/opt/skymp-dev-hold` exists (it does today) the hold check comes first, so the new line only matters once the hold
-is lifted. The v2 draft (`ops-v1` branch) already skips on the marker; this patch is for v1 only.
+stopped would start it again. The patch adds three lines:
+
+- a helper, `owner_stopped(){ [ -e /opt/skymp-stopped ] && ! systemctl is-active --quiet skymp; }`: the marker holds
+  only while the server is really down, so a marker left behind by a host reboot or a manual `systemctl start` never
+  pauses updates while the server runs;
+- after the deploy-hold check (line 18): `if owner_stopped; then say "skipped: server stopped by owner"; exit 0; fi`;
+- before the updater's own `systemctl restart skymp` (after the build): the same check, which exits with "skipped
+  restart: server stopped by owner" and leaves the new build for the next Start. This covers a run that passed line 18
+  just before an Owner's Stop. The rollback restart is left as it is: it is reached only after the updater's own restart,
+  so the owner's stop cannot be what it undoes, and guarding it would leave a crashed new build down when a leftover
+  marker is present.
+
+While `/opt/skymp-dev-hold` exists (it does today) the hold check comes first, so the new lines only matter once the hold
+is lifted. This patch is for v1 only. The v2 draft (`/root/dragonbreak-jake/b/ops-v1/tooling/ops/skymp-update.sh`, lines
+324, 366 and 490) skips on `[ -e "$STOPF" ]` alone and needs the same "and skymp is not active" condition before it ships
+(hand-off to its owner; not changed here).
 
 ```
-ops claim updater claude-jake "1b: skymp-update.sh skips while /opt/skymp-stopped exists" 30
+ops claim updater claude-jake "1b: skymp-update.sh skips while the owner has the server stopped" 30
 systemctl is-active skymp-update.service          # must print inactive; otherwise wait for this run to end
 sha256sum /usr/local/bin/skymp-update.sh          # must be bdc0fd6e71777eb9b37b136bcf841aaeec537f02265d07e74d544089f2bce5e7
 B=/usr/local/bin/skymp-update.sh.bak-$(date +%Y%m%d-%H%M%S); cp -a /usr/local/bin/skymp-update.sh "$B"
 patch --dry-run /usr/local/bin/skymp-update.sh < deploy/proposed/skymp-update-stopped-marker.patch
 patch /usr/local/bin/skymp-update.sh < deploy/proposed/skymp-update-stopped-marker.patch
-bash -n /usr/local/bin/skymp-update.sh && sha256sum /usr/local/bin/skymp-update.sh   # 3753b3331e2b5c5bc7f2c422ca16ce7cff29d70030d712704f6382b52008aaf0
+bash -n /usr/local/bin/skymp-update.sh && sha256sum /usr/local/bin/skymp-update.sh   # 38752e865cfb991718498645743daac9f474a32bcef612f5f721624c2590dfee
 stat -c '%a %U:%G' /usr/local/bin/skymp-update.sh # 755 root:root
-ops log claude-jake "skymp-update.sh skips while /opt/skymp-stopped exists (1b)" "cp -a $B /usr/local/bin/skymp-update.sh"
+ops log claude-jake "skymp-update.sh skips while /opt/skymp-stopped exists and skymp is not active (1b)" "cp -a $B /usr/local/bin/skymp-update.sh"
 ops release updater claude-jake
 ```
 
