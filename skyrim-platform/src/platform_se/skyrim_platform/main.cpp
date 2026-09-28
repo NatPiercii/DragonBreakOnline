@@ -25,6 +25,7 @@
 #include <cstring>
 #include <cwchar>
 #include <functional>
+#include <set>
 #include <string>
 #include <thread>
 
@@ -482,6 +483,14 @@ private:
   static constexpr int kSlowRetryTicks = 20;
   static constexpr int kNullGraceTicks = 5;
   static constexpr int kNullRetryTicks = 10;
+  // A menu that needs the mouse (the browser has input: character select, the
+  // main menu's panels) takes the front back from a window left untouched this
+  // long, once per window
+  static constexpr DWORD kMenuReclaimIdleMs = 4000;
+  // While a foreign window holds the front, who it is gets logged this often,
+  // at most kFrontLogMax times per window
+  static constexpr ULONGLONG kFrontLogEveryMs = 30000;
+  static constexpr int kFrontLogMax = 10;
 
   struct WindowInfo
   {
@@ -605,14 +614,40 @@ private:
     const bool own = IsOwnWindow(info);
     if (!own && everForeground) {
       // A real switch to another program; the input idle time tells an alt-tab from a theft
+      LASTINPUTINFO lastInput = { sizeof(LASTINPUTINFO), 0 };
+      const DWORD idleMs =
+        GetLastInputInfo(&lastInput) ? GetTickCount() - lastInput.dwTime : 0;
+      const bool menuOpen = CEFUtils::DInputHook::ChromeFocus();
+      const ULONGLONG now = GetTickCount64();
       if (foreground != foreign) {
         foreign = foreground;
-        LASTINPUTINFO lastInput = { sizeof(LASTINPUTINFO), 0 };
-        const DWORD idleMs =
-          GetLastInputInfo(&lastInput) ? GetTickCount() - lastInput.dwTime : 0;
+        frontLogs = 0;
+        lastFrontLog = now;
         spdlog::info("ForegroundGuard: window class '{}' pid {} ({}) is in "
                      "front of the game, last input {} ms ago, leaving it",
                      info.className, info.pid, ImageName(info), idleMs);
+      } else if (frontLogs < kFrontLogMax &&
+                 now - lastFrontLog >= kFrontLogEveryMs) {
+        ++frontLogs;
+        lastFrontLog = now;
+        spdlog::info("ForegroundGuard: window class '{}' pid {} ({}) still "
+                     "holds the front, last input {} ms ago, menu open {}",
+                     info.className, info.pid, ImageName(info), idleMs,
+                     menuOpen);
+      }
+      // GroundedPasta (2026-09-28) had Task Manager in front at character
+      // select and the game never came back, so DirectInput never had the
+      // mouse. While a menu that needs the mouse is open, a window the player
+      // has left alone for a few seconds gives the front back, once per
+      // window: going back to it again is a choice, and it is left.
+      if (menuOpen && idleMs >= kMenuReclaimIdleMs &&
+          reclaimedFrom.insert(foreground).second) {
+        spdlog::info(
+          "ForegroundGuard: a menu is open and window class '{}' "
+          "pid {} ({}) has had no input for {} ms, taking the front "
+          "back once",
+          info.className, info.pid, ImageName(info), idleMs);
+        TakeFront(foreground);
       }
       thief = nullptr;
       return;
@@ -634,7 +669,13 @@ private:
     } else {
       ++attempts;
     }
-    // Sharing the front window's input queue lets SetForegroundWindow succeed from the background
+    TakeFront(foreground);
+  }
+
+  // Sharing the front window's input queue lets SetForegroundWindow succeed
+  // from the background
+  void TakeFront(HWND foreground)
+  {
     const DWORD frontThread = GetWindowThreadProcessId(foreground, nullptr);
     const DWORD ownThread = GetCurrentThreadId();
     const bool attached =
@@ -669,6 +710,9 @@ private:
   int attempts = 0;
   int nullTicks = 0;
   bool everForeground = false;
+  std::set<HWND> reclaimedFrom;
+  int frontLogs = 0;
+  ULONGLONG lastFrontLog = 0;
   std::thread thread;
 };
 
