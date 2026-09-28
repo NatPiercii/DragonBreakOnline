@@ -50,7 +50,7 @@ check('/expeditions no longer opens anything; it points at the board', !widgets.
 commands.get('expedition')(A, 'nir');
 check('...nor does /expedition with a name', !widgets.length && !globalThis.__dboDungeons.pending.get(A));
 check('a board used away from the two halls says where they are', activate(BOARD, B) === false && !widgets.length && /boards in the Synod Conclave and the Fighters Guild/.test(last(B)), last(B));
-check('an older client (no uiCaps) gets the list menu, not an invisible panel', activate(BOARD, A) === false && widgets.length === 1 && widgets[0][1].type === 'contextMenu' && widgets[0][1].events.action === 'dbo:expeditionPick' && /Niryastare, Kvatch County \(open\)/.test(widgets[0][1].actions[0].label), widgets[0] && widgets[0][1]);
+check('an older client (no uiCaps) gets the list menu, not an invisible panel', activate(BOARD, A) === false && widgets.length === 1 && widgets[0][1].type === 'contextMenu' && widgets[0][1].events.action === 'dbo:expeditionPick' && /Niryastare, Boss dungeon, Kvatch County \(open\)/.test(widgets[0][1].actions[0].label), widgets[0] && widgets[0][1]);
 fire('expeditionClose', A, []); widgets.length = 0;
 fire('uiCaps', A, ['bank', 'expeditionBoard']);
 check('the board refuses the engine and opens the expedition board panel', activate(BOARD, A) === false);
@@ -59,7 +59,7 @@ check('the panel lists the ruins with county, state and status, from this hall',
 check('something that is not the board is not ours', activate(0x12345, A) === null);
 fire('expeditionPick', A, ['CYRNiryastareLocation']);
 const gate = widgets.find((w) => w[1].type === 'dungeonGate');
-check('picking one opens the party and difficulty panel', !!gate && gate[1].name === 'Niryastare' && gate[1].kind === 'Ayleid ruin');
+check('picking one opens the party and difficulty panel', !!gate && gate[1].name === 'Niryastare' && gate[1].kind === 'Ayleid ruin, boss dungeon');
 fire('dungeonCancel', A, []);
 check('turning back leaves them standing in the Synod', !moves.length);
 // The claim itself goes through startLease; here the door and the return are what is new

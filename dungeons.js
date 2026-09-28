@@ -216,6 +216,15 @@ module.exports = (api) => {
   // the old three-chosen-skills rule is the fallback), shifted by difficulty; enemy count follows how many came
   const LEVEL_BANDS = Object.assign({ 1: [1, 6], 2: [1, 9], 3: [5, 14], 4: [9, 21], 5: [13, 25], 6: [19, 30], 7: [25, 40] }, C.levelBands || {});
   const DIFF_SHIFT = Object.assign({ story: -1, normal: 0, hard: 1, nightmare: 2 }, C.levelShift || {});
+  // Boss dungeons and raids (Nate, 2026-09-28: "bigger, harder, better"). Every expedition is one or the other
+  // (expeditions.json kind). A boss dungeon is for 1 to partyMax with one boss; a raid for up to raidMax with two or more
+  // bosses, and no halved skill gain inside it. A raid's bosses pick bossBandShift level bands up (a boss dungeon's one),
+  // bring escorts of the nearest enemy of their room (per difficulty, scaled with the party like any count), its other
+  // enemies are countMult as many, and its boss chests and masters give bossRolls boss rolls. Only verified levers: the
+  // leveled variant chosen, how many spawn, and the loot; no actor-value writes. Config dungeons.raid.
+  const RAID = Object.assign({ bossBandShift: 2, countMult: 1.25, bossRolls: 2, escorts: { story: 1, normal: 2, hard: 2, nightmare: 3 }, bossDungeonMax: C.partyMax }, C.raid || {});
+  const isRaidRuin = (d) => !!(d && d.expedition && d.kind === 'raid');
+  const kindLabel = (d) => (isRaidRuin(d) ? `Raid (up to ${C.raidMax})` : 'Boss dungeon');
   const charLevel = (a) => {
     try {
       if (typeof globalThis.__dboCharLevel === 'function') return globalThis.__dboCharLevel(a);
@@ -224,8 +233,8 @@ module.exports = (api) => {
       return Math.max(1, Math.min(5, Math.floor(tiers.reduce((sum, t) => sum + t, 0) / 3)));
     } catch (e) { return 1; }
   };
-  const pickScaled = (options, lvl, diff, boss) => {
-    const band = LEVEL_BANDS[Math.max(1, Math.min(7, lvl + (Number(DIFF_SHIFT[diff.id]) || 0) + (boss ? 1 : 0)))] || LEVEL_BANDS[1];
+  const pickScaled = (options, lvl, diff, boss, raid = false) => {
+    const band = LEVEL_BANDS[Math.max(1, Math.min(7, lvl + (Number(DIFF_SHIFT[diff.id]) || 0) + (boss ? (raid ? Number(RAID.bossBandShift) || 1 : 1) : 0)))] || LEVEL_BANDS[1];
     const inBand = (options || []).filter((o) => o[0] >= band[0] && o[0] <= band[1]);
     if (inBand.length) return inBand[Math.floor(Math.random() * inBand.length)][1];
     const below = (options || []).filter((o) => o[0] <= band[1]).sort((x, y) => y[0] - x[0]);
@@ -233,6 +242,7 @@ module.exports = (api) => {
   };
   // Solo 0.7, two 1.0, four 1.6, six 1.8 enemies per placement, before the difficulty multiplier
   const partyCountMult = (n) => Math.max(Number(C.countMin) || 0.6, Math.min(Number(C.countMax) || 1.8, (Number(C.countBase) || 0.4) + (Number(C.countPerPlayer) || 0.3) * n));
+  const dist3 = (a, b) => Math.hypot((a[0] || 0) - (b[0] || 0), (a[1] || 0) - (b[1] || 0), (a[2] || 0) - (b[2] || 0));
   const zonesFor = (d, diff, scale = { lvl: 1, n: 1 }) => {
     const out = [];
     out.bosses = [];   // zone names of the claim's bosses (not written to NPC-Spawns.json: a property of the array)
@@ -240,6 +250,8 @@ module.exports = (api) => {
     let ambushed = 0;
     const province = (POOLS.provinces || {})[d.id] || provinceOfDungeon(d);
     const next = {};   // family (and boss) -> next archetype index, from a random start so each claim differs
+    const raid = isRaidRuin(d);
+    const escortsFrom = [];   // the room's ordinary enemies, for a raid boss's escort
 
     for (const z of d.zones || []) {
       for (const npc of z.npcs || []) {
@@ -261,9 +273,10 @@ module.exports = (api) => {
 
         // A boss: marked in the data (expeditions.json boss: true) or a boss placement in the pools
         const boss = npc.boss === true || !!(entry && entry.boss);
-        const id = pickScaled(opts, scale.lvl, diff, boss);
+        const id = pickScaled(opts, scale.lvl, diff, boss, raid);
         if (!id || !Array.isArray(npc.pos)) continue;
-        const m = diff.mult * partyCountMult(scale.n);
+        if (!boss) escortsFrom.push({ cell: z.cell, pos: npc.pos, opts, kind });
+        const m = diff.mult * partyCountMult(scale.n) * (raid ? Math.max(1, Number(RAID.countMult) || 1) : 1);
         if (!boss && m < 1 && Math.random() > m) continue;                                  // fewer of them; never the boss
         const extra = boss ? 0 : Math.max(0, m - 1);
         const count = 1 + Math.floor(extra) + (Math.random() < extra % 1 ? 1 : 0);          // more for a bigger party; one boss
@@ -283,6 +296,18 @@ module.exports = (api) => {
         }
         if (boss) out.bosses.push(zone.Name);
         out.push(zone);
+      }
+    }
+    // A raid boss's escort: the nearest ordinary enemy of its room, spawned beside it, at the boss's level band less one
+    if (raid) {
+      const want = Math.max(0, Number((RAID.escorts || {})[diff.id]) || 0);
+      for (const bz of out.filter((zn) => out.bosses.includes(zn.Name))) {
+        const near = escortsFrom.filter((c) => c.cell === bz.ID).sort((a, b) => dist3(a.pos, bz.POS) - dist3(b.pos, bz.POS))[0];
+        const count = Math.round(want * partyCountMult(scale.n));
+        if (!near || count < 1) continue;
+        const id = pickScaled(near.opts, scale.lvl + (Number(RAID.bossBandShift) || 1) - 1, diff, false);
+        if (!id) continue;
+        out.push({ Name: `${ZONE_PREFIX}${d.id}:${n++}`, ID: bz.ID, POS: bz.POS, Size: 100000, NPC: [{ id, count }], Despawn: 0, Respawn: 0, Kind: near.kind, Prespawn: true, Ambush: false, Escort: true });
       }
     }
     if (ambushed) log(`dungeon ${d.id}: ${ambushed} of ${out.length} enemies wait in ambush within ${AMBUSH_REACH} units`);
@@ -384,10 +409,10 @@ module.exports = (api) => {
   // Config dungeons.ayleidLoot.byDifficulty.<story|normal|hard|nightmare> = { chestChance, bossChance, chest: {tier: weight},
   // boss: {tier: weight} }; ruins: "expeditions" (default) or "all" to include Bruma's own Ayleid ruins.
   const AYLEID_DEFAULTS = {
-    story:     { chestChance: 0.03, bossChance: 0.3, chest: { common: 100 }, boss: { common: 100 } },
-    normal:    { chestChance: 0.05, bossChance: 0.5, chest: { common: 85, uncommon: 15 }, boss: { common: 65, uncommon: 35 } },
-    hard:      { chestChance: 0.07, bossChance: 0.7, chest: { common: 75, uncommon: 23, rare: 2 }, boss: { common: 40, uncommon: 45, rare: 15 } },
-    nightmare: { chestChance: 0.09, bossChance: 0.85, chest: { common: 65, uncommon: 30, rare: 5 }, boss: { common: 30, uncommon: 40, rare: 22, rarest: 8 } },
+    story:     { chestChance: 0.03, bossChance: 0.3, chest: { common: 100 }, boss: { common: 100 }, raidBossChance: 0.5, raidBoss: { common: 100 } },
+    normal:    { chestChance: 0.05, bossChance: 0.5, chest: { common: 85, uncommon: 15 }, boss: { common: 65, uncommon: 35 }, raidBossChance: 0.7, raidBoss: { common: 50, uncommon: 50 } },
+    hard:      { chestChance: 0.07, bossChance: 0.7, chest: { common: 75, uncommon: 23, rare: 2 }, boss: { common: 40, uncommon: 45, rare: 15 }, raidBossChance: 0.85, raidBoss: { common: 25, uncommon: 50, rare: 25 } },
+    nightmare: { chestChance: 0.09, bossChance: 0.85, chest: { common: 65, uncommon: 30, rare: 5 }, boss: { common: 30, uncommon: 40, rare: 22, rarest: 8 }, raidBossChance: 1, raidBoss: { common: 15, uncommon: 35, rare: 32, rarest: 18 } },
   };
   const AYLEID_CFG = Object.assign({ enabled: true, ruins: 'expeditions' }, C.ayleidLoot || {});
   const ayleidTable = (diffId) => Object.assign({}, AYLEID_DEFAULTS[diffId] || AYLEID_DEFAULTS.normal, (AYLEID_CFG.byDifficulty || {})[diffId] || {});
@@ -396,8 +421,8 @@ module.exports = (api) => {
   const AYLEID_TIERS = ['common', 'uncommon', 'rare', 'rarest'];
   const ayleidLootHere = (d) => AYLEID_CFG.enabled !== false && AYLEID_LOOT.length > 0 && (d && d.expedition || (AYLEID_CFG.ruins === 'all' && isAyleidRuin(d)));
   // One piece: a tier by weight, then weapon, apparel or jewellery evenly among what that tier holds, then the piece
-  const ayleidPiece = (diff, boss) => {
-    const w = ayleidTable(diff.id)[boss ? 'boss' : 'chest'] || {};
+  const ayleidPiece = (diff, boss, raid = false) => {
+    const w = ayleidTable(diff.id)[boss ? (raid ? 'raidBoss' : 'boss') : 'chest'] || {};
     const tiers = AYLEID_TIERS.filter((t) => Number(w[t]) > 0 && AYLEID_LOOT.some((it) => it.tier === t));
     const total = tiers.reduce((n, t) => n + Number(w[t]), 0);
     if (!total) return null;
@@ -409,9 +434,9 @@ module.exports = (api) => {
     const list = inTier.filter((it) => it.group === g);
     return list[Math.floor(Math.random() * list.length)] || null;
   };
-  const chestLoot = (diff, boss, ok = ALL_OK, ayleid = false) => {
+  const chestLoot = (diff, boss, ok = ALL_OK, ayleid = false, raid = false) => {
     const entries = [];
-    if (ayleid && Math.random() < Number(ayleidTable(diff.id)[boss ? 'bossChance' : 'chestChance'])) addEntry(entries, ayleidPiece(diff, boss), 1);
+    if (ayleid && Math.random() < Number(ayleidTable(diff.id)[boss ? (raid ? 'raidBossChance' : 'bossChance') : 'chestChance'])) addEntry(entries, ayleidPiece(diff, boss, raid), 1);
     if (boss || Math.random() < GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)));
     if (Math.random() < Number(boss ? POT.boss : POT.chest)) addEntry(entries, potionPick(diff.potionTier, ok), 1);
     if (Math.random() < 0.4) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 3));
@@ -428,6 +453,14 @@ module.exports = (api) => {
     if (Math.random() < gearChance) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'weapons' : 'armor', diff.gear, ok)), 1);
     const enchChance = boss ? diff.bossEnch : diff.ench;
     if (enchChance > 0 && Math.random() < enchChance) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'ench_weapons' : 'ench_armor', diff.gear * 3, ok)), 1);
+    return entries;
+  };
+  // A boss chest or master's body: one boss roll, or in a raid RAID.bossRolls of them (the Ayleid roll once, from the
+  // raid table: a better chance and better tiers)
+  const bossLoot = (diff, ok, ayleid, raid) => {
+    const entries = chestLoot(diff, true, ok, ayleid, raid);
+    const extra = raid ? Math.max(0, (Number(RAID.bossRolls) || 1) - 1) : 0;
+    for (let i = 0; i < extra; i++) for (const e of chestLoot(diff, true, ok, false)) { const hit = entries.find((x) => x.baseId === e.baseId); if (hit) hit.count += e.count; else entries.push(e); }
     return entries;
   };
   // Urns, sacks, barrels and the like: a little coin or food, now and then a potion or arrows
@@ -455,7 +488,7 @@ module.exports = (api) => {
     for (const ch of d.chests || []) {
       const id = idOf(ch.ref); if (!id) continue;
       const boss = /boss/i.test(ch.edid) || bossRefs.has(normDesc(ch.ref));
-      try { mp.set(id, 'inventory', { entries: ch.big ? chestLoot(diff, boss, ok, ayleid) : smallLoot(diff, ch.edid, ok) }); filled++; } catch (e) { log('chest fill failed', ch.ref, e.message); }
+      try { mp.set(id, 'inventory', { entries: ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d)) : chestLoot(diff, false, ok, ayleid)) : smallLoot(diff, ch.edid, ok) }); filled++; } catch (e) { log('chest fill failed', ch.ref, e.message); }
     }
     return filled;
   };
@@ -497,6 +530,8 @@ module.exports = (api) => {
     lease.bossZones = new Set(zones.bosses || []); lease.bossIds = new Set(); lease.bossDownAt = 0; lease.bossWarned = false;
     lease.armed = new Set();
     ST.leases.set(d.id, lease);
+    // A raid ruin lifts the raid's halved skill gain while the lease lasts
+    if (isRaidRuin(d)) { const p = partyOf(leaderPid); if (p) pushParty(p); }
     writeSpawnZones();
     const filled = fillChests(d, diff, lease);
     const moveIn = (placed) => {
@@ -522,6 +557,7 @@ module.exports = (api) => {
   const endLease = (lease, why) => {
     const d = byId.get(lease.id);
     ST.leases.delete(lease.id);
+    if (isRaidRuin(byId.get(lease.id))) { const p = partyOf(lease.leader); if (p) pushParty(p); }
     for (const pid of lease.members) {
       const a = actorByProfile(pid);
       if (!a) continue;
@@ -1057,7 +1093,10 @@ module.exports = (api) => {
       const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}`;
       ST.pending.set(casterId, { nonce, dungeonId: d.id, entrance });
       const partyNames = partyMembers(pid).filter((x) => x !== pid).map((x) => { const a = actorByProfile(x); return a ? nameOf(a) : `#${x}`; });
-      openWidget(casterId, { type: 'dungeonGate', id: GATE_WIDGET_ID, nonce, name: d.name, kind: TYPE_NAMES[d.type] || 'Dungeon', party: partyNames, difficulties: DIFFICULTIES.map((x) => ({ id: x.id, label: x.label, blurb: x.blurb })), minutes: C.leaseMinutes, cooldownMinutes: C.cooldownMinutes, canClaim: true }, true);
+      // A boss dungeon is built for a party, not a raid (Nate, 2026-09-28); config dungeons.raid.bossDungeonMax (0: no cap)
+      const cap = d.expedition && !isRaidRuin(d) ? Number(RAID.bossDungeonMax) || 0 : 0;
+      if (cap && partyNames.length + 1 > cap) { ST.pending.delete(casterId); return deny(casterId, `${d.name} is a boss dungeon, built for up to ${cap}; your group is ${partyNames.length + 1}. A raid ruin takes up to ${C.raidMax}.`, `${d.id} boss dungeon, group of ${partyNames.length + 1} over ${cap}`); }
+      openWidget(casterId, { type: 'dungeonGate', id: GATE_WIDGET_ID, nonce, name: d.name, kind: d.expedition ? `${TYPE_NAMES[d.type] || 'Ruin'}, ${kindLabel(d).toLowerCase()}` : TYPE_NAMES[d.type] || 'Dungeon', party: partyNames, difficulties: DIFFICULTIES.map((x) => ({ id: x.id, label: x.label, blurb: x.blurb })), minutes: C.leaseMinutes, cooldownMinutes: C.cooldownMinutes, canClaim: true }, true);
       return false;
     }
   };
@@ -1162,11 +1201,11 @@ module.exports = (api) => {
     expeditionPending.set(a, true);
     if (!boardCaps.has(a)) {
       return openWidget(a, { type: 'contextMenu', id: EXPEDITION_WIDGET_ID, mode: 'menu', targetName: `Expeditions from ${st.name}: Ayleid ruins far to the south`,
-        actions: list.map((d) => ({ id: d.id, label: `${d.name}${d.county ? `, ${d.county}` : ''} (${expeditionStatus(a, d)})` })),
+        actions: list.map((d) => ({ id: d.id, label: `${d.name}, ${kindLabel(d)}${d.county ? `, ${d.county}` : ''} (${expeditionStatus(a, d)})` })),
         events: { action: 'dbo:expeditionPick', close: 'dbo:expeditionClose' } }, true);
     }
     openWidget(a, { type: 'expeditionBoard', id: EXPEDITION_WIDGET_ID, hall: st.name,
-      expeditions: list.map((d) => ({ id: d.id, name: d.name, county: d.county || '', kind: 'Ayleid ruin', status: expeditionStatus(a, d), state: statusState(a, d), masters: mastersOf(d) })),
+      expeditions: list.map((d) => ({ id: d.id, name: d.name, county: d.county || '', kind: kindLabel(d), status: expeditionStatus(a, d), state: statusState(a, d), masters: mastersOf(d) })),
       bossReturnMinutes: C.bossReturnMinutes, leaseMinutes: C.leaseMinutes,
       events: { pick: 'dbo:expeditionPick', close: 'dbo:expeditionClose' } }, true);
   };
@@ -1313,7 +1352,7 @@ module.exports = (api) => {
     const diff = DIFFICULTIES.find((x) => x.id === (lease ? lease.difficulty : 'normal')) || DIFFICULTIES[1];
     const got = [];
     const d = lease ? byId.get(lease.id) : null;
-    for (const en of (master ? chestLoot(diff, true, lootOk(lease), ayleidLootHere(d)) : corpseLoot(diff, lootOk(lease)))) {
+    for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d)) : corpseLoot(diff, lootOk(lease)))) {
       if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); continue; }
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }
@@ -1325,10 +1364,13 @@ module.exports = (api) => {
   // ---- party -----------------------------------------------------------------------------------
   // A party past partyMax is a raid: masterySystem reads private.partyXpMult and slows every member's skill gain
   const isRaid = (p) => !!p && p.members.size > C.partyMax;
+  // ...except inside a raid expedition, which is built for it (Nate, 2026-09-28: no halved skill gain in a raid ruin)
+  const inRaidRuin = (p) => !!p && [...ST.leases.values()].some((l) => isRaidRuin(byId.get(l.id)) && [...p.members].some((m) => l.members.has(m)));
   const setRaidMult = (pid, on) => { const x = actorByProfile(pid); if (!x) return; try { mp.set(x, 'private.partyXpMult', on ? C.raidXpMult : 1); } catch (e) { /* offline */ } };
   const pushParty = (p) => {
     const members = p ? [...p.members].map((m) => { const x = actorByProfile(m); return x ? { id: x, name: nameOf(x), leader: m === p.leader } : null; }).filter(Boolean) : [];
-    if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, isRaid(p)); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
+    const halved = isRaid(p) && !inRaidRuin(p);
+    if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, halved); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
   };
   // Parties outlive a restart or a crash: every change is written to parties.json (runtime, gitignored, beside the
   // gamemode) and read back once per server process, unless it is older than partyKeepHours. A crash at 21:39 on
@@ -1424,7 +1466,7 @@ module.exports = (api) => {
         lp.members.add(pid); ST.memberOf.set(pid, inv.from);
         saveParties();
         for (const m of lp.members) { const x = actorByProfile(m); if (x) system(x, `${display(a)} joined the ${isRaid(lp) ? 'raid' : 'party'} (${lp.members.size}/${isRaid(lp) ? C.raidMax : C.partyMax}).`); }
-        if (isRaid(lp) && !wasRaid) for (const m of lp.members) { const x = actorByProfile(m); if (x) personal(x, `More than ${C.partyMax} makes this a raid: skill gain is halved while it lasts.`); }
+        if (isRaid(lp) && !wasRaid) for (const m of lp.members) { const x = actorByProfile(m); if (x) personal(x, `More than ${C.partyMax} makes this a raid: skill gain is halved while it lasts, except inside a raid ruin.`); }
         pushParty(lp);
         return;
       }

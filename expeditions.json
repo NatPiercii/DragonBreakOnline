@@ -1,8 +1,9 @@
 {
-"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own. boss: true marks an expedition's boss (dungeons.js): never thinned by difficulty, and when every boss of the claim is dead a 10-minute timer starts, after which anyone still inside is taken home. Hand-set on 2026-09-28 (Nate: 'we should add bosses'); Niryastare had none, so its nearest guard to the boss chest was promoted to an Ayleid undead boss. Keep these when regenerating. bossChest (Nate, 2026-09-28): a chest that is the boss chest though its base is an ordinary one; Silorn's is aaee4, right behind the lich's spawn (606 units, behind its facing).",
+"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own. boss: true marks an expedition's boss (dungeons.js): never thinned by difficulty, and when every boss of the claim is dead a 10-minute timer starts, after which anyone still inside is taken home. Hand-set on 2026-09-28 (Nate: 'we should add bosses'); Niryastare had none, so its nearest guard to the boss chest was promoted to an Ayleid undead boss. Keep these when regenerating. bossChest (Nate, 2026-09-28): a chest that is the boss chest though its base is an ordinary one; Silorn's is aaee4, right behind the lich's spawn (606 units, behind its facing). kind (Nate, 2026-09-28): boss (a boss dungeon, 1-6, one boss) or raid (up to 12, two or more bosses); Bawn's second boss is bc39f, the Ayleid undead nearest its second boss chest bd0d6 (1242 units), promoted to an Ayleid champion as Niryastare's was.",
 "expeditions": [
 {
 "id": "CYRNiryastareLocation",
+"kind": "boss",
 "name": "Niryastare",
 "type": "ayleid",
 "keywords": [
@@ -1605,6 +1606,7 @@
 },
 {
 "id": "CYRSilornLocation",
+"kind": "raid",
 "name": "Silorn",
 "type": "ayleid",
 "bossChest": "aaee4:BSHeartland.esm",
@@ -7063,6 +7065,7 @@
 },
 {
 "id": "CYRBawnLocation",
+"kind": "raid",
 "name": "Bawn",
 "type": "ayleid",
 "keywords": [
@@ -7677,7 +7680,7 @@
 "size": 1400,
 "npcs": [
 {
-"edid": "CYRLvlAyleidUndeadMeleeAny",
+"edid": "CYRLvlAyleidUndeadBossAny",
 "pos": [
 -2080.0,
 3072.0,
@@ -7687,29 +7690,46 @@
 "options": [
 [
 1,
-"8747b:BSHeartland.esm"
+"8ad2a:BSHeartland.esm"
 ],
 [
-6,
-"8ad26:BSHeartland.esm"
+1,
+"8ad31:BSHeartland.esm"
 ],
 [
 13,
-"8ad27:BSHeartland.esm"
+"8ad2b:BSHeartland.esm"
+],
+[
+13,
+"8ad33:BSHeartland.esm"
 ],
 [
 21,
-"8ad28:BSHeartland.esm"
+"8ad2c:BSHeartland.esm"
+],
+[
+21,
+"8ad35:BSHeartland.esm"
 ],
 [
 30,
-"8ad29:BSHeartland.esm"
+"8ad2d:BSHeartland.esm"
+],
+[
+30,
+"8ad37:BSHeartland.esm"
 ],
 [
 40,
-"b558d:BSHeartland.esm"
+"b5578:BSHeartland.esm"
+],
+[
+40,
+"b5579:BSHeartland.esm"
 ]
-]
+],
+"boss": true
 }
 ]
 },
@@ -9285,6 +9305,7 @@
 },
 {
 "id": "CYRTelepeLocation",
+"kind": "boss",
 "name": "Telepe",
 "type": "ayleid",
 "keywords": [

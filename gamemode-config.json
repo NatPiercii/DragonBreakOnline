@@ -415,15 +415,21 @@
   "restoreOutfits": true,
   "exclude": ["AbandonedPrisonLocation"],
   "ayleidLoot": {
-   "_comment": "Ayleid treasure from ayleid-loot.json, by the lease's difficulty (Nate, 2026-09-28). chestChance: a big chest holds one piece; bossChance: the boss chest. chest/boss: tier weights (common, uncommon, rare = Major jewellery and Shocks arms, rarest = Eminent jewellery and the Lich Helmet). These pieces never come from the general pools. ruins: expeditions, or all to add Bruma's own Ayleid ruins.",
+   "_comment": "Ayleid treasure from ayleid-loot.json, by the lease's difficulty (Nate, 2026-09-28). chestChance: a big chest holds one piece; bossChance: the boss chest. chest/boss: tier weights (common, uncommon, rare = Major jewellery and Shocks arms, rarest = Eminent jewellery and the Lich Helmet). raidBossChance/raidBoss: a raid's boss chests and masters. These pieces never come from the general pools. ruins: expeditions, or all to add Bruma's own Ayleid ruins.",
    "enabled": true,
    "ruins": "expeditions",
    "byDifficulty": {
-    "story": { "chestChance": 0.03, "bossChance": 0.3, "chest": { "common": 100 }, "boss": { "common": 100 } },
-    "normal": { "chestChance": 0.05, "bossChance": 0.5, "chest": { "common": 85, "uncommon": 15 }, "boss": { "common": 65, "uncommon": 35 } },
-    "hard": { "chestChance": 0.07, "bossChance": 0.7, "chest": { "common": 75, "uncommon": 23, "rare": 2 }, "boss": { "common": 40, "uncommon": 45, "rare": 15 } },
-    "nightmare": { "chestChance": 0.09, "bossChance": 0.85, "chest": { "common": 65, "uncommon": 30, "rare": 5 }, "boss": { "common": 30, "uncommon": 40, "rare": 22, "rarest": 8 } }
+    "story": { "chestChance": 0.03, "bossChance": 0.3, "chest": { "common": 100 }, "boss": { "common": 100 }, "raidBossChance": 0.5, "raidBoss": { "common": 100 } },
+    "normal": { "chestChance": 0.05, "bossChance": 0.5, "chest": { "common": 85, "uncommon": 15 }, "boss": { "common": 65, "uncommon": 35 }, "raidBossChance": 0.7, "raidBoss": { "common": 50, "uncommon": 50 } },
+    "hard": { "chestChance": 0.07, "bossChance": 0.7, "chest": { "common": 75, "uncommon": 23, "rare": 2 }, "boss": { "common": 40, "uncommon": 45, "rare": 15 }, "raidBossChance": 0.85, "raidBoss": { "common": 25, "uncommon": 50, "rare": 25 } },
+    "nightmare": { "chestChance": 0.09, "bossChance": 0.85, "chest": { "common": 65, "uncommon": 30, "rare": 5 }, "boss": { "common": 30, "uncommon": 40, "rare": 22, "rarest": 8 }, "raidBossChance": 1, "raidBoss": { "common": 15, "uncommon": 35, "rare": 32, "rarest": 18 } }
    }
+  },
+  "raid": {
+   "_comment": "Boss dungeons and raids (Nate, 2026-09-28; expeditions.json kind). A raid's bosses pick bossBandShift level bands up (a boss dungeon's 1), each brings escorts[difficulty] of its room's nearest enemy (scaled with the party), its other enemies are countMult as many, and its boss chests and masters give bossRolls boss rolls. bossDungeonMax: the most a boss dungeon takes (0: no cap).",
+   "bossBandShift": 2, "countMult": 1.25, "bossRolls": 2,
+   "escorts": { "story": 1, "normal": 2, "hard": 2, "nightmare": 3 },
+   "bossDungeonMax": 6
   },
   "potions": {
    "_comment": "How often dungeon loot holds a potion (Nate, 2026-09-28: less common). chest/boss: a big or boss chest holds one; container: an urn or sack; body: a humanoid body; corpseKeep: a creature keeps a potion it carried. strongWeight: a potion of rank r is drawn with weight 1/r^strongWeight.",
