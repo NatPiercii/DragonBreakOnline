@@ -1,0 +1,62 @@
+// The expedition board: the notice board's frame and papers (../bountyBoard/styles.scss) with a subtitle in place of
+// the tabs, the ruin's name as the headline and a stamp for its state.
+@import '../../dbo-theme.scss';
+
+$ink: #14282b;
+$ink-dim: rgba(20, 40, 43, 0.62);
+
+.expeditionBoard {
+  &__subtitle {
+    align-items: center;
+    padding: 0 22px;
+    color: $dbo-text-dim;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+  }
+
+  &__paper {
+    position: relative;
+    gap: 6px;
+
+    &--taken,
+    &--resting { opacity: 0.72; }
+  }
+
+  &__name {
+    color: $ink;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+
+  &__where {
+    color: $ink-dim;
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  &__stamp {
+    align-self: flex-end;
+    padding: 1px 8px;
+    border: 2px solid currentColor;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transform: rotate(-4deg);
+
+    &--open { color: #7a1f1f; }
+    &--yours { color: #1f5a2a; }
+    &--taken { color: #4a4a4a; }
+    &--resting { color: #5a4a1f; }
+  }
+
+  &__read-name {
+    margin: 0 0 4px;
+    color: $ink;
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+  }
+}
