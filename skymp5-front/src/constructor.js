@@ -39,6 +39,7 @@ import DungeonGate from './features/dungeonGate';
 import Party from './features/party';
 import TomeShop from './features/tomeShop';
 import Bank from './features/bank';
+import BusinessLedger from './features/businessLedger';
 import RobPrompt from './features/robPrompt';
 import Downed from './features/downed';
 import { panelScaleOf } from './utils/PanelScale';
@@ -290,6 +291,8 @@ const Constructor = props => {
       return <TomeShop data={rend} />;
     case 'bank':
       return <Bank data={rend} />;
+    case 'businessLedger':
+      return <BusinessLedger data={rend} />;
     case 'robPrompt':
       return <RobPrompt data={rend} />;
     case 'downed':
