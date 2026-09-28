@@ -1,0 +1,10 @@
+--- a/usr/local/bin/skymp-update.sh
++++ b/usr/local/bin/skymp-update.sh
+@@ -16,6 +16,7 @@
+ timeout 120 git fetch origin --quiet || { say "fetch failed"; exit 1; }
+ LOCAL=$(git rev-parse HEAD); REMOTE=$(git rev-parse origin/main)
+ if [ -e /opt/skymp-dev-hold ]; then say "skipped: deploy hold"; exit 0; fi
++if [ -e /opt/skymp-stopped ]; then say "skipped: server stopped by owner"; exit 0; fi
+ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then say "skipped: uncommitted changes"; exit 0; fi
+ if ! git merge-base --is-ancestor HEAD origin/main; then say "skipped: local commits not on origin/main"; exit 0; fi
+ if [ "$LOCAL" = "$REMOTE" ]; then say "up to date (${LOCAL:0:8})"; rm -f "$DEFER_STAMP"; exit 0; fi
