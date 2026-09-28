@@ -1,5 +1,29 @@
 [
   {
+    "title": "Martial Arts",
+    "date": "2026-09-28",
+    "version": "Server",
+    "tag": "New Feature",
+    "sections": [
+      {
+        "heading": "Martial Arts",
+        "items": [
+          "Unarmed is now Martial Arts: fists, quarterstaves and battle staves. Your Unarmed progress carries over.",
+          "Every punch that lands drains your opponent's stamina, and a tired fighter hits much weaker, so a boxer who stays close can wear anyone down.",
+          "Fists do little against armour; their strength is stamina and the disarm: an unarmed power attack that lands knocks the weapon out of your opponent's hands.",
+          "Quarterstaves and battle staves now train and scale with Martial Arts instead of Blunt, and they partly ignore armour."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Several fixes from a security review of this morning's update, including breaking rings down and sharing coin from a dungeon chest.",
+          "Hunting contracts are closed for a short while, and renting out storage chests is paused, while they get a fix."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Business Ledger, Scrolls and Shouts, the U Menu and More",
     "date": "2026-09-28",
     "version": "Client 0.3.57",
