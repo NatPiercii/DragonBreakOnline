@@ -375,7 +375,9 @@ function reviewText(v) {
 function renderHead(s) {
   const box = $('srvHead'); box.textContent = '';
   const bar = el('div', 'bar');
-  const [label, tone] = STATE[s.service.state] || ['Unknown', 'warn'];
+  // systemd waits to start it again after a crash
+  const retrying = s.service.state === 'starting' && /^auto-restart/.test(s.service.sub || '');
+  const [label, tone] = retrying ? ['Crashed, restarting', 'bad'] : STATE[s.service.state] || ['Unknown', 'warn'];
   bar.append(el('span', 'pill ' + tone, label));
   bar.append(el('span', '', s.players.online == null ? 'players unknown' : plural(s.players.online, 'player') + ' online'));
   if ((s.service.state === 'reachable' || s.service.state === 'unresponsive') && s.service.since) bar.append(el('span', '', 'up ' + span(Date.now() - Date.parse(s.service.since))));

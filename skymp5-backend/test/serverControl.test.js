@@ -113,6 +113,12 @@ test('the state matrix: Start only when down, Stop and Restart only when up at 0
     [{ unit: down, online: 0 }, 'stop', 'notRunning'], [{ unit: failed, online: 0 }, 'restart', 'useStart'],
     [{ unit: down, online: 0, updating: true }, 'start', 'updating'], [{ unit: up, online: 0, updating: true }, 'restart', 'updating'],
     [{ unit: null, online: 0 }, 'start', 'unavailable'],
+    [{ unit: { active: 'activating', sub: 'auto-restart' }, online: null }, 'stop', null],
+    [{ unit: { active: 'activating', sub: 'auto-restart-queued' }, online: null }, 'stop', null],
+    [{ unit: { active: 'activating', sub: 'auto-restart' }, online: null }, 'start', 'changing'],
+    [{ unit: { active: 'activating', sub: 'auto-restart' }, online: null }, 'restart', 'changing'],
+    [{ unit: { active: 'activating', sub: 'auto-restart' }, online: 0, updating: true }, 'stop', 'updating'],
+    [{ unit: { active: 'activating', sub: 'start' }, online: null }, 'stop', 'changing'],
   ]
   for (const [state, action, why] of rows) assert.equal(refusal(action, state), why, `${action} ${JSON.stringify(state)}`)
 })
@@ -203,6 +209,19 @@ test('Restart at 0 players waits for the new run; a failed unit or a rising rest
   assert.equal(silent.control.job(ID).state, 'unconfirmed')
   assert.equal(silent.units, 2 + 40, 'a check, a second one under the claim, then 40 polls three seconds apart')
   assert.deepEqual(silent.opsCalls().at(-1), ['release', 'game-server', 'site-owner'])
+})
+
+test('Stop is offered while systemd waits to restart a crashed server, and ends the retries', async () => {
+  const h = harness({ unit: { active: 'activating', sub: 'auto-restart' }, beatAge: 90e3, afterCommand: systemd.stop })
+  const s = (sub, online = null) => ({ service: { state: 'starting', sub }, players: { online }, claims: [] })
+  const pick = x => [x.canStart, x.canStop, x.canRestart, x.why]
+  assert.deepEqual(pick(h.control.controlsFor(s('auto-restart'), { owner: true, setting: 'on' })), [false, true, false, null])
+  assert.deepEqual(pick(h.control.controlsFor(s('start'), { owner: true, setting: 'on' })), [false, false, false, 'changing'])
+  assert.equal((await act(h, 'stop')).status, 202)
+  await h.idle()
+  assert.equal(h.control.job(ID).state, 'done')
+  assert.deepEqual(h.systemctlCalls(), [['--no-block', 'stop', 'skymp.service']])
+  assert.equal(JSON.parse(fs.readFileSync(h.markers.stopped, 'utf8')).by, 'jake (website)')
 })
 
 test('refusals run no ledger or systemd command: players online, players unknown, already running, not running, updating', async () => {

@@ -211,7 +211,7 @@ function createServerStatus({ config, getHeartbeat = () => null, run = runFile, 
     const failed = releaseQueue.lastFailure?.() || null
     return {
       generatedAt: isoOrNull(t),
-      service: { state, since: isoOrNull(skymp?.since), nRestarts: skymp?.nRestarts ?? null },
+      service: { state, sub: skymp?.sub ?? null, since: isoOrNull(skymp?.since), nRestarts: skymp?.nRestarts ?? null },
       players: {
         online: state === 'down' || state === 'stopped' ? 0 : freshOnline(beat, skymp, t),
         max: Number.isInteger(beat?.maxPlayers) ? beat.maxPlayers : config.serverMaxPlayers ?? null,

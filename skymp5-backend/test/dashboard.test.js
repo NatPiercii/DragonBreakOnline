@@ -129,6 +129,16 @@ test('an Owner at 0 players gets Stop and Restart, and Start only when the serve
   assert.deepEqual(buttons(load(withControls(down, { online: 0 }), Q0)).map(b => b.disabled), [false, true, true])
 })
 
+test('a crashed server waiting for systemd to start it again shows so, and only Stop is offered', () => {
+  const crashed = { ...S0, service: { ...S0.service, state: 'starting', sub: 'auto-restart' } }
+  const page = load(withControls(crashed, { online: null }), Q0)
+  assert.ok(page.lines('srvHead')[0].startsWith('Crashed, restarting'), page.lines('srvHead')[0])
+  assert.deepEqual(buttons(page).map(b => b.disabled), [true, false, true])
+  const starting = load(withControls({ ...S0, service: { ...S0.service, state: 'starting', sub: 'start' } }, { online: null }), Q0)
+  assert.ok(starting.lines('srvHead')[0].startsWith('Starting'))
+  assert.deepEqual(buttons(starting).map(b => b.disabled), [true, true, true])
+})
+
 test('with players online every button is disabled with the countdown line', () => {
   const page = load(withControls(S0), Q0)
   assert.equal(S0.players.online, 2)

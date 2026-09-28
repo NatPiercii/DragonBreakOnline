@@ -66,6 +66,8 @@ function parseRequest(action, body) {
 function refusal(action, { unit, updating, online }) {
   if (updating) return 'updating'
   if (!unit) return 'unavailable'
+  // Waiting to restart after a crash: no process and so no players, and Stop ends the retries
+  if (unit.active === 'activating' && /^auto-restart/.test(unit.sub || '')) return action === 'stop' ? null : 'changing'
   const down = DOWN.has(unit.active)
   if (!down && unit.active !== 'active') return 'changing'
   if (action === 'start') return down ? null : 'alreadyRunning'
@@ -295,7 +297,7 @@ function createServerControl({
     const state = s.service?.state
     const heldBy = (s.claims || []).some(c => c.resource === RESOURCE && c.operator !== OPERATOR)
     const gate = !owner ? 'notOwner' : mode === 'off' ? 'controlsOff' : current ? 'busy' : heldBy ? 'claimed' : null
-    const seen = { unit: UNIT_OF[state] ? { active: UNIT_OF[state] } : null, updating: state === 'updating', online: s.players?.online ?? null }
+    const seen = { unit: UNIT_OF[state] ? { active: UNIT_OF[state], sub: s.service.sub ?? null } : null, updating: state === 'updating', online: s.players?.online ?? null }
     const why = Object.fromEntries(ACTIONS.map(a => [a, gate || refusal(a, seen)]))
     const shown = current?.state === 'running' ? current : last
     return {

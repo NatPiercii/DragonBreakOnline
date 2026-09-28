@@ -181,9 +181,11 @@ test('service state: reachable, starting, unresponsive, down, stopped and updati
     assert.equal(s.players.online, online, name)
   }
   const s = await stubStatus({ beat: beatAgo(5e3) }).get()
-  assert.deepEqual(s.service, { state: 'reachable', since: new Date(Math.floor((T - 2 * 3600e3) / 1000) * 1000).toISOString(), nRestarts: 0 })
+  assert.deepEqual(s.service, { state: 'reachable', sub: 'running', since: new Date(Math.floor((T - 2 * 3600e3) / 1000) * 1000).toISOString(), nRestarts: 0 })
   assert.deepEqual(s.players, { online: 3, max: 50, heartbeatAt: new Date(T - 5e3).toISOString() })
-  assert.deepEqual((await stubStatus({ run: async () => { throw new Error('x') } }).get()).service, { state: 'down', since: null, nRestarts: null })
+  assert.deepEqual((await stubStatus({ run: async () => { throw new Error('x') } }).get()).service, { state: 'down', sub: null, since: null, nRestarts: null })
+  const crashed = await stubStatus({ skymp: { ActiveState: 'activating', SubState: 'auto-restart' } }).get()
+  assert.deepEqual([crashed.service.state, crashed.service.sub], ['starting', 'auto-restart'])
 })
 
 test('service state: a rising restart count is unresponsive, and the shared status is cached for 5 s', async () => {
