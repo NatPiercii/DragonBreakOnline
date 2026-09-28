@@ -45,7 +45,7 @@ const mp = {
 const placed = [], deleted = [], panels = [];
 const api = {
   mp, log: () => {}, audit: () => {}, who: (a) => NAME[a], display: (a) => NAME[a],
-  personal: (a, t) => said.push([a, t]), cfg: { rest: { holdShare: 0.1 } },
+  personal: (a, t) => said.push([a, t]), cfg: { rest: { holdShare: 0.1 }, business: { chestRentPaused: false } },
   openWidget: (a, w) => (w.type === 'businessLedger' ? panels.push([a, w]) : said.push([a, 'MENU ' + w.targetName + ' | ' + w.actions.map((x) => x.id).join(',')])),
   closeWidget: (a, id) => said.push([a, 'CLOSE ' + id]),
   onUi: (n, f) => { ui[n] = f; }, registerChatCommand: (n, f) => { cmds[n] = f; },
@@ -172,6 +172,20 @@ globalThis.__dboBusinessLogin(OWNER);
 ok(gold[OWNER] === 32 && data.businesses[DOOR.toString(16)].owed === 0, 'the owner collects them at login');
 setp(DOOR, 'private.housing', { owner: 11, ownerName: 'Stray', partner: OUTDOOR });
 ok(globalThis.__dboBusinessRent(CELL) === null, 'a claim that changed hands closes the business');
+
+// Review A2-1 (2026-09-28): the new owner's /business open keeps the old record under archived, never overwrites it
+cmds.business(STRANGER, 'open Stray Hall');
+const afterOpen = JSON.parse(fs.readFileSync('businesses.json', 'utf8'));
+const arch = Object.entries(afterOpen.archived || {});
+ok(afterOpen.businesses[DOOR.toString(16)].name === 'Stray Hall' && arch.length === 1 && arch[0][1].name === 'The Silver Jug' && arch[0][0].startsWith(DOOR.toString(16) + '@'),
+  "a new owner's business archives the old record instead of overwriting it");
+// Review A2-1: with the shipped default (chest renting paused) nothing can be put up for rent, by the panel or the pick
+delete require.cache[require.resolve(MODULE)];
+require(MODULE)(Object.assign({}, api, { cfg: { rest: { holdShare: 0.1 } } }));
+cmds.business(STRANGER, 'chest 10');
+ok(/paused/.test(last(STRANGER)), 'with the shipped default, asking to put a chest up is refused');
+const listed = () => (JSON.parse(fs.readFileSync('businesses.json', 'utf8')).businesses[DOOR.toString(16)].chests || {})[CHEST.toString(16)];
+ok(!listed(), 'and no chest is listed');
 
 console.log(fails ? `${fails} FAILED` : 'all checks passed');
 fs.rmSync(scratch, { recursive: true, force: true });

@@ -26,6 +26,8 @@ module.exports = (api) => {
     enabled: true, minRent: 1, maxRent: 200, maxChestPrice: 200, chestGraceHours: 72, maxTax: 0.3,
     taxRanks: ['jarl', 'count', 'steward'], maxStaff: 12, maxNote: 300, logKeep: 300, notesKeep: 200, perPage: 8,
     armSeconds: 60,
+    // Storage for rent stays paused until a rented chest's protection no longer depends on the business record (A2-1)
+    chestRentPaused: true,
     // The ledger book (TGDummyLedger, the Thieves Guild's business ledger) and how the owner sets it on a counter
     ledgerBase: '106a68:Skyrim.esm', ledgerForward: 70, ledgerHeight: 95, nudgeStep: 5, nudgeTurn: 15, ledgerReach: 700,
     panelKeep: 40,
@@ -182,6 +184,7 @@ module.exports = (api) => {
         delete biz.chests[hex(ref)]; note(biz, `${display(a)} took a chest off the rental list`); save();
         personal(a, 'The chest is no longer for rent.'); return true;
       }
+      if (C.chestRentPaused !== false) { personal(a, 'Storage for rent is paused for a short while. It will be back soon.'); return true; }
       // A world container is emptied the first time anyone opens it: do that now, before anyone stores in it
       try { if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(ref); } catch (e) { /* not a world container */ }
       biz.chests[hex(ref)] = Object.assign(cur || {}, { price: arm.price });
@@ -358,6 +361,10 @@ module.exports = (api) => {
     },
     chest: (a, claim, b, v) => {
       if (String(v).toLowerCase() === 'off') { S.armed.set(a >>> 0, { price: 0, until: Date.now() + C.armSeconds * 1000 }); return R(true, `Open the chest to take off the rental list, within ${C.armSeconds} seconds.`); }
+      // Paused (claude-jake's review A2-1, 2026-09-28): a rented chest's protection lives in the business record, so a claim
+      // changing hands, a disabled or unloaded business.js would leave a renter's items open to anyone. No chest is
+      // listed yet; none can be until the chest record stands on its own. Taking a chest OFF the list still works.
+      if (C.chestRentPaused !== false) return R(false, 'Storage for rent is paused for a short while. It will be back soon.');
       const n = Math.round(Number(v));
       if (!Number.isFinite(n) || n < 1 || n > C.maxChestPrice) return R(false, `Price a chest between 1 and ${C.maxChestPrice} gold a day.`);
       S.armed.set(a >>> 0, { price: n, until: Date.now() + C.armSeconds * 1000 });
@@ -483,6 +490,14 @@ module.exports = (api) => {
       if (biz) return personal(a, `This is already ${biz.name}.`);
       const name = rest.slice(0, 40);
       if (!name) return personal(a, 'Name it: /business open <name>');
+      // The claim changed hands and the old owner's record is still here: keep it (their held takings, the rentals)
+      // under archived instead of overwriting it (review A2-1). Staff settle it from there.
+      const old = data().businesses[hex(claim.primary)];
+      if (old) {
+        const d = data(); d.archived = d.archived || {};
+        d.archived[`${hex(claim.primary)}@${Date.now()}`] = old;
+        audit(`BUSINESS ${who(a)} opened a business on claim ${hex(claim.primary)}; the previous record (${old.name}, owner ${old.owner}, ${Number(old.owed) || 0} gold held) was archived`);
+      }
       data().businesses[hex(claim.primary)] = { name, owner: profileOf(a), ownerName: display(a), zone: zoneOfActor(a), rentGold: 0, staff: [], chests: {}, owed: 0, log: [], notes: [] };
       const b = data().businesses[hex(claim.primary)]; note(b, `${display(a)} opened ${name}`); save();
       audit(`BUSINESS ${who(a)} opened ${name} (claim ${hex(claim.primary)}, ${zoneName(b.zone)})`);
