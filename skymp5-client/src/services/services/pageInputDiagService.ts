@@ -1,4 +1,6 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
+import { sendCustomPacket } from "./customPacketUtil";
+import { NetworkingService } from "./networkingService";
 import { BrowserMessageEvent } from "skyrimPlatform";
 import { logTrace } from "../../logging";
 
@@ -17,6 +19,14 @@ import { logTrace } from "../../logging";
 // the server as well. Logging only: this sends nothing and changes nothing.
 
 const KEY = "diag:page";
+// Relayed to the server as well, so a stuck player has to do nothing: no launcher build, no Report a Problem, no
+// getting the timing right. gamemode.js writes each line to the server log as "[dboDiag] <profile> <line>".
+// Lines are buffered from front load, because the interesting ones happen before the connection is up.
+const RELAY_EVERY_MS = 5000;
+const RELAY_MAX_LINES = 40;
+const RELAY_MAX_PER_PACKET = 8;
+// Only the lines worth a packet: the summaries, the first few DOM events, the load and heartbeat lines, the open dump
+const RELAY_WANTED = /^(lag |load |open |overlays |media |page heartbeat |closed,|mousemove #[1-5] |mousedown #[1-5] |click #[1-5] |keydown #[1-5] )/;
 // Data\Platform\Logs\dbo-diag-logs.txt
 const LOG_NAME = "dbo-diag";
 // A page that somehow spammed this must not fill the log or the player's report
@@ -36,6 +46,7 @@ export class PageInputDiagService extends ClientListener {
   private onBrowserMessage(e: BrowserMessageEvent): void {
     if (e.arguments[0] !== KEY) return;
     const text = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
+    this.queueForRelay(text);
 
     if (text.startsWith("beat ")) {
       this.beats++;
@@ -51,9 +62,37 @@ export class PageInputDiagService extends ClientListener {
     this.write(text);
   }
 
+  // Buffered from front load; sent once there is a connection to send it on
+  private queueForRelay(text: string): void {
+    if (this.relayed >= RELAY_MAX_LINES) return;
+    if (!RELAY_WANTED.test(text)) return;
+    if (this.queue.length >= RELAY_MAX_LINES) return;
+    this.queue.push(text.slice(0, 400));
+  }
+
+  private flushRelay(): void {
+    if (!this.queue.length || this.relayed >= RELAY_MAX_LINES) return;
+    try {
+      if (!this.controller.lookupListener(NetworkingService).isConnected()) return;
+    } catch (e) {
+      return;   // too early: the service is not up yet
+    }
+    const room = RELAY_MAX_LINES - this.relayed;
+    const lines = this.queue.splice(0, Math.min(RELAY_MAX_PER_PACKET, room));
+    this.relayed += lines.length;
+    try {
+      sendCustomPacket(this.controller, { customPacketType: "dboDiag", lines });
+    } catch (e) {
+      // Put them back for the next try rather than losing them
+      this.relayed -= lines.length;
+      this.queue.unshift(...lines);
+    }
+  }
+
   // A beat that stops while character select is up is the thing worth catching; tick still runs when update does not
   private onTick(): void {
     const now = Date.now();
+    if (now - this.lastRelay >= RELAY_EVERY_MS) { this.lastRelay = now; this.flushRelay(); }
     if (now - this.lastCheck < GAP_CHECK_MS) return;
     this.lastCheck = now;
     if (!this.lastBeatAt || this.gapOpen) return;
@@ -88,4 +127,7 @@ export class PageInputDiagService extends ClientListener {
   private lastCheck = 0;
   private gapOpen = false;
   private gapStartedAt = 0;
+  private queue: string[] = [];
+  private relayed = 0;
+  private lastRelay = 0;
 }
