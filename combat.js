@@ -34,6 +34,11 @@ module.exports = (api) => {
     // 0 = a stagger. From anyone, a draugr's shout included; one push per target every pushCooldownSeconds.
     pushSpells: { VoiceUnrelentingForce1: 0, VoiceUnrelentingForce2: 4, VoiceUnrelentingForce3: 8 },
     pushCooldownSeconds: 2,
+    // A player's shout counts only if they were given shouts (Give all Shouts, shoutGrantProp) and the word is one of
+    // the Dragonborn's shouts in admin-powers.json: the server accepts any shout word from a player (it cannot see the
+    // equipped shout), so a modified client could otherwise land a dragon's breath (release review, 2026-09-28).
+    // Werewolf howls (shoutExempt) are beast-form powers run by beastform.js. NPCs are not gated.
+    shoutGate: true, shoutGrantProp: 'private.dboAllShouts', shoutExempt: ['cf791:Skyrim.esm', 'ce217:Skyrim.esm'],
   }, cfg.combat || {});
 
   // actorId -> { guardBrokenUntil, staggerAt }
@@ -142,9 +147,43 @@ module.exports = (api) => {
     }
     return pushForceCache.get(spellId);
   };
+  // ---- the shout gate ------------------------------------------------------------------------------------
+  const fs = require('fs'); const path = require('path');
+  const idOfDesc = (d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } };
+  const u32 = (f, off) => (f && f.data.byteLength >= off + 4 ? new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(off, true) : 0);
+  // SPEL SPIT: the spell type is the u32 at 8, 11 = a voice power (a shout's word, a howl); checked on Skyrim.esm
+  const voiceCache = new Map();
+  const isVoiceSpell = (spellId) => {
+    if (!voiceCache.has(spellId)) { const r = recordOf(spellId); voiceCache.set(spellId, !!r && String(r.record.type) === 'SPEL' && u32(fieldsOf(r, 'SPIT')[0], 8) === 11); }
+    return voiceCache.get(spellId);
+  };
+  // The word spells (SHOU SNAM, spell at 4) of the shouts in admin-powers.json, read once per load
+  let allowedWords = null;
+  const allowedShoutWords = () => {
+    if (allowedWords) return allowedWords;
+    allowedWords = new Set();
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(path.resolve('admin-powers.json'), 'utf8')).shouts || []; } catch (e) { log('combat: admin-powers.json unreadable, no shout is allowed', e.message); }
+    for (const sh of list) {
+      const r = recordOf(idOfDesc(sh.shout));
+      if (!r || String(r.record.type) !== 'SHOU') continue;
+      for (const f of fieldsOf(r, 'SNAM')) { const w = u32(f, 4); try { if (w) allowedWords.add(r.toGlobalRecordId(w) >>> 0); } catch (e) { /* unmapped */ } }
+    }
+    log(`combat: ${allowedWords.size} shout words allowed to players (${list.length} shouts in admin-powers.json)`);
+    return allowedWords;
+  };
+  const exemptShouts = new Set((C.shoutExempt || []).map(idOfDesc).filter(Boolean));
+  // True unless a player casts or hits with a shout word they may not use
+  const shoutAllowed = (a, spellId) => {
+    if (!C.shoutGate || !isPlayer(a) || !isVoiceSpell(spellId) || exemptShouts.has(spellId >>> 0)) return true;
+    let granted = false; try { granted = mp.get(a, C.shoutGrantProp) === true; } catch (e) { granted = false; }
+    return granted && allowedShoutWords().has(spellId >>> 0);
+  };
+
   const onSpellHit = (agg, tgt, spellId) => {
     if (!C.enabled || agg === tgt || !isPlayer(tgt)) return;
     const force = pushForceOf(spellId);
+    if (force >= 0 && !shoutAllowed(agg, spellId)) return;
     if (force >= 0 && typeof sendPacket === 'function') {
       const s = st(tgt), now = Date.now();
       if (now - (s.pushedAt || 0) < C.pushCooldownSeconds * 1000) return;
@@ -161,5 +200,5 @@ module.exports = (api) => {
   };
 
   const forget = (a) => S.delete(a);
-  return { onAttempt, onSpellHit, forget, isShield };
+  return { onAttempt, onSpellHit, forget, isShield, shoutAllowed };
 };
