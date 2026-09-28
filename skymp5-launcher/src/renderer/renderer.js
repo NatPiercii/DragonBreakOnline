@@ -853,17 +853,28 @@ document.getElementById('btn-open-install').addEventListener('click', async () =
 const reportButton = document.getElementById('btn-send-report')
 const reportStatus = document.getElementById('report-status')
 const reportNote   = document.getElementById('report-note')
+// The button is only disabled while a send is in flight. It used to stay disabled after a successful send, so a
+// player who reported one problem could not report the next one without restarting the launcher (Nate, 2026-09-28).
+const REPORT_AGAIN_MS = 15000
 reportButton.addEventListener('click', async () => {
   reportButton.disabled = true
   const wasSaying = reportStatus.textContent
   reportStatus.textContent = 'Sending your logs...'
-  const r = await window.electronAPI.sendReport(reportNote.value || '')
+  let r
+  try {
+    r = await window.electronAPI.sendReport(reportNote.value || '')
+  } catch (e) {
+    r = { ok: false, error: 'Could not send the report.' }
+  }
+  reportButton.disabled = false
   if (r && r.ok) {
-    reportStatus.textContent = 'Sent. Staff can see it in the error-report channel under your Discord name.'
+    reportStatus.textContent = 'Sent. Staff can see it under your Discord name. You can send another if something else goes wrong.'
     reportNote.value = ''
+    // A moment's pause so a double click does not file the same thing twice
+    reportButton.disabled = true
+    setTimeout(() => { reportButton.disabled = false }, REPORT_AGAIN_MS)
   } else {
     reportStatus.textContent = (r && r.error) || 'Could not send the report.'
-    reportButton.disabled = false
     setTimeout(() => { reportStatus.textContent = wasSaying }, 8000)
   }
 })
