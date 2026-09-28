@@ -873,7 +873,7 @@ const ITEM_TYPES = new Set(['WEAP', 'ARMO', 'MISC', 'INGR', 'ALCH', 'BOOK', 'AMM
 const HARVEST_ITEM_PREFIXES = ['hangingrabbit', 'hangingpheasant', 'hanginggarlic', 'garlicbraid', 'hangingelvesear', 'hangingfrostmirriam', 'driedelvesear', 'driedfrostmirriam', 'hangingsalmon', 'salmonrack', 'hangingherb', 'sleepingtreesap',
   // Nat 2026-09-28: the herbs and food hanging in Bruma's houses. 'Lavander' is the game's own spelling;
   // 'lavender' is here too so a correctly spelled record in another plugin is not silently missed.
-  'hanginglavander', 'hanginglavender', 'hangingmagusmint', 'hangingmoratapinella', 'hangingscalypholiota', 'hangingonionbraid'];
+  'hanginglavander', 'hanginglavender', 'hangingmagusmint', 'hangingmoratapinella', 'hangingscalypholiota', 'hangingonionbraid', 'hangingmoss'];
 // Nat 2026-09-28: sleeping tree sap can be taken, and the tap is then spent for an hour. The harvestables above
 // had no timer at all, so a hanging rabbit could be taken again the moment it was looked at; they share this one.
 // Keyed by the reference and kept on globalThis, so a gamemode reload does not hand everyone a fresh harvest.
