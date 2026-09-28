@@ -1,5 +1,30 @@
 [
   {
+    "title": "Shouts Reach Other Players",
+    "date": "2026-09-28",
+    "version": "Client 0.3.57",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Shouts",
+        "items": [
+          "Shouts now work against other players, and a draugr's shouts now work on you.",
+          "Unrelenting Force: the first word staggers, while the second and third throw the target back, the third hardest.",
+          "Disarm makes the target put away the weapons in their hands. They can draw them again straight away, and nobody can be disarmed more than once every 10 seconds.",
+          "Dismaying Shout leaves the target terrified and slowed to half speed for 5, 8 or 12 seconds, by the number of words.",
+          "Only characters who have been taught shouts can use them, and only the shouts the Dragonborn learns. The breath of dragons stays with the dragons.",
+          "The Greybeards will teach the Voice one day, and it won't be easy to learn."
+        ]
+      },
+      {
+        "heading": "Getting it",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Business Ledger, Aleswell Open, and Fixes",
     "date": "2026-09-28",
     "version": "Client 0.3.56",
