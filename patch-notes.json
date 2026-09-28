@@ -1,5 +1,25 @@
 [
   {
+    "title": "Leaner Loot",
+    "date": "2026-09-28",
+    "version": "Server",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "Dungeon loot is leaner: potions turn up far less often (strong ones rarely), and Ayleid treasure now depends on the difficulty. Novice ruins give plain Ayleid gear, and only a Master's boss chest can hold Eminent jewellery or the Ayleid Lich Helmet."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "A ruin button you have already pressed says so once, instead of filling your chat."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Martial Arts, Breaking Things Down, and a New Border",
     "date": "2026-09-28",
     "version": "Server + client 0.3.58",
