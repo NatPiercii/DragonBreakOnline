@@ -34,6 +34,7 @@ require(DUNGEONS)({
   isAdmin: () => false, giveItem: () => true, cfg: {}, every: () => {},
 });
 const fire = (n, a, args) => (ui.get(n) || []).forEach((f) => f(a, args, 0));
+fire('uiCaps', A, ['expeditionBoard']); // this HUD draws the board panel
 let failures = 0;
 const check = (label, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
 

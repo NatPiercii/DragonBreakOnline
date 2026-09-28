@@ -50,6 +50,9 @@ check('/expeditions no longer opens anything; it points at the board', !widgets.
 commands.get('expedition')(A, 'nir');
 check('...nor does /expedition with a name', !widgets.length && !globalThis.__dboDungeons.pending.get(A));
 check('a board used away from the two halls says where they are', activate(BOARD, B) === false && !widgets.length && /boards in the Synod Conclave and the Fighters Guild/.test(last(B)), last(B));
+check('an older client (no uiCaps) gets the list menu, not an invisible panel', activate(BOARD, A) === false && widgets.length === 1 && widgets[0][1].type === 'contextMenu' && widgets[0][1].events.action === 'dbo:expeditionPick' && /Niryastare, Kvatch County \(open\)/.test(widgets[0][1].actions[0].label), widgets[0] && widgets[0][1]);
+fire('expeditionClose', A, []); widgets.length = 0;
+fire('uiCaps', A, ['bank', 'expeditionBoard']);
 check('the board refuses the engine and opens the expedition board panel', activate(BOARD, A) === false);
 const list = widgets.find((w) => w[1].type === 'expeditionBoard');
 check('the panel lists the ruins with county, state and status, from this hall', !!list && list[1].hall === 'the Synod Conclave' && list[1].expeditions[0].name === 'Niryastare' && list[1].expeditions[0].county === 'Kvatch County' && list[1].expeditions[0].state === 'open' && list[1].expeditions[0].status === 'open' && list[1].events.pick === 'dbo:expeditionPick' && list[1].events.close === 'dbo:expeditionClose', list && list[1]);

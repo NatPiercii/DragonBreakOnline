@@ -1077,10 +1077,20 @@ module.exports = (api) => {
     if (lease) return lease.members.has(profileOf(a)) ? 'yours' : 'taken';
     return (Number(cooldownsOf(a)[d.id]) || 0) > Date.now() ? 'resting' : 'open';
   };
+  // The board panel opens only for a client whose UI said it draws it (dbo:uiCaps 'expeditionBoard' from the HUD): an
+  // unknown widget opened with focus would leave an invisible panel holding the keys. An older client gets the list menu.
+  const uiCaps = globalThis.__dboExpeditionCaps instanceof Map ? globalThis.__dboExpeditionCaps : (globalThis.__dboExpeditionCaps = new Map());
+  onUi('uiCaps', (a, args) => { uiCaps.set(a >>> 0, new Set((args || []).map(String))); });
+  const boardCaps = { has: (a) => (uiCaps.get(a >>> 0) || new Set()).has('expeditionBoard') };
   const openExpeditions = (a, st) => {
     const list = EXPEDITIONS.map((x) => byId.get(x.id)).filter(Boolean);
     if (!list.length) return personal(a, 'No expeditions are being organised right now.');
     expeditionPending.set(a, true);
+    if (!boardCaps.has(a)) {
+      return openWidget(a, { type: 'contextMenu', id: EXPEDITION_WIDGET_ID, mode: 'menu', targetName: `Expeditions from ${st.name}: Ayleid ruins far to the south`,
+        actions: list.map((d) => ({ id: d.id, label: `${d.name}${d.county ? `, ${d.county}` : ''} (${expeditionStatus(a, d)})` })),
+        events: { action: 'dbo:expeditionPick', close: 'dbo:expeditionClose' } }, true);
+    }
     openWidget(a, { type: 'expeditionBoard', id: EXPEDITION_WIDGET_ID, hall: st.name,
       expeditions: list.map((d) => ({ id: d.id, name: d.name, county: d.county || '', kind: 'Ayleid ruin', status: expeditionStatus(a, d), state: statusState(a, d), masters: mastersOf(d) })),
       bossReturnMinutes: C.bossReturnMinutes, leaseMinutes: C.leaseMinutes,
