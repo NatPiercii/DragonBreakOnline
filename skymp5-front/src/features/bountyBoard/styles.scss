@@ -251,6 +251,7 @@ $ink-dim: rgba(20, 40, 43, 0.62);
     width: min(560px, 84%);
     padding: 20px;
     @include dbo-panel;
+    @include dbo-panel-cap;
   }
 
   &__compose-title {
