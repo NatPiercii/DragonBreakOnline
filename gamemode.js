@@ -542,6 +542,8 @@ registerChatCommand('help', (a, args) => {
   const groups = helpGroupsFor(a);
   const staffAsk = want.match(/^(?:admin|staff)(?:\s+(.*))?$/);
   if (staffAsk && isAdmin(a)) return staffHelp(a, (staffAsk[1] || '').trim());
+  // A UI that draws the panel gets it; everyone else gets the same topics as chat lines
+  if (hasPlayerMenu(a) && (!want || groups.some((g) => g.key === want))) return openPlayerMenu(a, want);
   if (!want) {
     personal(a, 'Commands by topic. /help <topic> lists a topic with what each command does; /help <command> explains one.');
     for (const g of groups) personal(a, `${g.title} (/help ${g.key}): ${g.names.map((n) => '/' + n).join('  ') || '-'}`);
@@ -1385,7 +1387,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
   // What a UI said it can draw, and a deity offer already made, belong to this session (review C6, PRAY-1)
-  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
+  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -1765,6 +1767,58 @@ const onUi = (event, fn) => {
   list.push(fn);
   globalThis.__dboUiEvents.set(event, list);
 };
+// ---- the player panel (U) ----------------------------------------------------------------------------------------------
+// The same topics /help lists, as a window: a topic added to HELP_GROUPS reaches both. Each entry is a command with one
+// line of what it does; a few ask for words in a box before they are sent; the rest of a topic is plain lines, because
+// it is reached by a key or by walking up to something. Only a client whose UI said it draws the panel (dbo:uiCaps
+// 'playerMenu') gets it, so an older client still gets /help in chat.
+const PANEL_WIDGET_ID = 52;
+const PANEL_TITLES = { people: 'People', character: 'Character', faith: 'Faith', beast: 'The beast', work: 'Work',
+  rule: 'Rule & property', groups: 'Groups', trouble: 'Help & trouble', other: 'Other' };
+// A command the panel asks for words first. Each field is a box; they are joined with a space behind the command.
+const PANEL_ASK = {
+  bug: [{ label: 'What went wrong', placeholder: 'what you were doing, and what happened', lines: 3 }],
+  ticket: [{ label: 'What you need', placeholder: 'a staff member reads this', lines: 3 }],
+  pm: [{ label: 'To', placeholder: 'name or #TAG' }, { label: 'Message', placeholder: '', lines: 2 }],
+};
+// Chat reaches these another way (they are not registered commands), so the panel adds them to their topic
+const PANEL_EXTRA = { people: [{ name: 'pm', desc: 'say something to one person, privately' }] };
+const panelTabsFor = (a) => {
+  const tabs = [];
+  for (const g of helpGroupsFor(a)) {
+    const entries = g.names.filter((n) => n !== 'help')
+      .map((n) => ({ name: n, label: '/' + n, desc: (commands.get(n) || {}).help || '', ask: PANEL_ASK[n] || null }));
+    for (const e of PANEL_EXTRA[g.key] || []) entries.push({ name: e.name, label: '/' + e.name, desc: e.desc, ask: PANEL_ASK[e.name] || null });
+    const hints = (g.hints || []).slice();
+    if (!entries.length && !hints.length) continue;
+    tabs.push({ key: g.key, title: PANEL_TITLES[g.key] || g.title, entries, hints });
+  }
+  return tabs;
+};
+const panelState = globalThis.__dboPanelState || (globalThis.__dboPanelState = { caps: new Map(), nonces: new Map() });
+const hasPlayerMenu = (a) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has('playerMenu'); };
+const openPlayerMenu = (a, tab) => {
+  const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+  panelState.nonces.set(a >>> 0, nonce);
+  openWidget(a, { type: 'playerMenu', id: PANEL_WIDGET_ID, nonce, tab: tab || '', staff: isAdmin(a), tabs: panelTabsFor(a) }, true);
+};
+const closePlayerMenu = (a) => { panelState.nonces.delete(a >>> 0); closeWidget(a, PANEL_WIDGET_ID); };
+onUi('uiCaps', (a, args) => { panelState.caps.set(a >>> 0, new Set((args || []).map(String))); });
+onUi('menuOpen', (a, args) => { if (hasPlayerMenu(a)) openPlayerMenu(a, String((args || [])[0] || '')); });
+onUi('menuClose', (a) => closePlayerMenu(a));
+// A button runs the command through the chat handler, so it passes exactly the checks typing it would. The name must be
+// one this player's own panel offered: a client that asks for anything else is answered with nothing.
+onUi('menuRun', (a, args) => {
+  if (panelState.nonces.get(a >>> 0) !== String((args || [])[0] || '')) return;
+  const name = String((args || [])[1] || '').toLowerCase();
+  const offered = new Set(panelTabsFor(a).flatMap((t) => t.entries.map((e) => e.name)));
+  if (!offered.has(name)) return;
+  const text = String((args || [])[2] || '').replace(/[\r\n]+/g, ' ').trim();
+  closePlayerMenu(a);
+  handleChat(userOf(a), `/${name}${text ? ' ' + text : ''}`);
+});
+globalThis.__dboPanelLeave = (a) => { panelState.caps.delete(a >>> 0); panelState.nonces.delete(a >>> 0); };
+
 // ---- meals: eating takes time (Nate, 2026-09-27, from athny's and dunthril's reports) ----------------------------------
 // The engine uses the food up at once; its hunger counts only when the meal is finished. The client (MealService) slows
 // its owner to a walk and reports a sprint, an attack or a newly drawn weapon, which ends the meal with nothing counted.

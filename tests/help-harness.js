@@ -13,6 +13,11 @@ const start = src.indexOf('const commands = new Map();');
 const end = src.indexOf("registerChatCommand('players'");
 if (start < 0 || end < 0 || end < start) { console.log('FAIL the chat command markers are gone from gamemode.js'); process.exit(1); }
 const section = src.slice(start, end);
+// The panel (U) serves the same topics, and lives further down the file; splice it in so both are driven together
+const pStart = src.indexOf('// ---- the player panel (U)');
+const pEnd = src.indexOf('globalThis.__dboPanelLeave');
+if (pStart < 0 || pEnd < 0 || pEnd < pStart) { console.log('FAIL the player panel markers are gone from gamemode.js'); process.exit(1); }
+const panelSection = src.slice(pStart, pEnd);
 
 const PLAYER = 1, STAFF = 2;
 const said = [];
@@ -25,8 +30,21 @@ const isAdmin = (a) => a === STAFF;
 const RANKED = 3, BEAST = 4;
 const profileOf = (a) => a;
 const ranksOf = (pid) => (pid === RANKED ? [{ zone: { id: 'bruma' }, rank: 'steward' }] : []);
-const api = new Function('personal', 'isAdmin', 'deliver', 'C', 'profileOf', 'ranksOf', section + '\nreturn { commands, registerChatCommand, aliasChatCommand, helpGroupsFor };')(personal, isAdmin, deliver, C, profileOf, ranksOf);
-const { commands, registerChatCommand, aliasChatCommand, helpGroupsFor } = api;
+// Panel stubs: what the widget layer and the chat handler would do
+const opened = [];
+const closed = [];
+const chatted = [];
+const openWidget = (a, widget, focus) => opened.push({ a, widget, focus });
+const closeWidget = (a, id) => closed.push({ a, id });
+const uiHandlers = new Map();
+const onUi = (event, fn) => { const l = uiHandlers.get(event) || []; l.push(fn); uiHandlers.set(event, l); };
+const userOf = (a) => a;
+const handleChat = (userId, text) => chatted.push({ userId, text });
+const args = ['personal', 'isAdmin', 'deliver', 'C', 'profileOf', 'ranksOf', 'openWidget', 'closeWidget', 'onUi', 'userOf', 'handleChat'];
+const api = new Function(...args, section + panelSection + '\nreturn { commands, registerChatCommand, aliasChatCommand, helpGroupsFor, panelTabsFor, openPlayerMenu };')(
+  personal, isAdmin, deliver, C, profileOf, ranksOf, openWidget, closeWidget, onUi, userOf, handleChat);
+const { commands, registerChatCommand, aliasChatCommand, helpGroupsFor, panelTabsFor, openPlayerMenu } = api;
+const ui = (event, a, ...rest) => (uiHandlers.get(event) || []).forEach((fn) => fn(a, rest));
 registerChatCommand('players', () => {}, { help: 'who is online' });
 registerChatCommand('status', () => {}, { help: 'your hunger, rest, and anything else weighing on your character' });
 registerChatCommand('pray', () => {}, { help: 'pray at a shrine' });
@@ -149,6 +167,71 @@ check('an alias is hidden too', !helpGroupsFor(PLAYER).some((g) => g.names.inclu
 commands.get('veryold').fn(PLAYER, 'with words');
 check('...and still reaches its command, arguments and all', ran === 'with words', JSON.stringify(ran));
 check('an alias explains where it went', /now part of \/newname/.test(help(PLAYER, 'veryold')[0]), help(PLAYER, 'veryold')[0]);
+
+// ---- the panel (U): the same topics as a window ----------------------------------------------------------------
+registerChatCommand('bug', () => {}, { help: 'tell us something went wrong' });
+registerChatCommand('ticket', () => {}, { help: 'ask staff for help' });
+const PANELIST = 7;
+const openFor = (a, tab) => { opened.length = 0; ui('menuOpen', a, tab || ''); return opened[0]; };
+
+check('a UI that never said it draws the panel gets nothing', openFor(PANELIST) === undefined);
+ui('uiCaps', PANELIST, 'bank', 'playerMenu');
+const panel = openFor(PANELIST);
+check('a UI that says playerMenu gets the widget', !!panel && panel.widget.type === 'playerMenu', panel && panel.widget.type);
+check('...focused, so it can be typed in', !!panel && panel.focus === true);
+const keysOf = (w) => w.widget.tabs.map((t) => t.key);
+check('the panel tabs are the /help topics', keysOf(panel).join(',') === helpGroupsFor(PANELIST).map((g) => g.key).join(','), keysOf(panel).join(','));
+check('...titled for a window, not a chat line', panel.widget.tabs.some((t) => t.title === 'Help & trouble'), JSON.stringify(panel.widget.tabs.map((t) => t.title)));
+check('/help is not a button inside the panel', !panel.widget.tabs.some((t) => t.entries.some((e) => e.name === 'help')));
+const entry = (w, n) => w.widget.tabs.flatMap((t) => t.entries).find((e) => e.name === n);
+check('every button carries a line of what it does', panel.widget.tabs.every((t) => t.entries.every((e) => e.label && typeof e.desc === 'string')));
+check('/bug asks for words first', !!entry(panel, 'bug') && entry(panel, 'bug').ask.length === 1, JSON.stringify(entry(panel, 'bug') && entry(panel, 'bug').ask));
+check('/pm asks who, then what', !!entry(panel, 'pm') && entry(panel, 'pm').ask.length === 2);
+check('...though /pm is no registered command', !commands.has('pm'));
+check('a topic keeps its hints as plain lines', panel.widget.tabs.some((t) => t.hints.length > 0));
+check('the panel drops a tab with nothing in it', panel.widget.tabs.every((t) => t.entries.length || t.hints.length));
+
+// role filtering, the same rule as /help
+ui('uiCaps', RANKED, 'playerMenu'); ui('uiCaps', PLAYER, 'playerMenu'); ui('uiCaps', STAFF, 'playerMenu');
+check('an official is given the Rule tab', keysOf(openFor(RANKED)).includes('rule'), keysOf(openFor(RANKED)).join(','));
+check('...and a plain player is not', !keysOf(openFor(PLAYER)).includes('rule'), keysOf(openFor(PLAYER)).join(','));
+check('staff are given it too', keysOf(openFor(STAFF)).includes('rule'));
+check('a staff-only command stays out of a player\'s panel', !entry(openFor(PLAYER), 'kick') && !entry(openFor(PLAYER), 'ledgerpoint'));
+
+// running a button
+const nonce = openFor(PANELIST).widget.nonce;
+chatted.length = 0; closed.length = 0;
+ui('menuRun', PANELIST, nonce, 'bug', 'the door ate me');
+check('a button runs its command through chat, checks and all', chatted.length === 1 && chatted[0].text === '/bug the door ate me', JSON.stringify(chatted));
+check('...for the player who pressed it', chatted.length === 1 && chatted[0].userId === PANELIST);
+check('...and the panel closes behind it', closed.some((c) => c.a === PANELIST));
+chatted.length = 0;
+ui('menuRun', PANELIST, nonce, 'players', '');
+check('...so the window that just ran is spent', chatted.length === 0, JSON.stringify(chatted));
+chatted.length = 0;
+ui('menuRun', PANELIST, openFor(PANELIST).widget.nonce, 'players', '');
+check('a button with no words sends the bare command', chatted.length === 1 && chatted[0].text === '/players', JSON.stringify(chatted));
+chatted.length = 0;
+ui('menuRun', PANELIST, 'not-the-nonce', 'players', '');
+check('a stale window is ignored', chatted.length === 0, JSON.stringify(chatted));
+chatted.length = 0;
+ui('menuRun', PANELIST, openFor(PANELIST).widget.nonce, 'kick', 'someone');
+check('a command the panel never offered is refused', chatted.length === 0, JSON.stringify(chatted));
+chatted.length = 0;
+ui('menuRun', STAFF, openFor(STAFF).widget.nonce, 'bug', 'line one\nline two');
+check('a newline in a box cannot smuggle a second command', chatted.length === 1 && chatted[0].text === '/bug line one line two', JSON.stringify(chatted));
+
+// /help itself
+said.length = 0; opened.length = 0;
+commands.get('help').fn(PANELIST, '');
+check('/help opens the panel for a UI that has one', opened.length === 1 && said.length === 0, `${opened.length} widget(s), ${said.length} line(s)`);
+opened.length = 0;
+commands.get('help').fn(PANELIST, 'faith');
+check('/help <topic> opens the panel at that tab', opened.length === 1 && opened[0].widget.tab === 'faith', opened.length && opened[0].widget.tab);
+said.length = 0; opened.length = 0;
+commands.get('help').fn(PANELIST, 'bug');
+check('/help <command> still answers in chat', opened.length === 0 && said.length === 1, said.map((x) => x.text).join(' | '));
+check('...and an older UI gets the whole list in chat', help(BEAST).length > 1 && opened.length === 0);
 
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);
