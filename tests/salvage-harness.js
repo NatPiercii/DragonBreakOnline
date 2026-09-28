@@ -116,6 +116,22 @@ reset(); S = load();
 INV[PLAYER] = [{ baseId: SWORD, count: 1, health: 1.1 }];
 ok(act(SMELTER, PLAYER) === false, 'only a tempered sword: nothing to break down, the smelter just works');
 
+// An item enchanted by its own record (EITM, "Iron Mace of Scorching") is never offered, though salvage.json lists it
+reset(); S = load();
+const MACE_OF_SCORCHING = 0x9b000;
+RECS[MACE_OF_SCORCHING] = { type: 'WEAP', fields: [{ type: 'EITM', data: new Uint8Array(4) }] };
+NAMES[MACE_OF_SCORCHING] = 'Iron Mace of Scorching';
+const t2 = JSON.parse(fs.readFileSync('salvage.json', 'utf8'));
+t2.items[desc(MACE_OF_SCORCHING)] = ['smelter', 0, [[desc(IRON), 2], [desc(STRIPS), 1]]];
+fs.writeFileSync('salvage.json', JSON.stringify(t2)); fs.utimesSync('salvage.json', new Date(), new Date(Date.now() + 3000));
+INV[PLAYER] = [{ baseId: MACE_OF_SCORCHING, count: 1 }, { baseId: SWORD, count: 1 }];
+act(SMELTER, PLAYER); w = lastWidget(PLAYER);
+ok(!w.actions.some((x) => /Scorching/.test(x.label)) && w.actions.some((x) => /Iron Sword/.test(x.label)), 'an item enchanted by its record is never offered, the plain sword is');
+choose(PLAYER, `b:${MACE_OF_SCORCHING}`);
+ok(count(PLAYER, MACE_OF_SCORCHING) === 1 && count(PLAYER, IRON) === 0, '...and a forged pick for it breaks nothing');
+INV[PLAYER] = [{ baseId: MACE_OF_SCORCHING, count: 1 }];
+ok(act(SMELTER, PLAYER) === false, 'carrying only enchanted gear, the smelter just works');
+
 // Tiers: the share and the metal gate
 reset(); S = load();
 INV[NOVICE] = [{ baseId: SWORD, count: 1 }, { baseId: DAEDRIC, count: 1 }];

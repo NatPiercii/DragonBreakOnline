@@ -14,7 +14,8 @@
 // at least one of the main material. A Blacksmith needs the tier that works the main metal. Books are read from their
 // own record: a bound book gives bookPaper paper and bookStrips leather strips, a note or letter notePaper paper; a book
 // that cannot be taken (BOOK DATA flag 0x02) is never offered. Worn and equipped stacks are never offered either, nor an
-// enchanted, named, tempered, poisoned or charged one: only plain copies of an item are broken down.
+// enchanted, named, tempered, poisoned or charged one, nor an item enchanted by its own record (EITM): only plain copies
+// of plain items are broken down.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -112,8 +113,16 @@ module.exports = (api) => {
   };
 
   // What one of this item gives back at this station for this rank, or null when it cannot be broken down here
+  // A weapon or armour enchanted by its own record (EITM: "Iron Mace of Scorching") is never broken down, as the notes
+  // promise; the plain copy of the same item is. A player's enchantment is extra data on the inventory entry (plain()).
+  const enchantedCache = new Map();
+  const enchantedRecord = (baseId) => {
+    if (!enchantedCache.has(baseId)) { const r = recordOf(baseId); enchantedCache.set(baseId, !!r && fieldsOf(r, 'EITM').length > 0); }
+    return enchantedCache.get(baseId);
+  };
   const yieldOf = (baseId, station, rank) => {
     if (station.books) return bookYield(baseId);
+    if (enchantedRecord(baseId)) return null;
     const e = items().get(norm(descOf(baseId)));
     if (!e || e[0] !== station.id || rank < (Number(e[1]) || 0)) return null;
     const share = shareFor(rank);
