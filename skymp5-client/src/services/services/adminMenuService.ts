@@ -48,7 +48,7 @@ const events = {
 
 // Requests the front may send through admin::request; everything else is refused here
 const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest", "adminPlaceablesRequest",
-  "adminPlacementsRequest", "adminPlacementRemove", "adminPlacementGoto", "adminPlaceMeta", "adminPlaceSearch"]);
+  "adminPlacementsRequest", "adminPlacementRemove", "adminPlacementGoto", "adminPlaceMeta", "adminPlaceSearch", "adminPlaceUndo"]);
 
 interface DebugServer {
   name: string;
@@ -362,7 +362,7 @@ export class AdminMenuService extends ClientListener {
   private onBrowserMessage(e: BrowserMessageEvent) {
     const kind = e.arguments[0];
     // PlacementService takes over the screen; the panel would hold the mouse and the crosshair
-    if ((kind === "admin::place" || kind === "admin::placedelete") && this.menuOpen) {
+    if ((kind === "admin::place" || kind === "admin::placedelete" || kind === "admin::placeselect" || kind === "admin::placeedit") && this.menuOpen) {
       this.closeMenu();
       return;
     }
@@ -407,6 +407,11 @@ export class AdminMenuService extends ClientListener {
       // The Place tab's catalog is served by the gamemode (placement.js), not by AdminSystem
       if (type === "adminPlaceablesRequest") {
         sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeCatalog", args: [] });
+        return;
+      }
+      if (type === "adminPlaceUndo") {
+        // 'list': the server sends the list again afterwards
+        sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeUndo", args: ["list"] });
         return;
       }
       if (type === "adminPlaceMeta") {

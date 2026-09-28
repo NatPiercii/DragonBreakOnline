@@ -434,7 +434,10 @@ export interface PlaceMeta {
 export interface PlaceResults { query: string; category: string; plugin: string; offset: number; total: number; items: Array<[string, string, string, string, 'npc' | 'object']> }
 
 // The "Placed near me" list (server placement.js placeList), nearest first in the admin's own cell or world
-export interface PlacedItem { id: string; name: string; kind: 'npc' | 'object'; hostile?: boolean; dist: number; by?: number; at?: string }
+export interface PlacedItem {
+  id: string; base?: string; name: string; kind: 'npc' | 'object'; hostile?: boolean; dist: number; by?: number; at?: string;
+  pos?: number[]; rot?: number[]; mine?: boolean;
+}
 export interface PanelPlacements { items: PlacedItem[]; here: number; total: number; at: number }
 
 interface PlaceRow { desc: string; name: string; plugin: string; cat: string; kind: 'npc' | 'object' }
@@ -475,6 +478,17 @@ export const PlaceTab = ({ events, placements, meta, results }: { events: Record
   const placedRow = placed.find((r) => r.id === placedPick) || null;
   const showPlaced = (): void => { setView('placed'); adminRequest(events, 'adminPlacementsRequest', {}); };
   const placedAction = (type: string): void => { if (placedRow) adminRequest(events, type, { id: placedRow.id }); };
+  // Another GM's placement needs the "others" right (older servers send no "mine": allowed, the server still checks)
+  const mayChangeRow = !!placedRow && (placedRow.mine !== false || !rights || rights.others);
+  // Edit: placement mode starts on the real thing's pose; Enter moves it there (PlacementService)
+  const editPlaced = (): void => {
+    if (!placedRow || !placedRow.base || !placedRow.pos) return;
+    send('admin::placeedit', JSON.stringify({ id: placedRow.id, base: placedRow.base, kind: placedRow.kind, name: placedRow.name, hostile: !!placedRow.hostile, pos: placedRow.pos, rot: placedRow.rot || [0, 0, 0] }));
+  };
+  const placeAnother = (): void => {
+    if (!placedRow || !placedRow.base || !mayPlace) return;
+    send('admin::place', JSON.stringify({ desc: placedRow.base, kind: placedRow.kind, name: placedRow.name, hostile: placedRow.kind === 'npc' && !!placedRow.hostile && mayHostile }));
+  };
   const catLabel = (id: string): string => ((meta && meta.categories.find((c) => c.id === id)) || { label: id }).label;
   return (
     <div className="admin-panel__body admin-panel__items">
@@ -506,7 +520,10 @@ export const PlaceTab = ({ events, placements, meta, results }: { events: Record
               {placedRow ? placedRow.name : placements ? `${placements.here} here, ${placements.total} in all (nearest 50 shown)` : ''}
             </span>
             <Button text="Go to" width={96} height={32} disabled={!placedRow} onClick={() => placedAction('adminPlacementGoto')} />
-            <Button text="Remove" width={104} height={32} disabled={!placedRow} onClick={() => { placedAction('adminPlacementRemove'); setPlacedPick(null); }} />
+            <Button text="Edit" width={90} height={32} disabled={!mayChangeRow || !placedRow || !placedRow.base} onClick={editPlaced} />
+            <Button text="Place another" width={140} height={32} disabled={!placedRow || !placedRow.base || !mayPlace} onClick={placeAnother} />
+            <Button text="Remove" width={104} height={32} disabled={!mayChangeRow} onClick={() => { placedAction('adminPlacementRemove'); setPlacedPick(null); }} />
+            <Button text="Undo" width={90} height={32} onClick={() => adminRequest(events, 'adminPlaceUndo', {})} />
             <Button text="Refresh" width={104} height={32} onClick={showPlaced} />
             <Button text="Catalog" width={104} height={32} onClick={() => setView('catalog')} />
           </div>
@@ -543,7 +560,7 @@ export const PlaceTab = ({ events, placements, meta, results }: { events: Record
             </label>
           ) : null}
           <Button text="Place" width={110} height={32} disabled={!picked || !mayPlace} onClick={() => start()} />
-          <Button text="Delete tool" width={130} height={32} onClick={() => send('admin::placedelete')} />
+          <Button text="Select tool" width={130} height={32} onClick={() => send('admin::placeselect')} />
           <Button text="Placed near me" width={150} height={32} onClick={showPlaced} />
         </div>
       </div>
