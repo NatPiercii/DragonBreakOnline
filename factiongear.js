@@ -10,14 +10,15 @@
 // OnFireSuccess, so the server keeps the materials and never adds the product (the same mechanism as the province
 // rule; see regions.js). The list is built by tools/faction_gear.py; the file is re-read when it changes.
 //
-// Config "factionGear": { enabled, adminBypass }
+// Config "factionGear": { enabled (off by default: shipped off until the in-game test), adminBypass }
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, cfg, registerChatCommand, isAdmin, sendPacket } = api;
-  const CFG = Object.assign({ enabled: true, adminBypass: true }, cfg.factionGear || {});
+  // Off for players until the in-game test; an admin in test mode is held to the rules even while it is off
+  const CFG = Object.assign({ enabled: false, adminBypass: true }, cfg.factionGear || {});
   const FILE = path.resolve('faction-gear.json');
   const S = globalThis.__dboFactionGearState = globalThis.__dboFactionGearState || { items: null, mtime: -1, checkedAt: 0, testing: new Set(), toldAt: new Map() };
 
@@ -45,7 +46,7 @@ module.exports = (api) => {
 
   // { ok, entry, why } for the crafter a making itemId
   const check = (a, itemId) => {
-    if (!CFG.enabled) return { ok: true, why: 'off' };
+    if (!CFG.enabled && !S.testing.has(a >>> 0)) return { ok: true, why: 'off' };
     const entry = items()[norm(descOf(itemId))];
     if (!entry) return { ok: true, why: 'open' };
     const mine = (typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a) : null) || [];
@@ -98,7 +99,8 @@ module.exports = (api) => {
       return personal(a, S.testing.has(a >>> 0) ? 'Faction gear test on: you are held to the faction rules like a player.' : 'Faction gear test off: admins pass again.');
     }
     const n = Object.keys(items()).length;
-    personal(a, `Faction gear is ${CFG.enabled ? 'on' : 'off'}: ${n} items listed in faction-gear.json. /factiongear test holds you to the rules.`);
+    const test = S.testing.has(a >>> 0) ? ' Test mode is on for you.' : ' /factiongear test holds you to the rules.';
+    personal(a, `Faction gear is ${CFG.enabled ? 'on' : 'off for players; test mode still applies to you'}: ${n} items listed in faction-gear.json.${test}`);
   }, { admin: true, help: '[test] faction gear rules; test holds an admin to them' });
 
   items();

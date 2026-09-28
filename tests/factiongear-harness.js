@@ -43,7 +43,7 @@ const ranks = {
 globalThis.__dboGuildsOf = (a) => ranks[a] || [];
 globalThis.__dboGuildInfo = (fid) => { const f = defs.find((x) => x.id === fid); return f ? { id: f.id, name: f.name } : null; };
 const said = [], audits = [], commands = new Map();
-const cfg = {};
+const cfg = { factionGear: { enabled: true } };   // switched on for the rules; the off state is checked at the end
 const mp = { getDescFromId: (id) => descs.get(id) || '', getIdFromDesc: (d) => idOf(d), lookupEspmRecordById: () => ({ record: null }) };
 const api = { mp, log: () => {}, personal: (a, t) => said.push([a, t]), audit: (t) => audits.push(t), who: String, cfg, registerChatCommand: (n, fn) => commands.set(n, fn), isAdmin: (a) => a === A.ADMIN, sendPacket: () => true };
 globalThis.__dboFactionGearState = undefined;
@@ -90,6 +90,19 @@ cfg.factionGear = { enabled: false };
 globalThis.__dboFactionGearState = undefined;
 require(path.join(SERVER, 'factiongear.js'))(Object.assign({}, api, { cfg }));
 check('with factionGear.enabled false everyone may', globalThis.__dboFactionCraft(A.OUT, IMP_HELM) === true);
+check('...an admin too', globalThis.__dboFactionCraft(A.ADMIN, IMP_HELM) === true);
+commands.get('factiongear')(A.ADMIN, 'test');
+globalThis.__dboFactionGearState.toldAt.clear();
+check('...but an admin in test mode is held to the rules while it is off (the live test)', globalThis.__dboFactionCraft(A.ADMIN, IMP_HELM) === false && /made only by the Imperial Legion's smiths/.test(lastTo(A.ADMIN)), lastTo(A.ADMIN));
+check('...while players still pass', globalThis.__dboFactionCraft(A.OUT, IMP_HELM) === true);
+commands.get('factiongear')(A.ADMIN, '');
+check('/factiongear says it is off for players and test mode still applies', /off for players; test mode still applies to you: \d+ items.*Test mode is on for you/.test(lastTo(A.ADMIN)), lastTo(A.ADMIN));
+// The shipped defaults: off in the code and in gamemode-config.json
+const shipped = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).factionGear;
+check('gamemode-config.json ships it off', shipped && shipped.enabled === false, shipped && shipped.enabled);
+globalThis.__dboFactionGearState = undefined;
+require(path.join(SERVER, 'factiongear.js'))(Object.assign({}, api, { cfg: {} }));
+check('with no config at all it is off', globalThis.__dboFactionCraft(A.OUT, IMP_HELM) === true);
 
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);
