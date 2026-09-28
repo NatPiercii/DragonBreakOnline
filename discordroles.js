@@ -1,8 +1,11 @@
 // DragonBreak Online: Discord roles from what a character does and where they live (Discord Bot to-do: "roles based on
 // what players do (professions, where they live)"). Loaded by gamemode.js.
 //
-// Skills: every skill the player's current character has chosen gets the guild role of the same name under ---SKILLS---
-// (One-Handed and Two-Handed are renamed Blade and Blunt once, Unarmed Martial Arts; a missing one is created there).
+// Skills: a character's THREE highest skills get the guild role of the same name under ---SKILLS---, and only once a
+// skill has reached level 25, Apprentice (Nate, 2026-09-28: "Top 3, from 25". Before this every chosen skill gave a
+// role, so a profile carried nine). If another skill overtakes one of the three the role moves with it; at a tie the
+// one already held is kept, so roles do not flicker week to week. One-Handed and Two-Handed are renamed Blade and
+// Blunt once, Unarmed Martial Arts; a missing role is created there.
 // Homes: every property the character owns or rents (housingSystem.ts, housing.json) gives the role of its town under
 // ---HOMES---: Bruma, Falkreath, Whiterun and so on, each created the first time someone lives there.
 //
@@ -17,13 +20,16 @@ const https = require('https');
 module.exports = (api) => {
   const { mp, log, audit, who, onlineActors, every, discordOf, profileOf, skills, token, guildId, cfg } = api;
   const C = Object.assign({ enabled: true, syncMinutes: 10, firstSyncSeconds: 30, skillsDivider: '---SKILLS---', homesDivider: '---HOMES---',
+    // The three highest skills, and only from Apprentice (skillPoints.ts TIER_FLOORS: Novice 1, Apprentice 25)
+    maxSkillRoles: 3, skillRoleMinLevel: 25,
     rename: { 'One-Handed': 'Blade', 'Two-Handed': 'Blunt', Unarmed: 'Martial Arts' },
     homeNames: { whiterun: 'Whiterun', riften: 'Riften', solitude: 'Solitude', windhelm: 'Windhelm', markarth: 'Markarth', falkreath: 'Falkreath',
       morthal: 'Morthal', dawnstar: 'Dawnstar', winterhold: 'Winterhold', bruma: 'Bruma', solstheim: 'Solstheim', alikr: "Alik'r" } }, cfg.discordRoles || {});
   if (!C.enabled || !token || !guildId) { log(`discord roles off (${!C.enabled ? 'config' : 'no bot token or guild'})`); return; }
 
   // roles: name -> { id, position } of the guild; synced: discordId -> { key, at }; seen: actorId -> first seen online
-  const S = globalThis.__dboDiscordRoles || (globalThis.__dboDiscordRoles = { roles: null, setup: null, synced: new Map(), seen: new Map(), chain: Promise.resolve() });
+  const S = globalThis.__dboDiscordRoles || (globalThis.__dboDiscordRoles = { roles: null, setup: null, synced: new Map(), seen: new Map(), chain: Promise.resolve(), pruned: { roles: 0, players: 0 } });
+  if (!S.pruned) S.pruned = { roles: 0, players: 0 };
 
   const request = (method, route, body, attempt = 0) => new Promise((resolve, reject) => {
     const data = body === undefined ? '' : JSON.stringify(body);
@@ -87,9 +93,35 @@ module.exports = (api) => {
 
   // What the character should carry: its chosen skills, and the towns of the properties it owns or rents
   const skillLabelById = new Map((skills || []).map((s) => [s.id, s.label]));
+  const MAX_SKILL_ROLES = Math.max(0, Number(C.maxSkillRoles) || 0);
+  const MIN_LEVEL = Math.max(1, Number(C.skillRoleMinLevel) || 1);
+  // masterySystem keeps the level on the record as `level`; `points` is the older name for the same number
+  const levelOfSkill = (rec, id) => { const pr = (rec && rec.skills && rec.skills[id]) || null; return pr ? Number(pr.level !== undefined ? pr.level : pr.points) || 0 : 0; };
+
+  // The skills that may carry a role at all: chosen, and at Apprentice or above. Highest first.
+  const candidates = (a) => {
+    const out = [];
+    try {
+      const rec = mp.get(a, 'private.mastery');
+      for (const id of (rec && Array.isArray(rec.order) ? rec.order : [])) {
+        const label = skillLabelById.get(id);
+        const level = levelOfSkill(rec, id);
+        if (label && level >= MIN_LEVEL) out.push({ name: label, level });
+      }
+    } catch (e) { /* no record */ }
+    return out.sort((x, y) => y.level - x.level || x.name.localeCompare(y.name));
+  };
+
+  // Which of them the character actually carries. A tie at the cut keeps whoever holds the role already, so a pair of
+  // skills level with each other does not swap roles back and forth at every sync.
+  const pickSkills = (list, held) => list.slice()
+    .sort((x, y) => (y.level - x.level) || ((held.has(y.name) ? 1 : 0) - (held.has(x.name) ? 1 : 0)) || x.name.localeCompare(y.name))
+    .slice(0, MAX_SKILL_ROLES)
+    .map((c) => c.name);
+
   const wanted = (a) => {
-    const skillNames = new Set();
-    try { const rec = mp.get(a, 'private.mastery'); for (const id of (rec && Array.isArray(rec.order) ? rec.order : [])) { const l = skillLabelById.get(id); if (l) skillNames.add(l); } } catch (e) { /* no record */ }
+    const skillLevels = candidates(a);
+    const skillNames = new Set(pickSkills(skillLevels, new Set()));
     const homes = new Set();
     const housing = globalThis.__dboHousing;
     const me = Number(profileOf(a));
@@ -105,14 +137,15 @@ module.exports = (api) => {
         } catch (e) { /* unreadable claim */ }
       }
     }
-    return { skillNames, homes };
+    return { skillNames, skillLevels, homes };
   };
 
   const sync = (a) => serial(async () => {
     const discordId = discordOf(a);
     if (!discordId || !/^\d{15,22}$/.test(discordId)) return;
-    const { skillNames, homes } = wanted(a);
-    const key = [...skillNames].sort().join(',') + '|' + [...homes].sort().join(',');
+    const { skillLevels, homes } = wanted(a);
+    // The key follows the levels, so a skill overtaking another is a change even when the names are the same set
+    const key = skillLevels.map((c) => `${c.name}:${c.level}`).sort().join(',') + '|' + [...homes].sort().join(',');
     const prev = S.synced.get(discordId);
     if (prev && prev.key === key && prev.actor === a && Date.now() - prev.at < C.syncMinutes * 60000 * 3) { prev.at = Date.now(); return; }
     let roles = S.roles || await loadRoles();
@@ -120,15 +153,26 @@ module.exports = (api) => {
     const managed = new Set();
     for (const l of skillLabels()) { const r = roles.get(l); if (r) managed.add(r.id); }
     for (const h of new Set([...Object.values(C.homeNames), ...homes])) { const r = roles.get(h); if (r) managed.add(r.id); }
-    const want = new Set([...skillNames, ...homes].map((n) => (roles.get(n) || {}).id).filter(Boolean));
     let member;
     try { member = await request('GET', `/guilds/${guildId}/members/${discordId}`); }
     catch (e) { if (e.status === 404) { S.synced.set(discordId, { key, at: Date.now(), actor: a }); return; } throw e; }
     const have = new Set(member.roles || []);
+    // Ties are settled by what is already worn, so the skill roles are only known once the member has been read
+    const heldSkills = new Set(skillLabels().filter((l) => { const r = roles.get(l); return r && have.has(r.id); }));
+    const skillNames = pickSkills(skillLevels, heldSkills);
+    const want = new Set([...skillNames, ...homes].map((n) => (roles.get(n) || {}).id).filter(Boolean));
     const add = [...want].filter((id) => !have.has(id));
     const drop = [...have].filter((id) => managed.has(id) && !want.has(id));
     for (const id of add) await request('PUT', `/guilds/${guildId}/members/${discordId}/roles/${id}`);
     for (const id of drop) await request('DELETE', `/guilds/${guildId}/members/${discordId}/roles/${id}`);
+    // The rule is new, so the first sync of each player takes their extra skill roles off. Counted and logged, because
+    // it is the one visible effect of the change and we want to know how much of it happened.
+    const skillRoleIds = new Set(skillLabels().map((l) => (roles.get(l) || {}).id).filter(Boolean));
+    const trimmed = drop.filter((id) => skillRoleIds.has(id)).length;
+    if (trimmed) {
+      S.pruned.roles += trimmed; S.pruned.players += 1;
+      log(`discord roles: took ${trimmed} extra skill role(s) off ${who(a)}; ${S.pruned.roles} from ${S.pruned.players} player(s) since this load (top ${MAX_SKILL_ROLES}, from level ${MIN_LEVEL})`);
+    }
     S.synced.set(discordId, { key, at: Date.now(), actor: a });
     if (add.length || drop.length) {
       const nameOfRole = (id) => { for (const [n, r] of roles) if (r.id === id) return n; return id; };
@@ -150,5 +194,5 @@ module.exports = (api) => {
     }
   });
 
-  return { sync, setup, wanted };
+  return { sync, setup, wanted, candidates, pickSkills };
 };
