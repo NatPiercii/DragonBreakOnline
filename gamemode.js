@@ -1011,6 +1011,8 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboCoinPurse && globalThis.__dboCoinPurse(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboWispStalk && globalThis.__dboWispStalk(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboAyleidWell && globalThis.__dboAyleidWell(targetId >>> 0, casterId >>> 0)) return false;
+  // An expedition ruin's button or lever (ruinbuttons.js): it opens its gate or stair for everyone, once per lease
+  if (globalThis.__dboRuinButton && globalThis.__dboRuinButton(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBankActivate && globalThis.__dboBankActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBusinessActivate && globalThis.__dboBusinessActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboSalvageActivate && globalThis.__dboSalvageActivate(targetId >>> 0, casterId >>> 0)) return false;
@@ -3802,6 +3804,13 @@ try {
   require(SALVAGE_JS)({ mp, log, personal, who, cfg, openWidget, closeWidget, onUi, masteryOf, recordOf, fieldsOf, giveItem, distanceMeters,
     itemName: (d) => adminItemName(d) });
 } catch (e) { log('salvage.js failed to load:', e.stack || e.message); globalThis.__dboSalvageActivate = null; }
+
+// ---- the expedition ruins' buttons and levers (server\ruinbuttons.js, ruin-buttons.json, config "ruinButtons") ----
+try {
+  const RUINBUTTONS_JS = path.resolve('ruinbuttons.js');
+  delete require.cache[RUINBUTTONS_JS];
+  require(RUINBUTTONS_JS)({ mp, log, personal, audit, who, cfg });
+} catch (e) { log('ruinbuttons.js failed to load:', e.stack || e.message); globalThis.__dboRuinButton = null; globalThis.__dboRuinLeaseEnded = null; }
 
 // ---- jails, cell doors and sentences (server\jail.js, config "jail", jails.json) ------------------
 try {

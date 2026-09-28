@@ -497,6 +497,8 @@ module.exports = (api) => {
     }
     // Emptied chests stay empty (CONT reloot is forbidden in server-settings); enemies go with the zones.
     writeSpawnZones();
+    // A ruin's opened gates and stairs close again for the next party (ruinbuttons.js)
+    try { if (globalThis.__dboRuinLeaseEnded) globalThis.__dboRuinLeaseEnded(lease.id); } catch (e) { log('ruin buttons reset failed', e.message); }
     audit(`DUNGEON ${lease.name} released (${why})`);
   };
   // mp.getAllForms answers from a cache filled on its first call and never lists later spawns, so an id that throws once is skipped instead
