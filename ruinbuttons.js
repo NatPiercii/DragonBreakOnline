@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, who, cfg } = api;
+  const { mp, log, personal, audit, who, cfg, sendPacket } = api;
   const C = Object.assign({ enabled: true }, cfg.ruinButtons || {});
   let DATA = { ruins: [] };
   try { DATA = JSON.parse(fs.readFileSync(path.resolve('ruin-buttons.json'), 'utf8')); } catch (e) { log('ruinbuttons: ruin-buttons.json unreadable:', e.message); }
@@ -90,6 +90,29 @@ module.exports = (api) => {
       S.open.delete(group); S.told.delete(group);
       log(`ruinbuttons: ${ruinId} lease over, ${closed} of ${o.targets.length} closed for the next party`);
     }
+  };
+
+  // A player entering a ruin after its stair was opened (dungeons.js: the late join and the login inside a claim). A
+  // gamebryo sequence reached only the clients in the cell at the press and is not kept as the object's lastAnimation,
+  // and the server cannot send a snippet to one player, so the client's dboRefAnim plays it for them alone once the
+  // object's 3D is loaded (client 0.3.59+; an older client ignores the packet). PlayAnimation targets need nothing:
+  // their lastAnimation already reaches a newcomer.
+  globalThis.__dboRuinArrived = (ruinId, actor) => {
+    if (!C.enabled || typeof sendPacket !== 'function') return 0;
+    let sent = 0;
+    for (const o of S.open.values()) {
+      if (o.ruinId !== ruinId) continue;
+      for (const t of o.targets) {
+        const refId = idOf(t.ref); if (!refId) continue;
+        for (const v of [t].concat(Array.isArray(t.also) ? t.also : [])) {
+          if (v.call !== 'gamebryo' || !v.open) continue;
+          sendPacket(actor, { customPacketType: 'dboRefAnim', refId, name: v.open, gamebryo: true });
+          sent++;
+        }
+      }
+    }
+    if (sent) log(`ruinbuttons: ${who(actor)} arrived in ${ruinId}, ${sent} opened sequence(s) played for them`);
+    return sent;
   };
 
   log(`ruinbuttons ${C.enabled ? 'on' : 'off'}: ${byButton.size} buttons in ${(DATA.ruins || []).length} ruins, ${S.open.size} open`);

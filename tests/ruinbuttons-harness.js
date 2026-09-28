@@ -22,7 +22,8 @@ const mp = {
   },
 };
 const PLAYER = 0xff000014;
-const load = (cfg) => { delete require.cache[MODULE]; require(MODULE)({ mp, log: (...a) => logs.push(a.join(' ')), personal: (a, t) => said.push(t), audit: (t) => audits.push(t), who: () => 'Falcius Octavio', cfg: cfg || {} }); };
+const packets = [];
+const load = (cfg) => { delete require.cache[MODULE]; require(MODULE)({ mp, log: (...a) => logs.push(a.join(' ')), personal: (a, t) => said.push(t), audit: (t) => audits.push(t), who: () => 'Falcius Octavio', cfg: cfg || {}, sendPacket: (a, p) => packets.push([a, p]) }); };
 load();
 
 let failures = 0;
@@ -61,9 +62,18 @@ calls.length = 0;
 check('Silorn\'s gate button opens all 13 poles with "open"', press(SILORN_GATE) === true && calls.length === 13 && calls.every((c) => c.arg === 'open' && /BSHeartland/.test(c.ref)) && new Set(calls.map((c) => c.ref)).size === 13, calls.length);
 check('and says the way ahead opens', said[said.length - 1] === 'With a grinding of stone, the way ahead opens.', said[said.length - 1]);
 
+// A late arrival (dungeons.js late join / login inside a claim): the open gamebryo stair is played for them alone
+const LATE = 0xff000077;
+check('an arrival in Telepe gets its open stair as a dboRefAnim, for them alone', globalThis.__dboRuinArrived('CYRTelepeLocation', LATE) === 1 && packets.length === 1 && packets[0][0] === LATE && JSON.stringify(packets[0][1]) === JSON.stringify({ customPacketType: 'dboRefAnim', refId: fromDesc(STAIRS), name: 'Open', gamebryo: true }), packets);
+packets.length = 0;
+check('an arrival in Silorn gets nothing for the gate: PlayAnimation poles already reach a newcomer as lastAnimation', globalThis.__dboRuinArrived('CYRSilornLocation', LATE) === 0 && packets.length === 0);
+check('the arrival is logged', logs.some((l) => l === 'ruinbuttons: Falcius Octavio arrived in CYRTelepeLocation, 1 opened sequence(s) played for them'));
+
 calls.length = 0;
 globalThis.__dboRuinLeaseEnded('CYRTelepeLocation');
 check('Telepe\'s lease ending closes its stair with PlayGamebryoAnimation("Close"), and nothing in Silorn', JSON.stringify(sig(calls)) === JSON.stringify(STAIR_CLOSE) && calls.every((c) => c.ref === STAIRS), sig(calls));
+packets.length = 0;
+check('once closed, an arrival in Telepe gets nothing', globalThis.__dboRuinArrived('CYRTelepeLocation', LATE) === 0 && packets.length === 0);
 check('the next party\'s press opens it again', press(TELEPE_B) === true && calls.length === 2 && JSON.stringify(sig(calls.slice(1))) === JSON.stringify(STAIR_OPEN));
 
 calls.length = 0;

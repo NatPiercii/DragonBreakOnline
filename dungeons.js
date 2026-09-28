@@ -994,7 +994,10 @@ module.exports = (api) => {
     try {
       const d = dungeonAround(a); if (!d) return false;
       const lease = leaseHolding(a);
-      if (lease && lease.id === d.id) return false;    // their own claim still runs; they may stay
+      if (lease && lease.id === d.id) {                // their own claim still runs; they may stay
+        try { if (globalThis.__dboRuinArrived) globalThis.__dboRuinArrived(d.id, a); } catch (e) { log('ruin arrival failed', e.message); }
+        return false;
+      }
       const e = outsideSpot(d, null); if (!e) return false;
       if (!teleport(a, e.world || e.cell, e.pos, e.rot)) return false;
       system(a, `${d.name} is claimed anew or rested since you left. You wake at its entrance.`);
@@ -1037,6 +1040,8 @@ module.exports = (api) => {
           if (!entrance.expedition) return true;
           teleport(casterId, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0]);
           system(casterId, `You set out to join your party in ${d.name}.`);
+          // What the party opened before they came (a ruin's stair) is shown to them too (ruinbuttons.js)
+          try { if (globalThis.__dboRuinArrived) globalThis.__dboRuinArrived(d.id, casterId); } catch (e) { log('ruin arrival failed', e.message); }
           return false;
         }
         return deny(casterId, `Someone is inside ${d.name}. It frees up in ${minutesLeft(lease.endsAt)} minutes at most.`, `${d.id} is claimed by another party for ${minutesLeft(lease.endsAt)} more min`);
