@@ -141,18 +141,34 @@ ok(count(PLAYER, PAPER) === 3 && count(PLAYER, STRIPS) === 1 && count(PLAYER, BO
 INV[NOVICE] = [{ baseId: BOOK, count: 1 }];
 ok(act(DESK, NOVICE) === false, 'a non-Scholar just uses the desk');
 
-// Nate's book breakdown ledger (BookBreakdown, an activator): books only, no first row, and it always answers
+// Nate's book breakdown ledger (BookBreakdown, an activator): a first menu, the spellbook (anyone) or old books (a Scholar)
 reset(); S = load();
 ok(S.stationOf(LEDGER).id === 'ledger', 'the BookBreakdown activator is a book station, found by its editor id');
 INV[PLAYER] = [{ baseId: BOOK, count: 1 }, { baseId: SWORD, count: 1 }];
-ok(act(LEDGER, PLAYER) === true, 'a Scholar with a book gets the panel');
+ok(act(LEDGER, PLAYER) === true, 'the ledger always answers');
 w = lastWidget(PLAYER);
-ok(w.actions.length === 1 && w.actions[0].id === `b:${BOOK}` && /at the Book Breakdown Ledger/.test(w.targetName), 'only the book is offered, with no "use it again" row');
+ok(w.actions.map((x) => x.label).join('|') === 'Open your Spell Book|Break down old books' && w.targetName === 'Book Breakdown Ledger', 'its first menu: Open your Spell Book, Break down old books');
+choose(PLAYER, 'books'); w = lastWidget(PLAYER);
+ok(w && w.id === 'dboSalvage' && w.actions.length === 1 && w.actions[0].id === `b:${BOOK}` && /at the Book Breakdown Ledger/.test(w.targetName), 'Break down old books opens the book list in the same panel, the sword not offered, no "use it again" row');
+ok(!widgets.some((x) => x[0] === PLAYER && x[1] === null), '...with no close in between, so the cursor stays');
 choose(PLAYER, `b:${BOOK}`);
 ok(count(PLAYER, PAPER) === 2 && count(PLAYER, STRIPS) === 1 && count(PLAYER, BOOK) === 0, 'the book breaks down there');
-ok(act(LEDGER, PLAYER) === true && /no books to break down/.test(said[said.length - 1][1]), 'with no books left it says so');
+act(LEDGER, PLAYER); choose(PLAYER, 'books'); w = lastWidget(PLAYER);
+ok(w && w.targetName === 'You carry no books to break down.' && w.actions[0].id === 'spellbook', 'with no books left the menu says so and stays open');
 INV[NOVICE] = [{ baseId: BOOK, count: 1 }];
-ok(act(LEDGER, NOVICE) === true && /Only a Scholar/.test(said[said.length - 1][1]) && count(NOVICE, BOOK) === 1, 'a non-Scholar is told only a Scholar can use it');
+act(LEDGER, NOVICE); choose(NOVICE, 'books'); w = lastWidget(NOVICE);
+ok(w && w.targetName === 'Only a Scholar can break books down here.' && count(NOVICE, BOOK) === 1, 'a non-Scholar is told only a Scholar can break books down here');
+// Open your Spell Book: spells.js's hook opens the book first, then this menu closes (the cursor goes with the book)
+const opened = [];
+globalThis.__dboOpenSpellbook = (a, o) => { opened.push([a, o.ledger]); widgets.push([a, { type: 'spellbook', id: 58 }]); return true; };
+act(LEDGER, NOVICE); const before = widgets.length; choose(NOVICE, 'spellbook');
+ok(opened.length === 1 && opened[0][0] === NOVICE && opened[0][1] === LEDGER, 'anyone opens their spellbook, told which ledger they stand at');
+ok(widgets[before][1].type === 'spellbook' && widgets[before + 1][1] === null, '...the book opens before the menu closes');
+FAR = true; act(LEDGER, PLAYER); choose(PLAYER, 'spellbook');
+ok(opened.length === 1 && /walked away/.test(said[said.length - 1][1]), 'nothing opens once the player walked away');
+FAR = false; globalThis.__dboOpenSpellbook = undefined;
+act(LEDGER, PLAYER); choose(PLAYER, 'spellbook');
+ok(/cannot be opened right now/.test(said[said.length - 1][1]), 'without spells.js the ledger says the book cannot be opened');
 
 // Using the station, walking away, paging
 reset(); S = load();

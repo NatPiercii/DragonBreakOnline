@@ -219,9 +219,28 @@ check('a stale panel changes nothing', known(MAGE).has(idOf(T.flames[1])) && pre
 at(MAGE, BRUMA, [0, 0, 0]);
 cmd('spells', MAGE);
 book = lastWidget(MAGE);
-check('outside a college the book opens to read, with the hint', book.atCollege === false && /changed at a magic college: the Synod Conclave in Bruma, or the College of Winterhold/.test(book.hint));
+check('outside a college the book opens to read, with the hint', book.atCollege === false && /changed at a magic college \(the Synod Conclave in Bruma, or the College of Winterhold\) or at a Book Breakdown Ledger/.test(book.hint));
 ui('spellbookUnprepare', MAGE, [book.nonce, T.flames[1]], 58);
 check('...and nothing can be changed there', lastWidget(MAGE).resultKind === 'refused' && known(MAGE).has(idOf(T.flames[1])) && prepared(MAGE).length === 3);
+// The Book Breakdown Ledger (salvage.js opens the book from it) is a place to change them too, checked on every change
+const LEDGER = 0x3413f775;
+at(LEDGER, BRUMA, [70, 0, 0]);
+check('the ledger opens the panel through the hook', globalThis.__dboOpenSpellbook(MAGE, { ledger: LEDGER }) === true && lastWidget(MAGE).type === 'spellbook');
+book = lastWidget(MAGE);
+check('...and beside a ledger the book may change them, outside any college cell', book.atCollege === true && book.hint === '');
+ui('spellbookUnprepare', MAGE, [book.nonce, T.flames[1]], 58);
+book = lastWidget(MAGE);
+check('a spell is put away at the ledger', book.resultKind === 'ok' && prepared(MAGE).length === 2 && !known(MAGE).has(idOf(T.flames[1])), book.result);
+at(MAGE, BRUMA, [70 * 30, 0, 0]);
+ui('spellbookPrepare', MAGE, [book.nonce, T.flames[1]], 58);
+check('walked 30 m away from the ledger, the same panel is refused', lastWidget(MAGE).resultKind === 'refused' && prepared(MAGE).length === 2, lastWidget(MAGE).result);
+at(MAGE, BRUMA, [0, 0, 0]);
+book = lastWidget(MAGE);
+ui('spellbookPrepare', MAGE, [book.nonce, T.flames[1]], 58);
+check('back beside it, the spell is prepared again', lastWidget(MAGE).resultKind === 'ok' && prepared(MAGE).length === 3 && known(MAGE).has(idOf(T.flames[1])), lastWidget(MAGE).result);
+cmd('spells', MAGE);
+check('/spells opened away from the ledger forgets it', lastWidget(MAGE).atCollege === false);
+check('an old client gets the book in chat from the ledger, and the hook says no panel opened', (() => { ui('uiCaps', STUDENT, ['bank']); const r = globalThis.__dboOpenSpellbook(STUDENT, { ledger: LEDGER }); ui('uiCaps', STUDENT, ['bank', 'spellbook']); return r === false && /Prepared \(/.test(said(STUDENT)); })());
 at(MAGE, SYNOD, [0, 0, 0]);
 
 // ---- bringing an existing character over ----

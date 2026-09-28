@@ -50,7 +50,8 @@
         "heading": "Your spellbook",
         "items": [
           "Spells now live in a spellbook with no limit, and you keep 3 of them prepared. Change which ones are prepared at a magic college (the Synod in Bruma). Type /spells to open it.",
-          "If you know more than 3 spells, your first 3 stay prepared and the rest wait in your book."
+          "If you know more than 3 spells, your first 3 stay prepared and the rest wait in your book.",
+          "You can also open your spellbook and change your prepared spells at the Book Breakdown Ledger in the Synod Conclave: use it and choose \"Open your Spell Book\". Its other choice, \"Break down old books\", is for Scholars."
         ]
       },
       {

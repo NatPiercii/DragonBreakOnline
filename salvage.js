@@ -6,8 +6,8 @@
 // (Scholar). Using the station opens a panel listing what the player carries that it can take apart, and what each
 // gives back. The first row works the station as usual: it arms one pass, and the next use goes to the engine, the way
 // rest.js's "Lie down" does. A player without the skill, or with nothing to break down, never sees the panel.
-// Nate's book breakdown ledger (BookBreakdown, config bookBreakdownBases) exists only for this: no first row, and it
-// tells a non-Scholar or someone with no books why nothing happens.
+// Nate's book breakdown ledger (BookBreakdown, config bookBreakdownBases) first asks: "Your spellbook" (anyone; spells.js
+// lets spells be prepared beside a ledger) or "Break down books" (a Scholar, told why when nothing can be done).
 //
 // What comes back (salvage.json, from tooling/make_salvage.py): a share of the materials of the recipe that makes the
 // item, by the player's tier in the station's skill (shareByTier, Novice 25 % .. Master 75 %), each rounded down, with
@@ -177,6 +177,23 @@ module.exports = (api) => {
   };
   const closePanel = (a) => { S.pending.delete(a >>> 0); closeWidget(a, WIDGET_ID); };
 
+  // The ledger's first menu: the spellbook (anyone; spells.js lets spells be prepared beside a ledger) or the books
+  // A refusal reopens this menu with the reason as its title, so the cursor never drops between panels.
+  const openLedgerMenu = (a, target, station, note) => {
+    S.pending.set(a >>> 0, { target: target >>> 0, station: station.id, page: 0, menu: true });
+    openWidget(a, {
+      type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: note || station.label,
+      actions: [{ id: 'spellbook', label: 'Open your Spell Book' }, { id: 'books', label: 'Break down old books' }],
+      events: { action: 'dbo:salvageChoose', close: 'dbo:salvageClose' },
+    }, true);
+  };
+  const breakBooksAt = (a, target, station) => {
+    const rank = rankIn(a, station.skill);
+    if (rank < 0) return openLedgerMenu(a, target, station, 'Only a Scholar can break books down here.');
+    if (!breakable(a, station, rank).length) return openLedgerMenu(a, target, station, 'You carry no books to break down.');
+    openPanel(a, target, station, 0);
+  };
+
   // Called from the gamemode's activate chain; true means handled (the activation is refused)
   globalThis.__dboSalvageActivate = (target, caster) => {
     if (!CFG.enabled) return false;
@@ -187,9 +204,8 @@ module.exports = (api) => {
       S.pass.delete(caster >>> 0);
       if (pass.target === (target >>> 0) && pass.until > Date.now()) return false;
     }
+    if (station.dedicated) { openLedgerMenu(caster, target, station); return true; }
     const rank = rankIn(caster, station.skill);
-    if (station.dedicated && rank < 0) { personal(caster, 'Only a Scholar can break books down here.'); return true; }
-    if (station.dedicated && !breakable(caster, station, rank).length) { personal(caster, 'You carry no books to break down.'); return true; }
     if (rank < 0 || !breakable(caster, station, rank).length) return false;
     openPanel(caster, target, station, 0);
     return true;
@@ -207,6 +223,18 @@ module.exports = (api) => {
       return;
     }
     if (id === 'more') { openPanel(a, p.target, station, p.page + 1); return; }
+    if (station.dedicated && (id === 'spellbook' || id === 'books')) {
+      try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
+      if (id === 'books') { breakBooksAt(a, p.target, station); return; }
+      // The book opens first and takes the cursor; this menu is closed after it, which the client treats as closing a
+      // plain widget and leaves the cursor with the book (it releases the cursor only when the focused widget closes).
+      // An older client gets its book in chat, the menu is still the focused one, and it closes as usual.
+      if (typeof globalThis.__dboOpenSpellbook === 'function') globalThis.__dboOpenSpellbook(a, { ledger: p.target });
+      else personal(a, 'Your spellbook cannot be opened right now.');
+      S.pending.delete(a >>> 0);
+      closeWidget(a, WIDGET_ID);
+      return;
+    }
     if (!id.startsWith('b:')) return;
     // The panel stays open while the player walks; the station must still be in reach
     try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
