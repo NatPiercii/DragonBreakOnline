@@ -15,6 +15,12 @@
         ]
       },
       {
+        "heading": "Discord",
+        "items": [
+          "Discord skill roles now show only your three highest skills, each once it reaches 25 (Apprentice), instead of every skill you have tried. Your Unarmed role is now called Martial Arts."
+        ]
+      },
+      {
         "heading": "Fixes",
         "items": [
           "Several fixes from a security review of this morning's update, including breaking rings down and sharing coin from a dungeon chest.",
