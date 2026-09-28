@@ -428,5 +428,5 @@
   }
  },
  "raids": { "enabled": false },
- "economy": { "_comment": "Weekly taxes and wages (economy.js). Off until wages cannot pay whoever sets them and assessments are limited (review B2, 2026-09-27).", "enabled": false }
+ "economy": { "_comment": "Weekly taxes and wages (economy.js). On from 2026-09-28 (Nate: \"economy needs to fully be turned on\"); the review B2 guards are in economy.js.", "enabled": true }
 }

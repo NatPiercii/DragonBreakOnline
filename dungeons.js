@@ -49,7 +49,18 @@ module.exports = (api) => {
   const normDesc = (d) => { const s = String(d || ''); const i = s.indexOf(':'); if (i < 0) return s.toLowerCase(); const n = parseInt(s.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase(); };
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { return 0; } };
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-  const pickFrom = (list) => list.length ? list[Math.floor(Math.random() * list.length)] : null;
+  // Nat, 2026-09-28: a Daedra heart must be extremely extremely rare. An item named in rareLoot is kept only that share
+  // of the times it is drawn, and another is drawn instead; DaedraHeart 0.01 makes it one ingredient roll in about
+  // 23,500 (the pool has 235). Config dungeons.rareLoot overrides.
+  const RARE_LOOT = Object.assign({ DaedraHeart: 0.01 }, C.rareLoot || {});
+  const pickFrom = (list) => {
+    for (let i = 0; list.length && i < 8; i++) {
+      const it = list[Math.floor(Math.random() * list.length)];
+      const keep = it && typeof it === 'object' ? RARE_LOOT[it.name] : undefined;
+      if (keep === undefined || Math.random() < keep) return it;
+    }
+    return null;
+  };
 
   // ---- data ------------------------------------------------------------------------------------
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { log(`${file} unreadable`, e.message); return fallback; } };

@@ -35,6 +35,8 @@ module.exports = (api) => {
     // Finishing is deliberate (Nate, 2026-09-28, after swag was finished 0.3 s after falling by a spell already hitting
     // him): nothing finishes a fallen player in their first finishGraceSeconds, and then only a weapon or bare hands
     finishGraceSeconds: 3, finishWeaponOnly: true,
+    // Give up (the panel and /respawn) opens this long after the fall, so a friend has time to come (Dar, 2026-09-28)
+    giveUpAfterSeconds: 30,
     // Death's Chill after waking at the temple: caps and the share of recovery that is kept, 1 = unchanged
     chill: true, chillMinutes: 20, chillCureTier: 2,
     // The ability shown under Magic > Active Effects while the chill lasts ('<local id>:<plugin>'); empty until the
@@ -287,13 +289,14 @@ module.exports = (api) => {
   // keyboard would leave an invisible panel holding the keys. Anyone else keeps the banner.
   const caps = globalThis.__dboDownedCaps instanceof Map ? globalThis.__dboDownedCaps : (globalThis.__dboDownedCaps = new Map());
   if (typeof onUi === 'function') onUi('uiCaps', (a, args) => { caps.set(a >>> 0, new Set((args || []).map(String))); });
+  const giveUpLeft = (d) => Math.max(0, Math.ceil((Number(d.at) + C.giveUpAfterSeconds * 1000 - Date.now()) / 1000));
   const openPanel = (a, d) => {
     if (typeof openWidget !== 'function' || !(caps.get(a >>> 0) || new Set()).has('downed')) {
       banner(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or say /respawn to go now.`, 8,
         "A Priest's healing or a Draught of Revival can bring you back where you fell.");
       return;
     }
-    openWidget(a, { type: 'downed', id: PANEL_ID, nonce: d.nonce, seconds: secondsLeft(d),
+    openWidget(a, { type: 'downed', id: PANEL_ID, nonce: d.nonce, seconds: secondsLeft(d), giveUpIn: giveUpLeft(d),
       title: "You're down!", text: 'You can be brought back to your feet by someone with healing magic or a Draught of Revival.' }, true);
   };
   // Every way out of the down state goes through here, so the panel never outlives it (it holds the keyboard)
@@ -335,6 +338,7 @@ module.exports = (api) => {
     onUi('downedGiveUp', (a, args) => {
       const d = S.downed.get(a);
       if (!d || String(args[0] || '') !== d.nonce || !isDead(a)) return;
+      if (giveUpLeft(d) > 0) return banner(a, `You can give up in ${giveUpLeft(d)} seconds.`, 3);
       log(`downed: ${display(a)} gave up (panel)`);
       toTemple(a);
     });
@@ -444,6 +448,7 @@ module.exports = (api) => {
   };
   registerChatCommand('respawn', (a) => {
     if (!S.downed.has(a) || !isDead(a)) return personal(a, 'You are not down.');
+    if (giveUpLeft(S.downed.get(a)) > 0) return personal(a, `You can give up in ${giveUpLeft(S.downed.get(a))} seconds. Someone may yet come for you.`);
     log(`downed: ${display(a)} gave up`);
     toTemple(a);
   }, { help: 'while down: stop waiting for help and wake at the temple' });

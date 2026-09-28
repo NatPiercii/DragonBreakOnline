@@ -29,7 +29,7 @@ globalThis.__dboDownedState = undefined; globalThis.__dboDownedTimersSent = unde
 require(MODULE)({
   mp, log: () => {}, personal: () => {}, sendPacket: (a, p) => { packets.push([a, p]); return true; },
   audit: () => {}, who: String, display: String, profileOf: (a) => Number(get(a, 'profileId')), nameOf: String,
-  onlineActors: () => [P, NEAR, FAR], every: (n, ms, fn) => { timers[n] = fn; }, registerChatCommand: () => {}, cfg: {},
+  onlineActors: () => [P, NEAR, FAR], every: (n, ms, fn) => { timers[n] = fn; }, registerChatCommand: () => {}, cfg: { downed: { giveUpAfterSeconds: 0 } },
   openWidget: (a, w, focus) => { widgets.push([a, w, focus]); return true; }, closeWidget: (a, id) => { closed.push([a, id]); },
   onUi: (n, fn) => { ui[n] = fn; },
 });

@@ -45,7 +45,7 @@ require(MODULE)({
   profileOf: (a) => Number(get(a, 'profileId')), nameOf: (a) => 'P' + (a >>> 0).toString(16),
   onlineActors: () => [P, PRIEST, NOVICE], every: (n, ms, fn) => { timers[n] = fn; },
   // Recovery after a revive (kneel, slow heal) is tested in downed-panel-harness; here a revive stands at reviveHealth
-  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: { downed: { recoverSeconds: 0 } },
+  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: { downed: { recoverSeconds: 0, giveUpAfterSeconds: 0 } },
 });
 
 let failures = 0;
@@ -145,7 +145,7 @@ require(MODULE)({
   audit: (t) => out.audits.push(t), who: (a) => 'P' + (a >>> 0).toString(16), display: (a) => 'P' + (a >>> 0).toString(16),
   profileOf: (a) => Number(get(a, 'profileId')), nameOf: (a) => 'P' + (a >>> 0).toString(16),
   onlineActors: () => [P, PRIEST, NOVICE], every: (n, ms, fn) => { timers[n] = fn; },
-  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: { downed: { chillMarkerSpell: 'abcd:DragonBreak Online Edits.esp' } },
+  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: { downed: { chillMarkerSpell: 'abcd:DragonBreak Online Edits.esp', giveUpAfterSeconds: 0 } },
 });
 set(P, 'private.permaDead', false); clear(); die(); commands.respawn(P); tick(1000);
 check('the chill adds the marker ability, silently', papyrus.some((c) => c[0] === 'AddSpell' && c[1] === P && c[2] === 'abcd' && c[3] === false), JSON.stringify(papyrus));

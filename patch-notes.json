@@ -21,11 +21,25 @@
         ]
       },
       {
+        "heading": "The economy",
+        "items": [
+          "The weekly reckoning is on: every claimed property pays its territory's tax, set by the faction's leader or the hold's Jarl or Count, and guards and soldiers are paid their wages from the treasury.",
+          "Nobody can pay themselves from a treasury they control, the week's wages are capped at a share of the treasury, and a property's value can only be reassessed once a week."
+        ]
+      },
+      {
+        "heading": "Loot",
+        "items": [
+          "Daedra hearts are now extremely rare finds."
+        ]
+      },
+      {
         "heading": "Fixes",
         "items": [
           "Mining: sitting at a vein's pickaxe marker no longer gives ore. Strike the seam itself.",
           "Werewolves: feeding in beast form now eases your hunger like a meal.",
           "Going down: nobody can finish you in your first 3 seconds, and after that only a weapon or bare hands can. Spells and lingering effects no longer end your down.",
+          "Going down: Give up opens after 30 seconds, so a friend has time to reach you.",
           "A Jarl must now be a Nord or an Imperial."
         ]
       },

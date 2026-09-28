@@ -34,12 +34,13 @@ const mp = {
   onHitDamageAttempt: () => true, onHitDamage: () => undefined, onDeath: () => undefined,
   onSpellHit: () => undefined, onSpellCast: () => undefined,
 };
-const audits = [];
+const audits = [], ui = {}, cmds = {}, widgets = [], said = [], banners = [];
 const load = (cfg) => require(MODULE)({
-  mp, log: () => {}, personal: () => {}, sendPacket: () => true,
+  mp, log: () => {}, personal: (a, t) => said.push(t), sendPacket: (a, p) => { if (p.customPacketType === 'dboBanner') banners.push(p.text); return true; },
+  onUi: (n, f) => { ui[n] = f; }, openWidget: (a, w) => widgets.push(w), closeWidget: () => {},
   audit: (t) => audits.push(t), who: (a) => 'P' + (a >>> 0).toString(16), display: (a) => 'P' + (a >>> 0).toString(16),
   profileOf: (a) => Number(get(a, 'profileId')), nameOf: (a) => 'P' + (a >>> 0).toString(16),
-  onlineActors: () => [P, K], every: () => {}, registerChatCommand: () => {}, cfg: { downed: Object.assign({ recoverSeconds: 0 }, cfg || {}) },
+  onlineActors: () => [P, K], every: () => {}, registerChatCommand: (n, f) => { cmds[n] = f; }, cfg: { downed: Object.assign({ recoverSeconds: 0 }, cfg || {}) },
 });
 load();
 
@@ -70,6 +71,23 @@ delete require.cache[require.resolve(MODULE)];
 load({ finishGraceSeconds: 0, finishWeaponOnly: false });
 down();
 check('with the grace off and spells allowed, a spell finishes at once', hit(K, FLAMES) === false && finished() === 1);
+
+// Give up opens 30 s after the fall (Dar, 2026-09-28), on the panel and with /respawn
+reset();
+delete require.cache[require.resolve(MODULE)];
+load();
+ui.uiCaps(P, ['downed']);
+down();
+const panel = widgets.filter((w) => w.type === 'downed').pop();
+check('the panel says how long until Give up opens', panel && panel.giveUpIn === 30, panel && panel.giveUpIn);
+now += 10000;
+ui.downedGiveUp(P, [panel.nonce]);
+check('Give up is refused 10 s in, and says when it opens', globalThis.__dboDownedState.downed.has(P) && banners.some((t) => /give up in 20 seconds/.test(t)), banners.join(' | '));
+cmds.respawn(P);
+check('so is /respawn', globalThis.__dboDownedState.downed.has(P) && said.some((t) => /give up in 20 seconds/.test(t)));
+now += 20000;
+ui.downedGiveUp(P, [panel.nonce]);
+check('after 30 s Give up wakes them at the temple', !globalThis.__dboDownedState.downed.has(P) && audits.some((t) => /woke at the temple/.test(t)), audits.join(' | '));
 
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);
