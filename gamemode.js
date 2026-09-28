@@ -3905,6 +3905,12 @@ try {
   delete require.cache[REGIONS_JS];
   require(REGIONS_JS)({ mp, log, personal, audit, who, cfg, registerChatCommand, isAdmin, sendPacket });
 } catch (e) { log('regions.js failed to load:', e.stack || e.message); globalThis.__dboRegions = null; if ('__dboPrevCraft' in globalThis) mp.onCraft = globalThis.__dboPrevCraft; }
+// ---- faction gear (server\factiongear.js, faction-gear.json, config "factionGear"): regions.js's craft hook asks it ----
+try {
+  const FACTIONGEAR_JS = path.resolve('factiongear.js');
+  delete require.cache[FACTIONGEAR_JS];
+  require(FACTIONGEAR_JS)({ mp, log, personal, audit, who, cfg, registerChatCommand, isAdmin, sendPacket });
+} catch (e) { log('factiongear.js failed to load:', e.stack || e.message); globalThis.__dboFactionCraft = null; }
 // ---- spell study, slots, teaching and the Synod tome shop (server\spells.js, config "spells"): after downed.js, whose onReadBook it wraps ----
 try {
   const SPELLS_JS = path.resolve('spells.js');

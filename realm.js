@@ -47,6 +47,8 @@ module.exports = (api) => {
     // Staff-set evening slots, UTC: { day: 0-6 (Sunday 0), hour, minute }. The defaults are 19:00 US Central (00:00 UTC).
     windowSlots: [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, hour: 0, minute: 0 })),
     captureSeconds: 300, tickMs: 2000, defaultRadius: 1500, rulerRanks: ['jarl', 'count', 'chieftain'],
+    // Only fighters in their faction's uniform count at a standard (Nate, 2026-09-28; factiongear.js __dboInUniform)
+    uniforms: true,
     deathWar: true,
     // Off until the holds and factions are set up during the alpha (Nate, 2026-09-26): no declarations, no battles
     enabled: false,
@@ -185,6 +187,8 @@ module.exports = (api) => {
   const live = () => wars().wars.filter((w) => w.status !== 'ended');
   const warOf = (fid) => live().filter((w) => w.attacker === fid || w.defender === fid);
   const inWindow = (w, now) => (w.windows || []).some((x) => now >= x.start && now < x.end);
+  // Which battle window is open (its index), or -1
+  const windowIndex = (w, now) => (w.windows || []).findIndex((x) => now >= x.start && now < x.end);
   const lastEnd = (w) => Math.max(...(w.windows || []).map((x) => x.end), 0);
 
   // The next occurrences of the staff's slots from `from`, one per slot and day
@@ -433,11 +437,27 @@ module.exports = (api) => {
   };
 
   // ---- battle: capture at the markers ------------------------------------------------------------------------------------
+  // War is fought in uniform (Nate, 2026-09-28: "with wars, people have to wear the faction uniforms"): at a standard,
+  // only a fighter wearing a body piece of their faction's uniform counts, to take it or to hold it. A faction with no
+  // uniform to wear (factiongear.js answers null) is not held to it. Anyone out of uniform at a standard is told once a
+  // battle window why they do not count.
+  const uniformWarned = S.uniformWarned instanceof Set ? S.uniformWarned : (S.uniformWarned = new Set());
+  const uniformed = (x, fid, w, t) => {
+    if (!C.uniforms || typeof globalThis.__dboInUniform !== 'function') return true;
+    let v = null; try { v = globalThis.__dboInUniform(x, fid); } catch (e) { v = null; }
+    if (v !== false) return true;
+    const key = `${w.id}:${windowIndex(w, Date.now())}:${x >>> 0}`;
+    if (!uniformWarned.has(key)) {
+      uniformWarned.add(key);
+      personal(x, `You are not in ${nameOfFaction(fid)}'s uniform, so you do not count at the standard of ${t.name}. Wear its armor to fight for it.`);
+    }
+    return false;
+  };
   const tick = () => {
     if (!C.enabled) return;
     const now = Date.now();
     for (const w of live()) {
-      if (w.status === 'notice' && now >= w.startsAt) { w.status = 'active'; saveWars(); announce(`War: ${nameOfFaction(w.attacker)} against ${nameOfFaction(w.defender)}. The first battle window is open.`); }
+      if (w.status === 'notice' && now >= w.startsAt) { w.status = 'active'; saveWars(); announce(`War: ${nameOfFaction(w.attacker)} against ${nameOfFaction(w.defender)}. The first battle window is open.${C.uniforms ? " Only fighters in their faction's uniform count at a standard." : ''}`); }
       if (w.status !== 'active') continue;
       if (w.goal.every((g) => ownerOf(g) === w.attacker)) { endWar(w, `${nameOfFaction(w.attacker)} took everything it fought for`); continue; }
       if (now >= lastEnd(w)) { endWar(w, `the last battle window closed with ${w.captures.length} capture(s)`); continue; }
@@ -445,8 +465,8 @@ module.exports = (api) => {
       for (const tid of w.goal) {
         const t = territory(tid); if (!t) continue;
         const holder = ownerOf(tid);
-        const attackers = onlineOf(w.attacker).filter((x) => atMarker(x, t) && !isDownedOrDead(x));
-        const defenders = onlineOf(w.defender).filter((x) => atMarker(x, t) && !isDownedOrDead(x));
+        const attackers = onlineOf(w.attacker).filter((x) => atMarker(x, t) && !isDownedOrDead(x) && uniformed(x, w.attacker, w, t));
+        const defenders = onlineOf(w.defender).filter((x) => atMarker(x, t) && !isDownedOrDead(x) && uniformed(x, w.defender, w, t));
         const taker = holder === w.defender ? w.attacker : holder === w.attacker ? w.defender : null;
         const takers = taker === w.attacker ? attackers : defenders;
         const holders = taker === w.attacker ? defenders : attackers;

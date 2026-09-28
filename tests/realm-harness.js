@@ -138,6 +138,16 @@ standAt(bruma, 'pale-pass'); // defenders elsewhere
 standAt([COUNT + 1], 'applewatch');
 tickFor(400);
 check('no capture while a defender stands at the marker', realm.ownerOf('applewatch') === 'county-bruma');
+// War is fought in uniform (Nate, 2026-09-28): the same defender, out of County of Bruma's uniform, does not hold it
+globalThis.__dboInUniform = (a, fid) => (fid === 'county-bruma' ? a !== COUNT + 1 : null);
+tickFor(10);
+const cap = [...globalThis.__dboRealm.capture.values()][0];
+check('a defender out of uniform does not hold the standard: the attackers start raising theirs', !!cap && cap.seconds > 0 && cap.taker === 'fighters-guild', cap);
+check('...and is told once, not every tick, why', out.personal.filter((x) => x.a === COUNT + 1 && /not in County of Bruma's uniform, so you do not count at the standard of Applewatch/.test(x.t)).length === 1);
+check('the Fighters Guild, which has no uniform to wear, is not held to it (they count)', cap && cap.taker === 'fighters-guild' && cap.seconds > 0);
+delete globalThis.__dboInUniform;
+tickFor(4);
+check('back in uniform, the defender holds it again and the standard comes down', !(([...globalThis.__dboRealm.capture.values()][0] || {}).seconds));
 standAt([COUNT + 1], 'pale-pass');
 tickFor(290);
 check('not yet: 300 s are needed', realm.ownerOf('applewatch') === 'county-bruma');
