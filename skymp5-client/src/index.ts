@@ -73,8 +73,8 @@ import { VoiceService } from "./services/services/voiceService";
 import { AdminMenuService } from "./services/services/adminMenuService";
 import { PlacementService } from "./services/services/placementService";
 import { AdminModeService } from "./services/services/adminModeService";
-// U-key personal menu disabled for now, features not needed yet
-// import { PersonalMenuService } from "./services/services/personalMenuService";
+// U: the player menu, the server's help topics as a panel (Nate, 2026-09-28)
+import { PersonalMenuService } from "./services/services/personalMenuService";
 import { ChatService } from "./services/services/chatService";
 import { FactionService } from "./services/services/factionService";
 import { TradeService } from "./services/services/tradeService";
@@ -202,6 +202,7 @@ const main = () => {
       new LipSyncService(sp, controller),
       new StaticRefsService(sp, controller),
       new AdminMenuService(sp, controller),
+      new PersonalMenuService(sp, controller),
       new PlacementService(sp, controller),
       new AdminModeService(sp, controller),
       new FactionService(sp, controller),
