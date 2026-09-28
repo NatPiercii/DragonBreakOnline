@@ -47,7 +47,8 @@ const events = {
 };
 
 // Requests the front may send through admin::request; everything else is refused here
-const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest", "adminPlaceablesRequest"]);
+const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest", "adminPlaceablesRequest",
+  "adminPlacementsRequest", "adminPlacementRemove", "adminPlacementGoto"]);
 
 interface DebugServer {
   name: string;
@@ -166,6 +167,7 @@ export class AdminMenuService extends ClientListener {
         itemsVersion: panelData.itemsVersion || 0,
         locationsVersion: panelData.locationsVersion || 0,
         placeablesVersion: panelData.placeablesVersion || 0,
+        placements: panelData.placements || null,
         masteryTarget: panelData.masteryTarget || null,
         events,
       };
@@ -210,6 +212,15 @@ export class AdminMenuService extends ClientListener {
       const list = content["categories"];
       this.sp.browser.executeJavaScript(`window.__dboAdminPlaceables = ${JSON.stringify(Array.isArray(list) ? list : [])};`);
       panelData.placeablesVersion = Date.now();
+      this.pushData();
+    } else if (content["customPacketType"] === "adminPlacements") {
+      // The Place tab's "Placed near me" list (server placement.js placeList): small, so it travels in panelData
+      panelData.placements = {
+        items: Array.isArray(content["items"]) ? content["items"] : [],
+        here: Number(content["here"]) || 0,
+        total: Number(content["total"]) || 0,
+        at: Date.now(),
+      };
       this.pushData();
     } else if (content["customPacketType"] === "adminMastery") {
       panelData.masteryTarget = { name: String(content["targetName"] ?? ""), target: String(content["target"] ?? ""), detail: content["detail"] || null };
@@ -371,6 +382,19 @@ export class AdminMenuService extends ClientListener {
       // The Place tab's catalog is served by the gamemode (placement.js), not by AdminSystem
       if (type === "adminPlaceablesRequest") {
         sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeCatalog", args: [] });
+        return;
+      }
+      if (type === "adminPlacementsRequest" || type === "adminPlacementRemove" || type === "adminPlacementGoto") {
+        let id = "";
+        try { id = String((JSON.parse(String(e.arguments[2] ?? "{}")) || {}).id ?? ""); } catch { id = ""; }
+        if (type === "adminPlacementsRequest") {
+          sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeList", args: [] });
+        } else if (type === "adminPlacementRemove") {
+          // 'list': the server sends the list again once it is removed
+          sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeDelete", args: [id, "list"] });
+        } else {
+          sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeGoto", args: [id] });
+        }
         return;
       }
       let fields: Record<string, unknown> = {};

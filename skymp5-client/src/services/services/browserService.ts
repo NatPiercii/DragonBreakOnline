@@ -5,6 +5,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { FormView } from "../../view/formView";
 import { showSystemNotification } from "./systemNotification";
 import { isConsoleOpen, readMenuKeyCode } from "./widgetMenuUtil";
+import { PlacementService } from "./placementService";
 import { BrowserMessageEvent, DxScanCode, Menu, MenuCloseEvent, MenuOpenEvent } from "skyrimPlatform";
 
 export const unfocusEventString = `window.dispatchEvent(new CustomEvent('skymp5-client:browserUnfocused', {}))`;
@@ -63,9 +64,12 @@ export class BrowserService extends ClientListener {
         this.sp.browser.executeJavaScript(unfocusEventString);
       }
     }
-    // Enter also confirms dialogue lines and message boxes; taking chat focus there left the keyboard locked
+    // Enter also confirms dialogue lines and message boxes; taking chat focus there left the keyboard locked.
+    // It is also the F7 Place tool's "place" key: focusing the chat on it took the keyboard away from the game, so
+    // no placement was ever sent (2026-09-28). While placing, only the other chat keys (T, F6) open the chat.
+    const focusKeys = this.isPlacing() ? this.chatFocusKeys.filter((key) => key !== DxScanCode.Enter) : this.chatFocusKeys;
     if (canFocus && !this.sp.browser.isFocused() && !this.sp.Utility.isInMenuMode() &&
-        this.chatFocusKeys.some((key) => e.isDown([key]))) {
+        focusKeys.some((key) => e.isDown([key]))) {
       this.sp.browser.setFocused(true);
       this.sp.browser.executeJavaScript(focusEventString);
       // The dedicated chat key (default T, never Enter) also jumps to Local
@@ -166,6 +170,15 @@ export class BrowserService extends ClientListener {
   private hideUiKey: DxScanCode = DxScanCode.F2;
   private freeCursorKey: DxScanCode = DxScanCode.F8;
   private chatFocusKeys: DxScanCode[] = [DxScanCode.Enter, DxScanCode.T, DxScanCode.F6];
+
+  // A lookup that throws must never stop the chat keys from working
+  private isPlacing(): boolean {
+    try {
+      return this.controller.lookupListener(PlacementService).isActive();
+    } catch {
+      return false;
+    }
+  }
 
   private readonly badMenus: Menu[] = [
     Menu.Barter,

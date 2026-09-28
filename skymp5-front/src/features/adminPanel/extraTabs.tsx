@@ -426,7 +426,13 @@ interface PlaceCategory { id: string; label: string; kind: 'npc' | 'object'; ite
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const placeables = (): PlaceCategory[] | null => ((window as any).__dboAdminPlaceables as PlaceCategory[]) || null;
 
-export const PlaceTab = ({ events, placeablesVersion }: { events: Record<string, string>; placeablesVersion: number }) => {
+// The "Placed near me" list (server placement.js placeList), nearest first in the admin's own cell or world
+export interface PlacedItem { id: string; name: string; kind: 'npc' | 'object'; hostile?: boolean; dist: number; by?: number; at?: string }
+export interface PanelPlacements { items: PlacedItem[]; here: number; total: number; at: number }
+
+export const PlaceTab = ({ events, placeablesVersion, placements }: { events: Record<string, string>; placeablesVersion: number; placements: PanelPlacements | null }) => {
+  const [view, setView] = useState<'catalog' | 'placed'>('catalog');
+  const [placedPick, setPlacedPick] = useState<string | null>(null);
   const [cat, setCat] = useState('');
   const [search, setSearch] = useState('');
   const [mod, setMod] = useState('');
@@ -453,15 +459,46 @@ export const PlaceTab = ({ events, placeablesVersion }: { events: Record<string,
     if (!row) return;
     send('admin::place', JSON.stringify({ desc: row.desc, kind: row.kind, name: row.name, hostile: row.kind === 'npc' && hostile }));
   };
+  const placed = placements ? placements.items : [];
+  const placedRow = placed.find((r) => r.id === placedPick) || null;
+  const showPlaced = (): void => { setView('placed'); adminRequest(events, 'adminPlacementsRequest', {}); };
+  const placedAction = (type: string): void => { if (placedRow) adminRequest(events, type, { id: placedRow.id }); };
   return (
     <div className="admin-panel__body admin-panel__items">
       <div className="admin-panel__categories">
         {(categories || []).map((c) => (
-          <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); }}>
+          <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q && view === 'catalog' ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); setView('catalog'); }}>
             {c.label} <span className="admin-panel__count">{c.items.length}</span>
           </button>
         ))}
       </div>
+      {view === 'placed' ? (
+        <div className="admin-panel__itempane">
+          <div className="admin-panel__list admin-panel__list--items">
+            {!placements ? <div className="admin-panel__empty">Loading what was placed</div> : placed.length === 0 ? (
+              <div className="admin-panel__empty">Nothing placed here{placements.total ? ` (${placements.total} elsewhere)` : ''}</div>
+            ) : (
+              placed.map((r) => (
+                <div key={r.id} className={'admin-panel__row admin-panel__row--clickable' + (r.id === placedPick ? ' admin-panel__row--selected' : '')}
+                  onClick={() => setPlacedPick(r.id)}>
+                  <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
+                  <span className="admin-panel__cell admin-panel__cell--discord">{r.kind === 'npc' ? (r.hostile ? 'NPC, hostile' : 'NPC, friendly') : 'Object'}</span>
+                  <span className="admin-panel__cell admin-panel__cell--discord">{r.dist} m</span>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="admin-panel__actions">
+            <span className="admin-panel__label">
+              {placedRow ? placedRow.name : placements ? `${placements.here} here, ${placements.total} in all (nearest 50 shown)` : ''}
+            </span>
+            <Button text="Go to" width={96} height={32} disabled={!placedRow} onClick={() => placedAction('adminPlacementGoto')} />
+            <Button text="Remove" width={104} height={32} disabled={!placedRow} onClick={() => { placedAction('adminPlacementRemove'); setPlacedPick(null); }} />
+            <Button text="Refresh" width={104} height={32} onClick={showPlaced} />
+            <Button text="Catalog" width={104} height={32} onClick={() => setView('catalog')} />
+          </div>
+        </div>
+      ) : (
       <div className="admin-panel__itempane">
         <div className="admin-panel__filters">
           <input className="admin-panel__search" placeholder="Search NPCs and objects" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -492,8 +529,10 @@ export const PlaceTab = ({ events, placeablesVersion }: { events: Record<string,
           ) : null}
           <Button text="Place" width={110} height={32} disabled={!pickedRow} onClick={() => start()} />
           <Button text="Delete tool" width={130} height={32} onClick={() => send('admin::placedelete')} />
+          <Button text="Placed near me" width={150} height={32} onClick={showPlaced} />
         </div>
       </div>
+      )}
     </div>
   );
 };
