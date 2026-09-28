@@ -36,6 +36,8 @@ const RUN_TIMEOUT_MS = 20 * 1000
 const POLL_MS = 3000
 const POLLS = 40
 const JOBS_KEPT = 50
+const JOBS_FILE = path.join(__dirname, '..', 'data', 'server-jobs.json')
+const JOB_STATES = new Set(['running', 'done', 'failed', 'unconfirmed', 'interrupted'])
 const RECENT_JOB_MS = 10 * 60 * 1000
 const NOT_OWNER_AUDIT_MS = 60 * 1000
 const DOWN = new Set(['inactive', 'failed'])
@@ -86,7 +88,7 @@ function markerNote(text, which = 'the') {
 
 function createServerControl({
   status, getHeartbeat = () => null, run = runFile, fs = nodeFs, now = Date.now,
-  wait = ms => new Promise(resolve => setTimeout(resolve, ms)), audit = discordAudit, opsPath = OPS,
+  wait = ms => new Promise(resolve => setTimeout(resolve, ms)), audit = discordAudit, opsPath = OPS, jobsFile = JOBS_FILE,
 }) {
   const fsp = fs.promises
   const markers = status.markers || MARKERS
@@ -164,9 +166,53 @@ function createServerControl({
     requestedAt: iso(job.requestedAt), finishedAt: job.finishedAt ? iso(job.finishedAt) : null,
   })
 
+  // Accepted jobs outlive a backend restart (the last 50, mode 0600), so a resent requestId still never runs twice
+  function saveJobs() {
+    const tmp = `${jobsFile}.tmp`
+    try {
+      fs.mkdirSync(path.dirname(jobsFile), { recursive: true })
+      fs.writeFileSync(tmp, `${JSON.stringify({ v: 1, jobs: [...jobs.values()].filter(e => e.job).slice(-JOBS_KEPT).map(e => view(e.job)) })}\n`, { mode: 0o600 })
+      fs.renameSync(tmp, jobsFile)
+    } catch (err) { console.error('[server-control] jobs not saved:', err.message) }
+  }
+
+  // A job still running when the backend stopped was never followed to its end
+  function loadJobs() {
+    let saved = null
+    try { saved = JSON.parse(fs.readFileSync(jobsFile, 'utf8')).jobs } catch { return [] }
+    const cut = []
+    for (const j of Array.isArray(saved) ? saved.slice(-JOBS_KEPT) : []) {
+      if (typeof j?.id !== 'string' || !UUID_RE.test(j.id) || !ACTIONS.includes(j.action) || !JOB_STATES.has(j.state)) continue
+      const job = {
+        id: j.id.toLowerCase(), action: j.action, state: j.state, dryRun: j.dryRun === true, by: clean(j.by, 32), reason: clean(j.reason, REASON_MAX),
+        requestedAt: Date.parse(j.requestedAt) || 0, finishedAt: Date.parse(j.finishedAt) || null, issuedAt: null,
+      }
+      if (job.state === 'running') { Object.assign(job, { state: 'interrupted', finishedAt: now() }); cut.push(job) }
+      jobs.set(job.id, { job, promise: null })
+      last = job
+    }
+    return cut
+  }
+  const cutShort = loadJobs()
+
+  // Once at backend start: records how cut-short jobs ended and gives back a game-server claim this operator still holds
+  async function recover() {
+    for (const job of cutShort) {
+      say(`${job.action} by ${job.by} not followed to its end: the backend restarted`)
+      await logResult(job, 'not followed to its end, the backend restarted', rollback[job.action])
+    }
+    if (cutShort.length) saveJobs()
+    const held = await ops(['check', RESOURCE])
+    if (held.code !== 2 || !held.stdout.startsWith(`HELD by ${OPERATOR}:`)) return
+    if (!cutShort.length) await ops(['log', OPERATOR, 'Backend restarted while a website dashboard action held game-server, before it ran', 'Nothing to roll back'])
+    await release()
+    say('the backend restarted during a dashboard action; its game-server claim is released')
+  }
+
   function finish(job, state) {
     job.state = state
     job.finishedAt = now()
+    saveJobs()
     last = job
   }
 
@@ -237,6 +283,7 @@ function createServerControl({
       entry.job = job
       job.state = 'running'
       job.issuedAt = now()
+      saveJobs()
       say(`${action} requested by ${who}: ${reason}`)
       const written = action === 'stop' ? `${JSON.stringify({ by: `${by} (website)`, reason, at: iso(job.issuedAt) })}\n` : null
       try {
@@ -328,7 +375,7 @@ function createServerControl({
     }
   }
 
-  return { perform, known, job, notOwner, controlsFor, setting }
+  return { perform, known, job, notOwner, controlsFor, setting, recover }
 }
 
 module.exports = { createServerControl, parseRequest, cleanReason, refusal, ACTIONS, SYSTEMCTL, CONFIRM, OPERATOR, RESOURCE, OPS, CLAIM_MIN }

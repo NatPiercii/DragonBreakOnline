@@ -146,7 +146,7 @@ before(async () => {
     queueDeps: { fetch: async () => { throw new Error('offline') } },
   }))
   const realControl = serverControl.createServerControl
-  serverControl.createServerControl = deps => realControl({ ...deps, run: fakeRun, now: clock, wait: () => new Promise(r => setImmediate(r)) })
+  serverControl.createServerControl = deps => realControl({ ...deps, run: fakeRun, now: clock, wait: () => new Promise(r => setImmediate(r)), jobsFile: path.join(F.root, 'server-jobs.json') })
 
   const app = express()
   // A parser that ignores the skip below, standing in for one a later change might add

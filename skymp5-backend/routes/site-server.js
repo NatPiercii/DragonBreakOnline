@@ -130,4 +130,7 @@ router.use((err, _req, res, _next) => {
   if (!res.headersSent) res.status(503).json({ error: 'unavailable' })
 })
 
+// Run once by server.js at start: records dashboard actions a backend restart cut short and gives back their claim
+router.recover = () => control.recover().catch(err => console.error('[site-server] recover failed:', err.message))
+
 module.exports = router

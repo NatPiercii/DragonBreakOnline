@@ -435,7 +435,7 @@ const ERR = { ...WHY,
   notFound: 'This backend has no controls yet.',
 };
 const DRY = 'Dry run: the checks run and are logged, but nothing changes.';
-const JOB_STATE = { running: 'running', done: 'done', failed: 'failed', unconfirmed: 'not confirmed within 2 minutes' };
+const JOB_STATE = { running: 'running', done: 'done', failed: 'failed', unconfirmed: 'not confirmed within 2 minutes', interrupted: 'not followed to its end (the backend restarted)' };
 // The backend's reason cleaning: controls, C1, zero-width, separators and bidi marks become spaces
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g;
 const cleanReason = v => String(v || '').normalize('NFC').replace(UNSAFE, ' ').replace(/\s+/g, ' ').trim();
@@ -451,7 +451,7 @@ function uuid() {
 
 function jobLine(j) {
   const text = `Last action: ${ACTS[j.action]?.label || j.action} by ${j.by}, ${stamp(j.requestedAt)}: ${JOB_STATE[j.state] || j.state}${j.dryRun ? ' (dry run, nothing changed)' : ''} · ${j.reason}`;
-  return line(text, j.state === 'failed' || j.state === 'unconfirmed' ? 'warn' : 'dim');
+  return line(text, ['failed', 'unconfirmed', 'interrupted'].includes(j.state) ? 'warn' : 'dim');
 }
 
 function renderControls(s, box) {
@@ -478,7 +478,9 @@ function jobResult(j) {
   const name = ACTS[j.action]?.label || j.action;
   if (j.dryRun) return [`Dry run: ${name} passed every check. Nothing was changed.`, 'ok'];
   return { running: [`${name} sent. Waiting for the server to confirm (up to 2 minutes)…`, 'dim'], done: [`${name} done.`, 'ok'],
-    failed: [`${name} failed. Check the panel above.`, 'bad'], unconfirmed: [`${name} was not confirmed within 2 minutes. Check the panel above.`, 'warn'] }[j.state]
+    failed: [`${name} failed. Check the panel above.`, 'bad'], unconfirmed: [`${name} was not confirmed within 2 minutes. Check the panel above.`, 'warn'],
+    interrupted: [`The backend restarted before ${name} was confirmed. Check the panel above.`, 'warn'],
+    lost: ['The backend lost track of this action. Check the panel above.', 'warn'] }[j.state]
     || [`${name}: ${j.state}`, 'dim'];
 }
 
@@ -528,7 +530,9 @@ async function followJob(id) {
     await new Promise(done => setTimeout(done, 3000));
     try {
       const r = await request(`${SRV}/jobs/${id}`);
-      if (r.ok && ctl.job?.id === id) ctl.job = (await r.json()).job;
+      // A backend that restarts answers 502 for a while and then the saved job; 404 means it no longer has the job
+      const next = r.status === 404 ? { ...ctl.job, state: 'lost' } : r.ok ? (await r.json()).job : null;
+      if (next && ctl.job?.id === id) ctl.job = next;
     } catch { /* the next poll tries again */ }
     renderDialog();
   }
@@ -552,7 +556,7 @@ async function sendControl(ev) {
   } catch { /* shown below */ }
   if (ctl.requestId !== requestId) return;
   ctl.sending = false;
-  // The same requestId never runs twice, so sending again after a lost answer is safe
+  // The backend keeps the last 50 requestIds, across its restarts too, so sending again after a lost answer is safe
   if (!r) ctl.result = ['Cannot reach the server. Press the button again: the same request never runs twice.', 'warn'];
   else if (body.job) {
     Object.assign(ctl, { job: body.job, result: r.status === 502 ? [ERR.actionFailed, 'bad'] : null });

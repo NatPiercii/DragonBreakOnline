@@ -35,11 +35,11 @@ class FakeEl {
 }
 
 // The page with main() parked on a sign-in fetch that never answers (unless fetch says otherwise), then one renderServer() with the given data
-function load(status, queue, { fetch = () => new Promise(() => {}) } = {}) {
+function load(status, queue, { fetch = () => new Promise(() => {}), setTimeout = () => 0 } = {}) {
   const byId = new Map()
   const $ = id => { if (!byId.has(id)) byId.set(id, new FakeEl('div')); return byId.get(id) }
   const document = { getElementById: $, createElement: tag => new FakeEl(tag), createElementNS: (_ns, tag) => new FakeEl(tag) }
-  const ctx = vm.createContext({ document, fetch, crypto: webcrypto, setInterval: () => 0, clearInterval: () => {}, setTimeout: () => 0, console, input: { status, queue } })
+  const ctx = vm.createContext({ document, fetch, crypto: webcrypto, setInterval: () => 0, clearInterval: () => {}, setTimeout, console, input: { status, queue } })
   vm.runInContext(SCRIPT, ctx)
   vm.runInContext('srv.status = input.status; srv.queue = input.queue; renderServer()', ctx)
   return { $, run: code => vm.runInContext(code, ctx), lines: id => $(id).kids.map(k => k.textContent) }
@@ -109,7 +109,7 @@ test('only docs or merges waiting are counted, with the restart warning for main
 })
 
 // The status as GET / sends it, with the viewer's controls from the real serverControl
-const control = createServerControl({ status: {} })
+const control = createServerControl({ status: {}, jobsFile: path.join(__dirname, 'no-such-dir', 'server-jobs.json') })
 function withControls(s, { owner = true, setting = 'on', online = s.players.online, job, claims = [] } = {}) {
   const st = { ...s, players: { ...s.players, online }, claims }
   const controls = wire(control.controlsFor(st, { owner, setting }))
@@ -252,6 +252,31 @@ test('the dialog reports refusals, the dry run and a lost answer, and a lost ans
   }
   assert.equal(new Set(posts.map(p => p.body.requestId)).size, 1)
   assert.ok(posts.every(p => p.url === '/api/site/staff/server/actions/stop'))
+})
+
+test('while the dialog waits, a job the backend no longer has ends the wait, and one cut short by a backend restart says so', async () => {
+  const job = { id: null, action: 'restart', state: 'running', dryRun: false, by: 'Jake', reason: 'Testing the restart', requestedAt: new Date().toISOString(), finishedAt: null }
+  const polls = []
+  const fetch = (url, opts = {}) => {
+    if (opts.method === 'POST') return Promise.resolve({ status: 202, ok: true, json: async () => ({ job }) })
+    if (!url.startsWith('/api/site/staff/server/jobs/')) return new Promise(() => {})
+    polls.push(url)
+    return Promise.resolve({ status: 404, ok: false, json: async () => ({ error: 'notFound' }) })
+  }
+  const page = load(withControls(S0, { online: 0 }), Q0, { fetch, setTimeout: fn => { setImmediate(fn); return 0 } })
+  page.run('openControl("restart")')
+  job.id = page.run('ctl.requestId')
+  fill(page, 'Testing the restart', 'RESTART')
+  await send(page)
+  for (let i = 0; i < 20 && !polls.length; i++) await new Promise(r => setImmediate(r))
+  await new Promise(r => setImmediate(r))
+  assert.equal(polls.length, 1)
+  assert.equal(result(page), 'The backend lost track of this action. Check the panel above.')
+  assert.equal(page.$('ctlGo').disabled, true)
+  page.run('ctl.job = { ...ctl.job, state: "interrupted" }; renderDialog()')
+  assert.equal(result(page), 'The backend restarted before Restart was confirmed. Check the panel above.')
+  const head = load(withControls(S0, { online: 0, job: { ...job, state: 'interrupted' } }), Q0).lines('srvHead')
+  assert.ok(head.some(l => /^Last action: Restart by Jake, \d\d:\d\d UTC: not followed to its end \(the backend restarted\) · Testing the restart$/.test(l)), head.join(' | '))
 })
 
 test('the dialog blocks the action when the status says it cannot run', () => {

@@ -31,7 +31,7 @@ function harness({ unit = {}, updater = null, online = 0, beatAge = 5000, settin
   if (setting != null) fs.writeFileSync(markers.control, `${setting}\n`)
   let t = T0
   const h = {
-    dir, markers, calls: [], audits: [], units: 0,
+    dir, markers, jobsFile: path.join(dir, 'server-jobs.json'), calls: [], audits: [], units: 0,
     unit: { active: 'active', sub: 'running', since: T0 - 3600e3, nRestarts: 0, ...unit },
     updater, beat: { name: 'Test', maxPlayers: 50, online, lastSeen: new Date(T0 - beatAge).toISOString() },
     clock: () => t, advance: ms => { t += ms },
@@ -42,6 +42,7 @@ function harness({ unit = {}, updater = null, online = 0, beatAge = 5000, settin
     if (file === OPS) {
       const sub = args[0]
       h.onOps?.(args)
+      if (sub === 'check' && h.checkOut) throw Object.assign(new Error('Command failed'), { code: 2, stdout: h.checkOut })
       if (opsFail[sub]) throw Object.assign(new Error('ops failed'), { code: 1, stdout: '', stderr: 'ops: ledger busy, retry\n' })
       if (sub === 'claim' && held) {
         throw Object.assign(new Error('Command failed'), { code: 2, stdout: `HELD: game-server is claimed by ${held} until 2026-09-28T12:00Z for: ${PURPOSE_SECRET}\n` })
@@ -52,11 +53,13 @@ function harness({ unit = {}, updater = null, online = 0, beatAge = 5000, settin
     afterCommand?.(h, args[1])
     return { stdout: '', stderr: '' }
   }
-  h.control = createServerControl({
+  // make() again is a restarted backend over the same jobs file
+  h.make = () => createServerControl({
     // Once beating, the server sends a beat every few seconds, the last one a second ago
     status, getHeartbeat: () => (h.beating ? { ...h.beat, lastSeen: new Date(h.clock() - 1000).toISOString() } : h.beat), run: h.run, now: h.clock, wait: async ms => h.advance(ms),
-    audit: { log: line => h.audits.push(line) },
+    audit: { log: line => h.audits.push(line) }, jobsFile: h.jobsFile,
   })
+  h.control = h.make()
   h.opsCalls = () => h.calls.filter(c => c.file === OPS).map(c => c.args)
   h.systemctlCalls = () => h.calls.filter(c => c.file === 'systemctl').map(c => c.args)
   h.idle = async () => { for (let i = 0; i < 500 && h.control.controlsFor(h.status(), { owner: true, setting: 'on' }).why === 'busy'; i++) await new Promise(r => setImmediate(r)) }
@@ -144,7 +147,7 @@ test('Stop at 0 players: claim, log, marker, then systemctl --no-block stop, all
   const marker = JSON.parse(fs.readFileSync(h.markers.stopped, 'utf8'))
   assert.deepEqual(marker, { by: 'jake (website)', reason: 'Nightly expires=1 maintenance', at: new Date(T0).toISOString() })
   assert.equal(fs.statSync(h.markers.stopped).mode & 0o777, 0o644)
-  assert.deepEqual(fs.readdirSync(h.dir).sort(), ['server-control', 'skymp-stopped'], 'no temporary file is left')
+  assert.deepEqual(fs.readdirSync(h.dir).sort(), ['server-control', 'server-jobs.json', 'skymp-stopped'], 'no temporary file is left')
 })
 
 test('every argument is one clean argv element, and children get only PATH and LANG with a timeout', async () => {
@@ -332,7 +335,7 @@ test('a player who joins between the check and systemctl calls it off, logged, r
   const run = h.run
   h.control = createServerControl({
     status: { markers: h.markers, units: async () => ({ skymp: { ...h.unit }, updater: null }) }, getHeartbeat: () => h.beat, now: h.clock, wait: async () => {},
-    audit: { log: () => {} },
+    audit: { log: () => {} }, jobsFile: h.jobsFile,
     run: async (file, args, opts) => { if (args[0] === 'claim') h.beat = { ...h.beat, online: 1 }; return run(file, args, opts) },
   })
   assert.deepEqual(await act(h, 'stop'), { status: 409, body: { error: 'playersOnline' } })
@@ -402,7 +405,7 @@ test('single flight: a second action while one is followed gets 409 busy, and th
   const pending = []
   h.control = createServerControl({
     status: { markers: h.markers, units: async () => ({ skymp: { ...h.unit }, updater: null }) }, getHeartbeat: () => h.beat, now: h.clock,
-    wait: () => new Promise(resolve => pending.push(resolve)), audit: { log: () => {} }, run: h.run,
+    wait: () => new Promise(resolve => pending.push(resolve)), audit: { log: () => {} }, run: h.run, jobsFile: h.jobsFile,
   })
   assert.equal((await act(h, 'stop')).status, 202)
   assert.deepEqual(await act(h, 'restart', { requestId: uuid(2) }), { status: 409, body: { error: 'busy' } })
@@ -414,6 +417,60 @@ test('single flight: a second action while one is followed gets 409 busy, and th
   await new Promise(r => setImmediate(r))
   assert.equal(h.control.job(ID).state, 'done')
   assert.equal(h.control.controlsFor({ service: { state: 'stopped' }, players: { online: 0 }, claims: [] }, { owner: true, setting: 'on' }).canStart, true)
+})
+
+test('jobs outlive a backend restart: a resent requestId gets the saved job and never runs again', async () => {
+  const h = harness({ afterCommand: systemd.stop })
+  assert.equal((await act(h, 'stop')).status, 202)
+  await h.idle()
+  assert.equal(fs.statSync(h.jobsFile).mode & 0o777, 0o600)
+  assert.deepEqual(JSON.parse(fs.readFileSync(h.jobsFile, 'utf8')).jobs, [h.control.job(ID)])
+  assert.deepEqual(fs.readdirSync(h.dir).filter(f => f.includes('.tmp')), [])
+  const ran = h.calls.length
+  h.control = h.make()
+  assert.equal(h.control.known(ID.toUpperCase()), true)
+  const again = await act(h, 'stop')
+  assert.deepEqual([again.status, again.body.job.state], [200, 'done'])
+  assert.equal(h.calls.length, ran, 'nothing ran again')
+
+  for (const junk of ['not json', '{"jobs":{}}', JSON.stringify({ jobs: [{ id: 'x', action: 'stop', state: 'done' }, { id: ID, action: 'reboot', state: 'done' }] })]) {
+    fs.writeFileSync(h.jobsFile, junk)
+    h.control = h.make()
+    assert.equal(h.control.job(ID), null, junk)
+  }
+})
+
+test('a backend restart mid-action: the job reads interrupted, and recover() records it and gives back the claim', async () => {
+  const h = harness()
+  const running = { id: ID, action: 'restart', state: 'running', dryRun: false, by: 'jake', reason: 'Nightly maintenance', requestedAt: new Date(T0 - 60e3).toISOString(), finishedAt: null }
+  fs.writeFileSync(h.jobsFile, JSON.stringify({ v: 1, jobs: [running] }))
+  h.checkOut = 'HELD by site-owner: Restart from the website dashboard by jake: Nightly maintenance\n'
+  h.control = h.make()
+  assert.equal(h.control.job(ID).state, 'interrupted')
+  assert.equal(h.control.controlsFor(h.status(), { owner: true, setting: 'on' }).job.state, 'interrupted')
+  await h.control.recover()
+  assert.deepEqual(h.opsCalls(), [
+    ['log', 'site-owner', 'Result: Restart from the website dashboard by jake: not followed to its end, the backend restarted; skymp is active', 'Nothing to undo; if it stays down, Start on the website dashboard or systemctl start skymp'],
+    ['check', 'game-server'],
+    ['release', 'game-server', 'site-owner'],
+  ])
+  assert.deepEqual(h.audits, ['WEB restart by jake not followed to its end: the backend restarted', 'WEB the backend restarted during a dashboard action; its game-server claim is released'])
+  assert.equal(JSON.parse(fs.readFileSync(h.jobsFile, 'utf8')).jobs[0].state, 'interrupted')
+  const resent = await act(h, 'restart')
+  assert.deepEqual([resent.status, resent.body.job.state], [200, 'interrupted'])
+  assert.deepEqual(h.systemctlCalls(), [])
+
+  // A claim with no job (cut short before systemctl) is logged and released; a free one or someone else's is left alone
+  const early = harness()
+  early.checkOut = 'HELD by site-owner: Stop (stays stopped) from the website dashboard by jake: x\n'
+  await early.control.recover()
+  assert.deepEqual(early.opsCalls().map(a => a.slice(0, 2)), [['check', 'game-server'], ['log', 'site-owner'], ['release', 'game-server']])
+  const free = harness()
+  await free.control.recover()
+  const other = harness()
+  other.checkOut = 'HELD by claude-nate: world edit\n'
+  await other.control.recover()
+  assert.deepEqual([free.opsCalls(), other.opsCalls(), free.audits, other.audits], [[['check', 'game-server']], [['check', 'game-server']], [], []])
 })
 
 test('dry run: checked and audited, but no ledger, marker or systemd command', async () => {
@@ -479,7 +536,7 @@ test('no shell: the default runner is execFile with the fixed file and argv, and
   let unit = { active: 'active', since: T0 - 3600e3, nRestarts: 0 }
   const control = createServerControl({
     status: { markers, units: async () => ({ skymp: unit, updater: null }) }, now: () => T0, wait: async () => { unit = { ...unit, active: 'inactive' } },
-    getHeartbeat: () => ({ online: 0, lastSeen: new Date(T0 - 1000).toISOString() }), audit: { log: () => {} },
+    getHeartbeat: () => ({ online: 0, lastSeen: new Date(T0 - 1000).toISOString() }), audit: { log: () => {} }, jobsFile: path.join(dir, 'server-jobs.json'),
   })
   assert.equal((await control.perform('stop', { requestId: ID, reason: 'Stop it `id` $(id); id', by: 'jake', discordId: '1' })).status, 202)
   for (let i = 0; i < 50 && seen.length < 4; i++) await new Promise(r => setImmediate(r))
