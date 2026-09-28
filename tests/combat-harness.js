@@ -3,9 +3,9 @@
 const path = require('path');
 const cfg = JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'gamemode-config.json'), 'utf8'));
 const SHIELD = 0x500, SWORD = 0x600;
-const RUNE = 0x806fa2c, FIREBALL = 0x1c789, UF1 = 0x13e09, UF3 = 0x13f3a;
-const pushes = [];
-const RECS = { [UF1]: { type: 'SPEL', editorId: 'VoiceUnrelentingForce1', fields: [] }, [UF3]: { type: 'SPEL', editorId: 'VoiceUnrelentingForce3', fields: [] }, [RUNE]: { type: 'SPEL', editorId: 'CYRForceRune', fields: [] }, [FIREBALL]: { type: 'SPEL', editorId: 'Fireball', fields: [] }, [SHIELD]: { type: 'ARMO', fields: [{ type: 'BOD2', data: (() => { const d = new Uint8Array(8); new DataView(d.buffer).setUint32(0, 1 << 9, true); return d; })() }] } };
+const RUNE = 0x806fa2c, FIREBALL = 0x1c789, UF1 = 0x13e09, UF3 = 0x13f3a, DISARM2 = 0x8bb28, DISMAY1 = 0x2395b, DISMAY3 = 0x23967;
+const pushes = [], statuses = [];
+const RECS = { [UF1]: { type: 'SPEL', editorId: 'VoiceUnrelentingForce1', fields: [] }, [UF3]: { type: 'SPEL', editorId: 'VoiceUnrelentingForce3', fields: [] }, [RUNE]: { type: 'SPEL', editorId: 'CYRForceRune', fields: [] }, [FIREBALL]: { type: 'SPEL', editorId: 'Fireball', fields: [] }, [DISARM2]: { type: 'SPEL', editorId: 'VoiceDisarm2', fields: [] }, [DISMAY1]: { type: 'SPEL', editorId: 'VoiceDismayingShout1', fields: [] }, [DISMAY3]: { type: 'SPEL', editorId: 'VoiceDismayingShout3', fields: [] }, [SWORD]: { type: 'WEAP', fields: [] }, [SHIELD]: { type: 'ARMO', fields: [{ type: 'BOD2', data: (() => { const d = new Uint8Array(8); new DataView(d.buffer).setUint32(0, 1 << 9, true); return d; })() }] } };
 let P, EQ, calls, MAST;
 const reset = () => {
   P = { 1: { health: 1, magicka: 1, stamina: 1 }, 2: { health: 1, magicka: 1, stamina: 1 } };
@@ -26,7 +26,7 @@ const API = {
   recordOf: (id) => (RECS[id] ? { record: RECS[id] } : null),
   fieldsOf: (lr, t) => ((lr && lr.record.fields) || []).filter((f) => f.type === t),
   weaponSkillOf: (src) => (src === SWORD ? 'blade' : ''), display: String, cfg,
-  sendPacket: (a, p) => { if (p.customPacketType === 'dboPush') pushes.push([a, p]); },
+  sendPacket: (a, p) => { if (p.customPacketType === 'dboPush') pushes.push([a, p]); if (p.customPacketType === 'dboStatus') statuses.push([a, p]); },
 };
 const load = () => require(path.join(__dirname, '..', 'combat.js'))(API);
 let pass = 0, fail = 0;
@@ -108,6 +108,20 @@ reset(); pushes.length = 0; load().onSpellHit(1, 2, UF1);
 ok(pushes.length === 1 && pushes[0][1].force === 0, 'the first word only staggers');
 reset(); pushes.length = 0; load().onSpellHit(1, 9, UF3);
 ok(pushes.length === 0, 'an NPC victim is left to the shouter\'s own game');
+// Disarm unequips the weapons in a player's hands on their own client, once per 10 s; Dismay terrifies them
+const unequips = () => calls.filter((c) => c[2] === 'UnequipItem');
+reset(); EQ[2] = [SWORD, SHIELD]; load().onSpellHit(9, 2, DISARM2);
+ok(unequips().length === 1 && unequips()[0][4][0].desc === mp.getDescFromId(SWORD) && unequips()[0][3].desc === mp.getDescFromId(2), "a draugr's Disarm unequips the victim's sword, not the shield");
+load().onSpellHit(9, 2, DISARM2);
+ok(unequips().length === 1, 'one disarm per target inside the cooldown');
+reset(); EQ[1] = [SWORD]; load().onSpellHit(2, 9, DISARM2);
+ok(unequips().length === 0, 'an NPC victim of Disarm is left to the shouter\'s own game');
+reset(); statuses.length = 0; load().onSpellHit(9, 2, DISMAY3);
+ok(statuses.length === 1 && statuses[0][0] === 2 && statuses[0][1].kind === 'terror' && statuses[0][1].seconds === 12 && statuses[0][1].speedMult === -50, 'Dismay\'s third word terrifies a player for 12 s');
+reset(); statuses.length = 0; load().onSpellHit(1, 2, DISMAY1);
+ok(statuses.length === 1 && statuses[0][1].seconds === 5, 'its first word for 5 s');
+reset(); statuses.length = 0; load().onSpellHit(1, 2, FIREBALL);
+ok(statuses.length === 0 && unequips().length === 0, 'an ordinary spell neither disarms nor terrifies');
 // The shout gate (release review, 2026-09-28): a player's shout word counts only with the grant and inside the 27
 {
   const fs = require('fs'), os = require('os');
@@ -131,6 +145,10 @@ ok(pushes.length === 0, 'an NPC victim is left to the shouter\'s own game');
   ok(c.shoutAllowed(1, UF3) === false, 'a player without the grant may not use a shout word');
   c.onSpellHit(1, 2, UF3);
   ok(pushes.length === 0, 'and their Unrelenting Force pushes nobody');
+  RECS[DISARM2].fields = [{ type: 'SPIT', data: spit(11) }]; RECS[DISMAY3].fields = [{ type: 'SPIT', data: spit(11) }];
+  EQ[2] = [SWORD]; statuses.length = 0; c = load();
+  c.onSpellHit(1, 2, DISARM2); c.onSpellHit(1, 2, DISMAY3);
+  ok(calls.filter((x) => x[2] === 'UnequipItem').length === 0 && statuses.length === 0, 'nor do their Disarm and Dismay');
   P[1] = P[1] || {}; mp.set(1, 'private.dboAllShouts', true);
   const origGet = mp.get; mp.get = (a, k) => (k === 'private.dboAllShouts' ? a === 1 : origGet(a, k));
   c = load();
