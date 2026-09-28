@@ -1,5 +1,33 @@
 [
   {
+    "title": "Launcher 2.1.33, Client 0.3.60 and Leaner Dungeons",
+    "date": "2026-09-28",
+    "version": "Launcher 2.1.33 + client 0.3.60",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Launcher",
+        "items": [
+          "Installing works again without a Nexus sign-in. Since 2.1.31 a player not signed in to Nexus could not install.",
+          "Report a Problem works more than once: the button no longer stays greyed out after your first report.",
+          "The launcher now tells staff whether the game crashed or was closed, with the exit code and the time, so crashes can be looked into. No logs or files are sent for this."
+        ]
+      },
+      {
+        "heading": "Character select",
+        "items": [
+          "Character select no longer disappears or loses the mouse when the game's own main menu reports itself late."
+        ]
+      },
+      {
+        "heading": "Loot",
+        "items": [
+          "Dungeons across Bruma now follow the expeditions' leaner loot: about half the treasure per clear, least on Novice, with big chests usually holding one or two things and urns mostly empty."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.59: Mouse Fix",
     "date": "2026-09-28",
     "version": "Client 0.3.59",
