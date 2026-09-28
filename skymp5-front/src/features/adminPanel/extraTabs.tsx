@@ -436,18 +436,30 @@ export interface PlaceResults { query: string; category: string; plugin: string;
 // The "Placed near me" list (server placement.js placeList), nearest first in the admin's own cell or world
 export interface PlacedItem {
   id: string; base?: string; name: string; kind: 'npc' | 'object'; hostile?: boolean; dist: number; by?: number; at?: string;
-  pos?: number[]; rot?: number[]; mine?: boolean;
+  pos?: number[]; rot?: number[]; mine?: boolean; group?: string;
 }
 export interface PanelPlacements { items: PlacedItem[]; here: number; total: number; at: number }
+
+// The saved sets (server placement.js placeSets)
+export interface PlaceSet { name: string; count: number; by?: number; at?: string }
 
 interface PlaceRow { desc: string; name: string; plugin: string; cat: string; kind: 'npc' | 'object' }
 const SEARCH_DELAY_MS = 250;
 // Rows per search page, as placement.js sends them
 const SEARCH_PAGE = 100;
+const SET_RADII = [10, 20, 40, 60];
+const WARBAND_COUNTS = [1, 2, 3, 5, 8, 10];
+type PlaceView = 'catalog' | 'placed' | 'sets' | 'warband';
+const VIEWS: Array<[PlaceView, string]> = [['catalog', 'Catalog'], ['placed', 'Placed near me'], ['sets', 'Sets'], ['warband', 'Warband']];
 
-export const PlaceTab = ({ events, placements, meta, results }: { events: Record<string, string>; placements: PanelPlacements | null; meta: PlaceMeta | null; results: PlaceResults | null }) => {
-  const [view, setView] = useState<'catalog' | 'placed'>('catalog');
+export const PlaceTab = ({ events, placements, meta, results, sets }: { events: Record<string, string>; placements: PanelPlacements | null; meta: PlaceMeta | null; results: PlaceResults | null; sets: PlaceSet[] | null }) => {
+  const [view, setView] = useState<PlaceView>('catalog');
   const [placedPick, setPlacedPick] = useState<string | null>(null);
+  const [setPick, setSetPick] = useState<string | null>(null);
+  const [setNameInput, setSetNameInput] = useState('');
+  const [setRadius, setSetRadius] = useState(20);
+  const [bandCount, setBandCount] = useState(1);
+  const [attackName, setAttackName] = useState('');
   const [cat, setCat] = useState('');
   const [search, setSearch] = useState('');
   const [mod, setMod] = useState('');
@@ -476,7 +488,6 @@ export const PlaceTab = ({ events, placements, meta, results }: { events: Record
   const more = (): void => { if (current) adminRequest(events, 'adminPlaceSearch', { query: q, category: q ? '' : cat, plugin: mod, offset: current.items.length }); };
   const placed = placements ? placements.items : [];
   const placedRow = placed.find((r) => r.id === placedPick) || null;
-  const showPlaced = (): void => { setView('placed'); adminRequest(events, 'adminPlacementsRequest', {}); };
   const placedAction = (type: string): void => { if (placedRow) adminRequest(events, type, { id: placedRow.id }); };
   // Another GM's placement needs the "others" right (older servers send no "mine": allowed, the server still checks)
   const mayChangeRow = !!placedRow && (placedRow.mine !== false || !rights || rights.others);
@@ -489,47 +500,121 @@ export const PlaceTab = ({ events, placements, meta, results }: { events: Record
     if (!placedRow || !placedRow.base || !mayPlace) return;
     send('admin::place', JSON.stringify({ desc: placedRow.base, kind: placedRow.kind, name: placedRow.name, hostile: placedRow.kind === 'npc' && !!placedRow.hostile && mayHostile }));
   };
+  const setRows = sets || [];
+  const warband = (text: string): void => adminRequest(events, 'adminWarband', { text });
+  const bandNpc = picked && picked.kind === 'npc' ? picked : null;
   const catLabel = (id: string): string => ((meta && meta.categories.find((c) => c.id === id)) || { label: id }).label;
-  return (
-    <div className="admin-panel__body admin-panel__items">
-      <div className="admin-panel__categories">
-        {(meta ? meta.categories : []).map((c) => (
-          <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q && view === 'catalog' ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); setView('catalog'); }}>
-            {c.label} <span className="admin-panel__count">{c.count}</span>
-          </button>
-        ))}
-      </div>
-      {view === 'placed' ? (
-        <div className="admin-panel__itempane">
-          <div className="admin-panel__list admin-panel__list--items">
-            {!placements ? <div className="admin-panel__empty">Loading what was placed</div> : placed.length === 0 ? (
-              <div className="admin-panel__empty">Nothing placed here{placements.total ? ` (${placements.total} elsewhere)` : ''}</div>
-            ) : (
-              placed.map((r) => (
-                <div key={r.id} className={'admin-panel__row admin-panel__row--clickable' + (r.id === placedPick ? ' admin-panel__row--selected' : '')}
-                  onClick={() => setPlacedPick(r.id)}>
-                  <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
-                  <span className="admin-panel__cell admin-panel__cell--discord">{r.kind === 'npc' ? (r.hostile ? 'NPC, hostile' : 'NPC, friendly') : 'Object'}</span>
-                  <span className="admin-panel__cell admin-panel__cell--discord">{r.dist} m</span>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="admin-panel__actions">
-            <span className="admin-panel__label">
-              {placedRow ? placedRow.name : placements ? `${placements.here} here, ${placements.total} in all (nearest 50 shown)` : ''}
-            </span>
-            <Button text="Go to" width={96} height={32} disabled={!placedRow} onClick={() => placedAction('adminPlacementGoto')} />
-            <Button text="Edit" width={90} height={32} disabled={!mayChangeRow || !placedRow || !placedRow.base} onClick={editPlaced} />
-            <Button text="Place another" width={140} height={32} disabled={!placedRow || !placedRow.base || !mayPlace} onClick={placeAnother} />
-            <Button text="Remove" width={104} height={32} disabled={!mayChangeRow} onClick={() => { placedAction('adminPlacementRemove'); setPlacedPick(null); }} />
-            <Button text="Undo" width={90} height={32} onClick={() => adminRequest(events, 'adminPlaceUndo', {})} />
-            <Button text="Refresh" width={104} height={32} onClick={showPlaced} />
-            <Button text="Catalog" width={104} height={32} onClick={() => setView('catalog')} />
-          </div>
-        </div>
-      ) : (
+  // Opening a view asks the server for what it shows
+  const open = (v: PlaceView): void => {
+    setView(v);
+    if (v === 'placed') adminRequest(events, 'adminPlacementsRequest', {});
+    if (v === 'sets') adminRequest(events, 'adminPlaceSets', {});
+  };
+  const viewBar = (
+    <div className="admin-panel__filters">
+      {VIEWS.map(([v, label]) => <Button key={v} text={label} width={v === 'placed' ? 150 : 104} height={28} disabled={view === v} onClick={() => open(v)} />)}
+    </div>
+  );
+
+  let pane: JSX.Element;
+  if (view === 'placed') {
+    pane = (
       <div className="admin-panel__itempane">
+        {viewBar}
+        <div className="admin-panel__list admin-panel__list--items">
+          {!placements ? <div className="admin-panel__empty">Loading what was placed</div> : placed.length === 0 ? (
+            <div className="admin-panel__empty">Nothing placed here{placements.total ? ` (${placements.total} elsewhere)` : ''}</div>
+          ) : (
+            placed.map((r) => (
+              <div key={r.id} className={'admin-panel__row admin-panel__row--clickable' + (r.id === placedPick ? ' admin-panel__row--selected' : '')}
+                onClick={() => setPlacedPick(r.id)}>
+                <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
+                <span className="admin-panel__cell admin-panel__cell--discord">{r.kind === 'npc' ? (r.hostile ? 'NPC, hostile' : 'NPC, friendly') : 'Object'}</span>
+                <span className="admin-panel__cell admin-panel__cell--discord">{r.group ? r.group.split('#')[0] : ''}</span>
+                <span className="admin-panel__cell admin-panel__cell--discord">{r.dist} m</span>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="admin-panel__actions">
+          <span className="admin-panel__label">
+            {placedRow ? placedRow.name : placements ? `${placements.here} here, ${placements.total} in all (nearest 50 shown)` : ''}
+          </span>
+          <Button text="Go to" width={96} height={32} disabled={!placedRow} onClick={() => placedAction('adminPlacementGoto')} />
+          <Button text="Edit" width={90} height={32} disabled={!mayChangeRow || !placedRow || !placedRow.base} onClick={editPlaced} />
+          <Button text="Place another" width={140} height={32} disabled={!placedRow || !placedRow.base || !mayPlace} onClick={placeAnother} />
+          <Button text="Remove" width={104} height={32} disabled={!mayChangeRow} onClick={() => { placedAction('adminPlacementRemove'); setPlacedPick(null); }} />
+          <Button text="Clear group" width={130} height={32} disabled={!mayChangeRow || !placedRow || !placedRow.group} onClick={() => { placedAction('adminPlaceGroupClear'); setPlacedPick(null); }} />
+          <Button text="Undo" width={90} height={32} onClick={() => adminRequest(events, 'adminPlaceUndo', {})} />
+          <Button text="Refresh" width={104} height={32} onClick={() => open('placed')} />
+        </div>
+      </div>
+    );
+  } else if (view === 'sets') {
+    pane = (
+      <div className="admin-panel__itempane">
+        {viewBar}
+        <div className="admin-panel__list admin-panel__list--items">
+          {!sets ? <div className="admin-panel__empty">Loading the sets</div> : setRows.length === 0 ? (
+            <div className="admin-panel__empty">No sets yet. Place things, stand among them and save them as a set below.</div>
+          ) : (
+            setRows.map((r) => (
+              <div key={r.name} className={'admin-panel__row admin-panel__row--clickable' + (r.name === setPick ? ' admin-panel__row--selected' : '')}
+                onClick={() => setSetPick(r.name)}>
+                <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
+                <span className="admin-panel__cell admin-panel__cell--discord">{r.count} placement{r.count === 1 ? '' : 's'}</span>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="admin-panel__actions">
+          <span className="admin-panel__label">{setPick || 'Pick a set'}</span>
+          <Button text="Put down here" width={150} height={32} disabled={!setPick || !mayPlace} onClick={() => setPick && adminRequest(events, 'adminPlaceSetPlace', { name: setPick })} />
+          <Button text="Delete set" width={120} height={32} disabled={!setPick} onClick={() => { if (setPick) adminRequest(events, 'adminPlaceSetDelete', { name: setPick }); setSetPick(null); }} />
+        </div>
+        <div className="admin-panel__actions">
+          <input className="admin-panel__search" placeholder="Name for a new set" value={setNameInput} maxLength={40} onChange={(e) => setSetNameInput(e.target.value)} />
+          <select className="admin-panel__select" value={setRadius} onChange={(e) => setSetRadius(Number(e.target.value))}>
+            {SET_RADII.map((m) => <option key={m} value={m}>within {m} m</option>)}
+          </select>
+          <Button text="Save placements near me" width={230} height={32} disabled={!setNameInput.trim()} onClick={() => adminRequest(events, 'adminPlaceSetSave', { name: setNameInput.trim(), radius: setRadius })} />
+        </div>
+      </div>
+    );
+  } else if (view === 'warband') {
+    pane = (
+      <div className="admin-panel__itempane">
+        {viewBar}
+        <div className="admin-panel__empty">
+          NPCs that follow you, fight what you fight, and can be turned loose as a raid or left as a garrison. Pick an NPC in the Catalog first.
+        </div>
+        <div className="admin-panel__actions">
+          <span className="admin-panel__label">{bandNpc ? bandNpc.name : 'No NPC picked in the Catalog'}</span>
+          <select className="admin-panel__select" value={bandCount} onChange={(e) => setBandCount(Number(e.target.value))}>
+            {WARBAND_COUNTS.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <Button text="Raise" width={96} height={32} disabled={!bandNpc || !mayPlace} onClick={() => bandNpc && warband(`raise ${bandNpc.desc} ${bandCount}`)} />
+          <Button text="Show band" width={120} height={32} onClick={() => warband('')} />
+        </div>
+        <div className="admin-panel__actions">
+          <Button text="Follow" width={96} height={32} onClick={() => warband('follow')} />
+          <Button text="Stay" width={90} height={32} onClick={() => warband('stay')} />
+          <Button text="Unleash (raid)" width={150} height={32} disabled={!mayHostile} onClick={() => warband('unleash')} />
+          <Button text="Settle (garrison)" width={170} height={32} onClick={() => warband('settle')} />
+          <Button text="Dismiss" width={104} height={32} onClick={() => warband('dismiss')} />
+        </div>
+        <div className="admin-panel__actions">
+          <input className="admin-panel__search" placeholder="Player to attack" value={attackName} onChange={(e) => setAttackName(e.target.value)} />
+          <Button text="Attack" width={96} height={32} disabled={!attackName.trim()} onClick={() => warband(`attack ${attackName.trim()}`)} />
+          <Button text="Raid status" width={130} height={32} onClick={() => adminRequest(events, 'adminRaid', { text: '' })} />
+          <Button text="Clear raid" width={120} height={32} onClick={() => adminRequest(events, 'adminRaid', { text: 'clear' })} />
+        </div>
+      </div>
+    );
+  } else {
+    pane = (
+      <div className="admin-panel__itempane">
+        {viewBar}
         <div className="admin-panel__filters">
           <input className="admin-panel__search" placeholder="Search every NPC and object" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select className="admin-panel__select" value={mod} onChange={(e) => setMod(e.target.value)}>
@@ -561,10 +646,21 @@ export const PlaceTab = ({ events, placements, meta, results }: { events: Record
           ) : null}
           <Button text="Place" width={110} height={32} disabled={!picked || !mayPlace} onClick={() => start()} />
           <Button text="Select tool" width={130} height={32} onClick={() => send('admin::placeselect')} />
-          <Button text="Placed near me" width={150} height={32} onClick={showPlaced} />
         </div>
       </div>
-      )}
+    );
+  }
+
+  return (
+    <div className="admin-panel__body admin-panel__items">
+      <div className="admin-panel__categories">
+        {(meta ? meta.categories : []).map((c) => (
+          <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q && view === 'catalog' ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); setView('catalog'); }}>
+            {c.label} <span className="admin-panel__count">{c.count}</span>
+          </button>
+        ))}
+      </div>
+      {pane}
     </div>
   );
 };

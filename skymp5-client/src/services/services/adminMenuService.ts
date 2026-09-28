@@ -48,7 +48,8 @@ const events = {
 
 // Requests the front may send through admin::request; everything else is refused here
 const PANEL_REQUESTS = new Set(["adminItemsRequest", "adminMasteryRequest", "adminLocationsRequest", "adminPlaceablesRequest",
-  "adminPlacementsRequest", "adminPlacementRemove", "adminPlacementGoto", "adminPlaceMeta", "adminPlaceSearch", "adminPlaceUndo"]);
+  "adminPlacementsRequest", "adminPlacementRemove", "adminPlacementGoto", "adminPlaceMeta", "adminPlaceSearch", "adminPlaceUndo",
+  "adminPlaceSets", "adminPlaceSetSave", "adminPlaceSetPlace", "adminPlaceSetDelete", "adminPlaceGroupClear", "adminWarband", "adminRaid"]);
 
 interface DebugServer {
   name: string;
@@ -170,6 +171,7 @@ export class AdminMenuService extends ClientListener {
         placements: panelData.placements || null,
         placeMeta: panelData.placeMeta || null,
         placeResults: panelData.placeResults || null,
+        placeSets: panelData.placeSets || null,
         masteryTarget: panelData.masteryTarget || null,
         events,
       };
@@ -223,6 +225,9 @@ export class AdminMenuService extends ClientListener {
         total: Number(content["total"]) || 0,
         at: Date.now(),
       };
+      this.pushData();
+    } else if (content["customPacketType"] === "adminPlaceSets") {
+      panelData.placeSets = Array.isArray(content["sets"]) ? content["sets"] : [];
       this.pushData();
     } else if (content["customPacketType"] === "adminPlaceMeta") {
       panelData.placeMeta = {
@@ -407,6 +412,23 @@ export class AdminMenuService extends ClientListener {
       // The Place tab's catalog is served by the gamemode (placement.js), not by AdminSystem
       if (type === "adminPlaceablesRequest") {
         sendCustomPacket(this.controller, { customPacketType: "dbo", event: "placeCatalog", args: [] });
+        return;
+      }
+      // The Place tab's Sets and Warband views: each request is one dbo event with its fields as arguments
+      const PLACE_EVENTS: Record<string, [string, string[]]> = {
+        adminPlaceSets: ["placeSets", []],
+        adminPlaceSetSave: ["placeSetSave", ["name", "radius"]],
+        adminPlaceSetPlace: ["placeSetPlace", ["name"]],
+        adminPlaceSetDelete: ["placeSetDelete", ["name"]],
+        adminPlaceGroupClear: ["placeGroupClear", ["id"]],
+        adminWarband: ["warband", ["text"]],
+        adminRaid: ["raid", ["text"]],
+      };
+      if (PLACE_EVENTS[type]) {
+        let f: Record<string, unknown> = {};
+        try { f = JSON.parse(String(e.arguments[2] ?? "{}")) || {}; } catch { f = {}; }
+        const [event, keys] = PLACE_EVENTS[type];
+        sendCustomPacket(this.controller, { customPacketType: "dbo", event, args: keys.map((k) => f[k] ?? "") });
         return;
       }
       if (type === "adminPlaceUndo") {
