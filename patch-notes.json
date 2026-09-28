@@ -1,5 +1,43 @@
 [
   {
+    "title": "The Business Ledger, Aleswell Open, and Fixes",
+    "date": "2026-09-28",
+    "version": "Client 0.3.56",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "The business ledger",
+        "items": [
+          "A business now keeps a real ledger book. When you open your property as a business (/business open <name>), the ledger appears in front of you; set it on a counter with its arrows.",
+          "Activate the ledger to run the business from a panel: the week's and the month's takings, the bed rent, a logbook for notes, the record of every rental and change, your staff, and storage chests for rent.",
+          "Anyone else who opens it sees the price of a bed, the storage for rent and the hold's tax.",
+          "The /business commands still work."
+        ]
+      },
+      {
+        "heading": "The world",
+        "items": [
+          "The border south of Bruma now lets you walk to Aleswell, Fort Caractacus and the Ayleid well east of them."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Mining: sitting at a vein's pickaxe marker no longer gives ore. Strike the seam itself.",
+          "Werewolves: feeding in beast form now eases your hunger like a meal.",
+          "Going down: nobody can finish you in your first 3 seconds, and after that only a weapon or bare hands can. Spells and lingering effects no longer end your down.",
+          "A Jarl must now be a Nord or an Imperial."
+        ]
+      },
+      {
+        "heading": "Updating",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Launcher 2.1.32: Field of View Fixed",
     "date": "2026-09-27",
     "version": "Launcher 2.1.32",
