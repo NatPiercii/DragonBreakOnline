@@ -36,6 +36,7 @@ import Rite from './features/rite';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
+import ExpeditionBoard from './features/expeditionBoard';
 import Party from './features/party';
 import TomeShop from './features/tomeShop';
 import Bank from './features/bank';
@@ -284,6 +285,8 @@ const Constructor = props => {
       return <CharacterSelect data={rend} />;
     case 'dungeonGate':
       return <DungeonGate data={rend} />;
+    case 'expeditionBoard':
+      return <ExpeditionBoard data={rend} />;
     case 'party':
       return <Party data={rend} />;
     case 'tomeShop':
@@ -306,7 +309,7 @@ const Constructor = props => {
 // Which part of the world each widget belongs to; anything unlisted keeps the aqua glow (dbo-theme.scss)
 const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
-  rite: 'lorkhan', bountyBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', downed: 'lorkhan',
+  rite: 'lorkhan', bountyBoard: 'lorkhan', expeditionBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', downed: 'lorkhan',
   mastery: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
 };
