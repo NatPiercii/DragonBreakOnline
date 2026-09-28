@@ -907,16 +907,20 @@ module.exports = (api) => {
       return true;
     } catch (err) { log('dungeon login check failed', err.message); return false; }
   };
+  // Home from an expedition: to the hall the party left from (the live claim's entrance), else the expedition's own
+  const expeditionHome = (a, d, fallback) => {
+    const lease = ST.leases.get(d.id);
+    const e = lease && lease.entrance && lease.entrance.expedition && lease.members.has(profileOf(a)) ? lease.entrance : fallback;
+    teleport(a, e.cell, e.pos, e.rot);
+    system(a, `You make the long journey back from ${d.name} to ${e.from || 'the Synod Conclave'} in Bruma.`);
+  };
   // Returns false to block the activation, true to let it through, null when it is not ours.
   globalThis.__dboDungeonActivate = (targetId, casterId) => {
     if (!C.enabled) return null;
     const inside = insideDoors.get(targetId);
     if (inside && inside.entrance.expedition) {
       // The ruin's main door has no destination of its own: it leads home to the hall the party left from
-      const lease = ST.leases.get(inside.d.id);
-      const e = lease && lease.entrance && lease.entrance.expedition && lease.members.has(profileOf(casterId)) ? lease.entrance : inside.entrance;
-      teleport(casterId, e.cell, e.pos, e.rot);
-      system(casterId, `You make the long journey back from ${inside.d.name} to ${e.from || 'the Synod Conclave'} in Bruma.`);
+      expeditionHome(casterId, inside.d, inside.entrance);
       return false;
     }
     if (inside) return true; // leaving is always allowed
@@ -1039,8 +1043,17 @@ module.exports = (api) => {
   });
   onUi('expeditionClose', (a) => { expeditionPending.delete(a); closeWidget(a, EXPEDITION_WIDGET_ID); });
   onUi('close', (a, args, widgetId) => { if (widgetId === EXPEDITION_WIDGET_ID) expeditionPending.delete(a); });
+  // /expedition leave: home from anywhere in the ruin (Nate, 2026-09-28: the main door is easy to miss, and nothing
+  // marks it as the way back). Not while down: the fallen wait for a revive or give up, as anywhere else.
+  const leaveExpedition = (a) => {
+    const d = cellToDungeon.get(whereIs(a));
+    if (!d || !d.expedition) return personal(a, 'You are not on an expedition. In an Ayleid ruin, /expedition leave takes you back to Bruma.');
+    if (typeof globalThis.__dboIsDowned === 'function' && globalThis.__dboIsDowned(a)) return personal(a, 'Not while you are down.');
+    expeditionHome(a, d, d.entrances[0]);
+  };
   const expeditionCommand = (a, args) => {
     if (!C.enabled) return personal(a, 'Dungeons are closed for now.');
+    if (/^(leave|return|home)$/i.test(String(args || '').trim())) return leaveExpedition(a);
     const st = startOf(a);
     if (!st) return personal(a, `${WHERE_FROM} Go to either and say /expeditions.`);
     const q = String(args || '').trim().toLowerCase();
@@ -1049,7 +1062,7 @@ module.exports = (api) => {
     if (!d) return personal(a, `No expedition to "${q}". Say /expeditions for the list.`);
     offerGate(a, d, expeditionFrom(d, st));
   };
-  const EXPEDITION_HELP = 'in Bruma, at the Synod Conclave or the Fighters Guild: set out with your party for an Ayleid ruin far to the south';
+  const EXPEDITION_HELP = 'in Bruma, at the Synod Conclave or the Fighters Guild: set out with your party for an Ayleid ruin far to the south. In the ruin, /expedition leave takes you back';
   registerChatCommand('expeditions', expeditionCommand, { help: EXPEDITION_HELP });
   registerChatCommand('expedition', expeditionCommand, { help: EXPEDITION_HELP });
   onUi('close', (a, args, widgetId) => { if (widgetId === GATE_WIDGET_ID) turnBack(a); });
