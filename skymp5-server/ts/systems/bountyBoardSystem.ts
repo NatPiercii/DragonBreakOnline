@@ -48,9 +48,10 @@ type Mp = any;
 //   bountyBoardMaxDistance  posting reach in game units, default 512
 //   bountyBoardTreasuryPercent  share of a paid post deposited in the zone's treasury, default 50
 
+// Not "6:DragonBreak.esp": it was the Noticeboard activator, but DragonBreak Online Edits overrides it as the
+// ExpeditionBoard (dungeons.js opens it), and none of its refs is a notice board.
 const DEFAULT_BASE_DESCS = [
   "3e10:notice board.esp",          // manny_up_NoticeBoardActivator
-  "6:DragonBreak.esp",              // Noticeboard
   "900:DragonBreak Harvest.esp",    // RP_NoticeBoard
   "901:DragonBreak Harvest.esp",    // RP_NoticeBoardCandle
   "902:DragonBreak Harvest.esp",    // RP_NoticeBoardWall
