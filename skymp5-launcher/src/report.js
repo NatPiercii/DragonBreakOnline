@@ -37,6 +37,22 @@ function tail(file, bytes = PER_FILE_BYTES) {
   } catch { return null }
 }
 
+// Keeps both ends of the file, for a log whose startup lines matter as much as its last ones
+function ends(file, headBytes, tailBytes) {
+  try {
+    const size = fs.statSync(file).size
+    if (size <= headBytes + tailBytes) return tail(file, headBytes + tailBytes)
+    const fd = fs.openSync(file, 'r')
+    try {
+      const head = Buffer.alloc(headBytes)
+      const end  = Buffer.alloc(tailBytes)
+      fs.readSync(fd, head, 0, headBytes, 0)
+      fs.readSync(fd, end, 0, tailBytes, size - tailBytes)
+      return head.toString('utf8').replace(/[^\n]*$/, '') + '[middle lines cut]\n' + end.toString('utf8').replace(/^[^\n]*\n/, '')
+    } finally { fs.closeSync(fd) }
+  } catch { return null }
+}
+
 // SkyrimPlatform logs the first 120 characters of every script it runs in the game's UI and every page it
 // loads (`[12:34:56:789] JS ...`, `LoadUrl ...`): chat and private messages, the character's name, the voice
 // room link. None of it explains a crash, and a report must not carry what players said to each other.
@@ -65,10 +81,13 @@ function keepEnd(text, bytes) {
   return '[earlier lines cut]\n' + buf.subarray(buf.length - bytes).toString('utf8').replace(/^[^\n]*\n/, '')
 }
 
-// SKSE and SkyrimPlatform write here; present only after the game has been launched at least once.
+// SKSE, SkyrimPlatform and Community Shaders write here; present only after the game has been launched at least once.
 // documentsDir comes from Electron because a OneDrive-moved Documents folder is not under the home folder.
-const GAME_LOGS = [['skyrim-platform.log', 'gameLog'], ['skse64.log', 'skseLog']]
+const GAME_LOGS = [['skyrim-platform.log', 'gameLog'], ['skse64.log', 'skseLog'], ['CommunityShaders.log', 'csLog']]
 const GAME_LOG_BYTES = 80 * 1024
+// Community Shaders logs the settings overrides it applied at startup and its shader compiles as they run,
+// so both ends of its log are kept: [head, tail] bytes
+const BOTH_ENDS = { csLog: [32 * 1024, 32 * 1024] }
 
 function gameLogCandidates(documentsDir, variants) {
   const out = []
@@ -92,6 +111,11 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   found.sort((a, b) => b.mtime - a.mtime)
   for (const { file, field } of found) {
     if (files[field]) continue
+    if (BOTH_ENDS[field]) {
+      const text = ends(file, ...BOTH_ENDS[field])
+      if (text) files[field] = redact(dropUiLines(text))
+      continue
+    }
     // UI lines can be most of a session's log, so read further back and keep the end of what is left
     const text = tail(file, 6 * GAME_LOG_BYTES)
     if (text) files[field] = redact(keepEnd(dropUiLines(text), GAME_LOG_BYTES))
@@ -115,4 +139,4 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   }
 }
 
-module.exports = { collect, redact, tail, dropUiLines }
+module.exports = { collect, redact, tail, ends, dropUiLines }

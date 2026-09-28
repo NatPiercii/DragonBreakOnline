@@ -47,3 +47,39 @@ test('collect() reads far enough back that UI lines cannot crowd out the rest', 
   assert.match(out.gameLog, /\[2500 UI line\(s\) left out\]/)
   fs.rmSync(docs, { recursive: true, force: true })
 })
+
+test('collect() sends CommunityShaders.log with both ends kept and the account name left out', () => {
+  const docs = fs.mkdtempSync(path.join(os.tmpdir(), 'report-test-'))
+  const dir = path.join(docs, 'My Games', 'Skyrim Special Edition', 'SKSE')
+  fs.mkdirSync(dir, { recursive: true })
+  const stamp = i => `[2026-09-28 21:15:${String(i % 60).padStart(2, '0')}.000] [info] [4120]`
+  const lines = [
+    `${stamp(0)} [XSEPlugin.cpp:50] Loaded plugin CommunityShaders 1.9.1`,
+    `${stamp(1)} [State.cpp:390] Loading settings from C:\\Users\\Arvel\\Documents\\My Games\\Skyrim Special Edition\\SKSE`,
+    `${stamp(2)} [SettingsOverrideManager.cpp:191] Applied global override from DragonBreak`,
+  ]
+  for (let i = 0; i < 3000; i++) lines.push(`${stamp(i)} [ShaderCache.cpp:900] Compiling shader ${i} of 3000 for Lighting`)
+  lines.push(`${stamp(59)} [ShaderCache.cpp:950] Finished compiling 3000 shaders`)
+  fs.writeFileSync(path.join(dir, 'CommunityShaders.log'), lines.join('\r\n'))
+  const out = collect({ userDataDir: docs, documentsDir: docs })
+  assert.match(out.csLog, /^\[2026-09-28 21:15:00\.000\] .*Loaded plugin CommunityShaders 1\.9\.1/)
+  assert.match(out.csLog, /Applied global override from DragonBreak/)
+  assert.match(out.csLog, /\[middle lines cut\]/)
+  assert.match(out.csLog, /Finished compiling 3000 shaders$/)
+  assert.match(out.csLog, /C:\\Users\\<user>\\Documents/)
+  assert.doesNotMatch(out.csLog, /Arvel/)
+  assert.ok(Buffer.byteLength(out.csLog) <= 64 * 1024 + 64, `${Buffer.byteLength(out.csLog)} bytes`)
+  fs.rmSync(docs, { recursive: true, force: true })
+})
+
+test('a short CommunityShaders.log is sent whole', () => {
+  const docs = fs.mkdtempSync(path.join(os.tmpdir(), 'report-test-'))
+  const dir = path.join(docs, 'My Games', 'Skyrim Special Edition', 'SKSE')
+  fs.mkdirSync(dir, { recursive: true })
+  const log = '[2026-09-28 21:15:00.000] [info] [4120] [XSEPlugin.cpp:50] Loaded plugin CommunityShaders 1.9.1\r\n'
+    + '[2026-09-28 21:15:01.000] [info] [4120] [State.cpp:404] Applied 1 global override(s)'
+  fs.writeFileSync(path.join(dir, 'CommunityShaders.log'), log)
+  const out = collect({ userDataDir: docs, documentsDir: docs })
+  assert.strictEqual(out.csLog, log)
+  fs.rmSync(docs, { recursive: true, force: true })
+})
