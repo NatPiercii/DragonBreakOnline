@@ -1,5 +1,5 @@
 {
-"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own. boss: true marks an expedition's boss (dungeons.js): never thinned by difficulty, and when every boss of the claim is dead a 10-minute timer starts, after which anyone still inside is taken home. Hand-set on 2026-09-28 (Nate: 'we should add bosses'); Niryastare had none, so its nearest guard to the boss chest was promoted to an Ayleid undead boss. Keep these when regenerating.",
+"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own. boss: true marks an expedition's boss (dungeons.js): never thinned by difficulty, and when every boss of the claim is dead a 10-minute timer starts, after which anyone still inside is taken home. Hand-set on 2026-09-28 (Nate: 'we should add bosses'); Niryastare had none, so its nearest guard to the boss chest was promoted to an Ayleid undead boss. Keep these when regenerating. bossChest (Nate, 2026-09-28): a chest that is the boss chest though its base is an ordinary one; Silorn's is aaee4, right behind the lich's spawn (606 units, behind its facing).",
 "expeditions": [
 {
 "id": "CYRNiryastareLocation",
@@ -1607,6 +1607,7 @@
 "id": "CYRSilornLocation",
 "name": "Silorn",
 "type": "ayleid",
+"bossChest": "aaee4:BSHeartland.esm",
 "keywords": [
 "LocSetCave",
 "LocTypeDungeon"

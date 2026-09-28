@@ -444,13 +444,17 @@ module.exports = (api) => {
     if (!entries.length && Math.random() < GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, 3)));
     return entries;
   };
+  // A ruin can name its boss chest when the plugin's base is an ordinary one (expeditions.json bossChest: a ref or a list;
+  // Nate, 2026-09-28: the chest right behind Silorn's lich is its boss chest)
+  const bossChestRefs = (d) => new Set([].concat((d && d.bossChest) || []).map((r) => normDesc(String(r))));
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     const ok = lootOk(lease);
     const ayleid = ayleidLootHere(d);
+    const bossRefs = bossChestRefs(d);
     for (const ch of d.chests || []) {
       const id = idOf(ch.ref); if (!id) continue;
-      const boss = /boss/i.test(ch.edid);
+      const boss = /boss/i.test(ch.edid) || bossRefs.has(normDesc(ch.ref));
       try { mp.set(id, 'inventory', { entries: ch.big ? chestLoot(diff, boss, ok, ayleid) : smallLoot(diff, ch.edid, ok) }); filled++; } catch (e) { log('chest fill failed', ch.ref, e.message); }
     }
     return filled;
@@ -1210,8 +1214,8 @@ module.exports = (api) => {
     if (!tag.startsWith(ZONE_PREFIX)) return;
     const diffId = (() => { const l = [...ST.leases.values()].find((x) => tag.startsWith(`${ZONE_PREFIX}${x.id}:`)); return l ? l.difficulty : 'normal'; })();
     const diff = DIFFICULTIES.find((x) => x.id === diffId) || DIFFICULTIES[1];
-    // Humanoids are looted with E (__dboCorpseLoot), so their body keeps nothing
-    if (isHumanoidTag(tag)) { try { mp.set(actorId, 'inventory', { entries: [] }); } catch (e) { log('corpse clear failed', e.message); } return; }
+    // Humanoids and an expedition's master are looted with E (__dboCorpseLoot), so their body keeps nothing
+    if (isHumanoidTag(tag) || isMasterTag(tag)) { try { mp.set(actorId, 'inventory', { entries: [] }); } catch (e) { log('corpse clear failed', e.message); } return; }
     let inv = null; try { inv = mp.get(actorId, 'inventory'); } catch (e) { return; }
     const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
     const kept = [];
@@ -1281,6 +1285,9 @@ module.exports = (api) => {
 
   // ---- humanoid bodies: E hands over a small roll, once per body -----------------------------------
   const leaseOfTag = (tag) => [...ST.leases.values()].find((x) => tag.startsWith(`${ZONE_PREFIX}${x.id}:`)) || null;
+  // An expedition's master (a boss zone of the lease): its body carries the boss chest's roll, handed over with E
+  // (Nate, 2026-09-28: "the lich needs good boss loot that drops from him when you loot him")
+  function isMasterTag(tag) { const l = leaseOfTag(tag); const d = l ? byId.get(l.id) : null; return !!(l && d && d.expedition && l.bossZones && l.bossZones.has(tag)); }
   function isHumanoidTag(tag) { const l = leaseOfTag(tag); const kind = l && l.kinds ? l.kinds[tag] || '' : ''; return HUMANOID.test(kind) && !ANIMAL.test(kind); }
   const itemName = (baseId) => { const r = recordOf(baseId); return String((r && r.editorId) || 'something').replace(/^(Food|Potion)/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'something'; };
   const corpseLoot = (diff, ok = ALL_OK) => {
@@ -1295,7 +1302,9 @@ module.exports = (api) => {
   globalThis.__dboCorpseLoot = (targetId, casterId) => {
     if (targetId < 0xff000000) return null;
     let tag = ''; try { tag = String(mp.get(targetId, 'private.npcSpawner') || ''); } catch (e) { return null; }
-    if (!tag.startsWith(ZONE_PREFIX) || !isHumanoidTag(tag)) return null;
+    if (!tag.startsWith(ZONE_PREFIX)) return null;
+    const master = isMasterTag(tag);
+    if (!master && !isHumanoidTag(tag)) return null;
     try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
     let looted = false; try { looted = mp.get(targetId, 'private.dboLooted') === true; } catch (e) { /* fresh */ }
     if (looted) return deny(casterId, 'Nothing more to find on this one.');
@@ -1303,7 +1312,8 @@ module.exports = (api) => {
     const lease = leaseOfTag(tag);
     const diff = DIFFICULTIES.find((x) => x.id === (lease ? lease.difficulty : 'normal')) || DIFFICULTIES[1];
     const got = [];
-    for (const en of corpseLoot(diff, lootOk(lease))) {
+    const d = lease ? byId.get(lease.id) : null;
+    for (const en of (master ? chestLoot(diff, true, lootOk(lease), ayleidLootHere(d)) : corpseLoot(diff, lootOk(lease)))) {
       if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); continue; }
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }
