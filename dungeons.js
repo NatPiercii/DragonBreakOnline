@@ -317,13 +317,15 @@ module.exports = (api) => {
   // Nat: ebony and daedric never come out of a dungeon (chests, bodies, corpses, or what an enemy is armed with).
   // Matched on the editor id, so the enchanted variants and the ingot go too. Config dungeons.bannedLoot overrides.
   const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric/i;
+  // Every expedition is an Ayleid ruin; before this the expeditions (keyworded only as caves) refused Ayleid grave goods
+  const isAyleidRuin = (d) => !!d && (!!d.expedition || d.type === 'ayleid' || (d.keywords || []).some((k) => /Ayleid/i.test(k)) || /^CYR(Anga|Rielle|Sedor|Vilverin)/i.test(d.id || ''));
   const lootOk = (lease) => {
     const prov = lease && lease.province;
     const d = lease ? byId.get(lease.id) : null;
     const kw = (d && d.keywords) || [];
     const has = (re) => kw.some((k) => re.test(k));
     const nordic = prov === 'cyrodiil' && ((d && d.type === 'nordic') || has(/NordicRuin|DraugrCrypt/i));
-    const ayleid = has(/Ayleid/i) || /^CYR(Anga|Rielle|Sedor|Vilverin)/i.test((d && d.id) || '');
+    const ayleid = isAyleidRuin(d);
     const goblin = has(/GoblinDen/i);
     return (it) => {
       if (BANNED_LOOT.test(it.name)) return false;
@@ -359,8 +361,34 @@ module.exports = (api) => {
   const SOUL_TIERS = [/petty/i, /petty|lesser/i, /petty|lesser|common/i, /./];
   const soulPool = (tier, ok) => (LOOT.soulgems || []).filter((it) => (SOUL_TIERS[Math.min(tier, 3)]).test(it.name) && (tier >= 3 || !/black|grand|greater/i.test(it.name)) && (!ok || ok(it)));
   const addEntry = (entries, item, count) => { if (!item) return; const id = idOf(item.id); if (!id) return; const hit = entries.find((e) => e.baseId === id); if (hit) hit.count += count; else entries.push({ baseId: id, count }); };
-  const chestLoot = (diff, boss, ok = ALL_OK) => {
+  // ---- Ayleid treasure (Nate, 2026-09-28: "ayleid weapons and armor found in the ayleid ruins") --------------
+  // ayleid-loot.json (tools/ayleid_loot.py, read from the plugins): Ayleid weapons, mage clothing and jewellery by tier.
+  // A big chest in an expedition ruin holds one piece chestChance of the time, the boss chest bossChance, each drawing a
+  // tier by its weights: plain weapons and the mage clothing are common, the Sparks and Arcing arms and Minor jewellery
+  // uncommon, Shocks arms and Major jewellery rare, Eminent jewellery and the Lich Helmet the rarest (boss chests best).
+  // Config dungeons.ayleidLoot; ruins: "expeditions" (default) or "all" to include Bruma's own Ayleid ruins.
+  const AYLEID_CFG = Object.assign({ enabled: true, ruins: 'expeditions', chestChance: 0.15, bossChance: 1,
+    chest: { common: 70, uncommon: 25, rare: 5, rarest: 0 }, boss: { common: 25, uncommon: 40, rare: 25, rarest: 10 } }, C.ayleidLoot || {});
+  const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')));
+  const AYLEID_TIERS = ['common', 'uncommon', 'rare', 'rarest'];
+  const ayleidLootHere = (d) => AYLEID_CFG.enabled !== false && AYLEID_LOOT.length > 0 && (d && d.expedition || (AYLEID_CFG.ruins === 'all' && isAyleidRuin(d)));
+  // One piece: a tier by weight, then weapon, apparel or jewellery evenly among what that tier holds, then the piece
+  const ayleidPiece = (boss) => {
+    const w = (boss ? AYLEID_CFG.boss : AYLEID_CFG.chest) || {};
+    const tiers = AYLEID_TIERS.filter((t) => Number(w[t]) > 0 && AYLEID_LOOT.some((it) => it.tier === t));
+    const total = tiers.reduce((n, t) => n + Number(w[t]), 0);
+    if (!total) return null;
+    let r = Math.random() * total, tier = tiers[tiers.length - 1];
+    for (const t of tiers) { r -= Number(w[t]); if (r < 0) { tier = t; break; } }
+    const inTier = AYLEID_LOOT.filter((it) => it.tier === tier);
+    const groups = [...new Set(inTier.map((it) => it.group))];
+    const g = groups[Math.floor(Math.random() * groups.length)];
+    const list = inTier.filter((it) => it.group === g);
+    return list[Math.floor(Math.random() * list.length)] || null;
+  };
+  const chestLoot = (diff, boss, ok = ALL_OK, ayleid = false) => {
     const entries = [];
+    if (ayleid && Math.random() < Number(boss ? AYLEID_CFG.bossChance : AYLEID_CFG.chestChance)) addEntry(entries, ayleidPiece(boss), 1);
     if (boss || Math.random() < GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)));
     if (boss || Math.random() < 0.45) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), rnd(1, 2));
     if (boss && Math.random() < 0.7) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
@@ -397,10 +425,11 @@ module.exports = (api) => {
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     const ok = lootOk(lease);
+    const ayleid = ayleidLootHere(d);
     for (const ch of d.chests || []) {
       const id = idOf(ch.ref); if (!id) continue;
       const boss = /boss/i.test(ch.edid);
-      try { mp.set(id, 'inventory', { entries: ch.big ? chestLoot(diff, boss, ok) : smallLoot(diff, ch.edid, ok) }); filled++; } catch (e) { log('chest fill failed', ch.ref, e.message); }
+      try { mp.set(id, 'inventory', { entries: ch.big ? chestLoot(diff, boss, ok, ayleid) : smallLoot(diff, ch.edid, ok) }); filled++; } catch (e) { log('chest fill failed', ch.ref, e.message); }
     }
     return filled;
   };
