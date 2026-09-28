@@ -1650,15 +1650,16 @@
 "insideDesc": "a9f5e:BSHeartland.esm",
 "insideCell": "a9ed2:BSHeartland.esm",
 "insidePos": [
--202.8,
--65.3,
-400.0
+-57.0,
+254.0,
+4.0
 ],
 "insideRot": [
 0,
 0,
--0.885
-]
+-0.0202
+],
+"insideNote": "Nate's /bug of 2026-09-28 03:41 ('Silorn put the spawn here'), facing into the ruin away from the door a9f5e; the computed spot at the door's height (z 400) was 400 units above the floor"
 }
 ],
 "chests": [
