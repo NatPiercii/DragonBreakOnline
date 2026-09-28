@@ -617,7 +617,9 @@ module.exports = (api) => {
       const secs = typeof globalThis.__dboHuntFeedSeconds === 'function' ? Number(globalThis.__dboHuntFeedSeconds(a)) || C.beastFeedSeconds : C.beastFeedSeconds;
       const b = mp.get(a, 'private.beast'); if (b && b.until) { b.until += secs * 1000; mp.set(a, 'private.beast', b); }
       const p = health(a); if (p) setHealth(a, p.health + 0.25);
-      personal(a, `You feed. The beast holds you ${secs} seconds longer.`);
+      // A meal, as a vampire's drink is (swag's /bug 2026-09-27: feeding as a werewolf left the hunger where it was)
+      if (needsFeed) try { needsFeed(a); } catch (e) { /* hunger off */ }
+      personal(a, `You feed. The beast holds you ${secs} seconds longer, and your hunger eases.`);
       if (typeof globalThis.__dboHuntFed === 'function') { try { globalThis.__dboHuntFed(a, t, killedBy.get(t) || 0, isHumanoid(t)); } catch (e) { log('supernatural: hunt feed failed', e.message); } }
       return true;
     }

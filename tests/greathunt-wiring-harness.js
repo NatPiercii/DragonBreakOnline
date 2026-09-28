@@ -18,11 +18,12 @@ const mp = {
   callPapyrusFunction: () => null, lookupEspmRecordById: () => null,
 };
 const said = [];
+const fedMeals = [];
 const api = {
   mp, log: noop, audit: noop, personal: (a, t) => said.push({ a, t }), registerChatCommand: noop,
   onUi: noop, openWidget: noop, closeWidget: noop, sendPacket: noop, display: String, who: String,
   isAdmin: () => false, findByName: () => null, onlineActors: () => [WOLF, VAMP], every: (n, ms, f) => timers.set(n, f), profileOf: (a) => (a < 100 ? a : -1),
-  nameOf: String, isWorldspace: () => true, needsFeed: noop, hungerOf: () => 0, cfg: {},
+  nameOf: String, isWorldspace: () => true, needsFeed: (a) => fedMeals.push(a), hungerOf: () => 0, cfg: {},
   zoneOfActor: () => null, zoneById: () => null,
 };
 for (const f of ['supernatural.js', 'greathunt.js', 'bloodranks.js']) { const p = path.resolve(__dirname, '..', f); delete require.cache[p]; }
@@ -46,6 +47,8 @@ ok(globalThis.__dboSuperActivate(DEER, VAMP) === false, 'a vampire still feeds o
 ok(globalThis.__dboSuperActivate(DEER, WOLF) === true, 'a werewolf in beast form feeds on a fresh animal');
 ok(renown() === 7, 'which earns 5 renown', renown());
 ok(store.get(`${WOLF}|private.beast`).until === now + 60000 + 30000, 'and holds the beast a Fledgling\'s 30 s longer');
+ok(fedMeals.length === 1 && fedMeals[0] === WOLF, 'and eases its hunger by a meal', JSON.stringify(fedMeals));
+ok(said.some((s) => s.a === WOLF && /your hunger eases/.test(s.t)), 'and says so');
 ok(globalThis.__dboSuperActivate(DEER, WOLF) === false, 'a corpse is eaten once');
 
 store.set(`${WOLF}|private.greatHunt`, { renown: 300, fedOn: {} });
