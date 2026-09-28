@@ -1,5 +1,20 @@
 [
   {
+    "title": "Client 0.3.59: Mouse Fix",
+    "date": "2026-09-28",
+    "version": "Client 0.3.59",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "If your mouse did nothing at character select or the main menu, that is fixed. On a fresh install, the Community Shaders mod opened a hidden setup window behind our menu that swallowed every click and key; it is now answered for you. The game also wakes up a mouse that stopped responding and takes the screen back from a window left open in front of it, such as Task Manager. Restart the launcher to get the update.",
+          "Stairs your party already opened in a ruin now show as open when you join the expedition later."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Leaner Expeditions",
     "date": "2026-09-28",
     "version": "Server",
