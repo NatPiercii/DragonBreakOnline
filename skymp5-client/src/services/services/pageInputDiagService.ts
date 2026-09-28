@@ -23,6 +23,10 @@ const KEY = "diag:page";
 // getting the timing right. gamemode.js writes each line to the server log as "[dboDiag] <profile> <line>".
 // Lines are buffered from front load, because the interesting ones happen before the connection is up.
 const RELAY_EVERY_MS = 5000;
+// Until the first packet gets through, try every second: for a stuck player the connection may not last, so the
+// buffer has to leave as soon as there is anything to leave on (Worker A: the server hears nothing from
+// GroundedPasta after "Logged as").
+const RELAY_FIRST_MS = 1000;
 const RELAY_MAX_LINES = 40;
 const RELAY_MAX_PER_PACKET = 8;
 // Only the lines worth a packet: the summaries, the first few DOM events, the load and heartbeat lines, the open dump
@@ -92,7 +96,8 @@ export class PageInputDiagService extends ClientListener {
   // A beat that stops while character select is up is the thing worth catching; tick still runs when update does not
   private onTick(): void {
     const now = Date.now();
-    if (now - this.lastRelay >= RELAY_EVERY_MS) { this.lastRelay = now; this.flushRelay(); }
+    const every = this.relayed ? RELAY_EVERY_MS : RELAY_FIRST_MS;
+    if (now - this.lastRelay >= every) { this.lastRelay = now; this.flushRelay(); }
     if (now - this.lastCheck < GAP_CHECK_MS) return;
     this.lastCheck = now;
     if (!this.lastBeatAt || this.gapOpen) return;

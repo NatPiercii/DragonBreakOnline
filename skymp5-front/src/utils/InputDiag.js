@@ -59,6 +59,18 @@ const underPoint = (x, y) => {
   return chain.join(' < ');
 };
 
+// These lines reach a staff-visible report and the server log, and the question they answer is only "did a keydown
+// arrive". So nothing typed is written: a key that produces a character is recorded as "printable" and no more, and
+// only keys that produce none are named (Worker A, 2026-09-28).
+const keyKind = (e) => {
+  let name = '';
+  try { name = String(e.key || ''); } catch (err) { return 'key=unreadable'; }
+  // A printable key has a single-character `key`; everything else is a named key such as Escape, Tab or ArrowLeft
+  if (name.length === 1) return 'key=printable';
+  if (!name) return 'key=unnamed';
+  return `key=${name}`;
+};
+
 const state = () => {
   let active = 'none';
   try { active = describe(document.activeElement); } catch (e) { /* none */ }
@@ -112,7 +124,7 @@ export const startInputDiag = (where) => {
       if (!shouldLog(kind)) return;
       const n = counts[kind];
       if (kind === 'keydown') {
-        send(`${kind} #${n} key=${e.key} code=${e.code} ${state()}`);
+        send(`${kind} #${n} ${keyKind(e)} ${state()}`);
       } else {
         send(`${kind} #${n} at=${Math.round(e.clientX)},${Math.round(e.clientY)} ${state()} under=${underPoint(e.clientX, e.clientY)}`);
       }
