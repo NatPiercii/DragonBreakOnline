@@ -3,6 +3,7 @@
 // Discord name, the body is the summary, and the logs and any screenshot ride along as attachments.
 // Same shape as audit.js (plain https, bot token, retry once on a rate limit) so there is nothing new to learn.
 
+const fs = require('fs')
 const https = require('https')
 const config = require('../../config')
 
@@ -63,7 +64,16 @@ function buildMultipart(payload, files) {
   return { boundary, body: Buffer.concat(parts) }
 }
 
-async function createThread(channelId, payload, files, deadline) {
+// Tag ids by name from the forum's tag map file; a missing or unreadable file means no tags
+function tagIds(names) {
+  let map
+  try { map = JSON.parse(fs.readFileSync(config.bugTagsFile, 'utf8')) } catch { return [] }
+  if (!map || typeof map !== 'object') return []
+  return names.map(n => map[n]).filter(id => typeof id === 'string' && /^\d{5,25}$/.test(id))
+}
+
+// wanted: tag names; on a tag refusal they are looked up in the forum's own tags by exact name first
+async function createThread(channelId, payload, files, deadline, wanted = []) {
   const mp = buildMultipart(payload, files)
   try {
     return await request('POST', `/channels/${channelId}/threads`, { multipart: mp, deadline })
@@ -75,13 +85,18 @@ async function createThread(channelId, payload, files, deadline) {
       await new Promise(r => setTimeout(r, wait))
       return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(payload, files), deadline })
     }
-    // Forums can require a tag; retry once with the closest available one rather than losing the report
+    // A required or stale tag: retry once with the forum's current tags, or with none, rather than losing the report
     if (err.statusCode === 400 && /tag/i.test(err.body || '')) {
       const channel = await request('GET', `/channels/${channelId}`, { deadline })
       const tags = channel.available_tags || []
-      const pick = tags.find(t => /bug|error|launcher|report/i.test(t.name)) || tags[0]
-      if (pick) {
-        const retry = { ...payload, applied_tags: [pick.id] }
+      const named = wanted.map(n => tags.find(t => t.name === n)).filter(Boolean)
+      // Any tag only when the forum requires one: the REQUIRE_TAG flag, or a refusal of an untagged post
+      const anyTag = channel.flags & 16 || !payload.applied_tags ? [tags.find(t => /bug|error|launcher|report/i.test(t.name)) || tags[0]] : []
+      const pick = named.length ? named : anyTag.filter(Boolean)
+      if (pick.length || payload.applied_tags) {
+        console.warn(`[report] forum refused the tags; retrying with ${pick.map(t => t.name).join(', ') || 'no tags'}`)
+        const { applied_tags: _stale, ...rest } = payload
+        const retry = pick.length ? { ...rest, applied_tags: pick.map(t => t.id) } : rest
         return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(retry, files), deadline })
       }
     }
@@ -89,8 +104,8 @@ async function createThread(channelId, payload, files, deadline) {
   }
 }
 
-// files: [{ name, text }] logs or [{ name, data, type }] binaries. Returns the thread id, or null when no forum channel is configured.
-async function postReport({ title, summary, files = [] }) {
+// files: [{ name, text }] logs or [{ name, data, type }] binaries; tags: tag names. Returns the thread id, or null when no forum channel is configured.
+async function postReport({ title, summary, files = [], tags = [] }) {
   const channelId = config.discordErrorForumChannelId
   if (!channelId || !config.discordBotToken) return null
   const payload = {
@@ -101,8 +116,10 @@ async function postReport({ title, summary, files = [] }) {
       attachments: files.map((f, i) => ({ id: i, filename: f.name })),
     },
   }
-  const thread = await createThread(channelId, payload, files, Date.now() + REPORT_DEADLINE_MS)
+  const applied = tagIds(tags)
+  if (applied.length) payload.applied_tags = applied
+  const thread = await createThread(channelId, payload, files, Date.now() + REPORT_DEADLINE_MS, tags)
   return thread && thread.id
 }
 
-module.exports = { postReport }
+module.exports = { postReport, tagIds }

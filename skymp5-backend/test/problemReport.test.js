@@ -30,3 +30,12 @@ test('the game UI lines are left out of every log a report carries', async () =>
   assert.match(texts['client.log'], /\[1 UI line\(s\) left out\]\n\[10:00:02:000\] crash here/)
   assert.strictEqual(texts['skse64.log'], body.skseLog)
 })
+
+test('a report asks for Manual, plus Launcher when it comes from the launcher', async () => {
+  const sources = { launcher: ['Manual', 'Launcher'], site: ['Manual'], game: ['Manual'], other: ['Manual', 'Launcher'] }
+  for (const [source, tags] of Object.entries(sources)) {
+    const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, { reportId: `test-tags-${source}-01`, note: 'it broke', source })
+    assert.strictEqual(result.status, 200)
+    assert.deepStrictEqual(posted.tags, tags, source)
+  }
+})

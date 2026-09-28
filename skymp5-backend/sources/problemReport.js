@@ -15,6 +15,7 @@ const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log']
 const CONTEXT_FIELDS = ['launcherVersion', 'clientVersion', 'filesVersion', 'os', 'gameVersion',
                         'installDir', 'step', 'error', 'mo2Enabled', 'freeSpaceGb']
 const SOURCES = { launcher: 'from the launcher', game: 'in game', site: 'from the website' }
+const SOURCE_TAGS = { launcher: ['Manual', 'Launcher'], game: ['Manual'], site: ['Manual'] }
 // A 1080p JPEG at quality 80 measured 213-489 KiB; the cap leaves room for the logs inside a 2 MB body
 const MAX_IMAGE_BYTES = 700 * 1024
 const MAX_IMAGE_BASE64 = Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 8
@@ -126,7 +127,7 @@ async function submit(reporter, body) {
   const entry = { state: 'pending', at: Date.now() }
   entry.promise = (async () => {
     try {
-      const thread = await postReport({ title: name, summary: lines.join('\n'), files })
+      const thread = await postReport({ title: name, summary: lines.join('\n'), files, tags: SOURCE_TAGS[source] })
       entry.state = 'done'
       entry.at = Date.now()
       audit.log(`REPORT problem ${SOURCES[source]} from ${name}`

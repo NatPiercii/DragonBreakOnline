@@ -125,6 +125,8 @@ module.exports = {
   discordTicketPingRoleId: process.env.DISCORD_TICKET_PING_ROLE_ID || '',
   // Forum channel that launcher problem reports open a thread in, one thread per reporter
   discordErrorForumChannelId: process.env.DISCORD_ERROR_FORUM_CHANNEL_ID || '',
+  // JSON map {tag name: tag id} for that forum, written once its tags exist; reports go untagged without it
+  bugTagsFile: process.env.BUG_TAGS_FILE || '/etc/dragonbreak/bug-tags.json',
 
   // Server lockdown: when true only serverLockedAllowList IDs can connect; others get loginFailedServerLocked from the TS server and the launcher shows "Server locked"
   serverLocked:          process.env.SERVER_LOCKED === 'true',
