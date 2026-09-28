@@ -43,15 +43,16 @@
 "insideDesc": "ef1ad:BSHeartland.esm",
 "insideCell": "ef1aa:BSHeartland.esm",
 "insidePos": [
--197.1,
-2401.9,
-393.9
+15.0,
+1100.0,
+-300.0
 ],
 "insideRot": [
 0,
 0,
--1.4006
-]
+3.1298
+],
+"insideNote": "Nate's /bug of 2026-09-28 03:37 ('put the spawn here'), facing into the ruin; the computed spot 200 units from the door was inside the wall"
 }
 ],
 "chests": [
