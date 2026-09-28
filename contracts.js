@@ -4,7 +4,7 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones, ranksOf, profileOf, saveSoon } = api;
+  const { mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones, ranksOf, profileOf, saveSoon, discordOf } = api;
   const fs = require('fs');
   const path = require('path');
 
@@ -47,6 +47,20 @@ module.exports = (api) => {
   if (!state.taken || typeof state.taken !== 'object') state.taken = {};
   // A kill would otherwise write the file on every hit of progress, per player
   const save = () => saveSoon(FILE, () => JSON.stringify(state, null, 2));
+
+  // Notices from before the reward was set aside hold nothing, so they would pay nothing and could still be the
+  // exploit's own (nobody recorded who posted them). They are dropped; no gold was ever taken for them, and refresh()
+  // puts fresh work up. Anyone holding one is released.
+  {
+    const legacy = state.contracts.filter((c) => c.held === undefined);
+    if (legacy.length) {
+      const ids = new Set(legacy.map((c) => c.id));
+      state.contracts = state.contracts.filter((c) => !ids.has(c.id));
+      for (const key of Object.keys(state.taken)) if (ids.has((state.taken[key] || {}).id)) delete state.taken[key];
+      save();
+      log(`contracts: dropped ${legacy.length} notice(s) posted before rewards were set aside`);
+    }
+  }
 
   // Which creature kinds the spawner actually places in a zone's worldspaces
   const kindsByZone = (() => {
@@ -106,6 +120,30 @@ module.exports = (api) => {
     } catch (e) { log('treasury payout failed', e.message); return 0; }
   };
 
+  // The mirror of payFromTreasury: what a contract held and no longer needs goes back to the hold
+  const refundToTreasury = (zone, amount) => {
+    if (amount <= 0 || !zone || !zone.treasury) return false;
+    if (bankTreasury()) return !!bankTreasury().deposit(zone.id, amount);
+    try {
+      const chestId = mp.getIdFromDesc(zone.treasury) >>> 0;
+      const inv = mp.get(chestId, 'inventory');
+      const entries = inv && Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : [];
+      const gold = entries.find((e) => (Number(e.baseId) >>> 0) === GOLD_BASE);
+      if (gold) gold.count = (Number(gold.count) || 0) + amount; else entries.push({ baseId: GOLD_BASE, count: amount });
+      mp.set(chestId, 'inventory', { entries });
+      return true;
+    } catch (e) { log('treasury refund failed', e.message); return false; }
+  };
+
+  // A contract holds its reward from the moment it is posted, so it can never pay out what the hold no longer has.
+  // All or nothing: a treasury that covers only part of it keeps what it had and the notice does not go up.
+  const escrow = (zone, amount) => {
+    const paid = payFromTreasury(zone, amount);
+    if (paid >= amount) return true;
+    if (paid > 0) refundToTreasury(zone, paid);
+    return false;
+  };
+
   const nextId = () => `${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
   const makeContract = (zone) => {
@@ -127,17 +165,28 @@ module.exports = (api) => {
 
   const zoneContracts = (zoneId) => state.contracts.filter((c) => c.zone === zoneId && c.expiresAt > Date.now());
 
+  // Number(x) || 3 would turn a deliberate 0 into 3, so perZone 0 could never mean "no standing work"
+  const perZone = Number.isFinite(Number(CFG.perZone)) ? Math.max(0, Number(CFG.perZone)) : 3;
+
   const refresh = () => {
     const before = state.contracts.length;
-    state.contracts = state.contracts.filter((c) => c.expiresAt > Date.now());
+    const kept = [];
+    for (const c of state.contracts) {
+      if (c.expiresAt > Date.now()) { kept.push(c); continue; }
+      // An expired notice hands its reward back rather than leaving the gold nowhere
+      if (Number(c.held) > 0) refundToTreasury(zoneById(c.zone), Number(c.held));
+    }
+    state.contracts = kept;
     // Off: what is already posted stays listed so nobody loses work in hand, but no new notice goes up
     if (!CFG.enabled) { if (state.contracts.length !== before) save(); return; }
     for (const zone of zoneList()) {
       if (!zone.treasury) continue;
       let have = zoneContracts(zone.id).length;
-      for (let i = have; i < (Number(CFG.perZone) || 3); i++) {
+      for (let i = have; i < perZone; i++) {
         const c = makeContract(zone);
         if (!c) break;
+        if (!escrow(zone, c.reward)) break;
+        c.held = c.reward;
         state.contracts.push(c);
       }
     }
@@ -173,6 +222,14 @@ module.exports = (api) => {
     return `${c.count} ${plural(c.kind)} in ${zone ? zone.name : c.zone} for ${c.reward} gold${done}`;
   };
 
+  // The account behind a character, so a poster cannot take his own notice on a second character of his
+  const accountOf = (a) => { try { return String((typeof discordOf === 'function' && discordOf(a)) || ''); } catch (e) { return ''; } };
+  const postedBy = (c, a) => {
+    if (c.by !== undefined && Number(c.by) === Number(profileOf(a))) return true;
+    const acc = accountOf(a);
+    return !!acc && String(c.byAccount || '') === acc;
+  };
+
   const isOfficial = (a, zoneId) => {
     try { return ranksOf(profileOf(a)).some((r) => r.zone && r.zone.id === zoneId); } catch (e) { return false; }
   };
@@ -196,7 +253,8 @@ module.exports = (api) => {
       return;
     }
     const zone = zoneById(c.zone);
-    const paid = payFromTreasury(zone, c.reward);
+    // The reward was taken out of the treasury when the notice went up, so this pays what the notice itself holds
+    const paid = Number(c.held) || 0;
     if (paid <= 0) {
       setTaken(killerId, held);
       personal(killerId, `The work is done, but the ${zone ? zone.name : c.zone} treasury is empty. Speak to its officials.`);
@@ -247,6 +305,7 @@ module.exports = (api) => {
       const list = zoneContracts(zone.id);
       const c = list[Math.max(1, Number(parts[1]) || 1) - 1];
       if (!c) return personal(a, 'No such contract. /contracts lists them.');
+      if (postedBy(c, a)) return personal(a, 'You posted that notice yourself. Someone else does the hunting.');
       setTaken(a, { id: c.id, progress: 0 });
       personal(a, `Taken: ${describe(c, 0)}. Kills count anywhere in ${zone.name}.`);
       return audit(`CONTRACT ${who(a)} took ${c.count} ${plural(c.kind)} for ${zone.name}`);
@@ -268,11 +327,18 @@ module.exports = (api) => {
       const reward = Math.max(1, Math.min(10000, Number(parts[3]) || 0));
       if (!kind || !count || !reward) return personal(a, 'Use: /contract post <creature> <count> <reward>');
       if (!(kindsByZone[zone.id] || {})[kind]) return personal(a, `No ${plural(kind)} are known to roam ${zone.name}.`);
-      if (treasuryGold(zone) < reward) return personal(a, `The ${zone.name} treasury holds ${treasuryGold(zone)} gold, less than the reward.`);
-      const c = { id: nextId(), zone: zone.id, kind, count, reward, postedAt: Date.now(), expiresAt: Date.now() + (Number(CFG.expiryHours) || 24) * 3600000 };
+      // A hold pays for danger. Harmless quarry is not work, and no reward may run past what the risk is worth:
+      // without this an official could post one chicken at 10,000 gold and empty the treasury into his own purse.
+      const danger = DANGER[kind] || 0;
+      if (danger <= 0) return personal(a, `${plural(kind)[0].toUpperCase()}${plural(kind).slice(1)} are no danger to anyone. ${zone.name} pays for dangerous work.`);
+      const most = count * (Number(CFG.rewardPerKill[danger]) || 12);
+      if (reward > most) return personal(a, `${count} ${plural(kind)} is worth at most ${most} gold. Post it for that or less.`);
+      if (!escrow(zone, reward)) return personal(a, `The ${zone.name} treasury holds ${treasuryGold(zone)} gold, less than the reward.`);
+      const c = { id: nextId(), zone: zone.id, kind, count, reward, held: reward, by: profileOf(a), byAccount: accountOf(a),
+        postedAt: Date.now(), expiresAt: Date.now() + (Number(CFG.expiryHours) || 24) * 3600000 };
       state.contracts.push(c);
       save();
-      personal(a, `Posted: ${describe(c)}.`);
+      personal(a, `Posted: ${describe(c)}. The reward is set aside from the treasury until it is claimed.`);
       return audit(`CONTRACT ${who(a)} posted ${c.count} ${plural(c.kind)} for ${zone.name} at ${c.reward} gold`);
     }
 
@@ -281,5 +347,5 @@ module.exports = (api) => {
 
   refresh();
   const posted = state.contracts.length;
-  log(`contracts ${CFG.enabled ? 'on' : 'off'}: ${posted} posted across ${Object.keys(kindsByZone).length} zone(s) with known fauna, ${CFG.perZone} per zone, paid from the zone treasury`);
+  log(`contracts ${CFG.enabled ? 'on' : 'off'}: ${posted} posted across ${Object.keys(kindsByZone).length} zone(s) with known fauna, ${perZone} per zone, rewards held from the zone treasury`);
 };
