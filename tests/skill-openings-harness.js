@@ -23,10 +23,10 @@ const fs = require('fs');
 
 const SERVER = path.resolve(__dirname, '..');
 const SKILLS = JSON.parse(fs.readFileSync(path.join(SERVER, 'skills.json'), 'utf8'));
-const POINTS_TS = fs.readFileSync(
-  path.resolve(SERVER, '..', 'fork', 'skymp5-server', 'ts', 'systems', 'skillPoints.ts'), 'utf8');
-const MASTERY_TS = fs.readFileSync(
-  path.resolve(SERVER, '..', 'fork', 'skymp5-server', 'ts', 'systems', 'masterySystem.ts'), 'utf8');
+// The fork whose server code ships: FORK_SERVER, else FORK (tests/run-all.sh sets both), else ../fork beside this repo
+const FORK_SERVER = process.env.FORK_SERVER || process.env.FORK || path.resolve(SERVER, '..', 'fork');
+const POINTS_TS = fs.readFileSync(path.resolve(FORK_SERVER, 'skymp5-server', 'ts', 'systems', 'skillPoints.ts'), 'utf8');
+const MASTERY_TS = fs.readFileSync(path.resolve(FORK_SERVER, 'skymp5-server', 'ts', 'systems', 'masterySystem.ts'), 'utf8');
 
 let failures = 0;
 const check = (what, ok, note) => {
