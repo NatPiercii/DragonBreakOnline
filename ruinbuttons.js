@@ -33,10 +33,19 @@ module.exports = (api) => {
   }
   // Open groups (survive hot reloads): group -> { ruinId, targets }
   const S = globalThis.__dboRuinButtons || (globalThis.__dboRuinButtons = { open: new Map() });
+  if (!S.told) S.told = new Map();      // group -> actors already told it is open (this lease)
 
+  // A target plays through its behaviour graph (PlayAnimation, the default: what default2StateActivator calls) or, with
+  // "call": "gamebryo" in ruin-buttons.json, as a NIF controller sequence (PlayGamebryoAnimation(name, startOver, easeIn);
+  // registered on the server, which sends it to every client in the cell). Nate, 2026-09-28: PlayAnimation("Open") did
+  // not move Telepe's stair on his screen, so which one a mesh needs is read from its NIF and set per target.
   const play = (t, anim) => {
-    try { mp.callPapyrusFunction('method', 'ObjectReference', 'PlayAnimation', { type: 'form', desc: t.ref }, [anim]); return true; }
-    catch (e) { log(`ruinbuttons: ${anim} on ${t.ref} failed: ${e.message}`); return false; }
+    const gamebryo = t.call === 'gamebryo';
+    try {
+      mp.callPapyrusFunction('method', 'ObjectReference', gamebryo ? 'PlayGamebryoAnimation' : 'PlayAnimation', { type: 'form', desc: t.ref },
+        gamebryo ? [anim, true, 0.0] : [anim]);
+      return true;
+    } catch (e) { log(`ruinbuttons: ${anim} on ${t.ref} failed: ${e.message}`); return false; }
   };
 
   // true: ours, and the engine's own activation (its toggling chain) is blocked
@@ -45,7 +54,12 @@ module.exports = (api) => {
     const hit = byButton.get(targetId >>> 0);
     if (!hit) return false;
     const { ruin, button, group } = hit;
-    if (S.open.has(group)) { personal(casterId, button.again || 'The button gives, but nothing more stirs.'); return true; }
+    if (S.open.has(group)) {
+      // Once per player per lease: a player pressing again and again saw the line fill the chat (Nate, 2026-09-28)
+      const told = S.told.get(group) || new Set();
+      if (!told.has(casterId >>> 0)) { told.add(casterId >>> 0); S.told.set(group, told); personal(casterId, button.again || 'The button gives, but nothing more stirs.'); }
+      return true;
+    }
     let opened = 0;
     for (const t of button.targets || []) if (play(t, t.open)) opened++;
     audit(`RUINBUTTON ${who(casterId)} pressed ${button.ref} in ${ruin.name}: ${opened} of ${(button.targets || []).length} opened`);
@@ -62,7 +76,7 @@ module.exports = (api) => {
       if (o.ruinId !== ruinId) continue;
       let closed = 0;
       for (const t of o.targets) if (play(t, t.close)) closed++;
-      S.open.delete(group);
+      S.open.delete(group); S.told.delete(group);
       log(`ruinbuttons: ${ruinId} lease over, ${closed} of ${o.targets.length} closed for the next party`);
     }
   };

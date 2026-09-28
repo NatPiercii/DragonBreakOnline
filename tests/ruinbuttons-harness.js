@@ -42,6 +42,11 @@ check('and the press is audited', /^RUINBUTTON Falcius Octavio pressed aed73:BSH
 
 check('pressing it again changes nothing (no toggle back)', press(TELEPE_A) === true && calls.length === 1 && said[said.length - 1] === 'The button gives, but nothing more stirs.');
 check('nor does Telepe\'s other button, which moves the same stair', press(TELEPE_B) === true && calls.length === 1);
+const saidBefore = said.length;
+press(TELEPE_A); press(TELEPE_B); press(TELEPE_A);
+check('the "nothing more stirs" line is said once per player, not on every press', said.length === saidBefore, said.slice(saidBefore));
+said.length = 0; globalThis.__dboRuinButton(fromDesc(TELEPE_A), 0xff000099);
+check('a second player pressing is told once too', said.length === 1 && said[0] === 'The button gives, but nothing more stirs.');
 
 load();
 check('a hot reload keeps what is open', press(TELEPE_B) === true && calls.length === 1 && logs.some((l) => /4 buttons in 2 ruins, 1 open/.test(l)));
@@ -64,6 +69,17 @@ check('a target the server cannot reach is logged, the player is told nothing st
 failOn = null;
 check('and it is not recorded as open, so the next press tries again and works', press(SILORN_STAIRS_BTN) === true && calls.length === 1 && calls[0].ref === 'aa273:BSHeartland.esm' && calls[0].arg === 'Open');
 
+// A target marked "call": "gamebryo" plays as a NIF controller sequence
+{
+  const data = JSON.parse(fs.readFileSync('ruin-buttons.json', 'utf8'));
+  data.ruins.find((r) => r.name === 'Telepe').buttons.forEach((b) => b.targets.forEach((t) => { t.call = 'gamebryo'; t.open = 'Forward'; t.close = 'Backward'; }));
+  fs.writeFileSync('ruin-buttons.json', JSON.stringify(data));
+  delete globalThis.__dboRuinButtons; load(); calls.length = 0;
+  press(TELEPE_A);
+  check('a "gamebryo" target is played with PlayGamebryoAnimation(name, true, 0)', calls.length === 1 && calls[0].fn === 'PlayGamebryoAnimation' && calls[0].arg === 'Forward', calls);
+  calls.length = 0; globalThis.__dboRuinLeaseEnded('CYRTelepeLocation');
+  check('and closed the same way', calls.length === 1 && calls[0].fn === 'PlayGamebryoAnimation' && calls[0].arg === 'Backward', calls);
+}
 delete globalThis.__dboRuinButtons; load({ ruinButtons: { enabled: false } });
 check('switched off in config, buttons are left to the engine', press(TELEPE_A) === false);
 
