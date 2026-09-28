@@ -124,7 +124,8 @@ module.exports = (api) => {
     if (m) return { at: Date.parse(`${m[1]}T${m[2].padStart(2, '0')}:${m[3]}:00Z`), used: 3 };
     m = t.match(/^at\s+(\d{1,2}):(\d{2})/);
     if (m) {
-      const d = new Date(); d.setUTCHours(Number(m[1]), Number(m[2]), 0, 0);
+      // From Date.now(), as everything else here, so the harness's fixed clock governs this too
+      const d = new Date(Date.now()); d.setUTCHours(Number(m[1]), Number(m[2]), 0, 0);
       if (d.getTime() <= Date.now()) d.setUTCDate(d.getUTCDate() + 1);
       return { at: d.getTime(), used: 2 };
     }

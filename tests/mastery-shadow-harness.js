@@ -59,7 +59,7 @@ ok('19 hits bank 9.5', bank().shadow === 9.5, bank().shadow);
 ok('no offer before 10 units', !bank().offered);
 hit(PLAYER);
 ok('20th hit makes the offer', bank().offered === true, bank());
-ok('offer notice sent', packets.some((p) => p.customPacketType === 'masteryNotice' && /One-Handed/.test(p.text)));
+ok('offer notice sent', packets.some((p) => p.customPacketType === 'masteryNotice' && /take up Blade/.test(p.text)));
 const menu = packets.filter((p) => p.customPacketType === 'masteryMenu').pop();
 ok('menu lists the offer', menu && menu.points.offers.some((o) => o.id === 'blade' && o.banked === 10), menu && menu.points.offers);
 

@@ -167,7 +167,7 @@ stock(BREWER);
 const before = JSON.stringify(props.get(BREWER + '|inventory'));
 craft(BREWER, [TROLL_FAT, FLY_AMANITA, YELLOW_POLYPORE, GOLD]);
 check('a report holding a non-ingredient makes nothing', JSON.stringify(props.get(BREWER + '|inventory')) === before && saidTo(BREWER).length === 0);
-check('...and is logged', out.logs.some((l) => /not a lab mix; ignored/.test(l)));
+check('...and is logged, with the reason', out.logs.some((l) => /not a lab mix \(.+\); ignored/.test(l)));
 craft(BREWER, [TROLL_FAT, FLY_AMANITA, YELLOW_POLYPORE, BLUE_FLOWER]);
 check('four ingredients make nothing', JSON.stringify(props.get(BREWER + '|inventory')) === before);
 check('...and the player is told why', /^The lab did not recognise that mix/.test(saidTo(BREWER)[0] || ''), saidTo(BREWER));
@@ -188,7 +188,9 @@ check('a missing ingredient makes nothing', count(BREWER, DRAUGHT) === 0 && coun
 put(FALLEN, 'isDead', true);
 out.packets.length = 0;
 mp.onDeath(FALLEN, 0);
-check('the downed text names both ways back', bannerTo(FALLEN)[0] === "You are down. A Priest's healing or a Draught of Revival can bring you back. You wake at the temple in 60 seconds, or say /respawn to go now.", bannerTo(FALLEN));
+// The banner keeps to the timer; the ways back ride in the chat line with it (downed.js banner's detail, ec229fab)
+check('the downed banner gives the timer', bannerTo(FALLEN)[0] === 'You are down. You wake at the temple in 60 seconds, or say /respawn to go now.', bannerTo(FALLEN));
+check('...and the chat names both ways back', saidTo(FALLEN).some((t) => /A Priest's healing or a Draught of Revival can bring you back where you fell\./.test(t)), saidTo(FALLEN));
 put(BREWER, 'inventory', { entries: [{ baseId: DRAUGHT, count: 1 }] });
 put(FALLEN, 'percentages', { health: 0, magicka: 1, stamina: 1 });
 const r = mp.onActivate(FALLEN, BREWER);
