@@ -12,6 +12,10 @@
 
 const BEAT_MS = 2000;
 const LAG_EVERY = 5; // a lag line every fifth beat, so every 10 s
+// Worker A found input being dropped before it reaches us when OverlayClient::IsReady() is false, which is the CEF
+// host saying the main frame's load never ended. These report the same condition from this side, and name what is
+// still hanging, which is the part their log cannot see.
+const LOAD_CHECKS_MS = [5000, 15000, 40000];
 
 let started = false;
 let beats = 0;
@@ -44,9 +48,52 @@ const countRaf = () => {
   } catch (e) { /* no rAF: the lag line will say raf=0 */ }
 };
 
+// What is still not finished. A main frame load that never ends is usually one resource that never settles.
+const pending = () => {
+  const out = [];
+  const name = (u) => String(u || '').split('/').pop() || '(inline)';
+  try {
+    for (const img of document.querySelectorAll('img')) {
+      if (!img.complete) out.push('img ' + name(img.currentSrc || img.src));
+    }
+    for (const v of document.querySelectorAll('video, audio')) {
+      // networkState 2 is still fetching; 3 is no usable source
+      if (v.networkState === 2 || v.readyState === 0) out.push(`${v.tagName.toLowerCase()} ${name(v.currentSrc || v.src)} net=${v.networkState} ready=${v.readyState}`);
+    }
+    for (const l of document.querySelectorAll('link[rel="stylesheet"]')) {
+      if (!l.sheet) out.push('css ' + name(l.href));
+    }
+  } catch (e) { return 'could not be read'; }
+  try {
+    // A resource entry with no responseEnd is still in flight
+    const inFlight = performance.getEntriesByType('resource').filter((r) => !r.responseEnd).map((r) => name(r.name));
+    for (const n of inFlight) out.push('in flight ' + n);
+  } catch (e) { /* no resource timing */ }
+  if (!out.length) return 'nothing pending';
+  return out.slice(0, 10).join(' | ') + (out.length > 10 ? ` (+${out.length - 10} more)` : '');
+};
+
+const watchLoad = () => {
+  const t0 = window.performance && performance.now ? performance.now() : Date.now();
+  const since = () => Math.round((window.performance && performance.now ? performance.now() : Date.now()) - t0);
+  send(`load readyState=${document.readyState} at start`);
+  try {
+    document.addEventListener('readystatechange', () => send(`load readyState=${document.readyState} after ${since()}ms`));
+    window.addEventListener('load', () => send(`load window load fired after ${since()}ms`));
+  } catch (e) { /* the checks below still report */ }
+  for (const at of LOAD_CHECKS_MS) {
+    setTimeout(() => {
+      if (document.readyState === 'complete') return;
+      // This is the state Worker A's OverlayClient::IsReady() false means, named from this end
+      send(`load NOT COMPLETE after ${at}ms: readyState=${document.readyState} pending=${pending()}`);
+    }, at);
+  }
+};
+
 export const startPageHeartbeat = () => {
   if (started) return;
   started = true;
+  watchLoad();
   countRaf();
   expectedAt = (window.performance && performance.now ? performance.now() : Date.now()) + BEAT_MS;
 
