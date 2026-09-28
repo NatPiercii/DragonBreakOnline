@@ -24,13 +24,19 @@ const ROLLOVER_ALPHA_PATHS = [
 ];
 
 // The notice board activators the server keys its boards to: Manny's Notice Board
-// plus our own board statics. Local id inside the plugin.
+// plus our own board statics. Local id inside the plugin. DragonBreak.esp:000006 is
+// not one any more: it was "Noticeboard", but DragonBreak Online Edits overrides it as
+// the ExpeditionBoard (EXPEDITION_BASES below), and none of its refs is a notice board.
 const BOARD_BASES: Array<[number, string]> = [
   [0x003e10, "notice board.esp"],
-  [0x000006, "DragonBreak.esp"],
   [0x000900, "DragonBreak Harvest.esp"],
   [0x000901, "DragonBreak Harvest.esp"],
   [0x000902, "DragonBreak Harvest.esp"],
+];
+
+// The expedition board (dungeons.js opens it): read like a notice board, under its own name.
+const EXPEDITION_BASES: Array<[number, string]> = [
+  [0x000006, "DragonBreak.esp"],
 ];
 
 const PROMPT_POLL_MS = 500;
@@ -49,7 +55,7 @@ let prompt: Prompt = { verb: "", label: "" };
  * side of the game can phrase however it likes; the vanilla key glyph stays.
  * The rollover text is faded out via the HUD movie's GFx members every frame
  * (skyrim-platform's own cursor-hide technique); the custom prompt follows
- * crosshairRefChanged. The bounty board reads "Read Notice Board", player
+ * crosshairRefChanged. The bounty board reads "Read Notice Board", the expedition board "Read Expedition Board", player
  * characters read "Interact" with introduction- and mask-aware names (and
  * get their engine activation blocked so the interaction menu owns the key),
  * everything else keeps its display name with a verb picked by base form
@@ -156,6 +162,9 @@ export class InteractionPromptService extends ClientListener {
 
     if (this.isBoardBase(base)) {
       return { verb: "Read", label: "Notice Board" };
+    }
+    if (this.isExpeditionBase(base)) {
+      return { verb: "Read", label: (base.getName() || "").trim() || "Expedition Board" };
     }
 
     let label = (ref.getDisplayName() || base.getName() || "").trim();
@@ -284,18 +293,26 @@ export class InteractionPromptService extends ClientListener {
   }
 
   private isBoardBase(base: Form): boolean {
-    if (this.boardBaseIds === undefined) {
-      this.boardBaseIds = new Set<number>();
-      for (const [localId, plugin] of BOARD_BASES) {
-        try {
-          const form = this.sp.Game.getFormFromFile(localId, plugin);
-          if (form) this.boardBaseIds.add(form.getFormID());
-        } catch {
-          // plugin not in this load order
-        }
+    if (this.boardBaseIds === undefined) this.boardBaseIds = this.resolveBases(BOARD_BASES);
+    return this.boardBaseIds.has(base.getFormID());
+  }
+
+  private isExpeditionBase(base: Form): boolean {
+    if (this.expeditionBaseIds === undefined) this.expeditionBaseIds = this.resolveBases(EXPEDITION_BASES);
+    return this.expeditionBaseIds.has(base.getFormID());
+  }
+
+  private resolveBases(list: Array<[number, string]>): Set<number> {
+    const ids = new Set<number>();
+    for (const [localId, plugin] of list) {
+      try {
+        const form = this.sp.Game.getFormFromFile(localId, plugin);
+        if (form) ids.add(form.getFormID());
+      } catch {
+        // plugin not in this load order
       }
     }
-    return this.boardBaseIds.has(base.getFormID());
+    return ids;
   }
 
   private hideVanillaRollover(): void {
@@ -337,6 +354,7 @@ export class InteractionPromptService extends ClientListener {
   private promptShown = false;
   private browserFocused = false;
   private boardBaseIds: Set<number> | undefined = undefined;
+  private expeditionBaseIds: Set<number> | undefined = undefined;
   private errorLogged = false;
   private lastPollMs = 0;
   private doorNames = new Map<number, string>();
