@@ -32,9 +32,14 @@ module.exports = (api) => {
     let mtime = -1; try { mtime = fs.statSync(FILE).mtimeMs; } catch (e) { return S.items || {}; }
     if (mtime === S.mtime && S.items) return S.items;
     try {
-      const raw = JSON.parse(fs.readFileSync(FILE, 'utf8')).items || {};
-      const out = {}; for (const [k, v] of Object.entries(raw)) out[norm(k)] = v;
-      S.items = out; S.mtime = mtime;
+      const file = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+      const out = {}; for (const [k, v] of Object.entries(file.items || {})) out[norm(k)] = v;
+      // A faction's war uniform: its own items and the worn-only extras (faction id -> set of item descs)
+      const uni = new Map();
+      const add = (fid, desc) => { if (!uni.has(fid)) uni.set(fid, new Set()); uni.get(fid).add(norm(desc)); };
+      for (const [desc, v] of Object.entries(out)) for (const fid of v.factions || []) add(fid, desc);
+      for (const [fid, list] of Object.entries(file.uniforms || {})) for (const desc of list || []) add(fid, desc);
+      S.items = out; S.uniforms = uni; S.mtime = mtime;
       log(`factiongear: ${Object.keys(out).length} faction items from ${path.basename(FILE)}`);
     } catch (e) { log(`factiongear: ${FILE} unreadable (${e.message})${S.items ? ', keeping the last good list' : ''}`); }
     return S.items || {};
@@ -80,6 +85,40 @@ module.exports = (api) => {
     try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
     audit(`FACTIONGEAR refused ${who(a)} ${(v.entry && v.entry.name) || '?'} (${(v.entry && v.entry.set) || '?'}, ${v.why})`);
   };
+
+  // ---- war uniforms (Nate, 2026-09-28: "with wars, people have to wear the faction uniforms") ------------------------
+  // Wearing the uniform is wearing a body piece (BOD2 slot 32, bit 2) of the faction's uniform. realm.js asks it for
+  // each fighter at a standard. null: the faction has no uniform to wear, so the rule cannot hold it.
+  const bodyCache = new Map();
+  const isBody = (baseId) => {
+    if (bodyCache.has(baseId)) return bodyCache.get(baseId);
+    let yes = false;
+    try {
+      const r = mp.lookupEspmRecordById(baseId >>> 0);
+      const f = r && r.record && String(r.record.type) === 'ARMO' ? (r.record.fields || []).find((x) => x && x.type === 'BOD2' && x.data instanceof Uint8Array) : null;
+      if (f && f.data.byteLength >= 4) yes = (new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(0, true) & (1 << 2)) !== 0;
+    } catch (e) { yes = false; }
+    bodyCache.set(baseId, yes);
+    return yes;
+  };
+  const wornIds = (a) => {
+    let eq = null; try { eq = mp.get(a >>> 0, 'equipment'); } catch (e) { return []; }
+    const entries = eq && eq.inv && Array.isArray(eq.inv.entries) ? eq.inv.entries : [];
+    return entries.filter((e) => e && (e.worn || e.wornLeft)).map((e) => Number(e.baseId) >>> 0);
+  };
+  const idOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
+  // A uniform needs a body piece to wear: Windhelm's guard list is only a shield, so Windhelm has none to be held to
+  const uniformOf = (fid) => {
+    items();
+    const set = S.uniforms && S.uniforms.get(String(fid));
+    return set && [...set].some((d) => isBody(idOf(d))) ? set : null;
+  };
+  globalThis.__dboInUniform = (a, fid) => {
+    const set = uniformOf(fid);
+    if (!set) return null;
+    return wornIds(a).some((id) => set.has(norm(descOf(id))) && isBody(id));
+  };
+  globalThis.__dboHasUniform = (fid) => !!uniformOf(fid);
 
   // Called by regions.js's craft hook: false refuses the craft (and says why), true lets it on
   globalThis.__dboFactionCraft = (actorId, itemId) => {

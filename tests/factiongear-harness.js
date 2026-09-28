@@ -26,7 +26,8 @@ check('each item names at least one faction and a role', Object.values(gear).eve
 
 // Descs <-> fake ids
 const ids = new Map(); const descs = new Map(); let next = 0x100;
-const idOf = (desc) => { if (!ids.has(desc)) { ids.set(desc, next); descs.set(next, desc); next++; } return ids.get(desc); };
+// Case-insensitive, as the server's desc lookup is (the module lower-cases plugin names)
+const idOf = (desc) => { const k = String(desc).toLowerCase(); if (!ids.has(k)) { ids.set(k, next); descs.set(next, desc); next++; } return ids.get(k); };
 const IMP_HELM = idOf(itemNamed('Imperial Helmet')), THALMOR = idOf(itemNamed('Thalmor Robes')), ORC = idOf(itemNamed('Orcish Armor'));
 const WR_ARMOR = idOf(itemNamed("Whiterun Guard's Armor")), VAMP = idOf(itemNamed('Vampire Armor', 'Vampire clans'));
 const IRON = idOf('12e46:Skyrim.esm');
@@ -44,7 +45,13 @@ globalThis.__dboGuildsOf = (a) => ranks[a] || [];
 globalThis.__dboGuildInfo = (fid) => { const f = defs.find((x) => x.id === fid); return f ? { id: f.id, name: f.name } : null; };
 const said = [], audits = [], commands = new Map();
 const cfg = { factionGear: { enabled: true } };   // switched on for the rules; the off state is checked at the end
-const mp = { getDescFromId: (id) => descs.get(id) || '', getIdFromDesc: (d) => idOf(d), lookupEspmRecordById: () => ({ record: null }) };
+// Armor records: body pieces carry BOD2 slot 32 (bit 2), a shield slot 39 (bit 9)
+const bod2 = (mask) => ({ record: { type: 'ARMO', fields: [{ type: 'BOD2', data: new Uint8Array(new Uint32Array([mask]).buffer) }] } });
+const bodyIds = new Set(), shieldIds = new Set();
+const equipment = new Map();   // actor -> worn base ids
+const mp = { getDescFromId: (id) => descs.get(id) || '', getIdFromDesc: (d) => idOf(d),
+  lookupEspmRecordById: (id) => (bodyIds.has(id) ? bod2(1 << 2) : shieldIds.has(id) ? bod2(1 << 9) : { record: null }),
+  get: (a, p) => (p === 'equipment' ? { inv: { entries: (equipment.get(a) || []).map((baseId) => ({ baseId, count: 1, worn: true })) } } : undefined) };
 const api = { mp, log: () => {}, personal: (a, t) => said.push([a, t]), audit: (t) => audits.push(t), who: String, cfg, registerChatCommand: (n, fn) => commands.set(n, fn), isAdmin: (a) => a === A.ADMIN, sendPacket: () => true };
 globalThis.__dboFactionGearState = undefined;
 require(path.join(SERVER, 'factiongear.js'))(api);
@@ -79,6 +86,21 @@ check("Immersive Weapons' Silver Longsword is the Silver Hand's", Object.values(
 check("the base game's Silver Sword and Silver Greatsword are open", !Object.values(gear).some((v) => /^Silver (Sword|Greatsword)$/.test(v.name) && v.recipes.some((r) => /MoreCraftableEquipment/.test(r))));
 check('arrows and bolts are open', !Object.values(gear).some((v) => /Arrow|Bolt/.test(v.name)));
 
+// ---- war uniforms (realm.js asks __dboInUniform at every standard) -----------------------------------------------
+const LEG_ARMOR = idOf(itemNamed('Imperial Light Armor')), BRUMA_CUIRASS = idOf('723cd:BSHeartland.esm'), WH_SHIELD = idOf(itemNamed("Windhelm Guard's Shield"));
+bodyIds.add(LEG_ARMOR); bodyIds.add(BRUMA_CUIRASS); bodyIds.add(WR_ARMOR); shieldIds.add(WH_SHIELD); shieldIds.add(IMP_HELM);
+globalThis.__dboFactionGearState.checkedAt = 0; globalThis.__dboFactionGearState.mtime = -1;   // re-read with the body pieces known
+equipment.set(A.LEG, [LEG_ARMOR]);
+check('a Legionnaire in Imperial Light Armor is in uniform', globalThis.__dboInUniform(A.LEG, 'imperial-legion') === true);
+equipment.set(A.LEG, [IMP_HELM]);
+check('...a helmet alone is not the uniform: it takes a body piece', globalThis.__dboInUniform(A.LEG, 'imperial-legion') === false);
+equipment.set(A.LEG, [WR_ARMOR]);
+check("...nor is another faction's armor", globalThis.__dboInUniform(A.LEG, 'imperial-legion') === false);
+equipment.set(A.OUT, [BRUMA_CUIRASS]);
+check("the County of Bruma's uniform is its guard cuirass, which no recipe makes", globalThis.__dboInUniform(A.OUT, 'county-bruma') === true);
+check('the Fighters Guild has no uniform, so the rule cannot hold it', globalThis.__dboInUniform(A.OUT, 'fighters-guild') === null && globalThis.__dboHasUniform('fighters-guild') === false);
+check("Windhelm's guard list is only a shield, so Windhelm has no uniform to be held to", globalThis.__dboInUniform(A.OUT, 'hold-windhelm') === null);
+
 // Through regions.js's craft hook, as the server calls it
 let prevCalls = 0;
 mp.onCraft = function () { prevCalls++; return undefined; };
@@ -99,7 +121,7 @@ commands.get('factiongear')(A.ADMIN, '');
 check('/factiongear says it is off for players and test mode still applies', /off for players; test mode still applies to you: \d+ items.*Test mode is on for you/.test(lastTo(A.ADMIN)), lastTo(A.ADMIN));
 // The shipped defaults: off in the code and in gamemode-config.json
 const shipped = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).factionGear;
-check('gamemode-config.json ships it off', shipped && shipped.enabled === false, shipped && shipped.enabled);
+check('gamemode-config.json switches it on (Nate, 2026-09-28)', shipped && shipped.enabled === true, shipped && shipped.enabled);
 globalThis.__dboFactionGearState = undefined;
 require(path.join(SERVER, 'factiongear.js'))(Object.assign({}, api, { cfg: {} }));
 check('with no config at all it is off', globalThis.__dboFactionCraft(A.OUT, IMP_HELM) === true);

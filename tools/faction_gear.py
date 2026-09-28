@@ -43,6 +43,12 @@ SETS = [
      lambda n, e, p: p in ('Immersive Weapons.esp', 'Hothtrooper44_ArmorCompilation.esp')),
 ]
 HOLD_RX = re.compile(r"^(%s) Guard('s (Armor|Helmet|Shield)| Cloak)$" % '|'.join(HOLDS))
+# War uniforms that are not crafted, for factions whose uniform no recipe makes (Nate, 2026-09-28: "with wars, people
+# have to wear the faction uniforms"): worn, never gated. Found in the Beyond Skyrim plugins by editor id.
+UNIFORM_EXTRA = {
+    'county-bruma': ['723cd:BSHeartland.esm'],                          # CYRArmorGuardCuirassBruma
+    'synod': ['602972:BSAssets.esm', '82c2f:BSHeartland.esm'],          # CYRSynodRobes, CYRClothesSynodRobes
+}
 BENCHES = {'CraftingSmithingForge': 'blacksmith', 'CraftingSmithingSkyforge': 'blacksmith', 'DLC1CraftingDawnguard': 'blacksmith',
            'MCE_CraftingLoom': 'tailor', 'CraftingTanningRack': 'tailor'}
 
@@ -74,6 +80,10 @@ out = {
                 'its factions whose rank role is its role (blacksmith for forge work, tailor for the loom and tanning rack) '
                 'or leader. Nate, 2026-09-28: faction armor and weapons.',
     'items': dict(sorted(items.items(), key=lambda kv: (kv[1]['set'], kv[1]['name']))),
+    '_uniformsComment': 'War uniforms (realm.js, config war.uniforms): in a battle only fighters wearing a body piece of their '
+                        "faction's uniform count at a standard. A faction's uniform is its items above plus these worn-only "
+                        'extras; a faction with neither (the Fighters Guild today) is not held to it.',
+    'uniforms': UNIFORM_EXTRA,
 }
 json.dump(out, open(os.path.join(SERVER, 'faction-gear.json'), 'w'), indent=1, ensure_ascii=False)
 from collections import Counter
