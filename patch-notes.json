@@ -124,6 +124,12 @@
         ]
       },
       {
+        "heading": "For staff",
+        "items": [
+          "The Place tool (F7 > Place) works again: Enter no longer opens the chat while placing, a readout shows what you are placing, \"Placed near me\" lists what was placed around you with Go to and Remove, and the catalog can be searched (statics included). What you may place goes by staff tier."
+        ]
+      },
+      {
         "heading": "Updating",
         "items": [
           "The launcher downloads this update the next time you press Play."
