@@ -188,6 +188,10 @@ check('spells known before study began are not in the book and take no prepared 
 
 // ---- the spellbook panel (/spells) ----
 mastery(PRIEST, { priest: 0 });
+const widgetsBefore = out.widgets.length;
+cmd('spells', MAGE);
+check('a client that has not said it draws the spellbook gets the book in chat, no panel', out.widgets.length === widgetsBefore && /Prepared \(3 of 3\): Flames, Frostbite, Sparks\. In your spellbook: Bound Sword\. Update the game/.test(said(MAGE)), said(MAGE));
+for (const x of [MAGE, OTHER, PRIEST, STUDENT]) ui('uiCaps', x, ['bank', 'spellbook']);
 cmd('spells', MAGE);
 let book = lastWidget(MAGE);
 check('/spells opens the spellbook panel', book && book.type === 'spellbook' && book.id === 58 && book.max === 3 && book.events.prepare === 'dbo:spellbookPrepare', book);

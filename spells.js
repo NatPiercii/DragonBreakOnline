@@ -319,9 +319,21 @@ module.exports = (api) => {
   };
   // Nothing is forgotten now (Nate, 2026-09-28): /spells forget and the hidden /forget (Worker B's aliases) open the book
   const RETIRED = 'Spells are no longer forgotten: put one away in your spellbook instead, at a magic college.';
+  // The panel opens only for a client whose UI said it draws it (dbo:uiCaps 'spellbook' from the HUD): an unknown
+  // widget opened with focus would leave an invisible panel holding the keys. An older client gets the book in chat.
+  const caps = globalThis.__dboSpellbookCaps instanceof Map ? globalThis.__dboSpellbookCaps : (globalThis.__dboSpellbookCaps = new Map());
+  onUi('uiCaps', (a, args) => { caps.set(a >>> 0, new Set((args || []).map(String))); });
+  const hasPanel = (a) => (caps.get(a >>> 0) || new Set()).has('spellbook');
+  const bookInChat = (a, result) => {
+    const name = (id) => (classifySpell(id) || { name: descOf(id) }).name;
+    const prep = preparedIds(a);
+    const rest = knownIds(a).filter((id) => !prep.includes(id));
+    personal(a, `${result ? result + ' ' : ''}Prepared (${prep.length} of ${MAXP()}): ${prep.map(name).join(', ') || 'none'}. In your spellbook: ${rest.map(name).join(', ') || 'nothing else'}. Update the game (restart the launcher) for the spellbook panel, where prepared spells are changed.`);
+  };
   const openFromCommand = (a, result) => {
     if (!CFG.enabled) return personal(a, 'Spell study is closed.');
     migrate(a);
+    if (!hasPanel(a)) return bookInChat(a, result);
     openBook(a, result || '', result ? 'refused' : '');
   };
   registerChatCommand('spells', (a, args) => {
