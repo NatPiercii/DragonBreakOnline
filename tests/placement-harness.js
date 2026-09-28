@@ -170,6 +170,67 @@ reset(); ui.placeDelete(GM, ['ff0008aa']);
 check('a Developer may remove another GM\'s placement', calls.some((c) => c[0] === 'Delete' && c[1] === 0xff0008aa));
 TIERS[GM] = 'senior';
 
+// ---- drop 2b: tilt, move, select, undo ----
+const lastEntry = () => globalThis.__dboPlacement.registry[globalThis.__dboPlacement.registry.length - 1];
+const angleOf = (id) => { const c = calls.filter((x) => x[0] === 'SetAngle' && x[1] === id).pop(); return c && c[2]; };
+reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1200, 2200, 300], 90, false, [10, -20]]);
+const tilted = lastEntry();
+check('an object keeps its pitch and roll (degrees, 0-360)', tilted.rot.join() === '10,340,90' && angleOf(parseInt(tilted.id, 16)).join() === '10,340,90', tilted.rot.join());
+reset(); ui.placeObject(GM, ['1e80e:Dragonborn.esm', 'npc', [1250, 2200, 300], 45, false, [10, -20]]);
+const upright = lastEntry();
+check('an NPC stays upright whatever tilt is sent', upright.rot.join() === '0,0,45');
+
+reset(); ui.placeMove(GM, [tilted.id, [1300, 2250, 310], [0, 5, 180]]);
+check('placeMove moves and turns an object, re-sent to watchers', tilted.pos.join() === '1300,2250,310' && tilted.rot.join() === '0,5,180' && calls.some((c) => c[0] === 'SetPosition' && c[2][0] === 1300) && calls.filter((c) => c[2] === 'isDisabled').length === 2 && /moved Blacksmith Forge/.test(out.audit[0]), JSON.stringify(tilted));
+reset(); ui.placeMove(GM, [upright.id, [1260, 2210, 300], [30, 30, 200]]);
+const npcLoc = calls.find((c) => c[0] === 'set' && c[2] === 'locationalData');
+check('placeMove moves an NPC with locationalData and spawnPoint, upright', npcLoc && npcLoc[3].pos[0] === 1260 && npcLoc[3].rot.join() === '0,0,200' && calls.some((c) => c[2] === 'spawnPoint'));
+set(GM, 'worldOrCellDesc', '3c:Skyrim.esm');
+reset(); ui.placeMove(GM, [tilted.id, [1300, 2250, 310], [0, 0, 0]]);
+check('a placement cannot be moved from another cell or world', /another cell or world/.test(out.personal[0]) && !calls.some((c) => c[0] === 'SetPosition'), out.personal[0]);
+set(GM, 'worldOrCellDesc', 'a764b:BSHeartland.esm');
+reset(); ui.placeMove(GM, [tilted.id, [1300, 9999, 310], [0, 0, 0]]);
+check('a move beyond reach is refused', /Too far/.test(out.personal[0]));
+
+reset(); ui.placeSelect(GM, [tilted.id]);
+const ed = out.packets[0] && out.packets[0][1];
+check('placeSelect answers with what the client needs to edit it', ed && ed.customPacketType === 'placeEdit' && ed.id === tilted.id && ed.base === 'bbcf1:Skyrim.esm' && ed.kind === 'object' && ed.rot.join() === '0,5,180');
+reset(); ui.placeSelect(GM, ['ff000999']);
+check('placeSelect on something not placed with the tab explains why', out.packets.length === 0 && /Only things placed/.test(out.personal[0]));
+
+// Undo, newest first: the NPC move, the object move, the NPC placement, the object placement
+reset(); ui.placeUndo(GM, []);
+check('Undo moves the NPC back', /Moved Bandit back/.test(out.personal[0]) && upright.pos[0] === 1250, out.personal[0]);
+reset(); ui.placeUndo(GM, []);
+check('Undo moves the object back, tilt included', /Moved Blacksmith Forge back/.test(out.personal[0]) && tilted.pos.join() === '1200,2200,300' && tilted.rot.join() === '10,340,90', tilted.rot.join());
+reset(); ui.placeUndo(GM, ['list']);
+check('Undo takes back a placement and sends the list again', /Took back placing Bandit/.test(out.personal[0]) && calls.some((c) => c[0] === 'destroyActor') && !globalThis.__dboPlacement.registry.some((p) => p.id === upright.id) && out.packets.some((p) => p[1].customPacketType === 'adminPlacements'), out.personal[0]);
+
+// A removal is undone by placing the same thing again, where it stood; older steps follow the new reference
+reset(); ui.placeMove(GM, [tilted.id, [1210, 2210, 300], [0, 0, 0]]);
+reset(); ui.placeDelete(GM, [tilted.id]);
+set(GM, 'worldOrCellDesc', '3c:Skyrim.esm');
+reset(); ui.placeUndo(GM, []);
+check('a removal is only undone from its own cell or world, and waits for that', /Go back to where Blacksmith Forge stood/.test(out.personal[0]) && !calls.some((c) => c[0] === 'PlaceAtMe'));
+set(GM, 'worldOrCellDesc', 'a764b:BSHeartland.esm');
+reset(); ui.placeUndo(GM, []);
+const back = lastEntry();
+check('Undo brings a removed object back where it stood', /Brought Blacksmith Forge back/.test(out.personal[0]) && calls.some((c) => c[0] === 'PlaceAtMe') && back.pos.join() === '1210,2210,300' && back.id !== tilted.id, out.personal[0]);
+reset(); ui.placeUndo(GM, []);
+check('the move before the removal now applies to the brought-back reference', /Moved Blacksmith Forge back/.test(out.personal[0]) && back.pos.join() === '1200,2200,300', out.personal[0]);
+reset(); commands.placeundo(GM);
+check('/placeundo works the same way', /Took back placing Blacksmith Forge/.test(out.personal[0]), out.personal[0]);
+// Steps from earlier in this script are still there; each press uses one up, until none are left (at most 20 kept)
+reset(); for (let i = 0; i < 25; i++) commands.placeundo(GM);
+check('with nothing left, Undo says so', /Nothing to undo/.test(out.personal[out.personal.length - 1]), out.personal.slice(-3).join(' | '));
+reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1200, 2200, 300], 0, false]);
+const soon = lastEntry();
+reset(); ui.placeDelete(GM, [soon.id]);
+// The removal step goes first: drop it, so the placement step points at something no longer there
+globalThis.__dboPlacement.undo.get(2).pop();
+reset(); ui.placeUndo(GM, []);
+check('undoing a placement that is already gone says so', /already gone/.test(out.personal[0]), out.personal[0]);
+
 process.chdir(home);
 fs.rmSync(dir, { recursive: true, force: true });
 console.log('');
