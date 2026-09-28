@@ -1,7 +1,9 @@
 // Scripted test for server\rest.js: loads the real module with a mock gamemode api and walks the whole loop -
-// a bed that is not a bed, a bed in the open, a resident's or innkeeper's bed in an inn, renting at an inn with
-// and without an owner (online or not), which claims make an owner, the hold the rent goes to, the lock on a
-// rented bed, one bed per player across characters, lying down, sleeping (the kick), another character voiding a
+// a bed that is not a bed, a bed in the open, every bed of an inn renting (residents' and innkeepers' too, since
+// Nate's rule of 2026-09-28), renting at an inn with and without an owner (online or not), which claims make an
+// owner, the owner keeping one bed of their inn as their own (choosing, moving, clearing, never mid-rent, others
+// turned away, surviving a reload and a claim changing hands), the hold the rent goes to, the lock on a rented
+// bed, one bed per player across characters, lying down, sleeping (the kick), another character voiding a
 // sleep, a prompt outliving a reload, waking too early and on time, the heal pulse, Well Fed's hunger multiplier and the buffs running out. It then checks
 // the real server\beds.json for the inns players can reach. No server and no game: run it from this folder's
 // parent with
@@ -18,7 +20,8 @@ const REAL_BEDS = path.resolve(__dirname, '..', 'beds.json');
 // rest.js reads beds.json and housing.json from the working directory; give it fixtures of its own. The ids are
 // real records (the pre-commit hook checks them): Snowstone Rest with its innkeeper's rent bed, the innkeeper's
 // own bed and a resident's bed; Frostfruit Inn's two-bed rent room; the Four Shields Tavern (owned by a player);
-// Jerall View Inn, whose only rent bed is in its basement (one inn); Windpeak Inn in a hold with no treasury;
+// Jerall View Inn, whose marked rent bed is in its basement (one inn), with the innkeepers' bed upstairs and a
+// second basement bed (a stand-in id); Windpeak Inn in a hold with no treasury;
 // Moorside Inn in the older format with no bed list; a third interior standing in for a house; gold as
 // something that is not a bed.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rest-harness-'));
@@ -45,7 +48,7 @@ const ME = 0x14, OTHER = 0x15, INNKEEPER = 0x16, THIRD = 0x17, ME2 = 0x18;
 const introduced = new Set();
 globalThis.__dboNameFor = (viewer, x) => (introduced.has(`${viewer}|${x}`) ? `P${x.toString(16)}` : 'Stranger');
 const PROFILE = { [ME]: 101, [ME2]: 101, [OTHER]: 102, [INNKEEPER]: 103, [THIRD]: 104 };
-const INN_BED = 0x7ec0f, KEEPER_BED = 0x2a2f, INN_BED2 = 0xe0adb, RESIDENT_BED = 0x29d6, OWNED_INN_BED = 0x13e41, JERALL_BED = 0x1155, BASEMENT_BED = 0x6efd1;
+const INN_BED = 0x7ec0f, KEEPER_BED = 0x2a2f, INN_BED2 = 0xe0adb, RESIDENT_BED = 0x29d6, OWNED_INN_BED = 0x13e41, JERALL_BED = 0x1155, JERALL_BED2 = 0x1156, BASEMENT_BED = 0x6efd1;
 const WINDPEAK_BED = 0x13d42, MOORSIDE_BED = 0x1738d, HOME_BED = 0x3004, WILD_BEDROLL = 0x3005, CHAIR = 0x3006;
 const FROSTFRUIT = '13870:Skyrim.esm', INN_CELL = '2936:BSHeartland.esm', OWNED_INN_CELL = '13a7c:Skyrim.esm', JERALL = '1114:BSHeartland.esm', BASEMENT = '6c14f:BSHeartland.esm';
 const WINDPEAK = '13a7f:Skyrim.esm', MOORSIDE = '138ce:Skyrim.esm', HOME_CELL = '13a5c:Skyrim.esm', TAMRIEL = '3c:Skyrim.esm';
@@ -61,6 +64,7 @@ place(INN_BED2, '30091:Skyrim.esm', FROSTFRUIT);
 place(RESIDENT_BED, '8aa9c:BSHeartland.esm', INN_CELL);
 place(OWNED_INN_BED, '30091:Skyrim.esm', OWNED_INN_CELL);
 place(JERALL_BED, '30091:Skyrim.esm', JERALL);
+place(JERALL_BED2, '8aa9c:BSHeartland.esm', BASEMENT);
 place(BASEMENT_BED, '30091:Skyrim.esm', BASEMENT);
 place(WINDPEAK_BED, '30091:Skyrim.esm', WINDPEAK);
 place(MOORSIDE_BED, '30091:Skyrim.esm', MOORSIDE);
@@ -134,7 +138,9 @@ const api = {
 const realSetTimeout = setTimeout;
 globalThis.setTimeout = (fn) => { fn(); return 0; };
 
-require(REST)(api);
+// A gamemode reload drops the module's ui handlers and requires it afresh (bank-harness.js does the same)
+const load = () => { handlers.clear(); commands.clear(); timers.clear(); delete require.cache[REST]; require(REST)(api); };
+load();
 
 let failures = 0, checks = 0;
 const check = (name, ok, detail) => { checks++; if (!ok) { failures++; console.log(`FAIL ${name}${detail !== undefined ? ': ' + JSON.stringify(detail) : ''}`); } else console.log(`ok   ${name}`); };
@@ -148,10 +154,15 @@ const rentFor = (ref, a) => { activate(ref, a); ui('restChoose', a, ['rent']); }
 // ---- what is and is not a bed that matters ----
 check('a chair is not a bed', activate(CHAIR, ME) === false);
 check('a bedroll in the open is left to the engine', activate(WILD_BEDROLL, ME) === false);
-check("a resident's own bed in an inn stays plain", activate(RESIDENT_BED, ME) === false && out.widgets.length === 0);
-check("the innkeeper's own bed stays plain", activate(KEEPER_BED, ME) === false && out.widgets.length === 0);
-check("Jerall View's upstairs bed, the innkeepers', stays plain", activate(JERALL_BED, ME) === false && out.widgets.length === 0);
-check('boot line counts bed types, inns, the Bruma ones and the beds to rent', out.logs.some((l) => /3 bed types, 7 inn cells \(3 with a door in bruma\), 6 beds to rent/.test(l)), out.logs);
+check("a bed in someone else's house, not an inn, is left to the engine", activate(HOME_BED, OTHER) === false && out.widgets.length === 0);
+// Nate, 2026-09-28: every inn bed rents, not only the marked rent bed (rentBedRefs). These three were plain before.
+check("a resident's bed in an inn nobody owns is for rent", activate(RESIDENT_BED, ME) === true && actionIds().join() === 'rent' && lastWidget().w.targetName === 'A bed for rent at Snowstone Rest', lastWidget());
+ui('restChoose', ME, ['cancel']);
+check("the innkeeper Erlus's bed is for rent too", activate(KEEPER_BED, ME) === true && actionIds().join() === 'rent', lastWidget());
+ui('restChoose', ME, ['cancel']);
+check("Jerall View's upstairs bed, the innkeepers', is for rent to anyone but the owner", activate(JERALL_BED, ME) === true && actionIds().join() === 'rent' && lastWidget().w.targetName === 'A bed for rent at Jerall View Inn', lastWidget());
+ui('restChoose', ME, ['cancel']);
+check('boot line counts bed types, inns and the Bruma ones', out.logs.some((l) => /3 bed types, 7 inn cells \(3 with a door in bruma\), every adult bed in them to rent/.test(l)), out.logs);
 
 // ---- renting at an inn nobody owns ----
 check('a free inn bed opens the rent prompt', activate(INN_BED, ME) === true && actionIds().join() === 'rent', lastWidget());
@@ -209,10 +220,48 @@ check('the owner is turned away from a bed rented in their own inn', activate(OW
 online.add(THIRD);
 check('a claim on the front door owns the basement too, and an online owner is paid at once', (() => { gold.set(OTHER, 100); props.set(OTHER + '|private.dboRentBed', null); rentFor(BASEMENT_BED, OTHER); return gold.get(THIRD) === 9 && gold.get(OTHER) === 90; })(), [...gold]);
 check('...the front door, not a chest or room door that comes first in the index', !props.get(CHEST + '|private.dboRestOwed') && !props.get(ROOM_DOOR + '|private.dboRestOwed') && gold.get(OTHER) === 90);
-check('the owner sleeps free in a free bed of their inn', activate(JERALL_BED, THIRD) === true && actionIds().join() === 'sleep,lie' && lastWidget().w.targetName === 'Your bed');
+
+// ---- the owner's own bed ----
+const kept = () => props.get(JERALL_DOOR + '|private.dboInnOwnerBed');
+check('the owner of an inn with no bed of their own is offered to make a free bed theirs, not to rent it or sleep free', activate(JERALL_BED, THIRD) === true && actionIds().join() === 'keep' && lastWidget().w.actions[0].label === 'Make this my bed', lastWidget().w);
+ui('restChoose', THIRD, ['sleep']);
+check('...and cannot sleep in it before choosing it', /not your bed/.test(lastPersonal(THIRD)) && !props.get(THIRD + '|private.dboSleep'));
+props.set(OTHER + '|private.dboRentBed', null);
+check('a chest or a room door in an inn does not make it yours: they are offered rent', activate(JERALL_BED, OTHER) === true && actionIds().join() === 'rent', lastWidget().w);
+ui('restChoose', OTHER, ['cancel']);
+activate(JERALL_BED, THIRD); ui('restChoose', THIRD, ['keep']);
+check('choosing the bed stores it on the claim with the owner', kept() && kept().bed === JERALL_BED && kept().owner === 104, kept());
+check('...and reopens the menu as their own bed, with the way to give it up', actionIds().join() === 'sleep,lie,unkeep' && lastWidget().w.targetName === 'Your bed at Jerall View Inn' && lastWidget().w.actions[2].label === 'This is no longer my bed' && lastWidget().a === THIRD, lastWidget().w);
+check('...and is audited', /^REST P17 keeps bed 1155 at Jerall View Inn as their own$/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 ui('restChoose', THIRD, ['cancel']);
-check('a chest or a room door in an inn does not make it yours', activate(JERALL_BED, OTHER) === false);
+check('the owner sleeps free in the bed they keep', (() => { activate(JERALL_BED, THIRD); ui('restChoose', THIRD, ['lie']); return /Use the bed again/.test(lastPersonal(THIRD)) && activate(JERALL_BED, THIRD) === false; })());
+const goldBefore = gold.get(OTHER);
+check('anyone else is turned away from it, with no prompt', (() => { const n = out.widgets.length; return activate(JERALL_BED, OTHER) === true && /kept by the owner of Jerall View Inn/.test(lastPersonal(OTHER)) && out.widgets.length === n; })(), lastPersonal(OTHER));
+check('...and a stale rent prompt cannot rent it', (() => { globalThis.__dboRestPending.set(OTHER, JERALL_BED); ui('restChoose', OTHER, ['rent']); return gold.get(OTHER) === goldBefore && !props.get(JERALL_BED + '|private.dboRent'); })());
+check('the rest of the inn still rents', activate(JERALL_BED2, OTHER) === true && actionIds().join() === 'rent');
+ui('restChoose', OTHER, ['cancel']);
+check('the rented basement bed cannot be made the owner\'s during the rent: they are turned away like anyone', activate(BASEMENT_BED, THIRD) === true && /rented by/.test(lastPersonal(THIRD)) && kept().bed === JERALL_BED, lastPersonal(THIRD));
+check('...nor through a stale prompt', (() => { globalThis.__dboRestPending.set(THIRD, BASEMENT_BED); ui('restChoose', THIRD, ['keep']); return /rented until .* when the rent runs out/.test(lastPersonal(THIRD)) && kept().bed === JERALL_BED && props.get(BASEMENT_BED + '|private.dboRent').renter === OTHER; })(), lastPersonal(THIRD));
+activate(JERALL_BED2, THIRD); ui('restChoose', THIRD, ['keep']);
+check('choosing another bed moves it there', kept().bed === JERALL_BED2 && /old bed is for rent again/.test(lastPersonal(THIRD)), kept());
 ui('restChoose', THIRD, ['cancel']);
+check('...and the old one rents again', activate(JERALL_BED, OTHER) === true && actionIds().join() === 'rent');
+ui('restChoose', OTHER, ['cancel']);
+check('...while the new one turns others away', activate(JERALL_BED2, OTHER) === true && /kept by the owner/.test(lastPersonal(OTHER)));
+load();
+check('the choice survives a gamemode reload: it is read from the claim, not from memory', activate(JERALL_BED2, OTHER) === true && /kept by the owner/.test(lastPersonal(OTHER)) && activate(JERALL_BED2, THIRD) === true && actionIds().join() === 'sleep,lie,unkeep');
+ui('restChoose', THIRD, ['unkeep']);
+check('"This is no longer my bed" clears it', kept() === null && /for rent again/.test(lastPersonal(THIRD)));
+check('...and it rents again', activate(JERALL_BED2, OTHER) === true && actionIds().join() === 'rent');
+ui('restChoose', OTHER, ['cancel']);
+check('a player who is not the owner cannot choose a bed through a stale prompt', (() => { globalThis.__dboRestPending.set(OTHER, JERALL_BED); ui('restChoose', OTHER, ['keep']); return kept() === null; })());
+activate(JERALL_BED, THIRD); ui('restChoose', THIRD, ['keep']); ui('restChoose', THIRD, ['cancel']);
+props.set(JERALL_DOOR + '|private.housing', { owner: 102, ownerName: 'Other', partner: JERALL_DOOR_IN });
+check('a claim handed to someone else leaves the old choice void: the bed rents', (() => { props.set(ME + '|private.dboRentBed', null); const ok = activate(JERALL_BED, ME) === true && actionIds().join() === 'rent'; ui('restChoose', ME, ['cancel']); props.set(ME + '|private.dboRentBed', { bed: INN_BED, until: props.get(INN_BED + '|private.dboRent').until }); return ok; })());
+check('...and the new owner may choose it, the old owner may not', activate(JERALL_BED, OTHER) === true && actionIds().join() === 'keep' && activate(JERALL_BED, THIRD) === true && actionIds().join() === 'rent' && lastWidget().a === THIRD);
+ui('restChoose', THIRD, ['cancel']); ui('restChoose', OTHER, ['cancel']);
+props.set(JERALL_DOOR + '|private.housing', { owner: 104, ownerName: 'Third', partner: JERALL_DOOR_IN });
+props.set(JERALL_DOOR + '|private.dboInnOwnerBed', null);
 
 // ---- holds and older data ----
 props.set(OTHER + '|private.dboRentBed', null);
@@ -311,20 +360,18 @@ check('...and its renter may rent another', activate(INN_BED2, ME) === true && a
 const real = JSON.parse(fs.readFileSync(REAL_BEDS, 'utf8'));
 const inn = (d) => real.inns[d] || {};
 const rents = (d) => (inn(d).rentBedRefs || []).slice().sort().join();
-check("Snowstone Rest is an inn renting only its innkeeper's rent bed", rents('2936:BSHeartland.esm') === '7ec0f:BSHeartland.esm', inn('2936:BSHeartland.esm'));
-check("...not Erlus's bed downstairs or the resident's", !/2a2f:|29ad:|29d6:/.test(rents('2936:BSHeartland.esm')));
-check("Jerall View Inn rents only the basement rent bed, not the innkeepers' upstairs, as one inn", rents('1114:BSHeartland.esm') === '' && rents('6c14f:BSHeartland.esm') === '6efd1:BSHeartland.esm' && inn('6c14f:BSHeartland.esm').group === '1114:BSHeartland.esm' && inn('1114:BSHeartland.esm').group === '1114:BSHeartland.esm');
-check('the Restful Watchman rents its rent room, not the room next door', rents('63121:BSHeartland.esm') === '63131:BSHeartland.esm');
-check("Aleflow Inn rents the rent bed, not the innkeepers' own", rents('83a75:BSHeartland.esm') === 'b5a71:BSHeartland.esm');
+// rentBedRefs is still generated but no longer limits renting (Nate, 2026-09-28): every adult bed of these cells rents.
+check("Snowstone Rest is an inn of 4 beds, its innkeeper's rent bed among them; Erlus's and the resident's rent too now", inn('2936:BSHeartland.esm').beds === 4 && rents('2936:BSHeartland.esm').includes('7ec0f:BSHeartland.esm'), inn('2936:BSHeartland.esm'));
+check("Jerall View Inn's upstairs, where the innkeepers sleep, and its basement are one inn", inn('1114:BSHeartland.esm').beds === 1 && inn('6c14f:BSHeartland.esm').group === '1114:BSHeartland.esm' && inn('1114:BSHeartland.esm').group === '1114:BSHeartland.esm');
+check('the Bruma inns hold 31 beds, all for rent now, not only the 12 marked', (() => { const b = Object.values(real.inns).filter((v) => v.hold === 'bruma'); return b.reduce((n, v) => n + (v.beds || 0), 0) === 31 && b.reduce((n, v) => n + v.rentBedRefs.length, 0) === 12; })());
 check('every Bruma inn with a door pays the Bruma treasury', ['2936:BSHeartland.esm', '1114:BSHeartland.esm', '6c14f:BSHeartland.esm', '63121:BSHeartland.esm', '83a75:BSHeartland.esm'].every((d) => inn(d).hold === 'bruma' && inn(d).entrance === true && inn(d).province === 'cyrodiil'));
 check('the city inns the name rule missed are in', ['1605e:Skyrim.esm', '16a0e:Skyrim.esm', '16789:Skyrim.esm', '16bdf:Skyrim.esm', '13814:Skyrim.esm'].every((d) => rents(d)));
 check('inns pay the hold they stand in', inn('13a5c:Skyrim.esm').hold === 'riften' && inn('13870:Skyrim.esm').hold === 'whiterun' && inn('13a5d:Skyrim.esm').hold === 'dawnstar');
-check("Skyrim inns rent the room, not the staff's beds", rents('138be:Skyrim.esm') === '1748f:Skyrim.esm' && rents('133c6:Skyrim.esm') === '5eda7:Skyrim.esm' && rents('16dfe:Skyrim.esm') === '7939f:Skyrim.esm' && rents('16789:Skyrim.esm') === '167cc:Skyrim.esm' && rents('13a7c:Skyrim.esm') === '13e41:Skyrim.esm' && rents('13a7f:Skyrim.esm') === '13d42:Skyrim.esm');
-check("Frostfruit rents both beds of its rent room, not Mralki's family room", rents('13870:Skyrim.esm') === '174b0:Skyrim.esm,e0adb:Skyrim.esm');
+check("Frostfruit marks both beds of its rent room", rents('13870:Skyrim.esm') === '174b0:Skyrim.esm,e0adb:Skyrim.esm');
 check('cells with no bed to rent are gone', !real.inns['154ae:DragonBreak.esp'] && !real.inns['3b6b0:Gray Fox Cowl.esm'] && !real.inns['12f61e:WindhelmSSE.esp']);
 check("a cell of an inn with nothing to rent is kept in the inn's group", rents('27552:Skyrim.esm') === '' && inn('27552:Skyrim.esm').group === '13a5d:Skyrim.esm');
 const renting = new Set(Object.values(real.inns).filter((v) => v.rentBedRefs.length).map((v) => v.group));
-check('every inn cell rents a bed or belongs to an inn that does', Object.values(real.inns).every((v) => Array.isArray(v.rentBedRefs) && (v.rentBedRefs.length > 0 || renting.has(v.group))));
+check('every inn cell marks a rent bed or belongs to an inn that does', Object.values(real.inns).every((v) => Array.isArray(v.rentBedRefs) && (v.rentBedRefs.length > 0 || renting.has(v.group))));
 
 globalThis.setTimeout = realSetTimeout;
 process.chdir(os.tmpdir());
