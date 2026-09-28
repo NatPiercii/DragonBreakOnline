@@ -100,9 +100,11 @@
       {
         "heading": "Expeditions",
         "items": [
+          "Expeditions now start from the Expedition Board in the Synod Conclave or the Fighters Guild: use it to pick a ruin and set out with your party. Typing /expedition no longer starts one.",
           "Every expedition ruin now has a boss. When the last one falls, your party has 10 minutes to gather the loot (with a warning at 2 minutes) before anyone still inside is taken home.",
           "Niryastare's arrival is back on its entrance floor, and each ruin's arrival reminds you how to leave: its door, or /expedition leave.",
-          "If you can't find the great door, /expedition leave takes your party home from anywhere in the ruin."
+          "If you can't find the great door, /expedition leave takes your party home from anywhere in the ruin.",
+          "Silorn's arrival point has moved to a safer spot."
         ]
       },
       {
