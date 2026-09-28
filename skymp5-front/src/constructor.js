@@ -36,6 +36,7 @@ import Rite from './features/rite';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
+import Spellbook from './features/spellbook';
 import Party from './features/party';
 import TomeShop from './features/tomeShop';
 import Bank from './features/bank';
@@ -290,6 +291,8 @@ const Constructor = props => {
       return <Party data={rend} />;
     case 'tomeShop':
       return <TomeShop data={rend} />;
+    case 'spellbook':
+      return <Spellbook data={rend} />;
     case 'bank':
       return <Bank data={rend} />;
     case 'businessLedger':
@@ -313,7 +316,7 @@ const Constructor = props => {
 const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
   rite: 'lorkhan', bountyBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', downed: 'lorkhan',
-  mastery: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak',
+  mastery: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak', spellbook: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
 };
 
