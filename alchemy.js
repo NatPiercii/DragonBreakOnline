@@ -77,9 +77,16 @@ module.exports = (api) => {
     if (!atLab(a, workbenchId)) return log(`alchemy: ${display(a)} reported a mix at lab ${workbenchId.toString(16)} while not at it; ignored`);
     const reported = inputs && Array.isArray(inputs.entries) ? inputs.entries : [];
     // Distinct ingredients the client says went in; vanilla mixes two or three, one of each
-    const used = [...new Set(reported.map((e) => Number(e.baseId) >>> 0))];
+    const all = [...new Set(reported.map((e) => Number(e.baseId) >>> 0))];
+    // A dynamic id is a created object, never an ingredient record, and the craft report carries the result
+    // itself among its inputs (Falcius, 2026-09-28: pond fish + wormwood + ff000b2f, a perfectly good pair
+    // refused because of a third thing that was never an ingredient). Drop those before judging the mix.
+    const made = all.filter((id) => id >= 0xff000000);
+    const used = all.filter((id) => id < 0xff000000);
     // Anything else is not a mix (such as the inventory re-applied while seated at the lab), so nothing is made
     if (used.length > 3 || used.some((id) => !effectsOf(id))) {
+      const counts = reported.map((e) => `${(Number(e.baseId) >>> 0).toString(16)}x${Number(e.count) || 1}`).join(' ');
+      log(`alchemy: ${display(a)} report detail: ${counts}${made.length ? `, ${made.length} created object(s) dropped` : ''}`);
       const why = used.length > 3 ? `${used.length} distinct items` : 'an item with no alchemy effect';
       log(`alchemy: ${display(a)} reported ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')}, not a lab mix (${why}); ignored`);
       // Only ingredients, too many of them: a real mix the client misreported, so the player is told

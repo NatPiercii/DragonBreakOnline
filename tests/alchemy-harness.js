@@ -221,5 +221,13 @@ check('recipes with an unresolved or repeated id are dropped', /1 recipes\)/.tes
 check('...the red polypore alternative matches when configured', globalThis.__dboLabDraught(STRANGER, [RED_POLYPORE, TROLL_FAT, FLY_AMANITA]) && globalThis.__dboLabDraught(STRANGER, [RED_POLYPORE, TROLL_FAT, FLY_AMANITA]).potion === DRAUGHT);
 check('...and the yellow one then does not', globalThis.__dboLabDraught(STRANGER, [YELLOW_POLYPORE, TROLL_FAT, FLY_AMANITA]) === null);
 
+// The craft report carries the created result among its inputs (Falcius, 2026-09-28: two good ingredients
+// refused because a dynamic id rode along). A created object is never an ingredient, so it must be dropped
+// rather than sinking the whole mix.
+craft(BREWER, [TROLL_FAT, FLY_AMANITA, 0xff000b2f]);
+check('a created object in the craft report does not sink the mix',
+  !out.logs.some((l) => /not a lab mix/.test(l) && /ff000b2f/.test(l)), out.logs.slice(-2));
+check('...and the pair still brews', out.said.some(([, t]) => /You brew/.test(t)) || out.logs.some((l) => /brewed/.test(l)), out.said.slice(-2));
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);
