@@ -1,5 +1,19 @@
 [
   {
+    "title": "Client 0.3.61: Helping Us Fix Character Select",
+    "date": "2026-09-28",
+    "version": "Client 0.3.61",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Character select",
+        "items": [
+          "A few players can see character select but can't click or type anything. This update records what the game sees at that screen so we can find the cause. If it happens to you, press Report a Problem in the launcher right after: it sends us exactly what we need. Restart the launcher to get the update."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Launcher 2.1.33, Client 0.3.60 and Leaner Dungeons",
     "date": "2026-09-28",
     "version": "Launcher 2.1.33 + client 0.3.60",
