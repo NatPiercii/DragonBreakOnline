@@ -85,9 +85,30 @@ export class FavoritesService extends ClientListener {
     logTrace(this, "restored", snapshot.items.length + snapshot.spells.length, "favorite(s),", missing.items.length + missing.spells.length, "not present yet");
     Utility.wait(RETRY_AFTER_S).then(() => {
       if (gen !== this.loginGen) return;
-      if (missing.items.length + missing.spells.length > 0) this.apply(missing);
+      const stillMissing = missing.items.length + missing.spells.length > 0 ? this.apply(missing) : missing;
+      this.report(snapshot, stillMissing);
       this.enableSnapshots();
     });
+  }
+
+  // The server's log is the only place a restore can be checked from, so it is told how many came back
+  private report(snapshot: FavoritesSnapshot, missing: FavoritesSnapshot): void {
+    const wanted = snapshot.items.length + snapshot.spells.length;
+    if (!wanted) return;
+    try {
+      const missingIds = new Set([...missing.items, ...missing.spells].map((e) => e.id));
+      let confirmed = 0;
+      for (const e of [...snapshot.items, ...snapshot.spells]) {
+        if (missingIds.has(e.id)) continue;
+        if (Game.isObjectFavorited(Game.getFormEx(e.id))) confirmed++;
+      }
+      sendCustomPacket(this.controller, {
+        customPacketType: "dbo", event: "favoritesRestored",
+        args: [{ wanted, confirmed, missing: missingIds.size, missingIds: Array.from(missingIds).slice(0, 10) }],
+      });
+    } catch (err) {
+      logError(this, "restore report failed", String(err));
+    }
   }
 
   // Returns the entries whose form the player does not have yet
