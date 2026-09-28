@@ -65,9 +65,9 @@ const globalJson = express.json({
   verify: (req, _res, buf) => { req.rawBody = buf },
 })
 // Problem reports and the server controls are parsed by their own routes, only after the sender checks and rate limits
-const OWN_PARSER_PATHS = new Set(['/api/files/report', '/api/site/report',
-  ...require('./sources/serverControl').ACTIONS.map(a => `/api/site/staff/server/actions/${a}`)])
-app.use((req, res, next) => (OWN_PARSER_PATHS.has(req.path.toLowerCase().replace(/\/{2,}/g, '/').replace(/\/+$/, '')) ? next() : globalJson(req, res, next)))
+const OWN_PARSER_PATHS = ['/api/files/report', '/api/site/report',
+  ...require('./sources/serverControl').ACTIONS.map(a => `/api/site/staff/server/actions/${a}`)]
+app.use(require('./sources/problemReport').parserExcept(OWN_PARSER_PATHS, globalJson))
 
 // Static file serving: root/ is installed into Skyrim/ (Data/ sub-dir)
 app.use('/files/root', express.static(path.join(config.clientFilesDir, 'root')))

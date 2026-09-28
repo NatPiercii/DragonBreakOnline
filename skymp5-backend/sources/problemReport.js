@@ -154,6 +154,16 @@ async function respond(res, reporter, body) {
   }
 }
 
+// The parser on every path but those whose own route parses the body after its checks; paths match as Express decodes them
+function parserExcept(paths, parser) {
+  const own = new Set(paths)
+  const key = p => {
+    try { p = decodeURIComponent(p) } catch { /* left as sent; Express refuses it as a route param too */ }
+    return p.toLowerCase().replace(/\/{2,}/g, '/').replace(/\/+$/, '')
+  }
+  return (req, res, next) => (own.has(key(req.path)) ? next() : parser(req, res, next))
+}
+
 // Body-parser failures answer in JSON instead of the default HTML page with a stack trace
 function bodyErrors(err, _req, res, next) {
   if (!err || typeof err.type !== 'string' || !/^(entity\.|encoding\.|charset\.|request\.)/.test(err.type)) return next(err)
@@ -164,4 +174,4 @@ function bodyErrors(err, _req, res, next) {
   res.status(status).json({ error })
 }
 
-module.exports = { submit, respond, bodyErrors, parseReport, cleanName, MAX_IMAGE_BYTES, UNSAFE_CHARS }
+module.exports = { submit, respond, bodyErrors, parserExcept, parseReport, cleanName, MAX_IMAGE_BYTES, UNSAFE_CHARS }

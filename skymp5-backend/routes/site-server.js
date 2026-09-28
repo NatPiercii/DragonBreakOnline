@@ -80,6 +80,8 @@ router.get('/releases', requireStaff, releasesLimiter, answer(async (req, res) =
 // Same-origin JSON from the dashboard only (exact Origin, fetch metadata when sent, the control header), then a session
 function controlRequest(req, res, next) {
   if (!ACTIONS.includes(req.params.action)) return res.status(404).json({ error: 'notFound' })
+  // A body some earlier parser already read is refused, so this route only ever acts on a body it read after its checks
+  if (req._body) return res.status(400).json({ error: 'badRequest' })
   const site = req.get('sec-fetch-site')
   if (!sameOrigin(req) || (site && site !== 'same-origin')) return res.status(403).json({ error: 'badOrigin' })
   if (!req.is('application/json')) return res.status(415).json({ error: 'badContentType' })

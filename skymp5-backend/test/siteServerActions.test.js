@@ -41,6 +41,7 @@ const express = require('express')
 const config = require('../config')
 const serverStatus = require('../sources/serverStatus')
 const serverControl = require('../sources/serverControl')
+const { parserExcept } = require('../sources/problemReport')
 
 let F, server, base, created, skew = 0
 const clock = () => Date.now() + skew
@@ -141,6 +142,10 @@ before(async () => {
   serverControl.createServerControl = deps => realControl({ ...deps, run: fakeRun, now: clock, wait: () => new Promise(r => setImmediate(r)) })
 
   const app = express()
+  // A parser that ignores the skip below, standing in for one a later change might add
+  app.use((req, res, next) => (req.get('x-test-preparse') ? express.json()(req, res, next) : next()))
+  // The global parser as server.js mounts it
+  app.use(parserExcept(serverControl.ACTIONS.map(a => `/api/site/staff/server/actions/${a}`), express.json({ limit: '100kb' })))
   app.use('/api/site/staff/server', require('../routes/site-server'))
   server = http.createServer(app)
   base = `http://127.0.0.1:${await listenInRange(server)}`
@@ -234,6 +239,23 @@ test('bad bodies: reason, typed word, requestId, unknown keys, invalid JSON and 
   }
   assert.equal((await post('stop', { user: 'owner3', raw: '{"requestId":' })).status, 400)
   assert.equal((await post('stop', { user: 'owner3', raw: JSON.stringify({ ...good, reason: 'x'.repeat(3000) }) })).status, 413)
+  assert.deepEqual(calls, [])
+})
+
+test('an encoded action name is read by the route alone, after the Owner check; a body read earlier is refused', async () => {
+  const lookups = roleLookups
+  // The global parser answers broken JSON with 400, so 401 shows it never read these bodies
+  for (const action of ['%73tart', 'st%61rt', 'stop/']) {
+    const res = await post(action, { raw: '{"requestId":' })
+    assert.deepEqual([res.status, res.json], [401, { error: 'signedOut' }], action)
+  }
+  assert.equal(roleLookups, lookups)
+  const res = await post('%73tart', { user: 'owner12', raw: JSON.stringify({ requestId: uuid(), reason: 'x'.repeat(3000), confirm: 'START' }) })
+  assert.deepEqual([res.status, res.json], [413, { error: 'The request is too large.' }])
+  assert.equal(roleLookups, lookups + 1, 'the Owner check ran before the 2 kB parser')
+  const early = await post('restart', { user: 'owner12', headers: { 'x-test-preparse': '1' } })
+  assert.deepEqual([early.status, early.json], [400, { error: 'badRequest' }])
+  assert.equal(roleLookups, lookups + 1, 'refused before the Owner lookup')
   assert.deepEqual(calls, [])
 })
 
