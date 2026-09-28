@@ -379,7 +379,7 @@ const BEASTS: Array<{ key: 'werewolf' | 'vampirelord'; label: string; give: stri
   { key: 'vampirelord', label: 'Vampire Lord', give: 'giveVampireLord' },
 ];
 
-export const PowersTab = ({ events, targets }: { events: Record<string, string>; targets: TargetOption[] }) => {
+export const PowersTab = ({ events, targets, canSpawn }: { events: Record<string, string>; targets: TargetOption[]; canSpawn: boolean }) => {
   const [who, setWho] = useState('');
   const chosen = targets.find((t) => t.id === who) || targets[0];
   const beast: BeastState | undefined = chosen && chosen.beast;
@@ -402,6 +402,12 @@ export const PowersTab = ({ events, targets }: { events: Record<string, string>;
           <Button text="Give all spells" width={200} height={40} onClick={() => adminAction(events, 'giveSpells', fields())} />
           <span className="admin-panel__hint">Every spell a spell tome teaches, kept on the character</span>
         </div>
+        {canSpawn ? (
+          <div className="admin-panel__power">
+            <Button text="Give all shouts" width={200} height={40} onClick={() => adminAction(events, 'giveShouts', fields())} />
+            <span className="admin-panel__hint">Every shout with all three words unlocked, taught again at each login (Lead GM and above)</span>
+          </div>
+        ) : null}
         {BEASTS.map((b) => (
           <div key={b.key} className="admin-panel__power">
             <span className="admin-panel__label">{b.label} <span className="admin-panel__hint">{state(b.key)}</span></span>
