@@ -364,6 +364,16 @@ module.exports = (api) => {
     }
   });
 
+  const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
+  // /status's line: only the buffs that are actually running
+  addStatus('rest', 20, (a) => {
+    const out = [];
+    for (const [prop, name] of [['private.dboRested', 'Well Rested'], ['private.dboWellFed', 'Well Fed']]) {
+      const v = get(a, prop, null);
+      if (v && Number(v.until) > Date.now()) out.push(`${name} ${left(Number(v.until) - Date.now())}`);
+    }
+    return out.length ? out.join(', ') : null;
+  });
   registerChatCommand('rest', (a) => {
     const lines = [];
     for (const [prop, name] of [['private.dboRested', 'Well Rested'], ['private.dboWellFed', 'Well Fed']]) {

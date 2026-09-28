@@ -84,6 +84,8 @@ module.exports = (api) => {
     open(a);
   }, { help: 'change this character\'s race, look and name (Patreon tiers)' });
 
+  const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
+  addStatus('rerolls', 60, (a) => { const r = rerollsLeft(a); return r && r.text ? `Rerolls ${r.text}` : null; });
   registerChatCommand('tokens', (a, args) => {
     const t = String(args || '').trim() && isAdmin(a) ? findByName(String(args).trim()) : a;
     if (!t) return personal(a, 'No such player.');

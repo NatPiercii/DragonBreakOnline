@@ -262,6 +262,8 @@ module.exports = (api) => {
     let r;
     switch ((verb || '').toLowerCase()) {
       case '': r = info(a); break;
+      // "mine" rather than "list": /property list <deposit> <weekly> is the officials' listing action
+      case 'mine': r = overview(a); break;
       case 'list': r = list(a, rest[0], rest[1]); break;
       case 'unlist': r = unlist(a); break;
       case 'interest': r = interest(a); break;
@@ -272,11 +274,11 @@ module.exports = (api) => {
       case 'evict': r = evict(a); break;
       case 'grace': r = grace(a); break;
       case 'remind': r = remind(a); break;
-      default: r = 'Usage: /property [interest|accept|pay [weeks]|leave]; officials: list <deposit> <weekly>|unlist|offer <name>|remind|grace|evict';
+      default: r = 'Usage: /property [mine|interest|accept|pay [weeks]|leave]; officials: list <deposit> <weekly>|unlist|offer <name>|remind|grace|evict';
     }
     for (const t of [].concat(r)) personal(a, t);
-  }, { help: 'at a door: renting property (interest, accept, pay, leave; officials list, offer, remind, grace, evict)' });
-  registerChatCommand('properties', (a) => { for (const t of overview(a)) personal(a, t); }, { help: 'the rented and listed property you manage' });
+  }, { help: 'at a door: renting property (mine, interest, accept, pay, leave; officials list, offer, remind, grace, evict)' });
+  registerChatCommand('properties', (a) => { for (const t of overview(a)) personal(a, t); }, { hidden: true, help: 'the property you manage; now /property mine' });
 
   // Rent falling due, offers running out, notices and money for people who come back online
   every('tenancy', 60000, () => {

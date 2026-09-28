@@ -295,6 +295,8 @@ module.exports = (api) => {
   };
 
   // ---- commands ---------------------------------------------------------------------------------------
+  const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
+  addStatus('sentence', 40, (a) => { const s = sentenceOf(a); return s ? `Sentence ${plural(minutes(leftOf(s)), 'minute')} left in ${jailName(s.cell)}` : null; });
   registerChatCommand('sentence', (a) => {
     const s = sentenceOf(a);
     if (!s) return personal(a, 'You are not serving a sentence.');
