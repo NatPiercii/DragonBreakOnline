@@ -1899,7 +1899,17 @@ const sendFavorites = (a) => {
 onUi('favorites', (a, args) => {
   const r = args[0] && typeof args[0] === 'object' ? args[0] : null;
   if (!r) return;
-  mp.set(a, 'private.dboFavorites', { items: cleanFavorites(r.items), spells: cleanFavorites(r.spells) });
+  const saved = { items: cleanFavorites(r.items), spells: cleanFavorites(r.spells) };
+  mp.set(a, 'private.dboFavorites', saved);
+  log(`favorites saved for ${display(a)}: ${saved.items.length} item(s), ${saved.spells.length} spell(s)`);
+});
+// The client's account of a restore after login or respawn (client 0.3.58+); nothing else shows whether favourites came back
+onUi('favoritesRestored', (a, args) => {
+  const r = args[0] && typeof args[0] === 'object' ? args[0] : {};
+  const n = (v) => Math.max(0, Math.floor(Number(v) || 0));
+  const ids = (Array.isArray(r.missingIds) ? r.missingIds : []).slice(0, 10).map((id) => (Number(id) >>> 0).toString(16));
+  log(`favorites restored for ${display(a)}: ${n(r.confirmed)} of ${n(r.wanted)} favourited again, ${n(r.missing)} not owned or known` +
+    (ids.length ? ` (${ids.join(' ')})` : ''));
 });
 // Who hosts which NPC, from the "hex:distance" ids of each client's heartbeat; the C++ "Hoster of" lines stay the ground truth
 const HOST_OF = globalThis.__dboHostOf instanceof Map ? globalThis.__dboHostOf : (globalThis.__dboHostOf = new Map());
