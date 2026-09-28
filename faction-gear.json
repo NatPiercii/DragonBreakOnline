@@ -2407,6 +2407,13 @@
   "synod": [
    "602972:BSAssets.esm",
    "82c2f:BSHeartland.esm"
+  ],
+  "hold-windhelm": [
+   "815:Sentinel - City Guards.esp",
+   "816:Sentinel - City Guards.esp",
+   "819:Sentinel - City Guards.esp",
+   "81a:Sentinel - City Guards.esp",
+   "81b:Sentinel - City Guards.esp"
   ]
  }
 }
