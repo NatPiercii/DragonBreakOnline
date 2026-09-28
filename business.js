@@ -26,6 +26,9 @@ module.exports = (api) => {
     enabled: true, minRent: 1, maxRent: 200, maxChestPrice: 200, chestGraceHours: 72, maxTax: 0.3,
     taxRanks: ['jarl', 'count', 'steward'], maxStaff: 12, maxNote: 300, logKeep: 300, notesKeep: 200, perPage: 8,
     armSeconds: 60,
+    // The ledger book (TGDummyLedger, the Thieves Guild's business ledger) and how the owner sets it on a counter
+    ledgerBase: '106a68:Skyrim.esm', ledgerForward: 70, ledgerHeight: 95, nudgeStep: 5, nudgeTurn: 15, ledgerReach: 700,
+    panelKeep: 40,
   }, cfg.business || {});
   const DEFAULT_TAX = Number((cfg.rest || {}).holdShare);
   const HOUR = 3600000, WIDGET_ID = 61, REACH_M = 6.5;
@@ -107,11 +110,19 @@ module.exports = (api) => {
   };
   const canTax = (a, zone) => isAdmin(a) || ranksOf(profileOf(a)).some((r) => r.zone && r.zone.id === zone && C.taxRanks.includes(r.rank));
   const zoneName = (zone) => { const z = zoneById(zone); return (z && (z.name || z.label)) || zone || 'no hold'; };
+  // What the owner took, kept for 31 days so the ledger can show the week's and the month's takings
+  const earned = (b, gold) => {
+    if (!(gold > 0)) return;
+    const since = Date.now() - 31 * 24 * HOUR;
+    b.income = (b.income || []).filter((e) => e.at > since).concat([{ at: Date.now(), gold }]).slice(-500);
+  };
   // Splits a rent between the hold and the owner; returns the log text
   const splitRent = (b, zone, price) => {
     const tax = Math.round(price * taxRate(zone));
     const toHold = tax ? depositToTreasury(zone, tax) : 0;
-    const toOwner = payOwner(b, price - (toHold ? tax : 0));
+    const net = price - (toHold ? tax : 0);
+    const toOwner = payOwner(b, net);
+    earned(b, net);
     return `${toOwner || '0 to the owner'}, ${toHold || 0} tax to ${zoneName(zone)}`;
   };
 
@@ -119,7 +130,8 @@ module.exports = (api) => {
   // The rent of this inn's beds, or null when no business sets one
   globalThis.__dboBusinessRent = (cell) => { const { biz } = bizAt(cell); return biz && Number(biz.rentGold) > 0 ? Math.round(Number(biz.rentGold)) : null; };
   globalThis.__dboHoldTax = (zone, dflt) => taxRate(zone, dflt);
-  globalThis.__dboBusinessLog = (cell, text) => { const { biz } = bizAt(cell); if (biz) { note(biz, text); save(); } };
+  // rest.js writes each bed rental here, with the owner's share
+  globalThis.__dboBusinessLog = (cell, text, ownerGold) => { const { biz } = bizAt(cell); if (biz) { note(biz, text); earned(biz, Number(ownerGold) || 0); save(); } };
   globalThis.__dboBusinessLogin = (a) => {
     for (const b of Object.values(data().businesses)) {
       if (Number(b.owner) !== profileOf(a) || !(Number(b.owed) > 0)) continue;
@@ -153,6 +165,9 @@ module.exports = (api) => {
   globalThis.__dboBusinessActivate = (target, caster) => {
     if (!C.enabled) return false;
     const a = caster >>> 0, ref = target >>> 0;
+    // The business's ledger book opens its panel
+    const ledgerTag = get(ref, LEDGER_TAG, null);
+    if (ledgerTag && ledgerTag.claim) { openLedger(a, ref, ledgerTag); return true; }
     // An owner or staff member who asked to put a chest up (or take it down) picks it by opening it
     const arm = S.armed.get(a);
     if (arm && arm.until > Date.now() && isContainer(ref)) {
@@ -241,8 +256,223 @@ module.exports = (api) => {
     const chests = Object.values(b.chests || {});
     const rented = chests.filter((c) => chestState(c) === 'rented').length;
     personal(a, `${b.name} (owner ${b.ownerName}). Staff: ${staffNames(b)}. Bed rent: ${Number(b.rentGold) > 0 ? b.rentGold + ' gold' : 'the hold\'s standard'}. Chests for rent: ${chests.length} (${rented} rented). Tax to ${zoneName(b.zone)}: ${Math.round(taxRate(b.zone) * 100)}%.${isOwner(a, b) && Number(b.owed) > 0 ? ` Takings held: ${b.owed} gold (/business collect).` : ''}`);
-    personal(a, 'Ledger: /business log, /business notes, /business note <text>, /business rent <gold>, /business chest <gold a day> (then open the chest) or /business chest off. Owner: /business staff add|remove <name>, /business rename <name>, /business close.');
+    personal(a, 'Ledger: /business log, /business notes, /business note <text>, /business rent <gold>, /business chest <gold a day> (then open the chest) or /business chest off. Owner: /business staff add|remove <name>, /business ledger (place it here), /business rename <name>, /business close.');
   };
+  // What anyone may read in the ledger's first pages
+  const publicLine = (b) => {
+    const free = Object.values(b.chests || {}).filter((c) => chestState(c) === 'free');
+    const prices = free.map((c) => Number(c.price) || 0);
+    const storage = free.length ? `${free.length} storage chest${free.length > 1 ? 's' : ''} for rent from ${Math.min(...prices)} gold a day` : 'no storage for rent';
+    return `${b.name}, kept by ${b.ownerName}. Beds: ${Number(b.rentGold) > 0 ? b.rentGold + ' gold' : 'the hold\'s standard rent'}; ${storage}. ${zoneName(b.zone)} takes ${Math.round(taxRate(b.zone) * 100)}% of every rent.`;
+  };
+
+  // ---- the ledger book ---------------------------------------------------------------------------------
+  // Nate, 2026-09-28 ("an actual ledger turned into an activator, with a panel"; "panels are better, commands are kinda
+  // whack to remember"): the owner places the vanilla business ledger where they stand and sets it on a counter with the
+  // panel's arrows. Activating it opens the ledger's panel: every page for the owner and staff, a public page for anyone
+  // else. The reference is tagged with its claim, because a placed reference can get a new id at a restart.
+  const LEDGER_BASE = String(C.ledgerBase);
+  const LEDGER_TAG = 'private.dboBizLedger';
+  const PANEL_ID = 64;
+  const papyrus = (fn, self, args) => mp.callPapyrusFunction('method', 'ObjectReference', fn, { type: 'form', desc: mp.getDescFromId(self) }, args);
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const ledgerRef = (b) => {
+    const id = b && b.ledger ? parseInt(String(b.ledger.ref || ''), 16) >>> 0 : 0;
+    return id && get(id, LEDGER_TAG, null) ? id : 0;
+  };
+  const setLedger = (id, pos, rot) => {
+    papyrus('SetPosition', id, [pos[0], pos[1], pos[2]]);
+    papyrus('SetAngle', id, [rot[0], rot[1], rot[2]]);
+    // Clients already watching saw it appear where it began; re-sending it shows it where it now stands
+    mp.set(id, 'isDisabled', true);
+    mp.set(id, 'isDisabled', false);
+  };
+  const removeLedger = (b) => {
+    const id = ledgerRef(b);
+    if (id) { try { papyrus('Delete', id, []); } catch (e) { log('business: removing a ledger failed', e.message); } }
+    b.ledger = null;
+  };
+  const inside = (a, claim) => { const c = claimAt(cellOf(a)); return !!c && c.primary === claim.primary; };
+  const placeLedger = (a, claim, b) => {
+    const me = get(a, 'pos', null), ang = get(a, 'angle', null);
+    if (!Array.isArray(me) || !Array.isArray(ang)) return R(false, 'Your position is not known yet.');
+    if (!inside(a, claim)) return R(false, 'Stand inside the business to place its ledger.');
+    let res = null;
+    try { res = papyrus('PlaceAtMe', a, [{ type: 'espm', desc: LEDGER_BASE }, 1, false, false]); } catch (e) { res = null; }
+    if (!res || !res.desc) return R(false, 'The ledger could not be placed.');
+    removeLedger(b);
+    const id = mp.getIdFromDesc(res.desc) >>> 0;
+    const heading = Number(ang[2]) || 0, h = heading * Math.PI / 180;
+    const pos = [me[0] + Math.sin(h) * C.ledgerForward, me[1] + Math.cos(h) * C.ledgerForward, me[2] + C.ledgerHeight];
+    const rot = [0, 0, (((heading + 180) % 360) + 360) % 360];
+    setLedger(id, pos, rot);
+    mp.set(id, LEDGER_TAG, { claim: hex(claim.primary), by: profileOf(a), at: Date.now() });
+    b.ledger = { ref: hex(id), pos: pos.map(r1), rot };
+    note(b, `${display(a)} placed the ledger`); save();
+    audit(`BUSINESS ${who(a)} placed ${b.name}'s ledger (ref ${hex(id)}, claim ${hex(claim.primary)})`);
+    return R(true, 'The ledger is placed. Set it on the counter with the arrows.');
+  };
+  // [sideways, away from the owner, up, turn], in steps; away and sideways follow where the owner is looking
+  const NUDGE = { up: [0, 0, 1, 0], down: [0, 0, -1, 0], away: [0, 1, 0, 0], closer: [0, -1, 0, 0], left: [-1, 0, 0, 0], right: [1, 0, 0, 0], turnLeft: [0, 0, 0, -1], turnRight: [0, 0, 0, 1] };
+  const nudgeLedger = (a, claim, b, dir, dist) => {
+    const d = NUDGE[String(dir)];
+    if (!d) return R(false, 'That is not a way to move it.');
+    const id = ledgerRef(b);
+    if (!id) return R(false, 'Place the ledger first.');
+    const step = Math.max(1, Math.min(50, Math.round(Number(dist) || C.nudgeStep)));
+    const ang = get(a, 'angle', [0, 0, 0]), h = (Number(ang[2]) || 0) * Math.PI / 180;
+    const fwd = [Math.sin(h), Math.cos(h)], side = [Math.cos(h), -Math.sin(h)];
+    const pos = b.ledger.pos.slice(), rot = (b.ledger.rot || [0, 0, 0]).slice();
+    pos[0] += (d[1] * fwd[0] + d[0] * side[0]) * step;
+    pos[1] += (d[1] * fwd[1] + d[0] * side[1]) * step;
+    pos[2] += d[2] * step;
+    rot[2] = (((rot[2] + d[3] * C.nudgeTurn) % 360) + 360) % 360;
+    const me = get(a, 'pos', null);
+    if (Array.isArray(me) && Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) > C.ledgerReach) return R(false, 'Come closer to move it further.');
+    setLedger(id, pos, rot);
+    b.ledger.pos = pos.map(r1); b.ledger.rot = rot; save();
+    return R(true, '');
+  };
+
+  // ---- the ledger's actions, shared by its panel and /business ----------------------------------------
+  // Each returns { ok, text }; a refused one changes nothing.
+  const R = (ok, text) => ({ ok, text });
+  const staffTarget = (b, q) => {
+    const byProfile = (b.staff || []).find((s) => String(s.profile) === String(q));
+    if (byProfile) return { profile: Number(byProfile.profile), name: byProfile.name, actor: 0 };
+    const t = q ? findByName(String(q)) : 0;
+    return t ? { profile: profileOf(t), name: display(t), actor: t } : null;
+  };
+  const ACTIONS = {
+    rent: (a, claim, b, v) => {
+      const n = Math.round(Number(v));
+      if (!Number.isFinite(n) || n < C.minRent || n > C.maxRent) return R(false, `Set the bed rent between ${C.minRent} and ${C.maxRent} gold.`);
+      const was = Number(b.rentGold) || 0; b.rentGold = n; note(b, `${display(a)} set the bed rent to ${n} gold (was ${was || 'standard'})`); save();
+      return R(true, `Beds here now rent for ${n} gold.`);
+    },
+    note: (a, claim, b, text) => {
+      const t = String(text || '').trim().slice(0, C.maxNote);
+      if (!t) return R(false, 'Write something first.');
+      b.notes = (b.notes || []).concat([{ at: Date.now(), by: display(a), text: t }]).slice(-C.notesKeep); save();
+      return R(true, 'Written in the logbook.');
+    },
+    chest: (a, claim, b, v) => {
+      if (String(v).toLowerCase() === 'off') { S.armed.set(a >>> 0, { price: 0, until: Date.now() + C.armSeconds * 1000 }); return R(true, `Open the chest to take off the rental list, within ${C.armSeconds} seconds.`); }
+      const n = Math.round(Number(v));
+      if (!Number.isFinite(n) || n < 1 || n > C.maxChestPrice) return R(false, `Price a chest between 1 and ${C.maxChestPrice} gold a day.`);
+      S.armed.set(a >>> 0, { price: n, until: Date.now() + C.armSeconds * 1000 });
+      return R(true, `Now open the chest to rent out at ${n} gold a day, within ${C.armSeconds} seconds.`);
+    },
+    staffAdd: (a, claim, b, q) => {
+      const t = staffTarget(b, q);
+      if (!t || !t.actor) return R(false, 'Name someone who is online (a name or #TAG).');
+      b.staff = b.staff || [];
+      if (t.profile === Number(b.owner) || b.staff.some((s) => Number(s.profile) === t.profile)) return R(false, `${t.name} already keeps this ledger.`);
+      if (b.staff.length >= C.maxStaff) return R(false, `A business has at most ${C.maxStaff} staff.`);
+      b.staff.push({ profile: t.profile, name: t.name }); note(b, `${display(a)} took on ${t.name} as staff`); save();
+      personal(t.actor, `${display(a)} took you on at ${b.name}. Its ledger is inside.`);
+      return R(true, `${t.name} is staff at ${b.name}.`);
+    },
+    staffRemove: (a, claim, b, q) => {
+      const t = staffTarget(b, q);
+      const before = (b.staff || []).length;
+      if (t) b.staff = (b.staff || []).filter((s) => Number(s.profile) !== t.profile);
+      if (!t || b.staff.length === before) return R(false, 'They are not staff here.');
+      note(b, `${display(a)} let ${t.name} go`); save();
+      return R(true, `${t.name} no longer keeps this ledger.`);
+    },
+    collect: (a, claim, b) => {
+      const n = Number(b.owed) || 0;
+      if (!n) return R(false, 'No takings are held.');
+      if (!giveGold(a, n)) return R(false, 'The gold could not be given.');
+      b.owed = 0; note(b, `${display(a)} collected ${n} gold of takings`); save();
+      return R(true, `You collect ${n} gold.`);
+    },
+    rename: (a, claim, b, v) => {
+      const name = String(v || '').trim().slice(0, 40);
+      if (!name) return R(false, 'Give it a name.');
+      note(b, `${display(a)} renamed ${b.name} to ${name}`); b.name = name; save();
+      return R(true, `It is ${name} now.`);
+    },
+    close: (a, claim, b) => {
+      if (Object.values(b.chests || {}).some((c) => ['rented', 'grace'].includes(chestState(c)))) return R(false, 'Chests are still rented here. Close once their rent and grace have run out.');
+      if (Number(b.owed) > 0 && !giveGold(a, Number(b.owed))) return R(false, 'Collect the takings first.');
+      removeLedger(b);
+      delete data().businesses[hex(claim.primary)]; save();
+      audit(`BUSINESS ${who(a)} closed ${b.name} (claim ${hex(claim.primary)})`);
+      return R(true, `${b.name} is closed. The property is a plain home again.`);
+    },
+    place: (a, claim, b) => placeLedger(a, claim, b),
+    nudge: (a, claim, b, dir, dist) => nudgeLedger(a, claim, b, dir, dist),
+  };
+  const OWNER_ONLY = new Set(['staffAdd', 'staffRemove', 'collect', 'rename', 'close', 'place', 'nudge']);
+  const runAction = (a, name, claim, b, args) => {
+    if (!Object.prototype.hasOwnProperty.call(ACTIONS, name)) return R(false, 'That is not something the ledger does.');
+    if (!isStaff(a, b) && !isAdmin(a)) return R(false, `${b.name}'s ledger is kept for its owner and staff.`);
+    if (OWNER_ONLY.has(name) && !isOwner(a, b)) return R(false, 'Only the owner can do that.');
+    return ACTIONS[name](a, claim, b, ...(args || []));
+  };
+
+  // ---- the ledger's panel (front businessLedger, widget 64) -------------------------------------------
+  const caps = S.caps instanceof Map ? S.caps : (S.caps = new Map());
+  onUi('uiCaps', (a, args) => { caps.set(a >>> 0, new Set((args || []).map(String))); });
+  const hasPanel = (a) => (caps.get(a >>> 0) || new Set()).has('businessLedger');
+  const panels = S.panels instanceof Map ? S.panels : (S.panels = new Map()); // actor -> { claim, nonce }
+  const takings = (b, days) => { const since = Date.now() - days * 24 * HOUR; return (b.income || []).filter((e) => e.at >= since).reduce((n, e) => n + (Number(e.gold) || 0), 0); };
+  const sendPanel = (a, claim, b, res) => {
+    let p = panels.get(a >>> 0);
+    if (!p || p.claim !== claim.primary) { p = { claim: claim.primary, nonce: `${(a >>> 0).toString(36)}-${Date.now().toString(36)}` }; panels.set(a >>> 0, p); }
+    const owner = isOwner(a, b), staff = isStaff(a, b) || isAdmin(a);
+    const chests = Object.entries(b.chests || {}).map(([ref, c]) => ({
+      ref, price: Number(c.price) || 0, state: chestState(c), renter: staff ? String(c.renterName || '') : '', until: staff ? Number(c.until) || 0 : 0,
+    }));
+    const w = {
+      type: 'businessLedger', id: PANEL_ID, nonce: p.nonce, role: owner ? 'owner' : staff ? 'staff' : 'customer',
+      name: b.name, ownerName: b.ownerName, hold: zoneName(b.zone), taxPct: Math.round(taxRate(b.zone) * 100), rent: Number(b.rentGold) || 0,
+      minRent: C.minRent, maxRent: C.maxRent, maxChestPrice: C.maxChestPrice, chests,
+      result: res ? res.text : '', resultKind: res ? (res.ok ? 'ok' : 'refused') : '',
+    };
+    if (staff) {
+      Object.assign(w, {
+        staff: (b.staff || []).map((s) => ({ profile: Number(s.profile), name: String(s.name) })), maxStaff: C.maxStaff, maxNote: C.maxNote,
+        owed: owner ? Number(b.owed) || 0 : 0, week: takings(b, 7), month: takings(b, 30),
+        log: (b.log || []).slice(-C.panelKeep).reverse(), notes: (b.notes || []).slice(-C.panelKeep).reverse(),
+        ledgerPlaced: !!ledgerRef(b), armSeconds: C.armSeconds,
+      });
+    }
+    openWidget(a, w, true);
+  };
+  const closePanel = (a) => { panels.delete(a >>> 0); closeWidget(a, PANEL_ID); };
+  const openLedger = (a, ref, tag) => {
+    const primary = parseInt(String(tag.claim || ''), 16) >>> 0;
+    const claim = primary ? claimOf(primary) : null;
+    const b = claim ? bizOf(claim.primary) : null;
+    if (!b) return personal(a, 'This ledger belongs to no business any more.');
+    // A restart can give the book a new id; the one just opened is the one the arrows move
+    if (!b.ledger || b.ledger.ref !== hex(ref)) {
+      const q = get(ref, 'pos', null);
+      b.ledger = Object.assign({ rot: [0, 0, 0] }, b.ledger || {}, { ref: hex(ref) }, Array.isArray(q) && !(b.ledger && b.ledger.pos) ? { pos: q.map(r1) } : {});
+      save();
+    }
+    if (hasPanel(a)) return sendPanel(a, claim, b);
+    if (isStaff(a, b) || isAdmin(a)) return summary(a, claim, b);
+    return personal(a, publicLine(b));
+  };
+  onUi('bizLedger', (a, args) => {
+    const p = panels.get(a >>> 0);
+    if (!p || String((args || [])[0] || '') !== p.nonce) return;
+    const claim = claimOf(p.claim), b = claim ? bizOf(claim.primary) : null;
+    if (!b) { closePanel(a); return personal(a, 'This business is closed.'); }
+    if (!inside(a, claim)) { closePanel(a); return personal(a, 'You have left the business.'); }
+    const name = String(args[1] || '');
+    const res = runAction(a, name, claim, b, args.slice(2));
+    if (name === 'close' && res.ok) { closePanel(a); return personal(a, res.text); }
+    sendPanel(a, claim, b, res);
+  });
+  onUi('bizLedgerClose', (a) => closePanel(a));
+
+  // ---- /business: the chat side, for a client without the panel ---------------------------------------
+  const say = (a, r) => personal(a, r.text);
   registerChatCommand('business', (a, args) => {
     if (!C.enabled) return personal(a, 'Business ledgers are closed for now.');
     const words = String(args || '').trim().split(/\s+/).filter(Boolean);
@@ -256,73 +486,32 @@ module.exports = (api) => {
       data().businesses[hex(claim.primary)] = { name, owner: profileOf(a), ownerName: display(a), zone: zoneOfActor(a), rentGold: 0, staff: [], chests: {}, owed: 0, log: [], notes: [] };
       const b = data().businesses[hex(claim.primary)]; note(b, `${display(a)} opened ${name}`); save();
       audit(`BUSINESS ${who(a)} opened ${name} (claim ${hex(claim.primary)}, ${zoneName(b.zone)})`);
-      return personal(a, `${name} is open. Its ledger is kept here: /business`);
+      // Its ledger goes down where the owner stands; the panel's arrows set it on the counter
+      const placed = placeLedger(a, claim, b);
+      if (hasPanel(a)) return sendPanel(a, claim, b, placed.ok ? R(true, `${name} is open. Set the ledger on the counter with the arrows.`) : placed);
+      return personal(a, `${name} is open. ${placed.ok ? 'Its ledger is in front of you; activate it to run the business.' : placed.text + ' /business ledger places it.'}`);
     }
     if (!biz) return personal(a, claim && claim.owner === profileOf(a) ? 'This property is not a business yet: /business open <name>' : 'There is no business ledger here. Stand inside a business.');
-    if (!isStaff(a, biz) && !isAdmin(a)) return personal(a, `${biz.name}'s ledger is kept for its owner and staff.`);
-    const owner = isOwner(a, biz);
-    const done = (text) => { note(biz, text); save(); };
+    if (!isStaff(a, biz) && !isAdmin(a)) return personal(a, publicLine(biz));
     switch (sub) {
-      case '': return summary(a, claim, biz);
+      case '': return hasPanel(a) ? sendPanel(a, claim, biz) : summary(a, claim, biz);
       case 'log': { const r = page(biz.log || [], rest, (e) => `${stamp(e.at)}  ${e.text}`); personal(a, `${biz.name} ledger, page ${r.p}/${r.pages} (newest first):`); r.lines.forEach((l) => personal(a, l)); return; }
       case 'notes': { const r = page(biz.notes || [], rest, (e) => `${stamp(e.at)}  ${e.by}: ${e.text}`); personal(a, `${biz.name} logbook, page ${r.p}/${r.pages} (newest first):`); r.lines.forEach((l) => personal(a, l)); if (!r.lines.length) personal(a, 'Nothing written yet: /business note <text>'); return; }
-      case 'note': {
-        if (!rest) return personal(a, 'Write: /business note <text>');
-        biz.notes = (biz.notes || []).concat([{ at: Date.now(), by: display(a), text: rest.slice(0, C.maxNote) }]).slice(-C.notesKeep); save();
-        return personal(a, 'Written in the logbook.');
-      }
-      case 'rent': {
-        const n = Math.round(Number(rest));
-        if (!Number.isFinite(n) || n < C.minRent || n > C.maxRent) return personal(a, `Set the bed rent between ${C.minRent} and ${C.maxRent} gold: /business rent <gold>`);
-        const was = Number(biz.rentGold) || 0; biz.rentGold = n; done(`${display(a)} set the bed rent to ${n} gold (was ${was || 'standard'})`);
-        return personal(a, `Beds here now rent for ${n} gold.`);
-      }
-      case 'chest': {
-        if (rest.toLowerCase() === 'off') { S.armed.set(a >>> 0, { price: 0, until: Date.now() + C.armSeconds * 1000 }); return personal(a, `Open the chest to take off the rental list, within ${C.armSeconds} seconds.`); }
-        const n = Math.round(Number(rest));
-        if (!Number.isFinite(n) || n < 1 || n > C.maxChestPrice) return personal(a, `Price a chest between 1 and ${C.maxChestPrice} gold a day: /business chest <gold>, then open it.`);
-        S.armed.set(a >>> 0, { price: n, until: Date.now() + C.armSeconds * 1000 });
-        return personal(a, `Open the chest to rent out at ${n} gold a day, within ${C.armSeconds} seconds.`);
-      }
-      case 'collect': {
-        if (!owner) return personal(a, 'Only the owner collects the takings.');
-        const n = Number(biz.owed) || 0; if (!n) return personal(a, 'No takings are held.');
-        if (!giveGold(a, n)) return personal(a, 'The gold could not be given.');
-        biz.owed = 0; done(`${display(a)} collected ${n} gold of takings`); return personal(a, `You collect ${n} gold.`);
-      }
+      case 'note': return say(a, runAction(a, 'note', claim, biz, [rest]));
+      case 'rent': return say(a, runAction(a, 'rent', claim, biz, [rest]));
+      case 'chest': return say(a, runAction(a, 'chest', claim, biz, [rest]));
+      case 'collect': return say(a, runAction(a, 'collect', claim, biz, []));
+      case 'ledger': return say(a, runAction(a, 'place', claim, biz, []));
       case 'staff': {
-        if (!owner) return personal(a, 'Only the owner names the staff.');
-        const op = (words.shift() || '').toLowerCase(), who2 = words.join(' ');
-        const t = who2 ? findByName(who2) : 0;
-        if (!['add', 'remove'].includes(op) || !t) return personal(a, 'Name someone who is online: /business staff add <name or #TAG>, /business staff remove <name or #TAG>');
-        const p = profileOf(t); biz.staff = biz.staff || [];
-        if (op === 'add') {
-          if (p === Number(biz.owner) || biz.staff.some((s) => Number(s.profile) === p)) return personal(a, `${display(t)} already keeps this ledger.`);
-          if (biz.staff.length >= C.maxStaff) return personal(a, `A business has at most ${C.maxStaff} staff.`);
-          biz.staff.push({ profile: p, name: display(t) }); done(`${display(a)} took on ${display(t)} as staff`);
-          personal(t, `${display(a)} took you on at ${biz.name}. Its ledger: /business, inside it.`);
-          return personal(a, `${display(t)} is staff at ${biz.name}.`);
-        }
-        const before = biz.staff.length; biz.staff = biz.staff.filter((s) => Number(s.profile) !== p);
-        if (biz.staff.length === before) return personal(a, `${display(t)} is not staff here.`);
-        done(`${display(a)} let ${display(t)} go`); return personal(a, `${display(t)} no longer keeps this ledger.`);
+        const op = (words.shift() || '').toLowerCase(), q = words.join(' ');
+        if (!['add', 'remove'].includes(op) || !q) return personal(a, 'Name someone who is online: /business staff add <name or #TAG>, /business staff remove <name or #TAG>');
+        return say(a, runAction(a, op === 'add' ? 'staffAdd' : 'staffRemove', claim, biz, [q]));
       }
-      case 'rename': {
-        if (!owner) return personal(a, 'Only the owner renames the business.');
-        const name = rest.slice(0, 40); if (!name) return personal(a, 'Name it: /business rename <name>');
-        done(`${display(a)} renamed ${biz.name} to ${name}`); biz.name = name; save(); return personal(a, `It is ${name} now.`);
-      }
-      case 'close': {
-        if (!owner) return personal(a, 'Only the owner closes the business.');
-        if (Object.values(biz.chests || {}).some((c) => ['rented', 'grace'].includes(chestState(c)))) return personal(a, 'Chests are still rented here. Close once their rent and grace have run out.');
-        if (Number(biz.owed) > 0 && !giveGold(a, Number(biz.owed))) return personal(a, 'Collect the takings first: /business collect');
-        delete data().businesses[hex(claim.primary)]; save();
-        audit(`BUSINESS ${who(a)} closed ${biz.name} (claim ${hex(claim.primary)})`);
-        return personal(a, `${biz.name} is closed. The property is a plain home again.`);
-      }
-      default: return summary(a, claim, biz);
+      case 'rename': return say(a, runAction(a, 'rename', claim, biz, [rest]));
+      case 'close': return say(a, runAction(a, 'close', claim, biz, []));
+      default: return hasPanel(a) ? sendPanel(a, claim, biz) : summary(a, claim, biz);
     }
-  }, { help: 'the business ledger where you stand: open, log, notes, note, rent, chest, staff, collect, rename, close' });
+  }, { help: 'the business ledger where you stand (its book opens the same panel): open, log, notes, note, rent, chest, staff, ledger, collect, rename, close' });
 
   // ---- /tax ------------------------------------------------------------------------------------------
   registerChatCommand('tax', (a, args) => {

@@ -31,11 +31,23 @@ const mp = {
   getIdFromDesc: (d) => parseInt(String(d).split(':')[0], 16),
   lookupEspmRecordById: (id) => (TYPES[id] ? { record: { type: TYPES[id] } } : null),
   getActorsByProfileId: (p) => Object.keys(PROFILE).filter((a) => PROFILE[a] === p).map(Number),
+  getDescFromId: (id) => (id >>> 0).toString(16),
+  // PlaceAtMe makes a new reference in the caller's cell; SetPosition/SetAngle move it; Delete removes it
+  callPapyrusFunction: (kind, cls, fn, self, args) => {
+    const id = parseInt(self.desc, 16) >>> 0;
+    if (fn === 'PlaceAtMe') { const n = 0xff0000a0 + (placed.length); placed.push(n); setp(n, 'worldOrCellDesc', props.get(`${id}|worldOrCellDesc`)); setp(n, 'baseDesc', args[0].desc); return { desc: n.toString(16) }; }
+    if (fn === 'SetPosition') setp(id, 'pos', args.slice(0, 3));
+    if (fn === 'SetAngle') setp(id, 'angle', args.slice(0, 3));
+    if (fn === 'Delete') { deleted.push(id); props.delete(`${id}|private.dboBizLedger`); }
+    return null;
+  },
 };
+const placed = [], deleted = [], panels = [];
 const api = {
   mp, log: () => {}, audit: () => {}, who: (a) => NAME[a], display: (a) => NAME[a],
   personal: (a, t) => said.push([a, t]), cfg: { rest: { holdShare: 0.1 } },
-  openWidget: (a, w) => said.push([a, 'MENU ' + w.targetName + ' | ' + w.actions.map((x) => x.id).join(',')]), closeWidget: () => {},
+  openWidget: (a, w) => (w.type === 'businessLedger' ? panels.push([a, w]) : said.push([a, 'MENU ' + w.targetName + ' | ' + w.actions.map((x) => x.id).join(',')])),
+  closeWidget: (a, id) => said.push([a, 'CLOSE ' + id]),
   onUi: (n, f) => { ui[n] = f; }, registerChatCommand: (n, f) => { cmds[n] = f; },
   onlineActors: () => ONLINE, profileOf: (a) => PROFILE[a] ?? -1,
   findByName: (q) => Number(Object.keys(NAME).find((a) => NAME[a].toLowerCase() === String(q).toLowerCase())) || 0,
@@ -68,7 +80,7 @@ ok(biz().staff.length === 1 && biz().staff[0].profile === 8, 'the owner takes on
 cmds.business(STAFF, 'note Delivery of mead on Tirdas');
 ok(biz().notes.length === 1 && biz().notes[0].by === 'Sigrid', 'staff write in the logbook');
 cmds.business(RENTER, 'notes');
-ok(/kept for its owner and staff/.test(last(RENTER)), 'nobody else can read the ledger');
+ok(/The Silver Jug, kept by Olaf/.test(last(RENTER)) && !/mead/.test(last(RENTER)), 'anyone else gets the public page, not the notes');
 cmds.business(STAFF, 'staff add Rena');
 ok(biz().staff.length === 1, 'staff cannot name staff');
 
@@ -103,6 +115,53 @@ ok(globalThis.__dboBusinessActivate(CHEST, STAFF) === true, 'staff are kept out 
 data.businesses[DOOR.toString(16)].chests[CHEST.toString(16)].until = Date.now() - 100 * H;
 ok(globalThis.__dboBusinessActivate(CHEST, STRANGER) === true && /waits for its owner/.test(last(STRANGER)), 'a lapsed chest cannot be rented before it is cleared');
 ok(globalThis.__dboBusinessActivate(CHEST, OWNER) === false && !data.businesses[DOOR.toString(16)].chests[CHEST.toString(16)].renter, 'the owner opens a lapsed chest and it is free again');
+
+// The ledger book and its panel
+const panelOf = (a) => { for (let i = panels.length - 1; i >= 0; i--) if (panels[i][0] === a) return panels[i][1]; return null; };
+setp(OWNER, 'pos', [1000, 2000, 50]); setp(OWNER, 'angle', [0, 0, 90]);
+for (const a of [OWNER, STAFF, RENTER]) ui.uiCaps(a, ['bank', 'businessLedger']);
+cmds.business(OWNER, 'ledger');
+const L1 = placed[0];
+ok(biz().ledger && biz().ledger.ref === L1.toString(16) && props.get(`${L1}|private.dboBizLedger`).claim === DOOR.toString(16), 'the owner places the ledger, tagged with the claim');
+const lp = props.get(`${L1}|pos`);
+ok(Math.abs(lp[0] - 1070) < 0.01 && Math.abs(lp[1] - 2000) < 0.01 && lp[2] === 145 && props.get(`${L1}|angle`)[2] === 270, 'in front of the owner at counter height, facing them', JSON.stringify([lp, props.get(`${L1}|angle`)]));
+ok(globalThis.__dboBusinessActivate(L1, OWNER) === true && panelOf(OWNER) && panelOf(OWNER).role === 'owner' && Array.isArray(panelOf(OWNER).notes), 'activating it opens the full panel for the owner');
+ok(globalThis.__dboBusinessActivate(L1, STAFF) === true && panelOf(STAFF).role === 'staff' && panelOf(STAFF).owed === 0, 'and for staff, without the takings held');
+globalThis.__dboBusinessActivate(L1, RENTER);
+const pub = panelOf(RENTER);
+ok(pub && pub.role === 'customer' && pub.notes === undefined && pub.log === undefined && pub.staff === undefined && pub.chests.every((c) => c.renter === ''), 'a customer gets the public page only');
+const nonce = panelOf(OWNER).nonce;
+ui.bizLedger(OWNER, ['wrong', 'rent', 30]);
+ok(globalThis.__dboBusinessRent(CELL) === 25, 'an action with a stale nonce is ignored');
+ui.bizLedger(OWNER, [nonce, 'rent', 30]);
+ok(globalThis.__dboBusinessRent(CELL) === 30 && panelOf(OWNER).resultKind === 'ok' && panelOf(OWNER).rent === 30, 'the panel sets the bed rent and answers with the new page');
+ui.bizLedger(OWNER, [nonce, 'note', 'Order more ale']);
+ok(biz().notes.some((n) => n.text === 'Order more ale') && panelOf(OWNER).notes[0].text === 'Order more ale', 'the panel writes in the logbook, newest first');
+ui.bizLedger(STAFF, [panelOf(STAFF).nonce, 'rename', 'Sigrid\'s']);
+ok(biz().name === 'The Silver Jug' && panelOf(STAFF).resultKind === 'refused', 'staff cannot do owner-only things');
+ui.bizLedger(RENTER, [pub.nonce, 'rent', 1]);
+ok(globalThis.__dboBusinessRent(CELL) === 30 && panelOf(RENTER).resultKind === 'refused', 'a customer can change nothing');
+ui.bizLedger(OWNER, [nonce, 'nudge', 'up', 10]);
+ui.bizLedger(OWNER, [nonce, 'nudge', 'turnRight']);
+ok(props.get(`${L1}|pos`)[2] === 155 && props.get(`${L1}|angle`)[2] === 285, 'the arrows raise and turn it', JSON.stringify([props.get(`${L1}|pos`), props.get(`${L1}|angle`)]));
+ui.bizLedger(OWNER, [nonce, 'nudge', 'away', 50]);
+ok(Math.abs(props.get(`${L1}|pos`)[0] - 1120) < 0.01, 'away follows where the owner looks', props.get(`${L1}|pos`)[0]);
+for (let i = 0; i < 20; i++) ui.bizLedger(OWNER, [nonce, 'nudge', 'away', 50]);
+ok(Math.hypot(props.get(`${L1}|pos`)[0] - 1000, props.get(`${L1}|pos`)[1] - 2000) <= 700 && panelOf(OWNER).resultKind === 'refused', 'it cannot be pushed out of reach');
+const weekBefore = panelOf(OWNER).week;
+globalThis.__dboBusinessLog(CELL, 'Rena rented a bed for 10 gold', 9);
+ui.bizLedger(OWNER, [nonce, 'rent', 30]);
+ok(weekBefore === 24 && panelOf(OWNER).week === 33 && panelOf(OWNER).month === 33, 'the week\'s takings count chest and bed rent', `${weekBefore} -> ${panelOf(OWNER).week}`);
+// A restart gives the book a new id: the one opened is the one the arrows move
+const L2 = 0xff0000ee; setp(L2, 'worldOrCellDesc', desc(CELL)); setp(L2, 'pos', [1, 2, 3]); setp(L2, 'private.dboBizLedger', { claim: DOOR.toString(16) });
+globalThis.__dboBusinessActivate(L2, OWNER);
+ok(biz().ledger.ref === L2.toString(16), 'after a restart the ledger follows the book that was opened');
+ui.bizLedger(OWNER, [panelOf(OWNER).nonce, 'place']);
+ok(deleted.includes(L2) && biz().ledger.ref === placed[placed.length - 1].toString(16), 'placing it again moves it (the old book is removed)');
+setp(OWNER, 'worldOrCellDesc', desc(WORLD));
+ui.bizLedger(OWNER, [panelOf(OWNER).nonce, 'rent', 40]);
+ok(globalThis.__dboBusinessRent(CELL) === 30 && /CLOSE 64/.test(said.filter((x) => x[0] === OWNER).map((x) => x[1]).join('|')), 'outside the business the panel closes and changes nothing');
+setp(OWNER, 'worldOrCellDesc', desc(CELL));
 
 // Takings for an offline owner, and a claim that changed hands
 ONLINE = [RENTER];

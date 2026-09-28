@@ -259,7 +259,7 @@ module.exports = (api) => {
     set(bed, 'private.dboRent', { renter: a >>> 0, name: display(a), until });
     set(a, 'private.dboRentBed', { bed: bed >>> 0, until });
     audit(`REST ${who(a)} rented bed ${bedDesc(bed)}${where(bed)} for ${price} gold: ${toOwner || (owner ? `0 to ${owner.ownerName || 'the owner'}` : '0 to no owner')}, ${toHold} to ${zone || 'no hold'}${holdCut && !toHold ? ' (no treasury)' : ''}`);
-    try { if (globalThis.__dboBusinessLog) globalThis.__dboBusinessLog(cell, `${display(a)} rented a bed for ${price} gold (${toOwner || '0 to the owner'}, ${toHold} tax)`); } catch (e) { /* no ledger */ }
+    try { if (globalThis.__dboBusinessLog) globalThis.__dboBusinessLog(cell, `${display(a)} rented a bed for ${price} gold (${toOwner || '0 to the owner'}, ${toHold} tax)`, toOwner ? ownerCut : 0); } catch (e) { /* no ledger */ }
     personal(a, `You rent the bed for ${price} gold until ${clock(until)}. It is yours alone until then. Choose Sleep to log out and wake Well Rested.`);
     return true;
   };
