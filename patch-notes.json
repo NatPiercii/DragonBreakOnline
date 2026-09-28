@@ -1,5 +1,19 @@
 [
   {
+    "title": "Client 0.3.62: Finding the Character Select Issue",
+    "date": "2026-09-28",
+    "version": "Client 0.3.62",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Character select",
+        "items": [
+          "If character select doesn't respond to your mouse or keyboard, this update sends us what the menu sees at that moment, on its own, so we can find the cause. Nothing is recorded of what you type. Restart the launcher to get the update."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.61: Helping Us Fix Character Select",
     "date": "2026-09-28",
     "version": "Client 0.3.61",
