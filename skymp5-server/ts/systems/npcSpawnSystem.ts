@@ -123,6 +123,10 @@ interface Zone {
   prespawn: boolean;
   // Waits for a player inside its own radius, instead of filling with the rest of its dungeon
   ambush: boolean;
+  // Heading of every NPC it places, degrees (0 = north); the F7 Place tool's zones face where the GM turned them
+  heading: number;
+  // true/false overrides the "attacks on sight" flag its bases' AI data would give (the Place tool's hostile box)
+  hostile: boolean | null;
   npcs: ZoneNpc[];
   // One entry per NPC to place; slot i stands at slotPos(i)
   slots: ZoneNpc[];
@@ -145,6 +149,8 @@ interface Draft {
   anchor: string;
   prespawn?: boolean;
   ambush?: boolean;
+  heading?: number;
+  hostile?: boolean | null;
   pos: number[];
   radius: number;
   npcs: { id: string; count: number }[];
@@ -450,6 +456,8 @@ export class NpcSpawnSystem implements System {
       anchor: String(pick(raw, "anchor") ?? "").trim(),
       prespawn: pick(raw, "prespawn") === true,
       ambush: pick(raw, "ambush") === true,
+      heading: num(pick(raw, "heading"), 0),
+      hostile: typeof pick(raw, "hostile") === "boolean" ? (pick(raw, "hostile") as boolean) : null,
       despawnSeconds: Math.max(0, num(pick(raw, "despawn"), DEFAULT_DESPAWN)),
       respawnSeconds: Math.max(0, num(pick(raw, "respawn"), DEFAULT_RESPAWN)),
     };
@@ -524,11 +532,13 @@ export class NpcSpawnSystem implements System {
       name: draft.name, cellOrWorldDesc, cellOrWorldId, pos: draft.pos, radius: draft.radius, anchorId, npcs, slots,
       prespawn: !!draft.prespawn,
       ambush: !!draft.ambush,
+      heading: Number.isFinite(draft.heading) ? (((draft.heading as number) % 360) + 360) % 360 : 0,
+      hostile: typeof draft.hostile === "boolean" ? draft.hostile : null,
       total: slots.length,
       despawnSeconds: draft.despawnSeconds,
       respawnSeconds: draft.respawnSeconds,
       slotReadyAt: slots.map(() => 0),
-      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn, !!draft.ambush]),
+      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn, !!draft.ambush, draft.heading || 0, typeof draft.hostile === "boolean" ? draft.hostile : null]),
       spawned: [], emptySince: 0, inside: new Set(),
     };
   }
@@ -780,11 +790,11 @@ export class NpcSpawnSystem implements System {
 
   private spawnOne(mp: Mp, zone: Zone, npc: ZoneNpc, slot: number, anchorId: number, fallbackAnchor?: number): number | null {
     try {
-      const loc = { cellOrWorldDesc: zone.cellOrWorldDesc, pos: this.slotPos(zone, slot), rot: [0, 0, 0] };
+      const loc = { cellOrWorldDesc: zone.cellOrWorldDesc, pos: this.slotPos(zone, slot), rot: [0, 0, zone.heading] };
       const attempt = (anchor: number) => {
         const id = placeNpc(mp, anchor, npc.baseDesc, loc);
         try { mp.set(id, TAG_PROP, zone.name); } catch { }
-        try { mp.set(id, HOSTILE_PROP, this.isHostileBase(mp, npc.baseDesc)); } catch { }
+        try { mp.set(id, HOSTILE_PROP, zone.hostile !== null ? zone.hostile : this.isHostileBase(mp, npc.baseDesc)); } catch { }
         return id;
       };
       try {
