@@ -1806,6 +1806,8 @@ const closePlayerMenu = (a) => { panelState.nonces.delete(a >>> 0); closeWidget(
 onUi('uiCaps', (a, args) => { panelState.caps.set(a >>> 0, new Set((args || []).map(String))); });
 onUi('menuOpen', (a, args) => { if (hasPlayerMenu(a)) openPlayerMenu(a, String((args || [])[0] || '')); });
 onUi('menuClose', (a) => closePlayerMenu(a));
+// Escape inside the panel closes it through the relay's own path, which sends "close" rather than our event
+onUi('close', (a, args, widgetId) => { if (widgetId === PANEL_WIDGET_ID) panelState.nonces.delete(a >>> 0); });
 // A button runs the command through the chat handler, so it passes exactly the checks typing it would. The name must be
 // one this player's own panel offered: a client that asks for anything else is answered with nothing.
 onUi('menuRun', (a, args) => {
