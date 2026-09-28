@@ -135,7 +135,10 @@ module.exports = (api) => {
     if (JSON.stringify(list.filter(isMine)) === JSON.stringify(mine)) return;
     const zones = list.filter((z) => !isMine(z)).concat(mine);
     const payload = root ? Object.assign({}, root, { [key]: zones }) : { _comment: 'NPC spawn zones. dungeon:* entries belong to dungeons.js, wild:* to wildlife.js, placed:* to placement.js; all are rewritten by the server. Other entries are kept.', zones };
-    try { fs.writeFileSync(SPAWNS_FILE + '.tmp', JSON.stringify(payload, null, 1)); fs.renameSync(SPAWNS_FILE + '.tmp', SPAWNS_FILE); }
+    // Shared with dungeons.js, wildlife.js and npcSpawnSystem's panel: every writer re-reads the file, keeps what is not
+    // its own and writes in the same synchronous call, so in this one Node process no write can land between another's
+    // read and write (tests/zones-shared-harness.js). A temp name of its own, as dungeons.js has.
+    try { fs.writeFileSync(SPAWNS_FILE + '.placement.tmp', JSON.stringify(payload, null, 1)); fs.renameSync(SPAWNS_FILE + '.placement.tmp', SPAWNS_FILE); }
     catch (e) { log('placement: NPC-Spawns.json write failed', e.message); }
   };
 
