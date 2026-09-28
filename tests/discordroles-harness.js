@@ -1,5 +1,7 @@
-// Scripted test for server\discordroles.js (Discord roles from skills and homes). No server, no game and no Discord:
-// https.request is replaced by a fake guild. Run it from this folder's parent with
+// Scripted test for server\discordroles.js (Discord roles from skills and homes). Covers Nate's rule of 2026-09-28,
+// "Top 3, from 25": only a character's three highest skills carry a role, and only from level 25 (Apprentice), so a
+// profile no longer collects one for every skill ever chosen. No server, no game and no Discord: https.request is
+// replaced by a fake guild. Run it from this folder's parent with
 //
 //   node tests\discordroles-harness.js
 'use strict';
@@ -60,10 +62,12 @@ https.request = (opts, cb) => {
 const PLAYER = 1, ALT = 2, NOLINK = 3;
 const HOUSE = 0x100, OTHER_HOUSE = 0x200;
 fs.writeFileSync('housing.json', JSON.stringify([HOUSE, OTHER_HOUSE]));
+// masterySystem's record: the chosen skills in `order`, each one's level under `skills`
+const mastery = (levels) => ({ order: Object.keys(levels), skills: Object.fromEntries(Object.entries(levels).map(([id, level]) => [id, { level, rank: 0 }])) });
 const props = {
-  [PLAYER]: { 'private.mastery': { order: ['blade', 'miner', 'unarmed'] }, discord: '111111111111111111', profile: 10 },
-  [ALT]: { 'private.mastery': { order: ['archery'] }, discord: '111111111111111111', profile: 11 },
-  [NOLINK]: { 'private.mastery': { order: ['blade'] }, discord: '', profile: 12 },
+  [PLAYER]: { 'private.mastery': mastery({ blade: 40, miner: 33, unarmed: 27 }), discord: '111111111111111111', profile: 10 },
+  [ALT]: { 'private.mastery': mastery({ archery: 60 }), discord: '111111111111111111', profile: 11 },
+  [NOLINK]: { 'private.mastery': mastery({ blade: 50 }), discord: '', profile: 12 },
 };
 const houses = { [HOUSE]: { owner: 10, hold: 'bruma' }, [OTHER_HOUSE]: { owner: 99, hold: 'falkreath' } };
 globalThis.__dboHousing = { recordOf: (r) => houses[r] || null, holdOf: (r) => (houses[r] || {}).hold || '' };
@@ -73,7 +77,7 @@ const mod = require(MODULE)({
   mp: { get: (a, k) => props[a][k] },
   log: (...x) => logs.push(x.join(' ')), audit: () => {}, who: (a) => `#${a}`, onlineActors: () => [PLAYER], every: (n, ms, fn) => { tick = fn; },
   discordOf: (a) => props[a].discord, profileOf: (a) => props[a].profile, zoneById: () => null, cfg: {},
-  skills: [{ id: 'blade', label: 'Blade' }, { id: 'blunt', label: 'Blunt' }, { id: 'archery', label: 'Archery' }, { id: 'unarmed', label: 'Unarmed' }, { id: 'blacksmith', label: 'Blacksmith' }, { id: 'miner', label: 'Miner' }, { id: 'harvesting', label: 'Harvesting' }],
+  skills: [{ id: 'blade', label: 'Blade' }, { id: 'blunt', label: 'Blunt' }, { id: 'archery', label: 'Archery' }, { id: 'unarmed', label: 'Unarmed' }, { id: 'blacksmith', label: 'Blacksmith' }, { id: 'miner', label: 'Miner' }, { id: 'harvesting', label: 'Harvesting' }, { id: 'alchemist', label: 'Alchemist' }, { id: 'cook', label: 'Cook' }],
   token: 'T', guildId: 'G',
 });
 
@@ -90,7 +94,7 @@ const pos = (n) => byName(n).position;
 
   await mod.sync(PLAYER);
   let r = names('111111111111111111');
-  check("the character's chosen skills become roles", ['Blade', 'Miner', 'Unarmed'].every((n) => r.includes(n)), r.join(', '));
+  check("the character's three highest skills become roles", ['Blade', 'Miner', 'Unarmed'].every((n) => r.includes(n)), r.join(', '));
   check('a skill it has not chosen is taken away', !r.includes('Harvesting'));
   check('its home town becomes a role, created under the homes divider', r.includes('Bruma') && pos('Bruma') < pos('---HOMES---') && pos('Bruma') > pos('---SKILLS---'), `${pos('Bruma')}`);
   check("someone else's house gives nothing", !r.includes('Falkreath') && !byName('Falkreath'));
@@ -107,8 +111,77 @@ const pos = (n) => byName(n).position;
   const n = calls.length;
   await mod.sync(NOLINK);
   check('a character with no Discord link is skipped', calls.length === n);
+
+  // ---- top 3, from 25 ------------------------------------------------------------------------------
+  const setSkills = (a, levels) => { props[a]['private.mastery'] = mastery(levels); };
+  const skillsOn = (id) => names(id).filter((n) => ['Blade', 'Blunt', 'Archery', 'Unarmed', 'Blacksmith', 'Miner', 'Harvesting'].includes(n));
+
+  // the profile that started this: nine chosen skills, all worked on
+  members['111111111111111111'] = { roles: [byName('Owners').id] };
+  setSkills(PLAYER, { blade: 12, blunt: 71, blacksmith: 64, miner: 58, harvesting: 40, archery: 31, unarmed: 26, alchemist: 55, cook: 25 });
+  await mod.sync(PLAYER);
+  r = skillsOn('111111111111111111');
+  check('nine chosen skills give three roles, not nine', r.length === 3, r.join(', '));
+  check('...and they are the three highest', ['Blunt', 'Blacksmith', 'Miner'].every((n) => r.includes(n)), r.join(', '));
+  check('a skill below the top three carries nothing', !r.includes('Harvesting') && !r.includes('Archery'), r.join(', '));
+  check('roles outside the skills group are still untouched', names('111111111111111111').includes('Owners'));
+
+  // 24 is one short of Apprentice
+  members['111111111111111111'] = { roles: [] };
+  setSkills(PLAYER, { blade: 24, miner: 24, harvesting: 24 });
+  await mod.sync(PLAYER);
+  check('a skill at 24 carries no role at all', skillsOn('111111111111111111').length === 0, skillsOn('111111111111111111').join(', '));
+  setSkills(PLAYER, { blade: 25, miner: 24, harvesting: 24 });
+  await mod.sync(PLAYER);
+  check('...and at 25 it carries one', skillsOn('111111111111111111').join(',') === 'Blade', skillsOn('111111111111111111').join(', '));
+
+  // an overtake moves the role
+  members['111111111111111111'] = { roles: [] };
+  setSkills(PLAYER, { blunt: 60, blacksmith: 55, miner: 50, archery: 45 });
+  await mod.sync(PLAYER);
+  check('three roles before the overtake', skillsOn('111111111111111111').sort().join(',') === 'Blacksmith,Blunt,Miner', skillsOn('111111111111111111').join(', '));
+  setSkills(PLAYER, { blunt: 60, blacksmith: 55, miner: 50, archery: 58 });
+  await mod.sync(PLAYER);
+  r = skillsOn('111111111111111111');
+  check('a skill that overtakes takes the role with it', r.includes('Archery') && !r.includes('Miner'), r.join(', '));
+  check('...and it is still only three', r.length === 3, r.join(', '));
+
+  // A tie for the LAST of the three: whoever wears it keeps it. Archery holds a role from the overtake above and
+  // Miner does not, so they are level on points and unequal on possession.
+  const resync = () => globalThis.__dboDiscordRoles.synced.clear();
+  setSkills(PLAYER, { blunt: 60, blacksmith: 55, archery: 50, miner: 50 });
+  resync(); await mod.sync(PLAYER);
+  r = skillsOn('111111111111111111');
+  check('a tie for the last place leaves the role where it is', r.includes('Archery') && !r.includes('Miner'), r.join(', '));
+  resync(); await mod.sync(PLAYER);
+  resync(); await mod.sync(PLAYER);
+  r = skillsOn('111111111111111111');
+  check('...and two more real syncs do not swap it', r.includes('Archery') && !r.includes('Miner') && r.length === 3, r.join(', '));
+  // The same pair, the other way round: whoever holds it is what decides, not the name
+  members['111111111111111111'] = { roles: [byName('Blunt').id, byName('Blacksmith').id, byName('Miner').id] };
+  resync(); await mod.sync(PLAYER);
+  r = skillsOn('111111111111111111');
+  check('...and the other of the pair keeps it when it is the one worn', r.includes('Miner') && !r.includes('Archery'), r.join(', '));
+
+  // homes are not part of the rule
+  members['111111111111111111'] = { roles: [] };
+  setSkills(PLAYER, { blunt: 60, blacksmith: 55, miner: 50, archery: 45, harvesting: 44 });
+  await mod.sync(PLAYER);
+  check('the home town is still a role beside the three skills', names('111111111111111111').includes('Bruma'), names('111111111111111111').join(', '));
+  check('...and the home does not count against the three', skillsOn('111111111111111111').length === 3, skillsOn('111111111111111111').join(', '));
+
+  // masterySystem reads `level ?? points`; an older record that only has points must read the same way
+  members['111111111111111111'] = { roles: [] };
+  props[PLAYER]['private.mastery'] = { order: ['blunt', 'miner', 'blade'], skills: { blunt: { points: 60 }, miner: { points: 30 }, blade: { points: 20 } } };
+  globalThis.__dboDiscordRoles.synced.clear();
+  await mod.sync(PLAYER);
+  r = skillsOn('111111111111111111');
+  check('an older record that stores points reads the same as level', r.sort().join(',') === 'Blunt,Miner', r.join(', '));
+
+  check('what the new rule took off people is counted in the log', logs.some((l) => /took \d+ extra skill role\(s\) off/.test(l)), logs.filter((l) => /extra skill role/.test(l)).slice(-1)[0] || 'nothing logged');
+
   delete members['111111111111111111'];
-  props[PLAYER]['private.mastery'].order.push('blacksmith');
+  setSkills(PLAYER, { blade: 40, miner: 33, unarmed: 27, blacksmith: 30 });
   await mod.sync(PLAYER);
   check('someone who left the guild is skipped without an error', !logs.some((l) => /sync failed/.test(l)), logs.filter((l) => /failed/.test(l)).join(' | '));
 
