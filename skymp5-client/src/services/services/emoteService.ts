@@ -196,9 +196,16 @@ export class EmoteService extends ClientListener {
       if (this.menuOpen) this.closeMenu();
       return;
     }
-    if (typeof key !== "string" || !key.startsWith("emote:") || !this.menuOpen) {
+    if (typeof key !== "string" || !key.startsWith("emote:")) {
       return;
     }
+    // A message tagged emote: can only have come from the wheel, so the wheel is on screen whatever the flag
+    // says. It can say the wrong thing: browserWindowLoaded clears menuOpen without removing the widget, and
+    // opening the wheel makes the browser visible and focused, which is the sort of thing that fires it. The
+    // wheel then sat there ignoring every click and its own Cancel button, silently, because each message was
+    // dropped here (Nat, 2026-09-28: "the wheel opens but nothing happens ... cancel doesnt work either").
+    // Trusting the message rather than the flag removes the dependency on getting that flag right.
+    this.menuOpen = true;
     if (key === events.close) {
       this.closeMenu();
       return;
