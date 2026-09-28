@@ -1,6 +1,6 @@
 [
   {
-    "title": "Shouts Reach Other Players",
+    "title": "Scrolls and Shouts Work",
     "date": "2026-09-28",
     "version": "Client 0.3.57",
     "tag": "Update",
@@ -14,6 +14,18 @@
           "Dismaying Shout leaves the target terrified and slowed to half speed for 5, 8 or 12 seconds, by the number of words.",
           "Only characters who have been taught shouts can use them, and only the shouts the Dragonborn learns. The breath of dragons stays with the dragons.",
           "The Greybeards will teach the Voice one day, and it won't be easy to learn."
+        ]
+      },
+      {
+        "heading": "Scrolls",
+        "items": [
+          "Reading a scroll now casts it. Before, the casting played and then nothing happened. Every kind works: fire and frost bolts, summons, armour, cloaks and paralysis."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "The emote wheel works again: its emotes and its Cancel button no longer do nothing. The Skills menu had the same fault and is fixed too."
         ]
       },
       {
