@@ -72,22 +72,22 @@ load({ finishGraceSeconds: 0, finishWeaponOnly: false });
 down();
 check('with the grace off and spells allowed, a spell finishes at once', hit(K, FLAMES) === false && finished() === 1);
 
-// Give up opens 30 s after the fall (Dar, 2026-09-28), on the panel and with /respawn
+// Give up opens 15 s after the fall (Dar and Nate, 2026-09-28), on the panel and with /respawn
 reset();
 delete require.cache[require.resolve(MODULE)];
 load();
 ui.uiCaps(P, ['downed']);
 down();
 const panel = widgets.filter((w) => w.type === 'downed').pop();
-check('the panel says how long until Give up opens', panel && panel.giveUpIn === 30, panel && panel.giveUpIn);
+check('the panel says how long until Give up opens', panel && panel.giveUpIn === 15, panel && panel.giveUpIn);
 now += 10000;
 ui.downedGiveUp(P, [panel.nonce]);
-check('Give up is refused 10 s in, and says when it opens', globalThis.__dboDownedState.downed.has(P) && banners.some((t) => /give up in 20 seconds/.test(t)), banners.join(' | '));
+check('Give up is refused 10 s in, and says when it opens', globalThis.__dboDownedState.downed.has(P) && banners.some((t) => /give up in 5 seconds/.test(t)), banners.join(' | '));
 cmds.respawn(P);
-check('so is /respawn', globalThis.__dboDownedState.downed.has(P) && said.some((t) => /give up in 20 seconds/.test(t)));
-now += 20000;
+check('so is /respawn', globalThis.__dboDownedState.downed.has(P) && said.some((t) => /give up in 5 seconds/.test(t)));
+now += 5000;
 ui.downedGiveUp(P, [panel.nonce]);
-check('after 30 s Give up wakes them at the temple', !globalThis.__dboDownedState.downed.has(P) && audits.some((t) => /woke at the temple/.test(t)), audits.join(' | '));
+check('after 15 s Give up wakes them at the temple', !globalThis.__dboDownedState.downed.has(P) && audits.some((t) => /woke at the temple/.test(t)), audits.join(' | '));
 
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);

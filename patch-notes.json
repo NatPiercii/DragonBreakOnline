@@ -53,7 +53,7 @@
           "Mining: sitting at a vein's pickaxe marker no longer gives ore. Strike the seam itself.",
           "Werewolves: feeding in beast form now eases your hunger like a meal.",
           "Going down: nobody can finish you in your first 3 seconds, and after that only a weapon or bare hands can. Spells and lingering effects no longer end your down.",
-          "Going down: Give up opens after 30 seconds, so a friend has time to reach you.",
+          "Going down: Give up opens after 15 seconds, so a friend has time to reach you.",
           "A Jarl must now be a Nord or an Imperial.",
           "Animals with no hide worth skinning (slaughterfish, mudcrabs, chickens) can be looted again, and a boar now gives two tusks and some leather when skinned."
         ]

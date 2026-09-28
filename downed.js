@@ -35,8 +35,9 @@ module.exports = (api) => {
     // Finishing is deliberate (Nate, 2026-09-28, after swag was finished 0.3 s after falling by a spell already hitting
     // him): nothing finishes a fallen player in their first finishGraceSeconds, and then only a weapon or bare hands
     finishGraceSeconds: 3, finishWeaponOnly: true,
-    // Give up (the panel and /respawn) opens this long after the fall, so a friend has time to come (Dar, 2026-09-28)
-    giveUpAfterSeconds: 30,
+    // Give up (the panel and /respawn) opens this long after the fall, so a friend has time to come (Dar, 2026-09-28;
+    // Nate made it 15 the same day)
+    giveUpAfterSeconds: 15,
     // Death's Chill after waking at the temple: caps and the share of recovery that is kept, 1 = unchanged
     chill: true, chillMinutes: 20, chillCureTier: 2,
     // The ability shown under Magic > Active Effects while the chill lasts ('<local id>:<plugin>'); empty until the
