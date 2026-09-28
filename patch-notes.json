@@ -34,6 +34,14 @@
         ]
       },
       {
+        "heading": "Expeditions",
+        "items": [
+          "Every expedition ruin now has a boss. When the last one falls, your party has 10 minutes to gather the loot (with a warning at 2 minutes) before anyone still inside is taken home.",
+          "Niryastare's arrival is back on its entrance floor, and each ruin's arrival reminds you how to leave: its door, or /expedition leave.",
+          "If you can't find the great door, /expedition leave takes your party home from anywhere in the ruin."
+        ]
+      },
+      {
         "heading": "Hermaeus Mora",
         "items": [
           "His blessing now works: while you carry it, a finished reading round counts twice for your Scholar skill, and a skill book can turn up in a dungeon chest you open or a body you loot."
@@ -42,7 +50,6 @@
       {
         "heading": "Fixes",
         "items": [
-          "Expeditions: type /expedition leave to take your party home from anywhere in the ruin, if you can't find its great door.",
           "Mining: sitting at a vein's pickaxe marker no longer gives ore. Strike the seam itself.",
           "Werewolves: feeding in beast form now eases your hunger like a meal.",
           "Going down: nobody can finish you in your first 3 seconds, and after that only a weapon or bare hands can. Spells and lingering effects no longer end your down.",
