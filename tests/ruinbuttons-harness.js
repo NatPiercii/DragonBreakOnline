@@ -33,7 +33,7 @@ const press = (desc) => globalThis.__dboRuinButton(fromDesc(desc), PLAYER);
 const TELEPE_A = 'aed73:BSHeartland.esm', TELEPE_B = 'af0b0:BSHeartland.esm', STAIRS = 'aed72:BSHeartland.esm';
 const SILORN_GATE = 'aa641:BSHeartland.esm', SILORN_STAIRS_BTN = 'aa271:BSHeartland.esm';
 
-check('the data loads: 4 buttons in 2 ruins', logs.some((l) => /ruinbuttons on: 4 buttons in 2 ruins, 0 open/.test(l)), logs[logs.length - 1]);
+check('the data loads: 6 buttons in 4 places (the two expedition ruins, Rielle and Anga)', logs.some((l) => /ruinbuttons on: 6 buttons in 4 ruins, 0 open/.test(l)), logs[logs.length - 1]);
 check('an unknown reference is not ours', press('12345:BSHeartland.esm') === false && calls.length === 0);
 
 check('Telepe\'s first button is ours: the engine\'s toggling chain is blocked', press(TELEPE_A) === true);
@@ -56,7 +56,7 @@ said.length = 0; globalThis.__dboRuinButton(fromDesc(TELEPE_A), 0xff000099);
 check('a second player pressing is told once too', said.length === 1 && said[0] === 'The button gives, but nothing more stirs.');
 
 load();
-check('a hot reload keeps what is open', press(TELEPE_B) === true && calls.length === 1 && logs.some((l) => /4 buttons in 2 ruins, 1 open/.test(l)));
+check('a hot reload keeps what is open', press(TELEPE_B) === true && calls.length === 1 && logs.some((l) => /6 buttons in 4 ruins, 1 open/.test(l)));
 
 calls.length = 0;
 check('Silorn\'s gate button opens all 13 poles with "open"', press(SILORN_GATE) === true && calls.length === 13 && calls.every((c) => c.arg === 'open' && /BSHeartland/.test(c.ref)) && new Set(calls.map((c) => c.ref)).size === 13, calls.length);
@@ -102,6 +102,19 @@ check('and it is not recorded as open, so the next press tries again and works',
   delete globalThis.__dboRuinButtons; load(); calls.length = 0;
   press(TELEPE_A);
   check('a target\'s "also" calls follow its own, each by its own kind', JSON.stringify(calls.map((c) => `${c.fn}(${c.arg})`)) === JSON.stringify(['PlayGamebryoAnimation(Forward)', 'PlayGamebryoAnimation(Extend)', 'PlayAnimation(Up)']), calls.map((c) => `${c.fn}(${c.arg})`));
+}
+// Rielle and Anga (dungeons.json): the same Beyond Skyrim stair behind an ordinary dungeon's button
+{
+  delete globalThis.__dboRuinButtons; fs.copyFileSync(DATA, 'ruin-buttons.json'); load(); calls.length = 0;
+  const RIELLE_BTN = 'cbadf:BSHeartland.esm', RIELLE_STAIR = 'cbade:BSHeartland.esm', ANGA_BTN = 'b4e6e:BSHeartland.esm', ANGA_STAIR = 'b4f27:BSHeartland.esm';
+  check('Rielle\'s button plays its stair\'s NIF sequence', press(RIELLE_BTN) === true && calls.length === 1 && calls[0].ref === RIELLE_STAIR && calls[0].fn === 'PlayGamebryoAnimation' && calls[0].arg === 'Open', calls);
+  check('Anga\'s button plays its stair\'s NIF sequence', press(ANGA_BTN) === true && calls.length === 2 && calls[1].ref === ANGA_STAIR && calls[1].fn === 'PlayGamebryoAnimation' && calls[1].arg === 'Open', calls);
+  calls.length = 0; globalThis.__dboRuinLeaseEnded('CYRRielleLocation');
+  check('Rielle\'s lease ending closes only Rielle\'s stair', calls.length === 1 && calls[0].ref === RIELLE_STAIR && calls[0].arg === 'Close', calls);
+  calls.length = 0; globalThis.__dboRuinLeaseEnded('CYRAngaLocation');
+  check('and Anga\'s lease ending closes Anga\'s', calls.length === 1 && calls[0].ref === ANGA_STAIR && calls[0].arg === 'Close', calls);
+  packets.length = 0; press(RIELLE_BTN); globalThis.__dboRuinArrived('CYRRielleLocation', LATE);
+  check('a late arrival in Rielle gets its open stair too', packets.length === 1 && packets[0][1].refId === fromDesc(RIELLE_STAIR) && packets[0][1].name === 'Open', packets);
 }
 delete globalThis.__dboRuinButtons; load({ ruinButtons: { enabled: false } });
 check('switched off in config, buttons are left to the engine', press(TELEPE_A) === false);
