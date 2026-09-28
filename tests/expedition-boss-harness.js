@@ -18,6 +18,7 @@ const MIN = 60000;
 const FG = 'f8d:BSHeartland.esm', RUIN = 'ef1aa:BSHeartland.esm';
 const A = 0x14;
 const BOSS = 0xff000100, GRUNT = 0xff000101;
+const BOARD = 0x3413a56c; // an ExpeditionBoard placement in the Fighters Guild
 // One boss among twenty guards, so a Novice claim (0.6 each) is sure to drop some guards
 const npc = (i, boss) => ({ edid: boss ? 'CYRLvlAyleidUndeadBossAny' : 'CYRLvlAyleidUndeadBow', pos: [i * 10, 0, 0], ref: '', options: [[1, `${(0x8ad2a + i).toString(16)}:BSHeartland.esm`]], ...(boss ? { boss: true } : {}) });
 fs.writeFileSync('dungeons.json', JSON.stringify({ dungeons: [] }));
@@ -26,7 +27,7 @@ fs.writeFileSync('expeditions.json', JSON.stringify({ expeditions: [{ id: 'CYRNi
   entrances: [{ expedition: true, cell: FG, pos: [1.8, -538.2, -221.8], rot: [0, 0, 0], doorPos: [1.8, -538.2, -221.8],
     insideDesc: 'ef1ad:BSHeartland.esm', insideCell: RUIN, insidePos: [0, 0, 0], insideRot: [0, 0, 0] }] }] }));
 fs.writeFileSync('zone-spawns.json', JSON.stringify([BOSS, GRUNT]));
-const props = new Map([[`${A}|worldOrCellDesc`, FG], [`${A}|pos`, [0, -500, -221]], [`${BOSS}|private.npcSpawner`, 'dungeon:CYRNiryastareLocation:0'], [`${GRUNT}|private.npcSpawner`, 'dungeon:CYRNiryastareLocation:1']]);
+const props = new Map([[`${BOARD}|baseDesc`, '6:DragonBreak.esp'], [`${A}|worldOrCellDesc`, FG], [`${A}|pos`, [0, -500, -221]], [`${BOSS}|private.npcSpawner`, 'dungeon:CYRNiryastareLocation:0'], [`${GRUNT}|private.npcSpawner`, 'dungeon:CYRNiryastareLocation:1']]);
 const dead = new Set();
 const said = [], moves = [], audits = [];
 const commands = new Map(), ui = new Map(), timers = new Map();
@@ -36,6 +37,7 @@ require(DUNGEONS)({
     get: (id, p) => (p === 'profileId' ? (id === A ? 1 : -1) : p === 'isDead' ? dead.has(id) : props.get(`${id}|${p}`)),
     set: (id, p, v) => { props.set(`${id}|${p}`, v); if (p === 'locationalData') { moves.push([id, v]); props.set(`${id}|worldOrCellDesc`, v.cellOrWorldDesc); props.set(`${id}|pos`, v.pos); } },
     getIdFromDesc: (d) => parseInt(String(d).split(':')[0], 16),
+    lookupEspmRecordById: (id) => (id === 6 ? { record: { editorId: 'ExpeditionBoard' } } : { record: null }),
   },
   log: () => {}, personal: (a, t) => said.push(t), system: (a, t) => said.push(t), audit: (t) => audits.push(t),
   registerChatCommand: (n, fn) => commands.set(n, fn), onUi: (n, fn) => { const l = ui.get(n) || []; l.push(fn); ui.set(n, l); },
@@ -51,7 +53,7 @@ const tick = timers.get('dungeons.tick');
 const leases = () => globalThis.__dboDungeons.leases;
 const claim = (difficulty) => {
   props.set(`${A}|worldOrCellDesc`, FG); props.set(`${A}|pos`, [0, -500, -221]);
-  commands.get('expedition')(A, 'nir');
+  globalThis.__dboDungeonActivate(BOARD, A); fire('expeditionPick', A, ['CYRNiryastareLocation']);
   const pend = globalThis.__dboDungeons.pending.get(A);
   fire('dungeonClaim', A, [pend.nonce, difficulty]);
   return leases().get('CYRNiryastareLocation');

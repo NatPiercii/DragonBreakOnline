@@ -947,6 +947,7 @@ module.exports = (api) => {
   // Returns false to block the activation, true to let it through, null when it is not ours.
   globalThis.__dboDungeonActivate = (targetId, casterId) => {
     if (!C.enabled) return null;
+    if (isExpeditionBoard(targetId)) { openBoard(casterId); return false; }
     const inside = insideDoors.get(targetId);
     if (inside && inside.entrance.expedition) {
       // The ruin's main door has no destination of its own: it leads home to the hall the party left from
@@ -1045,7 +1046,7 @@ module.exports = (api) => {
   const EXPEDITION_WIDGET_ID = 63;
   const expeditionPending = globalThis.__dboExpeditionPending = globalThis.__dboExpeditionPending || new Map(); // actor -> true while the list is open
   const startOf = (a) => EXPEDITION_STARTS.find((x) => x.cellSet.has(whereIs(a))) || null;
-  const WHERE_FROM = 'Expeditions leave from the Synod Conclave or the Fighters Guild in Bruma.';
+  const WHERE_FROM = 'Expeditions set out from the boards in the Synod Conclave and the Fighters Guild in Bruma.';
   const expeditionStatus = (a, d) => {
     const lease = ST.leases.get(d.id);
     if (lease) return lease.members.has(profileOf(a)) ? `your party is there, ${minutesLeft(lease.endsAt)} min left` : `another party is there, ${minutesLeft(lease.endsAt)} min`;
@@ -1054,13 +1055,41 @@ module.exports = (api) => {
   };
   // The ruin's entrance, leaving from (and coming home to) the hall this party is in
   const expeditionFrom = (d, st) => Object.assign({}, d.entrances[0], { cell: st.cell, pos: st.pos, rot: st.rot, doorPos: st.pos, from: st.name, startCells: [...st.cellSet] });
+  // The expedition board (Nate, 2026-09-28: "no more /expedition"): Nat's ExpeditionBoard activator, placed in the Synod
+  // Conclave and the Fighters Guild, found by its editor id so a plugin rebuild that moves its form id changes nothing
+  const boardBases = new Map(); // base id -> is it the board
+  const isExpeditionBoard = (ref) => {
+    let base = 0;
+    try { base = mp.getIdFromDesc(String(mp.get(ref >>> 0, 'baseDesc') || '')) >>> 0; } catch (e) { return false; }
+    if (!base) return false;
+    if (!boardBases.has(base)) {
+      let edid = '';
+      try { const r = mp.lookupEspmRecordById(base); edid = String((r && r.record && r.record.editorId) || ''); } catch (e) { /* not a record */ }
+      boardBases.set(base, edid.toLowerCase() === String(C.boardEditorId || 'ExpeditionBoard').toLowerCase());
+    }
+    return boardBases.get(base);
+  };
+  // Who keeps each ruin, as the board's notice words it; from the boss placements in expeditions.json
+  const MASTERS = { BSKEncAyleidLich: 'an Ayleid lich', CYRLvlAyleidUndeadBossAny: 'an Ayleid champion', CYRLvlBanditBoss: 'a bandit chief' };
+  const mastersOf = (d) => [...new Set((d.zones || []).flatMap((z) => (z.npcs || []).filter((n) => n.boss).map((n) => MASTERS[n.edid] || 'something old and angry')))];
+  const statusState = (a, d) => {
+    const lease = ST.leases.get(d.id);
+    if (lease) return lease.members.has(profileOf(a)) ? 'yours' : 'taken';
+    return (Number(cooldownsOf(a)[d.id]) || 0) > Date.now() ? 'resting' : 'open';
+  };
   const openExpeditions = (a, st) => {
     const list = EXPEDITIONS.map((x) => byId.get(x.id)).filter(Boolean);
     if (!list.length) return personal(a, 'No expeditions are being organised right now.');
     expeditionPending.set(a, true);
-    openWidget(a, { type: 'contextMenu', id: EXPEDITION_WIDGET_ID, mode: 'menu', targetName: `Expeditions from ${st.name}: Ayleid ruins far to the south`,
-      actions: list.map((d) => ({ id: d.id, label: `${d.name}${d.county ? `, ${d.county}` : ''} (${expeditionStatus(a, d)})` })),
-      events: { action: 'dbo:expeditionPick', close: 'dbo:expeditionClose' } }, true);
+    openWidget(a, { type: 'expeditionBoard', id: EXPEDITION_WIDGET_ID, hall: st.name,
+      expeditions: list.map((d) => ({ id: d.id, name: d.name, county: d.county || '', kind: 'Ayleid ruin', status: expeditionStatus(a, d), state: statusState(a, d), masters: mastersOf(d) })),
+      bossReturnMinutes: C.bossReturnMinutes, leaseMinutes: C.leaseMinutes,
+      events: { pick: 'dbo:expeditionPick', close: 'dbo:expeditionClose' } }, true);
+  };
+  const openBoard = (a) => {
+    const st = startOf(a);
+    if (!st) return personal(a, WHERE_FROM);
+    openExpeditions(a, st);
   };
   onUi('expeditionPick', (a, args) => {
     if (!expeditionPending.delete(a)) return;
@@ -1084,15 +1113,10 @@ module.exports = (api) => {
   const expeditionCommand = (a, args) => {
     if (!C.enabled) return personal(a, 'Dungeons are closed for now.');
     if (/^(leave|return|home)$/i.test(String(args || '').trim())) return leaveExpedition(a);
-    const st = startOf(a);
-    if (!st) return personal(a, `${WHERE_FROM} Go to either and say /expeditions.`);
-    const q = String(args || '').trim().toLowerCase();
-    if (!q) return openExpeditions(a, st);
-    const d = EXPEDITIONS.map((x) => byId.get(x.id)).find((x) => x && x.name.toLowerCase().startsWith(q));
-    if (!d) return personal(a, `No expedition to "${q}". Say /expeditions for the list.`);
-    offerGate(a, d, expeditionFrom(d, st));
+    // Setting out is the board's job now; the command only brings a party home
+    personal(a, 'Expeditions set out from the expedition board in the Synod Conclave or the Fighters Guild in Bruma. In a ruin, /expedition leave brings you home.');
   };
-  const EXPEDITION_HELP = 'in Bruma, at the Synod Conclave or the Fighters Guild: set out with your party for an Ayleid ruin far to the south. In the ruin, /expedition leave takes you back';
+  const EXPEDITION_HELP = 'leave: in an Ayleid ruin, go home to Bruma. Expeditions set out from the board in the Synod Conclave or the Fighters Guild';
   registerChatCommand('expeditions', expeditionCommand, { help: EXPEDITION_HELP });
   registerChatCommand('expedition', expeditionCommand, { help: EXPEDITION_HELP });
   onUi('close', (a, args, widgetId) => { if (widgetId === GATE_WIDGET_ID) turnBack(a); });
