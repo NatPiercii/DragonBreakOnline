@@ -45,6 +45,12 @@
 // Zero specificity: a widget root that sets its own pointer-events keeps it
 :where(.dbo-domain--scaled) > * { pointer-events: auto; }
 
+// While a panel is being dragged (utils/PanelDrag.js) nothing else takes the cursor or highlights under it
+body.dbo-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .dbo-panel-scale-badge {
   position: fixed;
   z-index: 100000;

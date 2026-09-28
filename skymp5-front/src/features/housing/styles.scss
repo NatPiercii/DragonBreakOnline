@@ -85,9 +85,8 @@ $text-muted: rgba(215, 227, 227, 0.62);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     text-shadow: 0 0 12px $red-glow;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
   }
 
   &__status {

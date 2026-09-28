@@ -5,7 +5,6 @@
   flex-direction: row;
   flex-wrap: wrap;
   cursor: pointer;
-  text-overflow: ellipsis;
   font-family: 'Bankir-Retro', serif;
   transition: transform 0.15s ease; /* Transition for the transform */
 }
@@ -25,8 +24,7 @@
   text-align: center;
   align-self: center;
   * {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
     margin: auto;
     color: rgba(157, 158, 158, 0.75);
   }

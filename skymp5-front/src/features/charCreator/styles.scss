@@ -348,9 +348,7 @@ $cc-border: dbo-accent(0.42);
     text-align: center;
     font-size: 16px;
     color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
 
   &__arrow {

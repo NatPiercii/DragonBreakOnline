@@ -195,7 +195,7 @@ $trade-border: dbo-accent(0.42);
     border-bottom: 1px solid $trade-border;
     padding-bottom: 4px;
     margin-bottom: 6px;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
   &__lock {

@@ -20,8 +20,7 @@
   }
 
   .skymp-input-button_text {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
     font-family: 'Bankir-Retro', serif;
     font-style: normal;
     font-weight: normal;

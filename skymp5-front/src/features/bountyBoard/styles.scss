@@ -142,10 +142,8 @@ $ink-dim: rgba(20, 40, 43, 0.62);
   }
 
   &__paper-text {
-    display: -webkit-box;
-    -webkit-line-clamp: 4;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    max-height: calc(22 * var(--dbo-vh));
+    overflow-y: auto;
     font-size: 14px;
     line-height: 1.35;
     white-space: pre-wrap;

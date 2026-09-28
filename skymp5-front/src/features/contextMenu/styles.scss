@@ -21,6 +21,14 @@
     @include dbo-panel;
   }
 
+  // The header is the handle: hold it and the menu moves (utils/PanelDrag.js)
+  &__header {
+    cursor: grab;
+    user-select: none;
+
+    &:active { cursor: grabbing; }
+  }
+
   &__kicker {
     color: $dbo-aqua-dim;
     font-size: 12px;
@@ -29,14 +37,16 @@
     text-align: center;
   }
 
+  // A long name wraps instead of being cut off: "Break down at the smelter" reads in full over two lines
   &__title {
     @include dbo-title;
     font-size: 19px;
     text-align: center;
     margin-top: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+
+    &--long { font-size: 16px; }
   }
 
   &__rule {

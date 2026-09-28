@@ -204,9 +204,7 @@ $admin-row-gutter: 16px;
     color: $admin-gold;
     text-transform: none;
     letter-spacing: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
 
     &--sub {
       font-size: 14px;
@@ -365,9 +363,7 @@ $admin-row-gutter: 16px;
   }
 
   &__cell {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 
     &--ping { flex: 0 0 52px; }
     &--profile { flex: 0 0 56px; }
@@ -444,9 +440,7 @@ $admin-row-gutter: 16px;
 
   &__mastery-who {
     flex: 0 0 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     font-size: 13px;
     color: $admin-gold-dim;
     text-transform: uppercase;
@@ -456,9 +450,7 @@ $admin-row-gutter: 16px;
   &__mastery-info {
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
   &__mastery-amount {

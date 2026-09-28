@@ -1,6 +1,9 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 
 import './styles.scss';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore untyped helper shared with the other panels
+import { startPanelDrag, dragPositionOf, clampToParent } from '../../utils/PanelDrag';
 
 interface MenuAction {
   id: string;
@@ -29,6 +32,13 @@ const LAW_ACTIONS = new Set(['search', 'capture', 'release', 'carry', 'putdown']
 // Gap from the screen centre to the panel's top-left corner, in px.
 const GAP = 18;
 
+// The menu is kept under this name while the session lasts, so salvage reopening the same widget after every
+// breakdown puts it back where the player dragged it instead of under the crosshair again.
+const PANEL = 'contextMenu';
+
+// Past this many characters a name is given two lines at a smaller size rather than being cut ("Break down at the ...")
+const LONG_TITLE = 20;
+
 const send = (key: string, ...args: unknown[]): void => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,16 +61,14 @@ const ContextMenu = ({ data }: { data: ContextMenuData }) => {
   const common = actions.filter((a) => !LAW_ACTIONS.has(a.id));
   const law = actions.filter((a) => LAW_ACTIONS.has(a.id));
 
-  // Panel hangs down-right of the crosshair, clamped inside the viewport before first paint.
+  // Where the player last dragged it, if anywhere; otherwise down-right of the crosshair. Either way it is clamped
+  // inside the screen before the first paint, so a remembered spot survives a window that has since been resized.
   useLayoutEffect(() => {
     const el = panelRef.current;
     if (!el) return;
-    const margin = 12;
-    let left = window.innerWidth / 2 + GAP;
-    let top = window.innerHeight / 2 - el.offsetHeight / 3;
-    left = Math.max(margin, Math.min(left, window.innerWidth - el.offsetWidth - margin));
-    top = Math.max(margin, Math.min(top, window.innerHeight - el.offsetHeight - margin));
-    setPos({ left, top });
+    const kept = dragPositionOf(PANEL);
+    if (kept) { setPos(clampToParent(el, kept.left, kept.top, 12)); return; }
+    setPos(clampToParent(el, window.innerWidth / 2 + GAP, window.innerHeight / 2 - el.offsetHeight / 3, 12));
   }, [data.targetName, actions.length, lines.length, data.mode]);
 
   const style = pos
@@ -76,19 +84,29 @@ const ContextMenu = ({ data }: { data: ContextMenuData }) => {
   return (
     <div className="context-menu">
       <div className="context-menu__panel" ref={panelRef} style={style}>
-        <div className="context-menu__kicker">{inspect ? 'Inspect' : 'Interact'}</div>
-        <div className="context-menu__title">{data.targetName}</div>
+        <div
+          className="context-menu__header"
+          onMouseDown={(e) => startPanelDrag(e, panelRef.current, setPos, PANEL)}
+          title="Drag to move"
+        >
+          <div className="context-menu__kicker">{inspect ? 'Inspect' : 'Interact'}</div>
+          <div className={'context-menu__title' + (String(data.targetName || '').length > LONG_TITLE ? ' context-menu__title--long' : '')}>
+            {data.targetName}
+          </div>
+        </div>
         <div className="context-menu__rule" />
 
-        {inspect ? (
+        {inspect
+          ? (
           <ul className="context-menu__lines">
             {lines.map((l, i) => (
               <li key={i} className="context-menu__line">{l}</li>
             ))}
           </ul>
-        ) : (
+            )
+          : (
           <div className="context-menu__rows">{common.map(row)}</div>
-        )}
+            )}
 
         {!inspect && law.length > 0 && (
           <>

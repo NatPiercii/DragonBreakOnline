@@ -1,16 +1,11 @@
 .skyrimText {
     color: rgba(157, 158, 158, 0.75);
     margin: auto;
-    width: 320px;
-    height: 100%;
+    max-width: 320px;
     text-align: center;
     font-size: calc(1.6 * var(--dbo-vw));
-    text-overflow: ellipsis;
-    word-wrap: unset;
-    white-space: nowrap;
-    overflow: hidden;
+    overflow-wrap: anywhere;
     span {
-        width: 320px;
-        height: 100%;
+        max-width: 320px;
     }
 }
