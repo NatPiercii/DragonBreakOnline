@@ -1,0 +1,48 @@
+// The spellbook: the tome shop's frame and cards (../tomeShop/styles.scss) with a row of prepared places on top.
+@import '../../dbo-theme.scss';
+
+.spellbook {
+  &__prepared {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid $dbo-border;
+  }
+
+  &__label {
+    color: $dbo-text-dim;
+    font-size: 14px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  &__places {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  &__place {
+    min-height: 92px;
+
+    &--empty {
+      display: grid;
+      place-items: center;
+      color: $dbo-text-dim;
+      font-style: italic;
+      border: 1px dashed $dbo-border;
+      background: rgba(0, 0, 0, 0.25);
+    }
+  }
+
+  &__spell--prepared {
+    border-color: $dbo-border-strong;
+    box-shadow: inset 0 0 12px dbo-accent(0.2);
+  }
+
+  &__state {
+    color: $dbo-text-dim;
+    font-size: 13px;
+  }
+}
