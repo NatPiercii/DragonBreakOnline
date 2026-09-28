@@ -40,10 +40,10 @@ module.exports = (api) => {
   // registered on the server, which sends it to every client in the cell). Nate, 2026-09-28: PlayAnimation("Open") did
   // not move Telepe's stair on his screen, so which one a mesh needs is read from its NIF and set per target.
   // Every way a target is played: its own call, then any "also" alternatives from ruin-buttons.json. Beyond Skyrim's
-  // retractable stair did not move for PlayAnimation("Open") (Nate, 2026-09-28), and which gamebryo sequence its NIF
-  // has is not known here, so it gets every plausible name; a name the NIF lacks plays nothing (the engine's
-  // PlayGamebryoAnimation returns false; a failed call only throws inside the client's snippet runner, which logs it).
-  // dir is 'open' or 'close'. True when at least one call went out.
+  // retractable stair did not move for PlayAnimation("Open") (Nate, 2026-09-28): its NIF has no behaviour graph, only a
+  // NiControllerManager with the sequences "Open" and "Close", so it is played with PlayGamebryoAnimation. A name a NIF
+  // lacks plays nothing (the engine's PlayGamebryoAnimation returns false; a failed call only throws inside the client's
+  // snippet runner, which logs it). dir is 'open' or 'close'. True when at least one call went out.
   const play = (t, dir) => {
     const sent = [];
     for (const v of [t].concat(Array.isArray(t.also) ? t.also : [])) {
@@ -55,7 +55,7 @@ module.exports = (api) => {
         sent.push(`${fn}(${name})`);
       } catch (e) { log(`ruinbuttons: ${fn}(${name}) on ${t.ref} failed: ${e.message}`); }
     }
-    if (sent.length > 1 || (t.also && t.also.length)) log(`ruinbuttons: ${dir} ${t.ref} -> ${sent.join(', ') || 'nothing'}`);
+    if (sent.length > 1 || t.call === 'gamebryo' || (t.also && t.also.length)) log(`ruinbuttons: ${dir} ${t.ref} -> ${sent.join(', ') || 'nothing'}`);
     return sent.length > 0;
   };
 

@@ -17,24 +17,8 @@
        "base": "CYRAylPitStairsRetractable01",
        "kind": "stairs",
        "open": "Open",
-       "close": "closed",
-       "also": [
-        {
-         "call": "gamebryo",
-         "open": "Open",
-         "close": "Close"
-        },
-        {
-         "call": "gamebryo",
-         "open": "open",
-         "close": "close"
-        },
-        {
-         "call": "gamebryo",
-         "open": "Forward",
-         "close": "Backward"
-        }
-       ]
+       "close": "Close",
+       "call": "gamebryo"
       }
      ]
     },
@@ -156,24 +140,8 @@
        "base": "CYRAylPitStairsRetractable01",
        "kind": "stairs",
        "open": "Open",
-       "close": "closed",
-       "also": [
-        {
-         "call": "gamebryo",
-         "open": "Open",
-         "close": "Close"
-        },
-        {
-         "call": "gamebryo",
-         "open": "open",
-         "close": "close"
-        },
-        {
-         "call": "gamebryo",
-         "open": "Forward",
-         "close": "Backward"
-        }
-       ]
+       "close": "Close",
+       "call": "gamebryo"
       }
      ]
     },
@@ -189,24 +157,8 @@
        "base": "CYRAylPitStairsRetractable01",
        "kind": "stairs",
        "open": "Open",
-       "close": "closed",
-       "also": [
-        {
-         "call": "gamebryo",
-         "open": "Open",
-         "close": "Close"
-        },
-        {
-         "call": "gamebryo",
-         "open": "open",
-         "close": "close"
-        },
-        {
-         "call": "gamebryo",
-         "open": "Forward",
-         "close": "Backward"
-        }
-       ]
+       "close": "Close",
+       "call": "gamebryo"
       }
      ]
     }
