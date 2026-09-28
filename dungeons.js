@@ -435,16 +435,17 @@ module.exports = (api) => {
     return list[Math.floor(Math.random() * list.length)] || null;
   };
   // Expedition loot, one place to tune (Nate, 2026-09-28: "you need to trim down the loot given across all expeditions and
-  // levels"). In an expedition every roll's chance in chests, urns and bodies, and every coin amount, is times scale for
+  // levels"). In an expedition every roll's chance in chests, urns and bodies (and a boss chest's certain coin) is times scale for
   // the lease's difficulty (Novice lowest); a boss chest's coin and its piece of gear stay certain, and its other rolls
   // (and a master's) use bossScale, so a boss chest still holds a handful. Urns and sacks roll at
   // scale x containerScale and hold one thing at most, arrows come in smaller stacks, enchanted gear is enchScale as
-  // likely again and Ayleid treasure ayleidScale. Ordinary dungeons use none of this (NO_TRIM). Config
+  // likely again and Ayleid treasure ayleidScale. Ordinary dungeons get the same trim (Nate, 2026-09-28: "push it all");
+  // ordinary: false keeps them untrimmed (NO_TRIM). Config
   // dungeons.expeditionLoot; a raid's extra boss roll is dungeons.raid.bossRolls.
-  const EXPL = Object.assign({ scale: { story: 0.4, normal: 0.45, hard: 0.5, nightmare: 0.5 }, bossScale: { story: 0.7, normal: 0.8, hard: 0.85, nightmare: 0.9 }, containerScale: 0.6, arrows: [1, 4], containerArrows: [1, 3], enchScale: 0.6, ayleidScale: 0.67 }, C.expeditionLoot || {});
+  const EXPL = Object.assign({ scale: { story: 0.4, normal: 0.45, hard: 0.5, nightmare: 0.5 }, bossScale: { story: 0.7, normal: 0.8, hard: 0.85, nightmare: 0.9 }, containerScale: 0.6, arrows: [1, 4], containerArrows: [1, 3], enchScale: 0.6, ayleidScale: 0.67, ordinary: true }, C.expeditionLoot || {});
   const NO_TRIM = { x: 1, xb: 1, xs: 1, arrows: [5, 15], containerArrows: [3, 8], ench: 1, ayleid: 1, single: false };
   const trimFor = (d, diff) => {
-    if (!d || !d.expedition) return NO_TRIM;
+    if (!d || (!d.expedition && EXPL.ordinary === false)) return NO_TRIM;
     const x = Math.max(0, Number((EXPL.scale || {})[diff.id]) || 0);
     const pair = (v, dflt) => (Array.isArray(v) && v.length === 2 ? [Number(v[0]) || 0, Number(v[1]) || 0] : dflt);
     const xb = Math.max(0, Number((EXPL.bossScale || {})[diff.id]) || x);
@@ -455,7 +456,8 @@ module.exports = (api) => {
     const entries = [];
     const p = (chance) => Math.random() < chance * (boss ? k.xb : k.x);
     if (ayleid && Math.random() < Number(ayleidTable(diff.id)[boss ? (raid ? 'raidBossChance' : 'bossChance') : 'chestChance']) * k.ayleid) addEntry(entries, ayleidPiece(diff, boss, raid), 1);
-    if (boss || p(GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, coin(goldAmount(rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)), k));
+    // Certain coin (a boss chest) is scaled in amount; chance coin only in its chance, or it would shrink twice
+    if (boss || p(GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, boss ? coin(goldAmount(rnd(diff.gold[0], diff.gold[1]) * 3), k) : goldAmount(rnd(diff.gold[0], diff.gold[1])));
     if (p(Number(boss ? POT.boss : POT.chest))) addEntry(entries, potionPick(diff.potionTier, ok), 1);
     if (p(0.4)) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, k.single ? 2 : 3));
     if (p(0.25)) addEntry(entries, pickFrom(pool('materials', 0, ok)), rnd(1, 2));
@@ -487,14 +489,14 @@ module.exports = (api) => {
     const entries = [];
     const p = (chance) => Math.random() < chance * k.xs;
     const foodish = /food|barrel|basket|sack|cupboard|pantry|crate/i.test(edid || '');
-    if (p((foodish ? 0.5 : 1) * GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(goldAmount(rnd(1, Math.max(2, diff.gold[0] * 2))) * k.x)));
+    if (p((foodish ? 0.5 : 1) * GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, Math.max(2, diff.gold[0] * 2))));
     if (p(foodish ? 0.5 : 0.1)) addEntry(entries, pickFrom(PROVISIONS), k.single ? 1 : rnd(1, 2));
     if (p(0.3)) addEntry(entries, pickFrom(lootIngredients(ok)), k.single ? 1 : rnd(1, 2));
     if (p(Number(POT.container))) addEntry(entries, potionPick(Math.max(0, diff.potionTier - 1), ok), 1);
     if (p(0.12)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.containerArrows[0], k.containerArrows[1]));
     // An urn that rolled nothing used to be topped up with coin, which is a third guaranteed source.
     // Most of the time it should simply be empty; looting a bare sack is honest.
-    if (!entries.length && p(GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(goldAmount(rnd(1, 3)) * k.x)));
+    if (!entries.length && p(GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, 3)));
     return k.single && entries.length > 1 ? [entries[Math.floor(Math.random() * entries.length)]] : entries;
   };
   // A ruin can name its boss chest when the plugin's base is an ordinary one (expeditions.json bossChest: a ref or a list;
@@ -1354,7 +1356,7 @@ module.exports = (api) => {
     const entries = [];
     const p = (chance) => Math.random() < chance * k.x;
     // A body carried coin every time at up to 25 (Adept); now 40% of bodies carry about a third of that
-    if (p(Math.max(0, Math.min(1, Number(C.bodyGoldChance))))) addEntry(entries, { id: 'f:Skyrim.esm' }, coin(Math.max(1, Math.round(rnd(diff.gold[0], diff.gold[1]) * Math.max(0, Number(C.bodyGoldMult)))), k));
+    if (p(Math.max(0, Math.min(1, Number(C.bodyGoldChance))))) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(rnd(diff.gold[0], diff.gold[1]) * Math.max(0, Number(C.bodyGoldMult)))));
     if (p(Number(POT.body))) addEntry(entries, potionPick(diff.potionTier, ok), 1);
     if (p(0.2)) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 2));
     return entries;

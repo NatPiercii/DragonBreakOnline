@@ -369,22 +369,22 @@
  },
  "CYRAngaLocation|story": {
   "claims": 150,
-  "items": 133.88,
-  "gold": 81.74666666666667,
-  "value": 1409.76,
+  "items": 137.95333333333335,
+  "gold": 83.76,
+  "value": 1422.76,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 6.328888888888889,
-   "gold": 13.513333333333334,
-   "value": 131.6888888888889
+   "items": 6.806666666666667,
+   "gold": 13.257777777777777,
+   "value": 134.58
   },
-  "bigChest": 5.33962962962963,
+  "bigChest": 5.491851851851852,
   "small": {
-   "items": 1.5933333333333333,
-   "empty": 0.19
+   "items": 1.5706666666666667,
+   "empty": 0.18866666666666668
   },
-  "body": 0.3726003490401396,
+  "body": 0.39399293286219084,
   "master": {
    "items": 0,
    "gold": 0
@@ -392,22 +392,22 @@
  },
  "CYRAngaLocation|normal": {
   "claims": 150,
-  "items": 147.19333333333333,
-  "gold": 168.52666666666667,
-  "value": 2850.52,
+  "items": 145.94666666666666,
+  "gold": 169.95333333333335,
+  "value": 2678.4466666666667,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 7.695555555555556,
-   "gold": 27.148888888888887,
-   "value": 314.4377777777778
+   "items": 7.588888888888889,
+   "gold": 27.128888888888888,
+   "value": 292.3377777777778
   },
-  "bigChest": 5.66962962962963,
+  "bigChest": 5.688888888888889,
   "small": {
-   "items": 1.684,
-   "empty": 0.18
+   "items": 1.6173333333333333,
+   "empty": 0.17533333333333334
   },
-  "body": 0.40920983778126635,
+  "body": 0.36445147679324896,
   "master": {
    "items": 0,
    "gold": 0
@@ -415,22 +415,22 @@
  },
  "CYRAngaLocation|hard": {
   "claims": 150,
-  "items": 148.5,
-  "gold": 313.85333333333335,
-  "value": 4931.746666666667,
+  "items": 147.05333333333334,
+  "gold": 321.4,
+  "value": 4882.506666666667,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 8.117777777777778,
-   "gold": 48.26,
-   "value": 593.9133333333333
+   "items": 7.197777777777778,
+   "gold": 49.13777777777778,
+   "value": 575.8177777777778
   },
-  "bigChest": 5.567777777777778,
+  "bigChest": 5.748888888888889,
   "small": {
-   "items": 1.7113333333333334,
-   "empty": 0.2
+   "items": 1.5913333333333333,
+   "empty": 0.206
   },
-  "body": 0.4350787569178374,
+  "body": 0.38922155688622756,
   "master": {
    "items": 0,
    "gold": 0
@@ -438,22 +438,22 @@
  },
  "CYRAngaLocation|nightmare": {
   "claims": 150,
-  "items": 149.31333333333333,
-  "gold": 616.4,
-  "value": 5771.04,
+  "items": 153.79333333333332,
+  "gold": 621.0466666666666,
+  "value": 5762.613333333334,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 7.644444444444445,
-   "gold": 89.09777777777778,
-   "value": 696.5133333333333
+   "items": 7.746666666666667,
+   "gold": 92.68,
+   "value": 642.88
   },
-  "bigChest": 5.706666666666667,
+  "bigChest": 5.996296296296296,
   "small": {
-   "items": 1.5626666666666666,
-   "empty": 0.206
+   "items": 1.508,
+   "empty": 0.20133333333333334
   },
-  "body": 0.3957307060755337,
+  "body": 0.3724069805729338,
   "master": {
    "items": 0,
    "gold": 0
@@ -461,9 +461,9 @@
  },
  "CYREchoCaveLocation|story": {
   "claims": 150,
-  "items": 168.56,
-  "gold": 61.733333333333334,
-  "value": 897.3066666666666,
+  "items": 165.88,
+  "gold": 60.053333333333335,
+  "value": 832.4266666666666,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
@@ -471,10 +471,10 @@
    "gold": 0,
    "value": 0
   },
-  "bigChest": 5.513333333333334,
+  "bigChest": 5.3133333333333335,
   "small": {
-   "items": 1.753189964157706,
-   "empty": 0.17433691756272401
+   "items": 1.7265232974910394,
+   "empty": 0.1807168458781362
   },
   "body": 0,
   "master": {
@@ -484,9 +484,9 @@
  },
  "CYREchoCaveLocation|normal": {
   "claims": 150,
-  "items": 163.98,
-  "gold": 90.22,
-  "value": 888.9466666666667,
+  "items": 163.72,
+  "gold": 88.85333333333334,
+  "value": 891.9466666666667,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
@@ -494,10 +494,10 @@
    "gold": 0,
    "value": 0
   },
-  "bigChest": 6.153333333333333,
+  "bigChest": 5.366666666666666,
   "small": {
-   "items": 1.6970609318996415,
-   "empty": 0.1846594982078853
+   "items": 1.7027240143369176,
+   "empty": 0.17720430107526883
   },
   "body": 0,
   "master": {
@@ -507,9 +507,9 @@
  },
  "CYREchoCaveLocation|hard": {
   "claims": 150,
-  "items": 162.12,
-  "gold": 152.21333333333334,
-  "value": 1100.8866666666668,
+  "items": 163.65333333333334,
+  "gold": 154.10666666666665,
+  "value": 1047.5266666666666,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
@@ -517,10 +517,10 @@
    "gold": 0,
    "value": 0
   },
-  "bigChest": 4.726666666666667,
+  "bigChest": 5.346666666666667,
   "small": {
-   "items": 1.6924014336917563,
-   "empty": 0.17813620071684588
+   "items": 1.7022222222222223,
+   "empty": 0.17591397849462365
   },
   "body": 0,
   "master": {
@@ -530,9 +530,9 @@
  },
  "CYREchoCaveLocation|nightmare": {
   "claims": 150,
-  "items": 165.28,
-  "gold": 294.25333333333333,
-  "value": 1805.8133333333333,
+  "items": 167.28666666666666,
+  "gold": 299.8333333333333,
+  "value": 1841.5466666666666,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
@@ -540,10 +540,10 @@
    "gold": 0,
    "value": 0
   },
-  "bigChest": 5.64,
+  "bigChest": 5.526666666666666,
   "small": {
-   "items": 1.7165591397849462,
-   "empty": 0.18222222222222223
+   "items": 1.7393548387096773,
+   "empty": 0.1721146953405018
   },
   "body": 0,
   "master": {
@@ -553,22 +553,22 @@
  },
  "CYRFortCutpurseLocation|story": {
   "claims": 150,
-  "items": 306.62,
-  "gold": 113.07333333333334,
-  "value": 2044.6733333333334,
+  "items": 304.2866666666667,
+  "gold": 111.04666666666667,
+  "value": 2008.9266666666667,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 6.873333333333333,
-   "gold": 14.18,
-   "value": 135.65333333333334
+   "items": 6.113333333333333,
+   "gold": 13.7,
+   "value": 138.16666666666666
   },
-  "bigChest": 5.437777777777778,
+  "bigChest": 5.322857142857143,
   "small": {
-   "items": 1.7582857142857142,
-   "empty": 0.17314285714285715
+   "items": 1.7684444444444445,
+   "empty": 0.17352380952380952
   },
-  "body": 0.42813455657492355,
+  "body": 0.34868421052631576,
   "master": {
    "items": 0,
    "gold": 0
@@ -576,22 +576,22 @@
  },
  "CYRFortCutpurseLocation|normal": {
   "claims": 150,
-  "items": 317.52666666666664,
-  "gold": 186.45333333333335,
-  "value": 3160.34,
+  "items": 312.22,
+  "gold": 186.52666666666667,
+  "value": 3268.42,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 7.58,
-   "gold": 27.54,
-   "value": 352.56666666666666
+   "items": 7.56,
+   "gold": 28.453333333333333,
+   "value": 370.7
   },
-  "bigChest": 5.694285714285714,
+  "bigChest": 5.61015873015873,
   "small": {
-   "items": 1.7992380952380953,
-   "empty": 0.17238095238095238
+   "items": 1.766920634920635,
+   "empty": 0.17746031746031746
   },
-  "body": 0.41333333333333333,
+  "body": 0.3714821763602251,
   "master": {
    "items": 0,
    "gold": 0
@@ -599,22 +599,22 @@
  },
  "CYRFortCutpurseLocation|hard": {
   "claims": 150,
-  "items": 316.4533333333333,
-  "gold": 336.12666666666667,
-  "value": 4966.1866666666665,
+  "items": 312.6066666666667,
+  "gold": 327.24666666666667,
+  "value": 5083.406666666667,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 7.546666666666667,
-   "gold": 48.13333333333333,
-   "value": 594.4733333333334
+   "items": 7.32,
+   "gold": 47.94,
+   "value": 593.12
   },
-  "bigChest": 5.7,
+  "bigChest": 5.5974603174603175,
   "small": {
-   "items": 1.7858412698412698,
-   "empty": 0.16952380952380952
+   "items": 1.7716825396825397,
+   "empty": 0.17422222222222222
   },
-  "body": 0.38778625954198476,
+  "body": 0.38646616541353385,
   "master": {
    "items": 0,
    "gold": 0
@@ -622,22 +622,22 @@
  },
  "CYRFortCutpurseLocation|nightmare": {
   "claims": 150,
-  "items": 323.8666666666667,
-  "gold": 634.0266666666666,
-  "value": 6173.326666666667,
+  "items": 319.12,
+  "gold": 624.5266666666666,
+  "value": 6376.766666666666,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 7.586666666666667,
-   "gold": 92.4,
-   "value": 658.8933333333333
+   "items": 7.8933333333333335,
+   "gold": 92.86,
+   "value": 684.1733333333333
   },
-  "bigChest": 5.928571428571429,
+  "bigChest": 5.8034920634920635,
   "small": {
-   "items": 1.8047619047619048,
-   "empty": 0.1695873015873016
+   "items": 1.7822222222222222,
+   "empty": 0.17263492063492064
   },
-  "body": 0.41007194244604317,
+  "body": 0.40758873929008566,
   "master": {
    "items": 0,
    "gold": 0
@@ -645,22 +645,22 @@
  },
  "CYRNorthfringeSanctumLocation|story": {
   "claims": 150,
-  "items": 204.34,
-  "gold": 138.69333333333333,
-  "value": 1545.12,
+  "items": 199.16666666666666,
+  "gold": 137.54,
+  "value": 1472.74,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 6.886666666666667,
-   "gold": 13.546666666666667,
-   "value": 140.18666666666667
+   "items": 7.613333333333333,
+   "gold": 12.886666666666667,
+   "value": 138.18666666666667
   },
-  "bigChest": 5.389166666666667,
+  "bigChest": 5.260833333333333,
   "small": {
-   "items": 1.3432142857142857,
-   "empty": 0.22113095238095237
+   "items": 1.300892857142857,
+   "empty": 0.22464285714285714
   },
-  "body": 0.38461538461538464,
+  "body": 0.37220026350461133,
   "master": {
    "items": 0,
    "gold": 0
@@ -668,22 +668,22 @@
  },
  "CYRNorthfringeSanctumLocation|normal": {
   "claims": 150,
-  "items": 208.08,
-  "gold": 233.03333333333333,
-  "value": 2158.36,
+  "items": 211.45333333333335,
+  "gold": 230.71333333333334,
+  "value": 2128.9133333333334,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 7.9,
-   "gold": 27.66,
-   "value": 339.8
+   "items": 7.62,
+   "gold": 26.033333333333335,
+   "value": 313.4066666666667
   },
-  "bigChest": 5.905833333333334,
+  "bigChest": 5.805833333333333,
   "small": {
-   "items": 1.3013690476190476,
-   "empty": 0.2220238095238095
+   "items": 1.3427380952380952,
+   "empty": 0.22047619047619046
   },
-  "body": 0.4158301158301158,
+  "body": 0.41192624558650454,
   "master": {
    "items": 0,
    "gold": 0
@@ -691,22 +691,22 @@
  },
  "CYRNorthfringeSanctumLocation|hard": {
   "claims": 150,
-  "items": 209.89333333333335,
-  "gold": 431.8066666666667,
-  "value": 3269.786666666667,
+  "items": 208.45333333333335,
+  "gold": 434.81333333333333,
+  "value": 3429.56,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
-   "items": 7.953333333333333,
-   "gold": 52.42,
-   "value": 590.7266666666667
+   "items": 8.253333333333334,
+   "gold": 48.78,
+   "value": 571.2866666666666
   },
-  "bigChest": 5.571666666666666,
+  "bigChest": 5.845,
   "small": {
-   "items": 1.328452380952381,
-   "empty": 0.22089285714285714
+   "items": 1.2973214285714285,
+   "empty": 0.2244047619047619
   },
-  "body": 0.4057377049180328,
+  "body": 0.39159717767799873,
   "master": {
    "items": 0,
    "gold": 0
@@ -714,22 +714,2138 @@
  },
  "CYRNorthfringeSanctumLocation|nightmare": {
   "claims": 150,
-  "items": 211.43333333333334,
-  "gold": 818.3466666666667,
-  "value": 4778.326666666667,
+  "items": 213.18666666666667,
+  "gold": 837.4133333333333,
+  "value": 4717.326666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.273333333333333,
+   "gold": 90.68,
+   "value": 686.9133333333333
+  },
+  "bigChest": 5.815,
+  "small": {
+   "items": 1.3133333333333332,
+   "empty": 0.2211904761904762
+  },
+  "body": 0.41748768472906406,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBeastsMawLocation|story": {
+  "claims": 150,
+  "items": 51.58,
+  "gold": 13.16,
+  "value": 368.91333333333336,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.385714285714286,
+  "small": {
+   "items": 1.9828571428571429,
+   "empty": 0.14476190476190476
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBeastsMawLocation|normal": {
+  "claims": 150,
+  "items": 56.53333333333333,
+  "gold": 26.35333333333333,
+  "value": 684.76,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 6.162857142857143,
+  "small": {
+   "items": 1.9133333333333333,
+   "empty": 0.15047619047619049
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBeastsMawLocation|hard": {
+  "claims": 150,
+  "items": 53.66,
+  "gold": 50.526666666666664,
+  "value": 1177.4733333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.72,
+  "small": {
+   "items": 1.9457142857142857,
+   "empty": 0.1361904761904762
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBeastsMawLocation|nightmare": {
+  "claims": 150,
+  "items": 53.973333333333336,
+  "gold": 91.6,
+  "value": 1354.4133333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.833333333333333,
+  "small": {
+   "items": 1.8771428571428572,
+   "empty": 0.1580952380952381
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBorealStoneCaveLocation|story": {
+  "claims": 150,
+  "items": 6.44,
+  "gold": 13.16,
+  "value": 135.16,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.44,
+   "gold": 13.16,
+   "value": 135.16
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBorealStoneCaveLocation|normal": {
+  "claims": 150,
+  "items": 6.96,
+  "gold": 28.56,
+  "value": 329.2,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.96,
+   "gold": 28.56,
+   "value": 329.2
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBorealStoneCaveLocation|hard": {
+  "claims": 150,
+  "items": 7.773333333333333,
+  "gold": 49.4,
+  "value": 573.8133333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.773333333333333,
+   "gold": 49.4,
+   "value": 573.8133333333334
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBorealStoneCaveLocation|nightmare": {
+  "claims": 150,
+  "items": 8,
+  "gold": 90.78666666666666,
+  "value": 687.8466666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8,
+   "gold": 90.78666666666666,
+   "value": 687.8466666666667
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBrumaCavernsLocation|story": {
+  "claims": 150,
+  "items": 223.72666666666666,
+  "gold": 77.46666666666667,
+  "value": 1396.9533333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.64,
+   "gold": 13.746666666666666,
+   "value": 133.76666666666668
+  },
+  "bigChest": 5.658571428571428,
+  "small": {
+   "items": 1.8327111111111112,
+   "empty": 0.16346666666666668
+  },
+  "body": 0.4696969696969697,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBrumaCavernsLocation|normal": {
+  "claims": 150,
+  "items": 223.61333333333334,
+  "gold": 134.07333333333332,
+  "value": 2281.9866666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.24,
+   "gold": 27.966666666666665,
+   "value": 334.92
+  },
+  "bigChest": 5.515714285714286,
+  "small": {
+   "items": 1.8332444444444445,
+   "empty": 0.16942222222222222
+  },
+  "body": 0.4669811320754717,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBrumaCavernsLocation|hard": {
+  "claims": 150,
+  "items": 222.06,
+  "gold": 236.33333333333334,
+  "value": 3515.8733333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.466666666666667,
+   "gold": 49.28,
+   "value": 633.96
+  },
+  "bigChest": 5.641904761904762,
+  "small": {
+   "items": 1.7976,
+   "empty": 0.17004444444444444
+  },
+  "body": 0.4555984555984556,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRBrumaCavernsLocation|nightmare": {
+  "claims": 150,
+  "items": 228.96,
+  "gold": 446.1666666666667,
+  "value": 4396.7,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.36,
+   "gold": 89.09333333333333,
+   "value": 684.64
+  },
+  "bigChest": 5.815714285714286,
+  "small": {
+   "items": 1.8454222222222223,
+   "empty": 0.17475555555555555
+  },
+  "body": 0.3431952662721893,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRCapstoneCaveLocation|story": {
+  "claims": 150,
+  "items": 62.013333333333335,
+  "gold": 31.26,
+  "value": 509.9066666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.226666666666667,
+   "gold": 12.913333333333334,
+   "value": 125.5
+  },
+  "bigChest": 5.286666666666667,
+  "small": {
+   "items": 1.980952380952381,
+   "empty": 0.15095238095238095
+  },
+  "body": 0.4134199134199134,
+  "master": {
+   "items": 0.3466666666666667,
+   "gold": 1
+  }
+ },
+ "CYRCapstoneCaveLocation|normal": {
+  "claims": 150,
+  "items": 67.55333333333333,
+  "gold": 63.12,
+  "value": 946.3933333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.726666666666667,
+   "gold": 26.393333333333334,
+   "value": 314.68
+  },
+  "bigChest": 5.930666666666666,
+  "small": {
+   "items": 1.9614285714285715,
+   "empty": 0.14666666666666667
+  },
+  "body": 0.41211401425178146,
+  "master": {
+   "items": 0.4,
+   "gold": 1.9866666666666666
+  }
+ },
+ "CYRCapstoneCaveLocation|hard": {
+  "claims": 150,
+  "items": 64.56666666666666,
+  "gold": 125.27333333333333,
+  "value": 1715.3733333333332,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.98,
+   "gold": 53.43333333333333,
+   "value": 653.9333333333333
+  },
+  "bigChest": 5.649333333333334,
+  "small": {
+   "items": 1.786190476190476,
+   "empty": 0.1595238095238095
+  },
+  "body": 0.3960302457466919,
+  "master": {
+   "items": 0.54,
+   "gold": 3.46
+  }
+ },
+ "CYRCapstoneCaveLocation|nightmare": {
+  "claims": 150,
+  "items": 69.25333333333333,
+  "gold": 236.24666666666667,
+  "value": 1996.8866666666668,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.913333333333333,
+   "gold": 90.78666666666666,
+   "value": 652
+  },
+  "bigChest": 6.029333333333334,
+  "small": {
+   "items": 1.9547619047619047,
+   "empty": 0.15285714285714286
+  },
+  "body": 0.38656716417910447,
+  "master": {
+   "items": 0.37333333333333335,
+   "gold": 6.066666666666666
+  }
+ },
+ "CYRFingerbowlCaveLocation|story": {
+  "claims": 150,
+  "items": 20.06,
+  "gold": 8.526666666666667,
+  "value": 173.16,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.8933333333333335,
+  "small": {
+   "items": 1.16,
+   "empty": 0.2733333333333333
+  },
+  "body": 0.47619047619047616,
+  "master": {
+   "items": 0.41,
+   "gold": 0.8833333333333333
+  }
+ },
+ "CYRFingerbowlCaveLocation|normal": {
+  "claims": 150,
+  "items": 21.133333333333333,
+  "gold": 18.08,
+  "value": 307.1666666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 6.131111111111111,
+  "small": {
+   "items": 1.3666666666666667,
+   "empty": 0.21333333333333335
+  },
+  "body": 0.35175879396984927,
+  "master": {
+   "items": 0.4533333333333333,
+   "gold": 2.03
+  }
+ },
+ "CYRFingerbowlCaveLocation|hard": {
+  "claims": 150,
+  "items": 19.72,
+  "gold": 32.64,
+  "value": 619.6533333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.726666666666667,
+  "small": {
+   "items": 1.0066666666666666,
+   "empty": 0.22666666666666666
+  },
+  "body": 0.38022813688212925,
+  "master": {
+   "items": 0.43333333333333335,
+   "gold": 3.31
+  }
+ },
+ "CYRFingerbowlCaveLocation|nightmare": {
+  "claims": 150,
+  "items": 21.393333333333334,
+  "gold": 66.4,
+  "value": 625.0933333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 6.057777777777778,
+  "small": {
+   "items": 1.4733333333333334,
+   "empty": 0.21333333333333335
+  },
+  "body": 0.41420118343195267,
+  "master": {
+   "items": 0.4066666666666667,
+   "gold": 6.91
+  }
+ },
+ "CYRFortCaractacusLocation|story": {
+  "claims": 150,
+  "items": 92.39333333333333,
+  "gold": 35.66,
+  "value": 773.2,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.483888888888889,
+  "small": {
+   "items": 1.4854901960784315,
+   "empty": 0.19098039215686274
+  },
+  "body": 0.38684719535783363,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFortCaractacusLocation|normal": {
+  "claims": 150,
+  "items": 96.99333333333334,
+  "gold": 66.89333333333333,
+  "value": 1322.7533333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.773333333333333,
+  "small": {
+   "items": 1.5050980392156863,
+   "empty": 0.20823529411764705
+  },
+  "body": 0.3761792452830189,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFortCaractacusLocation|hard": {
+  "claims": 150,
+  "items": 96.18666666666667,
+  "gold": 124.35333333333334,
+  "value": 2042.4466666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.662222222222222,
+  "small": {
+   "items": 1.5137254901960784,
+   "empty": 0.20352941176470588
+  },
+  "body": 0.35572374645222327,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFortCaractacusLocation|nightmare": {
+  "claims": 150,
+  "items": 99.29333333333334,
+  "gold": 242.43333333333334,
+  "value": 2664.846666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.926111111111111,
+  "small": {
+   "items": 1.4392156862745098,
+   "empty": 0.20784313725490197
+  },
+  "body": 0.4135115070527097,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFortHorunnLocation|story": {
+  "claims": 150,
+  "items": 271.02,
+  "gold": 87.91333333333333,
+  "value": 1536.1133333333332,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.913333333333333,
+   "gold": 13.9,
+   "value": 140.01333333333332
+  },
+  "bigChest": 5.265925925925926,
+  "small": {
+   "items": 1.9277976190476191,
+   "empty": 0.1595238095238095
+  },
+  "body": 0.345821325648415,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFortHorunnLocation|normal": {
+  "claims": 150,
+  "items": 268.58,
+  "gold": 144.70666666666668,
+  "value": 2224.693333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.026666666666667,
+   "gold": 26.926666666666666,
+   "value": 314.74666666666667
+  },
+  "bigChest": 5.497037037037037,
+  "small": {
+   "items": 1.8685714285714285,
+   "empty": 0.16583333333333333
+  },
+  "body": 0.42586750788643535,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFortHorunnLocation|hard": {
+  "claims": 150,
+  "items": 266.78,
+  "gold": 268.1,
+  "value": 3301.12,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.3133333333333335,
+   "gold": 48.63333333333333,
+   "value": 593.0466666666666
+  },
+  "bigChest": 5.545925925925926,
+  "small": {
+   "items": 1.8520833333333333,
+   "empty": 0.1605952380952381
+  },
+  "body": 0.40458015267175573,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFortHorunnLocation|nightmare": {
+  "claims": 150,
+  "items": 272.7866666666667,
+  "gold": 489.4,
+  "value": 4175.586666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.6866666666666665,
+   "gold": 90.37333333333333,
+   "value": 680.9333333333333
+  },
+  "bigChest": 5.8348148148148145,
+  "small": {
+   "items": 1.8745833333333333,
+   "empty": 0.16041666666666668
+  },
+  "body": 0.3899308983218164,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFreezewindHollowLocation|story": {
+  "claims": 150,
+  "items": 25.293333333333333,
+  "gold": 14.973333333333333,
+  "value": 156.01333333333332,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.626666666666667,
+  "small": {
+   "items": 1.3111111111111111,
+   "empty": 0.21777777777777776
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFreezewindHollowLocation|normal": {
+  "claims": 150,
+  "items": 25.293333333333333,
+  "gold": 23.333333333333332,
+  "value": 225.46,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 6.093333333333334,
+  "small": {
+   "items": 1.28,
+   "empty": 0.22755555555555557
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFreezewindHollowLocation|hard": {
+  "claims": 150,
+  "items": 25.24,
+  "gold": 41.79333333333334,
+  "value": 301.06666666666666,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.786666666666667,
+  "small": {
+   "items": 1.296888888888889,
+   "empty": 0.22444444444444445
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFreezewindHollowLocation|nightmare": {
+  "claims": 150,
+  "items": 25.073333333333334,
+  "gold": 78.73333333333333,
+  "value": 437.8933333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.96,
+  "small": {
+   "items": 1.2742222222222221,
+   "empty": 0.22266666666666668
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrostfireGladeLocation|story": {
+  "claims": 150,
+  "items": 139.56,
+  "gold": 63.413333333333334,
+  "value": 1217.38,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.463333333333333,
+   "gold": 13.426666666666666,
+   "value": 124.76
+  },
+  "bigChest": 5.39375,
+  "small": {
+   "items": 1.9206349206349207,
+   "empty": 0.16285714285714287
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrostfireGladeLocation|normal": {
+  "claims": 150,
+  "items": 144.59333333333333,
+  "gold": 121.36,
+  "value": 2352.5866666666666,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.506666666666667,
+   "gold": 27.053333333333335,
+   "value": 335.03333333333336
+  },
+  "bigChest": 5.784583333333333,
+  "small": {
+   "items": 1.7631746031746032,
+   "empty": 0.17206349206349206
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrostfireGladeLocation|hard": {
+  "claims": 150,
+  "items": 145.77333333333334,
+  "gold": 223.25333333333333,
+  "value": 3764.02,
   "ayleid": 0,
   "rarest": 0,
   "bossChest": {
    "items": 7.6,
-   "gold": 88.01333333333334,
-   "value": 692.5
+   "gold": 49.833333333333336,
+   "value": 573.33
   },
-  "bigChest": 5.9325,
+  "bigChest": 5.7508333333333335,
   "small": {
-   "items": 1.2988095238095239,
-   "empty": 0.22720238095238096
+   "items": 1.8361904761904762,
+   "empty": 0.1546031746031746
   },
-  "body": 0.4042500617741537,
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrostfireGladeLocation|nightmare": {
+  "claims": 150,
+  "items": 144.44,
+  "gold": 405.8066666666667,
+  "value": 4428.373333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.66,
+   "gold": 91.12,
+   "value": 661.7633333333333
+  },
+  "bigChest": 5.67375,
+  "small": {
+   "items": 1.8257142857142856,
+   "empty": 0.16253968253968254
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrozenGrottoLocation|story": {
+  "claims": 150,
+  "items": 19.32,
+  "gold": 6.08,
+  "value": 159.1,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.271111111111111,
+  "small": {
+   "items": 1.7533333333333334,
+   "empty": 0.15666666666666668
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrozenGrottoLocation|normal": {
+  "claims": 150,
+  "items": 20.1,
+  "gold": 11.173333333333334,
+  "value": 263.3066666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.471111111111111,
+  "small": {
+   "items": 1.8433333333333333,
+   "empty": 0.16666666666666666
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrozenGrottoLocation|hard": {
+  "claims": 150,
+  "items": 20.093333333333334,
+  "gold": 19.82,
+  "value": 476.5933333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.504444444444444,
+  "small": {
+   "items": 1.79,
+   "empty": 0.16333333333333333
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRFrozenGrottoLocation|nightmare": {
+  "claims": 150,
+  "items": 21.32,
+  "gold": 35.64666666666667,
+  "value": 531.7666666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.891111111111111,
+  "small": {
+   "items": 1.8233333333333333,
+   "empty": 0.16666666666666666
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRGuttedMineLocation|story": {
+  "claims": 150,
+  "items": 44.733333333333334,
+  "gold": 30.24,
+  "value": 392.91333333333336,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.306666666666667,
+   "gold": 13.393333333333333,
+   "value": 127.12666666666667
+  },
+  "bigChest": 5.6866666666666665,
+  "small": {
+   "items": 1.9627777777777777,
+   "empty": 0.15388888888888888
+  },
+  "body": 0.4029163468917882,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRGuttedMineLocation|normal": {
+  "claims": 150,
+  "items": 46.666666666666664,
+  "gold": 69.07333333333334,
+  "value": 744.6933333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.1,
+   "gold": 27.62,
+   "value": 325.32
+  },
+  "bigChest": 5.26,
+  "small": {
+   "items": 1.9177777777777778,
+   "empty": 0.17166666666666666
+  },
+  "body": 0.4108034498411257,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRGuttedMineLocation|hard": {
+  "claims": 150,
+  "items": 48.00666666666667,
+  "gold": 135,
+  "value": 1443.4933333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.426666666666667,
+   "gold": 48.626666666666665,
+   "value": 611.9933333333333
+  },
+  "bigChest": 5.656666666666666,
+  "small": {
+   "items": 1.8416666666666666,
+   "empty": 0.1688888888888889
+  },
+  "body": 0.39262235208181157,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRGuttedMineLocation|nightmare": {
+  "claims": 150,
+  "items": 52.086666666666666,
+  "gold": 281.06666666666666,
+  "value": 1714.98,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.353333333333333,
+   "gold": 88.72666666666667,
+   "value": 675.9733333333334
+  },
+  "bigChest": 5.753333333333333,
+  "small": {
+   "items": 1.8644444444444443,
+   "empty": 0.16277777777777777
+  },
+  "body": 0.4177501413227812,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRHjaltisRefugeLocation|story": {
+  "claims": 150,
+  "items": 5.406666666666666,
+  "gold": 1.5133333333333334,
+  "value": 44.49333333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.406666666666666,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRHjaltisRefugeLocation|normal": {
+  "claims": 150,
+  "items": 6.286666666666667,
+  "gold": 3.7266666666666666,
+  "value": 92.86,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 6.286666666666667,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRHjaltisRefugeLocation|hard": {
+  "claims": 150,
+  "items": 5.666666666666667,
+  "gold": 6.113333333333333,
+  "value": 165.74666666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 5.666666666666667,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRHjaltisRefugeLocation|nightmare": {
+  "claims": 150,
+  "items": 6.2,
+  "gold": 9.813333333333333,
+  "value": 142.82666666666665,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 6.2,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRLakesideRetreatLocation|story": {
+  "claims": 0,
+  "items": 0,
+  "gold": 0,
+  "value": 0,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRLakesideRetreatLocation|normal": {
+  "claims": 0,
+  "items": 0,
+  "gold": 0,
+  "value": 0,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRLakesideRetreatLocation|hard": {
+  "claims": 0,
+  "items": 0,
+  "gold": 0,
+  "value": 0,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRLakesideRetreatLocation|nightmare": {
+  "claims": 0,
+  "items": 0,
+  "gold": 0,
+  "value": 0,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 0,
+   "gold": 0,
+   "value": 0
+  },
+  "bigChest": 0,
+  "small": {
+   "items": 0,
+   "empty": 0
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYROutlawEndreCaveLocation|story": {
+  "claims": 150,
+  "items": 23.013333333333332,
+  "gold": 19.86,
+  "value": 243.75333333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.793333333333333,
+   "gold": 13.573333333333334,
+   "value": 121.96666666666667
+  },
+  "bigChest": 5.623333333333333,
+  "small": {
+   "items": 1.2433333333333334,
+   "empty": 0.20333333333333334
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYROutlawEndreCaveLocation|normal": {
+  "claims": 150,
+  "items": 24.786666666666665,
+  "gold": 37,
+  "value": 533.2066666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.546666666666667,
+   "gold": 27.113333333333333,
+   "value": 306.78
+  },
+  "bigChest": 5.883333333333334,
+  "small": {
+   "items": 1.3683333333333334,
+   "empty": 0.22
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYROutlawEndreCaveLocation|hard": {
+  "claims": 150,
+  "items": 24.893333333333334,
+  "gold": 71.38666666666667,
+  "value": 877.0666666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.8533333333333335,
+   "gold": 50.166666666666664,
+   "value": 576.5933333333334
+  },
+  "bigChest": 5.3533333333333335,
+  "small": {
+   "items": 1.5833333333333333,
+   "empty": 0.19333333333333333
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYROutlawEndreCaveLocation|nightmare": {
+  "claims": 150,
+  "items": 25.093333333333334,
+  "gold": 129.16666666666666,
+  "value": 1107.0333333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.2,
+   "gold": 91.02,
+   "value": 698.34
+  },
+  "bigChest": 5.57,
+  "small": {
+   "items": 1.4383333333333332,
+   "empty": 0.21166666666666667
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRPlunderedMineLocation|story": {
+  "claims": 150,
+  "items": 41.18666666666667,
+  "gold": 26.26,
+  "value": 331.17333333333335,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.266666666666667,
+   "gold": 12.92,
+   "value": 122.47333333333333
+  },
+  "bigChest": 5.343333333333334,
+  "small": {
+   "items": 1.8677777777777778,
+   "empty": 0.14444444444444443
+  },
+  "body": 0.4071969696969697,
+  "master": {
+   "items": 0.38666666666666666,
+   "gold": 0.8133333333333334
+  }
+ },
+ "CYRPlunderedMineLocation|normal": {
+  "claims": 150,
+  "items": 42.25333333333333,
+  "gold": 53.64,
+  "value": 605.82,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.1466666666666665,
+   "gold": 25.866666666666667,
+   "value": 301.0133333333333
+  },
+  "bigChest": 5.28,
+  "small": {
+   "items": 1.846111111111111,
+   "empty": 0.14722222222222223
+  },
+  "body": 0.35005973715651134,
+  "master": {
+   "items": 0.44,
+   "gold": 1.9866666666666666
+  }
+ },
+ "CYRPlunderedMineLocation|hard": {
+  "claims": 150,
+  "items": 45.34,
+  "gold": 102.41333333333333,
+  "value": 1233.2266666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.633333333333334,
+   "gold": 49.166666666666664,
+   "value": 617.98
+  },
+  "bigChest": 5.68,
+  "small": {
+   "items": 1.9366666666666668,
+   "empty": 0.1622222222222222
+  },
+  "body": 0.3945127719962157,
+  "master": {
+   "items": 0.32666666666666666,
+   "gold": 2.6
+  }
+ },
+ "CYRPlunderedMineLocation|nightmare": {
+  "claims": 150,
+  "items": 47.04,
+  "gold": 199.6,
+  "value": 1484.4,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.066666666666666,
+   "gold": 95.41333333333333,
+   "value": 656.1333333333333
+  },
+  "bigChest": 5.95,
+  "small": {
+   "items": 1.9327777777777777,
+   "empty": 0.15
+  },
+  "body": 0.3906597479614529,
+  "master": {
+   "items": 0.36666666666666664,
+   "gold": 6.013333333333334
+  }
+ },
+ "CYRRedRubyCaveLocation|story": {
+  "claims": 150,
+  "items": 57.22666666666667,
+  "gold": 38.593333333333334,
+  "value": 529.34,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.42,
+   "gold": 14.4,
+   "value": 125.29333333333334
+  },
+  "bigChest": 5.352,
+  "small": {
+   "items": 1.562857142857143,
+   "empty": 0.1823809523809524
+  },
+  "body": 0.4012345679012346,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRRedRubyCaveLocation|normal": {
+  "claims": 150,
+  "items": 63.08,
+  "gold": 75.02,
+  "value": 938.2133333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.126666666666667,
+   "gold": 26.133333333333333,
+   "value": 329.91333333333336
+  },
+  "bigChest": 6.1306666666666665,
+  "small": {
+   "items": 1.58,
+   "empty": 0.1957142857142857
+  },
+  "body": 0.38099041533546324,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRRedRubyCaveLocation|hard": {
+  "claims": 150,
+  "items": 63,
+  "gold": 142.62,
+  "value": 1761.2933333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.386666666666667,
+   "gold": 52.64666666666667,
+   "value": 618
+  },
+  "bigChest": 5.976,
+  "small": {
+   "items": 1.4719047619047618,
+   "empty": 0.21047619047619048
+  },
+  "body": 0.39628681177976954,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRRedRubyCaveLocation|nightmare": {
+  "claims": 150,
+  "items": 63.973333333333336,
+  "gold": 278.2866666666667,
+  "value": 2186.7466666666664,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.973333333333334,
+   "gold": 90.84,
+   "value": 724.8266666666667
+  },
+  "bigChest": 6.041333333333333,
+  "small": {
+   "items": 1.4742857142857142,
+   "empty": 0.1976190476190476
+  },
+  "body": 0.38135175135668475,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRRielleLocation|story": {
+  "claims": 150,
+  "items": 197.88666666666666,
+  "gold": 100.52666666666667,
+  "value": 1890.9333333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.926666666666667,
+   "gold": 13.768888888888888,
+   "value": 137.73333333333332
+  },
+  "bigChest": 5.55974358974359,
+  "small": {
+   "items": 1.4086956521739131,
+   "empty": 0.22115942028985508
+  },
+  "body": 0.3108108108108108,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRRielleLocation|normal": {
+  "claims": 150,
+  "items": 201.27333333333334,
+  "gold": 192.68,
+  "value": 3396.633333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.162222222222222,
+   "gold": 27.466666666666665,
+   "value": 306.50888888888886
+  },
+  "bigChest": 5.624615384615384,
+  "small": {
+   "items": 1.447536231884058,
+   "empty": 0.19826086956521738
+  },
+  "body": 0.3619047619047619,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRRielleLocation|hard": {
+  "claims": 150,
+  "items": 202.21333333333334,
+  "gold": 350.00666666666666,
+  "value": 5885.466666666666,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.704444444444444,
+   "gold": 50.77777777777778,
+   "value": 561.6533333333333
+  },
+  "bigChest": 5.611282051282052,
+  "small": {
+   "items": 1.4263768115942028,
+   "empty": 0.2046376811594203
+  },
+  "body": 0.4444444444444444,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRRielleLocation|nightmare": {
+  "claims": 150,
+  "items": 207.10666666666665,
+  "gold": 627.06,
+  "value": 7022.193333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.095555555555556,
+   "gold": 87.05333333333333,
+   "value": 665.8288888888889
+  },
+  "bigChest": 5.807948717948718,
+  "small": {
+   "items": 1.3623188405797102,
+   "empty": 0.21797101449275363
+  },
+  "body": 0.4311377245508982,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRSedorLocation|story": {
+  "claims": 150,
+  "items": 191.18666666666667,
+  "gold": 158.40666666666667,
+  "value": 2143.68,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.95,
+   "gold": 13.344166666666666,
+   "value": 133.13083333333333
+  },
+  "bigChest": 5.486666666666666,
+  "small": {
+   "items": 1.631388888888889,
+   "empty": 0.18611111111111112
+  },
+  "body": 0.43137254901960786,
+  "master": {
+   "items": 0.37333333333333335,
+   "gold": 0.9266666666666666
+  }
+ },
+ "CYRSedorLocation|normal": {
+  "claims": 150,
+  "items": 201.76666666666668,
+  "gold": 321.1666666666667,
+  "value": 4351.24,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.461666666666667,
+   "gold": 27.79,
+   "value": 309.8041666666667
+  },
+  "bigChest": 5.749411764705882,
+  "small": {
+   "items": 1.6380555555555556,
+   "empty": 0.19166666666666668
+  },
+  "body": 0.4358001265022138,
+  "master": {
+   "items": 0.4266666666666667,
+   "gold": 1.96
+  }
+ },
+ "CYRSedorLocation|hard": {
+  "claims": 150,
+  "items": 208.82,
+  "gold": 580.8733333333333,
+  "value": 7608.493333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.989166666666667,
+   "gold": 49.12166666666667,
+   "value": 574.3425
+  },
+  "bigChest": 5.824705882352941,
+  "small": {
+   "items": 1.6608333333333334,
+   "empty": 0.19611111111111112
+  },
+  "body": 0.42502532928064846,
+  "master": {
+   "items": 0.43333333333333335,
+   "gold": 3.08
+  }
+ },
+ "CYRSedorLocation|nightmare": {
+  "claims": 150,
+  "items": 205.79333333333332,
+  "gold": 1083.5466666666666,
+  "value": 9101.833333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.9,
+   "gold": 90.21166666666667,
+   "value": 667.8341666666666
+  },
+  "bigChest": 5.706666666666667,
+  "small": {
+   "items": 1.6063888888888889,
+   "empty": 0.18888888888888888
+  },
+  "body": 0.3997603833865815,
+  "master": {
+   "items": 0.35333333333333333,
+   "gold": 4.913333333333333
+  }
+ },
+ "CYRSerpentsTrailLocation|story": {
+  "claims": 150,
+  "items": 203.8,
+  "gold": 95.03333333333333,
+  "value": 1394.5333333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.5633333333333335,
+   "gold": 14.116666666666667,
+   "value": 127.90666666666667
+  },
+  "bigChest": 5.3933333333333335,
+  "small": {
+   "items": 1.8016450216450217,
+   "empty": 0.16727272727272727
+  },
+  "body": 0.425512104283054,
+  "master": {
+   "items": 0.36,
+   "gold": 0.94
+  }
+ },
+ "CYRSerpentsTrailLocation|normal": {
+  "claims": 150,
+  "items": 213.62666666666667,
+  "gold": 165.58,
+  "value": 2397.0533333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.17,
+   "gold": 26.183333333333334,
+   "value": 346.7133333333333
+  },
+  "bigChest": 5.992592592592593,
+  "small": {
+   "items": 1.7934199134199134,
+   "empty": 0.16640692640692642
+  },
+  "body": 0.4188958451906659,
+  "master": {
+   "items": 0.35333333333333333,
+   "gold": 2.2266666666666666
+  }
+ },
+ "CYRSerpentsTrailLocation|hard": {
+  "claims": 150,
+  "items": 213.01333333333332,
+  "gold": 311.82,
+  "value": 3745.18,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.276666666666666,
+   "gold": 50.81666666666667,
+   "value": 596.9733333333334
+  },
+  "bigChest": 5.738518518518519,
+  "small": {
+   "items": 1.8282251082251082,
+   "empty": 0.1741125541125541
+  },
+  "body": 0.3834821428571429,
+  "master": {
+   "items": 0.31333333333333335,
+   "gold": 3.18
+  }
+ },
+ "CYRSerpentsTrailLocation|nightmare": {
+  "claims": 150,
+  "items": 214.28,
+  "gold": 597.6466666666666,
+  "value": 4863.346666666666,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.096666666666666,
+   "gold": 90.65,
+   "value": 665.5033333333333
+  },
+  "bigChest": 5.684444444444445,
+  "small": {
+   "items": 1.8043290043290043,
+   "empty": 0.1664935064935065
+  },
+  "body": 0.3969760900140647,
+  "master": {
+   "items": 0.4666666666666667,
+   "gold": 7.3133333333333335
+  }
+ },
+ "CYRSilvertoothCaveLocation|story": {
+  "claims": 150,
+  "items": 62.07333333333333,
+  "gold": 43.62,
+  "value": 654.3866666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.836666666666667,
+   "gold": 13.526666666666667,
+   "value": 141.33666666666667
+  },
+  "bigChest": 5.33047619047619,
+  "small": {
+   "items": 2.056,
+   "empty": 0.14933333333333335
+  },
+  "body": 0.3709677419354839,
+  "master": {
+   "items": 0.32666666666666666,
+   "gold": 0.93
+  }
+ },
+ "CYRSilvertoothCaveLocation|normal": {
+  "claims": 150,
+  "items": 63.666666666666664,
+  "gold": 86.69333333333333,
+  "value": 1346.9,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.596666666666667,
+   "gold": 27.676666666666666,
+   "value": 315.35
+  },
+  "bigChest": 5.477142857142857,
+  "small": {
+   "items": 1.7813333333333334,
+   "empty": 0.16
+  },
+  "body": 0.45535714285714285,
+  "master": {
+   "items": 0.44333333333333336,
+   "gold": 1.6466666666666667
+  }
+ },
+ "CYRSilvertoothCaveLocation|hard": {
+  "claims": 150,
+  "items": 64.76666666666667,
+  "gold": 151.83333333333334,
+  "value": 2417.306666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.65,
+   "gold": 48.71,
+   "value": 596.8033333333333
+  },
+  "bigChest": 5.551428571428572,
+  "small": {
+   "items": 1.8733333333333333,
+   "empty": 0.16933333333333334
+  },
+  "body": 0.48872180451127817,
+  "master": {
+   "items": 0.4033333333333333,
+   "gold": 3.2
+  }
+ },
+ "CYRSilvertoothCaveLocation|nightmare": {
+  "claims": 150,
+  "items": 69.62,
+  "gold": 277.46666666666664,
+  "value": 2506.7466666666664,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.146666666666667,
+   "gold": 89.40333333333334,
+   "value": 612.8133333333334
+  },
+  "bigChest": 5.914285714285715,
+  "small": {
+   "items": 2.148,
+   "empty": 0.148
+  },
+  "body": 0.44642857142857145,
+  "master": {
+   "items": 0.3433333333333333,
+   "gold": 6.376666666666667
+  }
+ },
+ "CYRToadstoolHollowLocation|story": {
+  "claims": 150,
+  "items": 48.71333333333333,
+  "gold": 38.54,
+  "value": 482.4,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.9,
+   "gold": 13.39,
+   "value": 129.17333333333335
+  },
+  "bigChest": 5.336666666666667,
+  "small": {
+   "items": 1.94,
+   "empty": 0.16833333333333333
+  },
+  "body": 0.4426229508196721,
+  "master": {
+   "items": 0.42,
+   "gold": 0.9866666666666667
+  }
+ },
+ "CYRToadstoolHollowLocation|normal": {
+  "claims": 150,
+  "items": 48.48,
+  "gold": 74.76,
+  "value": 936.1066666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.66,
+   "gold": 26.763333333333332,
+   "value": 319.58666666666664
+  },
+  "bigChest": 5.53,
+  "small": {
+   "items": 1.7466666666666666,
+   "empty": 0.1622222222222222
+  },
+  "body": 0.3622291021671827,
+  "master": {
+   "items": 0.36,
+   "gold": 2.0933333333333333
+  }
+ },
+ "CYRToadstoolHollowLocation|hard": {
+  "claims": 150,
+  "items": 49,
+  "gold": 139.48,
+  "value": 1588.1666666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.336666666666667,
+   "gold": 49.00333333333333,
+   "value": 580.01
+  },
+  "bigChest": 5.41,
+  "small": {
+   "items": 1.8405555555555555,
+   "empty": 0.15666666666666668
+  },
+  "body": 0.4114583333333333,
+  "master": {
+   "items": 0.36666666666666664,
+   "gold": 3
+  }
+ },
+ "CYRToadstoolHollowLocation|nightmare": {
+  "claims": 150,
+  "items": 50.086666666666666,
+  "gold": 249.74666666666667,
+  "value": 2006.2466666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.733333333333333,
+   "gold": 88.28,
+   "value": 678.35
+  },
+  "bigChest": 5.286666666666667,
+  "small": {
+   "items": 1.855,
+   "empty": 0.17277777777777778
+  },
+  "body": 0.4069767441860465,
+  "master": {
+   "items": 0.38666666666666666,
+   "gold": 5.446666666666666
+  }
+ },
+ "CYRUnderpallLocation|story": {
+  "claims": 150,
+  "items": 371.76,
+  "gold": 185.18,
+  "value": 2386.4733333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.72,
+   "gold": 13.186666666666667,
+   "value": 130.38666666666666
+  },
+  "bigChest": 5.7075,
+  "small": {
+   "items": 1.5308333333333333,
+   "empty": 0.19583333333333333
+  },
+  "body": 0.37971698113207547,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRUnderpallLocation|normal": {
+  "claims": 150,
+  "items": 372.48,
+  "gold": 303.26,
+  "value": 3513.32,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 6.786666666666667,
+   "gold": 27.68,
+   "value": 312.9266666666667
+  },
+  "bigChest": 5.67375,
+  "small": {
+   "items": 1.516590909090909,
+   "empty": 0.1993560606060606
+  },
+  "body": 0.42532813054274565,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRUnderpallLocation|hard": {
+  "claims": 150,
+  "items": 375.36,
+  "gold": 569.1933333333334,
+  "value": 5213.066666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.226666666666667,
+   "gold": 50.74,
+   "value": 624.2866666666666
+  },
+  "bigChest": 5.7716666666666665,
+  "small": {
+   "items": 1.5062121212121211,
+   "empty": 0.1999621212121212
+  },
+  "body": 0.4134205288598237,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRUnderpallLocation|nightmare": {
+  "claims": 150,
+  "items": 380.48,
+  "gold": 1078.3733333333332,
+  "value": 7186.36,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.46,
+   "gold": 88.06,
+   "value": 673.5066666666667
+  },
+  "bigChest": 5.769166666666667,
+  "small": {
+   "items": 1.525189393939394,
+   "empty": 0.2021969696969697
+  },
+  "body": 0.37533274179236914,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRUnmarkedCaveLocation|story": {
+  "claims": 150,
+  "items": 35.54666666666667,
+  "gold": 22.773333333333333,
+  "value": 349.7,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.026666666666666,
+   "gold": 13.86,
+   "value": 123.86
+  },
+  "bigChest": 5.316,
+  "small": {
+   "items": 1.94,
+   "empty": 0.14666666666666667
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRUnmarkedCaveLocation|normal": {
+  "claims": 150,
+  "items": 40.10666666666667,
+  "gold": 43.61333333333334,
+  "value": 743.0733333333334,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 8.286666666666667,
+   "gold": 25.846666666666668,
+   "value": 287.3933333333333
+  },
+  "bigChest": 5.953333333333333,
+  "small": {
+   "items": 2.0533333333333332,
+   "empty": 0.15333333333333332
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRUnmarkedCaveLocation|hard": {
+  "claims": 150,
+  "items": 37.72,
+  "gold": 82.02666666666667,
+  "value": 1358.2733333333333,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.573333333333333,
+   "gold": 51.18,
+   "value": 664.56
+  },
+  "bigChest": 5.688,
+  "small": {
+   "items": 1.7066666666666668,
+   "empty": 0.10666666666666667
+  },
+  "body": 0,
+  "master": {
+   "items": 0,
+   "gold": 0
+  }
+ },
+ "CYRUnmarkedCaveLocation|nightmare": {
+  "claims": 150,
+  "items": 38.89333333333333,
+  "gold": 143.07333333333332,
+  "value": 1690.1866666666667,
+  "ayleid": 0,
+  "rarest": 0,
+  "bossChest": {
+   "items": 7.906666666666666,
+   "gold": 87.12,
+   "value": 750.72
+  },
+  "bigChest": 5.816,
+  "small": {
+   "items": 1.9066666666666667,
+   "empty": 0.16666666666666666
+  },
+  "body": 0,
   "master": {
    "items": 0,
    "gold": 0

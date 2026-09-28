@@ -29,7 +29,7 @@ const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slau
 
 const A = 0x14;
 // One module load per dungeon and difficulty; claims repeat by ending the lease and clearing the rest period
-const measure = (d, diffId) => {
+const measure = (d, diffId, claims = CLAIMS) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-budget-'));
   const here = process.cwd(); process.chdir(dir);
   for (const f of ['loot.json', 'ayleid-loot.json', 'dungeon-pools.json']) fs.copyFileSync(path.join(ROOT, f), f);
@@ -64,7 +64,7 @@ const measure = (d, diffId) => {
     return { items, gold };
   };
   let body = 0xff000500;
-  for (let c = 0; c < CLAIMS; c++) {
+  for (let c = 0; c < claims; c++) {
     setHome(); props.delete(`${A}|private.dungeonCooldowns`);
     if (d.expedition) { globalThis.__dboDungeonActivate(idOf('boardref'), A); fire('expeditionPick', A, [d.raw.id]); }
     else globalThis.__dboDungeonActivate(idOf(e0.outsideDesc), A);
@@ -103,11 +103,14 @@ const measure = (d, diffId) => {
 };
 
 const EXP = JSON.parse(fs.readFileSync(path.join(ROOT, 'expeditions.json'), 'utf8')).expeditions.map((e) => ({ raw: e, expedition: true, name: e.name, kind: e.kind }));
-const ORD_IDS = ['CYRAngaLocation', 'CYREchoCaveLocation', 'CYRFortCutpurseLocation', 'CYRNorthfringeSanctumLocation'];
+// Every ordinary dungeon a player can reach in the Bruma playtest (an entrance in the Cyrodiil world inside the border
+// region 0B0CBCDD of DragonBreak Online Edits, not excluded), plus Echo Cave, which Nate asked about
+const ORD_IDS = ['CYRAngaLocation', 'CYRBeastsMawLocation', 'CYRBorealStoneCaveLocation', 'CYRBrumaCavernsLocation', 'CYRCapstoneCaveLocation', 'CYRFingerbowlCaveLocation', 'CYRFortCaractacusLocation', 'CYRFortCutpurseLocation', 'CYRFortHorunnLocation', 'CYRFreezewindHollowLocation', 'CYRFrostfireGladeLocation', 'CYRFrozenGrottoLocation', 'CYRGuttedMineLocation', 'CYRHjaltisRefugeLocation', 'CYRLakesideRetreatLocation', 'CYRNorthfringeSanctumLocation', 'CYROutlawEndreCaveLocation', 'CYRPlunderedMineLocation', 'CYRRedRubyCaveLocation', 'CYRRielleLocation', 'CYRSedorLocation', 'CYRSerpentsTrailLocation', 'CYRSilvertoothCaveLocation', 'CYRToadstoolHollowLocation', 'CYRUnderpallLocation', 'CYRUnmarkedCaveLocation', 'CYREchoCaveLocation'];
 const ORD = JSON.parse(fs.readFileSync(path.join(ROOT, 'dungeons.json'), 'utf8')).dungeons.filter((d) => ORD_IDS.includes(d.id)).map((d) => ({ raw: d, expedition: false, name: d.name, kind: 'ordinary' }));
 const DIFFS = ['story', 'normal', 'hard', 'nightmare'];
 const rows = [];
-for (const d of EXP.concat(ORD)) for (const diff of DIFFS) rows.push({ d, diff, m: measure(d, diff) });
+const ORD_CLAIMS = Number(process.env.ORD_CLAIMS) || (TABLE_ONLY ? CLAIMS : 60);
+for (const d of EXP.concat(ORD)) for (const diff of DIFFS) rows.push({ d, diff, m: measure(d, diff, d.expedition ? CLAIMS : ORD_CLAIMS) });
 const f1 = (x) => x.toFixed(1), f0 = (x) => x.toFixed(0);
 console.log(`per solo clear, ${CLAIMS} claims each: items / gold / value | boss chest items, gold, value | big chest items | urn items (empty %) | body items | master items, gold | Ayleid pieces (rarest)`);
 for (const { d, diff, m } of rows) console.log(`${(d.name + ' (' + d.kind + ')').padEnd(34)} ${diff.padEnd(9)} ${f1(m.items).padStart(6)} ${f0(m.gold).padStart(6)} ${f0(m.value).padStart(7)} | ${f1(m.bossChest.items).padStart(5)} ${f0(m.bossChest.gold).padStart(4)} ${f0(m.bossChest.value).padStart(5)} | ${f1(m.bigChest).padStart(4)} | ${f1(m.small.items)} (${f0(100 * m.small.empty)}%) | ${f1(m.body)} | ${f1(m.master.items)}, ${f0(m.master.gold)} | ${m.ayleid.toFixed(2)} (${m.rarest.toFixed(3)})`);
@@ -120,8 +123,25 @@ const BEFORE = JSON.parse(fs.readFileSync(path.join(__dirname, 'expedition-loot-
 for (const { d, diff, m } of rows) {
   const b = BEFORE[`${d.raw.id}|${diff}`];
   if (!b) continue;
-  if (!d.expedition) { check(`${d.name} ${diff} (ordinary) is unchanged: value ${f0(m.value)} against ${f0(b.value)}`, Math.abs(m.value - b.value) < b.value * 0.2 + 30); continue; }
+  // Ordinary dungeons get the same trim (Nate, 2026-09-28: "push it all"). One dungeon's share depends on what it is made
+  // of: a cave of sacks and coffins keeps less (urns are now mostly empty), one with several boss chests more (each
+  // keeps its coin and piece of gear certain). So the set is held to half below, and each dungeon only to a wide guard.
+  if (!d.expedition) continue;
   check(`${d.name} ${diff}: value per clear ${f0(m.value)}, about half of ${f0(b.value)}`, m.value < b.value * 0.62 && m.value > b.value * 0.3);
+}
+for (const d of ORD) {
+  const now = DIFFS.reduce((n, diff) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
+  const was = DIFFS.reduce((n, diff) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
+  if (was > 0) check(`${d.name} (ordinary, ${(d.raw.chests || []).length} containers), all difficulties: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)})`, now < was * 0.9 && now > was * 0.15);
+}
+for (const diff of DIFFS) {
+  const now = ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
+  const was = ORD.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
+  check(`all ${ORD.length} ordinary dungeons at ${diff}: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}), about half`, now > was * 0.3 && now < was * 0.62);
+}
+{
+  const share = (diff) => ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0) / ORD.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 1), 0);
+  check(`ordinary dungeons: Novice keeps the smallest share (${DIFFS.map((x) => share(x).toFixed(2)).join(', ')})`, DIFFS.slice(1).every((x) => share('story') < share(x)));
 }
 for (const d of EXP) {
   const v = DIFFS.map((diff) => rows.find((r) => r.d === d && r.diff === diff).m.value);
