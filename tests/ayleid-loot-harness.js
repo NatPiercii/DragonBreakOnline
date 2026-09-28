@@ -1,8 +1,10 @@
 // Ayleid treasure in the expedition ruins (Nate, 2026-09-28: "ayleid weapons and armor found in the ayleid ruins").
 // 1. ayleid-loot.json is what the plugins say: tools/ayleid_loot.py is run again against /opt/skyrim-data (skipped when
 //    the plugins are not there) and must give the same file; every piece is a playable WEAP or ARMO with a tier.
-// 2. The real dungeons.js claims an expedition ruin with 3000 big chests and 1000 boss chests (loot.json empty, so only
-//    the Ayleid pool can put anything in them) and the rates and tiers hold.
+// 2. The real dungeons.js claims an expedition ruin at each difficulty (loot.json empty, so only the Ayleid table can put
+//    anything in the chests): the rates and tiers of dungeons.ayleidLoot.byDifficulty hold, the low difficulties never
+//    give Major or Eminent jewellery or the Lich Helmet, the general pools never hand the pieces out, and potions are
+//    measured down against their old rates.
 // 3. An ordinary dungeon gets none of it, Bruma's own Ayleid ruins only with ayleidLoot.ruins "all", and a banned
 //    editor id never drops.
 //   node tests/ayleid-loot-harness.js   (from server/)
@@ -76,32 +78,71 @@ const piecesIn = (props, chests) => chests.map((ch) => ((props.get(`${idOf(ch.re
 const chestsOf = (prefix, n, edid, cell) => { const out = []; for (let i = 0; i < n; i++) out.push({ ref: `${prefix}${i.toString(16)}:BSHeartland.esm`, edid, cell, pos: [0, 0, 0], big: true }); return out; };
 const share = (list, pred) => list.filter(pred).length / Math.max(1, list.length);
 
-// ---- 2. an expedition ruin: rates and tiers ---------------------------------------------------------------------------
-{
-  const big = chestsOf('a', 3000, 'CYRTreasAyleidChest', RUIN), boss = chestsOf('b', 1000, 'CYRTreasAyleidChestBoss', RUIN);
-  const h = load({}, () => {
+// ---- 2. an expedition ruin at each difficulty: rates and tiers ---------------------------------------------------------
+// Nate, 2026-09-28 (an Eminent amulet on his first run): by the lease's difficulty. Novice common only, Adept up to
+// uncommon, Major (rare) from Expert, Eminent and the Lich Helmet (rarest) from a Master boss chest only.
+const claimRuin = (diffId, nBig, nBoss, cfgDungeons = {}, lootFile = null) => {
+  const big = chestsOf('a', nBig, 'CYRTreasAyleidChest', RUIN), boss = chestsOf('b', nBoss, 'CYRTreasAyleidChestBoss', RUIN);
+  const h = load(cfgDungeons, () => {
+    if (lootFile) fs.copyFileSync(lootFile, 'loot.json');
     fs.writeFileSync('dungeons.json', JSON.stringify({ dungeons: [] }));
     fs.writeFileSync('expeditions.json', JSON.stringify({ expeditions: [{ id: 'Ruin', name: 'Ruin', type: 'ayleid', county: '', cells: [{ desc: RUIN }], chests: big.concat(boss), zones: [],
       entrances: [{ expedition: true, cell: SYNOD, pos: [0, 0, 0], rot: [0, 0, 0], doorPos: [0, 0, 0], insideDesc: 'ef1ad:BSHeartland.esm', insideCell: RUIN, insidePos: [0, 0, 0], insideRot: [0, 0, 0] }] }] }));
   });
   globalThis.__dboDungeonActivate(idOf('boardref'), A); h.fire('expeditionPick', A, ['Ruin']);
   const pend = globalThis.__dboDungeons.pending.get(A);
-  if (pend) h.fire('dungeonClaim', A, [pend.nonce, 'hard']);
-  const bigPieces = piecesIn(h.props, big), bossPieces = piecesIn(h.props, boss);
-  const inBig = bigPieces.filter((l) => l.length).map((l) => l[0]), inBoss = bossPieces.filter((l) => l.length).map((l) => l[0]);
-  check('the claim went through and filled the chests', !!pend && big.some((ch) => h.props.get(`${idOf(ch.ref)}|inventory`)));
-  check('never more than one Ayleid piece in a chest', bigPieces.concat(bossPieces).every((l) => l.length <= 1));
-  check(`a big chest holds one ${(100 * inBig.length / 3000).toFixed(1)}% of the time (15% expected)`, inBig.length >= 3000 * 0.12 && inBig.length <= 3000 * 0.18, inBig.length);
-  check(`every boss chest holds one (${inBoss.length}/1000)`, inBoss.length === 1000);
-  const t = (list, tier) => share(list, (it) => it.tier === tier);
-  check(`big chests: common ${(100 * t(inBig, 'common')).toFixed(0)}% (70), uncommon ${(100 * t(inBig, 'uncommon')).toFixed(0)}% (25), rare ${(100 * t(inBig, 'rare')).toFixed(0)}% (5)`,
-    Math.abs(t(inBig, 'common') - 0.70) < 0.08 && Math.abs(t(inBig, 'uncommon') - 0.25) < 0.07 && t(inBig, 'rare') < 0.10);
-  check('an ordinary big chest never holds the rarest (Eminent jewellery, the Lich Helmet)', t(inBig, 'rarest') === 0);
-  check(`boss chests: common ${(100 * t(inBoss, 'common')).toFixed(0)}% (25), uncommon ${(100 * t(inBoss, 'uncommon')).toFixed(0)}% (40), rare ${(100 * t(inBoss, 'rare')).toFixed(0)}% (25), rarest ${(100 * t(inBoss, 'rarest')).toFixed(0)}% (10)`,
-    Math.abs(t(inBoss, 'common') - 0.25) < 0.06 && Math.abs(t(inBoss, 'uncommon') - 0.40) < 0.06 && Math.abs(t(inBoss, 'rare') - 0.25) < 0.06 && Math.abs(t(inBoss, 'rarest') - 0.10) < 0.04);
-  check('weapons, clothing and jewellery all turn up', ['weapon', 'apparel', 'jewelry'].every((g) => inBig.concat(inBoss).some((it) => it.group === g)));
-  check('the Lich Helmet can come from a boss chest', inBoss.some((it) => it.name === 'BSKArmorAyleidLichHelmet') || inBoss.filter((it) => it.tier === 'rarest').length < 40);
+  if (pend) h.fire('dungeonClaim', A, [pend.nonce, diffId]);
+  const inv = (ch) => (h.props.get(`${idOf(ch.ref)}|inventory`) || { entries: [] }).entries;
+  const r = { claimed: !!pend, big: big.map(inv), boss: boss.map(inv), bigPieces: piecesIn(h.props, big), bossPieces: piecesIn(h.props, boss) };
   h.done();
+  return r;
+};
+const EXPECT = {   // the defaults in dungeons.js (AYLEID_DEFAULTS) and gamemode-config.json dungeons.ayleidLoot.byDifficulty
+  story: { chest: 0.03, boss: 0.3, tiers: ['common'] },
+  normal: { chest: 0.05, boss: 0.5, tiers: ['common', 'uncommon'] },
+  hard: { chest: 0.07, boss: 0.7, tiers: ['common', 'uncommon', 'rare'] },
+  nightmare: { chest: 0.09, boss: 0.85, tiers: ['common', 'uncommon', 'rare', 'rarest'] },
+};
+const cfgTable = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8')).dungeons.ayleidLoot.byDifficulty;
+check('gamemode-config.json carries the per-difficulty table with these rates', Object.keys(EXPECT).every((k) => cfgTable[k] && cfgTable[k].chestChance === EXPECT[k].chest && cfgTable[k].bossChance === EXPECT[k].boss));
+for (const [diffId, e] of Object.entries(EXPECT)) {
+  const r = claimRuin(diffId, 4000, 2000, { ayleidLoot: { byDifficulty: cfgTable } });
+  const inBig = r.bigPieces.filter((l) => l.length).map((l) => l[0]), inBoss = r.bossPieces.filter((l) => l.length).map((l) => l[0]);
+  const pb = inBig.length / 4000, pB = inBoss.length / 2000;
+  check(`${diffId}: claimed; at most one piece a chest`, r.claimed && r.bigPieces.concat(r.bossPieces).every((l) => l.length <= 1));
+  check(`${diffId}: a big chest holds one ${(100 * pb).toFixed(1)}% (${Math.round(100 * e.chest)}), a boss chest ${(100 * pB).toFixed(1)}% (${Math.round(100 * e.boss)})`, Math.abs(pb - e.chest) < 0.015 && Math.abs(pB - e.boss) < 0.04);
+  const tiers = [...new Set(inBig.concat(inBoss).map((it) => it.tier))];
+  check(`${diffId}: only the tiers ${e.tiers.join(', ')} (got ${tiers.join(', ')})`, tiers.every((t) => e.tiers.includes(t)));
+  if (diffId !== 'nightmare') check(`${diffId}: never Eminent jewellery or the Lich Helmet`, !inBig.concat(inBoss).some((it) => /Ayleid04$/.test(it.name) || it.name === 'BSKArmorAyleidLichHelmet'));
+  if (diffId === 'story' || diffId === 'normal') check(`${diffId}: never Major jewellery either`, !inBig.concat(inBoss).some((it) => /Ayleid03$/.test(it.name)));
+  if (diffId === 'nightmare') check('nightmare: the rarest only from boss chests', !inBig.some((it) => it.tier === 'rarest') && inBoss.some((it) => it.tier === 'rarest'));
+}
+// The general pools never hand out a table piece: a loot.json full of Ayleid gear yields none at Novice but the table's
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-ayleid-pools-'));
+  const f = path.join(dir, 'loot.json');
+  fs.writeFileSync(f, JSON.stringify({ pools: { armor: POOL.filter((it) => it.type === 'ARMO').map((it) => ({ id: it.id, name: it.name, value: 0 })),
+    ench_armor: POOL.filter((it) => it.type === 'ARMO').map((it) => ({ id: it.id, name: it.name, value: 0 })),
+    weapons: POOL.filter((it) => it.type === 'WEAP').map((it) => ({ id: it.id, name: it.name, value: 0 })),
+    ench_weapons: POOL.filter((it) => it.type === 'WEAP').map((it) => ({ id: it.id, name: it.name, value: 0 })) } }));
+  const r = claimRuin('story', 2000, 1000, { ayleidLoot: { enabled: false } }, f);
+  check('general pools full of Ayleid gear hand out none of it (the table is the only source)', r.bigPieces.concat(r.bossPieces).every((l) => l.length === 0));
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ---- potions (Nate, 2026-09-28: "potions need to be less common") ----------------------------------------------------
+// Before: a big chest held potions 44% of the time (0.66 a chest), a boss chest always (2.2), an urn 15%; at Master a
+// third of them were strong (rank 4+ or 75/100). Measured here with the real loot.json.
+{
+  const loot = JSON.parse(fs.readFileSync(path.join(ROOT, 'loot.json'), 'utf8'));
+  const potion = new Map((loot.pools.potions || []).map((p) => [idOf(p.id), p.name]));
+  const strong = (name) => { const m = /(\d+)$/.exec(name); const n = m ? Number(m[1]) : 1; return (n >= 4 && n < 25) || n >= 75; };
+  const r = claimRuin('nightmare', 4000, 2000, {}, path.join(ROOT, 'loot.json'));
+  const count = (list) => { let chests = 0, n = 0, s = 0; for (const e of list) { const p = e.filter((x) => potion.has(x.baseId)); if (p.length) chests++; for (const x of p) { n += x.count; if (strong(potion.get(x.baseId))) s += x.count; } } return { share: chests / list.length, per: n / list.length, strong: n ? s / n : 0 }; };
+  const b = count(r.big), B = count(r.boss);
+  check(`potions: a big chest ${(100 * b.share).toFixed(1)}% (was 44%, now 20%), ${b.per.toFixed(2)} a chest (was 0.66)`, Math.abs(b.share - 0.2) < 0.025 && b.per <= 0.23);
+  check(`potions: a boss chest ${(100 * B.share).toFixed(1)}% (was 100%, now 60%), ${B.per.toFixed(2)} a chest (was 2.2)`, Math.abs(B.share - 0.6) < 0.04 && B.per <= 0.65);
+  check(`potions at Master: ${(100 * (b.strong)).toFixed(1)}% strong (was 33%)`, b.strong < 0.1 && B.strong < 0.1);
 }
 
 // ---- 3. ordinary dungeons, Bruma's Ayleid ruins, and the ban ----------------------------------------------------------
@@ -126,7 +167,7 @@ const run = (cfgDungeons, d) => {
   const vDefault = run({}, vil());
   check("Bruma's own Ayleid ruins keep their loot by default (ayleidLoot.ruins \"expeditions\")", vDefault.claimed && vDefault.filled && vDefault.pieces.length === 0, vDefault.pieces.length);
   const vAll = run({ ayleidLoot: { ruins: 'all' } }, vil());
-  check('...and join in with ayleidLoot.ruins "all"', vAll.pieces.length > 100, vAll.pieces.length);
+  check('...and join in with ayleidLoot.ruins "all"', vAll.pieces.length > 50, vAll.pieces.length);
   const off = run({ ayleidLoot: { enabled: false, ruins: 'all' } }, vil());
   check('ayleidLoot.enabled false turns it off', off.pieces.length === 0);
   const banned = run({ ayleidLoot: { ruins: 'all' }, bannedLoot: 'Ebony|Daedric|Ayleid04$|LichHelmet' }, vil());

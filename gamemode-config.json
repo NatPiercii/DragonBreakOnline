@@ -415,13 +415,19 @@
   "restoreOutfits": true,
   "exclude": ["AbandonedPrisonLocation"],
   "ayleidLoot": {
-   "_comment": "Ayleid treasure from ayleid-loot.json (Nate, 2026-09-28). A big chest holds one piece chestChance of the time, a boss chest bossChance; the tier is drawn by the weights. ruins: expeditions, or all to add Bruma's own Ayleid ruins.",
+   "_comment": "Ayleid treasure from ayleid-loot.json, by the lease's difficulty (Nate, 2026-09-28). chestChance: a big chest holds one piece; bossChance: the boss chest. chest/boss: tier weights (common, uncommon, rare = Major jewellery and Shocks arms, rarest = Eminent jewellery and the Lich Helmet). These pieces never come from the general pools. ruins: expeditions, or all to add Bruma's own Ayleid ruins.",
    "enabled": true,
    "ruins": "expeditions",
-   "chestChance": 0.15,
-   "bossChance": 1,
-   "chest": { "common": 70, "uncommon": 25, "rare": 5, "rarest": 0 },
-   "boss": { "common": 25, "uncommon": 40, "rare": 25, "rarest": 10 }
+   "byDifficulty": {
+    "story": { "chestChance": 0.03, "bossChance": 0.3, "chest": { "common": 100 }, "boss": { "common": 100 } },
+    "normal": { "chestChance": 0.05, "bossChance": 0.5, "chest": { "common": 85, "uncommon": 15 }, "boss": { "common": 65, "uncommon": 35 } },
+    "hard": { "chestChance": 0.07, "bossChance": 0.7, "chest": { "common": 75, "uncommon": 23, "rare": 2 }, "boss": { "common": 40, "uncommon": 45, "rare": 15 } },
+    "nightmare": { "chestChance": 0.09, "bossChance": 0.85, "chest": { "common": 65, "uncommon": 30, "rare": 5 }, "boss": { "common": 30, "uncommon": 40, "rare": 22, "rarest": 8 } }
+   }
+  },
+  "potions": {
+   "_comment": "How often dungeon loot holds a potion (Nate, 2026-09-28: less common). chest/boss: a big or boss chest holds one; container: an urn or sack; body: a humanoid body; corpseKeep: a creature keeps a potion it carried. strongWeight: a potion of rank r is drawn with weight 1/r^strongWeight.",
+   "chest": 0.2, "boss": 0.6, "container": 0.05, "body": 0.1, "corpseKeep": 0.25, "strongWeight": 2
   }
  },
  "discord": {

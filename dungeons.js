@@ -329,6 +329,7 @@ module.exports = (api) => {
     const goblin = has(/GoblinDen/i);
     return (it) => {
       if (BANNED_LOOT.test(it.name)) return false;
+      if (AYLEID_NAMES.has(it.name)) return false;   // Ayleid treasure comes only from its own table, by difficulty
       if (AYLEID_GEAR.test(it.name)) return ayleid;
       if (GOBLIN_GEAR.test(it.name)) return goblin;
       if (nordic && NORDIC_GEAR.test(it.name)) return true;
@@ -352,6 +353,18 @@ module.exports = (api) => {
     return n ? Math.min(n, 6) : 1;
   };
   const POTION_CAP = [1, 2, 4, 6];
+  // How often dungeon loot holds a potion (Nate, 2026-09-28: "potions need to be less common in the loot pool"). Was:
+  // big chest 45% (1-2), boss chest always (1-2) plus 70% one more, urn or sack 15%, humanoid body 25%, and a creature
+  // kept every potion it carried. strongWeight: a potion of rank r is drawn with weight 1/r^strongWeight, so the strong
+  // ones come up far less than the weak. Config dungeons.potions.
+  const POT = Object.assign({ chest: 0.2, boss: 0.6, container: 0.05, body: 0.1, corpseKeep: 0.25, strongWeight: 2 }, C.potions || {});
+  const potionPick = (tier, ok) => {
+    const list = potionPool(tier, ok); if (!list.length) return null;
+    const w = list.map((it) => Math.pow(rankOf(it.name) || 1, -Math.max(0, Number(POT.strongWeight) || 0)));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < list.length; i++) { r -= w[i]; if (r < 0) return list[i]; }
+    return list[list.length - 1];
+  };
   const potionPool = (tier, ok) => (LOOT.potions || []).filter((it) => {
     if (ok && !ok(it)) return false;
     const r = rankOf(it.name); if (!r) return false;
@@ -362,19 +375,29 @@ module.exports = (api) => {
   const soulPool = (tier, ok) => (LOOT.soulgems || []).filter((it) => (SOUL_TIERS[Math.min(tier, 3)]).test(it.name) && (tier >= 3 || !/black|grand|greater/i.test(it.name)) && (!ok || ok(it)));
   const addEntry = (entries, item, count) => { if (!item) return; const id = idOf(item.id); if (!id) return; const hit = entries.find((e) => e.baseId === id); if (hit) hit.count += count; else entries.push({ baseId: id, count }); };
   // ---- Ayleid treasure (Nate, 2026-09-28: "ayleid weapons and armor found in the ayleid ruins") --------------
-  // ayleid-loot.json (tools/ayleid_loot.py, read from the plugins): Ayleid weapons, mage clothing and jewellery by tier.
-  // A big chest in an expedition ruin holds one piece chestChance of the time, the boss chest bossChance, each drawing a
-  // tier by its weights: plain weapons and the mage clothing are common, the Sparks and Arcing arms and Minor jewellery
-  // uncommon, Shocks arms and Major jewellery rare, Eminent jewellery and the Lich Helmet the rarest (boss chests best).
-  // Config dungeons.ayleidLoot; ruins: "expeditions" (default) or "all" to include Bruma's own Ayleid ruins.
-  const AYLEID_CFG = Object.assign({ enabled: true, ruins: 'expeditions', chestChance: 0.15, bossChance: 1,
-    chest: { common: 70, uncommon: 25, rare: 5, rarest: 0 }, boss: { common: 25, uncommon: 40, rare: 25, rarest: 10 } }, C.ayleidLoot || {});
+  // ayleid-loot.json (tools/ayleid_loot.py, read from the plugins): Ayleid weapons, mage clothing and jewellery by tier:
+  // plain weapons and the mage clothing common, the Sparks and Arcing arms and Minor jewellery uncommon, Shocks arms and
+  // Major jewellery rare, Eminent jewellery and the Lich Helmet the rarest. By the lease's difficulty (Nate, after his
+  // first run turned up an Eminent amulet: "same with ayleid gear per dungeon tier"): Novice and Adept only common and
+  // uncommon, Major from Expert, Eminent and the Lich Helmet from a Master boss chest only, and a boss chest does not
+  // always hold a piece. These pieces come only from this table, never from the general loot pools, so the table holds.
+  // Config dungeons.ayleidLoot.byDifficulty.<story|normal|hard|nightmare> = { chestChance, bossChance, chest: {tier: weight},
+  // boss: {tier: weight} }; ruins: "expeditions" (default) or "all" to include Bruma's own Ayleid ruins.
+  const AYLEID_DEFAULTS = {
+    story:     { chestChance: 0.03, bossChance: 0.3, chest: { common: 100 }, boss: { common: 100 } },
+    normal:    { chestChance: 0.05, bossChance: 0.5, chest: { common: 85, uncommon: 15 }, boss: { common: 65, uncommon: 35 } },
+    hard:      { chestChance: 0.07, bossChance: 0.7, chest: { common: 75, uncommon: 23, rare: 2 }, boss: { common: 40, uncommon: 45, rare: 15 } },
+    nightmare: { chestChance: 0.09, bossChance: 0.85, chest: { common: 65, uncommon: 30, rare: 5 }, boss: { common: 30, uncommon: 40, rare: 22, rarest: 8 } },
+  };
+  const AYLEID_CFG = Object.assign({ enabled: true, ruins: 'expeditions' }, C.ayleidLoot || {});
+  const ayleidTable = (diffId) => Object.assign({}, AYLEID_DEFAULTS[diffId] || AYLEID_DEFAULTS.normal, (AYLEID_CFG.byDifficulty || {})[diffId] || {});
   const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')));
+  const AYLEID_NAMES = new Set(((readJson('ayleid-loot.json', { items: [] }).items) || []).map((it) => it && it.name).filter(Boolean));
   const AYLEID_TIERS = ['common', 'uncommon', 'rare', 'rarest'];
   const ayleidLootHere = (d) => AYLEID_CFG.enabled !== false && AYLEID_LOOT.length > 0 && (d && d.expedition || (AYLEID_CFG.ruins === 'all' && isAyleidRuin(d)));
   // One piece: a tier by weight, then weapon, apparel or jewellery evenly among what that tier holds, then the piece
-  const ayleidPiece = (boss) => {
-    const w = (boss ? AYLEID_CFG.boss : AYLEID_CFG.chest) || {};
+  const ayleidPiece = (diff, boss) => {
+    const w = ayleidTable(diff.id)[boss ? 'boss' : 'chest'] || {};
     const tiers = AYLEID_TIERS.filter((t) => Number(w[t]) > 0 && AYLEID_LOOT.some((it) => it.tier === t));
     const total = tiers.reduce((n, t) => n + Number(w[t]), 0);
     if (!total) return null;
@@ -388,10 +411,9 @@ module.exports = (api) => {
   };
   const chestLoot = (diff, boss, ok = ALL_OK, ayleid = false) => {
     const entries = [];
-    if (ayleid && Math.random() < Number(boss ? AYLEID_CFG.bossChance : AYLEID_CFG.chestChance)) addEntry(entries, ayleidPiece(boss), 1);
+    if (ayleid && Math.random() < Number(ayleidTable(diff.id)[boss ? 'bossChance' : 'chestChance'])) addEntry(entries, ayleidPiece(diff, boss), 1);
     if (boss || Math.random() < GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1]) * (boss ? 3 : 1)));
-    if (boss || Math.random() < 0.45) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), rnd(1, 2));
-    if (boss && Math.random() < 0.7) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
+    if (Math.random() < Number(boss ? POT.boss : POT.chest)) addEntry(entries, potionPick(diff.potionTier, ok), 1);
     if (Math.random() < 0.4) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 3));
     if (Math.random() < 0.25) addEntry(entries, pickFrom(pool('materials', 0, ok)), rnd(1, 2));
     if (diff.id !== 'story' && Math.random() < (boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear, ok)), 1);
@@ -415,7 +437,7 @@ module.exports = (api) => {
     if (Math.random() < (foodish ? 0.5 : 1) * GOLD_CHANCE) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, Math.max(2, diff.gold[0] * 2))));
     if (Math.random() < (foodish ? 0.5 : 0.1)) addEntry(entries, pickFrom(PROVISIONS), rnd(1, 2));
     if (Math.random() < 0.3) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 2));
-    if (Math.random() < 0.15) addEntry(entries, pickFrom(potionPool(Math.max(0, diff.potionTier - 1), ok)), 1);
+    if (Math.random() < Number(POT.container)) addEntry(entries, potionPick(Math.max(0, diff.potionTier - 1), ok), 1);
     if (Math.random() < 0.12) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(3, 8));
     // An urn that rolled nothing used to be topped up with coin, which is a third guaranteed source.
     // Most of the time it should simply be empty; looting a bare sack is honest.
@@ -1194,7 +1216,10 @@ module.exports = (api) => {
       const count = Number(e.count) || 0;
       if (baseId === GOLD_BASE) { kept.push({ baseId, count: Math.min(count, diff.gold[1]) }); continue; }
       if (rec && BANNED_LOOT.test(String(rec.editorId || ''))) continue;
+      if (rec && AYLEID_NAMES.has(String(rec.editorId || ''))) continue;   // only the Ayleid table hands these out, by difficulty
       if (type === 'AMMO') { kept.push({ baseId, count: Math.min(count, 15) }); continue; }
+      // A creature's own potions stay only now and then, one at most (food and poisons are not ranked, so they stay)
+      if (type === 'ALCH' && rankOf(String((rec && rec.editorId) || ''))) { if (Math.random() < Number(POT.corpseKeep)) kept.push({ baseId, count: 1 }); continue; }
       if (type === 'ALCH' || type === 'INGR' || type === 'MISC' || type === 'SLGM' || type === 'KEYM' || type === 'BOOK' || type === 'SCRL') { kept.push({ baseId, count }); continue; }
       if (type === 'WEAP') { if (!weaponKept && Math.random() < (isEnchanted(rec) ? diff.ench * 3 : 0.25)) { weaponKept = true; kept.push({ baseId, count: 1 }); } continue; }
       if (type === 'ARMO') { if (Math.random() < (isEnchanted(rec) ? diff.ench * 2 : 0.1)) kept.push({ baseId, count: 1 }); continue; }
@@ -1257,7 +1282,7 @@ module.exports = (api) => {
     const entries = [];
     // A body carried coin every time at up to 25 (Adept); now 40% of bodies carry about a third of that
     if (Math.random() < Math.max(0, Math.min(1, Number(C.bodyGoldChance)))) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(rnd(diff.gold[0], diff.gold[1]) * Math.max(0, Number(C.bodyGoldMult)))));
-    if (Math.random() < 0.25) addEntry(entries, pickFrom(potionPool(diff.potionTier, ok)), 1);
+    if (Math.random() < Number(POT.body)) addEntry(entries, potionPick(diff.potionTier, ok), 1);
     if (Math.random() < 0.2) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 2));
     return entries;
   };
