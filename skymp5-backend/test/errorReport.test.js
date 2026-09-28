@@ -95,3 +95,57 @@ test('an untagged post refused for a missing tag picks Manual by exact name firs
   assert.strictEqual(await report(['Manual']), 'T5')
   assert.deepStrictEqual(sent[2].payload.applied_tags, [id(8)])
 })
+
+test('a 403 of a tagged post (a moderator-only tag) retries untagged, not with the same tags', async () => {
+  fs.writeFileSync(tagsFile, JSON.stringify({ Manual: id(101), Launcher: id(102) }))
+  answers = [[403, { message: 'Missing Permissions', code: 50013 }],
+             [200, { flags: 0, available_tags: [{ id: id(101), name: 'Manual' }, { id: id(102), name: 'Launcher' }] }],
+             [200, { id: 'T6' }]]
+  assert.strictEqual(await report(['Manual', 'Launcher']), 'T6')
+  assert.deepStrictEqual(sent.map(s => s.method), ['POST', 'GET', 'POST'])
+  assert.strictEqual('applied_tags' in sent[2].payload, false)
+})
+
+test('a 400 that refuses ids the forum still has retries untagged', async () => {
+  fs.writeFileSync(tagsFile, JSON.stringify({ Manual: id(101) }))
+  answers = [[400, 'Invalid Form Body'], [200, { flags: 0, available_tags: [{ id: id(101), name: 'Manual' }] }], [200, { id: 'T7' }]]
+  assert.strictEqual(await report(['Manual']), 'T7')
+  assert.strictEqual('applied_tags' in sent[2].payload, false)
+})
+
+test('a tag refusal after a rate-limit wait still gets the tag fallback', async () => {
+  fs.writeFileSync(tagsFile, JSON.stringify({ Manual: id(901) }))
+  answers = [[429, { retry_after: 0.01 }], [400, 'applied_tags: Unknown tag'],
+             [200, { flags: 0, available_tags: [{ id: id(8), name: 'Manual' }] }], [200, { id: 'T8' }]]
+  assert.strictEqual(await report(['Manual']), 'T8')
+  assert.deepStrictEqual(sent.map(s => s.method), ['POST', 'POST', 'GET', 'POST'])
+  assert.deepStrictEqual(sent[1].payload.applied_tags, [id(901)])
+  assert.deepStrictEqual(sent[3].payload.applied_tags, [id(8)])
+})
+
+test('a tagged refusal on a forum that cannot be read still retries untagged', async () => {
+  fs.writeFileSync(tagsFile, JSON.stringify({ Manual: id(101) }))
+  answers = [[403, 'Missing Permissions'], [403, 'Missing Access'], [200, { id: 'T9' }]]
+  assert.strictEqual(await report(['Manual']), 'T9')
+  assert.deepStrictEqual(sent.map(s => s.method), ['POST', 'GET', 'POST'])
+  assert.strictEqual('applied_tags' in sent[2].payload, false)
+})
+
+test('an untagged post refused with 403, or with a 400 about something else, is not retried', async () => {
+  for (const answer of [[403, 'Missing Access'], [400, 'Invalid Form Body: content too long'], [404, 'Unknown Channel']]) {
+    sent = []
+    answers = [answer]
+    await assert.rejects(report(['Manual']), new RegExp(`\\(${answer[0]}\\)`))
+    assert.deepStrictEqual(sent.map(s => s.method), ['POST'], String(answer[0]))
+  }
+})
+
+test('a tagged post refused with 404 or 401 is not retried', async () => {
+  fs.writeFileSync(tagsFile, JSON.stringify({ Manual: id(101) }))
+  for (const code of [404, 401]) {
+    sent = []
+    answers = [[code, 'Unknown Channel']]
+    await assert.rejects(report(['Manual']), new RegExp(`\\(${code}\\)`))
+    assert.deepStrictEqual(sent.map(s => s.method), ['POST'], String(code))
+  }
+})

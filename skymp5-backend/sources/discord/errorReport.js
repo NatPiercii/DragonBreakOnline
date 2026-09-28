@@ -72,36 +72,57 @@ function tagIds(names) {
   return names.map(n => map[n]).filter(id => typeof id === 'string' && /^\d{5,25}$/.test(id))
 }
 
+// A 400 or 403 of a tagged post may be its tags (stale or moderator-only); of an untagged one, only a 400 naming tags
+function tagRefusal(err, payload) {
+  if (payload.applied_tags) return err.statusCode === 400 || err.statusCode === 403
+  return err.statusCode === 400 && /tag/i.test(err.body || '')
+}
+
+// Retries once with the forum's current tags, or with none, rather than losing the report
+async function retryTags(post, channelId, payload, err, deadline, wanted) {
+  // A forum that cannot be read only means the retry goes untagged
+  const channel = await request('GET', `/channels/${channelId}`, { deadline }).catch(e => {
+    console.warn(`[report] could not read the forum's tags: ${e.message}`)
+    return null
+  })
+  const tags = (channel && channel.available_tags) || []
+  const tried = payload.applied_tags || []
+  // Stale ids (a 400) give way to the same names; a 403, or the same ids again, means the tags themselves are refused
+  let pick = err.statusCode === 400 ? wanted.map(n => tags.find(t => t.name === n)).filter(Boolean) : []
+  if (pick.every(t => tried.includes(t.id))) pick = []
+  // Any tag only when the forum requires one: the REQUIRE_TAG flag, or a refusal of an untagged post
+  if (!pick.length && channel && (channel.flags & 16 || !tried.length)) {
+    pick = [tags.find(t => /bug|error|launcher|report/i.test(t.name)) || tags[0]].filter(Boolean)
+  }
+  if (!pick.length && !tried.length) throw err
+  console.warn(`[report] forum refused the post (${err.statusCode}); retrying with ${pick.map(t => t.name).join(', ') || 'no tags'}`)
+  const { applied_tags: _refused, ...rest } = payload
+  return post(pick.length ? { ...rest, applied_tags: pick.map(t => t.id) } : rest)
+}
+
 // wanted: tag names; on a tag refusal they are looked up in the forum's own tags by exact name first
 async function createThread(channelId, payload, files, deadline, wanted = []) {
-  const mp = buildMultipart(payload, files)
+  const post = body => request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(body, files), deadline })
+  let refusal
   try {
-    return await request('POST', `/channels/${channelId}/threads`, { multipart: mp, deadline })
+    return await post(payload)
   } catch (err) {
-    if (err.statusCode === 429) {
-      let wait = 1000
-      try { wait = Math.min((JSON.parse(err.body).retry_after || 1) * 1000 + 250, 20000) } catch { /* default */ }
-      if (Date.now() + wait >= deadline) throw err
-      await new Promise(r => setTimeout(r, wait))
-      return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(payload, files), deadline })
-    }
-    // A required or stale tag: retry once with the forum's current tags, or with none, rather than losing the report
-    if (err.statusCode === 400 && /tag/i.test(err.body || '')) {
-      const channel = await request('GET', `/channels/${channelId}`, { deadline })
-      const tags = channel.available_tags || []
-      const named = wanted.map(n => tags.find(t => t.name === n)).filter(Boolean)
-      // Any tag only when the forum requires one: the REQUIRE_TAG flag, or a refusal of an untagged post
-      const anyTag = channel.flags & 16 || !payload.applied_tags ? [tags.find(t => /bug|error|launcher|report/i.test(t.name)) || tags[0]] : []
-      const pick = named.length ? named : anyTag.filter(Boolean)
-      if (pick.length || payload.applied_tags) {
-        console.warn(`[report] forum refused the tags; retrying with ${pick.map(t => t.name).join(', ') || 'no tags'}`)
-        const { applied_tags: _stale, ...rest } = payload
-        const retry = pick.length ? { ...rest, applied_tags: pick.map(t => t.id) } : rest
-        return request('POST', `/channels/${channelId}/threads`, { multipart: buildMultipart(retry, files), deadline })
-      }
-    }
-    throw err
+    refusal = err
   }
+  // One wait on a rate limit; a refusal of that second try still gets the tag handling below
+  if (refusal.statusCode === 429) {
+    let wait = 1000
+    try { wait = Math.min((JSON.parse(refusal.body).retry_after || 1) * 1000 + 250, 20000) } catch { /* default */ }
+    if (Date.now() + wait >= deadline) throw refusal
+    await new Promise(r => setTimeout(r, wait))
+    try {
+      return await post(payload)
+    } catch (err) {
+      refusal = err
+    }
+  }
+  if (tagRefusal(refusal, payload)) return retryTags(post, channelId, payload, refusal, deadline, wanted)
+  throw refusal
 }
 
 // files: [{ name, text }] logs or [{ name, data, type }] binaries; tags: tag names. Returns the thread id, or null when no forum channel is configured.
