@@ -202,6 +202,29 @@ module.exports = (api) => {
   globalThis.__dboGuildHall = (id) => { const f = FACTIONS.get(String(id)); return f ? hallOf(f) : null; };
   globalThis.__dboGuildStorage = (id) => storageOf(String(id));
   globalThis.__dboGuildMembers = (id) => Object.keys(ST.members[String(id)] || {}).map((x) => Number(x) >>> 0);
+  // Characters deleted at character select, by /wipechars or from the admin panel stay on the rosters (nothing tells
+  // the gameplay), and economy.js paid wages to them until it threw (review A1-2). economy.js calls this before it pays;
+  // a deleted character's form is gone, so any get on it throws. If every entry looks gone at once, the check itself is
+  // broken, not the rosters: nothing is removed then.
+  globalThis.__dboGuildPrune = () => {
+    const gone = [];
+    let checked = 0;
+    for (const [fid, roster] of Object.entries(ST.members)) {
+      for (const k of Object.keys(roster || {})) {
+        checked++;
+        try { mp.get(Number(k) >>> 0, 'type'); } catch (e) { gone.push([fid, k]); }
+      }
+    }
+    if (!gone.length) return 0;
+    if (gone.length === checked && checked > 3) { log(`guilds: all ${checked} roster entries look deleted; the check is suspect, nothing removed`); return 0; }
+    for (const [fid, k] of gone) {
+      const m = ST.members[fid][k];
+      log(`guilds: ${(m && m.name) || k} (${k}) taken off ${fid}: the character no longer exists`);
+      delete ST.members[fid][k];
+    }
+    save();
+    return gone.length;
+  };
   globalThis.__dboGuildRanks = (id) => { const f = FACTIONS.get(String(id)); return f ? f.ranks.map((r) => r.title) : []; };
   globalThis.__dboHoldFactionOf = (zoneId) => { for (const f of FACTIONS.values()) if (f.kind === 'hold' && f.zone === zoneId) return f.id; return null; };
   const fresh = (a, args) => ST.nonces.get(a >>> 0) === String(args[0] || '');

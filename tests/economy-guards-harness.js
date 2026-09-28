@@ -1,6 +1,7 @@
 // Scripted test for economy.js's guards against a ruler paying the treasury out (release review B2): nobody is paid a
 // wage by a treasury their account controls (the Count, a guild leader, a leader's alt), nobody sets the wage of a rank
-// they hold, a week's wages take at most wageShare of the treasury (the rest is owed), and a property is assessed at
+// they hold, a week's wages take at most wageIncomeShare of the week's income and wageShare of the treasury (the rest is
+// owed; review A1-3: before, 25% of the balance, so the seed could be paid out with no income), and a property is assessed at
 // most once a week, by at most assessMaxStep times, with its owner told. Run it from this folder's parent with
 //
 //   node tests\economy-guards-harness.js
@@ -84,12 +85,14 @@ now = Date.UTC(2026, 8, 27, 0, 1); // Sunday 00:01: the reckoning
 timers.get('economy')();
 const r = state().reports;
 check('the Count got nothing, neither this week\'s nor what was owed', bal(0x10) === 0 && !(state().owed['county-bruma'] || {}).p1, JSON.stringify(state().owed['county-bruma']));
-check('the leader\'s alt got nothing; the other Associate was paid', bal(0x42) === 0 && bal(0x41) === 100);
+// The guild has 1,000 and no income this week: no wages at all (A1-3), and the alt is not even owed
+check('the leader\'s alt got nothing and is owed nothing; with no income the other Associate is owed, not paid', bal(0x42) === 0 && bal(0x41) === 0 && !(state().owed['fighters-guild'] || {}).a66 && (state().owed['fighters-guild'] || {}).a65 && state().owed['fighters-guild'].a65.gold === 100, JSON.stringify(state().owed['fighters-guild']));
 
-// A week's wages take at most 25% of the treasury (1,000 + 200 tax = 1,200: 300 of budget, two guards at 200 each)
-check('one guard is paid, the other\'s wage is owed', bal(0x23) + bal(0x24) === 200 && r['county-bruma'].owed === 200, JSON.stringify(r['county-bruma']));
-check('the report says the cap stopped it, and the Count is told', r['county-bruma'].capped === true && out.personal.some((x) => x.a === 0x10 && /at most 25% of the treasury/.test(x.t)));
-check('the treasury kept its 1,000 less 200 of wages, plus 200 of tax', treasuries['county-bruma'] === 1000 && bal(0x20) === 800, `${treasuries['county-bruma']} ${bal(0x20)}`);
+// A week's wages take at most 75% of the week's income (200 of tax: 150 of budget) and 25% of the treasury (1,200: 300);
+// two guards at 200 each: neither fits, both are owed
+check('neither guard fits the 150 budget: both wages are owed', bal(0x23) + bal(0x24) === 0 && r['county-bruma'].owed === 400 && r['county-bruma'].wageBudget === 150, JSON.stringify(r['county-bruma']));
+check('the report says the cap stopped it, and the Count is told', r['county-bruma'].capped === true && out.personal.some((x) => x.a === 0x10 && /at most 75% of the week's income and 25% of the treasury: 150 gold/.test(x.t)));
+check('the treasury kept its 1,000 plus 200 of tax', treasuries['county-bruma'] === 1200 && bal(0x20) === 800, `${treasuries['county-bruma']} ${bal(0x20)}`);
 
 // Assessments: once a week, at most twice or half the value, the owner told
 check('a first assessment within twice the value (2,000 to 4,000)', ui('econValue', 0x30, H1, 4000).ok);

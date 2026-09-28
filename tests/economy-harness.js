@@ -103,7 +103,8 @@ check('the treasury received the tax (200 in, 50 out for the guard)', treasuries
 check('the guard was paid into his bank account', bal(0x23) === 50);
 
 // Wages the treasury cannot pay are owed
-check('the guild could not pay both wages from 50 gold: one paid, the rest owed', r['fighters-guild'].wagesPaid === 40 && r['fighters-guild'].owed === 30 && bal(0x40) === 40 && bal(0x41) === 0, JSON.stringify(r['fighters-guild']));
+// The guild took no tax this week (Lydia could not pay), so its 50 gold pays no wages (A1-3): both are owed
+check('with no income the guild pays no wages: both are owed', r['fighters-guild'].wagesPaid === 0 && r['fighters-guild'].owed === 70 && bal(0x40) === 0 && bal(0x41) === 0, JSON.stringify(r['fighters-guild']));
 check('the Count and the guild leader are told the week\'s reckoning', out.personal.some((x) => x.a === 1 && /reckoning for County of Bruma/.test(x.t)) && out.personal.some((x) => x.a === 100 && /reckoning for Fighters Guild/.test(x.t)));
 check('Lydia, online, is told her Greenwood tax is overdue; Brelyna is offline and told nothing', out.personal.some((x) => x.a === 0x20 && /400 gold to Fighters Guild .* overdue/.test(x.t)) && !out.personal.some((x) => x.a === 0x22));
 

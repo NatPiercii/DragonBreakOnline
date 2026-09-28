@@ -21,11 +21,22 @@
 // Guards (review B2: a ruler could pay the treasury out to himself, or drain a rival with an assessment):
 //   - nobody is paid a wage by a treasury their account controls (the hold's ruler, a roster's leader, and their alts),
 //     and nobody sets the wage of a rank their own account holds;
-//   - the wages paid each week are capped at wageShare of the treasury (the rest is owed, as when it runs short);
+//   - the wages paid each week are capped at wageIncomeShare of what came into the treasury since the last reckoning
+//     (taxes and deposits, less anything else it paid out), and never more than wageShare of the balance, so neither
+//     the seed nor past income can be paid out without new income (review A1-3); the rest is owed, as when it runs short;
+//   - an owed wage is dropped once its payee no longer holds the rank (left the roster, lost the office, or the
+//     character was deleted), and the leader may forgive what is owed (dbo econForgive);
 //   - a property is assessed at most once every assessEveryDays, to at most assessMaxStep times or 1/assessMaxStep of
 //     its value, and its owner is told.
 // enabled (config economy.enabled, default false): off, no reckoning runs, so no tax is charged and no wage is paid;
 // the settings can still be made. Switching it on is Nate's call.
+//
+// A reckoning runs once (review A1-2): lastReckoning is stamped and saved before anything is charged, every property
+// and every payee is settled on its own (a failure is logged and the rest carry on), and a payee whose character no
+// longer exists (deleted at character select, by /wipechars or from the admin panel) is never paid: a hold official is
+// paid on the account's character of today, a roster member's entry is dropped, and guilds.js prunes the rosters of
+// characters that are gone. Before this, paying a deleted character threw, the stamp was never written, and every tax
+// and earlier wage was charged again each minute.
 'use strict';
 
 const fs = require('fs');
@@ -34,7 +45,7 @@ const path = require('path');
 module.exports = (api) => {
   const { mp, log, personal, audit, who, cfg, onUi, onlineActors, every, readOfficials, zoneById } = api;
   const C = Object.assign({ enabled: false, maxTaxRate: 0.30, defaultPropertyValue: 2000, maxPropertyValue: 1000000, maxWage: 100000, reckonDay: 0, reckonHour: 0,
-    wageShare: 0.25, assessEveryDays: 7, assessMaxStep: 2 }, cfg.economy || {});
+    wageShare: 0.25, wageIncomeShare: 0.75, assessEveryDays: 7, assessMaxStep: 2 }, cfg.economy || {});
   const FILE = path.resolve('economy.json');
   const WEEK = 7 * 86400000;
   const BALANCE = 'private.bankGold';
@@ -44,7 +55,8 @@ module.exports = (api) => {
     if (S.data) return S.data;
     try { S.data = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { S.data = null; }
     const d = S.data && typeof S.data === 'object' ? S.data : {};
-    for (const k of ['rates', 'wages', 'values', 'owed', 'overdue', 'reports', 'assessed']) if (!d[k] || typeof d[k] !== 'object') d[k] = {};
+    // balanceAfter: each treasury's balance when the last reckoning ended, to tell what came in since (A1-3)
+    for (const k of ['rates', 'wages', 'values', 'owed', 'overdue', 'reports', 'assessed', 'balanceAfter']) if (!d[k] || typeof d[k] !== 'object') d[k] = {};
     if (!Number.isFinite(d.lastReckoning)) d.lastReckoning = 0;
     S.data = d;
     return d;
@@ -59,6 +71,8 @@ module.exports = (api) => {
   const accountActors = (pid) => { try { return (mp.getActorsByProfileId(pid) || []).map((x) => Number(x) >>> 0); } catch (e) { return []; } };
   const balanceOf = (a) => { try { const v = Number(mp.get(a, BALANCE)); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0; } catch (e) { return 0; } };
   const credit = (a, n) => { mp.set(a, BALANCE, balanceOf(a) + n); };
+  // A form that was destroyed (a deleted character) throws on every get or set; 'type' is a property every form has
+  const exists = (a) => { if (!a) return false; try { mp.get(a >>> 0, 'type'); return true; } catch (e) { return false; } };
   const profileOfActor = (a) => { try { const v = Number(mp.get(a, 'profileId')); return Number.isFinite(v) ? v : -1; } catch (e) { return -1; } };
   // An account that controls a faction's treasury is never on its payroll (review B2)
   const accountLeads = (pid, fid) => pid >= 0 && (fn('__dboRealmLeadsAccount') ? !!fn('__dboRealmLeadsAccount')(pid, fid) : false);
@@ -104,12 +118,13 @@ module.exports = (api) => {
         const wage = Math.floor(Number(table[rank]) || 0); if (wage <= 0) continue;
         for (const pid of pids || []) {
           if (accountLeads(Number(pid), fid)) continue;
-          const actor = accountActors(Number(pid))[0] || 0; out.push({ key: `p${pid}`, pid: Number(pid), actor, rank, wage });
+          const actor = accountActors(Number(pid)).find(exists) || 0; out.push({ key: `p${pid}`, pid: Number(pid), actor, rank, wage });
         }
       }
     } else {
       const members = fn('__dboGuildMembers') ? fn('__dboGuildMembers')(fid) : [];
       for (const actor of members) {
+        if (!exists(actor)) continue;
         const g = (fn('__dboGuildsOf') ? fn('__dboGuildsOf')(actor) : []).find((x) => x.id === fid);
         const wage = g ? Math.floor(Number(table[g.title]) || 0) : 0;
         const pid = profileOfActor(actor);
@@ -119,72 +134,111 @@ module.exports = (api) => {
     return out;
   };
 
+  // Whether an owed wage's payee still holds the rank it was owed for: a hold official by account, a roster member by
+  // character (which must still exist). Anyone who left, lost the office or was deleted is owed nothing (A1-3).
+  const stillHolds = (fid, key, rank, actor) => {
+    const f = info(fid);
+    if (f && f.kind === 'hold' && f.zone) return key[0] === 'p' && ((((readOfficials() || {})[f.zone] || {})[rank]) || []).map(Number).includes(Number(key.slice(1)));
+    if (key[0] !== 'a' || !exists(actor)) return false;
+    return (fn('__dboGuildsOf') ? fn('__dboGuildsOf')(actor) : []).some((g) => g.id === fid && g.title === rank);
+  };
+  // The character a wage goes to now: a hold official's account's first character that exists today (it may have
+  // changed since the wage was owed), a roster member's own character while it exists; 0 if nobody can be paid
+  const payeeNow = (p) => (p.key[0] === 'p' ? accountActors(Number(p.key.slice(1))).find(exists) || 0 : exists(p.actor) ? p.actor >>> 0 : 0);
+
   // ---- the reckoning -----------------------------------------------------------------------------------------------------
   const reckon = () => {
     const d = data(); const T = treasury(); const H = housing();
+    // Stamped and saved before anything is charged: whatever happens below, this week's reckoning never runs again
+    // (A1-2: a throw here used to leave the stamp unwritten, and the minute timer charged everything again)
+    d.lastReckoning = Date.now();
+    save();
+    // Deleted characters leave the rosters before anyone is paid
+    try { const pruned = fn('__dboGuildPrune') ? fn('__dboGuildPrune')() : 0; if (pruned) log(`economy: ${pruned} deleted character(s) taken off the faction rosters`); }
+    catch (e) { log('economy: roster prune failed', e.message); }
     const reports = {};
     const report = (fid) => (reports[fid] = reports[fid] || { at: Date.now(), income: 0, taxed: 0, overdue: [], wagesPaid: 0, owed: 0, unpaid: [], balance: 0 });
     // Taxes
     if (T && H) {
       for (const ref of claimedRefs()) {
-        const rec = H.recordOf(ref);
-        if (!rec || !rec.owner) continue;
-        const t = territoryOfProperty(ref, rec); if (!t) continue;
-        const fid = fn('__dboRealmOwnerOf') ? fn('__dboRealmOwnerOf')(t.id) : null; if (!fid) continue;
-        const rate = Math.min(C.maxTaxRate, Math.max(0, Number(d.rates[fid]) || 0)); if (!rate) continue;
-        const tax = Math.floor(valueOf(ref) * rate); if (tax <= 0) continue;
-        const r = report(fid);
-        const charged = chargeAccount(rec.owner, tax);
-        if (charged && T.deposit(fid, tax, `property tax on ${ref.toString(16)}`)) {
-          r.income += tax; r.taxed++;
-          delete d.overdue[String(ref)];
-        } else if (charged) {
-          // The treasury refused it: the owner gets the tax back and owes nothing this week (review m1)
-          const back = accountActors(rec.owner)[0];
-          if (back) credit(back, tax);
-          log(`economy: ${nameOfFaction(fid)}'s treasury could not take ${tax} gold of tax on ${ref.toString(16)}; refunded`);
-        } else {
-          const o = d.overdue[String(ref)] = d.overdue[String(ref)] || { weeks: 0, gold: 0, owner: rec.owner, ownerName: rec.ownerName, faction: fid };
-          o.weeks++; o.gold += tax; o.faction = fid;
-          r.overdue.push({ ref: ref.toString(16), owner: rec.ownerName || `profile ${rec.owner}`, weeks: o.weeks, gold: o.gold, where: t.name });
-          for (const a of accountActors(rec.owner)) if (onlineActors().includes(a)) personal(a, `Your property tax of ${tax} gold to ${nameOfFaction(fid)} could not be paid from your bank account. It is overdue (${o.weeks} week${o.weeks > 1 ? 's' : ''}).`);
-        }
+        try {
+          const rec = H.recordOf(ref);
+          if (!rec || !rec.owner) continue;
+          const t = territoryOfProperty(ref, rec); if (!t) continue;
+          const fid = fn('__dboRealmOwnerOf') ? fn('__dboRealmOwnerOf')(t.id) : null; if (!fid) continue;
+          const rate = Math.min(C.maxTaxRate, Math.max(0, Number(d.rates[fid]) || 0)); if (!rate) continue;
+          const tax = Math.floor(valueOf(ref) * rate); if (tax <= 0) continue;
+          const r = report(fid);
+          const charged = chargeAccount(rec.owner, tax);
+          if (charged && T.deposit(fid, tax, `property tax on ${ref.toString(16)}`)) {
+            r.income += tax; r.taxed++;
+            delete d.overdue[String(ref)];
+          } else if (charged) {
+            // The treasury refused it: the owner gets the tax back and owes nothing this week (review m1)
+            const back = accountActors(rec.owner)[0];
+            if (back) credit(back, tax);
+            log(`economy: ${nameOfFaction(fid)}'s treasury could not take ${tax} gold of tax on ${ref.toString(16)}; refunded`);
+          } else {
+            const o = d.overdue[String(ref)] = d.overdue[String(ref)] || { weeks: 0, gold: 0, owner: rec.owner, ownerName: rec.ownerName, faction: fid };
+            o.weeks++; o.gold += tax; o.faction = fid;
+            r.overdue.push({ ref: ref.toString(16), owner: rec.ownerName || `profile ${rec.owner}`, weeks: o.weeks, gold: o.gold, where: t.name });
+            for (const a of accountActors(rec.owner)) if (onlineActors().includes(a)) personal(a, `Your property tax of ${tax} gold to ${nameOfFaction(fid)} could not be paid from your bank account. It is overdue (${o.weeks} week${o.weeks > 1 ? 's' : ''}).`);
+          }
+        } catch (e) { log(`economy: the tax on ${Number(ref).toString(16)} failed, skipped this week`, e.message); }
       }
     }
     // Wages: owed first, then this week's
     if (T) {
       const factions = new Set(Object.keys(d.wages).concat(Object.keys(d.owed)));
       for (const fid of factions) {
-        const r = report(fid);
-        const owed = d.owed[fid] = d.owed[fid] || {};
-        const due = [];
-        for (const [key, o] of Object.entries(owed)) {
-          // A wage owed to someone who has since come to lead the faction is dropped, not paid
-          const pid = o.actor ? profileOfActor(o.actor) : (key[0] === 'p' ? Number(key.slice(1)) : -1);
-          if (accountLeads(pid, fid)) continue;
-          due.push({ key, actor: o.actor, wage: o.gold, rank: o.rank, back: true });
-        }
-        for (const p of payroll(fid)) due.push(p);
-        // The week's wages take at most wageShare of the treasury; the rest is owed
-        let budget = Math.floor(Math.max(0, Number(C.wageShare) || 0) * T.balance(fid));
-        const fresh = {};
-        for (const p of due) {
-          if (p.actor && p.wage <= budget && T.spend(fid, p.wage, `wage ${p.rank} ${p.key}`)) { credit(p.actor, p.wage); r.wagesPaid += p.wage; budget -= p.wage; }
-          else {
-            if (p.actor && p.wage > budget && p.wage <= T.balance(fid)) r.capped = true;
-            fresh[p.key] = { actor: p.actor, gold: ((fresh[p.key] || {}).gold || 0) + p.wage, rank: p.rank }; r.owed += p.wage; r.unpaid.push(p.key);
+        try {
+          const r = report(fid);
+          const owed = d.owed[fid] || {};
+          const due = [];
+          for (const [key, o] of Object.entries(owed)) {
+            // A wage owed to someone who has since come to lead the faction is dropped, not paid
+            const pid = key[0] === 'p' ? Number(key.slice(1)) : (exists(o.actor) ? profileOfActor(o.actor) : -1);
+            if (accountLeads(pid, fid)) continue;
+            if (!stillHolds(fid, key, o.rank, o.actor)) { log(`economy: dropped ${o.gold} gold owed by ${nameOfFaction(fid)} to ${key} (${o.rank}): no longer holds the rank`); continue; }
+            due.push({ key, actor: o.actor, wage: o.gold, rank: o.rank, back: true });
           }
-        }
-        d.owed[fid] = fresh;
+          for (const p of payroll(fid)) due.push(p);
+          // The week's wages take at most wageIncomeShare of what came in since the last reckoning, and never more than
+          // wageShare of the balance (A1-3). A treasury's first reckoning counts only this week's taxes as income.
+          const balance = T.balance(fid);
+          const last = Number(d.balanceAfter[fid]);
+          const income = Number.isFinite(last) && fid in d.balanceAfter ? Math.max(0, balance - last) : r.income;
+          let budget = Math.floor(Math.min(Math.max(0, Number(C.wageIncomeShare) || 0) * income, Math.max(0, Number(C.wageShare) || 0) * balance));
+          r.wageBudget = budget;
+          const fresh = {};
+          const owe = (p, actor) => { fresh[p.key] = { actor, gold: ((fresh[p.key] || {}).gold || 0) + p.wage, rank: p.rank }; r.owed += p.wage; r.unpaid.push(p.key); };
+          for (const p of due) {
+            try {
+              const actor = payeeNow(p);
+              // A roster member whose character is gone is owed nothing; a hold official with no character today is owed
+              if (!actor && p.key[0] === 'a') { log(`economy: ${nameOfFaction(fid)} pays nobody for ${p.key} (${p.rank}): the character no longer exists`); continue; }
+              if (actor && p.wage <= budget && T.spend(fid, p.wage, `wage ${p.rank} ${p.key}`)) {
+                // The treasury has paid: if the credit still fails, the gold goes back and the wage is owed
+                try { credit(actor, p.wage); }
+                catch (e) { T.deposit(fid, p.wage, `wage ${p.rank} ${p.key} returned: ${e.message}`); owe(p, actor); log(`economy: wage ${p.key} of ${nameOfFaction(fid)} could not be credited, returned`, e.message); continue; }
+                r.wagesPaid += p.wage; budget -= p.wage;
+              } else {
+                if (actor && p.wage > budget) r.capped = true;
+                owe(p, actor);
+              }
+            } catch (e) { log(`economy: wage ${p.key} of ${nameOfFaction(fid)} failed, skipped this week`, e.message); }
+          }
+          d.owed[fid] = fresh;
+        } catch (e) { log(`economy: the wages of ${nameOfFaction(fid)} failed, skipped this week`, e.message); }
       }
     }
     for (const [fid, r] of Object.entries(reports)) {
       r.balance = T ? T.balance(fid) : 0;
+      d.balanceAfter[fid] = r.balance;
       d.reports[fid] = r;
       audit(`ECONOMY ${nameOfFaction(fid)}: taxes ${r.income} gold from ${r.taxed} properties, ${r.overdue.length} overdue; wages ${r.wagesPaid} paid, ${r.owed} owed; treasury ${r.balance}`);
-      for (const a of onlineActors()) if (leads(a, fid)) personal(a, `The week's reckoning for ${nameOfFaction(fid)}: ${r.income} gold in taxes, ${r.wagesPaid} gold in wages${r.owed ? `, ${r.owed} gold of wages owed` : ''}${r.capped ? ` (wages take at most ${Math.round(C.wageShare * 100)}% of the treasury a week)` : ''}${r.overdue.length ? `, ${r.overdue.length} properties overdue` : ''}. The treasury holds ${r.balance} gold.`);
+      for (const a of onlineActors()) if (leads(a, fid)) personal(a, `The week's reckoning for ${nameOfFaction(fid)}: ${r.income} gold in taxes, ${r.wagesPaid} gold in wages${r.owed ? `, ${r.owed} gold of wages owed` : ''}${r.capped ? ` (wages take at most ${Math.round(C.wageIncomeShare * 100)}% of the week's income and ${Math.round(C.wageShare * 100)}% of the treasury: ${r.wageBudget} gold this week)` : ''}${r.overdue.length ? `, ${r.overdue.length} properties overdue` : ''}. The treasury holds ${r.balance} gold.`);
     }
-    d.lastReckoning = Date.now();
     save();
     return reports;
   };
@@ -227,6 +281,20 @@ module.exports = (api) => {
     data().wages[fid] = data().wages[fid] || {}; data().wages[fid][rank] = gold; save();
     audit(`ECONOMY ${who(a)} set ${nameOfFaction(fid)}'s weekly wage for ${rank} to ${gold}`);
     reply(a, true, `${rank}: ${gold} gold a week.`);
+  });
+  // The leader forgives what the treasury owes: one payee (its owed key) or everyone (no key)
+  onUi('econForgive', (a, args) => {
+    if (!fromPanel(a, args)) return;
+    const fid = String(args[1] || ''); const key = String(args[2] || '');
+    if (!leads(a, fid)) return reply(a, false, 'Only the leader forgives owed wages.');
+    const owed = data().owed[fid] || {};
+    const keys = key ? (owed[key] ? [key] : []) : Object.keys(owed);
+    if (!keys.length) return reply(a, false, 'Nothing is owed there.');
+    const gold = keys.reduce((n, k) => n + (Number(owed[k].gold) || 0), 0);
+    for (const k of keys) delete owed[k];
+    save();
+    audit(`ECONOMY ${who(a)} forgave ${gold} gold of wages ${nameOfFaction(fid)} owed (${keys.join(', ')})`);
+    reply(a, true, `Forgiven: ${gold} gold of owed wages.`);
   });
   onUi('econValue', (a, args) => {
     if (!fromPanel(a, args)) return;
