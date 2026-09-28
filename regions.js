@@ -160,6 +160,8 @@ module.exports = (api) => {
   // earns no mastery credit; a reload replaces this wrapper, never stacks it
   if (typeof globalThis.__dboPrevCraft === 'undefined') globalThis.__dboPrevCraft = typeof mp.onCraft === 'function' && !mp.onCraft.__dboRegions ? mp.onCraft : null;
   const craftHook = function (actorId, itemId, count, recipeId, ...rest) {
+    // Faction gear first (factiongear.js): a faction's own work is refused to anyone but its smiths and tailors
+    if (typeof globalThis.__dboFactionCraft === 'function' && globalThis.__dboFactionCraft(actorId, itemId) === false) return false;
     let v = null;
     try { v = recipeOk(Number(actorId) >>> 0, Number(itemId) >>> 0, Number(recipeId) >>> 0); } catch (e) { log('regions: craft check failed', e.stack || e.message); }
     if (v && !v.ok) {

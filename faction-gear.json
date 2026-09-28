@@ -1,0 +1,2402 @@
+{
+ "_comment": "Faction gear (server/factiongear.js; built by tools/faction_gear.py from regions.json, edit the SETS there and re-run, or edit an entry here by hand). An item listed here may be crafted only by a member of one of its factions whose rank role is its role (blacksmith for forge work, tailor for the loom and tanning rack) or leader. Nate, 2026-09-28: faction armor and weapons.",
+ "items": {
+  "4f22:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Akaviri Samurai Armor",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "4f26:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "4f21:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Akaviri Samurai Boots",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "4f25:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "4f23:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Akaviri Samurai Gauntlets",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "4f27:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "4f24:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Akaviri Samurai Helmet",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "4f28:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "4b28b:Skyrim.esm": {
+   "name": "Blades Armor",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "850:MoreCraftableEquipment.esp"
+   ]
+  },
+  "4b288:Skyrim.esm": {
+   "name": "Blades Boots",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "84f:MoreCraftableEquipment.esp"
+   ]
+  },
+  "4b28d:Skyrim.esm": {
+   "name": "Blades Gauntlets",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "851:MoreCraftableEquipment.esp"
+   ]
+  },
+  "4b28f:Skyrim.esm": {
+   "name": "Blades Helmet",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "852:MoreCraftableEquipment.esp"
+   ]
+  },
+  "4f912:Skyrim.esm": {
+   "name": "Blades Shield",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "853:MoreCraftableEquipment.esp"
+   ]
+  },
+  "3aeb9:Skyrim.esm": {
+   "name": "Blades Sword",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8f3:MoreCraftableEquipment.esp",
+    "cc28d:BSHeartland.esm"
+   ]
+  },
+  "640d63:Immersive Weapons.esp": {
+   "name": "Dragonguard Katana",
+   "set": "Blades",
+   "factions": [
+    "blades"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "25d24:Immersive Weapons.esp"
+   ]
+  },
+  "825:MoreCraftableEquipment.esp": {
+   "name": "Arch-Mage's Boots",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "994:MoreCraftableEquipment.esp"
+   ]
+  },
+  "828:MoreCraftableEquipment.esp": {
+   "name": "Arch-Mage's Hood",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "995:MoreCraftableEquipment.esp"
+   ]
+  },
+  "826:MoreCraftableEquipment.esp": {
+   "name": "Arch-Mage's Robes",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "996:MoreCraftableEquipment.esp"
+   ]
+  },
+  "10e2dc:Skyrim.esm": {
+   "name": "College Boots",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "936:MoreCraftableEquipment.esp"
+   ]
+  },
+  "10e2ce:Skyrim.esm": {
+   "name": "College Boots",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "937:MoreCraftableEquipment.esp"
+   ]
+  },
+  "6b46c:Skyrim.esm": {
+   "name": "College Boots",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "993:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2dfa:Cloaks&Capes.esp": {
+   "name": "College of Winterhold Cloak",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "55ad:Cloaks&Capes.esp"
+   ]
+  },
+  "827:MoreCraftableEquipment.esp": {
+   "name": "Hooded Arch-Mage's Robes",
+   "set": "College of Winterhold",
+   "factions": [
+    "college-of-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "997:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214a0:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heavy Skyforge Shield",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "214a9:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "2149f:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Light Skyforge Shield",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "214a8:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "cae15:Skyrim.esm": {
+   "name": "Wolf Armor",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "856:MoreCraftableEquipment.esp"
+   ]
+  },
+  "cee7c:Skyrim.esm": {
+   "name": "Wolf Boots",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "855:MoreCraftableEquipment.esp"
+   ]
+  },
+  "cee7e:Skyrim.esm": {
+   "name": "Wolf Gauntlets",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "857:MoreCraftableEquipment.esp"
+   ]
+  },
+  "4c3d0:Skyrim.esm": {
+   "name": "Wolf Helmet",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "858:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214a1:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Wolf Shield",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "214aa:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "2dfb:Cloaks&Capes.esp": {
+   "name": "Dark Brotherhood Cloak",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "55ae:Cloaks&Capes.esp"
+   ]
+  },
+  "10eb5b:Skyrim.esm": {
+   "name": "Shrouded Armor",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "85a:MoreCraftableEquipment.esp"
+   ]
+  },
+  "10eb5c:Skyrim.esm": {
+   "name": "Shrouded Boots",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "859:MoreCraftableEquipment.esp"
+   ]
+  },
+  "10eb5d:Skyrim.esm": {
+   "name": "Shrouded Cowl",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "85d:MoreCraftableEquipment.esp"
+   ]
+  },
+  "10eb5e:Skyrim.esm": {
+   "name": "Shrouded Gloves",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "85c:MoreCraftableEquipment.esp"
+   ]
+  },
+  "808:MoreCraftableEquipment.esp": {
+   "name": "Shrouded Hand Wraps",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "940:MoreCraftableEquipment.esp"
+   ]
+  },
+  "809:MoreCraftableEquipment.esp": {
+   "name": "Shrouded Hood",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "941:MoreCraftableEquipment.esp"
+   ]
+  },
+  "802:MoreCraftableEquipment.esp": {
+   "name": "Shrouded Masked Cowl",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "85e:MoreCraftableEquipment.esp"
+   ]
+  },
+  "806:MoreCraftableEquipment.esp": {
+   "name": "Shrouded Robes",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "949:MoreCraftableEquipment.esp"
+   ]
+  },
+  "807:MoreCraftableEquipment.esp": {
+   "name": "Shrouded Shoes",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "94a:MoreCraftableEquipment.esp"
+   ]
+  },
+  "805:MoreCraftableEquipment.esp": {
+   "name": "Shrouded Short-Sleeved Armor",
+   "set": "Dark Brotherhood",
+   "factions": [
+    "dark-brotherhood"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "85b:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2df9:Cloaks&Capes.esp": {
+   "name": "Dawngaurd Cloak",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "55ac:Cloaks&Capes.esp"
+   ]
+  },
+  "f3fb:Dawnguard.esm": {
+   "name": "Dawnguard Armor",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "863:MoreCraftableEquipment.esp"
+   ]
+  },
+  "f402:Dawnguard.esm": {
+   "name": "Dawnguard Armor",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "864:MoreCraftableEquipment.esp"
+   ]
+  },
+  "f404:Dawnguard.esm": {
+   "name": "Dawnguard Armor",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "865:MoreCraftableEquipment.esp"
+   ]
+  },
+  "f400:Dawnguard.esm": {
+   "name": "Dawnguard Boots",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "860:MoreCraftableEquipment.esp"
+   ]
+  },
+  "50d0:Dawnguard.esm": {
+   "name": "Dawnguard Full Helmet",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "868:MoreCraftableEquipment.esp"
+   ]
+  },
+  "f3fe:Dawnguard.esm": {
+   "name": "Dawnguard Gauntlets",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "867:MoreCraftableEquipment.esp"
+   ]
+  },
+  "f3f7:Dawnguard.esm": {
+   "name": "Dawnguard Heavy Armor",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "861:MoreCraftableEquipment.esp"
+   ]
+  },
+  "f3fa:Dawnguard.esm": {
+   "name": "Dawnguard Heavy Armor",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "862:MoreCraftableEquipment.esp"
+   ]
+  },
+  "14757:Dawnguard.esm": {
+   "name": "Dawnguard Heavy Boots",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "85f:MoreCraftableEquipment.esp"
+   ]
+  },
+  "14758:Dawnguard.esm": {
+   "name": "Dawnguard Heavy Gauntlets",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "866:MoreCraftableEquipment.esp"
+   ]
+  },
+  "150b8:Dawnguard.esm": {
+   "name": "Dawnguard Shield",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "869:MoreCraftableEquipment.esp"
+   ]
+  },
+  "d098:Dawnguard.esm": {
+   "name": "Dawnguard War Axe",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8f4:MoreCraftableEquipment.esp"
+   ]
+  },
+  "dd55:Dawnguard.esm": {
+   "name": "Dawnguard Warhammer",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8f5:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2df1:Cloaks&Capes.esp": {
+   "name": "Falkreath Guard Cloak",
+   "set": "Falkreath Guard",
+   "factions": [
+    "hold-falkreath"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e09:Cloaks&Capes.esp"
+   ]
+  },
+  "2151e:Skyrim.esm": {
+   "name": "Falkreath Guard's Armor",
+   "set": "Falkreath Guard",
+   "factions": [
+    "hold-falkreath"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b1:MoreCraftableEquipment.esp"
+   ]
+  },
+  "21619:Skyrim.esm": {
+   "name": "Falkreath Guard's Helmet",
+   "set": "Falkreath Guard",
+   "factions": [
+    "hold-falkreath"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b9:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214ed:Skyrim.esm": {
+   "name": "Falkreath Guard's Shield",
+   "set": "Falkreath Guard",
+   "factions": [
+    "hold-falkreath"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c1:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2df2:Cloaks&Capes.esp": {
+   "name": "Hjaalmarch Guard Cloak",
+   "set": "Hjaalmarch Guard",
+   "factions": [
+    "hold-morthal"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e0a:Cloaks&Capes.esp"
+   ]
+  },
+  "21520:Skyrim.esm": {
+   "name": "Hjaalmarch Guard's Armor",
+   "set": "Hjaalmarch Guard",
+   "factions": [
+    "hold-morthal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b2:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2161b:Skyrim.esm": {
+   "name": "Hjaalmarch Guard's Helmet",
+   "set": "Hjaalmarch Guard",
+   "factions": [
+    "hold-morthal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8bb:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214ef:Skyrim.esm": {
+   "name": "Hjaalmarch Guard's Shield",
+   "set": "Hjaalmarch Guard",
+   "factions": [
+    "hold-morthal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c2:MoreCraftableEquipment.esp"
+   ]
+  },
+  "5cbfe:Skyrim.esm": {
+   "name": "General Tullius' Armor",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9dd:MoreCraftableEquipment.esp"
+   ]
+  },
+  "5a19:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Imperial Armor",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "5a1d:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "5a18:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Imperial Boots",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "5a1c:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "5a1a:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Imperial Bracers",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "5a1e:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "5a1b:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Imperial Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c651:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "136d6:Skyrim.esm": {
+   "name": "Imperial Boots",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dc9f5:Skyrim.esm"
+   ]
+  },
+  "13841:Skyrim.esm": {
+   "name": "Imperial Bow",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "21721:DragonBreak.esp",
+    "8fd:MoreCraftableEquipment.esp"
+   ]
+  },
+  "5937:DIS_Heavy_Legion.esp": {
+   "name": "Imperial Bracer",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "5939:DIS_Heavy_Legion.esp"
+   ]
+  },
+  "136d4:Skyrim.esm": {
+   "name": "Imperial Bracers",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dc9f7:Skyrim.esm"
+   ]
+  },
+  "21466:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Imperial Buckler",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "21476:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "136cf:Skyrim.esm": {
+   "name": "Imperial Captain's Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8cb:MoreCraftableEquipment.esp"
+   ]
+  },
+  "13ed8:Skyrim.esm": {
+   "name": "Imperial Chainmail",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "53c7:DIS_Heavy_Legion.esp",
+    "8c9:MoreCraftableEquipment.esp"
+   ]
+  },
+  "601aa4:BSAssets.esm": {
+   "name": "Imperial Ebony Sword",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "601a92:BSAssets.esm"
+   ]
+  },
+  "747b7:Immersive Weapons.esp": {
+   "name": "Imperial Ebony Sword",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c7472d:Immersive Weapons.esp"
+   ]
+  },
+  "135ba:Skyrim.esm": {
+   "name": "Imperial Heavy Shield",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dc9f9:Skyrim.esm"
+   ]
+  },
+  "13edc:Skyrim.esm": {
+   "name": "Imperial Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dc9f8:Skyrim.esm"
+   ]
+  },
+  "593f:DIS_Heavy_Legion.esp": {
+   "name": "Imperial Helmet Medium",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "5941:DIS_Heavy_Legion.esp"
+   ]
+  },
+  "6aa04:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Imperial Knight Cape",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "6aa09:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "6aa05:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Imperial Knight Cuirass",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "6aa0a:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "6aa06:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Imperial Knight Greaves",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "6aa0b:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "6aa07:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Imperial Knight Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "6aa0c:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "6aa08:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Imperial Knight Vambraces",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "6aa0d:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "9610d:Skyrim.esm": {
+   "name": "Imperial Legate Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8ca:MoreCraftableEquipment.esp"
+   ]
+  },
+  "13ed9:Skyrim.esm": {
+   "name": "Imperial Light Armor",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9cf:Update.esm"
+   ]
+  },
+  "13ed7:Skyrim.esm": {
+   "name": "Imperial Light Boots",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9d0:Update.esm"
+   ]
+  },
+  "13eda:Skyrim.esm": {
+   "name": "Imperial Light Bracers",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9d1:Update.esm"
+   ]
+  },
+  "13edb:Skyrim.esm": {
+   "name": "Imperial Light Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9d2:Update.esm"
+   ]
+  },
+  "13ab2:Skyrim.esm": {
+   "name": "Imperial Light Shield",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9d3:Update.esm"
+   ]
+  },
+  "136d5:Skyrim.esm": {
+   "name": "Imperial Soldier's Armor",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dc9f6:Skyrim.esm"
+   ]
+  },
+  "135b8:Skyrim.esm": {
+   "name": "Imperial Sword",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "272c2:DragonBreak.esp",
+    "8fe:MoreCraftableEquipment.esp"
+   ]
+  },
+  "d3ea0:Skyrim.esm": {
+   "name": "Penitus Oculatus Armor",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d1:MoreCraftableEquipment.esp"
+   ]
+  },
+  "d3ea7:Skyrim.esm": {
+   "name": "Penitus Oculatus Boots",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d0:MoreCraftableEquipment.esp"
+   ]
+  },
+  "d3eab:Skyrim.esm": {
+   "name": "Penitus Oculatus Bracers",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d2:MoreCraftableEquipment.esp"
+   ]
+  },
+  "d3eaa:Skyrim.esm": {
+   "name": "Penitus Oculatus Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d3:MoreCraftableEquipment.esp"
+   ]
+  },
+  "f6f23:Skyrim.esm": {
+   "name": "Steel Imperial Gauntlets",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "f6f2e:Skyrim.esm"
+   ]
+  },
+  "2df3:Cloaks&Capes.esp": {
+   "name": "Markarth Guard Cloak",
+   "set": "Markarth Guard",
+   "factions": [
+    "hold-markarth"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e0b:Cloaks&Capes.esp"
+   ]
+  },
+  "21508:Skyrim.esm": {
+   "name": "Markarth Guard's Armor",
+   "set": "Markarth Guard",
+   "factions": [
+    "hold-markarth"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b3:MoreCraftableEquipment.esp"
+   ]
+  },
+  "21613:Skyrim.esm": {
+   "name": "Markarth Guard's Helmet",
+   "set": "Markarth Guard",
+   "factions": [
+    "hold-markarth"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8bd:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214dc:Skyrim.esm": {
+   "name": "Markarth Guard's Shield",
+   "set": "Markarth Guard",
+   "factions": [
+    "hold-markarth"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c3:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35e8:Skyrim.esm": {
+   "name": "Karliah's Armor",
+   "set": "Nightingales",
+   "factions": [
+    "cult-nocturnal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e1:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35e7:Skyrim.esm": {
+   "name": "Karliah's Boots",
+   "set": "Nightingales",
+   "factions": [
+    "cult-nocturnal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e0:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35e9:Skyrim.esm": {
+   "name": "Karliah's Gloves",
+   "set": "Nightingales",
+   "factions": [
+    "cult-nocturnal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e2:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35ea:Skyrim.esm": {
+   "name": "Karliah's Hood",
+   "set": "Nightingales",
+   "factions": [
+    "cult-nocturnal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e3:MoreCraftableEquipment.esp"
+   ]
+  },
+  "478cf:Immersive Weapons.esp": {
+   "name": "Nightingale Blade",
+   "set": "Nightingales",
+   "factions": [
+    "cult-nocturnal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "478e4:Immersive Weapons.esp"
+   ]
+  },
+  "478d0:Immersive Weapons.esp": {
+   "name": "Nightingale Bow",
+   "set": "Nightingales",
+   "factions": [
+    "cult-nocturnal"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "478e7:Immersive Weapons.esp"
+   ]
+  },
+  "13957:Skyrim.esm": {
+   "name": "Orcish Armor",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dd984:Skyrim.esm"
+   ]
+  },
+  "1398c:Skyrim.esm": {
+   "name": "Orcish Battleaxe",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "db899:Skyrim.esm"
+   ]
+  },
+  "13956:Skyrim.esm": {
+   "name": "Orcish Boots",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dd983:Skyrim.esm"
+   ]
+  },
+  "1398d:Skyrim.esm": {
+   "name": "Orcish Bow",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "108cfc:Skyrim.esm"
+   ]
+  },
+  "21468:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Orcish Buckler",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "21478:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "2856:Immersive Weapons.esp": {
+   "name": "Orcish Crippler Spear",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "2857:Immersive Weapons.esp"
+   ]
+  },
+  "1398e:Skyrim.esm": {
+   "name": "Orcish Dagger",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "db89c:Skyrim.esm"
+   ]
+  },
+  "13958:Skyrim.esm": {
+   "name": "Orcish Gauntlets",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dd985:Skyrim.esm"
+   ]
+  },
+  "1398f:Skyrim.esm": {
+   "name": "Orcish Greatsword",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "db89a:Skyrim.esm"
+   ]
+  },
+  "13959:Skyrim.esm": {
+   "name": "Orcish Helmet",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dd986:Skyrim.esm"
+   ]
+  },
+  "601abe:BSAssets.esm": {
+   "name": "Orcish Longsword",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "601a87:BSAssets.esm"
+   ]
+  },
+  "747ac:Immersive Weapons.esp": {
+   "name": "Orcish Longsword",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74705:Immersive Weapons.esp"
+   ]
+  },
+  "13990:Skyrim.esm": {
+   "name": "Orcish Mace",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "db89d:Skyrim.esm"
+   ]
+  },
+  "21f7e:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Orcish Masked Helmet",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "21f7f:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "73b5:Immersive Weapons.esp": {
+   "name": "Orcish Quarterstaff",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9406:Immersive Weapons.esp"
+   ]
+  },
+  "20d63:Immersive Weapons.esp": {
+   "name": "Orcish Saber",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "20d64:Immersive Weapons.esp"
+   ]
+  },
+  "13946:Skyrim.esm": {
+   "name": "Orcish Shield",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "dd987:Skyrim.esm"
+   ]
+  },
+  "13991:Skyrim.esm": {
+   "name": "Orcish Sword",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "db89f:Skyrim.esm"
+   ]
+  },
+  "1398b:Skyrim.esm": {
+   "name": "Orcish War Axe",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "db8a0:Skyrim.esm"
+   ]
+  },
+  "13992:Skyrim.esm": {
+   "name": "Orcish Warhammer",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "db8a1:Skyrim.esm"
+   ]
+  },
+  "2df0:Cloaks&Capes.esp": {
+   "name": "Pale Guard Cloak",
+   "set": "Pale Guard",
+   "factions": [
+    "hold-dawnstar"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e08:Cloaks&Capes.esp"
+   ]
+  },
+  "21525:Skyrim.esm": {
+   "name": "Pale Guard's Armor",
+   "set": "Pale Guard",
+   "factions": [
+    "hold-dawnstar"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b6:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2161f:Skyrim.esm": {
+   "name": "Pale Guard's Helmet",
+   "set": "Pale Guard",
+   "factions": [
+    "hold-dawnstar"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8bc:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214f7:Skyrim.esm": {
+   "name": "Pale Guard's Shield",
+   "set": "Pale Guard",
+   "factions": [
+    "hold-dawnstar"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c4:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2df4:Cloaks&Capes.esp": {
+   "name": "Riften Guard Cloak",
+   "set": "Riften Guard",
+   "factions": [
+    "hold-riften"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e0c:Cloaks&Capes.esp"
+   ]
+  },
+  "21507:Skyrim.esm": {
+   "name": "Riften Guard's Armor",
+   "set": "Riften Guard",
+   "factions": [
+    "hold-riften"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b4:MoreCraftableEquipment.esp"
+   ]
+  },
+  "21622:Skyrim.esm": {
+   "name": "Riften Guard's Helmet",
+   "set": "Riften Guard",
+   "factions": [
+    "hold-riften"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8be:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214ba:Skyrim.esm": {
+   "name": "Riften Guard's Shield",
+   "set": "Riften Guard",
+   "factions": [
+    "hold-riften"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c5:MoreCraftableEquipment.esp"
+   ]
+  },
+  "747bb:Immersive Weapons.esp": {
+   "name": "Antique Honed Silver Sword",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "216c2:Immersive Weapons.esp"
+   ]
+  },
+  "747de:Immersive Weapons.esp": {
+   "name": "Antique Silver Sword",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "216c3:Immersive Weapons.esp"
+   ]
+  },
+  "747b1:Immersive Weapons.esp": {
+   "name": "Honed Silver Battle Staff",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c7470a:Immersive Weapons.esp"
+   ]
+  },
+  "747bf:Immersive Weapons.esp": {
+   "name": "Honed Silver Battleaxe",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74715:Immersive Weapons.esp"
+   ]
+  },
+  "747ab:Immersive Weapons.esp": {
+   "name": "Honed Silver Longsword",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74704:Immersive Weapons.esp"
+   ]
+  },
+  "747c6:Immersive Weapons.esp": {
+   "name": "Honed Silver Scimitar",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c7471b:Immersive Weapons.esp"
+   ]
+  },
+  "747be:Immersive Weapons.esp": {
+   "name": "Honed Silver War Axe",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74714:Immersive Weapons.esp"
+   ]
+  },
+  "23068:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Mantle of the Silver Hand",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "2854b:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "23069:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Mantle of the Silver Hand",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "2854c:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "747dd:Immersive Weapons.esp": {
+   "name": "Silver Battle Staff",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74735:Immersive Weapons.esp"
+   ]
+  },
+  "747e0:Immersive Weapons.esp": {
+   "name": "Silver Battleaxe",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74737:Immersive Weapons.esp"
+   ]
+  },
+  "b9d7:Immersive Weapons.esp": {
+   "name": "Silver Hawk Bow",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "b9d9:Immersive Weapons.esp"
+   ]
+  },
+  "747c2:Immersive Weapons.esp": {
+   "name": "Silver Katana",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c7473a:Immersive Weapons.esp"
+   ]
+  },
+  "747dc:Immersive Weapons.esp": {
+   "name": "Silver Longsword",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74734:Immersive Weapons.esp"
+   ]
+  },
+  "747a3:Immersive Weapons.esp": {
+   "name": "Silver Nodachi",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74739:Immersive Weapons.esp"
+   ]
+  },
+  "747e1:Immersive Weapons.esp": {
+   "name": "Silver Scimitar",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74738:Immersive Weapons.esp"
+   ]
+  },
+  "747d5:Immersive Weapons.esp": {
+   "name": "Silver Tanto",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c7473c:Immersive Weapons.esp"
+   ]
+  },
+  "747d0:Immersive Weapons.esp": {
+   "name": "Silver Wakizashi",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c7473b:Immersive Weapons.esp"
+   ]
+  },
+  "747df:Immersive Weapons.esp": {
+   "name": "Silver War Axe",
+   "set": "Silver Hand",
+   "factions": [
+    "silver-hand"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "c74736:Immersive Weapons.esp"
+   ]
+  },
+  "2df5:Cloaks&Capes.esp": {
+   "name": "Solitude Guard Cloak",
+   "set": "Solitude Guard",
+   "factions": [
+    "hold-solitude"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e0d:Cloaks&Capes.esp"
+   ]
+  },
+  "c7f5b:Skyrim.esm": {
+   "name": "Solitude Guard's Armor",
+   "set": "Solitude Guard",
+   "factions": [
+    "hold-solitude"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b5:MoreCraftableEquipment.esp"
+   ]
+  },
+  "c7f5c:Skyrim.esm": {
+   "name": "Solitude Guard's Helmet",
+   "set": "Solitude Guard",
+   "factions": [
+    "hold-solitude"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8ba:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214f4:Skyrim.esm": {
+   "name": "Solitude Guard's Shield",
+   "set": "Solitude Guard",
+   "factions": [
+    "hold-solitude"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c6:MoreCraftableEquipment.esp"
+   ]
+  },
+  "ab66:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Stormcloak Armor",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ab74:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "ab67:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Stormcloak Boots",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ab75:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "ab65:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Stormcloak Gauntlets",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ab73:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "ab64:Hothtrooper44_ArmorCompilation.esp": {
+   "name": "Heroic Stormcloak Helmet",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ab72:Hothtrooper44_ArmorCompilation.esp"
+   ]
+  },
+  "2df7:Cloaks&Capes.esp": {
+   "name": "Stormcloak Cloak",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e0f:Cloaks&Capes.esp"
+   ]
+  },
+  "a6d7b:Skyrim.esm": {
+   "name": "Stormcloak Cuirass",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d9:MoreCraftableEquipment.esp"
+   ]
+  },
+  "a6d79:Skyrim.esm": {
+   "name": "Stormcloak Helmet",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8db:MoreCraftableEquipment.esp"
+   ]
+  },
+  "8697e:Skyrim.esm": {
+   "name": "Stormcloak Officer Armor",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d5:MoreCraftableEquipment.esp"
+   ]
+  },
+  "86981:Skyrim.esm": {
+   "name": "Stormcloak Officer Boots",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d4:MoreCraftableEquipment.esp"
+   ]
+  },
+  "86983:Skyrim.esm": {
+   "name": "Stormcloak Officer Bracers",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d6:MoreCraftableEquipment.esp"
+   ]
+  },
+  "86985:Skyrim.esm": {
+   "name": "Stormcloak Officer Helmet",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d7:MoreCraftableEquipment.esp"
+   ]
+  },
+  "6230b:Skyrim.esm": {
+   "name": "Ulfric's Armguards",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9df:MoreCraftableEquipment.esp"
+   ]
+  },
+  "62311:Skyrim.esm": {
+   "name": "Ulfric's Boots",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9e0:MoreCraftableEquipment.esp"
+   ]
+  },
+  "62303:Skyrim.esm": {
+   "name": "Ulfric's Clothes",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9de:MoreCraftableEquipment.esp"
+   ]
+  },
+  "820:MoreCraftableEquipment.esp": {
+   "name": "Hooded Thalmor Robes",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9ce:MoreCraftableEquipment.esp"
+   ]
+  },
+  "65bac:Skyrim.esm": {
+   "name": "Thalmor Boots",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9ca:MoreCraftableEquipment.esp"
+   ]
+  },
+  "65bb3:Skyrim.esm": {
+   "name": "Thalmor Gloves",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9cb:MoreCraftableEquipment.esp"
+   ]
+  },
+  "821:MoreCraftableEquipment.esp": {
+   "name": "Thalmor Hood",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9cc:MoreCraftableEquipment.esp"
+   ]
+  },
+  "81f:MoreCraftableEquipment.esp": {
+   "name": "Thalmor Robes",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "9cd:MoreCraftableEquipment.esp"
+   ]
+  },
+  "813:MoreCraftableEquipment.esp": {
+   "name": "Guild Master's Armor",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e5:MoreCraftableEquipment.esp"
+   ]
+  },
+  "814:MoreCraftableEquipment.esp": {
+   "name": "Guild Master's Boots",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e4:MoreCraftableEquipment.esp"
+   ]
+  },
+  "815:MoreCraftableEquipment.esp": {
+   "name": "Guild Master's Gloves",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e6:MoreCraftableEquipment.esp"
+   ]
+  },
+  "816:MoreCraftableEquipment.esp": {
+   "name": "Guild Master's Hood",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e7:MoreCraftableEquipment.esp"
+   ]
+  },
+  "80e:MoreCraftableEquipment.esp": {
+   "name": "Thieves Guild Armor",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8dd:MoreCraftableEquipment.esp"
+   ]
+  },
+  "80f:MoreCraftableEquipment.esp": {
+   "name": "Thieves Guild Boots",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8dc:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35df:Skyrim.esm": {
+   "name": "Thieves Guild Cowl",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e8:MoreCraftableEquipment.esp"
+   ]
+  },
+  "810:MoreCraftableEquipment.esp": {
+   "name": "Thieves Guild Gloves",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8de:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35da:Skyrim.esm": {
+   "name": "Thieves Guild Gray Boots",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8e9:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35dd:Skyrim.esm": {
+   "name": "Thieves Guild Gray Cowl",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8ec:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35dc:Skyrim.esm": {
+   "name": "Thieves Guild Gray Gloves",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8eb:MoreCraftableEquipment.esp"
+   ]
+  },
+  "e35db:Skyrim.esm": {
+   "name": "Thieves Guild Gray Sleeveless Armor",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8ea:MoreCraftableEquipment.esp"
+   ]
+  },
+  "811:MoreCraftableEquipment.esp": {
+   "name": "Thieves Guild Hood",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8df:MoreCraftableEquipment.esp"
+   ]
+  },
+  "142c7:Dawnguard.esm": {
+   "name": "Vampire Armor",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "86a:MoreCraftableEquipment.esp"
+   ]
+  },
+  "191f2:Dawnguard.esm": {
+   "name": "Vampire Armor",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "86b:MoreCraftableEquipment.esp"
+   ]
+  },
+  "191f3:Dawnguard.esm": {
+   "name": "Vampire Armor",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "86c:MoreCraftableEquipment.esp"
+   ]
+  },
+  "b5de:Dawnguard.esm": {
+   "name": "Vampire Boots",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "86e:MoreCraftableEquipment.esp"
+   ]
+  },
+  "19ae1:Dawnguard.esm": {
+   "name": "Vampire Boots",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "94c:MoreCraftableEquipment.esp"
+   ]
+  },
+  "1a51f:Dawnguard.esm": {
+   "name": "Vampire Gauntlets",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "86f:MoreCraftableEquipment.esp"
+   ]
+  },
+  "19ae3:Dawnguard.esm": {
+   "name": "Vampire Gloves",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "94d:MoreCraftableEquipment.esp"
+   ]
+  },
+  "19ade:Dawnguard.esm": {
+   "name": "Vampire Hood",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "94e:MoreCraftableEquipment.esp"
+   ]
+  },
+  "19adf:Dawnguard.esm": {
+   "name": "Vampire Robes",
+   "set": "Vampire clans",
+   "factions": [
+    "clan-volkihar",
+    "cyrodiil-vampyrum-order",
+    "crimson-scars",
+    "bloodmist-clan"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "94b:MoreCraftableEquipment.esp"
+   ]
+  },
+  "833:MoreCraftableEquipment.esp": {
+   "name": "Vampire Royal Armor",
+   "set": "Vampire clans (royal)",
+   "factions": [
+    "clan-volkihar"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "86d:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2df6:Cloaks&Capes.esp": {
+   "name": "Whiterun Guard Cloak",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e0e:Cloaks&Capes.esp"
+   ]
+  },
+  "2150d:Skyrim.esm": {
+   "name": "Whiterun Guard's Armor",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b7:MoreCraftableEquipment.esp"
+   ]
+  },
+  "21615:Skyrim.esm": {
+   "name": "Whiterun Guard's Helmet",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8bf:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214e0:Skyrim.esm": {
+   "name": "Whiterun Guard's Shield",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c7:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214eb:Skyrim.esm": {
+   "name": "Windhelm Guard's Shield",
+   "set": "Windhelm Guard",
+   "factions": [
+    "hold-windhelm"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9ee:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2df8:Cloaks&Capes.esp": {
+   "name": "Winterhold Guard Cloak",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e10:Cloaks&Capes.esp"
+   ]
+  },
+  "21522:Skyrim.esm": {
+   "name": "Winterhold Guard's Armor",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8b8:MoreCraftableEquipment.esp"
+   ]
+  },
+  "2161d:Skyrim.esm": {
+   "name": "Winterhold Guard's Helmet",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c0:MoreCraftableEquipment.esp"
+   ]
+  },
+  "214f1:Skyrim.esm": {
+   "name": "Winterhold Guard's Shield",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8c8:MoreCraftableEquipment.esp"
+   ]
+  }
+ }
+}
