@@ -16,7 +16,7 @@ const DOOR = 0xef1ad;
 const A = 0x14, B = 0xff000020;
 fs.writeFileSync('dungeons.json', JSON.stringify({ dungeons: [] }));
 fs.writeFileSync('expeditions.json', JSON.stringify({ expeditions: [{ id: 'CYRNiryastareLocation', name: 'Niryastare', type: 'ayleid', county: 'Kvatch County',
-  cells: [{ desc: RUIN }], chests: [], zones: [],
+  cells: [{ desc: RUIN }, { desc: 'ef1a9:BSHeartland.esm' }], chests: [], zones: [],
   entrances: [{ expedition: true, cell: SYNOD, pos: [-8.8, -578.4, -114.9], rot: [0, 0, 0], doorPos: [-8.8, -578.4, -114.9],
     insideDesc: 'ef1ad:BSHeartland.esm', insideCell: RUIN, insidePos: [-197.1, 2401.9, 393.9], insideRot: [0, 0, -1.4006] }] }] }));
 const props = new Map([[`${A}|worldOrCellDesc`, SYNOD], [`${A}|pos`, [0, -500, -114]], [`${B}|worldOrCellDesc`, BRUMA], [`${B}|pos`, [0, 0, 0]]]);
@@ -75,7 +75,22 @@ if (lease) {
   props.set(`${A}|worldOrCellDesc`, RUIN); moves.length = 0;
   activate(DOOR, A);
   check('the main door brings the party home to the Guild', moves.length === 1 && moves[0][1].cellOrWorldDesc === FG && /to the Fighters Guild in Bruma/.test(last(A)));
+  // /expedition leave (Nate, 2026-09-28): the same way home from anywhere in the ruin, its deeper cell included
+  props.set(`${A}|worldOrCellDesc`, 'ef1a9:BSHeartland.esm'); moves.length = 0;
+  commands.get('expedition')(A, 'leave');
+  check('/expedition leave brings the party home from deep in the ruin', moves.length === 1 && moves[0][1].cellOrWorldDesc === FG && /journey back from Niryastare to the Fighters Guild/.test(last(A)), last(A));
+  props.set(`${A}|worldOrCellDesc`, RUIN); moves.length = 0;
+  globalThis.__dboIsDowned = (x) => x === A;
+  commands.get('expedition')(A, 'leave');
+  check('...but not while down', !moves.length && /Not while you are down/.test(last(A)), last(A));
+  delete globalThis.__dboIsDowned;
 } else check('the claim started a lease', false);
+props.set(`${B}|worldOrCellDesc`, FG); moves.length = 0;
+commands.get('expedition')(B, 'leave');
+check('/expedition leave outside a ruin says what it is for', !moves.length && /You are not on an expedition/.test(last(B)), last(B));
+props.set(`${B}|worldOrCellDesc`, RUIN); moves.length = 0;
+commands.get('expedition')(B, 'home');
+check('with no claim of its own it still goes home, to the Synod', moves.length === 1 && moves[0][1].cellOrWorldDesc === SYNOD, last(B));
 
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);
