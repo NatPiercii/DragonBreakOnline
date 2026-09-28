@@ -668,7 +668,15 @@ Live: fork `6e20da3`, server `patrons` deploy 01:24, client 0.3.15, launcher 2.1
   track, push-to-talk / voice activation mute and unmute it; devices matched by **name** (ids are salted per origin);
   LiveKit's own mic stays as fallback. X menu: Voice louder / quieter / Mute voice (only while voice is on).
   Launcher Voice tab: devices, volumes, activation, meter with sensitivity line. Voice range key configurable.
-- [ ] **Voice server: installed, switched off.** LiveKit 1.13.7 (`livekit.service`, checksum verified,
+- [x] **Voice server: live since 2026-09-24 14:19 UTC.** Jake added the three forwards on the Proxmox host (13:23; the
+  Linode half was already there), `claude-dragonbreak` rotated the LiveKit key (13:30), `claude-jake` set
+  `voiceChat.enabled: true` and restarted `skymp` (14:19); shout went 45 m -> 60 m at 20:24 (`voiceChat.modes` in the
+  live server-settings). Jake and Nate heard each other in game that day. **2026-09-28 02:30 UTC:** `voice-check.sh`
+  10/10 PASS (7880/7881 tcp 3/3 from outside, 7882 udp arrives); LiveKit has seen 29 players, 150 mic tracks
+  published and 159 subscriptions since it went on. Discord "Voice chat" closed; open voice work (moderation
+  transcripts, smoother positioning, the staff test orb) is in "Voice: moderation transcripts and smoother
+  positioning". The history below is how it got there.
+  Was: **Voice server: installed, switched off.** LiveKit 1.13.7 (`livekit.service`, checksum verified,
   `/etc/livekit.yaml` 0600) on 7880/tcp 7881/tcp 7882/udp; `voiceChat` in server-settings with `enabled: false`.
   **Needs Jake to forward those three ports** (request in `OPS_HANDOFF_2026-09-22_claude-nate.md`), then
   `enabled: true` and restart `skymp`. Nobody has heard a voice yet: untested end to end.
