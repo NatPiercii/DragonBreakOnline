@@ -1261,7 +1261,7 @@ module.exports = (api) => {
     leaveParty(pid);
     personal(a, 'You left the party.');
   };
-  registerChatCommand('leave', (a) => leaveCommand(a), { help: 'leave your party' });
+  registerChatCommand('leave', (a) => leaveCommand(a), { hidden: true, help: 'leave your party; now /party leave' });
   onUi('partyLeave', (a) => leaveCommand(a));
   registerChatCommand('party', (a, args) => {
     const [sub, ...rest] = args.trim().split(/\s+/); const arg = rest.join(' ');

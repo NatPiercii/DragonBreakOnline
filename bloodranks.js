@@ -85,6 +85,12 @@ module.exports = (api) => {
   globalThis.__dboBloodDamageMult = (agg) => (isNight() && isVampire(agg) ? at(C.damageAtNight, agg) : 1);
   globalThis.__dboBloodReset = (a) => save(a, { blood: 0, fedOn: {} });
 
+  const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
+  addStatus('blood', 70, (a) => {
+    if (!isVampire(a)) return null;
+    const s = stateOf(a); const blood = Number(s && s.blood) || 0;
+    return `${C.ranks[rankFor(blood)]} (${blood} blood)`;
+  });
   registerChatCommand('blood', (a) => {
     if (!isVampire(a)) return personal(a, 'Only the blood of a vampire knows its rank.');
     const s = stateOf(a); const blood = Number(s && s.blood) || 0; const r = rankFor(blood);

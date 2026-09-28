@@ -21,9 +21,16 @@ const personal = (a, text) => said.push({ a, text });
 const deliver = (a, line) => said.push({ a, text: line, tab: line.startsWith('[[A]]') ? 'admin' : 'other' });
 const C = { WHITE: 'fafafa', SYS: 'eda841' };
 const isAdmin = (a) => a === STAFF;
-const api = new Function('personal', 'isAdmin', 'deliver', 'C', section + '\nreturn { commands, registerChatCommand };')(personal, isAdmin, deliver, C);
-const { commands, registerChatCommand } = api;
+// Role stubs: a topic marked official or beast is only shown to players it applies to (helpRoleOk)
+const RANKED = 3, BEAST = 4;
+const profileOf = (a) => a;
+const ranksOf = (pid) => (pid === RANKED ? [{ zone: { id: 'bruma' }, rank: 'steward' }] : []);
+const api = new Function('personal', 'isAdmin', 'deliver', 'C', 'profileOf', 'ranksOf', section + '\nreturn { commands, registerChatCommand, aliasChatCommand, helpGroupsFor };')(personal, isAdmin, deliver, C, profileOf, ranksOf);
+const { commands, registerChatCommand, aliasChatCommand, helpGroupsFor } = api;
 registerChatCommand('players', () => {}, { help: 'who is online' });
+registerChatCommand('status', () => {}, { help: 'your hunger, rest, and anything else weighing on your character' });
+registerChatCommand('pray', () => {}, { help: 'pray at a shrine' });
+registerChatCommand('time', () => {}, { help: 'the hour and the date' });
 registerChatCommand('level', () => {}, { help: 'your character level and progress' });
 registerChatCommand('spells', () => {}, { help: 'your studied spells and free slots' });
 registerChatCommand('party', () => {}, { help: 'group up for dungeons' });
@@ -42,7 +49,10 @@ const help = (a, args = '') => { said.length = 0; commands.get('help').fn(a, arg
 
 let out = help(PLAYER);
 check('the overview starts with how to use it', /\/help <topic>/.test(out[0]), out[0]);
-check('one line per topic, commands separated', out.some((l) => l.startsWith('Your character (/help character): /level  /spells')), out.find((l) => l.startsWith('Your character')));
+// The character topic is one command and three hints now: a level is spent from /status and the panel, spells
+// from /spells, and skills from K. The list is meant to be short enough to read.
+check('one line per topic, commands separated', out.some((l) => l.startsWith('Your character (/help character): /status')), out.find((l) => l.startsWith('Your character')));
+check('the plain player list is short', (() => { const t = out.filter((l) => /\(\/help [a-z]+\):/.test(l)); const n = t.reduce((sum, l) => sum + (l.split(': ')[1] || '').split(/\s+/).filter((w) => w.startsWith('/')).length, 0); return n <= 14; })(), out.filter((l) => /\(\/help [a-z]+\):/.test(l)).join(' | '));
 check('a command in no topic lands under Other', out.some((l) => l.startsWith('Other (/help other): /brandnew')));
 check('a player sees no staff commands or staff line', !out.some((l) => /\/kick|\/tp|Staff|ledgerpoint|curse|newtool/.test(l)), JSON.stringify(out));
 check('the talking line closes the overview', /^Talking: /.test(out[out.length - 1]));
@@ -84,7 +94,9 @@ lines = staffOut(PLAYER, 'admin');
 check('a player asking /help admin gets nothing in the admin tab', lines.every((l) => l.tab !== 'admin') && /No command or topic "admin"/.test(lines[0].text), JSON.stringify(lines));
 
 out = help(PLAYER, 'character');
-check('/help <topic> lists one command per line with its text', out[0] === 'Your character:' && out[1] === '  /level - your character level and progress' && out[2] === '  /spells - your studied spells and free slots', JSON.stringify(out));
+check('/help <topic> lists one command per line with its text', out[0] === 'Your character:' && out[1].startsWith('  /status - '), JSON.stringify(out));
+// Hints are where to find the things you do not type: an object or a key
+check('...and the topic ends with where to find the rest', out.slice(2).some((l) => /press K/.test(l)), JSON.stringify(out.slice(2)));
 out = help(PLAYER, 'Trouble');
 check('topics match whatever the case, and by the title\'s start', out[0] === 'Trouble and help:' && out.includes('  /unstuck'), JSON.stringify(out));
 out = help(PLAYER, 'staff');
@@ -102,5 +114,41 @@ check('an unknown word says so and points back to /help', /Type \/help for the l
 out = help(PLAYER, 'ledgerpoint');
 check('/help ledgerpoint shows a player no staff usage (review HELP-1)', out.length === 1 && /No command or topic "ledgerpoint"/.test(out[0]), JSON.stringify(out));
 check('staff still get it', /ledgerpoint/.test(help(STAFF, 'ledgerpoint')[0]));
+// ---- role-aware topics (spec e) ----
+registerChatCommand('officials', () => {}, { help: 'who holds office here' });
+registerChatCommand('appoint', () => {}, { help: 'name someone to a rank' });
+registerChatCommand('beast', () => {}, { help: 'take or drop the beast' });
+registerChatCommand('forms', () => {}, { help: 'the beast abilities' });
+
+const topicsFor = (a) => helpGroupsFor(a).map((g) => g.key);
+check('a plain player is shown no Rule topic', !topicsFor(PLAYER).includes('rule'), topicsFor(PLAYER).join(','));
+check('...and no beast topic', !topicsFor(PLAYER).includes('beast'), topicsFor(PLAYER).join(','));
+check('an official is shown Rule', topicsFor(RANKED).includes('rule'), topicsFor(RANKED).join(','));
+globalThis.__dboSuperKind = (a) => (a === BEAST ? 'werewolf' : null);
+check('a beast is shown the beast topic', topicsFor(BEAST).includes('beast'), topicsFor(BEAST).join(','));
+check('...and a plain player still is not', !topicsFor(PLAYER).includes('beast'), topicsFor(PLAYER).join(','));
+delete globalThis.__dboSuperKind;
+check('staff see every topic, rank or not', topicsFor(STAFF).includes('rule'), topicsFor(STAFF).join(','));
+
+// The board is the way in, so the expedition commands are explained by a hint, not listed
+registerChatCommand('expedition', () => {}, { help: 'the expedition board sets one out' });
+registerChatCommand('expeditions', () => {}, { help: 'the expedition board sets one out' });
+const groupsP = helpGroupsFor(PLAYER);
+check('expedition is in no list', !groupsP.some((g) => g.names.includes('expedition') || g.names.includes('expeditions')), JSON.stringify(groupsP.map((g) => g.names)));
+check('...a hint points at the board instead', groupsP.some((g) => g.hints.some((h) => /expedition.*board|board.*expedition/i.test(h))), JSON.stringify(groupsP.flatMap((g) => g.hints)));
+check('.../help expedition still explains it', /expedition board/.test(help(PLAYER, 'expedition')[0]), help(PLAYER, 'expedition')[0]);
+
+// ---- hidden commands and aliases (spec b, c) ----
+let ran = null;
+registerChatCommand('newname', (a, args) => { ran = args; }, { help: 'the command that stayed' });
+registerChatCommand('oldname', () => {}, { hidden: true, help: 'kept working' });
+aliasChatCommand('veryold', 'newname', 'now part of /newname');
+check('a hidden command is in no topic', !helpGroupsFor(PLAYER).some((g) => g.names.includes('oldname')), JSON.stringify(helpGroupsFor(PLAYER).map((g) => g.names)));
+check('...but /help explains it', /kept working/.test(help(PLAYER, 'oldname')[0]), help(PLAYER, 'oldname')[0]);
+check('an alias is hidden too', !helpGroupsFor(PLAYER).some((g) => g.names.includes('veryold')));
+commands.get('veryold').fn(PLAYER, 'with words');
+check('...and still reaches its command, arguments and all', ran === 'with words', JSON.stringify(ran));
+check('an alias explains where it went', /now part of \/newname/.test(help(PLAYER, 'veryold')[0]), help(PLAYER, 'veryold')[0]);
+
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);

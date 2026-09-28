@@ -106,6 +106,11 @@ module.exports = (api) => {
   });
   onUi('levelClose', (a) => closeWidget(a, WIDGET_ID));
 
+  const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
+  addStatus('level', 50, (a) => {
+    const st = stateOf(a);
+    return st.pending ? `Level ${st.level}, ${st.pending} point${st.pending === 1 ? '' : 's'} to spend` : `Level ${st.level}`;
+  });
   registerChatCommand('level', (a, args) => {
     // registerChatCommand hands the argument string, not an array: args[0] was the first letter
     const words = String(args || '').trim().split(/\s+/);

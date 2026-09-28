@@ -206,7 +206,8 @@ module.exports = (api) => {
     refresh();
   };
 
-  registerChatCommand('contracts', (a) => {
+  // The list is its own function so /contract with no words can show it, and /contracts survives as an alias
+  const listContracts = (a) => {
     refresh();
     const zone = zoneOf(a);
     if (!zone) return personal(a, 'No hold claims this ground, so there is no work posted here.');
@@ -215,18 +216,22 @@ module.exports = (api) => {
     personal(a, `Work posted in ${zone.name} (treasury ${treasuryGold(zone)} gold):`);
     list.forEach((c, i) => personal(a, `  ${i + 1}. ${describe(c)}`));
     personal(a, 'Take one with /contract take <number>.');
-  }, { help: 'hunting work posted by the hold you stand in' });
+  };
 
+  registerChatCommand('contracts', listContracts, { hidden: true, help: 'the work posted here; /contract shows it too' });
   registerChatCommand('contract', (a, args) => {
     const parts = String(args || '').trim().split(/\s+/).filter(Boolean);
     const verb = (parts[0] || '').toLowerCase();
     const held = takenBy(a);
 
+    // No words: what you hold, then what is posted here. Two commands' worth in one answer.
     if (!verb) {
-      if (!held) return personal(a, 'You hold no contract. /contracts lists the work here.');
-      const c = contractById(held.id);
-      if (!c) { setTaken(a, null); return personal(a, 'That contract has expired.'); }
-      return personal(a, `You hold: ${describe(c, Number(held.progress) || 0)}.`);
+      if (held) {
+        const c = contractById(held.id);
+        if (!c) setTaken(a, null);
+        else personal(a, `You hold: ${describe(c, Number(held.progress) || 0)}.`);
+      }
+      return listContracts(a);
     }
 
     if (verb === 'take') {

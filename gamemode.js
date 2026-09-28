@@ -422,27 +422,70 @@ every('watch', 5000, () => { try { watchPlayers(); } catch (e) { log('watch fail
 
 // ---- chat commands -------------------------------------------------------------------------
 const commands = new Map();
-const registerChatCommand = (name, fn, opts) => commands.set(name.toLowerCase(), { fn, admin: !!(opts && opts.admin), help: (opts && opts.help) || '' });
+// `hidden` keeps a command working and explained by /help <name>, but out of the lists. Used for the old names
+// kept as aliases after two commands were merged, so nobody's muscle memory breaks while the list stays short.
+const registerChatCommand = (name, fn, opts) => commands.set(name.toLowerCase(), { fn, admin: !!(opts && opts.admin), hidden: !!(opts && opts.hidden), help: (opts && opts.help) || '' });
+// An old name that still reaches its command. The alias never appears in a list; /help <old> explains the new one.
+const aliasChatCommand = (oldName, newName, note) => {
+  const target = () => commands.get(newName);
+  registerChatCommand(oldName, (a, args) => {
+    const c = target();
+    if (!c) return personal(a, `/${newName} is not loaded.`);
+    return c.fn(a, args);
+  }, { hidden: true, admin: !!(target() || {}).admin, help: note || `now part of /${newName}` });
+};
 
 // /help groups, in the order shown. A command missing here is listed under Other, or under Staff when it is admin-only;
 // staff-only commands in a group are shown to staff alone.
+// Topics for /help and the U panel. `names` are commands worth typing; `hints` are the things you reach by
+// walking up to an object or pressing a key, which do not belong in a command list. `role` hides a whole topic
+// from players it cannot apply to. Commands merged into others are registered hidden and never appear here.
 const HELP_GROUPS = [
-  { key: 'people', title: 'Chat and people', names: ['players', 'whoami', 'pigeonblock', 'sign', 'ledger'] },
-  { key: 'character', title: 'Your character', names: ['level', 'spells', 'forget', 'teach', 'tomes', 'hunger', 'rest', 'reroll', 'tokens'] },
-  { key: 'faith', title: 'Faith and the unseen', names: ['deity', 'pray', 'offer', 'rite', 'beast', 'forms', 'hunt', 'blood'] },
-  { key: 'work', title: 'Work and the world', names: ['board', 'contracts', 'contract', 'commissions', 'commission', 'wildlife', 'champions', 'time', 'whereami', 'playtest'] },
-  { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'property', 'properties', 'ledgerpoint'] },
-  { key: 'groups', title: 'Groups and dungeons', names: ['party', 'leave', 'dungeon', 'faction'] },
-  { key: 'trouble', title: 'Trouble and help', names: ['unstuck', 'respawn', 'struggle', 'sentence', 'chill', 'bug', 'ticket', 'ping', 'help'] },
+  { key: 'people', title: 'Chat and people', names: ['players'],
+    hints: ['Who you have met, and hiding your name: press F3.'] },
+  { key: 'character', title: 'Your character', names: ['status'],
+    hints: ['Your skills: press K.', 'Spending a level: /status tells you when you have a point.',
+      'Your spells: /spells. Spell tomes: the Synod Conclave in Bruma.'] },
+  { key: 'faith', title: 'Faith and the unseen', names: ['pray'],
+    hints: ['Choosing or changing a god: a shrine, then /deity.', 'The rites, and offerings: a shrine.'] },
+  { key: 'beast', title: 'The beast in you', names: ['beast', 'forms', 'hunt', 'blood'], role: 'beast' },
+  { key: 'work', title: 'Work and the world', names: ['time'],
+    hints: ['Work for pay: a notice board, then /contract and /commission.', 'Your money: a bank counter.',
+      'Your business: its ledger book.', 'Where you are: /whereami.'] },
+  { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'tax', 'property', 'ledgerpoint'], role: 'official' },
+  { key: 'groups', title: 'Groups and dungeons', names: ['party'],
+    hints: ['Your factions: press F3.', 'A dungeon: its door, then /dungeon.',
+      'An expedition: the board in the Synod Conclave or the Fighters Guild.'] },
+  { key: 'trouble', title: 'Trouble and help', names: ['unstuck', 'struggle', 'bug', 'ticket', 'help'] },
 ];
+// A topic with a `role` is only shown to players it applies to: officials hold a rank somewhere, beasts carry
+// the curse. Everyone else never sees commands they cannot use.
+// Reached by walking up to a thing or pressing a key, so they are explained by a hint above rather than listed
+// as commands. They still work, and /help <name> still explains them.
+// Not listed: reached by an object or a key, folded into /status, or simply rare. All of them still work and
+// /help <name> still explains each one; they are kept out of the list so the list stays worth reading.
+const HELP_BY_OBJECT = new Set(['bank', 'board', 'business', 'faction', 'deity', 'rite', 'tomes', 'respawn', 'skills',
+  'ledger', 'chill', 'sentence', 'hunger', 'rest', 'tokens', 'whoami', 'pigeonblock', 'sign', 'level', 'spells',
+  'teach', 'reroll', 'offer', 'contract', 'commission', 'wildlife', 'champions', 'whereami', 'playtest', 'dungeon', 'ping',
+  'expedition', 'expeditions']);
+const helpRoleOk = (a, role) => {
+  if (!role) return true;
+  try {
+    if (isAdmin(a)) return true;   // staff see every topic, rank or no rank
+    if (role === 'official') return (ranksOf(profileOf(a)) || []).length > 0;
+    if (role === 'beast') return typeof globalThis.__dboSuperKind === 'function' && !!globalThis.__dboSuperKind(a);
+  } catch (e) { return false; }
+  return true;
+};
 const helpGroupsFor = (a) => {
   const staff = isAdmin(a);
-  const usable = (n) => { const c = commands.get(n); return !!c && (!c.admin || staff) && (n !== 'ledgerpoint' || staff); };
+  const usable = (n) => { const c = commands.get(n); return !!c && !c.hidden && (!c.admin || staff) && (n !== 'ledgerpoint' || staff); };
   const placed = new Set(HELP_GROUPS.flatMap((g) => g.names));
-  const groups = HELP_GROUPS.map((g) => ({ key: g.key, title: g.title, names: g.names.filter(usable) }));
-  const rest = [...commands.keys()].filter((n) => !placed.has(n) && usable(n)).sort();
-  groups.push({ key: 'other', title: 'Other', names: rest.filter((n) => !commands.get(n).admin) });
-  return groups.filter((g) => g.names.length);
+  const groups = HELP_GROUPS.filter((g) => helpRoleOk(a, g.role))
+    .map((g) => ({ key: g.key, title: g.title, names: g.names.filter(usable), hints: (g.hints || []).slice() }));
+  const rest = [...commands.keys()].filter((n) => !placed.has(n) && !HELP_BY_OBJECT.has(n) && usable(n)).sort();
+  groups.push({ key: 'other', title: 'Other', names: rest.filter((n) => !commands.get(n).admin), hints: [] });
+  return groups.filter((g) => g.names.length || g.hints.length);
 };
 const helpLine = (n) => { const c = commands.get(n); return `/${n}${c && c.help ? ' - ' + c.help : ''}`; };
 
@@ -501,7 +544,7 @@ registerChatCommand('help', (a, args) => {
   if (staffAsk && isAdmin(a)) return staffHelp(a, (staffAsk[1] || '').trim());
   if (!want) {
     personal(a, 'Commands by topic. /help <topic> lists a topic with what each command does; /help <command> explains one.');
-    for (const g of groups) personal(a, `${g.title} (/help ${g.key}): ${g.names.map((n) => '/' + n).join('  ')}`);
+    for (const g of groups) personal(a, `${g.title} (/help ${g.key}): ${g.names.map((n) => '/' + n).join('  ') || '-'}`);
     personal(a, 'Talking: plain text speaks. /low /whisper /wide /shout set how far you carry. /me /my /do emote. /looc out of character. /pm <player> <text> in private.');
     if (isAdmin(a)) personal(a, 'Staff: /help admin lists the staff commands in the admin tab.');
     return;
@@ -510,6 +553,8 @@ registerChatCommand('help', (a, args) => {
   if (group) {
     personal(a, `${group.title}:`);
     for (const n of group.names) personal(a, '  ' + helpLine(n));
+    // Things you reach by walking up to them or pressing a key, rather than by typing
+    for (const h of group.hints || []) personal(a, '  ' + h);
     return;
   }
   const c = commands.get(want);
@@ -1550,6 +1595,26 @@ const eatHook = (actorId, baseId, ...rest) => {
 };
 eatHook.__dbo = true;
 mp.onEatItem = eatHook;
+// ---- /status: everything about your own character in one answer -------------------------------
+// Each module owns its own line and registers it here, so this does not have to reach into seven files and a
+// module that fails to load simply contributes nothing. Re-registering on a hot reload replaces the old line.
+const statusParts = globalThis.__dboStatusParts = globalThis.__dboStatusParts || new Map(); // key -> { order, fn }
+globalThis.__dboRegisterStatus = (key, order, fn) => { if (typeof fn === 'function') statusParts.set(String(key), { order: Number(order) || 0, fn }); };
+registerChatCommand('status', (a) => {
+  const lines = [];
+  for (const [key, part] of [...statusParts].sort((x, y) => x[1].order - y[1].order)) {
+    let line = null;
+    try { line = part.fn(a); } catch (e) { log(`status: ${key} failed`, e.message); continue; }
+    if (typeof line === 'string' && line.trim()) lines.push(line.trim());
+  }
+  personal(a, lines.length ? `${display(a)}: ${lines.join('  |  ')}` : 'Nothing to report.');
+}, { help: 'your hunger, rest, and anything else weighing on your character' });
+globalThis.__dboRegisterStatus('hunger', 10, (a) => {
+  if (!NEEDS.enabled) return null;
+  const n = needsOf(a);
+  return `Hunger ${Math.round(n.hunger)}% (${stageFor(n.hunger).name})`;
+});
+
 registerChatCommand('hunger', (a) => {
   if (!NEEDS.enabled) return personal(a, 'Hunger is disabled on this server.');
   const n = needsOf(a);

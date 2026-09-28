@@ -191,7 +191,8 @@ module.exports = (api) => {
     }
     for (const t of [].concat(r)) personal(a, t);
   }, { help: 'post <gold> <work> | take | done | refuse | cancel | abandon | rule: work held in escrow at the boards' });
-  registerChatCommand('commissions', (a) => { for (const t of list(a)) personal(a, t); }, { help: 'open commissions on this board, and yours in hand' });
+  // /commission with no words already lists, so the plural is only an old name kept working
+  registerChatCommand('commissions', (a) => { for (const t of list(a)) personal(a, t); }, { hidden: true, help: 'the board\'s commissions; /commission shows them too' });
 
   // Expiry, the grace on unresolved work, and paying anyone who comes back online
   every('commissions', 10000, () => {

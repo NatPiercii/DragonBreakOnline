@@ -145,6 +145,12 @@ module.exports = (api) => {
     audit(`HUNT ${who(a)} howled (${name || 'a howl'}) in ${place || 'the wilds'}`);
   };
 
+  const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
+  addStatus('hunt', 80, (a) => {
+    if (!isWerewolf(a)) return null;
+    const s = stateOf(a); const renown = Number(s && s.renown) || 0;
+    return `${C.ranks[rankFor(renown)]} of the Hunt (${renown} renown)`;
+  });
   registerChatCommand('hunt', (a) => {
     if (!isWerewolf(a)) return personal(a, 'The Great Hunt is for those who carry the beast.');
     const s = stateOf(a); const renown = Number(s && s.renown) || 0; const r = rankFor(renown);

@@ -273,6 +273,8 @@ module.exports = (api) => {
     }
     for (const a of [...chilled.keys()]) if (!onlineActors().includes(a)) { saveChill(a, chilled.get(a).leftMs); chilled.delete(a); S.chillRates.delete(a); }
   });
+  const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
+  addStatus('chill', 30, (a) => { const l = chillLeft(a); return l ? `Death's Chill ${Math.ceil(l / 60000)} min` : null; });
   registerChatCommand('chill', (a) => {
     const left = chillLeft(a);
     personal(a, left ? `The chill of the grave is on you for ${Math.ceil(left / 60000)} more minute(s) of play. A Priest of tier ${C.chillCureTier} or higher can lift it with a healing spell.` : 'You are free of the chill of the grave.');

@@ -269,7 +269,10 @@ module.exports = (api) => {
     for (const s of SPELL_SKILLS) for (const id of studiedIds(a, s.id)) out.push({ skill: s, id, sp: classifySpell(id) || { name: descOf(id), school: '?', rank: 0 } });
     return out;
   };
-  registerChatCommand('spells', (a) => {
+  registerChatCommand('spells', (a, args) => {
+    // /spells forget [number] is the old /forget; the bare command still just lists
+    const first = String(Array.isArray(args) ? args[0] : args || '').trim();
+    if (/^forget\b/i.test(first)) return forgetCommand(a, first.replace(/^forget\s*/i, ''));
     let n = 0;
     const parts = SPELL_SKILLS.map((s) => {
       const tier = tierOf(a, s.id);
@@ -278,14 +281,14 @@ module.exports = (api) => {
       return `${s.label} (${TIER_NAMES[tier]}, up to ${RANKS[maxRankFor(s.id, tier)]} spells): ${held.length} of ${slotsOf(s.id)} slots${held.length ? ': ' + held.join(', ') : ''}.`;
     });
     personal(a, parts.join(' '));
-    if (n) personal(a, '/forget <number> frees a slot. Spells you knew before study began take no slot.');
+    if (n) personal(a, '/spells forget <number> frees a slot. Spells you knew before study began take no slot.');
   }, { help: 'Your studied spells and free slots' });
 
   const confirmForget = (a, entry) => menu(a, MENU_ID, `Forget ${entry.sp.name}?`, [
     { id: `forget:${descOf(entry.id)}`, label: `Forget ${entry.sp.name} and free the slot` },
     { id: 'cancel', label: 'Keep it' },
   ], { kind: 'forget' });
-  registerChatCommand('forget', (a, args) => {
+  const forgetCommand = (a, args) => {
     const list = studiedList(a);
     if (!list.length) return personal(a, 'You have no studied spells to forget.');
     const n = parseInt(String(Array.isArray(args) ? args[0] : args || '').trim(), 10);
@@ -294,7 +297,8 @@ module.exports = (api) => {
       return confirmForget(a, list[n - 1]);
     }
     menu(a, MENU_ID, 'Forget which spell?', list.slice(0, MAX_ROWS).map((e) => ({ id: `pick:${descOf(e.id)}`, label: `${spellLabel(e.sp)} - ${e.skill.label}` })), { kind: 'forget' });
-  }, { help: '<number> forget a studied spell to free its slot' });
+  };
+  registerChatCommand('forget', forgetCommand, { hidden: true, help: 'forget a studied spell; now /spells forget <number>' });
 
   const forget = (a, spellId) => {
     const entry = studiedList(a).find((e) => e.id === spellId);
