@@ -5,6 +5,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { FormView } from "../../view/formView";
 import { showSystemNotification } from "./systemNotification";
 import { isConsoleOpen, readMenuKeyCode } from "./widgetMenuUtil";
+import { badMenuAction } from "./badMenuPolicy";
 import { PlacementService } from "./placementService";
 import { BrowserMessageEvent, DxScanCode, Menu, MenuCloseEvent, MenuOpenEvent } from "skyrimPlatform";
 
@@ -102,8 +103,30 @@ export class BrowserService extends ClientListener {
     }
   }
 
+  // Character select sets this while it holds the screen (characterSelectService)
+  private ownPanelHasScreen(): boolean {
+    return (globalThis as any).__dboCharacterSelectOpen === true;
+  }
+
+  private mainMenuOpenNow(): boolean | undefined {
+    try {
+      return this.sp.Ui.isMenuOpen(Menu.Main);
+    } catch (err) {
+      return undefined;
+    }
+  }
+
+  // badMenuPolicy.ts holds the decision and says why a late "Main Menu" is the one that has to be ignored
   private onMenuOpen(e: MenuOpenEvent) {
     if (this.isBadMenu(e.name)) {
+      const isMain = e.name === Menu.Main;
+      const action = badMenuAction({
+        isBadMenu: true,
+        isMainMenu: isMain,
+        openNow: isMain ? this.mainMenuOpenNow() : true,
+        ownPanelHasScreen: this.ownPanelHasScreen(),
+      });
+      if (action === 'ignore') return;   // nothing recorded either, so canFocus stays true
       // A hidden browser that keeps focus swallows every key with no cursor to show it
       this.unfocus();
       this.sp.browser.setVisible(false);
