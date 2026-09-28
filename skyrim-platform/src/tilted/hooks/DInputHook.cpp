@@ -7,6 +7,7 @@
 
 #include <FunctionHook.hpp>
 #include <array>
+#include <cstdlib>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <vector>
@@ -20,20 +21,25 @@ std::array<uint8_t, 256> g_pressedWas = ([] {
 })();
 std::array<bool, 4> g_mousePressedWas = { 0, 0, 0, 0 };
 
-// The engine acquires before every read, so a failing Acquire is what a dead keyboard looks like; log who is in front
+// The engine acquires before every read, so a failing Acquire is what a dead
+// keyboard or mouse looks like; log who is in front. Each device has its own
+// 10 s window: with one shared window a keyboard failing on every read hid the
+// mouse's failures (2026-09-28, a dead mouse at character select logged only
+// 'keyboard acquire failed').
 void LogAcquireFailure(IDirectInputDevice8A* device, HRESULT hr)
 {
-  static ULONGLONG lastLog = 0;
-  const ULONGLONG now = GetTickCount64();
-  if (now - lastLog < 10000) {
-    return;
-  }
-  lastLog = now;
   DIDEVICEINSTANCEA instanceInfo;
   instanceInfo.dwSize = sizeof(instanceInfo);
   const bool keyboard =
     IDirectInputDevice8_GetDeviceInfo(device, &instanceInfo) == DI_OK &&
     instanceInfo.guidInstance == GUID_SysKeyboard;
+  static ULONGLONG lastLog[2] = { 0, 0 };
+  ULONGLONG& last = lastLog[keyboard ? 0 : 1];
+  const ULONGLONG now = GetTickCount64();
+  if (now - last < 10000) {
+    return;
+  }
+  last = now;
   const HWND foreground = GetForegroundWindow();
   DWORD pid = 0;
   GetWindowThreadProcessId(foreground, &pid);
@@ -149,6 +155,87 @@ void CheckDeafKeyboard(IDirectInputDevice8A* device, const uint8_t* state)
   lastHeal = now;
   deafSince = 0;
   awaitingKey = true;
+}
+
+// The mouse's twin of CheckDeafKeyboard (2026-09-28: a dead mouse at character
+// select until an alt-tab). With the game in front, Windows' view of the mouse
+// is compared with the device's report: the physical buttons by
+// GetAsyncKeyState (it reads the physical buttons, as the device does) and the
+// cursor by GetCursorPos. Input Windows sees for 300 ms that the device does
+// not report re-acquires the device, at most every 2 s. In exclusive mode the
+// cursor does not move, so there only the buttons count; a single frame
+// without movement resets the wait, so a programmatic cursor move cannot
+// trigger it.
+void CheckDeafMouse(IDirectInputDevice8A* device, const DIMOUSESTATE2* state)
+{
+  static ULONGLONG deafSince = 0;
+  static ULONGLONG lastHeal = 0;
+  static bool awaitingInput = false;
+  static int heals = 0;
+  static bool haveLastCursor = false;
+  static POINT lastCursor = { 0, 0 };
+  const ULONGLONG now = GetTickCount64();
+
+  POINT cursor = { 0, 0 };
+  const bool haveCursor = GetCursorPos(&cursor) != FALSE;
+  const bool cursorMoved = haveCursor && haveLastCursor &&
+    (std::abs(cursor.x - lastCursor.x) + std::abs(cursor.y - lastCursor.y)) >=
+      4;
+  haveLastCursor = haveCursor;
+  if (haveCursor) {
+    lastCursor = cursor;
+  }
+
+  const bool heard = state->lX != 0 || state->lY != 0 || state->lZ != 0 ||
+    (state->rgbButtons[0] & 0x80) != 0 || (state->rgbButtons[1] & 0x80) != 0 ||
+    (state->rgbButtons[2] & 0x80) != 0;
+  if (heard) {
+    if (awaitingInput) {
+      awaitingInput = false;
+      spdlog::info("DInputHook: mouse hears again {} ms after re-acquire #{}",
+                   now - lastHeal, heals);
+    }
+    deafSince = 0;
+    return;
+  }
+
+  const bool buttonDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0 ||
+    (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+  if ((!buttonDown && !cursorMoved) || pid != GetCurrentProcessId()) {
+    deafSince = 0;
+    return;
+  }
+  if (!deafSince) {
+    deafSince = now;
+    return;
+  }
+  if (now - deafSince < kDeafMs || now - lastHeal < kDeafRetryMs) {
+    return;
+  }
+
+  ++heals;
+  const bool log = heals <= 10 || heals % 50 == 0;
+  if (log) {
+    spdlog::info("DInputHook: mouse deaf for {} ms while Windows sees {} with "
+                 "the game in front, re-acquiring (#{})",
+                 now - deafSince,
+                 buttonDown ? "a button down" : "the cursor moving", heals);
+  }
+  if (heals <= 3) {
+    LogRawInputRegistrations();
+  }
+  const HRESULT unacquired = IDirectInputDevice8_Unacquire(device);
+  const HRESULT acquired = IDirectInputDevice8_Acquire(device);
+  if (log) {
+    spdlog::info("DInputHook: mouse unacquire {:#x}, acquire {:#x}",
+                 static_cast<uint32_t>(unacquired),
+                 static_cast<uint32_t>(acquired));
+  }
+  lastHeal = now;
+  deafSince = 0;
+  awaitingInput = true;
 }
 
 void ProcessKeyboardData(uint8_t* apData)
@@ -398,10 +485,22 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceState(DWORD outDataLen,
     memcpy(outData, &fakeMouseState, outDataLen);
   }
 
-  if (ret != DI_OK)
+  if (ret != DI_OK) {
+    // A mouse the engine could not read is logged like the keyboard's
+    // failures, with who holds the front
+    if (ret == DIERR_INPUTLOST || ret == DIERR_NOTACQUIRED) {
+      LogAcquireFailure(m_pDevice, ret);
+    }
     return ret;
+  }
 
   DIMOUSESTATE2* mouseState = (DIMOUSESTATE2*)outData;
+
+  // The device's own report, before the browser masks the buttons below
+  if (instanceInfo.guidInstance == GUID_SysMouse &&
+      outDataLen >= sizeof(DIMOUSESTATE2)) {
+    CheckDeafMouse(m_pDevice, mouseState);
+  }
 
   ProcessMouseData(mouseState);
 
