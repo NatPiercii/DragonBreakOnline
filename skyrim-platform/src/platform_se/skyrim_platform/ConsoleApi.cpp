@@ -7,6 +7,8 @@
 #include "Validators.h"
 #include "WindowsConsolePrinter.h"
 
+#include <spdlog/spdlog.h>
+
 std::shared_ptr<IConsolePrinter> g_printer(new InGameConsolePrinter);
 std::shared_ptr<IConsolePrinter> g_windowsConsolePrinter = nullptr;
 
@@ -30,6 +32,44 @@ bool IsNameEqual(const std::string& first, const std::string& second)
     ? stricmp(first.data(), second.data()) == 0
     : false;
 }
+
+// printConsole reaches only the in-game console, cut at 128 characters, so
+// the client's input diagnostics (2026-09-28) never reached a problem report.
+// Their lines, and only theirs, also go to skyrim-platform.log in full, at
+// most 500 per session: other printConsole lines can carry chat.
+constexpr const char* kLoggedTraceSenders[] = {
+  "Trace in PageInputDiagService:", "Trace in InputDiagService:"
+};
+
+void LogDiagnosticLine(const Napi::CallbackInfo& info)
+{
+  static int logged = 0;
+  if (logged >= 500 || info.Length() == 0 || !info[0].IsString()) {
+    return;
+  }
+  const std::string first = info[0].As<Napi::String>().Utf8Value();
+  bool diagnostic = false;
+  for (const char* sender : kLoggedTraceSenders) {
+    diagnostic = diagnostic || first.starts_with(sender);
+  }
+  if (!diagnostic) {
+    return;
+  }
+  std::string s = first;
+  for (size_t i = 1; i < info.Length(); ++i) {
+    Napi::Value str = info[i];
+    if (info[i].IsObject() && !info[i].IsExternal()) {
+      Napi::Object global = info.Env().Global();
+      Napi::Object json = global.Get("JSON").As<Napi::Object>();
+      Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
+      str = stringify.Call(json, { info[i] });
+    }
+    s += ' ';
+    s += str.ToString().Utf8Value();
+  }
+  ++logged;
+  spdlog::info("{}", s);
+}
 } // namespace
 
 Napi::Value ConsoleApi::PrintConsole(const Napi::CallbackInfo& info)
@@ -38,6 +78,12 @@ Napi::Value ConsoleApi::PrintConsole(const Napi::CallbackInfo& info)
 
   if (g_windowsConsolePrinter) {
     g_windowsConsolePrinter->Print(info);
+  }
+
+  // A copy for the log; it never changes what printConsole does
+  try {
+    LogDiagnosticLine(info);
+  } catch (...) {
   }
 
   return info.Env().Undefined();
