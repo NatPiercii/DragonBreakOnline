@@ -48,6 +48,10 @@ HOLD_RX = re.compile(r"^(%s) Guard('s (Armor|Helmet|Shield)| Cloak)$" % '|'.join
 UNIFORM_EXTRA = {
     'county-bruma': ['723cd:BSHeartland.esm'],                          # CYRArmorGuardCuirassBruma
     'synod': ['602972:BSAssets.esm', '82c2f:BSHeartland.esm'],          # CYRSynodRobes, CYRClothesSynodRobes
+    # Windhelm's own guard kit from Sentinel - City Guards (the base game dresses them in Stormcloak cuirasses and has
+    # only an Eastmarch helmet and shield): the two cuirasses are the uniform, the three helmets go with it (Nate)
+    'hold-windhelm': ['815:Sentinel - City Guards.esp', '816:Sentinel - City Guards.esp', '819:Sentinel - City Guards.esp',
+                      '81a:Sentinel - City Guards.esp', '81b:Sentinel - City Guards.esp'],
 }
 BENCHES = {'CraftingSmithingForge': 'blacksmith', 'CraftingSmithingSkyforge': 'blacksmith', 'DLC1CraftingDawnguard': 'blacksmith',
            'MCE_CraftingLoom': 'tailor', 'CraftingTanningRack': 'tailor'}

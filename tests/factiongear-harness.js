@@ -99,7 +99,14 @@ check("...nor is another faction's armor", globalThis.__dboInUniform(A.LEG, 'imp
 equipment.set(A.OUT, [BRUMA_CUIRASS]);
 check("the County of Bruma's uniform is its guard cuirass, which no recipe makes", globalThis.__dboInUniform(A.OUT, 'county-bruma') === true);
 check('the Fighters Guild has no uniform, so the rule cannot hold it', globalThis.__dboInUniform(A.OUT, 'fighters-guild') === null && globalThis.__dboHasUniform('fighters-guild') === false);
-check("Windhelm's guard list is only a shield, so Windhelm has no uniform to be held to", globalThis.__dboInUniform(A.OUT, 'hold-windhelm') === null);
+// Windhelm's uniform is Sentinel - City Guards' Windhelm kit (Nate): the cuirass counts, its helmet alone does not
+const WH_CUIRASS = idOf('815:Sentinel - City Guards.esp'), WH_HELMET = idOf('819:Sentinel - City Guards.esp');
+bodyIds.add(WH_CUIRASS); globalThis.__dboFactionGearState.checkedAt = 0; globalThis.__dboFactionGearState.mtime = -1;
+equipment.set(A.OUT, [WH_HELMET]);
+check("a Windhelm guard's helmet alone is not Windhelm's uniform", globalThis.__dboInUniform(A.OUT, 'hold-windhelm') === false);
+equipment.set(A.OUT, [WH_CUIRASS, WH_HELMET]);
+check("Sentinel's Windhelm cuirass is Windhelm's uniform", globalThis.__dboInUniform(A.OUT, 'hold-windhelm') === true);
+check('the Fighters Guild stays exempt (Nate)', globalThis.__dboHasUniform('fighters-guild') === false);
 
 // Through regions.js's craft hook, as the server calls it
 let prevCalls = 0;
