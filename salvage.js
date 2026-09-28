@@ -183,6 +183,7 @@ module.exports = (api) => {
   // A refusal reopens this menu with the reason as its title, so the cursor never drops between panels.
   const openLedgerMenu = (a, target, station, note) => {
     S.pending.set(a >>> 0, { target: target >>> 0, station: station.id, page: 0, menu: true });
+    log(`salvage: ${who(a)} opened the ${station.label} menu at ${descOf(target)}${note ? ` (${note})` : ''}`);
     openWidget(a, {
       type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: note || station.label,
       actions: [{ id: 'spellbook', label: 'Open your Spell Book' }, { id: 'books', label: 'Break down old books' }],
@@ -226,6 +227,7 @@ module.exports = (api) => {
     }
     if (id === 'more') { openPanel(a, p.target, station, p.page + 1); return; }
     if (station.dedicated && (id === 'spellbook' || id === 'books')) {
+      log(`salvage: ${who(a)} chose ${id} at the ${station.label}`);
       try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
       if (id === 'books') { breakBooksAt(a, p.target, station); return; }
       // The book opens first and takes the cursor; this menu is closed after it, which the client treats as closing a
