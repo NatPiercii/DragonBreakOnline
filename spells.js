@@ -208,7 +208,7 @@ module.exports = (api) => {
   const writePrepared = (a, ids) => set(a, PREPARED, ids.map(descOf).filter(Boolean));
   const preparedLine = (a) => `Prepared: ${preparedIds(a).length} of ${MAXP()}`;
   const COLLEGE_CELLS = new Set((CFG.prepareCells || []).map(norm));
-  // The Book Breakdown Ledger (salvage.js) is a college of its own (Nate, 2026-09-28: "use the breakdown ledger to access
+  // The Scholars' Ledger (salvage.js) is a college of its own (Nate, 2026-09-28: "use the breakdown ledger to access
   // both the book breakdown panel and spells"). The ledger a player opened the book from is kept, and every change is
   // checked against it again: still within reach of it, as a prepare cell is checked by where they stand.
   const LEDGER_REACH_M = 6.5;
@@ -219,7 +219,7 @@ module.exports = (api) => {
     try { return distanceMeters(a, ref) <= LEDGER_REACH_M; } catch (e) { return false; }
   };
   const atCollege = (a) => COLLEGE_CELLS.has(norm(get(a, 'worldOrCellDesc', ''))) || atLedger(a);
-  const COLLEGE_HINT = 'Prepared spells are changed at a magic college (the Synod Conclave in Bruma, or the College of Winterhold) or at a Book Breakdown Ledger.';
+  const COLLEGE_HINT = "Prepared spells are changed at a magic college (the Synod Conclave in Bruma, or the College of Winterhold) or at a Scholars' Ledger.";
   // A spell newly in the book: prepared at once while there is room (the engine already holds it after a read; a lesson
   // adds it), else it waits in the book and the engine's copy is taken back. Returns the line to tell the player.
   const settleNew = (a, sp, engineHasIt) => {

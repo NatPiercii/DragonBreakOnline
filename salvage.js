@@ -37,7 +37,7 @@ module.exports = (api) => {
     { id: 'desk', skill: 'scholar', label: 'writing desk', books: true, keywords: ['isWritingChair', 'isWritingTable', 'isHadvarWriteLedger'] },
     // A station made for it (DragonBreak Online Edits.esp BookBreakdown, the ledger in the Synod Conclave, 2026-09-28): its
     // script blocks the game's own activation, so it has no "use it again" row and always answers
-    { id: 'ledger', skill: 'scholar', label: 'Book Breakdown Ledger', books: true, dedicated: true, keywords: [], bases: CFG.bookBreakdownBases || [] },
+    { id: 'ledger', skill: 'scholar', label: "Scholars' Ledger", books: true, dedicated: true, keywords: [], bases: CFG.bookBreakdownBases || [] },
   ];
   const TIER_NAMES = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
 

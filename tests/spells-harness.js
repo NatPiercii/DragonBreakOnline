@@ -219,10 +219,10 @@ check('a stale panel changes nothing', known(MAGE).has(idOf(T.flames[1])) && pre
 at(MAGE, BRUMA, [0, 0, 0]);
 cmd('spells', MAGE);
 book = lastWidget(MAGE);
-check('outside a college the book opens to read, with the hint', book.atCollege === false && /changed at a magic college \(the Synod Conclave in Bruma, or the College of Winterhold\) or at a Book Breakdown Ledger/.test(book.hint));
+check('outside a college the book opens to read, with the hint', book.atCollege === false && /changed at a magic college \(the Synod Conclave in Bruma, or the College of Winterhold\) or at a Scholars' Ledger/.test(book.hint));
 ui('spellbookUnprepare', MAGE, [book.nonce, T.flames[1]], 58);
 check('...and nothing can be changed there', lastWidget(MAGE).resultKind === 'refused' && known(MAGE).has(idOf(T.flames[1])) && prepared(MAGE).length === 3);
-// The Book Breakdown Ledger (salvage.js opens the book from it) is a place to change them too, checked on every change
+// The Scholars' Ledger (salvage.js opens the book from it) is a place to change them too, checked on every change
 const LEDGER = 0x3413f775;
 at(LEDGER, BRUMA, [70, 0, 0]);
 check('the ledger opens the panel through the hook', globalThis.__dboOpenSpellbook(MAGE, { ledger: LEDGER }) === true && lastWidget(MAGE).type === 'spellbook');
