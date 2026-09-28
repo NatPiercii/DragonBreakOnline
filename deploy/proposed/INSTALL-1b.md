@@ -4,10 +4,11 @@ Branch `feature/server-controls-1b` (claude-jake), on origin/main 14415e42:
 
 - cd46050e: the backend (`sources/serverControl.js`, the action and job routes in `routes/site-server.js`, tests)
 - 41c9f904: `website/dashboard.html` (buttons, the confirm dialog, the result line, tests)
-- the commit that adds this folder: this file and `skymp-update-stopped-marker.patch`
+- 85fa236a: this folder (this file and `skymp-update-stopped-marker.patch`)
+- 4f8c43c6 to a32631d7: the review fixes (A1-A3, OPS-1 to OPS-6), one commit each, then this file brought up to date
 
 Designs: ST-D12; control-panel-design.md 3.1-3.9 and 3.11 (safety rules); staging DESIGN.md 4.1-4.7 (routes under
-`/api/site/staff/server`). Tests: `node --test test/*.test.js` in `skymp5-backend`: 161 tests, 157 pass, 4 skipped, 0 fail.
+`/api/site/staff/server`). Tests: `node --test test/*.test.js` in `skymp5-backend`: 173 tests, 169 pass, 4 skipped, 0 fail.
 
 Nothing here is live. Every step below waits for Jake's go.
 
@@ -18,9 +19,16 @@ Nothing here is live. Every step below waits for Jake's go.
   "Players are online: restarts with a countdown arrive with the next update." Start works only when the server is down.
 - Each press opens a dialog on the page: live player count, a reason (5 to 200 characters) and the typed word
   START, STOP or RESTART. The dialog reports the result (done, failed, not confirmed within 2 minutes, or the dry run).
-- Stop keeps the server stopped (`/opt/skymp-stopped`) until an Owner presses Start. A host reboot still starts it.
+- Stop keeps the server stopped (`/opt/skymp-stopped`) until an Owner presses Start. A host reboot starts it again and
+  ends the stop: the marker is then older than the unit's last start, so it no longer reads as Stopped or pauses updates,
+  and the panel says it is left over until Restart or Start removes it.
+- While systemd waits to restart a crashed server (auto-restart), the pill reads "Crashed, restarting" and Stop is
+  offered, so a crash loop can be ended from the dashboard.
 - Every action holds the `game-server` claim as operator `site-owner` from before the change until systemd shows the
-  result, writes an `ops log` line with its rollback, and posts an audit line (`WEB ...`) to #server-logs.
+  result, writes an `ops log` line with its rollback (and a second "Result: ..." line when it did not end done), and
+  posts an audit line (`WEB ...`) to #server-logs. The state is read again under the claim, right before systemctl.
+- Jobs are kept in `skymp5-backend/data/server-jobs.json` (last 50, mode 0600, git-ignored, created on the first action),
+  so a resent request never runs twice, even after a backend restart.
 
 ## Order
 
@@ -95,6 +103,10 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:4000/api/site/
 
 The second check is refused before the session, body or any command; nothing runs.
 
+On every start the backend runs `ops check game-server` (read only). Only if that shows the claim held by `site-owner`
+(an action cut short by the restart) does it write a `Result:` line and `ops release game-server site-owner`; a claim held
+by anyone else is left alone. `journalctl -u dragonbreak-backend` must show no `[site-server] recover failed`.
+
 ## 4. Switch file (claude-jake, root, on Jake's go)
 
 ```
@@ -110,13 +122,15 @@ The backend reads it on every request, so no restart. Missing or any other word 
 Install `website/dashboard.html` from the pushed main commit to CT 107 as `/dashboard.html`. Nothing else changes (the
 page carries its own button and dialog styles; `dbo.css` stays).
 
-- sha256 `76262e770857bf72c481003e24c50b8a310e7967cb0be07594f5bc80a2d94268`
+- sha256 `7547786c6bdbbdec7e3ce703d92ca65e375e690a2b0be5582f339d5011dad8d6`
 - verify strings, each counted once: `X-DBO-Control`, `showModal`,
   `Players are online: restarts with a countdown arrive with the next update.`; `innerHTML` counted 0
 - it replaces the Phase 1 page (sha256 `2035a6a3136c816215866a5980ec12ada0fdbcc17d729ee2178a143888d6ebba`)
 
-Render check done in CT 115 (headless Chromium at 360 and 1280 px against a stub site, no live endpoint): no horizontal
-overflow; Chrome sent `Origin`, `Sec-Fetch-Site: same-origin`, `X-DBO-Control: 1` and exactly `{requestId, reason, confirm}`.
+Render check done in CT 115 on the pre-review page (76262e77; headless Chromium at 360 and 1280 px against a stub site,
+no live endpoint): no horizontal overflow; Chrome sent `Origin`, `Sec-Fetch-Site: same-origin`, `X-DBO-Control: 1` and
+exactly `{requestId, reason, confirm}`. The review fixes add only wrapped text lines, one pill label in the wrapping bar
+and dialog text; the request is unchanged. Re-run the render check on 7547786c before install.
 
 ## 6. Acceptance
 
@@ -129,8 +143,10 @@ Dry run (switch `dry-run`):
 Live (on Jake's go, at 0 players): `printf 'on\n' > /etc/dragonbreak/server-control` and `ops log` it, then:
 - Restart: the dialog says "Restart done." within about a minute; `ops status` shows no `game-server` claim left by
   `site-owner`; `ops changelog` has the `site-owner` line with its rollback.
-- Stop: `cat /opt/skymp-stopped` shows `{by, reason, at}`, mode 644; the pill says Stopped.
+- Stop: `cat /opt/skymp-stopped` shows `{by, reason, at}`, mode 644; the pill says Stopped, with "Stopped by ...".
+  With the patched updater, its next run logs "skipped: server stopped by owner" (only once the hold is lifted).
 - Start: the marker is gone, the server is back, and the log line names the cleared marker.
+- `data/server-jobs.json` exists, mode 600, and lists the dry-run and live jobs (dry runs are kept too).
 
 ## Rollback
 
@@ -145,5 +161,10 @@ Live (on Jake's go, at 0 players): `printf 'on\n' > /etc/dragonbreak/server-cont
 
 - No countdown: with players online the buttons stay disabled (Phase 4).
 - No Force stop or Force restart for an unresponsive server (refused as playersUnknown); use systemctl under the claim.
-- Jobs live in memory (last 50): a backend restart forgets them, so a resend after a restart counts as a new request.
-- No 2-hour re-sign-in guard; the Owner check uses the bot's 60 s role cache.
+- Force stop for an active server with no fresh heartbeat stays out (its players cannot be known); the crash-loop case
+  (auto-restart) is covered by Stop.
+- The site-wide limit (6 actions an hour) is kept in memory and starts again when the backend restarts; a web user cannot
+  restart the backend. Resent requests are recognised for the last 50 jobs.
+- No 2-hour re-sign-in guard; the Owner check uses the bot's 60 s role cache, which the bot clears when it sees a
+  member's roles change. Accepted for 1b; there is no test of the bot's cache itself (it needs the Discord client).
+- The panel shows an updater run skipped for the stop as "skipped", like the other skip reasons.
