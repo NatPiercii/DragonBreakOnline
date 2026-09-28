@@ -321,6 +321,20 @@ const buildMountJs = (name: string, isAdmin: boolean, settingsJson: string) => `
   } catch (e) {}
 })();`;
 
+// Characters per line of the centre-screen system text: short enough to fit a 1280-wide screen at text size 0.5
+const SYSTEM_OVERLAY_LINE_CHARS = 60;
+// Breaks text into lines of at most `max` characters at spaces; a word longer than a line gets a line of its own
+export const wrapOverlayText = (text: string, max: number): string => {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (line && line.length + 1 + word.length > max) { lines.push(line); line = word; }
+    else line = line ? line + " " + word : word;
+  }
+  if (line) lines.push(line);
+  return lines.join("\n");
+};
+
 export class ChatService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
@@ -455,7 +469,10 @@ export class ChatService extends ClientListener {
         this.systemOverlay = null;
       }
       const { width, height } = getScreenResolution();
-      const id = this.sp.createText(width / 2, height / 3, text, [0.93, 0.66, 0.25, 1]);
+      // One engine text line has no wrapping, so a long line ran off both sides of the screen (Nate, 2026-09-28,
+      // the expedition arrival). SpriteFont draws '\n' as a new line and measures the block with it, so the block
+      // stays centred on the same point.
+      const id = this.sp.createText(width / 2, height / 3, wrapOverlayText(text, SYSTEM_OVERLAY_LINE_CHARS), [0.93, 0.66, 0.25, 1]);
       this.sp.setTextSize(id, 0.5);
       this.systemOverlay = { id, expiresAt: Date.now() + 15000 };
     } catch (e) {
