@@ -27,6 +27,7 @@ import { CloneSpellGuardService } from "./services/services/cloneSpellGuardServi
 import { RagdollService } from "./services/services/ragdollService";
 import { DeathService } from "./services/services/deathService";
 import { DeathScreenService } from "./services/services/deathScreenService";
+import { ShoutPushService } from "./services/services/shoutPushService";
 import { DownedTimerService } from "./services/services/downedTimerService";
 import { ContainersService } from "./services/services/containersService";
 import { NetworkingService } from "./services/services/networkingService";
@@ -150,6 +151,7 @@ const main = () => {
       new RagdollService(sp, controller),
       new DeathService(sp, controller),
       new DeathScreenService(sp, controller),
+      new ShoutPushService(sp, controller),
       new DownedTimerService(sp, controller),
       new ContainersService(sp, controller),
       new NetworkingService(sp, controller),
