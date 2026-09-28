@@ -146,7 +146,7 @@ const load = (expeditions, cfgDungeons = {}) => {
     return { items: items / chests.length, gold: gold / chests.length, pieces: pieces / chests.length, rarest: rarest / chests.length };
   };
   const r = measure('raid'), b = measure('boss');
-  check(`a raid boss chest holds more (${r.items.toFixed(1)} items, ${r.gold.toFixed(0)} gold) than a boss dungeon's (${b.items.toFixed(1)}, ${b.gold.toFixed(0)})`, r.items > b.items * 1.6 && r.gold > b.gold * 1.6);
+  check(`a raid boss chest holds more (${r.items.toFixed(1)} items, ${r.gold.toFixed(0)} gold) than a boss dungeon's (bossRolls 1.5) (${b.items.toFixed(1)}, ${b.gold.toFixed(0)})`, r.items > b.items * 1.3 && r.gold > b.gold * 1.3);
   check(`...more Ayleid treasure (${r.pieces.toFixed(2)} a chest against ${b.pieces.toFixed(2)}) and more of the rarest (${(100 * r.rarest).toFixed(1)}% against ${(100 * b.rarest).toFixed(1)}%)`, r.pieces > b.pieces && r.rarest > b.rarest * 1.5);
 }
 
