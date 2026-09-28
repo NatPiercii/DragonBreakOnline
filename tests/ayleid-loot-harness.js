@@ -103,14 +103,17 @@ const EXPECT = {   // the defaults in dungeons.js (AYLEID_DEFAULTS) and gamemode
   hard: { chest: 0.07, boss: 0.7, tiers: ['common', 'uncommon', 'rare'] },
   nightmare: { chest: 0.09, boss: 0.85, tiers: ['common', 'uncommon', 'rare', 'rarest'] },
 };
-const cfgTable = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8')).dungeons.ayleidLoot.byDifficulty;
+const cfgDungeons = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8')).dungeons;
+const cfgTable = cfgDungeons.ayleidLoot.byDifficulty;
+// Expedition loot is trimmed (dungeons.expeditionLoot, 2026-09-28): every Ayleid chance is ayleidScale as likely
+const AS = Number(cfgDungeons.expeditionLoot.ayleidScale);
 check('gamemode-config.json carries the per-difficulty table with these rates', Object.keys(EXPECT).every((k) => cfgTable[k] && cfgTable[k].chestChance === EXPECT[k].chest && cfgTable[k].bossChance === EXPECT[k].boss));
 for (const [diffId, e] of Object.entries(EXPECT)) {
-  const r = claimRuin(diffId, 4000, 2000, { ayleidLoot: { byDifficulty: cfgTable } });
+  const r = claimRuin(diffId, 4000, 2000, { ayleidLoot: { byDifficulty: cfgTable }, expeditionLoot: cfgDungeons.expeditionLoot });
   const inBig = r.bigPieces.filter((l) => l.length).map((l) => l[0]), inBoss = r.bossPieces.filter((l) => l.length).map((l) => l[0]);
   const pb = inBig.length / 4000, pB = inBoss.length / 2000;
   check(`${diffId}: claimed; at most one piece a chest`, r.claimed && r.bigPieces.concat(r.bossPieces).every((l) => l.length <= 1));
-  check(`${diffId}: a big chest holds one ${(100 * pb).toFixed(1)}% (${Math.round(100 * e.chest)}), a boss chest ${(100 * pB).toFixed(1)}% (${Math.round(100 * e.boss)})`, Math.abs(pb - e.chest) < 0.015 && Math.abs(pB - e.boss) < 0.04);
+  check(`${diffId}: a big chest holds one ${(100 * pb).toFixed(1)}% (${(100 * e.chest * AS).toFixed(1)}), a boss chest ${(100 * pB).toFixed(1)}% (${(100 * e.boss * AS).toFixed(1)})`, Math.abs(pb - e.chest * AS) < 0.012 && Math.abs(pB - e.boss * AS) < 0.04);
   const tiers = [...new Set(inBig.concat(inBoss).map((it) => it.tier))];
   check(`${diffId}: only the tiers ${e.tiers.join(', ')} (got ${tiers.join(', ')})`, tiers.every((t) => e.tiers.includes(t)));
   if (diffId !== 'nightmare') check(`${diffId}: never Eminent jewellery or the Lich Helmet`, !inBig.concat(inBoss).some((it) => /Ayleid04$/.test(it.name) || it.name === 'BSKArmorAyleidLichHelmet'));
@@ -137,11 +140,13 @@ for (const [diffId, e] of Object.entries(EXPECT)) {
   const loot = JSON.parse(fs.readFileSync(path.join(ROOT, 'loot.json'), 'utf8'));
   const potion = new Map((loot.pools.potions || []).map((p) => [idOf(p.id), p.name]));
   const strong = (name) => { const m = /(\d+)$/.exec(name); const n = m ? Number(m[1]) : 1; return (n >= 4 && n < 25) || n >= 75; };
-  const r = claimRuin('nightmare', 4000, 2000, {}, path.join(ROOT, 'loot.json'));
+  const r = claimRuin('nightmare', 4000, 2000, { expeditionLoot: cfgDungeons.expeditionLoot }, path.join(ROOT, 'loot.json'));
+  // In an expedition the chances are also times the trim (expeditionLoot.scale, bossScale at Master)
+  const xs = Number(cfgDungeons.expeditionLoot.scale.nightmare), xb = Number(cfgDungeons.expeditionLoot.bossScale.nightmare);
   const count = (list) => { let chests = 0, n = 0, s = 0; for (const e of list) { const p = e.filter((x) => potion.has(x.baseId)); if (p.length) chests++; for (const x of p) { n += x.count; if (strong(potion.get(x.baseId))) s += x.count; } } return { share: chests / list.length, per: n / list.length, strong: n ? s / n : 0 }; };
   const b = count(r.big), B = count(r.boss);
-  check(`potions: a big chest ${(100 * b.share).toFixed(1)}% (was 44%, now 20%), ${b.per.toFixed(2)} a chest (was 0.66)`, Math.abs(b.share - 0.2) < 0.025 && b.per <= 0.23);
-  check(`potions: a boss chest ${(100 * B.share).toFixed(1)}% (was 100%, now 60%), ${B.per.toFixed(2)} a chest (was 2.2)`, Math.abs(B.share - 0.6) < 0.04 && B.per <= 0.65);
+  check(`potions: a big chest ${(100 * b.share).toFixed(1)}% (was 44%, now 20% x ${xs}), ${b.per.toFixed(2)} a chest (was 0.66)`, Math.abs(b.share - 0.2 * xs) < 0.02 && b.per <= 0.23 * xs);
+  check(`potions: a boss chest ${(100 * B.share).toFixed(1)}% (was 100%, now 60% x ${xb}), ${B.per.toFixed(2)} a chest (was 2.2)`, Math.abs(B.share - 0.6 * xb) < 0.04 && B.per <= 0.65 * xb);
   check(`potions at Master: ${(100 * (b.strong)).toFixed(1)}% strong (was 33%)`, b.strong < 0.1 && B.strong < 0.1);
 }
 

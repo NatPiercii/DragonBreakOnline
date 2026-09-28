@@ -79,7 +79,8 @@ const check = (label, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${labe
     if (t) { withTorch++; torches += t.count; }
   }
   check('a claimed ruin fills its chests', chests.some((ch) => props.get(`${parseInt(ch.ref, 16)}|inventory`)));
-  check(`torches are a common find: ${withTorch} of 200 chests (35% expected), 1 or 2 each`, withTorch >= 40 && withTorch <= 110 && torches >= withTorch && torches <= withTorch * 2, { withTorch, torches });
+  // An expedition's chances are times its trim (dungeons.expeditionLoot.scale; Adept 0.45 by default): 35% x 0.45
+  check(`torches are a common find: ${withTorch} of 200 chests (16% expected in an expedition, 35% in a dungeon), 1 or 2 each`, withTorch >= 15 && withTorch <= 55 && torches >= withTorch && torches <= withTorch * 2, { withTorch, torches });
   global.setTimeout = savedTimeout;
   process.chdir(here);
   fs.rmSync(dir, { recursive: true, force: true });
