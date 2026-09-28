@@ -245,9 +245,9 @@
   {
    "id": "unarmed",
    "category": "combat",
-   "label": "Unarmed",
+   "label": "Martial Arts",
    "title": "The Closed Fist",
-   "description": "Fists, claws and the discipline to use them. The only skill that needs nothing in your hands, and the one a Khajiit is born into: the server already reads a Khajiit's claws as a weapon. Tiers raise unarmed damage and nothing else grows it.",
+   "description": "Fists and staves. Every blow of your fists drains your opponent's stamina, and a tired fighter hits weakly, so a boxer who stays on someone wears them down; armour stops fists more than it stops a weapon, and a landed unarmed power attack knocks the weapon from their hands. Quarterstaves and battle staves strike fast and partly through armour. Only this skill grows their damage, never Blunt. A Khajiit's claws count as fists.",
    "vanillaSkills": [],
    "counts": {
     "hitKeywords": [
@@ -260,14 +260,39 @@
     ],
     "weaponTypes": [
      "HandToHand"
+    ],
+    "weaponIds": [
+     "747ae:Immersive Weapons.esp",
+     "9971:Immersive Weapons.esp",
+     "6e4d:Immersive Weapons.esp",
+     "601aae:BSAssets.esm",
+     "747af:Immersive Weapons.esp",
+     "73b7:Immersive Weapons.esp",
+     "73b6:Immersive Weapons.esp",
+     "601aad:BSAssets.esm",
+     "747b0:Immersive Weapons.esp",
+     "a437:Immersive Weapons.esp",
+     "747b1:Immersive Weapons.esp",
+     "73b5:Immersive Weapons.esp",
+     "601aac:BSAssets.esm",
+     "50d64:Immersive Weapons.esp",
+     "601aaa:BSAssets.esm",
+     "601aab:BSAssets.esm",
+     "747dd:Immersive Weapons.esp",
+     "747b2:Immersive Weapons.esp",
+     "73b4:Immersive Weapons.esp",
+     "601aa9:BSAssets.esm",
+     "747b3:Immersive Weapons.esp",
+     "601aa8:BSAssets.esm",
+     "747b4:Immersive Weapons.esp"
     ]
    },
    "tiers": [
-    "Bare-knuckle blows",
-    "Power attacks cost less",
-    "+35% damage",
-    "+65% damage, faster combinations",
-    "+100% damage, disarming strikes"
+    "Blows that drain stamina",
+    "Heavier blows drain more stamina",
+    "+20% fist damage, +35% staff damage",
+    "+35% fist damage, +65% staff damage",
+    "+50% fist damage, +100% staff damage"
    ],
    "markerSpells": [
     "<T1>",

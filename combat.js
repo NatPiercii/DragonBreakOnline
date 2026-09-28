@@ -180,6 +180,16 @@ module.exports = (api) => {
     }
     return n;
   };
+  // Disarms a player on their own client, once per target every disarmCooldownSeconds whatever did it (the Disarm shout,
+  // an unarmed power attack in martial.js), and tells them why. Returns the weapons unequipped, or -1 inside the cooldown.
+  const disarmPlayer = (tgt, text) => {
+    const s = st(tgt), now = Date.now();
+    if (now - (s.disarmedAt || 0) < C.disarmCooldownSeconds * 1000) return -1;
+    s.disarmedAt = now;
+    const n = disarm(tgt);
+    if (n && text && typeof sendPacket === 'function') { try { sendPacket(tgt, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text }); } catch (e) { /* offline */ } }
+    return n;
+  };
   // ---- the shout gate ------------------------------------------------------------------------------------
   const fs = require('fs'); const path = require('path');
   const idOfDesc = (d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } };
@@ -219,12 +229,8 @@ module.exports = (api) => {
     const disarms = isDisarm(spellId), dismay = dismaySecondsOf(spellId);
     if ((force >= 0 || disarms || dismay) && !shoutAllowed(agg, spellId)) return;
     if (disarms) {
-      const s = st(tgt), now = Date.now();
-      if (now - (s.disarmedAt || 0) < C.disarmCooldownSeconds * 1000) return;
-      s.disarmedAt = now;
-      const n = disarm(tgt);
-      if (n && typeof sendPacket === 'function') { try { sendPacket(tgt, { customPacketType: 'dboStatus', kind: 'notice', seconds: 1, speedMult: 0, text: 'A shout tears the weapon from your grip.' }); } catch (e) { /* offline */ } }
-      if (C.log) log(`combat ${display(agg)} -> ${display(tgt)}: shout disarm, ${n} weapon(s) (spell ${spellId.toString(16)})`);
+      const n = disarmPlayer(tgt, 'A shout tears the weapon from your grip.');
+      if (C.log && n >= 0) log(`combat ${display(agg)} -> ${display(tgt)}: shout disarm, ${n} weapon(s) (spell ${spellId.toString(16)})`);
       return;
     }
     if (dismay) {
@@ -250,5 +256,5 @@ module.exports = (api) => {
   };
 
   const forget = (a) => S.delete(a);
-  return { onAttempt, onSpellHit, forget, isShield, shoutAllowed };
+  return { onAttempt, onSpellHit, forget, isShield, shoutAllowed, disarmPlayer };
 };

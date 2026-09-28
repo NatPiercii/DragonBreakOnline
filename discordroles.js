@@ -2,7 +2,7 @@
 // what players do (professions, where they live)"). Loaded by gamemode.js.
 //
 // Skills: every skill the player's current character has chosen gets the guild role of the same name under ---SKILLS---
-// (One-Handed and Two-Handed are renamed Blade and Blunt once; a missing one, such as Unarmed, is created there).
+// (One-Handed and Two-Handed are renamed Blade and Blunt once, Unarmed Martial Arts; a missing one is created there).
 // Homes: every property the character owns or rents (housingSystem.ts, housing.json) gives the role of its town under
 // ---HOMES---: Bruma, Falkreath, Whiterun and so on, each created the first time someone lives there.
 //
@@ -17,7 +17,7 @@ const https = require('https');
 module.exports = (api) => {
   const { mp, log, audit, who, onlineActors, every, discordOf, profileOf, skills, token, guildId, cfg } = api;
   const C = Object.assign({ enabled: true, syncMinutes: 10, firstSyncSeconds: 30, skillsDivider: '---SKILLS---', homesDivider: '---HOMES---',
-    rename: { 'One-Handed': 'Blade', 'Two-Handed': 'Blunt' },
+    rename: { 'One-Handed': 'Blade', 'Two-Handed': 'Blunt', Unarmed: 'Martial Arts' },
     homeNames: { whiterun: 'Whiterun', riften: 'Riften', solitude: 'Solitude', windhelm: 'Windhelm', markarth: 'Markarth', falkreath: 'Falkreath',
       morthal: 'Morthal', dawnstar: 'Dawnstar', winterhold: 'Winterhold', bruma: 'Bruma', solstheim: 'Solstheim', alikr: "Alik'r" } }, cfg.discordRoles || {});
   if (!C.enabled || !token || !guildId) { log(`discord roles off (${!C.enabled ? 'config' : 'no bot token or guild'})`); return; }

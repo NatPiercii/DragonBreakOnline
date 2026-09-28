@@ -97,7 +97,7 @@
  },
  "mastery": {
   "_comment": "Combat numbers (gamemode.js). damage.byTier: extra weapon damage by the attacker's weapon-skill rank, Novice..Master, applied after the engine's hit. defense.armorMultByTier: how many times its bare rating worn armor counts for, by the target's Defense rank (the engine alone gives rating x 0.12 %, capped at 80 %); lightShare: the part of that gain light armor gets (1 = same as heavy). Measured 2026-09-24: a naked player has 150 health; a Master two-hander with a Daedric greatsword dealt 33 a hit at the old x1.30 (5 hits). At x2.0 it is 48 (4 hits, 2 with a power attack); a full Daedric heavy set (108) worn at Master Defense takes 45 % off instead of 13 %.",
-  "damage": { "byTier": [0, 0, 0.35, 0.65, 1.0], "log": true },
+  "damage": { "byTier": [0, 0, 0.35, 0.65, 1.0], "fistByTier": [0, 0, 0.2, 0.35, 0.5], "log": true },
   "defense": { "enabled": true, "armorMultByTier": [1, 1.25, 1.75, 2.5, 3.5], "lightShare": 1 },
   "arcane": { "_comment": "Extra damage for Destruction spells (schools: magic skill actor value, 20 = Destruction) by the caster's Arcane Arts rank, Novice..Master. Smaller than the weapon tiers because spells hit from range. Live magnitudes 2026-09-25: Firebolt 25, Fireball 40, Icy Spear 60.", "enabled": true, "byTier": [0, 0, 0.2, 0.35, 0.5], "schools": [20] }
  },
@@ -162,6 +162,14 @@
   "bookPaper": 2,
   "bookStrips": 1,
   "notePaper": 1
+ },
+ "martialArts": {
+  "_comment": "Martial Arts (martial.js; the skill id stays unarmed). staminaDamage: every melee blow (fists and weapons, not bows or spells, NPCs' too) is full at fullAt of the attacker's stamina or more and falls linearly to minMult at none. fists.drainByTier: stamina points a landed fist takes from its target by the attacker's Martial Arts rank (untrainedDrain without the skill), x powerDrainMult for a power attack; armorExtra: how much more the target's armour counts against fists; powerDisarm: a landed unarmed power attack unequips a player's weapons (combat.js disarm cooldown), from powerDisarmMinRank. staves.armorPierce: the share of the armour's reduction a staff ignores. Fist tier damage is mastery.damage.fistByTier; staves use byTier.",
+  "enabled": true,
+  "log": true,
+  "staminaDamage": { "enabled": true, "minMult": 0.5, "fullAt": 0.5 },
+  "fists": { "armorExtra": 0.5, "drainByTier": [6, 8, 10, 13, 16], "untrainedDrain": 4, "powerDrainMult": 2, "powerDisarm": true, "powerDisarmMinRank": 0 },
+  "staves": { "armorPierce": 0.25 }
  },
  "weaponMaterials": {
   "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2); a weapon without one of these gets nothing.",
