@@ -870,7 +870,10 @@ if (typeof globalThis.__dboPrevActivate === 'undefined') globalThis.__dboPrevAct
 // Nothing placed by a plugin can be picked up: items in the world are decoration, resources come
 // from nodes, containers, crafting and trade. Player-dropped items (dynamic ff-space refs) stay pickable.
 const ITEM_TYPES = new Set(['WEAP', 'ARMO', 'MISC', 'INGR', 'ALCH', 'BOOK', 'AMMO', 'KEYM', 'SLGM', 'SCRL', 'LIGH']);
-const HARVEST_ITEM_PREFIXES = ['hangingrabbit', 'hangingpheasant', 'hanginggarlic', 'garlicbraid', 'hangingelvesear', 'hangingfrostmirriam', 'driedelvesear', 'driedfrostmirriam', 'hangingsalmon', 'salmonrack', 'hangingherb', 'sleepingtreesap'];
+const HARVEST_ITEM_PREFIXES = ['hangingrabbit', 'hangingpheasant', 'hanginggarlic', 'garlicbraid', 'hangingelvesear', 'hangingfrostmirriam', 'driedelvesear', 'driedfrostmirriam', 'hangingsalmon', 'salmonrack', 'hangingherb', 'sleepingtreesap',
+  // Nat 2026-09-28: the herbs and food hanging in Bruma's houses. 'Lavander' is the game's own spelling;
+  // 'lavender' is here too so a correctly spelled record in another plugin is not silently missed.
+  'hanginglavander', 'hanginglavender', 'hangingmagusmint', 'hangingmoratapinella', 'hangingscalypholiota', 'hangingonionbraid'];
 // Nat 2026-09-28: sleeping tree sap can be taken, and the tap is then spent for an hour. The harvestables above
 // had no timer at all, so a hanging rabbit could be taken again the moment it was looked at; they share this one.
 // Keyed by the reference and kept on globalThis, so a gamemode reload does not hand everyone a fresh harvest.
