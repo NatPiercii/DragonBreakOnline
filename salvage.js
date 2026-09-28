@@ -115,7 +115,9 @@ module.exports = (api) => {
     const e = items().get(norm(descOf(baseId)));
     if (!e || e[0] !== station.id || rank < (Number(e[1]) || 0)) return null;
     const share = shareFor(rank);
-    const out = (e[2] || []).map(([d, n], i) => [d, i === 0 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)]).filter(([, n]) => n > 0);
+    // At least one of the main material, but only for an item that cost at least one: a ring made 2 per ingot costs half
+    // an ingot, and giving one back would double the metal on every craft (review A5-1). Never more than the item cost.
+    const out = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)]).filter(([, n]) => n > 0);
     return out.length ? out : null;
   };
 
