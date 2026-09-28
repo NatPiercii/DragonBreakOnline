@@ -149,7 +149,7 @@ ok(act(LEDGER, PLAYER) === true, 'the ledger always answers');
 w = lastWidget(PLAYER);
 ok(w.actions.map((x) => x.label).join('|') === 'Open your Spell Book|Break down old books' && w.targetName === "Scholars' Ledger", 'its first menu: Open your Spell Book, Break down old books');
 choose(PLAYER, 'books'); w = lastWidget(PLAYER);
-ok(w && w.id === 'dboSalvage' && w.actions.length === 1 && w.actions[0].id === `b:${BOOK}` && /at the Scholars' Ledger/.test(w.targetName), 'Break down old books opens the book list in the same panel, the sword not offered, no "use it again" row');
+ok(w && w.id === 66 && w.actions.length === 1 && w.actions[0].id === `b:${BOOK}` && /at the Scholars' Ledger/.test(w.targetName), 'Break down old books opens the book list in the same panel, the sword not offered, no "use it again" row');
 ok(!widgets.some((x) => x[0] === PLAYER && x[1] === null), '...with no close in between, so the cursor stays');
 choose(PLAYER, `b:${BOOK}`);
 ok(count(PLAYER, PAPER) === 2 && count(PLAYER, STRIPS) === 1 && count(PLAYER, BOOK) === 0, 'the book breaks down there');

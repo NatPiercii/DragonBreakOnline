@@ -28,7 +28,9 @@ module.exports = (api) => {
     bookBreakdownBases: ['BookBreakdown'],
     paper: '7cba1:BSHeartland.esm', leatherStrips: '800e4:Skyrim.esm', bookPaper: 2, bookStrips: 1, notePaper: 1,
   }, cfg.salvage || {});
-  const WIDGET_ID = 'dboSalvage';
+  // A number: the client relay drops a widget whose id is not a positive number (dboRelayService.ts:202), so the
+  // string 'dboSalvage' this had was never drawn (Nate, 2026-09-28: the Scholars' Ledger and the smelter showed nothing)
+  const WIDGET_ID = 66;
   // Checked in this order: the MCE loom also carries isTanning
   const STATIONS = [
     { id: 'loom', skill: 'tailor', label: 'loom', keywords: ['MCE_CraftingLoom', 'TailorBench'] },
