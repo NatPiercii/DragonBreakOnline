@@ -67,6 +67,44 @@ function readPeFileVersion(exePath) {
   } catch { return null } finally { fs.closeSync(fd) }
 }
 
+// Steam's 1.7.99 update (20 Aug 2026) changed the masters and archives but left SkyrimSE.exe at 1.6.1170.0, so a game
+// installed since then passes the exe gate on newer data. The sizes are logged and reported so that shows; nothing
+// blocks on them yet. The masters' and Misc archive's 1.6.1170 sizes are the server's clean Steam copies
+// (fork/deploy/skyrim-data); the Interface archive's is the one the community downgrade guides give for 1.6.1170 (the
+// newer build's is 106,921,425).
+const DATA_SIZES_1170 = [
+  ['Skyrim.esm', 249753412],
+  ['Update.esm', 18874041],
+  ['Skyrim - Interface.bsa', 105799354],
+  ['Skyrim - Misc.bsa', 17713449],
+]
+
+/**
+ * { verdict, differ, missing, text } for a game folder's Data. verdict is "1.6.1170 data" when every file has its
+ * 1.6.1170 size, "newer data (1.7.99+)" when a Steam install has one of another size, and "unknown" otherwise (a file
+ * missing, or a GOG install, whose 1.6.1179 sizes are not known here).
+ */
+function checkGameData(gameDir, edition) {
+  const differ = []
+  const missing = []
+  const parts = []
+  for (const [name, want] of DATA_SIZES_1170) {
+    let size
+    try { size = fs.statSync(path.join(gameDir, 'Data', name)).size } catch {
+      missing.push(name)
+      parts.push(`${name} missing`)
+      continue
+    }
+    if (size !== want) differ.push(name)
+    parts.push(`${name} ${size}`)
+  }
+  let verdict = '1.6.1170 data'
+  if (edition === 'GOG' && (differ.length || missing.length)) verdict = 'unknown'
+  else if (differ.length) verdict = 'newer data (1.7.99+)'
+  else if (missing.length) verdict = 'unknown'
+  return { verdict, differ, missing, text: `${verdict}: ${parts.join(', ')}` }
+}
+
 // { exe, version, ok, required }; edition comes from mo2.detectEdition. An unreadable version never blocks (ok stays true) so an odd build only logs.
 function checkGameVersion(gameDir, edition) {
   const exe = path.join(gameDir || '', 'SkyrimSE.exe')
@@ -76,4 +114,6 @@ function checkGameVersion(gameDir, edition) {
   return { exe, version, ok, required: gog ? GAME_VERSION_GOG : GAME_VERSION_REQUIRED }
 }
 
-module.exports = { GAME_VERSION_REQUIRED, GAME_VERSION_GOG, GAME_DOWNGRADE_URL, readPeFileVersion, checkGameVersion }
+module.exports = {
+  GAME_VERSION_REQUIRED, GAME_VERSION_GOG, GAME_DOWNGRADE_URL, DATA_SIZES_1170, readPeFileVersion, checkGameVersion, checkGameData,
+}

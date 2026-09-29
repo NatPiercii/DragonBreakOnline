@@ -1503,14 +1503,37 @@ async function showGameVersionDialog(gv) {
   }
 }
 
+// The original install and the game copy, each with its exe version and whether its data is 1.6.1170's
+// (gameversion.checkGameData: a 1.6.1170 exe on 1.7.99+ data passes the exe gate). Logged at start, on every PLAY and
+// in Report a Problem; nothing blocks on the data yet.
+function gameFolders() {
+  const out = []
+  for (const [label, dir] of [['Skyrim folder', store.get('skyrimPath')], ['game copy', isolatedGameReady() ? isolatedGameDir() : null]]) {
+    if (!dir || out.some(f => f.dir === dir)) continue
+    const edition = mo2.detectEdition(dir)
+    out.push({ label, dir, gv: gameversion.checkGameVersion(dir, edition), data: gameversion.checkGameData(dir, edition) })
+  }
+  return out
+}
+
+function logGameFolders(folders = gameFolders()) {
+  for (const f of folders) {
+    log(`[version] ${f.gv.exe} = ${f.gv.version || 'unreadable'}`)
+    log(`[version] ${f.label} ${f.dir}: ${f.data.text}`)
+  }
+  return folders
+}
+
+// One line for a report's header: each folder's exe version and data verdict, with the files whose size differs
+function gameVersionSummary(folders) {
+  return folders.map(f => `${f.label}: exe ${f.gv.version || 'unreadable'}, ${f.data.verdict}` +
+    (f.data.differ.length ? ` (${f.data.differ.join(', ')} differ)` : '') +
+    (f.data.missing.length ? ` (${f.data.missing.join(', ')} missing)` : '')).join('; ')
+}
+
 // Checks the original install first (the portable copy is rebuilt from it), then the copy that actually runs
 function gameVersionProblem() {
-  for (const dir of [store.get('skyrimPath'), isolatedGameReady() ? isolatedGameDir() : null]) {
-    if (!dir) continue
-    const gv = gameversion.checkGameVersion(dir, mo2.detectEdition(dir))
-    log(`[version] ${gv.exe} = ${gv.version || 'unreadable'}`)
-    if (!gv.ok) return gv
-  }
+  for (const f of logGameFolders()) if (!f.gv.ok) return f.gv
   return null
 }
 
@@ -1729,6 +1752,17 @@ ipcMain.handle('report:send', async (_e, { note, private: keepPrivate } = {}) =>
         private:         keepPrivate === true,
       },
     })
+    // Each folder's exe version and data verdict goes in the report's header, the sizes with the install listing
+    try {
+      const folders = gameFolders()
+      if (folders.length) {
+        payload.gameVersion = gameVersionSummary(folders)
+        payload.clientLog = (payload.clientLog ? payload.clientLog + '\n\n' : '') + '== game data ==\n' +
+          folders.map(f => report.redact(`${f.label} ${f.dir}: exe ${f.gv.version || 'unreadable'}, ${f.data.text}`)).join('\n')
+      }
+    } catch (err) {
+      log(`[report] could not check the game data: ${err.message}`)
+    }
     const previous = report.tail(path.join(app.getPath('userData'), 'install.prev.log'))
     if (previous && !payload.launcherLog) payload.launcherLog = report.redact(previous)
     if (!payload.launcherLog) return { ok: false, error: 'No launcher log to send yet.' }
@@ -2023,6 +2057,9 @@ function ccArchiveWarning(names) {
 
 async function prepareForLaunch(skyrimPath, viaMO2) {
   ensureClientDirs(skyrimPath)
+
+  // Every PLAY logs both folders' exe versions and data sizes, so a report shows the game it ran
+  try { logGameFolders() } catch (err) { log(`[version] could not check the game data: ${err.message}`) }
 
   // Version gate; the dialog is not awaited so the warning strip updates while it is up
   const gv = gameversion.checkGameVersion(skyrimPath, mo2.detectEdition(skyrimPath))
