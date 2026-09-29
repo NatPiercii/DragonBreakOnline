@@ -335,14 +335,19 @@ export class FormView {
     once("update", () => {
       if (refrId >= 0xff000000) {
         const refr = ObjectReference.from(Game.getFormEx(refrId));
-        if (refr) {
-          refr.delete();
-        }
-        SpApiInteractor.getControllerInstance().lookupListener(WorldCleanerService).modWcProtection(refrId, -1);
+        // The weapon-drawn reset used to run AFTER refr.delete(), on the same reference: the local copy was deleted
+        // and then made into an Actor and written to. destroy() runs on every cell and worldspace change, which is
+        // what a doorway into a dungeon does to every spawn in it at once, so this is the path that runs when a
+        // party walks into a ruin. Doing it first touches a live actor and deletes afterwards, which is the order
+        // that was meant (2026-09-29, from the Niryastare crash: Havok stepping a freed actor's behaviour graph).
         const ac = Actor.from(refr);
         if (ac) {
           TESModPlatform.setWeaponDrawnMode(ac, -1);
         }
+        if (refr) {
+          refr.delete();
+        }
+        SpApiInteractor.getControllerInstance().lookupListener(WorldCleanerService).modWcProtection(refrId, -1);
         forgetLocalCopy(refrId);
       }
     })
