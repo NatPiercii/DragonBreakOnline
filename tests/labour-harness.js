@@ -364,6 +364,16 @@ check('other furniture is not labour\'s', globalThis.__dboLabour(0xa010, ACTOR) 
 setTier('woodcutter', 0); clearRests(); out.widgets.length = 0;
 check('the chopping block still opens a round', globalThis.__dboLabour(BLOCK, ACTOR) === true && out.widgets.length === 1 && out.widgets[0].kind === 'chopping');
 
+// cancelling a round rests the seam like a failed one (loot review, 2026-09-29): no looking at the bands and cancelling
+virtual += 60000; r = openRound('mining', 2);
+check('a round opens on the seam', r.ok === true && !!r.w);
+fire('labourCancel', []);
+const restAfterCancel = Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) || 0;
+check('cancelling it rests the seam for failRestMinutes', restAfterCancel > Date.now(), String(restAfterCancel));
+out.widgets.length = 0;
+globalThis.__dboLabour(VEIN, ACTOR);
+check('...so it cannot be reopened at once for a new set of bands', out.widgets.length === 0, String(out.widgets.length));
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);

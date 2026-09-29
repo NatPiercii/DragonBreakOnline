@@ -155,6 +155,19 @@ wallClock += w.endsInMs + 15000;
 globalThis.__dboReadBook(SKYRIM_BOOK, READER);
 check('an abandoned round expires and the book opens again', out.widgets.length === count + 1 && last().nonce !== w.nonce);
 
+// ---- cancelling a round takes the lost round's cooldown (loot review, 2026-09-29): no cancelling for an easy line ----
+{
+  wallClock += 31 * 60000;
+  const r = open(SKYRIM_BOOK);
+  check('a round opens', !!r && !!r.nonce);
+  ui('readingCancel', [r.nonce]);
+  out.widgets.length = 0; out.personals.length = 0;
+  globalThis.__dboReadBook(SKYRIM_BOOK, READER);
+  check('after a cancel the same book will not open at once', out.widgets.length === 0 && out.personals.some((t) => /not long ago/.test(t)), out.personals);
+  wallClock += 3 * 60000;
+  globalThis.__dboReadBook(SKYRIM_BOOK, READER);
+  check('...but does after the lost round\'s cooldown', out.widgets.length === 1);
+}
 // ---- copies (loot review, 2026-09-29): never a spell tome or skill book, at most bookDailyCap a day ----
 {
   const realRandom = Math.random; Math.random = () => 0; // the same line and order each time, and every find succeeds
