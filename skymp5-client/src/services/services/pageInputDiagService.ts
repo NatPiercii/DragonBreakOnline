@@ -37,6 +37,11 @@ const EVENT_MAX_LINES = 40;
 // doorway that arms ten zones and moves eight hosts in two ticks cannot flood the relay
 const EVENT_FULL_PER_KIND = 6;
 const EVENT_SUMMARY_MS = 5000;
+// An event line is queued because something happened that may be about to crash the client, so it does not wait for
+// the next tick: it goes out at once. GroundedPasta's 04:32 crash came within 5 s of six NPCs being handed to him,
+// and no fv:host line ever reached the server - the tick lost the race. Throttled only enough that a doorway which
+// arms ten zones cannot turn into ten packets in one frame.
+const URGENT_FLUSH_GAP_MS = 250;
 const RELAY_MAX_PER_PACKET = 8;
 // Only the lines worth a packet: the summaries, the first few DOM events, the load and heartbeat lines, the open dump
 const RELAY_WANTED = /^(lag |load |open |overlays |media |page heartbeat |closed,|mousemove #[1-5] |mousedown #[1-5] |click #[1-5] |keydown #[1-5] )/;
@@ -114,6 +119,13 @@ export class PageInputDiagService extends ClientListener {
     this.write(line);
     if (this.eventsRelayed + this.eventQueue.length >= EVENT_MAX_LINES) return;
     this.eventQueue.push(line.slice(0, 400));
+    // Out now, not on the next tick. This covers a burst of host changes in one tick by definition: the first line
+    // of the burst leaves immediately, and the rest follow a quarter second later at the latest.
+    const now = Date.now();
+    if (now - this.lastUrgent < URGENT_FLUSH_GAP_MS) return;
+    this.lastUrgent = now;
+    this.lastRelay = now;
+    this.flushRelay();
   }
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
@@ -223,6 +235,7 @@ export class PageInputDiagService extends ClientListener {
   private relayed = 0;
   private lastRelay = 0;
   private lastClientLine = 0;
+  private lastUrgent = 0;
   private anyMessages = 0;
   private lastAnyMessageAt = 0;
   private execCalls = -1;
