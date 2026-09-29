@@ -1702,7 +1702,7 @@ function documentsDirOrNull() {
 
 // Send this launcher's logs to staff. The backend redacts again, then files them as a thread in the
 // error-report forum under the player's Discord name.
-ipcMain.handle('report:send', async (_e, { note } = {}) => {
+ipcMain.handle('report:send', async (_e, { note, private: keepPrivate } = {}) => {
   const user    = store.get('discordUser') || null
   const session = store.get('gameSession')
   try {
@@ -1717,6 +1717,8 @@ ipcMain.handle('report:send', async (_e, { note } = {}) => {
         mo2Enabled:      store.get('mo2Enabled') ? 'yes' : 'no',
         discordUsername: user && user.username ? user.username : '',
         note:            typeof note === 'string' ? note.slice(0, 300) : '',
+        // The player's own choice, made before sending: no public thread is opened for this one
+        private:         keepPrivate === true,
       },
     })
     const previous = report.tail(path.join(app.getPath('userData'), 'install.prev.log'))

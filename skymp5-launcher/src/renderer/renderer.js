@@ -853,6 +853,7 @@ document.getElementById('btn-open-install').addEventListener('click', async () =
 const reportButton = document.getElementById('btn-send-report')
 const reportStatus = document.getElementById('report-status')
 const reportNote   = document.getElementById('report-note')
+const reportPrivate = document.getElementById('report-private')
 // The button is only disabled while a send is in flight. It used to stay disabled after a successful send, so a
 // player who reported one problem could not report the next one without restarting the launcher (Nate, 2026-09-28).
 const REPORT_AGAIN_MS = 15000
@@ -862,13 +863,15 @@ reportButton.addEventListener('click', async () => {
   reportStatus.textContent = 'Sending your logs...'
   let r
   try {
-    r = await window.electronAPI.sendReport(reportNote.value || '')
+    r = await window.electronAPI.sendReport(reportNote.value || '', !!(reportPrivate && reportPrivate.checked))
   } catch (e) {
     r = { ok: false, error: 'Could not send the report.' }
   }
   reportButton.disabled = false
   if (r && r.ok) {
-    reportStatus.textContent = 'Sent. Staff can see it under your Discord name. You can send another if something else goes wrong.'
+    reportStatus.textContent = (reportPrivate && reportPrivate.checked)
+      ? 'Sent to staff only. Nothing was posted publicly. You can send another if something else goes wrong.'
+      : 'Sent. It is in #bugs under your Discord name, and staff have your logs. You can send another if something else goes wrong.'
     reportNote.value = ''
     // A moment's pause so a double click does not file the same thing twice
     reportButton.disabled = true

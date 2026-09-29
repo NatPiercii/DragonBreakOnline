@@ -6,7 +6,7 @@ const fs = require('fs')
 // SERVER_VERSION = game server release label (informational)
 // DOWNLOAD_URL = installer for LATEST_VERSION (GitHub release asset of NatPiercii/DragonBreakOnline)
 const LATEST_VERSION = '2.1.33'
-const CLIENT_VERSION = '0.3.60'
+const CLIENT_VERSION = '0.3.64'
 const SERVER_VERSION = '0.3.1'
 const DOWNLOAD_URL   = 'https://github.com/NatPiercii/DragonBreakOnline/releases/download/launcher-v2.1.33/DragonBreakLauncher.exe'
 
