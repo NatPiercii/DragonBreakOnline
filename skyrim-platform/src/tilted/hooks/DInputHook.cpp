@@ -383,11 +383,13 @@ HRESULT ReadMouseData(IDirectInputDevice8A* device, DWORD dataSize,
 }
 
 // The game's own buffered keyboard reads (2026-09-29: Nate's RaceMenu got no
-// key at all until an alt-tab). Logging only: failed reads, their recovery,
-// and keys that went down in the device state while the game's reads
-// returned no items for two seconds.
-void NoteGameKeyboardRead(HRESULT hr, DWORD items, bool flush,
-                          const uint8_t* state)
+// key at all until an alt-tab, the "keyboard dead until alt-tab" of
+// 2026-09-27). Failed reads and their recovery are logged. When keys went down
+// in the device state at least twice in two seconds while the game's reads
+// returned no items, the keyboard is re-acquired, as an alt-tab does, and the
+// first read with items afterwards is logged. CheckDeafKeyboard covers the
+// other case, a device state that hears nothing either.
+bool NoteGameKeyboardRead(HRESULT hr, DWORD items, const uint8_t* state)
 {
   static uint8_t was[256] = { 0 };
   static DWORD failures = 0;
@@ -395,8 +397,9 @@ void NoteGameKeyboardRead(HRESULT hr, DWORD items, bool flush,
   static ULONGLONG windowStart = 0;
   static int downs = 0;
   static DWORD windowItems = 0;
-  static int reports = 0;
-  static ULONGLONG lastReport = 0;
+  static int heals = 0;
+  static ULONGLONG lastHeal = 0;
+  static bool awaitingItems = false;
   const ULONGLONG now = GetTickCount64();
 
   if (FAILED(hr)) {
@@ -411,6 +414,12 @@ void NoteGameKeyboardRead(HRESULT hr, DWORD items, bool flush,
                  failures);
     failures = 0;
     lastFailure = DI_OK;
+  }
+  if (SUCCEEDED(hr) && items > 0 && awaitingItems) {
+    awaitingItems = false;
+    spdlog::info("InputDiag: the game's keyboard reads return keys again {} "
+                 "ms after re-acquire #{}",
+                 now - lastHeal, heals);
   }
 
   int newDowns = 0;
@@ -427,25 +436,33 @@ void NoteGameKeyboardRead(HRESULT hr, DWORD items, bool flush,
     windowStart = now;
   }
   downs += newDowns;
-  if (!flush && SUCCEEDED(hr)) {
+  // Flushes and peeks count too: items there mean the buffer still fills
+  if (SUCCEEDED(hr)) {
     windowItems += items;
   }
   if (now - windowStart < 2000) {
-    return;
+    return false;
   }
-  if (downs >= 2 && windowItems == 0 && reports < 20 &&
-      (reports == 0 || now - lastReport >= 10000)) {
-    ++reports;
-    lastReport = now;
-    spdlog::info("InputDiag: keys went down {} time(s) in the last {} ms but "
-                 "the game's keyboard reads returned nothing (last result "
-                 "{:#x}, browser focused {})",
-                 downs, now - windowStart, static_cast<uint32_t>(hr),
-                 CEFUtils::DInputHook::ChromeFocus());
-  }
+  const bool deaf = downs >= 2 && windowItems == 0 && SUCCEEDED(hr);
+  const int windowDowns = downs;
+  const ULONGLONG windowMs = now - windowStart;
   windowStart = now;
   downs = 0;
   windowItems = 0;
+  if (!deaf || now - lastHeal < 2000) {
+    return false;
+  }
+  ++heals;
+  lastHeal = now;
+  awaitingItems = true;
+  if (heals <= 10 || heals % 50 == 0) {
+    spdlog::info("InputDiag: keys went down {} time(s) in the last {} ms but "
+                 "the game's keyboard reads returned nothing (browser focused "
+                 "{}), re-acquiring the keyboard (#{})",
+                 windowDowns, windowMs, CEFUtils::DInputHook::ChromeFocus(),
+                 heals);
+  }
+  return true;
 }
 
 void ProcessKeyboardData(uint8_t* apData)
@@ -788,7 +805,6 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
   if (instanceInfo.guidInstance == GUID_SysKeyboard) {
     // What the game itself got, before the browser's focus hides it below
     const DWORD gameItems = SUCCEEDED(result) && outDataLen ? *outDataLen : 0;
-    const bool flush = outData == nullptr || (flags & DIGDD_PEEK);
     uint8_t rawData[256];
     HRESULT hr = IDirectInputDevice8_GetDeviceState(m_pDevice, 256, rawData);
     // The browser is the only keyboard consumer that does not acquire before reading
@@ -798,8 +814,14 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
         hr = IDirectInputDevice8_GetDeviceState(m_pDevice, 256, rawData);
       }
     }
-    NoteGameKeyboardRead(result, gameItems, flush,
-                         hr == DI_OK ? rawData : nullptr);
+    if (NoteGameKeyboardRead(result, gameItems,
+                             hr == DI_OK ? rawData : nullptr)) {
+      IDirectInputDevice8_Unacquire(m_pDevice);
+      const HRESULT reacquired = IDirectInputDevice8_Acquire(m_pDevice);
+      if (reacquired != DI_OK) {
+        LogAcquireFailure(m_pDevice, reacquired);
+      }
+    }
     if (hr == DI_OK) {
       CheckDeafKeyboard(m_pDevice, rawData);
       ProcessKeyboardData(rawData);
