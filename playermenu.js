@@ -187,11 +187,13 @@ module.exports = (api) => {
       const inv = get(a, 'inventory', { entries: [] });
       const entries = (Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
       const hit = entries.find((e) => (Number(e.baseId) >>> 0) === baseId && !e.worn && !e.wornLeft);
-      if (!hit) return;
+      if (!hit) return false;
       hit.count = (Number(hit.count) || 0) - 1;
       mp.set(a, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) });
-    } catch (e) { log('mask item removal failed', e.message); }
+      return true;
+    } catch (e) { log('mask item removal failed', e.message); return false; }
   };
+  const holds = (a, baseId) => { const inv = get(a, 'inventory', { entries: [] }); return (Array.isArray(inv.entries) ? inv.entries : []).some((e) => (Number(e.baseId) >>> 0) === baseId && (Number(e.count) || 0) > 0); };
   // Race editor id of a character ("OrcRace"), for per-race masks: tusks and snouts clip through some coverings
   const raceEdidOf = (a) => {
     const app = get(a, 'appearance', null);
@@ -202,14 +204,19 @@ module.exports = (api) => {
     const race = raceEdidOf(a);
     return idOf(byRace[race] || byRace[race.replace(/Vampire$/, '')] || C.maskItem);
   };
+  // A mask taken off comes back to the server; one that could not be taken back (dropped, stored or traded while worn)
+  // is private.maskLost, and no new one is handed out until that one is held again: H handed out a fresh mask every
+  // time (economy review, 2026-09-29)
   const mask = (a) => {
-    const itemId = maskItemFor(a);
+    const lost = Number(get(a, 'private.maskLost', 0)) >>> 0;
+    if (lost && !holds(a, lost)) return personal(a, 'Your mask is not on you. Find it, or get it back, to wear it again.');
+    const itemId = lost || maskItemFor(a);
     const real = nameOf(a);
     if (!setAppearanceName(a, C.maskName)) return personal(a, 'Could not put the mask on.');
     try { mp.set(a, MASK_PROP, real); } catch (e) { /* kept in memory only */ }
     try { mp.set(a, 'private.maskItemId', itemId); } catch (e) { /* unmask falls back to the race item */ }
     if (itemId) {
-      giveItem(a, itemId, 1);
+      if (lost) { try { mp.set(a, 'private.maskLost', 0); } catch (e) { /* asked again next time */ } } else giveItem(a, itemId, 1);
       setTimeout(() => { try { papyrus('EquipItem', a, itemId); } catch (e) { log('mask equip failed', e.message); } }, 300);
     }
     personal(a, 'You pull your mask up. Others see a Masked Person. Press H to take it off.');
@@ -222,7 +229,7 @@ module.exports = (api) => {
     const itemId = (Number(get(a, 'private.maskItemId', 0)) >>> 0) || maskItemFor(a);
     if (itemId) {
       try { papyrus('UnequipItem', a, itemId); } catch (e) { /* not worn */ }
-      setTimeout(() => removeOne(a, itemId), 1500);
+      setTimeout(() => { if (!removeOne(a, itemId)) { try { mp.set(a, 'private.maskLost', itemId); } catch (e) { log('mask loss not recorded', e.message); } } }, 1500);
     }
     if (!quiet) personal(a, 'You take your mask off.');
   };
