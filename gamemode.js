@@ -129,7 +129,22 @@ makeProp('ff_outfit', true);     // dungeons.js: armour a spawned actor should w
 let nonce = Date.now();
 const deliver = (actorId, line) => { try { mp.set(actorId, CHAT_PROP, `${++nonce}${US}${line}`); } catch (e) { log('deliver failed', actorId, e.message); } };
 const system = (actorId, text) => deliver(actorId, `[[S]]#{${C.SYS}}${text}`);
-const personal = (actorId, text) => deliver(actorId, `[[PM]]System|${text}`);
+// What a player is refused goes into the log too, sampled, so a survey can see a player stuck in a loop: personal()
+// lines were never logged, and the 48 h refusal survey (2026-09-29) could only read what modules logged themselves.
+// Per player and text (numbers folded): the 1st, 5th and every 10th time, counted again after 10 quiet minutes.
+const REFUSAL_TEXT = /\b(cannot|can't|can not|not allowed|too far|get closer|refused|denied|not ready|not yet|only an? |beyond your|still rests|not long ago|no longer|not enough|you do not|you don't|out of reach|too soon|stepped out|nothing worth|is not yours|not yours|must be|you need|come back in|worked out|try again|is beyond)\b/i;
+const toldCounts = globalThis.__dboToldCounts instanceof Map ? globalThis.__dboToldCounts : (globalThis.__dboToldCounts = new Map());
+const noteTold = (actorId, text) => {
+  const t = String(text || '');
+  if (!REFUSAL_TEXT.test(t)) return;
+  const now = Date.now(), key = `${actorId >>> 0}|${t.replace(/\d+/g, 'N').slice(0, 120)}`;
+  const prev = toldCounts.get(key);
+  const n = prev && now - prev.at < 600000 ? prev.n + 1 : 1;
+  toldCounts.set(key, { n, at: now });
+  if (toldCounts.size > 5000) for (const [k, v] of toldCounts) if (now - v.at > 600000) toldCounts.delete(k);
+  if (n === 1 || n === 5 || n % 10 === 0) log(`told ${display(actorId)} (x${n}): ${t.slice(0, 200)}`);
+};
+const personal = (actorId, text) => { try { noteTold(actorId, text); } catch (e) { /* the log line is optional */ } deliver(actorId, `[[PM]]System|${text}`); };
 
 // Survives gamemode hot reloads so players who connected before a reload stay known.
 if (!(globalThis.__dboConnected instanceof Set)) globalThis.__dboConnected = new Set();
