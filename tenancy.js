@@ -193,6 +193,9 @@ module.exports = (api) => {
   // Ends a tenancy: housing taken back; the deposit returned (leave) or kept by the hold (evict). Only from the tenant:
   // a tenant who handed the house on and then left took it back from the new owner, deposit and all (economy review,
   // 2026-09-29). A house that is no longer theirs stays with its owner, and the hold keeps the deposit.
+  // fork housingSystem doTransfer asks before a house changes hands: a rented house stays the hold's until the tenancy
+  // ends, or a tenant could sell it and keep the price (economy review, 2026-09-29)
+  globalThis.__dboTenancyRented = (door) => { try { const L = data().listings[hex(door)]; return !!(L && L.tenant); } catch (e) { return false; } };
   const ownerOf = (L) => { try { return Number((housing().recordOf(L.door) || {}).owner) || 0; } catch (e) { return 0; } };
   const stillTenants = (L) => { const owner = ownerOf(L); return !owner || !L.tenant || !(Number(L.tenant.profile) >= 0) || owner === Number(L.tenant.profile); };
   const end = (L, returnDeposit, why) => {
