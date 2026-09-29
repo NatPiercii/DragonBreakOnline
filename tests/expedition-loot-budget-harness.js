@@ -110,7 +110,10 @@ const ORD = JSON.parse(fs.readFileSync(path.join(ROOT, 'dungeons.json'), 'utf8')
 const DIFFS = ['story', 'normal', 'hard', 'nightmare'];
 const rows = [];
 const ORD_CLAIMS = Number(process.env.ORD_CLAIMS) || (TABLE_ONLY ? CLAIMS : 60);
-for (const d of EXP.concat(ORD)) for (const diff of DIFFS) rows.push({ d, diff, m: measure(d, diff, d.expedition ? CLAIMS : ORD_CLAIMS) });
+// A dungeon of a chest or two is all luck at 60 claims (Boreal Stone Cave, one boss chest, failed the guard about one
+// run in two): each ordinary dungeon is claimed until about 600 of its containers have been filled, 600 claims at most
+const claimsFor = (d) => (d.expedition ? CLAIMS : Math.max(ORD_CLAIMS, Math.min(600, Math.ceil(600 / Math.max(1, (d.raw.chests || []).length)))));
+for (const d of EXP.concat(ORD)) for (const diff of DIFFS) rows.push({ d, diff, m: measure(d, diff, claimsFor(d)) });
 const f1 = (x) => x.toFixed(1), f0 = (x) => x.toFixed(0);
 console.log(`per solo clear, ${CLAIMS} claims each: items / gold / value | boss chest items, gold, value | big chest items | urn items (empty %) | body items | master items, gold | Ayleid pieces (rarest)`);
 for (const { d, diff, m } of rows) console.log(`${(d.name + ' (' + d.kind + ')').padEnd(34)} ${diff.padEnd(9)} ${f1(m.items).padStart(6)} ${f0(m.gold).padStart(6)} ${f0(m.value).padStart(7)} | ${f1(m.bossChest.items).padStart(5)} ${f0(m.bossChest.gold).padStart(4)} ${f0(m.bossChest.value).padStart(5)} | ${f1(m.bigChest).padStart(4)} | ${f1(m.small.items)} (${f0(100 * m.small.empty)}%) | ${f1(m.body)} | ${f1(m.master.items)}, ${f0(m.master.gold)} | ${m.ayleid.toFixed(2)} (${m.rarest.toFixed(3)})`);
@@ -127,7 +130,13 @@ for (const { d, diff, m } of rows) {
   // of: a cave of sacks and coffins keeps less (urns are now mostly empty), one with several boss chests more (each
   // keeps its coin and piece of gear certain). So the set is held to half below, and each dungeon only to a wide guard.
   if (!d.expedition) continue;
-  check(`${d.name} ${diff}: value per clear ${f0(m.value)}, about half of ${f0(b.value)}`, m.value < b.value * 0.62 && m.value > b.value * 0.3);
+  // One ruin at one difficulty swings a few points with its luck; the set of ruins below holds the band
+  check(`${d.name} ${diff}: value per clear ${f0(m.value)} of ${f0(b.value)} (${(m.value / b.value).toFixed(2)})`, m.value < b.value * 0.7 && m.value > b.value * 0.25);
+}
+for (const diff of DIFFS) {
+  const now = EXP.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
+  const was = EXP.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
+  check(`all ${EXP.length} expeditions at ${diff}: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}), about half`, now > was * 0.3 && now < was * 0.62);
 }
 for (const d of ORD) {
   const now = DIFFS.reduce((n, diff) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
