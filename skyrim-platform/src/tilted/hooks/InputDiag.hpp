@@ -45,6 +45,8 @@ enum Kind : int
   kNetPacket,
   kNetSend,
   kNetEvent,
+  kCefUiEvent,
+  kCefConsole,
   kKindCount
 };
 
@@ -54,7 +56,8 @@ inline constexpr const char* kNames[kKindCount] = {
   "di-wheel",      "di-key",     "drop-unfocused", "drop-no-cursor-menu",
   "cef-mousemove", "cef-button", "cef-wheel",      "cef-key",
   "cef-not-ready", "cef-focus",  "cef-load",       "net-tick",
-  "net-packet-in", "net-send",   "net-event"
+  "net-packet-in", "net-send",   "net-event",      "cef-ui-event",
+  "cef-console"
 };
 
 struct State
@@ -139,6 +142,11 @@ inline std::string Origin(const std::string& url)
   const size_t hostEnd = url.find_first_of("/?#", scheme + 3);
   return url.substr(0, hostEnd);
 }
+
+// Which Data\\Platform files the game process gets for the page and the
+// client, through MO2's virtual file system when it runs: size, time written
+// and the real path. Once per session; InputDiag.cpp.
+void LogFrontFiles();
 
 inline const char* MessageName(UINT msg) noexcept
 {
