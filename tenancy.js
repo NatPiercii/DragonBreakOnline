@@ -156,6 +156,8 @@ module.exports = (api) => {
     const L = h.L;
     const p = me(a);
     if (!L || !L.offer || L.offer.party.tag !== p.tag || Date.now() > L.offer.until) return 'Nobody has offered you this property.';
+    // grant takes a house from whoever holds it, so a listing that outlived a change of owner would seize it
+    if (h.rec && h.rec.owner && h.rec.owner !== p.profile) return 'This property has an owner now, so the offer no longer stands. Ask the officials here.';
     const cost = L.deposit + L.weekly;
     if (!takeGold(a, cost)) return `Moving in takes the ${L.deposit} gold deposit and the first week's ${L.weekly}. You do not have ${cost} gold.`;
     const err = housing().grant(h.door, a);
@@ -188,9 +190,15 @@ module.exports = (api) => {
     return `Paid ${cost} gold. Your rent is paid until ${due(L)}.`;
   };
 
-  // Ends a tenancy: housing taken back; the deposit returned (leave) or kept by the hold (evict)
+  // Ends a tenancy: housing taken back; the deposit returned (leave) or kept by the hold (evict). Only from the tenant:
+  // a tenant who handed the house on and then left took it back from the new owner, deposit and all (economy review,
+  // 2026-09-29). A house that is no longer theirs stays with its owner, and the hold keeps the deposit.
+  const ownerOf = (L) => { try { return Number((housing().recordOf(L.door) || {}).owner) || 0; } catch (e) { return 0; } };
+  const stillTenants = (L) => { const owner = ownerOf(L); return !owner || !L.tenant || !(Number(L.tenant.profile) >= 0) || owner === Number(L.tenant.profile); };
   const end = (L, returnDeposit, why) => {
-    housing().release(L.door);
+    const owner = ownerOf(L), theirs = stillTenants(L);
+    if (theirs) housing().release(L.door);
+    else { returnDeposit = false; audit(`PROPERTY ${L.tenant.name} no longer holds rented ${hex(L.door)} (owner profile ${owner}); left with its owner, deposit kept by ${L.zone}`); }
     const dep = L.depositHeld || 0;
     if (returnDeposit) pay(L.tenant, dep, `your deposit back (${why})`);
     else depositToTreasury(L.zone, dep);
@@ -206,6 +214,10 @@ module.exports = (api) => {
     const L = h.L;
     if (!L || !L.tenant || L.tenant.tag !== tagOf(a)) return 'You do not rent this property.';
     if (L.overdueSince) return `Your rent is overdue. Pay it (/property pay) before you leave, or the hold keeps your deposit.`;
+    if (!stillTenants(L)) {
+      end(L, false, 'handed on');
+      return 'The property is no longer yours to hand back: it went to someone else. The tenancy ends and the hold keeps your deposit.';
+    }
     end(L, true, 'you left in good standing');
     audit(`PROPERTY ${who(a)} left ${h.key}; deposit returned`);
     return 'You hand back the keys. The property is for rent again.';
