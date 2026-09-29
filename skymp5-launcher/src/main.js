@@ -24,6 +24,7 @@ const mo2    = require('./mo2')
 const nexus  = require('./nexus')
 const ini    = require('./ini')
 const prefsSeed = require('./prefsSeed')
+const customControlmap = require('./customControlmap')
 const gameversion = require('./gameversion')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
@@ -2094,6 +2095,14 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
     }
   } else {
     log('[launch] server load order unavailable - leaving plugins.txt untouched')
+  }
+
+  // A ControlMap_Custom.txt the game wrote before 1.6.1130 overrides our controlmap.txt with a map the current game
+  // cannot use; it lives in the game root, outside MO2, so both launch paths check it
+  try {
+    for (const line of customControlmap.moveStaleCustomControlmap(skyrimPath)) log(`[launch] ${line}`)
+  } catch (err) {
+    log(`[launch] could not check ControlMap_Custom.txt: ${err.message}`)
   }
 
   // MO2 lockdown
