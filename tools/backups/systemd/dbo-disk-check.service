@@ -1,0 +1,8 @@
+[Unit]
+Description=DragonBreak disk check (warns at 90%, critical at 95%)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/dragonbreak-tools/backups/dbo_backup.py disk --warn 90 --crit 95
+# A non-zero exit marks the unit failed in `systemctl --failed`; the message goes to the journal as dbo-disk.
+SuccessExitStatus=0

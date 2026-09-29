@@ -1,0 +1,12 @@
+[Unit]
+Description=DragonBreak world snapshot (world records + gameplay state, verified)
+Documentation=file:///opt/dragonbreak-tools/backups/README.md
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/usr/bin/python3 /opt/dragonbreak-tools/backups/dbo_backup.py snapshot --out /opt/skymp-backups/world
+# Retention (deletes only this script's own world-*.tar.gz past the plan in the README). Off until Jake and Nate
+# approve it as an exception to ops rule 9 ("never delete: archive"); uncomment to enable:
+#ExecStartPost=/usr/bin/python3 /opt/dragonbreak-tools/backups/dbo_backup.py prune --out /opt/skymp-backups/world --apply

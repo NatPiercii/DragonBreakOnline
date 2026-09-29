@@ -1,0 +1,20 @@
+== restore test 2026-09-29T17:56:38Z on skymp
+== 1 snapshot (live state read only; output to a scratch dir)
+snapshot /tmp/claude-nate-backuptest/world-20260929T175638Z.tar.gz: 3584 world records (linked in 82 ms), 60 gameplay files, 3.8 MB
+== 2 verify the archive
+verify /tmp/claude-nate-backuptest/world-20260929T175638Z.tar.gz: OK, 3584 world records, 60 gameplay files, 2 state files
+== 3 refusal checks
+refused: /opt/skymp-state is or holds the live state; restore into a sandbox directory
+refused: /opt/skymp-state/world is or holds the live state; restore into a sandbox directory
+== 4 restore into an empty sandbox
+verify /tmp/claude-nate-restore-sandbox: OK, 3584 world records, 60 gameplay files, 2 state files
+restore /tmp/claude-nate-backuptest/world-20260929T175638Z.tar.gz -> /tmp/claude-nate-restore-sandbox: 3584 world records. For the live server see README "Restoring live".
+== 5 compare the sandbox with live
+live records 3584, restored 3584, identical now 3584, changed since the snapshot 0, only live 0, only restored 0
+player characters in the restore: 42
+gameplay files: NPC-Spawns.json, admin-items.json, admin-locations.json, admin-placeables.json, admin-powers.json, alchemy-potions.json, announce.json, artifacts.json, ayleid-loot.json, bank.json, beds.json, blessing-effects.json, businesses.json, contracts.json, daedric-sites.json, depths.json, doors.json, dungeon-pools.json, dungeons.json, economy.json, expeditions.json, faction-gear.json, gamemode-config.json, guild-defs.json, housing.json, item-value-layout.json, jail-cells.json, login-spot-check.json, loot.json, melee-migration.json, name-filter.json, name-table.json, notice-board-spots.json, notice-boards.json, npc-fallen-spots.json, officials.json, package.json, parties.json, patron-tiers.json, pelt-values.json, pigeon-cooldowns.json, readables.json, regions-overrides.json, regions.json, ruin-buttons.json, salvage.json, server-stats.json, shrine-placements.json, skills.json, spell-tomes.json, staff-actions.json, starter-grants.json, station-placements.json, supernatural.json, terrain-heights.json, territories.json, update-log.json, wildlife.json, worldclock.json, zones.json
+state files: companions.json, zone-spawns.json
+== 6 prune (dry run) and disk check
+prune /tmp/claude-nate-backuptest: 1 snapshots, keep 1, would remove 0 (0.0 MB)
+DragonBreak disk /: 88.7% used, 14.2 GB free
+exit 0
