@@ -333,10 +333,17 @@ export class SendInputsService extends ClientListener {
         }
     }
 
+    // How many host requests leave in one update. Upstream sent one; 4754a774 (dungeon pre-spawn, 2026-09-18) raised
+    // it to 25 so a pre-spawned group is hosted quickly. That is what hands a player six NPCs in a single tick, which
+    // is the shape of the Niryastare and GroundedPasta crashes, so it comes down to five: a crowded cell still fills
+    // its hosts within a few frames (onUpdate runs every tick), and the server stops seeing them arrive all at once.
+    // Five rather than one on purpose - one would undo the dungeon change outright rather than temper it.
+    private static readonly hostAttemptsPerUpdate = 5;
+
     private sendHostAttempts() {
         let remoteId: number | undefined;
         let count = 0;
-        while ((remoteId = nextHostAttempt()) !== undefined && count < 25) {
+        while ((remoteId = nextHostAttempt()) !== undefined && count < SendInputsService.hostAttemptsPerUpdate) {
             count++;
             this.controller.emitter.emit("sendMessage", {
                 message: {
