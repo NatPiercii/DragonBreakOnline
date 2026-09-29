@@ -32,8 +32,16 @@ module.exports = (api) => {
     // Uncovered milliseconds a single verse forgives. A prayer is a hold, not a rhythm test, so
     // this is generous - it exists to forgive the gap between two key repeats, not a lapse.
     holdSlackMs: 500,
-    // A hand must be on the key from the start; dawdling past this is not a prayer.
+    // A hand must be on the key from the start; dawdling past this is not a prayer. The lead-in before the first press
+    // (at most this) is not counted as a gap in the first verse: a reaction, not a lapse.
     startGraceMs: 1500,
+    // The round starts at the worshipper's first press (dbo:prayerStart), so the panel's load time and a reaction are
+    // never judged (2026-09-29: 31 of 33 prayers had failed, most of them held from first to last). How long the
+    // panel waits for that press before the round lapses.
+    waitSeconds: 60,
+    // A panel that never says when it started (a client from before 2026-09-29) is judged from when the round was
+    // sent, and its load time is on the clock: it gets this much lag instead of lagGraceMs.
+    legacyLagGraceMs: 6000,
     failRestMinutes: 5,
   }, cfg.prayer || {});
 
@@ -292,6 +300,9 @@ module.exports = (api) => {
       deityId: d.id, deityName: d.name, kind: d.kind, refId, shrineName, seed, verses,
       totalMs: VERSES * VERSE_MS, slackMs: SLACK_MS, startGraceMs: CFG.startGraceMs,
       startedAt: 0,
+      // openedAt: when the panel was sent; startedAt: when the round began (the first press, or openedAt for a panel
+      // that never says); begun: the panel said when
+      openedAt: 0, begun: false,
     };
   };
 
@@ -301,6 +312,8 @@ module.exports = (api) => {
       type: 'prayer', id: WIDGET_ID, nonce: round.nonce,
       deity: round.deityName, kind: round.kind, shrine: round.shrineName,
       verses: round.verses, totalMs: round.totalMs,
+      // This server times the round from the first press: the panel waits for it and says when (dbo:prayerStart)
+      startOnPress: true,
     };
     if (result) { w.result = result; w.resultKind = resultKind; }
     return w;
@@ -308,7 +321,7 @@ module.exports = (api) => {
 
   const startRound = (a, round) => {
     sessions.set(a, round);
-    round.startedAt = nowMs();
+    round.openedAt = round.startedAt = nowMs();
     if (!openWidget(a, packetFor(round), true)) sessions.delete(a);
     return true;
   };
@@ -316,7 +329,8 @@ module.exports = (api) => {
   const liveRound = (a) => {
     const r = sessions.get(a);
     if (!r) return null;
-    if (nowMs() - r.startedAt <= r.totalMs + CFG.lagGraceMs) return r;
+    const limit = r.begun ? r.startedAt + r.totalMs + CFG.lagGraceMs : r.openedAt + CFG.waitSeconds * 1000 + r.totalMs + CFG.legacyLagGraceMs;
+    if (nowMs() <= limit) return r;
     sessions.delete(a);
     return null;
   };
@@ -454,20 +468,22 @@ module.exports = (api) => {
     // round played out in slow motion and scaled back down is the one cheat the coverage check
     // alone would not see. Same two bounds labour.js uses.
     if (r.lag < -CFG.clockSlackMs) { r.bad = 'future'; return r; }
-    if (r.lag > CFG.lagGraceMs) { r.bad = 'late'; return r; }
+    if (r.lag > (round.begun ? CFG.lagGraceMs : CFG.legacyLagGraceMs)) { r.bad = 'late'; return r; }
 
     const first = list.length ? Number(list[0][0]) : Infinity;
     if (first > round.startGraceMs) { r.late = first; r.bad = 'slow'; return r; }
 
     // Coverage, verse by verse: the worst gap decides, so one lapse cannot be averaged away by two
-    // verses held perfectly.
-    for (const v of round.verses) {
+    // verses held perfectly. The first verse is counted from the first press (checked above to be within
+    // startGraceMs): before 2026-09-29 a press 0.6 s in passed the start check and still failed here.
+    round.verses.forEach((v, i) => {
+      const from = i === 0 ? Math.max(v.startMs, first) : v.startMs;
       let inside = 0;
-      for (const [down, up] of list) inside += Math.max(0, Math.min(up, v.endMs) - Math.max(down, v.startMs));
-      const gap = (v.endMs - v.startMs) - inside;
+      for (const [down, up] of list) inside += Math.max(0, Math.min(up, v.endMs) - Math.max(down, from));
+      const gap = (v.endMs - from) - inside;
       r.covered += inside;
       r.worst = Math.max(r.worst, gap);
-    }
+    });
     if (r.worst > round.slackMs) r.bad = 'released';
     return r;
   };
@@ -478,6 +494,15 @@ module.exports = (api) => {
     if (!round) return closeWidget(a, WIDGET_ID);
     if (String(args[0]) !== round.nonce) return;
     finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose');
+  });
+
+  // The panel's first press: from here the round runs. Once only, and only while the panel may still wait for it.
+  onUi('prayerStart', (a, args) => {
+    const round = sessions.get(a);
+    if (!round || String(args[0]) !== round.nonce || round.begun) return;
+    if (nowMs() - round.openedAt > CFG.waitSeconds * 1000) return;
+    round.begun = true;
+    round.startedAt = nowMs();
   });
 
   onUi('prayer', (a, args) => {
@@ -491,7 +516,7 @@ module.exports = (api) => {
     const win = !v.bad;
     // One line per prayer: the verdict, how long the key was actually down against the round, the
     // worst uncovered verse (0 is a prayer never broken), the report's own clock and its lag.
-    log(`prayer ${v.bad ? 'refused(' + v.bad + ')' : 'held'} ${display(a)} ${round.deityName} spans=${v.spans} held=${v.held}/${round.totalMs} worst=${v.worst} at=${v.at} lag=${v.lag} seed=${round.seed.toString(16)}`);
+    log(`prayer ${v.bad ? 'refused(' + v.bad + ')' : 'held'} ${display(a)} ${round.deityName} spans=${v.spans} held=${v.held}/${round.totalMs} worst=${v.worst} at=${v.at} lag=${v.lag} ${round.begun ? `started=${round.startedAt - round.openedAt}` : 'legacy'} seed=${round.seed.toString(16)}`);
 
     if (!win) {
       return finish(a, round, false, 'The verses slip away from you. The shrine gives nothing.', 'lose');

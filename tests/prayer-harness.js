@@ -208,6 +208,49 @@ bad('a report that outruns the server clock is refused', 'whole', 'full', -900, 
 bad('a report that turns up minutes later is refused', 'whole', 'full', 600000, 'late');
 bad('a prayer played in slow motion is refused', 'whole', 'full', 20000, 'late');
 bad('a span that leaves the round is refused', [[0, 18000000]], 'full', 100, 'range');
+
+// ---- 2026-09-29: the round starts at the first press; the live failures that were not the worshipper's ----
+const fresh = () => { wallClock += 61 * 60000; virtual += 1000000; const start = virtual; return { start, w: activate(AKATOSH_SHRINE).w }; };
+const pressAt = (w, at) => { virtual = at; clear(); fire('prayerStart', [w.nonce]); };
+let f = fresh();
+check('the panel is told the round waits for the first press', f.w.startOnPress === true);
+// Live, Angorion 2026-09-29 01:27: one hold from 784 ms to the end, refused(released) worst=784 (an older client)
+res = report(f.w, [[784, f.w.totalMs]], f.w.totalMs, 237, f.start);
+check('an older client: a hold that begins 0.8 s in is a prayer (the lead-in is not a gap)', verdictOf(res.log) === 'held' && /legacy/.test(res.log), res.log);
+f = fresh();
+// Live, Angorion 2026-09-28 04:02: held from 1,200 ms to the end, refused(late) lag=4491: the panel took 4.5 s to load
+res = report(f.w, [[1200, f.w.totalMs]], f.w.totalMs, 4491, f.start);
+check('an older client: a panel that took 4.5 s to load is not late', verdictOf(res.log) === 'held', res.log);
+f = fresh();
+res = report(f.w, [[1600, f.w.totalMs]], f.w.totalMs, 200, f.start);
+check('a first press past the start grace is still too slow', verdictOf(res.log) === 'slow', res.log);
+f = fresh();
+res = report(f.w, [[0, 7000], [8000, f.w.totalMs]], f.w.totalMs, 200, f.start);
+check('a second\'s lapse in the second verse still ends it', verdictOf(res.log) === 'released', res.log);
+
+// A new panel: the worshipper reads the verses, presses 9 s after the panel came, holds to the end
+f = fresh();
+pressAt(f.w, f.start + 9000);
+res = report(f.w, wholeHold(f.w), f.w.totalMs, 300, f.start + 9000);
+check('the round runs from the first press: 9 s of reading first costs nothing', verdictOf(res.log) === 'held' && /started=9000/.test(res.log), res.log);
+f = fresh();
+pressAt(f.w, f.start + 2000);
+res = report(f.w, wholeHold(f.w), f.w.totalMs, 20000, f.start + 2000);
+check('from the first press the lag grace is the tight one: slow motion is still refused', verdictOf(res.log) === 'late', res.log);
+f = fresh();
+pressAt(f.w, f.start + 2000);
+pressAt(f.w, f.start + 7000);
+res = report(f.w, wholeHold(f.w), f.w.totalMs, 300, f.start + 2000);
+check('a second prayerStart does not move the start', verdictOf(res.log) === 'held' && /started=2000/.test(res.log), res.log);
+f = fresh();
+virtual = f.start + 1000; clear(); fire('prayerStart', ['not-the-nonce']);
+res = report(f.w, wholeHold(f.w), f.w.totalMs, 300, f.start);
+check('a prayerStart with another nonce is ignored', /legacy/.test(res.log), res.log);
+f = fresh();
+pressAt(f.w, f.start + 61000);
+res = report(f.w, wholeHold(f.w), f.w.totalMs, 300, f.start + 61000);
+check('a first press after the panel stopped waiting does not start the round', !/started=/.test(res.log) && verdictOf(res.log) === 'late', res.log);
+
 bad('a negative span is refused', [[-5, 1000]], 'full', 100, 'range');
 bad('fractional milliseconds are refused', [[0.5, 1000.5]], 'full', 100, 'shape');
 bad('overlapping spans are refused', [[0, 12000], [6000, 18000]], 'full', 100, 'overlap');
