@@ -168,6 +168,19 @@ check('an abandoned round expires and the book opens again', out.widgets.length 
   globalThis.__dboReadBook(SKYRIM_BOOK, READER);
   check('...but does after the lost round\'s cooldown', out.widgets.length === 1);
 }
+// ---- F2 hides the interface (close with args ['hidden']): not walking away, no cooldown (Worker E, 2026-09-29) ----
+{
+  wallClock += 31 * 60000;
+  const r = open(SKYRIM_BOOK);
+  ui('close', ['hidden']);
+  out.widgets.length = 0;
+  globalThis.__dboReadBook(SKYRIM_BOOK, READER);
+  check('hiding the interface mid-round costs no cooldown: the book opens again at once', out.widgets.length === 1 && last().nonce !== r.nonce);
+  ui('close', ['escape']);
+  out.widgets.length = 0; out.personals.length = 0;
+  globalThis.__dboReadBook(SKYRIM_BOOK, READER);
+  check('closing it with Escape still takes the cooldown', out.widgets.length === 0 && out.personals.some((t) => /not long ago/.test(t)));
+}
 // ---- copies (loot review, 2026-09-29): never a spell tome or skill book, at most bookDailyCap a day ----
 {
   const realRandom = Math.random; Math.random = () => 0; // the same line and order each time, and every find succeeds

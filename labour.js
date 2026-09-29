@@ -306,7 +306,9 @@ module.exports = (api) => {
   // and cancel until an easy set came up (loot review, 2026-09-29)
   const abandon = (a) => { const round = sessions.get(a); if (round) writeRest(a, round, CFG.failRestMinutes); sessions.delete(a); };
   onUi('labourCancel', (a) => { abandon(a); closeWidget(a, WIDGET_ID); });
-  onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) abandon(a); });
+  // F2 hides the interface by closing the focused widget (client closeFocused sends args ['hidden']): not walking away,
+  // so the round ends with no rest and the seam opens again at once
+  onUi('close', (a, args, widgetId) => { if (widgetId !== WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') sessions.delete(a); else abandon(a); });
 
   // Replay the round against the report. The widget sends the millisecond of every strike it took,
   // hit or miss; the hits are counted here, from the sweep and the band list the server issued.

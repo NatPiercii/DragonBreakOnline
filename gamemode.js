@@ -2584,7 +2584,8 @@ const abandonRead = (a) => {
 };
 const endRead = (a) => { abandonRead(a); closeWidget(a, READ_WIDGET_ID); };
 onUi('readingCancel', (a) => endRead(a));
-onUi('close', (a, args, widgetId) => { if (widgetId === READ_WIDGET_ID) abandonRead(a); });
+// F2 hides the interface by closing the focused widget (args ['hidden']): the round ends without the lost round's cooldown
+onUi('close', (a, args, widgetId) => { if (widgetId !== READ_WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') readSessions.delete(a); else abandonRead(a); });
 onUi('reading', (a, args) => {
   const ses = readSessions.get(a); if (!ses || String(args[0]) !== ses.nonce) return;
   let order = []; try { order = JSON.parse(String(args[1] || '[]')); } catch (e) { order = []; }

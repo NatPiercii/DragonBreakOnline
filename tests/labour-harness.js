@@ -384,6 +384,16 @@ out.widgets.length = 0;
 globalThis.__dboLabour(VEIN, ACTOR);
 check('...so it cannot be reopened at once for a new set of bands', out.widgets.length === 0, String(out.widgets.length));
 
+// F2 hides the interface: the widget closes with args ['hidden'], which is not walking away (Worker E, 2026-09-29)
+virtual += 60000; r = openRound('mining', 2);
+fire('close', ['hidden'], 33);
+check('hiding the interface mid-round costs no rest', !Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]));
+out.widgets.length = 0;
+globalThis.__dboLabour(VEIN, ACTOR);
+check('...and the seam opens again at once', out.widgets.length === 1, String(out.widgets.length));
+fire('close', ['escape'], 33);
+check('closing it with Escape still rests the seam', Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) > Date.now());
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);
