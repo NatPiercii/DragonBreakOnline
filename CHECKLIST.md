@@ -1,5 +1,21 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-29 (06:30 UTC): BrowserApi "off" backend falls through to Tilted - C++, next platform change
+
+`skyrim-platform/src/platform_se/skyrim_platform/BrowserApi.cpp`, `Register()`: `case Backend::kOff:` ends at
+line 87 with no `break`, so it falls through into `case Backend::kTilted:` (line 88, whose own `break` is at 122).
+The no-op stubs it binds for `setVisible`, `isVisible`, `setFocused`, `isFocused`, `loadUrl` and
+`executeJavaScript` are therefore overwritten straight away by the real Tilted bindings: setting
+`Browser/BackendName = off` does not turn the browser API off.
+
+- [ ] Add the missing `break;` after the `kOff` block. One line, CI flatrim build.
+
+**Not urgent, and not a crash.** Nothing ships with the backend off, and the consequences if it were are mild:
+Tilted's `SetVisible` only assigns a static bool (`DX11RenderHandler::Visible()`), and a Tilted call made with no
+app throws `NullPointerException`, which `NapiHelper::WrapCppExceptions` turns into a JS error rather than a fault.
+Found 2026-09-29 while clearing `sp.browser.setVisible(false)` as a suspect in the container/book/crafting menu
+crashes - it was cleared: neither backend can fault there (NirnLab's `UpdateVisible` returns early on `!browser`).
+
 ## Added 2026-09-27 (00:30 UTC): weapon racks, plaques and holders drop everything - UNIMPLEMENTED, NOT A REGRESSION
 
 Nate: "none work and everything falls on the ground". Diagnosed, nothing changed yet.
