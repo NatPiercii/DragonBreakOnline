@@ -81,6 +81,48 @@ function keepEnd(text, bytes) {
   return '[earlier lines cut]\n' + buf.subarray(buf.length - bytes).toString('utf8').replace(/^[^\n]*\n/, '')
 }
 
+// The start of text up to bytes, cut at a line end
+function startOf(text, bytes) {
+  const buf = Buffer.from(text, 'utf8')
+  if (buf.length <= bytes) return text
+  return buf.subarray(0, bytes).toString('utf8').replace(/[^\n]*$/, '')
+}
+
+// The end of text from bytes before its end, cut at a line start
+function endOf(text, bytes) {
+  const buf = Buffer.from(text, 'utf8')
+  if (buf.length <= bytes) return text
+  return buf.subarray(buf.length - bytes).toString('utf8').replace(/^[^\n]*\n/, '')
+}
+
+// SkyrimPlatform's log with its UI lines left out and both ends kept: the session's start (the one-time
+// diagnostics: front files, how the game reads the mouse, the menu cursor's first state) and its last lines
+// (the failure). Each end is read readFactor times further than it keeps, so UI lines cannot crowd it out.
+function gameLogEnds(file, headBytes, tailBytes, readFactor = 6) {
+  try {
+    const size = fs.statSync(file).size
+    let head
+    let rest
+    if (size <= (headBytes + tailBytes) * readFactor) {
+      const text = dropUiLines(fs.readFileSync(file, 'utf8'))
+      if (Buffer.byteLength(text, 'utf8') <= headBytes + tailBytes) return text
+      head = startOf(text, headBytes)
+      rest = endOf(text, tailBytes)
+    } else {
+      const fd = fs.openSync(file, 'r')
+      try {
+        const start = Buffer.alloc(headBytes * readFactor)
+        const end = Buffer.alloc(tailBytes * readFactor)
+        fs.readSync(fd, start, 0, start.length, 0)
+        fs.readSync(fd, end, 0, end.length, size - end.length)
+        head = startOf(dropUiLines(start.toString('utf8').replace(/[^\n]*$/, '')), headBytes)
+        rest = endOf(dropUiLines(end.toString('utf8').replace(/^[^\n]*\n/, '')), tailBytes)
+      } finally { fs.closeSync(fd) }
+    }
+    return head + '[middle lines cut]\n' + rest
+  } catch { return null }
+}
+
 // SKSE, SkyrimPlatform and Community Shaders write here; present only after the game has been launched at least once.
 // documentsDir comes from Electron because a OneDrive-moved Documents folder is not under the home folder.
 const GAME_LOGS = [['skyrim-platform.log', 'gameLog'], ['skse64.log', 'skseLog'], ['CommunityShaders.log', 'csLog']]
@@ -88,6 +130,8 @@ const GAME_LOG_BYTES = 80 * 1024
 // Community Shaders logs the settings overrides it applied at startup and its shader compiles as they run,
 // so both ends of its log are kept: [head, tail] bytes
 const BOTH_ENDS = { csLog: [32 * 1024, 32 * 1024] }
+// SkyrimPlatform's one-time diagnostics sit at the start of its log and the failure at the end: [head, tail] bytes
+const GAME_LOG_ENDS = [16 * 1024, 64 * 1024]
 
 function gameLogCandidates(documentsDir, variants) {
   const out = []
@@ -116,6 +160,11 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
       if (text) files[field] = redact(dropUiLines(text))
       continue
     }
+    if (field === 'gameLog') {
+      const text = gameLogEnds(file, ...GAME_LOG_ENDS)
+      if (text) files[field] = redact(text)
+      continue
+    }
     // UI lines can be most of a session's log, so read further back and keep the end of what is left
     const text = tail(file, 6 * GAME_LOG_BYTES)
     if (text) files[field] = redact(keepEnd(dropUiLines(text), GAME_LOG_BYTES))
@@ -139,4 +188,4 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   }
 }
 
-module.exports = { collect, redact, tail, ends, dropUiLines }
+module.exports = { collect, redact, tail, ends, dropUiLines, gameLogEnds }

@@ -83,3 +83,65 @@ test('a short CommunityShaders.log is sent whole', () => {
   assert.strictEqual(out.csLog, log)
   fs.rmSync(docs, { recursive: true, force: true })
 })
+
+// SkyrimPlatform writes its one-time input diagnostics at the start of a session and the failure at the end;
+// a report that kept only the end lost "menu cursor at ..." for a player whose menu cursor was pinned
+function platformLog(dir, middleLines, uiEvery) {
+  const lines = [
+    '[01:30:00:000] platform_se v2.9.0',
+    '[01:30:05:000] InputDiag: the game reads the mouse\'s state (GetDeviceState, 20 bytes)',
+    '[01:30:06:000] InputDiag: menu cursor at 960,540, safe zone 15,15, screen 1920x1080, sensitivity 1, default speed 1, shown 1 (INI fSafeZoneX 15, fSafeZoneY 15)',
+  ]
+  for (let i = 0; i < middleLines; i++) {
+    lines.push(uiEvery && i % uiEvery === 0
+      ? `[01:31:00:000] JS window.__alduinakAddChat("Arvel: line ${i}") ...`
+      : `[01:31:00:000] onResult called ${i}`)
+  }
+  lines.push('[01:47:24:051] the last line before the crash')
+  fs.writeFileSync(path.join(dir, 'skyrim-platform.log'), lines.join('\r\n'))
+}
+
+function reportDir() {
+  const docs = fs.mkdtempSync(path.join(os.tmpdir(), 'report-test-'))
+  const dir = path.join(docs, 'My Games', 'Skyrim Special Edition', 'SKSE')
+  fs.mkdirSync(dir, { recursive: true })
+  return { docs, dir }
+}
+
+test('a long skyrim-platform.log keeps its start (the one-time diagnostics) and its end', () => {
+  const { docs, dir } = reportDir()
+  platformLog(dir, 40000, 7)
+  assert.ok(fs.statSync(path.join(dir, 'skyrim-platform.log')).size > 6 * 80 * 1024)
+  const out = collect({ userDataDir: docs, documentsDir: docs })
+  assert.match(out.gameLog, /^\[01:30:00:000\] platform_se v2\.9\.0/)
+  assert.match(out.gameLog, /InputDiag: menu cursor at 960,540, safe zone 15,15/)
+  assert.match(out.gameLog, /\[middle lines cut\]\n/)
+  assert.match(out.gameLog, /the last line before the crash$/)
+  assert.doesNotMatch(out.gameLog, /Arvel|__alduinakAddChat/)
+  assert.strictEqual(out.gameLog.split('[middle lines cut]').length, 2)
+  assert.ok(Buffer.byteLength(out.gameLog) <= 80 * 1024 + 64, `${Buffer.byteLength(out.gameLog)} bytes`)
+  fs.rmSync(docs, { recursive: true, force: true })
+})
+
+test('a mid-sized skyrim-platform.log is cut after its UI lines are left out, at line ends', () => {
+  const { docs, dir } = reportDir()
+  platformLog(dir, 6000, 3)
+  const out = collect({ userDataDir: docs, documentsDir: docs })
+  assert.match(out.gameLog, /InputDiag: menu cursor at 960,540/)
+  assert.match(out.gameLog, /the last line before the crash$/)
+  assert.doesNotMatch(out.gameLog, /Arvel/)
+  const [head, rest] = out.gameLog.split('[middle lines cut]\n')
+  assert.ok(rest !== undefined, 'both ends kept')
+  assert.match(head, /\n$/)
+  assert.match(rest, /^(\[\d\d:\d\d:\d\d:\d{3}\]|\[\d+ UI line)/)
+  fs.rmSync(docs, { recursive: true, force: true })
+})
+
+test('a short skyrim-platform.log is sent whole, UI lines still left out', () => {
+  const { docs, dir } = reportDir()
+  platformLog(dir, 20, 5)
+  const out = collect({ userDataDir: docs, documentsDir: docs })
+  assert.doesNotMatch(out.gameLog, /middle lines cut|Arvel/)
+  assert.match(out.gameLog, /^\[01:30:00:000\] platform_se v2\.9\.0[\s\S]*the last line before the crash$/)
+  fs.rmSync(docs, { recursive: true, force: true })
+})
