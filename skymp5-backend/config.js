@@ -147,6 +147,8 @@ module.exports = {
   autoReportPauseSec: positiveInt(process.env.AUTO_REPORT_PAUSE_SEC, 3600),
   // Rollout P5: the launcher watches game exits and sends crash kinds only while this is true
   autoReportCrashWatch: process.env.AUTO_REPORT_CRASH_WATCH === 'true',
+  // true: merge-files and populate-files refuse source maps and PDBs (§5.4); unset only warns, since the client bundle still carries an inline map
+  autoReportSymbolGuard: process.env.AUTO_REPORT_SYMBOL_GUARD === 'true',
   autoReportLimits: {
     ipPer10Min:               positiveInt(process.env.AUTO_REPORT_IP_PER_10MIN, 60),
     unverifiedPer10Min:       positiveInt(process.env.AUTO_REPORT_UNVERIFIED_PER_10MIN, 120),

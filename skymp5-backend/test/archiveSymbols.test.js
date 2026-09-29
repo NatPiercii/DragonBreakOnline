@@ -412,14 +412,15 @@ test('peInfo and pdbInfo return null on truncated or foreign files', () => {
   assert.equal(archive.pdbInfo(huge), null)
 })
 
-test('packages: populate-files and merge-files refuse any source map or PDB', async (t) => {
+test('packages: with AUTO_REPORT_SYMBOL_GUARD=true, populate-files and merge-files refuse any source map or PDB', async (t) => {
   const src = path.join(fresh('populate'), 'Data')
   const files = fresh('files')
   fs.mkdirSync(path.join(src, 'Platform', 'UI'), { recursive: true })
   fs.writeFileSync(path.join(src, 'Platform', 'UI', 'build.js'), 'x')
   fs.writeFileSync(path.join(src, 'Platform', 'UI', 'build.js.map'), '{}')
-  const populate = () => spawnSync(process.execPath, [path.join(SCRIPTS, 'populate-files.js')], {
-    cwd: tmp, encoding: 'utf8', env: { PATH: process.env.PATH, SKYMP_CLIENT_DATA: src, CLIENT_FILES_DIR: files },
+  const populate = (guard = 'true') => spawnSync(process.execPath, [path.join(SCRIPTS, 'populate-files.js')], {
+    cwd: tmp, encoding: 'utf8',
+    env: { PATH: process.env.PATH, SKYMP_CLIENT_DATA: src, CLIENT_FILES_DIR: files, ...(guard && { AUTO_REPORT_SYMBOL_GUARD: guard }) },
   })
   const refused = populate()
   assert.equal(refused.status, 1)
@@ -453,8 +454,47 @@ test('packages: populate-files and merge-files refuse any source map or PDB', as
   if (fs.existsSync(clientSource)) return t.skip('sources/client exists here, and the merge would copy all of it')
   for (const method of ['log', 'warn']) t.mock.method(console, method, () => {})
   config.clientFilesDir = files
+  config.autoReportSymbolGuard = true
+  t.after(() => { config.autoReportSymbolGuard = false })
   const { mergeSourcesIntoRoot } = require('../scripts/merge-files')
   await assert.rejects(mergeSourcesIntoRoot(),
     /refusing to package source maps or PDBs: (?=.*Data\/SKSE\/Plugins\/SkyrimPlatform\.PDB)(?=.*Data\/Platform\/Plugins\/skymp5-client\.js)/)
   assert.equal(fs.existsSync(path.join(files, config.clientZipName)), false)
+})
+
+test('packages: without AUTO_REPORT_SYMBOL_GUARD, populate-files and merge-files warn and still package', async (t) => {
+  const src = path.join(fresh('populate-open'), 'Data')
+  const files = fresh('files-open')
+  fs.mkdirSync(path.join(src, 'Platform', 'Plugins'), { recursive: true })
+  const inline = 'x\n//# sourceMappingURL=data:application/json;base64,e30='
+  fs.writeFileSync(path.join(src, 'Platform', 'Plugins', 'skymp5-client.js'), inline)
+  for (const guard of [undefined, 'false', '1']) {
+    const run = spawnSync(process.execPath, [path.join(SCRIPTS, 'populate-files.js')], {
+      cwd: tmp, encoding: 'utf8',
+      env: { PATH: process.env.PATH, SKYMP_CLIENT_DATA: src, CLIENT_FILES_DIR: files, ...(guard && { AUTO_REPORT_SYMBOL_GUARD: guard }) },
+    })
+    assert.equal(run.status, 0, `AUTO_REPORT_SYMBOL_GUARD=${guard}`)
+    assert.match(run.stderr, /AUTO_REPORT_SYMBOL_GUARD is off:\n  Platform\/Plugins\/skymp5-client\.js\n/)
+  }
+  assert.equal(fs.readFileSync(path.join(files, 'root', 'Data', 'Platform', 'Plugins', 'skymp5-client.js'), 'utf8'), inline)
+
+  const clientSource = path.join(__dirname, '..', 'sources', 'client')
+  if (fs.existsSync(clientSource)) return t.skip('sources/client exists here, and the merge would copy all of it')
+  t.mock.method(console, 'log', () => {})
+  const warn = t.mock.method(console, 'warn', () => {})
+  // The merge writes data/files-version.json next to the scripts; keep it out of the checkout
+  const versionFile = path.join(__dirname, '..', 'data', 'files-version.json')
+  const write = fs.writeFileSync
+  const versions = []
+  t.mock.method(fs, 'writeFileSync', (file, ...rest) => (file === versionFile ? versions.push(JSON.parse(rest[0])) : write(file, ...rest)))
+  config.clientFilesDir = files
+  config.autoReportSymbolGuard = false
+  delete require.cache[require.resolve('../scripts/merge-files')]
+  const { mergeSourcesIntoRoot } = require('../scripts/merge-files')
+  const merged = await mergeSourcesIntoRoot()
+  assert.ok(merged.zipSize > 0)
+  assert.ok(fs.statSync(path.join(files, config.clientZipName)).size > 0)
+  assert.ok(warn.mock.calls.some(c => /AUTO_REPORT_SYMBOL_GUARD is off: Data\/Platform\/Plugins\/skymp5-client\.js$/.test(c.arguments[0])))
+  assert.equal(versions.length, 1)
+  assert.deepEqual(versions[0].files.map(f => f.path), ['Data/Platform/Plugins/skymp5-client.js'])
 })

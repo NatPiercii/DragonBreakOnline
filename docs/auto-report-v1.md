@@ -1343,6 +1343,7 @@ data/symbols/<filesVersion>/         0700
 - So `merge-files.js` MUST refuse (exit non-zero) when `OUTPUT_DIR` contains any `*.map` or `*.pdb`, checked just before `buildZip`.
 - `populate-files.js` MUST refuse the same files in its source.
 - `SKIP_ALWAYS` (`merge-files.js:27`) covers neither case today.
+- **The guard is off until the build side is ready.** Both scripts refuse only with `AUTO_REPORT_SYMBOL_GUARD=true` in the backend `.env`; unset, they warn and package as before. The client webpack build still uses `devtool: 'inline-source-map'` (`skymp5-client/webpack.config.js:67` on `96fd685e`), so the staged `skymp5-client.js` carries an inline map, and a hard guard would stop every release, even one that changes only plugins. claude-nate sets the switch once the build emits an external map, the archive script runs before staging, and the bundle in `sources/client` has been re-staged without the inline map.
 
 **Retention.** Keep the maps and PDBs for every version in the known-version list (the current version plus the last 10), and for at least 30 days. Never delete the current ones.
 
@@ -1944,6 +1945,7 @@ Review source: **B** is the correctness, privacy and conformance review of backe
 - §3.1.4: `TGT` and `world` refuse a name after an FF-range desc (rule R).
 - §3.3: the join is not built yet; it comes after P1 and P2.
 - O1: what an unguarded `CF-Connecting-IP` allows.
+- §5.4: the map and PDB guard refuses only with `AUTO_REPORT_SYMBOL_GUARD=true`, since the client bundle still carries an inline map (merge review, 2026-09-29).
 
 **Fixture status (§8):**
 - In `test/fixtures/auto-report/` now: the S0 cases (CRLF, multi-line `LoadUrl`, a partial first line, empty payloads and breaks inside a line, other log formats), the 2,000-character line, the S0 timing units, `menu open Sleep/Wait Menu`, FF-range names refused, and the rc2 `componentStack` in `ui-error-boundary.json`. `gameLog` values use the real `[hh:mm:ss:mmm] ` prefix.
