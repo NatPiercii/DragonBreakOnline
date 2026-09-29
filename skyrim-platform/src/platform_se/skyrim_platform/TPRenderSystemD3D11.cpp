@@ -1,6 +1,8 @@
 #include "TPRenderSystemD3D11.h"
 #include "TPOverlayService.h"
 
+#include <hooks/InputDiag.hpp>
+
 /*#include <imgui.h>
 
 #include <examples/imgui_impl_dx11.h>
@@ -58,6 +60,7 @@ void RenderSystemD3D11::HandleCreate(IDXGISwapChain* apSwapChain)
 void RenderSystemD3D11::HandleRender(IDXGISwapChain* apSwapChain)
 {
   m_pSwapChain = apSwapChain;
+  CEFUtils::InputDiag::Frame();
   // m_imguiService.Render();
   m_overlay.Render();
 }

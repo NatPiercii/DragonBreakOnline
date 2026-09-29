@@ -5,6 +5,8 @@
 
 #include <dinput.h>
 
+#include <InputDiag.hpp>
+
 #include <FunctionHook.hpp>
 #include <array>
 #include <cstdlib>
@@ -246,6 +248,10 @@ void ProcessKeyboardData(uint8_t* apData)
   for (uint32_t idx = 0; idx < 256; idx++) {
     if (g_pressedWas[idx] != apData[idx]) {
       g_pressedWas[idx] = apData[idx];
+      if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiKey)) {
+        spdlog::info("InputDiag: DirectInput key {:#x} {}", idx,
+                     apData[idx] != 0 ? "down" : "up");
+      }
       g_listener->OnKeyStateChange(idx, apData[idx] != 0);
     }
   }
@@ -260,10 +266,18 @@ void ProcessMouseData(DIMOUSESTATE2* apMouseState)
     apMouseState->lX = apMouseState->lY = apMouseState->lZ = 0;
   }*/
   if (abs(apMouseState->lX) >= std::numeric_limits<float>::epsilon() ||
-      abs(apMouseState->lY) >= std::numeric_limits<float>::epsilon())
+      abs(apMouseState->lY) >= std::numeric_limits<float>::epsilon()) {
+    if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiMouseMove)) {
+      spdlog::info("InputDiag: DirectInput mouse moved {},{}",
+                   apMouseState->lX, apMouseState->lY);
+    }
     g_listener->OnMouseMove(apMouseState->lX, apMouseState->lY);
+  }
 
   if (apMouseState->lZ != 0) {
+    if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiWheel)) {
+      spdlog::info("InputDiag: DirectInput mouse wheel {}", apMouseState->lZ);
+    }
     g_listener->OnMouseWheel(apMouseState->lZ);
     if (CEFUtils::DInputHook::ChromeFocus()) {
       apMouseState->lZ = 0;
@@ -279,6 +293,10 @@ void ProcessMouseData(DIMOUSESTATE2* apMouseState)
     const bool pressed = state & 0x80;
     if (pressed != g_mousePressedWas[i]) {
       g_mousePressedWas[i] = pressed;
+      if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiButton)) {
+        spdlog::info("InputDiag: DirectInput mouse button {} {}", i,
+                     pressed ? "down" : "up");
+      }
       g_listener->OnMouseStateChange(mouseBtns[i], pressed);
     }
   }
