@@ -93,7 +93,8 @@ module.exports = (api) => {
   const lawful = (a) => get(a, 'private.dboLawful', false) === true || isLeadStaff(a);
 
   // ---- the menu ---------------------------------------------------------------------------------------
-  const pending = new Map(); // actorId -> { door, candidate? }
+  // Kept across hot reloads: a reload with the menu open refused the guard's choice (2026-09-29)
+  const pending = globalThis.__dboJailPending instanceof Map ? globalThis.__dboJailPending : (globalThis.__dboJailPending = new Map()); // actorId -> { door, candidate? }
   const openMenu = (a, door, title, actions) => {
     pending.set(a >>> 0, { door: door >>> 0 });
     openWidget(a, { type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: title, actions, events: { action: 'dbo:jailChoose', close: 'dbo:jailClose' } }, true);

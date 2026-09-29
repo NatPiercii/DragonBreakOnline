@@ -775,7 +775,7 @@ const sendMailState = (a) => sendPacket(a, { customPacketType: 'dboMail', unread
 globalThis.__dboBoardOpened = (actorId) => sendMailState(Number(actorId) >>> 0);
 // Pigeons fly from notice boards: the board opens the coop window, and the fee goes to that board's town
 const PIGEON_WIDGET_ID = 34;
-const pigeonNonces = new Map(); // actorId -> nonce of the coop window it has open
+const pigeonNonces = globalThis.__dboPigeonNonces instanceof Map ? globalThis.__dboPigeonNonces : (globalThis.__dboPigeonNonces = new Map()); // actorId -> nonce of the coop window it has open (kept across reloads)
 const boardZoneNear = (a) => { try { return typeof globalThis.__alduinakBoardNear === 'function' ? globalThis.__alduinakBoardNear(a) : null; } catch (e) { return null; } };
 const goldOf = (a) => {
   try { return ((mp.get(a, 'inventory') || {}).entries || []).filter((e) => (Number(e.baseId) >>> 0) === GOLD_BASE).reduce((s, e) => s + (Number(e.count) || 0), 0); }
@@ -2510,7 +2510,8 @@ const READ_LINES_TAMRIEL = [
   'The Dragon Break of Middle Dawn lasted a thousand and eight years',
 ];
 const CYRODIIL_PLUGINS = new Set(['bsheartland.esm', 'bsassets.esm']);
-const readSessions = new Map(); // actorId -> { nonce, refId, baseId, title, original, shuffled, startedAt, tier }
+// Kept across hot reloads, as skinning's and prayer's rounds are: a reload mid-read ignored the reader's answer (2026-09-29)
+const readSessions = globalThis.__dboReadSessions instanceof Map ? globalThis.__dboReadSessions : (globalThis.__dboReadSessions = new Map()); // actorId -> { nonce, refId, baseId, title, original, shuffled, startedAt, tier }
 const readDeny = new Map();
 const masteryOf = (a) => { try { const r = mp.get(a, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } };
 const scholarTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.order) || !r.order.includes('scholar')) return -1; const p = r.skills && r.skills.scholar; return p ? Math.max(0, Number(p.rank) || 0) : 0; };

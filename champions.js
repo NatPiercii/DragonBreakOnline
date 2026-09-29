@@ -36,7 +36,9 @@ module.exports = (api) => {
 
   const SPAWNS_FILE = path.resolve('zone-spawns.json');
   const GOLD_BASE = 0x0000000f;
-  const champions = new Map(); // npc actorId -> { name, zone, health, damage: Map(playerId -> total) }
+  // Kept across hot reloads (2026-09-29 review): a fresh map dropped every promoted champion mid-fight (no toughness, no
+  // reward, its mark never taken off), and a fresh seen set re-rolled every live spawn, so each reload made more champions
+  const champions = globalThis.__dboChampions instanceof Map ? globalThis.__dboChampions : (globalThis.__dboChampions = new Map()); // npc actorId -> { name, zone, health, damage: Map(playerId -> total) }
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const propOf = (id, key) => { try { return mp.get(id, key); } catch (e) { return undefined; } };
@@ -104,7 +106,7 @@ module.exports = (api) => {
   };
 
   // New ids in zone-spawns.json are the spawner's work; hostile ones roll for promotion
-  const seen = new Set();
+  const seen = globalThis.__dboChampionsSeen instanceof Set ? globalThis.__dboChampionsSeen : (globalThis.__dboChampionsSeen = new Set());
   const sweep = () => {
     let ids = [];
     try { ids = JSON.parse(fs.readFileSync(SPAWNS_FILE, 'utf8')); } catch (e) { return; }
