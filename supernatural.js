@@ -478,6 +478,9 @@ module.exports = (api) => {
   // decide. Behind on them (more misses than hits): lost, so quitting is no escape, but never a permadeath. Even or
   // ahead: cancelled, no death; a voluntary rite takes only its shrine's wait, and a fever comes back on a later tick.
   // A rite never touched is abandoned as before. Closing the rite window is still a forfeit (riteClose, close).
+  // Known and accepted (the release session, 2026-09-29): quitting a Blood Fever or Hircine's Hunt fever rite while
+  // even or ahead gets another try on a later tick, since the disease stays. A second chance for a quitter costs less
+  // than a character lost to a crash, and crashes are common.
   const leaveRite = (a) => {
     const r = rites.get(a); if (!r) return;
     const def = RITES[r.type];
