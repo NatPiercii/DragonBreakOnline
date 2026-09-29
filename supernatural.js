@@ -2,7 +2,8 @@
 //
 // Lore basis (UESP; design page "Vampires and Werewolves"):
 //   Infection  a vampire's hit (10%) carries Sanguinare Vampiris, a werewolf's bite (2%, Nate 2026-09-27) Sanies Lupinus; both incubate
-//              three game days and are cured by a Cure Disease potion or a prayer at a Divine shrine.
+//              three game days of the carrier's own play (Nate 2026-09-29: time offline does not count) and are cured by a
+//              Cure Disease potion or a prayer at a Divine shrine.
 //   Turning    when the fever peaks the Blood Fever / Hircine's Hunt trial opens (front widget "rite"); failing kills
 //              and burns the disease out. Molag Bal's Embrace and Hircine's rite are chosen at their shrines (/rite)
 //              and failing those can end the character for good (private.permaDead). Surviving Hircine's rite gives Sanies
@@ -29,6 +30,8 @@ module.exports = (api) => {
   const C = Object.assign({
     // Werewolf harder to come by than vampirism (Nate, 2026-09-27: 5% -> 2%)
     infectVampire: 0.10, infectWerewolf: 0.02, infectFeed: 0.10,
+    // Game days the fever takes to peak, counted only while the carrier is online and alive (Nate 2026-09-29): at the
+    // default time scale a game day is 4 real hours, so 3 days is 12 hours of play
     incubationDays: 3,
     sunPerStage: 0.006, sunFloor: 0.05,
     fireWeaknessPerStage: 0.25, silverWeakness: 0.5,
@@ -192,7 +195,8 @@ module.exports = (api) => {
     const p = health(agg); if (p && p.health > 0) setHealth(agg, p.health + 0.03);
   };
   // How much of a vampire's skin their worn gear hides from the sun, 0..1, from each worn item's BOD2 slots
-  // (30 head, 31 hair, 42 circlet = head; 32 body; 33 hands; 37 feet)
+  // (30 head, 31 hair = head; 32 body; 33 hands; 37 feet). A circlet (42) is a band of metal, not a hood: it covers
+  // nothing (Nate 2026-09-29)
   const coverOf = (a) => {
     let eq = null; try { eq = mp.get(a, 'equipment'); } catch (e) { return 0; }
     const entries = eq && eq.inv && Array.isArray(eq.inv.entries) ? eq.inv.entries : [];
@@ -203,7 +207,7 @@ module.exports = (api) => {
       slots |= u32s(f)[0] || 0;
     }
     const cv = C.sunCover;
-    return ((slots & 0x1003) ? cv.head : 0) + ((slots & 0x4) ? cv.body : 0) + ((slots & 0x8) ? cv.hands : 0) + ((slots & 0x80) ? cv.feet : 0);
+    return ((slots & 0x3) ? cv.head : 0) + ((slots & 0x4) ? cv.body : 0) + ((slots & 0x8) ? cv.hands : 0) + ((slots & 0x80) ? cv.feet : 0);
   };
   const isAlpha = (a) => { try { return typeof globalThis.__dboGuildIsPackLeader === 'function' && !!globalThis.__dboGuildIsPackLeader(a); } catch (e) { return false; } };
   // The old Hircine blessing belongs to a pack's Alpha now; an admin can still set it (/curse ... blessedwerewolf)
@@ -281,7 +285,8 @@ module.exports = (api) => {
       log(`supernatural: ${display(t)} is already a ${s.kind}; ${kind} disease does not take`);
       return false;
     }
-    s.disease = { kind, since: gameDays(), by: by ? nameOf(by) : '' };
+    // played: game days of the carrier's own play so far; the fever peaks at incubationDays of it
+    s.disease = { kind, since: gameDays(), played: 0, by: by ? nameOf(by) : '' };
     saveState(t, s);
     if (kind === 'vampire') addSpell(t, SANGUINARE);
     personal(t, kind === 'vampire' ? 'A chill settles in your blood. You feel feverish.' : 'The wound burns hot, and you ache for the hunt.');
@@ -700,12 +705,26 @@ module.exports = (api) => {
   // A vampire's rank (bloodranks.js) slows thirst and softens the sun; 1 when it is not loaded
   const bloodRate = (a, hook) => { try { const m = typeof globalThis[hook] === 'function' ? Number(globalThis[hook](a)) : 1; return Number.isFinite(m) && m >= 0 ? m : 1; } catch (e) { return 1; } };
   // ---- ticks: incubation, stages, sun, full moon ------------------------------------------------------------
+  // Incubation counts play, not the world clock: each tick adds the game time since the carrier's last tick, but only
+  // when that tick was moments ago. Anything longer is time away (logged out, a restart) and adds nothing.
+  const PLAY_STEP_MAX_MS = 45000;
+  const playTicks = globalThis.__dboSuperPlayTicks || (globalThis.__dboSuperPlayTicks = new Map());   // actor -> { day, at }
+  const playedOf = (d) => Math.max(0, Number(d && d.played) || 0);
+  const countPlay = (a, s, day) => {
+    const now = Date.now();
+    const prev = playTicks.get(a >>> 0);
+    playTicks.set(a >>> 0, { day, at: now });
+    if (!prev || now - prev.at > PLAY_STEP_MAX_MS || !(day > prev.day)) return;
+    s.disease.played = playedOf(s.disease) + (day - prev.day);
+    saveState(a, s);
+  };
   every('superSlow', 15000, () => {
     const day = gameDays();
     for (const a of onlineActors()) {
       const s = stateOf(a); if (!s) continue;
-      try { if (mp.get(a, 'isDead')) continue; } catch (e) { continue; }
-      if (s.disease && day - s.disease.since >= C.incubationDays && !rites.has(a)) {
+      try { if (mp.get(a, 'isDead')) { playTicks.delete(a >>> 0); continue; } } catch (e) { continue; }
+      if (s.disease) countPlay(a, s, day);
+      if (s.disease && playedOf(s.disease) >= C.incubationDays && !rites.has(a)) {
         // Not in the first moments of a session: the client is still settling, the cursor is not the player's
         // yet, and this trial kills. It waits for the next tick instead; the fever is not going anywhere.
         const since = Date.now() - (Number((globalThis.__dboConnectedAt || new Map()).get(a >>> 0)) || 0);
@@ -784,12 +803,12 @@ module.exports = (api) => {
       return personal(a, restoreCharacter(c, `GM ${nameOf(a)}`) ? `${display(c)} is restored and can be played again.` : `${display(c)} is not permanently dead.`);
     }
     if (!t || !['vampire', 'purevampire', 'werewolf', 'blessedwerewolf', 'infectvampire', 'infectwerewolf', 'cure', 'crown', 'status', 'fever'].includes(w)) return personal(a, 'Usage: /curse <player|me> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|status|restore>');
-    if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease for ${(gameDays() - s.disease.since).toFixed(1)} days` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
+    if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease: ${playedOf(s.disease).toFixed(1)} of ${C.incubationDays} game days played (${(gameDays() - s.disease.since).toFixed(1)} since infection)` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
     if (w === 'vampire' || w === 'purevampire') becomeVampire(t, w === 'purevampire');
     else if (w === 'werewolf' || w === 'blessedwerewolf') becomeWerewolf(t, w === 'blessedwerewolf');
     else if (w === 'infectvampire') infect(t, 'vampire', 0, true);
     else if (w === 'infectwerewolf') infect(t, 'werewolf', 0, true);
-    else if (w === 'fever') { const s = stateOf(t); if (!s.disease) return personal(a, 'They carry no disease.'); s.disease.since = gameDays() - C.incubationDays; saveState(t, s); }
+    else if (w === 'fever') { const s = stateOf(t); if (!s.disease) return personal(a, 'They carry no disease.'); s.disease.played = C.incubationDays; saveState(t, s); }
     else if (w === 'cure') { cureDisease(t, `GM ${nameOf(a)}`); endCurse(t, `cured by GM ${nameOf(a)}`); }
     else if (w === 'crown') { if (kindOf(t) !== 'vampire') becomeVampire(t, true); takeCrown(t, `given it by GM ${nameOf(a)}`); }
     audit(`SUPERNATURAL GM ${who(a)} /curse ${display(t)} ${w}`);

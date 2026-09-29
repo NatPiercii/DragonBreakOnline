@@ -81,7 +81,8 @@ ok(!state().disease && !state().kind && Number(store.get(`${A}|private.riteFaile
 // round timers directly rather than waiting 23 s of real time.
 const fireTimeout = () => { const r = globalThis.__dboRites.get(A); if (r && r.timer && r.timer._onTimeout) r.timer._onTimeout(); };
 store.set(`${A}|isDead`, false);
-store.set(`${A}|private.supernatural`, { disease: { kind: 'vampire', since: 0 } });
+// A fever that has had its three game days of play (incubation counts played time since 2026-09-29)
+store.set(`${A}|private.supernatural`, { disease: { kind: 'vampire', since: 0, played: 3 } });
 globalThis.__dboRites.delete(A);
 online.push(A);
 globalThis.__dboConnectedAt = new Map([[A, Date.now()]]);   // just joined
