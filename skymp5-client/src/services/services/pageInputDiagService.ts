@@ -39,15 +39,48 @@ const MAX_LINES = 600;
 const BEAT_EVERY = 5;
 const BEAT_GAP_MS = 6000;
 const GAP_CHECK_MS = 1000;
+// A line the CLIENT writes, needing nothing from the page. GroundedPasta's 0.3.62 sessions sent not one page line
+// while he could see character select with his slots filled, so client -> page works on his machine and page ->
+// client does not. executeJavaScript returns void and browserMessage is the only route back (checked against the
+// typings), so there is no way to ask the page anything - but this says plainly whether the page has ever answered.
+const CLIENT_LINE_MS = 5000;
 
 export class PageInputDiagService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("tick", () => this.onTick());
+    this.countExecuteJavaScript();
+  }
+
+  // Counting the calls the client makes into the page is what turns "the page said nothing" into "the client spoke to
+  // the page N times and the page never answered". Wrapped once, and failure to wrap is not worth an error: the count
+  // simply stays at -1.
+  private countExecuteJavaScript(): void {
+    try {
+      const b = this.sp.browser as unknown as { executeJavaScript: (src: string) => void };
+      const original = b.executeJavaScript.bind(this.sp.browser);
+      b.executeJavaScript = (src: string) => { this.execCalls++; original(src); };
+      this.execCalls = 0;
+    } catch (e) {
+      this.execCalls = -1;
+    }
+  }
+
+  // What the client knows on its own, with nothing from the page involved
+  private clientLine(): string {
+    const since = this.lastAnyMessageAt ? String(Date.now() - this.lastAnyMessageAt) : "-1 never";
+    let vis = "?";
+    let foc = "?";
+    try { vis = String(this.sp.browser.isVisible()); } catch (e) { /* unreadable */ }
+    try { foc = String(this.sp.browser.isFocused()); } catch (e) { /* unreadable */ }
+    return `client: widget7 open, beats seen ${this.beats}, page messages ${this.anyMessages}, last browserMessage ${since} ms ago, executeJavaScript calls ${this.execCalls}, browser visible=${vis} focused=${foc}`;
   }
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
+    // Counted before the filter: ANY message from the page proves the channel back works
+    this.anyMessages++;
+    this.lastAnyMessageAt = Date.now();
     if (e.arguments[0] !== KEY) return;
     const text = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
     this.queueForRelay(text);
@@ -96,6 +129,12 @@ export class PageInputDiagService extends ClientListener {
   // A beat that stops while character select is up is the thing worth catching; tick still runs when update does not
   private onTick(): void {
     const now = Date.now();
+    // The client's own line goes in first, so it is in the very first packet even when the page has said nothing
+    if ((globalThis as any).__dboCharacterSelectOpen === true && now - this.lastClientLine >= CLIENT_LINE_MS) {
+      this.lastClientLine = now;
+      if (this.queue.length < RELAY_MAX_LINES) this.queue.push(this.clientLine());
+      this.write(this.clientLine());
+    }
     const every = this.relayed ? RELAY_EVERY_MS : RELAY_FIRST_MS;
     if (now - this.lastRelay >= every) { this.lastRelay = now; this.flushRelay(); }
     if (now - this.lastCheck < GAP_CHECK_MS) return;
@@ -135,4 +174,8 @@ export class PageInputDiagService extends ClientListener {
   private queue: string[] = [];
   private relayed = 0;
   private lastRelay = 0;
+  private lastClientLine = 0;
+  private anyMessages = 0;
+  private lastAnyMessageAt = 0;
+  private execCalls = -1;
 }
