@@ -1,0 +1,22 @@
+{
+  "_comment": "Artifacts never come out of loot (Nate, 2026-09-29: 'Artifacts are not lootable. We do RP as staff to proclaim champions'); staff hand them out. Matched on the editor id, case-insensitive, so enchanted variants go too. Read by dungeons.js (every pool, the Ayleid table, what a corpse keeps) and wildlife.js (giant camp chests). The Blood Crown is not an item and is untouched: it passes from holder to slayer (supernatural.js).",
+  "patterns": [
+    "^ClavicusVileMask$",
+    "^ArmorDragonPriestMask",
+    "^CYR(Goldbrand|Thorneblade|Hvitbrand|BladeOfPrepotence|SceptreOfFrostyEntombment|StaffOfTitanSummoning|WoodenStaffOfAwesomeConflagration|RodOfPotency|Aranedean|ChampionsKvatchCuirass|FortPalePassPreciliusVaroSword|KvatchArc02MurderWeapon|JewelryRingEssi)",
+    "^DB(AlainAegisbane|BladeOfWoe|MuiriRing|NightweaversBand)",
+    "^DLC1(AurielsBow|ArmorAurielsShield|HarkonsSword|RuunvaldStaff|DawnguardRune(Axe|Hammer|Shield)|ArmorVampireArmor(RoyalRed|Valerica)|_WESC09TaronsRobes|IvoryCrown|ReflectingShield)",
+    "^DLC2(BloodskalBlade|MiraakStaff|MiraakMask|MirraksRobes|ClothesMiraak|Horksbane|KagrumezFateBow|RR01FalxWarhammer|DBDragonSword|MerchBowOfTheStagPrince|dunBrodirGroveStormfang|dunHaknir|dunKolbjorn|dunFrostmoonRing|dunFahlbtharzDwarvenHelmet)",
+    "^MGR(Keening|Arniel02Staff|itual05Dagger)$",
+    "^Nightingale(Blade|Bow)",
+    "^ArmorNightingale",
+    "^ArmorShieldofYsgramor$",
+    "^C06BladeOfYsgramor$",
+    "^ArmorLinwe",
+    "^ArmorThievesGuild(Leader|Karliah)",
+    "^ClothesMG(Boots|Robes)Archmage",
+    "^ArmorTsunCuirass$",
+    "^DunYngolBarrowSteelPlateHelmet$",
+    "^ClothesPsiijic"
+  ]
+}

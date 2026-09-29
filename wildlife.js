@@ -25,6 +25,11 @@ module.exports = (api) => {
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { return fallback; } };
   const DATA = readJson('wildlife.json', { placements: [], giantCamps: [] });
   const LOOT = (readJson('loot.json', { pools: {} }).pools) || {};
+  // Nate, 2026-09-29: artifacts are never loot (artifacts.json, as dungeons.js reads it)
+  const ARTIFACT = (() => {
+    const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);
+    try { return list.length ? new RegExp(list.map((p) => `(?:${p})`).join('|'), 'i') : /$^/; } catch (e) { log('artifacts.json has a bad pattern', e.message); return /$^/; }
+  })();
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { return 0; } };
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const pickFrom = (list) => list.length ? list[Math.floor(Math.random() * list.length)] : null;
@@ -81,7 +86,7 @@ module.exports = (api) => {
   const campChests = new Map(); // refId -> { camp, chest }
   for (const camp of DATA.giantCamps || []) for (const ch of camp.chests || []) { const id = idOf(ch.ref); if (id) campChests.set(id, { camp, chest: ch }); }
   const lootsOf = (a) => { try { const r = mp.get(a, 'private.campLoot'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
-  const pool = (name) => LOOT[name] || [];
+  const pool = (name) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')));
   const campLoot = () => {
     const out = [];
     const add = (item, count) => { if (!item) return; const id = idOf(item.id); if (id) out.push({ id, count, name: item.name }); };
