@@ -19,6 +19,9 @@ module.exports = (api) => {
     gemChance: 0.35,
     // A player needs this share of the damage to count as a fighter
     creditShare: 0.1,
+    // One reward per kill, shared by damage; a party earns this much more per extra fighter, up to groupBonusMax
+    groupBonusPerFighter: 0.2,
+    groupBonusMax: 1,
     pollSeconds: 4,
   }, cfg.champions || {});
 
@@ -165,19 +168,33 @@ module.exports = (api) => {
     if (killerId && isPlayer(killerId) && fighters.indexOf(killerId >>> 0) === -1) fighters.push(killerId >>> 0);
     if (!fighters.length) return;
 
+    // One reward per kill, shared by the fighters by their part of the damage, and one gem roll: each fighter used to get
+    // the full 25-120 gold and a roll of their own, so a party of alts multiplied the payout (economy review,
+    // 2026-09-29, M7). A party still earns a little more than one fighter alone.
+    const paid = fighters.filter((p) => isPlayer(p));
+    if (!paid.length) return;
+    const dmgOf = (p) => champ.damage.get(p) || 0;
+    const paidDamage = paid.reduce((n, p) => n + dmgOf(p), 0);
+    const weightOf = (p) => (paidDamage > 0 ? dmgOf(p) / paidDamage : 1 / paid.length);
     const [lo, hi] = Array.isArray(CFG.goldReward) ? CFG.goldReward : [25, 120];
-    const gems = pool('gems');
-    const names = [];
-    for (const playerId of fighters) {
-      if (!isPlayer(playerId)) continue;
-      const gold = Math.max(1, Math.floor(lo + Math.random() * Math.max(1, hi - lo)));
-      giveItem(playerId, GOLD_BASE, gold);
-      let extra = '';
-      if (Math.random() < (Number(CFG.gemChance) || 0)) {
-        const gem = pick(gems);
-        if (gem && giveItem(playerId, idOf(gem.id), 1)) extra = ' and something bright out of the hide';
+    const bonus = 1 + clamp((Number(CFG.groupBonusPerFighter) || 0) * (paid.length - 1), 0, Number(CFG.groupBonusMax) || 0);
+    const pot = Math.max(1, Math.floor((lo + Math.random() * Math.max(1, hi - lo)) * bonus));
+    let gemTo = 0, gemId = 0;
+    if (Math.random() < (Number(CFG.gemChance) || 0)) {
+      const gem = pick(pool('gems'));
+      if (gem) {
+        gemId = idOf(gem.id);
+        let roll = Math.random();
+        for (const p of paid) { roll -= weightOf(p); if (roll < 0) { gemTo = p; break; } }
+        if (!gemTo) gemTo = paid[paid.length - 1];
       }
-      personal(playerId, `The ${champ.name.toLowerCase()} beast falls. ${gold} gold${extra}.`);
+    }
+    const names = [];
+    for (const playerId of paid) {
+      const gold = Math.max(1, Math.floor(pot * weightOf(playerId)));
+      giveItem(playerId, GOLD_BASE, gold);
+      const extra = playerId === gemTo && gemId && giveItem(playerId, gemId, 1) ? ' and something bright out of the hide' : '';
+      personal(playerId, `The ${champ.name.toLowerCase()} beast falls. ${paid.length > 1 ? 'Your share: ' : ''}${gold} gold${extra}.`);
       names.push(display(playerId));
     }
     audit(`CHAMPION ${champ.name} in ${champ.zone} killed by ${names.join(', ')}`);
