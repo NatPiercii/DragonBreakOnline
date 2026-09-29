@@ -105,6 +105,7 @@ r = run(RENTER, 'leave');
 check('leaving in good standing returns the deposit', /hand back the keys/.test(r) && chars[RENTER].gold === before + 100 && houses[DOOR].owner === 0, r);
 // a tenant who hands the house on and then leaves does not take it back from the new owner (economy review, 2026-09-29)
 run(RENTER, 'interest'); run(STEWARD, 'offer Renter'); run(RENTER, 'accept');
+check('housing is told the house is rented, so it refuses to hand it on', globalThis.__dboTenancyRented(DOOR) === true && globalThis.__dboTenancyRented(FAR_DOOR) === false);
 houses[DOOR].owner = chars[OTHER].profile; houses[DOOR].ownerName = 'Other';   // housing transfer to Other
 const beforeSale = chars[RENTER].gold;
 r = run(RENTER, 'leave');
@@ -115,6 +116,7 @@ run(RENTER, 'interest'); run(STEWARD, 'offer Renter');
 r = run(RENTER, 'accept');
 check('an offer on a house someone owns now cannot be accepted', /has an owner now/.test(r) && houses[DOOR].owner === chars[OTHER].profile, r);
 houses[DOOR].owner = 0; houses[DOOR].ownerName = '';
+check('once the tenancy ends housing may hand the house on again', globalThis.__dboTenancyRented(DOOR) === false);
 check('the steward can take it off the market', /Taken off the market/.test(run(STEWARD, 'unlist')));
 
 process.chdir(home);
