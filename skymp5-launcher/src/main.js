@@ -23,6 +23,7 @@ const config = require('./config')
 const mo2    = require('./mo2')
 const nexus  = require('./nexus')
 const ini    = require('./ini')
+const prefsSeed = require('./prefsSeed')
 const gameversion = require('./gameversion')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
@@ -1515,33 +1516,26 @@ function gameVersionProblem() {
   return null
 }
 
-// Seed the MO2 profile SkyrimPrefs.ini from the player's own prefs, then
-// rewrite the server's forced window mode (borderless) and controller-off on top. Resolution is
+// Seed the MO2 profile SkyrimPrefs.ini from the player's own prefs (or, without any, the game's template or a
+// preset), then rewrite the server's forced window mode (borderless) and controller-off on top. Resolution is
 // deliberately NOT rewritten: it stays whatever the player's ini says, and
 // the Settings tab only shows 1080p as a fallback when the ini has none.
+// A profile ini holding only the launcher's own writes is rebuilt the same way, keeping those keys (prefsSeed.js).
 function seedProfilePrefs(skyrimPath) {
   const dest = path.join(mo2.getProfileDir(), 'skyrimprefs.ini')
-  if (fs.existsSync(dest)) return
-  const candidates = [
-    path.join(skyrimPath, 'Skyrim', 'SkyrimPrefs.ini'),
-    findOriginalPrefsIni(),
-  ].filter(Boolean)
-  for (const from of candidates) {
-    if (!fs.existsSync(from)) continue
-    try {
-      fs.mkdirSync(path.dirname(dest), { recursive: true })
-      fs.copyFileSync(from, dest)
-      ini.write(dest, {
+  try {
+    const lines = prefsSeed.ensureProfilePrefs(dest, {
+      documentsPrefs: findOriginalPrefsIni(),
+      gameDirs: [skyrimPath, isolatedGameReady() ? isolatedGameDir() : null],
+      forced: {
         Display: { 'bFull Screen': '0', 'bBorderless': '1' },
         MAIN: { bGamepadEnable: '0' },
-      })
-      log(`[isolated] seeded profile SkyrimPrefs.ini from ${from}`)
-    } catch (err) {
-      log(`[isolated] could not seed SkyrimPrefs.ini: ${err.message}`)
-    }
-    return
+      },
+    })
+    for (const line of lines) log(`[isolated] ${line}`)
+  } catch (err) {
+    log(`[isolated] could not seed SkyrimPrefs.ini: ${err.message}`)
   }
-  log('[isolated] no source SkyrimPrefs.ini found to seed')
 }
 
 // Metrics
@@ -2100,6 +2094,8 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
     if (wiped.length > 0) log(`[launch] cleaned stray overwrite items: ${wiped.join(', ')}`)
     // Data\Platform files a game run left in overwrite outrank the game folder's (the page, the session)
     for (const line of mo2.cleanOverwritePlatform()) log(`[launch] ${line}`)
+    // Profiles made before 2.1.34 with no prefs to copy hold only the launcher's own writes
+    seedProfilePrefs(store.get('skyrimPath') || skyrimPath)
     const removed = mo2.enforceModRules()
     if (removed.length > 0) log(`[launch] disabled unauthorised mods: ${removed.join(', ')}`)
   }
