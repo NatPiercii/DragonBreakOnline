@@ -351,6 +351,24 @@ timers.get('rest')();
 check('both end with a notice', /no longer Well Rested/.test(out.personals.filter((p) => p[0] === ME).map((p) => p[1]).join('|')) && /no longer Well Fed/.test(lastPersonal(ME)));
 check('...and stop working', globalThis.__dboRestHungerMult(ME) === 1 && props.get(ME + '|percentages').health === 0.5);
 
+// ---- a buff that ran out while its player was away (2026-09-29) ----
+// The pulse reaches a new login before __dboRestLogin does (gamemode.js runs it 8 s in): a sleeper whose last Well Rested
+// ended offline was told it had ended, and seconds later that they woke Well Rested.
+const endNotices = (a) => out.personals.filter((p) => p[0] === a && /no longer Well/.test(p[1])).length;
+props.set(OTHER + '|private.dboRested', { until: wallClock - 3 * HOUR });
+props.set(OTHER + '|private.dboWellFed', { until: wallClock - 3 * HOUR });
+online.delete(OTHER); timers.get('rest')(); online.add(OTHER);
+const othersEnds = endNotices(OTHER);
+timers.get('rest')();
+check('a buff that ran out while its player was away is cleared on their return without a notice', props.get(OTHER + '|private.dboRested') === null && props.get(OTHER + '|private.dboWellFed') === null && endNotices(OTHER) === othersEnds, out.personals.filter((p) => p[0] === OTHER).slice(-2));
+props.set(ME + '|private.dboRested', { until: wallClock + MIN });
+timers.get('rest')();
+load();
+wallClock += 2 * MIN;
+const myEnds = endNotices(ME);
+timers.get('rest')();
+check('...while a player online when it runs out is still told, across a gamemode reload', props.get(ME + '|private.dboRested') === null && endNotices(ME) === myEnds + 1, lastPersonal(ME));
+
 // ---- the rent runs out ----
 wallClock += 22 * HOUR;
 check('an expired rent frees the bed', activate(INN_BED, OTHER) === true && actionIds().join() === 'rent');
