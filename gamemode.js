@@ -2661,6 +2661,11 @@ try {
 const PURSE = Object.assign({ enabled: true, restMinutes: 45, goldMin: 8, goldMax: 30, unskilledChance: 0.25, unskilledMult: 0.5 }, cfg.coinPurses || {});
 const HARVESTING = ((SKILLS_DEF.skills || []).find((k) => k.id === 'harvesting')) || {};
 const purseRest = globalThis.__dboPurseRest = globalThis.__dboPurseRest || new Map(); // refId -> until
+// A rest kept only in memory was lost at every restart, so each push to fork main refilled every purse and wisp stalk
+// (loot review, 2026-09-29): it is kept on the reference as well, and the later of the two holds
+const REST_PROP = 'private.dboRestUntil';
+const restUntil = (map, ref) => { let saved = 0; try { saved = Number(mp.get(ref, REST_PROP)) || 0; } catch (e) { saved = 0; } return Math.max(map.get(ref) || 0, saved); };
+const setRest = (map, ref, until) => { map.set(ref, until); try { mp.set(ref, REST_PROP, until); } catch (e) { log('rest save failed', e.message); } };
 const purseKind = new Map(); // baseId -> true when FLOR with a leveled produce
 const isCoinPurse = (targetId) => {
   if (targetId >= 0xff000000) return false;
@@ -2685,12 +2690,12 @@ const purseDeny = new Map();
 globalThis.__dboCoinPurse = (targetId, casterId) => {
   if (!PURSE.enabled || !isCoinPurse(targetId)) return false;
   const say = (t) => { if (Date.now() - (purseDeny.get(casterId) || 0) > 1500) { purseDeny.set(casterId, Date.now()); personal(casterId, t); } return true; };
-  const until = purseRest.get(targetId) || 0;
+  const until = restUntil(purseRest, targetId);
   if (until > Date.now()) return say(`This purse was emptied not long ago. It fills again in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
   const tier = harvestingTier(casterId);
   const chance = tier >= 0 ? (Number((HARVESTING.yieldChanceByTier || [])[Math.min(tier, 4)]) || 1) : PURSE.unskilledChance;
   const mult = tier >= 0 ? (Number((HARVESTING.yieldMultiplierByTier || [])[Math.min(tier, 4)]) || 1) : PURSE.unskilledMult;
-  purseRest.set(targetId, Date.now() + PURSE.restMinutes * 60000);
+  setRest(purseRest, targetId, Date.now() + PURSE.restMinutes * 60000);
   if (Math.random() > chance) return say('You find nothing worth taking in the purse.');
   const gold = Math.max(1, Math.round((PURSE.goldMin + Math.random() * (PURSE.goldMax - PURSE.goldMin)) * mult));
   if (giveItem(casterId, 0xf, gold)) {
@@ -2759,13 +2764,13 @@ globalThis.__dboWispStalk = (targetId, casterId) => {
   const script = scriptOn(baseIdOf(targetId), 'bskwispstalkactivatorscript');
   const ingredient = script ? Number(script.props.bskwispstalk) >>> 0 : 0;
   if (!ingredient) return false;
-  const until = wispRest.get(targetId) || 0;
+  const until = restUntil(wispRest, targetId);
   if (until > Date.now()) return sayOnce(casterId, `This wisp stalk has been picked. It grows back in about ${Math.ceil((until - Date.now()) / 3600000)} hour(s).`);
   const tier = harvestingTier(casterId);
   const unskilled = HARVESTING.unskilled || {};
   const chance = tier >= 0 ? (Number((HARVESTING.yieldChanceByTier || [])[Math.min(tier, 4)]) || 1) : Number(unskilled.yieldChance) || 0.25;
   const mult = tier >= 0 ? (Number((HARVESTING.yieldMultiplierByTier || [])[Math.min(tier, 4)]) || 1) : Number(unskilled.yieldMultiplier) || 0.5;
-  wispRest.set(targetId, Date.now() + WISP.restMinutes * 60000);
+  setRest(wispRest, targetId, Date.now() + WISP.restMinutes * 60000);
   if (wispRest.size > 4000) for (const [k, t] of [...wispRest]) if (t <= Date.now()) wispRest.delete(k);
   if (Math.random() > chance) return sayOnce(casterId, 'The wisp stalk crumbles in your hands.');
   const count = Math.max(1, Math.round(mult));
