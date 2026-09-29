@@ -138,10 +138,12 @@ export class BrowserService extends ClientListener {
 
   private onMenuClose(e: MenuCloseEvent) {
     if (this.badMenusOpen.delete(e.name)) {
-      if (this.badMenusOpen.size === 0 && !this.uiHidden) {
+      // Asked of the engine, not of the record: a menu whose close never arrived must not hold the cursor for ever
+      const live = this.liveBlockingMenus();
+      if (live.length === 0 && !this.uiHidden) {
         this.sp.browser.setVisible(true);
         // A panel opened while that menu held the keyboard deferred its focus rather than stealing it; it gets it now
-        takeDeferredFocus(this.sp);
+        takeDeferredFocus(this.sp, e.name);
       }
     }
 
@@ -186,6 +188,32 @@ export class BrowserService extends ClientListener {
   // Any menu that swallows gameplay input (inventory, map, console, ...)
   isBlockingMenuOpen(): boolean {
     return this.badMenusOpen.size > 0;
+  }
+
+  // Which recorded menus are STILL open, asked of the engine rather than trusted from the record. A close event that
+  // never arrives would otherwise leave an entry behind for ever, and since panels now decide focus on this, a stale
+  // entry would leave every panel unfocusable until the player alt-tabbed. Anything no longer open is pruned here.
+  //
+  // Main Menu is never counted: 0.3.67 ships a blank startmenu.swf, so the main menu can sit open underneath our own
+  // screen, and a panel that deferred to it would never get the cursor. Character select is exactly that case.
+  liveBlockingMenus(): string[] {
+    const live: string[] = [];
+    const recorded: string[] = [];
+    this.badMenusOpen.forEach((name) => recorded.push(name));
+    for (const name of recorded) {
+      let open = true;
+      try {
+        open = this.sp.Ui.isMenuOpen(name);
+      } catch (e) {
+        open = true;   // unreadable: leave the record alone rather than prune on a guess
+      }
+      if (!open) {
+        this.badMenusOpen.delete(name);
+        continue;
+      }
+      if (name !== Menu.Main) live.push(name);
+    }
+    return live;
   }
 
   private badMenusOpen = new Set<string>();

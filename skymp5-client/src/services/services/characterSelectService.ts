@@ -149,7 +149,9 @@ export class CharacterSelectService extends ClientListener {
         // remoteServer reads this: our own body being parked must not quit the game to the main menu
         (globalThis as any).__dboCharacterSelectOpen = true;
         logTrace(this, `Opening character select menu with`, maxCharacters, `slots`);
-        openFormMenu(this.sp, this.browsersideWidgetSetter, this.menuArgs(), this.controller);
+        // Always focuses: character select IS the screen, and with a blank startmenu.swf the main menu can be open
+        // underneath it. A panel that deferred there would never get the cursor, which is the bug we spent the week on.
+        openFormMenu(this.sp, this.browsersideWidgetSetter, this.menuArgs(), this.controller, true);
         break;
       case 'characterSelectMenuClose':
         if (this.menuOpen) this.closeMenu();

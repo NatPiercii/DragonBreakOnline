@@ -1,4 +1,5 @@
 import { CombinedController, Sp } from "./clientListener";
+import { logTrace } from "../../logging";
 import { BrowserService } from "./browserService";
 import { FunctionInfo } from "../../lib/functionInfo";
 import { Menu } from "skyrimPlatform";
@@ -23,30 +24,43 @@ export function closeWidget(sp: Sp, widgetId: number): void {
 // Instead the panel is drawn and shown, focus is left with the game, and the wish for it is remembered. The moment
 // the last blocking menu closes, browserService calls takeDeferredFocus and the panel gets the cursor then - so the
 // panel is still usable without a key press, and the vanilla menu was never interfered with.
+// Deciding this on the recorded set would be a worse bug than the one being fixed: before this change openFormMenu
+// forced focus, so a stale entry in badMenusOpen never mattered, and now it decides. liveBlockingMenus asks the
+// engine which of them are really open and prunes the rest, and Main Menu is never counted - with a blank
+// startmenu.swf the main menu sits open underneath our own screen, and character select would defer to it for ever.
 let focusWanted = false;
 
-export function openFormMenu(sp: Sp, setter: () => void, args: Record<string, unknown>, controller: CombinedController): void {
+/**
+ * @param alwaysFocus for a panel that IS the screen - character select - which must never wait for anything.
+ */
+export function openFormMenu(sp: Sp, setter: () => void, args: Record<string, unknown>, controller: CombinedController,
+                             alwaysFocus = false): void {
   showUi(controller);
   sp.browser.executeJavaScript(new FunctionInfo(setter).getText(args));
   sp.browser.setVisible(true);
-  let blocked = false;
-  try {
-    blocked = controller.lookupListener(BrowserService).isBlockingMenuOpen();
-  } catch (e) {
-    blocked = false;   // too early for the service: behave as before
+
+  let blocking: string[] = [];
+  if (!alwaysFocus) {
+    try {
+      blocking = controller.lookupListener(BrowserService).liveBlockingMenus();
+    } catch (e) {
+      blocking = [];   // too early for the service: behave as before and take focus
+    }
   }
-  if (blocked) {
+  if (blocking.length > 0) {
     focusWanted = true;
+    logTrace("widgetMenuUtil", `panel deferring focus, still open: ${blocking.join(", ")}`);
     return;
   }
   focusWanted = false;
   sp.browser.setFocused(true);
 }
 
-/** Called when the last blocking vanilla menu closes. Gives a panel opened behind it the cursor it asked for. */
-export function takeDeferredFocus(sp: Sp): void {
+/** Called when the last live blocking menu closes. Gives a panel opened behind it the cursor it asked for. */
+export function takeDeferredFocus(sp: Sp, closed?: string): void {
   if (!focusWanted) return;
   focusWanted = false;
+  logTrace("widgetMenuUtil", `panel taking deferred focus after ${closed || "a menu"} closed`);
   try {
     sp.browser.setVisible(true);
     sp.browser.setFocused(true);
