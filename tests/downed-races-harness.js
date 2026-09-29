@@ -91,5 +91,27 @@ place(ALLY, [5000, 0, 0]);
 mp.onSpellCast(PRIEST, HEAL_OTHER); runTimers();
 check('the next heal, which hit nothing, raises them', raised(P), audits.join(' | '));
 
+// ---- 2. the Draught poured by hand ----------------------------------------------------------------------------------
+// Next to the fallen: raised, one draught used, the gamemode's activate never reached (no body search)
+reset(); place(HELPER, [0, 150, 0]); down(P);
+mp.onActivate(P, HELPER);
+check('a Draught poured from beside the fallen raises them', raised(P) && potions(HELPER) === 1 && activated.length === 0);
+
+// 28 m away: the gamemode refuses any activation past 6.5 m, and this wrapper runs before it
+reset(); place(HELPER, [0, 2000, 0]); down(P);
+mp.onActivate(P, HELPER);
+check('a Draught cannot be poured from 28 m away', !raised(P) && potions(HELPER) === 2, `isDead=${get(P, 'isDead')} potions=${potions(HELPER)}`);
+check('that activation goes on to the gamemode, which refuses it for reach', activated.length === 1);
+
+// In another cell at the same coordinates
+reset(); place(HELPER, [0, 150, 0]); set(HELPER, 'worldOrCellDesc', '3c:Skyrim.esm'); down(P);
+mp.onActivate(P, HELPER);
+check('nor from another cell', !raised(P) && potions(HELPER) === 2);
+
+// Bound hands: the gamemode answers every activation with "Your hands are bound."
+reset(); place(HELPER, [0, 150, 0]); set(HELPER, 'private.restrained', { boundHands: true, carried: false, captorActorId: ALLY }); down(P);
+mp.onActivate(P, HELPER);
+check('a captive with bound hands cannot pour a Draught', !raised(P) && potions(HELPER) === 2 && activated.length === 1);
+
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);
