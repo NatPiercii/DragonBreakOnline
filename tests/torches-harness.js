@@ -24,8 +24,11 @@ const check = (label, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${labe
   const said = [];
   const mp = { get: (id, k) => (k === 'baseDesc' && BASE[id] ? `${BASE[id].toString(16)}:Skyrim.esm` : undefined), getIdFromDesc: (d) => parseInt(String(d).split(':')[0], 16), lookupEspmRecordById: (id) => RECS[id] || null };
   globalThis.__dboHarvestReady = new Map();
-  const M = new Function('mp', 'cfg', 'personal', src.slice(from, to) + '\nreturn { blockPlacedPickup, carryableLight, TORCH_MINUTES };')(
-    mp, { harvest: {} }, (a, t) => said.push(t));
+  // The rest on the reference (restUntil, setRest) is declared with the coin purses, below this section
+  const srcLine = (head) => { const i = src.indexOf(head); if (i < 0) throw new Error(`gamemode.js has no ${head}`); return src.slice(i, src.indexOf('\n', i)); };
+  const { restUntil, setRest } = new Function('mp', 'log', `${srcLine('const REST_PROP = ')}\n${srcLine('const restUntil = ')}\n${srcLine('const setRest = ')}\nreturn { restUntil, setRest };`)(mp, () => {});
+  const M = new Function('mp', 'cfg', 'personal', 'restUntil', 'setRest', src.slice(from, to) + '\nreturn { blockPlacedPickup, carryableLight, TORCH_MINUTES };')(
+    mp, { harvest: {} }, (a, t) => said.push(t), restUntil, setRest);
   const P = 0xff000001;
   check('Torch01 (DATA flags 11, 0x2 Can Be Carried) is a carryable light', M.carryableLight(RECS[0x1d4ec]) === true);
   check('a light without 0x2 (a sconce, a candle) is not', M.carryableLight(RECS[0x2000]) === false);

@@ -17,6 +17,18 @@ module.exports = (api) => {
   const ITEM_TYPES = new Set(['WEAP', 'ARMO', 'AMMO', 'MISC', 'ALCH', 'INGR', 'BOOK', 'KEYM', 'SLGM', 'SCRL', 'LIGH']);
   const S = globalThis.__dboItemGuards || (globalThis.__dboItemGuards = { typeCache: new Map(), warned: new Map() });
 
+  // Non-playable armor and weapons (record flag 0x4) are the game's own gear, such as the Vampire Lord robe
+  // beastform.js hands out and takes back on revert: dropped or stored while worn, it was kept and a new one came
+  // with the next change (economy review, 2026-09-29)
+  const nonPlayable = (baseId) => {
+    const id = Number(baseId) >>> 0;
+    const key = `np:${id}`;
+    if (S.typeCache.has(key)) return S.typeCache.get(key);
+    let np = false;
+    try { const r = recordOf(id); np = !!(r && r.record && (r.record.type === 'ARMO' || r.record.type === 'WEAP') && (Number(r.record.flags) & 0x4)); } catch (e) { np = false; }
+    S.typeCache.set(key, np);
+    return np;
+  };
   const itemType = (baseId) => {
     const id = Number(baseId) >>> 0;
     if (S.typeCache.has(id)) return S.typeCache.get(id);
@@ -51,6 +63,7 @@ module.exports = (api) => {
     const t = itemType(baseId);
     if (!t) return 'unknown record';
     if (!ITEM_TYPES.has(t)) return `not an item (${t})`;
+    if (nonPlayable(baseId)) return 'not playable';
     if (holder !== undefined && n > owned(holder, baseId)) return 'more than owned';
     return null;
   };

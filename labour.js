@@ -108,6 +108,14 @@ module.exports = (api) => {
   // Kept on the reference, which survives restarts; only a won round sets it.
   const SHARED_REST = 'private.dboWorkedUntil';
   const sharedRest = (ref) => { try { return Number(mp.get(ref, SHARED_REST)) || 0; } catch (e) { return 0; } };
+  // One worker per seam or block at a time: the shared rest is set only when a round is won, so two workers who
+  // started together were both paid (economy review, 2026-09-29). ref -> { a, until }
+  const working = globalThis.__dboLabourWorking instanceof Map ? globalThis.__dboLabourWorking : (globalThis.__dboLabourWorking = new Map());
+  const workedByOther = (ref, a) => { const w = working.get(ref); return !!w && w.a !== a && w.until > Date.now() && sessions.has(w.a); };
+  const reserve = (ref, a, round) => {
+    working.set(ref, { a, until: Date.now() + (Number(round.totalMs) || 60000) + (Number(CFG.lagGraceMs) || 0) });
+    if (working.size > 2000) for (const [k, w] of working) if (w.until <= Date.now()) working.delete(k);
+  };
   const deny = (a, text) => {
     if (Date.now() - (denied.get(a) || 0) > 1500) { denied.set(a, Date.now()); personal(a, text); }
     return true;
@@ -250,9 +258,12 @@ module.exports = (api) => {
     const rests = restsOf(casterId, 'private.minedVeins');
     const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
+    if (workedByOther(targetId, casterId)) return deny(casterId, 'Someone is working this seam. Wait for them to finish.');
     const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' || (CFG.gemOre || {})[ore] ? 'Geode' : `${titleCase(ore)} Seam`, targetId);
     round.ore = ore;
-    return startRound(casterId, round);
+    const started = startRound(casterId, round);
+    reserve(targetId, casterId, round);
+    return started;
   };
 
   const chop = (targetId, casterId) => {
@@ -262,9 +273,12 @@ module.exports = (api) => {
     const rests = restsOf(casterId, 'private.choppedBlocks');
     const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
     if (until > Date.now()) return deny(casterId, `You have split all the logs here. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
+    if (workedByOther(targetId, casterId)) return deny(casterId, 'Someone is splitting logs here. Wait for them to finish.');
     const strikes = Math.max(1, Math.round(tierValue(WOODCUTTER.chopStrikesByTier, tier, 4)));
     const round = roundFor(casterId, 'chopping', tier, strikes, 'Chopping Block', targetId);
-    return startRound(casterId, round);
+    const started = startRound(casterId, round);
+    reserve(targetId, casterId, round);
+    return started;
   };
 
   // Called from the gamemode's activate chain; true means the activation was ours
@@ -372,6 +386,10 @@ module.exports = (api) => {
       return finish(a, round, false, text, 'lose');
     }
 
+    // Won, but someone else's win on this node came first: nothing is left to pay out
+    if (sharedRest(round.refId) > Date.now()) {
+      return finish(a, round, false, round.kind === 'mining' ? 'Someone else worked this seam out before you finished.' : 'Someone else split the last of the logs before you finished.', 'lose', false);
+    }
     // A finished round is its own event kind, not a bare 'activate': 'mine' is weighed by the ore band
     // and 'chop' is flat 1.0, against 0.5 for touching a thing. Emitting 'activate' here made the ore
     // band in skillPoints.weightOf dead code and cost a Novice miner twenty separate veins.
