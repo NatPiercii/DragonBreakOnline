@@ -27,6 +27,8 @@ module.exports = (api) => {
     // chance a mistimed set snaps the pick
     snap: { anyone: 0.5, lockpicker: 0.35, perTier: -0.06, min: 0.08 },
     reach: 400,
+    // A lock nobody has touched this long is abandoned (see busy below)
+    idleSeconds: 60,
   }, cfg.lockpick || {});
 
   if (!C.enabled) { globalThis.__dboLockpick = null; return; }
@@ -79,12 +81,24 @@ module.exports = (api) => {
       const mean = H.base + H.perTier * (tier + 1) + H.perLevel * level;
       return Math.round(Math.max(H.min, mean * (1 + (Math.random() * 2 - 1) * H.jitter)));
     });
-    const L = { a, target: opts.target >>> 0, level, label: opts.label || 'lock', onSuccess: opts.onSuccess, tier, holds, set: holds.map(() => false),
+    const L = { a, target: opts.target >>> 0, level, label: opts.label || 'lock', onSuccess: opts.onSuccess, tier, holds, set: holds.map(() => false), at: Date.now(),
       nonce: `${a.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}` };
     S.set(a, L);
     return openWidget(a, payload(L), true);
   };
-  globalThis.__dboLockpick = { begin, busy: (a) => S.has(Number(a) >>> 0) };
+  // A lock ends only on a win, a last pick snapped, stepping away or Escape, so one open when the client went away (a
+  // crash, a relog, a disconnect) stayed in S until a restart, S being kept on globalThis across reloads: busy() was then
+  // true for good and every cell door and locked chest refused that player without a word (2026-09-29). A lock idle for
+  // idleSeconds is now dropped when the next one is asked for; one from before this reload has no time and goes at once.
+  const busy = (a) => {
+    const L = S.get(Number(a) >>> 0);
+    if (!L) return false;
+    if (Date.now() - (Number(L.at) || 0) <= C.idleSeconds * 1000) return true;
+    end(L);
+    closeWidget(L.a, WIDGET_ID);
+    return false;
+  };
+  globalThis.__dboLockpick = { begin, busy };
 
   onUi('lockpickTry', (a, args) => {
     const L = S.get(a);
@@ -92,6 +106,14 @@ module.exports = (api) => {
     if (L.target && !near(a, L.target)) {
       end(L);
       openWidget(a, payload(L, 'You have stepped away from the lock.', 'fail'), false);
+      return;
+    }
+    L.at = Date.now();
+    // The pick is in the lock only while one is carried: with none left (dropped, traded or stolen after the lock opened)
+    // a miss could never snap one, so the set tumblers never fell back and misses cost nothing (2026-09-29)
+    if (!picksOf(a)) {
+      end(L);
+      openWidget(a, payload(L, 'You have no lockpick left.', 'fail'), false);
       return;
     }
     const i = Number(args[1]);

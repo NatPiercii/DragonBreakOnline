@@ -103,6 +103,40 @@ w = last();
 check('a Master picker on a Master lock: five tumblers, longer hangs', w.holds.length === 5 && w.holds[0] === 560 + 90 * 5 - 360, w.holds[0]);
 ui.lockpickCancel(A, [w.nonce]);
 check('leaving ends it', !globalThis.__dboLockpick.busy(A));
+set(A, 'private.mastery', null);
+
+// a lock whose client went away (crash, relog) never sends Escape: it must not keep the player busy until a restart
+const realNow = Date.now;
+let clock = realNow();
+Date.now = () => clock;
+picks(2);
+globalThis.__dboLockpick.begin(A, { target: DOOR, level: 1, label: 'Cell door' });
+w = last();
+clock += 30000;
+check('a lock in play for half a minute still keeps the player busy', globalThis.__dboLockpick.busy(A));
+ui.lockpickTry(A, [w.nonce, 0, 1000, 1000 + w.riseMs + 20]);
+clock += 45000;
+check('a try counts as touching it, so a slow picker is not cut off', globalThis.__dboLockpick.busy(A));
+clock += 61000;
+check('a lock left a minute with no try is abandoned: the player can pick again', !globalThis.__dboLockpick.busy(A));
+check('...and a new lock opens for them', globalThis.__dboLockpick.begin(A, { target: DOOR, level: 0, label: 'Chest' }) === true && last().nonce !== w.nonce);
+ui.lockpickCancel(A, [last().nonce]);
+Date.now = realNow;
+
+// the pick has to stay in hand: losing the last one mid-lock (dropped, traded, stolen) ends the lock
+picks(1);
+roll = 0.1; // every mistimed set would snap a pick if there were one
+let won = 0;
+globalThis.__dboLockpick.begin(A, { target: DOOR, level: 2, label: 'Cell door', onSuccess: () => { won++; } });
+w = last();
+ui.lockpickTry(A, [w.nonce, 0, 1000, 1000 + w.riseMs + 20]);
+check('a first tumbler set with the pick in hand', last().set[0] === true);
+picks(0);
+ui.lockpickTry(A, [w.nonce, 1, 1000, 1001]);
+check('with no pick left a miss does not leave the set tumblers standing', last().done && last().noticeKind === 'fail' && !globalThis.__dboLockpick.busy(A), JSON.stringify({ set: last().set, notice: last().notice }));
+ui.lockpickTry(A, [w.nonce, 1, 1000, 1000 + w.riseMs + 20]);
+ui.lockpickTry(A, [w.nonce, 2, 1000, 1000 + w.riseMs + 20]);
+check('...and the lock cannot then be finished without a pick', won === 0);
 
 Math.random = realRandom;
 console.log('');
