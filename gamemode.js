@@ -2563,9 +2563,19 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   if (!openWidget(casterId, readWidget(ses), true)) readSessions.delete(casterId);
   return true;
 };
-const endRead = (a) => { readSessions.delete(a); closeWidget(a, READ_WIDGET_ID); };
+// A round walked away from takes the lost round's cooldown on that book: cancelling cost nothing, so a reader could
+// cancel until an easy sentence came up (loot review, 2026-09-29)
+const abandonRead = (a) => {
+  const ses = readSessions.get(a);
+  readSessions.delete(a);
+  if (!ses) return;
+  const reads = readsOf(a);
+  reads[ses.refId.toString(16)] = Math.max(Number(reads[ses.refId.toString(16)]) || 0, Date.now() + READ.loseCooldownMinutes * 60000);
+  try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
+};
+const endRead = (a) => { abandonRead(a); closeWidget(a, READ_WIDGET_ID); };
 onUi('readingCancel', (a) => endRead(a));
-onUi('close', (a, args, widgetId) => { if (widgetId === READ_WIDGET_ID) readSessions.delete(a); });
+onUi('close', (a, args, widgetId) => { if (widgetId === READ_WIDGET_ID) abandonRead(a); });
 onUi('reading', (a, args) => {
   const ses = readSessions.get(a); if (!ses || String(args[0]) !== ses.nonce) return;
   let order = []; try { order = JSON.parse(String(args[1] || '[]')); } catch (e) { order = []; }

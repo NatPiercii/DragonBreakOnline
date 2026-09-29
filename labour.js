@@ -278,16 +278,14 @@ module.exports = (api) => {
     return false;
   };
 
+  const writeRest = (a, round, restMinutes) => {
+    const prop = round.kind === 'mining' ? 'private.minedVeins' : 'private.choppedBlocks';
+    const rests = restsOf(a, prop);
+    rests[round.refId.toString(16)] = Date.now() + restMinutes * 60000;
+    saveRests(a, prop, rests);
+  };
   const finish = (a, round, win, text, kind, rest) => {
-    if (rest !== false) {
-      const prop = round.kind === 'mining' ? 'private.minedVeins' : 'private.choppedBlocks';
-      const rests = restsOf(a, prop);
-      const restMinutes = win
-        ? (round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes)
-        : CFG.failRestMinutes;
-      rests[round.refId.toString(16)] = Date.now() + restMinutes * 60000;
-      saveRests(a, prop, rests);
-    }
+    if (rest !== false) writeRest(a, round, win ? (round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes) : CFG.failRestMinutes);
     openWidget(a, packetFor(round, text, kind), false);
     sessions.delete(a);
     // Remembered only so a repeat of the same report is logged as a replay instead of vanishing
@@ -295,8 +293,11 @@ module.exports = (api) => {
     while (spent.size > 200) spent.delete(spent.keys().next().value);
   };
 
-  onUi('labourCancel', (a) => { sessions.delete(a); closeWidget(a, WIDGET_ID); });
-  onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) sessions.delete(a); });
+  // A round walked away from rests like a failed one: cancelling cost nothing, so a worker could look at the bands
+  // and cancel until an easy set came up (loot review, 2026-09-29)
+  const abandon = (a) => { const round = sessions.get(a); if (round) writeRest(a, round, CFG.failRestMinutes); sessions.delete(a); };
+  onUi('labourCancel', (a) => { abandon(a); closeWidget(a, WIDGET_ID); });
+  onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) abandon(a); });
 
   // Replay the round against the report. The widget sends the millisecond of every strike it took,
   // hit or miss; the hits are counted here, from the sweep and the band list the server issued.
