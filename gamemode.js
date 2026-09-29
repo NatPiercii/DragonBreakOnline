@@ -3019,13 +3019,17 @@ globalThis.__dboSkin = (targetId, casterId) => {
   // false here as "denied", so every animal without a pelt - slaughterfish, mudcrabs, chickens, the boar before
   // it got a trophy - could not be looted at all (Nat, 2026-09-28). Fall through instead and let the corpse open.
   if (!pelts.length) return null;
-  if (mp.get(targetId, 'private.dboSkinned') === true) return skinSay(casterId, 'This one has already been skinned.');
+  // A skinned body, or a hide beyond the skinner, still opens like any other: its meat, antlers and coin were
+  // never the Skinner's (GroundedPasta, 2026-09-29: no deer ever gave venison, because every E on a deer went to
+  // skinning or was refused, and the corpse never opened). The pelt itself is already off the body, in the stash.
+  if (mp.get(targetId, 'private.dboSkinned') === true) return null;
   const tier = skinnerTier(casterId);
   // Simple animals for anyone; the rarer the beast, the higher the rank it takes to work the hide.
   const worth = peltsWorth(pelts);
   if (worth > tierCap(tier)) {
     const need = rankForValue(worth);
-    return skinSay(casterId, `This hide is beyond your hand. A ${RANK_NAMES[Math.min(need, RANK_NAMES.length - 1)]} Skinner could take it.`);
+    skinSay(casterId, `This hide is beyond your hand. A ${RANK_NAMES[Math.min(need, RANK_NAMES.length - 1)]} Skinner could take it.`);
+    return null;
   }
   const round = skinRound(casterId, tier, targetId, creatureName(targetId));
   skinSessions.set(casterId, round);
