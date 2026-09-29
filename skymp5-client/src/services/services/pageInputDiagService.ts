@@ -27,7 +27,16 @@ const RELAY_EVERY_MS = 5000;
 // buffer has to leave as soon as there is anything to leave on (Worker A: the server hears nothing from
 // GroundedPasta after "Logged as").
 const RELAY_FIRST_MS = 1000;
-const RELAY_MAX_LINES = 40;
+// The page's own lines. Lowered from 40 to leave room for the event lines below: the server writes at most 60 a
+// player (gamemode.js DIAG_MAX_PER_PLAYER), and the beats have already proved what they were added to prove, so the
+// budget is better spent on events that only happen once and matter when they do.
+const RELAY_MAX_LINES = 20;
+// Spawn lifecycle events (world-cleaner deletes, host changes), which are what the Niryastare crash needs
+const EVENT_MAX_LINES = 40;
+// First few of each kind go out in full; after that they are counted and one summary line is sent per window, so a
+// doorway that arms ten zones and moves eight hosts in two ticks cannot flood the relay
+const EVENT_FULL_PER_KIND = 6;
+const EVENT_SUMMARY_MS = 5000;
 const RELAY_MAX_PER_PACKET = 8;
 // Only the lines worth a packet: the summaries, the first few DOM events, the load and heartbeat lines, the open dump
 const RELAY_WANTED = /^(lag |load |open |overlays |media |page heartbeat |closed,|mousemove #[1-5] |mousedown #[1-5] |click #[1-5] |keydown #[1-5] )/;
@@ -51,6 +60,11 @@ export class PageInputDiagService extends ClientListener {
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("tick", () => this.onTick());
     this.countExecuteJavaScript();
+    // formView and worldCleanerService are reached from places with no controller to hand, so the hook is global.
+    // Guarded at both ends: if it is missing or throws, the caller carries on untouched.
+    (globalThis as any).__dboDiagNote = (kind: string, text: string) => {
+      try { this.note(String(kind), String(text)); } catch (e) { /* diagnostics never break the caller */ }
+    };
   }
 
   // Counting the calls the client makes into the page is what turns "the page said nothing" into "the client spoke to
@@ -75,6 +89,31 @@ export class PageInputDiagService extends ClientListener {
     try { vis = String(this.sp.browser.isVisible()); } catch (e) { /* unreadable */ }
     try { foc = String(this.sp.browser.isFocused()); } catch (e) { /* unreadable */ }
     return `client: widget7 open, beats seen ${this.beats}, page messages ${this.anyMessages}, last browserMessage ${since} ms ago, executeJavaScript calls ${this.execCalls}, browser visible=${vis} focused=${foc}`;
+  }
+
+  // Called by client code that has something worth recording once: worldCleanerService when it removes a server
+  // spawn, formView when a hosted NPC changes hands. Logging only; it never changes what the caller does.
+  public note(kind: string, text: string): void {
+    const seen = (this.eventSeen.get(kind) || 0) + 1;
+    this.eventSeen.set(kind, seen);
+    if (seen <= EVENT_FULL_PER_KIND) {
+      this.queueEvent(`${kind} ${text}`);
+      return;
+    }
+    // Past that, count them and send one line a window saying how many were skipped
+    const now = Date.now();
+    const last = this.eventSummaryAt.get(kind) || 0;
+    const since = (this.eventSummarySeen.get(kind) || EVENT_FULL_PER_KIND);
+    if (now - last < EVENT_SUMMARY_MS) return;
+    this.eventSummaryAt.set(kind, now);
+    this.eventSummarySeen.set(kind, seen);
+    this.queueEvent(`${kind} +${seen - since} more (${seen} this session), latest: ${text}`);
+  }
+
+  private queueEvent(line: string): void {
+    this.write(line);
+    if (this.eventsRelayed + this.eventQueue.length >= EVENT_MAX_LINES) return;
+    this.eventQueue.push(line.slice(0, 400));
   }
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
@@ -108,21 +147,30 @@ export class PageInputDiagService extends ClientListener {
   }
 
   private flushRelay(): void {
-    if (!this.queue.length || this.relayed >= RELAY_MAX_LINES) return;
+    if (!this.queue.length && !this.eventQueue.length) return;
     try {
       if (!this.controller.lookupListener(NetworkingService).isConnected()) return;
     } catch (e) {
       return;   // too early: the service is not up yet
     }
-    const room = RELAY_MAX_LINES - this.relayed;
-    const lines = this.queue.splice(0, Math.min(RELAY_MAX_PER_PACKET, room));
-    this.relayed += lines.length;
+    const lines: string[] = [];
+    const eventRoom = Math.max(0, EVENT_MAX_LINES - this.eventsRelayed);
+    const events = this.eventQueue.splice(0, Math.min(RELAY_MAX_PER_PACKET, eventRoom));
+    this.eventsRelayed += events.length;
+    lines.push(...events);
+    const room = Math.max(0, RELAY_MAX_LINES - this.relayed);
+    const page = this.queue.splice(0, Math.min(RELAY_MAX_PER_PACKET - lines.length, room));
+    this.relayed += page.length;
+    lines.push(...page);
+    if (!lines.length) return;
     try {
       sendCustomPacket(this.controller, { customPacketType: "dboDiag", lines });
     } catch (e) {
       // Put them back for the next try rather than losing them
-      this.relayed -= lines.length;
-      this.queue.unshift(...lines);
+      this.eventsRelayed -= events.length;
+      this.relayed -= page.length;
+      this.eventQueue.unshift(...events);
+      this.queue.unshift(...page);
     }
   }
 
@@ -178,4 +226,9 @@ export class PageInputDiagService extends ClientListener {
   private anyMessages = 0;
   private lastAnyMessageAt = 0;
   private execCalls = -1;
+  private eventQueue: string[] = [];
+  private eventsRelayed = 0;
+  private eventSeen = new Map<string, number>();
+  private eventSummaryAt = new Map<string, number>();
+  private eventSummarySeen = new Map<string, number>();
 }

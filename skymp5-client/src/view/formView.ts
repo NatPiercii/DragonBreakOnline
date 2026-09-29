@@ -436,6 +436,14 @@ export class FormView {
         alreadyHosted = true;
       }
     }
+    // A hosted NPC changing hands is the other candidate for the Niryastare crash: the flag gates the movement
+    // seating and the AI package evaluation below, and a change here re-seats the local copy while its animation
+    // graph may be running. Recorded, not changed (2026-09-29).
+    if (this.hostedLast !== alreadyHosted) {
+      const was = this.hostedLast;
+      this.hostedLast = alreadyHosted;
+      if (was !== undefined) this.noteHostChange(refr, was, alreadyHosted);
+    }
     setDefaultAnimsDisabled(this.refrId, alreadyHosted ? false : true);
 
     const ac = Actor.from(refr);
@@ -975,6 +983,18 @@ export class FormView {
     return !!model.appearance && BEAST_RACE_IDS.has(Number(model.appearance.raceId) >>> 0);
   }
 
+  // Logging only; never changes what the view does. Says what became of the local copy at the moment it changed hands.
+  private noteHostChange(refr: ObjectReference, was: boolean, now: boolean): void {
+    const note = (globalThis as any).__dboDiagNote;
+    if (typeof note !== "function") return;
+    let loaded = "?";
+    let disabled = "?";
+    try { loaded = String(refr.is3DLoaded()); } catch (e) { /* gone */ }
+    try { disabled = String(refr.isDisabled()); } catch (e) { /* gone */ }
+    const seated = this.movState && this.movState.havokSeated ? "yes" : "no";
+    note("fv:host", `ff${(this.refrId >>> 0).toString(16)} remote=${((this.remoteRefrId || 0) >>> 0).toString(16)} ${was ? "ours" : "theirs"}->${now ? "ours" : "theirs"} 3d=${loaded} disabled=${disabled} havokSeated=${seated}`);
+  }
+
   private isSettlingBeast(model: FormModel): boolean {
     return this.isBeastCopy(model) && (this.spawnMoment === 0 || Date.now() - this.spawnMoment < BEAST_SPAWN_SETTLE_MS);
   }
@@ -1065,6 +1085,8 @@ export class FormView {
 
   private refrId = 0;
   private ready = false;
+  // undefined until the first update, so the first sight of an actor is not reported as a change
+  private hostedLast: boolean | undefined = undefined;
   private animState = this.getDefaultAnimState();
   private movState = {
     lastNumChanges: 0,

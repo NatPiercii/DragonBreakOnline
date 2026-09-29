@@ -62,6 +62,15 @@ export class WorldCleanerService extends ClientListener {
 
     const actorId = actor.getFormID();
 
+    if (actorId >= 0xff000000 && !this.firstSeen.has(actorId)) {
+      this.firstSeen.set(actorId, Date.now());
+      if (this.firstSeen.size > 512) {
+        // Keep the map from growing across a long session
+        const oldest = this.firstSeen.keys().next();
+        if (!oldest.done) this.firstSeen.delete(oldest.value);
+      }
+    }
+
     const currentProtection = this.protection.get(actorId) || 0;
     if (currentProtection > 0) {
       return;
@@ -111,6 +120,14 @@ export class WorldCleanerService extends ClientListener {
       }
     }
 
+    // A server spawn reaching this point is worth recording: protection is only registered when formView adopts the
+    // actor (formView.ts modWcProtection), so a spawn swept before that is removed while the server still believes in
+    // it. The same race is already noted above for companions. Under investigation as the Niryastare crash, where a
+    // spawned actor's animation graph was stepped through a freed pointer (2026-09-29).
+    if (actorId >= 0xff000000) {
+      this.noteSpawnSwept(actor, actorId, currentProtection);
+    }
+
     actor.disable(false).then(() => {
       const ac = this.sp.Actor.from(this.sp.Game.getFormEx(actorId));
       if (!ac || this.isActorInDialogue(ac)) {
@@ -120,11 +137,28 @@ export class WorldCleanerService extends ClientListener {
     });
   }
 
+  // Logging only. remoteId 0 means the view never adopted it, which is the case that matters.
+  private noteSpawnSwept(actor: Actor, actorId: number, protection: number): void {
+    const note = (globalThis as any).__dboDiagNote;
+    if (typeof note !== "function") return;
+    let base = 0;
+    try { base = actor.getBaseObject()?.getFormID() || 0; } catch (e) { /* gone already */ }
+    let remoteId = 0;
+    try { remoteId = localIdToRemoteId(actorId) || 0; } catch (e) { /* not in the view */ }
+    const firstSeen = this.firstSeen.get(actorId);
+    const age = firstSeen ? `${Date.now() - firstSeen}ms since first seen` : "first sight";
+    let loaded = "?";
+    try { loaded = String(actor.is3DLoaded()); } catch (e) { /* gone already */ }
+    note("wc:sweep", `ff${(actorId >>> 0).toString(16)} base=${base.toString(16)} adopted=${remoteId ? "yes" : "NO"} protection=${protection} 3d=${loaded} ${age}`);
+  }
+
   private isActorInDialogue(ac: Actor) {
     return ac.isInDialogueWithPlayer() || ac.getDialogueTarget() !== null;
   }
 
   private protection = new Map<number, number>();
+  // When this client first laid eyes on a server spawn, so a sweep can say how young the actor was
+  private firstSeen = new Map<number, number>();
   private burstUntil = 0;
   private static readonly burstActorsPerUpdate = 8;
   private initialPos?: NiPoint3;
