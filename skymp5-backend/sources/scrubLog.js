@@ -47,6 +47,7 @@ const RECORD = /^\[\d\d:\d\d:\d\d:\d{3}\] /
 const UI_LINE = /^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) /
 
 function dropUiLines(input) {
+  // The same step for auto reports is dropUiLines in autoScrub.js (rule S0); a fix to one likely belongs in the other
   const kept = []
   let dropped = 0
   let inUi = false

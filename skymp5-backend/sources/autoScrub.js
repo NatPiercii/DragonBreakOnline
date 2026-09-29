@@ -104,6 +104,7 @@ const NO_CONTEXT = compileContext()
 
 // S0: text before the first stamped line goes, and each run of UI records with their continuation lines becomes a count
 function dropUiLines(text) {
+  // The same step for Report a Problem is dropUiLines in scrubLog.js; a fix to one likely belongs in the other
   const kept = []
   let started = false
   let dropping = false
