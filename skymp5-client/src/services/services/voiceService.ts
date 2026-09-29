@@ -7,6 +7,7 @@ import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { RemoteServer } from "./remoteServer";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
 import { logTrace } from "../../logging";
+import { IdentityMap, parseIdentityMap, peerKey } from "./voicePeerKey";
 
 // Proximity voice chat: push-to-talk (default V, launcher-configurable via voicePushToTalkKeyCode) + LiveKit room managed by VoiceManager in the skymp5-front CEF page.
 // This service owns the game side: room token requests, peer distances to the browser, and the PTT key; audibility is distance vs the server-provided range (chat "say" range by default), same-world only.
@@ -49,6 +50,7 @@ export class VoiceService extends ClientListener {
     this.controller.emitter.on("connectionDenied", () => this.resetSession());
   }
 
+  private identityMap: IdentityMap | null = null;
   private voiceKey: DxScanCode;
   private modeKey: number = DxScanCode.LeftAlt;
 
@@ -218,6 +220,8 @@ export class VoiceService extends ClientListener {
     this.pendingRefrId = 0;
     this.disabledByServer = false;
     this.nextTokenAttemptAt = 0;
+    // Actor ids are reassigned every session, so last session's map is worse than none
+    this.identityMap = null;
     this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.disconnect()`);
   }
 
@@ -234,6 +238,12 @@ export class VoiceService extends ClientListener {
       const op = String(content["op"] ?? "");
       const label = String(content["name"] ?? "");
       if (id && op) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.adjustPeer(${JSON.stringify(id)}, ${JSON.stringify(op)}, ${JSON.stringify(label)})`);
+      return;
+    }
+    // Sent whenever the room's players change; the map only ever grows more accurate, so a late one is harmless
+    if (content["customPacketType"] === "voiceIdentityMap") {
+      this.identityMap = parseIdentityMap(content["identityMap"]);
+      logTrace(this, `voice identity map: ${Object.keys(this.identityMap).length} peer(s) on the profile scheme`);
       return;
     }
     if (content["customPacketType"] !== "voiceToken") return;
@@ -318,7 +328,7 @@ export class VoiceService extends ClientListener {
     // New character/actor (or a dropped room): (re)request a token
     if (this.connectedForRefrId !== myRefr && now >= this.nextTokenAttemptAt) {
       this.nextTokenAttemptAt = now + TOKEN_RETRY_MS;
-      sendCustomPacket(this.controller, { customPacketType: "voiceTokenRequest" });
+      sendCustomPacket(this.controller, { customPacketType: "voiceTokenRequest", caps: { identityV2: true } });
       return;
     }
 
@@ -336,7 +346,8 @@ export class VoiceService extends ClientListener {
     sendCustomPacket(this.controller, { customPacketType: "afkPing" });
   }
 
-  // Distances in game units keyed by refrId hex = the LiveKit identity scheme
+  // Distances in game units keyed by the peer's LiveKit identity: the profile identity the server maps this
+  // actor to, or the actor id hex when it maps to none (voicePeerKey.ts).
   private pushPeers() {
     const worldModel = this.controller.lookupListener(RemoteServer).getWorldModel();
     if (!worldModel || !Array.isArray(worldModel.forms)) return;
@@ -360,7 +371,7 @@ export class VoiceService extends ClientListener {
       const dz = form.movement.pos[2] - myMovement.pos[2];
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (dist > includeWithin) continue;
-      const key = form.refrId.toString(16);
+      const key = peerKey(form.refrId.toString(16), this.identityMap);
       peers[key] = Math.round(dist);
 
       // Bearing convention is Skyrim's: atan2(dx, dy) in degrees, 0 = +Y, clockwise,
