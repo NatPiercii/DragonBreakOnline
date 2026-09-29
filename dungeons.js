@@ -689,6 +689,7 @@ module.exports = (api) => {
   };
   const tick = () => {
     const now = Date.now();
+    try { refreshRaidMults(); } catch (e) { log('raid skill gain refresh failed', e.message); }
     const snap = ST.leases.size ? spawnSnapshot() : null;
     for (const lease of [...ST.leases.values()]) {
       const insideNow = [...lease.members].some((pid) => { const a = actorByProfile(pid); const dd = a ? dungeonAround(a) : null; return dd && dd.id === lease.id; });
@@ -1199,6 +1200,8 @@ module.exports = (api) => {
     if (!d || !diff) return;
     if (ST.leases.has(d.id)) { log(`dungeon refused ${who(a)}: ${d.id} was claimed by someone else while their gate was open`); return personal(a, `Someone claimed ${d.name} first.`); }
     if (!atEntrance(a, p.entrance)) { log(`dungeon refused ${who(a)}: ${d.id} claim from beyond ${C.entranceReach} units of the entrance`); return personal(a, 'You have wandered from the entrance.'); }
+    // The party can change while the gate is open: whoever joined must not be resting from it either (exploit audit)
+    if (partyMembers(profileOf(a)).some((pid) => restingUntil(pid, d.id) > Date.now())) { log(`dungeon refused ${who(a)}: ${d.id} rests for someone who joined the party while the gate was open`); return personal(a, `${d.name} still rests for someone in your party.`); }
     startLease(a, d, p.entrance, diff);
   });
   // The refused door leaves the client half into its load; putting them back at the entrance finishes it
@@ -1423,12 +1426,18 @@ module.exports = (api) => {
   // A party past partyMax is a raid: masterySystem reads private.partyXpMult and slows every member's skill gain
   const isRaid = (p) => !!p && p.members.size > C.partyMax;
   // ...except inside a raid expedition, which is built for it (Nate, 2026-09-28: no halved skill gain in a raid ruin)
-  const inRaidRuin = (p) => !!p && [...ST.leases.values()].some((l) => isRaidRuin(byId.get(l.id)) && [...p.members].some((m) => l.members.has(m)));
-  const setRaidMult = (pid, on) => { const x = actorByProfile(pid); if (!x) return; try { mp.set(x, 'private.partyXpMult', on ? C.raidXpMult : 1); } catch (e) { /* offline */ } };
+  // Only a lease member standing in the raid ruin: a raid holding one had its halved skill gain lifted anywhere for the
+  // whole lease (exploit audit, 2026-09-29); the lease tick keeps it current as members come and go
+  const insideRaidRuin = (pid) => {
+    const x = actorByProfile(pid); if (!x) return false;
+    const here = dungeonAround(x); if (!here || !isRaidRuin(here)) return false;
+    const l = ST.leases.get(here.id); return !!(l && l.members.has(pid));
+  };
+  const setRaidMult = (pid, on) => { const x = actorByProfile(pid); if (!x) return; const v = on ? C.raidXpMult : 1; try { if (mp.get(x, 'private.partyXpMult') !== v) mp.set(x, 'private.partyXpMult', v); } catch (e) { /* offline */ } };
+  const refreshRaidMults = () => { for (const p of ST.parties.values()) if (isRaid(p)) for (const m of p.members) setRaidMult(m, !insideRaidRuin(m)); };
   const pushParty = (p) => {
     const members = p ? [...p.members].map((m) => { const x = actorByProfile(m); return x ? { id: x, name: nameOf(x), leader: m === p.leader } : null; }).filter(Boolean) : [];
-    const halved = isRaid(p) && !inRaidRuin(p);
-    if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, halved); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
+    if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, isRaid(p) && !insideRaidRuin(m)); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
   };
   // Parties outlive a restart or a crash: every change is written to parties.json (runtime, gitignored, beside the
   // gamemode) and read back once per server process, unless it is older than partyKeepHours. A crash at 21:39 on
