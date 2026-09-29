@@ -2244,8 +2244,11 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     std::chrono::duration<float> timeSinceSpecific =
       currentHitTime - lastHitSpecific;
 
-    // If the specific target was hit faster than the splash window
-    if (timeSinceSpecific.count() < kSplashTimeWindow) {
+    // If the specific target was hit faster than the splash window, or than the weapon swings: a hit on any second
+    // actor every 0.05 s made each hit on the first a splash and skipped the weapon's speed, ten greatsword hits a
+    // second (combat review, 2026-09-29). A sweep across several actors still lands on each.
+    if (timeSinceSpecific.count() < kSplashTimeWindow ||
+        !CanHit(*aggressor, hitData, timeSinceSpecific)) {
       spdlog::warn("Splash attack from {:x} to {:x} ignored, target hit "
                    "too recently",
                    aggressor->GetFormId(), targetActor.GetFormId());
