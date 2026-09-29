@@ -1,5 +1,53 @@
 [
   {
+    "title": "Client 0.3.67: Name Your Character, True Weapon Numbers, Fairer Prayers",
+    "date": "2026-09-29",
+    "version": "Client 0.3.67",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Character creation",
+        "items": [
+          "A character that comes out of creation without a name now gets a panel to name it: type the name and choose Take this name. The panel takes typing even when the game's own name box does not.",
+          "If a name will not do, the panel says why and stays open for another try. Names follow the same rules as character creation and are unique across the realm.",
+          "You leave the Realm once your character is named. Characters already out in the world as \"Prisoner\" are asked too. On an older client, /name in the chat still works."
+        ]
+      },
+      {
+        "heading": "Weapons and armor",
+        "items": [
+          "The damage and armor numbers in your inventory now match what the server actually uses: your skill tier, the weapon's material and your Defense are all counted in them.",
+          "Improving an item at a grindstone or workbench now really counts in a fight: a weapon gains +1 (Fine) up to +10 (Legendary) damage, a cuirass +2 up to +20 armor and other pieces half that.",
+          "The shown damage is a normal blow against a monster; against another player you deal a quarter more. The game's own skill screen now reads 0 for One-Handed, Two-Handed, Archery and the armor skills: they never counted, your tiers in the Skills menu (K) do."
+        ]
+      },
+      {
+        "heading": "Praying",
+        "items": [
+          "The verses now wait until you press and hold Space (or hold the bar with the mouse), so a slow start or a slow-loading window no longer ruins the prayer, and a held key that briefly drops out picks up again."
+        ]
+      },
+      {
+        "heading": "Vampires and werewolves",
+        "items": [
+          "Vampirism and lycanthropy now take three game days of your own play to set in, so time logged out no longer counts. A circlet no longer shields a vampire's head from the sun: wear a hood or a helmet."
+        ]
+      },
+      {
+        "heading": "Main menu",
+        "items": [
+          "Skyrim's own main menu no longer shows behind ours: our title screen is the only one. A main menu replacer you install yourself would show behind it again."
+        ]
+      },
+      {
+        "heading": "Getting it",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Wisp Stalks and Ayleid Wells",
     "date": "2026-09-29",
     "version": "Server",
