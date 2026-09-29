@@ -113,5 +113,29 @@ reset(); place(HELPER, [0, 150, 0]); set(HELPER, 'private.restrained', { boundHa
 mp.onActivate(P, HELPER);
 check('a captive with bound hands cannot pour a Draught', !raised(P) && potions(HELPER) === 2 && activated.length === 1);
 
+// ---- 3. raised while away ---------------------------------------------------------------------------------------------
+// The player dropped while down; the body lies in the world for the logout grace, and a friend raises it
+reset(); place(HELPER, [0, 150, 0]); down(P); online = [PRIEST, ALLY, HELPER];
+mp.onActivate(P, HELPER);
+check('a body in its logout grace can be raised', raised(P));
+timers.downedRecovery();
+check('it is left at the health a finished recovery gives, not the 1% it knelt at', Math.abs(get(P, 'percentages').health - 0.25) < 1e-9, get(P, 'percentages').health);
+check('and the recovery is over', !globalThis.__dboDownedState.recovering.has(P));
+
+// Leaving in the middle of the recovery
+reset(); place(HELPER, [0, 150, 0]); down(P);
+mp.onActivate(P, HELPER);
+now += 5000; timers.downedRecovery();
+const mid = get(P, 'percentages').health;
+online = [PRIEST, ALLY, HELPER]; timers.downedRecovery();
+check('leaving mid-recovery leaves them at the recovered health too', mid < 0.25 && Math.abs(get(P, 'percentages').health - 0.25) < 1e-9, `${mid} -> ${get(P, 'percentages').health}`);
+
+// Killed again while away: the dead body keeps 0
+reset(); place(HELPER, [0, 150, 0]); down(P);
+mp.onActivate(P, HELPER);
+online = [PRIEST, ALLY, HELPER]; set(P, 'isDead', true); set(P, 'percentages', { health: 0, stamina: 0, magicka: 0 });
+timers.downedRecovery();
+check('a body that fell again while away is not given health', get(P, 'percentages').health === 0 && !globalThis.__dboDownedState.recovering.has(P));
+
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);

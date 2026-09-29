@@ -429,8 +429,10 @@ module.exports = (api) => {
     for (const [t, r] of S.recovering) {
       let dead = false, online = true;
       try { dead = isDead(t); online = onlineActors().includes(t); } catch (e) { online = false; }
-      if (!online) { S.recovering.delete(t); continue; }
       if (dead) { S.recovering.delete(t); continue; }
+      // Raised while away (a body in its logout grace) or gone mid-recovery: nothing climbs while offline, so the health the
+      // recovery ends on is given now (2026-09-29 review: such a body kept the 1% it knelt at)
+      if (!online) { S.recovering.delete(t); try { setHealth(t, C.reviveHealth); } catch (e) { /* gone */ } log(`downed: ${display(t)} recovery ended (offline)`); continue; }
       if (now >= r.until) { endRecovery(t, 'done'); continue; }
       const f = (now - r.at) / (r.until - r.at);
       setHealth(t, C.recoverFrom + (C.reviveHealth - C.recoverFrom) * f);
