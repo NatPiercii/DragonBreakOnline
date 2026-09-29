@@ -56,7 +56,7 @@
    "category": "combat",
    "label": "Blunt",
    "title": "The Heavy Hand",
-   "description": "Maces, war axes, warhammers and battleaxes, one hand or two: the weapons that break armour and bone by weight, as Oblivion counted them. Tiers raise your proficiency, and the vanilla One-Handed and Two-Handed skills grow through this.",
+   "description": "Maces, war axes, warhammers and battleaxes, one hand or two: the weapons that break armour and bone by weight, as Oblivion counted them. Tiers raise your proficiency.",
    "vanillaSkills": [
     "OneHanded",
     "TwoHanded"
@@ -97,7 +97,7 @@
    "category": "combat",
    "label": "Archery",
    "title": "The Far Shot",
-   "description": "Bows and crossbows. Tiers raise proficiency and the vanilla Archery skill grows only through this.",
+   "description": "Bows and crossbows. Tiers raise proficiency.",
    "vanillaSkills": [
     "Archery"
    ],
@@ -135,7 +135,7 @@
    "category": "combat",
    "label": "Blade",
    "title": "The Keen Edge",
-   "description": "Swords, daggers and greatswords, one hand or two. A blade is a blade: the skill that cuts and thrusts, as it was before Skyrim split the hands. Tiers raise your proficiency, and the vanilla One-Handed and Two-Handed skills grow through this.",
+   "description": "Swords, daggers and greatswords, one hand or two. A blade is a blade: the skill that cuts and thrusts, as it was before Skyrim split the hands. Tiers raise your proficiency.",
    "vanillaSkills": [
     "OneHanded",
     "TwoHanded"
