@@ -32,14 +32,21 @@ const SOUL_CHARGE = [0, 250, 500, 1000, 2000, 3000];
 const RECHARGE_MARGIN = 2;
 // Legendary; vanilla has no bound beyond it only through potion loops
 const MAX_HEALTH_STEP = 16;
-// Twice the strongest plugin enchantment of an effect covers skill, perks and Fortify Enchanting potions
-const ENCHANT_MARGIN = 2;
+// How far a Blacksmith may temper, by rank (Novice..Master): Fine, Superior, Exquisite, Epic, Legendary (skills.json's
+// Master tier promises "legendary improvement"). Without the skill nothing is tempered. Tempering adds real damage and
+// armor on the server since 2026-09-29, and a report could claim Legendary from anyone for one ingot (review).
+const TEMPER_CAP_BY_RANK = [11, 12, 13, 15, 16];
+// A player enchantment's effects are held to this share of the strongest plugin enchantment of the same kind, by the
+// Enchanter rank (Novice..Master); twice it at Master covers perks and Fortify Enchanting potions. Without the skill,
+// nothing is enchanted.
+const ENCHANT_MARGIN_BY_RANK = [0.5, 0.75, 1, 1.5, 2];
 // Extra Effect perk
 const MAX_EFFECTS = 2;
 // Concentrated Poison perk
 const MAX_POISON_USES = 2;
-// Sanity band around the Creation Kit effect cost formula, which vanilla only roughly follows
-const COST_BAND = [0.05, 20];
+// Sanity band around the Creation Kit effect cost formula, which vanilla only roughly follows. The floor was 0.05, and a
+// cost 20 times too low is 20 times the uses from one charge (review, 2026-09-29)
+const COST_BAND = [0.5, 20];
 const STATION_RANGE = 1024;
 // An explicit 0 charge re-applies as a full one (AddItemEx skips ExtraCharge 0)
 const MIN_CHARGE = 0.01;
@@ -80,6 +87,9 @@ interface ItemInfo {
 interface Station {
   enchanting: boolean;
   temperBenches: number[];
+  // The highest health step this player may temper to (10 = none), and their enchantment margin (0 = none)
+  temperCap: number;
+  enchantMargin: number;
 }
 
 // A server copy the report says left the player, and how much of it is still unspent
@@ -118,7 +128,7 @@ interface Plan {
   notes: string[];
 }
 
-const NO_STATION: Station = { enchanting: false, temperBenches: [] };
+const NO_STATION: Station = { enchanting: false, temperBenches: [], temperCap: 10, enchantMargin: 0 };
 const hex = (id: number): string => (id >>> 0).toString(16);
 const viewOf = (d: Uint8Array): DataView => new DataView(d.buffer, d.byteOffset, d.byteLength);
 const chargeOf = (e: InventoryEntry): number => (typeof e.chargePercent === "number" ? e.chargePercent : 0);
@@ -319,9 +329,9 @@ export class CraftedExtrasSystem implements System {
 
     const enchanting = !sameEffects(s.enchantmentEffects, g.enchantmentEffects);
     if (enchanting) {
-      if (!station.enchanting || !info.enchantable || isEnchanted(s) || !g.enchantmentEffects) return null;
+      if (!station.enchanting || !(station.enchantMargin > 0) || !info.enchantable || isEnchanted(s) || !g.enchantmentEffects) return null;
       const weapon = info.type === "WEAP";
-      const effects = this.validEnchantment(ctx, g.enchantmentEffects, weapon);
+      const effects = this.validEnchantment(ctx, g.enchantmentEffects, weapon, station.enchantMargin);
       soul = effects ? this.takeSoul(souls, weapon ? g.maxCharge || 0 : Infinity) : null;
       if (!effects || !soul) return null;
       out.enchantmentEffects = effects;
@@ -344,8 +354,10 @@ export class CraftedExtrasSystem implements System {
     const fromStep = healthStep(s.health);
     const toStep = healthStep(g.health);
     if (toStep !== fromStep) {
-      if (toStep < fromStep || !this.reserveTemper(ctx, s.baseId, station, pool, reserve)) return null;
-      out.health = Math.min(toStep, MAX_HEALTH_STEP) / 10;
+      // Held to the smith's rank; a claim above it is tempered only as far as they may, and not at all without the skill
+      const target = Math.min(toStep, station.temperCap, MAX_HEALTH_STEP);
+      if (toStep < fromStep || target <= fromStep || !this.reserveTemper(ctx, s.baseId, station, pool, reserve)) return null;
+      out.health = target / 10;
       notes.push(`tempered to ${out.health}`);
     }
 
@@ -441,8 +453,9 @@ export class CraftedExtrasSystem implements System {
     return false;
   }
 
-  // Effects of a player enchantment, clamped to twice the strongest plugin enchantment of the same kind
-  private validEnchantment(ctx: SystemContext, effects: EnchantmentEffect[], weapon: boolean): EnchantmentEffect[] | null {
+  // Effects of a player enchantment, clamped to the enchanter's share (margin) of the strongest plugin enchantment of the
+  // same kind
+  private validEnchantment(ctx: SystemContext, effects: EnchantmentEffect[], weapon: boolean, margin: number): EnchantmentEffect[] | null {
     if (effects.length > MAX_EFFECTS || new Set(effects.map((e) => e.effectId)).size !== effects.length) return null;
     const caps = this.enchantmentCaps(ctx);
     const out: EnchantmentEffect[] = [];
@@ -451,9 +464,9 @@ export class CraftedExtrasSystem implements System {
       if (!cap) return null;
       const clamped: EnchantmentEffect = {
         effectId: e.effectId >>> 0,
-        magnitude: Math.min(e.magnitude, cap.magnitude * ENCHANT_MARGIN),
-        area: Math.min(e.area, Math.floor(cap.area * ENCHANT_MARGIN)),
-        duration: Math.min(e.duration, Math.floor(cap.duration * ENCHANT_MARGIN)),
+        magnitude: Math.min(e.magnitude, cap.magnitude * margin),
+        area: Math.min(e.area, Math.floor(cap.area * margin)),
+        duration: Math.min(e.duration, Math.floor(cap.duration * margin)),
         cost: e.cost,
       };
       const estimate = formulaCost(this.baseCostOf(ctx, clamped.effectId), clamped);
@@ -479,12 +492,27 @@ export class CraftedExtrasSystem implements System {
       if (!res || res.record.type !== "FURN") return NO_STATION;
       const wbdt = this.fieldData(res, "WBDT");
       const bench = wbdt && wbdt.byteLength ? wbdt[0] : 0;
+      const smith = this.rankIn(mp, actorId, "blacksmith"), enchanter = this.rankIn(mp, actorId, "enchanter");
       return {
         enchanting: bench === BENCH_ENCHANTING || bench === BENCH_ENCHANTING_EXPERIMENT,
         temperBenches: bench === BENCH_SMITHING_WEAPON || bench === BENCH_SMITHING_ARMOR ? espmFieldFormIds(res, "KWDA") : [],
+        temperCap: smith < 0 ? 10 : TEMPER_CAP_BY_RANK[Math.min(smith, TEMPER_CAP_BY_RANK.length - 1)],
+        enchantMargin: enchanter < 0 ? 0 : ENCHANT_MARGIN_BY_RANK[Math.min(enchanter, ENCHANT_MARGIN_BY_RANK.length - 1)],
       };
     } catch {
       return NO_STATION;
+    }
+  }
+
+  // The player's rank (0 Novice .. 4 Master) in a skill they have taken up (masterySystem's private.mastery), or -1
+  private rankIn(mp: Mp, actorId: number, skill: string): number {
+    try {
+      const rec = mp.get(actorId, "private.mastery");
+      if (!rec || !Array.isArray(rec.order) || rec.order.indexOf(skill) === -1) return -1;
+      const rank = Number(((rec.skills || {})[skill] || {}).rank);
+      return Number.isFinite(rank) ? Math.max(0, Math.min(4, Math.floor(rank))) : 0;
+    } catch {
+      return -1;
     }
   }
 
