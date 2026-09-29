@@ -1,0 +1,82 @@
+{
+  "note": "Skyrim SE 1.6.1170 on Steam (app 489830): the three depots and their manifests (the owner's downgrade tool, 2026-09-29), and the size and sha256 of files whose 1.6.1170 hashes are known (the server's fork/deploy/skyrim-data/SHA256SUMS, clean Steam 1.6.1170 files). Per-depot file lists are null until captured on a PC with tools/depot-reference.js. No game file is shipped, only these numbers.",
+  "app": "489830",
+  "exeVersion": "1.6.1170.0",
+  "depots": [
+    {
+      "id": "489831",
+      "manifest": "8442952117333549665",
+      "holds": "the core game data",
+      "files": null
+    },
+    {
+      "id": "489832",
+      "manifest": "8042843504692938467",
+      "holds": "the interface, textures and Skyrim launcher",
+      "files": null
+    },
+    {
+      "id": "489833",
+      "manifest": "1914580699073641964",
+      "holds": "SkyrimSE.exe",
+      "files": null
+    }
+  ],
+  "files": {
+    "Data/Skyrim.esm": {
+      "size": 249753412,
+      "sha256": "2bbc77fdec35a70ef96b710f8c525e50a1db9e63e11a391a0eb9ee8f56d36107",
+      "required": true
+    },
+    "Data/Update.esm": {
+      "size": 18874041,
+      "sha256": "c1795e0a1218da45dbfd523f064f1857b42805c49714c46091e75277e525aed9",
+      "required": true
+    },
+    "Data/Dawnguard.esm": {
+      "size": 25885111,
+      "sha256": "1bda804009a21228acf6b30aa6aa7a692b247ff8a0313fe9aa69b3617ed4a6c4",
+      "required": true
+    },
+    "Data/HearthFires.esm": {
+      "size": 3977420,
+      "sha256": "ad4ca9f32c81e7ddd3e39ec95e03b07841f20712989e598778442ea69b6e6a97",
+      "required": true
+    },
+    "Data/Dragonborn.esm": {
+      "size": 64663863,
+      "sha256": "5f44f343552688c04f73bf83de58b90f70c7376b133fbbcb56b6fe33acf8778b",
+      "required": true
+    },
+    "Data/ccBGSSSE001-Fish.esm": {
+      "size": 1425176,
+      "sha256": "0036c3bb38754d1681529f6f828987506efbecc97fe6008753ac05e7c6738fff",
+      "required": false
+    },
+    "Data/ccQDRSSE001-SurvivalMode.esl": {
+      "size": 240724,
+      "sha256": "0aeb0734128137f77fed4c2c329fd4ce71a4d043a2093871886ad84e5821ac47",
+      "required": false
+    },
+    "Data/ccBGSSSE037-Curios.esl": {
+      "size": 37476,
+      "sha256": "75209dbb177ea27f3abd164b6ecf07670ecdc3858cc01e4a3db8d1e2443136fe",
+      "required": false
+    },
+    "Data/ccBGSSSE025-AdvDSGS.esm": {
+      "size": 812873,
+      "sha256": "070784062525ac872b98503cf60918bcd7e7b8aede7fcedd86839a57467add5b",
+      "required": false
+    },
+    "Data/_ResourcePack.esl": {
+      "size": 78418,
+      "sha256": "d231915a4bbfe6e89536dfb0a46c5adc8e4d2d23ce95d248dc24943776eb76fb",
+      "required": false
+    },
+    "Data/Skyrim - Misc.bsa": {
+      "size": 17713449,
+      "sha256": "ddb19908dcd5c135b8bba240e8dfcdb95395b569852f715d330396e9c1390b9d",
+      "required": false
+    }
+  }
+}
