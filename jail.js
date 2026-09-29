@@ -133,6 +133,14 @@ module.exports = (api) => {
       lock.begin(a, {
         target: door, level: CFG.cellLockLevel, label: 'Cell door',
         onSuccess: () => {
+          // The lock takes seconds to work: a prisoner released and another locked in meanwhile must not find their
+          // door already picked by a lock begun on the last sentence (2026-09-29)
+          const cur = occupantOf(door);
+          if (!cur) { system(a, 'The lock gives way. The cell door was no longer locked.'); return; }
+          if (cur.prisoner !== occ.prisoner || Number(cur.sentence.at) !== Number(occ.sentence.at)) {
+            personal(a, 'The lock gives way, but the cell door has been locked afresh since you began.');
+            return;
+          }
           const c = get(door, 'private.dboCell', {}) || {};
           set(door, 'private.dboCell', Object.assign({}, c, { picked: true }));
           system(a, 'The cell door lock gives way. Push it open.');

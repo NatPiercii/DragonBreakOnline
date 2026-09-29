@@ -168,6 +168,29 @@ act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['who:15']); ui('jailChoose', GUA
 act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['release']);
 check('a guard can release early', sentence() === null && /releases you/.test(said(PRISONER)));
 
+// ---- the tumbler lock (lockpick.js) finishing after the cell changed hands ----
+const begun = [];
+globalThis.__dboLockpick = { busy: () => false, begin: (a, o) => { begun.push(o); return true; } };
+const jailFor = (m) => { act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['who:15']); ui('jailChoose', GUARD, [`time:15:${m}`]); };
+jailFor(30);
+at(OTHER, JAIL_CELL, [0, 100, 0]); wallClock += 4000;
+check('a picker at an occupied door starts the tumbler lock', act(CELL_DOOR, OTHER) === true && begun.length === 1);
+act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['release']);
+wallClock += 1000; jailFor(60);
+if (begun[0]) begun[0].onSuccess(OTHER);
+check('a lock begun on the last sentence does not open the next one', props.get(CELL_DOOR + '|private.dboCell').picked === false && /locked afresh/.test(said(OTHER)), [props.get(CELL_DOOR + '|private.dboCell'), said(OTHER)]);
+wallClock += 4000; act(CELL_DOOR, OTHER);
+act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['extend']);
+if (begun[1]) begun[1].onSuccess(OTHER);
+check('...but one begun on this sentence does, an extension or not', props.get(CELL_DOOR + '|private.dboCell').picked === true && act(CELL_DOOR, PRISONER) === false);
+act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['release']);
+wallClock += 4000; jailFor(5); act(CELL_DOOR, OTHER);
+act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['release']);
+if (begun[2]) begun[2].onSuccess(OTHER);
+check('a lock finished on a door released meanwhile leaves no record on it', props.get(CELL_DOOR + '|private.dboCell') === null, props.get(CELL_DOOR + '|private.dboCell'));
+delete globalThis.__dboLockpick;
+at(OTHER, PLAIN_CELL, [0, 0, 0]);
+
 // ---- a login mid-sentence ----
 act(CELL_DOOR, GUARD); ui('jailChoose', GUARD, ['who:15']); ui('jailChoose', GUARD, ['time:15:10']);
 globalThis.__dboJailLogin(PRISONER);
