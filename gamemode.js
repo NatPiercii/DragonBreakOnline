@@ -3885,11 +3885,13 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // attacker's claws and Drain landed while nothing could land on them (combat review, 2026-09-29)
   try { if (globalThis.__dboBeastEthereal && (globalThis.__dboBeastEthereal(tgt) || (agg !== tgt && globalThis.__dboBeastEthereal(agg)))) return false; } catch (e) { /* not loaded */ }
 
-  // 1. Refuse attack if aggressor has bound hands
+  // 1. Refuse attack if aggressor has bound hands or is being carried, or while a rune or scroll paralysis holds them:
+  // those hold only on the victim's own client, so a modified one kept swinging (combat review, 2026-09-29)
   try {
     const r = mp.get(agg, 'private.restrained');
-    if (r && r.boundHands) return false;
+    if (r && (r.boundHands || r.carried)) return false;
   } catch (e) { }
+  if (agg !== tgt && (paralysedUntil.get(agg) || 0) > Date.now()) return false;
 
   // 1b. Someone still fastening armour they changed mid-fight lands no blows (armourswap.js)
   if (dmg > 0 && agg !== tgt && armourSwap && armourSwap.busy(agg)) return false;
@@ -3930,9 +3932,12 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
-    let mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * temperDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * huntDamageMult(agg, tgt) * pvp;
+    // A beast's claws are its own (supernatural.js beastMeleeMult). The engine sends them as the unarmed source 0x1f4,
+    // so a werewolf also took the Master fist bonus, the fist's stamina drain and its disarm (combat review, 2026-09-29)
+    let beastAgg = false; try { const b = mp.get(agg, 'private.beast'); beastAgg = !!(b && b.form); } catch (e) { /* not an actor */ }
+    let mult = (beastAgg ? 1 : masteryDamageMult(agg, src)) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * temperDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * huntDamageMult(agg, tgt) * pvp;
     // Tired blows, fists into armour, staves through it, the fist's stamina drain and disarm (martial.js)
-    if (martial) { try { mult *= martial.onAttempt(agg, tgt, src, dmg, flags); } catch (e) { log('martial failed', e.message); } }
+    if (martial && !beastAgg) { try { mult *= martial.onAttempt(agg, tgt, src, dmg, flags); } catch (e) { log('martial failed', e.message); } }
     // Block chip and stamina, guard breaks, bash, stagger (combat.js); a bash's blow comes back scaled down
     if (combat) { try { mult *= combat.onAttempt(agg, tgt, src, dmg, flags, mult); } catch (e) { log('combat failed', e.message); } }
     if (mult !== 1 && dmg > 0) {

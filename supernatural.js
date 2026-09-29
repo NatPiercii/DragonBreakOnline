@@ -600,6 +600,8 @@ module.exports = (api) => {
     if (!form) return 1;
     let type = ''; try { const r = recordOf(Number(src) >>> 0); type = r ? String(r.type) : ''; } catch (e) { /* none */ }
     if (MAGIC_TYPES.has(type)) return 1;
+    // Claws come as the unarmed source; a weapon a modified client kept in hand is not a claw (combat review, 2026-09-29)
+    if (type === 'WEAP' && (Number(src) >>> 0) !== 0x1f4) return 1;
     if (!clawLogged.has(form)) { clawLogged.add(form); log(`supernatural: ${form} claw hit carries source 0x${(Number(src) >>> 0).toString(16)} (${type || 'no record'})`); }
     return Number((C.beastMeleeMult || {})[form]) || 1;
   };
