@@ -391,10 +391,15 @@
             <label class="setting-label">Send your logs to staff</label>
             <input type="text" class="setting-input" id="report-note" maxlength="300"
                    placeholder="What went wrong? (optional)">
+            <label class="setting-checkbox-row">
+              <input type="checkbox" id="report-private" />
+              <span>Keep this private (exploits, or anything personal)</span>
+            </label>
             <button class="btn-detect-vortex" id="btn-send-report">Report a Problem</button>
-            <p class="setting-hint" id="report-status">Sends this launcher's log, and the game log if there is
-              one, to the staff channel under your Discord name. Your Windows username, download links and
-              sign-in tokens are removed first.</p>
+            <p class="setting-hint" id="report-status">What you write above is posted in the public #bugs channel
+              under your Discord name, so you can follow it and other players can add to it. Your logs are not:
+              they go only to staff, with your Windows username, download links and sign-in tokens removed first.
+              Tick "keep this private" and nothing is posted publicly.</p>
           </div>
 
           <div class="settings-group">
