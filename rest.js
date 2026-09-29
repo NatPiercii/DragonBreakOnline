@@ -404,11 +404,18 @@ module.exports = (api) => {
   every('rest', Math.max(1, Number(CFG.healPulseSeconds) || 5) * 1000, () => {
     if (!CFG.enabled) return;
     const pulse = Math.max(1, Number(CFG.healPulseSeconds) || 5);
+    // A buff that ran out while its player was away is cleared without a word (2026-09-29): this pulse reaches a new
+    // login seconds before the wake does (gamemode.js calls __dboRestLogin 8 s in), so a sleeper whose last Well Rested
+    // ended offline was told "You are no longer Well Rested", then "You wake Well Rested". Only players online at the
+    // last pulse are told; the set is on globalThis so a reload does not count everyone as just arrived.
+    const seen = globalThis.__dboRestSeen instanceof Set ? globalThis.__dboRestSeen : new Set();
+    const here = globalThis.__dboRestSeen = new Set();
     for (const a of onlineActors()) {
+      here.add(a >>> 0);
       try {
         for (const [prop, name] of [['private.dboRested', 'Well Rested'], ['private.dboWellFed', 'Well Fed']]) {
           const v = get(a, prop, null);
-          if (v && Number(v.until) <= Date.now()) { set(a, prop, null); personal(a, `You are no longer ${name}.`); }
+          if (v && Number(v.until) <= Date.now()) { set(a, prop, null); if (seen.has(a >>> 0)) personal(a, `You are no longer ${name}.`); }
         }
         if (!active(a, 'private.dboRested') || get(a, 'isDead', false)) continue;
         const pvp = globalThis.__dboPvpAt instanceof Map ? globalThis.__dboPvpAt.get(a >>> 0) || 0 : 0;
