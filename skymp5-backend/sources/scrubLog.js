@@ -95,4 +95,32 @@ function scrub(input, maxBytes = MAX_BYTES) {
   return { text, redactions, truncated }
 }
 
-module.exports = { scrub, dropUiLines, MAX_BYTES }
+// What a player typed, made safe to post where every player can read it. The log scrub above is aimed at log files
+// and leaves these alone, because a staff-only thread does not need them gone: an address someone typed, a mention
+// that would ping a role, a drive path naming their machine. The public thread does.
+//
+// Discord's allowed_mentions already stops a ping; this stops the ids being readable at all.
+const PUBLIC_RULES = [
+  [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '<email>'],
+  [/@(everyone|here)\b/gi, '@\u200b$1'],          // a zero width space: it reads the same and pings nothing
+  [/<@[!&]?\d{5,25}>/g, '<mention>'],
+  [/<#\d{5,25}>/g, '<channel>'],
+  // A drive path names the machine and its layout; the Users rule above only catches the home folder
+  [/\b[A-Za-z]:[\\/][^\s"'<>|]{2,}/g, '<path>'],
+];
+
+const scrubPublic = (input, maxChars) => {
+  const first = scrub(input, undefined, maxChars);
+  let text = first.text;
+  let redactions = first.redactions;
+  for (const [pattern, replacement] of PUBLIC_RULES) {
+    text = text.replace(pattern, (...m) => {
+      const out = typeof replacement === 'function' ? replacement(...m) : m[0].replace(pattern, replacement);
+      if (out !== m[0]) redactions++;
+      return out;
+    });
+  }
+  return { text, redactions };
+};
+
+module.exports = { scrub, scrubPublic, dropUiLines, MAX_BYTES }

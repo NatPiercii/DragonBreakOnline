@@ -13,7 +13,8 @@ const PUBLIC = '1551936720713416755'
 const config = require.resolve('../config')
 require.cache[config] = {
   id: config, filename: config, loaded: true,
-  exports: { discordErrorForumChannelId: STAFF, discordBugForumChannelId: PUBLIC, discordBotToken: 'test-token' },
+  exports: { discordErrorForumChannelId: STAFF, discordBugForumChannelId: PUBLIC, discordBotToken: 'test-token',
+             discordGuildId: '1494109013300744312' },
 }
 
 let sent = []
@@ -25,7 +26,10 @@ https.request = (opts, onResponse) => {
   req.end = () => {
     const body = Buffer.concat(chunks).toString()
     const json = body.match(/name="payload_json"[^\n]*\n[^\n]*\r\n\r\n(.*?)\r\n--/s)
-    sent.push({ method: opts.method, path: opts.path, body, payload: json ? JSON.parse(json[1]) : null })
+    // A thread is posted as multipart; an edit is a plain JSON body
+    let payload = json ? JSON.parse(json[1]) : null
+    if (!payload && body) { try { payload = JSON.parse(body) } catch { payload = null } }
+    sent.push({ method: opts.method, path: opts.path, body, payload })
     setImmediate(() => {
       const res = new EventEmitter()
       res.statusCode = 200
@@ -81,4 +85,45 @@ test('a long description is cut to fit one message', async () => {
 test('the thread title is cut to what Discord accepts', async () => {
   await postPublicReport({ title: 'N'.repeat(300), summary: 'hi' })
   assert.ok(sent[0].payload.name.length <= 100, `${sent[0].payload.name.length} chars`)
+})
+
+// The whole path, not just the posters. The first version of this change referenced publicLines and
+// postPublicReport without defining or importing either: node --check passes on that, the poster tests passed on
+// that, and only a real submit() would have caught it. So these drive submit().
+const { submit } = require('../sources/problemReport')
+
+const reporter = { name: 'Tester', discordId: '123456789012345', profileId: 30 }
+const bodyOf = extra => ({ source: 'launcher', launcherVersion: '2.1.34', note: 'the door ate me', ...extra })
+const staffPost = () => sent.find(s => s.method === 'POST' && s.path.includes(STAFF))
+const publicPost = () => sent.find(s => s.method === 'POST' && s.path.includes(PUBLIC))
+const starterEdit = () => sent.find(s => s.method === 'PATCH')
+
+test('a report files the staff thread and a public one, and does not throw', async () => {
+  const res = await submit(reporter, bodyOf({ reportId: 'r-1' }))
+  assert.strictEqual(res.status, 200, JSON.stringify(res.json))
+  assert.ok(staffPost(), 'the staff thread must be filed')
+  assert.ok(publicPost(), 'the public thread must be opened')
+})
+
+test('the public post carries the note but never the machine or the logs', async () => {
+  await submit(reporter, bodyOf({ reportId: 'r-2', note: 'crash at D:\\SteamLibrary\\Skyrim after emailing me@x.com', installDir: 'D:\\SteamLibrary\\Skyrim' }))
+  const content = publicPost().payload.message.content
+  assert.ok(content.includes('crash at'), content)
+  assert.ok(!content.includes('SteamLibrary'), `the path leaked: ${content}`)
+  assert.ok(!content.includes('me@x.com'), `the address leaked: ${content}`)
+  assert.ok(!/installDir/.test(content), `the install path leaked: ${content}`)
+})
+
+test('"keep it private" opens no public thread at all', async () => {
+  const res = await submit(reporter, bodyOf({ reportId: 'r-3', private: true }))
+  assert.strictEqual(res.status, 200)
+  assert.ok(staffPost(), 'the staff thread is still filed')
+  assert.strictEqual(publicPost(), undefined, 'nothing may be posted publicly')
+})
+
+test('the staff starter post is given the public thread link', async () => {
+  await submit(reporter, bodyOf({ reportId: 'r-4' }))
+  const edit = starterEdit()
+  assert.ok(edit, 'the starter post should be edited')
+  assert.ok(/Public thread: https:\/\/discord\.com\/channels\//.test(edit.payload.content), edit.payload.content)
 })

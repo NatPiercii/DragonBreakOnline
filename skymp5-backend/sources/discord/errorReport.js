@@ -163,4 +163,15 @@ async function postPublicReport({ title, summary }) {
   return thread && thread.id
 }
 
-module.exports = { postReport, postPublicReport, tagIds }
+// A forum thread's starter message carries the thread's own id, so this edits the post the thread opened with.
+// Used to put the public thread's link into the staff report after the fact; failure is never fatal to the report.
+async function appendToStarter(threadId, line) {
+  if (!threadId || !config.discordBotToken) return false
+  const current = await request('GET', `/channels/${threadId}/messages/${threadId}`, { deadline: Date.now() + REPORT_DEADLINE_MS })
+  const content = `${String(current && current.content || '').slice(0, 1900 - line.length - 1)}\n${line}`
+  await request('PATCH', `/channels/${threadId}/messages/${threadId}`,
+                { json: { content, allowed_mentions: { parse: [] } }, deadline: Date.now() + REPORT_DEADLINE_MS })
+  return true
+}
+
+module.exports = { postReport, postPublicReport, appendToStarter, tagIds }

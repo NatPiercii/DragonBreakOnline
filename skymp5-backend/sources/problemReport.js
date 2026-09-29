@@ -5,8 +5,8 @@
 const crypto  = require('crypto')
 const express = require('express')
 const config  = require('../config')
-const { scrub, dropUiLines } = require('./scrubLog')
-const { postReport } = require('./discord/errorReport')
+const { scrub, scrubPublic, dropUiLines } = require('./scrubLog')
+const { postReport, postPublicReport, appendToStarter } = require('./discord/errorReport')
 const audit = require('./discord/audit')
 
 const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log'], ['gameLog', 'skyrim-platform.log'],
@@ -124,6 +124,22 @@ async function submit(reporter, body) {
   const logs = files.filter(f => f.text !== undefined).length
   lines.push('', `_${logs} log file(s)${shot.data ? ', 1 screenshot' : ''}, ${redactions} redaction(s) applied by the server._`)
 
+  // The public thread carries the player's display name, the versions, and what they typed - scrubbed harder than the
+  // staff copy, because every player can read this one. Never the logs, the install path, the machine, or anything
+  // the player did not type. (Nate, 2026-09-28: reports should reach the public bug forum; the logs stay staff-only.)
+  //
+  // keepPrivate is the player's own choice, made in the launcher before sending: an exploit, or something personal,
+  // should not go where everyone can read it, so no public thread is opened at all.
+  const keepPrivate = body.private === true || body.private === 'true'
+  const publicLines = [`**${escapeMarkdown(name)}** reported a problem ${SOURCES[source]}.`]
+  for (const key of ['launcherVersion', 'clientVersion']) {
+    const value = text(body[key])
+    if (value) publicLines.push(`${key}: ${scrubPublic(value, 60).text}`)
+  }
+  if (note) publicLines.push('', scrubPublic(note, NOTE_CHARS * 4).text)
+  else publicLines.push('', '_They sent their logs without a description._')
+  publicLines.push('', '_Staff have the logs. Reply here with anything else that helps._')
+
   const entry = { state: 'pending', at: Date.now() }
   entry.promise = (async () => {
     try {
@@ -131,17 +147,23 @@ async function submit(reporter, body) {
       // Opened after the staff thread and never allowed to fail the report: the public thread is a courtesy, the
       // staff one is the thing that must not be lost.
       let publicThread = null
-      try {
-        publicThread = await postPublicReport({ title: name, summary: publicLines.join('\n') })
-      } catch (err) {
-        console.error(`[report] ${reportId} filed, but its public thread could not be opened:`, err.message)
+      if (!keepPrivate) {
+        try {
+          publicThread = await postPublicReport({ title: name, summary: publicLines.join('\n') })
+          // claude-jake's bug tooling pairs the two by this line in the staff starter post
+          if (publicThread && thread && config.discordGuildId) {
+            await appendToStarter(thread, `Public thread: https://discord.com/channels/${config.discordGuildId}/${publicThread}`)
+          }
+        } catch (err) {
+          console.error(`[report] ${reportId} filed, but its public thread could not be opened or linked:`, err.message)
+        }
       }
       entry.state = 'done'
       entry.at = Date.now()
       audit.log(`REPORT problem ${SOURCES[source]} from ${name}`
                 + `${reporter.discordId ? ` (discord ${reporter.discordId})` : ''}`
                 + `${reporter.profileId != null ? ` (profile ${reporter.profileId})` : ''}${thread ? ` -> thread ${thread}` : ''}`
-                + `${publicThread ? ` (public ${publicThread})` : ''}`)
+                + `${publicThread ? ` (public ${publicThread})` : keepPrivate ? ' (kept private)' : ''}`)
       return { status: 200, json: { ok: true, reportId, thread, publicThread } }
     } catch (err) {
       seenReports.delete(dedupeKey)
