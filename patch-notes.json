@@ -10,6 +10,7 @@
         "items": [
           "A character that comes out of creation without a name now gets a panel to name it: type the name and choose Take this name. The panel takes typing even when the game's own name box does not.",
           "If a name will not do, the panel says why and stays open for another try. Names follow the same rules as character creation and are unique across the realm.",
+          "A name typed into the game's own name box now follows the same rules. If it will not do, you are asked for another before you leave the Realm, and your look is kept.",
           "You leave the Realm once your character is named. Characters already out in the world as \"Prisoner\" are asked too. On an older client, /name in the chat still works."
         ]
       },
@@ -30,13 +31,21 @@
       {
         "heading": "Vampires and werewolves",
         "items": [
-          "Vampirism and lycanthropy now take three game days of your own play to set in, so time logged out no longer counts. A circlet no longer shields a vampire's head from the sun: wear a hood or a helmet."
+          "Vampirism and lycanthropy now take three game days of your own play to set in, so time logged out no longer counts. A circlet no longer shields a vampire's head from the sun: wear a hood or a helmet.",
+          "If your game crashes or your connection drops during a rite, the rounds you already played decide it: behind, the rite is lost, but a disconnect never ends a character for good; even or ahead, the rite is called off and nobody dies.",
+          "The Blood Crown no longer stays with a character that was deleted: it lies unclaimed for the next pure-blood."
         ]
       },
       {
         "heading": "Main menu",
         "items": [
           "Skyrim's own main menu no longer shows behind ours: our title screen is the only one. A main menu replacer you install yourself would show behind it again."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "When your connection drops, the HUD and any open panels now close with it instead of staying on screen."
         ]
       },
       {
