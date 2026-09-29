@@ -1,5 +1,19 @@
 [
   {
+    "title": "Name Your Character",
+    "date": "2026-09-29",
+    "version": "Server",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Character creation",
+        "items": [
+          "Characters made in the last few hours came out named \"Prisoner\" because the name box in character creation did not take typing. If that happened to you, type /name and your character's name in the chat, for example /name Aela Brightwater. It follows the same rules as character creation, and works once. We are fixing the name box itself."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.66: Steadier Around Crowds, and Stuck Cursor Logging",
     "date": "2026-09-29",
     "version": "Client 0.3.66",
