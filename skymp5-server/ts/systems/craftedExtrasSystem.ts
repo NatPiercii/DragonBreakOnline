@@ -1,4 +1,5 @@
 import { System, Log, SystemContext, Content } from "./system";
+import { Settings } from "../settings";
 import { espmFieldFormIds, readFormIdField, toFormId } from "./formIdUtil";
 import {
   EnchantmentEffect, Inventory, InventoryEntry, addEntries, copyValidExtras, describeExtras, healthStep,
@@ -32,14 +33,18 @@ const SOUL_CHARGE = [0, 250, 500, 1000, 2000, 3000];
 const RECHARGE_MARGIN = 2;
 // Legendary; vanilla has no bound beyond it only through potion loops
 const MAX_HEALTH_STEP = 16;
-// How far a Blacksmith may temper, by rank (Novice..Master): Fine, Superior, Exquisite, Epic, Legendary (skills.json's
-// Master tier promises "legendary improvement"). Without the skill nothing is tempered. Tempering adds real damage and
-// armor on the server since 2026-09-29, and a report could claim Legendary from anyone for one ingot (review).
+// Tempering and enchanting need the Blacksmith and Enchanter skills: a report could claim Legendary, or two effects at
+// twice the strongest plugin enchantment, from anyone (review, 2026-09-29). Every real bench already asks for the skill
+// (masterySystem's station gate takes it up on first touch), so this refuses only reports no bench stood behind.
+// With server-settings.json "craftedExtrasRankGates": true (read at boot; off until Nate compares them with vanilla's
+// temper and enchant results in game), the rank also caps them: tempering Fine, Superior, Exquisite, Epic, Legendary
+// from Novice to Master (skills.json's Master tier promises "legendary improvement"), and enchantments at this share of
+// the strongest plugin enchantment of the same kind. Off, every rank reaches Legendary and twice the plugin cap, as before.
 const TEMPER_CAP_BY_RANK = [11, 12, 13, 15, 16];
-// A player enchantment's effects are held to this share of the strongest plugin enchantment of the same kind, by the
-// Enchanter rank (Novice..Master); twice it at Master covers perks and Fortify Enchanting potions. Without the skill,
-// nothing is enchanted.
 const ENCHANT_MARGIN_BY_RANK = [0.5, 0.75, 1, 1.5, 2];
+// Twice the strongest plugin enchantment of an effect covers skill, perks and Fortify Enchanting potions
+const ENCHANT_MARGIN = 2;
+const RANK_GATES_SETTING = "craftedExtrasRankGates";
 // Extra Effect perk
 const MAX_EFFECTS = 2;
 // Concentrated Poison perk
@@ -150,6 +155,13 @@ export class CraftedExtrasSystem implements System {
 
   // Applying a poison sends OnEquip, which eats and removes the poison before the craft report arrives
   async initAsync(ctx: SystemContext): Promise<void> {
+    try {
+      const all = (await Settings.get()).allSettings as Record<string, unknown> | null;
+      this.rankGates = !!all && all[RANK_GATES_SETTING] === true;
+    } catch {
+      this.rankGates = false;
+    }
+    this.log(`[crafted] tempering and enchanting need the skill; rank caps ${this.rankGates ? "on" : "off"} (${RANK_GATES_SETTING})`);
     const mp = ctx.svr as Mp;
     const previous = typeof mp.onEatItem === "function" ? mp.onEatItem : null;
     mp.onEatItem = (...args: unknown[]) => {
@@ -496,8 +508,8 @@ export class CraftedExtrasSystem implements System {
       return {
         enchanting: bench === BENCH_ENCHANTING || bench === BENCH_ENCHANTING_EXPERIMENT,
         temperBenches: bench === BENCH_SMITHING_WEAPON || bench === BENCH_SMITHING_ARMOR ? espmFieldFormIds(res, "KWDA") : [],
-        temperCap: smith < 0 ? 10 : TEMPER_CAP_BY_RANK[Math.min(smith, TEMPER_CAP_BY_RANK.length - 1)],
-        enchantMargin: enchanter < 0 ? 0 : ENCHANT_MARGIN_BY_RANK[Math.min(enchanter, ENCHANT_MARGIN_BY_RANK.length - 1)],
+        temperCap: smith < 0 ? 10 : this.rankGates ? TEMPER_CAP_BY_RANK[Math.min(smith, TEMPER_CAP_BY_RANK.length - 1)] : MAX_HEALTH_STEP,
+        enchantMargin: enchanter < 0 ? 0 : this.rankGates ? ENCHANT_MARGIN_BY_RANK[Math.min(enchanter, ENCHANT_MARGIN_BY_RANK.length - 1)] : ENCHANT_MARGIN,
       };
     } catch {
       return NO_STATION;
@@ -515,6 +527,8 @@ export class CraftedExtrasSystem implements System {
       return -1;
     }
   }
+
+  private rankGates = false;
 
   private itemInfo(ctx: SystemContext, baseId: number): ItemInfo {
     const hit = this.itemCache.get(baseId >>> 0);
