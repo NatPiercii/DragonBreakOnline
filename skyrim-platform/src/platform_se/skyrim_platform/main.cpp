@@ -449,7 +449,18 @@ public:
       stuckDeltas = 0.f;
       return;
     }
-    stuckDeltas += std::fabs(deltaX) + std::fabs(deltaY);
+    // Pushing into a screen edge leaves a working cursor where it is too
+    const float right =
+      screen && screen->screenWidth > 1.f ? screen->screenWidth - 1.5f : 1.e6f;
+    const float bottom = screen && screen->screenHeight > 1.f
+      ? screen->screenHeight - 1.5f
+      : 1.e6f;
+    const bool outX =
+      (gameX <= 0.5f && deltaX < 0.f) || (gameX >= right && deltaX > 0.f);
+    const bool outY =
+      (gameY <= 0.5f && deltaY < 0.f) || (gameY >= bottom && deltaY > 0.f);
+    stuckDeltas +=
+      (outX ? 0.f : std::fabs(deltaX)) + (outY ? 0.f : std::fabs(deltaY));
     if (stuckDeltas < kStuckPixels) {
       return;
     }
