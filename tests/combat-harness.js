@@ -178,5 +178,17 @@ ok(statuses.length === 0 && unequips().length === 0, 'an ordinary spell neither 
   mp.get = origGet; API.recordOf = origRecordOf;
   process.chdir(here); fs.rmSync(dir, { recursive: true, force: true });
 }
+// spell hits: one per caster, target and spell every spellHitMinMs (combat review, 2026-09-29)
+{
+  reset(); globalThis.__dboSpellHitAt = undefined;
+  const c = load(), T = 1e12;
+  ok(c.spellHitAllowed(1, 2, FIREBALL, T), 'a first spell hit counts');
+  ok(!c.spellHitAllowed(1, 2, FIREBALL, T + 100), 'a second hit of the same spell 0.1 s later is refused');
+  ok(c.spellHitAllowed(1, 3, FIREBALL, T + 100), '...but the same blast on another target counts (area spells)');
+  ok(c.spellHitAllowed(1, 2, RUNE, T + 100), '...and another spell on the same target counts');
+  ok(c.spellHitAllowed(1, 2, FIREBALL, T + 650), 'the same spell counts again after 0.6 s');
+  ok(c.spellHitAllowed(1, 2, SWORD, T + 651) && c.spellHitAllowed(1, 2, SWORD, T + 652), 'weapons are not limited here');
+  ok(c.spellHitAllowed(1, 1, FIREBALL, T + 651) && c.spellHitAllowed(1, 1, FIREBALL, T + 652), 'a spell on the caster is not limited');
+}
 console.log(`${pass}/${pass + fail}`);
 process.exitCode = fail ? 1 : 0;

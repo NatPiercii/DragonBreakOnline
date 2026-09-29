@@ -47,6 +47,11 @@ module.exports = (api) => {
     // equipped shout), so a modified client could otherwise land a dragon's breath (release review, 2026-09-28).
     // Werewolf howls (shoutExempt) are beast-form powers run by beastform.js. NPCs are not gated.
     shoutGate: true, shoutGrantProp: 'private.dboAllShouts', shoutExempt: ['cf791:Skyrim.esm', 'ce217:Skyrim.esm'],
+    // A spell's damaging hits: one per caster, target and spell every spellHitMinMs. The C++ takes a spell hit with no
+    // cast behind it, no magicka and no rate (combat review, 2026-09-29: five Icy Spears in a second from a modified
+    // client), and the fastest fire-and-forget cast cycle is about a second. Concentration spells keep their own
+    // one-a-second limit in gamemode.js; scrolls (SCRL) are not spells here.
+    spellHitMinMs: 600,
   }, cfg.combat || {});
 
   // actorId -> { guardBrokenUntil, staggerAt }
@@ -284,6 +289,22 @@ module.exports = (api) => {
     if (C.log) log(`combat ${display(agg)} -> ${display(tgt)}: ${done ? 'rune stagger' : 'rune stagger skipped (cooldown)'} (spell ${spellId.toString(16)})`);
   };
 
+  // gamemode.js hitDamageAttemptHook asks before a damaging hit counts: false = refuse it
+  const spellCache = new Map();
+  const isSpell = (id) => {
+    if (!spellCache.has(id)) { const r = recordOf(id); spellCache.set(id, !!r && String(r.record.type) === 'SPEL'); }
+    return spellCache.get(id);
+  };
+  const spellHitAt = globalThis.__dboSpellHitAt instanceof Map ? globalThis.__dboSpellHitAt : (globalThis.__dboSpellHitAt = new Map());
+  const spellHitAllowed = (agg, tgt, spellId, now = Date.now()) => {
+    if (!(Number(C.spellHitMinMs) > 0) || agg === tgt || !isSpell(spellId)) return true;
+    const key = `${agg}:${tgt}:${spellId}`;
+    if (now - (spellHitAt.get(key) || 0) < Number(C.spellHitMinMs)) return false;
+    spellHitAt.set(key, now);
+    if (spellHitAt.size > 1024) for (const [k, t] of spellHitAt) if (now - t > 10000) spellHitAt.delete(k);
+    return true;
+  };
+
   const forget = (a) => S.delete(a);
-  return { onAttempt, onSpellHit, forget, isShield, shoutAllowed, disarmPlayer, shoutRelay };
+  return { onAttempt, onSpellHit, forget, isShield, shoutAllowed, disarmPlayer, shoutRelay, spellHitAllowed };
 };

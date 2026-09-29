@@ -3871,8 +3871,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // 0a. A player's shout word counts only if they were given shouts and it is one of the Dragonborn's (combat.js)
   try { if (combat && !combat.shoutAllowed(agg, src)) { log(`shout hit refused: ${display(agg)} -> ${display(tgt)} with ${src.toString(16)}`); return false; } } catch (e) { log('shout gate failed', e.message); }
 
-  // 0. A Vampire Lord in Mist Form or bats cannot be touched (beastform.js)
-  try { if (globalThis.__dboBeastEthereal && globalThis.__dboBeastEthereal(tgt)) return false; } catch (e) { /* not loaded */ }
+  // 0. A Vampire Lord in Mist Form or bats cannot be touched (beastform.js), and touches no one either: an ethereal
+  // attacker's claws and Drain landed while nothing could land on them (combat review, 2026-09-29)
+  try { if (globalThis.__dboBeastEthereal && (globalThis.__dboBeastEthereal(tgt) || (agg !== tgt && globalThis.__dboBeastEthereal(agg)))) return false; } catch (e) { /* not loaded */ }
 
   // 1. Refuse attack if aggressor has bound hands
   try {
@@ -3896,7 +3897,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     if (now - (concLast.get(key) || 0) < 1000) return false;
     concLast.set(key, now);
     if (concLast.size > 512) for (const [k, t] of concLast) if (now - t > 5000) concLast.delete(k);
-  }
+  } else if (dmg > 0 && combat && !combat.spellHitAllowed(agg, tgt, src)) return false;
 
   // 2c. Enemies of one dungeon never hurt each other. The host's engine reports every actor a spell touched, so a
   // bandit's Chain Lightning arced through its own allies for full damage (Plundered Mine, 2026-09-23).
