@@ -1,5 +1,21 @@
 [
   {
+    "title": "Dragon Armor and Silver",
+    "date": "2026-09-29",
+    "version": "Server update",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Smithing and armor",
+        "items": [
+          "Dragonscale armor now protects better than Ebony, piece for piece, and Dragonplate already did. Your inventory shows the new numbers. Daedric stays the strongest.",
+          "The Blacksmith's ranks list Dragonbone and Dragonscale at Master, beside Daedric, above Ebony at Expert.",
+          "Silver weapons join the Blacksmith's ranks at Apprentice, beside Steel."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Artifacts Belong to Legends",
     "date": "2026-09-29",
     "version": "Server update",
