@@ -46,6 +46,7 @@ import RobPrompt from './features/robPrompt';
 import Downed from './features/downed';
 import PlayerMenu from './features/playerMenu';
 import TradeInvite from './features/tradeInvite';
+import NamePrompt from './features/namePrompt';
 import { panelScaleOf } from './utils/PanelScale';
 
 const styles = [
@@ -307,6 +308,8 @@ const Constructor = props => {
       return <Downed data={rend} />;
     case 'playerMenu':
       return <PlayerMenu data={rend} />;
+    case 'namePrompt':
+      return <NamePrompt data={rend} />;
     case 'tradeInvite':
       return <TradeInvite data={rend} />;
     case 'death':
@@ -322,7 +325,7 @@ const Constructor = props => {
 const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
   rite: 'lorkhan', bountyBoard: 'lorkhan', expeditionBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', downed: 'lorkhan',
-  mastery: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak', spellbook: 'dragonbreak',
+  mastery: 'dragonbreak', namePrompt: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak', spellbook: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
 };
 
