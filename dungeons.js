@@ -135,8 +135,28 @@ module.exports = (api) => {
   const partyOf = (pid) => { const leader = ST.memberOf.get(pid); return leader !== undefined ? ST.parties.get(leader) : null; };
   const partyMembers = (pid) => { const p = partyOf(pid); return p ? [...p.members] : [pid]; };
   const actorByProfile = (pid) => onlineActors().find((a) => profileOf(a) === pid) || 0;
-  const cooldownsOf = (a) => { try { const r = mp.get(a, 'private.dungeonCooldowns'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
-  const setCooldown = (a, dungeonId, until) => { const c = cooldownsOf(a); for (const k of Object.keys(c)) if (Number(c[k]) < Date.now()) delete c[k]; c[dungeonId] = until; try { mp.set(a, 'private.dungeonCooldowns', c); } catch (e) { log('cooldown save failed', e.message); } };
+  // A dungeon's rest is kept per account as well as per character (dungeon-rest.json, runtime, gitignored), for every member
+  // of the claim whether online at its end or not: kept per character only, an alt as leader, or a member logged out as
+  // the claim ended, claimed the same dungeon again at once and every claim refills its chests (exploit audit 2026-09-29).
+  const REST_PATH = path.resolve('dungeon-rest.json');
+  const REST = globalThis.__dboDungeonRest || (globalThis.__dboDungeonRest = (() => { try { const v = JSON.parse(fs.readFileSync(REST_PATH, 'utf8')); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } })());
+  const saveRest = () => {
+    const now = Date.now();
+    for (const pid of Object.keys(REST)) { for (const k of Object.keys(REST[pid] || {})) if (Number(REST[pid][k]) < now) delete REST[pid][k]; if (!Object.keys(REST[pid] || {}).length) delete REST[pid]; }
+    try { fs.writeFileSync(REST_PATH + '.tmp', JSON.stringify(REST)); fs.renameSync(REST_PATH + '.tmp', REST_PATH); } catch (e) { log('dungeon-rest.json write failed', e.message); }
+  };
+  const restAccount = (pid, dungeonId, until) => { if (!(Number(pid) >= 0)) return; const r = REST[pid] || (REST[pid] = {}); r[dungeonId] = Math.max(Number(r[dungeonId]) || 0, until); };
+  const accountRest = (pid, dungeonId) => Number((REST[pid] || {})[dungeonId]) || 0;
+  // What rests for this character: its own record and its account's, the later of the two
+  const cooldownsOf = (a) => {
+    let own = {}; try { const r = mp.get(a, 'private.dungeonCooldowns'); if (r && typeof r === 'object') own = r; } catch (e) { /* none */ }
+    const out = Object.assign({}, own);
+    for (const [k, v] of Object.entries(REST[profileOf(a)] || {})) out[k] = Math.max(Number(out[k]) || 0, Number(v) || 0);
+    return out;
+  };
+  const setCooldown = (a, dungeonId, until) => { const c = cooldownsOf(a); for (const k of Object.keys(c)) if (Number(c[k]) < Date.now()) delete c[k]; c[dungeonId] = until; try { mp.set(a, 'private.dungeonCooldowns', c); } catch (e) { log('cooldown save failed', e.message); } restAccount(profileOf(a), dungeonId, until); saveRest(); };
+  // The members of this party whose account still rests from the dungeon: [{ pid, until }]
+  const restingMembers = (pid, dungeonId) => partyMembers(pid).map((x) => ({ pid: x, until: accountRest(x, dungeonId) })).filter((x) => x.until > Date.now());
   const whereIs = (a) => { try { return normDesc(mp.get(a, 'worldOrCellDesc')); } catch (e) { return ''; } };
   const dungeonAround = (a) => cellToDungeon.get(whereIs(a)) || null;
   // At the entrance: near the door, or for an expedition anywhere in the hall it leaves from
@@ -581,10 +601,13 @@ module.exports = (api) => {
     const d = byId.get(lease.id);
     ST.leases.delete(lease.id);
     if (isRaidRuin(byId.get(lease.id))) { const p = partyOf(lease.leader); if (p) pushParty(p); }
+    const restUntil = Date.now() + C.cooldownMinutes * 60000;
+    for (const pid of lease.members) restAccount(pid, lease.id, restUntil);
+    saveRest();
     for (const pid of lease.members) {
       const a = actorByProfile(pid);
       if (!a) continue;
-      setCooldown(a, lease.id, Date.now() + C.cooldownMinutes * 60000);
+      setCooldown(a, lease.id, restUntil);
       glowOff(a, d ? d.chestIds : []);
       const inside = dungeonAround(a);
       if (inside && inside.id === lease.id && d && why !== 'cleared') {
@@ -667,6 +690,7 @@ module.exports = (api) => {
   };
   const tick = () => {
     const now = Date.now();
+    try { refreshRaidMults(); } catch (e) { log('raid skill gain refresh failed', e.message); }
     const snap = ST.leases.size ? spawnSnapshot() : null;
     for (const lease of [...ST.leases.values()]) {
       const insideNow = [...lease.members].some((pid) => { const a = actorByProfile(pid); const dd = a ? dungeonAround(a) : null; return dd && dd.id === lease.id; });
@@ -1113,6 +1137,8 @@ module.exports = (api) => {
       if (cd > Date.now()) return deny(casterId, `${d.name} still rests for you. Come back in ${minutesLeft(cd)} minutes.`, `${d.id} rests for them ${minutesLeft(cd)} more min`);
       const party = partyOf(pid);
       if (party && party.leader !== pid) return deny(casterId, `Only your party leader, ${party.leaderName}, can claim ${d.name}.`, `${d.id} claim by a party member, leader is ${party.leaderName}`);
+      const resting = restingMembers(pid, d.id);
+      if (resting.length) return deny(casterId, `${d.name} still rests for ${resting.map((x) => { const m = actorByProfile(x.pid); return m ? nameOf(m) : 'someone in your party'; }).join(', ')}. Come back in ${minutesLeft(Math.max(...resting.map((x) => x.until)))} minutes.`, `${d.id} rests for ${resting.length} member(s) of the party`);
       const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}`;
       ST.pending.set(casterId, { nonce, dungeonId: d.id, entrance });
       const partyNames = partyMembers(pid).filter((x) => x !== pid).map((x) => { const a = actorByProfile(x); return a ? nameOf(a) : `#${x}`; });
@@ -1168,6 +1194,8 @@ module.exports = (api) => {
     if (!d || !diff) return;
     if (ST.leases.has(d.id)) { log(`dungeon refused ${who(a)}: ${d.id} was claimed by someone else while their gate was open`); return personal(a, `Someone claimed ${d.name} first.`); }
     if (!atEntrance(a, p.entrance)) { log(`dungeon refused ${who(a)}: ${d.id} claim from beyond ${C.entranceReach} units of the entrance`); return personal(a, 'You have wandered from the entrance.'); }
+    // The party can change while the gate is open: whoever joined must not be resting from it either
+    if ((Number(cooldownsOf(a)[d.id]) || 0) > Date.now() || restingMembers(profileOf(a), d.id).length) { log(`dungeon refused ${who(a)}: ${d.id} rests for someone in the party`); return personal(a, `${d.name} still rests for someone in your party.`); }
     startLease(a, d, p.entrance, diff);
   });
   // The refused door leaves the client half into its load; putting them back at the entrance finishes it
@@ -1389,13 +1417,19 @@ module.exports = (api) => {
   // ---- party -----------------------------------------------------------------------------------
   // A party past partyMax is a raid: masterySystem reads private.partyXpMult and slows every member's skill gain
   const isRaid = (p) => !!p && p.members.size > C.partyMax;
-  // ...except inside a raid expedition, which is built for it (Nate, 2026-09-28: no halved skill gain in a raid ruin)
-  const inRaidRuin = (p) => !!p && [...ST.leases.values()].some((l) => isRaidRuin(byId.get(l.id)) && [...p.members].some((m) => l.members.has(m)));
-  const setRaidMult = (pid, on) => { const x = actorByProfile(pid); if (!x) return; try { mp.set(x, 'private.partyXpMult', on ? C.raidXpMult : 1); } catch (e) { /* offline */ } };
+  // ...except inside a raid expedition, which is built for it (Nate, 2026-09-28: no halved skill gain in a raid ruin).
+  // Only a member standing in the ruin they hold: a raid holding a raid ruin got full skill gain anywhere for the whole
+  // lease (exploit audit 2026-09-29); the lease tick keeps it current as members come and go
+  const insideRaidRuin = (pid) => {
+    const x = actorByProfile(pid); if (!x) return false;
+    const here = dungeonAround(x); if (!here || !isRaidRuin(here)) return false;
+    const l = ST.leases.get(here.id); return !!(l && l.members.has(pid));
+  };
+  const setRaidMult = (pid, on) => { const x = actorByProfile(pid); if (!x) return; const v = on ? C.raidXpMult : 1; try { if (mp.get(x, 'private.partyXpMult') !== v) mp.set(x, 'private.partyXpMult', v); } catch (e) { /* offline */ } };
+  const refreshRaidMults = () => { for (const p of ST.parties.values()) if (isRaid(p)) for (const m of p.members) setRaidMult(m, !insideRaidRuin(m)); };
   const pushParty = (p) => {
     const members = p ? [...p.members].map((m) => { const x = actorByProfile(m); return x ? { id: x, name: nameOf(x), leader: m === p.leader } : null; }).filter(Boolean) : [];
-    const halved = isRaid(p) && !inRaidRuin(p);
-    if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, halved); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
+    if (p) for (const m of p.members) { const x = actorByProfile(m); setRaidMult(m, isRaid(p) && !insideRaidRuin(m)); if (x && globalThis.__dboSetParty) globalThis.__dboSetParty(x, members); }
   };
   // Parties outlive a restart or a crash: every change is written to parties.json (runtime, gitignored, beside the
   // gamemode) and read back once per server process, unless it is older than partyKeepHours. A crash at 21:39 on

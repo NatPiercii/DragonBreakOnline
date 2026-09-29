@@ -49,7 +49,8 @@ const load = (expeditions, cfgDungeons = {}) => {
   fs.writeFileSync('dungeons.json', JSON.stringify({ dungeons: [] }));
   const props = new Map([[`${idOf('boardref')}|baseDesc`, '6:DragonBreak.esp']]);
   for (const a of ACTORS) { props.set(`${a}|worldOrCellDesc`, FG); props.set(`${a}|pos`, [0, -500, -221]); }
-  const widgets = [], said = [];
+  const widgets = [], said = []; const ticks = {};
+  globalThis.__dboDungeonRest = {};
   const cmds = new Map(), ui = new Map(); const savedTimeout = global.setTimeout; global.setTimeout = () => 0;
   globalThis.__dboDungeons = undefined; globalThis.__dboExpeditionPending = undefined;
   try { fs.unlinkSync(path.resolve('parties.json')); } catch (e) { /* none */ }
@@ -60,7 +61,7 @@ const load = (expeditions, cfgDungeons = {}) => {
     log: () => {}, personal: (a, t) => said.push([a, t]), system: (a, t) => said.push([a, t]), audit: () => {}, registerChatCommand: (n, fn) => cmds.set(n, fn),
     onUi: (n, fn) => { const l = ui.get(n) || []; l.push(fn); ui.set(n, l); }, openWidget: (a, w) => { widgets.push([a, w]); return true; }, closeWidget: () => true, sendPacket: () => true,
     findByName: (n) => ACTORS[Number(String(n).slice(1)) - 1] || 0, display: (a) => `P${pidOf(a)}`, who: String, profileOf: pidOf, nameOf: (a) => `P${pidOf(a)}`,
-    onlineActors: () => ACTORS, isAdmin: () => true, giveItem: () => true, cfg: { dungeons: cfgDungeons }, every: () => {},
+    onlineActors: () => ACTORS, isAdmin: () => true, giveItem: () => true, cfg: { dungeons: cfgDungeons }, every: (n, ms, fn) => { ticks[n] = fn; },
   });
   const fire = (n, a, args) => (ui.get(n) || []).forEach((f) => f(a, args, 0));
   const group = (size) => { for (let i = 1; i < size; i++) { cmds.get('party')(ACTORS[0], `invite P${i + 1}`); cmds.get('party')(ACTORS[i], 'accept'); } };
@@ -76,7 +77,7 @@ const load = (expeditions, cfgDungeons = {}) => {
   };
   const xp = (a) => props.get(`${a}|private.partyXpMult`);
   const done = () => { global.setTimeout = savedTimeout; process.chdir(here); fs.rmSync(dir, { recursive: true, force: true }); };
-  return { props, widgets, said, cmds, fire, group, claim, xp, done };
+  return { props, widgets, said, cmds, fire, group, claim, xp, done, tick: () => ticks['dungeons.tick'](), place: (a, cell) => props.set(`${a}|worldOrCellDesc`, cell) };
 };
 
 // ---- 2. what players see -------------------------------------------------------------------------------------------------
@@ -157,10 +158,20 @@ const load = (expeditions, cfgDungeons = {}) => {
   check('a group of 8 is a raid: skill gain halved', ACTORS.slice(0, 8).every((a) => h.xp(a) === 0.5), ACTORS.slice(0, 8).map(h.xp));
   const lease = h.claim('CYRSilornLocation', 'normal');
   check('it claims Silorn, a raid ruin', !!lease && lease.members.size === 8);
-  check('...and while the lease lasts nobody is halved', ACTORS.slice(0, 8).every((a) => h.xp(a) === 1), ACTORS.slice(0, 8).map(h.xp));
-  h.cmds.get('party')(ACTORS[0], 'invite P9'); h.cmds.get('party')(ACTORS[8], 'accept');
-  check('one more joining mid-raid is not halved either', ACTORS.every((a) => h.xp(a) === 1), ACTORS.map(h.xp));
+  // Exploit audit 2026-09-29: the lift is for members standing in the ruin, not for the whole party wherever it is
+  const RUINCELL = byId.get('CYRSilornLocation').cells[0].desc;
+  h.tick();
+  check('...outside the ruin a lease holder is still halved', ACTORS.slice(0, 8).every((a) => h.xp(a) === 0.5), ACTORS.slice(0, 8).map(h.xp));
+  for (const a of ACTORS.slice(0, 8)) h.place(a, RUINCELL);
+  h.tick();
+  check('...inside the raid ruin nobody is halved', ACTORS.slice(0, 8).every((a) => h.xp(a) === 1), ACTORS.slice(0, 8).map(h.xp));
+  h.place(ACTORS[7], FG); h.tick();
+  check('...one who walks out is halved again', h.xp(ACTORS[7]) === 0.5 && ACTORS.slice(0, 7).every((a) => h.xp(a) === 1), ACTORS.slice(0, 8).map(h.xp));
+  h.cmds.get('party')(ACTORS[0], 'invite P9'); h.cmds.get('party')(ACTORS[8], 'accept'); h.place(ACTORS[8], RUINCELL); h.tick();
+  check('...and one who joins the party after the claim holds no share of the lease: halved', h.xp(ACTORS[8]) === 0.5, ACTORS.map(h.xp));
   h.cmds.get('dungeon')(ACTORS[0], 'end CYRSilornLocation');
+  for (const a of ACTORS) h.place(a, FG);
+  h.tick();
   check('when the lease ends the raid is halved again', ACTORS.every((a) => h.xp(a) === 0.5), ACTORS.map(h.xp));
   h.said.length = 0;
   const telepe = h.claim('CYRTelepeLocation', 'normal');
