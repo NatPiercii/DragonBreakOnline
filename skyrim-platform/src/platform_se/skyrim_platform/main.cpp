@@ -38,6 +38,22 @@
 
 extern CallNativeApi::NativeCallRequirements g_nativeCallRequirements;
 
+// The precompiled header defines NOWINOFFSETS, which hides these; the input
+// diagnostics' window subclass needs them. Declared as in winuser.h (x64).
+#ifdef NOWINOFFSETS
+#  ifndef GWLP_WNDPROC
+#    define GWLP_WNDPROC (-4)
+#  endif
+extern "C" {
+WINUSERAPI LONG_PTR WINAPI GetWindowLongPtrA(HWND hWnd, int nIndex);
+WINUSERAPI LONG_PTR WINAPI GetWindowLongPtrW(HWND hWnd, int nIndex);
+WINUSERAPI LONG_PTR WINAPI SetWindowLongPtrA(HWND hWnd, int nIndex,
+                                             LONG_PTR dwNewLong);
+WINUSERAPI LONG_PTR WINAPI SetWindowLongPtrW(HWND hWnd, int nIndex,
+                                             LONG_PTR dwNewLong);
+}
+#endif
+
 void GetTextsToDraw(TextToDrawCallback callback)
 {
   switch (TextApi::GetTextsVisibility()) {
