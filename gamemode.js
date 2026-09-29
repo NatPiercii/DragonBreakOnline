@@ -2962,7 +2962,13 @@ const trophyFor = (actorId) => {
   const items = t.items.map((i) => { let baseId = 0; try { baseId = mp.getIdFromDesc(i.desc) >>> 0; } catch (e) { /* not loaded */ } return { baseId, count: i.count }; }).filter((i) => i.baseId);
   return items.length ? items : null;
 };
+// A spawned body whose pelts are not stashed yet: the stash runs 50 ms after death (the death item lands a tick late),
+// and a modified client that opened the body on the death event took the pelt past the Skinner's tier (loot review,
+// 2026-09-29). __dboSkin refuses the body until the stash has run, for 2 s at most.
+const peltPending = globalThis.__dboPeltPending instanceof Map ? globalThis.__dboPeltPending : (globalThis.__dboPeltPending = new Map());
+const PELT_PENDING_MS = 2000;
 const stashPelts = (actorId) => {
+  peltPending.delete(actorId);
   if (actorId < 0xff000000) return;
   let tag = ''; try { tag = String(mp.get(actorId, 'private.npcSpawner') || ''); } catch (e) { return; }
   if (!tag) return;
@@ -3059,6 +3065,11 @@ const skinPacket = (round, result, resultKind) => {
 };
 globalThis.__dboSkin = (targetId, casterId) => {
   if (targetId < 0xff000000) return null;
+  const pendingSince = peltPending.get(targetId);
+  if (pendingSince !== undefined) {
+    if (Date.now() - pendingSince < PELT_PENDING_MS) return false;
+    peltPending.delete(targetId);
+  }
   let pelts = null; try { pelts = mp.get(targetId, 'private.dboPelts'); } catch (e) { return null; }
   if (!Array.isArray(pelts)) return null;
   try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
@@ -3212,6 +3223,7 @@ const deathHook = (actorId, killerId, ...rest) => {
   try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(actorId, 'death'); } catch (e) { log('beast revert on death failed', e.message); }
   try { setDeathTemple(Number(actorId) >>> 0); } catch (e) { log('death temple failed', e.message); }
   // MpActor::Kill adds the death item after firing this event, so the pelt only exists a tick later
+  if ((Number(actorId) >>> 0) >= 0xff000000 && (() => { try { return !!mp.get(Number(actorId) >>> 0, 'private.npcSpawner'); } catch (e) { return false; } })()) { peltPending.set(Number(actorId) >>> 0, Date.now()); if (peltPending.size > 2048) for (const [k, t] of peltPending) if (Date.now() - t > PELT_PENDING_MS) peltPending.delete(k); }
   setTimeout(() => { try { stashPelts(Number(actorId) >>> 0); } catch (e) { log('pelt stash failed', e.message); } }, 50);
   try { if (globalThis.__dboChampionDeath) globalThis.__dboChampionDeath(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('champion death failed', e.message); }
   try { if (globalThis.__dboSuperDeath) globalThis.__dboSuperDeath(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('supernatural death failed', e.message); }
