@@ -103,6 +103,11 @@ module.exports = (api) => {
     for (const k of Object.keys(rests)) if (Number(rests[k]) < Date.now()) delete rests[k];
     try { mp.set(a, prop, rests); } catch (e) { log('labour rest save failed', e.message); }
   };
+  // A worked seam or block rests for everyone, not only for the worker: the rest was kept per character, so every
+  // character could work the same seam (salt and soul-gem geodes included) each 45 minutes (loot review, 2026-09-29).
+  // Kept on the reference, which survives restarts; only a won round sets it.
+  const SHARED_REST = 'private.dboWorkedUntil';
+  const sharedRest = (ref) => { try { return Number(mp.get(ref, SHARED_REST)) || 0; } catch (e) { return 0; } };
   const deny = (a, text) => {
     if (Date.now() - (denied.get(a) || 0) > 1500) { denied.set(a, Date.now()); personal(a, text); }
     return true;
@@ -243,7 +248,7 @@ module.exports = (api) => {
     if (ore !== 'geode' && !ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
     if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${titleCase(ore)} is beyond your skill. Work the seams you know first.`);
     const rests = restsOf(casterId, 'private.minedVeins');
-    const until = Number(rests[targetId.toString(16)]) || 0;
+    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
     const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' || (CFG.gemOre || {})[ore] ? 'Geode' : `${titleCase(ore)} Seam`, targetId);
     round.ore = ore;
@@ -255,7 +260,7 @@ module.exports = (api) => {
     if (tier < 0) return false;   // same first-touch fall-through as mine()
     if (liveRound(casterId)) return true;
     const rests = restsOf(casterId, 'private.choppedBlocks');
-    const until = Number(rests[targetId.toString(16)]) || 0;
+    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
     if (until > Date.now()) return deny(casterId, `You have split all the logs here. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
     const strikes = Math.max(1, Math.round(tierValue(WOODCUTTER.chopStrikesByTier, tier, 4)));
     const round = roundFor(casterId, 'chopping', tier, strikes, 'Chopping Block', targetId);
@@ -286,6 +291,10 @@ module.exports = (api) => {
   };
   const finish = (a, round, win, text, kind, rest) => {
     if (rest !== false) writeRest(a, round, win ? (round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes) : CFG.failRestMinutes);
+    if (win && rest !== false) {
+      const minutes = round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes;
+      try { mp.set(round.refId, SHARED_REST, Date.now() + minutes * 60000); } catch (e) { log('labour shared rest save failed', e.message); }
+    }
     openWidget(a, packetFor(round, text, kind), false);
     sessions.delete(a);
     // Remembered only so a repeat of the same report is logged as a replay instead of vanishing
