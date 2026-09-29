@@ -60,6 +60,8 @@ public:
     float unarmedReach = 0.f;
 
     std::set<uint32_t> spells = {};
+    // Attack data (ATKD) spells: a creature's bite or claw that casts, record-local ids like spells
+    std::set<uint32_t> attackSpells = {};
   };
 
   Data GetData(CompressedFieldsCache& compressedFieldsCache) const noexcept;

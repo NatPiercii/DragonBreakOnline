@@ -664,3 +664,25 @@ TEST_CASE("isFood flag is set for sweet roll", "[espm]")
   REQUIRE(data.isFood == true);
   REQUIRE(data.isPoison == false);
 }
+
+// A creature's bite casts its race's attack spell (ATKD), which no spell list
+// holds: ActionListener's template tree reads it so the hit is not refused
+// (refusal survey, 2026-09-29)
+TEST_CASE("Loads race attack spells", "[espm]")
+{
+  auto& br = GetEspmLoader().GetBrowser();
+  espm::CompressedFieldsCache cache;
+
+  auto form = br.LookupById(0x000131FE);
+  REQUIRE(form.rec->GetType() == "RACE");
+  REQUIRE(form.rec->GetEditorId(cache) == std::string("IceWraithRace"));
+  auto data = reinterpret_cast<const espm::RACE*>(form.rec)->GetData(cache);
+  REQUIRE(data.attackSpells.count(0x000A26F4) == 1); // crIceWraithBite
+
+  auto flame = br.LookupById(0x000131F5);
+  REQUIRE(flame.rec->GetType() == "RACE");
+  auto flameData =
+    reinterpret_cast<const espm::RACE*>(flame.rec)->GetData(cache);
+  REQUIRE(flameData.attackSpells.count(0x00050CF7) ==
+          1); // crAtronachFlameMeleeAttack
+}

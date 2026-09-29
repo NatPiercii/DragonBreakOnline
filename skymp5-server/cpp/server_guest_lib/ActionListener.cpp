@@ -346,6 +346,21 @@ bool IsSpellInTemplateTree(const MpActor& actor, uint32_t spellId)
       for (uint32_t rawSpellId : npcData.spells) {
         pending.push_back(lookup.ToGlobalId(rawSpellId));
       }
+      // A creature's biting or clawing attack casts its race's attack spell (IceWraithRace crIceWraithBite,
+      // AtronachFlameRace crAtronachFlameMeleeAttack), which no spell list holds: its hits were refused as "cannot hit
+      // with spell" (refusal survey, 2026-09-29). The race's own spells (SPLO) come with it.
+      if (npcData.race != 0) {
+        const auto raceLookup = browser.LookupById(lookup.ToGlobalId(npcData.race));
+        if (const auto race = espm::Convert<espm::RACE>(raceLookup.rec)) {
+          const auto raceData = race->GetData(worldState->GetEspmCache());
+          for (uint32_t rawSpellId : raceData.attackSpells) {
+            pending.push_back(raceLookup.ToGlobalId(rawSpellId));
+          }
+          for (uint32_t rawSpellId : raceData.spells) {
+            pending.push_back(raceLookup.ToGlobalId(rawSpellId));
+          }
+        }
+      }
       if (npcData.baseTemplate != 0 &&
           (npcData.templateDataFlags & espm::NPC_::UseSpelllist)) {
         pending.push_back(lookup.ToGlobalId(npcData.baseTemplate));
