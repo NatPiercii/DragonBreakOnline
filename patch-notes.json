@@ -1,5 +1,31 @@
 [
   {
+    "title": "Client 0.3.63: Shouts You Can See, a Better Trade Request",
+    "date": "2026-09-29",
+    "version": "Client 0.3.63",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Shouts",
+        "items": [
+          "Other players now see your shouts, not just your shouting pose: the wave, the breath and the rest play for everyone nearby, and the server still decides what they do to anyone they hit."
+        ]
+      },
+      {
+        "heading": "Trading",
+        "items": [
+          "A trade request is now a proper card near the top of the screen: who wants to trade, a clear Accept and Decline, and the key that gives you the cursor. It no longer sits under the Interact prompt."
+        ]
+      },
+      {
+        "heading": "Character select",
+        "items": [
+          "More behind-the-scenes logging to track down character select not responding for a few players. Nothing you type is recorded. Restart the launcher to get the update."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Slow Time Removed",
     "date": "2026-09-29",
     "version": "Server",
