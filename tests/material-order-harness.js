@@ -1,0 +1,67 @@
+// Material order (Nate, 2026-09-29: "Dragonbone/scale armor needs to be stronger than ebony. So swap those. Then add
+// Silver (not the faction armor version) to the Blacksmith tier list"): the Blacksmith tier text, the weapon material
+// bonuses, and the rating armor counts for (gamemode.js armorPieceOf, lifted and run against stub records).
+//   node tests/material-order-harness.js   (from server/)
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.resolve(__dirname, '..');
+let pass = 0, fail = 0;
+const ok = (c, what, got) => { if (c) pass++; else { fail++; console.log('FAIL', what, got === undefined ? '' : JSON.stringify(got)); } };
+
+// ---- the Blacksmith tier list (skills.json, read by masterySystem at boot)
+const smith = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills.json'), 'utf8')).skills.find((k) => k.id === 'blacksmith');
+const tierOf = (word) => smith.tiers.findIndex((t) => new RegExp(`\\b${word}`, 'i').test(t));
+ok(tierOf('ebony') >= 0 && tierOf('dragonbone') > tierOf('ebony') && tierOf('dragonscale') > tierOf('ebony'), 'Dragonbone and Dragonscale are a tier above Ebony', smith.tiers);
+ok(tierOf('daedric') === smith.tiers.length - 1, 'Daedric stays at the last tier', smith.tiers);
+ok(tierOf('silver') === tierOf('steel') && tierOf('silver') >= 0, 'Silver sits with Steel', smith.tiers);
+
+// ---- weapon materials (gamemode-config.json weaponMaterials)
+const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8'));
+const wb = cfg.weaponMaterials.byKeyword;
+ok(wb.DLC1WeapMaterialDragonbone > wb.WeapMaterialEbony, 'Dragonbone weapons hit harder than Ebony', [wb.DLC1WeapMaterialDragonbone, wb.WeapMaterialEbony]);
+ok(wb.WeapMaterialSilver >= wb.WeapMaterialSteel && wb.WeapMaterialSilver < wb.WeapMaterialGlass, 'Silver weapons sit between Steel and Glass', wb.WeapMaterialSilver);
+
+// ---- armor: the rating each piece counts for, from the lifted armorPieceOf
+const gm = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');
+const i = gm.indexOf('const ARMOR_MATERIALS = '), j = gm.indexOf('  armorPieceCache.set(baseId, piece);\n  return piece;\n};', i);
+ok(i > 0 && j > i, 'gamemode.js has the armor material table');
+if (i > 0 && j > i) {
+  const src = gm.slice(i, j) + '  armorPieceCache.set(baseId, piece);\n  return piece;\n};';
+  const u32 = (n) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n, true); return b; };
+  const bytes = (...ns) => { const b = new Uint8Array(4 * ns.length); ns.forEach((n, k) => new DataView(b.buffer).setUint32(4 * k, n, true)); return b; };
+  const KW = { 0x6bbd6: 'ArmorMaterialDragonscale', 0x6bbd5: 'ArmorMaterialDragonplate', 0x6bbd8: 'ArmorMaterialEbony' };
+  const RECS = {};
+  const armo = (id, rating, mask, heavy, kw) => { RECS[id] = { record: { type: 'ARMO', fields: [{ type: 'DNAM', data: u32(rating * 100) }, { type: 'BOD2', data: bytes(mask, heavy ? 1 : 0) }, { type: 'KWDA', data: u32(kw) }] }, toGlobalRecordId: (l) => l }; };
+  for (const [k, v] of Object.entries(KW)) RECS[k] = { record: { type: 'KYWD', editorId: v, fields: [] } };
+  // Final ratings in the load order (Update.esm / USSEP): cuirass, gauntlets, boots, helmet, shield
+  const SLOTS = [['body', 0x4], ['hands', 0x8], ['feet', 0x80], ['head', 0x1002], ['shield', 0x200]];
+  const EBONY = { body: 43, hands: 16, feet: 16, head: 21, shield: 32 }, DAEDRIC = { body: 49, hands: 18, feet: 18, head: 23, shield: 36 };
+  const SCALE = { body: 41, hands: 12, feet: 12, head: 17, shield: 29 }, PLATE = { body: 46, hands: 17, feet: 17, head: 22, shield: 34 };
+  let id = 0x1000;
+  const pieces = {};
+  for (const [slot, mask] of SLOTS) {
+    armo(++id, SCALE[slot], mask, false, 0x6bbd6); pieces[`scale:${slot}`] = id;
+    armo(++id, PLATE[slot], mask, true, 0x6bbd5); pieces[`plate:${slot}`] = id;
+    armo(++id, EBONY[slot], mask, true, 0x6bbd8); pieces[`ebony:${slot}`] = id;
+  }
+  delete globalThis.__dboArmorPiece3;
+  const fieldsOf = (lr, t) => ((lr && lr.record.fields) || []).filter((f) => f.type === t);
+  const u32At = (f, off) => (f && f.data.byteLength >= off + 4 ? new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(off, true) : 0);
+  const globalAt = (lr, local) => (local ? lr.toGlobalRecordId(local) >>> 0 : 0);
+  const armorPieceOf = new Function('cfg', 'recordOf', 'fieldsOf', 'u32At', 'globalAt', `${src}\nreturn armorPieceOf;`)(cfg, (x) => RECS[x] || null, fieldsOf, u32At, globalAt);
+  for (const [slot] of SLOTS) {
+    const sc = armorPieceOf(pieces[`scale:${slot}`]), pl = armorPieceOf(pieces[`plate:${slot}`]), eb = armorPieceOf(pieces[`ebony:${slot}`]);
+    ok(sc.counted > eb.counted, `Dragonscale ${slot} counts above Ebony`, [sc.counted, eb.counted]);
+    ok(pl.counted > eb.counted, `Dragonplate ${slot} counts above Ebony`, [pl.counted, eb.counted]);
+    ok(sc.counted < DAEDRIC[slot] && pl.counted < DAEDRIC[slot], `Daedric ${slot} stays strongest`, [sc.counted, pl.counted, DAEDRIC[slot]]);
+    ok(sc.rating === SCALE[slot], `...the engine keeps Dragonscale ${slot}'s own rating`, sc.rating);
+  }
+}
+ok(/counted \+= \(\(p\.counted \|\| p\.rating\) \+ temperBonus/.test(gm), 'the hit counts armor at its counted rating');
+ok(/value: Math\.round\(\(\(p\.counted \|\| p\.rating\) \+ temper\)/.test(gm), 'the inventory shows it');
+const pn = JSON.parse(fs.readFileSync(path.join(ROOT, 'patch-notes.json'), 'utf8'));
+ok(JSON.stringify(pn[0]).includes('Dragonscale'), 'the newest patch note tells players');
+
+console.log(`${pass}/${pass + fail}`);
+process.exitCode = fail ? 1 : 0;
