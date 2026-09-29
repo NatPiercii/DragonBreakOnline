@@ -10,10 +10,12 @@ const { postReport } = require('./discord/errorReport')
 const audit = require('./discord/audit')
 
 const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log'], ['gameLog', 'skyrim-platform.log'],
-                    ['skseLog', 'skse64.log'], ['csLog', 'CommunityShaders.log']]
+                    ['skseLog', 'skse64.log'], ['csLog', 'CommunityShaders.log'], ['crashLog', 'crash.log']]
 // Community Shaders logs the settings overrides it applied at startup and its shader compiles as they run, so both
 // ends of its log are kept, [head, tail] bytes as the launcher sends them
-const BOTH_ENDS = { csLog: [32 * 1024, 32 * 1024] }
+// A Crash Logger log names the crash at its head (the exception, the call stack); launcher 2.1.34 sends it condensed
+// to 48 KB, so it passes whole, and anything longer keeps its head
+const BOTH_ENDS = { csLog: [32 * 1024, 32 * 1024], crashLog: [56 * 1024, 8 * 1024] }
 // Only these context fields are ever repeated back into Discord, and each is scrubbed like a log
 const CONTEXT_FIELDS = ['launcherVersion', 'clientVersion', 'filesVersion', 'os', 'gameVersion',
                         'installDir', 'step', 'error', 'mo2Enabled', 'freeSpaceGb']
