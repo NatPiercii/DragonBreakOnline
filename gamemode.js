@@ -1047,6 +1047,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboCorpseLoot && globalThis.__dboCorpseLoot(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboLootBody && globalThis.__dboLootBody(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboSkin && globalThis.__dboSkin(targetId >>> 0, casterId >>> 0) === false) return false;
+  if (globalThis.__dboAnimalBody && globalThis.__dboAnimalBody(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboCampChest) { const v = globalThis.__dboCampChest(targetId >>> 0, casterId >>> 0); if (v === false) return false; }
   if (blockPlacedPickup(targetId >>> 0, casterId >>> 0)) return false;
   const g = gateOf(targetId >>> 0);
@@ -3096,6 +3097,32 @@ const skinPacket = (round, result, resultKind) => {
   const w = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, cuts: round.cuts, misses: round.allowed, seam: round.width, seams: round.seams, sweepMs: round.sweepMs, totalMs: round.totalMs };
   if (result) { w.result = result; w.resultKind = resultKind; }
   return w;
+};
+// A wild animal's body is searched by the server, as an expedition's humanoids are (dungeons.js __dboCorpseLoot). The
+// engine opens a dead creature on the player's own game only: that copy is the player's own roll of the death items and
+// never hears that the pelt went to the skinning stash, while a take is checked against the server's copy. So a deer's
+// venison, which the server held, never showed (GroundedPasta, #bugs "Animals", 29 Sep 20:05: "The deer still do not
+// drop venison"). E on a dead wild animal, once skinning has nothing to say, hands over what the server's body holds.
+globalThis.__dboAnimalBody = (targetId, casterId) => {
+  if (targetId < 0xff000000 || profileOf(casterId) < 0) return null;
+  let tag = ''; try { tag = String(mp.get(targetId, 'private.npcSpawner') || ''); } catch (e) { return null; }
+  if (!tag.startsWith('wild:')) return null;
+  try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
+  let entries = [];
+  try { const inv = mp.get(targetId, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return null; }
+  const got = [];
+  for (const e of entries) {
+    const baseId = Number(e.baseId) >>> 0, count = Number(e.count) || 0;
+    if (!baseId || count <= 0) continue;
+    if (giveItem(casterId, baseId, count)) {
+      const r = recordOf(baseId);
+      got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'something').replace(/^Food /, '')}`);
+    }
+  }
+  try { mp.set(targetId, 'inventory', { entries: [] }); } catch (e) { log('animal body empty failed', e.message); }
+  personal(casterId, got.length ? `You take ${got.join(', ')}.` : 'There is nothing left to take.');
+  if (got.length) log(`animal body ${display(casterId)} took ${got.join(', ')} from ${tag}`);
+  return false;
 };
 globalThis.__dboSkin = (targetId, casterId) => {
   if (targetId < 0xff000000) return null;
