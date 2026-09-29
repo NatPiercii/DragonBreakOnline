@@ -1,5 +1,25 @@
 [
   {
+    "title": "Client 0.3.66: Steadier Around Crowds, and Stuck Cursor Logging",
+    "date": "2026-09-29",
+    "version": "Client 0.3.66",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Stability",
+        "items": [
+          "When several enemies come into view at once, your game now takes them over a few at a time instead of all in the same instant. That moment has come just before some crashes, most often on entering a ruin with others."
+        ]
+      },
+      {
+        "heading": "Menus",
+        "items": [
+          "For the few players whose menu cursor stays stuck in the middle of the screen (character creation included), this update records why, and smooths out mouse input that very fast gaming mice send faster than the game can take. Nothing changes for everyone else. Restart the launcher to get the update."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.65: Character Select Works for Everyone",
     "date": "2026-09-29",
     "version": "Client 0.3.65",
