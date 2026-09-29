@@ -137,5 +137,27 @@ online = [PRIEST, ALLY, HELPER]; set(P, 'isDead', true); set(P, 'percentages', {
 timers.downedRecovery();
 check('a body that fell again while away is not given health', get(P, 'percentages').health === 0 && !globalThis.__dboDownedState.recovering.has(P));
 
+// ---- a party hit before the target's maximum health is known (after a restart) ----
+reset();
+globalThis.__dboPartyLeaderOf = (a) => (a === P || a === ALLY ? P : null);
+globalThis.__dboDownedState.maxHp.clear();
+set(P, 'percentages', { health: 0.5, stamina: 1, magicka: 1 });
+let allowed = mp.onHitDamageAttempt(ALLY, P, 0x1, 100);
+check('an unknown maximum: a lethal-sized party hit is refused, not landed whole', allowed === false, String(allowed));
+check('...and the friendly share is taken against the 150 baseline', Math.abs(get(P, 'percentages').health - (0.5 - 0.2 * 100 / 150)) < 1e-6, String(get(P, 'percentages').health));
+set(P, 'percentages', { health: 0.5, stamina: 1, magicka: 1 });
+allowed = mp.onHitDamageAttempt(ALLY, P, 0x1, 30);
+check('an unknown maximum: a small party hit goes on to the engine as before', allowed !== false && get(P, 'percentages').health === 0.5, String(allowed));
+globalThis.__dboDownedState.maxHp.set(P, 300);
+set(P, 'percentages', { health: 0.5, stamina: 1, magicka: 1 });
+allowed = mp.onHitDamageAttempt(ALLY, P, 0x1, 200);
+check('a known maximum is still used: 200 of 300 is lethal at half health, cut to 20%', allowed === false && Math.abs(get(P, 'percentages').health - (0.5 - 0.2 * 200 / 300)) < 1e-6, String(get(P, 'percentages').health));
+globalThis.__dboDownedState.maxHp.clear();
+globalThis.__dboPartyLeaderOf = () => null;
+set(P, 'percentages', { health: 0.5, stamina: 1, magicka: 1 });
+allowed = mp.onHitDamageAttempt(ALLY, P, 0x1, 100);
+check('outside a party nothing changes: the hit goes to the engine', allowed !== false && get(P, 'percentages').health === 0.5, String(allowed));
+globalThis.__dboPartyLeaderOf = null;
+
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);
