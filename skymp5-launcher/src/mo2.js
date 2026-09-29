@@ -905,7 +905,16 @@ function readModHash(modName) {
  * meta.ini - directly comparable to the summed directive sizes from the
  * manifest. Returns -1 when the folder is missing or unreadable.
  */
-function modFolderSize(modName) {
+// Config files a plugin or MCM rewrites by itself: a plugin fills in its defaults at startup (Actor Limit Fix's JSON
+// grew by ~330 bytes on every run, 2026-09-28) and MCM saves the player's settings. An edited copy is the mod working,
+// not a damaged install, so the size gate and the verify leave them out; binaries and assets keep both checks.
+const REWRITTEN_CONFIG_RE = /^(skse\/plugins|mcm\/config|mcm\/settings)\/.+\.(ini|json|toml|ya?ml)$/i
+
+function isRewrittenConfig(rel) {
+  return REWRITTEN_CONFIG_RE.test(String(rel).replace(/\\/g, '/'))
+}
+
+function modFolderSize(modName, { skipConfig = false } = {}) {
   const folder = String(modName).replace(/[<>:"/\\|?*]/g, '')
   const root = path.join(getModsDir(), folder)
   if (!fs.existsSync(lp(root))) return -1
@@ -919,10 +928,23 @@ function modFolderSize(modName) {
       const p = path.join(dir, e.name)
       if (e.isDirectory()) { stack.push(p); continue }
       if (dir === root && e.name.toLowerCase() === 'meta.ini') continue
+      if (skipConfig && isRewrittenConfig(path.relative(root, p))) continue
       try { total += fs.statSync(lp(p)).size } catch { return -1 }
     }
   }
   return total
+}
+
+/** The install gate's size check: the manifest's summed sizes against the folder's bytes, rewritten config files left
+ *  out on both sides. actual is -1 when the folder could not be read; skipped counts the manifest's config files. */
+function modSizeCheck(mod) {
+  const files = Array.isArray(mod.files) ? mod.files : []
+  const kept = files.filter(f => !isRewrittenConfig(f.to))
+  return {
+    expected: kept.reduce((a, f) => a + f.size, 0),
+    actual: modFolderSize(mod.name, { skipConfig: true }),
+    skipped: files.length - kept.length,
+  }
 }
 
 /** Does a mod folder ship a plugin (esp/esm/esl) or an SKSE plugin DLL? */
@@ -1498,6 +1520,8 @@ module.exports = {
   listOverwriteJunk,
   cleanOverwrite,
   cleanOverwritePlatform,
+  isRewrittenConfig,
+  modSizeCheck,
   listArchiveContents,
   parseArchiveListing,
   listArchiveEntries,

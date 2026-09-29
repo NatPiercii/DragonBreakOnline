@@ -2529,6 +2529,7 @@ async function checkFilesImpl() {
     const modsDir  = mo2.getModsDir()
     const sanitize = n => String(n).replace(/[<>:"/\\|?*]/g, '')
     const total    = manifest.mods.length
+    let skippedConfigChecks = 0
     for (let i = 0; i < total; i++) {
       const m      = manifest.mods[i]
       const folder = sanitize(m.name)
@@ -2540,6 +2541,8 @@ async function checkFilesImpl() {
       const expected = new Set(files.map(f => String(f.to).toLowerCase()))
       for (let n = 0; n < files.length; n++) {
         const f = files[n]
+        // A plugin or MCM rewrites these itself; an edited copy is not damage (mo2.isRewrittenConfig)
+        if (mo2.isRewrittenConfig(f.to)) { skippedConfigChecks++; continue }
         await verifyFile(path.join(dir, ...String(f.to).split('/')), f, `mods/${folder}/${f.to}`, 'modlist')
         if ((n + 1) % CHECK_PROGRESS_EVERY === 0) {
           progress(`Checking mods… ${i + 1}/${total} (${m.name}: ${n + 1}/${files.length} files)`)
@@ -2548,12 +2551,13 @@ async function checkFilesImpl() {
       }
       for (const rel of mo2.listFilesRel(dir)) {
         const l = rel.toLowerCase()
-        if (l === 'meta.ini' || expected.has(l) || /\.log(\.\d+)?$/.test(l)) continue
+        if (l === 'meta.ini' || expected.has(l) || /\.log(\.\d+)?$/.test(l) || mo2.isRewrittenConfig(rel)) continue
         add('extra', `mods/${folder}/${rel}`, 'modlist')
       }
       await yieldNow()
     }
 
+    if (skippedConfigChecks) log(`[check] ${skippedConfigChecks} config file(s) that plugins or MCM rewrite were not compared`)
     progress('Checking the MO2 profile…')
     const order = (Array.isArray(manifest.order) && manifest.order.length) ? manifest.order.slice() : manifest.mods.map(m => m.name)
     for (const name of mo2.listStaleManagedMods(order)) add('extra', `mods/${name}`, 'modlist')
@@ -3204,6 +3208,7 @@ async function runMO2Install(opts = {}) {
       mo2.clearBuildCache()
       mo2.clearCache()
     }
+    let skippedConfigs = 0
     const modChanged = m => {
       if (force) return true
       if (!fs.existsSync(modFolderPath(m))) return true
@@ -3214,8 +3219,9 @@ async function runMO2Install(opts = {}) {
       // AV quarantined or a player deleted; a mismatch rebuilds the mod.
       const files = Array.isArray(m.files) ? m.files : []
       if (!files.length || !files.every(f => Number.isFinite(f.size))) return false
-      const expected = files.reduce((a, f) => a + f.size, 0)
-      const actual = mo2.modFolderSize(m.name)
+      // Config files a plugin or MCM rewrites itself are not compared (mo2.isRewrittenConfig)
+      const { expected, actual, skipped } = mo2.modSizeCheck(m)
+      skippedConfigs += skipped
       if (actual === -1) {
         // Unreadable mid-scan (AV holding a handle): do not wipe a mod over a
         // transient lock, only over a real size mismatch.
@@ -3241,6 +3247,7 @@ async function runMO2Install(opts = {}) {
       // Yield between folder walks so the UI stays responsive on slow disks
       await new Promise(r => setImmediate(r))
     }
+    if (skippedConfigs) log(`[mo2-install] ${skippedConfigs} config file(s) that plugins or MCM rewrite were left out of the size check`)
 
     if (modsToInstall.length === 0 && !needsRoot) {
       finishOrder()
