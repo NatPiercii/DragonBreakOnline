@@ -392,7 +392,9 @@ module.exports = (api) => {
   const PROVISIONS = [{ id: '34cdf:Skyrim.esm', name: 'SaltPile' }].concat(Array.isArray(C.provisions) ? C.provisions : []);
   const EDIBLE = /^(?:BSK|CYR|els|BYOH|DLC2)?(?:Garlic|Wheat|Rice|RiceGrains|Saltrice|Onion|RedOnion|Sugarcane|BirdEggd*|HawkEggd*|Blackberries|Blueberries|Rasberries|Critterw*Fishw*|SalmonRoed*)/i;
   const lootIngredients = (ok) => pool('ingredients', 0, ok).filter((it) => !EDIBLE.test(it.name));
-  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
+  // Artifacts and Ebony/Daedric are refused here, for every draw: chestLoot, smallLoot and corpseLoot default to ALL_OK,
+  // which skipped lootOk's BANNED_LOOT check, so a draw without a lease could still hand out Ebony or Daedric (2026-09-29)
+  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !BANNED_LOOT.test(String(it.name || '')) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
   // Vanilla names potions by numeric strength, not by word: RestoreHealth01 is Minor, 03 Plentiful, 05
   // Extreme, 06 Ultimate; Resist* uses 25/50/75/100. The old word-matching tiers returned an empty array at
   // all four tiers against the live pool, so no potion dropped at any difficulty.

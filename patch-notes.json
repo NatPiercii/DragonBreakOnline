@@ -1,5 +1,20 @@
 [
   {
+    "title": "Artifacts Belong to Legends",
+    "date": "2026-09-29",
+    "version": "Server update",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "Artifacts are no longer found as loot. Legendary arms and armour, Daedric artifacts and Dragon Priest masks come to the champions of the realm through the story, awarded by the staff.",
+          "Ebony and Daedric gear no longer turns up in any dungeon chest or on any body, as intended; a few containers could still hand it out."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Fairer Fights, Champions and Mining",
     "date": "2026-09-29",
     "version": "Server update",
