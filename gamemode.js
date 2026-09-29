@@ -694,6 +694,8 @@ const forgetMet = (a, b) => {
   metCache.delete(a);
 };
 const takeGold = (a, amount) => {
+  // A negative amount would add gold and NaN would empty the purse; every caller checks today, this is the backstop
+  if (!Number.isFinite(Number(amount)) || Number(amount) < 0) { log(`takeGold refused an amount of ${amount}`); return false; }
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
     const entries = (Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
@@ -2102,11 +2104,15 @@ onUi('close', (a, args, widgetId) => { if (widgetId === PIGEON_WIDGET_ID) pigeon
 // isBadMenuShown), so the figure on screen does not move until something closes the menu. These two tell the HUD, which
 // reads the server's own count and never goes through the engine at all.
 const goldChanged = (a) => { try { if (userOf(a) >= 0) pushHud(a, needsOf(a)); } catch (e) { /* not a player yet */ } };
+// An entry with nothing but its base and count: a new item joins only such a stack. Loot merged into any stack of the
+// same base, so a looted copy took the tempering or enchantment of one the player kept (economy review, 2026-09-29).
+const plainEntry = (e) => Object.keys(e).every((k) => k === 'baseId' || k === 'count' || e[k] === undefined || e[k] === null || ((k === 'worn' || k === 'wornLeft') && !e[k]));
 const giveItem = (a, baseId, count) => {
+  if (!Number.isFinite(Number(count)) || Number(count) <= 0) { log(`giveItem refused a count of ${count}`); return false; }
   try {
     const inv = mp.get(a, 'inventory') || { entries: [] };
     const entries = Array.isArray(inv.entries) ? inv.entries.map((e) => Object.assign({}, e)) : [];
-    const hit = entries.find((e) => e && (Number(e.baseId) >>> 0) === (baseId >>> 0) && !e.worn);
+    const hit = entries.find((e) => e && (Number(e.baseId) >>> 0) === (baseId >>> 0) && plainEntry(e));
     if (hit) hit.count = (Number(hit.count) || 0) + count; else entries.push({ baseId: baseId >>> 0, count });
     mp.set(a, 'inventory', { entries });
     if ((baseId >>> 0) === GOLD_BASE) goldChanged(a);
