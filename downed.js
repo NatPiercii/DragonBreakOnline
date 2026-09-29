@@ -32,6 +32,8 @@ module.exports = (api) => {
     priestTier: 4,
     hostileMs: 60000,
     reviveRange: 1500, reviveConeDeg: 25, reviveFallbackMs: 1200, groupReviveRange: 400,
+    // The Draught is poured by hand from as far as the gamemode lets anyone activate an actor: 6.5 m, 70 units each
+    pourReach: 455,
     // Finishing is deliberate (Nate, 2026-09-28, after swag was finished 0.3 s after falling by a spell already hitting
     // him): nothing finishes a fallen player in their first finishGraceSeconds, and then only a weapon or bare hands
     finishGraceSeconds: 3, finishWeaponOnly: true,
@@ -643,13 +645,19 @@ module.exports = (api) => {
 
   // Nat: the Draught is used on the fallen, not drunk. E on a downed player while carrying one pours it into them.
   // The gamemode re-installs its activate hook on every reload before this module loads, so this never stacks.
+  // This hook runs before the gamemode's own, so it keeps that one's two refusals itself (2026-09-29 review: a Draught
+  // could be poured from any distance and with bound hands): hands bound, or the fallen out of its reach.
+  const canPour = (a, t) => {
+    try { const r = mp.get(a, 'private.restrained'); if (r && r.boundHands) return false; } catch (e) { /* free */ }
+    return distanceTo(a, t) <= C.pourReach;
+  };
   if (POTION) {
     const innerActivate = mp.onActivate;
     if (typeof innerActivate === 'function') {
       mp.onActivate = function (targetId, casterId, ...rest) {
         const t = Number(targetId) >>> 0, a = Number(casterId) >>> 0;
         try {
-          if (t !== a && S.downed.has(t) && isDead(t) && countOf(a, POTION) > 0) {
+          if (t !== a && S.downed.has(t) && isDead(t) && countOf(a, POTION) > 0 && canPour(a, t)) {
             if (revive(t, a, 'a Draught of Revival')) { addItem(a, POTION, -1); return false; }
           }
         } catch (e) { log(`downed: revive by hand failed: ${e.message}`); }
