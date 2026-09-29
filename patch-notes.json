@@ -1,6 +1,6 @@
 [
   {
-    "title": "Hunting, Dungeon Claims and Spell Fixes",
+    "title": "Hunting, Dungeons, Combat and Fair Play",
     "date": "2026-09-29",
     "version": "Server update",
     "tag": "Fix",
@@ -8,7 +8,8 @@
       {
         "heading": "Hunting",
         "items": [
-          "A skinned deer now opens like any other body, so its venison, antlers and coin can be taken. The same goes for a hide beyond your Skinner rank: you are told who could take the hide, and the body opens for the rest."
+          "A skinned deer now opens like any other body, so its venison, antlers and coin can be taken. The same goes for a hide beyond your Skinner rank: you are told who could take the hide, and the body opens for the rest.",
+          "A contract kill counts only inside the notice's own hold, as the notice says."
         ]
       },
       {
@@ -22,7 +23,23 @@
         "heading": "Combat",
         "items": [
           "A spell can no longer hit the same target again faster than it can be cast.",
-          "A Vampire Lord's bat form now has a 12-second wait, the untouchable state ends when the form does, and nobody can strike while untouchable."
+          "A Vampire Lord's bat form now has a 12-second wait, the untouchable state ends when the form does, and nobody can strike while untouchable.",
+          "Beast claws are no longer treated as Martial Arts fists, and someone carried or held fast by paralysis can no longer land blows.",
+          "A party member's hit right after a server restart is now softened like any other friendly fire."
+        ]
+      },
+      {
+        "heading": "Rest and reading",
+        "items": [
+          "You can no longer go to sleep in a bed within five minutes of a fight, or while struggling or being robbed.",
+          "Reading copies at most 6 books a day, and spell tomes and skill books cannot be copied."
+        ]
+      },
+      {
+        "heading": "Other fixes",
+        "items": [
+          "A lockpicking attempt cut short by a crash or disconnect no longer stops you picking any other lock until the next restart.",
+          "Coin purses and wisp stalks stay picked after a restart."
         ]
       }
     ]
