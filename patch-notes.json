@@ -1,5 +1,25 @@
 [
   {
+    "title": "Client 0.3.69: Every Dropdown Works",
+    "date": "2026-09-29",
+    "version": "Client 0.3.69",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Every dropdown list in our windows now opens properly: the realm panel's choices (capital, tribute, wars, raids and treaties), faction ranks and the staff tools. Before, their lists opened where you could not see them."
+        ]
+      },
+      {
+        "heading": "Getting it",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Venison at Last",
     "date": "2026-09-29",
     "version": "Server update",
