@@ -1,5 +1,19 @@
 [
   {
+    "title": "Client 0.3.65: Character Select Works for Everyone",
+    "date": "2026-09-29",
+    "version": "Client 0.3.65",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Character select",
+        "items": [
+          "Fixed for the few players whose mouse did nothing at character select: on some setups the game's own menu cursor stayed stuck in the middle of the screen, so every click landed on empty space. When that happens now, our menu follows your mouse itself and your clicks land where you point. Restart the launcher to get the update."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.64: Crash Logging",
     "date": "2026-09-29",
     "version": "Client 0.3.64",
