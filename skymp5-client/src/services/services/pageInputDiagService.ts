@@ -64,6 +64,13 @@ export class PageInputDiagService extends ClientListener {
     super();
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("tick", () => this.onTick());
+    // Game functions only run in update, not in tick
+    this.controller.on("update", () => this.onUpdate());
+    // Sent again once our own actor exists, so it is filed under the profile: before that the server keys the line
+    // by connection number, which is reused through the night and shares its line budget
+    this.controller.emitter.on("createActorMessage", (e) => {
+      if (e.message.isMe) this.wantIni(1000);
+    });
     this.countExecuteJavaScript();
     // formView and worldCleanerService are reached from places with no controller to hand, so the hook is global.
     // Guarded at both ends: if it is missing or throws, the caller carries on untouched.
@@ -94,6 +101,47 @@ export class PageInputDiagService extends ClientListener {
     try { vis = String(this.sp.browser.isVisible()); } catch (e) { /* unreadable */ }
     try { foc = String(this.sp.browser.isFocused()); } catch (e) { /* unreadable */ }
     return `client: widget7 open, beats seen ${this.beats}, page messages ${this.anyMessages}, last browserMessage ${since} ms ago, executeJavaScript calls ${this.execCalls}, browser visible=${vis} focused=${foc}`;
+  }
+
+  // Once per connection, for every player, stuck or not: the INI half of the game's menu cursor (2026-09-29: the
+  // cursor was pinned at the screen centre for GroundedPasta and Exsenus and for nobody else, and no report carried
+  // their settings). The native half (the cursor's live bounds, how the game reads the mouse) is in the DLL's log.
+  // Utility.getINI* reads the game's own settings; one it does not have reads 0 or false.
+  private iniLine(): string {
+    const sp = this.sp;
+    const read = (get: () => unknown) => { try { return String(get()); } catch (e) { return "?"; } };
+    return [
+      `fSafeZoneX=${read(() => sp.Utility.getINIFloat("fSafeZoneX:Interface"))}`,
+      `fSafeZoneY=${read(() => sp.Utility.getINIFloat("fSafeZoneY:Interface"))}`,
+      `fMouseCursorSpeed=${read(() => sp.Utility.getINIFloat("fMouseCursorSpeed:Interface"))}`,
+      `iSizeW=${read(() => sp.Utility.getINIInt("iSize W:Display"))}`,
+      `iSizeH=${read(() => sp.Utility.getINIInt("iSize H:Display"))}`,
+      `bFullScreen=${read(() => sp.Utility.getINIBool("bFull Screen:Display"))}`,
+      `bBorderless=${read(() => sp.Utility.getINIBool("bBorderless:Display"))}`,
+      `cursorMenu=${read(() => sp.Ui.isMenuOpen("Cursor Menu"))}`,
+    ].join(" ");
+  }
+
+  private wantIni(delayMs: number): void {
+    this.iniDueAt = Date.now() + delayMs;
+  }
+
+  // Once a few seconds after each connection (a player stuck at character select never gets an actor) and once when
+  // our actor appears
+  private onUpdate(): void {
+    let connected = false;
+    try {
+      connected = this.controller.lookupListener(NetworkingService).isConnected();
+    } catch (e) {
+      return;   // too early: the service is not up yet
+    }
+    if (connected !== this.wasConnected) {
+      this.wasConnected = connected;
+      if (connected) this.wantIni(3000);
+    }
+    if (!connected || !this.iniDueAt || Date.now() < this.iniDueAt) return;
+    this.iniDueAt = 0;
+    this.note("ini", this.iniLine());
   }
 
   // Called by client code that has something worth recording once: worldCleanerService when it removes a server
@@ -236,6 +284,8 @@ export class PageInputDiagService extends ClientListener {
   private lastRelay = 0;
   private lastClientLine = 0;
   private lastUrgent = 0;
+  private iniDueAt = 0;
+  private wasConnected = false;
   private anyMessages = 0;
   private lastAnyMessageAt = 0;
   private execCalls = -1;
