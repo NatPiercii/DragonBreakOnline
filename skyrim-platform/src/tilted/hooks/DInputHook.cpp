@@ -465,6 +465,43 @@ bool NoteGameKeyboardRead(HRESULT hr, DWORD items, const uint8_t* state)
   return true;
 }
 
+// While the page has focus the game's buffered keyboard read used to be
+// dropped whole, releases included, so a key held when the page took focus
+// and let go on the page stayed down for the game afterwards (walking on
+// after a panel closed). The releases in the read are kept, packed to the
+// front in the game's own record size; the presses stay with the page.
+DWORD KeepKeyReleases(LPDIDEVICEOBJECTDATA data, DWORD count, DWORD dataSize)
+{
+  if (!data || dataSize < 2 * sizeof(DWORD)) {
+    return 0;
+  }
+  static int logged = 0;
+  BYTE* base = reinterpret_cast<BYTE*>(data);
+  DWORD kept = 0;
+  for (DWORD i = 0; i < count; ++i) {
+    BYTE* item = base + static_cast<size_t>(i) * dataSize;
+    DWORD offset = 0;
+    DWORD value = 0;
+    std::memcpy(&offset, item, sizeof(DWORD));
+    std::memcpy(&value, item + sizeof(DWORD), sizeof(DWORD));
+    if (value & 0x80) {
+      continue;
+    }
+    if (logged < 10) {
+      ++logged;
+      spdlog::info("InputDiag: passed release vk {:#x} (scan {:#x}) while the "
+                   "page had focus",
+                   MapVirtualKeyA(offset, MAPVK_VSC_TO_VK), offset);
+    }
+    if (kept != i) {
+      std::memmove(base + static_cast<size_t>(kept) * dataSize, item,
+                   dataSize);
+    }
+    ++kept;
+  }
+  return kept;
+}
+
 void ProcessKeyboardData(uint8_t* apData)
 {
   if (!g_listener)
@@ -828,7 +865,9 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
       memset(rawData, 0, 256);
     }
     if (DInputHook::ChromeFocus()) {
-      *outDataLen = 0;
+      *outDataLen = SUCCEEDED(result) && outData
+        ? KeepKeyReleases(outData, *outDataLen, dataSize)
+        : 0;
 
       return result;
     }
