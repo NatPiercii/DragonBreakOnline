@@ -438,7 +438,8 @@ module.exports = (api) => {
     r.timer = setTimeout(() => judge(a, r, false, 'too late'), C.rite.leadMs + C.rite.timeoutMs);
     showRite(a, r, hit ? 'True.' : `Missed${why ? ` (${why})` : ''}.`);
   };
-  const finishRite = (a, r, won) => {
+  // opts.noPermadeath: a rite lost by disconnecting kills but never ends the character (see leaveRite)
+  const finishRite = (a, r, won, opts = {}) => {
     rites.delete(a); clearTimeout(r.timer);
     closeWidget(a, RITE_ID);
     const def = RITES[r.type];
@@ -458,7 +459,7 @@ module.exports = (api) => {
     }
     if (won) return becomeVampire(a, true);
     try { mp.set(a, 'private.riteFailedAt', Date.now()); } catch (e) { /* offline */ }
-    if (Math.random() < C.permaDeathChance) { personal(a, `${def.title} claims you. This life is over.`); return permaKill(a, `failed ${def.title}`); }
+    if (!opts.noPermadeath && Math.random() < C.permaDeathChance) { personal(a, `${def.title} claims you. This life is over.`); return permaKill(a, `failed ${def.title}`); }
     personal(a, `${def.title} breaks you, but lets you live to wake again.`);
     try { mp.set(a, 'isDead', true); } catch (e) { /* dead already */ }
   };
@@ -472,6 +473,31 @@ module.exports = (api) => {
     judge(a, r, [t - C.rite.slackMs, t, t + C.rite.slackMs].some(inZone), 'off the mark', `struck ${Math.round(t)} ms in, marker ${seen}`);
   });
   const forfeit = (a) => { const r = rites.get(a); if (r) { r.acted = true; r.misses = C.rite.rounds; finishRite(a, r, false); } };
+  // A disconnect mid-rite (a game crash, a dropped connection, or Alt-F4) used to forfeit it: death, and for the two
+  // voluntary rites the permadeath roll, so a crash could end a character for good (2026-09-29). Now the rounds played
+  // decide. Behind on them (more misses than hits): lost, so quitting is no escape, but never a permadeath. Even or
+  // ahead: cancelled, no death; a voluntary rite takes only its shrine's wait, and a fever comes back on a later tick.
+  // A rite never touched is abandoned as before. Closing the rite window is still a forfeit (riteClose, close).
+  const leaveRite = (a) => {
+    const r = rites.get(a); if (!r) return;
+    const def = RITES[r.type];
+    const where = `${def.title} at ${r.hits} hit(s), ${r.misses} miss(es) of ${C.rite.rounds}`;
+    rites.delete(a); clearTimeout(r.timer);
+    if (!r.acted) {
+      log(`supernatural: ${display(a)} disconnected from ${where}, never touched: abandoned, not counted`);
+      audit(`RITE ${who(a)} disconnected from ${where}, untouched: not counted`);
+      return;
+    }
+    if (r.misses > r.hits) {
+      log(`supernatural: ${display(a)} disconnected from ${where}, behind: counted as lost, no permadeath`);
+      audit(`RITE ${who(a)} disconnected from ${where}, behind: lost (no permadeath on a disconnect)`);
+      rites.set(a, r);
+      return finishRite(a, r, false, { noPermadeath: true });
+    }
+    if (def.deadly) { try { mp.set(a, 'private.riteFailedAt', Date.now()); } catch (e) { /* offline */ } }
+    log(`supernatural: ${display(a)} disconnected from ${where}, even or ahead: cancelled${def.deadly ? ', the shrine waits' : ', the fever will come again'}`);
+    audit(`RITE ${who(a)} disconnected from ${where}, even or ahead: cancelled, no death`);
+  };
   onUi('riteClose', (a) => forfeit(a));
   onUi('close', (a, args, widgetId) => { if (widgetId === RITE_ID) forfeit(a); });
 
@@ -699,7 +725,7 @@ module.exports = (api) => {
     if (i >= 0) { removeSpell(a, VAMPIRE_LORD_POWER); G.revoke.splice(i, 1); saveG(); }
     for (const o of onlineActors()) { if (o !== a && beastForm(o) === 'werewolf' && globalThis.__dboGuildIsPackLeader && globalThis.__dboGuildIsPackLeader(o)) sendPacket(a, { customPacketType: 'dboPale', actor: o >>> 0, shader: PALE_SHADER, on: true }); }
   };
-  globalThis.__dboSuperLeave = (a) => { forfeit(a); };
+  globalThis.__dboSuperLeave = (a) => { leaveRite(a); };
   globalThis.__dboSuperForfeitIfDead = forfeit;
 
   // A vampire's rank (bloodranks.js) slows thirst and softens the sun; 1 when it is not loaded
