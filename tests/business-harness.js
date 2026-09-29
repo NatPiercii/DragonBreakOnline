@@ -193,7 +193,32 @@ require(MODULE)(Object.assign({}, api, { cfg: { rest: { holdShare: 0.1 } } }));
 cmds.business(STRANGER, 'chest 10');
 ok(/paused/.test(last(STRANGER)), 'with the shipped default, asking to put a chest up is refused');
 const listed = () => (JSON.parse(fs.readFileSync('businesses.json', 'utf8')).businesses[DOOR.toString(16)].chests || {})[CHEST.toString(16)];
-ok(!listed(), 'and no chest is listed');
+ok(!listed() || !!listed().renter, 'and no chest is newly listed (a chest still rented under the old business is carried with its renter, A2-4)', listed());
+
+// Review A2-4: the claim passes to someone else, who opens a business of their own. The old owner's held takings reach
+// them at their next login and the rented chest keeps its renter; nothing is overwritten away.
+{
+  const K = DOOR.toString(16), CH = CHEST.toString(16);
+  const bizOld = data.businesses[K];
+  bizOld.owed = 777;
+  Object.assign(bizOld.chests[CH] || (bizOld.chests[CH] = { price: 10 }), { renter: 9, renterName: 'Rena', until: Date.now() + 48 * H, lapsed: false });
+  const oldOwner = Number(bizOld.owner), OLD = Number(Object.keys(PROFILE).find((a) => PROFILE[a] === oldOwner));
+  setp(DOOR, 'private.housing', { owner: 10, ownerName: 'Count Carvain', partner: OUTDOOR });
+  cmds.business(COUNT, 'open Fresh Start');
+  const fresh = data.businesses[K];
+  ok(fresh && fresh.name === 'Fresh Start' && Number(fresh.owner) === 10, 'the new holder opens a business of their own (A2-4)', fresh && fresh.name);
+  ok(fresh.chests[CH] && fresh.chests[CH].renter === 9, '...the rented chest keeps its renter under it', fresh.chests);
+  ok(Number(fresh.owed) === 0 && Number((data.owedTo || {})[String(oldOwner)]) === 777, '...the old owner\'s 777 gold is held for them, not lost', data.owedTo);
+  const arch = Object.entries(data.archived || {}).filter(([k]) => k.startsWith(K + '@')).pop();
+  ok(arch && Number(arch[1].owed) === 0 && arch[1].owedMovedTo === String(oldOwner), '...the archived record says where its takings went, so no one pays them twice', arch && arch[1]);
+  ok(globalThis.__dboBusinessActivate(CHEST, COUNT) === true, '...the new owner cannot open the rented chest');
+  ok(globalThis.__dboBusinessActivate(CHEST, RENTER) === false, '...its renter can');
+  const before = gold[OLD];
+  globalThis.__dboBusinessLogin(OLD);
+  ok(gold[OLD] === before + 777 && !(data.owedTo || {})[String(oldOwner)], 'the old owner is paid the held takings at their next login', [before, gold[OLD]]);
+  globalThis.__dboBusinessLogin(OLD);
+  ok(gold[OLD] === before + 777, '...once');
+}
 
 console.log(fails ? `${fails} FAILED` : 'all checks passed');
 fs.rmSync(scratch, { recursive: true, force: true });
