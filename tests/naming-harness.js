@@ -99,5 +99,37 @@ const before = widgets.length; globalThis.__dboNameAsked.set(HUB_USER, 0); timer
 check('in the Realm the reminder does not open it over the creation panels', widgets.length === before);
 check('...the hold in sendToArrival does', globalThis.__dboNameHold(HUB_USER) === true && widgets.length === before + 1 && widgets.at(-1)[0] === HUB_USER);
 
-console.log(failures ? `${failures} FAILED` : 'all checks passed');
-process.exit(failures ? 1 : 0);
+// Names typed in the race menu (__dboCreatorName, from the gamemode's appearance hook), checked after the engine applies
+(async () => {
+  const NEWBIE = 0xff000010, REROLL = 0xff000011;
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  setp(NEWBIE, 'appearance', { name: 'Stranger' });
+  let p = globalThis.__dboCreatorName(NEWBIE, { name: 'XxSlayerxX' }, 'creation');
+  setp(NEWBIE, 'appearance', { name: 'XxSlayerxX', race: 3 }); await tick();
+  check('a creation name that breaks the rules is refused, not the look', !!p && props.get(`${NEWBIE}|appearance`).name === 'Prisoner' && props.get(`${NEWBIE}|appearance`).race === 3);
+  check('...the reason is kept for the name panel', /"XxSlayerxX" will not do: Capitals only/.test(props.get(`${NEWBIE}|private.dboNameRefused`) || ''));
+  check('...and the character is held and asked, with the reason', globalThis.__dboNameHold(NEWBIE) === true && /will not do/.test(last(NEWBIE)));
+  cmds.name(NEWBIE, 'Brynja Frost');
+  check('naming it clears the reason', props.get(`${NEWBIE}|appearance`).name === 'Brynja Frost' && props.get(`${NEWBIE}|private.dboNameRefused`) === null);
+  setp(NEWBIE, 'appearance', { name: 'Stranger' });
+  p = globalThis.__dboCreatorName(NEWBIE, { name: 'Vaeric Stone' }, 'creation');
+  setp(NEWBIE, 'appearance', { name: 'Vaeric Stone' }); await tick();
+  check("another character's name at creation is refused", /already carries/.test(p || '') && props.get(`${NEWBIE}|appearance`).name === 'Prisoner');
+  setp(NEWBIE, 'appearance', { name: 'Stranger' });
+  p = globalThis.__dboCreatorName(NEWBIE, { name: 'Ingrid Hale' }, 'creation');
+  setp(NEWBIE, 'appearance', { name: 'Ingrid Hale' }); await tick();
+  check('a good creation name stands and goes into the index', p === null && props.get(`${NEWBIE}|appearance`).name === 'Ingrid Hale' && props.get(`${NEWBIE}|private.indexed.charName`) === 'ingridhale');
+  setp(NEWBIE, 'appearance', { name: 'Stranger' });
+  p = globalThis.__dboCreatorName(NEWBIE, { name: 'Prisoner' }, 'creation');
+  setp(NEWBIE, 'appearance', { name: 'Prisoner' }); await tick();
+  check("a dead name box (\"Prisoner\") is left to the name panel, not refused", p === null && !props.get(`${NEWBIE}|private.dboNameRefused`));
+  setp(REROLL, 'appearance', { name: 'Old Name' });
+  p = globalThis.__dboCreatorName(REROLL, { name: 'Talos' }, 'reroll');
+  setp(REROLL, 'appearance', { name: 'Talos', race: 5 }); await tick();
+  check('a refused reroll name goes back to the name before, the new look kept', /reserved/.test(p || '') && props.get(`${REROLL}|appearance`).name === 'Old Name' && props.get(`${REROLL}|appearance`).race === 5);
+  p = globalThis.__dboCreatorName(REROLL, { name: 'Prisoner' }, 'reroll');
+  setp(REROLL, 'appearance', { name: 'Prisoner' }); await tick();
+  check('a reroll with no name keeps the old one', props.get(`${REROLL}|appearance`).name === 'Old Name');
+  console.log(failures ? `${failures} FAILED` : 'all checks passed');
+  process.exit(failures ? 1 : 0);
+})();
