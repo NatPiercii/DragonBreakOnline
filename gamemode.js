@@ -2306,6 +2306,9 @@ const READ = Object.assign({
   scrollMaxValueByTier: [50, 100, 250, 500, 0],
   scrollDailyCap: 6,
   tomeDailyCap: 2,
+  // Copies of the book read, a day. A spell tome, a skill book or a note that cannot be taken is never copied: reading
+  // a placed tome every 30 minutes on each character got round the Synod's one a week (loot review, 2026-09-29)
+  bookDailyCap: 6,
   scrollExcludePattern: '^DLC\\d(Exp|dun)|^MGR|^dun|^TG|Empty|Quest|ENEMY',
 }, cfg.reading || {});
 // A random scroll a reader of this Scholar tier may find: within the tier's value cap, quest and empty ones left out
@@ -2530,6 +2533,9 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   if (!rec || !rec.record || String(rec.record.type) !== 'BOOK') return false;
   const baseId = (() => { try { return mp.getIdFromDesc(String(mp.get(targetId, 'baseDesc'))) >>> 0; } catch (e) { return 0; } })();
   const title = humanize(rec.record.editorId);
+  // BOOK DATA flags (byte 0): 0x01 teaches a skill, 0x02 cannot be taken, 0x04 teaches a spell
+  const bookData = (rec.record.fields || []).find((f) => f && f.type === 'DATA' && f.data instanceof Uint8Array && f.data.byteLength);
+  const copyable = !!bookData && (bookData.data[0] & 0x07) === 0;
   // Anyone may read; the work is banked toward Scholar until it is taken up, and reads at Novice until then
   const tier = Math.max(0, scholarTier(casterId));
   const deny = (text) => { if (Date.now() - (readDeny.get(casterId) || 0) > 1500) { readDeny.set(casterId, Date.now()); personal(casterId, text); } return true; };
@@ -2548,7 +2554,7 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   for (let tries = 0; tries < 10 && shuffled.every((v, i) => original[v] === original[i]); tries++) shuffled = shuffleIdx(original.length);
   const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
   const ms = candleMs(original.length);
-  const ses = { nonce, refId: targetId, baseId, title, original, shuffled, startedAt: Date.now(), deadline: Date.now() + ms, candleMs: ms, tier, locked: [], attempts: 0 };
+  const ses = { nonce, refId: targetId, baseId, copyable, title, original, shuffled, startedAt: Date.now(), deadline: Date.now() + ms, candleMs: ms, tier, locked: [], attempts: 0 };
   readSessions.set(casterId, ses);
   if (!openWidget(casterId, readWidget(ses), true)) readSessions.delete(casterId);
   return true;
@@ -2594,9 +2600,14 @@ onUi('reading', (a, args) => {
     try { if (globalThis.__dboBlessedWith && globalThis.__dboBlessedWith(a, 'scholarBoon') && typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
-    if (ses.baseId && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) { results.push(`you copy out ${ses.title} and keep it`); gained.push(ses.title); }
-    const scrollChance = Number((READ.scrollChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const today = new Date().toISOString().slice(0, 10);
+    let copied = null; try { copied = mp.get(a, 'private.scholarCopies'); } catch (e) { copied = null; }
+    const copiesToday = copied && copied.day === today ? Number(copied.n) || 0 : 0;
+    if (ses.baseId && ses.copyable && copiesToday < (Number(READ.bookDailyCap) || 0) && Math.random() < bookChance && giveItem(a, ses.baseId, 1)) {
+      results.push(`you copy out ${ses.title} and keep it`); gained.push(ses.title);
+      try { mp.set(a, 'private.scholarCopies', { day: today, n: copiesToday + 1 }); } catch (e) { /* uncounted */ }
+    }
+    const scrollChance = Number((READ.scrollChanceByTier || [])[Math.min(tier, 4)]) || 0;
     let found = null; try { found = mp.get(a, 'private.scholarScrolls'); } catch (e) { found = null; }
     const foundToday = found && found.day === today ? Number(found.n) || 0 : 0;
     if (scrollChance > 0 && foundToday < (Number(READ.scrollDailyCap) || 0) && Math.random() < scrollChance) {
