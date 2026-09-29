@@ -2096,6 +2096,8 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
     // priority and would otherwise desync the client load order from the server.
     const wiped = mo2.cleanOverwrite()
     if (wiped.length > 0) log(`[launch] cleaned stray overwrite items: ${wiped.join(', ')}`)
+    // Data\Platform files a game run left in overwrite outrank the game folder's (the page, the session)
+    for (const line of mo2.cleanOverwritePlatform()) log(`[launch] ${line}`)
     const removed = mo2.enforceModRules()
     if (removed.length > 0) log(`[launch] disabled unauthorised mods: ${removed.join(', ')}`)
   }

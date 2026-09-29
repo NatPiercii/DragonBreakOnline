@@ -975,6 +975,53 @@ function cleanOverwrite() {
   return removed
 }
 
+// A game run under MO2 that creates a Data\Platform file puts it in overwrite\Platform, which outranks the game
+// folder, and no repair removes it. The client's saved settings (PluginsNoLoad\*-settings-no-load.js) belong there and
+// stay. The session file is the launcher's to write into the game folder: a copy here would keep an old account after a
+// logout, so it goes. Whole UI, Plugins or Distribution folders here would replace the game's own page, scripts and
+// platform; nothing we run writes them, so they are moved aside, never deleted, in case they are a player's own mod.
+const OVERWRITE_PLATFORM_ASIDE = ['UI', 'Plugins', 'Distribution']
+
+function dirBytes(dir) {
+  let entries
+  try { entries = fs.readdirSync(lp(dir), { withFileTypes: true }) } catch { return 0 }
+  let total = 0
+  for (const e of entries) {
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) total += dirBytes(p)
+    else { try { total += fs.statSync(lp(p)).size } catch { /* gone meanwhile */ } }
+  }
+  return total
+}
+
+/** One line per change made to overwrite\Platform; empty when there was nothing to fix. */
+function cleanOverwritePlatform(now = new Date()) {
+  const platform = path.join(getRoot(), 'overwrite', 'Platform')
+  const done = []
+  const auth = path.join(platform, 'PluginsNoLoad', 'auth-data-no-load.js')
+  if (fs.existsSync(lp(auth))) {
+    try {
+      fs.rmSync(lp(auth), { force: true })
+      done.push('removed overwrite Platform/PluginsNoLoad/auth-data-no-load.js (the launcher writes the session into the game folder)')
+    } catch (err) { _log(`could not remove ${auth}: ${err.message}`) }
+  }
+  const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
+  for (const name of OVERWRITE_PLATFORM_ASIDE) {
+    const from = path.join(platform, name)
+    let stat
+    try { stat = fs.statSync(lp(from)) } catch { continue }
+    const bytes = stat.isDirectory() ? dirBytes(from) : stat.size
+    let to = path.join(platform, `${name}.stale-${stamp}`)
+    for (let n = 2; fs.existsSync(lp(to)); n++) to = path.join(platform, `${name}.stale-${stamp}-${n}`)
+    try {
+      fs.renameSync(lp(from), lp(to))
+      done.push(`moved overwrite Platform/${name} (${bytes} bytes) aside to ${path.basename(to)}`)
+    } catch (err) { _log(`could not move ${from} aside: ${err.message}`) }
+  }
+  for (const line of done) _log(line)
+  return done
+}
+
 function enforceModRules() {
   const modlistPath = path.join(getProfileDir(), 'modlist.txt')
   let lines
@@ -1450,6 +1497,7 @@ module.exports = {
   enforceModRules,
   listOverwriteJunk,
   cleanOverwrite,
+  cleanOverwritePlatform,
   listArchiveContents,
   parseArchiveListing,
   listArchiveEntries,
