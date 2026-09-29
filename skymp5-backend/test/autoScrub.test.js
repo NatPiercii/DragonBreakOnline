@@ -49,9 +49,10 @@ for (const c of CASES.cases) {
   })
 }
 
-test('the manual report scrubber uses S3-S10 of the rule file and nothing else', () => {
-  const text = 'C:\\Users\\Jake\\x Bearer abcdefghijklmnop a.b@example.org 192.168.1.20'
-  assert.equal(scrubLog.scrub(text).text, 'C:\\Users\\<user>\\x Bearer <redacted> a.b@example.org 192.168.1.20')
+test('the manual report scrubber uses S3-S10 of the rule file and its own IP rules, no other auto rule', () => {
+  // Its IP rules keep loopback and mark LAN addresses, where S16 would give <ip> for both
+  const text = 'C:\\Users\\Jake\\x Bearer abcdefghijklmnop a.b@example.org 192.168.1.20 127.0.0.1'
+  assert.equal(scrubLog.scrub(text).text, 'C:\\Users\\<user>\\x Bearer <redacted> a.b@example.org <lan-ip> 127.0.0.1')
 })
 
 test('cuts: pre-cut bounds the rules, head or tail is kept, truncation is reported', () => {
