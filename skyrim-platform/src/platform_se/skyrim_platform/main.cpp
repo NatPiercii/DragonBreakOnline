@@ -21,6 +21,7 @@
 #include "TextApi.h"
 #include "TextsCollection.h"
 
+#include <hooks/FrontIntent.hpp>
 #include <hooks/InputDiag.hpp>
 
 #include <psapi.h>
@@ -619,6 +620,7 @@ private:
     while (!stop) {
       Sleep(100);
       try {
+        CEFUtils::FrontIntent::Sample(game);
         Tick();
         Diagnose();
       } catch (...) {
@@ -935,9 +937,25 @@ private:
         foreign = foreground;
         frontLogs = 0;
         lastFrontLog = now;
+        // Input anywhere keeps idleMs low, so a player still moving the mouse
+        // at a stuck menu looked like one who had switched away. While a menu
+        // needs input, a window that came in front without Alt, Win or a
+        // click on anything but the game gives the front back, once.
+        std::string why;
+        const bool switched =
+          CEFUtils::FrontIntent::PlayerSwitched(game, foreground, why);
+        if (menuOpen && !switched && reclaimedFrom.insert(foreground).second) {
+          spdlog::info("ForegroundGuard: window class '{}' pid {} ({}) took "
+                       "the front while a menu is open and {}, taking it "
+                       "back",
+                       info.className, info.pid, ImageName(info), why);
+          TakeFront(foreground);
+          thief = nullptr;
+          return;
+        }
         spdlog::info("ForegroundGuard: window class '{}' pid {} ({}) is in "
-                     "front of the game, last input {} ms ago, leaving it",
-                     info.className, info.pid, ImageName(info), idleMs);
+                     "front of the game, last input {} ms ago, {}, leaving it",
+                     info.className, info.pid, ImageName(info), idleMs, why);
       } else if (frontLogs < kFrontLogMax &&
                  now - lastFrontLog >= kFrontLogEveryMs) {
         ++frontLogs;
@@ -959,6 +977,17 @@ private:
           "pid {} ({}) has had no input for {} ms, taking the front "
           "back once",
           info.className, info.pid, ImageName(info), idleMs);
+        TakeFront(foreground);
+      }
+      // A click on the game window itself while another window holds the
+      // front is the player asking for the game
+      if (CEFUtils::FrontIntent::TakeClickOnGameInBackground() &&
+          now - lastClickReclaim >= 2000) {
+        lastClickReclaim = now;
+        spdlog::info("ForegroundGuard: the player clicked the game while "
+                     "window class '{}' pid {} ({}) held the front, taking "
+                     "it back",
+                     info.className, info.pid, ImageName(info));
         TakeFront(foreground);
       }
       thief = nullptr;
@@ -1025,6 +1054,7 @@ private:
   std::set<HWND> reclaimedFrom;
   int frontLogs = 0;
   ULONGLONG lastFrontLog = 0;
+  ULONGLONG lastClickReclaim = 0;
   HWND diagWindow = nullptr;
   bool diagFocused = false;
   ULONGLONG lastSummary = 0;

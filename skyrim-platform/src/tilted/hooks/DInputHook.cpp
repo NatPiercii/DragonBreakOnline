@@ -248,6 +248,15 @@ void ProcessKeyboardData(uint8_t* apData)
   for (uint32_t idx = 0; idx < 256; idx++) {
     if (g_pressedWas[idx] != apData[idx]) {
       g_pressedWas[idx] = apData[idx];
+      if (apData[idx] != 0) {
+        auto& diag = CEFUtils::InputDiag::Get();
+        const uint64_t now = GetTickCount64();
+        diag.lastGameInputMs.store(now, std::memory_order_relaxed);
+        if (idx == DIK_LMENU || idx == DIK_RMENU || idx == DIK_LWIN ||
+            idx == DIK_RWIN) {
+          diag.lastSwitchKeyMs.store(now, std::memory_order_relaxed);
+        }
+      }
       if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiKey)) {
         spdlog::info("InputDiag: DirectInput key {:#x} {}", idx,
                      apData[idx] != 0 ? "down" : "up");
@@ -267,6 +276,8 @@ void ProcessMouseData(DIMOUSESTATE2* apMouseState)
   }*/
   if (abs(apMouseState->lX) >= std::numeric_limits<float>::epsilon() ||
       abs(apMouseState->lY) >= std::numeric_limits<float>::epsilon()) {
+    CEFUtils::InputDiag::Get().lastGameInputMs.store(
+      GetTickCount64(), std::memory_order_relaxed);
     if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiMouseMove)) {
       spdlog::info("InputDiag: DirectInput mouse moved {},{}",
                    apMouseState->lX, apMouseState->lY);
@@ -293,6 +304,8 @@ void ProcessMouseData(DIMOUSESTATE2* apMouseState)
     const bool pressed = state & 0x80;
     if (pressed != g_mousePressedWas[i]) {
       g_mousePressedWas[i] = pressed;
+      CEFUtils::InputDiag::Get().lastGameInputMs.store(
+        GetTickCount64(), std::memory_order_relaxed);
       if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiButton)) {
         spdlog::info("InputDiag: DirectInput mouse button {} {}", i,
                      pressed ? "down" : "up");

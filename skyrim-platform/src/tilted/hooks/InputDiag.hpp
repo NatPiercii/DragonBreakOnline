@@ -78,6 +78,10 @@ struct State
   // The client's calls into MpClientPlugin: does it still talk to the server
   std::atomic<uint64_t> lastNetTickMs{ 0 };
   std::atomic<uint64_t> lastNetSendMs{ 0 };
+  // For ForegroundGuard's switch test (FrontIntent): the game's own last
+  // input, and its last Alt or Win key
+  std::atomic<uint64_t> lastGameInputMs{ 0 };
+  std::atomic<uint64_t> lastSwitchKeyMs{ 0 };
 };
 
 inline State& Get() noexcept
