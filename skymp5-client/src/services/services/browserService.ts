@@ -4,7 +4,7 @@ import { QueryKeyCodeBindings } from "../events/queryKeyCodeBindings";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { FormView } from "../../view/formView";
 import { showSystemNotification } from "./systemNotification";
-import { isConsoleOpen, readMenuKeyCode } from "./widgetMenuUtil";
+import { isConsoleOpen, readMenuKeyCode, takeDeferredFocus } from "./widgetMenuUtil";
 import { badMenuAction } from "./badMenuPolicy";
 import { PlacementService } from "./placementService";
 import { BrowserMessageEvent, DxScanCode, Menu, MenuCloseEvent, MenuOpenEvent } from "skyrimPlatform";
@@ -140,6 +140,8 @@ export class BrowserService extends ClientListener {
     if (this.badMenusOpen.delete(e.name)) {
       if (this.badMenusOpen.size === 0 && !this.uiHidden) {
         this.sp.browser.setVisible(true);
+        // A panel opened while that menu held the keyboard deferred its focus rather than stealing it; it gets it now
+        takeDeferredFocus(this.sp);
       }
     }
 
