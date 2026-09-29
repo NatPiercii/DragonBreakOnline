@@ -1795,7 +1795,7 @@ registerChatCommand('selftest', (a) => {
   const rows = [
     ['contracts', typeof globalThis.__dboContractKill === 'function'],
     ['champions', typeof globalThis.__dboChampionHit === 'function' && typeof globalThis.__dboChampionDeath === 'function'],
-    ['labour', typeof globalThis.__dboLabour === 'function'],
+    ['labour', typeof globalThis.__dboLabour === 'function' && !globalThis.__dboLabour.failClosed],
     ['dungeons', typeof globalThis.__dboDungeonActivate === 'function'],
     ['wildlife', typeof globalThis.__dboCampChest === 'function'],
     ['playtest lock', typeof globalThis.__dboPlaytestGate === 'function'],
@@ -4126,7 +4126,24 @@ try {
   const LABOUR_JS = path.resolve('labour.js');
   delete require.cache[LABOUR_JS];
   require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF });
-} catch (e) { log('labour.js failed to load:', e.stack || e.message); globalThis.__dboLabour = null; }
+} catch (e) {
+  log('labour.js failed to load:', e.stack || e.message);
+  // Fail closed: with labour.js down, a seam's vanilla ore script and its pickaxe markers paid out with no round, no
+  // skill and no rest (loot review, 2026-09-29). Players are turned away from seams, markers and chopping blocks until
+  // it loads again; /selftest still reports labour as not wired.
+  const failClosed = (targetId, casterId) => {
+    if (targetId >= 0xff000000 || profileOf(casterId) < 0) return false;
+    let type = '', edid = '';
+    try { const r = mp.lookupEspmRecordById(mp.getIdFromDesc(String(mp.get(targetId, 'baseDesc')))); type = String(r.record.type || ''); edid = String(r.record.editorId || ''); } catch (e2) { return false; }
+    const work = (type === 'ACTI' && /^(CYR)?MineOre|^DLC2MineOre/.test(edid))
+      || (type === 'FURN' && (/^(DLC2)?WoodChoppingBlock/i.test(edid) || /^(MS02|DLC2)?PickaxeMining(Floor|Wall|Table)Marker/i.test(edid)));
+    if (!work) return false;
+    personal(casterId, 'Mining and woodcutting are closed for a moment. Try again shortly.');
+    return true;
+  };
+  failClosed.failClosed = true;
+  globalThis.__dboLabour = failClosed;
+}
 
 // ---- shrines, deities and prayer (server\prayer.js, config "prayer", skills.json deities/praying)
 try {
