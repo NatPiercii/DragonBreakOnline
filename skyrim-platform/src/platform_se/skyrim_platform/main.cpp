@@ -26,6 +26,7 @@
 #include <psapi.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
@@ -563,10 +564,46 @@ public:
           diag.iniCursorSpeed.store(setting->GetFloat(),
                                     std::memory_order_relaxed);
         }
+        for (const auto& [name, target] :
+             { std::pair{ "fSafeZoneX:Interface", &diag.iniSafeZoneX },
+               std::pair{ "fSafeZoneY:Interface", &diag.iniSafeZoneY } }) {
+          auto zone = prefs->GetSetting(name);
+          if (zone && zone->GetType() == RE::Setting::Type::kFloat) {
+            target->store(zone->GetFloat(), std::memory_order_relaxed);
+          }
+        }
       }
       if (screen) {
         diag.menuSensitivity.store(screen->mouseSensitivity,
                                    std::memory_order_relaxed);
+        // MenuScreenData is CommonLib's RE::MenuCursor: unk0C/unk10 are its
+        // safe zone, unk28 its default mouse speed, unk2C its show count
+        diag.safeZoneX.store(screen->unk0C, std::memory_order_relaxed);
+        diag.safeZoneY.store(screen->unk10, std::memory_order_relaxed);
+        diag.screenWidth.store(screen->screenWidth, std::memory_order_relaxed);
+        diag.screenHeight.store(screen->screenHeight,
+                                std::memory_order_relaxed);
+        diag.defaultMouseSpeed.store(screen->unk28, std::memory_order_relaxed);
+        diag.showCursorCount.store(screen->unk2C, std::memory_order_relaxed);
+        // The game's menu cursor bounds, whenever they change: a range that
+        // has collapsed to one point pins the cursor there in every menu
+        const std::array<float, 6> bounds = { screen->unk0C,
+                                              screen->unk10,
+                                              screen->screenWidth,
+                                              screen->screenHeight,
+                                              screen->mouseSensitivity,
+                                              screen->unk28 };
+        if (bounds != lastCursorBounds) {
+          lastCursorBounds = bounds;
+          spdlog::info(
+            "InputDiag: menu cursor at {},{}, safe zone {},{}, screen {}x{}, "
+            "sensitivity {}, default speed {}, shown {} (INI fSafeZoneX {}, "
+            "fSafeZoneY {})",
+            screen->mousePos.x, screen->mousePos.y, screen->unk0C,
+            screen->unk10, screen->screenWidth, screen->screenHeight,
+            screen->mouseSensitivity, screen->unk28, screen->unk2C,
+            diag.iniSafeZoneX.load(), diag.iniSafeZoneY.load());
+        }
       }
       if (auto input = RE::BSInputDeviceManager::GetSingleton()) {
         diag.gamepadEnabled.store(input->IsGamepadEnabled(),
@@ -627,6 +664,9 @@ private:
   float stuckDeltas = 0.f;
   bool focusWas = false;
   clock_t lastCursorSample = 0;
+  std::array<float, 6> lastCursorBounds = {
+    -1.f, -1.f, -1.f, -1.f, -1.f, -1.f
+  };
   bool switchLayoutDownWas = false;
 };
 
@@ -862,6 +902,11 @@ private:
       GetClientRect(game, &client);
     }
     const ULONGLONG lastFrame = s.lastFrameMs.load(std::memory_order_relaxed);
+    spdlog::info("InputDiag: menu cursor safe zone {},{}, screen {}x{}, "
+                 "default speed {}, shown {}, mouse buffer {} items",
+                 s.safeZoneX.load(), s.safeZoneY.load(), s.screenWidth.load(),
+                 s.screenHeight.load(), s.defaultMouseSpeed.load(),
+                 s.showCursorCount.load(), s.mouseBufferSize.load());
     spdlog::info(
       "InputDiag: 10 s with the browser focused:{} | page loaded {}, browser "
       "{}, visible {} | cursor menu {} at {},{} | Windows cursor {},{} in a "

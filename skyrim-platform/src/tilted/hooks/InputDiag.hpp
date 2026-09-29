@@ -47,17 +47,24 @@ enum Kind : int
   kNetEvent,
   kCefUiEvent,
   kCefConsole,
+  kDiMouseState,
+  kDiMouseData,
+  kDiMouseItems,
+  kDiMouseOverflow,
   kKindCount
 };
 
 inline constexpr const char* kNames[kKindCount] = {
-  "wm-mousemove",  "wm-button",  "wm-key",         "wm-char",
-  "wm-input",      "wm-focus",   "di-mousemove",   "di-button",
-  "di-wheel",      "di-key",     "drop-unfocused", "drop-no-cursor-menu",
-  "cef-mousemove", "cef-button", "cef-wheel",      "cef-key",
-  "cef-not-ready", "cef-focus",  "cef-load",       "net-tick",
-  "net-packet-in", "net-send",   "net-event",      "cef-ui-event",
-  "cef-console"
+  "wm-mousemove",   "wm-button",        "wm-key",
+  "wm-char",        "wm-input",         "wm-focus",
+  "di-mousemove",   "di-button",        "di-wheel",
+  "di-key",         "drop-unfocused",   "drop-no-cursor-menu",
+  "cef-mousemove",  "cef-button",       "cef-wheel",
+  "cef-key",        "cef-not-ready",    "cef-focus",
+  "cef-load",       "net-tick",         "net-packet-in",
+  "net-send",       "net-event",        "cef-ui-event",
+  "cef-console",    "di-mouse-state",   "di-mouse-data",
+  "di-mouse-items", "di-mouse-overflow"
 };
 
 struct State
@@ -85,6 +92,17 @@ struct State
   std::atomic<bool> gamepadEnabled{ false };
   std::atomic<bool> gamepadConnected{ false };
   std::atomic<bool> ownCursor{ false };
+  // The mouse's DirectInput buffer as the game set it, and the game's menu
+  // cursor state (MenuScreenData = CommonLib's RE::MenuCursor), game thread
+  std::atomic<uint32_t> mouseBufferSize{ 0 };
+  std::atomic<float> safeZoneX{ -1.f };
+  std::atomic<float> safeZoneY{ -1.f };
+  std::atomic<float> screenWidth{ -1.f };
+  std::atomic<float> screenHeight{ -1.f };
+  std::atomic<float> defaultMouseSpeed{ -1.f };
+  std::atomic<uint32_t> showCursorCount{ 0 };
+  std::atomic<float> iniSafeZoneX{ -1.f };
+  std::atomic<float> iniSafeZoneY{ -1.f };
 };
 
 inline State& Get() noexcept
@@ -117,6 +135,12 @@ inline bool Count(Kind kind, bool always = false) noexcept
 inline void Tally(Kind kind) noexcept
 {
   Get().counts[kind].fetch_add(1, std::memory_order_relaxed);
+}
+
+// Counts n events for the summary without logging them
+inline void TallyN(Kind kind, uint32_t n) noexcept
+{
+  Get().counts[kind].fetch_add(n, std::memory_order_relaxed);
 }
 
 // A new focus period logs the first events of every kind again
