@@ -1308,6 +1308,14 @@ if (!globalThis.__dboAppearanceHookPrev) {
 }
 const appearanceHook = (actorId, appearance, isAllowed) => {
   let result = true;
+  // The race menu's name, held to the creation rules before spawn.ts finishes creation (naming.js); never refused here
+  if (isAllowed) {
+    try {
+      const a = actorId >>> 0;
+      const kind = creationPending(a) ? 'creation' : mp.get(a, 'private.rerollPending') === true ? 'reroll' : '';
+      if (kind && globalThis.__dboCreatorName) globalThis.__dboCreatorName(a, appearance, kind);
+    } catch (e) { log('creator name check failed', e.message); }
+  }
   const prev = globalThis.__dboAppearanceHookPrev;
   if (prev) { try { result = prev.call(mp, actorId, appearance, isAllowed) !== false; } catch (e) { log('appearance hook chain failed', e.message); } }
   if (isAllowed) { try { moveToHubWhenReady(actorId >>> 0, 'creator closed'); } catch (e) { log('hub move schedule failed', e.message); } }

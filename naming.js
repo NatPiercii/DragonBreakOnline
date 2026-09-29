@@ -13,6 +13,10 @@
 //   box and one button, answered as dbo:nameChoose with the panel's nonce; a refusal reopens it with the reason, so
 //   the cursor stays. An older client keeps the chat line and /name. In the Realm the panel waits for the hold in
 //   sendToArrival, after the god is chosen, so it never opens over the deity picker.
+// - A name typed in the race menu is held to the same rules (__dboCreatorName, called by gamemode.js's appearance
+//   hook before creation finishes): at creation a name that fails them, or that another character carries, is taken
+//   off again and the character is asked for another, with the reason; in an identity reroll it goes back to the name
+//   before. Nobody is refused the race menu over it, so a player whose name box takes no typing is never stuck.
 // Staff keep /rename for everything else.
 'use strict';
 const fs = require('fs');
@@ -23,6 +27,7 @@ module.exports = (api) => {
   const PANEL_ID = 68;
   const DEFAULTS = new Set(['', 'prisoner', 'stranger', 'player']);
   const INDEX = 'private.indexed.charName';
+  const REFUSED = 'private.dboNameRefused';
   const ASK_EVERY_MS = 60000;
   const asked = globalThis.__dboNameAsked instanceof Map ? globalThis.__dboNameAsked : (globalThis.__dboNameAsked = new Map());
   // Both outlive a reload: which clients draw the panel, and the nonce of the panel open for each character
@@ -89,6 +94,8 @@ module.exports = (api) => {
   };
 
   let nonceSeq = 0;
+  // Why a name typed at creation was taken off, shown once with the first ask
+  const refusedReason = (a) => { try { const r = mp.get(a, REFUSED); return typeof r === 'string' ? r : ''; } catch (e) { return ''; } };
   const openPanel = (a, error) => {
     // A counter as well as the time: two panels opened in one millisecond (a refusal answered at once) differ
     const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}-${(nonceSeq = (nonceSeq + 1) % 1e6).toString(36)}`;
@@ -101,8 +108,9 @@ module.exports = (api) => {
     const now = Date.now();
     if (!force && now - (asked.get(a) || 0) < ASK_EVERY_MS) return;
     asked.set(a, now);
-    if (hasPanel(a)) { if (force || !nonces.has(a >>> 0)) openPanel(a); return; }
-    personal(a, 'Your character has no name yet. Type /name and their name in the chat, for example: /name Aela Brightwater. You leave the Realm once named.');
+    const why = refusedReason(a);
+    if (hasPanel(a)) { if (force || !nonces.has(a >>> 0)) openPanel(a, why); return; }
+    personal(a, `${why ? `${why} ` : ''}Your character has no name yet. Type /name and their name in the chat, for example: /name Aela Brightwater. You leave the Realm once named.`);
   };
 
   // gamemode.js sendToArrival asks before moving anyone out of the Realm: true = hold them there
@@ -125,6 +133,7 @@ module.exports = (api) => {
       app.name = name;
       mp.set(a, 'appearance', app);
       mp.set(a, INDEX, key);
+      try { mp.set(a, REFUSED, null); } catch (e) { /* nothing to clear */ }
       asked.delete(a);
       personal(a, `Your character is now ${name}.`);
       audit(`NAME ${who(a)} named themselves "${name}" (was "${old}", ${via})`);
@@ -155,6 +164,36 @@ module.exports = (api) => {
     // Escape closes it; the reminder opens it again a minute later
     onUi('close', (a, args, widgetId) => { if (Number(widgetId) === PANEL_ID) nonces.delete(a >>> 0); });
   }
+
+  // A name from the race menu, before the engine takes the new look: kind 'creation' (a new character) or 'reroll'.
+  // The look is always accepted; the name is fixed right after the engine has applied it.
+  globalThis.__dboCreatorName = (a, appearance, kind) => {
+    const name = String((appearance && appearance.name) || '').trim().replace(/\s+/g, ' ');
+    let before = '';
+    try { before = String((mp.get(a, 'appearance') || {}).name || ''); } catch (e) { before = ''; }
+    const problem = isDefault(name) ? (kind === 'reroll' ? 'No name was given.' : null)
+      : problemWith(name) || (takenBy(fold(name), a) ? 'Someone already carries that name.' : null);
+    setTimeout(() => {
+      try {
+        const app = Object.assign({}, mp.get(a, 'appearance') || {});
+        if (!problem) {
+          if (!isDefault(name)) { mp.set(a, INDEX, fold(name)); mp.set(a, REFUSED, null); }
+          return;
+        }
+        if (kind === 'reroll' && before && !isDefault(before)) {
+          app.name = before; mp.set(a, 'appearance', app);
+          personal(a, `The name "${name}" will not do (${problem}) Your character keeps the name ${before}.`);
+          audit(`NAME ${who(a)} reroll name "${name}" refused (${problem}); kept "${before}"`);
+          return;
+        }
+        app.name = 'Prisoner'; mp.set(a, 'appearance', app);
+        mp.set(a, REFUSED, `The name "${name}" will not do: ${problem}`);
+        audit(`NAME ${who(a)} creation name "${name}" refused (${problem}); asked for another`);
+        log(`naming: ${display(a)} typed "${name}" at creation, refused: ${problem}`);
+      } catch (e) { log('naming: creator name check failed', e.message); }
+    }, 0);
+    return problem;
+  };
 
   // Anyone already out in the world under a default name (made before this guard) is asked too
   // Not in the Realm: there the hold in sendToArrival asks, after the deity picker has closed
