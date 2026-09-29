@@ -119,6 +119,7 @@ export class CharacterSelectService extends ClientListener {
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("menuOpen", (e) => this.onMenuOpen(e));
     this.controller.on("menuClose", (e) => this.onMenuClose(e));
+    this.controller.emitter.on("connectionDisconnect", () => this.onDisconnect());
     this.controller.on("update", () => this.onUpdate());
     this.controller.on("tick", () => this.onTick());
     // "update" fires only in-game, so the first one marks the initial spawn.
@@ -292,6 +293,23 @@ export class CharacterSelectService extends ClientListener {
     this.sp.browser.executeJavaScript(
       new FunctionInfo(this.browsersideWidgetSetter).getText(this.menuArgs())
     );
+  }
+
+  // A session that ends while this screen is up never reaches closeMenu, and all of the state below is module-level,
+  // so it would otherwise carry into the next session: a half-confirmed slot deletion above all, and the
+  // __dboCharacterSelectOpen flag, which browserService reads to decide that a main-menu event must be ignored.
+  // Deliberately NOT cleared when the main menu opens: with a blank startmenu.swf the main menu sits open underneath
+  // this screen, and that flag being true at that moment is exactly what keeps badMenuAction from hiding us (652059d5).
+  private onDisconnect(): void {
+    if ((globalThis as any).__dboCharacterSelectOpen !== true && !characters.length
+        && selectedSlot === null && confirmDeleteSlot === null) return;
+    logTrace(this, `character select: clearing session state (slot ${selectedSlot}, delete ${confirmDeleteSlot}), the session ended`);
+    (globalThis as any).__dboCharacterSelectOpen = false;
+    characters = [];
+    maxCharacters = 3;
+    selectedSlot = null;
+    confirmDeleteSlot = null;
+    this.menuOpen = false;
   }
 
   private closeMenu(): void {
