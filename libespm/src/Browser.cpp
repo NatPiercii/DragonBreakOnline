@@ -48,6 +48,7 @@ struct Browser::Impl
   std::vector<const RecordHeader*> keywords;
   std::vector<const RecordHeader*> factions;
   std::vector<const RecordHeader*> quests;
+  std::vector<const RecordHeader*> shouts;
   std::vector<const RecordHeader*> worlds;
   std::vector<const RecordHeader*> cells;
   std::vector<const RecordHeader*> activationChildren;
@@ -140,8 +141,11 @@ const std::vector<const RecordHeader*>& Browser::GetRecordsByType(
   if (!std::strcmp(type, espm::CELL::kType)) {
     return pImpl->cells;
   }
+  if (!std::strcmp(type, "SHOU")) {
+    return pImpl->shouts;
+  }
   throw std::runtime_error("GetRecordsByType currently supports only REFR, "
-                           "COBJ, ENCH, KYWD, FACT, QUST, WRLD and CELL "
+                           "COBJ, ENCH, KYWD, FACT, QUST, WRLD, CELL and SHOU "
                            "records");
 }
 
@@ -286,6 +290,12 @@ bool Browser::ReadAny(const GroupStack* parentGrStack)
 
     if (utils::Is<espm::QUST>(t)) {
       pImpl->quests.push_back(recHeader);
+    }
+
+    // No espm::SHOU class: the server only needs the records (their SNAM word
+    // spells, ActionListener's IsShoutWordSpell)
+    if (t == "SHOU") {
+      pImpl->shouts.push_back(recHeader);
     }
 
     if (utils::Is<espm::WRLD>(t)) {
