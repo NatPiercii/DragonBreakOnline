@@ -28,7 +28,14 @@ export function closeWidget(sp: Sp, widgetId: number): void {
 // forced focus, so a stale entry in badMenusOpen never mattered, and now it decides. liveBlockingMenus asks the
 // engine which of them are really open and prunes the rest, and Main Menu is never counted - with a blank
 // startmenu.swf the main menu sits open underneath our own screen, and character select would defer to it for ever.
+//
+// The handover is deferred by one frame (the menu is still tearing down inside menuClose), so by the time it runs the
+// world may have moved on: the panel may have closed, another panel may have taken focus already, another blocking menu
+// may have opened (Container right after Book), or the interface may have been hidden. A generation counter, bumped
+// whenever the wish is cancelled or superseded, plus a re-check of the live state, means the callback can only ever
+// finish the handover it was actually scheduled for.
 let focusWanted = false;
+let focusGeneration = 0;
 
 /**
  * @param alwaysFocus for a panel that IS the screen - character select - which must never wait for anything.
@@ -49,21 +56,43 @@ export function openFormMenu(sp: Sp, setter: () => void, args: Record<string, un
   }
   if (blocking.length > 0) {
     focusWanted = true;
+    focusGeneration++;     // this panel's wish supersedes any older one still pending
     logTrace("widgetMenuUtil", `panel deferring focus, still open: ${blocking.join(", ")}`);
     return;
   }
   focusWanted = false;
+  focusGeneration++;       // focus taken here and now: cancel a handover scheduled for an earlier panel
   sp.browser.setFocused(true);
 }
 
 /** Called when the last live blocking menu closes. Gives a panel opened behind it the cursor it asked for. */
-export function takeDeferredFocus(sp: Sp, closed?: string): void {
+export function takeDeferredFocus(sp: Sp, controller: CombinedController, closed?: string): void {
   if (!focusWanted) return;
+  const mine = focusGeneration;
   focusWanted = false;
   logTrace("widgetMenuUtil", `panel taking deferred focus after ${closed || "a menu"} closed`);
-  // On the next update, not inside the menuClose handler: taking CEF focus while a Scaleform menu is still tearing
-  // down is the one genuinely new operation in this change, and there is no reason to do it a frame early.
+
   once("update", () => {
+    if (focusGeneration !== mine) {
+      logTrace("widgetMenuUtil", "handover cancelled (panel closed or superseded)");
+      return;
+    }
+    let blocking: string[] = [];
+    try {
+      blocking = controller.lookupListener(BrowserService).liveBlockingMenus();
+    } catch (e) {
+      blocking = [];
+    }
+    if (blocking.length > 0) {
+      focusWanted = true;    // same generation, so the next close finishes it
+      logTrace("widgetMenuUtil", `handover cancelled (${blocking.join(", ")} opened), waiting again`);
+      return;
+    }
+    if (isUiHidden(controller)) {
+      focusWanted = true;
+      logTrace("widgetMenuUtil", "handover cancelled (interface hidden), waiting again");
+      return;
+    }
     try {
       sp.browser.setVisible(true);
       sp.browser.setFocused(true);
@@ -74,6 +103,7 @@ export function takeDeferredFocus(sp: Sp, closed?: string): void {
 /** A panel that closes stops wanting focus, so a menu closing later does not hand it to nothing. */
 export function forgetDeferredFocus(): void {
   focusWanted = false;
+  focusGeneration++;       // cancels a handover already scheduled for this panel
 }
 
 // Data-only re-push for an already open menu; never touches visibility or focus

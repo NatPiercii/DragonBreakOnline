@@ -143,7 +143,7 @@ export class BrowserService extends ClientListener {
       if (live.length === 0 && !this.uiHidden) {
         this.sp.browser.setVisible(true);
         // A panel opened while that menu held the keyboard deferred its focus rather than stealing it; it gets it now
-        takeDeferredFocus(this.sp, e.name);
+        takeDeferredFocus(this.sp, this.controller, e.name);
       }
     }
 
