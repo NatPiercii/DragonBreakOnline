@@ -178,6 +178,26 @@ ok(statuses.length === 0 && unequips().length === 0, 'an ordinary spell neither 
   mp.get = origGet; API.recordOf = origRecordOf;
   process.chdir(here); fs.rmSync(dir, { recursive: true, force: true });
 }
+// staggers and pushes share one immunity (knockImmunitySeconds): two attackers alternating could stagger-lock a player
+{
+  reset(); pushes.length = 0;
+  const c = load();
+  c.onAttempt(1, 2, SWORD, 20, { power: true }, 1);
+  ok(staggers() === 1, 'a power attack staggers');
+  c.onSpellHit(9, 2, UF3);
+  ok(pushes.length === 0, "a shout's push right after a stagger is shrugged off");
+  globalThis.__dboCombat.get(2).staggerAt = Date.now() - 3100;
+  c.onSpellHit(9, 2, UF3);
+  ok(pushes.length === 1, '...and lands once the immunity is over');
+  // the attacker's own stagger cooldown cleared, as for a second attacker
+  calls.length = 0; globalThis.__dboCombat.get(1).causedStaggerAt = 0;
+  c.onAttempt(1, 2, SWORD, 20, { power: true }, 1);
+  ok(staggers() === 0, 'a power stagger right after the push is shrugged off');
+  globalThis.__dboCombat.get(1).causedStaggerAt = 0;
+  globalThis.__dboCombat.get(2).pushedAt = Date.now() - 3100;
+  c.onAttempt(1, 2, SWORD, 20, { power: true }, 1);
+  ok(staggers() === 1, '...and lands once the immunity is over');
+}
 // spell hits: one per caster, target and spell every spellHitMinMs (combat review, 2026-09-29)
 {
   reset(); globalThis.__dboSpellHitAt = undefined;
