@@ -1,5 +1,38 @@
 [
   {
+    "title": "Fairer Fights, Champions and Mining",
+    "date": "2026-09-29",
+    "version": "Server update",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Combat",
+        "items": [
+          "After you are staggered or shoved, you cannot be staggered or shoved again for 3 seconds, so two attackers can no longer keep you reeling."
+        ]
+      },
+      {
+        "heading": "Champions",
+        "items": [
+          "A champion now pays one reward per kill, shared between the fighters by the damage each dealt, with one gem roll. A group earns a bonus on top, up to twice a solo kill."
+        ]
+      },
+      {
+        "heading": "Mining, woodcutting and reading",
+        "items": [
+          "A mined seam rests for 45 minutes and a chopping block for 10 after someone works it, for everyone.",
+          "Walking away from a mining, chopping or reading round now counts like a failed one, with the same short wait."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Pressing X on a player who has logged out now says they are gone, instead of asking you to get closer."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Hunting, Dungeons, Combat and Fair Play",
     "date": "2026-09-29",
     "version": "Server update",
