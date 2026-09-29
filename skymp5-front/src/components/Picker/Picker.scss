@@ -1,0 +1,41 @@
+// The in-page dropdown (Picker.tsx): the button keeps the caller's class, the list opens under it
+.dbo-picker {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+.dbo-picker__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  &:disabled { cursor: default; opacity: 0.5; }
+}
+.dbo-picker__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbo-picker__arrow { opacity: 0.7; font-size: 0.8em; }
+.dbo-picker__list {
+  position: absolute;
+  z-index: 10000;
+  top: 100%;
+  left: 0;
+  min-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 2px 0 0;
+  padding: 2px 0;
+  list-style: none;
+  background: rgba(8, 25, 28, 0.97);
+  border: 1px solid rgba(143, 211, 208, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+.dbo-picker__option {
+  padding: 4px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #d7e3e3;
+  &:hover { background: rgba(143, 211, 208, 0.16); }
+  &--selected { color: #e8d6a0; font-weight: bold; }
+}

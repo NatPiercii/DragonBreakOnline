@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Picker } from '../../components/Picker/Picker';
 
 // The Realm and War tabs of the faction panel (server realm.js sends `realm` with the panel). The map colours every
 // point by the nearest land marker, the rule the server uses, so a border moves when a marker changes hands.
@@ -208,9 +209,8 @@ const CapitalControl = ({ lead, realm, act, busy }: { lead: RealmData['leads'][n
       {blocked ? <div className="war__line war__line--dim">{blocked}</div> : (
         <div className="war__actions">
           {choices.length > 0 && <>
-            <select className="faction__rank" value={pick} onChange={(e) => setPick(e.target.value)}>
-              {choices.map((c) => <option key={c.id} value={c.id}>{c.name}{c.id === lead.capital ? ' (now)' : ''}</option>)}
-            </select>
+            <Picker className="faction__rank" value={pick} onChange={setPick}
+              options={choices.map((c) => ({ value: c.id, label: c.name + (c.id === lead.capital ? ' (now)' : '') }))} />
             <button className="faction__button" disabled={busy || !pick || pick === lead.capital} onClick={() => act('dbo:realmCapital', lead.id, pick)}>Make it the capital</button>
           </>}
           {lead.canSetHere && <button className="faction__button" disabled={busy} onClick={() => act('dbo:realmCapital', lead.id, 'here')}>Make where I stand our seat</button>}
@@ -299,10 +299,8 @@ const WarCard = ({ w, realm, act, busy }: { w: RealmWar; realm: RealmData; act: 
       {(leadAtt || leadDef) && w.status !== 'ended' && (
         <div className="war__actions">
           <input className="faction__input faction__input--small" placeholder="Tribute (gold)" value={tribute} onChange={(e) => setTribute(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.stopPropagation()} />
-          <select className="faction__rank" value={payer} onChange={(e) => setPayer(e.target.value as 'me' | 'them')}>
-            <option value="me">we pay</option>
-            <option value="them">they pay</option>
-          </select>
+          <Picker<'me' | 'them'> className="faction__rank" value={payer} onChange={setPayer}
+            options={[{ value: 'me', label: 'we pay' }, { value: 'them', label: 'they pay' }]} />
           <button className="faction__button" disabled={busy} onClick={() => act('dbo:warPeace', w.id, Number(tribute) || 0, payer)}>Offer peace</button>
           <button className="faction__button faction__button--danger" disabled={busy} onClick={() => act('dbo:warSurrender', w.id)}>{leadDef ? 'Surrender' : 'Withdraw'}</button>
         </div>
@@ -328,10 +326,9 @@ const DeclareForm = ({ realm, act, busy }: { realm: RealmData; act: Send; busy: 
     <div className="war war--declare">
       <div className="war__head"><b>Declare war</b></div>
       <div className="war__line">
-        As <select className="faction__rank" value={attacker} onChange={(e) => setAttacker(e.target.value)}>{leads.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
-        {' '}against <select className="faction__rank" value={defender} onChange={(e) => { setDefender(e.target.value); setGoal([]); }}>
-          {owners.map((o) => <option key={o} value={o}>{(realm.territories.find((t) => t.owner === o) || { ownerName: o }).ownerName}</option>)}
-        </select>
+        As <Picker className="faction__rank" value={attacker} onChange={setAttacker} options={leads.map((l) => ({ value: l.id, label: l.name }))} />
+        {' '}against <Picker className="faction__rank" value={defender} onChange={(v) => { setDefender(v); setGoal([]); }}
+          options={owners.map((o) => ({ value: o, label: (realm.territories.find((t) => t.owner === o) || { ownerName: o }).ownerName }))} />
       </div>
       <div className="war__line">The land you mean to take:</div>
       <div className="war__checks">
@@ -373,8 +370,8 @@ const RaidForm = ({ realm, act, busy }: { realm: RealmData; act: Send; busy: boo
       <div className="war__head"><b>Raid</b></div>
       <div className="war__line war__line--dim">No land changes hands. For {R.rules.raidMinutes} minutes your people can break into homes there: each gives up 3 things and 15% of its gold. The defenders need {R.rules.minDefendersOnline} online, and land rests {R.rules.cooldownDays} days between raids.</div>
       <div className="war__actions">
-        As <select className="faction__rank" value={raider} onChange={(e) => setRaider(e.target.value)}>{leads.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
-        raid <select className="faction__rank" value={target} onChange={(e) => setTarget(e.target.value)}>{targets.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.ownerName})</option>)}</select>
+        As <Picker className="faction__rank" value={raider} onChange={setRaider} options={leads.map((l) => ({ value: l.id, label: l.name }))} />
+        raid <Picker className="faction__rank" value={target} onChange={setTarget} options={targets.map((t) => ({ value: t.id, label: `${t.name} (${t.ownerName})` }))} />
         <button className="faction__button faction__button--danger" disabled={busy || !target || !rested} onClick={() => act('dbo:raidStart', raider, target)}>{rested ? 'Send the raid' : 'That land is resting'}</button>
       </div>
     </div>
@@ -406,14 +403,11 @@ const Treaties = ({ realm, act, busy }: { realm: RealmData; act: Send; busy: boo
       ))}
       {leads.length > 0 && (
         <div className="war__actions">
-          As <select className="faction__rank" value={from} onChange={(e) => setFrom(e.target.value)}>{leads.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
-          offer <select className="faction__rank" value={to} onChange={(e) => setTo(e.target.value)}>
-            <option value="">choose a faction</option>
-            {others.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-          peace for <select className="faction__rank" value={weeks} onChange={(e) => setWeeks(Number(e.target.value))}>
-            {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((n) => <option key={n} value={n}>{n} week{n > 1 ? 's' : ''}</option>)}
-          </select>
+          As <Picker className="faction__rank" value={from} onChange={setFrom} options={leads.map((l) => ({ value: l.id, label: l.name }))} />
+          offer <Picker className="faction__rank" value={to} onChange={setTo}
+            options={[{ value: '', label: 'choose a faction' }, ...others.map((f) => ({ value: f.id, label: f.name }))]} />
+          peace for <Picker className="faction__rank" value={weeks} onChange={setWeeks}
+            options={Array.from({ length: max - min + 1 }, (_, i) => min + i).map((n) => ({ value: n, label: `${n} week${n > 1 ? 's' : ''}` }))} />
           <button className="faction__button" disabled={busy || !to} onClick={() => act('dbo:treatyOffer', from, to, weeks)}>Offer a treaty</button>
         </div>
       )}

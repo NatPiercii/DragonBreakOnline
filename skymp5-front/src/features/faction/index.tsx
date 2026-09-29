@@ -5,6 +5,7 @@ import { EconomyData, RealmData, RealmTab, TreasuryTab, WarTab } from './realm';
 // County Bruma's shaded relief from the game's own landscape (server tools/realm-map/render.py, --name bruma): 41 x 41 cells
 // at 256 game units a pixel, pixelX = x / 256 + 96 and pixelY = 1120 - y / 256, so these are its edges in game units
 import realmBruma from '../../img/realm-bruma.png';
+import { Picker } from '../../components/Picker/Picker';
 const BRUMA_MAP = { src: realmBruma, bounds: [-16384, 122880, 143360, 266240] as [number, number, number, number] };
 
 // Faction menu (server guilds.js, F3); actions go back as dbo:faction* events with the menu nonce
@@ -139,9 +140,8 @@ const Faction = ({ data }: { data: FactionData }) => {
                           {m.name} <span className="faction__member-tag">#{m.tag}</span>
                         </span>
                         {f.canSetRank && !mine ? (
-                          <select className="faction__rank" value={m.rank} disabled={busy} onChange={(e) => act('dbo:factionSetRank', f.id, m.actorId, Number(e.target.value))}>
-                            {f.ranks.map((r, i) => <option key={i} value={i}>{r.title}</option>)}
-                          </select>
+                          <Picker className="faction__rank" value={m.rank} disabled={busy} onChange={(v) => act('dbo:factionSetRank', f.id, m.actorId, v)}
+                            options={f.ranks.map((r, i) => ({ value: i, label: r.title }))} />
                         ) : (
                           <span className="faction__member-title">{m.title}</span>
                         )}
