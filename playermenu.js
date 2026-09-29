@@ -156,6 +156,9 @@ module.exports = (api) => {
     // One line per X press on a player: whether a menu went out, or why not (#bugs 'X not worky', 2026-09-26)
     if (!validTarget(a, t)) {
       log(`playerMenu ${display(a)} -> ${t.toString(16)}: refused (${!t || t === a ? 'no target' : !isOnline(t) ? 'target offline' : `${Math.round(distance(a, t))} units away`})`);
+      // A player who logged out stays in the world through the logout grace (5 min): "get closer" sent three players
+      // pressing X on one five and six times in a row (log, 27-29 Sep)
+      if (t && t !== a && !isOnline(t)) return personal(a, 'They have stepped out of the world. Their body stays a short while before it fades.');
       return personal(a, 'Get closer to them first.');
     }
     const sent = openMenu(a, t, 'menu');
