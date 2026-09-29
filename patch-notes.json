@@ -1,5 +1,28 @@
 [
   {
+    "title": "Naming Your Character",
+    "date": "2026-09-29",
+    "version": "Client 0.3.67",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Character creation",
+        "items": [
+          "A character that comes out of creation without a name now gets a panel to name it: type the name and choose Take this name. The panel's text box takes typing even when the game's own name box does not.",
+          "If a name will not do, the panel says why and stays open for another try. Names follow the same rules as character creation and are unique across the realm.",
+          "You leave the Realm once your character is named. Characters already out in the world as \"Prisoner\" are asked too, wherever they stand.",
+          "On an older client, /name in the chat still works the same way."
+        ]
+      },
+      {
+        "heading": "Getting it",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Wisp Stalks and Ayleid Wells",
     "date": "2026-09-29",
     "version": "Server",
