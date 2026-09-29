@@ -45,6 +45,7 @@ import BusinessLedger from './features/businessLedger';
 import RobPrompt from './features/robPrompt';
 import Downed from './features/downed';
 import PlayerMenu from './features/playerMenu';
+import TradeInvite from './features/tradeInvite';
 import { panelScaleOf } from './utils/PanelScale';
 
 const styles = [
@@ -306,6 +307,8 @@ const Constructor = props => {
       return <Downed data={rend} />;
     case 'playerMenu':
       return <PlayerMenu data={rend} />;
+    case 'tradeInvite':
+      return <TradeInvite data={rend} />;
     case 'death':
       return (
         <DeathScreen seconds={rend.seconds} onChoice={rend.onChoice} />

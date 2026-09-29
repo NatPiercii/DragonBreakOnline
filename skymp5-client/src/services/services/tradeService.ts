@@ -602,16 +602,15 @@ export class TradeService extends ClientListener {
     window.skyrimPlatform.widgets.set(others.concat([widget]));
   };
 
+  // The front draws this one (features/tradeInvite): the generic form widget put pale text straight on the game world
+  // and the vanilla crosshair prompt landed between its two buttons.
   private inviteWidgetSetter = () => {
     const widget: any = {
-      type: "form",
+      type: "tradeInvite",
       id: INVITE_WIDGET_ID,
-      caption: "Trade Request",
-      elements: [
-        { type: "text", text: inviteFrom + " wants to trade with you. Press " + inviteKey + " to answer.", tags: [] },
-        { type: "button", text: "Accept", tags: ["ELEMENT_STYLE_MARGIN_EXTENDED"], click: () => window.skyrimPlatform.sendMessage(events.inviteAccept) },
-        { type: "button", text: "Decline", tags: ["ELEMENT_SAME_LINE"], click: () => window.skyrimPlatform.sendMessage(events.inviteDecline) },
-      ],
+      from: inviteFrom,
+      focusKey: inviteKey,
+      events: { accept: events.inviteAccept, decline: events.inviteDecline },
     };
     const others = (window.skyrimPlatform.widgets.get() || []).filter((w: any) => w.id !== INVITE_WIDGET_ID);
     window.skyrimPlatform.widgets.set(others.concat([widget]));
