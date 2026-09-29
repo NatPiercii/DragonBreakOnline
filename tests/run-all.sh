@@ -32,6 +32,7 @@ declare -A NEEDS=(
   [spawn-refill]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-slots]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
+  [capture-leash]=server:skymp5-server/ts/systems/captureSystem.ts
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
