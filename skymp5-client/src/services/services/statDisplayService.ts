@@ -1,4 +1,4 @@
-import { Armor, Game, Weapon } from "skyrimPlatform";
+import { Armor, Game, Menu, Weapon } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
@@ -23,6 +23,15 @@ interface StatItem { id: number; kind: "weapon" | "armor"; skill: string; temper
 const REAPPLY_MS = 5000;
 const MAX_ITEMS = 250;
 
+// The item menus build their cards from the very base forms this service writes to, and the Stats menu reads the combat
+// skills it zeroes, so a pass that ran while one was open would be rewriting records Scaleform is reading. Nothing is
+// written until the last of them closes.
+const GUARDED_MENUS = [
+  Menu.Inventory, Menu.Container, Menu.Barter, Menu.Gift,
+  Menu.Crafting, Menu.Favorites, Menu.Magic, Menu.Book,
+  Menu.Stats,
+];
+
 export class StatDisplayService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
@@ -40,14 +49,41 @@ export class StatDisplayService extends ClientListener {
     this.nextApply = 0;
   }
 
+  // True while any menu that renders what this service writes is up. Asked of the engine per pass: a menu whose close
+  // event never arrived must not hold the writes off for ever.
+  private itemMenuOpen(): string {
+    for (const menu of GUARDED_MENUS) {
+      try {
+        if (this.sp.Ui.isMenuOpen(menu)) return menu;
+      } catch (e) { /* the menu cannot be asked about: treat it as closed */ }
+    }
+    return "";
+  }
+
   // Also on a timer: a skill value set later by the server moves the game's factor
   private onUpdate(): void {
-    if (!this.items.length || Date.now() < this.nextApply) return;
+    if (!this.items.length) return;
+
+    const openMenu = this.itemMenuOpen();
+    if (openMenu) {
+      if (!this.deferred) {
+        this.deferred = true;
+        logTrace(this, `stat display: pass deferred, ${openMenu} is open`);
+      }
+      return;
+    }
+    // A deferred pass runs on the first update after the last guarded menu closes, not at the next timer tick
+    if (!this.deferred && Date.now() < this.nextApply) return;
+    this.deferred = false;
     this.nextApply = Date.now() + REAPPLY_MS;
+
     const player = Game.getPlayer();
     if (!player) return;
     for (const skill of Array.from(new Set(this.items.map((i) => i.skill)))) {
-      try { if (player.getBaseActorValue(skill) !== 0) player.setActorValue(skill, 0); } catch { /* not an actor value */ }
+      // Read before write, like the item numbers below, so a settled game writes nothing. The base value is what is
+      // asked for, because setActorValue writes the base: getActorValue carries buffs and fortify effects, and a
+      // fortified skill on a base of 0 would make this write every pass for no change.
+      try { if (player.getBaseActorValue(skill) !== 0) player.setActorValue(skill, 0); } catch (e) { /* not an actor value */ }
     }
     let changed = 0;
     for (const item of this.items) {
@@ -55,26 +91,25 @@ export class StatDisplayService extends ClientListener {
       try { skill = Number(player.getActorValue(item.skill)) || 0; } catch { continue; }
       const target = Math.round(item.value);
       try {
+        // Looked up by id every pass: a native object does not survive the frame it was made in
         if (item.kind === "weapon") {
           const weapon = Weapon.from(Game.getFormEx(item.id));
           if (!weapon) continue;
           const base = StatDisplayService.bestBase(target, item.temper, 1 + skill / 200, Math.round);
-          if (this.applied.get(item.id) === base) continue;
+          if (weapon.getBaseDamage() === base) continue;   // asked of the form, so a settled pass writes nothing at all
           weapon.setBaseDamage(base);
-          this.applied.set(item.id, base);
           changed++;
         } else {
           const armor = Armor.from(Game.getFormEx(item.id));
           if (!armor) continue;
           const base = StatDisplayService.bestBase(target, item.temper, 1 + 0.4 * skill / 100, Math.ceil);
-          if (this.applied.get(item.id) === base) continue;
+          if (armor.getArmorRating() === base) continue;
           armor.setArmorRating(base);
-          this.applied.set(item.id, base);
           changed++;
         }
-      } catch { /* the form is not loaded here */ }
+      } catch (e) { /* the form is not loaded here */ }
     }
-    if (changed) logTrace(this, `set ${changed} item number(s) to the server's`);
+    if (changed) logTrace(this, `stat display: wrote ${changed} of ${this.items.length}`);
   }
 
   // The whole base (the setters take whole numbers) whose shown value, round or ceil of (base + tempering) x factor,
@@ -90,6 +125,6 @@ export class StatDisplayService extends ClientListener {
   }
 
   private items: StatItem[] = [];
-  private applied = new Map<number, number>();
   private nextApply = 0;
+  private deferred = false;
 }
