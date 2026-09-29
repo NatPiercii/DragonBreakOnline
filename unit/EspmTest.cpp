@@ -24,6 +24,21 @@ TEST_CASE("Hash check", "[espm]")
   }
 }
 
+// ActionListener's IsShoutWordSpell reads every shout in the load order: SHOU
+// was not indexed, so each call threw and the player's shout hit was dropped
+// (2026-09-29)
+TEST_CASE("Lists shouts by type", "[espm]")
+{
+  auto& br = GetEspmLoader().GetBrowser();
+  size_t shouts = 0;
+  for (const auto* perFile : br.GetRecordsByType("SHOU")) {
+    if (perFile) {
+      shouts += perFile->size();
+    }
+  }
+  REQUIRE(shouts > 0);
+}
+
 TEST_CASE("Loads refr from Update.esm", "[espm]")
 {
   auto& br = GetEspmLoader().GetBrowser();
