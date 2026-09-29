@@ -1,6 +1,6 @@
 'use strict'
 /**
- * The MO2 profile's SkyrimPrefs.ini must be a whole prefs file.
+ * The MO2 profile's SkyrimPrefs.ini and Skyrim.ini must be whole files.
  *
  * With no SkyrimPrefs.ini in Documents\My Games to copy (the game never started the normal way, or Documents holds only
  * Vortex leftovers), the launcher's own writes built a skeleton of about 25 keys, and the engine ran on its built-in
@@ -8,6 +8,11 @@
  * skeleton profile ini is now built from a full prefs file (the player's own, the game's template, or one of the game's
  * presets), and a skeleton's keys are written back on top, so the player's resolution, window mode, FOV and graphics
  * choices stay. The skeleton itself is kept beside it.
+ *
+ * Skyrim.ini had the same gap: it was seeded only from Documents\My Games, so without one the profile's held just the
+ * launcher's writes ([Bethesda.net], the FOV keys in [Display]). The launcher never writes [Archive] and every Skyrim.ini
+ * the game or its launcher made has it, so a profile Skyrim.ini without [Archive] is rebuilt from the player's own or
+ * the game's Skyrim_Default.ini the same way.
  */
 const fs = require('fs')
 const path = require('path')
@@ -64,6 +69,15 @@ function allKeys(parsed) {
   return out
 }
 
+// Replaces dest with source, writes every key dest held back on top and keeps the old file beside it
+function rebuildFrom(dest, current, sourceFile, now) {
+  const aside = `${dest}.incomplete-${stamp(now)}`
+  fs.copyFileSync(dest, aside)
+  fs.copyFileSync(sourceFile, dest)
+  ini.write(dest, allKeys(current))
+  return path.basename(aside)
+}
+
 /**
  * Seeds a missing profile prefs file, or rebuilds a skeleton one. Returns the lines to log (none when the file is fine).
  *   dest            the profile's skyrimprefs.ini
@@ -93,15 +107,54 @@ function ensureProfilePrefs(dest, { documentsPrefs = null, gameDirs = [], forced
   if (!source.file) {
     return [`profile SkyrimPrefs.ini is incomplete (${what}) and no full prefs file was found to rebuild it`, ...skipped]
   }
-  const aside = `${dest}.incomplete-${stamp(now)}`
-  fs.copyFileSync(dest, aside)
-  fs.copyFileSync(source.file, dest)
-  ini.write(dest, allKeys(current))
+  const aside = rebuildFrom(dest, current, source.file, now)
   return [
     `rebuilt profile SkyrimPrefs.ini (${what}) from ${source.file}, keeping its own ${currentKeys} keys; ` +
-      `the old file is kept as ${path.basename(aside)}`,
+      `the old file is kept as ${aside}`,
     ...skipped,
   ]
 }
 
-module.exports = { ensureProfilePrefs, keyCount, MIN_KEYS }
+function hasArchive(parsed) {
+  return 'Archive' in parsed
+}
+
+/**
+ * Seeds a missing profile Skyrim.ini, or rebuilds one without [Archive]. Returns the lines to log.
+ *   dest          the profile's skyrim.ini
+ *   documentsIni  Documents\My Games\...\Skyrim.ini, or null
+ *   gameDirs      game folders holding Skyrim_Default.ini (the game copy, the original install)
+ */
+function ensureProfileSkyrimIni(dest, { documentsIni = null, gameDirs = [], now = new Date() } = {}) {
+  const exists = fs.existsSync(dest)
+  const current = exists ? ini.read(dest) : null
+  if (current && hasArchive(current)) return []
+
+  const list = [documentsIni, ...[...new Set(gameDirs.filter(Boolean))].map(d => path.join(d, 'Skyrim_Default.ini'))]
+  const seen = []
+  let source = null
+  for (const file of [...new Set(list.filter(Boolean))]) {
+    if (!fs.existsSync(file)) continue
+    if (hasArchive(ini.read(file))) { source = file; break }
+    seen.push(file)
+  }
+  const skipped = seen.length ? [`no [Archive] in ${seen.join(', ')}`] : []
+  if (!exists) {
+    if (!source) return ['no source Skyrim.ini found to seed', ...skipped]
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.copyFileSync(source, dest)
+    return [`seeded profile Skyrim.ini from ${source}`, ...skipped]
+  }
+  const keys = keyCount(current)
+  if (!source) {
+    return [`profile Skyrim.ini has no [Archive] (${keys} keys) and no full Skyrim.ini was found to rebuild it`, ...skipped]
+  }
+  const aside = rebuildFrom(dest, current, source, now)
+  return [
+    `rebuilt profile Skyrim.ini (${keys} keys, no [Archive]) from ${source}, keeping its own ${keys} keys; ` +
+      `the old file is kept as ${aside}`,
+    ...skipped,
+  ]
+}
+
+module.exports = { ensureProfilePrefs, ensureProfileSkyrimIni, keyCount, MIN_KEYS }

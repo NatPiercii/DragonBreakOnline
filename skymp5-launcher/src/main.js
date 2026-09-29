@@ -793,15 +793,8 @@ function applyForcedServerDefaults(gamePath) {
   // Profile ini: kill the Bethesda.net platform, which drives the "AE content available for download" prompt and the CC news.
   try {
     const dest = path.join(mo2.getProfileDir(), 'skyrim.ini')
-    if (!fs.existsSync(dest)) {
-      // Seed from the player's own ini first so a minimal profile ini never hides their settings (language, archives, etc).
-      const prefs = findOriginalPrefsIni()
-      const src = prefs ? path.join(path.dirname(prefs), 'Skyrim.ini') : null
-      if (src && fs.existsSync(src)) {
-        fs.mkdirSync(path.dirname(dest), { recursive: true })
-        fs.copyFileSync(src, dest)
-      }
-    }
+    // Seed from the player's own ini first so a minimal profile ini never hides their settings (language, archives, etc).
+    seedProfileSkyrimIni(gamePath)
     const cur = ini.read(dest)['Bethesda.net'] || {}
     if (String(cur['bEnablePlatform'] || '') !== '0') {
       ini.write(dest, { 'Bethesda.net': { bEnablePlatform: '0' } })
@@ -1445,13 +1438,17 @@ const MYGAMES_VARIANTS = [
   'Skyrim Special Edition MS',
 ]
 
-function findOriginalPrefsIni() {
+function findOriginalIni(name) {
   const docs = app.getPath('documents')
   for (const v of MYGAMES_VARIANTS) {
-    const p = path.join(docs, 'My Games', v, 'SkyrimPrefs.ini')
+    const p = path.join(docs, 'My Games', v, name)
     if (fs.existsSync(p)) return p
   }
   return null
+}
+
+function findOriginalPrefsIni() {
+  return findOriginalIni('SkyrimPrefs.ini')
 }
 
 const NEVER_LAUNCHED_ERROR =
@@ -1535,6 +1532,20 @@ function seedProfilePrefs(skyrimPath) {
     for (const line of lines) log(`[isolated] ${line}`)
   } catch (err) {
     log(`[isolated] could not seed SkyrimPrefs.ini: ${err.message}`)
+  }
+}
+
+// The profile Skyrim.ini the same way: the player's own, else the game's Skyrim_Default.ini; one without [Archive]
+// (the launcher's writes only) is rebuilt, keeping its keys (prefsSeed.js)
+function seedProfileSkyrimIni(gamePath) {
+  try {
+    const lines = prefsSeed.ensureProfileSkyrimIni(skyrimIniPath(), {
+      documentsIni: findOriginalIni('Skyrim.ini'),
+      gameDirs: [gamePath, store.get('skyrimPath')],
+    })
+    for (const line of lines) log(`[defaults] ${line}`)
+  } catch (err) {
+    log(`[defaults] could not seed Skyrim.ini: ${err.message}`)
   }
 }
 
@@ -2094,8 +2105,9 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
     if (wiped.length > 0) log(`[launch] cleaned stray overwrite items: ${wiped.join(', ')}`)
     // Data\Platform files a game run left in overwrite outrank the game folder's (the page, the session)
     for (const line of mo2.cleanOverwritePlatform()) log(`[launch] ${line}`)
-    // Profiles made before 2.1.34 with no prefs to copy hold only the launcher's own writes
+    // Profiles made before 2.1.34 with no inis to copy hold only the launcher's own writes
     seedProfilePrefs(store.get('skyrimPath') || skyrimPath)
+    seedProfileSkyrimIni(skyrimPath)
     const removed = mo2.enforceModRules()
     if (removed.length > 0) log(`[launch] disabled unauthorised mods: ${removed.join(', ')}`)
   }
