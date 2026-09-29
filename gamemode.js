@@ -1272,14 +1272,6 @@ const sendToArrival = (a) => {
     log(`sent ${display(a)} from the Realm to the arrival`);
   } catch (e) { log('send to arrival failed', e.message); }
 };
-// ---- a name of its own before the world (server\naming.js): /name for a character left as "Prisoner" ----------------
-try {
-  const NAMING_JS = path.resolve('naming.js');
-  delete require.cache[NAMING_JS];
-  require(NAMING_JS)({ mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation: (a) => creationPending(a),
-    onUi, openWidget, closeWidget, inHub: (a) => inHubForName(a) });
-  globalThis.__dboNamed = (a) => { if (inHubForName(a)) sendToArrival(a); };
-} catch (e) { log('naming.js failed to load:', e.stack || e.message); globalThis.__dboNameHold = null; globalThis.__dboNamed = null; }
 function inHubForName(a) { try { return String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase() === String(HUB.cellOrWorldDesc).toLowerCase(); } catch (e) { return false; } }
 // Choosing a god is the last creation step (prayer.js): the picker opens in the hub and the move to the arrival waits
 // for a choice or Not yet. A picker that never answers must not strand anyone in the Realm, whose gates teleport nobody.
@@ -1828,6 +1820,16 @@ const onUi = (event, fn) => {
   list.push(fn);
   globalThis.__dboUiEvents.set(event, list);
 };
+// naming.js loads here, below onUi, openWidget and closeWidget: above them it ran while they were still in their
+// temporal dead zone, threw, and /name was gone (2026-09-29 05:06Z; tests/gamemode-load-order-harness.js checks every load)
+// ---- a name of its own before the world (server\naming.js): /name for a character left as "Prisoner" ----------------
+try {
+  const NAMING_JS = path.resolve('naming.js');
+  delete require.cache[NAMING_JS];
+  require(NAMING_JS)({ mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation: (a) => creationPending(a),
+    onUi, openWidget, closeWidget, inHub: (a) => inHubForName(a) });
+  globalThis.__dboNamed = (a) => { if (inHubForName(a)) sendToArrival(a); };
+} catch (e) { log('naming.js failed to load:', e.stack || e.message); globalThis.__dboNameHold = null; globalThis.__dboNamed = null; }
 // ---- the player panel (U) ----------------------------------------------------------------------------------------------
 // The same topics /help lists, as a window: a topic added to HELP_GROUPS reaches both. Each entry is a command with one
 // line of what it does; a few ask for words in a box before they are sent; the rest of a topic is plain lines, because
