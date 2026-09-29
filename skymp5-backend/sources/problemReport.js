@@ -5,12 +5,17 @@
 const crypto  = require('crypto')
 const express = require('express')
 const config  = require('../config')
-const { scrub, dropUiLines } = require('./scrubLog')
+const { scrub, dropUiLines, keepEnds } = require('./scrubLog')
 const { postReport } = require('./discord/errorReport')
 const audit = require('./discord/audit')
 
 const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log'], ['gameLog', 'skyrim-platform.log'],
-                    ['skseLog', 'skse64.log']]
+                    ['skseLog', 'skse64.log'], ['csLog', 'CommunityShaders.log'], ['crashLog', 'crash.log']]
+// Community Shaders logs the settings overrides it applied at startup and its shader compiles as they run, so both
+// ends of its log are kept, [head, tail] bytes as the launcher sends them
+// A Crash Logger log names the crash at its head (the exception, the call stack); launcher 2.1.34 sends it condensed
+// to 48 KB, so it passes whole, and anything longer keeps its head
+const BOTH_ENDS = { csLog: [32 * 1024, 32 * 1024], crashLog: [56 * 1024, 8 * 1024] }
 // Only these context fields are ever repeated back into Discord, and each is scrubbed like a log
 const CONTEXT_FIELDS = ['launcherVersion', 'clientVersion', 'filesVersion', 'os', 'gameVersion',
                         'installDir', 'step', 'error', 'mo2Enabled', 'freeSpaceGb']
@@ -87,9 +92,11 @@ async function submit(reporter, body) {
   for (const [field, filename] of LOG_FIELDS) {
     const raw = text(body[field])
     if (!raw) continue
-    const cleaned = scrub(dropUiLines(raw))
+    const ends = BOTH_ENDS[field]
+    // Scrubbed whole before the cut, so the cap measures what is posted
+    const cleaned = ends ? scrub(dropUiLines(raw), Infinity) : scrub(dropUiLines(raw))
     redactions += cleaned.redactions
-    files.push({ name: filename, text: cleaned.text })
+    files.push({ name: filename, text: ends ? keepEnds(cleaned.text, ...ends) : cleaned.text })
   }
   if (shot.data) files.push({ name: 'screenshot.jpg', data: shot.data, type: 'image/jpeg' })
   const note = text(body.note).trim().slice(0, NOTE_CHARS)
