@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
+import { Picker } from '../../components/Picker/Picker';
 
 // F7 admin panel additions (2026-09-16): player punishments and bans, skill tiers, item spawning, powers.
 // Every action goes out as admin::action <action> <JSON fields>; the server checks rank and target.
@@ -63,9 +64,8 @@ export const TargetPicker = ({ targets, value, onChange, label }: {
   return (
     <label className="admin-panel__picker">
       <span className="admin-panel__label">{label || 'Acting on'}</span>
-      <select className="admin-panel__select" value={value} onChange={(e) => onChange(e.target.value)}>
-        {targets.map((t) => <option key={t.id || 'me'} value={t.id}>{t.label}</option>)}
-      </select>
+      <Picker className="admin-panel__select" value={value} onChange={onChange}
+        options={targets.map((t) => ({ value: t.id, label: t.label }))} />
     </label>
   );
 };
@@ -268,10 +268,8 @@ export const ItemsTab = ({ events, itemsVersion, targets }: {
       <div className="admin-panel__itempane">
         <div className="admin-panel__filters">
           <input className="admin-panel__search" placeholder="Search every category" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select className="admin-panel__select" value={mod} onChange={(e) => setMod(e.target.value)}>
-            <option value="">All mods</option>
-            {plugins.map((pl) => <option key={pl} value={pl}>{pl.replace(/\.(esp|esm|esl)$/i, '')}</option>)}
-          </select>
+          <Picker className="admin-panel__select" value={mod} onChange={setMod}
+            options={[{ value: '', label: 'All mods' }, ...plugins.map((pl) => ({ value: pl, label: pl.replace(/\.(esp|esm|esl)$/i, '') }))]} />
         </div>
         <div className="admin-panel__list admin-panel__list--items">
           {!categories ? <div className="admin-panel__empty">Loading items</div> : rows.length === 0 ? <div className="admin-panel__empty">No items</div> : (
@@ -580,9 +578,8 @@ export const PlaceTab = ({ events, placements, meta, results, sets }: { events: 
         </div>
         <div className="admin-panel__actions">
           <input className="admin-panel__search" placeholder="Name for a new set" value={setNameInput} maxLength={40} onChange={(e) => setSetNameInput(e.target.value)} />
-          <select className="admin-panel__select" value={setRadius} onChange={(e) => setSetRadius(Number(e.target.value))}>
-            {SET_RADII.map((m) => <option key={m} value={m}>within {m} m</option>)}
-          </select>
+          <Picker className="admin-panel__select" value={setRadius} onChange={setSetRadius}
+            options={SET_RADII.map((m) => ({ value: m, label: `within ${m} m` }))} />
           <Button text="Save placements near me" width={230} height={32} disabled={!setNameInput.trim()} onClick={() => adminRequest(events, 'adminPlaceSetSave', { name: setNameInput.trim(), radius: setRadius })} />
         </div>
       </div>
@@ -596,9 +593,8 @@ export const PlaceTab = ({ events, placements, meta, results, sets }: { events: 
         </div>
         <div className="admin-panel__actions">
           <span className="admin-panel__label">{bandNpc ? bandNpc.name : 'No NPC picked in the Catalog'}</span>
-          <select className="admin-panel__select" value={bandCount} onChange={(e) => setBandCount(Number(e.target.value))}>
-            {WARBAND_COUNTS.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
+          <Picker className="admin-panel__select" value={bandCount} onChange={setBandCount}
+            options={WARBAND_COUNTS.map((n) => ({ value: n, label: String(n) }))} />
           <Button text="Raise" width={96} height={32} disabled={!bandNpc || !mayPlace} onClick={() => bandNpc && warband(`raise ${bandNpc.desc} ${bandCount}`)} />
           <Button text="Show band" width={120} height={32} onClick={() => warband('')} />
         </div>
@@ -623,10 +619,8 @@ export const PlaceTab = ({ events, placements, meta, results, sets }: { events: 
         {viewBar}
         <div className="admin-panel__filters">
           <input className="admin-panel__search" placeholder="Search every NPC and object" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select className="admin-panel__select" value={mod} onChange={(e) => setMod(e.target.value)}>
-            <option value="">All mods</option>
-            {(meta ? meta.plugins : []).map((pl) => <option key={pl} value={pl}>{pl.replace(/\.(esp|esm|esl)$/i, '')}</option>)}
-          </select>
+          <Picker className="admin-panel__select" value={mod} onChange={setMod}
+            options={[{ value: '', label: 'All mods' }, ...(meta ? meta.plugins : []).map((pl) => ({ value: pl, label: pl.replace(/\.(esp|esm|esl)$/i, '') }))]} />
         </div>
         <div className="admin-panel__list admin-panel__list--items">
           {!meta || !current ? <div className="admin-panel__empty">{meta ? 'Searching' : 'Loading the catalog'}</div> : rows.length === 0 ? <div className="admin-panel__empty">Nothing matches</div> : (
