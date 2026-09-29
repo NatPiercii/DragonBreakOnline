@@ -99,11 +99,21 @@ module.exports = (api) => {
     };
   };
 
+  // Each write has its own temp file: a reload's first write, the minute timer and /stats can be in flight together,
+  // and with one shared name the first rename took the file from under the others (ENOENT in the log, 2026-09-27).
+  // A write that finishes after a newer one has landed is dropped rather than put back an older snapshot.
+  const W = globalThis.__dboWorldStatsWrites || (globalThis.__dboWorldStatsWrites = { seq: 0, landed: 0 });
   const write = () => {
     const s = snapshot();
-    fs.writeFile(OUT + '.tmp', JSON.stringify(s, null, 1), (e) => {
-      if (e) return log('server-stats.json write failed', e.message);
-      fs.rename(OUT + '.tmp', OUT, (e2) => { if (e2) log('server-stats.json rename failed', e2.message); });
+    const seq = ++W.seq;
+    const tmp = `${OUT}.${seq}.tmp`;
+    fs.writeFile(tmp, JSON.stringify(s, null, 1), (e) => {
+      if (e) { fs.unlink(tmp, () => {}); return log('server-stats.json write failed', e.message); }
+      if (seq < W.landed) return fs.unlink(tmp, () => {});
+      fs.rename(tmp, OUT, (e2) => {
+        if (e2) { fs.unlink(tmp, () => {}); return log('server-stats.json rename failed', e2.message); }
+        W.landed = Math.max(W.landed, seq);
+      });
     });
     return s;
   };
