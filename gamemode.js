@@ -2878,6 +2878,8 @@ const zoneOfActor = (a) => {
 // ---- /unstuck: walk out to the respawn temple of the area you are in ------------------------------
 const UNSTUCK = Object.assign({ cooldownMinutes: 25, pvpCombatSeconds: 60 }, cfg.unstuck || {});
 const pvpAt = globalThis.__dboPvpAt = globalThis.__dboPvpAt || new Map(); // actorId -> last PvP hit given or taken
+// actorId -> last landed blow a player gave or took, NPCs included: rest.js keeps Sleep waiting its combatSeconds after one
+const combatAt = globalThis.__dboCombatAt = globalThis.__dboCombatAt || new Map();
 registerChatCommand('unstuck', (a) => {
   const admin = isAdmin(a);
   try { if (mp.get(a, 'isDead')) return personal(a, 'You cannot use /unstuck while dead.'); } catch (e) { /* alive */ }
@@ -3921,6 +3923,8 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
 
   // PvP combat: both sides are marked, so /unstuck cannot be used to leave a fight
   if (dmg > 0 && agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0) { const now = Date.now(); pvpAt.set(agg, now); pvpAt.set(tgt, now); }
+  // Any combat, NPCs included: Sleep refuses for 5 minutes after it (rest.js), as a logout leaves the body that long
+  if (dmg > 0 && agg !== tgt) { const now = Date.now(); if (profileOf(agg) >= 0) combatAt.set(agg >>> 0, now); if (profileOf(tgt) >= 0) combatAt.set(tgt >>> 0, now); }
   // Any landed blow, PvE included, puts the players in it in combat for the armour swap timer
   if (dmg > 0 && agg !== tgt && armourSwap) armourSwap.onHit(agg, tgt);
   // Fire on a vampire, silver on a werewolf: note the health now, the extra comes off in onHitDamage

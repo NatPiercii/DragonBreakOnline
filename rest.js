@@ -71,6 +71,9 @@ module.exports = (api) => {
     holdShare: 0.1,
     // Seconds after PvP damage given or taken during which the extra heal pauses.
     pvpPauseSeconds: 60,
+    // Sleep takes the body out of the world at once, skipping the 5 minutes spawn.ts keeps a logged-out body in it
+    // (logoutGraceMs), so it waits as long after any fight, NPCs included (2026-09-29 review, R5)
+    combatSeconds: 300,
   }, cfg.rest || {});
 
   const WIDGET_ID = 41;
@@ -313,12 +316,29 @@ module.exports = (api) => {
     personal(a, 'This bed is for rent again.');
   };
 
+  // Robbing or being robbed: a demand waiting on its answer, or a contest still open (robbery.js keys both by victim)
+  const inRobbery = (a) => {
+    const R = globalThis.__dboRobbery; if (!R) return false;
+    const me = a >>> 0;
+    for (const [v, p] of (R.pending instanceof Map ? R.pending : [])) if ((v >>> 0) === me || (p && (p.robber >>> 0) === me)) return true;
+    for (const [v, c] of (R.contests instanceof Map ? R.contests : [])) if (c && Date.now() < Number(c.until) && ((v >>> 0) === me || (c.robber >>> 0) === me)) return true;
+    return false;
+  };
   const sleep = (a, bed) => {
     if (get(a, 'isDead', false)) return personal(a, 'You cannot sleep while dead.');
     const r = get(a, 'private.restrained', null);
     if (r && (r.boundHands || r.carried || r.captorActorId)) return personal(a, 'You cannot sleep while restrained or carried.');
     const pvp = globalThis.__dboPvpAt instanceof Map ? globalThis.__dboPvpAt.get(a >>> 0) || 0 : 0;
     if (Date.now() - pvp < CFG.pvpPauseSeconds * 1000) return personal(a, 'You cannot sleep in the middle of a fight.');
+    // Any fight, NPCs included (gamemode.js stamps __dboCombatAt on every landed blow given or taken): Sleep would take
+    // the body out of the world at once, where a logout leaves it 5 minutes (2026-09-29 review: an escape from a fight)
+    const fought = Date.now() - (globalThis.__dboCombatAt instanceof Map ? globalThis.__dboCombatAt.get(a >>> 0) || 0 : 0);
+    if (fought < CFG.combatSeconds * 1000) {
+      const mins = Math.ceil((CFG.combatSeconds * 1000 - fought) / 60000);
+      return personal(a, `Your blood is still up from the fight. You can sleep in ${mins} minute${mins === 1 ? '' : 's'}.`);
+    }
+    if (typeof globalThis.__dboStruggling === 'function' && globalThis.__dboStruggling(a)) return personal(a, 'You cannot sleep while you struggle against your bonds.');
+    if (inRobbery(a)) return personal(a, 'You cannot sleep in the middle of a robbery.');
     set(a, 'private.dboSleep', { at: Date.now(), bed: bed >>> 0 });
     audit(`REST ${who(a)} went to sleep in bed ${bedDesc(bed)}${where(bed)}`);
     const reason = `You lie down and sleep. Stay away at least ${CFG.minOfflineMinutes} minutes to wake Well Rested.`;
