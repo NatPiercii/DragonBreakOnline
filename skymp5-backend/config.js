@@ -130,6 +130,11 @@ module.exports = {
   discordSuggestionsChannelId: process.env.DISCORD_SUGGESTIONS_CHANNEL_ID || '',
   // Bug-tracker forum (formerly #error-report): each launcher, game or website problem report opens its own thread
   discordErrorForumChannelId: process.env.DISCORD_ERROR_FORUM_CHANNEL_ID || '',
+  // The PUBLIC bug forum. A launcher report opens a short thread here as well - what the player said and nothing
+  // else - while the logs stay in the staff-only forum above. Players can then follow their own report; their logs
+  // are not readable by everyone. Empty means no public thread is opened at all, which is the behaviour until this
+  // is set. (Nate, 2026-09-28: reports should reach #bugs; the logs stay where they were.)
+  discordBugForumChannelId: process.env.DISCORD_BUG_FORUM_CHANNEL_ID || '',
   // JSON map {tag name: tag id} for that forum, written once its tags exist; reports go untagged without it
   bugTagsFile: process.env.BUG_TAGS_FILE || '/etc/dragonbreak/bug-tags.json',
 

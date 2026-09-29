@@ -128,12 +128,21 @@ async function submit(reporter, body) {
   entry.promise = (async () => {
     try {
       const thread = await postReport({ title: name, summary: lines.join('\n'), files, tags: SOURCE_TAGS[source] })
+      // Opened after the staff thread and never allowed to fail the report: the public thread is a courtesy, the
+      // staff one is the thing that must not be lost.
+      let publicThread = null
+      try {
+        publicThread = await postPublicReport({ title: name, summary: publicLines.join('\n') })
+      } catch (err) {
+        console.error(`[report] ${reportId} filed, but its public thread could not be opened:`, err.message)
+      }
       entry.state = 'done'
       entry.at = Date.now()
       audit.log(`REPORT problem ${SOURCES[source]} from ${name}`
                 + `${reporter.discordId ? ` (discord ${reporter.discordId})` : ''}`
-                + `${reporter.profileId != null ? ` (profile ${reporter.profileId})` : ''}${thread ? ` -> thread ${thread}` : ''}`)
-      return { status: 200, json: { ok: true, reportId, thread } }
+                + `${reporter.profileId != null ? ` (profile ${reporter.profileId})` : ''}${thread ? ` -> thread ${thread}` : ''}`
+                + `${publicThread ? ` (public ${publicThread})` : ''}`)
+      return { status: 200, json: { ok: true, reportId, thread, publicThread } }
     } catch (err) {
       seenReports.delete(dedupeKey)
       console.error(`[report] ${reportId} from ${name} could not be filed:`, err.message)

@@ -143,4 +143,24 @@ async function postReport({ title, summary, files = [], tags = [] }) {
   return thread && thread.id
 }
 
-module.exports = { postReport, tagIds }
+// The same report as a short PUBLIC thread: what the player said, and nothing they did not type. No attachments,
+// because the logs carry file paths, mod lists and system detail, and this forum is readable by every player.
+// Returns the thread id, or null when no public forum is configured (the default).
+//
+// dbdiscord's bug mirror copies each new #bugs thread NOT started by the bot into the staff tracker, so a thread
+// opened here is not mirrored and nothing is filed twice.
+async function postPublicReport({ title, summary }) {
+  const channelId = config.discordBugForumChannelId
+  if (!channelId || !config.discordBotToken) return null
+  const payload = {
+    name: String(title || 'Problem report').slice(0, 100),
+    message: {
+      content: String(summary || '').slice(0, 1900),
+      allowed_mentions: { parse: [] },
+    },
+  }
+  const thread = await createThread(channelId, payload, [], Date.now() + REPORT_DEADLINE_MS)
+  return thread && thread.id
+}
+
+module.exports = { postReport, postPublicReport, tagIds }
