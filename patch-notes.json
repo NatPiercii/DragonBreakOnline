@@ -28,7 +28,7 @@
       {
         "heading": "Trading",
         "items": [
-          "A trade request is now a proper card near the top of the screen: who wants to trade, a clear Accept and Decline, and the key that gives you the cursor. It no longer sits under the Interact prompt."
+          "A trade request is now a proper card near the top of the screen: who wants to trade, a clear Accept and Decline, and the key that gives you the cursor. Escape hands the cursor back to the game. It no longer sits under the Interact prompt."
         ]
       },
       {
