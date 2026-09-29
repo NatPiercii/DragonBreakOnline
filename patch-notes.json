@@ -1,5 +1,19 @@
 [
   {
+    "title": "Venison at Last",
+    "date": "2026-09-29",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Hunting",
+        "items": [
+          "Pressing E on a dead deer or other wild animal now hands you its meat, antlers and anything else it carried, after you skin it or when it has no hide. Before, the loot window could show nothing even though the meat was there."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dragon Armor and Silver",
     "date": "2026-09-29",
     "version": "Server update",
