@@ -261,6 +261,46 @@ test('symbols and the OS name that a scrub rule would change are removed and fla
   assert.ok(!JSON.stringify(res.report).includes('John'))
 })
 
+test('names that reach a title or key and that a scrub rule would change are removed and flagged; such an error type is refused', () => {
+  const HEX = 'e0123456789abcdef0123456789abcdef'
+  const leaked = report => /abcdefghij|0123456789abcdef0123/.test(JSON.stringify(report))
+  const client = load('script-error-on-update')
+  client.error.frames[0].fn = 'Bearer abcdefghijklmnop'
+  client.error.frames[1].fn = 'Object.<anonymous>'
+  client.error.frames[1].file = `a${HEX}.js`
+  client.error.event = HEX
+  let res = accepted(client)
+  assert.deepEqual(res.report.error.frames.map(f => [f.fn, f.file]), [[null, null], ['Object.<anonymous>', null]])
+  assert.equal(res.report.error.event, null)
+  assert.deepEqual(res.invalid, ['error.event', 'error.frames[0].fn', 'error.frames[1].file'])
+  assert.ok(!leaked(res.report))
+
+  const logged = load('script-error-logged')
+  logged.error.service = HEX
+  res = accepted(logged)
+  assert.equal(res.report.error.service, null)
+  assert.deepEqual(res.invalid, ['error.service'])
+
+  const typed = load('script-error-on-update')
+  typed.error.type = `a${HEX}`
+  assert.deepEqual(refused(typed).problems, ['error.type: invalid'])
+
+  const crash = load('crash-gpu-driver')
+  crash.crash.faultModule = 'Bearer abcdefghijklmnop'
+  crash.crash.frames[0].module = `${HEX}.dll`
+  res = accepted(crash)
+  assert.equal(res.report.crash.faultModule, null)
+  assert.equal(res.report.crash.frames[0].module, null)
+  assert.deepEqual(res.invalid, ['crash.faultModule', 'crash.faultOffset', 'crash.frames[0].module'])
+  assert.ok(!leaked(res.report))
+
+  const exit = load('crash-nolog-fastfail')
+  exit.exit.event.module = 'token abcdefghijklmnop'
+  res = accepted(exit)
+  assert.equal(res.report.exit.event.module, null)
+  assert.deepEqual(res.invalid, ['exit.event.module'])
+})
+
 test('a fault offset without a fault module is cleared', () => {
   const body = load('crash-no-module')
   body.crash.faultOffset = '0x1234'

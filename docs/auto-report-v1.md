@@ -800,7 +800,7 @@ Version fields, ids, build ids, numbers, enums, `fn`, modules and symbols are va
 - a missing required field, or a wrong type;
 - an unknown `kind`, `where`, `detectedBy` or `source`;
 - a `sender` that does not match the kind;
-- a `reportId`, version, build id, `type` or `exception` that does not match its pattern;
+- a `reportId`, version, build id, `type` or `exception` that does not match its pattern, or an `error.type` that passes its pattern but that a rule below would change;
 - `attempt` outside 1-5;
 - more than 12 `error.frames`, or more than 24 `crash.frames`.
 
@@ -816,7 +816,7 @@ The `consent` object is stored with each report.
 
 **Removed and flagged `invalidField`, not refused:**
 - An optional or nullable field that fails its rule, such as `fn`, a frame's `module` or `symbol`, `faultSymbol`, `crashLoggerVersion`, `versions.files`, `service` or `site`.
-- A frame's `symbol`, `faultSymbol` or `versions.os` that passes its pattern but that any §2.11 rule without run-time values (S3-S20) would change: a path with a user name, an email or an IP address. These values reach group titles and keys, which outlive the reports.
+- A name that reaches a group title or key, or `versions.os`, that passes its pattern but that any §2.11 rule without run-time values (S3-S20) would change: a path with a user name, an email, an IP address, a token or a long hex run. These values reach group titles and keys, which outlive the reports. The names are `error.frames[].fn` and `.file`, `error.event`, `error.service`, a crash frame's `module` and `symbol`, `crash.faultModule`, `crash.faultSymbol` and `exit.event.module`.
 - A frame or `site` whose line is below 1 after the probe correction.
 
 Every `invalidField` report counts toward the invalid-payload mute (design §7), and so does every 422 `schema`. A 422 `consent` or `contractVersion` does not count: it is a stale setting or an old sender, not a forgery.
@@ -1946,6 +1946,7 @@ Review source: **B** is the correctness, privacy and conformance review of backe
 - §3.3: the join is not built yet; it comes after P1 and P2.
 - O1: what an unguarded `CF-Connecting-IP` allows.
 - §5.4: the map and PDB guard refuses only with `AUTO_REPORT_SYMBOL_GUARD=true`, since the client bundle still carries an inline map (merge review, 2026-09-29).
+- §2.12: the scrub check on names covers every name that reaches a title or key (`fn`, `file`, `event`, `service`, `module`), not only symbols, and refuses an `error.type` it would change (merge review, 2026-09-29).
 
 **Fixture status (§8):**
 - In `test/fixtures/auto-report/` now: the S0 cases (CRLF, multi-line `LoadUrl`, a partial first line, empty payloads and breaks inside a line, other log formats), the 2,000-character line, the S0 timing units, `menu open Sleep/Wait Menu`, FF-range names refused, and the rc2 `componentStack` in `ui-error-boundary.json`. `gameLog` values use the real `[hh:mm:ss:mmm] ` prefix.

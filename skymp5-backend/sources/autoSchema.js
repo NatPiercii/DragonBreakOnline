@@ -122,7 +122,7 @@ const oneOf = list => v => list.includes(v)
 const matches = re => v => typeof v === 'string' && re.test(v)
 // Parsers return the value to store, or undefined when it is invalid
 const check = ok => v => (ok(v) ? v : undefined)
-// Pattern-checked text that a scrub rule would change is invalid, so it never reaches a signature or a title
+// Pattern-checked text that a scrub rule would change is invalid; every name that reaches a signature or a title goes through it
 const plain = re => v => matches(re)(v) && scrub(v, { field: 'symbol' }).text === v
 const position = v => (isCount(get(v, 'line')) && isCount(get(v, 'col')) ? { line: v.line, col: v.col } : undefined)
 const setIf = (out, key, value) => { if (value !== undefined) out[key] = value }
@@ -171,7 +171,7 @@ function list(st, obj, key, path, max) {
 }
 
 function eventRule(where) {
-  if (where === 'on' || where === 'once') return matches(PATTERNS.event)
+  if (where === 'on' || where === 'once') return plain(PATTERNS.event)
   if (where === 'hook') return oneOf(HOOKS)
   if (where === 'http') return oneOf(['get', 'post'])
   return () => false
@@ -230,10 +230,10 @@ function errorFrame(st, f, path) {
     return null
   }
   return {
-    fn: loose(st, f, 'fn', `${path}.fn`, check(matches(PATTERNS.fn))),
+    fn: loose(st, f, 'fn', `${path}.fn`, check(plain(PATTERNS.fn))),
     line,
     col,
-    file: loose(st, f, 'file', `${path}.file`, check(matches(PATTERNS.file))),
+    file: loose(st, f, 'file', `${path}.file`, check(plain(PATTERNS.file))),
   }
 }
 
@@ -251,7 +251,7 @@ function readError(st, e, meta) {
   const where = need(st, e, 'where', 'error.where', check(oneOf(WHERE[meta.source])))
   out.where = where
   out.event = nullable(st, e, 'event', 'error.event', check(eventRule(where)))
-  out.service = loose(st, e, 'service', 'error.service', check(matches(PATTERNS.service)))
+  out.service = loose(st, e, 'service', 'error.service', check(plain(PATTERNS.service)))
   if (out.service !== null && where !== 'logged') {
     invalid(st, 'error.service')
     out.service = null
@@ -259,7 +259,7 @@ function readError(st, e, meta) {
   const handled = need(st, e, 'handled', 'error.handled', check(isBool))
   out.handled = where === 'logged'
   if (handled !== undefined && handled !== out.handled) invalid(st, 'error.handled')
-  out.type = need(st, e, 'type', 'error.type', check(matches(PATTERNS.type)))
+  out.type = need(st, e, 'type', 'error.type', check(plain(PATTERNS.type)))
   out.message = need(st, e, 'message', 'error.message', check(isString))
   const frames = list(st, e, 'frames', 'error.frames', ERROR_FRAMES_MAX)
   out.frames = frames ? frames.map((f, i) => errorFrame(st, f, `error.frames[${i}]`)).filter(Boolean) : []
@@ -283,7 +283,7 @@ function windowsEvent(st, v) {
   if (id !== 1000 && id !== 1002) return undefined
   return {
     id,
-    module: loose(st, v, 'module', 'exit.event.module', check(matches(PATTERNS.module))),
+    module: loose(st, v, 'module', 'exit.event.module', check(plain(PATTERNS.module))),
     moduleVersion: loose(st, v, 'moduleVersion', 'exit.event.moduleVersion', check(matches(PATTERNS.version))),
     exceptionCode: loose(st, v, 'exceptionCode', 'exit.event.exceptionCode', check(matches(PATTERNS.exceptionCode))),
     offset: loose(st, v, 'offset', 'exit.event.offset', check(matches(PATTERNS.offset))),
@@ -315,7 +315,7 @@ function crashFrame(st, f, path) {
     return null
   }
   return {
-    module: loose(st, f, 'module', `${path}.module`, check(matches(PATTERNS.module))),
+    module: loose(st, f, 'module', `${path}.module`, check(plain(PATTERNS.module))),
     offset: loose(st, f, 'offset', `${path}.offset`, check(matches(PATTERNS.offset))),
     symbol: loose(st, f, 'symbol', `${path}.symbol`, check(plain(PATTERNS.symbol))),
     alid: loose(st, f, 'alid', `${path}.alid`, check(isUint)),
@@ -327,7 +327,7 @@ function readCrash(st, c, meta) {
   setIf(out, 'logName', may(st, c, 'logName', 'crash.logName', check(matches(PATTERNS.logName))))
   setIf(out, 'crashLoggerVersion', may(st, c, 'crashLoggerVersion', 'crash.crashLoggerVersion', check(matches(PATTERNS.crashLoggerVersion))))
   out.exception = need(st, c, 'exception', 'crash.exception', check(matches(PATTERNS.exception)))
-  out.faultModule = nullable(st, c, 'faultModule', 'crash.faultModule', check(matches(PATTERNS.module)))
+  out.faultModule = nullable(st, c, 'faultModule', 'crash.faultModule', check(plain(PATTERNS.module)))
   out.faultOffset = nullable(st, c, 'faultOffset', 'crash.faultOffset', check(matches(PATTERNS.offset)))
   if (out.faultModule === null && out.faultOffset !== null) {
     invalid(st, 'crash.faultOffset')
