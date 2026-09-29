@@ -30,6 +30,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cwchar>
 #include <functional>
@@ -804,12 +805,27 @@ private:
   // reported with where the main thread is.
   void Diagnose()
   {
-    if (game && game != diagWindow && IsWindow(game)) {
+    // The game window stays unsubclassed unless SKYMP_WATCH_WNDPROC is set
+    // (2026-09-29: with it on, keys and typed names went missing in RaceMenu
+    // until an alt-tab, and it was the only change on the message path). One
+    // window at most: the previous procedure is a single slot.
+    if (game && !diagWindow && IsWindow(game)) {
       diagWindow = game;
-      WatchWindowMessages(game);
+      if (WatchWindowMessagesWanted()) {
+        WatchWindowMessages(game);
+      } else {
+        spdlog::info("InputDiag: the game window's messages are not watched "
+                     "(SKYMP_WATCH_WNDPROC is not set)");
+      }
     }
     Summarize();
     WatchFrames();
+  }
+
+  static bool WatchWindowMessagesWanted()
+  {
+    const char* value = std::getenv("SKYMP_WATCH_WNDPROC");
+    return value && value[0] == '1';
   }
 
   static inline std::atomic<WNDPROC> diagPrevProc{ nullptr };

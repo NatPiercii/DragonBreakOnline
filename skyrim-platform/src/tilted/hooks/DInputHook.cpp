@@ -382,6 +382,89 @@ HRESULT ReadMouseData(IDirectInputDevice8A* device, DWORD dataSize,
   return hr;
 }
 
+// The game's own buffered keyboard reads (2026-09-29: Nate's RaceMenu got no
+// key at all until an alt-tab, the "keyboard dead until alt-tab" of
+// 2026-09-27). Failed reads and their recovery are logged. When keys went down
+// in the device state at least twice in two seconds while the game's reads
+// returned no items, the keyboard is re-acquired, as an alt-tab does, and the
+// first read with items afterwards is logged. CheckDeafKeyboard covers the
+// other case, a device state that hears nothing either.
+bool NoteGameKeyboardRead(HRESULT hr, DWORD items, const uint8_t* state)
+{
+  static uint8_t was[256] = { 0 };
+  static DWORD failures = 0;
+  static HRESULT lastFailure = DI_OK;
+  static ULONGLONG windowStart = 0;
+  static int downs = 0;
+  static DWORD windowItems = 0;
+  static int heals = 0;
+  static ULONGLONG lastHeal = 0;
+  static bool awaitingItems = false;
+  const ULONGLONG now = GetTickCount64();
+
+  if (FAILED(hr)) {
+    if (failures++ == 0 || hr != lastFailure) {
+      spdlog::info("InputDiag: the game's keyboard read failed {:#x}",
+                   static_cast<uint32_t>(hr));
+    }
+    lastFailure = hr;
+  } else if (failures > 0) {
+    spdlog::info("InputDiag: the game's keyboard reads again after {} failed "
+                 "read(s)",
+                 failures);
+    failures = 0;
+    lastFailure = DI_OK;
+  }
+  if (SUCCEEDED(hr) && items > 0 && awaitingItems) {
+    awaitingItems = false;
+    spdlog::info("InputDiag: the game's keyboard reads return keys again {} "
+                 "ms after re-acquire #{}",
+                 now - lastHeal, heals);
+  }
+
+  int newDowns = 0;
+  if (state) {
+    for (int i = 0; i < 256; ++i) {
+      const uint8_t down = state[i] & 0x80;
+      if (down && !was[i]) {
+        ++newDowns;
+      }
+      was[i] = down;
+    }
+  }
+  if (!windowStart) {
+    windowStart = now;
+  }
+  downs += newDowns;
+  // Flushes and peeks count too: items there mean the buffer still fills
+  if (SUCCEEDED(hr)) {
+    windowItems += items;
+  }
+  if (now - windowStart < 2000) {
+    return false;
+  }
+  const bool deaf = downs >= 2 && windowItems == 0 && SUCCEEDED(hr);
+  const int windowDowns = downs;
+  const ULONGLONG windowMs = now - windowStart;
+  windowStart = now;
+  downs = 0;
+  windowItems = 0;
+  if (!deaf || now - lastHeal < 2000) {
+    return false;
+  }
+  ++heals;
+  lastHeal = now;
+  awaitingItems = true;
+  if (heals <= 10 || heals % 50 == 0) {
+    spdlog::info("InputDiag: keys went down {} time(s) in the last {} ms but "
+                 "the game's keyboard reads returned nothing (browser focused "
+                 "{}), re-acquiring the keyboard (#{})",
+                 windowDowns, windowMs, CEFUtils::DInputHook::ChromeFocus(),
+                 heals);
+  }
+  return true;
+}
+
 void ProcessKeyboardData(uint8_t* apData)
 {
   if (!g_listener)
@@ -720,6 +803,8 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
   }
 
   if (instanceInfo.guidInstance == GUID_SysKeyboard) {
+    // What the game itself got, before the browser's focus hides it below
+    const DWORD gameItems = SUCCEEDED(result) && outDataLen ? *outDataLen : 0;
     uint8_t rawData[256];
     HRESULT hr = IDirectInputDevice8_GetDeviceState(m_pDevice, 256, rawData);
     // The browser is the only keyboard consumer that does not acquire before reading
@@ -727,6 +812,14 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
       LogAcquireFailure(m_pDevice, hr);
       if (IDirectInputDevice8_Acquire(m_pDevice) == DI_OK) {
         hr = IDirectInputDevice8_GetDeviceState(m_pDevice, 256, rawData);
+      }
+    }
+    if (NoteGameKeyboardRead(result, gameItems,
+                             hr == DI_OK ? rawData : nullptr)) {
+      IDirectInputDevice8_Unacquire(m_pDevice);
+      const HRESULT reacquired = IDirectInputDevice8_Acquire(m_pDevice);
+      if (reacquired != DI_OK) {
+        LogAcquireFailure(m_pDevice, reacquired);
       }
     }
     if (hr == DI_OK) {
