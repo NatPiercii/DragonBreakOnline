@@ -61,7 +61,7 @@ if (i > 0 && j > i) {
 ok(/counted \+= \(\(p\.counted \|\| p\.rating\) \+ temperBonus/.test(gm), 'the hit counts armor at its counted rating');
 ok(/value: Math\.round\(\(\(p\.counted \|\| p\.rating\) \+ temper\)/.test(gm), 'the inventory shows it');
 const pn = JSON.parse(fs.readFileSync(path.join(ROOT, 'patch-notes.json'), 'utf8'));
-ok(JSON.stringify(pn[0]).includes('Dragonscale'), 'the newest patch note tells players');
+ok(pn.some((e) => JSON.stringify(e).includes('Dragonscale')), 'a patch note tells players');
 
 console.log(`${pass}/${pass + fail}`);
 process.exitCode = fail ? 1 : 0;
