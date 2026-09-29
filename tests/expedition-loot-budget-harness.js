@@ -65,7 +65,7 @@ const measure = (d, diffId, claims = CLAIMS) => {
   };
   let body = 0xff000500;
   for (let c = 0; c < claims; c++) {
-    setHome(); props.delete(`${A}|private.dungeonCooldowns`);
+    setHome(); props.delete(`${A}|private.dungeonCooldowns`); if (globalThis.__dboDungeonAccountRest) globalThis.__dboDungeonAccountRest.clear();
     if (d.expedition) { globalThis.__dboDungeonActivate(idOf('boardref'), A); fire('expeditionPick', A, [d.raw.id]); }
     else globalThis.__dboDungeonActivate(idOf(e0.outsideDesc), A);
     const pend = globalThis.__dboDungeons.pending.get(A);
