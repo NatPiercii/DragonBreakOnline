@@ -103,4 +103,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Open the portable install (base) folder in the OS file manager
   openInstallFolder: () => ipcRenderer.invoke('install:openFolder'),
+
+  // Skyrim Version panel: the downgrade to 1.6.1170 through Steam's own depot download (docs/DOWNGRADE_1_6_1170.md)
+  downgradeStatus:        () => ipcRenderer.invoke('downgrade:status'),
+  downgradeOpenConsole:   () => ipcRenderer.invoke('downgrade:openConsole'),
+  downgradeInstall:       () => ipcRenderer.invoke('downgrade:install'),
+  downgradeSetAutoUpdate: () => ipcRenderer.invoke('downgrade:setAutoUpdate'),
+  downgradeRestore:       () => ipcRenderer.invoke('downgrade:restore'),
+  downgradeSteamVerify:   () => ipcRenderer.invoke('downgrade:steamVerify'),
+  onDowngradeShow:     (cb) => ipcRenderer.on('downgrade:show', () => cb()),
+  onDowngradeProgress: (cb) => ipcRenderer.on('downgrade:progress', (_e, p) => cb(p)),
 })

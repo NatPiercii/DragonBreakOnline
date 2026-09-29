@@ -1703,3 +1703,26 @@ button.hotkey-btn--capturing {
 .voice-meter__line { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--lorkhan-red); box-shadow: 0 0 6px rgba(214, 84, 84, 0.8); }
 .setting-range { width: 100%; accent-color: rgb(var(--accent-rgb)); }
 .setting-value { float: right; color: rgb(var(--accent-rgb)); }
+
+/* Skyrim Version panel (downgrade to 1.6.1170) */
+.downgrade-body { display: flex; flex-direction: column; gap: 10px; }
+.downgrade-summary { color: var(--silver); font-size: calc(15px * var(--text-scale)); line-height: 1.4; }
+.downgrade-depots { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
+.downgrade-depot {
+  display: grid;
+  grid-template-columns: 1.6em minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--glass-border);
+  background: rgba(8, 25, 28, 0.5);
+}
+.downgrade-depot-n { grid-row: 1 / span 2; color: var(--parchment-dim); text-align: center; }
+.downgrade-code { font-family: Consolas, 'Courier New', monospace; user-select: all; word-break: break-all; color: var(--parchment); }
+.downgrade-depot-state { grid-column: 2 / span 2; font-size: calc(13px * var(--text-scale)); color: var(--parchment-dim); }
+.downgrade-depot[data-state="done"] .downgrade-depot-state { color: var(--aqua-fixed); }
+.downgrade-depot[data-state="wrong"] .downgrade-depot-state,
+.downgrade-depot[data-state="stalled"] .downgrade-depot-state,
+.downgrade-depot[data-state="unsafe"] .downgrade-depot-state { color: var(--lorkhan-red); }
+.downgrade-progress { height: 64px; }

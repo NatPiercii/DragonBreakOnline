@@ -173,3 +173,24 @@ the `files[]` list written by the backend's `npm run merge`.
 ## Server lock
 
 If the backend sets `locked: true`, the Play button is disabled for users whose Discord ID is not in `lockedAllowList`. Used during maintenance or testing periods.
+
+## Skyrim Version panel: checks before the first release (2.1.35)
+
+The launcher downgrades a Steam Skyrim to 1.6.1170 itself (`src/downgrade.js`, design in `docs/DOWNGRADE_1_6_1170.md`),
+using Steam's own `download_depot` under the player's account. Three things can only be confirmed on a Windows PC with
+Steam; Nate or Jake, please run them once before 2.1.35 ships:
+
+1. **Reference list.** After the three `download_depot` commands have finished, run
+   `node tools/depot-reference.js "<Steam>\steamapps\content\app_489830"` and send its output. It gives each depot's
+   file list and sizes plus the exe's sha256 for `src/downgrade-1.6.1170.json`. It copies no files. Until then a
+   depot counts as downloaded once its folder stops changing for 20 s. The exe version and the ten master hashes are
+   checked either way; the BSAs get no size check.
+2. **How a download looks while it runs.** Watch `steamapps\content\app_489830\depot_489831` during the download:
+   - Do its files appear at full size straight away (pre-allocated), or grow?
+   - Does `Steam\logs\console_log.txt` get a line when a depot finishes? If so, paste that line; it can become the
+     first sign of Done.
+3. **Steam's update setting.**
+   - With Steam closed, press Set It For Me in the panel, start Steam, and check that Skyrim Special Edition >
+     Properties > Updates shows "Only update this game when I launch it". Check that `"AutoUpdateBehavior" "1"` is
+     still in `steamapps\appmanifest_489830.acf` after Steam has run.
+   - Check that Let Steam Repair Skyrim (`steam://validate/489830`) opens Steam's file check.

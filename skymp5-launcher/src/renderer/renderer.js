@@ -1908,3 +1908,221 @@ loadModlist()
 setInterval(checkServerStatus, 10_000)
 setInterval(checkLauncherUpdate, 10_000)
 refreshPlayState()
+
+// Skyrim Version panel (docs/DOWNGRADE_1_6_1170.md). It opens by itself when Skyrim is not 1.6.1170, and from
+// Settings > Repair. While it is open it asks main every 2 s how the three depot downloads stand.
+const modalDowngrade = document.getElementById('modal-downgrade')
+const dgEl = id => document.getElementById(id)
+let downgradePoll = null
+let downgradeWorking = false
+let downgradeAsking = false
+
+const formatSize = n => n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${Math.round(n / 1024 ** 2)} MB`
+const DEPOT_STATE_TEXT = {
+  waiting:     () => 'not downloaded yet.',
+  downloading: d => `downloading… ${formatSize(d.bytes)} so far.`,
+  stalled:     () => 'nothing has arrived for two minutes. If Steam\'s console shows an error, or nothing at all, paste this command again.',
+  done:        () => 'done ✓',
+  wrong:       d => `this is not the 1.6.1170 download (${d.detail}). Check the command and paste it again.`,
+  unsafe:      d => `the download folder holds something unexpected (${d.detail}).`,
+}
+
+function openDowngrade() {
+  modalDowngrade.hidden = false
+  refreshDowngrade()
+  if (!downgradePoll) downgradePoll = setInterval(refreshDowngrade, 2000)
+}
+
+function closeDowngrade() {
+  modalDowngrade.hidden = true
+  clearInterval(downgradePoll)
+  downgradePoll = null
+}
+
+dgEl('downgrade-close').addEventListener('click', closeDowngrade)
+modalDowngrade.addEventListener('click', e => { if (e.target === modalDowngrade) closeDowngrade() })
+dgEl('btn-skyrim-version').addEventListener('click', openDowngrade)
+window.electronAPI.onDowngradeShow(openDowngrade)
+
+// [headline, detail] for the panel's top
+function downgradeSummary(s) {
+  if (!s.ok) return [s.error, null]
+  if (s.action === 'downgrade' && s.blocking) {
+    return [`Your Skyrim is version ${s.version}. DragonBreak runs on ${s.required}, so it has to be downgraded before you can play.`,
+      `The launcher does it with Steam's own download of the ${s.required} files, under your own Steam account. Skyrim folder: ${s.gameDir}`]
+  }
+  if (s.action === 'downgrade') {
+    return [`Your Skyrim program is ${s.version}, but its data files (${s.newerData.join(', ')}) come from a newer Steam update.`,
+      `Downgrading puts back the matching ${s.required} files. You can still press PLAY meanwhile. Skyrim folder: ${s.gameDir}`]
+  }
+  if (s.action === 'gog') {
+    return [`Your GOG Skyrim is version ${s.version}. DragonBreak runs on ${s.required} for GOG.`,
+      'Roll it back in GOG Galaxy (Manage installation > Configure > Version), then press PLAY again.']
+  }
+  if (s.action === 'refuse') {
+    return [`Your ${s.edition} Skyrim is version ${s.version}, and it cannot be switched to the version DragonBreak uses.`,
+      s.edition === 'Microsoft Store'
+        ? 'The Microsoft Store (Game Pass) edition keeps its files protected, and SKSE cannot run on it. DragonBreak needs the Steam or GOG edition.'
+        : 'DragonBreak needs the Steam or GOG edition.']
+  }
+  if (s.copyStale) {
+    return [`Your Skyrim folder is on ${s.version}, but the launcher's game copy is not.`,
+      'Press Repair Game Copy in Settings > Repair to bring it across.']
+  }
+  return [`Your Skyrim is ${s.version || s.required}, the version DragonBreak uses.`, null]
+}
+
+// Depot rows are built once and updated in place, so a Copy button's feedback survives the polling
+function renderDepots(depots) {
+  const box = dgEl('downgrade-depots')
+  if (box.children.length !== depots.length) {
+    box.replaceChildren(...depots.map((d, i) => {
+      const row = document.createElement('div')
+      row.className = 'downgrade-depot'
+      const n = document.createElement('span')
+      n.className = 'downgrade-depot-n'
+      n.textContent = String(i + 1)
+      const code = document.createElement('code')
+      code.className = 'downgrade-code'
+      code.textContent = d.command
+      const copy = document.createElement('button')
+      copy.className = 'btn-detect-vortex'
+      copy.textContent = 'Copy'
+      copy.addEventListener('click', async () => {
+        if (!(await window.electronAPI.copyText(d.command))) return
+        copy.textContent = 'Copied'
+        setTimeout(() => { copy.textContent = 'Copy' }, 1500)
+      })
+      const state = document.createElement('span')
+      state.className = 'downgrade-depot-state'
+      row.append(n, code, copy, state)
+      return row
+    }))
+  }
+  depots.forEach((d, i) => {
+    const row = box.children[i]
+    row.dataset.state = d.state
+    const holds = d.holds.charAt(0).toUpperCase() + d.holds.slice(1)
+    row.querySelector('.downgrade-depot-state').textContent = `${holds}: ${DEPOT_STATE_TEXT[d.state](d)}`
+  })
+}
+
+function renderAfter(s) {
+  const show = s.ok && s.action === 'none' && (s.acf || s.runtime)
+  dgEl('downgrade-after').hidden = !show
+  if (!show) return
+  const acfText = dgEl('downgrade-acf-text')
+  const acfRow = dgEl('downgrade-acf-row')
+  const button = dgEl('downgrade-set-autoupdate')
+  if (!s.acf || s.acf.missing) {
+    acfText.textContent = 'Steam does not manage this Skyrim folder, so it will not update it.'
+    acfRow.hidden = true
+  } else if (s.acf.value === '1') {
+    acfText.textContent = 'Steam updates Skyrim only when you start it from Steam ✓. DragonBreak starts it through MO2, never through Steam, so it stays on 1.6.1170.'
+    acfRow.hidden = true
+  } else {
+    acfText.textContent = 'Steam still updates Skyrim by itself, which would undo the downgrade. Close Steam (Steam > Exit) and press Set It For Me, ' +
+      'or in Steam: right-click Skyrim Special Edition > Properties > Updates > "Only update this game when I launch it".'
+    acfRow.hidden = false
+    if (!downgradeWorking) {
+      button.disabled = s.steamRunning
+      button.textContent = s.steamRunning ? 'Close Steam First' : 'Set It For Me'
+    }
+  }
+  const runtime = dgEl('downgrade-runtime-text')
+  runtime.hidden = !s.runtime
+  if (s.runtime) {
+    const missing = []
+    if (!s.runtime.skse) missing.push('SKSE for 1.6.1170 (Repair SKSE)')
+    if (!s.runtime.addressLibrary) missing.push('Address Library for 1.6.1170 (Repair Modlist)')
+    runtime.textContent = missing.length
+      ? `Not in place yet: ${missing.join(' and ')}. Installing the modpack puts ${missing.length > 1 ? 'them' : 'it'} there, ` +
+        `or use ${missing.length > 1 ? 'those buttons' : 'that button'} in Settings > Repair.`
+      : 'SKSE and Address Library for 1.6.1170 are in place ✓'
+  }
+}
+
+async function refreshDowngrade() {
+  if (downgradeAsking || modalDowngrade.hidden) return
+  downgradeAsking = true
+  let s
+  try { s = await window.electronAPI.downgradeStatus() } catch (err) { s = { ok: false, error: err.message } } finally { downgradeAsking = false }
+  const [headline, detail] = downgradeSummary(s)
+  dgEl('downgrade-summary').textContent = headline
+  dgEl('downgrade-detail').hidden = !detail
+  dgEl('downgrade-detail').textContent = detail || ''
+  const steps = s.ok && s.action === 'downgrade'
+  dgEl('downgrade-steps').hidden = !steps
+  if (steps) {
+    renderDepots(s.depots)
+    const ready = s.depots.every(d => d.state === 'done')
+    if (!downgradeWorking) dgEl('downgrade-install').disabled = !ready || s.busy
+  }
+  renderAfter(s)
+  dgEl('downgrade-back').hidden = !(s.ok && (s.backup || s.acf))
+  dgEl('downgrade-restore').hidden = !(s.ok && s.backup)
+  if (s.ok && s.backup) {
+    dgEl('downgrade-restore').title = `Backup ${s.backup.name}: ${s.backup.replaced} file(s) to put back, ${s.backup.added} to remove`
+  }
+}
+
+function downgradeLine(text, replaceLast) {
+  const pre = dgEl('downgrade-progress')
+  pre.hidden = false
+  const lines = pre.textContent ? pre.textContent.split('\n') : []
+  if (replaceLast && lines.length) lines[lines.length - 1] = text
+  else lines.push(text)
+  pre.textContent = lines.slice(-40).join('\n')
+  pre.scrollTop = pre.scrollHeight
+}
+
+const DOWNGRADE_STEP_TEXT = {
+  verify:  'Checking the downloads',
+  copy:    'Backing up and copying',
+  refresh: 'Updating the game copy',
+  restore: 'Putting files back',
+}
+let downgradeLastStep = null
+window.electronAPI.onDowngradeProgress(p => {
+  const text = `${DOWNGRADE_STEP_TEXT[p.step] || p.step} ${p.index}/${p.total} (${p.file})`
+  downgradeLine(text, downgradeLastStep === p.step)
+  downgradeLastStep = p.step
+})
+
+async function downgradeAction(button, busyLabel, call, done) {
+  if (downgradeWorking) return
+  downgradeWorking = true
+  downgradeLastStep = null
+  const label = button.textContent
+  button.disabled = true
+  button.textContent = busyLabel
+  try {
+    const r = await call()
+    if (!r || r.cancelled) return
+    downgradeLine(r.ok ? done(r) : r.error, false)
+  } catch (err) {
+    downgradeLine(err.message, false)
+  } finally {
+    downgradeWorking = false
+    button.textContent = label
+    button.disabled = false
+    downgradeLastStep = null
+    refreshDowngrade()
+  }
+}
+
+dgEl('downgrade-open-console').addEventListener('click', () => window.electronAPI.downgradeOpenConsole())
+dgEl('downgrade-install').addEventListener('click', e => downgradeAction(e.currentTarget, 'Installing…',
+  () => window.electronAPI.downgradeInstall(),
+  r => `Skyrim is now ${r.version}. ${r.replaced} file(s) replaced (the old ones are in the backup), ${r.added} added` +
+    `${r.refreshed ? `, ${r.refreshed} updated in the game copy` : ''}.` +
+    (r.steamManaged ? ' One last step below keeps Steam from updating it again.' : '')))
+dgEl('downgrade-set-autoupdate').addEventListener('click', e => downgradeAction(e.currentTarget, 'Setting…',
+  () => window.electronAPI.downgradeSetAutoUpdate(),
+  r => r.changed ? 'Steam will now update Skyrim only when you start it from Steam.' : 'Steam was already set that way.'))
+dgEl('downgrade-restore').addEventListener('click', e => downgradeAction(e.currentTarget, 'Restoring…',
+  () => window.electronAPI.downgradeRestore(),
+  r => `${r.restored} file(s) put back. Skyrim is on its previous version again.`))
+dgEl('downgrade-steam-verify').addEventListener('click', e => downgradeAction(e.currentTarget, 'Opening Steam…',
+  async () => ({ ok: await window.electronAPI.downgradeSteamVerify() }),
+  () => 'Steam is checking Skyrim now, and will bring it to Steam\'s newest version.'))
