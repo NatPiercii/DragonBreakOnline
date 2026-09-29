@@ -130,7 +130,13 @@ float TES5DamageFormulaImpl::CalcOpponentArmorRating() const
 {
   float combinedArmorRating = 0;
   auto eq = target.GetEquipment();
+  const auto& held = target.GetInventory();
   for (auto& entry : eq.inv.entries) {
+    // Worn and still held: armor given away or stored while worn stayed in the equipment record and kept counting
+    // (item-flow review, 2026-09-29). Players only: an NPC's server inventory need not hold what it wears.
+    if (target.GetProfileId() != -1 && !held.HasItem(entry.baseId)) {
+      continue;
+    }
     // One unreadable worn item must not throw: the packet handler abandons the
     // whole hit on an exception, which leaves the wearer unkillable.
     try {

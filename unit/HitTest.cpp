@@ -624,3 +624,46 @@ TEST_CASE("A scroll's hits land only after the server used one up: each actor "
   p.DestroyActor(kThird);
   DoDisconnect(p, 0);
 }
+
+// Item-flow review, 2026-09-29: moving an item never rewrites the equipment
+// record, so a player's hit with a weapon given away still counted
+TEST_CASE("A player's hit with a weapon no longer held is refused", "[Hit]")
+{
+  using namespace std::chrono_literals;
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  constexpr uint32_t kPlayer = 0xff000000, kTarget = 0xff000001;
+  p.CreateActor(kPlayer, { 0, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kTarget, { 50, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, kPlayer);
+  auto& ac = p.worldState.GetFormAt<MpActor>(kPlayer);
+  ac.RegisterProfileId(1);
+
+  RawMessageData msgData;
+  msgData.userId = 0;
+  HitMessage hitMsg;
+  hitMsg.data.aggressor = 0x14;
+  hitMsg.data.target = kTarget;
+  hitMsg.data.source = 0x0001397E; // iron dagger
+  ac.AddItem(hitMsg.data.source, 1);
+  Equipment eq;
+  eq.inv.entries.push_back(
+    Inventory::Entry(hitMsg.data.source, 1, kExtraWornTrue));
+  ac.SetEquipment(eq);
+
+  const auto past = std::chrono::steady_clock::now() - 10s;
+  ac.SetLastHitTime(kTarget, past);
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kTarget) > past);
+
+  // Given away (trade, chest, drop): the equipment record still names it
+  ac.RemoveItems({ Inventory::Entry(hitMsg.data.source, 1) });
+  const auto later = std::chrono::steady_clock::now() - 10s;
+  ac.SetLastHitTime(kTarget, later);
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kTarget) == later);
+
+  p.DestroyActor(kTarget);
+  p.DestroyActor(kPlayer);
+  DoDisconnect(p, 0);
+}

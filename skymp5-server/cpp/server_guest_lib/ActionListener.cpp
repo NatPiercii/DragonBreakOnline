@@ -1798,7 +1798,13 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
 
   const bool isUnarmed = IsUnarmedAttack(hitData.source);
 
-  if (equipment.inv.HasItem(hitData.source) || isUnarmed) {
+  // Equipped and still held: moving an item (trade, container, drop) never rewrites the equipment record, so a
+  // modified client that sent no equipment update kept hitting with a weapon it had given away (item-flow review,
+  // 2026-09-29). Players only: a hosted NPC's server inventory need not hold what its template equips.
+  if ((equipment.inv.HasItem(hitData.source) &&
+       (aggressor->GetProfileId() == -1 ||
+        aggressor->GetInventory().HasItem(hitData.source))) ||
+      isUnarmed) {
     OnWeaponHit(aggressor, targetRef, hitData, isUnarmed);
     return;
   }
