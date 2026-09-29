@@ -1,5 +1,21 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-29 (06:40 UTC): Leather Strips at a Bruma forge find no server recipe - craft refused, not yet explained
+
+From the overnight log census. `CraftService::OnCraftItem` logged `Recipe not found` 11 times on 2026-09-25 between
+23:25 and 23:28 (one player, one session, never since): result `0x800e4` (Skyrim.esm Leather Strips) on workbench
+`0x3c12ae11`. That workbench is **not in Dawnstar** (an earlier note said so, from a wrong load-order index): it is a
+REFR in DragonBreak Online Edits.esp (local `0x12ae11`), base `CraftingBlackSmithForge` (Skyrim.esm `0xcae0b`,
+keyword `CraftingSmithingForge`), at 60208,207863 in BSHeartland cell `CYRBrumaExterior05`, so it is inside the
+Bruma lock. Every other craft there works (hundreds logged). Each refused craft used different light-plugin items
+(`0xfe00c8xx`, `0xfe00cb18`), 1 to 11 of them at once, which looks like a breakdown recipe from a mod.
+
+- [ ] Find the COBJ that makes Leather Strips at a forge from those items (xEdit on the PC, or resolve the
+  `0xfe00c...` ids with the server's own light-plugin mapping; a naive count of light plugins resolved them to
+  COBJ records, so it is not that). Then see why `FindRecipe` does not match it: input counts, a condition, or the
+  light-plugin ids.
+- [ ] Decide whether that breakdown should exist on the server at all before fixing the match.
+
 ## Added 2026-09-29 (06:30 UTC): BrowserApi "off" backend falls through to Tilted - C++, next platform change
 
 `skyrim-platform/src/platform_se/skyrim_platform/BrowserApi.cpp`, `Register()`: `case Backend::kOff:` ends at
