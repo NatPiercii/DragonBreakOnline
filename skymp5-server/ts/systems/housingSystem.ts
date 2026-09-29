@@ -2,7 +2,7 @@ import * as fs from "fs";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { espmRefrFieldId, toFormId } from "./formIdUtil";
-import { AdminRoleConfig, readAdminRoleConfig, adminTierOf } from "./adminRoles";
+import { AdminRoleConfig, readAdminRoleConfig, adminTierOf, TIER_CAPS } from "./adminRoles";
 import { getZones, Zones } from "./zones";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
@@ -66,6 +66,8 @@ const NOT_GRANTED = "Property here is granted by its ruler (Jarl, Baron or Count
 // Managers claim, revoke, rename, transfer, re-key and cut keys for any property there.
 // The Count of Bruma (zones.json region "bruma") manages property the way a Jarl does.
 const MANAGER_RANKS = ["jarl", "baron", "steward", "chieftain", "bane", "count"];
+// Housing actions whose use by staff on someone else's property is logged
+const STAFF_LOGGED = ["claim", "abandon", "revoke", "lock", "unlock", "rename", "createkey", "revokekeys", "transfer", "grantcontainer"];
 
 // Interior cells that belong to a hold, kept as a fallback for interiors whose exterior
 // door the server cannot place (old HoldClaims table, slugs mapped to zones.json ids).
@@ -283,6 +285,10 @@ export class HousingSystem implements System {
     const rec = this.read(ctx, primary) || emptyRecord();
     const isOwner = rec.owner !== 0 && rec.owner === this.profileOf(ctx, actorId);
     const isManager = this.isManager(ctx, actorId, primary);
+    // Every staff override of someone else's property goes to the admin log (review A3-1)
+    if (!isOwner && rec.owner !== 0 && isManager && !this.isHoldManager(ctx, actorId, primary) && STAFF_LOGGED.indexOf(String(action)) !== -1) {
+      try { (globalThis as any).__alduinakAdminLog?.(`HOUSING staff override: actor ${actorId.toString(16)} (profile ${this.profileOf(ctx, actorId)}) ${action} on ${primary.toString(16)}, owner profile ${rec.owner}`); } catch { /* no log */ }
+    }
 
     switch (action) {
       case "claim": this.doClaim(ctx, userId, actorId, primary, rec, isManager); break;
@@ -538,15 +544,21 @@ export class HousingSystem implements System {
   }
 
   private isManager(ctx: SystemContext, actorId: number, primary: number): boolean {
-    if (this.isAdmin(ctx, actorId)) return true;
+    return this.isAdmin(ctx, actorId) || this.isHoldManager(ctx, actorId, primary);
+  }
+
+  // A jarl, steward or other manager rank of the hold the property stands in
+  private isHoldManager(ctx: SystemContext, actorId: number, primary: number): boolean {
     const hold = this.holdOf(ctx, primary);
     if (!hold) return false;
     return this.holdRanks(ctx, actorId).some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1);
   }
 
-  // Every admin tier overrides housing claims
+  // Staff who override housing claims: Lead GM and above (TIER_CAPS.spawn). A GM observes; opening, transferring, revoking
+  // or cutting keys for someone else's property is not theirs (claude-jake's review A3-1, 2026-09-28)
   private isAdmin(ctx: SystemContext, actorId: number): boolean {
-    return adminTierOf(ctx.svr as Mp, actorId, this.roleCfg) !== null;
+    const tier = adminTierOf(ctx.svr as Mp, actorId, this.roleCfg);
+    return tier !== null && TIER_CAPS[tier].spawn;
   }
 
   // officials.json (via zones) first, then the backend faction rows "hold:<slug>:<rank>".
