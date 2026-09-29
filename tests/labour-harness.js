@@ -64,7 +64,7 @@ const load = () => { delete require.cache[require.resolve(LABOUR)]; handlers.cle
 const fire = (ev, args, widget) => (handlers.get(ev) || []).forEach((f) => f(ACTOR, args, widget || 33));
 
 const setTier = (skill, rank) => props.set(ACTOR + '|private.mastery', { order: [skill], skills: { [skill]: { rank } } });
-const clearRests = () => { props.delete(ACTOR + '|private.minedVeins'); props.delete(ACTOR + '|private.choppedBlocks'); };
+const clearRests = () => { props.delete(ACTOR + '|private.minedVeins'); props.delete(ACTOR + '|private.choppedBlocks'); props.delete(VEIN + '|private.dboWorkedUntil'); props.delete(BLOCK + '|private.dboWorkedUntil'); };
 
 // ---- the widget's own rules, so a simulated player behaves exactly like the front ----------------
 const markerAt = (ms, sweepMs) => {
@@ -148,6 +148,16 @@ check('no answer in the packet', !('result' in w) && w.seed === undefined, 'no s
 let p = play(w, { aim: 0.5 });
 let res = report(w, p.strikes, p.at, 120, 1000);
 check('honest round wins', verdictOf(res.log) === 'win' && res.items.length === 1, res.log);
+// the seam rests for everyone, not only this character (loot review, 2026-09-29)
+check('a won round rests the seam itself', (Number(props.get(VEIN + '|private.dboWorkedUntil')) || 0) > Date.now());
+{
+  const mine = props.get(ACTOR + '|private.minedVeins');
+  props.delete(ACTOR + '|private.minedVeins');   // as for another character, with no rest of their own
+  out.widgets.length = 0;
+  globalThis.__dboLabour(VEIN, ACTOR);
+  check('...so another character cannot work it at once', out.widgets.length === 0, String(out.widgets.length));
+  props.set(ACTOR + '|private.minedVeins', mine);
+}
 check('server counts the same hits the widget did', hitsOf(res.log) === `${p.hits}/${w.strikes}/${p.strikes.length}`, `widget ${p.hits}/${w.strikes} in ${p.strikes.length} strikes`);
 
 // 3. honest sloppy play, 40 rounds: the server's count must always equal the widget's
