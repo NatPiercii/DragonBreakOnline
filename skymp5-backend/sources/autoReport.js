@@ -132,8 +132,9 @@ function accept(req, res) {
   }
 }
 
-// At boot: the 30-day janitor now and every 6 hours, and grouping of reports stored before a restart
+// At boot: folders to 0700, the 30-day janitor now and every 6 hours, and grouping of reports stored before a restart
 function start() {
+  autoStore.tightenFolders()
   const sweep = () => autoStore.janitor().catch(err => console.error('[auto-report] janitor failed:', err.message))
   setInterval(sweep, JANITOR_MS).unref()
   return Promise.all([sweep(), errorGroups.kick()])

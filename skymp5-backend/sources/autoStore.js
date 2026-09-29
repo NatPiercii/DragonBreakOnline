@@ -153,6 +153,15 @@ function grouped(seq) {
   st.seq = Math.max(st.seq, seq)
 }
 
+// mkdir sets a mode only when it creates the folder, so an auto folder or reports/ made 0755 before is set to 0700 at start
+function tightenFolders() {
+  const dir = config.autoReportDir
+  for (const folder of [dir, path.join(dir, 'reports')]) {
+    try { fs.chmodSync(folder, 0o700) }
+    catch (err) { if (err.code !== 'ENOENT') console.error('[auto-report] folder not set to 0700:', err.message) }
+  }
+}
+
 // Deletes reports past 30 days (a report file is dated with its receipt time) and temp files a crash left behind
 async function janitor(now = Date.now()) {
   const { dir } = current()
@@ -181,6 +190,6 @@ async function janitor(now = Date.now()) {
 }
 
 module.exports = {
-  load, today, isSeen, isMuted, mute, countInvalid, save, add, rewrite, readReport, pending, grouped, janitor, writeAtomic,
-  reportFile, nextUtcDay, hourOf, SEEN_MS, SEEN_MAX, RETENTION_MS, MUTE_MS,
+  load, today, isSeen, isMuted, mute, countInvalid, save, add, rewrite, readReport, pending, grouped, janitor, tightenFolders,
+  writeAtomic, reportFile, nextUtcDay, hourOf, SEEN_MS, SEEN_MAX, RETENTION_MS, MUTE_MS,
 }

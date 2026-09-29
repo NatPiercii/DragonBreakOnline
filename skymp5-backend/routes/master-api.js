@@ -79,8 +79,11 @@ function pruneExpired() {
 function saveSessions() {
   const now     = Date.now()
   const entries = [...sessions.entries()].filter(([, s]) => s.expiresAt > now)
-  try { fs.writeFileSync(SESSIONS_PATH, JSON.stringify(entries, null, 2) + '\n', { mode: 0o600 }) }
-  catch (e) { console.error('Failed to persist sessions:', e) }
+  try {
+    // The mode applies only when the file is created, so a sessions.json made 0644 before is set to 0600 before any token is written
+    try { fs.chmodSync(SESSIONS_PATH, 0o600) } catch (e) { if (e.code !== 'ENOENT') throw e }
+    fs.writeFileSync(SESSIONS_PATH, JSON.stringify(entries, null, 2) + '\n', { mode: 0o600 })
+  } catch (e) { console.error('Failed to persist sessions:', e) }
 }
 
 function loadSessions() {

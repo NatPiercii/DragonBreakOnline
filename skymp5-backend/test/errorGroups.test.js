@@ -525,3 +525,23 @@ test('start: runs the janitor and groups reports stored before a restart', async
   assert.ok(group(CRASH_OURS))
   assert.ok(!fs.existsSync(autoStore.reportFile(1, old.report.reportId)))
 })
+
+test('start: an auto folder and reports/ made 0755 before are set to 0700; a missing folder is left alone', async (t) => {
+  const dir = freshDir()
+  t.mock.method(global, 'setInterval', () => ({ unref() {} }))
+  const errors = t.mock.method(console, 'error', () => {})
+  await autoReport.start()
+  const reports = path.join(dir, 'reports')
+  fs.mkdirSync(reports, { recursive: true })
+  fs.chmodSync(dir, 0o755)
+  fs.chmodSync(reports, 0o755)
+  // Writing into a folder that exists does not change its mode
+  const record = store('crash-ours', { profileId: 1, at: Date.now() })
+  assert.equal(mode(dir), 0o755)
+  assert.equal(mode(reports), 0o755)
+  await autoReport.start()
+  assert.equal(mode(dir), 0o700)
+  assert.equal(mode(reports), 0o700)
+  assert.equal(mode(autoStore.reportFile(1, record.report.reportId)), 0o600)
+  assert.equal(errors.mock.calls.length, 0)
+})
