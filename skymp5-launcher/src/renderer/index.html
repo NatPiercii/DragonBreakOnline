@@ -194,6 +194,7 @@
             <div class="vortex-status-row install-buttons-row">
               <button class="btn-detect-vortex" id="btn-repair-all">Repair All</button>
               <button class="btn-detect-vortex" id="btn-check-files">Check Files</button>
+              <button class="btn-detect-vortex" id="btn-skyrim-version">Skyrim Version</button>
             </div>
             <p class="setting-hint">Each button fully reinstalls its part. Check Files scans without changing anything.</p>
             <div class="vortex-status-row install-buttons-row">
@@ -443,6 +444,55 @@
     </div>
   </div>
 
+
+  <!-- Skyrim Version modal: the downgrade to 1.6.1170 (docs/DOWNGRADE_1_6_1170.md) -->
+  <div class="modal-overlay" id="modal-downgrade" hidden>
+    <div class="modal-box modal-box--wide fracture domain-lorkhan">
+      <div class="modal-header">
+        <span class="modal-title">&#8987;&nbsp; Skyrim Version</span>
+        <button class="modal-close" id="downgrade-close" title="Close">&#10005;</button>
+      </div>
+      <div class="modal-body downgrade-body">
+        <p class="downgrade-summary" id="downgrade-summary">Checking your Skyrim…</p>
+        <p class="setting-hint" id="downgrade-detail" hidden></p>
+
+        <div class="settings-group" id="downgrade-steps" hidden>
+          <label class="setting-label">1. Download the 1.6.1170 files with Steam</label>
+          <div class="vortex-status-row install-buttons-row">
+            <button class="btn-detect-vortex" id="downgrade-open-console">Open Steam Console</button>
+            <span class="setting-hint">If it does not open: press Win+R and type <code class="downgrade-code">steam://open/console</code></span>
+          </div>
+          <p class="setting-hint">Paste these into Steam's console <b>one at a time</b>, and let each finish before the next. There is no progress bar: Steam just says it is done. Steam may ask you to sign in there; the launcher never asks for your Steam password.</p>
+          <div class="downgrade-depots" id="downgrade-depots"></div>
+          <label class="setting-label">2. Install them</label>
+          <div class="vortex-status-row install-buttons-row">
+            <button class="btn-save" id="downgrade-install" disabled>Install 1.6.1170</button>
+          </div>
+          <p class="setting-hint">Every file this replaces is kept in a backup first, so it can be put back.</p>
+        </div>
+
+        <div class="settings-group" id="downgrade-after" hidden>
+          <label class="setting-label">Keep it on 1.6.1170</label>
+          <p class="setting-hint" id="downgrade-acf-text"></p>
+          <div class="vortex-status-row install-buttons-row" id="downgrade-acf-row" hidden>
+            <button class="btn-detect-vortex" id="downgrade-set-autoupdate">Set It For Me</button>
+          </div>
+          <p class="setting-hint" id="downgrade-runtime-text" hidden></p>
+        </div>
+
+        <pre class="install-progress downgrade-progress" id="downgrade-progress" hidden></pre>
+
+        <div class="settings-group" id="downgrade-back" hidden>
+          <label class="setting-label">The way back</label>
+          <div class="vortex-status-row install-buttons-row">
+            <button class="btn-detect-vortex" id="downgrade-restore" hidden>Restore My Previous Skyrim Files</button>
+            <button class="btn-detect-vortex" id="downgrade-steam-verify">Let Steam Repair Skyrim</button>
+          </div>
+          <p class="setting-hint">Letting Steam repair Skyrim updates it to Steam's newest version, which DragonBreak cannot run.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Metrics modal -->
   <div class="modal-overlay" id="modal-metrics" hidden>

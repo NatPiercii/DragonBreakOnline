@@ -29,12 +29,15 @@ launcher never runs PowerShell.
 ## What the player sees
 
 **1. At start, detection.**
-- The current check stays: `SkyrimSE.exe` FileVersion, read from both the original install and the game copy.
-- Two more signals catch a 1.7.99 install, which still carries the 1.6.1170 exe:
-  - the byte sizes of `Skyrim.esm` (249,753,412) and `Update.esm` (18,874,041);
-  - the sizes of the other masters, from the server's `/opt/skyrim-data` copy.
-  A mismatch means "data from a newer Steam build".
-- On a mismatch, PLAY is replaced by a **Skyrim needs downgrading** panel. The Reliquary dialog goes away.
+- The current check stays: `SkyrimSE.exe` FileVersion, read from both the original install and the game copy. A
+  mismatch blocks PLAY, as it does today, and opens a **Skyrim Version** panel in place of the Reliquary dialog.
+- A second signal catches a 1.7.99 install, which still carries the 1.6.1170 exe: the sizes of the five base masters
+  (for example `Skyrim.esm` is 249,753,412 bytes and `Update.esm` 18,874,041). The reference sizes come from the
+  server's clean 1.6.1170 files.
+- A size mismatch under the right exe opens the panel with the downgrade offered, but **does not block PLAY**. The
+  check is new and not yet proven on real installs; making it block is a one-line change once it is.
+- Settings > Repair gets a **Skyrim Version** button that opens the panel at any time. That is where Restore and
+  the Steam update setting live.
 
 **2. Editions the launcher refuses, with a clear message and no downgrade.**
 
@@ -88,6 +91,7 @@ Steam may ask you to be signed in. The launcher never asks for your Steam passwo
   | Waiting | No folder yet |
   | Downloading | The folder exists and its total size is still changing |
   | Done | Every file of that depot is present at its expected size, and nothing changed for 20 s |
+  | Stalled | A master is still short of its 1.6.1170 size, and nothing arrived for 2 minutes: "paste the command again" |
   | Wrong build | For 489833, SkyrimSE.exe is present but its FileVersion is not 1.6.1170 |
 
 - **Install** is enabled once all three are Done. The launcher never asks the player to "press Enter when done".
@@ -143,8 +147,10 @@ Steam may ask you to be signed in. The launcher never asks for your Steam passwo
     downgraded".
 - **Let Steam repair Skyrim:** `steam://validate/489830`. Steam then updates Skyrim to its newest build. This is the
   authoritative way back, as Jake's script also says.
-- A third, optional button deletes the downloaded depots (several GB in `steamapps\content`). It stays hidden while the
-  game copy still uses `depot_489831\Data` as its fallback for the free CC archives.
+- Restore uses only the newest backup. An older one holds files from before an earlier downgrade; putting those back
+  over a game Steam has updated since would mix two builds.
+- Not built: a button that deletes the downloaded depots (several GB in `steamapps\content`). The game copy still uses
+  `depot_489831\Data` as its fallback for the free CC archives, so they stay.
 
 ## Code shape
 

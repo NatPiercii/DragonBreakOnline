@@ -25,6 +25,7 @@ const nexus  = require('./nexus')
 const ini    = require('./ini')
 const prefsSeed = require('./prefsSeed')
 const gameversion = require('./gameversion')
+const downgrade = require('./downgrade')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
 const nxmLinks = require('./nxm')
@@ -274,8 +275,8 @@ function createWindow() {
     win.show()
     // Chained so the two startup modals never stack
     maybeWarnNeverLaunched().then(() => {
-      const gv = gameVersionProblem()
-      if (gv) showGameVersionDialog(gv)
+      const target = downgradeTarget()
+      if (gameVersionProblem() || (target && target.action !== 'none')) showDowngradePanel()
     })
   })
 
@@ -1132,7 +1133,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
   // Never copy a wrong-version exe into the portable install
   const gv = gameversion.checkGameVersion(src, mo2.detectEdition(src))
   if (!gv.ok) {
-    showGameVersionDialog(gv)
+    showDowngradePanel()
     return { success: false, error: `Skyrim ${gv.version} found; downgrade to ${gv.required} before installing the game copy.` }
   }
 
@@ -1420,7 +1421,7 @@ async function ensureVanillaIntegrity(gamePath) {
     .filter(m => m !== '_resourcepack.esl')
     .filter(m => !fs.existsSync(path.join(gamePath, 'Data', m)))
   if (missing.length > 0) {
-    return { ok: true, warning: `Vanilla file check failed: ${missing.join(', ')} missing from the game folder. Restore them with the Reliquary downgrade tool (Steam) or GOG Galaxy; never verify through Steam, it updates Skyrim past 1.6.1170.` }
+    return { ok: true, warning: `Vanilla file check failed: ${missing.join(', ')} missing from the game folder. Restore them with Settings > Repair > Skyrim Version (Steam) or GOG Galaxy; never verify through Steam, it updates Skyrim past 1.6.1170.` }
   }
   return { ok: true, warning: null }
 }
@@ -1474,32 +1475,10 @@ async function maybeWarnNeverLaunched() {
   })
 }
 
-// Wrong game version popup with a button to the Reliquary downgrade page
-let gameVersionDialogOpen = false
-async function showGameVersionDialog(gv) {
-  if (gameVersionDialogOpen || !win || win.isDestroyed()) return
-  gameVersionDialogOpen = true
-  try {
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'warning',
-      title: 'Wrong Skyrim version',
-      message: `Skyrim is version ${gv.version}, but DragonBreak needs ${gv.required}.`,
-      detail:
-        `Checked: ${gv.exe}\n\n` +
-        'Use the Reliquary downgrade tool from Nexus Mods to switch Skyrim Special Edition to build 1.6.1170; it only downloads the files that differ. ' +
-        'Afterwards set Steam to "Only update this game when I launch it" so it stays on that build, then press PLAY again.' +
-        (gv.required === gameversion.GAME_VERSION_GOG
-          ? '\n\nGOG installs: roll back to 1.6.1179 through GOG Galaxy (Manage installation > Configure > Version) instead of Reliquary.'
-          : ''),
-      buttons: ['Open downgrade page', 'Close'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true,
-    })
-    if (response === 0) shell.openExternal(gameversion.GAME_DOWNGRADE_URL)
-  } finally {
-    gameVersionDialogOpen = false
-  }
+// Wrong game version: the Skyrim version panel in the window, which downgrades a Steam install to 1.6.1170 itself and
+// explains GOG and the editions it cannot downgrade (downgrade.js, docs/DOWNGRADE_1_6_1170.md)
+function showDowngradePanel() {
+  send('downgrade:show')
 }
 
 // Checks the original install first (the portable copy is rebuilt from it), then the copy that actually runs
@@ -2014,10 +1993,215 @@ function verifyLaunchReadiness(skyrimPath, viaMO2, serverInfo) {
   return problems
 }
 
+// Skyrim version panel (downgrade.js, docs/DOWNGRADE_1_6_1170.md). The panel polls downgrade:status every 2 s while it
+// is open; the player downloads the three 1.6.1170 depots in Steam's own console under their own account, and the
+// launcher checks them, backs up what they replace, copies them over the original game folder and refreshes the game
+// copy from it. Steam credentials never pass through the launcher.
+const depotStates = new Map()
+let downgradeBusy = false
+const DOWNGRADE_GAME_PROCESSES = ['SkyrimSE.exe', 'skse64_loader.exe', 'ModOrganizer.exe']
+
+// The original game folder and what it needs; null until a Skyrim folder is set
+function downgradeTarget() {
+  const gameDir = store.get('skyrimPath')
+  if (!gameDir || !fs.existsSync(path.join(gameDir, 'SkyrimSE.exe'))) return null
+  return downgrade.assess(gameDir, mo2.detectEdition(gameDir))
+}
+
+// The launcher's game copy, when PLAY runs one apart from the original folder
+function gameCopyDir(gameDir) {
+  if (!store.get('isolatedGame') || !isolatedGameReady()) return null
+  const copy = isolatedGameDir()
+  return path.resolve(copy).toLowerCase() === path.resolve(gameDir).toLowerCase() ? null : copy
+}
+
+// A game-relative path the game copy keeps (copyGameDir's inventory): a vanilla root file or a vanilla Data file
+function isVanillaRel(rel) {
+  const parts = rel.split(/[\\/]/)
+  if (parts.length === 1) return VANILLA_ROOT_FILES.some(f => f.toLowerCase() === parts[0].toLowerCase())
+  if (parts[0].toLowerCase() !== 'data') return false
+  if (parts.length === 2) return isVanillaDataFile(parts[1])
+  return parts.length === 3 && ['video', 'strings'].includes(parts[1].toLowerCase())
+}
+
+// Brings the game copy in line with the original after a downgrade or a restore: the changed vanilla files are copied
+// across and the removed ones deleted. Explicit, because the integrity check compares sizes only.
+async function refreshGameCopy(gameDir, changed, removed) {
+  const copy = gameCopyDir(gameDir)
+  if (!copy) return 0
+  let n = 0
+  for (const rel of changed.filter(isVanillaRel)) {
+    const to = path.join(copy, rel)
+    fs.mkdirSync(path.dirname(to), { recursive: true })
+    await fs.promises.copyFile(path.join(gameDir, rel), to)
+    send('downgrade:progress', { step: 'refresh', index: ++n, total: changed.length, file: rel })
+  }
+  for (const rel of removed.filter(isVanillaRel)) {
+    try { fs.rmSync(path.join(copy, rel), { force: true }) } catch { /* left for the integrity check */ }
+  }
+  log(`[downgrade] game copy ${copy}: ${n} file(s) refreshed, ${removed.filter(isVanillaRel).length} removed`)
+  return n
+}
+
+// SKSE's 1.6.1170 runtime and the Address Library table where the game will look for them
+function downgradeRuntime(gameDir) {
+  let mods = []
+  try { mods = downgrade.enabledMods(fs.readFileSync(path.join(mo2.getProfileDir(), 'modlist.txt'), 'utf8')) } catch { /* no MO2 yet */ }
+  return downgrade.runtimeChecks(gameCopyDir(gameDir) || gameDir, { modsDir: mo2.getModsDir(), mods })
+}
+
+async function runningGameProcesses() {
+  const out = []
+  for (const name of DOWNGRADE_GAME_PROCESSES) if (await isProcessRunning(name)) out.push(name)
+  return out
+}
+
+function freeBytes(dir) {
+  try { const s = fs.statfsSync(dir); return s.bavail * s.bsize } catch { return null }
+}
+
+const gb = n => `${(n / 1024 ** 3).toFixed(1)} GB`
+
+function downgradeDepots(gameDir) {
+  return downgrade.findDepots(downgrade.steamRoots({ clientRoots: steamClientRoots(), gameDir }))
+}
+
+ipcMain.handle('downgrade:status', async () => {
+  const a = downgradeTarget()
+  if (!a) return { ok: false, error: 'Set your Skyrim folder first (Settings > Repair > Skyrim Installation Path).' }
+  const now = Date.now()
+  const depots = downgradeDepots(a.gameDir).map(d => {
+    const st = downgrade.depotState(d, depotStates.get(d.id), now)
+    depotStates.set(d.id, st)
+    return { id: d.id, command: d.command, holds: d.holds, state: st.state, bytes: st.bytes, detail: st.detail || null }
+  })
+  const acfPath = downgrade.acfPathFor(a.gameDir)
+  let acf = null
+  if (acfPath) {
+    try { acf = { value: downgrade.readAutoUpdate(fs.readFileSync(acfPath, 'utf8')) } } catch { acf = { value: null, missing: true } }
+  }
+  const backup = downgrade.latestBackup(a.gameDir)
+  const copy = gameCopyDir(a.gameDir)
+  const copyVersion = copy ? gameversion.readPeFileVersion(path.join(copy, 'SkyrimSE.exe')) : null
+  return {
+    ok: true,
+    busy: downgradeBusy,
+    action: a.action,
+    blocking: a.blocking,
+    version: a.version,
+    required: a.required,
+    edition: a.edition,
+    newerData: a.newerData,
+    gameDir: a.gameDir,
+    copyStale: a.action === 'none' && !!copyVersion && !!a.version && copyVersion !== a.version,
+    depots,
+    steamRunning: acf ? await isProcessRunning('steam.exe') : false,
+    acf,
+    backup: backup ? { name: backup.name, replaced: (backup.record.replaced || []).length, added: (backup.record.added || []).length } : null,
+    runtime: a.action === 'none' ? downgradeRuntime(a.gameDir) : null,
+  }
+})
+
+ipcMain.handle('downgrade:openConsole', () => { shell.openExternal('steam://open/console'); return true })
+ipcMain.handle('downgrade:steamVerify', () => { shell.openExternal(`steam://validate/${downgrade.APP_ID}`); return true })
+
+async function runDowngrade() {
+  const a = downgradeTarget()
+  if (!a || a.action !== 'downgrade') return { ok: false, error: 'This Skyrim folder does not need a downgrade.' }
+  const running = await runningGameProcesses()
+  if (running.length) return { ok: false, error: `Close ${running.join(', ')} first. Nothing was changed.` }
+  const depots = downgradeDepots(a.gameDir)
+  const pending = depots.filter(d => (depotStates.get(d.id) || {}).state !== 'done')
+  if (pending.length) return { ok: false, error: `Depot ${pending.map(d => d.id).join(', ')} has not finished downloading. Nothing was changed.` }
+  const plan = downgrade.planInstall(depots, a.gameDir, downgrade.stampOf(new Date()))
+  const free = freeBytes(a.gameDir)
+  if (free !== null && free < plan.bytes + 512 * 1024 ** 2) {
+    return { ok: false, error: `Not enough free space on the game's drive: ${gb(plan.bytes)} needed, ${gb(free)} free. Nothing was changed.` }
+  }
+  log(`[downgrade] ${a.gameDir} (${a.version}): ${plan.jobs.length} file(s), ${plan.replaced} replaced, ${plan.added} added; backup ${plan.backupDir}`)
+  const progress = p => send('downgrade:progress', p)
+  await downgrade.verifyPlan(plan, { onProgress: progress })
+  const res = await downgrade.runPlan(plan, { onProgress: progress })
+  const installed = gameversion.readPeFileVersion(path.join(a.gameDir, 'SkyrimSE.exe'))
+  if (installed !== gameversion.GAME_VERSION_REQUIRED) {
+    return { ok: false, error: `The files were copied, but SkyrimSE.exe reads ${installed || 'unreadable'}. Press Restore to put the previous files back.` }
+  }
+  const refreshed = await refreshGameCopy(a.gameDir, plan.jobs.map(j => j.rel), [])
+  depotStates.clear()
+  log(`[downgrade] done: SkyrimSE.exe ${installed}, ${res.replaced} replaced, ${res.added} added, ${refreshed} refreshed in the game copy`)
+  const acfPath = downgrade.acfPathFor(a.gameDir)
+  return {
+    ok: true, version: installed, replaced: res.replaced, added: res.added, refreshed,
+    steamManaged: !!acfPath && fs.existsSync(acfPath), runtime: downgradeRuntime(a.gameDir),
+  }
+}
+
+async function exclusive(fn) {
+  if (downgradeBusy) return { ok: false, error: 'A Skyrim version step is already running.' }
+  downgradeBusy = true
+  try { return await fn() } catch (err) {
+    log(`[downgrade] ${err.message}`)
+    return { ok: false, error: err.message }
+  } finally { downgradeBusy = false }
+}
+
+ipcMain.handle('downgrade:install', () => exclusive(runDowngrade))
+
+// Steam keeps each game's state in memory and writes the appmanifest itself, so it is only edited while Steam is closed
+ipcMain.handle('downgrade:setAutoUpdate', () => exclusive(async () => {
+  const a = downgradeTarget()
+  const acfPath = a && downgrade.acfPathFor(a.gameDir)
+  if (!acfPath || !fs.existsSync(acfPath)) return { ok: false, error: 'Steam does not manage this Skyrim folder, so it has no update setting to change.' }
+  if (await isProcessRunning('steam.exe')) return { ok: false, steamRunning: true, error: 'Close Steam first (Steam > Exit): it rewrites this setting while it runs.' }
+  const text = fs.readFileSync(acfPath, 'utf8')
+  const out = downgrade.setAutoUpdateOnLaunch(text)
+  if (!out.changed) return { ok: true, changed: false }
+  const keep = path.join(app.getPath('userData'), 'downgrade', `appmanifest_${downgrade.APP_ID}.acf.${downgrade.stampOf(new Date())}`)
+  fs.mkdirSync(path.dirname(keep), { recursive: true })
+  fs.writeFileSync(keep, text)
+  const tmp = `${acfPath}.dragonbreak-tmp`
+  fs.writeFileSync(tmp, out.text)
+  fs.renameSync(tmp, acfPath)
+  log(`[downgrade] ${acfPath}: AutoUpdateBehavior 1 (only when launched from Steam); the old file is kept as ${keep}`)
+  return { ok: true, changed: true }
+}))
+
+ipcMain.handle('downgrade:restore', async () => {
+  const gameDir = store.get('skyrimPath')
+  const backup = gameDir && downgrade.latestBackup(gameDir)
+  if (!backup) return { ok: false, error: 'There is no downgrade backup to restore.' }
+  const replaced = (backup.record.replaced || []).length
+  const added = (backup.record.added || []).length
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'warning',
+    title: 'Restore previous Skyrim files',
+    message: 'Put back the Skyrim files the downgrade replaced?',
+    detail: `${replaced} file(s) come back from ${backup.dir}, and the ${added} file(s) the downgrade added are removed.\n\n` +
+      'Skyrim will be on the newer version again, and DragonBreak will not start until it is downgraded.',
+    buttons: ['Restore', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  })
+  if (response !== 0) return { ok: false, cancelled: true }
+  return exclusive(async () => {
+    const running = await runningGameProcesses()
+    if (running.length) return { ok: false, error: `Close ${running.join(', ')} first. Nothing was changed.` }
+    const plan = downgrade.planRestore(gameDir, backup.dir)
+    const res = await downgrade.runRestore(plan, { onProgress: p => send('downgrade:progress', p) })
+    await refreshGameCopy(gameDir, plan.record.replaced || [], plan.record.added || [])
+    depotStates.clear()
+    log(`[downgrade] restored ${backup.dir}: ${res.restored} file(s)${res.failed.length ? `, failed: ${res.failed.join(', ')}` : ''}`)
+    return res.failed.length
+      ? { ok: false, error: `${res.failed.length} file(s) could not be put back: ${res.failed.join(', ')}. Let Steam repair Skyrim instead.` }
+      : { ok: true, restored: res.restored }
+  })
+})
+
 function ccArchiveWarning(names) {
   return `Game archives missing: ${names.join(', ')}. The game still starts, but some buildings, stalls and plants will look purple or be missing. ` +
     `Copy only these .bsa files into your Skyrim install's Data folder from Steam\\${DOWNGRADE_DEPOT_DATA} if you have that folder, ` +
-    'otherwise run the Reliquary downgrade tool again, then press PLAY. Never verify or update Skyrim through Steam: it moves the game past 1.6.1170.'
+    'otherwise run the downgrade again (Settings > Repair > Skyrim Version), then press PLAY. Never verify or update Skyrim through Steam: it moves the game past 1.6.1170.'
 }
 
 async function prepareForLaunch(skyrimPath, viaMO2) {
@@ -2026,8 +2210,8 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   // Version gate; the dialog is not awaited so the warning strip updates while it is up
   const gv = gameversion.checkGameVersion(skyrimPath, mo2.detectEdition(skyrimPath))
   if (!gv.ok) {
-    showGameVersionDialog(gv)
-    return { success: false, error: `Skyrim ${gv.version} found in ${skyrimPath}; DragonBreak needs ${gv.required}. Downgrade it (see the popup), then press PLAY again.` }
+    showDowngradePanel()
+    return { success: false, error: `Skyrim ${gv.version} found in ${skyrimPath}; DragonBreak needs ${gv.required}. Downgrade it in the Skyrim Version panel, then press PLAY again.` }
   }
 
   const srv = activeServer()
