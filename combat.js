@@ -34,6 +34,9 @@ module.exports = (api) => {
     // 0 = a stagger. From anyone, a draugr's shout included; one push per target every pushCooldownSeconds.
     pushSpells: { VoiceUnrelentingForce1: 0, VoiceUnrelentingForce2: 4, VoiceUnrelentingForce3: 8 },
     pushCooldownSeconds: 2,
+    // After a stagger or a push, the target shrugs off either for this long: the two had their own cooldowns, so two
+    // attackers alternating blows and shouts kept a player staggered about every second (combat review, 2026-09-29)
+    knockImmunitySeconds: 3,
     // Disarm and Dismay on a player (Nate, 2026-09-28: "make disarm and dismay work too"). Their magic effects run on the
     // shouter's copy of the victim only, so the server does it on the victim's own client: Disarm unequips the weapons in
     // their hands (drawn again at will), once per target every disarmCooldownSeconds; Dismay terrifies them as the
@@ -83,7 +86,7 @@ module.exports = (api) => {
   // could otherwise stagger-lock a player (claude-jake's review SCH-2, 2026-09-26)
   const stagger = (tgt, agg) => {
     const s = st(tgt), now = Date.now();
-    if (now - s.staggerAt < C.staggerCooldownSeconds * 1000) return false;
+    if (now - Math.max(s.staggerAt, s.pushedAt || 0) < Math.max(C.staggerCooldownSeconds, Number(C.knockImmunitySeconds) || 0) * 1000) return false;
     const by = agg ? st(agg) : null;
     if (by && now - (by.causedStaggerAt || 0) < C.attackerStaggerCooldownSeconds * 1000) return false;
     s.staggerAt = now;
@@ -276,7 +279,7 @@ module.exports = (api) => {
     }
     if (force >= 0 && typeof sendPacket === 'function') {
       const s = st(tgt), now = Date.now();
-      if (now - (s.pushedAt || 0) < C.pushCooldownSeconds * 1000) return;
+      if (now - Math.max(s.pushedAt || 0, s.staggerAt) < Math.max(C.pushCooldownSeconds, Number(C.knockImmunitySeconds) || 0) * 1000) return;
       s.pushedAt = now;
       try { sendPacket(tgt, { customPacketType: 'dboPush', from: agg >>> 0, force }); } catch (e) { /* offline */ }
       if (C.log) log(`combat ${display(agg)} -> ${display(tgt)}: shout ${force ? `push ${force}` : 'stagger'} (spell ${spellId.toString(16)})`);
