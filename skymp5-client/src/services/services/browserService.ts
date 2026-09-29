@@ -4,8 +4,9 @@ import { QueryKeyCodeBindings } from "../events/queryKeyCodeBindings";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { FormView } from "../../view/formView";
 import { showSystemNotification } from "./systemNotification";
-import { isConsoleOpen, readMenuKeyCode, takeDeferredFocus } from "./widgetMenuUtil";
+import { forgetDeferredFocus, isConsoleOpen, readMenuKeyCode, takeDeferredFocus } from "./widgetMenuUtil";
 import { badMenuAction } from "./badMenuPolicy";
+import { logTrace } from "../../logging";
 import { PlacementService } from "./placementService";
 import { BrowserMessageEvent, DxScanCode, Menu, MenuCloseEvent, MenuOpenEvent } from "skyrimPlatform";
 
@@ -43,6 +44,7 @@ export class BrowserService extends ClientListener {
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("menuOpen", (e) => this.onMenuOpen(e));
     this.controller.on("menuClose", (e) => this.onMenuClose(e));
+    this.controller.emitter.on("connectionDisconnect", () => this.dropDeferredFocus("disconnected"));
   }
 
   private onQueryKeyCodeBindings(e: QueryKeyCodeBindings) {
@@ -117,7 +119,19 @@ export class BrowserService extends ClientListener {
   }
 
   // badMenuPolicy.ts holds the decision and says why a late "Main Menu" is the one that has to be ignored
+  // The wish for focus is per session but lives in module scope, so it outlives a disconnect and a quit to the main
+  // menu. Left standing, the next session's first menu close would hand focus to a browser holding no panel - the very
+  // dead-input symptom the deferral exists to remove. forgetDeferredFocus also bumps the generation, so a handover
+  // already scheduled for this frame is cancelled with it.
+  private dropDeferredFocus(why: string) {
+    forgetDeferredFocus();
+    logTrace("browserService", `deferred focus dropped: ${why}`);
+  }
+
   private onMenuOpen(e: MenuOpenEvent) {
+    // Before the main-menu exemption below: quitting to the main menu ends the session whether or not a disconnect
+    // event follows, and nothing of ours should still be waiting to take the keyboard afterwards.
+    if (e.name === Menu.Main) this.dropDeferredFocus("main menu");
     if (this.isBadMenu(e.name)) {
       const isMain = e.name === Menu.Main;
       const action = badMenuAction({

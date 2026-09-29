@@ -36,6 +36,7 @@ export class StatDisplayService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
+    this.controller.emitter.on("connectionDisconnect", () => this.onDisconnect());
     this.controller.on("update", () => this.onUpdate());
   }
 
@@ -46,6 +47,16 @@ export class StatDisplayService extends ClientListener {
     this.items = raw.slice(0, MAX_ITEMS).map((x) => x as Record<string, unknown>).filter((x) =>
       Number.isFinite(Number(x["id"])) && (x["kind"] === "weapon" || x["kind"] === "armor") && typeof x["skill"] === "string" && Number.isFinite(Number(x["value"]))
     ).map((x) => ({ id: Number(x["id"]) >>> 0, kind: x["kind"] as "weapon" | "armor", skill: String(x["skill"]), temper: Number(x["temper"]) || 0, value: Number(x["value"]) }));
+    this.nextApply = 0;
+  }
+
+  // The list is this session's: it outlives the disconnect otherwise, and the timer would go on rewriting one
+  // character's numbers onto the base forms through the main menu and into whoever logs in next.
+  private onDisconnect(): void {
+    if (!this.items.length) return;
+    logTrace(this, `stat display: dropping ${this.items.length} item(s), the session ended`);
+    this.items = [];
+    this.deferred = false;
     this.nextApply = 0;
   }
 
