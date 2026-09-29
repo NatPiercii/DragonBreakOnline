@@ -79,6 +79,10 @@ toggle();
 ok(masks() === 1 && !props.get(`${P}|private.maskLost`), 'with the lost mask back in hand, H puts that one on and hands out none');
 toggle();
 ok(masks() === 0, '...and takes it back as before');
+// X on a player who logged out (their body stays through the logout grace) says so, not "get closer"
+said.length = 0;
+ui.get('playerMenu')(P, [0xff000099]);
+ok(said.some((t) => /stepped out of the world/.test(t)) && !said.some((t) => /Get closer/.test(t)), 'X on a logged-out player says they are gone', said);
 global.setTimeout = savedTimeout;
 
 console.log(`${pass}/${pass + fail}`);
