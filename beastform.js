@@ -201,6 +201,7 @@ module.exports = (api) => {
   // gamemode castHook, deathHook, disconnect and onCharacterReady call these
   globalThis.__dboBeastCast = (casterId, spellId) => {
     const a = Number(casterId) >>> 0, id = Number(spellId) >>> 0;
+    noteVlCast(a, id);
     if (id === REVERT_POWER && stateOf(a)) { revert(a, 'revert power'); return true; }
     const key = byPower.get(id);
     if (!key) return false;
@@ -295,6 +296,7 @@ module.exports = (api) => {
       // A Vampire Lord walks, so the sighting the breaker measures against has to follow them
       else if (s && s.form === 'vampirelord' && globalThis.__dboVampireLordRemote === true) noteVlShown(a);
     }
+    watchVampireLords();
   });
 
   // ── the Vampire Lord crash breaker ──────────────────────────────────────────────────────────────
@@ -327,12 +329,68 @@ module.exports = (api) => {
       try { if (typeof isAdmin === 'function' && isAdmin(o)) personal(o, `The Vampire Lord remote body turned itself off: ${dropped} dropped beside one. Ask them for their crash log, then /vlremote on to try again.`); } catch (e) { /* offline */ }
     }
   };
+  // ── what a drop near a Vampire Lord tells us (2026-09-29) ──
+  // The one trip so far (Onny beside Jake's Lord) came 5 min 26 s into the watcher's time near it, and the same
+  // watcher crashed twice that day with no Vampire Lord anywhere, so "dropped near one" alone cannot name the body as
+  // the cause. Each drop near a Lord now logs what would tell the causes apart: how long the watcher had been near,
+  // when they last moved (a crashed client goes still a minute before the server drops it), what the Lord cast around
+  // then, and the watcher's other drops. It is logged with the remote body off as well, as the control.
+  const WATCH_GAP_MS = 10000;
+  const vlNear = globalThis.__dboVlNear = globalThis.__dboVlNear || new Map();   // watcher -> { vl, since, last, dist, pos, movedAt }
+  const vlCasts = globalThis.__dboVlCasts = globalThis.__dboVlCasts || new Map(); // Vampire Lord -> [{ id, at }]
+  const drops = globalThis.__dboVlDrops = globalThis.__dboVlDrops || new Map();   // actor -> [{ at, near }], the last day
+  const watchVampireLords = () => {
+    const now = Date.now();
+    for (const vl of shownVampireLords()) {
+      let cell = null, pos = null;
+      try { cell = mp.get(vl, 'worldOrCellDesc'); pos = mp.get(vl, 'pos'); } catch (e) { continue; }
+      if (!pos) continue;
+      for (const o of api.onlineActors()) {
+        if (o === vl) continue;
+        try {
+          if (mp.get(o, 'worldOrCellDesc') !== cell) continue;
+          const p = mp.get(o, 'pos'); if (!p) continue;
+          const dist = Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]);
+          if (dist > BREAKER_UNITS) continue;
+          const w = vlNear.get(o);
+          if (!w || w.vl !== vl || now - w.last > WATCH_GAP_MS) { vlNear.set(o, { vl, since: now, last: now, dist, pos: p.slice(), movedAt: now }); continue; }
+          if (Math.hypot(p[0] - w.pos[0], p[1] - w.pos[1], p[2] - w.pos[2]) > 1) { w.pos = p.slice(); w.movedAt = now; }
+          w.last = now; w.dist = dist;
+        } catch (e) { /* gone */ }
+      }
+    }
+    for (const [o, w] of [...vlNear]) if (now - w.last > BREAKER_MS) vlNear.delete(o);
+  };
+  const noteVlCast = (a, id) => {
+    const s = stateOf(a); if (!s || s.form !== 'vampirelord') return;
+    const now = Date.now();
+    vlCasts.set(a, (vlCasts.get(a) || []).filter((c) => now - c.at <= BREAKER_MS).concat([{ id, at: now }]).slice(-12));
+  };
+  const spellName = (id) => { try { const x = mp.lookupEspmRecordById(id >>> 0); if (x && x.record && x.record.editorId) return x.record.editorId; } catch (e) { /* none */ } return (id >>> 0).toString(16); };
+  const secs = (ms) => Math.round(ms / 1000);
+  const signed = (ms) => (ms >= 0 ? `+${secs(ms)}` : `${secs(ms)}`);
+  const dropEvidence = (a, w, now) => {
+    const parts = [`${Math.round(w.dist)} units away`, `near it ${secs(w.last - w.since)} s`, `last moved ${secs(now - w.movedAt)} s before the drop`];
+    const s = stateOf(w.vl);
+    if (s && s.at) parts.push(`it rose ${secs(w.movedAt - s.at)} s before that`);
+    const around = (vlCasts.get(w.vl) || []).filter((c) => c.at >= w.movedAt - 60000 && c.at <= w.movedAt + 10000);
+    parts.push(around.length ? `its casts around then (s from the last move): ${around.map((c) => `${spellName(c.id)} ${signed(c.at - w.movedAt)}`).join(', ')}` : 'no casts by it in the minute before');
+    const mine = (drops.get(a) || []).filter((d) => d.at !== now);
+    parts.push(`their other drops in 24 h: ${mine.length} (${mine.filter((d) => !d.near).length} with no Vampire Lord near)`);
+    return parts.join('; ');
+  };
+
   globalThis.__dboVlBreakerDrop = (a, journalOpen) => {
-    if (globalThis.__dboVampireLordRemote !== true) return false;  // already off, nothing to trip
     if (journalOpen === true) return false;                        // quit through the menu, not a crash
+    a = Number(a) >>> 0;
+    const now = Date.now();
+    const w = vlNear.get(a);
+    const near = !!w && w.vl !== a && now - w.last <= BREAKER_MS;
+    drops.set(a, (drops.get(a) || []).filter((d) => now - d.at <= 24 * 3600 * 1000).concat([{ at: now, near }]));
+    if (near) log(`vlwatch: ${display(a)} dropped near ${display(w.vl)}, remote body ${globalThis.__dboVampireLordRemote === true ? 'ON' : 'off'}: ${dropEvidence(a, w, now)}`);
+    if (globalThis.__dboVampireLordRemote !== true) return false;  // already off, nothing to trip
     let cell = null, pos = null;
     try { cell = mp.get(a, 'worldOrCellDesc'); pos = mp.get(a, 'pos'); } catch (e) { return false; }
-    const now = Date.now();
     for (const [vl, seen] of [...vlSeen]) {
       if (now - seen.at > BREAKER_MS) { vlSeen.delete(vl); continue; }
       if (vl === (a >>> 0)) continue;                              // the Vampire Lord's own drop is not evidence
