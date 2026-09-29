@@ -223,6 +223,35 @@ module.exports = (api) => {
     return granted && allowedShoutWords().has(spellId >>> 0);
   };
 
+  // A player's shout to show the players around (Nate, 2026-09-29: "the animation from the shouts happen but that's it").
+  // The server stopped taking a player's shout word as a cast (review A4-1), so the cast is never relayed; the client
+  // sends it here instead (dboShoutCast) and the gamemode forwards what this returns as dboShoutFx. Only a shout word
+  // this player may use (the gate above; never a werewolf howl), one per shoutRelayMinMs, a single cast (no
+  // keep-alive, no stop), with the caster forced to the sender and every field reduced to a checked number.
+  const relayedAt = new Map();
+  const num = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 0; };
+  const bytes = (v) => (Array.isArray(v) ? v.slice(0, 2048).map((x) => (Number(x) & 0xff) >>> 0) : []);
+  const shoutRelay = (a, raw) => {
+    const d = raw && typeof raw === 'object' ? raw : null;
+    const spellId = d ? Number(d.spell) >>> 0 : 0;
+    if (!d || !spellId || !isPlayer(a)) return { refused: 'not a player cast' };
+    if (!isVoiceSpell(spellId) || exemptShouts.has(spellId)) return { refused: 'not a shout word' };
+    if (C.shoutGate && !shoutAllowed(a, spellId)) return { refused: 'a shout this player may not use' };
+    if (d.keepAlive || d.interruptCast) return { refused: 'not a single cast' };
+    const now = Date.now();
+    if (now - (relayedAt.get(a) || 0) < (Number(C.shoutRelayMinMs) || 500)) return { refused: 'too soon after the last' };
+    relayedAt.set(a, now);
+    if (relayedAt.size > 512) for (const [k, t] of relayedAt) if (now - t > 60000) relayedAt.delete(k);
+    const vars = d.actorAnimationVariables && typeof d.actorAnimationVariables === 'object' ? d.actorAnimationVariables : {};
+    return {
+      data: {
+        caster: a >>> 0, target: Number(d.target) >>> 0, spell: spellId, isDualCasting: false, interruptCast: false, keepAlive: false,
+        castingSource: num(d.castingSource, 0, 3) | 0, aimAngle: num(d.aimAngle, -10, 10), aimHeading: num(d.aimHeading, -10, 10),
+        actorAnimationVariables: { booleans: bytes(vars.booleans), floats: bytes(vars.floats), integers: bytes(vars.integers) },
+      },
+    };
+  };
+
   const onSpellHit = (agg, tgt, spellId) => {
     if (!C.enabled || agg === tgt || !isPlayer(tgt)) return;
     const force = pushForceOf(spellId);
@@ -256,5 +285,5 @@ module.exports = (api) => {
   };
 
   const forget = (a) => S.delete(a);
-  return { onAttempt, onSpellHit, forget, isShield, shoutAllowed, disarmPlayer };
+  return { onAttempt, onSpellHit, forget, isShield, shoutAllowed, disarmPlayer, shoutRelay };
 };

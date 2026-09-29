@@ -1148,6 +1148,18 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       if (a && spell && typeof globalThis.__dboBeastPower === 'function') { try { globalThis.__dboBeastPower(a, spell); } catch (e) { log('beast power failed', e.message); } }
       return;
     }
+    // A player's shout, to be seen by the players around them (client MagicSyncService -> ShoutPushService dboShoutFx):
+    // combat.js checks it against the shout gate and cleans it; the server alone lands its hits, as before
+    if (content.customPacketType === 'dboShoutCast') {
+      const a = actorOf(userId); if (!a || !combat) return;
+      const r = combat.shoutRelay(a, content.data);
+      if (!r.data) { log(`shout relay refused: ${display(a)} ${(Number((content.data || {}).spell) >>> 0).toString(16)} (${r.refused})`); return; }
+      const reach = Number((cfg.combat || {}).shoutRelayMeters) || 150;
+      let n = 0;
+      for (const b of onlineActors()) { if (b === a || distanceMeters(a, b) > reach) continue; sendPacket(b, { customPacketType: 'dboShoutFx', data: r.data }); n++; }
+      log(`shout relay ${display(a)} word ${r.data.spell.toString(16)} to ${n} player(s)`);
+      return;
+    }
     // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
     if (content.customPacketType === 'factionMenuRequest') {
       const a = actorOf(userId); if (a && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);

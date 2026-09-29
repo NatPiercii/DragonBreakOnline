@@ -159,6 +159,22 @@ ok(statuses.length === 0 && unequips().length === 0, 'an ordinary spell neither 
   ok(c.shoutAllowed(2, FIREBALL) === true, 'an ordinary spell is not a shout');
   c.onSpellHit(1, 2, UF3);
   ok(pushes.length === 1, "the granted player's push lands");
+  // The relay of a shout to the players around (dboShoutCast -> dboShoutFx): the same gate, and a cleaned message
+  c = load();
+  const cast = (o) => Object.assign({ caster: 0xdead, target: 2, spell: UF3, isDualCasting: true, interruptCast: false, keepAlive: false, castingSource: 2,
+    aimAngle: 0.1, aimHeading: 1.5, actorAnimationVariables: { booleans: [1, 300, -1], floats: [2], integers: [] } }, o || {});
+  let r = c.shoutRelay(1, cast());
+  ok(r.data && r.data.caster === 1 && r.data.spell === UF3 && r.data.isDualCasting === false && r.data.castingSource === 2, "a granted player's shout word is relayed, as their own cast");
+  ok(r.data && r.data.actorAnimationVariables.booleans.join() === '1,44,255' && r.data.target === 2, '...its fields reduced to checked numbers and bytes');
+  ok(!!c.shoutRelay(1, cast()).refused, 'one relay per shoutRelayMinMs');
+  c = load();
+  ok(/may not use/.test(c.shoutRelay(2, cast()).refused || ''), 'a player without the grant is refused');
+  ok(/not a shout word/.test(c.shoutRelay(1, cast({ spell: DRAGON_BREATH })).refused || '') === false && !!c.shoutRelay(1, cast({ spell: DRAGON_BREATH })).refused, "a dragon's breath (outside the 27) is refused");
+  c = load();
+  ok(/not a shout word/.test(c.shoutRelay(1, cast({ spell: FIREBALL })).refused || ''), 'an ordinary spell is never relayed this way');
+  ok(/not a shout word/.test(c.shoutRelay(1, cast({ spell: HOWL })).refused || ''), 'nor a werewolf howl (beastform.js)');
+  ok(/not a single cast/.test(c.shoutRelay(1, cast({ keepAlive: true })).refused || ''), 'nor a keep-alive or a stop');
+  ok(/not a player/.test(c.shoutRelay(9, cast()).refused || ''), 'nor an NPC');
   mp.get = origGet; API.recordOf = origRecordOf;
   process.chdir(here); fs.rmSync(dir, { recursive: true, force: true });
 }

@@ -145,6 +145,7 @@
   "staggerSpells": ["CYRForceRune", "CYRForceRuneScroll"],
   "pushSpells": { "VoiceUnrelentingForce1": 0, "VoiceUnrelentingForce2": 4, "VoiceUnrelentingForce3": 8 },
   "pushCooldownSeconds": 2,
+  "shoutRelayMeters": 150,
   "disarmSpells": ["VoiceDisarm1", "VoiceDisarm2", "VoiceDisarm3"],
   "disarmCooldownSeconds": 10,
   "dismaySpells": { "VoiceDismayingShout1": 5, "VoiceDismayingShout2": 8, "VoiceDismayingShout3": 12 },
