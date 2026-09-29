@@ -296,6 +296,48 @@ TEST_CASE("A splash hit still waits for the weapon on each target (combat "
   DoDisconnect(p, 0);
 }
 
+TEST_CASE("A bow hit from beyond four exterior cells is refused (combat "
+          "review, 2026-09-29)",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  constexpr uint32_t kArcher = 0xff000000, kNear = 0xff000001,
+                     kFar = 0xff000002;
+  p.CreateActor(kArcher, { 0, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kNear, { 8000, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kFar, { 20000, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, kArcher);
+  auto& ac = p.worldState.GetFormAt<MpActor>(kArcher);
+
+  RawMessageData msgData;
+  msgData.userId = 0;
+  HitMessage hitMsg;
+  hitMsg.data.aggressor = 0x14;
+  hitMsg.data.source = 0x00013985; // HuntingBow
+  ac.AddItem(hitMsg.data.source, 1);
+  Equipment eq;
+  eq.inv.entries.push_back(
+    Inventory::Entry(hitMsg.data.source, 1, kExtraWornTrue));
+  ac.SetEquipment(eq);
+
+  const auto past = std::chrono::steady_clock::now() - 10s;
+  ac.SetLastHitTime(kFar, past);
+  hitMsg.data.target = kFar;
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kFar) == past);
+
+  ac.SetLastHitTime(kNear, past);
+  hitMsg.data.target = kNear;
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kNear) > past);
+
+  p.DestroyActor(kFar);
+  p.DestroyActor(kNear);
+  p.DestroyActor(kArcher);
+  DoDisconnect(p, 0);
+}
+
 namespace {
 nlohmann::json MakeSpellCastMessage(uint32_t spell, bool interruptCast)
 {

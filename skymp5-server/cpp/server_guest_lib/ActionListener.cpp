@@ -1223,6 +1223,7 @@ void ActionListener::OnPlayerBowShot(const RawMessageData& rawMsgData,
   }
 
   ac->RemoveItem(msg.ammoId, 1, nullptr);
+  lastBowShot[ac->GetFormId()] = std::chrono::steady_clock::now();
 }
 
 void ActionListener::OnFinishSpSnippet(const RawMessageData& rawMsgData,
@@ -1697,6 +1698,32 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
                     "distant. Aggressor: {:x}, targetRef: {:x}",
                     aggressor->GetFormId(), targetRef->GetFormId());
       return;
+    }
+  } else {
+    // A bow hit had no range at all: anyone in the worldspace could be shot from anywhere (combat review, 2026-09-29).
+    // Four exterior cells is past any arrow's flight.
+    constexpr float kMaxBowShotUnits = 4096.f * 4;
+    if ((aggressor->GetPos() - targetRef->GetPos()).SqrLength() >
+        kMaxBowShotUnits * kMaxBowShotUnits) {
+      spdlog::warn("ActionListener::OnHit - bow hit from {:x} on {:x} beyond "
+                   "{} units, refused",
+                   aggressor->GetFormId(), targetRef->GetFormId(),
+                   kMaxBowShotUnits);
+      return;
+    }
+    // Log only for now: how often a player's bow hit comes without a shot the server saw
+    if (aggressor->GetProfileId() != -1) {
+      const auto now = std::chrono::steady_clock::now();
+      const auto shot = lastBowShot.find(aggressor->GetFormId());
+      ++bowHitCounts.hits;
+      if (shot == lastBowShot.end() || now - shot->second > kBowShotWindow) {
+        ++bowHitCounts.unmatched;
+        spdlog::info("ActionListener::OnHit - bow hit from {:x} on {:x} with "
+                     "no shot in the last {} s (bow hits {}/{} unmatched)",
+                     aggressor->GetFormId(), targetRef->GetFormId(),
+                     kBowShotWindow.count(), bowHitCounts.unmatched,
+                     bowHitCounts.hits);
+      }
     }
   }
 
