@@ -18,18 +18,25 @@ setp(PRISONER, 'appearance', { name: 'Prisoner', race: 1 });
 setp(NAMED, 'appearance', { name: 'Aela Brightwater' });
 setp(CREATING, 'appearance', { name: 'Stranger' });
 setp(OTHER, 'appearance', { name: 'Vaeric Stone' }); setp(OTHER, 'private.indexed.charName', 'vaericstone');
-const said = [], audits = [], cmds = {}, timers = {}, named = [];
+const said = [], audits = [], cmds = {}, timers = {}, named = [], widgets = [], closed = [], ui = {};
+const PANEL_USER = 0xff000005, HUB_USER = 0xff000006;
+let ONLINE = [PRISONER, NAMED, CREATING];
+setp(PANEL_USER, 'appearance', { name: 'Prisoner' });
+setp(HUB_USER, 'appearance', { name: 'Prisoner' });
 const mp = {
   get: (id, k) => props.get(`${id}|${k}`),
   set: setp,
   findFormsByPropertyValue: (k, v) => [...props.keys()].filter((key) => key.endsWith(`|${k}`) && props.get(key) === v).map((key) => Number(key.split('|')[0])),
 };
-globalThis.__dboNameAsked = undefined;
+globalThis.__dboNameAsked = undefined; globalThis.__dboNamingCaps = undefined; globalThis.__dboNamingNonces = undefined;
 require(MODULE)({
   mp, log: () => {}, personal: (a, t) => said.push([a, t]), audit: (t) => audits.push(t), who: String, display: String,
-  registerChatCommand: (n, fn) => { cmds[n] = fn; }, onlineActors: () => [PRISONER, NAMED, CREATING], every: (n, ms, fn) => { timers[n] = fn; },
+  registerChatCommand: (n, fn) => { cmds[n] = fn; }, onlineActors: () => ONLINE, every: (n, ms, fn) => { timers[n] = fn; },
   profileOf: (a) => (a >= 0xff000000 ? 1 : -1), inCreation: (a) => a === CREATING,
+  onUi: (n, fn) => { (ui[n] = ui[n] || []).push(fn); }, openWidget: (a, w, focus) => widgets.push([a, w, focus]), closeWidget: (a, id) => closed.push([a, id]),
+  inHub: (a) => a === HUB_USER,
 });
+const fire = (n, a, args, wid) => (ui[n] || []).forEach((f) => f(a, args || [], wid || 0));
 globalThis.__dboNamed = (a) => named.push(a);
 let failures = 0;
 const check = (label, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
@@ -57,11 +64,40 @@ check('still held after the refusals', globalThis.__dboNameHold(PRISONER) === tr
 check('a good name is taken', /now Flo'Riahn Snow-Hand/.test(tryName("Flo'Riahn  Snow-Hand")));
 check('...on the appearance, the look kept', props.get(`${PRISONER}|appearance`).name === "Flo'Riahn Snow-Hand" && props.get(`${PRISONER}|appearance`).race === 1);
 check('...and in the uniqueness index', props.get(`${PRISONER}|private.indexed.charName`) === 'floriahnsnowhand');
-check('...audited', audits.some((t) => /named themselves "Flo'Riahn Snow-Hand" \(was "Prisoner"\)/.test(t)));
+check('...audited', audits.some((t) => /named themselves "Flo'Riahn Snow-Hand" \(was "Prisoner", chat\)/.test(t)));
 check('...and the gamemode is told, so it can send them on', named.length === 1 && named[0] === PRISONER);
 check('no longer held', globalThis.__dboNameHold(PRISONER) === false);
 cmds.name(NAMED, 'Someone Else');
 check('/name does nothing for a character that has a name', /already has a name/.test(last(NAMED)) && props.get(`${NAMED}|appearance`).name === 'Aela Brightwater');
+
+// The panel (front namePrompt, widget 68) for a client that draws it
+ONLINE = [PRISONER, NAMED, CREATING, PANEL_USER, HUB_USER];
+fire('uiCaps', PANEL_USER, ['bank', 'namePrompt']);
+said.length = 0;
+check('a client that draws the panel is asked in it, not in chat', globalThis.__dboNameHold(PANEL_USER) === true && widgets.length === 1 && !said.some((x) => x[0] === PANEL_USER));
+const w = widgets[0];
+check('...a focused namePrompt, id 68, with a nonce and the limits', w[0] === PANEL_USER && w[1].type === 'namePrompt' && w[1].id === 68 && w[2] === true && !!w[1].nonce && w[1].maxLength === 30 && w[1].maxWords === 3 && w[1].events.choose === 'dbo:nameChoose');
+globalThis.__dboNameAsked.set(PANEL_USER, 0); timers.naming();
+check('an open panel is not opened again by the reminder', widgets.length === 1);
+fire('nameChoose', PANEL_USER, ['stale', 'Aela Stone']);
+check('a stale panel changes nothing', props.get(`${PANEL_USER}|appearance`).name === 'Prisoner' && widgets.length === 1);
+fire('nameChoose', PANEL_USER, [w[1].nonce, 'AELA STONE']);
+const again = widgets.at(-1);
+check('a refused name reopens the panel with the reason (no close in between)', widgets.length === 2 && /not written in capitals/.test(again[1].error) && !closed.length && again[1].nonce !== w[1].nonce);
+fire('nameChoose', PANEL_USER, [again[1].nonce, 'Aela Stone']);
+check('a good name is taken from the panel, and the panel closes', props.get(`${PANEL_USER}|appearance`).name === 'Aela Stone' && closed.length === 1 && closed[0][1] === 68 && audits.some((t) => /"Aela Stone" \(was "Prisoner", panel\)/.test(t)));
+// Escape, then the reminder
+setp(PANEL_USER, 'appearance', { name: 'Prisoner' });
+globalThis.__dboNameAsked.set(PANEL_USER, 0); timers.naming();
+const third = widgets.at(-1);
+fire('close', PANEL_USER, [], 68);
+globalThis.__dboNameAsked.set(PANEL_USER, 0); timers.naming();
+check('after Escape the reminder opens it again', widgets.at(-1) !== third && widgets.at(-1)[1].type === 'namePrompt');
+// In the Realm the reminder waits for the hold (after the deity picker)
+fire('uiCaps', HUB_USER, ['namePrompt']);
+const before = widgets.length; globalThis.__dboNameAsked.set(HUB_USER, 0); timers.naming();
+check('in the Realm the reminder does not open it over the creation panels', widgets.length === before);
+check('...the hold in sendToArrival does', globalThis.__dboNameHold(HUB_USER) === true && widgets.length === before + 1 && widgets.at(-1)[0] === HUB_USER);
 
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);

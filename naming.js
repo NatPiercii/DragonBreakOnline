@@ -9,17 +9,26 @@
 // - /name <name> names it, once, while its name is still a default: the same shape rules and word lists as the
 //   creator's filter (name-filter.json), and unique across every character (private.indexed.charName, as spawn.ts
 //   keeps it). The chat is the browser's own text box, so it takes typing even when the game's name box does not.
+// - A client that draws it (dbo:uiCaps 'namePrompt') is asked in a panel instead (front namePrompt, widget 68): a text
+//   box and one button, answered as dbo:nameChoose with the panel's nonce; a refusal reopens it with the reason, so
+//   the cursor stays. An older client keeps the chat line and /name. In the Realm the panel waits for the hold in
+//   sendToArrival, after the god is chosen, so it never opens over the deity picker.
 // Staff keep /rename for everything else.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation } = api;
+  const { mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation, onUi, openWidget, closeWidget, inHub } = api;
+  const PANEL_ID = 68;
   const DEFAULTS = new Set(['', 'prisoner', 'stranger', 'player']);
   const INDEX = 'private.indexed.charName';
   const ASK_EVERY_MS = 60000;
   const asked = globalThis.__dboNameAsked instanceof Map ? globalThis.__dboNameAsked : (globalThis.__dboNameAsked = new Map());
+  // Both outlive a reload: which clients draw the panel, and the nonce of the panel open for each character
+  const caps = globalThis.__dboNamingCaps instanceof Map ? globalThis.__dboNamingCaps : (globalThis.__dboNamingCaps = new Map());
+  const nonces = globalThis.__dboNamingNonces instanceof Map ? globalThis.__dboNamingNonces : (globalThis.__dboNamingNonces = new Map());
+  const hasPanel = (a) => typeof openWidget === 'function' && (caps.get(a >>> 0) || new Set()).has('namePrompt');
 
   const nameOf = (a) => { try { return String((mp.get(a, 'appearance') || {}).name || '').trim(); } catch (e) { return ''; } };
   const isDefault = (name) => DEFAULTS.has(String(name || '').trim().toLowerCase());
@@ -79,10 +88,20 @@ module.exports = (api) => {
     } catch (e) { log('naming: uniqueness check failed, letting the name through', e.message); return false; }
   };
 
+  let nonceSeq = 0;
+  const openPanel = (a, error) => {
+    // A counter as well as the time: two panels opened in one millisecond (a refusal answered at once) differ
+    const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}-${(nonceSeq = (nonceSeq + 1) % 1e6).toString(36)}`;
+    nonces.set(a >>> 0, nonce);
+    const r = readRules();
+    openWidget(a, { type: 'namePrompt', id: PANEL_ID, nonce, error: error || '', maxLength: r.maxLength, maxWords: r.maxWords,
+      events: { choose: 'dbo:nameChoose' } }, true);
+  };
   const ask = (a, force) => {
     const now = Date.now();
     if (!force && now - (asked.get(a) || 0) < ASK_EVERY_MS) return;
     asked.set(a, now);
+    if (hasPanel(a)) { if (force || !nonces.has(a >>> 0)) openPanel(a); return; }
     personal(a, 'Your character has no name yet. Type /name and their name in the chat, for example: /name Aela Brightwater. You leave the Realm once named.');
   };
 
@@ -93,14 +112,13 @@ module.exports = (api) => {
     return true;
   };
 
-  registerChatCommand('name', (a, args) => {
-    if (!needsName(a)) return personal(a, 'Your character already has a name. Staff can change it with /rename.');
-    const name = String(args || '').trim().replace(/\s+/g, ' ');
-    if (!name) return ask(a, true);
+  // Names the character, or says why not: { ok } | { error }
+  const takeName = (a, raw, via) => {
+    const name = String(raw || '').trim().replace(/\s+/g, ' ');
     const problem = problemWith(name);
-    if (problem) return personal(a, `${problem} Try /name again.`);
+    if (problem) return { error: problem };
     const key = fold(name);
-    if (takenBy(key, a)) return personal(a, 'Someone already carries that name. Try /name with another.');
+    if (takenBy(key, a)) return { error: 'Someone already carries that name. Choose another.' };
     try {
       const app = Object.assign({}, mp.get(a, 'appearance') || {});
       const old = app.name || 'Prisoner';
@@ -109,14 +127,38 @@ module.exports = (api) => {
       mp.set(a, INDEX, key);
       asked.delete(a);
       personal(a, `Your character is now ${name}.`);
-      audit(`NAME ${who(a)} named themselves "${name}" (was "${old}")`);
-      log(`naming: ${display(a)} named themselves ${name}`);
+      audit(`NAME ${who(a)} named themselves "${name}" (was "${old}", ${via})`);
+      log(`naming: ${display(a)} named themselves ${name} (${via})`);
       if (typeof globalThis.__dboNamed === 'function') globalThis.__dboNamed(a);
-    } catch (e) { personal(a, 'That did not work. Try /name again.'); log('naming: failed', e.message); }
+      return { ok: true };
+    } catch (e) { log('naming: failed', e.message); return { error: 'That did not work. Try again.' }; }
+  };
+
+  registerChatCommand('name', (a, args) => {
+    if (!needsName(a)) return personal(a, 'Your character already has a name. Staff can change it with /rename.');
+    if (!String(args || '').trim()) return ask(a, true);
+    const r = takeName(a, args, 'chat');
+    if (r.error) personal(a, `${r.error} Try /name again.`);
+    else if (nonces.delete(a >>> 0)) closeWidget(a, PANEL_ID);
   }, { help: '<name> name your character, if it came out of creation without one' });
 
+  if (typeof onUi === 'function') {
+    onUi('uiCaps', (a, args) => { caps.set(a >>> 0, new Set((args || []).map(String))); });
+    onUi('nameChoose', (a, args) => {
+      if (nonces.get(a >>> 0) !== String(args[0] || '')) return;
+      if (!needsName(a)) { nonces.delete(a >>> 0); closeWidget(a, PANEL_ID); return; }
+      const r = takeName(a, args[1], 'panel');
+      if (r.error) { openPanel(a, r.error); return; }
+      nonces.delete(a >>> 0);
+      closeWidget(a, PANEL_ID);
+    });
+    // Escape closes it; the reminder opens it again a minute later
+    onUi('close', (a, args, widgetId) => { if (Number(widgetId) === PANEL_ID) nonces.delete(a >>> 0); });
+  }
+
   // Anyone already out in the world under a default name (made before this guard) is asked too
-  every('naming', 20000, () => { for (const a of onlineActors()) if (needsName(a)) ask(a, false); });
+  // Not in the Realm: there the hold in sendToArrival asks, after the deity picker has closed
+  every('naming', 20000, () => { for (const a of onlineActors()) if (needsName(a) && !(typeof inHub === 'function' && inHub(a))) ask(a, false); });
 
   return { problemWith, fold, needsName, isDefault };
 };

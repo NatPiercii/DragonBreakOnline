@@ -1276,7 +1276,8 @@ const sendToArrival = (a) => {
 try {
   const NAMING_JS = path.resolve('naming.js');
   delete require.cache[NAMING_JS];
-  require(NAMING_JS)({ mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation: (a) => creationPending(a) });
+  require(NAMING_JS)({ mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation: (a) => creationPending(a),
+    onUi, openWidget, closeWidget, inHub: (a) => inHubForName(a) });
   globalThis.__dboNamed = (a) => { if (inHubForName(a)) sendToArrival(a); };
 } catch (e) { log('naming.js failed to load:', e.stack || e.message); globalThis.__dboNameHold = null; globalThis.__dboNamed = null; }
 function inHubForName(a) { try { return String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase() === String(HUB.cellOrWorldDesc).toLowerCase(); } catch (e) { return false; } }
