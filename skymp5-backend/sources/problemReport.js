@@ -15,6 +15,31 @@ const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log']
 const CONTEXT_FIELDS = ['launcherVersion', 'clientVersion', 'filesVersion', 'os', 'gameVersion',
                         'installDir', 'step', 'error', 'mo2Enabled', 'freeSpaceGb']
 const SOURCES = { launcher: 'from the launcher', game: 'in game', site: 'from the website' }
+// A public thread carries what the player wrote, so it may only be opened when the player was TOLD that before they
+// wrote it. The launcher says so from 2.1.34 (its Troubleshooting panel, with a "keep this private" box); anything
+// older, and any other way in, never showed that notice, so those reports stay staff-only exactly as they are today.
+// Raise this the day another source starts showing the same notice.
+const PUBLIC_CONSENT_SOURCES = { launcher: [2, 1, 34] }
+
+// Numeric per component, so 2.1.9 is older than 2.1.34 (comparing as strings says otherwise) and 2.2.0 is newer.
+// Anything unparseable counts as older, because we cannot show it gave consent.
+function versionAtLeast(value, minimum) {
+  const parts = String(value == null ? '' : value).trim().match(/^(\d+)\.(\d+)\.(\d+)/)
+  if (!parts) return false
+  for (let i = 0; i < minimum.length; i++) {
+    const have = Number(parts[i + 1])
+    if (have > minimum[i]) return true
+    if (have < minimum[i]) return false
+  }
+  return true
+}
+
+// Did this report come from something that warned the player their words would be public?
+function sourceAsksFirst(source, body) {
+  const minimum = PUBLIC_CONSENT_SOURCES[source]
+  if (!minimum) return false
+  return versionAtLeast(body && body.launcherVersion, minimum)
+}
 const SOURCE_TAGS = { launcher: ['Manual', 'Launcher'], game: ['Manual'], site: ['Manual'] }
 // A 1080p JPEG at quality 80 measured 213-489 KiB; the cap leaves room for the logs inside a 2 MB body
 const MAX_IMAGE_BYTES = 700 * 1024
@@ -130,7 +155,8 @@ async function submit(reporter, body) {
   //
   // keepPrivate is the player's own choice, made in the launcher before sending: an exploit, or something personal,
   // should not go where everyone can read it, so no public thread is opened at all.
-  const keepPrivate = body.private === true || body.private === 'true'
+  // Private unless the player both saw the notice and did not tick the box
+  const keepPrivate = body.private === true || body.private === 'true' || !sourceAsksFirst(source, body)
   const publicLines = [`**${escapeMarkdown(name)}** reported a problem ${SOURCES[source]}.`]
   for (const key of ['launcherVersion', 'clientVersion']) {
     const value = text(body[key])

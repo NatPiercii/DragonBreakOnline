@@ -127,3 +127,48 @@ test('the staff starter post is given the public thread link', async () => {
   assert.ok(edit, 'the starter post should be edited')
   assert.ok(/Public thread: https:\/\/discord\.com\/channels\//.test(edit.payload.content), edit.payload.content)
 })
+
+// Consent gate: a public thread may only be opened for a report that came from something which warned the player
+// first. The launcher does that from 2.1.34; everything older, and every other way in, stays staff-only.
+test('a 2.1.33 launcher gets no public thread: it never showed the notice', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-1', launcherVersion: '2.1.33' }))
+  assert.ok(staffPost(), 'the staff thread is still filed')
+  assert.strictEqual(publicPost(), undefined)
+})
+
+test('2.1.34 with private false does open one', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-2', launcherVersion: '2.1.34', private: false }))
+  assert.ok(publicPost(), 'it should be public')
+})
+
+test('2.1.34 with private true does not', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-3', launcherVersion: '2.1.34', private: true }))
+  assert.ok(staffPost())
+  assert.strictEqual(publicPost(), undefined)
+})
+
+test('no version at all gets no public thread', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-4', launcherVersion: undefined }))
+  assert.strictEqual(publicPost(), undefined)
+})
+
+test('2.1.9 is older than 2.1.34, not newer', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-5', launcherVersion: '2.1.9' }))
+  assert.strictEqual(publicPost(), undefined, 'string comparison would have called this newer')
+})
+
+test('a later launcher still opens one', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-6', launcherVersion: '2.2.0' }))
+  assert.ok(publicPost())
+})
+
+test('an in-game /bug stays staff-only, however new the launcher is', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-7', source: 'game', launcherVersion: '2.2.0' }))
+  assert.ok(staffPost())
+  assert.strictEqual(publicPost(), undefined, 'the in-game reporter shows no notice')
+})
+
+test('a website report stays staff-only too', async () => {
+  await submit(reporter, bodyOf({ reportId: 'v-8', source: 'site', launcherVersion: '2.2.0' }))
+  assert.strictEqual(publicPost(), undefined)
+})
