@@ -20,7 +20,7 @@ const code = src.slice(start + 1, end + 3);
 let failures = 0;
 const check = (label, ok) => { if (!ok) failures++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); };
 
-const run = ({ pelts, dead = true, skinned = false, worth = 5, cap = 12 }) => {
+const run = ({ pelts, dead = true, skinned = false, worth = 5, cap = 12, pendingSince }) => {
   const said = [];
   const opened = [];
   const props = { 'private.dboPelts': pelts, isDead: dead, 'private.dboSkinned': skinned };
@@ -38,6 +38,8 @@ const run = ({ pelts, dead = true, skinned = false, worth = 5, cap = 12 }) => {
     openWidget: (a, w) => opened.push(w),
     skinPacket: (r) => ({ type: 'skinning', r }),
     creatureName: () => 'deer',
+    peltPending: new Map(pendingSince === undefined ? [] : [[0xff000100, pendingSince]]),
+    PELT_PENDING_MS: 2000,
   };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(code, sandbox);
@@ -46,6 +48,12 @@ const run = ({ pelts, dead = true, skinned = false, worth = 5, cap = 12 }) => {
 };
 
 const pelt = [{ baseId: 0x80679bd, count: 1 }];
+
+// The pelts are stashed 50 ms after death; until then the body does not open (loot review, 2026-09-29)
+let q = run({ pelts: undefined, pendingSince: Date.now() });
+check('a body whose pelts are not stashed yet does not open', q.result === false && q.opened.length === 0);
+q = run({ pelts: [], pendingSince: Date.now() - 5000 });
+check('...for 2 s at most, if the stash never ran', q.result === null);
 
 let r = run({ pelts: pelt });
 check('a fresh deer: E starts the skinning game and is taken', r.result === false && r.opened.length === 1);
