@@ -5,6 +5,7 @@ const fs     = require('fs')
 const path   = require('path')
 const config = require('../config')
 const { writeAtomic, readJson } = require('./atomicFile')
+const { PATTERNS } = require('./autoSchema')
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -28,7 +29,10 @@ const hourOf = at => Math.floor(at / HOUR_MS)
 const count = v => (Number.isSafeInteger(v) && v > 0 ? v : 0)
 const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v)
 const isPair = e => Array.isArray(e) && typeof e[0] === 'string' && Number.isFinite(e[1])
-const isPending = e => Array.isArray(e) && Number.isSafeInteger(e[0]) && e[0] > 0 && Number.isSafeInteger(e[1]) && typeof e[2] === 'string'
+// A report file is named <profileId>-<reportId>.json; ids read back from a state file are checked again before a path is built
+const isProfileId = v => Number.isSafeInteger(v) && v >= 0
+const isReportId = v => typeof v === 'string' && PATTERNS.reportId.test(v)
+const isPending = e => Array.isArray(e) && Number.isSafeInteger(e[0]) && e[0] > 0 && isProfileId(e[1]) && isReportId(e[2])
 
 // A read error throws and leaves the state unloaded, so the next call tries again instead of saving an empty state
 function load() {
@@ -115,7 +119,11 @@ function save(now) {
   catch (err) { console.error(`[auto-report] ${STATE_FILE} not saved:`, err.message) }
 }
 
-const reportFile = (profileId, reportId) => path.join(current().dir, 'reports', `${profileId}-${reportId}.json`)
+// Throws unless both ids are well formed, so a crafted reportId such as '/../../x' never names a file outside reports/
+function reportFile(profileId, reportId) {
+  if (!isProfileId(profileId) || !isReportId(reportId)) throw new Error('not a stored report: bad profileId or reportId')
+  return path.join(current().dir, 'reports', `${profileId}-${reportId}.json`)
+}
 
 // text is JSON.stringify(record); throws when the report file cannot be written
 function add(record, text) {

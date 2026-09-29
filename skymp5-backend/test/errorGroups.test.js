@@ -484,6 +484,32 @@ test('state files: a read error keeps what is loaded and retries; a corrupt or m
   assert.equal(errors.mock.calls.length, 4)
 })
 
+test('state file: a pending entry with a reportId like ../x is dropped at load, and no report path is built from one', async (t) => {
+  const dir = freshDir()
+  const errors = t.mock.method(console, 'error', () => {})
+  const record = store('crash-ours', { profileId: 1 })
+  const { reportId } = record.report
+  // Where a crafted id would lead without the check: <dir>/reports/1-/../../x.json is <dir>/x.json
+  fs.writeFileSync(path.join(dir, 'x.json'), JSON.stringify(record))
+  const stateFile = path.join(dir, 'auto-state.json')
+  const saved = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+  saved.pending = [[1, 1, '../x'], [2, 1, '/../../x'], [3, '1', reportId], [4, -1, reportId], [5, 1, reportId]]
+  fs.writeFileSync(stateFile, JSON.stringify(saved))
+  autoStore.load()
+  assert.deepEqual(autoStore.pending(), [[5, 1, reportId]])
+  errorGroups.load()
+  await errorGroups.kick()
+  assert.equal(group(CRASH_OURS).reports, 1)
+
+  for (const [profileId, id] of [[1, '../x'], [1, '/../../x'], [1, `${reportId}/../x`], [1, reportId.toUpperCase()], ['1', reportId], [1.5, reportId], [-1, reportId], [1, undefined]]) {
+    assert.throws(() => autoStore.reportFile(profileId, id), /not a stored report/, `${profileId} ${id}`)
+  }
+  assert.equal(await autoStore.readReport(1, '/../../x'), null)
+  assert.throws(() => autoStore.rewrite({ ...record, report: { ...record.report, reportId: '/../../x' } }), /not a stored report/)
+  assert.equal(fs.readFileSync(path.join(dir, 'x.json'), 'utf8'), JSON.stringify(record))
+  assert.equal(errors.mock.calls.length, 1)
+})
+
 test('retention janitor: reports past 30 days and stale temp files go; recent and unknown files stay', async () => {
   const dir = freshDir()
   const now = T0 + 40 * DAY
