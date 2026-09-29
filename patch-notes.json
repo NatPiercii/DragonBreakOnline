@@ -1,5 +1,19 @@
 [
   {
+    "title": "Client 0.3.64: Crash Logging",
+    "date": "2026-09-29",
+    "version": "Client 0.3.64",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Stability",
+        "items": [
+          "Behind-the-scenes logging to track down a crash when a group enters a ruin together. Nothing changes in play. Restart the launcher to get the update."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.63: Shouts You Can See, a Better Trade Request",
     "date": "2026-09-29",
     "version": "Client 0.3.63",
