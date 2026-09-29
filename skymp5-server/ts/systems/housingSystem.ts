@@ -450,6 +450,17 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "They already own it.");
       return;
     }
+    // A house rented from the hold (gameplay tenancy.js) is the hold's to hand on: a tenant sold one for gold and then
+    // left, which took it back from the buyer (economy review, 2026-09-29)
+    const rented = (globalThis as any).__dboTenancyRented;
+    if (typeof rented === "function") {
+      let isRented = false;
+      try { isRented = !!rented(primary); } catch { isRented = false; }
+      if (isRented) {
+        this.notice(ctx, userId, "This property is rented from the hold. It cannot be handed over while the tenancy lasts.");
+        return;
+      }
+    }
     if (this.countClaims(ctx, recipientProfile) >= this.maxClaims) {
       this.notice(ctx, userId, "They hold too much property already.");
       return;
