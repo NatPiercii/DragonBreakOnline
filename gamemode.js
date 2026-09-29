@@ -1095,6 +1095,24 @@ if (!globalThis.__dboHandlers) {
 // cannot hand someone a fresh allowance. A stuck player sends at most this many, whatever the client asks for.
 const DIAG_MAX_PER_PLAYER = 60;
 const DIAG_SEEN = globalThis.__dboDiagSeen || (globalThis.__dboDiagSeen = new Map());
+// Before a player has an actor their lines are counted under the connection number, and those numbers are reused all
+// night: the next player on a number found its allowance already spent, so the lines a player stuck at character select
+// sends were dropped (2026-09-29). A connection's allowance now starts fresh with each connect; a player's own, counted
+// under their actor once they have one, still lasts the whole run.
+const diagConnectionKey = (userId) => `u${userId}`;
+const resetDiagForConnection = (userId) => { DIAG_SEEN.delete(diagConnectionKey(userId)); };
+const writeDiagLines = (userId, lines) => {
+  const a = actorOf(userId);
+  const key = a || diagConnectionKey(userId);
+  const who = a ? `profile ${profileOf(a)} ${display(a)}` : `user ${userId}`;
+  let n = DIAG_SEEN.get(key) || 0;
+  for (const raw of (Array.isArray(lines) ? lines : [])) {
+    if (n >= DIAG_MAX_PER_PLAYER) break;
+    n++;
+    log(`[dboDiag] ${who} ${String(raw).slice(0, 500)}`);
+  }
+  if (n > (DIAG_SEEN.get(key) || 0)) DIAG_SEEN.set(key, n);
+};
 
 globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
   try {
@@ -1115,16 +1133,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     // The client's page/input diagnostic, relayed rather than left in a file the player has to send us
     // (pageInputDiagService). Written straight to the server log so a stuck player needs to do nothing at all.
     if (content.customPacketType === 'dboDiag') {
-      const a = actorOf(userId);
-      const key = a || `u${userId}`;
-      const who = a ? `profile ${profileOf(a)} ${display(a)}` : `user ${userId}`;
-      let n = DIAG_SEEN.get(key) || 0;
-      for (const raw of (Array.isArray(content.lines) ? content.lines : [])) {
-        if (n >= DIAG_MAX_PER_PLAYER) break;
-        n++;
-        log(`[dboDiag] ${who} ${String(raw).slice(0, 500)}`);
-      }
-      if (n > (DIAG_SEEN.get(key) || 0)) DIAG_SEEN.set(key, n);
+      writeDiagLines(userId, content.lines);
       return;
     }
     // Front widgets driven by this file talk back through the client's DboRelayService.
@@ -1421,7 +1430,7 @@ const startLoginWait = (userId, seenActor) => {
   }), 500);
   globalThis.__dboLoginWaits.set(userId, wait);
 };
-globalThis.__dboHandlers.connect = (userId) => { connected.add(userId); startLoginWait(userId, 0); };
+globalThis.__dboHandlers.connect = (userId) => { connected.add(userId); resetDiagForConnection(userId); startLoginWait(userId, 0); };
 // A hot reload drops the waiters; players already connected get theirs back, without redoing the
 // login work for a character they are already playing.
 for (const userId of connected) startLoginWait(userId, actorOf(userId));
