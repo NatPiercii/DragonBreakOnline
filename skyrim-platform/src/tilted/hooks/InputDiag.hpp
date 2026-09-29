@@ -78,6 +78,13 @@ struct State
   // The client's calls into MpClientPlugin: does it still talk to the server
   std::atomic<uint64_t> lastNetTickMs{ 0 };
   std::atomic<uint64_t> lastNetSendMs{ 0 };
+  // What the game's menu cursor depends on, and whether the overlay drives
+  // its own (game thread)
+  std::atomic<float> iniCursorSpeed{ -1.f };
+  std::atomic<float> menuSensitivity{ -1.f };
+  std::atomic<bool> gamepadEnabled{ false };
+  std::atomic<bool> gamepadConnected{ false };
+  std::atomic<bool> ownCursor{ false };
 };
 
 inline State& Get() noexcept

@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
@@ -285,6 +286,7 @@ public:
 
   MyInputListener()
   {
+    screen = RE::MenuScreenData::GetSingleton();
     pCursorX = &RE::MenuScreenData::GetSingleton()->mousePos.x;
     pCursorY = &RE::MenuScreenData::GetSingleton()->mousePos.y;
     vkCodeDownDur.fill(0);
@@ -387,9 +389,84 @@ public:
     }
     if (pCursorX && pCursorY)
       if (auto app = service->GetMyChromiumApp()) {
-        app->InjectMouseWheel(*pCursorX, *pCursorY, delta,
+        app->InjectMouseWheel(CursorX(), CursorY(), delta,
                               GetCefModifiers_(0));
       }
+  }
+
+  // Players stuck at character select (2026-09-29, GroundedPasta and
+  // Exsenus): every mouse event reached the page at the screen centre, because
+  // the game's menu cursor, which moves and clicks are sent at, never moved,
+  // while the device reported the mouse moving. While the browser has input
+  // focus and the game's cursor stays put through ~40 px of movement, the
+  // overlay moves its own cursor with the device's deltas; the moment the
+  // game's cursor moves by itself it is handed back.
+  static constexpr float kStuckPixels = 40.f;
+
+  float CursorX() const { return ownCursor ? ownX : *pCursorX; }
+  float CursorY() const { return ownCursor ? ownY : *pCursorY; }
+
+  void ReleaseOwnCursor(const char* why)
+  {
+    if (ownCursor) {
+      spdlog::info("InputDiag: {}, the game's cursor is used again", why);
+    }
+    ownCursor = false;
+    stuckDeltas = 0.f;
+    stuckAtX = -1.f;
+    stuckAtY = -1.f;
+    CEFUtils::InputDiag::Get().ownCursor.store(false,
+                                               std::memory_order_relaxed);
+  }
+
+  void FollowGameCursor(float deltaX, float deltaY)
+  {
+    if (!pCursorX || !pCursorY) {
+      return;
+    }
+    const float gameX = *pCursorX;
+    const float gameY = *pCursorY;
+    if (ownCursor) {
+      if (gameX != takenAtX || gameY != takenAtY) {
+        ReleaseOwnCursor("the game's menu cursor moves again");
+        return;
+      }
+      // Speed as the game's own cursor setting, unless it is unusable
+      const float ini = CEFUtils::InputDiag::Get().iniCursorSpeed.load(
+        std::memory_order_relaxed);
+      const float speed = ini >= 0.2f && ini <= 5.f ? ini : 1.f;
+      const float width =
+        screen && screen->screenWidth > 1.f ? screen->screenWidth : 1.e6f;
+      const float height =
+        screen && screen->screenHeight > 1.f ? screen->screenHeight : 1.e6f;
+      ownX = std::clamp(ownX + deltaX * speed, 0.f, width - 1.f);
+      ownY = std::clamp(ownY + deltaY * speed, 0.f, height - 1.f);
+      return;
+    }
+    if (gameX != stuckAtX || gameY != stuckAtY) {
+      stuckAtX = gameX;
+      stuckAtY = gameY;
+      stuckDeltas = 0.f;
+      return;
+    }
+    stuckDeltas += std::fabs(deltaX) + std::fabs(deltaY);
+    if (stuckDeltas < kStuckPixels) {
+      return;
+    }
+    ownCursor = true;
+    takenAtX = gameX;
+    takenAtY = gameY;
+    ownX = gameX;
+    ownY = gameY;
+    auto& diag = CEFUtils::InputDiag::Get();
+    diag.ownCursor.store(true, std::memory_order_relaxed);
+    spdlog::info(
+      "InputDiag: the game's menu cursor stayed at {},{} while the mouse "
+      "moved {} px, the overlay moves its own cursor now (fMouseCursorSpeed "
+      "{}, menu sensitivity {}, gamepad enabled {} connected {})",
+      gameX, gameY, stuckDeltas, diag.iniCursorSpeed.load(),
+      diag.menuSensitivity.load(), diag.gamepadEnabled.load(),
+      diag.gamepadConnected.load());
   }
 
   void OnMouseMove(float deltaX, float deltaY) noexcept override
@@ -398,7 +475,11 @@ public:
     if (!ui)
       return;
 
-    if (!ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
+    if (IsBrowserFocused()) {
+      FollowGameCursor(deltaX, deltaY);
+    }
+
+    if (!ownCursor && !ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
       if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDropNoCursorMenu)) {
         spdlog::info("InputDiag: a mouse move was not sent to the browser: "
                      "the Cursor Menu is closed");
@@ -408,7 +489,7 @@ public:
 
     if (pCursorX && pCursorY)
       if (auto app = service->GetMyChromiumApp()) {
-        app->InjectMouseMove(*pCursorX, *pCursorY, GetCefModifiers_(0),
+        app->InjectMouseMove(CursorX(), CursorY(), GetCefModifiers_(0),
                              IsBrowserFocused());
       }
   }
@@ -433,7 +514,7 @@ public:
             btn = cef_mouse_button_type_t::MBT_RIGHT;
             break;
         }
-        app->InjectMouseButton(*pCursorX, *pCursorY, btn, !down,
+        app->InjectMouseButton(CursorX(), CursorY(), btn, !down,
                                GetCefModifiers_(0));
       }
   }
@@ -461,8 +542,36 @@ public:
       diag.clientReady.store(client && client->IsReady(),
                              std::memory_order_relaxed);
     }
+    // The menu cursor's settings, about once a second
+    const clock_t sampleNow = clock();
+    if (sampleNow - lastCursorSample >= CLOCKS_PER_SEC) {
+      lastCursorSample = sampleNow;
+      if (auto prefs = RE::INIPrefSettingCollection::GetSingleton()) {
+        auto setting = prefs->GetSetting("fMouseCursorSpeed:Interface");
+        if (setting && setting->GetType() == RE::Setting::Type::kFloat) {
+          diag.iniCursorSpeed.store(setting->GetFloat(),
+                                    std::memory_order_relaxed);
+        }
+      }
+      if (screen) {
+        diag.menuSensitivity.store(screen->mouseSensitivity,
+                                   std::memory_order_relaxed);
+      }
+      if (auto input = RE::BSInputDeviceManager::GetSingleton()) {
+        diag.gamepadEnabled.store(input->IsGamepadEnabled(),
+                                  std::memory_order_relaxed);
+        diag.gamepadConnected.store(input->IsGamepadConnected(),
+                                    std::memory_order_relaxed);
+      }
+    }
+    const bool focused = IsBrowserFocused();
+    if (focused != focusWas) {
+      focusWas = focused;
+      ReleaseOwnCursor(focused ? "the browser took input focus"
+                               : "the browser gave input focus back");
+    }
 
-    if (!ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
+    if (!ownCursor && !ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
       if (auto app = service->GetMyChromiumApp()) {
         app->InjectMouseMove(-1.f, -1.f, GetCefModifiers_(0), false);
       }
@@ -496,6 +605,17 @@ private:
   std::array<clock_t, 256> vkCodeLastRepeat;
   float* pCursorX = nullptr;
   float* pCursorY = nullptr;
+  RE::MenuScreenData* screen = nullptr;
+  bool ownCursor = false;
+  float ownX = 0.f;
+  float ownY = 0.f;
+  float takenAtX = -1.f;
+  float takenAtY = -1.f;
+  float stuckAtX = -1.f;
+  float stuckAtY = -1.f;
+  float stuckDeltas = 0.f;
+  bool focusWas = false;
+  clock_t lastCursorSample = 0;
   bool switchLayoutDownWas = false;
 };
 
@@ -735,7 +855,9 @@ private:
       "InputDiag: 10 s with the browser focused:{} | page loaded {}, browser "
       "{}, visible {} | cursor menu {} at {},{} | Windows cursor {},{} in a "
       "{}x{} window | front {} | active {} | focus {} | capture {} | last "
-      "frame {} ms ago | network: last tick {} ms ago, last send {} ms ago",
+      "frame {} ms ago | network: last tick {} ms ago, last send {} ms ago | "
+      "menu cursor: fMouseCursorSpeed {}, sensitivity {}, gamepad enabled {} "
+      "connected {}, overlay cursor {}",
       counts.empty() ? std::string(" no input events") : counts,
       s.clientReady.load(), s.browserCreated.load(),
       CEFUtils::DX11RenderHandler::Visible(), s.cursorMenuOpen.load(),
@@ -745,7 +867,10 @@ private:
       haveGui ? Who(gui.hwndFocus) : std::string("?"),
       haveGui ? Who(gui.hwndCapture) : std::string("?"),
       lastFrame && now > lastFrame ? now - lastFrame : 0,
-      Ago(s.lastNetTickMs, now), Ago(s.lastNetSendMs, now));
+      Ago(s.lastNetTickMs, now), Ago(s.lastNetSendMs, now),
+      s.iniCursorSpeed.load(), s.menuSensitivity.load(),
+      s.gamepadEnabled.load(), s.gamepadConnected.load(),
+      s.ownCursor.load() ? "own" : "game's");
   }
 
   // -1 for never
