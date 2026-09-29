@@ -218,6 +218,15 @@ INV[PLAYER] = [{ baseId: RING, count: 4 }];
 ok(act(SMELTER, PLAYER) === false && count(PLAYER, GOLD) === 0, 'a ring made 2 per ingot gives nothing back, so it is not offered');
 ok(S.yieldOf(RING, S.stationOf(SMELTER), 4) === null, '...not even to a Master');
 
+// An item made from one unit of its main material gives none of it back, so craft-and-break-down is never free
+reset(); S = load();
+const DAGGER = 0x1397e;
+NAMES[DAGGER] = 'Iron Dagger';
+const t3 = JSON.parse(fs.readFileSync('salvage.json', 'utf8'));
+t3.items[desc(DAGGER)] = ['smelter', 0, [[desc(IRON), 1], [desc(STRIPS), 1]]];
+fs.writeFileSync('salvage.json', JSON.stringify(t3)); fs.utimesSync('salvage.json', new Date(), new Date(Date.now() + 4000));
+ok(S.yieldOf(DAGGER, S.stationOf(SMELTER), 4) === null, 'a one-ingot item gives nothing back, even to a Master');
+
 // Craft then salvage never returns more than the craft cost, for every item in the real table at every tier
 {
   const real = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'salvage.json'), 'utf8')).items;
@@ -237,6 +246,9 @@ ok(S.yieldOf(RING, S.stationOf(SMELTER), 4) === null, '...not even to a Master')
       if (!gives) continue;
       offered++;
       for (const [d, n] of gives) if (!(n <= (cost.get(String(d).toLowerCase()) || 0))) worst = worst || `${k} rank ${rank}: ${n} of ${d}, cost ${cost.get(String(d).toLowerCase())}`;
+      // and never everything back: some of what the item cost is always lost
+      const all = mats.every(([d, n]) => (gives.find(([g]) => String(g).toLowerCase() === d.toLowerCase()) || [0, 0])[1] >= n);
+      if (all) worst = worst || `${k} rank ${rank}: every material comes back`;
     }
   }
   mp.getDescFromId = realDesc;

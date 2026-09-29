@@ -128,7 +128,9 @@ module.exports = (api) => {
     const share = shareFor(rank);
     // At least one of the main material, but only for an item that cost at least one: a ring made 2 per ingot costs half
     // an ingot, and giving one back would double the metal on every craft (review A5-1). Never more than the item cost.
-    const out = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)]).filter(([, n]) => n > 0);
+    // ...and only when it cost at least two: an item made from a single ingot or thread would come back whole, so
+    // crafting it and breaking it down again cost nothing and farmed crafting credit (review, 2026-09-29: 14 items)
+    const out = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 2 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)]).filter(([, n]) => n > 0);
     return out.length ? out : null;
   };
 
