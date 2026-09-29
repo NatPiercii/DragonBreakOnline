@@ -189,12 +189,14 @@ test('202 duplicate: the same reportId is stored once per profile; another profi
 test('seen reportIds survive a restart, last 8 days and are capped at 500 per profile', async () => {
   const { token, profileId } = login()
   const body = payload()
+  // Taken before the post, so a slow run cannot put receivedAt outside the 1 s margin below
+  const before = Date.now()
   assert.equal((await post(body, { token })).status, 202)
   autoStore.load()
   assert.deepEqual((await post(body, { token })).json, { ok: true, id: body.reportId, duplicate: true })
 
   const now = Date.now()
-  assert.equal(autoStore.isSeen(profileId, body.reportId, now + autoStore.SEEN_MS - 1000), true)
+  assert.equal(autoStore.isSeen(profileId, body.reportId, before + autoStore.SEEN_MS - 1000), true)
   assert.equal(autoStore.isSeen(profileId, body.reportId, now + autoStore.SEEN_MS + 1000), false)
   assert.equal(autoStore.isSeen(profileId + 1, body.reportId, now), false)
 
