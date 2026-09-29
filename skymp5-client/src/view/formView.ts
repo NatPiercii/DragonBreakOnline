@@ -332,9 +332,22 @@ export class FormView {
         storage["allCompanionIds"] = rawAll.filter((id) => id !== remoteRefrId);
       }
     }
+    const wasHosted = this.hostedLast === true;
     once("update", () => {
       if (refrId >= 0xff000000) {
         const refr = ObjectReference.from(Game.getFormEx(refrId));
+        // destroy() runs on every cell and worldspace change, which is what a doorway does to every spawn behind it
+        // at once. This is also the delete that 34e7797a reorders, so a crash needs this line beside it to be read.
+        const note = (globalThis as any).__dboDiagNote;
+        if (typeof note === "function") {
+          let loaded = "?";
+          let disabled = "?";
+          try { loaded = String(refr ? refr.is3DLoaded() : false); } catch (e) { /* gone */ }
+          try { disabled = String(refr ? refr.isDisabled() : true); } catch (e) { /* gone */ }
+          try {
+            note("fv:destroy", `${(refrId >>> 0).toString(16)} remote=${((remoteRefrId || 0) >>> 0).toString(16)} wasHosted=${wasHosted ? "yes" : "no"} found=${refr ? "yes" : "NO"} 3d=${loaded} disabled=${disabled}`);
+          } catch (e) { /* diagnostics never break the caller */ }
+        }
         if (refr) {
           refr.delete();
         }
@@ -992,7 +1005,7 @@ export class FormView {
     try { loaded = String(refr.is3DLoaded()); } catch (e) { /* gone */ }
     try { disabled = String(refr.isDisabled()); } catch (e) { /* gone */ }
     const seated = this.movState && this.movState.havokSeated ? "yes" : "no";
-    note("fv:host", `ff${(this.refrId >>> 0).toString(16)} remote=${((this.remoteRefrId || 0) >>> 0).toString(16)} ${was ? "ours" : "theirs"}->${now ? "ours" : "theirs"} 3d=${loaded} disabled=${disabled} havokSeated=${seated}`);
+    note("fv:host", `${(this.refrId >>> 0).toString(16)} remote=${((this.remoteRefrId || 0) >>> 0).toString(16)} ${was ? "ours" : "theirs"}->${now ? "ours" : "theirs"} 3d=${loaded} disabled=${disabled} havokSeated=${seated}`);
   }
 
   private isSettlingBeast(model: FormModel): boolean {

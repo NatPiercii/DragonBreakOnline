@@ -149,7 +149,7 @@ export class WorldCleanerService extends ClientListener {
     const age = firstSeen ? `${Date.now() - firstSeen}ms since first seen` : "first sight";
     let loaded = "?";
     try { loaded = String(actor.is3DLoaded()); } catch (e) { /* gone already */ }
-    note("wc:sweep", `ff${(actorId >>> 0).toString(16)} base=${base.toString(16)} adopted=${remoteId ? "yes" : "NO"} protection=${protection} 3d=${loaded} ${age}`);
+    note("wc:sweep", `${(actorId >>> 0).toString(16)} base=${base.toString(16)} adopted=${remoteId ? "yes" : "NO"} protection=${protection} 3d=${loaded} ${age}`);
   }
 
   private isActorInDialogue(ac: Actor) {
