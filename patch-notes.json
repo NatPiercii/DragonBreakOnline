@@ -64,6 +64,27 @@
     ]
   },
   {
+    "title": "Client 0.3.68: Keyboard and Menus",
+    "date": "2026-09-29",
+    "version": "Client 0.3.68",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "A window of ours that opened while a game menu was up (character creation, your inventory, a container) took the keyboard away from that menu until you alt-tabbed. It now waits until the game menu closes and then takes the keyboard.",
+          "When the game stops hearing your keyboard, it now takes it back by itself, so you no longer need to alt-tab out and back in."
+        ]
+      },
+      {
+        "heading": "Getting it",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Hunting, Dungeons, Combat and Fair Play",
     "date": "2026-09-29",
     "version": "Server update",
