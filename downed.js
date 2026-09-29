@@ -24,6 +24,10 @@ module.exports = (api) => {
 
   const C = Object.assign({
     friendlyDamage: 0.2,
+    // Every character has at least 150 health (150/150/100 plus the race's own). Until a hit has taught a target's real
+    // maximum a party hit is judged against this, so the first lethal-sized one after a restart (S.maxHp starts empty and
+    // is cleared at 4096 entries) is cut to the friendly share too instead of landing whole (2026-09-29 review)
+    minMaxHealth: 150,
     bleedoutSeconds: 60,
     reviveHealth: 0.25,
     // After a revive the player kneels (the essential bleed-out pose), cannot move, attack or be hurt, and their health
@@ -122,13 +126,14 @@ module.exports = (api) => {
         const isFriendly = friendly(agg, tgt);
         if (!isFriendly && isPlayer(sideOf(agg)) && isPlayer(tgt)) S.fought.set(pairKey(sideOf(agg), tgt), Date.now());
         if (isFriendly) {
-          const max = S.maxHp.get(tgt);
+          const known = S.maxHp.get(tgt) > 0;
+          const max = known ? S.maxHp.get(tgt) : C.minMaxHealth;
           if (max > 0 && p.health - dmg / max <= 0.001) {
             // Lethal at full strength: refuse it and take off the friendly share here, unless even that kills
             const reduced = p.health - C.friendlyDamage * dmg / max;
             if (reduced > 0.001) {
               setHealth(tgt, reduced);
-              log(`downed: friendly hit ${display(agg)} -> ${display(tgt)} ${dmg.toFixed(1)} of ${Math.round(max)} max, applied ${Math.round(C.friendlyDamage * 100)}% (refused the lethal full hit)`);
+              log(`downed: friendly hit ${display(agg)} -> ${display(tgt)} ${dmg.toFixed(1)} of ${Math.round(max)} max${known ? '' : ' (assumed)'}, applied ${Math.round(C.friendlyDamage * 100)}% (refused the lethal full hit)`);
               return false;
             }
           }
