@@ -768,21 +768,34 @@ VarValue PapyrusObjectReference::Is3DLoaded(VarValue,
 }
 
 namespace LinkedRefUtils {
+// None when the linked ref is not a server form (a light, a marker, a deleted ref)
+static VarValue RefValue(WorldState* worldState, uint32_t formId)
+{
+  const auto& form = worldState->LookupFormById(formId);
+  auto refr = form ? form->AsObjectReference() : nullptr;
+  return refr ? VarValue(std::make_shared<MpFormGameObject>(refr))
+              : VarValue::None();
+}
+
 static VarValue GetLinkedRef(VarValue self)
 {
-  if (auto selfRefr = GetFormPtr<MpObjectReference>(self)) {
-    auto lookupRes = selfRefr->GetParent()->GetEspm().GetBrowser().LookupById(
-      selfRefr->GetFormId());
-    auto data =
-      espm::GetData<espm::REFR>(selfRefr->GetFormId(), selfRefr->GetParent());
-    if (data.linkedRefId) {
-      auto& linkedRef = selfRefr->GetParent()->GetFormAt<MpObjectReference>(
-        lookupRes.ToGlobalId(data.linkedRefId));
-      return VarValue(std::make_shared<MpFormGameObject>(&linkedRef));
-    }
+  auto selfRefr = GetFormPtr<MpObjectReference>(self);
+  // A ref the server made has no plugin record, so no links
+  if (!selfRefr || selfRefr->GetFormId() >= 0xff000000 ||
+      !selfRefr->GetParent()->HasEspm()) {
+    return VarValue::None();
   }
-
-  return VarValue::None();
+  auto worldState = selfRefr->GetParent();
+  auto lookupRes =
+    worldState->GetEspm().GetBrowser().LookupById(selfRefr->GetFormId());
+  if (!lookupRes.rec) {
+    return VarValue::None();
+  }
+  auto data = espm::GetData<espm::REFR>(selfRefr->GetFormId(), worldState);
+  if (!data.linkedRefId) {
+    return VarValue::None();
+  }
+  return RefValue(worldState, lookupRes.ToGlobalId(data.linkedRefId));
 }
 
 // Global form id of the Keyword argument, 0 for None
@@ -833,8 +846,7 @@ VarValue PapyrusObjectReference::GetLinkedRef(
     auto worldState = selfRefr->GetParent();
     if (auto linkedId = LinkedRefUtils::FindLinkedRefId(
           worldState, selfRefr->GetFormId(), keywordId)) {
-      auto& linkedRef = worldState->GetFormAt<MpObjectReference>(linkedId);
-      return VarValue(std::make_shared<MpFormGameObject>(&linkedRef));
+      return LinkedRefUtils::RefValue(worldState, linkedId);
     }
   }
 
