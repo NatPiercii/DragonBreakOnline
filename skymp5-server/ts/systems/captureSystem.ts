@@ -258,7 +258,15 @@ export class CaptureSystem implements System {
     for (const [captiveActorId, info] of Array.from(this.restraints)) {
       if (!info.boundHands || info.carried || !info.captorActorId) continue;
       try {
-        if (this.userOf(ctx, captiveActorId) < 0 || this.userOf(ctx, info.captorActorId) < 0) continue;
+        if (this.userOf(ctx, captiveActorId) < 0) continue;
+        // A captor who quit to character select or switched character never disconnects, so disconnect() never frees their
+        // captive, and this loop skipped them for good: the captive stayed bound with nobody at the other end of the rope
+        // (2026-09-29 review). A captive still online whose captor's body has no player is let go.
+        if (this.userOf(ctx, info.captorActorId) < 0) {
+          this.releaseTarget(ctx, captiveActorId);
+          this.log(`[capture] ${captiveActorId.toString(16)} let go: captor ${info.captorActorId.toString(16)} left their body`);
+          continue;
+        }
         if (this.isDowned(mp, captiveActorId) || this.isDowned(mp, info.captorActorId)) continue;
         const loc = mp.get(info.captorActorId, "locationalData");
         const own = mp.get(captiveActorId, "locationalData");
