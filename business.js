@@ -140,6 +140,9 @@ module.exports = (api) => {
       const n = Number(b.owed);
       if (giveGold(a, n)) { b.owed = 0; note(b, `${display(a)} collected ${n} gold of takings`); save(); personal(a, `${b.name} took ${n} gold while you were away.`); }
     }
+    // Takings held for a business whose claim has since passed to someone else (review A2-4)
+    const d = data(); const pid = String(profileOf(a)); const held = Number((d.owedTo || {})[pid]) || 0;
+    if (held > 0 && giveGold(a, held)) { delete d.owedTo[pid]; save(); audit(`BUSINESS ${who(a)} collected ${held} gold of takings held from a business they no longer own`); personal(a, `${held} gold of takings from your old business was held for you.`); }
   };
 
   // ---- rented chests ----------------------------------------------------------------------------------
@@ -497,13 +500,20 @@ module.exports = (api) => {
       if (!name) return personal(a, 'Name it: /business open <name>');
       // The claim changed hands and the old owner's record is still here: keep it (their held takings, the rentals)
       // under archived instead of overwriting it (review A2-1). Staff settle it from there.
+      // Review A2-4: the old owner's held takings go to them at their next login (owedTo), and the rented and grace chests
+      // keep their renters under the new business, or the chest index would drop them and they would open for anyone.
       const old = data().businesses[hex(claim.primary)];
+      const carried = {};
       if (old) {
         const d = data(); d.archived = d.archived || {};
-        d.archived[`${hex(claim.primary)}@${Date.now()}`] = old;
-        audit(`BUSINESS ${who(a)} opened a business on claim ${hex(claim.primary)}; the previous record (${old.name}, owner ${old.owner}, ${Number(old.owed) || 0} gold held) was archived`);
+        const owed = Number(old.owed) || 0;
+        if (owed > 0) { d.owedTo = d.owedTo || {}; d.owedTo[String(old.owner)] = (Number(d.owedTo[String(old.owner)]) || 0) + owed; }
+        for (const [ref, c] of Object.entries(old.chests || {})) { const st = chestState(c); if (st === 'rented' || st === 'grace') carried[ref] = Object.assign({}, c); }
+        d.archived[`${hex(claim.primary)}@${Date.now()}`] = Object.assign({}, old, { owed: 0, owedMovedTo: owed > 0 ? String(old.owner) : undefined });
+        audit(`BUSINESS ${who(a)} opened a business on claim ${hex(claim.primary)}; the previous record (${old.name}, owner ${old.owner}) was archived, ${owed} gold held for its owner's next login, ${Object.keys(carried).length} rented chest(s) carried over`);
       }
-      data().businesses[hex(claim.primary)] = { name, owner: profileOf(a), ownerName: display(a), zone: zoneOfActor(a), rentGold: 0, staff: [], chests: {}, owed: 0, log: [], notes: [] };
+      data().businesses[hex(claim.primary)] = { name, owner: profileOf(a), ownerName: display(a), zone: zoneOfActor(a), rentGold: 0, staff: [], chests: carried, owed: 0, log: [], notes: [] };
+      if (Object.keys(carried).length) note(data().businesses[hex(claim.primary)], `${Object.keys(carried).length} chest(s) still rented from the previous business, kept for their renters`);
       const b = data().businesses[hex(claim.primary)]; note(b, `${display(a)} opened ${name}`); save();
       audit(`BUSINESS ${who(a)} opened ${name} (claim ${hex(claim.primary)}, ${zoneName(b.zone)})`);
       // Its ledger goes down where the owner stands; the panel's arrows set it on the counter
