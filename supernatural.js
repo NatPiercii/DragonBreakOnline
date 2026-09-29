@@ -256,7 +256,18 @@ module.exports = (api) => {
   const readJson = (p, f) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { return f; } };
   const G = globalThis.__dboSuperState || (globalThis.__dboSuperState = readJson(CROWN_PATH, { crown: null, revoke: [] }));
   const saveG = () => { try { fs.writeFileSync(CROWN_PATH + '.tmp', JSON.stringify(G, null, 1)); fs.renameSync(CROWN_PATH + '.tmp', CROWN_PATH); } catch (e) { log('supernatural.json write failed', e.message); } };
-  const crownHolder = () => (G.crown ? Number(G.crown.holder) >>> 0 : 0);
+  // A holder whose character was deleted (at character select, /wipechars, the admin panel) can never be slain for it,
+  // and a new pure-blood only claims a vacant crown, so it was stuck for good: a destroyed holder leaves it vacant.
+  // A get on a destroyed form throws; 'type' is a property every form has.
+  const crownHolder = () => {
+    if (!G.crown) return 0;
+    const holder = Number(G.crown.holder) >>> 0;
+    try { mp.get(holder, 'type'); return holder; } catch (e) { /* the character is gone */ }
+    audit(`BLOODCROWN ${G.crown.name || holder.toString(16)} lost it (the character no longer exists)`);
+    log(`supernatural: the Blood Crown's holder ${holder.toString(16)} no longer exists; the crown lies unclaimed`);
+    G.crown = null; saveG();
+    return 0;
+  };
   const vampiresOnline = () => onlineActors().filter((o) => kindOf(o) === 'vampire');
   const takeCrown = (a, how) => {
     const old = crownHolder();
