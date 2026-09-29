@@ -22,10 +22,14 @@ Date.now = () => wallClock;
 
 const READER = 0x14;
 // Any real record will do as a book's base: the mock says every lookup is a BOOK, and only the plugin matters.
-const SKYRIM_BOOK = 0x5001, CYRODIIL_BOOK = 0x5002;
+const SKYRIM_BOOK = 0x5001, CYRODIIL_BOOK = 0x5002, TOME_BOOK = 0x5003, SKILL_BOOK = 0x5004;
+// BOOK DATA byte 0 by base: SpellTomeFlames 9cd51 teaches a spell (0x04), SkillOneHanded1 1afe3 a skill (0x01)
+const BOOK_FLAGS = { 0x9cd51: 0x04, 0x1afe3: 0x01 };
 const props = new Map([
   [SKYRIM_BOOK + '|baseDesc', 'f:Skyrim.esm'],
   [CYRODIIL_BOOK + '|baseDesc', '61b52:BSHeartland.esm'],
+  [TOME_BOOK + '|baseDesc', '9cd51:Skyrim.esm'],
+  [SKILL_BOOK + '|baseDesc', '1afe3:Skyrim.esm'],
   [READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: 0 } } }],
 ]);
 const out = { widgets: [], closed: 0, personals: [], events: [], audits: [] };
@@ -35,7 +39,7 @@ const stubs = {
     get: (id, p) => props.get(id + '|' + p),
     set: (id, p, v) => props.set(id + '|' + p, v),
     getIdFromDesc: (d) => parseInt(String(d).split(':')[0], 16) >>> 0,
-    lookupEspmRecordById: () => ({ record: { type: 'BOOK', editorId: 'BookTestVolume' } }),
+    lookupEspmRecordById: (id) => ({ record: { type: 'BOOK', editorId: 'BookTestVolume', fields: [{ type: 'DATA', data: new Uint8Array([BOOK_FLAGS[id] || 0, 0, 0, 0]) }] } }),
   },
   cfg: {},
   fs, path,
@@ -46,8 +50,9 @@ const stubs = {
   openWidget: (a, w, focus) => { out.widgets.push({ w, focus }); return true; },
   closeWidget: () => { out.closed++; return true; },
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
-  giveItem: () => true,
+  giveItem: (a, id) => { out.given.push(id >>> 0); return true; },
 };
+out.given = [];
 globalThis.__alduinakMasteryEvent = (kind, a) => out.events.push(kind);
 // eslint-disable-next-line no-new-func
 new Function(...Object.keys(stubs), section + '\nreturn null;')(...Object.values(stubs));
@@ -150,5 +155,32 @@ wallClock += w.endsInMs + 15000;
 globalThis.__dboReadBook(SKYRIM_BOOK, READER);
 check('an abandoned round expires and the book opens again', out.widgets.length === count + 1 && last().nonce !== w.nonce);
 
+// ---- copies (loot review, 2026-09-29): never a spell tome or skill book, at most bookDailyCap a day ----
+{
+  const realRandom = Math.random; Math.random = () => 0; // the same line and order each time, and every find succeeds
+  const readThrough = (book) => {
+    wallClock += 31 * 60000; let r = open(book);
+    wallClock += r.endsInMs + 3000; ui('reading', [r.nonce, '[]']);
+    const answer = last().answer.split(' ');
+    wallClock += 31 * 60000; r = open(book); wallClock += 1000;
+    ui('reading', [r.nonce, JSON.stringify(solve(r, answer))]);
+    return last();
+  };
+  props.set(READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: 0 } } });
+  props.delete(READER + '|private.scholarCopies');
+  out.given.length = 0;
+  const t = readThrough(TOME_BOOK);
+  check('a spell tome read through is won', t.resultKind === 'win', t.result);
+  check('...but never copied (the Synod sells tomes one a week)', !out.given.includes(0x9cd51), out.given);
+  readThrough(SKILL_BOOK);
+  check('a skill book is never copied', !out.given.includes(0x1afe3), out.given);
+  for (let i = 0; i < 9; i++) readThrough(SKYRIM_BOOK);
+  const copies = out.given.filter((id) => id === 0xf).length;
+  check('an ordinary book is copied at most 6 times a day', copies === 6, copies);
+  props.set(READER + '|private.scholarCopies', { day: '2000-01-01', n: 6 }); // yesterday's six
+  readThrough(SKYRIM_BOOK);
+  check('...and again the next day', out.given.filter((id) => id === 0xf).length === 7);
+  Math.random = realRandom;
+}
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);
