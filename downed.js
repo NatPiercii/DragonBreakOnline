@@ -486,14 +486,29 @@ module.exports = (api) => {
     });
   };
   const pendingCast = S.pendingCast = S.pendingCast || new Map();
+  const castStop = S.castStop = S.castStop || new Map(); // caster -> distance to the living actor their pending aimed heal hit
+  const distanceTo = (a, b) => {
+    try {
+      if (mp.get(a, 'worldOrCellDesc') !== mp.get(b, 'worldOrCellDesc')) return Infinity;
+      const p = mp.get(a, 'pos'), q = mp.get(b, 'pos');
+      return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+    } catch (e) { return Infinity; }
+  };
   {
     const inner = mp.onSpellHit;
     if (typeof inner === 'function') {
       mp.onSpellHit = function (aggressorId, targetId, spellId, ...rest) {
         const caster = Number(aggressorId) >>> 0, t = Number(targetId) >>> 0, spell = Number(spellId) >>> 0;
         try {
+          // An aimed heal that landed on someone alive stopped there (2026-09-29 review: a Priest healing a friend also raised,
+          // by aim, anyone lying fallen behind them). The fallback below may still raise a body nearer than them, which the heal
+          // can pass through, never one beyond.
+          if (AIMED.has(spell) && pendingCast.has(caster) && !isDead(t)) {
+            const d = distanceTo(caster, t);
+            if (d < (castStop.has(caster) ? castStop.get(caster) : Infinity)) castStop.set(caster, d);
+          }
           if (AIMED.has(spell) && S.downed.has(t) && isDead(t)) {
-            const pc = pendingCast.get(caster); if (pc) { clearTimeout(pc); pendingCast.delete(caster); }
+            const pc = pendingCast.get(caster); if (pc) { clearTimeout(pc); pendingCast.delete(caster); castStop.delete(caster); }
             if (canRaise(caster)) revive(t, caster, 'healing');
           } else if (AIMED.has(spell) && canLift(caster, t)) {
             liftChill(t, caster);
@@ -518,9 +533,12 @@ module.exports = (api) => {
           } else if (S.downed.size && AIMED.has(spell)) {
             // A hit on a body does not always arrive (the same as Reanimate): the nearest fallen in front of the caster
             const old = pendingCast.get(caster); if (old) clearTimeout(old);
+            castStop.delete(caster);
             pendingCast.set(caster, setTimeout(() => {
               pendingCast.delete(caster);
-              const t = downedNear(caster, C.reviveRange, C.reviveConeDeg)[0];
+              const stop = castStop.has(caster) ? castStop.get(caster) : Infinity;
+              castStop.delete(caster);
+              const t = downedNear(caster, Math.min(C.reviveRange, stop), C.reviveConeDeg)[0];
               if (t && canRaise(caster)) { log(`downed: ${display(caster)} healing reached ${display(t)} without a hit, by aim`); revive(t, caster, 'healing'); }
             }, C.reviveFallbackMs));
           }
