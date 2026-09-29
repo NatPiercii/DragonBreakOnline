@@ -725,15 +725,6 @@
    ]
   },
   {
-   "shout": "48ac9:Skyrim.esm",
-   "name": "SlowTimeShout",
-   "words": [
-    "48aca:Skyrim.esm",
-    "48acb:Skyrim.esm",
-    "48acc:Skyrim.esm"
-   ]
-  },
-  {
    "shout": "7097d:Skyrim.esm",
    "name": "StormCallShout",
    "words": [

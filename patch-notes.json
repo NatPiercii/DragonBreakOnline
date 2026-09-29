@@ -1,5 +1,19 @@
 [
   {
+    "title": "Slow Time Removed",
+    "date": "2026-09-29",
+    "version": "Server",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Shouts",
+        "items": [
+          "Slow Time is no longer a shout players can learn or use: it slowed the world only on the shouter's own screen, which does not work with other players around. Anyone who has it loses it the next time they log in."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.62: Finding the Character Select Issue",
     "date": "2026-09-28",
     "version": "Client 0.3.62",
