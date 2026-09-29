@@ -104,6 +104,14 @@ ok(treasury.bruma === 6 && gold[OWNER] === 24, 'the hold takes 20 % (6) and the 
 ok(globalThis.__dboBusinessActivate(CHEST, OWNER) === true, 'the owner cannot open a rented chest');
 ok(globalThis.__dboBusinessActivate(CHEST, RENTER) === false, 'the renter opens it (more than a day left)');
 ok(biz().log.some((e) => /rented a chest for 3 days, 30 gold/.test(e.text)), 'the rental is written in the ledger');
+// Review A2-1: the claim changes hands (a transfer to an alt, a revoke, an eviction) and the business is no longer valid.
+// The chest's own record still keeps everyone but the renter out.
+setp(DOOR, 'private.housing', { owner: 11, ownerName: 'Stray', partner: OUTDOOR });
+ok(globalThis.__dboBusinessActivate(CHEST, STRANGER) === true, 'after the claim changes hands the new holder cannot open a rented chest (A2-1)');
+ok(globalThis.__dboBusinessActivate(CHEST, OWNER) === true, '...nor can the old owner');
+ok(globalThis.__dboBusinessActivate(CHEST, COUNT) === true, '...nor the hold\'s count');
+ok(globalThis.__dboBusinessActivate(CHEST, RENTER) === false, '...but the renter still opens it');
+setp(DOOR, 'private.housing', { owner: 7, ownerName: 'Olaf', partner: OUTDOOR });
 
 // Rent runs out: grace for the renter, then back to the owner
 const data = globalThis.__dboBusiness.data;
