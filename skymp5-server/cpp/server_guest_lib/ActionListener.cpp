@@ -1950,7 +1950,28 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
     const bool hadChannel = existing != restorationChannels.end();
 
     // Concentration heals accrue per second of channel so a tap heals a tap's worth
+    // One application per caster and spell each kRestoreCastInterval; no fire-and-forget cast cycles faster
+    bool castTooSoon = false;
     if (!isConcentration && !spellCastData.keepAlive) {
+      const auto now = std::chrono::steady_clock::now();
+      auto& last = lastRestoreCast[(static_cast<uint64_t>(casterId) << 32) |
+                                   spellCastData.spell];
+      castTooSoon = now - last < kRestoreCastInterval;
+      if (!castTooSoon) {
+        last = now;
+      }
+      if (lastRestoreCast.size() > 4096) {
+        std::erase_if(lastRestoreCast, [&](const auto& entry) {
+          return now - entry.second > std::chrono::seconds(10);
+        });
+      }
+      if (castTooSoon) {
+        spdlog::info("ActionListener::OnSpellCast - {:x} cast restorative "
+                     "spell {:x} again too soon, not applied",
+                     casterId, spellCastData.spell);
+      }
+    }
+    if (!isConcentration && !spellCastData.keepAlive && !castTooSoon) {
       targetActor->ApplyMagicEffects(restoreEffects, hasSweetpie);
       spdlog::info("ActionListener::OnSpellCast - applied {} restorative "
                    "effect(s) of spell {:x} to actor {:x}",

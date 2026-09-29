@@ -196,6 +196,11 @@ private:
   bool TakeScrollHit(uint32_t casterId, uint32_t scrollId, uint32_t targetId);
   bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
                             uint32_t targetId);
+  // Last restorative fire-and-forget cast applied per (caster << 32 | spell): a cast packet healed on arrival with no
+  // rate, so a modified client healed to full mid-fight (combat review, 2026-09-29)
+  static constexpr std::chrono::milliseconds kRestoreCastInterval{ 700 };
+  std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
+    lastRestoreCast;
   // Last power attack or bash per (attacker << 32 | target), for the stagger floor in OnWeaponHit
   static constexpr std::chrono::milliseconds kForcefulHitInterval{ 700 };
   std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
