@@ -39,7 +39,7 @@ const home = (a) => { props.set(`${a}|worldOrCellDesc`, e0.world || e0.cell); pr
 const said = new Map(), ui = new Map(), cmds = new Map(), timers = new Map();
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8'));
 globalThis.__dboDungeons = undefined; globalThis.__dboDungeonAccountRest = undefined;
-require(path.join(ROOT, 'dungeons.js'))({
+const API = {
   mp: { get: (id, p) => (p === 'profileId' ? (PROFILE[id] ?? -1) : props.get(`${id}|${p}`)), set: (id, p, v) => props.set(`${id}|${p}`, v), getIdFromDesc: idOf,
     lookupEspmRecordById: () => ({ record: null }) },
   log: () => {}, personal: (a, t) => said.set(a, t), system: (a, t) => said.set(a, t), audit: () => {},
@@ -47,7 +47,8 @@ require(path.join(ROOT, 'dungeons.js'))({
   openWidget: () => true, closeWidget: () => true, sendPacket: () => true, findByName: () => 0, display: String, who: String,
   profileOf: (a) => PROFILE[a] ?? -1, nameOf: (a) => (a === B ? 'Bea' : 'Aela'), onlineActors: () => online, isAdmin: () => false,
   giveItem: () => true, cfg: { dungeons: cfg.dungeons || {} }, every: (n, ms, fn) => timers.set(n, fn),
-});
+};
+require(path.join(ROOT, 'dungeons.js'))(API);
 const ST = globalThis.__dboDungeons;
 const fire = (n, a, args) => (ui.get(n) || []).forEach((f) => f(a, args, 0));
 const claim = (a) => {
@@ -97,6 +98,38 @@ said.delete(B); later();
 check('someone outside the claiming party cannot search its dead', globalThis.__dboCorpseLoot(body, B) === false && /belongs to the party/.test(said.get(B) || ''), said.get(B));
 check('...and the body is left unsearched for the party', props.get(`${body}|private.dboLooted`) !== true);
 check('the claimer searches it', globalThis.__dboCorpseLoot(body, A) === false && props.get(`${body}|private.dboLooted`) === true);
+
+// 4. The party can change while the gate is open (exploit audit): whoever joined is checked again at the claim
+ST.leases.delete(D.id); REST.clear(); props.delete(`${A}|private.dungeonCooldowns`); props.delete(`${B}|private.dungeonCooldowns`); ST.parties.clear(); ST.memberOf.clear();
+REST.set(`2:${D.id}`, Date.now() + 30 * 60000);
+home(A); globalThis.__dboDungeonActivate(idOf(e0.outsideDesc), A);
+const pend4 = ST.pending.get(A);
+check('a leader alone opens the gate', !!pend4);
+ST.parties.set(1, { leader: 1, leaderName: 'Aela', members: new Set([1, 2]) }); ST.memberOf.set(1, 1); ST.memberOf.set(2, 1);
+said.clear(); later();
+if (pend4) fire('dungeonClaim', A, [pend4.nonce, 'normal']);
+check('a member who still rests and joined while the gate was open refuses the claim', !ST.leases.has(D.id) && /still rests for someone in your party/.test(said.get(A) || ''), said.get(A));
+
+// 5. A member offline when the claim ends rests all the same; the rest survives a reload, then runs out
+REST.clear(); props.delete(`${A}|private.dungeonCooldowns`); props.delete(`${B}|private.dungeonCooldowns`);
+online = [A, B]; home(B); said.clear(); later();
+lease = claim(A);
+check('a party of two claims it', !!lease && lease.members.has(1) && lease.members.has(2));
+online = [A];
+lease.lastInsideAt = Date.now() - 60 * 60000;
+timers.get('dungeons.tick')();
+check('...the member who logged out before the end rests all the same', !ST.leases.has(D.id) && (REST.get(`2:${D.id}`) || 0) > Date.now());
+globalThis.__dboDungeonAccountRest = undefined;
+delete require.cache[path.join(ROOT, 'dungeons.js')];
+require(path.join(ROOT, 'dungeons.js'))(API);
+const REST2 = globalThis.__dboDungeonAccountRest;
+check('the account rest is read back from dungeon-cooldowns.json after a reload', (REST2.get(`1:${D.id}`) || 0) > Date.now() && (REST2.get(`2:${D.id}`) || 0) > Date.now());
+online = [A, B]; said.clear(); later();
+check('...and still refuses the claim', claim(A) === null);
+skew += ((Number((cfg.dungeons || {}).cooldownMinutes) || 60) + 1) * 60000;
+props.delete(`${A}|private.dungeonCooldowns`); props.delete(`${B}|private.dungeonCooldowns`);
+said.clear();
+check('once the rest has run out the party claims again', !!claim(A), said.get(A));
 
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exitCode = failures ? 1 : 0;
