@@ -1,5 +1,33 @@
 [
   {
+    "title": "Hunting, Dungeon Claims and Spell Fixes",
+    "date": "2026-09-29",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Hunting",
+        "items": [
+          "A skinned deer now opens like any other body, so its venison, antlers and coin can be taken. The same goes for a hide beyond your Skinner rank: you are told who could take the hide, and the body opens for the rest."
+        ]
+      },
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Only the party that claimed a dungeon can open its chests and loot its dead.",
+          "A dungeon's rest now follows you across characters, and a party can only claim a dungeon once every member's rest has run out. The refusal says who is still resting."
+        ]
+      },
+      {
+        "heading": "Combat",
+        "items": [
+          "A spell can no longer hit the same target again faster than it can be cast.",
+          "A Vampire Lord's bat form now has a 12-second wait, the untouchable state ends when the form does, and nobody can strike while untouchable."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.67: Name Your Character, True Weapon Numbers, Fairer Prayers",
     "date": "2026-09-29",
     "version": "Client 0.3.67",
