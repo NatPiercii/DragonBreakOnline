@@ -1,5 +1,30 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-29 (06:45 UTC): make deploy-gameplay refuse a stale clone - FOR NAT, dev-server.sh
+
+**Nat: this needs doing on the PC.** `dev-server.sh` is overwritten on CT 115 by `sync-claude`, so the change has to
+be made in the source on the PC, not here. Written up rather than edited for that reason.
+
+**The problem.** `deploy-gameplay` installs the **working tree** of `~/dragonbreak/server`, not the commit anyone
+pushed. That clone is shared by every worker session, so it drifts: it was found **10 commits behind origin/server**
+at 06:20 UTC on 2026-09-29. A `deploy-gameplay` run at that moment would have silently rolled live gameplay back
+past the naming panel and `/name`, the prayer round fix, the vampire incubation/circlet fix, the wisp stalks and
+Ayleid wells work and both patch-note commits. No error, no warning - the deploy would have reported success.
+This has now come close twice in one night (the same thing was caught before a `deploy-news` earlier).
+
+**The guard.** In `dev-server.sh`, before `deploy-gameplay` and `deploy-news` copy anything:
+
+- [ ] `git -C ~/dragonbreak/server fetch origin server` first, then refuse with a clear message if
+      `git rev-list --count HEAD..origin/server` is not `0` ("the clone is N commits behind origin/server; fast-forward
+      it or deploy from your own tree").
+- [ ] Refuse as well if `git status --porcelain` shows modifications to tracked `*.js` / `*.json` that are not the
+      ones being deployed on purpose, since those ship too.
+- [ ] `--force` to override, for the case where deploying a working tree ahead of the remote is the intent.
+- [ ] Print the HEAD sha it is about to ship, so the log says what went out.
+
+**Verify after every deploy regardless:** grep the live file for a string from the newest change. The deploy stamps
+`dbo-gamemode.js` but nothing checks that what was stamped is what you meant to send.
+
 ## Added 2026-09-29 (06:30 UTC): BrowserApi "off" backend falls through to Tilted - C++, next platform change
 
 `skyrim-platform/src/platform_se/skyrim_platform/BrowserApi.cpp`, `Register()`: `case Backend::kOff:` ends at
