@@ -135,6 +135,20 @@ module.exports = (api) => {
     ['13749', 'elf'], ['13747', 'orc'], ['13745', 'khajiit'], ['13740', 'argonian']].map(([r, f]) => [idOf(`${r}:Skyrim.esm`), f]).filter(([r]) => r));
   const familyOf = (race) => FAMILY.get(race) || FAMILY.get(MORTAL_RACES.get(race)) || null;
   const isEyePart = (id) => fieldIds(recordOf(id), 'PNAM')[0] === 2;
+  // A head part's extra parts (HNAM), and theirs in turn: eyes such as the blind ones carry an overlay part that the
+  // character's head part list holds beside them, and it stays on top of the tells unless it goes with its eyes
+  const extrasOf = (id, depth = 0) => {
+    if (depth > 3) return [];
+    const out = [];
+    for (const x of fieldIds(recordOf(id), 'HNAM').map((l) => globalOf(id, l)).filter(Boolean)) out.push(x, ...extrasOf(x, depth + 1));
+    return out;
+  };
+  // The extras of the character's own eyes that are in the list and do not belong to the tell eyes as well
+  const strayExtras = (headpartIds, prevEye, want) => {
+    const keep = new Set(extrasOf(want));
+    const have = new Set(headpartIds.map((h) => Number(h) >>> 0));
+    return [...new Set(extrasOf(Number(prevEye) >>> 0))].filter((x) => have.has(x) && !keep.has(x));
+  };
   const PALE = [0xe8, 0xe6, 0xec];
   const blend = (rgb, t) => [16, 8, 0].reduce((acc, sh, i) => acc | (Math.round(((rgb >> sh) & 0xff) * (1 - t) + PALE[i] * t) << sh), 0);
   const isToneTint = (t) => /SkinTone\.dds$/i.test(String((t && t.texturePath) || ''));
@@ -144,12 +158,27 @@ module.exports = (api) => {
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return; }
     if (!app || !Array.isArray(app.headpartIds)) return;
     const fam = familyOf(Number(app.raceId) >>> 0); const want = fam ? ((TELL_EYES[s.kind] || {})[fam] || [])[app.isFemale ? 1 : 0] : 0;
-    if (!want || app.headpartIds.includes(want)) return;
+    if (!want) return;
+    if (app.headpartIds.includes(want)) {
+      // Shown before the eyes' extras went with them (2026-09-29): take the stray overlay off once, keeping it for the cure
+      const look = s.look;
+      if (!look || look.eye !== want || Array.isArray(look.prevExtras)) return;
+      look.prevExtras = strayExtras(app.headpartIds, look.prevEye, want);
+      saveState(a, s);
+      if (look.prevExtras.length) {
+        const drop = new Set(look.prevExtras);
+        mp.set(a, 'appearance', Object.assign({}, app, { headpartIds: app.headpartIds.filter((h) => !drop.has(Number(h) >>> 0)) }));
+        log(`supernatural: ${display(a)} lost ${look.prevExtras.length} stray eye part(s) from under the ${s.kind}'s tells`);
+      }
+      return;
+    }
     const idx = app.headpartIds.findIndex((h) => isEyePart(Number(h) >>> 0));
     if (idx < 0) return;
-    const next = Object.assign({}, app, { headpartIds: app.headpartIds.slice() });
-    const look = { kind: s.kind, eye: want, prevEye: next.headpartIds[idx] };
-    next.headpartIds[idx] = want;
+    const prevEye = app.headpartIds[idx];
+    const prevExtras = strayExtras(app.headpartIds, prevEye, want);
+    const drop = new Set(prevExtras);
+    const next = Object.assign({}, app, { headpartIds: app.headpartIds.map((h, i) => (i === idx ? want : h)).filter((h) => !drop.has(Number(h) >>> 0)) });
+    const look = { kind: s.kind, eye: want, prevEye, prevExtras };
     if (s.kind === 'vampire') {
       const t = fam === 'khajiit' || fam === 'argonian' ? C.vampirePallorBeast : C.vampirePallor;
       look.prevSkin = next.skinColor; next.skinColor = blend(Number(next.skinColor) >>> 0, t);
@@ -164,7 +193,8 @@ module.exports = (api) => {
     s.look = null;
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return; }
     if (!app || !Array.isArray(app.headpartIds)) return;
-    const next = Object.assign({}, app, { headpartIds: app.headpartIds.map((h) => ((Number(h) >>> 0) === look.eye ? look.prevEye : h)) });
+    const extras = (Array.isArray(look.prevExtras) ? look.prevExtras : []).filter((x) => !app.headpartIds.some((h) => (Number(h) >>> 0) === x));
+    const next = Object.assign({}, app, { headpartIds: app.headpartIds.flatMap((h) => ((Number(h) >>> 0) === look.eye ? [look.prevEye, ...extras] : [h])) });
     if (look.prevSkin !== undefined) next.skinColor = look.prevSkin;
     if (look.prevTone !== undefined) next.tints = (next.tints || []).map((x) => (isToneTint(x) ? Object.assign({}, x, { argb: look.prevTone }) : x));
     mp.set(a, 'appearance', next);
