@@ -23,7 +23,7 @@ const fs   = require('fs')
 const os   = require('os')
 const https = require('https')
 const crypto = require('crypto')
-const { spawn, execFileSync, execFile } = require('child_process')
+const { spawn, execFile } = require('child_process')
 
 const MO2_VERSION = '2.5.2'
 const MO2_URL     = `https://github.com/ModOrganizer2/modorganizer/releases/download/v${MO2_VERSION}/Mod.Organizer-${MO2_VERSION}.7z`
@@ -66,7 +66,8 @@ function isInstalled() {
 // via extraResources): unlike the standalone 7za in the 7zip-bin package it
 // can read the .rar archives many Nexus mods come as. 7za stays as fallback.
 function get7za() {
-  const candidates = [
+  // 7z.exe runs only on Windows; elsewhere (tests, a Linux dev run) the platform's 7za from 7zip-bin is used
+  const candidates = process.platform !== 'win32' ? [] : [
     process.resourcesPath ? path.join(process.resourcesPath, '7zip', '7z.exe') : null,
     path.join(__dirname, '..', 'assets', '7zip', '7z.exe'),
   ].filter(Boolean)
@@ -127,12 +128,35 @@ function downloadFile(url, dest, onProgress, redirectsLeft = 5) {
   })
 }
 
-/** Extract a .7z/.zip archive with the bundled 7za. */
-function extractArchive(archivePath, destDir) {
+const EXTRACT_TIMEOUT_MS = 10 * 60 * 1000
+
+/**
+ * Extract a .7z/.zip archive with the bundled 7za, without blocking the main process. It used to run through
+ * execFileSync: a Repair Modlist extracted all 105 archives back to back with the window frozen, which Windows shows
+ * as "Not Responding" and players reported as a crash (Silanth, 2026-09-29). Same timeout as before.
+ */
+function extractArchive(archivePath, destDir, timeoutMs = EXTRACT_TIMEOUT_MS) {
   fs.mkdirSync(destDir, { recursive: true })
-  execFileSync(get7za(), ['x', '-y', `-o${destDir}`, archivePath], {
-    stdio: 'ignore',
-    timeout: 10 * 60 * 1000,
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const done = (err) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (err) reject(err); else resolve()
+    }
+    let child
+    try {
+      child = spawn(get7za(), ['x', '-y', `-o${destDir}`, archivePath], { stdio: 'ignore', windowsHide: true })
+    } catch (err) {
+      return done(err)
+    }
+    const timer = setTimeout(() => {
+      try { child.kill() } catch {}
+      done(new Error(`7-Zip took longer than ${Math.round(timeoutMs / 60000)} minutes on ${path.basename(archivePath)}`))
+    }, timeoutMs)
+    child.on('error', done)
+    child.on('close', (code) => done(code === 0 ? null : new Error(`7-Zip exited with code ${code} on ${path.basename(archivePath)}`)))
   })
 }
 
@@ -241,9 +265,9 @@ async function downloadMo2Archive(onProgress) {
   return archive
 }
 
-function extractMo2Archive(archive, onProgress) {
+async function extractMo2Archive(archive, onProgress) {
   if (onProgress) onProgress('Extracting Mod Organizer 2…')
-  extractArchive(archive, getRoot())
+  await extractArchive(archive, getRoot())
   try { fs.unlinkSync(archive) } catch {}
   if (!isInstalled()) {
     throw new Error('MO2 extraction finished but ModOrganizer.exe was not found.')
@@ -261,12 +285,12 @@ async function reinstall(onProgress) {
     const removed = removeRootEntries(await archiveTopLevelNames(archive))
     _log(`removed ${removed.length} MO2 entries from ${root} for a fresh install`)
   }
-  extractMo2Archive(archive, onProgress)
+  await extractMo2Archive(archive, onProgress)
 }
 
 async function installFresh(onProgress) {
   _log(`installing MO2 ${MO2_VERSION} to ${getRoot()}`)
-  extractMo2Archive(await downloadMo2Archive(onProgress), onProgress)
+  await extractMo2Archive(await downloadMo2Archive(onProgress), onProgress)
 }
 
 // Portable instance / profile
@@ -551,6 +575,12 @@ function verifyArchive(archivePath, sha256) {
   catch { return false }
 }
 
+/** verifyArchive without blocking the main process: a multi-GB archive hashes in the background. */
+async function verifyArchiveAsync(archivePath, sha256) {
+  try { return (await sha256FileAsync(archivePath)).toLowerCase() === String(sha256).toLowerCase() }
+  catch { return false }
+}
+
 /** Find a finished download whose .meta records the given Nexus fileId. */
 function findDownloadByFileId(fileId) {
   let names
@@ -596,7 +626,7 @@ async function downloadToDownloads(url, fileName, onProgress) {
 // a cached extraction counts only when this marker says it finished.
 const EXTRACT_MARKER = '.complete'
 
-function extractToCache(archivePath, archiveId) {
+async function extractToCache(archivePath, archiveId) {
   const dir = path.join(getRoot(), '.x', String(archiveId))
   const marker = path.join(dir, EXTRACT_MARKER)
   if (fs.existsSync(lp(marker))) return dir
@@ -605,7 +635,7 @@ function extractToCache(archivePath, archiveId) {
     _log(`discarding incomplete extraction of ${archiveId}`)
     rmrfSync(dir)
   }
-  extractArchive(archivePath, dir)
+  await extractArchive(archivePath, dir)
   fs.writeFileSync(lp(marker), '')
   return dir
 }
@@ -637,7 +667,7 @@ function clearCache(archiveId) {
  *
  * @returns { folder } | { error }
  */
-function applyMod(modName, files, extractedDirs, modId, hash) {
+async function applyMod(modName, files, extractedDirs, modId, hash) {
   const folderName = String(modName).replace(/[<>:"/\\|?*]/g, '')
   const modDir     = path.join(getModsDir(), folderName)
   const buildDir   = path.join(getRoot(), '.b', String(_applyCounter++))
@@ -646,7 +676,7 @@ function applyMod(modName, files, extractedDirs, modId, hash) {
   try {
     for (const f of files) {
       try {
-        writeDirective(f, buildDir, extractedDirs)
+        await writeDirective(f, buildDir, extractedDirs)
       } catch (err) {
         // Name the file and its source: "mod failed" alone is undiagnosable
         throw new Error(`${f.to}: ${err.message}${f.archive ? ` [archive ${f.archive}, from ${f.from}]` : ' [inline]'}`)
@@ -686,27 +716,30 @@ function applyMod(modName, files, extractedDirs, modId, hash) {
 let _applyCounter = 1
 
 /** Place game-root files (SKSE, preloaders) directly into the game folder. */
-function applyRootFiles(rootFiles, extractedDirs, gameDir) {
-  for (const f of rootFiles || []) writeDirective(f, gameDir, extractedDirs)
+async function applyRootFiles(rootFiles, extractedDirs, gameDir) {
+  for (const f of rootFiles || []) await writeDirective(f, gameDir, extractedDirs)
   return (rootFiles || []).length
 }
 
-/** Materialise a single directive (FromArchive or Inline) under destRoot, verifying sha256. */
-function writeDirective(f, destRoot, extractedDirs) {
+/**
+ * Materialise a single directive (FromArchive or Inline) under destRoot, verifying sha256. The copy and the hash run
+ * in the background: done synchronously, a mod's gigabytes of files froze the window for the whole Repair Modlist.
+ */
+async function writeDirective(f, destRoot, extractedDirs) {
   const dest = path.join(destRoot, f.to.split('/').join(path.sep))
   fs.mkdirSync(lp(path.dirname(dest)), { recursive: true })
 
   if (f.inline != null) {
-    fs.writeFileSync(lp(dest), Buffer.from(f.inline, 'base64'))
+    await fs.promises.writeFile(lp(dest), Buffer.from(f.inline, 'base64'))
   } else {
     const dir = extractedDirs[f.archive]
     if (!dir) throw new Error(`archive ${f.archive} was not extracted`)
     const src = path.join(dir, f.from.split('/').join(path.sep))
     if (!fs.existsSync(lp(src))) throw new Error(`"${f.from}" not found in archive ${f.archive}`)
-    fs.copyFileSync(lp(src), lp(dest))
+    await fs.promises.copyFile(lp(src), lp(dest))
   }
 
-  if (f.sha256 && sha256File(dest).toLowerCase() !== String(f.sha256).toLowerCase()) {
+  if (f.sha256 && (await sha256FileAsync(dest)).toLowerCase() !== String(f.sha256).toLowerCase()) {
     throw new Error(`hash mismatch for ${f.to}`)
   }
 }
@@ -824,10 +857,10 @@ function skseSourceFor(gameDir) {
  *
  * @returns {{ folder: string|null }}  the scripts-mod folder, if one was made
  */
-function installSkse(archivePath, gameDir) {
+async function installSkse(archivePath, gameDir) {
   const tmp = path.join(getRoot(), '.skse')
   try { fs.rmSync(lp(tmp), { recursive: true, force: true }) } catch {}
-  extractArchive(archivePath, tmp)
+  await extractArchive(archivePath, tmp)
   try {
     // Descend a single wrapper folder (skse64_2_02_06/…) to the real root.
     let rootDir = tmp
@@ -1496,7 +1529,9 @@ module.exports = {
   findDownloadByFileId,
   findArchiveByHash,
   adoptArchive,
+  extractArchive,
   verifyArchive,
+  verifyArchiveAsync,
   sha256File,
   sha256FileAsync,
   listFilesRel,

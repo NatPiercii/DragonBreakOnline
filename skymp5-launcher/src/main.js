@@ -66,6 +66,20 @@ try {
 mo2.setLogger(log)
 nexus.setLogger(log)
 
+// Whatever takes the launcher down, or leaves it half-dead, is written to install.log, so a report can show it
+// (Silanth, 2026-09-29: "Repair All crashes the launcher", with nothing in the log). An uncaught error used to show
+// only Electron's own dialog; a renderer or helper process that died left no trace at all.
+const errorText = (err) => (err && err.stack) || String(err)
+process.on('uncaughtException', (err) => {
+  log(`[crash] uncaught error in the launcher: ${errorText(err)}`)
+  try { send('install:log', `The launcher hit an unexpected error: ${err && err.message ? err.message : err}. Press Report a Problem so staff get the log.`) } catch { /* no window yet */ }
+})
+process.on('unhandledRejection', (reason) => log(`[crash] unhandled rejection in the launcher: ${errorText(reason)}`))
+app.on('render-process-gone', (_e, _contents, details) =>
+  log(`[crash] the launcher window's renderer is gone: ${details && details.reason} (exit code ${details && details.exitCode})`))
+app.on('child-process-gone', (_e, details) =>
+  log(`[crash] a launcher helper process is gone: ${details && details.type} ${details && details.reason} (exit code ${details && details.exitCode})`))
+
 // Only user-specific preferences live in the store.
 const store = new Store({
   defaults: {
@@ -3116,7 +3130,7 @@ async function handleNxmLinkNow(link) {
   const name = await nexus.downloadWithKey(auth, modId, fileId, key, expires, fileName, downloadsDir, (r, t) => {
     send('install:progress', { phase: 'download', file: `Downloading ${fileName} ${mb(r)}${t ? ' / ' + mb(t) : ''} MB`, index: 0, total: 0, skipped: false })
   })
-  if (expected && expected.hash && !mo2.verifyArchive(path.join(downloadsDir, name), expected.hash)) {
+  if (expected && expected.hash && !(await mo2.verifyArchiveAsync(path.join(downloadsDir, name), expected.hash))) {
     try { fs.unlinkSync(path.join(downloadsDir, name)) } catch {}
     return nxmLog(`${fileName}: the download does not match the version the server expects; open the file page from the download list and pick the listed version.`)
   }
@@ -3171,7 +3185,7 @@ async function installSkseIntoRoot(skyrimPath) {
     send('install:progress', { phase: 'mods', file: `Downloading SKSE (${skse.edition})… ${mb(r)} MB${pct}`, index: 0, total: 0, skipped: false })
   })
   send('install:progress', { phase: 'mods', file: 'Installing SKSE…', index: 0, total: 0, skipped: false })
-  mo2.installSkse(path.join(mo2.getDownloadsDir(), name), skyrimPath)
+  await mo2.installSkse(path.join(mo2.getDownloadsDir(), name), skyrimPath)
 }
 
 // opts.force rebuilds every mod and the SKSE root step from scratch (Repair Modlist).
@@ -3344,7 +3358,10 @@ async function runMO2Install(opts = {}) {
       names.push(a.name)
       for (const name of names) {
         const p = path.join(downloadsDir, name)
-        if (fs.existsSync(p) && mo2.verifyArchive(p, a.hash)) return p
+        if (!fs.existsSync(p)) continue
+        // Hashed in the background, with a line per archive: a multi-GB archive used to freeze the window here
+        send('install:progress', { phase: 'mods', file: `Checking ${name}…`, index: 0, total: 0, skipped: false })
+        if (await mo2.verifyArchiveAsync(p, a.hash)) return p
       }
       // A manually moved / renamed file, or one Vortex already downloaded (the collection), linked in without a copy
       const found = await mo2.findArchiveByHash(a.hash, a.size, otherArchiveDirs())
@@ -3365,7 +3382,7 @@ async function runMO2Install(opts = {}) {
           send('install:progress', { phase: 'mods', file: `Downloading ${a.name}… ${mb(r)} MB${pct}`, index: 0, total: 0, skipped: false })
         })
         const p = path.join(downloadsDir, name)
-        if (!mo2.verifyArchive(p, a.hash)) return fail(`${a.name}: downloaded file failed verification (hash mismatch).`)
+        if (!(await mo2.verifyArchiveAsync(p, a.hash))) return fail(`${a.name}: downloaded file failed verification (hash mismatch).`)
         archivePaths[a.id] = p
       } else if (a.source.type === 'nexus' && premium) {
         send('install:progress', { phase: 'mods', file: `Downloading ${a.name}…`, index: 0, total: 0, skipped: false })
@@ -3385,7 +3402,7 @@ async function runMO2Install(opts = {}) {
           continue
         }
         const p = path.join(downloadsDir, name)
-        if (!mo2.verifyArchive(p, a.hash)) return fail(`${a.name}: downloaded file failed verification (hash mismatch - the version pin may have changed).`)
+        if (!(await mo2.verifyArchiveAsync(p, a.hash))) return fail(`${a.name}: downloaded file failed verification (hash mismatch - the version pin may have changed).`)
         archivePaths[a.id] = p
       } else if (a.source.type === 'nexus') {
         needBrowser.push(a)
@@ -3440,11 +3457,13 @@ async function runMO2Install(opts = {}) {
 
     mo2.clearCache()
     const extractedDirs = {}
-    const ensureExtracted = ids => {
+    // Extraction runs in the background, with a line per archive, so the window stays alive through a Repair Modlist
+    const ensureExtracted = async (ids, index = 0, total = 0) => {
       for (const id of ids) {
         if (extractedDirs[id]) continue
         if (!archivePaths[id]) throw new Error(`archive ${id} was never downloaded`)
-        extractedDirs[id] = mo2.extractToCache(archivePaths[id], id)
+        send('install:progress', { phase: 'mods', file: `Extracting ${path.basename(archivePaths[id])}…`, index, total, skipped: false })
+        extractedDirs[id] = await mo2.extractToCache(archivePaths[id], id)
       }
     }
     const release = ids => {
@@ -3461,8 +3480,8 @@ async function runMO2Install(opts = {}) {
       const ids = [...new Set(mod.files.filter(f => f.archive).map(f => f.archive))]
       send('install:progress', { phase: 'mods', file: `Installing ${mod.name}…`, index: i, total: modsToInstall.length, skipped: false })
       try {
-        ensureExtracted(ids)
-        const r = mo2.applyMod(mod.name, mod.files, extractedDirs, mod.modId, mod.hash)
+        await ensureExtracted(ids, i, modsToInstall.length)
+        const r = await mo2.applyMod(mod.name, mod.files, extractedDirs, mod.modId, mod.hash)
         if (r.error) failed.push(`${mod.name} (${r.error})`)
       } catch (err) {
         failed.push(`${mod.name} (${err.message})`)
@@ -3473,8 +3492,8 @@ async function runMO2Install(opts = {}) {
     if (needsRoot && manifest.root && manifest.root.length > 0) {
       const ids = [...new Set(manifest.root.filter(f => f.archive).map(f => f.archive))]
       try {
-        ensureExtracted(ids)
-        mo2.applyRootFiles(manifest.root, extractedDirs, skyrimPath)
+        await ensureExtracted(ids)
+        await mo2.applyRootFiles(manifest.root, extractedDirs, skyrimPath)
       } catch (err) {
         failed.push(`root files (${err.message})`)
       }
