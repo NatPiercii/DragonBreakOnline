@@ -3686,7 +3686,8 @@ const materialDamageMult = (aggressorId, sourceId) => {
 // ARMO DNAM is the rating x100 (u32), BOD2 byte 4 the armor type (0 light, 1 heavy, 2 clothing). Config "mastery.defense".
 const DEFENSE = Object.assign({ enabled: true, armorMultByTier: [1, 1.25, 1.75, 2.5, 3.5], lightShare: 1 },
   ((cfg.mastery || {}).defense) || {});
-const armorPieceCache = globalThis.__dboArmorPiece instanceof Map ? globalThis.__dboArmorPiece : (globalThis.__dboArmorPiece = new Map());
+// Cache renamed with the chest flag, so a reload never keeps entries made before it
+const armorPieceCache = globalThis.__dboArmorPiece2 instanceof Map ? globalThis.__dboArmorPiece2 : (globalThis.__dboArmorPiece2 = new Map());
 const armorPieceOf = (baseId) => {
   if (armorPieceCache.has(baseId)) return armorPieceCache.get(baseId);
   let piece = null;
@@ -3694,10 +3695,32 @@ const armorPieceOf = (baseId) => {
   if (r && String(r.record.type) === 'ARMO') {
     const dnam = fieldsOf(r, 'DNAM')[0], bod2 = fieldsOf(r, 'BOD2')[0];
     const u32 = (f, at) => new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(at, true);
-    if (dnam && dnam.data.byteLength >= 4) piece = { rating: u32(dnam, 0) / 100, heavy: !!bod2 && bod2.data.byteLength >= 8 && u32(bod2, 4) === 1 };
+    // chest: the body slot (32, bit 2 of BOD2's slot mask), which tempering improves twice as much as any other piece
+    if (dnam && dnam.data.byteLength >= 4) piece = { rating: u32(dnam, 0) / 100, heavy: !!bod2 && bod2.data.byteLength >= 8 && u32(bod2, 4) === 1,
+      clothing: !!bod2 && bod2.data.byteLength >= 8 && u32(bod2, 4) === 2, chest: !!bod2 && bod2.data.byteLength >= 4 && (u32(bod2, 0) & 0x4) !== 0 };
   }
   armorPieceCache.set(baseId, piece);
   return piece;
+};
+// Tempering as the game shows it (UESP Skyrim:Smithing): quality level q = (health - 1) x 10, one step per level
+// (Fine 1.1 .. Legendary 1.6, as craftedExtrasSystem stores it), worth (3.6 q - 1.6) on chest armor and half that on
+// any other piece and on weapons: Fine +2/+1 .. Legendary +20/+10. The server's hit formula (TES5DamageFormula) reads
+// neither, so the inventory showed a tempered item stronger than it was; it is counted here (Nate, 2026-09-29: "count
+// tempering the way the game does").
+const temperBonus = (health, chest) => { const q = Math.round((Number(health) - 1) * 10); return q > 0 ? (3.6 * q - 1.6) * (chest ? 1 : 0.5) : 0; };
+// Worn entries with their tempering; the engine keeps it as the entry's health
+const wornWithHealth = (a) => {
+  let entries = [];
+  try { const eq = mp.get(a, 'equipment'); entries = eq && eq.inv && Array.isArray(eq.inv.entries) ? eq.inv.entries : []; } catch (e) { return []; }
+  return entries.filter((e) => e && (e.worn || e.wornLeft)).map((e) => ({ baseId: Number(e.baseId) >>> 0, health: Number(e.health) || 1 }));
+};
+// A tempered weapon's blow: base damage plus the game's tempering bonus, over base damage
+const temperDamageMult = (aggressorId, sourceId) => {
+  const base = recordDamageOf(sourceId, 'WEAP');
+  if (!(base > 0)) return 1;
+  const w = wornWithHealth(aggressorId).find((e) => e.baseId === (sourceId >>> 0));
+  const bonus = w ? temperBonus(w.health, false) : 0;
+  return bonus > 0 ? (base + bonus) / base : 1;
 };
 const gmstFloat = (id, fallback) => {
   const key = `gmst:${id}`;
@@ -3729,21 +3752,33 @@ try {
   delete require.cache[MARTIAL_JS];
   martial = require(MARTIAL_JS)({ mp, log, display, profileOf, masteryOf, wornOf, armorPieceOf, gmstFloat, weaponHandsOf, skills: SKILLS_DEF, combat, cfg });
 } catch (e) { log('martial.js failed to load:', e.stack || e.message); martial = null; }
-// Below 1 when the target's Defense tier makes its armor count for more than the engine allowed it
-const defenseDamageMult = (targetId) => {
-  if (!DEFENSE.enabled) return 1;
+// How much a Defense tier multiplies a piece's rating: heavy by the tier's factor, light by lightShare of the gain
+const defensePieceMult = (targetId) => {
+  const none = { heavy: 1, light: 1 };
+  if (!DEFENSE.enabled) return none;
   const rec = masteryOf(targetId);
-  if (!rec || !Array.isArray(rec.order) || rec.order.indexOf('defense') === -1) return 1;
+  if (!rec || !Array.isArray(rec.order) || rec.order.indexOf('defense') === -1) return none;
   const rank = Math.max(0, Number(((rec.skills || {}).defense || {}).rank) || 0);
   const m = Number((DEFENSE.armorMultByTier || [])[rank]) || 1;
-  if (!(m > 1)) return 1;
-  let heavy = 0, light = 0;
-  try { for (const w of wornOf(mp.get(targetId, 'equipment'))) { const p = armorPieceOf(w.baseId); if (p) { if (p.heavy) heavy += p.rating; else light += p.rating; } } } catch (e) { return 1; }
-  if (!(heavy + light > 0)) return 1;
+  if (!(m > 1)) return none;
+  return { heavy: m, light: 1 + (m - 1) * (Number(DEFENSE.lightShare) || 0) };
+};
+// Below 1 when the target's armor counts for more than the engine allowed it: the Defense tier multiplies each piece's
+// rating, and tempering adds the game's bonus to it (the engine reads the bare rating only)
+const defenseDamageMult = (targetId) => {
+  const pm = defensePieceMult(targetId);
+  let bare = 0, counted = 0;
+  try {
+    for (const w of wornWithHealth(targetId)) {
+      const p = armorPieceOf(w.baseId); if (!p) continue;
+      bare += p.rating;
+      counted += (p.rating + temperBonus(w.health, p.chest)) * (p.heavy ? pm.heavy : pm.light);
+    }
+  } catch (e) { return 1; }
+  if (!(bare > 0) || Math.abs(counted - bare) < 1e-9) return 1;
   const scale = gmstFloat(0x21a72, 0.12), cap = gmstFloat(0x37deb, 80);
   const kept = (rating) => 1 - Math.min(rating * scale, cap) / 100;
-  const boosted = heavy * m + light * (1 + (m - 1) * (Number(DEFENSE.lightShare) || 0));
-  return kept(boosted) / kept(heavy + light);
+  return kept(counted) / kept(bare);
 };
 // A werewolf in beast form hits harder and takes less by its rank in the Great Hunt (greathunt.js), a vampire hits harder
 // at night by its rank (bloodranks.js)
@@ -3870,7 +3905,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // 3. Mastery: note the target's health before the engine applies this hit; onHitDamage adds the tier's share
   try {
     const pvp = agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0 ? (Number(PVP.damageMult) || 1) : 1;
-    let mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * huntDamageMult(agg, tgt) * pvp;
+    let mult = masteryDamageMult(agg, src) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * temperDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * huntDamageMult(agg, tgt) * pvp;
     // Tired blows, fists into armour, staves through it, the fist's stamina drain and disarm (martial.js)
     if (martial) { try { mult *= martial.onAttempt(agg, tgt, src, dmg, flags); } catch (e) { log('martial failed', e.message); } }
     // Block chip and stamina, guard breaks, bash, stagger (combat.js); a bash's blow comes back scaled down
@@ -3884,6 +3919,63 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
 };
 hitDamageAttemptHook.__dbo = true;
 mp.onHitDamageAttempt = hitDamageAttemptHook;
+
+// ---- the numbers the inventory shows are the ones the server uses (client StatDisplayService) ------------------------
+// The inventory draws a weapon as (base + tempering) x (1 + skill/200) and armor as (base + tempering) x (1 + 0.4 x
+// skill/100) from the game's own skills (UESP Skyrim:Weapons, Skyrim:Armor), while a hit here takes our tiers, the
+// material and Defense instead (Nate, 2026-09-29: "we just want the game number to be accurate"). Every everySeconds
+// each player is sent, for each weapon and armor piece they carry, the number the server uses for them: a normal blow
+// before the target's armor (a bow without its arrow, as the game shows it; not the +25% against players), or the
+// rating Defense counts. The client sets the item's base value so the game's formula lands on it. Sent when it changes,
+// and again every resendSeconds so a reconnect gets it.
+const STAT_DISPLAY = Object.assign({ enabled: true, everySeconds: 10, resendSeconds: 120, maxItems: 250 }, cfg.statDisplay || {});
+// The game's own skill the inventory multiplies by, from WEAP DNAM's animation type (libespm WEAP.h)
+const DISPLAY_SKILL = { 1: 'OneHanded', 2: 'OneHanded', 3: 'OneHanded', 4: 'OneHanded', 5: 'TwoHanded', 6: 'TwoHanded', 7: 'Archery', 9: 'Archery' };
+const weaponAnimOf = (id) => { const r = recordOf(id); if (!r || String(r.record.type) !== 'WEAP') return 0; const d = fieldsOf(r, 'DNAM')[0]; return d && d.data.byteLength ? d.data[0] : 0; };
+const statItemsFor = (a) => {
+  let entries = [];
+  try { const inv = mp.get(a, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return []; }
+  // One line per item: the worn copy's tempering, else the first copy's
+  const byId = new Map();
+  for (const e of entries) {
+    if (!e || !(Number(e.count) > 0)) continue;
+    const id = Number(e.baseId) >>> 0, worn = !!(e.worn || e.wornLeft), have = byId.get(id);
+    if (!have || (worn && !have.worn)) byId.set(id, { health: Number(e.health) || 1, worn });
+  }
+  const pm = defensePieceMult(a), out = [];
+  for (const [id, e] of byId) {
+    if (out.length >= STAT_DISPLAY.maxItems) break;
+    const base = recordDamageOf(id, 'WEAP');
+    if (base > 0) {
+      const skill = DISPLAY_SKILL[weaponAnimOf(id)];
+      if (!skill) continue;
+      const temper = temperBonus(e.health, false);
+      out.push({ id, kind: 'weapon', skill, temper: Math.round(temper * 100) / 100, value: Math.round((base + temper) * masteryDamageMult(a, id) * materialDamageMult(a, id) * 100) / 100 });
+      continue;
+    }
+    const p = armorPieceOf(id);
+    if (!p || p.clothing || !(p.rating > 0)) continue;
+    const temper = temperBonus(e.health, p.chest);
+    out.push({ id, kind: 'armor', skill: p.heavy ? 'HeavyArmor' : 'LightArmor', temper: Math.round(temper * 100) / 100, value: Math.round((p.rating + temper) * (p.heavy ? pm.heavy : pm.light) * 100) / 100 });
+  }
+  return out;
+};
+const statSent = globalThis.__dboStatSent instanceof Map ? globalThis.__dboStatSent : (globalThis.__dboStatSent = new Map());
+const pushStats = () => {
+  if (!STAT_DISPLAY.enabled) return;
+  const now = Date.now();
+  for (const a of onlineActors()) {
+    if (!(profileOf(a) >= 0)) continue;
+    let items; try { items = statItemsFor(a); } catch (e) { log('stat display failed', e.message); continue; }
+    const key = JSON.stringify(items), last = statSent.get(a);
+    if (last && last.key === key && now - last.at < STAT_DISPLAY.resendSeconds * 1000) continue;
+    statSent.set(a, { key, at: now });
+    try { sendPacket(a, { customPacketType: 'dboStatDisplay', items }); } catch (e) { /* offline */ }
+  }
+  if (statSent.size > 512) for (const [k, v] of statSent) if (now - v.at > 3600000) statSent.delete(k);
+};
+every('statDisplay', Math.max(2, Number(STAT_DISPLAY.everySeconds) || 10) * 1000, pushStats);
+globalThis.__dboStatItemsFor = statItemsFor;
 
 // ---- party panel: names and health of your party, owner-side widget fed by ff_party --------------
 // The server writes {members:[{id,name,leader}], self}; the client reads each member's health from

@@ -1,5 +1,28 @@
 [
   {
+    "title": "Weapon and Armor Numbers You Can Trust",
+    "date": "2026-09-29",
+    "version": "Client 0.3.67",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Blacksmithing and combat",
+        "items": [
+          "The damage and armor numbers in your inventory now match what the server actually uses: your skill tier, the weapon's material and your Defense are all counted in them.",
+          "Improving an item at a grindstone or workbench now really counts in a fight, the way the game shows it: a weapon gains +1 (Fine) up to +10 (Legendary) damage, a cuirass +2 up to +20 armor and other pieces half that.",
+          "The shown damage is a normal blow against a monster. Against another player you deal a quarter more.",
+          "Your character's old One-Handed, Two-Handed, Archery and armor skill levels in the game's own skill screen now read 0. They never counted on the server; your tiers in the Skills menu (K) are what count."
+        ]
+      },
+      {
+        "heading": "Getting it",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Wisp Stalks and Ayleid Wells",
     "date": "2026-09-29",
     "version": "Server",

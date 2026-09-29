@@ -36,19 +36,27 @@ const DAEDRIC_CUIRASS = 0x1396b, GLASS_BOOTS = 0x13939;
 const u32 = (...v) => { const b = new Uint8Array(v.length * 4); const d = new DataView(b.buffer); v.forEach((x, i) => d.setUint32(i * 4, x, true)); return b; };
 const armo = (rating, type) => ({ record: { type: 'ARMO', editorId: 'x', fields: [{ type: 'BOD2', data: u32(4, type) }, { type: 'DNAM', data: u32(rating * 100) }] } });
 const ARMOR = { [DAEDRIC_CUIRASS]: armo(49, 1), [GLASS_BOOTS]: armo(11, 0) };
-const weap = (id) => ({ record: { type: 'WEAP', editorId: 'x', fields: [{ type: 'DNAM', data: Uint8Array.from([ANIM[id], 0, 0]) }] } });
+// DATA: value u32, weight f32, damage u16 at 8 (the base damage the server reads)
+const DMG = { [IRON_SWORD]: 7, [GREATSWORD]: 17, [LONGBOW]: 6, [IRON_WAR_AXE]: 8, [IRON_MACE]: 9, [IRON_BATTLEAXE]: 16 };
+const weapData = (id) => { const b = new Uint8Array(10); new DataView(b.buffer).setUint16(8, DMG[id] || 0, true); return b; };
+const weap = (id) => ({ record: { type: 'WEAP', editorId: 'x', fields: [{ type: 'DNAM', data: Uint8Array.from([ANIM[id], 0, 0]) }, { type: 'DATA', data: weapData(id) }] } });
+// Boots on the feet slot (37, bit 7), not the body, so tempering counts half on them
+const IRON_BOOTS = 0x12e4b;
+ARMOR[IRON_BOOTS] = { record: { type: 'ARMO', editorId: 'x', fields: [{ type: 'BOD2', data: u32(0x80, 1) }, { type: 'DNAM', data: u32(10 * 100) }] } };
 
 const world = {
   mastery: new Map(),      // actorId -> record
   percentages: new Map(),  // actorId -> {health, magicka, stamina}
   writes: [],              // every mp.set(id, 'percentages', ...)
-  worn: new Map(),         // actorId -> [armor baseId]
+  worn: new Map(),         // actorId -> [armor baseId | { baseId, health }]
+  inv: new Map(),          // actorId -> inventory entries
 };
 const mp = {
   lookupEspmRecordById: (id) => ARMOR[id] || (ANIM[id] ? weap(id) : (id === GOLD ? { record: { type: 'MISC', fields: [] } } : null)),
   get: (id, prop) => {
     if (prop === 'private.mastery') return world.mastery.get(id) || null;
-    if (prop === 'equipment') return { inv: { entries: (world.worn.get(id) || []).map((baseId) => ({ baseId, count: 1, worn: true })) } };
+    if (prop === 'equipment') return { inv: { entries: (world.worn.get(id) || []).map((b) => (typeof b === 'object' ? { baseId: b.baseId, count: 1, worn: true, health: b.health } : { baseId: b, count: 1, worn: true })) } };
+    if (prop === 'inventory') return { entries: world.inv.get(id) || [] };
     if (prop === 'percentages') { const p = world.percentages.get(id); if (!p) throw new Error('not an actor'); return Object.assign({}, p); }
     throw new Error(`unexpected get ${prop}`);
   },
@@ -215,6 +223,62 @@ const withFists = new Function('mp', 'cfg', 'log', 'display', 'recordOf', 'maste
 world.mastery.set(AGG, { order: ['unarmed', 'blade'], skills: { unarmed: { rank: 4 }, blade: { rank: 4 } } });
 ok('a Master fist gets fistByTier (+50%)', withFists.masteryDamageMult(AGG, 0x1f4), 1.5);
 ok('...while a Master sword keeps byTier (+100%)', withFists.masteryDamageMult(AGG, IRON_SWORD), 2);
+
+// ---- tempering counts as the game shows it, and the inventory's numbers (Nate, 2026-09-29) ------------------------
+{
+  const tb = new Function('mp', 'cfg', 'log', 'display', 'recordOf', 'masteryOf', 'fieldsOf', 'wornOf',
+    block + '\nreturn { temperBonus, temperDamageMult, defenseDamageMult };')(
+    mp, {}, () => {}, String, (id) => { const r = mp.lookupEspmRecordById(id >>> 0); return r && r.record ? r : null; },
+    (id) => { try { const r = mp.get(id, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } }, fieldsOf, wornOf);
+  ok('Fine on a chest piece: +2', tb.temperBonus(1.1, true), 2);
+  ok('Fine anywhere else: +1', tb.temperBonus(1.1, false), 1);
+  ok('Legendary on a chest piece: +20', tb.temperBonus(1.6, true), 20);
+  ok('Legendary on a weapon: +10', tb.temperBonus(1.6, false), 10);
+  ok('untempered: nothing', tb.temperBonus(1, false), 0);
+  world.worn.set(AGG, [{ baseId: IRON_SWORD, health: 1.6 }]);
+  ok('a Legendary iron sword (7) hits as 17', tb.temperDamageMult(AGG, IRON_SWORD), 17 / 7);
+  world.worn.set(AGG, [IRON_SWORD]);
+  ok('an untempered one as 7', tb.temperDamageMult(AGG, IRON_SWORD), 1);
+  ok('a weapon not in hand is not counted', tb.temperDamageMult(AGG, GREATSWORD), 1);
+  world.worn.delete(AGG);
+  const kept2 = (r) => 1 - Math.min(r * 0.12, 80) / 100;
+  world.mastery.delete(TGT);
+  world.worn.set(TGT, [{ baseId: DAEDRIC_CUIRASS, health: 1.6 }]);
+  ok('a Legendary Daedric cuirass counts 69 without Defense', tb.defenseDamageMult(TGT), kept2(69) / kept2(49));
+  world.worn.set(TGT, [{ baseId: DAEDRIC_CUIRASS, health: 1.6 }, { baseId: IRON_BOOTS, health: 1.6 }]);
+  world.mastery.set(TGT, { order: ['defense'], skills: { defense: { rank: 4 } } });
+  ok('...and with Master Defense (69 + 20) x 3.5 against the bare 59', tb.defenseDamageMult(TGT), kept2((69 + 20) * 3.5) / kept2(59));
+  world.mastery.delete(TGT); world.worn.delete(TGT);
+
+  // The inventory's numbers: lifted from gamemode.js the same way
+  const SSTART = '// ---- the numbers the inventory shows are the ones the server uses';
+  const SEND = 'globalThis.__dboStatItemsFor = statItemsFor;';
+  const sf = src.indexOf(SSTART), se = src.indexOf(SEND);
+  ok('the inventory-numbers block is found', sf > 0 && se > sf, true);
+  const sent = [];
+  const S = new Function('mp', 'cfg', 'log', 'display', 'recordOf', 'masteryOf', 'fieldsOf', 'wornOf', 'profileOf', 'every', 'onlineActors', 'sendPacket',
+    block + '\n' + src.slice(sf, se) + '\nreturn { statItemsFor, pushStats };')(
+    mp, { weaponMaterials: { enabled: true, playersOnly: true, byKeyword: {} } }, () => {}, String,
+    (id) => { const r = mp.lookupEspmRecordById(id >>> 0); return r && r.record ? r : null; },
+    (id) => { try { const r = mp.get(id, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } },
+    fieldsOf, wornOf, (a) => (a === AGG ? 1 : -1), () => {}, () => [AGG], (a, p) => sent.push([a, p]));
+  world.mastery.set(AGG, { order: ['blade', 'defense'], skills: { blade: { rank: 4 }, defense: { rank: 4 } } });
+  world.inv.set(AGG, [{ baseId: IRON_SWORD, count: 1, worn: true, health: 1.6 }, { baseId: GREATSWORD, count: 2 }, { baseId: DAEDRIC_CUIRASS, count: 1, worn: true, health: 1.1 },
+    { baseId: GLASS_BOOTS, count: 1 }, { baseId: GOLD, count: 50 }]);
+  const items = S.statItemsFor(AGG);
+  const at = (id) => items.find((x) => x.id === id) || {};
+  ok('a Master Blade with a Legendary iron sword: (7 + 10) x 2 = 34, read against One-Handed', at(IRON_SWORD).value === 34 && at(IRON_SWORD).temper === 10 && at(IRON_SWORD).skill === 'OneHanded', true);
+  ok('an untempered greatsword: 17 x 2 = 34, against Two-Handed', at(GREATSWORD).value === 34 && at(GREATSWORD).temper === 0 && at(GREATSWORD).skill === 'TwoHanded', true);
+  ok('a Fine Daedric cuirass at Master Defense: (49 + 2) x 3.5 = 178.5, Heavy Armor', at(DAEDRIC_CUIRASS).value === 178.5 && at(DAEDRIC_CUIRASS).skill === 'HeavyArmor', true);
+  ok('glass boots: 11 x 3.5 = 38.5, Light Armor', at(GLASS_BOOTS).value === 38.5 && at(GLASS_BOOTS).skill === 'LightArmor', true);
+  ok('gold is not an item with a number', items.length === 4, true);
+  S.pushStats(); S.pushStats();
+  ok('sent once, and not again while nothing changed', sent.length === 1 && sent[0][1].customPacketType === 'dboStatDisplay' && sent[0][1].items.length === 4, true);
+  world.mastery.set(AGG, { order: ['blade'], skills: { blade: { rank: 2 } } });
+  S.pushStats();
+  ok('a tier change sends the new numbers', sent.length === 2 && sent[1][1].items.find((x) => x.id === IRON_SWORD).value === Math.round(17 * 1.35 * 100) / 100, true);
+  world.mastery.delete(AGG); world.inv.delete(AGG);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
