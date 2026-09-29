@@ -12,7 +12,14 @@ import './styles.scss';
 // worshipper sees and not what the gods give.
 //
 //   Browser -> client -> server: sendMessage('dbo:prayer', nonce, JSON.stringify(spans), atMs)
+//   First press (startOnPress):  sendMessage('dbo:prayerStart', nonce)
 //   Escape / stand up:           sendMessage('dbo:prayerCancel', nonce)
+//
+// 2026-09-29 (Nate: "the space bar doesn't always work even when you hold it down"): 31 of 33 prayers had failed, most
+// held from first to last. The clock ran from the panel's arrival, so its load time and a reaction were judged; a focus
+// blip closed the hold and the key's repeats were ignored, so it never came back. Now, with a server that says
+// startOnPress, the verses wait for the first press and the round is timed from it; a repeat of a held key picks the
+// hold up again; and the panel takes the keyboard when it opens.
 export interface PrayerVerse {
   text: string;
   startMs: number;
@@ -27,6 +34,7 @@ export interface PrayerData {
   shrine?: string;
   verses: PrayerVerse[];
   totalMs: number;
+  startOnPress?: boolean; // the server times the round from the first press (dbo:prayerStart)
   result?: string;        // set by the server when the prayer is judged
   resultKind?: 'win' | 'lose';
 }
@@ -52,16 +60,20 @@ const Prayer = ({ data }: { data: PrayerData }) => {
     : [{ text: '...', startMs: 0, endMs: num(data.totalMs, 18000) }];
   const total = Math.max(1000, Math.floor(num(data.totalMs, verses[verses.length - 1].endMs)));
   const daedric = data.kind === 'daedra';
+  const waits = data.startOnPress === true;
 
   const [elapsed, setElapsed] = useState(0);
   const [down, setDown] = useState(false);
   const [sent, setSent] = useState(false);
+  // An older server starts the round when it sends it; this one waits for the first press
+  const [started, setStarted] = useState(!waits);
   // performance.now() so the round's clock cannot be stepped by the machine's time service
   const startedAt = useRef(performance.now());
   const sampleRef = useRef(0);              // ms into the round of the frame currently on screen
   const spansRef = useRef<number[][]>([]);  // closed [down, up] spans
   const openAt = useRef<number | null>(null);
   const sentRef = useRef(false);
+  const startedRef = useRef(!waits);
 
   // A new round (new nonce) resets everything. The server re-sending the same round with its
   // verdict must not, or the verses would restart under the result.
@@ -72,8 +84,12 @@ const Prayer = ({ data }: { data: PrayerData }) => {
     spansRef.current = [];
     openAt.current = null;
     sentRef.current = false;
+    startedRef.current = !waits;
     sampleRef.current = 0;
     startedAt.current = performance.now();
+    setStarted(!waits);
+    // The keyboard to this panel: without it Space goes to the game (a jump) and no press is ever seen
+    try { window.focus(); } catch (e) { /* not in a window */ }
   }, [data.nonce, total]);
 
   const submit = (at: number) => {
@@ -91,7 +107,7 @@ const Prayer = ({ data }: { data: PrayerData }) => {
   };
 
   useEffect(() => {
-    if (sent || data.result) return undefined;
+    if (sent || data.result || !started) return undefined;
     const t = window.setInterval(() => {
       const el = Math.floor(performance.now() - startedAt.current);
       sampleRef.current = el;
@@ -100,12 +116,20 @@ const Prayer = ({ data }: { data: PrayerData }) => {
     }, 16);
     return () => window.clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sent, data.result, data.nonce]);
+  }, [sent, data.result, data.nonce, started]);
 
   // The span is timed at the frame on screen, exactly as the labour widget times a strike: what the
   // worshipper saw is what the server scores.
   const press = () => {
     if (sentRef.current || data.result || openAt.current !== null) return;
+    if (!startedRef.current) {
+      // The first press starts the verses, and the server's clock with them
+      startedRef.current = true;
+      startedAt.current = performance.now();
+      sampleRef.current = 0;
+      setStarted(true);
+      send('dbo:prayerStart', data.nonce);
+    }
     openAt.current = sampleRef.current;
     setDown(true);
   };
@@ -127,7 +151,7 @@ const Prayer = ({ data }: { data: PrayerData }) => {
       if (e.key !== ' ' && e.key !== 'Enter') return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      if (e.repeat) return;         // a held key repeats; the span is already open
+      // A held key repeats: nothing while the span is open, and it opens a new one if a focus blip closed it
       press();
     };
     const onUp = (e: KeyboardEvent) => {
@@ -159,7 +183,9 @@ const Prayer = ({ data }: { data: PrayerData }) => {
       <div className="prayer__shrine">
         <h1 className="prayer__title">{data.shrine || ('Shrine of ' + data.deity)}</h1>
         <p className="prayer__hint">
-          {data.result ? data.result : 'Hold Space through all three verses. Let go and the prayer ends.'}
+          {data.result ? data.result : !started
+            ? 'Press and hold Space to begin (or hold the bar below with the mouse), and keep holding through all three verses.'
+            : 'Hold Space through all three verses. Let go and the prayer ends.'}
         </p>
 
         <ol className="prayer__verses">
@@ -182,7 +208,7 @@ const Prayer = ({ data }: { data: PrayerData }) => {
           onMouseLeave={release}
         >
           <div className="prayer__hold-fill" style={{ width: pct + '%' }} />
-          <span className="prayer__hold-label">{down ? 'kneeling' : sent || data.result ? '' : 'hold'}</span>
+          <span className="prayer__hold-label">{down ? 'kneeling' : sent || data.result ? '' : started ? 'hold' : 'press and hold to begin'}</span>
         </div>
 
         <div className="prayer__actions">
