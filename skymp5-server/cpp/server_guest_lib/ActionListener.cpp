@@ -60,10 +60,27 @@ bool HasSweetPie(const WorldState& worldState)
   return std::find(files.begin(), files.end(), "SweetPie.esp") != files.end();
 }
 
-// Non-hostile Health/Magicka/Stamina effects; areaOnly keeps those a self cast spreads to others
-std::vector<espm::Effects::Effect> GetRestorativeEffects(WorldState* worldState,
-                                                         uint32_t spellId,
-                                                         bool areaOnly)
+// Timed boosts to the regeneration rates: HealRate/MagickaRate/StaminaRate and
+// their Mult values (Highborn, the Blessing of Akatosh)
+bool IsRegenRateAV(espm::ActorValue av)
+{
+  return av == espm::ActorValue::HealRate ||
+    av == espm::ActorValue::MagickaRate ||
+    av == espm::ActorValue::StaminaRate ||
+    av == espm::ActorValue::HealRateMult_or_CombatHealthRegenMultMod ||
+    av == espm::ActorValue::MagickaRateMult_or_CombatHealthRegenMultPowerMod ||
+    av == espm::ActorValue::StaminaRateMult;
+}
+
+// Non-hostile Health/Magicka/Stamina effects; areaOnly keeps those a self cast
+// spreads to others. withRegenRates also keeps non-hostile timed boosts to the
+// regeneration rates, which MpActor::ApplyMagicEffect applies with a timer and
+// takes back at the end: only for a caster's own self cast (2026-09-29,
+// Highborn sped regeneration up and the server's crop pulled it back every
+// update)
+std::vector<espm::Effects::Effect> GetRestorativeEffects(
+  WorldState* worldState, uint32_t spellId, bool areaOnly,
+  bool withRegenRates = false)
 {
   std::vector<espm::Effects::Effect> result;
   const auto spellLookup =
@@ -87,8 +104,9 @@ std::vector<espm::Effects::Effect> GetRestorativeEffects(WorldState* worldState,
       continue;
     }
     const auto av = magicEffect.data.primaryAV;
-    if (av != espm::ActorValue::Health && av != espm::ActorValue::Magicka &&
-        av != espm::ActorValue::Stamina) {
+    const bool restores = av == espm::ActorValue::Health ||
+      av == espm::ActorValue::Magicka || av == espm::ActorValue::Stamina;
+    if (!restores && !(withRegenRates && IsRegenRateAV(av))) {
       continue;
     }
     espm::Effects::Effect converted;
@@ -1914,8 +1932,13 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
     }
   }
 
-  auto restoreEffects =
-    GetRestorativeEffects(&partOne.worldState, spellCastData.spell, false);
+  // Rate boosts only reach the caster through their own self cast, never a
+  // concentration channel (it re-applies per second)
+  const bool ownSelfCast = selfDelivery && targetActor == caster &&
+    !(spellData.spellItem &&
+      spellData.spellItem->castType == espm::SPEL::CastType::Concentration);
+  auto restoreEffects = GetRestorativeEffects(
+    &partOne.worldState, spellCastData.spell, false, ownSelfCast);
 
   if (!restoreEffects.empty()) {
     const bool hasSweetpie = HasSweetPie(partOne.worldState);
