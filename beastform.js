@@ -187,6 +187,7 @@ module.exports = (api) => {
       mp.set(a, 'private.beast', null);
     } catch (e) { log(`beastform: revert failed on ${display(a)}: ${e.message}`); return false; }
     sendPacket(a, { customPacketType: 'dboBeast', race: Number(s.original.raceId) >>> 0, beast: false, form: s.form, wear: [] });
+    ST.ethereal.delete(a);
     for (const id of WEAR[s.form] || []) setCount(a, id, 0);
     learn(a, s.form, false);
     // Skipped if another form was taken in the meantime: a revert straight into werewolf dressed the wolf in armour
@@ -247,7 +248,8 @@ module.exports = (api) => {
   const POWERS = new Map([
     [idOf('cf791:Skyrim.esm'), { name: 'Howl of Terror', form: 'werewolf', cooldown: 30, run: (a, id) => terror(a, id) }],
     [idOf('38ba:Dawnguard.esm'), { name: 'Mist Form', form: 'vampirelord', cooldown: 20, run: (a) => ethereal(a, 15) }],
-    [idOf('38b9:Dawnguard.esm'), { name: 'Bats', form: 'vampirelord', cooldown: 3, run: (a) => ethereal(a, 3) }],
+    // Bats had a 3 s cooldown on 3 s of ethereal, so pressing the key kept a Vampire Lord untouchable for good
+    [idOf('38b9:Dawnguard.esm'), { name: 'Bats', form: 'vampirelord', cooldown: 12, run: (a) => ethereal(a, 3) }],
   ]);
   globalThis.__dboBeastPower = (a, spellId) => {
     a = Number(a) >>> 0; spellId = Number(spellId) >>> 0;
@@ -266,7 +268,16 @@ module.exports = (api) => {
     if (pw.form === 'werewolf' && /^Howl/.test(pw.name) && typeof globalThis.__dboHuntHowled === 'function') { try { globalThis.__dboHuntHowled(a, pw.name); } catch (e) { log('beastform: howl broadcast failed', e.message); } }
   };
   // gamemode's hit hook refuses every hit on a player in Mist Form or bats
-  globalThis.__dboBeastEthereal = (t) => (ST.ethereal.get(Number(t) >>> 0) || 0) > Date.now();
+  // Only while still a Vampire Lord: casting the form again to revert mid-Mist kept the player untouchable for the rest
+  // of the 15 s in mortal form, weapons out (combat review, 2026-09-29)
+  globalThis.__dboBeastEthereal = (t) => {
+    t = Number(t) >>> 0;
+    if ((ST.ethereal.get(t) || 0) <= Date.now()) return false;
+    const s = stateOf(t);
+    if (s && s.form === 'vampirelord') return true;
+    ST.ethereal.delete(t);
+    return false;
+  };
   // gamemode's onSpellHit: Vampiric Drain gives back what it absorbs (the server applies only the damage)
   globalThis.__dboBeastSpellHit = (agg, tgt, spellId) => {
     if ((Number(spellId) >>> 0) !== DRAIN || agg === tgt) return;
