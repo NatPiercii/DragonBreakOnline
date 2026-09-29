@@ -26,6 +26,8 @@
 module.exports = (api) => {
   const { mp, log, personal, system, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf,
     giveItem, makeProp, runCommand, cfg, every } = api;
+  // A GM observes; the powers below are for a Lead GM and above (claude-jake's review A3). Fails closed with an old gamemode.
+  const isLeadStaff = typeof api.isLeadStaff === 'function' ? api.isLeadStaff : () => false;
   const C = Object.assign({ maskItem: '808:Armors of the Velothi Pt2.esp', maskName: 'Masked Person', maxDistance: 400 }, cfg.playerMenu || {});
   const KNOWN_PROP = 'ff_knownIds';
   const LAWFUL_PROP = 'private.dboLawful';
@@ -41,7 +43,7 @@ module.exports = (api) => {
   const isMasked = (a) => !!String(get(a, MASK_PROP, '') || '');
   // Court Mages, Shamans and Wisewomen hold office without guard powers
   const UNLAWFUL_RANKS = new Set(['courtmage', 'shaman', 'wisewoman']);
-  const isLawful = (a) => { try { return isAdmin(a) || ranksOf(profileOf(a)).some((m) => !UNLAWFUL_RANKS.has(m.rank)); } catch (e) { return false; } };
+  const isLawful = (a) => { try { return isLeadStaff(a) || ranksOf(profileOf(a)).some((m) => !UNLAWFUL_RANKS.has(m.rank)); } catch (e) { return false; } };
   const nameFor = (viewer, a) => (isMasked(a) ? C.maskName : knownBy(viewer).includes(a >>> 0) ? nameOf(a) : 'Stranger');
   // Other modules name players the same way (downed.js: who raised you); a name must never skip the introductions
   globalThis.__dboNameFor = nameFor;
@@ -56,10 +58,11 @@ module.exports = (api) => {
   const refreshLawful = (a) => { const v = isLawful(a); if (get(a, LAWFUL_PROP, false) !== v) { try { mp.set(a, LAWFUL_PROP, v); } catch (e) { /* not ready */ } } };
   every('lawful', 15000, () => { for (const a of onlineActors()) refreshLawful(a); });
 
-  // Asked by captureSystem: restrain without the target's consent; an admin target is always asked unless the captor is an admin
+  // Asked by captureSystem: restrain without the target's consent; a staff target is always asked unless the captor is a
+  // Lead GM or above. A GM restrains like anyone else: with a zone rank, or with the target's yes (review A3-7)
   globalThis.__dboInstantRestraint = (captor, target) => {
     try {
-      if (isAdmin(captor)) return true;
+      if (isLeadStaff(captor)) return true;
       if (isAdmin(target)) return false;
       return ranksOf(profileOf(captor)).some((m) => !UNLAWFUL_RANKS.has(m.rank));
     } catch (e) { log('instant restraint check failed', e.message); return false; }

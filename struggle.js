@@ -23,6 +23,8 @@ const crypto = require('crypto');
 module.exports = (api) => {
   const { mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand,
     onlineActors, isAdmin, distanceMeters, sendPacket } = api;
+  // A GM observes; the powers below are for a Lead GM and above (claude-jake's review A3). Fails closed with an old gamemode.
+  const isLeadStaff = typeof api.isLeadStaff === 'function' ? api.isLeadStaff : () => false;
 
   const WIDGET_ID = 40;
   const NEXT_PROP = 'private.dboStruggleNext';
@@ -65,7 +67,7 @@ module.exports = (api) => {
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
   const set = (id, prop, v) => { try { mp.set(id, prop, v); return true; } catch (e) { log(`struggle: set ${prop} failed`, e.message); return false; } };
   const int = (v, fallback, min) => Math.max(min, Math.round(Number.isFinite(Number(v)) ? Number(v) : fallback));
-  const lawful = (a) => get(a, 'private.dboLawful', false) === true || isAdmin(a);
+  const lawful = (a) => get(a, 'private.dboLawful', false) === true || isLeadStaff(a);
   const restraintOf = (a) => { const r = get(a, 'private.restrained', null); return r && (r.boundHands || r.carried) ? r : null; };
   const nextOf = (a) => Number(get(a, NEXT_PROP, 0)) || 0;
   const waitText = (ms) => {

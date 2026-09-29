@@ -18,6 +18,8 @@ module.exports = (api) => {
   const path = require('path');
   const { mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf,
     onlineActors, isAdmin, findByName, audit, who, cfg, profileOf } = api;
+  // A GM observes; the powers below are for a Lead GM and above (claude-jake's review A3). Fails closed with an old gamemode.
+  const isLeadStaff = typeof api.isLeadStaff === 'function' ? api.isLeadStaff : () => false;
 
   const WIDGET_ID = 37;
   const INVITE_MS = 2 * 60000;
@@ -109,14 +111,14 @@ module.exports = (api) => {
   const outranks = (fid, a, b) => { const ea = entryOf(fid, a), eb = entryOf(fid, b); return !!ea && (!eb || ea.rank < eb.rank); };
 
   // A clan or pack with requires takes only that kind (supernatural.js); admins are not bound by it
-  const fits = (a, f) => !f || !f.requires || isAdmin(a) || (typeof globalThis.__dboSuperKind === 'function' && globalThis.__dboSuperKind(a) === f.requires);
+  const fits = (a, f) => !f || !f.requires || isLeadStaff(a) || (typeof globalThis.__dboSuperKind === 'function' && globalThis.__dboSuperKind(a) === f.requires);
 
   // ---- invites ------------------------------------------------------------------------------------
   const invitesOf = (t) => (ST.invites.get(t >>> 0) || []).filter((i) => Date.now() - i.at < INVITE_MS);
   const invite = (a, t, fid) => {
     const f = FACTIONS.get(fid);
     if (!f) return 'No such faction.';
-    if (!isAdmin(a) && !can(fid, a, 'invite')) return `Your rank in ${f.name} cannot invite.`;
+    if (!isLeadStaff(a) && !can(fid, a, 'invite')) return `Your rank in ${f.name} cannot invite.`;
     if (!t || t === a || !isOnline(t)) return 'They must be online.';
     if (entryOf(fid, t)) return `${nameOf(t)} is already in ${f.name}.`;
     if (!fits(t, f)) return `${nameOf(t)} could never belong to ${f.name}.`;
@@ -165,7 +167,7 @@ module.exports = (api) => {
     const list = isAdmin(a) ? [...FACTIONS.keys()] : mine.concat([...FACTIONS.keys()].filter((fid) => !mine.includes(fid) && circles.has(circleOf(fid))));
     const invites = invitesOf(a).map((i) => ({ factionId: i.fid, name: FACTIONS.get(i.fid).name, from: display(i.from) }));
     openWidget(a, {
-      type: 'faction', id: WIDGET_ID, nonce, admin: isAdmin(a), self: a >>> 0,
+      type: 'faction', id: WIDGET_ID, nonce, admin: isLeadStaff(a), self: a >>> 0,
       factions: list.map((fid) => factionView(a, fid)), invites, selected: focusFid || mine[0] || list[0] || '',
       // The Realm and War tabs (realm.js): territories and their owners, wars, and what this character leads
       realm: typeof globalThis.__dboRealmView === 'function' ? globalThis.__dboRealmView(a >>> 0) : null,
@@ -252,7 +254,7 @@ module.exports = (api) => {
     if (!fresh(a, args)) return;
     const fid = String(args[1] || ''); const t = Number(args[2]) >>> 0; const f = FACTIONS.get(fid);
     if (!f || !entryOf(fid, t)) return reply(a, 'They are not in that faction.', fid, true);
-    if (!isAdmin(a) && !(can(fid, a, 'kick') && outranks(fid, a, t))) return reply(a, 'You cannot remove someone of equal or higher rank.', fid, true);
+    if (!isLeadStaff(a) && !(can(fid, a, 'kick') && outranks(fid, a, t))) return reply(a, 'You cannot remove someone of equal or higher rank.', fid, true);
     const name = rosterOf(fid)[String(t)].name;
     removeMember(fid, t);
     if (isOnline(t)) system(t, `You have been removed from ${f.name}.`);
@@ -264,7 +266,7 @@ module.exports = (api) => {
     const fid = String(args[1] || ''); const t = Number(args[2]) >>> 0; const rank = Math.floor(Number(args[3])); const f = FACTIONS.get(fid);
     if (!f || !entryOf(fid, t) || !(rank >= 0 && rank < f.ranks.length)) return reply(a, 'That rank change is not possible.', fid, true);
     const leaderRank = f.ranks.findIndex((r) => r.role === 'leader');
-    if (!isAdmin(a)) {
+    if (!isLeadStaff(a)) {
       if (!can(fid, a, 'setRank')) return reply(a, 'Only the leader sets ranks.', fid, true);
       if (t === (a >>> 0)) return reply(a, 'Pass leadership by naming someone else leader.', fid, true);
     }
@@ -307,11 +309,11 @@ module.exports = (api) => {
     // A leader records where the faction keeps its things. Access is the leader's business: housing locks it and
     // cuts the keys, and this never opens anything.
     if (s === 'storage') {
-      const mine = membershipsOf(a).filter((m) => isAdmin(a) || can(m.fid, a, 'setRank'));
+      const mine = membershipsOf(a).filter((m) => isLeadStaff(a) || can(m.fid, a, 'setRank'));
       const fid = (rest[1] && String(rest[1]).toLowerCase()) || (rest[0] && FACTIONS.get(String(rest[0]).toLowerCase()) ? String(rest[0]).toLowerCase() : '') || (mine[0] || {}).fid;
       const f = fid && FACTIONS.get(fid);
       if (!f) return personal(a, 'Only a faction leader sets the storage. Usage: /faction storage [faction] | /faction storage clear [faction]');
-      if (!isAdmin(a) && !can(fid, a, 'setRank')) return personal(a, `Your rank in ${f.name} does not set the storage.`);
+      if (!isLeadStaff(a) && !can(fid, a, 'setRank')) return personal(a, `Your rank in ${f.name} does not set the storage.`);
       if (String(rest[0] || '').toLowerCase() === 'clear') {
         if (!STORES[fid]) return personal(a, `${f.name} has no storage recorded.`);
         delete STORES[fid]; saveStores(); audit(`FACTION ${who(a)} cleared the storage of ${f.name}`);
@@ -324,7 +326,7 @@ module.exports = (api) => {
       const rec = H && typeof H.recordOf === 'function' ? H.recordOf(ref) : null;
       if (!rec || !rec.owner) return personal(a, 'That property belongs to nobody yet. Have it granted first, then record it.');
       const me = Number(profileOf(a)) || 0;
-      if (!isAdmin(a) && rec.owner !== me) return personal(a, `That property belongs to ${rec.ownerName || 'someone else'}. Record one of your own.`);
+      if (!isLeadStaff(a) && rec.owner !== me) return personal(a, `That property belongs to ${rec.ownerName || 'someone else'}. Record one of your own.`);
       const hall = hallOf(f);
       STORES[fid] = { ref: ref >>> 0, name: rec.name || 'the strongbox', hall: hall ? hall.name : '', by: nameOf(a), at: Date.now() };
       saveStores();
@@ -346,7 +348,7 @@ module.exports = (api) => {
     if (s === 'accept') return personal(a, accept(a, rest[0] || (invitesOf(a)[0] || {}).fid || ''));
     if (s === 'invite') { const t = findByName(rest[0] || ''); const fid = rest[1] || (membershipsOf(a).find((m) => can(m.fid, a, 'invite')) || {}).fid; return personal(a, t ? invite(a, t, fid) : 'Usage: /faction invite <player|#TAG> [faction]'); }
     if (s === 'leader') {
-      if (!isAdmin(a)) return personal(a, 'Only an admin names the first leader of a faction.');
+      if (!isLeadStaff(a)) return personal(a, 'Only a Lead GM or above names the first leader of a faction.');
       const t = findByName(rest[0] || ''); const fid = rest[1] || ''; const f = FACTIONS.get(fid);
       if (!t || !f) return personal(a, 'Usage: /faction leader <player|#TAG> <faction id>   (/faction list)');
       const leaderRank = f.ranks.findIndex((r) => r.role === 'leader');
@@ -357,7 +359,7 @@ module.exports = (api) => {
       return personal(a, `${display(t)} now leads ${f.name}.`);
     }
     if (s === 'remove') {
-      if (!isAdmin(a)) return personal(a, 'Use the faction menu (F3) to remove members.');
+      if (!isLeadStaff(a)) return personal(a, 'Use the faction menu (F3) to remove members.');
       const fid = rest[1] || ''; const id = findMember(fid, rest[0]); if (!FACTIONS.get(fid) || !id) return personal(a, 'Usage: /faction remove <name|#TAG> <faction id>');
       removeMember(fid, id); return personal(a, 'Removed.');
     }

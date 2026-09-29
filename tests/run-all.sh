@@ -24,6 +24,7 @@ trap 'rm -rf "$OUT"' EXIT
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-staff]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-shadow]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-values]=server:skymp5-server/ts/systems/masterySystem.ts

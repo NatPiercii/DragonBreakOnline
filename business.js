@@ -195,21 +195,26 @@ module.exports = (api) => {
     }
     const bizId = chestIndex().get(hex(ref));
     if (!bizId) return false;
+    // The chest's own record says who may open it, whether or not the business is still valid: a claim that changed
+    // hands, was revoked or released made bizOf null, and the renter's chest opened for anyone (review A2-1)
+    const raw = data().businesses[bizId];
+    const c = raw && raw.chests ? raw.chests[hex(ref)] : null;
+    if (!c) return false;
     const b = bizOf(Number.parseInt(bizId, 16));
-    if (!b) return false;
-    const c = b.chests[hex(ref)];
     const st = chestState(c);
     const mine = !!c.renter && Number(c.renter) === profileOf(a);
     const pass = passes.get(a);
     if (pass && pass.chest === ref && pass.until > Date.now()) { passes.delete(a); if (mine) return false; }
     if (st === 'rented') {
-      if (mine) { if (Number(c.until) - Date.now() > 24 * HOUR) return false; openMenu(a, ref, b, c, true); return true; }
+      // With no valid business there is no one to pay a renewal to: the renter simply opens it
+      if (mine) { if (!b || Number(c.until) - Date.now() > 24 * HOUR) return false; openMenu(a, ref, b, c, true); return true; }
       personal(a, 'This chest is rented to someone else.'); return true;
     }
     if (st === 'grace') {
-      if (mine) { openMenu(a, ref, b, c, true); return true; }
+      if (mine) { if (!b) return false; openMenu(a, ref, b, c, true); return true; }
       personal(a, 'This chest is still held for its last renter.'); return true;
     }
+    if (!b) return false;
     if (st === 'lapsed') {
       if (isStaff(a, b)) {
         c.renter = null; c.renterName = null; c.until = 0; c.lapsed = false;
