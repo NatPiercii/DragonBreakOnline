@@ -89,4 +89,12 @@ function scrub(input, maxBytes = MAX_BYTES) {
   return { text, redactions, truncated }
 }
 
-module.exports = { scrub, dropUiLines, MAX_BYTES }
+// Keeps the first and last bytes of a log, cut on line boundaries, for a log whose startup lines matter as much as its end
+function keepEnds(input, headBytes, tailBytes) {
+  const buf = Buffer.from(String(input == null ? '' : input), 'utf8')
+  if (buf.length <= headBytes + tailBytes) return buf.toString('utf8')
+  return buf.subarray(0, headBytes).toString('utf8').replace(/[^\n]*$/, '') + '[middle lines cut to fit the upload limit]\n'
+    + buf.subarray(buf.length - tailBytes).toString('utf8').replace(/^[^\n]*\n/, '')
+}
+
+module.exports = { scrub, dropUiLines, keepEnds, MAX_BYTES }

@@ -102,3 +102,16 @@ test('link-local and unique local IPv6 addresses are marked as LAN ones', () => 
   // Short hex runs that are not an address stay
   assert.strictEqual(scrub('fdab:1234:5678 fe80 fc00:1').text, 'fdab:1234:5678 fe80 fc00:1')
 })
+
+test('keepEnds keeps whole lines from both ends and marks the cut', () => {
+  const { keepEnds } = require('../sources/scrubLog')
+  const lines = Array.from({ length: 200 }, (_, i) => `line ${String(i).padStart(3, '0')} ${'x'.repeat(40)}`)
+  const out = keepEnds(lines.join('\n'), 1024, 1024)
+  const kept = out.split('\n')
+  assert.strictEqual(kept[0], lines[0])
+  assert.strictEqual(kept[kept.length - 1], lines[199])
+  assert.ok(kept.includes('[middle lines cut to fit the upload limit]'))
+  for (const line of kept) assert.ok(line === '[middle lines cut to fit the upload limit]' || lines.includes(line), line)
+  assert.ok(Buffer.byteLength(out) <= 2048 + 64)
+  assert.strictEqual(keepEnds('short\nlog', 1024, 1024), 'short\nlog')
+})

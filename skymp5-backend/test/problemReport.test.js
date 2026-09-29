@@ -39,3 +39,34 @@ test('a report asks for Manual, plus Launcher when it comes from the launcher', 
     assert.deepStrictEqual(posted.tags, tags, source)
   }
 })
+
+test('CommunityShaders.log is scrubbed and keeps both ends', async () => {
+  const stamp = i => `[2026-09-28 21:15:${String(i % 60).padStart(2, '0')}.000] [info] [4120]`
+  const lines = [
+    `${stamp(0)} [XSEPlugin.cpp:50] Loaded plugin CommunityShaders 1.9.1`,
+    `${stamp(1)} [State.cpp:390] Loading settings from C:\\Users\\Arvel\\Documents\\My Games\\Skyrim Special Edition\\SKSE`,
+    `${stamp(2)} [SettingsOverrideManager.cpp:191] Applied global override from DragonBreak`,
+  ]
+  for (let i = 0; i < 3000; i++) lines.push(`${stamp(i)} [ShaderCache.cpp:900] Compiling shader ${i} of 3000 for Lighting`)
+  lines.push(`${stamp(59)} [Util.cpp:77] Update check to 203.0.113.9 failed`)
+  const body = { reportId: 'test-community-shaders-01', launcherLog: 'launcher starting', csLog: lines.join('\r\n') }
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, body)
+  assert.strictEqual(result.status, 200)
+  const cs = posted.files.find(f => f.name === 'CommunityShaders.log')
+  assert.ok(cs, 'attached as CommunityShaders.log')
+  assert.match(cs.text, /^\[2026-09-28 21:15:00\.000\] .*Loaded plugin CommunityShaders 1\.9\.1/)
+  assert.match(cs.text, /Applied global override from DragonBreak/)
+  assert.match(cs.text, /\[middle lines cut to fit the upload limit\]/)
+  assert.match(cs.text, /Update check to <ip> failed$/)
+  assert.match(cs.text, /C:\\Users\\<user>\\Documents/)
+  assert.doesNotMatch(cs.text, /Arvel|203\.0\.113\.9|\r/)
+  assert.ok(Buffer.byteLength(cs.text) <= 64 * 1024 + 64, `${Buffer.byteLength(cs.text)} bytes`)
+  assert.match(posted.summary, /_2 log file\(s\), \d+ redaction\(s\)/)
+})
+
+test('a short CommunityShaders.log is posted whole', async () => {
+  const csLog = '[2026-09-28 21:15:00.000] [info] [4120] [State.cpp:404] Applied 1 global override(s)'
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, { reportId: 'test-community-shaders-02', csLog })
+  assert.strictEqual(result.status, 200)
+  assert.deepStrictEqual(posted.files, [{ name: 'CommunityShaders.log', text: csLog }])
+})
