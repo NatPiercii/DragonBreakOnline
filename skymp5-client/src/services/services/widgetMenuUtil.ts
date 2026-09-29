@@ -14,11 +14,48 @@ export function closeWidget(sp: Sp, widgetId: number): void {
 }
 
 // Injects the setter into CEF and gives it focus; a hidden interface comes back first.
+// A panel opened while a vanilla menu owns the keyboard must not take it away. openFormMenu used to call
+// setFocused(true) unconditionally, and twelve services call it, so anything the server opened - a trade invite, a
+// notice - while the player stood in RaceMenu, their inventory or a container took the keyboard from that menu and
+// did not give it back: the "keyboard dead in RaceMenu until you alt-tab" report. Alt-tabbing recovered it because
+// the focus change did what nothing else would.
+//
+// Instead the panel is drawn and shown, focus is left with the game, and the wish for it is remembered. The moment
+// the last blocking menu closes, browserService calls takeDeferredFocus and the panel gets the cursor then - so the
+// panel is still usable without a key press, and the vanilla menu was never interfered with.
+let focusWanted = false;
+
 export function openFormMenu(sp: Sp, setter: () => void, args: Record<string, unknown>, controller: CombinedController): void {
   showUi(controller);
   sp.browser.executeJavaScript(new FunctionInfo(setter).getText(args));
   sp.browser.setVisible(true);
+  let blocked = false;
+  try {
+    blocked = controller.lookupListener(BrowserService).isBlockingMenuOpen();
+  } catch (e) {
+    blocked = false;   // too early for the service: behave as before
+  }
+  if (blocked) {
+    focusWanted = true;
+    return;
+  }
+  focusWanted = false;
   sp.browser.setFocused(true);
+}
+
+/** Called when the last blocking vanilla menu closes. Gives a panel opened behind it the cursor it asked for. */
+export function takeDeferredFocus(sp: Sp): void {
+  if (!focusWanted) return;
+  focusWanted = false;
+  try {
+    sp.browser.setVisible(true);
+    sp.browser.setFocused(true);
+  } catch (e) { /* the panel may have closed meanwhile */ }
+}
+
+/** A panel that closes stops wanting focus, so a menu closing later does not hand it to nothing. */
+export function forgetDeferredFocus(): void {
+  focusWanted = false;
 }
 
 // Data-only re-push for an already open menu; never touches visibility or focus
@@ -27,6 +64,7 @@ export function refreshFormMenu(sp: Sp, setter: () => void, args: Record<string,
 }
 
 export function closeFormMenu(sp: Sp, widgetId: number): void {
+  forgetDeferredFocus();
   closeWidget(sp, widgetId);
   sp.browser.setFocused(false);
 }
