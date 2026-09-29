@@ -2,7 +2,7 @@ import { CombinedController, Sp } from "./clientListener";
 import { logTrace } from "../../logging";
 import { BrowserService } from "./browserService";
 import { FunctionInfo } from "../../lib/functionInfo";
-import { Menu } from "skyrimPlatform";
+import { Menu, once } from "skyrimPlatform";
 
 // Shared helpers for CEF form-widget menus; widget setters stay per-service (browser-side, injected vars).
 
@@ -61,10 +61,14 @@ export function takeDeferredFocus(sp: Sp, closed?: string): void {
   if (!focusWanted) return;
   focusWanted = false;
   logTrace("widgetMenuUtil", `panel taking deferred focus after ${closed || "a menu"} closed`);
-  try {
-    sp.browser.setVisible(true);
-    sp.browser.setFocused(true);
-  } catch (e) { /* the panel may have closed meanwhile */ }
+  // On the next update, not inside the menuClose handler: taking CEF focus while a Scaleform menu is still tearing
+  // down is the one genuinely new operation in this change, and there is no reason to do it a frame early.
+  once("update", () => {
+    try {
+      sp.browser.setVisible(true);
+      sp.browser.setFocused(true);
+    } catch (e) { /* the panel may have closed meanwhile */ }
+  });
 }
 
 /** A panel that closes stops wanting focus, so a menu closing later does not hand it to nothing. */
