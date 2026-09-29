@@ -2667,18 +2667,64 @@ globalThis.__dboCoinPurse = (targetId, casterId) => {
 };
 
 // ---- Beyond Skyrim activators the server runs itself: wisp stalks and Ayleid wells --------------------------------
-// Their scripts (BSKWispStalkACTIVATORScript, CYRAyleidWellScript) are not in the server's script storage, so using one
-// did nothing (error review 2026-09-26 item 11). What they do comes from their VMAD properties and records.
+// Their scripts (BSKWispStalkACTIVATORScript, CYRAyleidWellScript) are not in the server's script storage, and could
+// not run there if they were: the stalk's needs OnCellAttach and OnReset, the well's Spell.Cast and game-time updates,
+// none of which the server has (script review 2026-09-29). So the gamemode does what they do, reading which base
+// carries which script, and the ingredient or spell it hands out, from the base record's VMAD.
 const nodeSay = new Map();
 const sayOnce = (a, text) => { if (Date.now() - (nodeSay.get(a) || 0) > 1500) { nodeSay.set(a, Date.now()); personal(a, text); } return true; };
-const baseDescOf = (id) => { try { return String(mp.get(id, 'baseDesc') || '').toLowerCase(); } catch (e) { return ''; } };
+const baseIdOf = (id) => { try { return mp.getIdFromDesc(String(mp.get(id, 'baseDesc') || '')) >>> 0; } catch (e) { return 0; } };
+// A VMAD field: [{ name (lower case), props: { name (lower case): value } }], an object property's record-local id made
+// global through the record it sits in. Version 4+ carries a status byte per script and per property.
+const parseVmad = (data, toGlobal) => {
+  const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  let p = 0;
+  const u8 = () => v.getUint8(p++); const u16 = () => { const x = v.getUint16(p, true); p += 2; return x; };
+  const u32 = () => { const x = v.getUint32(p, true); p += 4; return x; };
+  const str = () => { const n = u16(); let t = ''; for (let i = 0; i < n; i++) t += String.fromCharCode(v.getUint8(p + i)); p += n; return t; };
+  const version = u16(); const objFormat = u16(); const count = u16();
+  const obj = () => { let id; if (objFormat === 1) { id = u32(); p += 4; } else { p += 4; id = u32(); } return toGlobal(id); };
+  const one = (t) => (t === 1 ? obj() : t === 2 ? str() : t === 3 ? (p += 4, v.getInt32(p - 4, true)) : t === 4 ? (p += 4, v.getFloat32(p - 4, true)) : t === 5 ? u8() !== 0 : null);
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const s = { name: str().toLowerCase(), props: {} };
+    if (version >= 4) u8();
+    const n = u16();
+    for (let j = 0; j < n; j++) {
+      const name = str().toLowerCase(); const t = u8(); if (version >= 4) u8();
+      if (t >= 11 && t <= 15) { const k = u32(); const list = []; for (let x = 0; x < k; x++) list.push(one(t - 10)); s.props[name] = list; }
+      else s.props[name] = one(t);
+    }
+    out.push(s);
+  }
+  return out;
+};
+const vmadCache = new Map(); // baseId -> parsed VMAD, or null
+const scriptOn = (baseId, script) => {
+  if (!vmadCache.has(baseId)) {
+    let parsed = null;
+    try {
+      const res = mp.lookupEspmRecordById(baseId >>> 0);
+      const f = res && res.record && (res.record.fields || []).find((x) => x && x.type === 'VMAD' && x.data instanceof Uint8Array);
+      if (f) parsed = parseVmad(f.data, (local) => (typeof res.toGlobalRecordId === 'function' ? res.toGlobalRecordId(local) >>> 0 : local >>> 0));
+    } catch (e) { log('bs activators: VMAD unreadable on', baseId.toString(16), e.message); parsed = null; }
+    if (vmadCache.size > 4096) vmadCache.clear();
+    vmadCache.set(baseId, parsed);
+  }
+  const all = vmadCache.get(baseId);
+  return all ? all.find((x) => x.name === script) || null : null;
+};
 
-// A wisp stalk hands over one Wisp Stalk (BSAssets 601924) like a Nirnroot; here it is a Harvesting node that then rests
+// A wisp stalk hands over its BSKWispStalk ingredient like a Nirnroot; here it is a Harvesting node that then rests, for
+// everyone, restMinutes (as coin purses and the hanging harvestables rest per reference). Hiding it is not possible:
+// a plugin reference's Disable never reaches the clients, so an early try is refused with a short line instead.
 const WISP = Object.assign({ enabled: true, restMinutes: 360 }, cfg.wispStalks || {});
-const WISP_BASES = new Set(['6025b3:bsassets.esm', '6025b4:bsassets.esm']);
 const wispRest = globalThis.__dboWispRest = globalThis.__dboWispRest || new Map(); // refId -> until
 globalThis.__dboWispStalk = (targetId, casterId) => {
-  if (!WISP.enabled || targetId >= 0xff000000 || profileOf(casterId) < 0 || !WISP_BASES.has(baseDescOf(targetId))) return false;
+  if (!WISP.enabled || targetId >= 0xff000000 || profileOf(casterId) < 0) return false;
+  const script = scriptOn(baseIdOf(targetId), 'bskwispstalkactivatorscript');
+  const ingredient = script ? Number(script.props.bskwispstalk) >>> 0 : 0;
+  if (!ingredient) return false;
   const until = wispRest.get(targetId) || 0;
   if (until > Date.now()) return sayOnce(casterId, `This wisp stalk has been picked. It grows back in about ${Math.ceil((until - Date.now()) / 3600000)} hour(s).`);
   const tier = harvestingTier(casterId);
@@ -2686,36 +2732,54 @@ globalThis.__dboWispStalk = (targetId, casterId) => {
   const chance = tier >= 0 ? (Number((HARVESTING.yieldChanceByTier || [])[Math.min(tier, 4)]) || 1) : Number(unskilled.yieldChance) || 0.25;
   const mult = tier >= 0 ? (Number((HARVESTING.yieldMultiplierByTier || [])[Math.min(tier, 4)]) || 1) : Number(unskilled.yieldMultiplier) || 0.5;
   wispRest.set(targetId, Date.now() + WISP.restMinutes * 60000);
+  if (wispRest.size > 4000) for (const [k, t] of [...wispRest]) if (t <= Date.now()) wispRest.delete(k);
   if (Math.random() > chance) return sayOnce(casterId, 'The wisp stalk crumbles in your hands.');
   const count = Math.max(1, Math.round(mult));
-  if (giveItem(casterId, mp.getIdFromDesc('601924:BSAssets.esm') >>> 0, count)) {
+  if (giveItem(casterId, ingredient, count)) {
     personal(casterId, count > 1 ? `You successfully harvest ${count} Wisp Stalks.` : 'You successfully harvest Wisp Stalk.');
     try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('activate', casterId, { refrId: targetId }); } catch (e) { /* no skill system */ }
   }
   return true;
 };
 
-// An Ayleid well casts Boon of the Ayleids (CYRAyleidWellSpell: Fortify Magicka 50 for 300 s, Restore Magicka 400) and
-// is then spent until the next midnight of the world clock, for everyone. The server restores the magicka itself, and
-// the player's client (0.3.52 and later) casts the spell on its own player for the Fortify half (dboCastSelf).
-const WELLS = Object.assign({ enabled: true }, cfg.ayleidWells || {});
-const WELL_BASE = '61b5b:bsheartland.esm';
-const wellSpent = globalThis.__dboWellSpent = globalThis.__dboWellSpent || new Map(); // refId -> game day it refills
+// An Ayleid well, once per player per game day (any well; Nate 2026-09-29, in the spirit of Oblivion's wells): the server
+// restores the player's magicka through its percentage and then, for regenSeconds, adds regenPerTick of it every
+// tickSeconds, a Fortify Magicka Regen the server itself applies (a rate actor value written server-side reaches only
+// the client, the Highborn investigation found). The player's client also casts the well's own spell, its AyleidAbility
+// property (CYRAyleidWellSpell: Fortify Magicka 50 for 300 s), on its player for the look and the fortify (dboCastSelf).
+const WELLS = Object.assign({ enabled: true, regenSeconds: 300, tickSeconds: 5, regenPerTick: 0.02 }, cfg.ayleidWells || {});
+const wellRegen = globalThis.__dboWellRegen = globalThis.__dboWellRegen || new Map(); // actorId -> until
 globalThis.__dboAyleidWell = (targetId, casterId) => {
-  if (!WELLS.enabled || targetId >= 0xff000000 || profileOf(casterId) < 0 || baseDescOf(targetId) !== WELL_BASE) return false;
+  if (!WELLS.enabled || targetId >= 0xff000000 || profileOf(casterId) < 0) return false;
+  const script = scriptOn(baseIdOf(targetId), 'cyrayleidwellscript');
+  if (!script) return false;
   const clock = globalThis.__dboClock;
   const day = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : Date.now() / 86400000;
-  if ((wellSpent.get(targetId) || 0) > day) return sayOnce(casterId, 'The stellar power of the Ayleid well is depleted. At midnight, when the stars shine, it will be restored.');
+  let next = 0; try { next = Number(mp.get(casterId, 'private.ayleidWellDay')) || 0; } catch (e) { return true; }
+  if (next > day) return sayOnce(casterId, 'You have drunk the Ayleids\' starlight today. At midnight, when the stars shine again, a well will answer you.');
   try {
     const pc = mp.get(casterId, 'percentages') || {};
     mp.set(casterId, 'percentages', { health: pc.health, magicka: 1, stamina: pc.stamina });
+    mp.set(casterId, 'private.ayleidWellDay', Math.floor(day) + 1);
   } catch (e) { log('ayleid well: restore failed', e.message); return true; }
-  wellSpent.set(targetId, Math.floor(day) + 1);
-  try { sendPacket(casterId, { customPacketType: 'dboCastSelf', spell: mp.getIdFromDesc('61b66:BSHeartland.esm') >>> 0, text: 'Boon of the Ayleids added' }); } catch (e) { log('ayleid well: cast failed', e.message); }
-  personal(casterId, 'Starlight pours from the Ayleid well into you. Your magicka is restored.');
+  wellRegen.set(casterId, Date.now() + WELLS.regenSeconds * 1000);
+  const spell = Number(script.props.ayleidability) >>> 0;
+  if (spell) try { sendPacket(casterId, { customPacketType: 'dboCastSelf', spell, text: 'Boon of the Ayleids added' }); } catch (e) { log('ayleid well: cast failed', e.message); }
+  personal(casterId, `Starlight pours from the Ayleid well into you. Your magicka is restored, and flows back faster for ${Math.round(WELLS.regenSeconds / 60)} minutes.`);
   audit(`WELL ${who(casterId)} drew on the Ayleid well ${targetId.toString(16)}`);
   return true;
 };
+every('ayleidWellRegen', Math.max(1, Number(WELLS.tickSeconds) || 5) * 1000, () => {
+  const now = Date.now();
+  for (const [a, until] of [...wellRegen]) {
+    if (now > until) { wellRegen.delete(a); continue; }
+    try {
+      const pc = mp.get(a, 'percentages');
+      if (!pc || !(pc.health > 0) || !(pc.magicka < 1)) continue;
+      mp.set(a, 'percentages', { health: pc.health, magicka: Math.min(1, pc.magicka + Number(WELLS.regenPerTick)), stamina: pc.stamina });
+    } catch (e) { wellRegen.delete(a); } // gone offline
+  }
+});
 
 // ---- world containers outside dungeons hold nothing --------------------------------------------
 // Every placed container's first opening sets its inventory empty before the engine adds the base
