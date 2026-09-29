@@ -6,6 +6,7 @@ import { SpellCastEvent, Actor, printConsole, Game, getAnimationVariablesFromAct
 import { ClientListener, CombinedController, Sp } from './clientListener';
 import { logError, logTrace } from '../../logging';
 import { consumeServerCast } from './castSelfService';
+import { sendCustomPacket } from './customPacketUtil';
 
 import { MsgType } from "../../messages";
 import { SpellCastMsgData, SpellCastMessage } from "../messages/spellCastMessage";
@@ -139,6 +140,14 @@ export class MagicSyncService extends ClientListener {
 
         const msg: SpellCastMsgData = this.getSpellCastEventData(event, false);
         this.sendSpellCast(msg);
+
+        // The server no longer takes a player's shout word as a cast (review A4-1), so nobody else saw a shout but its
+        // animation. The player's own shout goes to the gamemode as well: it checks the word against the shout gate
+        // and hands it to the players around, who replay it on our clone (ShoutPushService, dboShoutFx). A shout word
+        // arrives from the platform with castingSource kOther, the Voise slot (EventHandler.cpp, 2253ab04).
+        if (casterLocalId === this.playerId && msg.castingSource === SpellType.Voise) {
+            sendCustomPacket(this.controller, { customPacketType: "dboShoutCast", data: msg });
+        }
 
         const now = Date.now();
         this.relayedCasts.set(this.getCastKey(casterLocalId, msg.castingSource), {
