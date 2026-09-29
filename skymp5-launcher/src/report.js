@@ -123,6 +123,71 @@ function gameLogEnds(file, headBytes, tailBytes, readFactor = 6) {
   } catch { return null }
 }
 
+// Crash Logger writes crash-<date>.log into an SKSE folder when the game dies: Documents\My Games\<edition>\SKSE, or
+// MO2's overwrite\SKSE when the write is caught there. Report a Problem is the player's own send, so the newest one of the
+// last day goes with it (a day, not "since the last launch": a player who relaunched after the crash reports it after),
+// cut to what names the crash: the head and the exception, the first lines of the call stack, registers, stack and
+// module list, and the SKSE plugins. The rest of each section is counted, not sent; the plugin list is the load order,
+// which staff already have. crashWatch's automatic note still sends only that a log exists, never the log.
+const CRASH_LOG_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const CRASH_LOG_BYTES = 48 * 1024
+const CRASH_HEAD_LINES = 60
+const CRASH_SECTION_LINES = { 'PROBABLE CALL STACK': 60, REGISTERS: 25, STACK: 30, MODULES: 80, 'SKSE PLUGINS': 80, PLUGINS: 0 }
+const CRASH_SECTION_DEFAULT = 30
+const CRASH_SECTION = /^([A-Z][A-Z0-9 ]*[A-Z0-9]):\s*$/
+
+function newestCrashLog(dirs, now = Date.now()) {
+  let best = null
+  for (const dir of dirs) {
+    let names = []
+    try { names = fs.readdirSync(dir) } catch { continue }
+    for (const name of names) {
+      if (!/^crash-.*\.log$/i.test(name)) continue
+      try {
+        const file = path.join(dir, name)
+        const st = fs.statSync(file)
+        if (!st.isFile() || now - st.mtimeMs > CRASH_LOG_MAX_AGE_MS) continue
+        if (!best || st.mtimeMs > best.mtimeMs) best = { file, name, mtimeMs: st.mtimeMs, size: st.size }
+      } catch { /* gone */ }
+    }
+  }
+  return best
+}
+
+function condenseCrashLog(text) {
+  const out = []
+  let limit = CRASH_HEAD_LINES
+  let kept = 0
+  let cut = 0
+  const flush = () => { if (cut) out.push(`\t[${cut} more line(s) cut]`); cut = 0 }
+  for (const line of String(text).split(/\r?\n/)) {
+    const section = CRASH_SECTION.exec(line.trim())
+    if (section) {
+      flush()
+      limit = section[1] in CRASH_SECTION_LINES ? CRASH_SECTION_LINES[section[1]] : CRASH_SECTION_DEFAULT
+      kept = 0
+      out.push(line)
+      continue
+    }
+    if (kept < limit) { out.push(line); kept++ } else if (line.trim()) cut++
+  }
+  flush()
+  const joined = out.join('\n')
+  return Buffer.byteLength(joined, 'utf8') > CRASH_LOG_BYTES ? startOf(joined, CRASH_LOG_BYTES) + '[rest cut]' : joined
+}
+
+// The newest crash log of the last day, condensed, with a first line saying which file and how old; null when none
+function crashLogFor(dirs, now = Date.now()) {
+  const found = newestCrashLog(dirs, now)
+  if (!found) return null
+  let text
+  try { text = fs.readFileSync(found.file, 'utf8') } catch { return null }
+  const minutes = Math.max(0, Math.round((now - found.mtimeMs) / 60000))
+  const where = /[\\/]overwrite[\\/]/i.test(found.file) ? 'MO2 overwrite' : 'Documents'
+  return `[${found.name}, ${Math.round(found.size / 1024)} KB, written ${minutes} min before this report, from ${where}]\n`
+    + condenseCrashLog(text)
+}
+
 // SKSE, SkyrimPlatform and Community Shaders write here; present only after the game has been launched at least once.
 // documentsDir comes from Electron because a OneDrive-moved Documents folder is not under the home folder.
 const GAME_LOGS = [['skyrim-platform.log', 'gameLog'], ['skse64.log', 'skseLog'], ['CommunityShaders.log', 'csLog']]
@@ -142,7 +207,8 @@ function gameLogCandidates(documentsDir, variants) {
 }
 
 // context: whatever the launcher already knows (versions, install dir, the step that failed)
-function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Skyrim Special Edition'], context = {} }) {
+function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Skyrim Special Edition'], mo2Root = null,
+  context = {}, now = Date.now() }) {
   const files = {}
   const launcher = tail(path.join(userDataDir, 'install.log'))
   if (launcher) files.launcherLog = redact(launcher)
@@ -170,6 +236,12 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
     if (text) files[field] = redact(keepEnd(dropUiLines(text), GAME_LOG_BYTES))
   }
 
+  const docsBase = documentsDir || path.join(os.homedir(), 'Documents')
+  const crashDirs = myGamesVariants.map(v => path.join(docsBase, 'My Games', v, 'SKSE'))
+  if (mo2Root) crashDirs.push(path.join(mo2Root, 'overwrite', 'SKSE'))
+  const crash = crashLogFor(crashDirs, now)
+  if (crash) files.crashLog = redact(crash)
+
   if (installDir) {
     // A directory listing is often the whole answer: a foreign modlist or a missing Data folder shows up here
     try {
@@ -188,4 +260,4 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   }
 }
 
-module.exports = { collect, redact, tail, ends, dropUiLines, gameLogEnds }
+module.exports = { collect, redact, tail, ends, dropUiLines, gameLogEnds, condenseCrashLog, newestCrashLog }
