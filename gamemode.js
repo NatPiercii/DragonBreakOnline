@@ -178,7 +178,9 @@ const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM'
 // out of the hold treasury, so a GM who could appoint himself could pay himself (claude-jake's review, A1-1).
 const LEAD_ONLY = new Set(['beastform', 'vlremote', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
   'jail', 'placeexport', 'staffstats', 'war', 'curse', 'schedule', 'warband', 'raid', 'settime', 'timescale', 'setweather', 'npc remove', 'dungeon end',
-  'appoint', 'dismiss']);
+  'appoint', 'dismiss',
+  // Review A3-5 / A7-STAFF-1: /masktest creates armour, a faction's leader holds a hold's economy
+  'masktest', 'faction leader', 'faction remove']);
 
 const onlineActors = () => {
   try { const v = mp.get(0, 'onlinePlayers'); if (Array.isArray(v) && v.length) return v.map(Number).filter(Boolean); } catch (e) { /* fall through */ }
@@ -4129,7 +4131,7 @@ try {
 try {
   const JAIL_JS = path.resolve('jail.js');
   delete require.cache[JAIL_JS];
-  require(JAIL_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, isAdmin, distanceMeters });
+  require(JAIL_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, isAdmin, isLeadStaff, distanceMeters });
 } catch (e) { log('jail.js failed to load:', e.stack || e.message); globalThis.__dboJailActivate = null; globalThis.__dboJailLogin = null; globalThis.__dboJailUnstuck = null; }
 
 // ---- commissions: work posted at the boards, the reward held until done (server\commissions.js, config "commissions") --
@@ -4244,7 +4246,7 @@ try {
 try {
   const STRUGGLE_JS = path.resolve('struggle.js');
   delete require.cache[STRUGGLE_JS];
-  require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, distanceMeters, sendPacket });
+  require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, isLeadStaff, distanceMeters, sendPacket });
 } catch (e) { log('struggle.js failed to load:', e.stack || e.message); globalThis.__dboOnRestrained = null; globalThis.__dboStruggling = null; }
 
 // ---- character level 1-5 and its Health/Magicka/Stamina points (charlevel.js, config "charLevel") ----
@@ -4259,7 +4261,7 @@ try {
   const PLAYERMENU_JS = path.resolve('playermenu.js');
   delete require.cache[PLAYERMENU_JS];
   const runCommand = (a, name, argStr) => { const c = commands.get(name); if (c && (!c.admin || isAdmin(a))) c.fn(a, argStr); };
-  require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, zoneOfActor, cfg, every });
+  require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, isLeadStaff, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, zoneOfActor, cfg, every });
 } catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; globalThis.__dboInstantRestraint = null; }
 
 // ---- Pickpocket in the X menu while sneaking (server\pickpocket.js) --------------------------------
@@ -4287,7 +4289,7 @@ try {
 try {
   const GUILDS_JS = path.resolve('guilds.js');
   delete require.cache[GUILDS_JS];
-  require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, findByName, audit, who, cfg, profileOf });
+  require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, isLeadStaff, findByName, audit, who, cfg, profileOf });
 } catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
 
 // ---- territories, land markers and official war (server\realm.js, territories.json, WAR_DESIGN.md) ---------------------

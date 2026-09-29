@@ -22,6 +22,8 @@ const path = require('path');
 module.exports = (api) => {
   const { mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand,
     onlineActors, every, isAdmin, distanceMeters } = api;
+  // A GM observes; the powers below are for a Lead GM and above (claude-jake's review A3). Fails closed with an old gamemode.
+  const isLeadStaff = typeof api.isLeadStaff === 'function' ? api.isLeadStaff : () => false;
 
   const CFG = Object.assign({
     enabled: true,
@@ -88,7 +90,7 @@ module.exports = (api) => {
     if (!s || (Number(s.door) >>> 0) !== (door >>> 0) || leftOf(s) <= 0) return null;
     return { prisoner: Number(c.prisoner) >>> 0, name: String(c.name || 'a prisoner'), picked: !!c.picked, sentence: s };
   };
-  const lawful = (a) => get(a, 'private.dboLawful', false) === true || isAdmin(a);
+  const lawful = (a) => get(a, 'private.dboLawful', false) === true || isLeadStaff(a);
 
   // ---- the menu ---------------------------------------------------------------------------------------
   const pending = new Map(); // actorId -> { door, candidate? }
