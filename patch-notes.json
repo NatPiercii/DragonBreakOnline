@@ -1,5 +1,21 @@
 [
   {
+    "title": "Fair Shares at the Seam",
+    "date": "2026-09-29",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "A mining seam or chopping block now belongs to the one person working it until their round ends; a second worker waits their turn.",
+          "Plants, torches, coin purses and wisp stalks stay picked after a server restart.",
+          "A lost starter tool is replaced at most once a day."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dragon Armor and Silver",
     "date": "2026-09-29",
     "version": "Server update",
