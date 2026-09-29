@@ -75,9 +75,12 @@ globalThis.__dboClock = { gameDays: () => day };
 globalThis.__alduinakMasteryEvent = (kind, a, d) => events.push({ kind, a, d });
 delete globalThis.__dboWispRest; delete globalThis.__dboWellRegen;
 const packets = []; const ticks = {};
-new Function('mp', 'personal', 'log', 'audit', 'who', 'cfg', 'giveItem', 'harvestingTier', 'HARVESTING', 'sendPacket', 'profileOf', 'every', src.slice(start, end))(
+// The rest on the reference (restUntil, setRest) is declared with the coin purses, above this section
+const srcLine = (head) => { const i = src.indexOf(head); if (i < 0) throw new Error(`gamemode.js has no ${head}`); return src.slice(i, src.indexOf('\n', i)); };
+const { restUntil, setRest } = new Function('mp', 'log', `${srcLine('const REST_PROP = ')}\n${srcLine('const restUntil = ')}\n${srcLine('const setRest = ')}\nreturn { restUntil, setRest };`)(mp, () => {});
+new Function('mp', 'personal', 'log', 'audit', 'who', 'cfg', 'giveItem', 'harvestingTier', 'HARVESTING', 'sendPacket', 'profileOf', 'every', 'restUntil', 'setRest', src.slice(start, end))(
   mp, personal, () => {}, (t) => audits.push(t), (a) => `P${a.toString(16)}`, {}, giveItem, harvestingTier, HARVESTING, (a, p) => packets.push({ a, p }),
-  (a) => (a === ME || a === NOVICE ? 1 : -1), (name, ms, fn) => { ticks[name] = { ms, fn }; });
+  (a) => (a === ME || a === NOVICE ? 1 : -1), (name, ms, fn) => { ticks[name] = { ms, fn }; }, restUntil, setRest);
 
 let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined && !ok ? '   ' + JSON.stringify(detail) : ''}`); if (!ok) failures++; };
