@@ -47,6 +47,8 @@ module.exports = (api) => {
   if (!state.taken || typeof state.taken !== 'object') state.taken = {};
   // A kill would otherwise write the file on every hit of progress, per player
   const save = () => saveSoon(FILE, () => JSON.stringify(state, null, 2));
+  // Whenever gold moves: the file must already say so, or a crash inside the debounce brings the notice back to pay twice
+  const saveNow = () => (typeof api.saveNow === 'function' ? api.saveNow : saveSoon)(FILE, () => JSON.stringify(state, null, 2));
 
   // Notices from before the reward was set aside hold nothing, so they would pay nothing and could still be the
   // exploit's own (nobody recorded who posted them). They are dropped; no gold was ever taken for them, and refresh()
@@ -171,12 +173,14 @@ module.exports = (api) => {
   const refresh = () => {
     const before = state.contracts.length;
     const kept = [];
-    for (const c of state.contracts) {
-      if (c.expiresAt > Date.now()) { kept.push(c); continue; }
-      // An expired notice hands its reward back rather than leaving the gold nowhere
-      if (Number(c.held) > 0) refundToTreasury(zoneById(c.zone), Number(c.held));
-    }
+    const expired = [];
+    for (const c of state.contracts) (c.expiresAt > Date.now() ? kept : expired).push(c);
     state.contracts = kept;
+    // An expired notice hands its reward back rather than leaving the gold nowhere, once it is off the board on disk
+    if (expired.length) {
+      saveNow();
+      for (const c of expired) if (Number(c.held) > 0 && !refundToTreasury(zoneById(c.zone), Number(c.held))) log(`contracts: ${c.held} gold of expired notice ${c.id} could not go back to ${c.zone}`);
+    }
     // Off: what is already posted stays listed so nobody loses work in hand, but no new notice goes up
     if (!CFG.enabled) { if (state.contracts.length !== before) save(); return; }
     for (const zone of zoneList()) {
@@ -190,7 +194,7 @@ module.exports = (api) => {
         state.contracts.push(c);
       }
     }
-    if (state.contracts.length !== before) save();
+    if (state.contracts.length !== before) saveNow();
   };
 
   // The zone a player stands in, by worldspace first and the hold capital as the fallback
@@ -244,6 +248,9 @@ module.exports = (api) => {
     let tag = ''; try { tag = String(mp.get(npcId, 'private.npcSpawner') || ''); } catch (e) { return; }
     const m = /^wild:([^:]+):/.exec(tag);
     if (!m || m[1] !== c.kind) return;
+    // The hold pays for its own ground: a wolf felled in another hold is not this notice's work
+    const where = zoneOf(npcId);
+    if (!where || where.id !== c.zone) return;
     let worth = 1;
     try { if (mp.get(npcId, 'private.dboChampion') === true) worth = Math.max(1, Number(CFG.championWorth) || 1); } catch (e) { /* plain beast */ }
     held.progress = (Number(held.progress) || 0) + worth;
@@ -260,10 +267,11 @@ module.exports = (api) => {
       personal(killerId, `The work is done, but the ${zone ? zone.name : c.zone} treasury is empty. Speak to its officials.`);
       return;
     }
-    giveItem(killerId, GOLD_BASE, paid);
-    setTaken(killerId, null);
+    // Off the board and written before the gold changes hands, so no crash can leave it both paid and still posted
+    delete state.taken[String(profileOf(killerId))];
     state.contracts = state.contracts.filter((x) => x.id !== c.id);
-    save();
+    saveNow();
+    giveItem(killerId, GOLD_BASE, paid);
     personal(killerId, `Contract complete: ${c.count} ${plural(c.kind)}. ${paid} gold from the ${zone ? zone.name : c.zone} treasury.`);
     audit(`CONTRACT ${who(killerId)} completed ${c.count} ${plural(c.kind)} for ${zone ? zone.name : c.zone} (${paid} gold)`);
     refresh();
@@ -337,7 +345,7 @@ module.exports = (api) => {
       const c = { id: nextId(), zone: zone.id, kind, count, reward, held: reward, by: profileOf(a), byAccount: accountOf(a),
         postedAt: Date.now(), expiresAt: Date.now() + (Number(CFG.expiryHours) || 24) * 3600000 };
       state.contracts.push(c);
-      save();
+      saveNow();
       personal(a, `Posted: ${describe(c)}. The reward is set aside from the treasury until it is claimed.`);
       return audit(`CONTRACT ${who(a)} posted ${c.count} ${plural(c.kind)} for ${zone.name} at ${c.reward} gold`);
     }

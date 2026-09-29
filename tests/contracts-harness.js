@@ -3,7 +3,9 @@
 // and being paid out of the treasury. Checked here: contracts.enabled off closes posting, taking and paying while
 // leaving posted work listed; the poster is recorded and cannot take his own notice, on that character or another of
 // his; a reward is capped by count and danger; and danger-0 creatures cannot be asked for at all. No server and no
-// game: run it from this folder's parent with
+// game. Review (b), overnight 2026-09-29: a finished or expired notice is written off the board before its gold moves,
+// so a crash inside the debounced save cannot bring it back to pay twice; and a kill counts only in the notice's own
+// hold, as the take message has always said. Run it from this folder's parent with
 //
 //   node tests/contracts-harness.js
 'use strict';
@@ -40,7 +42,16 @@ fs.writeFileSync('NPC-Spawns.json', JSON.stringify([
 
 const out = { personal: [], audits: [] };
 const commands = new Map();
-const zones = { holds: [{ id: 'bruma', name: 'Bruma', treasury: '79b22:BSHeartland.esm', worldspaces: ['BSHeartland.esm:BSHeartland'], capital: [0, 0] }], strongholds: [], regions: [] };
+const zones = { holds: [
+  { id: 'bruma', name: 'Bruma', treasury: '79b22:BSHeartland.esm', worldspaces: ['BSHeartland.esm:BSHeartland'], capital: [0, 0] },
+  { id: 'falkreath', name: 'Falkreath', worldspaces: ['Skyrim.esm:Tamriel'] },
+], strongholds: [], regions: [] };
+// A beast of the harness roams Bruma unless a case moves it
+const beast = (id, kind, world = 'BSHeartland.esm:BSHeartland') => { set(id, 'private.npcSpawner', `wild:${kind}:1`); set(id, 'worldOrCellDesc', world); };
+
+// saveSoon writes at once unless a case turns the debounce on; then only saveNow reaches the disk, as after a crash
+let DEBOUNCE = false;
+let onPay = null;
 
 let CFG = {};
 // Each section starts from an empty board: contracts.json survives a reload by design, which is what the "off"
@@ -59,12 +70,13 @@ const load = (contracts) => {
     display: (a) => `P${a.toString(16)}`,
     who: (a) => `P${a.toString(16)}`,
     cfg: { contracts },
-    giveItem: (a, base, n) => { inv(a, goldOf(a) + n); return true; },
+    giveItem: (a, base, n) => { if (onPay) onPay(a, n); inv(a, goldOf(a) + n); return true; },
     registerChatCommand: (n, fn) => commands.set(n, fn),
     zones,
     ranksOf: (pid) => RANKS[pid] || [],
     profileOf: (a) => PROFILE[a],
-    saveSoon: (file, fn) => fs.writeFileSync(file, fn()),
+    saveSoon: (file, fn) => { if (!DEBOUNCE) fs.writeFileSync(file, fn()); },
+    saveNow: (file, fn) => fs.writeFileSync(file, fn()),
     discordOf: (a) => ACCOUNT[PROFILE[a]] || '',
   });
 };
@@ -95,7 +107,7 @@ load({ enabled: false, perZone: 3 });
 check('off: what was posted is still listed', said(run(HUNTER, ''), /Work posted in Bruma/), run(HUNTER, '').join(' | '));
 check('off: the list says so instead of inviting a take', said(run(HUNTER, ''), /closed for now/));
 const before = goldOf(HUNTER);
-set(0x900, 'private.npcSpawner', `wild:${standing[0].kind}:1`);
+beast(0x900, standing[0].kind);
 for (let i = 0; i < 40; i++) globalThis.__dboContractKill(0x900, HUNTER);
 check('off: kills pay nothing', goldOf(HUNTER) === before, `${goldOf(HUNTER)} gold`);
 
@@ -141,7 +153,7 @@ check('...and a second notice it can no longer cover is refused', !said(run(COUN
 
 run(GUARD, 'take 1');
 const guardBefore = goldOf(GUARD);
-set(0x901, 'private.npcSpawner', 'wild:wolf:1');
+beast(0x901, 'wolf');
 for (let i = 0; i < 5; i++) globalThis.__dboContractKill(0x901, GUARD);
 check('finishing pays the hunter out of what the notice held', goldOf(GUARD) === guardBefore + 60, `${goldOf(GUARD) - guardBefore} gold`);
 check('...and the treasury is not touched a second time', goldOf(CHEST) === 40, `${goldOf(CHEST)} left`);
@@ -169,6 +181,56 @@ fs.writeFileSync(path.resolve('contracts.json'), JSON.stringify({
 load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
 check('a notice from before the fix is dropped', !posted().some((c) => c.id === 'legacy1'), posted().map((c) => c.id).join(','));
 check('...and whoever held it is released', !stored().taken['12'], JSON.stringify(stored().taken));
+
+// ---- review (b): a kill counts only in the notice's own hold ------------------------------------------------------
+clear();
+inv(CHEST, 200);
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+run(COUNT, 'post wolf 2 24');
+run(HUNTER, 'take 1');
+const hunterBefore = goldOf(HUNTER);
+beast(0x910, 'wolf', 'Skyrim.esm:Tamriel');
+for (let i = 0; i < 5; i++) globalThis.__dboContractKill(0x910, HUNTER);
+check('wolves felled in another hold do not count', (stored().taken['13'] || {}).progress === 0 && goldOf(HUNTER) === hunterBefore, JSON.stringify(stored().taken['13']));
+beast(0x911, 'wolf', '1234:SomeCave.esp');
+for (let i = 0; i < 5; i++) globalThis.__dboContractKill(0x911, HUNTER);
+check('...nor on ground no hold claims', (stored().taken['13'] || {}).progress === 0 && goldOf(HUNTER) === hunterBefore, JSON.stringify(stored().taken['13']));
+beast(0x912, 'wolf');
+for (let i = 0; i < 2; i++) globalThis.__dboContractKill(0x912, HUNTER);
+check('wolves felled in Bruma still finish it', goldOf(HUNTER) === hunterBefore + 24, `${goldOf(HUNTER) - hunterBefore} gold`);
+
+// ---- review (b): the payout is on disk before the gold moves -----------------------------------------------------
+clear();
+inv(CHEST, 200);
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+run(COUNT, 'post wolf 2 24');
+run(HUNTER, 'take 1');
+DEBOUNCE = true;
+let onDiskAtPay = null;
+onPay = () => { onDiskAtPay = posted().length; };
+beast(0x920, 'wolf');
+const paidBefore = goldOf(HUNTER);
+for (let i = 0; i < 2; i++) globalThis.__dboContractKill(0x920, HUNTER);
+onPay = null;
+check('the hunter is paid', goldOf(HUNTER) === paidBefore + 24, `${goldOf(HUNTER) - paidBefore} gold`);
+check('...only after the notice is off the board on disk', onDiskAtPay === 0, `${onDiskAtPay} still on disk when the gold moved`);
+check('...and his hold on it is gone on disk too', !stored().taken['13'], JSON.stringify(stored().taken));
+// the crash: nothing debounced was written, and the server starts again from the file
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+for (let i = 0; i < 4; i++) globalThis.__dboContractKill(0x920, HUNTER);
+check('after a crash the notice does not come back to pay again', goldOf(HUNTER) === paidBefore + 24 && posted().length === 0, `${goldOf(HUNTER) - paidBefore} gold, ${posted().length} posted`);
+
+// an expired notice is off the board on disk before its gold goes back, or a crash would refund it twice
+run(COUNT, 'post wolf 5 60');
+check('a notice posted with the debounce on is still on disk', posted().length === 1, `${posted().length} posted`);
+const exp = stored(); exp.contracts[0].expiresAt = Date.now() - 1000;
+fs.writeFileSync(path.resolve('contracts.json'), JSON.stringify(exp));
+const chestBefore = goldOf(CHEST);
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+check('the expired notice refunds once', goldOf(CHEST) === chestBefore + 60, `${goldOf(CHEST) - chestBefore}`);
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+check('...and not again after a crash', goldOf(CHEST) === chestBefore + 60, `${goldOf(CHEST) - chestBefore}`);
+DEBOUNCE = false;
 
 // ---- who may hand out a rank ---------------------------------------------------------------------------------------
 // An official's rank is what lets someone post work paid from the treasury, so appointing is not a GM's to do
