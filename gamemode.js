@@ -973,14 +973,16 @@ const blockPlacedPickup = (targetId, casterId) => {
   const torch = carryableLight(rec);
   if (torch || HARVEST_ITEM_PREFIXES.some(p => edid.startsWith(p))) {
     const ref = targetId >>> 0;
-    const ready = Number(harvestReady.get(ref)) || 0;
+    // Kept on the reference as well (restUntil/setRest, with the coin purses): the map alone was lost at every restart
+    // and handed out every herb, rabbit, sap tap and torch again (economy review, 2026-09-29)
+    const ready = restUntil(harvestReady, ref);
     const now = Date.now();
     if (now < ready) {
       const mins = Math.max(1, Math.ceil((ready - now) / 60000));
       if (now - (lastPickupDeny.get(casterId) || 0) > 1500) { lastPickupDeny.set(casterId, now); personal(casterId, torch ? `Someone took this torch not long ago. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.` : `Nothing has grown back here yet. Try again in about ${mins} minute${mins === 1 ? '' : 's'}.`); }
       return true;
     }
-    harvestReady.set(ref, now + (torch ? TORCH_MINUTES : HARVEST_MINUTES) * 60000);
+    setRest(harvestReady, ref, now + (torch ? TORCH_MINUTES : HARVEST_MINUTES) * 60000);
     // The map only ever grows otherwise, and a spent entry is worthless once it is ripe again
     if (harvestReady.size > 4000) for (const [k, v] of [...harvestReady]) if (v <= now) harvestReady.delete(k);
     return false;
@@ -1458,10 +1460,16 @@ const giveStarterKit = (a) => {
   let entries = [];
   try { const inv = mp.get(a, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return; }
   const given = [];
+  // A missing tool comes back at most once a day: storing or trading the tools and relogging handed out new ones
+  // every time (economy review, 2026-09-29)
+  let last = {}; try { last = mp.get(a, 'private.starterKitAt') || {}; } catch (e) { last = {}; }
+  const now = Date.now();
   for (const k of STARTER_KIT) {
     const has = entries.reduce((n, e) => n + ((Number(e.baseId) >>> 0) === k.baseId ? Number(e.count) || 0 : 0), 0);
-    if (has < k.count && giveItem(a, k.baseId, k.count - has)) given.push(k.name);
+    if (has >= k.count || now - (Number(last[k.baseId]) || 0) < 24 * 3600000) continue;
+    if (giveItem(a, k.baseId, k.count - has)) { given.push(k.name); last[k.baseId] = now; }
   }
+  if (given.length) { try { mp.set(a, 'private.starterKitAt', last); } catch (e) { log('starter kit stamp failed', e.message); } }
   if (given.length) { system(a, `Your tools are in your pack: ${given.join(', ')}.`); log(`${display(a)} given ${given.join(', ')}`); }
 };
 // Players already online when this file reloads get theirs at once (giveItem is defined further down; this runs after load).

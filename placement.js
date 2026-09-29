@@ -218,6 +218,13 @@ module.exports = (api) => {
     }
     // Clients already watching the GM saw it appear on them; applyPose re-sends it where it now stands
     applyPose(id, kind, where, pos, rot);
+    // A placed container starts empty: world containers are emptied on first opening, but not dynamic refs, so every
+    // chest a GM placed handed its first opener the base container's loot, with no dungeon rules and no Ebony/Daedric
+    // filter (economy review, 2026-09-29)
+    try {
+      const baseRec = typeof mp.lookupEspmRecordById === 'function' ? mp.lookupEspmRecordById(mp.getIdFromDesc(desc)) : null;
+      if (baseRec && baseRec.record && String(baseRec.record.type) === 'CONT') { mp.set(id, 'inventory', { entries: [] }); mp.set(id, 'private.dboEmptied', true); }
+    } catch (e) { log('placed container emptying failed', e.message); }
     const entry = { id: hex(id), base: desc, name: known.name, kind, where, pos: pos.map((n) => Math.round(n * 10) / 10), rot, hostile: kind === 'npc' ? !!hostile : undefined, by: Number(mp.get(a, 'profileId')), at: new Date().toISOString() };
     mp.set(id, TAG, { base: desc, kind, by: entry.by, at: entry.at });
     registry().push(entry);

@@ -44,5 +44,15 @@ require(path.resolve(__dirname, '..', 'itemguards.js'))({ mp, log: () => {}, who
 check('off leaves no take guard behind', globalThis.__dboTakeGuard === null);
 prevCalls = 0;
 check('and hands drop and put back to the original handlers', !mp.onPutItem.__dboGuard && mp.onPutItem(CHEST, P, SWORD, 0) === true && prevCalls === 1 && mp.onDropItem === undefined);
+// non-playable armor (record flag 0x4), such as the Vampire Lord robe, cannot be dropped or put away (economy review)
+delete globalThis.__dboItemGuards; delete require.cache[path.resolve(__dirname, '..', 'itemguards.js')];
+{
+  const ROBE = 0x2011a84;
+  const inv2 = { [P]: [{ baseId: ROBE, count: 1 }] };
+  const mp2 = { get: (id, k) => (k === 'inventory' ? { entries: inv2[id] || [] } : undefined) };
+  require(path.resolve(__dirname, '..', 'itemguards.js'))({ mp: mp2, log: () => {}, who: () => 'P', recordOf: (id) => (id === ROBE ? { record: { type: 'ARMO', flags: 0x4 } } : null), cfg: {} });
+  check('a non-playable robe cannot be dropped', mp2.onDropItem(P, ROBE, 1) === false);
+  check('...nor put in a chest', mp2.onPutItem(CHEST, P, ROBE, 1) === false);
+}
 delete globalThis.__dboItemGuards; delete globalThis.__dboTakeGuard;
 console.log(''); console.log(failures ? `${failures} FAILURES` : 'all checks passed'); process.exit(failures ? 1 : 0);

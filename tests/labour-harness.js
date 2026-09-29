@@ -394,6 +394,23 @@ check('...and the seam opens again at once', out.widgets.length === 1, String(ou
 fire('close', ['escape'], 33);
 check('closing it with Escape still rests the seam', Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) > Date.now());
 
+// one worker per seam: a second is turned away while a round runs, and a win on a seam worked out meanwhile pays
+// nothing (economy review, 2026-09-29)
+{
+  const OTHER = 0x15;
+  props.set(OTHER + '|private.mastery', { order: ['miner'], skills: { miner: { rank: 2 } } });
+  virtual += 60000; r = openRound('mining', 2);
+  check('the first worker opens a round on the seam', r.ok === true && !!r.w);
+  out.widgets.length = 0; out.personals.length = 0;
+  globalThis.__dboLabour(VEIN, OTHER);
+  check('a second worker is turned away while it runs', out.widgets.length === 0 && out.personals.some((t) => /Someone is working this seam/.test(t)), JSON.stringify(out.personals));
+  props.set(VEIN + '|private.dboWorkedUntil', Date.now() + 45 * 60000);   // someone else's win landed first
+  const pp = play(r.w, { aim: 0.5 });
+  const res2 = report(r.w, pp.strikes, pp.at, 120, virtual);
+  check('a won round on a seam worked out meanwhile pays nothing', res2.items.length === 0 && /before you finished/.test(JSON.stringify(res2.result || {})), JSON.stringify(res2.result));
+  clearRests();
+}
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);

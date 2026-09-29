@@ -27,5 +27,24 @@ ok(lifted.restUntil(m2, PURSE) === until, 'a reference that cannot be read or wr
 ok(/const until = restUntil\(purseRest, targetId\);/.test(gm) && /setRest\(purseRest, targetId, /.test(gm), 'coin purses use it');
 ok(/const until = restUntil\(wispRest, targetId\);/.test(gm) && /setRest\(wispRest, targetId, /.test(gm), 'wisp stalks use it');
 
+// hanging harvestables and torches rest on the reference too (economy review, 2026-09-29)
+ok(/const ready = restUntil\(harvestReady, ref\);/.test(gm) && /setRest\(harvestReady, ref, /.test(gm), 'harvestables and torches use it');
+// the starter kit: a missing tool comes back at most once a day
+{
+  const i = gm.indexOf('const giveStarterKit = '), j = gm.indexOf('\n};\n', i);
+  const inv = new Map(); const props2 = new Map(); const given = [];
+  const mp2 = { get: (id, k) => (k === 'inventory' ? { entries: inv.get(id) || [] } : props2.get(`${id}|${k}`)), set: (id, k, v) => props2.set(`${id}|${k}`, v) };
+  const give = (a, id, n) => { given.push([id, n]); const e = inv.get(a) || []; e.push({ baseId: id, count: n }); inv.set(a, e); return true; };
+  const kit = [{ baseId: 0xe3c16, count: 1, name: 'Pickaxe' }];
+  const giveKit = new Function('mp', 'STARTER_KIT', 'creationPending', 'giveItem', 'system', 'log', 'display', `${gm.slice(i, j + 3)}\nreturn giveStarterKit;`)(mp2, kit, () => false, give, () => {}, () => {}, String);
+  giveKit(0x14);
+  ok(given.length === 1, 'a new character gets the pickaxe');
+  inv.set(0x14, []);                     // stored or traded away
+  giveKit(0x14);
+  ok(given.length === 1, 'a pickaxe put away is not handed out again the same day');
+  props2.set(`${0x14}|private.starterKitAt`, { [0xe3c16]: Date.now() - 25 * 3600000 });
+  giveKit(0x14);
+  ok(given.length === 2, '...but comes back a day later');
+}
 console.log(`${pass}/${pass + fail}`);
 process.exitCode = fail ? 1 : 0;

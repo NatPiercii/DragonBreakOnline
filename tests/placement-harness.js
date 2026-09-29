@@ -19,7 +19,7 @@ fs.symlinkSync(path.join(dir, 'state', 'world'), path.join(dir, 'world'), 'dir')
 const REG = path.join(dir, 'state', 'placements.json');
 fs.writeFileSync('admin-placeables.json', JSON.stringify({ categories: [
   { id: 'NPCs', label: 'NPCs', kind: 'npc', items: [['1e80e:Dragonborn.esm', 'Bandit', 'Dragonborn.esm']] },
-  { id: 'Crafting Stations', label: 'Crafting Stations', kind: 'object', items: [['bbcf1:Skyrim.esm', 'Blacksmith Forge', 'Skyrim.esm']] },
+  { id: 'Crafting Stations', label: 'Crafting Stations', kind: 'object', items: [['bbcf1:Skyrim.esm', 'Blacksmith Forge', 'Skyrim.esm'], ['ef052:Skyrim.esm', 'Explorer Chest', 'Skyrim.esm']] },
   // Kept out of the whole-catalog packet, reachable through the search; 150 rows so a search needs two pages
   { id: 'Statics', label: 'Statics', kind: 'object', items: Array.from({ length: 150 }, (_, i) => [(0x5000 + i).toString(16) + ':Skyrim.esm', `Banner Red ${i}`, i < 100 ? 'Skyrim.esm' : 'Dawnguard.esm']) },
 ] }));
@@ -37,6 +37,7 @@ const mp = {
   getDescFromId: (id) => (id >>> 0).toString(16),
   getIdFromDesc: (d) => parseInt(d, 16),
   destroyActor: (id) => calls.push(['destroyActor', id]),
+  lookupEspmRecordById: (id) => (id === 0xef052 ? { record: { type: 'CONT', editorId: 'TreasExplorerLootChest' } } : { record: { type: 'FURN' } }),
   callPapyrusFunction: (kind, cls, fn, self, args) => {
     calls.push([fn, parseInt(self.desc, 16), args]);
     if (fn === 'PlaceAtMe') return { type: 'form', desc: (next++).toString(16) };
@@ -181,6 +182,16 @@ TIERS[GM] = 'leadgm';
 reset(); ui.placeObject(GM, ['bbcf1:Skyrim.esm', 'object', [1100, 2100, 310], 0, false]);
 check('a Lead GM may place', calls.some((c) => c[0] === 'PlaceAtMe'));
 const mine = globalThis.__dboPlacement.registry[globalThis.__dboPlacement.registry.length - 1];
+// A placed container starts empty, so its first opener does not get the base container's loot (economy review)
+reset(); ui.placeObject(GM, ['ef052:Skyrim.esm', 'object', [1150, 2100, 310], 0, false]);
+{
+  const chest = globalThis.__dboPlacement.registry[globalThis.__dboPlacement.registry.length - 1];
+  const cid = parseInt(chest.id, 16);
+  const inv = props.get(cid + '|inventory');
+  check('a placed container starts empty and marked emptied', !!inv && Array.isArray(inv.entries) && inv.entries.length === 0 && props.get(cid + '|private.dboEmptied') === true, JSON.stringify(inv));
+  check('...and a placed forge is left alone', props.get(parseInt(mine.id, 16) + '|inventory') === undefined);
+  globalThis.__dboPlacement.registry.pop();
+}
 // Someone else's placement (profile 9)
 globalThis.__dboPlacement.registry.push(Object.assign({}, mine, { id: 'ff0008aa', by: 9 }));
 set(0xff0008aa, 'private.dboPlaced', { base: mine.base, kind: 'object', by: 9 });
