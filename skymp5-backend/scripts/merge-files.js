@@ -113,13 +113,22 @@ function buildZip(srcDir, zipPath) {
   })
 }
 
-// Refuses only with AUTO_REPORT_SYMBOL_GUARD=true; unset it warns, so a bundle with an inline map still ships
-function refuseSymbols(dir) {
-  const symbols = findSymbolFiles(dir)
+// Full paths, so the message names the file to delete; at most 10, then how many more
+function named(files) {
+  return files.slice(0, 10).join(', ') + (files.length > 10 ? ` and ${files.length - 10} more` : '')
+}
+
+// Refuses only with AUTO_REPORT_SYMBOL_GUARD=true; unset it warns once per file (warned), so a bundle with an inline map still ships
+function refuseSymbols(dir, warned = new Set()) {
+  const symbols = findSymbolFiles(dir).map(rel => path.resolve(dir, rel))
   if (symbols.length === 0) return
-  const list = symbols.slice(0, 10).join(', ')
-  if (config.autoReportSymbolGuard) throw new Error(`refusing to package source maps or PDBs: ${list}`)
-  console.warn(`[merge] packaging source maps or PDBs, AUTO_REPORT_SYMBOL_GUARD is off: ${list}`)
+  if (config.autoReportSymbolGuard) {
+    throw new Error('refusing to package source maps or PDBs. Delete these files (a bundle with an inline map: rebuild it without one) ' +
+      `and run the merge again: ${named(symbols)}`)
+  }
+  const fresh = symbols.filter(file => !warned.has(file))
+  fresh.forEach(file => warned.add(file))
+  if (fresh.length) console.warn(`[merge] packaging source maps or PDBs, AUTO_REPORT_SYMBOL_GUARD is off: ${named(fresh)}`)
 }
 
 // Main export
@@ -131,14 +140,17 @@ async function mergeSourcesIntoRoot() {
   console.log(`[merge]   client  : ${CLIENT_SRC}`)
   console.log(`[merge]   output  : ${OUTPUT_DIR}`)
 
-  // The source first, since OUTPUT_DIR is served at /files/root as soon as a file lands in it
-  refuseSymbols(CLIENT_SRC)
+  // The source and what an earlier run or populate left in the output, before anything is copied: OUTPUT_DIR is served
+  // at /files/root as soon as a file lands in it, and the copy never removes a stale file
+  const warned = new Set()
+  refuseSymbols(CLIENT_SRC, warned)
+  refuseSymbols(OUTPUT_DIR, warned)
   fs.mkdirSync(OUTPUT_DIR, { recursive: true })
 
   const clientFiles = copyDir(CLIENT_SRC, OUTPUT_DIR, SKIP_ALWAYS)
   console.log(`[merge] Files merged: ${clientFiles} total in ${Date.now() - startMs}ms`)
 
-  refuseSymbols(OUTPUT_DIR)
+  refuseSymbols(OUTPUT_DIR, warned)
 
   console.log('[merge] Building zip…')
   const zipStart = Date.now()

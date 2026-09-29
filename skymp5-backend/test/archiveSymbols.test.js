@@ -452,13 +452,22 @@ test('packages: with AUTO_REPORT_SYMBOL_GUARD=true, populate-files and merge-fil
 
   const clientSource = path.join(__dirname, '..', 'sources', 'client')
   if (fs.existsSync(clientSource)) return t.skip('sources/client exists here, and the merge would copy all of it')
-  for (const method of ['log', 'warn']) t.mock.method(console, method, () => {})
+  const logs = t.mock.method(console, 'log', () => {})
+  const warns = t.mock.method(console, 'warn', () => {})
   config.clientFilesDir = files
   config.autoReportSymbolGuard = true
   t.after(() => { config.autoReportSymbolGuard = false })
   const { mergeSourcesIntoRoot } = require('../scripts/merge-files')
-  await assert.rejects(mergeSourcesIntoRoot(),
-    /refusing to package source maps or PDBs: (?=.*Data\/SKSE\/Plugins\/SkyrimPlatform\.PDB)(?=.*Data\/Platform\/Plugins\/skymp5-client\.js)/)
+  // Files an earlier run left in the output are refused before the copy, by the full path to delete
+  await assert.rejects(mergeSourcesIntoRoot(), err => {
+    assert.match(err.message, /^refusing to package source maps or PDBs\. Delete these files .*and run the merge again: /)
+    for (const rel of ['Data/SKSE/Plugins/SkyrimPlatform.PDB', 'Data/Platform/Plugins/skymp5-client.js']) {
+      assert.ok(err.message.includes(path.join(files, 'root', rel)), rel)
+    }
+    return true
+  })
+  assert.ok(!logs.mock.calls.some(c => /Files merged/.test(c.arguments[0])))
+  assert.ok(!warns.mock.calls.some(c => /source not found/.test(c.arguments[0])))
   assert.equal(fs.existsSync(path.join(files, config.clientZipName)), false)
 })
 
@@ -494,7 +503,10 @@ test('packages: without AUTO_REPORT_SYMBOL_GUARD, populate-files and merge-files
   const merged = await mergeSourcesIntoRoot()
   assert.ok(merged.zipSize > 0)
   assert.ok(fs.statSync(path.join(files, config.clientZipName)).size > 0)
-  assert.ok(warn.mock.calls.some(c => /AUTO_REPORT_SYMBOL_GUARD is off: Data\/Platform\/Plugins\/skymp5-client\.js$/.test(c.arguments[0])))
+  // Checked before and after the copy, and warned once, by the full path
+  const stale = path.join(files, 'root', 'Data', 'Platform', 'Plugins', 'skymp5-client.js')
+  assert.deepEqual(warn.mock.calls.map(c => c.arguments[0]).filter(m => /AUTO_REPORT_SYMBOL_GUARD is off/.test(m)),
+    [`[merge] packaging source maps or PDBs, AUTO_REPORT_SYMBOL_GUARD is off: ${stale}`])
   assert.equal(versions.length, 1)
   assert.deepEqual(versions[0].files.map(f => f.path), ['Data/Platform/Plugins/skymp5-client.js'])
 })
