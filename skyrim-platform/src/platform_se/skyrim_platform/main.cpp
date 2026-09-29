@@ -293,6 +293,7 @@ public:
     pCursorY = &RE::MenuScreenData::GetSingleton()->mousePos.y;
     vkCodeDownDur.fill(0);
     vkCodeLastRepeat.fill(0);
+    vkCodeUpSince.fill(0);
   }
 
   void Init(std::shared_ptr<OverlayService> service_,
@@ -348,6 +349,7 @@ public:
     if (!down && virtualKeyCode >= 0 &&
         virtualKeyCode < vkCodeDownDur.size()) {
       vkCodeDownDur[virtualKeyCode] = 0;
+      vkCodeUpSince[virtualKeyCode] = 0;
     }
 
     if (!IsBrowserFocused()) {
@@ -632,8 +634,32 @@ public:
       const clock_t now = clock();
       for (int i = 0; i < 256; ++i) {
         const auto pressMoment = this->vkCodeDownDur[i];
-        if (!pressMoment || now - pressMoment <= CLOCKS_PER_SEC / 2)
-          continue; // not held, or still inside the initial delay
+        if (!pressMoment)
+          continue; // not held
+        // A key-up the device never reported (a read lost to an alt-tab)
+        // would repeat the key in the page until the next read: repeat only
+        // while Windows still has the key down, and when it has been up for
+        // 250 ms with no release from the device, give the page its release
+        if (!(GetAsyncKeyState(i) & 0x8000)) {
+          if (!this->vkCodeUpSince[i]) {
+            this->vkCodeUpSince[i] = now;
+          } else if (now - this->vkCodeUpSince[i] >= CLOCKS_PER_SEC / 4) {
+            this->vkCodeDownDur[i] = 0;
+            this->vkCodeUpSince[i] = 0;
+            InjectKey(MapVirtualKeyA(i, MAPVK_VK_TO_VSC), false);
+            if (releasedLogs < 10) {
+              ++releasedLogs;
+              spdlog::info("InputDiag: key vk {:#x} was up in Windows but "
+                           "down in the device for 250 ms, released in the "
+                           "page",
+                           i);
+            }
+          }
+          continue;
+        }
+        this->vkCodeUpSince[i] = 0;
+        if (now - pressMoment <= CLOCKS_PER_SEC / 2)
+          continue; // still inside the initial delay
         if (now - this->vkCodeLastRepeat[i] < CLOCKS_PER_SEC / 30)
           continue; // throttle to ~30 repeats/sec instead of every frame
         this->vkCodeLastRepeat[i] = now;
@@ -652,6 +678,8 @@ private:
   std::shared_ptr<InputConverter> conv;
   std::array<clock_t, 256> vkCodeDownDur;
   std::array<clock_t, 256> vkCodeLastRepeat;
+  std::array<clock_t, 256> vkCodeUpSince;
+  int releasedLogs = 0;
   float* pCursorX = nullptr;
   float* pCursorY = nullptr;
   RE::MenuScreenData* screen = nullptr;
