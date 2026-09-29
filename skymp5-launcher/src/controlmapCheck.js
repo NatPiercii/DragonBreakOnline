@@ -15,7 +15,11 @@
  * Blank lines separate the contexts, as the file's own header says; tab-only lines count, as in the vanilla file.
  * A block counts as its context when it holds at least half of that context's events in the launcher's seed map
  * (assets/controlmap.txt: the vanilla 1.6.1130+ map with only Wait unbound). A map short of any context is moved
- * aside, dated, and logged, so a report shows it. The next map down then applies, and applyControlmapOverride seeds
+ * aside, dated, and logged, so a report shows it.
+ *
+ * Line endings count too. The vanilla map, and every map the game or a PC-built launcher wrote, ends its lines in CRLF;
+ * the launchers built on CT 115 from 27 Sep shipped the seed with LF only, and every player who has the stuck menu
+ * cursor or the container crash installed after that. A map with lines ending in LF alone is moved aside the same way. The next map down then applies, and applyControlmapOverride seeds
  * the game's own Data again when nothing is left.
  */
 const fs = require('fs')
@@ -44,13 +48,23 @@ function parseBlocks(text) {
   return blocks.filter(b => b.length).map(b => [...new Set(b)])
 }
 
+// Lines that end in LF without the CR before it
+function bareLfCount(text) {
+  return (String(text).match(/(?<!\r)\n/g) || []).length
+}
+
+// The text with every line ending CRLF
+function toCrlf(text) {
+  return String(text).replace(/\r?\n/g, '\r\n')
+}
+
 let expectedCache = null
 function expectedContexts() {
   if (!expectedCache) expectedCache = parseBlocks(fs.readFileSync(SEED, 'utf8'))
   return expectedCache
 }
 
-// { ok, found, expected, blocks, missing: [context names] }
+// { ok, found, expected, blocks, missing: [context names], lf: lines ending in LF only }
 function analyzeControlmap(text) {
   const want = expectedContexts()
   const blocks = parseBlocks(text)
@@ -60,7 +74,8 @@ function analyzeControlmap(text) {
     const hit = events.filter(e => have.has(e)).length
     if (hit * 2 < events.length) missing.push(CONTEXT_NAMES[i] || `context ${i}`)
   })
-  return { ok: missing.length === 0, found: want.length - missing.length, expected: want.length, blocks: blocks.length, missing }
+  const lf = bareLfCount(text)
+  return { ok: missing.length === 0 && lf === 0, found: want.length - missing.length, expected: want.length, blocks: blocks.length, missing, lf }
 }
 
 // Mod names switched on in an MO2 modlist.txt, top line (highest priority) first
@@ -88,9 +103,9 @@ function stamp(now) {
   return now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
 }
 
-function moveAside(file, now) {
-  let aside = `${file}.incomplete-${stamp(now)}`
-  for (let n = 2; fs.existsSync(aside); n++) aside = `${file}.incomplete-${stamp(now)}-${n}`
+function moveAside(file, now, tag) {
+  let aside = `${file}.${tag}-${stamp(now)}`
+  for (let n = 2; fs.existsSync(aside); n++) aside = `${file}.${tag}-${stamp(now)}-${n}`
   fs.renameSync(file, aside)
   return aside
 }
@@ -115,9 +130,12 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
       lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts`)
       return true
     }
-    const aside = moveAside(file, now)
-    lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (missing ${r.missing.join(', ')}), ` +
-      `moved aside to ${path.basename(aside)}`)
+    const aside = moveAside(file, now, r.missing.length ? 'incomplete' : 'lf')
+    const why = [
+      r.missing.length ? `missing ${r.missing.join(', ')}` : '',
+      r.lf ? `${r.lf} line(s) end in LF only, the game's own map uses CRLF` : '',
+    ].filter(Boolean).join('; ')
+    lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), moved aside to ${path.basename(aside)}`)
     return false
   }
   if (custom) check(custom)
@@ -127,4 +145,4 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
   return lines
 }
 
-module.exports = { CONTEXT_NAMES, parseBlocks, analyzeControlmap, enabledMods, controlmapFiles, checkControlmaps }
+module.exports = { CONTEXT_NAMES, parseBlocks, analyzeControlmap, enabledMods, controlmapFiles, checkControlmaps, bareLfCount, toCrlf }

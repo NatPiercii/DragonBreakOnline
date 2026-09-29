@@ -36,4 +36,11 @@ exports.default = async function afterPack(context) {
   res.outputResource(exe)
   fs.writeFileSync(exePath, Buffer.from(exe.generate()))
   console.log(`  • afterPack (no wine): version info and icon set on ${path.basename(exePath)}`)
+
+  // The packed controlmap seed must end its lines in CRLF like the vanilla map, or the build fails here
+  const asar = require(path.join(context.packager.info.projectDir, 'node_modules', '@electron', 'asar'))
+  const seed = asar.extractFile(path.join(context.appOutDir, 'resources', 'app.asar'), path.join('assets', 'controlmap.txt')).toString('utf8')
+  const lfOnly = (seed.match(/(?<!\r)\n/g) || []).length
+  if (lfOnly) throw new Error(`the packed assets/controlmap.txt has ${lfOnly} line(s) ending in LF only; it must be CRLF (see .gitattributes)`)
+  console.log(`  • afterPack: the packed controlmap seed is CRLF (${(seed.match(/\r\n/g) || []).length} lines)`)
 }

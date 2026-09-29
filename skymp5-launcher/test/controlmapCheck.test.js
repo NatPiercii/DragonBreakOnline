@@ -32,12 +32,12 @@ test('the seed has the 18 contexts of SKSE 2.2.6 in order: Item Menus 4th, Curso
   assert.ok(blocks[3].includes('LeftEquip'))
   assert.deepStrictEqual(blocks[9], ['Cursor', 'Click'])
   assert.ok(blocks[16].includes('PurchaseCredits'))
-  assert.deepStrictEqual(cm.analyzeControlmap(seed), { ok: true, found: 18, expected: 18, blocks: 18, missing: [] })
+  assert.deepStrictEqual(cm.analyzeControlmap(seed), { ok: true, found: 18, expected: 18, blocks: 18, missing: [], lf: 0 })
 })
 
-test('a full map passes, with CRLF or LF, a BOM, changed keys, or no comments at all', () => {
+test('a full CRLF map passes, with a BOM, changed keys, or no comments at all', () => {
   assert.ok(cm.analyzeControlmap(full).ok)
-  assert.ok(cm.analyzeControlmap('﻿' + full.replace(/\r\n/g, '\n')).ok)
+  assert.ok(cm.analyzeControlmap('\uFEFF' + full).ok)
   // A remap changes the key columns, never the event names
   assert.ok(cm.analyzeControlmap(full.replace(/^(Forward\t)0x11/m, '$10xc8')).ok)
   assert.ok(cm.analyzeControlmap(full.split(/\r?\n/).filter(l => !l.startsWith('//')).join('\r\n')).ok)
@@ -122,5 +122,28 @@ test('complete maps stay; with no loose map left, the log says the game\'s own a
   assert.match(lines[1], /has 16 of 18 contexts .*moved aside/)
   assert.match(lines[2], /no loose controlmap\.txt is left in Data/)
   assert.deepStrictEqual(cm.checkControlmaps({ gameDir: '' }), [])
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('the same full map with LF-only lines is caught: all 18 contexts, but not the endings the game\'s own map has', () => {
+  const lfOnly = full.replace(/\r\n/g, '\n')
+  const r = cm.analyzeControlmap(lfOnly)
+  assert.deepStrictEqual([r.ok, r.found, r.missing.length, r.lf], [false, 18, 0, lfOnly.split('\n').length - 1])
+  assert.strictEqual(cm.bareLfCount(cm.toCrlf(lfOnly)), 0)
+  assert.strictEqual(cm.toCrlf(lfOnly), full)
+  // One stray LF in an otherwise CRLF file counts too
+  assert.strictEqual(cm.analyzeControlmap(full.replace('\r\n', '\n')).lf, 1)
+})
+
+test('before launch: an LF-only map is moved aside with its own tag and the reason', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'controlmap-test-'))
+  const game = path.join(root, 'skyrim')
+  const custom = path.join(game, 'ControlMap_Custom.txt')
+  put(custom, full.replace(/\r\n/g, '\n'))
+  put(path.join(game, 'Data', DATA_REL), full)
+  const lines = cm.checkControlmaps({ gameDir: game, now })
+  assert.match(lines[0], /has 18 of 18 contexts \(\d+ line\(s\) end in LF only, the game's own map uses CRLF\), moved aside to ControlMap_Custom\.txt\.lf-20260929T160000Z$/)
+  assert.match(lines[1], /controlmap\.txt has 18 of 18 contexts$/)
+  assert.ok(!fs.existsSync(custom))
   fs.rmSync(root, { recursive: true, force: true })
 })

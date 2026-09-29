@@ -609,7 +609,7 @@ const CONTROLMAP_SEED = path.join(__dirname, '..', 'assets', 'controlmap.txt')
 function readControlmapText() {
   const p = controlmapPath()
   if (p && fs.existsSync(p)) return { path: p, text: upgradeControlmapText(fs.readFileSync(p, 'utf8')), exists: true }
-  return { path: p, text: fs.readFileSync(CONTROLMAP_SEED, 'utf8'), exists: false }
+  return { path: p, text: controlmapCheck.toCrlf(fs.readFileSync(CONTROLMAP_SEED, 'utf8')), exists: false }
 }
 
 function controlmapEventRe(ev) {
@@ -635,22 +635,27 @@ function upgradeControlmapText(text) {
   return upgraded
 }
 
-// Seeds the Wait-unbound controlmap when the game has none and upgrades a stale launcher copy; a player's own map is never touched
+// Seeds the Wait-unbound controlmap when the game has none, upgrades a stale launcher copy and gives a launcher copy
+// with LF-only lines CRLF, as the vanilla map has (launchers built on CT 115 wrote LF from 27 Sep). A player's own map
+// is never touched here; controlmapCheck judges those.
 function applyControlmapOverride(gamePath) {
   try {
     if (!gamePath) return
     const dest = path.join(gamePath, 'Data', 'Interface', 'Controls', 'PC', 'controlmap.txt')
     if (!fs.existsSync(dest)) {
       fs.mkdirSync(path.dirname(dest), { recursive: true })
-      fs.copyFileSync(CONTROLMAP_SEED, dest)
+      fs.writeFileSync(dest, controlmapCheck.toCrlf(fs.readFileSync(CONTROLMAP_SEED, 'utf8')))
       log('[defaults] wrote controlmap override (Wait unbound on keyboard and gamepad) to ' + dest)
       return
     }
     const text = fs.readFileSync(dest, 'utf8')
-    const upgraded = upgradeControlmapText(text)
-    if (upgraded !== text) {
-      fs.writeFileSync(dest, upgraded)
-      log('[defaults] rebuilt the stale controlmap override from the current seed at ' + dest)
+    let next = upgradeControlmapText(text)
+    const why = next !== text ? 'rebuilt the stale controlmap override from the current seed' : ''
+    const ours = /launcher controlmap override/.test(next)
+    if (ours && controlmapCheck.bareLfCount(next)) next = controlmapCheck.toCrlf(next)
+    if (next !== text) {
+      fs.writeFileSync(dest, next)
+      log(`[defaults] ${why || 'gave the controlmap override CRLF line endings, as the game\'s own map has,'} at ${dest}`)
     }
   } catch (err) {
     log('[defaults] could not write controlmap override:', err.message)
@@ -682,7 +687,7 @@ ipcMain.handle('gameHotkeys:save', (_e, keys) => {
       text = text.replace(controlmapEventRe(ev), (_m, head) => head + hex)
     }
     fs.mkdirSync(path.dirname(p), { recursive: true })
-    fs.writeFileSync(p, text)
+    fs.writeFileSync(p, controlmapCheck.toCrlf(text))
     return { ok: true, path: p }
   } catch (err) {
     return { ok: false, error: err.message }
@@ -2103,8 +2108,10 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   const warning = lostArchives.length > 0 ? ccArchiveWarning(lostArchives) : null
   if (warning) log('[launch] ' + warning)
 
-  // Every control map the game reads must hold all its input contexts: a short one crashed every container and froze
-  // the menu cursor (controlmapCheck.js). Runs before the seed, which refills Data when a map there is moved aside.
+  // Every control map the game reads must hold all its input contexts, with CRLF lines: a short one crashed every
+  // container and froze the menu cursor (controlmapCheck.js). The seed goes first, so our own copy is converted rather
+  // than moved aside, and again after, to refill Data when a map there was moved aside.
+  applyControlmapOverride(skyrimPath)
   try {
     let maps = null
     if (viaMO2) {

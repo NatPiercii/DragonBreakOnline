@@ -1,0 +1,3 @@
+# Byte-exact: Skyrim reads this file and its vanilla original uses CRLF. Without this rule a Linux checkout made it LF,
+# and every launcher built on CT 115 from 27 Sep shipped an LF-only map (test/controlmapAsset.test.js guards it).
+assets/controlmap.txt -text
