@@ -1,5 +1,20 @@
 [
   {
+    "title": "Wisp Stalks and Ayleid Wells",
+    "date": "2026-09-29",
+    "version": "Server",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Cyrodiil",
+        "items": [
+          "Wisp stalks across Bruma can be harvested (Harvesting improves the yield); a picked stalk grows back after a while.",
+          "Ayleid wells restore your magicka and make it flow back faster for five minutes, once a day for each traveller: drink again after midnight."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Name Your Character",
     "date": "2026-09-29",
     "version": "Server",
