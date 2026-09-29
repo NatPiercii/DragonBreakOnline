@@ -1,10 +1,11 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
+import { logTrace } from "../../logging";
 import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, closeWidget, refreshFormMenu } from "./widgetMenuUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { TimersService } from "./timersService";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, storage } from "skyrimPlatform";
+import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, Menu, storage } from "skyrimPlatform";
 import { COMPANION_HUD_KEY } from "./companionService";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
 
@@ -46,6 +47,10 @@ export class DboRelayService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.emitter.on("browserWindowLoaded", () => { this.focusedId = 0; this.hudKey = ""; this.partyKey = ""; this.lastH = -1; this.lastM = -1; this.lastS = -1; });
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.focusedId) this.closeFocused("hidden"); });
+    // In-game widgets belong to a session. When it ends they were left drawn over Skyrim's own main menu
+    // (GroundedPasta, 2026-09-29: "kicked out while creating character", the HUD still on screen afterwards).
+    this.controller.emitter.on("connectionDisconnect", () => this.clearInGameWidgets("disconnected"));
+    this.controller.on("menuOpen", (e) => { if (e.name === Menu.Main) this.clearInGameWidgets("main menu"); });
     this.controller.on("update", () => this.onUpdate());
     this.controller.on("loadGame", () => this.onGameLoaded());
   }
@@ -161,6 +166,22 @@ export class DboRelayService extends ClientListener {
     this.sp.browser.executeJavaScript(
       "(function(){if(!window.skyrimPlatform||!window.skyrimPlatform.widgets)return;var ws=(window.skyrimPlatform.widgets.get()||[]).filter(function(x){return x.id!==" + id + ";});ws.push(" + widgetJson + ");window.skyrimPlatform.widgets.set(ws);})();"
     );
+  }
+
+  // Everything this service draws for a live session: the HUD, the party list, and any focused panel it opened.
+  // Character select and the login screens are drawn by their own services with their own ids, so they are untouched
+  // and keep working - which is the point, since this runs exactly when the player is about to need them.
+  //
+  // The focused panel is closed through closeFocused, not removeWidget, so the cursor is handed back the way the
+  // panel hand-off rule requires rather than being dropped with the widget still holding it.
+  private clearInGameWidgets(why: string): void {
+    if (!this.focusedId && !this.hudKey && !this.partyKey) return;
+    logTrace(this, `clearing in-game widgets: ${why}`);
+    if (this.focusedId) this.closeFocused(why);
+    this.removeWidget(HUD_WIDGET_ID);
+    this.removeWidget(PARTY_WIDGET_ID);
+    // So the next session redraws from scratch rather than matching a stale key and drawing nothing
+    this.hudKey = ""; this.partyKey = ""; this.hudData = null; this.partyData = null;
   }
 
   private removeWidget(id: number): void {
