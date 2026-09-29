@@ -16,7 +16,7 @@ if (re) {
   // The ones the loot review found in loot.json, and the best known
   for (const n of ['ClavicusVileMask', 'CYRGoldbrand', 'CYRThorneblade', 'DBBladeOfWoeAstrid', 'DBBladeOfWoeReward', 'DBAlainAegisbane',
     'DLC1AurielsBow', 'DLC1ArmorAurielsShield', 'ArmorDragonPriestMaskUltraHelmet', 'ArmorDragonPriestMaskEbonyHelmet', 'MGRKeening',
-    'NightingaleBlade03', 'ArmorNightingaleCuirassPlayer02', 'ArmorShieldofYsgramor', 'DLC2MiraakMaskNew', 'DLC2dunKolbjornHelm', 'DLC1HarkonsSword']) {
+    'NightingaleBlade03', 'DA08EbonyBlade', 'DA08RealEbonyBlade', 'ArmorNightingaleCuirassPlayer02', 'ArmorShieldofYsgramor', 'DLC2MiraakMaskNew', 'DLC2dunKolbjornHelm', 'DLC1HarkonsSword']) {
     ok(re.test(n), `${n} is an artifact`);
   }
   // Ordinary gear, generic enchanted variants and the Ayleid table's own treasure stay loot

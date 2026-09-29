@@ -17,6 +17,7 @@
     "^ClothesMG(Boots|Robes)Archmage",
     "^ArmorTsunCuirass$",
     "^DunYngolBarrowSteelPlateHelmet$",
-    "^ClothesPsiijic"
+    "^ClothesPsiijic",
+    "^DA08(Real)?EbonyBlade$"
   ]
 }
