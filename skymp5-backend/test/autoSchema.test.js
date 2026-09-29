@@ -431,6 +431,27 @@ test('trail: grammar failures and hb entries are removed and counted, the newest
   assert.ok(res.flags.includes('truncated'))
 })
 
+test('trail: past 10 x 56 entries the front of the array is cut before the sort, counted in dropped and flagged truncated', () => {
+  const body = load('script-error-on-update')
+  const t = body.clientAt
+  body.trail.dropped = 1
+  // The front holds the newest times; it is cut as sent, so none of it reaches the sort
+  const front = Array.from({ length: 5000 }, () => ({ t: t - 1, k: 'menu', d: 'open MapMenu' }))
+  const tail = Array.from({ length: 560 }, (_, i) => ({ t: t - 10000 + i, k: 'menu', d: 'open InventoryMenu' }))
+  body.trail.entries = [...front, ...tail]
+  const res = accepted(body)
+  const { trail } = res.report
+  assert.equal(trail.entries.length, 56)
+  assert.equal(trail.dropped, 1 + 5000 + 560 - 56)
+  assert.ok(trail.entries.every(e => e.d === 'open InventoryMenu'))
+  assert.equal(trail.entries.at(-1).t, t - 10000 + 559)
+  assert.ok(res.flags.includes('truncated'))
+
+  // A body of tiny junk entries is accepted with every entry counted as dropped
+  body.trail = { source: 'memory', entries: new Array(150_000).fill(0), dropped: 0 }
+  assert.deepEqual(accepted(body).report.trail, { source: 'memory', entries: [], dropped: 150_000 })
+})
+
 test('crash-on-quit keeps the last 10 trail entries', () => {
   const body = load('crash-on-quit')
   const at = body.exit.at

@@ -27,6 +27,7 @@ const SECTION_FILTERS = {
   relevantObjects: text => text.replace(NAME_VALUE, '$1<name>').replace(QUOTED, (_m, file) => file || '""'),
 }
 const TRAIL_MAX = 56
+const TRAIL_SORT_MAX = 10 * TRAIL_MAX
 const ERROR_FRAMES_MAX = 12
 const CRASH_FRAMES_MAX = 24
 
@@ -366,11 +367,13 @@ function trailEntry(e, run) {
   return out
 }
 
-// Keeps the newest entries up to the kind's limit; entries left out or failing the grammar count in `dropped`
+// Keeps the newest entries up to the kind's limit; entries left out or failing the grammar count in `dropped`.
+// Past 10 x 56, the front of the array goes before the sort, since senders send oldest first (§2.5): a 400 KB body of tiny entries is never sorted whole
 function scrubTrail(st, trail, max, run) {
   const time = e => (isUint(get(e, 't')) ? e.t : -1)
-  let raw = [...trail.entries].sort((a, b) => time(a) - time(b))
-  let dropped = trail.dropped
+  const cut = Math.max(0, trail.entries.length - TRAIL_SORT_MAX)
+  let raw = trail.entries.slice(cut).sort((a, b) => time(a) - time(b))
+  let dropped = trail.dropped + cut
   if (raw.length > max) {
     dropped += raw.length - max
     raw = raw.slice(-max)
