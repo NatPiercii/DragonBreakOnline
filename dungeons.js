@@ -136,6 +136,27 @@ module.exports = (api) => {
   const partyMembers = (pid) => { const p = partyOf(pid); return p ? [...p.members] : [pid]; };
   const actorByProfile = (pid) => onlineActors().find((a) => profileOf(a) === pid) || 0;
   const cooldownsOf = (a) => { try { const r = mp.get(a, 'private.dungeonCooldowns'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
+  // The rest is kept per account as well (combat and economy review, 2026-09-29): endLease wrote it only on members
+  // online when the lease ended, so logging out let it end unseen and the next claim refilled every chest; another
+  // character escaped it too. Account -> dungeon -> until, in dungeon-cooldowns.json beside the other state.
+  const CD_PATH = path.resolve('dungeon-cooldowns.json');
+  const accountRest = globalThis.__dboDungeonAccountRest instanceof Map ? globalThis.__dboDungeonAccountRest : (globalThis.__dboDungeonAccountRest = (() => {
+    const m = new Map();
+    try { const raw = JSON.parse(fs.readFileSync(CD_PATH, 'utf8')); for (const [k, v] of Object.entries(raw || {})) if (Number(v) > Date.now()) m.set(k, Number(v)); } catch (e) { if (e.code !== 'ENOENT') log('dungeon-cooldowns.json unreadable', e.message); }
+    return m;
+  })());
+  const setAccountRest = (pid, dungeonId, until) => {
+    if (!(Number(pid) >= 0)) return;
+    const now = Date.now();
+    for (const [k, v] of accountRest) if (v < now) accountRest.delete(k);
+    accountRest.set(`${pid}:${dungeonId}`, until);
+    try { fs.writeFileSync(CD_PATH + '.tmp', JSON.stringify(Object.fromEntries(accountRest))); fs.renameSync(CD_PATH + '.tmp', CD_PATH); } catch (e) { log('dungeon-cooldowns.json save failed', e.message); }
+  };
+  // Until when a dungeon rests for an account: its own record, or its online character's
+  const restingUntil = (pid, dungeonId) => {
+    const a = actorByProfile(pid);
+    return Math.max(accountRest.get(`${pid}:${dungeonId}`) || 0, a ? Number(cooldownsOf(a)[dungeonId]) || 0 : 0);
+  };
   const setCooldown = (a, dungeonId, until) => { const c = cooldownsOf(a); for (const k of Object.keys(c)) if (Number(c[k]) < Date.now()) delete c[k]; c[dungeonId] = until; try { mp.set(a, 'private.dungeonCooldowns', c); } catch (e) { log('cooldown save failed', e.message); } };
   const whereIs = (a) => { try { return normDesc(mp.get(a, 'worldOrCellDesc')); } catch (e) { return ''; } };
   const dungeonAround = (a) => cellToDungeon.get(whereIs(a)) || null;
@@ -582,6 +603,7 @@ module.exports = (api) => {
     ST.leases.delete(lease.id);
     if (isRaidRuin(byId.get(lease.id))) { const p = partyOf(lease.leader); if (p) pushParty(p); }
     for (const pid of lease.members) {
+      setAccountRest(pid, lease.id, Date.now() + C.cooldownMinutes * 60000);
       const a = actorByProfile(pid);
       if (!a) continue;
       setCooldown(a, lease.id, Date.now() + C.cooldownMinutes * 60000);
@@ -1109,10 +1131,17 @@ module.exports = (api) => {
         }
         return deny(casterId, `Someone is inside ${d.name}. It frees up in ${minutesLeft(lease.endsAt)} minutes at most.`, `${d.id} is claimed by another party for ${minutesLeft(lease.endsAt)} more min`);
       }
-      const cd = Number(cooldownsOf(casterId)[d.id]) || 0;
+      const cd = Math.max(Number(cooldownsOf(casterId)[d.id]) || 0, restingUntil(pid, d.id));
       if (cd > Date.now()) return deny(casterId, `${d.name} still rests for you. Come back in ${minutesLeft(cd)} minutes.`, `${d.id} rests for them ${minutesLeft(cd)} more min`);
       const party = partyOf(pid);
       if (party && party.leader !== pid) return deny(casterId, `Only your party leader, ${party.leaderName}, can claim ${d.name}.`, `${d.id} claim by a party member, leader is ${party.leaderName}`);
+      // Every member's rest counts, not only the claimer's: a fresh leader brought the last run's party back to a refill
+      const resting = partyMembers(pid).filter((x) => x !== pid && restingUntil(x, d.id) > Date.now());
+      if (resting.length) {
+        const names = resting.map((x) => { const m = actorByProfile(x); return m ? nameOf(m) : 'a member who is away'; });
+        const until = Math.max(...resting.map((x) => restingUntil(x, d.id)));
+        return deny(casterId, `${d.name} still rests for ${names.join(', ')}. Claim it without them, or come back in ${minutesLeft(until)} minutes.`, `${d.id} rests for party member(s) ${resting.join(', ')}`);
+      }
       const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}`;
       ST.pending.set(casterId, { nonce, dungeonId: d.id, entrance });
       const partyNames = partyMembers(pid).filter((x) => x !== pid).map((x) => { const a = actorByProfile(x); return a ? nameOf(a) : `#${x}`; });
@@ -1128,6 +1157,8 @@ module.exports = (api) => {
       const lease = ST.leases.get(chest.d.id);
       // No lease left: the glow is a leftover, so stop it on this ref rather than leaving it lit
       if (!lease) { glowOff(casterId, [targetId]); return null; }
+      // Only the party that holds the claim: a party that stayed inside after clearing looted the next claim's refill
+      if (!lease.members.has(profileOf(casterId))) return deny(casterId, `This belongs to the party that claimed ${lease.name}.`, `${chest.d.id} chest, not in the claiming party`);
       const opened = () => { if (!lease.looted.has(targetId)) { lease.looted.add(targetId); for (const pid of lease.members) { const a = actorByProfile(pid); if (a) glow(a, [targetId], false); } scholarGift(casterId, SCHOLAR_CHEST, 'among the chest\'s things'); } };
       if (!lease.locked.has(targetId) || lease.unlocked.has(targetId)) { opened(); return null; }
       const level = lease.locked.get(targetId);
@@ -1371,8 +1402,10 @@ module.exports = (api) => {
     try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
     let looted = false; try { looted = mp.get(targetId, 'private.dboLooted') === true; } catch (e) { /* fresh */ }
     if (looted) return deny(casterId, 'Nothing more to find on this one.');
-    try { mp.set(targetId, 'private.dboLooted', true); } catch (e) { return false; }
     const lease = leaseOfTag(tag);
+    // The claiming party's kill is theirs to search (the boss's body included)
+    if (lease && !lease.members.has(profileOf(casterId))) return deny(casterId, `This belongs to the party that claimed ${lease.name}.`, `${lease.id} body, not in the claiming party`);
+    try { mp.set(targetId, 'private.dboLooted', true); } catch (e) { return false; }
     const diff = DIFFICULTIES.find((x) => x.id === (lease ? lease.difficulty : 'normal')) || DIFFICULTIES[1];
     const got = [];
     const d = lease ? byId.get(lease.id) : null;
