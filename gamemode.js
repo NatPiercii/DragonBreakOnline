@@ -1262,6 +1262,8 @@ const sendToArrival = (a) => {
   try {
     if (mp.get(a, 'isOnline') === false) return;
     if (creationPending(a)) return;
+    // A character still under a default name ("Prisoner") stays in the Realm until named (naming.js); asked again later
+    if (globalThis.__dboNameHold && globalThis.__dboNameHold(a)) { setTimeout(() => sendToArrival(a), 20000); return; }
     const here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase();
     if (here !== String(HUB.cellOrWorldDesc).toLowerCase()) return;
     mp.set(a, 'locationalData', LANDING_LOC);
@@ -1270,6 +1272,14 @@ const sendToArrival = (a) => {
     log(`sent ${display(a)} from the Realm to the arrival`);
   } catch (e) { log('send to arrival failed', e.message); }
 };
+// ---- a name of its own before the world (server\naming.js): /name for a character left as "Prisoner" ----------------
+try {
+  const NAMING_JS = path.resolve('naming.js');
+  delete require.cache[NAMING_JS];
+  require(NAMING_JS)({ mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation: (a) => creationPending(a) });
+  globalThis.__dboNamed = (a) => { if (inHubForName(a)) sendToArrival(a); };
+} catch (e) { log('naming.js failed to load:', e.stack || e.message); globalThis.__dboNameHold = null; globalThis.__dboNamed = null; }
+function inHubForName(a) { try { return String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase() === String(HUB.cellOrWorldDesc).toLowerCase(); } catch (e) { return false; } }
 // Choosing a god is the last creation step (prayer.js): the picker opens in the hub and the move to the arrival waits
 // for a choice or Not yet. A picker that never answers must not strand anyone in the Realm, whose gates teleport nobody.
 const DEITY_STEP_MAX_MS = 5 * 60000;
