@@ -1297,7 +1297,14 @@ void ActionListener::OnHostAttempt(const RawMessageData& rawMsgData,
     throw std::runtime_error("Unable to host without actor attached");
   }
 
-  auto& remote = partOne.worldState.GetFormAt<MpObjectReference>(remoteId);
+  // A client can still ask for an NPC the server has removed, such as a cleared corpse
+  const auto& remoteForm = partOne.worldState.LookupFormById(remoteId);
+  MpObjectReference* remotePtr =
+    remoteForm ? remoteForm->AsObjectReference() : nullptr;
+  if (!remotePtr) {
+    return;
+  }
+  auto& remote = *remotePtr;
 
   auto user = partOne.serverState.UserByActor(remote.AsActor());
   if (user != Networking::InvalidUserId) {
