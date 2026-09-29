@@ -281,6 +281,62 @@ inline uint32_t GetCefModifiers_(uint16_t aVirtualKey)
   return modifiers;
 }
 
+// The game's ControlMap, for players whose menu cursor never moves while mouse-look and attacks work (2026-09-29).
+// Logs whether each input context exists (a null Item Menus context, 3, crashed every container in SKSE's
+// GetMappedKey; the Cursor context, 9, turns mouse movement into cursor movement), the enabled control groups (the
+// Cursor event belongs to the console group, 0x10), the context priority stack, and the text-entry and
+// ignore-keyboard-mouse state. Logging only.
+// Read at raw offsets on purpose: this CommonLib build never defines SKYRIM_SUPPORT_AE, so its RE::ControlMap has the
+// SE layout (17 contexts) and every member after the context array would be read 8 bytes short on 1.6.1130+. The AE
+// offsets agree with SKSE 2.2.6's InputManager (GameInput.h), and the singleton's Address Library id 400863 is the
+// 0x030FDA10 SKSE uses on 1.6.1170.
+static void LogControlMapState(const char* why)
+{
+  if (REL::Module::IsVR()) {
+    return;
+  }
+  static REL::Relocation<std::uintptr_t*> singleton{ RELOCATION_ID(514705,
+                                                                   400863) };
+  const std::uintptr_t base = *singleton;
+  if (!base) {
+    spdlog::info("InputDiag: control map ({}): there is no ControlMap yet", why);
+    return;
+  }
+  const bool ae = REL::Module::IsAE();
+  const int contexts = ae ? 18 : 17;
+  const std::size_t stackAt = ae ? 0x108 : 0x100;
+  const std::size_t flagsAt = ae ? 0x120 : 0x118;
+  const auto at = [base](std::size_t offset, auto type) {
+    return *reinterpret_cast<const decltype(type)*>(base + offset);
+  };
+  std::string present;
+  int missing = 0;
+  for (int i = 0; i < contexts; ++i) {
+    const bool there = at(0x60 + i * 8, std::uintptr_t{}) != 0;
+    present += there ? '1' : '0';
+    missing += there ? 0 : 1;
+  }
+  // BSTArray: data pointer at +0, size at +0x10
+  const auto stackData = at(stackAt, std::uintptr_t{});
+  const auto stackSize = at(stackAt + 0x10, std::uint32_t{});
+  std::string stack;
+  for (std::uint32_t i = 0; stackData && i < stackSize && i < 32; ++i) {
+    stack += (i ? "," : "") +
+      std::to_string(reinterpret_cast<const std::uint32_t*>(stackData)[i]);
+  }
+  const auto enabled = at(flagsAt, std::uint32_t{});
+  spdlog::info(
+    "InputDiag: control map ({}): contexts {} ({} of {} missing; Item Menus "
+    "{}, Cursor {}), enabled controls {:#010x} (console group {}), next word "
+    "{:#010x}, context stack [{}] of {}, text entry {}, ignore keyboard and "
+    "mouse {}",
+    why, present, missing, contexts, present.size() > 3 ? present[3] : '?',
+    present.size() > 9 ? present[9] : '?', enabled,
+    (enabled & 0x10) ? "on" : "OFF", at(flagsAt + 4, std::uint32_t{}), stack,
+    stackSize, static_cast<int>(at(flagsAt + 8, std::int8_t{})),
+    static_cast<int>(at(flagsAt + 9, std::uint8_t{})));
+}
+
 class MyInputListener : public IInputListener
 {
 public:
@@ -480,6 +536,35 @@ public:
       gameX, gameY, stuckDeltas, diag.iniCursorSpeed.load(),
       diag.menuSensitivity.load(), diag.gamepadEnabled.load(),
       diag.gamepadConnected.load());
+    LogControlMapState("a page's cursor was stuck");
+  }
+
+  // The same stuck cursor in the game's own menus (inventory, containers), where the browser does not have focus and
+  // the overlay cannot help: logged once a minute at most, with the control map. Nothing is changed.
+  void WatchGameMenuCursor(float deltaX, float deltaY)
+  {
+    if (!pCursorX || !pCursorY) {
+      return;
+    }
+    const float gameX = *pCursorX;
+    const float gameY = *pCursorY;
+    if (gameX != menuStuckAtX || gameY != menuStuckAtY) {
+      menuStuckAtX = gameX;
+      menuStuckAtY = gameY;
+      menuStuckDeltas = 0.f;
+      return;
+    }
+    menuStuckDeltas += std::fabs(deltaX) + std::fabs(deltaY);
+    const clock_t now = clock();
+    if (menuStuckDeltas < kStuckPixels ||
+        (lastMenuStuckLog && now - lastMenuStuckLog < 60 * CLOCKS_PER_SEC)) {
+      return;
+    }
+    lastMenuStuckLog = now;
+    spdlog::info("InputDiag: the game's menu cursor stayed at {},{} in a game "
+                 "menu while the mouse moved {} px",
+                 gameX, gameY, menuStuckDeltas);
+    LogControlMapState("a game menu's cursor was stuck");
   }
 
   void OnMouseMove(float deltaX, float deltaY) noexcept override
@@ -490,6 +575,8 @@ public:
 
     if (IsBrowserFocused()) {
       FollowGameCursor(deltaX, deltaY);
+    } else if (ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
+      WatchGameMenuCursor(deltaX, deltaY);
     }
 
     if (!ownCursor && !ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
@@ -555,6 +642,19 @@ public:
       diag.clientReady.store(client && client->IsReady(),
                              std::memory_order_relaxed);
     }
+    // The control map once, about 10 s after the player's body first loads
+    if (!worldControlMapLogged) {
+      auto player = RE::PlayerCharacter::GetSingleton();
+      if (player && player->Is3DLoaded()) {
+        if (!worldLoadedAt) {
+          worldLoadedAt = clock();
+        } else if (clock() - worldLoadedAt >= 10 * CLOCKS_PER_SEC) {
+          worldControlMapLogged = true;
+          LogControlMapState("10 s after the world loaded");
+        }
+      }
+    }
+
     // The menu cursor's settings, about once a second
     const clock_t sampleNow = clock();
     if (sampleNow - lastCursorSample >= CLOCKS_PER_SEC) {
@@ -663,6 +763,12 @@ private:
   float stuckAtX = -1.f;
   float stuckAtY = -1.f;
   float stuckDeltas = 0.f;
+  float menuStuckAtX = -1.f;
+  float menuStuckAtY = -1.f;
+  float menuStuckDeltas = 0.f;
+  clock_t lastMenuStuckLog = 0;
+  clock_t worldLoadedAt = 0;
+  bool worldControlMapLogged = false;
   bool focusWas = false;
   clock_t lastCursorSample = 0;
   std::array<float, 6> lastCursorBounds = {
