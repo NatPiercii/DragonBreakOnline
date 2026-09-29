@@ -1,6 +1,7 @@
 #include "../ui/TextToDraw.h"
 #include <DInputHook.hpp>
 #include <Filesystem.hpp>
+#include <InputDiag.hpp>
 #include <MyCtxHandler.h>
 #include <OverlayClient.h>
 #include <filesystem>
@@ -58,6 +59,39 @@ CefRefPtr<CefFocusHandler> OverlayClient::GetFocusHandler()
   return this;
 }
 
+CefRefPtr<CefDisplayHandler> OverlayClient::GetDisplayHandler()
+{
+  return this;
+}
+
+// The page's warnings and errors reach skyrim-platform.log (input
+// diagnostics, 2026-09-29): they travel on CEF's own channel, so they arrive
+// even when window.skyrimPlatform does not work. The load probe's line always
+// gets through; other lines are limited like every diagnostic kind.
+bool OverlayClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
+                                     cef_log_severity_t level,
+                                     const CefString& message,
+                                     const CefString& source, int line)
+{
+  if (level < LOGSEVERITY_WARNING || level == LOGSEVERITY_DISABLE) {
+    return false;
+  }
+  std::string text = message.ToString();
+  if (text.size() > 300) {
+    text.resize(300);
+    text += "...";
+  }
+  static int probes = 0;
+  const bool probe = text.rfind("[spProbe]", 0) == 0;
+  if ((probe && probes++ < 10) ||
+      (!probe && InputDiag::Count(InputDiag::kCefConsole, true))) {
+    spdlog::info("InputDiag: page {} at {}:{}: {}",
+                 level >= LOGSEVERITY_ERROR ? "error" : "warning",
+                 InputDiag::Origin(source.ToString()), line, text);
+  }
+  return false;
+}
+
 // The overlay renders offscreen and receives injected input, so the browser
 // must never take focus on its own; page loads grabbing it deactivates the
 // game window at startup. The only allowed grab is the explicit one
@@ -65,10 +99,14 @@ CefRefPtr<CefFocusHandler> OverlayClient::GetFocusHandler()
 bool OverlayClient::OnSetFocus(CefRefPtr<CefBrowser> aBrowser,
                                FocusSource aSource)
 {
-  if (aSource == FOCUS_SOURCE_NAVIGATION) {
-    return true;
+  const bool refuse =
+    aSource == FOCUS_SOURCE_NAVIGATION || !DInputHook::ChromeFocus();
+  if (InputDiag::Count(InputDiag::kCefFocus, true)) {
+    spdlog::info("InputDiag: browser asked for focus (source {}), {}",
+                 aSource == FOCUS_SOURCE_NAVIGATION ? "navigation" : "system",
+                 refuse ? "refused" : "allowed");
   }
-  return !DInputHook::ChromeFocus();
+  return refuse;
 }
 
 void OverlayClient::SetBrowser(const CefRefPtr<CefBrowser>& aBrowser) noexcept
@@ -130,6 +168,29 @@ bool OverlayClient::OnProcessMessageReceived(
 
     auto eventName = pArguments->GetString(0).ToString();
     auto eventArgs = pArguments->GetList(1);
+
+    // Every page message is named after the V8 function ("sendMessage"); its
+    // first argument is the key. Keys only, and only key-shaped ones.
+    std::string key;
+    if (eventArgs && eventArgs->GetSize() > 0 &&
+        eventArgs->GetType(0) == VTYPE_STRING) {
+      key = eventArgs->GetString(0).ToString();
+    }
+    if (key == "__spProbe") {
+      static int probes = 0;
+      if (probes++ < 10) {
+        spdlog::info("InputDiag: the page's probe message arrived: page to "
+                     "game messages work");
+      }
+      return true;
+    }
+    if (InputDiag::Count(InputDiag::kCefUiEvent, true)) {
+      const bool keyShaped = !key.empty() && key.size() <= 40 &&
+        key.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRS"
+                              "TUVWXYZ0123456789:._-") == std::string::npos;
+      spdlog::info("InputDiag: page message {} '{}'", eventName,
+                   keyShaped ? key : std::string("(not a key)"));
+    }
 
     onProcessMessage->OnProcessMessage(eventName, eventArgs);
 

@@ -5,9 +5,14 @@
 
 #include <dinput.h>
 
+#include <InputDiag.hpp>
+
 #include <FunctionHook.hpp>
+#include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <cstring>
+#include <deque>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <vector>
@@ -238,6 +243,145 @@ void CheckDeafMouse(IDirectInputDevice8A* device, const DIMOUSESTATE2* state)
   awaitingInput = true;
 }
 
+// Mouse buffered reads (2026-09-29): the stuck players' game menu cursor never
+// moved although the device reported movement, and a high-rate mouse can
+// overflow the game's DirectInput buffer. The reads are measured, and once an
+// overflow is seen they are coalesced: the device's buffer is drained on every
+// read and the movement between two button events is summed into one event
+// per axis, in order, so the game's buffer cannot overflow again. Only in the
+// default relative axis mode, where an axis event is a delta.
+bool g_mouseCoalesce = false;
+bool g_mouseAbsolute = false;
+std::deque<DIDEVICEOBJECTDATA> g_mousePending; // waiting for the next read
+
+bool IsMouseAxis(DWORD offset)
+{
+  return offset == DIMOFS_X || offset == DIMOFS_Y || offset == DIMOFS_Z;
+}
+
+void QueueMouseEvent(const DIDEVICEOBJECTDATA& e)
+{
+  if (IsMouseAxis(e.dwOfs)) {
+    for (auto it = g_mousePending.rbegin(); it != g_mousePending.rend();
+         ++it) {
+      if (!IsMouseAxis(it->dwOfs)) {
+        break; // a button event since: the movement after it stays apart
+      }
+      if (it->dwOfs == e.dwOfs) {
+        it->dwData = static_cast<DWORD>(static_cast<LONG>(it->dwData) +
+                                        static_cast<LONG>(e.dwData));
+        it->dwTimeStamp = e.dwTimeStamp;
+        it->dwSequence = e.dwSequence;
+        return;
+      }
+    }
+  }
+  g_mousePending.push_back(e);
+}
+
+bool IsMouse(IDirectInputDevice8A* device)
+{
+  DIDEVICEINSTANCEA info;
+  info.dwSize = sizeof(info);
+  return IDirectInputDevice8_GetDeviceInfo(device, &info) == DI_OK &&
+    info.guidInstance == GUID_SysMouse;
+}
+
+void NoteBufferSize(IDirectInputDevice8A* device, DWORD items, HRESULT hr)
+{
+  const bool mouse = IsMouse(device);
+  if (mouse) {
+    CEFUtils::InputDiag::Get().mouseBufferSize.store(
+      items, std::memory_order_relaxed);
+  }
+  spdlog::info("InputDiag: the game set the {} DirectInput buffer to {} "
+               "items ({:#x})",
+               mouse ? "mouse" : "keyboard or other device", items,
+               static_cast<uint32_t>(hr));
+}
+
+void NoteAxisMode(IDirectInputDevice8A* device, DWORD mode)
+{
+  if (IsMouse(device)) {
+    g_mouseAbsolute = mode == DIPROPAXISMODE_ABS;
+    spdlog::info("InputDiag: the game set the mouse's axis mode to {}",
+                 g_mouseAbsolute ? "absolute" : "relative");
+  }
+}
+
+HRESULT CoalescedMouseRead(IDirectInputDevice8A* device, DWORD dataSize,
+                           LPDIDEVICEOBJECTDATA out, LPDWORD outLen)
+{
+  DIDEVICEOBJECTDATA local[128];
+  for (int round = 0; round < 64; ++round) {
+    DWORD n = static_cast<DWORD>(std::size(local));
+    const HRESULT hr = IDirectInputDevice8_GetDeviceData(
+      device, sizeof(DIDEVICEOBJECTDATA), local, &n, 0);
+    if (FAILED(hr)) {
+      *outLen = 0;
+      return hr;
+    }
+    for (DWORD i = 0; i < n; ++i) {
+      QueueMouseEvent(local[i]);
+    }
+    if (n < static_cast<DWORD>(std::size(local))) {
+      break; // drained
+    }
+  }
+  const size_t bytes =
+    (std::min)(static_cast<size_t>(dataSize), sizeof(DIDEVICEOBJECTDATA));
+  DWORD count = 0;
+  while (count < *outLen && !g_mousePending.empty()) {
+    BYTE* slot =
+      reinterpret_cast<BYTE*>(out) + static_cast<size_t>(count) * dataSize;
+    std::memset(slot, 0, dataSize);
+    std::memcpy(slot, &g_mousePending.front(), bytes);
+    g_mousePending.pop_front();
+    ++count;
+  }
+  *outLen = count;
+  return DI_OK;
+}
+
+HRESULT ReadMouseData(IDirectInputDevice8A* device, DWORD dataSize,
+                      LPDIDEVICEOBJECTDATA out, LPDWORD outLen, DWORD flags)
+{
+  using namespace CEFUtils::InputDiag;
+  Tally(kDiMouseData);
+  const DWORD asked = outLen ? *outLen : 0;
+  static bool described = false;
+  if (!described && out) {
+    described = true;
+    spdlog::info("InputDiag: the game reads the mouse's buffered data: {} "
+                 "items per read, {} bytes each, flags {:#x}",
+                 asked, dataSize, flags);
+  }
+  const bool plainRead =
+    out && outLen && !(flags & DIGDD_PEEK) && dataSize >= 4 * sizeof(DWORD);
+  if (g_mouseCoalesce && !g_mouseAbsolute && plainRead) {
+    const HRESULT hr = CoalescedMouseRead(device, dataSize, out, outLen);
+    TallyN(kDiMouseItems, *outLen);
+    return hr;
+  }
+  const HRESULT hr =
+    IDirectInputDevice8_GetDeviceData(device, dataSize, out, outLen, flags);
+  const DWORD got = outLen ? *outLen : 0;
+  if (hr == DI_OK || hr == DI_BUFFEROVERFLOW) {
+    TallyN(kDiMouseItems, got);
+  }
+  if (hr == DI_BUFFEROVERFLOW) {
+    Tally(kDiMouseOverflow);
+    if (!g_mouseCoalesce && !g_mouseAbsolute && plainRead) {
+      g_mouseCoalesce = true;
+      spdlog::info("InputDiag: the mouse's DirectInput buffer overflowed ({} "
+                   "of {} items read, buffer {}), mouse reads are coalesced "
+                   "from now on",
+                   got, asked, Get().mouseBufferSize.load());
+    }
+  }
+  return hr;
+}
+
 void ProcessKeyboardData(uint8_t* apData)
 {
   if (!g_listener)
@@ -246,6 +390,10 @@ void ProcessKeyboardData(uint8_t* apData)
   for (uint32_t idx = 0; idx < 256; idx++) {
     if (g_pressedWas[idx] != apData[idx]) {
       g_pressedWas[idx] = apData[idx];
+      if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiKey)) {
+        spdlog::info("InputDiag: DirectInput key {:#x} {}", idx,
+                     apData[idx] != 0 ? "down" : "up");
+      }
       g_listener->OnKeyStateChange(idx, apData[idx] != 0);
     }
   }
@@ -260,10 +408,18 @@ void ProcessMouseData(DIMOUSESTATE2* apMouseState)
     apMouseState->lX = apMouseState->lY = apMouseState->lZ = 0;
   }*/
   if (abs(apMouseState->lX) >= std::numeric_limits<float>::epsilon() ||
-      abs(apMouseState->lY) >= std::numeric_limits<float>::epsilon())
+      abs(apMouseState->lY) >= std::numeric_limits<float>::epsilon()) {
+    if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiMouseMove)) {
+      spdlog::info("InputDiag: DirectInput mouse moved {},{}",
+                   apMouseState->lX, apMouseState->lY);
+    }
     g_listener->OnMouseMove(apMouseState->lX, apMouseState->lY);
+  }
 
   if (apMouseState->lZ != 0) {
+    if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiWheel)) {
+      spdlog::info("InputDiag: DirectInput mouse wheel {}", apMouseState->lZ);
+    }
     g_listener->OnMouseWheel(apMouseState->lZ);
     if (CEFUtils::DInputHook::ChromeFocus()) {
       apMouseState->lZ = 0;
@@ -279,6 +435,10 @@ void ProcessMouseData(DIMOUSESTATE2* apMouseState)
     const bool pressed = state & 0x80;
     if (pressed != g_mousePressedWas[i]) {
       g_mousePressedWas[i] = pressed;
+      if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kDiButton)) {
+        spdlog::info("InputDiag: DirectInput mouse button {} {}", i,
+                     pressed ? "down" : "up");
+      }
       g_listener->OnMouseStateChange(mouseBtns[i], pressed);
     }
   }
@@ -323,7 +483,15 @@ struct FakeIDirectInputDevice8A
   virtual HRESULT STDMETHODCALLTYPE SetProperty(REFGUID a,
                                                 LPCDIPROPHEADER b) PURE
   {
-    return IDirectInputDevice8_SetProperty(m_pDevice, a, b);
+    const HRESULT hr = IDirectInputDevice8_SetProperty(m_pDevice, a, b);
+    if (&a == &DIPROP_BUFFERSIZE && b) {
+      NoteBufferSize(m_pDevice, reinterpret_cast<LPCDIPROPDWORD>(b)->dwData,
+                     hr);
+    }
+    if (&a == &DIPROP_AXISMODE && b && hr == DI_OK) {
+      NoteAxisMode(m_pDevice, reinterpret_cast<LPCDIPROPDWORD>(b)->dwData);
+    }
+    return hr;
   }
   virtual HRESULT STDMETHODCALLTYPE Acquire() PURE
   {
@@ -475,6 +643,17 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceState(DWORD outDataLen,
   HRESULT ret =
     IDirectInputDevice8_GetDeviceState(m_pDevice, outDataLen, outData);
 
+  if (instanceInfo.guidInstance == GUID_SysMouse) {
+    CEFUtils::InputDiag::Tally(CEFUtils::InputDiag::kDiMouseState);
+    static bool described = false;
+    if (!described) {
+      described = true;
+      spdlog::info("InputDiag: the game reads the mouse's state "
+                   "(GetDeviceState, {} bytes)",
+                   outDataLen);
+    }
+  }
+
   bool isMouseButtonsEnabled = true;
   if (isMouseButtonsEnabled == false) {
     DIMOUSESTATE2 fakeMouseState;
@@ -525,12 +704,18 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceData(
 
   auto& input = DInputHook::Get();
 
+  DIDEVICEINSTANCEA instanceInfo;
+  instanceInfo.dwSize = sizeof(instanceInfo);
+  const bool known =
+    IDirectInputDevice8_GetDeviceInfo(m_pDevice, &instanceInfo) == DI_OK;
+  if (known && instanceInfo.guidInstance == GUID_SysMouse) {
+    return ReadMouseData(m_pDevice, dataSize, outData, outDataLen, flags);
+  }
+
   const auto result = IDirectInputDevice8_GetDeviceData(
     m_pDevice, dataSize, outData, outDataLen, flags);
 
-  DIDEVICEINSTANCEA instanceInfo;
-  instanceInfo.dwSize = sizeof(instanceInfo);
-  if (IDirectInputDevice8_GetDeviceInfo(m_pDevice, &instanceInfo) != DI_OK) {
+  if (!known) {
     return result;
   }
 
