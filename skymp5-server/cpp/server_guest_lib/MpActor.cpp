@@ -1946,7 +1946,11 @@ void MpActor::DropItem(const uint32_t baseId, const Inventory::Entry& entry)
 
   espm::LookupResult lookupRes =
     worldState->GetEspm().GetBrowser().LookupById(baseId);
-  lookupRes.rec->GetId();
+  if (!lookupRes.rec) {
+    spdlog::warn("MpActor::DropItem {:x} - no record {:x}, nothing dropped",
+                 GetFormId(), baseId);
+    return;
+  }
 
   std::string editorId =
     lookupRes.rec->GetEditorId(worldState->GetEspmCache());
