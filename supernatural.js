@@ -891,7 +891,17 @@ module.exports = (api) => {
     if (kind && ts.kind !== kind && Math.random() < chance) infect(tgt, kind, isPlayer(agg) ? agg : 0);
   };
   globalThis.__dboSuperEat = (a, baseId) => { if (isCurePotion(baseId)) cureDisease(a, 'a Cure Disease potion'); };
-  globalThis.__dboSuperPrayed = (a, deityId) => { if (!['molagbal', 'hircine', 'boethiah', 'namira', 'vaermina', 'sanguine', 'peryite', 'mehrunesdagon', 'mephala', 'clavicusvile', 'hermaeusmora', 'nocturnal', 'sheogorath', 'meridia', 'azura', 'malacath'].includes(deityId)) cureDisease(a, 'a prayer'); };
+  // A completed prayer to a Divine or an older faith breaks the fever; one to a Daedric Prince does not. The Princes are
+  // read from skills.json (kind "daedra"), as prayer.js reads the faiths: a hand list here had "mehrunesdagon" for the id
+  // "mehrunes", so a prayer to Mehrunes Dagon cured the fever (Worker E, 30 Sep)
+  const DAEDRIC = (() => {
+    try {
+      const ids = ((JSON.parse(fs.readFileSync(path.resolve('skills.json'), 'utf8')).deities || {}).choices || []).filter((c) => c && c.kind === 'daedra').map((c) => String(c.id));
+      if (ids.length) return new Set(ids);
+    } catch (e) { log('supernatural: skills.json unreadable, the Princes come from the fallback list', e.message); }
+    return new Set(['molagbal', 'hircine', 'boethiah', 'namira', 'vaermina', 'sanguine', 'peryite', 'mehrunes', 'mephala', 'clavicusvile', 'hermaeusmora', 'nocturnal', 'sheogorath', 'meridia', 'azura', 'malacath']);
+  })();
+  globalThis.__dboSuperPrayed = (a, deityId) => { if (!DAEDRIC.has(String(deityId))) cureDisease(a, 'a prayer'); };
   const deathAt = globalThis.__dboSuperDeaths || (globalThis.__dboSuperDeaths = new Map()); // actorId -> ms
   const killedBy = globalThis.__dboSuperKilledBy || (globalThis.__dboSuperKilledBy = new Map()); // actorId -> killer
   globalThis.__dboSuperDeath = (victim, killer) => {
