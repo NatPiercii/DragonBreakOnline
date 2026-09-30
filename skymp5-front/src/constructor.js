@@ -43,6 +43,7 @@ import TomeShop from './features/tomeShop';
 import Bank from './features/bank';
 import BusinessLedger from './features/businessLedger';
 import RobPrompt from './features/robPrompt';
+import FeedPrompt from './features/feedPrompt';
 import Downed from './features/downed';
 import PlayerMenu from './features/playerMenu';
 import TradeInvite from './features/tradeInvite';
@@ -304,6 +305,8 @@ const Constructor = props => {
       return <BusinessLedger data={rend} />;
     case 'robPrompt':
       return <RobPrompt data={rend} />;
+    case 'feedPrompt':
+      return <FeedPrompt data={rend} />;
     case 'downed':
       return <Downed data={rend} />;
     case 'playerMenu':
@@ -324,7 +327,7 @@ const Constructor = props => {
 // Which part of the world each widget belongs to; anything unlisted keeps the aqua glow (dbo-theme.scss)
 const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
-  rite: 'lorkhan', bountyBoard: 'lorkhan', expeditionBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', downed: 'lorkhan',
+  rite: 'lorkhan', bountyBoard: 'lorkhan', expeditionBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', feedPrompt: 'lorkhan', downed: 'lorkhan',
   mastery: 'dragonbreak', namePrompt: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak', spellbook: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
 };

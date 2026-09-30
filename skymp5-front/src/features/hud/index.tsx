@@ -97,7 +97,7 @@ const Voice = ({ mode, talking }: { mode: string; talking: boolean }) => {
 
 // The panels this UI can draw, told to the server (dbo:uiCaps) so it opens them only for a client that has them and
 // uses chat for an older one. The HUD first draws after login; the repeat covers a switch to another character.
-const UI_CAPS = ['bank', 'robPrompt', 'downed', 'businessLedger', 'playerMenu', 'spellbook', 'expeditionBoard', 'namePrompt'];
+const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 'playerMenu', 'spellbook', 'expeditionBoard', 'namePrompt'];
 const useUiCaps = (): void => {
   useEffect(() => {
     const tell = () => {
