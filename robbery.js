@@ -168,6 +168,7 @@ module.exports = (api) => {
     personal(robber, what ? `You take ${what} from ${vname}.` : `${vname} had nothing on them to take.`);
     personal(victim, what ? `${rname} takes ${what} from you.` : `${rname} finds nothing on you to take.`);
     S.robberAt.set(robber >>> 0, Date.now()); S.victimAt.set(victim >>> 0, Date.now()); S.contests.delete(victim >>> 0);
+    try { if (globalThis.__dboStatsAdd) { globalThis.__dboStatsAdd(victim, 'timesRobbed'); globalThis.__dboStatsAdd(robber, 'peopleRobbed'); } } catch (e) { /* journal stats only */ }
     audit(`ROBBERY ${who(robber)} robbed ${who(victim)}: ${r.gold} gold of ${r.carried}; items [${r.items.join(', ')}]${r.key ? `; key ${r.key}` : ''}`);
     return r;
   };

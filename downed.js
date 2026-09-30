@@ -402,6 +402,8 @@ module.exports = (api) => {
             pushTimers(true);
             if (Number(C.inputDiagSeconds) > 0) sendPacket(a, { customPacketType: 'dboInputDiag', seconds: Number(C.inputDiagSeconds), reason: 'down' });
             log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
+            // Journal stats (journalstats.js): the down, and who put them down if it was a player
+            try { if (globalThis.__dboStatsAdd) { globalThis.__dboStatsAdd(a, 'downs'); if (d.by && d.by !== a && isPlayer(d.by)) globalThis.__dboStatsAdd(d.by, 'playersDowned'); } } catch (e) { /* stats only */ }
           }
         } catch (e) { log(`downed: death handling failed: ${e.message}`); }
         return out;
@@ -466,6 +468,8 @@ module.exports = (api) => {
     dressAfterWake(t);
   };
   const finish = (t, by) => {
+    // Journal stats: the finishing blow is the kill (Nate, 2026-09-30), in a war to the death too
+    try { if (globalThis.__dboStatsAdd && by && by !== t && isPlayer(by)) { globalThis.__dboStatsAdd(t, 'killedByPlayers'); globalThis.__dboStatsAdd(by, 'playerKills'); } } catch (e) { /* stats only */ }
     // In a war to the death an enemy's killing blow on contested land ends the character (realm.js)
     try { if (typeof globalThis.__dboWarFinish === 'function' && globalThis.__dboWarFinish(t, by)) { endDown(t); return; } } catch (e) { log('downed: war check failed', e.message); }
     audit(`FINISHED ${who(t)} by ${who(by)}`);

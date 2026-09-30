@@ -251,6 +251,7 @@ module.exports = (api) => {
     S.victim.set(t, now);
     const credited = r.handed && credit(a, t, got, now);
     personal(a, `You lift ${got.label} from ${call(a, t)} unnoticed.`);
+    try { if (globalThis.__dboStatsAdd) { globalThis.__dboStatsAdd(t, 'timesPickpocketed'); globalThis.__dboStatsAdd(a, 'pickpockets'); } } catch (e) { /* journal stats only */ }
     audit(`THEFT ${who(a)} picked ${got.label} from ${who(t)} (${odds}${credited ? '' : ', no skill credit'}${r.handed ? '' : ', HAND-OVER FAILED'})`);
     const after = Number(C.noticeAfterSeconds);
     if (after > 0) {

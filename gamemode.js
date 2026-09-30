@@ -3743,6 +3743,7 @@ const deathHook = (actorId, killerId, ...rest) => {
   try { if (globalThis.__dboSuperDeath) globalThis.__dboSuperDeath(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('supernatural death failed', e.message); }
   try { if (globalThis.__dboContractKill && killerId) globalThis.__dboContractKill(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('contract kill failed', e.message); }
   try { if (globalThis.__dboTrimCorpse) globalThis.__dboTrimCorpse(Number(actorId) >>> 0); } catch (e) { log('corpse trim failed', e.message); }
+  try { if (globalThis.__dboStatsDeath) globalThis.__dboStatsDeath(Number(actorId) >>> 0, Number(killerId) >>> 0); } catch (e) { log('journal stats death failed', e.message); }
   const prev = globalThis.__dboPrevDeath;
   if (prev) { try { return prev(actorId, killerId, ...rest); } catch (e) { log('death chain failed', e.message); } }
   return undefined;
@@ -5086,6 +5087,12 @@ try {
   delete require.cache[WORLDSTATS_JS];
   require(WORLDSTATS_JS)({ mp, log, every, onlineActors, profileOf, nameOf, personal, registerChatCommand });
 } catch (e) { log('worldstats.js failed to load:', e.stack || e.message); globalThis.__dboWorldStatsSeen = null; }
+// ---- the Character Journal's statistics, phase 0: counted now, shown later (server\journalstats.js, config "journalStats") ----
+try {
+  const JOURNALSTATS_JS = path.resolve('journalstats.js');
+  delete require.cache[JOURNALSTATS_JS];
+  require(JOURNALSTATS_JS)({ mp, log, personal, registerChatCommand, every, onlineActors, profileOf, display, findAnyByName, isAdmin, creationPending, cfg });
+} catch (e) { log('journalstats.js failed to load:', e.stack || e.message); globalThis.__dboStatsAdd = null; globalThis.__dboStatsDeath = null; }
 
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {

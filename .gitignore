@@ -95,3 +95,4 @@ staff-actions.json
 # playtester skill boost windows per account (playtesterboost.js)
 playtester-boost.json
 playtester-boost.json.tmp
+journal/

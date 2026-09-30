@@ -639,6 +639,8 @@ module.exports = (api) => {
       const a = actorByProfile(pid);
       if (!a) continue;
       setCooldown(a, lease.id, Date.now() + C.cooldownMinutes * 60000);
+      // Journal stats: an expedition that goes home after its masters fell was won
+      if (why === 'returned' && lease.bossDownAt) { try { if (globalThis.__dboStatsAdd) globalThis.__dboStatsAdd(a, 'expeditionsCompleted'); } catch (e) { /* journal stats only */ } }
       glowOff(a, d ? d.chestIds : []);
       const inside = dungeonAround(a);
       if (inside && inside.id === lease.id && d && why !== 'cleared') {
@@ -647,6 +649,7 @@ module.exports = (api) => {
         system(a, why === 'time' ? `Your hour in ${lease.name} is up. You find yourself back at the entrance.`
           : why === 'returned' ? `You make the long journey back from ${lease.name} to ${e.from || 'the Synod Conclave'} in Bruma.` : `Your claim on ${lease.name} has ended.`);
       } else if (why === 'cleared') {
+        try { if (globalThis.__dboStatsAdd) globalThis.__dboStatsAdd(a, 'dungeonsCleared'); } catch (e) { /* journal stats only */ }
         system(a, `${lease.name} is cleared. Take your time leaving; it rests ${C.cooldownMinutes} minutes for you afterwards.`);
       } else {
         system(a, `Your claim on ${lease.name} has ended. It rests ${C.cooldownMinutes} minutes for you.`);
