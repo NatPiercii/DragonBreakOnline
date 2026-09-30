@@ -46,6 +46,8 @@ type Mp = any;
 // A legacy one-profession record is migrated on first read.
 
 const MASTERY_PROP = "private.mastery";
+// { mult, until }: a timed skill boost the gameplay layer grants; honoured while Date.now() < until, mult 1..3
+const XP_BOOST_PROP = "private.xpBoost";
 const SKILLS_FILE = "skills.json";
 const GOLD_BASE_ID = 0x0000000f;
 
@@ -245,6 +247,7 @@ export class MasterySystem implements System {
 
     ctx.gm.on("userAssignActor", (userId: number, actorId: number) => this.onActorAssigned(ctx, userId, actorId >>> 0));
     (globalThis as any).__alduinakMasteryEvent = (kind: string, actorId: number, detail: unknown) => this.enqueue(kind, actorId, detail);
+    (globalThis as any).__alduinakXpBoost = XP_BOOST_PROP;
     // A first touch the gameplay layer decides on: spells.js takes up a school's skill when a Novice tome is read at a
     // spell study point (Nate, 2026-09-25). "ok", "held" (already taken up), "full" (no pool point free) or "unknown".
     (globalThis as any).__alduinakMasteryFirstTouch = (actorId: number, skillId: string): string => this.firstTouchFromGameplay(ctx, Number(actorId) >>> 0, String(skillId));
@@ -517,6 +520,7 @@ export class MasterySystem implements System {
     const now = Date.now();
     const userId = this.userOf(ctx, ev.actorId);
     const mult = this.xpMultOf(ctx, ev.actorId);
+    const boost = this.xpBoostOf(ctx, ev.actorId);
     let changed = false;
     for (const id of this.candidates.get(ev.kind) || []) {
       const rules = this.rules[id]; if (!rules) continue;
@@ -531,7 +535,7 @@ export class MasterySystem implements System {
         if (rules.gateStations.size || rules.gatePrefixes.length) continue;
         if (!this.matches(ctx, id, rules, ev)) continue;
         const bank = prog || (rec.skills[id] = emptyProgress());
-        bank.shadow = (bank.shadow || 0) + this.weightFor(id, ev) * mult;
+        bank.shadow = (bank.shadow || 0) + this.weightFor(id, ev) * mult * boost;
         changed = true;
         if (!bank.offered && bank.shadow >= P.unitsForLevel(1)) {
           bank.offered = true;
@@ -548,7 +552,7 @@ export class MasterySystem implements System {
       // `value` is the scale term weightOf asks for per kind (ore band, product value, target health).
       // It was never passed before, so every weight sat at its v=0 base and every scaling term in
       // weightOf was dead; an emitter that does not send one still gets that base.
-      this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId);
+      this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId, boost);
       changed = true;
     }
     if (changed) this.write(ctx, ev.actorId, rec);
@@ -556,13 +560,14 @@ export class MasterySystem implements System {
 
   // One act's worth of work on one held skill: the same key again within the hour counts less, the bucket and the day's
   // caps decide what is kept, and a full Wheel takes from a waning skill. Returns the units credited.
-  private gain(ctx: SystemContext, actorId: number, rec: MasteryRecord, id: string, prog: SkillProgress, weight: number, novelty: number, now: number, userId: number): number {
+  // `boost` is the timed private.xpBoost multiplier (1..3); applyGain applies it after the bucket and the daily caps.
+  private gain(ctx: SystemContext, actorId: number, rec: MasteryRecord, id: string, prog: SkillProgress, weight: number, novelty: number, now: number, userId: number, boost = 1): number {
     const cfg = this.points; if (!cfg) return 0;
     const rep = P.repetitionFactor(prog.ring || [], novelty, now);
     prog.ring = rep.ring;
     const units = weight * rep.factor;
     const before = prog.level;
-    const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now);
+    const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now, boost);
     // Phase 0 measures units, not levels: a level is far too rare to tune weights against.
     if (out.units > 0) this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + out.units);
     if (out.refused === "pool") this.noticeRefused(ctx, userId, actorId);
@@ -643,6 +648,15 @@ export class MasterySystem implements System {
     try { const needs = mp.get(actorId, "private.needs"); mult *= clamp(needs && typeof needs === "object" ? needs.xpMult : 1); } catch { /* fed */ }
     try { mult *= clamp(mp.get(actorId, "private.partyXpMult")); } catch { /* no party */ }
     return mult;
+  }
+
+  private xpBoostOf(ctx: SystemContext, actorId: number): number {
+    try {
+      const b = (ctx.svr as Mp).get(actorId, XP_BOOST_PROP);
+      const m = Number(b && b.mult), until = Number(b && b.until);
+      if (Number.isFinite(m) && m > 1 && Number.isFinite(until) && Date.now() < until) return Math.min(3, m);
+    } catch { /* no boost */ }
+    return 1;
   }
 
   private matches(ctx: SystemContext, skillId: string, rules: ResolvedRules, ev: ActivityEvent): boolean {

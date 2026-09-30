@@ -1,5 +1,6 @@
 const router = require('express').Router()
 const fs = require('fs')
+const autoReport = require('../sources/autoReport')
 
 // Written by the manager Build tab. LATEST_VERSION = launcher app release (GET /api/version, update prompt)
 // CLIENT_VERSION = client files release (baked into data/files-version.json by merge-files.js)
@@ -16,6 +17,7 @@ router.get('/', (_req, res) => {
     downloadUrl:   readConst('DOWNLOAD_URL', DOWNLOAD_URL),
     clientVersion: readConst('CLIENT_VERSION', CLIENT_VERSION),
     serverVersion: readConst('SERVER_VERSION', SERVER_VERSION),
+    autoReport:    autoReport.versionInfo(),
   })
 })
 

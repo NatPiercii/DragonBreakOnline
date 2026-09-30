@@ -1,0 +1,70 @@
+{
+  "contractVersion": 1,
+  "reportId": "3f1c2b9e-8a41-4d2e-9b7a-000000000023",
+  "kind": "js-fatal",
+  "sender": "launcher",
+  "clientAt": 1790401000000,
+  "sentAt": 1790401021000,
+  "attempt": 1,
+  "queued": false,
+  "consent": {
+    "noticeVersion": 1,
+    "errors": true
+  },
+  "versions": {
+    "client": "0.3.44",
+    "files": "0.3.44",
+    "launcher": "2.1.30",
+    "game": "1.6.1170.0",
+    "os": "win32 10.0.22631"
+  },
+  "build": {
+    "client": "f8cd78971a2b.20260927T101500Z"
+  },
+  "session": {
+    "start": 1790399000000,
+    "actorId": "ff00012a"
+  },
+  "exit": {
+    "at": 1790401000000,
+    "code": 1,
+    "detectedBy": "wait",
+    "gamePid": 18244,
+    "lastHeartbeatAt": 1790400996000,
+    "quitMarker": false,
+    "event": null
+  },
+  "trail": {
+    "source": "file",
+    "entries": [
+      {
+        "t": 1790400950000,
+        "s": 1940,
+        "k": "world",
+        "d": "enter cell 165a7:Skyrim.esm Dragonsreach"
+      },
+      {
+        "t": 1790400980000,
+        "s": 1970,
+        "k": "recv",
+        "d": "CustomPacket dboHud",
+        "n": 12
+      },
+      {
+        "t": 1790400990000,
+        "s": 1980,
+        "k": "act",
+        "d": "activate 1a2b3:Skyrim.esm Iron Door"
+      },
+      {
+        "t": 1790400995000,
+        "s": 1995,
+        "k": "fatal",
+        "d": "uncaught TypeError"
+      }
+    ]
+  },
+  "logs": {
+    "gameLog": "[12:00:00:000] ForegroundGuard: game window is in front again after 3 s\n[12:00:01:000] on('update'): boom\n"
+  }
+}

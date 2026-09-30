@@ -28,20 +28,13 @@ function ipv6(found) {
   return short || groups.length === 8 ? tag : found
 }
 
+// S3-S10 of the auto report rule file: account names in paths, download keys, credentials, bot tokens, long hex runs
+const LOG_RULES = ['S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10']
 const RULES = [
-  // Windows and unix account names inside paths
-  [/([A-Za-z]:[\\/]Users[\\/])[^\\/\r\n"'<>|]+/gi, '$1<user>'],
-  [/(\/(?:home|Users)\/)[^/\r\n"'<>|]+/g, '$1<user>'],
-  // Nexus one-time download links: the key is live for minutes and grants downloads as that account
-  [/((?:key|nmm_key)=)[A-Za-z0-9._~-]{6,}/gi, '$1<redacted>'],
-  [/((?:expires|user_id)=)\d+/gi, '$1<redacted>'],
-  // Authorization headers and anything labelled like a credential
-  [/(Bearer\s+)[A-Za-z0-9._-]{10,}/gi, '$1<redacted>'],
-  [/((?:session|sessionToken|token|secret|password|passwd|api[_-]?key|apikey|auth)["'\s:=]{1,4})[A-Za-z0-9._-]{10,}/gi, '$1<redacted>'],
-  // A Discord bot token has a recognisable three-part shape; never let one through whatever it is labelled
-  [/\b[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{25,}\b/g, '<token-redacted>'],
-  // Long hex runs are hwids, session tokens and file hashes. Keep a short prefix so hashes stay comparable.
-  [/\b([0-9a-f]{8})[0-9a-f]{24,120}\b/gi, '$1<redacted>'],
+  ...require('./scrub-rules.json')
+    .filter(rule => LOG_RULES.includes(rule.id))
+    .map(rule => [new RegExp(rule.pattern, rule.flags), rule.replacement]),
+  // IP addresses by this file's own rules, not S16-S18: loopback and versions stay, LAN addresses are marked
   [new RegExp(`(?<![\\w.])${OCTET}(?:\\.${OCTET}){3}(?!\\w|\\.\\d)`, 'g'), ipv4],
   [/(?<![\w:.])(?:[23][0-9a-f]{3}|f[cd][0-9a-f]{2}|fe[89ab][0-9a-f])(?::[0-9a-f]{0,4}){2,8}(?![\w:])/gi, ipv6],
 ]
@@ -54,6 +47,7 @@ const RECORD = /^\[\d\d:\d\d:\d\d:\d{3}\] /
 const UI_LINE = /^\[\d\d:\d\d:\d\d:\d{3}\] (?:JS|LoadUrl) /
 
 function dropUiLines(input) {
+  // The same step for auto reports is dropUiLines in autoScrub.js (rule S0); a fix to one likely belongs in the other
   const kept = []
   let dropped = 0
   let inUi = false

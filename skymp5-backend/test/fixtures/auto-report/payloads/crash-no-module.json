@@ -1,0 +1,100 @@
+{
+  "contractVersion": 1,
+  "reportId": "3f1c2b9e-8a41-4d2e-9b7a-000000000019",
+  "kind": "crash",
+  "sender": "launcher",
+  "clientAt": 1790401000000,
+  "sentAt": 1790401021000,
+  "attempt": 1,
+  "queued": false,
+  "consent": {
+    "noticeVersion": 1,
+    "errors": true,
+    "crash": "always"
+  },
+  "versions": {
+    "client": "0.3.44",
+    "files": "0.3.44",
+    "launcher": "2.1.30",
+    "game": "1.6.1170.0",
+    "os": "win32 10.0.22631"
+  },
+  "build": {
+    "client": "f8cd78971a2b.20260927T101500Z"
+  },
+  "session": {
+    "start": 1790399000000,
+    "actorId": "ff00012a"
+  },
+  "exit": {
+    "at": 1790401000000,
+    "code": 3221225477,
+    "detectedBy": "wait",
+    "gamePid": 18244,
+    "lastHeartbeatAt": 1790400996000,
+    "quitMarker": false,
+    "event": null
+  },
+  "trail": {
+    "source": "file",
+    "entries": [
+      {
+        "t": 1790400950000,
+        "s": 1940,
+        "k": "world",
+        "d": "enter cell 165a7:Skyrim.esm Dragonsreach"
+      },
+      {
+        "t": 1790400980000,
+        "s": 1970,
+        "k": "recv",
+        "d": "CustomPacket dboHud",
+        "n": 12
+      },
+      {
+        "t": 1790400990000,
+        "s": 1980,
+        "k": "act",
+        "d": "activate 1a2b3:Skyrim.esm Iron Door"
+      }
+    ]
+  },
+  "logs": {
+    "gameLog": "[12:00:00:000] ForegroundGuard: game window is in front again after 3 s\n[12:00:01:000] on('update'): boom\n"
+  },
+  "crash": {
+    "crashAt": 1790400998000,
+    "logName": "crash-2026-09-26-05-36-38.log",
+    "crashLoggerVersion": "1.15.0",
+    "exception": "EXCEPTION_ACCESS_VIOLATION",
+    "faultModule": null,
+    "faultOffset": null,
+    "faultSymbol": null,
+    "faultAlid": null,
+    "hasOurDll": false,
+    "frames": [
+      {
+        "module": null,
+        "offset": null,
+        "symbol": null,
+        "alid": null
+      },
+      {
+        "module": "SkyrimSE.exe",
+        "offset": "0x5E8F12",
+        "symbol": null,
+        "alid": 37014
+      }
+    ],
+    "sections": {
+      "header": "Unhandled exception \"EXCEPTION_ACCESS_VIOLATION\" at 0x7FF81A2B3C00 SkyrimPlatform.dll+01A2B3C\nSkyrim SSE v1.6.1170\nCrashLoggerSSE v1-15-0-0",
+      "callStack": "[ 0] 0x7FF81A2B3C00 SkyrimPlatform.dll+01A2B3C -> EventsApi::SendEvent\n[ 1] 0x7FF7B25E8F12 SkyrimSE.exe+05E8F12 -> 37014+0x52",
+      "registers": "RAX (size_t)\nRCX (TESObjectREFR*)",
+      "relevantObjects": "(TESObjectREFR*)\n\tName: <name>\n\tFormID: 0x00000014\n\tFile: \"Skyrim.esm\"",
+      "modules": "SkyrimSE.exe 0x7FF7B2000000\nSkyrimPlatform.dll 0x7FF81A000000",
+      "sksePlugins": "SkyrimPlatform.dll v1\nMpClientPlugin.dll v1",
+      "plugins": "Light: 0 Regular: 5 Total: 5\n\t[00]     Skyrim.esm",
+      "systemSpecs": "OS: Microsoft Windows 11 Pro v10.0.22631\nCPU: AuthenticAMD\nGPU #1: Nvidia"
+    }
+  }
+}
