@@ -463,11 +463,11 @@ module.exports = (api) => {
     dressAfterWake(t);
   };
   const finish = (t, by) => {
+    // Journal stats: the finishing blow is the kill (Nate, 2026-09-30), in a war to the death too
+    try { if (globalThis.__dboStatsAdd && by && by !== t && isPlayer(by)) { globalThis.__dboStatsAdd(t, 'killedByPlayers'); globalThis.__dboStatsAdd(by, 'playerKills'); } } catch (e) { /* stats only */ }
     // In a war to the death an enemy's killing blow on contested land ends the character (realm.js)
     try { if (typeof globalThis.__dboWarFinish === 'function' && globalThis.__dboWarFinish(t, by)) { endDown(t); return; } } catch (e) { log('downed: war check failed', e.message); }
     audit(`FINISHED ${who(t)} by ${who(by)}`);
-    // Journal stats: the finishing blow is the kill (Nate, 2026-09-30)
-    try { if (globalThis.__dboStatsAdd && by && by !== t && isPlayer(by)) { globalThis.__dboStatsAdd(t, 'killedByPlayers'); globalThis.__dboStatsAdd(by, 'playerKills'); } } catch (e) { /* stats only */ }
     banner(t, `${nameTo(t, by)} finished you. You wake at the temple.`, 5);
     toTemple(t);
   };

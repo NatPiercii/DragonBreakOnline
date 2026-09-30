@@ -639,6 +639,8 @@ module.exports = (api) => {
       const a = actorByProfile(pid);
       if (!a) continue;
       setCooldown(a, lease.id, Date.now() + C.cooldownMinutes * 60000);
+      // Journal stats: an expedition that goes home after its masters fell was won
+      if (why === 'returned' && lease.bossDownAt) { try { if (globalThis.__dboStatsAdd) globalThis.__dboStatsAdd(a, 'expeditionsCompleted'); } catch (e) { /* journal stats only */ } }
       glowOff(a, d ? d.chestIds : []);
       const inside = dungeonAround(a);
       if (inside && inside.id === lease.id && d && why !== 'cleared') {
