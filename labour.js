@@ -13,9 +13,11 @@
 'use strict';
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills } = api;
+  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills, sendPacket, onlineActors } = api;
 
   const WIDGET_ID = 33;
   const CFG = Object.assign({
@@ -51,6 +53,9 @@ module.exports = (api) => {
     geodeGems: { '2e4e2:Skyrim.esm': 40, '2e4e4:Skyrim.esm': 30, '2e4e6:Skyrim.esm': 18, '2e4f4:Skyrim.esm': 9, '2e4fc:Skyrim.esm': 3 },
     firewoodByTier: [3, 4, 5, 6, 8],
     veinRestMinutes: 45,
+    // A Sea Salt Deposit glows while it has salt for you (GroundedPasta, 30 Sep: "Finally found salt, they are very
+    // small, very hard to see"). audience: 'miners' (Miner taken up, at extraOreTier.salt or above) or 'everyone'
+    saltGlow: { enabled: true, audience: 'miners', seconds: 30 },
     blockRestMinutes: 10,
     failRestMinutes: 2,
   }, cfg.labour || {});
@@ -312,6 +317,7 @@ module.exports = (api) => {
     }
     openWidget(a, packetFor(round, text, kind), false);
     sessions.delete(a);
+    if (round.ore === 'salt') { try { saltGlow(a); } catch (e) { log('salt glow failed', e.message); } }
     // Remembered only so a repeat of the same report is logged as a replay instead of vanishing
     spent.set(round.nonce, Date.now());
     while (spent.size > 200) spent.delete(spent.keys().next().value);
@@ -428,5 +434,41 @@ module.exports = (api) => {
     finish(a, round, true, text, 'win');
   });
 
-  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min; rounds issued and judged server-side from strike times (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms)`);
+  // ---- the salt glow -------------------------------------------------------------------------------------------------
+  // A Sea Salt Deposit glows for a Miner while it has salt for them, and goes dark while the seam rests (the shared rest
+  // or their own) or someone else is working it: a glow always means salt to take, as a camp chest's does (wildlife.js).
+  // salt-deposits.json (tools/labour/salt_deposits.py) lists every deposit; the client lights each one when it loads
+  // (dboGlowService, kind 'loot'). The whole state goes out every tick, which also restores it after the login and
+  // dungeon-entry clears, and to everyone outside the audience as "off", so narrowing the audience takes effect.
+  const SALT_REFS = (() => {
+    try {
+      const list = JSON.parse(fs.readFileSync(path.resolve('salt-deposits.json'), 'utf8')).deposits || [];
+      return list.map((d) => idOf(d.ref)).filter(Boolean);
+    } catch (e) { log('salt-deposits.json unreadable, no salt glow:', e.message); return []; }
+  })();
+  const saltCfg = () => Object.assign({ enabled: true, audience: 'miners', seconds: 30 }, CFG.saltGlow || {});
+  const saltAudience = (a) => saltCfg().audience === 'everyone' || tierOf(a, 'miner') >= (Number((CFG.extraOreTier || {}).salt) || 0);
+  const saltReady = (ref, a) => {
+    const own = Number(restsOf(a, 'private.minedVeins')[ref.toString(16)]) || 0;
+    return Math.max(own, sharedRest(ref)) <= Date.now() && !workedByOther(ref, a);
+  };
+  const saltGlow = (a) => {
+    if (typeof sendPacket !== 'function' || !SALT_REFS.length) return;
+    const c = saltCfg();
+    const show = c.enabled !== false && CFG.enabled !== false && saltAudience(a);
+    const on = [], off = [];
+    for (const ref of SALT_REFS) (show && saltReady(ref, a) ? on : off).push(ref);
+    try {
+      if (off.length) sendPacket(a, { customPacketType: 'dboGlow', refs: off, on: false, kind: 'loot' });
+      if (on.length) sendPacket(a, { customPacketType: 'dboGlow', refs: on, on: true, kind: 'loot' });
+    } catch (e) { /* offline */ }
+  };
+  globalThis.__dboSaltGlow = saltGlow;
+  if (globalThis.__dboSaltGlowTimer) clearInterval(globalThis.__dboSaltGlowTimer);
+  globalThis.__dboSaltGlowTimer = setInterval(() => {
+    let online = []; try { online = typeof onlineActors === 'function' ? onlineActors() : []; } catch (e) { return; }
+    for (const a of online) { try { globalThis.__dboSaltGlow(a); } catch (e) { log('salt glow failed', e.message); } }
+  }, Math.max(5, Number(saltCfg().seconds) || 30) * 1000);
+
+  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min; rounds issued and judged server-side from strike times (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms); salt glow ${saltCfg().enabled !== false ? `for ${saltCfg().audience}, ${SALT_REFS.length} deposits` : 'off'}`);
 };

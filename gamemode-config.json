@@ -335,7 +335,8 @@
   ],
   "veinRestMinutes": 45,
   "blockRestMinutes": 10,
-  "failRestMinutes": 2
+  "failRestMinutes": 2,
+  "saltGlow": { "_comment": "Sea Salt Deposits glow while they hold salt for you and go dark while the seam rests (GroundedPasta, 30 Sep: very small, very hard to see). audience: miners (Miner taken up) or everyone. The list is salt-deposits.json (tools/labour/salt_deposits.py). Hot reload.", "enabled": true, "audience": "miners", "seconds": 30 }
  },
  "needs": {
   "_comment": "Hunger: 0 sated .. 100 starving, rises only while online. Stages apply regen penalties on the owner client (StaminaRateMult / HealRateMult, percent) and xpMult scales skill progress (0.25 = a quarter rate). Food kinds by ALCH food flag + editor-id words; potions/poisons give 0.",

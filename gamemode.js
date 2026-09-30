@@ -1444,6 +1444,7 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboGlowClear) globalThis.__dboGlowClear(a); } catch (e) { log('glow clear failed', e.message); }
     // Camp chests with a roll waiting light up again at once instead of on the next 30 s tick (wildlife.js)
     try { if (globalThis.__dboCampGlow) globalThis.__dboCampGlow(a); } catch (e) { log('camp glow failed', e.message); }
+    try { if (globalThis.__dboSaltGlow) globalThis.__dboSaltGlow(a); } catch (e) { log('salt glow failed', e.message); }
     // Anyone who logs in inside a dungeon they no longer hold is put back outside its entrance
     try { if (globalThis.__dboDungeonLoginCheck) globalThis.__dboDungeonLoginCheck(a); } catch (e) { log('dungeon login check failed', e.message); }
     giveStarterKit(a);
@@ -4404,7 +4405,7 @@ try {
 try {
   const LABOUR_JS = path.resolve('labour.js');
   delete require.cache[LABOUR_JS];
-  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF });
+  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF, sendPacket, onlineActors });
 } catch (e) {
   log('labour.js failed to load:', e.stack || e.message);
   // Fail closed: with labour.js down, a seam's vanilla ore script and its pickaxe markers paid out with no round, no

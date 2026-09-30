@@ -1,5 +1,19 @@
 [
   {
+    "title": "Salt You Can See",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Sea Salt Deposits",
+        "items": [
+          "Sea Salt Deposits now glow for Miners while they have salt to give, and go dark while the seam rests, so they are much easier to spot in the snow. Thanks to GroundedPasta for the report."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dragon Bone and Scales Come From Dragons",
     "date": "2026-09-30",
     "version": "Server update",
