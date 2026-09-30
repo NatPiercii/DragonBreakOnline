@@ -50,12 +50,27 @@ const declOf = (name) => {
   throw new Error(`${name}: no end found`);
 };
 
+// Math.random, seeded, for the rounds (skinRound draws its seed from it) and for the sloppy player: every run judges the
+// same rounds, so no check passes or fails on the draw. The blind forgery in 5 wins about 1 round in 20 at the widest
+// seam by luck, and asserted on one unseeded round it failed run-all 2 runs in 30 (2026-09-30). reseed() gives each
+// section its own sequence, so a check added to one never moves the rounds another sees.
+let rngState = 0;
+const reseed = (n) => { rngState = Math.imul(0x9e3779b9, n + 1) >>> 0; };
+const random = () => {
+  rngState = (rngState + 0x6d2b79f5) >>> 0;
+  let t = Math.imul(rngState ^ (rngState >>> 15), rngState | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const seededMath = Object.create(Math);
+seededMath.random = random;
+
 let virtual = 1000;
 const sandbox = {
   SKIN_WIDGET_ID: 33,
   SKIN: { cuts: 3, misses: 2, seconds: 15, lagGraceMs: 2500, clockSlackMs: 50 },
   performance: { now: () => virtual },
-  Math, JSON, Number, Array, String, Object, Date,
+  Math: seededMath, JSON, Number, Array, String, Object, Date,
   out: {},
 };
 const names = ['skinRng', 'bladeAt', 'skinRound', 'skinPacket', 'judgeSkin'];
@@ -77,7 +92,7 @@ const play = (w, opt) => {
     if (el < ready) continue;
     const pos = bladeAt(el, w.sweepMs);
     const inSeam = Math.abs(pos - w.seams[cuts]) <= w.width / 2;
-    const press = o.sloppy ? Math.random() < o.sloppy : Math.abs(pos - w.seams[cuts]) <= (w.width / 2) * o.aim;
+    const press = o.sloppy ? random() < o.sloppy : Math.abs(pos - w.seams[cuts]) <= (w.width / 2) * o.aim;
     if (!press) continue;
     times.push(el);
     ready = el + o.restMs;
@@ -100,6 +115,17 @@ const fastestPossible = (w) => {
   return times;
 };
 
+// What the blade really puts in a seam for these presses, counted the way the widget counts them
+const bladeCount = (w, times) => {
+  let cuts = 0;
+  let slips = 0;
+  for (const t of times) {
+    if (cuts >= w.cuts || slips > w.allowed) break;
+    if (Math.abs(bladeAt(t, w.sweepMs) - w.seams[cuts]) <= w.width / 2) cuts++; else slips++;
+  }
+  return { cuts, slips };
+};
+
 const judge = (w, times, at, lagMs) => judgeSkin(w, typeof times === 'string' ? times : JSON.stringify(times), at, at + (lagMs === undefined ? 150 : lagMs));
 const verdict = (v, w) => (v.bad ? 'refused(' + v.bad + ')' : v.cuts >= w.cuts ? 'win' : 'lose');
 
@@ -110,6 +136,7 @@ const check = (name, cond, detail) => {
 };
 
 // 1. the round the server issues
+reseed(1);
 const w0 = skinRound(0x14, 2, 0xff001234, 'wolf');
 check('round carries one seam per cut and nothing to judge with', w0.seams.length === w0.cuts && w0.seed !== undefined,
   `cuts=${w0.cuts} slips=${w0.allowed} width=${w0.width} sweepMs=${w0.sweepMs} totalMs=${w0.totalMs} seams=${JSON.stringify(w0.seams)}`);
@@ -123,12 +150,14 @@ check('the seams are reproducible from the seed in the log', (() => {
 })(), `seed=${w0.seed.toString(16)}`);
 
 // 2. the tier curves still run the right way
+reseed(2);
 const t0 = skinRound(0x14, 0, 1, 'x');
 const t4 = skinRound(0x14, 4, 1, 'x');
 check('a better Skinner gets a wider seam and a slower blade', t4.width > t0.width && t4.sweepMs > t0.sweepMs,
   `tier1 width ${t0.width} sweep ${t0.sweepMs}ms -> tier5 width ${t4.width} sweep ${t4.sweepMs}ms`);
 
 // 3. honest attempts: the server's count must equal the widget's, every time
+reseed(3);
 let mismatch = 0; let wins = 0;
 for (let i = 0; i < 60; i++) {
   const w = skinRound(0x14, i % 5, 1, 'wolf');
@@ -140,17 +169,32 @@ for (let i = 0; i < 60; i++) {
 check('widget and server agree on every cut, 60 attempts', mismatch === 0, `${wins} of 60 won, ${mismatch} mismatches`);
 
 // 4. the old exploit: report three cuts after 1.5 s and take the pelt
+reseed(4);
 const w1 = skinRound(0x14, 4, 1, 'wolf');
 check('a bare cut count is not a report any more', judge(w1, '3', 1500, 100).bad === 'malformed', '');
 check('an empty list wins nothing', verdict(judge(w1, [], 1500, 100), w1) === 'lose', '');
 
-// 5. forged times that ignore the seam
-const w2 = skinRound(0x14, 4, 1, 'wolf');
+// 5. forged times that ignore the seam. A blind guess lands in a seam now and then, so one round proves nothing either
+// way: over a thousand rounds at the widest seam (tier 5), the server credits only the cuts the blade really makes, and
+// the forgery wins no more often than luck lets it (about 1 round in 20; a forger who knew the seams would win them all).
+reseed(5);
 const evenly = [0, 500, 1000, 1500, 2000];
-const v5 = judge(w2, evenly, 2000, 100);
-check('evenly spaced forgery is refused or slips out', verdict(v5, w2) !== 'win', `${JSON.stringify(v5)}`);
+const ROUNDS = 1000;
+let blindWins = 0;
+let freeCuts = 0;
+let sample = null;
+for (let i = 0; i < ROUNDS; i++) {
+  const w = skinRound(0x14, 4, 1, 'wolf');
+  const v = judge(w, evenly, 2000, 100);
+  const real = bladeCount(w, evenly);
+  if (!v.bad && (v.cuts !== real.cuts || v.slips !== real.slips)) { freeCuts++; sample = sample || { v, real }; }
+  if (verdict(v, w) === 'win') blindWins++;
+}
+check('evenly spaced forgery earns only the cuts the blade really makes, 1000 rounds', freeCuts === 0, sample ? JSON.stringify(sample) : '');
+check('...and wins no more often than luck, under 1 round in 10', blindWins / ROUNDS < 0.1, `${blindWins} of ${ROUNDS} won by luck`);
 
 // 6. what a perfect forgery still costs in real time
+reseed(6);
 const w3 = skinRound(0x14, 0, 1, 'wolf');
 const best = fastestPossible(w3);
 const v6 = judge(w3, best, best[best.length - 1], 100);
@@ -158,6 +202,7 @@ check('a perfectly computed attempt still has to be played out', verdict(v6, w3)
   `${best[best.length - 1]} ms of real time for ${w3.cuts} cuts (the old rule asked for 1500 ms and no times at all)`);
 
 // 7. impossible reports
+reseed(7);
 const w4 = skinRound(0x14, 2, 1, 'wolf');
 const good = fastestPossible(w4);
 check('more cuts than the attempt allows is refused', judge(w4, Array.from({ length: 12 }, (_, i) => i * 100), 1200, 100).bad === 'flood', '');
@@ -181,6 +226,7 @@ check('inside the grace it is allowed, which is the exposure', judge(w4, human.t
   `a ${human.at} ms attempt can be drawn out to ${human.at + sandbox.SKIN.lagGraceMs} ms today (${((human.at + sandbox.SKIN.lagGraceMs) / human.at).toFixed(1)}x slower blade) - tighten cfg.skinning.lagGraceMs once a playtest has measured the real lag`);
 
 // 8. the seams really are different every attempt
+reseed(8);
 const seen = new Set();
 for (let i = 0; i < 20; i++) seen.add(JSON.stringify(skinRound(0x14, 2, 1, 'x').seams));
 check('every attempt gets its own seam sequence', seen.size === 20, `${seen.size} distinct of 20`);

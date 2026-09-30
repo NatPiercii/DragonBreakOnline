@@ -2,7 +2,14 @@
 // Loads the real supernatural.js against a stub api and runs /rite, /rite confirm and the rite's rounds.
 // node tests/hircine-rite-harness.js   (from server/)
 'use strict';
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
+// supernatural.js keeps the Blood Crown in supernatural.json in the working directory, and the Embrace below claims it:
+// run in a temp dir, or the file lands in whatever tree run-all runs in
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hircine-rite-'));
+process.chdir(dir);
+process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 const store = new Map(); // `${id}|${prop}` -> value
 const said = [];
 const cmds = {}, ui = {}, timers = {};
