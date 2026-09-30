@@ -37,6 +37,10 @@ const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${na
 load({});
 check('off by default, so old clients keep the dice roll', globalThis.__dboLockpick === null);
 
+// A report's hold is capped by the time the server saw pass, so the scripted plays below run on a clock that moves two
+// seconds each time it is read; the timing checks at the end set their own
+let autoClock = 1_000_000;
+Date.now = () => (autoClock += 2000);
 const realRandom = Math.random;
 let roll = 0.5;
 Math.random = () => roll;
@@ -137,6 +141,41 @@ check('with no pick left a miss does not leave the set tumblers standing', last(
 ui.lockpickTry(A, [w.nonce, 1, 1000, 1000 + w.riseMs + 20]);
 ui.lockpickTry(A, [w.nonce, 2, 1000, 1000 + w.riseMs + 20]);
 check('...and the lock cannot then be finished without a pick', won === 0);
+
+// ---- the hold is measured against the server's own clock (2026-09-30) ----
+let t = 5_000_000;
+Date.now = () => t;
+roll = 0.99;                                   // a mistimed set never snaps here, so only the timing decides
+const timed = (level) => {
+  picks(5); widgets = []; let n = 0;
+  globalThis.__dboLockpick.begin(A, { target: DOOR, level, label: 'Cell door', onSuccess: () => { n++; } });
+  return { w: last(), won: () => n };
+};
+let L2 = timed(4);
+for (let i = 0; i < 5; i++) ui.lockpickTry(A, [L2.w.nonce, i, 0, L2.w.riseMs + 20]);
+check('a report of a perfect hold with no time passed sets nothing', L2.won() === 0 && last().set.every((x) => !x), JSON.stringify(last().set));
+check('...and costs nothing when the roll spares the pick', pickCount() === 5, pickCount());
+widgets = [];
+t += 60_001; globalThis.__dboLockpick.busy(A);
+L2 = timed(4);
+for (let i = 0; i < 5; i++) { t += L2.w.riseMs + 20; ui.lockpickTry(A, [L2.w.nonce, i, 0, L2.w.riseMs + 20]); }
+check('the same holds with the time really passing open a Master lock', L2.won() === 1, JSON.stringify(last().set));
+t += 60_001; globalThis.__dboLockpick.busy(A);
+L2 = timed(4);
+for (let i = 0; i < 5; i++) { t += L2.w.riseMs + 20 - 140; ui.lockpickTry(A, [L2.w.nonce, i, 0, L2.w.riseMs + 20]); }
+check('packets arriving up to 140 ms closer together than the holds (network jitter) still count', L2.won() === 1, JSON.stringify(last().set));
+t += 60_001; globalThis.__dboLockpick.busy(A);
+L2 = timed(0);
+t += 100; ui.lockpickTry(A, [L2.w.nonce, 0, 0, L2.w.riseMs + 20]);
+check('a hold reported 370 ms longer than the server saw is a miss', L2.won() === 0 && !last().set[0], JSON.stringify(last().set));
+t += 60_001; globalThis.__dboLockpick.busy(A);
+L2 = timed(0);
+t += 30_000; ui.lockpickTry(A, [L2.w.nonce, 0, 0, L2.w.riseMs + 20]);
+check('a player who waits before pushing is not held to the wait: only the hold is judged', L2.won() === 1);
+t += 60_001; globalThis.__dboLockpick.busy(A);
+L2 = timed(0);
+t += 5000; ui.lockpickTry(A, [L2.w.nonce, 0, 0, 1]);
+check('a hold that really was too short is still a miss', L2.won() === 0);
 
 Math.random = realRandom;
 console.log('');

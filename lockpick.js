@@ -29,6 +29,8 @@ module.exports = (api) => {
     reach: 400,
     // A lock nobody has touched this long is abandoned (see busy below)
     idleSeconds: 60,
+    // How much longer than the server saw pass a reported push may be held (network jitter between two packets)
+    jitterMs: 150,
   }, cfg.lockpick || {});
 
   if (!C.enabled) { globalThis.__dboLockpick = null; return; }
@@ -81,7 +83,7 @@ module.exports = (api) => {
       const mean = H.base + H.perTier * (tier + 1) + H.perLevel * level;
       return Math.round(Math.max(H.min, mean * (1 + (Math.random() * 2 - 1) * H.jitter)));
     });
-    const L = { a, target: opts.target >>> 0, level, label: opts.label || 'lock', onSuccess: opts.onSuccess, tier, holds, set: holds.map(() => false), at: Date.now(),
+    const L = { a, target: opts.target >>> 0, level, label: opts.label || 'lock', onSuccess: opts.onSuccess, tier, holds, set: holds.map(() => false), at: Date.now(), last: Date.now(),
       nonce: `${a.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}` };
     S.set(a, L);
     return openWidget(a, payload(L), true);
@@ -108,7 +110,12 @@ module.exports = (api) => {
       openWidget(a, payload(L, 'You have stepped away from the lock.', 'fail'), false);
       return;
     }
-    L.at = Date.now();
+    // Both times in a report are the client's own: a push cannot have been held longer than the server saw pass since its
+    // last word on this lock (2026-09-30)
+    const now = Date.now();
+    const since = now - (Number(L.last) || Number(L.at) || now);
+    L.at = now;
+    L.last = now;
     // The pick is in the lock only while one is carried: with none left (dropped, traded or stolen after the lock opened)
     // a miss could never snap one, so the set tumblers never fell back and misses cost nothing (2026-09-29)
     if (!picksOf(a)) {
@@ -120,7 +127,7 @@ module.exports = (api) => {
     if (!Number.isInteger(i) || i < 0 || i >= L.holds.length || L.set[i]) return;
     const first = L.set.indexOf(false);
     if (i !== first) return;
-    const held = Number(args[3]) - Number(args[2]);
+    const held = Math.min(Number(args[3]) - Number(args[2]), since + C.jitterMs);
     const landed = Number.isFinite(held) && held >= C.riseMs - C.graceMs && held <= C.riseMs + L.holds[i] + C.graceMs;
     if (landed) {
       L.set[i] = true;
