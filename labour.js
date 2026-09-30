@@ -344,7 +344,7 @@ module.exports = (api) => {
       if (t < ready) { r.bad = 'cooldown'; break; }
       if (r.hits >= round.strikes) { r.bad = 'extra'; break; } // the widget submits on the last hit
       const d = Math.abs(markerAt(t, round.sweepMs) - round.bands[r.hits]);
-      const landed = d <= round.half + 1e-9;
+      const landed = d <= round.half;
       ready = t + (landed ? round.hitMs : round.missMs);
       if (landed) { r.err += d / round.half; r.hits++; }
       r.last = t;

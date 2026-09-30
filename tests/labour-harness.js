@@ -175,6 +175,23 @@ for (let i = 0; i < 40; i++) {
 }
 check('widget and server agree on every strike, 40 random rounds', mismatch === 0, `${played} rounds, ${wins} wins, ${mismatch} mismatches`);
 
+// The server must score a strike EXACTLY as the widget does, with no tolerance on either side.
+// A band centre is two decimals and a marker position is a float, so a strike on the band edge lands a few ULPs out:
+// 45.4 - 38.39999999999999 is 7.000000000000007, a miss against half 7 and a hit against half + 1e-9. The server used
+// to carry that 1e-9. One disagreement is not one strike: both sides take the band centre from their OWN running hit
+// count and the cooldown from their OWN verdict, so everything after it is scored against a different band - the server
+// then either counts a win the player never saw or refuses the whole round as 'cooldown' and the work is lost.
+// Measured 2026-09-30: 3 failures in 252 runs of this harness, about 1 in 3,360 rounds.
+const EDGE = Math.abs(45.4 - 38.39999999999999);
+check('the strike this pins really does sit just outside the band', EDGE > 7 && EDGE - 7 < 1e-12, String(EDGE));
+check('...so it is a miss for the widget', !(EDGE <= 7), String(EDGE));
+check('...and a hit for any server that keeps a tolerance', EDGE <= 7 + 1e-9, String(EDGE));
+// struggle.js draws through the labour widget (type: 'labour'), so its scoring has to match the same front
+for (const f of ['labour.js', 'struggle.js', 'gamemode.js']) {
+  const src = require('fs').readFileSync(path.join(SERVER, f), 'utf8');
+  check(`${f} scores a strike with no tolerance the widget lacks`, !/(round\.half|round\.width \/ 2) \+ 1e-9/.test(src), f);
+}
+
 // 4. an interface from before the change reports a hit count
 virtual = 2000000; r = openRound('mining', 2); w = r.w;
 virtual += 5000;

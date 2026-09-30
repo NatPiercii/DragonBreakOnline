@@ -3282,7 +3282,7 @@ const judgeSkin = (round, raw, at, elapsed) => {
     if (t < r.last) { r.bad = 'order'; break; }  // this game has no stagger, so order is the only rule
     if (r.cuts >= round.cuts || r.slips > round.allowed) { r.bad = 'extra'; break; }
     const d = Math.abs(bladeAt(t, round.sweepMs) - round.seams[r.cuts]);
-    const clean = d <= round.width / 2 + 1e-9;
+    const clean = d <= round.width / 2;
     if (clean) { r.err += d / (round.width / 2); r.cuts++; } else r.slips++;
     r.last = t;
   }
