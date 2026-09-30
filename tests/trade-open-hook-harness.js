@@ -14,6 +14,7 @@ const check = (label, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${labe
 const bundle = process.argv[2];
 const src = bundle && fs.existsSync(bundle) ? fs.readFileSync(bundle, 'utf8') : '';
 if (!src || !/__alduinakInTrade/.test(src)) {
+  require('./expect')('trade-open-hook', src ? 'this fork\'s tradeSystem.ts does not expose __alduinakInTrade' : 'no tradeSystem.ts bundle was given');
   console.log(`SKIP  ${src ? 'this fork\'s tradeSystem.ts does not expose __alduinakInTrade yet (fork branch client-trade-open-hook)' : 'no tradeSystem.ts bundle given'}`);
   process.exit(0);
 }

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests/client-calendar-harness.js <bundled calendar.js>'); process.exit(2); }
-if (!fs.statSync(bundle).size) { require('./expect')('client-calendar', 'this client has no calendar module (before client-worldclock-year)'); console.log('ok   skipped: this client has no calendar module yet (before client-worldclock-year)'); process.exit(0); }
+if (!fs.statSync(bundle).size) { require('./expect')('client-calendar', 'this client has no calendar module'); console.log('ok   skipped: this client has no calendar module yet (before client-worldclock-year)'); process.exit(0); }
 const { calendarOf, startYearOf, DEFAULT_START_YEAR, MONTH_DAYS } = require(path.resolve(bundle));
 let fails = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c || got === undefined ? '' : '   ' + JSON.stringify(got)}`); if (!c) fails++; };

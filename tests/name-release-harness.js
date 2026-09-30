@@ -80,8 +80,8 @@ check('renaming a character to its own name is not "taken"', !/Someone already c
 // ---- fork spawn.ts: deleting a character frees its name --------------------------------------------------------------
 const bundle = process.argv[2];
 const src = bundle && fs.existsSync(bundle) ? fs.readFileSync(bundle, 'utf8') : '';
-if (!src) console.log('SKIP  deleting a character (no spawn.ts bundle given)');
-else if (!/private\.indexed\.nameKey/.test(src)) console.log('SKIP  deleting a character (this fork\'s spawn.ts does not free the name yet: fork branch spawn-free-name-on-delete)');
+if (!src) { require('./expect')('name-release', 'no spawn.ts bundle was given'); console.log('SKIP  deleting a character (no spawn.ts bundle given)'); }
+else if (!/private\.indexed\.nameKey/.test(src)) { require('./expect')('name-release', 'this fork\'s spawn.ts does not free the name'); console.log('SKIP  deleting a character (this fork\'s spawn.ts does not free the name yet: fork branch spawn-free-name-on-delete)'); }
 else {
   const { Spawn } = require(path.resolve(bundle));
   const w = world();
