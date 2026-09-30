@@ -91,7 +91,7 @@ Change any line in `/etc/dragonbreak/dbo-metrics.json` (the keys are `DEFAULTS` 
 
 ## The daily summary
 
-At 00:05 UTC it covers the day before and posts a line like this:
+At 00:05 UTC it covers the day before and posts a line like this one (made-up figures):
 
 > **Daily summary 2026-09-29:** peak 4 players at 20:01 UTC; game server memory peak 1.4 GB; box memory free down to
 > 71%; load peak 6.2; event loop p99 peak 30 ms; disk 62%; restarts 1, crashes 0; not a hoster 1,351 of 1,380 host
