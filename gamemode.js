@@ -1169,6 +1169,30 @@ mp.onActivate = (targetId, casterId) => {
     return allowed;
   };
 }
+// An Activate is a native packet, outside the custom-packet bucket, and each one runs the whole chain above (an inn bed
+// reads housing.json and every claim). Per caster: 10 a second with a burst of 30, over that refused; gamemode-config
+// "activateGuard": { perSecond, burst } (2026-09-30)
+const ACTIVATE_GUARD = Object.assign({ perSecond: 10, burst: 30 }, cfg.activateGuard || {});
+const activateBuckets = globalThis.__dboActivateBuckets instanceof Map ? globalThis.__dboActivateBuckets : (globalThis.__dboActivateBuckets = new Map());
+const activateAllowed = (caster) => {
+  const now = Date.now();
+  let b = activateBuckets.get(caster);
+  if (!b) { b = { tokens: Number(ACTIVATE_GUARD.burst), at: now }; activateBuckets.set(caster, b); }
+  b.tokens = Math.min(Number(ACTIVATE_GUARD.burst), b.tokens + ((now - b.at) / 1000) * Number(ACTIVATE_GUARD.perSecond));
+  b.at = now;
+  if (b.tokens < 1) return false;
+  b.tokens -= 1;
+  return true;
+};
+{
+  const activateUnguarded = mp.onActivate;
+  mp.onActivate = (targetId, casterId) => {
+    const caster = Number(casterId) >>> 0;
+    if (!activateAllowed(caster)) { logCapped(`activate:${caster}`, 2, `activate guard: ${display(caster)} is activating faster than ${ACTIVATE_GUARD.perSecond} a second; refused`); return false; }
+    return activateUnguarded(targetId, casterId);
+  };
+}
+every('activatePrune', 60000, () => { const now = Date.now(); for (const [k, b] of activateBuckets) if (now - b.at > 120000) activateBuckets.delete(k); });
 
 // ---- bank treasuries -----------------------------------------------------------------------
 // Every zone with a "treasury" in zones.json starts with 10,000 gold, seeded once; board fees are paid into it.
