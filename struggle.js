@@ -192,7 +192,9 @@ module.exports = (api) => {
   registerChatCommand('struggle', (a) => { start(a); }, { help: 'try to break free when your hands are bound' });
 
   // captureSystem calls this when someone is restrained
-  globalThis.__dboOnRestrained = (captive) => {
+  globalThis.__dboOnRestrained = (captive, captor) => {
+    // The captor's hands go to the cuffs (idles.js 'cuff'), whether or not struggling is on
+    try { if (captor && typeof globalThis.__dboInteractionIdle === 'function') globalThis.__dboInteractionIdle(Number(captor) >>> 0, 'cuff'); } catch (e) { /* the restraint stands */ }
     if (!CFG.enabled) return;
     const wait = nextOf(captive) - Date.now();
     personal(captive, `Your hands are bound. Type /struggle to try to break free${wait > 0 ? ` (you can in ${waitText(wait)})` : ''}. It is hard: one slip and the bonds hold.`);

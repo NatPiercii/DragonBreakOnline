@@ -789,7 +789,11 @@ const BOARD_REFS = (() => {
   } catch (e) { log('notice-board-spots.json unreadable, no letter markers', e.message); return []; }
 })();
 const sendMailState = (a) => sendPacket(a, { customPacketType: 'dboMail', unread: pigeonsWaiting(a), boards: BOARD_REFS });
-globalThis.__dboBoardOpened = (actorId) => sendMailState(Number(actorId) >>> 0);
+globalThis.__dboBoardOpened = (actorId) => {
+  sendMailState(Number(actorId) >>> 0);
+  // The reader's hand goes to the chin (idles.js)
+  try { if (typeof globalThis.__dboInteractionIdle === 'function') globalThis.__dboInteractionIdle(Number(actorId) >>> 0, 'board'); } catch (e) { log('board idle failed', e.message); }
+};
 // Pigeons fly from notice boards: the board opens the coop window, and the fee goes to that board's town
 const PIGEON_WIDGET_ID = 34;
 const pigeonNonces = globalThis.__dboPigeonNonces instanceof Map ? globalThis.__dboPigeonNonces : (globalThis.__dboPigeonNonces = new Map()); // actorId -> nonce of the coop window it has open (kept across reloads)
@@ -4553,6 +4557,13 @@ try {
   delete require.cache[CHARLEVEL_JS];
   require(CHARLEVEL_JS)({ mp, log, personal, system, audit, display, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, sendPacket });
 } catch (e) { log('charlevel.js failed to load:', e.stack || e.message); globalThis.__dboCharLevel = null; globalThis.__dboCharLevelLogin = null; }
+
+// ---- interaction animations: a notice board, an introduction, rope (server\idles.js) -----------------------------
+try {
+  const IDLES_JS = path.resolve('idles.js');
+  delete require.cache[IDLES_JS];
+  require(IDLES_JS)({ log, sendPacket, cfg });
+} catch (e) { log('idles.js failed to load:', e.stack || e.message); globalThis.__dboInteractionIdle = null; }
 
 // ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
 try {

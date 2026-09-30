@@ -78,6 +78,8 @@ module.exports = (api) => {
     try { mp.set(t, KNOWN_PROP, list.concat([a >>> 0])); } catch (e) { return personal(a, 'That did not work, try again.'); }
     personal(a, `You introduced yourself to ${nameFor(a, t)}.`);
     system(t, `${nameOf(a)} introduces themself.`);
+    // A salute goes with it (idles.js)
+    try { if (typeof globalThis.__dboInteractionIdle === 'function') globalThis.__dboInteractionIdle(a, 'introduce'); } catch (e) { /* the introduction stands */ }
   };
 
   // ---- inspect --------------------------------------------------------------------------------------
