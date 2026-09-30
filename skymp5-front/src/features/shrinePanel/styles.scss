@@ -1,0 +1,144 @@
+// A shrine's choice: Pray or Perform the Rite, and the rite's warning in red before anything is committed
+@import '../../dbo-theme.scss';
+
+.shrine {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 56;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: $dbo-ui-font;
+
+  &__fade {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(8, 25, 28, 0.45), rgba(3, 10, 12, 0.85) 100%);
+
+    &--grave {
+      background: radial-gradient(circle at center, rgba(40, 6, 6, 0.55), rgba(10, 2, 2, 0.92) 100%);
+    }
+  }
+
+  &__panel {
+    position: relative;
+    pointer-events: auto;
+    width: min(560px, calc(92 * var(--dbo-vw)));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 26px 30px 22px;
+    @include dbo-panel;
+    @include dbo-panel-cap;
+  }
+
+  &__title {
+    margin: 0;
+    @include dbo-title;
+    font-size: clamp(22px, calc(2.4 * var(--dbo-vw)), 30px);
+    text-align: center;
+  }
+
+  &__choices {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-family: $dbo-ui-font;
+    font-size: 16px;
+    padding: 9px 22px;
+    cursor: pointer;
+    color: $dbo-text;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid $dbo-border;
+
+    &:disabled { opacity: 0.45; cursor: default; }
+
+    &--primary {
+      border-color: $dbo-gold-border;
+      background: $dbo-gold-fill;
+    }
+
+    &--grave {
+      border-color: #6e1a14;
+      background: rgba(184, 50, 42, 0.35);
+    }
+  }
+
+  &__button-sub {
+    font-size: 13px;
+    color: $dbo-text-dim;
+    font-style: italic;
+  }
+
+  // What cannot be done, and why, in place of its button
+  &__reason {
+    margin: 0;
+    padding: 8px 12px;
+    color: $dbo-text-dim;
+    font-size: 14px;
+    border-left: 2px solid $dbo-border;
+  }
+
+  &__reason-label {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  &__rite-title {
+    margin: 0;
+    text-align: center;
+    font-family: $dbo-title-font;
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: #d9695f;
+  }
+
+  &__warning {
+    margin: 0;
+    text-align: center;
+    color: $dbo-text;
+    font-family: $dbo-book-font;
+    font-size: 17px;
+    line-height: 1.5;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  &__result {
+    margin: 0;
+    text-align: center;
+    font-size: 14px;
+
+    &--ok { color: $dbo-gold; }
+    &--refused { color: $dbo-text-dim; }
+  }
+
+  &__leave {
+    align-self: center;
+    font-family: $dbo-ui-font;
+    font-size: 13px;
+    padding: 5px 16px;
+    cursor: pointer;
+    color: $dbo-text-dim;
+    background: none;
+    border: 1px solid $dbo-border;
+  }
+}
