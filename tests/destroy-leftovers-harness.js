@@ -14,7 +14,8 @@ const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c |
 const GONE = 0xff000400, NPC = 0xff000401, PLAYER = 0xff000402, OTHERS = 0xff000403, CHEST = 0xff000404, PLUGIN_REF = 0x0001a2b3;
 const forms = new Map([
   [NPC, { type: 'MpActor', baseDesc: '1ca03:Skyrim.esm', profileId: -1, tag: 'wild:deer:1' }],
-  [PLAYER, { type: 'MpActor', baseDesc: '7:Skyrim.esm', profileId: 12, tag: '' }],
+  // tagged like the caller's own, so only isPlayerActor keeps it (companionSystem's isOurs takes any actor; Worker G)
+  [PLAYER, { type: 'MpActor', baseDesc: '7:Skyrim.esm', profileId: 12, tag: 'wild:deer:3' }],
   [OTHERS, { type: 'MpActor', baseDesc: '1ca03:Skyrim.esm', profileId: -1, tag: '' }],
   [CHEST, { type: 'MpObjectReference', baseDesc: 'c2cdc:Skyrim.esm', profileId: -1, tag: 'wild:camp:1' }],
   [PLUGIN_REF, { type: 'MpActor', baseDesc: '1ca03:Skyrim.esm', profileId: -1, tag: 'wild:deer:2' }],
