@@ -27,7 +27,7 @@
 // spell of the school), so the Wheel's hourly bucket and daily caps hold for them as for any cast.
 //
 // State, on the character: private.dboSchools
-//   { v, primary, secondary, levels: { <school>: { level, xp } }, study: { log: [[from, to] ms...] }, cast: { day, units: {} },
+//   { v, primary, secondary, levels: { <school>: { level, xp } }, grandfathered: [spell desc...], study: { log: [[from, to] ms...] }, cast: { day, units: {} },
 //     ring: [{ h, at }], classAt, paidAt, teacher: { by, at } }
 // Classes live on globalThis and end with the process (a restart cancels a class in progress).
 'use strict';
@@ -131,18 +131,28 @@ module.exports = (api) => {
     return { held: !!(r && Array.isArray(r.order) && r.order.includes(C.arcaneSkill)), level: p ? Math.max(0, Number(p.level) || 0) : 0 };
   };
   const bookOf = (a) => { try { return typeof globalThis.__dboSpellsBook === 'function' ? (globalThis.__dboSpellsBook(a) || []) : []; } catch (e) { return []; } };
-  const fresh = () => ({ v: 1, primary: null, secondary: null, levels: {}, study: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
+  const fresh = () => ({ v: 1, primary: null, secondary: null, grandfathered: [], levels: {}, study: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
   // A mage from before the rework keeps what they had: the school most of their studied spells belong to becomes the
   // primary at their Arcane Arts level, and a second school they hold spells of becomes the secondary when the level
   // allows one. Anyone else starts with no school and chooses.
+  // Every spell studied before the schools stays the character's whatever its school: always preparable, never refused
+  // (nobody loses a spell). Recorded once, at the first read of the record.
+  const studiedNow = (a) => bookOf(a).map((sp) => norm(sp.desc || descOf(sp.id))).filter(Boolean);
   const migrate = (a, s) => {
     const arc = arcaneOf(a);
+    s.grandfathered = studiedNow(a);
     // Spells of the Arcane Arts book only: a priest's Alteration spells never force a school on them
     const book = bookOf(a).filter((sp) => sp && SCHOOLS.includes(sp.school) && (!sp.book || sp.book === C.arcaneSkill));
     if (!arc.held || !book.length) return s;
+    // The school of the most studied spells; a tie goes to the most combined tiers (Novice 1 .. Master 5), then to the
+    // school studied most recently (the book keeps the order they were learned in)
     const by = new Map();
-    for (const sp of book) { const e = by.get(sp.school) || { n: 0, top: -1 }; e.n++; e.top = Math.max(e.top, Number(sp.rank) || 0); by.set(sp.school, e); }
-    const order = [...by.entries()].sort((x, y) => y[1].n - x[1].n || y[1].top - x[1].top || SCHOOLS.indexOf(x[0]) - SCHOOLS.indexOf(y[0]));
+    book.forEach((sp, i) => { const e = by.get(sp.school) || { n: 0, tiers: 0, last: -1 }; e.n++; e.tiers += (Number(sp.rank) || 0) + 1; e.last = i; by.set(sp.school, e); });
+    const order = [...by.entries()].sort((x, y) => y[1].n - x[1].n || y[1].tiers - x[1].tiers || y[1].last - x[1].last || SCHOOLS.indexOf(x[0]) - SCHOOLS.indexOf(y[0]));
+    const why = order.length < 2 ? 'the only school studied'
+      : order[0][1].n !== order[1][1].n ? 'the most spells' : order[0][1].tiers !== order[1][1].tiers ? 'a tie broken by the most combined tiers'
+        : order[0][1].last !== order[1][1].last ? 'a tie broken by the most recent study' : 'a tie broken by list order';
+    log(`schools: ${who(a)} brought over to ${order[0][0]} (${why}): ${order.map(([n, e]) => `${n} ${e.n} spells, tiers ${e.tiers}, last #${e.last}`).join('; ')}`);
     const start = Math.max(1, arc.level);
     s.primary = order[0][0];
     s.levels[s.primary] = { level: start, xp: 0 };
@@ -150,12 +160,17 @@ module.exports = (api) => {
       s.secondary = order[1][0];
       s.levels[s.secondary] = { level: Math.min(start, Math.max(1, C.secondaryStartLevel)), xp: 0 };
     }
-    audit(`SCHOOLS ${who(a)} brought over: primary ${s.primary}${s.secondary ? `, secondary ${s.secondary}` : ''} at Arcane Arts ${arc.level} (${book.length} studied spells)`);
+    audit(`SCHOOLS ${who(a)} brought over: primary ${s.primary}${s.secondary ? `, secondary ${s.secondary}` : ''} at Arcane Arts ${arc.level} (${book.length} studied spells, ${why}; ${s.grandfathered.length} kept whatever their school)`);
     return s;
   };
   const stateOf = (a) => {
     const s = get(a, PROP, null);
-    if (s && typeof s === 'object' && s.v) return Object.assign(fresh(), s);
+    if (s && typeof s === 'object' && s.v) {
+      const out = Object.assign(fresh(), s);
+      // A record from before the grandfathered set keeps what its spellbook held then
+      if (!Array.isArray(s.grandfathered)) { out.grandfathered = studiedNow(a); set(a, PROP, out); }
+      return out;
+    }
     const out = migrate(a, fresh());
     set(a, PROP, out);
     return out;
@@ -234,6 +249,8 @@ module.exports = (api) => {
   };
 
   // ---- spells.js asks before a tome is read or a spell taught ------------------------------------------------------
+  // A spell studied before the schools is never refused, whatever its school
+  globalThis.__dboSchoolsGrandfathered = (a, spellId) => { try { return stateOf(a).grandfathered.includes(norm(descOf(spellId >>> 0))); } catch (e) { return false; } };
   // Why `a` cannot take a spell of this school and rank, or null. `whose` is 'You' or the student's name.
   globalThis.__dboSchoolsRefusal = (a, school, rank, whose) => {
     if (!ready(a) || !SCHOOLS.includes(String(school))) return null;
