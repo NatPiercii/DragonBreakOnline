@@ -1797,3 +1797,44 @@ button.hotkey-btn--capturing {
 .legal-hint { flex: 1; margin: 0; min-height: 1em; }
 .legal-actions .btn-save:disabled { opacity: 0.4; cursor: default; }
 .legal-actions .btn-save:disabled:hover { background: linear-gradient(to bottom, #d4ab2a, #b08920); }
+
+/* Install progress: the panel on the main screen and the bar above the Repair tab's log */
+.install-panel {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-bright);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.install-mini { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.install-banner {
+  margin: 0 0 4px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: calc(14px * var(--text-scale));
+  color: var(--gold-bright);
+  border-left: 3px solid var(--gold-border);
+  padding-left: 10px;
+}
+.install-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.install-title { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: 0.04em; color: var(--gold); font-size: calc(14px * var(--text-scale)); }
+.install-percent { font-family: 'Cinzel', serif; font-weight: 700; color: var(--aqua); font-size: calc(15px * var(--text-scale)); }
+.install-file { font-family: 'Barlow Condensed', sans-serif; font-size: calc(13px * var(--text-scale)); color: var(--parchment-dim); word-break: break-word; }
+.install-waiting {
+  margin: 2px 0;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: calc(14px * var(--text-scale));
+  color: var(--silver);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid var(--glass-border-bright);
+  padding: 6px 10px;
+}
+.install-bar { height: 10px; background: rgba(8, 25, 28, 0.7); border: 1px solid var(--glass-border); overflow: hidden; }
+.install-bar--file { height: 6px; }
+.install-bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--aqua-deep), var(--aqua)); transition: width 0.25s ease-out; }
+.install-bar--busy .install-bar-fill { width: 30%; animation: install-busy 1.4s ease-in-out infinite; }
+@keyframes install-busy { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+.install-log-details > summary { cursor: pointer; font-family: 'Barlow Condensed', sans-serif; color: rgba(var(--accent-rgb), 0.8); font-size: calc(13px * var(--text-scale)); margin-top: 4px; }
+.install-progress--panel { height: 90px; }
+button:disabled[title] { cursor: not-allowed; }
