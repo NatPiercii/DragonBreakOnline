@@ -30,6 +30,7 @@ const downgrade = require('./downgrade')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
 const nxmLinks = require('./nxm')
+const legalLib = require('./legal')
 
 // Settings stay in the folder named after the launcher's original product name.
 const USER_DATA_DIR = path.join(app.getPath('appData'), 'DragonBreak Online Launcher')
@@ -102,6 +103,14 @@ const store = new Store({
 })
 
 mo2.setRootProvider(() => store.get('baseDirPath') || DEFAULT_BASE_DIR)
+
+// Terms of Service and Privacy Policy: the texts, this player's acceptance, and accepting (legal.js)
+const legal = legalLib.createLegal({
+  apiUrl: config.apiUrl, fetchJSON, postJSON, log,
+  getSession: () => store.get('gameSession'),
+  launcherVersion: app.getVersion(),
+})
+const LEGAL_BLOCK_MESSAGE = 'Accept the Terms of Service and the Privacy Policy first: press Terms & Privacy at the bottom of the launcher.'
 
 // Nexus nxm:// links: ours only while an install waits for the player's downloads, then back to Vortex or whichever
 // manager had them (nxm.js)
@@ -929,6 +938,7 @@ ipcMain.handle('api:serverinfo', async () => {
 ipcMain.handle('discord:getUser', () => store.get('discordUser') || null)
 
 function clearDiscordAuth() {
+  legal.reset()
   store.set('discordUser',   null)
   store.set('gameProfileId', null)
   store.set('gameSession',   null)
@@ -941,6 +951,19 @@ function clearDiscordAuth() {
     try { fs.writeFileSync(authDataPath, '//null') } catch { /* file may not exist yet */ }
   }
 }
+
+// A 401 means the stored login expired: cleared here like the launch check does, so the window asks for a new one
+ipcMain.handle('legal:load', () => legal.load())
+ipcMain.handle('legal:status', async () => {
+  const s = await legal.status()
+  if (s.sessionExpired) clearDiscordAuth()
+  return s
+})
+ipcMain.handle('legal:accept', async (_e, version) => {
+  const r = await legal.accept(typeof version === 'string' ? version : '')
+  if (r.sessionExpired) clearDiscordAuth()
+  return r
+})
 
 ipcMain.handle('discord:logout', () => {
   clearDiscordAuth()
@@ -1765,6 +1788,7 @@ async function guardLaunch(launch) {
     if (Date.now() - launchStartedAt < LAUNCH_GRACE_MS) {
       return { success: false, error: 'Skyrim is still starting - give MO2 a moment.' }
     }
+    if (legal.blocksLaunch()) return { success: false, legalRequired: true, error: LEGAL_BLOCK_MESSAGE }
     const result = await launch()
     if (result.success) launchStartedAt = Date.now()
     return result

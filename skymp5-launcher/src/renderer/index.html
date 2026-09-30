@@ -121,6 +121,11 @@
         </div>
         -->
         <div class="info-divider"></div>
+        <div class="info-item">
+          <span class="info-label">LEGAL</span>
+          <button type="button" class="info-value legal-link" id="btn-legal">Terms &amp; Privacy</button>
+        </div>
+        <div class="info-divider"></div>
         <span class="connect-warning" id="connect-warning"></span>
       </div>
       <div class="bottombar-right">
@@ -509,6 +514,42 @@
     </div>
   </div>
 
+  <!-- Terms of Service and Privacy Policy (legal.js) -->
+  <div class="modal-overlay" id="modal-legal" hidden>
+    <div class="modal-box modal-box--wide modal-box--legal fracture domain-aedric" role="dialog" aria-modal="true" aria-labelledby="legal-title">
+      <div class="modal-header">
+        <span class="modal-title" id="legal-title">&#9878;&nbsp; Terms &amp; Privacy</span>
+        <button class="modal-close" id="legal-close" title="Close">&#10005;</button>
+      </div>
+      <div class="legal-changes" id="legal-changes" hidden>
+        <span class="setting-label">What changed</span>
+        <ul id="legal-changes-list"></ul>
+      </div>
+      <div class="modal-tabs">
+        <button type="button" class="modal-tab active" data-legal-tab="terms">Terms of Service<span class="legal-read" id="legal-read-terms"></span></button>
+        <button type="button" class="modal-tab" data-legal-tab="privacy">Privacy Policy<span class="legal-read" id="legal-read-privacy"></span></button>
+      </div>
+      <div class="modal-body legal-body" id="legal-body" tabindex="0">
+        <p class="setting-hint legal-source" id="legal-source" hidden></p>
+        <button type="button" class="btn-detect-vortex legal-retry" id="legal-retry" hidden>Retry</button>
+        <article class="legal-doc" id="legal-doc-terms"></article>
+        <article class="legal-doc" id="legal-doc-privacy" hidden></article>
+      </div>
+      <div class="legal-footer" id="legal-footer" hidden>
+        <label class="setting-checkbox-row">
+          <input type="checkbox" id="legal-agree" />
+          <span>I am 18 or older, and I have read and accept the Terms of Service and the Privacy Policy</span>
+        </label>
+        <div class="legal-actions">
+          <p class="setting-hint legal-hint" id="legal-hint" aria-live="polite"></p>
+          <button type="button" class="btn-detect-vortex" id="legal-decline">Decline</button>
+          <button type="button" class="btn-save" id="legal-accept" disabled>Accept</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="legal.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

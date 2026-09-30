@@ -41,6 +41,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   discordLogout:  () => ipcRenderer.invoke('discord:logout'),
   discordGetUser: () => ipcRenderer.invoke('discord:getUser'),
 
+  // Terms of Service and Privacy Policy: texts (markdown parsed to blocks), status, accept
+  legalLoad:   ()        => ipcRenderer.invoke('legal:load'),
+  legalStatus: ()        => ipcRenderer.invoke('legal:status'),
+  legalAccept: (version) => ipcRenderer.invoke('legal:accept', version),
+
   // Launcher update check + in-app install
   checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
   installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
