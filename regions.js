@@ -211,8 +211,32 @@ module.exports = (api) => {
     catch (e) { log('regions: dragon-materials.json unreadable', e.message); return new Set(['3ada4:skyrim.esm', '3ada3:skyrim.esm']); }
   })();
   const dragonToldAt = new Map();
+  // Nor does any forge make an artifact (artifacts.json; Nate 2026-09-29: staff hand them out in the story). Immersive
+  // Weapons, Immersive Armors and More Craftable Equipment let a smith make Dawnbreaker, Chillrend, the Shield of
+  // Ysgramor, Tsun's armour and the like. Matched on the product's editor id, as the loot filter matches. Tempering one a
+  // player already holds is not a creation and still works.
+  const ARTIFACT = (() => {
+    try {
+      const list = (JSON.parse(fs.readFileSync(path.resolve('artifacts.json'), 'utf8')).patterns || []).filter((p) => typeof p === 'string' && p);
+      return list.length ? new RegExp(list.map((p) => `(?:${p})`).join('|'), 'i') : /$^/;
+    } catch (e) { log('regions: artifacts.json unreadable', e.message); return /$^/; }
+  })();
+  const artifactCraft = (itemId, recipeId) => {
+    const product = edidOf(descOf(itemId));
+    return !!product && ARTIFACT.test(product) && !/Temper/i.test(edidOf(descOf(recipeId)));
+  };
   const craftHook = function (actorId, itemId, count, recipeId, ...rest) {
     const a = Number(actorId) >>> 0;
+    if (artifactCraft(Number(itemId) >>> 0, Number(recipeId) >>> 0)) {
+      if (Date.now() - (dragonToldAt.get(a) || 0) > 3000) {
+        dragonToldAt.set(a, Date.now());
+        const text = 'Artifacts are not made at a forge; they pass from hand to hand in the story. Your materials come back when you close the menu.';
+        personal(a, text);
+        try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
+        audit(`ARTIFACT craft refused ${who(a)} recipe ${edidOf(descOf(Number(recipeId) >>> 0)) || (Number(recipeId) >>> 0).toString(16)} -> ${edidOf(descOf(Number(itemId) >>> 0))}`);
+      }
+      return false;
+    }
     if (DRAGON_MATERIALS.has(norm(descOf(Number(itemId) >>> 0)))) {
       if (Date.now() - (dragonToldAt.get(a) || 0) > 3000) {
         dragonToldAt.set(a, Date.now());
