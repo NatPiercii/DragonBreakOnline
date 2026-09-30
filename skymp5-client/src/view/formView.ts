@@ -1,5 +1,6 @@
 import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
 import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving, isInSitPose, clearSitPose, setRefrCollision } from "../sync/animation";
+import { isVampireLordRace, noteVampireLordAnim } from "../sync/vampireLordAnimDiag";
 import { Appearance, applyAppearance } from "../sync/appearance";
 import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
@@ -645,6 +646,9 @@ export class FormView {
           // The server echoes our own AI's animations back; replaying them restarts swings and can turn collision off
           this.animState.lastNumChanges = model.animation.numChanges;
         } else {
+          if (model.appearance && isVampireLordRace(model.appearance.raceId)) {
+            noteVampireLordAnim(refr.getFormID(), this.remoteRefrId, model.animation, this.animState.lastNumChanges);
+          }
           applyAnimation(refr, model.animation, this.animState);
         }
       }
