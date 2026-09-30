@@ -15,6 +15,29 @@
     ]
   },
   {
+    "title": "Steadier Beasts, and Characters That Act",
+    "date": "2026-09-30",
+    "version": "Client 0.3.72",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Fixed a crash that could hit players near a werewolf howling or a Vampire Lord casting.",
+          "Your own character's name no longer changes on your screen when someone nearby puts on or takes off a mask.",
+          "Auto-run now switches off when a skinning, mining or chopping round takes the keyboard."
+        ]
+      },
+      {
+        "heading": "Animations",
+        "items": [
+          "Characters act out everyday things: studying a notice board, saluting when introducing themselves, taking an item when a trade completes, and eating or drinking while seated.",
+          "Potions and draughts stay instant, with no drinking animation."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Schools of Magic",
     "date": "2026-09-30",
     "version": "Client 0.3.71",
