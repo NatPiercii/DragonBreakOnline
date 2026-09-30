@@ -17,20 +17,34 @@ module.exports = (api) => {
   // The comment below promised this flag for weeks while nothing read it, so only /vlremote worked and its value
   // died with the process. A deliberate off - the breaker tripping, or an admin saying /vlremote - must survive a
   // hot reload; a value merely seeded from config must not, or an old seed outlives the config that set it.
-  const CFG = Object.assign({ vampireLordRemoteRace: true, breakerUnits: 6000, breakerSeconds: 120 }, (cfg && cfg.beastform) || {});
+  // werewolfRemoteRace the same for a werewolf (2026-09-30: a werewolf's howls crashed three watchers; every relayed cast or
+  // stop of a beast writes a humanoid animation-variable snapshot into the watcher's beast-race copy, which a client
+  // 0.3.72+ guard stops). Off, watchers see a human playing werewolf animations, as for the Vampire Lord.
+  const CFG = Object.assign({ vampireLordRemoteRace: true, werewolfRemoteRace: true, breakerUnits: 6000, breakerSeconds: 120 }, (cfg && cfg.beastform) || {});
   // It must survive a restart too (2026-09-29: the breaker tripped at 15:03, the 17:15 restart read the config
   // again and showed the body to everyone for the rest of the day). A trip or /vlremote writes beastform-state.json
   // beside the gamemode; a fresh process reads it before the config, so only the config's own default is a seed.
   const STATE_PATH = path.resolve('beastform-state.json');
-  const saveRemote = (on, by) => {
-    try { fs.writeFileSync(STATE_PATH + '.tmp', JSON.stringify({ vampireLordRemote: on === true, setBy: by, at: new Date().toISOString() }, null, 1)); fs.renameSync(STATE_PATH + '.tmp', STATE_PATH); } catch (e) { log(`beastform-state.json write failed: ${e.message}`); }
+  const readState = () => { try { const v = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };
+  // One file holds both switches: each write keeps the other's keys
+  const writeState = (patch) => {
+    try { fs.writeFileSync(STATE_PATH + '.tmp', JSON.stringify(Object.assign({}, readState() || {}, patch), null, 1)); fs.renameSync(STATE_PATH + '.tmp', STATE_PATH); } catch (e) { log(`beastform-state.json write failed: ${e.message}`); }
   };
+  const saveRemote = (on, by) => writeState({ vampireLordRemote: on === true, setBy: by, at: new Date().toISOString() });
+  const saveWerewolfRemote = (on, by) => writeState({ werewolfRemote: on === true, werewolfSetBy: by, werewolfAt: new Date().toISOString() });
   if (globalThis.__dboVlRemoteSetBy === undefined) {
-    let saved = null; try { saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); } catch (e) { /* none yet: the config decides */ }
+    const saved = readState();
     if (saved && typeof saved.vampireLordRemote === 'boolean') {
       globalThis.__dboVampireLordRemote = saved.vampireLordRemote;
       globalThis.__dboVlRemoteSetBy = String(saved.setBy || 'file');
     } else globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
+  }
+  if (globalThis.__dboWwRemoteSetBy === undefined) {
+    const saved = readState();
+    if (saved && typeof saved.werewolfRemote === 'boolean') {
+      globalThis.__dboWerewolfRemote = saved.werewolfRemote;
+      globalThis.__dboWwRemoteSetBy = String(saved.werewolfSetBy || 'file');
+    } else globalThis.__dboWerewolfRemote = CFG.werewolfRemoteRace !== false;
   }
   // The name a viewer knows another player by: introduced, else Stranger, else Masked Person (playermenu.js).
   // Only players are named here, so there is no nameOf fallback to leak a real name if playermenu is missing.
@@ -158,8 +172,10 @@ module.exports = (api) => {
     // (xXPussy and Flo'Riahn looped on joining near one, 2026-09-23 20:58), but that was never confirmed with a
     // crash log and 20:58 also carries Havok crashes on near-full RAM (CHECKLIST). While it is off, watchers see
     // a stripped human playing Vampire Lord animations, which is the naked skating in #bugs 1552425534028251227.
-    // beastform.vampireLordRemoteRace: true, or /vlremote on, turns the remote body back on.
-    const remoteRace = key !== 'vampirelord' || globalThis.__dboVampireLordRemote === true;
+    // beastform.vampireLordRemoteRace: true, or /vlremote on, turns the remote body back on. A werewolf's is
+    // beastform.werewolfRemoteRace or /wwremote (on unless turned off).
+    const remoteRace = key === 'vampirelord' ? globalThis.__dboVampireLordRemote === true
+      : key === 'werewolf' ? globalThis.__dboWerewolfRemote !== false : true;
     if (remoteRace) mp.set(a, 'appearance', beastAppearance(original, f.race));
     if (remoteRace && key === 'vampirelord') noteVlShown(a);
     learn(a, key, true);
@@ -428,6 +444,15 @@ module.exports = (api) => {
     personal(a, `Other players ${globalThis.__dboVampireLordRemote === true ? 'see the Vampire Lord body' : 'see the real appearance of a Vampire Lord'} (applies on the next change).`);
   }, { admin: true, help: '[on|off] whether other players see the Vampire Lord body (crash test)' });
 
+  // The same for a werewolf. Off keeps a werewolf's appearance human for other players from the next change on; one
+  // already changed keeps the body until it reverts (a timed form), since the server cannot swap it back mid-form without
+  // the werewolf's own client applying the human race to them
+  registerChatCommand('wwremote', (a, args) => {
+    const v = String(args || '').trim().toLowerCase();
+    if (v === 'on' || v === 'off') { globalThis.__dboWerewolfRemote = v === 'on'; globalThis.__dboWwRemoteSetBy = 'admin'; saveWerewolfRemote(v === 'on', 'admin'); audit(`GM ${who(a)} set werewolf remote body ${v}`); }
+    personal(a, `Other players ${globalThis.__dboWerewolfRemote !== false ? 'see the werewolf body' : 'see the real appearance of a werewolf'} (applies on the next change).`);
+  }, { admin: true, help: '[on|off] whether other players see the werewolf body (crash mitigation)' });
+
   registerChatCommand('forms', (a) => {
     const s = stateOf(a);
     if (!s) return personal(a, 'You are in your own shape. In a beast form this lists its abilities and keys.');
@@ -496,5 +521,5 @@ module.exports = (api) => {
     const r = takeForm(a, key); if (r) personal(a, r);
   }, { help: '[werewolf|vampirelord|revert] take or leave your beast form (or cast the power)' });
 
-  log(`beastform on: ${Object.entries(FORMS).map(([k, f]) => `${k} race ${f.race.toString(16)} power ${f.power.toString(16)}${f.seconds ? ` ${f.seconds}s` : ''}`).join(', ')}, revert ${REVERT_POWER.toString(16)}, Vampire Lord remote body ${globalThis.__dboVampireLordRemote === true ? 'ON' : 'off'}`);
+  log(`beastform on: ${Object.entries(FORMS).map(([k, f]) => `${k} race ${f.race.toString(16)} power ${f.power.toString(16)}${f.seconds ? ` ${f.seconds}s` : ''}`).join(', ')}, revert ${REVERT_POWER.toString(16)}, Vampire Lord remote body ${globalThis.__dboVampireLordRemote === true ? 'ON' : 'off'}, werewolf remote body ${globalThis.__dboWerewolfRemote !== false ? 'ON' : 'off'}${globalThis.__dboWwRemoteSetBy ? ` (${globalThis.__dboWwRemoteSetBy})` : ''}`);
 };
