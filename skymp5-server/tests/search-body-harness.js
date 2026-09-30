@@ -103,6 +103,64 @@ const check = (name, ok, got) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}$
   sys2.customPacket(1, 'searchRequest', { target: BODY }, ctx);
   check('with no gamemode rule loaded a body opens as before', occupants.length === 1 && sent.some(([, p]) => p.customPacketType === 'searchApproved'), sent.map(([, p]) => p.customPacketType));
 
+  // ---- a living search whose target goes down (the consent path, 2026-09-30 review) ----
+  const fresh = async () => { const x = new SearchSystem(() => {}); await x.initAsync(ctx); return x; };
+  const consentId = () => { const p = sent.filter(([u, q]) => u === 3 && q.customPacketType === 'searchConsentRequest').pop(); return p && p[1].requestId; };
+  globalThis.__dboLootBody = (target, caster) => { lootCalls.push([target, caster]); return false; };
+  props.set(`${SEARCHER}|private.lawful`, true);
+  props.set(`${LIVING}|inventory`, { entries: [{ baseId: 0xf, count: 500 }, { baseId: 0x12eb7, count: 1 }] });
+
+  // 1. Downed while the prompt is open, then accepts
+  let sys3 = await fresh();
+  sent.length = 0; occupants.length = 0; lootCalls.length = 0; respawned = 0;
+  sys3.customPacket(1, 'searchRequest', { target: LIVING }, ctx);
+  const rid = consentId();
+  props.set(`${LIVING}|isDead`, true);
+  sys3.customPacket(3, 'searchConsentResult', { requestId: rid, accepted: true }, ctx);
+  check('downed while the consent prompt is open: accepting runs the body rule', lootCalls.length === 1 && lootCalls[0][0] === LIVING && lootCalls[0][1] === SEARCHER, lootCalls);
+  check('...and opens no window, so no purse and no respawn', occupants.length === 0 && respawned === 0 && !sent.some(([, q]) => q.customPacketType === 'searchApproved'), sent.map(([u, q]) => [u, q.customPacketType]));
+
+  // 2. Downed inside an open consented search
+  props.set(`${LIVING}|isDead`, false);
+  sys3 = await fresh();
+  sent.length = 0; occupants.length = 0; lootCalls.length = 0; respawned = 0;
+  sys3.customPacket(1, 'searchRequest', { target: LIVING }, ctx);
+  sys3.customPacket(3, 'searchConsentResult', { requestId: consentId(), accepted: true }, ctx);
+  check('a consented living search opens its window', occupants.length >= 1 && sent.some(([, q]) => q.customPacketType === 'searchApproved'));
+  check('...a take while they stand is the guard\'s to make', mp.onTakeItem(LIVING, SEARCHER, 0x12eb7, 1) !== false);
+  props.set(`${LIVING}|isDead`, true);
+  sent.length = 0;
+  check('downed mid-search: the next take is refused', mp.onTakeItem(LIVING, SEARCHER, 0xf, 500) === false);
+  check('...the window closes with a word to search the body instead', sent.some(([u, q]) => u === 1 && /search the body instead/i.test(q.text || '')), sent.map(([u, q]) => [u, q.customPacketType, q.text]));
+  check('...and nobody is respawned', respawned === 0);
+  sent.length = 0; lootCalls.length = 0;
+  sys3.customPacket(1, 'searchRequest', { target: LIVING }, ctx);
+  check('...searching again goes to the body rule', lootCalls.length === 1 && lootCalls[0][0] === LIVING);
+
+  // 3. The watch ends such a session even with no take
+  props.set(`${LIVING}|isDead`, false);
+  sys3 = await fresh();
+  sent.length = 0;
+  sys3.customPacket(1, 'searchRequest', { target: LIVING }, ctx);
+  sys3.customPacket(3, 'searchConsentResult', { requestId: consentId(), accepted: true }, ctx);
+  props.set(`${LIVING}|isDead`, true);
+  sent.length = 0;
+  await sys3.updateAsync(ctx);
+  check('the watch ends a living search whose target went down', sent.some(([u, q]) => u === 1 && /search the body instead/i.test(q.text || '')), sent.map(([u, q]) => [u, q.customPacketType, q.text]));
+
+  // 4. No respawn from a window while the body rule is loaded (a body window opened before it loaded)
+  delete globalThis.__dboLootBody;
+  props.set(`${BODY}|inventory`, { entries: [{ baseId: 0xf, count: 50 }, { baseId: 0x12eb7, count: 1 }, { baseId: 0x3eadd, count: 2 }] });
+  const sys4 = await fresh();
+  occupants.length = 0; respawned = 0;
+  sys4.customPacket(1, 'searchRequest', { target: BODY }, ctx);
+  check('with no body rule a body window opens (as before)', occupants.length === 1);
+  globalThis.__dboLootBody = () => false;
+  mp.onTakeItem(BODY, SEARCHER, 0xf, 50);
+  mp.onTakeItem(BODY, SEARCHER, 0x12eb7, 1);
+  await new Promise((r) => setTimeout(r, 10));
+  check('...but once the body rule is loaded, reaching the limit respawns nobody (a revive stays possible)', respawned === 0, respawned);
+
   fs.rmSync(out, { recursive: true, force: true });
   console.log(failures ? `\n${failures} FAILED` : '\nall passed');
   process.exit(failures ? 1 : 0);
