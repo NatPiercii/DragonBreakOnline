@@ -433,7 +433,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
               />
             ) : null}
             {selectedPlayer ? (
-              <DeityReset actor={selectedPlayer.online && selectedPlayer.a ? selectedPlayer.a : null} name={selectedPlayer.n || ''} canSpawn={canSpawn} />
+              <DeityReset actor={selectedPlayer.online && selectedPlayer.a ? selectedPlayer.a : null} name={selectedPlayer.n || ''} profile={selectedPlayer.p} canSpawn={canSpawn} />
             ) : null}
             {ev.masteryGrant && data.mastery ? (
               <div className="admin-panel__mastery">
