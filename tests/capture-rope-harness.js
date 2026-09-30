@@ -50,6 +50,12 @@ const svr = {
 };
 const ctx = { svr, gm: { on: () => {} } };
 sys.manaclesFormId = MANACLES;
+
+// ---- init advertises rope binding, so rope.js and playermenu.js offer the rope entries only on this build ------------
+delete globalThis.__dboRopeCapture;
+sys.registerHooks(ctx);
+check('init sets __dboRopeCapture', globalThis.__dboRopeCapture === true);
+check('and registers __dboLeash, __dboBreakFree and __dboUncuff', ['__dboLeash', '__dboBreakFree', '__dboUncuff'].every((k) => typeof globalThis[k] === 'function'));
 props.set(`${GUARD}|private.dboLawful`, true);
 
 // rope.js's hooks, counting ropes
@@ -177,7 +183,7 @@ reset(); req(VICTIM, 'captureConsentResult', { requestId: c.requestId, accepted:
 r = sys.restraints.get(VICTIM);
 check('a guard\'s arrest is not rope and wears shackles', r && !r.rope && papyrus.includes('EquipItem'), [r, papyrus]);
 check('no rope is taken for an arrest', took.length === 0);
-check('shackles never slip', sys.breakFree(ctx, VICTIM, 'slip') === false && sys.restraints.has(VICTIM));
+check('shackles never slip', globalThis.__dboBreakFree(VICTIM, 'slip') === false && sys.restraints.has(VICTIM));
 check('shackles are never cut', sys.breakFree(ctx, VICTIM, 'cut') === false && sys.restraints.has(VICTIM));
 check('an arrest cannot be left untethered', sys.setLeash(ctx, VICTIM, false) === false);
 reset();

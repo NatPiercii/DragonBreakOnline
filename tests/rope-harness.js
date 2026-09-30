@@ -57,7 +57,8 @@ const api = {
 const load = (file, cfg) => { const f = path.join(ROOT, file); delete require.cache[f]; require(f)(Object.assign({}, api, cfg ? { cfg } : {})); };
 load('rope.js'); load('struggle.js'); load('playermenu.js');
 
-// captureSystem.ts, mocked: its hooks as rope.js and struggle.js call them
+// captureSystem.ts, mocked: its hooks as rope.js and struggle.js call them, and its flag (set at init)
+globalThis.__dboRopeCapture = true;
 const tie = (t, captor, extra) => props.set(`${t}|private.restrained`, Object.assign({ boundHands: true, carried: false, captorActorId: captor, rope: true, untethered: false }, extra || {}));
 globalThis.__dboBreakFree = (a, how) => { const r = props.get(`${a}|private.restrained`); if (!r) return false; if (how && how !== 'struggle' && !r.rope) return false; freed.push([a, how || 'struggle']); props.set(`${a}|private.restrained`, null); return true; };
 globalThis.__dboLeash = (a, on) => { const r = props.get(`${a}|private.restrained`); if (!r || !r.rope || r.untethered === !on) return false; r.untethered = !on; leashed.push([a, on]); return true; };
@@ -82,6 +83,9 @@ ok(globalThis.__dboRopeHeld(OTHER) === false, 'someone without one may not');
 let m = menu(ROPER, VICTIM);
 ok(has(m, 'capture', 'Tie Up') && !has(m, 'capture', 'Restrain') && !has(m, 'search'), 'with a rope: Tie Up, and no Restrain or Search', m);
 ok(!has(menu(OTHER, VICTIM), 'capture'), 'without a rope: no Tie Up');
+globalThis.__dboRopeCapture = undefined;
+ok(!has(menu(ROPER, VICTIM), 'capture'), 'a captureSystem without rope (no __dboRopeCapture): no Tie Up, even with a rope');
+globalThis.__dboRopeCapture = true;
 at.set(GUARD, [0, 200, 0]);
 m = menu(GUARD, FRIEND);
 ok(m.filter((e) => e.id === 'capture').length === 1 && has(m, 'capture', 'Restrain'), 'a guard carrying rope gets Restrain only, once', m);
@@ -95,6 +99,13 @@ m = menu(ROPER, VICTIM);
 ok(has(m, 'release', 'Untie') && has(m, 'ropeleave', 'Leave Tied Here') && !has(m, 'ropecut'), 'the captor: Untie and Leave Tied Here', m);
 m = menu(FRIEND, VICTIM);
 ok(has(m, 'ropecut', 'Cut Free') && !has(m, 'release'), 'anyone else: Cut Free', m);
+globalThis.__dboRopeCapture = undefined;
+ok(!has(menu(ROPER, VICTIM), 'release') && !has(menu(ROPER, VICTIM), 'ropeleave') && !has(menu(FRIEND, VICTIM), 'ropecut'),
+  'without __dboRopeCapture no rope entry at all: no Untie, Leave Tied Here or Cut Free');
+said.length = 0;
+act(FRIEND, 'ropecut', VICTIM);
+ok(saidTo(FRIEND).some((t) => /cannot be done/.test(t)) && !globalThis.__dboRopeCuts.size, 'and a Cut Free sent anyway is refused');
+globalThis.__dboRopeCapture = true;
 at.set(GUARD, [0, 200, 0]);
 m = menu(GUARD, VICTIM);
 ok(m.filter((e) => e.id === 'release').length === 1 && has(m, 'release', 'Untie') && !has(m, 'ropecut'), 'a guard frees a rope captive with Untie, once, and needs no Cut Free', m);

@@ -75,6 +75,9 @@ module.exports = (api) => {
   const posOf = (a) => { const l = get(a, 'locationalData', null); return l && Array.isArray(l.pos) ? { cell: l.cellOrWorldDesc, pos: l.pos.slice(0, 3) } : null; };
   const units = (p, q) => (!p || !q || p.cell !== q.cell ? Infinity : Math.hypot(p.pos[0] - q.pos[0], p.pos[1] - q.pos[1], p.pos[2] - q.pos[2]));
   const banner = (a, text, seconds) => { try { sendPacket(a, { customPacketType: 'dboBanner', text, seconds }); } catch (e) { /* old client */ } };
+  // Only while captureSystem ties with rope (it sets __dboRopeCapture at init): an older build would answer Tie Up with
+  // "Only guards", so the gameplay half can go live before the fork half
+  const ropeCapture = () => globalThis.__dboRopeCapture === true;
   const anim = (a, ev) => {
     if (!ev) return;
     try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: mp.getDescFromId(a) }, String(ev)]); } catch (e) { log(`rope: ${ev} failed for ${display(a)}: ${e.message}`); }
@@ -176,7 +179,7 @@ module.exports = (api) => {
     }
   };
   const startCut = (a, t) => {
-    if (!CFG.enabled || !CFG.cutFree) return personal(a, 'That cannot be done.');
+    if (!CFG.enabled || !CFG.cutFree || !ropeCapture()) return personal(a, 'That cannot be done.');
     const r = ropeCaptive(t);
     if (!r) return personal(a, 'Only rope can be cut. A guard\'s shackles need the guard, or a jail.');
     if ((Number(r.captorActorId) >>> 0) === (a >>> 0)) return personal(a, 'Untie them instead.');
@@ -242,7 +245,7 @@ module.exports = (api) => {
 
   // ---- the X menu (playermenu.js) ---------------------------------------------------------------------
   globalThis.__dboRopeMenuEntries = (a, t) => {
-    if (!CFG.enabled) return [];
+    if (!CFG.enabled || !ropeCapture()) return [];
     a = a >>> 0; t = t >>> 0;
     if (restraintOf(a)) return [];
     const lawful = get(a, LAWFUL_PROP, false) === true;

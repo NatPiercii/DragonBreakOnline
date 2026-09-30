@@ -139,7 +139,8 @@ module.exports = (api) => {
       entries.push({ id: 'search', label: 'Search' });
       entries.push(r.boundHands ? { id: 'release', label: r.rope === true ? 'Untie' : 'Uncuff' } : { id: 'capture', label: 'Restrain' });
     }
-    try { if (typeof globalThis.__dboRopeMenuEntries === 'function') entries.push(...globalThis.__dboRopeMenuEntries(a, t)); } catch (e) { /* rope not loaded */ }
+    // Rope only once captureSystem ties with rope (__dboRopeCapture, set at its init)
+    try { if (globalThis.__dboRopeCapture === true && typeof globalThis.__dboRopeMenuEntries === 'function') entries.push(...globalThis.__dboRopeMenuEntries(a, t)); } catch (e) { /* rope not loaded */ }
     // Carry is off the menu (Nat, 2026-09-22); Put down stays so a carry already under way can end
     if (r.carried && Number(r.carrierActorId) >>> 0 === a >>> 0) entries.push({ id: 'putdown', label: 'Put down' });
     // Voice volume is a preference on the listener's own PC; offered only while voice chat is on (voiceSystem.ts)
