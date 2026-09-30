@@ -301,6 +301,8 @@ module.exports = (api) => {
   // Wrapped around whatever handler was there before; a reload unwraps its own previous wrapper first
   const prevRead = typeof mp.onReadBook === 'function' ? ('__dboSpellsInner' in mp.onReadBook ? mp.onReadBook.__dboSpellsInner : mp.onReadBook) : null;
   const readHook = function (actorId, baseId, ...rest) {
+    // Smithing manuals and skill books (manuals.js) are asked first: a manual beyond the reader's tier is refused and kept
+    try { if (typeof globalThis.__dboManualsRead === 'function' && globalThis.__dboManualsRead(Number(actorId) >>> 0, Number(baseId) >>> 0) === false) return false; } catch (e) { log('spells: manuals check failed', e.message); }
     let verdict = null;
     try { verdict = judgeRead(Number(actorId) >>> 0, Number(baseId) >>> 0); } catch (e) { log('spells: read check failed', e.stack || e.message); }
     if (verdict && verdict.refuse) return false;

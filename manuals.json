@@ -1,0 +1,175 @@
+{
+ "_comment": "Smithing manuals (manuals.js), from Worker C's table (tools/recipes/manuals.tsv on crafting-tiers). tier is 1-based, from skills.json's Blacksmith list. book and marker (DragonBreak Online Edits.esp) are written from the shipped plugin by verify_recipes.py --manuals-json; until then they are empty and the manual waits.",
+ "manuals": [
+  {
+   "material": "Steel",
+   "name": "Steel",
+   "title": "Thorbald's Methods: Steel",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualSteel",
+   "markerEdid": "DBO_Manual_Steel",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Silver",
+   "name": "Silver",
+   "title": "Silver of the Reach",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualSilver",
+   "markerEdid": "DBO_Manual_Silver",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Chainmail",
+   "name": "Chainmail",
+   "title": "Rings and Rivets",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualChainmail",
+   "markerEdid": "DBO_Manual_Chainmail",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Dwarven",
+   "name": "Dwarven metal",
+   "title": "Thorbald's Methods: Dwarven Metal",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualDwarven",
+   "markerEdid": "DBO_Manual_Dwarven",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Elven",
+   "name": "Elven and gilded",
+   "title": "Thorbald's Methods: Elven and Gilded",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualElven",
+   "markerEdid": "DBO_Manual_Elven",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "BoneAndChitin",
+   "name": "Bonemold and chitin",
+   "title": "Bonemold and Chitin",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualBoneAndChitin",
+   "markerEdid": "DBO_Manual_BoneAndChitin",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Falmer",
+   "name": "Falmer",
+   "title": "What the Deep Elves Forge",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualFalmer",
+   "markerEdid": "DBO_Manual_Falmer",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "AncientNord",
+   "name": "Ancient Nord",
+   "title": "Blades of the Old Nords",
+   "tier": 2,
+   "bookEdid": "DBO_BookManualAncientNord",
+   "markerEdid": "DBO_Manual_AncientNord",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Orcish",
+   "name": "Orcish",
+   "title": "Thorbald's Methods: Orcish",
+   "tier": 3,
+   "bookEdid": "DBO_BookManualOrcish",
+   "markerEdid": "DBO_Manual_Orcish",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "PlateAndScale",
+   "name": "Steel plate and scaled",
+   "title": "Thorbald's Methods: Plate and Scale",
+   "tier": 3,
+   "bookEdid": "DBO_BookManualPlateAndScale",
+   "markerEdid": "DBO_Manual_PlateAndScale",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Nordic",
+   "name": "Nordic",
+   "title": "Carved Nordic Steel",
+   "tier": 3,
+   "bookEdid": "DBO_BookManualNordic",
+   "markerEdid": "DBO_Manual_Nordic",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Glass",
+   "name": "Glass",
+   "title": "Thorbald's Methods: Glass",
+   "tier": 4,
+   "bookEdid": "DBO_BookManualGlass",
+   "markerEdid": "DBO_Manual_Glass",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Ebony",
+   "name": "Ebony",
+   "title": "Thorbald's Methods: Ebony",
+   "tier": 4,
+   "bookEdid": "DBO_BookManualEbony",
+   "markerEdid": "DBO_Manual_Ebony",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Stalhrim",
+   "name": "Stalhrim",
+   "title": "The Ice That Will Not Melt",
+   "tier": 4,
+   "bookEdid": "DBO_BookManualStalhrim",
+   "markerEdid": "DBO_Manual_Stalhrim",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "ShiveringIsles",
+   "name": "Amber and madness",
+   "title": "Amber and Madness",
+   "tier": 4,
+   "bookEdid": "DBO_BookManualShiveringIsles",
+   "markerEdid": "DBO_Manual_ShiveringIsles",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Daedric",
+   "name": "Daedric",
+   "title": "What Thorbald Would Not Write",
+   "tier": 5,
+   "bookEdid": "DBO_BookManualDaedric",
+   "markerEdid": "DBO_Manual_Daedric",
+   "book": "",
+   "marker": ""
+  },
+  {
+   "material": "Dragon",
+   "name": "Dragonbone and dragonscale",
+   "title": "Bone and Scale",
+   "tier": 5,
+   "bookEdid": "DBO_BookManualDragon",
+   "markerEdid": "DBO_Manual_Dragon",
+   "book": "",
+   "marker": ""
+  }
+ ]
+}

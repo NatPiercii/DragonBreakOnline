@@ -515,11 +515,14 @@ module.exports = (api) => {
   };
   // A boss chest or master's body: one boss roll, or in a raid RAID.bossRolls of them (1.5: a second roll half the time;
   // the Ayleid roll once, from the raid table: a better chance and better tiers)
-  const bossLoot = (diff, ok, ayleid, raid, k = NO_TRIM) => {
+  const bossLoot = (diff, ok, ayleid, raid, k = NO_TRIM, province = '') => {
     const entries = chestLoot(diff, true, ok, ayleid, raid, k);
     const rolls = raid ? Math.max(1, Number(RAID.bossRolls) || 1) : 1;
     const extra = Math.floor(rolls - 1) + (Math.random() < (rolls - 1) % 1 ? 1 : 0);
     for (let i = 0; i < extra; i++) for (const e of chestLoot(diff, true, ok, false, false, k)) { const hit = entries.find((x) => x.baseId === e.baseId); if (hit) hit.count += e.count; else entries.push(e); }
+    // A smithing manual now and then (manuals.js): its own pool, by the difficulty and the dungeon's province, once a chest.
+    // Not through `ok`, whose name filter would drop the Ebony manual with the Ebony gear.
+    try { if (typeof globalThis.__dboManualsBossLoot === 'function') addEntry(entries, globalThis.__dboManualsBossLoot(diff.id, province), 1); } catch (e) { log('manual loot failed', e.message); }
     return entries;
   };
   // Urns, sacks, barrels and the like: a little coin or food, now and then a potion or arrows. In an expedition one
@@ -552,7 +555,7 @@ module.exports = (api) => {
       const id = idOf(ch.ref); if (!id) continue;
       const boss = /boss/i.test(ch.edid) || bossRefs.has(normDesc(ch.ref));
       try {
-        const entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k) : chestLoot(diff, false, ok, ayleid, false, k)) : smallLoot(diff, ch.edid, ok, k);
+        const entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k, lease && lease.province) : chestLoot(diff, false, ok, ayleid, false, k)) : smallLoot(diff, ch.edid, ok, k);
         mp.set(id, 'inventory', { entries }); filled++;
         if (lease && entries.length) lease.stocked.add(id);
       } catch (e) { log('chest fill failed', ch.ref, e.message); }
@@ -1485,7 +1488,7 @@ module.exports = (api) => {
     const k = trimFor(d, diff);
     const gear = master ? [] : ((ST.bodyGear.get(targetId >>> 0) || {}).ids || []);
     ST.bodyGear.delete(targetId >>> 0);
-    for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d), k) : corpseLoot(diff, lootOk(lease), k, gear))) {
+    for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d), k, lease && lease.province) : corpseLoot(diff, lootOk(lease), k, gear))) {
       if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); continue; }
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }
