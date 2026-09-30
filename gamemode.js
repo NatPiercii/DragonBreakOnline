@@ -3336,6 +3336,15 @@ const normPlace = (d) => { const s = String(d || ''); const i = s.indexOf(':'); 
 const TAMRIEL_FRAME = new Set(['3c:skyrim.esm', '1a26f:skyrim.esm', '1691d:skyrim.esm', '16bb4:skyrim.esm', '16d71:skyrim.esm', '37edf:skyrim.esm']);
 const REGION_PLUGINS = { 'bsheartland.esm': 'bruma', 'bsassets.esm': 'bruma' };
 const worldKind = new Map();
+// Interiors a zone claims by cell, for ones added in a plugin of our own (the Bruma bank): zone-cells.json, read on
+// every load (zones.json is read once at boot by the fork's zones.ts, so it stays out of this)
+const ZONE_CELLS = (() => {
+  const out = new Map();
+  try { for (const [k, v] of Object.entries(JSON.parse(fs.readFileSync(path.resolve('zone-cells.json'), 'utf8')))) if (k[0] !== '_' && typeof v === 'string') out.set(normPlace(k), v); }
+  catch (e) { log('zone-cells.json unreadable', e.message); }
+  return out;
+})();
+const zoneOfCell = (desc) => ZONE_CELLS.get(normPlace(desc)) || null;
 const isWorldspace = (desc) => {
   const key = normPlace(desc);
   if (!worldKind.has(key)) { let w = false; try { const r = recordOf(mp.getIdFromDesc(desc)); w = !!(r && String(r.record.type) === 'WRLD'); } catch (e) { /* unknown */ } worldKind.set(key, w); }
@@ -3344,6 +3353,7 @@ const isWorldspace = (desc) => {
 const zoneAtPlace = (world, pos) => {
   const w = normPlace(world);
   for (const r of ZONES.regions || []) if ((r.worldspaces || []).map(normPlace).includes(w)) return r.id;
+  if (!isWorldspace(world)) return zoneOfCell(world);
   if (!TAMRIEL_FRAME.has(w) || !Array.isArray(pos)) return null;
   let best = null, bestD = Infinity;
   for (const h of ZONES.holds || []) { if (!Array.isArray(h.capital)) continue; const d = Math.hypot(pos[0] - h.capital[0], pos[1] - h.capital[1]); if (d < bestD) { bestD = d; best = h.id; } }
@@ -3354,12 +3364,14 @@ every('outside', 10000, () => {
     try { const w = String(mp.get(a, 'worldOrCellDesc') || ''); if (w && isWorldspace(w)) mp.set(a, 'private.lastOutside', { world: w, pos: mp.get(a, 'pos') }); } catch (e) { /* next tick */ }
   }
 });
-// The zone a player is in: by worldspace or nearest hold capital outdoors, by owning plugin indoors, else where they last stood outside
+// The zone a player is in: by worldspace or nearest hold capital outdoors, by zone-cells.json or owning plugin
+// indoors, else where they last stood outside
 const zoneOfActor = (a) => {
   let world = '', pos = null;
   try { world = String(mp.get(a, 'worldOrCellDesc') || ''); pos = mp.get(a, 'pos'); } catch (e) { return null; }
   let zone = null;
   if (isWorldspace(world)) zone = zoneAtPlace(world, pos);
+  else zone = zoneOfCell(world);
   if (!zone) zone = REGION_PLUGINS[normPlace(world).split(':')[1]] || null;
   if (!zone) { let last = null; try { last = mp.get(a, 'private.lastOutside'); } catch (e) { /* none */ } if (last && last.world) zone = zoneAtPlace(last.world, last.pos); }
   return zone;
