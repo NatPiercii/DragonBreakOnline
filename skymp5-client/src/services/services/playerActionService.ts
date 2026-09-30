@@ -8,11 +8,14 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { isOwnCompanion } from "./companionService";
 import { isTradeInviteWaiting } from "./tradeService";
+import { XSkipInfo, XSkipReason, createXDiagLog } from "./xMenuDiag";
 
 // for the browser-side widget setter (executed inside the CEF browser)
 declare const window: any;
 
 const WIDGET_ID = 10;
+// Data\Platform\Logs\dbo-diag-logs.txt, which Report a Problem sends
+const DIAG_LOG = "dbo-diag";
 const MASK_TOGGLE_COOLDOWN_MS = 1500;
 
 interface PlayerAction {
@@ -66,6 +69,18 @@ export class PlayerActionService extends ClientListener {
   }
 
   private interactKey: number = DxScanCode.X;
+  // Why an X press sent no menu request (#bugs 1554355554967625758): throttled lines in dbo-diag-logs.txt
+  private xSkipLog = createXDiagLog((line) => {
+    logTrace(this, line);
+    try {
+      (this.sp as unknown as { writeLogs: (plugin: string, ...rest: unknown[]) => void }).writeLogs(DIAG_LOG, line);
+    } catch (e) {
+      // An older SkyrimPlatform without writeLogs: the console still has it
+    }
+  });
+  private xSkip(reason: XSkipReason, info?: XSkipInfo): void {
+    try { this.xSkipLog(reason, info); } catch { /* a diagnostic never breaks the key */ }
+  }
   private maskKey: number = DxScanCode.H;
 
   private onButtonEvent(e: ButtonEvent): void {
@@ -81,13 +96,16 @@ export class PlayerActionService extends ClientListener {
     // H pulls a mask up or down; the gamemode dresses the character and swaps the shown name
     const hPressed = e.device === InputDeviceType.Keyboard && e.code === this.maskKey;
     if ((!xPressed && !hPressed) || this.menuOpen) {
+      if (xPressed) this.xSkip("menu open");
       return;
     }
     // A waiting trade request takes the interact key (TradeService gives it the cursor)
     if (xPressed && isTradeInviteWaiting()) {
+      this.xSkip("invite waiting");
       return;
     }
     if (isMenuHotkeyBlocked(this.sp, this.controller)) {
+      if (xPressed) this.xSkip("hotkey blocked");
       return;
     }
     if (hPressed) {
@@ -101,11 +119,12 @@ export class PlayerActionService extends ClientListener {
     // The activate key fires on everything; only player characters are ours,
     // the rest passes through to normal activation without a word.
     const ref = this.sp.Game.getCurrentCrosshairRef();
-    if (!ref || ref.getFormID() === 0x14) return;
+    if (!ref) { this.xSkip("crosshair null"); return; }
+    if (ref.getFormID() === 0x14) { this.xSkip("crosshair on self"); return; }
     const actor = Actor.from(ref);
-    if (!actor) return;
+    if (!actor) { this.xSkip("not an actor", { crosshairId: ref.getFormID() }); return; }
     const remoteId = localIdToRemoteId(ref.getFormID());
-    if (!remoteId || remoteId < 0xff000000) return;
+    if (!remoteId || remoteId < 0xff000000) { this.xSkip("not a synced actor", { crosshairId: ref.getFormID(), remoteId }); return; }
     // Your own summon or companion takes orders from the same menu
     if (isOwnCompanion(remoteId) && !actor.isDead()) {
       this.playerTarget = remoteId;
@@ -121,7 +140,7 @@ export class PlayerActionService extends ClientListener {
       return;
     }
     // Server-spawned creatures and NPCs share the id space and get no menu
-    if (!isRemotePlayerCharacter(remoteId)) return;
+    if (!isRemotePlayerCharacter(remoteId)) { this.xSkip("not a player", { crosshairId: ref.getFormID(), remoteId, name: ref.getDisplayName() }); return; }
 
     // Belt and braces next to the prompt service's block: no clone dialogue.
     try { ref.blockActivation(true); } catch { /* unloaded ref */ }
