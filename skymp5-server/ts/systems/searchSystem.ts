@@ -12,7 +12,7 @@ type Mp = any;
 // Consent-gated search of another player's inventory via the VANILLA container window: on accept the server marks the searcher as the target's inventory occupant (setInventoryOccupant native), which authorizes the engine's PutItem/TakeItem, and tells the searcher's client to open the target's inventory.
 // Item moves ride the normal server-validated container-sync path; if the pair separates, the session ends and the client closes the window.
 // Dead bodies (players or spawned NPCs) open at once without consent; the searcher may take and put items like vanilla looting.
-// A dead player's body gives up a limited number of distinct items (a stack counts once); the take that reaches the limit closes the window and respawns the player, which removes the body.
+// A dead player's body goes to the gamemode's __dboLootBody when it is loaded; otherwise it gives up a limited number of distinct items (a stack counts once), and the take that reaches the limit closes the window and respawns the player.
 //
 // Wire protocol - every message is a CustomPacket carrying JSON:
 //   Client -> Server:
@@ -215,6 +215,14 @@ export class SearchSystem implements System {
     const targetActorId = toFormId(content.target);
     if (!this.validTarget(ctx, searcherActorId, targetActorId)) {
       this.notice(ctx, userId, "Look at a player or a body to search.");
+      return;
+    }
+    // A body follows the gamemode's body rule, the same as pressing E on it
+    const lootBody = (globalThis as any).__dboLootBody;
+    if (typeof lootBody === "function" && this.isDead(ctx, targetActorId)) {
+      let handled: unknown;
+      try { handled = lootBody(targetActorId, searcherActorId); } catch (e) { this.log(`[search] body loot failed: ${e}`); }
+      if (handled === undefined) this.notice(ctx, userId, "There is nothing to search.");
       return;
     }
     // Searching a living player is a guard's job; bodies stay open to everyone under the take limit
