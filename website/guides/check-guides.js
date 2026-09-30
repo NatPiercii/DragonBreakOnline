@@ -16,7 +16,9 @@ const MORE = [
   ['/guides/factions.html', 'Holds &amp; Factions Guide'], ['/guides/supernatural.html', 'Supernatural Guide'],
   ['/guides/rules.html', 'Server Rules'],
 ];
-const ALLOWED = new Set(['/', '/index.html', '/guides/', '/guides/index.html', ...MORE.map(([h]) => h)]);
+// The site's legal pages, linked from every footer (terms.html and privacy.html sit at the site root)
+const SITE = ['/terms.html', '/privacy.html'];
+const ALLOWED = new Set(['/', '/index.html', '/guides/', '/guides/index.html', ...SITE, ...MORE.map(([h]) => h)]);
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 // Elements HTML lets you leave open; the pages close them anyway, so they are checked like the rest
 
