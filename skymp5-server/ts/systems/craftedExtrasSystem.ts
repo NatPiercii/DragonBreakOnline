@@ -70,6 +70,10 @@ const TEMPER_SUFFIX = /\s\((Fine|Superior|Exquisite|Flawless|Epic|Legendary)\)$/
 // A poison OnEquip consumed stays claimable this long, since the report can wait for the inventory menu to close
 const POISON_CREDIT_MS = 10 * 60 * 1000;
 const MAX_POISON_CREDITS = 8;
+// Work an accepted change is worth to the skill that made it (masterySystem's award, 0.5 to 3 units): an enchantment by
+// the soul spent (petty 1.4 .. grand 3), a temper by the steps it rose (one step 1)
+const ENCHANT_WORK_PER_SOUL = 0.4;
+const TEMPER_WORK_PER_STEP = 0.5;
 
 interface Cap {
   magnitude: number;
@@ -131,6 +135,9 @@ interface Plan {
   soul: SoulSource | null;
   credit: PoisonCredit | null;
   notes: string[];
+  // What was paid for, for the skills' credit: the soul size of a new enchantment and the temper steps gained (0 none)
+  enchantSoul: number;
+  temperSteps: number;
 }
 
 const NO_STATION: Station = { enchanting: false, temperBenches: [], temperCap: 10, enchantMargin: 0 };
@@ -226,6 +233,7 @@ export class CraftedExtrasSystem implements System {
         }
         this.commit(plan, added);
         this.log(`[crafted] ${hex(actorId)} ${hex(plan.entry.baseId)}: ${plan.notes.join(", ")} {${describeExtras(plan.entry).join(", ")}}`);
+        this.creditWork(actorId, plan);
       }
     }
     this.creditsOf(actorId);
@@ -334,6 +342,7 @@ export class CraftedExtrasSystem implements System {
     const notes: string[] = [];
     let soul: SoulSource | null = null;
     let credit: PoisonCredit | null = null;
+    let enchantSoul = 0, temperSteps = 0;
 
     // Souls only arrive through the soul trap system, and plugin enchantments never change
     if ((g.soul || 0) !== (s.soul || 0) || (g.enchantmentId || 0) !== (s.enchantmentId || 0)) return null;
@@ -359,6 +368,7 @@ export class CraftedExtrasSystem implements System {
       if (name) out.name = name;
       else delete out.name;
       notes.push(`enchanted with a size ${soul.size} soul`);
+      enchantSoul = soul.size;
     } else if (!sameFloat(s.maxCharge || 0, g.maxCharge || 0)) {
       return null;
     }
@@ -371,6 +381,7 @@ export class CraftedExtrasSystem implements System {
       if (toStep < fromStep || target <= fromStep || !this.reserveTemper(ctx, s.baseId, station, pool, reserve)) return null;
       out.health = target / 10;
       notes.push(`tempered to ${out.health}`);
+      temperSteps = target - fromStep;
     }
 
     const fromPoison = s.poisonId || 0;
@@ -414,7 +425,7 @@ export class CraftedExtrasSystem implements System {
       }
     }
 
-    return notes.length ? { entry: out, reserve, soul, credit, notes } : null;
+    return notes.length ? { entry: out, reserve, soul, credit, notes, enchantSoul, temperSteps } : null;
   }
 
   // Something vanilla pays for (an enchantment, tempering, a new poison) rather than wear from use or Soul Siphon charge
@@ -654,6 +665,20 @@ export class CraftedExtrasSystem implements System {
     }
     this.recipes = recipes;
     return recipes;
+  }
+
+  // An accepted enchantment is Enchanter work and an accepted temper Blacksmith work, inside the Wheel's hourly and daily
+  // limits (masterySystem's award); the same item again counts less. Nothing else reached those skills from a bench.
+  private creditWork(actorId: number, plan: Plan): void {
+    const award = (globalThis as any).__alduinakMasteryAward;
+    if (typeof award !== "function") return;
+    const key = plan.entry.baseId >>> 0;
+    try {
+      if (plan.enchantSoul > 0) award(actorId, "enchanter", Math.min(3, 1 + ENCHANT_WORK_PER_SOUL * plan.enchantSoul), key);
+      if (plan.temperSteps > 0) award(actorId, "blacksmith", Math.min(3, 0.5 + TEMPER_WORK_PER_STEP * plan.temperSteps), key);
+    } catch (e) {
+      this.log(`[crafted] ${hex(actorId)}: skill credit failed: ${e}`);
+    }
   }
 
   // Unused, unexpired credits; the live list, so a committed plan marks its credit used
