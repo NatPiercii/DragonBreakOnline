@@ -245,7 +245,7 @@ module.exports = (api) => {
       if (r.missed) { r.bad = 'extra'; break; }
       const d = Math.abs(markerOn(t, round.sweeps, hitAt) - round.bands[r.hits]);
       r.last = t;
-      if (d > round.half + 1e-9) { r.missed = true; continue; }
+      if (d > round.half) { r.missed = true; continue; }
       r.err += d / round.half;
       r.hits++;
       hitAt.push(t);
