@@ -4,6 +4,35 @@ Status: built and tested on 30 September 2026, reviewed the same day (below). It
 copies of the world. It waits for Nate's go, and runs under a claim with 0 players and a backup taken first. The launch
 script is `/home/nate/claude-nate-release/alpha-reset-launch.sh` (claude-nate).
 
+## What the reset does (Nate's decisions, 30 September 2026)
+
+The launch runs `--stats full` only. Every character keeps its name, race, look, character slot and Patreon perks, and
+starts the alpha with this:
+
+| Reset | How, mirroring the game's own code |
+|---|---|
+| Stats: every Wheel skill, the character level and its points | `--stats full`: the skill record, `dboLevel` and `dboAvBonus` removed |
+| Learned spells, magic schools, the spellbook and prepared spells, smithing manuals, recipes, scholar reads | removed; every spell from a skill, a tome, a study or staff taken back |
+| Inventories, equipped gear, gold, the bank | the starter kit (below), worn |
+| Every container (house, business and faction chests, barrels, the staff supply chest) | emptied, never refilled |
+| **Vampirism, lycanthropy, the vampire disease**, however they came (rite, staff, a bite), and a beast form held at the snapshot | made mortal as the game cures one: beastform.js `revert` (the kept look back, the form's spells unlearned), supernatural.js `endCurse` (`clearTells`: the character's own eyes with their HNAM extra parts, skin and skin tone; the vampire's stage spells; `setLookRace` to the mortal race; the beast power; `washBlood`) and `cureDisease`. Then the curse's record, the Great Hunt renown, the blood rank, the rite clocks and the grant flags go. Both transform powers go from everyone |
+| **Faith** | as prayer.js `resetDeity` sets a god aside: no deity, so no conversion clock; blessing, offering and shrine rests cleared; the old faith kept in `dboDeityHistory` |
+| **Houses and claimed containers** | as housingSystem.ts `release()` gives one up: an ownerless stub (serial + 1, no key names issued, unlocked, unnamed), owner index "0", the registry (`housing.json`) emptied. Gold held for an inn's owner and the owner's own bed go with the claim. Any official can grant them again |
+| **Businesses** | as business.js `close`: the placed ledger deleted, the record gone, no takings held for anyone |
+| **Tenancies** | the tenant, offer, interest, deposit held and rent clock go; the official's listing and terms stay for a new tenant |
+| **Guild membership** | `guilds.json` and `faction-storage.json` emptied, each character's mirror cleared |
+| Bed rents, chest rentals, commissions, contracts, owed wages | ended or cleared |
+| Treasuries | 10,000 per hold, faction treasuries 0 |
+| Staff grants | taken back (skills, spells, beast powers, shouts, admin modes) |
+| The Blood Crown | released |
+
+Kept: names, appearance (less a curse's changes), race (the mortal one), character slots, Patreon perks, letters,
+cooldowns (dungeons, mining, the scholar's daily caps, death chill), hunger, hold offices and hold tax rates.
+
+**Check by hand**: a record the cure cannot restore is listed, never guessed: a werewolf or Vampire Lord race with no
+kept look, or a curse's eyes with no kept eye to put back. So is a character restrained, jailed or permanently dead.
+None on 30 September.
+
 ## Two ways to treat stats: `--stats earned` or `--stats full`
 
 The public announcement says: *"all character stats and items will be reset ... your characters will carry over into
@@ -14,8 +43,7 @@ alpha with their stats and inventories reset."* This tool was first built to kee
 | `earned` (default) | Kept, less what staff set or granted | Kept, less staff grants and the markers of lowered skills | Kept |
 | `full` (the announcement) | Removed: every skill back to 0, level 1, no points | Every spell from a skill, a tome, a study or staff goes | Removed |
 
-Either way everything in the tables below that is not a stat is treated the same, and spells a kept rite gave (a
-vampire's stage spells, the werewolf's change, the vampirism disease) stay.
+Either way everything that is not a stat is treated the same (the table above). The launch script passes `full` only.
 
 ## Review of 30 September (claude-nate), fixed on `work-alpha-reset-fixes`
 
@@ -36,8 +64,7 @@ vampire's stage spells, the werewolf's change, the vampirism disease) stay.
 - **Admin modes** (`ff_adminModes`, god mode and the like) are cleared.
 - Characters still restrained, jailed, in a beast form or permanently dead are listed under "check by hand" (none on 30 Sep).
 
-`alpha_reset.py` keeps every character and what it earned by playing. It puts items, storage and gold back to the
-start, and takes back what staff granted:
+The first design, before Nate's decisions of 30 September (superseded where the table above differs):
 
 | Kept | Reset | Taken back (staff grants, from the audit log) |
 |---|---|---|
@@ -99,6 +126,20 @@ nothing back twice: taking a skill that went 35 → 5 back again would leave it 
      on the same account, were test characters and stay staff-only. The account made 78 panel actions, 22-26 Sep.
    An entry that matches no character is named in the report, so a mistyped tag or profile shows.
 4. **Treasuries go back to the 10,000 seed.**
+
+## The dry run (30 Sep 17:01 UTC snapshot, `--stats full`, with Nate's decisions)
+
+- **Characters:** 37 kept (15 deleted records skipped): 5,915 gold carried and 303 banked, 5,496 items in 965 stacks.
+- **Made mortal:** 14 characters. 3 vampires (all pure-bloods: vampiretestcharacter #2UBX, the crown holder, Viggo
+  #UFHK, Vaeric Goldenshaft #FLC7), 2 werewolves (GM swag #5YMX, Julius Draconis #8KWH), 2 carrying the vampire
+  disease (Purr #7DJT, Sabrina Longshaft #HAUY), 5 staff-granted beast powers, 2 with only traces. None in a beast form,
+  none for a check by hand. The five looks restored: mortal race, own eyes (with the blind-eye extra part on #2UBX),
+  skin and tone.
+- **Faith:** 28 characters' gods set aside.
+- **Property:** 14 claims released (8 door pairs, 1 single door, 5 claimed containers) on 5 accounts; 3 of them were missing from
+  `housing.json`. 1 business closed (Catfight Club, its ledger deleted). 3 bed rents ended. Nobody was in a guild.
+- **Containers:** 762 emptied, 105,713 items. **Spells taken back:** 1,840 from 31 characters.
+- **Apply on a sandbox copy:** 823 files written, every record parses, a replan finds nothing left, a second apply is refused.
 
 ## The dry run (30 Sep 16:00 UTC snapshot, after the review's fixes)
 

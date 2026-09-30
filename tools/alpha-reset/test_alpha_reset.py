@@ -100,6 +100,85 @@ def world2_fixture(root):
             json.dump(v, fh)
 
 
+# ---- Nate, 2026-09-30: every character a plain mortal, no deity, no house, no business, no guild ----
+TONE = 'Actors\\Character\\Character Assets\\TintMasks\\SkinTone.dds'
+LIPS = 'Actors\\Character\\Character Assets\\TintMasks\\MaleLips.dds'
+BLOOD_LIPS = ar.i32(0xc0500808)
+
+
+def world3_fixture(root):
+    cf = os.path.join(root, 'state', 'world', 'changeForms'); os.makedirs(cf)
+    srv = os.path.join(root, 'server'); os.makedirs(srv)
+
+    def form(name, d, char=True):
+        base = {'recType': 1 if char else 0, 'formDesc': name[:-5].replace('_', ':'), 'baseDesc': '7:Skyrim.esm', 'isDeleted': False,
+                'isDisabled': char, 'baseContainerAdded': True, 'inv': {'entries': []}, 'dynamicFields': {}, 'profileId': -1, 'learnedSpells': []}
+        base.update(d)
+        with open(os.path.join(cf, name), 'w') as fh:
+            fh.write(json.dumps(base, indent=2))
+    tints = lambda tone, lips: [{'texturePath': TONE, 'type': 6, 'argb': tone}, {'texturePath': LIPS, 'type': 1, 'argb': lips}]
+    # Rite: a pure-blood by Molag Bal's rite, stage 3, the crown's holder, blood on the lips, the vampire race and eyes
+    form('70.json', {'profileId': 30, 'learnedSpells': [0x8D5C1, 0xED0A6, 0xC4DE1, 0xC4DE2],
+                     'appearanceDump': {'name': 'Rite', 'raceId': 0x88794, 'isFemale': False, 'headpartIds': [0x51631, 0xE7AEB, 0x8555F],
+                                        'skinColor': 14274253, 'tints': tints(-1, BLOOD_LIPS)},
+                     'equipmentDump': {'rightSpell': 0x8D5C1, 'inv': {'entries': []}},
+                     'dynamicFields': {'private.charTag': 'RITE', 'private.bloodRanks': {'blood': 20, 'fedOn': {}}, 'private.riteFailedAt': 5,
+                                       'private.supernatural': {'kind': 'vampire', 'pure': True, 'stage': 3, 'lastFed': 45.7, 'spells': [0x8D5C1, 0xED0A6, 0xC4DE1, 0xC4DE2],
+                                                                'look': {'eye': 0xE7AEB, 'kind': 'vampire', 'prevEye': 0x51630, 'prevExtras': [0x24238], 'prevSkin': 13021352, 'prevTone': -3755864},
+                                                                'blood': {'prev': [{'texturePath': LIPS, 'type': 1, 'argb': 12345, 'applied': BLOOD_LIPS}]}}}})
+    # Fever: Sanguinare Vampiris incubating, no curse yet
+    form('71.json', {'profileId': 31, 'learnedSpells': [0xB8780], 'appearanceDump': {'name': 'Fever', 'raceId': 0x13745, 'headpartIds': [0x51616]},
+                     'dynamicFields': {'private.charTag': 'FEVR', 'private.supernatural': {'kind': None, 'disease': {'kind': 'vampire', 'played': 0.03, 'by': 'Rite'}}}})
+    # Wolf: a werewolf by Hircine's rite (a record from before prevExtras), the Hunt's renown
+    form('72.json', {'profileId': 32, 'learnedSpells': [0x92C48], 'appearanceDump': {'name': 'Wolf', 'raceId': 0x13741, 'headpartIds': [0x51633, 0x24245]},
+                     'dynamicFields': {'private.charTag': 'WOLF', 'private.greatHunt': {'renown': 2, 'changeDay': 46, 'changesPaid': 1},
+                                       'private.supernatural': {'kind': 'werewolf', 'beastDay': 46, 'beastDayUses': 1, 'look': {'eye': 0x24245, 'kind': 'werewolf', 'prevEye': 0x51457}}}})
+    # Granted: staff gave both beast powers, no curse on record
+    form('73.json', {'profileId': 33, 'learnedSpells': [0x92C48, 0x0200283B], 'appearanceDump': {'name': 'Granted', 'raceId': 0x13746, 'headpartIds': []},
+                     'dynamicFields': {'private.charTag': 'GRNT', 'private.werewolfGrant': True, 'private.vampireLordGrant': True}})
+    # Beast: in werewolf form at the snapshot, the form's spells learned, the real look kept in private.beast
+    form('74.json', {'profileId': 34, 'learnedSpells': [0x92C48, 0xCF791, 0xF3F0A],
+                     'appearanceDump': {'name': 'Beast', 'raceId': 0xCDD84, 'headpartIds': [], 'tints': []},
+                     'dynamicFields': {'private.charTag': 'BEST', 'private.beast': {'form': 'werewolf', 'at': 1, 'until': 2,
+                                                                                    'original': {'name': 'Beast', 'raceId': 0x13741, 'headpartIds': [0x51633, 0x24245], 'skinColor': 5, 'tints': []}},
+                                       'private.supernatural': {'kind': 'werewolf', 'look': {'eye': 0x24245, 'kind': 'werewolf', 'prevEye': 0x51457, 'prevExtras': []}}}})
+    # Stuck: the werewolf race and a vampire's eyes in the record, with nothing kept to restore: a check by hand
+    form('75.json', {'profileId': 35, 'appearanceDump': {'name': 'Stuck', 'raceId': 0xCDD84, 'headpartIds': [0xE7AEB]},
+                     'dynamicFields': {'private.charTag': 'STUK'}})
+    # Pilgrim: a faith with its blessing, an offering and shrine rests, a guild, a bed rented, a house and an inn
+    form('76.json', {'profileId': 36, 'appearanceDump': {'name': 'Pilgrim', 'raceId': 0x13746, 'headpartIds': []},
+                     'dynamicFields': {'private.charTag': 'PILG', 'private.dboGuilds': ['fighters'], 'private.dboRentBed': {'bed': 0x1B004, 'until': 5},
+                                       'private.dboDeity': {'id': 'arkay', 'name': 'Arkay', 'kind': 'divine', 'at': 1000, 'convertedAt': 1000},
+                                       'private.dboBlessing': {'deity': 'arkay', 'spell': 5, 'until': 9e12}, 'private.dboOffering': {'deityId': 'arkay', 'gold': 10, 'until': 9e12},
+                                       'private.prayedShrines': {'shrine1': 1}}})
+    # Property: a door pair (the record on the lower id, a pointer on the far side), a claimed chest, an old stub, a rented bed, a ledger
+    form('1b000_Skyrim.esm.json', {'dynamicFields': {'private.housing': {'owner': 36, 'ownerName': 'Pilgrim #PILG', 'name': 'Home', 'locked': True, 'serial': 3,
+                                                                         'partner': 0x1B001, 'containers': [], 'issued': ['Key to Home']},
+                                                     'private.indexed.housingOwner': '36', 'private.dboRestOwed': 40, 'private.dboInnOwnerBed': {'bed': 0x1B004, 'owner': 36}}}, char=False)
+    form('1b001_Skyrim.esm.json', {'dynamicFields': {'private.housing': {'primary': 0x1B000}}}, char=False)
+    form('1b002_Skyrim.esm.json', {'inv': {'entries': [{'baseId': 0xF, 'count': 99}]},
+                                   'dynamicFields': {'private.housing': {'owner': 30, 'ownerName': 'Rite #RITE', 'name': None, 'locked': True, 'serial': 1, 'partner': 0, 'containers': [], 'issued': None},
+                                                     'private.indexed.housingOwner': '30'}}, char=False)
+    form('1b003_Skyrim.esm.json', {'dynamicFields': {'private.housing': {'owner': 0, 'ownerName': '', 'serial': 5, 'partner': 0}}}, char=False)
+    form('1b004_Skyrim.esm.json', {'dynamicFields': {'private.dboRent': {'renter': 0xFF000076, 'name': 'Pilgrim', 'until': 5}}}, char=False)
+    form('1dc.json', {'baseDesc': '106a68:Skyrim.esm', 'dynamicFields': {'private.dboBizLedger': '1b000'}}, char=False)
+    form('1dd.json', {'baseDesc': '106a68:Skyrim.esm', 'dynamicFields': {'private.dboBizLedger': {'claim': '1b000'}}}, char=False)   # placed twice, forgotten
+    games = {'gamemode-config.json': {}, 'skills.json': {'tierHours': [0, 10, 30, 70, 150], 'pointSystem': {'capPerSkill': 100}},
+             'admin-powers.json': {'spells': [], 'werewolf': '92c48:Skyrim.esm', 'vampirelord': '283b:Dawnguard.esm'},
+             'supernatural.json': {'crown': {'holder': 0xFF000070, 'name': 'Rite'}, 'revoke': []},
+             'housing.json': [0x1B000, 0x1B002, 0x1B0FF],
+             'businesses.json': {'businesses': {'1b000': {'name': 'The Inn', 'owner': 36, 'ownerName': 'Pilgrim #PILG', 'owed': 5, 'staff': [{'profile': 30, 'name': 'Rite'}],
+                                                          'chests': {}, 'ledger': {'ref': 'ff0001dc', 'pos': [0, 0, 0]}, 'log': []}}, 'owedTo': {'7': 3}},
+             'tenancy.json': {'listings': {'1b000': {'door': 0x1B000, 'zone': 'bruma', 'deposit': 100, 'weekly': 10, 'listedBy': {'profile': 5}, 'interest': [{'profile': 9}],
+                                                     'offer': {'party': {'profile': 9}, 'until': 5}, 'tenant': {'profile': 36, 'name': 'Pilgrim'}, 'depositHeld': 100,
+                                                     'paidUntil': 5, 'overdueSince': 4}}, 'owed': [{'tag': 'PILG', 'gold': 3}]},
+             'guilds.json': {'fighters': {str(0xFF000076): {'rank': 'member', 'name': 'Pilgrim'}}},
+             'faction-storage.json': {'fighters': {'ref': '1b002'}}}
+    for n, v in games.items():
+        with open(os.path.join(srv, n), 'w') as fh:
+            json.dump(v, fh)
+
+
 TRAIL2 = [
     ('2026-09-23 18:00:00', 'GM Gaul #GAUL (profile 21, <@3>) admin panel: masterySetTier target=ff000060 skill=unarmed tier=4'),
     ('2026-09-28 20:00:00', 'GM Gaul #GAUL (profile 21, <@3>) admin panel: masterySetTier target=ff000060 skill=scholar tier=2'),
@@ -213,8 +292,9 @@ def main():
         by2 = [c for c in p['characters'] if c['name'] == 'Bystander'][0]
         check('a character nobody touched has no staff changes', not by2['skills'] and not by2['removeSpells'] and not by2['clearFlags'] and not by2['levelReset'])
         crown = [c for c in p['characters'] if c['name'] == 'Crown'][0]
-        check('the Blood Crown is released: its holder gives up the Vampire Lord power and the staff flag, keeps the vampirism',
-              crown['removeSpells'] == [0x0200283B] and crown['clearFlags'] == ['private.vampireLordGrant'] and 'vampire' in crown.get('keptSupernatural', ''), crown)
+        check('the Blood Crown is released and its holder made mortal: the Vampire Lord power, the staff flag and the vampirism go',
+              crown['removeSpells'] == [0x0200283B] and crown['clearFlags'] == ['private.vampireLordGrant'] and 'pure-blood vampire' in crown['cure']['was']
+              and 'held the Blood Crown' in crown['cure']['was'] and 'private.supernatural' in crown['cure']['fields'], crown)
         conts = {c['form']: c for c in p['world']['containers']}
         check('containers with items are emptied, the supply chest flagged; empty ones and NPC bodies left',
               set(conts) == {'12ae13:DragonBreak Online Edits.esp', 'a1:Skyrim.esm'} and conts['12ae13:DragonBreak Online Edits.esp']['supply'], list(conts))
@@ -270,14 +350,14 @@ def main():
         check('the dropped item is marked deleted', json.load(open(os.path.join(cf, '2a9.json')))['isDeleted'] is True)
         srv = os.path.join(root, 'server')
         biz = json.load(open(os.path.join(srv, 'businesses.json')))
-        b = biz['businesses']['8000eeb']
-        check('business: takings 0, rentals ended, owedTo empty, a line in its log', b['owed'] == 0 and 'renter' not in b['chests']['aa'] and b['chests']['aa']['price'] == 5 and biz['owedTo'] == {} and b['log'], biz)
+        check('business: closed as business.js closes one, no takings held for anyone', biz == {'businesses': {}, 'owedTo': {}}, biz)
         com = json.load(open(os.path.join(srv, 'commissions.json')))
         check('commissions: the open one cancelled, the finished one left, owed dropped', [c['state'] for c in com['list']] == ['cancelled', 'done'] and com['owed'] == [], com)
         check('contracts cleared', json.load(open(os.path.join(srv, 'contracts.json'))) == {'contracts': [], 'taken': {}})
         check('the Blood Crown is vacant', json.load(open(os.path.join(srv, 'supernatural.json'))) == {'crown': None, 'revoke': []})
         ten = json.load(open(os.path.join(srv, 'tenancy.json')))
-        check('tenancy: the deposit held is 0, the tenant stays', ten['listings']['x1']['depositHeld'] == 0 and ten['listings']['x1']['tenant'] == {'profile': 9} and ten['owed'] == [], ten)
+        check('tenancy: the tenant and the deposit held go with the released house, the official\'s listing and terms stay',
+              ten['listings']['x1']['depositHeld'] == 0 and 'tenant' not in ten['listings']['x1'] and ten['listings']['x1']['deposit'] == 100 and ten['owed'] == [], ten)
         eco = json.load(open(os.path.join(srv, 'economy.json')))
         check('economy: owed and overdue dropped, rates kept', eco['owed'] == {} and eco['overdue'] == {} and eco['rates'] == {'x': 0.1}, eco)
         check('the originals are kept beside the world', os.path.exists(os.path.join(root, 'alpha-reset-originals', 'changeForms', '53.json')) and os.path.exists(os.path.join(root, 'alpha-reset-originals', 'server', 'bank.json')))
@@ -341,12 +421,12 @@ def main():
         check('22 of 24 staff spells with no line in the logs: an old-server "give all spells", taken back; the studied tome spell stays',
               set(old['removeSpells']) == set(STAFF24[:22]) and any('before the logs' in x for x in old['staff']), [hex(x) for x in old['removeSpells']])
         fang = cq['Fang']
-        check('earned mode: a vampire by rite keeps its drain, its tome spell and its own scholar marker', not fang['removeSpells'], fang['removeSpells'])
+        check('earned mode: a vampire by rite is made mortal (the drain goes); its tome spell and its own scholar marker stay', set(fang['removeSpells']) == {DRAIN} and fang.get('cure'), fang['removeSpells'])
         check('the default is earned', q['stats'] == 'earned')
         full = ar.plan(ar.World(root2), t2, FakeLO2(), stats='full')
         cf2 = {c['name']: c for c in full['characters']}
-        check('full: Fang loses the tome spell and the scholar marker, keeps the drain from the rite',
-              set(cf2['Fang']['removeSpells']) == {TOME, MK[('scholar', 1)]} and cf2['Fang']['keptSpells'] == [DRAIN] and 'vampire' in cf2['Fang'].get('keptSupernatural', ''), cf2['Fang'])
+        check('full: Fang loses the tome spell, the scholar marker and the drain; nothing is kept',
+              set(cf2['Fang']['removeSpells']) == {TOME, MK[('scholar', 1)], DRAIN} and cf2['Fang']['keptSpells'] == [] and cf2['Fang'].get('cure'), cf2['Fang'])
         check('full: every skill goes and the level fields are cleared', cf2['Fang']['dropSkills'] == ['scholar'] and set(cf2['Fang']['clearFields']) == {'private.mastery', 'private.dboLevel', 'private.dboAvBonus', 'private.dboStudied'}, cf2['Fang'])
         check('full: Old loses the staff spells and the studied tome spell, and its study and school records',
               set(cf2['Old']['removeSpells']) == set(STAFF24[:22]) | {TOME} and {'private.dboStudied', 'private.scholarReads', 'private.dboSchools'} <= set(cf2['Old']['clearFields']), cf2['Old'])
@@ -365,7 +445,7 @@ def main():
         check('full: no skill record, no level, the marker says full', 'private.mastery' not in c60['dynamicFields'] and 'private.dboLevel' not in c60['dynamicFields']
               and c60['dynamicFields']['private.alphaReset']['stats'] == 'full', c60['dynamicFields'])
         c62 = json.load(open(os.path.join(cf2d, '62.json')))
-        check('full: the vampire keeps the drain and its rite state', c62['learnedSpells'] == [DRAIN] and c62['dynamicFields']['private.supernatural']['kind'] == 'vampire', c62)
+        check('full: the vampire is mortal: no spells, no curse record', c62['learnedSpells'] == [] and 'private.supernatural' not in c62['dynamicFields'], c62)
         check('the deleted character\'s record is byte-identical', open(os.path.join(cf2d, '63.json')).read() == gone_before)
         # earned mode on a fresh copy: the lowered skill's rank and granted list follow
         root3 = os.path.join(tmp, 'sandbox3'); os.makedirs(root3)
@@ -375,6 +455,72 @@ def main():
         m60 = json.load(open(os.path.join(root3, 'state', 'world', 'changeForms', '60.json')))['dynamicFields']['private.mastery']
         check('earned: scholar at 5, Novice, granted only its T1 marker; unarmed set aside',
               m60['skills']['scholar']['level'] == 5 and m60['skills']['scholar']['rank'] == 0 and m60['skills']['scholar']['granted'] == [MK[('scholar', 1)]] and 'unarmed' not in m60['skills'], m60)
+        # ---- every character a plain mortal; no deity, house, business or guild (Nate, 2026-09-30) ----
+        root4 = os.path.join(tmp, 'sandbox4'); os.makedirs(root4)
+        world3_fixture(root4)
+        empty = ar.parse_trail([])
+        r = ar.plan(ar.World(root4), empty, FakeLO(), stats='full')
+        rc = {c['name']: c for c in r['characters']}
+        check('a pure-blood by rite, a fever, a werewolf, a staff grant and one in beast form are all to be made mortal',
+              all(rc[x].get('cure') for x in ('Rite', 'Fever', 'Wolf', 'Granted', 'Beast')), {x: rc[x].get('cure') for x in rc})
+        check('...and a record with a beast race and a curse\'s eyes but nothing kept is listed for a check by hand, not guessed',
+              len(rc['Stuck']['cure']['check']) == 2 and rc['Stuck']['cure']['appearance'] is None, rc['Stuck'].get('cure'))
+        hsg = r['world']['housing']
+        check('every owned claim is to be released (the door pair\'s record and the chest), the stub and the pointer left; the stale registry id named',
+              sorted(c['form'] for c in hsg['claims']) == ['1b000:Skyrim.esm', '1b002:Skyrim.esm'] and hsg['registryWithoutClaim'] == [0x1B0FF] and hsg['pointers'] == 1, hsg)
+        check('the business\'s tagged ledger is found', r['files']['businesses.json']['businesses'][0]['ledgerFile'] == '1dc.json', r['files']['businesses.json'])
+        cf4 = os.path.join(root4, 'state', 'world', 'changeForms')
+        untouched = {n: open(os.path.join(cf4, n)).read() for n in ('1b001_Skyrim.esm.json', '1b003_Skyrim.esm.json')}
+        ar.apply(ar.World(root4), r, tmp)
+        J = lambda n: json.load(open(os.path.join(cf4, n)))
+        rite = J('70.json'); app = rite['appearanceDump']; rdf = rite['dynamicFields']
+        check('rite vampire: the mortal race, its own eyes with their extra part, skin and tone back, the blood washed off',
+              app['raceId'] == 0x13746 and app['headpartIds'] == [0x51631, 0x51630, 0x24238, 0x8555F] and app['skinColor'] == 13021352
+              and app['tints'][0]['argb'] == -3755864 and app['tints'][1]['argb'] == 12345, app)
+        check('...no stage spells, no drain in hand, no curse, blood rank or rite clock', rite['learnedSpells'] == [] and rite['equipmentDump']['rightSpell'] == 0
+              and not any(k in rdf for k in ('private.supernatural', 'private.bloodRanks', 'private.riteFailedAt')), rdf)
+        fev = J('71.json')
+        check('fever: Sanguinare Vampiris gone and the record cleared, the look untouched', fev['learnedSpells'] == [] and 'private.supernatural' not in fev['dynamicFields']
+              and fev['appearanceDump'] == {'name': 'Fever', 'raceId': 0x13745, 'headpartIds': [0x51616]}, fev)
+        wolf = J('72.json')
+        check('werewolf: its own eyes back, no Beast Form power, no Hunt renown', wolf['appearanceDump']['headpartIds'] == [0x51633, 0x51457] and wolf['learnedSpells'] == []
+              and 'private.greatHunt' not in wolf['dynamicFields'] and 'private.supernatural' not in wolf['dynamicFields'], wolf)
+        gr = J('73.json')
+        check('staff-granted beast: both powers and both grant flags gone', gr['learnedSpells'] == [] and not any(k in gr['dynamicFields'] for k in ('private.werewolfGrant', 'private.vampireLordGrant')), gr)
+        be = J('74.json')
+        check('in beast form: the kept look back (then its own eyes), the form\'s spells and the form record gone',
+              be['appearanceDump']['raceId'] == 0x13741 and be['appearanceDump']['headpartIds'] == [0x51633, 0x51457] and be['appearanceDump']['skinColor'] == 5
+              and be['learnedSpells'] == [] and 'private.beast' not in be['dynamicFields'], be)
+        st = J('75.json')
+        check('the unrecoverable record is left for the hand check', st['appearanceDump']['raceId'] == 0xCDD84 and st['appearanceDump']['headpartIds'] == [0xE7AEB])
+        pg = J('76.json')['dynamicFields']
+        check('faith set aside as prayer.js resetDeity does: no god, no conversion clock, the old faith in the history',
+              pg['private.dboDeity'] is None and pg['private.dboDeityHistory'][-1]['id'] == 'arkay' and pg['private.dboDeityHistory'][-1]['resetBy'] == 'the alpha reset'
+              and pg['private.dboBlessing'] is None and pg['private.dboOffering'] is None and pg['private.prayedShrines'] == {}, pg)
+        check('no guild, no bed rented', pg['private.dboGuilds'] == [] and 'private.dboRentBed' not in pg, pg)
+        door = J('1b000_Skyrim.esm.json')['dynamicFields']
+        check('the house is released as housingSystem release() leaves it: an ownerless stub, serial on, no keys issued, unlocked, unnamed, index 0',
+              door['private.housing'] == {'owner': 0, 'ownerName': '', 'name': None, 'locked': False, 'serial': 4, 'partner': 0x1B001, 'containers': [], 'issued': []}
+              and door['private.indexed.housingOwner'] == '0', door)
+        check('...its held rent and the inn owner\'s bed go with it', 'private.dboRestOwed' not in door and 'private.dboInnOwnerBed' not in door, door)
+        chest = J('1b002_Skyrim.esm.json')
+        check('the claimed chest is released and emptied', chest['dynamicFields']['private.housing']['owner'] == 0 and chest['dynamicFields']['private.housing']['serial'] == 2
+              and chest['inv']['entries'] == [], chest)
+        check('the far door\'s pointer and the old stub are byte-identical', all(open(os.path.join(cf4, n)).read() == v for n, v in untouched.items()))
+        check('the bed\'s rent is gone', 'private.dboRent' not in J('1b004_Skyrim.esm.json')['dynamicFields'])
+        check('the business\'s ledger is deleted, and the forgotten second ledger with it', J('1dc.json')['isDeleted'] is True and J('1dd.json')['isDeleted'] is True)
+        srv4 = os.path.join(root4, 'server')
+        G = lambda n: json.load(open(os.path.join(srv4, n)))
+        check('housing.json, guilds.json and faction-storage.json are empty; the business is closed',
+              G('housing.json') == [] and G('guilds.json') == {} and G('faction-storage.json') == {} and G('businesses.json') == {'businesses': {}, 'owedTo': {}})
+        tl = G('tenancy.json')['listings']['1b000']
+        check('the listing stays for the officials, with no tenant, offer, interest, deposit held or rent clock',
+              tl == {'door': 0x1B000, 'zone': 'bruma', 'deposit': 100, 'weekly': 10, 'listedBy': {'profile': 5}, 'interest': [], 'depositHeld': 0}, tl)
+        check('the crown is vacant', G('supernatural.json') == {'crown': None, 'revoke': []})
+        r2 = ar.plan(ar.World(root4), empty, FakeLO(), stats='full')
+        check('planned again: nobody to cure but the hand-check record, no claims, no faith, no business',
+              [c['name'] for c in r2['characters'] if c.get('cure')] == ['Stuck'] and not r2['world']['housing']['claims']
+              and not any(c.get('faith') for c in r2['characters']) and r2['files']['businesses.json']['businesses'] == [], [c['name'] for c in r2['characters'] if c.get('cure')])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print('all passed' if not failures else f'{failures} FAILED')

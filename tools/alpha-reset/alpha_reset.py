@@ -9,7 +9,8 @@
 #   python3 alpha_reset.py apply --root DIR [--grants grants.json] [--stats earned|full] --report report.md         writes
 #
 # --stats full is the alpha announcement ("all character stats and items will be reset"): every skill, level point and
-# learned spell goes as well. --stats earned (the default) keeps the skills earned by playing.
+# learned spell goes as well. --stats earned (the default) keeps the skills earned by playing. Either way (Nate,
+# 2026-09-30): every character a plain mortal, no deity, no house, no business, no guild.
 #
 # DIR has the layout of a world snapshot (tools/backups/dbo_backup.py restore): DIR/state/world/changeForms/*.json,
 # DIR/state/*.json and DIR/server/*.json. The live paths are refused unless --live is given, the game server is
@@ -84,6 +85,190 @@ def desc_key(s):
         return '%x:%s' % (int(a, 16), b.lower())
     except ValueError:
         return s.lower()
+
+
+# ---- the curse, as supernatural.js and beastform.js hold it (origin/server f47c0d4b) ------------------------------------
+# Nate, 2026-09-30: every character starts the alpha a plain mortal. The cure below mirrors the game's own path, step for
+# step: beastform.js revert (the kept appearance back, the form's spells unlearned), then supernatural.js endCurse
+# (clearTells, the vampire's stage spells, setLookRace to the mortal race, the crown, the blood rank, the beast power,
+# the Hunt's renown, washBlood) and cureDisease (Sanguinare Vampiris). Form ids as those files name them.
+SANGUINARE = 'b8780:Skyrim.esm'
+BEAST_POWER = '92c48:Skyrim.esm'
+VL_POWER = '283b:Dawnguard.esm'
+BEAST_RACES = {'cdd84:Skyrim.esm': 'werewolf', '283a:Dawnguard.esm': 'Vampire Lord'}
+# mortal race -> its vampire variant (supernatural.js VAMPIRE_RACES)
+VAMPIRE_RACES = [('13746', '88794'), ('13744', '88844'), ('13741', '8883c'), ('13748', '88846'), ('13743', '88840'),
+                 ('13742', '8883d'), ('13749', '88884'), ('13747', 'a82b9'), ('13740', '8883a'), ('13745', '88845')]
+# VAMP_DRAIN, VAMP_THRALL, VAMP_SIGHT, VAMP_SEDUCTION, VAMP_EMBRACE (supernatural.js VAMP_ALL)
+VAMP_SPELLS = ['8d5bf', '8d5c0', '8d5c1', '8d5c2', 'ed0a4', 'ed0a5', 'ed0a6', 'ed0a7', 'c4de1', 'c4de2', '88821']
+# beastform.js ABILITIES: every spell a form learns for its length
+BEAST_ABILITIES = {
+    'vampirelord': ['19324:Dawnguard.esm', '13ecb:Dawnguard.esm', '8a6f:Dawnguard.esm', '16909:Dawnguard.esm', '38b7:Dawnguard.esm',
+                    '38b9:Dawnguard.esm', '38ba:Dawnguard.esm', '38bc:Dawnguard.esm', '38b8:Dawnguard.esm', 'cd5c:Dawnguard.esm',
+                    '126b8:Dawnguard.esm', '126b7:Dawnguard.esm', '59a1:Dawnguard.esm', 'e7da:Dawnguard.esm'],
+    'werewolf': ['cf791:Skyrim.esm', 'ce217:Skyrim.esm', 'f3f0a:Skyrim.esm', '106396:Skyrim.esm'],
+}
+# supernatural.js TELL_EYES: the eyes a curse puts in; one still worn with no kept look to restore is for a check by hand
+TELL_EYES = ['24245', '40224', '51627', '40209', '2425e', '401a7', '9250a', '40222', 'ee873', 'ee87d', '9d5fa', 'a2f13',
+             'e7aeb', '7291e', '4020e', '107b98', 'ee875', 'ee87f', '9d76b', 'a2f12']
+TINT_LIPS, TINT_CHIN, TINT_DIRT = 1, 11, 14
+BLOOD_DEFAULT = {'lips': 0xc0500808, 'chin': 0x90400606}
+# Everything on a character that belongs to the curse, its hunt, its blood and its rites: gone with it
+CURSE_FIELDS = ('private.supernatural', 'private.beast', 'private.greatHunt', 'private.bloodRanks', 'private.riteFailedAt',
+                'private.riteUnmarkedAt', 'private.werewolfGrant', 'private.vampireLordGrant')
+
+
+def u32(x):
+    return int(x) & 0xFFFFFFFF
+
+
+def i32(x):
+    """JS (Number(x) >>> 0) | 0: the signed 32-bit value tints store."""
+    x = int(x) & 0xFFFFFFFF
+    return x - 0x100000000 if x & 0x80000000 else x
+
+
+def curse_ids(lo):
+    """Runtime ids of everything the cure takes back, and the races and eyes it recognises."""
+    sk = lambda h: lo.id_of(f'{h}:Skyrim.esm') if lo else 0
+    vr = {sk(m): sk(v) for m, v in VAMPIRE_RACES}
+    vr = {m: v for m, v in vr.items() if m and v}
+    return {
+        'sanguinare': lo.id_of(SANGUINARE) if lo else 0,
+        'beastPower': lo.id_of(BEAST_POWER) if lo else 0,
+        'vlPower': lo.id_of(VL_POWER) if lo else 0,
+        'vampSpells': {sk(h) for h in VAMP_SPELLS} - {0},
+        'abilities': {k: {lo.id_of(x) for x in v} - {0} for k, v in BEAST_ABILITIES.items()} if lo else {},
+        'beastRaces': {lo.id_of(k): v for k, v in BEAST_RACES.items() if lo and lo.id_of(k)},
+        'mortalOf': {v: m for m, v in vr.items()},
+        'tellEyes': {sk(h) for h in TELL_EYES} - {0},
+    }
+
+
+def clear_tells(app, look):
+    """supernatural.js clearTells: the eye the curse put in goes back to the character's own, with the extra parts
+    (HNAM) that went with it, and the skin and skin tone come back."""
+    if not isinstance(look, dict) or not isinstance(app, dict) or not isinstance(app.get('headpartIds'), list):
+        return False
+    heads = app['headpartIds']
+    have = {u32(h) for h in heads}
+    extras = [x for x in (look.get('prevExtras') if isinstance(look.get('prevExtras'), list) else []) if u32(x) not in have]
+    eye = u32(look.get('eye') or 0)
+    out = []
+    for h in heads:
+        if u32(h) == eye:
+            out.append(look.get('prevEye'))
+            out.extend(extras)
+        else:
+            out.append(h)
+    app['headpartIds'] = out
+    if 'prevSkin' in look:
+        app['skinColor'] = look['prevSkin']
+    if 'prevTone' in look:
+        app['tints'] = [dict(x, argb=look['prevTone']) if re.search(r'SkinTone\.dds$', str((x or {}).get('texturePath') or ''), re.I) else x
+                        for x in (app.get('tints') or [])]
+    return True
+
+
+def wash_blood(app, blood, colours_cfg):
+    """supernatural.js washBlood: the tint layers the blood covered get their own colours back. Returns 'clean',
+    'partial' (a layer could not be matched while blood colours remain) or '' (no blood)."""
+    if not isinstance(blood, dict):
+        return ''
+    prev = blood.get('prev') if isinstance(blood.get('prev'), list) else []
+    colours = {i32(p['applied']) for p in prev if isinstance(p, dict) and p.get('applied') is not None}
+    colours |= {i32(colours_cfg.get('lips', BLOOD_DEFAULT['lips'])), i32(colours_cfg.get('chin', BLOOD_DEFAULT['chin']))}
+    if not isinstance(app, dict) or not isinstance(app.get('tints'), list):
+        return 'partial'
+    tints = [dict(x) for x in app['tints']]
+    used, remaining, restored = set(), [], 0
+    for p in prev:
+        i = next((j for j, x in enumerate(tints) if j not in used and x.get('texturePath') == p.get('texturePath') and int(x.get('type') or 0) == int(p.get('type') or 0)), -1)
+        if i < 0:
+            i = next((j for j, x in enumerate(tints) if j not in used and int(x.get('type') or 0) == int(p.get('type') or 0) and i32(x.get('argb') or 0) in colours), -1)
+        if i < 0:
+            remaining.append(p)
+            continue
+        used.add(i)
+        tints[i]['argb'] = p.get('argb')
+        restored += 1
+    if restored:
+        app['tints'] = tints
+    still = any(int(x.get('type') or 0) in (TINT_LIPS, TINT_CHIN, TINT_DIRT) and i32(x.get('argb') or 0) in colours for x in tints)
+    return 'partial' if remaining and still else 'clean'
+
+
+def plan_cure(d, K, blood_cfg):
+    """A plain mortal: the look the curse changed, the spells it gave, and the fields it kept. Returns the plan entry
+    (None when there is nothing of a curse on the character) and the spells to take back."""
+    import copy
+    df = d.get('dynamicFields') or {}
+    app0 = d.get('appearanceDump') if isinstance(d.get('appearanceDump'), dict) else None
+    app = copy.deepcopy(app0)
+    s = df.get('private.supernatural') if isinstance(df.get('private.supernatural'), dict) else None
+    beast = df.get('private.beast')
+    was, check, remove = [], [], set()
+    # 1. beastform.js revert: the appearance kept at the change comes back, the form's spells go
+    if isinstance(beast, dict) and beast.get('form') and isinstance(beast.get('original'), dict):
+        app = copy.deepcopy(beast['original'])
+        was.append(f'in {beast["form"]} form')
+        remove |= K['abilities'].get(beast['form'], set())
+    elif beast:
+        check.append('private.beast holds no kept appearance to revert to')
+    if s:
+        kind = s.get('kind')
+        if kind:
+            was.append(('pure-blood ' if s.get('pure') else '') + kind + (f' (stage {s.get("stage")})' if kind == 'vampire' and s.get('stage') else ''))
+        # 2. endCurse: clearTells, then the vampire's stage spells and mortal race, the werewolf's beast power, washBlood
+        if s.get('look'):
+            clear_tells(app, s['look'])
+        if kind == 'vampire':
+            remove |= {u32(x) for x in (s.get('spells') or [])}
+        if kind == 'werewolf':
+            remove.add(K['beastPower'])
+        if s.get('blood'):
+            if wash_blood(app, s['blood'], blood_cfg) == 'partial':
+                check.append('blood on the face could not all be washed off (washBlood kept a layer)')
+        # 3. cureDisease
+        dis = s.get('disease')
+        if isinstance(dis, dict) and dis.get('kind'):
+            was.append(f'carrying the {dis["kind"]} disease')
+            if dis['kind'] == 'vampire':
+                remove.add(K['sanguinare'])
+    # setLookRace(false): a vampire race goes back to its mortal race, whatever the state says
+    if app and app.get('raceId') is not None:
+        r = u32(app['raceId'])
+        if r in K['mortalOf']:
+            app['raceId'] = K['mortalOf'][r]
+            if not s or s.get('kind') != 'vampire':
+                was.append('a vampire race with no curse on record')
+        elif r in K['beastRaces']:
+            check.append(f'the record holds the {K["beastRaces"][r]} race and no kept look to revert to')
+    if app and isinstance(app.get('headpartIds'), list):
+        left = [h for h in app['headpartIds'] if u32(h) in K['tellEyes']]
+        if left:
+            check.append('still wears a curse\'s eyes with no kept look to restore (' + ', '.join('%x' % u32(h) for h in left) + ')')
+    # A plain mortal holds none of these, however they came: the powers, the stage spells, the disease, both forms' spells
+    remove |= {K['sanguinare'], K['beastPower'], K['vlPower']} | K['vampSpells'] | {x for v in K['abilities'].values() for x in v}
+    remove.discard(0)
+    fields = [k for k in CURSE_FIELDS if k in df and df.get(k) not in (None, False)]
+    changed_look = app != app0
+    held = remove & {u32(x) for x in d.get('learnedSpells') or []}
+    if not (was or check or fields or changed_look or held):
+        return None, remove
+    # What the character was, for the counts: a curse, a disease, a beast form, a staff grant, or only traces of one
+    kinds = []
+    if isinstance(beast, dict) and beast.get('form'):
+        kinds.append('in a beast form')
+    if s and s.get('kind'):
+        kinds.append(s['kind'])
+    if s and isinstance(s.get('disease'), dict) and s['disease'].get('kind'):
+        kinds.append(f'{s["disease"]["kind"]} disease')
+    if not kinds and (df.get('private.werewolfGrant') or df.get('private.vampireLordGrant') or held & {K['beastPower'], K['vlPower']}):
+        kinds.append('staff-granted beast power')
+    if not kinds:
+        kinds.append('traces only (an empty curse record, a rite clock, a stray spell)')
+    return {'was': was, 'kinds': kinds, 'appearance': app if changed_look else None, 'fields': fields, 'check': check}, remove
 
 
 def load_config(path=CONFIG):
@@ -420,6 +605,8 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
     tome_spells = {lo.id_of(desc_key(t['spellId'])) for t in (tomes.get('tomes') or [] if isinstance(tomes, dict) else [])
                    if lo and isinstance(t, dict) and t.get('spellId')} - {0}
     events = staff_events(trail, world)
+    K = curse_ids(lo)
+    blood_cfg = ((cfg.get('supernatural') or {}).get('blood') or {}) if isinstance(cfg.get('supernatural'), dict) else {}
     out = {'kit': kit, 'characters': [], 'world': {}, 'files': {}, 'notes': [], 'alreadyReset': [], 'stats': stats,
            'deletedCharacters': len(getattr(world, 'deleted_chars', []))}
 
@@ -473,17 +660,17 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
         if got_spells:
             remove |= {s for s in spells_now if s in admin_spells and s not in kept_ids}
         flags = []
-        werewolf_by_rite = ((df.get('private.supernatural') or {}).get('kind') == 'werewolf')
         if df.get('private.werewolfGrant') or (not done and any(g['action'] == 'giveWerewolf' for g in events.get(n, []))):
             flags.append('private.werewolfGrant')
-        # The beast forms: taken back unless a rite made the character a werewolf. The Vampire Lord power goes from
-        # everyone, since the Blood Crown is released (Nate, 2026-09-30) and staff grants are taken back; vampirism from
-        # a rite stays. A grant made before the flags existed shows only as the power itself.
-        if werewolf_power and not werewolf_by_rite:
-            remove.add(werewolf_power)
         actor_id = 0xFF000000 | int(n[:-5], 16) if re.match(r'^[0-9a-f]+\.json$', n) else 0
         if df.get('private.vampireLordGrant') or (not done and any(g['action'] == 'giveVampireLord' for g in events.get(n, []))):
             flags.append('private.vampireLordGrant')
+        # Every character a plain mortal (Nate, 2026-09-30): vampirism, lycanthropy and the disease go however they came
+        # (a rite, staff, a bite), with the beast powers, the stage spells, the look, the Hunt, the blood and the rites
+        cure, cure_spells = plan_cure(d, K, blood_cfg)
+        remove |= cure_spells
+        if werewolf_power:
+            remove.add(werewolf_power)
         if vl_power:
             remove.add(vl_power)
         if df.get('private.dboAllShouts') or (not done and any(g['action'] == 'giveShouts' for g in events.get(n, []))):
@@ -494,7 +681,7 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
         c['clearFields'] = []
         if stats == 'full':
             # Every skill and level point back to the start, and every spell that came from a skill, a tome, a study or
-            # staff; spells a kept rite gave (the vampire's stage spells, the werewolf's change, the disease) stay
+            # staff (the curse's spells go with the cure above)
             c['statsWere'] = {'skills': {k: int((p or {}).get('level') or 0) for k, p in skills_rec.items() if int((p or {}).get('level') or 0) > 0},
                               'level': (df.get('private.dboLevel') or {}).get('level') if isinstance(df.get('private.dboLevel'), dict) else None,
                               'avBonus': {k: v for k, v in (df.get('private.dboAvBonus') or {}).items() if v} if isinstance(df.get('private.dboAvBonus'), dict) else {}}
@@ -512,15 +699,29 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
         c['clearFlags'] = flags
         # A level earned partly from staff hours is earned again from the kept skills (charlevel.js only ever raises it)
         c['levelReset'] = stats != 'full' and any((x.get('to') or 0) < (x.get('from') or 0) for x in ch) and isinstance(df.get('private.dboLevel'), dict)
-        sup = df.get('private.supernatural') or {}
-        if sup.get('kind'):
-            c['keptSupernatural'] = sup['kind'] + (' (pure-blood)' if sup.get('pure') else '') + ('; gives up the Blood Crown' if crown_holder == actor_id else '')
+        if cure:
+            if crown_holder and crown_holder == actor_id:
+                cure['was'].append('held the Blood Crown')
+            c['cure'] = cure
+        # Faith (Nate, 2026-09-30: every character starts with no deity), as prayer.js resetDeity sets a god aside: the
+        # faith with its conversion clock, a running blessing, a waiting offering, the shrine rests; the old faith goes
+        # into private.dboDeityHistory
+        faith = df.get('private.dboDeity')
+        if isinstance(faith, dict) and faith.get('id'):
+            c['faith'] = {'id': faith.get('id'), 'name': faith.get('name') or faith.get('id'), 'at': faith.get('at')}
+        c['faithFields'] = [k for k in ('private.dboBlessing', 'private.dboOffering') if df.get(k)] + (['private.prayedShrines'] if df.get('private.prayedShrines') else [])
+        # Guild membership (guilds.js keeps it in guilds.json by actor id and mirrors it here)
+        if df.get('private.dboGuilds'):
+            c['guilds'] = df.get('private.dboGuilds')
+        # A bed rented in an inn (rest.js): the rent ledger goes, the bed's side is cleared with the world below
+        if df.get('private.dboRentBed'):
+            c['bedRent'] = df.get('private.dboRentBed')
         # A masked character is unmasked in the record: the mask item goes with the inventory, and a remembered lost
         # mask (private.maskLost) would refuse every mask from then on (playermenu.js mask)
         if str(df.get('maskName') or ''):
             c['unmask'] = str(df.get('maskName'))
         # Still in a state the reset does not undo: listed so the reviewer sees it (none on 30 Sep)
-        c['watch'] = [k for k in ('private.restrained', 'private.beast', 'private.dboSentence', 'private.dboCell', 'private.permaDead') if df.get(k)]
+        c['watch'] = [k for k in ('private.restrained', 'private.dboSentence', 'private.dboCell', 'private.permaDead') if df.get(k)]
         out['characters'].append(c)
 
     # ---- the world: every container and store emptied, items lying on the ground removed ----
@@ -542,6 +743,38 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
     out['world']['containers'] = containers
     out['world']['droppedItems'] = dropped_items
 
+    # ---- property: every claim released (Nate, 2026-09-30: every character starts with no house and no business) ----
+    # housingSystem.ts release(): reKey (serial + 1, no key names issued; the keys went with the inventories and
+    # containers), then an ownerless stub with no name and no lock. The stub stays on the door so the serial survives
+    # and no key cut before the reset opens it again; the owner index goes to "0" and the registry forgets the door.
+    # rest.js's gold held for an owner and the owner's own bed ride on the claim door, and go with the claim.
+    def runtime_id(n, d):
+        form = str(d.get('formDesc') or '')
+        if ':' in form:
+            return lo.id_of(form) if lo else 0
+        return (0xFF000000 | int(form, 16)) if re.match(r'^[0-9a-fA-F]+$', form) else 0
+    registry = world.game_json('housing.json')
+    registry_ids = [u32(x) for x in registry] if isinstance(registry, list) else []
+    claims, pointers, claim_fields = [], 0, []
+    for n, d in world.forms.items():
+        df = d.get('dynamicFields') or {}
+        rec = df.get('private.housing')
+        if isinstance(rec, dict) and not rec.get('primary') and int(rec.get('owner') or 0) != 0:
+            claims.append({'file': n, 'form': d.get('formDesc'), 'id': runtime_id(n, d), 'owner': int(rec.get('owner') or 0),
+                           'ownerName': rec.get('ownerName') or '', 'name': rec.get('name'), 'partner': int(rec.get('partner') or 0),
+                           'serial': int(rec.get('serial') or 1)})
+        elif isinstance(rec, dict) and rec.get('primary'):
+            pointers += 1
+        if any(df.get(k) for k in ('private.dboRestOwed', 'private.dboInnOwnerBed')):
+            claim_fields.append({'file': n, 'form': d.get('formDesc'), 'fields': [k for k in ('private.dboRestOwed', 'private.dboInnOwnerBed') if df.get(k)]})
+    known = {c['id'] for c in claims}
+    out['world']['housing'] = {'claims': claims, 'registry': registry_ids, 'registryWithoutClaim': [x for x in registry_ids if x not in known],
+                               'claimsNotInRegistry': [c['form'] for c in claims if c['id'] not in registry_ids], 'pointers': pointers,
+                               'claimDoorFields': claim_fields, 'hasRegistry': isinstance(registry, list)}
+    # Beds rented in an inn (rest.js private.dboRent on the bed): the rent is gold paid, and goes like the bank
+    out['world']['bedRents'] = [{'file': n, 'form': d.get('formDesc'), 'rent': (d.get('dynamicFields') or {}).get('private.dboRent')}
+                                for n, d in world.forms.items() if n not in world.chars and (d.get('dynamicFields') or {}).get('private.dboRent')]
+
     # ---- the gameplay files that hold gold or items ----
     zones = world.game_json('zones.json', {}) or {}
     seed = int(((cfg.get('banks') or {}).get('seedGold')) or seed_default)
@@ -553,14 +786,40 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
                               'to': {'zones': {z: seed for z in treasury_zones}, 'factions': {}}}
     biz = world.game_json('businesses.json')
     if isinstance(biz, dict):
+        # business.js close: the placed ledger is deleted and the record goes; the claim it stood on is released above,
+        # so the place is a plain property again for whoever is granted it next
         rows = []
+        by_form = {str(d.get('formDesc') or '').lower(): n for n, d in world.forms.items()}
         for k, b in (biz.get('businesses') or {}).items():
-            rented = [ref for ref, ch in (b.get('chests') or {}).items() if isinstance(ch, dict) and ch.get('renter') is not None]
-            rows.append({'business': b.get('name'), 'owner': b.get('ownerName'), 'owed': b.get('owed', 0), 'rentalsEnded': rented})
+            ledger = str(((b.get('ledger') or {}) if isinstance(b.get('ledger'), dict) else {}).get('ref') or '')
+            lfile = None
+            if ledger:
+                lid = int(ledger, 16) & 0xFFFFFFFF
+                cand = '%x.json' % (lid & 0xFFFFFF) if lid >> 24 == 0xFF else None
+                if cand and cand in world.forms and (world.forms[cand].get('dynamicFields') or {}).get('private.dboBizLedger'):
+                    lfile = cand
+            rows.append({'key': k, 'business': b.get('name'), 'owner': b.get('owner'), 'ownerName': b.get('ownerName'), 'owed': b.get('owed', 0),
+                         'staff': len(b.get('staff') or []), 'ledger': ledger or None, 'ledgerFile': lfile,
+                         'rentalsEnded': [ref for ref, ch in (b.get('chests') or {}).items() if isinstance(ch, dict) and ch.get('renter') is not None]})
+            if ledger and not lfile:
+                out['notes'].append(f'business {b.get("name")}: its ledger ref {ledger} has no tagged change form; nothing of it to delete')
         files['businesses.json'] = {'businesses': rows, 'owedTo': biz.get('owedTo') or {}}
+    # A placed ledger no business points at any more (a lost record, a ledger placed twice) goes the same way
+    referenced = {r['ledgerFile'] for r in (files.get('businesses.json') or {}).get('businesses') or [] if r.get('ledgerFile')}
+    out['world']['orphanLedgers'] = sorted(n for n, d in world.forms.items() if not d.get('isDeleted') and n not in referenced
+                                           and (d.get('dynamicFields') or {}).get('private.dboBizLedger'))
     ten = world.game_json('tenancy.json')
     if isinstance(ten, dict):
-        files['tenancy.json'] = {'deposits': {k: v.get('depositHeld', 0) for k, v in (ten.get('listings') or {}).items() if v.get('depositHeld')}, 'owed': ten.get('owed') or []}
+        # The official's listing (terms, door, who listed it) stays for the next tenant; the tenant, the offer, the
+        # interest, the deposit held and the rent clock go, since the house itself is released
+        files['tenancy.json'] = {'deposits': {k: v.get('depositHeld', 0) for k, v in (ten.get('listings') or {}).items() if v.get('depositHeld')},
+                                 'tenants': {k: (v.get('tenant') or {}).get('name') for k, v in (ten.get('listings') or {}).items() if v.get('tenant')},
+                                 'listings': len(ten.get('listings') or {}), 'owed': ten.get('owed') or []}
+    # Guild membership (guilds.js) and the factions' storage records (claimed containers, released above)
+    for f in ('guilds.json', 'faction-storage.json'):
+        v = world.game_json(f)
+        if isinstance(v, dict) and v:
+            files[f] = {'entries': sum(len(x) if isinstance(x, dict) else 1 for x in v.values())}
     com = world.game_json('commissions.json')
     if isinstance(com, dict):
         files['commissions.json'] = {'cancelled': [c.get('id') for c in com.get('list') or [] if c.get('state') in ('open', 'taken', 'refused')], 'owed': com.get('owed') or []}
@@ -631,6 +890,10 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
 
 
 # ---- apply ----------------------------------------------------------------------------------------------------------
+def now_ms():
+    return int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+
+
 def apply(world, p, report_dir):
     """Writes the plan into the world's files; the originals go to <root>/alpha-reset-originals first."""
     if p.get('alreadyReset'):
@@ -656,7 +919,7 @@ def apply(world, p, report_dir):
             shutil.copy2(src, os.path.join(keep, 'server', name))
         tmp = src + '.alpha.tmp'
         with open(tmp, 'w', encoding='utf-8') as fh:
-            fh.write(json.dumps(v, indent=indent))
+            fh.write(json.dumps(v, indent=indent) if indent is not None else json.dumps(v))
         os.replace(tmp, src)
         written.append('server/' + name)
 
@@ -709,6 +972,27 @@ def apply(world, p, report_dir):
         if c['levelReset']:
             df['private.dboLevel'] = {'level': 1, 'pending': 0, 'spent': {'health': 0, 'magicka': 0, 'stamina': 0}}
             df['private.dboAvBonus'] = {'health': 0, 'magicka': 0, 'stamina': 0}
+        cure = c.get('cure')
+        if cure:
+            if cure.get('appearance') is not None:
+                app = dict(cure['appearance'])
+                if c.get('unmask'):
+                    app['name'] = c['unmask']
+                d['appearanceDump'] = app
+            for k in cure.get('fields') or []:
+                df.pop(k, None)
+        if c.get('faith'):
+            # prayer.js resetDeity: raw null writes, the old faith into the history
+            hist = df.get('private.dboDeityHistory') if isinstance(df.get('private.dboDeityHistory'), list) else []
+            f = c['faith']
+            df['private.dboDeityHistory'] = (hist + [{'id': f['id'], 'name': f['name'], 'from': int(f.get('at') or 0), 'to': now_ms(), 'resetBy': 'the alpha reset'}])[-20:]
+            df['private.dboDeity'] = None
+        for k in c.get('faithFields') or []:
+            df[k] = {} if k == 'private.prayedShrines' else None
+        if c.get('guilds'):
+            df['private.dboGuilds'] = []
+        if c.get('bedRent'):
+            df.pop('private.dboRentBed', None)
         save_form(c['file'], d)
     for ct in p['world']['containers']:
         d = world.forms[ct['file']]
@@ -720,27 +1004,59 @@ def apply(world, p, report_dir):
         d = world.forms[it['file']]
         d['isDeleted'] = True
         save_form(it['file'], d)
+    # ---- property ----
+    hs = p['world'].get('housing') or {}
+    for cl in hs.get('claims') or []:
+        d = world.forms[cl['file']]
+        df = d.setdefault('dynamicFields', {})
+        rec = dict(df.get('private.housing') or {})
+        rec['serial'] = int(rec.get('serial') or 1) + 1
+        rec['issued'] = []
+        rec.update({'owner': 0, 'ownerName': '', 'name': None, 'locked': False})
+        df['private.housing'] = rec
+        df['private.indexed.housingOwner'] = '0'
+        save_form(cl['file'], d)
+    for cf_ in hs.get('claimDoorFields') or []:
+        d = world.forms[cf_['file']]
+        for k in cf_['fields']:
+            (d.get('dynamicFields') or {}).pop(k, None)
+        save_form(cf_['file'], d)
+    if hs.get('hasRegistry'):
+        save_game('housing.json', [], indent=None)
+    for br in p['world'].get('bedRents') or []:
+        d = world.forms[br['file']]
+        (d.get('dynamicFields') or {}).pop('private.dboRent', None)
+        save_form(br['file'], d)
     files = p['files']
+    for f in ('guilds.json', 'faction-storage.json'):
+        if f in files:
+            save_game(f, {})
     if 'bank.json' in files:
         bank = world.game_json('bank.json')
         bank['zones'] = files['bank.json']['to']['zones']; bank['factions'] = {}
         save_game('bank.json', bank)
+    for n in p['world'].get('orphanLedgers') or []:
+        d = world.forms[n]
+        d['isDeleted'] = True
+        save_form(n, d)
     if 'businesses.json' in files:
+        # business.js close, for every business: the ledger deleted, the record gone, no takings held for anyone
+        for row in files['businesses.json']['businesses']:
+            if row.get('ledgerFile'):
+                d = world.forms[row['ledgerFile']]
+                d['isDeleted'] = True
+                save_form(row['ledgerFile'], d)
         biz = world.game_json('businesses.json')
-        for b in (biz.get('businesses') or {}).values():
-            b['owed'] = 0
-            for ch in (b.get('chests') or {}).values():
-                if isinstance(ch, dict):
-                    for k in ('renter', 'renterName', 'until', 'lapsed'):
-                        ch.pop(k, None)
-            b['log'] = (b.get('log') or []) + [{'at': int(datetime.datetime.now().timestamp() * 1000), 'text': 'The alpha reset cleared the takings and ended every chest rental'}]
+        biz['businesses'] = {}
         biz['owedTo'] = {}
         save_game('businesses.json', biz)
     if 'tenancy.json' in files:
         ten = world.game_json('tenancy.json')
         for v in (ten.get('listings') or {}).values():
-            if v.get('depositHeld'):
-                v['depositHeld'] = 0
+            for k in ('tenant', 'offer', 'paidUntil', 'overdueSince'):
+                v.pop(k, None)
+            v['interest'] = []
+            v['depositHeld'] = 0
         ten['owed'] = []
         save_game('tenancy.json', ten)
     if 'commissions.json' in files:
@@ -776,8 +1092,10 @@ def report(p, lo, path, applied=None):
     if p.get('alreadyReset'):
         L.append(f'**This world was reset already: {len(p["alreadyReset"])} character(s) carry the marker. Staff actions are not taken back again, and apply refuses.**')
         L.append('')
-    L.append('Stats: ' + ('**full** (the alpha announcement: every skill, level point and learned spell back to the start; spells from a kept rite stay).'
+    L.append('Stats: ' + ('**full** (the alpha announcement: every skill, level point and learned spell back to the start).'
                           if p.get('stats') == 'full' else '**earned** (skills earned by playing stay; staff grants are taken back).'))
+    L.append('Always (Nate, 2026-09-30): every character a plain mortal (vampirism, lycanthropy and the disease cured), no deity, '
+             'no house, no business, no guild; the Blood Crown released.')
     L.append('')
     L.append(f'{len(chars)} characters kept' + (f' ({p["deletedCharacters"]} deleted character record(s) skipped: not on any account)' if p.get('deletedCharacters') else '')
              + '. Everyone starts with the kit: ' + ', '.join(f'{e["count"]} x {nm(e["baseId"])}' for e in p['kit']) + ' (the clothes worn).')
@@ -792,7 +1110,25 @@ def report(p, lo, path, applied=None):
     masked = [f'{c["name"]} #{c["tag"]}' for c in chars if c.get('unmask')]
     if masked:
         L.append(f'- Unmasked in the record (the mask goes with the inventory): {", ".join(masked)}.')
+    cured = [c for c in chars if c.get('cure')]
+    kinds = collections.Counter(k for c in cured for k in c['cure'].get('kinds') or [])
+    if cured:
+        L.append(f'- Made mortal: {len(cured)} character(s): ' + '; '.join(f'{k} {v}' for k, v in kinds.most_common()) + '.')
+    faiths = [c for c in chars if c.get('faith')]
+    L.append(f'- Faith set aside: {len(faiths)} character(s)' + (' (' + ', '.join(f'{v} {k}' for k, v in collections.Counter(c['faith']['name'] for c in faiths).most_common()) + ')' if faiths else '') + '.')
+    L.append(f'- Guild membership cleared: {sum(1 for c in chars if c.get("guilds"))} character(s). Bed rents ended: {sum(1 for c in chars if c.get("bedRent"))} renter(s), {len(p["world"].get("bedRents") or [])} bed(s).')
+    hs = p['world'].get('housing') or {}
+    owners = collections.Counter(c['owner'] for c in hs.get('claims') or [])
+    names = {}
+    for cl in hs.get('claims') or []:
+        names.setdefault(cl['owner'], set()).add(cl['ownerName'] or '?')
+    L.append(f'- Houses and claimed containers released: {len(hs.get("claims") or [])} claim(s) ({sum(1 for c in hs.get("claims") or [] if c.get("partner"))} door pairs) of {len(owners)} account(s)'
+             + (f' ({", ".join(f"profile {k} ({"/".join(sorted(names[k]))}) {v}" for k, v in owners.most_common())})' if owners else '')
+             + f'; the registry (housing.json, {len(hs.get("registry") or [])} entries) emptied'
+             + (f'; {len(hs["registryWithoutClaim"])} registry entr(ies) had no claim record' if hs.get('registryWithoutClaim') else '')
+             + (f'; {len(hs["claimsNotInRegistry"])} claim(s) were missing from the registry' if hs.get('claimsNotInRegistry') else '') + '.')
     watch = [f'{c["name"]} #{c["tag"]} ({", ".join(c["watch"])})' for c in chars if c.get('watch')]
+    watch += [f'{c["name"]} #{c["tag"]} ({"; ".join(c["cure"]["check"])})' for c in cured if c['cure'].get('check')]
     if watch:
         L.append(f'- **Left as they are, check by hand:** {"; ".join(watch)}.')
     w = p['world']
@@ -803,9 +1139,14 @@ def report(p, lo, path, applied=None):
         if f == 'bank.json':
             L.append(f'- bank.json: every hold treasury back to its seed ({", ".join(f"{k} {v2:,}" for k, v2 in v["to"]["zones"].items())}); faction treasuries emptied (were {json.dumps(v["from"]["factions"])}); hold balances were {json.dumps(v["from"]["zones"])}.')
         elif f == 'businesses.json':
-            L.append(f'- businesses.json: takings cleared and chest rentals ended in {len(v["businesses"])} business(es); held takings for former owners {json.dumps(v["owedTo"])}.')
+            L.append(f'- businesses.json: {len(v["businesses"])} business(es) closed as business.js closes one (ledger deleted, record gone): '
+                     + (', '.join(f'{b["business"]} of {b["ownerName"]} ({b["staff"]} staff, ledger {"deleted" if b["ledgerFile"] else "none"})' for b in v['businesses']) or 'none')
+                     + f'; held takings for former owners {json.dumps(v["owedTo"])} dropped'
+                     + (f'; {len(p["world"].get("orphanLedgers") or [])} ledger(s) no business pointed at deleted too' if p['world'].get('orphanLedgers') else '') + '.')
         elif f == 'tenancy.json':
-            L.append(f'- tenancy.json: deposits held set to 0 ({json.dumps(v["deposits"])}), {len(v["owed"])} owed payment(s) dropped. Tenants keep their houses.')
+            L.append(f'- tenancy.json: {v["listings"]} listing(s) kept for the officials; tenants {json.dumps(v["tenants"])}, deposits {json.dumps(v["deposits"])}, offers and interest cleared; {len(v["owed"])} owed payment(s) dropped.')
+        elif f in ('guilds.json', 'faction-storage.json'):
+            L.append(f'- {f}: emptied ({v["entries"]} entr(ies)).')
         elif f == 'commissions.json':
             L.append(f'- commissions.json: {len(v["cancelled"])} live commission(s) cancelled without refund, {len(v["owed"])} owed payment(s) dropped.')
         elif f == 'contracts.json':
@@ -813,7 +1154,7 @@ def report(p, lo, path, applied=None):
         elif f == 'economy.json':
             L.append(f'- economy.json: owed wages {json.dumps(v["owed"])} and overdue {json.dumps(v["overdue"])} dropped.')
         elif f == 'supernatural.json':
-            L.append(f'- supernatural.json: the Blood Crown is released' + (f' by {v["released"]}' if v['released'] else '') + '; the first to rise a pure-blood after the reset claims it. Its holder keeps their vampirism and gives up the Vampire Lord power.')
+            L.append(f'- supernatural.json: the Blood Crown is released' + (f' by {v["released"]}' if v['released'] else '') + '; the first to rise a pure-blood after the reset claims it.')
     if p['notes']:
         L.append('')
         L.append('## Decisions to confirm')
@@ -875,8 +1216,15 @@ def report(p, lo, path, applied=None):
             L.append('- Staff flags cleared: ' + ', '.join(c['clearFlags']))
         if c['levelReset']:
             L.append('- Character level points reset: the level is earned again from the kept skills at the next login and its points chosen anew')
-        if c.get('keptSupernatural'):
-            L.append(f'- Kept (earned in a rite): {c["keptSupernatural"]}')
+        if c.get('cure'):
+            cu = c['cure']
+            L.append('- Made mortal: ' + ('; '.join(cu['was']) or ', '.join(cu.get('kinds') or [])) + (' (look restored)' if cu.get('appearance') is not None else '')
+                     + (f'; cleared {", ".join(k.replace("private.", "") for k in cu["fields"])}' if cu.get('fields') else '')
+                     + (f'; **check by hand: {"; ".join(cu["check"])}**' if cu.get('check') else ''))
+        if c.get('faith'):
+            L.append(f'- Faith set aside: {c["faith"]["name"]}' + (f' (and {", ".join(k.replace("private.", "") for k in c["faithFields"])})' if c.get('faithFields') else ''))
+        if c.get('guilds'):
+            L.append(f'- Guilds left: {json.dumps(c["guilds"])}')
         if c['staff']:
             L.append(f'- Staff actions on record ({len(c["staff"])}): ' + '; '.join(c['staff'][:6]) + (' ...' if len(c['staff']) > 6 else ''))
     L.append('')
