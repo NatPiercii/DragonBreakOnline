@@ -42,10 +42,12 @@ interface MasteryInfo {
   chosen: unknown[];
   respec: unknown;
   points: unknown;     // the point system's pool, caps and held skills, null while it is off
+  // A werewolf's or vampire's progression for its own tab (gameplay supernatural.js, dboSuperProgress), null otherwise
+  supernatural: unknown;
 }
 
 // Module-level so the browser-side widget setter can read it (runtime injection).
-let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [], maxChosen: 3, tierNames: [], tierHours: [], categories: [], skills: [], chosen: [], respec: null, points: null };
+let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [], maxChosen: 3, tierNames: [], tierHours: [], categories: [], skills: [], chosen: [], respec: null, points: null, supernatural: null };
 
 /**
  * Mastery menu (default K). Shows the eight professions, the one this
@@ -60,6 +62,8 @@ let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], pr
  *                       "hours", "rankHours", "professions" }
  *   Client -> Server: { "customPacketType": "masteryChoose", "profession" }
  *   Server -> Client: { "customPacketType": "masteryNotice", "text" }
+ *   Server -> Client: { "customPacketType": "dboSuperProgress", "progress" }   the gameplay's answer to the same
+ *                       request: a werewolf's or vampire's tab, or null. Either packet may come first.
  */
 export class MasteryService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -111,6 +115,8 @@ export class MasteryService extends ClientListener {
           chosen: Array.isArray(content["chosen"]) ? content["chosen"] as unknown[] : [],
           respec: content["respec"] ?? null,
           points: content["points"] ?? null,
+          // Sent in its own packet (dboSuperProgress), so a skills refresh keeps it
+          supernatural: info.supernatural,
         };
         // A reply we did not ask for (a refresh after choosing) updates the
         // open menu but must never force a closed one open.
@@ -120,6 +126,11 @@ export class MasteryService extends ClientListener {
         }
         break;
       }
+      // Never opens the menu itself: the masteryMenu reply does that, and this only redraws one already open
+      case "dboSuperProgress":
+        info.supernatural = content["progress"] ?? null;
+        if (this.menuOpen) this.openMenu();
+        break;
       case "masteryNotice":
         if (typeof content["text"] === "string") {
           notifyNextUpdate(this.controller, this.sp, content["text"]);
@@ -196,6 +207,7 @@ export class MasteryService extends ClientListener {
       chosen: info.chosen,
       respec: info.respec,
       points: info.points,
+      supernatural: info.supernatural,
       events: events,
     };
     const others = (window.skyrimPlatform.widgets.get() || []).filter((w: any) => w.id !== WIDGET_ID);

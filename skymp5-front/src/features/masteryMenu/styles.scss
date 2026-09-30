@@ -705,3 +705,83 @@ $secunda: #cfdcdc;         // the pale moon: what is held
     color: dbo-accent(0.55);
   }
 }
+
+// --- the Werewolf or Vampire tab: facts down the centre, the powers under them, the curse's own ladder on the right ---
+.mastery {
+  &__curse {
+    text-align: left;
+    font-size: 16px;
+  }
+
+  &__curse-rows {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 18px;
+  }
+
+  &__curse-row {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr);
+    gap: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid dbo-accent(0.12);
+  }
+
+  &__curse-label {
+    padding-top: 4px;
+    font-family: $dbo-ui-font;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: dbo-accent(0.62);
+  }
+
+  &__curse-value {
+    margin: 0;
+    color: $dbo-silver;
+    font-size: 17px;
+  }
+
+  &__curse-hint {
+    display: block;
+    margin-top: 2px;
+    color: $dbo-text-dim;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  &__curse-powers-title {
+    margin: 8px 0;
+  }
+
+  &__curse-powers {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  // A power not yet had is shown dim, with what brings it
+  &__curse-power {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 16px;
+    opacity: 0.5;
+
+    &--have {
+      opacity: 1;
+    }
+  }
+
+  &__curse-power-name {
+    font-family: $dbo-title-font;
+    letter-spacing: 0.08em;
+    color: $dbo-silver;
+  }
+
+  &__curse-power-note {
+    color: $dbo-text-dim;
+    font-size: 14px;
+  }
+}

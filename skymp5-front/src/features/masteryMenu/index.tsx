@@ -81,6 +81,104 @@ const LOCKS: Array<{ mode: LockMode; glyph: string; label: string; hint: string 
 
 const BAND_FLOORS = [1, 25, 50, 75, 90];
 
+// The Werewolf or Vampire tab (gameplay supernatural.js, Nate 2026-09-30): sent beside the skills for a character who
+// carries the curse, null for anyone else. Every word comes from the server; this only lays it out.
+interface CurseRank {
+  name: string;
+  at: number;
+  perk: string;
+}
+
+interface CurseLadder {
+  name: string;
+  unit: string;
+  value: number;
+  rank: number;
+  ranks: CurseRank[];
+  earn: string;
+}
+
+export interface CurseProgress {
+  kind: string;
+  group: string;
+  label: string;
+  epithet: string;
+  creed: string;
+  ladder: CurseLadder | null;
+  rows: Array<{ label: string; value: string; hint?: string }>;
+  powers: Array<{ name: string; have: boolean; note: string }>;
+}
+
+const CURSE_ID = 'curse:';
+
+export const CurseStage = ({ curse }: { curse: CurseProgress }) => {
+  const ladder = curse.ladder;
+  const here = ladder ? ladder.ranks[ladder.rank] : null;
+  const next = ladder && ladder.rank + 1 < ladder.ranks.length ? ladder.ranks[ladder.rank + 1] : null;
+  const floor = here ? here.at : 0;
+  const share = ladder && next ? Math.max(0, Math.min(1, (ladder.value - floor) / Math.max(1, next.at - floor))) : 1;
+  return (
+    <section className="mastery__stage">
+      <h2 className="mastery__epithet">{curse.epithet}</h2>
+      <div className="mastery__description mastery__curse">
+        <p className="mastery__creed">{curse.creed}</p>
+        <dl className="mastery__curse-rows">
+          {(curse.rows || []).map((r) => (
+            <div key={r.label} className="mastery__curse-row">
+              <dt className="mastery__curse-label">{r.label}</dt>
+              <dd className="mastery__curse-value">
+                {r.value}
+                {r.hint ? <span className="mastery__curse-hint">{r.hint}</span> : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {curse.powers && curse.powers.length ? (
+          <>
+            <div className="mastery__group-name mastery__curse-powers-title">Powers</div>
+            <ul className="mastery__curse-powers">
+              {curse.powers.map((p) => (
+                <li key={p.name} className={'mastery__curse-power' + (p.have ? ' mastery__curse-power--have' : '')}>
+                  <span className="mastery__curse-power-name">{p.name}</span>
+                  <span className="mastery__curse-power-note">{p.note}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </div>
+      <div className="mastery__stage-foot">
+        {ladder ? (
+          <div className="mastery__thread">
+            <div className="mastery__level-row">
+              <span className="mastery__level">{ladder.value}</span>
+              <span className="mastery__level-of">{ladder.unit}</span>
+              <span className="mastery__level-tier">{here ? here.name : ''}</span>
+            </div>
+            <span className="mastery__level-bar"><i style={{ width: `${Math.max(2, share * 100)}%` }} /></span>
+            <p className="mastery__played--muted mastery__played--hint">
+              {next ? `${Math.max(0, next.at - ladder.value)} more ${ladder.unit} to ${next.name}. ` : `No rank of ${ladder.name} stands higher. `}
+              {ladder.earn}
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+};
+
+export const CurseRanks = ({ ladder }: { ladder: CurseLadder | null }) => (
+  <section className="mastery__ranks mastery__ranks--five">
+    {(ladder ? ladder.ranks : []).map((r, i) => (
+      <div key={r.name} className={'mastery__rank' + ((ladder as CurseLadder).rank >= i ? ' mastery__rank--reached' : '')}>
+        <h3 className="mastery__rank-name">{r.name}</h3>
+        <p className="mastery__rank-perk">{r.perk}</p>
+        <span className="mastery__rank-cost">{r.at ? `${r.at} ${(ladder as CurseLadder).unit}` : 'from the start'}</span>
+      </div>
+    ))}
+  </section>
+);
+
 export interface MasteryData {
   points?: PointState;
   maxChosen?: number;
@@ -90,6 +188,7 @@ export interface MasteryData {
   skills?: SkillDef[];
   chosen?: Chosen[];
   respec?: Respec;
+  supernatural?: CurseProgress | null;
   // legacy fields still sent by the server
   profession: string | null;
   rank: number;
@@ -157,6 +256,11 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [confirming]);
 
+  const curse = data.supernatural && data.supernatural.label ? data.supernatural : null;
+  const curseId = curse ? CURSE_ID + curse.kind : '';
+  // A cure while the tab is open takes it away, and the menu falls back to the skills
+  const viewingCurse = !!curse && viewing === curseId;
+
   const current = skills.filter((s) => s.id === viewing)[0] || skills[0];
   if (!current) return null;
   const mine = chosen.filter((c) => c.id === current.id)[0] || null;
@@ -188,7 +292,7 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
         ) : (
           <div className="mastery__corner">Skills {chosen.length}/{maxChosen}</div>
         )}
-        <h1 className="mastery__title">{current.label}</h1>
+        <h1 className="mastery__title">{viewingCurse ? (curse as CurseProgress).label : current.label}</h1>
 
         <nav className="mastery__list mastery__list--grouped">
           {categories.map((cat) => (
@@ -221,114 +325,135 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
               })}
             </div>
           ))}
+          {curse ? (
+            <div className="mastery__group mastery__group--curse">
+              <div className="mastery__group-name">{curse.group}</div>
+              <button
+                className={'mastery__item mastery__item--curse' + (viewingCurse ? ' mastery__item--viewing' : '')}
+                onClick={() => setViewing(curseId)}
+              >
+                {curse.label}
+                {curse.ladder && curse.ladder.ranks[curse.ladder.rank]
+                  ? <span className="mastery__item-level">{curse.ladder.ranks[curse.ladder.rank].name}</span>
+                  : null}
+              </button>
+            </div>
+          ) : null}
         </nav>
 
-        <section className="mastery__stage">
-          <h2 className="mastery__epithet">{current.title}</h2>
-          {points ? (
-            <p className="mastery__creed">
-              Time broke over Nirn, and every life you might have lived is true at once. Only one of them can be mastered.
-            </p>
-          ) : null}
-          <p className="mastery__description">{current.description}</p>
-          <div className="mastery__stage-foot">
-            {points ? (
-              (() => {
-                const h = heldOf(current.id);
-                const seatTaken = held.filter((x) => x.level > points.seatAbove).length >= points.seatCount && (!h || h.level <= points.seatAbove);
-                const expertsTaken = held.filter((x) => x.level > points.expertAbove).length >= points.expertCount && (!h || h.level <= points.expertAbove);
-                const ceiling = seatTaken ? (expertsTaken ? points.expertAbove : points.seatAbove) : points.capPerSkill;
-                return (
-                  <div className="mastery__thread">
-                    {h ? (
-                      <>
-                        <div className="mastery__level-row">
-                          <span className="mastery__level">{h.level}</span>
-                          <span className="mastery__level-of">of {ceiling}</span>
-                          <span className="mastery__level-tier">{tierNames[h.tier] || ''}</span>
-                        </div>
-                        <span className="mastery__level-bar"><i style={{ width: `${Math.max(2, Math.min(100, h.xp))}%` }} /></span>
-                        <div className="mastery__locks">
-                          {LOCKS.map((l) => (
-                            <button
-                              key={l.mode}
-                              title={l.hint}
-                              className={'mastery__lock' + (h.lock === l.mode ? ' mastery__lock--on' : '')}
-                              onClick={() => send(ev.lock, current.id, l.mode)}
-                            >
-                              <span className="mastery__lock-glyph">{l.glyph}</span>
-                              {l.label}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="mastery__played--muted mastery__played--hint">
-                          {ceiling < points.capPerSkill
-                            ? `Another hand already holds the ${ceiling === points.seatAbove ? 'Seat' : 'mastery'} above ${ceiling}. This craft rises no further until it is given up.`
-                            : 'Work raises it. When the Wheel is full, a waning skill gives way; nothing falls below ' + points.transferFloor + '.'}
-                        </p>
-                      </>
-                    ) : (
-                      offerOf(current.id) ? (
-                        <div className="mastery__offer">
-                          <p className="mastery__offer-line">
-                            {current.category === 'combat'
-                              ? 'You have fought often enough this way to call it your own.'
-                              : 'You have done this often enough to call it your own.'}
-                            <span className="mastery__offer-banked">
-                              {(offerOf(current.id) as { banked: number }).banked} unit(s) of work already stand to your name.
-                            </span>
+        {viewingCurse ? <CurseStage curse={curse as CurseProgress} /> : null}
+        {viewingCurse ? <CurseRanks ladder={(curse as CurseProgress).ladder} /> : null}
+
+        {viewingCurse ? null : (
+          <>
+            <section className="mastery__stage">
+              <h2 className="mastery__epithet">{current.title}</h2>
+              {points ? (
+                <p className="mastery__creed">
+                  Time broke over Nirn, and every life you might have lived is true at once. Only one of them can be mastered.
+                </p>
+              ) : null}
+              <p className="mastery__description">{current.description}</p>
+              <div className="mastery__stage-foot">
+                {points ? (
+                  (() => {
+                    const h = heldOf(current.id);
+                    const seatTaken = held.filter((x) => x.level > points.seatAbove).length >= points.seatCount && (!h || h.level <= points.seatAbove);
+                    const expertsTaken = held.filter((x) => x.level > points.expertAbove).length >= points.expertCount && (!h || h.level <= points.expertAbove);
+                    const ceiling = seatTaken ? (expertsTaken ? points.expertAbove : points.seatAbove) : points.capPerSkill;
+                    return (
+                      <div className="mastery__thread">
+                        {h ? (
+                          <>
+                            <div className="mastery__level-row">
+                              <span className="mastery__level">{h.level}</span>
+                              <span className="mastery__level-of">of {ceiling}</span>
+                              <span className="mastery__level-tier">{tierNames[h.tier] || ''}</span>
+                            </div>
+                            <span className="mastery__level-bar"><i style={{ width: `${Math.max(2, Math.min(100, h.xp))}%` }} /></span>
+                            <div className="mastery__locks">
+                              {LOCKS.map((l) => (
+                                <button
+                                  key={l.mode}
+                                  title={l.hint}
+                                  className={'mastery__lock' + (h.lock === l.mode ? ' mastery__lock--on' : '')}
+                                  onClick={() => send(ev.lock, current.id, l.mode)}
+                                >
+                                  <span className="mastery__lock-glyph">{l.glyph}</span>
+                                  {l.label}
+                                </button>
+                              ))}
+                            </div>
+                            <p className="mastery__played--muted mastery__played--hint">
+                              {ceiling < points.capPerSkill
+                                ? `Another hand already holds the ${ceiling === points.seatAbove ? 'Seat' : 'mastery'} above ${ceiling}. This craft rises no further until it is given up.`
+                                : 'Work raises it. When the Wheel is full, a waning skill gives way; nothing falls below ' + points.transferFloor + '.'}
+                            </p>
+                          </>
+                        ) : (
+                          offerOf(current.id) ? (
+                            <div className="mastery__offer">
+                              <p className="mastery__offer-line">
+                                {current.category === 'combat'
+                                  ? 'You have fought often enough this way to call it your own.'
+                                  : 'You have done this often enough to call it your own.'}
+                                <span className="mastery__offer-banked">
+                                  {(offerOf(current.id) as { banked: number }).banked} unit(s) of work already stand to your name.
+                                </span>
+                              </p>
+                              <button className="mastery__takeup" disabled={busy} onClick={() => { setBusy(true); send(ev.takeUp, current.id); }}>
+                                Take up {current.label} &mdash; one spoke
+                              </button>
+                            </div>
+                          ) : (
+                          <p className="mastery__played mastery__played--muted">
+                            {current.openable === 'work'
+                              ? 'Untaken. Work at it and it will offer itself once there is a level’s worth to your name.'
+                              : `Untaken. Set your hand to ${current.hint || 'its station'} and the first spoke is yours.`}
                           </p>
-                          <button className="mastery__takeup" disabled={busy} onClick={() => { setBusy(true); send(ev.takeUp, current.id); }}>
-                            Take up {current.label} &mdash; one spoke
-                          </button>
-                        </div>
-                      ) : (
-                      <p className="mastery__played mastery__played--muted">
-                        {current.openable === 'work'
-                          ? 'Untaken. Work at it and it will offer itself once there is a level’s worth to your name.'
-                          : `Untaken. Set your hand to ${current.hint || 'its station'} and the first spoke is yours.`}
-                      </p>
-                      )
-                    )}
+                          )
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : mine ? (
+                  <p className="mastery__played">
+                    {tierNames[mine.rank] || ''} &middot; {mine.hours} {mine.hours === 1 ? 'hour' : 'hours'} of work
+                    <br />
+                    <span className="mastery__played--muted mastery__played--hint">Working the skill earns an hour; the next counts an hour later.</span>
+                    {respec.open ? (
+                      <button className="mastery__cancel mastery__drop" disabled={busy} onClick={() => setConfirming({ action: 'drop', id: current.id })}>
+                        Set aside {respec.free ? '(free)' : `(${respec.cost} gold)`}
+                      </button>
+                    ) : null}
+                  </p>
+                ) : slotsLeft > 0 ? (
+                  <button className="mastery__choose" disabled={busy} onClick={() => setConfirming({ action: 'choose', id: current.id })}>
+                    {busy ? 'Taking it up...' : `Take up ${current.label}`}
+                  </button>
+                ) : (
+                  <p className="mastery__played mastery__played--muted">All {maxChosen} of your skills are chosen. A standing stone lets you change your path.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="mastery__ranks mastery__ranks--five">
+              {tierNames.map((tierName, i) => {
+                const h = points ? heldOf(current.id) : null;
+                const reached = points ? !!h && h.tier >= i : !!mine && mine.rank >= i;
+                return (
+                  <div key={tierName} className={'mastery__rank' + (reached ? ' mastery__rank--reached' : '')}>
+                    <h3 className="mastery__rank-name">{tierName}</h3>
+                    <p className="mastery__rank-perk">{current.tiers[i] || ''}</p>
+                    <span className="mastery__rank-cost">
+                      {points ? (i === 0 ? 'the first spoke' : 'level ' + BAND_FLOORS[i]) : (!tierHours[i] ? 'from the start' : tierHours[i] + ' hours')}
+                    </span>
                   </div>
                 );
-              })()
-            ) : mine ? (
-              <p className="mastery__played">
-                {tierNames[mine.rank] || ''} &middot; {mine.hours} {mine.hours === 1 ? 'hour' : 'hours'} of work
-                <br />
-                <span className="mastery__played--muted mastery__played--hint">Working the skill earns an hour; the next counts an hour later.</span>
-                {respec.open ? (
-                  <button className="mastery__cancel mastery__drop" disabled={busy} onClick={() => setConfirming({ action: 'drop', id: current.id })}>
-                    Set aside {respec.free ? '(free)' : `(${respec.cost} gold)`}
-                  </button>
-                ) : null}
-              </p>
-            ) : slotsLeft > 0 ? (
-              <button className="mastery__choose" disabled={busy} onClick={() => setConfirming({ action: 'choose', id: current.id })}>
-                {busy ? 'Taking it up...' : `Take up ${current.label}`}
-              </button>
-            ) : (
-              <p className="mastery__played mastery__played--muted">All {maxChosen} of your skills are chosen. A standing stone lets you change your path.</p>
-            )}
-          </div>
-        </section>
-
-        <section className="mastery__ranks mastery__ranks--five">
-          {tierNames.map((tierName, i) => {
-            const h = points ? heldOf(current.id) : null;
-            const reached = points ? !!h && h.tier >= i : !!mine && mine.rank >= i;
-            return (
-              <div key={tierName} className={'mastery__rank' + (reached ? ' mastery__rank--reached' : '')}>
-                <h3 className="mastery__rank-name">{tierName}</h3>
-                <p className="mastery__rank-perk">{current.tiers[i] || ''}</p>
-                <span className="mastery__rank-cost">
-                  {points ? (i === 0 ? 'the first spoke' : 'level ' + BAND_FLOORS[i]) : (!tierHours[i] ? 'from the start' : tierHours[i] + ' hours')}
-                </span>
-              </div>
-            );
-          })}
-        </section>
+              })}
+            </section>
+          </>
+        )}
 
         <button className="mastery__close" onClick={() => send(ev.close)}>Close</button>
 
