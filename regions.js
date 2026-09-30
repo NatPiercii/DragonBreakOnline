@@ -93,6 +93,37 @@ module.exports = (api) => {
   const provinceAt = (a) => { let d = ''; try { d = String(mp.get(a >>> 0, 'worldOrCellDesc') || ''); } catch (e) { d = ''; } return placeOf(d); };
   const bypass = (a) => !!CFG.adminBypass && !S.testing.has(a >>> 0) && isAdmin(a >>> 0);
 
+  // ---- race styles --------------------------------------------------------------------------------
+  // Nate, 2026-09-30: "certain gear is good to craft based of lore accuracy with race", as "race plus their home
+  // province": a people's own style is made by that race anywhere, and by anyone inside its home province (the rule
+  // above). Config regions.raceStyles: { race: [{ family, edid?, notEdid? }] }, family being a recipe's c tag in
+  // regions.json and edid / notEdid regexes on the recipe's editor id. Food and a place's own bench never follow race.
+  // Races by their own RACE record and its vampire variant (the pairs supernatural.js uses).
+  const RACE_IDS = {
+    argonian: ['13740', '8883a'], breton: ['13741', '8883c'], dunmer: ['13742', '8883d'], altmer: ['13743', '88840'],
+    imperial: ['13744', '88844'], khajiit: ['13745', '88845'], nord: ['13746', '88794'], orc: ['13747', 'a82b9'],
+    redguard: ['13748', '88846'], bosmer: ['13749', '88884'],
+  };
+  const raceOfId = new Map();
+  for (const [race, hexes] of Object.entries(RACE_IDS)) for (const h of hexes) { const id = idOf(`${h}:Skyrim.esm`); if (id) raceOfId.set(id, race); }
+  const raceOf = (a) => { try { const app = mp.get(a >>> 0, 'appearance'); return raceOfId.get(Number(app && app.raceId) >>> 0) || null; } catch (e) { return null; } };
+  const NO_RACE_BENCHES = new Set(['CraftingCookpot', 'BYOHCraftingOven', 'Camping_CampfireCookingShared', 'CYRproxy_HF_BYOHCraftingOven', 'isGrainMill',
+    'CraftingSmithingSkyforge', 'DLC1CraftingDawnguard', 'DLC1LD_CraftingForgeAetherium', 'DLC2StaffEnchanter', 'CYRCraftingAyleidWell']);
+  const rx = (v) => { try { return v ? new RegExp(String(v), 'i') : null; } catch (e) { once(`rx:${v}`, `regions: bad raceStyles pattern ${v}`); return null; } };
+  const raceStyle = (a, entry) => {
+    const rules = (CFG.raceStyles || {})[raceOf(a) || ''];
+    if (!Array.isArray(rules) || !entry || NO_RACE_BENCHES.has(String(entry.bench || ''))) return null;
+    const edid = String(entry.edid || '');
+    for (const r of rules) {
+      if (!r || r.family !== entry.c) continue;
+      const want = rx(r.edid), not = rx(r.notEdid);
+      if (want && !want.test(edid)) continue;
+      if (not && not.test(edid)) continue;
+      return raceOf(a);
+    }
+    return null;
+  };
+
   // ---- tomes -------------------------------------------------------------------------------------
   // Provinces a tome is sold in, or null when regions.json does not know it
   const tomeWhere = (bookId) => {
@@ -131,6 +162,8 @@ module.exports = (api) => {
     const place = provinceAt(a);
     if (isCommon(r.p)) return { ok: true, place, p: r.p, why: 'common' };
     if (place.province !== 'none' && r.p.includes(place.province)) return { ok: true, place, p: r.p, why: 'province' };
+    const race = raceStyle(a, r.entry);
+    if (race) return { ok: true, place, p: r.p, why: `race:${race}` };
     if (bypass(a)) return { ok: true, place, p: r.p, why: 'admin' };
     return { ok: false, place, p: r.p, entry: r.entry };
   };
@@ -186,7 +219,7 @@ module.exports = (api) => {
     personal(a, `${pl.desc || '?'} ${pl.edid ? `(${pl.edid}) ` : ''}is ${provinceName(pl.province)}, from ${SOURCE_TEXT[pl.source] || pl.source}${pl.via ? ` (${pl.via})` : ''}. Craft gate ${CFG.craft ? 'on' : 'off'}, tome filter ${CFG.tomes ? 'on' : 'off'}, your bypass ${bypass(a) ? 'on' : 'off'}. /region test plays it as a player.`);
   }, { admin: true, help: 'this place\'s province and the region gates; /region test drops your admin bypass' });
 
-  globalThis.__dboRegions = { provinceAt, placeOf, recipeOk, recipeWhere, tomeOk, tomeWhere, bypass, provinceName, listNames, tomesOn: () => !!CFG.tomes };
+  globalThis.__dboRegions = { provinceAt, placeOf, recipeOk, raceOf, raceStyle, recipeWhere, tomeOk, tomeWhere, bypass, provinceName, listNames, tomesOn: () => !!CFG.tomes };
 
   const data = D();
   const count = (table, prov) => Object.values(data[table]).filter((v) => { const r = resolve(v.p); return r && r.includes(prov); }).length;
