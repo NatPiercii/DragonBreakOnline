@@ -86,6 +86,17 @@ module.exports = (api) => {
     if (r.reserved.some((taken) => taken && folded === taken)) return 'That name is reserved.';
     return null;
   };
+  // A forged pigeon signature (gamemode.js /sign): the blocked words, and the reserved names whole or as any one word
+  globalThis.__dboSignatureProblem = (text) => {
+    const r = readRules();
+    const folded = fold(text);
+    if (r.blocked.some((bad) => bad && folded.includes(bad))) return 'That name will not do here.';
+    // A real character's name is exactly what a forger may sign ("Dennis Sy'Stem" holds "system" as a word)
+    if (takenBy(folded, 0)) return null;
+    const words = String(text).split(/\s+/).map(fold).filter(Boolean);
+    if (r.reserved.some((taken) => taken && (folded === taken || words.includes(taken)))) return 'That name is reserved.';
+    return null;
+  };
   const takenBy = (key, self) => {
     try {
       const found = mp.findFormsByPropertyValue(INDEX, key);

@@ -867,6 +867,10 @@ registerChatCommand('sign', (a, args) => {
   if (/^(unsigned|none|nobody|anonymous)$/i.test(want)) { nextSignature.set(a, { unsigned: true }); return personal(a, 'Your next letter will go unsigned.'); }
   const tier = scholarTier(a) + 1;
   if (tier < FORGE.forgeTier) return personal(a, `Forging another's hand takes a Scholar of tier ${FORGE.forgeTier}. You can still send it unsigned.`);
+  // The creator's reserved names and blocked words hold for a signature too ("DragonBreak Staff" signed nothing)
+  let problem = null;
+  try { problem = typeof globalThis.__dboSignatureProblem === 'function' ? globalThis.__dboSignatureProblem(want) : null; } catch (e) { problem = null; }
+  if (problem) return personal(a, `${problem} Sign it another way, or send it unsigned.`);
   nextSignature.set(a, { name: want, tier });
   personal(a, `Your next letter will be signed "${want}", in a hand not your own.`);
 }, { help: 'unsigned | <a name> | clear: how your next pigeon letter is signed' });
