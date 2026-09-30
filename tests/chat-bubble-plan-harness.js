@@ -111,8 +111,13 @@ else {
     /this\.los\.forEach\(\(_v, id\) => \{ if \(!this\.board\.rangeOf\(id\)\) this\.los\.delete\(id\); \}\)/.test(service)
     && /cell !== this\.lastCell\) \{ this\.lastCell = cell; this\.hideAll\(\); \}/.test(service)
     && /connectionDisconnect", \(\) => this\.reset\(\)/.test(service) && /private hideAll\(\)[\s\S]{0,120}this\.los\.clear\(\)/.test(service));
-  check('nothing is drawn over a blocking menu, asked of the engine (liveBlockingMenus), or with the interface hidden',
-    /if \(this\.menuOpen\(\) \|\| isUiHidden\(this\.controller\)\) \{ this\.hideAll\(\); return; \}/.test(service) && /liveBlockingMenus\(\)\.length > 0/.test(service));
+  check('nothing is drawn over a blocking menu, asked of the engine read-only (anyBlockingMenuLive), or with the interface hidden',
+    /if \(this\.menuOpen\(\) \|\| isUiHidden\(this\.controller\)\) \{ this\.hideAll\(\); return; \}/.test(service) && /lookupListener\(BrowserService\)\.anyBlockingMenuLive\(\)/.test(service));
+  check('the bubbles never call liveBlockingMenus (it prunes records onMenuClose needs for the UI handover)', !/liveBlockingMenus/.test(service));
+  const browser = read('skymp5-client/src/services/services/browserService.ts') || '';
+  const live = browser.slice(browser.indexOf('  anyBlockingMenuLive(): boolean {'), browser.indexOf('\n  }\n', browser.indexOf('  anyBlockingMenuLive(): boolean {')));
+  check('anyBlockingMenuLive is read-only: asks Ui.isMenuOpen per record, deletes nothing, skips Main',
+    live.length > 0 && /this\.sp\.Ui\.isMenuOpen\(name\)/.test(live) && !/\.delete\(|\.clear\(|\.add\(/.test(live) && /name === Menu\.Main/.test(live), live);
   check('a reused line takes the new colour even with the same text and alpha (the colour itself is compared)',
     /if \(d\.colors\[i\] !== colorKey\) \{ setTextColor\(d\.ids\[i\], color\);/.test(service) && /const colorKey = color\.join/.test(service));
 }
