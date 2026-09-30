@@ -12,12 +12,13 @@ starts the alpha with this:
 | Reset | How, mirroring the game's own code |
 |---|---|
 | Stats: every Wheel skill, the character level and its points | `--stats full`: the skill record, `dboLevel` and `dboAvBonus` removed |
-| Learned spells, magic schools, the spellbook and prepared spells, smithing manuals, recipes, scholar reads | removed; every spell from a skill, a tome, a study or staff taken back |
+| Learned spells, magic schools, the spellbook and prepared spells, smithing manuals, recipes, scholar reads | removed; every learned spell taken back (a fresh character inherits none) |
+| Skill boosts | `private.xpBoost` cleared; boost windows starting before the opening removed from `playtester-boost.json` |
 | Inventories, equipped gear, gold, the bank | the starter kit (below), worn |
 | Every container (house, business and faction chests, barrels, the staff supply chest) | emptied, never refilled |
 | **Vampirism, lycanthropy, the vampire disease**, however they came (rite, staff, a bite), and a beast form held at the snapshot | made mortal as the game cures one: beastform.js `revert` (the kept look back, the form's spells unlearned), supernatural.js `endCurse` (`clearTells`: the character's own eyes with their HNAM extra parts, skin and skin tone; the vampire's stage spells; `setLookRace` to the mortal race; the beast power; `washBlood`) and `cureDisease`. Then the curse's record, the Great Hunt renown, the blood rank, the rite clocks and the grant flags go. Both transform powers go from everyone |
 | **Faith** | as prayer.js `resetDeity` sets a god aside: no deity, so no conversion clock; blessing, offering and shrine rests cleared; the old faith kept in `dboDeityHistory` |
-| **Houses and claimed containers** | as housingSystem.ts `release()` gives one up: an ownerless stub (serial + 1, no key names issued, unlocked, unnamed), owner index "0", the registry (`housing.json`) emptied. Gold held for an inn's owner and the owner's own bed go with the claim. Any official can grant them again |
+| **Houses and claimed containers** | as housingSystem.ts `release()` gives one up: an ownerless stub (serial + 1, no key names issued, unlocked, unnamed), owner index "0", the registry (`housing.json`) emptied. Gold held for an inn's owner (`dboRestOwed`, `dboRestOwedBy`) and the owner's own bed go with the claim. Any official can grant them again |
 | **Businesses** | as business.js `close`: the placed ledger deleted, the record gone, no takings held for anyone |
 | **Tenancies** | the tenant, offer, interest, deposit held and rent clock go; the official's listing and terms stay for a new tenant |
 | **Guild membership** | `guilds.json` and `faction-storage.json` emptied, each character's mirror cleared |
@@ -32,6 +33,25 @@ cooldowns (dungeons, mining, the scholar's daily caps, death chill), hunger, hol
 **Check by hand**: a record the cure cannot restore is listed, never guessed: a werewolf or Vampire Lord race with no
 kept look, or a curse's eyes with no kept eye to put back. So is a character restrained, jailed or permanently dead.
 None on 30 September.
+
+## The independent review of 9988be3c (NO-GO), fixed
+
+- **A running blessing's spell** stayed learned after the faith was set aside. It is taken back in any mode, and under
+  `--stats full` every learned spell goes (a fresh character inherits none: `playersInheritBaseSpells` is false).
+- **Skill boosts**: `private.xpBoost` is cleared, and every `playtester-boost.json` window that starts before the opening
+  (`DBO_OPENING`, default 2026-10-03T05:00:00Z) is removed as a staff test grant.
+- **Rent held per profile** on a claim door (`private.dboRestOwedBy`, server branch hardening-inn-rent 0df483d0) goes
+  with the claim, like `dboRestOwed` and `dboInnOwnerBed`, whether or not that branch ships first.
+- **esplib.py is pinned**: the tool reads plugins with the copy in its own commit (`tooling/ck-mcp/esplib.py`) unless
+  `ESPLIB_DIR` says otherwise; the launch script also checks its sha256.
+- **`gates` and `compare`** (for the launch script): `alpha_reset.py gates plan.json` exits 1 on a record for a check by
+  hand, anyone restrained, jailed or permanently dead, a spell kept under the full reset, or a world already reset;
+  `alpha_reset.py compare dry.json live.json` exits 1 when characters, cures, faiths, claims or businesses differ.
+- The launch script: `trap '' HUP` and a documented detached launch; INT/TERM from the stop to a healthy start put the
+  snapshot back (or, before any write, just start the server); claims on `game-server` and `updater`; the hold checked
+  again before the stop and before the apply; a failed fetch no longer stops a run whose commit is present; the dry
+  run's gates stop the run before the server stops; the snapshot is hard-linked into the run folder; the 04:20 notice,
+  the 04:30 disconnect and the rollback rules below.
 
 ## Two ways to treat stats: `--stats earned` or `--stats full`
 
@@ -170,6 +190,12 @@ Result on 30 Sep:
   take. A second apply is refused.
 
 ## On the day
+
+The night (Nate, 2026-09-30, UTC): `warn 0400` at 04:00; `go` launched detached at about 04:15 (`setsid nohup bash
+alpha-reset-launch.sh go > <log> 2>&1 < /dev/null &`); it sends the 04:20 notice while it waits, and at 04:30 gives
+whoever is still connected the final notice and 45 s, then the server stop disconnects them. A failed boot before 05:00
+rolls back by itself. After 05:00 a rollback needs `--after-open` (it wipes all play since the reset), and one with
+anyone online needs `--force-with-players`.
 
 The launch script (`/home/nate/claude-nate-release/alpha-reset-launch.sh`) does all of this with its gates, and
 sets `DBO_LOADORDER=/opt/skyrim-data/loadorder.txt` (the live order). By hand:

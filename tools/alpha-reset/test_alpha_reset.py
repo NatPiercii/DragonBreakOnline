@@ -104,6 +104,8 @@ def world2_fixture(root):
 TONE = 'Actors\\Character\\Character Assets\\TintMasks\\SkinTone.dds'
 LIPS = 'Actors\\Character\\Character Assets\\TintMasks\\MaleLips.dds'
 BLOOD_LIPS = ar.i32(0xc0500808)
+BLESSING = 0x0A0000FF
+OPEN_MS = int(__import__('datetime').datetime(2026, 10, 3, 5, 0, tzinfo=__import__('datetime').timezone.utc).timestamp() * 1000)
 
 
 def world3_fixture(root):
@@ -123,6 +125,7 @@ def world3_fixture(root):
                                         'skinColor': 14274253, 'tints': tints(-1, BLOOD_LIPS)},
                      'equipmentDump': {'rightSpell': 0x8D5C1, 'inv': {'entries': []}},
                      'dynamicFields': {'private.charTag': 'RITE', 'private.bloodRanks': {'blood': 20, 'fedOn': {}}, 'private.riteFailedAt': 5,
+                                       'private.xpBoost': {'mult': 2, 'until': 9e12},
                                        'private.supernatural': {'kind': 'vampire', 'pure': True, 'stage': 3, 'lastFed': 45.7, 'spells': [0x8D5C1, 0xED0A6, 0xC4DE1, 0xC4DE2],
                                                                 'look': {'eye': 0xE7AEB, 'kind': 'vampire', 'prevEye': 0x51630, 'prevExtras': [0x24238], 'prevSkin': 13021352, 'prevTone': -3755864},
                                                                 'blood': {'prev': [{'texturePath': LIPS, 'type': 1, 'argb': 12345, 'applied': BLOOD_LIPS}]}}}})
@@ -130,7 +133,7 @@ def world3_fixture(root):
     form('71.json', {'profileId': 31, 'learnedSpells': [0xB8780], 'appearanceDump': {'name': 'Fever', 'raceId': 0x13745, 'headpartIds': [0x51616]},
                      'dynamicFields': {'private.charTag': 'FEVR', 'private.supernatural': {'kind': None, 'disease': {'kind': 'vampire', 'played': 0.03, 'by': 'Rite'}}}})
     # Wolf: a werewolf by Hircine's rite (a record from before prevExtras), the Hunt's renown
-    form('72.json', {'profileId': 32, 'learnedSpells': [0x92C48], 'appearanceDump': {'name': 'Wolf', 'raceId': 0x13741, 'headpartIds': [0x51633, 0x24245]},
+    form('72.json', {'profileId': 32, 'learnedSpells': [0x92C48, 0x12FD0], 'appearanceDump': {'name': 'Wolf', 'raceId': 0x13741, 'headpartIds': [0x51633, 0x24245]},
                      'dynamicFields': {'private.charTag': 'WOLF', 'private.greatHunt': {'renown': 2, 'changeDay': 46, 'changesPaid': 1},
                                        'private.supernatural': {'kind': 'werewolf', 'beastDay': 46, 'beastDayUses': 1, 'look': {'eye': 0x24245, 'kind': 'werewolf', 'prevEye': 0x51457}}}})
     # Granted: staff gave both beast powers, no curse on record
@@ -146,15 +149,18 @@ def world3_fixture(root):
     form('75.json', {'profileId': 35, 'appearanceDump': {'name': 'Stuck', 'raceId': 0xCDD84, 'headpartIds': [0xE7AEB]},
                      'dynamicFields': {'private.charTag': 'STUK'}})
     # Pilgrim: a faith with its blessing, an offering and shrine rests, a guild, a bed rented, a house and an inn
-    form('76.json', {'profileId': 36, 'appearanceDump': {'name': 'Pilgrim', 'raceId': 0x13746, 'headpartIds': []},
+    form('76.json', {'profileId': 36, 'appearanceDump': {'name': 'Pilgrim', 'raceId': 0x13746, 'headpartIds': []}, 'learnedSpells': [BLESSING],
                      'dynamicFields': {'private.charTag': 'PILG', 'private.dboGuilds': ['fighters'], 'private.dboRentBed': {'bed': 0x1B004, 'until': 5},
                                        'private.dboDeity': {'id': 'arkay', 'name': 'Arkay', 'kind': 'divine', 'at': 1000, 'convertedAt': 1000},
-                                       'private.dboBlessing': {'deity': 'arkay', 'spell': 5, 'until': 9e12}, 'private.dboOffering': {'deityId': 'arkay', 'gold': 10, 'until': 9e12},
+                                       'private.dboBlessing': {'deity': 'arkay', 'spell': BLESSING, 'until': 9e12}, 'private.dboOffering': {'deityId': 'arkay', 'gold': 10, 'until': 9e12},
                                        'private.prayedShrines': {'shrine1': 1}}})
     # Property: a door pair (the record on the lower id, a pointer on the far side), a claimed chest, an old stub, a rented bed, a ledger
     form('1b000_Skyrim.esm.json', {'dynamicFields': {'private.housing': {'owner': 36, 'ownerName': 'Pilgrim #PILG', 'name': 'Home', 'locked': True, 'serial': 3,
                                                                          'partner': 0x1B001, 'containers': [], 'issued': ['Key to Home']},
-                                                     'private.indexed.housingOwner': '36', 'private.dboRestOwed': 40, 'private.dboInnOwnerBed': {'bed': 0x1B004, 'owner': 36}}}, char=False)
+                                                     'private.indexed.housingOwner': '36', 'private.dboRestOwed': 40, 'private.dboInnOwnerBed': {'bed': 0x1B004, 'owner': 36},
+                                                     'private.dboRestOwedBy': {'36': 12}}}, char=False)
+    # a door whose only trace is rent held per profile (hardening-inn-rent 0df483d0), its claim already given up
+    form('1b005_Skyrim.esm.json', {'dynamicFields': {'private.housing': {'owner': 0, 'serial': 2, 'partner': 0}, 'private.dboRestOwedBy': {'30': 7}}}, char=False)
     form('1b001_Skyrim.esm.json', {'dynamicFields': {'private.housing': {'primary': 0x1B000}}}, char=False)
     form('1b002_Skyrim.esm.json', {'inv': {'entries': [{'baseId': 0xF, 'count': 99}]},
                                    'dynamicFields': {'private.housing': {'owner': 30, 'ownerName': 'Rite #RITE', 'name': None, 'locked': True, 'serial': 1, 'partner': 0, 'containers': [], 'issued': None},
@@ -173,7 +179,10 @@ def world3_fixture(root):
                                                      'offer': {'party': {'profile': 9}, 'until': 5}, 'tenant': {'profile': 36, 'name': 'Pilgrim'}, 'depositHeld': 100,
                                                      'paidUntil': 5, 'overdueSince': 4}}, 'owed': [{'tag': 'PILG', 'gold': 3}]},
              'guilds.json': {'fighters': {str(0xFF000076): {'rank': 'member', 'name': 'Pilgrim'}}},
-             'faction-storage.json': {'fighters': {'ref': '1b002'}}}
+             'faction-storage.json': {'fighters': {'ref': '1b002'}},
+             # a staff test window before the opening, and a playtester's window from after it
+             'playtester-boost.json': {'profiles': {'30': {'start': OPEN_MS - 3600000, 'until': OPEN_MS + 9e7, 'mult': 2, 'staff': True},
+                                                    '36': {'start': OPEN_MS + 60000, 'until': OPEN_MS + 9e7, 'mult': 2, 'claimed': True}}}}
     for n, v in games.items():
         with open(os.path.join(srv, n), 'w') as fh:
             json.dump(v, fh)
@@ -502,7 +511,9 @@ def main():
         check('the house is released as housingSystem release() leaves it: an ownerless stub, serial on, no keys issued, unlocked, unnamed, index 0',
               door['private.housing'] == {'owner': 0, 'ownerName': '', 'name': None, 'locked': False, 'serial': 4, 'partner': 0x1B001, 'containers': [], 'issued': []}
               and door['private.indexed.housingOwner'] == '0', door)
-        check('...its held rent and the inn owner\'s bed go with it', 'private.dboRestOwed' not in door and 'private.dboInnOwnerBed' not in door, door)
+        check('...its held rent (both forms, dboRestOwed and the per-profile dboRestOwedBy) and the inn owner\'s bed go with it',
+              not any(k in door for k in ('private.dboRestOwed', 'private.dboRestOwedBy', 'private.dboInnOwnerBed')), door)
+        check('rent held per profile on a door given up earlier is cleared too', 'private.dboRestOwedBy' not in J('1b005_Skyrim.esm.json')['dynamicFields'])
         chest = J('1b002_Skyrim.esm.json')
         check('the claimed chest is released and emptied', chest['dynamicFields']['private.housing']['owner'] == 0 and chest['dynamicFields']['private.housing']['serial'] == 2
               and chest['inv']['entries'] == [], chest)
@@ -517,6 +528,30 @@ def main():
         check('the listing stays for the officials, with no tenant, offer, interest, deposit held or rent clock',
               tl == {'door': 0x1B000, 'zone': 'bruma', 'deposit': 100, 'weekly': 10, 'listedBy': {'profile': 5}, 'interest': [], 'depositHeld': 0}, tl)
         check('the crown is vacant', G('supernatural.json') == {'crown': None, 'revoke': []})
+        check('full: nothing learned survives (a spell that is no tome, marker or staff grant included)', all(not c['keptSpells'] for c in r['characters']), [(c['name'], c['keptSpells']) for c in r['characters'] if c['keptSpells']])
+        check('the skill boost on a character is cleared', 'private.xpBoost' not in rdf, rdf)
+        pbo = G('playtester-boost.json')['profiles']
+        check('a boost window starting before the opening (a staff test) is removed, a playtester\'s from after it kept', sorted(pbo) == ['36'], pbo)
+        blk = ar.gates(r)
+        check('gates: the record for a hand check blocks the launch, and nothing else does here', blk and all('Stuck' in x for x in blk), blk)
+        kept = json.loads(json.dumps(r)); kept['characters'][0]['keptSpells'] = [1]; kept['characters'] = kept['characters'][:1]
+        check('gates: a spell kept under the full reset blocks the launch', any('kept spells' in x for x in ar.gates(kept)), ar.gates(kept))
+        watched = json.loads(json.dumps(kept)); watched['characters'][0]['keptSpells'] = []; watched['characters'][0]['watch'] = ['private.dboSentence']
+        check('gates: a jailed character blocks the launch', any('dboSentence' in x for x in ar.gates(watched)), ar.gates(watched))
+        live = json.loads(json.dumps(r)); live['world']['housing']['claims'] = live['world']['housing']['claims'][:1]; live['characters'] = live['characters'][1:]
+        diff = ar.compare(r, live)
+        check('compare: a claim and a character fewer than the dry run are named', any('claims: 2' in x for x in diff) and any('gone since' in x for x in diff), diff)
+        check('compare: the same plan twice is clean', ar.compare(r, json.loads(json.dumps(r))) == [])
+        fr, fc = os.path.join(tmp, 'r.json'), os.path.join(tmp, 'clean.json')
+        json.dump(r, open(fr, 'w')); clean = json.loads(json.dumps(r)); clean['characters'] = [c for c in clean['characters'] if c['name'] != 'Stuck']; json.dump(clean, open(fc, 'w'))
+        check('the gates and compare commands exit 1 on a blocked plan or a difference, 0 when clean',
+              ar.main(['gates', fr]) == 1 and ar.main(['gates', fc]) == 0 and ar.main(['compare', fr, fc]) == 1 and ar.main(['compare', fc, fc]) == 0)
+        # earned mode: the blessing's spell goes with the faith too
+        root5 = os.path.join(tmp, 'sandbox5'); os.makedirs(root5)
+        world3_fixture(root5)
+        e5 = {c['name']: c for c in ar.plan(ar.World(root5), empty, FakeLO())['characters']}
+        check('earned mode: a running blessing\'s spell is taken back with the faith', e5['Pilgrim']['removeSpells'] == [BLESSING], e5['Pilgrim']['removeSpells'])
+        check('earned mode: a spell of no known source is kept (only full takes every spell)', 0x12FD0 in e5['Wolf']['keptSpells'], e5['Wolf']['keptSpells'])
         r2 = ar.plan(ar.World(root4), empty, FakeLO(), stats='full')
         check('planned again: nobody to cure but the hand-check record, no claims, no faith, no business',
               [c['name'] for c in r2['characters'] if c.get('cure')] == ['Stuck'] and not r2['world']['housing']['claims']

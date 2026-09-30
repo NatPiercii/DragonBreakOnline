@@ -32,7 +32,11 @@ LIVE_STATE = '/opt/skymp-state'
 LIVE_SERVER = '/opt/alduinak/build/dist/server'
 DATA = os.environ.get('DBO_DATA', '/opt/skyrim-data')
 ORDER = os.environ.get('DBO_LOADORDER', os.path.expanduser('~nate/dragonbreak/fork/deploy/skyrim-data/loadorder.txt'))
-ESPLIB = os.environ.get('ESPLIB_DIR', os.path.expanduser('~nate/dragonbreak/ck-mcp'))
+# esplib.py is pinned with this tool: the copy in the same commit (tooling/ck-mcp), unless ESPLIB_DIR says otherwise
+_PINNED_ESPLIB = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tooling', 'ck-mcp'))
+ESPLIB = os.environ.get('ESPLIB_DIR') or (_PINNED_ESPLIB if os.path.exists(os.path.join(_PINNED_ESPLIB, 'esplib.py')) else os.path.expanduser('~nate/dragonbreak/ck-mcp'))
+# The opening (the alpha, Sat 3 Oct 2026 05:00 UTC): a playtester boost window that starts before it is a test grant
+OPENING = os.environ.get('DBO_OPENING', '2026-10-03T05:00:00Z')
 
 GOLD = 0x0000000F
 # spawn.ts DEFAULT_STARTING_ITEMS (Miner's Clothes, Miner's Boots, 50 gold; server-settings "startingItems" overrides)
@@ -56,8 +60,11 @@ ADMIN_SET_MIN = 20   # and at least this many of them: a handful is what a playe
 FULL_STATS_FIELDS = ('private.mastery', 'private.dboLevel', 'private.dboAvBonus', 'private.dboStudied', 'private.dboPrepared',
                      'private.dboSchools', 'private.dboManuals', 'private.dboSkillBooks', 'private.dboManualsOwed', 'private.dboRecipes',
                      'private.scholarReads', 'private.scholarTomes', 'private.scholarScrolls', 'private.scholarCopies',
-                     'private.dboTomeBoughtAt')
+                     'private.dboTomeBoughtAt', 'private.xpBoost')
 HAND_SLOTS = ('leftSpell', 'rightSpell', 'voiceSpell', 'instantSpell')
+# rest.js state on a claim door: rent held for an offline owner (dboRestOwed; per profile in dboRestOwedBy since
+# hardening-inn-rent 0df483d0) and the inn owner's own bed. It goes with the claim, whichever build is live.
+CLAIM_DOOR_FIELDS = ('private.dboRestOwed', 'private.dboRestOwedBy', 'private.dboInnOwnerBed')
 
 
 def tier_of_level(level):
@@ -678,6 +685,13 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
         modes = df.get('ff_adminModes')
         if isinstance(modes, dict) and any(modes.values()):
             flags.append('ff_adminModes')   # god mode and the like, switched on from the admin panel
+        # A running blessing's spell (prayer.js castSpell) goes with the faith, in any mode (independent review, 30 Sep)
+        bl = df.get('private.dboBlessing')
+        if isinstance(bl, dict) and bl.get('spell'):
+            try:
+                remove.add(u32(bl['spell']))
+            except (TypeError, ValueError):
+                pass
         c['clearFields'] = []
         if stats == 'full':
             # Every skill and level point back to the start, and every spell that came from a skill, a tome, a study or
@@ -690,6 +704,9 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
             prepared = df.get('private.dboPrepared') if isinstance(df.get('private.dboPrepared'), list) else []
             studied_ids |= {lo.id_of(desc_key(x)) for x in prepared} if lo else set()
             remove |= {s for s in spells_now if marker_of(lo, s) or s in admin_spells or s in tome_spells or s in studied_ids}
+            # and every other learned spell: a fresh character inherits none (server-settings playersInheritBaseSpells
+            # false), so nothing a character holds survives the full reset (independent review, 30 Sep)
+            remove |= set(spells_now)
             c['clearFields'] = [k for k in FULL_STATS_FIELDS if k in df]
         c['skills'] = ch
         c['dropSkills'] = dropped
@@ -713,6 +730,10 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
         # Guild membership (guilds.js keeps it in guilds.json by actor id and mirrors it here)
         if df.get('private.dboGuilds'):
             c['guilds'] = df.get('private.dboGuilds')
+        # A skill boost on the character before the opening is a staff test (playtesterboost.js copies an account's window
+        # onto the character at each login): it goes in any mode, with its window in playtester-boost.json below
+        if df.get('private.xpBoost') and 'private.xpBoost' not in c['clearFields']:
+            c['clearFields'].append('private.xpBoost')
         # A bed rented in an inn (rest.js): the rent ledger goes, the bed's side is cleared with the world below
         if df.get('private.dboRentBed'):
             c['bedRent'] = df.get('private.dboRentBed')
@@ -747,7 +768,8 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
     # housingSystem.ts release(): reKey (serial + 1, no key names issued; the keys went with the inventories and
     # containers), then an ownerless stub with no name and no lock. The stub stays on the door so the serial survives
     # and no key cut before the reset opens it again; the owner index goes to "0" and the registry forgets the door.
-    # rest.js's gold held for an owner and the owner's own bed ride on the claim door, and go with the claim.
+    # rest.js's gold held for an owner (dboRestOwed, dboRestOwedBy) and the owner's own bed ride on the claim door, and
+    # go with the claim.
     def runtime_id(n, d):
         form = str(d.get('formDesc') or '')
         if ':' in form:
@@ -765,8 +787,8 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
                            'serial': int(rec.get('serial') or 1)})
         elif isinstance(rec, dict) and rec.get('primary'):
             pointers += 1
-        if any(df.get(k) for k in ('private.dboRestOwed', 'private.dboInnOwnerBed')):
-            claim_fields.append({'file': n, 'form': d.get('formDesc'), 'fields': [k for k in ('private.dboRestOwed', 'private.dboInnOwnerBed') if df.get(k)]})
+        if any(df.get(k) for k in CLAIM_DOOR_FIELDS):
+            claim_fields.append({'file': n, 'form': d.get('formDesc'), 'fields': [k for k in CLAIM_DOOR_FIELDS if df.get(k)]})
     known = {c['id'] for c in claims}
     out['world']['housing'] = {'claims': claims, 'registry': registry_ids, 'registryWithoutClaim': [x for x in registry_ids if x not in known],
                                'claimsNotInRegistry': [c['form'] for c in claims if c['id'] not in registry_ids], 'pointers': pointers,
@@ -815,6 +837,16 @@ def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
         files['tenancy.json'] = {'deposits': {k: v.get('depositHeld', 0) for k, v in (ten.get('listings') or {}).items() if v.get('depositHeld')},
                                  'tenants': {k: (v.get('tenant') or {}).get('name') for k, v in (ten.get('listings') or {}).items() if v.get('tenant')},
                                  'listings': len(ten.get('listings') or {}), 'owed': ten.get('owed') or []}
+    # Playtester boost windows (playtesterboost.js): a window that starts before the opening is a staff test grant
+    pb = world.game_json('playtester-boost.json')
+    if isinstance(pb, dict) and isinstance(pb.get('profiles'), dict):
+        try:
+            open_ms = int(datetime.datetime.strptime(OPENING, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
+        except ValueError:
+            raise SystemExit(f'DBO_OPENING {OPENING} is not YYYY-MM-DDTHH:MM:SSZ')
+        early = {k: v for k, v in pb['profiles'].items() if not isinstance(v, dict) or int(v.get('start') or 0) < open_ms}
+        if early:
+            files['playtester-boost.json'] = {'removed': early, 'kept': len(pb['profiles']) - len(early), 'opening': OPENING}
     # Guild membership (guilds.js) and the factions' storage records (claimed containers, released above)
     for f in ('guilds.json', 'faction-storage.json'):
         v = world.game_json(f)
@@ -1031,6 +1063,11 @@ def apply(world, p, report_dir):
     for f in ('guilds.json', 'faction-storage.json'):
         if f in files:
             save_game(f, {})
+    if 'playtester-boost.json' in files:
+        pb = world.game_json('playtester-boost.json')
+        for k in files['playtester-boost.json']['removed']:
+            pb['profiles'].pop(k, None)
+        save_game('playtester-boost.json', pb)
     if 'bank.json' in files:
         bank = world.game_json('bank.json')
         bank['zones'] = files['bank.json']['to']['zones']; bank['factions'] = {}
@@ -1147,6 +1184,8 @@ def report(p, lo, path, applied=None):
             L.append(f'- tenancy.json: {v["listings"]} listing(s) kept for the officials; tenants {json.dumps(v["tenants"])}, deposits {json.dumps(v["deposits"])}, offers and interest cleared; {len(v["owed"])} owed payment(s) dropped.')
         elif f in ('guilds.json', 'faction-storage.json'):
             L.append(f'- {f}: emptied ({v["entries"]} entr(ies)).')
+        elif f == 'playtester-boost.json':
+            L.append(f'- playtester-boost.json: {len(v["removed"])} window(s) starting before the opening ({v["opening"]}) removed as test grants (profiles {", ".join(sorted(v["removed"]))}); {v["kept"]} kept.')
         elif f == 'commissions.json':
             L.append(f'- commissions.json: {len(v["cancelled"])} live commission(s) cancelled without refund, {len(v["owed"])} owed payment(s) dropped.')
         elif f == 'contracts.json':
@@ -1246,6 +1285,49 @@ def report(p, lo, path, applied=None):
     return L
 
 
+# ---- the launch's gates (alpha-reset-launch.sh): what stops it before the server stops ---------------------------------
+def gates(p):
+    """Reasons a plan must not be applied: a record the cure cannot restore, a character in a state the reset does not
+    undo (restrained, jailed, permanently dead), a spell kept under the full reset, a world already reset."""
+    out = []
+    if p.get('alreadyReset'):
+        out.append(f'{len(p["alreadyReset"])} character(s) already reset')
+    for c in p['characters']:
+        who = f'{c["name"]} #{c["tag"]}'
+        for x in (c.get('cure') or {}).get('check') or []:
+            out.append(f'check by hand: {who}: {x}')
+        for x in c.get('watch') or []:
+            out.append(f'check by hand: {who}: {x}')
+        if p.get('stats') == 'full' and c.get('keptSpells'):
+            out.append(f'kept spells under the full reset: {who}: {len(c["keptSpells"])}')
+    return out
+
+
+def counts(p):
+    return {'characters': len(p['characters']), 'cures': sum(1 for c in p['characters'] if c.get('cure')),
+            'faiths': sum(1 for c in p['characters'] if c.get('faith')),
+            'claims': len(((p.get('world') or {}).get('housing') or {}).get('claims') or []),
+            'businesses': len(((p.get('files') or {}).get('businesses.json') or {}).get('businesses') or [])}
+
+
+def compare(dry, live):
+    """What differs between the dry run and the plan made on the stopped world: characters, cures, faiths, claims,
+    businesses, the stats mode."""
+    out = []
+    fa, fb = {c['file'] for c in dry['characters']}, {c['file'] for c in live['characters']}
+    if fa - fb:
+        out.append(f'characters gone since the dry run: {sorted(fa - fb)}')
+    if fb - fa:
+        out.append(f'characters new since the dry run: {sorted(fb - fa)}')
+    ca, cb = counts(dry), counts(live)
+    for k in ('cures', 'faiths', 'claims', 'businesses'):
+        if ca[k] != cb[k]:
+            out.append(f'{k}: {ca[k]} in the dry run, {cb[k]} now')
+    if dry.get('stats') != live.get('stats'):
+        out.append(f'stats: {dry.get("stats")} in the dry run, {live.get("stats")} now')
+    return out
+
+
 # ---- safety ---------------------------------------------------------------------------------------------------------
 def check_root(root, live, snapshot, state=None, server=None, originals=None):
     livep = [os.path.realpath(x) for x in (LIVE_STATE, LIVE_SERVER)]
@@ -1270,6 +1352,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description='The one-time alpha reset (README.md)')
     sub = ap.add_subparsers(dest='cmd', required=True)
     g = sub.add_parser('grants'); g.add_argument('--logs', default='/var/log/skymp-server.log*'); g.add_argument('--out', required=True)
+    gt = sub.add_parser('gates', help='exit 1 when a plan JSON must not be applied, naming why'); gt.add_argument('plan')
+    cp = sub.add_parser('compare', help='exit 1 when the live plan differs from the dry run'); cp.add_argument('dry'); cp.add_argument('live')
     for name in ('plan', 'apply'):
         s = sub.add_parser(name)
         s.add_argument('--root', help='a snapshot-layout folder (state/, server/)')
@@ -1288,6 +1372,18 @@ def main(argv=None):
                        help='earned: skills earned by playing stay, staff grants go; full: every skill, level point and learned '
                             'spell goes too (the alpha announcement). Spells from a kept rite stay either way')
     a = ap.parse_args(argv)
+    if a.cmd in ('gates', 'compare'):
+        load = lambda f: json.load(open(f, encoding='utf-8'))
+        if a.cmd == 'gates':
+            p = load(a.plan)
+            bad = gates(p)
+            print(f'  plan {os.path.basename(a.plan)}: stats {p.get("stats")}, ' + ', '.join(f'{k} {v}' for k, v in counts(p).items()))
+        else:
+            bad = compare(load(a.dry), load(a.live))
+            print('  dry run and live plan: ' + ', '.join(f'{k} {v}' for k, v in counts(load(a.live)).items()))
+        for x in bad:
+            print('  ' + x)
+        return 1 if bad else 0
     if a.cmd == 'grants':
         trail = parse_trail(read_logs(a.logs))
         with open(a.out, 'w', encoding='utf-8') as fh:
