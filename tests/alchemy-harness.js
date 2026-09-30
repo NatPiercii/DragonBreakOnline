@@ -296,5 +296,40 @@ check('...and the pair still brews', out.said.some(([, t]) => /You brew/.test(t)
   check('a report with just one ingredient once still says a potion needs two', /needs at least two/.test(saidTo(BREWER)[0] || ''), saidTo(BREWER));
 }
 
+// ---- brewing is the Alchemist's work (Nate, 2026-09-30: Alchemist rose from picking mushrooms) ----
+// Every brew above ran with no __alduinakMasteryAward (the live fork has none): brewing works the same without it.
+const awards = [];
+globalThis.__alduinakMasteryAward = (a, skill, weight, key) => { awards.push({ a, skill, weight, key }); return weight; };
+stock(STRANGER);
+craft(STRANGER, [TROLL_FAT, FLY_AMANITA]);
+const strangerAward = awards[0];
+check('an ordinary brew awards Alchemist once, keyed on the potion brewed', awards.length === 1 && strangerAward.a === STRANGER && strangerAward.skill === 'alchemist' && TWO_HANDED.has(strangerAward.key), awards);
+check('...worth 1 to 3', strangerAward && strangerAward.weight >= 1 && strangerAward.weight <= 3, strangerAward);
+awards.length = 0; stock(NOVICE);
+craft(NOVICE, [TROLL_FAT, FLY_AMANITA]);
+check('a Novice\'s brew is worth less than an Expert\'s', awards.length === 1 && awards[0].weight < strangerAward.weight, [awards, strangerAward]);
+awards.length = 0; stock(BREWER); mastery(BREWER, 3); put(BREWER, 'private.dboRecipes', { revive: true });
+craft(BREWER, [YELLOW_POLYPORE, TROLL_FAT, FLY_AMANITA]);
+check('the Draught of Revival awards Alchemist too, keyed on the Draught', awards.length === 1 && awards[0].key === DRAUGHT && count(BREWER, DRAUGHT) >= 1, awards);
+awards.length = 0; stock(BREWER);
+craft(BREWER, [FLY_AMANITA, FLY_AMANITA]);
+check('a mix that brews nothing awards nothing', awards.length === 0, awards);
+globalThis.__alduinakMasteryAward = () => { throw new Error('boom'); };
+stock(STRANGER);
+const beforeThrow = total(STRANGER, TWO_HANDED);
+craft(STRANGER, [TROLL_FAT, FLY_AMANITA]);
+check('an award that throws never costs the potion', total(STRANGER, TWO_HANDED) === beforeThrow + 1 && out.logs.some((l) => /mastery award failed/.test(l)));
+delete globalThis.__alduinakMasteryAward;
+
+// ---- skills.json: gathering and eating are not the Alchemist's work ----
+const SKILLS = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'skills.json'), 'utf8')).skills;
+const counts = (id) => (SKILLS.find((k) => k.id === id) || {}).counts || {};
+check('Alchemist no longer counts harvesting plants or trees', !(counts('alchemist').activateTypes || []).some((t) => /^(FLOR|TREE)$/i.test(t)), counts('alchemist'));
+check('...nor eating an ingredient (vanilla gives no Alchemy for it)', !counts('alchemist').eatIngredient);
+check('...and Harvesting still does', ['FLOR', 'TREE'].every((t) => (counts('harvesting').activateTypes || []).includes(t)), counts('harvesting'));
+const typeOwners = new Map();
+for (const k of SKILLS) for (const t of ((k.counts || {}).activateTypes || [])) typeOwners.set(t, (typeOwners.get(t) || []).concat([k.id]));
+check('no activated record type credits two trades at once', [...typeOwners.values()].every((ids) => ids.length === 1), Object.fromEntries(typeOwners));
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

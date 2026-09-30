@@ -366,14 +366,10 @@
     ]
    },
    "counts": {
+    "_comment": "Brewing is the work (alchemy.js awards each brew); gathering plants and trees is the Harvesting trade's, and eating an ingredient teaches nothing, as in vanilla (Nate, 2026-09-30: Alchemist rose from picking mushrooms). The lab itself still counts until the brew award is live.",
     "activatePrefixes": [
      "CraftingAlchemyWorkbench"
-    ],
-    "activateTypes": [
-     "FLOR",
-     "TREE"
-    ],
-    "eatIngredient": true
+    ]
    },
    "tiers": [
     "Weak potions",
