@@ -161,6 +161,16 @@ def main():
         check('staff and test characters are listed: the GM\'s profile and the test-named, not the bystander',
               set(staff) == {'Hero', 'Testy'} and any('GM actions' in w or 'admin' in w for w in staff['Testy']['why']) is False and 'named as a test or GM character' in staff['Testy']['why'], p['staff'])
 
+        # A staff profile's own player character, marked in the config by tag and profile (Nate, 2026-09-30)
+        marked = {'players': {('HERO', 8): {'tag': 'HERO', 'profile': 8, 'name': 'Hero', 'by': 'Nate'}, ('NOPE', 3): {'tag': 'NOPE', 'profile': 3, 'name': 'Typo'}}}
+        pm = ar.plan(ar.World(root), trail, FakeLO(), settings=marked)
+        check('a marked player character leaves the staff-only list for its own', [x['name'] for x in pm['staff']] == ['Testy'] and [x['name'] for x in pm['staffPlayers']] == ['Hero'], {'staff': pm['staff'], 'players': pm['staffPlayers']})
+        hm = [c for c in pm['characters'] if c['name'] == 'Hero'][0]
+        check('...and is still reset, its staff grants taken back', hm['removeSpells'] == hero['removeSpells'] and hm['skills'] == hero['skills'])
+        check('an entry that matches no character is named', any('Typo' in n and 'no staff character' in n for n in pm['notes']), pm['notes'])
+        check('the shipped config marks Nilis Urnum and Velisse Montclair by tag and profile',
+              set(ar.load_config()['players']) == {('R4XY', 7), ('RWPS', 6)})
+
         # ---- apply ----
         before_untouched = open(os.path.join(root, 'state', 'world', 'changeForms', 'b2_Skyrim.esm.json')).read()
         npc_before = open(os.path.join(root, 'state', 'world', 'changeForms', '3a0.json')).read()

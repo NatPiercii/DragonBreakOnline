@@ -38,6 +38,20 @@ DEFAULT_TOOLS = [('e3c16:Skyrim.esm', 1), ('2f2f4:Skyrim.esm', 1)]
 ITEM_TYPES = {'WEAP', 'ARMO', 'MISC', 'INGR', 'ALCH', 'BOOK', 'AMMO', 'SLGM', 'SCRL', 'KEYM', 'LIGH'}
 SUPPLY_CHEST = '12ae13:dragonbreak online edits.esp'   # the staff supply chest (economy audit, 29 Sep)
 DAY = 86400000
+CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'alpha-reset.json')
+
+
+def load_config(path=CONFIG):
+    """alpha-reset.json: playerCharacters, the staff profiles' own player characters (by tag and profile)."""
+    try:
+        with open(path, encoding='utf-8') as fh:
+            cfg = json.load(fh)
+    except FileNotFoundError:
+        cfg = {}
+    players = {}
+    for x in cfg.get('playerCharacters') or []:
+        players[(str(x['tag']), int(x['profile']))] = x
+    return {'players': players}
 
 
 def log(msg):
@@ -322,7 +336,8 @@ def plan_mastery(d, events, skills_cfg, tag, trail):
     return changes, spells, dropped
 
 
-def plan(world, trail, lo, seed_default=10000):
+def plan(world, trail, lo, seed_default=10000, settings=None):
+    settings = settings or {'players': {}}
     cfg = world.game_json('gamemode-config.json', {}) or {}
     skills_cfg = world.game_json('skills.json', {}) or {}
     powers = world.game_json('admin-powers.json', {}) or {}
@@ -455,7 +470,7 @@ def plan(world, trail, lo, seed_default=10000):
     gm_profiles = {g['gmProfile'] for g in trail['grants'] if 'gmProfile' in g}
     gm_tags = {g['gmTag'] for g in trail['grants'] if 'gmTag' in g}
     admin_profiles = {d.get('profileId') for d in world.chars.values() if (d.get('dynamicFields') or {}).get('isAdmin') is True}
-    staff = []
+    staff, players = [], []
     for n, d in world.chars.items():
         df = d.get('dynamicFields') or {}
         why = []
@@ -472,9 +487,22 @@ def plan(world, trail, lo, seed_default=10000):
             why.append('admin modes on (' + ', '.join(k for k, v in modes.items() if v) + ')')
         if re.search(r'test|^GM\b', name_of(d), re.I):
             why.append('named as a test or GM character')
-        if why:
-            staff.append({'profile': d.get('profileId'), 'name': name_of(d), 'tag': tag_of(d), 'file': n, 'why': why})
+        if not why:
+            continue
+        row = {'profile': d.get('profileId'), 'name': name_of(d), 'tag': tag_of(d), 'file': n, 'why': why}
+        mark = settings['players'].get((tag_of(d), d.get('profileId')))
+        if mark:
+            row['exception'] = mark.get('by') or 'alpha-reset.json'
+            players.append(row)
+        else:
+            staff.append(row)
     out['staff'] = sorted(staff, key=lambda x: (x['profile'], x['name']))
+    out['staffPlayers'] = sorted(players, key=lambda x: (x['profile'], x['name']))
+    # a listed exception that matches no character is named, so a typo in the tag is seen
+    found = {(x['tag'], x['profile']) for x in players}
+    for key, x in settings['players'].items():
+        if key not in found:
+            out['notes'].append(f'alpha-reset.json lists {x.get("name")} #{key[0]} (profile {key[1]}) as a player character, but no staff character has that tag and profile.')
     return out
 
 
@@ -649,6 +677,16 @@ def report(p, lo, path, applied=None):
         L.append('|---|---|---|')
         for x in p['staff']:
             L.append(f'| {x["profile"]} | {x["name"]} #{x["tag"]} | {"; ".join(x["why"])} |')
+    if p.get('staffPlayers'):
+        L.append('')
+        L.append(f'## Staff members\' own player characters: play in the alpha ({len(p["staffPlayers"])})')
+        L.append('')
+        L.append('On a staff profile, but their owners\' own characters (alpha-reset.json playerCharacters). Reset like everyone else, staff grants on them taken back; they are not staff-only.')
+        L.append('')
+        L.append('| Profile | Character | Marked by |')
+        L.append('|---|---|---|')
+        for x in p['staffPlayers']:
+            L.append(f'| {x["profile"]} | {x["name"]} #{x["tag"]} | {x["exception"]} |')
     L.append('')
     L.append('## Per character')
     for c in sorted(chars, key=lambda c: (-len(c['staff']), c['name'])):
@@ -727,6 +765,7 @@ def main(argv=None):
         s.add_argument('--live', action='store_true')
         s.add_argument('--snapshot')
         s.add_argument('--no-plugins', action='store_true', help='skip the load order (tests): no names, no dropped-item check')
+        s.add_argument('--config', default=CONFIG, help='alpha-reset.json (playerCharacters)')
     a = ap.parse_args(argv)
     if a.cmd == 'grants':
         trail = parse_trail(read_logs(a.logs))
@@ -744,7 +783,7 @@ def main(argv=None):
     else:
         trail = parse_trail(read_logs(a.logs))
     lo = None if a.no_plugins else LoadOrder()
-    p = plan(world, trail, lo)
+    p = plan(world, trail, lo, settings=load_config(a.config))
     if a.json:
         with open(a.json, 'w', encoding='utf-8') as fh:
             json.dump(p, fh, indent=1)

@@ -1,0 +1,7 @@
+{
+ "_comment": "alpha_reset.py settings. playerCharacters: characters on staff profiles that are their owners' own player characters and play in the alpha (Nate, 2026-09-30). Matched by character tag and profile, never by name. They are reset like everyone else and any staff grants on them are taken back; they are only left out of the staff-only list.",
+ "playerCharacters": [
+  { "tag": "R4XY", "profile": 7, "name": "Nilis Urnum", "by": "Nate, 2026-09-30" },
+  { "tag": "RWPS", "profile": 6, "name": "Velisse Montclair", "by": "Nate, 2026-09-30" }
+ ]
+}

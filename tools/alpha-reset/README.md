@@ -52,7 +52,11 @@ nothing back twice: taking a skill that went 35 → 5 back again would leave it 
    - every character of a staff profile, meaning a profile with GM actions on record or a character flagged admin at
      a login;
    - any character named as a test or GM character.
-   A staff member's own player character, if they keep one, is for Nate to mark as the exception.
+   A staff member's own player character is listed in `alpha-reset.json` (`playerCharacters`, by character tag and
+   profile, never by name) and moves to its own table, "Staff members' own player characters", as allowed to play in
+   the alpha. It is still reset like everyone else, with its staff grants taken back. Nate marked two
+   (2026-09-30): **Nilis Urnum #R4XY** (profile 7) and **Velisse Montclair #RWPS** (profile 6). An entry that matches
+   no character is named in the report, so a mistyped tag shows.
 4. **Treasuries go back to the 10,000 seed.**
 
 ## The dry run (30 Sep, sandbox of the live world)
@@ -111,7 +115,8 @@ The tool refuses the live folders in three cases: without `--live`, while `skymp
 | File | What |
 |---|---|
 | `alpha_reset.py` | `grants`, `plan`, `apply`. Standard library plus ck-mcp/esplib.py (names and record types from the load order) |
-| `test_alpha_reset.py` | 41 checks on a small world in a temp folder, with a fake load order: the trail parser, the plan, apply, a second run, the refusals |
+| `alpha-reset.json` | Settings: `playerCharacters`, the staff profiles' own player characters |
+| `test_alpha_reset.py` | 47 checks on a small world in a temp folder, with a fake load order: the trail parser, the plan, apply, a second run, the refusals |
 
 The staff trail comes from `/var/log/skymp-server.log*`, rotations and `.gz` included. They are kept 8 weeks, so all
 of it (from 21 Sep, when the world moved to CT 115) is still there on 13 Oct. `grants` saves it as JSON either way.
