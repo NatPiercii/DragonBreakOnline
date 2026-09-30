@@ -50,6 +50,8 @@ module.exports = (api) => {
     } catch (e) { log(`interaction idle ${key} failed for ${id.toString(16)}: ${e.message}`); return false; }
   };
   globalThis.__dboInteractionIdle = play;
+  // A copy of one interaction's definition (journal.js names its idle in the stop it sends)
+  globalThis.__dboInteractionIdleDef = (key) => (IDLES[key] ? Object.assign({}, IDLES[key]) : null);
 
   // ---- the chest hold (Nate 2026-09-30: about a second is fine) ------------------------------------------------------
   // The last gate of gamemode.js's activate chain, so every other gate (dungeon and camp chests, treasuries, raids...)
