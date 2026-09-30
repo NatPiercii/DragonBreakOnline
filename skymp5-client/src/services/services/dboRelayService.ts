@@ -4,6 +4,7 @@ import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customP
 import { openFormMenu, closeFormMenu, closeWidget, refreshFormMenu } from "./widgetMenuUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { TimersService } from "./timersService";
+import { AutoMoveService } from "./autoMoveService";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, Menu, storage } from "skyrimPlatform";
 import { COMPANION_HUD_KEY } from "./companionService";
@@ -225,6 +226,7 @@ export class DboRelayService extends ClientListener {
     if (content["focus"]) {
       this.focusedId = wid;
       openFormMenu(this.sp, this.browsersideWidgetSetter, { widget: w, id: wid }, this.controller);
+      this.controller.lookupListener(AutoMoveService).onFocusedWidget((w as any).type);
     } else {
       refreshFormMenu(this.sp, this.browsersideWidgetSetter, { widget: w, id: wid });
     }

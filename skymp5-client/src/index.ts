@@ -67,6 +67,7 @@ import { InteractionPromptService } from "./services/services/interactionPromptS
 import { BoardMailService } from "./services/services/boardMailService";
 import { BeastFormService } from "./services/services/beastFormService";
 import { VampireFeedService } from "./services/services/vampireFeedService";
+import { AutoMoveService } from "./services/services/autoMoveService";
 import { ParalysisService } from "./services/services/paralysisService";
 import { CastSelfService } from "./services/services/castSelfService";
 import { PaleCoatService } from "./services/services/paleCoatService";
@@ -199,6 +200,7 @@ const main = () => {
       new InteractionPromptService(sp, controller),
       new BoardMailService(sp, controller),
       new BeastFormService(sp, controller),
+      new AutoMoveService(sp, controller),
       new VampireFeedService(sp, controller),
       new ParalysisService(sp, controller),
       new CastSelfService(sp, controller),
