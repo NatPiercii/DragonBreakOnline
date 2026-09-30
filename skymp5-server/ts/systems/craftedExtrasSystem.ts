@@ -39,10 +39,10 @@ const MAX_HEALTH_STEP = 16;
 // With server-settings.json "craftedExtrasRankGates": true (read at boot; off until Nate compares them with vanilla's
 // temper and enchant results in game), the rank also caps them: tempering Fine, Superior, Exquisite, Epic, Legendary
 // from Novice to Master (skills.json's Master tier promises "legendary improvement"), and enchantments at this share of
-// the strongest plugin enchantment of the same kind. Off, every rank reaches Legendary and twice the plugin cap, as before.
+// the strongest base game enchantment of the same kind. Off, every rank reaches Legendary and twice that cap.
 const TEMPER_CAP_BY_RANK = [11, 12, 13, 15, 16];
 const ENCHANT_MARGIN_BY_RANK = [0.5, 0.75, 1, 1.5, 2];
-// Twice the strongest plugin enchantment of an effect covers skill, perks and Fortify Enchanting potions
+// Twice the strongest base game enchantment of an effect covers skill, perks and Fortify Enchanting potions
 const ENCHANT_MARGIN = 2;
 const RANK_GATES_SETTING = "craftedExtrasRankGates";
 // Extra Effect perk
@@ -64,6 +64,12 @@ const KEYWORD_DISALLOW_ENCHANTING = 0x000c27bd;
 const KEYWORD_REUSABLE_SOUL_GEM = 0x000ed2f1;
 // ENCH ENIT enchant type; weapon enchantments are fire and forget on contact, armor ones constant on self
 const ENCH_TYPE_ENCHANTMENT = 6;
+// Caps come from the base game's player enchantments only (Skyrim.esm, Update and the DLC, the EnchWeapon, EnchArmor and
+// EnchRobes families); a mod's enchantment never raises one
+const BASE_GAME_FILES = new Set(["skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"]);
+const PLAYER_ENCHANTMENT = /^Ench(Weapon|Armor|Robes)/;
+// Effects on the Alchemy and Enchanting skills and their modifiers (the MGEF's actor value) are never accepted on an item
+const REFUSED_EFFECT_AVS = new Set([16, 23, 106, 113, 145]);
 // ALCH ENIT flag
 const FLAG_POISON = 0x20000;
 const TEMPER_SUFFIX = /\s\((Fine|Superior|Exquisite|Flawless|Epic|Legendary)\)$/;
@@ -149,6 +155,14 @@ const chargeOf = (e: InventoryEntry): number => (typeof e.chargePercent === "num
 const formulaCost = (baseCost: number, e: EnchantmentEffect): number =>
   baseCost * Math.pow(Math.max(e.magnitude, 1), 1.1) * Math.pow(Math.max(e.duration / 10, 1), 1.1);
 
+// Load order entries from the first that are base game files: their records' ids start with 0 up to this count
+const baseGameFileCount = (loadOrder: unknown): number => {
+  if (!Array.isArray(loadOrder)) return 0;
+  let n = 0;
+  while (n < loadOrder.length && BASE_GAME_FILES.has(String(String(loadOrder[n]).split(/[\\/]/).pop()).toLowerCase())) n++;
+  return n;
+};
+
 const cleanName = (name: unknown): string | undefined => {
   if (typeof name !== "string") return undefined;
   const text = name.replace(/[\u0000-\u001f\u007f]/g, "").replace(TEMPER_SUFFIX, "").trim().slice(0, 128);
@@ -163,8 +177,10 @@ export class CraftedExtrasSystem implements System {
   // Applying a poison sends OnEquip, which eats and removes the poison before the craft report arrives
   async initAsync(ctx: SystemContext): Promise<void> {
     try {
-      const all = (await Settings.get()).allSettings as Record<string, unknown> | null;
+      const settings = await Settings.get();
+      const all = settings.allSettings as Record<string, unknown> | null;
       this.rankGates = !!all && all[RANK_GATES_SETTING] === true;
+      this.baseFiles = baseGameFileCount(settings.loadOrder);
     } catch {
       this.rankGates = false;
     }
@@ -476,7 +492,7 @@ export class CraftedExtrasSystem implements System {
     return false;
   }
 
-  // Effects of a player enchantment, clamped to the enchanter's share (margin) of the strongest plugin enchantment of the
+  // Effects of a player enchantment, clamped to the enchanter's share (margin) of the strongest base game enchantment of the
   // same kind
   private validEnchantment(ctx: SystemContext, effects: EnchantmentEffect[], weapon: boolean, margin: number): EnchantmentEffect[] | null {
     if (effects.length > MAX_EFFECTS || new Set(effects.map((e) => e.effectId)).size !== effects.length) return null;
@@ -484,7 +500,10 @@ export class CraftedExtrasSystem implements System {
     const out: EnchantmentEffect[] = [];
     for (const e of effects) {
       const cap = caps.get((weapon ? "w" : "a") + (e.effectId >>> 0));
-      if (!cap) return null;
+      if (!cap) {
+        this.logUncapped(e.effectId, weapon);
+        return null;
+      }
       const clamped: EnchantmentEffect = {
         effectId: e.effectId >>> 0,
         magnitude: Math.min(e.magnitude, cap.magnitude * margin),
@@ -576,6 +595,12 @@ export class CraftedExtrasSystem implements System {
     return !!enit && enit.byteLength >= 8 && (viewOf(enit).getUint32(4, true) & FLAG_POISON) !== 0;
   }
 
+  // The MGEF's primary actor value (DATA offset 68), or -1
+  private primaryAvOf(ctx: SystemContext, mgefId: number): number {
+    const data = this.fieldData(this.lookup(ctx, mgefId), "DATA");
+    return data && data.byteLength >= 72 ? viewOf(data).getInt32(68, true) : -1;
+  }
+
   private baseCostOf(ctx: SystemContext, mgefId: number): number {
     const data = this.fieldData(this.lookup(ctx, mgefId), "DATA");
     return data && data.byteLength >= 8 ? viewOf(data).getFloat32(4, true) : 0;
@@ -603,12 +628,14 @@ export class CraftedExtrasSystem implements System {
     }
   }
 
-  // Strongest effect of each kind in any plugin enchantment, keyed "w" or "a" plus the MGEF id
+  // Strongest effect of each kind in the base game's player enchantments, keyed "w" or "a" plus the MGEF id
   private enchantmentCaps(ctx: SystemContext): Map<string, Cap> {
     if (this.caps) return this.caps;
     const caps = new Map<string, Cap>();
     for (const id of this.recordIds(ctx, "ENCH")) {
+      if ((id >>> 24) >= this.baseFiles) continue;
       const res = this.lookup(ctx, id);
+      if (!res || !PLAYER_ENCHANTMENT.test(String(res.record.editorId || ""))) continue;
       const enit = this.fieldData(res, "ENIT");
       if (!enit || enit.byteLength < 24) continue;
       const view = viewOf(enit);
@@ -622,6 +649,7 @@ export class CraftedExtrasSystem implements System {
         if (!(f.data instanceof Uint8Array)) continue;
         if (f.type === "EFID" && f.data.byteLength >= 4) {
           try { effect = res.toGlobalRecordId(viewOf(f.data).getUint32(0, true)) >>> 0; } catch { effect = 0; }
+          if (effect && REFUSED_EFFECT_AVS.has(this.primaryAvOf(ctx, effect))) effect = 0;
         } else if (f.type === "EFIT" && effect && f.data.byteLength >= 12) {
           const v = viewOf(f.data);
           const key = kind + effect;
@@ -635,8 +663,16 @@ export class CraftedExtrasSystem implements System {
       }
     }
     this.caps = caps;
-    this.log(`[crafted] ${caps.size} enchantment effects known`);
+    this.log(`[crafted] ${caps.size} enchantment effects known from ${this.baseFiles} base game files`);
     return caps;
+  }
+
+  // An effect with no cap is refused; each one is logged once
+  private logUncapped(effectId: number, weapon: boolean): void {
+    const key = (weapon ? "w" : "a") + (effectId >>> 0);
+    if (this.uncappedLogged.has(key) || this.uncappedLogged.size >= 256) return;
+    this.uncappedLogged.add(key);
+    this.log(`[crafted] refused an enchantment with ${weapon ? "weapon" : "armor"} effect ${hex(effectId)}, which has no cap`);
   }
 
   // Constructible objects by created item: bench keyword and ingredients
@@ -733,5 +769,7 @@ export class CraftedExtrasSystem implements System {
   private itemCache = new Map<number, ItemInfo>();
   private keywordCache = new Map<number, number[]>();
   private caps: Map<string, Cap> | null = null;
+  private baseFiles = 0;
+  private uncappedLogged = new Set<string>();
   private recipes: Map<number, TemperRecipe[]> | null = null;
 }
