@@ -49,6 +49,15 @@ module.exports = (api) => {
   const stationCache = new Map(); // base id -> station, or null
 
   const norm = (d) => { const s = String(d || ''); const i = s.indexOf(':'); if (i < 0) return s.toLowerCase(); const n = parseInt(s.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase(); };
+  // dragon-materials.json: what only a slain dragon gives, as normalised descs; read once per load
+  let dragonSet = null;
+  const dragonMaterials = () => {
+    if (!dragonSet) {
+      try { dragonSet = new Set((JSON.parse(fs.readFileSync(path.resolve('dragon-materials.json'), 'utf8')).materials || []).map(norm)); }
+      catch (e) { log('salvage: dragon-materials.json unreadable', e.message); dragonSet = new Set(['3ada4:skyrim.esm', '3ada3:skyrim.esm']); }
+    }
+    return dragonSet;
+  };
   const descOf = (id) => { try { return String(mp.getDescFromId(id >>> 0)); } catch (e) { return ''; } };
   const idOf = (d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } };
   const nameOf = (d) => itemName(d) || 'something';
@@ -128,7 +137,10 @@ module.exports = (api) => {
     const share = shareFor(rank);
     // At least one of the main material, but only for an item that cost at least one: a ring made 2 per ingot costs half
     // an ingot, and giving one back would double the metal on every craft (review A5-1). Never more than the item cost.
-    const out = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)]).filter(([, n]) => n > 0);
+    // Dragon bone and scales never come back (dragon-materials.json): dragon gear gives only its other materials, counted
+    // as before, so breaking it down is never a second source of what only a slain dragon gives
+    const out = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)])
+      .filter(([d, n]) => n > 0 && !dragonMaterials().has(norm(d)));
     return out.length ? out : null;
   };
 

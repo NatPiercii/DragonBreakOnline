@@ -192,7 +192,25 @@ module.exports = (api) => {
   // Installed once over whatever handled crafts before the gamemode (masterySystem's chain), so a refused craft
   // earns no mastery credit; a reload replaces this wrapper, never stacks it
   if (typeof globalThis.__dboPrevCraft === 'undefined') globalThis.__dboPrevCraft = typeof mp.onCraft === 'function' && !mp.onCraft.__dboRegions ? mp.onCraft : null;
+  // No recipe makes dragon bone or scales (dragon-materials.json; Nate 2026-09-30: only a slain dragon gives them).
+  // Vanilla has none; Immersive Armors' breakdown recipes (IAB*, 80 of them) turn its dragon armour back into both.
+  const DRAGON_MATERIALS = (() => {
+    try { return new Set((JSON.parse(fs.readFileSync(path.resolve('dragon-materials.json'), 'utf8')).materials || []).map(norm)); }
+    catch (e) { log('regions: dragon-materials.json unreadable', e.message); return new Set(['3ada4:skyrim.esm', '3ada3:skyrim.esm']); }
+  })();
+  const dragonToldAt = new Map();
   const craftHook = function (actorId, itemId, count, recipeId, ...rest) {
+    const a = Number(actorId) >>> 0;
+    if (DRAGON_MATERIALS.has(norm(descOf(Number(itemId) >>> 0)))) {
+      if (Date.now() - (dragonToldAt.get(a) || 0) > 3000) {
+        dragonToldAt.set(a, Date.now());
+        const text = 'Dragon bone and scale come only from a slain dragon; no craft makes them.';
+        personal(a, text);
+        try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
+        audit(`DRAGON MATERIAL craft refused ${who(a)} recipe ${(Number(recipeId) >>> 0).toString(16)} -> ${descOf(Number(itemId) >>> 0)}`);
+      }
+      return false;
+    }
     // Faction gear first (factiongear.js): a faction's own work is refused to anyone but its smiths and tailors
     if (typeof globalThis.__dboFactionCraft === 'function' && globalThis.__dboFactionCraft(actorId, itemId) === false) return false;
     let v = null;

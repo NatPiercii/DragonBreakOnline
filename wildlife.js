@@ -31,9 +31,11 @@ module.exports = (api) => {
   // Named after the placing reference, not a running number, so a regenerated list never renames another zone
   const ownedZoneName = (sp) => { const [loc, plugin] = String(sp.src).split(':'); return `${PREFIX}${sp.kind}:p${loc}-${String(plugin || '').toLowerCase().replace(/\.es[mpl]$/, '').replace(/[^a-z0-9]/g, '')}`; };
   const LOOT = (readJson('loot.json', { pools: {} }).pools) || {};
-  // Nate, 2026-09-29: artifacts are never loot (artifacts.json, as dungeons.js reads it)
+  // Nate, 2026-09-29: artifacts are never loot (artifacts.json, as dungeons.js reads it); nor dragon bone and scales
+  // (dragon-materials.json, Nate 2026-09-30: only a slain dragon gives them)
   const ARTIFACT = (() => {
-    const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);
+    const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p)
+      .concat((readJson('dragon-materials.json', { editorIds: [] }).editorIds || []).filter((e) => typeof e === 'string' && /^\w+$/.test(e)).map((e) => `^${e}$`));
     try { return list.length ? new RegExp(list.map((p) => `(?:${p})`).join('|'), 'i') : /$^/; } catch (e) { log('artifacts.json has a bad pattern', e.message); return /$^/; }
   })();
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { return 0; } };

@@ -366,9 +366,11 @@ module.exports = (api) => {
   // Nat: ebony and daedric never come out of a dungeon (chests, bodies, corpses, or what an enemy is armed with).
   // Matched on the editor id, so the enchanted variants and the ingot go too. Config dungeons.bannedLoot overrides.
   const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric/i;
-  // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json)
+  // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json). Nate,
+  // 2026-09-30: nor dragon bone and scales, which come only from a slain dragon (dragon-materials.json, exact editor ids)
   const ARTIFACT = (() => {
-    const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);
+    const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p)
+      .concat((readJson('dragon-materials.json', { editorIds: [] }).editorIds || []).filter((e) => typeof e === 'string' && /^\w+$/.test(e)).map((e) => `^${e}$`));
     try { return list.length ? new RegExp(list.map((p) => `(?:${p})`).join('|'), 'i') : /$^/; } catch (e) { log('artifacts.json has a bad pattern', e.message); return /$^/; }
   })();
   // Every expedition is an Ayleid ruin; before this the expeditions (keyworded only as caves) refused Ayleid grave goods
