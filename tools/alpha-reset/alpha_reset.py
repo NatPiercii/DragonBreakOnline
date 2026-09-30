@@ -1,0 +1,711 @@
+#!/usr/bin/env python3
+# DragonBreak Online: the one-time reset at the alpha opening (13 Oct 2026, Nate's alpha decision). Every character stays
+# (name, race, look, house claims, factions) with the skills it earned by playing; every inventory, container and store,
+# all gold and the bank go back to the start; what staff granted (skill tiers, spells, beast forms, shouts, items) is
+# reverted. The starter kit is written into each character and dressed at the next login.
+#
+#   python3 alpha_reset.py grants [--logs GLOB] --out grants.json            the staff trail, from the server logs
+#   python3 alpha_reset.py plan  --root DIR [--grants grants.json] --report report.md [--json plan.json]   dry run
+#   python3 alpha_reset.py apply --root DIR [--grants grants.json] --report report.md                     writes
+#
+# DIR has the layout of a world snapshot (tools/backups/dbo_backup.py restore): DIR/state/world/changeForms/*.json,
+# DIR/state/*.json and DIR/server/*.json. The live paths are refused unless --live is given, the game server is
+# stopped and --snapshot names the snapshot taken just before (README.md). Standard library plus ck-mcp/esplib.py.
+import argparse
+import collections
+import datetime
+import glob
+import gzip
+import json
+import os
+import re
+import shutil
+import struct
+import subprocess
+import sys
+
+LIVE_STATE = '/opt/skymp-state'
+LIVE_SERVER = '/opt/alduinak/build/dist/server'
+DATA = os.environ.get('DBO_DATA', '/opt/skyrim-data')
+ORDER = os.environ.get('DBO_LOADORDER', os.path.expanduser('~nate/dragonbreak/fork/deploy/skyrim-data/loadorder.txt'))
+ESPLIB = os.environ.get('ESPLIB_DIR', os.path.expanduser('~nate/dragonbreak/ck-mcp'))
+
+GOLD = 0x0000000F
+# spawn.ts DEFAULT_STARTING_ITEMS (Miner's Clothes, Miner's Boots, 50 gold; server-settings "startingItems" overrides)
+# and gamemode.js STARTER_KIT (gamemode-config "starterKit": Pickaxe, Woodcutter's Axe). The two clothes are worn.
+DEFAULT_KIT = [(0x00080697, 1, True), (0x00080699, 1, True), (GOLD, 50, False)]
+DEFAULT_TOOLS = [('e3c16:Skyrim.esm', 1), ('2f2f4:Skyrim.esm', 1)]
+ITEM_TYPES = {'WEAP', 'ARMO', 'MISC', 'INGR', 'ALCH', 'BOOK', 'AMMO', 'SLGM', 'SCRL', 'KEYM', 'LIGH'}
+SUPPLY_CHEST = '12ae13:dragonbreak online edits.esp'   # the staff supply chest (economy audit, 29 Sep)
+DAY = 86400000
+
+
+def log(msg):
+    print(msg, file=sys.stderr, flush=True)
+
+
+# ---- the load order: descs ("hex:Plugin.esm") <-> runtime form ids, and what a record is ---------------------------------
+class LoadOrder:
+    """Full plugins count 00.. in order; light ones (.esl, or ESL-flagged) are FE xxx yyy, as the server numbers them."""
+
+    def __init__(self, data=DATA, order=ORDER):
+        sys.path.insert(0, ESPLIB)
+        import esplib   # noqa: E402 (only when plugins are read)
+        self.esplib = esplib
+        self.data = data
+        names = [l.strip() for l in open(order, encoding='utf-8') if l.strip() and not l.startswith('#')]
+        self.slot, self.names, self.plugins = {}, {}, {}
+        self.by_full, self.by_light = {}, {}   # runtime top byte / light slot -> plugin name
+        full = light = 0
+        for n in names:
+            p = os.path.join(data, n)
+            if not os.path.exists(p):
+                continue
+            with open(p, 'rb') as fh:
+                flags = struct.unpack_from('<I', fh.read(12), 8)[0]
+            if n.lower().endswith('.esl') or flags & 0x200:
+                self.slot[n.lower()] = (0xFE000000 | (light << 12), 0xFFF); self.by_light[light] = n; light += 1
+            else:
+                self.slot[n.lower()] = (full << 24, 0xFFFFFF); self.by_full[full] = n; full += 1
+            self.names[n.lower()] = n
+        self.cache = {}
+
+    def id_of(self, desc):
+        hexpart, _, plugin = str(desc).partition(':')
+        slot = self.slot.get(plugin.lower())
+        if not slot:
+            return 0
+        return (slot[0] | (int(hexpart, 16) & slot[1])) & 0xFFFFFFFF
+
+    def desc_of(self, fid):
+        fid &= 0xFFFFFFFF
+        if fid >> 24 == 0xFE:
+            n = self.by_light.get((fid >> 12) & 0xFFF)
+            return '%x:%s' % (fid & 0xFFF, n) if n else ''
+        n = self.by_full.get(fid >> 24)
+        return '%x:%s' % (fid & 0xFFFFFF, n) if n else ''
+
+    def _own(self, name):
+        """A plugin's own new records: local id -> (type, flags, offset, size), built once per plugin."""
+        own = self.plugins.get(name)
+        if own is None:
+            p = self.esplib.Plugin(os.path.join(self.data, name))
+            top = len(p.masters)
+            own = {'p': p, 'recs': {rid & 0xFFFFFF: (t, fl, off, sz) for t, rid, fl, off, sz, ctx in p.index if rid >> 24 == top and t != 'GRUP'}}
+            self.plugins[name] = own
+        return own
+
+    def record(self, fid):
+        """(type, edid, value) of the record a runtime id names, from its own plugin; None when unknown."""
+        fid &= 0xFFFFFFFF
+        if fid in self.cache:
+            return self.cache[fid]
+        desc = self.desc_of(fid)
+        out = None
+        if desc:
+            hexpart, _, name = desc.partition(':')
+            own = self._own(name)
+            hit = own['recs'].get(int(hexpart, 16))
+            if hit:
+                t, fl, off, sz = hit
+                with open(os.path.join(self.data, name), 'rb') as fh:
+                    subs = dict(self.esplib.subrecords(own['p'].data_at(fh, off, sz, fl)))
+                edid = subs.get(b'EDID', b'').rstrip(b'\0').decode('cp1252', 'replace')
+                data = subs.get(b'DATA') or b''
+                value = struct.unpack_from('<I', data, 0)[0] if t in ('WEAP', 'ARMO', 'MISC', 'INGR', 'BOOK', 'SLGM', 'KEYM', 'LIGH') and len(data) >= 4 else 0
+                out = (t, edid, value)
+        self.cache[fid] = out
+        return out
+
+    def name(self, fid):
+        r = self.record(fid)
+        return r[1] if r and r[1] else ('%08x' % (fid & 0xFFFFFFFF))
+
+
+# ---- the staff trail: audit lines in the server logs -----------------------------------------------------------------
+AUDIT = re.compile(r'^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)(?:\.\d+)?\] .*?\[gamemode\] audit: (.*)$')
+PANEL = re.compile(r'^GM (.+?) #(\w+) \(profile (\d+)[^)]*\) admin panel: (\w+)(.*)$')
+ADMINLOG = re.compile(r'^GM profile (\d+) (.*)$')
+SPELL = re.compile(r'^SPELL (.+?) #(\w+) \(profile \d+[^)]*\) (learned|took up|prepared) (\S+)')
+WHOM = re.compile(r' to (themself|(.+?) \(profile (\d+)\))')
+
+
+def read_logs(pattern):
+    paths = sorted(glob.glob(pattern), key=lambda p: os.path.getmtime(p))
+    lines = []
+    for p in paths:
+        opener = gzip.open if p.endswith('.gz') else open
+        try:
+            with opener(p, 'rt', encoding='utf-8', errors='replace') as fh:
+                for line in fh:
+                    m = AUDIT.match(line.rstrip('\n'))
+                    if m:
+                        lines.append((m.group(1), m.group(2)))
+        except OSError as e:
+            log(f'log {p} unreadable: {e}')
+    lines.sort(key=lambda x: x[0])
+    # one line can appear in two rotations only if copytruncate raced; drop exact repeats
+    out, seen = [], set()
+    for x in lines:
+        if x not in seen:
+            seen.add(x); out.append(x)
+    return out
+
+
+def parse_trail(lines):
+    """Staff grants in time order, and what players learned or took up themselves (by character tag)."""
+    grants, learned, took = [], collections.defaultdict(set), collections.defaultdict(set)
+    pending = []   # give* panel lines waiting for the admin system's line that names who got it
+    for ts, text in lines:
+        m = SPELL.match(text)
+        if m:
+            tag, verb, what = m.group(2), m.group(3), m.group(4)
+            (learned if verb in ('learned', 'prepared') else took)[tag].add(what.lower() if verb != 'took up' else what)
+            continue
+        m = PANEL.match(text)
+        if m:
+            gm_name, gm_tag, gm_profile, action, rest = m.group(1), m.group(2), int(m.group(3)), m.group(4), m.group(5)
+            args = dict(re.findall(r'(\w+)=(\S+)', rest))
+            g = {'at': ts, 'gm': f'{gm_name} #{gm_tag} (profile {gm_profile})', 'gmProfile': gm_profile, 'gmTag': gm_tag, 'action': action}
+            if action in ('masterySetTier', 'masteryDrop', 'masteryGrant'):
+                try:
+                    g['target'] = int(args.get('target', ''), 16)
+                except ValueError:
+                    continue
+                g['skill'] = args.get('skill')
+                if 'tier' in args:
+                    g['tier'] = int(args['tier'])
+                if 'amount' in args:
+                    g['amount'] = int(args['amount'])
+                grants.append(g)
+            elif action in ('giveSpells', 'giveWerewolf', 'giveVampireLord', 'giveShouts'):
+                pending.append(g)
+            elif action == 'giveItem':
+                g['item'] = args.get('item'); g['count'] = int(args.get('count', '1') or 1)
+                grants.append(g)
+            continue
+        m = ADMINLOG.match(text)
+        if m and pending:
+            profile, what = int(m.group(1)), m.group(2)
+            if not re.match(r'gave (\d+ spells|werewolf beast form|Vampire Lord form|every shout) to ', what):
+                continue
+            for i, g in enumerate(pending):
+                if g['gmProfile'] != profile:
+                    continue
+                w = WHOM.search(what)
+                if w:
+                    g['whom'] = 'themself' if w.group(1) == 'themself' else {'name': w.group(2), 'profile': int(w.group(3))}
+                grants.append(g)
+                pending.pop(i)
+                break
+    for g in pending:   # no line named who got it: the GM themself, as the panel defaults to
+        g['whom'] = 'themself'; g['guessed'] = True
+        grants.append(g)
+    grants.sort(key=lambda g: g['at'])
+    return {'grants': grants, 'learned': {k: sorted(v) for k, v in learned.items()}, 'tookUp': {k: sorted(v) for k, v in took.items()}}
+
+
+# ---- the world as a snapshot holds it ---------------------------------------------------------------------------------
+class World:
+    def __init__(self, root, state=None, server=None, originals=None):
+        self.root = root
+        self.cf_dir = os.path.join(state or os.path.join(root, 'state'), 'world', 'changeForms')
+        self.server = server or os.path.join(root, 'server')
+        self.originals = originals or os.path.join(root, 'alpha-reset-originals')
+        self.forms = {}
+        for n in sorted(os.listdir(self.cf_dir)):
+            if n.endswith('.json'):
+                with open(os.path.join(self.cf_dir, n), encoding='utf-8') as fh:
+                    self.forms[n] = json.load(fh)
+        self.chars = {n: d for n, d in self.forms.items() if (d.get('profileId') if isinstance(d.get('profileId'), int) else -1) >= 0}
+
+    def game_json(self, name, fallback=None):
+        p = os.path.join(self.server, name)
+        if not os.path.exists(p):
+            return fallback
+        with open(p, encoding='utf-8-sig') as fh:
+            return json.load(fh)
+
+
+def char_file_of(world, actor_id):
+    """A character's change form by its runtime actor id (ff000053 -> 53.json)."""
+    n = '%x.json' % (actor_id & 0xFFFFFF)
+    return n if n in world.chars else None
+
+
+def name_of(d):
+    app = d.get('appearanceDump') or {}
+    return (app.get('name') if isinstance(app, dict) else None) or (d.get('dynamicFields') or {}).get('private.indexed.charName') or '?'
+
+
+def tag_of(d):
+    return (d.get('dynamicFields') or {}).get('private.charTag') or '?'
+
+
+# ---- the plan -------------------------------------------------------------------------------------------------------
+def build_kit(world, lo):
+    # server-settings.json is never read here (it holds secrets); it had no "startingItems" on 30 Sep, so the kit is
+    # spawn.ts's default. If that setting is ever added, change DEFAULT_KIT to match before the reset.
+    settings_items = None
+    cfg = world.game_json('gamemode-config.json', {}) or {}
+    kit = [{'baseId': b, 'count': c} for b, c, _ in DEFAULT_KIT]
+    worn = {b for b, _, w in DEFAULT_KIT if w}
+    tools = cfg.get('starterKit') if isinstance(cfg.get('starterKit'), list) else [{'id': d, 'count': c} for d, c in DEFAULT_TOOLS]
+    for t in tools:
+        fid = lo.id_of(t.get('id', '')) if lo else 0
+        if fid:
+            kit.append({'baseId': fid, 'count': max(1, int(t.get('count') or 1))})
+    return kit, worn, settings_items
+
+
+def staff_events(trail, world):
+    """Per character file: the staff events that touch it."""
+    by_char = collections.defaultdict(list)
+    tag_to_file = {tag_of(d): n for n, d in world.chars.items()}
+    for g in trail['grants']:
+        f = None
+        if 'target' in g:
+            f = char_file_of(world, g['target'])
+        elif g.get('whom') == 'themself':
+            f = tag_to_file.get(g['gmTag'])
+        elif isinstance(g.get('whom'), dict):
+            cands = [n for n, d in world.chars.items() if d.get('profileId') == g['whom']['profile'] and name_of(d) == g['whom']['name']]
+            if not cands:
+                cands = [n for n, d in world.chars.items() if d.get('profileId') == g['whom']['profile']]
+            f = cands[0] if len(cands) == 1 else None
+        if f:
+            by_char[f].append(g)
+    return by_char
+
+
+def plan_mastery(d, events, skills_cfg, tag, trail):
+    """What the staff actions on each skill are taken back to; returns (changes, removed spells, dropped skills)."""
+    df = d.get('dynamicFields') or {}
+    rec = df.get('private.mastery')
+    if not isinstance(rec, dict) or not isinstance(rec.get('skills'), dict):
+        return [], set(), []
+    tier_levels = (skills_cfg or {}).get('tierHours') or [0, 10, 30, 70, 150]
+    cap = ((skills_cfg or {}).get('pointSystem') or {}).get('capPerSkill', 100)
+    order = list(rec.get('order') or [])
+    per_skill = collections.defaultdict(list)
+    for g in events:
+        if g['action'] == 'masteryGrant':
+            per_skill[g.get('skill') or (order[0] if order else None)].append(g)
+        elif g['action'] in ('masterySetTier', 'masteryDrop') and g.get('skill'):
+            per_skill[g['skill']].append(g)
+    changes, spells, dropped = [], set(), []
+    took = set(trail['tookUp'].get(tag, []))
+    for skill, evs in per_skill.items():
+        if not skill:
+            continue
+        prog = rec['skills'].get(skill)
+        now = int((prog or {}).get('level') or 0)
+        last_set = max((i for i, g in enumerate(evs) if g['action'] in ('masterySetTier', 'masteryDrop')), default=-1)
+        written = 0
+        if last_set >= 0 and evs[last_set]['action'] == 'masterySetTier':
+            t = evs[last_set].get('tier', 0)
+            written = min(tier_levels[t] if 0 <= t < len(tier_levels) else 0, cap)
+        added = sum(g.get('amount', 0) for g in evs[last_set + 1:] if g['action'] == 'masteryGrant')
+        earned = max(0, now - written - added)
+        first_is_staff = evs[0]['action'] == 'masterySetTier'
+        if prog is None:   # set aside, by staff or since: nothing left to take back
+            continue
+        if earned == 0 and first_is_staff and skill not in took:
+            dropped.append(skill)
+            spells.update(int(s) for s in (prog.get('granted') or []))
+            changes.append({'skill': skill, 'from': now, 'to': None, 'why': f'taken up by staff (last set {evs[last_set]["at"]}); nothing earned since, so set aside'})
+        elif earned != now:
+            changes.append({'skill': skill, 'from': now, 'to': earned,
+                            'why': (f'staff set it to {written} on {evs[last_set]["at"]}' if last_set >= 0 else 'staff hours')
+                            + (f' and granted {added} hours' if added else '') + '; only what was earned after stays'
+                            + ('; what was earned before the staff action cannot be recovered' if last_set >= 0 else '')})
+    return changes, spells, dropped
+
+
+def plan(world, trail, lo, seed_default=10000):
+    cfg = world.game_json('gamemode-config.json', {}) or {}
+    skills_cfg = world.game_json('skills.json', {}) or {}
+    powers = world.game_json('admin-powers.json', {}) or {}
+    super_state = world.game_json('supernatural.json', {}) or {}
+    crown_holder = int(((super_state.get('crown') or {}).get('holder')) or 0)
+    kit, worn, _ = build_kit(world, lo)
+    admin_spells = {lo.id_of(s[0]) for s in powers.get('spells') or [] if lo and lo.id_of(s[0])}
+    werewolf_power = lo.id_of(powers['werewolf']) if lo and powers.get('werewolf') else 0
+    vl_power = lo.id_of(powers['vampirelord']) if lo and powers.get('vampirelord') else 0
+    events = staff_events(trail, world)
+    out = {'kit': kit, 'characters': [], 'world': {}, 'files': {}, 'notes': [], 'alreadyReset': []}
+
+    # ---- characters ----
+    for n, d in world.chars.items():
+        df = d.get('dynamicFields') or {}
+        tag = tag_of(d)
+        ents = ((d.get('inv') or {}).get('entries')) or []
+        gold = sum(int(e.get('count') or 0) for e in ents if e.get('baseId') == GOLD)
+        removed = [(int(e.get('baseId')), int(e.get('count') or 0)) for e in ents if e.get('baseId') != GOLD]
+        c = {'file': n, 'name': name_of(d), 'tag': tag, 'profile': d.get('profileId'),
+             'gold': gold, 'bankGold': int(df.get('private.bankGold') or 0), 'items': removed,
+             'worn': [int(e.get('baseId')) for e in ((d.get('equipmentDump') or {}).get('inv') or {}).get('entries') or [] if e.get('worn') or e.get('wornLeft')],
+             'staff': [f'{g["at"]} {g["action"]}' + (f' {g.get("skill")}' if g.get('skill') else '') + (f' tier {g["tier"]}' if 'tier' in g else '')
+                       + (f' {g["amount"]:+d}h' if 'amount' in g else '') + (f' {g.get("count", 1)}x {g.get("item")}' if g['action'] == 'giveItem' else '') + f' by {g["gm"]}'
+                       + (' (recipient guessed)' if g.get('guessed') else '') for g in events.get(n, [])]}
+        # A character this tool already reset: the staff trail was taken back once, and taking it again would take
+        # the skills down a second time (a set to 30 read against 5 left)
+        done = bool(df.get('private.alphaReset'))
+        if done:
+            out['alreadyReset'].append(f'{c["name"]} #{tag}')
+        # skills
+        ch, spells_from_skills, dropped = plan_mastery(d, [] if done else events.get(n, []), skills_cfg, tag, trail)
+        c['skills'] = ch
+        c['dropSkills'] = dropped
+        # spells: the staff "give all spells" minus what the character learned itself
+        got_spells = not done and any(g['action'] == 'giveSpells' for g in events.get(n, []))
+        learned_desc = set(trail['learned'].get(tag, []))
+        studied = df.get('private.dboStudied') or {}
+        for lst in (studied.values() if isinstance(studied, dict) else []):
+            learned_desc.update(str(x).lower() for x in lst)
+        kept_ids = {lo.id_of(x) for x in learned_desc} if lo else set()
+        rec = df.get('private.mastery') or {}
+        for sk, prog in ((rec.get('skills') or {}).items() if isinstance(rec, dict) else []):
+            if sk not in dropped:
+                kept_ids.update(int(s) for s in (prog or {}).get('granted') or [])
+        spells_now = [int(s) for s in d.get('learnedSpells') or []]
+        remove = set(spells_from_skills) - kept_ids
+        if got_spells:
+            remove |= {s for s in spells_now if s in admin_spells and s not in kept_ids}
+        flags = []
+        werewolf_by_rite = ((df.get('private.supernatural') or {}).get('kind') == 'werewolf')
+        if df.get('private.werewolfGrant') or (not done and any(g['action'] == 'giveWerewolf' for g in events.get(n, []))):
+            flags.append('private.werewolfGrant')
+            if werewolf_power and not werewolf_by_rite:
+                remove.add(werewolf_power)
+        actor_id = 0xFF000000 | int(n[:-5], 16) if re.match(r'^[0-9a-f]+\.json$', n) else 0
+        if df.get('private.vampireLordGrant') or (not done and any(g['action'] == 'giveVampireLord' for g in events.get(n, []))):
+            flags.append('private.vampireLordGrant')
+            if vl_power and crown_holder != actor_id:
+                remove.add(vl_power)
+        if df.get('private.dboAllShouts') or (not done and any(g['action'] == 'giveShouts' for g in events.get(n, []))):
+            flags.append('private.dboAllShouts')
+        c['removeSpells'] = sorted(s for s in remove if s in spells_now)
+        c['clearFlags'] = flags
+        # A level earned partly from staff hours is earned again from the kept skills (charlevel.js only ever raises it)
+        c['levelReset'] = any((x.get('to') or 0) < (x.get('from') or 0) for x in ch) and isinstance(df.get('private.dboLevel'), dict)
+        sup = df.get('private.supernatural') or {}
+        if sup.get('kind') or crown_holder == actor_id:
+            c['keptSupernatural'] = (sup.get('kind') or '') + (' (holds the Blood Crown)' if crown_holder == actor_id else '')
+        out['characters'].append(c)
+
+    # ---- the world: every container and store emptied, items lying on the ground removed ----
+    containers, dropped_items = [], []
+    for n, d in world.forms.items():
+        if n in world.chars or d.get('recType') == 1 or d.get('isDeleted'):
+            continue
+        ents = ((d.get('inv') or {}).get('entries')) or []
+        if ents:
+            containers.append({'file': n, 'form': d.get('formDesc'), 'base': d.get('baseDesc'), 'entries': [(int(e.get('baseId')), int(e.get('count') or 0)) for e in ents],
+                               'supply': str(d.get('formDesc', '')).lower() == SUPPLY_CHEST})
+            continue
+        form = str(d.get('formDesc', ''))
+        if ':' not in form and lo:   # a dynamic reference: an item a player dropped, if its base is an item
+            base = lo.id_of(d.get('baseDesc', '')) if ':' in str(d.get('baseDesc', '')) else 0
+            r = lo.record(base) if base else None
+            if r and r[0] in ITEM_TYPES:
+                dropped_items.append({'file': n, 'form': form, 'base': d.get('baseDesc'), 'what': r[1], 'count': int(d.get('count') or 1)})
+    out['world']['containers'] = containers
+    out['world']['droppedItems'] = dropped_items
+
+    # ---- the gameplay files that hold gold or items ----
+    zones = world.game_json('zones.json', {}) or {}
+    seed = int(((cfg.get('banks') or {}).get('seedGold')) or seed_default)
+    treasury_zones = [z['id'] for k in ('holds', 'strongholds', 'regions') for z in zones.get(k, []) if z.get('treasury')]
+    files = out['files']
+    bank = world.game_json('bank.json')
+    if isinstance(bank, dict):
+        files['bank.json'] = {'from': {'zones': bank.get('zones'), 'factions': bank.get('factions')},
+                              'to': {'zones': {z: seed for z in treasury_zones}, 'factions': {}}}
+    biz = world.game_json('businesses.json')
+    if isinstance(biz, dict):
+        rows = []
+        for k, b in (biz.get('businesses') or {}).items():
+            rented = [ref for ref, ch in (b.get('chests') or {}).items() if isinstance(ch, dict) and ch.get('renter') is not None]
+            rows.append({'business': b.get('name'), 'owner': b.get('ownerName'), 'owed': b.get('owed', 0), 'rentalsEnded': rented})
+        files['businesses.json'] = {'businesses': rows, 'owedTo': biz.get('owedTo') or {}}
+    ten = world.game_json('tenancy.json')
+    if isinstance(ten, dict):
+        files['tenancy.json'] = {'deposits': {k: v.get('depositHeld', 0) for k, v in (ten.get('listings') or {}).items() if v.get('depositHeld')}, 'owed': ten.get('owed') or []}
+    com = world.game_json('commissions.json')
+    if isinstance(com, dict):
+        files['commissions.json'] = {'cancelled': [c.get('id') for c in com.get('list') or [] if c.get('state') in ('open', 'taken', 'refused')], 'owed': com.get('owed') or []}
+    con = world.game_json('contracts.json')
+    if isinstance(con, dict):
+        files['contracts.json'] = {'cleared': len(con.get('contracts') or []), 'released': sorted((con.get('taken') or {}).keys())}
+    eco = world.game_json('economy.json')
+    if isinstance(eco, dict):
+        files['economy.json'] = {'owed': eco.get('owed') or {}, 'overdue': eco.get('overdue') or {}}
+    if crown_holder:
+        out['notes'].append(f'The Blood Crown stays with {(super_state.get("crown") or {}).get("name")} (a rite, not a staff grant). Say if it should be vacant at the opening.')
+    return out
+
+
+# ---- apply ----------------------------------------------------------------------------------------------------------
+def apply(world, p, report_dir):
+    """Writes the plan into the world's files; the originals go to <root>/alpha-reset-originals first."""
+    if p.get('alreadyReset'):
+        raise SystemExit(f'refused: {len(p["alreadyReset"])} character(s) already carry private.alphaReset ({", ".join(p["alreadyReset"][:5])}); this world was reset once')
+    keep = world.originals
+    os.makedirs(os.path.join(keep, 'changeForms'), exist_ok=True)
+    os.makedirs(os.path.join(keep, 'server'), exist_ok=True)
+    written = []
+
+    def save_form(n, d):
+        src = os.path.join(world.cf_dir, n)
+        if not os.path.exists(os.path.join(keep, 'changeForms', n)):
+            shutil.copy2(src, os.path.join(keep, 'changeForms', n))
+        tmp = src + '.alpha.tmp'
+        with open(tmp, 'w', encoding='utf-8') as fh:
+            fh.write(json.dumps(d, indent=2))
+        os.replace(tmp, src)
+        written.append(n)
+
+    def save_game(name, v, indent=1):
+        src = os.path.join(world.server, name)
+        if os.path.exists(src) and not os.path.exists(os.path.join(keep, 'server', name)):
+            shutil.copy2(src, os.path.join(keep, 'server', name))
+        tmp = src + '.alpha.tmp'
+        with open(tmp, 'w', encoding='utf-8') as fh:
+            fh.write(json.dumps(v, indent=indent))
+        os.replace(tmp, src)
+        written.append('server/' + name)
+
+    kit = [dict(e) for e in p['kit']]
+    worn = {b for b, _, w in DEFAULT_KIT if w}
+    for c in p['characters']:
+        d = world.forms[c['file']]
+        df = d.setdefault('dynamicFields', {})
+        d['inv'] = {'entries': [dict(e) for e in kit]}
+        eq = d.get('equipmentDump') if isinstance(d.get('equipmentDump'), dict) else {}
+        eq['inv'] = {'entries': [dict(e, worn=True) for e in kit if e['baseId'] in worn]}
+        d['equipmentDump'] = eq
+        for k in ('private.lastWorn', 'private.bankGold', 'private.bankLog', 'private.starterKitAt'):
+            df.pop(k, None)
+        df['private.kitPending'] = True
+        df['private.alphaReset'] = {'at': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'tool': 'alpha_reset.py'}
+        for k in c['clearFlags']:
+            df.pop(k, None)
+        if c['removeSpells']:
+            gone = set(c['removeSpells'])
+            d['learnedSpells'] = [s for s in d.get('learnedSpells') or [] if int(s) not in gone]
+        rec = df.get('private.mastery')
+        if isinstance(rec, dict) and (c['skills'] or c['dropSkills']):
+            for ch in c['skills']:
+                prog = (rec.get('skills') or {}).get(ch['skill'])
+                if prog is None or ch['to'] is None:
+                    continue
+                prog['level'] = ch['to']
+                if ch['to'] < ch['from']:
+                    prog['xp'] = 0
+            for sk in c['dropSkills']:
+                (rec.get('skills') or {}).pop(sk, None)
+                rec['order'] = [x for x in rec.get('order') or [] if x != sk]
+            for prog in (rec.get('skills') or {}).values():
+                if isinstance(prog, dict) and isinstance(prog.get('granted'), list):
+                    prog['granted'] = [s for s in prog['granted'] if int(s) not in set(c['removeSpells'])]
+        if c['levelReset']:
+            df['private.dboLevel'] = {'level': 1, 'pending': 0, 'spent': {'health': 0, 'magicka': 0, 'stamina': 0}}
+            df['private.dboAvBonus'] = {'health': 0, 'magicka': 0, 'stamina': 0}
+        save_form(c['file'], d)
+    for ct in p['world']['containers']:
+        d = world.forms[ct['file']]
+        d['inv'] = {'entries': []}
+        d['baseContainerAdded'] = True   # the engine never adds the base container's items again
+        d.setdefault('dynamicFields', {})['private.dboEmptied'] = True
+        save_form(ct['file'], d)
+    for it in p['world']['droppedItems']:
+        d = world.forms[it['file']]
+        d['isDeleted'] = True
+        save_form(it['file'], d)
+    files = p['files']
+    if 'bank.json' in files:
+        bank = world.game_json('bank.json')
+        bank['zones'] = files['bank.json']['to']['zones']; bank['factions'] = {}
+        save_game('bank.json', bank)
+    if 'businesses.json' in files:
+        biz = world.game_json('businesses.json')
+        for b in (biz.get('businesses') or {}).values():
+            b['owed'] = 0
+            for ch in (b.get('chests') or {}).values():
+                if isinstance(ch, dict):
+                    for k in ('renter', 'renterName', 'until', 'lapsed'):
+                        ch.pop(k, None)
+            b['log'] = (b.get('log') or []) + [{'at': int(datetime.datetime.now().timestamp() * 1000), 'text': 'The alpha reset cleared the takings and ended every chest rental'}]
+        biz['owedTo'] = {}
+        save_game('businesses.json', biz)
+    if 'tenancy.json' in files:
+        ten = world.game_json('tenancy.json')
+        for v in (ten.get('listings') or {}).values():
+            if v.get('depositHeld'):
+                v['depositHeld'] = 0
+        ten['owed'] = []
+        save_game('tenancy.json', ten)
+    if 'commissions.json' in files:
+        com = world.game_json('commissions.json')
+        for c in com.get('list') or []:
+            if c.get('state') in ('open', 'taken', 'refused'):
+                c['state'] = 'cancelled'; c['verdict'] = {'by': None, 'at': int(datetime.datetime.now().timestamp() * 1000), 'to': 'nobody (alpha reset)'}
+        com['owed'] = []
+        save_game('commissions.json', com)
+    if 'contracts.json' in files:
+        save_game('contracts.json', {'contracts': [], 'taken': {}}, indent=2)
+    if 'economy.json' in files:
+        eco = world.game_json('economy.json')
+        eco['owed'] = {}; eco['overdue'] = {}
+        save_game('economy.json', eco)
+    return written
+
+
+# ---- the report -----------------------------------------------------------------------------------------------------
+def report(p, lo, path, applied=None):
+    nm = (lambda fid: lo.name(fid)) if lo else (lambda fid: '%08x' % fid)
+    L = []
+    chars = p['characters']
+    total_gold = sum(c['gold'] for c in chars)
+    total_bank = sum(c['bankGold'] for c in chars)
+    staff_touched = [c for c in chars if c['staff'] or c['skills'] or c['removeSpells'] or c['clearFlags']]
+    L.append('# Alpha reset: ' + ('applied' if applied is not None else 'dry run'))
+    L.append('')
+    if p.get('alreadyReset'):
+        L.append(f'**This world was reset already: {len(p["alreadyReset"])} character(s) carry the marker. Staff actions are not taken back again, and apply refuses.**')
+        L.append('')
+    L.append(f'{len(chars)} characters kept. Everyone starts with the kit: ' + ', '.join(f'{e["count"]} x {nm(e["baseId"])}' for e in p['kit']) + ' (the clothes worn).')
+    L.append(f'- Gold carried now: {total_gold:,}; in the bank: {total_bank:,}. Both go to the kit\'s 50 gold.')
+    L.append(f'- Items carried now: {sum(sum(n for _, n in c["items"]) for c in chars):,} in {sum(len(c["items"]) for c in chars):,} stacks.')
+    L.append(f'- Characters with staff actions to take back: {len(staff_touched)}.')
+    w = p['world']
+    L.append(f'- Containers emptied: {len(w["containers"])} holding {sum(sum(n for _, n in c["entries"]) for c in w["containers"]):,} items'
+             + ('' if not any(c['supply'] for c in w['containers']) else ', the staff supply chest among them') + '.')
+    L.append(f'- Items lying in the world removed: {len(w["droppedItems"])}.')
+    for f, v in p['files'].items():
+        if f == 'bank.json':
+            L.append(f'- bank.json: every hold treasury back to its seed ({", ".join(f"{k} {v2:,}" for k, v2 in v["to"]["zones"].items())}); faction treasuries emptied (were {json.dumps(v["from"]["factions"])}); hold balances were {json.dumps(v["from"]["zones"])}.')
+        elif f == 'businesses.json':
+            L.append(f'- businesses.json: takings cleared and chest rentals ended in {len(v["businesses"])} business(es); held takings for former owners {json.dumps(v["owedTo"])}.')
+        elif f == 'tenancy.json':
+            L.append(f'- tenancy.json: deposits held set to 0 ({json.dumps(v["deposits"])}), {len(v["owed"])} owed payment(s) dropped. Tenants keep their houses.')
+        elif f == 'commissions.json':
+            L.append(f'- commissions.json: {len(v["cancelled"])} live commission(s) cancelled without refund, {len(v["owed"])} owed payment(s) dropped.')
+        elif f == 'contracts.json':
+            L.append(f'- contracts.json: {v["cleared"]} posted contract(s) cleared (their treasuries are reset), {len(v["released"])} hunter(s) released; the board posts fresh ones.')
+        elif f == 'economy.json':
+            L.append(f'- economy.json: owed wages {json.dumps(v["owed"])} and overdue {json.dumps(v["overdue"])} dropped.')
+    if p['notes']:
+        L.append('')
+        L.append('## Decisions to confirm')
+        for n in p['notes']:
+            L.append(f'- {n}')
+    L.append('')
+    L.append('## Per character')
+    for c in sorted(chars, key=lambda c: (-len(c['staff']), c['name'])):
+        L.append('')
+        L.append(f'### {c["name"]} #{c["tag"]} (profile {c["profile"]}, {c["file"]})')
+        top = sorted(c['items'], key=lambda x: -x[1])
+        L.append(f'- Gold {c["gold"]:,} carried' + (f', {c["bankGold"]:,} banked' if c['bankGold'] else '') + f'; {len(c["items"])} item stack(s) removed'
+                 + (': ' + ', '.join(f'{n} x {nm(b)}' for b, n in top[:8]) + (' ...' if len(top) > 8 else '') if top else ''))
+        if c['worn']:
+            L.append('- Worn now: ' + ', '.join(nm(b) for b in c['worn'][:8]))
+        for ch in c['skills']:
+            L.append(f'- Skill {ch["skill"]}: {ch["from"]} -> {"set aside" if ch["to"] is None else ch["to"]} ({ch["why"]})')
+        if c['removeSpells']:
+            L.append(f'- Spells and powers taken back ({len(c["removeSpells"])}): ' + ', '.join(nm(s) for s in c['removeSpells'][:12]) + (' ...' if len(c['removeSpells']) > 12 else ''))
+        if c['clearFlags']:
+            L.append('- Staff flags cleared: ' + ', '.join(c['clearFlags']))
+        if c['levelReset']:
+            L.append('- Character level points reset: the level is earned again from the kept skills at the next login and its points chosen anew')
+        if c.get('keptSupernatural'):
+            L.append(f'- Kept (earned in a rite): {c["keptSupernatural"]}')
+        if c['staff']:
+            L.append(f'- Staff actions on record ({len(c["staff"])}): ' + '; '.join(c['staff'][:6]) + (' ...' if len(c['staff']) > 6 else ''))
+    L.append('')
+    L.append('## Containers emptied (largest first)')
+    for ct in sorted(w['containers'], key=lambda c: -sum(n for _, n in c['entries']))[:30]:
+        L.append(f'- {ct["form"]} (base {ct["base"]}): {sum(n for _, n in ct["entries"]):,} items' + (' - the staff supply chest' if ct['supply'] else ''))
+    if len(w['containers']) > 30:
+        L.append(f'- ... and {len(w["containers"]) - 30} more')
+    if w['droppedItems']:
+        L.append('')
+        L.append('## Items lying in the world, removed')
+        for it in w['droppedItems'][:40]:
+            L.append(f'- {it["form"]}: {it["count"]} x {it["what"]}')
+    if applied is not None:
+        L.append('')
+        L.append(f'Files written: {len(applied)}. The originals are in alpha-reset-originals/ beside them.')
+    with open(path, 'w', encoding='utf-8') as fh:
+        fh.write('\n'.join(L) + '\n')
+    return L
+
+
+# ---- safety ---------------------------------------------------------------------------------------------------------
+def check_root(root, live, snapshot, state=None, server=None, originals=None):
+    livep = [os.path.realpath(x) for x in (LIVE_STATE, LIVE_SERVER)]
+    dirs = [d for d in (root, state, server, originals) if d]
+    touches_live = any(any(os.path.realpath(d) == x or os.path.realpath(d).startswith(x + os.sep) or x.startswith(os.path.realpath(d) + os.sep) for x in livep) for d in dirs)
+    cf = os.path.join(state or os.path.join(root or '', 'state'), 'world', 'changeForms')
+    if not os.path.isdir(cf):
+        raise SystemExit(f'{cf} is not there: give a snapshot-layout --root (dbo_backup.py restore), or --state and --server')
+    if live and not originals and not root:
+        raise SystemExit('refused: --live needs --originals <a folder outside the live paths> for the files it replaces')
+    if touches_live and not live:
+        raise SystemExit(f'refused: {", ".join(dirs)} is or holds the live state; work on a sandbox restore, or see README "On the day"')
+    if live:
+        if not snapshot or not os.path.exists(snapshot):
+            raise SystemExit('refused: --live needs --snapshot <the snapshot taken just before>')
+        state = subprocess.run(['systemctl', 'is-active', 'skymp'], capture_output=True, text=True).stdout.strip()
+        if state in ('active', 'activating', 'reloading'):
+            raise SystemExit(f'refused: skymp is {state}; stop the game server first (under the claim)')
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description='The one-time alpha reset (README.md)')
+    sub = ap.add_subparsers(dest='cmd', required=True)
+    g = sub.add_parser('grants'); g.add_argument('--logs', default='/var/log/skymp-server.log*'); g.add_argument('--out', required=True)
+    for name in ('plan', 'apply'):
+        s = sub.add_parser(name)
+        s.add_argument('--root', help='a snapshot-layout folder (state/, server/)')
+        s.add_argument('--state', help='instead of --root: the state folder (holds world/changeForms)')
+        s.add_argument('--server', help='instead of --root: the folder with the gameplay files')
+        s.add_argument('--originals', help='where the replaced files are kept (default <root>/alpha-reset-originals)')
+        s.add_argument('--grants', help='from the grants command; read from --logs when absent')
+        s.add_argument('--logs', default='/var/log/skymp-server.log*')
+        s.add_argument('--report', required=True)
+        s.add_argument('--json')
+        s.add_argument('--live', action='store_true')
+        s.add_argument('--snapshot')
+        s.add_argument('--no-plugins', action='store_true', help='skip the load order (tests): no names, no dropped-item check')
+    a = ap.parse_args(argv)
+    if a.cmd == 'grants':
+        trail = parse_trail(read_logs(a.logs))
+        with open(a.out, 'w', encoding='utf-8') as fh:
+            json.dump(trail, fh, indent=1)
+        log(f'{len(trail["grants"])} staff grants, spells learned by {len(trail["learned"])} characters -> {a.out}')
+        return 0
+    if not a.root and not (a.state and a.server):
+        raise SystemExit('give --root, or --state and --server')
+    check_root(a.root, a.live, a.snapshot, a.state, a.server, a.originals)
+    world = World(a.root, a.state, a.server, a.originals)
+    if a.grants:
+        with open(a.grants, encoding='utf-8') as fh:
+            trail = json.load(fh)
+    else:
+        trail = parse_trail(read_logs(a.logs))
+    lo = None if a.no_plugins else LoadOrder()
+    p = plan(world, trail, lo)
+    if a.json:
+        with open(a.json, 'w', encoding='utf-8') as fh:
+            json.dump(p, fh, indent=1)
+    applied = apply(world, p, os.path.dirname(a.report)) if a.cmd == 'apply' else None
+    lines = report(p, lo, a.report, applied)
+    for line in lines[:12]:
+        print(line)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
