@@ -352,6 +352,44 @@ module.exports = (api) => {
   // not a shrine returns false and the chain carries on - see the memory note
   // `gamemode-activate-chain-runs-before-systems`: a refusal that returns true stops every gate
   // below it, which is how labour.js once made its own skill impossible to open.
+  // Why this character cannot pray at this shrine now, or null. A plain touch and the shrine panel's Pray ask the same.
+  const prayRefusal = (a, targetId, d) => {
+    const faith = faithOf(a);
+    if (!faith) return `This is a shrine of ${d.name}. You hold no god yet - say "/deity ${d.name}" here to take ${d.name} as your own.`;
+    const mine = deityById(faith.id);
+    if (PRAY.onlyOwnDeity !== false && !sameFaith(mine, d)) {
+      return `${d.name} has no ear for a follower of ${mine ? mine.name : 'another god'}. Find your own shrine, or say "/deity ${d.name}" here to turn.`;
+    }
+    const until = Number(restsOf(a)[targetId.toString(16)]) || 0;
+    if (until > Date.now()) {
+      const mins = Math.ceil((until - Date.now()) / 60000);
+      return `You have prayed here recently. This shrine will hear you again in ${mins} minute${mins === 1 ? '' : 's'}.`;
+    }
+    return null;
+  };
+  const shrineNameOf = (baseId, d) => { const rec = baseId ? baseRecord(baseId) : null; return (rec && rec.record && rec.record.name) || `Shrine of ${d.name}`; };
+  // Kneel: once prayRefusal has nothing to say
+  const prayAt = (casterId, targetId, baseId, d) => {
+    const faith = faithOf(casterId);
+    // Bruma is Imperial. The White-Gold Concordat outlawed Talos, and most Daedra worship is
+    // proscribed - Beyond Skyrim has already renamed the Great Chapel of Talos to the Cathedral of
+    // St Martin for exactly this reason. NOT all of it, though: Malacath, Azura and Meridia are
+    // openly legal and carry `lawful: true`, so nothing is said at their shrines. The rest differ
+    // enormously in how hard the law is pressed - Mehrunes Dagon in Bruma of all cities against
+    // Sanguine's drinking - so the reason comes from the deity's own `unlawfulWhere` rather than one
+    // line for all of them. Said once per character, and nothing follows from it: no guard reads
+    // `lawful`, deliberately. Whether the law has teeth is a faction decision.
+    if (d.lawful === false && faith && !faith.warnedUnlawful) {
+      faith.warnedUnlawful = true;
+      setFaith(casterId, faith);
+      const why = String(d.unlawfulWhere || '').trim();
+      personal(casterId, d.kind === 'divine'
+        ? 'You kneel to Talos in an Imperial county. The Concordat calls that a crime, and the Thalmor keep a Justiciar in Bruma. Nobody stops you.'
+        : `You kneel to ${d.name} in an Imperial county.${why ? ' ' + why : ` ${d.name} is proscribed here, and the shrine is hidden for a reason.`} Nobody stops you.`);
+    }
+    return startRound(casterId, roundFor(casterId, d, targetId, shrineNameOf(baseId, d)));
+  };
+
   globalThis.__dboPrayerActivate = (targetId, casterId) => {
     if (!CFG.enabled || targetId >= 0xff000000) return false;
     const baseId = baseIdOf(targetId);
@@ -362,39 +400,29 @@ module.exports = (api) => {
     lastShrine.set(casterId, { deityId: d.id, at: Date.now() });
     log(`shrine touch ${display(casterId)} ${d.name}`);
     if (liveRound(casterId)) return true;
-
-    const faith = faithOf(casterId);
-    if (!faith) {
-      return deny(casterId, `This is a shrine of ${d.name}. You hold no god yet - say "/deity ${d.name}" here to take ${d.name} as your own.`);
+    // Nate 2026-09-30: a shrine that keeps a rite (Molag Bal, Hircine, Arkay, Stendarr) opens a panel to pray or perform
+    // it (supernatural.js). Every other shrine, or no panel to open, prays as a touch always has.
+    if (typeof globalThis.__dboShrinePanel === 'function') {
+      try { if (globalThis.__dboShrinePanel(casterId, targetId, { id: d.id, name: d.name, shrineName: shrineNameOf(baseId, d) })) return true; } catch (e) { log('shrine panel failed', e.message); }
     }
-    const mine = deityById(faith.id);
-    if (PRAY.onlyOwnDeity !== false && !sameFaith(mine, d)) {
-      return deny(casterId, `${d.name} has no ear for a follower of ${mine ? mine.name : 'another god'}. Find your own shrine, or say "/deity ${d.name}" here to turn.`);
-    }
-    const until = Number(restsOf(casterId)[targetId.toString(16)]) || 0;
-    if (until > Date.now()) {
-      const mins = Math.ceil((until - Date.now()) / 60000);
-      return deny(casterId, `You have prayed here recently. This shrine will hear you again in ${mins} minute${mins === 1 ? '' : 's'}.`);
-    }
-    // Bruma is Imperial. The White-Gold Concordat outlawed Talos, and most Daedra worship is
-    // proscribed - Beyond Skyrim has already renamed the Great Chapel of Talos to the Cathedral of
-    // St Martin for exactly this reason. NOT all of it, though: Malacath, Azura and Meridia are
-    // openly legal and carry `lawful: true`, so nothing is said at their shrines. The rest differ
-    // enormously in how hard the law is pressed - Mehrunes Dagon in Bruma of all cities against
-    // Sanguine's drinking - so the reason comes from the deity's own `unlawfulWhere` rather than one
-    // line for all of them. Said once per character, and nothing follows from it: no guard reads
-    // `lawful`, deliberately. Whether the law has teeth is a faction decision.
-    if (d.lawful === false && !faith.warnedUnlawful) {
-      faith.warnedUnlawful = true;
-      setFaith(casterId, faith);
-      const why = String(d.unlawfulWhere || '').trim();
-      personal(casterId, d.kind === 'divine'
-        ? 'You kneel to Talos in an Imperial county. The Concordat calls that a crime, and the Thalmor keep a Justiciar in Bruma. Nobody stops you.'
-        : `You kneel to ${d.name} in an Imperial county.${why ? ' ' + why : ` ${d.name} is proscribed here, and the shrine is hidden for a reason.`} Nobody stops you.`);
-    }
-    const rec = baseId ? baseRecord(baseId) : null;
-    const shrineName = (rec && rec.record && rec.record.name) || `Shrine of ${d.name}`;
-    return startRound(casterId, roundFor(casterId, d, targetId, shrineName));
+    const why = prayRefusal(casterId, targetId, d);
+    if (why) return deny(casterId, why);
+    return prayAt(casterId, targetId, baseId, d);
+  };
+  // For the shrine panel: why Pray would be refused here ('' when it would not), and Pray itself, which is a touch from
+  // the refusal on. The start answers the refusal, or '' once the prayer has begun.
+  globalThis.__dboPrayerRefusal = (casterId, targetId) => {
+    if (!CFG.enabled) return 'Prayer is closed on this server.';
+    const d = shrineAt(targetId, baseIdOf(targetId));
+    return d ? prayRefusal(casterId, targetId, d) || '' : 'This is no shrine.';
+  };
+  globalThis.__dboPrayerStart = (casterId, targetId) => {
+    const why = globalThis.__dboPrayerRefusal(casterId, targetId);
+    if (why) return why;
+    if (liveRound(casterId)) return '';
+    const baseId = baseIdOf(targetId);
+    prayAt(casterId, targetId, baseId, shrineAt(targetId, baseId));
+    return '';
   };
 
   // ── praying anywhere ────────────────────────────────────────────────────────────────────────
