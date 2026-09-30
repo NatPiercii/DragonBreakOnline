@@ -19,8 +19,8 @@ the Discord bug forums, `server/CHECKLIST.md` and the crash notes. The staff pag
 **Before publishing:**
 - install-guide.md: update "Coming in launcher 2.1.35" when 2.1.35 ships, and confirm whether the alpha keeps the
   Discord whitelist role.
-- known-issues.md: the rope section goes out with the rope release, the deer line under "Fixed recently" with the
-  deer release, and "The Synod's enchanting table is open to everyone" comes out once the table is kept for members.
+- known-issues.md: the rope section goes out with the rope release, and the deer line under "Fixed recently" with the
+  deer release.
 - known-issues.md and specs.md: replace the estimates in "Is my PC enough?" and specs.md once launcher 2.1.36 reports
   players' hardware.
 - event-night.md: the date, the staff names and the NPC budget decision.

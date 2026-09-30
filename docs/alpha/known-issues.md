@@ -60,6 +60,15 @@ little away from where it looks, and a hit can miss it.
 
 **What to do:** type `/bug` while it's happening. The snapshot shows us exactly what you saw.
 
+## The schools of magic are new
+
+**What's new:** mages now follow a school of magic: Destruction, Illusion, Conjuration or Alteration. Choose your
+first school on the Arcane Arts page of the Skills menu (K), or at a Study Magic spot. The same page shows your four
+school meters. Every spell you already know stays yours. It's new, so expect rough edges.
+
+**What to do if something looks wrong:** if a meter doesn't move when you cast, or a tome is refused when you think
+your rank allows it, type `/bug` straight away.
+
 ## Class Lecterns have no teachers yet
 
 **What happens:** a class at a Class Lectern can only be held by a teacher the Synod has named, and nobody has been
@@ -72,7 +81,7 @@ named yet. Until then, no classes can be held.
 **What happens:** the enchanting table in the Synod Conclave belongs to the Synod and the Colleges, but for now
 anyone can use it.
 
-**What to do:** use it while it's open. Later it will be for members of the Synod and the Colleges only.
+**What to do:** use it while it's open. Once the Synod and the College have members, it will be kept for them.
 
 ## Dragon bone and dragon scales
 
