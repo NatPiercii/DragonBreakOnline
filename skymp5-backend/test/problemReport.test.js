@@ -156,3 +156,70 @@ test('a field outside CONTEXT_FIELDS is never repeated, however it is named', as
   assert.doesNotMatch(posted.summary, /gpuDriver/)
   assert.doesNotMatch(posted.summary, /^ram: /m)
 })
+
+// Launcher 2.1.34 condenses a crash log to 48 KB, but the server takes whatever is sent. A 64 KB one is over the
+// 56 + 8 KB the server keeps, so it loses its middle, and both kept ends are scrubbed by the same rules as every
+// other log (scrub-rules.json S3-S10 and scrubLog's own IP rules) before the cut.
+test('a 64 KB crash log keeps its head and tail, and both ends are scrubbed', async () => {
+  const { MAX_BYTES } = require('../sources/scrubLog')
+  const CUT = '[middle lines cut to fit the upload limit]'
+  // The known fake bot token of the S9 fixture in fixtures/auto-report/scrub-cases.json
+  const botToken = 'ZmFrZS1ub3QtYS1yZWFsLXRva2Vu.GAbCdE.abcdefghijklmnopqrstuvwxyz012345'
+  // [as sent, as it must be posted]
+  const head = [
+    ['[crash-2026-09-30-19-02-11.log, 64 KB, written 3 min before this report, from Documents]'],
+    ['Skyrim SSE v1.6.1170'],
+    ['Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF6D2A1B2C3 SkyrimSE.exe+0x6B2C3'],
+    ['\tSkyrimPlatformImpl.dll v2.9.0 C:\\Users\\Arvel\\AppData\\Local\\DragonBreak\\skyrim\\Data',
+     '\tSkyrimPlatformImpl.dll v2.9.0 C:\\Users\\<user>\\AppData\\Local\\DragonBreak\\skyrim\\Data'],
+    ['\tmaster 198.51.100.23:7777, auth Bearer fakeBearerValue0123456789', '\tmaster <ip>:7777, auth Bearer <redacted>'],
+    [`\tbot ${botToken}`, '\tbot <token-redacted>'],
+    ['PROBABLE CALL STACK:'],
+  ]
+  const tail = [
+    ['MODULES:'],
+    ['\tcrash log in C:\\Users\\Arvel\\Documents\\My Games\\Skyrim Special Edition\\SKSE',
+     '\tcrash log in C:\\Users\\<user>\\Documents\\My Games\\Skyrim Special Edition\\SKSE'],
+    ['\tpeer 2001:db8:85a3::8a2e:370:7334, sessionToken=fake0session0value0abc', '\tpeer <ip>, sessionToken=<redacted>'],
+    ['\thwid 0123456789abcdef0123456789abcdef01234567', '\thwid 01234567<redacted>'],
+    [`\tstill ${botToken}`, '\tstill <token-redacted>'],
+    ['\tKERNELBASE.dll 0x7FFA10000000 (the last line)'],
+  ]
+  const frame = i => `\t[${String(i).padStart(4, ' ')}] 0x7FF6D2A1B2C3 SkyrimSE.exe+0x${i.toString(16).padStart(5, '0')}`
+  const frames = []
+  const size = () => Buffer.byteLength([...head, ...frames, ...tail].map(([sent]) => sent).join('\n'))
+  // 64 KB and a little over, so the log is still over 56 + 8 KB once the scrub has shortened it
+  while (size() < 64 * 1024 + 512) frames.push([frame(frames.length)])
+  const crashLog = [...head, ...frames, ...tail].map(([sent]) => sent).join('\n')
+  assert.ok(Buffer.byteLength(crashLog) >= 64 * 1024 && Buffer.byteLength(crashLog) < 65 * 1024, `${Buffer.byteLength(crashLog)} bytes`)
+
+  const result = await submit({ name: 'Tester', verified: true, profileId: 30 }, { reportId: 'test-crash-log-64k', launcherLog: 'launcher starting', crashLog })
+  assert.strictEqual(result.status, 200)
+  const crash = posted.files.filter(f => f.name === 'crash.log')
+  assert.strictEqual(crash.length, 1, 'one crash.log')
+  const out = crash[0].text
+  const lines = out.split('\n')
+
+  // Trimmed: one cut, the middle frames gone, and no more than 56 + 8 KB plus the marker, well inside MAX_BYTES
+  assert.strictEqual(lines.filter(l => l === CUT).length, 1, 'one cut marker')
+  // The frames either side of the marker are the last whole one of the first 56 KB and the first of the last 8 KB
+  const at = lines.indexOf(CUT)
+  const before = frames.findIndex(([sent]) => sent === lines[at - 1])
+  const after = frames.findIndex(([sent]) => sent === lines[at + 1])
+  assert.ok(before > 0 && after > before + 1, `frames ${before} and ${after} either side of the cut`)
+  assert.strictEqual(lines.length, head.length + before + 1 + 1 + (frames.length - after) + tail.length)
+  assert.ok(Buffer.byteLength(out) <= 64 * 1024 + CUT.length + 1, `${Buffer.byteLength(out)} bytes`)
+  assert.ok(Buffer.byteLength(out) <= MAX_BYTES)
+  // The head, where the exception and the call stack are, and the tail are both there, scrubbed, as whole lines
+  const posts = ([sent, scrubbed = sent]) => scrubbed
+  assert.deepStrictEqual(lines.slice(0, head.length + 1), [...head.map(posts), frame(0)])
+  assert.deepStrictEqual(lines.slice(-tail.length), tail.map(posts))
+  const whole = new Set([...head, ...frames, ...tail].map(posts).concat(CUT))
+  for (const line of lines) assert.ok(whole.has(line), `a cut or unscrubbed line: ${JSON.stringify(line)}`)
+  // Scrubbed: the account name in a path, the IPv4 and IPv6 addresses and every token-shaped string
+  const leaks = /Arvel|198\.51\.100\.23|2001:db8|fakeBearerValue|fake0session0value0abc|0123456789abcdef0123|ZmFrZS1ub3Qt|\r/
+  assert.doesNotMatch(out, leaks)
+  assert.doesNotMatch(posted.summary, leaks)
+  const counted = Number(posted.summary.match(/_2 log file\(s\), (\d+) redaction\(s\)/)[1])
+  assert.ok(counted >= 9, `${counted} redactions`)
+})
