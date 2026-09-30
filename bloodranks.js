@@ -91,6 +91,7 @@ module.exports = (api) => {
   globalThis.__dboBloodThirstRate = (a) => at(C.thirstRate, a);
   globalThis.__dboBloodFeedSeconds = (a) => at(C.feedSeconds, a);
   globalThis.__dboBloodCanLongFeed = (a) => rankOf(a) >= C.longFeedFromRank;
+  globalThis.__dboBloodRank = (a) => rankOf(a);
   globalThis.__dboBloodDamageMult = (agg) => (isNight() && isVampire(agg) ? at(C.damageAtNight, agg) : 1);
   globalThis.__dboBloodReset = (a) => save(a, { blood: 0, fedOn: {} });
 
