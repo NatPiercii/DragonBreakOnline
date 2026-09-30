@@ -205,7 +205,8 @@ module.exports = (api) => {
   const manualActions = (a) => {
     const out = [];
     try { if (typeof globalThis.__dboManualsShop === 'function' && globalThis.__dboManualsShop(a).length) out.push({ id: 'manualsBuy', label: "Buy one of the Synod's smithing manuals" }); } catch (e) { /* manuals.js not loaded */ }
-    if (typeof globalThis.__dboManualsCopyList === 'function') out.push({ id: 'manualsCopy', label: 'Copy a smithing manual' });
+    // Only to a Scholar who has a manual to copy, as the buy row: shown to everyone, it could only refuse (Worker B's review)
+    try { if (typeof globalThis.__dboManualsCopyList === 'function' && globalThis.__dboManualsCopyList(a).length) out.push({ id: 'manualsCopy', label: 'Copy a smithing manual' }); } catch (e) { /* manuals.js not loaded */ }
     return out;
   };
   // A list of manuals to buy or copy, in the same widget; each row is <prefix><book id>
