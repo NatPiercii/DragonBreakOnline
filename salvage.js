@@ -209,7 +209,26 @@ module.exports = (api) => {
     log(`salvage: ${who(a)} opened the ${station.label} menu at ${descOf(target)}${note ? ` (${note})` : ''}`);
     openWidget(a, {
       type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: note || station.label,
-      actions: [{ id: 'spellbook', label: 'Open your Spell Book' }, { id: 'books', label: 'Break down old books' }],
+      actions: [{ id: 'spellbook', label: 'Open your Spell Book' }, { id: 'books', label: 'Break down old books' }].concat(manualActions(a)),
+      events: { action: 'dbo:salvageChoose', close: 'dbo:salvageClose' },
+    }, true);
+  };
+  // Smithing manuals (manuals.js): the Synod sells some at its own ledger, and a Scholar copies the ones they learned
+  const manualActions = (a) => {
+    const out = [];
+    try { if (typeof globalThis.__dboManualsShop === 'function' && globalThis.__dboManualsShop(a).length) out.push({ id: 'manualsBuy', label: "Buy one of the Synod's smithing manuals" }); } catch (e) { /* manuals.js not loaded */ }
+    // Only to a Scholar who has a manual to copy, as the buy row: shown to everyone, it could only refuse (Worker B's review)
+    try { if (typeof globalThis.__dboManualsCopyList === 'function' && globalThis.__dboManualsCopyList(a).length) out.push({ id: 'manualsCopy', label: 'Copy a smithing manual' }); } catch (e) { /* manuals.js not loaded */ }
+    return out;
+  };
+  // A list of manuals to buy or copy, in the same widget; each row is <prefix><book id>
+  const openManualList = (a, target, station, kind, note) => {
+    const rows = kind === 'buy' ? globalThis.__dboManualsShop(a).map((r) => ({ id: `mb:${r.bookId}`, label: r.label }))
+      : globalThis.__dboManualsCopyList(a).map((r) => ({ id: `mc:${r.bookId}`, label: r.label }));
+    S.pending.set(a >>> 0, { target: target >>> 0, station: station.id, page: 0, menu: true });
+    openWidget(a, {
+      type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: note || (kind === 'buy' ? "The Synod's smithing manuals" : 'Which manual will you copy?'),
+      actions: rows.concat([{ id: 'ledger', label: 'Back' }]),
       events: { action: 'dbo:salvageChoose', close: 'dbo:salvageClose' },
     }, true);
   };
@@ -249,6 +268,20 @@ module.exports = (api) => {
       return;
     }
     if (id === 'more') { openPanel(a, p.target, station, p.page + 1); return; }
+    if (station.dedicated && (id === 'ledger' || id === 'manualsBuy' || id === 'manualsCopy' || id.startsWith('mb:') || id.startsWith('mc:'))) {
+      try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
+      if (id === 'ledger') return openLedgerMenu(a, p.target, station);
+      if (id === 'manualsBuy') return openManualList(a, p.target, station, 'buy');
+      if (id === 'manualsCopy') {
+        const why = typeof globalThis.__dboManualsCopyRefusal === 'function' ? globalThis.__dboManualsCopyRefusal(a) : 'Manuals are not copied here.';
+        return why ? openLedgerMenu(a, p.target, station, why) : openManualList(a, p.target, station, 'copy');
+      }
+      const buying = id.startsWith('mb:');
+      const fn = buying ? globalThis.__dboManualsBuy : globalThis.__dboManualsCopy;
+      const r = typeof fn === 'function' ? fn(a, Number(id.slice(3)) >>> 0) : { ok: false, text: 'Manuals are not handled here just now.' };
+      log(`salvage: ${who(a)} ${buying ? 'bought' : 'copied'} a manual at the ${station.label}: ${r.text}`);
+      return openLedgerMenu(a, p.target, station, r.text);
+    }
     if (station.dedicated && (id === 'spellbook' || id === 'books')) {
       log(`salvage: ${who(a)} chose ${id} at the ${station.label}`);
       try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }

@@ -197,6 +197,8 @@ const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM'
 const LEAD_ONLY = new Set(['beastform', 'vlremote', 'feedpair', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
   'jail', 'placeexport', 'staffstats', 'war', 'curse', 'schedule', 'warband', 'raid', 'settime', 'timescale', 'setweather', 'npc remove', 'dungeon end',
   'appoint', 'dismiss',
+  // Handing out a smithing manual is handing out an item (the T5 ones are given in roleplay, like artifacts)
+  'manual grant',
   // A staff override on the state of a player, like the property override (A3-1): /deity reset <player> in prayer.js
   'deity reset',
   // Review A3-5 / A7-STAFF-1: /masktest creates armour, a faction's leader holds a hold's economy
@@ -1520,7 +1522,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
   // What a UI said it can draw, and a deity offer already made, belong to this session (review C6, PRAY-1)
-  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
+  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -2613,7 +2615,8 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   const title = humanize(rec.record.editorId);
   // BOOK DATA flags (byte 0): 0x01 teaches a skill, 0x02 cannot be taken, 0x04 teaches a spell
   const bookData = (rec.record.fields || []).find((f) => f && f.type === 'DATA' && f.data instanceof Uint8Array && f.data.byteLength);
-  const copyable = !!bookData && (bookData.data[0] & 0x07) === 0;
+  // A smithing manual is never copied by the reading: its copies come from a Scholar who learned it (manuals.js)
+  const copyable = !!bookData && (bookData.data[0] & 0x07) === 0 && !(globalThis.__dboManualsIsManual && globalThis.__dboManualsIsManual(baseId));
   // Anyone may read; the work is banked toward Scholar until it is taken up, and reads at Novice until then
   const tier = Math.max(0, scholarTier(casterId));
   const deny = (text) => { if (Date.now() - (readDeny.get(casterId) || 0) > 1500) { readDeny.set(casterId, Date.now()); personal(casterId, text); } return true; };
@@ -2687,6 +2690,8 @@ onUi('reading', (a, args) => {
     try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
     // Hermaeus Mora's blessing: what you read teaches you more, so the round counts twice (the skill's caps still hold)
     try { if (globalThis.__dboBlessedWith && globalThis.__dboBlessedWith(a, 'scholarBoon') && typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
+    // A smithing skill book is Blacksmith work too, once a book; a manual on a shelf is learned (manuals.js)
+    try { const line = globalThis.__dboManualsReadWon ? globalThis.__dboManualsReadWon(a, ses.baseId) : ''; if (line) results.push(line); } catch (e) { log('manuals read failed', e.message); }
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const today = new Date().toISOString().slice(0, 10);
@@ -4767,6 +4772,13 @@ try {
   delete require.cache[SPELLS_JS];
   require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury, every });
 } catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop']) globalThis[k] = null; }
+// ---- smithing manuals and smithing skill books (server\manuals.js, manuals.json, config "manuals"): spells.js's read hook,
+// the Scholar's reading, dungeons.js's boss chests and salvage.js's Scholars' Ledger ask it at runtime ----
+try {
+  const MANUALS_JS = path.resolve('manuals.js');
+  delete require.cache[MANUALS_JS];
+  require(MANUALS_JS)({ mp, log, personal, audit, who, display, cfg, giveItem, takeGold, depositToTreasury, registerChatCommand, onlineActors, every, findByName, notify });
+} catch (e) { log('manuals.js failed to load:', e.stack || e.message); for (const k of ['__dboManualsRead', '__dboManualsReadWon', '__dboManualsIsManual', '__dboManualsBossLoot', '__dboManualsShop', '__dboManualsBuy', '__dboManualsCopyList', '__dboManualsCopyRefusal', '__dboManualsCopy', '__dboManualsLeave']) globalThis[k] = null; }
 // ---- the schools of magic, Study Magic and the Class Lectern (server\schools.js, config "schools"): after spells.js, whose spellbook it reads ----
 try {
   const SCHOOLS_JS = path.resolve('schools.js');
