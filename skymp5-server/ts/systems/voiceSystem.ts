@@ -7,21 +7,13 @@ type Mp = any;
 
 // ── Proximity voice chat (LiveKit) ───────────────────────────────────────────
 //
-// The client asks for a room token after login; the server mints a LiveKit HS256 access token. The identity it carries
-// is the player's PROFILE id ("p<n>") for a client that says it understands that, and the server-side actor id in hex
-// for one that does not - voiceIdentity.ts holds the scheme and the reason (a rejoining player must evict its own
-// ghost, or listeners hear it twice).
-// Clients already know every remote player's refrId, so they match LiveKit participants to actors and gate volume by
-// distance; server-side minting means identities cannot be spoofed.
+// The client asks for a room token after login; the server mints a LiveKit HS256 access token whose identity is the player's server-side actor id in hex.
+// Clients already know every remote player's refrId, so they match LiveKit participants to actors and gate volume by distance; server-side minting means identities cannot be spoofed.
 //
 // Wire protocol (CustomPacket JSON):
-//   Client -> Server: { customPacketType: "voiceTokenRequest", caps?: { identityV2: true } }
+//   Client -> Server: { customPacketType: "voiceTokenRequest" }
 //   Server -> Client: { customPacketType: "voiceToken", enabled, url?, token?,
-//                       room?, identity?, rangeUnits?, identityMap? }
-//   Server -> Client: { customPacketType: "voiceIdentityMap", identityMap }   when the room's players change
-// identityMap is actor id hex -> identity, sent only to clients that asked for it, and lists only the players whose
-// identity differs from their actor id. Anything absent is keyed by actor id hex, which is what an old client
-// publishes under, so a new client is right about both kinds of peer.
+//                       room?, identity?, rangeUnits? }
 //
 // Settings (server-settings.json "voiceChat" object):
 //   { "enabled": true, "url": "ws://host:7880", "apiKey": "...",
@@ -34,11 +26,6 @@ const TOKEN_TTL_SECONDS = 60 * 60;
 function b64url(input: Buffer | string): string {
   return (typeof input === "string" ? Buffer.from(input) : input).toString("base64url");
 }
-
-import { VoicePlayer, actorKey, buildIdentityMap, voiceIdentity } from "./voiceIdentity";
-
-// How many user slots to scan when listing who is online (adminSystem uses the same bound).
-const MAX_USER_SLOTS = 1000;
 
 // Hand-minted LiveKit access token; the payload shape matches livekit-server-sdk.
 function mintLiveKitToken(apiKey: string, apiSecret: string, identity: string, room: string): string {
@@ -64,8 +51,6 @@ export class VoiceSystem implements System {
   constructor(private log: Log) { }
 
   private enabled = false;
-  // Users whose client said it understands profile identities (caps.identityV2 in the token request).
-  private v2Users = new Set<number>();
   private url = "";
   private apiKey = "";
   private apiSecret = "";
@@ -110,59 +95,17 @@ export class VoiceSystem implements System {
     this.log(`VoiceSystem: ${this.enabled ? `enabled, room '${this.room}', modes: ${modeDesc}` : "disabled (missing url/apiKey/apiSecret or enabled=false)"}`);
   }
 
-  // A client that leaves takes its capability with it, and everyone left needs a map without it.
-  disconnect(userId: number, ctx: SystemContext): void {
-    if (!this.v2Users.delete(userId)) return;
-    if (!this.enabled) return;
-    try { this.broadcastIdentityMap(ctx.svr as Mp); } catch (e) { this.log(`VoiceSystem: map broadcast on disconnect failed: ${e}`); }
-  }
-
-  private onlineVoicePlayers(mp: Mp): Array<VoicePlayer & { userId: number }> {
-    const out: Array<VoicePlayer & { userId: number }> = [];
-    for (let userId = 0; userId < MAX_USER_SLOTS; userId++) {
-      try { if (!mp.isConnected(userId)) continue; } catch { continue; }
-      let actorId = 0;
-      try { actorId = mp.getUserActor(userId); } catch { continue; }
-      if (!actorId) continue;
-      let profileId = 0;
-      try { profileId = Number(mp.get(actorId, "profileId")) || 0; } catch { /* form gone */ }
-      out.push({ userId, actorId, profileId, supportsV2: this.v2Users.has(userId) });
-    }
-    return out;
-  }
-
-  // Only the listeners that asked for it are told; an old client would not know what to do with it.
-  private broadcastIdentityMap(mp: Mp): void {
-    const players = this.onlineVoicePlayers(mp);
-    const identityMap = buildIdentityMap(players);
-    const payload = JSON.stringify({ customPacketType: "voiceIdentityMap", identityMap });
-    for (const player of players) {
-      if (!this.v2Users.has(player.userId)) continue;
-      try { mp.sendCustomPacket(player.userId, payload); } catch (e) { /* gone between the scan and the send */ }
-    }
-  }
-
-  customPacket(userId: number, type: string, content: Content, ctx: SystemContext): void {
+  customPacket(userId: number, type: string, _content: Content, ctx: SystemContext): void {
     if (type !== "voiceTokenRequest") return;
     const mp = ctx.svr as Mp;
     if (!this.enabled) {
       mp.sendCustomPacket(userId, JSON.stringify({ customPacketType: "voiceToken", enabled: false }));
       return;
     }
-    // Stated by the client, never assumed: an old package sends no caps and keeps the actor-id identity.
-    const caps = (content as Record<string, unknown>)?.["caps"];
-    const supportsV2 = !!(caps && typeof caps === "object" && (caps as Record<string, unknown>)["identityV2"] === true);
-    if (supportsV2) this.v2Users.add(userId); else this.v2Users.delete(userId);
-
     let actorId = 0;
     try { actorId = mp.getUserActor(userId); } catch { }
     if (!actorId) return; // not spawned yet; the client re-requests after assign
-    let profileId = 0;
-    try { profileId = Number(mp.get(actorId, "profileId")) || 0; } catch { /* falls back to the actor id */ }
-    const identity = voiceIdentity({ actorId, profileId, supportsV2 });
-    if (supportsV2 && identity === actorKey(actorId)) {
-      this.log(`VoiceSystem: user ${userId} asked for a profile identity but has no profile id; keeping the actor id`);
-    }
+    const identity = actorId.toString(16);
     try {
       const token = mintLiveKitToken(this.apiKey, this.apiSecret, identity, this.room);
       mp.sendCustomPacket(userId, JSON.stringify({
@@ -173,10 +116,7 @@ export class VoiceSystem implements System {
         room: this.room,
         identity,
         modes: this.modes,
-        identityMap: supportsV2 ? buildIdentityMap(this.onlineVoicePlayers(mp)) : undefined,
       }));
-      // This player just changed the map for everyone else too
-      this.broadcastIdentityMap(mp);
     } catch (e) {
       this.log(`VoiceSystem: token mint failed for user ${userId}: ${e}`);
     }
