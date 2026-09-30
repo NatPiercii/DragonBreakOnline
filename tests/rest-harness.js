@@ -225,15 +225,30 @@ check('a choice with no prompt on record says to use the bed again, and is logge
 
 // ---- an inn with an owner ----
 rentFor(OWNED_INN_BED, OTHER);
-check("an offline owner's 90% is held on the claim", gold.get(INNKEEPER) === 0 && props.get(INN_DOOR + '|private.dboRestOwed') === 9, props.get(INN_DOOR + '|private.dboRestOwed'));
+const heldBy = (door) => props.get(door + '|private.dboRestOwedBy') || {};
+check("an offline owner's 90% is held on the claim, under their profile", gold.get(INNKEEPER) === 0 && heldBy(INN_DOOR)[103] === 9, heldBy(INN_DOOR));
 check("the hold gets 10%, the inn's hold", treasury.get('solitude') === 1 && treasury.get('bruma') === 10, [...treasury]);
 check('the audit says where the owner share went', /: 9 held for Keeper, 1 to solitude$/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 globalThis.__dboRestLogin(INNKEEPER);
-check('...and paid when the owner logs in', gold.get(INNKEEPER) === 9 && props.get(INN_DOOR + '|private.dboRestOwed') === 0 && /took 9 gold in rent/.test(lastPersonal(INNKEEPER)));
+check('...and paid when the owner logs in', gold.get(INNKEEPER) === 9 && !heldBy(INN_DOOR)[103] && /took 9 gold in rent/.test(lastPersonal(INNKEEPER)));
+// Rent held for an absent owner stays theirs when the claim changes hands before they log in (2026-09-30)
+props.set(INN_DOOR + '|private.dboRestOwedBy', { 103: 9 });
+props.set(INN_DOOR + '|private.housing', { owner: 104, ownerName: 'Third', partner: INN_DOOR_OUT });
+const thirdBefore = gold.get(THIRD) || 0;
+globalThis.__dboRestLogin(THIRD);
+check("the claim's new holder does not collect the old owner's held rent", (gold.get(THIRD) || 0) === thirdBefore && heldBy(INN_DOOR)[103] === 9, [gold.get(THIRD), heldBy(INN_DOOR)]);
+globalThis.__dboRestLogin(INNKEEPER);
+check('...the old owner does, though the inn is no longer theirs', gold.get(INNKEEPER) === 18 && !heldBy(INN_DOOR)[103], [gold.get(INNKEEPER), heldBy(INN_DOOR)]);
+props.set(INN_DOOR + '|private.housing', { owner: 103, ownerName: 'Keeper', partner: INN_DOOR_OUT });
+// Rent held the old way (a number on the claim) still goes to the claim's owner
+props.set(INN_DOOR + '|private.dboRestOwed', 5);
+globalThis.__dboRestLogin(INNKEEPER);
+check('a legacy held number is still paid to the claim owner', gold.get(INNKEEPER) === 23 && props.get(INN_DOOR + '|private.dboRestOwed') === 0, gold.get(INNKEEPER));
+gold.set(INNKEEPER, 9);
 check('the owner is turned away from a bed rented in their own inn', activate(OWNED_INN_BED, INNKEEPER) === true && /rented by Stranger/.test(lastPersonal(INNKEEPER)), lastPersonal(INNKEEPER));
 online.add(THIRD);
 check('a claim on the front door owns the basement too, and an online owner is paid at once', (() => { gold.set(OTHER, 100); props.set(OTHER + '|private.dboRentBed', null); rentFor(BASEMENT_BED, OTHER); return gold.get(THIRD) === 9 && gold.get(OTHER) === 90; })(), [...gold]);
-check('...the front door, not a chest or room door that comes first in the index', !props.get(CHEST + '|private.dboRestOwed') && !props.get(ROOM_DOOR + '|private.dboRestOwed') && gold.get(OTHER) === 90);
+check('...the front door, not a chest or room door that comes first in the index', !props.get(CHEST + '|private.dboRestOwedBy') && !props.get(ROOM_DOOR + '|private.dboRestOwedBy') && gold.get(OTHER) === 90);
 
 // ---- the owner's own bed ----
 const kept = () => props.get(JERALL_DOOR + '|private.dboInnOwnerBed');
