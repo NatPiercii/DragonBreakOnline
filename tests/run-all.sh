@@ -40,6 +40,10 @@ if [ "$(cd "$FORK_SERVER" && pwd -P)" = "$(cd "$FORK" && pwd -P)" ]; then FORK_S
 FORK=$OUT/fork
 export FORK FORK_SERVER
 
+# Seconds a harness may run before it counts as failed (120 unless named here). The loot budget claims every dungeon at
+# every difficulty and took almost 4 minutes on a busy box (27 s of CPU), so 120 s killed a passing run (2026-09-30).
+declare -A LIMIT=([expedition-loot-budget]=600)
+
 # harness -> the bundle it takes: which fork (client: $FORK, server: $FORK_SERVER) and the entry point in it
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
@@ -94,7 +98,7 @@ for h in tests/*-harness.js; do
     if [[ "${NEEDS[$name]}" == front:* ]] && [ ! -f "$FORK/${NEEDS[$name]#front:}" ]; then echo "ok   $name (skipped: no ${NEEDS[$name]#front:} in $FORK)"; pass=$((pass+1)); continue; fi
     arg=$(bundle "${NEEDS[$name]}") || { echo "FAIL $name (bundle did not build)"; fail=$((fail+1)); failed+=("$name"); continue; }
   fi
-  if timeout 120 node "$h" $arg > "$OUT/$name.log" 2>&1; then
+  if timeout "${LIMIT[$name]:-120}" node "$h" $arg > "$OUT/$name.log" 2>&1; then
     echo "ok   $name"; pass=$((pass+1))
   else
     echo "FAIL $name"; grep -E '^\s*FAIL' "$OUT/$name.log" | head -3 | sed 's/^/       /'; fail=$((fail+1)); failed+=("$name")
