@@ -4610,7 +4610,7 @@ try {
   const IDLES_JS = path.resolve('idles.js');
   delete require.cache[IDLES_JS];
   require(IDLES_JS)({ mp, log, sendPacket, cfg, hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
-} catch (e) { log('idles.js failed to load:', e.stack || e.message); globalThis.__dboInteractionIdle = null; }
+} catch (e) { log('idles.js failed to load:', e.stack || e.message); globalThis.__dboInteractionIdle = null; globalThis.__dboChestHold = null; }
 
 // ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
 try {

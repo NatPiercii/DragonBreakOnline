@@ -71,6 +71,14 @@ module.exports = (api) => {
   const where = (a) => { try { const l = mp.get(a, 'locationalData'); return l && Array.isArray(l.pos) ? { cell: String(l.cellOrWorldDesc), pos: l.pos } : null; } catch (e) { return null; } };
   const online = (a) => { try { return (mp.get(0, 'onlinePlayers') || []).map((x) => Number(x) >>> 0).includes(a); } catch (e) { return false; } };
   // true: the hold took this activation (the chain denies it); false: let it through
+  // WARNING for any gate earlier in the chain: the first E on a held chest is denied HERE, after every earlier gate has
+  // already run, and the real open is a second pass through the whole chain a moment later. A gate that spends a one-shot
+  // token and lets the activation through (a pass, a nonce, "use it again to open it") spends it on the denied first E
+  // and finds nothing on the re-entry. Keep such a token until it expires instead (business.js's rented-chest pass does,
+  // since Worker A's review). Checked 2026-09-30: salvage.js spends its pass the same way, but only for furniture
+  // stations, which are never held; dungeons.js returns true for its chests and short-circuits before this gate. The
+  // fork's own gates (__dboPrevActivate: housing, mastery) run after this one, so a chest they refuse shows the crouch
+  // before the refusal.
   const chestHold = (targetId, casterId) => {
     if (H.enabled !== true || C.enabled === false) return false;
     const target = Number(targetId) >>> 0, caster = Number(casterId) >>> 0;
@@ -90,7 +98,9 @@ module.exports = (api) => {
       holding.delete(caster);
       const now = where(caster);
       if (!online(caster) || !now || now.cell !== from.cell || Math.hypot(now.pos[0] - from.pos[0], now.pos[1] - from.pos[1], now.pos[2] - from.pos[2]) > Number(H.moveUnits)) return;
-      passes.set(key, Date.now() + Number(H.passMs));
+      const at = Date.now();
+      for (const [k, until] of passes) if (until <= at) passes.delete(k);
+      passes.set(key, at + Number(H.passMs));
       try {
         mp.callPapyrusFunction('method', 'ObjectReference', 'Activate', { type: 'form', desc: mp.getDescFromId(target) }, [{ type: 'form', desc: mp.getDescFromId(caster) }, false]);
       } catch (e) {
