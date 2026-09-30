@@ -30,7 +30,7 @@ import { enforceSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
 import { setRefrCollision } from '../../sync/animation';
 import { settleTranslation } from '../../sync/movementApply';
-import { beastRaceOf, casterVariablesFor, writeDiagLine } from '../../sync/beastRaces';
+import { beastRaceOf, casterVariablesFor, noteBeastSkip } from '../../sync/beastRaces';
 import { isOwnCompanion } from './companionService';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
@@ -1252,7 +1252,7 @@ export class RemoteServer extends ClientListener {
         integers: new Uint8Array(msg.data.actorAnimationVariables.integers)
       });
       if (beastRace) {
-        writeDiagLine(`beast cast guard: ${(msg.data.caster >>> 0).toString(16)} race ${beastRace.toString(16)} spell ${(Number(msg.data.spell) >>> 0).toString(16)} ${msg.data.interruptCast ? "stop" : msg.data.keepAlive ? "keep-alive" : "cast"}: caster variables not applied`);
+        noteBeastSkip(msg.data.caster, beastRace, msg.data.interruptCast ? "stop" : msg.data.keepAlive ? "keep-alive" : "cast", Number(msg.data.spell));
       }
 
       const key = `${msg.data.caster}:${msg.data.castingSource}`;
@@ -1358,7 +1358,7 @@ export class RemoteServer extends ClientListener {
       // Never a humanoid snapshot into a beast's graph (sync/beastRaces.ts)
       const beastRace = beastRaceOf(ac);
       if (beastRace) {
-        writeDiagLine(`beast cast guard: ${(Number(msg.data.actorRemoteId) >>> 0).toString(16)} race ${beastRace.toString(16)} anim variables update: not applied`);
+        noteBeastSkip(msg.data.actorRemoteId, beastRace, "anim variables update");
         return;
       }
 

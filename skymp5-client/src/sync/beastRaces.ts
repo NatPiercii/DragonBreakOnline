@@ -1,5 +1,5 @@
 import { Actor, writeLogs } from "skyrimPlatform";
-import { isBeastRaceId } from "./beastRaceIds";
+import { createBeastSkipLog, isBeastRaceId } from "./beastRaceIds";
 
 export { BEAST_RACE_IDS, isBeastRaceId, casterVariablesFor, emptyCasterVariables } from "./beastRaceIds";
 
@@ -16,10 +16,13 @@ export const beastRaceOf = (ac: Actor | null | undefined): number => {
 const DIAG_LOG = "dbo-diag";
 
 // One line in Data\Platform\Logs\dbo-diag-logs.txt (flushed per line); an older SkyrimPlatform without writeLogs is quiet
-export const writeDiagLine = (line: string): void => {
+const writeDiagLine = (line: string): void => {
   try {
     writeLogs(DIAG_LOG, line);
   } catch {
     // no writeLogs on this platform build
   }
 };
+
+// The guard's skip lines, throttled per caster and kind and capped per session
+export const noteBeastSkip = createBeastSkipLog(writeDiagLine);

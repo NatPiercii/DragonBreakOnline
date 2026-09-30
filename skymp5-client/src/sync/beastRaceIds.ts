@@ -21,3 +21,38 @@ export const emptyCasterVariables = (): CasterVariables => ({ booleans: new Uint
 // What a relayed cast or stop may write into the copy of a caster of this race
 export const casterVariablesFor = <T extends CasterVariables>(copyRaceId: number, vars: T): T | CasterVariables =>
   isBeastRaceId(copyRaceId) ? emptyCasterVariables() : vars;
+
+// A Vampire Lord's copy refuses an update every 500 ms, and Report a Problem sends only the last 60 KB of the diag file
+export const SKIP_LINE_INTERVAL_MS = 5 * 60 * 1000;
+export const SKIP_MAX_LINES = 50;
+
+export type BeastSkipKind = "cast" | "stop" | "keep-alive" | "anim variables update";
+
+const hex = (n: number): string => (Number(n) >>> 0).toString(16);
+
+// One line per caster and kind per interval, carrying the skips it held back, and nothing past maxLines this session
+export const createBeastSkipLog = (write: (line: string) => void, now: () => number = () => Date.now(),
+  intervalMs = SKIP_LINE_INTERVAL_MS, maxLines = SKIP_MAX_LINES) => {
+  const last = new Map<string, { at: number; held: number }>();
+  let lines = 0;
+  return (remoteId: number, raceId: number, kind: BeastSkipKind, spellId?: number): boolean => {
+    if (lines >= maxLines) return false;
+    const key = `${hex(remoteId)}:${kind}`;
+    const at = now();
+    const prev = last.get(key);
+    if (prev && at - prev.at < intervalMs) {
+      prev.held++;
+      return false;
+    }
+    last.set(key, { at, held: 0 });
+    lines++;
+    const spell = spellId === undefined ? "" : ` spell ${hex(spellId)}`;
+    const held = prev && prev.held ? ` (${prev.held} more since the last line)` : "";
+    write(`beast cast guard: ${hex(remoteId)} race ${hex(raceId)}${spell} ${kind}: caster variables not applied${held}`);
+    if (lines === maxLines) {
+      last.clear();
+      write(`beast cast guard: stopped after ${maxLines} lines this session`);
+    }
+    return true;
+  };
+};
