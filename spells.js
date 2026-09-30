@@ -50,6 +50,8 @@ module.exports = (api) => {
     shopExcludePattern: '^(dun|MGR)|quest|FF\\d\\d',
     shopProvince: 'cyrodiil',
     shopShowForeign: false,
+    // Workshops the guilds keep for their own (a ref's CYRBlockedFactionWorkshop script, which the server never runs)
+    guildWorkshops: ['651cb:BSHeartland.esm'],
   }, cfg.spells || {});
 
   const SHOP_ID = 44;
@@ -234,15 +236,37 @@ module.exports = (api) => {
     return `Your ${MAXP()} prepared spells are full, so it waits in your spellbook. ${COLLEGE_HINT}`;
   };
 
-  // Why this actor cannot hold this spell in a slot, or null
-  const slotRefusal = (a, sp, whose) => {
-    const skill = SKILL_OF_SCHOOL[sp.school];
-    if (!skill) return `${sp.school} is not studied here.`;
+  // The skills whose path may take a spell of this school for this character, skills.json's owner first. Alteration is
+  // Priest's and, by the schools of magic's rule (schools.js, config schools.alteration; Nate 2026-09-30: "both for priest
+  // and arcane"), also Arcane Arts' ('both'), or Arcane Arts' alone ('arcane'). Arcane Arts' path is the school's too.
+  const pathsOf = (a, school) => {
+    const own = SKILL_OF_SCHOOL[school];
+    let rule = 'priest';
+    try { rule = typeof globalThis.__dboSchoolsAlteration === 'function' ? String(globalThis.__dboSchoolsAlteration(a) || 'priest') : 'priest'; } catch (e) { rule = 'priest'; }
+    const arcane = school === 'Alteration' && rule !== 'priest' ? skillDef('arcane') : null;
+    if (!arcane || arcane === own) return own ? [own] : [];
+    if (rule === 'arcane') return [arcane];
+    return own ? [own, arcane] : [arcane];
+  };
+  // Why this path cannot take the spell, or null; Arcane Arts' path also asks the schools of magic
+  const pathRefusal = (a, sp, whose, skill) => {
     const tier = tierOf(a, skill.id);
     if (tier < 0) return `${whose} not taken up ${skill.label}, the skill that studies ${sp.school}. Reading a Novice ${sp.school} tome at a spell study point takes it up.`;
     const max = maxRankFor(skill.id, tier);
     if (sp.rank > max) return `${sp.name} is ${/^[AEIOU]/.test(RANKS[sp.rank]) ? 'an' : 'a'} ${RANKS[sp.rank]} spell. ${skill.label} at ${TIER_NAMES[tier]} allows up to ${RANKS[max]} spells.`;
-    return schoolRefusal(a, sp, whose === 'You have' ? 'You' : display(a));
+    return skill.id === 'arcane' ? schoolRefusal(a, sp, whose === 'You have' ? 'You' : display(a)) : null;
+  };
+  // The skill whose book a spell goes into: the first path that takes it, or null
+  const bookSkillFor = (a, sp) => pathsOf(a, sp.school).find((skill) => !pathRefusal(a, sp, 'You have', skill)) || null;
+  // Why this actor cannot hold this spell in a slot, or null. With two paths either will do; the refusal told is the one of
+  // the path the character is on (the first whose skill is taken up)
+  const slotRefusal = (a, sp, whose) => {
+    const paths = pathsOf(a, sp.school);
+    if (!paths.length) return `${sp.school} is not studied here.`;
+    const whys = paths.map((skill) => pathRefusal(a, sp, whose, skill));
+    if (whys.some((w) => !w)) return null;
+    const held = paths.findIndex((skill) => tierOf(a, skill.id) >= 0);
+    return whys[held >= 0 ? held : 0];
   };
   // The schools of magic (schools.js): a spell of Destruction, Illusion, Conjuration or Alteration is taken only in a school
   // the character has chosen, and no higher than their study of it. null when schools.js has no objection or is not loaded.
@@ -269,11 +293,12 @@ module.exports = (api) => {
       return { refuse: true };
     }
     // A school tome is refused before it can take a skill up: no pool point is spent on a read the school would refuse
-    const noSchool = schoolRefusal(a, tome, 'You');
-    if (noSchool) return refuse(noSchool);
+    const paths = pathsOf(a, tome.school);
+    if (paths.length === 1 && paths[0].id === 'arcane') { const noSchool = schoolRefusal(a, tome, 'You'); if (noSchool) return refuse(noSchool); }
     // A Novice tome read at a spell study point takes up its school's skill, for one pool point, the way a trade is
-    // started at its bench (Nate, 2026-09-25): a new character has no spell to cast, so Arcane Arts had no way in
-    const opens = SKILL_OF_SCHOOL[tome.school];
+    // started at its bench (Nate, 2026-09-25): a new character has no spell to cast, so Arcane Arts had no way in.
+    // Not when another path already takes it (an Alteration mage of the schools needs no Priest).
+    const opens = slotRefusal(a, tome, 'You have') ? paths[0] : null;
     if (opens && tierOf(a, opens.id) < 0 && Number(tome.rank) === 0 && studyPointAt(a, tome.school)
       && typeof globalThis.__alduinakMasteryFirstTouch === 'function') {
       let took = 'unknown';
@@ -284,7 +309,7 @@ module.exports = (api) => {
     const why = slotRefusal(a, tome, 'You have');
     if (why) return refuse(why);
     if (!studyPointAt(a, tome.school)) return refuse(`a tome is studied at a spell study point: ${STUDY_POINTS.filter((p) => p.schools.includes(tome.school)).map((p) => p.name).join(', ') || 'none is set'}.`);
-    const skill = SKILL_OF_SCHOOL[tome.school];
+    const skill = bookSkillFor(a, tome);
     return {
       // Runs after the engine's OnFireSuccess, which skips spells the actor's race or base already grants
       commit: () => {
@@ -398,7 +423,7 @@ module.exports = (api) => {
 
   // For schools.js: the spellbook (every spell studied or taught), every school spell the character knows (the engine's
   // list and the book), and one spell's school and rank; each entry { id, desc, school, rank, name }
-  globalThis.__dboSpellsBook = (a) => knownIds(a).map(classifySpell).filter(Boolean);
+  globalThis.__dboSpellsBook = (a) => [].concat(...SPELL_SKILLS.map((s) => studiedIds(a, s.id).map((id) => { const sp = classifySpell(id); return sp ? Object.assign({ book: s.id }, sp) : null; }))).filter(Boolean);
   globalThis.__dboSpellsKnown = (a) => { const ids = new Set(learnedIds(a) || []); for (const id of knownIds(a)) ids.add(id); return [...ids].map(classifySpell).filter(Boolean); };
   globalThis.__dboSpellsClassify = (id) => classifySpell(Number(id) >>> 0);
 
@@ -429,7 +454,7 @@ module.exports = (api) => {
     if (!skills.length) return [];
     const ids = new Set(learnedIds(a) || []);
     for (const s of skills) for (const id of studiedIds(a, s.id)) ids.add(id);
-    return [...ids].map(classifySpell).filter((sp) => sp && skills.includes(SKILL_OF_SCHOOL[sp.school]));
+    return [...ids].map(classifySpell).filter((sp) => sp && pathsOf(a, sp.school).some((skill) => skills.includes(skill)));
   };
   const near = (a, b) => distanceMeters(a, b) <= CFG.teachMeters;
   // Why the student cannot take this spell from this teacher now, or null
@@ -437,9 +462,9 @@ module.exports = (api) => {
     if (!onlineActors().includes(student)) return `${display(student)} is not here.`;
     if (!near(teacher, student)) return `${display(student)} must stand within ${CFG.teachMeters} m.`;
     if (CFG.teachAtStudyPoint && !(studyPointAt(teacher, sp.school) && studyPointAt(student, sp.school))) return 'Teaching happens at a spell study point.';
-    const skill = SKILL_OF_SCHOOL[sp.school];
-    if (tierOf(teacher, skill.id) < CFG.teacherMinTier) return `Teaching ${sp.school} takes ${skill.label} at ${TIER_NAMES[CFG.teacherMinTier]}.`;
-    if (tierOf(student, skill.id) < CFG.studentMinTier) return `${display(student)} needs ${skill.label} at ${TIER_NAMES[CFG.studentMinTier]} or higher to be taught.`;
+    const taught = pathsOf(teacher, sp.school), learning = pathsOf(student, sp.school);
+    if (!taught.some((skill) => tierOf(teacher, skill.id) >= CFG.teacherMinTier)) return `Teaching ${sp.school} takes ${taught.map((skill) => skill.label).join(' or ')} at ${TIER_NAMES[CFG.teacherMinTier]}.`;
+    if (!learning.some((skill) => tierOf(student, skill.id) >= CFG.studentMinTier)) return `${display(student)} needs ${learning.map((skill) => skill.label).join(' or ')} at ${TIER_NAMES[CFG.studentMinTier]} or higher to be taught.`;
     if (knows(student, sp.id) || inBook(student, sp.id)) return `${display(student)} already knows ${sp.name}.`;
     return slotRefusal(student, sp, `${display(student)} has`);
   };
@@ -475,7 +500,7 @@ module.exports = (api) => {
     if (!sp) { personal(student, 'Your teacher can no longer teach that spell.'); return; }
     const why = teachRefusal(o.teacher, student, sp);
     if (why) { personal(student, why); personal(o.teacher, why); return; }
-    const skill = SKILL_OF_SCHOOL[sp.school];
+    const skill = bookSkillFor(student, sp);
     migrate(student);
     writeStudied(student, skill.id, studiedIds(student, skill.id).concat([sp.id]));
     const line = settleNew(student, sp, false);
@@ -504,14 +529,27 @@ module.exports = (api) => {
   const soldIn = (R, t) => { const w = R ? R.tomeWhere(t.bookId) : null; return w && w.length ? R.listNames(w) : ''; };
   const inShop = (a) => SHOP_CELLS.has(norm(get(a, 'worldOrCellDesc', '')));
   const isMember = (a) => { const g = get(a, 'private.dboGuilds', []); return Array.isArray(g) && g.some((m) => m && (CFG.shopFactions || []).includes(String(m.id))); };
+  // The Synod Conclave's enchanting table is the Synod's (its CYRBlockedFactionWorkshop script, whose faction is the Synod,
+  // never runs on the server): only members of the Synod or a College use it, as with the tome shop (Nate, 2026-09-30).
+  // gamemode.js asks before the skills' own station gate, so a refused touch takes up nothing.
+  const WORKSHOPS = new Set((CFG.guildWorkshops || []).map(idOf).filter(Boolean));
+  const workshopDeny = globalThis.__dboGuildWorkshopDeny instanceof Map ? globalThis.__dboGuildWorkshopDeny : (globalThis.__dboGuildWorkshopDeny = new Map());
+  globalThis.__dboGuildWorkshop = (targetId, casterId) => {
+    if (!CFG.enabled || !WORKSHOPS.has(targetId >>> 0) || isMember(casterId)) return false;
+    if (Date.now() - (workshopDeny.get(casterId >>> 0) || 0) > 1500) {
+      workshopDeny.set(casterId >>> 0, Date.now());
+      personal(casterId, "This is the Synod's own enchanting table. Only members of the Synod or a College may use it.");
+    }
+    return true;
+  };
   const goldOf = (a) => { const inv = get(a, 'inventory', { entries: [] }); return (Array.isArray(inv.entries) ? inv.entries : []).reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD && !e.worn ? Number(e.count) || 0 : 0), 0); };
   // The lowest tier of the skill whose spell rank reaches this tome, never below shopMinTier
   const tierFor = (skillId, rank) => { for (let t = 0; t < 5; t++) if (maxRankFor(skillId, t) >= rank) return Math.max(t, CFG.shopMinTier); return 4; };
   // Why this tome is out of the buyer's reach, or ''
   const tomeBlock = (a, t) => {
-    const skill = SKILL_OF_SCHOOL[t.school];
-    const need = tierFor(skill.id, t.rank);
-    return tierOf(a, skill.id) >= need ? '' : `Needs ${skill.label} ${TIER_NAMES[need]}`;
+    const paths = pathsOf(a, t.school);
+    if (paths.some((skill) => tierOf(a, skill.id) >= tierFor(skill.id, t.rank))) return '';
+    return `Needs ${paths.map((skill) => `${skill.label} ${TIER_NAMES[tierFor(skill.id, t.rank)]}`).join(' or ')}`;
   };
   const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + CFG.shopCooldownDays * DAY; return at > Date.now() ? at : 0; };
   const waitText = (ms) => { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${plural(Math.floor(h / 24), 'day')}${h % 24 ? ' ' + plural(h % 24, 'hour') : ''}` : plural(h, 'hour'); };
@@ -531,7 +569,7 @@ module.exports = (api) => {
     const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
     shopNonces.set(a >>> 0, nonce);
     const held = SPELL_SKILLS.map((s) => ({ s, tier: tierOf(a, s.id) })).filter((x) => x.tier >= 0);
-    const schools = new Set([].concat(...held.map((x) => x.s.vanillaSkills || [])));
+    const schools = new Set([].concat(...held.map((x) => x.s.vanillaSkills || [])).concat(Object.keys(SKILL_OF_SCHOOL).filter((school) => pathsOf(a, school).some((skill) => tierOf(a, skill.id) >= 0))));
     const gold = goldOf(a);
     const whyNot = shopRefusal(a);
     const R = regions();
@@ -561,7 +599,7 @@ module.exports = (api) => {
     const why = shopRefusal(a);
     if (why) return { ok: false, text: why };
     const t = SHOP.find((x) => x.bookId === bookId);
-    if (!t || tierOf(a, SKILL_OF_SCHOOL[t.school].id) < 0) return { ok: false, text: 'The court mage will not sell you that tome.' };
+    if (!t || !pathsOf(a, t.school).some((skill) => tierOf(a, skill.id) >= 0)) return { ok: false, text: 'The court mage will not sell you that tome.' };
     const R = regions();
     if (!soldHere(R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
     const block = tomeBlock(a, t);
