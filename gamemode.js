@@ -2111,7 +2111,13 @@ const sendPacket = (a, payload) => {
     return true;
   } catch (e) { log('sendCustomPacket failed', e.message); return false; }
 };
-const openWidget = (a, widget, focus) => sendPacket(a, { customPacketType: 'dboWidget', widget, focus: !!focus });
+const openWidget = (a, widget, focus) => {
+  const sent = sendPacket(a, { customPacketType: 'dboWidget', widget, focus: !!focus });
+  // Another focused panel takes the screen from an open Character Journal (journal.js): the new one is sent first, then the
+  // journal goes as a plain close, which keeps the cursor on the new one (the panel handoff rule)
+  if (focus && widget && typeof globalThis.__dboJournalYield === 'function') { try { globalThis.__dboJournalYield(a, widget.id); } catch (e) { log('journal yield failed', e.message); } }
+  return sent;
+};
 const closeWidget = (a, id) => sendPacket(a, { customPacketType: 'dboWidget', close: id });
 const notify = (a, text) => sendPacket(a, { customPacketType: 'dboNotice', text });
 globalThis.__dboUiEvents = new Map(); // event name -> [(actorId, args, widgetId)]; rebuilt on every reload
@@ -4970,7 +4976,7 @@ try {
 try {
   const JOURNAL_JS = path.resolve('journal.js');
   delete require.cache[JOURNAL_JS];
-  require(JOURNAL_JS)({ mp, log, display, nameOf, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg,
+  require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg,
     skills: SKILLS_DEF.skills || [], hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
 } catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; }
 

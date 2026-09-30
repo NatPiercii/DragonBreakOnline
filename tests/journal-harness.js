@@ -45,7 +45,19 @@ globalThis.__dboClock = { summary: () => ({ hour: clockHour, day: 17, month: 'La
 globalThis.__dboInteractionIdle = (a, key) => { idles.push([a, key]); return true; };
 let primary = '';
 globalThis.__dboSchoolsPrimary = () => primary;
-globalThis.__dboTextBlocked = (t) => /\bnwah\b/i.test(String(t));
+const told = [];
+let flushes = 0;
+globalThis.__dboStatsFlush = () => { flushes++; };
+let idleDef = { anim: 'IdleBook_PageTurn', seconds: 10, hold: true };
+globalThis.__dboInteractionIdleDef = () => (idleDef ? Object.assign({}, idleDef) : null);
+globalThis.__dboCombatAt = new Map();
+const downed = new Set();
+globalThis.__dboIsDowned = (a) => downed.has(a);
+// The limiter's timers run on the fake clock
+const pending = [];
+const realTimeout = global.setTimeout;
+global.setTimeout = (fn, ms) => { pending.push({ fn, at: now + (Number(ms) || 0) }); return 0; };
+const runDue = () => { for (let i = 0; i < pending.length;) { if (pending[i].at <= now) { const t = pending.splice(i, 1)[0]; t.fn(); } else i++; } };
 
 const skillsDef = JSON.parse(fs.readFileSync('skills.json', 'utf8')).skills;
 delete globalThis.__dboJournal;
@@ -54,7 +66,7 @@ const load = () => {
   ui.clear();
   return require(path.resolve('journal.js'))({
     mp: { get: (a, k) => props.get(`${a}|${k}`), lookupEspmRecordById: (id) => (id === 0x13746 ? { record: { editorId: 'NordRace' } } : null) },
-    log: () => {}, display: (a) => `#${(a >>> 0).toString(16)}`, nameOf: (a) => ((props.get(`${a}|appearance`) || {}).name || ''),
+    log: () => {}, display: (a) => `#${(a >>> 0).toString(16)}`, nameOf: (a) => ((props.get(`${a}|appearance`) || {}).name || ''), personal: (a, t) => told.push([a, t]),
     openWidget: (a, w, focus) => widgets.push({ a, w, focus }), closeWidget: (a, id) => closed.push([a, id]),
     onUi: (ev, fn) => { const l = ui.get(ev) || []; l.push(fn); ui.set(ev, l); }, sendPacket: (a, p) => sent.push([a, p]),
     every: (n, ms, fn) => { timers[n] = fn; }, onlineActors: () => online, cfg: {}, skills: skillsDef,
@@ -122,7 +134,7 @@ check('Martial Arts on top: Brawler; with Priest: Monk first', first({ unarmed: 
 check('Lockpicking on top: Thief; Arcane Arts with Lockpicking: Nightblade', first({ lockpicking: 90 }) === 'Master Thief' && first({ arcane: 30, lockpicking: 30 }) === 'Apprentice Nightblade');
 check('a skill not in skills.json is ignored', title({ madeup: 99, blade: 30 }).every((t) => !/madeup/i.test(t.label)));
 
-// ---- saving the story ----
+// ---- saving the story (one answer every 3 s: a request inside the window waits for it, the latest wins) ----
 const nonceOf = (a) => last(a).w.nonce;
 let n0 = nonceOf(P);
 fire('journalProfile', P, ['stale', 'x', 'y']);
@@ -130,91 +142,171 @@ check('a save with a stale nonce is ignored', !(docs.get(P) || {}).profile || !d
 fire('journalProfile', P, [n0, 'Born in Bruma.\r\nRaised by wolves.\u0007', 'Cyrodiil']);
 check('a save keeps the text (newlines kept, control characters dropped) in the character\'s journal file', docs.get(P).profile.backstory === 'Born in Bruma.\nRaised by wolves.' && docs.get(P).profile.origin === 'Cyrodiil' && touched.includes(P), docs.get(P).profile);
 check('...answers with a new nonce and "saved"', nonceOf(P) !== n0 && last(P).w.result === 'Your story is saved.' && last(P).w.resultKind === 'ok' && last(P).focus === false);
+check('...writes the file at once, not at the next minute\'s flush (a crash after "saved")', flushes === 1, flushes);
 check('...and the next page shows the story', last(P).w.profile.backstory === 'Born in Bruma.\nRaised by wolves.');
-n0 = nonceOf(P);
-fire('journalProfile', P, [n0, 'again', '']);
-check('a second save inside 3 s is refused and changes nothing', last(P).w.resultKind === 'refused' && /Wait/.test(last(P).w.result) && docs.get(P).profile.backstory !== 'again');
+// A scripted client inside the window: nothing is answered until it ends, then only the latest, once
+let drawsBefore = widgets.length;
+for (let i = 0; i < 100; i++) fire('journalProfile', P, [nonceOf(P), `draft ${i}`, '']);
+check('100 saves inside 3 s: not one answered yet', widgets.length === drawsBefore, widgets.length - drawsBefore);
+now += 3001; runDue();
+check('...when the window ends, one answer, and the latest text is what is saved', widgets.length === drawsBefore + 1 && docs.get(P).profile.backstory === 'draft 99', [widgets.length - drawsBefore, docs.get(P).profile.backstory]);
 now += 3001;
 fire('journalProfile', P, [nonceOf(P), 'x'.repeat(5000), 'y'.repeat(2000)]);
 check('the story is cut to 4000 and the origin to 1000', docs.get(P).profile.backstory.length === 4000 && docs.get(P).profile.origin.length === 1000);
+// The prose filter: slurs only, as whole words, and the word is named back
 now += 3001;
 const before = docs.get(P).profile.backstory;
-fire('journalProfile', P, [nonceOf(P), 'I am a nwah', '']);
-check('a blocked word is refused and nothing saved', last(P).w.resultKind === 'refused' && /will not do/.test(last(P).w.result) && docs.get(P).profile.backstory === before);
+fire('journalProfile', P, [nonceOf(P), 'They called him a f4ggots, once.', '']);
+check('a slur is refused, any spelling or ending, nothing saved, and the word is named', last(P).w.resultKind === 'refused' && /"f4ggots"/.test(last(P).w.result) && docs.get(P).profile.backstory === before, last(P).w.result);
+now += 3001;
+drawsBefore = widgets.length;
+fire('journalTitle', P, [nonceOf(P), 'warrior']);
+fire('journalProfile', P, [nonceOf(P), 'again', '']);
+check('a refused save counts toward the window too, and so does a title', widgets.length === drawsBefore + 1 && docs.get(P).profile.titleId === 'warrior' && docs.get(P).profile.backstory !== 'again');
+now += 3001; runDue();
+check('...the queued save is answered when its window ends', docs.get(P).profile.backstory === 'again' && last(P).w.result === 'Your story is saved.');
+const ordinary = 'I grew up in a basement in Bruma, a bastard of the Count, wary of raccoons. My analysis: the therapist of Scunthorpe was a fetcher and an n\'wah, a milk-drinker.';
+check('ordinary prose and TES speech pass the prose filter (basement, bastard, raccoon, analysis, therapist, Scunthorpe, n\'wah)', J.proseProblem(ordinary) === null, J.proseProblem(ordinary));
+check('...a slur inside hyphenated or quoted text is still found', J.proseProblem('"knife-ear kike"') === 'kike' && J.proseProblem('a spastic-looking fool') === 'spastic');
+const pf = JSON.parse(fs.readFileSync('journal-prose-filter.json', 'utf8'));
+check('the prose list is a short list of slurs, with its own file (not the name filter)', Array.isArray(pf.words) && pf.words.length <= 20 && !pf.words.includes('bastard') && !pf.words.includes('anal'));
+now += 3001;
 
 // ---- choosing a title ----
-fire('journalTitle', P, [nonceOf(P), 'warrior']);
-check('a title the character qualifies for is chosen and shown', docs.get(P).profile.titleId === 'warrior' && last(P).w.profile.title === 'Seasoned Warrior' && last(P).w.profile.titleId === 'warrior' && /Seasoned Warrior/.test(last(P).w.result));
+fire('journalTitle', P, [nonceOf(P), 'battlemage']);
+check('a title the character qualifies for is chosen and shown', docs.get(P).profile.titleId === 'battlemage' && last(P).w.profile.title === 'Adept Battlemage' && /Adept Battlemage/.test(last(P).w.result));
+now += 3001;
 fire('journalTitle', P, [nonceOf(P), 'paladin']);
-check('one they have not earned is refused', docs.get(P).profile.titleId === 'warrior' && last(P).w.resultKind === 'refused');
+check('one they have not earned is refused', docs.get(P).profile.titleId === 'battlemage' && last(P).w.resultKind === 'refused');
 setp(P, 'private.mastery', mastery({ blacksmith: 60, cook: 20 }));
-now += 60000;
-timers.journalClock();
+globalThis.__dboJournalOpenTab(P, 'profile');
 check('a chosen title that no longer fits falls back to the best one', last(P).w.profile.title === 'Adept Smith', last(P).w.profile.title);
 setp(P, 'private.mastery', mastery({ arcane: 60, defense: 55, blade: 50, cook: 12 }));
+
+// ---- F1: no timed redraw, so typing across a minute boundary keeps the caret ----
+drawsBefore = widgets.length;
+for (let i = 0; i < 180; i++) { now += 1000; timers.journalWatch(); }
+check('three minutes of an open journal: the watch sends no redraw at all', widgets.length === drawsBefore && globalThis.__dboJournalIsOpen(P), widgets.length - drawsBefore);
+check('there is no clock timer any more', !('journalClock' in timers));
 
 // ---- the Faction tab ----
 const jn = nonceOf(P);
 check('a faction answer while the journal is open redraws its Faction tab, same journal nonce, no focus', globalThis.__dboJournalFaction(P, { type: 'faction', nonce: 'f-new' }) === true
   && last(P).w.tab === 'faction' && last(P).w.faction.nonce === 'f-new' && last(P).w.nonce === jn && last(P).focus === false);
 check('...and with the journal closed it is not taken (panel 37 opens)', globalThis.__dboJournalFaction(NOCAP, { type: 'faction' }) === false);
-timers.journalClock();
-check('the minute clock redraw keeps the tab and both nonces', !('tab' in last(P).w) && last(P).w.nonce === jn && lastFactionKeep === true && last(P).focus === false);
+check('/faction opens the journal on its Faction tab for a journal client', globalThis.__dboJournalOpenTab(P, 'faction') === true && last(P).w.tab === 'faction' && last(P).focus === true);
+check('...and not for an older client (panel 37 as before)', globalThis.__dboJournalOpenTab(NOCAP, 'faction') === false);
 const gd = fs.readFileSync('guilds.js', 'utf8');
-check('guilds.js redraws the journal instead of panel 37 while it is open, and gives its payload to the journal', /__dboJournalFaction\(a >>> 0, p\)\) return;/.test(gd) && /globalThis\.__dboFactionPayload = \(a, keepNonce\) => menuPayload\(/.test(gd));
+check('guilds.js: /faction asks the journal first; faction answers redraw the journal while it is open', /__dboJournalOpenTab\(a >>> 0, 'faction'\)\) return;/.test(gd) && /__dboJournalFaction\(a >>> 0, p\)\) return;/.test(gd) && /globalThis\.__dboFactionPayload = \(a, keepNonce\) => menuPayload\(/.test(gd));
 
 // ---- closing ----
+closed.length = 0; sent.length = 0;
 fire('journalClose', P, ['stale']);
-check('Close with a stale nonce does nothing', closed.length === 0);
-now = realNow() + 0; Date.now = () => now;
+check('Close with a stale nonce still closes (closing can do no harm)', closed.some(([a, id]) => a === P && id === 50) && globalThis.__dboJournalIsOpen(P) === false);
+check('...and stops the page-turn by the name of the idle it began', sent.some(([a, q]) => a === P && q.customPacketType === 'dboIdleStop' && q.anim === 'IdleBook_PageTurn'));
+idleDef = { anim: 'IdleSomethingElse', seconds: 10, hold: true };
 globalThis.__dboJournalRequest(P);
-fire('journalClose', P, [nonceOf(P)]);
-check('Close closes widget 50 and stops the page-turn it began, by name', closed.some(([a, id]) => a === P && id === 50) && sent.some(([a, q]) => a === P && q.customPacketType === 'dboIdleStop' && q.anim === 'IdleBook_PageTurn'));
-check('...and the journal is no longer open', globalThis.__dboJournalIsOpen(P) === false);
 sent.length = 0;
-globalThis.__dboJournalRequest(P);
 now += 11000;
 fire('close', P, [], 50);
-check('Escape (the relay\'s close for widget 50) ends it and stops the held page-turn however long it has run', globalThis.__dboJournalIsOpen(P) === false && sent.some(([a, q]) => a === P && q.customPacketType === 'dboIdleStop'));
+check('Escape ends it and stops the idle it began however long it ran, named as configured', globalThis.__dboJournalIsOpen(P) === false && sent.some(([a, q]) => a === P && q.customPacketType === 'dboIdleStop' && q.anim === 'IdleSomethingElse'));
+idleDef = { anim: 'IdleBook_PageTurn', seconds: 10, hold: true };
 globalThis.__dboJournalRequest(P);
 fire('close', P, [], 37);
 check('a close of another widget leaves the journal open', globalThis.__dboJournalIsOpen(P) === true);
+globalThis.__dboJournalYield(P, 50);
+check('its own widget opening again does not make it give way', globalThis.__dboJournalIsOpen(P) === true);
+closed.length = 0;
+globalThis.__dboJournalYield(P, 62);
+check('another focused panel opening (a downed, rob or trade prompt) closes the journal after it, as a plain close', globalThis.__dboJournalIsOpen(P) === false && closed.some(([a, id]) => a === P && id === 50));
+const gmSrc = fs.readFileSync('gamemode.js', 'utf8');
+const ow = gmSrc.slice(gmSrc.indexOf('const openWidget = '), gmSrc.indexOf('const closeWidget = '));
+check('gamemode.js openWidget sends the new focused widget first, then asks the journal to give way', ow.indexOf('sendPacket(a, {') < ow.indexOf('__dboJournalYield(a, widget.id)') && /if \(focus && widget && /.test(ow));
 online = [BEAST, NOCAP];
-timers.journalClock();
+globalThis.__dboJournalRequest(P);
+online = [BEAST, NOCAP];
+timers.journalWatch();
 check('a player gone offline has their journal closed on the next tick', globalThis.__dboJournalIsOpen(P) === false);
 online = [P, BEAST, NOCAP];
+
+// ---- F2: never while down, dead, bound or fighting; closed when any of those happens ----
+const refused = (why) => { told.length = 0; widgets.length = 0; const took = globalThis.__dboJournalRequest(P); return took === true && widgets.length === 0 && told.some(([a, t]) => a === P && why.test(t)); };
+setp(P, 'isDead', true); downed.add(P);
+check('F3 while down is refused with a word, and panel 37 does not open instead', refused(/while you are down/));
+downed.delete(P);
+check('...while dead', refused(/lie dead/));
+setp(P, 'isDead', false);
+setp(P, 'private.restrained', { boundHands: true });
+check('...while bound', refused(/bound/));
+setp(P, 'private.restrained', null);
+globalThis.__dboCombatAt.set(P, now - 2000);
+check('...two seconds after a blow', refused(/fight/));
+now += 9000;
+check('...but opens again once the fight is 8 s past', globalThis.__dboJournalRequest(P) === true && globalThis.__dboJournalIsOpen(P));
+closed.length = 0; told.length = 0;
+globalThis.__dboCombatAt.set(P, now + 1);
+now += 1000; timers.journalWatch();
+check('a blow while reading closes it (widget 50 closed, a word to the player)', globalThis.__dboJournalIsOpen(P) === false && closed.some(([a, id]) => a === P && id === 50) && told.some(([, t]) => /Your journal closes/.test(t)), told);
+now += 9000;
+globalThis.__dboJournalRequest(P);
+setp(P, 'isDead', true); downed.add(P);
+now += 1000; timers.journalWatch();
+check('going down while reading closes it', globalThis.__dboJournalIsOpen(P) === false);
+setp(P, 'isDead', false); downed.delete(P);
+globalThis.__dboJournalRequest(P);
+setp(P, 'private.restrained', { carried: true });
+now += 1000; timers.journalWatch();
+check('being carried off closes it', globalThis.__dboJournalIsOpen(P) === false);
+setp(P, 'private.restrained', null);
 
 // ---- a hot reload keeps an open journal ----
 globalThis.__dboJournalRequest(P);
 const keep = nonceOf(P);
 load();
-fire('journalTitle', P, [keep, 'battlemage']);
-check('a hot reload keeps the open journal and its nonce', docs.get(P).profile.titleId === 'battlemage');
+now += 3001;
+fire('journalTitle', P, [keep, 'warrior']);
+check('a hot reload keeps the open journal and its nonce', docs.get(P).profile.titleId === 'warrior');
+
+// ---- a deleted character's file goes with it ----
+{
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-jsweep-'));
+  const ids = [0xff000101, 0xff000102, 0xff000103, 0xff000104, 0xff000105];
+  for (const id of ids) fs.writeFileSync(path.join(dir, `${id.toString(16)}.json`), '{}');
+  fs.writeFileSync(path.join(dir, 'notes.txt'), 'not a journal');
+  const gone = new Set([0xff000105]);
+  const forgot = [];
+  globalThis.__dboJournalDoc.dir = dir;
+  globalThis.__dboJournalDoc.forget = (a) => forgot.push(a);
+  const J2 = (() => {
+    delete require.cache[path.resolve('journal.js')];
+    return require(path.resolve('journal.js'))({
+      mp: { get: (a, k) => { if (gone.has(a >>> 0)) throw new Error('no such form'); return props.get(`${a}|${k}`); }, lookupEspmRecordById: () => null },
+      log: () => {}, display: String, nameOf: () => '', personal: () => {}, openWidget: () => {}, closeWidget: () => {}, onUi: () => {}, sendPacket: () => {},
+      every: () => {}, onlineActors: () => [], cfg: {}, skills: skillsDef, hasCap: () => false,
+    });
+  })();
+  const files = () => fs.readdirSync(dir).sort().join(',');
+  check('a character gone on one sweep keeps its file (a passing read failure is not a deletion)', J2.sweep() === 0 && fs.existsSync(path.join(dir, 'ff000105.json')));
+  check('...gone on the next sweep too, its file is deleted and its cache forgotten', J2.sweep() === 1 && !fs.existsSync(path.join(dir, 'ff000105.json')) && forgot.includes(0xff000105), files());
+  check('...and nothing else is touched (other characters, other files)', fs.existsSync(path.join(dir, 'ff000101.json')) && fs.existsSync(path.join(dir, 'notes.txt')));
+  for (const id of ids) gone.add(id);
+  J2.sweep();
+  check('if most files look deleted at once the check is suspect and nothing is removed', J2.sweep() === 0 && fs.existsSync(path.join(dir, 'ff000101.json')), files());
+  fs.rmSync(dir, { recursive: true, force: true });
+  load();
+}
 
 // ---- the small exports ----
 const js = fs.readFileSync('journalstats.js', 'utf8');
-check('journalstats.js gives the numbers (__dboStatsData) and the character file (__dboJournalDoc)', /globalThis\.__dboStatsData = \(a\) =>/.test(js) && /globalThis\.__dboJournalDoc = \{ of: \(a\) => statsOf\(a\), touch: \(a\) => touch\(a\) \};/.test(js));
+check('journalstats.js gives the numbers, and the character file with its folder and a way to forget it', /globalThis\.__dboStatsData = \(a\) =>/.test(js) && /globalThis\.__dboJournalDoc = \{ of: \(a\) => statsOf\(a\), touch: \(a\) => touch\(a\), dir: DIR,/.test(js) && /forget: \(a\) => \{ const h = hex\(a\); S\.cache\.delete\(h\); S\.dirty\.delete\(h\);/.test(js));
 const idl = fs.readFileSync('idles.js', 'utf8');
 check('idles.js plays IdleBook_PageTurn (the allowlisted event of IdleBook_TurnManyPages), 10 s, held where the client knows hold', /journal: \{ anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false, hold: true \}/.test(idl)
-  && /def\.hold === true \? \{ hold: true \} : \{\}/.test(idl));
+  && /def\.hold === true \? \{ hold: true \} : \{\}/.test(idl) && /globalThis\.__dboInteractionIdleDef = \(key\) =>/.test(idl));
 check('schools.js reads the primary school without making a menu nonce', /globalThis\.__dboSchoolsPrimary = \(a\) => \{ try \{ return ready\(a\) \? String\(stateOf\(a\)\.primary/.test(fs.readFileSync('schools.js', 'utf8')));
-// naming.js's prose filter, run for real against a scratch name-filter.json
-{
-  const os = require('os');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-jnl-'));
-  process.chdir(dir);
-  fs.writeFileSync('name-filter.json', JSON.stringify({ blocked: ['nwah'], reserved: [] }));
-  delete require.cache[path.join(root, 'naming.js')];
-  const savedBlocked = globalThis.__dboTextBlocked;
-  require(path.join(root, 'naming.js'))({ mp: { get: () => undefined, set: () => {}, findFormsByPropertyValue: () => [] }, log: () => {}, personal: () => {}, onUi: () => {},
-    openWidget: () => {}, closeWidget: () => {}, registerChatCommand: () => {}, display: String, who: String, audit: () => {}, cfg: {}, every: () => {}, sendPacket: () => {} });
-  check('naming.js flags a blocked word in prose, any spelling', globalThis.__dboTextBlocked('you are a N-w4h, friend') === true);
-  check('...but never across the spaces of ordinary words ("n wah")', globalThis.__dboTextBlocked('Born in the town of N, wah was the word') === false);
-  globalThis.__dboTextBlocked = savedBlocked;
-  process.chdir(root);
-  fs.rmSync(dir, { recursive: true, force: true });
-}
+check('naming.js no longer carries a prose filter (the name filter refuses ordinary words)', !/__dboTextBlocked/.test(fs.readFileSync('naming.js', 'utf8')) && !/__dboTextBlocked/.test(fs.readFileSync('journal.js', 'utf8')));
 
+global.setTimeout = realTimeout;
 Date.now = realNow;
 delete globalThis.__dboJournal;
 console.log(failures ? `\n${failures} FAILED` : '\nall passed');

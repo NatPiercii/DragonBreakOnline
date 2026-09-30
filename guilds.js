@@ -311,7 +311,11 @@ module.exports = (api) => {
   registerChatCommand('faction', (a, args) => {
     const [sub, ...rest] = String(args || '').trim().split(/\s+/);
     const s = (sub || '').toLowerCase();
-    if (!s || s === 'menu') return openMenu(a);
+    // A journal client gets its Faction tab (journal.js), never panel 37
+    if (!s || s === 'menu') {
+      try { if (typeof globalThis.__dboJournalOpenTab === 'function' && globalThis.__dboJournalOpenTab(a >>> 0, 'faction')) return; } catch (e) { log('guilds: journal open failed', e.message); }
+      return openMenu(a);
+    }
     if (s === 'list') return personal(a, [...FACTIONS.values()].filter((f) => !f.secret || isAdmin(a) || entryOf(f.id, a)).map((f) => `${f.id} (${f.name})`).join(', '));
     // Where a faction is seated. A hall the player cannot reach is not worth naming, so only Bruma shows while
     // the playtest is locked there.

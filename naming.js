@@ -114,13 +114,6 @@ module.exports = (api) => {
   };
 
   // gamemode.js sendToArrival asks before moving anyone out of the Realm: true = hold them there
-  // Prose the player writes (the Character Journal's story, journal.js): true when a word holds a blocked one. Checked
-  // word by word, so a blocked word cannot be matched across the spaces of ordinary text
-  globalThis.__dboTextBlocked = (text) => {
-    const r = readRules();
-    if (!r.blocked.length) return false;
-    return String(text || '').split(/\s+/).some((w) => { const f = fold(w); return f && r.blocked.some((bad) => bad && f.includes(bad)); });
-  };
   globalThis.__dboNameHold = (a) => {
     if (!needsName(a)) return false;
     ask(a, false);
