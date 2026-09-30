@@ -1,5 +1,19 @@
 [
   {
+    "title": "No More Empty Halls",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Rooms that stood empty in a claimed dungeon now hold enemies of that dungeon's own kind, among them the back caves of Fingerbowl Cave and Serpent's Trail near Bruma. Where a room's own inhabitants had simply never appeared, like the goblins of Frostiron Mine, they are back where they belong."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Vampires: Hunger, Feeding and Blood",
     "date": "2026-09-30",
     "version": "Client 0.3.71",
