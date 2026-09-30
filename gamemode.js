@@ -1014,6 +1014,33 @@ const treasuryRefused = (caster, target) => {
   }
   return true;
 };
+// Review of acf20eac (the coordinator, 2026-09-30): the engine takes a thrown activate handler as "allowed"
+// (ScampServerListener.cpp), so a throw in ANY gamemode hook of the chain below skipped every gate after it: bound hands, the treasury,
+// leases, loot guards, rented chests. Fail closed instead. A thrown hook means the gates did not all get their say, so the
+// activation is refused, whatever it was: a door, a chest, an NPC. A business chest gets businessFailClosed's word
+// (a non-renter is told the chest is rented); its renter is refused too, since the gates ahead of the business hook did
+// not finish. A refusal can be retried; an item taken or a cell door opened cannot be undone. The live log showed no
+// activate handler error from 27 to 30 Sep, so this should stay silent; every throw is logged (at most one line per
+// 10 s per hook kind) and the player told to try again. A throw inside the business hook itself is caught at that hook
+// (the stand-in decides and the chain goes on), so a renter still reaches the chest when only business.js fails.
+const activateThrowLogAt = new Map();
+const logActivateThrow = (where, e) => {
+  const now = Date.now();
+  if (now - (activateThrowLogAt.get(where) || 0) < 10000) return;
+  activateThrowLogAt.set(where, now);
+  log(`activate: the ${where} chain threw:`, e && e.stack ? String(e.stack).split('\n').slice(0, 3).join(' | ') : String(e));
+};
+const activateThrew = (targetId, casterId, e) => {
+  const caster = Number(casterId) >>> 0, target = Number(targetId) >>> 0;
+  logActivateThrow('gamemode', e);
+  let told = false;
+  try { told = businessFailClosed(target, caster) === true; } catch (e2) { /* refused below all the same */ }
+  if (!told && Date.now() - (lastPickupDeny.get(caster) || 0) > 1500) {
+    lastPickupDeny.set(caster, Date.now());
+    try { personal(caster, 'Something went wrong there. Try again in a moment.'); } catch (e3) { /* not a player */ }
+  }
+  return false;
+};
 mp.onActivate = (targetId, casterId) => {
   const caster = Number(casterId) >>> 0;
   const target = Number(targetId) >>> 0;
@@ -1051,7 +1078,13 @@ mp.onActivate = (targetId, casterId) => {
   // An expedition ruin's button or lever (ruinbuttons.js): it opens its gate or stair for everyone, once per lease
   if (globalThis.__dboRuinButton && globalThis.__dboRuinButton(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBankActivate && globalThis.__dboBankActivate(targetId >>> 0, casterId >>> 0)) return false;
-  if (globalThis.__dboBusinessActivate && globalThis.__dboBusinessActivate(targetId >>> 0, casterId >>> 0)) return false;
+  // A rented chest is kept for its renter by business.js alone. The engine takes a thrown activate handler as "allowed",
+  // so a hook that throws falls back to the stand-in below instead of opening the chest (review A2-1, fail closed)
+  if (globalThis.__dboBusinessActivate) {
+    let refused;
+    try { refused = globalThis.__dboBusinessActivate(targetId >>> 0, casterId >>> 0); } catch (e) { log('business activation failed:', e.message); refused = businessFailClosed(targetId, casterId); }
+    if (refused) return false;
+  }
   if (globalThis.__dboSalvageActivate && globalThis.__dboSalvageActivate(targetId >>> 0, casterId >>> 0)) return false;
   // An alchemy lab also shows what the pack can brew (alchemy.js); the lab's own menu still opens
   if (globalThis.__dboAlchemyLab) { try { globalThis.__dboAlchemyLab(targetId >>> 0, casterId >>> 0); } catch (e) { log('alchemy lab panel failed', e.message); } }
@@ -1077,8 +1110,17 @@ mp.onActivate = (targetId, casterId) => {
   }
   const prev = globalThis.__dboPrevActivate;
   if (!prev) return true;
-  try { return prev.call(mp, targetId, casterId) !== false; } catch (e) { return true; }
+  // The fork systems' own chain (housing locks, the mastery gate, boards). Its wrappers already take their own errors as
+  // "allowed" (housingSystem.ts); that policy is the fork's to change, so a throw out of it still allows, now logged.
+  try { return prev.call(mp, targetId, casterId) !== false; } catch (e) { logActivateThrow('systems', e); return true; }
 };
+// Any throw in the chain above is refused, not allowed (see activateThrew)
+{
+  const activateChain = mp.onActivate;
+  mp.onActivate = (targetId, casterId) => {
+    try { return activateChain(targetId, casterId); } catch (e) { return activateThrew(targetId, casterId, e); }
+  };
+}
 // TEMPORARY door trace (2026-09-16, Applewatch house doors would not open): every door activation and its answer
 {
   const activateCore = mp.onActivate;
@@ -1878,6 +1920,7 @@ registerChatCommand('selftest', (a) => {
     ['reading', typeof globalThis.__dboReadBook === 'function'],
     ['skinning', typeof globalThis.__dboSkin === 'function'],
     ['prayer', typeof globalThis.__dboPrayerActivate === 'function'],
+    ['business', typeof globalThis.__dboBusinessActivate === 'function' && !globalThis.__dboBusinessActivate.failClosed],
   ];
   const bad = rows.filter((r) => !r[1]).map((r) => r[0]);
   personal(a, bad.length ? `NOT wired: ${bad.join(', ')}.` : 'Every system is wired.');
@@ -4447,13 +4490,34 @@ try {
 } catch (e) { log('rest.js failed to load:', e.stack || e.message); globalThis.__dboRestActivate = null; globalThis.__dboRestLogin = null; globalThis.__dboRestHungerMult = null; }
 
 // ---- business ledgers: inn rent, the hold's tax, staff logbook, storage for rent (server\business.js, config "business") ----
+// Stands in for business.js's chest check when business.js failed to load or its hook threw (claude-jake's review A2-1 /
+// A2-3: both left every rented chest open to anyone). It reads the chest records itself (business.js's copy in memory,
+// else businesses.json): a listed chest opens only for the renter whose rent or grace still runs. Every other listed
+// chest, the business's own free ones too, stays shut until business.js is back, and so does the ledger book (a placed
+// book would otherwise be picked up). A function declaration, so the activate chain finds it even mid-load.
+function businessFailClosed(targetId, casterId) {
+  const ref = targetId >>> 0, key = ref.toString(16);
+  try { const t = mp.get(ref, 'private.dboBizLedger'); if (t && t.claim) { personal(casterId, 'The business ledger is closed for a moment. Try again shortly.'); return true; } } catch (e) { /* not a ledger */ }
+  let d = globalThis.__dboBusiness && globalThis.__dboBusiness.data;
+  if (!d || !d.businesses) { try { d = JSON.parse(fs.readFileSync(path.resolve('businesses.json'), 'utf8')); } catch (e) { d = null; } }
+  // Every record that lists the chest counts: two door claims in one inn can both list it (the reviewer's finding 1)
+  const recs = [];
+  for (const b of Object.values((d && d.businesses) || {})) if (b && b.chests && b.chests[key]) recs.push(b.chests[key]);
+  if (!recs.length) return false;
+  const g = Number((cfg.business || {}).chestGraceHours), grace = (Number.isFinite(g) ? g : 72) * 3600000;
+  const held = recs.filter((c) => !!c.renter && Number(c.until) + grace > Date.now());
+  if (held.length && held.every((c) => Number(c.renter) === profileOf(casterId))) return false;
+  personal(casterId, held.length ? 'This chest is rented to someone else.' : 'This chest belongs to a business whose ledger is closed for a moment. Try again shortly.');
+  return true;
+}
+businessFailClosed.failClosed = true;
 try {
   const BUSINESS_JS = path.resolve('business.js');
   delete require.cache[BUSINESS_JS];
   require(BUSINESS_JS)({ mp, log, personal, audit, who, display, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors,
     profileOf, findByName, takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, zoneOfActor, zoneById,
     ranksOf, distanceMeters, isAdmin });
-} catch (e) { log('business.js failed to load:', e.stack || e.message); globalThis.__dboBusinessActivate = null; globalThis.__dboBusinessLogin = null; globalThis.__dboBusinessRent = null; globalThis.__dboHoldTax = null; globalThis.__dboBusinessLog = null; }
+} catch (e) { log('business.js failed to load:', e.stack || e.message); globalThis.__dboBusinessActivate = businessFailClosed; globalThis.__dboBusinessLogin = null; globalThis.__dboBusinessRent = null; globalThis.__dboHoldTax = null; globalThis.__dboBusinessLog = null; }
 
 // ---- breaking gear and books down into materials at the trade's station (server\salvage.js, salvage.json, config "salvage") ----
 try {

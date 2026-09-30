@@ -148,8 +148,10 @@ const ui = (ev, a, args, widget) => (handlers.get(ev) || []).forEach((fn) => fn(
 const activate = (ref, a) => globalThis.__dboRestActivate(ref, a);
 const lastWidget = () => out.widgets[out.widgets.length - 1];
 const lastPersonal = (a) => { const l = out.personals.filter((p) => p[0] === a); return l.length ? l[l.length - 1][1] : ''; };
-const actionIds = () => lastWidget().w.actions.map((x) => x.id);
-const rentFor = (ref, a) => { activate(ref, a); ui('restChoose', a, ['rent']); };
+// The rent button's id carries the gold it shows (rent:<gold>, review A2-2); these name the kind of action
+const actionIds = () => lastWidget().w.actions.map((x) => x.id.replace(/^rent:\d+$/, 'rent'));
+// What the client sends: the id of the button clicked
+const rentFor = (ref, a) => { activate(ref, a); ui('restChoose', a, [lastWidget().w.actions[0].id]); };
 
 // ---- what is and is not a bed that matters ----
 check('a chair is not a bed', activate(CHAIR, ME) === false);
@@ -167,6 +169,7 @@ check('boot line counts bed types, inns and the Bruma ones', out.logs.some((l) =
 // ---- renting at an inn nobody owns ----
 check('a free inn bed opens the rent prompt', activate(INN_BED, ME) === true && actionIds().join() === 'rent', lastWidget());
 check('the prompt names the price, the time and the inn', lastWidget().w.actions[0].label === 'Rent this bed: 10 gold for a day' && lastWidget().w.targetName === 'A bed for rent at Snowstone Rest', lastWidget().w);
+check('...and its button carries the price it shows (rent:10), so the click pays exactly that', lastWidget().w.actions[0].id === 'rent:10', lastWidget().w.actions[0]);
 check('the prompt is a focused context menu answering dbo:restChoose', lastWidget().focus === true && lastWidget().w.type === 'contextMenu' && lastWidget().w.events.action === 'dbo:restChoose');
 check('opening the prompt is logged', out.logs.some((l) => /P14 opened the inn prompt for bed 7ec0f at Snowstone Rest/.test(l)));
 ui('restChoose', ME, ['rent']);
