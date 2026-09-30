@@ -78,8 +78,8 @@ export class PlayerActionService extends ClientListener {
       // An older SkyrimPlatform without writeLogs: the console still has it
     }
   });
-  private xSkip(reason: XSkipReason, info?: XSkipInfo): void {
-    try { this.xSkipLog(reason, info); } catch { /* a diagnostic never breaks the key */ }
+  private xSkip(reason: XSkipReason, info?: () => XSkipInfo): void {
+    try { this.xSkipLog(reason, info ? info() : undefined); } catch { /* a diagnostic never breaks the key */ }
   }
   private maskKey: number = DxScanCode.H;
 
@@ -122,9 +122,9 @@ export class PlayerActionService extends ClientListener {
     if (!ref) { this.xSkip("crosshair null"); return; }
     if (ref.getFormID() === 0x14) { this.xSkip("crosshair on self"); return; }
     const actor = Actor.from(ref);
-    if (!actor) { this.xSkip("not an actor", { crosshairId: ref.getFormID() }); return; }
+    if (!actor) { this.xSkip("not an actor", () => ({ crosshairId: ref.getFormID() })); return; }
     const remoteId = localIdToRemoteId(ref.getFormID());
-    if (!remoteId || remoteId < 0xff000000) { this.xSkip("not a synced actor", { crosshairId: ref.getFormID(), remoteId }); return; }
+    if (!remoteId || remoteId < 0xff000000) { this.xSkip("not a synced actor", () => ({ crosshairId: ref.getFormID(), remoteId })); return; }
     // Your own summon or companion takes orders from the same menu
     if (isOwnCompanion(remoteId) && !actor.isDead()) {
       this.playerTarget = remoteId;
@@ -140,7 +140,7 @@ export class PlayerActionService extends ClientListener {
       return;
     }
     // Server-spawned creatures and NPCs share the id space and get no menu
-    if (!isRemotePlayerCharacter(remoteId)) { this.xSkip("not a player", { crosshairId: ref.getFormID(), remoteId, name: ref.getDisplayName() }); return; }
+    if (!isRemotePlayerCharacter(remoteId)) { this.xSkip("not a player", () => ({ crosshairId: ref.getFormID(), remoteId, name: ref.getDisplayName() })); return; }
 
     // Belt and braces next to the prompt service's block: no clone dialogue.
     try { ref.blockActivation(true); } catch { /* unloaded ref */ }
