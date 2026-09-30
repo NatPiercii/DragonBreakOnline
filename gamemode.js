@@ -3696,7 +3696,9 @@ const isInteriorDesc = (desc) => {
 // A form the server has destroyed that a client still reports, from its own stale copy (Onny, 2026-09-30: three NPCs
 // in his sight report every second for 40 minutes after a relog, 2,682 errors in the log). Each read of a gone form
 // throws and the C++ logs it, twice per policy check. So it is probed once, then taken as gone for GONE_TTL_MS; a
-// dynamic id the server hands out again is found alive at the next probe.
+// dynamic id the server hands out again is found alive at the next probe. Only server\npcdirector.js asks it. The
+// host policy must not: it also gates a client's own host attempt, and the lowest free id is handed straight to the
+// next NPC (a refilled deer 10 s later), which would then go unhosted for the rest of the minute (Worker D's review).
 const GONE_TTL_MS = 60000;
 const goneForms = globalThis.__dboGoneForms instanceof Map ? globalThis.__dboGoneForms : (globalThis.__dboGoneForms = new Map()); // id -> when found gone
 const formExists = globalThis.__dboFormExists = (id) => {
@@ -3708,7 +3710,6 @@ const formExists = globalThis.__dboFormExists = (id) => {
 };
 const hostPolicy = (req, act) => {
   if (userOf(req) === -1) return { ok: false, why: 'offline' };
-  if (!formExists(act)) return { ok: false, why: 'gone' };
   // A logged-out character's body waiting out its grace is never driven by another player's client
   if (profileOf(act) >= 0) return { ok: false, why: 'player body' };
   try {
