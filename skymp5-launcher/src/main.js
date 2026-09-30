@@ -1664,7 +1664,62 @@ function watchGameExit() {
     send: note => postJSON(`${config.apiUrl}/api/files/session-end`,
       { ...note, launcherVersion: app.getVersion(), filesVersion: store.get('filesVersion') || '' },
       { 'x-session': store.get('gameSession') || session }),
-  }).catch(err => log(`[crashWatch] ${err.message}`)).finally(() => { gameWatchRunning = false })
+  }).then(note => offerCrashReport(note))
+    .catch(err => log(`[crashWatch] ${err.message}`)).finally(() => { gameWatchRunning = false })
+}
+
+// After a crash, offer the report there and then. crashWatch has already found the crash log and the player should
+// not have to remember to press Report a Problem afterwards: through 2.1.34 not one of 21 crashes produced a log,
+// although every note said one existed (measured 2026-09-30).
+//
+// Asked ONCE PER CRASH and only for a crash: the note's endedAt keys it, the key is written BEFORE the dialog opens
+// so a second crash cannot double-ask, and nothing is asked at startup. "Not now" is remembered for that crash only,
+// so the next crash asks again.
+const CRASH_PROMPT_KEYS = 20   // keep the newest few keys; without a bound the store would grow for ever
+let crashPromptOpen = false
+async function offerCrashReport(note) {
+  if (!note || note.outcome !== 'crash' || crashPromptOpen) return
+  const key = `crashAsked.${Number(note.endedAt) || 0}`
+  if (store.get(key)) return
+  crashPromptOpen = true
+  try {
+    store.set(key, true)
+    pruneCrashPromptKeys()
+    const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed()) || null
+    const opts = {
+      type: 'warning', buttons: ['Send', 'Not now'], defaultId: 0, cancelId: 1, noLink: true,
+      title: 'DragonBreak Online',
+      message: 'Skyrim closed unexpectedly. Send the crash report to the DragonBreak team?',
+      detail: 'It sends the crash log and the game log. Folder paths and anything said in chat are removed first.',
+    }
+    const { response } = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
+    if (response !== 0) {
+      log('[crashPrompt] the player chose Not now')
+      return
+    }
+    const res = await submitReport({ note: 'Crash report offered by the launcher after the game closed unexpectedly.' })
+    log(`[crashPrompt] ${res && res.ok ? 'sent' : `not sent: ${res && res.error}`}`)
+    if (!(res && res.ok) && win) {
+      dialog.showMessageBox(win, { type: 'info', buttons: ['OK'], noLink: true, title: 'DragonBreak Online',
+        message: 'The crash report could not be sent.',
+        detail: `${(res && res.error) || 'Unknown error'}\n\nReport a Problem in the launcher still works.` }).catch(() => {})
+    }
+  } catch (err) {
+    log(`[crashPrompt] failed: ${err.message}`)
+  } finally {
+    crashPromptOpen = false
+  }
+}
+
+function pruneCrashPromptKeys() {
+  try {
+    const keys = Object.keys(store.store || {}).filter(k => k.startsWith('crashAsked.'))
+    if (keys.length <= CRASH_PROMPT_KEYS) return
+    keys.map(k => [k, Number(k.slice('crashAsked.'.length)) || 0]).sort((a, b) => a[1] - b[1])
+      .slice(0, keys.length - CRASH_PROMPT_KEYS).forEach(([k]) => store.delete(k))
+  } catch (err) {
+    log(`[crashPrompt] could not prune the asked list: ${err.message}`)
+  }
 }
 
 // Lightweight update probe for the Play/Update button: compares the server's
@@ -1729,7 +1784,40 @@ function documentsDirOrNull() {
 
 // Send this launcher's logs to staff. The backend redacts again, then files them as a thread in the
 // error-report forum under the player's Discord name.
-ipcMain.handle('report:send', async (_e, { note, private: keepPrivate } = {}) => {
+// GPU name, VRAM and the free space on the game drive, for the hardware line in a problem report. One PowerShell
+// call with a short timeout: if it is slow, missing or refused the report still sends without these two fields.
+// AdapterRAM is a uint32 and wraps above 4 GB, so a card with more reports its size modulo 4 GiB; the value is taken
+// as a floor and marked with a + rather than pretending to be exact.
+const HW_TIMEOUT_MS = 6000
+async function hardwareExtras(gameDir) {
+  const out = { gpu: '', freeSpaceGb: undefined }
+  if (process.platform !== 'win32') return out
+  const drive = String(gameDir || '').slice(0, 2)
+  const ps = "$g = Get-CimInstance Win32_VideoController | Select-Object -First 1 Name,AdapterRAM; " +
+             "$d = Get-PSDrive -Name '" + (drive.replace(/[^A-Za-z]/g, '') || 'C') + "' -ErrorAction SilentlyContinue; " +
+             "Write-Output ($g.Name); Write-Output ($g.AdapterRAM); Write-Output ($d.Free)"
+  try {
+    const stdout = await new Promise((resolve, reject) => {
+      const child = require('child_process').execFile('powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', ps],
+        { windowsHide: true, timeout: HW_TIMEOUT_MS, maxBuffer: 64 * 1024 },
+        (err, so) => (err ? reject(err) : resolve(so)))
+      child.on('error', reject)
+    })
+    const [name, ram, free] = String(stdout).split(/\r?\n/).map(x => x.trim())
+    const ramBytes = Number(ram)
+    const gib = Number.isFinite(ramBytes) && ramBytes > 0 ? Math.round(ramBytes / 1024 / 1024 / 1024) : 0
+    if (name) out.gpu = gib ? `${name} ${gib} GB+` : name
+    const freeBytes = Number(free)
+    if (Number.isFinite(freeBytes) && freeBytes > 0) out.freeSpaceGb = Math.round(freeBytes / 1024 / 1024 / 1024)
+  } catch (err) {
+    log(`[report] could not read the GPU or free space: ${err.message}`)
+  }
+  return out
+}
+
+// Both Report a Problem and the after-a-crash prompt file the same report through here.
+async function submitReport({ note, private: keepPrivate } = {}) {
   const user    = store.get('discordUser') || null
   const session = store.get('gameSession')
   try {
@@ -1750,6 +1838,7 @@ ipcMain.handle('report:send', async (_e, { note, private: keepPrivate } = {}) =>
         note:            typeof note === 'string' ? note.slice(0, 300) : '',
         // The player's own choice, made before sending: no public thread is opened for this one
         private:         keepPrivate === true,
+        ...(await hardwareExtras(effectiveGamePath())),
       },
     })
     // Each folder's exe version and data verdict goes in the report's header, the sizes with the install listing
@@ -1784,7 +1873,9 @@ ipcMain.handle('report:send', async (_e, { note, private: keepPrivate } = {}) =>
     if (err.statusCode === 502) return { ok: false, error: 'The report could not be filed just now. Try again in a minute.' }
     return { ok: false, error: 'Could not reach the server. Tell a staff member directly.' }
   }
-})
+}
+
+ipcMain.handle('report:send', (_e, args) => submitReport(args))
 
 // Launcher update check
 ipcMain.handle('app:checkUpdate', async () => {

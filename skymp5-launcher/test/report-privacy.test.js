@@ -25,7 +25,10 @@ check('the confirmation tells the player which way it went', /Nothing was posted
 const preload = read('src/preload.js');
 check('preload forwards it as the private flag', /sendReport: \(note, keepPrivate\) =>[^\n]*private: keepPrivate === true/.test(preload));
 const main = read('src/main.js');
-check('main takes it off the ipc message', /report:send', async \(_e, \{ note, private: keepPrivate \}/.test(main));
+// The handler is a thin forwarder since 2.1.36, because the after-a-crash prompt files a report through the same
+// builder. Both links are checked: nothing may read the flag off the message and then drop it on the way.
+check('main forwards the ipc message to the report builder', /report:send', \(_e, args\) => submitReport\(args\)/.test(main));
+check('...and the builder takes the private flag off it', /async function submitReport\(\{ note, private: keepPrivate \}/.test(main));
 check('...and puts it in the report context', /private:\s+keepPrivate === true/.test(main));
 
 console.log('');

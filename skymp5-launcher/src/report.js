@@ -176,6 +176,17 @@ function condenseCrashLog(text) {
   return Buffer.byteLength(joined, 'utf8') > CRASH_LOG_BYTES ? startOf(joined, CRASH_LOG_BYTES) + '[rest cut]' : joined
 }
 
+// "Model x N cores", or '' when Node cannot read it. No paths, so nothing to redact.
+function cpuSummary() {
+  try {
+    const c = os.cpus()
+    if (!c || !c.length) return ''
+    return `${String(c[0].model || '').trim()} x ${c.length} cores`
+  } catch {
+    return ''
+  }
+}
+
 // The newest crash log of the last day, condensed, with a first line saying which file and how old; null when none
 function crashLogFor(dirs, now = Date.now()) {
   const found = newestCrashLog(dirs, now)
@@ -290,9 +301,14 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   return {
     ...files,
     os: `${os.platform()} ${os.release()}`,
+    // Hardware, so a crash class can be read against the machine it happened on. These three need no extra process,
+    // so they cannot fail or delay the report; the GPU and the free space come from main.js, which can shell out.
+    ramGb: Math.round(os.totalmem() / 1024 / 1024 / 1024),
+    ramFreeGb: Math.round(os.freemem() / 1024 / 1024 / 1024),
+    cpu: cpuSummary(),
     freeSpaceGb: undefined,
     ...context,
   }
 }
 
-module.exports = { collect, redact, tail, ends, dropUiLines, gameLogEnds, condenseCrashLog, newestCrashLog }
+module.exports = { collect, redact, tail, ends, dropUiLines, gameLogEnds, condenseCrashLog, newestCrashLog, cpuSummary }
