@@ -29,6 +29,23 @@ install from before 2.1.34 is repaired when you press Play; you don't need to re
 what you were doing. The crash log it sends is what lets us find the cause, and it only sends one from the last
 day, so don't wait.
 
+## Is my PC enough?
+
+**What we know:** DragonBreak Online is Skyrim Special Edition with a large mod collection and online play on top,
+and it needs more memory than plain Skyrim. Games on 16 GB machines have closed in the busiest dungeons with nearly
+all of the memory in use.
+
+**What to do for now:** 16 GB of memory is the least that works. Close browsers, videos and other big programs while
+you play, and leave the Windows page file on **System managed**. 32 GB is better if you go into big dungeons with a
+full party. You need Skyrim Special Edition on Steam (game version 1.6.1170); the launcher checks it for you.
+
+**Coming:** a full list of the PC you need, minimum and recommended. From launcher 2.1.36 the launcher tells us what
+hardware the game runs on, so the numbers will come from real players' machines rather than guesses.
+
+<!-- Placeholder (30 Sep): fill the minimum and recommended table once launcher 2.1.36's hardware reports are in. The
+memory line is from the crash notes (four crashes on 23-24 Sep at 14.3-15.2 of 16 GB in use: a correlation, not a
+proven cause). docs-alpha-support's specs.md has an estimated table built from Bethesda's requirements. -->
+
 ## Other players don't see your Vampire Lord form
 
 **What happens:** while you're in the Vampire Lord's form, other players see you in your own shape for now.
