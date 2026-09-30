@@ -57,6 +57,20 @@
     ]
   },
   {
+    "title": "The Bank of Bruma Belongs to Bruma",
+    "date": "2026-10-02",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Bruma",
+        "items": [
+          "The Bank of Bruma now counts as part of Bruma inside as well as out, and its doors are named: Bank of Bruma on the way in, Bruma on the way out."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Imperial Tithe",
     "date": "2026-10-01",
     "version": "Server update",
