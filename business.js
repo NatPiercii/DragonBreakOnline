@@ -26,7 +26,8 @@ module.exports = (api) => {
     enabled: true, minRent: 1, maxRent: 200, maxChestPrice: 200, chestGraceHours: 72, maxTax: 0.3,
     taxRanks: ['jarl', 'count', 'steward'], maxStaff: 12, maxNote: 300, logKeep: 300, notesKeep: 200, perPage: 8,
     armSeconds: 60,
-    // Storage for rent stays paused until a rented chest's protection no longer depends on the business record (A2-1)
+    // Storage for rent is paused (review A2-1). A rented chest's own record now keeps it its renter's even with the claim
+    // changed hands, business off or business.js not loaded (branch rent-fail-closed); lifting the pause is Nate's call
     chestRentPaused: true,
     // The ledger book (TGDummyLedger, the Thieves Guild's business ledger) and how the owner sets it on a counter
     ledgerBase: '106a68:Skyrim.esm', ledgerForward: 70, ledgerHeight: 95, nudgeStep: 5, nudgeTurn: 15, ledgerReach: 700,
@@ -156,25 +157,28 @@ module.exports = (api) => {
     return 'lapsed';
   };
   const left = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 1440 ? `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h` : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; };
+  const dayPrice = (c) => Math.round(Number(c && c.price) || 0);
   const openMenu = (a, chest, b, c, mine) => {
-    S.pending.set(a >>> 0, chest >>> 0);
-    const actions = [1, 3, 7].map((d) => ({ id: `rent${d}`, label: `${mine ? 'Pay' : 'Rent'} ${d} day${d > 1 ? 's' : ''}: ${c.price * d} gold` }));
+    // The price a day goes with the menu: the click pays what the menu showed, or nothing (review A2-2)
+    S.pending.set(a >>> 0, { chest: chest >>> 0, price: dayPrice(c) });
+    const actions = [1, 3, 7].map((d) => ({ id: `rent${d}`, label: `${mine ? 'Pay' : 'Rent'} ${d} day${d > 1 ? 's' : ''}: ${dayPrice(c) * d} gold` }));
     if (mine) actions.unshift({ id: 'open', label: 'Open it (use the chest again)' });
     const st = chestState(c);
-    const title = mine ? (st === 'grace' ? `Your chest at ${b.name}: the rent ran out, ${left(Number(c.until) + C.chestGraceHours * HOUR - Date.now())} to empty it` : `Your chest at ${b.name}, rented for ${left(Number(c.until) - Date.now())}`) : `Storage for rent at ${b.name}: ${c.price} gold a day`;
+    const title = mine ? (st === 'grace' ? `Your chest at ${b.name}: the rent ran out, ${left(Number(c.until) + C.chestGraceHours * HOUR - Date.now())} to empty it` : `Your chest at ${b.name}, rented for ${left(Number(c.until) - Date.now())}`) : `Storage for rent at ${b.name}: ${dayPrice(c)} gold a day`;
     openWidget(a, { type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: title, actions, events: { action: 'dbo:bizChoose', close: 'dbo:bizClose' } }, true);
   };
   const passes = globalThis.__dboBusinessPass = globalThis.__dboBusinessPass || new Map(); // actor -> { chest, until }
 
-  // From the gamemode's activate chain, before the world container wipe; true refuses the activation
+  // From the gamemode's activate chain, before the world container wipe; true refuses the activation.
+  // With business.enabled false the ledgers are closed, but a rented chest still opens for its renter alone: turning the
+  // feature off must never open the renters' chests to everyone (review A2-1 / A2-3, fail closed).
   globalThis.__dboBusinessActivate = (target, caster) => {
-    if (!C.enabled) return false;
     const a = caster >>> 0, ref = target >>> 0;
-    // The business's ledger book opens its panel
+    // The business's ledger book opens its panel; with ledgers closed it stays shut (and on its counter)
     const ledgerTag = get(ref, LEDGER_TAG, null);
-    if (ledgerTag && ledgerTag.claim) { openLedger(a, ref, ledgerTag); return true; }
+    if (ledgerTag && ledgerTag.claim) { if (C.enabled) openLedger(a, ref, ledgerTag); else personal(a, 'Business ledgers are closed for now.'); return true; }
     // An owner or staff member who asked to put a chest up (or take it down) picks it by opening it
-    const arm = S.armed.get(a);
+    const arm = C.enabled ? S.armed.get(a) : null;
     if (arm && arm.until > Date.now() && isContainer(ref)) {
       S.armed.delete(a);
       const { claim, biz } = bizAt(cellOf(ref));
@@ -188,6 +192,8 @@ module.exports = (api) => {
         personal(a, 'The chest is no longer for rent.'); return true;
       }
       if (C.chestRentPaused !== false) { personal(a, 'Storage for rent is paused for a short while. It will be back soon.'); return true; }
+      // A rented chest keeps the price its renter paid until the rent and its grace have run out (review A2-2)
+      if (cur && (chestState(cur) === 'rented' || chestState(cur) === 'grace')) { personal(a, 'It is rented; its price can change once the rent and its grace have run out.'); return true; }
       // A world container is emptied the first time anyone opens it: do that now, before anyone stores in it
       try { if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(ref); } catch (e) { /* not a world container */ }
       biz.chests[hex(ref)] = Object.assign(cur || {}, { price: arm.price });
@@ -212,12 +218,12 @@ module.exports = (api) => {
     if (pass && pass.until <= Date.now()) passes.delete(a);
     else if (pass && pass.chest === ref && mine) return false;
     if (st === 'rented') {
-      // With no valid business there is no one to pay a renewal to: the renter simply opens it
-      if (mine) { if (!b || Number(c.until) - Date.now() > 24 * HOUR) return false; openMenu(a, ref, b, c, true); return true; }
+      // With no valid business (or the ledgers closed) there is no one to pay a renewal to: the renter simply opens it
+      if (mine) { if (!C.enabled || !b || Number(c.until) - Date.now() > 24 * HOUR) return false; openMenu(a, ref, b, c, true); return true; }
       personal(a, 'This chest is rented to someone else.'); return true;
     }
     if (st === 'grace') {
-      if (mine) { if (!b) return false; openMenu(a, ref, b, c, true); return true; }
+      if (mine) { if (!C.enabled || !b) return false; openMenu(a, ref, b, c, true); return true; }
       personal(a, 'This chest is still held for its last renter.'); return true;
     }
     if (!b) return false;
@@ -231,15 +237,21 @@ module.exports = (api) => {
       personal(a, 'This chest waits for its owner to clear it.'); return true;
     }
     if (isStaff(a, b)) return false; // free: the business's own chest
+    // Closed ledgers rent nothing out; the business's own chest stays shut to customers
+    if (!C.enabled) { personal(a, 'This chest belongs to the business. Storage for rent is closed for now.'); return true; }
     openMenu(a, ref, b, c, false);
     return true;
   };
 
   onUi('bizChoose', (a, args) => {
-    const chest = S.pending.get(a >>> 0); S.pending.delete(a >>> 0);
+    const p = S.pending.get(a >>> 0); S.pending.delete(a >>> 0);
     closeWidget(a, WIDGET_ID);
+    // A menu opened before a reload of this change holds the bare chest id and no price: it cannot pay (use the chest again)
+    const chest = p && typeof p === 'object' ? Number(p.chest) >>> 0 : Number(p) >>> 0;
+    const shown = p && typeof p === 'object' ? Number(p.price) : NaN;
     const choice = String(args[0] || '');
     if (!chest || choice === 'cancel') return;
+    if (!C.enabled) return personal(a, 'Business ledgers are closed for now.');
     if (distanceMeters(a, chest) > REACH_M) return personal(a, 'You are too far from the chest.');
     const bizId = chestIndex().get(hex(chest)); const b = bizId ? bizOf(Number.parseInt(bizId, 16)) : null;
     const c = b && b.chests[hex(chest)];
@@ -249,14 +261,17 @@ module.exports = (api) => {
     const days = Number((choice.match(/^rent(\d+)$/) || [])[1]);
     if (![1, 3, 7].includes(days)) return;
     if (!mine && st !== 'free') return personal(a, 'Someone else has just rented this chest.');
-    const price = Math.round(Number(c.price) || 0) * days;
+    // Review A2-2: the price is the one the menu showed. Staff re-pricing the chest while the menu was open changes nothing
+    // the customer agreed to; they see the new price when they use the chest again.
+    if (dayPrice(c) !== shown) return personal(a, `The price has changed to ${dayPrice(c)} gold a day. Use the chest again to see it.`);
+    const price = dayPrice(c) * days;
     if (price > 0 && !takeGold(a, price)) return personal(a, `You need ${price} gold.`);
     const from = mine && Number(c.until) > Date.now() ? Number(c.until) : Date.now();
     Object.assign(c, { renter: profileOf(a), renterName: display(a), until: from + days * 24 * HOUR, lapsed: false });
     const split = splitRent(b, b.zone, price);
     note(b, `${display(a)} ${mine ? 'extended' : 'rented'} a chest for ${days} day${days > 1 ? 's' : ''}, ${price} gold (${split})`); save();
     audit(`BUSINESS ${who(a)} ${mine ? 'extended' : 'rented'} chest ${hex(chest)} at ${b.name} for ${days}d, ${price} gold: ${split}`);
-    personal(a, `The chest is yours until ${stamp(c.until)}. Only you can open it. When the rent runs out you have ${C.chestGraceHours} hours to empty it or pay again.`);
+    personal(a, `You pay ${price} gold. The chest is yours until ${stamp(c.until)}. Only you can open it. When the rent runs out you have ${C.chestGraceHours} hours to empty it or pay again.`);
   });
   onUi('bizClose', (a) => { S.pending.delete(a >>> 0); closeWidget(a, WIDGET_ID); });
 

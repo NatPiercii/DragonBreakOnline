@@ -216,6 +216,9 @@ module.exports = (api) => {
   // ---- the prompt -----------------------------------------------------------------------------------
   // Both outlive a gamemode reload, or a prompt open during a deploy would answer nothing.
   const pending = globalThis.__dboRestPending = globalThis.__dboRestPending || new Map(); // actorId -> bed of the open prompt
+  // actorId -> { bed, price }: the rent the open prompt showed. Rent is charged at exactly that price (review A2-2: the
+  // owner or staff could change it with /business rent while the prompt was open, and the click paid the new one).
+  const quoted = globalThis.__dboRestQuoted = globalThis.__dboRestQuoted || new Map();
   // actorId -> { bed, until }: the next activation of that bed goes to the engine, so the player lies down.
   const lying = globalThis.__dboRestLying = globalThis.__dboRestLying || new Map();
   const LIE_WINDOW_MS = 20000;
@@ -224,11 +227,13 @@ module.exports = (api) => {
     // goes in the title.
     const r = rentOf(bed);
     const inInn = INNS.has(cellOf(bed));
-    const actions = kind === 'inn' ? [{ id: 'rent', label: `Rent this bed: ${priceFor(bed)} gold for ${forText()}` }]
+    const price = kind === 'inn' ? priceFor(bed) : 0;
+    const actions = kind === 'inn' ? [{ id: 'rent', label: `Rent this bed: ${price} gold for ${forText()}` }]
       : kind === 'keep' ? [{ id: 'keep', label: 'Make this my bed' }]
         : [{ id: 'sleep', label: 'Sleep (log out)' }, { id: 'lie', label: 'Lie down (use the bed again)' }]
           .concat(kind === 'own' && inInn ? [{ id: 'unkeep', label: 'This is no longer my bed' }] : []);
     pending.set(a >>> 0, bed >>> 0);
+    if (kind === 'inn') quoted.set(a >>> 0, { bed: bed >>> 0, price }); else quoted.delete(a >>> 0);
     openWidget(a, {
       type: 'contextMenu', id: WIDGET_ID, mode: 'menu',
       targetName: kind === 'own' ? `Your bed${where(bed)}` : kind === 'rented' && r ? `Your bed${where(bed)} until ${clock(r.until)}` : `A bed for rent${where(bed)}`,
@@ -236,7 +241,7 @@ module.exports = (api) => {
     }, true);
     log(`rest: ${who(a)} opened the ${kind} prompt for bed ${bedDesc(bed)}${where(bed)}`);
   };
-  const closePrompt = (a) => { pending.delete(a >>> 0); closeWidget(a, WIDGET_ID); };
+  const closePrompt = (a) => { pending.delete(a >>> 0); quoted.delete(a >>> 0); closeWidget(a, WIDGET_ID); };
 
   // Called from the gamemode's activate chain; true means handled (the activation is refused).
   globalThis.__dboRestActivate = (target, caster) => {
@@ -271,8 +276,8 @@ module.exports = (api) => {
     return true;
   };
 
-  const payRent = (a, bed) => {
-    const price = priceFor(bed);
+  // price: the one the prompt showed (restChoose has checked it is still the bed's rent)
+  const payRent = (a, bed, price) => {
     if (price && !takeGold(a, price)) {
       personal(a, `You need ${price} gold to rent this bed.`);
       log(`rest: ${who(a)} could not pay ${price} gold for bed ${bedDesc(bed)}`);
@@ -375,7 +380,15 @@ module.exports = (api) => {
       if (kind !== 'inn') { closePrompt(a); return; }
       const m = rentedElsewhere(a, bed);
       if (m) { closePrompt(a); return personal(a, `You already rent a bed${where(m.bed)} until ${clock(m.until)}. One bed at a time.`); }
-      if (payRent(a, bed)) return openPrompt(a, bed, 'rented');
+      // The rent changed while the prompt was open (or the prompt predates this check): nothing is taken, and the prompt
+      // opens again at today's price for the player to accept or not (reopened in place, so the cursor stays)
+      const q = quoted.get(a >>> 0), price = priceFor(bed);
+      if (!q || q.bed !== (bed >>> 0) || q.price !== price) {
+        log(`rest: ${who(a)} chose rent at ${q && q.bed === (bed >>> 0) ? q.price : '?'} gold, bed ${bedDesc(bed)} now rents for ${price}; nothing taken`);
+        openPrompt(a, bed, 'inn');
+        return personal(a, `The rent for this bed is now ${price} gold. Choose Rent again to pay it.`);
+      }
+      if (payRent(a, bed, price)) return openPrompt(a, bed, 'rented');
       closePrompt(a);
       return;
     }
@@ -387,7 +400,7 @@ module.exports = (api) => {
     }
   });
   onUi('restClose', (a) => { if (pending.has(a >>> 0)) log(`rest: ${who(a)} closed the bed prompt`); closePrompt(a); });
-  onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) pending.delete(a >>> 0); });
+  onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) { pending.delete(a >>> 0); quoted.delete(a >>> 0); } });
 
   // ---- waking ---------------------------------------------------------------------------------------
   const active = (a, prop) => { const v = get(a, prop, null); return !!v && Number(v.until) > Date.now(); };
