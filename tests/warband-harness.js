@@ -95,6 +95,29 @@ said.length = 0; ui.warband(PLAYER, ['raise bandit chief']);
 check('a player cannot use the tab either', /Only staff/.test(said.map((x) => x[1]).join(' | ')));
 
 process.chdir(home);
+// The buttons go through the chat handler when the gamemode passes one, so a GM meets the Lead GM gate and the staff
+// log exactly as when typing (2026-09-30)
+{
+  const lines = [];
+  const ui2 = {};
+  delete require.cache[require.resolve(MODULE)];
+  require(MODULE)({
+    mp: { get: () => undefined, getIdFromDesc: (d) => parseInt(d, 16), destroyActor: () => {} },
+    log: () => {}, personal: () => {}, audit: () => {}, who: (a) => `#${a}`, isAdmin: () => true,
+    registerChatCommand: () => {}, findByName: () => 0, cfg: {}, onUi: (ev, fn) => { ui2[ev] = fn; },
+    runChat: (a, line) => lines.push([a, line]),
+  });
+  ui2.warband(GM, ['raise bandit chief 2']);
+  ui2.raid(GM, ['clear']);
+  ui2.raid(GM, ['']);
+  ui2.warband(GM, ['attack x\n/system fake']);
+  check('a warband button runs "/warband <args>" through the chat handler', lines[0] && lines[0][0] === GM && lines[0][1] === '/warband raise bandit chief 2', JSON.stringify(lines[0]));
+  check('...and raid buttons "/raid clear" and "/raid"', lines[1][1] === '/raid clear' && lines[2][1] === '/raid', JSON.stringify(lines.slice(1, 3)));
+  check('...on one line', lines[3][1] === '/warband attack x /system fake', JSON.stringify(lines[3]));
+  const gm = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
+  check('gamemode.js hands warband.js its chat handler', /require\(WARBAND_JS\)\(\{[^}]*runChat: \(a, line\) => handleChat\(userOf\(a\), line\)/.test(gm));
+  check('...whose Lead GM gate lists warband and raid', /const LEAD_ONLY = new Set\(\[[\s\S]*?'warband', 'raid'/.test(gm));
+}
 fs.rmSync(dir, { recursive: true, force: true });
 delete globalThis.__dboCompanions; delete globalThis.__dboWarband;
 console.log('');

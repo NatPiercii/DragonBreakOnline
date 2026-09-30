@@ -150,9 +150,15 @@ module.exports = (api) => {
   };
   registerChatCommand('raid', raidCmd, { admin: true, help: '[clear]: unleashed raiders and settled warbands still standing' });
 
-  // The Place tab's Warband view: the same commands, sent from buttons
+  // The Place tab's Warband view: the same commands, sent from buttons through the chat handler, so a button passes the
+  // same Lead GM gate and staff log as typing it (a GM's button skipped both, 2026-09-30)
   if (typeof onUi === 'function') {
-    onUi('warband', (a, args) => warbandCmd(a, String(args[0] || '')));
-    onUi('raid', (a, args) => raidCmd(a, String(args[0] || '')));
+    const viaChat = (name, cmd) => (a, args) => {
+      const rest = String((args || [])[0] || '').replace(/[\r\n]+/g, ' ').trim();
+      if (typeof api.runChat === 'function') return api.runChat(a, `/${name}${rest ? ' ' + rest : ''}`);
+      return cmd(a, rest);
+    };
+    onUi('warband', viaChat('warband', warbandCmd));
+    onUi('raid', viaChat('raid', raidCmd));
   }
 };
