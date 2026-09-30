@@ -31,11 +31,13 @@ launcher never runs PowerShell.
 **1. At start, detection.**
 - The current check stays: `SkyrimSE.exe` FileVersion, read from both the original install and the game copy. A
   mismatch blocks PLAY, as it does today, and opens a **Skyrim Version** panel in place of the Reliquary dialog.
-- A second signal catches a 1.7.99 install, which still carries the 1.6.1170 exe: the sizes of the five base masters
-  (for example `Skyrim.esm` is 249,753,412 bytes and `Update.esm` 18,874,041). The reference sizes come from the
-  server's clean 1.6.1170 files.
-- A size mismatch under the right exe opens the panel with the downgrade offered, but **does not block PLAY**. The
-  check is new and not yet proven on real installs; making it block is a one-line change once it is.
+- A second signal catches a 1.7.99 install, which still carries the 1.6.1170 exe: the game data verdict
+  (`gameversion.checkGameData`). It compares the sizes of `Skyrim.esm`, `Update.esm`, `Skyrim - Interface.bsa` and
+  `Skyrim - Misc.bsa` with 1.6.1170's (for example `Skyrim.esm` is 249,753,412 bytes). The same verdict is logged at
+  start, on every PLAY and in Report a Problem.
+- On a Steam install, "newer data (1.7.99+)" blocks PLAY exactly like a wrong exe, and opens the panel with a
+  warning that Skyrim must be downgraded (Nate, 2026-09-29). "unknown" (a GOG install, or a file missing) never
+  blocks; it stays in the log.
 - Settings > Repair gets a **Skyrim Version** button that opens the panel at any time. That is where Restore and
   the Steam update setting live.
 

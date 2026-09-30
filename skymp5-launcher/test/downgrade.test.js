@@ -302,21 +302,61 @@ test('Steam update setting: only AutoUpdateBehavior changes, and a missing key i
   assert.throws(() => dg.setAutoUpdateOnLaunch('not a manifest'), /not a Steam app manifest/)
 })
 
-test('detection: the exe version blocks, newer masters under the 1.6.1170 exe warn, and each edition is handled', () => {
+// Nate (2026-09-29): newer game data under the 1.6.1170 exe blocks PLAY like a wrong exe; "unknown" only logs
+const { DATA_SIZES_1170, NEWER_DATA } = require('../src/gameversion')
+const dataGame = (overrides = {}) => {
   const root = tmp()
-  const gameDir = game(root)
-  let a = dg.assess(gameDir, 'Steam', version('1.7.104.0'))
+  const gameDir = path.join(root, 'steamapps', 'common', 'Skyrim Special Edition')
+  put(path.join(gameDir, 'SkyrimSE.exe'), 'exe 1.6.1170.0')
+  for (const [name, size] of DATA_SIZES_1170) {
+    const want = Object.prototype.hasOwnProperty.call(overrides, name) ? overrides[name] : size
+    if (want !== null) sized(path.join(gameDir, 'Data', name), want)
+  }
+  return { root, gameDir }
+}
+
+test('detection: a wrong exe blocks, whatever the data', () => {
+  const { root, gameDir } = dataGame()
+  const a = dg.assess(gameDir, 'Steam', version('1.7.104.0'))
   assert.deepStrictEqual([a.action, a.blocking], ['downgrade', true])
-  // 1.7.99: the exe is still 1.6.1170, the masters are not
-  a = dg.assess(gameDir, 'Steam', version('1.6.1170.0'))
-  assert.deepStrictEqual([a.action, a.blocking, a.newerData], ['downgrade', false, ['Skyrim.esm']])
-  sized(path.join(gameDir, 'Data', 'Skyrim.esm'), REF.files['Data/Skyrim.esm'].size)
-  assert.strictEqual(dg.assess(gameDir, 'Steam', version('1.6.1170.0')).action, 'none')
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('verdict "1.6.1170 data": nothing to do', () => {
+  const { root, gameDir } = dataGame()
+  const a = dg.assess(gameDir, 'Steam', version('1.6.1170.0'))
+  assert.deepStrictEqual([a.action, a.blocking, a.data], ['none', false, '1.6.1170 data'])
   assert.strictEqual(dg.assess(gameDir, 'Steam', version(null)).action, 'none')
-  assert.strictEqual(dg.assess(gameDir, 'GOG', version('1.6.1179.0')).action, 'none')
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('verdict "newer data (1.7.99+)" on Steam: the downgrade panel, and PLAY blocked', () => {
+  const { root, gameDir } = dataGame({ 'Skyrim - Interface.bsa': 106921425 })
+  const a = dg.assess(gameDir, 'Steam', version('1.6.1170.0'))
+  assert.deepStrictEqual([a.action, a.blocking, a.data, a.newerData], ['downgrade', true, NEWER_DATA, ['Skyrim - Interface.bsa']])
+  // A present file of another size is evidence enough, even with another one missing
+  fs.rmSync(path.join(gameDir, 'Data', 'Update.esm'))
+  assert.deepStrictEqual([dg.assess(gameDir, 'Steam', version('1.6.1170.0')).blocking], [true])
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('verdict "unknown" never blocks: a missing file, or a GOG install off the Steam sizes', () => {
+  let { root, gameDir } = dataGame({ 'Update.esm': null })
+  let a = dg.assess(gameDir, 'Steam', version('1.6.1170.0'))
+  assert.deepStrictEqual([a.action, a.blocking, a.data], ['none', false, 'unknown'])
+  fs.rmSync(root, { recursive: true, force: true });
+  ({ root, gameDir } = dataGame({ 'Skyrim.esm': 249000000 }))
+  a = dg.assess(gameDir, 'GOG', version('1.6.1179.0'))
+  assert.deepStrictEqual([a.action, a.blocking], ['none', false])
   assert.strictEqual(dg.assess(gameDir, 'GOG', version('1.6.640.0')).action, 'gog')
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('the editions that cannot be downgraded are refused, not blocked on data', () => {
+  const { root, gameDir } = dataGame({ 'Skyrim.esm': 249000000 })
   assert.strictEqual(dg.assess(gameDir, 'Epic Games', version('1.6.1179.0')).action, 'refuse')
   assert.strictEqual(dg.assess(gameDir, 'Microsoft Store', version('1.6.1130.0')).action, 'refuse')
+  assert.strictEqual(dg.assess(gameDir, 'Epic Games', version('1.6.1170.0')).action, 'none')
   fs.rmSync(root, { recursive: true, force: true })
 })
 

@@ -1947,13 +1947,13 @@ window.electronAPI.onDowngradeShow(openDowngrade)
 // [headline, detail] for the panel's top
 function downgradeSummary(s) {
   if (!s.ok) return [s.error, null]
+  if (s.action === 'downgrade' && s.newerData && s.newerData.length) {
+    return [`Your Skyrim program is ${s.version}, but its game data (${s.newerData.join(', ')}) comes from a newer Steam update (1.7.99 or later). DragonBreak needs the ${s.required} data, so Skyrim has to be downgraded before you can play.`,
+      `The launcher does it with Steam's own download of the ${s.required} files, under your own Steam account. Skyrim folder: ${s.gameDir}`]
+  }
   if (s.action === 'downgrade' && s.blocking) {
     return [`Your Skyrim is version ${s.version}. DragonBreak runs on ${s.required}, so it has to be downgraded before you can play.`,
       `The launcher does it with Steam's own download of the ${s.required} files, under your own Steam account. Skyrim folder: ${s.gameDir}`]
-  }
-  if (s.action === 'downgrade') {
-    return [`Your Skyrim program is ${s.version}, but its data files (${s.newerData.join(', ')}) come from a newer Steam update.`,
-      `Downgrading puts back the matching ${s.required} files. You can still press PLAY meanwhile. Skyrim folder: ${s.gameDir}`]
   }
   if (s.action === 'gog') {
     return [`Your GOG Skyrim is version ${s.version}. DragonBreak runs on ${s.required} for GOG.`,

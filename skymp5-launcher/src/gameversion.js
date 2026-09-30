@@ -84,6 +84,8 @@ const DATA_SIZES_1170 = [
  * 1.6.1170 size, "newer data (1.7.99+)" when a Steam install has one of another size, and "unknown" otherwise (a file
  * missing, or a GOG install, whose 1.6.1179 sizes are not known here).
  */
+const NEWER_DATA = 'newer data (1.7.99+)'
+
 function checkGameData(gameDir, edition) {
   const differ = []
   const missing = []
@@ -100,7 +102,7 @@ function checkGameData(gameDir, edition) {
   }
   let verdict = '1.6.1170 data'
   if (edition === 'GOG' && (differ.length || missing.length)) verdict = 'unknown'
-  else if (differ.length) verdict = 'newer data (1.7.99+)'
+  else if (differ.length) verdict = NEWER_DATA
   else if (missing.length) verdict = 'unknown'
   return { verdict, differ, missing, text: `${verdict}: ${parts.join(', ')}` }
 }
@@ -115,5 +117,6 @@ function checkGameVersion(gameDir, edition) {
 }
 
 module.exports = {
-  GAME_VERSION_REQUIRED, GAME_VERSION_GOG, GAME_DOWNGRADE_URL, DATA_SIZES_1170, readPeFileVersion, checkGameVersion, checkGameData,
+  GAME_VERSION_REQUIRED, GAME_VERSION_GOG, GAME_DOWNGRADE_URL, DATA_SIZES_1170, NEWER_DATA, readPeFileVersion, checkGameVersion,
+  checkGameData,
 }

@@ -2270,6 +2270,17 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
     showDowngradePanel()
     return { success: false, error: `Skyrim ${gv.version} found in ${skyrimPath}; DragonBreak needs ${gv.required}. Downgrade it in the Skyrim Version panel, then press PLAY again.` }
   }
+  // The 1.6.1170 exe on newer game data blocks too (Nate, 2026-09-29): 1.7.99 changed the masters and archives, not the
+  // exe. Only a Steam install's "newer data" verdict counts; "unknown" (GOG, a missing file) stays in the log.
+  const target = downgradeTarget()
+  if (target && target.action === 'downgrade' && target.blocking) {
+    showDowngradePanel()
+    return {
+      success: false,
+      error: `Skyrim's game data is from a newer Steam update (${(target.newerData || []).join(', ') || 'the exe'} differ from 1.6.1170). ` +
+        'DragonBreak needs 1.6.1170: downgrade it in the Skyrim Version panel, then press PLAY again.',
+    }
+  }
 
   const srv = activeServer()
   let serverInfo = null

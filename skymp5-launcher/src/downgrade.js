@@ -28,7 +28,6 @@ const STABLE_MS = 20000
 const STALLED_MS = 120000
 const SKSE_RUNTIME_DLL = 'skse64_1_6_1170.dll'
 const ADDRESS_LIBRARY_BIN = 'versionlib-1-6-1170-0.bin'
-const BASE_MASTERS = ['Skyrim.esm', 'Update.esm', 'Dawnguard.esm', 'HearthFires.esm', 'Dragonborn.esm']
 
 // Reference entries by lower-case game-relative path with forward slashes
 const REF_FILES = new Map(Object.entries(REF.files).map(([p, v]) => [p.toLowerCase(), { path: p, ...v }]))
@@ -390,8 +389,10 @@ function setAutoUpdateOnLaunch(text) {
 
 /**
  * What the launcher offers for a game folder:
- *   none      it is the right build (an unreadable exe never blocks, as in checkGameVersion)
- *   downgrade a Steam install on another build (blocking), or with the 1.6.1170 exe but newer masters (1.7.99)
+ *   none      it is the right build (an unreadable exe never blocks, as in checkGameVersion), or its data verdict is
+ *             "unknown" (a file missing), which is only logged
+ *   downgrade a Steam install on another build, or with the 1.6.1170 exe on newer data: 1.7.99 changed the masters and
+ *             archives but not the exe (gameversion.checkGameData). Both block PLAY (Nate, 2026-09-29)
  *   gog       a GOG install on another build: rolled back in GOG Galaxy, not here
  *   refuse    Epic Games or Microsoft Store: no 1.6.1170 build can be put there
  */
@@ -407,21 +408,12 @@ function assess(gameDir, edition, readVersion = gameversion.readPeFileVersion) {
   if (edition === 'Epic Games' || edition === 'Microsoft Store') {
     return { ...out, action: exeOk ? 'none' : 'refuse', blocking: !exeOk }
   }
-  const newerData = exeOk ? masterMismatches(gameDir) : []
-  if (exeOk && !newerData.length) return { ...out, action: 'none', blocking: false }
-  return { ...out, newerData, action: 'downgrade', blocking: !exeOk }
-}
-
-// Base masters present at a size other than 1.6.1170's (a missing one is the integrity check's matter)
-function masterMismatches(gameDir) {
-  const out = []
-  for (const name of BASE_MASTERS) {
-    const want = REF_FILES.get(`data/${name.toLowerCase()}`)
-    let size
-    try { size = fs.statSync(path.join(gameDir, 'Data', name)).size } catch { continue }
-    if (want && size !== want.size) out.push(name)
+  if (!exeOk) return { ...out, action: 'downgrade', blocking: true }
+  const data = gameversion.checkGameData(gameDir, edition)
+  if (data.verdict === gameversion.NEWER_DATA) {
+    return { ...out, data: data.verdict, newerData: data.differ, action: 'downgrade', blocking: true }
   }
-  return out
+  return { ...out, data: data.verdict, action: 'none', blocking: false }
 }
 
 // Mod names switched on in an MO2 modlist.txt
@@ -443,5 +435,5 @@ module.exports = {
   APP_ID, TARGET, DEPOTS, BACKUP_DIR, STABLE_MS, STALLED_MS, SKSE_RUNTIME_DLL, ADDRESS_LIBRARY_BIN,
   parseLibraryFolders, steamLibraryOf, acfPathFor, steamRoots, resolveDepot, findDepots, listFiles, depotState,
   safeRelative, stampOf, planInstall, verifyPlan, runPlan, latestBackup, planRestore, runRestore,
-  readAutoUpdate, setAutoUpdateOnLaunch, assess, masterMismatches, enabledMods, runtimeChecks, sha256File,
+  readAutoUpdate, setAutoUpdateOnLaunch, assess, enabledMods, runtimeChecks, sha256File,
 }
