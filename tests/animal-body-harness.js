@@ -103,6 +103,10 @@ ok(conf && Array.isArray(conf.allowEditorIds) && conf.allowEditorIds.every((x) =
 put(RINGDEER, 'wild:deer:2878', [{ baseId: 0x669a2, count: 1 }, { baseId: 0x3b97c, count: 1 }]);
 given.length = 0;
 ok(build({ animalBody: conf })(RINGDEER, P) === false && given.length === 1 && given[0][0] === 0x669a2, 'the shipped config keeps the venison and drops the ring', given);
+// Nate, 30 Sep: "Giants keep their gear" (animalBody.keepAllKinds ["giant"] in the shipped config)
+put(GIANT, 'wild:giant:1', [{ baseId: 0x3ad52, count: 1 }, { baseId: 0x13989, count: 1 }, { baseId: 0x63b45, count: 2 }]);
+given.length = 0;
+ok(Array.isArray(conf.keepAllKinds) && conf.keepAllKinds.includes('giant') && build({ animalBody: conf })(GIANT, P) === false && given.length === 3, 'with the shipped config a giant keeps its whole body (tusk, helmet, gems)', given);
 // Food on every animal (Nate, 30 Sep: "add food to all animals"). Every wild creature whose death item holds no meat, by
 // its own editor id (the census of wildlife.json's spawnable creatures, 30 Sep), gets its food with the other parts;
 // monsters and folk get nothing added.
