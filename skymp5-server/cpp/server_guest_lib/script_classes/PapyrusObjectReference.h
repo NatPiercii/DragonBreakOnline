@@ -35,6 +35,9 @@ public:
   VarValue GetPositionX(VarValue self, const std::vector<VarValue>& arguments);
   VarValue GetPositionY(VarValue self, const std::vector<VarValue>& arguments);
   VarValue GetPositionZ(VarValue self, const std::vector<VarValue>& arguments);
+  VarValue GetAngleX(VarValue self, const std::vector<VarValue>& arguments);
+  VarValue GetAngleY(VarValue self, const std::vector<VarValue>& arguments);
+  VarValue GetAngleZ(VarValue self, const std::vector<VarValue>& arguments);
   VarValue SetPosition(VarValue self, const std::vector<VarValue>& arguments);
   VarValue GetTotalItemWeight(VarValue self,
                               const std::vector<VarValue>& arguments);

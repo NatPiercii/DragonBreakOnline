@@ -561,6 +561,36 @@ VarValue PapyrusObjectReference::GetPositionZ(
   return VarValue::None();
 }
 
+// Degrees, as Papyrus returns them: GetAngle() holds degrees (plugin rotations are converted on load by
+// LocationalDataUtils::GetRot, and SetAngle stores its degree arguments as they are). critterFish and the magic traps
+// called these and got "Method not found" (scripted-objects census, 2026-09-30).
+VarValue PapyrusObjectReference::GetAngleX(
+  VarValue self, const std::vector<VarValue>& arguments)
+{
+  if (auto selfRefr = GetFormPtr<MpObjectReference>(self)) {
+    return VarValue(selfRefr->GetAngle().x);
+  }
+  return VarValue::None();
+}
+
+VarValue PapyrusObjectReference::GetAngleY(
+  VarValue self, const std::vector<VarValue>& arguments)
+{
+  if (auto selfRefr = GetFormPtr<MpObjectReference>(self)) {
+    return VarValue(selfRefr->GetAngle().y);
+  }
+  return VarValue::None();
+}
+
+VarValue PapyrusObjectReference::GetAngleZ(
+  VarValue self, const std::vector<VarValue>& arguments)
+{
+  if (auto selfRefr = GetFormPtr<MpObjectReference>(self)) {
+    return VarValue(selfRefr->GetAngle().z);
+  }
+  return VarValue::None();
+}
+
 VarValue PapyrusObjectReference::SetPosition(
   VarValue self, const std::vector<VarValue>& arguments)
 {
@@ -1077,6 +1107,9 @@ void PapyrusObjectReference::Register(
   AddMethod(vm, "GetPositionX", &PapyrusObjectReference::GetPositionX);
   AddMethod(vm, "GetPositionY", &PapyrusObjectReference::GetPositionY);
   AddMethod(vm, "GetPositionZ", &PapyrusObjectReference::GetPositionZ);
+  AddMethod(vm, "GetAngleX", &PapyrusObjectReference::GetAngleX);
+  AddMethod(vm, "GetAngleY", &PapyrusObjectReference::GetAngleY);
+  AddMethod(vm, "GetAngleZ", &PapyrusObjectReference::GetAngleZ);
   AddMethod(vm, "SetPosition", &PapyrusObjectReference::SetPosition);
   AddMethod(vm, "GetBaseObject", &PapyrusObjectReference::GetBaseObject);
   AddMethod(vm, "PlayAnimation", &PapyrusObjectReference::PlayAnimation);
