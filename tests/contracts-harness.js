@@ -57,7 +57,12 @@ let CFG = {};
 // Each section starts from an empty board: contracts.json survives a reload by design, which is what the "off"
 // section below relies on, so everywhere else has to clear it deliberately.
 const clear = () => { try { fs.unlinkSync(path.resolve('contracts.json')); } catch (e) { /* none yet */ } };
-const load = (contracts) => {
+const ui = new Map();
+let ZONES_NOW = null;
+let zoneOfActorMock = null;
+const load = (contracts, zonesOverride) => {
+  ui.clear();
+  ZONES_NOW = zonesOverride || zones;
   CFG = contracts;
   out.personal.length = 0; out.audits.length = 0;
   commands.clear();
@@ -72,7 +77,9 @@ const load = (contracts) => {
     cfg: { contracts },
     giveItem: (a, base, n) => { if (onPay) onPay(a, n); inv(a, goldOf(a) + n); return true; },
     registerChatCommand: (n, fn) => commands.set(n, fn),
-    zones,
+    zones: ZONES_NOW,
+    onUi: (n, fn) => { const l = ui.get(n) || []; l.push(fn); ui.set(n, l); },
+    zoneOfActor: (a) => (zoneOfActorMock ? zoneOfActorMock(a) : null),
     ranksOf: (pid) => RANKS[pid] || [],
     profileOf: (a) => PROFILE[a],
     saveSoon: (file, fn) => { if (!DEBOUNCE) fs.writeFileSync(file, fn()); },
@@ -231,6 +238,58 @@ check('the expired notice refunds once', goldOf(CHEST) === chestBefore + 60, `${
 load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
 check('...and not again after a crash', goldOf(CHEST) === chestBefore + 60, `${goldOf(CHEST) - chestBefore}`);
 DEBOUNCE = false;
+
+// ---- Bruma, as the live server has it (Nate, 2026-09-30: contracts on, taken on the expedition board) --------------
+{
+  const ROOT = path.resolve(__dirname, '..');
+  const realZones = JSON.parse(fs.readFileSync(path.join(ROOT, 'zones.json'), 'utf8'));
+  const bruma = [].concat(realZones.holds || [], realZones.strongholds || [], realZones.regions || []).find((z) => z.id === 'bruma');
+  check('zones.json has Bruma with a treasury and its worldspace', !!(bruma && bruma.treasury && (bruma.worldspaces || []).length), JSON.stringify(bruma && { treasury: bruma.treasury, worldspaces: bruma.worldspaces }));
+  const WORLD = bruma.worldspaces[0];            // a764b:BSHeartland.esm, as a live wild beast's worldOrCellDesc reads
+  const SYNOD = '20ff:BSHeartland.esm';          // the Synod Conclave, where an expedition board stands
+  const gcfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8')).contracts;
+  check('the tracked config has contracts on', gcfg && gcfg.enabled === true, JSON.stringify(gcfg && gcfg.enabled));
+  clear();
+  fs.writeFileSync('NPC-Spawns.json', JSON.stringify([{ Name: 'wild:wolf:1', ID: WORLD, POS: [0, 0, 0] }, { Name: 'wild:troll:1', ID: WORLD, POS: [0, 0, 0] }]));
+  check('Bruma\'s treasury is the chest the harness knows (79b22:BSHeartland.esm)', bruma.treasury === '79b22:BSHeartland.esm', bruma.treasury);
+  inv(CHEST, 10155);
+  const realBruma = { holds: [], strongholds: [], regions: [bruma] };
+  zoneOfActorMock = (a) => {
+    const w = String(get(a, 'worldOrCellDesc') || '').toLowerCase();
+    return w === WORLD.toLowerCase() || w === SYNOD.toLowerCase() ? 'bruma' : null;
+  };
+  load(Object.assign({}, gcfg, { perZone: 0 }), realBruma);
+  for (const a of [COUNT, HUNTER]) set(a, 'worldOrCellDesc', WORLD);
+  check('an official of Bruma posts work there', said(run(COUNT, 'post wolf 3 36'), /^Posted/), out.personal.map((p) => p.t).join(' | '));
+  set(HUNTER, 'worldOrCellDesc', SYNOD);
+  globalThis.__dboExpeditionPending = new Map();
+  let view = globalThis.__dboContractsBoard.view(HUNTER);
+  check('at the board in the Synod Conclave the tab shows Bruma\'s work', view.zone === 'Bruma' && view.list.length === 1 && view.list[0].state === 'open', JSON.stringify(view));
+  const id = view.list[0].id;
+  (ui.get('contractTake') || []).forEach((f) => f(HUNTER, [id]));
+  check('a take with the board closed is ignored', !stored().taken['13']);
+  let reopened = 0; globalThis.__dboExpeditionBoardRefresh = () => { reopened++; };
+  globalThis.__dboExpeditionPending.set(HUNTER, true);
+  out.personal.length = 0;
+  (ui.get('contractTake') || []).forEach((f) => f(HUNTER, [id]));
+  check('with the board open the tab takes it', (stored().taken['13'] || {}).id === id, out.personal.map((p) => p.t).join(' | '));
+  check('...and the board is drawn again', reopened === 1);
+  view = globalThis.__dboContractsBoard.view(HUNTER);
+  check('...showing it as yours with its progress', view.held && view.held.id === id && view.held.progress === 0 && view.list[0].state === 'yours', JSON.stringify(view.held));
+  const before = goldOf(HUNTER);
+  set(0x930, 'private.npcSpawner', 'wild:wolf:1'); set(0x930, 'worldOrCellDesc', WORLD);
+  for (let i = 0; i < 3; i++) globalThis.__dboContractKill(0x930, HUNTER);
+  check('three wolves felled in Bruma\'s wilds complete it and pay 36 gold', goldOf(HUNTER) === before + 36, `${goldOf(HUNTER) - before} gold`);
+  check('...and the tab no longer shows it held', !globalThis.__dboContractsBoard.view(HUNTER).held);
+  // give-up from the tab
+  run(COUNT, 'post troll 2 120');
+  view = globalThis.__dboContractsBoard.view(HUNTER);
+  (ui.get('contractTake') || []).forEach((f) => f(HUNTER, [view.list[0].id]));
+  (ui.get('contractAbandon') || []).forEach((f) => f(HUNTER, []));
+  check('the tab gives a contract up again', !stored().taken['13'] && globalThis.__dboContractsBoard.view(HUNTER).list[0].state === 'open');
+  check('an official at the board is told they may post', globalThis.__dboContractsBoard.view(COUNT).canPost === true && globalThis.__dboContractsBoard.view(HUNTER).canPost === false);
+  zoneOfActorMock = null;
+}
 
 // ---- who may hand out a rank ---------------------------------------------------------------------------------------
 // An official's rank is what lets someone post work paid from the treasury, so appointing is not a GM's to do

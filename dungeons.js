@@ -1259,9 +1259,12 @@ module.exports = (api) => {
   const uiCaps = globalThis.__dboExpeditionCaps instanceof Map ? globalThis.__dboExpeditionCaps : (globalThis.__dboExpeditionCaps = new Map());
   onUi('uiCaps', (a, args) => { uiCaps.set(a >>> 0, new Set((args || []).map(String))); });
   const boardCaps = { has: (a) => (uiCaps.get(a >>> 0) || new Set()).has('expeditionBoard') };
-  const openExpeditions = (a, st) => {
+  const openExpeditions = (a, st, tab) => {
     const list = EXPEDITIONS.map((x) => byId.get(x.id)).filter(Boolean);
-    if (!list.length) return personal(a, 'No expeditions are being organised right now.');
+    // The Contracts tab (Nate, 2026-09-30): the hold's hunting work, from contracts.js; absent when it failed to load
+    let contracts;
+    try { contracts = globalThis.__dboContractsBoard ? globalThis.__dboContractsBoard.view(a) : undefined; } catch (e) { log('contracts board view failed', e.message); }
+    if (!list.length && !contracts) return personal(a, 'No expeditions are being organised right now.');
     expeditionPending.set(a, true);
     if (!boardCaps.has(a)) {
       return openWidget(a, { type: 'contextMenu', id: EXPEDITION_WIDGET_ID, mode: 'menu', targetName: `Expeditions from ${st.name}: Ayleid ruins far to the south`,
@@ -1270,8 +1273,14 @@ module.exports = (api) => {
     }
     openWidget(a, { type: 'expeditionBoard', id: EXPEDITION_WIDGET_ID, hall: st.name,
       expeditions: list.map((d) => ({ id: d.id, name: d.name, county: d.county || '', kind: kindLabel(d), status: expeditionStatus(a, d), state: statusState(a, d), masters: mastersOf(d) })),
-      bossReturnMinutes: C.bossReturnMinutes, leaseMinutes: C.leaseMinutes,
-      events: { pick: 'dbo:expeditionPick', close: 'dbo:expeditionClose' } }, true);
+      bossReturnMinutes: C.bossReturnMinutes, leaseMinutes: C.leaseMinutes, contracts, tab: tab === 'contracts' ? 'contracts' : 'expeditions',
+      events: { pick: 'dbo:expeditionPick', close: 'dbo:expeditionClose', contractTake: 'dbo:contractTake', contractAbandon: 'dbo:contractAbandon' } }, true);
+  };
+  // contracts.js redraws the board on the Contracts tab after a take or a give-up, if that player still has it open
+  globalThis.__dboExpeditionBoardRefresh = (a, tab) => {
+    if (!expeditionPending.has(a)) return;
+    const st = startOf(a);
+    if (st) openExpeditions(a, st, tab);
   };
   const openBoard = (a) => {
     const st = startOf(a);

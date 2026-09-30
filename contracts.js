@@ -1,10 +1,11 @@
 // Hunting contracts: the hold pays for dangerous work, out of its own treasury. Standing contracts
 // are drawn from the creatures that actually spawn in the zone, so a Bruma notice never asks for a
 // horker. Officials post their own with /contract post. Loaded by gamemode.js like champions.js.
+// Players find, take and give up work on the Contracts tab of the expedition board (Nate, 2026-09-30); /contract stays.
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones, ranksOf, profileOf, saveSoon, discordOf } = api;
+  const { mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones, ranksOf, profileOf, saveSoon, discordOf, onUi, zoneOfActor } = api;
   const fs = require('fs');
   const path = require('path');
 
@@ -34,7 +35,7 @@ module.exports = (api) => {
   // A hold's fauna is drawn from this far around its capital, roughly a hold's worth of ground
   const CAPITAL_REACH = 45000;
 
-  const OFF_TEXT = 'Hunting contracts are closed for now. The notice boards are quiet.';
+  const OFF_TEXT = 'Hunting contracts are closed for now. The expedition boards post no hunting work.';
 
   const plural = (kind) => PLURAL[kind] || `${kind}s`;
   const zoneList = () => [].concat(zones.holds || [], zones.strongholds || [], zones.regions || []);
@@ -212,6 +213,13 @@ module.exports = (api) => {
     return bestD < 60000 ? best : null;
   };
 
+  // A player's zone is the gamemode's (indoors by the owning plugin, else where they last stood outside), so the boards
+  // in Bruma's halls and /contract indoors know their hold; beasts are placed by their worldspace (zoneOf) as before
+  const playerZone = (a) => {
+    let id = null; try { id = typeof zoneOfActor === 'function' ? zoneOfActor(a) : null; } catch (e) { id = null; }
+    return (id && zoneById(id)) || zoneOf(a);
+  };
+
   const takenBy = (a) => { const key = String(profileOf(a)); return state.taken[key] || null; };
   const setTaken = (a, value) => {
     const key = String(profileOf(a));
@@ -277,16 +285,68 @@ module.exports = (api) => {
     refresh();
   };
 
+  // Take and give up, shared by /contract and the board's Contracts tab; each returns what the player is told
+  const takeContract = (a, c, zone) => {
+    if (!CFG.enabled) return OFF_TEXT;
+    if (takenBy(a)) return 'You already hold a contract. Give it up first.';
+    if (!c || c.zone !== zone.id || !(c.expiresAt > Date.now())) return 'That contract is no longer posted here.';
+    if (postedBy(c, a)) return 'You posted that notice yourself. Someone else does the hunting.';
+    setTaken(a, { id: c.id, progress: 0 });
+    audit(`CONTRACT ${who(a)} took ${c.count} ${plural(c.kind)} for ${zone.name}`);
+    return `Taken: ${describe(c, 0)}. Kills count anywhere in ${zone.name}'s wilds, and you are paid when the last one falls.`;
+  };
+  const abandonContract = (a) => {
+    if (!takenBy(a)) return 'You hold no contract.';
+    setTaken(a, null);
+    return 'Contract given up. The notice goes back on the board.';
+  };
+
+  // What the Contracts tab of the expedition board shows (dungeons.js puts it in the board's payload)
+  const boardView = (a) => {
+    refresh();
+    const zone = playerZone(a);
+    const held = takenBy(a);
+    let hc = held ? contractById(held.id) : null;
+    if (held && !hc) { setTaken(a, null); hc = null; }
+    const list = zone ? zoneContracts(zone.id) : [];
+    const hours = (c) => Math.max(0, Math.ceil((c.expiresAt - Date.now()) / 3600000));
+    const zoneName = (id) => { const z = zoneById(id); return z ? z.name : id; };
+    return {
+      enabled: !!CFG.enabled,
+      zone: zone ? zone.name : '',
+      treasury: zone ? treasuryGold(zone) : 0,
+      note: !CFG.enabled ? OFF_TEXT : !zone ? 'No hold claims this ground, so there is no hunting work posted here.'
+        : list.length ? '' : `${zone.name} has no hunting work posted. Its coffers may be empty.`,
+      held: hc ? { id: hc.id, what: `${hc.count} ${plural(hc.kind)}`, zone: zoneName(hc.zone), progress: Math.min(hc.count, Number(held.progress) || 0), count: hc.count, reward: hc.reward, hoursLeft: hours(hc) } : null,
+      list: list.map((c) => ({ id: c.id, what: `${c.count} ${plural(c.kind)}`, count: c.count, reward: c.reward, danger: DANGER[c.kind] || 1, hoursLeft: hours(c),
+        state: hc && hc.id === c.id ? 'yours' : postedBy(c, a) ? 'posted' : 'open' })),
+      canPost: !!(zone && isOfficial(a, zone.id)),
+    };
+  };
+  globalThis.__dboContractsBoard = { view: boardView };
+  // The tab's buttons, honoured only while that player's board is open (dungeons.js keeps the open set)
+  const boardOpen = (a) => { const m = globalThis.__dboExpeditionPending; return m instanceof Map && m.has(a); };
+  const reopen = (a) => { try { if (typeof globalThis.__dboExpeditionBoardRefresh === 'function') globalThis.__dboExpeditionBoardRefresh(a, 'contracts'); } catch (e) { log('contracts: board refresh failed', e.message); } };
+  if (typeof onUi === 'function') {
+    onUi('contractTake', (a, args) => {
+      if (!boardOpen(a)) return;
+      const zone = playerZone(a);
+      personal(a, zone ? takeContract(a, contractById(String((args || [])[0] || '')), zone) : 'There is no work posted on this ground.');
+      reopen(a);
+    });
+    onUi('contractAbandon', (a) => { if (!boardOpen(a)) return; personal(a, abandonContract(a)); reopen(a); });
+  }
+
   // The list is its own function so /contract with no words can show it, and /contracts survives as an alias
   const listContracts = (a) => {
     refresh();
-    const zone = zoneOf(a);
+    const zone = playerZone(a);
     if (!zone) return personal(a, 'No hold claims this ground, so there is no work posted here.');
     const list = zoneContracts(zone.id);
     if (!list.length) return personal(a, `${zone.name} has no work posted. Its coffers may be empty.`);
     personal(a, `Work posted in ${zone.name} (treasury ${treasuryGold(zone)} gold):`);
     list.forEach((c, i) => personal(a, `  ${i + 1}. ${describe(c)}`));
-    personal(a, CFG.enabled ? 'Take one with /contract take <number>.' : OFF_TEXT);
+    personal(a, CFG.enabled ? 'Take one on the Contracts tab of the expedition board, or with /contract take <number>.' : OFF_TEXT);
   };
 
   registerChatCommand('contracts', listContracts, { hidden: true, help: 'the work posted here; /contract shows it too' });
@@ -307,27 +367,19 @@ module.exports = (api) => {
 
     if (verb === 'take') {
       if (!CFG.enabled) return personal(a, OFF_TEXT);
-      const zone = zoneOf(a);
+      const zone = playerZone(a);
       if (!zone) return personal(a, 'There is no work posted on this ground.');
       if (held) return personal(a, 'You already hold a contract. /contract abandon to give it up.');
-      const list = zoneContracts(zone.id);
-      const c = list[Math.max(1, Number(parts[1]) || 1) - 1];
+      const c = zoneContracts(zone.id)[Math.max(1, Number(parts[1]) || 1) - 1];
       if (!c) return personal(a, 'No such contract. /contracts lists them.');
-      if (postedBy(c, a)) return personal(a, 'You posted that notice yourself. Someone else does the hunting.');
-      setTaken(a, { id: c.id, progress: 0 });
-      personal(a, `Taken: ${describe(c, 0)}. Kills count anywhere in ${zone.name}.`);
-      return audit(`CONTRACT ${who(a)} took ${c.count} ${plural(c.kind)} for ${zone.name}`);
+      return personal(a, takeContract(a, c, zone));
     }
 
-    if (verb === 'abandon') {
-      if (!held) return personal(a, 'You hold no contract.');
-      setTaken(a, null);
-      return personal(a, 'Contract abandoned. The notice goes back on the board.');
-    }
+    if (verb === 'abandon') return personal(a, abandonContract(a));
 
     if (verb === 'post') {
       if (!CFG.enabled) return personal(a, OFF_TEXT);
-      const zone = zoneOf(a);
+      const zone = playerZone(a);
       if (!zone) return personal(a, 'You stand outside any hold.');
       if (!isOfficial(a, zone.id)) return personal(a, `Only an official of ${zone.name} posts work in its name.`);
       const kind = String(parts[1] || '').toLowerCase();
