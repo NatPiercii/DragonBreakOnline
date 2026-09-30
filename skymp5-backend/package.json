@@ -12,7 +12,8 @@
     "populate": "node scripts/populate-files.js",
     "build-client": "node scripts/populate-files.js && node scripts/merge-files.js",
     "compile-manifest": "node scripts/compile-manifest.js",
-    "extra": "node scripts/build-extra-manifest.js"
+    "extra": "node scripts/build-extra-manifest.js",
+    "legal-record": "node scripts/legal-record.js"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",

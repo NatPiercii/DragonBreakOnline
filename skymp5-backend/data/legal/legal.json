@@ -1,0 +1,11 @@
+{
+  "version": "2026-10-01",
+  "effective": "2026-10-01",
+  "changes": [
+    "The first Terms of Service and Privacy Policy of DragonBreak Online, for the alpha that opens on 1 October 2026."
+  ],
+  "files": {
+    "terms": "terms.md",
+    "privacy": "privacy.md"
+  }
+}
