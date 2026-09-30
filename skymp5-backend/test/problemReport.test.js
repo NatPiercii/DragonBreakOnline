@@ -105,3 +105,54 @@ test('a crash log longer than the launcher sends keeps its head, where the excep
   assert.match(crash.text, /\[middle lines cut to fit the upload limit\]/)
   assert.ok(Buffer.byteLength(crash.text) <= 64 * 1024 + 64, `${Buffer.byteLength(crash.text)} bytes`)
 })
+
+// The hardware a crash happened on (launcher 2.1.36 sends it; fee884b3). Every one goes through the same
+// text() + scrub(300) path as the older context fields, so these tests pin that a scalar arrives, a non-scalar is
+// dropped, a long value is cut, a path is redacted, and nothing outside CONTEXT_FIELDS is ever repeated.
+const HW = { reportId: 'test-hardware-0001', launcherLog: 'launcher starting' }
+
+test('the hardware fields reach the report', async () => {
+  const body = { ...HW, ramGb: 32, ramFreeGb: 11, cpu: 'AMD Ryzen 7 5800X x 16 cores', gpu: 'NVIDIA RTX 4070 8 GB+' }
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, body)
+  assert.strictEqual(result.status, 200)
+  assert.match(posted.summary, /ramGb: 32/)
+  assert.match(posted.summary, /ramFreeGb: 11/)
+  assert.match(posted.summary, /cpu: AMD Ryzen 7 5800X x 16 cores/)
+  assert.match(posted.summary, /gpu: NVIDIA RTX 4070 8 GB\+/)
+})
+
+test('a non-scalar hardware value is dropped, not stringified', async () => {
+  const body = { ...HW, reportId: 'test-hardware-0002', ramGb: { evil: 1 }, cpu: ['a', 'b'], gpu: null }
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, body)
+  assert.strictEqual(result.status, 200)
+  assert.doesNotMatch(posted.summary, /ramGb:/)
+  assert.doesNotMatch(posted.summary, /cpu:/)
+  assert.doesNotMatch(posted.summary, /gpu:/)
+  assert.doesNotMatch(posted.summary, /\[object Object\]|evil/)
+})
+
+test('a long hardware value is cut, so one field cannot fill the message', async () => {
+  const body = { ...HW, reportId: 'test-hardware-0003', gpu: 'G'.repeat(4000) }
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, body)
+  assert.strictEqual(result.status, 200)
+  const line = posted.summary.split('\n').find(l => l.startsWith('gpu: '))
+  assert.ok(line, 'no gpu line')
+  assert.ok(line.length < 400, `gpu line is ${line.length} chars, the 300 cap did not apply`)
+})
+
+test('a path in a hardware value is redacted like any other field', async () => {
+  const body = { ...HW, reportId: 'test-hardware-0004', cpu: 'CPU at C:\\Users\\Arvel\\Documents x 8 cores' }
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, body)
+  assert.strictEqual(result.status, 200)
+  assert.doesNotMatch(posted.summary, /Arvel/)
+})
+
+test('a field outside CONTEXT_FIELDS is never repeated, however it is named', async () => {
+  const body = { ...HW, reportId: 'test-hardware-0005', ram: 32, gpuDriver: 'secret', sessionToken: 'abc123',
+                 discordUsername: 'should-not-be-echoed-as-a-context-field' }
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, body)
+  assert.strictEqual(result.status, 200)
+  assert.doesNotMatch(posted.summary, /sessionToken|abc123/)
+  assert.doesNotMatch(posted.summary, /gpuDriver/)
+  assert.doesNotMatch(posted.summary, /^ram: /m)
+})
