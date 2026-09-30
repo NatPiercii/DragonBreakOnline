@@ -133,6 +133,55 @@ module.exports = (api) => {
     let online = []; try { online = typeof onlineActors === 'function' ? onlineActors() : []; } catch (e) { return; }
     for (const a of online) { try { globalThis.__dboCampGlow(a); } catch (e) { log('camp glow failed', e.message); } }
   }, CAMP_GLOW_MS);
+  // ---- camp-mates are allies ------------------------------------------------------------------------------------------
+  // Onny at Dusk Thorn Camp (30 Sep 02:37): "the goblins were all fighting each other more than fighting me". The goblins
+  // DragonBreak placed are Beyond Skyrim's bare BSKEncGoblin* templates, whose only faction is CreatureFaction (the
+  // tribe faction comes from the CYRLvlGoblin* wrappers vanilla places); Beyond Skyrim makes them Very Aggressive, and
+  // the client raises every hostile spawn to Aggression 2 besides, which attacks anyone merely neutral. CreatureFaction
+  // members are neutral to each other, so the camp fought itself. Each owned-spawn creature whose kind is listed here
+  // gets these factions in ff_factions, which the client applies (formView.applyFactions, as for dungeon placements):
+  // camp-mates become allies and stop targeting each other, and stay hostile to players. Checked every 2 s against the
+  // spawner's sidecar of live ids; gamemode-config.json "ownedSpawns": { "factions": { "<kind>": ["<desc>", ...] } }.
+  const OWNED_FACTIONS = Object.assign({
+    goblin: ['13:Skyrim.esm', '877f5:BSHeartland.esm'],   // CreatureFaction, CYRGoblinFaction (allied to itself)
+  }, ((cfg.ownedSpawns || {}).factions) || {});
+  // All or nothing per kind: CreatureFaction alone (a list that only partly resolves) would bring the infighting back
+  const factionIds = {};
+  for (const [kind, list] of Object.entries(OWNED_FACTIONS)) {
+    const descs = Array.isArray(list) ? list.map(String) : [];
+    const missing = descs.filter((d) => !idOf(d));
+    if (descs.length && !missing.length) factionIds[kind] = descs.map(idOf);
+    else log(`ownedSpawns.factions.${kind}: ${missing.length ? `${missing.join(', ')} not in the load order` : 'empty'}; the ${kind} spawns are left as the plugin made them`);
+  }
+  const SPAWNED_IDS_FILE = path.resolve('zone-spawns.json');
+  const factioned = globalThis.__dboOwnedFactioned instanceof Map ? globalThis.__dboOwnedFactioned : (globalThis.__dboOwnedFactioned = new Map());
+  // The sidecar is read again only when it changed, or when an apply failed and is waiting for its retry
+  const factionState = globalThis.__dboOwnedFactionState || (globalThis.__dboOwnedFactionState = { mtime: 0, retry: false });
+  const ownedFactionTick = () => {
+    if (!Object.keys(factionIds).length) return;
+    let mtime = 0; try { mtime = fs.statSync(SPAWNED_IDS_FILE).mtimeMs; } catch (e) { return; }
+    if (mtime === factionState.mtime && !factionState.retry) return;
+    let ids = null;
+    try { ids = JSON.parse(fs.readFileSync(SPAWNED_IDS_FILE, 'utf8')); } catch (e) { return; }
+    if (!Array.isArray(ids)) return;
+    factionState.mtime = mtime;
+    factionState.retry = false;
+    const live = new Set(ids.map((x) => Number(x) >>> 0));
+    for (const id of factioned.keys()) if (!live.has(id)) factioned.delete(id);   // a reused form id is looked at afresh
+    for (const id of live) {
+      if (factioned.has(id)) continue;
+      let tag = ''; try { tag = String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { continue; }
+      const m = /^wild:([^:]+):p/.exec(tag);
+      const want = m && factionIds[m[1]];
+      if (!want) { factioned.set(id, ''); continue; }
+      // Recorded only once applied: a failed apply is tried again on the next tick
+      try { mp.set(id, 'ff_factions', { f: want.map((f) => [f, 0]), c: 0 }); factioned.set(id, m[1]); }
+      catch (e) { factionState.retry = true; log('owned-spawn factions failed, will retry', id.toString(16), e.message); }
+    }
+  };
+  globalThis.__dboOwnedFactionTick = ownedFactionTick;
+  if (globalThis.__dboOwnedFactionTimer) clearInterval(globalThis.__dboOwnedFactionTimer);
+  globalThis.__dboOwnedFactionTimer = setInterval(() => { try { globalThis.__dboOwnedFactionTick(); } catch (e) { log('owned-spawn factions tick failed', e.message); } }, 2000);
   const denyAt = new Map();
   globalThis.__dboCampChest = (targetId, casterId) => {
     const hit = campChests.get(targetId);

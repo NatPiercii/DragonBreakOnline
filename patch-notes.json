@@ -1,5 +1,19 @@
 [
   {
+    "title": "The Goblins of Dusk Thorn Stand Together",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Dusk Thorn Camp",
+        "items": [
+          "The goblins of Dusk Thorn Camp no longer fight each other: they are one tribe now, and they turn on you together. Thanks to Onny for testing the camp."
+        ]
+      }
+    ]
+  },
+  {
     "title": "No More Empty Halls",
     "date": "2026-09-30",
     "version": "Server update",

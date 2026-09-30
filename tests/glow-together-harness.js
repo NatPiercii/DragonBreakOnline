@@ -21,8 +21,10 @@ fs.writeFileSync('wildlife.json', JSON.stringify({ placements: [], giantCamps: [
   { id: 'BleakwindBasinLocation', name: 'Bleakwind Basin', chests: [{ ref: 'c899b:Skyrim.esm' }, { ref: 'c89a0:Skyrim.esm' }] },
 ] }));
 global.setTimeout = () => 0;
-let campTick = null;
-global.setInterval = (fn) => { campTick = fn; return { unref() {} }; };
+// wildlife.js registers more than one timer (camp glow, camp-mate factions): keep them all and run them together
+const intervals = [];
+global.setInterval = (fn) => { intervals.push(fn); return { unref() {} }; };
+const campTick = () => intervals.forEach((fn) => fn());
 global.clearInterval = () => {};
 
 let nextId = 0x1000;
@@ -61,7 +63,7 @@ const glowing = () => {
 };
 
 const CAMP1 = idOf('c899b:Skyrim.esm'), CAMP2 = idOf('c89a0:Skyrim.esm');
-check('both modules loaded (dungeon glow check and camp glow timer registered)', typeof timers.get('dungeons.glow') === 'function' && typeof campTick === 'function');
+check('both modules loaded (dungeon glow check and camp glow timer registered)', typeof timers.get('dungeons.glow') === 'function' && intervals.length > 0);
 
 globalThis.__dboDungeonActivate(idOf(e0.outsideDesc), A);
 const pend = globalThis.__dboDungeons.pending.get(A);
