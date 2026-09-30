@@ -15,6 +15,8 @@ module.exports = (api) => {
   const C = Object.assign({
     timeScale: 6,               // game minutes per real minute: a game day every 4 real hours
     broadcastSeconds: 20,
+    // The hour a player in character creation sees (the Realm's Sovngarde climate is dark 20:30-05:30); -1 turns it off
+    creatorHour: 12,
     weatherHours: [2, 5],       // a weather lasts this many game hours
     // Chance of each kind per zone; zones not listed use default
     weather: {
@@ -71,7 +73,16 @@ module.exports = (api) => {
   };
   const weatherFor = (a) => { let z = null; try { z = zoneOfActor(a); } catch (e) { /* default */ } return weatherOf(z); };
 
-  const packetFor = (a) => ({ customPacketType: 'dboClock', serverNow: Date.now(), gameDays: gameDays(), timeScale: ST.timeScale, weather: weatherFor(a) });
+  // A player in character creation is sent the noon nearest now, running at real time; only their packet changes, the
+  // world clock and everything read from it server-side (night, the moons, sunlight) do not
+  const inCreator = (a) => { try { return typeof api.inCreator === 'function' && api.inCreator(a) === true; } catch (e) { return false; } };
+  const clockFor = (a) => {
+    const d = gameDays();
+    const h = Number(C.creatorHour);
+    if (!(h >= 0 && h < 24) || !inCreator(a)) return { gameDays: d, timeScale: ST.timeScale };
+    return { gameDays: Math.round(d - h / 24) + h / 24, timeScale: 1 };
+  };
+  const packetFor = (a) => Object.assign({ customPacketType: 'dboClock', serverNow: Date.now() }, clockFor(a), { weather: weatherFor(a) });
   const broadcast = () => { for (const a of onlineActors()) sendPacket(a, packetFor(a)); };
   every('worldClock', C.broadcastSeconds * 1000, broadcast);
 
