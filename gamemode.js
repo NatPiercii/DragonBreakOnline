@@ -4504,6 +4504,18 @@ try {
   require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, isLeadStaff, distanceMeters, sendPacket });
 } catch (e) { log('struggle.js failed to load:', e.stack || e.message); globalThis.__dboOnRestrained = null; globalThis.__dboStruggling = null; }
 
+// ---- rope: tying someone up without authority, left unattended, cut free (server\rope.js, config "rope") ----
+try {
+  const ROPE_JS = path.resolve('rope.js');
+  delete require.cache[ROPE_JS];
+  require(ROPE_JS)({ mp, log, personal, audit, display, nameOf, cfg, onlineActors, every, sendPacket, distanceMeters });
+} catch (e) {
+  log('rope.js failed to load:', e.stack || e.message);
+  // captureSystem then refuses rope bindings (guards and admins only, as before); captives already tied keep their rope
+  globalThis.__dboRopeHeld = null; globalThis.__dboRopeTake = null; globalThis.__dboRopeUnattended = null;
+  globalThis.__dboRopeMenuEntries = null; globalThis.__dboRopeMenuAction = null;
+}
+
 // ---- character level 1-5 and its Health/Magicka/Stamina points (charlevel.js, config "charLevel") ----
 try {
   const CHARLEVEL_JS = path.resolve('charlevel.js');

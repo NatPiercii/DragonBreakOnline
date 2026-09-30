@@ -15,6 +15,11 @@
 // keeps them from being taken again for a short grace. Every attempt starts a cooldown kept on the
 // character (private.dboStruggleNext), so giving up, relogging or a hot reload never buys a quicker retry.
 //
+// Rope (rope.js, Nate 2026-09-30): with the captor near, a rope captive plays today's round. Once rope.js calls them
+// unattended (__dboRopeUnattended), the round is the easier ropeUnattended one: a wider gap, a better roll and a
+// shorter wait, counted from the start of the last attempt (private.dboStruggleAt), so a try made while watched
+// does not hold back one made alone.
+//
 //   Browser -> server: dbo:struggle [nonce, JSON strike ms list, atMs], dbo:struggleCancel [nonce]
 'use strict';
 
@@ -28,6 +33,7 @@ module.exports = (api) => {
 
   const WIDGET_ID = 40;
   const NEXT_PROP = 'private.dboStruggleNext';
+  const AT_PROP = 'private.dboStruggleAt';
   // Set once the character has had its one stale-interface refund, or has reported from a current widget
   const REFUND_PROP = 'private.dboStruggleUiRefund';
   const CFG = Object.assign({
@@ -58,6 +64,8 @@ module.exports = (api) => {
     // Mean distance from the centre, in half-bands, below which a winning round is a script
     minErr: 0.04,
   }, cfg.struggle || {});
+  // A rope captive left unattended (rope.js): band, winChance and cooldownMinutes in place of the ones above
+  CFG.ropeUnattended = Object.assign({ band: 9, winChance: 0.85, cooldownMinutes: 1 }, CFG.ropeUnattended || {});
 
   // Rounds and spent nonces outlive a gamemode reload, or every save would strand a round in flight
   const sessions = globalThis.__dboStruggleRounds || (globalThis.__dboStruggleRounds = new Map()); // actorId -> round
@@ -70,6 +78,7 @@ module.exports = (api) => {
   const lawful = (a) => get(a, 'private.dboLawful', false) === true || isLeadStaff(a);
   const restraintOf = (a) => { const r = get(a, 'private.restrained', null); return r && (r.boundHands || r.carried) ? r : null; };
   const nextOf = (a) => Number(get(a, NEXT_PROP, 0)) || 0;
+  const ropeAlone = (a) => { try { return typeof globalThis.__dboRopeUnattended === 'function' && globalThis.__dboRopeUnattended(a) === true; } catch (e) { return false; } };
   const waitText = (ms) => {
     const s = Math.max(1, Math.ceil(ms / 1000));
     if (s < 60) return `${s} second${s === 1 ? '' : 's'}`;
@@ -104,11 +113,11 @@ module.exports = (api) => {
     return phase <= 1 ? phase * 100 : (2 - phase) * 100;
   };
 
-  const roundFor = (a, watched) => {
+  const roundFor = (a, watched, alone) => {
     const seed = crypto.randomBytes(4).readUInt32LE(0);
     const rand = rngOf(seed);
     // Clamped exactly as the widget clamps, so the band judged is the band drawn
-    const half = Math.max(3, Math.min(30, Number(watched ? CFG.watchedBand : CFG.band) || 6));
+    const half = Math.max(3, Math.min(30, Number(watched ? CFG.watchedBand : alone ? CFG.ropeUnattended.band : CFG.band) || 6));
     const strikes = int(CFG.strikes, 6, 1);
     const first = int(CFG.sweepMs, 1000, 200);
     const floor = int(CFG.minSweepMs, 700, 200);
@@ -121,7 +130,8 @@ module.exports = (api) => {
     }
     return {
       nonce: `s${a.toString(16)}-${Date.now().toString(36)}-${crypto.randomBytes(4).readUInt32LE(0).toString(36)}`,
-      seed, half, bands, sweeps, strikes, watched,
+      seed, half, bands, sweeps, strikes, watched, alone,
+      winChance: Number(alone ? CFG.ropeUnattended.winChance : CFG.winChance),
       totalMs: int(Number(CFG.seconds) * 1000, 22000, 1000),
       hitMs: int(CFG.hitCooldownMs, 250, 0),
       startedAt: 0, prevNext: 0, captor: 0,
@@ -135,7 +145,9 @@ module.exports = (api) => {
       title: 'Bound Hands',
       hint: round.watched
         ? 'Someone is watching closely. Pull while the marker is in the gap; one slip and the bonds hold. Space or click.'
-        : 'Pull while the marker is in the gap; one slip and the bonds hold. Space or click.',
+        : round.alone
+          ? 'Nobody is watching and the knots are loose. Pull while the marker is in the gap; one slip and they hold. Space or click.'
+          : 'Pull while the marker is in the gap; one slip and the bonds hold. Space or click.',
       strikes: round.strikes, band: round.half, bands: round.bands, sweepMs: round.sweeps[0], sweeps: round.sweeps,
       failOnMiss: true, totalMs: round.totalMs, hitMs: round.hitMs, missMs: round.hitMs,
       strikeLabel: 'Pull', leaveLabel: 'Give up', doneLabel: 'Close',
@@ -167,35 +179,43 @@ module.exports = (api) => {
     if (r.carried && !CFG.whileCarried) return personal(a, 'You cannot struggle while you are being carried.');
     if (get(a, 'isDead', false) === true) return personal(a, 'Not while you are down.');
     if (liveRound(a)) return personal(a, 'You are already struggling.');
-    const prevNext = nextOf(a);
-    if (prevNext > Date.now()) return personal(a, `Your wrists are raw. You can struggle again in ${waitText(prevNext - Date.now())}.`);
     const captor = Number(r.captorActorId) >>> 0;
     const online = onlineActors();
     const watchers = watchersOf(a, captor, online);
-    const round = roundFor(a, watchers.length > 0);
+    const alone = r.rope === true && watchers.length === 0 && ropeAlone(a);
+    // Alone, the shorter wait counts from the last attempt's start; the stored next time still caps it
+    const prevNext = nextOf(a);
+    const lastAt = Number(get(a, AT_PROP, 0)) || 0;
+    const ready = alone && lastAt ? Math.min(prevNext, lastAt + Math.max(0, Number(CFG.ropeUnattended.cooldownMinutes) || 0) * 60000) : prevNext;
+    if (ready > Date.now()) return personal(a, `Your wrists are raw. You can struggle again in ${waitText(ready - Date.now())}.`);
+    const round = roundFor(a, watchers.length > 0, alone);
     round.captor = captor;
     round.prevNext = prevNext;
+    round.prevAt = lastAt;
     sessions.set(a, round);
     round.startedAt = nowMs();
     if (!openWidget(a, packetFor(round), true)) { sessions.delete(a); return personal(a, 'That did not work, try again.'); }
-    set(a, NEXT_PROP, Date.now() + Math.max(0, Number(CFG.cooldownMinutes) || 0) * 60000);
+    set(a, NEXT_PROP, Date.now() + Math.max(0, Number(alone ? CFG.ropeUnattended.cooldownMinutes : CFG.cooldownMinutes) || 0) * 60000);
+    set(a, AT_PROP, Date.now());
     const told = captor && captor !== a && online.includes(captor) ? watchers.concat([captor]) : watchers;
     for (const w of told) {
       const text = `${nameOf(a)} is struggling against their bonds.`;
       system(w, text);
       sendPacket(w, { customPacketType: 'dboNotice', text });
     }
-    log(`struggle start ${display(a)} band=${round.half} sweeps=${round.sweeps.join('/')} ${watchers.length ? `watched by ${watchers.map(display).join(', ')}` : 'unwatched'} seed=${round.seed.toString(16)}`);
+    log(`struggle start ${display(a)} band=${round.half} sweeps=${round.sweeps.join('/')} ${watchers.length ? `watched by ${watchers.map(display).join(', ')}` : alone ? 'rope, unattended' : 'unwatched'} seed=${round.seed.toString(16)}`);
     return true;
   };
 
   registerChatCommand('struggle', (a) => { start(a); }, { help: 'try to break free when your hands are bound' });
 
-  // captureSystem calls this when someone is restrained
-  globalThis.__dboOnRestrained = (captive) => {
+  // captureSystem calls this when someone is restrained, with rope true for a rope binding (rope.js)
+  globalThis.__dboOnRestrained = (captive, captor, rope) => {
     if (!CFG.enabled) return;
     const wait = nextOf(captive) - Date.now();
-    personal(captive, `Your hands are bound. Type /struggle to try to break free${wait > 0 ? ` (you can in ${waitText(wait)})` : ''}. It is hard: one slip and the bonds hold.`);
+    personal(captive, rope === true
+      ? `Your hands are tied with rope. Type /struggle to try to break free${wait > 0 ? ` (you can in ${waitText(wait)})` : ''}. It is hard while your captor is near; left alone, the knots loosen.`
+      : `Your hands are bound. Type /struggle to try to break free${wait > 0 ? ` (you can in ${waitText(wait)})` : ''}. It is hard: one slip and the bonds hold.`);
   };
 
   const spend = (a, round) => {
@@ -281,9 +301,9 @@ module.exports = (api) => {
     const moot = !r;
     const carried = !!(r && r.carried && !CFG.whileCarried);
     const clean = !moot && !carried && !v.bad && v.hits >= round.strikes;
-    const held = clean && !(Math.random() < Number(CFG.winChance));
+    const held = clean && !(Math.random() < Number(round.winChance));
     // hits of strikes and pulls taken, the last pull and the report's clock, their lag, and how far off centre the hits were (0 is dead centre)
-    log(`struggle ${v.bad ? `refused(${v.bad})` : moot ? 'moot' : carried ? 'carried' : !clean ? 'lose' : held ? 'held' : 'win'} ${display(a)} ${v.hits}/${round.strikes} of ${v.count} band=${round.half} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`);
+    log(`struggle ${v.bad ? `refused(${v.bad})` : moot ? 'moot' : carried ? 'carried' : !clean ? 'lose' : held ? 'held' : 'win'} ${display(a)}${round.alone ? ' (rope, unattended)' : ''} ${v.hits}/${round.strikes} of ${v.count} band=${round.half} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`);
     if (v.bad === 'precise') audit(`STRUGGLE ${display(a)} report refused: every pull on the centre line (err ${v.err.toFixed(3)}, seed ${round.seed.toString(16)})`);
     if (moot) return conclude(a, round, 'Your hands are already free.');
     if (carried) return finish(a, round, `You were picked up and lost your grip. ${retryText(a)}`, 'lose');
@@ -291,11 +311,11 @@ module.exports = (api) => {
     if (held) return finish(a, round, `You nearly slip free, but the knot holds. ${retryText(a)}`, 'lose');
     if (typeof globalThis.__dboBreakFree !== 'function') {
       log(`struggle win for ${display(a)} not applied: captureSystem has no __dboBreakFree, attempt refunded`);
-      set(a, NEXT_PROP, round.prevNext);
+      set(a, NEXT_PROP, round.prevNext); set(a, AT_PROP, round.prevAt);
       return conclude(a, round, 'Breaking free is unavailable right now. The attempt does not count.');
     }
     if (globalThis.__dboBreakFree(a) !== true) return conclude(a, round, 'Your hands are already free.');
-    audit(`STRUGGLE ${display(a)} broke free${round.captor ? ` of ${display(round.captor)}` : ''}${round.watched ? ' under watch' : ''} (seed ${round.seed.toString(16)}, err ${v.err.toFixed(2)})`);
+    audit(`STRUGGLE ${display(a)} broke free${round.captor ? ` of ${display(round.captor)}` : ''}${round.watched ? ' under watch' : round.alone ? ' (rope, unattended)' : ''} (seed ${round.seed.toString(16)}, err ${v.err.toFixed(2)})`);
     nearbyTell(a, `${nameOf(a)} wrenches free of their bonds!`);
     conclude(a, round, 'You wrench your hands free!');
   });
@@ -304,7 +324,7 @@ module.exports = (api) => {
   const staleUi = (a, round, how) => {
     const refund = get(a, REFUND_PROP, false) !== true;
     set(a, REFUND_PROP, true);
-    if (refund) set(a, NEXT_PROP, round.prevNext);
+    if (refund) { set(a, NEXT_PROP, round.prevNext); set(a, AT_PROP, round.prevAt); }
     log(`struggle stale-ui ${display(a)}: the widget ${how}${refund ? ', attempt refunded' : ''}`);
     conclude(a, round, `Your interface is out of date. Rejoin the server to pick up the new one.${refund ? '' : ` ${retryText(a)}`}`);
   };
@@ -319,5 +339,5 @@ module.exports = (api) => {
     if (spent.has(nonce)) closeWidget(a, WIDGET_ID);
   });
 
-  log(`struggle ${CFG.enabled ? 'on' : 'off'}: ${CFG.strikes} pulls, band ${CFG.band} (${CFG.watchedBand} watched within ${CFG.watchMeters} m), sweep ${CFG.sweepMs} ms x${CFG.speedUp} per pull down to ${CFG.minSweepMs}, ${CFG.seconds}s, one miss fails, a clean round frees ${Math.round(Number(CFG.winChance) * 100)}% of the time, ${CFG.cooldownMinutes} min cooldown${CFG.whileCarried ? '' : ', not while carried'}`);
+  log(`struggle ${CFG.enabled ? 'on' : 'off'}: ${CFG.strikes} pulls, band ${CFG.band} (${CFG.watchedBand} watched within ${CFG.watchMeters} m), sweep ${CFG.sweepMs} ms x${CFG.speedUp} per pull down to ${CFG.minSweepMs}, ${CFG.seconds}s, one miss fails, a clean round frees ${Math.round(Number(CFG.winChance) * 100)}% of the time, ${CFG.cooldownMinutes} min cooldown${CFG.whileCarried ? '' : ', not while carried'}; rope left unattended: band ${CFG.ropeUnattended.band}, ${Math.round(Number(CFG.ropeUnattended.winChance) * 100)}%, ${CFG.ropeUnattended.cooldownMinutes} min`);
 };
