@@ -17,7 +17,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 module.exports = (api) => {
-  const { mp, log, personal, system, registerChatCommand, giveItem, profileOf, display, who, audit, isAdmin, cfg } = api;
+  const { mp, log, personal, system, registerChatCommand, giveItem, profileOf, display, who, audit, isAdmin, cfg, onlineActors, sendPacket } = api;
   const C = Object.assign({ enabled: true, radius: 6000, despawnSeconds: 240, respawnSeconds: 1800, pick: 'mid', maxZones: 4000, campLootMinutes: 60, safeZones: [] }, cfg.wildlife || {});
   const SPAWNS_FILE = path.resolve('NPC-Spawns.json');
   const PREFIX = 'wild:';
@@ -98,6 +98,28 @@ module.exports = (api) => {
     if (Math.random() < 0.2) add(pickFrom(pool('weapons').filter((w) => Number(w.value) <= 300)), 1);
     return out;
   };
+  // A camp chest glows for a player while it holds a roll for them and goes dark while theirs is spent, so a glow always
+  // means something to take (GroundedPasta, #suggestions, 29 Sep: "no way to tell between a chest or barrel that is empty
+  // and one that isn't"). Every other world container outside a dungeon is empty by design, and dungeon chests glow for
+  // the claiming party (dungeons.js). The client keeps the set and lights each ref when it loads (dboGlowService); "on"
+  // for a ref it already has is a no-op, so the whole state is sent again every tick, which also restores it after the
+  // login and dungeon-entry clears (__dboGlowClear).
+  const CAMP_GLOW_MS = 30000;
+  const campGlow = (a) => {
+    if (typeof sendPacket !== 'function' || !campChests.size) return;
+    const loots = lootsOf(a), now = Date.now(), ready = [], spent = [];
+    for (const id of campChests.keys()) (C.enabled && !(Number(loots[id.toString(16)]) > now) ? ready : spent).push(id);
+    try {
+      if (spent.length) sendPacket(a, { customPacketType: 'dboGlow', refs: spent, on: false, kind: 'loot' });
+      if (ready.length) sendPacket(a, { customPacketType: 'dboGlow', refs: ready, on: true, kind: 'loot' });
+    } catch (e) { /* offline */ }
+  };
+  globalThis.__dboCampGlow = campGlow;
+  if (globalThis.__dboCampGlowTimer) clearInterval(globalThis.__dboCampGlowTimer);
+  globalThis.__dboCampGlowTimer = setInterval(() => {
+    let online = []; try { online = typeof onlineActors === 'function' ? onlineActors() : []; } catch (e) { return; }
+    for (const a of online) { try { globalThis.__dboCampGlow(a); } catch (e) { log('camp glow failed', e.message); } }
+  }, CAMP_GLOW_MS);
   const denyAt = new Map();
   globalThis.__dboCampChest = (targetId, casterId) => {
     const hit = campChests.get(targetId);
@@ -109,8 +131,9 @@ module.exports = (api) => {
     for (const k of Object.keys(loots)) if (Number(loots[k]) < Date.now()) delete loots[k];
     loots[targetId.toString(16)] = Date.now() + C.campLootMinutes * 60000;
     try { mp.set(casterId, 'private.campLoot', loots); } catch (e) { log('campLoot save failed', e.message); }
+    campGlow(casterId);
     const got = campLoot().filter((it) => giveItem(casterId, it.id, it.count));
-    personal(casterId, `You rummage through the giants' chest: ${got.map((it) => `${it.count} ${it.name.replace(/([a-z])([A-Z])/g, '$1 $2')}`).join(', ')}.`);
+    personal(casterId, `You rummage through the ${hit.camp.owners || 'giants'}' chest: ${got.map((it) => `${it.count} ${it.name.replace(/([a-z])([A-Z])/g, '$1 $2')}`).join(', ')}.`);
     audit(`CAMP ${who(casterId)} looted ${hit.camp.name}: ${got.map((it) => `${it.count}x ${it.name}`).join(', ')}`);
     return false;
   };

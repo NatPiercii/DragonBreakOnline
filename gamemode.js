@@ -1420,6 +1420,8 @@ const onCharacterReady = (userId, a) => {
     if (globalThis.__dboPlayerMenuReady) globalThis.__dboPlayerMenuReady(a);
     // A lease that ended while the player was offline never told this client to stop glowing
     try { if (globalThis.__dboGlowClear) globalThis.__dboGlowClear(a); } catch (e) { log('glow clear failed', e.message); }
+    // Camp chests with a roll waiting light up again at once instead of on the next 30 s tick (wildlife.js)
+    try { if (globalThis.__dboCampGlow) globalThis.__dboCampGlow(a); } catch (e) { log('camp glow failed', e.message); }
     // Anyone who logs in inside a dungeon they no longer hold is put back outside its entrance
     try { if (globalThis.__dboDungeonLoginCheck) globalThis.__dboDungeonLoginCheck(a); } catch (e) { log('dungeon login check failed', e.message); }
     giveStarterKit(a);
@@ -4265,7 +4267,7 @@ globalThis.__dboSetParty = (actorId, members) => {
 try {
   const WILDLIFE_JS = path.resolve('wildlife.js');
   delete require.cache[WILDLIFE_JS];
-  require(WILDLIFE_JS)({ mp, log, personal, system, registerChatCommand, giveItem, profileOf, display, who, audit, onlineActors, isAdmin, cfg });
+  require(WILDLIFE_JS)({ mp, log, personal, system, registerChatCommand, giveItem, profileOf, display, who, audit, onlineActors, isAdmin, cfg, sendPacket });
 } catch (e) { log('wildlife.js failed to load:', e.stack || e.message); }
 
 // ---- NPCs under the terrain (server\npcground.js, terrain-heights.json copied by hand) ------------
