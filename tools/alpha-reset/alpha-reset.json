@@ -1,9 +1,8 @@
 {
- "_comment": "alpha_reset.py settings, matched by profile and character tag, never by name. playerCharacters: characters on staff profiles that are their owners' own player characters and play in the alpha. notStaff: player accounts that had admin rights during testing (so the audit log shows GM actions from them) but are not staff; they appear in neither staff table. Both are reset like everyone else and every staff grant, theirs included, is taken back (Nate, 2026-09-30).",
- "playerCharacters": [
-  { "tag": "RWPS", "profile": 6, "name": "Velisse Montclair", "by": "Nate, 2026-09-30" }
- ],
+ "_comment": "alpha_reset.py settings, matched by profile and character tag, never by name. playerCharacters: characters on staff profiles that are their owners' own player characters and play in the alpha. notStaff: player accounts that had admin rights during testing (so the audit log shows GM actions from them) but are not staff. An entry without a tag covers the whole account; with a tag, only that character plays and the account's other characters stay staff-only as test characters. Everyone is reset like everyone else and every staff grant, theirs included, is taken back (Nate, 2026-09-30).",
+ "playerCharacters": [],
  "notStaff": [
-  { "profile": 7, "tag": "R4XY", "name": "Nilis Urnum", "by": "Nate, 2026-09-30: a player's character, not staff" }
+  { "profile": 7, "tag": "R4XY", "name": "Nilis Urnum", "whole": true, "by": "Nate, 2026-09-30: a player's character, not staff" },
+  { "profile": 6, "tag": "RWPS", "name": "Velisse Montclair", "whole": false, "by": "Nate, 2026-09-30: a player's character, not staff; Naomi and Goddess Dibella on the same account were test characters and stay staff-only" }
  ]
 }

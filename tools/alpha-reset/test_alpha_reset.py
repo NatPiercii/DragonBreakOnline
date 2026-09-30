@@ -169,8 +169,14 @@ def main():
         check('...and is still reset, its staff grants taken back', hm['removeSpells'] == hero['removeSpells'] and hm['skills'] == hero['skills'])
         check('an entry that matches no character is named', any('Typo' in n and 'no staff character' in n for n in pm['notes']), pm['notes'])
         shipped = ar.load_config()
-        check('the shipped config marks Velisse Montclair a staff member\'s player character and Nilis Urnum\'s account not staff',
-              set(shipped['players']) == {('RWPS', 6)} and set(shipped['notStaff']) == {7}, shipped)
+        check('the shipped config marks Nilis Urnum\'s whole account and only Velisse Montclair on hers as not staff',
+              not shipped['players'] and set(shipped['notStaff']) == {6, 7} and shipped['notStaff'][7].get('whole') is True and shipped['notStaff'][6].get('whole') is False and shipped['notStaff'][6]['tag'] == 'RWPS', shipped)
+        # Only one character of an account plays: the account's other characters stay staff-only as test characters
+        one = ar.plan(ar.World(root), trail, FakeLO(), settings={'players': {}, 'notStaff': {12: {'profile': 12, 'tag': 'ZZZZ', 'whole': False}, 8: {'profile': 8, 'tag': 'HERO', 'whole': False}}})
+        tst = {x['name']: x for x in one['staff']}
+        check('with a tag, only that character leaves the staff list; another on the account stays, as a test character',
+              'Hero' not in tst and 'Testy' in tst and 'a test character on a player account that had admin while testing' in tst['Testy']['why'] and [x['characters'] for x in one['notStaff'] if x['profile'] == 8] == [['Hero #HERO']], {'staff': one['staff'], 'notStaff': one['notStaff']})
+        check('...and a tagged entry with no such character is named', any('ZZZZ' in n for n in one['notes']), one['notes'])
         # A player account that had admin while testing: out of both staff tables, its grants still taken back
         ns = ar.plan(ar.World(root), trail, FakeLO(), settings={'players': {}, 'notStaff': {8: {'profile': 8, 'name': 'Hero', 'by': 'Nate'}}})
         hn = [c for c in ns['characters'] if c['name'] == 'Hero'][0]

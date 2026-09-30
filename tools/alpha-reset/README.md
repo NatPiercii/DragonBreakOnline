@@ -52,15 +52,19 @@ nothing back twice: taking a skill that went 35 → 5 back again would leave it 
    - every character of a staff profile, meaning a profile with GM actions on record or a character flagged admin at
      a login;
    - any character named as a test or GM character.
-   A staff member's own player character is listed in `alpha-reset.json` (`playerCharacters`, by character tag and
-   profile, never by name) and moves to its own table, "Staff members' own player characters", as allowed to play in
-   the alpha. It is still reset like everyone else, with its staff grants taken back. Nate marked
-   **Velisse Montclair #RWPS** (profile 6) as one (2026-09-30).
-   A player account that had admin rights while testing is listed under `notStaff` (by profile) and is in neither
-   staff table. It gets a table of its own, "Players who had admin rights while testing", with its admin panel actions
-   on record; those grants are taken back like any staff grant. Nate: **Nilis Urnum #R4XY** (profile 7) is a player's
-   character, not staff (87 admin panel actions, 25-28 Sep). An entry that matches no character is named in the report,
-   so a mistyped tag or profile shows.
+   A staff member's own player character goes in `alpha-reset.json` under `playerCharacters` (by character tag and
+   profile, never by name). It then moves to a table of its own as allowed to play, and is still reset with its staff
+   grants taken back. There are none as of 2026-09-30.
+   A player account that had admin rights while testing goes under `notStaff`, by profile:
+   - With `whole: true`, all its characters play.
+   - With `whole: false` and a tag, only that character plays, and the account's other characters stay staff-only
+     as test characters.
+   These accounts get their own table, "Players who had admin rights while testing", with their admin panel actions
+   on record. Those grants are taken back like any staff grant. Nate (2026-09-30):
+   - **Nilis Urnum #R4XY** (profile 7) is a player's character, not staff: 87 panel actions, 25-28 Sep, whole account.
+   - **Velisse Montclair #RWPS** (profile 6) is a player's character, not staff. Naomi #HQHK and Goddess Dibella #NRD9,
+     on the same account, were test characters and stay staff-only. The account made 78 panel actions, 22-26 Sep.
+   An entry that matches no character is named in the report, so a mistyped tag or profile shows.
 4. **Treasuries go back to the 10,000 seed.**
 
 ## The dry run (30 Sep, sandbox of the live world)
@@ -119,8 +123,8 @@ The tool refuses the live folders in three cases: without `--live`, while `skymp
 | File | What |
 |---|---|
 | `alpha_reset.py` | `grants`, `plan`, `apply`. Standard library plus ck-mcp/esplib.py (names and record types from the load order) |
-| `alpha-reset.json` | Settings: `playerCharacters` (a staff profile's own player character) and `notStaff` (player accounts that had admin while testing) |
-| `test_alpha_reset.py` | 49 checks on a small world in a temp folder, with a fake load order: the trail parser, the plan, apply, a second run, the refusals |
+| `alpha-reset.json` | Settings: `playerCharacters` (a staff profile's own player character) and `notStaff` (player accounts that had admin while testing, whole or one character) |
+| `test_alpha_reset.py` | 51 checks on a small world in a temp folder, with a fake load order: the trail parser, the plan, apply, a second run, the refusals |
 
 The staff trail comes from `/var/log/skymp-server.log*`, rotations and `.gz` included. They are kept 8 weeks, so all
 of it (from 21 Sep, when the world moved to CT 115) is still there on 13 Oct. `grants` saves it as JSON either way.

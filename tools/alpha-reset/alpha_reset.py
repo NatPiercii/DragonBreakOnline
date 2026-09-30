@@ -51,6 +51,7 @@ def load_config(path=CONFIG):
     players = {}
     for x in cfg.get('playerCharacters') or []:
         players[(str(x['tag']), int(x['profile']))] = x
+    # profile -> entry; 'whole' false: only the character with that tag plays, the account's others stay staff-only
     not_staff = {int(x['profile']): x for x in cfg.get('notStaff') or []}
     return {'players': players, 'notStaff': not_staff}
 
@@ -471,16 +472,20 @@ def plan(world, trail, lo, seed_default=10000, settings=None):
     # every character on it is listed with why, and a character named for testing is listed whatever its profile
     # A player account that had admin rights while testing (notStaff) is not a staff profile, whatever it did
     not_staff = settings['notStaff']
-    gm_profiles = {g['gmProfile'] for g in trail['grants'] if 'gmProfile' in g} - set(not_staff)
+    whole = {p for p, x in not_staff.items() if x.get('whole', True) is not False}
+    exempt = {(str(x.get('tag')), p) for p, x in not_staff.items() if x.get('tag')}
+    gm_profiles = {g['gmProfile'] for g in trail['grants'] if 'gmProfile' in g} - whole
     gm_tags = {g['gmTag'] for g in trail['grants'] if 'gmTag' in g}
-    admin_profiles = {d.get('profileId') for d in world.chars.values() if (d.get('dynamicFields') or {}).get('isAdmin') is True} - set(not_staff)
+    admin_profiles = {d.get('profileId') for d in world.chars.values() if (d.get('dynamicFields') or {}).get('isAdmin') is True} - whole
     staff, players = [], []
     for n, d in world.chars.items():
         df = d.get('dynamicFields') or {}
         why = []
-        if d.get('profileId') in not_staff:
+        if d.get('profileId') in whole or (tag_of(d), d.get('profileId')) in exempt:
             continue
-        if d.get('profileId') in gm_profiles:
+        if d.get('profileId') in not_staff:
+            why.append('a test character on a player account that had admin while testing')
+        elif d.get('profileId') in gm_profiles:
             why.append('staff profile (GM actions on record)')
         elif d.get('profileId') in admin_profiles:
             why.append('staff profile (admin at a login)')
@@ -511,11 +516,11 @@ def plan(world, trail, lo, seed_default=10000, settings=None):
             out['notes'].append(f'alpha-reset.json lists {x.get("name")} #{key[0]} (profile {key[1]}) as a player character, but no staff character has that tag and profile.')
     out['notStaff'] = []
     for prof, x in sorted(not_staff.items()):
-        mine = [d for d in world.chars.values() if d.get('profileId') == prof]
+        mine = [d for d in world.chars.values() if d.get('profileId') == prof and (prof in whole or tag_of(d) == str(x.get('tag')))]
         panel = sum(1 for g in trail['grants'] if g.get('gmProfile') == prof)
         out['notStaff'].append({'profile': prof, 'characters': [f'{name_of(d)} #{tag_of(d)}' for d in mine], 'panelActions': panel, 'by': x.get('by') or 'alpha-reset.json'})
         if not mine:
-            out['notes'].append(f'alpha-reset.json lists profile {prof} ({x.get("name")}) as not staff, but it has no character.')
+            out['notes'].append(f'alpha-reset.json lists profile {prof} ({x.get("name")}{" #" + str(x.get("tag")) if x.get("tag") else ""}) as not staff, but no such character exists.')
     return out
 
 
@@ -706,7 +711,7 @@ def report(p, lo, path, applied=None):
         L.append('')
         L.append('Player accounts (alpha-reset.json notStaff). They are in neither staff table. What they granted with the admin panel is taken back like any staff grant, and they are reset like everyone else.')
         L.append('')
-        L.append('| Profile | Characters | Admin panel actions on record | Marked by |')
+        L.append('| Profile | Characters who play | Admin panel actions on record (the whole account) | Marked by |')
         L.append('|---|---|---|---|')
         for x in p['notStaff']:
             L.append(f'| {x["profile"]} | {", ".join(x["characters"]) or "none"} | {x["panelActions"]} | {x["by"]} |')
