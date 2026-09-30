@@ -14,7 +14,7 @@ play on top. It needs more than plain Skyrim, above all **memory**.
 | Graphics card | 6 GB of video memory (GeForce GTX 1060 6 GB, Radeon RX 580 8 GB or better) | 8 GB or more (GeForce RTX 2070, Radeon RX 6700 XT or better) |
 | Processor | 4 cores (Intel Core i5-4590, AMD Ryzen 3 1300X or better) | 6 cores or more (Intel Core i5-10400, AMD Ryzen 5 3600 or better) |
 | Disk | An SSD with at least 60 GB free for Skyrim and the collection | An NVMe SSD with 100 GB free |
-| Game | Skyrim Special Edition on Steam (game version 1.6.1170) or GOG (1.6.1179); the launcher checks it. Epic and Microsoft Store copies cannot run SKSE | The same; the Anniversary Edition upgrade is not needed |
+| Game | Skyrim Special Edition on Steam (game version 1.6.1170); the launcher checks it. GOG (1.6.1179) is untested. Epic and Microsoft Store copies cannot run SKSE | The same; the Anniversary Edition upgrade is not needed |
 | Internet | A steady broadband connection | The same, wired rather than Wi-Fi |
 
 ## Why so much memory

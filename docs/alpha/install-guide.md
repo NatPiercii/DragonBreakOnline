@@ -9,8 +9,9 @@ copy of Skyrim, installs the mods and the multiplayer client into it, and starts
 
 - **A Windows PC.**
 - **Skyrim Special Edition on Steam.** You don't need the Anniversary Edition upgrade.
-  - The **GOG** edition works too.
-  - The **Epic Games** and **Microsoft Store / Game Pass** editions can't be used.
+  - The **GOG** edition is **untested**. The launcher accepts a GOG copy on version 1.6.1179, but we haven't
+    confirmed the game itself runs on it. Use Steam if you can.
+  - The **Epic Games** and **Microsoft Store / Game Pass** editions can't be used: SKSE can't run on them.
 - **A Discord account**, and a place in the DragonBreak Discord (step 2).
 - **A Nexus Mods account.** A free account works. Nexus Premium lets the launcher download the mods by itself.
 - **Disk space:** **[NATE: total for Skyrim, the launcher's game copy and the mods]**
@@ -18,7 +19,9 @@ copy of Skyrim, installs the mods and the multiplayer client into it, and starts
 
 ## 1. Install Skyrim Special Edition
 
-Install Skyrim Special Edition from Steam as usual.
+1. Install Skyrim Special Edition from Steam as usual.
+2. **Start it once from Steam, reach the main menu, then quit.** This creates Skyrim's settings files. Until they
+   exist, the launcher says **Skyrim has never been launched**.
 
 ## 2. Join the Discord and get access
 
@@ -31,6 +34,7 @@ The launcher signs you in with Discord and checks this role when you join the se
 
 1. Download the launcher from **dragonbreakonline.com**, run the installer, and open the launcher.
 2. Click **Discord Login** at the top. Your browser opens. Approve the sign-in there, then go back to the launcher.
+   The top bar then shows your Discord name. If it says the login timed out, click **Discord Login** again.
 
 The launcher updates itself when it starts, so you always have the newest version.
 
@@ -39,8 +43,9 @@ The launcher updates itself when it starts, so you always have the newest versio
 1. Click the gear at the top, then the **Repair** tab.
 2. **Skyrim Installation Path:** click **Detect**. If it finds nothing, click **Browse…** and pick the folder that
    holds `SkyrimSE.exe`.
-3. **Install Location:** this is where the launcher keeps its copy of the game and the mods. Pick a drive with
-   enough free space.
+3. **Install Location:** this is where the launcher keeps its copy of the game and the mods (`C:\DragonBreak` unless
+   you choose another). Pick a drive with enough free space, and not a folder inside Skyrim's own folder: the
+   launcher refuses that. Your Steam copy of Skyrim is never changed.
 
 ## 5. Put Skyrim on version 1.6.1170
 
@@ -69,13 +74,11 @@ DragonBreak runs on Skyrim **1.6.1170**. Steam now installs a newer version, so 
 **Changed your mind?** The same panel has **Restore my previous Skyrim files**, and **Let Steam repair Skyrim**,
 which updates Skyrim to its newest version again. DragonBreak won't start again until you downgrade.
 
-**GOG edition:** GOG's matching version is **1.6.1179**. If yours is on another one, roll it back in GOG Galaxy
-(**Manage installation > Configure > Version**).
+**GOG edition (untested):** the launcher expects GOG's version **1.6.1179**. If yours is on another one, it asks
+you to roll it back in GOG Galaxy (**Manage installation > Configure > Version**).
 
-### Until 2.1.35 is out
-
-The launcher shows a **Wrong Skyrim version** message with a button to the **Reliquary** downgrade tool on
-Nexus Mods. Follow its instructions, then come back to the launcher.
+**Still on launcher 2.1.34?** It shows **Wrong Skyrim version** with an **Open downgrade page** button: follow the
+downgrade tool there, then press Play again.
 
 ## 6. Get the mods
 
@@ -108,11 +111,50 @@ those itself.
 
 Welcome to DragonBreak Online.
 
+## Repair
+
+The gear > **Repair** fixes a broken install without starting over. Each button puts one part back:
+
+| Button | Fixes |
+|---|---|
+| **Repair MO2** | Mod Organizer itself (your mods and downloads are kept) |
+| **Repair Game Copy** | The launcher's copy of Skyrim |
+| **Repair SKSE** | The Skyrim Script Extender |
+| **Repair Client Files** | The DragonBreak game client |
+| **Repair Modlist** | Every mod, rebuilt from the list |
+| **Repair All** | All of the above, in order |
+| **Check Files** | Only looks: lists anything missing, damaged or out of date, and which button fixes it |
+
+**Uninstall** removes the launcher's DragonBreak folder. Your Steam copy of Skyrim is not touched.
+
 ## If something goes wrong
+
+| What you see | What to do |
+|---|---|
+| **Skyrim has never been launched** | Start Skyrim once from Steam, reach the main menu, quit, then open the launcher again |
+| **Could not auto-detect Skyrim** | The gear > **Repair** > **Skyrim Installation Path**: **Detect**, or **Browse…** to the folder that holds `SkyrimSE.exe` |
+| The wrong Skyrim version | Put it on 1.6.1170 (step 5) |
+| **You are not on the server whitelist** | Check you signed in with the Discord account that is in the DragonBreak Discord and has the role (step 2) |
+| **Your Discord login has expired** | Click **Discord Login** again, then **PLAY** |
+| A box about **Community Shaders** at the main menu, and the mouse does nothing | Fixed since client 0.3.59: let the launcher update (the button shows **UPDATE**), then play again |
+| The mouse is stuck in the middle of menus, or opening a chest closes the game | Fixed in launcher **2.1.34**: let the launcher update itself, then press **PLAY**; it repairs the controls by itself |
+| **Skyrim did not start** | Check Mod Organizer for an error, then press **PLAY** again. If it keeps happening, run **Check Files** |
+| **The Engine Fixes preloader dll is missing** | Your antivirus probably removed it. Press **PLAY** (it shows **UPDATE**) to put it back, and allow the DragonBreak folder in your antivirus |
+| Buildings, stalls or plants look purple or are missing | Some of Skyrim's archives are missing: let Steam verify Skyrim's files, put it back on 1.6.1170 if that updated it, then **Repair Game Copy** |
+| Anything else | The gear > **Troubleshooting** > **Report a Problem** sends your logs to staff. Add a short note of what happened. Tick **Keep this private** for anything personal |
 
 - The gear > **Repair** > **Check Files** lists anything missing or broken, and which Repair button fixes it,
   without changing anything.
 - The install log is under the progress on the **Repair** tab. **Copy Log** and paste it in Discord when you ask for
-  help.
-- If the game closes or won't start: the gear > **Troubleshooting** > **Report a Problem**.
+  help. If you're asked for it as a file, it's `%APPDATA%\DragonBreak Online Launcher\install.log`.
 - See **Known issues** for problems we already know about.
+
+**Controllers:** the launcher turns controller support off, because a controller left on hides the mouse cursor in
+menus. Play with mouse and keyboard.
+
+_For staff: the messages and buttons above were checked against the launcher source on 30 September (released
+2.1.34, tag `launcher-v2.1.34`, and the 2.1.35 branch `launcher-downgrade-2135`). "Wrong Skyrim version" and "Open
+downgrade page" are 2.1.34's; 2.1.35 opens the Skyrim Version panel instead. **GOG is untested**: the launcher accepts
+a GOG copy on 1.6.1179.0 and fetches SKSE's GOG build, but the client package ships Address Library tables only for
+Steam builds (1.6.1170 and older) and the modlist does not pin which Address Library file comes from Nexus, while
+SkyrimPlatform finds the game's code through those tables. Change the GOG lines once a GOG install has been tested._
