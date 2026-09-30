@@ -1,5 +1,6 @@
 // Scripted test for server\spells.js: loads the real module with a mock gamemode api and walks the spell study gate
 // (study point, skill taken up, rank by tier), the runtime classification of a tome missing from spell-tomes.json, the
+// the Study Magic activators as study points once their plugin is live (Nate, 2026-09-30), the
 // spellbook and its 3 prepared spells (changed only at a magic college; Nate, 2026-09-28), bringing an existing
 // character over, /teach between two players, and the Synod tome shop panel.
 // No server and no game: run it from this folder's parent with
@@ -47,7 +48,7 @@ Date.now = () => wallClock;
 const DAY = 86400000;
 
 // Exact plugin-name matching, like the server's FormDesc::ToFormId
-const PLUGINS = { 'Skyrim.esm': 0x00, 'Dawnguard.esm': 0x02, 'HearthFires.esm': 0x03, 'Dragonborn.esm': 0x04, 'BSAssets.esm': 0x0a, 'BSHeartland.esm': 0x0b, 'ccBGSSSE025-AdvDSGS.esm': 0x09, 'Gray Fox Cowl.esm': 0x30 };
+const PLUGINS = { 'Skyrim.esm': 0x00, 'Dawnguard.esm': 0x02, 'HearthFires.esm': 0x03, 'Dragonborn.esm': 0x04, 'BSAssets.esm': 0x0a, 'BSHeartland.esm': 0x0b, 'ccBGSSSE025-AdvDSGS.esm': 0x09, 'Gray Fox Cowl.esm': 0x30, 'DragonBreak Online Edits.esp': 0x3c };
 const BY_INDEX = Object.fromEntries(Object.entries(PLUGINS).map(([k, v]) => [v, k]));
 const idOf = (d) => { const [hex, plugin] = String(d).split(':'); if (!(plugin in PLUGINS)) throw new Error(`no plugin ${plugin}`); return ((PLUGINS[plugin] << 24) | parseInt(hex, 16)) >>> 0; };
 const descOf = (id) => { const p = BY_INDEX[id >>> 24]; if (!p) throw new Error('no plugin'); return `${(id & 0xffffff).toString(16)}:${p}`; };
@@ -372,6 +373,41 @@ check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHE
   check('...and the take-up is audited', out.audits.some((l) => /SPELL P18 took up arcane by reading 9e2a9:Skyrim.esm/.test(l)), out.audits.slice(-3));
   check('a second Novice tome does not ask again', (await read(NEW, T.flames)) !== false && calls.length === 2 && studied(NEW, 'arcane').length === 2);
   delete globalThis.__alduinakMasteryFirstTouch;
+}
+
+// ---- the Study Magic activators are the study points once their plugin is live (Nate, 2026-09-30) ----
+{
+  const STUDY_MAGIC = '1636c2:DragonBreak Online Edits.esp';
+  const FROST_CRAG = '6ff7d:BSHeartland.esm';
+  const points = JSON.parse(fs.readFileSync('skills.json', 'utf8')).spellStudyPoints;
+  const gen = points.filter((p) => p.requires === STUDY_MAGIC);
+  check('skills.json holds the generated Study Magic places, and the older points give way to them', gen.length >= 2 && gen.every((p) => p.places.length && p.radiusMeters)
+    && points.filter((p) => !p.requires).every((p) => p.until === STUDY_MAGIC), points.map((p) => [p.name, p.requires, p.until]));
+  const synod = gen.find((p) => p.cell === SYNOD), crag = gen.find((p) => p.cell === FROST_CRAG);
+  const spot = synod.places[0].pos;
+  const R = synod.radiusMeters * 70;
+  RECORDS[idOf(STUDY_MAGIC)] = { type: 'ACTI', editorId: 'StudyMagic', fields: [] };
+  out.logs.length = 0;
+  load();
+  check('with the activators in the load order only they count', out.logs.some((l) => new RegExp(`spells on: \\d+ tomes known, ${gen.length} study point\\(s\\)`).test(l)), out.logs);
+  const SM = 0x19; online.push(SM); mastery(SM, { arcane: 1, priest: 1 });
+  at(SM, SYNOD, [spot[0] + R + 70, spot[1], spot[2]]);
+  check('the Synod Conclave away from any activator is no longer a study point', (await read(SM, T.frostbite)) === false
+    && /spell study point: Study Magic in the Synod Conclave in Bruma, Study Magic in Frost Crag Spire/.test(said(SM)) && !/well in the Hall/.test(said(SM)), said(SM));
+  at(SM, SYNOD, [spot[0] + R - 20, spot[1], spot[2]]);
+  check('...within radiusMeters of an activator it is', (await read(SM, T.frostbite)) !== false && studied(SM, 'arcane').length === 1, said(SM));
+  at(SM, SYNOD_BASEMENT, [900, 900, 0]);
+  check('the basement has no activator: not a study point any more', (await read(SM, T.sparks)) === false && studied(SM, 'arcane').length === 1);
+  at(SM, HALL, [0, 0, 0]);
+  check('nor is the well in the Hall of the Elements', (await read(SM, T.sparks)) === false);
+  at(SM, FROST_CRAG, crag.places[0].pos);
+  check('Frost Crag Spire\'s activator is', (await read(SM, T.sparks)) !== false && studied(SM, 'arcane').length === 2);
+  at(SM, BRUMA, spot);
+  check('the same position in another cell is not', (await read(SM, T.boundSword)) === false);
+  delete RECORDS[idOf(STUDY_MAGIC)];
+  out.logs.length = 0;
+  load();
+  check('without the plugin the older points hold again', out.logs.some((l) => /spells on: \d+ tomes known, 2 study point\(s\)/.test(l)), out.logs);
 }
 
 console.log(`\n${checks - failures}/${checks} passed`);

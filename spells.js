@@ -100,17 +100,33 @@ module.exports = (api) => {
   };
 
   // ---- study points ----------------------------------------------------------------------------------
-  const STUDY_POINTS = (Array.isArray(SKILLS_JSON.spellStudyPoints) ? SKILLS_JSON.spellStudyPoints : []).map((p) => ({
-    name: String(p.name || 'a spell study point'),
-    cells: new Set([].concat(p.cells || [], p.cell ? [p.cell] : []).map(norm)),
-    refr: p.refr ? String(p.refr) : null,
-    radius: Number(p.radiusMeters) || 6,
-    schools: Array.isArray(p.schools) ? p.schools : Object.keys(AV_SCHOOL).map((k) => AV_SCHOOL[k]),
-  }));
+  // An entry of skills.json spellStudyPoints is `cells` (or `cell`) alone: anywhere in them; `cell` + `refr`: within
+  // radiusMeters of that reference; or `cell` + `places` [{ refr, pos }]: within radiusMeters of any of them, measured
+  // from the plugin position (tools/spells/study_points.py writes these for the Study Magic activators, so a reference
+  // nobody has loaded still counts). `requires` (a record desc): the entry counts only when that record is in the load
+  // order; `until`: only while it is not. The Study Magic activators replace the older points that way (Nate,
+  // 2026-09-30: "make StudyMagic activators the study points"), and the older ones hold until the plugin with them is live.
+  const UNITS_PER_METER = 70; // as gamemode.js
+  const inLoadOrder = (desc) => { try { const id = idOf(desc); const r = id ? mp.lookupEspmRecordById(id) : null; return !!(r && r.record); } catch (e) { return false; } };
+  const STUDY_POINTS = (Array.isArray(SKILLS_JSON.spellStudyPoints) ? SKILLS_JSON.spellStudyPoints : [])
+    .filter((p) => p && (!p.requires || inLoadOrder(p.requires)) && (!p.until || !inLoadOrder(p.until))).map((p) => ({
+      name: String(p.name || 'a spell study point'),
+      cells: new Set([].concat(p.cells || [], p.cell ? [p.cell] : []).map(norm)),
+      refr: p.refr ? String(p.refr) : null,
+      places: Array.isArray(p.places) ? p.places.filter((q) => q && Array.isArray(q.pos) && q.pos.length === 3).map((q) => q.pos.map(Number)) : null,
+      radius: Number(p.radiusMeters) || 6,
+      schools: Array.isArray(p.schools) ? p.schools : Object.keys(AV_SCHOOL).map((k) => AV_SCHOOL[k]),
+    }));
+  const nearPlace = (a, p) => {
+    const pos = get(a, 'pos', null);
+    return Array.isArray(pos) && p.places.some((q) => Math.hypot(pos[0] - q[0], pos[1] - q[1], pos[2] - q[2]) / UNITS_PER_METER <= p.radius);
+  };
   const studyPointAt = (a, school) => {
     const cell = norm(get(a, 'worldOrCellDesc', ''));
-    return STUDY_POINTS.find((p) => p.cells.has(cell) && (!school || p.schools.includes(school)) && (!p.refr || distanceMeters(a, idOf(p.refr)) <= p.radius)) || null;
+    return STUDY_POINTS.find((p) => p.cells.has(cell) && (!school || p.schools.includes(school))
+      && (p.places ? nearPlace(a, p) : !p.refr || distanceMeters(a, idOf(p.refr)) <= p.radius)) || null;
   };
+  const studyPointNames = (school) => [...new Set(STUDY_POINTS.filter((p) => p.schools.includes(school)).map((p) => (p.places ? `Study Magic in ${p.name.replace(/^The /, 'the ')}` : p.name)))].join(', ');
 
   // ---- spells and tomes ------------------------------------------------------------------------------
   const lookup = (id) => { try { const r = id ? mp.lookupEspmRecordById(id >>> 0) : null; return r && r.record ? r : null; } catch (e) { return null; } };
@@ -308,7 +324,7 @@ module.exports = (api) => {
     }
     const why = slotRefusal(a, tome, 'You have');
     if (why) return refuse(why);
-    if (!studyPointAt(a, tome.school)) return refuse(`a tome is studied at a spell study point: ${STUDY_POINTS.filter((p) => p.schools.includes(tome.school)).map((p) => p.name).join(', ') || 'none is set'}.`);
+    if (!studyPointAt(a, tome.school)) return refuse(`a tome is studied at a spell study point: ${studyPointNames(tome.school) || 'none is set'}.`);
     const skill = bookSkillFor(a, tome);
     return {
       // Runs after the engine's OnFireSuccess, which skips spells the actor's race or base already grants
