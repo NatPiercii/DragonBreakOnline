@@ -166,13 +166,13 @@ check('Close with a stale nonce does nothing', closed.length === 0);
 now = realNow() + 0; Date.now = () => now;
 globalThis.__dboJournalRequest(P);
 fire('journalClose', P, [nonceOf(P)]);
-check('Close closes widget 50 and stops the page-turn it began', closed.some(([a, id]) => a === P && id === 50) && sent.some(([a, q]) => a === P && q.customPacketType === 'dboIdleStop'));
+check('Close closes widget 50 and stops the page-turn it began, by name', closed.some(([a, id]) => a === P && id === 50) && sent.some(([a, q]) => a === P && q.customPacketType === 'dboIdleStop' && q.anim === 'IdleBook_PageTurn'));
 check('...and the journal is no longer open', globalThis.__dboJournalIsOpen(P) === false);
 sent.length = 0;
 globalThis.__dboJournalRequest(P);
 now += 11000;
 fire('close', P, [], 50);
-check('Escape (the relay\'s close for widget 50) ends it; past the 10 s idle, no stop is sent', globalThis.__dboJournalIsOpen(P) === false && !sent.some(([, q]) => q.customPacketType === 'dboIdleStop'));
+check('Escape (the relay\'s close for widget 50) ends it and stops the held page-turn however long it has run', globalThis.__dboJournalIsOpen(P) === false && sent.some(([a, q]) => a === P && q.customPacketType === 'dboIdleStop'));
 globalThis.__dboJournalRequest(P);
 fire('close', P, [], 37);
 check('a close of another widget leaves the journal open', globalThis.__dboJournalIsOpen(P) === true);
@@ -192,7 +192,8 @@ check('a hot reload keeps the open journal and its nonce', docs.get(P).profile.t
 const js = fs.readFileSync('journalstats.js', 'utf8');
 check('journalstats.js gives the numbers (__dboStatsData) and the character file (__dboJournalDoc)', /globalThis\.__dboStatsData = \(a\) =>/.test(js) && /globalThis\.__dboJournalDoc = \{ of: \(a\) => statsOf\(a\), touch: \(a\) => touch\(a\) \};/.test(js));
 const idl = fs.readFileSync('idles.js', 'utf8');
-check('idles.js plays IdleBook_PageTurn (the allowlisted event of IdleBook_TurnManyPages) for 10 s', /journal: \{ anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false \}/.test(idl));
+check('idles.js plays IdleBook_PageTurn (the allowlisted event of IdleBook_TurnManyPages), 10 s, held where the client knows hold', /journal: \{ anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false, hold: true \}/.test(idl)
+  && /def\.hold === true \? \{ hold: true \} : \{\}/.test(idl));
 check('schools.js reads the primary school without making a menu nonce', /globalThis\.__dboSchoolsPrimary = \(a\) => \{ try \{ return ready\(a\) \? String\(stateOf\(a\)\.primary/.test(fs.readFileSync('schools.js', 'utf8')));
 // naming.js's prose filter, run for real against a scratch name-filter.json
 {
