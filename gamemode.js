@@ -1478,11 +1478,59 @@ if (!(globalThis.__dboCreation instanceof Map)) globalThis.__dboCreation = new M
 const creation = globalThis.__dboCreation;
 const worldIdOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
 const setFade = (a, on) => sendPacket(a, { customPacketType: 'dboFade', on: !!on });
+// Where new characters stand in the Realm while they make themselves (Nate, 2026-09-30: nobody made inside someone else).
+// The marker, a ring of 6 at 120 units and a ring of 12 at 240, on the flat ground around it: its terrain is 0 for 300
+// units, water -512, and no plugin places anything within 450 (checked in DragonBreak Hub.esp and every plugin that
+// masters it). The first spot with nobody within 105 units (1.5 m) and not promised to another arrival, else the least
+// crowded. The move is made before RaceMenu opens, never with it open.
+const CREATOR_SPOTS = [[0, 0]].concat(...[[6, 120], [12, 240]].map(([n, r]) => Array.from({ length: n }, (_, i) =>
+  [Math.round(r * Math.cos((2 * Math.PI * i) / n)), Math.round(r * Math.sin((2 * Math.PI * i) / n))])))
+  .map(([dx, dy]) => [HUB.pos[0] + dx, HUB.pos[1] + dy, HUB.pos[2]]);
+const CREATOR_SPACING = 105;
+const CREATOR_PLACE_MS = 2500;
+const CREATOR_HOLD_MS = 30000;
+// spot index -> { a, until }: a spot promised to a player whose move may not have landed yet
+const creatorSpotHeld = globalThis.__dboCreatorSpots instanceof Map ? globalThis.__dboCreatorSpots : (globalThis.__dboCreatorSpots = new Map());
+const creatorPlacedAt = globalThis.__dboCreatorPlacedAt instanceof Map ? globalThis.__dboCreatorPlacedAt : (globalThis.__dboCreatorPlacedAt = new Map());
+const creatorSpotRelease = (a) => { for (const [i, h] of creatorSpotHeld) if (h.a === (a >>> 0)) creatorSpotHeld.delete(i); creatorPlacedAt.delete(a >>> 0); };
+const creatorSpotFor = (a) => {
+  const now = Date.now();
+  const others = [];
+  for (const p of onlineActors()) {
+    if ((p >>> 0) === (a >>> 0) || !inHub(p)) continue;
+    try { const q = mp.get(p, 'pos'); if (Array.isArray(q)) others.push(q); } catch (e) { /* gone */ }
+  }
+  let best = 0, bestGap = -1;
+  for (let i = 0; i < CREATOR_SPOTS.length; i++) {
+    const s = CREATOR_SPOTS[i];
+    const h = creatorSpotHeld.get(i);
+    if (h && h.a !== (a >>> 0) && h.until > now) continue;
+    const gap = others.reduce((m, q) => Math.min(m, Math.hypot(q[0] - s[0], q[1] - s[1])), Infinity);
+    if (gap >= CREATOR_SPACING) { best = i; bestGap = Infinity; break; }
+    if (gap > bestGap) { bestGap = gap; best = i; }
+  }
+  creatorSpotRelease(a);
+  creatorSpotHeld.set(best, { a: a >>> 0, until: now + CREATOR_HOLD_MS });
+  return CREATOR_SPOTS[best];
+};
+// true when a move was made (the creator then opens once it has landed)
+const placeInCreatorSpot = (a) => {
+  const spot = creatorSpotFor(a);
+  try {
+    const p = mp.get(a, 'pos');
+    if (Array.isArray(p) && Math.hypot(p[0] - spot[0], p[1] - spot[1]) < 30) return false;
+    mp.set(a, 'locationalData', { cellOrWorldDesc: HUB.cellOrWorldDesc, pos: spot, rot: HUB.rot });
+    creatorPlacedAt.set(a >>> 0, Date.now());
+    return true;
+  } catch (e) { log('creator spot move failed', e.message); return false; }
+};
 const openCreator = (a) => {
   try {
     if (mp.get(a, 'isOnline') === false) return;
     if (!creationPending(a)) { creation.delete(a); setFade(a, false); return; }
     if (creation.get(a) === 'open') return;
+    // A move to a creator spot is still landing: its own timer opens the creator
+    if (Date.now() - (creatorPlacedAt.get(a >>> 0) || 0) < CREATOR_PLACE_MS) return;
     creation.set(a, 'open');
     setFade(a, false);
     mp.setRaceMenuOpen(a, false);
@@ -1537,7 +1585,10 @@ const sendToArrival = (a) => {
     if (here !== String(HUB.cellOrWorldDesc).toLowerCase()) return;
     mp.set(a, 'locationalData', LANDING_LOC);
     creation.delete(a);
+    creatorSpotRelease(a);
     setFade(a, false);
+    // The creator's noon ends with the Realm
+    try { if (globalThis.__dboClock) globalThis.__dboClock.sendTo(a); } catch (e) { /* the next broadcast */ }
     log(`sent ${display(a)} from the Realm to the arrival`);
   } catch (e) { log('send to arrival failed', e.message); }
 };
@@ -2251,6 +2302,11 @@ onUi('arrived', (a, args) => {
   const stage = creation.get(a);
   if (world === worldIdOf(HUB.cellOrWorldDesc) && (stage === 'spawning' || stage === 'hub')) {
     log(`${display(a)} arrived in the hub${stage === 'spawning' ? ' straight from the spawn' : ''}`);
+    if (placeInCreatorSpot(a)) {
+      creation.set(a, 'placed');
+      setTimeout(() => { creatorPlacedAt.delete(a >>> 0); openCreator(a); }, CREATOR_PLACE_MS);
+      return;
+    }
     openCreator(a);
   } else if (world === worldIdOf(LANDING.world) && stage === 'landing') {
     log(`${display(a)} arrived at the landing`);
@@ -4966,7 +5022,8 @@ registerChatCommand('announce', (a, args) => {
 try {
   const WORLDCLOCK_JS = path.resolve('worldclock.js');
   delete require.cache[WORLDCLOCK_JS];
-  require(WORLDCLOCK_JS)({ mp, log, personal, system, registerChatCommand, sendPacket, onlineActors, every, zoneOfActor, audit, who, cfg });
+  require(WORLDCLOCK_JS)({ mp, log, personal, system, registerChatCommand, sendPacket, onlineActors, every, zoneOfActor, audit, who, cfg,
+    inCreator: (a) => creationPending(a) || (creation.has(a >>> 0) && inHub(a)) });
 } catch (e) { log('worldclock.js failed to load:', e.stack || e.message); globalThis.__dboClock = null; }
 
 // ---- launcher Server Stats: online, races, gold held (server\worldstats.js -> server-stats.json) ----

@@ -18,6 +18,8 @@ module.exports = (api) => {
     // the vanilla game's 4E 201, which this clock used to start from (/time said 4E 201)
     startYear: 211,
     broadcastSeconds: 20,
+    // The hour a player in character creation sees (the Realm's Sovngarde climate is dark 20:30-05:30); -1 turns it off
+    creatorHour: 12,
     weatherHours: [2, 5],       // a weather lasts this many game hours
     // Chance of each kind per zone; zones not listed use default
     weather: {
@@ -74,8 +76,17 @@ module.exports = (api) => {
   };
   const weatherFor = (a) => { let z = null; try { z = zoneOfActor(a); } catch (e) { /* default */ } return weatherOf(z); };
 
+  // A player in character creation is sent the noon nearest now, running at real time; only their packet changes, the
+  // world clock and everything read from it server-side (night, the moons, sunlight) do not
+  const inCreator = (a) => { try { return typeof api.inCreator === 'function' && api.inCreator(a) === true; } catch (e) { return false; } };
+  const clockFor = (a) => {
+    const d = gameDays();
+    const h = Number(C.creatorHour);
+    if (!(h >= 0 && h < 24) || !inCreator(a)) return { gameDays: d, timeScale: ST.timeScale };
+    return { gameDays: Math.round(d - h / 24) + h / 24, timeScale: 1 };
+  };
   // startYear lets a client set the engine's year from the server (client TimeService still starts from 4E 201 by itself)
-  const packetFor = (a) => ({ customPacketType: 'dboClock', serverNow: Date.now(), gameDays: gameDays(), timeScale: ST.timeScale, weather: weatherFor(a), startYear: Math.floor(Number(C.startYear)) || 211 });
+  const packetFor = (a) => Object.assign({ customPacketType: 'dboClock', serverNow: Date.now() }, clockFor(a), { weather: weatherFor(a), startYear: Math.floor(Number(C.startYear)) || 211 });
   const broadcast = () => { for (const a of onlineActors()) sendPacket(a, packetFor(a)); };
   every('worldClock', C.broadcastSeconds * 1000, broadcast);
 
