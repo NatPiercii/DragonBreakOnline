@@ -1,5 +1,19 @@
 [
   {
+    "title": "Only the Animal Comes Off an Animal",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Hunting",
+        "items": [
+          "A hunted animal now gives only what comes from the animal: meat, hides, pelts, antlers, tusks, horns, claws and the like. Deer no longer carry silver rings, and bears no longer carry gems or gold."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dressed After Death, and the Blood Crown",
     "date": "2026-09-30",
     "version": "Server update",

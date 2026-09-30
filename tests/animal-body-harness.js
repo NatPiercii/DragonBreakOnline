@@ -6,18 +6,24 @@
 const fs = require('fs');
 const path = require('path');
 const src = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
-const i = src.indexOf('globalThis.__dboAnimalBody = '), j = src.indexOf('\n};\n', i);
-if (i < 0) { console.log('FAIL gamemode.js has no __dboAnimalBody'); process.exit(1); }
+const i = src.indexOf('const ANIMAL_BODY = '), j = src.indexOf('\n};\n', src.indexOf('globalThis.__dboAnimalBody = '));
+if (i < 0 || j < 0) { console.log('FAIL gamemode.js has no ANIMAL_BODY / __dboAnimalBody'); process.exit(1); }
 let fails = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${what}${!c && got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!c) fails++; };
 const props = new Map(), said = [], given = [];
 const mp = { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => props.set(`${id}|${k}`, v) };
-const RECS = { 0x669a2: 'FoodVenison', 0x6bc0a: 'AntlersLarge', 0x65c9e: 'FoodRabbit', 0xf2011: 'FoodChicken' };
-const fn = new Function('globalThis', 'mp', 'profileOf', 'giveItem', 'recordOf', 'edidWords', 'personal', 'log', 'display',
+// Record stubs keyed by id (the ids only need to be distinct here; the type and editor id are what the rule reads)
+const RECS = { 0x669a2: ['ALCH', 'FoodVenison'], 0x6bc0a: ['INGR', 'AntlersLarge'], 0x65c9e: ['ALCH', 'FoodRabbit'], 0xf2011: ['ALCH', 'FoodChicken'],
+  0x3b97c: ['ARMO', 'SilverRing'], 0x63b45: ['MISC', 'GemRuby'], 0xf: ['MISC', 'Gold001'], 0x2e4e3: ['SLGM', 'SoulGemPetty'],
+  0x3eadd: ['ALCH', 'RestoreHealth01'], 0x6b683: ['MISC', 'BoneHumanSkullFull'], 0x3ad6f: ['INGR', 'BearClaws'],
+  0x3ad52: ['MISC', 'MammothTusk'], 0x9151b: ['MISC', 'BearPelt'], 0x13982: ['WEAP', 'IronDagger'], 0x13989: ['ARMO', 'ArmorIronHelmet'] };
+const build = (cfg) => new Function('globalThis', 'mp', 'cfg', 'profileOf', 'giveItem', 'recordOf', 'edidWords', 'personal', 'log', 'display',
   `${src.slice(i, j + 3)}\nreturn globalThis.__dboAnimalBody;`)(
-  {}, mp, (a) => (a === 0xff000014 ? 30 : -1), (a, id, n) => { given.push([id, n]); return true; },
-  (id) => (RECS[id] ? { record: { editorId: RECS[id] } } : null),
-  (edid, fb) => String(edid || '').replace(/([a-z])([A-Z])/g, '$1 $2').trim() || fb, (a, t) => said.push(t), () => {}, String);
+  {}, mp, cfg, (a) => (a === 0xff000014 ? 30 : -1), (a, id, n) => { given.push([id, n]); return true; },
+  (id) => (RECS[id] ? { record: { type: RECS[id][0], editorId: RECS[id][1] } } : null),
+  (edid, fb) => String(edid || '').replace(/([a-z])([A-Z])/g, '$1 $2').trim() || fb, (a, t) => said.push(t), (t) => logged.push(t), String);
+const logged = [];
+const fn = build({});
 const P = 0xff000014, DEER = 0xff000500;
 props.set(`${DEER}|private.npcSpawner`, 'wild:deer:2878'); props.set(`${DEER}|isDead`, true);
 props.set(`${DEER}|inventory`, { entries: [{ baseId: 0x669a2, count: 1 }, { baseId: 0x6bc0a, count: 1 }] });
@@ -58,6 +64,36 @@ ok(/if \(!pelts\.length\) return null;/.test(src), 'skinning passes a body with 
 ok(/__dboLootBody = \(targetId, casterId\) => \{\n  if \(targetId === casterId \|\| !\(profileOf\(targetId\) > 0\)/.test(src), 'the player-body search leaves bodies without a profile alone');
 const dsrc = fs.readFileSync(path.resolve(__dirname, '..', 'dungeons.js'), 'utf8');
 ok(/__dboCorpseLoot = \(targetId, casterId\) => \{[\s\S]{0,300}if \(!tag\.startsWith\(ZONE_PREFIX\)\) return null;/.test(dsrc) && /ZONE_PREFIX = 'dungeon:'/.test(dsrc), 'the expedition corpse search leaves wild:* bodies alone');
+// Only the animal comes off an animal (GroundedPasta, 30 Sep: "Is a deer supposed to drop a silver ring?"). The death item
+// rolls treasure too; a wild body hands over its meat and parts and the treasure stays with the body.
+const put = (id, tag, entries) => { props.set(`${id}|private.npcSpawner`, tag); props.set(`${id}|isDead`, true); props.set(`${id}|inventory`, { entries }); };
+const RINGDEER = 0xff000600, BEAR = 0xff000601, RIEK = 0xff000602, GIANT = 0xff000603;
+put(RINGDEER, 'wild:deer:2878', [{ baseId: 0x669a2, count: 1 }, { baseId: 0x6bc0a, count: 1 }, { baseId: 0x3b97c, count: 1 }]);
+given.length = 0; said.length = 0; logged.length = 0;
+ok(fn(RINGDEER, P) === false && given.length === 2 && !given.some(([id]) => id === 0x3b97c), 'a deer with a silver ring gives its venison and antlers, not the ring', given);
+ok(/You take Venison, Antlers Large\./.test(said[0] || ''), 'the player is told only about the animal parts', said);
+ok(props.get(`${RINGDEER}|inventory`).entries.length === 0, 'the ring goes away with the body');
+ok(/not animal parts, left with the body: 1x SilverRing/.test(logged.join('\n')), 'the thrown-away treasure is logged', logged);
+put(BEAR, 'wild:bear:12', [{ baseId: 0x3ad6f, count: 2 }, { baseId: 0x63b45, count: 1 }, { baseId: 0xf, count: 7 }, { baseId: 0x2e4e3, count: 1 }, { baseId: 0x9151b, count: 1 }]);
+given.length = 0; said.length = 0;
+ok(fn(BEAR, P) === false && given.map(([id]) => id).sort().join() === [0x3ad6f, 0x9151b].sort().join(), 'a bear gives its claws and pelt; its gem, gold and soul gem stay behind', given);
+put(RIEK, 'wild:riekling:3', [{ baseId: 0x3eadd, count: 1 }, { baseId: 0x6b683, count: 1 }, { baseId: 0x13982, count: 1 }]);
+given.length = 0; said.length = 0;
+ok(fn(RIEK, P) === false && given.length === 0 && /nothing left/.test(said[0] || ''), 'potions, a human skull and a dagger are not animal parts', given);
+put(GIANT, 'wild:giant:1', [{ baseId: 0x3ad52, count: 1 }, { baseId: 0x13989, count: 1 }, { baseId: 0x63b45, count: 2 }]);
+given.length = 0;
+ok(fn(GIANT, P) === false && given.length === 1 && given[0][0] === 0x3ad52, 'by default a giant gives only its mammoth tusk', given);
+put(GIANT, 'wild:giant:1', [{ baseId: 0x3ad52, count: 1 }, { baseId: 0x13989, count: 1 }, { baseId: 0x63b45, count: 2 }]);
+given.length = 0;
+ok(build({ animalBody: { keepAllKinds: ['giant'] } })(GIANT, P) === false && given.length === 3, 'a kind in keepAllKinds keeps its whole body', given);
+put(RINGDEER, 'wild:deer:2878', [{ baseId: 0x669a2, count: 1 }]);
+given.length = 0;
+ok(build({ animalBody: { denyEditorIds: ['Venison'] } })(RINGDEER, P) === false && given.length === 0, 'the deny list in config wins over the allow rules', given);
+const conf = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'gamemode-config.json'), 'utf8')).animalBody;
+ok(conf && Array.isArray(conf.allowEditorIds) && conf.allowEditorIds.every((x) => { try { new RegExp(x); return true; } catch (e) { return false; } }), 'gamemode-config.json animalBody is present and its patterns compile');
+put(RINGDEER, 'wild:deer:2878', [{ baseId: 0x669a2, count: 1 }, { baseId: 0x3b97c, count: 1 }]);
+given.length = 0;
+ok(build({ animalBody: conf })(RINGDEER, P) === false && given.length === 1 && given[0][0] === 0x669a2, 'the shipped config keeps the venison and drops the ring', given);
 const gm = src;
 ok(/__dboSkin\(targetId >>> 0, casterId >>> 0\) === false\) return false;\n  if \(globalThis\.__dboAnimalBody && globalThis\.__dboAnimalBody\(targetId >>> 0, casterId >>> 0\) === false\) return false;/.test(gm), 'the activate chain asks it right after skinning');
 

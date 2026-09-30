@@ -3103,6 +3103,28 @@ const skinPacket = (round, result, resultKind) => {
 // never hears that the pelt went to the skinning stash, while a take is checked against the server's copy. So a deer's
 // venison, which the server held, never showed (GroundedPasta, #bugs "Animals", 29 Sep 20:05: "The deer still do not
 // drop venison"). E on a dead wild animal, once skinning has nothing to say, hands over what the server's body holds.
+// Only the animal comes off an animal. The death items roll treasure lists as well (a deer's CYRDeathItemDeer holds
+// LootSmallTreasure10; bears and 100 other creatures can carry gems and gold, rieklings potions and dishes, giants and
+// ogres weapons and armour), and a silver ring off a deer is nonsense (GroundedPasta, #bugs "Animals", 30 Sep). A part is
+// an item whose record type is in allowTypes, or one of partTypes whose editor id matches allowEditorIds; denyEditorIds
+// wins over both. Everything else is thrown away with the body. Wildlife kinds in keepAllKinds keep the whole body.
+// gamemode-config.json "animalBody" overrides any of these.
+const ANIMAL_BODY = Object.assign({
+  allowTypes: ['INGR'],
+  partTypes: ['MISC', 'ALCH'],
+  allowEditorIds: ['^\\w*Food', 'Pelt', 'Hide', 'Leather', 'Fur', 'Tusk', 'Horn', 'Antler', 'Chitin', 'Tooth', 'Teeth', 'Claw', 'Fang', 'Bone', 'Scale', 'Fin$', 'Feather', 'Venom', 'Meat'],
+  denyEditorIds: ['Gem', 'Gold', 'Jewel', 'Coin', 'Ingot', 'Ore', 'Human', 'Scarab', 'Unfitted'],
+  keepAllKinds: [],
+}, cfg.animalBody || {});
+const animalRx = (list) => { const out = []; for (const x of Array.isArray(list) ? list : []) { try { out.push(new RegExp(String(x))); } catch (e) { log(`animalBody: bad pattern ${x}`); } } return out; };
+const ANIMAL_ALLOW = animalRx(ANIMAL_BODY.allowEditorIds), ANIMAL_DENY = animalRx(ANIMAL_BODY.denyEditorIds);
+const isAnimalPart = (r) => {
+  if (!r || !r.record) return false;
+  const type = String(r.record.type || ''), edid = String(r.record.editorId || '');
+  if (ANIMAL_DENY.some((x) => x.test(edid))) return false;
+  if ((ANIMAL_BODY.allowTypes || []).includes(type)) return true;
+  return (ANIMAL_BODY.partTypes || []).includes(type) && ANIMAL_ALLOW.some((x) => x.test(edid));
+};
 globalThis.__dboAnimalBody = (targetId, casterId) => {
   if (targetId < 0xff000000 || profileOf(casterId) < 0) return null;
   let tag = ''; try { tag = String(mp.get(targetId, 'private.npcSpawner') || ''); } catch (e) { return null; }
@@ -3110,18 +3132,18 @@ globalThis.__dboAnimalBody = (targetId, casterId) => {
   try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
   let entries = [];
   try { const inv = mp.get(targetId, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return null; }
-  const got = [];
+  const keepAll = (ANIMAL_BODY.keepAllKinds || []).includes(tag.split(':')[1]);
+  const got = [], dropped = [];
   for (const e of entries) {
     const baseId = Number(e.baseId) >>> 0, count = Number(e.count) || 0;
     if (!baseId || count <= 0) continue;
-    if (giveItem(casterId, baseId, count)) {
-      const r = recordOf(baseId);
-      got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'something').replace(/^Food /, '')}`);
-    }
+    const r = recordOf(baseId);
+    if (!keepAll && !isAnimalPart(r)) { dropped.push(`${count}x ${(r && r.record.editorId) || baseId.toString(16)}`); continue; }
+    if (giveItem(casterId, baseId, count)) got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'something').replace(/^Food /, '')}`);
   }
   try { mp.set(targetId, 'inventory', { entries: [] }); } catch (e) { log('animal body empty failed', e.message); }
   personal(casterId, got.length ? `You take ${got.join(', ')}.` : 'There is nothing left to take.');
-  if (got.length) log(`animal body ${display(casterId)} took ${got.join(', ')} from ${tag}`);
+  if (got.length || dropped.length) log(`animal body ${display(casterId)} took ${got.join(', ') || 'nothing'} from ${tag}${dropped.length ? `; not animal parts, left with the body: ${dropped.join(', ')}` : ''}`);
   return false;
 };
 globalThis.__dboSkin = (targetId, casterId) => {

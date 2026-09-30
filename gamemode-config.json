@@ -366,6 +366,49 @@
    }
   ]
  },
+ "animalBody": {
+  "_comment": "What E on a dead wild animal hands over (gamemode.js __dboAnimalBody). A part is an item whose record type is in allowTypes, or one of partTypes whose editor id matches a pattern in allowEditorIds; denyEditorIds wins over both. The rest (gems, gold, jewelry, soul gems, potions, dishes, weapons, armour) is thrown away with the body. keepAllKinds lists wildlife kinds (the middle of a wild:<kind>:<n> tag, e.g. giant) whose bodies keep everything. Patterns are JavaScript regular expressions, case-sensitive.",
+  "allowTypes": [
+   "INGR"
+  ],
+  "partTypes": [
+   "MISC",
+   "ALCH"
+  ],
+  "allowEditorIds": [
+   "^\\w*Food",
+   "Pelt",
+   "Hide",
+   "Leather",
+   "Fur",
+   "Tusk",
+   "Horn",
+   "Antler",
+   "Chitin",
+   "Tooth",
+   "Teeth",
+   "Claw",
+   "Fang",
+   "Bone",
+   "Scale",
+   "Fin$",
+   "Feather",
+   "Venom",
+   "Meat"
+  ],
+  "denyEditorIds": [
+   "Gem",
+   "Gold",
+   "Jewel",
+   "Coin",
+   "Ingot",
+   "Ore",
+   "Human",
+   "Scarab",
+   "Unfitted"
+  ],
+  "keepAllKinds": []
+ },
  "playtest": {
   "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",
   "enabled": true,
