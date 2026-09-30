@@ -34,8 +34,20 @@ const HUMANOID = /bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|
 const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ballista|ghost|dragon|frostbite|netch|riekling|ashhopper|ogre|minotaur|dreugh|gargoyle|werewolf|werebear|ashspawn|lurker|seeker|scamp|clannfear|daedroth|dragonpriest|horse|cow|chicken/i;
 
 const A = 0x14;
+// Math.random, seeded per dungeon, difficulty and claim count. The loot rolls are dungeons.js's own, so an unseeded run
+// measured a fresh sample each time, and a band's edge (Telepe at Master, 0.71 against under 0.7) failed run-all 1 run
+// in 10 (2026-09-30). Seeded, each measurement is the same sample every run, and one dungeon's draws never move another's.
+let rngState = 0;
+const reseed = (key) => { let h = 2166136261; for (const c of String(key)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); rngState = h >>> 0; };
+Math.random = () => {
+  rngState = (rngState + 0x6d2b79f5) >>> 0;
+  let t = Math.imul(rngState ^ (rngState >>> 15), rngState | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
 // One module load per dungeon and difficulty; claims repeat by ending the lease and clearing the rest period
 const measure = (d, diffId, claims = CLAIMS) => {
+  reseed(`${d.raw.id}|${diffId}|${claims}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-budget-'));
   const here = process.cwd(); process.chdir(dir);
   for (const f of ['loot.json', 'ayleid-loot.json', 'dungeon-pools.json']) fs.copyFileSync(path.join(ROOT, f), f);

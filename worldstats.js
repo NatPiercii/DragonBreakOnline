@@ -101,20 +101,29 @@ module.exports = (api) => {
 
   // Each write has its own temp file: a reload's first write, the minute timer and /stats can be in flight together,
   // and with one shared name the first rename took the file from under the others (ENOENT in the log, 2026-09-27).
-  // A write that finishes after a newer one has landed is dropped rather than put back an older snapshot.
-  const W = globalThis.__dboWorldStatsWrites || (globalThis.__dboWorldStatsWrites = { seq: 0, landed: 0 });
-  const write = () => {
-    const s = snapshot();
-    const seq = ++W.seq;
-    const tmp = `${OUT}.${seq}.tmp`;
+  // One write is in flight at a time, and a snapshot taken meanwhile waits and goes next (only the newest waits): writes
+  // in flight together landed in any order, and a slow older one renamed its snapshot over a newer one (online 0 after
+  // online 1, in the harness, 2026-09-30). So the file only ever moves forward. The state lives on globalThis, so a hot
+  // reload joins the write in flight instead of racing it; one that never answers frees the writer after a minute.
+  const W = globalThis.__dboWorldStatsWrites || (globalThis.__dboWorldStatsWrites = { seq: 0 });
+  if (!('queued' in W)) Object.assign(W, { queued: null, writing: false, startedAt: 0 });
+  const flush = () => {
+    const s = W.queued; W.queued = null;
+    if (!s) { W.writing = false; return; }
+    W.writing = true; W.startedAt = Date.now();
+    const tmp = `${OUT}.${++W.seq}.tmp`;
     fs.writeFile(tmp, JSON.stringify(s, null, 1), (e) => {
-      if (e) { fs.unlink(tmp, () => {}); return log('server-stats.json write failed', e.message); }
-      if (seq < W.landed) return fs.unlink(tmp, () => {});
+      if (e) { fs.unlink(tmp, () => {}); log('server-stats.json write failed', e.message); return flush(); }
       fs.rename(tmp, OUT, (e2) => {
-        if (e2) { fs.unlink(tmp, () => {}); return log('server-stats.json rename failed', e2.message); }
-        W.landed = Math.max(W.landed, seq);
+        if (e2) { fs.unlink(tmp, () => {}); log('server-stats.json rename failed', e2.message); }
+        flush();
       });
     });
+  };
+  const write = () => {
+    const s = snapshot();
+    W.queued = s;
+    if (!W.writing || Date.now() - W.startedAt > 60000) flush();
     return s;
   };
   every('worldStats', 60000, write);

@@ -19,6 +19,26 @@ ESBUILD=$FORK_SERVER/skymp5-server/node_modules/.bin/esbuild
 [ -x "$ESBUILD" ] || ESBUILD=$FORK/skymp5-server/node_modules/.bin/esbuild
 OUT=$(mktemp -d /tmp/claude-nate-harness-XXXX)
 trap 'rm -rf "$OUT"' EXIT
+# The bundles above already go to this run's own folder. The fork sources did not: with FORK at the shared clone,
+# another worker switching its branch mid-run changed what half the harnesses read (a dungeon harness flipped for
+# Worker B, 2026-09-30). So the sources a run reads are copied here first, node_modules linked, and every bundle and
+# harness reads the copy. FORK_LABEL keeps the real paths for the report line.
+FORK_LABEL=$FORK FORK_SERVER_LABEL=$FORK_SERVER
+snapshot() {
+  local src=$1 dst=$2 d f sub
+  for d in skymp5-server skymp5-client skymp5-front; do
+    [ -d "$src/$d" ] || continue
+    mkdir -p "$dst/$d"
+    for sub in ts src; do [ -d "$src/$d/$sub" ] && cp -r "$src/$d/$sub" "$dst/$d/$sub"; done
+    for f in package.json tsconfig.json; do [ -f "$src/$d/$f" ] && cp "$src/$d/$f" "$dst/$d/"; done
+    [ -d "$src/$d/node_modules" ] && ln -s "$(cd "$src/$d/node_modules" && pwd -P)" "$dst/$d/node_modules"
+  done
+  return 0
+}
+snapshot "$FORK" "$OUT/fork"
+if [ "$(cd "$FORK_SERVER" && pwd -P)" = "$(cd "$FORK" && pwd -P)" ]; then FORK_SERVER=$OUT/fork; else snapshot "$FORK_SERVER" "$OUT/fork-server"; FORK_SERVER=$OUT/fork-server; fi
+FORK=$OUT/fork
+export FORK FORK_SERVER
 
 # harness -> the bundle it takes: which fork (client: $FORK, server: $FORK_SERVER) and the entry point in it
 declare -A NEEDS=(
@@ -53,7 +73,7 @@ bundle() {
   [ -f "$out" ] || (cd "$root" && "$ESBUILD" "$entry" --bundle --platform=node --format=cjs --outfile="$out" --log-level=error) || return 1
   echo "$out"
 }
-echo "server code from $FORK_SERVER ($(git -C "$FORK_SERVER" log --oneline -1 2>/dev/null | cut -c1-60)), client code from $FORK ($(git -C "$FORK" log --oneline -1 2>/dev/null | cut -c1-60))"
+echo "server code from $FORK_SERVER_LABEL ($(git -C "$FORK_SERVER_LABEL" log --oneline -1 2>/dev/null | cut -c1-60)), client code from $FORK_LABEL ($(git -C "$FORK_LABEL" log --oneline -1 2>/dev/null | cut -c1-60)), copied at the start"
 
 pass=0; fail=0; failed=()
 for h in tests/*-harness.js; do

@@ -82,7 +82,14 @@ sys.ready = true;
 const zoneOf = (name, desc, pos, count, respawn = 1800, radius = 3000) => sys.buildZone(mp, { name, locator: desc, anchor: '', pos, radius, npcs: [{ id: '4932a:BSHeartland.esm', count }], despawnSeconds: 120, respawnSeconds: respawn, prespawn: false, ambush: false }, new Map());
 const poll = () => sys.updateAsync({ svr: mp });
 const live = (zone) => zone.spawned.filter((e) => e.id && !e.diedAt);
-const settle = () => new Promise((r) => realTimeout(r, 30));
+// Until the spawn files' writes have finished, and any write asked for meanwhile: they run off the game loop on the real
+// disk. A fixed 30 ms was shorter than a write on a busy box and failed run-all 2 runs in 10 (2026-09-30); ten seconds
+// is a bound for a hung write, not a wait.
+const idle = (w) => !w || (!w.writing && !w.dirty);
+const settle = async () => {
+  for (let i = 0; i < 2000 && !(idle(sys.spawnsFile) && idle(sys.fallenFile)); i++) await new Promise((r) => realTimeout(r, 5));
+  if (!(idle(sys.spawnsFile) && idle(sys.fallenFile))) check('the spawn files finish writing within ten seconds', false);
+};
 
 (async () => {
   // ---- 1: a slot is never refilled in the poll that destroyed its NPC ----------------------------------------------

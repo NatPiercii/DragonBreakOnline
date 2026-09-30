@@ -42,7 +42,10 @@ const load = () => {
   props.set('33|inventory', { entries: [{ baseId: 0xf, count: 7 }] });
   load();
   for (let i = 0; i < 3; i++) commands.get('stats')(0x21);
-  await new Promise((r) => setTimeout(r, 300));
+  // Until the writes are done, not a fixed 300 ms: on a busy disk they took longer (2026-09-30). Ten seconds bounds a hang.
+  const W = globalThis.__dboWorldStatsWrites;
+  for (let i = 0; i < 2000 && (W.writing || W.queued); i++) await new Promise((r) => setTimeout(r, 5));
+  check('the writes finish', !W.writing && !W.queued);
   const failed = logs.filter((l) => /server-stats\.json (write|rename) failed/.test(l));
   check('writes in flight together all land', failed.length === 0, failed.join(' | '));
   let stats = null; try { stats = JSON.parse(fs.readFileSync('server-stats.json', 'utf8')); } catch (e) { /* none */ }
