@@ -196,6 +196,20 @@ private:
   bool TakeScrollHit(uint32_t casterId, uint32_t scrollId, uint32_t targetId);
   bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
                             uint32_t targetId);
+  // Last restorative fire-and-forget cast applied per (caster << 32 | spell): a cast packet healed on arrival with no
+  // rate, so a modified client healed to full mid-fight (combat review, 2026-09-29)
+  static constexpr std::chrono::milliseconds kRestoreCastInterval{ 700 };
+  std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
+    lastRestoreCast;
+  // Measurement (log only, combat review 2026-09-29): a player's last bow shot, and bow hits that came without one in
+  // kBowShotWindow, before any hit is refused for it
+  static constexpr std::chrono::seconds kBowShotWindow{ 10 };
+  std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>
+    lastBowShot;
+  struct
+  {
+    uint64_t hits = 0, unmatched = 0;
+  } bowHitCounts;
   // Last power attack or bash per (attacker << 32 | target), for the stagger floor in OnWeaponHit
   static constexpr std::chrono::milliseconds kForcefulHitInterval{ 700 };
   std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>

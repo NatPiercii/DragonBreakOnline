@@ -346,6 +346,21 @@ bool IsSpellInTemplateTree(const MpActor& actor, uint32_t spellId)
       for (uint32_t rawSpellId : npcData.spells) {
         pending.push_back(lookup.ToGlobalId(rawSpellId));
       }
+      // A creature's biting or clawing attack casts its race's attack spell (IceWraithRace crIceWraithBite,
+      // AtronachFlameRace crAtronachFlameMeleeAttack), which no spell list holds: its hits were refused as "cannot hit
+      // with spell" (refusal survey, 2026-09-29). The race's own spells (SPLO) come with it.
+      if (npcData.race != 0) {
+        const auto raceLookup = browser.LookupById(lookup.ToGlobalId(npcData.race));
+        if (const auto race = espm::Convert<espm::RACE>(raceLookup.rec)) {
+          const auto raceData = race->GetData(worldState->GetEspmCache());
+          for (uint32_t rawSpellId : raceData.attackSpells) {
+            pending.push_back(raceLookup.ToGlobalId(rawSpellId));
+          }
+          for (uint32_t rawSpellId : raceData.spells) {
+            pending.push_back(raceLookup.ToGlobalId(rawSpellId));
+          }
+        }
+      }
       if (npcData.baseTemplate != 0 &&
           (npcData.templateDataFlags & espm::NPC_::UseSpelllist)) {
         pending.push_back(lookup.ToGlobalId(npcData.baseTemplate));
@@ -1223,6 +1238,7 @@ void ActionListener::OnPlayerBowShot(const RawMessageData& rawMsgData,
   }
 
   ac->RemoveItem(msg.ammoId, 1, nullptr);
+  lastBowShot[ac->GetFormId()] = std::chrono::steady_clock::now();
 }
 
 void ActionListener::OnFinishSpSnippet(const RawMessageData& rawMsgData,
@@ -1698,6 +1714,32 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
                     aggressor->GetFormId(), targetRef->GetFormId());
       return;
     }
+  } else {
+    // A bow hit had no range at all: anyone in the worldspace could be shot from anywhere (combat review, 2026-09-29).
+    // Four exterior cells is past any arrow's flight.
+    constexpr float kMaxBowShotUnits = 4096.f * 4;
+    if ((aggressor->GetPos() - targetRef->GetPos()).SqrLength() >
+        kMaxBowShotUnits * kMaxBowShotUnits) {
+      spdlog::warn("ActionListener::OnHit - bow hit from {:x} on {:x} beyond "
+                   "{} units, refused",
+                   aggressor->GetFormId(), targetRef->GetFormId(),
+                   kMaxBowShotUnits);
+      return;
+    }
+    // Log only for now: how often a player's bow hit comes without a shot the server saw
+    if (aggressor->GetProfileId() != -1) {
+      const auto now = std::chrono::steady_clock::now();
+      const auto shot = lastBowShot.find(aggressor->GetFormId());
+      ++bowHitCounts.hits;
+      if (shot == lastBowShot.end() || now - shot->second > kBowShotWindow) {
+        ++bowHitCounts.unmatched;
+        spdlog::info("ActionListener::OnHit - bow hit from {:x} on {:x} with "
+                     "no shot in the last {} s (bow hits {}/{} unmatched)",
+                     aggressor->GetFormId(), targetRef->GetFormId(),
+                     kBowShotWindow.count(), bowHitCounts.unmatched,
+                     bowHitCounts.hits);
+      }
+    }
   }
 
   if (aggressor->IsDead()) {
@@ -1950,7 +1992,28 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
     const bool hadChannel = existing != restorationChannels.end();
 
     // Concentration heals accrue per second of channel so a tap heals a tap's worth
+    // One application per caster and spell each kRestoreCastInterval; no fire-and-forget cast cycles faster
+    bool castTooSoon = false;
     if (!isConcentration && !spellCastData.keepAlive) {
+      const auto now = std::chrono::steady_clock::now();
+      auto& last = lastRestoreCast[(static_cast<uint64_t>(casterId) << 32) |
+                                   spellCastData.spell];
+      castTooSoon = now - last < kRestoreCastInterval;
+      if (!castTooSoon) {
+        last = now;
+      }
+      if (lastRestoreCast.size() > 4096) {
+        std::erase_if(lastRestoreCast, [&](const auto& entry) {
+          return now - entry.second > std::chrono::seconds(10);
+        });
+      }
+      if (castTooSoon) {
+        spdlog::info("ActionListener::OnSpellCast - {:x} cast restorative "
+                     "spell {:x} again too soon, not applied",
+                     casterId, spellCastData.spell);
+      }
+    }
+    if (!isConcentration && !spellCastData.keepAlive && !castTooSoon) {
       targetActor->ApplyMagicEffects(restoreEffects, hasSweetpie);
       spdlog::info("ActionListener::OnSpellCast - applied {} restorative "
                    "effect(s) of spell {:x} to actor {:x}",
@@ -2244,8 +2307,11 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     std::chrono::duration<float> timeSinceSpecific =
       currentHitTime - lastHitSpecific;
 
-    // If the specific target was hit faster than the splash window
-    if (timeSinceSpecific.count() < kSplashTimeWindow) {
+    // If the specific target was hit faster than the splash window, or than the weapon swings: a hit on any second
+    // actor every 0.05 s made each hit on the first a splash and skipped the weapon's speed, ten greatsword hits a
+    // second (combat review, 2026-09-29). A sweep across several actors still lands on each.
+    if (timeSinceSpecific.count() < kSplashTimeWindow ||
+        !CanHit(*aggressor, hitData, timeSinceSpecific)) {
       spdlog::warn("Splash attack from {:x} to {:x} ignored, target hit "
                    "too recently",
                    aggressor->GetFormId(), targetActor.GetFormId());

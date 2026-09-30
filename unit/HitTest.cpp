@@ -250,6 +250,94 @@ TEST_CASE("checking weapon cooldown", "[Hit]")
   DoDisconnect(p, 0);
 }
 
+TEST_CASE("A splash hit still waits for the weapon on each target (combat "
+          "review, 2026-09-29)",
+          "[Hit]")
+{
+  // A hit on a second actor every 0.05 s made each hit on the first a splash, which skipped the weapon's speed
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  constexpr uint32_t kAggressor = 0xff000000, kFirst = 0xff000001,
+                     kSecond = 0xff000002;
+  p.CreateActor(kAggressor, { 0, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kFirst, { 50, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kSecond, { -50, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, kAggressor);
+  auto& ac = p.worldState.GetFormAt<MpActor>(kAggressor);
+
+  RawMessageData msgData;
+  msgData.userId = 0;
+  HitMessage hitMsg;
+  hitMsg.data.aggressor = 0x14;
+  hitMsg.data.source = 0x0001397E; // a dagger, about 0.59 s between blows
+  ac.AddItem(hitMsg.data.source, 1);
+  Equipment eq;
+  eq.inv.entries.push_back(Inventory::Entry(80254, 1, kExtraWornTrue));
+  ac.SetEquipment(eq);
+
+  // The first target was struck 0.3 s ago, the second 0.05 s ago: a splash, but too soon for the dagger on the first
+  const auto now = std::chrono::steady_clock::now();
+  ac.SetLastHitTime(kFirst, now - 300ms);
+  ac.SetLastHitTime(kSecond, now - 50ms);
+  hitMsg.data.target = kFirst;
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kFirst) == now - 300ms);
+
+  // A sweep: the first target was last struck long ago, so the splash lands on it
+  const auto later = std::chrono::steady_clock::now();
+  ac.SetLastHitTime(kFirst, later - 3s);
+  ac.SetLastHitTime(kSecond, later - 50ms);
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kFirst) > later - 3s);
+
+  p.DestroyActor(kFirst);
+  p.DestroyActor(kSecond);
+  p.DestroyActor(kAggressor);
+  DoDisconnect(p, 0);
+}
+
+TEST_CASE("A bow hit from beyond four exterior cells is refused (combat "
+          "review, 2026-09-29)",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  constexpr uint32_t kArcher = 0xff000000, kNear = 0xff000001,
+                     kFar = 0xff000002;
+  p.CreateActor(kArcher, { 0, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kNear, { 8000, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kFar, { 20000, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, kArcher);
+  auto& ac = p.worldState.GetFormAt<MpActor>(kArcher);
+
+  RawMessageData msgData;
+  msgData.userId = 0;
+  HitMessage hitMsg;
+  hitMsg.data.aggressor = 0x14;
+  hitMsg.data.source = 0x00013985; // HuntingBow
+  ac.AddItem(hitMsg.data.source, 1);
+  Equipment eq;
+  eq.inv.entries.push_back(
+    Inventory::Entry(hitMsg.data.source, 1, kExtraWornTrue));
+  ac.SetEquipment(eq);
+
+  const auto past = std::chrono::steady_clock::now() - 10s;
+  ac.SetLastHitTime(kFar, past);
+  hitMsg.data.target = kFar;
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kFar) == past);
+
+  ac.SetLastHitTime(kNear, past);
+  hitMsg.data.target = kNear;
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kNear) > past);
+
+  p.DestroyActor(kFar);
+  p.DestroyActor(kNear);
+  p.DestroyActor(kArcher);
+  DoDisconnect(p, 0);
+}
+
 namespace {
 nlohmann::json MakeSpellCastMessage(uint32_t spell, bool interruptCast)
 {
