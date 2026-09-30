@@ -103,6 +103,12 @@ export class BrowserService extends ClientListener {
     if (e.arguments[0] === "cef::browser:unfocus") {
       this.unfocus();
     }
+
+    // The page opened the chat on an Enter the game never saw: something left the browser holding the keyboard
+    if (e.arguments[0] === "chat:enterUnfocused") {
+      const note = (globalThis as any).__dboDiagNote;
+      if (typeof note === "function") note("chatfocus", `Enter reached the page with nothing focused; widgets ${String(e.arguments[1] ?? "").slice(0, 200)}`);
+    }
   }
 
   // Character select sets this while it holds the screen (characterSelectService)
