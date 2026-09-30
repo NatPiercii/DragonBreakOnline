@@ -54,5 +54,27 @@ delete globalThis.__dboItemGuards; delete require.cache[path.resolve(__dirname, 
   check('a non-playable robe cannot be dropped', mp2.onDropItem(P, ROBE, 1) === false);
   check('...nor put in a chest', mp2.onPutItem(CHEST, P, ROBE, 1) === false);
 }
+// A smithing manual its reader still owes (manuals.js __dboManualsOwedMove) is not dropped or put away (2026-09-30)
+delete globalThis.__dboItemGuards; delete require.cache[path.resolve(__dirname, '..', 'itemguards.js')];
+{
+  const BOOK = 0x3001;
+  const inv3 = { [P]: [{ baseId: BOOK, count: 1 }, { baseId: SWORD, count: 1 }] };
+  const mp3 = { get: (id, k) => (k === 'inventory' ? { entries: inv3[id] || [] } : undefined) };
+  const told = [];
+  const asked = [];
+  globalThis.__dboManualsOwedMove = (a, baseId, count) => { asked.push([a, baseId, count]); return baseId === BOOK ? 'spent' : null; };
+  require(path.resolve(__dirname, '..', 'itemguards.js'))({ mp: mp3, log: () => {}, who: () => 'P', personal: (a, t) => told.push([a, t]),
+    recordOf: (id) => (id === BOOK ? { record: { type: 'BOOK' } } : id === SWORD ? { record: { type: 'WEAP' } } : null), cfg: {} });
+  check('an owed manual cannot be dropped', mp3.onDropItem(P, BOOK, 1) === false);
+  check('...nor put in a chest', mp3.onPutItem(CHEST, P, BOOK, 1) === false);
+  check('...the reader is told why, once for the two tries', told.length === 1 && told[0][0] === P && told[0][1] === 'spent', told);
+  check('...and asked with the actor, the base id and the count', asked[0][0] === P && asked[0][1] === BOOK && asked[0][2] === 1, asked);
+  check('anything else still drops', mp3.onDropItem(P, SWORD, 1) !== false);
+  delete globalThis.__dboManualsOwedMove;
+  check('with no manuals module loaded the book drops', mp3.onDropItem(P, BOOK, 1) !== false);
+  globalThis.__dboManualsOwedMove = () => { throw new Error('boom'); };
+  check('a manuals module that throws does not block a drop', mp3.onDropItem(P, BOOK, 1) !== false);
+  delete globalThis.__dboManualsOwedMove;
+}
 delete globalThis.__dboItemGuards; delete globalThis.__dboTakeGuard;
 console.log(''); console.log(failures ? `${failures} FAILURES` : 'all checks passed'); process.exit(failures ? 1 : 0);
