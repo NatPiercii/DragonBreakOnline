@@ -123,6 +123,16 @@ const activate = (target, caster) => ({
   data: { caster: caster === undefined ? PLAYER_CASTER : caster, target, isSecondActivation: false },
 });
 
+// HitMessage.h (t 17), filled as hitService.ts fills it for a melee hit: the aggressor is the literal 0x14 as for an
+// activation (localIdToRemoteId leaves the player's own id alone), the target the victim's server id, the source the
+// weapon. 0x1F4 is Skyrim.esm's Unarmed WEAP, which gamemode.js reads as a fist (onHit: sourceId === 0x1f4).
+const UNARMED = 0x1f4;
+const hit = (target, source) => ({
+  t: MsgType.OnHit,
+  data: { aggressor: PLAYER_CASTER, isBashAttack: false, isHitBlocked: false, isPowerAttack: false, isSneakAttack: false,
+    projectile: 0, source: (source || UNARMED) >>> 0, target: target >>> 0 },
+});
+
 // The server waits for this after every SpSnippet; without it the promise behind a Papyrus call never settles
 const finishSpSnippet = (snippetIdx) => ({ t: MsgType.FinishSpSnippet, snippetIdx });
 
@@ -148,5 +158,5 @@ const nordAppearance = (name, isFemale, raceId) => ({
 module.exports = {
   MsgType, MsgName, FORWARDED,
   customPacket, login, characterSelect, chat, uiEvent,
-  movement, changeValues, appearance, activate, finishSpSnippet, host, nordAppearance, PLAYER_CASTER,
+  movement, changeValues, appearance, activate, finishSpSnippet, host, nordAppearance, PLAYER_CASTER, hit, UNARMED,
 };

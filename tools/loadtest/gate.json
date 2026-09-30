@@ -1,0 +1,27 @@
+{
+  "_comment": "Alpha capacity gate (ALPHA-GATE.md). node loadtest.js gate <report folder> [--host-summary host-summary.json]. A 'gate' criterion must pass at every step up to gateBots; 'stretch' ones are judged at the largest step; 'advisory' ones are reported, never fail the gate. Baseline for the numbers: the 2026-09-20 sweep on the Windows server (CHECKLIST 'headless load-test harness'): 100 bots, no errors, no disconnects, RSS flat at ~1 GB, 20% of one core, event-loop lag p99 24.9 ms.",
+  "gateBots": 50,
+  "stretchBots": 100,
+  "connectRatioMin": 0.98,
+  "disconnectsMax": 0,
+  "lagP99Ms": { "gate": 50, "stretch": 100 },
+  "lagMaxMs": { "gate": 250, "stretch": 500 },
+  "tickP99Ms": { "gate": 50, "stretch": 100 },
+  "cpuPercentOfOneCore": { "gate": 60, "stretch": 85 },
+  "rssMB": { "gate": 2000, "stretch": 2500 },
+  "rssGrowthPercentPerStep": 10,
+  "newErrorSignaturesMax": 0,
+  "pingP50Ms": { "advisory": 150 },
+  "movementDeliveryMin": { "gate": 0.95, "stretch": 0.9 },
+  "liveBox": {
+    "liveCpuRisePointsMax": 25,
+    "liveWorstTimerMaxMs": 50,
+    "memAvailableMinMB": 4096,
+    "uplinkMbitAdvisory": 40
+  },
+  "knownErrorSignatures": [
+    "resolved context",
+    "Method not found",
+    "SetActorValue executes locally"
+  ]
+}

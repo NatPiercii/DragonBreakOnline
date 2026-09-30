@@ -49,13 +49,15 @@ class Bot {
     this.lastMoveMs = 0;
     this.lastAvMs = 0;
     this.nextChatMs = 0;
+    this.partner = null;      // --fight: the bot this one trades blows with (the runner pairs them)
+    this.nextHitMs = 0;
     this.stamina = 1;
 
     // What the run reports
     this.stats = {
       connectAttempts: 0, connected: 0, denied: 0, failed: 0, disconnects: 0,
       loginSent: 0, selectSent: 0, spawned: 0, appearanceSent: 0,
-      movesSent: 0, chatSent: 0, avSent: 0, activateSent: 0, hostAsked: 0,
+      movesSent: 0, chatSent: 0, avSent: 0, activateSent: 0, hostAsked: 0, hitsSent: 0,
       chatReceived: 0, widgets: 0, notices: 0, teleports: 0, snapBacks: 0,
       createActorSeen: 0, destroyActorSeen: 0, snippets: 0, hostGranted: 0,
       inventorySets: 0, raceMenuOpens: 0, deaths: 0, kicked: 0, loginFailures: [],
@@ -367,6 +369,18 @@ class Bot {
       this.stamina = this.stamina <= 0.4 ? 1 : this.stamina - 0.05;
       this.pool.send(this.id, P.changeValues(this.idx, { health: 1, stamina: this.stamina, magicka: 1 }), false);
       this.stats.avSent++;
+    }
+
+    // --fight: a fist every fightEveryMs (+-30%) at the partner, while both play in the same world. Damage, the
+    // down state, mastery and the law all run on the server exactly as for a real brawl; the bot only swings.
+    const p = this.partner;
+    if (this.cfg.fightEveryMs && p && this.state === 'playing' && p.state === 'playing' && p.refrId && p.worldOrCell === this.worldOrCell) {
+      if (this.nextHitMs === 0) this.nextHitMs = now + this.rng() * this.cfg.fightEveryMs;
+      if (now >= this.nextHitMs) {
+        this.nextHitMs = now + this.cfg.fightEveryMs * (0.7 + 0.6 * this.rng());
+        this.pool.send(this.id, P.hit(p.refrId), true);
+        this.stats.hitsSent++;
+      }
     }
 
     if (this.state === 'playing' && this.nextChatMs === 0) this.nextChatMs = now + this.chatGap();

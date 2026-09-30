@@ -14,8 +14,14 @@ It changed nothing it measures: no edit to the fork, the gameplay layer or the s
     node loadtest.js preflight --target live    is anyone playing on 7777 right now
     node loadtest.js dry --bots 2 --seconds 60  a couple of bots, verbose, no measurement
     node loadtest.js run --steps 10,25,50,100 --seconds 300
+    node loadtest.js gate reports\<stamp>        judge a run against gate.json (the alpha capacity gate)
 
 Reports land in `reports\<timestamp>\` as `report.md` plus one JSON per step.
+
+**The alpha capacity gate** (10/25/50/100 players, "no crash at 50") has its own runbook: `ALPHA-GATE.md`. It adds a
+sandbox on CT 115 built from the live build (`ct115/sandbox.sh`), reached from the PC's bots through an ssh tunnel
+(`--target remote --tunnel`), a host sampler for what the run costs the live box, bots that fight (`--fight`), and
+`gate`, which writes a PASS/FAIL table from gate.json.
 
 ## How a bot talks to the server
 
@@ -150,7 +156,12 @@ Honest limits, measured rather than assumed:
 
 ## Options
 
-    --target sandbox|live     default sandbox
+    --target sandbox|live|remote   default sandbox; remote is the CT 115 sandbox (ct115/sandbox.sh, ALPHA-GATE.md)
+    --target-file f           remote: the file `ct115/sandbox.sh target` prints (ports, the sandbox's /metrics login)
+    --tunnel                  remote: every bot through its own TCP connection over `ssh -L 7789` (ct115/udp-tunnel.js)
+    --host h                  remote without --tunnel: the address a forwarded UDP port answers on
+    --fight [share]           that share of the bots (default all) brawl in pairs: a fist (Unarmed 0x1F4) at the
+                              partner every --fight-every-ms (2500, +-30%), both kept within --fight-radius (60)
     --steps 10,25,50,100      cumulative: bots are added, not restarted
     --seconds 300             measured window per step (after a 6 s settle)
     --bots N                  for "dry"
@@ -195,6 +206,14 @@ Honest limits, measured rather than assumed:
     lib\sampler.ps1      one CSV line a second: UDP datagrams, server CPU, RSS, threads
     lib\sandbox.js       the isolated server instance
     lib\report.js        report.md and the per-step JSON
+    lib\tunnel.js        the PC end of the UDP-over-TCP tunnel (--tunnel)
+    lib\gate.js          the gate command: run.json (+ host-summary.json) against gate.json -> gate.md
+    gate.json            the alpha gate's thresholds, with where each number comes from
+    ALPHA-GATE.md        the alpha capacity gate, step by step; ALPHA-GATE-RESULTS.template.md for the write-up
+    ct115\sandbox.sh     the CT 115 sandbox: init (live build, no secrets), start/stop, tunnel, sample, summary
+    ct115\make-settings.js  the sandbox's settings and gamemode config without secrets, Discord or live paths
+    ct115\udp-tunnel.js  the CT 115 end of the tunnel
+    ct115\hostsample.js  sandbox and live server CPU/RSS, free memory and network each second; the per-step summary
     sandbox\             the isolated server (generated; delete it freely). It reads as ~540 MB but the
                          plugins are hardlinks, so it really costs about 35 MB
     bin\                 BotHost.exe and the per-bot DLL copies (generated; a run clears stale copies,

@@ -19,6 +19,8 @@ const { Bot } = require('./lib/bot');
 const { Sandbox, BUNDLE } = require('./lib/sandbox');
 const metrics = require('./lib/metrics');
 const report = require('./lib/report');
+const { Tunnel } = require('./lib/tunnel');
+const gate = require('./lib/gate');
 const { buildIndex, idFromDesc } = require('./lib/formid');
 const { Relay } = require('./lib/relay');
 
@@ -61,6 +63,22 @@ function parseArgs(argv) {
 
 // ---- target ----------------------------------------------------------------------------------
 function resolveTarget(args) {
+  // remote: the sandbox on CT 115 (ct115/sandbox.sh), reached through ssh port forwards or a forwarded UDP port.
+  // Its settings come from the file `sandbox.sh target` prints, never from this PC's server folder.
+  if (args.target === 'remote') {
+    if (!args.targetFile || args.targetFile === true) throw new Error('--target remote needs --target-file <sandbox-target.json from ct115/sandbox.sh target>');
+    const t = JSON.parse(fs.readFileSync(args.targetFile, 'utf8'));
+    const host = args.host && args.host !== true ? String(args.host) : '127.0.0.1';
+    return {
+      kind: 'remote', host, port: Number(args.port || t.port), tunnelPort: Number(args.tunnelPort || t.tunnelPort),
+      settings: { port: t.port, maxPlayers: t.maxPlayers, offlineMode: t.offlineMode, adminProfileIds: t.adminProfileIds, loadOrder: t.loadOrder },
+      logPath: null,
+      // /metrics listens on CT 115's loopback only; the ssh -L forward brings it to this PC's port uiPort
+      metricsUrl: 'http://127.0.0.1:' + Number(args.metricsPort || t.uiPort) + '/metrics',
+      metricsAuth: t.metricsAuth ? t.metricsAuth.user + ':' + t.metricsAuth.password : null,
+      note: 'the CT 115 sandbox (ct115/sandbox.sh); server-side host numbers come from sandbox.sh summary',
+    };
+  }
   const kind = args.target === 'live' ? 'live' : 'sandbox';
   if (kind === 'live') {
     const settings = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'server-settings.json'), 'utf8'));
@@ -147,7 +165,8 @@ async function preflight(target, args) {
     return { problems, notes, netConnected: 0, recent: [], leases: [], bots };
   }
   let text = '';
-  try { text = fs.readFileSync(target.logPath, 'utf8'); } catch (e) { notes.push('no server.log at ' + target.logPath); }
+  if (!target.logPath) notes.push('no server.log on this machine for a remote target: the sandbox is fresh, and its log is read by ct115/sandbox.sh summary');
+  else try { text = fs.readFileSync(target.logPath, 'utf8'); } catch (e) { notes.push('no server.log at ' + target.logPath); }
   const lines = text ? text.split('\n') : [];
   const now = Date.now();
   const recentWindowMs = Number(args.window || 20) * 60 * 1000;
@@ -245,6 +264,9 @@ class Runner {
       captureChat: !!args.driftHosted || !!args.captureChat,
       driftSeconds: Number(args.driftSeconds || 20),
       driftUnitsPerSec: Number(args.driftUnits || 4),
+      // --fight [share]: that share of the bots (default all) brawl in pairs, a fist every --fight-every-ms
+      fightShare: args.fight ? (args.fight === true ? 1 : Math.max(0, Math.min(1, Number(args.fight)))) : 0,
+      fightEveryMs: args.fight ? Number(args.fightEveryMs || CFG.fightEveryMs || 2500) : 0,
     };
     this.bots = [];
     this.stats = new Map(); // botId -> last host stat
@@ -278,7 +300,11 @@ class Runner {
   }
 
   makeBot(i) {
-    const home = spreadPoint(this.place, i);
+    // --fight: bots 2k and 2k+1 are a pair when both are in the fighting share. They share one spot, close enough
+    // to reach each other (a fist lands only at melee range), and each swings at the other.
+    const fighting = (k) => this.cfg.fightShare > 0 && (Math.floor(k / 2) * 37 % 100) < this.cfg.fightShare * 100;
+    const pairOf = i % 2 === 1 && fighting(i) ? this.bots[i - 1] : null;
+    const home = pairOf ? pairOf.home.slice() : spreadPoint(this.place, i);
     const bot = new Bot({
       id: i,
       profileId: Number(this.args.profileBase || CFG.profileIdBase) + i,
@@ -297,6 +323,10 @@ class Runner {
       dungeon: null,
     });
     this.bots[i] = bot;
+    if (pairOf) {
+      bot.partner = pairOf; pairOf.partner = bot;
+      bot.homeRadius = pairOf.homeRadius = Number(this.args.fightRadius || 60);
+    }
     return bot;
   }
 
@@ -466,7 +496,13 @@ async function cmdRun(args) {
   // Form ids for anything we activate, resolved the way the server resolves them
   const slots = buildIndex(path.join(SERVER_DIR, 'data'), target.settings.loadOrder);
   const runner = new Runner(target, args, slots);
-  if (args.measureBytes) {
+  if (args.tunnel) {
+    // No UDP port reaches CT 115 from outside: every bot's datagrams go down its own TCP connection through ssh.
+    // Server numbers stay honest; ping and loss become the tunnel's (see ct115/udp-tunnel.js).
+    if (target.kind !== 'remote') { log('--tunnel is for --target remote'); return 1; }
+    runner.relay = new Tunnel({ tunnelPort: target.tunnelPort });
+    log('tunnel on: every bot goes through 127.0.0.1:2780x -> tcp 127.0.0.1:' + target.tunnelPort + ' (ssh) -> the CT 115 sandbox');
+  } else if (args.measureBytes) {
     runner.relay = new Relay({ serverHost: target.host, serverPort: target.port });
     log('byte relay on: every bot goes through 127.0.0.1:2780x, which costs a hop but gives real wire bytes');
   }
@@ -479,7 +515,8 @@ async function cmdRun(args) {
   const serverPid = target.kind === 'sandbox' ? target.sandbox.runningPid() : Number(args.serverPid || 0);
   const os = new metrics.OsSampler(serverPid);
   os.start();
-  const tail = new metrics.LogTail(target.logPath);
+  // A remote target has no log on this machine: the tail watches a path that never exists and yields nothing
+  const tail = new metrics.LogTail(target.logPath || path.join(ROOT, 'no-local-server.log'));
   tail.start(2000);
   let prom = null;
   if (target.metricsUrl) {
@@ -500,7 +537,7 @@ async function cmdRun(args) {
   runner.startTicking();
   const run = {
     startedAt: new Date().toISOString(),
-    target: { kind: target.kind, host: target.host, port: target.port, note: target.note },
+    target: { kind: target.kind, host: target.host, port: target.port, note: target.note, tunnel: !!args.tunnel, spread: args.spread || CFG.spread },
     dllNote: 'built ' + fs.statSync(DLL).mtime.toISOString().slice(0, 10),
     mode: isDry ? 'dry' : 'cumulative',
     cfg: runner.cfg,
@@ -538,7 +575,8 @@ async function cmdRun(args) {
     run.steps.push(step);
     report.writeStep(dir, step);
     log('step ' + bots + ': ' + JSON.stringify({
-      connected: step.bots_connected, moveHz: report.r1(step.traffic.movementHzPerBot),
+      connected: step.bots_connected, moveHz: report.r1(step.traffic.movementHzPerBot), hits: step.traffic.hitsSent,
+      delivery: report.r2(step.traffic.movementDelivery),
       msgInPerSec: Math.round(step.traffic.rxMsgsPerSec), cpu: report.r1(step.server.cpuPercent),
       tickP99ms: report.r2(step.server.tickP99ms), lagP99ms: report.r2(step.server.lagP99ms),
       errors: step.log.errorGroups.reduce((a, g) => a + g.count, 0),
@@ -624,6 +662,7 @@ function buildStep(x) {
   const traffic = {
     movesSent,
     chatSent: d('chatSent'),
+    hitsSent: d('hitsSent'),
     avSent: d('avSent'),
     activateSent: d('activateSent'),
     warpSteps: d('warpSteps'),
@@ -649,6 +688,15 @@ function buildStep(x) {
     rxKiBPerSec: hostD('rxBytes') / 1024 / seconds,
     topTypes,
   };
+  // Packet loss, as far as the bots can see it. The server copies every movement to every listener in the sender's
+  // 3x3 grid block, the sender included (MpObjectReference.cpp:745), and Bruma city fits in one block (CHECKLIST,
+  // 2026-09-20). So with all bots in the target world each bot should receive about as many movements as all bots
+  // together send. Below 1 means drops, or bots outside the block (other worlds, --spread arrival). Movement is
+  // sent unreliable, so this is where loss shows first; hosted npcs add movement and push it above 1.
+  const movesReceived = byTypeDelta[P.MsgType.UpdateMovement] || 0;
+  const listeners = x.now.states && x.runner ? x.runner.bots.filter((b) => b && b.idx !== null && b.worldOrCell === x.runner.targetWorld).length : 0;
+  traffic.movementDelivery = movesSent && listeners ? movesReceived / (movesSent * (listeners / Math.max(1, connected)) * listeners) : null;
+  traffic.movesReceived = movesReceived;
 
   // Real wire bytes, when the run went through the counting relay
   if (x.relayBefore && x.relayAfter) {
@@ -718,6 +766,7 @@ async function main() {
   if (cmd === 'sandbox') return cmdSandbox(args);
   if (cmd === 'preflight') return process.exit(await cmdPreflight(args));
   if (cmd === 'run' || cmd === 'dry') return process.exit(await cmdRun(args));
+  if (cmd === 'gate') return process.exit(gate.cmdGate(args, log));
   console.log(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').split('\n').slice(0, 60).join('\n'));
 }
 

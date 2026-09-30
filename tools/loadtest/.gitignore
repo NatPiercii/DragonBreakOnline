@@ -16,3 +16,6 @@ reports/
 
 # The empty password file the native plugin looks for next to the working directory
 Data/
+# ct115/sandbox.sh target: the CT 115 sandbox's ports and its own /metrics login
+sandbox-target.json
+host-summary.json
