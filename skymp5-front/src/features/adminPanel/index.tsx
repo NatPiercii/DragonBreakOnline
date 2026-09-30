@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import './styles.scss';
-import { PlayerPunish, SkillsTab, ItemsTab, PowersTab, TeleportTab, PlaceTab, PanelBan, MasteryTarget, TargetOption, BeastState, PanelPlacements, PlaceMeta, PlaceResults, PlaceSet } from './extraTabs';
+import { PlayerPunish, DeityReset, SkillsTab, ItemsTab, PowersTab, TeleportTab, PlaceTab, PanelBan, MasteryTarget, TargetOption, BeastState, PanelPlacements, PlaceMeta, PlaceResults, PlaceSet } from './extraTabs';
 
 // One roster row as merged by the server (online actor data + backend record).
 interface PanelPlayer {
@@ -431,6 +431,9 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
                 canBan={canBan}
                 bans={data.bans || []}
               />
+            ) : null}
+            {selectedPlayer ? (
+              <DeityReset actor={selectedPlayer.online && selectedPlayer.a ? selectedPlayer.a : null} name={selectedPlayer.n || ''} canSpawn={canSpawn} />
             ) : null}
             {ev.masteryGrant && data.mastery ? (
               <div className="admin-panel__mastery">
