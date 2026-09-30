@@ -14,6 +14,7 @@ const path = require('path');
 const bundle = process.argv[2];
 if (!bundle) { console.log('usage: node tests/supernatural-tab-harness.js <bundle>'); process.exit(2); }
 if (!/mastery__curse/.test(fs.readFileSync(bundle, 'utf8'))) {
+  require('./expect')('supernatural-tab', 'this front has no Werewolf and Vampire tab');
   console.log('ok   skipped: this front predates the Werewolf and Vampire tab');
   process.exit(0);
 }

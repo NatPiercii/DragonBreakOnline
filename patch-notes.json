@@ -1,14 +1,75 @@
 [
   {
-    "title": "A Reroll for Travelers",
-    "date": "2026-09-30",
+    "title": "Welcome to the Alpha",
+    "date": "2026-10-01",
     "version": "Server update",
-    "tag": "Change",
+    "tag": "New",
     "sections": [
       {
-        "heading": "Supporters",
+        "heading": "The doors are open",
         "items": [
-          "The Traveler tier now includes the one identity reroll the Patreon page promises. Use /reroll to change your race, look and name; your skills and gear stay."
+          "DragonBreak Online's alpha is open to everyone in our Discord, and it is free to play.",
+          "There will be no wipe from here on. What you earn, build and forge from tonight is yours to keep.",
+          "For now the alpha is Bruma and the lands around it, high in the Jerall Mountains. More of Tamriel opens as the alpha grows."
+        ]
+      },
+      {
+        "heading": "A fresh start for everyone",
+        "items": [
+          "To open the alpha on even ground, every character was reset once. Skills, character levels, learned spells and schools of magic are back to the start.",
+          "Items and gold went too, and you begin with a miner's clothes and boots, a pickaxe, a woodcutter's axe and 50 gold. Every chest and container in the world was emptied.",
+          "Every house is free again for the holds' officials to grant, and whoever holds one may open a business in it anew. Guild membership starts over, and your faith is yours to choose again.",
+          "Vampirism and lycanthropy are gone: everyone begins mortal, looking as they did before the curse, and the Blood Crown lies unclaimed.",
+          "Your characters, their names, their looks and your character slots are all still yours."
+        ]
+      },
+      {
+        "heading": "Thank you, playtesters",
+        "items": [
+          "Everyone who helped test DragonBreak Online before the alpha now has a second character slot. Your double skill progress has its own note."
+        ]
+      },
+      {
+        "heading": "Help and guides",
+        "items": [
+          "Something wrong in game? Type /bug followed by what happened, while it's in front of you.",
+          "If the game closes or won't start, open the launcher's gear, then Troubleshooting > Report a Problem, or open a ticket on our Discord.",
+          "The guides to skills, magic, crafting, races, religion, the holds and the rules are at dragonbreakonline.com/guides."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "A Thank-You for Our Playtesters",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Double skill progress for 24 hours",
+        "items": [
+          "Everyone who helped test DragonBreak Online before the alpha gets double skill progress for 24 hours. It starts at your first login after the alpha opens on 1 October at 05:00 UTC, whichever character you play.",
+          "The 24 hours run in real time, online or not, and cover every character on your account. Type /boost to see how long you have left.",
+          "Your work still counts towards the usual hourly and daily limits; each bit of it simply moves your skill twice as far.",
+          "Log in by 8 October at 05:00 UTC to claim it."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "First Fixes of the Alpha",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "A prayer to Mehrunes Dagon no longer breaks the fever that turns you into a vampire or a werewolf. A prayer to any other Daedric Prince never did.",
+          "The calendar now reads 4E 211 when you type /time. The Wait menu and your journal follow with the next client update.",
+          "When staff rename a character, the old name is free again, and the new name is kept for that character alone.",
+          "Rent held for an inn's owner while they are away now goes to that owner, even if the inn has changed hands since.",
+          "Only senior staff can raise or clear warbands and raids, from the Place tool as well as from chat."
         ]
       }
     ]
@@ -2140,14 +2201,6 @@
           "A new Voice tab in the launcher: pick your microphone and speakers, set how loud you sound and how loud others are, and choose push to talk or voice activation with a live meter.",
           "Face a player and press X to make their voice louder, quieter, or mute it. It is remembered on your PC.",
           "Voice chat itself switches on as soon as its server is reachable; we will announce it."
-        ]
-      },
-      {
-        "heading": "Patreon benefits",
-        "items": [
-          "Extra character slots now follow your tier: Traveler 1, Adventurer 2, Pathfinder 3, Grand Champion 4, and Pre-Alpha Testers get one more on top.",
-          "Identity rerolls: /reroll reopens the character creator on your character (race, look and name) and keeps your skills, gear and progress. Adventurer 1, Pathfinder 2, Grand Champion 1 per character. /tokens shows what you have left.",
-          "The last 40 places on the server are held for Grand Champions."
         ]
       },
       {

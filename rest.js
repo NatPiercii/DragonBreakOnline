@@ -37,7 +37,8 @@
 //   character private.dboSleep    { at, bed }                  set when they choose Sleep
 //   character private.dboRested   { until }                    Well Rested
 //   character private.dboWellFed  { until }                    Well Fed
-//   claim door private.dboRestOwed number                      rent held for an offline owner
+//   claim door private.dboRestOwedBy { [profile]: gold }       rent held for an offline owner, by whose it is
+//   claim door private.dboRestOwed number                      the same from before 2026-09-30, the claim owner's
 //   claim door private.dboInnOwnerBed { bed, owner }           the inn owner's own bed; void unless owner is the claim's
 
 const fs = require('fs');
@@ -159,18 +160,31 @@ module.exports = (api) => {
     let ids = []; try { ids = (mp.getActorsByProfileId(claim.owner) || []).map((x) => Number(x) >>> 0); } catch (e) { /* none */ }
     const here = ids.find((x) => online.has(x));
     if (here && giveItem(here, GOLD, n)) return `${n} to ${display(here)}`;
-    const owed = Number(get(claim.primary, 'private.dboRestOwed', 0)) || 0;
-    if (set(claim.primary, 'private.dboRestOwed', owed + n)) return `${n} held for ${claim.ownerName || 'profile ' + claim.owner}`;
+    // Held under the owner's profile, so a claim that changes hands before they log in still pays them, not the next
+    // holder (business.js does the same with owedTo, review A2-4)
+    const by = Object.assign({}, get(claim.primary, 'private.dboRestOwedBy', null) || {});
+    by[claim.owner] = (Number(by[claim.owner]) || 0) + n;
+    if (set(claim.primary, 'private.dboRestOwedBy', by)) return `${n} held for ${claim.ownerName || 'profile ' + claim.owner}`;
     return null;
   };
+  const payHeld = (a, door, owed, restore) => {
+    if (giveItem(a, GOLD, owed)) { personal(a, `Your inn took ${owed} gold in rent while you were away.`); audit(`REST ${who(a)} collected ${owed} gold of rent held on ${bedDesc(door)}`); }
+    else restore();
+  };
+  // Every claimed door is looked at, not only the ones this player owns now: rent held for them stays theirs
   const collectOwed = (a) => {
     const p = profileOf(a); if (p < 0) return;
     for (const c of claims()) {
+      const by = get(c.primary, 'private.dboRestOwedBy', null);
+      const mine = by ? Number(by[p]) || 0 : 0;
+      if (mine > 0) {
+        const rest = Object.assign({}, by); delete rest[p];
+        if (set(c.primary, 'private.dboRestOwedBy', rest)) payHeld(a, c.primary, mine, () => { const now = Object.assign({}, get(c.primary, 'private.dboRestOwedBy', null) || {}); now[p] = (Number(now[p]) || 0) + mine; set(c.primary, 'private.dboRestOwedBy', now); });
+      }
       if (c.owner !== p) continue;
-      const owed = Number(get(c.primary, 'private.dboRestOwed', 0)) || 0;
-      if (owed <= 0 || !set(c.primary, 'private.dboRestOwed', 0)) continue;
-      if (giveItem(a, GOLD, owed)) { personal(a, `Your inn took ${owed} gold in rent while you were away.`); audit(`REST ${who(a)} collected ${owed} gold of rent held on ${bedDesc(c.primary)}`); }
-      else set(c.primary, 'private.dboRestOwed', owed);
+      const legacy = Number(get(c.primary, 'private.dboRestOwed', 0)) || 0;
+      if (legacy <= 0 || !set(c.primary, 'private.dboRestOwed', 0)) continue;
+      payHeld(a, c.primary, legacy, () => set(c.primary, 'private.dboRestOwed', legacy));
     }
   };
 

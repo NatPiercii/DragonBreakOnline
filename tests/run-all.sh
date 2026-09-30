@@ -10,7 +10,13 @@
 # Run it from this repo's root:  bash tests/run-all.sh
 # A harness that prints nothing but a usage line would be counted as a failure here, which is how the suite looked
 # broken on 2026-09-28 (nine "failures" were missing arguments).
+# A harness whose feature the build lacks (a widget, a fork system) skips, so this stays usable on older lines. A gate for
+# a line that must carry them says so, and a skip becomes a failure (tests/expect.js):
+#   EXPECT_FEATURES=all bash tests/run-all.sh                       every guarded harness must find its feature
+#   EXPECT_FEATURES=crafted-credit,mastery-award bash tests/run-all.sh  these harnesses must
+# Either way the run ends with the list of what skipped.
 set -u
+expected() { case ",${EXPECT_FEATURES:-}," in *,all,*|*,"$1",*) return 0 ;; esac; local v; v="EXPECT_$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; [ "${!v:-}" = 1 ]; }
 cd "$(dirname "$0")/.."
 FORK=${FORK:-$(cd .. && pwd)/fork}
 FORK_SERVER=${FORK_SERVER:-$FORK}
@@ -48,6 +54,7 @@ declare -A LIMIT=([expedition-loot-budget]=600)
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
   [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
+  [client-calendar]=client:skymp5-client/src/services/services/calendar.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-staff]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
@@ -56,12 +63,14 @@ declare -A NEEDS=(
   [craft-weight]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-cast-route]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-award]=server:skymp5-server/ts/systems/masterySystem.ts
+  [crafted-credit]=server:skymp5-server/ts/systems/craftedExtrasSystem.ts
   [mastery-boost]=server:skymp5-server/ts/systems/masterySystem.ts
   [summon-race]=server:skymp5-server/ts/systems/espmMagic.ts
   [spawn-refill]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-slots]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-stray]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
+  [name-release]=server:skymp5-server/ts/systems/spawn.ts
   [capture-leash]=server:skymp5-server/ts/systems/captureSystem.ts
   [capture-rope]=server:skymp5-server/ts/systems/captureSystem.ts
   [trade-open-hook]=server:skymp5-server/ts/systems/tradeSystem.ts
@@ -96,22 +105,26 @@ bundle() {
 }
 echo "server code from $FORK_SERVER_LABEL ($(git -C "$FORK_SERVER_LABEL" log --oneline -1 2>/dev/null | cut -c1-60)), client code from $FORK_LABEL ($(git -C "$FORK_LABEL" log --oneline -1 2>/dev/null | cut -c1-60)), copied at the start"
 
-pass=0; fail=0; failed=()
+pass=0; fail=0; failed=(); skipped=()
+# A widget or module this line lacks: a skip, or a failure when the gate expects it
+lacks() { if expected "$name"; then echo "FAIL $name (expected, but no $1 in $FORK)"; fail=$((fail+1)); failed+=("$name"); else echo "ok   $name (skipped: no $1 in $FORK)"; pass=$((pass+1)); skipped+=("$name"); fi; }
 for h in tests/*-harness.js; do
   name=$(basename "$h" -harness.js); arg=
   if [ -n "${NEEDS[$name]:-}" ]; then
     if [ ! -x "$ESBUILD" ]; then echo "SKIP $name (no esbuild at $ESBUILD)"; fail=$((fail+1)); failed+=("$name"); continue; fi
     # A front widget this client line does not have yet (a panel still on its branch) has nothing to test
-    if [[ "${NEEDS[$name]}" == front:* ]] && [ ! -f "$FORK/${NEEDS[$name]#front:}" ]; then echo "ok   $name (skipped: no ${NEEDS[$name]#front:} in $FORK)"; pass=$((pass+1)); continue; fi
+    if [[ "${NEEDS[$name]}" == front:* ]] && [ ! -f "$FORK/${NEEDS[$name]#front:}" ]; then lacks "${NEEDS[$name]#front:}"; continue; fi
     # The same for a client module still on its branch (dboGlowPlan.ts until client-glow-shader is on the client line)
-    if [[ "${NEEDS[$name]}" == client:* ]] && [ ! -f "$FORK/${NEEDS[$name]#client:}" ]; then echo "ok   $name (skipped: no ${NEEDS[$name]#client:} in $FORK)"; pass=$((pass+1)); continue; fi
+    if [[ "${NEEDS[$name]}" == client:* ]] && [ ! -f "$FORK/${NEEDS[$name]#client:}" ]; then lacks "${NEEDS[$name]#client:}"; continue; fi
     arg=$(bundle "${NEEDS[$name]}") || { echo "FAIL $name (bundle did not build)"; fail=$((fail+1)); failed+=("$name"); continue; }
   fi
   if timeout "${LIMIT[$name]:-120}" node "$h" $arg > "$OUT/$name.log" 2>&1; then
-    echo "ok   $name"; pass=$((pass+1))
+    if grep -qE '^(ok +)?skipped|^SKIP ' "$OUT/$name.log"; then echo "ok   $name (skipped: $(grep -m1 -E '^(ok +)?skipped|^SKIP ' "$OUT/$name.log" | sed -E 's/^(ok +)?(skipped:? ?|SKIP +)//'))"; skipped+=("$name"); else echo "ok   $name"; fi
+    pass=$((pass+1))
   else
     echo "FAIL $name"; grep -E '^\s*FAIL' "$OUT/$name.log" | head -3 | sed 's/^/       /'; fail=$((fail+1)); failed+=("$name")
   fi
 done
 echo "$pass passed, $fail failed${failed[*]:+: ${failed[*]}}"
+echo "skipped ${#skipped[@]}${skipped[*]:+: ${skipped[*]}}${EXPECT_FEATURES:+ (EXPECT_FEATURES=$EXPECT_FEATURES)}"
 [ "$fail" -eq 0 ]

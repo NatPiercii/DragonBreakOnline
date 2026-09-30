@@ -10,8 +10,9 @@ const SERVER = path.resolve(__dirname, '..');
 const CONFIG = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
 const TIERS = JSON.parse(fs.readFileSync(path.join(SERVER, 'patron-tiers.json'), 'utf8'));
 const NOTES = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
-// The note waits in docs/patch-notes-pending until the alpha opens and the boost is switched on (release-1003)
-const PENDING = JSON.parse(fs.readFileSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'playtesters-thank-you.json'), 'utf8'));
+// The note waited in docs/patch-notes-pending through release-1003 and went to the top of patch-notes.json with the
+// launch (release-1004), under the "Welcome to the Alpha" note, since every gameplay deploy rebuilds the launcher news
+const BOOST_NOTE = 'A Thank-You for Our Playtesters';
 const GAMEMODE = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 const IGNORE = fs.readFileSync(path.join(SERVER, '.gitignore'), 'utf8');
 const MODULE = path.join(SERVER, 'playtesterboost.js');
@@ -21,16 +22,24 @@ const ok = (label, cond, got) => { checks++; if (!cond) { fails++; console.log(`
 
 // ---- what ships ----------------------------------------------------------------------------------------------------
 const B = CONFIG.playtesterBoost || {};
-ok('config: starts 2026-10-03 05:00 UTC', Date.parse(B.startsAt) === Date.parse('2026-10-03T05:00:00Z'), B.startsAt);
-ok('config: claim deadline 2026-10-10 05:00 UTC', Date.parse(B.claimUntil) === Date.parse('2026-10-10T05:00:00Z'), B.claimUntil);
+// The dates come from the config, which moves with the opening (3 Oct, then 1 Oct 05:00 UTC): the harness holds what
+// must stay true of them, and that the parked note says the same days
+const STARTS = new Date(B.startsAt), CLAIM = new Date(B.claimUntil);
+ok('config: starts at 05:00 UTC, when the doors open', STARTS.getUTCHours() === 5 && STARTS.getUTCMinutes() === 0 && STARTS.getUTCSeconds() === 0, B.startsAt);
+ok('config: the claim deadline is 7 days after the start', CLAIM - STARTS === 7 * 24 * 3600000, [B.startsAt, B.claimUntil]);
 ok('config: 24 hours at x2', B.hours === 24 && B.mult === 2, [B.hours, B.mult]);
 ok('config: enabled is a boolean', typeof B.enabled === 'boolean', B.enabled);
 const prealpha = (TIERS.bonuses || []).find((t) => t.id === 'prealpha');
 ok('config: the role is the Pre-Alpha Tester role that grants the second slot', prealpha && B.roleId === prealpha.roleId, B.roleId);
 ok('gitignore keeps the runtime windows out of the public repo', /^playtester-boost\.json$/m.test(IGNORE));
-const note = PENDING;
-ok('patch note waits in patch-notes-pending, a Server update dated the opening', note.version === 'Server update' && note.date === '2026-10-03', [note.version, note.date]);
-ok('...and is not in patch-notes.json, so deploy-news cannot publish it before the launch', !NOTES.some((n) => n.title === note.title), note.title);
+const note = NOTES.find((n) => n.title === BOOST_NOTE) || {};
+ok('patch note in patch-notes.json, a Server update dated the opening', note.version === 'Server update' && note.date === B.startsAt.slice(0, 10), [note.version, note.date, B.startsAt]);
+ok('...among the launch notes on top, under the welcome', NOTES.slice(0, 2).map((n) => n.title).join(' | ') === `Welcome to the Alpha | ${BOOST_NOTE}`, NOTES.slice(0, 2).map((n) => n.title));
+ok('...and no longer parked in patch-notes-pending', !fs.existsSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'playtesters-thank-you.json')));
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const dayOf = (d) => `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+ok(`patch note names the config's days: opens ${dayOf(STARTS)}, claim by ${dayOf(CLAIM)}`,
+  JSON.stringify(note).includes(`on ${dayOf(STARTS)} at 05:00 UTC`) && JSON.stringify(note).includes(`by ${dayOf(CLAIM)} at 05:00 UTC`), note.sections);
 ok('patch note says 24 hours of double skill progress from the first login after launch',
   /double skill progress for 24 hours/i.test(JSON.stringify(note)) && /first login after the alpha opens/i.test(JSON.stringify(note)), note.title);
 ok('gamemode loads playtesterboost.js', /require\(PLAYTESTERBOOST_JS\)\(\{[^}]*isLeadStaff[^}]*\}\)/.test(GAMEMODE));
@@ -41,7 +50,8 @@ ok('gamemode keeps grant and extend for Lead GM and above', /'boost grant', 'boo
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-boost-'));
 process.chdir(tmp);
 const H = 3600000;
-const START = Date.parse('2026-10-03T05:00:00Z');
+const START = Date.parse(B.startsAt);
+const utc = (t) => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 let clock = START - 2 * H;
 const realNow = Date.now;
 Date.now = () => clock;
@@ -116,7 +126,7 @@ clock = START - 2 * H;
 login(5);
 ok('before launch: no window', !store()['40'], store());
 cmd(5, '');
-ok('before launch: /boost says when it starts', /starts at your first login after 2026-10-03 05:00 UTC/.test(lastTo(5)), lastTo(5));
+ok('before launch: /boost says when it starts', lastTo(5).includes(`starts at your first login after ${utc(START)}`), lastTo(5));
 online.push(6);   // in the world without a login run through the module
 
 // a staff window before launch that ends before it, and one still running at launch
@@ -167,7 +177,7 @@ ok('no role: /boost says none', /You have no skill boost/.test(lastTo(3)), lastT
 cmd(3, 'Ada Second');
 ok('a player cannot look up someone else', /on its own/.test(lastTo(3)), lastTo(3));
 const savedClock = clock;
-clock = Date.parse('2026-10-10T05:00:00Z');
+clock = Date.parse(B.claimUntil);
 login(4);
 ok('after the deadline: nothing', !store()['30'] && boostOf(4) === undefined, store()['30']);
 logout(4); clock = savedClock;
@@ -220,7 +230,7 @@ login(1);
 ok('after the end: no new window', store()['10'].until === ada.until, store()['10']);
 ok('after the end: nothing said', toldCount(1) === toldAda, said.filter((s) => s[0] === 1).slice(-1));
 cmd(1, '');
-ok('after the end: /boost says when it ended', /ended 2026-10-04 06:00 UTC/.test(lastTo(1)), lastTo(1));
+ok('after the end: /boost says when it ended', lastTo(1).includes(`ended ${utc(ada.until)}`), lastTo(1));
 
 // 11. enabled false: no automatic start, but a running window is still honoured
 config = { playtesterBoost: Object.assign({}, B, { enabled: false }) };

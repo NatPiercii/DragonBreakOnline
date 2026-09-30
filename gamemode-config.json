@@ -748,8 +748,8 @@
  "playtesterBoost": {
   "_comment": "The playtesters' reward at the alpha launch (playtesterboost.js, Nate 2026-09-30): a holder of roleId (the pre-alpha whitelist role) gets hours of x mult skill progress from their first login at or after startsAt, once per account, if that login is before claimUntil. Needs a server build whose masterySystem honours private.xpBoost (fork client-playtester-xpboost); without one nothing starts and nothing is promised. enabled gates only the automatic start; running windows and staff /boost grant|extend work either way. Windows live in playtester-boost.json.",
   "enabled": true,
-  "startsAt": "2026-10-03T05:00:00Z",
-  "claimUntil": "2026-10-10T05:00:00Z",
+  "startsAt": "2026-10-01T05:00:00Z",
+  "claimUntil": "2026-10-08T05:00:00Z",
   "hours": 24,
   "mult": 2,
   "roleId": "1549556017665409034"

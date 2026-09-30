@@ -92,6 +92,9 @@ module.exports = (api) => {
       return Array.isArray(found) && found.some((id) => (Number(id) >>> 0) !== (self >>> 0));
     } catch (e) { log('naming: uniqueness check failed, letting the name through', e.message); return false; }
   };
+  // For staff /rename (gamemode.js): the same key and the same uniqueness check as a player's own naming
+  globalThis.__dboNameKey = (name) => fold(name);
+  globalThis.__dboNameTaken = (key, self) => takenBy(key, Number(self) >>> 0);
 
   let nonceSeq = 0;
   // Why a name typed at creation was taken off, shown once with the first ask

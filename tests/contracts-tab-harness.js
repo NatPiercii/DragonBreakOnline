@@ -12,6 +12,7 @@ const fs = require('fs');
 const bundle = process.argv[2];
 if (!bundle) { console.log('usage: node tests/contracts-tab-harness.js <bundle>'); process.exit(2); }
 if (!/contractTake/.test(fs.readFileSync(bundle, 'utf8'))) {
+  require('./expect')('contracts-tab', 'this front has no Contracts tab');
   console.log('ok   skipped: this front predates the Contracts tab');
   process.exit(0);
 }

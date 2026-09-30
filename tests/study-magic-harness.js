@@ -10,6 +10,7 @@ const fs = require('fs');
 const bundle = process.argv[2];
 if (!bundle) { console.log('usage: node tests/study-magic-harness.js <bundle>'); process.exit(2); }
 if (!/studyMagic__/.test(fs.readFileSync(bundle, 'utf8'))) {
+  require('./expect')('study-magic', 'this front has no Study Magic panel');
   console.log('ok   skipped: this front predates the schools of magic');
   process.exit(0);
 }
