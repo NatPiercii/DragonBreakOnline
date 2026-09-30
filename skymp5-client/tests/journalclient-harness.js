@@ -38,9 +38,17 @@ const es = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'services', 'ser
 const packet = es.slice(es.indexOf('private onCustomPacketMessage'), es.indexOf('public playActionIdle'));
 check('dboIdleStop ends the server\'s idle gracefully, and only when stopsIdle says so',
   /content\["customPacketType"\] === "dboIdleStop"/.test(packet) && /if \(stopsIdle\(this\.activeEmote, this\.serverIdle, content\["anim"\]\)\) \{\s*this\.serverIdle = "";\s*this\.stopActiveEmote\(true\);/.test(packet));
-check('dboIdle remembers the idle as the server\'s and passes the hold on',
-  /const req = idleRequest\(content\);\s*this\.serverIdle = anim;\s*this\.playActionIdle\(anim, req\.seconds, content\["endsItself"\] === true, req\.hold\);/.test(packet));
-check('a held idle is not cut to 10 s', /public playActionIdle\(anim: string, seconds: number, endsItself: boolean, hold = false\): void \{\s*const held = hold \? seconds : Math\.min\(MAX_IDLE_SECONDS/.test(es));
+check('dboIdle passes the hold on and marks the idle as the server\'s',
+  /this\.playActionIdle\(anim, req\.seconds, content\["endsItself"\] === true, req\.hold, true\);/.test(packet));
+check('...but a held idle never replaces the player\'s own emote (a seat, a lute)',
+  /if \(req\.hold && this\.activeEmote && this\.activeEmote !== this\.serverIdle\) \{[\s\S]{0,120}return;/.test(packet));
+const pai = es.slice(es.indexOf('public playActionIdle'), es.indexOf('private gameMenuOpen'));
+check('...and it is the server\'s only once it really began (a refused idle leaves nothing for a stop to end)',
+  /this\.playIdle\(anim, held, endsItself\);\s*\/\/[^\n]*\n\s*if \(fromServer && this\.activeEmote === anim\) this\.serverIdle = anim;/.test(pai));
+check('no dboIdle sets serverIdle before the idle plays', !/this\.serverIdle = anim;\s*this\.playActionIdle/.test(es));
+const fs2 = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'services', 'services', 'factionService.ts'), 'utf8');
+check('F3 says it is opening the journal', /"Opening your journal…"/.test(fs2) && !/Opening your factions/.test(fs2));
+check('a held idle is not cut to 10 s', /public playActionIdle\(anim: string, seconds: number, endsItself: boolean, hold = false, fromServer = false\): void \{\s*const held = hold \? seconds : Math\.min\(MAX_IDLE_SECONDS/.test(es));
 check('the player\'s own wheel choice is never the server\'s idle', /if \(key === events\.play\) \{\s*const anim = [^\n]*\n\s*\/\/[^\n]*\n\s*this\.serverIdle = "";/.test(es));
 check('the limits come from idleControl, not a second copy', /import \{ MIN_IDLE_SECONDS, MAX_IDLE_SECONDS, idleRequest, stopsIdle \} from "\.\/idleControl";/.test(es) && !/^const MAX_IDLE_SECONDS/m.test(es));
 

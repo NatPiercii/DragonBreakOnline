@@ -176,7 +176,7 @@ export class FactionService extends ClientListener {
       return;
     }
     // Ask the server for the roster; it decides whether we may manage a hold.
-    notifyNextUpdate(this.controller, this.sp, "Opening your factions…");
+    notifyNextUpdate(this.controller, this.sp, "Opening your journal…");
     sendCustomPacket(this.controller, { customPacketType: "factionMenuRequest" });
   }
 

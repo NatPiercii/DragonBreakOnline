@@ -313,17 +313,21 @@ export class EmoteService extends ClientListener {
       logTrace(this, `dboIdle not allowed`, anim);
       return;
     }
-    // hold: played until its dboIdleStop (the journal's page-turn while it is open), not for the usual few seconds
+    // hold: played until its dboIdleStop (the journal's page-turn while it is open), not for the usual few seconds. A held
+    // idle never replaces the player's own emote (a seat, a lute): it only decorates, and closing would leave them standing
     const req = idleRequest(content);
-    this.serverIdle = anim;
-    this.playActionIdle(anim, req.seconds, content["endsItself"] === true, req.hold);
+    if (req.hold && this.activeEmote && this.activeEmote !== this.serverIdle) {
+      logTrace(this, `Held idle skipped over the player's own emote`, anim);
+      return;
+    }
+    this.playActionIdle(anim, req.seconds, content["endsItself"] === true, req.hold, true);
   }
 
   /**
    * An interaction idle (dboIdle, or a client event such as a finished trade): on the next frame, through playIdle,
    * and not while a game menu is open. Seconds are held between MIN_IDLE_SECONDS and MAX_IDLE_SECONDS.
    */
-  public playActionIdle(anim: string, seconds: number, endsItself: boolean, hold = false): void {
+  public playActionIdle(anim: string, seconds: number, endsItself: boolean, hold = false, fromServer = false): void {
     const held = hold ? seconds : Math.min(MAX_IDLE_SECONDS, Math.max(MIN_IDLE_SECONDS, seconds));
     this.controller.once("update", () => {
       if (this.gameMenuOpen()) {
@@ -331,6 +335,8 @@ export class EmoteService extends ClientListener {
         return;
       }
       this.playIdle(anim, held, endsItself);
+      // The server's idle only once it really began (a refused one leaves nothing for a stop to end)
+      if (fromServer && this.activeEmote === anim) this.serverIdle = anim;
     });
   }
 
