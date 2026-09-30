@@ -271,6 +271,7 @@ module.exports = (api) => {
   // The schools of magic (schools.js): a spell of Destruction, Illusion, Conjuration or Alteration is taken only in a school
   // the character has chosen, and no higher than their study of it. null when schools.js has no objection or is not loaded.
   const schoolRefusal = (a, sp, whose) => {
+    try { if (typeof globalThis.__dboSchoolsGrandfathered === 'function' && globalThis.__dboSchoolsGrandfathered(a, (sp.spellId || sp.id) >>> 0)) return null; } catch (e) { /* no schools */ }
     try { return typeof globalThis.__dboSchoolsRefusal === 'function' ? (globalThis.__dboSchoolsRefusal(a, sp.school, Number(sp.rank) || 0, whose) || null) : null; }
     catch (e) { log('spells: school check failed', e.message); return null; }
   };
