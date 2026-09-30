@@ -59,7 +59,10 @@ require(path.resolve(__dirname, '..', 'playermenu.js'))({
   display: String, nameOf: () => 'Aela', tagOf: () => 'AB12', profileOf: () => 1, onlineActors: () => [P], isAdmin: () => false,
   ranksOf: () => [], giveItem: give, makeProp: () => {}, runCommand: () => {}, cfg: {}, every: () => {}, registerChatCommand: () => {},
 });
-const toggle = () => { ui.get('maskToggle')(P); runTimers(); };
+// Each press is 2.5 s after the last, past the toggle cooldown (the burst case below presses faster)
+let fakeNow = 1_900_000_000_000;
+const savedNow = Date.now; Date.now = () => fakeNow;
+const toggle = () => { fakeNow += 2500; ui.get('maskToggle')(P); runTimers(); };
 const masks = () => (inv.get(P) || { entries: [] }).entries.filter((q) => q.baseId === MASK).reduce((n, q) => n + q.count, 0);
 inv.set(P, { entries: [] });
 toggle();
@@ -79,6 +82,20 @@ toggle();
 ok(masks() === 1 && !props.get(`${P}|private.maskLost`), 'with the lost mask back in hand, H puts that one on and hands out none');
 toggle();
 ok(masks() === 0, '...and takes it back as before');
+// A burst of H, the taken-off masks put away before their removal lands: one mask comes out, not one per press
+{
+  const pending = [];
+  global.setTimeout = (fn) => { pending.push(fn); return 0; };
+  inv.set(P, { entries: [] }); props.set(`${P}|private.maskLost`, 0);
+  fakeNow += 5000;
+  for (let i = 0; i < 20; i++) { ui.get('maskToggle')(P); fakeNow += 50; }
+  const handedOut = masks();
+  inv.set(P, { entries: [] });                 // put in a chest inside the 1.5 s
+  while (pending.length) pending.shift()();
+  ok(handedOut <= 1, 'twenty presses of H in a second hand out one mask at most', handedOut);
+  global.setTimeout = (fn) => { timers.push(fn); return 0; };
+}
+Date.now = savedNow;
 // X on a player who logged out (their body stays through the logout grace) says so, not "get closer"
 said.length = 0;
 ui.get('playerMenu')(P, [0xff000099]);

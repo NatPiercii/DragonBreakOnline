@@ -243,7 +243,16 @@ module.exports = (api) => {
     }
     if (!quiet) personal(a, 'You take your mask off.');
   };
-  onUi('maskToggle', (a) => { if (isMasked(a)) unmask(a, false); else mask(a); });
+  // A mask taken off is removed 1.5 s later; toggling again inside that let a burst of H hand out a mask each time
+  const MASK_TOGGLE_MS = 2000;
+  const maskToggledAt = globalThis.__dboMaskToggledAt instanceof Map ? globalThis.__dboMaskToggledAt : (globalThis.__dboMaskToggledAt = new Map());
+  onUi('maskToggle', (a) => {
+    const now = Date.now();
+    if (now - (maskToggledAt.get(a >>> 0) || 0) < MASK_TOGGLE_MS) return;
+    maskToggledAt.set(a >>> 0, now);
+    if (maskToggledAt.size > 2000) for (const [k, t] of maskToggledAt) if (now - t > MASK_TOGGLE_MS) maskToggledAt.delete(k);
+    if (isMasked(a)) unmask(a, false); else mask(a);
+  });
 
   // Admin fitting room: /masktest wears the next candidate covering, /masktest <n> a given one, /masktest off
   // takes the test piece away. Pick one per race into gamemode-config.json playerMenu.maskItemByRace.
