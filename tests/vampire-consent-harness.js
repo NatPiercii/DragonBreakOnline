@@ -148,6 +148,15 @@ globalThis.__dboSuperMenuAction(V, 'super:feed', W2, nameFor);
 ok(widgets.length === 0 && globalThis.__dboSuperFeeds.has(V), 'a bound captive is not asked');
 feedTick(12500);
 
+// ---- /feedpair switches the standing bite for a staff test, until a restart --------------------------------------
+now += 61000;
+store.set(`${B}|percentages`, { health: 1, magicka: 1, stamina: 1 });
+cmds.feedpair(V, 'on');
+ok(globalThis.__dboFeedPairOn === true && heard(V, /standing feeding bite .* is ON/), '/feedpair on switches the standing bite on');
+cmds.feedpair(V, 'off');
+ok(globalThis.__dboFeedPairOn === false && heard(V, /is off/), '/feedpair off switches it off again');
+delete globalThis.__dboFeedPairOn;
+
 // ---- the standing bite, when switched on --------------------------------------------------------------------------
 load({ supernatural: { feedPair: { enabled: true } } });
 fire('uiCaps', T, ['feedPrompt']);
@@ -203,6 +212,22 @@ bloodyWith([P_LIPS, P_CHIN], [{ texturePath: 'TintMasks\\MaleHeadNord_Lips.dds',
 fire('swimming', V);
 ok(lipsOf(V) === -13424870 && state(V).blood && state(V).blood.prev.length === 1 && state(V).blood.prev[0].type === 11,
   'what cannot be put back while blood is still on the face is kept for the next wash, not thrown away', state(V).blood);
+said.length = 0;
+fire('swimming', V);
+ok(!heard(V, /water runs red/), 'a partial wash does not say the water runs clear');
+// Worker B: an appearance that cannot be read is not a clean face
+store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: { prev: [P_LIPS, P_CHIN], at: now } }));
+store.delete(`${V}|appearance`);
+fire('swimming', V);
+ok(state(V).blood && state(V).blood.prev.length === 2, 'an appearance that cannot be read keeps every original for the next wash', state(V).blood);
+store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: [Object.assign({}, P_LIPS, { argb: BL }), Object.assign({}, P_CHIN, { argb: BC })] });
+fire('swimming', V);
+ok(!state(V).blood && lipsOf(V) === -13424870 && chinOf(V) === 16777215, 'and the next wash, with the appearance back, puts them all back');
+// Worker B: the colours are the ones this blood put on, not today's config
+store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: { prev: [Object.assign({}, P_LIPS, { applied: 0x11223344 })], at: now } }));
+store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: [{ texturePath: 'TintMasks\\MaleHeadImperial_Lips.dds', type: 1, argb: 0x11223344 }, P_CHIN] });
+fire('swimming', V);
+ok(!state(V).blood && lipsOf(V) === -13424870, 'blood put on with an older colour still washes off after the config changed');
 store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: null }));
 store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: tints() });
 // A client without the feeding service could never wash it off: no blood for it

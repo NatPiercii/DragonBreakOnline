@@ -194,9 +194,11 @@ const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM'
 // Staff commands a GM may not use (command name, or 'name sub' for one subcommand)
 // appoint and dismiss are here because an official's powers are real money: a rank lets its holder post work paid
 // out of the hold treasury, so a GM who could appoint himself could pay himself (claude-jake's review, A1-1).
-const LEAD_ONLY = new Set(['beastform', 'vlremote', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
+const LEAD_ONLY = new Set(['beastform', 'vlremote', 'feedpair', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
   'jail', 'placeexport', 'staffstats', 'war', 'curse', 'schedule', 'warband', 'raid', 'settime', 'timescale', 'setweather', 'npc remove', 'dungeon end',
   'appoint', 'dismiss',
+  // A staff override on the state of a player, like the property override (A3-1): /deity reset <player> in prayer.js
+  'deity reset',
   // Review A3-5 / A7-STAFF-1: /masktest creates armour, a faction's leader holds a hold's economy
   'masktest', 'faction leader', 'faction remove']);
 
@@ -4388,6 +4390,7 @@ try {
   const PRAYER_JS = path.resolve('prayer.js');
   delete require.cache[PRAYER_JS];
   require(PRAYER_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, skills: SKILLS_DEF,
+    isLeadStaff, findAnyByName, sendPacket,
     takeGold, treasuryHere: (a, gold) => { const z = zoneOfActor(a); return depositToTreasury(z && typeof z === 'object' ? z.id : z, gold); } });
 } catch (e) { log('prayer.js failed to load:', e.stack || e.message); globalThis.__dboPrayerActivate = null; }
 
