@@ -13,8 +13,8 @@ const MORE = [
   ['/guides/skills.html', 'The Wheel of Skills'], ['/guides/leveling.html', 'Leveling Guide'],
   ['/guides/crafting.html', 'Crafting and Trades'], ['/guides/magic.html', 'Schools of Magic'],
   ['/guides/races.html', 'Racial Guide'], ['/guides/religion.html', 'Religion System'],
-  ['/guides/factions.html', 'Holds &amp; Factions Guide'], ['/guides/supernatural.html', 'Supernatural Guide'],
-  ['/guides/rules.html', 'Server Rules'],
+  ['/guides/factions.html', 'Holds &amp; Factions Guide'], ['/guides/war.html', 'War and Raids'],
+  ['/guides/supernatural.html', 'Supernatural Guide'], ['/guides/rules.html', 'Server Rules'],
 ];
 // The site's legal pages, linked from every footer (terms.html and privacy.html sit at the site root)
 const SITE = ['/terms.html', '/privacy.html'];

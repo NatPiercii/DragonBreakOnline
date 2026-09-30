@@ -14,7 +14,7 @@ from html.parser import HTMLParser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GUIDES = os.path.join(HERE, '..', 'guides')
-ORDER = ['start', 'commands', 'skills', 'leveling', 'crafting', 'magic', 'races', 'religion', 'factions',
+ORDER = ['start', 'commands', 'skills', 'leveling', 'crafting', 'magic', 'races', 'religion', 'factions', 'war',
          'supernatural', 'rules']
 # the site's legal pages, linked from every footer
 SITE = {'/terms.html', '/privacy.html'}
