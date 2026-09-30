@@ -737,6 +737,11 @@
     "Restorative dishes",
     "Banquet fare with long buffs"
    ],
+   "craftWeight": {
+    "_comment": "What one dish is worth in units of work (GroundedPasta and swag, 2026-09-30: cooking rose too slowly and a complex dish was worth no more than a simple one). Read by masterySystem (skillPoints.craftWeightOf): byTier[t-1] when the recipe carries the Cook tier gate DBO_Skill_cook_T<t> (tools/recipes), otherwise byIngredients[n] for n ingredients, the last entry for more. Never below the product-value weight every craft had before (0.5 for any dish). The same dish again within the hour still counts less (1/(1+k/8)) and the hourly bucket (pointSystem.bucketPerHour, 30) still caps the hour. Needs a restart.",
+    "byTier": [1, 1.5, 2, 2.5, 3],
+    "byIngredients": [0.5, 0.75, 1, 1.5, 2, 2.5, 3]
+   },
    "markerSpells": [
     "<T1>",
     "<T2>",
