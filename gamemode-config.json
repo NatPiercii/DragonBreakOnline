@@ -209,7 +209,7 @@
  },
  "champions": {
   "_comment": "Named champion spawns: chance a hostile wildlife or dungeon spawn is promoted, how much bigger it stands, the share of each hit given back to it (0.5 is roughly double health), the gold each fighter is paid, the chance of a gem on top, and the share of the damage a player needs to count as a fighter.",
-  "enabled": false,
+  "enabled": true,
   "wildChance": 0.05,
   "dungeonChance": 0.08,
   "scale": 1.14,
