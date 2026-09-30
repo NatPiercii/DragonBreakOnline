@@ -78,9 +78,11 @@ module.exports = (api) => {
     werewolf: {
       // Summon Wolves is left out: its wolves are placed by a Papyrus script that never runs here
       right: [], left: [],
-      // HowlWerewolfFear (cf790, word cf78e, casts cf791) and HowlWerewolfDetectLife (ce218, word ce219, casts ce217)
+      // HowlWerewolfFear (cf790, word cf78e, casts cf791) and HowlWerewolfDetectLife (ce218, word ce219, casts ce217).
+      // Named as UESP names them (Skyrim:Lycanthropy): Howl of the Pack is the one that summons wolves (cf79d), left out
+      // above, and the detect-life howl is the Totem of the Hunt's
       voice: [howl('cf791:Skyrim.esm', 'cf790:Skyrim.esm', 'cf78e:Skyrim.esm', 'Howl of Terror'),
-        howl('ce217:Skyrim.esm', 'ce218:Skyrim.esm', 'ce219:Skyrim.esm', 'Howl of the Pack (detect life)')],
+        howl('ce217:Skyrim.esm', 'ce218:Skyrim.esm', 'ce219:Skyrim.esm', 'Totem of the Hunt (detect life)')],
       // What the body casts by itself: the power attack's knockback and the feeding victim's hold (both were refused)
       passive: [], hidden: [spell('f3f0a:Skyrim.esm', 'Knockback'), spell('106396:Skyrim.esm', 'Feeding hold')],
     },

@@ -1,5 +1,51 @@
 [
   {
+    "title": "Vampires: Hunger, Feeding and Blood",
+    "date": "2026-09-30",
+    "version": "Client 0.3.71",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "A vampire's first meal",
+        "items": [
+          "A newly turned vampire's powers sleep until their first feed. Go more than six hours (game time) without blood and your body starts to wither: wounds and stamina recover more slowly each hour until you drink. Blood lifts it at once.",
+          "Ordinary food barely eases a vampire's hunger."
+        ]
+      },
+      {
+        "heading": "Feeding",
+        "items": [
+          "Feeding now takes a few seconds, and you kneel over the body as you drink. The higher your blood rank, the quicker you feed. Moving away or being struck breaks the feed.",
+          "From Nightstalker you can Feed Deeply on a captive: it takes longer, heals you faster for a while and keeps the thirst away longer, and your victim blacks out.",
+          "Vampires can now ask anyone for their blood. The other player sees a prompt and can offer their neck or resist.",
+          "Feeding can leave blood around a young or hungry vampire's mouth. It stays until you wash it off in water.",
+          "Werewolves in beast form now play their feeding animation, and a feed takes a few seconds."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "When your thirst grows, Vampiric Drain in your hand now becomes the stronger drain instead of vanishing from your hand."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Your Curse in the Skills Menu",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Werewolves and vampires",
+        "items": [
+          "Werewolves and vampires now have their own tab in the Skills menu (K): your rank and what the next one brings, your thirst or your beast, your first meal, and your powers. It appears with the next client update.",
+          "The werewolf's howl that senses the living is now named for the Totem of the Hunt, as in Skyrim. Howl of the Pack is the howl that calls wolves."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Crafting grows with your skill",
     "date": "2026-09-30",
     "version": "Server update",

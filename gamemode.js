@@ -1196,6 +1196,12 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       log(`shout relay ${display(a)} word ${r.data.spell.toString(16)} to ${n} player(s)`);
       return;
     }
+    // K (client masteryService) asks for the skills menu. masterySystem answers with the skills; supernatural.js sends a
+    // werewolf's or a vampire's progression for its tab beside them, and null to anyone else
+    if (content.customPacketType === 'masteryInfoRequest') {
+      const a = actorOf(userId); if (a && typeof globalThis.__dboSuperProgressSend === 'function') globalThis.__dboSuperProgressSend(a);
+      return;
+    }
     // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
     if (content.customPacketType === 'factionMenuRequest') {
       const a = actorOf(userId); if (a && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);
@@ -1582,12 +1588,16 @@ const applyNeedsStage = (a, n, announce, force) => {
     let mult = 1;
     try { if (typeof globalThis.__dboChillRateMult === 'function') mult = Number(globalThis.__dboChillRateMult(a, NEEDS_AV[key])); } catch (e) { mult = 1; }
     if (!(mult >= 0)) mult = 1;
-    const value = Math.max(0, Math.round((NEEDS_RATE_BASE + want) * mult));
+    // So does a vampire's blood (supernatural.js): a new vampire's withering, a deep feed's lift
+    let blood = 1;
+    try { if (typeof globalThis.__dboSuperRateMult === 'function') blood = Number(globalThis.__dboSuperRateMult(a, NEEDS_AV[key])); } catch (e) { blood = 1; }
+    if (!(blood >= 0)) blood = 1;
+    const value = Math.max(0, Math.round((NEEDS_RATE_BASE + want) * mult * blood));
     if (want === have && value === n.appliedValue[key] && !force) continue;
     if (setActorValue(a, NEEDS_AV[key], value)) {
       n.applied[key] = want;
       n.appliedValue[key] = value;
-      log(`needs ${display(a)} ${NEEDS_AV[key]} -> ${value} (${st.name}${want ? `, ${want}%` : ''}${mult !== 1 ? `, chill x${mult}` : ''})`);
+      log(`needs ${display(a)} ${NEEDS_AV[key]} -> ${value} (${st.name}${want ? `, ${want}%` : ''}${mult !== 1 ? `, chill x${mult}` : ''}${blood !== 1 ? `, blood x${blood}` : ''})`);
     }
   }
   if (n.stage !== st.name) {
@@ -1675,11 +1685,19 @@ const foodKindOf = (baseId) => {
   foodKindCache.set(baseId, kind);
   return kind;
 };
+const vampireAteAt = new Map(); // actorId -> ms of the last "ash" line
 const onEat = (a, baseId) => {
   if (!NEEDS.enabled) return;
   const kind = foodKindOf(baseId);
-  const restore = Number((NEEDS.restore || {})[kind]) || 0;
+  let restore = Number((NEEDS.restore || {})[kind]) || 0;
   if (!restore) return;
+  // Food does little for a vampire (supernatural.js; Onny's suggestion, Nate 2026-09-30)
+  let foodMult = 1;
+  try { if (typeof globalThis.__dboSuperFoodMult === 'function') foodMult = Number(globalThis.__dboSuperFoodMult(a)); } catch (e) { foodMult = 1; }
+  if (foodMult >= 0 && foodMult < 1) {
+    restore *= foodMult;
+    if (Date.now() - (vampireAteAt.get(a) || 0) > 600000) { vampireAteAt.set(a, Date.now()); system(a, 'Food sits like ash on your tongue. It barely touches your hunger.'); }
+  }
   // Eating takes time: the hunger counts when the meal is finished (startMeal, under the ui events below)
   if (NEEDS.mealTime !== false && startMeal(a, baseId, kind, restore)) return;
   creditMeal(a, [{ baseId, kind, restore }]);
@@ -4616,14 +4634,14 @@ try {
   const GREATHUNT_JS = path.resolve('greathunt.js');
   delete require.cache[GREATHUNT_JS];
   require(GREATHUNT_JS)({ mp, log, personal, audit, who, sendPacket, onlineActors, profileOf, registerChatCommand, zoneOfActor, zoneById, isWorldspace, cfg });
-} catch (e) { log('greathunt.js failed to load:', e.stack || e.message); for (const k of ['__dboHuntFed', '__dboHuntKill', '__dboHuntChanged', '__dboHuntBeastSeconds', '__dboHuntFeedSeconds', '__dboHuntChangesPerDay', '__dboHuntForcedMult', '__dboHuntDamageMult', '__dboHuntReset', '__dboHuntHowled']) globalThis[k] = null; }
+} catch (e) { log('greathunt.js failed to load:', e.stack || e.message); for (const k of ['__dboHuntFed', '__dboHuntKill', '__dboHuntChanged', '__dboHuntBeastSeconds', '__dboHuntFeedSeconds', '__dboHuntChangesPerDay', '__dboHuntForcedMult', '__dboHuntDamageMult', '__dboHuntReset', '__dboHuntHowled', '__dboHuntView']) globalThis[k] = null; }
 
 // ---- vampire ranks: blood from feeding on people (server\bloodranks.js) -----------------------------------------------
 try {
   const BLOODRANKS_JS = path.resolve('bloodranks.js');
   delete require.cache[BLOODRANKS_JS];
   require(BLOODRANKS_JS)({ mp, log, personal, audit, who, sendPacket, profileOf, registerChatCommand, cfg });
-} catch (e) { log('bloodranks.js failed to load:', e.stack || e.message); for (const k of ['__dboBloodFed', '__dboBloodSunMult', '__dboBloodThirstRate', '__dboBloodDamageMult', '__dboBloodReset']) globalThis[k] = null; }
+} catch (e) { log('bloodranks.js failed to load:', e.stack || e.message); for (const k of ['__dboBloodFed', '__dboBloodSunMult', '__dboBloodThirstRate', '__dboBloodDamageMult', '__dboBloodReset', '__dboBloodView']) globalThis[k] = null; }
 
 // ---- Patreon identity rerolls (serverpatrons.js, tiers in patron-tiers.json) --------------------------
 try {
@@ -4639,7 +4657,7 @@ try {
   // Feeding counts as a meal for the hunger meter
   const needsFeed = (a) => { if (!NEEDS.enabled) return; const n = needsOf(a); n.hunger = Math.max(0, n.hunger - (Number((NEEDS.restore || {}).meal) || 0)); saveNeeds(a, n); applyNeedsStage(a, n, false); };
   require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf: (a) => needsOf(a).hunger, cfg });
-} catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave']) globalThis[k] = null; }
+} catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave', '__dboSuperProgress', '__dboSuperProgressSend', '__dboSuperRateMult', '__dboSuperFoodMult']) globalThis[k] = null; }
 
 // ---- friendly fire and the down state (server\downed.js): after supernatural.js, whose hooks it wraps -------
 try {

@@ -34,6 +34,7 @@ declare -A NEEDS=(
   [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [capture-leash]=server:skymp5-server/ts/systems/captureSystem.ts
   [contracts-tab]=front:skymp5-front/src/features/expeditionBoard/index.tsx
+  [supernatural-tab]=front:skymp5-front/src/features/masteryMenu/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
@@ -45,7 +46,8 @@ bundle() {
     local mods="$root/skymp5-front/node_modules"
     [ -d "$mods" ] || mods="$(cd .. && pwd)/fork/skymp5-front/node_modules"
     [ -d "$mods" ] || mods="$HOME/dragonbreak/fork/skymp5-front/node_modules"
-    printf "export { default as Widget } from '%s';\nexport { renderToStaticMarkup } from 'react-dom/server';\nexport { createElement } from 'react';\n" "$root/$entry" > "$wrap"
+    # The widget's named exports come too, so a harness can render a part that only a click would show
+    printf "export * from '%s';\nexport { default as Widget } from '%s';\nexport { renderToStaticMarkup } from 'react-dom/server';\nexport { createElement } from 'react';\n" "$root/$entry" "$root/$entry" > "$wrap"
     [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.scss=empty --outfile="$out" --log-level=error || return 1
     echo "$out"; return 0
   fi
