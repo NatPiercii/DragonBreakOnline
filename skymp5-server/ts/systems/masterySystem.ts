@@ -242,6 +242,11 @@ export class MasterySystem implements System {
     // A first touch the gameplay layer decides on: spells.js takes up a school's skill when a Novice tome is read at a
     // spell study point (Nate, 2026-09-25). "ok", "held" (already taken up), "full" (no pool point free) or "unknown".
     (globalThis as any).__alduinakMasteryFirstTouch = (actorId: number, skillId: string): string => this.firstTouchFromGameplay(ctx, Number(actorId) >>> 0, String(skillId));
+    // Work the gameplay judged for one held skill, inside the Wheel's hourly and daily limits (see award)
+    (globalThis as any).__alduinakMasteryAward = (actorId: number, skillId: string, weight: number, key: number): number => {
+      try { return this.award(ctx, Number(actorId) >>> 0, String(skillId), Number(weight), Number(key) >>> 0); }
+      catch (e) { this.log(`[skills] award to ${skillId} failed: ${e}`); return 0; }
+    };
     this.hookNativeEvents(ctx);
   }
 
@@ -513,31 +518,54 @@ export class MasterySystem implements System {
         continue;
       }
       if (!this.matches(ctx, id, rules, ev)) continue;
-      const rep = P.repetitionFactor(prog.ring || [], this.noveltyOf(ev), now);
-      prog.ring = rep.ring;
       // `value` is the scale term weightOf asks for per kind (ore band, product value, target health).
       // It was never passed before, so every weight sat at its v=0 base and every scaling term in
       // weightOf was dead; an emitter that does not send one still gets that base.
-      const units = P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * rep.factor * mult;
-      const before = prog.level;
-      const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now, boost);
+      this.gain(ctx, ev.actorId, rec, id, prog, P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * mult, this.noveltyOf(ev), now, userId, boost);
       changed = true;
-      // Phase 0 measures units, not levels: a level is far too rare to tune weights against.
-      if (out.units > 0) this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + out.units);
-      if (out.refused === "pool") this.noticeRefused(ctx, userId, ev.actorId);
-      if (out.gained > 0) {
-        this.notice(ctx, userId, `Your ${this.labelOf(id)} rises to ${prog.level}.`);
-        this.syncRank(ctx, ev.actorId, rec, id, userId);
-      } else if (prog.level < before) {
-        this.syncRank(ctx, ev.actorId, rec, id, userId);
-      }
-      for (const taken of out.tookFrom) {
-        if (taken.levels <= 0) continue;
-        this.notice(ctx, userId, `Your ${this.labelOf(taken.id)} slips to ${rec.skills[taken.id].level}.`);
-        this.syncRank(ctx, ev.actorId, rec, taken.id, userId);
-      }
     }
     if (changed) this.write(ctx, ev.actorId, rec);
+  }
+
+  // One act's worth of work on one held skill: the same key again within the hour counts less, the bucket and the day's
+  // caps decide what is kept, and a full Wheel takes from a waning skill. Returns the units credited.
+  // `boost` is the timed private.xpBoost multiplier (1..3); applyGain applies it after the bucket and the daily caps.
+  private gain(ctx: SystemContext, actorId: number, rec: MasteryRecord, id: string, prog: SkillProgress, weight: number, novelty: number, now: number, userId: number, boost = 1): number {
+    const cfg = this.points; if (!cfg) return 0;
+    const rep = P.repetitionFactor(prog.ring || [], novelty, now);
+    prog.ring = rep.ring;
+    const units = weight * rep.factor;
+    const before = prog.level;
+    const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now, boost);
+    // Phase 0 measures units, not levels: a level is far too rare to tune weights against.
+    if (out.units > 0) this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + out.units);
+    if (out.refused === "pool") this.noticeRefused(ctx, userId, actorId);
+    if (out.gained > 0) {
+      this.notice(ctx, userId, `Your ${this.labelOf(id)} rises to ${prog.level}.`);
+      this.syncRank(ctx, actorId, rec, id, userId);
+    } else if (prog.level < before) {
+      this.syncRank(ctx, actorId, rec, id, userId);
+    }
+    for (const taken of out.tookFrom) {
+      if (taken.levels <= 0) continue;
+      this.notice(ctx, userId, `Your ${this.labelOf(taken.id)} slips to ${rec.skills[taken.id].level}.`);
+      this.syncRank(ctx, actorId, rec, taken.id, userId);
+    }
+    return out.units;
+  }
+
+  // Work the gameplay judged for one named skill (manuals.js: a smithing skill book read is Blacksmith work). Only a skill
+  // already held gains; one is taken up at its own station or offer, never by an award. `weight` is one act's worth in
+  // the units weightOf gives (0.5 to 3); `key` is what the repeat ring counts. Returns the units credited, 0 at the caps.
+  private award(ctx: SystemContext, actorId: number, skillId: string, weight: number, key: number): number {
+    if (!this.points || !this.isPlayer(ctx, actorId) || !this.def(skillId) || !(weight > 0)) return 0;
+    const rec = this.read(ctx, actorId); if (!rec) return 0;
+    const prog = rec.skills[skillId]; if (!prog || !(prog.level >= 1)) return 0;
+    this.creditStats.events.set("award", (this.creditStats.events.get("award") || 0) + 1);
+    this.creditStats.actors.add(actorId);
+    const units = this.gain(ctx, actorId, rec, skillId, prog, Math.min(3, weight) * this.xpMultOf(ctx, actorId), (key >>> 0) ^ 0x61000000, Date.now(), this.userOf(ctx, actorId));
+    this.write(ctx, actorId, rec);
+    return units;
   }
 
   // The same target, station or recipe again and again is worth less; this is the key the ring counts.
