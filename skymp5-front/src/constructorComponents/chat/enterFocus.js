@@ -1,10 +1,10 @@
-// Screens that hold the cursor for their own buttons; sending a chat line hands the keyboard back and would drop it
-const CURSOR_SCREENS = new Set(['characterSelect', 'charCreator', 'death', 'form']);
+// Widgets that never hold the cursor; over anything else an Enter stays that screen's (rite, reading, panels)
+const PASSIVE = new Set(['chat', 'hud', 'party', 'mailMarkers', 'interactPrompt']);
 
-// True for an Enter aimed at the page itself; one typed into a field or on a button stays theirs
+// True for an unhandled Enter aimed at the page itself with only passive widgets open
 export const enterOpensChat = (event, doc, widgets) => {
-  if (!event || event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey) return false;
-  if ((Array.isArray(widgets) ? widgets : []).some((w) => w && CURSOR_SCREENS.has(w.type))) return false;
+  if (!event || event.key !== 'Enter' || event.defaultPrevented || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return false;
+  if ((Array.isArray(widgets) ? widgets : []).some((w) => w && w.type && !PASSIVE.has(w.type))) return false;
   const t = event.target;
   return !t || t === doc || t === doc.body || t === doc.documentElement;
 };

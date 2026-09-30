@@ -31,17 +31,19 @@ const check = (name, ok, got) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}$
   const ef = {}; new Function('exports', efJs)(ef);
   const doc = { body: { tag: 'body' }, documentElement: { tag: 'html' } };
   const key = (target, extra) => Object.assign({ key: 'Enter', target }, extra || {});
-  check('Enter aimed at the page body opens the chat', ef.enterOpensChat(key(doc.body), doc) === true);
+  check('Enter aimed at the page body opens the chat', ef.enterOpensChat(key(doc.body), doc) === true && ef.enterOpensChat(key(doc.body), doc, [{ type: 'chat' }, { type: 'hud' }]) === true);
   check('...and at the document or the html element', ef.enterOpensChat(key(doc), doc) === true && ef.enterOpensChat(key(doc.documentElement), doc) === true);
   check('Enter typed into the chat or a panel field stays theirs', ef.enterOpensChat(key({ tag: 'div', isContentEditable: true }), doc) === false);
   check('Enter on a panel button stays the button\'s', ef.enterOpensChat(key({ tag: 'button' }), doc) === false);
   check('Shift+Enter, Alt+Enter and Ctrl+Enter are left alone', [{ shiftKey: true }, { altKey: true }, { ctrlKey: true }].every((m) => ef.enterOpensChat(key(doc.body, m), doc) === false));
   check('another key is left alone', ef.enterOpensChat({ key: 't', target: doc.body }, doc) === false);
   check('no event, no chat', ef.enterOpensChat(null, doc) === false);
-  for (const screen of ['characterSelect', 'charCreator', 'death', 'form']) {
-    check(`not over the ${screen} screen, which needs the cursor for its buttons`, ef.enterOpensChat(key(doc.body), doc, [{ type: 'chat' }, { type: screen }]) === false);
+  for (const screen of ['characterSelect', 'charCreator', 'death', 'form', 'rite', 'reading', 'downed', 'contextMenu', 'bank', 'pigeon', 'trade', 'playerMenu']) {
+    check(`not over ${screen}, which holds the cursor (and its own Enter)`, ef.enterOpensChat(key(doc.body), doc, [{ type: 'chat' }, { type: 'hud' }, { type: screen }]) === false);
   }
-  check('over ordinary panels and the HUD it opens', ef.enterOpensChat(key(doc.body), doc, [{ type: 'chat' }, { type: 'hud' }, { type: 'playermenu' }, { id: 7 }]) === true);
+  check('with only the passive widgets up (chat, HUD, party, mail markers, the interaction prompt) it opens', ef.enterOpensChat(key(doc.body), doc, [{ type: 'chat' }, { type: 'hud' }, { type: 'party' }, { type: 'mailMarkers' }, { type: 'interactPrompt' }, { id: 7 }]) === true);
+  check('an Enter a panel already handled (preventDefault) is left alone', ef.enterOpensChat(key(doc.body, { defaultPrevented: true }), doc, [{ type: 'chat' }]) === false);
+  check('Meta+Enter is left alone too', ef.enterOpensChat(key(doc.body, { metaKey: true }), doc, [{ type: 'chat' }]) === false);
   check('the diagnostic names the open widgets', ef.widgetTypes([{ type: 'chat' }, { type: 'form' }, {}]) === 'chat,form,?' && ef.widgetTypes(null) === '');
 
   // ---- the chat component uses it ----
