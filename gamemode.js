@@ -1171,8 +1171,14 @@ mp.onActivate = (targetId, casterId) => {
 }
 // An Activate is a native packet, outside the custom-packet bucket, and each one runs the whole chain above (an inn bed
 // reads housing.json and every claim). Per caster: 10 a second with a burst of 30, over that refused; gamemode-config
-// "activateGuard": { perSecond, burst } (2026-09-30)
-const ACTIVATE_GUARD = Object.assign({ perSecond: 10, burst: 30 }, cfg.activateGuard || {});
+// "activateGuard": { perSecond, burst } (2026-09-30). A value under 1 would refuse every activation for good (a burst
+// under 1 never admits one, a rate under 1 refills too slowly to use), so each is held at 1 at least; one that is not a
+// number keeps its default (D's review)
+const activateGuardValue = (v, fallback) => { const n = v === null || v === '' ? NaN : Number(v); return Number.isFinite(n) ? Math.max(1, n) : fallback; };
+const ACTIVATE_GUARD = (() => {
+  const g = Object.assign({ perSecond: 10, burst: 30 }, cfg.activateGuard || {});
+  return { perSecond: activateGuardValue(g.perSecond, 10), burst: activateGuardValue(g.burst, 30) };
+})();
 const activateBuckets = globalThis.__dboActivateBuckets instanceof Map ? globalThis.__dboActivateBuckets : (globalThis.__dboActivateBuckets = new Map());
 const activateAllowed = (caster) => {
   const now = Date.now();
