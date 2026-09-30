@@ -99,7 +99,10 @@ check('after they expire, the next pick leaves only its own hold', holds().size 
 A.arrivalLocFor(61);
 offline.add(61);
 const afterOffline = A.arrivalLocFor(62).pos.join();
-check('the hold of a player who went offline is dropped and their spot is free again', !holds().has(61) && afterOffline === spots[1].join() && holds().has(60), [...holds().keys()]);
+check('an offline player\'s hold is kept while it runs (a reconnect in the window finds its spot)', holds().has(61) && afterOffline !== spots[1].join() && holds().has(60), [...holds().keys()]);
+now += 20001;
+A.arrivalLocFor(68);
+check('...and dropped once it has expired', !holds().has(61) && !holds().has(62) && holds().has(68), [...holds().keys()]);
 A.arrivalLocFor(63);
 deleted.add(63);
 A.arrivalLocFor(64);
