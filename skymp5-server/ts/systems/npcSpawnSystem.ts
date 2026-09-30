@@ -79,6 +79,11 @@ const SLOW_LOG_MS = 60000;
 // An NPC dragged this far from its zone is not coming home; its slot is freed for the next player
 const LEASH_MIN = 8000;
 const LEASH_RADII = 3;
+// A player this close to an actor has it streamed and may be looking at it (two exterior cells; fleeing deer were
+// released by their host at 7,400 to 8,000). A stray this close is left where it ran to, a slot whose stray was
+// removed is refilled only once nobody is this close to it, and a zone is not despawned while one of its live
+// actors is this close to a player: otherwise a deer that bolts is replaced by a new one in front of the player.
+const WATCH_UNITS = 8192;
 // Slot cooldown marker for Respawn 0: the slot stays empty until the zone despawns or an admin resets it
 const NEVER_READY = -1;
 // A corpse is removed this long after death, whatever its zone does. Overridable via "npcCorpseSeconds".
@@ -140,6 +145,8 @@ interface Zone {
   spawned: Spawned[];
   emptySince: number;
   inside: Set<number>;
+  // Slots whose actor strayed off its leash; not refilled while a player is within WATCH_UNITS of the slot
+  strayHeld: Set<number>;
 }
 
 // A file entry with its fields checked but the location and NPC bases not yet resolved
@@ -414,6 +421,7 @@ export class NpcSpawnSystem implements System {
       zone.slotReadyAt = prev.slotReadyAt;
       zone.emptySince = prev.emptySince;
       zone.inside = prev.inside;
+      zone.strayHeld = prev.strayHeld;
       carried.add(prev);
     }
     for (const gone of this.zones) {
@@ -539,7 +547,7 @@ export class NpcSpawnSystem implements System {
       respawnSeconds: draft.respawnSeconds,
       slotReadyAt: slots.map(() => 0),
       signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn, !!draft.ambush, draft.heading || 0, typeof draft.hostile === "boolean" ? draft.hostile : null]),
-      spawned: [], emptySince: 0, inside: new Set(),
+      spawned: [], emptySince: 0, inside: new Set(), strayHeld: new Set(),
     };
   }
 
@@ -632,14 +640,15 @@ export class NpcSpawnSystem implements System {
         (!zone.ambush && (zone.prespawn || inActiveDungeon || (isDungeonZone && inActiveInterior)));
       if (zone.spawned.length) {
         this.checkDeaths(mp, zone, now);
-        this.checkMisplaced(mp, zone, now);
+        this.checkMisplaced(mp, zone, now, index);
       }
+      if (zone.strayHeld.size) this.releaseStrayHolds(zone, index);
       if (occupied) {
         zone.emptySince = 0;
         this.fillSlots(mp, zone, now, (dGroup ? dungeonAnchors.get(dGroup) : undefined) ?? interiorAnchors.get(zone.cellOrWorldId));
       } else if (zone.spawned.length && zone.despawnSeconds > 0) {
         if (!zone.emptySince) zone.emptySince = now;
-        if (now - zone.emptySince >= zone.despawnSeconds * 1000) this.despawn(mp, zone);
+        if (now - zone.emptySince >= zone.despawnSeconds * 1000 && !this.anyWatched(mp, zone, index)) this.despawn(mp, zone);
       }
     }
 
@@ -751,6 +760,7 @@ export class NpcSpawnSystem implements System {
       // (or it dropped too many with nobody near, in this run)
       const spot = this.spotKey(zone, slot);
       if (this.givenUp(spot)) continue;
+      if (zone.strayHeld.has(slot)) continue;
       if ((this.fallenSpots.has(spot) || this.unseenFalls.has(spot)) && !this.playerNear(mp, zone, this.slotPos(zone, slot), SAFE_RESPAWN_UNITS)) continue;
       if (!entry && live >= this.maxLive) {
         if (now - this.budgetLoggedAt > BUDGET_LOG_MS) {
@@ -948,7 +958,7 @@ export class NpcSpawnSystem implements System {
     }
   }
 
-  private checkMisplaced(mp: Mp, zone: Zone, now: number): void {
+  private checkMisplaced(mp: Mp, zone: Zone, now: number, index: PlayerIndex): void {
     for (const entry of zone.spawned) {
       if (!entry.id || entry.diedAt) continue;
       let pos: number[] = [];
@@ -958,7 +968,8 @@ export class NpcSpawnSystem implements System {
       const fell = this.fellOut(zone, pos);
       const leash = Math.max(LEASH_MIN, zone.radius * LEASH_RADII);
       const away = Math.hypot(pos[0] - zone.pos[0], pos[1] - zone.pos[1]);
-      const strayed = !fell && away > leash;
+      // Running off is the animal's own AI (deer and rabbits flee on sight): one still in somebody's view stays
+      const strayed = !fell && away > leash && !this.watched(index, zone.cellOrWorldId, pos);
       // The server never moves a spawned actor between cells: a movement update that disagrees with
       // the cell it holds is dropped, so once these two part company every hit on the NPC is refused
       // as a worldspace mismatch and it can never be killed. Only a fresh copy fixes it.
@@ -984,6 +995,8 @@ export class NpcSpawnSystem implements System {
       entry.diedAt = now;
       // Not in this poll: fillSlots runs next and would give the new copy the index just freed
       zone.slotReadyAt[entry.slot] = now + REFILL_HOLD_MS;
+      // Nor in front of the player it ran from
+      if (strayed && this.watched(index, zone.cellOrWorldId, slot)) zone.strayHeld.add(entry.slot);
       // A spot with no floor drops every actor placed on it, so the slot is given up after a second fall.
       // A fall with nobody near is not held against the spot on disk: the room was not loaded, so the floor
       // was not there yet. It only counts towards MAX_UNSEEN_FALLS.
@@ -1043,6 +1056,35 @@ export class NpcSpawnSystem implements System {
 
   // Spawned actor id -> consecutive polls found too far from the player in its zone for a hit to land
   private desynced = new Map<number, number>();
+
+  // Whether any player in this world is within WATCH_UNITS of pos, from the poll's snapshot
+  private watched(index: PlayerIndex, world: number, pos: number[]): boolean {
+    const players = index.byWorld.get(world);
+    if (!players) return false;
+    for (const p of players) {
+      if (Math.hypot(p.pos[0] - pos[0], p.pos[1] - pos[1]) <= WATCH_UNITS) return true;
+    }
+    return false;
+  }
+
+  // A stray's slot is free again once nobody is close enough to see the new copy appear
+  private releaseStrayHolds(zone: Zone, index: PlayerIndex): void {
+    for (const slot of Array.from(zone.strayHeld)) {
+      if (!this.watched(index, zone.cellOrWorldId, this.slotPos(zone, slot))) zone.strayHeld.delete(slot);
+    }
+  }
+
+  // Whether a player can see one of the zone's live actors, which a despawn would make vanish in front of them
+  private anyWatched(mp: Mp, zone: Zone, index: PlayerIndex): boolean {
+    if (!index.byWorld.get(zone.cellOrWorldId)) return false;
+    for (const entry of zone.spawned) {
+      if (!entry.id || entry.diedAt) continue;
+      let pos: number[] = [];
+      try { pos = mp.getActorPos(entry.id); } catch { continue; }
+      if (this.watched(index, zone.cellOrWorldId, pos)) return true;
+    }
+    return false;
+  }
 
   private playerNear(mp: Mp, zone: Zone, pos: number[], units: number): boolean {
     for (const playerId of zone.inside) {
@@ -1188,6 +1230,7 @@ export class NpcSpawnSystem implements System {
     // An admin reset forgets the void spots as well; otherwise they are kept, or the same slot drops
     // two more npcs into it the next time this zone fills
     if (reset) {
+      zone.strayHeld.clear();
       for (let slot = 0; slot < zone.total; slot++) {
         const spot = this.spotKey(zone, slot);
         this.fallenSpots.delete(spot);
