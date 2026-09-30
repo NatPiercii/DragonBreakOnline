@@ -66,8 +66,8 @@
         "heading": "Bruma pays its due to the Empire",
         "items": [
           "Bruma is a county of the Empire, and from the next weekly reckoning (Sunday 00:00 UTC) the Empire takes its tithe: a tenth of the property tax collected on Cyrodiil land goes into the Imperial Legion's treasury.",
-          "The tithe comes only out of the property tax taken that week, never out of the treasury's savings, so it begins once a county's Count sets a tax. A county that taxes nothing owes nothing.",
-          "The Count sees the tithe in the week's reckoning, and anything the treasury could not pay is owed and taken first the next week. The Legion's own forts pay none, and Skyrim's Holds, independent since the Legion withdrew, pay nothing."
+          "The tithe is reckoned on the property tax taken that week, not on the treasury's savings, so it begins once a county's Count sets a tax. A county that taxes nothing owes no tithe.",
+          "At the Sunday reckoning the Count is told in a message what the tithe came to. Anything the treasury could not pay is owed, and taken first the next week. The Legion's own forts pay none, and Skyrim's Holds, independent since the Legion withdrew, pay nothing."
         ]
       }
     ]

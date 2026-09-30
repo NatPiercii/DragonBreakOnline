@@ -57,16 +57,20 @@ module.exports = (api) => {
   const BALANCE = 'private.bankGold';
 
   const S = globalThis.__dboEconomy || (globalThis.__dboEconomy = { data: null });
+  // balanceAfter: each treasury's balance when the last reckoning ended, to tell what came in since (A1-3)
+  const fill = (d) => {
+    for (const k of ['rates', 'wages', 'values', 'owed', 'overdue', 'reports', 'assessed', 'balanceAfter', 'titheOwed']) if (!d[k] || typeof d[k] !== 'object') d[k] = {};
+    if (!Number.isFinite(d.lastReckoning)) d.lastReckoning = 0;
+    return d;
+  };
   const data = () => {
     if (S.data) return S.data;
     try { S.data = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { S.data = null; }
-    const d = S.data && typeof S.data === 'object' ? S.data : {};
-    // balanceAfter: each treasury's balance when the last reckoning ended, to tell what came in since (A1-3)
-    for (const k of ['rates', 'wages', 'values', 'owed', 'overdue', 'reports', 'assessed', 'balanceAfter', 'titheOwed']) if (!d[k] || typeof d[k] !== 'object') d[k] = {};
-    if (!Number.isFinite(d.lastReckoning)) d.lastReckoning = 0;
-    S.data = d;
-    return d;
+    S.data = fill(S.data && typeof S.data === 'object' ? S.data : {});
+    return S.data;
   };
+  // A hot reload keeps the data an older economy.js loaded, which may lack a newer key
+  if (S.data && typeof S.data === 'object') fill(S.data);
   const save = () => { const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(data(), null, 1)); fs.renameSync(tmp, FILE); };
 
   const fn = (name) => (typeof globalThis[name] === 'function' ? globalThis[name] : null);
@@ -123,6 +127,7 @@ module.exports = (api) => {
   // Moves each payer's tithe (and its arrears) to the recipient's treasury; bases: { fid: property tax on tithed land }
   const payTithes = (T, bases, report) => {
     const d = data(); const rate = titheRate(); const to = String(C.titheTo || '');
+    if (!d.titheOwed || typeof d.titheOwed !== 'object') d.titheOwed = {};
     if (!to || !info(to) || !T.keyOf || !T.keyOf(to)) { if (rate) log(`economy: no treasury for ${to || 'the tithe'}, no Imperial tithe taken`); return; }
     for (const fid of new Set(Object.keys(bases).concat(Object.keys(d.titheOwed)))) {
       if (fid === to) { delete d.titheOwed[fid]; continue; }

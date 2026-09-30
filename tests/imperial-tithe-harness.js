@@ -185,6 +185,35 @@ delete globalThis.__dboEconomy;
 load();
 check('a restart reads the arrears back from economy.json', state().titheOwed['county-bruma'] === 240, state().titheOwed);
 
+// ---- a hot reload over an economy.js from before the tithe (review B1) ----
+// The live server keeps globalThis.__dboEconomy.data across reloads; an older module built it without titheOwed
+const overOld = (label, loadOld) => {
+  delete globalThis.__dboEconomy;
+  now = SUNDAY + 10 * WEEK - 3600000;   // the old module runs in the week before the reckoning
+  fs.writeFileSync('economy.json', JSON.stringify({ rates: { 'county-bruma': 0.2 }, values: { [0x101]: 10000 }, lastReckoning: SUNDAY + 9 * WEEK }));
+  loadOld();
+  check(`${label}: the old data has no titheOwed`, globalThis.__dboEconomy.data && !('titheOwed' in globalThis.__dboEconomy.data), globalThis.__dboEconomy.data && Object.keys(globalThis.__dboEconomy.data));
+  econCfg = { enabled: true };
+  load();
+  const legion = treasuries['imperial-legion'], fails = logs.filter((l) => /fail/.test(l)).length;
+  week(10);
+  check(`${label}: the new economy.js tithes and reports after the reload`, treasuries['imperial-legion'] - legion === 240 && report('county-bruma').tithe === 240 && report('county-bruma').balance > 0 && state().lastReckoning === now && logs.filter((l) => /fail/.test(l)).length === fails, [treasuries['imperial-legion'] - legion, report('county-bruma'), logs.slice(-3)]);
+};
+overOld('a cache without titheOwed', () => { globalThis.__dboEconomy = { data: { rates: { 'county-bruma': 0.2 }, wages: {}, values: { [0x101]: 10000 }, owed: {}, overdue: {}, reports: {}, assessed: {}, balanceAfter: {}, lastReckoning: SUNDAY + 9 * WEEK } }; });
+// The real module from before the tithe (release-1004-gameplay fc29a26c), when git can show it
+let OLD = '';
+try { OLD = require('child_process').execFileSync('git', ['-C', path.resolve(__dirname, '..'), 'show', 'fc29a26c:economy.js'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { OLD = ''; }
+if (OLD) {
+  fs.writeFileSync(path.join(dir, 'economy-fc29a26c.js'), OLD);
+  overOld('economy.js fc29a26c', () => {
+    require(path.join(dir, 'economy-fc29a26c.js'))({
+      mp, log: (...x) => logs.push(x.join(' ')), personal: noop, who: (a) => `P${a.toString(16)}`, audit: noop, cfg: { economy: { enabled: true } }, onUi: noop,
+      onlineActors: () => [], every: (n, ms, f) => timers.set(n, f), readOfficials: () => ({}), zoneById: () => null,
+    });
+    timers.get('economy')();
+  });
+} else console.log('ok    skipped the fc29a26c reload case: git cannot show that commit here (the cache case above covers it)');
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);
