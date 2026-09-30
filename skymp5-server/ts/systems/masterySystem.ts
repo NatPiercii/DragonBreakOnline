@@ -111,6 +111,7 @@ interface SkillDef {
   vanillaSkills: string[];
   counts: Record<string, unknown>;
   gates: Record<string, unknown>;
+  craftWeight: P.CraftWeights | null;   // skills.json craftWeight: what a recipe of this skill is worth, by tier or ingredients
 }
 
 interface SkillProgress {
@@ -211,6 +212,12 @@ interface Location { cell: string; pos: number[]; }
 const emptyRecord = (): MasteryRecord => ({ skills: {}, order: [], respecs: 0 });
 const emptyProgress = (): SkillProgress => ({ level: 0, lastPointAt: 0, rank: 0, granted: [] });
 const stringList = (v: unknown): string[] => Array.isArray(v) ? v.filter((x) => typeof x === "string" && x) : [];
+const numberList = (v: unknown): number[] => Array.isArray(v) ? v.map(Number).filter((x) => Number.isFinite(x) && x >= 0) : [];
+const craftWeightsOf = (v: any): P.CraftWeights | null => {
+  if (!v || typeof v !== "object") return null;
+  const w = { byTier: numberList(v.byTier), byIngredients: numberList(v.byIngredients) };
+  return w.byTier.length || w.byIngredients.length ? w : null;
+};
 // The one skill a player's cast of a school credits, when the gameplay names it (schools.js: Alteration is Priest's, or
 // Arcane Arts' for a mage who chose it as a school); undefined keeps skills.json's spellCastSchools
 const castRoute = (actorId: number, school: string): string | undefined => {
@@ -285,6 +292,7 @@ export class MasterySystem implements System {
       id: String(k.id), category: String(k.category || ""), label: String(k.label || k.id), title: String(k.title || ""),
       description: String(k.description || ""), tiers: stringList(k.tiers), vanillaSkills: stringList(k.vanillaSkills),
       counts: k.counts && typeof k.counts === "object" ? k.counts : {}, gates: k.gates && typeof k.gates === "object" ? k.gates : {},
+      craftWeight: craftWeightsOf(k.craftWeight),
     }));
     const h = raw.skills && raw.skills.find((k: any) => k.id === "harvesting");
     if (h) {
@@ -315,9 +323,13 @@ export class MasterySystem implements System {
         return verdict;
       };
     };
-    chain("onCraft", "craft", ([actorId, , , recipeId]) =>
-      [actorId, { recipeId, held: this.holdsInputs(ctx, Number(actorId) >>> 0, Number(recipeId) >>> 0) ? 1 : 0,
-                  value: this.productValue(ctx, Number(recipeId) >>> 0) }]);
+    chain("onCraft", "craft", ([actorId, , , recipeId]) => {
+      const shape = this.recipeShape(ctx, Number(recipeId) >>> 0);
+      const detail: Record<string, number> = { recipeId: Number(recipeId) >>> 0, held: this.holdsInputs(ctx, Number(actorId) >>> 0, Number(recipeId) >>> 0) ? 1 : 0,
+                                                value: this.productValue(ctx, Number(recipeId) >>> 0), parts: shape.parts };
+      if (shape.tierSkill) detail[`tier:${shape.tierSkill}`] = shape.tier;   // the tier gate names its skill
+      return [actorId, detail];
+    });
     chain("onActivate", "activate", ([refrId, casterId]) => [casterId, { refrId }], ([refrId, casterId]) => this.gateActivation(ctx, Number(refrId) >>> 0, Number(casterId) >>> 0));
     chain("onEatItem", "eat", ([actorId, baseId]) => [actorId, { baseId }]);
     // onHitDamage(aggressorId, targetId, sourceId, damage): credit the attacker (hit) and the defender (hurt).
@@ -504,7 +516,7 @@ export class MasterySystem implements System {
         if (rules.gateStations.size || rules.gatePrefixes.length) continue;
         if (!this.matches(ctx, id, rules, ev)) continue;
         const bank = prog || (rec.skills[id] = emptyProgress());
-        bank.shadow = (bank.shadow || 0) + P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * mult * boost;
+        bank.shadow = (bank.shadow || 0) + this.weightFor(id, ev) * mult * boost;
         changed = true;
         if (!bank.offered && bank.shadow >= P.unitsForLevel(1)) {
           bank.offered = true;
@@ -521,7 +533,7 @@ export class MasterySystem implements System {
       // `value` is the scale term weightOf asks for per kind (ore band, product value, target health).
       // It was never passed before, so every weight sat at its v=0 base and every scaling term in
       // weightOf was dead; an emitter that does not send one still gets that base.
-      this.gain(ctx, ev.actorId, rec, id, prog, P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * mult, this.noveltyOf(ev), now, userId, boost);
+      this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId, boost);
       changed = true;
     }
     if (changed) this.write(ctx, ev.actorId, rec);
@@ -1235,6 +1247,35 @@ export class MasterySystem implements System {
     this.benchCache.set(recipeId, bench); return bench;
   }
 
+  // What one act is worth to one skill. A craft is weighed by the skill's own craftWeight (skills.json) when it has one:
+  // by the recipe's tier marker for this skill, else by its ingredient count (skillPoints.craftWeightOf).
+  private weightFor(id: string, ev: ActivityEvent): number {
+    const d = ev.detail || {};
+    if (ev.kind !== "craft") return P.weightOf({ kind: ev.kind, value: d["value"] });
+    const def = this.def(id);
+    return P.craftWeightOf({ value: d["value"], parts: d["parts"], tier: d[`tier:${id}`] || 0 }, def ? def.craftWeight : null);
+  }
+
+  // How much goes into a recipe: its ingredient entries (CNTO), and the tier its gate asks for - a HasSpell condition
+  // (function 264) on a DBO_Skill_<skill>_T<n> marker, as tools/recipes writes on every Cook and Blacksmith recipe.
+  // CTDA: the function index is a uint16 at offset 8 and the first parameter a record-local form id at 12.
+  private recipeShape(ctx: SystemContext, recipeId: number): { parts: number; tier: number; tierSkill: string } {
+    const hit = this.shapeCache.get(recipeId); if (hit) return hit;
+    const out = { parts: 0, tier: 0, tierSkill: "" };
+    const res = recipeId ? this.lookup(ctx, recipeId) : null;
+    for (const f of (res && res.record && res.record.fields) || []) {
+      if (f.type === "CNTO") out.parts++;
+      if (f.type !== "CTDA" || !(f.data instanceof Uint8Array) || f.data.byteLength < 16) continue;
+      const view = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength);
+      if (view.getUint16(8, true) !== 264) continue;
+      let marker: any = null;
+      try { marker = this.lookup(ctx, res.toGlobalRecordId(view.getUint32(12, true)) >>> 0); } catch { continue; }
+      const m = /^DBO_Skill_(\w+)_T(\d)$/.exec(String((marker && marker.record && marker.record.editorId) || ""));
+      if (m && Number(m[2]) > out.tier) { out.tier = Number(m[2]); out.tierSkill = m[1]; }
+    }
+    this.shapeCache.set(recipeId, out); return out;
+  }
+
   // Gold value of what a recipe makes, for skillPoints.weightOf's "craft" scale term.
   // Every offset below was measured over this load order by `py ck-mcp\itemvalues.py`, never assumed:
   // the winning layout is the one where the neighbouring float parses as a plausible weight for
@@ -1462,6 +1503,7 @@ export class MasterySystem implements System {
   private candidates = new Map<string, string[]>();  // event kind -> the skills that could possibly match it
   private lastRefuseMs = new Map<number, number>();
   private skills: SkillDef[] = [];
+  private shapeCache = new Map<number, { parts: number; tier: number; tierSkill: string }>();
   private categories: Array<{ id: string; label: string }> = [];
   private tierHours = DEFAULT_TIER_HOURS.slice();
   private tierNames = DEFAULT_TIER_NAMES.slice();

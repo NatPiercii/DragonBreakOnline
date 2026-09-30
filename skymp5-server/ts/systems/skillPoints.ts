@@ -110,6 +110,27 @@ export const weightOf = ({ kind, value = 0 }: WeightInput): number => {
 const clampW = (w: number): number => Math.max(0.5, Math.min(3, Math.round(w * 100) / 100));
 
 /**
+ * A craft weighed by how much goes into it (GroundedPasta and swag, 2026-09-30: "the cooking exp goes up so slow",
+ * "you should get more exp from making more complex food"). A dish is worth 1 to 40 gold, so the value term above
+ * gave every dish the 0.5 floor. `cw` is a skill's skills.json `craftWeight`: `byTier[t - 1]` when the recipe carries
+ * this skill's tier marker (HasSpell DBO_Skill_<skill>_T<t>, the tier gate tools/recipes puts on every recipe),
+ * otherwise `byIngredients[n]` for n ingredient entries (the last entry for more). Never below the value weight, so no
+ * craft is worth less than before; the repetition decay and the bucket still apply on top.
+ */
+export type CraftWeights = { byTier: number[]; byIngredients: number[] };
+export type CraftDetail = { value?: number; parts?: number; tier?: number };
+export const craftWeightOf = (detail: CraftDetail, cw: CraftWeights | null | undefined): number => {
+  const base = weightOf({ kind: "craft", value: detail.value });
+  if (!cw) return base;
+  const t = Math.floor(Number(detail.tier) || 0);
+  const n = Math.max(0, Math.floor(Number(detail.parts) || 0));
+  let w = 0;
+  if (t >= 1 && cw.byTier.length) w = cw.byTier[Math.min(t, cw.byTier.length) - 1];
+  else if (cw.byIngredients.length) w = cw.byIngredients[Math.min(n, cw.byIngredients.length - 1)];
+  return Math.max(base, Number.isFinite(w) && w > 0 ? clampW(w) : 0);
+};
+
+/**
  * Repetition decay: the k-th act on the same target/station/recipe within the window is worth w/(1+k/8).
  * The ring is persisted with the character, because an in-memory map is cleared by a relog - which is a
  * two-key macro. Returns the multiplier and the ring to store back.
