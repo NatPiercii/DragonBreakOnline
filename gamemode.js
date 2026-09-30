@@ -3549,8 +3549,12 @@ every('consoleRights', 15000, () => { for (const a of onlineActors()) { gmConsol
 try {
   const ITEMGUARDS_JS = path.resolve('itemguards.js');
   delete require.cache[ITEMGUARDS_JS];
-  require(ITEMGUARDS_JS)({ mp, log, who, recordOf, cfg });
+  require(ITEMGUARDS_JS)({ mp, log, who, recordOf, cfg, personal });
 } catch (e) { log('itemguards.js failed to load:', e.stack || e.message); }
+// The trade window (fork tradeSystem.ts) asks before an item changes hands: a reason for the player, or null
+globalThis.__dboTradeItemVeto = (a, baseId, count) => {
+  try { return typeof globalThis.__dboManualsOwedMove === 'function' ? globalThis.__dboManualsOwedMove(Number(a) >>> 0, Number(baseId) >>> 0, Number(count)) || null : null; } catch (e) { return null; }
+};
 // ---- dragon bone and scales come only from a slain dragon (dragon-materials.json; Nate, 2026-09-30) ----------------
 // The dragon's own body is the source (the server adds its death item when it dies). A container whose record the
 // plugins fill with them (sourceContainers) never gives them up, or it would be a second source that refills on every

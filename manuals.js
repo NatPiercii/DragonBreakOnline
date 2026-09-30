@@ -204,6 +204,15 @@ module.exports = (api) => {
   };
   // The reading's copy roll leaves manuals alone: copies of a manual come only from a Scholar who learned it
   globalThis.__dboManualsIsManual = (bookId) => BY_BOOK.has(bookId >>> 0) || MANUALS.some((m) => m.bookId && m.bookId === (bookId >>> 0));
+  // A copy its reader still owes stays with them until it is used up (it goes at their next cell change): moving `count`
+  // must leave them at least as many as they owe. Asked on a drop, a put and a trade; a reason for the player, or null
+  globalThis.__dboManualsOwedMove = (a, baseId, count) => {
+    const id = baseId >>> 0;
+    if (!C.consume || !globalThis.__dboManualsIsManual(id)) return null;
+    const owed = owedOf(a).filter((o) => idOf(o.book) === id).length;
+    if (!owed || countOf(a, id) - (Number(count) || 0) >= owed) return null;
+    return 'Your notes fill every margin of that book: it is spent, and it stays with you until you move on.';
+  };
 
   // ---- boss chests (dungeons.js bossLoot) -----------------------------------------------------------------------
   const inProvince = (m, province) => !province || !Array.isArray(m.provinces) || m.provinces.includes(String(province).toLowerCase());

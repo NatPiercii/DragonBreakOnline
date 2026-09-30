@@ -13,6 +13,7 @@
 
 module.exports = (api) => {
   const { mp, log, who, recordOf } = api;
+  const personal = typeof api.personal === 'function' ? api.personal : () => {};
   const MODE = String((((api.cfg || {}).itemGuards) || {}).mode || 'on');
   const ITEM_TYPES = new Set(['WEAP', 'ARMO', 'AMMO', 'MISC', 'ALCH', 'INGR', 'BOOK', 'KEYM', 'SLGM', 'SCRL', 'LIGH']);
   const S = globalThis.__dboItemGuards || (globalThis.__dboItemGuards = { typeCache: new Map(), warned: new Map() });
@@ -90,8 +91,17 @@ module.exports = (api) => {
     log('itemguards: off');
     return { check, itemType, owned };
   }
-  install('onDropItem', (actor, baseId, count) => { const why = check(baseId, count, actor); return why ? refuse('drop', actor, baseId, count, why) : undefined; });
-  install('onPutItem', (container, actor, baseId, count) => { const why = check(baseId, count, actor); return why ? refuse('put', actor, baseId, count, why) : undefined; });
+  // A smithing manual its reader still owes (manuals.js) is not theirs to hand on; they are told why, every 3 s at most
+  const owedManual = (actor, baseId, count) => {
+    let text = null;
+    try { if (typeof globalThis.__dboManualsOwedMove === 'function') text = globalThis.__dboManualsOwedMove(Number(actor) >>> 0, Number(baseId) >>> 0, Number(count)); } catch (e) { text = null; }
+    if (!text) return null;
+    const key = `told:${Number(actor) >>> 0}`; const now = Date.now();
+    if (MODE === 'on' && now - (S.warned.get(key) || 0) >= 3000) { S.warned.set(key, now); try { personal(Number(actor) >>> 0, text); } catch (e) { /* offline */ } }
+    return 'owed manual';
+  };
+  install('onDropItem', (actor, baseId, count) => { const why = check(baseId, count, actor) || owedManual(actor, baseId, count); return why ? refuse('drop', actor, baseId, count, why) : undefined; });
+  install('onPutItem', (container, actor, baseId, count) => { const why = check(baseId, count, actor) || owedManual(actor, baseId, count); return why ? refuse('put', actor, baseId, count, why) : undefined; });
   // gamemode.js owns mp.onTakeItem (its takeHook); it asks this first
   globalThis.__dboTakeGuard = (container, actor, baseId, count) => { const why = check(baseId, count, container); return why ? refuse('take', actor, baseId, count, why) : undefined; };
 

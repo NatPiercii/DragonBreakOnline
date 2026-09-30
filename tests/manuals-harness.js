@@ -140,6 +140,17 @@ check('...nor the Steel manual (T2): a Novice is T1', (await read(NOVICE, B('ste
 skills(SMITH, { blacksmith: 1 }); inv(SMITH, [[B('steel'), 2]]);
 check('an Apprentice Blacksmith learns the Steel manual', (await read(SMITH, B('steel'))) !== false && spellSet(SMITH).has(K('steel')) && (getp(SMITH, 'private.dboManuals') || {}).steel, getp(SMITH, 'private.dboManuals'));
 check('...is told so; the book is spent but not taken while a Book menu may still show it', /You study Thorbald's Methods: Steel\. You can work Steel at the forge now\. Your notes fill every margin: the book is spent, and it is gone once you move on\./.test(said(SMITH)) && count(SMITH, B('steel')) === 2 && (getp(SMITH, 'private.dboManualsOwed') || []).length === 1, [said(SMITH), count(SMITH, B('steel')), getp(SMITH, 'private.dboManualsOwed')]);
+const owedMove = globalThis.__dboManualsOwedMove;
+check('the spent copy cannot be handed on while it is owed: moving both copies is refused', /spent/.test(owedMove(SMITH, B('steel'), 2) || ''), owedMove(SMITH, B('steel'), 2));
+check('...moving the copy they did not read is allowed (one stays to settle the debt)', owedMove(SMITH, B('steel'), 1) === null);
+check('...a book that is not a manual is never held back', owedMove(SMITH, 0x12345, 1) === null);
+check('...nor is a manual nobody owes', owedMove(CLERK, B('steel'), 1) === null);
+{
+  const gm = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
+  const at = gm.indexOf('globalThis.__dboTradeItemVeto = ');
+  const veto = at < 0 ? null : new Function('globalThis', gm.slice(at, gm.indexOf('\n};\n', at) + 3) + '\nreturn globalThis.__dboTradeItemVeto;')(globalThis);
+  check('the trade window asks the same question through gamemode.js', !!veto && /spent/.test(veto(SMITH, B('steel'), 2) || '') && veto(SMITH, B('steel'), 1) === null);
+}
 timers.get('manuals.settle')();
 check('...still not taken in the same cell', count(SMITH, B('steel')) === 2);
 at(SMITH, BRUMA, [0, 0, 0]); timers.get('manuals.settle')();
