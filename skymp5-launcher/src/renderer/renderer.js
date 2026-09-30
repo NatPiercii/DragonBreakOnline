@@ -29,9 +29,9 @@ document.getElementById('modal-close').addEventListener('click', closeModal)
 modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal() })
 
 // Settings tabs
-document.querySelectorAll('.modal-tab').forEach(tab => {
+document.querySelectorAll('#modal-settings .modal-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'))
+    document.querySelectorAll('#modal-settings .modal-tab').forEach(t => t.classList.remove('active'))
     document.querySelectorAll('.tab-panel').forEach(p => { p.hidden = true })
     tab.classList.add('active')
     document.getElementById(`tab-${tab.dataset.tab}`).hidden = false
@@ -396,7 +396,7 @@ voiceEl('ui-reset-panels').addEventListener('click', () => {
   panelReset = Date.now()
   voiceEl('ui-reset-panels').textContent = 'Panels will reset on the next launch (Save Settings)'
 })
-document.querySelectorAll('.modal-tab').forEach(tab => tab.addEventListener('click', () => {
+document.querySelectorAll('#modal-settings .modal-tab').forEach(tab => tab.addEventListener('click', () => {
   if (tab.dataset.tab === 'voice') {
     // Closing the settings or switching tab while the names load bumps the generation: the meter then stays off
     const gen = ++meterGen
@@ -463,6 +463,11 @@ function updateLockState() {
     btnConnect.title    = 'You are not on the server whitelist.'
     connectWarning.textContent = 'You are not on the server whitelist.'
     connectWarning.classList.add('visible')
+  } else if (discordUser && window.dboLegal.blocking()) {
+    btnConnect.disabled = true
+    btnConnect.title    = 'Accept the Terms of Service and the Privacy Policy first.'
+    connectWarning.textContent = window.dboLegal.message()
+    connectWarning.classList.add('visible')
   } else {
     btnConnect.disabled = false
     btnConnect.title    = ''
@@ -470,6 +475,7 @@ function updateLockState() {
     const lockMessages = [
       'You are not on the server whitelist.',
       'Server is currently locked - you are not on the allow list.',
+      ...window.dboLegal.messages(),
     ]
     if (lockMessages.includes(connectWarning.textContent)) {
       connectWarning.classList.remove('visible')
@@ -563,6 +569,7 @@ function renderTopbarDiscord() {
       await window.electronAPI.discordLogout()
       discordUser   = null
       serverAllowed = true  // reset: access unknown until next login
+      window.dboLegal.reset()
       renderTopbarDiscord()
       updateLockState()
     })
@@ -591,6 +598,7 @@ function renderTopbarDiscord() {
         serverAllowed = freshInfo ? freshInfo.allowed !== false : true
         renderTopbarDiscord()
         updateLockState()
+        window.dboLegal.check()
       } else {
         loginBtn.disabled    = false
         loginBtn.textContent = 'Discord Login'
@@ -1295,6 +1303,8 @@ btnConnect.addEventListener('click', async () => {
 
     // A cached "not allowed" may be stale (role granted, lookup recovered, login expired), so ask again
     if (discordUser && !serverAllowed) await loadServerInfo()
+    // Asked again at every Play, so a version published while the launcher was open is caught here
+    if (discordUser) await window.dboLegal.check()
 
     // Launch prerequisites. A pending update or first-run install still runs and refreshes the files.
     // The warning explains what is missing before the game can start.
@@ -1305,9 +1315,11 @@ btnConnect.addEventListener('click', async () => {
         : 'You are not on the server whitelist.')
     }
     if (!discordUser && serverNeedsDiscord) blockers.push('Login with Discord first - use the button in the toolbar.')
+    if (discordUser && window.dboLegal.blocking()) blockers.push(window.dboLegal.message())
 
     if (blockers.length > 0 && !updateAvailable && !needsGameCopy) {
       showWarning(blockers[0])
+      if (window.dboLegal.blocking() && blockers[0] === window.dboLegal.message()) window.dboLegal.open()
       return
     }
 
@@ -1343,6 +1355,7 @@ btnConnect.addEventListener('click', async () => {
     // Updated but not launchable yet (e.g. no Discord login): say why and stop.
     if (blockers.length > 0) {
       showWarning(blockers[0])
+      if (window.dboLegal.blocking() && blockers[0] === window.dboLegal.message()) window.dboLegal.open()
       return
     }
 
@@ -1356,8 +1369,10 @@ btnConnect.addEventListener('click', async () => {
       if (result.authExpired) {
         discordUser   = null
         serverAllowed = true
+        window.dboLegal.reset()
         renderTopbarDiscord()
       }
+      if (result.legalRequired) window.dboLegal.check()
       showWarning(result.error)
       return
     }
@@ -1464,6 +1479,7 @@ async function loadServerInfo() {
     // Main already cleared the login; checked even before loadSettings restores discordUser
     discordUser   = null
     serverAllowed = true
+    window.dboLegal.reset()
     renderTopbarDiscord()
   } else if (info.sessionValid === true) {
     // Both directions: a role granted (or a Discord lookup that recovered) since the last check unblocks PLAY
@@ -1895,7 +1911,17 @@ function metricBoard(title, rows) {
 }
 
 // Init
-loadSettings()
+window.dboLegal.init({
+  onChange: (e) => {
+    if (e && e.sessionExpired) {
+      discordUser   = null
+      serverAllowed = true
+      renderTopbarDiscord()
+    }
+    updateLockState()
+  },
+})
+loadSettings().then(s => { if (s && s.discordUser) window.dboLegal.check() })
 checkServerStatus()
 checkLauncherUpdate()
 loadNews()
