@@ -66,6 +66,9 @@ export class VoiceSystem implements System {
   private enabled = false;
   // Users whose client said it understands profile identities (caps.identityV2 in the token request).
   private v2Users = new Set<number>();
+  // Each mint also sends the identity map to every voice player; the client asks every 5 s at most
+  private lastMintAt = new Map<number, number>();
+  private static readonly MINT_COOLDOWN_MS = 2000;
   private url = "";
   private apiKey = "";
   private apiSecret = "";
@@ -112,6 +115,7 @@ export class VoiceSystem implements System {
 
   // A client that leaves takes its capability with it, and everyone left needs a map without it.
   disconnect(userId: number, ctx: SystemContext): void {
+    this.lastMintAt.delete(userId);
     if (!this.v2Users.delete(userId)) return;
     if (!this.enabled) return;
     try { this.broadcastIdentityMap(ctx.svr as Mp); } catch (e) { this.log(`VoiceSystem: map broadcast on disconnect failed: ${e}`); }
@@ -157,6 +161,9 @@ export class VoiceSystem implements System {
     let actorId = 0;
     try { actorId = mp.getUserActor(userId); } catch { }
     if (!actorId) return; // not spawned yet; the client re-requests after assign
+    const now = Date.now();
+    if (now - (this.lastMintAt.get(userId) || 0) < VoiceSystem.MINT_COOLDOWN_MS) return;
+    this.lastMintAt.set(userId, now);
     let profileId = 0;
     try { profileId = Number(mp.get(actorId, "profileId")) || 0; } catch { /* falls back to the actor id */ }
     const identity = voiceIdentity({ actorId, profileId, supportsV2 });
