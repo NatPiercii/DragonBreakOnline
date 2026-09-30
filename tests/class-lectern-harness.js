@@ -11,6 +11,7 @@ const fs = require('fs');
 const bundle = process.argv[2];
 if (!bundle) { console.log('usage: node tests/class-lectern-harness.js <bundle>'); process.exit(2); }
 if (!/classLectern__/.test(fs.readFileSync(bundle, 'utf8'))) {
+  require('./expect')('class-lectern', 'this front has no Class Lectern panel');
   console.log('ok   skipped: this front predates the schools of magic');
   process.exit(0);
 }

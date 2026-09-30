@@ -12,6 +12,7 @@ const fs = require('fs');
 const bundle = process.argv[2];
 if (!bundle) { console.log('usage: node tests/school-meters-harness.js <bundle>'); process.exit(2); }
 if (!/mastery__schools/.test(fs.readFileSync(bundle, 'utf8'))) {
+  require('./expect')('school-meters', 'this front has no school meters');
   console.log('ok   skipped: this front predates the schools of magic');
   process.exit(0);
 }
