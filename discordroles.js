@@ -42,11 +42,15 @@ module.exports = (api) => {
           let wait = 1000; try { wait = Math.max(wait, Number(JSON.parse(b).retry_after || 1) * 1000); } catch (e) { /* default */ }
           return setTimeout(() => request(method, route, body, attempt + 1).then(resolve, reject), wait);
         }
-        if (r.statusCode >= 300) return reject(Object.assign(new Error(`${method} ${route}: HTTP ${r.statusCode} ${b.slice(0, 160)}`), { status: r.statusCode }));
+        // Discord's JSON error code says which 404 it is: 10007 Unknown Member, 10004 Unknown Guild
+        let code; try { code = Number(JSON.parse(b).code) || undefined; } catch (e) { code = undefined; }
+        if (r.statusCode >= 300) return reject(Object.assign(new Error(`${method} ${route}: HTTP ${r.statusCode} ${b.slice(0, 160)}`), { status: r.statusCode, code }));
         try { resolve(b ? JSON.parse(b) : null); } catch (e) { resolve(null); }
       });
     });
     req.on('error', reject);
+    // One call that never answers would hold the whole serial chain
+    req.setTimeout(15000, () => req.destroy(new Error(`${method} ${route}: no answer in 15 s`)));
     req.end(data || undefined);
   });
   // One Discord call at a time, in order, so a burst of logins never trips the rate limit
@@ -159,10 +163,11 @@ module.exports = (api) => {
     let member;
     try { member = await request('GET', `/guilds/${guildId}/members/${discordId}`); }
     catch (e) {
-      if (e.status === 404) { staffRoles(a, []); S.synced.set(discordId, { key, at: Date.now(), actor: a }); return; }
+      // Only an unknown member has left; a wrong or lost guild (10004) says nothing about their roles
+      if (e.status === 404) { if (e.code === 10007) staffRoles(a, []); S.synced.set(discordId, { key, at: Date.now(), actor: a }); return; }
       throw e;
     }
-    staffRoles(a, member.roles || []);
+    if (member && Array.isArray(member.roles)) staffRoles(a, member.roles);
     const have = new Set(member.roles || []);
     // Ties are settled by what is already worn, so the skill roles are only known once the member has been read
     const heldSkills = new Set(skillLabels().filter((l) => { const r = roles.get(l); return r && have.has(r.id); }));

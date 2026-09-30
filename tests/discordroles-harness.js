@@ -26,8 +26,10 @@ const members = { '111111111111111111': { roles: [roles.find((r) => r.name === '
 const calls = [];
 const byName = (n) => roles.find((r) => r.name === n);
 const realRequest = https.request;
+let forceMember = null;   // { status, body } answers GET /members/<id> instead of the guild
 https.request = (opts, cb) => {
   const req = new EventEmitter();
+  req.setTimeout = () => req;
   req.end = (data) => {
     const body = data ? JSON.parse(data) : null;
     const route = opts.path.replace('/api/v10/guilds/G', '');
@@ -46,7 +48,8 @@ https.request = (opts, cb) => {
       out = roles;
     }
     else if (opts.method === 'PATCH' && (m = route.match(/^\/roles\/(\d+)$/))) { roles.find((x) => x.id === m[1]).name = body.name; out = {}; }
-    else if (opts.method === 'GET' && (m = route.match(/^\/members\/(\d+)$/))) { if (members[m[1]]) out = members[m[1]]; else status = 404; }
+    else if (opts.method === 'GET' && (m = route.match(/^\/members\/(\d+)$/)) && forceMember) { status = forceMember.status; out = forceMember.body; }
+    else if (opts.method === 'GET' && (m = route.match(/^\/members\/(\d+)$/))) { if (members[m[1]]) out = members[m[1]]; else { status = 404; out = { message: 'Unknown Member', code: 10007 }; } }
     else if ((m = route.match(/^\/members\/(\d+)\/roles\/(\d+)$/))) {
       const mem = members[m[1]]; status = 204;
       if (opts.method === 'PUT' && !mem.roles.includes(m[2])) mem.roles.push(m[2]);
@@ -213,7 +216,23 @@ const pos = (n) => byName(n).position;
     staff = true;
     delete members['111111111111111111'];
     await mod2.sync(PLAYER);
-    check('a staff member who left the guild is shown no roles at all', seen.length === 4 && seen[3][1].length === 0, JSON.stringify(seen[3]));
+    check('a staff member who left the guild (404, Unknown Member) is shown no roles at all', seen.length === 4 && seen[3][1].length === 0, JSON.stringify(seen[3]));
+    // Worker E's review: only an unknown member means gone; nothing else may read as "no roles"
+    const cases = [
+      ['a 404 for an unknown guild (10004: the bot removed, a wrong id)', { status: 404, body: { message: 'Unknown Guild', code: 10004 } }],
+      ['a 404 with no body', { status: 404, body: null }],
+      ['a 401 (a bad token)', { status: 401, body: { message: '401: Unauthorized', code: 0 } }],
+      ['a 500', { status: 500, body: null }],
+      ['a member record with no roles array', { status: 200, body: { user: { id: '111111111111111111' } } }],
+      ['an empty 200', { status: 200, body: null }],
+    ];
+    for (const [label, answer] of cases) {
+      const before = seen.length;
+      forceMember = answer;
+      await mod2.sync(PLAYER);
+      forceMember = null;
+      check(`${label} demotes nobody`, seen.length === before, JSON.stringify(seen.slice(before)));
+    }
     members['111111111111111111'] = { roles: [] };
     delete require.cache[MODULE];
     const mod3 = require(MODULE)({
