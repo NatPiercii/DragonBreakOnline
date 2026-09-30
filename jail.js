@@ -220,6 +220,7 @@ module.exports = (api) => {
     if (c && (Number(c.prisoner) >>> 0) === (prisoner >>> 0)) set(door, 'private.dboCell', null);
     set(prisoner, 'private.dboSentence', null);
     lastSeen.delete(prisoner >>> 0);
+    try { if (globalThis.__dboStatsAdd) globalThis.__dboStatsAdd(prisoner, 'jailMs', Number(s.servedMs) || 0); } catch (e) { /* journal stats only */ }
     audit(`JAIL ${who(prisoner)} ${how} (${Math.round((Number(s.servedMs) || 0) / MIN)} of ${Math.round(Number(s.totalMs) / MIN)} min served)`);
   };
 

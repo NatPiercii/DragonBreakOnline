@@ -647,6 +647,7 @@ module.exports = (api) => {
         system(a, why === 'time' ? `Your hour in ${lease.name} is up. You find yourself back at the entrance.`
           : why === 'returned' ? `You make the long journey back from ${lease.name} to ${e.from || 'the Synod Conclave'} in Bruma.` : `Your claim on ${lease.name} has ended.`);
       } else if (why === 'cleared') {
+        try { if (globalThis.__dboStatsAdd) globalThis.__dboStatsAdd(a, 'dungeonsCleared'); } catch (e) { /* journal stats only */ }
         system(a, `${lease.name} is cleared. Take your time leaving; it rests ${C.cooldownMinutes} minutes for you afterwards.`);
       } else {
         system(a, `Your claim on ${lease.name} has ended. It rests ${C.cooldownMinutes} minutes for you.`);
