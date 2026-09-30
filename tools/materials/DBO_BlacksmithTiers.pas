@@ -365,7 +365,7 @@ begin
       book := DleRecord('BOOK', parts[2]);
       if Assigned(spel) and Assigned(book) then
         if (GetElementEditValues(book, 'FULL') = parts[3]) and (Trim(GetElementEditValues(book, 'DESC')) = text)
-           and (GetElementEditValues(book, 'DATA\Value') = parts[5]) then begin
+           and (GetElementEditValues(book, 'DATA\Value') = parts[5]) and (GetElementNativeValues(book, 'DATA\Flags') = 0) then begin
           Inc(nManSame);
           Continue;
         end;
@@ -390,9 +390,14 @@ begin
       SetElementEditValues(book, 'FULL', parts[3]);
       SetElementEditValues(book, 'DESC', text);
       SetElementEditValues(book, 'DATA\Value', parts[5]);
+      // DATA flags 0: no Teaches Skill, no Can't be Taken, and above all no Teaches Spell (0x04), which would let the
+      // engine add the marker and eat the book on a read the server did not block, around the tier gate
+      SetElementNativeValues(book, 'DATA\Flags', 0);
       // read back
       if (EditorID(spel) <> parts[1]) or (EditorID(book) <> parts[2]) or (GetElementEditValues(book, 'FULL') <> parts[3]) then
         slUnmatched.Add('manual ' + parts[0] + ': the new records did not take their editor ids or title');
+      if GetElementNativeValues(book, 'DATA\Flags') <> 0 then
+        slUnmatched.Add('manual ' + parts[0] + ': the book''s DATA flags are not 0 (Teaches Spell would bypass the tier gate)');
     end;
   finally
     f.Free;

@@ -12,7 +12,8 @@ Checks, against recipe_tiers.tsv and manuals.tsv:
                        condition, the ingredients, the result, the bench and the count as they were before
   every other recipe   at the Cook's and the Blacksmith's stations: unchanged, condition for condition
   every manual         its marker SPEL and its BOOK exist in the new DLE, the book has the table's title and value, the
-                       text of manuals/<manual>.txt, and DATA flags 0 (it teaches no skill and can be taken)
+                       text of manuals/<manual>.txt, and DATA flags 0 (it teaches no skill, can be taken, and above all does not
+                       carry Teaches Spell 0x04, which would give the marker and eat the book around the tier gate)
 Conditions are compared decoded (function, operator, OR, value, parameter editor id, run-on), because a recipe that
 moved into Nexus Patches has different record-local form ids. Exit 0 when all hold, 1 with every failure listed.
 --manuals-json writes the manuals as Worker G's manuals.js reads them, with the form ids the new DLE gave them.
@@ -127,8 +128,13 @@ def check_manuals(dle_path, manuals):
             fails.append(f'manual {m["manual"]}: title {title!r}, want {m["title"]!r}')
         if norm(text) != norm(want):
             fails.append(f'manual {m["manual"]}: the book text differs from manuals/{m["manual"]}.txt')
-        if len(data) < 12 or data[0] != 0 or struct.unpack('<i', data[8:12])[0] != m['value']:
-            fails.append(f'manual {m["manual"]}: DATA flags or value wrong ({data.hex()})')
+        if len(data) < 12:
+            fails.append(f'manual {m["manual"]}: DATA is {len(data)} bytes')
+        elif data[0] != 0:
+            fails.append(f'manual {m["manual"]}: DATA flags {data[0]:#04x}, want 0'
+                         + (' (0x04 Teaches Spell: the engine would hand the marker over and eat the book on a read, around the tier gate)' if data[0] & 4 else ''))
+        elif struct.unpack('<i', data[8:12])[0] != m['value']:
+            fails.append(f'manual {m["manual"]}: value {struct.unpack("<i", data[8:12])[0]}, want {m["value"]}')
         if s:
             local = lambda fid: '%x:DragonBreak Online Edits.esp' % (fid & 0xFFFFFF)
             name = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', m['manual']).replace(' And ', ' and ')
