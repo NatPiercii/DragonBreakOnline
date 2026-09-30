@@ -1,0 +1,10 @@
+[Unit]
+Description=DragonBreak metrics sample (server load and memory to /var/lib/dbo-monitor, alerts to #server-monitor)
+After=skymp.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/dragonbreak-tools/metrics/dbo_metrics.py sample
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=50

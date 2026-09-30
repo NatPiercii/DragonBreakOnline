@@ -1,0 +1,8 @@
+[Unit]
+Description=DragonBreak daily metrics summary (yesterday, UTC) to #server-monitor and public-status.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/dragonbreak-tools/metrics/dbo_metrics.py daily
+Nice=10
+IOSchedulingClass=idle

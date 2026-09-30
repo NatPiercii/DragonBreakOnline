@@ -1,0 +1,9 @@
+[Unit]
+Description=DragonBreak metrics sample every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:30
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
