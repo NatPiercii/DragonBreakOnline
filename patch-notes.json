@@ -1,33 +1,5 @@
 [
   {
-    "title": "The Goblins of Dusk Thorn Stand Together",
-    "date": "2026-09-30",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Dusk Thorn Camp",
-        "items": [
-          "The goblins of Dusk Thorn Camp no longer fight each other: they are one tribe now, and they turn on you together. Thanks to Onny for testing the camp."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "No More Empty Halls",
-    "date": "2026-09-30",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Dungeons",
-        "items": [
-          "Rooms that stood empty in a claimed dungeon now hold enemies of that dungeon's own kind, among them the back caves of Fingerbowl Cave and Serpent's Trail near Bruma. Where a room's own inhabitants had simply never appeared, like the goblins of Frostiron Mine, they are back where they belong."
-        ]
-      }
-    ]
-  },
-  {
     "title": "Vampires: Hunger, Feeding and Blood",
     "date": "2026-09-30",
     "version": "Client 0.3.71",
@@ -59,16 +31,59 @@
     ]
   },
   {
+    "title": "Pray or Perform the Rite at the Shrine",
+    "date": "2026-09-30",
+    "version": "Client 0.3.71",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Shrines",
+        "items": [
+          "Touching a shrine of Molag Bal, Hircine, Arkay or Stendarr now opens a panel: Pray, or Perform the Rite. When you can't do one of them, the panel tells you why.",
+          "Choosing a rite shows what it can cost before anything happens. Only the rite's own button (Kneel, Run the Hunt or Offer the soul gem) begins it, and Cancel takes you back. /rite still works."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your Curse in the Skills Menu",
     "date": "2026-09-30",
-    "version": "Server update",
+    "version": "Client 0.3.71",
     "tag": "New",
     "sections": [
       {
         "heading": "Werewolves and vampires",
         "items": [
-          "Werewolves and vampires now have their own tab in the Skills menu (K): your rank and what the next one brings, your thirst or your beast, your first meal, and your powers. It appears with the next client update.",
+          "Werewolves and vampires now have their own tab in the Skills menu (K): your rank and what the next one brings, your thirst or your beast, your first meal, and your powers.",
           "The werewolf's howl that senses the living is now named for the Totem of the Hunt, as in Skyrim. Howl of the Pack is the howl that calls wolves."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "No More Empty Halls",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Rooms that stood empty in a claimed dungeon now hold enemies of that dungeon's own kind, among them the back caves of Fingerbowl Cave and Serpent's Trail near Bruma. Where a room's own inhabitants had simply never appeared, like the goblins of Frostiron Mine, they are back where they belong."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "The Goblins of Dusk Thorn Stand Together",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Dusk Thorn Camp",
+        "items": [
+          "The goblins of Dusk Thorn Camp no longer fight each other: they are one tribe now, and they turn on you together. Thanks to Onny for testing the camp."
         ]
       }
     ]
