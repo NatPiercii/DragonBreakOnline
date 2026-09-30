@@ -1,5 +1,6 @@
 #include "ActionListener.h"
 #include "OnEquipMessage.h"
+#include "SpellCastMessage.h"
 #include "TestUtils.hpp"
 #include <catch2/catch_all.hpp>
 #include <chrono>
@@ -66,6 +67,47 @@ TEST_CASE("A second potion within 10 seconds is refunded", "[Restoration]")
   p.GetActionListener().OnEquip(rawMsgData, msg);
 
   REQUIRE(ac.GetInventory().GetItemCount(0x3EAE3) == 1);
+  REQUIRE(ac.GetChangeForm().actorValues.healthPercentage == 0.1f);
+
+  p.DestroyActor(0xff000000);
+  DoDisconnect(p, 0);
+}
+
+// A cast packet healed on arrival with no rate, so a modified client healed to
+// full mid-fight (combat review, 2026-09-29)
+TEST_CASE("A restorative self cast heals once per 0.7 s", "[Restoration]")
+{
+  using namespace std::chrono_literals;
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  p.CreateActor(0xff000000, { 0, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, 0xff000000);
+  auto& ac = p.worldState.GetFormAt<MpActor>(0xff000000);
+
+  // FastHealing: fire and forget, self, 0.5 s charge
+  constexpr uint32_t kFastHealing = 0x2F3B8;
+  Equipment eq;
+  eq.rightSpell = kFastHealing;
+  ac.SetEquipment(eq);
+
+  ActorValues low;
+  low.healthPercentage = 0.1f;
+  low.magickaPercentage = 1.f;
+  low.staminaPercentage = 1.f;
+
+  RawMessageData rawMsgData;
+  rawMsgData.userId = 0;
+  SpellCastMessage msg;
+  msg.data.caster = 0x14;
+  msg.data.target = 0x14;
+  msg.data.spell = kFastHealing;
+
+  ac.SetPercentages(low);
+  p.GetActionListener().OnSpellCast(rawMsgData, msg);
+  REQUIRE(ac.GetChangeForm().actorValues.healthPercentage > 0.1f);
+
+  ac.SetPercentages(low);
+  p.GetActionListener().OnSpellCast(rawMsgData, msg);
   REQUIRE(ac.GetChangeForm().actorValues.healthPercentage == 0.1f);
 
   p.DestroyActor(0xff000000);

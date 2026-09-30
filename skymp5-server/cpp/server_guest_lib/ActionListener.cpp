@@ -346,6 +346,21 @@ bool IsSpellInTemplateTree(const MpActor& actor, uint32_t spellId)
       for (uint32_t rawSpellId : npcData.spells) {
         pending.push_back(lookup.ToGlobalId(rawSpellId));
       }
+      // A creature's biting or clawing attack casts its race's attack spell (IceWraithRace crIceWraithBite,
+      // AtronachFlameRace crAtronachFlameMeleeAttack), which no spell list holds: its hits were refused as "cannot hit
+      // with spell" (refusal survey, 2026-09-29). The race's own spells (SPLO) come with it.
+      if (npcData.race != 0) {
+        const auto raceLookup = browser.LookupById(lookup.ToGlobalId(npcData.race));
+        if (const auto race = espm::Convert<espm::RACE>(raceLookup.rec)) {
+          const auto raceData = race->GetData(worldState->GetEspmCache());
+          for (uint32_t rawSpellId : raceData.attackSpells) {
+            pending.push_back(raceLookup.ToGlobalId(rawSpellId));
+          }
+          for (uint32_t rawSpellId : raceData.spells) {
+            pending.push_back(raceLookup.ToGlobalId(rawSpellId));
+          }
+        }
+      }
       if (npcData.baseTemplate != 0 &&
           (npcData.templateDataFlags & espm::NPC_::UseSpelllist)) {
         pending.push_back(lookup.ToGlobalId(npcData.baseTemplate));
@@ -1086,6 +1101,41 @@ void ActionListener::OnActivate(const RawMessageData& rawMsgData,
   }
 }
 
+namespace {
+// A put, take or drop moves at least one of an item record that exists (item-flow review, 2026-09-29): a drop of
+// count 0 found nothing to remove, fell through to DropItem and came back as one item on pick-up, any record at
+// all; an unknown record crashed DropItem. The gameplay layer's itemguards.js refused both, but only while it loads.
+bool IsItemMove(WorldState* worldState, uint32_t baseId, uint32_t count,
+                const char* what, uint32_t actorId)
+{
+  constexpr uint32_t kMaxCount = 1'000'000;
+  if (count < 1 || count > kMaxCount) {
+    spdlog::warn("{} by {:x} of {:x} refused: count {}", what, actorId,
+                 baseId, count);
+    return false;
+  }
+  if (!worldState || !worldState->HasEspm()) {
+    return false;
+  }
+  const auto lookup = worldState->GetEspm().GetBrowser().LookupById(baseId);
+  if (!lookup.rec) {
+    spdlog::warn("{} by {:x} refused: no record {:x}", what, actorId, baseId);
+    return false;
+  }
+  static const std::unordered_set<std::string> kItemTypes = {
+    "WEAP", "ARMO", "AMMO", "MISC", "INGR", "ALCH",
+    "BOOK", "SCRL", "SLGM", "KEYM", "LIGH"
+  };
+  const std::string type = lookup.rec->GetType().ToString();
+  if (!kItemTypes.count(type)) {
+    spdlog::warn("{} by {:x} refused: {:x} is a {}, not an item", what,
+                 actorId, baseId, type);
+    return false;
+  }
+  return true;
+}
+}
+
 void ActionListener::OnPutItem(const RawMessageData& rawMsgData,
                                const PutItemMessage& msg)
 {
@@ -1104,6 +1154,11 @@ void ActionListener::OnPutItem(const RawMessageData& rawMsgData,
   if (worldState->HasKeyword(msg.baseId, "SweetCantDrop")) {
     return spdlog::error("Attempt to put SweetCantDrop item {:x}",
                          actor->GetFormId());
+  }
+
+  if (!IsItemMove(worldState, msg.baseId, msg.count, "PutItem",
+                  actor->GetFormId())) {
+    return;
   }
 
   Inventory::Entry entry;
@@ -1142,6 +1197,11 @@ void ActionListener::OnTakeItem(const RawMessageData& rawMsgData,
                          actor->GetFormId());
   }
 
+  if (!IsItemMove(worldState, msg.baseId, msg.count, "TakeItem",
+                  actor->GetFormId())) {
+    return;
+  }
+
   Inventory::Entry entry;
   entry.baseId = msg.baseId;
   entry.count = msg.count;
@@ -1176,6 +1236,11 @@ void ActionListener::OnDropItem(const RawMessageData& rawMsgData,
   if (worldState->HasKeyword(baseId, "SweetCantDrop")) {
     return spdlog::error("Attempt to drop SweetCantDrop item {:x}",
                          ac->GetFormId());
+  }
+
+  if (!IsItemMove(worldState, baseId, msg.count, "DropItem",
+                  ac->GetFormId())) {
+    return;
   }
 
   Inventory::Entry entry;
@@ -1223,6 +1288,7 @@ void ActionListener::OnPlayerBowShot(const RawMessageData& rawMsgData,
   }
 
   ac->RemoveItem(msg.ammoId, 1, nullptr);
+  lastBowShot[ac->GetFormId()] = std::chrono::steady_clock::now();
 }
 
 void ActionListener::OnFinishSpSnippet(const RawMessageData& rawMsgData,
@@ -1297,7 +1363,14 @@ void ActionListener::OnHostAttempt(const RawMessageData& rawMsgData,
     throw std::runtime_error("Unable to host without actor attached");
   }
 
-  auto& remote = partOne.worldState.GetFormAt<MpObjectReference>(remoteId);
+  // A client can still ask for an NPC the server has removed, such as a cleared corpse
+  const auto& remoteForm = partOne.worldState.LookupFormById(remoteId);
+  MpObjectReference* remotePtr =
+    remoteForm ? remoteForm->AsObjectReference() : nullptr;
+  if (!remotePtr) {
+    return;
+  }
+  auto& remote = *remotePtr;
 
   auto user = partOne.serverState.UserByActor(remote.AsActor());
   if (user != Networking::InvalidUserId) {
@@ -1698,6 +1771,32 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
                     aggressor->GetFormId(), targetRef->GetFormId());
       return;
     }
+  } else {
+    // A bow hit had no range at all: anyone in the worldspace could be shot from anywhere (combat review, 2026-09-29).
+    // Four exterior cells is past any arrow's flight.
+    constexpr float kMaxBowShotUnits = 4096.f * 4;
+    if ((aggressor->GetPos() - targetRef->GetPos()).SqrLength() >
+        kMaxBowShotUnits * kMaxBowShotUnits) {
+      spdlog::warn("ActionListener::OnHit - bow hit from {:x} on {:x} beyond "
+                   "{} units, refused",
+                   aggressor->GetFormId(), targetRef->GetFormId(),
+                   kMaxBowShotUnits);
+      return;
+    }
+    // Log only for now: how often a player's bow hit comes without a shot the server saw
+    if (aggressor->GetProfileId() != -1) {
+      const auto now = std::chrono::steady_clock::now();
+      const auto shot = lastBowShot.find(aggressor->GetFormId());
+      ++bowHitCounts.hits;
+      if (shot == lastBowShot.end() || now - shot->second > kBowShotWindow) {
+        ++bowHitCounts.unmatched;
+        spdlog::info("ActionListener::OnHit - bow hit from {:x} on {:x} with "
+                     "no shot in the last {} s (bow hits {}/{} unmatched)",
+                     aggressor->GetFormId(), targetRef->GetFormId(),
+                     kBowShotWindow.count(), bowHitCounts.unmatched,
+                     bowHitCounts.hits);
+      }
+    }
   }
 
   if (aggressor->IsDead()) {
@@ -1748,7 +1847,13 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
 
   const bool isUnarmed = IsUnarmedAttack(hitData.source);
 
-  if (equipment.inv.HasItem(hitData.source) || isUnarmed) {
+  // Equipped and still held: moving an item (trade, container, drop) never rewrites the equipment record, so a
+  // modified client that sent no equipment update kept hitting with a weapon it had given away (item-flow review,
+  // 2026-09-29). Players only: a hosted NPC's server inventory need not hold what its template equips.
+  if ((equipment.inv.HasItem(hitData.source) &&
+       (aggressor->GetProfileId() == -1 ||
+        aggressor->GetInventory().HasItem(hitData.source))) ||
+      isUnarmed) {
     OnWeaponHit(aggressor, targetRef, hitData, isUnarmed);
     return;
   }
@@ -1950,7 +2055,28 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
     const bool hadChannel = existing != restorationChannels.end();
 
     // Concentration heals accrue per second of channel so a tap heals a tap's worth
+    // One application per caster and spell each kRestoreCastInterval; no fire-and-forget cast cycles faster
+    bool castTooSoon = false;
     if (!isConcentration && !spellCastData.keepAlive) {
+      const auto now = std::chrono::steady_clock::now();
+      auto& last = lastRestoreCast[(static_cast<uint64_t>(casterId) << 32) |
+                                   spellCastData.spell];
+      castTooSoon = now - last < kRestoreCastInterval;
+      if (!castTooSoon) {
+        last = now;
+      }
+      if (lastRestoreCast.size() > 4096) {
+        std::erase_if(lastRestoreCast, [&](const auto& entry) {
+          return now - entry.second > std::chrono::seconds(10);
+        });
+      }
+      if (castTooSoon) {
+        spdlog::info("ActionListener::OnSpellCast - {:x} cast restorative "
+                     "spell {:x} again too soon, not applied",
+                     casterId, spellCastData.spell);
+      }
+    }
+    if (!isConcentration && !spellCastData.keepAlive && !castTooSoon) {
       targetActor->ApplyMagicEffects(restoreEffects, hasSweetpie);
       spdlog::info("ActionListener::OnSpellCast - applied {} restorative "
                    "effect(s) of spell {:x} to actor {:x}",
@@ -2244,8 +2370,11 @@ void ActionListener::OnWeaponHit(MpActor* aggressor,
     std::chrono::duration<float> timeSinceSpecific =
       currentHitTime - lastHitSpecific;
 
-    // If the specific target was hit faster than the splash window
-    if (timeSinceSpecific.count() < kSplashTimeWindow) {
+    // If the specific target was hit faster than the splash window, or than the weapon swings: a hit on any second
+    // actor every 0.05 s made each hit on the first a splash and skipped the weapon's speed, ten greatsword hits a
+    // second (combat review, 2026-09-29). A sweep across several actors still lands on each.
+    if (timeSinceSpecific.count() < kSplashTimeWindow ||
+        !CanHit(*aggressor, hitData, timeSinceSpecific)) {
       spdlog::warn("Splash attack from {:x} to {:x} ignored, target hit "
                    "too recently",
                    aggressor->GetFormId(), targetActor.GetFormId());

@@ -55,6 +55,8 @@ const DEFAULT_MAX_CHOSEN = 3;
 const DEFAULT_POINT_INTERVAL_MINUTES = 60;
 const DEFAULT_RESPEC_GOLD = 1200;
 const RESPEC_WINDOW_MS = 120000;
+// A failed harvest roll rests that plant for that player about as long as a picked one takes to grow back (reloot)
+const FAILED_PICK_REST_MS = 60 * 60000;
 const CHOOSE_COOLDOWN_MS = 1000;
 export const MAX_GRANT = 1000;
 const MAX_QUEUED_EVENTS = 4096;
@@ -429,17 +431,34 @@ export class MasterySystem implements System {
         return false;
       }
     }
-    if (base.type === "FLOR" || base.type === "TREE") return this.rollHarvest(ctx, casterId, userId, rec, base);
+    if (base.type === "FLOR" || base.type === "TREE") return this.rollHarvest(ctx, casterId, userId, rec, base, refrId);
     return true;
   }
 
   // Unskilled: slim chance, half yield. Skilled: tier chance, extra units from the node's ingredient.
-  private rollHarvest(ctx: SystemContext, actorId: number, userId: number, rec: MasteryRecord, base: BaseInfo): boolean {
+  // A plant already picked pays nothing more, and a failed pick rests that plant for that player (combat and economy
+  // review, 2026-09-29): the extra yield went into the inventory before the engine looked, so E on a picked plant paid
+  // +1 every press, and a failed roll left the plant as it was, so an unskilled player pressed E until the 25% came up.
+  // isHarvested is the server's own record (the fork's IsHarvestedBinding); an older server without it reads as unpicked.
+  private rollHarvest(ctx: SystemContext, actorId: number, userId: number, rec: MasteryRecord, base: BaseInfo, refrId: number): boolean {
+    const mp = ctx.svr as Mp;
+    let picked = false;
+    try { picked = mp.get(refrId, "isHarvested") === true; } catch { picked = false; }
+    if (picked) return true;
+    const now = Date.now();
+    const failKey = `${actorId}:${refrId}`;
+    const failedUntil = this.failedPicks.get(failKey) || 0;
+    if (failedUntil > now) {
+      if (now - (this.lastDenyMs.get(actorId) || 0) > 1500) { this.lastDenyMs.set(actorId, now); this.notice(ctx, userId, "You found nothing here. Try another, or come back later."); }
+      return false;
+    }
     const prog = rec.skills["harvesting"];
     const tier = prog ? prog.rank : -1;
     const chance = tier >= 0 ? (this.harvestChance[Math.min(tier, this.harvestChance.length - 1)] ?? 1) : this.unskilledChance;
     const mult = tier >= 0 ? (this.harvestMult[Math.min(tier, this.harvestMult.length - 1)] ?? 1) : this.unskilledMult;
     if (Math.random() > chance) {
+      this.failedPicks.set(failKey, now + FAILED_PICK_REST_MS);
+      if (this.failedPicks.size > 4096) for (const [k, t] of Array.from(this.failedPicks)) if (t <= now) this.failedPicks.delete(k);
       if (Date.now() - (this.lastDenyMs.get(actorId) || 0) > 1500) { this.lastDenyMs.set(actorId, Date.now()); this.notice(ctx, userId, "You find nothing worth taking."); }
       return false;
     }
@@ -1433,6 +1452,8 @@ export class MasterySystem implements System {
   private creditStats = { events: new Map<string, number>(), credits: new Map<string, number>(), actors: new Set<number>(), suppressed: 0, since: 0 };
   private lastChooseMs = new Map<number, number>();
   private lastDenyMs = new Map<number, number>();
+  // `${actorId}:${refrId}` -> until: a failed harvest roll on that plant
+  private failedPicks = new Map<string, number>();
   private respecUntil = new Map<number, number>();
   private pendingGrants = new Map<number, number>();
   private benchCache = new Map<number, number>();

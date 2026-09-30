@@ -23,6 +23,12 @@ RACE::Data RACE::GetData(
         result.unarmedReach = *reinterpret_cast<const float*>(data + 100);
       } else if (!std::memcmp(type, "SPLO", 4)) {
         result.spells.emplace(*reinterpret_cast<const uint32_t*>(data));
+      } else if (!std::memcmp(type, "ATKD", 4) && size >= 12) {
+        // ATKD: damage mult, attack chance, attack spell, ... (UESP Skyrim Mod:Mod File Format/RACE)
+        const uint32_t attackSpell = *reinterpret_cast<const uint32_t*>(data + 8);
+        if (attackSpell != 0) {
+          result.attackSpells.emplace(attackSpell);
+        }
       }
     },
     compressedFieldsCache);

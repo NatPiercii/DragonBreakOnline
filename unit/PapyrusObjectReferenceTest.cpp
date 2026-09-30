@@ -253,6 +253,43 @@ TEST_CASE("GetLinkedRef follows the keyword it is given",
             bolt.ToVarValue(), { LinkCustom01(p) }) == VarValue::None());
 }
 
+// A falling oil lamp trap in cell 1522a links untagged to its light, which the server never loads
+TEST_CASE("GetLinkedRef to a ref that is not a server form is None",
+          "[Papyrus][ObjectReference][espm]")
+{
+  constexpr uint32_t kOilLampTrap = 0xbf8ad;
+  constexpr uint32_t kOilLampLight = 0xbf8ae;
+  auto& p = GetPartOne();
+  REQUIRE(!p.worldState.LookupFormById(kOilLampLight));
+  auto& trap = p.worldState.GetFormAt<MpObjectReference>(kOilLampTrap);
+
+  VarValue linked;
+  REQUIRE_NOTHROW(linked = PapyrusObjectReference().GetLinkedRef(
+                    trap.ToVarValue(), { VarValue::None() }));
+  REQUIRE(linked == VarValue::None());
+  REQUIRE_NOTHROW(linked = PapyrusObjectReference().GetNthLinkedRef(
+                    trap.ToVarValue(), { VarValue(1) }));
+  REQUIRE(linked == VarValue::None());
+}
+
+TEST_CASE("GetLinkedRef on a ref the server made is None",
+          "[Papyrus][ObjectReference][espm]")
+{
+  auto& p = GetPartOne();
+  constexpr uint32_t kMade = 0xff00f00d;
+  p.CreateActor(kMade, { 0.f, 0.f, 0.f }, 0.f, 0x3c);
+  auto& made = p.worldState.GetFormAt<MpObjectReference>(kMade);
+
+  VarValue linked;
+  REQUIRE_NOTHROW(linked = PapyrusObjectReference().GetLinkedRef(
+                    made.ToVarValue(), { VarValue::None() }));
+  REQUIRE(linked == VarValue::None());
+  REQUIRE_NOTHROW(linked = PapyrusObjectReference().GetNthLinkedRef(
+                    made.ToVarValue(), { VarValue(2) }));
+  REQUIRE(linked == VarValue::None());
+  p.DestroyActor(kMade);
+}
+
 TEST_CASE("DisableLinkChain and EnableLinkChain walk one keyword",
           "[Papyrus][ObjectReference][espm]")
 {
