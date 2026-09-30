@@ -71,6 +71,7 @@ online = [V, T, B, FAR, W2];
 const feedTick = (ms) => { for (let t = 0; t < ms; t += 500) { now += 500; timers.superFeed(); } };
 const nameFor = (viewer, x) => (x === V ? 'Stranger' : `P${x}`);
 fire('uiCaps', T, ['robPrompt', 'feedPrompt']);
+fire('uiCaps', V, ['feedPrompt']);   // the vampire's client can wash blood off (VampireFeedService)
 
 // ---- the menu --------------------------------------------------------------------------------------------------
 const entries = (a, t) => globalThis.__dboSuperMenuEntries(a, t).map((e) => e.id).join(',');
@@ -183,6 +184,16 @@ ok(lipsOf(V) === -13424870 && chinOf(V) === 16777215 && !state(V).blood, 'water 
 ok(packets.some(([a, p]) => a === V && p.customPacketType === 'dboBloody' && p.on === false) && heard(V, /water runs red/), 'the client stops watching, and the vampire is told');
 fire('swimming', V);
 ok(said.filter((s) => /water runs red/.test(s.t)).length === 1, 'swimming with a clean face does nothing');
+// A client without the feeding service could never wash it off: no blood for it
+fire('uiCaps', V, ['robPrompt']);
+store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { stage: 3, blood: null }));
+const C4 = 19; at(C4, 0); store.set(`${C4}|isDead`, false); store.set(`${C4}|percentages`, { health: 1, magicka: 1, stamina: 1 });
+store.set(`${C4}|private.restrained`, { boundHands: true }); online.push(C4);
+dice = 0;
+globalThis.__dboSuperMenuAction(V, 'super:feed', C4, nameFor);
+feedTick(13000);
+ok(!state(V).blood && lipsOf(V) === -13424870, 'a vampire on an older client (no feedPrompt) is never bloodied');
+fire('uiCaps', V, ['feedPrompt']);
 // Rank and hunger
 const odds = (blood, stage, roll) => {
   store.set(`${V}|private.bloodRanks`, { blood, fedOn: {} });

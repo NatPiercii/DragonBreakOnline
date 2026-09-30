@@ -867,6 +867,9 @@ module.exports = (api) => {
   const TINT_LIPS = 1, TINT_CHIN = 11, TINT_DIRT = 14;
   const applyBlood = (a) => {
     const s = stateOf(a); if (!s || s.kind !== 'vampire' || s.blood || beastForm(a)) return false;
+    // Only on a client that can wash it off: the one that draws the feed prompt also reports swimming (VampireFeedService).
+    // An older client would keep the blood until the curse ended.
+    if (!canWash(a)) return false;
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return false; }
     if (!app || !Array.isArray(app.tints)) return false;
     const tints = app.tints.map((x) => Object.assign({}, x));
@@ -1012,6 +1015,7 @@ module.exports = (api) => {
   const ASK = globalThis.__dboSuperAsk || (globalThis.__dboSuperAsk = { pending: new Map(), askedAt: new Map(), refused: new Map(), caps: new Map() });
   onUi('uiCaps', (a, args) => { ASK.caps.set(a >>> 0, new Set((args || []).map(String))); });
   const canAnswer = (t) => { const c = ASK.caps.get(t >>> 0); return !!c && c.has('feedPrompt'); };
+  const canWash = (a) => canAnswer(a);
   // A person who could be asked: awake, not a beast, not a vampire (their blood is dead), not in a rite
   const askable = (a, t) => {
     if (!isPlayer(t) || (t >>> 0) === (a >>> 0) || !onlineActors().includes(t >>> 0)) return false;
