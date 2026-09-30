@@ -891,7 +891,8 @@
     "Restoration",
     "Alteration"
    ],
-   "_comment": "add more entries later: temples, mage towers, a court wizard's study"
+   "until": "1636c2:DragonBreak Online Edits.esp",
+   "_comment": "Until the Study Magic activators (DragonBreak Online Edits.esp, DLE v8) are in the load order; they replace this point then (Nate, 2026-09-30). add more entries later: temples, mage towers, a court wizard's study"
   },
   {
    "name": "The Synod Conclave in Bruma",
@@ -906,7 +907,192 @@
     "Restoration",
     "Alteration"
    ],
-   "_comment": "Whole cells, no refr: anywhere in the Conclave (CYRBrumaSynodConclave) or its basement (CYRBrumaSynodBasement). Read by server\\spells.js, which also accepts cell + refr + radiusMeters."
+   "until": "1636c2:DragonBreak Online Edits.esp",
+   "_comment": "Whole cells, no refr: anywhere in the Conclave (CYRBrumaSynodConclave) or its basement (CYRBrumaSynodBasement), until the Study Magic activators (DragonBreak Online Edits.esp, DLE v8) are in the load order; then only within radiusMeters of one (Nate, 2026-09-30: \"make StudyMagic activators the study points\"). Read by server\\spells.js, which also accepts cell + refr + radiusMeters, and places + requires (tools/spells/study_points.py writes those)."
+  },
+  {
+   "name": "The Synod Conclave in Bruma",
+   "requires": "1636c2:DragonBreak Online Edits.esp",
+   "cell": "20ff:BSHeartland.esm",
+   "radiusMeters": 4,
+   "places": [
+    {
+     "refr": "1636c3:DragonBreak Online Edits.esp",
+     "pos": [
+      -9.5,
+      72.2,
+      -10.2
+     ]
+    },
+    {
+     "refr": "1636c6:DragonBreak Online Edits.esp",
+     "pos": [
+      -10.3,
+      73.0,
+      2.1
+     ]
+    },
+    {
+     "refr": "1636d8:DragonBreak Online Edits.esp",
+     "pos": [
+      85.0,
+      448.5,
+      149.4
+     ]
+    },
+    {
+     "refr": "1636d9:DragonBreak Online Edits.esp",
+     "pos": [
+      85.4,
+      374.6,
+      151.6
+     ]
+    },
+    {
+     "refr": "1636da:DragonBreak Online Edits.esp",
+     "pos": [
+      234.2,
+      411.4,
+      162.4
+     ]
+    }
+   ],
+   "schools": [
+    "Destruction",
+    "Conjuration",
+    "Illusion",
+    "Restoration",
+    "Alteration"
+   ],
+   "_generated": "tools/spells/study_points.py: the StudyMagic activators, 5 here; within radiusMeters of one"
+  },
+  {
+   "name": "Frost Crag Spire",
+   "requires": "1636c2:DragonBreak Online Edits.esp",
+   "cell": "6ff7d:BSHeartland.esm",
+   "radiusMeters": 4,
+   "places": [
+    {
+     "refr": "1636db:DragonBreak Online Edits.esp",
+     "pos": [
+      -489.1,
+      1113.5,
+      -484.1
+     ]
+    }
+   ],
+   "schools": [
+    "Destruction",
+    "Conjuration",
+    "Illusion",
+    "Restoration",
+    "Alteration"
+   ],
+   "_generated": "tools/spells/study_points.py: the StudyMagic activators, 1 here; within radiusMeters of one"
+  },
+  {
+   "name": "The Arcanaeum at the College of Winterhold",
+   "requires": "1636c2:DragonBreak Online Edits.esp",
+   "cell": "13810:Skyrim.esm",
+   "radiusMeters": 4,
+   "places": [
+    {
+     "refr": "1636dc:DragonBreak Online Edits.esp",
+     "pos": [
+      -334.1,
+      -38.0,
+      6.1
+     ]
+    },
+    {
+     "refr": "1636dd:DragonBreak Online Edits.esp",
+     "pos": [
+      -334.3,
+      32.8,
+      8.6
+     ]
+    },
+    {
+     "refr": "1636de:DragonBreak Online Edits.esp",
+     "pos": [
+      332.5,
+      -43.1,
+      6.2
+     ]
+    },
+    {
+     "refr": "1636df:DragonBreak Online Edits.esp",
+     "pos": [
+      333.7,
+      42.3,
+      6.6
+     ]
+    },
+    {
+     "refr": "1636e0:DragonBreak Online Edits.esp",
+     "pos": [
+      408.0,
+      280.5,
+      56.5
+     ]
+    },
+    {
+     "refr": "1636e1:DragonBreak Online Edits.esp",
+     "pos": [
+      446.1,
+      210.8,
+      53.2
+     ]
+    },
+    {
+     "refr": "1636e2:DragonBreak Online Edits.esp",
+     "pos": [
+      -408.1,
+      -281.4,
+      60.2
+     ]
+    },
+    {
+     "refr": "1636e3:DragonBreak Online Edits.esp",
+     "pos": [
+      -443.8,
+      -211.0,
+      56.9
+     ]
+    },
+    {
+     "refr": "1636e4:DragonBreak Online Edits.esp",
+     "pos": [
+      -446.0,
+      217.1,
+      53.2
+     ]
+    },
+    {
+     "refr": "1636e5:DragonBreak Online Edits.esp",
+     "pos": [
+      -402.4,
+      289.2,
+      55.4
+     ]
+    },
+    {
+     "refr": "1636e6:DragonBreak Online Edits.esp",
+     "pos": [
+      -198.8,
+      -1314.4,
+      -327.8
+     ]
+    }
+   ],
+   "schools": [
+    "Destruction",
+    "Conjuration",
+    "Illusion",
+    "Restoration",
+    "Alteration"
+   ],
+   "_generated": "tools/spells/study_points.py: the StudyMagic activators, 11 here; within radiusMeters of one"
   }
  ],
  "praying": {
