@@ -283,6 +283,27 @@ cfg.pickpocket.enabled = true; load();
 reset(); rolls.push(0.99); act(THIEF, MARK); load(); now += 30000; act(THIEF, MARK);
 check('a hot reload does not reset the per-victim wait', /keeping a hand/.test(last(out.personal, THIEF)));
 
+// ---- an open trade (trade-robbery-guard) ------------------------------------------------------------
+reset(); now += 3600000;
+const trading = new Set();
+globalThis.__alduinakInTrade = (a) => trading.has(a >>> 0);
+check('the entry stays on the menu so a refusal can say why', entries(THIEF, MARK).length === 1);
+trading.add(MARK); rolls.push(0.0, 0.0, 0.0);
+act(THIEF, MARK);
+check('a mark whose trade window is open is refused in character', /^Pff000002 is in the middle of a trade/.test(last(out.personal, THIEF)) && count(MARK, GOLD) === 1000 && !out.audits.length && !out.system.length, last(out.personal, THIEF));
+check('...and the refused try starts no wait', !globalThis.__dboPickpocket.lastTry.has(THIEF));
+trading.clear(); trading.add(THIEF);
+act(THIEF, MARK);
+check('a thief whose own trade window is open is refused', /Finish your trade first/.test(last(out.personal, THIEF)) && count(MARK, GOLD) === 1000 && !out.audits.length);
+trading.clear(); rolls.length = 0; rolls.push(0.0, 0.0, 0.0);
+act(THIEF, MARK);
+check('once the trade closes the attempt goes ahead', out.audits.length === 1, out.audits[0]);
+reset(); now += 3600000;
+globalThis.__alduinakInTrade = () => { throw new Error('boom'); };
+rolls.push(0.0, 0.0, 0.0); act(THIEF, MARK);
+check('a failing trade hook blocks nothing', out.audits.length === 1);
+delete globalThis.__alduinakInTrade;
+
 Math.random = realRandom;
 console.log(failures ? `\n${failures} FAILED` : '\nall passed');
 process.exit(failures ? 1 : 0);

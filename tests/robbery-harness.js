@@ -197,5 +197,24 @@ const inv = get(VICTIM, 'inventory').entries;
 check('the spare helmet may go, the worn one stays', inv.some((e) => e.baseId === HELM && e.worn && e.count === 1) && count(ROBBER, HELM) <= 1 && count(VICTIM, HELM) + count(ROBBER, HELM) === 2, JSON.stringify(inv));
 check('one of each kind at most', count(ROBBER, HELM) <= 1 && count(ROBBER, DAGGER) <= 1);
 
+// An open trade: no Rob on either trader, and a stale click is refused in character (trade-robbery-guard)
+now += 120 * 60000; reset();
+handlers.get('uiCaps')(VICTIM, ['robPrompt']);
+const trading = new Set();
+globalThis.__alduinakInTrade = (a) => trading.has(a >>> 0);
+check('Rob is offered when nobody is trading', menu(ROBBER, VICTIM).length === 1);
+trading.add(VICTIM);
+check('no Rob on a player whose trade window is open', menu(ROBBER, VICTIM).length === 0);
+const tradeWidgets = out.widgets.length;
+check('a stale Rob on them is refused in character, with no panel and nothing taken', /^14:They are in the middle of a trade/.test(act(ROBBER, VICTIM)) && out.widgets.length === tradeWidgets && count(VICTIM, GOLD) === 1000);
+trading.clear(); trading.add(ROBBER);
+check('no Rob from a player whose own trade window is open', menu(ROBBER, VICTIM).length === 0 && /^14:Finish your trade first/.test(act(ROBBER, VICTIM)));
+trading.clear();
+check('Rob comes back when the trade closes (the refusal started no wait)', menu(ROBBER, VICTIM).length === 1);
+globalThis.__alduinakInTrade = () => { throw new Error('boom'); };
+check('a failing trade hook blocks nothing', menu(ROBBER, VICTIM).length === 1);
+delete globalThis.__alduinakInTrade;
+check('a server without the hook blocks nothing', menu(ROBBER, VICTIM).length === 1);
+
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);
