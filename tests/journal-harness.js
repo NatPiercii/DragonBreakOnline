@@ -267,39 +267,78 @@ now += 3001;
 fire('journalTitle', P, [keep, 'warrior']);
 check('a hot reload keeps the open journal and its nonce', docs.get(P).profile.titleId === 'warrior');
 
-// ---- a deleted character's file goes with it ----
+// ---- a deleted character's file goes with it (journalstats.js itself: its keys, orphans() and forget()) ----
 {
   const os = require('os');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-jsweep-'));
-  const ids = [0xff000101, 0xff000102, 0xff000103, 0xff000104, 0xff000105];
-  for (const id of ids) fs.writeFileSync(path.join(dir, `${id.toString(16)}.json`), '{}');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-jsweep-'));
+  const dir = path.join(tmp, 'journal');
+  fs.mkdirSync(dir);
+  const saved = new Map(Object.getOwnPropertyNames(globalThis).filter((k) => k.startsWith('__')).map((k) => [k, globalThis[k]]));
+  const P2 = new Map(), deleted = new Set(), logs = [];
+  const smp = {
+    get: (a, k) => { if (deleted.has(a >>> 0)) throw new Error('no such form'); return P2.get(`${a >>> 0}|${k}`); },
+    set: (a, k, v) => { if (deleted.has(a >>> 0)) throw new Error('no such form'); P2.set(`${a >>> 0}|${k}`, v); },
+  };
+  const ids = [0x101, 0x102, 0x103, 0x104, 0x105, 0x106, 0x107, 0x108].map((x) => (0xff000000 + x) >>> 0);
+  const keyFor = new Map(ids.map((id, i) => [id, `a1b2c3d4e5f600${i.toString(16).padStart(2, '0')}`]));
+  for (const id of ids) {
+    P2.set(`${id}|private.dboJournalId`, keyFor.get(id));
+    fs.writeFileSync(path.join(dir, `${keyFor.get(id)}.json`), JSON.stringify({ v: 1, since: 1, playMs: 5, actor: id.toString(16), profile: { backstory: `story ${id.toString(16)}` } }));
+  }
   fs.writeFileSync(path.join(dir, 'notes.txt'), 'not a journal');
-  const gone = new Set([0xff000105]);
-  const forgot = [];
-  globalThis.__dboJournalDoc.dir = dir;
-  globalThis.__dboJournalDoc.forget = (a) => forgot.push(a);
+  require(path.resolve('journalstats.js'))({
+    mp: smp, log: (...x) => logs.push(x.join(' ')), personal: () => {}, registerChatCommand: () => {}, every: () => {}, onlineActors: () => [],
+    profileOf: (a) => (keyFor.has(a >>> 0) && !deleted.has(a >>> 0) ? 1 : -1), display: String, findAnyByName: () => 0, isAdmin: () => false,
+    creationPending: () => false, cfg: { journalStats: { dir, playersFile: path.join(tmp, 'players.json') } },
+  });
   const J2 = (() => {
     delete require.cache[path.resolve('journal.js')];
     return require(path.resolve('journal.js'))({
-      mp: { get: (a, k) => { if (gone.has(a >>> 0)) throw new Error('no such form'); return props.get(`${a}|${k}`); }, lookupEspmRecordById: () => null },
-      log: () => {}, display: String, nameOf: () => '', personal: () => {}, openWidget: () => {}, closeWidget: () => {}, onUi: () => {}, sendPacket: () => {},
-      every: () => {}, onlineActors: () => [], cfg: {}, skills: skillsDef, hasCap: () => false,
+      mp: Object.assign({ lookupEspmRecordById: () => null }, smp), log: (...x) => logs.push(x.join(' ')), display: String, nameOf: () => '', personal: () => {},
+      openWidget: () => {}, closeWidget: () => {}, onUi: () => {}, sendPacket: () => {}, every: () => {}, onlineActors: () => [], cfg: {}, skills: skillsDef, hasCap: () => false,
     });
   })();
-  const files = () => fs.readdirSync(dir).sort().join(',');
-  check('a character gone on one sweep keeps its file (a passing read failure is not a deletion)', J2.sweep() === 0 && fs.existsSync(path.join(dir, 'ff000105.json')));
-  check('...gone on the next sweep too, its file is deleted and its cache forgotten', J2.sweep() === 1 && !fs.existsSync(path.join(dir, 'ff000105.json')) && forgot.includes(0xff000105), files());
-  check('...and nothing else is touched (other characters, other files)', fs.existsSync(path.join(dir, 'ff000101.json')) && fs.existsSync(path.join(dir, 'notes.txt')));
-  for (const id of ids) gone.add(id);
+  const at = (id) => path.join(dir, `${keyFor.get(id)}.json`);
+  const aside = (id) => path.join(dir, 'removed', `${keyFor.get(id)}.json`);
+  const realUptime = process.uptime;
+  check('the journal reads its own fields from the stats file (journalstats keeps doc.profile)', globalThis.__dboJournalDoc.of(ids[0]).profile.backstory === 'story ff000101');
+  check('__dboStatsData gives the numbers, and null for a character no key can be kept for', globalThis.__dboStatsData(ids[0]).playMs === 5
+    && (deleted.add(0xff0001ff), globalThis.__dboStatsData(0xff0001ff) === null));
+  deleted.add(ids[4]);
+  process.uptime = () => 60;
+  check('no sweep in the first minutes after a boot, when reads can come back empty', J2.sweep() === 0 && J2.sweep() === 0 && fs.existsSync(at(ids[4])));
+  process.uptime = () => 7200;
+  check('a character gone on one sweep keeps its file (a passing read failure is not a deletion)', J2.sweep() === 0 && fs.existsSync(at(ids[4])));
+  check('...gone on the next sweep too, its file is moved aside to removed/, not deleted', J2.sweep() === 1 && !fs.existsSync(at(ids[4])) && fs.existsSync(aside(ids[4])));
+  P2.set(`${ids[3]}|private.dboJournalId`, 'ffffffffffffffff');
   J2.sweep();
-  check('if most files look deleted at once the check is suspect and nothing is removed', J2.sweep() === 0 && fs.existsSync(path.join(dir, 'ff000101.json')), files());
-  fs.rmSync(dir, { recursive: true, force: true });
+  check('an actor id that now carries another character\'s key leaves the old file an orphan too', J2.sweep() === 1 && fs.existsSync(aside(ids[3])));
+  deleted.add(ids[6]);
+  J2.sweep();
+  deleted.delete(ids[6]);
+  J2.sweep();
+  deleted.add(ids[6]);
+  check('a strike is forgotten when the character reads again, so two sweeps apart it is not moved', J2.sweep() === 0 && fs.existsSync(at(ids[6])));
+  deleted.delete(ids[6]);
+  check('a file in the cache (a character in play) is never listed', !globalThis.__dboJournalDoc.orphans().includes(keyFor.get(ids[0])) && (deleted.add(ids[0]), !globalThis.__dboJournalDoc.orphans().includes(keyFor.get(ids[0]))));
+  deleted.delete(ids[0]);
+  check('...and nothing else is touched (other characters, other files)', [0, 1, 2, 5, 6, 7].every((i) => fs.existsSync(at(ids[i]))) && fs.existsSync(path.join(dir, 'notes.txt')));
+  // ids[0] is cached (read above), and a cached file is never listed: 4 of the 6 left are
+  for (const i of [1, 2, 5, 6]) deleted.add(ids[i]);
+  J2.sweep();
+  check('if most files look orphaned at once the check is suspect and nothing is moved', J2.sweep() === 0 && [1, 2, 5, 6].every((i) => fs.existsSync(at(ids[i])))
+    && logs.some((l) => /4 of 6 files look orphaned at once/.test(l)), logs.slice(-1));
+  process.uptime = realUptime;
+  for (const k of Object.getOwnPropertyNames(globalThis)) if (k.startsWith('__') && !saved.has(k)) delete globalThis[k];
+  for (const [k, v] of saved) globalThis[k] = v;
+  fs.rmSync(tmp, { recursive: true, force: true });
   load();
 }
 
 // ---- the small exports ----
 const js = fs.readFileSync('journalstats.js', 'utf8');
-check('journalstats.js gives the numbers, and the character file with its folder and a way to forget it', /globalThis\.__dboStatsData = \(a\) =>/.test(js) && /globalThis\.__dboJournalDoc = \{ of: \(a\) => statsOf\(a\), touch: \(a\) => touch\(a\), dir: DIR,/.test(js) && /forget: \(a\) => \{ const h = hex\(a\); S\.cache\.delete\(h\); S\.dirty\.delete\(h\);/.test(js));
+check('journalstats.js gives the numbers, and the character file is journalstats\' own (one assignment)', /globalThis\.__dboStatsData = \(a\) =>/.test(js)
+  && (js.match(/globalThis\.__dboJournalDoc = /g) || []).length === 1 && /globalThis\.__dboJournalDoc = \{ of: statsOf, touch, keyOf, orphans, forget, dir: DIR \};/.test(js));
 const idl = fs.readFileSync('idles.js', 'utf8');
 check('idles.js plays IdleBook_PageTurn (the allowlisted event of IdleBook_TurnManyPages), 10 s, held where the client knows hold', /journal: \{ anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false, hold: true \}/.test(idl)
   && /def\.hold === true \? \{ hold: true \} : \{\}/.test(idl) && /globalThis\.__dboInteractionIdleDef = \(key\) =>/.test(idl));

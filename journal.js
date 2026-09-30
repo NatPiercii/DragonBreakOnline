@@ -30,13 +30,13 @@ const path = require('path');
 module.exports = (api) => {
   const { mp, log, display, nameOf, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, hasCap, skills, cfg } = api;
   const personal = typeof api.personal === 'function' ? api.personal : () => {};
-  const C = Object.assign({ enabled: true, backstoryMax: 4000, originMax: 1000, saveEveryMs: 3000, combatSeconds: 8, watchSeconds: 1, sweepHours: 6 },
+  const C = Object.assign({ enabled: true, backstoryMax: 4000, originMax: 1000, saveEveryMs: 3000, combatSeconds: 8, watchSeconds: 1, sweepHours: 6, sweepAfterBootMinutes: 30 },
     (cfg && cfg.journal) || {});
   const WIDGET_ID = 50;
   const TIER_FLOORS = [1, 25, 50, 75, 90];
   const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   // actor -> { nonce, tab, at }: open journals; savedAt: actor -> last save; idleAt: actor -> when the page-turn began
-  // answerAt: actor -> last answer; queued: actor -> the latest request inside the window; gone: file hex -> sweeps missed
+  // answerAt: actor -> last answer; queued: actor -> the latest request inside the window; gone: file key -> sweeps that listed it
   const J = globalThis.__dboJournal || (globalThis.__dboJournal = { open: new Map(), savedAt: new Map(), idleAt: new Map(), seq: 0 });
   for (const k of ['answerAt', 'queued', 'gone']) if (!(J[k] instanceof Map)) J[k] = new Map();
 
@@ -346,33 +346,30 @@ module.exports = (api) => {
     }
   });
 
-  // A deleted character's journal file goes with it. Nothing tells the gameplay that a character was deleted, so a
-  // sweep looks for files whose character no longer exists (any read of a deleted form throws; guilds.js prunes rosters
-  // the same way): gone on two sweeps running, the file is deleted. If most files look gone at once, the check itself is
-  // broken (a boot, a load problem) and nothing is removed.
+  // A deleted character's journal file goes with it. Nothing tells the gameplay that a character was deleted, so a sweep
+  // asks journalstats for the files no character carries the key of any more (orphans()): listed on two sweeps running,
+  // the file is moved aside to removed/ (forget()). Not in the first minutes after a boot, when reads can come back
+  // empty, and if most files are listed at once the check itself is suspect and nothing is moved.
   const sweep = () => {
     const d = globalThis.__dboJournalDoc;
-    const dir = d && d.dir;
-    if (!dir) return 0;
-    let files = [];
-    try { files = fs.readdirSync(dir).filter((f) => /^[0-9a-f]+\.json$/.test(f)); } catch (e) { return 0; }
-    const gone = [];
-    for (const f of files) {
-      const id = parseInt(f, 16) >>> 0;
-      let exists = true;
-      try { mp.get(id, 'type'); } catch (e) { exists = false; }
-      if (!exists) gone.push(f); else J.gone.delete(f);
+    if (!d || typeof d.orphans !== 'function' || typeof d.forget !== 'function' || !d.dir) return 0;
+    if (process.uptime() < C.sweepAfterBootMinutes * 60) return 0;
+    let total = 0, keys = [];
+    try { total = fs.readdirSync(d.dir).filter((f) => /^[0-9a-f]{16}\.json$/.test(f)).length; keys = d.orphans(); }
+    catch (e) { log(`journal: the orphan check failed: ${e.message}`); return 0; }
+    if (!Array.isArray(keys)) return 0;
+    const listed = new Set(keys);
+    for (const k of [...J.gone.keys()]) if (!listed.has(k)) J.gone.delete(k);
+    if (total > 3 && keys.length * 2 > total) { log(`journal: ${keys.length} of ${total} files look orphaned at once; the check is suspect, nothing moved`); return 0; }
+    let moved = 0;
+    for (const k of keys) {
+      const n = (J.gone.get(k) || 0) + 1;
+      if (n < 2) { J.gone.set(k, n); continue; }
+      J.gone.delete(k);
+      if (d.forget(k)) { moved++; log(`journal: ${k} moved to removed/, its character no longer exists`); }
+      else log(`journal: could not move ${k} aside`);
     }
-    if (files.length > 3 && gone.length * 2 > files.length) { log(`journal: ${gone.length} of ${files.length} files look deleted at once; the check is suspect, nothing removed`); return 0; }
-    let removed = 0;
-    for (const f of gone) {
-      const n = (J.gone.get(f) || 0) + 1;
-      if (n < 2) { J.gone.set(f, n); continue; }
-      J.gone.delete(f);
-      try { if (typeof d.forget === 'function') d.forget(parseInt(f, 16) >>> 0); fs.unlinkSync(path.join(dir, f)); removed++; log(`journal: ${f} deleted, its character no longer exists`); }
-      catch (e) { log(`journal: could not delete ${f}: ${e.message}`); }
-    }
-    return removed;
+    return moved;
   };
   every('journalSweep', C.sweepHours * 3600000, sweep);
 
