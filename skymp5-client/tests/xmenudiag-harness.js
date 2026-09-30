@@ -45,8 +45,29 @@ for (const reason of ['menu open', 'invite waiting', 'hotkey blocked', 'crosshai
 }
 check('an H press never writes an X line', /if \(xPressed\) this\.xSkip\("menu open"\)/.test(body) && /if \(xPressed\) this\.xSkip\("hotkey blocked"\)/.test(body));
 check('the line goes to dbo-diag through writeLogs, guarded for an older SkyrimPlatform', /const DIAG_LOG = "dbo-diag"/.test(src) && /writeLogs\(DIAG_LOG, line\)/.test(src));
-check('a diagnostic failure never breaks the key (xSkip catches)', /private xSkip\([^)]*\): void \{\s*try \{ this\.xSkipLog/.test(src));
+check('a diagnostic failure never breaks the key (xSkip catches)', /private xSkip\(reason: XSkipReason, info\?: \(\) => XSkipInfo\): void \{\s*try \{ this\.xSkipLog\(reason, info \? info\(\) : undefined\)/.test(src));
+check('...and the native lookups for a line (form id, name) run inside that guard', !/this\.xSkip\("[^"]+", \{/.test(body) && /this\.xSkip\("not a player", \(\) => \(\{ crosshairId: ref\.getFormID\(\), remoteId, name: ref\.getDisplayName\(\) \}\)\)/.test(body));
 check('the menu request itself is unchanged', /sendCustomPacket\(this\.controller, \{ customPacketType: "dbo", event: "playerMenu", args: \[remoteId\] \}\)/.test(body));
+
+// ---- a native that throws while a line is built (Worker G's nit): the early return still returns ----------------------
+{
+  const m = src.match(/private xSkip\(reason: XSkipReason, info\?: \(\) => XSkipInfo\): void \{([^]*?)\n  \}/);
+  const call = body.match(/this\.xSkip\("not a player", (\(\) => \(\{[^\n]*?\}\))\); return;/);
+  check('the harness finds xSkip and the "not a player" call in the source', !!m && !!call);
+  if (m && call) {
+    const logged = [];
+    const self = { xSkipLog: (reason, info) => logged.push([reason, info]) };
+    self.xSkip = new Function('reason', 'info', m[1]).bind(self);
+    const ref = { getFormID: () => 0x1a2b, getDisplayName: () => { throw new Error('native failed'); } };
+    let threw = null;
+    try { new Function('ref', 'remoteId', `this.xSkip("not a player", ${call[1].replace(/: ([A-Za-z]+)\b(?=[,)])/g, '')});`).call(self, ref, 0xff000275); } catch (e) { threw = e; }
+    check('a throwing getDisplayName on "not a player" does not throw out of the key handler', threw === null, threw && threw.message);
+    check('...and writes no line for that press', logged.length === 0, logged);
+    const ok = { getFormID: () => 0x1a2b, getDisplayName: () => 'Purr' };
+    new Function('ref', 'remoteId', `this.xSkip("not a player", ${call[1]});`).call(self, ok, 0xff000275);
+    check('with a working native the line still carries the name', logged.length === 1 && logged[0][1].name === 'Purr' && logged[0][1].remoteId === 0xff000275, logged);
+  }
+}
 
 console.log(failures ? `\n${failures} FAILED` : '\nall passed');
 process.exit(failures ? 1 : 0);
