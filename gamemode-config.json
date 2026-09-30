@@ -84,7 +84,7 @@
  },
  "regions": {
   "_comment": "Province rules (server\\regions.js; data regions.json from ck-mcp\\regions.py, hand rules regions-overrides.json). craft: a creation recipe is refused outside the provinces its product belongs to (turn on after the in-game rollback test). tomes: /tomes stocks only what spells.shopProvince sells; spells.shopShowForeign lists the rest as blocked rows. adminBypass: admins pass both unless /region test. failOpen: a recipe or tome with no entry is allowed and logged once. defaultPlace: the province of a place no table knows.",
-  "craft": false,
+  "craft": true,
   "tomes": true,
   "adminBypass": true,
   "failOpen": true,
