@@ -366,10 +366,8 @@
     ]
    },
    "counts": {
-    "_comment": "Brewing is the work (alchemy.js awards each brew); gathering plants and trees is the Harvesting trade's, and eating an ingredient teaches nothing, as in vanilla (Nate, 2026-09-30: Alchemist rose from picking mushrooms). The lab itself still counts until the brew award is live.",
-    "activatePrefixes": [
-     "CraftingAlchemyWorkbench"
-    ]
+    "_comment": "Nothing here on purpose: brewing is the Alchemist's only work, awarded by alchemy.js through masterySystem's __alduinakMasteryAward (fork server-next-v2). Gathering plants and trees is the Harvesting trade's; opening the lab or eating an ingredient teaches nothing (Nate, 2026-09-30). Ship only with, or after, a fork that has the award, or Alchemist stops rising.",
+    "awardedBy": "alchemy.js"
    },
    "tiers": [
     "Weak potions",

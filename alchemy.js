@@ -95,7 +95,7 @@ module.exports = (api) => {
   // Brewing is the Alchemist's work (Nate, 2026-09-30: Alchemist rose from picking mushrooms; gathering is the Harvesting
   // trade's). One brew is worth 1 at tier 1 up to 3 at tier 5, and the same potion again within the hour less
   // (masterySystem's repeat ring, keyed on the potion). __alduinakMasteryAward (fork server-next-v2) credits only a skill
-  // already held; before that fork is live there is nothing to call, and the lab's own count in skills.json stands in.
+  // already held, and is the Alchemist's only credit (skills.json counts nothing for it): this needs that fork live.
   const creditBrew = (a, potionId, tier) => {
     const award = globalThis.__alduinakMasteryAward;
     if (typeof award !== 'function') return 0;

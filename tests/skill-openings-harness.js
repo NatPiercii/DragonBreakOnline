@@ -96,7 +96,11 @@ const stationless = [];
 for (const sk of SKILLS.skills) {
   const kinds = kindsOf(sk);
   const station = hasStation(sk);
-  check(`${sk.id} can be credited at all`, kinds.size > 0, `kinds: ${Array.from(kinds).join(',') || 'NONE'}`);
+  // A skill the gameplay awards (counts.awardedBy names the module) is credited through masterySystem's
+  // __alduinakMasteryAward instead: the module must really call it with this skill's id (alchemy.js, 2026-09-30)
+  const by = (sk.counts || {}).awardedBy;
+  const awarded = !!by && (() => { try { const src = fs.readFileSync(path.join(SERVER, String(by)), 'utf8'); return /__alduinakMasteryAward/.test(src) && src.includes(`'${sk.id}'`); } catch (e) { return false; } })();
+  check(`${sk.id} can be credited at all`, kinds.size > 0 || awarded, `kinds: ${Array.from(kinds).join(',') || 'NONE'}${by ? `; awardedBy ${by}: ${awarded ? 'awards it' : 'does NOT award it'}` : ''}`);
   check(`${sk.id} has exactly one opening move`, true,
     station ? `station: ${sk.gates.stations.join(', ')}` : 'shadow banking (no station)');
   if (!station) stationless.push({ sk, kinds });

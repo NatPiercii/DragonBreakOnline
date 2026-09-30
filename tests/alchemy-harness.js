@@ -329,6 +329,7 @@ check('...nor eating an ingredient (vanilla gives no Alchemy for it)', !counts('
 check('...and Harvesting still does', ['FLOR', 'TREE'].every((t) => (counts('harvesting').activateTypes || []).includes(t)), counts('harvesting'));
 const typeOwners = new Map();
 for (const k of SKILLS) for (const t of ((k.counts || {}).activateTypes || [])) typeOwners.set(t, (typeOwners.get(t) || []).concat([k.id]));
+check('Alchemist rises from brewing only: opening the lab counts for nothing', !(counts('alchemist').activatePrefixes || []).length && !(counts('alchemist').activateTypes || []).length, counts('alchemist'));
 check('no activated record type credits two trades at once', [...typeOwners.values()].every((ids) => ids.length === 1), Object.fromEntries(typeOwners));
 
 console.log(`\n${checks - failures}/${checks} passed`);
