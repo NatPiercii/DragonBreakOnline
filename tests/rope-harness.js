@@ -33,13 +33,17 @@ const mp = {
   },
   set: (a, k, v) => { if (k === 'inventory') inv.set(a, v); else props.set(`${a}|${k}`, v); },
   getIdFromDesc: (d) => (/^90081a:ccbgssse001-fish\.esm$/i.test(String(d)) ? ROPE : 0),
-  getDescFromId: (id) => (id >>> 0).toString(16), callPapyrusFunction: () => null, lookupEspmRecordById: () => null,
+  getDescFromId: (id) => (id >>> 0).toString(16), lookupEspmRecordById: () => null,
+  // [actor, event, how many had been freed when it played]
+  callPapyrusFunction: (kind, cls, method, self, args) => { if (method === 'SendAnimationEvent') anims.push([parseInt(args[0].desc, 16) >>> 0, args[1], freed.length]); return null; },
 };
+const anims = [];
 const ropes = (a) => ((inv.get(a) || { entries: [] }).entries.find((e) => e.baseId === ROPE) || { count: 0 }).count;
 const distanceMeters = (a, b) => { const p = at.get(a), q = at.get(b); return !p || !q ? Infinity : Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) / 70; };
 props.set(`${GUARD}|private.dboLawful`, true);
 
-const said = [], audits = [], packets = [], widgets = [], freed = [], leashed = [];
+const said = [], audits = [], packets = [], widgets = [], leashed = [];
+var freed = [];
 const ui = new Map(), commands = new Map(), timers = {};
 const api = {
   mp, log: () => {}, personal: (a, t) => said.push([a, t]), system: (a, t) => said.push([a, t]), audit: (t) => audits.push(t),
@@ -83,7 +87,9 @@ m = menu(GUARD, FRIEND);
 ok(m.filter((e) => e.id === 'capture').length === 1 && has(m, 'capture', 'Restrain'), 'a guard carrying rope gets Restrain only, once', m);
 at.set(GUARD, [0, 3000, 0]);
 
+anims.length = 0;
 ok(globalThis.__dboRopeTake(ROPER, VICTIM) === true && ropes(ROPER) === 1, 'tying takes one rope');
+ok(anims.length === 1 && anims[0][0] === ROPER && anims[0][1] === CONFIG.rope.tieIdle && CONFIG.rope.tieIdle === 'BoundStandingCutNPC', 'the captor plays Helgen\'s cutting hands (tieIdle) at the knot', anims);
 tie(VICTIM, ROPER);
 m = menu(ROPER, VICTIM);
 ok(has(m, 'release', 'Untie') && has(m, 'ropeleave', 'Leave Tied Here') && !has(m, 'ropecut'), 'the captor: Untie and Leave Tied Here', m);
@@ -196,15 +202,24 @@ props.set(`${VICTIM}|isDead`, false);
 
 // ---- Cut Free --------------------------------------------------------------------------------------------------------
 tickFor(1);
-freed.length = 0; said.length = 0;
+freed.length = 0; said.length = 0; anims.length = 0;
 act(FRIEND, 'ropecut', VICTIM);
+ok(anims.length === 1 && anims[0][0] === FRIEND && anims[0][1] === CONFIG.rope.cutFreeIdle, 'the rescuer plays cutFreeIdle while cutting', anims);
 ok(saidTo(FRIEND).some((t) => /start cutting/.test(t)) && saidTo(VICTIM).some((t) => /is cutting your rope/.test(t)), 'Cut Free starts, and both are told', said);
 ok(packets.some(([a, p]) => a === FRIEND && p.customPacketType === 'dboBanner' && /Cutting/.test(p.text)), 'the rescuer sees a banner for the time it takes');
 for (let i = 0; i < 16; i++) { clock += 250; timers.ropeCut(); }
 ok(freed.length === 0, '4 s in: still cutting');
 for (let i = 0; i < 5; i++) { clock += 250; timers.ropeCut(); }
-ok(freed.length === 1 && freed[0][1] === 'cut' && saidTo(VICTIM).some((t) => /cuts you free/.test(t)), 'after 5 s standing still: cut free', freed);
+ok(freed.length === 0 && anims.length === 2 && anims[1][0] === VICTIM && anims[1][1] === 'BoundStandingCut' && anims[1][2] === 0,
+  'after 5 s: the captive plays BoundStandingCut from the bound pose, before the release', anims);
+at.set(FRIEND, [0, 400, 0]);   // the rescuer steps back once the rope is cut through: nothing breaks now
+for (let i = 0; i < 6; i++) { clock += 250; timers.ropeCut(); }
+ok(freed.length === 0, 'the release waits for the clip (cutFreeReleaseMs): not yet at 6.75 s');
+for (let i = 0; i < 2; i++) { clock += 250; timers.ropeCut(); }
+ok(freed.length === 1 && freed[0][1] === 'cut' && saidTo(VICTIM).some((t) => /cuts you free/.test(t)), '2 s later: cut free, even though the rescuer stepped back', freed);
+at.set(FRIEND, [0, 150, 0]);
 ok(audits.some((t) => /ROPE .* cut .* free of/.test(t)), 'the cut is audited');
+ok(!anims.some(([a, ev]) => a === FRIEND && ev === CONFIG.rope.cutFreeStop), 'a finished cut sends the rescuer no stop: their clip ends by itself', anims);
 
 globalThis.__dboRopeTake(ROPER, VICTIM); tie(VICTIM, ROPER);
 freed.length = 0; said.length = 0;
@@ -214,6 +229,7 @@ at.set(FRIEND, [0, 250, 0]);
 clock += 250; timers.ropeCut();
 for (let i = 0; i < 30; i++) { clock += 250; timers.ropeCut(); }
 ok(freed.length === 0 && saidTo(FRIEND).some((t) => /stop cutting: you moved/.test(t)), 'the rescuer steps away: the cut breaks', saidTo(FRIEND));
+ok(anims.filter(([a, ev]) => a === FRIEND && ev === CONFIG.rope.cutFreeStop).length === 1, 'a broken cut stops the rescuer\'s animation', anims);
 at.set(FRIEND, [0, 150, 0]);
 said.length = 0;
 act(FRIEND, 'ropecut', VICTIM);
@@ -234,6 +250,18 @@ said.length = 0;
 act(FRIEND, 'ropecut', OTHER);
 ok(saidTo(FRIEND).some((t) => /Only rope can be cut/.test(t)), 'shackles cannot be cut');
 props.set(`${OTHER}|private.restrained`, null);
+
+// ---- other events by config; none for the captive frees at once ------------------------------------------------------
+load('rope.js', Object.assign({}, CONFIG, { rope: Object.assign({}, CONFIG.rope, { cutFreeIdle: 'IdleLockPick', cutFreeCaptiveIdle: '', tieIdle: '' }) }));
+inv.set(ROPER, { entries: [{ baseId: ROPE, count: 3 }] });
+anims.length = 0;
+globalThis.__dboRopeTake(ROPER, VICTIM); tie(VICTIM, ROPER);
+ok(anims.length === 0, 'tieIdle empty: nothing at the knot', anims);
+freed.length = 0; anims.length = 0;
+act(FRIEND, 'ropecut', VICTIM);
+for (let i = 0; i < 21; i++) { clock += 250; timers.ropeCut(); }
+ok(anims.length === 1 && anims[0][1] === 'IdleLockPick' && freed.length === 1, 'cutFreeIdle from config; cutFreeCaptiveIdle empty: freed at 5 s, no wait', [anims, freed]);
+load('rope.js');
 
 // ---- switched off by config ----------------------------------------------------------------------------------------
 load('rope.js', Object.assign({}, CONFIG, { rope: Object.assign({}, CONFIG.rope, { cutFree: false }) }));

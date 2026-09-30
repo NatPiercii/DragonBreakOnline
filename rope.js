@@ -20,8 +20,22 @@
 //     captive at once, as with an arrest.
 //   - Cut Free: cutSeconds standing next to the captive; either moving more than cutMoveUnits breaks it.
 //
+// Animations: Helgen's, where Hadvar or Ralof cuts the player's binds in MQ101 (Nate, 2026-09-30; Worker D read them
+// from Skyrim.esm: the keep-intro lines INFO 20121 and 4e1a2 give the speaker BoundStandingCutNPC, their fragments and
+// the MQ101 script hold BoundStandingCut for the player). Each is sent through Papyrus Debug.SendAnimationEvent on that
+// player's own client (as downed.js does) and seen by others through the animation sync; '' plays nothing. The event
+// names are proven by the records, not yet by the player's graph (docs/alpha/anim-console-check.md rows 14-16); an event
+// the graph lacks is ignored. If they do not play, IdleLockPick (bb051) or IdleSearchingTable (6ff0f) will do for the
+// hands. Never the paired pa_OffsetBoundStandingCut (4c291): SkyMP does not sync a paired clip between two players.
+//   cutFreeIdle: the rescuer as the cut starts (BoundStandingCutNPC, 109b69; it ends by itself)
+//   cutFreeStop: the rescuer when a cut breaks (IdleForceDefaultState, 86840)
+//   cutFreeCaptiveIdle: the captive at the end of the cut, still in the bound pose (BoundStandingCut, 109b6a); the
+//     release follows cutFreeReleaseMs later, and the captive's client leaves the pose with OffsetStop on its own
+//   tieIdle: the captor as the knot is tied (BoundStandingCutNPC again: no vanilla tying idle exists)
+//
 // gamemode-config.json "rope": { enabled, item, unattendedMeters, unattendedAfterSeconds, warnMinutes, slipMinutes,
-//   cutFree, cutSeconds, cutReach, cutMoveUnits, tickMs }
+//   cutFree, cutSeconds, cutReach, cutMoveUnits, cutFreeIdle, cutFreeStop, cutFreeCaptiveIdle, cutFreeReleaseMs, tieIdle,
+//   tickMs }
 'use strict';
 
 module.exports = (api) => {
@@ -40,6 +54,11 @@ module.exports = (api) => {
     // Game units: how close a rescuer must stand to start, and how far either may drift before the cut breaks
     cutReach: 250,
     cutMoveUnits: 64,
+    cutFreeIdle: 'BoundStandingCutNPC',
+    cutFreeStop: 'IdleForceDefaultState',
+    cutFreeCaptiveIdle: 'BoundStandingCut',
+    cutFreeReleaseMs: 2000,
+    tieIdle: 'BoundStandingCutNPC',
     tickMs: 1000,
   }, cfg.rope || {});
 
@@ -56,6 +75,10 @@ module.exports = (api) => {
   const posOf = (a) => { const l = get(a, 'locationalData', null); return l && Array.isArray(l.pos) ? { cell: l.cellOrWorldDesc, pos: l.pos.slice(0, 3) } : null; };
   const units = (p, q) => (!p || !q || p.cell !== q.cell ? Infinity : Math.hypot(p.pos[0] - q.pos[0], p.pos[1] - q.pos[1], p.pos[2] - q.pos[2]));
   const banner = (a, text, seconds) => { try { sendPacket(a, { customPacketType: 'dboBanner', text, seconds }); } catch (e) { /* old client */ } };
+  const anim = (a, ev) => {
+    if (!ev) return;
+    try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: mp.getDescFromId(a) }, String(ev)]); } catch (e) { log(`rope: ${ev} failed for ${display(a)}: ${e.message}`); }
+  };
 
   // ---- the rope itself ---------------------------------------------------------------------------------
   const ropeCount = (a) => {
@@ -78,7 +101,7 @@ module.exports = (api) => {
   //   awaySince: when the captor was last seen going out of reach (0 while they are near)
   //   alone: unattended ms so far; lastTick; warned; unattended (past unattendedAfterSeconds)
   const clocks = globalThis.__dboRopeClocks || (globalThis.__dboRopeClocks = new Map());
-  // rescuer actorId -> { t, until, from, fromT }
+  // rescuer actorId -> { t, until, from, fromT, releaseAt (set once the rope is cut through: the captive's animation plays) }
   const cuts = globalThis.__dboRopeCuts || (globalThis.__dboRopeCuts = new Map());
 
   // captureSystem asks these; null switches rope binding off (guards and admins only, as before)
@@ -87,6 +110,7 @@ module.exports = (api) => {
     if (!takeOne(a >>> 0)) return false;
     // A fresh knot starts the unattended clock again
     if (t) clocks.delete(t >>> 0);
+    anim(a >>> 0, CFG.tieIdle);
     log(`rope: ${display(a)} used a rope${t ? ` on ${display(t)}` : ''}`);
     return true;
   } : null;
@@ -138,6 +162,19 @@ module.exports = (api) => {
 
   // ---- Cut Free -----------------------------------------------------------------------------------
   const cutting = (t) => { for (const c of cuts.values()) if (c.t === (t >>> 0)) return true; return false; };
+  const release = (a, c) => {
+    const captor = Number((ropeCaptive(c.t) || {}).captorActorId) >>> 0;
+    if (typeof globalThis.__dboBreakFree === 'function' && globalThis.__dboBreakFree(c.t, 'cut') === true) {
+      clocks.delete(c.t);
+      personal(a, `You cut ${nameFor(a, c.t)} free.`);
+      personal(c.t, `${nameFor(c.t, a)} cuts you free.`);
+      banner(c.t, 'Your hands are free', 4);
+      audit(`ROPE ${display(a)} cut ${display(c.t)} free of ${captor ? display(captor) : 'nobody'}`);
+    } else if (ropeCaptive(c.t)) {
+      personal(a, 'The rope would not give.');
+      log(`rope: ${display(a)} finished cutting ${display(c.t)} but captureSystem refused`);
+    }
+  };
   const startCut = (a, t) => {
     if (!CFG.enabled || !CFG.cutFree) return personal(a, 'That cannot be done.');
     const r = ropeCaptive(t);
@@ -151,6 +188,7 @@ module.exports = (api) => {
     if (units(from, fromT) > Number(CFG.cutReach)) return personal(a, 'Get right next to them first.');
     const seconds = Math.max(1, Number(CFG.cutSeconds) || 5);
     cuts.set(a, { t: t >>> 0, until: Date.now() + seconds * 1000, from, fromT });
+    anim(a, CFG.cutFreeIdle);
     banner(a, 'Cutting the rope...', Math.ceil(seconds));
     personal(a, `You start cutting ${nameFor(a, t)}'s rope. Hold still.`);
     personal(t, `${nameFor(t, a)} is cutting your rope. Hold still.`);
@@ -171,9 +209,17 @@ module.exports = (api) => {
   };
   const cutTick = () => {
     for (const [a, c] of [...cuts]) {
+      // Cut through: the captive's own animation is playing, then the release, whatever either does meanwhile
+      if (c.releaseAt) {
+        if (Date.now() < c.releaseAt) continue;
+        cuts.delete(a);
+        release(a, c);
+        continue;
+      }
       const why = cutBroken(a, c);
       if (why) {
         cuts.delete(a);
+        if (why !== 'gone') anim(a, CFG.cutFreeStop);
         if (why !== 'the rope is off already') {
           personal(a, `You stop cutting: ${why}.`);
           if (isOnline(c.t)) personal(c.t, 'The cutting stops.');
@@ -182,18 +228,15 @@ module.exports = (api) => {
         continue;
       }
       if (Date.now() < c.until) continue;
-      cuts.delete(a);
-      const captor = Number((ropeCaptive(c.t) || {}).captorActorId) >>> 0;
-      if (typeof globalThis.__dboBreakFree === 'function' && globalThis.__dboBreakFree(c.t, 'cut') === true) {
-        clocks.delete(c.t);
-        personal(a, `You cut ${nameFor(a, c.t)} free.`);
-        personal(c.t, `${nameFor(c.t, a)} cuts you free.`);
-        banner(c.t, 'Your hands are free', 4);
-        audit(`ROPE ${display(a)} cut ${display(c.t)} free of ${captor ? display(captor) : 'nobody'}`);
-      } else {
-        personal(a, 'The rope would not give.');
-        log(`rope: ${display(a)} finished cutting ${display(c.t)} but captureSystem refused`);
+      // Played from the bound pose, before the release (the captive's client sends OffsetStop when it is freed)
+      const wait = CFG.cutFreeCaptiveIdle ? Math.max(0, Number(CFG.cutFreeReleaseMs) || 0) : 0;
+      if (wait > 0) {
+        anim(c.t, CFG.cutFreeCaptiveIdle);
+        c.releaseAt = Date.now() + wait;
+        continue;
       }
+      cuts.delete(a);
+      release(a, c);
     }
   };
 
