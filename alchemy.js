@@ -92,6 +92,15 @@ module.exports = (api) => {
     return [...tally].filter(([, n]) => n >= 2).map(([e]) => e).filter((e) => POTIONS.has(e)).sort((x, y) => baseCost(y) - baseCost(x));
   };
   const potionAt = (pick, tier) => pick.potions[Math.max(0, Math.min(pick.potions.length - 1, Math.round(tier / 5 * (pick.potions.length - 1))))];
+  // Brewing is the Alchemist's work (Nate, 2026-09-30: Alchemist rose from picking mushrooms; gathering is the Harvesting
+  // trade's). One brew is worth 1 at tier 1 up to 3 at tier 5, and the same potion again within the hour less
+  // (masterySystem's repeat ring, keyed on the potion). __alduinakMasteryAward (fork server-next-v2) credits only a skill
+  // already held; before that fork is live there is nothing to call, and the lab's own count in skills.json stands in.
+  const creditBrew = (a, potionId, tier) => {
+    const award = globalThis.__alduinakMasteryAward;
+    if (typeof award !== 'function') return 0;
+    try { return Number(award(a, 'alchemist', Math.min(3, 1 + 0.5 * Math.max(0, (Number(tier) || 1) - 1)), Number(potionId) >>> 0)) || 0; } catch (e) { log(`alchemy: mastery award failed for ${display(a)}: ${e.message}`); return 0; }
+  };
   const potionName = (potion) => potion.edid.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s+0?(\d+)$/, ' $1');
   // The F7 catalog's display name (gamemode adminItemName), else the editor id spaced out
   const ingredientName = (id) => {
@@ -190,6 +199,7 @@ module.exports = (api) => {
       give(entries, draught.potion, 1);
       try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`alchemy: inventory write failed for ${display(a)}: ${e.message}`); return; }
       draught.brewed();
+      creditBrew(a, draught.potion, alchemistTier(a));
       log(`alchemy: ${display(a)} brewed the ${draught.name} (tier ${alchemistTier(a)}) from ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')}`);
       return;
     }
@@ -210,6 +220,7 @@ module.exports = (api) => {
     give(entries, potion.id, 1);
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`alchemy: inventory write failed for ${display(a)}: ${e.message}`); return; }
     tell(a, `You brew ${potionName(potion)}.${hint}`);
+    creditBrew(a, potion.id, tier);
     log(`alchemy: ${display(a)} brewed ${potion.edid} (${pick.name}, tier ${tier}) from ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')}`);
     audit(`ALCHEMY ${who(a)} brewed ${potion.edid}`);
     if (S.panels.has(a)) showBrewable(a);

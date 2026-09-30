@@ -131,7 +131,8 @@ const mkApi = (cfg) => ({
 const schoolsCfg = Object.assign({}, CONFIG.schools, { enabled: true });
 const load = (overrides) => {
   handlers.clear(); commands.clear();
-  const cfg = { spells: CONFIG.spells, schools: Object.assign({}, schoolsCfg, overrides || {}) };
+  // The Conclave's table is given here even while the tracked config leaves it open (Nate, 30 Sep), so the gate is still tested
+  const cfg = { spells: Object.assign({}, CONFIG.spells, { guildWorkshops: ['651cb:BSHeartland.esm'] }), schools: Object.assign({}, schoolsCfg, overrides || {}) };
   delete require.cache[SPELLS]; require(SPELLS)(mkApi(cfg));
   delete require.cache[SCHOOLS]; require(SCHOOLS)(mkApi(cfg));
 };
@@ -166,8 +167,17 @@ const advance = (ms) => { wallClock += ms; };
 
 // ---- boot and the client gate ----
 check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
-check('the tracked config ships it switched off until the client pack is out', CONFIG.schools.enabled === false && CONFIG.schools.requireClient === true);
+// On from 30 Sep (Nate), with client 0.3.71: only a client that reports the 'schools' capability gets the gate and the panels
+check('the tracked config ships it on, for clients that draw the panels', CONFIG.schools.enabled === true && CONFIG.schools.requireClient === true);
+check('...and leaves the Synod Conclave\'s enchanting table open until the guilds have members (Nate: "leave the table open")', Array.isArray(CONFIG.spells.guildWorkshops) && CONFIG.spells.guildWorkshops.length === 0);
 check('an old client (no schools cap): no gate, no panel, no meters', globalThis.__dboSchoolsRefusal(MAGE, 'Destruction', 0, 'You') === null && activate(BOOKCASE, MAGE) === false && progress(MAGE) === null);
+{
+  const OLD = 0x20; put(OLD, 'profileId', OLD); at(OLD, SYNOD, [0, 0, 0]); online.push(OLD);
+  arcane(OLD, 10); put(OLD, 'private.dboStudied', { arcane: [T.boundSword[1]] });
+  await read(OLD, T.flames);
+  check('...and a tome read by an old client writes no schools record: nobody is brought over before the schools apply', globalThis.__dboSchoolsGrandfathered(OLD, idOf(T.boundSword[1])) === false && !props.get(OLD + '|private.dboSchools'), props.get(OLD + '|private.dboSchools'));
+  online = online.filter((x) => x !== OLD);
+}
 check('...and a cast counts for nothing', (globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1])), !rec(MAGE) || !rec(MAGE).levels.Destruction));
 for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);
 

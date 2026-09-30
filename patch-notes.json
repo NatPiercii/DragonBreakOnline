@@ -1,5 +1,49 @@
 [
   {
+    "title": "The Schools of Magic",
+    "date": "2026-09-30",
+    "version": "Client 0.3.71",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Your school",
+        "items": [
+          "Mages now follow a school of magic: Destruction, Illusion, Conjuration or Alteration. Choose your first school on the Arcane Arts page of the Skills menu (K), or at a Study Magic spot. The same page shows all four school meters.",
+          "A school's meter rises as you cast its spells, and you can read a tome of that school only up to your rank in it. When Arcane Arts reaches 76 you may take up a second school.",
+          "Every spell you already know stays yours, whatever school you choose."
+        ]
+      },
+      {
+        "heading": "Study and classes",
+        "items": [
+          "Study Magic at the Synod Conclave's bookcases and at the Study Magic spots: up to 20 minutes of study in any 4 hours, until you learn your first spell through Arcane Arts.",
+          "Class Lecterns stand in the Synod Conclave, Frostcrag Spire and the College of Winterhold's Hall of the Elements. A teacher of the Synod or the College can hold a class there, and every student in the room learns from it."
+        ]
+      },
+      {
+        "heading": "Alteration",
+        "items": [
+          "Alteration belongs to priests and mages both. A priest takes it up through Priest; a mage who chose Alteration, through Arcane Arts."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Alchemists Learn at the Lab",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Alchemist and Harvesting",
+        "items": [
+          "Picking plants, mushrooms and fruit no longer trains Alchemist; it trains Harvesting only, as it always should have. Eating ingredients no longer trains Alchemist either.",
+          "Alchemist grows from working at the alchemy lab."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Salt You Can See",
     "date": "2026-09-30",
     "version": "Server update",
