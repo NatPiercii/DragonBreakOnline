@@ -31,7 +31,8 @@ type Mp = any;
 // is tied. A rope captive wears no shackles, is led like an arrest, and can be left tied where they stand
 // (__dboLeash turns the tether off and on). rope.js runs the unattended clock and the slip; struggle.js makes
 // the round easier while unattended. A refused or unanswered rope prompt holds ropeRefusalHoldMs for that
-// pair, and a rope captive who gets free has ropeEscapeGraceMs before anyone can tie them again.
+// pair, and a rope captive who gets free has ropeEscapeGraceMs before anyone can tie them again. The rope
+// entries in the X menu wait for globalThis.__dboRopeCapture, which registerHooks sets at init.
 //
 // Wire protocol: all packets are MsgType.CustomPacket carrying JSON.
 //   Client -> Server:
@@ -201,6 +202,13 @@ export class CaptureSystem implements System {
     ctx.gm.on("userAssignActor", (_userId: number, actorId: number) => {
       this.onActorAssigned(ctx, actorId);
     });
+    this.registerHooks(ctx);
+  }
+
+  // What the gamemode's modules call. __dboRopeCapture tells rope.js and playermenu.js that this system ties with rope,
+  // so they offer Tie Up and the rest only then: a build without it would answer Tie Up with "Only guards". A server
+  // started on such a build is a new process, so the flag is simply absent there.
+  private registerHooks(ctx: SystemContext): void {
     // The gamemode's /struggle (server\struggle.js) calls this when a captive wins, rope.js when a rope slips or is cut
     // ("slip", "cut": rope captives only); true when they were restrained
     (globalThis as any).__dboBreakFree = (actorId: number, how?: string): boolean =>
@@ -209,6 +217,7 @@ export class CaptureSystem implements System {
     (globalThis as any).__dboLeash = (actorId: number, on: boolean): boolean => this.setLeash(ctx, Number(actorId) >>> 0, on === true);
     // The gamemode's jail (server\jail.js) calls this when it locks a captive in; true when they were restrained
     (globalThis as any).__dboUncuff = (actorId: number): boolean => this.uncuff(ctx, Number(actorId) >>> 0);
+    (globalThis as any).__dboRopeCapture = true;
   }
 
   customPacket(userId: number, type: string, content: Content, ctx: SystemContext): void {
