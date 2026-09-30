@@ -38,7 +38,8 @@ module.exports = (api) => {
     // Both clocks are monotonic (QPC), so only crystal drift between the two machines (200 ppm over
     // a 30 s round is 6 ms) and the widget's 1 ms quantisation can make the difference negative.
     clockSlackMs: 50,
-    oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 2 },
+    // Salt 4 (was 2): a cook needs a lot of it, and Bruma's deposits are few (groundedpasta, 2026-09-29; Nate: more yield)
+    oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 4 },
     // Sea Salt Deposits (Saltdeposits.esp, copied into DragonBreak.esp) and the geodes of Whistling Mine: the Miner tier (0 based)
     // that opens them, the chance of a rarer salt with the salt, and the cells whose geodes give soul gems
     extraOreTier: { salt: 0, geode: 1, amethyst: 1, topaz: 1, ruby: 2, sapphire: 2, emerald: 3, diamond: 4 },
