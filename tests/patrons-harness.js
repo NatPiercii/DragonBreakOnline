@@ -61,10 +61,12 @@ actors[7] = { profile: 40, roles: [roleOf('gm')] };
 reroll(7); reroll(7); reroll(7);
 check('gm after three', left(7), Infinity);
 
-// Traveler and no tier: none
+// Traveler: one in total (the Patreon page promises one; granted 2026-09-30). No tier: none
 actors[8] = { profile: 50, roles: [roleOf('traveler')] };
 actors[9] = { profile: 60, roles: [] };
-check('traveler', left(8), 0);
+check('traveler', left(8), 1);
+reroll(8);
+check('traveler after one', left(8), 0);
 check('no tier', left(9), 0);
 
 // Best tier wins when several are held (GM over Pathfinder)

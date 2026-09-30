@@ -76,7 +76,7 @@ module.exports = (api) => {
     if (pending(a)) { personal(a, 'Your unfinished reroll opens again; nothing more is spent.'); return open(a); }
     const r = rerollsLeft(a);
     if (r.left <= 0) {
-      return personal(a, r.tier ? `Your ${r.tier.label} tier has no rerolls left here.` : 'Identity rerolls come with the Adventurer, Pathfinder and Grand Champion tiers.');
+      return personal(a, r.tier ? `Your ${r.tier.label} tier has no rerolls left here.` : 'Identity rerolls come with every Patreon tier, from Traveler up.');
     }
     if (arg !== 'confirm') {
       return personal(a, `An identity reroll reopens the character creator: new race, look and name, skills and gear kept. You have ${r.text}. Say /reroll confirm to begin.`);
