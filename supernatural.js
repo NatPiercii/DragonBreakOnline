@@ -391,6 +391,8 @@ module.exports = (api) => {
     // Hircine blessing a werewolf runs becomeWerewolf on one: the curse goes on, so the Hunt's renown stays (GH-4)
     if (s.kind === 'werewolf') { removeSpell(a, BEAST_POWER); if (why !== 'became a werewolf' && typeof globalThis.__dboHuntReset === 'function') globalThis.__dboHuntReset(a); }
     audit(`SUPERNATURAL ${who(a)} is no longer a ${s.kind} (${why})`);
+    // The first meal goes with the curse, but not when the same curse goes on (a pure-blood's Embrace, Hircine's blessing)
+    if (why !== `became a ${s.kind}`) s.firstMeal = null;
     Object.assign(s, { kind: null, stage: 0, pure: false, blessed: false });
     saveState(a, s);
   };
@@ -725,8 +727,10 @@ module.exports = (api) => {
   const isHumanoid = (t) => { if (isPlayer(t)) return true; try { const baseId = mp.getIdFromDesc(String(mp.get(t, 'baseDesc'))) >>> 0; const rl = fieldIds(recordOf(baseId), 'RNAM')[0]; return !!rl && hasKeyword(globalOf(baseId, rl), KW.humanoidKeyword); } catch (e) { return false; } };
   const feed = (a, t, onCorpse) => {
     const s = stateOf(a);
+    // Nate 2026-09-30: the first meal is the first time a vampire or a werewolf feeds on a victim (the skills menu tab)
+    const firstMeal = !s.firstMeal ? { at: Date.now(), from: onCorpse ? 'body' : 'captive' } : null;
     if (s.kind === 'vampire') {
-      Object.assign(s, { lastFed: gameDays(), stage: 1 }); saveState(a, s);
+      Object.assign(s, { lastFed: gameDays(), stage: 1 }, firstMeal ? { firstMeal } : {}); saveState(a, s);
       if (needsFeed) try { needsFeed(a); } catch (e) { /* hunger off */ }
       if (!onCorpse) { const p = health(t); if (p) setHealth(t, Math.max(0.1, p.health - 0.25)); personal(t, `${nameOf(a)} drinks from you. You feel weak.`); if (Math.random() < C.infectFeed) infect(t, 'vampire', a); }
       personal(a, 'You drink deep. The thirst recedes.');
@@ -738,6 +742,7 @@ module.exports = (api) => {
       const secs = typeof globalThis.__dboHuntFeedSeconds === 'function' ? Number(globalThis.__dboHuntFeedSeconds(a)) || C.beastFeedSeconds : C.beastFeedSeconds;
       const b = mp.get(a, 'private.beast'); if (b && b.until) { b.until += secs * 1000; mp.set(a, 'private.beast', b); }
       const p = health(a); if (p) setHealth(a, p.health + 0.25);
+      if (firstMeal && s.kind === 'werewolf') { s.firstMeal = firstMeal; saveState(a, s); }
       // A meal, as a vampire's drink is (swag's /bug 2026-09-27: feeding as a werewolf left the hunger where it was)
       if (needsFeed) try { needsFeed(a); } catch (e) { /* hunger off */ }
       personal(a, `You feed. The beast holds you ${secs} seconds longer, and your hunger eases.`);
@@ -821,6 +826,20 @@ module.exports = (api) => {
     return Math.max(0, gameDaysAhead) * 1440 / scale;
   };
   const inWords = (mins) => (mins < 1.5 ? 'a moment' : mins < 90 ? `${Math.round(mins)} minutes` : `${Math.round(mins / 60)} hours`);
+  const agoInWords = (ms) => { const mins = Math.max(0, ms) / 60000; return mins < 2880 ? `${inWords(mins)} ago` : `${Math.round(mins / 1440)} days ago`; };
+  // Recorded from 2026-09-30; a curse older than that shows it taken when the ranks prove a feed (blood only comes from
+  // feeding, a player fed on is kept in the Hunt's fedOn)
+  const firstMealRow = (a, s, how) => {
+    let fedBefore = false;
+    try {
+      if (s.kind === 'vampire') fedBefore = Number((mp.get(a, 'private.bloodRanks') || {}).blood) > 0;
+      else fedBefore = Object.keys((mp.get(a, 'private.greatHunt') || {}).fedOn || {}).length > 0;
+    } catch (e) { /* offline */ }
+    const m = s.firstMeal;
+    if (m && m.at) return { label: 'First meal', value: 'Taken', hint: `Your first meal was ${agoInWords(Date.now() - m.at)}, ${m.from === 'captive' ? 'from a living captive' : 'on a fresh body'}.` };
+    if (fedBefore) return { label: 'First meal', value: 'Taken', hint: 'You fed before this was kept.' };
+    return { label: 'First meal', value: 'Not yet', hint: how };
+  };
   const werewolfView = (a, s) => {
     const hunt = typeof globalThis.__dboHuntView === 'function' ? globalThis.__dboHuntView(a) : null;
     const alpha = isAlpha(a);
@@ -852,6 +871,7 @@ module.exports = (api) => {
         hint: `${hunger < 34 ? 'You are fed, and it rarely breaks free.' : hunger < 67 ? 'You are hungry, and it may break free. Eat to calm it.' : 'You are starving, and it will break free soon. Eat.'} It stirs more at night${full ? ', and the moon is full' : ', and most under a full moon'}.`,
       });
     }
+    rows.push(firstMealRow(a, s, 'In the beast, activate a fresh body, beast or person, to feed for the first time.'));
     rows.push({ label: 'Silver', value: 'Burns you', hint: `Silver strikes you ${Math.round(C.silverWeakness * 100)}% harder, and you can neither wear it nor wield it.` });
     const feedSecs = typeof globalThis.__dboHuntFeedSeconds === 'function' ? Number(globalThis.__dboHuntFeedSeconds(a)) || C.beastFeedSeconds : C.beastFeedSeconds;
     const rank = hunt ? hunt.ranks[hunt.rank] : null;
@@ -880,6 +900,7 @@ module.exports = (api) => {
         label: 'Thirst', value: `Stage ${stage} of 4`,
         hint: `You last fed ${inWords(realMinutes(now - fed))} ago. ${next ? `Stage ${stage + 1} comes in about ${inWords(realMinutes(next - now))} unless you feed.` : 'It can grow no worse.'} Feeding brings you back to stage 1. The thirstier you are, the stronger your gifts and the worse you burn.`,
       },
+      firstMealRow(a, s, 'Activate a fresh body, or choose Feed on a bound captive, to drink for the first time.'),
       {
         label: 'The sun', value: `${Math.round(C.sunCoverMax * coverOf(a) * 100)}% shielded`,
         hint: `The sun burns you outdoors by day, more at each stage${s.pure ? ', half as much for a pure-blood' : ''}. Cover your head, body, hands and feet.`,

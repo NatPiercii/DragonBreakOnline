@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const store = new Map(); // `${id}|${prop}` -> value
 const packets = [];
+const cmds = {};
 const noop = () => {};
 let now = Date.UTC(2026, 8, 30, 12, 0);
 Date.now = () => now;
@@ -21,7 +22,7 @@ const mp = {
   callPapyrusFunction: () => null, lookupEspmRecordById: () => null,
 };
 const api = {
-  mp, log: noop, audit: noop, personal: noop, system: noop, registerChatCommand: noop,
+  mp, log: noop, audit: noop, personal: noop, system: noop, registerChatCommand: (n, f) => { cmds[n] = f; },
   onUi: noop, openWidget: noop, closeWidget: noop, sendPacket: (a, p) => packets.push({ a, p }), display: String, who: String,
   isAdmin: () => false, findByName: () => null, onlineActors: () => [], every: noop, profileOf: (a) => a,
   nameOf: String, isWorldspace: () => true, needsFeed: noop, hungerOf: () => hunger, zoneOfActor: () => null, zoneById: () => null, cfg: {},
@@ -127,6 +128,42 @@ ok(row(v, 'The Blood Crown').value === 'Yours' && /Vampire Lord's form is yours/
 ok(power(v, 'Embrace of Shadows').have && power(v, 'Vampire Lord').have, '...with Embrace of Shadows and the Vampire Lord', v.powers);
 globalThis.__dboSuperState.crown = { holder: 99, name: 'W', since: now };
 ok(row(globalThis.__dboSuperProgress(VAMP), 'The Blood Crown').value === 'Held by another', "another's Crown is held by another, unnamed");
+globalThis.__dboSuperState.crown = null;
+
+// The first meal (Nate 2026-09-30: the first time they feed on a victim), through the real feeding
+const V2 = 14, W2 = 15, BODY = 40, BODY2 = 41, BODY3 = 42, KILLER = 99;
+globalThis.__dboSuperState.crown = { holder: KILLER, name: 'K', since: now }; // a pure-blood made below claims nothing (no file written)
+const meal = (a) => row(globalThis.__dboSuperProgress(a), 'First meal');
+const corpse = (id) => { store.set(`${id}|isDead`, true); globalThis.__dboSuperDeath(id, KILLER); };
+curse(V2, { kind: 'vampire', stage: 1, lastFed: day });
+ok(meal(V2) && meal(V2).value === 'Not yet' && /bound captive/.test(meal(V2).hint), 'a new vampire has not had their first meal, and is told how', meal(V2));
+corpse(BODY);
+ok(globalThis.__dboSuperActivate(BODY, V2) === true, 'the vampire drinks from a fresh body');
+ok(meal(V2).value === 'Taken' && meal(V2).hint === 'Your first meal was a moment ago, on a fresh body.', '...and that is their first meal', meal(V2));
+const firstAt = store.get(`${V2}|private.supernatural`).firstMeal.at;
+now += 3 * 86400000;
+corpse(BODY2);
+globalThis.__dboSuperActivate(BODY2, V2);
+ok(store.get(`${V2}|private.supernatural`).firstMeal.at === firstAt && /3 days ago/.test(meal(V2).hint), 'a later meal leaves the first where it was', meal(V2));
+cmds.curse(V2, 'me purevampire');
+ok(meal(V2).value === 'Taken', "Molag Bal's Embrace on a vampire keeps the first meal: the curse goes on", meal(V2));
+cmds.curse(V2, 'me cure');
+ok(globalThis.__dboSuperProgress(V2) === null && !store.get(`${V2}|private.supernatural`).firstMeal, 'a cure ends it with the curse');
+cmds.curse(V2, 'me vampire');
+ok(meal(V2).value === 'Not yet', '...and the next curse starts without one', meal(V2));
+curse(W2, { kind: 'werewolf' });
+ok(meal(W2).value === 'Not yet' && /In the beast/.test(meal(W2).hint), 'a new werewolf has not fed, and is told how', meal(W2));
+corpse(BODY3);
+ok(globalThis.__dboSuperActivate(BODY3, W2) === false && meal(W2).value === 'Not yet', 'in their own shape a werewolf cannot feed', meal(W2));
+store.set(`${W2}|private.beast`, { form: 'werewolf', until: now + 60000 });
+ok(globalThis.__dboSuperActivate(BODY3, W2) === true && meal(W2).value === 'Taken' && /on a fresh body/.test(meal(W2).hint), 'in the beast they feed, and that is their first meal', meal(W2));
+store.delete(`${W2}|private.beast`);
+// Curses from before the first meal was kept: their ranks prove a feed
+ok(meal(VAMP).value === 'Taken' && /before this was kept/.test(meal(VAMP).hint), 'an older vampire with blood has had theirs', meal(VAMP));
+store.set(`${WOLF}|private.greatHunt`, { renown: 70, fedOn: { 5: now } });
+ok(meal(WOLF).value === 'Taken', 'an older werewolf who fed on a player has had theirs', meal(WOLF));
+store.set(`${WOLF}|private.greatHunt`, { renown: 12, fedOn: {} });
+ok(meal(WOLF).value === 'Not yet', '...renown alone proves nothing (changes and kills earn it too)', meal(WOLF));
 globalThis.__dboSuperState.crown = null;
 
 // A broken view still answers, so the menu never waits on it
