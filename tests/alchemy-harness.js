@@ -2,6 +2,8 @@
 // api holding the real ingredient effects: the exact recipe with the book read and Alchemist tier 4 gives the Draught
 // and takes one of each ingredient; without the book or the tier it gives the ordinary potion (the latter with a hint);
 // a pair or a stray report never makes it; the recipe banner, the lab reminder, the downed text, /brew gone, E revive.
+// The brew list (groundedpasta, 2026-09-29): using a lab opens an unfocused panel of what the pack can brew, each line
+// the potion brew() really makes from that pair; it follows a brew and closes when the player walks away.
 // Run it from this folder's parent with
 //
 //   node tests\alchemy-harness.js
@@ -60,10 +62,11 @@ const total = (a, set) => [...set].reduce((n, id) => n + count(a, id), 0);
 for (const a of [BREWER, NOVICE, STRANGER, FALLEN]) { put(a, 'profileId', a); put(a, 'worldOrCellDesc', 'a764b:BSHeartland.esm'); put(a, 'pos', [0, 0, 0]); put(a, 'angle', [0, 0, 0]); }
 put(LAB, 'baseDesc', LAB_BASE); put(LAB, 'worldOrCellDesc', 'a764b:BSHeartland.esm'); put(LAB, 'pos', [100, 50, 0]);
 
-const out = { said: [], packets: [], audits: [], logs: [] };
+const out = { said: [], packets: [], audits: [], logs: [], widgets: [] };
 const commands = new Map();
 const mp = {
   getIdFromDesc: idOf,
+  getDescFromId: (id) => { const plugin = Object.keys(PLUGINS).find((k) => PLUGINS[k] === (id >>> 24)); return `${(id & 0xffffff).toString(16)}:${plugin}`; },
   get: (id, p) => props.get(id + '|' + p),
   set: (id, p, v) => props.set(id + '|' + p, JSON.parse(JSON.stringify(v))),
   lookupEspmRecordById: (id) => (RECORDS[id] ? { record: RECORDS[id], toGlobalRecordId: (local) => local } : null),
@@ -90,9 +93,15 @@ const api = (cfg) => ({
   profileOf: (a) => a,
   nameOf: (a) => `P${a.toString(16)}`,
   onlineActors: () => [BREWER, NOVICE, STRANGER, FALLEN],
-  every: () => {},
+  every: (name, ms, fn) => timers.set(name, fn),
+  openWidget: (a, widget, focus) => out.widgets.push([a, 'open', widget, !!focus]),
+  itemName: (d) => CATALOG[String(d).toLowerCase()] || '',
+  closeWidget: (a, id) => out.widgets.push([a, 'close', id]),
   registerChatCommand: (name, fn, opts) => commands.set(name, { fn, opts }),
 });
+const timers = new Map();
+// The F7 catalog's names for the harness ingredients (admin-items.json); Troll Fat is left out to test the fallback
+const CATALOG = { '4da00:skyrim.esm': 'Fly Amanita', '6018c7:bsassets.esm': 'Yellow Cinnabar Polypore', '77e1c:skyrim.esm': 'Blue Mountain Flower' };
 const CONFIG = JSON.parse(fs.readFileSync('gamemode-config.json', 'utf8'));
 const load = (cfg) => {
   commands.clear(); baseHooks();
@@ -228,6 +237,47 @@ craft(BREWER, [TROLL_FAT, FLY_AMANITA, 0xff000b2f]);
 check('a created object in the craft report does not sink the mix',
   !out.logs.some((l) => /not a lab mix/.test(l) && /ff000b2f/.test(l)), out.logs.slice(-2));
 check('...and the pair still brews', out.said.some(([, t]) => /You brew/.test(t)) || out.logs.some((l) => /brewed/.test(l)), out.said.slice(-2));
+
+// ---- the brew list at the lab --------------------------------------------------------------------------------------
+{
+  load(CONFIG);
+  stock(BREWER); mastery(BREWER, 2); put(BREWER, 'pos', [0, 0, 0]);
+  const lastPanel = (a) => out.widgets.filter(([x, k, w]) => x === a && k === 'open' && w.id === 71).map(([, , w, f]) => ({ w, focus: f })).pop();
+  out.widgets.length = 0;
+  check('using something that is not a lab opens no list', globalThis.__dboAlchemyLab(0x5001, BREWER) === false && !lastPanel(BREWER));
+  check('using a lab never stops the lab\'s own menu', globalThis.__dboAlchemyLab(LAB, BREWER) === false);
+  const panel = lastPanel(BREWER);
+  check('...and opens the list beside it, unfocused', !!panel && panel.w.type === 'contextMenu' && panel.w.mode === 'inspect' && panel.focus === false, panel);
+  const lines = panel ? panel.w.lines : [];
+  check('...naming Restore Health (Yellow Polypore + Blue Mountain Flower) and Fortify Two-handed (Troll Fat + Fly Amanita)',
+    lines.some((l) => /Restore Health/.test(l)) && lines.some((l) => /Two ?Handed/i.test(l)), lines);
+  // Each line's pair, brewed, gives the potion the line names
+  const nameIds = { 'Troll Fat': TROLL_FAT, 'Fly Amanita': FLY_AMANITA, 'Yellow Cinnabar Polypore': YELLOW_POLYPORE, 'Blue Mountain Flower': BLUE_FLOWER };
+  check('ingredients go by their catalog names, and by their editor id where the catalog has none', lines.some((l) => /Fly Amanita/.test(l)) && lines.some((l) => /Troll Fat/.test(l)), lines);
+  let agree = 0;
+  for (const l of lines) {
+    const m = /^(.+): (.+) \+ (.+)$/.exec(l); if (!m) continue;
+    const pair = [nameIds[m[2]], nameIds[m[3]]]; if (!pair[0] || !pair[1]) continue;
+    stock(BREWER);
+    craft(BREWER, pair);
+    const brewed = (out.said.find(([a, t]) => a === BREWER && /You brew/.test(t)) || [])[1] || '';
+    if (brewed.indexOf(`You brew ${m[1]}`) === 0) agree++; else check(`"${l}" brews what it says`, false, brewed);
+  }
+  check(`every listed pair brews the potion its line names (${agree} of ${lines.length})`, agree === lines.length && agree > 0);
+  out.widgets.length = 0;
+  stock(BREWER);
+  craft(BREWER, [YELLOW_POLYPORE, BLUE_FLOWER]);
+  check('a brew refreshes the open list', !!lastPanel(BREWER));
+  put(BREWER, 'inventory', { entries: [{ baseId: TROLL_FAT, count: 1 }, { baseId: GOLD, count: 5 }] });
+  globalThis.__dboAlchemyLab(LAB, BREWER);
+  check('with nothing to pair, the list says so', /Nothing yet/.test((lastPanel(BREWER) || { w: { lines: [] } }).w.lines[0] || ''), lastPanel(BREWER));
+  out.widgets.length = 0;
+  timers.get('alchemyPanel')();
+  check('standing at the lab keeps it open', !out.widgets.some(([a, k]) => a === BREWER && k === 'close'));
+  put(BREWER, 'pos', [5000, 0, 0]);
+  timers.get('alchemyPanel')();
+  check('walking away from the lab closes it', out.widgets.some(([a, k, id]) => a === BREWER && k === 'close' && id === 71));
+}
 
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

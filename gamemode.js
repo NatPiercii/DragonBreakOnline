@@ -1041,6 +1041,8 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboBankActivate && globalThis.__dboBankActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboBusinessActivate && globalThis.__dboBusinessActivate(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboSalvageActivate && globalThis.__dboSalvageActivate(targetId >>> 0, casterId >>> 0)) return false;
+  // An alchemy lab also shows what the pack can brew (alchemy.js); the lab's own menu still opens
+  if (globalThis.__dboAlchemyLab) { try { globalThis.__dboAlchemyLab(targetId >>> 0, casterId >>> 0); } catch (e) { log('alchemy lab panel failed', e.message); } }
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
@@ -4615,7 +4617,7 @@ try {
 try {
   const ALCHEMY_JS = path.resolve('alchemy.js');
   delete require.cache[ALCHEMY_JS];
-  require(ALCHEMY_JS)({ mp, log, personal, audit, display, who });
+  require(ALCHEMY_JS)({ mp, log, personal, audit, display, who, openWidget, closeWidget, every, itemName: (d) => adminItemName(d) });
 } catch (e) { log('alchemy.js failed to load:', e.stack || e.message); mp.onCraftUnmatched = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------

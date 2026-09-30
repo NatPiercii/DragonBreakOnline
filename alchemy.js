@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who } = api;
+  const { mp, log, personal, audit, display, who, openWidget, closeWidget, every, itemName } = api;
 
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { log(`alchemy: ${file} unreadable (${e.message})`); return fallback; } };
   const TABLE = readJson('alchemy-potions.json', { effects: {} }).effects || {};
@@ -28,13 +28,29 @@ module.exports = (api) => {
   const u32 = (f, off) => { const d = f && f.data; if (!(d instanceof Uint8Array) || d.byteLength < off + 4) return 0; return new DataView(d.buffer, d.byteOffset, d.byteLength).getUint32(off, true); };
   const f32 = (f, off) => { const d = f && f.data; if (!(d instanceof Uint8Array) || d.byteLength < off + 4) return 0; return new DataView(d.buffer, d.byteOffset, d.byteLength).getFloat32(off, true); };
   // An ingredient's effects as load-order ids (EFID is record-local, so it goes through the ingredient's own file)
+  // A record lookup copies every subrecord and the plugins never change while the server runs, so both are kept per id
+  // (the brew list pairs every ingredient carried)
+  const CACHE = globalThis.__dboAlchemyCache || (globalThis.__dboAlchemyCache = { effects: new Map(), cost: new Map() });
   const effectsOf = (ingredient) => {
-    const lr = lookup(ingredient); if (!lr || String(lr.record.type) !== 'INGR') return null;
-    const out = [];
-    for (const f of lr.record.fields || []) if (f.type === 'EFID') { try { const g = lr.toGlobalRecordId(u32(f, 0)) >>> 0; if (g) out.push(g); } catch (e) { /* unmapped */ } }
+    const id = ingredient >>> 0;
+    if (CACHE.effects.has(id)) return CACHE.effects.get(id);
+    const lr = lookup(id);
+    let out = null;
+    if (lr && String(lr.record.type) === 'INGR') {
+      out = [];
+      for (const f of lr.record.fields || []) if (f.type === 'EFID') { try { const g = lr.toGlobalRecordId(u32(f, 0)) >>> 0; if (g) out.push(g); } catch (e) { /* unmapped */ } }
+    }
+    if (lr || id >= 0xff000000) CACHE.effects.set(id, out);
     return out;
   };
-  const baseCost = (effect) => { const lr = lookup(effect); const data = lr && (lr.record.fields || []).find((f) => f.type === 'DATA'); return data ? f32(data, 4) : 0; };
+  const baseCost = (effect) => {
+    const id = effect >>> 0;
+    if (CACHE.cost.has(id)) return CACHE.cost.get(id);
+    const lr = lookup(id); const data = lr && (lr.record.fields || []).find((f) => f.type === 'DATA');
+    const cost = data ? f32(data, 4) : 0;
+    if (lr) CACHE.cost.set(id, cost);
+    return cost;
+  };
   const isLab = (workbenchId) => {
     let base = 0; try { base = mp.getIdFromDesc(String(mp.get(workbenchId >>> 0, 'baseDesc'))) >>> 0; } catch (e) { return false; }
     const lr = lookup(base);
@@ -69,6 +85,62 @@ module.exports = (api) => {
     }
   };
   const give = (entries, id, n) => { const hit = entries.find((e) => (Number(e.baseId) >>> 0) === id && !e.worn); if (hit) hit.count = (Number(hit.count) || 0) + n; else entries.push({ baseId: id, count: n }); };
+  // Effects two or more of the ingredients share that a known potion carries, the most valuable first: that one decides
+  const sharedEffects = (used) => {
+    const tally = new Map();
+    for (const id of used) for (const e of new Set(effectsOf(id) || [])) tally.set(e, (tally.get(e) || 0) + 1);
+    return [...tally].filter(([, n]) => n >= 2).map(([e]) => e).filter((e) => POTIONS.has(e)).sort((x, y) => baseCost(y) - baseCost(x));
+  };
+  const potionAt = (pick, tier) => pick.potions[Math.max(0, Math.min(pick.potions.length - 1, Math.round(tier / 5 * (pick.potions.length - 1))))];
+  const potionName = (potion) => potion.edid.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s+0?(\d+)$/, ' $1');
+  // The F7 catalog's display name (gamemode adminItemName), else the editor id spaced out
+  const ingredientName = (id) => {
+    try { const n = itemName && mp.getDescFromId ? itemName(mp.getDescFromId(id >>> 0)) : ''; if (n) return n; } catch (e) { /* not in the catalog */ }
+    const r = lookup(id);
+    return String((r && r.record.editorId) || id.toString(16)).replace(/^(?:BSK|CYR|DLC\d|BYOH|cc[A-Z]+SSE\d+_?)/, '').replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s*\d+$/, '').trim();
+  };
+
+  // ---- what the lab can make from the pack (groundedpasta, 2026-09-29: "show the potions you can actually craft") -----
+  // Using a lab opens an unfocused panel beside its menu: every potion two of the ingredients carried would make, worked
+  // out exactly as brew() does, and a pair that makes each. It follows each brew and closes when the player leaves the lab.
+  const PANEL_ID = 71;
+  const PANEL_LINES = 14;
+  const S = globalThis.__dboAlchemyPanel || (globalThis.__dboAlchemyPanel = { panels: new Map() });
+  const brewable = (a) => {
+    const held = [...new Set(invOf(a).filter((e) => (Number(e.count) || 0) > 0).map((e) => Number(e.baseId) >>> 0))].filter((id) => id < 0xff000000 && (effectsOf(id) || []).length);
+    const tier = alchemistTier(a);
+    const found = new Map();   // potion edid -> { name, value, pair }
+    for (let i = 0; i < held.length; i++) {
+      for (let j = i + 1; j < held.length; j++) {
+        const shared = sharedEffects([held[i], held[j]]);
+        if (!shared.length) continue;
+        const potion = potionAt(POTIONS.get(shared[0]), tier);
+        if (!found.has(potion.edid)) found.set(potion.edid, { name: potionName(potion), value: baseCost(shared[0]), pair: [held[i], held[j]] });
+      }
+    }
+    return [...found.values()].sort((x, y) => y.value - x.value || x.name.localeCompare(y.name));
+  };
+  const showBrewable = (a) => {
+    const list = brewable(a);
+    const lines = list.length
+      ? list.slice(0, PANEL_LINES).map((p) => `${p.name}: ${p.pair.map(ingredientName).join(' + ')}`).concat(list.length > PANEL_LINES ? [`and ${list.length - PANEL_LINES} more`] : [])
+      : ['Nothing yet: no two of your ingredients share an effect.'];
+    openWidget(a, { type: 'contextMenu', id: PANEL_ID, mode: 'inspect', targetName: list.length ? `You can brew (${list.length})` : 'You can brew', lines }, false);
+  };
+  globalThis.__dboAlchemyLab = (targetId, casterId) => {
+    if (!openWidget || !isLab(targetId)) return false;
+    S.panels.set(casterId >>> 0, targetId >>> 0);
+    try { showBrewable(casterId >>> 0); } catch (e) { log(`alchemy: brew list failed: ${e.message}`); }
+    return false;   // the lab's own menu still opens
+  };
+  if (every) every('alchemyPanel', 2000, () => {
+    for (const [a, lab] of [...S.panels]) {
+      if (atLab(a, lab)) continue;
+      S.panels.delete(a);
+      try { closeWidget(a, PANEL_ID); } catch (e) { /* gone */ }
+    }
+  });
+
   const said = new Map();
   const tell = (a, text) => { if (Date.now() - (said.get(a) || 0) > 1500) { said.set(a, Date.now()); personal(a, text); } };
 
@@ -108,28 +180,25 @@ module.exports = (api) => {
       return;
     }
     const hint = draught && draught.hint ? ` ${draught.hint}` : '';
-    // Effects two or more of them share; the most valuable one that a known potion carries decides the potion
-    const tally = new Map();
-    for (const id of used) for (const e of new Set(effectsOf(id))) tally.set(e, (tally.get(e) || 0) + 1);
-    const shared = [...tally].filter(([, n]) => n >= 2).map(([e]) => e).filter((e) => POTIONS.has(e));
+    const shared = sharedEffects(used);
     if (!shared.length) {
+      const tally = new Map();
+      for (const id of used) for (const e of new Set(effectsOf(id))) tally.set(e, (tally.get(e) || 0) + 1);
       const seen = [...tally].map(([e, n]) => { const r = lookup(e); return `${r ? r.record.editorId : e.toString(16)} x${n}${POTIONS.has(e) ? '' : ' (no potion)'}`; });
       log(`alchemy: ${display(a)} mixed ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')} and nothing matched; effects ${seen.join(', ')}`);
       return tell(a, 'These ingredients share no effect that makes a potion you know. You keep them.');
     }
-    shared.sort((x, y) => baseCost(y) - baseCost(x));
     const pick = POTIONS.get(shared[0]);
     if (shared.length > 1) log(`alchemy: ${display(a)} shared ${shared.map((e) => { const r = lookup(e); return `${r ? r.record.editorId : e.toString(16)}@${Math.round(baseCost(e))}`; }).join(', ')}; took the first`);
     const tier = alchemistTier(a);   // 0 without the trade, 1..5 by rank
-    const index = Math.max(0, Math.min(pick.potions.length - 1, Math.round(tier / 5 * (pick.potions.length - 1))));
-    const potion = pick.potions[index];
+    const potion = potionAt(pick, tier);
     for (const id of used) take(entries, id, 1);
     give(entries, potion.id, 1);
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`alchemy: inventory write failed for ${display(a)}: ${e.message}`); return; }
-    const name = potion.edid.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s+0?(\d+)$/, ' $1');
-    tell(a, `You brew ${name}.${hint}`);
+    tell(a, `You brew ${potionName(potion)}.${hint}`);
     log(`alchemy: ${display(a)} brewed ${potion.edid} (${pick.name}, tier ${tier}) from ${used.map((id) => { const r = lookup(id); return r ? r.record.editorId : id.toString(16); }).join(' + ')}`);
     audit(`ALCHEMY ${who(a)} brewed ${potion.edid}`);
+    if (S.panels.has(a)) showBrewable(a);
   };
 
   // CustomEvent prepends the actor: (actor, workbench, result, inputs)
