@@ -1,5 +1,20 @@
 [
   {
+    "title": "Crafting Follows the Land and Its People",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Crafting",
+        "items": [
+          "Gear is now made where it belongs. A smith in Cyrodiil can forge Cyrodilic, Imperial, Elven, Daedric, Ebony and Glass work, but not the arms of Skyrim, Morrowind or Solstheim; a refused craft keeps your materials.",
+          "A people can always make their own: an Orc forges Orcish anywhere, a Nord Nordic and Skaal work, a Dunmer chitin and bonemold, and so on for every race with a craft of its own."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.70: Contracts on the Expedition Board",
     "date": "2026-09-30",
     "version": "Client 0.3.70",
