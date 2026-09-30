@@ -32,11 +32,25 @@ def flat(census):
                 out[(kind, material, slot)] = info['value']
     return out
 
+def ranges(census):
+    # the same keys, but the low/high of each group: 'value' is only the most common one, so on its own it cannot
+    # tell a rule that reached every record from one that reached most of them
+    out = {}
+    for section, kind in (('armor', 'armor'), ('weapons', 'weapon')):
+        for key, slots in census.get(section, {}).items():
+            material = key.split('|')[0]
+            for slot, info in slots.items():
+                out[(kind, material, slot)] = tuple(info.get('range') or (info['value'], info['value']))
+    return out
+
 def main():
     if len(sys.argv) < 4:
         sys.exit(__doc__ or 'usage: verify_ladder.py before.json after.json ladder.tsv')
-    before = flat(json.load(open(sys.argv[1])))
-    after = flat(json.load(open(sys.argv[2])))
+    before_raw = json.load(open(sys.argv[1]))
+    after_raw = json.load(open(sys.argv[2]))
+    before = flat(before_raw)
+    after = flat(after_raw)
+    after_range = ranges(after_raw)
     want = load_ladder(sys.argv[3])
 
     # Only keyword rules name a census group. An edid rule (Beyond Skyrim chainmail) rides inside another
@@ -58,15 +72,21 @@ def main():
         else:
             collateral.append(f'UNEXPECTED   {kind} {material} {slot}: {b} -> {a}')
 
-    # every keyword rule must have landed
+    # every keyword rule must have landed, on EVERY record of the group and not just the most common one
     for (kind, sel, slot), v in sorted(want.items()):
         if '*' in sel:
             continue
         k = (kind, sel, slot)
         if k not in after:
             problems.append(f'MISSING      {kind} {sel} {slot}: no such group in the after census')
-        elif abs(after[k] - v) > 1e-9:
+            continue
+        if abs(after[k] - v) > 1e-9:
             problems.append(f'NOT APPLIED  {kind} {sel} {slot}: still {after[k]}, ladder says {v:g}')
+            continue
+        lo, hi = after_range[k]
+        if abs(lo - v) > 1e-9 or abs(hi - v) > 1e-9:
+            problems.append(f'PARTIAL      {kind} {sel} {slot}: most records are {v:g} but the group spans '
+                            f'{lo:g}..{hi:g} - some records were missed')
 
     print(f'{len(expected)} intended change(s) landed')
     for line in expected:

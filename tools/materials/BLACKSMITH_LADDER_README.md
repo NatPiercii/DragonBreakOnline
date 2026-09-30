@@ -37,7 +37,7 @@ MCP is holding a plugin (memory `xedit-save-rename-fails-under-ck-mcp`).
 
 ## What the dry run should say
 
-**1,038 records**, computed here from the census. If the dry run's count is wildly different, stop and ask.
+**1,039 records**, computed here from the census. If the dry run's count is wildly different, stop and ask.
 
 | Material | Records | Material | Records |
 |---|---|---|---|
@@ -48,6 +48,7 @@ MCP is holding a plugin (memory `xedit-save-rename-fails-under-ck-mcp`).
 | DLC2WeaponMaterialStalhrim | 74 | ccBGSSSE025_ArmorMaterialAmber | 5 |
 | DLC2ArmorMaterialNordicHeavy | 42 | IAKMaterialDaedric | 3 |
 | IAKMaterialDragonScale | 34 | ArmorMaterialMithril | 2 |
+| ArmorMaterialImperialLight | 1 | | |
 
 Plus the Beyond Skyrim chainmail records matched by editor id, which the census cannot count separately (below).
 
@@ -77,6 +78,11 @@ python3 tools/materials/verify_ladder.py before.json after.json tools/materials/
 Exit 0 means every ladder value landed and no other material/slot group moved. Exit 1 lists what is wrong. Exit 2
 means only an editor-id rule's host group moved, which needs a human to read it.
 
+It checks the whole of each group, not just its commonest value. A group whose most common rating is the ladder's but
+whose range still spans something else is reported as `PARTIAL`: some records carry the keyword and were missed. That
+is not hypothetical - before this pass, `ArmorMaterialImperialLight` shield has 13 records at 19 and one at 25, and a
+check on the commonest value alone would have called it done.
+
 That proves the *values*. It does not prove no unrelated **record** was touched, so also diff the two plugins record by
 record in xEdit and confirm every record outside the result file's list is byte-identical.
 
@@ -92,11 +98,11 @@ and remember `server\data` is a separate plugin copy that needs the same file (m
    half **cannot** be done by keyword — setting all Iron or all Steel to chainmail numbers would wreck both. The
    ladder therefore matches chainmail by editor id (`CYR*Chainmail*`), which is the only handle available. Check the
    dry run's list of chainmail records is the set you expect, and nothing else.
-2. **`ArmorMaterialImperialLight` shield is left alone** (Nate, 2026-09-30: "keep the imperial shield at 19"). Worth
-   knowing what that leaves behind: the group is not uniform. 13 records, range **19 to 25**, with Skyrim.esm at 19 and
-   `DIS_Heavy_Legion.esp` at 25. So an Imperial light shield at 25 stays above Elven's 21 - which is exactly the
-   inconsistency the proposal raised as its item 6. Pulling those down is one line in `ladder.tsv` if Nate wants it;
-   without it, nothing here touches them.
+2. **`ArmorMaterialImperialLight` shield: settled, and smaller than it looked** (Nate, 2026-09-30: "make the imperial
+   shields all 19"). Counted directly rather than from the census summary: **14** shield records carry the keyword,
+   **13 are already 19**, and exactly **one** is 25 - `ArmorImperialLightShield` from `DIS_Heavy_Legion.esp`. So the
+   rule moves one record. That was the shield the proposal raised as its item 6, sitting above Elven's 21 and near
+   Glass's 27. Its origin is third-party, so the override lands in Nexus Patches.
 
 Related: the proposal's tables were measured per canonical set by editor id, while this script works per material
 keyword. Where a keyword group holds several designs the group is flattened to one number, which is the intent
