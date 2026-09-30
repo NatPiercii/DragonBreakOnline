@@ -130,6 +130,17 @@ check('...the hold in sendToArrival does', globalThis.__dboNameHold(HUB_USER) ==
   p = globalThis.__dboCreatorName(REROLL, { name: 'Prisoner' }, 'reroll');
   setp(REROLL, 'appearance', { name: 'Prisoner' }); await tick();
   check('a reroll with no name keeps the old one', props.get(`${REROLL}|appearance`).name === 'Old Name');
+  // A forged pigeon signature holds to the reserved names and blocked words (2026-09-30)
+  fs.writeFileSync('name-filter.json', JSON.stringify({ maxWords: 3, minLength: 2, maxLength: 30, maxRepeatedLetters: 2, blocked: ['nwah'], reserved: ['talos', 'staff', 'dragonbreak'] }));
+  const sig = globalThis.__dboSignatureProblem;
+  check('a signature that is a reserved name is refused', /reserved/.test(sig('Talos') || ''));
+  check('...and one with a reserved name as any word of it ("DragonBreak Staff")', /reserved/.test(sig('DragonBreak Staff') || '') && /reserved/.test(sig('The Staff') || ''));
+  check('...however it is spelt (St4ff)', /reserved/.test(sig('Server St4ff') || ''));
+  check('a blocked word anywhere in it is refused', /will not do/.test(sig('Your friend Nwah') || ''));
+  check('an ordinary forged name passes, and a word merely containing a reserved one', sig('Jarl Skald') === null && sig('Staffordshire Bull') === null);
+  const gm = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
+  const signCmd = gm.slice(gm.indexOf("registerChatCommand('sign'"), gm.indexOf("registerChatCommand('sign'") + 1800);
+  check('/sign asks it before it keeps a forged name', signCmd.indexOf('__dboSignatureProblem(want)') > 0 && signCmd.indexOf('__dboSignatureProblem(want)') < signCmd.indexOf('nextSignature.set(a, { name: want, tier })'));
   console.log(failures ? `${failures} FAILED` : 'all checks passed');
   process.exit(failures ? 1 : 0);
 })();
