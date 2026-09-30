@@ -13,6 +13,7 @@ const { CaptureSystem } = require(path.resolve(process.argv[2]));
 const logs = [];
 const sys = new CaptureSystem((...x) => logs.push(x.join(' ')));
 if (typeof sys.setLeash !== 'function') {
+  require('./expect')('capture-rope', 'this captureSystem has no rope binding');
   console.log('SKIP  this fork\'s captureSystem.ts has no rope binding (fork branch rope-binding-ts)');
   process.exit(0);
 }

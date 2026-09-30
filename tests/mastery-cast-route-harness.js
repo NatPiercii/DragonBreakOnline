@@ -12,7 +12,7 @@ const path = require('path');
 
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests/mastery-cast-route-harness.js <bundled masterySystem.js>'); process.exit(2); }
-if (!/__dboCastSkill/.test(fs.readFileSync(bundle, 'utf8'))) { console.log('ok   skipped: this masterySystem has no cast route'); process.exit(0); }
+if (!/__dboCastSkill/.test(fs.readFileSync(bundle, 'utf8'))) { require('./expect')('mastery-cast-route', 'this masterySystem has no cast route'); console.log('ok   skipped: this masterySystem has no cast route'); process.exit(0); }
 const { MasterySystem } = require(path.resolve(bundle));
 
 let fails = 0;

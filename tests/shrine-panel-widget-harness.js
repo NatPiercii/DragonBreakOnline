@@ -13,7 +13,7 @@ const path = require('path');
 
 const bundle = process.argv[2];
 if (!bundle) { console.log('usage: node tests/shrine-panel-widget-harness.js <bundle>'); process.exit(2); }
-if (!fs.existsSync(bundle) || !/shrine__/.test(fs.readFileSync(bundle, 'utf8'))) { console.log('ok   skipped: this front has no shrine panel'); process.exit(0); }
+if (!fs.existsSync(bundle) || !/shrine__/.test(fs.readFileSync(bundle, 'utf8'))) { require('./expect')('shrine-panel-widget', 'this front has no shrine panel'); console.log('ok   skipped: this front has no shrine panel'); process.exit(0); }
 const { Widget, renderToStaticMarkup, createElement } = require(path.resolve(bundle));
 
 let fail = 0;
