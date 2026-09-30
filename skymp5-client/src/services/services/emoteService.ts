@@ -2,6 +2,10 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { notifyNextUpdate } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuHotkeyBlocked, isGameInputBlocked } from "./widgetMenuUtil";
 import { RestraintService } from "./restraintService";
+import { BrowserService } from "./browserService";
+import { parseCustomPacket } from "./customPacketUtil";
+import { ConnectionMessage } from "../events/connectionMessage";
+import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
 import { logTrace } from "../../logging";
 
@@ -110,6 +114,30 @@ const GROUPS: EmoteGroup[] = [
   },
 ];
 
+// Interaction idles the server may play through a dboIdle packet (reading a notice board, an introduction, a trade, a
+// rope), beside the wheel's own, which it may play too. Not on the wheel. Each is an IDLE record in Skyrim.esm
+// (docs/alpha/anim-console-check.md); an event the player's graph refuses simply does not play.
+const ACTION_IDLES: EmoteDef[] = [
+  { anim: 'IdleGive', label: 'Give' },
+  { anim: 'IdleTake', label: 'Take' },
+  { anim: 'IdleActivatePickUp', label: 'Reach' },
+  { anim: 'IdleLockPick', label: 'Work At' },
+  // IdleSearchBody's event: kneeling over someone; IdleKneelingExit's event ends it
+  { anim: 'IdleKneeling', label: 'Kneel Over', exit: 'IdleChairExitStart' },
+  // Helgen (MQ101): the speaker's idle when Hadvar or Ralof cuts the player's binds, and the freed player's own motion
+  { anim: 'BoundStandingCutNPC', label: 'Cut Free' },
+  { anim: 'BoundStandingCut', label: 'Freed' },
+];
+
+// Eating and drinking in a chair, from the chair's own sitting state. They end with IdleStop and never with
+// IdleForceDefaultState, which drops the chair's state and leaves the body standing inside the furniture.
+const SEATED_IDLES = new Set<string>(['ChairEatingStart', 'ChairDrinkingStart', 'ChairEatingSoupStart']);
+// Actor.GetSitState: 3 = sitting
+const SITTING = 3;
+// A server-played idle is held between these
+const MIN_IDLE_SECONDS = 1;
+const MAX_IDLE_SECONDS = 10;
+
 const events = {
   play: 'emote:play',
   close: 'emote:close',
@@ -137,7 +165,8 @@ export class EmoteService extends ClientListener {
     super();
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
-    this.controller.emitter.on("gameLoad", () => { this.activeEmote = ""; this.chainId++; });
+    this.controller.emitter.on("gameLoad", () => { this.activeEmote = ""; this.chainId++; this.seatedChain++; });
+    this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     // A front reload drops the widget without an emote:close message.
     this.controller.emitter.on("browserWindowLoaded", () => { this.menuOpen = false; });
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
@@ -152,6 +181,10 @@ export class EmoteService extends ClientListener {
         if (emote.prop) this.propAnims.add(emote.anim);
         if (emote.exit) this.exitEvents.set(emote.anim, emote.exit);
       }
+    }
+    for (const idle of ACTION_IDLES) {
+      this.allowedAnims.add(idle.anim);
+      if (idle.exit) this.exitEvents.set(idle.anim, idle.exit);
     }
 
     // Records whether the graph accepted the exit event probed by tryExitChain.
@@ -253,6 +286,72 @@ export class EmoteService extends ClientListener {
       } else {
         this.stopActiveEmote(true);
       }
+    });
+  }
+
+  /**
+   * Server -> client: { customPacketType: "dboIdle", anim: string, seconds: number, endsItself: boolean }
+   * An interaction animation the gamemode asks for (a notice board, an introduction, a trade, a rope). It goes through
+   * playIdle, so the wheel's catalog plus ACTION_IDLES is the allowlist, the same blockers apply (weapon drawn, seated,
+   * swimming, mounted, restrained, the wheel open) and movement ends it. Never while a game menu is open: those pause the
+   * world, and a clip started under one would play out after it closed. An older client ignores the packet.
+   */
+  private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
+    const content = parseCustomPacket(event);
+    if (!content || content["customPacketType"] !== "dboIdle") return;
+    const anim = typeof content["anim"] === "string" ? (content["anim"] as string) : "";
+    if (!this.allowedAnims.has(anim)) {
+      logTrace(this, `dboIdle not allowed`, anim);
+      return;
+    }
+    this.playActionIdle(anim, Number(content["seconds"]) || 3, content["endsItself"] === true);
+  }
+
+  /**
+   * An interaction idle (dboIdle, or a client event such as a finished trade): on the next frame, through playIdle,
+   * and not while a game menu is open. Seconds are held between MIN_IDLE_SECONDS and MAX_IDLE_SECONDS.
+   */
+  public playActionIdle(anim: string, seconds: number, endsItself: boolean): void {
+    const held = Math.min(MAX_IDLE_SECONDS, Math.max(MIN_IDLE_SECONDS, seconds));
+    this.controller.once("update", () => {
+      if (this.gameMenuOpen()) {
+        logTrace(this, `Interaction idle skipped under a game menu`, anim);
+        return;
+      }
+      this.playIdle(anim, held, endsItself);
+    });
+  }
+
+  // A vanilla menu (inventory, container, barter, book, lockpicking, dialogue, map, console...) is open; our own panels
+  // are not counted, so a board's panel does not stop the idle it asked for
+  private gameMenuOpen(): boolean {
+    try {
+      return this.controller.lookupListener(BrowserService).liveBlockingMenus().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Eating or drinking in a chair (ChairEatingStart, ChairDrinkingStart, ChairEatingSoupStart). Only while sitting, and
+   * outside the emote bookkeeping: movement keys stand the player up through the chair itself, and the exit is IdleStop
+   * alone, sent only if they are still sitting when the clip should be over.
+   */
+  public playSeatedIdle(anim: string, seconds: number): void {
+    if (!SEATED_IDLES.has(anim) || this.menuOpen || this.isPoseLocked()) return;
+    const chain = ++this.seatedChain;
+    this.controller.once("update", () => {
+      const player = this.sp.Game.getPlayer();
+      if (!player || !player.getFurnitureReference() || player.getSitState() !== SITTING || player.isWeaponDrawn()) return;
+      this.sp.Debug.sendAnimationEvent(player, anim);
+      logTrace(this, `Playing seated idle`, anim);
+      this.sp.Utility.wait(seconds).then(() => {
+        this.controller.once("update", () => {
+          if (chain !== this.seatedChain) return;
+          const p = this.sp.Game.getPlayer();
+          if (p && p.getFurnitureReference() && p.getSitState() === SITTING) this.sp.Debug.sendAnimationEvent(p, "IdleStop");
+        });
+      });
     });
   }
 
@@ -423,4 +522,6 @@ export class EmoteService extends ClientListener {
   private probeSucceeded = false;
   // Generation counter: bumping it abandons any pending exit chain.
   private chainId = 0;
+  // The same for a seated idle's IdleStop
+  private seatedChain = 0;
 }
