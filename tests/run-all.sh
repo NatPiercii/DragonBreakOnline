@@ -78,6 +78,7 @@ declare -A NEEDS=(
   [shrine-panel-widget]=front:skymp5-front/src/features/shrinePanel/index.tsx
   [school-meters]=front:skymp5-front/src/features/masteryMenu/index.tsx
   [study-magic]=front:skymp5-front/src/features/studyMagic/index.tsx
+  [journal-front]=front:skymp5-front/src/features/journal/index.tsx
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
 )
 bundle() {
