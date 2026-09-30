@@ -88,26 +88,26 @@
 <img class="wm" src="/dbo-watermark.png" alt="">
 <div class="wrap guide-wrap">
 <nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
-<div class="hero"><div class="tag">DragonBreak Online · design reference</div><h1>The Nine and the Sixteen</h1></div>
+<div class="hero"><div class="tag">DragonBreak Online · Player Codex</div><h1>The Nine and the Sixteen</h1></div>
 <main class="gd">
 <div class="g-wrap">
   <header class="g-mast">
-    <p class="g-standfirst">Who a character may worship, what each god gives, and the ten spell records
-      still owed to the Creation Kit.</p>
+    <p class="g-standfirst">Choose a god, kneel at their shrine and pray. Every prayer you hold to the end
+      counts toward your Priest skill, and now and then your god answers with a blessing.</p>
     <div class="g-rule"></div>
   </header>
   <section>
     <h2>How religion works</h2>
-    <p>A character holds <strong>one god at a time</strong> and may only pray at that god's shrines.
-      Praying is a mini-game the server issues and the server judges: three verses run in turn and
-      the worshipper holds the prayer key from the first word to the last. A completed prayer always
-      credits the <strong>Priest</strong> skill. It only rarely earns the blessing.</p>
+    <p>A character holds <strong>one god at a time</strong> and may only pray at that god's shrines
+      (the older faiths need none). Praying is a short test of devotion: three verses run in turn, and
+      you hold the prayer key from the first word to the last. A completed prayer counts toward your
+      <strong>Priest</strong> skill. It only rarely earns the blessing.</p>
     <div class="g-loop">
       <div class="g-step">
         <div class="g-step-n">First</div>
         <div class="g-step-t">Take a god</div>
-        <div class="g-step-d">The picker opens on its own once you are out of the race menu. The first
-          choice is free and needs no shrine. <code>/deity</code> reopens it.</div>
+        <div class="g-step-d">The picker opens as the last step of making your character. The first
+          choice is free and needs no shrine. <code>/deity</code> opens it at any time.</div>
       </div>
       <div class="g-step">
         <div class="g-step-n">Then</div>
@@ -124,8 +124,8 @@
       <div class="g-step">
         <div class="g-step-n">Rarely</div>
         <div class="g-step-t">The boon</div>
-        <div class="g-step-d">A roll on completion. A Priest's hands are far steadier than anyone
-          else's.</div>
+        <div class="g-step-d">A roll on completion. A Priest is answered far more often than anyone
+          else.</div>
       </div>
     </div>
     <div class="g-numbers">
@@ -139,7 +139,7 @@
     <figure>
       <div class="g-round-box">
         <svg viewBox="0 0 640 132" role="img">
-          <text x="0" y="13" fill="#8c9a9c" font-size="11" letter-spacing="2">THE ROUND — 18 SECONDS</text>
+          <text x="0" y="13" fill="#8c9a9c" font-size="11" letter-spacing="2">THE ROUND: 18 SECONDS</text>
           <rect x="0" y="26" width="205" height="34" fill="#0f2a2e" stroke="#2f7c80" stroke-width="1"></rect>
           <rect x="213" y="26" width="205" height="34" fill="#0f2a2e" stroke="#2f7c80" stroke-width="1"></rect>
           <rect x="426" y="26" width="205" height="34" fill="#0f2a2e" stroke="#2f7c80" stroke-width="1"></rect>
@@ -150,16 +150,15 @@
           <rect x="0" y="94" width="330" height="9" fill="#8fd3d0"></rect>
           <rect x="341" y="94" width="290" height="9" fill="#8fd3d0"></rect>
           <line x1="335" y1="90" x2="335" y2="107" stroke="#c98a3a" stroke-width="1"></line>
-          <text x="335" y="122" fill="#c98a3a" font-size="11" text-anchor="middle">300 ms flicker — forgiven</text>
+          <text x="335" y="122" fill="#c98a3a" font-size="11" text-anchor="middle">300 ms flicker, forgiven</text>
           <text x="0" y="72" fill="#5d6b6e" font-size="10">0s</text>
           <text x="209" y="72" fill="#5d6b6e" font-size="10">6s</text>
           <text x="422" y="72" fill="#5d6b6e" font-size="10">12s</text>
           <text x="631" y="72" fill="#5d6b6e" font-size="10" text-anchor="end">18s</text>
         </svg>
       </div>
-      <figcaption>The widget reports only when the key was down. The server replays the verse windows
-        against those spans and decides for itself, so editing the widget changes what the worshipper
-        sees and not what the gods give.</figcaption>
+      <figcaption>Hold the prayer key through all three verses. A brief slip is forgiven, but let go for
+        more than half a second in any one verse and the prayer fails.</figcaption>
     </figure>
     <h3>Offerings</h3>
     <p>Say <code>/offer &lt;gold&gt;</code> at your god's shrine (anywhere, for the older faiths) to leave an
@@ -168,27 +167,21 @@
       god listens more closely: your next prayer's chance of a blessing grows with the offering, up to
       <strong>double at 100 gold</strong>, and that prayer spends it.</p>
     <h3>The picker</h3>
-    <p>The menu opens on its own the moment a character is out of the race menu with no god — and
-      to every existing character too, since none of them has one. It is a watcher rather than a
-      creation hook, which is why it catches both. <code>/deity</code> reopens it at any time.</p>
+    <p>Choosing a god is the last step of making your character. <strong>Your first choice is free and
+      needs no shrine</strong>, or press <em>Not yet</em> and type <code>/deity</code> when you are ready.
+      After that you may change faith once every seven days, from the same menu. Turning to another god
+      takes away any blessing you carry.</p>
     <p>Columns of names beside a reading pane: <strong>Divines keyed aqua, Princes amber</strong>, and the
-      older faiths in a column of their own from the next client update,
-      the same split the prayer widget uses. Each name carries its marks — <em>yours</em>,
-      <em>no shrine</em>, <em>unlawful</em> — and the pane gives the sphere, the boon, and whether
-      there is anywhere you could actually pray. <strong>The first choice is free and needs no
-      shrine</strong>; a later turn is gated by the seven days and nothing else, because the brief
-      puts conversion on a menu key rather than a pilgrimage.</p>
-    <p>The widget sends one thing, <code>deityChoose</code> with a nonce and an id. The server judges
-      it and re-sends the whole panel with a notice, so the menu never decides anything itself and a
-      stale nonce changes nothing — the same contract as the prayer round.</p>
+      older faiths in a column of their own. Each name carries its marks, <em>yours</em>,
+      <em>no shrine</em> and <em>unlawful</em>, and the pane gives the sphere, the boon, and whether
+      there is anywhere you could pray.</p>
     <div class="g-note">
-      <strong>Two rules worth knowing.</strong> <strong>Auri-El is Akatosh</strong> under the Aldmeri
-      name, so a worshipper of either may kneel at either's shrine — without that, a Snow-Elf-faithed
-      character could never pray at all, his one shrine being in the Forgotten Vale.
-      And <strong>Talos and every Prince are unlawful</strong>: Bruma is Imperial, the Concordat
-      outlawed Talos, and Beyond Skyrim has already renamed its Great Chapel of Talos to the Cathedral
-      of St Martin. The server says so once and nothing follows from it — whether the guards care is
-      still an open decision.
+      <strong>Two rules worth knowing.</strong> <strong>Auri-El is Akatosh</strong> under his Aldmeri
+      name, so a worshipper of either may kneel at either's shrine. Auri-El also has a shrine of his
+      own in Bruma county. And <strong>Talos and most Daedric Princes are outlawed</strong> in Imperial
+      Bruma, though Malacath, Azura and Meridia are tolerated. Bruma's Great Chapel of Talos has been
+      rededicated as the Cathedral of St Martin. You will be reminded the first time you kneel to a
+      forbidden god, and nobody stops you.
     </div>
   </section>
     <section>
@@ -232,7 +225,7 @@
       <div class="g-god">
         <div class="g-god-name">Talos<span class="g-god-alias">Ysmir · Hjalti Early-Beard</span></div>
         <div class="g-god-sphere">The man who became the Ninth and founded the Empire that outlawed him. Unlawful in Bruma.</div>
-        <div class="g-god-boon">Two-handed +10</div>
+        <div class="g-god-boon">Two-handed weapons deal 10% more damage</div>
       </div>
       <div class="g-god">
         <div class="g-god-name">Zenithar<span class="g-god-alias">Z'en</span></div>
@@ -242,36 +235,34 @@
       <div class="g-god">
         <div class="g-god-name">Auri-El<span class="g-god-alias">an aspect of Akatosh</span></div>
         <div class="g-god-sphere">The Aldmeri Akatosh, held by the Snow Elves as the founder of their line.</div>
-        <div class="g-god-boon">Marksman +10, 12 h</div>
+        <div class="g-god-boon">Bows and crossbows deal 10% more damage</div>
       </div>
     </div>
   </section>
   <section>
     <h2>The Princes</h2>
-    <p>Cyrodiil's Daedric shrines are <strong>Oblivion's fifteen</strong>, and that is the roster,
-      plus Mephala, who has a real shrine on Solstheim. <strong>Jyggalag is deliberately absent</strong>
-      — free since the Greymarch ended, but with no cult and no worshippers in 4E 201. He is the one
-      entry lore actively forbids.</p>
+    <p><strong>Sixteen Daedric Princes</strong> may be worshipped here, Mehrunes Dagon among them, whose
+      Great Gate once opened outside Bruma. <strong>Jyggalag has no cult in this age.</strong></p>
     <div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Azura</div>
         <div class="g-god-sphere">Dusk and dawn, prophecy, the Moonshadow. The kindest of them, which is not saying much.</div>
-        <div class="g-god-boon">Magic resisted 10%</div>
+        <div class="g-god-boon">Spells hurt you 10% less</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Boethiah</div>
-        <div class="g-god-sphere">Plots and secret murder — and the teacher who makes the Chimer strong by testing them to destruction.</div>
-        <div class="g-god-boon">One-handed +10</div>
+        <div class="g-god-sphere">Plots and secret murder, and the teacher who makes the Chimer strong by testing them to destruction.</div>
+        <div class="g-god-boon">One-handed weapons deal 10% more damage</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Clavicus Vile</div>
         <div class="g-god-sphere">Power through bargains. Every wish granted exactly as worded, and the wording is never yours.</div>
-        <div class="g-god-boon">A boon you name, at a price</div>
+        <div class="g-god-boon">No blessing yet</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Hermaeus Mora</div>
         <div class="g-god-sphere">Knowledge, memory and fate. He does not bargain; he collects.</div>
-        <div class="g-god-boon">What you read teaches you more</div>
+        <div class="g-god-boon">Books you finish count twice toward Scholar, and skill books can turn up in dungeons</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Hircine</div>
@@ -281,12 +272,12 @@
       <div class="g-god g-daedra">
         <div class="g-god-name">Malacath</div>
         <div class="g-god-sphere">The sworn oath, the broken curse, and every people the others cast out. Trinimac was, and Malacath is.</div>
-        <div class="g-god-boon">Damage +10%, Block +15</div>
+        <div class="g-god-boon">Weapons deal 10% more damage</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Mehrunes Dagon</div>
         <div class="g-god-sphere">Destruction and ambition. Bruma above all has met him: the Great Gate opened here, and Martin broke it.</div>
-        <div class="g-god-boon">Destruction +10</div>
+        <div class="g-god-boon">Your spells deal 10% more damage</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Mephala</div>
@@ -326,7 +317,7 @@
       <div class="g-god g-daedra">
         <div class="g-god-name">Sheogorath</div>
         <div class="g-god-sphere">Madness. Was Jyggalag, and will be again, and is not, and both of those are true.</div>
-        <div class="g-god-boon">Another god's boon, rolled fresh each prayer</div>
+        <div class="g-god-boon">Another god's boon, chosen at random each time he answers</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Vaermina</div>
@@ -335,11 +326,9 @@
       </div>
     </div>
     <div class="g-note g-note--amber">
-      <strong>Sheogorath is the one worth noticing.</strong> The Madgod has no blessing of his own and
-      should not have one, so he hands over somebody else's, rolled fresh every prayer. It is the only
-      boon in the list that is <em>more</em> lore-accurate as code than as a record, and the only one
-      that needed no Creation Kit work at all. <strong>Sanguine</strong> is the other: the Prince of
-      indulgence belongs on the appetite meter, not on a spell.
+      <strong>Sheogorath is the one worth noticing.</strong> The Madgod has no blessing of his own: each
+      time he answers, he hands you another god's, chosen at random. <strong>Sanguine</strong> is the
+      other: his blessing halves how fast your hunger builds.
     </div>
   </section>
   <section>
@@ -374,12 +363,12 @@
       <div class="g-god">
         <div class="g-god-name">Trinimac<span class="g-god-alias">The Champion of Auri-El</span></div>
         <div class="g-god-sphere">The Aldmeri warrior god, strongest of the elven gods before Boethiah devoured him and he rose again as Malacath. Some Orsimer still keep his name, and most of their kin despise them for it.</div>
-        <div class="g-god-boon">Armor +50 and 25% of magic resisted</div>
+        <div class="g-god-boon">Spells hurt you 25% less</div>
       </div>
       <div class="g-god">
         <div class="g-god-name">The Dragon Cult<span class="g-god-alias">The Dragon Priests</span></div>
         <div class="g-god-sphere">Worship of the dragons as the children of Akatosh and rightful lords of mortals, served by masked Dragon Priests who ruled in their name in ancient Skyrim. An old Nordic heresy, rarely pressed in Cyrodiil.</div>
-        <div class="g-god-boon">Shouts recover 20% faster <span class="g-chip g-chip--pending">unlawful</span></div>
+        <div class="g-god-boon">A blessing for the Voice, which few mortals have <span class="g-chip g-chip--pending">unlawful</span></div>
       </div>
       <div class="g-god">
         <div class="g-god-name">The Worm Cult<span class="g-god-alias">The King of Worms</span></div>
@@ -389,38 +378,15 @@
     </div>
   </section>
   <section>
-    <h2>Which gods can actually be prayed to</h2>
-    <p>Measured, not assumed — <code>py ck-mcp\shrines.py</code> counts every reference of every
-      shrine base in the load order. <strong>Twenty-five of the twenty-six can be prayed to today — in practice, all of them.</strong>
-      The nine Divines always could; the Princes arrived on 20 September, when a statue of each was
-      placed at the Namira shrine site as one central place to test worship.</p>
-    <div class="g-table-box">
-      <table>
-        <thead><tr><th>Divine</th><th class="g-n">Placed</th><th class="g-n">In region</th><th class="g-n">In Bruma county</th></tr></thead>
-        <tbody>
-          <tr><td>Akatosh</td><td class="g-n">40</td><td class="g-n">18</td><td class="g-n">3</td></tr>
-          <tr><td>Arkay</td><td class="g-n">50</td><td class="g-n">8</td><td class="g-n">4</td></tr>
-          <tr><td>Dibella</td><td class="g-n">21</td><td class="g-n">4</td><td class="g-n">3</td></tr>
-          <tr><td>Julianos</td><td class="g-n">21</td><td class="g-n">6</td><td class="g-n">4</td></tr>
-          <tr><td>Kynareth</td><td class="g-n">23</td><td class="g-n">8</td><td class="g-n">4</td></tr>
-          <tr><td>Mara</td><td class="g-n">21</td><td class="g-n">4</td><td class="g-n">2</td></tr>
-          <tr><td>Stendarr</td><td class="g-n">25</td><td class="g-n">4</td><td class="g-n">3</td></tr>
-          <tr><td>Talos</td><td class="g-n">56</td><td class="g-n">6</td><td class="g-n">4</td></tr>
-          <tr><td>Zenithar</td><td class="g-n">23</td><td class="g-n">6</td><td class="g-n">2</td></tr>
-          <tr><td>Every Prince</td><td class="g-n">—</td><td class="g-n">—</td><td class="g-n">1 each</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>Beyond Skyrim reuses the <em>vanilla</em> Skyrim shrine bases through its own chapels —
-      <code>ShrineofAkatosh</code> stands in <code>CYRBrumaCathedralofStMartin</code>. That is why the
-      Divines were reachable all along.</p>
-    <p><strong>Auri-El alone has no shrine of his own here</strong>, and it costs his worshippers nothing:
-      his single shrine is in the Forgotten Vale, but he is Akatosh under another name, so any Akatosh
-      chapel in Bruma will hear him. Every character on the server has somewhere to pray.</p>
-    </section>
+    <h2>Where to pray</h2>
+    <p>Every Divine has shrines in Bruma county, and the Cathedral of St Martin in Bruma holds most of
+      them. Auri-El has a shrine of his own in the county, and his faithful may also pray at any shrine
+      of Akatosh. The Princes' shrines lie in the wilds of the county. The older faiths need no shrine.
+      <strong>Every god on the list has somewhere you can pray.</strong></p>
+  </section>
 
   <footer>
-    Last updated 25 September 2026.
+    Last updated 28 September 2026.
   </footer>
 </div>
 </main>
