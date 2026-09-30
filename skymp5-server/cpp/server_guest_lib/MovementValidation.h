@@ -28,6 +28,8 @@ struct ActorState
   float peakSpeed = 0.f;
   float peakUp = 0.f;
   float peakDown = 0.f;
+  // Everything is accepted until then (the first seconds after a login)
+  std::chrono::steady_clock::time_point acceptUntil;
   uint32_t refusedSinceLog = 0;
   uint32_t serverMovesSinceLog = 0;
   bool seeded = false;
@@ -38,6 +40,9 @@ struct Tracker
 {
   std::unordered_map<uint32_t, ActorState> states;
   std::chrono::steady_clock::time_point lastPrune;
+  // Server stall detection: the last packet from any player, and the pause
+  std::chrono::steady_clock::time_point lastCall;
+  std::chrono::steady_clock::time_point stallGraceUntil;
 };
 
 bool Validate(PartOne& partOne, const NiPoint3& currentPos,
