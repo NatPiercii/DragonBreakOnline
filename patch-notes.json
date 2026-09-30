@@ -1,5 +1,20 @@
 [
   {
+    "title": "Lone Wolves",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Werewolves",
+        "items": [
+          "A werewolf who belongs to no pack is now a Lone Wolf. The Werewolf tab in your Skills menu (K), /hunt and /status say so, and a pack member sees their pack and rank there instead.",
+          "It is a name for now: nothing about your beast changes with it. A pack still takes you in only by invitation."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Vampires: Hunger, Feeding and Blood",
     "date": "2026-09-30",
     "version": "Client 0.3.71",

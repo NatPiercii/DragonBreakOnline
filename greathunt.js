@@ -162,11 +162,18 @@ module.exports = (api) => {
     audit(`HUNT ${who(a)} howled (${name || 'a howl'}) in ${place || 'the wilds'}`);
   };
 
+  // Nate 2026-09-30: a werewolf in no pack is a Lone Wolf (canon's lone werewolves, UESP Lore:Werewolf). A name for now:
+  // nothing in play changes with it. The packs are guild-defs factions of kind "pack" (guilds.js).
+  const standingOf = (a) => {
+    let packs = [];
+    try { packs = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a).filter((g) => g.kind === 'pack') : []; } catch (e) { /* guilds.js not loaded */ }
+    return packs.length ? { lone: false, text: packs.map((p) => `${p.title} of ${p.name}`).join(', '), packs } : { lone: true, text: 'Lone Wolf', packs };
+  };
   const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
   addStatus('hunt', 80, (a) => {
     if (!isWerewolf(a)) return null;
     const s = stateOf(a); const renown = Number(s && s.renown) || 0;
-    return `${C.ranks[rankFor(renown)]} of the Hunt (${renown} renown)`;
+    return `${C.ranks[rankFor(renown)]} of the Hunt (${renown} renown), ${standingOf(a).text}`;
   });
   registerChatCommand('hunt', (a) => {
     if (!isWerewolf(a)) return personal(a, 'The Great Hunt is for those who carry the beast.');
@@ -175,7 +182,9 @@ module.exports = (api) => {
     personal(a, describe(r));
     if (r + 1 < C.ranks.length) personal(a, `${C.ranks[r + 1]} at ${C.thresholds[r + 1]} renown: feed in beast form (an animal ${C.points.animal}, a person you bring down outside the walls ${C.points.player}), hunt and change.`);
     else personal(a, 'There is no higher rank of the Hunt.');
-  }, { help: 'your rank in the Great Hunt, for werewolves' });
+    const st = standingOf(a);
+    personal(a, st.lone ? 'You are a Lone Wolf: you run with no pack. A pack takes you in only by invitation.' : `You run with ${st.packs.map((p) => `${p.name} as ${p.title}`).join(', and with ')}.`);
+  }, { help: 'your rank in the Great Hunt and your pack, for werewolves' });
 
   log(`greathunt on: ${C.ranks.map((n, i) => `${n} ${C.thresholds[i]}`).join(', ')}`);
   return { rankOf, rankFor, stateOf, award, playerRefusal, C };

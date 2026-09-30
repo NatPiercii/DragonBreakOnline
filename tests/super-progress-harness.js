@@ -58,7 +58,7 @@ ok(v.ladder.ranks[1].name === 'Prowler' && v.ladder.ranks[1].at === 100, '...the
 ok(/150 s in the beast, a feed adds 30 s, 1 change a day/.test(v.ladder.ranks[0].perk), "...each rank says what it gives", v.ladder.ranks[0].perk);
 ok(/hits on you 20% lighter, yours 20% heavier, forced out 75% less/.test(v.ladder.ranks[4].perk), '...Elder its whole gift', v.ladder.ranks[4].perk);
 ok(/an animal 5/.test(v.ladder.earn) && /outside the walls 60/.test(v.ladder.earn), '...and how renown is earned', v.ladder.earn);
-ok(row(v, 'Pack') && row(v, 'Pack').value === 'None: you hunt alone' && /invitation/.test(row(v, 'Pack').hint), 'no pack: they hunt alone, and a pack takes them in by invitation', row(v, 'Pack'));
+ok(row(v, 'Pack') && row(v, 'Pack').value === 'Lone Wolf' && /no pack and hunt alone/.test(row(v, 'Pack').hint) && /invitation/.test(row(v, 'Pack').hint), 'no pack: a Lone Wolf, who hunts alone until a pack invites them (Nate 2026-09-30)', row(v, 'Pack'));
 ok(row(v, 'Beast form today') && row(v, 'Beast form today').value === '0 of 1 used', 'no change used today', row(v, 'Beast form today'));
 curse(WOLF, { kind: 'werewolf', beastDay: 10, beastDayUses: 1 });
 v = globalThis.__dboSuperProgress(WOLF);
