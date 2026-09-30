@@ -253,11 +253,16 @@ module.exports = (api) => {
   };
   // A vampire the fever turned has none of them until the first meal
   const wantSpells = (s) => (s && s.kind === 'vampire' && !s.unfed ? vampSpellsFor(s.stage) : []);
+  // Learn the new, put it into the hands, then drop the old. ActionListener.cpp OnUpdateEquipment strips a hand spell the
+  // server does not hold as learned and removes it on the client ("stripping unlearned spell"), which is how a stage change
+  // took the drain out of Onny's hand (2026-09-29): the old one went first and the client's hand was left with nothing, or
+  // with a spell the server had just unlearned.
   const syncVampSpells = (a, s) => {
     const want = wantSpells(s);
     const had = Array.isArray(s && s.spells) ? s.spells : [];
-    for (const id of had) if (!want.includes(id)) removeSpell(a, id);
     for (const id of want) if (!had.includes(id)) addSpell(a, id);
+    swapHands(a, want);
+    for (const id of had) if (!want.includes(id)) removeSpell(a, id);
     if (s) { s.spells = want; saveState(a, s); }
   };
   // ---- the client's stale stage spells ----
@@ -269,6 +274,24 @@ module.exports = (api) => {
   // it holds as learned (PapyrusActor::RemoveSpell). So every stage spell outside the current stage is learned and
   // unlearned in one step, which carries the removal to the client. Once per login and once per stage change.
   const VAMP_ALL = [...new Set([...VAMP_DRAIN, ...VAMP_THRALL, VAMP_SIGHT, VAMP_SEDUCTION, VAMP_EMBRACE].filter(Boolean))];
+  // The hands a stage spell can be held in, as the server stores them (Equipment.h leftSpell / rightSpell), and the
+  // Actor.EquipSpell source for each (CK wiki: 0 left hand, 1 right hand). The server's EquipSpell learns the spell if
+  // it has to and sends the equip to the player's own client (PapyrusActor.cpp).
+  const HANDS = [['leftSpell', 0], ['rightSpell', 1]];
+  const STAGE_LINES = [VAMP_DRAIN, VAMP_THRALL].map((line) => line.filter(Boolean));
+  const equipSpell = (a, id, slot) => id && papyrus(a, 'EquipSpell', [spell(id), slot]);
+  // A hand holding a stage spell the new list does not have gets that spell's line at the new stage (Drain 01 -> 03)
+  const swapHands = (a, want) => {
+    let eq = null; try { eq = mp.get(a, 'equipment'); } catch (e) { return; }
+    if (!eq) return;
+    for (const [key, slot] of HANDS) {
+      const held = Number(eq[key]) >>> 0;
+      if (!held || want.includes(held) || !VAMP_ALL.includes(held)) continue;
+      const line = STAGE_LINES.find((l) => l.includes(held));
+      const next = line ? want.find((x) => line.includes(x)) : 0;
+      if (next) equipSpell(a, next, slot);
+    }
+  };
   const flushedFor = globalThis.__dboSuperFlushed instanceof Map ? globalThis.__dboSuperFlushed : (globalThis.__dboSuperFlushed = new Map()); // actor -> stage flushed this session
   const triedSpells = globalThis.__dboSuperTried instanceof Map ? globalThis.__dboSuperTried : (globalThis.__dboSuperTried = new Map()); // actor -> vampire spells its client last held
   // gamemode's equipment hook: what the client tried to hold, before the server strips an unlearned spell
@@ -286,6 +309,8 @@ module.exports = (api) => {
     flushedFor.set(a >>> 0, key);
     const want = wantSpells(s);
     const tried = triedSpells.get(a >>> 0) || new Set();
+    // A stale stage spell in a hand gets this stage's first, or the pair below would empty the hand
+    swapHands(a, want);
     let n = 0;
     for (const id of VAMP_ALL) {
       if (want.includes(id)) continue;
