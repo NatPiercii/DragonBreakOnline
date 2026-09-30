@@ -51,6 +51,8 @@
     "^IW(GoldbrandKatana|IceBladeoftheMonarchGreatsword|ForkofHorripilationDagger|ChrysamereGreatsword)$",
     "^IAShieldYsgramor$",
     "^MCEArmorTsunCuirassPlayer$",
-    "^manny_GF_(Armor_GrayCowl|Armor_BootsofSpringheelJak|Weapon_Umbra(NonPlayable)?|Amulet_(Right|Left)EyeOfColdharbour)$"
+    "^manny_GF_(Armor_GrayCowl|Armor_BootsofSpringheelJak|Weapon_Umbra(NonPlayable)?|Amulet_(Right|Left)EyeOfColdharbour)$",
+    "^dunGauldurAmulet$",
+    "^dunFrostmereCryptPaleBlade\\d+$"
   ]
 }
