@@ -165,6 +165,20 @@ module.exports = (api) => {
       if (used.length > 3 && used.every((id) => id < 0xff000000 && effectsOf(id))) tell(a, 'The lab did not recognise that mix, so nothing was brewed. Your ingredients come back when you leave the lab. Try again.');
       return;
     }
+    // One ingredient named twice: the player's own lab brewed from two, but the report lost the second (24 times 23-30 Sep,
+    // e.g. BSKCairnBolete x1 + BSKCairnBolete x1; Skyrim cannot put one ingredient in a potion twice). The server cannot
+    // know the other ingredient, and one ingredient never makes a potion here, so nothing is brewed and nothing is taken;
+    // the player is told what happened instead of "needs two ingredients", and the line below gathers the evidence
+    // (the report, and how the player's own stack of that ingredient is held) for the client fix.
+    const ids = reported.filter((e) => (Number(e.baseId) >>> 0) < 0xff000000).map((e) => Number(e.baseId) >>> 0);
+    if (used.length === 1 && ids.length >= 2) {
+      const held = invOf(a).filter((e) => (Number(e.baseId) >>> 0) === used[0]);
+      const r = lookup(used[0]);
+      log(`alchemy: ${display(a)} report named ${r ? r.record.editorId : used[0].toString(16)} ${ids.length} times and nothing else at lab ${workbenchId.toString(16)}; `
+        + `held as ${held.length} stack(s) [${held.map((e) => Object.entries(e).filter(([k]) => k !== 'baseId').map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ')).join(' | ')}]; `
+        + `report ${reported.map((e) => `${(Number(e.baseId) >>> 0).toString(16)}x${Number(e.count) || 1}`).join(' ')}`);
+      return tell(a, 'The lab lost track of your second ingredient, so nothing was brewed and nothing was used up. Try the mix again.');
+    }
     if (used.length < 2) return tell(a, 'A potion needs at least two ingredients.');
     const entries = invOf(a);
     const missing = used.find((id) => countOf(entries, id) < 1);

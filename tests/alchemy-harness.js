@@ -279,5 +279,22 @@ check('...and the pair still brews', out.said.some(([, t]) => /You brew/.test(t)
   check('walking away from the lab closes it', out.widgets.some(([a, k, id]) => a === BREWER && k === 'close' && id === 71));
 }
 
+// One ingredient named twice (24 lab reports 23-30 Sep, e.g. BSKCairnBolete x1 + BSKCairnBolete x1): the player's lab
+// brewed from two, the report lost the second. Nothing is brewed or taken, the player is told what happened, and the
+// report and the player's stack of that ingredient are logged for the client fix.
+{
+  stock(BREWER);
+  put(BREWER, 'pos', mp.get(LAB, 'pos'));
+  const before = JSON.stringify(mp.get(BREWER, 'inventory'));
+  out.logs.length = 0;
+  craft(BREWER, [FLY_AMANITA, FLY_AMANITA]);
+  check('one ingredient reported twice brews nothing and takes nothing', JSON.stringify(mp.get(BREWER, 'inventory')) === before);
+  check('...and says the second ingredient was lost, not that a potion needs two', /lost track of your second ingredient/.test(saidTo(BREWER)[0] || '') && !/needs at least two/.test(saidTo(BREWER)[0] || ''), saidTo(BREWER));
+  check('...and logs the report and how the stack is held', out.logs.some((l) => /report named Mushroom01 2 times and nothing else at lab 5000; held as 1 stack\(s\) \[count=2\]; report 4da00x1 4da00x1/.test(l)), out.logs);
+  wallClock += 5000;
+  craft(BREWER, [FLY_AMANITA]);
+  check('a report with just one ingredient once still says a potion needs two', /needs at least two/.test(saidTo(BREWER)[0] || ''), saidTo(BREWER));
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);
