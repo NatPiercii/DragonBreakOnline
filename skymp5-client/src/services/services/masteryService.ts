@@ -44,10 +44,12 @@ interface MasteryInfo {
   points: unknown;     // the point system's pool, caps and held skills, null while it is off
   // A werewolf's or vampire's progression for its own tab (gameplay supernatural.js, dboSuperProgress), null otherwise
   supernatural: unknown;
+  // The four school meters on the Arcane Arts page (gameplay schools.js, dboSchoolProgress), null when off
+  schools: unknown;
 }
 
 // Module-level so the browser-side widget setter can read it (runtime injection).
-let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [], maxChosen: 3, tierNames: [], tierHours: [], categories: [], skills: [], chosen: [], respec: null, points: null, supernatural: null };
+let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], professions: [], maxChosen: 3, tierNames: [], tierHours: [], categories: [], skills: [], chosen: [], respec: null, points: null, supernatural: null, schools: null };
 
 /**
  * Mastery menu (default K). Shows the eight professions, the one this
@@ -64,6 +66,8 @@ let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], pr
  *   Server -> Client: { "customPacketType": "masteryNotice", "text" }
  *   Server -> Client: { "customPacketType": "dboSuperProgress", "progress" }   the gameplay's answer to the same
  *                       request: a werewolf's or vampire's tab, or null. Either packet may come first.
+ *   Server -> Client: { "customPacketType": "dboSchoolProgress", "progress" }  the same, for the school meters of Arcane
+ *                       Arts (schools.js), or null
  */
 export class MasteryService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -114,8 +118,9 @@ export class MasteryService extends ClientListener {
           skills: Array.isArray(content["skills"]) ? content["skills"] as unknown[] : [],
           chosen: Array.isArray(content["chosen"]) ? content["chosen"] as unknown[] : [],
           respec: content["respec"] ?? null,
+          // Sent in their own packets (dboSchoolProgress, dboSuperProgress), so a skills refresh keeps them
+          schools: info.schools,
           points: content["points"] ?? null,
-          // Sent in its own packet (dboSuperProgress), so a skills refresh keeps it
           supernatural: info.supernatural,
         };
         // A reply we did not ask for (a refresh after choosing) updates the
@@ -129,6 +134,10 @@ export class MasteryService extends ClientListener {
       // Never opens the menu itself: the masteryMenu reply does that, and this only redraws one already open
       case "dboSuperProgress":
         info.supernatural = content["progress"] ?? null;
+        if (this.menuOpen) this.openMenu();
+        break;
+      case "dboSchoolProgress":
+        info.schools = content["progress"] ?? null;
         if (this.menuOpen) this.openMenu();
         break;
       case "masteryNotice":
@@ -206,6 +215,7 @@ export class MasteryService extends ClientListener {
       skills: info.skills,
       chosen: info.chosen,
       respec: info.respec,
+      schools: info.schools,
       points: info.points,
       supernatural: info.supernatural,
       events: events,

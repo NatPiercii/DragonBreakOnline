@@ -785,3 +785,152 @@ $secunda: #cfdcdc;         // the pale moon: what is held
     font-size: 14px;
   }
 }
+
+// Schools of magic (gameplay schools.js, Swag's rework): four meters in the ranks column of the Arcane Arts page, each
+// filling bottom to top over the whole ladder with the rank floors ticked. A closed school is faded; the chosen ones
+// carry their school's hue.
+$school-hues: (
+  destruction: $dbo-lorkhan-red,
+  illusion: $dbo-dragonbreak-violet,
+  conjuration: $dbo-aqua-fixed,
+  alteration: $dbo-aedric-gold,
+);
+
+.mastery {
+  &__schools {
+    gap: 12px;
+    padding: 18px 14px 56px;
+  }
+
+  &__schools-title {
+    margin: 0;
+    color: $dbo-silver;
+    font-family: $dbo-title-font;
+    font-size: 18px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  &__schools-row {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  &__school {
+    --school: #{$dbo-aqua-fixed};
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    text-align: center;
+    transition: opacity $medium;
+
+    @each $name, $hue in $school-hues {
+      &--#{$name} {
+        --school: #{$hue};
+      }
+    }
+
+    &--locked {
+      opacity: 0.45;
+    }
+  }
+
+  &__school-meter {
+    position: relative;
+    flex: 1 1 auto;
+    width: 34px;
+    min-height: 160px;
+    background: dbo-accent(0.08);
+    border: 1px solid $border-dim;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+
+    i {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(0deg, rgba(0, 0, 0, 0.45), transparent), var(--school);
+      box-shadow: 0 0 10px var(--school);
+      transition: height $medium;
+    }
+  }
+
+  &__school--locked &__school-meter i {
+    box-shadow: none;
+  }
+
+  &__school-tick {
+    position: absolute;
+    z-index: 1;
+    left: -5px;
+    right: -5px;
+    height: 1px;
+    background: rgba(232, 214, 160, 0.55);
+  }
+
+  &__school-name {
+    color: $dbo-silver;
+    font-family: $dbo-title-font;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  &__school-role {
+    color: var(--school);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  &__school--locked &__school-role {
+    color: $text-dim;
+  }
+
+  &__school-rank {
+    color: $text;
+    font-size: 13px;
+  }
+
+  &__school-hint {
+    color: $text-dim;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  &__school-choose {
+    @include dbo-button;
+    padding: 5px 8px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+
+  &__schools-note {
+    margin: 0;
+    color: $text-dim;
+    font-family: $dbo-book-font;
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
+  }
+}
+
+@media (max-width: 1180px), (max-height: 720px) {
+  .mastery {
+    &__school-meter {
+      min-height: 100px;
+      width: 26px;
+    }
+
+    &__school-name {
+      font-size: 11px;
+    }
+  }
+}
