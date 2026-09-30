@@ -1,5 +1,21 @@
 [
   {
+    "title": "Crafting grows with your skill",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Smithing and enchanting",
+        "items": [
+          "How far you can temper now follows your Blacksmith rank: Fine as a Novice, Superior as an Apprentice, Exquisite as a Journeyman, Epic as an Expert, and Legendary as a Master.",
+          "How strong your enchantments can be now follows your Enchanter rank, from half the strength of the best enchantments found in the world as a Novice to twice it as a Master.",
+          "Items you have already tempered or enchanted keep what they have."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dusk Thorn Camp and the Boars of Bruma",
     "date": "2026-09-30",
     "version": "Server update",
