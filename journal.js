@@ -13,8 +13,8 @@
 //   Client -> server (dbo events): journalProfile [nonce, backstory, origin], journalTitle [nonce, titleId],
 //     journalClose [nonce]; the relay's own "close" for widget 50 (Escape).
 // A new journal nonce is sent on opening and with every answer; the minute clock redraw and faction redraws keep it.
-// Opening plays the page-turn idle (idles.js "journal", 10 s, the client's limit). The client has no idle stop yet: a
-// dboIdleStop is sent on closing, for the client release that learns it.
+// Opening plays the page-turn idle (idles.js "journal"): a client that knows hold (client-journal-client) keeps it until
+// the dboIdleStop sent on closing; an older one plays it 10 s and ignores the stop.
 // Stored in the character's journal file (journalstats.js, journal/<actor hex>.json): profile { backstory, origin,
 // titleId, savedAt }. Titles come from journal-titles.json.
 'use strict';
@@ -23,9 +23,10 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, display, nameOf, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, hasCap, skills, cfg } = api;
-  const C = Object.assign({ enabled: true, backstoryMax: 4000, originMax: 1000, saveEveryMs: 3000, idleSeconds: 10, clockRedrawSeconds: 60 },
+  const C = Object.assign({ enabled: true, backstoryMax: 4000, originMax: 1000, saveEveryMs: 3000, clockRedrawSeconds: 60 },
     (cfg && cfg.journal) || {});
   const WIDGET_ID = 50;
+  const IDLE_ANIM = 'IdleBook_PageTurn';   // idles.js "journal"; the stop names it so it never ends another idle
   const TIER_FLOORS = [1, 25, 50, 75, 90];
   const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   // actor -> { nonce, tab, at }: open journals; savedAt: actor -> last save; idleAt: actor -> when the page-turn began
@@ -219,7 +220,7 @@ module.exports = (api) => {
     J.open.delete(a >>> 0);
     const began = J.idleAt.get(a >>> 0);
     J.idleAt.delete(a >>> 0);
-    if (began && Date.now() - began < C.idleSeconds * 1000) { try { sendPacket(a, { customPacketType: 'dboIdleStop' }); } catch (e) { /* offline */ } }
+    if (began) { try { sendPacket(a, { customPacketType: 'dboIdleStop', anim: IDLE_ANIM }); } catch (e) { /* offline */ } }
   };
   const fresh = (a, args) => { const st = J.open.get(a >>> 0); return st && String((args || [])[0] || '') === st.nonce ? st : null; };
   onUi('journalClose', (a, args) => { if (!fresh(a, args)) return; ended(a); closeWidget(a, WIDGET_ID); });
