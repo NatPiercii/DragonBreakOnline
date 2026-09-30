@@ -1,5 +1,20 @@
 [
   {
+    "title": "Champions Walk the Wilds",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Champions",
+        "items": [
+          "Now and then a wild beast or a dungeon's creature rises as a champion: named, bigger and far tougher than its kind.",
+          "Everyone who fought it shares one reward by the damage they dealt: a purse of gold and a chance of a gem, with a bonus for fighting together. A champion also counts twice toward a hunting contract."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Only the Animal Comes Off an Animal",
     "date": "2026-09-30",
     "version": "Server update",
