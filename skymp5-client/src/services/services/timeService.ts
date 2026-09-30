@@ -4,16 +4,13 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { Weather } from "skyrimPlatform";
 import { logTrace } from "../../logging";
+import { calendarOf, startYearOf, DEFAULT_START_YEAR } from "./calendar";
 
 const GAME_YEAR = 0x35, GAME_MONTH = 0x36, GAME_DAY = 0x37, GAME_HOUR = 0x38, GAME_DAYS_PASSED = 0x39, TIME_SCALE = 0x3a;
-// Month lengths of the Tamrielic calendar as the engine counts it (Morning Star = 0)
-const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-// GameDaysPassed 0 is 17 Last Seed 4E 201, the engine's own start date
-const START = { year: 201, month: 7, day: 17 };
 // A weather kind the region has no weather for falls back along these (0 pleasant, 1 cloudy, 2 rainy, 3 snow)
 const WEATHER_FALLBACK: Record<number, number[]> = { 0: [0, 1], 1: [1, 0], 2: [2, 3, 1], 3: [3, 2, 1] };
 
-// Server -> Client: { customPacketType: "dboClock", serverNow, gameDays, timeScale, weather } (server\worldclock.js)
+// Server -> Client: { customPacketType: "dboClock", serverNow, gameDays, timeScale, weather, startYear } (server\worldclock.js)
 // The server owns the clock, so night, date and moon phase are the same for everyone; weather comes as a kind and
 // the region's own weather list supplies the look. Before the first packet the old real-time clock is used.
 export class TimeService extends ClientListener {
@@ -40,7 +37,8 @@ export class TimeService extends ClientListener {
     if (!content || content["customPacketType"] !== "dboClock") return;
     const gameDays = Number(content["gameDays"]), timeScale = Number(content["timeScale"]), serverNow = Number(content["serverNow"]);
     if (!Number.isFinite(gameDays) || !Number.isFinite(timeScale) || !Number.isFinite(serverNow)) return;
-    this.clock = { gameDays, timeScale, localAt: Date.now() };
+    // The calendar's start year comes from the server (4E 211, the server's lore) and is 211 from one that sends none
+    this.clock = { gameDays, timeScale, localAt: Date.now(), startYear: startYearOf(content["startYear"]) };
     const kind = Number(content["weather"]);
     this.weatherKind = Number.isInteger(kind) && kind >= 0 && kind <= 3 ? kind : -1;
     this.lastTimeUpd = 0;
@@ -62,7 +60,7 @@ export class TimeService extends ClientListener {
         gameHour.setValue(newGameHourValue);
         gameDay.setValue(date.getUTCDate());
         gameMonth.setValue(date.getUTCMonth());
-        gameYear.setValue(date.getUTCFullYear() - 2020 + 199);
+        gameYear.setValue(DEFAULT_START_YEAR);
       }
       timeScale.setValue(gameHour.getValue() > newGameHourValue ? 0.6 : 1.2);
       return;
@@ -71,9 +69,10 @@ export class TimeService extends ClientListener {
     const daysPassed = g(GAME_DAYS_PASSED);
     const gameDays = this.gameDaysNow();
     const hour = (gameDays - Math.floor(gameDays)) * 24;
-    // Two game minutes of drift snaps; less is left to the matching timescale
-    if (!daysPassed || Math.abs(daysPassed.getValue() - gameDays) * 24 * 60 >= 2) {
-      const cal = calendarOf(gameDays);
+    // Two game minutes of drift snaps; less is left to the matching timescale. A year the engine does not show yet (the
+    // first packet, or a server that moved its start year) snaps too
+    const cal = calendarOf(gameDays, this.clock.startYear);
+    if (!daysPassed || Math.abs(daysPassed.getValue() - gameDays) * 24 * 60 >= 2 || gameYear.getValue() !== cal.year) {
       if (daysPassed) daysPassed.setValue(gameDays);
       gameHour.setValue(hour);
       gameDay.setValue(cal.day);
@@ -112,19 +111,8 @@ export class TimeService extends ClientListener {
   }
 
   private lastTimeUpd = 0;
-  private clock: { gameDays: number; timeScale: number; localAt: number } | null = null;
+  private clock: { gameDays: number; timeScale: number; localAt: number; startYear: number } | null = null;
   private weatherKind = -1;
   private appliedKey = "";
   private appliedWeatherId = 0;
 }
-
-// The date for a GameDaysPassed value, counted from 17 Last Seed 4E 201
-export const calendarOf = (gameDays: number): { year: number; month: number; day: number } => {
-  let year = START.year, month = START.month, day = START.day + Math.floor(gameDays);
-  while (day > MONTH_DAYS[month]) {
-    day -= MONTH_DAYS[month];
-    month++;
-    if (month > 11) { month = 0; year++; }
-  }
-  return { year, month, day };
-};
