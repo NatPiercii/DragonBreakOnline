@@ -16,6 +16,11 @@ For each cell of a multi-room dungeon that has no zone:
                 into the room and at its furniture, 1 per spot, 2 to 4 per room
 Added zones carry "fill": "<reason>" so a rerun after a regeneration replaces them rather than stacking. Reads the
 load order with esplib (sudo: /opt/skyrim-data).
+
+Ambush, on purpose: an "own" fill keeps its placement's ref, so dungeons.js's isAmbusher() gives it whatever its vanilla
+placement had (a linked coffin or pod). A "family" fill has no ref and so always prespawns standing: it stands at a
+load-door arrival or beside the room's furniture, where no coffin or pod waits to hide it, so an ambush has nothing to
+come out of.
 """
 import argparse, collections, json, math, os, re, struct, sys
 
@@ -52,17 +57,18 @@ def main():
     ap.add_argument('--in', dest='src', default=os.path.join(os.path.dirname(__file__), '..', '..', 'dungeons.json'))
     ap.add_argument('--out')
     ap.add_argument('--report', action='store_true')
+    ap.add_argument('--config', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'gamemode-config.json'),
+                    help='gamemode-config.json, for dungeons.exclude (the repo\'s own by default, wherever --in is)')
     a = ap.parse_args()
     data = json.load(open(a.src, encoding='utf-8'))
     D = data['dungeons']
     for d in D:   # a rerun replaces its own zones
         d['zones'] = [z for z in d['zones'] if not z.get('fill')]
     # Dungeons dungeons.js never offers for a claim (its own list plus gamemode-config dungeons.exclude) are not filled
-    cfg_path = os.path.join(os.path.dirname(os.path.abspath(a.src)), 'gamemode-config.json')
     try:
-        excluded = set(json.load(open(cfg_path, encoding='utf-8')).get('dungeons', {}).get('exclude') or [])
-    except (OSError, ValueError):
-        excluded = set()
+        excluded = set(json.load(open(a.config, encoding='utf-8')).get('dungeons', {}).get('exclude') or [])
+    except (OSError, ValueError) as e:
+        sys.exit(f'cannot read dungeons.exclude from {a.config}: {e}')   # never fill a dungeon that cannot be claimed by accident
     excluded.add('CYRLakesideRetreatLocation')
     esplib, plugs = load()
     proper = {pl.key: pl.proper for pl in plugs}
@@ -176,8 +182,10 @@ def main():
         else:
             report.append((d['id'], c['edid'], 'no family to draw from', 0)); continue
         cx = sum(n['pos'][0] for n in npcs) / len(npcs); cy = sum(n['pos'][1] for n in npcs) / len(npcs)
+        cz = sum(n['pos'][2] for n in npcs) / len(npcs)
         radius = max(math.dist(n['pos'][:2], (cx, cy)) for n in npcs)
-        d['zones'].append({'cell': c['desc'], 'pos': [round(cx, 1), round(cy, 1)], 'size': round(radius + 1400), 'fill': why, 'npcs': npcs})
+        # x, y, z like every other zone (dungeons.js places by each npc's own pos, but a reader expects three)
+        d['zones'].append({'cell': c['desc'], 'pos': [round(cx, 1), round(cy, 1), round(cz, 1)], 'size': round(radius + 1400), 'fill': why, 'npcs': npcs})
         added += len(npcs)
         report.append((d['id'], c['edid'], why, len(npcs)))
     for r in report:

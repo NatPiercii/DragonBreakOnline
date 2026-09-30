@@ -21,6 +21,7 @@ check('fill zones exist, each marked with its reason', fills.length > 0 && fills
 check('every fill zone sits in one of its own dungeon\'s cells', fills.every(({ d, z }) => d.cells.some((c) => c.desc.toLowerCase() === z.cell.toLowerCase())));
 check('a family fill copies the dungeon\'s own ordinary placements (edid and options), never a boss', fills.filter(({ z }) => z.fill === 'family').every(({ d, z }) =>
   z.npcs.every((n) => !/boss/i.test(n.edid) && d.zones.some((oz) => !oz.fill && oz.npcs.some((on) => on.edid === n.edid && JSON.stringify(on.options) === JSON.stringify(n.options))))));
+check('every fill zone has an x, y, z pos like every other zone', fills.every(({ z }) => Array.isArray(z.pos) && z.pos.length === 3), fills.map(({ z }) => z.pos).filter((p) => p.length !== 3));
 check('2 to 4 enemies per family-filled room', fills.filter(({ z }) => z.fill === 'family').every(({ z }) => z.npcs.length >= 2 && z.npcs.length <= 4));
 const left = emptyAfter.flatMap((d) => d.cells.filter((c) => !d.zones.some((z) => z.cell.toLowerCase() === c.desc.toLowerCase())).map((c) => c.edid));
 check('the rooms still empty are only templates and orphan cells no door of the dungeon leads into', left.every((e) => /EmptyCell|DUPLICATE|WindhelmPrison01|Hrota|SoulCairn|Irkngthand04/.test(e)), left);
