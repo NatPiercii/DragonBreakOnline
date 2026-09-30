@@ -18,9 +18,11 @@ const profileOf = (id) => ({ [PLAYER]: 30, [OTHER_PLAYER]: 31 })[id] ?? -1;
 const load = (cfg) => new Function('cfg', 'profileOf', src.slice(from, to) + '\nreturn npcPowerHitMult;')(cfg, profileOf);
 
 const real = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
-ok(real.npcPowerHits && real.npcPowerHits.mult === 1, 'gamemode-config ships npcPowerHits.mult 1: nothing changes until Nate sets it', real.npcPowerHits);
-let f = load(real);
+ok(real.npcPowerHits && real.npcPowerHits.mult === 0.5, 'gamemode-config ships npcPowerHits.mult 0.5 (Nate, 2026-09-30): undoes the flat x2 on creature and NPC power hits on players', real.npcPowerHits);
+let f = load({ npcPowerHits: { mult: 1 } });
 ok(f(BOAR, PLAYER, { power: true }, 93.6) === 1, 'at 1, a boar power bite is untouched');
+f = load(real);
+ok(f(BOAR, PLAYER, { power: true }, 93.6) === 0.5, 'as shipped, a boar power bite on a player is halved');
 
 f = load({ npcPowerHits: { mult: 0.5 } });
 ok(f(BOAR, PLAYER, { power: true }, 93.6) === 0.5, "at 0.5, a boar's power bite on a player loses the flat x2 (93.6 -> 46.8)");

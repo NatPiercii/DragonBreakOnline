@@ -198,7 +198,7 @@
  },
  "npcPowerHits": {
   "_comment": "How hard a creature's or NPC's power attack lands on a player (gamemode.js npcPowerHitMult). The server's damage formula doubles every power attack flat, on top of the NPC-on-player x2 in server-settings, ignoring the attack's own multiplier (1.0 for most creature power attacks), so a boar bit a new character for half their health (Purr, 30 Sep). 0.5 undoes that flat x2; 1 changes nothing. Players' own power attacks and hits on NPCs are never touched. Hot reload.",
-  "mult": 1
+  "mult": 0.5
  },
  "pvp": {
   "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
