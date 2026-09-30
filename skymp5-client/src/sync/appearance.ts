@@ -10,6 +10,7 @@ import {
   VoiceType,
   once,
   Utility,
+  ObjectReference,
 } from "skyrimPlatform";
 
 export interface Tint {
@@ -117,8 +118,25 @@ export const applyTints = (actor: Actor | null, appearance: Appearance): void =>
 
   const playerBaseId = ((Game.getPlayer() as Actor).getBaseObject() as ActorBase).getFormID();
 
+  // After this the copy's base carries the player's base id. SkyrimPlatform packs a form into a Papyrus handle from its
+  // formID and resolves the handle by id on every call, so any later call on this base, through getBaseObject() or
+  // Game.getFormEx of its own id alike, reaches the LOCAL PLAYER's base. Use baseIsPlayers before writing to one.
   if (actor)
     TESModPlatform.setFormIdUnsafe(actor.getBaseObject(), playerBaseId);
+};
+
+// True for a reference other than the player whose base resolves to the player's own (a copy after applyTints): a
+// write through its base would land on the player (a crash log of 2026-09-30 named Flo'Riahn's character after the
+// werewolf "Dar Ra'jhir", renamed through formView's name-only update)
+export const baseIsPlayers = (refr: ObjectReference | null | undefined): boolean => {
+  try {
+    if (!refr || refr.getFormID() === 0x14) return false;
+    const playerBase = (Game.getPlayer() as Actor | null)?.getBaseObject();
+    const base = refr.getBaseObject();
+    return !!base && !!playerBase && base.getFormID() === playerBase.getFormID();
+  } catch {
+    return false;
+  }
 };
 
 export const silentVoiceTypeId = 0x0002f7c3;
