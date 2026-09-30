@@ -1224,7 +1224,9 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       const a = actorOf(userId); if (!a || !isAdmin(a)) return;
       const shown = (k) => (k === 'item' && adminItemName(content.item) ? `${adminItemName(content.item)} (${content.item})` : content[k]);
       const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier'].filter(k => content[k] !== undefined).map(k => `${k}=${shown(k)}`).join(' ');
-      audit(`GM ${who(a)} admin panel: ${content.action} ${extra}`.trim());
+      // A staff grant of dragon bone or scales is allowed, and named as one (dragon-materials.json)
+      const dragon = content.item && isDragonMaterialDesc(String(content.item)) ? ' DRAGON MATERIAL (staff grant)' : '';
+      audit(`GM ${who(a)} admin panel: ${content.action} ${extra}${dragon}`.trim());
     }
   } catch (e) { log('customPacket error', e.message); }
 };
@@ -3432,7 +3434,9 @@ const consoleForm = (id) => {
   if (!desc) return `form ${(Number(id) >>> 0).toString(16)}`;
   const r = recordOf(Number(id) >>> 0);
   const name = adminItemName(desc) || (r && r.record && r.record.editorId) || '';
-  return name ? `${name} (${desc})` : desc;
+  // A staff grant of dragon bone or scales is allowed, and named as one (dragon-materials.json)
+  const dragon = isDragonMaterialDesc(desc) ? ' DRAGON MATERIAL (staff grant)' : '';
+  return (name ? `${name} (${desc})` : desc) + dragon;
 };
 const consoleRef = (id) => {
   const ref = Number(id) >>> 0;
@@ -3493,10 +3497,37 @@ try {
   delete require.cache[ITEMGUARDS_JS];
   require(ITEMGUARDS_JS)({ mp, log, who, recordOf, cfg });
 } catch (e) { log('itemguards.js failed to load:', e.stack || e.message); }
+// ---- dragon bone and scales come only from a slain dragon (dragon-materials.json; Nate, 2026-09-30) ----------------
+// The dragon's own body is the source (the server adds its death item when it dies). A container whose record the
+// plugins fill with them (sourceContainers) never gives them up, or it would be a second source that refills on every
+// reloot. Staff grants stay allowed and are marked in the audit log. Loot pools, salvage and crafting are closed in
+// dungeons.js, wildlife.js, salvage.js and regions.js.
+const DRAGON = (() => {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.resolve('dragon-materials.json'), 'utf8'));
+    return { materials: new Set((j.materials || []).map(normPlace)), containers: new Set((j.sourceContainers || []).map(normPlace)) };
+  } catch (e) { log('dragon-materials.json unreadable', e.message); return { materials: new Set(['3ada4:skyrim.esm', '3ada3:skyrim.esm']), containers: new Set() }; }
+})();
+const isDragonMaterialDesc = (desc) => DRAGON.materials.has(normPlace(desc));
+const isDragonMaterial = (baseId) => { let d = ''; try { d = String(mp.getDescFromId(Number(baseId) >>> 0) || ''); } catch (e) { /* not a form */ } return !!d && isDragonMaterialDesc(d); };
+const dragonTakeToldAt = new Map();
+const dragonTakeRefused = (sourceId, actorId, baseId) => {
+  if (!isDragonMaterial(baseId)) return false;
+  let base = ''; try { base = String(mp.get(sourceId, 'baseDesc') || ''); } catch (e) { return false; }
+  if (!DRAGON.containers.has(normPlace(base))) return false;
+  if (Date.now() - (dragonTakeToldAt.get(actorId) || 0) > 3000) {
+    dragonTakeToldAt.set(actorId, Date.now());
+    personal(actorId, 'Dragon bone and scale come only from a slain dragon.');
+    audit(`DRAGON MATERIAL take refused ${who(actorId)} from ${sourceId.toString(16)} (${base})`);
+  }
+  return true;
+};
+globalThis.__dboDragonMaterial = isDragonMaterial;
 if (typeof globalThis.__dboPrevTake === 'undefined') globalThis.__dboPrevTake = typeof mp.onTakeItem === 'function' && !mp.onTakeItem.__dbo ? mp.onTakeItem : null;
 const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
   // server\itemguards.js: a count below 1 or a record that is not an item never moves (audit B2)
   try { if (typeof globalThis.__dboTakeGuard === 'function' && globalThis.__dboTakeGuard(sourceId, actorId, baseId, count) === false) return false; } catch (e) { log('take guard failed', e.message); }
+  try { if (dragonTakeRefused(Number(sourceId) >>> 0, Number(actorId) >>> 0, Number(baseId) >>> 0)) return false; } catch (e) { log('dragon take check failed', e.message); }
   const prev = globalThis.__dboPrevTake;
   let verdict;
   if (prev) { try { verdict = prev(sourceId, actorId, baseId, count, ...rest); } catch (e) { log('take chain failed', e.message); } }
