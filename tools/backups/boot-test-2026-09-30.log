@@ -1,0 +1,48 @@
+boot test 20260930T021508Z: backup world-20260930T020023Z.tar.gz, sandbox /tmp/claude-nate-boot-20260930T021508Z-kb96mcn2, live players 0
+restored: 3100 live change forms (37 player characters, 582 deleted) in the sandbox world
+  PASS  the world loads from the restored records: loaded 3100 change forms, 37 player characters; the backup holds 3100 and 37
+  PASS  the gamemode loads: [gamemode] loaded: 14 commands, 0 admin profile id(s), tier roles senior 1 / developer 1 / gm 1
+  PASS  it runs from the sandbox, not /opt: /tmp/claude-nate-boot-20260930T021508Z-kb96mcn2/server/dbo-gamemode.js
+  PASS  it is still running when the timer stops it: exit 124 after 120 s
+  PASS  no crash lines: none
+  world file: world; ran 120 s; log 884 lines
+  --- boot log excerpt ---
+  [2026-09-30 02:15:17.195] [console] [info] Initialized MetricsSystem
+  [2026-09-30 02:15:17.196] [console] [info] Initialized MasterClient
+  [2026-09-30 02:15:17.196] [console] [info] Initialized Spawn
+  [2026-09-30 02:15:17.196] [console] [info] Initialized Login
+  [2026-09-30 02:15:17.196] [console] [info] Initialized AdminSystem
+  [2026-09-30 02:15:17.197] [console] [info] Initialized CaptureSystem
+  [2026-09-30 02:15:17.197] [console] [info] Initialized HousingSystem
+  [2026-09-30 02:15:17.197] [console] [info] Initialized TradeSystem
+  [2026-09-30 02:15:17.198] [console] [info] Initialized CraftedExtrasSystem
+  [2026-09-30 02:15:17.198] [console] [info] Initialized SearchSystem
+  [2026-09-30 02:15:17.198] [console] [info] Initialized SoulTrapSystem
+  [2026-09-30 02:15:17.198] [console] [info] Initialized VoiceSystem
+  [2026-09-30 02:15:17.198] [console] [info] Initialized AfkSystem
+  [2026-09-30 02:15:18.868] [console] [info] Server resources folder is listening on 17778
+  [2026-09-30 02:15:19.881] [console] [info] Initialized MasterySystem
+  [2026-09-30 02:15:19.881] [console] [info] Initialized GatheringSystem
+  [2026-09-30 02:15:19.882] [console] [info] Initialized BountyBoardSystem
+  [2026-09-30 02:15:19.882] [console] [info] Initialized UntouchableSystem
+  [2026-09-30 02:15:19.971] [console] [info] NpcSpawnSystem: 3151/3151 zone(s) loaded from ./NPC-Spawns.json (boot), carried 0 zone(s)
+  [2026-09-30 02:15:19.972] [console] [info] Initialized NpcSpawnSystem
+  [2026-09-30 02:15:20.010] [console] [info] Initialized CompanionSystem
+  [2026-09-30 02:15:20.011] [console] [info] Initialized ConjurationSystem
+  [2026-09-30 02:15:20.011] [console] [info] Initialized VitalsRelaySystem
+  [2026-09-30 02:15:20.011] [console] [info] Initialized DiscordBanSystem
+  [2026-09-30 02:15:20.011] [console] [info] Initialized MasterApiBalanceSystem
+  [2026-09-30 02:15:20.012] [console] [info] Initialized NameTable
+  [2026-09-30 02:15:20.012] [console] [info] Using file with name 'world'
+  [2026-09-30 02:15:20.012] [info] AttachSaveStorage - db fixes installed
+  [2026-09-30 02:15:26.581] [console] [info] AttachSaveStorage took 6 seconds and 569 milliseconds, loaded 3100 ChangeForms (Including 37 player characters)
+  [2026-09-30 02:15:27.103] [console] [info] Gamemode path is "/tmp/claude-nate-boot-20260930T021508Z-kb96mcn2/server/dbo-gamemode.js"
+  [2026-09-30 02:15:27.112] [console] [info] [gamemode] discord audit log: not configured (gamemode-config.json discord.webhookUrl, or discordAuth in server-settings.json)
+  [2026-09-30 02:15:27.113] [console] [info] [gamemode] loaded: 14 commands, 0 admin profile id(s), tier roles senior 1 / developer 1 / gm 1
+  [2026-09-30 02:15:29.882] [console] [info] [gamemode] wildlife on: 3184 placements -> 3151 zones (33 skipped, no navmesh), 13 giant camp chests, radius 3000, despawn 240s, respawn 1800s, 0 of 3184 lose their template's f
+  [2026-09-30 02:15:29.962] [console] [info] [gamemode] discord roles off (config)
+  [2026-09-30 02:15:30.464] [console] [error] resolved context with 1 entries (reason=exception):
+  [2026-09-30 02:15:30.464] [console] [error] resolved context with 1 entries (reason=exception):
+  [2026-09-30 02:15:30.464] [console] [error] resolved context with 1 entries (reason=exception):
+sandbox removed: /tmp/claude-nate-boot-20260930T021508Z-kb96mcn2
+boot test PASSED

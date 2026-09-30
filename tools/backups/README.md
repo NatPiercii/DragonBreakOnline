@@ -56,6 +56,8 @@ suffix.
 | `systemd/dbo-world-backup.{service,timer}` | Hourly snapshot to `/opt/skymp-backups/world`, niced, idle IO |
 | `systemd/dbo-disk-check.{service,timer}` | Every 15 min. Warns at 90%, critical at 95%, to the journal (`dbo-disk`), and fails the unit so it shows in `systemctl --failed` |
 | `restore-test-2026-09-29.log` | The sandbox restore test (below) |
+| `boot_test.py` | Boots the real server bundle and gamemode from a restored world in an isolated sandbox (below). Run with sudo |
+| `boot-test-2026-09-30.log` | Its first run |
 
 ## Install (after review, under a ledger claim)
 
@@ -82,8 +84,45 @@ From `restore-test-2026-09-29.log`:
 - Restoring into an empty sandbox gave 3,584 records, all byte-identical to live at the moment of the check, with 42
   player characters among them.
 
-**Not yet proven:** a server actually booting from a restored world. That needs a sandbox server. The load-test
-sandbox on Nat's PC can do it (`node loadtest.js sandbox init` from a restored folder). Do it once before alpha.
+A server booting from a restored world is proven by the boot test below (30 Sep).
+
+## Boot test (30 Sep, on CT 115, sandbox only)
+
+`sudo python3 tools/backups/boot_test.py [--backup <world-*.tar.gz>] [--seconds 120] [--max-players 2] [--keep]`
+
+It restores the newest snapshot (or the one given) with `dbo_backup.py restore` into `/tmp/claude-nate-boot-<stamp>-*/`
+and copies the server dist beside it. Then it boots the real bundle and gamemode on the restored world for two minutes,
+judges the log and removes the sandbox. What keeps it off the live server:
+- **Files.** `/opt` is only read. The dist's three symlinks into `/opt/skymp-state` (world, companions.json,
+  zone-spawns.json) are replaced with the restored copies, and its gameplay JSON with the backup's. `server-settings*`
+  is never copied: the sandbox's own is built in memory from the live one without `master`, `masterKey`, the API
+  token, `discordAuth`, `voiceChat` or `metricsAuth`, with `offlineMode` on, port 17777 bound to 127.0.0.1, and any
+  leftover URL- or token-like string refused. The gamemode-config turns off Discord, roles, tickets and the updater,
+  and points debugsnap and monitor into the sandbox.
+- **Rights.** node runs as `nate`, so nothing root-owned (`/opt`, `/var/lib/dbo-monitor`, `/var/log`) can be written.
+- **Network.** It runs in a private network namespace with only its own loopback: no DNS, no route out, and no reach
+  to the live backend on 127.0.0.1:4000 either. Discord, the master server and LiveKit are unreachable whatever the
+  code tries.
+- **Load.** A transient systemd scope caps it at 50% of one CPU, 3 GB and IOWeight 10, at nice 19 and idle I/O.
+- **Players.** It refuses to start with more than `--max-players` online (the local backend's `/api/servers`), and
+  stops the sandbox if more come online while it runs (checked every 20 s).
+- **Stop.** `timeout` sends SIGINT at `--seconds`, then SIGKILL 15 s later. Only its own scope is ever stopped.
+
+It passes when all five checks hold:
+1. the log's `AttachSaveStorage ... loaded N ChangeForms (Including M player characters)` equals the restored records'
+   own count of live (not `isDeleted`) forms and player characters;
+2. `[gamemode] loaded:` appears;
+3. the gamemode path is inside the sandbox;
+4. the process was still running when the timer stopped it;
+5. there are no crash lines.
+
+The `[error] resolved context with 1 entries (reason=exception)` lines about a `baseDesc`/`profileId` on 0xff000500 are
+not a boot problem: the live log carries 14,000 of them.
+
+First run (`boot-test-2026-09-30.log`): backup world-20260930T020023Z, 3,100 live change forms and 37 player
+characters restored and loaded, the gamemode up from the sandbox, still running after 121 s. The kept dry run was
+checked by hand: the 6 live credentials are nowhere in the sandbox, no network error lines (nothing got far enough to
+try), and nothing was written as nate outside it.
 
 ## Restoring live (manual, never scripted)
 
