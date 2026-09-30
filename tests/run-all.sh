@@ -68,8 +68,9 @@ bundle() {
   # node_modules of its own, so React comes from the main clone (beside this repo, or ~/dragonbreak/fork) when $FORK has none.
   if [ "$side" = front ]; then
     local out="$OUT/front-$(basename "$(dirname "$entry")").js" wrap="$OUT/front-$(basename "$(dirname "$entry")")-entry.tsx"
-    # A widget this front does not have yet: the harness gets a path that does not exist and says it skipped
-    [ -f "$root/$entry" ] || { echo "$out"; return 0; }
+    # A widget this front does not have yet: the harness gets an empty bundle, finds none of its widget's classes in it
+    # and says it skipped (each front harness looks for its own before it requires the bundle)
+    [ -f "$root/$entry" ] || { : > "$out"; echo "$out"; return 0; }
     local mods="$root/skymp5-front/node_modules"
     [ -d "$mods" ] || mods="$(cd .. && pwd)/fork/skymp5-front/node_modules"
     [ -d "$mods" ] || mods="$HOME/dragonbreak/fork/skymp5-front/node_modules"

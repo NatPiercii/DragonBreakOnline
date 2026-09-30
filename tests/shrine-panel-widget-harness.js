@@ -13,7 +13,7 @@ const path = require('path');
 
 const bundle = process.argv[2];
 if (!bundle) { console.log('usage: node tests/shrine-panel-widget-harness.js <bundle>'); process.exit(2); }
-if (!fs.existsSync(bundle)) { console.log('ok   skipped: this front has no shrine panel'); process.exit(0); }
+if (!fs.existsSync(bundle) || !/shrine__/.test(fs.readFileSync(bundle, 'utf8'))) { console.log('ok   skipped: this front has no shrine panel'); process.exit(0); }
 const { Widget, renderToStaticMarkup, createElement } = require(path.resolve(bundle));
 
 let fail = 0;
@@ -90,6 +90,11 @@ check('an answer from the server shows under the choice', /Arkay has no ear.*Lea
 check('a success shows as one', /shrine__result--ok/.test(html(Object.assign({}, neither, { result: 'The black soul gem drinks the curse from you. You are mortal again.', resultKind: 'ok' }))));
 check('a panel missing a choice still draws', /Shrine of Molag Bal/.test(text(html(Object.assign({}, both, { pray: undefined, rite: undefined })))));
 check('the widget id is a number', both.id === 74 && typeof both.id === 'number', both.id);
+// The confirm view's hold must outlast the server's guard after the choice, or a Kneel the front lets through is one the
+// server ignores, and the panel sits held until Escape (Worker D's review)
+const hold = Number((fs.readFileSync(path.resolve(bundle), 'utf8').match(/CONFIRM_HOLD_MS = (\d+)/) || [])[1]);
+const guard = Number((fs.readFileSync(path.join(SERVER, 'supernatural.js'), 'utf8').match(/CHOOSE_GUARD_MS = (\d+)/) || [])[1]);
+check(`the confirm view is held longer (${hold} ms) than the server ignores a confirm (${guard} ms)`, hold > guard + 100, { hold, guard });
 // The server opens the panel only for a front that says it draws it
 const hud = path.join(process.env.FORK || path.resolve(SERVER, '..', 'fork'), 'skymp5-front/src/features/hud/index.tsx');
 const caps = (fs.existsSync(hud) ? fs.readFileSync(hud, 'utf8') : '').match(/const UI_CAPS = \[([^\]]*)\]/);
