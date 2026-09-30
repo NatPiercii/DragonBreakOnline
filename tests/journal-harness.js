@@ -35,7 +35,7 @@ let online = [P, BEAST, NOCAP];
 let factionSeq = 0;
 globalThis.__dboJournalDoc = { of: (a) => { if (!docs.has(a)) docs.set(a, {}); return docs.get(a); }, touch: (a) => touched.push(a) };
 globalThis.__dboStatsData = (a) => ({ since: Date.UTC(2026, 9, 1), created: Date.UTC(2026, 9, 1, 6), joined: Date.UTC(2026, 8, 20), playMs: 31 * 3600000 + 12 * 60000,
-  sessions: 4, longestMs: 3 * 3600000, averageMs: 7.8 * 3600000, distanceUnits: 70 * 12345, enemiesKilled: 17, playerKills: 1, killedByPlayers: 2, downs: 3,
+  sessions: 12, longestMs: 5 * 3600000, averageMs: 2.6 * 3600000, distanceUnits: 70 * 12345, enemiesKilled: 17, playerKills: 1, killedByPlayers: 2, downs: 3,
   playersDowned: 1, timesRobbed: 0, peopleRobbed: 1, pickpockets: 2, timesPickpocketed: 0, jailMs: 30 * 60000, trades: 5, dungeonsCleared: 2, spellsLearned: 6 });
 let lastFactionKeep = null;
 globalThis.__dboFactionPayload = (a, keep) => { lastFactionKeep = keep; return { type: 'faction', id: 37, nonce: keep ? 'f-kept' : `f-${++factionSeq}`, factions: [] }; };
@@ -91,6 +91,9 @@ check('...the title, its epithet and the choices', p.title === 'Adept Battlemage
 check('supernatural: null for a mortal (no tab)', w.supernatural === null);
 check('stats: groups of label and value strings', w.stats.groups.length === 5 && w.stats.groups.every((g) => g.rows.every((r) => typeof r.label === 'string' && typeof r.value === 'string')), w.stats.groups.map((g) => g.name));
 const row = (g, l) => w.stats.groups.find((x) => x.name === g).rows.find((r) => r.label === l).value;
+check('the fake numbers are a real character\'s: the average session is not longer than the longest', row('Time & Travel', 'Average session') === '2 h 36 min' && row('Time & Travel', 'Longest session') === '5 h 0 min');
+check('...and journalstats.js averages the counted sessions (sessionMs), not all play time', /averageMs: sessions \? \(s\.sessionMs \+ openMs\) \/ sessions : 0/.test(fs.readFileSync('journalstats.js', 'utf8'))
+  && /s\.sessionMs \+= len; if \(len > s\.longestSessionMs\) s\.longestSessionMs = len;/.test(fs.readFileSync('journalstats.js', 'utf8')));
 check('...formatted: playtime, distance in km and mi, counts', row('Time & Travel', 'Total playtime') === '31 h 12 min' && row('Time & Travel', 'Distance travelled') === '12.3 km (7.7 mi)'
   && row('Combat', 'Enemies killed') === '17' && row('Crime & Law', 'Jail time served') === '0 h 30 min' && row('Activities', 'Spells learned') === '6');
 globalThis.__dboJournalRequest(BEAST);
