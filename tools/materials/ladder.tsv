@@ -1,0 +1,108 @@
+# The approved Blacksmith ladder, 2026-09-30. Nate took every default in BLACKSMITH_TIERS_PROPOSAL.md EXCEPT choice 3:
+# Dragonscale beats Ebony outright at 44/17/17/22/33, as the interim armorMaterials override counts it today.
+#
+# ONE SOURCE, TWO READERS: DBO_BlacksmithTiers.pas (xEdit, on Nat's PC) sets these values; verify_ladder.py checks a
+# re-run of material_census.py changed nothing else. Edit this file, never one of the two.
+#
+# Only materials whose values CHANGE are listed. A material already at its ladder value is left alone on purpose:
+# touching it would flatten third-party sets that deliberately differ, and would fight the chainmail rule below
+# (Beyond Skyrim's chainmail carries ArmorMaterialIron / ArmorMaterialSteel, so "all iron = 25" would undo it).
+#
+# kind   selector                              how          slot/type    value
+# ---- armor: heavy ------------------------------------------------------------------------------------------------
+armor	DLC2ArmorMaterialNordicHeavy	keyword	body	41
+armor	DLC2ArmorMaterialNordicHeavy	keyword	shield	28
+armor	DLC2ArmorMaterialStalhrimHeavy	keyword	body	44
+armor	DLC2ArmorMaterialStalhrimHeavy	keyword	hands	16
+armor	DLC2ArmorMaterialStalhrimHeavy	keyword	feet	16
+armor	DLC2ArmorMaterialStalhrimHeavy	keyword	head	21
+# Saints & Seducers Madness (52 heavy today, above Daedric) follows Daedric - choice 9
+armor	ccBGSSSE025_ArmorMaterialMadness	keyword	body	49
+armor	ccBGSSSE025_ArmorMaterialMadness	keyword	hands	18
+armor	ccBGSSSE025_ArmorMaterialMadness	keyword	feet	18
+armor	ccBGSSSE025_ArmorMaterialMadness	keyword	head	23
+armor	ccBGSSSE025_ArmorMaterialMadness	keyword	shield	36
+# Immersive Armors Daedric variants reach 50 today; follow Daedric - choice 9
+armor	IAKMaterialDaedric	keyword	body	49
+armor	IAKMaterialDaedric	keyword	hands	18
+armor	IAKMaterialDaedric	keyword	feet	18
+# (no IAKMaterialDaedric head rule: Immersive Armors' Daedric set has no head piece carrying that keyword,
+#  so a rule for it would match nothing and verify_ladder.py would report it MISSING for ever.)
+armor	IAKMaterialDaedric	keyword	shield	36
+# ---- armor: light -----------------------------------------------------------------------------------------------
+# CHOICE 3, Nate's pick: Dragonscale beats Ebony (43/16/16/21/32) on every piece
+armor	ArmorMaterialDragonscale	keyword	body	44
+armor	ArmorMaterialDragonscale	keyword	hands	17
+armor	ArmorMaterialDragonscale	keyword	feet	17
+armor	ArmorMaterialDragonscale	keyword	head	22
+armor	ArmorMaterialDragonscale	keyword	shield	33
+# Immersive Armors' dragonscale follows it
+armor	IAKMaterialDragonScale	keyword	body	44
+armor	IAKMaterialDragonScale	keyword	hands	17
+armor	IAKMaterialDragonScale	keyword	feet	17
+armor	IAKMaterialDragonScale	keyword	head	22
+armor	IAKMaterialDragonScale	keyword	shield	33
+armor	ArmorMaterialMithril	keyword	body	28
+armor	ArmorMaterialMithril	keyword	shield	21
+# Saints & Seducers Amber (43 light today, above Dragonscale) follows Glass - choice 9
+armor	ccBGSSSE025_ArmorMaterialAmber	keyword	body	38
+armor	ccBGSSSE025_ArmorMaterialAmber	keyword	hands	11
+armor	ccBGSSSE025_ArmorMaterialAmber	keyword	feet	11
+armor	ccBGSSSE025_ArmorMaterialAmber	keyword	head	16
+armor	ccBGSSSE025_ArmorMaterialAmber	keyword	shield	27
+# Nate, 2026-09-30: "make the imperial shields all 19". 14 shield records carry this keyword, 13 are already 19 and
+# exactly one is 25 - ArmorImperialLightShield from DIS_Heavy_Legion.esp - so this rule brings that one down and
+# leaves the other 13 untouched. It was the shield the proposal raised as its item 6: at 25 it sat above Elven's 21
+# and near Glass's 27. Its origin is third-party, so the override goes into DragonBreak Nexus Patches.
+armor	ArmorMaterialImperialLight	keyword	shield	19
+# Beyond Skyrim chainmail has NO material keyword of its own - by editor id instead. See the README.
+armor	CYR*Chainmail*	edid	body	27
+armor	CYR*Chainmail*	edid	hands	7
+armor	CYR*Chainmail*	edid	feet	7
+armor	CYR*Chainmail*	edid	head	12
+# ---- weapons ----------------------------------------------------------------------------------------------------
+# Silver one above Steel - choice 8
+weapon	WeapMaterialSilver	keyword	sword	9
+weapon	WeapMaterialSilver	keyword	dagger	6
+weapon	WeapMaterialSilver	keyword	waraxe	10
+weapon	WeapMaterialSilver	keyword	mace	11
+weapon	WeapMaterialSilver	keyword	greatsword	18
+weapon	WeapMaterialSilver	keyword	battleaxe	19
+weapon	WeapMaterialSilver	keyword	warhammer	21
+# Elven down one, Orcish up two, so the Smithing tree's order holds - choice 5
+weapon	WeapMaterialElven	keyword	sword	10
+weapon	WeapMaterialElven	keyword	dagger	7
+weapon	WeapMaterialElven	keyword	waraxe	11
+weapon	WeapMaterialElven	keyword	mace	12
+weapon	WeapMaterialElven	keyword	greatsword	19
+weapon	WeapMaterialElven	keyword	battleaxe	20
+weapon	WeapMaterialElven	keyword	warhammer	22
+weapon	WeapMaterialElven	keyword	bow	12
+weapon	WeapMaterialOrcish	keyword	sword	11
+weapon	WeapMaterialOrcish	keyword	dagger	8
+weapon	WeapMaterialOrcish	keyword	waraxe	12
+weapon	WeapMaterialOrcish	keyword	mace	13
+weapon	WeapMaterialOrcish	keyword	greatsword	20
+weapon	WeapMaterialOrcish	keyword	battleaxe	21
+weapon	WeapMaterialOrcish	keyword	warhammer	23
+weapon	WeapMaterialOrcish	keyword	bow	13
+# Stalhrim's war axe and mace come down so Daedric stays strictly above - choice 6
+weapon	DLC2WeaponMaterialStalhrim	keyword	waraxe	14
+weapon	DLC2WeaponMaterialStalhrim	keyword	mace	15
+# Saints & Seducers weapons follow their armor's material - choice 9
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	sword	14
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	dagger	11
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	waraxe	15
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	mace	16
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	greatsword	24
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	battleaxe	25
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	warhammer	27
+weapon	ccBGSSSE025_WeapMaterialMadness	keyword	bow	19
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	sword	12
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	dagger	9
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	waraxe	13
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	mace	14
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	greatsword	21
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	battleaxe	22
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	warhammer	24
+weapon	ccBGSSSE025_WeapMaterialAmber	keyword	bow	15
