@@ -62,12 +62,105 @@ const load = (cfg) => {
   void orig;
 }
 
+// ---- the chest hold ------------------------------------------------------------------------------------------------
+{
+  const CHEST = 0x0001a2b3, BARREL_ACTI = 0x0001a2b4, PLAYER = 0xff000201, OLD = 0xff000202;
+  const state = { pos: [100, 200, 0], cell: '3c:Skyrim.esm', online: [PLAYER, OLD], open: false, throwActivate: false };
+  const calls = [];
+  const timers = [];
+  const realSetTimeout = global.setTimeout;
+  global.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return 0; };
+  const runTimers = () => { while (timers.length) timers.shift().fn(); };
+  const mp = {
+    get: (id, k) => {
+      if (id === 0 && k === 'onlinePlayers') return state.online;
+      if (k === 'baseDesc') return id === CHEST ? '1000:Skyrim.esm' : id === BARREL_ACTI ? '2000:Skyrim.esm' : undefined;
+      if (k === 'isOpen') return state.open;
+      if (k === 'locationalData') return { cellOrWorldDesc: state.cell, pos: state.pos.slice(), rot: [0, 0, 0] };
+      return undefined;
+    },
+    getIdFromDesc: (d) => (d === '1000:Skyrim.esm' ? 0x1000 : d === '2000:Skyrim.esm' ? 0x2000 : 0),
+    lookupEspmRecordById: (id) => ({ record: { type: id === 0x1000 ? 'CONT' : 'ACTI' } }),
+    getDescFromId: (id) => id.toString(16),
+    callPapyrusFunction: (...args) => { if (state.throwActivate) throw new Error('refused'); calls.push(args); },
+  };
+  const caps = new Map([[PLAYER, new Set(['dboIdle'])], [OLD, new Set(['playerMenu'])]]);
+  const hasCap = (a, c) => { const s2 = caps.get(a); return !!s2 && s2.has(c); };
+  const mk = (cfg) => {
+    delete globalThis.__dboChestHold; delete globalThis.__dboChestPasses; delete globalThis.__dboChestHolding; delete globalThis.__dboInteractionIdleAt;
+    const sent = [], logs = [];
+    require(path.join(ROOT, 'idles.js'))({ mp, log: (...x) => logs.push(x.join(' ')), sendPacket: (a2, p2) => sent.push([a2, p2]), cfg, hasCap });
+    return { hold: globalThis.__dboChestHold, sent, logs };
+  };
+  {
+    const { hold } = mk({});
+    check('chest hold: off by default, the chest opens at once', hold(CHEST, PLAYER) === false && timers.length === 0);
+  }
+  const on = { interactionIdles: { chestHold: { enabled: true } } };
+  {
+    const { hold, sent } = mk(on);
+    check('chest hold: an older client (no dboIdle cap) opens at once', hold(CHEST, OLD) === false && sent.length === 0);
+    check('chest hold: not a container (an activator) passes through', hold(BARREL_ACTI, PLAYER) === false && sent.length === 0);
+    state.open = true;
+    check('chest hold: a chest someone has open passes through (the server answers as before)', hold(CHEST, PLAYER) === false);
+    state.open = false;
+    check('chest hold: a plain chest is held: the activation is denied and the crouch sent', hold(CHEST, PLAYER) === true && sent.length === 1
+      && sent[0][1].customPacketType === 'dboIdle' && sent[0][1].anim === 'IdleWarmHandsCrouched', sent);
+    check('...after about a second', timers.length === 1 && timers[0].ms === 1000, timers.map((t) => t.ms));
+    check('...a second E while crouching is swallowed, with no second crouch or open', hold(CHEST, PLAYER) === true && sent.length === 1 && timers.length === 1);
+    runTimers();
+    check('...then the server activates the chest for the player (Papyrus ObjectReference.Activate)', calls.length === 1 && calls[0][0] === 'method' && calls[0][1] === 'ObjectReference'
+      && calls[0][2] === 'Activate' && calls[0][3].desc === CHEST.toString(16) && calls[0][4][0].desc === PLAYER.toString(16) && calls[0][4][1] === false, calls);
+    check('...and that re-entry of the chain is let through once', hold(CHEST, PLAYER) === false);
+    check('...only once: the next E is held again', hold(CHEST, PLAYER) === true && sent.length === 2);
+    runTimers(); hold(CHEST, PLAYER);
+  }
+  {
+    const { hold } = mk(on);
+    calls.length = 0;
+    hold(CHEST, PLAYER);
+    state.pos = [400, 200, 0];
+    runTimers();
+    check('chest hold: a player who walked 300 units away gets nothing', calls.length === 0);
+    state.pos = [100, 200, 0];
+    hold(CHEST, PLAYER); state.cell = '1234:Skyrim.esm'; runTimers();
+    check('...nor one who changed cell', calls.length === 0);
+    state.cell = '3c:Skyrim.esm';
+    hold(CHEST, PLAYER); state.online = [OLD]; runTimers();
+    check('...nor one who left', calls.length === 0);
+    state.online = [PLAYER, OLD];
+    check('...and with no pass left behind, the next E is held afresh', hold(CHEST, PLAYER) === true);
+    runTimers(); hold(CHEST, PLAYER);
+  }
+  {
+    const { hold, logs } = mk(on);
+    calls.length = 0;
+    hold(CHEST, PLAYER);
+    state.throwActivate = true; runTimers(); state.throwActivate = false;
+    check('chest hold: a refused Activate (out of reach) is logged and leaves no pass', logs.some((l) => /chest hold: opening 1a2b3/.test(l)) && hold(CHEST, PLAYER) === true, logs);
+    runTimers(); hold(CHEST, PLAYER);
+  }
+  {
+    const { hold } = mk(on);
+    hold(CHEST, PLAYER); runTimers();
+    now += 5000;
+    check('chest hold: an unused pass expires (3 s): a later E is held afresh', hold(CHEST, PLAYER) === true);
+    runTimers();
+  }
+  global.setTimeout = realSetTimeout;
+}
+
 // ---- the hooks ----------------------------------------------------------------------------------------------------
 const gm = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');
 const pm = fs.readFileSync(path.join(ROOT, 'playermenu.js'), 'utf8');
 const boardHook = gm.slice(gm.indexOf('globalThis.__dboBoardOpened = '), gm.indexOf('};', gm.indexOf('globalThis.__dboBoardOpened = ')) + 2);
 check('gamemode.js: a board opening still sends the mail state, then the board idle', /sendMailState\(/.test(boardHook) && /__dboInteractionIdle\(Number\(actorId\) >>> 0, 'board'\)/.test(boardHook), boardHook);
-check('gamemode.js loads idles.js with sendPacket and cfg', /require\(IDLES_JS\)\(\{ log, sendPacket, cfg \}\)/.test(gm));
+check('gamemode.js loads idles.js with mp, sendPacket, cfg and the ui caps', /require\(IDLES_JS\)\(\{ mp, log, sendPacket, cfg, hasCap: /.test(gm));
+const chain = gm.slice(gm.indexOf('mp.onActivate = (targetId, casterId) => {'), gm.indexOf('const prev = globalThis.__dboPrevActivate;'));
+const holdAt = chain.indexOf('__dboChestHold(');
+check('gamemode.js: the chest hold is the last gate before the doors and the previous handler', holdAt > 0
+  && ['__dboDungeonActivate(', '__dboCampChest(', 'treasuryRefused(', '__dboRaidActivate(', 'blockPlacedPickup('].every((g) => chain.indexOf(g) > 0 && chain.indexOf(g) < holdAt)
+  && chain.indexOf('gateOf(') > holdAt, holdAt);
 const intro = pm.slice(pm.indexOf('const introduce = (a, t) => {'), pm.indexOf('};', pm.indexOf('const introduce = (a, t) => {')));
 const idleAt = intro.indexOf("'introduce')");
 check('playermenu.js: the salute follows a successful introduction only', idleAt > intro.indexOf('You introduced yourself') && idleAt > intro.lastIndexOf('return personal'), intro);

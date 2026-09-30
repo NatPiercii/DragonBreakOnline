@@ -13,7 +13,7 @@
 // struggle.js __dboOnRestrained (a guard's cuffs go on), and globalThis.__dboInteractionIdle(actorId, key) for any other
 // module. Rope plays its own (rope.js, Worker A).
 module.exports = (api) => {
-  const { log, sendPacket, cfg } = api;
+  const { mp, log, sendPacket, cfg, hasCap } = api;
   const DEFAULTS = {
     // Reading the board: the hand-on-chin gesture (Dawnguard.esm, proven on the emote wheel)
     board: { anim: 'IdleDialogueHandOnChinGesture', seconds: 4, endsItself: true },
@@ -47,5 +47,59 @@ module.exports = (api) => {
     } catch (e) { log(`interaction idle ${key} failed for ${id.toString(16)}: ${e.message}`); return false; }
   };
   globalThis.__dboInteractionIdle = play;
-  return { play, IDLES };
+
+  // ---- the chest hold (Nate 2026-09-30: about a second is fine) ------------------------------------------------------
+  // The last gate of gamemode.js's activate chain, so every other gate (dungeon and camp chests, treasuries, raids...)
+  // has had its say first. A plain container is not opened at once: the player crouches over it (chestHold.anim), and
+  // holdMs later the server activates it for them (Papyrus ObjectReference.Activate: MpObjectReference::Activate checks
+  // their reach and cell, re-runs this chain and sends OpenContainer, which the client opens exactly as its own). That
+  // re-entry carries a one-shot pass. A player who walked more than moveUnits away, changed cell or left in the
+  // meantime gets nothing. Only for a client that plays the idle (uiCaps 'dboIdle'); an older one opens at once.
+  // Off by default until one live check (the menu opens promptly): gamemode-config "interactionIdles": { "chestHold":
+  // { "enabled": true } }.
+  const H = Object.assign({ enabled: false, holdMs: 1000, passMs: 3000, moveUnits: 150, anim: 'IdleWarmHandsCrouched', seconds: 2 }, C.chestHold || {});
+  const passes = globalThis.__dboChestPasses instanceof Map ? globalThis.__dboChestPasses : (globalThis.__dboChestPasses = new Map()); // 'caster:target' -> until
+  const holding = globalThis.__dboChestHolding instanceof Map ? globalThis.__dboChestHolding : (globalThis.__dboChestHolding = new Map()); // caster -> target
+  const kinds = new Map(); // base id -> is a CONT
+  const isContainer = (target) => {
+    let baseId = 0;
+    try { baseId = mp.getIdFromDesc(String(mp.get(target, 'baseDesc'))) >>> 0; } catch (e) { return false; }
+    if (!baseId) return false;
+    if (!kinds.has(baseId)) { let t = ''; try { const r = mp.lookupEspmRecordById(baseId); t = String(r && r.record && r.record.type || ''); } catch (e) { /* unknown */ } kinds.set(baseId, t === 'CONT'); }
+    return kinds.get(baseId);
+  };
+  const where = (a) => { try { const l = mp.get(a, 'locationalData'); return l && Array.isArray(l.pos) ? { cell: String(l.cellOrWorldDesc), pos: l.pos } : null; } catch (e) { return null; } };
+  const online = (a) => { try { return (mp.get(0, 'onlinePlayers') || []).map((x) => Number(x) >>> 0).includes(a); } catch (e) { return false; } };
+  // true: the hold took this activation (the chain denies it); false: let it through
+  const chestHold = (targetId, casterId) => {
+    if (H.enabled !== true || C.enabled === false) return false;
+    const target = Number(targetId) >>> 0, caster = Number(casterId) >>> 0;
+    const key = `${caster}:${target}`;
+    const pass = passes.get(key);
+    if (pass !== undefined) { passes.delete(key); if (pass > Date.now()) return false; }
+    if (!caster || !target || !(typeof hasCap === 'function' && hasCap(caster, 'dboIdle'))) return false;
+    if (!isContainer(target)) return false;
+    let open = false; try { open = mp.get(target, 'isOpen') === true; } catch (e) { /* not a ref */ }
+    if (open) return false; // someone has it open: the server answers that as it always has
+    if (holding.has(caster)) return true; // a second E while crouching: the one open is coming
+    const from = where(caster);
+    if (!from) return false;
+    holding.set(caster, target);
+    try { sendPacket(caster, { customPacketType: 'dboIdle', anim: H.anim, seconds: Number(H.seconds) || 2, endsItself: false }); } catch (e) { /* the open still follows */ }
+    setTimeout(() => {
+      holding.delete(caster);
+      const now = where(caster);
+      if (!online(caster) || !now || now.cell !== from.cell || Math.hypot(now.pos[0] - from.pos[0], now.pos[1] - from.pos[1], now.pos[2] - from.pos[2]) > Number(H.moveUnits)) return;
+      passes.set(key, Date.now() + Number(H.passMs));
+      try {
+        mp.callPapyrusFunction('method', 'ObjectReference', 'Activate', { type: 'form', desc: mp.getDescFromId(target) }, [{ type: 'form', desc: mp.getDescFromId(caster) }, false]);
+      } catch (e) {
+        passes.delete(key);
+        log(`chest hold: opening ${target.toString(16)} for ${caster.toString(16)} failed: ${e.message}`);
+      }
+    }, Math.max(0, Number(H.holdMs) || 0));
+    return true;
+  };
+  globalThis.__dboChestHold = chestHold;
+  return { play, IDLES, chestHold, H };
 };
