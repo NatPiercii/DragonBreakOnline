@@ -646,9 +646,15 @@ registerChatCommand('rename', (a, args) => {
   const t = findByName(m[1]); if (!t) return personal(a, 'No such player. Use their name or #TAG.');
   const newName = m[2].trim().replace(/\s+/g, ' ');
   if (!NAME_RE.test(newName)) return personal(a, 'Names: 2-31 letters, spaces, apostrophes or hyphens, starting with a letter.');
+  // One character to a name, as at creation (naming.js): a rename moves the name index too, so the old name is free
+  // again and the new one is held (#bugs 1554934638882066532: a renamed character kept its old name taken)
+  const key = typeof globalThis.__dboNameKey === 'function' ? globalThis.__dboNameKey(newName) : '';
+  if (key && typeof globalThis.__dboNameTaken === 'function' && globalThis.__dboNameTaken(key, t)) return personal(a, `Someone already carries the name ${newName}. Choose another.`);
   try {
     const app = Object.assign({}, mp.get(t, 'appearance') || {}); const old = app.name || 'Stranger';
     app.name = newName; mp.set(t, 'appearance', app);
+    if (key) mp.set(t, 'private.indexed.charName', key);
+    indexName(t);
     personal(a, `Renamed ${old} #${tagOf(t)} to ${newName}.`);
     system(t, `Your character is now named ${newName}.`);
     audit(`GM ${who(a)} renamed "${old}" -> "${newName}" (#${tagOf(t)}, profile ${profileOf(t)})`);
@@ -2124,7 +2130,7 @@ try {
   require(NAMING_JS)({ mp, log, personal, audit, who, display, registerChatCommand, onlineActors, every, profileOf, inCreation: (a) => creationPending(a),
     onUi, openWidget, closeWidget, inHub: (a) => inHubForName(a) });
   globalThis.__dboNamed = (a) => { if (inHubForName(a)) sendToArrival(a); };
-} catch (e) { log('naming.js failed to load:', e.stack || e.message); globalThis.__dboNameHold = null; globalThis.__dboNamed = null; }
+} catch (e) { log('naming.js failed to load:', e.stack || e.message); globalThis.__dboNameHold = null; globalThis.__dboNamed = null; globalThis.__dboNameKey = null; globalThis.__dboNameTaken = null; }
 // ---- the player panel (U) ----------------------------------------------------------------------------------------------
 // The same topics /help lists, as a window: a topic added to HELP_GROUPS reaches both. Each entry is a command with one
 // line of what it does; a few ask for words in a box before they are sent; the rest of a topic is plain lines, because
