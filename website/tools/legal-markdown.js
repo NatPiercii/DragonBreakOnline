@@ -188,10 +188,10 @@ function readEmphasis(s, i) {
   const marker = c.repeat(n)
   let k = open
   while ((k = s.indexOf(marker, k + 1)) !== -1) {
+    // Looking for a single * or _: a doubled one inside belongs to a nested **bold**, so step over the whole run
+    if (n === 1 && s[k + 1] === c) { while (s[k + 1] === c) k++; continue }
     if (/\s/.test(s[k - 1]) || s[k - 1] === '\\') continue
     if (c === '_' && /[A-Za-z0-9]/.test(s[k + n] || '')) continue
-    // Looking for a single * or _: a doubled one inside belongs to a nested **bold**, so step over it
-    if (n === 1 && s[k + 1] === c) { k++; continue }
     return { strong: n === 2, inner: s.slice(open, k), end: k + n }
   }
   return null
