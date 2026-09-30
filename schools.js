@@ -347,6 +347,8 @@ module.exports = (api) => {
     };
   };
   globalThis.__dboSchoolsProgress = progressOf;
+  // The primary school's name ('' before one is chosen), for the journal's mage titles (stateOf migrates an old record the first time, as the K menu would)
+  globalThis.__dboSchoolsPrimary = (a) => { try { return ready(a) ? String(stateOf(a).primary || '') : ''; } catch (e) { return ''; } };
   globalThis.__dboSchoolsProgressSend = (a) => {
     let progress = null;
     try { progress = progressOf(a); } catch (e) { log(`schools: progress for ${display(a)} failed: ${e.message}`); }

@@ -157,8 +157,10 @@ module.exports = (api) => {
       ranks: f.ranks.map((r) => ({ title: r.title, role: r.role })), members,
     };
   };
-  const openMenu = (a, result, resultKind, focusFid) => {
-    const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+  // The panel's content, also the Character Journal's Faction tab (journal.js); keepNonce: a journal redraw keeps the
+  // nonce the front already holds
+  const menuPayload = (a, result, resultKind, focusFid, keepNonce) => {
+    const nonce = keepNonce && ST.nonces.get(a >>> 0) ? ST.nonces.get(a >>> 0) : `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
     ST.nonces.set(a >>> 0, nonce);
     const mine = membershipsOf(a).map((m) => m.fid);
     // Nate, 2026-09-26: a werewolf pack's members also see the other packs, a vampire clan's the other clans (their circle);
@@ -166,16 +168,23 @@ module.exports = (api) => {
     const circles = new Set(mine.map(circleOf).filter(Boolean));
     const list = isAdmin(a) ? [...FACTIONS.keys()] : mine.concat([...FACTIONS.keys()].filter((fid) => !mine.includes(fid) && circles.has(circleOf(fid))));
     const invites = invitesOf(a).map((i) => ({ factionId: i.fid, name: FACTIONS.get(i.fid).name, from: display(i.from) }));
-    openWidget(a, {
+    return {
       type: 'faction', id: WIDGET_ID, nonce, admin: isLeadStaff(a), self: a >>> 0,
       factions: list.map((fid) => factionView(a, fid)), invites, selected: focusFid || mine[0] || list[0] || '',
       // The Realm and War tabs (realm.js): territories and their owners, wars, and what this character leads
       realm: typeof globalThis.__dboRealmView === 'function' ? globalThis.__dboRealmView(a >>> 0) : null,
       economy: typeof globalThis.__dboEconomyView === 'function' ? globalThis.__dboEconomyView(a >>> 0) : null,
       result: result || '', resultKind: resultKind || '',
-    }, true);
+    };
+  };
+  // While the Character Journal is open its Faction tab is redrawn instead of panel 37
+  const openMenu = (a, result, resultKind, focusFid) => {
+    const p = menuPayload(a, result, resultKind, focusFid, false);
+    try { if (typeof globalThis.__dboJournalFaction === 'function' && globalThis.__dboJournalFaction(a >>> 0, p)) return; } catch (e) { log('guilds: journal redraw failed', e.message); }
+    openWidget(a, p, true);
   };
   globalThis.__dboFactionMenu = (a) => openMenu(a >>> 0);
+  globalThis.__dboFactionPayload = (a, keepNonce) => menuPayload(a >>> 0, '', '', undefined, !!keepNonce);
   // realm.js: redraws an open panel with the result of a war action (true when one was open), and checks its nonce
   globalThis.__dboFactionRefresh = (a, text, ok) => { if (!ST.nonces.has(a >>> 0)) return false; openMenu(a >>> 0, text, ok ? 'ok' : 'refused'); return true; };
   globalThis.__dboFactionNonceOk = (a, nonce) => ST.nonces.get(a >>> 0) === String(nonce || '');
@@ -302,7 +311,11 @@ module.exports = (api) => {
   registerChatCommand('faction', (a, args) => {
     const [sub, ...rest] = String(args || '').trim().split(/\s+/);
     const s = (sub || '').toLowerCase();
-    if (!s || s === 'menu') return openMenu(a);
+    // A journal client gets its Faction tab (journal.js), never panel 37
+    if (!s || s === 'menu') {
+      try { if (typeof globalThis.__dboJournalOpenTab === 'function' && globalThis.__dboJournalOpenTab(a >>> 0, 'faction')) return; } catch (e) { log('guilds: journal open failed', e.message); }
+      return openMenu(a);
+    }
     if (s === 'list') return personal(a, [...FACTIONS.values()].filter((f) => !f.secret || isAdmin(a) || entryOf(f.id, a)).map((f) => `${f.id} (${f.name})`).join(', '));
     // Where a faction is seated. A hall the player cannot reach is not worth naming, so only Bruma shows while
     // the playtest is locked there.

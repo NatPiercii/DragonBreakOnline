@@ -1,0 +1,5 @@
+{
+  "_comment": "Words refused in the Character Journal's backstory and origin (journal.js; Nate 2026-09-30: 'go with your recommendations'). Only real-world slurs and hate terms, matched as whole words after the same folding as names (case, leetspeak, punctuation), with the endings below; never substrings, so 'raccoon' and 'basement' pass. TES speech ('bastard', 'n'wah', 'milk-drinker') is roleplay and stays allowed. The refusal names the word back to its writer. Taken from name-filter.json's blocked list, keeping its slurs only.",
+  "words": ["chink", "coon", "faggot", "kike", "nigga", "nigger", "retard", "spastic", "tranny"],
+  "endings": ["s", "es", "ed", "z"]
+}

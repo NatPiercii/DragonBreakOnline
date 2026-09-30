@@ -23,6 +23,9 @@ module.exports = (api) => {
     // (MQ101, hands working at the other's wrists), the same one rope.js uses for tying; there is no vanilla cuffing
     // idle. Unproven until the console check (row 14); IdleLockPick is the fallback
     cuff: { anim: 'BoundStandingCutNPC', seconds: 3, endsItself: true },
+    // The Character Journal on F3 (journal.js): the wheel's Read Book, IdleBook_TurnManyPages' event; held until the
+    // journal's dboIdleStop by a client that knows hold (client-journal-client), 10 s by an older one
+    journal: { anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false, hold: true },
   };
   const C = Object.assign({ enabled: true }, (cfg && cfg.interactionIdles) || {});
   const IDLES = Object.assign({}, DEFAULTS, C.idles || {});
@@ -42,11 +45,13 @@ module.exports = (api) => {
     last.set(id, now);
     if (last.size > 2000) for (const [k, at] of last) if (now - at > REPEAT_MS) last.delete(k);
     try {
-      sendPacket(id, { customPacketType: 'dboIdle', anim: def.anim, seconds: Number(def.seconds) || 3, endsItself: def.endsItself !== false });
+      sendPacket(id, Object.assign({ customPacketType: 'dboIdle', anim: def.anim, seconds: Number(def.seconds) || 3, endsItself: def.endsItself !== false }, def.hold === true ? { hold: true } : {}));
       return true;
     } catch (e) { log(`interaction idle ${key} failed for ${id.toString(16)}: ${e.message}`); return false; }
   };
   globalThis.__dboInteractionIdle = play;
+  // A copy of one interaction's definition (journal.js names its idle in the stop it sends)
+  globalThis.__dboInteractionIdleDef = (key) => (IDLES[key] ? Object.assign({}, IDLES[key]) : null);
 
   // ---- the chest hold (Nate 2026-09-30: about a second is fine) ------------------------------------------------------
   // The last gate of gamemode.js's activate chain, so every other gate (dungeon and camp chests, treasuries, raids...)

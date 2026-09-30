@@ -1,0 +1,27 @@
+{
+  "_comment": "Character Journal titles (journal.js; design ~/claude-nate-release/specs/character-journal-design.md section 4, Nate 2026-09-30: 'go with your recommendations', a player may choose among the titles they qualify for). A title is '<rank> <class>'. The rank comes from the average level of the skills that earned the class: ranks lists [floor, word]; fighting classes say fightingAdept instead of Adept. A class matches on the character's top three skills (level > 0, highest first): 'all' skills must be among them at 25+, plus one of 'any' when given; 'atLeast' of 'of'; 'top' must be the highest skill, at 25+; bySchool names a mage by their primary school (schools.js); 'professions' names the highest skill when it leads the next by 'lead' levels. Rename freely: ids are what players' choices are saved under.",
+  "ranks": [[0, "Novice"], [25, "Apprentice"], [50, "Adept"], [75, "Expert"], [90, "Master"]],
+  "minLevel": 25,
+  "fightingAdept": "Seasoned",
+  "classes": [
+    { "id": "battlemage", "label": "Battlemage", "all": ["arcane", "defense"], "any": ["blade", "blunt"] },
+    { "id": "spellsword", "label": "Spellsword", "all": ["arcane", "blade"] },
+    { "id": "nightblade", "label": "Nightblade", "all": ["arcane", "lockpicking"] },
+    { "id": "paladin", "label": "Paladin", "all": ["priest", "defense"], "any": ["blade", "blunt"] },
+    { "id": "crusader", "label": "Crusader", "all": ["priest"], "any": ["blade", "blunt"] },
+    { "id": "monk", "label": "Monk", "all": ["unarmed", "priest"] },
+    { "id": "healer", "label": "Healer", "top": "priest" },
+    { "id": "knight", "label": "Knight", "all": ["defense", "blade"], "any": ["blunt", "unarmed", "archery"], "fighting": true },
+    { "id": "warrior", "label": "Warrior", "atLeast": 2, "of": ["blade", "blunt", "defense", "unarmed"], "fighting": true },
+    { "id": "ranger", "label": "Ranger", "all": ["archery", "skinner", "harvesting"], "fighting": true },
+    { "id": "scout", "label": "Scout", "all": ["archery", "skinner"], "fighting": true },
+    { "id": "archer", "label": "Archer", "top": "archery", "fighting": true },
+    { "id": "thief", "label": "Thief", "top": "lockpicking" },
+    { "id": "brawler", "label": "Brawler", "top": "unarmed", "fighting": true },
+    { "id": "mage", "label": "Mage", "top": "arcane", "bySchool": { "Destruction": "Pyromancer", "Illusion": "Illusionist", "Conjuration": "Conjurer", "Alteration": "Transmuter" } },
+    { "id": "profession", "lead": 10, "professions": { "blacksmith": "Smith", "alchemist": "Alchemist", "woodcutter": "Woodcutter", "miner": "Miner", "tailor": "Tailor", "skinner": "Hunter", "scholar": "Scholar", "enchanter": "Enchanter", "cook": "Cook", "harvesting": "Herbalist" } }
+  ],
+  "_fallbacks": "No class matched: 'Wanderer' when no skill reaches minLevel, else '<rank> Adventurer' from the highest skill.",
+  "wanderer": "Wanderer",
+  "adventurer": "Adventurer"
+}
