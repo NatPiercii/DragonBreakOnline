@@ -25,26 +25,36 @@ ok(mats.includes(BONE.toLowerCase()) && mats.includes(SCALES.toLowerCase()), 'it
 ok(JSON.stringify((DM && DM.editorIds) || []) === JSON.stringify(['DragonBone', 'DragonScales']), 'and their editor ids');
 
 // ---- loot pools: the ARTIFACT filter of dungeons.js and wildlife.js, lifted and run ----
-const lift = (file) => {
+const lift = (file, name = 'ARTIFACT') => {
   const src = fs.readFileSync(path.join(SERVER, file), 'utf8');
-  const i = src.indexOf('const ARTIFACT = (() => {'), j = src.indexOf('})();', i);
+  const i = src.indexOf(`const ${name} = (() => {`), j = src.indexOf('})();', i);
   if (i < 0 || j < 0) return null;
-  try { return new Function('readJson', 'log', `${src.slice(i, j + 5)}\nreturn ARTIFACT;`)(readJson, () => {}); } catch (e) { return null; }
+  try { return new Function('readJson', 'log', `${src.slice(i, j + 5)}\nreturn ${name};`)(readJson, () => {}); } catch (e) { return null; }
 };
-for (const file of ['dungeons.js', 'wildlife.js']) {
-  const rx = lift(file);
+// dungeons.js keeps the two apart: its pools refuse both (DRAGON_LOOT), while what a corpse keeps is trimmed by ARTIFACT
+// alone, so a dragon slain in a dungeon keeps its bones and scales (Worker D's review)
+{
+  const src = fs.readFileSync(path.join(SERVER, 'dungeons.js'), 'utf8');
+  const art = lift('dungeons.js');
+  ok(!!art && !art.test('DragonBone') && !art.test('DragonScales'), "dungeons.js: a corpse's trim (ARTIFACT) keeps a dragon's bones and scales");
+  ok((src.match(/DRAGON_LOOT\.test\(/g) || []).length === 3 && /ARTIFACT\.test\(it\.name\) \|\| DRAGON_LOOT\.test\(it\.name\)/.test(src)
+    && /!DRAGON_LOOT\.test\(String\(it\.name \|\| ''\)\) && !BANNED_LOOT/.test(src) && /!ARTIFACT\.test\(String\(it\.name \|\| ''\)\) && !DRAGON_LOOT\.test\(String\(it\.name \|\| ''\)\)\);\n  const AYLEID_NAMES/.test(src),
+    'dungeons.js: lootOk, every pool and the Ayleid table ask DRAGON_LOOT');
+}
+for (const [file, name] of [['dungeons.js', 'DRAGON_LOOT'], ['wildlife.js', 'ARTIFACT']]) {
+  const rx = lift(file, name);
   ok(!!rx, `${file}: the never-loot filter builds`);
   if (!rx) continue;
   ok(rx.test('DragonBone') && rx.test('DragonScales'), `${file}: DragonBone and DragonScales are never loot`);
   ok(!rx.test('DragonboneSword') && !rx.test('ArmorDragonscaleCuirass') && !rx.test('DLC1DragonboneWarAxe') && !rx.test('MGRDragonHeartScales'),
     `${file}: Dragonbone and Dragonscale gear (and the College's heart scales) are not caught`);
-  ok(rx.test('ClavicusVileMask'), `${file}: artifacts are still never loot`);
+  ok((name === 'ARTIFACT' ? rx : lift(file)).test('ClavicusVileMask'), `${file}: artifacts are still never loot`);
 }
 // No pool carries one past the filter today
 const poolNames = [];
 for (const [, list] of Object.entries(readJson('loot.json', { pools: {} }).pools || {})) for (const it of list || []) poolNames.push(String(it.name || ''));
 for (const it of readJson('ayleid-loot.json', { items: [] }).items || []) poolNames.push(String(it.name || ''));
-const dl = lift('dungeons.js');
+const dl = lift('dungeons.js', 'DRAGON_LOOT');
 ok(!!dl && poolNames.filter((n) => dl.test(n) && /^Dragon(Bone|Scales)$/i.test(n)).length === poolNames.filter((n) => /^Dragon(Bone|Scales)$/i.test(n)).length,
   `every DragonBone/DragonScales in loot.json and ayleid-loot.json (${poolNames.filter((n) => /^Dragon(Bone|Scales)$/i.test(n)).length} today) is filtered`);
 

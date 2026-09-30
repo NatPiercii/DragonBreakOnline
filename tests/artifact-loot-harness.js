@@ -39,12 +39,13 @@ ok(/ARTIFACT\.test\(String\(rec\.editorId \|\| ''\)\)\)\) continue;/.test(dj), "
 // dungeons.js pool() itself, as written there, against a stub pool: the ALL_OK draws (no lootOk) must refuse both
 {
   const line = (head) => { const i = dj.indexOf(head); if (i < 0) throw new Error(`dungeons.js has no ${head}`); return dj.slice(i, dj.indexOf('\n', i)); };
-  const LOOT = { weapons: [{ name: 'IronSword', value: 25 }, { name: 'EbonySword', value: 720 }, { name: 'DaedricDagger', value: 500 }, { name: 'CYRGoldbrand', value: 3000 }] };
+  const LOOT = { weapons: [{ name: 'IronSword', value: 25 }, { name: 'EbonySword', value: 720 }, { name: 'DaedricDagger', value: 500 }, { name: 'CYRGoldbrand', value: 3000 }, { name: 'DragonBone', value: 500 }] };
   const BANNED_LOOT = /Ebony|Daedric/i;
   const ARTIFACT = re || /$^/;
-  const pool = new Function('LOOT', 'BANNED_LOOT', 'ARTIFACT', `${line('const pool = (name, maxValue, ok) =>')}\nreturn pool;`)(LOOT, BANNED_LOOT, ARTIFACT);
+  const DRAGON_LOOT = /^(?:DragonBone|DragonScales)$/i;   // dragon-materials.json (Nate, 2026-09-30)
+  const pool = new Function('LOOT', 'BANNED_LOOT', 'ARTIFACT', 'DRAGON_LOOT', `${line('const pool = (name, maxValue, ok) =>')}\nreturn pool;`)(LOOT, BANNED_LOOT, ARTIFACT, DRAGON_LOOT);
   const names = pool('weapons', 0, undefined).map((it) => it.name);
-  ok(names.join() === 'IronSword', 'a draw with no lootOk (ALL_OK) hands out no Ebony, Daedric or artifact', names);
+  ok(names.join() === 'IronSword', 'a draw with no lootOk (ALL_OK) hands out no Ebony, Daedric, artifact or dragon bone', names);
 }
 const pn = JSON.parse(fs.readFileSync(path.join(ROOT, 'patch-notes.json'), 'utf8'));
 ok(pn.some((n) => JSON.stringify(n).includes('Artifacts are no longer found as loot')), 'the patch notes say so');
