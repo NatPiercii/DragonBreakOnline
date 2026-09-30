@@ -377,6 +377,15 @@
    }
   ]
  },
+ "ownedSpawns": {
+  "_comment": "Creatures the owned plugins place (owned-spawns.json, wildlife.js). factions: per wildlife kind, the factions each spawned creature is given (ff_factions, applied by the client) so camp-mates are allies instead of fighting each other (Dusk Thorn Camp, 30 Sep). Descs: CreatureFaction 13:Skyrim.esm, CYRGoblinFaction 877f5:BSHeartland.esm.",
+  "factions": {
+   "goblin": [
+    "13:Skyrim.esm",
+    "877f5:BSHeartland.esm"
+   ]
+  }
+ },
  "animalBody": {
   "_comment": "What E on a dead wild animal hands over (gamemode.js __dboAnimalBody). A part is an item whose record type is in allowTypes, or one of partTypes whose editor id matches a pattern in allowEditorIds; denyEditorIds wins over both. The rest (gems, gold, jewelry, soul gems, potions, dishes, weapons, armour) is thrown away with the body. keepAllKinds lists wildlife kinds (the middle of a wild:<kind>:<n> tag, e.g. giant) whose bodies keep everything. Patterns are JavaScript regular expressions, case-sensitive.",
   "allowTypes": [
