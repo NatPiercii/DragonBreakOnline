@@ -36,5 +36,5 @@
   },
   "recipes": {},
   "tomes": { "ISS_SpellTomeConjureSkeleton": ["skyrim"] },
-  "places": { "RealmofLorkhan": "none" }
+  "places": { "RealmofLorkhan": "none", "130040:DragonBreak Online Edits.esp": "cyrodiil" }
 }
