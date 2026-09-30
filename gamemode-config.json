@@ -594,7 +594,7 @@
  },
  "lockpick": { "enabled": true },
  "npcGround": { "fix": false },
- "npcDirector": { "mode": "shadow" },
+ "npcDirector": { "mode": "on" },
  "itemGuards": { "mode": "on" },
  "war": {
   "_comment": "War and raids stay off until the holds and factions are set up during the alpha (Nate, 2026-09-26). colours: the Realm map's lore colour per faction (Nate's picks; the cults' and the Vigil's chosen by the Prince's or the order's motif); \"base/stripe\" draws a stripe (the Companions). seats: where a faction that is not a hold musters to declare, { id: { name, world, pos, radius, cells } }.",
