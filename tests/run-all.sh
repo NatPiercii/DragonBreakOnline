@@ -48,6 +48,7 @@ declare -A LIMIT=([expedition-loot-budget]=600)
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
   [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
+  [client-calendar]=client:skymp5-client/src/services/services/calendar.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-staff]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
