@@ -9,6 +9,8 @@ import { validateResult, CharCreatorConfig } from "./charCreatorData";
 import { scanModHair, ModHairCatalog } from "./hairCatalog";
 
 const NAME_INDEX_PROP = "private.indexed.charName";
+// The gamemode's lowercase name, for finding an offline character by name (gamemode.js indexName)
+const NAME_LOOKUP_PROP = "private.indexed.nameKey";
 
 type Mp = any;
 
@@ -746,6 +748,12 @@ export class Spawn implements System {
     if (actorId !== undefined) {
       // Perma-dead characters may be deleted too (destroying the body) so a perma-death cannot lock the slot forever
       this.cancelPark(actorId);
+      // Free the name first: the world state's index of private.indexed.* values is only updated when the value
+      // changes, and destroyActor leaves it, so a deleted character held its name until the next restart (a deleted
+      // form is skipped at load). #bugs 1554934638882066532, 2026-09-30. nameKey is the gamemode's name lookup.
+      for (const prop of [NAME_INDEX_PROP, NAME_LOOKUP_PROP]) {
+        try { (ctx.svr as unknown as Mp).set(actorId, prop, null); } catch { /* form vanished */ }
+      }
       ctx.svr.destroyActor(actorId);
       this.log("Deleted character", actorId.toString(16), "from slot", slot);
     }
