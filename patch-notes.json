@@ -57,6 +57,24 @@
     ]
   },
   {
+    "title": "First Fixes of the Alpha",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "A prayer to Mehrunes Dagon no longer breaks the fever that turns you into a vampire or a werewolf. A prayer to any other Daedric Prince never did.",
+          "The calendar now reads 4E 211 when you type /time. The Wait menu and your journal follow with the next client update.",
+          "When staff rename a character, the old name is free again, and the new name is kept for that character alone.",
+          "Rent held for an inn's owner while they are away now goes to that owner, even if the inn has changed hands since.",
+          "Only senior staff can raise or clear warbands and raids, from the Place tool as well as from chat."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Werewolves Seen in Human Shape, For Now",
     "date": "2026-09-30",
     "version": "Server update",
