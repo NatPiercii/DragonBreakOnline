@@ -154,8 +154,9 @@ for (const diff of DIFFS) {
 for (const d of ORD) {
   const now = DIFFS.reduce((n, diff) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
   const was = DIFFS.reduce((n, diff) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
-  // Untrimmed again (Nate, 2026-09-30): about the old value, a little more from bodies' gear, a little less in torches
-  if (was > 0) check(`${d.name} (ordinary, ${(d.raw.chests || []).length} containers), all difficulties: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)})`, now > was * 0.8 && now < was * 1.8);
+  // Untrimmed again (Nate, 2026-09-30): about the old value, more where bodies outnumber containers (a bandit mine of 15
+  // containers gains about 1.9x from its bodies' gear), a little less in torches; the whole set is held tighter below
+  if (was > 0) check(`${d.name} (ordinary, ${(d.raw.chests || []).length} containers), all difficulties: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)})`, now > was * 0.8 && now < was * 2.5);
 }
 for (const diff of DIFFS) {
   const now = ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
