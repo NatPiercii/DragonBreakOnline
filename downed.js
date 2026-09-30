@@ -52,6 +52,10 @@ module.exports = (api) => {
     chillStaminaCap: 0.7, chillStaminaRegen: 0.4, chillMagickaCap: 0.2, chillMagickaRegen: 0.7, chillHealthRegen: 0.5,
     // A rise bigger than this in one second is a potion or a heal, not regeneration: only such jumps are taken back
     chillJumpTake: 0.05,
+    // Seconds of the client's input diagnostic (npcDrift kind "input", reason "down") from the fall on: whether a
+    // movement key held at death stays "down" after the panel has had the keyboard, the suspected cause of auto-run
+    // after dying (Purr, /bug 30 Sep 16:24). 180 covers the bleed-out and two minutes after; 0 = off. Client 0.3.73+.
+    inputDiagSeconds: 180,
   }, cfg.downed || {});
 
   // The engine's unarmed source is 0x1f4 (TES5DamageFormula IsUnarmedAttack); a bow's hit comes as the bow (WEAP)
@@ -396,6 +400,7 @@ module.exports = (api) => {
             personal(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or choose Give up (or say /respawn). A Priest's healing or a Draught of Revival can bring you back where you fell.`);
             openPanel(a, d);
             pushTimers(true);
+            if (Number(C.inputDiagSeconds) > 0) sendPacket(a, { customPacketType: 'dboInputDiag', seconds: Number(C.inputDiagSeconds), reason: 'down' });
             log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
           }
         } catch (e) { log(`downed: death handling failed: ${e.message}`); }
