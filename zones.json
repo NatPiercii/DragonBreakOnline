@@ -1,5 +1,5 @@
 {
-  "_comment": "One table for every system that needs to know where a place belongs: housing managers, notice boards, bounty boards, stronghold sovereignty, bank treasuries. Positions are Tamriel (3c:Skyrim.esm) unless a cell is given; the five city worldspaces share Tamriel coordinates. Radii are in game units (70 = 1 metre). A position inside a stronghold radius belongs to the stronghold, otherwise to the nearest hold capital. regions claim whole worldspaces (Solstheim), and cells claims single interiors a plugin of our own adds (the Bruma bank, CYRBrumaBank). Who holds each rank is in officials.json (/appoint, /dismiss). majorCity marks a great city (center, radius in units): notice boards inside it charge the city rate for Recruitment, the rest of the zone the town rate.",
+  "_comment": "One table for every system that needs to know where a place belongs: housing managers, notice boards, bounty boards, stronghold sovereignty, bank treasuries. Positions are Tamriel (3c:Skyrim.esm) unless a cell is given; the five city worldspaces share Tamriel coordinates. Radii are in game units (70 = 1 metre). A position inside a stronghold radius belongs to the stronghold, otherwise to the nearest hold capital. regions claim whole worldspaces (Solstheim). Who holds each rank is in officials.json (/appoint, /dismiss). majorCity marks a great city (center, radius in units): notice boards inside it charge the city rate for Recruitment, the rest of the zone the town rate.",
   "holds": [
     {
       "id": "whiterun",
@@ -328,9 +328,6 @@
       ],
       "worldspaces": [
         "a764b:BSHeartland.esm"
-      ],
-      "cells": [
-        "130040:DragonBreak Online Edits.esp"
       ],
       "majorCity": {
         "center": [

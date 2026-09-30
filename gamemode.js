@@ -3241,12 +3241,15 @@ const normPlace = (d) => { const s = String(d || ''); const i = s.indexOf(':'); 
 const TAMRIEL_FRAME = new Set(['3c:skyrim.esm', '1a26f:skyrim.esm', '1691d:skyrim.esm', '16bb4:skyrim.esm', '16d71:skyrim.esm', '37edf:skyrim.esm']);
 const REGION_PLUGINS = { 'bsheartland.esm': 'bruma', 'bsassets.esm': 'bruma' };
 const worldKind = new Map();
-// An interior a region claims by name in zones.json (cells), for one added in a plugin of our own (the Bruma bank)
-const zoneOfCell = (desc) => {
-  const c = normPlace(desc);
-  for (const r of ZONES.regions || []) if ((r.cells || []).map(normPlace).includes(c)) return r.id;
-  return null;
-};
+// Interiors a zone claims by cell, for ones added in a plugin of our own (the Bruma bank): zone-cells.json, read on
+// every load (zones.json is read once at boot by the fork's zones.ts, so it stays out of this)
+const ZONE_CELLS = (() => {
+  const out = new Map();
+  try { for (const [k, v] of Object.entries(JSON.parse(fs.readFileSync(path.resolve('zone-cells.json'), 'utf8')))) if (k[0] !== '_' && typeof v === 'string') out.set(normPlace(k), v); }
+  catch (e) { log('zone-cells.json unreadable', e.message); }
+  return out;
+})();
+const zoneOfCell = (desc) => ZONE_CELLS.get(normPlace(desc)) || null;
 const isWorldspace = (desc) => {
   const key = normPlace(desc);
   if (!worldKind.has(key)) { let w = false; try { const r = recordOf(mp.getIdFromDesc(desc)); w = !!(r && String(r.record.type) === 'WRLD'); } catch (e) { /* unknown */ } worldKind.set(key, w); }
@@ -3266,7 +3269,7 @@ every('outside', 10000, () => {
     try { const w = String(mp.get(a, 'worldOrCellDesc') || ''); if (w && isWorldspace(w)) mp.set(a, 'private.lastOutside', { world: w, pos: mp.get(a, 'pos') }); } catch (e) { /* next tick */ }
   }
 });
-// The zone a player is in: by worldspace or nearest hold capital outdoors, by the zones.json cell list or owning plugin
+// The zone a player is in: by worldspace or nearest hold capital outdoors, by zone-cells.json or owning plugin
 // indoors, else where they last stood outside
 const zoneOfActor = (a) => {
   let world = '', pos = null;

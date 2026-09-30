@@ -1,8 +1,8 @@
 // The Bruma bank (CYRBrumaBank, 130040:DragonBreak Online Edits.esp) counts as Bruma everywhere, not only in the region
 // lock (Nate, 2026-09-30: "BrumaBank, is it a part of Bruma?"):
 //   provinces  regions.js placeOf: Cyrodiil (regions-overrides.json places), where it fell to defaultPlace Skyrim
-//   zone       gamemode.js zoneOfActor: Bruma (zones.json regions[bruma].cells), where it fell to wherever the player last
-//              stood outside
+//   zone       gamemode.js zoneOfActor: Bruma (zone-cells.json, hot-reloadable; zones.json is untouched because the
+//              fork's zones.ts reads it only at boot), where it fell to wherever the player last stood outside
 //   doors      doors.json names its two load doors: "Bruma" from inside, "Bank of Bruma" from outside
 // Each is checked live-then-new: the version on origin/server first, then this branch's over the same globalThis state,
 // as a hot reload (or the overrides file's save) would do it on the live server.
@@ -64,14 +64,14 @@ const slice = (src) => {
 };
 const zonesOf = (src) => JSON.parse(src);
 const props = new Map();
-const zoneFns = (code, ZONES) => new Function('ZONES', 'mp', 'normPlace', 'recordOf', 'every', 'onlineActors',
+const zoneFns = (code, ZONES) => new Function('ZONES', 'mp', 'normPlace', 'recordOf', 'every', 'onlineActors', 'fs', 'path', 'log',
   `${code}\nreturn { zoneOfActor, zoneAtPlace };`)(
   ZONES,
   { get: (a, k) => props.get(`${a}|${k}`), set: (a, k, v) => props.set(`${a}|${k}`, v), getIdFromDesc: (d) => d },
   (d) => { const s = String(d || ''); const i = s.indexOf(':'); return i < 0 ? s.toLowerCase() : (parseInt(s.slice(0, i), 16).toString(16) + ':' + s.slice(i + 1).toLowerCase()); },
   // Only worldspaces are WRLD records here
   (d) => ({ record: { type: [BRUMA, WHITERUN, '6ade1:BSHeartland.esm'].map((x) => x.toLowerCase()).includes(String(d).toLowerCase()) ? 'WRLD' : 'CELL' } }),
-  () => {}, () => []);
+  () => {}, () => [], fs, path, () => {});
 const A = 0xff000014, B = 0xff000015;
 const put = (a, world, pos, last) => { props.set(`${a}|worldOrCellDesc`, world); props.set(`${a}|pos`, pos); props.set(`${a}|private.lastOutside`, last); };
 const oldGm = before('gamemode.js'), oldZones = before('zones.json');
@@ -81,6 +81,7 @@ if (oldGm && oldZones && slice(oldGm)) {
   put(B, BANK, [0, 0, 0], null);
   ok(Z0.zoneOfActor(A) === 'whiterun' && Z0.zoneOfActor(B) === null, 'on origin/server the bank takes the zone of where you last stood outside (Whiterun here), or none', [Z0.zoneOfActor(A), Z0.zoneOfActor(B)]);
 }
+fs.copyFileSync(path.join(SERVER, 'zone-cells.json'), path.join(dir, 'zone-cells.json'));
 const code = slice(gm);
 ok(!!code, 'the zone block is where the harness expects it in gamemode.js');
 const Z = zoneFns(code, zonesOf(fs.readFileSync(path.join(SERVER, 'zones.json'), 'utf8')));
@@ -108,8 +109,16 @@ if (oldDoors) {
   const changed = Object.keys(o).filter((k) => doors[k] !== o[k]);
   ok(added.length === 2 && changed.length === 0, 'only the two bank doors were added to doors.json; nothing else changed', { added, changed });
 }
-const zones = JSON.parse(fs.readFileSync(path.join(SERVER, 'zones.json'), 'utf8'));
-ok((zones.regions.find((r) => r.id === 'bruma').cells || []).includes(BANK), 'zones.json gives Bruma the bank cell');
+ok(JSON.parse(fs.readFileSync(path.join(SERVER, 'zone-cells.json'), 'utf8'))[BANK] === 'bruma', 'zone-cells.json gives the bank cell to Bruma');
+if (oldZones) ok(fs.readFileSync(path.join(SERVER, 'zones.json'), 'utf8') === oldZones, 'zones.json is unchanged (restart-only: the fork reads it at boot)');
+// A zone-cells.json that is missing or broken leaves the old fallback, and says so
+fs.writeFileSync(path.join(dir, 'zone-cells.json'), '{ broken');
+const logs = [];
+const Zb = new Function('ZONES', 'mp', 'normPlace', 'recordOf', 'every', 'onlineActors', 'fs', 'path', 'log', `${code}\nreturn { zoneOfActor };`)(
+  zonesOf(fs.readFileSync(path.join(SERVER, 'zones.json'), 'utf8')), { get: (a, k) => props.get(`${a}|${k}`), set: () => {} },
+  (d) => String(d).toLowerCase(), () => ({ record: { type: 'CELL' } }), () => {}, () => [], fs, path, (...x) => logs.push(x.join(' ')));
+put(B, BANK, [0, 0, 0], null);
+ok(Zb.zoneOfActor(B) === null && logs.some((l) => /zone-cells.json unreadable/.test(l)), 'a broken zone-cells.json is logged and changes nothing else');
 
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);

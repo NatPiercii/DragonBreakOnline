@@ -1,0 +1,4 @@
+{
+  "_comment": "Interior cells that belong to a zone (zones.json id), for interiors a plugin of our own adds that the plugin rule in gamemode.js (REGION_PLUGINS) cannot place. Read by gamemode.js zoneOfActor on every load. Keys are mp descs.",
+  "130040:DragonBreak Online Edits.esp": "bruma"
+}
