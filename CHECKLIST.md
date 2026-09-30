@@ -1,5 +1,27 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-30: placing creatures in our plugins - PC session: set Initially Disabled
+
+Nate: "those living actors should be used as spawns for their respective npc" (creatures only).
+
+**When you place a creature in a DragonBreak-owned plugin (DLE and the other nine), set Initially Disabled on it.**
+That flag is the marker: `tools/spawns/owned_spawns.py` turns every Initially Disabled living creature an owned plugin
+places into a server spawn of its own base, at its own spot and heading (`owned-spawns.json` -> `wildlife.js`
+`wild:<kind>:p<local id>-<plugin>` zones). It respawns 30 min after a kill, like wildlife.
+- Starts Dead keeps a corpse as it is (the dead horse at Dusk Thorn Camp).
+- A living creature left enabled is refused at release by `tools/spawns/spawns_gate.py`: the players would see the
+  plugin's copy beside the server's (and plugin-placed living actors hang logins).
+- **A camp:** put a map marker within 3000 units of the creatures (its name names the camp) and a `Treas...Chest`
+  container of ours among them. The chest joins the hourly per-player camp roll and glows while it has something.
+- **People are not spawned this way** (the generator lists them under `skipped.person`): merchants, guards and quest
+  NPCs go through the NPC and officials systems. Interiors are skipped too (dungeons, expeditions and homes have their
+  own spawners), and so is anything `dungeons.json` already places.
+- [ ] **Release step (CT 115):** after a new owned plugin lands, `sudo python3 tools/spawns/owned_spawns.py --replace
+  "<plugin>=<the copy that ships>" --out owned-spawns.json`, commit the diff, then `sudo python3
+  tools/spawns/spawns_gate.py --replace "<plugin>=<the copy that ships>"` must print `ok`. The committed
+  `owned-spawns.json` (30 Sep) was generated from a scratch copy of DLE v5 with its 21 goblins and boars flagged, the
+  way the PC build will be: regenerate it from the real build before shipping.
+
 ## Added 2026-09-30: regions, lore families, and the craft gate on - PC session: regenerate
 
 Nate: "make ebony and glass common, shivering isles cyrodiil. we have to stay lore accurate above all else."

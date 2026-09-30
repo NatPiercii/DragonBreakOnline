@@ -24,6 +24,12 @@ module.exports = (api) => {
   const GOLD_BASE = 0x0000000f;
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { return fallback; } };
   const DATA = readJson('wildlife.json', { placements: [], giantCamps: [] });
+  // Creatures the DragonBreak-owned plugins place Initially Disabled (tools/spawns/owned_spawns.py; Nate, 30 Sep: "those
+  // living actors should be used as spawns for their respective npc", creatures only). Each becomes a wild zone of its
+  // own base at its own spot and heading; groups with a chest of ours are camps like the giants'.
+  const OWNED = readJson('owned-spawns.json', { spawns: [], camps: [] });
+  // Named after the placing reference, not a running number, so a regenerated list never renames another zone
+  const ownedZoneName = (sp) => { const [loc, plugin] = String(sp.src).split(':'); return `${PREFIX}${sp.kind}:p${loc}-${String(plugin || '').toLowerCase().replace(/\.es[mpl]$/, '').replace(/[^a-z0-9]/g, '')}`; };
   const LOOT = (readJson('loot.json', { pools: {} }).pools) || {};
   // Nate, 2026-09-29: artifacts are never loot (artifacts.json, as dungeons.js reads it)
   const ARTIFACT = (() => {
@@ -61,6 +67,13 @@ module.exports = (api) => {
       if (!id) continue;
       out.push({ Name: `${PREFIX}${pl.kind}:${n++}`, ID: pl.world, POS: pl.pos, Size: C.radius, Anchor: pl.ref, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds });
     }
+    for (const sp of OWNED.spawns || []) {
+      if (out.length >= C.maxZones) break;
+      if (!sp || !sp.src || !sp.kind || !sp.ref || !sp.world || !Array.isArray(sp.pos)) continue;
+      const id = pickOption(sp.options, pickFor(sp));
+      if (!id) continue;
+      out.push({ Name: ownedZoneName(sp), ID: sp.world, POS: sp.pos, Size: C.radius, Anchor: sp.ref, Heading: Number(sp.heading) || 0, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds });
+    }
     return out;
   };
   const writeZones = () => {
@@ -84,7 +97,7 @@ module.exports = (api) => {
 
   // ---- giant camp chests: loot nodes ----------------------------------------------------------
   const campChests = new Map(); // refId -> { camp, chest }
-  for (const camp of DATA.giantCamps || []) for (const ch of camp.chests || []) { const id = idOf(ch.ref); if (id) campChests.set(id, { camp, chest: ch }); }
+  for (const camp of (DATA.giantCamps || []).concat(OWNED.camps || [])) for (const ch of camp.chests || []) { const id = idOf(ch.ref); if (id) campChests.set(id, { camp, chest: ch }); }
   const lootsOf = (a) => { try { const r = mp.get(a, 'private.campLoot'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
   const pool = (name) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')));
   const campLoot = () => {
@@ -165,5 +178,5 @@ module.exports = (api) => {
   }
 
   const zones = writeZones();
-  log(`wildlife ${C.enabled ? 'on' : 'off'}: ${(DATA.placements || []).length} placements -> ${zones} zones (${(DATA.placements || []).filter((p) => p.noNavmesh).length} skipped, no navmesh), ${campChests.size} giant camp chests, radius ${C.radius}, despawn ${C.despawnSeconds}s, respawn ${C.respawnSeconds}s${globalThis.__dboWildFactionAudit || ''}`);
+  log(`wildlife ${C.enabled ? 'on' : 'off'}: ${(DATA.placements || []).length} placements -> ${zones} zones (${(DATA.placements || []).filter((p) => p.noNavmesh).length} skipped, no navmesh), ${(OWNED.spawns || []).length} owned-plugin creature spots, ${campChests.size} camp chests, radius ${C.radius}, despawn ${C.despawnSeconds}s, respawn ${C.respawnSeconds}s${globalThis.__dboWildFactionAudit || ''}`);
 };
