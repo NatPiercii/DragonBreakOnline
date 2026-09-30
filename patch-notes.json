@@ -85,6 +85,12 @@
         "items": [
           "The goblins of Dusk Thorn Camp no longer fight each other: they are one tribe now, and they turn on you together. Thanks to Onny for testing the camp."
         ]
+      },
+      {
+        "heading": "Boars",
+        "items": [
+          "The boars around Bruma no longer turn their tusks on each other: a herd sticks together now, and charges you as one. Thanks to GroundedPasta for the report."
+        ]
       }
     ]
   },
