@@ -152,6 +152,16 @@ export class TradeSystem implements System {
         this.cancel(ctx.svr as Mp, s, 'The trade was interrupted.');
       }
     });
+
+    // Lets gameplay (robbery.js, pickpocket.js) refuse theft from a player whose trade window is open
+    (globalThis as any).__alduinakInTrade = (actorId: number): boolean => {
+      try {
+        const s = this.sessions.get((ctx.svr as Mp).getUserByActor(Number(actorId) >>> 0));
+        return !!(s && s.active);
+      } catch {
+        return false;
+      }
+    };
   }
   // "initiatorUserId:targetUserId" -> last invite timestamp (anti focus-steal)
   private inviteCooldowns = new Map<string, number>();
