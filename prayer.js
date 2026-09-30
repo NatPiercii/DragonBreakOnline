@@ -20,7 +20,8 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, skills, every, takeGold, treasuryHere } = api;
+  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, skills, every, takeGold, treasuryHere,
+    isLeadStaff, findAnyByName, sendPacket } = api;
 
   const WIDGET_ID = 35;
   const CFG = Object.assign({
@@ -709,11 +710,91 @@ module.exports = (api) => {
   });
   onUi('deityClose', (a) => { pickerNonce.delete(a); closeWidget(a, PICKER_ID); endCreationStep(a); });
 
+  // ── staff: set a character's god aside so they choose again (Nate 2026-09-30) ──────────────────────────────────────
+  // Lead GM and above, like every staff override on a player's state (the property override, review A3-1; gamemode.js
+  // LEAD_ONLY holds 'deity reset' for the command, and the panel's event checks the same here). It clears what belongs
+  // to the god: the faith with its conversion clock, a blessing still running (its spell taken back), an offering
+  // waiting, the shrine rests, a prayer in flight. It leaves curses, gold and everything else. There is no crime record
+  // for worship to keep (the law's only trace is the faith's one-time warning); the old faith goes into
+  // private.dboDeityHistory, and the audit line names who, whom and what.
+  const onlineNow = (t) => (api.onlineActors ? api.onlineActors() : []).includes(t >>> 0);
+  const resetDeity = (t, by) => {
+    let faith = null, blessing = null, offering = null, rests = {};
+    try {
+      faith = faithOf(t); blessing = blessingOf(t); rests = restsOf(t);
+      const o = mp.get(t, 'private.dboOffering'); offering = o && typeof o === 'object' ? o : null;
+    } catch (e) { return { ok: false, text: `That character's record cannot be reached right now (${e.message}).` }; }
+    const inFlight = sessions.has(t >>> 0);
+    if (!faith && !blessing && !offering && !Object.keys(rests).length && !inFlight) return { ok: false, text: `${display(t)} follows no god; nothing to reset.` };
+    const cleared = [];
+    try {
+      if (faith) {
+        let hist = []; try { hist = mp.get(t, 'private.dboDeityHistory'); } catch (e) { hist = []; }
+        const d = deityById(faith.id);
+        const name = faith.name || (d && d.name) || faith.id;
+        mp.set(t, 'private.dboDeityHistory', (Array.isArray(hist) ? hist : []).concat([{ id: faith.id, name, from: Number(faith.at) || 0, to: Date.now(), resetBy: by }]).slice(-20));
+        setFaith(t, null);
+        cleared.push(`${name}, with its conversion clock`);
+      }
+      if (blessing) { const bd = deityById(blessing.deity); clearBlessing(t, null); cleared.push(`the blessing of ${bd ? bd.name : blessing.deity}`); }
+      if (offering) { mp.set(t, 'private.dboOffering', null); cleared.push(`an offering of ${Number(offering.gold) || 0} gold`); }
+      if (Object.keys(rests).length) { mp.set(t, 'private.prayedShrines', {}); cleared.push('the shrine rests'); }
+    } catch (e) { return { ok: false, text: `The reset of ${display(t)} failed part-way: ${e.message}` }; }
+    if (inFlight) { sessions.delete(t >>> 0); try { closeWidget(t, WIDGET_ID); } catch (e) { /* offline */ } cleared.push('a prayer in progress'); }
+    lastShrine.delete(t >>> 0); offered.delete(t >>> 0); offerReadySince.delete(t >>> 0); pickerNonce.delete(t >>> 0);
+    const online = onlineNow(t);
+    if (online) {
+      try { closeWidget(t, PICKER_ID); } catch (e) { /* not open */ }
+      personal(t, 'The staff have set your faith aside. You may choose a god again: type /deity, or kneel at a shrine.');
+    }
+    audit(`DEITY ${by} reset ${who(t)}: ${cleared.join('; ')}`);
+    log(`prayer: ${by} reset the god of ${display(t)} (${cleared.join('; ')})${online ? '' : ', offline'}`);
+    return { ok: true, text: `${display(t)}: cleared ${cleared.join('; ')}.${online ? ' They were told.' : ' They are offline and will be offered the choice when they return.'}` };
+  };
+  // Who a staff reset is aimed at: the panel's live actor, else a name or #TAG (offline characters included)
+  const resetTarget = (q) => {
+    if (typeof findAnyByName !== 'function') return { t: 0, why: 'the character lookup is not loaded' };
+    const t = findAnyByName(String(q || '').trim());
+    if (t < 0) return { t: 0, why: `${-t} characters are called "${q}". Use their #TAG.` };
+    if (!t) return { t: 0, why: `No character matches "${q}".` };
+    return { t: t >>> 0 };
+  };
+  const staffReset = (a, q, reply) => {
+    if (typeof isLeadStaff !== 'function' || !isLeadStaff(a)) {
+      audit(`DEITY ${who(a)} was refused a deity reset of "${String(q).slice(0, 60)}" (Lead GM and above)`);
+      return reply(false, 'That is for a Lead GM and above.');
+    }
+    if (!String(q || '').trim()) return reply(false, 'Usage: /deity reset <character name or #TAG>');
+    const found = resetTarget(q);
+    if (!found.t) return reply(false, found.why);
+    const r = resetDeity(found.t, who(a));
+    return reply(r.ok, r.text);
+  };
+  // The admin panel's player tab (front extraTabs DeityReset): [live actor hex or '', character name]. Answered the way
+  // AdminSystem answers the panel's own actions, so the result shows in the panel.
+  onUi('deityReset', (a, args) => {
+    const hex = String((args || [])[0] || '').trim();
+    const name = String((args || [])[1] || '').trim();
+    const reply = (ok, text) => { try { sendPacket(a, { customPacketType: 'adminActionResult', ok: !!ok, text }); } catch (e) { personal(a, text); } };
+    if (/^[0-9a-f]{1,8}$/i.test(hex)) {
+      const t = parseInt(hex, 16) >>> 0;
+      let isCharacter = false; try { isCharacter = !!mp.get(t, 'private.indexed.tagKey'); } catch (e) { isCharacter = false; }
+      if (isCharacter) {
+        if (typeof isLeadStaff !== 'function' || !isLeadStaff(a)) return staffReset(a, name || hex, reply);
+        const r = resetDeity(t, who(a));
+        return reply(r.ok, r.text);
+      }
+    }
+    return staffReset(a, name, reply);
+  });
+
   // ── /deity ──────────────────────────────────────────────────────────────────────────────────
   // The chat path, kept for anyone who would rather type than click. Bare `/deity` opens the menu.
   registerChatCommand('deity', (a, argStr) => {
     const faith = faithOf(a);
     const arg = String(argStr || '').trim();
+    // Staff: /deity reset <character> (Lead GM and above; gamemode.js refuses a GM before this runs)
+    if (/^reset(\s|$)/i.test(arg)) return staffReset(a, arg.replace(/^reset\s*/i, ''), (ok, text) => personal(a, text));
     if (!arg) {
       // Bare /deity is the menu key the brief asked for, until there is a real one.
       if (openPicker(a)) return;
@@ -743,7 +824,7 @@ module.exports = (api) => {
     // menu does not, per the brief. A character with no god yet is not asked to walk anywhere.
     const r = takeDeity(a, d, { atShrine: !!faith && !d.prayAnywhere });
     personal(a, r.text);
-  }, { help: 'open the deity menu; /deity <name> at that god\'s shrine to turn by hand' });
+  }, { help: 'open the deity menu; /deity <name> at that god\'s shrine to turn by hand; staff: /deity reset <player>' });
 
   // A blessing id that does not resolve is silent: the prayer succeeds, the roll lands and the
   // worshipper is told the god "gives no sign". Count them at boot so a mistyped form id shows up
