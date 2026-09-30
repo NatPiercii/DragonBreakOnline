@@ -1,5 +1,21 @@
 [
   {
+    "title": "Dusk Thorn Camp and the Boars of Bruma",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "The wilds",
+        "items": [
+          "Goblins have made camp east of Bruma: Dusk Thorn Camp. Eight goblins guard it, and their chest gives each adventurer a share once an hour. It glows while it has something for you.",
+          "Wild boars now roam the hills east of Bruma. They give boar meat and a tusk.",
+          "Eleven new Sea Salt Deposits line the rivers east of Bruma for Miners."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.70: Contracts on the Expedition Board",
     "date": "2026-09-30",
     "version": "Client 0.3.70",
