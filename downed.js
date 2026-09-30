@@ -12,7 +12,7 @@
 'use strict';
 
 module.exports = (api) => {
-  const { mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg, openWidget, closeWidget, onUi } = api;
+  const { mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg, openWidget, closeWidget, onUi, redress } = api;
   // The name a player sees for another: their name once introduced, else Stranger, or Masked Person (playermenu.js).
   // NPCs keep their own names. A /bug of 2026-09-26: a stranger who raised a player was named on the banner.
   const nameTo = (viewer, x) => {
@@ -218,6 +218,12 @@ module.exports = (api) => {
     } catch (e) { log(`downed: chill marker ${on ? 'add' : 'remove'} failed: ${e.message}`); }
   };
   const saveChill = (a, leftMs) => { try { mp.set(a, CHILL, { leftMs: Math.max(0, Math.round(leftMs)) }); } catch (e) { /* not an actor */ } };
+  // Waking at the temple puts the outfit back the way a login does (Onny, 2026-09-29: "every time i die, i spawn in
+  // naked"). redress() does nothing to a player already dressed; one who is logged out is dressed at the next login.
+  const dressAfterWake = (a) => {
+    if (typeof redress !== 'function') return;
+    setTimeout(() => { try { if (onlineActors().includes(a) && !isDead(a)) redress(a); } catch (e) { log(`downed: re-dress after the temple failed: ${e.message}`); } }, 1500);
+  };
   const chill = (a) => {
     if (!C.chill || !isPlayer(a) || mp.get(a, 'private.permaDead') === true) return;
     const leftMs = C.chillMinutes * 60000;
@@ -355,7 +361,7 @@ module.exports = (api) => {
   }
   // The engine's own respawn at the end of the bleed-out gives no event: watch the downed every second
   every('downedPanel', 1000, () => {
-    for (const [a] of S.downed) { let dead = true; try { dead = isDead(a); } catch (e) { dead = false; } if (!dead) { endDown(a); chill(a); } }
+    for (const [a] of S.downed) { let dead = true; try { dead = isDead(a); } catch (e) { dead = false; } if (!dead) { endDown(a); chill(a); dressAfterWake(a); } }
     if (S.downed.size || sentTimers.size) pushTimers(false);
   });
 
@@ -367,7 +373,7 @@ module.exports = (api) => {
     }
     const now = Date.now();
     for (const [a, d] of S.downed) {
-      if (!isDead(a)) { endDown(a); chill(a); }
+      if (!isDead(a)) { endDown(a); chill(a); dressAfterWake(a); }
       else if (now - d.at > (C.bleedoutSeconds + 30) * 1000) endDown(a);
     }
     for (const [k, t] of S.fought) if (now - t > C.hostileMs) S.fought.delete(k);
@@ -450,6 +456,7 @@ module.exports = (api) => {
     try { const sp = mp.get(t, 'spawnPoint'); if (sp && sp.cellOrWorldDesc) mp.set(t, 'locationalData', sp); } catch (e) { log(`downed: temple move failed for ${display(t)}: ${e.message}`); }
     mp.set(t, 'isDead', false);
     chill(t);
+    dressAfterWake(t);
   };
   const finish = (t, by) => {
     // In a war to the death an enemy's killing blow on contested land ends the character (realm.js)

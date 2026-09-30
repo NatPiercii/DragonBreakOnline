@@ -3530,6 +3530,11 @@ const wornOf = (equipment) => { const entries = equipment && equipment.inv && Ar
 const connectedAt = globalThis.__dboConnectedAt = globalThis.__dboConnectedAt || new Map(); // actorId -> epoch ms of the last connect
 const WORN_GRACE_MS = 15000;
 const redressAt = new Map(); // actorId -> last login re-dress triggered by a naked report
+// actorId -> the connect whose first equipment report has arrived. The first report of a session is the login's,
+// however long the game took to load: Onny's came 23 s after his character loaded (2026-09-29 23:57), outside the
+// 15 s window, so it counted as undressing by hand and he stood at the temple naked. That is the report a character
+// who died while logged out sends, because the engine's respawn left nothing worn on the stored body.
+const firstEquipOf = globalThis.__dboFirstEquip instanceof Map ? globalThis.__dboFirstEquip : (globalThis.__dboFirstEquip = new Map());
 const equipHook = (actorId, equipment, isAllowed, ...rest) => {
   // The client reports its equipment while it is still dressing after login (an empty or naked
   // report), and the engine has already stored that. Keep our own copy of the last outfit that
@@ -3537,7 +3542,10 @@ const equipHook = (actorId, equipment, isAllowed, ...rest) => {
   try {
     const a = Number(actorId) >>> 0;
     const worn = wornOf(equipment);
-    const fresh = Date.now() - (connectedAt.get(a) || 0) < WORN_GRACE_MS;
+    const conn = connectedAt.get(a) || 0;
+    const first = firstEquipOf.get(a) !== conn;
+    if (first) firstEquipOf.set(a, conn);
+    const fresh = first || Date.now() - conn < WORN_GRACE_MS;
     // A beast form's outfit (the Vampire Lord's robes) is not the character's: a revert re-dresses from lastWorn
     let beast = null; try { beast = mp.get(a, 'private.beast'); } catch (e) { /* not an actor */ }
     if (isAllowed && worn.length && !fresh && !(beast && beast.form)) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0]));
@@ -4551,7 +4559,7 @@ try {
 try {
   const DOWNED_JS = path.resolve('downed.js');
   delete require.cache[DOWNED_JS];
-  require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg, openWidget, closeWidget, onUi });
+  require(DOWNED_JS)({ mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg, openWidget, closeWidget, onUi, redress });
 } catch (e) { log('downed.js failed to load:', e.stack || e.message); globalThis.__dboReviveWith = null; globalThis.__dboIsDowned = null; globalThis.__dboLabDraught = null; }
 // ---- province rules for crafting and the tome shop (server\regions.js, config "regions"): before spells.js, which asks it ----
 try {
