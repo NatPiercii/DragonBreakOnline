@@ -42,6 +42,70 @@ class FakeLO:
         return r[1] if r else '%08x' % fid
 
 
+# Marker spells (DBO_Skill_<skill>_T<n>), 24 staff spells for the "give all" inference, a tome spell and a vampire's drain
+MK = {('unarmed', t): 0x0A000100 + t for t in range(1, 6)}
+MK.update({('scholar', t): 0x0A000200 + t for t in range(1, 6)})
+STAFF24 = [0x0B000000 + i for i in range(24)]
+TOME = 0x0C000001
+DRAIN = 0x0008D5BF
+
+
+class FakeLO2(FakeLO):
+    RECS = dict(FakeLO.RECS)
+    RECS.update({v: ('SPEL', f'DBO_Skill_{k[0]}_T{k[1]}', 0) for k, v in MK.items()})
+    RECS.update({v: ('SPEL', f'StaffSpell{i}', 0) for i, v in enumerate(STAFF24)})
+    RECS.update({TOME: ('SPEL', 'TomeSpell', 0), DRAIN: ('SPEL', 'VampireDrain01', 0)})
+    PLUG = {'skyrim.esm': 0x00, 'dawnguard.esm': 0x02, 'staff.esp': 0x0B, 'tomes.esp': 0x0C}
+
+
+def world2_fixture(root):
+    """The 30 Sep review's cases: a deleted character, a Master set to 150, a lowered skill that keeps higher markers,
+    an old-server "give all spells", powers with no flag, a masked character, a spell in hand, a vampire by rite."""
+    cf = os.path.join(root, 'state', 'world', 'changeForms'); os.makedirs(cf)
+    srv = os.path.join(root, 'server'); os.makedirs(srv)
+
+    def form(name, d):
+        base = {'recType': 1, 'formDesc': name[:-5], 'baseDesc': '7:Skyrim.esm', 'isDeleted': False, 'isDisabled': True, 'baseContainerAdded': True,
+                'inv': {'entries': [{'baseId': 0xF, 'count': 5}]}, 'dynamicFields': {}, 'profileId': 20, 'learnedSpells': []}
+        base.update(d)
+        with open(os.path.join(cf, name), 'w') as fh:
+            fh.write(json.dumps(base, indent=2))
+    sk = lambda lvl, *tiers: {'level': lvl, 'xp': 0, 'rank': 0, 'granted': [MK[t] for t in tiers]}
+    # Chef: staff set unarmed to Master (150 in the record) and scholar to 30; 5 scholar levels earned since
+    form('60.json', {'appearanceDump': {'name': 'Chef'}, 'profileId': 21,
+                     'learnedSpells': [MK[('unarmed', t)] for t in range(1, 6)] + [MK[('scholar', 1)], MK[('scholar', 2)], 0x0200283B, 0x92C48],
+                     'equipmentDump': {'rightSpell': 0x0200283B, 'leftSpell': MK[('scholar', 1)], 'inv': {'entries': []}},
+                     'dynamicFields': {'private.charTag': 'CHEF', 'maskName': 'Chef', 'private.maskItemId': 7, 'private.maskLost': 7,
+                                       'private.dboLevel': {'level': 4, 'pending': 0, 'spent': {'health': 30, 'magicka': 0, 'stamina': 0}},
+                                       'private.mastery': {'v': 2, 'skills': {'unarmed': sk(150, *[('unarmed', t) for t in range(1, 6)]),
+                                                                             'scholar': sk(35, ('scholar', 1), ('scholar', 2))}}}})
+    # Old: 22 of the 24 staff spells from a grant before the logs, a tome spell learned in study, no staff flags
+    form('61.json', {'appearanceDump': {'name': 'Old'}, 'profileId': 22, 'learnedSpells': STAFF24[:22] + [TOME],
+                     'dynamicFields': {'private.charTag': 'OLDS', 'private.dboStudied': {'arcane': ['1:tomes.esp']},
+                                       'private.scholarReads': {'x': 1}, 'private.dboSchools': {'levels': {}}}})
+    # Fang: a vampire by rite, with a scholar skill of its own and a tome spell
+    form('62.json', {'appearanceDump': {'name': 'Fang'}, 'profileId': 23, 'learnedSpells': [DRAIN, TOME, MK[('scholar', 1)]],
+                     'dynamicFields': {'private.charTag': 'FANG', 'private.supernatural': {'kind': 'vampire', 'spells': [DRAIN]},
+                                       'private.dboStudied': {'arcane': ['1:tomes.esp']}, 'private.dboAvBonus': {'health': 10},
+                                       'private.dboLevel': {'level': 2, 'pending': 0, 'spent': {'health': 10}},
+                                       'private.mastery': {'v': 2, 'skills': {'scholar': sk(12, ('scholar', 1))}}}})
+    # Gone: a deleted character, rich
+    form('63.json', {'appearanceDump': {'name': 'Gone'}, 'profileId': 21, 'isDeleted': True,
+                     'inv': {'entries': [{'baseId': 0xF, 'count': 9999}]}, 'dynamicFields': {'private.charTag': 'GONE'}})
+    games = {'gamemode-config.json': {}, 'skills.json': {'tierHours': [0, 10, 30, 70, 150], 'pointSystem': {'capPerSkill': 100, 'firstTouchCost': 1}},
+             'admin-powers.json': {'spells': [['%x:staff.esp' % (v & 0xFFFFFF), 'x'] for v in STAFF24], 'werewolf': '92c48:Skyrim.esm', 'vampirelord': '283b:Dawnguard.esm'},
+             'spell-tomes.json': {'tomes': [{'spellId': 'tomes.esp:000001'}]}}
+    for n, v in games.items():
+        with open(os.path.join(srv, n), 'w') as fh:
+            json.dump(v, fh)
+
+
+TRAIL2 = [
+    ('2026-09-23 18:00:00', 'GM Gaul #GAUL (profile 21, <@3>) admin panel: masterySetTier target=ff000060 skill=unarmed tier=4'),
+    ('2026-09-28 20:00:00', 'GM Gaul #GAUL (profile 21, <@3>) admin panel: masterySetTier target=ff000060 skill=scholar tier=2'),
+]
+
+
 def world_fixture(root):
     cf = os.path.join(root, 'state', 'world', 'changeForms'); os.makedirs(cf)
     srv = os.path.join(root, 'server'); os.makedirs(srv)
@@ -140,8 +204,8 @@ def main():
         hero = [c for c in p['characters'] if c['name'] == 'Hero'][0]
         by = {x['skill']: x for x in hero['skills']}
         check('arcane set to 30 by staff, 35 now: 5 earned stay', by.get('arcane', {}).get('to') == 5, hero['skills'])
-        check('priest taken up by staff but also by the player at a study point: kept at 0, not set aside',
-              'priest' not in hero['dropSkills'] and by.get('priest', {}).get('to') == 0, hero)
+        check('priest taken up by staff but also by the player at a study point: kept at its first level (1), not set aside',
+              'priest' not in hero['dropSkills'] and by.get('priest', {}).get('to') == 1, hero)
         check('a skill staff never touched is left alone', 'miner' not in by)
         check('the staff spells go, except the one learned from a tome and the kept tier spell', sorted(hero['removeSpells']) == [0x12FD0, 0x92C48], [hex(x) for x in hero['removeSpells']])
         check('the werewolf grant and the shouts flag are cleared', 'private.werewolfGrant' in hero['clearFlags'], hero['clearFlags'])
@@ -257,6 +321,60 @@ def main():
         except SystemExit:
             ok = True
         check('--live without a snapshot is refused', ok)
+        # ---- the 30 Sep review: deleted characters, markers, old-server grants, powers, masks, hands, --stats full ----
+        root2 = os.path.join(tmp, 'sandbox2'); os.makedirs(root2)
+        world2_fixture(root2)
+        w2 = ar.World(root2)
+        check('a deleted character is not a character', '63.json' not in w2.chars and w2.deleted_chars == ['63.json'], sorted(w2.chars))
+        t2 = ar.parse_trail(TRAIL2)
+        q = ar.plan(w2, t2, FakeLO2())
+        cq = {c['name']: c for c in q['characters']}
+        check('...nor counted, and the count of skipped records is kept', set(cq) == {'Chef', 'Old', 'Fang'} and q['deletedCharacters'] == 1, sorted(cq))
+        chef = cq['Chef']
+        byc = {x['skill']: x for x in chef['skills']}
+        check('a Master set by staff (150 in the record) with nothing earned is set aside, not left at 50', 'unarmed' in chef['dropSkills'] and byc['unarmed']['to'] is None, chef['skills'])
+        check('scholar set to 30, 35 now: 5 stay', byc['scholar']['to'] == 5, chef['skills'])
+        check('the markers above the tier a skill now stands at go (scholar T2), with every marker of a skill set aside',
+              set(chef['removeSpells']) >= {MK[('scholar', 2)]} | {MK[('unarmed', t)] for t in range(1, 6)} and MK[('scholar', 1)] not in chef['removeSpells'], [hex(x) for x in chef['removeSpells']])
+        check('the Vampire Lord and werewolf powers go with no flag and no crown (not a werewolf by rite)', {0x0200283B, 0x92C48} <= set(chef['removeSpells']), [hex(x) for x in chef['removeSpells']])
+        old = cq['Old']
+        check('22 of 24 staff spells with no line in the logs: an old-server "give all spells", taken back; the studied tome spell stays',
+              set(old['removeSpells']) == set(STAFF24[:22]) and any('before the logs' in x for x in old['staff']), [hex(x) for x in old['removeSpells']])
+        fang = cq['Fang']
+        check('earned mode: a vampire by rite keeps its drain, its tome spell and its own scholar marker', not fang['removeSpells'], fang['removeSpells'])
+        check('the default is earned', q['stats'] == 'earned')
+        full = ar.plan(ar.World(root2), t2, FakeLO2(), stats='full')
+        cf2 = {c['name']: c for c in full['characters']}
+        check('full: Fang loses the tome spell and the scholar marker, keeps the drain from the rite',
+              set(cf2['Fang']['removeSpells']) == {TOME, MK[('scholar', 1)]} and cf2['Fang']['keptSpells'] == [DRAIN] and 'vampire' in cf2['Fang'].get('keptSupernatural', ''), cf2['Fang'])
+        check('full: every skill goes and the level fields are cleared', cf2['Fang']['dropSkills'] == ['scholar'] and set(cf2['Fang']['clearFields']) == {'private.mastery', 'private.dboLevel', 'private.dboAvBonus', 'private.dboStudied'}, cf2['Fang'])
+        check('full: Old loses the staff spells and the studied tome spell, and its study and school records',
+              set(cf2['Old']['removeSpells']) == set(STAFF24[:22]) | {TOME} and {'private.dboStudied', 'private.scholarReads', 'private.dboSchools'} <= set(cf2['Old']['clearFields']), cf2['Old'])
+        try:
+            ar.plan(ar.World(root2), t2, FakeLO2(), stats='most'); ok = False
+        except SystemExit:
+            ok = True
+        check('an unknown --stats is refused', ok)
+        gone_before = open(os.path.join(root2, 'state', 'world', 'changeForms', '63.json')).read()
+        ar.apply(ar.World(root2), full, tmp)
+        cf2d = os.path.join(root2, 'state', 'world', 'changeForms')
+        c60 = json.load(open(os.path.join(cf2d, '60.json')))
+        check('the masked character is unmasked in the record and the lost-mask memory is gone',
+              c60['appearanceDump']['name'] == 'Chef' and c60['dynamicFields']['maskName'] == '' and 'private.maskLost' not in c60['dynamicFields'] and 'private.maskItemId' not in c60['dynamicFields'], c60['dynamicFields'])
+        check('a spell taken back leaves the hand', c60['equipmentDump']['rightSpell'] == 0 and c60['equipmentDump']['leftSpell'] == 0, c60['equipmentDump'])
+        check('full: no skill record, no level, the marker says full', 'private.mastery' not in c60['dynamicFields'] and 'private.dboLevel' not in c60['dynamicFields']
+              and c60['dynamicFields']['private.alphaReset']['stats'] == 'full', c60['dynamicFields'])
+        c62 = json.load(open(os.path.join(cf2d, '62.json')))
+        check('full: the vampire keeps the drain and its rite state', c62['learnedSpells'] == [DRAIN] and c62['dynamicFields']['private.supernatural']['kind'] == 'vampire', c62)
+        check('the deleted character\'s record is byte-identical', open(os.path.join(cf2d, '63.json')).read() == gone_before)
+        # earned mode on a fresh copy: the lowered skill's rank and granted list follow
+        root3 = os.path.join(tmp, 'sandbox3'); os.makedirs(root3)
+        world2_fixture(root3)
+        e3 = ar.plan(ar.World(root3), t2, FakeLO2())
+        ar.apply(ar.World(root3), e3, tmp)
+        m60 = json.load(open(os.path.join(root3, 'state', 'world', 'changeForms', '60.json')))['dynamicFields']['private.mastery']
+        check('earned: scholar at 5, Novice, granted only its T1 marker; unarmed set aside',
+              m60['skills']['scholar']['level'] == 5 and m60['skills']['scholar']['rank'] == 0 and m60['skills']['scholar']['granted'] == [MK[('scholar', 1)]] and 'unarmed' not in m60['skills'], m60)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print('all passed' if not failures else f'{failures} FAILED')

@@ -1,7 +1,40 @@
-# The alpha reset (one time, at the 13 October opening)
+# The alpha reset (one time, at the opening: Sat 3 October 2026, 05:00 UTC)
 
-Status: built and tested on 30 September 2026. It has been run **only** against sandbox copies of the world.
-It waits for Nate's go, and runs under a claim with 0 players and a backup taken first.
+Status: built and tested on 30 September 2026, reviewed the same day (below). It has been run **only** against sandbox
+copies of the world. It waits for Nate's go, and runs under a claim with 0 players and a backup taken first. The launch
+script is `/home/nate/claude-nate-release/alpha-reset-launch.sh` (claude-nate).
+
+## Two ways to treat stats: `--stats earned` or `--stats full`
+
+The public announcement says: *"all character stats and items will be reset ... your characters will carry over into
+alpha with their stats and inventories reset."* This tool was first built to keep the skills earned by playing.
+
+| `--stats` | Skills (Wheel), character level and its points | Learned spells | Study records (schools, spellbook, prepared, manuals, recipes, scholar reads) |
+|---|---|---|---|
+| `earned` (default) | Kept, less what staff set or granted | Kept, less staff grants and the markers of lowered skills | Kept |
+| `full` (the announcement) | Removed: every skill back to 0, level 1, no points | Every spell from a skill, a tome, a study or staff goes | Removed |
+
+Either way everything in the tables below that is not a stat is treated the same, and spells a kept rite gave (a
+vampire's stage spells, the werewolf's change, the vampirism disease) stay.
+
+## Review of 30 September (claude-nate), fixed on `work-alpha-reset-fixes`
+
+- **Deleted characters** (`isDeleted`, 14 of 51 records) were counted and rewritten as kept characters. They are skipped.
+- **Tier marker spells** stayed after a skill was lowered: the server re-derives the rank from the level on load and so
+  never takes a marker back (masterySystem read). A lowered skill now loses the markers above its new tier; a skill with
+  nothing earned is set aside with all its markers rather than left at level 0.
+- **Master set by staff**: adminSetTier writes 150, which the record keeps until its next write. It was read as 50
+  earned (Gaul Iron-Chef, unarmed 150 -> 50); the level is capped before the sum, so it is set aside.
+- **A skill the player took up themselves** keeps its first level (firstTouchCost 1) instead of 0.
+- **"Give all spells" before the logs** (the old home server, before 21 Sep) was missed: Boris #7X44 kept all 133 staff
+  spells. A character holding at least half of the staff set, and 20 or more, is treated as given them.
+- **Beast powers without a flag**: the Vampire Lord power now goes from everyone (the crown is released), and the
+  werewolf change from everyone who is not a werewolf by rite, flag or not.
+- **Masks**: a masked character is unmasked in the record, and `private.maskLost`/`maskItemId` are cleared; a remembered
+  lost mask would refuse every mask afterwards, since the item goes with the inventory.
+- **Spells in hand** that are taken back leave the hand (equipmentDump left/right/voice/instant).
+- **Admin modes** (`ff_adminModes`, god mode and the like) are cleared.
+- Characters still restrained, jailed, in a beast form or permanently dead are listed under "check by hand" (none on 30 Sep).
 
 `alpha_reset.py` keeps every character and what it earned by playing. It puts items, storage and gold back to the
 start, and takes back what staff granted:
@@ -67,7 +100,17 @@ nothing back twice: taking a skill that went 35 → 5 back again would leave it 
    An entry that matches no character is named in the report, so a mistyped tag or profile shows.
 4. **Treasuries go back to the 10,000 seed.**
 
-## The dry run (30 Sep, sandbox of the live world)
+## The dry run (30 Sep 16:00 UTC snapshot, after the review's fixes)
+
+- **Characters:** 37 kept (14 deleted records skipped). They carry 5,721 gold and 303 banked, plus 5,488 items in 962 stacks.
+- **Containers:** 757 emptied, holding 105,626 items, the supply chest (81,125) among them.
+- **`--stats earned`:** 1,735 spells and powers taken back from 18 characters; 23 characters with staff actions.
+- **`--stats full`:** 1,828 spells taken back from 30 characters; 26 characters had skills (6,586 levels in all), 14 a
+  character level. Spells kept: the vampires' and werewolves' from rites, and one vampirism disease.
+- **Apply on a sandbox copy, both modes:** 799 files written, every record parses, a replan finds nothing left, a second
+  apply is refused.
+
+## The first dry run (30 Sep, before the review)
 
 ```
 python3 tools/backups/dbo_backup.py snapshot --out /tmp/claude-nate-x/snap      # (world-backups branch), as root
@@ -87,6 +130,9 @@ Result on 30 Sep:
 
 ## On the day
 
+The launch script (`/home/nate/claude-nate-release/alpha-reset-launch.sh`) does all of this with its gates, and
+sets `DBO_LOADORDER=/opt/skyrim-data/loadorder.txt` (the live order). By hand:
+
 Only with Nate's go, under a ledger claim on `game-server`, with 0 players (`/api/servers`) and a downtime notice.
 
 ```
@@ -96,11 +142,11 @@ sudo systemctl stop skymp
 sudo python3 tools/backups/dbo_backup.py snapshot            # note the archive it names
 sudo python3 alpha_reset.py plan  --state /opt/skymp-state --server /opt/alduinak/build/dist/server --live \
     --snapshot <archive> --originals /opt/skymp-backups/alpha-reset/originals \
-    --grants /opt/skymp-backups/alpha-reset/grants.json --report /opt/skymp-backups/alpha-reset/plan.md
+    --grants /opt/skymp-backups/alpha-reset/grants.json --stats <earned|full> --report /opt/skymp-backups/alpha-reset/plan.md
 #   read plan.md; if it matches the dry run:
 sudo python3 alpha_reset.py apply --state /opt/skymp-state --server /opt/alduinak/build/dist/server --live \
     --snapshot <archive> --originals /opt/skymp-backups/alpha-reset/originals \
-    --grants /opt/skymp-backups/alpha-reset/grants.json --report /opt/skymp-backups/alpha-reset/applied.md
+    --grants /opt/skymp-backups/alpha-reset/grants.json --stats <earned|full> --report /opt/skymp-backups/alpha-reset/applied.md
 sudo systemctl start skymp
 rm /opt/skymp-dev-hold
 ```

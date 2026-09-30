@@ -5,8 +5,11 @@
 # reverted. The starter kit is written into each character and dressed at the next login.
 #
 #   python3 alpha_reset.py grants [--logs GLOB] --out grants.json            the staff trail, from the server logs
-#   python3 alpha_reset.py plan  --root DIR [--grants grants.json] --report report.md [--json plan.json]   dry run
-#   python3 alpha_reset.py apply --root DIR [--grants grants.json] --report report.md                     writes
+#   python3 alpha_reset.py plan  --root DIR [--grants grants.json] [--stats earned|full] --report report.md [--json plan.json]
+#   python3 alpha_reset.py apply --root DIR [--grants grants.json] [--stats earned|full] --report report.md         writes
+#
+# --stats full is the alpha announcement ("all character stats and items will be reset"): every skill, level point and
+# learned spell goes as well. --stats earned (the default) keeps the skills earned by playing.
 #
 # DIR has the layout of a world snapshot (tools/backups/dbo_backup.py restore): DIR/state/world/changeForms/*.json,
 # DIR/state/*.json and DIR/server/*.json. The live paths are refused unless --live is given, the game server is
@@ -39,6 +42,48 @@ ITEM_TYPES = {'WEAP', 'ARMO', 'MISC', 'INGR', 'ALCH', 'BOOK', 'AMMO', 'SLGM', 'S
 SUPPLY_CHEST = '12ae13:dragonbreak online edits.esp'   # the staff supply chest (economy audit, 29 Sep)
 DAY = 86400000
 CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'alpha-reset.json')
+# fork skillPoints.ts tierOfLevel: Novice 1-24, Apprentice 25-49, Journeyman 50-74, Expert 75-89, Master 90-100; 0 is none.
+# The marker spell of tier index t is DBO_Skill_<skill>_T<t+1> (masterySystem.ts loadRules).
+TIER_FLOORS = [1, 25, 50, 75, 90]
+MARKER = re.compile(r'^DBO_Skill_(\w+?)_T(\d+)$')
+# A character holding at least this share of admin-powers.json's spells had "Give all spells", even with no line in the
+# logs: those start on 21 Sep, and the grants made on the old home server before then are not in them (Boris #7X44).
+ADMIN_SET_SHARE = 0.5
+ADMIN_SET_MIN = 20   # and at least this many of them: a handful is what a player could have read from tomes
+# --stats full (the alpha announcement: "all character stats and items will be reset"): what a character learned or
+# earned goes with the skills. Removed from every character, the skill record and the level points included.
+FULL_STATS_FIELDS = ('private.mastery', 'private.dboLevel', 'private.dboAvBonus', 'private.dboStudied', 'private.dboPrepared',
+                     'private.dboSchools', 'private.dboManuals', 'private.dboSkillBooks', 'private.dboManualsOwed', 'private.dboRecipes',
+                     'private.scholarReads', 'private.scholarTomes', 'private.scholarScrolls', 'private.scholarCopies',
+                     'private.dboTomeBoughtAt')
+HAND_SLOTS = ('leftSpell', 'rightSpell', 'voiceSpell', 'instantSpell')
+
+
+def tier_of_level(level):
+    level = int(level or 0)
+    if level < 1:
+        return -1
+    return max(i for i, f in enumerate(TIER_FLOORS) if level >= f)
+
+
+def marker_of(lo, fid):
+    """(skill, tier index) of a DBO_Skill_<skill>_T<n> marker spell, else None."""
+    if not lo:
+        return None
+    m = MARKER.match(lo.name(fid) or '')
+    return (m.group(1), int(m.group(2)) - 1) if m else None
+
+
+def desc_key(s):
+    """'Skyrim.esm:012FCD' (spell-tomes.json) or '12fcd:Skyrim.esm' -> '12fcd:skyrim.esm'."""
+    s = str(s)
+    a, _, b = s.partition(':')
+    if '.' in a and '.' not in b:
+        a, b = b, a
+    try:
+        return '%x:%s' % (int(a, 16), b.lower())
+    except ValueError:
+        return s.lower()
 
 
 def load_config(path=CONFIG):
@@ -233,7 +278,11 @@ class World:
             if n.endswith('.json'):
                 with open(os.path.join(self.cf_dir, n), encoding='utf-8') as fh:
                     self.forms[n] = json.load(fh)
-        self.chars = {n: d for n, d in self.forms.items() if (d.get('profileId') if isinstance(d.get('profileId'), int) else -1) >= 0}
+        owned = {n: d for n, d in self.forms.items() if (d.get('profileId') if isinstance(d.get('profileId'), int) else -1) >= 0}
+        # A deleted character (isDeleted) is gone from its account: spawn.ts's slot list never offers it, so it is
+        # neither kept nor written (14 of 51 records on 30 Sep)
+        self.chars = {n: d for n, d in owned.items() if not d.get('isDeleted')}
+        self.deleted_chars = sorted(n for n, d in owned.items() if d.get('isDeleted'))
 
     def game_json(self, name, fallback=None):
         p = os.path.join(self.server, name)
@@ -302,6 +351,7 @@ def plan_mastery(d, events, skills_cfg, tag, trail):
         return [], set(), []
     tier_levels = (skills_cfg or {}).get('tierHours') or [0, 10, 30, 70, 150]
     cap = ((skills_cfg or {}).get('pointSystem') or {}).get('capPerSkill', 100)
+    first_touch = max(1, int(((skills_cfg or {}).get('pointSystem') or {}).get('firstTouchCost', 1) or 1))
     order = list(rec.get('order') or [])
     per_skill = collections.defaultdict(list)
     for g in events:
@@ -316,20 +366,30 @@ def plan_mastery(d, events, skills_cfg, tag, trail):
             continue
         prog = rec['skills'].get(skill)
         now = int((prog or {}).get('level') or 0)
+        # adminSetTier writes tierHours[4] = 150 for Master, and the record keeps it until the next write; the server
+        # reads any level as at most the cap (masterySystem read), so 150 and 100 are the same Master with nothing earned
+        now_c = min(now, cap)
         last_set = max((i for i, g in enumerate(evs) if g['action'] in ('masterySetTier', 'masteryDrop')), default=-1)
         written = 0
         if last_set >= 0 and evs[last_set]['action'] == 'masterySetTier':
             t = evs[last_set].get('tier', 0)
             written = min(tier_levels[t] if 0 <= t < len(tier_levels) else 0, cap)
         added = sum(g.get('amount', 0) for g in evs[last_set + 1:] if g['action'] == 'masteryGrant')
-        earned = max(0, now - written - added)
+        earned = max(0, now_c - written - added)
         first_is_staff = evs[0]['action'] == 'masterySetTier'
         if prog is None:   # set aside, by staff or since: nothing left to take back
             continue
-        if earned == 0 and first_is_staff and skill not in took:
+        # A skill the player took up themselves (a study point, a tome) keeps that first level (skills.json firstTouchCost)
+        if skill in took and earned < first_touch:
+            earned = first_touch
+        # Level 0 is "never touched" (skillPoints.ts): the server drops it from the order and never syncs its tier spells,
+        # so a skill with nothing earned is set aside, spells and all, rather than left at 0 with its markers
+        if earned == 0 and (first_is_staff or now > 0):
             dropped.append(skill)
             spells.update(int(s) for s in (prog.get('granted') or []))
-            changes.append({'skill': skill, 'from': now, 'to': None, 'why': f'taken up by staff (last set {evs[last_set]["at"]}); nothing earned since, so set aside'})
+            when = evs[last_set]['at'] if last_set >= 0 else evs[-1]['at']
+            changes.append({'skill': skill, 'from': now, 'to': None, 'why': (f'taken up by staff (last set {when})' if first_is_staff else f'staff actions (last {when})')
+                            + '; nothing earned since, so set aside'})
         elif earned != now:
             changes.append({'skill': skill, 'from': now, 'to': earned,
                             'why': (f'staff set it to {written} on {evs[last_set]["at"]}' if last_set >= 0 else 'staff hours')
@@ -338,7 +398,12 @@ def plan_mastery(d, events, skills_cfg, tag, trail):
     return changes, spells, dropped
 
 
-def plan(world, trail, lo, seed_default=10000, settings=None):
+def plan(world, trail, lo, seed_default=10000, settings=None, stats='earned'):
+    """stats 'earned': skills earned by playing stay and only staff grants are taken back (the tool's first design).
+    stats 'full': every skill, level point and learned spell goes too (the alpha announcement: "all character stats and
+    items will be reset"); what a kept rite gave (vampirism, lycanthropy, the disease) stays."""
+    if stats not in ('earned', 'full'):
+        raise SystemExit(f'--stats must be earned or full, not {stats}')
     settings = settings or {'players': {}, 'notStaff': {}}
     settings.setdefault('notStaff', {})
     cfg = world.game_json('gamemode-config.json', {}) or {}
@@ -351,8 +416,12 @@ def plan(world, trail, lo, seed_default=10000, settings=None):
     admin_spells = {lo.id_of(s[0]) for s in powers.get('spells') or [] if lo and lo.id_of(s[0])}
     werewolf_power = lo.id_of(powers['werewolf']) if lo and powers.get('werewolf') else 0
     vl_power = lo.id_of(powers['vampirelord']) if lo and powers.get('vampirelord') else 0
+    tomes = world.game_json('spell-tomes.json', {}) or {}
+    tome_spells = {lo.id_of(desc_key(t['spellId'])) for t in (tomes.get('tomes') or [] if isinstance(tomes, dict) else [])
+                   if lo and isinstance(t, dict) and t.get('spellId')} - {0}
     events = staff_events(trail, world)
-    out = {'kit': kit, 'characters': [], 'world': {}, 'files': {}, 'notes': [], 'alreadyReset': []}
+    out = {'kit': kit, 'characters': [], 'world': {}, 'files': {}, 'notes': [], 'alreadyReset': [], 'stats': stats,
+           'deletedCharacters': len(getattr(world, 'deleted_chars', []))}
 
     # ---- characters ----
     for n, d in world.chars.items():
@@ -372,49 +441,86 @@ def plan(world, trail, lo, seed_default=10000, settings=None):
         done = bool(df.get('private.alphaReset'))
         if done:
             out['alreadyReset'].append(f'{c["name"]} #{tag}')
+        rec = df.get('private.mastery') if isinstance(df.get('private.mastery'), dict) else {}
+        skills_rec = rec.get('skills') if isinstance(rec.get('skills'), dict) else {}
+        spells_now = [int(s) for s in d.get('learnedSpells') or []]
         # skills
         ch, spells_from_skills, dropped = plan_mastery(d, [] if done else events.get(n, []), skills_cfg, tag, trail)
-        c['skills'] = ch
-        c['dropSkills'] = dropped
         # spells: the staff "give all spells" minus what the character learned itself
         got_spells = not done and any(g['action'] == 'giveSpells' for g in events.get(n, []))
+        held_admin = [s for s in spells_now if s in admin_spells]
+        if not done and not got_spells and len(held_admin) >= max(ADMIN_SET_MIN, ADMIN_SET_SHARE * len(admin_spells)):
+            got_spells = True
+            c['staff'].append(f'giveSpells before the logs (holds {len(held_admin)} of the {len(admin_spells)} staff spells; '
+                              'a grant on the old server before 21 Sep)')
         learned_desc = set(trail['learned'].get(tag, []))
-        studied = df.get('private.dboStudied') or {}
-        for lst in (studied.values() if isinstance(studied, dict) else []):
-            learned_desc.update(str(x).lower() for x in lst)
+        studied = df.get('private.dboStudied') if isinstance(df.get('private.dboStudied'), dict) else {}
+        for lst in studied.values():
+            learned_desc.update(str(x).lower() for x in (lst or []))
         kept_ids = {lo.id_of(x) for x in learned_desc} if lo else set()
-        rec = df.get('private.mastery') or {}
-        for sk, prog in ((rec.get('skills') or {}).items() if isinstance(rec, dict) else []):
+        for sk, prog in skills_rec.items():
             if sk not in dropped:
                 kept_ids.update(int(s) for s in (prog or {}).get('granted') or [])
-        spells_now = [int(s) for s in d.get('learnedSpells') or []]
-        remove = set(spells_from_skills) - kept_ids
+        # Tier marker spells above the tier a lowered skill now stands at, and every marker of a skill set aside: the
+        # server re-derives the rank from the level on load and so never takes them back itself (masterySystem read)
+        lowered = {x['skill']: x['to'] for x in ch if x.get('to') is not None}
+        markers = set()
+        for s in set(spells_now) | {int(x) for p in skills_rec.values() for x in ((p or {}).get('granted') or [])}:
+            mk = marker_of(lo, s)
+            if mk and (mk[0] in dropped or (mk[0] in lowered and mk[1] > tier_of_level(lowered[mk[0]]))):
+                markers.add(s)
+        remove = (set(spells_from_skills) - kept_ids) | markers
         if got_spells:
             remove |= {s for s in spells_now if s in admin_spells and s not in kept_ids}
         flags = []
         werewolf_by_rite = ((df.get('private.supernatural') or {}).get('kind') == 'werewolf')
         if df.get('private.werewolfGrant') or (not done and any(g['action'] == 'giveWerewolf' for g in events.get(n, []))):
             flags.append('private.werewolfGrant')
-            if werewolf_power and not werewolf_by_rite:
-                remove.add(werewolf_power)
+        # The beast forms: taken back unless a rite made the character a werewolf. The Vampire Lord power goes from
+        # everyone, since the Blood Crown is released (Nate, 2026-09-30) and staff grants are taken back; vampirism from
+        # a rite stays. A grant made before the flags existed shows only as the power itself.
+        if werewolf_power and not werewolf_by_rite:
+            remove.add(werewolf_power)
         actor_id = 0xFF000000 | int(n[:-5], 16) if re.match(r'^[0-9a-f]+\.json$', n) else 0
         if df.get('private.vampireLordGrant') or (not done and any(g['action'] == 'giveVampireLord' for g in events.get(n, []))):
             flags.append('private.vampireLordGrant')
-            if vl_power:
-                remove.add(vl_power)
-        # The Blood Crown is released at the reset (Nate, 2026-09-30), so its holder, and anyone still waiting on the
-        # crown's revoke list, gives up the Vampire Lord power; their vampirism from the rite stays
-        if vl_power and (actor_id == crown_holder or actor_id in crown_revoke):
+        if vl_power:
             remove.add(vl_power)
         if df.get('private.dboAllShouts') or (not done and any(g['action'] == 'giveShouts' for g in events.get(n, []))):
             flags.append('private.dboAllShouts')
+        modes = df.get('ff_adminModes')
+        if isinstance(modes, dict) and any(modes.values()):
+            flags.append('ff_adminModes')   # god mode and the like, switched on from the admin panel
+        c['clearFields'] = []
+        if stats == 'full':
+            # Every skill and level point back to the start, and every spell that came from a skill, a tome, a study or
+            # staff; spells a kept rite gave (the vampire's stage spells, the werewolf's change, the disease) stay
+            c['statsWere'] = {'skills': {k: int((p or {}).get('level') or 0) for k, p in skills_rec.items() if int((p or {}).get('level') or 0) > 0},
+                              'level': (df.get('private.dboLevel') or {}).get('level') if isinstance(df.get('private.dboLevel'), dict) else None,
+                              'avBonus': {k: v for k, v in (df.get('private.dboAvBonus') or {}).items() if v} if isinstance(df.get('private.dboAvBonus'), dict) else {}}
+            ch, dropped = [], sorted(skills_rec)
+            studied_ids = {lo.id_of(desc_key(x)) for lst in studied.values() for x in (lst or [])} if lo else set()
+            prepared = df.get('private.dboPrepared') if isinstance(df.get('private.dboPrepared'), list) else []
+            studied_ids |= {lo.id_of(desc_key(x)) for x in prepared} if lo else set()
+            remove |= {s for s in spells_now if marker_of(lo, s) or s in admin_spells or s in tome_spells or s in studied_ids}
+            c['clearFields'] = [k for k in FULL_STATS_FIELDS if k in df]
+        c['skills'] = ch
+        c['dropSkills'] = dropped
         c['removeSpells'] = sorted(s for s in remove if s in spells_now)
+        c['revokeGranted'] = sorted(remove)
+        c['keptSpells'] = [s for s in spells_now if s not in remove]
         c['clearFlags'] = flags
         # A level earned partly from staff hours is earned again from the kept skills (charlevel.js only ever raises it)
-        c['levelReset'] = any((x.get('to') or 0) < (x.get('from') or 0) for x in ch) and isinstance(df.get('private.dboLevel'), dict)
+        c['levelReset'] = stats != 'full' and any((x.get('to') or 0) < (x.get('from') or 0) for x in ch) and isinstance(df.get('private.dboLevel'), dict)
         sup = df.get('private.supernatural') or {}
         if sup.get('kind'):
             c['keptSupernatural'] = sup['kind'] + (' (pure-blood)' if sup.get('pure') else '') + ('; gives up the Blood Crown' if crown_holder == actor_id else '')
+        # A masked character is unmasked in the record: the mask item goes with the inventory, and a remembered lost
+        # mask (private.maskLost) would refuse every mask from then on (playermenu.js mask)
+        if str(df.get('maskName') or ''):
+            c['unmask'] = str(df.get('maskName'))
+        # Still in a state the reset does not undo: listed so the reviewer sees it (none on 30 Sep)
+        c['watch'] = [k for k in ('private.restrained', 'private.beast', 'private.dboSentence', 'private.dboCell', 'private.permaDead') if df.get(k)]
         out['characters'].append(c)
 
     # ---- the world: every container and store emptied, items lying on the ground removed ----
@@ -562,31 +668,44 @@ def apply(world, p, report_dir):
         d['inv'] = {'entries': [dict(e) for e in kit]}
         eq = d.get('equipmentDump') if isinstance(d.get('equipmentDump'), dict) else {}
         eq['inv'] = {'entries': [dict(e, worn=True) for e in kit if e['baseId'] in worn]}
+        # a spell or shout in hand that was taken back leaves the hand too
+        gone = set(c.get('revokeGranted') or c['removeSpells'])
+        for k in HAND_SLOTS:
+            if isinstance(eq.get(k), int) and (eq[k] in gone or (k == 'voiceSpell' and 'private.dboAllShouts' in c['clearFlags'])):
+                eq[k] = 0
         d['equipmentDump'] = eq
-        for k in ('private.lastWorn', 'private.bankGold', 'private.bankLog', 'private.starterKitAt'):
+        for k in ('private.lastWorn', 'private.bankGold', 'private.bankLog', 'private.starterKitAt', 'private.maskLost', 'private.maskItemId'):
             df.pop(k, None)
+        if c.get('unmask'):
+            app = d.get('appearanceDump') if isinstance(d.get('appearanceDump'), dict) else None
+            if app is not None:
+                app['name'] = c['unmask']
+            df['maskName'] = ''
         df['private.kitPending'] = True
-        df['private.alphaReset'] = {'at': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'tool': 'alpha_reset.py'}
+        df['private.alphaReset'] = {'at': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'tool': 'alpha_reset.py',
+                                    'stats': p.get('stats', 'earned')}
         for k in c['clearFlags']:
             df.pop(k, None)
+        for k in c.get('clearFields') or []:
+            df.pop(k, None)
         if c['removeSpells']:
-            gone = set(c['removeSpells'])
             d['learnedSpells'] = [s for s in d.get('learnedSpells') or [] if int(s) not in gone]
         rec = df.get('private.mastery')
-        if isinstance(rec, dict) and (c['skills'] or c['dropSkills']):
+        if isinstance(rec, dict) and isinstance(rec.get('skills'), dict):
             for ch in c['skills']:
-                prog = (rec.get('skills') or {}).get(ch['skill'])
+                prog = rec['skills'].get(ch['skill'])
                 if prog is None or ch['to'] is None:
                     continue
                 prog['level'] = ch['to']
+                prog['rank'] = max(0, tier_of_level(ch['to']))
                 if ch['to'] < ch['from']:
                     prog['xp'] = 0
             for sk in c['dropSkills']:
-                (rec.get('skills') or {}).pop(sk, None)
+                rec['skills'].pop(sk, None)
                 rec['order'] = [x for x in rec.get('order') or [] if x != sk]
-            for prog in (rec.get('skills') or {}).values():
+            for prog in rec['skills'].values():
                 if isinstance(prog, dict) and isinstance(prog.get('granted'), list):
-                    prog['granted'] = [s for s in prog['granted'] if int(s) not in set(c['removeSpells'])]
+                    prog['granted'] = [s for s in prog['granted'] if int(s) not in gone]
         if c['levelReset']:
             df['private.dboLevel'] = {'level': 1, 'pending': 0, 'spent': {'health': 0, 'magicka': 0, 'stamina': 0}}
             df['private.dboAvBonus'] = {'health': 0, 'magicka': 0, 'stamina': 0}
@@ -651,16 +770,31 @@ def report(p, lo, path, applied=None):
     chars = p['characters']
     total_gold = sum(c['gold'] for c in chars)
     total_bank = sum(c['bankGold'] for c in chars)
-    staff_touched = [c for c in chars if c['staff'] or c['skills'] or c['removeSpells'] or c['clearFlags']]
+    staff_touched = [c for c in chars if c['staff'] or c['skills'] or c['clearFlags'] or (p.get('stats') != 'full' and c['removeSpells'])]
     L.append('# Alpha reset: ' + ('applied' if applied is not None else 'dry run'))
     L.append('')
     if p.get('alreadyReset'):
         L.append(f'**This world was reset already: {len(p["alreadyReset"])} character(s) carry the marker. Staff actions are not taken back again, and apply refuses.**')
         L.append('')
-    L.append(f'{len(chars)} characters kept. Everyone starts with the kit: ' + ', '.join(f'{e["count"]} x {nm(e["baseId"])}' for e in p['kit']) + ' (the clothes worn).')
+    L.append('Stats: ' + ('**full** (the alpha announcement: every skill, level point and learned spell back to the start; spells from a kept rite stay).'
+                          if p.get('stats') == 'full' else '**earned** (skills earned by playing stay; staff grants are taken back).'))
+    L.append('')
+    L.append(f'{len(chars)} characters kept' + (f' ({p["deletedCharacters"]} deleted character record(s) skipped: not on any account)' if p.get('deletedCharacters') else '')
+             + '. Everyone starts with the kit: ' + ', '.join(f'{e["count"]} x {nm(e["baseId"])}' for e in p['kit']) + ' (the clothes worn).')
     L.append(f'- Gold carried now: {total_gold:,}; in the bank: {total_bank:,}. Both go to the kit\'s 50 gold.')
     L.append(f'- Items carried now: {sum(sum(n for _, n in c["items"]) for c in chars):,} in {sum(len(c["items"]) for c in chars):,} stacks.')
     L.append(f'- Characters with staff actions to take back: {len(staff_touched)}.')
+    L.append(f'- Spells and powers taken back: {sum(len(c["removeSpells"]) for c in chars):,} from {sum(1 for c in chars if c["removeSpells"])} character(s).')
+    if p.get('stats') == 'full':
+        L.append(f'- Stats reset: {sum(1 for c in chars if (c.get("statsWere") or {}).get("skills"))} character(s) had skills '
+                 f'({sum(sum(c["statsWere"]["skills"].values()) for c in chars if c.get("statsWere")):,} levels in all), '
+                 f'{sum(1 for c in chars if (c.get("statsWere") or {}).get("level"))} a character level.')
+    masked = [f'{c["name"]} #{c["tag"]}' for c in chars if c.get('unmask')]
+    if masked:
+        L.append(f'- Unmasked in the record (the mask goes with the inventory): {", ".join(masked)}.')
+    watch = [f'{c["name"]} #{c["tag"]} ({", ".join(c["watch"])})' for c in chars if c.get('watch')]
+    if watch:
+        L.append(f'- **Left as they are, check by hand:** {"; ".join(watch)}.')
     w = p['world']
     L.append(f'- Containers emptied: {len(w["containers"])} holding {sum(sum(n for _, n in c["entries"]) for c in w["containers"]):,} items'
              + ('' if not any(c['supply'] for c in w['containers']) else ', the staff supply chest among them') + '.')
@@ -727,6 +861,14 @@ def report(p, lo, path, applied=None):
             L.append('- Worn now: ' + ', '.join(nm(b) for b in c['worn'][:8]))
         for ch in c['skills']:
             L.append(f'- Skill {ch["skill"]}: {ch["from"]} -> {"set aside" if ch["to"] is None else ch["to"]} ({ch["why"]})')
+        if c.get('statsWere') and (c['statsWere']['skills'] or c['statsWere']['level'] or c['statsWere']['avBonus']):
+            sw = c['statsWere']
+            L.append('- Stats reset: ' + (', '.join(f'{k} {v}' for k, v in sorted(sw['skills'].items(), key=lambda x: -x[1])) or 'no skills')
+                     + (f'; character level {sw["level"]}' if sw['level'] else '') + (f'; level points {json.dumps(sw["avBonus"])}' if sw['avBonus'] else ''))
+        if p.get('stats') == 'full' and c.get('clearFields'):
+            L.append('- Cleared: ' + ', '.join(k.replace('private.', '') for k in c['clearFields']))
+        if c.get('keptSpells') and (p.get('stats') == 'full' or c['removeSpells']):
+            L.append(f'- Spells kept ({len(c["keptSpells"])}): ' + ', '.join(nm(s) for s in c['keptSpells'][:12]) + (' ...' if len(c['keptSpells']) > 12 else ''))
         if c['removeSpells']:
             L.append(f'- Spells and powers taken back ({len(c["removeSpells"])}): ' + ', '.join(nm(s) for s in c['removeSpells'][:12]) + (' ...' if len(c['removeSpells']) > 12 else ''))
         if c['clearFlags']:
@@ -794,6 +936,9 @@ def main(argv=None):
         s.add_argument('--snapshot')
         s.add_argument('--no-plugins', action='store_true', help='skip the load order (tests): no names, no dropped-item check')
         s.add_argument('--config', default=CONFIG, help='alpha-reset.json (playerCharacters)')
+        s.add_argument('--stats', choices=('earned', 'full'), default='earned',
+                       help='earned: skills earned by playing stay, staff grants go; full: every skill, level point and learned '
+                            'spell goes too (the alpha announcement). Spells from a kept rite stay either way')
     a = ap.parse_args(argv)
     if a.cmd == 'grants':
         trail = parse_trail(read_logs(a.logs))
@@ -811,7 +956,7 @@ def main(argv=None):
     else:
         trail = parse_trail(read_logs(a.logs))
     lo = None if a.no_plugins else LoadOrder()
-    p = plan(world, trail, lo, settings=load_config(a.config))
+    p = plan(world, trail, lo, settings=load_config(a.config), stats=a.stats)
     if a.json:
         with open(a.json, 'w', encoding='utf-8') as fh:
             json.dump(p, fh, indent=1)
