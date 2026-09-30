@@ -1470,30 +1470,37 @@ const CREATOR_SPOTS = [[0, 0]].concat(...[[6, 120], [12, 240]].map(([n, r]) => A
 const CREATOR_SPACING = 105;
 const CREATOR_PLACE_MS = 2500;
 const CREATOR_HOLD_MS = 30000;
-// spot index -> { a, until }: a spot promised to a player whose move may not have landed yet
+// A set of checked spots handed out one per arrival: the first with nobody (for whom `here` holds) within `spacing` and
+// not promised to another arrival whose move may not have landed yet, else the least crowded. held: spot -> { a, until }
+const spotPicker = (spots, held, spacing, holdMs, here) => {
+  const release = (a) => { for (const [i, h] of held) if (h.a === (a >>> 0)) held.delete(i); };
+  const pick = (a) => {
+    const now = Date.now();
+    const others = [];
+    for (const p of onlineActors()) {
+      if ((p >>> 0) === (a >>> 0) || !here(p)) continue;
+      try { const q = mp.get(p, 'pos'); if (Array.isArray(q)) others.push(q); } catch (e) { /* gone */ }
+    }
+    let best = 0, bestGap = -1;
+    for (let i = 0; i < spots.length; i++) {
+      const s = spots[i];
+      const h = held.get(i);
+      if (h && h.a !== (a >>> 0) && h.until > now) continue;
+      const gap = others.reduce((m, q) => Math.min(m, Math.hypot(q[0] - s[0], q[1] - s[1])), Infinity);
+      if (gap >= spacing) { best = i; bestGap = Infinity; break; }
+      if (gap > bestGap) { bestGap = gap; best = i; }
+    }
+    release(a);
+    held.set(best, { a: a >>> 0, until: now + holdMs });
+    return spots[best];
+  };
+  return { pick, release };
+};
 const creatorSpotHeld = globalThis.__dboCreatorSpots instanceof Map ? globalThis.__dboCreatorSpots : (globalThis.__dboCreatorSpots = new Map());
 const creatorPlacedAt = globalThis.__dboCreatorPlacedAt instanceof Map ? globalThis.__dboCreatorPlacedAt : (globalThis.__dboCreatorPlacedAt = new Map());
-const creatorSpotRelease = (a) => { for (const [i, h] of creatorSpotHeld) if (h.a === (a >>> 0)) creatorSpotHeld.delete(i); creatorPlacedAt.delete(a >>> 0); };
-const creatorSpotFor = (a) => {
-  const now = Date.now();
-  const others = [];
-  for (const p of onlineActors()) {
-    if ((p >>> 0) === (a >>> 0) || !inHub(p)) continue;
-    try { const q = mp.get(p, 'pos'); if (Array.isArray(q)) others.push(q); } catch (e) { /* gone */ }
-  }
-  let best = 0, bestGap = -1;
-  for (let i = 0; i < CREATOR_SPOTS.length; i++) {
-    const s = CREATOR_SPOTS[i];
-    const h = creatorSpotHeld.get(i);
-    if (h && h.a !== (a >>> 0) && h.until > now) continue;
-    const gap = others.reduce((m, q) => Math.min(m, Math.hypot(q[0] - s[0], q[1] - s[1])), Infinity);
-    if (gap >= CREATOR_SPACING) { best = i; bestGap = Infinity; break; }
-    if (gap > bestGap) { bestGap = gap; best = i; }
-  }
-  creatorSpotRelease(a);
-  creatorSpotHeld.set(best, { a: a >>> 0, until: now + CREATOR_HOLD_MS });
-  return CREATOR_SPOTS[best];
-};
+const creatorSpots = spotPicker(CREATOR_SPOTS, creatorSpotHeld, CREATOR_SPACING, CREATOR_HOLD_MS, (p) => inHub(p));
+const creatorSpotRelease = (a) => { creatorSpots.release(a); creatorPlacedAt.delete(a >>> 0); };
+const creatorSpotFor = (a) => creatorSpots.pick(a);
 // true when a move was made (the creator then opens once it has landed)
 const placeInCreatorSpot = (a) => {
   const spot = creatorSpotFor(a);
@@ -1556,6 +1563,23 @@ const moveToHubWhenReady = (a, why) => {
 // Chain onto the server's appearance hook (spawn.ts installed its own before the gamemode loaded).
 // Leaving the Realm once a character is made. Only moves someone who is actually still in the hub
 // and has finished creation, so a re-opened creator or an already-departed player is left alone.
+// Where a new character lands from the Realm: the arrival marker and 7 spots down the Pale Pass road, each where
+// players were measured standing still (the server log's npcGround samples), at or above the terrain (VHGT), 28000
+// inside the border region and 110 apart (tools/arrival_spots.py --observed, 2026-09-30). The marker is on the gate's
+// road pieces 50-76 above the terrain, so terrain heights alone cannot place anyone there. Used only while the landing
+// is still this marker; a moved landing (config) falls back to the one point.
+const ARRIVAL_MARKER = [48236.2, 260600.4];
+const ARRIVAL_SPOTS = [[48236.2, 260600.4, 20405.1], [48246, 260454, 20413], [48363, 260374, 20423], [48683, 260538, 20425],
+  [48536, 260205, 20439], [48058, 260124, 20462], [48464, 260120, 20443], [48657, 260262, 20435]];
+const arrivalSpotHeld = globalThis.__dboArrivalSpots instanceof Map ? globalThis.__dboArrivalSpots : (globalThis.__dboArrivalSpots = new Map());
+const atArrivalWorld = (p) => { try { return String(mp.get(p, 'worldOrCellDesc') || '').toLowerCase() === String(LANDING.world).toLowerCase(); } catch (e) { return false; } };
+const arrivalSpots = spotPicker(ARRIVAL_SPOTS, arrivalSpotHeld, 105, 20000, atArrivalWorld);
+const arrivalLocFor = (a) => {
+  const sameMarker = String(LANDING.world).toLowerCase() === 'a764b:bsheartland.esm'
+    && Math.hypot(LANDING.pos[0] - ARRIVAL_MARKER[0], LANDING.pos[1] - ARRIVAL_MARKER[1]) < 50;
+  if (!sameMarker) return LANDING_LOC;
+  return { cellOrWorldDesc: LANDING.world, pos: arrivalSpots.pick(a), rot: LANDING_LOC.rot };
+};
 const sendToArrival = (a) => {
   try {
     if (mp.get(a, 'isOnline') === false) return;
@@ -1564,7 +1588,7 @@ const sendToArrival = (a) => {
     if (globalThis.__dboNameHold && globalThis.__dboNameHold(a)) { setTimeout(() => sendToArrival(a), 20000); return; }
     const here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase();
     if (here !== String(HUB.cellOrWorldDesc).toLowerCase()) return;
-    mp.set(a, 'locationalData', LANDING_LOC);
+    mp.set(a, 'locationalData', arrivalLocFor(a));
     creation.delete(a);
     creatorSpotRelease(a);
     setFade(a, false);
