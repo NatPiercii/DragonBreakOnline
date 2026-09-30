@@ -427,6 +427,17 @@ module.exports = (api) => {
     for (const line of summary(t)) personal(a, line);
   }, { admin: true, help: '<player>: the Character Journal statistics counted for a character (staff, until the journal opens)' });
 
+  // The Character Journal's Stats tab and profile (journal.js): the numbers, or null when no key can be kept
+  globalThis.__dboStatsData = (a) => {
+    const s = statsOf(a);
+    if (!s) return null;
+    const openMs = s.open ? Math.max(0, Number(s.open.last) - Number(s.open.start)) : 0;
+    const sessions = s.sessions + (s.open ? 1 : 0);
+    const out = { since: s.since, created: s.created, joined: joinedOf(a), playMs: s.playMs, sessions, longestMs: Math.max(s.longestSessionMs, openMs),
+      averageMs: sessions ? (s.sessionMs + openMs) / sessions : 0, distanceUnits: s.distanceUnits, spellsLearned: spellsLearned(a) };
+    for (const k of COUNTERS) out[k] = Number(s[k]) || 0;
+    return out;
+  };
   globalThis.__dboStatsSummary = summary;
   globalThis.__dboStatsFlush = flush;
   // For the journal (phase 1): a character's document by actor (its own fields live beside the counters, e.g. doc.profile)

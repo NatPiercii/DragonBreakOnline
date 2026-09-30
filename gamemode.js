@@ -1408,9 +1408,13 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       if (a && typeof globalThis.__dboSchoolsProgressSend === 'function') globalThis.__dboSchoolsProgressSend(a);
       return;
     }
-    // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
+    // F3 (client factionService): the Character Journal for a client that has it (journal.js), else guilds.js's panel 37
     if (content.customPacketType === 'factionMenuRequest') {
-      const a = actorOf(userId); if (a && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);
+      const a = actorOf(userId);
+      if (!a) return;
+      let journal = false;
+      try { journal = typeof globalThis.__dboJournalRequest === 'function' && globalThis.__dboJournalRequest(a) === true; } catch (e) { log('journal open failed', e.message); }
+      if (!journal && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);
       return;
     }
     // Mirror admin panel actions (F7) into the audit log; AdminSystem enforces them.
@@ -4962,6 +4966,13 @@ try {
   delete require.cache[JOURNALSTATS_JS];
   require(JOURNALSTATS_JS)({ mp, log, personal, registerChatCommand, every, onlineActors, profileOf, display, findAnyByName, isAdmin, creationPending, cfg });
 } catch (e) { log('journalstats.js failed to load:', e.stack || e.message); globalThis.__dboStatsAdd = null; globalThis.__dboStatsDeath = null; }
+// ---- the Character Journal on F3, phase 1 (server\journal.js, config "journal"; front widget 50) -------------------------
+try {
+  const JOURNAL_JS = path.resolve('journal.js');
+  delete require.cache[JOURNAL_JS];
+  require(JOURNAL_JS)({ mp, log, display, nameOf, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg,
+    skills: SKILLS_DEF.skills || [], hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
+} catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; }
 
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {
