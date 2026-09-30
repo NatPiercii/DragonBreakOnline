@@ -14,6 +14,9 @@ module.exports = (api) => {
 
   const C = Object.assign({
     timeScale: 6,               // game minutes per real minute: a game day every 4 real hours
+    // The year the calendar started in. The server's lore is set in 4E 211 (the Discord lore archives), ten years after
+    // the vanilla game's 4E 201, which this clock used to start from (/time said 4E 201)
+    startYear: 211,
     broadcastSeconds: 20,
     weatherHours: [2, 5],       // a weather lasts this many game hours
     // Chance of each kind per zone; zones not listed use default
@@ -46,7 +49,7 @@ module.exports = (api) => {
   const MONTHS = ['Morning Star', "Sun's Dawn", 'First Seed', "Rain's Hand", 'Second Seed', 'Midyear', "Sun's Height", 'Last Seed', 'Hearthfire', 'Frostfall', "Sun's Dusk", 'Evening Star'];
   const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   const calendar = () => {
-    let year = 201, month = 7, day = 17 + Math.floor(gameDays());
+    let year = Math.floor(Number(C.startYear)) || 211, month = 7, day = 17 + Math.floor(gameDays());
     while (day > MONTH_DAYS[month]) { day -= MONTH_DAYS[month]; month++; if (month > 11) { month = 0; year++; } }
     return { year, month, day };
   };
@@ -71,7 +74,8 @@ module.exports = (api) => {
   };
   const weatherFor = (a) => { let z = null; try { z = zoneOfActor(a); } catch (e) { /* default */ } return weatherOf(z); };
 
-  const packetFor = (a) => ({ customPacketType: 'dboClock', serverNow: Date.now(), gameDays: gameDays(), timeScale: ST.timeScale, weather: weatherFor(a) });
+  // startYear lets a client set the engine's year from the server (client TimeService still starts from 4E 201 by itself)
+  const packetFor = (a) => ({ customPacketType: 'dboClock', serverNow: Date.now(), gameDays: gameDays(), timeScale: ST.timeScale, weather: weatherFor(a), startYear: Math.floor(Number(C.startYear)) || 211 });
   const broadcast = () => { for (const a of onlineActors()) sendPacket(a, packetFor(a)); };
   every('worldClock', C.broadcastSeconds * 1000, broadcast);
 
