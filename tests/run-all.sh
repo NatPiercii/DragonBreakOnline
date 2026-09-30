@@ -55,6 +55,7 @@ declare -A NEEDS=(
   [mastery-cast-route]=server:skymp5-server/ts/systems/masterySystem.ts
   [summon-race]=server:skymp5-server/ts/systems/espmMagic.ts
   [spawn-refill]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
+  [destroy-leftovers]=server:skymp5-server/ts/systems/actorUtil.ts
   [spawn-slots]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-stray]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
