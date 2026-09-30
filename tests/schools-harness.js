@@ -42,6 +42,7 @@ const T = {
   fireball: ['a2706:Skyrim.esm', '1c789:Skyrim.esm'], incinerate: ['10f7f4:Skyrim.esm', '10f7ed:Skyrim.esm'],
   boundSword: ['9e2a9:Skyrim.esm', '211eb:Skyrim.esm'], courage: ['9e2ad:Skyrim.esm', '4dee8:Skyrim.esm'],
   calm: ['a2711:Skyrim.esm', '4dee9:Skyrim.esm'], candlelight: ['9e2a7:Skyrim.esm', '43324:Skyrim.esm'],
+  oakflesh: ['9e2a8:Skyrim.esm', '5ad5c:Skyrim.esm'],
 };
 const HEALING = '12fcc:Skyrim.esm';
 
@@ -51,8 +52,8 @@ const RECORDS = {
   [idOf(LECTERN_BASE)]: { type: 'ACTI', editorId: 'ClassLectern', fields: [] },
 };
 
-const MAGE = 0x14, TEACHER = 0x15, ADEPT = 0x16, NOVICE = 0x17, ILLUSIONIST = 0x18, OLDMAGE = 0x19, NPC = 0xff000123;
-const NAMES = { [MAGE]: 'Mage', [TEACHER]: 'Teacher', [ADEPT]: 'Adept', [NOVICE]: 'Novice', [ILLUSIONIST]: 'Illusionist', [OLDMAGE]: 'Oldmage' };
+const MAGE = 0x14, TEACHER = 0x15, ADEPT = 0x16, NOVICE = 0x17, ILLUSIONIST = 0x18, OLDMAGE = 0x19, PRIESTLY = 0x1a, ALTMAGE = 0x1b, OLDPRIEST = 0x1c, NPC = 0xff000123;
+const NAMES = { [MAGE]: 'Mage', [TEACHER]: 'Teacher', [ADEPT]: 'Adept', [NOVICE]: 'Novice', [ILLUSIONIST]: 'Illusionist', [OLDMAGE]: 'Oldmage', [PRIESTLY]: 'Priestly', [ALTMAGE]: 'Altmage', [OLDPRIEST]: 'Oldpriest' };
 const props = new Map();
 const put = (id, p, v) => props.set(id + '|' + p, v);
 const at = (id, cell, pos) => { put(id, 'worldOrCellDesc', cell); put(id, 'pos', pos || [0, 0, 0]); };
@@ -66,7 +67,9 @@ put(BOOKCASE, 'baseDesc', BOOKCASE_BASE); at(BOOKCASE, SYNOD, [0, 0, 0]);
 put(OTHER_SHELF, 'baseDesc', '109d86:Skyrim.esm'); at(OTHER_SHELF, SYNOD, [50, 0, 0]);
 put(LECTERN, 'baseDesc', LECTERN_BASE); at(LECTERN, SYNOD, [-274, 433.5, 196.6]);
 put(LECTERN2, 'baseDesc', LECTERN_BASE); at(LECTERN2, SYNOD, [-258.3, 435.9, 201.9]);
-for (const a of [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE]) { at(a, SYNOD, [0, 0, 0]); put(a, 'profileId', a); }
+for (const a of [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE, PRIESTLY, ALTMAGE, OLDPRIEST]) { at(a, SYNOD, [0, 0, 0]); put(a, 'profileId', a); }
+const ENCHANTER = idOf('651cb:BSHeartland.esm'); at(ENCHANTER, SYNOD, [100, 0, 0]);
+const priestOf = (a, level) => { const r = props.get(a + '|private.mastery') || { v: 2, skills: {}, order: [] }; r.skills.priest = { level, xp: 0, rank: level >= 25 ? 1 : 0 }; if (!r.order.includes('priest')) r.order.push('priest'); put(a, 'private.mastery', r); };
 
 const learned = new Map();
 const known = (a) => learned.get(a) || (learned.set(a, new Set()), learned.get(a));
@@ -96,7 +99,7 @@ let firstTouchAnswer = 'ok';
 globalThis.__alduinakMasteryFirstTouch = (a, skill) => { touches.push([a, skill]); if (firstTouchAnswer === 'ok') arcane(a, 1); return firstTouchAnswer; };
 globalThis.__alduinakMasteryEvent = (kind, a, detail) => wheelEvents.push({ kind, a, detail });
 
-let online = [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE];
+let online = [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE, PRIESTLY, ALTMAGE, OLDPRIEST];
 const out = { widgets: [], closed: [], said: [], audits: [], logs: [], packets: [] };
 const handlers = new Map(), commands = new Map(), timers = new Map();
 const mkApi = (cfg) => ({
@@ -162,7 +165,7 @@ const advance = (ms) => { wallClock += ms; };
 (async () => {
 
 // ---- boot and the client gate ----
-check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4/.test(l)), out.logs.filter((l) => /schools/.test(l)));
+check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
 check('the tracked config ships it switched off until the client pack is out', CONFIG.schools.enabled === false && CONFIG.schools.requireClient === true);
 check('an old client (no schools cap): no gate, no panel, no meters', globalThis.__dboSchoolsRefusal(MAGE, 'Destruction', 0, 'You') === null && activate(BOOKCASE, MAGE) === false && progress(MAGE) === null);
 check('...and a cast counts for nothing', (globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1])), !rec(MAGE) || !rec(MAGE).levels.Destruction));
@@ -187,6 +190,7 @@ check('...the meters are sent again: Destruction primary Novice, the rest closed
 check('...and the choice is audited', out.audits.some((l) => /SCHOOLS P14 chose Destruction as their primary school \(level 1\)/.test(l)));
 ui('schoolChoose', MAGE, [p.nonce, 'Illusion', 'primary']);
 check('a second primary is refused', rec(MAGE).primary === 'Destruction' && /already your primary/.test(said(MAGE)));
+p = lastPacket(MAGE, 'dboSchoolProgress').progress;
 ui('schoolChoose', MAGE, [p.nonce, 'Illusion', 'secondary']);
 check('a secondary before Arcane Arts 76 is refused', !rec(MAGE).secondary && /opens at Arcane Arts 76/.test(said(MAGE)), said(MAGE));
 
@@ -238,13 +242,14 @@ check('a minute of study credits Arcane Arts once, with a Conjuration spell, thr
 at(NOVICE, SYNOD, [300, 0, 0]);
 advance(10000); tick('schools.tick');
 check('walking off the spot ends the study and closes the panel', !globalThis.__dboSchoolsState.studying.has(NOVICE) && out.closed.some(([a, id]) => a === NOVICE && id === 73) && anims.some(([a, ev]) => a === NOVICE && ev === 'IdleForceDefaultState'));
-const used = rec(NOVICE).study.usedMs;
+const studiedMs = (a) => (rec(a).study.log || []).reduce((n, [from, to]) => n + (to - from), 0);
+const used = studiedMs(NOVICE);
 check('...and the time studied is counted against the window', used >= 60000 && used <= 70000, rec(NOVICE).study);
 at(NOVICE, SYNOD, [0, 0, 0]);
 activate(BOOKCASE, NOVICE);
 for (let i = 0; i < 40; i++) { advance(30000); tick('schools.tick'); }
 check('20 minutes in the window, then "Come back": the study stops by itself', !globalThis.__dboSchoolsState.studying.has(NOVICE) && saidAny(NOVICE, /You've done enough studying for the day\. Come back in \d+ hours?\./), said(NOVICE));
-check('...20 minutes paid, not more', Math.abs(rec(NOVICE).study.usedMs - 20 * MIN) <= 10000, rec(NOVICE).study);
+check('...20 minutes paid, not more', Math.abs(studiedMs(NOVICE) - 20 * MIN) <= 10000, rec(NOVICE).study);
 activate(BOOKCASE, NOVICE);
 w = lastWidget(NOVICE, 'studyMagic');
 check('the shelf refuses more until the window is over', w.mode === 'idle' && /You've done enough studying for the day\. Come back in/.test(w.whyNot), w);
@@ -367,6 +372,62 @@ p = progress(OLDMAGE);
 check('an existing mage is brought over: primary Conjuration (most spells) at their Arcane Arts level', rec(OLDMAGE).primary === 'Conjuration' && level(OLDMAGE, 'Conjuration') === 80, rec(OLDMAGE));
 check('...and Destruction, the school of their other spells, as the secondary at 33', rec(OLDMAGE).secondary === 'Destruction' && level(OLDMAGE, 'Destruction') === 33, rec(OLDMAGE));
 check('...audited once', out.audits.filter((l) => /SCHOOLS P19 brought over: primary Conjuration, secondary Destruction at Arcane Arts 80 \(3 studied spells\)/.test(l)).length === 1);
+
+// ---- Alteration, both Priest's and Arcane Arts' (Nate, 2026-09-30) ----
+priestOf(PRIESTLY, 5);
+check('a priest with no school learns a Novice Alteration tome through Priest, into the Priest book', (await read(PRIESTLY, T.candlelight)) !== false && ((props.get(PRIESTLY + '|private.dboStudied') || {}).priest || []).includes(T.candlelight[1]) && !(rec(PRIESTLY) || {}).primary, props.get(PRIESTLY + '|private.dboStudied'));
+check("...and the priest's casts of it stay Priest's: no cast route, no school meter", globalThis.__dboCastSkill(PRIESTLY, 'Alteration') === undefined && (globalThis.__dboSchoolsCast(PRIESTLY, idOf(T.candlelight[1])), !rec(PRIESTLY).levels.Alteration));
+const touchesBefore = touches.length;
+p = progress(ALTMAGE); ui('schoolChoose', ALTMAGE, [p.nonce, 'Alteration', 'primary']);
+check('a mage chooses Alteration as the school (Arcane Arts taken up)', rec(ALTMAGE).primary === 'Alteration' && touches.length === touchesBefore + 1 && touches[touches.length - 1][1] === 'arcane');
+check('...and learns an Alteration tome through the school, into the Arcane Arts book, without taking up Priest', (await read(ALTMAGE, T.candlelight)) !== false && studied(ALTMAGE).includes(T.candlelight[1]) && touches.length === touchesBefore + 1, [studied(ALTMAGE), touches.slice(touchesBefore)]);
+check("...the mage's Alteration casts credit Arcane Arts (the cast route) and the Alteration meter", globalThis.__dboCastSkill(ALTMAGE, 'Alteration') === 'arcane' && (globalThis.__dboSchoolsCast(ALTMAGE, idOf(T.candlelight[1])), rec(ALTMAGE).levels.Alteration.xp > 0), rec(ALTMAGE).levels);
+check('...other schools are never routed', globalThis.__dboCastSkill(ALTMAGE, 'Destruction') === undefined && globalThis.__dboCastSkill(ALTMAGE, 'Restoration') === undefined);
+check('a Destruction mage without Priest is refused Alteration through the school they did not choose', (await read(MAGE, T.oakflesh)) === false && /Alteration is not one of your schools of magic/.test(said(MAGE)), said(MAGE));
+priestOf(MAGE, 5);
+check('...but with Priest taken up the Priest path takes it (either will do)', (await read(MAGE, T.oakflesh)) !== false && ((props.get(MAGE + '|private.dboStudied') || {}).priest || []).includes(T.oakflesh[1]), props.get(MAGE + '|private.dboStudied'));
+// A priest's Alteration spells never force a school; the shelves stay open to them
+arcane(OLDPRIEST, 30); priestOf(OLDPRIEST, 40);
+put(OLDPRIEST, 'private.dboStudied', { priest: [T.candlelight[1], T.oakflesh[1], '5ad5d:Skyrim.esm'], arcane: [T.flames[1]] });
+p = progress(OLDPRIEST);
+check("bringing over: three Alteration spells in the Priest book do not make Alteration the school; the Arcane book's Destruction does", rec(OLDPRIEST).primary === 'Destruction' && !rec(OLDPRIEST).secondary, rec(OLDPRIEST));
+activate(BOOKCASE, PRIESTLY);
+ui('schoolChoose', PRIESTLY, [lastWidget(PRIESTLY, 'studyMagic').nonce, 'Illusion', 'primary']);
+check('a priest who knows Alteration spells may still study a school: they are no first Arcane spell', rec(PRIESTLY).primary === 'Illusion' && globalThis.__dboSchoolsState.studying.has(PRIESTLY), lastWidget(PRIESTLY, 'studyMagic'));
+ui('studyClose', PRIESTLY, []);
+// The switch
+ui('uiCaps', OLDPRIEST, ['bank']);
+check("an old client keeps Alteration Priest's alone", globalThis.__dboSchoolsAlteration(OLDPRIEST) === 'priest' && globalThis.__dboCastSkill(OLDPRIEST, 'Alteration') === undefined);
+ui('uiCaps', OLDPRIEST, ['bank', 'spellbook', 'schools']);
+load({ alteration: 'priest' });
+check('"priest": Alteration is no school (three meters) and a mage\'s Alteration casts are not routed', progress(NOVICE).schools.map((x) => x.name).join() === 'Destruction,Illusion,Conjuration' && globalThis.__dboCastSkill(ALTMAGE, 'Alteration') === undefined && globalThis.__dboSchoolsAlteration(ALTMAGE) === 'priest');
+check('..."priest": an Alteration tome needs Priest again', (await read(ALTMAGE, T.oakflesh)) === false && /not taken up Priest/.test(said(ALTMAGE)), said(ALTMAGE));
+load({ alteration: 'arcane' });
+check('"arcane": a priest with no Alteration school is refused an Alteration tome', (await read(PRIESTLY, ['9e2a8:Skyrim.esm', '5ad5c:Skyrim.esm'])) === false && /Alteration is not one of your schools of magic/.test(said(PRIESTLY)), said(PRIESTLY));
+check('..."arcane": every ready player\'s Alteration cast is routed to Arcane Arts', globalThis.__dboCastSkill(PRIESTLY, 'Alteration') === 'arcane');
+load();
+
+// ---- the rolling study window ----
+{
+  const r = rec(NOVICE); r.study = { log: [] }; put(NOVICE, 'private.dboSchools', r); put(NOVICE, 'private.dboStudied', {});
+  const sit = (minutes) => { activate(BOOKCASE, NOVICE); for (let i = 0; i < minutes * 2; i++) { advance(30000); tick('schools.tick'); } ui('studyClose', NOVICE, []); };
+  sit(10); advance(2 * HOUR); sit(12);
+  check('rolling: 10 minutes, then 2 hours later 10 more fill the 20, and the next room is about 2 hours away', Math.abs(studiedMs(NOVICE) - 20 * MIN) <= 10000 && saidAny(NOVICE, /Come back in 2 hours/), [studiedMs(NOVICE), said(NOVICE)]);
+  advance(2 * HOUR + 30 * MIN);
+  activate(BOOKCASE, NOVICE);
+  check('...4 hours after the first sitting it has left the window and there is room again', globalThis.__dboSchoolsState.studying.has(NOVICE), lastWidget(NOVICE, 'studyMagic'));
+  ui('studyClose', NOVICE, []);
+  const legacy = rec(NOVICE); legacy.study = { windowAt: Date.now() - 30 * MIN, usedMs: 20 * MIN }; put(NOVICE, 'private.dboSchools', legacy);
+  activate(BOOKCASE, NOVICE);
+  check('a record from before the rolling window counts as one sitting', !globalThis.__dboSchoolsState.studying.has(NOVICE) && /Come back in/.test(lastWidget(NOVICE, 'studyMagic').whyNot), lastWidget(NOVICE, 'studyMagic'));
+}
+
+// ---- the Synod's enchanting table ----
+put(NOVICE, 'private.dboGuilds', []);
+check("the Synod Conclave's enchanting table refuses someone outside the Synod and the Colleges", globalThis.__dboGuildWorkshop(ENCHANTER, NOVICE) === true && /the Synod's own enchanting table/.test(said(NOVICE)), said(NOVICE));
+put(NOVICE, 'private.dboGuilds', [{ id: 'college-of-whispers', rank: 0 }]);
+check('...and lets a College member use it', globalThis.__dboGuildWorkshop(ENCHANTER, NOVICE) === false);
+check('...other workbenches are not its business', globalThis.__dboGuildWorkshop(BOOKCASE, MAGE) === false);
 
 // ---- /teach runs through the same gate ----
 check('spells.js asks the school gate for a student too', /Illusion is not one of Mage #TAG4's schools of magic/.test(globalThis.__dboSchoolsRefusal(MAGE, 'Illusion', 0, 'Mage #TAG4') || ''));
