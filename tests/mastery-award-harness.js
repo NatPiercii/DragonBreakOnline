@@ -46,6 +46,9 @@ const smithXp = () => { const s = mp.get(SMITH, 'private.mastery').skills.blacks
 
 const BOOK = 0x1afce;
 let before = smithXp();
+// The bucket refills 30 units an hour, so a slow first run (cold start, a busy box) refilled more than the check allows:
+// the clock stands still until the bucket check
+const realNow = Date.now, frozenAt = realNow(); Date.now = () => frozenAt;
 const u1 = sys.award(ctx, SMITH, 'blacksmith', 3, BOOK);
 ok('a held Blacksmith is credited, and the units come back', u1 > 0 && smithXp() > before, [u1, before, smithXp()]);
 before = smithXp();
@@ -61,11 +64,16 @@ let total = 0;
 for (let i = 0; i < 40; i++) total += sys.award(ctx, SMITH, 'blacksmith', 3, 0x100000 + i);
 const last = sys.award(ctx, SMITH, 'blacksmith', 3, 0x200000);
 ok('the hourly bucket stops it (burst 20 units)', total + u1 + u2 + u3 <= 20.001 && last === 0, [total, last]);
+Date.now = realNow;
 ok('the level-up notice is the Wheel\'s own', notices.some((t) => /Your Blacksmith rises to/.test(t)), notices);
 
 // The playtesters' boost (private.xpBoost { mult, until }) doubles an award as it doubles any other work: brewing
 // (alchemy.js) and smithing books (manuals.js) are credited through the award, and the boost promises all work
+// award()'s own body: a line with the boost but without fork client-award-boost 4264bf2d (server-next-v3 7daecf28) never
+// passes it on, which is a feature that line lacks, not a regression: skipped there, failed where it is expected
+const AWARD_BODY = (/award\(ctx, actorId, skillId, weight, key\) \{[\s\S]*?\n  \}\n/.exec(SRC) || [''])[0];
 if (!/private\.xpBoost/.test(SRC)) { require('./expect')('mastery-boost', 'this masterySystem has no private.xpBoost to boost an award'); console.log('ok   skipped the boost cases: this masterySystem has no private.xpBoost'); }
+else if (!/xpBoostOf/.test(AWARD_BODY)) { require('./expect')('mastery-boost', 'award() does not pass the xpBoost on (fork client-award-boost 4264bf2d)'); console.log('ok   skipped the boost cases: award() does not take the xpBoost (fork client-award-boost 4264bf2d)'); }
 else {
   const xpOf = (a) => { const s = mp.get(a, 'private.mastery').skills.blacksmith; return s.level * 100 + s.xp; };
   for (const a of [PLAIN, BOOSTED, LAPSED]) mp.set(a, 'private.mastery', { v: 2, order: ['blacksmith'], skills: { blacksmith: { level: 10, xp: 0, rank: 0 } } });
