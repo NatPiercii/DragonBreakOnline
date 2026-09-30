@@ -60,7 +60,7 @@ def world_fixture(root):
                      'inv': {'entries': [{'baseId': 0xF, 'count': 800}, {'baseId': 0x1000, 'count': 2}]},
                      'equipmentDump': {'instantSpell': 0, 'inv': {'entries': [{'baseId': 0x1000, 'count': 1, 'worn': True}]}},
                      'learnedSpells': [0x12FCD, 0x12FD0, 0x92C48, tier_spell],
-                     'dynamicFields': {'private.charTag': 'HERO', 'private.bankGold': 150, 'private.lastWorn': [[0x1000, 0]],
+                     'dynamicFields': {'private.charTag': 'HERO', 'isAdmin': True, 'private.bankGold': 150, 'private.lastWorn': [[0x1000, 0]],
                                        'private.werewolfGrant': True, 'private.dboStudied': {'priest': ['12fcd:Skyrim.esm']},
                                        'private.dboLevel': {'level': 3, 'pending': 0, 'spent': {'health': 20, 'magicka': 0, 'stamina': 0}},
                                        'private.mastery': {'v': 2, 'order': ['arcane', 'priest', 'miner'], 'skills': {
@@ -71,10 +71,13 @@ def world_fixture(root):
     form('54.json', {'recType': 1, 'profileId': 9, 'formDesc': '54', 'baseDesc': '7:Skyrim.esm', 'appearanceDump': {'name': 'Bystander'},
                      'inv': {'entries': [{'baseId': 0xF, 'count': 12}]}, 'learnedSpells': [0x12FD0],
                      'dynamicFields': {'private.charTag': 'BYST', 'private.mastery': {'v': 2, 'order': ['miner'], 'skills': {'miner': {'level': 40, 'xp': 0, 'rank': 1, 'granted': []}}}}})
+    # Testy: a character named for testing, on a player's profile
+    form('56.json', {'recType': 1, 'profileId': 12, 'formDesc': '56', 'baseDesc': '7:Skyrim.esm', 'appearanceDump': {'name': 'Testy'},
+                     'dynamicFields': {'private.charTag': 'TSTY'}})
     # Crown: a vampire by rite who holds the Blood Crown, and a staff Vampire Lord grant on top
     form('55.json', {'recType': 1, 'profileId': 10, 'formDesc': '55', 'baseDesc': '7:Skyrim.esm', 'appearanceDump': {'name': 'Crown'},
                      'learnedSpells': [0x0200283B], 'dynamicFields': {'private.charTag': 'CRWN', 'private.vampireLordGrant': True,
-                                                                     'private.supernatural': {'kind': 'vampire'}}})
+                                                                     'private.supernatural': {'kind': 'vampire', 'pure': True}}})
     form('12ae13_DragonBreak Online Edits.esp.json', {'baseDesc': 'aaaa:Skyrim.esm', 'inv': {'entries': [{'baseId': 0x1000, 'count': 10000}]}})
     form('a1_Skyrim.esm.json', {'baseDesc': 'bbbb:Skyrim.esm', 'inv': {'entries': [{'baseId': 0xF, 'count': 40}]}})
     form('b2_Skyrim.esm.json', {'baseDesc': 'bbbb:Skyrim.esm'})
@@ -146,13 +149,17 @@ def main():
         by2 = [c for c in p['characters'] if c['name'] == 'Bystander'][0]
         check('a character nobody touched has no staff changes', not by2['skills'] and not by2['removeSpells'] and not by2['clearFlags'] and not by2['levelReset'])
         crown = [c for c in p['characters'] if c['name'] == 'Crown'][0]
-        check('the Blood Crown holder keeps the Vampire Lord power; the staff flag goes', crown['removeSpells'] == [] and crown['clearFlags'] == ['private.vampireLordGrant'], crown)
+        check('the Blood Crown is released: its holder gives up the Vampire Lord power and the staff flag, keeps the vampirism',
+              crown['removeSpells'] == [0x0200283B] and crown['clearFlags'] == ['private.vampireLordGrant'] and 'vampire' in crown.get('keptSupernatural', ''), crown)
         conts = {c['form']: c for c in p['world']['containers']}
         check('containers with items are emptied, the supply chest flagged; empty ones and NPC bodies left',
               set(conts) == {'12ae13:DragonBreak Online Edits.esp', 'a1:Skyrim.esm'} and conts['12ae13:DragonBreak Online Edits.esp']['supply'], list(conts))
         check('an item lying in the world is removed; a removable torch activator is not', [d['form'] for d in p['world']['droppedItems']] == ['2a9'], p['world']['droppedItems'])
         check('bank: treasuries of zones with one go back to the seed, factions empty', p['files']['bank.json']['to'] == {'zones': {'whiterun': 10000, 'bruma': 10000}, 'factions': {}}, p['files']['bank.json'])
-        check('the Blood Crown is named for a decision', any('Blood Crown' in n for n in p['notes']), p['notes'])
+        check('the crown release is planned', p['files'].get('supernatural.json', {}).get('released') == 'Crown', p['files'].get('supernatural.json'))
+        staff = {x['name']: x for x in p['staff']}
+        check('staff and test characters are listed: the GM\'s profile and the test-named, not the bystander',
+              set(staff) == {'Hero', 'Testy'} and any('GM actions' in w or 'admin' in w for w in staff['Testy']['why']) is False and 'named as a test or GM character' in staff['Testy']['why'], p['staff'])
 
         # ---- apply ----
         before_untouched = open(os.path.join(root, 'state', 'world', 'changeForms', 'b2_Skyrim.esm.json')).read()
@@ -181,6 +188,7 @@ def main():
         com = json.load(open(os.path.join(srv, 'commissions.json')))
         check('commissions: the open one cancelled, the finished one left, owed dropped', [c['state'] for c in com['list']] == ['cancelled', 'done'] and com['owed'] == [], com)
         check('contracts cleared', json.load(open(os.path.join(srv, 'contracts.json'))) == {'contracts': [], 'taken': {}})
+        check('the Blood Crown is vacant', json.load(open(os.path.join(srv, 'supernatural.json'))) == {'crown': None, 'revoke': []})
         ten = json.load(open(os.path.join(srv, 'tenancy.json')))
         check('tenancy: the deposit held is 0, the tenant stays', ten['listings']['x1']['depositHeld'] == 0 and ten['listings']['x1']['tenant'] == {'profile': 9} and ten['owed'] == [], ten)
         eco = json.load(open(os.path.join(srv, 'economy.json')))
@@ -191,7 +199,7 @@ def main():
         h2 = [c for c in p2['characters'] if c['name'] == 'Hero'][0]
         check('planned again, the world holds no containers to empty and Hero carries only the kit\'s gold',
               not p2['world']['containers'] and h2['gold'] == 50 and not h2['removeSpells'], {'containers': len(p2['world']['containers']), 'gold': h2['gold'], 'spells': h2['removeSpells']})
-        check('...takes no skill down a second time, and knows the world was reset', not h2['skills'] and not h2['levelReset'] and len(p2['alreadyReset']) == 3, {'skills': h2['skills'], 'already': p2['alreadyReset']})
+        check('...takes no skill down a second time, and knows the world was reset', not h2['skills'] and not h2['levelReset'] and len(p2['alreadyReset']) == 4, {'skills': h2['skills'], 'already': p2['alreadyReset']})
         try:
             ar.apply(ar.World(root), p2, tmp); ok = False
         except SystemExit:

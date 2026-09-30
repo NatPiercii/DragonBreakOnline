@@ -10,9 +10,9 @@ start, and takes back what staff granted:
 |---|---|---|
 | Name, race, look, character slot | Every inventory: the starter kit only (below) | Skill tiers set in the admin panel, and panel hour grants |
 | House claims, businesses (ownership), tenancies | Every container with items: barrels, chests, business chests, faction strongboxes, dungeon chests, the staff supply chest (DLE 12ae13). They are left empty and never refill from their base | "Give all spells" (the 133 tome spells), unless the character learned a spell itself (a tome, a study point) |
-| Faction and guild membership, offices | Gold: carried, banked (`private.bankGold`), treasuries back to their seed (10,000 per hold), faction treasuries 0 | The werewolf and Vampire Lord grants (flags and powers), unless earned in a rite or by holding the Blood Crown |
+| Faction and guild membership, offices | Gold: carried, banked (`private.bankGold`), treasuries back to their seed (10,000 per hold), faction treasuries 0 | The werewolf and Vampire Lord grants (flags and powers), unless earned in a rite. The Vampire Lord power goes from everyone: the Blood Crown is released |
 | Skills earned by playing, spells learned by playing | Business takings, chest rentals, tenancy deposits held, commissions (cancelled, no refund), hunting contracts, owed wages | "Give every shout" (`private.dboAllShouts`) |
-| Supernatural state from rites, the Blood Crown | Items lying in the world (none on 30 Sep) | Items: they go with the inventories |
+| Supernatural state from rites (vampirism, lycanthropy) | Items lying in the world (none on 30 Sep); the Blood Crown, released so the first to rise a pure-blood after the reset claims it | Items: they go with the inventories |
 | Dungeon rests, needs, letters, deity, patron rerolls, scholar reads | | |
 
 **The starter kit.** Miner's Clothes and Miner's Boots (worn), 50 gold, a Pickaxe and a Woodcutter's Axe. That is
@@ -39,19 +39,21 @@ charlevel.js raises the level again from the kept skills at the next login, and 
 Every character gets `private.alphaReset`. A second `apply` on the same world is refused, and a second `plan` takes
 nothing back twice: taking a skill that went 35 → 5 back again would leave it at 0.
 
-## Decisions to confirm (defaults in the tool)
+## Decisions (confirmed by Nate, 2026-09-30)
 
-1. **Staff-granted skills on players' characters.** Flo'Riahn #Z7EG (a playtester) had her skills set to Master by
-   staff on 22 Sep; 14 are set aside and alchemy goes to 0. Nilis Urnum, Angorion Spellian and Vaelis Duskwood also
-   lose staff-set skills. Everything else they earned stays. If Nate wants some testers to keep their levels, list
-   them and the tool can skip them.
-2. **The Blood Crown** stays with vampiretestcharacter #2UBX (a rite on 29 Sep). The supernatural state from rites
-   stays too: werewolves Dar Ra'jhir #5YMX and Julius Draconis #8KWH; vampires Vaeric Goldenshaft #FLC7 and
-   vampiretestcharacter #2UBX. Should the crown be vacant at the opening?
-3. **GM and test characters** (GM Nate, Hircine, Goddess Dibella, the "test" characters) are treated like any
-   other: kept and reset. Decide whether they play in the alpha world at all (economy audit, 29 Sep).
-4. **Treasuries** go back to 10,000 each rather than to 0. Commissions still open are cancelled without refund.
-   Chest rentals end, and business takings go to 0. Tenancy deposits held go to 0, and tenants keep their houses.
+1. **Staff-set skills are taken back for everyone**, playtesters included, with no named skips. Flo'Riahn #Z7EG, whose
+   skills staff set to Master on 22 Sep, keeps what she earned elsewhere; 14 of those skills are set aside and
+   alchemy goes to 0.
+2. **The Blood Crown is released.** `supernatural.json` gets `crown: null` and an empty revoke list. Its holder gives
+   up the Vampire Lord power and keeps the vampirism from the rite. A vacant crown goes to the next character to
+   become a pure-blood (supernatural.js, becomeVampire), so existing pure-bloods do not take it back by logging in.
+3. **GM and test characters do not play in the alpha world.** They are reset like everyone else, and the report lists
+   them for Nate and the staff under "Staff and test characters", by profile and name, with why. The list holds:
+   - every character of a staff profile, meaning a profile with GM actions on record or a character flagged admin at
+     a login;
+   - any character named as a test or GM character.
+   A staff member's own player character, if they keep one, is for Nate to mark as the exception.
+4. **Treasuries go back to the 10,000 seed.**
 
 ## The dry run (30 Sep, sandbox of the live world)
 

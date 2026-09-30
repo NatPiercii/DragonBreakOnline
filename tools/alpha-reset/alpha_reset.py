@@ -328,6 +328,7 @@ def plan(world, trail, lo, seed_default=10000):
     powers = world.game_json('admin-powers.json', {}) or {}
     super_state = world.game_json('supernatural.json', {}) or {}
     crown_holder = int(((super_state.get('crown') or {}).get('holder')) or 0)
+    crown_revoke = {int(x) for x in (super_state.get('revoke') or []) if str(x).isdigit() or isinstance(x, int)}
     kit, worn, _ = build_kit(world, lo)
     admin_spells = {lo.id_of(s[0]) for s in powers.get('spells') or [] if lo and lo.id_of(s[0])}
     werewolf_power = lo.id_of(powers['werewolf']) if lo and powers.get('werewolf') else 0
@@ -381,8 +382,12 @@ def plan(world, trail, lo, seed_default=10000):
         actor_id = 0xFF000000 | int(n[:-5], 16) if re.match(r'^[0-9a-f]+\.json$', n) else 0
         if df.get('private.vampireLordGrant') or (not done and any(g['action'] == 'giveVampireLord' for g in events.get(n, []))):
             flags.append('private.vampireLordGrant')
-            if vl_power and crown_holder != actor_id:
+            if vl_power:
                 remove.add(vl_power)
+        # The Blood Crown is released at the reset (Nate, 2026-09-30), so its holder, and anyone still waiting on the
+        # crown's revoke list, gives up the Vampire Lord power; their vampirism from the rite stays
+        if vl_power and (actor_id == crown_holder or actor_id in crown_revoke):
+            remove.add(vl_power)
         if df.get('private.dboAllShouts') or (not done and any(g['action'] == 'giveShouts' for g in events.get(n, []))):
             flags.append('private.dboAllShouts')
         c['removeSpells'] = sorted(s for s in remove if s in spells_now)
@@ -390,8 +395,8 @@ def plan(world, trail, lo, seed_default=10000):
         # A level earned partly from staff hours is earned again from the kept skills (charlevel.js only ever raises it)
         c['levelReset'] = any((x.get('to') or 0) < (x.get('from') or 0) for x in ch) and isinstance(df.get('private.dboLevel'), dict)
         sup = df.get('private.supernatural') or {}
-        if sup.get('kind') or crown_holder == actor_id:
-            c['keptSupernatural'] = (sup.get('kind') or '') + (' (holds the Blood Crown)' if crown_holder == actor_id else '')
+        if sup.get('kind'):
+            c['keptSupernatural'] = sup['kind'] + (' (pure-blood)' if sup.get('pure') else '') + ('; gives up the Blood Crown' if crown_holder == actor_id else '')
         out['characters'].append(c)
 
     # ---- the world: every container and store emptied, items lying on the ground removed ----
@@ -441,8 +446,35 @@ def plan(world, trail, lo, seed_default=10000):
     eco = world.game_json('economy.json')
     if isinstance(eco, dict):
         files['economy.json'] = {'owed': eco.get('owed') or {}, 'overdue': eco.get('overdue') or {}}
-    if crown_holder:
-        out['notes'].append(f'The Blood Crown stays with {(super_state.get("crown") or {}).get("name")} (a rite, not a staff grant). Say if it should be vacant at the opening.')
+    if isinstance(super_state, dict) and (super_state.get('crown') or super_state.get('revoke')):
+        files['supernatural.json'] = {'released': (super_state.get('crown') or {}).get('name'), 'holder': crown_holder, 'revoke': sorted(crown_revoke)}
+
+    # ---- staff and test characters: staff-only from the opening (Nate, 2026-09-30) ----
+    # A staff profile is one that made a GM action on record or had a character flagged admin at its last login;
+    # every character on it is listed with why, and a character named for testing is listed whatever its profile
+    gm_profiles = {g['gmProfile'] for g in trail['grants'] if 'gmProfile' in g}
+    gm_tags = {g['gmTag'] for g in trail['grants'] if 'gmTag' in g}
+    admin_profiles = {d.get('profileId') for d in world.chars.values() if (d.get('dynamicFields') or {}).get('isAdmin') is True}
+    staff = []
+    for n, d in world.chars.items():
+        df = d.get('dynamicFields') or {}
+        why = []
+        if d.get('profileId') in gm_profiles:
+            why.append('staff profile (GM actions on record)')
+        elif d.get('profileId') in admin_profiles:
+            why.append('staff profile (admin at a login)')
+        if df.get('isAdmin') is True:
+            why.append('admin at its last login')
+        if tag_of(d) in gm_tags:
+            why.append('GM actions made from this character')
+        modes = df.get('ff_adminModes')
+        if isinstance(modes, dict) and any(modes.values()):
+            why.append('admin modes on (' + ', '.join(k for k, v in modes.items() if v) + ')')
+        if re.search(r'test|^GM\b', name_of(d), re.I):
+            why.append('named as a test or GM character')
+        if why:
+            staff.append({'profile': d.get('profileId'), 'name': name_of(d), 'tag': tag_of(d), 'file': n, 'why': why})
+    out['staff'] = sorted(staff, key=lambda x: (x['profile'], x['name']))
     return out
 
 
@@ -559,6 +591,10 @@ def apply(world, p, report_dir):
         eco = world.game_json('economy.json')
         eco['owed'] = {}; eco['overdue'] = {}
         save_game('economy.json', eco)
+    if 'supernatural.json' in files:
+        sup = world.game_json('supernatural.json')
+        sup['crown'] = None; sup['revoke'] = []
+        save_game('supernatural.json', sup)
     return written
 
 
@@ -596,11 +632,23 @@ def report(p, lo, path, applied=None):
             L.append(f'- contracts.json: {v["cleared"]} posted contract(s) cleared (their treasuries are reset), {len(v["released"])} hunter(s) released; the board posts fresh ones.')
         elif f == 'economy.json':
             L.append(f'- economy.json: owed wages {json.dumps(v["owed"])} and overdue {json.dumps(v["overdue"])} dropped.')
+        elif f == 'supernatural.json':
+            L.append(f'- supernatural.json: the Blood Crown is released' + (f' by {v["released"]}' if v['released'] else '') + '; the first to rise a pure-blood after the reset claims it. Its holder keeps their vampirism and gives up the Vampire Lord power.')
     if p['notes']:
         L.append('')
         L.append('## Decisions to confirm')
         for n in p['notes']:
             L.append(f'- {n}')
+    if p.get('staff'):
+        L.append('')
+        L.append(f'## Staff and test characters: staff-only from the opening ({len(p["staff"])})')
+        L.append('')
+        L.append('Reset like every other character. They do not play in the alpha world (Nate, 2026-09-30). A staff member\'s own player character, if any, is for Nate to mark as the exception.')
+        L.append('')
+        L.append('| Profile | Character | Why |')
+        L.append('|---|---|---|')
+        for x in p['staff']:
+            L.append(f'| {x["profile"]} | {x["name"]} #{x["tag"]} | {"; ".join(x["why"])} |')
     L.append('')
     L.append('## Per character')
     for c in sorted(chars, key=lambda c: (-len(c['staff']), c['name'])):
