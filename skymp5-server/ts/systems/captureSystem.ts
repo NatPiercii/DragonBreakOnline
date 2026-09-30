@@ -25,6 +25,14 @@ type Mp = any;
 // so STOPS their bleedout (mp.set isDead=false stands them up instead of a temple respawn).
 // A restrained player can restrain, carry or uncuff nobody, themselves included.
 //
+// Rope (Nate, 2026-09-30): anyone else carrying a rope (the gamemode's server\rope.js answers
+// globalThis.__dboRopeHeld and takes one with __dboRopeTake(captor, target)) may tie a DOWNED player at once, or a
+// conscious one who says yes to the prompt, never on sight. One binding uses one rope, taken when the knot
+// is tied. A rope captive wears no shackles, is led like an arrest, and can be left tied where they stand
+// (__dboLeash turns the tether off and on). rope.js runs the unattended clock and the slip; struggle.js makes
+// the round easier while unattended. A refused or unanswered rope prompt holds ropeRefusalHoldMs for that
+// pair, and a rope captive who gets free has ropeEscapeGraceMs before anyone can tie them again.
+//
 // Wire protocol: all packets are MsgType.CustomPacket carrying JSON.
 //   Client -> Server:
 //     { customPacketType: "captureRequest",  target: <actorFormId> }
@@ -33,7 +41,7 @@ type Mp = any;
 //     { customPacketType: "releaseRequest",  target: <actorFormId> }   // fully free
 //     { customPacketType: "captureConsentResult", requestId, accepted } // from the prompted target
 //   Server -> Client:
-//     { customPacketType: "restraintState",  boundHands, carried, carrier, anim, carriedAnim, carryForward, carryUp, carryYaw } // -> captive's RestraintService (carrier = actor id or 0)
+//     { customPacketType: "restraintState",  boundHands, carried, carrier, leash, anim, carriedAnim, carryForward, carryUp, carryYaw } // -> captive's RestraintService (carrier, leash = actor id or 0)
 //     { customPacketType: "carryState",      carrying, anim }              // -> carrier's RestraintService (pose only)
 //     { customPacketType: "captureConsentRequest", requestId, text }       // -> target's CaptureConsentService
 //     { customPacketType: "captureNotice",   text }                        // -> corner notification
@@ -45,7 +53,7 @@ const NOTICE_PACKET = "captureNotice";
 
 // Mirrors the captive's restraint state so the gamemode can gate its own logic
 // on it (e.g. skip its temple pass-out for a bound or carried player):
-//   mp.get(actorId, "private.restrained") -> { boundHands, carried, captorActorId, carrierActorId, addedShackle } | null
+//   mp.get(actorId, "private.restrained") -> { boundHands, carried, captorActorId, carrierActorId, addedShackle, rope, untethered } | null
 export const RESTRAINED_PROP = "private.restrained";
 
 // Set by the gamemode on admins and zone officials (guards included): only they may restrain or carry another player
@@ -89,6 +97,12 @@ const DEFAULT_CONSENT_COOLDOWN_MS = 15000;
 // A captive who broke free cannot be restrained or carried again this soon unless downed. Overridable via "captureEscapeGraceMs".
 const DEFAULT_ESCAPE_GRACE_MS = 20000;
 
+// A refused or unanswered rope prompt holds this long for that pair. Overridable via "ropeRefusalHoldMs".
+const DEFAULT_ROPE_REFUSAL_HOLD_MS = 120000;
+
+// A rope captive who got free cannot be tied again this soon unless downed. Overridable via "ropeEscapeGraceMs".
+const DEFAULT_ROPE_ESCAPE_GRACE_MS = 60000;
+
 // Server-side backstop for the client's "look at a player" rule: max capture/carry initiation range in game units (~activate range). Overridable via "captureInteractMaxDistance".
 const DEFAULT_INTERACT_MAX_DISTANCE = 256;
 
@@ -98,10 +112,16 @@ interface RestraintInfo {
   captorActorId: number; // who applied it: release authority + disconnect cleanup
   offlineCarrierActorId?: number; // who was carrying them when they logged out
   addedShackle?: boolean; // the captive was given the pair they wear, remove it on release
+  rope?: boolean;        // tied with rope by someone without authority: no shackles
+  untethered?: boolean;  // a rope captive left tied where they stand: not walked after the captor
 }
+
+// How a captive got free, for the captor's notice and the log: struggle.js, or rope.js's slip and cut
+type FreedHow = "struggle" | "slip" | "cut";
 
 interface PendingConsent {
   kind: "capture" | "carry";
+  rope?: boolean;
   captorActorId: number;
   targetActorId: number;
   timer: ReturnType<typeof setTimeout>;
@@ -122,6 +142,8 @@ export class CaptureSystem implements System {
   private consentTimeoutMs = DEFAULT_CONSENT_TIMEOUT_MS;
   private consentCooldownMs = DEFAULT_CONSENT_COOLDOWN_MS;
   private escapeGraceMs = DEFAULT_ESCAPE_GRACE_MS;
+  private ropeRefusalHoldMs = DEFAULT_ROPE_REFUSAL_HOLD_MS;
+  private ropeEscapeGraceMs = DEFAULT_ROPE_ESCAPE_GRACE_MS;
 
   // targetActorId -> restraint state
   private restraints = new Map<number, RestraintInfo>();
@@ -137,6 +159,8 @@ export class CaptureSystem implements System {
   private consentCooldown = new Map<string, number>();
   // actorId -> time until which a captive who broke free cannot be taken again
   private escapedUntil = new Map<number, number>();
+  // "captorActorId:targetActorId" -> time until which a refused rope prompt holds
+  private ropeRefusedUntil = new Map<string, number>();
   private nextRequestId = 1;
   private lastFollowMs = 0;
 
@@ -162,6 +186,10 @@ export class CaptureSystem implements System {
     if (Number.isInteger(rawCooldown) && rawCooldown >= 0) this.consentCooldownMs = rawCooldown;
     const rawGrace = Number(all?.["captureEscapeGraceMs"]);
     if (Number.isInteger(rawGrace) && rawGrace >= 0) this.escapeGraceMs = rawGrace;
+    const rawRopeHold = Number(all?.["ropeRefusalHoldMs"]);
+    if (Number.isInteger(rawRopeHold) && rawRopeHold >= 0) this.ropeRefusalHoldMs = rawRopeHold;
+    const rawRopeGrace = Number(all?.["ropeEscapeGraceMs"]);
+    if (Number.isInteger(rawRopeGrace) && rawRopeGrace >= 0) this.ropeEscapeGraceMs = rawRopeGrace;
     const rawCarriedAnim = all?.["carriedAnimEvent"];
     if (typeof rawCarriedAnim === "string" && rawCarriedAnim) this.carriedAnim = rawCarriedAnim;
     this.carryForward = this.finiteSetting(all, "carryOffsetForward", DEFAULT_CARRY_FORWARD);
@@ -173,8 +201,12 @@ export class CaptureSystem implements System {
     ctx.gm.on("userAssignActor", (_userId: number, actorId: number) => {
       this.onActorAssigned(ctx, actorId);
     });
-    // The gamemode's /struggle (server\struggle.js) calls this when a captive wins; true when they were restrained
-    (globalThis as any).__dboBreakFree = (actorId: number): boolean => this.breakFree(ctx, Number(actorId) >>> 0);
+    // The gamemode's /struggle (server\struggle.js) calls this when a captive wins, rope.js when a rope slips or is cut
+    // ("slip", "cut": rope captives only); true when they were restrained
+    (globalThis as any).__dboBreakFree = (actorId: number, how?: string): boolean =>
+      this.breakFree(ctx, Number(actorId) >>> 0, how === "slip" || how === "cut" ? how : "struggle");
+    // rope.js: leave a rope captive tied where they stand (false) or lead them again (true); true when it changed
+    (globalThis as any).__dboLeash = (actorId: number, on: boolean): boolean => this.setLeash(ctx, Number(actorId) >>> 0, on === true);
     // The gamemode's jail (server\jail.js) calls this when it locks a captive in; true when they were restrained
     (globalThis as any).__dboUncuff = (actorId: number): boolean => this.uncuff(ctx, Number(actorId) >>> 0);
   }
@@ -267,6 +299,7 @@ export class CaptureSystem implements System {
           this.log(`[capture] ${captiveActorId.toString(16)} let go: captor ${info.captorActorId.toString(16)} left their body`);
           continue;
         }
+        if (info.untethered) continue;
         if (this.isDowned(mp, captiveActorId) || this.isDowned(mp, info.captorActorId)) continue;
         const loc = mp.get(info.captorActorId, "locationalData");
         const own = mp.get(captiveActorId, "locationalData");
@@ -298,6 +331,48 @@ export class CaptureSystem implements System {
       this.log(`[capture] instant restraint hook failed: ${e}`);
       return false;
     }
+  }
+
+  // server\rope.js: true while it is on and the actor carries a rope; null when rope binding is off (no hook)
+  private ropeHeld(actorId: number): boolean | null {
+    try {
+      const f = (globalThis as any).__dboRopeHeld;
+      return typeof f === "function" ? f(actorId) === true : null;
+    } catch (e) {
+      this.log(`[capture] rope check failed: ${e}`);
+      return null;
+    }
+  }
+
+  // Takes the rope a binding of targetActorId uses from the captor; true when one was taken
+  private takeRope(actorId: number, targetActorId: number): boolean {
+    try {
+      const f = (globalThis as any).__dboRopeTake;
+      return typeof f === "function" && f(actorId, targetActorId) === true;
+    } catch (e) {
+      this.log(`[capture] taking a rope failed: ${e}`);
+      return false;
+    }
+  }
+
+  private ropeRefused(captorActorId: number, targetActorId: number): boolean {
+    const key = `${captorActorId}:${targetActorId}`;
+    const until = this.ropeRefusedUntil.get(key);
+    if (until === undefined) return false;
+    if (until > Date.now()) return true;
+    this.ropeRefusedUntil.delete(key);
+    return false;
+  }
+
+  private holdRopeRefusal(captorActorId: number, targetActorId: number): void {
+    if (this.ropeRefusalHoldMs <= 0) return;
+    const now = Date.now();
+    if (this.ropeRefusedUntil.size > 512) {
+      for (const [k, until] of Array.from(this.ropeRefusedUntil)) {
+        if (until <= now) this.ropeRefusedUntil.delete(k);
+      }
+    }
+    this.ropeRefusedUntil.set(`${captorActorId}:${targetActorId}`, now + this.ropeRefusalHoldMs);
   }
 
   private inEscapeGrace(actorId: number): boolean {
@@ -379,7 +454,7 @@ export class CaptureSystem implements System {
     }
     this.mirrorState(ctx, actorId);
     this.sendRestraint(ctx, actorId, info);
-    if (info.boundHands) {
+    if (info.boundHands && !info.rope) {
       this.equipShackles(ctx, actorId); // relog must not shed the cuffs
     }
   }
@@ -398,7 +473,7 @@ export class CaptureSystem implements System {
       return;
     }
     if (!this.isLawful(mp, captorActorId)) {
-      this.notice(ctx, userId, "Only guards, officials and admins can restrain someone.");
+      this.onRopeRequest(ctx, userId, captorActorId, targetActorId);
       return;
     }
     if (!this.validTarget(ctx, captorActorId, targetActorId)) {
@@ -427,6 +502,49 @@ export class CaptureSystem implements System {
     this.notice(ctx, this.userOf(ctx, targetActorId), `${this.nameOf(ctx, captorActorId) || "Someone"} bound your hands.`);
   }
 
+  // Someone without authority ties with rope: a downed player at once, a conscious one only with their yes
+  private onRopeRequest(ctx: SystemContext, userId: number, captorActorId: number, targetActorId: number): void {
+    const mp = ctx.svr as Mp;
+    const held = this.ropeHeld(captorActorId);
+    if (held === null) {
+      this.notice(ctx, userId, "Only guards, officials and admins can restrain someone.");
+      return;
+    }
+    if (!held) {
+      this.notice(ctx, userId, "You need a rope to tie someone up.");
+      return;
+    }
+    if (!this.validTarget(ctx, captorActorId, targetActorId)) {
+      this.notice(ctx, userId, "Look at another player to tie them up.");
+      return;
+    }
+    if (this.restraints.get(targetActorId)?.boundHands) {
+      this.notice(ctx, userId, `${this.nameOf(ctx, targetActorId)} is already restrained.`);
+      return;
+    }
+    const downed = this.isDowned(mp, targetActorId);
+    if (!downed && this.inEscapeGrace(targetActorId)) {
+      this.notice(ctx, userId, `${this.nameOf(ctx, targetActorId)} slipped your grasp.`);
+      return;
+    }
+    if (!downed) {
+      if (this.ropeRefused(captorActorId, targetActorId)) {
+        this.notice(ctx, userId, `${this.nameOf(ctx, targetActorId)} refused you not long ago.`);
+        return;
+      }
+      this.requestConsent(ctx, "capture", captorActorId, targetActorId, true);
+      return;
+    }
+    if (!this.takeRope(captorActorId, targetActorId)) {
+      this.notice(ctx, userId, "You have no rope left.");
+      return;
+    }
+    this.stopBleedout(ctx, targetActorId);
+    this.applyCapture(ctx, targetActorId, captorActorId, true);
+    this.notice(ctx, userId, `You tied up ${this.nameOf(ctx, targetActorId)}.`);
+    this.notice(ctx, this.userOf(ctx, targetActorId), `${this.nameOf(ctx, captorActorId) || "Someone"} tied your hands with rope.`);
+  }
+
   private onCarryRequest(ctx: SystemContext, userId: number, content: Content): void {
     const mp = ctx.svr as Mp;
     const carrierActorId = this.resolveActor(ctx, userId);
@@ -438,7 +556,9 @@ export class CaptureSystem implements System {
       this.notice(ctx, userId, "Not while you are restrained.");
       return;
     }
-    if (!this.isLawful(mp, carrierActorId)) {
+    const ropeCaptive = this.restraints.get(targetActorId);
+    const ownRopeCaptive = ropeCaptive?.rope === true && ropeCaptive.captorActorId === carrierActorId;
+    if (!this.isLawful(mp, carrierActorId) && !ownRopeCaptive) {
       this.notice(ctx, userId, "Only guards, officials and admins can carry someone.");
       return;
     }
@@ -512,7 +632,7 @@ export class CaptureSystem implements System {
       return;
     }
     this.releaseTarget(ctx, targetActorId);
-    this.notice(ctx, userId, `You uncuffed ${this.nameOf(ctx, targetActorId)}.`);
+    this.notice(ctx, userId, `You ${info.rope ? "untied" : "uncuffed"} ${this.nameOf(ctx, targetActorId)}.`);
   }
 
   private onConsentResult(ctx: SystemContext, userId: number, content: Content): void {
@@ -531,6 +651,7 @@ export class CaptureSystem implements System {
 
     const captorUser = this.userOf(ctx, pend.captorActorId);
     if (content.accepted !== true) {
+      if (pend.rope) this.holdRopeRefusal(pend.captorActorId, pend.targetActorId);
       this.notice(ctx, captorUser, `${this.nameOf(ctx, pend.targetActorId)} refused.`);
       return;
     }
@@ -550,6 +671,17 @@ export class CaptureSystem implements System {
       if (this.restraints.get(pend.targetActorId)?.boundHands) {
         return; // someone else bound them while waiting
       }
+      if (pend.rope) {
+        // The rope is taken when the knot is tied: they may have dropped or sold it while the prompt was open
+        if (!this.takeRope(pend.captorActorId, pend.targetActorId)) {
+          this.notice(ctx, captorUser, "You have no rope left.");
+          this.notice(ctx, userId, `${this.nameOf(ctx, pend.captorActorId) || "They"} had no rope left.`);
+          return;
+        }
+        this.applyCapture(ctx, pend.targetActorId, pend.captorActorId, true);
+        this.notice(ctx, captorUser, `${this.nameOf(ctx, pend.targetActorId)} accepted — tied up.`);
+        return;
+      }
       this.applyCapture(ctx, pend.targetActorId, pend.captorActorId);
       this.notice(ctx, captorUser, `${this.nameOf(ctx, pend.targetActorId)} accepted — restrained.`);
       return;
@@ -564,7 +696,7 @@ export class CaptureSystem implements System {
   // ── State transitions ──────────────────────────────────────────────────────
 
   private requestConsent(ctx: SystemContext, kind: "capture" | "carry",
-    captorActorId: number, targetActorId: number): void {
+    captorActorId: number, targetActorId: number, rope = false): void {
     const targetUser = this.userOf(ctx, targetActorId);
     if (targetUser < 0) {
       return;
@@ -601,18 +733,20 @@ export class CaptureSystem implements System {
     const requestId = this.nextRequestId++;
     const timer = setTimeout(() => {
       if (this.pending.delete(requestId)) {
+        // No answer counts as a no, so nobody is tied up while away from the keyboard and then asked again at once
+        if (rope) this.holdRopeRefusal(captorActorId, targetActorId);
         this.notice(ctx, this.userOf(ctx, captorActorId),
           `${this.nameOf(ctx, targetActorId)} did not respond.`);
       }
     }, this.consentTimeoutMs);
-    this.pending.set(requestId, { kind, captorActorId, targetActorId, timer });
+    this.pending.set(requestId, { kind, rope, captorActorId, targetActorId, timer });
 
     const captorName = this.nameOf(ctx, captorActorId) || "Someone";
-    const verb = kind === "capture" ? "restrain" : "carry";
+    const verb = rope ? "tie your hands with rope" : kind === "capture" ? "restrain you" : "carry you";
     ctx.svr.sendCustomPacket(targetUser, JSON.stringify({
       customPacketType: CONSENT_REQUEST,
       requestId,
-      text: `${captorName} wants to ${verb} you. Allow?`,
+      text: `${captorName} wants to ${verb}. Allow?`,
     }));
     this.notice(ctx, this.userOf(ctx, captorActorId),
       `Waiting for ${this.nameOf(ctx, targetActorId)} to accept…`);
@@ -628,6 +762,8 @@ export class CaptureSystem implements System {
         captorActorId: info.captorActorId,
         carrierActorId: this.carriedBy.get(targetActorId) ?? 0,
         addedShackle: info.addedShackle === true,
+        rope: info.rope === true,
+        untethered: info.untethered === true,
       }
       : null;
     try {
@@ -635,21 +771,24 @@ export class CaptureSystem implements System {
     } catch { /* form gone */ }
   }
 
-  private applyCapture(ctx: SystemContext, targetActorId: number, captorActorId: number): void {
+  private applyCapture(ctx: SystemContext, targetActorId: number, captorActorId: number, rope = false): void {
     const info = this.restraints.get(targetActorId)
       ?? { boundHands: false, carried: false, captorActorId };
     info.boundHands = true;
     info.captorActorId = captorActorId;
+    info.rope = rope;
+    info.untethered = false;
     this.restraints.set(targetActorId, info);
     this.escapedUntil.delete(targetActorId);
-    if (this.equipShackles(ctx, targetActorId, true)) {
+    // Tied with rope, not shackled
+    if (!rope && this.equipShackles(ctx, targetActorId, true)) {
       info.addedShackle = true;
     }
     this.mirrorState(ctx, targetActorId);
     this.sendRestraint(ctx, targetActorId, info);
-    this.log(`[capture] ${targetActorId.toString(16)} bound by ${captorActorId.toString(16)}`);
+    this.log(`[capture] ${targetActorId.toString(16)} ${rope ? "tied with rope" : "bound"} by ${captorActorId.toString(16)}`);
     try {
-      (globalThis as any).__dboOnRestrained?.(targetActorId, captorActorId);
+      (globalThis as any).__dboOnRestrained?.(targetActorId, captorActorId, rope);
     } catch (e) {
       this.log(`[capture] restrained hook failed: ${e}`);
     }
@@ -706,7 +845,8 @@ export class CaptureSystem implements System {
     this.restraints.delete(targetActorId);
     this.mirrorState(ctx, targetActorId);
     this.sendRestraint(ctx, targetActorId, { boundHands: false, carried: false, captorActorId: 0 });
-    if (info?.boundHands === true) {
+    // A rope captive wore none: never unequip a pair of their own
+    if (info?.boundHands === true && info.rope !== true) {
       this.removeShackles(ctx, targetActorId, info.addedShackle === true);
     }
   }
@@ -723,27 +863,48 @@ export class CaptureSystem implements System {
     return true;
   }
 
-  // Frees a captive who won the struggle and tells whoever held them
-  private breakFree(ctx: SystemContext, targetActorId: number): boolean {
+  // Frees a captive who won the struggle, or whose rope slipped or was cut, and tells whoever held them
+  private breakFree(ctx: SystemContext, targetActorId: number, how: FreedHow = "struggle"): boolean {
     const info = this.restraints.get(targetActorId);
     if (!info) {
+      return false;
+    }
+    // Only rope slips or is cut
+    if (how !== "struggle" && info.rope !== true) {
       return false;
     }
     const holders = new Set([info.captorActorId, this.carriedBy.get(targetActorId) ?? 0]);
     this.releaseTarget(ctx, targetActorId);
     this.dropPendingFor(targetActorId);
-    if (this.escapeGraceMs > 0) {
+    const grace = info.rope ? this.ropeEscapeGraceMs : this.escapeGraceMs;
+    if (grace > 0) {
       const now = Date.now();
       for (const [id, until] of Array.from(this.escapedUntil)) {
         if (until <= now) this.escapedUntil.delete(id);
       }
-      this.escapedUntil.set(targetActorId, now + this.escapeGraceMs);
+      this.escapedUntil.set(targetActorId, now + grace);
     }
     const name = this.nameOf(ctx, targetActorId) || "Your prisoner";
+    const text = how === "slip" ? `${name} slipped out of the rope.`
+      : how === "cut" ? `Someone cut ${name} free.`
+        : `${name} broke free of their bonds.`;
     for (const holder of holders) {
-      if (holder) this.notice(ctx, this.userOf(ctx, holder), `${name} broke free of their bonds.`);
+      if (holder) this.notice(ctx, this.userOf(ctx, holder), text);
     }
-    this.log(`[capture] ${targetActorId.toString(16)} broke free of ${info.captorActorId.toString(16)}`);
+    this.log(`[capture] ${targetActorId.toString(16)} ${how === "slip" ? "slipped free" : how === "cut" ? "was cut free" : "broke free"} of ${info.captorActorId.toString(16)}`);
+    return true;
+  }
+
+  // Leaves a rope captive tied where they stand, or leads them again; arrests stay on the tether
+  private setLeash(ctx: SystemContext, targetActorId: number, on: boolean): boolean {
+    const info = this.restraints.get(targetActorId);
+    if (!info || !info.boundHands || info.rope !== true || info.untethered === !on) {
+      return false;
+    }
+    info.untethered = !on;
+    this.mirrorState(ctx, targetActorId);
+    this.sendRestraint(ctx, targetActorId, info);
+    this.log(`[capture] ${targetActorId.toString(16)} ${on ? "led again" : "left tied"} by ${info.captorActorId.toString(16)}`);
     return true;
   }
 
@@ -759,7 +920,7 @@ export class CaptureSystem implements System {
       boundHands: info.boundHands,
       carried: info.carried,
       carrier: this.carriedBy.get(targetActorId) ?? 0,
-      leash: info.boundHands && !info.carried ? info.captorActorId : 0,
+      leash: info.boundHands && !info.carried && !info.untethered ? info.captorActorId : 0,
       anim: this.captiveAnim,
       carriedAnim: this.carriedAnim,
       carryForward: this.carryForward,
