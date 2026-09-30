@@ -2,18 +2,16 @@
 import { isHostedByMe, localIdToRemoteId } from "../../view/worldViewMisc";
 
 // @ts-expect-error (TODO: Remove in 2.10.0)
-import { SpellCastEvent, Actor, printConsole, Game, getAnimationVariablesFromActor, ActorAnimationVariables, SpellType, SlotType, EquippedItemType, Spell, Debug } from 'skyrimPlatform'
+import { SpellCastEvent, ActionEvent, Actor, printConsole, Game, getAnimationVariablesFromActor, ActorAnimationVariables, SpellType, SlotType, EquippedItemType, Spell, Debug, Form } from 'skyrimPlatform'
 import { ClientListener, CombinedController, Sp } from './clientListener';
 import { logError, logTrace } from '../../logging';
 import { consumeServerCast } from './castSelfService';
 import { sendCustomPacket } from './customPacketUtil';
+import { SCROLL_FORM_TYPE, ScrollFireTracker } from './scrollFireFallback';
 
 import { MsgType } from "../../messages";
 import { SpellCastMsgData, SpellCastMessage } from "../messages/spellCastMessage";
 import { UpdateAnimVariablesMessageMsgData } from "../messages/updateAnimVariablesMessage";
-
-// FormType.ScrollItem (skyrim-platform typings)
-const SCROLL_FORM_TYPE = 23;
 
 // Racial greater powers are disabled on this server (form ids verified against Skyrim.esm on the reference install)
 const BLOCKED_POWER_IDS = new Set([
@@ -40,11 +38,21 @@ interface RelayedCast {
     stopEchoAt: number[];
 }
 
+// Kept by id: native objects expire each frame
+interface ScrollFire {
+    casterLocalId: number;
+    scrollId: number;
+    castingSource: number;
+    aimAngle: number;
+    aimHeading: number;
+}
+
 export class MagicSyncService extends ClientListener {
     constructor(private sp: Sp, private controller: CombinedController) {
         super();
         this.controller.on("update", () => this.onUpdate());
         this.controller.on("spellCast", (e) => this.onSpellCast(e));
+        this.controller.on("actionSpellFire", (e) => this.onActionSpellFire(e));
 
         const self = this;
 
@@ -59,6 +67,7 @@ export class MagicSyncService extends ClientListener {
 
     private onUpdate() {
         this.syncRelayedCasts();
+        this.relayDueScrollFires();
 
         if (this.isAnyMagicStuffEquiped() === false) {
             return;
@@ -91,10 +100,80 @@ export class MagicSyncService extends ClientListener {
     // #bugs 1553254532333445211): say which cast it was
     private onSpellCast(event: SpellCastEvent) {
         try {
+            if (event.spell && event.caster && event.spell.getType() === SCROLL_FORM_TYPE && this.isOwnCaster(event.caster.getFormID()) &&
+                !this.scrollFires.onPlatformCast(event.caster.getFormID(), event.spell.getFormID())) {
+                logTrace(this, "scroll cast already relayed from its fire:", this.describeCast(event));
+                return;
+            }
             this.relaySpellCast(event);
         } catch (e) {
             logError(this, "spellCast not relayed:", this.describeCast(event), e);
         }
+    }
+
+    // The platform's late hand check drops a last scroll's cast (it is used up by then); its fire stands in for it
+    private onActionSpellFire(event: ActionEvent) {
+        try {
+            const source = event.source;
+            if (!event.actor || !source || source.getType() !== SCROLL_FORM_TYPE) {
+                return;
+            }
+            const casterLocalId = event.actor.getFormID();
+            if (!this.isOwnCaster(casterLocalId)) {
+                return;
+            }
+            const fire: ScrollFire = {
+                casterLocalId,
+                scrollId: source.getFormID(),
+                // The native sends SKSE's slot (0 left, 1 right, 2 voice), not SlotType
+                castingSource: Number(event.slot) === 0 ? SpellType.Left : SpellType.Right,
+                // The engine's aim (GetAimAngle/GetAimHeading) has no script binding: the caster's facing, degrees to radians
+                aimAngle: event.actor.getAngleX() * Math.PI / 180,
+                aimHeading: event.actor.getAngleZ() * Math.PI / 180,
+            };
+            const decision = this.scrollFires.onFire(casterLocalId, fire.scrollId, this.isScrollUsedUp(event.actor, source), fire);
+            if (decision === "relay") {
+                this.relayScrollFire(fire);
+            }
+        } catch (e) {
+            logError(this, "actionSpellFire not handled:", e);
+        }
+    }
+
+    private relayDueScrollFires() {
+        if (this.scrollFires.size() === 0) {
+            return;
+        }
+        const due = this.scrollFires.takeDue((casterLocalId, scrollId) => {
+            const caster = Actor.from(Game.getFormEx(casterLocalId));
+            const scroll = Game.getFormEx(scrollId);
+            return !!caster && !!scroll && this.isScrollUsedUp(caster, scroll);
+        });
+        due.forEach((fire) => this.relayScrollFire(fire));
+    }
+
+    private isScrollUsedUp(caster: Actor, scroll: Form): boolean {
+        return caster.getItemCount(scroll) <= 0;
+    }
+
+    // Goes through relaySpellCast, so its early exits apply to a fire as they do to the platform's cast
+    private relayScrollFire(fire: ScrollFire) {
+        const caster = Actor.from(Game.getFormEx(fire.casterLocalId));
+        const scroll = Game.getFormEx(fire.scrollId);
+        if (!caster || !scroll) {
+            return;
+        }
+        const event = {
+            caster,
+            spell: scroll,
+            target: undefined,
+            isDualCasting: false,
+            castingSource: fire.castingSource,
+            aimAngle: fire.aimAngle,
+            aimHeading: fire.aimHeading,
+        } as unknown as SpellCastEvent;
+        logTrace(this, "scroll cast relayed from its fire:", this.describeCast(event));
+        this.relaySpellCast(event);
     }
 
     private describeCast(event: SpellCastEvent): string {
@@ -134,7 +213,7 @@ export class MagicSyncService extends ClientListener {
 
         // Clone replays fire this event too, but the server only accepts our own and hosted casters
         const casterLocalId = event.caster.getFormID();
-        if (casterLocalId !== this.playerId && !isHostedByMe(casterLocalId)) {
+        if (!this.isOwnCaster(casterLocalId)) {
             return;
         }
 
@@ -158,6 +237,10 @@ export class MagicSyncService extends ClientListener {
             seenCasting: false,
             stopEchoAt: [],
         });
+    }
+
+    private isOwnCaster(casterLocalId: number): boolean {
+        return casterLocalId === this.playerId || isHostedByMe(casterLocalId);
     }
 
     private onSendAnimationEventLeave(ctx: { animEventName: string, animationSucceeded: boolean }) {
@@ -353,5 +436,6 @@ export class MagicSyncService extends ClientListener {
     private castStartGraceMs = 250;
     private readonly castStopEchoDelaysMs = [1000, 3500];
     private relayedCasts = new Map<string, RelayedCast>();
+    private scrollFires = new ScrollFireTracker<ScrollFire>();
     private lastSendUpdateAnimationVariables: number = 0;
 }
