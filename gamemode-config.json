@@ -298,7 +298,7 @@
   "staves": { "armorPierce": 0.25 }
  },
  "weaponMaterials": {
-  "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2), and Saints & Seducers' Madness (as Daedric), and ArmorMaterialDragonplate, which Immersive Weapons puts on its Dragonsteel weapons (as Dragonbone; only weapons read this list), so tier 5 always out-hits tier 4 (Nate, 2026-09-30; tools/recipes/t4_below_t5.py). Amber (as Glass, 0.13) is held until the PC ladder run's plugin lowers its stats: with the bonus on today's records an Amber sword (16.95) out-hits a Daedric one (16.80) (Worker D's review); a weapon without one of these gets nothing.",
+  "_comment": "Extra damage by the weapon's material keyword (editor id), on top of its base damage, for hits by players (playersOnly) in every fight. Vanilla puts Daedric (sword 14) and Dragonbone (15) one point apart; with this Dragonbone hits about 16% harder than Daedric and a Daedric sword about 2.4x an Iron one. Keywords from Skyrim.esm, Dawnguard (DLC1) and Dragonborn (DLC2), and Saints & Seducers' Amber (as Glass) and Madness (as Daedric), and ArmorMaterialDragonplate, which Immersive Weapons puts on its Dragonsteel weapons (as Dragonbone; only weapons read this list), so tier 5 always out-hits tier 4 (Nate, 2026-09-30; tools/recipes/t4_below_t5.py); a weapon without one of these gets nothing.",
   "enabled": true,
   "playersOnly": true,
   "byKeyword": {
@@ -307,7 +307,7 @@
    "WeapMaterialOrcish": 0.05, "WeapMaterialDwarven": 0.07, "WeapMaterialElven": 0.09, "DLC2WeaponMaterialNordic": 0.11,
    "WeapMaterialGlass": 0.13, "WeapMaterialEbony": 0.17, "DLC2WeaponMaterialStalhrim": 0.17,
    "WeapMaterialDaedric": 0.2, "DLC1WeapMaterialDragonbone": 0.3,
-   "ccBGSSSE025_WeapMaterialMadness": 0.2,
+   "ccBGSSSE025_WeapMaterialAmber": 0.13, "ccBGSSSE025_WeapMaterialMadness": 0.2,
    "ArmorMaterialDragonplate": 0.3
   }
  },
