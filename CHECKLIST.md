@@ -19,8 +19,8 @@ places into a server spawn of its own base, at its own spot and heading (`owned-
 - [ ] **Release step (CT 115):** after a new owned plugin lands, `sudo python3 tools/spawns/owned_spawns.py --replace
   "<plugin>=<the copy that ships>" --out owned-spawns.json`, commit the diff, then `sudo python3
   tools/spawns/spawns_gate.py --replace "<plugin>=<the copy that ships>"` must print `ok`. The committed
-  `owned-spawns.json` (30 Sep) was generated from a scratch copy of DLE v5 with its 21 goblins and boars flagged, the
-  way the PC build will be: regenerate it from the real build before shipping.
+  `owned-spawns.json` matches the live DLE (sha 3ceff7d4, v5 with its 21 goblins and boars flagged, live since
+  2026-09-30 01:58 UTC): regenerated from `/opt/skyrim-data` byte for byte, and the gate prints `ok: 21`.
 
 ## Added 2026-09-30: regions, lore families, and the craft gate on - PC session: regenerate
 
