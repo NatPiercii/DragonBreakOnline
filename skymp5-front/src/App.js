@@ -6,6 +6,7 @@ import AnimList from './features/animList';
 import Constructor from './constructor';
 import SkillsMenu from './features/skillsMenu';
 import TestMenu from './features/testMenu';
+import { stableOrder } from './utils/widgetOrder';
 
 class App extends React.Component {
   constructor(props) {
@@ -50,9 +51,11 @@ class App extends React.Component {
   }
 
   handleWidgetUpdate(newWidgets) {
+    const { order, widgets } = stableOrder(this.widgetOrder, newWidgets);
+    this.widgetOrder = order;
     this.setState({
       ...this.state,
-      widgets: newWidgets
+      widgets
     });
   }
 
