@@ -1062,6 +1062,8 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboAnimalBody && globalThis.__dboAnimalBody(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboCampChest) { const v = globalThis.__dboCampChest(targetId >>> 0, casterId >>> 0); if (v === false) return false; }
   if (blockPlacedPickup(targetId >>> 0, casterId >>> 0)) return false;
+  // The last container gate: crouch over the chest, and it opens a moment later (idles.js chestHold, off by default)
+  if (globalThis.__dboChestHold) { try { if (globalThis.__dboChestHold(targetId >>> 0, casterId >>> 0) === true) return false; } catch (e) { log('chest hold failed', e.message); } }
   const g = gateOf(targetId >>> 0);
   if (g && globalThis.__dboPlaytestGate && globalThis.__dboPlaytestGate(casterId >>> 0)) return false;
   if (g) {
@@ -4607,7 +4609,7 @@ try {
 try {
   const IDLES_JS = path.resolve('idles.js');
   delete require.cache[IDLES_JS];
-  require(IDLES_JS)({ log, sendPacket, cfg });
+  require(IDLES_JS)({ mp, log, sendPacket, cfg, hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
 } catch (e) { log('idles.js failed to load:', e.stack || e.message); globalThis.__dboInteractionIdle = null; }
 
 // ---- X interaction menu, introductions, inspect, party invites, masks (server\playermenu.js) ---
