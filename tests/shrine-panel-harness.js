@@ -78,8 +78,14 @@ const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${!c 
 ok(typeof globalThis.__dboShrinePanel === 'function' && typeof globalThis.__dboPrayerStart === 'function', 'supernatural.js and prayer.js give the shrine panel its hooks');
 if (fail) { console.log(`${fail} FAILED`); process.exit(1); }
 
+// A client from before the panel prays on a touch at a rite shrine too, and keeps /rite
+faith('molagbal'); curse({});
+ok(touch(REF.molagbal) === true && lastOpen(35) && !lastOpen(74), 'an older client (no uiCaps shrinePanel) prays at Molag Bal on a touch, no panel', trail);
+globalThis.__dboPrayerRounds.clear();
+ui('uiCaps', 'bank', 'namePrompt', 'shrinePanel');
+
 // A shrine with no rite prays as a touch always has
-faith('akatosh'); curse({});
+faith('akatosh');
 ok(touch(REF.akatosh) === true && lastOpen(35) && !lastOpen(74), 'Akatosh keeps no rite: the touch starts the prayer, no panel', trail);
 globalThis.__dboPrayerRounds.clear();
 

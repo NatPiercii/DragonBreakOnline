@@ -53,6 +53,7 @@ const api = {
 for (const f of ['prayer.js', 'supernatural.js']) require(path.join(SERVER, f))(api);
 const ui = (ev, ...args) => { for (const fn of handlers.get(ev) || []) fn(A, args, 74); };
 const last = () => panels[panels.length - 1];
+ui('uiCaps', 'shrinePanel');
 props.set(`${A}|private.dboDeity`, { id: 'molagbal', since: 0 });
 globalThis.__dboPrayerActivate(REF.molagbal, A);
 const both = last();
@@ -87,6 +88,10 @@ check('an answer from the server shows under the choice', /Arkay has no ear.*Lea
 check('a success shows as one', /shrine__result--ok/.test(html(Object.assign({}, neither, { result: 'The black soul gem drinks the curse from you. You are mortal again.', resultKind: 'ok' }))));
 check('a panel missing a choice still draws', /Shrine of Molag Bal/.test(text(html(Object.assign({}, both, { pray: undefined, rite: undefined })))));
 check('the widget id is a number', both.id === 74 && typeof both.id === 'number', both.id);
+// The server opens the panel only for a front that says it draws it
+const hud = path.join(process.env.FORK || path.resolve(SERVER, '..', 'fork'), 'skymp5-front/src/features/hud/index.tsx');
+const caps = (fs.existsSync(hud) ? fs.readFileSync(hud, 'utf8') : '').match(/const UI_CAPS = \[([^\]]*)\]/);
+check("the front tells the server it draws the panel (uiCaps 'shrinePanel')", !!caps && /'shrinePanel'/.test(caps[1]), hud);
 
 console.log(fail ? `${fail} FAILED` : 'all checks passed');
 process.exit(fail ? 1 : 0);

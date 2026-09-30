@@ -680,6 +680,10 @@ module.exports = (api) => {
   const SHRINE_PANEL_ID = 74;
   const RITE_SHRINES = new Set(['molagbal', 'hircine', 'arkay', 'stendarr']);
   const shrinePanels = globalThis.__dboShrinePanels || (globalThis.__dboShrinePanels = new Map()); // actorId -> panel
+  // Only a client whose front draws it (dbo:uiCaps 'shrinePanel', client 0.3.72) gets the panel: an older one would hold
+  // the cursor under a panel it cannot draw, so it prays on a touch as before and keeps /rite
+  const shrineCaps = globalThis.__dboShrineCaps instanceof Map ? globalThis.__dboShrineCaps : (globalThis.__dboShrineCaps = new Map());
+  onUi('uiCaps', (a, args) => { shrineCaps.set(a >>> 0, (args || []).map(String).includes('shrinePanel')); });
   const closeShrinePanel = (a) => { if (!shrinePanels.has(a)) return; shrinePanels.delete(a); closeWidget(a, SHRINE_PANEL_ID); };
   const showShrinePanel = (a, st, result, resultKind) => {
     const offer = riteOffer(a, st.deity);
@@ -695,7 +699,7 @@ module.exports = (api) => {
     }, true);
   };
   globalThis.__dboShrinePanel = (a, targetId, shrine) => {
-    if (!shrine || !RITE_SHRINES.has(shrine.id)) return false;
+    if (!shrine || !RITE_SHRINES.has(shrine.id) || !shrineCaps.get(a >>> 0)) return false;
     const st = { nonce: `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`, targetId: targetId >>> 0, deity: shrine.id, name: shrine.name, shrineName: shrine.shrineName, at: Date.now(), confirming: false };
     shrinePanels.set(a >>> 0, st);
     // A rite chosen on an earlier panel is dropped with it; one said with /rite still waits for /rite confirm
