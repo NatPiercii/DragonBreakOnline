@@ -1027,6 +1027,8 @@ mp.onActivate = (targetId, casterId) => {
   } catch (e) { }
   // A raider breaking into a home or its container during a raid (raids.js); the take comes straight out, no lock opens
   if (globalThis.__dboRaidActivate && globalThis.__dboRaidActivate(target, caster)) return false;
+  // Study Magic and the Class Lectern (schools.js): their own panels, before a book on the shelf can start a reading
+  if (globalThis.__dboSchoolsActivate && globalThis.__dboSchoolsActivate(target, caster)) return false;
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboPrayerActivate && globalThis.__dboPrayerActivate(targetId >>> 0, casterId >>> 0)) return false;
@@ -1200,6 +1202,8 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     // werewolf's or a vampire's progression for its tab beside them, and null to anyone else
     if (content.customPacketType === 'masteryInfoRequest') {
       const a = actorOf(userId); if (a && typeof globalThis.__dboSuperProgressSend === 'function') globalThis.__dboSuperProgressSend(a);
+      // schools.js: the school meters for the Arcane Arts page
+      if (a && typeof globalThis.__dboSchoolsProgressSend === 'function') globalThis.__dboSchoolsProgressSend(a);
       return;
     }
     // F3 (client factionService) asks for the faction menu; guilds.js answers with the front widget
@@ -3512,8 +3516,11 @@ const castHook = (casterId, spellId, ...rest) => {
     return false;
   }
   const prev = globalThis.__dboPrevCast;
-  if (prev) { try { return prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
-  return undefined;
+  let verdict;
+  if (prev) { try { verdict = prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
+  // A cast the chain let through counts toward its school of magic (schools.js)
+  if (verdict !== false && globalThis.__dboSchoolsCast) { try { globalThis.__dboSchoolsCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('schools cast failed', e.message); } }
+  return verdict;
 };
 castHook.__dbo = true;
 mp.onSpellCast = castHook;
@@ -4670,7 +4677,13 @@ try {
   const SPELLS_JS = path.resolve('spells.js');
   delete require.cache[SPELLS_JS];
   require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury, every });
-} catch (e) { log('spells.js failed to load:', e.stack || e.message); globalThis.__dboOpenSpellbook = null; }
+} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify']) globalThis[k] = null; }
+// ---- the schools of magic, Study Magic and the Class Lectern (server\schools.js, config "schools"): after spells.js, whose spellbook it reads ----
+try {
+  const SCHOOLS_JS = path.resolve('schools.js');
+  delete require.cache[SCHOOLS_JS];
+  require(SCHOOLS_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, every, sendPacket, isAdmin, findByName, isWorldspace, profileOf });
+} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate']) globalThis[k] = null; }
 
 // ---- the bank: one account per character in every town's bank, treasuries pay-in only (server\bank.js, WAR_DESIGN.md) ----
 try {

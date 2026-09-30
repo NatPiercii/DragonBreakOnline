@@ -1,0 +1,372 @@
+// Scripted test for server\schools.js (Swag's schools of magic, Nate 2026-09-30), loaded together with the real spells.js
+// it works with: the client gate (dbo:uiCaps 'schools'), choosing a primary and a secondary school, the school gate on
+// tomes (before a Novice tome can take Arcane Arts up), school levels from casting, Study Magic at the Synod bookcases
+// (ticks, walking off, the 4-hour window, closed after the first spell), the Class Lectern (teacher list, guild and rank,
+// sign-ups by the scale table, the countdown on the crosshair, End Class and its pay, the grace period, cooldowns), the
+// Wheel's cast credit for study and classes, bringing an existing mage over, and a hot reload keeping a class running.
+// No server and no game: run it from this folder's parent with
+//
+//   node tests\schools-harness.js
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const SERVER = path.resolve(__dirname, '..');
+const SPELLS = path.join(SERVER, 'spells.js');
+const SCHOOLS = path.join(SERVER, 'schools.js');
+
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'schools-harness-'));
+process.chdir(dir);
+for (const f of ['skills.json', 'spell-tomes.json']) fs.copyFileSync(path.join(SERVER, f), f);
+const CONFIG = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
+
+let wallClock = Date.parse('2026-10-01T12:00:00Z');
+Date.now = () => wallClock;
+const MIN = 60000, HOUR = 3600000;
+
+const PLUGINS = { 'Skyrim.esm': 0x00, 'BSAssets.esm': 0x0a, 'BSHeartland.esm': 0x0b, 'DragonBreak Online Edits.esp': 0x60 };
+const BY_INDEX = Object.fromEntries(Object.entries(PLUGINS).map(([k, v]) => [v, k]));
+const idOf = (d) => { const [hex, plugin] = String(d).split(':'); if (!(plugin in PLUGINS)) throw new Error(`no plugin ${plugin}`); return ((PLUGINS[plugin] << 24) | parseInt(hex, 16)) >>> 0; };
+const descOf = (id) => { const p = BY_INDEX[id >>> 24]; if (!p) throw new Error('no plugin'); return `${(id & 0xffffff).toString(16)}:${p}`; };
+
+// Real places: the Synod Conclave, a bookcase in it (CYRSynodBookCase01, from the census), Bruma's worldspace
+const SYNOD = '20ff:BSHeartland.esm', BRUMA = 'a764b:BSHeartland.esm';
+const BOOKCASE = idOf('651cc:BSHeartland.esm'), BOOKCASE_BASE = 'cc2d4:BSHeartland.esm';
+// A lectern placed by Nate's plugin: base DBO_ClassLectern (not in any plugin yet, so a made-up id in a fake slot)
+const LECTERN = idOf('900:DragonBreak Online Edits.esp'), LECTERN_BASE = '800:DragonBreak Online Edits.esp';
+const OTHER_SHELF = idOf('651c3:BSHeartland.esm'); // a Winterhold bookcase: not a study point
+// Tomes and spells (book desc, spell desc) from spell-tomes.json
+const T = {
+  flames: ['9cd51:Skyrim.esm', '12fcd:Skyrim.esm'], firebolt: ['a26fd:Skyrim.esm', '12fd0:Skyrim.esm'],
+  fireball: ['a2706:Skyrim.esm', '1c789:Skyrim.esm'], incinerate: ['10f7f4:Skyrim.esm', '10f7ed:Skyrim.esm'],
+  boundSword: ['9e2a9:Skyrim.esm', '211eb:Skyrim.esm'], courage: ['9e2ad:Skyrim.esm', '4dee8:Skyrim.esm'],
+  calm: ['a2711:Skyrim.esm', '4dee9:Skyrim.esm'], candlelight: ['9e2a7:Skyrim.esm', '43324:Skyrim.esm'],
+};
+const HEALING = '12fcc:Skyrim.esm';
+
+const RECORDS = {
+  [idOf(BOOKCASE_BASE)]: { type: 'CONT', editorId: 'CYRSynodBookCase01', fields: [] },
+  [idOf('109d86:Skyrim.esm')]: { type: 'CONT', editorId: 'WinterholdBookCase01', fields: [] },
+  [idOf(LECTERN_BASE)]: { type: 'ACTI', editorId: 'DBO_ClassLectern', fields: [] },
+};
+
+const MAGE = 0x14, TEACHER = 0x15, ADEPT = 0x16, NOVICE = 0x17, ILLUSIONIST = 0x18, OLDMAGE = 0x19, NPC = 0xff000123;
+const NAMES = { [MAGE]: 'Mage', [TEACHER]: 'Teacher', [ADEPT]: 'Adept', [NOVICE]: 'Novice', [ILLUSIONIST]: 'Illusionist', [OLDMAGE]: 'Oldmage' };
+const props = new Map();
+const put = (id, p, v) => props.set(id + '|' + p, v);
+const at = (id, cell, pos) => { put(id, 'worldOrCellDesc', cell); put(id, 'pos', pos || [0, 0, 0]); };
+const arcane = (a, level) => {
+  const r = props.get(a + '|private.mastery') || { v: 2, skills: {}, order: [] };
+  r.skills.arcane = { level, xp: 0, rank: level >= 90 ? 4 : level >= 75 ? 3 : level >= 50 ? 2 : level >= 25 ? 1 : 0 };
+  if (!r.order.includes('arcane')) r.order.push('arcane');
+  put(a, 'private.mastery', r);
+};
+put(BOOKCASE, 'baseDesc', BOOKCASE_BASE); at(BOOKCASE, SYNOD, [0, 0, 0]);
+put(OTHER_SHELF, 'baseDesc', '109d86:Skyrim.esm'); at(OTHER_SHELF, SYNOD, [50, 0, 0]);
+put(LECTERN, 'baseDesc', LECTERN_BASE); at(LECTERN, SYNOD, [300, 0, 0]);
+for (const a of [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE]) { at(a, SYNOD, [0, 0, 0]); put(a, 'profileId', a); }
+
+const learned = new Map();
+const known = (a) => learned.get(a) || (learned.set(a, new Set()), learned.get(a));
+const anims = [];
+const mp = {
+  getIdFromDesc: idOf,
+  getDescFromId: descOf,
+  get: (id, p) => props.get(id + '|' + p),
+  set: (id, p, v) => props.set(id + '|' + p, JSON.parse(JSON.stringify(v))),
+  lookupEspmRecordById: (id) => (RECORDS[id] ? { record: RECORDS[id], toGlobalRecordId: (local) => local } : null),
+  callPapyrusFunction: (kind, cls, fn, self, args) => {
+    if (cls === 'Debug' && fn === 'SendAnimationEvent') { anims.push([idOf(args[0].desc), args[1]]); return null; }
+    const a = idOf(self.desc); const s = known(a);
+    if (fn === 'GetSpellCount') return s.size;
+    if (fn === 'GetNthSpell') { const id = [...s][args[0]]; return id === undefined ? null : { type: 'espm', desc: descOf(id) }; }
+    const spell = idOf(args[0].desc);
+    if (fn === 'AddSpell') { if (s.has(spell)) return false; s.add(spell); return true; }
+    if (fn === 'RemoveSpell') return s.delete(spell);
+    throw new Error('unexpected papyrus ' + fn);
+  },
+};
+mp.onReadBook = () => undefined;
+
+// The mastery system's two hooks: first touch takes Arcane Arts up at level 1, and every credited cast is recorded
+const touches = [], wheelEvents = [];
+let firstTouchAnswer = 'ok';
+globalThis.__alduinakMasteryFirstTouch = (a, skill) => { touches.push([a, skill]); if (firstTouchAnswer === 'ok') arcane(a, 1); return firstTouchAnswer; };
+globalThis.__alduinakMasteryEvent = (kind, a, detail) => wheelEvents.push({ kind, a, detail });
+
+let online = [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE];
+const out = { widgets: [], closed: [], said: [], audits: [], logs: [], packets: [] };
+const handlers = new Map(), commands = new Map(), timers = new Map();
+const mkApi = (cfg) => ({
+  mp, cfg,
+  log: (...a) => out.logs.push(a.join(' ')),
+  personal: (a, t) => out.said.push([a, t]),
+  system: (a, t) => out.said.push([a, t]),
+  audit: (t) => out.audits.push(t),
+  display: (a) => `${NAMES[a] || 'P'} #TAG${(a & 0xf).toString(16)}`,
+  who: (a) => `P${a.toString(16)}`,
+  openWidget: (a, w, focus) => { out.widgets.push({ a, w, focus }); return true; },
+  closeWidget: (a, id) => { out.closed.push([a, id]); return true; },
+  onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
+  registerChatCommand: (name, fn, opts) => commands.set(name, { fn, opts }),
+  onlineActors: () => online.slice(),
+  every: (name, ms, fn) => timers.set(name, fn),
+  distanceMeters: (a, b) => {
+    if (props.get(a + '|worldOrCellDesc') !== props.get(b + '|worldOrCellDesc')) return Infinity;
+    const p = props.get(a + '|pos'), q = props.get(b + '|pos');
+    return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) / 70;
+  },
+  sendPacket: (a, p) => { out.packets.push({ a, p }); return true; },
+  isAdmin: (a) => a === TEACHER,
+  findByName: (q) => online.find((a) => (NAMES[a] || '').toLowerCase() === String(q).trim().toLowerCase()) || null,
+  isWorldspace: (d) => d === BRUMA,
+  profileOf: (a) => { const v = props.get(a + '|profileId'); return v === undefined ? -1 : v; },
+  takeGold: () => false, giveItem: () => true, depositToTreasury: (z, n) => n,
+});
+const schoolsCfg = Object.assign({}, CONFIG.schools, { enabled: true });
+const load = (overrides) => {
+  handlers.clear(); commands.clear();
+  const cfg = { spells: CONFIG.spells, schools: Object.assign({}, schoolsCfg, overrides || {}) };
+  delete require.cache[SPELLS]; require(SPELLS)(mkApi(cfg));
+  delete require.cache[SCHOOLS]; require(SCHOOLS)(mkApi(cfg));
+};
+load();
+
+let failures = 0, checks = 0;
+const check = (name, ok, detail) => { checks++; if (!ok) { failures++; console.log(`FAIL ${name}${detail !== undefined ? ': ' + JSON.stringify(detail) : ''}`); } else console.log(`ok   ${name}`); };
+const ui = (ev, a, args, widgetId) => (handlers.get(ev) || []).forEach((fn) => fn(a, args || [], widgetId || 0));
+const cmd = (name, a, args) => commands.get(name).fn(a, args || '');
+const said = (a) => { const l = out.said.filter((p) => p[0] === a); return l.length ? l[l.length - 1][1] : ''; };
+const saidAny = (a, re) => out.said.some((p) => p[0] === a && re.test(p[1]));
+const lastWidget = (a, type) => { const l = out.widgets.filter((w) => w.a === a && (!type || w.w.type === type)); return l.length ? l[l.length - 1].w : null; };
+const lastPacket = (a, type) => { const l = out.packets.filter((x) => x.a === a && x.p.customPacketType === type); return l.length ? l[l.length - 1].p : null; };
+const rec = (a) => props.get(a + '|private.dboSchools');
+const level = (a, school) => { const r = rec(a); return r && r.levels[school] ? r.levels[school].level : 0; };
+const setLevel = (a, school, lv) => { const r = rec(a); r.levels[school] = { level: lv, xp: 0 }; put(a, 'private.dboSchools', r); };
+const studied = (a) => ((props.get(a + '|private.dboStudied') || {}).arcane || []);
+const tick = (name) => timers.get(name)();
+const activate = (ref, a) => globalThis.__dboSchoolsActivate(ref, a);
+const progress = (a) => { globalThis.__dboSchoolsProgressSend(a); return lastPacket(a, 'dboSchoolProgress').progress; };
+const read = async (a, tome) => {
+  const book = idOf(tome[0]), spell = idOf(tome[1]);
+  const r = mp.onReadBook(a, book);
+  if (r !== false && !known(a).has(spell)) known(a).add(spell);
+  await new Promise((res) => setTimeout(res, 5));
+  return r;
+};
+const advance = (ms) => { wallClock += ms; };
+
+(async () => {
+
+// ---- boot and the client gate ----
+check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at DBO_StudyMagic \+ 7 refs; classes 30 min at DBO_ClassLectern, 0 running; school spells 4/.test(l)), out.logs.filter((l) => /schools/.test(l)));
+check('the tracked config ships it switched off until the client pack is out', CONFIG.schools.enabled === false && CONFIG.schools.requireClient === true);
+check('an old client (no schools cap): no gate, no panel, no meters', globalThis.__dboSchoolsRefusal(MAGE, 'Destruction', 0, 'You') === null && activate(BOOKCASE, MAGE) === false && progress(MAGE) === null);
+check('...and a cast counts for nothing', (globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1])), !rec(MAGE) || !rec(MAGE).levels.Destruction));
+for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);
+
+// ---- choosing the primary school ----
+let p = progress(MAGE);
+check('a new character sees four closed schools, each offered as the primary', p && p.skill === 'arcane' && p.schools.map((x) => x.name).join() === 'Destruction,Illusion,Conjuration,Alteration' && p.schools.every((x) => x.role === 'locked' && x.choose && x.choose.as === 'primary'), p);
+check('...with the confirm line Swag asked for', /^Do you want to choose Destruction as your school of magic\?/.test(p.schools[0].choose.confirm), p.schools[0].choose);
+check('a Novice tome with no school chosen is refused before Arcane Arts is taken up', (await read(MAGE, T.flames)) === false && /Choose your school of magic first/.test(said(MAGE)) && touches.length === 0, [said(MAGE), touches]);
+ui('schoolChoose', MAGE, ['stale-nonce', 'Destruction', 'primary']);
+check('a choice with a stale nonce does nothing', !rec(MAGE).primary);
+firstTouchAnswer = 'full';
+ui('schoolChoose', MAGE, [p.nonce, 'Destruction', 'primary']);
+check('no free skill point: the choice is refused and nothing is set', !rec(MAGE).primary && /needs a free skill point/.test(said(MAGE)), said(MAGE));
+firstTouchAnswer = 'ok';
+p = progress(MAGE);
+ui('schoolChoose', MAGE, [p.nonce, 'Destruction', 'primary']);
+check('choosing Destruction takes Arcane Arts up (the refused try asked too) and makes it the primary at level 1', rec(MAGE).primary === 'Destruction' && level(MAGE, 'Destruction') === 1 && touches.length === 2 && touches.every((t) => t[0] === MAGE && t[1] === 'arcane'), [rec(MAGE), touches]);
+p = lastPacket(MAGE, 'dboSchoolProgress').progress;
+check('...the meters are sent again: Destruction primary Novice, the rest closed', p.schools[0].role === 'primary' && p.schools[0].rank === 'Novice' && p.schools.slice(1).every((x) => x.role === 'locked' && !x.choose), p.schools);
+check('...and the choice is audited', out.audits.some((l) => /SCHOOLS P14 chose Destruction as their primary school \(level 1\)/.test(l)));
+ui('schoolChoose', MAGE, [p.nonce, 'Illusion', 'primary']);
+check('a second primary is refused', rec(MAGE).primary === 'Destruction' && /already your primary/.test(said(MAGE)));
+ui('schoolChoose', MAGE, [p.nonce, 'Illusion', 'secondary']);
+check('a secondary before Arcane Arts 76 is refused', !rec(MAGE).secondary && /opens at Arcane Arts 76/.test(said(MAGE)), said(MAGE));
+
+// ---- the school gate on tomes ----
+check('a Novice Destruction tome is learned', (await read(MAGE, T.flames)) !== false && studied(MAGE).includes(T.flames[1]), studied(MAGE));
+check('a Conjuration tome is refused: not one of the schools', (await read(MAGE, T.boundSword)) === false && /Conjuration is not one of your schools of magic/.test(said(MAGE)), said(MAGE));
+check('an Alteration tome too, once Alteration is one of the four', (await read(MAGE, T.candlelight)) === false && /(Alteration is not one of your schools|not taken up Priest)/.test(said(MAGE)), said(MAGE));
+arcane(MAGE, 30);
+check('Arcane Arts Apprentice but the school still Novice: an Apprentice tome is refused by the school', (await read(MAGE, T.firebolt)) === false && /Your study of Destruction is Novice; an Apprentice spell needs more/.test(said(MAGE)), said(MAGE));
+setLevel(MAGE, 'Destruction', 26);
+check('...and learned once the school reaches Apprentice', (await read(MAGE, T.firebolt)) !== false && studied(MAGE).includes(T.firebolt[1]));
+
+// ---- casting ----
+const before = JSON.stringify(rec(MAGE).levels.Destruction);
+globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1]));
+const one = rec(MAGE).levels.Destruction;
+check('a Destruction cast adds half a unit (2.5 xp at Apprentice)', one.level === 26 && Math.abs(one.xp - 2.5) < 1e-9, [before, one]);
+for (let i = 0; i < 8; i++) globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1]));
+const nine = rec(MAGE).levels.Destruction.xp;
+check('the same spell again within the hour is worth less', nine < 9 * 2.5 && nine > 2.5 * 5, nine);
+globalThis.__dboSchoolsCast(MAGE, idOf(T.courage[1]));
+check('an Illusion cast (a closed school) adds nothing', !rec(MAGE).levels.Illusion);
+globalThis.__dboSchoolsCast(MAGE, idOf(HEALING));
+check('a Restoration cast adds nothing: Restoration stays with Priest', Object.keys(rec(MAGE).levels).join() === 'Destruction');
+const npcBefore = out.audits.length;
+globalThis.__dboSchoolsCast(NPC, idOf(T.flames[1]));
+check('an NPC cast is ignored', !props.get(NPC + '|private.dboSchools') && out.audits.length === npcBefore);
+advance(2 * HOUR);
+for (let i = 0; i < 700; i++) globalThis.__dboSchoolsCast(MAGE, idOf(i % 2 ? T.flames[1] : T.firebolt[1]));
+check('casting stops paying at the daily cap of 120 units a school', Math.abs(rec(MAGE).cast.units.Destruction - 120) < 1e-9, rec(MAGE).cast);
+advance(24 * HOUR);
+const capLevel = level(MAGE, 'Destruction');
+globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1]));
+check('...and pays again the next day', rec(MAGE).cast.units.Destruction === 0.5 && level(MAGE, 'Destruction') >= capLevel, rec(MAGE).cast);
+
+// ---- Study Magic ----
+check('another bookcase in the Conclave is not a study point', activate(OTHER_SHELF, NOVICE) === false);
+check('a Synod bookcase opens Study Magic; with no school it asks for one first', activate(BOOKCASE, NOVICE) === true && lastWidget(NOVICE, 'studyMagic').mode === 'choose' && lastWidget(NOVICE, 'studyMagic').id === 73 && lastWidget(NOVICE, 'studyMagic').choices.length === 4, lastWidget(NOVICE, 'studyMagic'));
+ui('schoolChoose', NOVICE, [lastWidget(NOVICE, 'studyMagic').nonce, 'Conjuration', 'primary']);
+let w = lastWidget(NOVICE, 'studyMagic');
+check('choosing from the study panel goes straight on to studying Conjuration', rec(NOVICE).primary === 'Conjuration' && w.mode === 'studying' && w.school === 'Conjuration', w);
+check('...with the reading idle played', anims.some(([a, ev]) => a === NOVICE && ev === 'IdleBook_PageTurn'));
+advance(35000); tick('schools.tick');
+check('three whole ticks in 35 s pay 3 units to Conjuration', Math.abs(rec(NOVICE).levels.Conjuration.level - 1 - 0.3) < 1e-9 || (rec(NOVICE).levels.Conjuration.level === 1 && Math.abs(rec(NOVICE).levels.Conjuration.xp - 30) < 1e-9), rec(NOVICE).levels.Conjuration);
+advance(30000); tick('schools.tick');
+check('a minute of study credits Arcane Arts once, with a Conjuration spell, through the cast credit', wheelEvents.filter((e) => e.a === NOVICE).length === 1 && wheelEvents[wheelEvents.length - 1].kind === 'cast' && wheelEvents[wheelEvents.length - 1].detail.spellId !== 0, wheelEvents.filter((e) => e.a === NOVICE));
+at(NOVICE, SYNOD, [300, 0, 0]);
+advance(10000); tick('schools.tick');
+check('walking off the spot ends the study and closes the panel', !globalThis.__dboSchoolsState.studying.has(NOVICE) && out.closed.some(([a, id]) => a === NOVICE && id === 73) && anims.some(([a, ev]) => a === NOVICE && ev === 'IdleForceDefaultState'));
+const used = rec(NOVICE).study.usedMs;
+check('...and the time studied is counted against the window', used >= 60000 && used <= 70000, rec(NOVICE).study);
+at(NOVICE, SYNOD, [0, 0, 0]);
+activate(BOOKCASE, NOVICE);
+for (let i = 0; i < 40; i++) { advance(30000); tick('schools.tick'); }
+check('20 minutes in the window, then "Come back": the study stops by itself', !globalThis.__dboSchoolsState.studying.has(NOVICE) && saidAny(NOVICE, /You've done enough studying for the day\. Come back in \d+ hours?\./), said(NOVICE));
+check('...20 minutes paid, not more', Math.abs(rec(NOVICE).study.usedMs - 20 * MIN) <= 10000, rec(NOVICE).study);
+activate(BOOKCASE, NOVICE);
+w = lastWidget(NOVICE, 'studyMagic');
+check('the shelf refuses more until the window is over', w.mode === 'idle' && /You've done enough studying for the day\. Come back in/.test(w.whyNot), w);
+advance(4 * HOUR);
+activate(BOOKCASE, NOVICE);
+check('after 4 hours it opens again', globalThis.__dboSchoolsState.studying.has(NOVICE));
+ui('studyStop', NOVICE, [lastWidget(NOVICE, 'studyMagic').nonce]);
+check('Stop ends it and leaves the panel open to study again', !globalThis.__dboSchoolsState.studying.has(NOVICE) && lastWidget(NOVICE, 'studyMagic').mode === 'idle' && lastWidget(NOVICE, 'studyMagic').events.start === 'dbo:studyStart');
+put(NOVICE, 'private.dboStudied', { arcane: [T.boundSword[1]] });
+activate(BOOKCASE, NOVICE);
+check('once a school spell is in the spellbook, studying is closed for good', !globalThis.__dboSchoolsState.studying.has(NOVICE) && /You have learned Bound Sword; the shelves have nothing more to teach you/.test(lastWidget(NOVICE, 'studyMagic').whyNot), lastWidget(NOVICE, 'studyMagic'));
+known(MAGE).add(idOf(HEALING));
+check('the race\'s own spells (Flames, Healing) are no first spell: MAGE learned Flames by tome, so closed; a fresh mage is not', (() => { put(ILLUSIONIST, 'private.dboSchools', null); known(ILLUSIONIST).add(idOf(T.flames[1])); known(ILLUSIONIST).add(idOf(HEALING)); activate(BOOKCASE, ILLUSIONIST); return lastWidget(ILLUSIONIST, 'studyMagic').mode === 'choose'; })());
+
+// ---- the Class Lectern ----
+put(ILLUSIONIST, 'private.dboSchools', null);
+arcane(TEACHER, 85); known(TEACHER).add(idOf(T.fireball[1])); known(TEACHER).add(idOf(T.incinerate[1])); known(TEACHER).add(idOf(T.courage[1]));
+p = progress(TEACHER);
+ui('schoolChoose', TEACHER, [p.nonce, 'Destruction', 'primary']);
+check('a mage who chooses at Arcane Arts 85 starts the primary at 85', level(TEACHER, 'Destruction') === 85);
+check('an activator whose base is DBO_ClassLectern opens the lectern panel', activate(LECTERN, TEACHER) === true && lastWidget(TEACHER, 'classLectern').id === 72 && lastWidget(TEACHER, 'classLectern').mode === 'idle', lastWidget(TEACHER, 'classLectern'));
+check('...but a teacher not on the list may not start one', lastWidget(TEACHER, 'classLectern').canTeach === false && /Only teachers the Synod has named/.test(lastWidget(TEACHER, 'classLectern').whyNot));
+cmd('classteacher', TEACHER, 'add Teacher');
+activate(LECTERN, TEACHER);
+check('named, but not a member of the Synod or a College', /member of the Synod or a College/.test(lastWidget(TEACHER, 'classLectern').whyNot), lastWidget(TEACHER, 'classLectern'));
+put(TEACHER, 'private.dboGuilds', [{ id: 'synod', rank: 1 }]);
+activate(LECTERN, TEACHER);
+w = lastWidget(TEACHER, 'classLectern');
+check('named, a Synod member, Expert in Destruction: the Destruction spells they know are offered (not Illusion)', w.canTeach === true && w.spells.map((s) => s.name).join() === 'Fireball,Incinerate' && w.spells[1].rankName === 'Expert', w.spells);
+ui('lecternStart', TEACHER, [w.nonce, T.incinerate[1]]);
+w = lastWidget(TEACHER, 'classLectern');
+check('the class on Incinerate begins: Class in Progress with the countdown', w.mode === 'running' && w.status === 'Class in Progress' && w.spell === 'Incinerate' && w.rankName === 'Expert' && w.endsInMs === 30 * MIN && w.role === 'teacher' && w.canEnd === false, w);
+const decor = lastPacket(ADEPT, 'refDecor');
+check('...and everyone in the Conclave sees it on the lectern\'s crosshair name', decor && decor.refs[0].refId === LECTERN && decor.refs[0].name === 'Class Lectern: Class in Progress, 30 minutes left', decor);
+// ADEPT: Destruction primary at 60 (Adept, rank 2): an Expert class pays 70%
+arcane(ADEPT, 60); p = progress(ADEPT); ui('schoolChoose', ADEPT, [p.nonce, 'Destruction', 'primary']);
+activate(LECTERN, ADEPT);
+w = lastWidget(ADEPT, 'classLectern');
+check('an Adept of Destruction may sign up and is told 70% of the lesson', w.role === 'visitor' && w.canJoin === true && /you would take 70% of the lesson/.test(w.gain), w);
+ui('lecternJoin', ADEPT, [w.nonce]);
+check('...and signs up', globalThis.__dboSchoolsState.classes.get(LECTERN).students.has(ADEPT) && lastWidget(ADEPT, 'classLectern').role === 'student' && saidAny(TEACHER, /Adept #TAG6 has signed up/));
+// MAGE: Destruction around Apprentice (rank 1): an Expert class pays nothing
+activate(LECTERN, MAGE);
+check('an Apprentice of Destruction is told the Expert class would teach them nothing', lastWidget(MAGE, 'classLectern').canJoin === false && /would teach you nothing/.test(lastWidget(MAGE, 'classLectern').whyNot), lastWidget(MAGE, 'classLectern'));
+p = progress(ILLUSIONIST); arcane(ILLUSIONIST, 80); ui('schoolChoose', ILLUSIONIST, [p.nonce, 'Illusion', 'primary']);
+activate(LECTERN, ILLUSIONIST);
+check('an Illusionist is refused a Destruction class', /Destruction is not one of your schools of magic/.test(lastWidget(ILLUSIONIST, 'classLectern').whyNot));
+ui('lecternEnd', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
+check('End Class before the 30 minutes is refused', globalThis.__dboSchoolsState.classes.has(LECTERN) && /The class runs another 30 minutes/.test(lastWidget(TEACHER, 'classLectern').result), lastWidget(TEACHER, 'classLectern').result);
+advance(11 * MIN); tick('schools.classes');
+activate(LECTERN, NOVICE);
+check('sign-ups close 10 minutes in', /Sign-ups closed 10 minutes into the class/.test(lastWidget(NOVICE, 'classLectern').whyNot), lastWidget(NOVICE, 'classLectern').whyNot);
+// The student steps out for a moment and comes back: kept
+at(ADEPT, BRUMA, [0, 0, 0]); advance(10000); tick('schools.classes');
+check('a student who steps out is warned', saidAny(ADEPT, /Come back within 5 minutes to stay in the class/));
+at(ADEPT, SYNOD, [0, 0, 0]); advance(2 * MIN); tick('schools.classes');
+check('...and back within the grace stays in', globalThis.__dboSchoolsState.classes.get(LECTERN).students.has(ADEPT) && !globalThis.__dboSchoolsState.classes.get(LECTERN).students.get(ADEPT).awaySince);
+advance(20 * MIN); tick('schools.classes');
+w = lastWidget(TEACHER, 'classLectern');
+check('after 30 minutes the teacher is told and End Class opens', saidAny(TEACHER, /Your class has run its course/) && w.canEnd === true && w.status === 'The class has run its course.', w);
+check('...and the crosshair says it may be ended', lastPacket(ADEPT, 'refDecor').refs[0].name === 'Class Lectern: the class may be ended');
+const adeptBefore = level(ADEPT, 'Destruction');
+const wheelBefore = wheelEvents.length;
+ui('lecternEnd', TEACHER, [w.nonce]);
+check('End Class pays the Adept 70% of 60 units in Destruction', level(ADEPT, 'Destruction') > adeptBefore && saidAny(ADEPT, /You took 70% of the lesson: your study of Destruction stands at \d+/), [adeptBefore, level(ADEPT, 'Destruction'), said(ADEPT)]);
+const paidWheel = wheelEvents.slice(wheelBefore);
+check('...and credits Arcane Arts with 6 casts of Incinerate (8 x 0.7) through the Wheel', paidWheel.length === 6 && paidWheel.every((e) => e.a === ADEPT && e.kind === 'cast' && e.detail.spellId === idOf(T.incinerate[1])), paidWheel);
+check('the class is gone and the crosshair name is handed back', !globalThis.__dboSchoolsState.classes.has(LECTERN) && lastPacket(ADEPT, 'refDecor').refs[0].name === null);
+check('...audited with who was paid', out.audits.some((l) => /SCHOOLS class by P15 on Incinerate \(Destruction Expert\) .* ended: P16 x0\.7/.test(l)), out.audits.slice(-2));
+activate(LECTERN, TEACHER);
+check('the teacher waits an hour for the next class', /You taught a class not long ago. You may hold the next in \d+ minutes/.test(lastWidget(TEACHER, 'classLectern').whyNot), lastWidget(TEACHER, 'classLectern').whyNot);
+advance(61 * MIN);
+activate(LECTERN, TEACHER);
+ui('lecternStart', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce, T.incinerate[1]]);
+check('...and may teach again after it', globalThis.__dboSchoolsState.classes.has(LECTERN));
+activate(LECTERN, ADEPT);
+check('a student paid 1 hour ago waits the rest of 12 hours', /You sat a class not long ago/.test(lastWidget(ADEPT, 'classLectern').whyNot), lastWidget(ADEPT, 'classLectern').whyNot);
+// The teacher disconnects: 5 minutes of grace, then cancelled
+online = online.filter((a) => a !== TEACHER);
+advance(10000); tick('schools.classes');
+check('the teacher gone starts the grace period', !!globalThis.__dboSchoolsState.classes.get(LECTERN).teacherAwaySince);
+// A hot reload in the middle keeps the class
+load();
+check('a hot reload keeps the running class and its timers', globalThis.__dboSchoolsState.classes.has(LECTERN) && timers.has('schools.classes') && timers.has('schools.tick'));
+advance(5 * MIN); tick('schools.classes');
+check('after 5 minutes away the class is cancelled and nobody is paid', !globalThis.__dboSchoolsState.classes.has(LECTERN) && out.audits.some((l) => /SCHOOLS class by P15 on Incinerate .* cancelled/.test(l)));
+online.push(TEACHER);
+
+// ---- the secondary school ----
+arcane(ILLUSIONIST, 80); setLevel(ILLUSIONIST, 'Illusion', 60);
+p = progress(ILLUSIONIST);
+check('at Arcane Arts 80 the closed schools are offered as the secondary', p.schools.filter((x) => x.choose && x.choose.as === 'secondary').map((x) => x.name).join() === 'Destruction,Conjuration,Alteration' && /Do you want to choose Destruction as your secondary school of magic\?/.test(p.schools[0].choose.confirm), p.schools);
+ui('schoolChoose', ILLUSIONIST, [p.nonce, 'Alteration', 'secondary']);
+check('Alteration becomes the secondary at 33', rec(ILLUSIONIST).secondary === 'Alteration' && level(ILLUSIONIST, 'Alteration') === 33, rec(ILLUSIONIST));
+p = lastPacket(ILLUSIONIST, 'dboSchoolProgress').progress;
+check('...and the other two lock again for good', p.schools.filter((x) => x.role === 'locked').map((x) => x.name).join() === 'Destruction,Conjuration' && p.schools.every((x) => !x.choose), p.schools);
+ui('schoolChoose', ILLUSIONIST, [p.nonce, 'Conjuration', 'secondary']);
+check('a second secondary is refused', rec(ILLUSIONIST).secondary === 'Alteration' && /already your secondary/.test(said(ILLUSIONIST)));
+
+// ---- a mage from before the rework ----
+arcane(OLDMAGE, 80);
+put(OLDMAGE, 'private.dboStudied', { arcane: [T.boundSword[1], '640b6:Skyrim.esm', T.flames[1]] });
+p = progress(OLDMAGE);
+check('an existing mage is brought over: primary Conjuration (most spells) at their Arcane Arts level', rec(OLDMAGE).primary === 'Conjuration' && level(OLDMAGE, 'Conjuration') === 80, rec(OLDMAGE));
+check('...and Destruction, the school of their other spells, as the secondary at 33', rec(OLDMAGE).secondary === 'Destruction' && level(OLDMAGE, 'Destruction') === 33, rec(OLDMAGE));
+check('...audited once', out.audits.filter((l) => /SCHOOLS P19 brought over: primary Conjuration, secondary Destruction at Arcane Arts 80 \(3 studied spells\)/.test(l)).length === 1);
+
+// ---- /teach runs through the same gate ----
+check('spells.js asks the school gate for a student too', /Illusion is not one of Mage #TAG4's schools of magic/.test(globalThis.__dboSchoolsRefusal(MAGE, 'Illusion', 0, 'Mage #TAG4') || ''));
+
+// ---- staff ----
+cmd('schools', TEACHER, 'Illusionist');
+check('/schools shows a player\'s schools', /Illusionist #TAG8: Destruction locked, Illusion primary 60, Conjuration locked, Alteration secondary 33; Arcane Arts 80/.test(said(TEACHER)), said(TEACHER));
+cmd('schools', TEACHER, 'reset Illusionist');
+check('/schools reset clears them to choose again', !rec(ILLUSIONIST).primary && !rec(ILLUSIONIST).secondary && commands.get('schools').opts.admin === true);
+
+// ---- the scale table is Swag's ----
+const S = CONFIG.schools.classes.scale;
+check('scale: Novice full at Novice, 70% at Apprentice, none above', S[0].join() === '1,0.7,0,0,0');
+check('scale: Apprentice reduced at Novice, full, 70% at Adept, none above', S[1][0] > 0 && S[1][0] < 1 && S[1].slice(1).join() === '1,0.7,0,0');
+check('scale: Adept none below, full, 70% at Expert, none at Master', S[2].join() === '0,0,1,0.7,0');
+check('scale: Expert none below, full, some at Master', S[3].slice(0, 4).join() === '0,0,0,1' && S[3][4] > 0);
+check('scale: Master full, none below', S[4].join() === '0,0,0,0,1');
+
+console.log(`\n${checks - failures}/${checks} passed`);
+process.chdir(os.tmpdir());
+fs.rmSync(dir, { recursive: true, force: true });
+process.exit(failures ? 1 : 0);
+})();
