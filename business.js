@@ -12,6 +12,13 @@
 // The hold takes its tax from every rent. The rate is the hold's own (/tax), set by its Jarl, Count or Steward (taxRanks),
 // from 0 to maxTax; until one is set, rest.holdShare (10 %) stands. Each change is logged with who made it.
 //
+// BEFORE STORAGE FOR RENT IS UN-PAUSED (chestRentPaused), from the review of rent-fail-closed (finding 1): two door claims
+// in one inn are two businesses, and both can list the same chest. chestIndex() keeps one business per chest (the last
+// one read) and arming reads only the arming business's own record. So:
+//   - arming must refuse a chest that ANY business record lists as rented or grace;
+//   - the activation hook must enforce EVERY rented or grace record for that chest, not only the indexed one.
+// The gamemode's stand-in (businessFailClosed) already counts every record.
+//
 // State: businesses.json { businesses: { <claim door hex>: record } } and taxes.json { <zone id>: { rate, by, at, log } },
 // both runtime (gitignored). A record: { name, owner (profile), ownerName, zone, rentGold, staff: [{ profile, name }],
 // chests: { <ref hex>: { price, renter?, renterName?, until?, lapsed? } }, owed, log: [{ at, text }], notes: [{ at, by, text }] }.

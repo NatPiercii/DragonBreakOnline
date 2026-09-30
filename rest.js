@@ -228,7 +228,8 @@ module.exports = (api) => {
     const r = rentOf(bed);
     const inInn = INNS.has(cellOf(bed));
     const price = kind === 'inn' ? priceFor(bed) : 0;
-    const actions = kind === 'inn' ? [{ id: 'rent', label: `Rent this bed: ${price} gold for ${forText()}` }]
+    // The price rides in the button's id too, so a click can only ever pay what its own button said
+    const actions = kind === 'inn' ? [{ id: `rent:${price}`, label: `Rent this bed: ${price} gold for ${forText()}` }]
       : kind === 'keep' ? [{ id: 'keep', label: 'Make this my bed' }]
         : [{ id: 'sleep', label: 'Sleep (log out)' }, { id: 'lie', label: 'Lie down (use the bed again)' }]
           .concat(kind === 'own' && inInn ? [{ id: 'unkeep', label: 'This is no longer my bed' }] : []);
@@ -360,8 +361,10 @@ module.exports = (api) => {
 
   onUi('restChoose', (a, args) => {
     const bed = pending.get(a >>> 0); const choice = String(args[0] || '');
+    // The rent button is rent:<the gold it showed> (a bare 'rent' is read against the quote kept for the prompt)
+    const rentAt = choice.match(/^rent(?::(\d+))?$/);
     // Renting and keeping reopen this same widget id, and closing it in between leaves the panel up with no cursor
-    const renting = choice === 'rent' || choice === 'keep';
+    const renting = !!rentAt || choice === 'keep';
     if (!renting) closePrompt(a);
     if (choice === 'cancel') return;
     if (!bed) { if (renting) closePrompt(a); log(`rest: ${who(a)} chose ${choice} with no bed prompt on record`); return personal(a, 'Use the bed again.'); }
@@ -380,13 +383,16 @@ module.exports = (api) => {
       if (kind !== 'inn') { closePrompt(a); return; }
       const m = rentedElsewhere(a, bed);
       if (m) { closePrompt(a); return personal(a, `You already rent a bed${where(m.bed)} until ${clock(m.until)}. One bed at a time.`); }
-      // The rent changed while the prompt was open (or the prompt predates this check): nothing is taken, and the prompt
-      // opens again at today's price for the player to accept or not (reopened in place, so the cursor stays)
+      // Review A2-2: the gold taken is the gold the clicked button showed, and it must still be the bed's rent. When the rent
+      // changed while the prompt was open (or the prompt predates this check) nothing is taken and the prompt CLOSES: the
+      // player uses the bed again to see the new price. Reopening it in place let the second click of a double-click land on
+      // the new price's button and pay it unseen (the coordinator's review of acf20eac: 10 shown, 200 taken).
       const q = quoted.get(a >>> 0), price = priceFor(bed);
-      if (!q || q.bed !== (bed >>> 0) || q.price !== price) {
-        log(`rest: ${who(a)} chose rent at ${q && q.bed === (bed >>> 0) ? q.price : '?'} gold, bed ${bedDesc(bed)} now rents for ${price}; nothing taken`);
-        openPrompt(a, bed, 'inn');
-        return personal(a, `The rent for this bed is now ${price} gold. Choose Rent again to pay it.`);
+      const shown = rentAt[1] !== undefined ? Number(rentAt[1]) : (q && q.bed === (bed >>> 0) ? q.price : NaN);
+      if (shown !== price) {
+        log(`rest: ${who(a)} chose rent at ${Number.isFinite(shown) ? shown : '?'} gold, bed ${bedDesc(bed)} now rents for ${price}; nothing taken`);
+        closePrompt(a);
+        return personal(a, `The rent for this bed is now ${price} gold. Use the bed again to rent it.`);
       }
       if (payRent(a, bed, price)) return openPrompt(a, bed, 'rented');
       closePrompt(a);

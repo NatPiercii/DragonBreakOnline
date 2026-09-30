@@ -39,7 +39,7 @@ for (const c of [CHEST, CHEST2]) { setp(c, 'worldOrCellDesc', desc(CELL)); setp(
 for (const a of Object.keys(PROFILE).map(Number)) { setp(a, 'worldOrCellDesc', desc(CELL)); setp(a, 'profileId', PROFILE[a]); }
 const TYPES = { [CELL]: 'CELL', [WORLD]: 'WRLD', [CHEST_BASE]: 'CONT' };
 const gold = { [OWNER]: 0, [CUST]: 500, [CUST2]: 500, [CUST3]: 2000, [STRANGER]: 500 };
-const treasury = {}, said = [], widgets = [], cmds = {}, ui = {};
+const treasury = {}, said = [], widgets = [], cmds = {}, ui = {}, showing = new Map();
 const mp = {
   get: (id, k) => props.get(`${id >>> 0}|${k}`),
   set: setp,
@@ -53,7 +53,9 @@ const api = {
   mp, log: () => {}, audit: () => {}, who: (a) => NAME[a], display: (a) => NAME[a],
   personal: (a, t) => said.push([a >>> 0, t]), system: (a, t) => said.push([a >>> 0, t]),
   cfg: { rest: { holdShare: 0.1 }, business: { chestRentPaused: false } },
-  openWidget: (a, w) => { widgets.push([a >>> 0, w]); return true; }, closeWidget: () => true,
+  // The client: the widget it shows each player now, which a click answers (see click below)
+  openWidget: (a, w) => { widgets.push([a >>> 0, w]); showing.set(a >>> 0, w); return true; },
+  closeWidget: (a, id) => { const w = showing.get(a >>> 0); if (w && w.id === id) showing.delete(a >>> 0); return true; },
   onUi: (n, f) => { ui[n] = f; }, registerChatCommand: (n, f) => { cmds[n] = f; },
   onlineActors: () => Object.keys(PROFILE).map(Number), every: () => {}, sendPacket: () => true, userOf: (a) => a,
   profileOf: (a) => PROFILE[a] ?? -1,
@@ -70,6 +72,9 @@ const ok = (c, what, detail) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${
 const last = (a) => { for (let i = said.length - 1; i >= 0; i--) if (said[i][0] === (a >>> 0)) return said[i][1]; return ''; };
 const lastWidget = (a) => { for (let i = widgets.length - 1; i >= 0; i--) if (widgets[i][0] === (a >>> 0)) return widgets[i][1]; return null; };
 const labels = (a) => { const w = lastWidget(a); return w && w.actions ? w.actions.map((x) => x.label).join(' | ') : ''; };
+// A click on the bed prompt's first button as the front sends it (contextMenu: sendMessage(events.action, action.id)),
+// on whatever prompt the player is shown at that moment; nothing when none is shown
+const click = (a) => { const w = showing.get(a >>> 0); if (w && w.actions && w.events) ui[w.events.action.replace(/^dbo:/, '')](a, [w.actions[0].id]); };
 // A gamemode reload requires each module afresh; their state on globalThis survives it, as it does live
 const loadBusiness = (business) => { delete require.cache[BUSINESS]; require(BUSINESS)(Object.assign({}, api, { cfg: Object.assign({}, api.cfg, { business }) })); };
 globalThis.__dboBusiness = undefined; globalThis.__dboBusinessPass = undefined; globalThis.__dboRestPending = undefined; globalThis.__dboRestQuoted = undefined;
@@ -84,27 +89,38 @@ ok(globalThis.__dboBusinessRent(CELL) === 10, 'setup: the owner opens a business
 
 // ---- A2-2: a bed is rented at the price its prompt showed -----------------------------------------------------------
 globalThis.__dboRestActivate(BED, CUST);
-ok(/Rent this bed: 10 gold/.test(labels(CUST)), 'the bed prompt shows 10 gold', labels(CUST));
+ok(/Rent this bed: 10 gold/.test(labels(CUST)) && lastWidget(CUST).actions[0].id === 'rent:10', 'the bed prompt shows 10 gold, and its button carries it (rent:10)', lastWidget(CUST).actions);
 cmds.business(OWNER, 'rent 200');
-ui.restChoose(CUST, ['rent']);
-ok(gold[CUST] === 500, 'the owner raising the rent to 200 while the prompt is open takes nothing: 200 was never shown (A2-2)', gold[CUST]);
+// The coordinator's review of acf20eac: a DOUBLE-click on the prompt that showed 10, after the owner re-priced to 200.
+// acf20eac reopened the prompt in place at 200, so the second click landed on the new button and paid 200 unseen.
+click(CUST); click(CUST);
+ok(gold[CUST] === 500, 'a double-click on the prompt that showed 10, re-priced to 200 meanwhile, takes nothing (A2-2)', gold[CUST]);
 ok(!props.get(`${BED}|private.dboRent`), '...and rents nothing');
-ok(/Rent this bed: 200 gold/.test(labels(CUST)) && /now 200 gold/.test(last(CUST)), '...the prompt opens again at the new price, and says so', [labels(CUST), last(CUST)]);
-ui.restChoose(CUST, ['rent']);
-ok(gold[CUST] === 300 && props.get(`${BED}|private.dboRent`).renter === CUST, 'choosing Rent on the prompt that showed 200 takes exactly 200', gold[CUST]);
+ok(!showing.has(CUST) && /now 200 gold. Use the bed again/.test(last(CUST)), '...the prompt closes and says the new price; no button at 200 was ever under the cursor', [showing.get(CUST), last(CUST)]);
+// Both clicks sent before the server answered the first: the second carries the old button's price too
+ui.restChoose(CUST, ['rent:10']);
+ok(gold[CUST] === 500, '...and a second click already on its way (rent:10) takes nothing either', gold[CUST]);
+// A forged button cannot underpay: the id must name the bed's rent
+globalThis.__dboRestActivate(BED, CUST);
+ui.restChoose(CUST, ['rent:1']);
+ok(gold[CUST] === 500 && !props.get(`${BED}|private.dboRent`), 'a click naming a price the bed does not rent for takes nothing', gold[CUST]);
+globalThis.__dboRestActivate(BED, CUST);
+ok(/Rent this bed: 200 gold/.test(labels(CUST)), 'using the bed again shows 200', labels(CUST));
+click(CUST);
+ok(gold[CUST] === 300 && props.get(`${BED}|private.dboRent`).renter === CUST, 'Rent on the prompt that showed 200 takes exactly 200', gold[CUST]);
 ok(/You rent the bed for 200 gold/.test(last(CUST)), '...and says what was paid', last(CUST));
 // A cheaper rent is not charged silently either: the customer sees the price they pay
 globalThis.__dboRestActivate(BED2, CUST2);
 cmds.business(OWNER, 'rent 5');
-ui.restChoose(CUST2, ['rent']);
-ok(gold[CUST2] === 500 && /Rent this bed: 5 gold/.test(labels(CUST2)), 'a rent lowered while the prompt is open is shown again before it is taken', [gold[CUST2], labels(CUST2)]);
-ui.restChoose(CUST2, ['cancel']);
-// A prompt opened before this change was deployed holds the bed and no price: nothing is taken, the price is shown
+click(CUST2);
+ok(gold[CUST2] === 500 && !showing.has(CUST2), 'a rent lowered while the prompt is open is not taken either: the prompt closes', gold[CUST2]);
+// A prompt opened before this change was deployed holds the bed and no price (its button says a bare 'rent')
 globalThis.__dboRestPending.set(CUST2, BED2); if (globalThis.__dboRestQuoted) globalThis.__dboRestQuoted.delete(CUST2);
 ui.restChoose(CUST2, ['rent']);
-ok(gold[CUST2] === 500 && !props.get(`${BED2}|private.dboRent`) && /Rent this bed: 5 gold/.test(labels(CUST2)), 'a prompt with no price on record takes nothing and shows the price first', [gold[CUST2], labels(CUST2)]);
-ui.restChoose(CUST2, ['rent']);
-ok(gold[CUST2] === 495, '...then Rent takes the 5 it showed', gold[CUST2]);
+ok(gold[CUST2] === 500 && !props.get(`${BED2}|private.dboRent`), 'a prompt with no price on record takes nothing', gold[CUST2]);
+globalThis.__dboRestActivate(BED2, CUST2);
+click(CUST2);
+ok(gold[CUST2] === 495, '...the prompt opened again shows 5, and Rent takes the 5 it showed', gold[CUST2]);
 
 // ---- A2-2: a chest is rented at the price its menu showed -----------------------------------------------------------
 cmds.business(OWNER, 'chest 1');
@@ -185,8 +201,64 @@ if (i >= 0 && j > i) {
   // business.js loaded before and failed on a later reload: its copy in memory is the newer truth
   globalThis.__dboBusiness = { data: { businesses: { [K]: { chests: { [CHEST.toString(16)]: { price: 5, renter: 11, until: now + HOUR } } } } } };
   ok(fc(CHEST, STRANGER) === false && fc(CHEST, CUST3) === true, "...business.js's copy in memory comes before the file");
+  // Two door claims in one inn are two businesses, and both can list the chest (the reviewer's finding 1): every record counts
+  const two = (r1, r2) => { globalThis.__dboBusiness = { data: { businesses: { a: { chests: { [CHEST.toString(16)]: r1 } }, b: { chests: { [CHEST.toString(16)]: r2 } } } } }; };
+  two({ price: 5 }, { price: 5, renter: 10, until: now + HOUR });
+  ok(fc(CHEST, CUST3) === false && fc(CHEST, STRANGER) === true, '...a chest two businesses list is held by the one that rents it out');
+  two({ price: 5, renter: 11, until: now + HOUR }, { price: 5, renter: 10, until: now + HOUR });
+  ok(fc(CHEST, CUST3) === true && fc(CHEST, STRANGER) === true, '...and rented under both to two people, it opens for neither');
 } else {
   ok(false, 'the stand-in could not be exercised (not found in gamemode.js)');
+}
+
+// ---- A2-1: any hook in the gamemode's activate chain throwing ----------------------------------------------------------
+// The real chain out of gamemode.js, run in a sandbox. engine() answers as ScampServerListener.cpp does: a handler that
+// throws, or returns nothing, allows the activation. Before this branch a throw in any hook let the activation through.
+{
+  const vm = require('vm');
+  const HOUR = 3600000, now = Date.now();
+  // From the throw helpers (when there are any) through the chain and its wrapper, to the door trace
+  const chainAt = gm.indexOf('\nmp.onActivate = (targetId, casterId) => {\n  const caster'), helpersAt = gm.indexOf('\nconst activateThrowLogAt = ');
+  const from = helpersAt >= 0 && helpersAt < chainAt ? helpersAt : chainAt;
+  const to = gm.indexOf('// TEMPORARY door trace', from);
+  ok(from >= 0 && to > from, "the gamemode's activate chain is found in gamemode.js");
+  const logs = [], told = [];
+  const sb = {
+    mp: { get: () => undefined, set: () => {} }, cfg: { business: { chestGraceHours: 72 } }, fs, path, Date,
+    log: (...x) => logs.push(x.join(' ')), personal: (a, t) => told.push([a >>> 0, t]), system: () => {},
+    profileOf: (a) => PROFILE[a] ?? -1, lastPickupDeny: new Map(), treasuryRefused: () => false, distanceMeters: () => 1,
+    blockPlacedPickup: () => false, gateOf: () => null, TAMRIEL: '3c',
+  };
+  sb.globalThis = sb;
+  const fcSrc = i >= 0 && j > i ? gm.slice(i, j + 2) : 'function businessFailClosed() { return false; }';
+  vm.runInNewContext(`${fcSrc}\n${gm.slice(from, to)}`, sb);
+  const engine = (t, c) => { try { const v = sb.mp.onActivate(t, c); return v === undefined ? true : !!v; } catch (e) { return true; } };
+  const saidTo = (a) => { for (let k = told.length - 1; k >= 0; k--) if (told[k][0] === (a >>> 0)) return told[k][1]; return ''; };
+  const DOORX = 0x5000, boom = () => { throw new Error('a hook bug'); };
+  sb.__dboBusiness = { data: { businesses: { [K]: { chests: { [CHEST.toString(16)]: { price: 5, renter: 10, until: now + 48 * HOUR } } } } } };
+  sb.__dboPrevActivate = () => true;
+  sb.__dboBusinessActivate = fcSrc.startsWith('function businessFailClosed(') ? sb.businessFailClosed : () => false;
+  ok(engine(DOORX, STRANGER) === true && engine(CHEST, CUST3) === true, 'with no hook throwing, a door opens and the renter opens the chest');
+  ok(engine(CHEST, STRANGER) === false, '...and a stranger is kept out of the rented chest');
+  // A hook AHEAD of the business hook throws (raids.js here; any of them)
+  sb.__dboRaidActivate = boom;
+  ok(engine(CHEST, STRANGER) === false && /rented to someone else/.test(saidTo(STRANGER)), 'a hook ahead of business.js throws: a stranger is still kept out of the rented chest (A2-1)', saidTo(STRANGER));
+  ok(engine(CHEST, OWNER) === false, '...and so is the business owner');
+  ok(engine(CHEST, CUST3) === false && /went wrong/.test(saidTo(CUST3)), '...its renter is refused too and told to try again: the gates before the chest did not finish', saidTo(CUST3));
+  ok(engine(DOORX, CUST) === false && /went wrong/.test(saidTo(CUST)), '...anything else is refused while a hook throws (fail closed), and the player told', saidTo(CUST));
+  ok(logs.filter((l) => /the gamemode chain threw/.test(l)).length === 1, '...and it is logged, once per 10 s, not once per E', logs);
+  sb.__dboRaidActivate = null;
+  // A hook AFTER the business hook throws (the dungeon lease gate here)
+  sb.__dboDungeonActivate = boom;
+  ok(engine(DOORX, CUST) === false && engine(CHEST, STRANGER) === false, 'a hook after business.js throws: refused as well');
+  sb.__dboDungeonActivate = null;
+  // The business hook itself throws: the stand-in decides there and the chain goes on
+  sb.__dboBusinessActivate = boom;
+  ok(engine(CHEST, STRANGER) === false && engine(CHEST, CUST3) === true, 'business.js itself throws: its stand-in keeps the stranger out and lets the renter through the rest of the chain');
+  sb.__dboBusinessActivate = null;
+  // The fork systems' chain (housing locks, mastery) throwing is theirs to decide: allowed as before, now logged
+  sb.__dboPrevActivate = boom;
+  ok(engine(DOORX, CUST) === true && logs.some((l) => /the systems chain threw/.test(l)), "the fork systems' chain throwing keeps the fork's own rule (allowed) and is logged", logs);
 }
 
 console.log(fails ? `${fails} FAILED` : 'all checks passed');

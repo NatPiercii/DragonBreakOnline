@@ -1014,6 +1014,33 @@ const treasuryRefused = (caster, target) => {
   }
   return true;
 };
+// Review of acf20eac (the coordinator, 2026-09-30): the engine takes a thrown activate handler as "allowed"
+// (ScampServerListener.cpp), so a throw in ANY gamemode hook of the chain below skipped every gate after it: bound hands, the treasury,
+// leases, loot guards, rented chests. Fail closed instead. A thrown hook means the gates did not all get their say, so the
+// activation is refused, whatever it was: a door, a chest, an NPC. A business chest gets businessFailClosed's word
+// (a non-renter is told the chest is rented); its renter is refused too, since the gates ahead of the business hook did
+// not finish. A refusal can be retried; an item taken or a cell door opened cannot be undone. The live log showed no
+// activate handler error from 27 to 30 Sep, so this should stay silent; every throw is logged (at most one line per
+// 10 s per hook kind) and the player told to try again. A throw inside the business hook itself is caught at that hook
+// (the stand-in decides and the chain goes on), so a renter still reaches the chest when only business.js fails.
+const activateThrowLogAt = new Map();
+const logActivateThrow = (where, e) => {
+  const now = Date.now();
+  if (now - (activateThrowLogAt.get(where) || 0) < 10000) return;
+  activateThrowLogAt.set(where, now);
+  log(`activate: the ${where} chain threw:`, e && e.stack ? String(e.stack).split('\n').slice(0, 3).join(' | ') : String(e));
+};
+const activateThrew = (targetId, casterId, e) => {
+  const caster = Number(casterId) >>> 0, target = Number(targetId) >>> 0;
+  logActivateThrow('gamemode', e);
+  let told = false;
+  try { told = businessFailClosed(target, caster) === true; } catch (e2) { /* refused below all the same */ }
+  if (!told && Date.now() - (lastPickupDeny.get(caster) || 0) > 1500) {
+    lastPickupDeny.set(caster, Date.now());
+    try { personal(caster, 'Something went wrong there. Try again in a moment.'); } catch (e3) { /* not a player */ }
+  }
+  return false;
+};
 mp.onActivate = (targetId, casterId) => {
   const caster = Number(casterId) >>> 0;
   const target = Number(targetId) >>> 0;
@@ -1083,8 +1110,17 @@ mp.onActivate = (targetId, casterId) => {
   }
   const prev = globalThis.__dboPrevActivate;
   if (!prev) return true;
-  try { return prev.call(mp, targetId, casterId) !== false; } catch (e) { return true; }
+  // The fork systems' own chain (housing locks, the mastery gate, boards). Its wrappers already take their own errors as
+  // "allowed" (housingSystem.ts); that policy is the fork's to change, so a throw out of it still allows, now logged.
+  try { return prev.call(mp, targetId, casterId) !== false; } catch (e) { logActivateThrow('systems', e); return true; }
 };
+// Any throw in the chain above is refused, not allowed (see activateThrew)
+{
+  const activateChain = mp.onActivate;
+  mp.onActivate = (targetId, casterId) => {
+    try { return activateChain(targetId, casterId); } catch (e) { return activateThrew(targetId, casterId, e); }
+  };
+}
 // TEMPORARY door trace (2026-09-16, Applewatch house doors would not open): every door activation and its answer
 {
   const activateCore = mp.onActivate;
@@ -4464,13 +4500,14 @@ function businessFailClosed(targetId, casterId) {
   try { const t = mp.get(ref, 'private.dboBizLedger'); if (t && t.claim) { personal(casterId, 'The business ledger is closed for a moment. Try again shortly.'); return true; } } catch (e) { /* not a ledger */ }
   let d = globalThis.__dboBusiness && globalThis.__dboBusiness.data;
   if (!d || !d.businesses) { try { d = JSON.parse(fs.readFileSync(path.resolve('businesses.json'), 'utf8')); } catch (e) { d = null; } }
-  let c = null;
-  for (const b of Object.values((d && d.businesses) || {})) { if (b && b.chests && b.chests[key]) { c = b.chests[key]; break; } }
-  if (!c) return false;
-  const g = Number((cfg.business || {}).chestGraceHours);
-  const held = !!c.renter && Number(c.until) + (Number.isFinite(g) ? g : 72) * 3600000 > Date.now();
-  if (held && Number(c.renter) === profileOf(casterId)) return false;
-  personal(casterId, held ? 'This chest is rented to someone else.' : 'This chest belongs to a business whose ledger is closed for a moment. Try again shortly.');
+  // Every record that lists the chest counts: two door claims in one inn can both list it (the reviewer's finding 1)
+  const recs = [];
+  for (const b of Object.values((d && d.businesses) || {})) if (b && b.chests && b.chests[key]) recs.push(b.chests[key]);
+  if (!recs.length) return false;
+  const g = Number((cfg.business || {}).chestGraceHours), grace = (Number.isFinite(g) ? g : 72) * 3600000;
+  const held = recs.filter((c) => !!c.renter && Number(c.until) + grace > Date.now());
+  if (held.length && held.every((c) => Number(c.renter) === profileOf(casterId))) return false;
+  personal(casterId, held.length ? 'This chest is rented to someone else.' : 'This chest belongs to a business whose ledger is closed for a moment. Try again shortly.');
   return true;
 }
 businessFailClosed.failClosed = true;
