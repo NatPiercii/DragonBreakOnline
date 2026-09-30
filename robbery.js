@@ -52,6 +52,9 @@ module.exports = (api) => {
   const contestBy = (robber, victim) => { const c = S.contests.get(victim >>> 0); return c && c.robber === (robber >>> 0) && Date.now() < c.until ? c : null; };
   const pendingFor = (a) => { for (const p of S.pending.values()) if (p.robber === (a >>> 0) || p.victim === (a >>> 0)) return p; return null; };
 
+  // True while the fork's TradeSystem has this actor's trade window open (server-next with __alduinakInTrade)
+  const inTrade = (x) => { try { return typeof globalThis.__alduinakInTrade === 'function' && globalThis.__alduinakInTrade(x >>> 0) === true; } catch (e) { return false; } };
+
   // Why this robber may not rob this victim now, or '' when they may
   const refusal = (a, t, forMenu) => {
     if (!C.enabled) return 'Robbery is not allowed right now.';
@@ -60,6 +63,8 @@ module.exports = (api) => {
     if (dead(a) || handsTied(a) || inBeastForm(a)) return 'You cannot rob anyone right now.';
     if (inBeastForm(t)) return 'You cannot rob a beast.';
     if (sameParty(a, t)) return 'You cannot rob a member of your own party.';
+    if (inTrade(a)) return 'Finish your trade first.';
+    if (inTrade(t)) return 'They are in the middle of a trade, with eyes on their goods.';
     if (pendingFor(a) || pendingFor(t)) return 'A robbery is already under way.';
     const contest = contestBy(a, t);
     // The robbery completes on a victim who refused, only if this robber brought them down (review m2)

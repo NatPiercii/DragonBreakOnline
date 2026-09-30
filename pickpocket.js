@@ -198,6 +198,9 @@ module.exports = (api) => {
     return true;
   };
 
+  // True while the fork's TradeSystem has this actor's trade window open (server-next with __alduinakInTrade)
+  const inTrade = (x) => { try { return typeof globalThis.__alduinakInTrade === 'function' && globalThis.__alduinakInTrade(x >>> 0) === true; } catch (e) { return false; } };
+
   const attempt = (a, t, nameFor) => {
     a >>>= 0; t >>>= 0;
     const call = (viewer, x) => { try { return typeof nameFor === 'function' ? nameFor(viewer, x) : nameOf(x); } catch (e) { return 'Someone'; } };
@@ -208,6 +211,8 @@ module.exports = (api) => {
     if (inBeastForm(a)) return personal(a, 'Not in this form.');
     if (dead(t)) return personal(a, 'They are down. Search the body instead.');
     if (inBeastForm(t)) return personal(a, 'There is nothing to take from that.');
+    if (inTrade(a)) return personal(a, 'Finish your trade first.');
+    if (inTrade(t)) return personal(a, `${call(a, t)} is in the middle of a trade, with eyes on their goods.`);
     const g = geometry(a, t);
     if (!g || g.dist > Number(C.maxDistance) || g.height > Number(C.maxHeight)) return personal(a, 'Get within arm\'s reach first.');
     const now = Date.now();
