@@ -5048,28 +5048,9 @@ const materialDamageMult = (aggressorId, sourceId) => {
 // ARMO DNAM is the rating x100 (u32), BOD2 byte 4 the armor type (0 light, 1 heavy, 2 clothing). Config "mastery.defense".
 const DEFENSE = Object.assign({ enabled: true, armorMultByTier: [1, 1.25, 1.75, 2.5, 3.5], lightShare: 1 },
   ((cfg.mastery || {}).defense) || {});
-// A material may count for a stronger rating than its records give, by slot (Nate, 2026-09-29: "Dragonbone/scale armor
-// needs to be stronger than ebony"). Dragonplate already beats Ebony piece for piece (Update.esm); Dragonscale did not.
-// Only ever raises. The engine keeps the record's rating, so it counts where Defense and tempering do: defenseDamageMult
-// and the inventory numbers. Config "armorMaterials": { enabled, ratingBySlot: { keyword editor id: { body, hands, feet,
-// head, shield } } }.
-const ARMOR_MATERIALS = Object.assign({ enabled: true, ratingBySlot: {} }, cfg.armorMaterials || {});
-const slotOfMask = (mask) => (mask & 0x4 ? 'body' : mask & 0x200 ? 'shield' : mask & 0x8 ? 'hands' : mask & 0x80 ? 'feet' : mask & 0x1003 ? 'head' : '');
-const materialRatingOf = (r, slot) => {
-  if (!ARMOR_MATERIALS.enabled || !slot) return 0;
-  let best = 0;
-  for (const f of fieldsOf(r, 'KWDA')) {
-    for (let off = 0; off + 4 <= f.data.byteLength; off += 4) {
-      const kw = recordOf(globalAt(r, u32At(f, off)));
-      const table = kw ? (ARMOR_MATERIALS.ratingBySlot || {})[String(kw.record.editorId || '')] : null;
-      const v = table ? Number(table[slot]) : NaN;
-      if (v > best) best = v;
-    }
-  }
-  return best;
-};
-// Cache renamed with the counted rating, so a reload never keeps entries made before it
-const armorPieceCache = globalThis.__dboArmorPiece3 instanceof Map ? globalThis.__dboArmorPiece3 : (globalThis.__dboArmorPiece3 = new Map());
+// Cache renamed when the rating it holds changed meaning, so a reload never keeps entries made before (v4: the records' own
+// rating again, the ladder being in the plugins; v3 held the armorMaterials override's)
+const armorPieceCache = globalThis.__dboArmorPiece4 instanceof Map ? globalThis.__dboArmorPiece4 : (globalThis.__dboArmorPiece4 = new Map());
 const armorPieceOf = (baseId) => {
   if (armorPieceCache.has(baseId)) return armorPieceCache.get(baseId);
   let piece = null;
@@ -5080,8 +5061,6 @@ const armorPieceOf = (baseId) => {
     // chest: the body slot (32, bit 2 of BOD2's slot mask), which tempering improves twice as much as any other piece
     if (dnam && dnam.data.byteLength >= 4) piece = { rating: u32(dnam, 0) / 100, heavy: !!bod2 && bod2.data.byteLength >= 8 && u32(bod2, 4) === 1,
       clothing: !!bod2 && bod2.data.byteLength >= 8 && u32(bod2, 4) === 2, chest: !!bod2 && bod2.data.byteLength >= 4 && (u32(bod2, 0) & 0x4) !== 0 };
-    // counted: the rating the server counts it at (the material's, when that is higher)
-    if (piece) piece.counted = Math.max(piece.rating, materialRatingOf(r, bod2 && bod2.data.byteLength >= 4 ? slotOfMask(u32(bod2, 0)) : ''));
   }
   armorPieceCache.set(baseId, piece);
   return piece;
@@ -5163,7 +5142,7 @@ const defenseDamageMult = (targetId) => {
     for (const w of wornWithHealth(targetId)) {
       const p = armorPieceOf(w.baseId); if (!p) continue;
       bare += p.rating;
-      counted += ((p.counted || p.rating) + temperBonus(w.health, p.chest)) * (p.heavy ? pm.heavy : pm.light);
+      counted += (p.rating + temperBonus(w.health, p.chest)) * (p.heavy ? pm.heavy : pm.light);
     }
   } catch (e) { return 1; }
   if (!(bare > 0) || Math.abs(counted - bare) < 1e-9) return 1;
@@ -5613,7 +5592,7 @@ const statItemsFor = (a) => {
     const p = armorPieceOf(id);
     if (!p || p.clothing || !(p.rating > 0)) continue;
     const temper = temperBonus(e.health, p.chest);
-    out.push({ id, kind: 'armor', skill: p.heavy ? 'HeavyArmor' : 'LightArmor', temper: Math.round(temper * 100) / 100, value: Math.round(((p.counted || p.rating) + temper) * (p.heavy ? pm.heavy : pm.light) * 100) / 100 });
+    out.push({ id, kind: 'armor', skill: p.heavy ? 'HeavyArmor' : 'LightArmor', temper: Math.round(temper * 100) / 100, value: Math.round((p.rating + temper) * (p.heavy ? pm.heavy : pm.light) * 100) / 100 });
   }
   return out;
 };
