@@ -326,6 +326,33 @@ delete globalThis.__dboJournalStats; delete globalThis.__alduinakTradeLog; delet
     delete mp.findFormsByPropertyValue;
   }
 
+  // ---- the adoption index is built off the game thread; a new character in creation never looks for a file ----
+  {
+    const jd = path.join(dir, 'journal');
+    const oldTmp = path.join(jd, `${'e'.repeat(16)}.json.1.1.tmp`), newTmp = path.join(jd, `${'e'.repeat(16)}.json.1.2.tmp`);
+    fs.writeFileSync(oldTmp, '{"half'); fs.writeFileSync(newTmp, '{"half');
+    fs.utimesSync(oldTmp, (now - 3600000) / 1000, (now - 3600000) / 1000); fs.utimesSync(newTmp, now / 1000, now / 1000);
+    const realReaddirSync = fs.readdirSync, realReadFileSync = fs.readFileSync;
+    let dirReads = 0, fileReads = 0;
+    // Reads of the journal folder only (require() reads the module's own source the same way)
+    fs.readdirSync = (...x) => { if (String(x[0]).startsWith(jd)) dirReads++; return realReaddirSync(...x); };
+    fs.readFileSync = (...x) => { if (String(x[0]).startsWith(jd)) fileReads++; return realReadFileSync(...x); };
+    delete globalThis.__dboJournalStats;
+    M = load();
+    ok(dirReads === 0 && fileReads === 0, 'loading reads no file on the game thread', [dirReads, fileReads]);
+    const P8 = 0xff00001b; profiles.set(P8, 14); props.set(`${P8}|private.charTag`, 'WxYz'); at(P8, [0, 0, 0]);
+    creating.add(P8); online = [P8];
+    timers.journalStatsSample();                             // before the background index is done
+    ok(dirReads === 0 && fileReads <= 1 && M.keyOf(P8) && st(P8).created, 'a new character in creation gets a key without any index read (at most its own file)', [dirReads, fileReads]);
+    creating.delete(P8);
+    for (let i = 0; i < 50 && !globalThis.__dboJournalStats.index; i++) await new Promise((r) => setTimeout(r, 10));
+    fs.readdirSync = realReaddirSync; fs.readFileSync = realReadFileSync;
+    const idx = globalThis.__dboJournalStats.index;
+    ok(idx && idx.get('12:AbCd') && dirReads === 0, 'the index is built in the background, with no synchronous read', idx && [...idx.keys()]);
+    ok(!fs.existsSync(oldTmp) && fs.existsSync(newTmp), 'a temporary file left by a crash is removed at load; a fresh one (a write in flight) is left');
+    fs.unlinkSync(newTmp);
+  }
+
   // ---- load: 100 players ----
   const many = [];
   for (let i = 0; i < 100; i++) { const a = 0xff001000 + i; profiles.set(a, 1000 + i); at(a, [i * 10, 0, 0]); many.push(a); }

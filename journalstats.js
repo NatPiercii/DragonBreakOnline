@@ -46,7 +46,7 @@ module.exports = (api) => {
 
   // cache: key -> stats; dirty: keys to write; live: key -> { pos, world, at, pending } of the last sample; online: the
   // keys seen in the last sample; writing: the one file in flight
-  const blank = () => ({ v: 2, cache: new Map(), dirty: new Set(), live: new Map(), online: new Set(), writing: null, queue: [], seq: 0, index: null, waiters: [], written: 0, players: { at: 0, created: new Map() } });
+  const blank = () => ({ v: 2, cache: new Map(), dirty: new Set(), live: new Map(), online: new Set(), writing: null, queue: [], seq: 0, index: null, indexing: false, waiters: [], written: 0, players: { at: 0, created: new Map() } });
   const old = globalThis.__dboJournalStats;
   const S = old && old.v === 2 ? old : (globalThis.__dboJournalStats = Object.assign(blank(), old && old.players ? { players: old.players } : {}));
   // Fields added since the state was made (a reload over an earlier version of this module)
@@ -93,6 +93,8 @@ module.exports = (api) => {
     return S.index;
   };
   const adoptable = (a) => {
+    // A character still in creation is new: it never had a key to lose, so no file is looked for
+    try { if (typeof creationPending === 'function' && creationPending(a)) return null; } catch (e) { return null; }
     const who = identityOf(a); if (!who) return null;
     const k = index().get(idKey(who.account, who.tag)); if (!k) return null;
     let d = readDoc(k);
@@ -104,6 +106,39 @@ module.exports = (api) => {
     if (holder && holder !== (Number(a) >>> 0)) { try { if (mp.get(holder, KEY_PROP) === k) return null; } catch (e) { /* gone */ } }
     log(`journal stats: ${(Number(a) >>> 0).toString(16)} takes back its file ${k} (account ${who.account}, #${who.tag})`);
     return k;
+  };
+  // The index is built off the game thread at load; index() reads synchronously only if a keyless character turns up
+  // before that finishes. Leftover temporary files (a crash mid-write) older than two minutes are removed on the way
+  const prepare = () => {
+    if (S.index || S.indexing) return;
+    S.indexing = true;
+    const built = new Map();
+    const readAll = (where, names, i, done) => {
+      if (i >= names.length) return done();
+      const n = names[i]; const p = path.join(where, n);
+      if (/\.tmp$/.test(n)) {
+        return fs.stat(p, (e, st) => {
+          if (!e && Date.now() - st.mtimeMs > 120000) fs.unlink(p, () => readAll(where, names, i + 1, done));
+          else readAll(where, names, i + 1, done);
+        });
+      }
+      const m = /^([0-9a-f]{16})\.json$/.exec(n); if (!m) return readAll(where, names, i + 1, done);
+      fs.readFile(p, 'utf8', (e, body) => {
+        try { const d = !e && JSON.parse(body); if (d && Number.isInteger(d.account) && typeof d.tag === 'string' && !(where === REMOVED && built.has(idKey(d.account, d.tag)))) built.set(idKey(d.account, d.tag), m[1]); } catch (x) { /* a bad file is repaired when its character loads */ }
+        readAll(where, names, i + 1, done);
+      });
+    };
+    const dirs = [DIR, REMOVED];
+    const next = (j) => {
+      if (j >= dirs.length) {
+        S.indexing = false;
+        if (S.index) return;   // built synchronously meanwhile
+        for (const [k, s] of S.cache) if (Number.isInteger(s.account) && typeof s.tag === 'string') built.set(idKey(s.account, s.tag), k);
+        S.index = built; return;
+      }
+      fs.readdir(dirs[j], (e, names) => readAll(dirs[j], e ? [] : names, 0, () => next(j + 1)));
+    };
+    next(0);
   };
   // Stamps who a record belongs to, and keeps the index current
   const stamp = (s, k, actor) => {
@@ -396,6 +431,7 @@ module.exports = (api) => {
   globalThis.__dboStatsFlush = flush;
   // For the journal (phase 1): a character's document by actor (its own fields live beside the counters, e.g. doc.profile)
   globalThis.__dboJournalDoc = { of: statsOf, touch, keyOf, orphans, forget, dir: DIR };
+  if (C.enabled) prepare();
   log(`journal stats ${C.enabled ? 'on' : 'off'}: sample every ${C.sampleSeconds} s, files in ${DIR}, ${S.cache.size} cached`);
   return { sample, flush, statsOf, keyOf, summary, orphans, forget };
 };
