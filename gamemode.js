@@ -13,7 +13,17 @@ const ADMIN_PROP = 'isAdmin';
 const UNITS_PER_METER = 70;
 const C = { WHITE: 'fafafa', ME: 'c2a3da', OOC: '3896f3', SHOUT: '772021', SYS: 'eda841', PM: '4ec9b0' };
 
-const log = (...a) => console.log('[gamemode]', ...a);
+// Every module logs through this. A client's string can carry a newline, and the log's readers (dbo-monitor posts bug
+// threads and alerts from it) trust any line that starts with the logger's prefix, so a continuation line is indented;
+// a string over 8000 characters is cut (2026-09-30)
+const LOG_STRING_MAX = 8000;
+const logSafe = (v) => {
+  if (v instanceof Error) v = v.stack || String(v);
+  if (typeof v !== 'string') return v;
+  if (v.length > LOG_STRING_MAX) v = `${v.slice(0, LOG_STRING_MAX)}... (${v.length} chars)`;
+  return /[\r\n]/.test(v) ? v.replace(/\r\n?|\n/g, '\n    ') : v;
+};
+const log = (...a) => console.log('[gamemode]', ...a.map(logSafe));
 
 // ---- configuration ---------------------------------------------------------------------------
 const cfg = (() => {
@@ -140,8 +150,10 @@ const noteTold = (actorId, text) => {
   const now = Date.now(), key = `${actorId >>> 0}|${t.replace(/\d+/g, 'N').slice(0, 120)}`;
   const prev = toldCounts.get(key);
   const n = prev && now - prev.at < 600000 ? prev.n + 1 : 1;
+  toldCounts.delete(key);
   toldCounts.set(key, { n, at: now });
-  if (toldCounts.size > 5000) for (const [k, v] of toldCounts) if (now - v.at > 600000) toldCounts.delete(k);
+  // Oldest first (a Map keeps insertion order, and a key is re-inserted on use): one trim per thousand new keys
+  if (toldCounts.size > 5000) for (const k of toldCounts.keys()) { if (toldCounts.size <= 4000) break; toldCounts.delete(k); }
   if (n === 1 || n === 5 || n % 10 === 0) log(`told ${display(actorId)} (x${n}): ${t.slice(0, 200)}`);
 };
 const personal = (actorId, text) => { try { noteTold(actorId, text); } catch (e) { /* the log line is optional */ } deliver(actorId, `[[PM]]System|${text}`); };
@@ -286,11 +298,26 @@ const flushAudit = async () => {
   }
   auditBusy = false;
 };
+// An audit line is one line of at most 500 characters: a longer one could never fit a post and held the queue, and a
+// newline in a player's text made a second, forged line. The same kind of line (numbers folded, first 48 characters,
+// which name the player) goes to Discord 6 times a minute at most, so a flood cannot push real lines out of the
+// 500-line queue; every line is still in the server log (2026-09-30)
+const AUDIT_LINE_MAX = 500;
+const AUDIT_SAME_PER_MIN = 6;
+const auditSeen = globalThis.__dboAuditSeen instanceof Map ? globalThis.__dboAuditSeen : (globalThis.__dboAuditSeen = new Map());
+const auditStamp = () => `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}]`;
+const auditHeld = (key, s) => { if (s.held) auditQueue.push(`${auditStamp()} (${s.held} more like "${key}" this minute: server log only)`); };
 const audit = (text) => {
-  const line = `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}] ${text}`;
-  log('audit:', text);
+  let body = String(text).replace(/[\r\n]+/g, ' / ');
+  if (body.length > AUDIT_LINE_MAX) body = `${body.slice(0, AUDIT_LINE_MAX)}...`;
+  log('audit:', body);
   if (!discordTarget) return;
-  auditQueue.push(line); if (auditQueue.length > 500) auditQueue.splice(0, auditQueue.length - 500);
+  const now = Date.now();
+  const key = body.replace(/\d+/g, 'N').slice(0, 48);
+  let s = auditSeen.get(key);
+  if (!s || now - s.since >= 60000) { if (s) auditHeld(key, s); s = { since: now, n: 0, held: 0 }; auditSeen.delete(key); auditSeen.set(key, s); }
+  if (++s.n > AUDIT_SAME_PER_MIN) { s.held++; return; }
+  auditQueue.push(`${auditStamp()} ${body}`); if (auditQueue.length > 500) auditQueue.splice(0, auditQueue.length - 500);
 };
 // ---- staff commands: every one posted to #staff-commands and counted for 7 days (Jake and Nate, 2026-09-27) -----
 // Chat commands, admin panel actions (AdminSystem's log hook below) and console commands. staff-actions.json is runtime.
@@ -919,7 +946,7 @@ const handleChat = (userId, text) => {
   if (cmd === 'system') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) { broadcast(`[[S]]#{${C.SYS}}${body}`); audit(`GM ${who(a)} /system: ${body}`); staffLog(display(a), tierOf(a), '/system', `${staffWho(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /system ${body.slice(0, 300)}`); } return; }
   if (cmd === 'admin') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) broadcast(`[[A]]#{${C.SYS}}${name}: ${body}`, true); return; }
   const c = commands.get(cmd);
-  if (!c) return personal(a, `Unknown command /${cmd}. Type /help.`);
+  if (!c) return personal(a, `Unknown command /${cmd.slice(0, 32)}. Type /help.`);
   if (c.admin && !isAdmin(a)) return personal(a, 'Admins only.');
   const sub = `${cmd} ${(body.split(/\s+/)[0] || '').toLowerCase()}`;
   const staffCmd = c.admin || LEAD_ONLY.has(sub);
@@ -1252,6 +1279,7 @@ every('floodPrune', 60000, () => {
   const now = Date.now();
   for (const [u, f] of floodState) if (!connected.has(u) && now - f.at > 120000) floodState.delete(u);
   for (const [k, c] of cappedLogs) if (now - c.since > 120000) cappedLogs.delete(k);
+  for (const [k, s] of auditSeen) if (now - s.since >= 60000) { auditHeld(k, s); auditSeen.delete(k); }
 });
 
 // The client's diagnostic relay: how many lines each player has had written, kept across a hot reload so a reload
@@ -2202,7 +2230,7 @@ const driftNote = (a, r) => {
   if (r.kind === 'heartbeat' && typeof r.ids === 'string') {
     const now = Date.now();
     for (const [k, h] of HOST_OF) if (h.host === a || now - h.at > HOST_OF_KEEP_MS) HOST_OF.delete(k);
-    for (const pair of r.ids.split(',')) {
+    for (const pair of r.ids.split(',', 512)) {
       const [hexId, dist] = pair.split(':');
       const n = parseInt(hexId, 16) >>> 0;
       if (n) HOST_OF.set(n, { host: a, dist: Number(dist), at: now });
@@ -2246,7 +2274,7 @@ onUi('npcDrift', (a, args) => {
   const r = args[0] && typeof args[0] === 'object' ? args[0] : {};
   let note = '';
   try { note = driftNote(a, r); } catch (e) { /* diagnostics only */ }
-  log(`npcDrift ${display(a)} ${String(r.kind)}: ${JSON.stringify(r).slice(0, 900)}${note}`);
+  log(`npcDrift ${display(a)} ${String(r.kind).slice(0, 24)}: ${JSON.stringify(r).slice(0, 900)}${note}`);
 });
 // How hosts repair a split body, and the client drift switches (client sync\driftConfig.ts, same checks there);
 // kept across reloads and sent at every join so a test needs no client build
@@ -3616,9 +3644,9 @@ const sendConsoleRights = (a, force) => {
 onUi('consoleLocal', (a, args) => {
   const now = Date.now();
   const seen = (consoleLocalSeen.get(a) || []).filter((t) => now - t < 60000);
-  seen.push(now);
   consoleLocalSeen.set(a, seen);
-  if (seen.length > CONSOLE_LOCAL_PER_MIN) return;
+  if (seen.length >= CONSOLE_LOCAL_PER_MIN) return;
+  seen.push(now);
   const clip = (v) => String(v == null ? '' : v).replace(/[\r\n`@]/g, ' ').slice(0, 60);
   const name = clip(args[0]);
   const target = clip(args[1]);

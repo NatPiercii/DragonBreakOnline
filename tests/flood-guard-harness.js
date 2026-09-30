@@ -34,7 +34,7 @@ const connected = new Set([7, 8, 9]);
 let adminLookups = 0;
 const load = (cfg) => {
   for (const k of ['__dboFloodState', '__dboCappedLogs']) delete globalThis[k];
-  return new Function('cfg', 'log', 'actorOf', 'isAdmin', 'display', 'personal', 'every', 'connected', 'globalThis',
+  return new Function('cfg', 'log', 'actorOf', 'isAdmin', 'display', 'personal', 'every', 'connected', 'globalThis', 'auditSeen', 'auditHeld',
     guardSrc + '\nreturn { FLOOD, floodState, floodPacketOk, floodChatOk, logCapped };')(
     cfg,
     (...a) => logged.push(a.join(' ')),
@@ -44,7 +44,7 @@ const load = (cfg) => {
     (a, t) => told.push([a, t]),
     (name, ms, fn) => timers.set(name, fn),
     connected,
-    globalThis);
+    globalThis, new Map(), () => {});
 };
 
 // ---- the packet bucket ----
@@ -111,8 +111,8 @@ check('gamemode-config.json floodGuard overrides the defaults', passed === 10 &&
 // ---- reload and connection lifetime ----
 g = load({});
 for (let i = 0; i < 300; i++) g.floodPacketOk(7, '{}');
-const again = new Function('cfg', 'log', 'actorOf', 'isAdmin', 'display', 'personal', 'every', 'connected', 'globalThis',
-  guardSrc + '\nreturn { floodPacketOk };')({}, () => {}, (u) => actors[u] || 0, (a) => staff.has(a), String, () => {}, () => {}, connected, globalThis);
+const again = new Function('cfg', 'log', 'actorOf', 'isAdmin', 'display', 'personal', 'every', 'connected', 'globalThis', 'auditSeen', 'auditHeld',
+  guardSrc + '\nreturn { floodPacketOk };')({}, () => {}, (u) => actors[u] || 0, (a) => staff.has(a), String, () => {}, () => {}, connected, globalThis, new Map(), () => {});
 check('a hot reload does not hand out a fresh burst', again.floodPacketOk(7, '{}') === false);
 connected.delete(9);
 g.floodPacketOk(9, '{}');
