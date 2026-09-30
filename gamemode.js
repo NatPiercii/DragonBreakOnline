@@ -4221,6 +4221,21 @@ const dungeonAllies = (a, b) => {
     return cell === cellKey(b) && !!globalThis.__dboDungeonCells && globalThis.__dboDungeonCells.has(cell);
   } catch (e) { return false; }
 };
+// ---- NPC power hits: how hard a creature's or NPC's power attack lands on a player ------------------------------------
+// The server's damage formula doubles every power attack flat (TES5DamageFormula.cpp), on top of the NPC-on-player x2
+// (server-settings damageMultFormulaSettings.multiplier), and ignores the attack's own damage multiplier in the race's
+// ATKD data, which is 1.0 for a boar's standing and forward power bites. So a level-7 boar (unarmed damage 25) bit for
+// 93.6, half a new character's health, and two bites in a charge downed them (Purr, /bug 30 Sep 15:19 and 04:44).
+// gamemode-config npcPowerHits.mult scales such a hit: 0.5 undoes the flat x2 (vanilla's power damage for the common
+// 1.0 attacks), 1 leaves everything as it was. Players' own power attacks and hits on NPCs are never touched.
+const npcPowerHitMult = (agg, tgt, flags, dmg) => {
+  const m = Number(((cfg.npcPowerHits || {}).mult));
+  if (!(m > 0) || m === 1 || !(dmg > 0) || agg === tgt) return 1;
+  const f = flags && typeof flags === 'object' ? flags : {};
+  if (!f.power || f.spell) return 1;
+  if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return 1;
+  return m;
+};
 const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => {
   const agg = Number(aggressorId) >>> 0;
   const tgt = Number(targetId) >>> 0;
@@ -4295,6 +4310,8 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     if (martial && !beastAgg) { try { mult *= martial.onAttempt(agg, tgt, src, dmg, flags); } catch (e) { log('martial failed', e.message); } }
     // Block chip and stamina, guard breaks, bash, stagger (combat.js); a bash's blow comes back scaled down
     if (combat) { try { mult *= combat.onAttempt(agg, tgt, src, dmg, flags, mult); } catch (e) { log('combat failed', e.message); } }
+    // A creature's or NPC's power attack on a player, without the formula's flat x2 when npcPowerHits.mult says so
+    mult *= npcPowerHitMult(agg, tgt, flags, dmg);
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };
