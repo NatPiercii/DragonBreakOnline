@@ -51,6 +51,7 @@ import * as manifestGen from "./manifestGen";
 import { attachBackendFactionApi } from "./backendFactionApi";
 import { createScampServer } from "./scampNative";
 import { MetricsSystem, tickDurationHistogram, tickDurationSummary } from "./systems/metricsSystem";
+import { PacketGuard, DEFAULT_PACKET_GUARD } from "./systems/packetGuard";
 
 const gamemodeCache = new Map<string, string>();
 
@@ -303,8 +304,11 @@ const main = async () => {
       })();
   }
 
+  const packetGuard = new PacketGuard(Object.assign({}, DEFAULT_PACKET_GUARD, settingsObject.allSettings?.["packetGuard"] || {}));
+
   server.on("connect", (userId: number) => {
     log("connect", userId);
+    packetGuard.reset(userId);
     for (const system of systems) {
       try {
         if (system.connect) {
@@ -318,6 +322,7 @@ const main = async () => {
 
   server.on("disconnect", (userId: number) => {
     log("disconnect", userId);
+    packetGuard.reset(userId);
     for (const system of systems) {
       try {
         if (system.disconnect) {
@@ -330,17 +335,18 @@ const main = async () => {
   });
 
   server.on("customPacket", (userId: number, rawContent: string) => {
-    const content = JSON.parse(rawContent);
-
-    const type = `${content.customPacketType}`;
-    delete content.customPacketType;
+    const packet = packetGuard.accept(userId, rawContent);
+    if (!packet) return;
+    const { type, content } = packet;
 
     for (const system of systems) {
       try {
         if (system.customPacket)
           system.customPacket(userId, type, content, ctx);
       } catch (e) {
-        console.error(e);
+        const note = packetGuard.noteError(system.systemName);
+        if (note.held) console.error(`${system.systemName}: ${note.held} more customPacket error(s) in the minute before`);
+        if (note.log) console.error(e);
       }
     }
   });
