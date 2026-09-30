@@ -1,13 +1,15 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { logTrace } from "../../logging";
-import { MoveSample, MOVING_SPEED, isMinigameWidget, looksAutoMoving, shouldClearAutoMove } from "./autoMoveClear";
+import { MoveSample, MOVING_SPEED, DECAY_RATIO, isMinigameWidget, shouldClearAutoMove, stillPlausible } from "./autoMoveClear";
 
 // Auto-move (auto-run) keeps the player walking with no key held. When a mini-game widget takes the keyboard the
 // player cannot stop, so they drift through the round and often out of range of the station. This switches it off
 // with the player's own Auto-Move key when such a widget opens focused. autoMoveClear.ts holds the decision and
 // says why two samples are needed; this only gathers them and taps.
 const SAMPLE_GAP_MS = 250;
-const SAMPLES = 2;
+// Three, not the two the rule needs: a player arrives at these games mid-stop, and a third reading over 500 ms gives a
+// slow decay room to show itself (Worker D's review, 2026-09-30)
+const SAMPLES = 3;
 const LOG_NAME = "dbo-diag";
 // Movement controls as controlmap.txt names them, so a player who remapped WASD is read by their own keys
 const MOVE_CONTROLS = ["Forward", "Back", "Strafe Left", "Strafe Right"];
@@ -29,8 +31,8 @@ export class AutoMoveService extends ClientListener {
     const s = this.sample();
     if (!s) { this.busy = false; return; }
     this.samples.push(s);
-    // A sample that already fails ends it: no need to wait on a player standing still or holding a key
-    if (!looksAutoMoving(s)) { this.finish(widgetType, false); return; }
+    // The moment the run cannot end in a tap, stop: no need to wait on a player standing still, holding a key or slowing
+    if (!stillPlausible(this.samples)) { this.finish(widgetType, false); return; }
     if (this.samples.length >= SAMPLES) {
       this.finish(widgetType, shouldClearAutoMove(widgetType, this.samples));
       return;
@@ -91,7 +93,7 @@ export class AutoMoveService extends ClientListener {
     const seen = this.samples
       .map((s) => `[spd ${Math.round(s.speed)} key ${s.movementKeyHeld ? "Y" : "n"} air ${s.airborne ? "Y" : "n"}]`)
       .join(" ");
-    const line = `autoMove ${widgetType}: ${what} (moving over ${MOVING_SPEED}) ${seen}`;
+    const line = `autoMove ${widgetType}: ${what} (over ${MOVING_SPEED}, holding ${DECAY_RATIO}) ${seen}`;
     logTrace(this, line);
     try {
       (this.sp as unknown as { writeLogs: (plugin: string, ...rest: unknown[]) => void }).writeLogs(LOG_NAME, line);
