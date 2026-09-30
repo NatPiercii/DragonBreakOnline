@@ -472,7 +472,14 @@ module.exports = (api) => {
   // dungeons.expeditionLoot; a raid's extra boss roll is dungeons.raid.bossRolls.
   const EXPL = Object.assign({ scale: { story: 0.4, normal: 0.45, hard: 0.5, nightmare: 0.5 }, bossScale: { story: 0.7, normal: 0.8, hard: 0.85, nightmare: 0.9 }, containerScale: 0.6, arrows: [1, 4], containerArrows: [1, 3], enchScale: 0.6, ayleidScale: 0.67, ordinary: true }, C.expeditionLoot || {});
   const NO_TRIM = { x: 1, xb: 1, xs: 1, arrows: [5, 15], containerArrows: [3, 8], ench: 1, ayleid: 1, single: false };
-  const trimFor = (d, diff) => {
+  const chanceOr = (v, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.max(0, Math.min(1, Number(v))) : dflt);
+  const ORDINARY_TORCH = chanceOr(C.torchChance, 0.12);
+  const EXPEDITION_TORCH = chanceOr(C.expeditionTorchChance, 0.35);
+  // A humanoid body hands over a plain piece of what it carried; expeditions keep their trim, so less there
+  const BODY_GEAR = chanceOr(C.bodyGearChance, 0.25);
+  const EXPEDITION_BODY_GEAR = chanceOr(C.expeditionBodyGearChance, 0.12);
+  const trimFor = (d, diff) => Object.assign({}, trimOf(d, diff), d && d.expedition ? { torch: EXPEDITION_TORCH, bodyGear: EXPEDITION_BODY_GEAR } : { torch: ORDINARY_TORCH, bodyGear: BODY_GEAR });
+  const trimOf = (d, diff) => {
     if (!d || (!d.expedition && EXPL.ordinary === false)) return NO_TRIM;
     const x = Math.max(0, Number((EXPL.scale || {})[diff.id]) || 0);
     const pair = (v, dflt) => (Array.isArray(v) && v.length === 2 ? [Number(v[0]) || 0, Number(v[1]) || 0] : dflt);
@@ -492,8 +499,9 @@ module.exports = (api) => {
     if (diff.id !== 'story' && p(boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear, ok)), 1);
     if (p(0.3)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.arrows[0], k.arrows[1]));
     if (p(0.2)) addEntry(entries, pickFrom(pool('lockpicks', 0, ok)), rnd(1, k.single ? 2 : 3));
-    // Torches, common: the ruins are dark (Nate, 2026-09-28); config dungeons.torchChance
-    if (p(Number.isFinite(Number(C.torchChance)) ? Number(C.torchChance) : 0.35)) addEntry(entries, pickFrom(pool('lights', 0, ok)), rnd(1, 2));
+    // Torches: common in the dark Ayleid ruins (Nate, 2026-09-28), rarer elsewhere, where they crowded out the rest
+    // (groundedpasta, 2026-09-29: "4 torches in one cave"). Config dungeons.torchChance / expeditionTorchChance
+    if (p(Number.isFinite(k.torch) ? k.torch : ORDINARY_TORCH)) addEntry(entries, pickFrom(pool('lights', 0, ok)), rnd(1, 2));
     if (diff.soulgem > 0 && p(diff.soulgem * (boss ? 2 : 1))) addEntry(entries, pickFrom(soulPool(diff.soulTier, ok)), 1);
     // Recipe notes (the Draught of Revival): a rare find in a boss chest
     if (boss && p(0.05)) addEntry(entries, pickFrom(pool('recipes', 0, ok)), 1);
@@ -1317,8 +1325,13 @@ module.exports = (api) => {
     if (!tag.startsWith(ZONE_PREFIX)) return;
     const diffId = (() => { const l = [...ST.leases.values()].find((x) => tag.startsWith(`${ZONE_PREFIX}${x.id}:`)); return l ? l.difficulty : 'normal'; })();
     const diff = DIFFICULTIES.find((x) => x.id === diffId) || DIFFICULTIES[1];
-    // Humanoids and an expedition's master are looted with E (__dboCorpseLoot), so their body keeps nothing
-    if (isHumanoidTag(tag) || isMasterTag(tag)) { try { mp.set(actorId, 'inventory', { entries: [] }); } catch (e) { log('corpse clear failed', e.message); } return; }
+    // Humanoids and an expedition's master are looted with E (__dboCorpseLoot), so their body keeps nothing; a
+    // humanoid's own plain weapon and armor are remembered for that roll
+    if (isHumanoidTag(tag) || isMasterTag(tag)) {
+      if (isHumanoidTag(tag)) rememberGear(actorId);
+      try { mp.set(actorId, 'inventory', { entries: [] }); } catch (e) { log('corpse clear failed', e.message); }
+      return;
+    }
     let inv = null; try { inv = mp.get(actorId, 'inventory'); } catch (e) { return; }
     const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
     const kept = [];
@@ -1393,14 +1406,33 @@ module.exports = (api) => {
   function isMasterTag(tag) { const l = leaseOfTag(tag); const d = l ? byId.get(l.id) : null; return !!(l && d && d.expedition && l.bossZones && l.bossZones.has(tag)); }
   function isHumanoidTag(tag) { const l = leaseOfTag(tag); const kind = l && l.kinds ? l.kinds[tag] || '' : ''; return HUMANOID.test(kind) && !ANIMAL.test(kind); }
   const itemName = (baseId) => { const r = recordOf(baseId); return String((r && r.editorId) || 'something').replace(/^(Food|Potion)/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'something'; };
-  const corpseLoot = (diff, ok = ALL_OK, k = NO_TRIM) => {
+  const corpseLoot = (diff, ok = ALL_OK, k = NO_TRIM, gear = []) => {
     const entries = [];
     const p = (chance) => Math.random() < chance * k.x;
+    // A bandit hands over what it fought with now and then (groundedpasta, 2026-09-29: bandits dropped nothing)
+    if (gear.length && p(Number.isFinite(k.bodyGear) ? k.bodyGear : BODY_GEAR)) entries.push({ baseId: gear[Math.floor(Math.random() * gear.length)], count: 1 });
     // A body carried coin every time at up to 25 (Adept); now 40% of bodies carry about a third of that
     if (p(Math.max(0, Math.min(1, Number(C.bodyGoldChance))))) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(rnd(diff.gold[0], diff.gold[1]) * Math.max(0, Number(C.bodyGoldMult)))));
     if (p(Number(POT.body))) addEntry(entries, potionPick(diff.potionTier, ok), 1);
     if (p(0.2)) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 2));
     return entries;
+  };
+  // The plain, playable weapons and armor a humanoid carried, kept until its body is searched (bodies go after 300 s,
+  // so anything older than half an hour is gone). Config dungeons.bodyGearChance / expeditionBodyGearChance, times the trim
+  if (!(ST.bodyGear instanceof Map)) ST.bodyGear = new Map();
+  const rememberGear = (actorId) => {
+    const now = Date.now();
+    for (const [id, g] of ST.bodyGear) if (now - g.at > 1800000) ST.bodyGear.delete(id);
+    let inv = null; try { inv = mp.get(actorId, 'inventory'); } catch (e) { return; }
+    const ids = [];
+    for (const e of (inv && Array.isArray(inv.entries) ? inv.entries : [])) {
+      const baseId = Number(e.baseId) >>> 0; const rec = recordOf(baseId); const type = rec ? String(rec.type) : '';
+      if (type !== 'WEAP' && type !== 'ARMO') continue;
+      const edid = String(rec.editorId || '');
+      if ((Number(rec.flags) & 0x4) || isEnchanted(rec) || BANNED_LOOT.test(edid) || ARTIFACT.test(edid) || AYLEID_NAMES.has(edid)) continue;
+      if (ids.indexOf(baseId) === -1) ids.push(baseId);
+    }
+    if (ids.length) ST.bodyGear.set(actorId >>> 0, { at: now, ids });
   };
   // false = handled (nothing opens), null = not a lease humanoid
   globalThis.__dboCorpseLoot = (targetId, casterId) => {
@@ -1420,7 +1452,9 @@ module.exports = (api) => {
     const got = [];
     const d = lease ? byId.get(lease.id) : null;
     const k = trimFor(d, diff);
-    for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d), k) : corpseLoot(diff, lootOk(lease), k))) {
+    const gear = master ? [] : ((ST.bodyGear.get(targetId >>> 0) || {}).ids || []);
+    ST.bodyGear.delete(targetId >>> 0);
+    for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d), k) : corpseLoot(diff, lootOk(lease), k, gear))) {
       if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); continue; }
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }

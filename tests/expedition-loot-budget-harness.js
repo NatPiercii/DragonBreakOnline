@@ -24,6 +24,12 @@ for (const list of Object.values(loot.pools)) for (const it of list) VALUE.set(i
 const AYLEID = new Map(JSON.parse(fs.readFileSync(path.join(ROOT, 'ayleid-loot.json'), 'utf8')).items.map((it) => [idOf(it.id), it]));
 for (const [id, it] of AYLEID) VALUE.set(id, Number(it.value) || 0);
 const GOLD = idOf('f:Skyrim.esm');
+// A humanoid carries a plain weapon from the pools, so the body's gear roll (2026-09-30) is measured through the real trim
+const WEAPONS = (loot.pools.weapons || []).filter((it) => !/Ebony|Daedric/i.test(it.name) && Number(it.value) > 0).map((it) => ({ id: idOf(it.id), name: it.name, value: Number(it.value) }));
+// Spawned foes are armed within their difficulty's gear value (dungeons.js DIFFICULTIES gear)
+const GEAR_CAP = { story: 150, normal: 400, hard: 900, nightmare: 3000 };
+const WEAPON_REC = new Map(WEAPONS.map((w) => [w.id, { record: { type: 'WEAP', editorId: w.name, flags: 0, fields: [] } }]));
+const LIGHTS = new Set((loot.pools.lights || []).map((it) => idOf(it.id)));
 const HUMANOID = /bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|orc|soldier|guard|thalmor|vampire|hunter|warlock|necromancer|conjurer|mage|cultist|silverhand|reaver|smuggler|pirate|warrior|dremora|boss/i;
 const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ballista|ghost|dragon|frostbite|netch|riekling|ashhopper|ogre|minotaur|dreugh|gargoyle|werewolf|werebear|ashspawn|lurker|seeker|scamp|clannfear|daedroth|dragonpriest|horse|cow|chicken/i;
 
@@ -46,13 +52,13 @@ const measure = (d, diffId, claims = CLAIMS) => {
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8'));
   require(path.join(ROOT, 'dungeons.js'))({
     mp: { get: (id, p) => (p === 'profileId' ? (id === A ? 1 : -1) : props.get(`${id}|${p}`)), set: (id, p, v) => props.set(`${id}|${p}`, v), getIdFromDesc: idOf,
-      lookupEspmRecordById: (id) => (id === idOf('6:DragonBreak.esp') ? { record: { editorId: 'ExpeditionBoard' } } : { record: null }) },
+      lookupEspmRecordById: (id) => (id === idOf('6:DragonBreak.esp') ? { record: { editorId: 'ExpeditionBoard' } } : WEAPON_REC.get(id) || { record: null }) },
     log: () => {}, personal: () => {}, system: () => {}, audit: () => {}, registerChatCommand: (n, fn) => cmds.set(n, fn), onUi: (n, fn) => { const l = ui.get(n) || []; l.push(fn); ui.set(n, l); },
     openWidget: () => true, closeWidget: () => true, sendPacket: () => true, findByName: () => 0, display: String, who: String, profileOf: (a) => (a === A ? 1 : -1), nameOf: () => 'P',
     onlineActors: () => [A], isAdmin: () => true, giveItem: (a, base, n) => { given.push([base, n]); return true; }, cfg: { dungeons: cfg.dungeons || {} }, every: () => {},
   });
   const fire = (n, a, args) => (ui.get(n) || []).forEach((f) => f(a, args, 0));
-  const tot = { claims: 0, items: 0, stacks: 0, gold: 0, value: 0, boss: { n: 0, items: 0, gold: 0, value: 0 }, big: { n: 0, items: 0 }, small: { n: 0, items: 0, empty: 0 }, bodies: { n: 0, items: 0 }, masters: { n: 0, items: 0, gold: 0 }, ayleid: 0, rarest: 0 };
+  const tot = { claims: 0, items: 0, stacks: 0, gold: 0, value: 0, boss: { n: 0, items: 0, gold: 0, value: 0 }, big: { n: 0, items: 0 }, small: { n: 0, items: 0, empty: 0 }, bodies: { n: 0, items: 0 }, masters: { n: 0, items: 0, gold: 0 }, ayleid: 0, rarest: 0, torchChests: 0, gearBodies: 0 };
   const add = (entries, bucket) => {
     let items = 0, gold = 0;
     for (const [base, n] of entries) {
@@ -80,6 +86,7 @@ const measure = (d, diffId, claims = CLAIMS) => {
       const r = add(entries, boss ? tot.boss : ch.big ? tot.big : tot.small);
       if (boss) tot.boss.value += entries.reduce((v, [b, n]) => v + (b === GOLD ? n : (VALUE.get(b) || 0) * n), 0);
       if (!ch.big && !r.items && !r.gold) tot.small.empty++;
+      if (ch.big && !boss && entries.some(([b]) => LIGHTS.has(b))) tot.torchChests++;
     }
     for (const z of lease.zones) {
       const master = lease.bossZones && lease.bossZones.has(z.Name);
@@ -87,8 +94,13 @@ const measure = (d, diffId, claims = CLAIMS) => {
       if (!master && !humanoid) continue;
       for (let k = 0; k < (master ? 1 : z.NPC[0].count); k++) {
         const id = body++; props.set(`${id}|private.npcSpawner`, z.Name); props.set(`${id}|isDead`, true);
+        const armed = WEAPONS.filter((w) => w.value <= GEAR_CAP[diffId]);
+        const weapon = armed[id % armed.length];
+        props.set(`${id}|inventory`, { entries: [{ baseId: weapon.id, count: 1 }] });
+        globalThis.__dboTrimCorpse(id);
         given.length = 0;
         if (globalThis.__dboCorpseLoot(id, A) !== false) continue;
+        if (!master && given.some(([b]) => b === weapon.id)) tot.gearBodies++;
         add(given.slice(), master ? tot.masters : tot.bodies);
       }
     }
@@ -99,7 +111,8 @@ const measure = (d, diffId, claims = CLAIMS) => {
   const avg = (b, k) => (b.n ? b[k] / b.n : 0);
   return { claims: tot.claims, items: per(tot.items), gold: per(tot.gold), value: per(tot.value), ayleid: per(tot.ayleid), rarest: per(tot.rarest),
     bossChest: { items: avg(tot.boss, 'items'), gold: avg(tot.boss, 'gold'), value: avg(tot.boss, 'value') }, bigChest: avg(tot.big, 'items'),
-    small: { items: avg(tot.small, 'items'), empty: tot.small.n ? tot.small.empty / tot.small.n : 0 }, body: avg(tot.bodies, 'items'), master: { items: avg(tot.masters, 'items'), gold: avg(tot.masters, 'gold') } };
+    small: { items: avg(tot.small, 'items'), empty: tot.small.n ? tot.small.empty / tot.small.n : 0 }, body: avg(tot.bodies, 'items'),
+    torch: tot.big.n ? tot.torchChests / tot.big.n : 0, bodyGear: tot.bodies.n ? tot.gearBodies / tot.bodies.n : 0, master: { items: avg(tot.masters, 'items'), gold: avg(tot.masters, 'gold') } };
 };
 
 const EXP = JSON.parse(fs.readFileSync(path.join(ROOT, 'expeditions.json'), 'utf8')).expeditions.map((e) => ({ raw: e, expedition: true, name: e.name, kind: e.kind }));
@@ -141,16 +154,27 @@ for (const diff of DIFFS) {
 for (const d of ORD) {
   const now = DIFFS.reduce((n, diff) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
   const was = DIFFS.reduce((n, diff) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
-  if (was > 0) check(`${d.name} (ordinary, ${(d.raw.chests || []).length} containers), all difficulties: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)})`, now < was * 0.9 && now > was * 0.15);
+  // Untrimmed again (Nate, 2026-09-30): about the old value, a little more from bodies' gear, a little less in torches
+  if (was > 0) check(`${d.name} (ordinary, ${(d.raw.chests || []).length} containers), all difficulties: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)})`, now > was * 0.8 && now < was * 1.8);
 }
 for (const diff of DIFFS) {
   const now = ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
   const was = ORD.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
-  check(`all ${ORD.length} ordinary dungeons at ${diff}: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}), about half`, now > was * 0.3 && now < was * 0.62);
+  check(`all ${ORD.length} ordinary dungeons at ${diff}: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}), the old value again`, now > was * 0.9 && now < was * 1.5);
 }
 {
-  const share = (diff) => ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0) / ORD.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 1), 0);
-  check(`ordinary dungeons: Novice keeps the smallest share (${DIFFS.map((x) => share(x).toFixed(2)).join(', ')})`, DIFFS.slice(1).every((x) => share('story') < share(x)));
+  const total = (diff) => ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
+  check(`ordinary dungeons: Novice gives the least (${DIFFS.map((x) => f0(total(x))).join(', ')})`, DIFFS.slice(1).every((x) => total('story') < total(x)));
+  const avgOf = (list, f) => list.reduce((n, m) => n + f(m), 0) / Math.max(1, list.length);
+  // Torches were the most common chest find (groundedpasta, 2026-09-29); a bandit hands over its weapon now and then
+  const ordAt = (diff, f) => avgOf(rows.filter((r) => !r.d.expedition && r.diff === diff && (r.d.raw.chests || []).some((c) => c.big)).map((r) => r.m), f);
+  const expAt = (diff, f) => avgOf(rows.filter((r) => r.d.expedition && r.diff === diff).map((r) => r.m), f);
+  for (const diff of DIFFS) {
+    const t = ordAt(diff, (m) => m.torch), te = expAt(diff, (m) => m.torch);
+    check(`${diff}: a torch in ${f0(100 * t)}% of ordinary big chests (12% aimed), ${f0(100 * te)}% in the dark ruins`, t > 0.07 && t < 0.18 && te > t);
+    const g = avgOf(rows.filter((r) => !r.d.expedition && r.diff === diff && r.m.body > 0).map((r) => r.m), (m) => m.bodyGear);
+    check(`${diff}: ${f0(100 * g)}% of ordinary humanoid bodies hand over their weapon (25% aimed)`, g > 0.18 && g < 0.32);
+  }
 }
 for (const d of EXP) {
   const v = DIFFS.map((diff) => rows.find((r) => r.d === d && r.diff === diff).m.value);

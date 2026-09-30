@@ -530,15 +530,20 @@
    }
   },
   "expeditionLoot": {
-   "_comment": "Expedition loot, one place to tune (Nate, 2026-09-28: trim it). scale per difficulty: every roll's chance in an expedition's chests, urns and bodies, and every coin amount (a boss chest's coin and its piece of gear stay certain). bossScale: the same for a boss chest's and a master's other rolls. containerScale: urns and sacks roll at scale x this and hold one thing at most. arrows/containerArrows: stack sizes. enchScale, ayleidScale: enchanted gear and Ayleid treasure chances. ordinary: ordinary dungeons get the same trim (true, Nate 2026-09-28); false leaves them untrimmed. A raid's extra boss roll: raid.bossRolls.",
+   "_comment": "Expedition loot, one place to tune (Nate, 2026-09-28: trim it). scale per difficulty: every roll's chance in an expedition's chests, urns and bodies, and every coin amount (a boss chest's coin and its piece of gear stay certain). bossScale: the same for a boss chest's and a master's other rolls. containerScale: urns and sacks roll at scale x this and hold one thing at most. arrows/containerArrows: stack sizes. enchScale, ayleidScale: enchanted gear and Ayleid treasure chances. ordinary: true gives ordinary dungeons the same trim (Nate 2026-09-28); false leaves them untrimmed (Nate 2026-09-30, after players found almost nothing). A raid's extra boss roll: raid.bossRolls.",
    "scale": { "story": 0.4, "normal": 0.45, "hard": 0.5, "nightmare": 0.5 },
    "bossScale": { "story": 0.7, "normal": 0.8, "hard": 0.85, "nightmare": 0.9 },
    "containerScale": 0.6,
    "arrows": [1, 4], "containerArrows": [1, 3],
    "enchScale": 0.6,
    "ayleidScale": 0.67,
-   "ordinary": true
+   "ordinary": false
   },
+  "_lootExtras": "torchChance: a chest's torch roll in ordinary dungeons, expeditionTorchChance in the dark Ayleid ruins (both times the trim). bodyGearChance (expeditionBodyGearChance in the ruins, which keep their trim): a humanoid body hands over one plain piece of the weapon or armor it carried, times the trim (groundedpasta, 2026-09-29: bandits dropped nothing).",
+  "torchChance": 0.12,
+  "expeditionTorchChance": 0.35,
+  "bodyGearChance": 0.25,
+  "expeditionBodyGearChance": 0.12,
   "raid": {
    "_comment": "Boss dungeons and raids (Nate, 2026-09-28; expeditions.json kind). A raid's bosses pick bossBandShift level bands up (a boss dungeon's 1), each brings escorts[difficulty] of its room's nearest enemy (scaled with the party), its other enemies are countMult as many, and its boss chests and masters give bossRolls boss rolls (1.5: a second roll half the time). bossDungeonMax: the most a boss dungeon takes (0: no cap).",
    "bossBandShift": 2, "countMult": 1.25, "bossRolls": 1.5,
