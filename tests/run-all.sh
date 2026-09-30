@@ -35,6 +35,7 @@ declare -A NEEDS=(
   [capture-leash]=server:skymp5-server/ts/systems/captureSystem.ts
   [contracts-tab]=front:skymp5-front/src/features/expeditionBoard/index.tsx
   [supernatural-tab]=front:skymp5-front/src/features/masteryMenu/index.tsx
+  [shrine-panel-widget]=front:skymp5-front/src/features/shrinePanel/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
@@ -43,6 +44,8 @@ bundle() {
   # node_modules of its own, so React comes from the main clone (beside this repo, or ~/dragonbreak/fork) when $FORK has none.
   if [ "$side" = front ]; then
     local out="$OUT/front-$(basename "$(dirname "$entry")").js" wrap="$OUT/front-$(basename "$(dirname "$entry")")-entry.tsx"
+    # A widget this front does not have yet: the harness gets a path that does not exist and says it skipped
+    [ -f "$root/$entry" ] || { echo "$out"; return 0; }
     local mods="$root/skymp5-front/node_modules"
     [ -d "$mods" ] || mods="$(cd .. && pwd)/fork/skymp5-front/node_modules"
     [ -d "$mods" ] || mods="$HOME/dragonbreak/fork/skymp5-front/node_modules"

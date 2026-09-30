@@ -677,6 +677,49 @@ module.exports = (api) => {
     if (!hit) return false;
     hit.count -= 1; mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); return true;
   };
+  const hasOne = (a, baseId) => invOf(a).some((e) => (Number(e.baseId) >>> 0) === baseId && Number(e.count) > 0);
+  const waitText = (ms) => { const h = Math.floor(ms / 3600000), m = Math.ceil((ms % 3600000) / 60000); return `${h ? `${h}h ` : ''}${m}m`; };
+  // What the rite at this god's shrine is for this character: { type, title, warning, confirm } when it can be made, or
+  // { reason } when it cannot (loud reasons go across the screen). /rite and the shrine panel both ask this.
+  const riteOffer = (a, deity) => {
+    const s = stateOf(a);
+    if (rites.has(a)) return { reason: 'You are already in a rite.' };
+    let failedAt = 0; try { failedAt = Number(mp.get(a, 'private.riteFailedAt')) || 0; } catch (e) { /* none */ }
+    let unmarkedAt = 0; try { unmarkedAt = Number(mp.get(a, 'private.riteUnmarkedAt')) || 0; } catch (e) { /* none */ }
+    const unmarkedWait = unmarkedAt + C.riteFailCooldownHours * 3600000 - Date.now();
+    if (deity === 'hircine' && unmarkedWait > 0) return { reason: `Hircine let you go unmarked. His shrine will hear you again in ${waitText(unmarkedWait)}.`, loud: true };
+    const waitMs = failedAt + C.riteFailCooldownHours * 3600000 - Date.now();
+    if ((deity === 'molagbal' || deity === 'hircine') && waitMs > 0) return { reason: `The shrine is cold to you since you failed its rite. Try again in ${waitText(waitMs)}.`, loud: true };
+    if (!deity) return { reason: 'Rites are made at a shrine: touch one of Molag Bal, Hircine, Arkay or Stendarr, then say /rite.' };
+    if (deity === 'molagbal') {
+      if (s.kind === 'vampire' && s.pure) return { reason: 'Your blood is already his.' };
+      if (s.kind === 'werewolf') return { reason: 'Molag Bal will not take what Hircine has marked. Be cured first.' };
+      return { type: 'embrace', title: "Molag Bal's Embrace", confirm: 'Kneel', warning: "Molag Bal's Embrace makes a pure-blood of those who survive it. Many do not, and some never wake again." };
+    }
+    if (deity === 'hircine') {
+      if (s.kind === 'werewolf') return { reason: 'The Huntsman already knows your scent.' };
+      if (s.kind === 'vampire') return { reason: 'Hircine hunts the living, not the dead. Be cured first.' };
+      if (s.disease) return { reason: s.disease.kind === 'werewolf' ? 'Sanies Lupinus is already in your blood. Wait for the fever.' : 'Another fever holds you. Be cured first.' };
+      return { type: 'hunt', title: 'The Great Hunt', confirm: 'Run the Hunt', warning: 'Hircine chases you, and if you run true he may mark you with Sanies Lupinus; when its fever peaks, the beast tries to come out. If he catches you, you may never rise.' };
+    }
+    if (deity === 'arkay' || deity === 'stendarr') {
+      if (!s.kind) return { reason: s.disease ? 'Pray here to break the fever; the rite is for those already turned.' : 'You carry no curse to lift.' };
+      if (!hasOne(a, BLACK_SOUL_GEM_FILLED)) return { reason: 'The rite needs a filled black soul gem to take the curse into.' };
+      const god = deity === 'arkay' ? 'Arkay' : 'Stendarr';
+      const lost = s.kind === 'vampire'
+        ? `your rank among vampires is lost with it${crownHolder() === (a >>> 0) ? ', and the Blood Crown passes from you' : ''}`
+        : 'your renown in the Great Hunt is lost with it';
+      return { type: 'cure', title: `${god}'s Cure`, confirm: 'Offer the soul gem', warning: `${god} draws the curse out of you into a filled black soul gem, and the gem is spent. You will be mortal again, and ${lost}.` };
+    }
+    return { reason: 'This god has no rite for you. Molag Bal and Hircine give curses; Arkay and Stendarr lift them.' };
+  };
+  // The cure itself, once chosen: the gem is checked again at the moment it is taken
+  const cureAt = (a, deity) => {
+    if (!takeOne(a, BLACK_SOUL_GEM_FILLED)) return 'The rite needs a filled black soul gem to take the curse into.';
+    endCurse(a, `cured at a shrine of ${deity === 'arkay' ? 'Arkay' : 'Stendarr'}`);
+    return '';
+  };
+  const CURED = 'The black soul gem drinks the curse from you. You are mortal again.';
   registerChatCommand('rite', (a, args) => {
     const arg = String(args || '').trim().toLowerCase();
     const s = stateOf(a);
@@ -685,44 +728,115 @@ module.exports = (api) => {
       const p = pendingRite.get(a); pendingRite.delete(a);
       log(`rite ${display(a)} 'confirm' pending=${p ? `${p.type} ${Math.round((Date.now() - p.at) / 1000)}s ago` : 'none'}`);
       if (!p || Date.now() - p.at > CONFIRM_MS) return personal(a, 'There is nothing to confirm. Touch the shrine and say /rite again.');
-      return startRite(a, p.type);
+      // The rite's panel first, then the shrine panel closes: the cursor stays
+      startRite(a, p.type);
+      return closeShrinePanel(a);
     }
     const deity = lastShrine(a);
-    let failedAt = 0; try { failedAt = Number(mp.get(a, 'private.riteFailedAt')) || 0; } catch (e) { /* none */ }
-    let unmarkedAt = 0; try { unmarkedAt = Number(mp.get(a, 'private.riteUnmarkedAt')) || 0; } catch (e) { /* none */ }
-    const unmarkedWait = unmarkedAt + C.riteFailCooldownHours * 3600000 - Date.now();
-    if (deity === 'hircine' && unmarkedWait > 0) {
-      const h = Math.floor(unmarkedWait / 3600000), m = Math.ceil((unmarkedWait % 3600000) / 60000);
-      return onScreen(a, `Hircine let you go unmarked. His shrine will hear you again in ${h ? `${h}h ` : ''}${m}m.`);
+    const offer = riteOffer(a, deity);
+    if (!offer.loud) log(`rite ${display(a)} '${arg}' shrine=${deity || 'none'} kind=${(s && s.kind) || 'mortal'}`);
+    if (offer.reason) return offer.loud ? onScreen(a, offer.reason) : personal(a, offer.reason);
+    // The cure has no confirm here: the gem is the price, and nothing can go wrong with it
+    if (offer.type === 'cure') { const why = cureAt(a, deity); return personal(a, why || CURED); }
+    pendingRite.set(a, { type: offer.type, at: Date.now() });
+    return personal(a, offer.type === 'hunt'
+      ? `The Great Hunt: ${offer.warning} Say /rite confirm within 5 minutes to run.`
+      : `${offer.warning} Say /rite confirm within 5 minutes to kneel.`);
+  }, { help: 'at a shrine: Molag Bal (the Embrace), Hircine (the Great Hunt), Arkay or Stendarr (cure, filled black soul gem). Touching the shrine opens the same choice as a panel' });
+
+  // ---- the shrine panel (Nate 2026-09-30: "a button on the shrine to either pray or do the rite") ------------------
+  // Touching a shrine that keeps a rite opens this instead of starting a prayer (prayer.js asks through __dboShrinePanel).
+  // Pray is a touch from there on (__dboPrayerStart); Perform the Rite shows its warning, and only its own button
+  // (Kneel, Run the Hunt, Offer the soul gem) commits, which replaces "/rite confirm": no one takes a rite that can end
+  // the character with one click. What cannot be done here says why in a quiet line instead of hiding the button.
+  // Every word is written here. The panel and the pending rite outlive a hot reload (globalThis), and /rite and
+  // /rite confirm stay as the fallback.
+  const SHRINE_PANEL_ID = 74;
+  const CHOOSE_GUARD_MS = 1000;
+  const RITE_SHRINES = new Set(['molagbal', 'hircine', 'arkay', 'stendarr']);
+  const shrinePanels = globalThis.__dboShrinePanels || (globalThis.__dboShrinePanels = new Map()); // actorId -> panel
+  // Only a client whose front draws it (dbo:uiCaps 'shrinePanel', client 0.3.72) gets the panel: an older one would hold
+  // the cursor under a panel it cannot draw, so it prays on a touch as before and keeps /rite
+  const shrineCaps = globalThis.__dboShrineCaps instanceof Map ? globalThis.__dboShrineCaps : (globalThis.__dboShrineCaps = new Map());
+  onUi('uiCaps', (a, args) => { shrineCaps.set(a >>> 0, (args || []).map(String).includes('shrinePanel')); });
+  const closeShrinePanel = (a) => { if (!shrinePanels.has(a)) return; shrinePanels.delete(a); closeWidget(a, SHRINE_PANEL_ID); };
+  const showShrinePanel = (a, st, result, resultKind) => {
+    const offer = riteOffer(a, st.deity);
+    const prayWhy = typeof globalThis.__dboPrayerRefusal === 'function' ? globalThis.__dboPrayerRefusal(a, st.targetId) : 'Prayer is closed on this server.';
+    const confirming = !!st.confirming && !!offer.type;
+    if (!confirming) st.confirming = false;
+    openWidget(a, {
+      type: 'shrinePanel', id: SHRINE_PANEL_ID, nonce: st.nonce, title: st.shrineName, deity: st.name,
+      pray: { label: 'Pray', available: !prayWhy, reason: prayWhy || '' },
+      rite: offer.type ? { label: 'Perform the Rite', title: offer.title, available: true, reason: '' } : { label: 'Perform the Rite', title: '', available: false, reason: offer.reason },
+      confirm: confirming ? { title: offer.title, warning: offer.warning, confirm: offer.confirm, cancel: 'Cancel' } : null,
+      leave: 'Leave', result: result || '', resultKind: resultKind || '',
+    }, true);
+  };
+  globalThis.__dboShrinePanel = (a, targetId, shrine) => {
+    if (!shrine || !RITE_SHRINES.has(shrine.id) || !shrineCaps.get(a >>> 0)) return false;
+    const st = { nonce: `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`, targetId: targetId >>> 0, deity: shrine.id, name: shrine.name, shrineName: shrine.shrineName, at: Date.now(), confirming: false };
+    shrinePanels.set(a >>> 0, st);
+    // A rite chosen on an earlier panel is dropped with it; one said with /rite still waits for /rite confirm
+    const p = pendingRite.get(a); if (p && p.via === 'panel') pendingRite.delete(a);
+    showShrinePanel(a, st);
+    return true;
+  };
+  // The panel this message is for: the nonce must match and the panel must be fresh; a stale one closes itself
+  const panelFor = (a, args) => {
+    const st = shrinePanels.get(a >>> 0);
+    if (!st || String(args[0] || '') !== st.nonce) return null;
+    if (Date.now() - st.at > CONFIRM_MS) { closeShrinePanel(a); personal(a, 'You have stepped away from the shrine. Touch it again.'); return null; }
+    return st;
+  };
+  onUi('shrinePray', (a, args) => {
+    const st = panelFor(a, args); if (!st) return;
+    const why = typeof globalThis.__dboPrayerStart === 'function' ? globalThis.__dboPrayerStart(a, st.targetId) : 'Prayer is closed on this server.';
+    if (why) return showShrinePanel(a, st, why, 'refused');
+    // The prayer's own panel is open (and focused) by now; closing this one after it keeps the cursor
+    closeShrinePanel(a);
+  });
+  onUi('shrineRite', (a, args) => {
+    const st = panelFor(a, args); if (!st) return;
+    const offer = riteOffer(a, st.deity);
+    if (!offer.type) return showShrinePanel(a, st, offer.reason, 'refused');
+    pendingRite.set(a, { type: offer.type, at: Date.now(), via: 'panel' });
+    st.confirming = true;
+    st.chosenAt = Date.now();
+    log(`rite ${display(a)} chose ${offer.type} at the shrine panel (${st.name})`);
+    showShrinePanel(a, st);
+  });
+  onUi('shrineConfirm', (a, args) => {
+    const st = panelFor(a, args); if (!st || !st.confirming) return; // not confirming: a second click after the answer
+    // The rite's button sits about where Perform the Rite was, so a double click's second press lands on it: a press
+    // this soon after choosing is that, not a decision (Worker D's review), and the warning stays up
+    if (Date.now() - (Number(st.chosenAt) || 0) < CHOOSE_GUARD_MS) return log(`rite ${display(a)} confirm ignored: ${Date.now() - (Number(st.chosenAt) || 0)} ms after choosing`);
+    const p = pendingRite.get(a);
+    const offer = riteOffer(a, st.deity);
+    if (!p || Date.now() - p.at > CONFIRM_MS || p.type !== offer.type) {
+      st.confirming = false; pendingRite.delete(a);
+      return showShrinePanel(a, st, offer.reason || 'There is nothing to confirm. Choose the rite again.', 'refused');
     }
-    const waitMs = failedAt + C.riteFailCooldownHours * 3600000 - Date.now();
-    if ((deity === 'molagbal' || deity === 'hircine') && waitMs > 0) {
-      const h = Math.floor(waitMs / 3600000), m = Math.ceil((waitMs % 3600000) / 60000);
-      return onScreen(a, `The shrine is cold to you since you failed its rite. Try again in ${h ? `${h}h ` : ''}${m}m.`);
+    pendingRite.delete(a);
+    st.confirming = false;
+    if (offer.type === 'cure') {
+      const why = cureAt(a, st.deity);
+      if (!why) personal(a, CURED);
+      return showShrinePanel(a, st, why || CURED, why ? 'refused' : 'ok');
     }
-    log(`rite ${display(a)} '${arg}' shrine=${deity || 'none'} kind=${(s && s.kind) || 'mortal'}`);
-    if (!deity) return personal(a, 'Rites are made at a shrine: touch one of Molag Bal, Hircine, Arkay or Stendarr, then say /rite.');
-    if (deity === 'molagbal') {
-      if (s.kind === 'vampire' && s.pure) return personal(a, 'Your blood is already his.');
-      if (s.kind === 'werewolf') return personal(a, 'Molag Bal will not take what Hircine has marked. Be cured first.');
-      pendingRite.set(a, { type: 'embrace', at: Date.now() });
-      return personal(a, "Molag Bal's Embrace makes a pure-blood of those who survive it. Many do not, and some never wake again. Say /rite confirm within 5 minutes to kneel.");
-    }
-    if (deity === 'hircine') {
-      if (s.kind === 'werewolf') return personal(a, 'The Huntsman already knows your scent.');
-      if (s.kind === 'vampire') return personal(a, 'Hircine hunts the living, not the dead. Be cured first.');
-      if (s.disease) return personal(a, s.disease.kind === 'werewolf' ? 'Sanies Lupinus is already in your blood. Wait for the fever.' : 'Another fever holds you. Be cured first.');
-      pendingRite.set(a, { type: 'hunt', at: Date.now() });
-      return personal(a, "The Great Hunt: Hircine chases you, and if you run true he may mark you with Sanies Lupinus; when its fever peaks, the beast tries to come out. If he catches you, you may never rise. Say /rite confirm within 5 minutes to run.");
-    }
-    if (deity === 'arkay' || deity === 'stendarr') {
-      if (!s.kind) return personal(a, s.disease ? 'Pray here to break the fever; the rite is for those already turned.' : 'You carry no curse to lift.');
-      if (!takeOne(a, BLACK_SOUL_GEM_FILLED)) return personal(a, 'The rite needs a filled black soul gem to take the curse into.');
-      endCurse(a, `cured at a shrine of ${deity === 'arkay' ? 'Arkay' : 'Stendarr'}`);
-      return personal(a, 'The black soul gem drinks the curse from you. You are mortal again.');
-    }
-    return personal(a, 'This god has no rite for you. Molag Bal and Hircine give curses; Arkay and Stendarr lift them.');
-  }, { help: 'at a shrine: Molag Bal (the Embrace), Hircine (the Great Hunt), Arkay or Stendarr (cure, filled black soul gem)' });
+    log(`rite ${display(a)} confirmed ${offer.type} at the shrine panel`);
+    startRite(a, offer.type);
+    // The rite's own panel is open (and focused) by now; closing this one after it keeps the cursor
+    closeShrinePanel(a);
+  });
+  onUi('shrineCancel', (a, args) => {
+    const st = panelFor(a, args); if (!st) return;
+    st.confirming = false; pendingRite.delete(a);
+    showShrinePanel(a, st);
+  });
+  const leaveShrine = (a) => { const st = shrinePanels.get(a >>> 0); if (!st) return; if (st.confirming) pendingRite.delete(a); closeShrinePanel(a); };
+  onUi('shrineLeave', (a, args) => { if (panelFor(a, args)) leaveShrine(a); });
+  onUi('close', (a, args, widgetId) => { if (widgetId === SHRINE_PANEL_ID) leaveShrine(a); });
 
   // ---- hooks the gamemode calls ----------------------------------------------------------------------------
   const npcKindCache = new Map();
