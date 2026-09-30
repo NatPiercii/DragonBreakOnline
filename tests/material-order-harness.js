@@ -1,6 +1,8 @@
 // Material order (Nate, 2026-09-29: "Dragonbone/scale armor needs to be stronger than ebony. So swap those. Then add
 // Silver (not the faction armor version) to the Blacksmith tier list"): the Blacksmith tier text, the weapon material
 // bonuses, and the rating armor counts for (gamemode.js armorPieceOf, lifted and run against stub records).
+// Since the recipe run (2026-10-01) the ladder is in the plugins' own records, so the server counts each piece at its
+// record's rating and the interim armorMaterials override is gone (tools/materials/ARMORMATERIALS_REMOVAL.md).
 //   node tests/material-order-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -49,11 +51,22 @@ const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 
 const wb = cfg.weaponMaterials.byKeyword;
 ok(wb.DLC1WeapMaterialDragonbone > wb.WeapMaterialEbony, 'Dragonbone weapons hit harder than Ebony', [wb.DLC1WeapMaterialDragonbone, wb.WeapMaterialEbony]);
 ok(wb.WeapMaterialSilver >= wb.WeapMaterialSteel && wb.WeapMaterialSilver < wb.WeapMaterialGlass, 'Silver weapons sit between Steel and Glass', wb.WeapMaterialSilver);
+// Tier 5 out-hits tier 4 (tools/recipes/t4_below_t5.py): Saints & Seducers' Amber is Glass, its Madness Daedric, and
+// Immersive Weapons' Dragonsteel (ArmorMaterialDragonplate) Dragonbone. Amber was held until the ladder lowered it
+ok(wb.ccBGSSSE025_WeapMaterialAmber === wb.WeapMaterialGlass, 'Amber weapons count as Glass', [wb.ccBGSSSE025_WeapMaterialAmber, wb.WeapMaterialGlass]);
+ok(wb.ccBGSSSE025_WeapMaterialMadness === wb.WeapMaterialDaedric, 'Madness weapons count as Daedric', [wb.ccBGSSSE025_WeapMaterialMadness, wb.WeapMaterialDaedric]);
+ok(wb.ArmorMaterialDragonplate === wb.DLC1WeapMaterialDragonbone, 'Dragonsteel weapons count as Dragonbone', [wb.ArmorMaterialDragonplate, wb.DLC1WeapMaterialDragonbone]);
+ok(wb.ccBGSSSE025_WeapMaterialAmber < wb.ccBGSSSE025_WeapMaterialMadness, 'tier 4 Amber below tier 5 Madness');
 
-// ---- armor: the rating each piece counts for, from the lifted armorPieceOf
+// ---- armor: the rating each piece counts for, from the lifted armorPieceOf. The ladder is in the records now, so the
+// stub records carry its numbers (tools/materials/ladder.tsv) and the server must count exactly those
 const gm = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');
-const i = gm.indexOf('const ARMOR_MATERIALS = '), j = gm.indexOf('  armorPieceCache.set(baseId, piece);\n  return piece;\n};', i);
-ok(i > 0 && j > i, 'gamemode.js has the armor material table');
+ok(!/ARMOR_MATERIALS|materialRatingOf/.test(gm) && cfg.armorMaterials === undefined, 'the interim armorMaterials override is gone from gamemode.js and the config');
+ok(/globalThis\.__dboArmorPiece4\b/.test(gm) && !/__dboArmorPiece3\b/.test(gm), 'the armor piece cache is renamed, so a hot reload drops the override\'s entries');
+const LADDER_TSV = fs.readFileSync(path.join(ROOT, 'tools', 'materials', 'ladder.tsv'), 'utf8');
+const ladderArmor = (kw) => Object.fromEntries(LADDER_TSV.split('\n').filter((l) => l.startsWith(`armor\t${kw}\tkeyword\t`)).map((l) => { const c = l.split('\t'); return [c[3], Number(c[4])]; }));
+const i = gm.indexOf('const armorPieceCache = '), j = gm.indexOf('  armorPieceCache.set(baseId, piece);\n  return piece;\n};', i);
+ok(i > 0 && j > i, 'gamemode.js has armorPieceOf');
 if (i > 0 && j > i) {
   const src = gm.slice(i, j) + '  armorPieceCache.set(baseId, piece);\n  return piece;\n};';
   const u32 = (n) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n, true); return b; };
@@ -65,7 +78,8 @@ if (i > 0 && j > i) {
   // Final ratings in the load order (Update.esm / USSEP): cuirass, gauntlets, boots, helmet, shield
   const SLOTS = [['body', 0x4], ['hands', 0x8], ['feet', 0x80], ['head', 0x1002], ['shield', 0x200]];
   const EBONY = { body: 43, hands: 16, feet: 16, head: 21, shield: 32 }, DAEDRIC = { body: 49, hands: 18, feet: 18, head: 23, shield: 36 };
-  const SCALE = { body: 41, hands: 12, feet: 12, head: 17, shield: 29 }, PLATE = { body: 46, hands: 17, feet: 17, head: 22, shield: 34 };
+  const SCALE = ladderArmor('ArmorMaterialDragonscale'), PLATE = { body: 46, hands: 17, feet: 17, head: 22, shield: 34 };
+  ok(['body', 'hands', 'feet', 'head', 'shield'].every((k) => SCALE[k] > 0), 'ladder.tsv gives Dragonscale a rating for every slot', SCALE);
   let id = 0x1000;
   const pieces = {};
   for (const [slot, mask] of SLOTS) {
@@ -73,21 +87,21 @@ if (i > 0 && j > i) {
     armo(++id, PLATE[slot], mask, true, 0x6bbd5); pieces[`plate:${slot}`] = id;
     armo(++id, EBONY[slot], mask, true, 0x6bbd8); pieces[`ebony:${slot}`] = id;
   }
-  delete globalThis.__dboArmorPiece3;
+  delete globalThis.__dboArmorPiece4;
   const fieldsOf = (lr, t) => ((lr && lr.record.fields) || []).filter((f) => f.type === t);
   const u32At = (f, off) => (f && f.data.byteLength >= off + 4 ? new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(off, true) : 0);
   const globalAt = (lr, local) => (local ? lr.toGlobalRecordId(local) >>> 0 : 0);
   const armorPieceOf = new Function('cfg', 'recordOf', 'fieldsOf', 'u32At', 'globalAt', `${src}\nreturn armorPieceOf;`)(cfg, (x) => RECS[x] || null, fieldsOf, u32At, globalAt);
   for (const [slot] of SLOTS) {
     const sc = armorPieceOf(pieces[`scale:${slot}`]), pl = armorPieceOf(pieces[`plate:${slot}`]), eb = armorPieceOf(pieces[`ebony:${slot}`]);
-    ok(sc.counted > eb.counted, `Dragonscale ${slot} counts above Ebony`, [sc.counted, eb.counted]);
-    ok(pl.counted > eb.counted, `Dragonplate ${slot} counts above Ebony`, [pl.counted, eb.counted]);
-    ok(sc.counted < DAEDRIC[slot] && pl.counted < DAEDRIC[slot], `Daedric ${slot} stays strongest`, [sc.counted, pl.counted, DAEDRIC[slot]]);
-    ok(sc.rating === SCALE[slot], `...the engine keeps Dragonscale ${slot}'s own rating`, sc.rating);
+    ok(sc.rating > eb.rating, `Dragonscale ${slot} counts above Ebony`, [sc.rating, eb.rating]);
+    ok(pl.rating > eb.rating, `Dragonplate ${slot} counts above Ebony`, [pl.rating, eb.rating]);
+    ok(sc.rating < DAEDRIC[slot] && pl.rating < DAEDRIC[slot], `Daedric ${slot} stays strongest`, [sc.rating, pl.rating, DAEDRIC[slot]]);
+    ok(sc.rating === SCALE[slot] && sc.counted === undefined, `...the server counts Dragonscale ${slot} at its record's rating, with no second number`, sc);
   }
 }
-ok(/counted \+= \(\(p\.counted \|\| p\.rating\) \+ temperBonus/.test(gm), 'the hit counts armor at its counted rating');
-ok(/value: Math\.round\(\(\(p\.counted \|\| p\.rating\) \+ temper\)/.test(gm), 'the inventory shows it');
+ok(/counted \+= \(p\.rating \+ temperBonus/.test(gm), 'the hit counts armor at its record rating');
+ok(/value: Math\.round\(\(p\.rating \+ temper\)/.test(gm), 'the inventory shows it');
 const pn = JSON.parse(fs.readFileSync(path.join(ROOT, 'patch-notes.json'), 'utf8'));
 ok(pn.some((e) => JSON.stringify(e).includes('Dragonscale')), 'a patch note tells players');
 
