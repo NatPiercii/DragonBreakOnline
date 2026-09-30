@@ -55,6 +55,7 @@ declare -A NEEDS=(
   [craft-weight]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-cast-route]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-award]=server:skymp5-server/ts/systems/masterySystem.ts
+  [mastery-boost]=server:skymp5-server/ts/systems/masterySystem.ts
   [summon-race]=server:skymp5-server/ts/systems/espmMagic.ts
   [spawn-refill]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-slots]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
