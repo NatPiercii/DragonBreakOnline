@@ -485,7 +485,19 @@ ScampServer::ScampServer(const Napi::CallbackInfo& info)
         }
       };
       readBool("enabled", limits.enabled);
-      readBool("enforce", limits.enforce);
+      bool enforceAll = true;
+      if (j.contains("enforce") && j["enforce"].is_boolean()) {
+        enforceAll = j["enforce"].get<bool>();
+        limits.enforceHorizontal = limits.enforceUp = limits.enforceDown =
+          enforceAll;
+      }
+      readBool("enforceHorizontal", limits.enforceHorizontal);
+      readBool("enforceUp", limits.enforceUp);
+      readBool("enforceDown", limits.enforceDown);
+      readBool("exemptStaff", limits.exemptStaff);
+      readUint("loginGraceMs", limits.loginGraceMs);
+      readUint("stallMs", limits.stallMs);
+      readUint("stallGraceMs", limits.stallGraceMs);
       readFloat("maxHorizontalSpeed", limits.maxHorizontalSpeed);
       readFloat("maxUpSpeed", limits.maxUpSpeed);
       readFloat("maxDownSpeed", limits.maxDownSpeed);
@@ -502,13 +514,17 @@ ScampServer::ScampServer(const Napi::CallbackInfo& info)
     }
     {
       const auto& limits = partOne->worldState.movementLimits;
-      spdlog::info("movementValidation: {}, ceilings {:.0f} horizontal, "
-                   "{:.0f} up, {:.0f} down u/s, burst {:.1f} s",
-                   limits.enabled
-                     ? (limits.enforce ? "enforcing" : "logging only")
-                     : "off",
-                   limits.maxHorizontalSpeed, limits.maxUpSpeed,
-                   limits.maxDownSpeed, limits.burstSeconds);
+      auto mode = [](bool e) { return e ? "enforced" : "logged"; };
+      spdlog::info("movementValidation: {}, ceilings {:.0f} horizontal ({}), "
+                   "{:.0f} up ({}), {:.0f} down ({}) u/s, burst {:.1f} s, "
+                   "login grace {} ms, staff {}, stall {} ms -> grace {} ms",
+                   limits.enabled ? "on" : "off", limits.maxHorizontalSpeed,
+                   mode(limits.enforceHorizontal), limits.maxUpSpeed,
+                   mode(limits.enforceUp), limits.maxDownSpeed,
+                   mode(limits.enforceDown), limits.burstSeconds,
+                   limits.loginGraceMs,
+                   limits.exemptStaff ? "exempt" : "checked", limits.stallMs,
+                   limits.stallGraceMs);
     }
 
     // playersInheritBaseSpells: false strips the Player record's castable spells (Flames, Healing) from player characters

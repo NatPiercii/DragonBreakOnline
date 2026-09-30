@@ -37,6 +37,21 @@ void Seed(MovementValidation::ActorState& st, const NiPoint3& pos,
   st.seeded = true;
 }
 
+// Players whose last accepted packet is recent: a pause with two or more of
+// them moving is the server stalling, not everyone standing still at once
+size_t RecentlyMoving(const MovementValidation::Tracker& tracker,
+                      std::chrono::steady_clock::time_point before,
+                      std::chrono::milliseconds window)
+{
+  size_t n = 0;
+  for (const auto& pair : tracker.states) {
+    if (pair.second.seeded && before - pair.second.lastTime <= window) {
+      ++n;
+    }
+  }
+  return n;
+}
+
 float Refill(float allowance, float rate, float dtSec, float burstSeconds)
 {
   return std::min(rate * burstSeconds, allowance + rate * dtSec);
@@ -100,6 +115,21 @@ bool Validate(PartOne& partOne, const NiPoint3& currentPos,
 
   const auto now = std::chrono::steady_clock::now();
   Prune(*tracker, now);
+  if (tracker->lastCall.time_since_epoch().count() != 0) {
+    const auto pause = now - tracker->lastCall;
+    if (pause >= std::chrono::milliseconds(limits.stallMs) &&
+        RecentlyMoving(*tracker, tracker->lastCall,
+                       std::chrono::milliseconds(limits.stallMs)) >= 2) {
+      tracker->stallGraceUntil =
+        now + std::chrono::milliseconds(limits.stallGraceMs);
+      spdlog::info("MovementValidation: no movement for {:.0f} ms while "
+                   "players were moving (server stall), nothing is refused "
+                   "for {} ms",
+                   std::chrono::duration<float, std::milli>(pause).count(),
+                   limits.stallGraceMs);
+    }
+  }
+  tracker->lastCall = now;
   auto& st = tracker->states[actor->GetFormId()];
 
   // The server's own position having moved since the last accepted packet
@@ -108,6 +138,7 @@ bool Validate(PartOne& partOne, const NiPoint3& currentPos,
     (st.lastPos != currentPos || st.lastCellOrWorld != currentCellOrWorld);
   if (!st.seeded) {
     Seed(st, currentPos, currentCellOrWorld, now, limits);
+    st.acceptUntil = now + std::chrono::milliseconds(limits.loginGraceMs);
   } else if (serverMoved) {
     Seed(st, currentPos, currentCellOrWorld, now, limits);
     st.serverMovesSinceLog++;
@@ -171,29 +202,53 @@ bool Validate(PartOne& partOne, const NiPoint3& currentPos,
   st.refusedSinceLog++;
   const bool inGrace = now < st.graceUntil;
 
+  // Which ceilings the move broke, and whether any of those refuses
+  const bool overXy = dxy > st.allowanceXy, overUp = up > st.allowanceUp,
+             overDown = down > st.allowanceDown;
+  const bool enforced = (overXy && limits.enforceHorizontal) ||
+    (overUp && limits.enforceUp) || (overDown && limits.enforceDown);
+  const char* exempt = nullptr;
+  if (limits.exemptStaff && actor->GetConsoleCommandsAllowedFlag()) {
+    exempt = "staff";
+  } else if (now < st.acceptUntil) {
+    exempt = "login grace";
+  } else if (now < tracker->stallGraceUntil) {
+    exempt = "server stall";
+  }
+  const bool refuse = enforced && !exempt;
+
   if (!inGrace && now - st.lastLog >= logInterval) {
-    spdlog::warn("MovementValidation: {} actor {:x} (user {}) moved {:.0f} u "
-                 "horizontally and {:+.0f} u vertically in {:.0f} ms ({:.0f} "
-                 "u/s, budget {:.0f}), {} refusal(s) since the last line",
-                 limits.enforce ? "refused" : "would refuse",
-                 actor->GetFormId(), userId, dxy, dz, dtSec * 1000.f, speedXy,
-                 st.allowanceXy, st.refusedSinceLog);
+    std::string over;
+    if (overXy) over += "horizontal ";
+    if (overUp) over += "up ";
+    if (overDown) over += "down ";
+    std::string verdict = refuse ? "refused"
+      : exempt                   ? std::string("accepted (") + exempt + ")"
+                                 : "would refuse (log only)";
+    spdlog::warn("MovementValidation: {} actor {:x} (user {}) over {}ceiling: "
+                 "moved {:.0f} u horizontally and {:+.0f} u vertically in "
+                 "{:.0f} ms ({:.0f} u/s, budget {:.0f}), {} refusal(s) since "
+                 "the last line",
+                 verdict, actor->GetFormId(), userId, over, dxy, dz,
+                 dtSec * 1000.f, speedXy, st.allowanceXy, st.refusedSinceLog);
     st.lastLog = now;
     st.refusedSinceLog = 0;
   }
 
-  // Logging only: take the position the way the old server did, change nothing
-  if (!limits.enforce) {
+  // In-flight packets from before a server teleport are dropped with no snap
+  // back whenever the broken ceiling is enforced, exempt or not: accepting one
+  // would pull a player the server just moved back to where they were
+  if (enforced && inGrace) {
+    return false;
+  }
+
+  // Not refused: take the position the way the old server did, change nothing
+  if (!refuse) {
     accept();
     st.allowanceXy = std::max(0.f, st.allowanceXy);
     st.allowanceUp = std::max(0.f, st.allowanceUp);
     st.allowanceDown = std::max(0.f, st.allowanceDown);
     return true;
-  }
-
-  // In-flight packets from before a server teleport, dropped with no snap back
-  if (inGrace) {
-    return false;
   }
 
   if (now - st.lastSnapBack >=
