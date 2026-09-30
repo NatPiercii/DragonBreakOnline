@@ -1,5 +1,6 @@
 import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
 import { isBeastRaceId } from "../sync/beastRaceIds";
+import { hidesIdentity, IdentityFacts } from "./identityGate";
 import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving, isInSitPose, clearSitPose, setRefrCollision } from "../sync/animation";
 import { isVampireLordRace, noteVampireLordAnim } from "../sync/vampireLordAnimDiag";
 import { Appearance, applyAppearance } from "../sync/appearance";
@@ -71,6 +72,7 @@ export class FormView {
   constructor(private remoteRefrId?: number) { }
 
   update(model: FormModel): void {
+    this.lastModel = model;
     // Other players mutate into PC clones when moving to another location
     if (model.movement) {
       if (!this.lastWorldOrCell)
@@ -737,11 +739,7 @@ export class FormView {
       const isVisibleByPlayer = !model.movement?.isSneaking
         && playerActor.getDistance(refr) <= maxNicknameDrawDistance
         && playerActor.hasLOS(refr)
-        && !this.isSweetHidePerson(refr)
-        && FormView.adminViewOf(model) !== "hidden"
-        // A werewolf or Vampire Lord is not recognisable: no name and no #TAG over a beast, even to those who know the
-        // player (#bugs 'werewolf shows nametag of player', 2026-09-26)
-        && !this.isBeastCopy(model);
+        && !hidesIdentity(this.identityFacts(refr, model));
       if (isVisibleByPlayer) {
         const headScreenPos = worldPointToScreenPoint([
           NetImmerse.getNodeWorldPositionX(refr, headPart, false),
@@ -813,6 +811,16 @@ export class FormView {
       return name;
     }
     return known.includes(this.getRemoteRefrId()) ? name : "Stranger";
+  }
+
+  // A werewolf or Vampire Lord is not recognisable: no name and no #TAG over a beast, even to those who know the player
+  // (#bugs 'werewolf shows nametag of player', 2026-09-26); nor over a hidden admin or a SweetHidePerson wearer
+  identityFacts(refr: ObjectReference, model: FormModel | undefined = this.lastModel): IdentityFacts {
+    return {
+      beast: !!model && this.isBeastCopy(model),
+      adminHidden: !!model && FormView.adminViewOf(model) === "hidden",
+      sweetHidden: this.isSweetHidePerson(refr),
+    };
   }
 
   private isSweetHidePerson(refr: ObjectReference): boolean {
@@ -1158,6 +1166,7 @@ export class FormView {
   // Screen-space pixels between the name line and the actor id line
   private static readonly actorIdLineOffset = 24;
   private static readonly nameAboveBarPx = 46;
+  private lastModel?: FormModel;
   private static readonly adminHideReapplyMs = 1000;
   private static readonly spellInvisCheckMs = 250;
   private static readonly adminShaderReplayDelayMs = 1000;

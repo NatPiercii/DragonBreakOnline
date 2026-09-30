@@ -1,4 +1,6 @@
+import { ObjectReference } from "skyrimPlatform";
 import { FormView } from "./formView";
+import { IdentityFacts } from "./identityGate";
 import { FormModel, WorldModel } from "./model";
 import { NiPoint3 } from "../sync/movement";
 import { SpApiInteractor } from "../services/spApiInteractor";
@@ -110,6 +112,11 @@ export class FormViewArray {
       return formView && formView.getRemoteRefrId() === remoteRefrId;
     });
     return formView ? formView.getLocalRefrId() : 0;
+  }
+
+  identityFactsOf(remoteRefrId: number, refr: ObjectReference): IdentityFacts | null {
+    const formView = this.formViews.find((formView?: FormView) => formView && formView.getRemoteRefrId() === remoteRefrId);
+    return formView ? formView.identityFacts(refr) : null;
   }
 
   isPlayerCharacter(remoteRefrId: number): boolean {

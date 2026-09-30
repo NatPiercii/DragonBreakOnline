@@ -2,6 +2,7 @@ import { Game, ObjectReference, storage } from "skyrimPlatform";
 import { WorldView } from "./worldView";
 import { SpApiInteractor } from '../services/spApiInteractor';
 import { RemoteServer } from "../services/services/remoteServer";
+import { IdentityFacts } from "./identityGate";
 
 export const getViewFromStorage = (): WorldView | undefined => {
   const res = storage["view"] as WorldView;
@@ -46,6 +47,12 @@ export const remoteIdToLocalId = (remoteFormId: number): number => {
     }
   }
   return remoteFormId;
+};
+
+// The nametag's identity gates for a synced actor, null when it has no view
+export const remoteIdentityFacts = (remoteFormId: number, refr: ObjectReference): IdentityFacts | null => {
+  const view = getViewFromStorage();
+  return view ? view.identityFactsOf(remoteFormId, refr) : null;
 };
 
 // Hosted ids are remote ids, some stored with the 64-bit server offset

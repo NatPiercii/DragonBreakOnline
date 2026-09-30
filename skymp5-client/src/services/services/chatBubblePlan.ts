@@ -2,6 +2,8 @@
 // Server -> client: { customPacketType: "dboBubble", from: <server actor id>, text, color: "rrggbb", rangeM }
 // Chat settings: chatBubbles (default on), bubbleSize (30..100, default 55)
 
+import { hidesIdentity, IdentityFacts } from "../../view/identityGate";
+
 export interface BubblePacket {
   from: number;
   text: string;
@@ -127,6 +129,22 @@ export const lineHeightPx = (size: number): number => Math.max(12, Math.round(LI
 
 interface Bubble { lines: string[]; color: number[]; bornAt: number; ttl: number }
 interface Speaker { bubbles: Bubble[]; rangeM: number }
+
+export interface SpeakerFacts {
+  mine: boolean;
+  loaded: boolean;
+  inRange: boolean;
+  inSight: boolean;
+  // The nametag's gates (FormView.identityFacts); null when the speaker has no view
+  identity: IdentityFacts | null;
+}
+
+// Sneaking does not hide a bubble: speaking aloud gives you away, and the chat line already names you
+export const bubbleShows = (f: SpeakerFacts): boolean => {
+  if (!f.loaded) return false;
+  if (f.mine) return true;
+  return f.inRange && f.inSight && !!f.identity && !hidesIdentity(f.identity);
+};
 
 // Every speaker's bubbles, newest last, keyed by the server actor id
 export class BubbleBoard {

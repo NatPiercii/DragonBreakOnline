@@ -1,6 +1,7 @@
-import { Form } from "skyrimPlatform";
+import { Form, ObjectReference } from "skyrimPlatform";
 
 import { WorldModel } from './model';
+import { IdentityFacts } from './identityGate';
 import { FormViewArray } from './formViewArray';
 import { PlayerCharacterDataHolder } from './playerCharacterDataHolder';
 import { ClientListener, CombinedController, Sp } from '../services/services/clientListener';
@@ -31,6 +32,10 @@ export class WorldView extends ClientListener {
 
   getLocalRefrId(remoteRefrId: number): number {
     return this.state.formViews.getLocalRefrId(remoteRefrId);
+  }
+
+  identityFactsOf(remoteRefrId: number, refr: ObjectReference): IdentityFacts | null {
+    return this.state.formViews.identityFactsOf(remoteRefrId, refr);
   }
 
   isPlayerCharacter(remoteRefrId: number): boolean {
