@@ -88,7 +88,18 @@
   "tomes": true,
   "adminBypass": true,
   "failOpen": true,
-  "defaultPlace": "skyrim"
+  "defaultPlace": "skyrim",
+  "raceStyles": {
+   "_comment": "A people's own style is made by that race anywhere, and by anyone in its home province (Nate, 2026-09-30: race plus home province; server\\RACE_STYLES_PROPOSAL.md). family = a recipe's c tag in regions.json; edid / notEdid = regexes on the recipe's editor id. Food and place-bound benches never follow race. Bretons wait for High Rock content.",
+   "orc": [{ "family": "orcish" }],
+   "nord": [{ "family": "draugr" }, { "family": "draugrhoned" }, { "family": "solstheim", "edid": "stalhrim|nordic|skaal" }],
+   "dunmer": [{ "family": "morrowind" }, { "family": "bonemoldlight" }, { "family": "solstheim", "edid": "chitin|bonemold" }],
+   "redguard": [{ "family": "hammerfell" }],
+   "khajiit": [{ "family": "elsweyr" }],
+   "bosmer": [{ "family": "valenwood" }],
+   "altmer": [{ "family": "summerset" }, { "family": "elven" }],
+   "imperial": [{ "family": "imperial" }, { "family": "akavir" }, { "family": "cyrodiil", "notEdid": "ayleid" }]
+  }
  },
  "factionGear": {
   "_comment": "Faction gear (server\\factiongear.js; list faction-gear.json from tools/faction_gear.py): a faction's armor and weapons are crafted only by its Blacksmith (forge) or Tailor (loom, tanning rack) rank or its leader. enabled: on (Nate, 2026-09-28: make faction gear turned on); false turns it off for players, and an admin's /factiongear test still holds them to it either way. adminBypass: admins pass unless in test mode.",
