@@ -206,9 +206,41 @@ function gameLogCandidates(documentsDir, variants) {
   return out
 }
 
+// The client's own diagnostics (the page/input one, the remote Vampire Lord animations) go through SkyrimPlatform's
+// writeLogs, because logTrace reaches only the in-game console, never skyrim-platform.log. writeLogs writes
+// Data\Platform\Logs\dbo-diag-logs.txt in the folder the game runs from, starting afresh every launch. Under MO2 a new
+// file lands in the overwrite folder instead, which stands for Data, so there it is overwrite\Platform\Logs.
+const DIAG_LOG_REL = path.join('Platform', 'Logs', 'dbo-diag-logs.txt')
+// The end of it, where a crash cuts it off. It goes into clientLog, which the backend caps at 180 KB from the end
+// (the install listing and the game data follow it there), and on the backend's fixed field list, so no backend change.
+const DIAG_LOG_BYTES = 48 * 1024
+
+function diagLogCandidates(gameDirs, mo2Root) {
+  const out = []
+  for (const dir of gameDirs) if (dir) out.push(path.join(dir, 'Data', DIAG_LOG_REL))
+  if (mo2Root) out.push(path.join(mo2Root, 'overwrite', DIAG_LOG_REL))
+  return [...new Set(out)]
+}
+
+// The newest copy is this session's: a copy beside the game outlives a switch to MO2, and the other way round
+function diagLog(gameDirs, mo2Root, now) {
+  const found = []
+  for (const file of diagLogCandidates(gameDirs, mo2Root)) {
+    try { found.push({ file, mtime: fs.statSync(file).mtimeMs }) } catch { /* not there */ }
+  }
+  if (!found.length) return null
+  found.sort((a, b) => b.mtime - a.mtime)
+  const text = tail(found[0].file, DIAG_LOG_BYTES)
+  if (!text) return null
+  const minutes = Math.max(0, Math.round((now - found[0].mtime) / 60000))
+  return `== client diagnostics (${found[0].file}, written ${minutes} min before this report${found.length > 1 ? `, newest of ${found.length}` : ''}) ==\n`
+    + text.replace(/\s+$/, '')
+}
+
 // context: whatever the launcher already knows (versions, install dir, the step that failed)
+// gameDirs: the folders the game may have run from (the isolated copy first); installDir is tried after them
 function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Skyrim Special Edition'], mo2Root = null,
-  context = {}, now = Date.now() }) {
+  gameDirs = [], context = {}, now = Date.now() }) {
   const files = {}
   const launcher = tail(path.join(userDataDir, 'install.log'))
   if (launcher) files.launcherLog = redact(launcher)
@@ -241,6 +273,9 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   if (mo2Root) crashDirs.push(path.join(mo2Root, 'overwrite', 'SKSE'))
   const crash = crashLogFor(crashDirs, now)
   if (crash) files.crashLog = redact(crash)
+
+  const diag = diagLog([...gameDirs, installDir], mo2Root, now)
+  if (diag) files.clientLog = redact(diag)
 
   if (installDir) {
     // A directory listing is often the whole answer: a foreign modlist or a missing Data folder shows up here

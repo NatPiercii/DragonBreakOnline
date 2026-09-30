@@ -1740,6 +1740,8 @@ ipcMain.handle('report:send', async (_e, { note, private: keepPrivate } = {}) =>
       myGamesVariants: MYGAMES_VARIANTS,
       // Crash Logger's crash-*.log can land in MO2's overwrite\SKSE as well as in Documents
       mo2Root:         mo2.getRoot(),
+      // The client's dbo-diag log is written where the game runs: the isolated copy when there is one
+      gameDirs:        [effectiveGamePath()],
       context: {
         launcherVersion: app.getVersion(),
         filesVersion:    store.get('filesVersion') || '',
