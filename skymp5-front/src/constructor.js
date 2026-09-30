@@ -37,6 +37,8 @@ import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
 import Spellbook from './features/spellbook';
+import StudyMagic from './features/studyMagic';
+import ClassLectern from './features/classLectern';
 import ExpeditionBoard from './features/expeditionBoard';
 import Party from './features/party';
 import TomeShop from './features/tomeShop';
@@ -298,6 +300,10 @@ const Constructor = props => {
       return <TomeShop data={rend} />;
     case 'spellbook':
       return <Spellbook data={rend} />;
+    case 'studyMagic':
+      return <StudyMagic data={rend} />;
+    case 'classLectern':
+      return <ClassLectern data={rend} />;
     case 'bank':
       return <Bank data={rend} />;
     case 'businessLedger':
@@ -325,7 +331,7 @@ const Constructor = props => {
 const DOMAINS = {
   prayer: 'aedric', deityPicker: 'aedric',
   rite: 'lorkhan', bountyBoard: 'lorkhan', expeditionBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', downed: 'lorkhan',
-  mastery: 'dragonbreak', namePrompt: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak', spellbook: 'dragonbreak',
+  mastery: 'dragonbreak', namePrompt: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak', spellbook: 'dragonbreak', studyMagic: 'dragonbreak', classLectern: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
 };
 
