@@ -13,7 +13,7 @@ const path = require('path');
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests/mastery-award-harness.js <bundled masterySystem.js>'); process.exit(2); }
 const SRC = fs.readFileSync(bundle, 'utf8');
-if (!/__alduinakMasteryAward/.test(SRC)) { console.log('ok   skipped: this masterySystem has no award'); process.exit(0); }
+if (!/__alduinakMasteryAward/.test(SRC)) { require('./expect')('mastery-award', 'this masterySystem has no award'); console.log('ok   skipped: this masterySystem has no award'); process.exit(0); }
 const { MasterySystem } = require(path.resolve(bundle));
 
 let fails = 0;
@@ -65,7 +65,7 @@ ok('the level-up notice is the Wheel\'s own', notices.some((t) => /Your Blacksmi
 
 // The playtesters' boost (private.xpBoost { mult, until }) doubles an award as it doubles any other work: brewing
 // (alchemy.js) and smithing books (manuals.js) are credited through the award, and the boost promises all work
-if (!/private\.xpBoost/.test(SRC)) console.log('ok   skipped the boost cases: this masterySystem has no private.xpBoost');
+if (!/private\.xpBoost/.test(SRC)) { require('./expect')('mastery-boost', 'this masterySystem has no private.xpBoost to boost an award'); console.log('ok   skipped the boost cases: this masterySystem has no private.xpBoost'); }
 else {
   const xpOf = (a) => { const s = mp.get(a, 'private.mastery').skills.blacksmith; return s.level * 100 + s.xp; };
   for (const a of [PLAIN, BOOSTED, LAPSED]) mp.set(a, 'private.mastery', { v: 2, order: ['blacksmith'], skills: { blacksmith: { level: 10, xp: 0, rank: 0 } } });

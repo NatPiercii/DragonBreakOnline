@@ -14,6 +14,7 @@ const path = require('path');
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests/mastery-boost-harness.js <bundled masterySystem.js>'); process.exit(2); }
 if (!fs.readFileSync(path.resolve(bundle), 'utf8').includes('private.xpBoost')) {
+  require('./expect')('mastery-boost', 'this fork\'s masterySystem has no private.xpBoost');
   console.log('skipped: this fork\'s masterySystem has no private.xpBoost (fork client-playtester-xpboost)');
   process.exit(0);
 }

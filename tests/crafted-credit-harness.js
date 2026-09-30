@@ -12,7 +12,7 @@ const path = require('path');
 
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests/crafted-credit-harness.js <bundled craftedExtrasSystem.js>'); process.exit(2); }
-if (!/creditWork/.test(fs.readFileSync(bundle, 'utf8'))) { console.log('ok   skipped: this craftedExtrasSystem credits no skill'); process.exit(0); }
+if (!/creditWork/.test(fs.readFileSync(bundle, 'utf8'))) { require('./expect')('crafted-credit', 'this craftedExtrasSystem credits no skill'); console.log('ok   skipped: this craftedExtrasSystem credits no skill'); process.exit(0); }
 const { CraftedExtrasSystem } = require(path.resolve(bundle));
 
 let fails = 0;
