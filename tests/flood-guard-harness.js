@@ -162,6 +162,15 @@ check('a player line over 2000 characters is refused', said.length === 0 && told
 handleChat(7, 'a'.repeat(2000));
 check('a line of exactly 2000 is said', said.length === 1);
 said.length = 0;
+handleChat(7, '/looc ' + 'c'.repeat(2000));
+check('a full 2000-character post from the OOC tab (the client adds "/looc ") is said', said.length === 1, said.length);
+said.length = 0;
+for (const tab of ['/me ', '/my ', '/do ', '/shout ', '/ooclong ']) handleChat(7, tab + 'd'.repeat(2000));
+check('...and from the emote, do and shout tabs', said.length === 5, said.length);
+said.length = 0; told.length = 0;
+handleChat(7, '/looc ' + 'c'.repeat(2001));
+check('2001 characters after the command are refused', said.length === 0 && told.length === 1 && /too long/.test(told[0][1]), JSON.stringify(told));
+said.length = 0;
 handleChat(7, '/do #{ffcc00}[SERVER] Restarting now, log out');
 check('a player\'s colour code is broken so it cannot recolour the line', said.length === 1 && !said[0].slice(9).includes('#{') && said[0].includes('# {ffcc00}'), said[0]);
 said.length = 0;

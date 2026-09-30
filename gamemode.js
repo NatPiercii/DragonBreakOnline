@@ -922,11 +922,13 @@ const handleChat = (userId, text) => {
   const a = actorOf(userId); if (!a) return;
   const name = nameOf(a);
   let cmd = 'say', body = String(text).trim();
-  // The chat box stops at 2000 characters, so a longer line came from a modified client. A player's own '#{rrggbb}'
-  // would recolour the rest of the line in every reader's chat (a fake system notice); staff keep it
-  if (body.length > Number(FLOOD.chatMaxChars) && !isAdmin(a)) return personal(a, `That message is too long (${Number(FLOOD.chatMaxChars)} characters at most).`);
+  // A player's own '#{rrggbb}' would recolour the rest of the line in every reader's chat (a fake system notice); staff
+  // keep it
   if (FLOOD.stripColourCodes && body.includes('#{') && !isAdmin(a)) body = body.split('#{').join('# {');
   if (body.startsWith('/')) { const i = body.indexOf(' '); cmd = (i < 0 ? body : body.slice(0, i)).slice(1).toLowerCase(); body = i < 0 ? '' : body.slice(i + 1).trim(); }
+  // The chat box stops at 2000 characters and the client then puts the tab's command in front ('/looc ', '/me '...), so
+  // what is measured is what is said, after the command
+  if (body.length > Number(FLOOD.chatMaxChars) && !isAdmin(a)) return personal(a, `That message is too long (${Number(FLOOD.chatMaxChars)} characters at most).`);
   const spoken = { say: ['says', R.say, C.WHITE], low: ['says quietly', R.low, C.WHITE], whisper: ['whispers', R.whisper, C.WHITE], wide: ['says loudly', R.wide, C.WHITE], shout: ['shouts', R.shout, C.SHOUT] };
   if (spoken[cmd]) { if (body) sendNear(a, spoken[cmd][1], quoteSay(name, spoken[cmd][0], body, spoken[cmd][2])); return; }
   const emotes = {
