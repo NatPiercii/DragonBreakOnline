@@ -11,6 +11,12 @@
           "A hunted animal now gives only what comes from the animal: meat, hides, pelts, antlers, tusks, horns, claws and the like. Deer no longer carry silver rings, and bears no longer carry gems or gold. Giants still carry their gear.",
           "Every animal now gives meat: wolves and foxes give dog meat, bears, sabre cats and mountain lions give beef, skeevers give rat meat and slaughterfish give their own fish. Boars give boar meat and a tusk."
         ]
+      },
+      {
+        "heading": "Chests",
+        "items": [
+          "A giant camp chest now glows while it has something for you and goes dark once you have picked through it, until it refills an hour later. Dungeon chests already glow for the party that claimed the dungeon. A chest or barrel that does not glow has nothing in it."
+        ]
       }
     ]
   },
