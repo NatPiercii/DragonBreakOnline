@@ -91,7 +91,7 @@ globalThis.__alduinakMasteryFirstTouch = () => 'held';
 const out = { said: [], audits: [], logs: [], widgets: [], notices: [], treasury: [] };
 const handlers = new Map(), commands = new Map(), timers = new Map();
 const api = (extra) => Object.assign({
-  mp, cfg: { manuals: Object.assign({}, CONFIG.manuals, { consumeDelaySeconds: 0 }), spells: CONFIG.spells, salvage: CONFIG.salvage, reading: { bookDailyCap: 2 } },
+  mp, cfg: { manuals: CONFIG.manuals, spells: CONFIG.spells, salvage: CONFIG.salvage, reading: { bookDailyCap: 2 } },
   log: (...a) => out.logs.push(a.join(' ')), personal: (a, t) => out.said.push([a, t]), system: (a, t) => out.said.push([a, t]),
   audit: (t) => out.audits.push(t), who: (a) => `P${a.toString(16)}`, display: (a) => NAMES[a] || 'P',
   giveItem: (a, baseId, n) => { const e = (getp(a, 'inventory') || { entries: [] }).entries; const h = e.find((x) => x.baseId === baseId); if (h) h.count += n; else e.push({ baseId, count: n }); put(a, 'inventory', { entries: e }); return true; },
@@ -139,11 +139,31 @@ check('...told why, and keeps the book, with no marker', /You can't follow this 
 check('...nor the Steel manual (T2): a Novice is T1', (await read(NOVICE, B('steel'))) === false && /Apprentice rank or better/.test(said(NOVICE)));
 skills(SMITH, { blacksmith: 1 }); inv(SMITH, [[B('steel'), 2]]);
 check('an Apprentice Blacksmith learns the Steel manual', (await read(SMITH, B('steel'))) !== false && spellSet(SMITH).has(K('steel')) && (getp(SMITH, 'private.dboManuals') || {}).steel, getp(SMITH, 'private.dboManuals'));
-check('...is told so, and the book is used up (one of two left)', /You study Thorbald's Methods: Steel\. You can work Steel at the forge now; the book is worn through with your notes\./.test(said(SMITH)) && count(SMITH, B('steel')) === 1, [said(SMITH), count(SMITH, B('steel'))]);
+check('...is told so; the book is spent but not taken while a Book menu may still show it', /You study Thorbald's Methods: Steel\. You can work Steel at the forge now\. Your notes fill every margin: the book is spent, and it is gone once you move on\./.test(said(SMITH)) && count(SMITH, B('steel')) === 2 && (getp(SMITH, 'private.dboManualsOwed') || []).length === 1, [said(SMITH), count(SMITH, B('steel')), getp(SMITH, 'private.dboManualsOwed')]);
+timers.get('manuals.settle')();
+check('...still not taken in the same cell', count(SMITH, B('steel')) === 2);
+at(SMITH, BRUMA, [0, 0, 0]); timers.get('manuals.settle')();
+check('...taken at the next cell change (a loading screen closes every menu)', count(SMITH, B('steel')) === 1 && !(getp(SMITH, 'private.dboManualsOwed') || []).length, [count(SMITH, B('steel')), getp(SMITH, 'private.dboManualsOwed')]);
+at(SMITH, SYNOD, [0, 0, 0]);
 check('...audited', out.audits.some((l) => /MANUAL P14 learned Steel \(T2\) from a book/.test(l)));
 check('reading it again changes nothing and uses nothing up', (await read(SMITH, B('steel'))) !== false && count(SMITH, B('steel')) === 1 && /You already know how to work Steel/.test(said(SMITH)), said(SMITH));
 skills(CLERK, { scholar: 2 }); inv(CLERK, [[B('steel'), 1]]);
 check('someone who is no Blacksmith is refused and keeps it', (await read(CLERK, B('steel'))) === false && count(CLERK, B('steel')) === 1);
+// A logout uses up what is owed; a copy passed on before the move is taken from the next copy the reader holds
+skills(CLERK, { blacksmith: 1 });
+await read(CLERK, B('steel'));
+globalThis.__dboManualsLeave(CLERK);
+check('a logout uses up the spent book', count(CLERK, B('steel')) === 0 && !(getp(CLERK, 'private.dboManualsOwed') || []).length);
+skills(CLERK, { scholar: 2 });
+skills(NOVICE, { blacksmith: 1 }); inv(NOVICE, [[B('steel'), 1]]);
+await read(NOVICE, B('steel'));
+inv(NOVICE, []); inv(STAFF, [[B('steel'), 1]]);
+at(NOVICE, BRUMA, [0, 0, 0]); timers.get('manuals.settle')();
+check('a spent book handed on before the move stays owed', (getp(NOVICE, 'private.dboManualsOwed') || []).length === 1 && out.logs.some((l) => /owes .* but carries none \(cell change\)/.test(l)));
+inv(NOVICE, [[B('steel'), 1]]);
+at(NOVICE, SYNOD, [0, 0, 0]); timers.get('manuals.settle')();
+check('...and the next copy they hold settles it, at the next move', count(NOVICE, B('steel')) === 0 && !(getp(NOVICE, 'private.dboManualsOwed') || []).length, [count(NOVICE, B('steel')), getp(NOVICE, 'private.dboManualsOwed')]);
+skills(NOVICE, { blacksmith: 0 });
 
 // ---- a respec and a login ----
 skills(SMITH, { scholar: 0 });
@@ -204,9 +224,9 @@ globalThis.__dboSalvageActivate(LEDGER, SCHOLAR); ui('salvageChoose', SCHOLAR, [
 w = lastWidget(SCHOLAR);
 check('a Scholar of Apprentice rank copies the Steel manual they learned, not the Orcish (T3) one above their rank', w.actions.map((x) => x.id).join() === `mc:${B('steel')},ledger`, w.actions);
 ui('salvageChoose', SCHOLAR, [`mc:${B('steel')}`]);
-check('copying takes a paper and gives the book, counted as a copy for the day', count(SCHOLAR, PAPER) === 0 && count(SCHOLAR, B('steel')) === 1 && (getp(SCHOLAR, 'private.scholarCopies') || {}).n === 1 && /You copy out Thorbald's Methods: Steel/.test(lastWidget(SCHOLAR).targetName), [count(SCHOLAR, PAPER), count(SCHOLAR, B('steel')), getp(SCHOLAR, 'private.scholarCopies')]);
+check('copying takes a paper and gives the book (beside the spent one not yet used up), counted as a copy for the day', count(SCHOLAR, PAPER) === 0 && count(SCHOLAR, B('steel')) === 2 && (getp(SCHOLAR, 'private.scholarCopies') || {}).n === 1 && /You copy out Thorbald's Methods: Steel/.test(lastWidget(SCHOLAR).targetName), [count(SCHOLAR, PAPER), count(SCHOLAR, B('steel')), getp(SCHOLAR, 'private.scholarCopies')]);
 globalThis.__dboSalvageActivate(LEDGER, SCHOLAR); ui('salvageChoose', SCHOLAR, ['manualsCopy']); ui('salvageChoose', SCHOLAR, [`mc:${B('steel')}`]);
-check('without paper there is no copy', count(SCHOLAR, B('steel')) === 1 && /takes 1 paper, and you have none/.test(lastWidget(SCHOLAR).targetName), lastWidget(SCHOLAR).targetName);
+check('without paper there is no copy', count(SCHOLAR, B('steel')) === 2 && /takes 1 paper, and you have none/.test(lastWidget(SCHOLAR).targetName), lastWidget(SCHOLAR).targetName);
 inv(SCHOLAR, [[PAPER, 5]]); put(SCHOLAR, 'private.scholarCopies', { day: new Date().toISOString().slice(0, 10), n: 2 });
 globalThis.__dboSalvageActivate(LEDGER, SCHOLAR); ui('salvageChoose', SCHOLAR, ['manualsCopy']);
 check('the reading copies\' daily cap holds', /You have copied 2 books today/.test(lastWidget(SCHOLAR).targetName), lastWidget(SCHOLAR).targetName);
@@ -224,7 +244,7 @@ check('a Master-less Expert Blacksmith cannot follow the Daedric manual (T5 need
 
 // ---- a hot reload ----
 load();
-check('a hot reload keeps what was learned and the regrant timer', (getp(SMITH, 'private.dboManuals') || {}).steel && timers.has('manuals.regrant'));
+check('a hot reload keeps what was learned and both timers', (getp(SMITH, 'private.dboManuals') || {}).steel && timers.has('manuals.regrant') && timers.has('manuals.settle'));
 
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());

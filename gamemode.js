@@ -1511,7 +1511,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
   // What a UI said it can draw, and a deity offer already made, belong to this session (review C6, PRAY-1)
-  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
+  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -4719,7 +4719,7 @@ try {
   const MANUALS_JS = path.resolve('manuals.js');
   delete require.cache[MANUALS_JS];
   require(MANUALS_JS)({ mp, log, personal, audit, who, display, cfg, giveItem, takeGold, depositToTreasury, registerChatCommand, onlineActors, every, findByName, notify });
-} catch (e) { log('manuals.js failed to load:', e.stack || e.message); for (const k of ['__dboManualsRead', '__dboManualsReadWon', '__dboManualsIsManual', '__dboManualsBossLoot', '__dboManualsShop', '__dboManualsBuy', '__dboManualsCopyList', '__dboManualsCopyRefusal', '__dboManualsCopy']) globalThis[k] = null; }
+} catch (e) { log('manuals.js failed to load:', e.stack || e.message); for (const k of ['__dboManualsRead', '__dboManualsReadWon', '__dboManualsIsManual', '__dboManualsBossLoot', '__dboManualsShop', '__dboManualsBuy', '__dboManualsCopyList', '__dboManualsCopyRefusal', '__dboManualsCopy', '__dboManualsLeave']) globalThis[k] = null; }
 // ---- the schools of magic, Study Magic and the Class Lectern (server\schools.js, config "schools"): after spells.js, whose spellbook it reads ----
 try {
   const SCHOOLS_JS = path.resolve('schools.js');

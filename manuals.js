@@ -5,7 +5,10 @@
 // A manual (manuals.json, Worker C's table: DragonBreak Online Edits.esp BOOK DBO_BookManual<X> and marker SPEL
 // DBO_Manual_<X>; a forge recipe needs the Blacksmith tier marker and the manual's marker) is read from the inventory.
 // Below its tier (1-based, skills.json's Blacksmith list: rank 0 = T1) it is refused and kept: "You can't follow this
-// yet". Otherwise its marker is added, the material kept in private.dboManuals, and the book used up (Nate). A respec
+// yet". Otherwise its marker is added, the material kept in private.dboManuals, and the book used up (Nate): not at once,
+// since the server cannot tell whether the Book menu still shows it and an item changed under an open vanilla menu is the
+// "base-form writes race open menus" risk, but at the reader's next cell change, logout or login, when no book can be
+// open (private.dboManualsOwed; a copy no longer carried then is taken from the next one they hold). A respec
 // keeps what was learned: the knowledge is not the Wheel's, and each recipe still needs its tier marker, so a character
 // who sets Blacksmith aside cannot forge with it and needs no second reading on taking it up again. A marker missing at
 // login is put back from the record.
@@ -21,7 +24,8 @@
 // are Blacksmith work once per book per character, read from the inventory or won at the reading of a placed one:
 // masterySystem's award (__alduinakMasteryAward) credits a Blacksmith inside the Wheel's caps.
 //
-// State, on the character: private.dboManuals { <material>: { at, from } }, private.dboSkillBooks [book desc...]
+// State, on the character: private.dboManuals { <material>: { at, from } }, private.dboSkillBooks [book desc...],
+//   private.dboManualsOwed [{ book, cell }] (books learned and not yet used up)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -31,7 +35,7 @@ module.exports = (api) => {
     onlineActors, every, findByName, notify } = api;
 
   const D = {
-    enabled: true, skill: 'blacksmith', scholarSkill: 'scholar', consume: true, consumeDelaySeconds: 2,
+    enabled: true, skill: 'blacksmith', scholarSkill: 'scholar', consume: true,
     shop: { enabled: true, maxTier: 2, priceMultiplier: 3, cells: ['20ff:BSHeartland.esm'], treasury: 'bruma' },
     loot: { enabled: true, chance: { story: 0.03, normal: 0.05, hard: 0.08, nightmare: 0.1 },
       maxTier: { story: 2, normal: 3, hard: 4, nightmare: 4 }, rareTier: 4, rareWeight: 0.2, staffTier: 5 },
@@ -48,7 +52,7 @@ module.exports = (api) => {
     provinces: Object.assign({}, D.provinces, raw.provinces || {}),
   });
   const TIER_NAMES = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
-  const REC = 'private.dboManuals', BOOKS_READ = 'private.dboSkillBooks', COPIES = 'private.scholarCopies';
+  const REC = 'private.dboManuals', BOOKS_READ = 'private.dboSkillBooks', COPIES = 'private.scholarCopies', OWED = 'private.dboManualsOwed';
 
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
   const set = (id, prop, v) => { try { mp.set(id, prop, v); return true; } catch (e) { log(`manuals: set ${prop} failed`, e.message); return false; } };
@@ -112,6 +116,23 @@ module.exports = (api) => {
   const countOf = (a, baseId) => { try { const inv = mp.get(a, 'inventory') || { entries: [] }; return (inv.entries || []).reduce((n, e) => n + ((Number(e.baseId) >>> 0) === (baseId >>> 0) && !e.worn ? Number(e.count) || 0 : 0), 0); } catch (e) { return 0; } };
 
   // ---- learning a manual ---------------------------------------------------------------------------------------
+  const owedOf = (a) => { const o = get(a, OWED, []); return Array.isArray(o) ? o.filter((x) => x && x.book) : []; };
+  // Uses up the books this reader owes; `moved` (a cell change, a logout, a login) says no book can be on screen. A book
+  // no longer carried stays owed and is taken from the next copy they hold.
+  const settleOwed = (a, why, onlyMoved) => {
+    const owed = owedOf(a);
+    if (!owed.length) return;
+    const cell = String(get(a, 'worldOrCellDesc', ''));
+    const left = [];
+    for (const o of owed) {
+      if (onlyMoved && norm(o.cell) === norm(cell)) { left.push(o); continue; }
+      const bookId = idOf(o.book);
+      if (bookId && takeOne(a, bookId)) { log(`manuals: used up ${who(a)}'s ${o.book} (${why})`); continue; }
+      if (!o.missing) log(`manuals: ${who(a)} owes ${o.book} but carries none (${why}); the next copy settles it`);
+      left.push(Object.assign({}, o, { missing: true, cell: onlyMoved ? cell : o.cell }));
+    }
+    if (left.length !== owed.length || left.some((x, i) => x.missing !== owed[i].missing)) set(a, OWED, left);
+  };
   const learn = (a, m, how) => {
     if (!papyrus(a, 'AddSpell', m.markerId, [false])) {
       const held = learnedIds(a);
@@ -131,11 +152,8 @@ module.exports = (api) => {
       return false;
     }
     if (!learn(a, m, fromInventory ? 'a book' : 'a book on the shelf')) { personal(a, 'The words will not settle. Try again in a moment.'); return false; }
-    if (fromInventory && C.consume) {
-      // Used up as it is learned (Nate, 2026-09-30); a moment after the read, not inside it
-      setTimeout(() => { if (!takeOne(a, m.bookId)) log(`manuals: ${who(a)} learned ${m.name} but no copy was there to use up`); }, Math.max(0, Number(C.consumeDelaySeconds) || 0) * 1000);
-    }
-    personal(a, `You study ${m.title}. You can work ${m.name} at the forge now${fromInventory && C.consume ? '; the book is worn through with your notes' : ''}.`);
+    if (fromInventory && C.consume) set(a, OWED, owedOf(a).concat([{ book: m.book, cell: String(get(a, 'worldOrCellDesc', '')) }]));
+    personal(a, `You study ${m.title}. You can work ${m.name} at the forge now.${fromInventory && C.consume ? ' Your notes fill every margin: the book is spent, and it is gone once you move on.' : ''}`);
     return true;
   };
 
@@ -268,6 +286,8 @@ module.exports = (api) => {
   // ---- the markers after a login ----------------------------------------------------------------------------------
   const S = globalThis.__dboManualsState || (globalThis.__dboManualsState = { checked: new Set() });
   const regrant = (a) => {
+    // A login: nothing is on screen yet, so what is owed from before the logout is used up
+    settleOwed(a, 'login', false);
     const mine = recordOf(a);
     const want = READY.filter((m) => mine[m.key]);
     if (!want.length) return;
@@ -275,6 +295,13 @@ module.exports = (api) => {
     if (!held) return;
     for (const m of want) if (!held.has(m.markerId) && papyrus(a, 'AddSpell', m.markerId, [false])) log(`manuals: put ${m.name}'s marker back on ${who(a)}`);
   };
+  // A cell change passed a loading screen, which closes every menu
+  every('manuals.settle', 5000, () => {
+    if (!C.enabled) return;
+    for (const a of onlineActors()) { try { if (owedOf(a).length) settleOwed(a, 'cell change', true); } catch (e) { log('manuals: settle failed', e.message); } }
+  });
+  // gamemode.js's disconnect handler: a logout closes every menu
+  globalThis.__dboManualsLeave = (a) => { try { settleOwed(a >>> 0, 'logout', false); } catch (e) { log('manuals: logout settle failed', e.message); } };
   every('manuals.regrant', 15000, () => {
     if (!C.enabled) return;
     const on = new Set(onlineActors().map((x) => x >>> 0));
