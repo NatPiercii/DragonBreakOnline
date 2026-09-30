@@ -16,6 +16,34 @@ ok(tierOf('ebony') >= 0 && tierOf('dragonbone') > tierOf('ebony') && tierOf('dra
 ok(tierOf('daedric') === smith.tiers.length - 1, 'Daedric stays at the last tier', smith.tiers);
 ok(tierOf('silver') === tierOf('steel') && tierOf('silver') >= 0, 'Silver sits with Steel', smith.tiers);
 
+// ---- the approved ladder (Nate, 2026-09-30: every default in BLACKSMITH_TIERS_PROPOSAL.md except choice 3).
+// The text is what masterySystem reads at boot and what the player is shown, so the tier each material sits in is
+// part of the contract, not prose. tools/materials/ladder.tsv holds the numbers these tiers stand for.
+const LADDER = {
+  1: ['iron', 'hide', 'fur', 'leather'],
+  2: ['steel', 'silver', 'dwarven', 'elven', 'chainmail', 'mithril'],
+  3: ['orcish', 'steel plate', 'scaled', 'nordic'],
+  4: ['ebony', 'glass', 'stalhrim'],
+  5: ['dragonbone', 'dragonscale', 'daedric'],
+};
+for (const [tier, words] of Object.entries(LADDER)) {
+  for (const w of words) {
+    ok(tierOf(w) === Number(tier) - 1, `${w} is at tier ${tier}`, { got: tierOf(w) + 1, tiers: smith.tiers });
+  }
+}
+// Choice 4 put Glass with Ebony rather than with Orcish, and choice 2 kept Ebony off the top tier
+ok(tierOf('glass') === tierOf('ebony'), 'Glass sits with Ebony, not with Orcish', smith.tiers);
+ok(tierOf('ebony') < smith.tiers.length - 1, 'Ebony stays below the Master tier', smith.tiers);
+// No material may be named in two tiers: the tier a player reads is the tier they get. "steel" is skipped because
+// "steel plate" is a different material one tier up that contains the word - tierOf takes the first match, which is
+// the right one, and these tiers are display text (nothing in server/*.js matches materials against them).
+const ALL_WORDS = Object.values(LADDER).flat();
+for (const w of ALL_WORDS) {
+  if (ALL_WORDS.some((o) => o !== w && o.startsWith(w))) continue;
+  const hits = smith.tiers.filter((t) => new RegExp(`\\b${w}`, 'i').test(t)).length;
+  ok(hits === 1, `${w} is named in exactly one tier`, hits);
+}
+
 // ---- weapon materials (gamemode-config.json weaponMaterials)
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8'));
 const wb = cfg.weaponMaterials.byKeyword;

@@ -335,10 +335,10 @@
     ]
    },
    "tiers": [
-    "Iron, hide, leather",
-    "Steel, silver, elven, dwarven",
-    "Orcish, glass, scaled",
-    "Ebony",
+    "Iron, hide, fur, leather",
+    "Steel, silver, dwarven, elven, chainmail, mithril",
+    "Orcish, steel plate, scaled, Nordic",
+    "Ebony, glass, stalhrim",
     "Dragonbone, dragonscale, Daedric; legendary improvement"
    ],
    "markerSpells": [
