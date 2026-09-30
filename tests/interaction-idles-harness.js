@@ -74,8 +74,10 @@ check('playermenu.js: the salute follows a successful introduction only', idleAt
 
 const st = fs.readFileSync(path.join(ROOT, 'struggle.js'), 'utf8');
 const restrained = st.slice(st.indexOf('globalThis.__dboOnRestrained = '), st.indexOf('};', st.indexOf('globalThis.__dboOnRestrained = ')));
-check('struggle.js: a restraint plays the cuff idle on the captor, before the struggle switch', /__dboOnRestrained = \(captive, captor\)/.test(restrained)
+check('struggle.js: a restraint plays the cuff idle on the captor, before the struggle switch', /__dboOnRestrained = \(captive, captor(, rope)?\)/.test(restrained)
   && restrained.indexOf("'cuff')") > 0 && restrained.indexOf("'cuff')") < restrained.indexOf('if (!CFG.enabled) return;'), restrained);
+// With rope-binding (rope.js), a rope tie plays rope.js's own tieIdle on the captor, so the cuffs are for other restraints
+check('...but not for a rope tie, which has its own tying idle (rope.js tieIdle)', !/__dboOnRestrained = \(captive, captor, rope\)/.test(restrained) || /rope !== true && captor/.test(restrained), restrained);
 
 // ---- the client's allowlist (FORK = the client line, as run-all sets it) --------------------------------------------
 const fork = process.env.FORK;

@@ -4,7 +4,9 @@
 // X on another player: the client asks for the menu (dbo event "playerMenu" [targetId]) and this answers
 // with the entries the viewer may use right now:
 //   everyone:                 Trade, Introduce (until the target knows you), Inspect, Invite to Party
-//   admins and zone officials: Search, Restrain / Uncuff, while their own hands are free
+//   admins and zone officials: Search, Restrain / Uncuff (Untie for a rope captive), while their own hands are free
+//   anyone else carrying a rope: Tie Up; their rope captive: Untie, Leave Tied Here / Lead; someone else's: Cut Free
+//                             (rope.js; Tie Up and Untie go to captureSystem as Restrain and Uncuff do)
 //   whoever carries the target: Put down
 //   while sneaking:            Pickpocket (pickpocket.js)
 //   when the target can answer: Rob (robbery.js; the target answers in a panel)
@@ -137,8 +139,10 @@ module.exports = (api) => {
     const own = get(a, RESTRAINED_PROP, null) || {};
     if (get(a, LAWFUL_PROP, false) === true && !own.boundHands && !own.carried) {
       entries.push({ id: 'search', label: 'Search' });
-      entries.push(r.boundHands ? { id: 'release', label: 'Uncuff' } : { id: 'capture', label: 'Restrain' });
+      entries.push(r.boundHands ? { id: 'release', label: r.rope === true ? 'Untie' : 'Uncuff' } : { id: 'capture', label: 'Restrain' });
     }
+    // Rope only once captureSystem ties with rope (__dboRopeCapture, set at its init)
+    try { if (globalThis.__dboRopeCapture === true && typeof globalThis.__dboRopeMenuEntries === 'function') entries.push(...globalThis.__dboRopeMenuEntries(a, t)); } catch (e) { /* rope not loaded */ }
     // Carry is off the menu (Nat, 2026-09-22); Put down stays so a carry already under way can end
     if (r.carried && Number(r.carrierActorId) >>> 0 === a >>> 0) entries.push({ id: 'putdown', label: 'Put down' });
     // Voice volume is a preference on the listener's own PC; offered only while voice chat is on (voiceSystem.ts)
@@ -179,6 +183,7 @@ module.exports = (api) => {
     if (typeof globalThis.__dboRobAction === 'function' && globalThis.__dboRobAction(a, id, t, nameFor)) return;
     if (typeof globalThis.__dboSuperMenuAction === 'function' && globalThis.__dboSuperMenuAction(a, id, t, nameFor)) return;
     if (typeof globalThis.__dboFactionMenuAction === 'function' && globalThis.__dboFactionMenuAction(a, id, t)) return;
+    if (typeof globalThis.__dboRopeMenuAction === 'function' && globalThis.__dboRopeMenuAction(a, id, t)) return;
   });
 
   // ---- masks ----------------------------------------------------------------------------------------

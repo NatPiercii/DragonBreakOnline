@@ -61,7 +61,32 @@
   "cooldownMinutes": 4,
   "watchMeters": 3,
   "nearbyMeters": 15,
-  "whileCarried": false
+  "whileCarried": false,
+  "ropeUnattended": {
+   "_comment": "A rope captive left unattended (server\\rope.js): the gap, the chance a clean round frees them and the wait between tries, in place of band, winChance and cooldownMinutes above. The wait counts from the start of the last try. With the captor near, a rope captive plays the round above.",
+   "band": 9,
+   "winChance": 0.85,
+   "cooldownMinutes": 1
+  }
+ },
+ "rope": {
+  "_comment": "Tying someone up without authority (server\\rope.js with captureSystem.ts; Nate, 2026-09-30). item: the Rope a binding uses, one per knot. A player carrying one ties a downed player at once, or a conscious one who says yes; never on sight. Unattended: the captor more than unattendedMeters away, in another cell or down, for unattendedAfterSeconds in a row. Unattended time adds up and pauses while the captor is back; the captive is warned at warnMinutes and the rope slips off at slipMinutes. cutFree: anyone else standing within cutReach units cuts a rope captive free in cutSeconds, broken if either moves more than cutMoveUnits (rope only, never shackles). Animations are Helgen's (MQ101, where Hadvar or Ralof cuts the player's binds), sent with Debug.SendAnimationEvent on that player; empty plays nothing: cutFreeIdle on the rescuer as the cut starts, cutFreeStop when a cut breaks, cutFreeCaptiveIdle on the captive at the end while still bound, then the release cutFreeReleaseMs later, tieIdle on the captor at the knot. If the player's graph lacks them, IdleLockPick or IdleSearchingTable; never a paired pa_ idle. The refusal hold and the escape grace are ropeRefusalHoldMs and ropeEscapeGraceMs in server-settings.json (2 min and 60 s by default).",
+  "enabled": true,
+  "item": "90081a:ccBGSSSE001-Fish.esm",
+  "unattendedMeters": 10,
+  "unattendedAfterSeconds": 30,
+  "warnMinutes": 4,
+  "slipMinutes": 5,
+  "cutFree": true,
+  "cutSeconds": 5,
+  "cutReach": 250,
+  "cutMoveUnits": 64,
+  "cutFreeIdle": "BoundStandingCutNPC",
+  "cutFreeStop": "IdleForceDefaultState",
+  "cutFreeCaptiveIdle": "BoundStandingCut",
+  "cutFreeReleaseMs": 2000,
+  "tieIdle": "BoundStandingCutNPC",
+  "tickMs": 1000
  },
  "spells": {
   "_comment": "Spell study (server\\spells.js). A tome is learned only at a skills.json spellStudyPoints entry, by a reader with the school's skill (arcane or priest) taken up, a tier that allows the tome's rank, and a free slot; slots 0 uses the skill's spellSlots (3). /teach: a teacher at teacherMinTier (3 = Expert) teaches a known spell to a player within teachMeters at studentMinTier (1 = Apprentice) or higher; teachAtStudyPoint also requires both at a study point. /tomes: the court mage's shop in shopCells (the Synod Conclave and its basement), for members of shopFactions with arcane or priest at shopMinTier or higher, ranks up to their tier and never above shopMaxRank (3 = Expert), one tome per shopCooldownDays, price = tome value x shopPriceMultiplier, paid to the shopTreasury zone.",

@@ -59,6 +59,7 @@ declare -A NEEDS=(
   [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-stray]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [capture-leash]=server:skymp5-server/ts/systems/captureSystem.ts
+  [capture-rope]=server:skymp5-server/ts/systems/captureSystem.ts
   [contracts-tab]=front:skymp5-front/src/features/expeditionBoard/index.tsx
   [supernatural-tab]=front:skymp5-front/src/features/masteryMenu/index.tsx
   [shrine-panel-widget]=front:skymp5-front/src/features/shrinePanel/index.tsx
