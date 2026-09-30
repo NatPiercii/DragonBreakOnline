@@ -318,7 +318,7 @@ module.exports = (api) => {
     }
     openWidget(a, packetFor(round, text, kind), false);
     sessions.delete(a);
-    if (round.ore === 'salt') saltRefresh(round.refId);
+    if (round.ore === 'salt') { try { saltRefresh(round.refId); } catch (e) { log('salt glow failed', e.message); } }
     // Remembered only so a repeat of the same report is logged as a replay instead of vanishing
     spent.set(round.nonce, Date.now());
     while (spent.size > 200) spent.delete(spent.keys().next().value);
@@ -335,7 +335,13 @@ module.exports = (api) => {
   onUi('labourCancel', (a) => { abandon(a); closeWidget(a, WIDGET_ID); });
   // F2 hides the interface by closing the focused widget (client closeFocused sends args ['hidden']): not walking away,
   // so the round ends with no rest and the seam opens again at once
-  onUi('close', (a, args, widgetId) => { if (widgetId !== WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') sessions.delete(a); else abandon(a); });
+  onUi('close', (a, args, widgetId) => {
+    if (widgetId !== WIDGET_ID) return;
+    if (!(Array.isArray(args) && args[0] === 'hidden')) return abandon(a);
+    const round = sessions.get(a);
+    sessions.delete(a);
+    if (round && round.ore === 'salt') saltRefresh(round.refId);   // the seam is free again: light it for the others
+  });
 
   // Replay the round against the report. The widget sends the millisecond of every strike it took,
   // hit or miss; the hits are counted here, from the sweep and the band list the server issued.
