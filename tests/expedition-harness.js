@@ -56,6 +56,24 @@ fire('uiCaps', A, ['bank', 'expeditionBoard']);
 check('the board refuses the engine and opens the expedition board panel', activate(BOARD, A) === false);
 const list = widgets.find((w) => w[1].type === 'expeditionBoard');
 check('the panel lists the ruins with county, state and status, from this hall', !!list && list[1].hall === 'the Synod Conclave' && list[1].expeditions[0].name === 'Niryastare' && list[1].expeditions[0].county === 'Kvatch County' && list[1].expeditions[0].state === 'open' && list[1].expeditions[0].status === 'open' && list[1].events.pick === 'dbo:expeditionPick' && list[1].events.close === 'dbo:expeditionClose', list && list[1]);
+// The Contracts tab (Nate, 2026-09-30): the board carries the hold's hunting work from contracts.js
+globalThis.__dboContractsBoard = { view: () => ({ enabled: true, zone: 'Bruma', note: '', held: null, list: [{ id: 'c1', what: '3 wolves', reward: 36, state: 'open' }], canPost: false }) };
+fire('expeditionClose', A, []); widgets.length = 0;
+activate(BOARD, A);
+const withContracts = widgets.find((w) => w[1].type === 'expeditionBoard');
+check('the board carries the Contracts tab, opening on Expeditions', !!withContracts && withContracts[1].contracts && withContracts[1].contracts.zone === 'Bruma' && withContracts[1].tab === 'expeditions'
+  && withContracts[1].events.contractTake === 'dbo:contractTake' && withContracts[1].events.contractAbandon === 'dbo:contractAbandon');
+widgets.length = 0;
+globalThis.__dboExpeditionBoardRefresh(A, 'contracts');
+check('a take or give-up redraws it on the Contracts tab', widgets.length === 1 && widgets[0][1].tab === 'contracts');
+fire('expeditionClose', A, []); widgets.length = 0;
+globalThis.__dboExpeditionBoardRefresh(A, 'contracts');
+check('...but not once the board is closed', !widgets.length);
+globalThis.__dboContractsBoard = { view: () => { throw new Error('boom'); } };
+activate(BOARD, A);
+check('a failing contracts view still opens the board, without the tab', widgets.length === 1 && widgets[0][1].type === 'expeditionBoard' && widgets[0][1].contracts === undefined);
+delete globalThis.__dboContractsBoard;
+widgets.length = 0;
 check('something that is not the board is not ours', activate(0x12345, A) === null);
 fire('expeditionPick', A, ['CYRNiryastareLocation']);
 const gate = widgets.find((w) => w[1].type === 'dungeonGate');

@@ -473,7 +473,7 @@ const HELP_GROUPS = [
     hints: ['Choosing or changing a god: a shrine, then /deity.', 'The rites, and offerings: a shrine.'] },
   { key: 'beast', title: 'The beast in you', names: ['beast', 'forms', 'hunt', 'blood'], role: 'beast' },
   { key: 'work', title: 'Work and the world', names: ['time'],
-    hints: ['Work for pay: a notice board, then /contract and /commission.', 'Your money: a bank counter.',
+    hints: ['Hunting work: the Contracts tab of the expedition board (Synod Conclave, Fighters Guild).', 'Other work for pay: a notice board, then /commission.', 'Your money: a bank counter.',
       'Your business: its ledger book.', 'Where you are: /whereami.'] },
   { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'tax', 'property', 'ledgerpoint'], role: 'official' },
   { key: 'groups', title: 'Groups and dungeons', names: ['party'],
@@ -4309,7 +4309,7 @@ try {
 try {
   const CONTRACTS_JS = path.resolve('contracts.js');
   delete require.cache[CONTRACTS_JS];
-  require(CONTRACTS_JS)({ mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones: ZONES, ranksOf, profileOf, saveSoon, saveNow, discordOf });
+  require(CONTRACTS_JS)({ mp, log, personal, audit, display, who, cfg, giveItem, registerChatCommand, zones: ZONES, ranksOf, profileOf, saveSoon, saveNow, discordOf, onUi, zoneOfActor });
 } catch (e) { log('contracts.js failed to load:', e.stack || e.message); globalThis.__dboContractKill = null; }
 
 // ---- champions: named, tougher spawns that pay everyone who fought them (server\champions.js) --
