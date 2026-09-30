@@ -119,6 +119,14 @@ data.businesses[DOOR.toString(16)].chests[CHEST.toString(16)].until = Date.now()
 ok(globalThis.__dboBusinessActivate(CHEST, RENTER) === true && /rent ran out/.test(last(RENTER)), 'in the grace period the renter is offered to pay or open');
 ui.bizChoose(RENTER, ['open']);
 ok(globalThis.__dboBusinessActivate(CHEST, RENTER) === false, 'the renter can still empty it in the grace period');
+// The chest hold (idles.js) denies that first E and opens the chest through the same chain a moment later: the pass must
+// still be there for the re-entry, or the renter loops on "Use the chest again" (Worker A's review of 8d067d72)
+ok(globalThis.__dboBusinessActivate(CHEST, RENTER) === false, '...and again within the pass\'s 20 s (the chest hold\'s re-entry finds the pass)');
+ok(globalThis.__dboBusinessActivate(CHEST, STAFF) === true, '...while the pass is the renter\'s alone');
+{ const p = globalThis.__dboBusinessPass.get(RENTER); if (p) p.until = Date.now() - 1; }
+ok(globalThis.__dboBusinessActivate(CHEST, RENTER) === true && !globalThis.__dboBusinessPass.has(RENTER), 'once the 20 s are over the pass is dropped and the renter gets the menu again');
+ui.bizChoose(RENTER, ['open']);
+globalThis.__dboBusinessActivate(CHEST, RENTER);
 ok(globalThis.__dboBusinessActivate(CHEST, STAFF) === true, 'staff are kept out during the grace period');
 data.businesses[DOOR.toString(16)].chests[CHEST.toString(16)].until = Date.now() - 100 * H;
 ok(globalThis.__dboBusinessActivate(CHEST, STRANGER) === true && /waits for its owner/.test(last(STRANGER)), 'a lapsed chest cannot be rented before it is cleared');

@@ -142,7 +142,9 @@ const load = (cfg) => {
   }
   {
     const { hold } = mk(on);
+    globalThis.__dboChestPasses.set('1:2', now - 1);
     hold(CHEST, PLAYER); runTimers();
+    check('chest hold: setting a pass prunes the expired ones', !globalThis.__dboChestPasses.has('1:2') && globalThis.__dboChestPasses.size === 1, [...globalThis.__dboChestPasses]);
     now += 5000;
     check('chest hold: an unused pass expires (3 s): a later E is held afresh', hold(CHEST, PLAYER) === true);
     runTimers();
@@ -155,6 +157,8 @@ const gm = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');
 const pm = fs.readFileSync(path.join(ROOT, 'playermenu.js'), 'utf8');
 const boardHook = gm.slice(gm.indexOf('globalThis.__dboBoardOpened = '), gm.indexOf('};', gm.indexOf('globalThis.__dboBoardOpened = ')) + 2);
 check('gamemode.js: a board opening still sends the mail state, then the board idle', /sendMailState\(/.test(boardHook) && /__dboInteractionIdle\(Number\(actorId\) >>> 0, 'board'\)/.test(boardHook), boardHook);
+check('gamemode.js: if idles.js fails to load, the chest hold is cleared with the idle hook', /idles\.js failed to load:[^\n]*__dboInteractionIdle = null; globalThis\.__dboChestHold = null;/.test(gm));
+check('idles.js warns earlier gates about one-shot tokens spent on the denied first E', /WARNING for any gate earlier in the chain/.test(fs.readFileSync(path.join(ROOT, 'idles.js'), 'utf8')));
 check('gamemode.js loads idles.js with mp, sendPacket, cfg and the ui caps', /require\(IDLES_JS\)\(\{ mp, log, sendPacket, cfg, hasCap: /.test(gm));
 const chain = gm.slice(gm.indexOf('mp.onActivate = (targetId, casterId) => {'), gm.indexOf('const prev = globalThis.__dboPrevActivate;'));
 const holdAt = chain.indexOf('__dboChestHold(');

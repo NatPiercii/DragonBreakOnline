@@ -207,7 +207,10 @@ module.exports = (api) => {
     const st = chestState(c);
     const mine = !!c.renter && Number(c.renter) === profileOf(a);
     const pass = passes.get(a);
-    if (pass && pass.chest === ref && pass.until > Date.now()) { passes.delete(a); if (mine) return false; }
+    // Kept until its 20 s run out, not spent on the first use: the gamemode's chest hold (idles.js) denies that first E and
+    // opens the chest a moment later through the same chain, which must find the pass again (Worker A's review)
+    if (pass && pass.until <= Date.now()) passes.delete(a);
+    else if (pass && pass.chest === ref && mine) return false;
     if (st === 'rented') {
       // With no valid business there is no one to pay a renewal to: the renter simply opens it
       if (mine) { if (!b || Number(c.until) - Date.now() > 24 * HOUR) return false; openMenu(a, ref, b, c, true); return true; }
