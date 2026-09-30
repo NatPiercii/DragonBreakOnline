@@ -91,3 +91,7 @@ businesses.json
 taxes.json
 # gamemode.js: every staff command of the last 7 days, for /staffstats and the daily summary
 staff-actions.json
+
+# playtester skill boost windows per account (playtesterboost.js)
+playtester-boost.json
+playtester-boost.json.tmp

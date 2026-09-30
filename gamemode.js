@@ -202,7 +202,9 @@ const LEAD_ONLY = new Set(['beastform', 'vlremote', 'wwremote', 'feedpair', 'cha
   // A staff override on the state of a player, like the property override (A3-1): /deity reset <player> in prayer.js
   'deity reset',
   // Review A3-5 / A7-STAFF-1: /masktest creates armour, a faction's leader holds a hold's economy
-  'masktest', 'faction leader', 'faction remove']);
+  'masktest', 'faction leader', 'faction remove',
+  // A skill boost is progress handed out (playtesterboost.js)
+  'boost grant', 'boost extend']);
 
 const onlineActors = () => {
   try { const v = mp.get(0, 'onlinePlayers'); if (Array.isArray(v) && v.length) return v.map(Number).filter(Boolean); } catch (e) { /* fall through */ }
@@ -1502,6 +1504,7 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboPartyLogin) globalThis.__dboPartyLogin(a); } catch (e) { log('party login failed', e.message); }
     sendFavorites(a);
     try { if (globalThis.__dboCharLevelLogin) globalThis.__dboCharLevelLogin(a); } catch (e) { log('level login failed', e.message); }
+    try { if (globalThis.__dboBoostLogin) globalThis.__dboBoostLogin(a); } catch (e) { log('boost login failed', e.message); }
   }, 8000);
 };
 const startLoginWait = (userId, seenActor) => {
@@ -4802,6 +4805,12 @@ try {
   delete require.cache[PATRONS_JS];
   require(PATRONS_JS)({ mp, log, personal, system, registerChatCommand, audit, who, display, profileOf, rolesOf, isAdmin, findByName });
 } catch (e) { log('patrons.js failed to load:', e.stack || e.message); globalThis.__dboRerollDone = null; globalThis.__dboRerollsLeft = null; }
+// ---- the playtesters' skill boost at the alpha launch (server\playtesterboost.js, config "playtesterBoost") ----------
+try {
+  const PLAYTESTERBOOST_JS = path.resolve('playtesterboost.js');
+  delete require.cache[PLAYTESTERBOOST_JS];
+  require(PLAYTESTERBOOST_JS)({ mp, log, personal, system, registerChatCommand, audit, who, display, profileOf, rolesOf, isAdmin, isLeadStaff, findByName, onlineActors, every, cfg });
+} catch (e) { log('playtesterboost.js failed to load:', e.stack || e.message); globalThis.__dboBoostLogin = null; }
 
 // ---- vampirism and lycanthropy (server\supernatural.js) ------------------------------------------------
 try {
