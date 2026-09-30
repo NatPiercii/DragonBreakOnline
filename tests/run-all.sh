@@ -80,12 +80,14 @@ declare -A NEEDS=(
   [shrine-panel-widget]=front:skymp5-front/src/features/shrinePanel/index.tsx
   [school-meters]=front:skymp5-front/src/features/masteryMenu/index.tsx
   [study-magic]=front:skymp5-front/src/features/studyMagic/index.tsx
+  [journal-front]=front:skymp5-front/src/features/journal/index.tsx
+  [widget-order]=front:skymp5-front/src/utils/widgetOrder.js
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
   local root=$FORK; [ "$side" = server ] && root=$FORK_SERVER
-  # A front widget from $FORK, bundled with React's static renderer; styles are left out. A worktree has no
+  # A front widget from $FORK, bundled with React's static renderer; styles and images are left out. A worktree has no
   # node_modules of its own, so React comes from the main clone (beside this repo, or ~/dragonbreak/fork) when $FORK has none.
   if [ "$side" = front ]; then
     local out="$OUT/front-$(basename "$(dirname "$entry")").js" wrap="$OUT/front-$(basename "$(dirname "$entry")")-entry.tsx"
@@ -97,7 +99,7 @@ bundle() {
     [ -d "$mods" ] || mods="$HOME/dragonbreak/fork/skymp5-front/node_modules"
     # The widget's named exports come too, so a harness can render a part that only a click would show
     printf "export * from '%s';\nexport { default as Widget } from '%s';\nexport { renderToStaticMarkup } from 'react-dom/server';\nexport { createElement } from 'react';\n" "$root/$entry" "$root/$entry" > "$wrap"
-    [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.scss=empty --outfile="$out" --log-level=error || return 1
+    [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.scss=empty --loader:.png=empty --loader:.jpg=empty --loader:.gif=empty --loader:.svg=empty --outfile="$out" --log-level=error || return 1
     echo "$out"; return 0
   fi
   local out="$OUT/$side-$(basename "${entry%.ts}").js"
