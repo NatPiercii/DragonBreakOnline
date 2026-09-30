@@ -27,7 +27,7 @@
 // spell of the school), so the Wheel's hourly bucket and daily caps hold for them as for any cast.
 //
 // State, on the character: private.dboSchools
-//   { v, primary, secondary, levels: { <school>: { level, xp } }, study: { windowAt, usedMs }, cast: { day, units: {} },
+//   { v, primary, secondary, levels: { <school>: { level, xp } }, study: { log: [[from, to] ms...] }, cast: { day, units: {} },
 //     ring: [{ h, at }], classAt, paidAt, teacher: { by, at } }
 // Classes live on globalThis and end with the process (a restart cancels a class in progress).
 'use strict';
@@ -40,6 +40,10 @@ module.exports = (api) => {
     enabled: true,
     requireClient: true,
     schools: ['Destruction', 'Illusion', 'Conjuration', 'Alteration'],
+    // Nate, 2026-09-30: Alteration is "both for priest and arcane". 'both': a Priest's path or the school's takes an
+    // Alteration spell, and a cast credits Arcane Arts and the school for a mage who chose it, Priest otherwise. 'arcane':
+    // the school's path alone. 'priest': Priest's alone, and Alteration is no school here.
+    alteration: 'both',
     arcaneSkill: 'arcane',
     secondaryAtLevel: 76,
     secondaryStartLevel: 33,
@@ -71,7 +75,8 @@ module.exports = (api) => {
     classes: Object.assign({}, DEFAULTS.classes, raw.classes || {}),
     wheel: Object.assign({}, DEFAULTS.wheel, raw.wheel || {}),
   });
-  const SCHOOLS = (Array.isArray(C.schools) ? C.schools : DEFAULTS.schools).map(String);
+  const ALTERATION = ['both', 'arcane', 'priest'].includes(String(C.alteration)) ? String(C.alteration) : 'both';
+  const SCHOOLS = (Array.isArray(C.schools) ? C.schools : DEFAULTS.schools).map(String).filter((n) => n !== 'Alteration' || ALTERATION !== 'priest');
   const RANKS = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   // One line each for the choice, as the colleges of the Fourth Era teach them
   const BLURB = {
@@ -126,13 +131,14 @@ module.exports = (api) => {
     return { held: !!(r && Array.isArray(r.order) && r.order.includes(C.arcaneSkill)), level: p ? Math.max(0, Number(p.level) || 0) : 0 };
   };
   const bookOf = (a) => { try { return typeof globalThis.__dboSpellsBook === 'function' ? (globalThis.__dboSpellsBook(a) || []) : []; } catch (e) { return []; } };
-  const fresh = () => ({ v: 1, primary: null, secondary: null, levels: {}, study: { windowAt: 0, usedMs: 0 }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
+  const fresh = () => ({ v: 1, primary: null, secondary: null, levels: {}, study: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
   // A mage from before the rework keeps what they had: the school most of their studied spells belong to becomes the
   // primary at their Arcane Arts level, and a second school they hold spells of becomes the secondary when the level
   // allows one. Anyone else starts with no school and chooses.
   const migrate = (a, s) => {
     const arc = arcaneOf(a);
-    const book = bookOf(a).filter((sp) => sp && SCHOOLS.includes(sp.school));
+    // Spells of the Arcane Arts book only: a priest's Alteration spells never force a school on them
+    const book = bookOf(a).filter((sp) => sp && SCHOOLS.includes(sp.school) && (!sp.book || sp.book === C.arcaneSkill));
     if (!arc.held || !book.length) return s;
     const by = new Map();
     for (const sp of book) { const e = by.get(sp.school) || { n: 0, top: -1 }; e.n++; e.top = Math.max(e.top, Number(sp.rank) || 0); by.set(sp.school, e); }
@@ -240,6 +246,17 @@ module.exports = (api) => {
     return null;
   };
 
+  // ---- Alteration, both Priest's and Arcane Arts' ------------------------------------------------------------------
+  // spells.js asks which rule holds for this character: an old client keeps Priest's alone, as before the schools
+  globalThis.__dboSchoolsAlteration = (a) => (ready(a) ? ALTERATION : 'priest');
+  // masterySystem asks which one skill a player's cast of a school credits (its cast route); undefined keeps skills.json,
+  // which gives Alteration to Priest. The study and class credit below goes through the same route.
+  globalThis.__dboCastSkill = (actorId, school) => {
+    if (school !== 'Alteration' || ALTERATION === 'priest' || !ready(actorId) || !isPlayer(actorId)) return undefined;
+    if (ALTERATION === 'arcane') return C.arcaneSkill;
+    return active(stateOf(actorId), 'Alteration') ? C.arcaneSkill : undefined;
+  };
+
   // ---- casting -------------------------------------------------------------------------------------------------
   const today = () => new Date(Date.now()).toISOString().slice(0, 10);
   globalThis.__dboSchoolsCast = (casterId, spellId) => {
@@ -264,6 +281,10 @@ module.exports = (api) => {
     tellGain(casterId, sp.school, before, s);
   };
 
+  // A panel's nonce names its panel and never repeats: the K menu and the study shelf answer the same school choice, and
+  // two opened in one millisecond must not be taken for each other
+  const mkNonce = (kind, a) => { const st = globalThis.__dboSchoolsState || (globalThis.__dboSchoolsState = {}); st.seq = (Number(st.seq) || 0) + 1; return `${kind}${(a >>> 0).toString(16)}-${Date.now().toString(36)}-${st.seq.toString(36)}`; };
+
   // ---- the K menu: school meters on the Arcane Arts page (dboSchoolProgress) ---------------------------------------
   const menuNonces = globalThis.__dboSchoolsMenuNonces instanceof Map ? globalThis.__dboSchoolsMenuNonces : (globalThis.__dboSchoolsMenuNonces = new Map());
   const progressOf = (a) => {
@@ -271,7 +292,7 @@ module.exports = (api) => {
     const s = stateOf(a);
     const arc = arcaneOf(a);
     const secondaryOpen = !!s.primary && !s.secondary && arc.level >= C.secondaryAtLevel;
-    const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+    const nonce = mkNonce('m', a);
     menuNonces.set(a >>> 0, nonce);
     return {
       skill: C.arcaneSkill,
@@ -351,14 +372,28 @@ module.exports = (api) => {
   const anim = (a, ev) => { if (!ev) return; try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: descOf(a) }, ev]); } catch (e) { log(`schools: ${ev} failed for ${display(a)}: ${e.message}`); } };
   const windowMs = () => Math.max(1, Number(C.study.windowHours) || 4) * HOUR;
   const budgetMs = () => Math.max(0, Number(C.study.minutesPerWindow) || 0) * MIN;
-  // { usedMs, leftMs, resetsIn } of the study window
-  const studyBudget = (s) => {
-    const now = Date.now();
-    const w = s.study && now - (Number(s.study.windowAt) || 0) < windowMs() ? s.study : { windowAt: 0, usedMs: 0 };
-    const used = Number(w.usedMs) || 0;
-    return { usedMs: used, leftMs: Math.max(0, budgetMs() - used), resetsIn: w.windowAt ? Math.max(0, w.windowAt + windowMs() - now) : 0 };
+  // The sittings of the last windowHours, as [from, to]; a record from before the rolling window is one sitting
+  const studyLog = (s) => {
+    const st = s.study || {};
+    const log = Array.isArray(st.log) ? st.log : (Number(st.usedMs) > 0 ? [[Number(st.windowAt) || 0, (Number(st.windowAt) || 0) + Number(st.usedMs)]] : []);
+    return log.filter((x) => Array.isArray(x) && Number(x[1]) > Date.now() - windowMs()).map((x) => [Number(x[0]) || 0, Number(x[1]) || 0]);
   };
-  const firstSpell = (a) => bookOf(a).find((sp) => sp && SCHOOLS.includes(sp.school)) || null;
+  // Study time inside the rolling window that ends at `at`
+  const usedAt = (log, at) => log.reduce((n, [from, to]) => n + Math.max(0, Math.min(to, at) - Math.max(from, at - windowMs())), 0);
+  // { usedMs, leftMs, resetsIn }: resetsIn is how long until the window has room for one more tick
+  const studyBudget = (s) => {
+    const now = Date.now(), log = studyLog(s), used = usedAt(log, now);
+    const room = budgetMs() - Math.max(1000, C.study.tickSeconds * 1000);
+    let resetsIn = 0;
+    if (used > room) {
+      let lo = 0, hi = windowMs();
+      while (hi - lo > 1000) { const mid = (lo + hi) / 2; if (usedAt(log, now + mid) > room) lo = mid; else hi = mid; }
+      resetsIn = hi;
+    }
+    return { usedMs: used, leftMs: Math.max(0, budgetMs() - used), resetsIn };
+  };
+  // A spell learned through Arcane Arts: a priest's Alteration spells do not close the shelves to a new mage
+  const firstSpell = (a) => bookOf(a).find((sp) => sp && SCHOOLS.includes(sp.school) && (!sp.book || sp.book === C.arcaneSkill)) || null;
   // Why `a` cannot study now, or ''
   const studyRefusal = (a, s) => {
     if (!C.enabled || !C.study.enabled) return 'Study is closed.';
@@ -375,7 +410,7 @@ module.exports = (api) => {
     const s = stateOf(a);
     // A refresh keeps the panel's nonce, so a click in flight still counts and the panel keeps an open question
     const kept = !focus && studyAt.get(a >>> 0) === ref ? studyNonces.get(a >>> 0) : '';
-    const nonce = kept || `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+    const nonce = kept || mkNonce('s', a);
     studyNonces.set(a >>> 0, nonce);
     studyAt.set(a >>> 0, ref);
     const ses = S.studying.get(a >>> 0);
@@ -411,11 +446,10 @@ module.exports = (api) => {
     S.studying.delete(a >>> 0);
     anim(a, C.study.exitAnim);
     const s = stateOf(a);
-    const b = s.study && Date.now() - (Number(s.study.windowAt) || 0) < windowMs() ? s.study : { windowAt: ses.at, usedMs: 0 };
-    s.study = { windowAt: b.windowAt || ses.at, usedMs: (Number(b.usedMs) || 0) + Math.max(0, ses.lastTick - ses.at) };
+    s.study = { log: studyLog(s).concat(ses.lastTick > ses.at ? [[ses.at, ses.lastTick]] : []) };
     save(a, s);
     audit(`SCHOOLS ${who(a)} stopped studying (${why}): +${Math.round(ses.gained * 10) / 10} units of ${s.primary}`);
-    if (why !== 'offline' && why !== 'closed') personal(a, why === 'budget' ? `You've done enough studying for the day. Come back in ${inWords(windowMs() - (Date.now() - s.study.windowAt))}.` : `You close the books.${ses.gained > 0 ? ` Your study of ${s.primary} stands at ${levelOf(s, s.primary)}.` : ''}`);
+    if (why !== 'offline' && why !== 'closed') personal(a, why === 'budget' ? `You've done enough studying for the day. Come back in ${inWords(studyBudget(s).resetsIn || windowMs())}.` : `You close the books.${ses.gained > 0 ? ` Your study of ${s.primary} stands at ${levelOf(s, s.primary)}.` : ''}`);
   };
   // One study tick for every reader: pays whole ticks only, stops a reader who walked off, left or ran out of time
   const studyTick = () => {
@@ -548,7 +582,7 @@ module.exports = (api) => {
   };
   const openLectern = (a, ref, result, resultKind, focus = true) => {
     const was = lecternOpen.get(a >>> 0);
-    const nonce = (!focus && was && was.ref === ref && was.nonce) || `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+    const nonce = (!focus && was && was.ref === ref && was.nonce) || mkNonce('l', a);
     lecternOpen.set(a >>> 0, { ref, nonce });
     const k = classOf(ref);
     const base = { type: 'classLectern', id: CLASS_PANEL_ID, nonce, title: 'Class Lectern', result: result || '', resultKind: resultKind || '',
@@ -728,5 +762,5 @@ module.exports = (api) => {
     personal(a, `${display(t)}: ${SCHOOLS.map((n) => `${n} ${roleOf(s, n)}${active(s, n) ? ` ${levelOf(s, n)}` : ''}`).join(', ')}; Arcane Arts ${arcaneOf(t).level}${s.teacher ? '; a named teacher' : ''}.`);
   }, { admin: true, help: 'a player\'s schools of magic (or reset them)' });
 
-  log(`schools ${C.enabled ? 'on' : 'off'}: ${SCHOOLS.join(', ')}; secondary at Arcane Arts ${C.secondaryAtLevel} from ${C.secondaryStartLevel}; study ${C.study.enabled ? `${C.study.minutesPerWindow} min per ${C.study.windowHours} h at ${C.study.edid}${STUDY_REFS.size ? ` + ${STUDY_REFS.size} refs` : ''}` : 'off'}; classes ${C.classes.enabled ? `${C.classes.minutes} min at ${C.classes.edid}${LECTERN_REFS.size ? ` + ${LECTERN_REFS.size} refs` : ''}, ${S.classes.size} running` : 'off'}; school spells ${Object.keys(SCHOOL_SPELL).length}`);
+  log(`schools ${C.enabled ? 'on' : 'off'}: ${SCHOOLS.join(', ')}; secondary at Arcane Arts ${C.secondaryAtLevel} from ${C.secondaryStartLevel}; study ${C.study.enabled ? `${C.study.minutesPerWindow} min per ${C.study.windowHours} h at ${C.study.edid}${STUDY_REFS.size ? ` + ${STUDY_REFS.size} refs` : ''}` : 'off'}; classes ${C.classes.enabled ? `${C.classes.minutes} min at ${C.classes.edid}${LECTERN_REFS.size ? ` + ${LECTERN_REFS.size} refs` : ''}, ${S.classes.size} running` : 'off'}; school spells ${Object.keys(SCHOOL_SPELL).length}; Alteration ${ALTERATION}`);
 };

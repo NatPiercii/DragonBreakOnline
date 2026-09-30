@@ -1029,6 +1029,8 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboRaidActivate && globalThis.__dboRaidActivate(target, caster)) return false;
   // Study Magic and the Class Lectern (schools.js): their own panels, before a book on the shelf can start a reading
   if (globalThis.__dboSchoolsActivate && globalThis.__dboSchoolsActivate(target, caster)) return false;
+  // A guild's own workshop (spells.js): the Synod Conclave's enchanting table, for Synod and College members
+  if (globalThis.__dboGuildWorkshop && globalThis.__dboGuildWorkshop(target, caster)) return false;
   if (globalThis.__dboReadBook && globalThis.__dboReadBook(target, caster)) return false;
   if (globalThis.__dboLabour && globalThis.__dboLabour(targetId >>> 0, casterId >>> 0)) return false;
   if (globalThis.__dboPrayerActivate && globalThis.__dboPrayerActivate(targetId >>> 0, casterId >>> 0)) return false;
@@ -4677,13 +4679,13 @@ try {
   const SPELLS_JS = path.resolve('spells.js');
   delete require.cache[SPELLS_JS];
   require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury, every });
-} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify']) globalThis[k] = null; }
+} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop']) globalThis[k] = null; }
 // ---- the schools of magic, Study Magic and the Class Lectern (server\schools.js, config "schools"): after spells.js, whose spellbook it reads ----
 try {
   const SCHOOLS_JS = path.resolve('schools.js');
   delete require.cache[SCHOOLS_JS];
   require(SCHOOLS_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, every, sendPacket, isAdmin, findByName, isWorldspace, profileOf });
-} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate']) globalThis[k] = null; }
+} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill']) globalThis[k] = null; }
 
 // ---- the bank: one account per character in every town's bank, treasuries pay-in only (server\bank.js, WAR_DESIGN.md) ----
 try {
