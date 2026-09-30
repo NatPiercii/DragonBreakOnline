@@ -231,11 +231,11 @@ const distanceMeters = (a, b) => {
 };
 // distanceMeters costs four engine reads per pair; a message to everyone in range reads the
 // speaker once and skips anyone in another world on a single read
-const sendNear = (fromActor, rangeM, line, includeSelf) => {
-  const tagged = `[[B${fromActor.toString(16)}]]${line}`;
+const actorsNear = (fromActor, rangeM, includeSelf) => {
+  const out = [];
   let world = null; let from = null;
-  try { world = mp.get(fromActor, 'worldOrCellDesc'); from = mp.get(fromActor, 'pos'); } catch (e) { return; }
-  if (!Array.isArray(from)) return;
+  try { world = mp.get(fromActor, 'worldOrCellDesc'); from = mp.get(fromActor, 'pos'); } catch (e) { return out; }
+  if (!Array.isArray(from)) return out;
   const reach = rangeM * UNITS_PER_METER;
   for (const a of onlineActors()) {
     if (a === fromActor && !includeSelf) continue;
@@ -245,9 +245,40 @@ const sendNear = (fromActor, rangeM, line, includeSelf) => {
       const dx = p[0] - from[0]; const dy = p[1] - from[1]; const dz = p[2] - from[2];
       if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
     } catch (e) { continue; }
-    deliver(a, tagged);
+    out.push(a);
   }
+  return out;
 };
+const sendNear = (fromActor, rangeM, line, includeSelf) => {
+  const tagged = `[[B${fromActor.toString(16)}]]${line}`;
+  for (const a of actorsNear(fromActor, rangeM, includeSelf)) deliver(a, tagged);
+};
+// ---- chat bubbles: an in-character local line also floats over the speaker's head ----
+// For players who cannot hear or use voice (Nate, 30 Sep; #suggestions "Floating Text"). The client drew bubbles from
+// the chat line's [[B<id>]] tag, but that is the server's actor id, which the game on a player's PC does not know, and
+// the speaker never gets their own line back, so no bubble ever showed. Now everyone the line reaches, the speaker
+// included, gets { customPacketType: 'dboBubble', from: <server actor id>, text, color, rangeM }; the client maps the id
+// to its own copy of the speaker. Spoken lines and /me /my only: never OOC, /do (narration, not the speaker), PMs or
+// staff channels. A whisper reaches only the whisper's own range, like its chat line.
+const BUBBLE_MAX_CHARS = 200;
+const bubbleFor = (cmd, name, body) => {
+  const text = String(body || '').replace(/#\{/g, '# {').replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  const said = { say: '', wide: '', shout: '', low: '(quietly) ', whisper: '(whispers) ' };
+  if (Object.prototype.hasOwnProperty.call(said, cmd)) {
+    return { text: `${said[cmd]}"${text}"`.slice(0, BUBBLE_MAX_CHARS), color: cmd === 'shout' ? C.SHOUT : C.WHITE };
+  }
+  if (cmd === 'me' || cmd === 'melow' || cmd === 'melong') return { text: `*${name} ${text}*`.slice(0, BUBBLE_MAX_CHARS), color: C.ME };
+  if (cmd === 'my' || cmd === 'mylow' || cmd === 'mylong') return { text: `*${name}'s ${text}*`.slice(0, BUBBLE_MAX_CHARS), color: C.ME };
+  return null;
+};
+const bubbleNear = (fromActor, rangeM, cmd, name, body) => {
+  const b = bubbleFor(cmd, name, body);
+  if (!b) return;
+  const packet = { customPacketType: 'dboBubble', from: fromActor, text: b.text, color: b.color, rangeM };
+  for (const a of actorsNear(fromActor, rangeM, true)) sendPacket(a, packet);
+};
+// ---- end chat bubbles ----
 const broadcast = (line, onlyAdmins) => { for (const a of onlineActors()) if (!onlyAdmins || isAdmin(a)) deliver(a, line); };
 const findByName = (query) => {
   let q = String(query).trim().toLowerCase(); const all = onlineActors();
@@ -930,7 +961,7 @@ const handleChat = (userId, text) => {
   // what is measured is what is said, after the command
   if (body.length > Number(FLOOD.chatMaxChars) && !isAdmin(a)) return personal(a, `That message is too long (${Number(FLOOD.chatMaxChars)} characters at most).`);
   const spoken = { say: ['says', R.say, C.WHITE], low: ['says quietly', R.low, C.WHITE], whisper: ['whispers', R.whisper, C.WHITE], wide: ['says loudly', R.wide, C.WHITE], shout: ['shouts', R.shout, C.SHOUT] };
-  if (spoken[cmd]) { if (body) sendNear(a, spoken[cmd][1], quoteSay(name, spoken[cmd][0], body, spoken[cmd][2])); return; }
+  if (spoken[cmd]) { if (body) { sendNear(a, spoken[cmd][1], quoteSay(name, spoken[cmd][0], body, spoken[cmd][2])); bubbleNear(a, spoken[cmd][1], cmd, name, body); } return; }
   const emotes = {
     me: [`#{${C.ME}}${name} ${body}`, R.emote], melow: [`#{${C.ME}}${name} ${body}`, R.emoteLow], melong: [`#{${C.ME}}${name} ${body}`, R.emoteLong],
     my: [`#{${C.ME}}${name}'s ${body}`, R.emote], mylow: [`#{${C.ME}}${name}'s ${body}`, R.emoteLow], mylong: [`#{${C.ME}}${name}'s ${body}`, R.emoteLong],
@@ -938,7 +969,7 @@ const handleChat = (userId, text) => {
     looc: [`#{${C.OOC}}${name} (OOC): "${body}"`, R.looc], ooc: [`#{${C.OOC}}${name} (OOC): "${body}"`, R.looc],
     ooclow: [`#{${C.OOC}}${name} (OOC - Low): "${body}"`, R.loocLow], ooclong: [`#{${C.OOC}}${name} (OOC - Long): "${body}"`, R.loocLong],
   };
-  if (emotes[cmd]) { if (body) sendNear(a, emotes[cmd][1], emotes[cmd][0]); return; }
+  if (emotes[cmd]) { if (body) { sendNear(a, emotes[cmd][1], emotes[cmd][0]); bubbleNear(a, emotes[cmd][1], cmd, name, body); } return; }
   if (cmd === 'pm' || cmd === 'dm' || cmd === 'to' || cmd === 'too') {
     const i = body.indexOf(' '); const target = i < 0 ? body : body.slice(0, i); const msg = i < 0 ? '' : body.slice(i + 1).trim();
     if (!target || !msg) return personal(a, 'Usage: /pm <player> <message>');
