@@ -203,6 +203,22 @@ bloodyWith([P_LIPS, P_CHIN], [{ texturePath: 'TintMasks\\MaleHeadNord_Lips.dds',
 fire('swimming', V);
 ok(lipsOf(V) === -13424870 && state(V).blood && state(V).blood.prev.length === 1 && state(V).blood.prev[0].type === 11,
   'what cannot be put back while blood is still on the face is kept for the next wash, not thrown away', state(V).blood);
+said.length = 0;
+fire('swimming', V);
+ok(!heard(V, /water runs red/), 'a partial wash does not say the water runs clear');
+// Worker B: an appearance that cannot be read is not a clean face
+store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: { prev: [P_LIPS, P_CHIN], at: now } }));
+store.delete(`${V}|appearance`);
+fire('swimming', V);
+ok(state(V).blood && state(V).blood.prev.length === 2, 'an appearance that cannot be read keeps every original for the next wash', state(V).blood);
+store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: [Object.assign({}, P_LIPS, { argb: BL }), Object.assign({}, P_CHIN, { argb: BC })] });
+fire('swimming', V);
+ok(!state(V).blood && lipsOf(V) === -13424870 && chinOf(V) === 16777215, 'and the next wash, with the appearance back, puts them all back');
+// Worker B: the colours are the ones this blood put on, not today's config
+store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: { prev: [Object.assign({}, P_LIPS, { applied: 0x11223344 })], at: now } }));
+store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: [{ texturePath: 'TintMasks\\MaleHeadImperial_Lips.dds', type: 1, argb: 0x11223344 }, P_CHIN] });
+fire('swimming', V);
+ok(!state(V).blood && lipsOf(V) === -13424870, 'blood put on with an older colour still washes off after the config changed');
 store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: null }));
 store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: tints() });
 // A client without the feeding service could never wash it off: no blood for it

@@ -877,7 +877,7 @@ module.exports = (api) => {
     let picks = [[firstOf(TINT_LIPS), C.blood.lips], [firstOf(TINT_CHIN), C.blood.chin]].filter(([i]) => i >= 0);
     if (!picks.length && firstOf(TINT_DIRT) >= 0) picks = [[firstOf(TINT_DIRT), C.blood.chin]];
     if (!picks.length) return false;
-    s.blood = { prev: picks.map(([i]) => ({ texturePath: tints[i].texturePath, type: tints[i].type, argb: tints[i].argb })), at: Date.now() };
+    s.blood = { prev: picks.map(([i, argb]) => ({ texturePath: tints[i].texturePath, type: tints[i].type, argb: tints[i].argb, applied: (Number(argb) >>> 0) | 0 })), at: Date.now() };
     for (const [i, argb] of picks) tints[i].argb = (Number(argb) >>> 0) | 0;
     saveState(a, s);
     mp.set(a, 'appearance', Object.assign({}, app, { tints }));
@@ -890,13 +890,21 @@ module.exports = (api) => {
   // are dropped only when nothing is left to undo: all put back, or no blood colour left on the face (a new face replaced
   // the bloody one, so there is nothing of ours on it). Otherwise what could not be put back is kept for the next wash
   // (Worker B's review, 2026-09-30: clearing first threw the originals away when the list had changed).
+  // The colours this blood put on: kept with it since 2026-09-30 (a config change must not strand blood already on a face),
+  // today's config for blood from before that (Worker B's review)
   const BLOOD_TYPES = new Set([TINT_LIPS, TINT_CHIN, TINT_DIRT]);
-  const isBloodColour = (argb) => [C.blood.lips, C.blood.chin].some((c) => ((Number(c) >>> 0) | 0) === ((Number(argb) >>> 0) | 0));
+  const norm = (x) => (Number(x) >>> 0) | 0;
+  // Returns 'clean' (all undone, the state ended), 'partial' (some undone, the rest kept for the next wash), 'kept'
+  // (nothing could be done now, all kept: the appearance could not be read, say), or '' (no blood)
   const washBlood = (a, why) => {
-    const s = stateOf(a); if (!s || !s.blood) return false;
+    const s = stateOf(a); if (!s || !s.blood) return '';
     const prev = Array.isArray(s.blood.prev) ? s.blood.prev : [];
+    const colours = new Set(prev.map((p) => p.applied).filter((x) => x !== undefined).map(norm).concat([C.blood.lips, C.blood.chin].map(norm)));
+    const isBloodColour = (argb) => colours.has(norm(argb));
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { app = null; }
-    const tints = app && Array.isArray(app.tints) ? app.tints.map((x) => Object.assign({}, x)) : [];
+    // An appearance that cannot be read is not a clean face: keep everything and let the next wash try (Worker B)
+    if (!app || !Array.isArray(app.tints)) { log(`supernatural: ${display(a)}'s appearance could not be read to wash (${why}); the blood is kept`); return 'kept'; }
+    const tints = app.tints.map((x) => Object.assign({}, x));
     const used = new Set();
     const remaining = [];
     let restored = 0;
@@ -913,15 +921,15 @@ module.exports = (api) => {
     if (remaining.length && stillBloody) {
       s.blood = Object.assign({}, s.blood, { prev: remaining }); saveState(a, s);
       log(`supernatural: ${display(a)} washed ${restored} of ${prev.length} blood layer(s) off (${why}); ${remaining.length} kept for the next wash`);
-      return restored > 0;
+      return restored > 0 ? 'partial' : 'kept';
     }
     s.blood = null; saveState(a, s);
     try { sendPacket(a, { customPacketType: 'dboBloody', on: false }); } catch (e) { /* old client */ }
     log(`supernatural: ${display(a)} washed the blood off (${why})${remaining.length ? `; ${remaining.length} layer(s) had no blood left to undo` : ''}`);
-    return true;
+    return 'clean';
   };
   // The client says so while there is blood to wash and the player is in water (VampireFeedService)
-  onUi('swimming', (a) => { if (washBlood(a, 'water')) personal(a, 'The water runs red, then clear.'); });
+  onUi('swimming', (a) => { if (washBlood(a, 'water') === 'clean') personal(a, 'The water runs red, then clear.'); });
 
   // ---- feeding takes time (Onny's suggestion, Nate 2026-09-30) ---------------------------------------------------
   // One feed at a time per feeder and per victim. It holds while both stay close, the feeder unhurt and still what they
@@ -1450,7 +1458,11 @@ module.exports = (api) => {
     else if (w === 'crown') { if (kindOf(t) !== 'vampire') becomeVampire(t, true); takeCrown(t, `given it by GM ${nameOf(a)}`); }
     // For staff checking how the blood looks, on themselves or a vampire who agreed to it
     else if (w === 'bloody') { if (kindOf(t) !== 'vampire' || !applyBlood(t)) return personal(a, `${display(t)} is not a vampire, is in beast form, has no lips or chin tint, or is bloody already.`); }
-    else if (w === 'wash') { if (!washBlood(t, `GM ${nameOf(a)}`)) return personal(a, `${display(t)} has no blood to wash.`); }
+    else if (w === 'wash') {
+      const r = washBlood(t, `GM ${nameOf(a)}`);
+      if (!r) return personal(a, `${display(t)} has no blood to wash.`);
+      if (r !== 'clean') return personal(a, `${display(t)}: ${r === 'partial' ? 'partly washed; the rest is kept for the next wash' : 'the appearance could not be read; the blood is kept'}.`);
+    }
     audit(`SUPERNATURAL GM ${who(a)} /curse ${display(t)} ${w}`);
     personal(a, `Done: ${display(t)} ${w}.`);
   }, { admin: true, help: '<player|me|#TAG> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|bloody|wash|status|restore>' });
