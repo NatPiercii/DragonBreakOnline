@@ -1309,9 +1309,10 @@ module.exports = (api) => {
     const packs = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a).filter((g) => g.kind === 'pack') : [];
     const rows = [{
       label: 'Pack',
-      value: packs.length ? packs.map((p) => `${p.name}, ${p.title}`).join('; ') : 'None: you hunt alone',
+      // A werewolf in no pack is a Lone Wolf (Nate 2026-09-30; greathunt.js /hunt and /status say the same)
+      value: packs.length ? packs.map((p) => `${p.name}, ${p.title}`).join('; ') : 'Lone Wolf',
       hint: alpha ? 'You lead your pack. You run with the pale coat, and the beast answers to you.'
-        : packs.length ? 'A packmate who brings the Pack Leader down, both in beast form, takes the pack.' : 'A pack takes you in only by invitation.',
+        : packs.length ? 'A packmate who brings the Pack Leader down, both in beast form, takes the pack.' : 'You belong to no pack and hunt alone. A pack takes you in only by invitation.',
     }];
     if (spared(a, s)) rows.push({ label: 'Beast form', value: 'At will', hint: alpha ? 'A Pack Leader is not held to a daily change.' : "Hircine's blessing frees you from the daily change." });
     else {

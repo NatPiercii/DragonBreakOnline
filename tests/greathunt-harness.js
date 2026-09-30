@@ -35,6 +35,9 @@ const api = {
 };
 delete globalThis.__dboGreatHunt;
 delete require.cache[HUNT];
+// The /status lines the module registers (gamemode.js __dboRegisterStatus)
+const statuses = new Map();
+globalThis.__dboRegisterStatus = (key, order, fn) => statuses.set(key, fn);
 const hunt = require(HUNT)(api);
 
 let failures = 0;
@@ -124,6 +127,15 @@ check('/hunt is for werewolves', /for those who carry the beast/.test(last(OTHER
 said.length = 0;
 commands.get('hunt')(WOLF);
 check('/hunt shows the rank, the renown and the next rank', /Fledgling of the Hunt, with 0 renown/.test(said[0].t) && /Prowler at 100 renown/.test(said[2].t), JSON.stringify(said.map((s) => s.t)));
+// A werewolf in no pack is a Lone Wolf (Nate 2026-09-30), in /hunt and /status alike
+check('/hunt names a packless werewolf a Lone Wolf', /^You are a Lone Wolf: you run with no pack\./.test((said[3] || {}).t), said[3] && said[3].t);
+check('...and /status says so', statuses.get('hunt')(WOLF) === 'Fledgling of the Hunt (0 renown), Lone Wolf', statuses.get('hunt')(WOLF));
+globalThis.__dboGuildsOf = (a) => (a === WOLF ? [{ id: 'pack-of-the-jerall', name: "Hircine's Pack of the Jerall", title: 'Hunter', kind: 'pack' }, { id: 'fighters', name: 'Fighters Guild', title: 'Member', kind: 'guild' }] : []);
+said.length = 0;
+commands.get('hunt')(WOLF);
+check("/hunt names a pack member's pack and rank, not their other factions", (said[3] || {}).t === "You run with Hircine's Pack of the Jerall as Hunter.", said[3] && said[3].t);
+check('...and so does /status', statuses.get('hunt')(WOLF) === "Fledgling of the Hunt (0 renown), Hunter of Hircine's Pack of the Jerall", statuses.get('hunt')(WOLF));
+delete globalThis.__dboGuildsOf;
 
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);

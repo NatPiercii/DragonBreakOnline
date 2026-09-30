@@ -75,7 +75,7 @@ t = text(renderToStaticMarkup(createElement(CurseStage, { curse: wolf })));
 check("the werewolf's tab: its title and creed", /Prowler of the Hunt/.test(t) && /Hircine's blood runs in you/.test(t), t);
 check('...where they stand: 130 renown, Prowler, 170 more to Hunter', /130 renown Prowler/.test(t) && /170 more renown to Hunter\./.test(t), t);
 check('...how renown is earned', /an animal 5/.test(t), t);
-check('...each fact with its hint', /Pack None: you hunt alone A pack takes you in only by invitation\./.test(t) && /Beast form today 1 of 1 used The beast stirs again/.test(t) && /The beast within Restless/.test(t), t);
+check('...each fact with its hint', /Pack Lone Wolf You belong to no pack and hunt alone\. A pack takes you in only by invitation\./.test(t) && /Beast form today 1 of 1 used The beast stirs again/.test(t) && /The beast within Restless/.test(t), t);
 check('...and the powers', /Powers Beast Form Become the werewolf/.test(t) && /Howl of Terror/.test(t), t);
 const bar = renderToStaticMarkup(createElement(CurseStage, { curse: wolf })).match(/mastery__level-bar"><i style="width:([\d.]+)%/);
 check('the bar is 15% of the way from Prowler (100) to Hunter (300)', !!bar && Math.abs(Number(bar[1]) - 15) < 0.01, bar && bar[1]);
