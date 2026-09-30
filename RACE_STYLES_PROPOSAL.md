@@ -2,7 +2,7 @@
 
 Proposal only. Nothing is switched on. Nate, 2026-09-30: "certain gear is good to craft based of lore accuracy with race."
 
-**The idea:** a crafter may make their own people's traditional gear in any province, as an exception to the
+**The idea (race plus home province):** a crafter may make their own people's traditional gear in any province, as an exception to the
 province rule. An Orc forges Orcish in Bruma, a Dunmer makes chitin and Tribunal armour there, a Redguard makes Alik'r
 scimitars in Skyrim. Canon basis: the racial styles of Oblivion and Skyrim smithing, and ESO's racial motifs.
 
@@ -53,9 +53,9 @@ and Khajiit.
 
 ## 4. Questions for Nate
 
-1. **An exception, or exclusive?** Proposed: an exception (a Nord smith in Skyrim and an Orc anywhere both make
-   Orcish). The alternative: ONLY that race makes its style, everywhere, which would also refuse Orcish to a Nord in
-   Skyrim.
+1. **An exception, or exclusive?** Answered (Nate, relayed 2026-09-30): **race plus their home province**. A race
+   makes its own style anywhere, and anyone makes it inside its home province (the province rule as it is). The
+   dry run above already counts exactly that. Confirm the table in section 1 to turn it on.
 2. **Dunmer and the "solstheim" tag:** it mixes Dunmer chitin and bonemold with Skaal stalhrim. Give Dunmer only
    the Morrowind styles (166), or split the tag so chitin and bonemold are Dunmer and stalhrim is Nord (Skaal)?
 3. **Nord scope:** only the Nordic/draugr styles (6), or everything tagged "skyrim" (278, which also holds Forsworn
