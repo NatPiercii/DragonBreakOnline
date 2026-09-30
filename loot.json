@@ -57967,20 +57967,12 @@
 {
 "id": "353c:HearthFires.esm",
 "name": "BYOHFoodButter",
-"value": 1,
-"p": [
-"skyrim",
-"solstheim"
-]
+"value": 1
 },
 {
 "id": "3538:HearthFires.esm",
 "name": "BYOHFoodFlour",
-"value": 1,
-"p": [
-"skyrim",
-"solstheim"
-]
+"value": 1
 },
 {
 "id": "71a14:BSHeartland.esm",
@@ -58109,11 +58101,7 @@
 {
 "id": "3534:HearthFires.esm",
 "name": "BYOHFoodMilk",
-"value": 2,
-"p": [
-"skyrim",
-"solstheim"
-]
+"value": 2
 },
 {
 "id": "3537:HearthFires.esm",

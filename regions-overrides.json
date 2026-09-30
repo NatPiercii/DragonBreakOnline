@@ -28,7 +28,12 @@
     "DLC2StaffEnchanter": ["solstheim"],
     "CYRCraftingAyleidWell": ["cyrodiil"]
   },
-  "items": {},
+  "items": {
+    "_staples": "Butter, flour and milk are made and sold all over Tamriel (lore); only Hearthfire's own lists put them in Skyrim, so 17 Cook recipes could not be made in the Bruma lock (Worker F's cooking census, 30 Sep).",
+    "BYOHFoodButter": "common",
+    "BYOHFoodFlour": "common",
+    "BYOHFoodMilk": "common"
+  },
   "recipes": {},
   "tomes": { "ISS_SpellTomeConjureSkeleton": ["skyrim"] },
   "places": { "RealmofLorkhan": "none" }
