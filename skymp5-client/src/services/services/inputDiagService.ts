@@ -1,5 +1,7 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
-import { sendCustomPacket } from "./customPacketUtil";
+import { parseCustomPacket, sendCustomPacket } from "./customPacketUtil";
+import { CustomPacketMessage } from "../messages/customPacketMessage";
+import { readInputDiagRequest } from "./inputDiagRequest";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CreateActorMessage } from "../messages/createActorMessage";
 import { ButtonEvent, DxScanCode, InputDeviceType, Menu } from "skyrimPlatform";
@@ -10,6 +12,9 @@ import { ButtonEvent, DxScanCode, InputDeviceType, Menu } from "skyrimPlatform";
 //   held: every key the engine counts as down (Input.getNthKeyPressed); a stuck key shows here
 //   wasd: W A S D as the engine reads them; kb/mv: keyboard and movement button events since the last report
 //   ctl: movement fighting camSwitch looking sneaking menu activate journal controls, 1 = enabled
+// The server can open the same window again (dboInputDiag, inputDiagRequest.ts): downed.js does when a player falls,
+// to see whether a movement key held at death stays "down" after the panel has had the keyboard. Each report carries
+// the reason its window opened for.
 const WINDOW_MS = 180000;
 const POLL_MS = 500;
 const HEARTBEAT_MS = 15000;
@@ -24,12 +29,24 @@ export class InputDiagService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.controller.emitter.on("createActorMessage", (e) => this.onCreateActor(e));
+    this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("update", () => this.onUpdate());
   }
 
   private onCreateActor(e: ConnectionMessage<CreateActorMessage>) {
     if (!e.message.isMe) return;
+    this.open(WINDOW_MS, "login");
+  }
+
+  private onCustomPacketMessage(e: ConnectionMessage<CustomPacketMessage>) {
+    const req = readInputDiagRequest(parseCustomPacket(e));
+    if (req) this.open(req.ms, req.reason);
+  }
+
+  private open(ms: number, reason: string) {
+    this.windowMs = ms;
+    this.reason = reason;
     this.startedAt = Date.now();
     this.lastPoll = 0;
     this.lastSent = 0;
@@ -54,7 +71,7 @@ export class InputDiagService extends ClientListener {
     if (now - this.lastPoll < POLL_MS) return;
     this.lastPoll = now;
     const t = now - this.startedAt;
-    if (t > WINDOW_MS || this.reports >= MAX_REPORTS) {
+    if (t > this.windowMs || this.reports >= MAX_REPORTS) {
       this.send({ t, end: true, reports: this.reports });
       this.startedAt = 0;
       return;
@@ -109,10 +126,12 @@ export class InputDiagService extends ClientListener {
   private send(report: Record<string, unknown>) {
     this.reports++;
     this.lastSent = Date.now();
-    sendCustomPacket(this.controller, { customPacketType: "dbo", event: "npcDrift", args: [{ kind: "input", ...report }] });
+    sendCustomPacket(this.controller, { customPacketType: "dbo", event: "npcDrift", args: [{ kind: "input", reason: this.reason, ...report }] });
   }
 
   private startedAt = 0;
+  private windowMs = WINDOW_MS;
+  private reason = "login";
   private lastPoll = 0;
   private lastSent = 0;
   private lastStuck = 0;
