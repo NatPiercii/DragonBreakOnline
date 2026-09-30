@@ -204,7 +204,7 @@ module.exports = (api) => {
     if (DRAGON_MATERIALS.has(norm(descOf(Number(itemId) >>> 0)))) {
       if (Date.now() - (dragonToldAt.get(a) || 0) > 3000) {
         dragonToldAt.set(a, Date.now());
-        const text = 'Dragon bone and scale come only from a slain dragon; no craft makes them.';
+        const text = 'Dragon bone and scale come only from a slain dragon; no craft makes them. Your materials come back when you close the menu.';
         personal(a, text);
         try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
         audit(`DRAGON MATERIAL craft refused ${who(a)} recipe ${(Number(recipeId) >>> 0).toString(16)} -> ${descOf(Number(itemId) >>> 0)}`);
