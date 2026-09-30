@@ -755,3 +755,53 @@ TEST_CASE("A player's hit with a weapon no longer held is refused", "[Hit]")
   p.DestroyActor(kPlayer);
   DoDisconnect(p, 0);
 }
+
+TEST_CASE("A bound weapon hits although the inventory never holds it", "[Hit]")
+{
+  using namespace std::chrono_literals;
+  // Bound weapon spells equip a weapon the server inventory never holds (IsGrantedBoundItem, d2bcb8db). The
+  // held-weapon check added by b6f77dd8 dropped every one of those hits in silence (SNV2-1). Ids read from
+  // Skyrim.esm: SPEL BoundSword 000211EB grants WEAP BoundWeaponSword 00058F5F through MGEF BoundSwordFFSelf.
+  constexpr uint32_t kBoundSwordSpell = 0x000211EB, kBoundSword = 0x00058F5F;
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  constexpr uint32_t kPlayer = 0xff000000, kTarget = 0xff000001;
+  p.CreateActor(kPlayer, { 0, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kTarget, { 50, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, kPlayer);
+  auto& ac = p.worldState.GetFormAt<MpActor>(kPlayer);
+  ac.RegisterProfileId(1);
+
+  RawMessageData msgData;
+  msgData.userId = 0;
+  HitMessage hitMsg;
+  hitMsg.data.aggressor = 0x14;
+  hitMsg.data.target = kTarget;
+  hitMsg.data.source = kBoundSword;
+
+  // Equipped, and cast: the weapon is in no inventory, which is the whole point of a bound weapon
+  Equipment eq;
+  eq.inv.entries.push_back(Inventory::Entry(kBoundSword, 1, kExtraWornTrue));
+  eq.rightSpell = kBoundSwordSpell;
+  ac.SetEquipment(eq);
+  REQUIRE(ac.GetInventory().HasItem(kBoundSword) == false);
+
+  const auto past = std::chrono::steady_clock::now() - 10s;
+  ac.SetLastHitTime(kTarget, past);
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kTarget) > past);
+
+  // The same weapon without the spell is an ordinary weapon nobody holds, and is still refused: the fix must not
+  // widen b6f77dd8 into "any equipped weapon hits"
+  Equipment noSpell;
+  noSpell.inv.entries.push_back(Inventory::Entry(kBoundSword, 1, kExtraWornTrue));
+  ac.SetEquipment(noSpell);
+  const auto later = std::chrono::steady_clock::now() - 10s;
+  ac.SetLastHitTime(kTarget, later);
+  p.GetActionListener().OnHit(msgData, hitMsg);
+  REQUIRE(ac.GetLastHitTime(kTarget) == later);
+
+  p.DestroyActor(kTarget);
+  p.DestroyActor(kPlayer);
+  DoDisconnect(p, 0);
+}

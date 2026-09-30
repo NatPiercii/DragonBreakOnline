@@ -1866,9 +1866,13 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
   // Equipped and still held: moving an item (trade, container, drop) never rewrites the equipment record, so a
   // modified client that sent no equipment update kept hitting with a weapon it had given away (item-flow review,
   // 2026-09-29). Players only: a hosted NPC's server inventory need not hold what its template equips.
+  // A bound weapon is equipped but never held: the spell grants it, so the inventory check must accept it or every
+  // bound hit is dropped in silence (SNV2-1). d2bcb8db let it through OnUpdateEquipment for the same reason; a real
+  // weapon that was traded away is granted by no BoundWeapon spell, so b6f77dd8's protection still stands.
   if ((equipment.inv.HasItem(hitData.source) &&
        (aggressor->GetProfileId() == -1 ||
-        aggressor->GetInventory().HasItem(hitData.source))) ||
+        aggressor->GetInventory().HasItem(hitData.source) ||
+        IsGrantedBoundItem(*aggressor, hitData.source))) ||
       isUnarmed) {
     OnWeaponHit(aggressor, targetRef, hitData, isUnarmed);
     return;
