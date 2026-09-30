@@ -1,5 +1,28 @@
 [
   {
+    "title": "Better Loot, Brewing Help and Saltier Deposits",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Ordinary dungeons give their full loot again; expeditions keep their leaner chests.",
+          "A fallen warrior can now hand over the weapon or armour they were using when you search their body.",
+          "Chests that hold loot glow, and go dark once you have emptied them, not as soon as you open them."
+        ]
+      },
+      {
+        "heading": "Alchemy and gathering",
+        "items": [
+          "Using an alchemy lab now also shows every potion the ingredients you carry can make, and which two to combine.",
+          "A Sea Salt Deposit gives 4 salt a round instead of 2."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Champions Walk the Wilds",
     "date": "2026-09-30",
     "version": "Server update",
