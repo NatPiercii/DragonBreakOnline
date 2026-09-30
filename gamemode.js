@@ -4771,7 +4771,7 @@ try {
   const SCHOOLS_JS = path.resolve('schools.js');
   delete require.cache[SCHOOLS_JS];
   require(SCHOOLS_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, every, sendPacket, isAdmin, findByName, isWorldspace, profileOf });
-} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill']) globalThis[k] = null; }
+} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered']) globalThis[k] = null; }
 
 // ---- the bank: one account per character in every town's bank, treasuries pay-in only (server\bank.js, WAR_DESIGN.md) ----
 try {

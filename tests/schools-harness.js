@@ -371,7 +371,29 @@ put(OLDMAGE, 'private.dboStudied', { arcane: [T.boundSword[1], '640b6:Skyrim.esm
 p = progress(OLDMAGE);
 check('an existing mage is brought over: primary Conjuration (most spells) at their Arcane Arts level', rec(OLDMAGE).primary === 'Conjuration' && level(OLDMAGE, 'Conjuration') === 80, rec(OLDMAGE));
 check('...and Destruction, the school of their other spells, as the secondary at 33', rec(OLDMAGE).secondary === 'Destruction' && level(OLDMAGE, 'Destruction') === 33, rec(OLDMAGE));
-check('...audited once', out.audits.filter((l) => /SCHOOLS P19 brought over: primary Conjuration, secondary Destruction at Arcane Arts 80 \(3 studied spells\)/.test(l)).length === 1);
+check('...audited once, with why and the spells kept', out.audits.filter((l) => /SCHOOLS P19 brought over: primary Conjuration, secondary Destruction at Arcane Arts 80 \(3 studied spells, the most spells; 3 kept whatever their school\)/.test(l)).length === 1, out.audits.filter((l) => /P19/.test(l)));
+
+// ---- profile 4's shape (Worker E, live data): Arcane Arts 30, Priest 70, one Conjuration and one Illusion Novice spell ----
+const P4 = 0x1d, P4B = 0x1e, P4C = 0x1f;
+for (const x of [P4, P4B, P4C]) { put(x, 'profileId', x); at(x, SYNOD, [0, 0, 0]); ui('uiCaps', x, ['bank', 'spellbook', 'schools']); }
+online.push(P4, P4B, P4C);
+arcane(P4, 30); priestOf(P4, 70);
+put(P4, 'private.dboStudied', { arcane: [T.boundSword[1], T.courage[1]] });
+known(P4).add(idOf(T.boundSword[1])); known(P4).add(idOf(T.courage[1]));
+progress(P4);
+check('profile 4: a 1:1 tie of Novice spells goes to the school studied last (Illusion), and the log says why', rec(P4).primary === 'Illusion' && out.logs.some((l) => /brought over to Illusion \(a tie broken by the most recent study\): Illusion 1 spells, tiers 1, last #1; Conjuration 1 spells, tiers 1, last #0/.test(l)), [rec(P4), out.logs.filter((l) => /brought over/.test(l)).slice(-1)]);
+check('...both spells are kept whatever their school', rec(P4).grandfathered.length === 2 && globalThis.__dboSchoolsGrandfathered(P4, idOf(T.boundSword[1])) === true && globalThis.__dboSchoolsGrandfathered(P4, idOf(T.courage[1])) === true);
+check('...so Bound Sword (Conjuration, now a closed school) is never refused by the school gate', (() => { let r; try { r = globalThis.__dboSchoolsRefusal(P4, 'Conjuration', 0, 'You'); } catch (e) { r = e.message; } return /not one of your schools/.test(r || ''); })() && globalThis.__dboSchoolsGrandfathered(P4, idOf(T.boundSword[1])));
+check('...and a spell they never studied of that school still is', globalThis.__dboSchoolsGrandfathered(P4, idOf('640b6:Skyrim.esm')) === false);
+put(P4, 'private.dboPrepared', []); known(P4).delete(idOf(T.boundSword[1]));
+cmd('spells', P4);
+ui('spellbookPrepare', P4, [lastWidget(P4).nonce, T.boundSword[1]], 58);
+check('...Bound Sword is prepared at a college like any spell in the book', (props.get(P4 + '|private.dboPrepared') || []).includes(T.boundSword[1]) && known(P4).has(idOf(T.boundSword[1])), [props.get(P4 + '|private.dboPrepared'), lastWidget(P4).result]);
+// The other orders: Bound Sword studied last goes to Conjuration; an Apprentice spell outweighs a Novice one
+arcane(P4B, 30); put(P4B, 'private.dboStudied', { arcane: [T.courage[1], T.boundSword[1]] }); progress(P4B);
+check('the same tie studied the other way round goes to Conjuration', rec(P4B).primary === 'Conjuration');
+arcane(P4C, 30); put(P4C, 'private.dboStudied', { arcane: [T.calm[1], T.boundSword[1]] }); progress(P4C);
+check('a tie in spells goes to the most combined tiers first (Calm is Apprentice)', rec(P4C).primary === 'Illusion' && out.logs.some((l) => /brought over to Illusion \(a tie broken by the most combined tiers\)/.test(l)));
 
 // ---- Alteration, both Priest's and Arcane Arts' (Nate, 2026-09-30) ----
 priestOf(PRIESTLY, 5);
