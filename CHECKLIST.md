@@ -1,5 +1,22 @@
 # DragonBreak Online checklist (2026-09-14)
 
+## Added 2026-09-30: regions, lore families, and the craft gate on - PC session: regenerate
+
+Nate: "make ebony and glass common, shivering isles cyrodiil. we have to stay lore accurate above all else."
+
+- [x] `regions-overrides.json`: families `ebony` and `glass` are `"common"` (were Skyrim + Solstheim); alias
+  `shiveringisles` is `"cyrodiil"` (was Skyrim; the Shivering Isles door is in Niben Bay).
+- [x] `regions.json` patched on CT 115 to what `regions.py` writes with those overrides. 180 creation recipes
+  (63 ebony and 59 glass `family-table`, 58 Shivering Isles `plugin` via ccBGSSSE025-AdvDSGS.esm) and their 180
+  products. No place, tome or bench narrowing used these tags.
+- [ ] **PC: regenerate** `py ck-mcp\loot.py`, then `py ck-mcp\regions.py`, and check `regions.json` diffs empty
+  against this patch. The families also move the **loot classifier** (`loot.py` -> `loot.json`): ebony and
+  glass loot becomes legal in Cyrodiil, and Shivering Isles gear moves from Skyrim to Cyrodiil pools. That needs
+  the regenerated `loot.json` too, and nothing on CT 115 patched it.
+- [x] `regions.craft: true` (increment 9), after Nate's in-game rollback test. In Bruma it now refuses 953 of 2051
+  creation recipes, all foreign: Skyrim families (Nordic, Orcish, Dwarven, Blades, Stormcloak, giant, dragon),
+  Morrowind/Solstheim gear, staves and food, the Skyforge, Dawnguard and Aetherium benches, hold guard cloaks.
+
 ## Added 2026-09-29 (06:30 UTC): BrowserApi "off" backend falls through to Tilted - C++, next platform change
 
 `skyrim-platform/src/platform_se/skyrim_platform/BrowserApi.cpp`, `Register()`: `case Backend::kOff:` ends at
@@ -153,6 +170,8 @@ Nat said push both and deploy gameplay. Every harness passes (run them all with 
   item 1 was complete on disk (harness 61/61) and only needed committing. The tome filter is on (`/tomes` sells Cyrodiil
   tomes); **the craft gate stays off** (`regions.craft: false`) until one in-game test shows a refused craft keeps its
   materials: `/region test`, try a Skyrim-only recipe in Bruma, leave the forge, count the ingots.
+  **In-game rollback test passed (Nate, 2026-09-30):** with `/region test` on, a refused craft at a Bruma forge gave
+  the ingots back. The craft gate is on from increment 9 (`regions.craft: true`, see the 2026-09-30 block at the top).
 - [x] **PvP rebalance** (server `8273a192`, config `mastery` / `pvp`). Measured first from the live log: a naked player
   has 150 health; a Master two-hander hit for 25.6 + 7.7 (x1.30), 5 hits to kill. Now weapon tiers are
   +35/+65/+100% (4 hits, 2 with power attacks), fists use the Unarmed tier (source `0x1f4` never mapped to a skill,
