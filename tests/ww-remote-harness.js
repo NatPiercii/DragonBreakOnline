@@ -51,15 +51,16 @@ const saved = () => { try { return JSON.parse(fs.readFileSync('beastform-state.j
 let fail = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c || got === undefined ? '' : '   ' + JSON.stringify(got)}`); if (!c) fail++; };
 
-// ---- defaults: today's look -------------------------------------------------------------------------------------------
-ok(TRACKED.beastform && TRACKED.beastform.werewolfRemoteRace === true, 'the tracked gamemode-config.json has beastform.werewolfRemoteRace true (today\'s look)', TRACKED.beastform);
+// ---- defaults: the tracked config ships the crash mitigation (off, 2026-09-30) -------------------------------------------------------------------------------------------
+ok(TRACKED.beastform && TRACKED.beastform.werewolfRemoteRace === false, 'the tracked gamemode-config.json has beastform.werewolfRemoteRace false (the crash mitigation until the client guard is tested)', TRACKED.beastform);
 restart(TRACKED);
-ok(on(), 'a fresh process with no state file starts with the werewolf body on');
-ok(logs.some((l) => /werewolf remote body ON/.test(l)), 'and says so in the boot line', logs.filter((l) => /beastform on/.test(l)));
+ok(!on(), 'a fresh process with no state file starts with the werewolf body off');
+ok(logs.some((l) => /werewolf remote body off/.test(l)), 'and says so in the boot line', logs.filter((l) => /beastform on/.test(l)));
 ok(saved() === null, 'reading the config writes no state file');
-ok(change('werewolf') === true && raceShown() === WEREWOLF_RACE, 'on: a werewolf shows the beast race to other players', raceShown().toString(16));
+ok(change('werewolf') === true && raceShown() === HUMAN, 'off: a werewolf keeps its human appearance for other players', raceShown().toString(16));
 restart({});
 ok(on(), 'the code default is on when the config says nothing');
+ok(change('werewolf') === true && raceShown() === WEREWOLF_RACE, 'on: a werewolf shows the beast race to other players', raceShown().toString(16));
 
 // ---- /wwremote off: the mitigation ------------------------------------------------------------------------------------
 commands.get('vlremote')(WATCHER, 'on');
@@ -72,7 +73,7 @@ ok(change('vampirelord') === true && raceShown() === VL_RACE, 'the werewolf swit
 reload(TRACKED);
 ok(!on(), 'a hot reload keeps it off');
 restart(TRACKED);
-ok(!on(), 'a restart keeps it off, the file over the tracked config (on)');
+ok(!on(), 'a restart keeps it off');
 ok(logs.some((l) => /werewolf remote body off \(admin\)/.test(l)), 'and the boot line says who set it', logs.filter((l) => /beastform on/.test(l)));
 commands.get('vlremote')(WATCHER, 'off');
 ok(saved().werewolfRemote === false && saved().vampireLordRemote === false, '/vlremote writes keep the werewolf key', saved());
@@ -87,7 +88,7 @@ fs.writeFileSync('beastform-state.json', '{not json');
 restart({ beastform: { werewolfRemoteRace: false } });
 ok(!on(), 'an unreadable state file falls back to the config (off here)');
 restart(TRACKED);
-ok(on(), '...and to the tracked config (on)');
+ok(!on(), '...and to the tracked config (off)');
 
 // ---- wiring --------------------------------------------------------------------------------------------------------
 const gm = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');

@@ -727,7 +727,7 @@
  "beastform": {
   "_comment": "vampireLordRemoteRace: whether other players see the Vampire Lord body. Off since the 2026-09-29 crash breaker trip; /vlremote on|off changes it and beastform-state.json keeps that choice across restarts and deploys. werewolfRemoteRace: the same for a werewolf (on; /wwremote on|off, kept in the same file). Off stops the watcher crashes from a werewolf's relayed howls until the client guard (0.3.72+) is live, at the cost of watchers seeing a human play the werewolf's animations.",
   "vampireLordRemoteRace": false,
-  "werewolfRemoteRace": true
+  "werewolfRemoteRace": false
  },
  "offlineBody": {
   "_comment": "A logged-out player's body cannot be harmed (Nate, 2026-09-30), unless a blow landed on or by them in the last combatLogSeconds before the logout (combat logging). 0 = every logged-out body is safe.",

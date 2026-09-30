@@ -1,5 +1,20 @@
 [
   {
+    "title": "Werewolves Seen in Human Shape, For Now",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Beast forms",
+        "items": [
+          "For now, other players see a werewolf in its human shape, as they already do a Vampire Lord. A werewolf's howl could crash the game of anyone watching; the next client update fixes that, and the beasts come back once it has been tested.",
+          "Your own werewolf form looks and plays as before on your screen."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Schools of Magic",
     "date": "2026-09-30",
     "version": "Client 0.3.71",
