@@ -366,12 +366,16 @@ module.exports = (api) => {
   // Nat: ebony and daedric never come out of a dungeon (chests, bodies, corpses, or what an enemy is armed with).
   // Matched on the editor id, so the enchanted variants and the ingot go too. Config dungeons.bannedLoot overrides.
   const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric/i;
-  // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json). Nate,
-  // 2026-09-30: nor dragon bone and scales, which come only from a slain dragon (dragon-materials.json, exact editor ids)
+  // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json)
   const ARTIFACT = (() => {
-    const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p)
-      .concat((readJson('dragon-materials.json', { editorIds: [] }).editorIds || []).filter((e) => typeof e === 'string' && /^\w+$/.test(e)).map((e) => `^${e}$`));
+    const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);
     try { return list.length ? new RegExp(list.map((p) => `(?:${p})`).join('|'), 'i') : /$^/; } catch (e) { log('artifacts.json has a bad pattern', e.message); return /$^/; }
+  })();
+  // Nate, 2026-09-30: nor are dragon bone and scales, in any pool (dragon-materials.json, exact editor ids). Pools only:
+  // a slain dragon's own body keeps them, so what a corpse keeps is trimmed by ARTIFACT alone
+  const DRAGON_LOOT = (() => {
+    const ids = (readJson('dragon-materials.json', { editorIds: [] }).editorIds || []).filter((e) => typeof e === 'string' && /^\w+$/.test(e));
+    return ids.length ? new RegExp(`^(?:${ids.join('|')})$`, 'i') : /$^/;
   })();
   // Every expedition is an Ayleid ruin; before this the expeditions (keyworded only as caves) refused Ayleid grave goods
   const isAyleidRuin = (d) => !!d && (!!d.expedition || d.type === 'ayleid' || (d.keywords || []).some((k) => /Ayleid/i.test(k)) || /^CYR(Anga|Rielle|Sedor|Vilverin)/i.test(d.id || ''));
@@ -384,7 +388,7 @@ module.exports = (api) => {
     const ayleid = isAyleidRuin(d);
     const goblin = has(/GoblinDen/i);
     return (it) => {
-      if (BANNED_LOOT.test(it.name) || ARTIFACT.test(it.name)) return false;
+      if (BANNED_LOOT.test(it.name) || ARTIFACT.test(it.name) || DRAGON_LOOT.test(it.name)) return false;
       if (AYLEID_NAMES.has(it.name)) return false;   // Ayleid treasure comes only from its own table, by difficulty
       if (AYLEID_GEAR.test(it.name)) return ayleid;
       if (GOBLIN_GEAR.test(it.name)) return goblin;
@@ -399,7 +403,7 @@ module.exports = (api) => {
   const lootIngredients = (ok) => pool('ingredients', 0, ok).filter((it) => !EDIBLE.test(it.name));
   // Artifacts and Ebony/Daedric are refused here, for every draw: chestLoot, smallLoot and corpseLoot default to ALL_OK,
   // which skipped lootOk's BANNED_LOOT check, so a draw without a lease could still hand out Ebony or Daedric (2026-09-29)
-  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !BANNED_LOOT.test(String(it.name || '')) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
+  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !BANNED_LOOT.test(String(it.name || '')) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
   // Vanilla names potions by numeric strength, not by word: RestoreHealth01 is Minor, 03 Plentiful, 05
   // Extreme, 06 Ultimate; Resist* uses 25/50/75/100. The old word-matching tiers returned an empty array at
   // all four tiers against the live pool, so no potion dropped at any difficulty.
@@ -449,7 +453,7 @@ module.exports = (api) => {
   };
   const AYLEID_CFG = Object.assign({ enabled: true, ruins: 'expeditions' }, C.ayleidLoot || {});
   const ayleidTable = (diffId) => Object.assign({}, AYLEID_DEFAULTS[diffId] || AYLEID_DEFAULTS.normal, (AYLEID_CFG.byDifficulty || {})[diffId] || {});
-  const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')) && !ARTIFACT.test(String(it.name || '')));
+  const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')) && !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')));
   const AYLEID_NAMES = new Set(((readJson('ayleid-loot.json', { items: [] }).items) || []).map((it) => it && it.name).filter(Boolean));
   const AYLEID_TIERS = ['common', 'uncommon', 'rare', 'rarest'];
   const ayleidLootHere = (d) => AYLEID_CFG.enabled !== false && AYLEID_LOOT.length > 0 && (d && d.expedition || (AYLEID_CFG.ruins === 'all' && isAyleidRuin(d)));
