@@ -40,11 +40,12 @@ you play, and leave the Windows page file on **System managed**. 32 GB is better
 full party. You need Skyrim Special Edition on Steam (game version 1.6.1170); the launcher checks it for you.
 
 **Coming:** a full list of the PC you need, minimum and recommended. From launcher 2.1.36 the launcher tells us what
-hardware the game runs on, so the numbers will come from real players' machines rather than guesses.
+hardware the game runs on, so the numbers will come from real players' machines rather than guesses. Until then, our
+estimate is on [What PC you need](specs.md).
 
 <!-- Placeholder (30 Sep): fill the minimum and recommended table once launcher 2.1.36's hardware reports are in. The
 memory line is from the crash notes (four crashes on 23-24 Sep at 14.3-15.2 of 16 GB in use: a correlation, not a
-proven cause). docs-alpha-support's specs.md has an estimated table built from Bethesda's requirements. -->
+proven cause). specs.md holds the interim table, estimated from Bethesda's requirements. -->
 
 ## Other players don't see your Vampire Lord form
 
