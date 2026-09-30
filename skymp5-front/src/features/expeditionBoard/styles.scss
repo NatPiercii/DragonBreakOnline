@@ -52,6 +52,42 @@ $ink-dim: rgba(20, 40, 43, 0.62);
     &--resting { color: #5a4a1f; }
   }
 
+  // With the Contracts tab the subtitle moves below the tabs as a lead line
+  &__lead {
+    display: flex;
+    margin: 0 0 6px;
+  }
+
+  // The contract held, above the posted work
+  &__held {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 22px 10px;
+    padding: 8px 14px;
+    border: 1px solid rgba(31, 90, 42, 0.55);
+    border-radius: 4px;
+    background: rgba(31, 90, 42, 0.12);
+    color: $dbo-text;
+  }
+
+  &__held-label {
+    color: $dbo-text-dim;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  &__held-what {
+    font-size: 19px;
+    font-weight: 700;
+  }
+
+  &__held-progress {
+    color: $dbo-text-dim;
+    font-size: 14px;
+  }
+
   &__read-name {
     margin: 0 0 4px;
     color: $ink;
