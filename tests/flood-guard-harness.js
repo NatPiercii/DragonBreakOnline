@@ -148,13 +148,13 @@ check('chat passes the chat window before handleChat', /cef::chat:send'\) \{ if 
 // ---- handleChat: length and colour codes ----
 const said = [];
 const runChat = (FLOOD) => new Function('actorOf', 'nameOf', 'R', 'C', 'sendNear', 'quoteSay', 'personal', 'deliver', 'findByName', 'isAdmin', 'broadcast', 'audit',
-  'staffLog', 'tierOf', 'TIER_LABEL', 'staffWho', 'display', 'commands', 'LEAD_ONLY', 'isLeadStaff', 'log', 'who', 'FLOOD',
+  'staffLog', 'tierOf', 'TIER_LABEL', 'staffWho', 'display', 'commands', 'LEAD_ONLY', 'isLeadStaff', 'log', 'who', 'FLOOD', 'bubbleNear',
   chatSrc + '\nreturn handleChat;')(
   (u) => actors[u] || 0, (a) => (a === STAFF ? 'Warden' : 'Pasta'),
   { say: 1, low: 1, whisper: 1, wide: 1, shout: 1, emote: 1, emoteLow: 1, emoteLong: 1, looc: 1, loocLow: 1, loocLong: 1 },
   { WHITE: 'ffffff', SHOUT: 'ff0000', ME: 'c2a2da', OOC: '999999', SYS: 'ffcc00' },
   (a, r, line) => said.push(line), (n, v, b) => `${n} ${v} "${b}"`, (a, t) => told.push([a, t]), () => {}, () => 0,
-  (a) => staff.has(a), (line) => said.push(line), () => {}, () => {}, () => null, {}, String, String, new Map(), new Set(), () => false, () => {}, String, FLOOD);
+  (a) => staff.has(a), (line) => said.push(line), () => {}, () => {}, () => null, {}, String, String, new Map(), new Set(), () => false, () => {}, String, FLOOD, () => {});
 const handleChat = runChat({ chatMaxChars: 2000, stripColourCodes: true });
 told.length = 0;
 handleChat(7, 'a'.repeat(2001));

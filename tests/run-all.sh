@@ -53,6 +53,7 @@ declare -A LIMIT=([expedition-loot-budget]=600)
 # harness -> the bundle it takes: which fork (client: $FORK, server: $FORK_SERVER) and the entry point in it
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
+  [chat-bubble-plan]=client:skymp5-client/src/services/services/chatBubblePlan.ts
   [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
   [client-calendar]=client:skymp5-client/src/services/services/calendar.ts
   [input-diag-request]=client:skymp5-client/src/services/services/inputDiagRequest.ts
