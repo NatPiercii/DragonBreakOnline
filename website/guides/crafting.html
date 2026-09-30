@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crafting and Trades - Dragon Break</title>
+<meta name="description" content="Trades and stations, rank caps, crafting by land and race, mining, cooking, breaking things down and rope.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd footer p{margin-inline:auto}
+.gd li{margin:0}
+.gd{--ink:#0f2a2e;--ink-soft:#3a4548;--ground:#e6ecec;--panel:#e6ecec;--rule:#d7e3e3;--accent:#2f7c80;--accent-soft:#e6ecec;--warn:#7a2d2a;--warn-soft:#e6ecec;--good:#3a4548;--good-soft:#e6ecec;--display:'Cinzel','Trajan Pro',Georgia,serif;--body:'Roboto Condensed','Futura Condensed',sans-serif;--mono:ui-monospace,Consolas,monospace}
+.gd{--ink:#e6ecec;--ink-soft:#8c9a9c;--ground:#08191c;--panel:#0f2a2e;--rule:#16383d;--accent:#8fd3d0;--accent-soft:#0f2a2e;--warn:#e0897f;--warn-soft:#08191c;--good:#5fb3b3;--good-soft:#08191c}
+.gd{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+.gd .g-wrap{max-width:780px;margin:0 auto;padding-inline:20px;padding-block:48px 72px;display:flex;flex-direction:column;gap:34px}
+.gd .g-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+.gd h1{font-family:var(--display);font-weight:600;font-size:clamp(30px, 6vw, 42px);line-height:1.12;margin:0 0 12px;text-wrap:balance}
+.gd .g-standfirst{font-size:18px;color:var(--ink-soft);margin:0;max-width:62ch}
+.gd h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid var(--rule);text-wrap:balance}
+.gd h3{font-family:var(--body);font-weight:600;font-size:15px;letter-spacing:0.02em;margin:18px 0 2px}
+.gd p{margin:10px 0;max-width:66ch}
+.gd section > p:first-of-type{margin-top:12px}
+.gd ul{margin:10px 0;padding-left:20px;max-width:66ch}
+.gd li{margin:5px 0}
+.gd code,.gd .g-mono{font-family:var(--mono);font-size:0.87em}
+.gd code{background:var(--accent-soft);padding:1px 5px;border-radius:3px}
+.gd strong{font-weight:600}
+.gd .g-tablewrap{overflow-x:auto;margin:14px 0}
+.gd table{border-collapse:collapse;width:100%;font-size:14.5px}
+.gd th,.gd td{text-align:left;padding:7px 12px 7px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.gd th{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:500;white-space:nowrap}
+.gd td.g-num,.gd th.g-num{text-align:right;font-variant-numeric:tabular-nums;padding-right:0}
+.gd td.g-num+td,.gd th.g-num+th{padding-left:28px}
+.gd .g-ladder td:first-child{font-family:var(--display)}
+.gd .g-callout{background:var(--panel);border-left:3px solid var(--accent);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.gd .g-callout p{margin:0}
+.gd .g-callout--warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.gd .g-callout--good{border-left-color:var(--good);background:var(--good-soft)}
+.gd .g-facts{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:1px;background:var(--rule);border:1px solid var(--rule)}
+.gd .g-fact{background:var(--panel);padding:14px 16px}
+.gd .g-fact dt{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 4px}
+.gd .g-fact dd{margin:0;font-family:var(--display);font-size:25px;line-height:1.1;font-variant-numeric:tabular-nums}
+.gd .g-fact .g-unit{font-family:var(--body);font-size:13px;color:var(--ink-soft);display:block;margin-top:3px}
+.gd .g-moons{display:flex;flex-direction:column;gap:0;border:1px solid var(--rule)}
+.gd .g-moon{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--rule)}
+.gd .g-moon:last-child{border-bottom:0}
+.gd .g-moon .g-glyph{font-size:20px;color:var(--accent);line-height:1.3}
+.gd .g-moon .g-name{font-weight:600}
+.gd .g-moon .g-what{color:var(--ink-soft);font-size:14.5px}
+.gd footer{border-top:1px solid var(--rule);padding-top:16px;color:var(--ink-soft);font-size:14px}
+@media (max-width: 460px){.gd .g-fact dd{font-size:21px}}
+.gd{--accent:#8fd3d0;--accent-soft:rgba(143,211,208,.12);--body:'Roboto Condensed','Futura Condensed',sans-serif;--display:'Cinzel','Trajan Pro',Georgia,serif;--good:#5fb3b3;--good-soft:rgba(95,179,179,.14);--ground:transparent;--ink:#d7e3e3;--ink-soft:rgba(215,227,227,.62);--mono:ui-monospace,Consolas,monospace;--panel:rgba(12,34,38,.94);--rule:rgba(143,211,208,.22);--warn:#c98a3a;--warn-soft:rgba(201,138,58,.16)}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · crafting</div><h1>Crafting and Trades</h1></div>
+<main class="gd">
+<div class="g-wrap">
+  <header>
+    <p class="g-standfirst">Every bench in Tamriel belongs to a trade. Take the trade up, and your rank decides how fine your work can be; where you stand and who you are decide what you may make.</p>
+  </header>
+  <section>
+    <h2>Trades and their stations</h2>
+    <p>Eight trades on the <a href="/guides/skills.html">Wheel of Skills</a> each own their stations, and only someone who holds the trade may use them. The first time you set your hand to one, you take the trade up for <strong>one point</strong> and start at Novice. If every one of your 300 points is in use, mark a skill to fall in your skills menu (K) first.</p>
+    <div class="g-tablewrap">
+      <table>
+        <thead><tr><th>Trade</th><th>Stations</th></tr></thead>
+        <tbody>
+          <tr><td>Blacksmith</td><td>Forge, anvil, armour workbench, grindstone, smelter</td></tr>
+          <tr><td>Alchemist</td><td>Alchemy lab</td></tr>
+          <tr><td>Enchanter</td><td>Arcane enchanter</td></tr>
+          <tr><td>Tailor</td><td>Loom; in the Bruma region, the one at the Icewind Traders</td></tr>
+          <tr><td>Skinner</td><td>Tanning rack</td></tr>
+          <tr><td>Cook</td><td>Cooking pot, spit, oven</td></tr>
+          <tr><td>Miner</td><td>Ore veins, sea salt deposits, geodes</td></tr>
+          <tr><td>Woodcutter</td><td>Chopping block</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A craft you finish at a real bench is work for its trade, and a costlier piece counts for more. The <a href="/guides/leveling.html">Leveling Guide</a> has the numbers.</p>
+  </section>
+  <section>
+    <h2>Your rank sets the ceiling</h2>
+    <h3>Tempering</h3>
+    <p>Only a Blacksmith can improve gear at a grindstone or workbench, and the Blacksmith&rsquo;s tier caps how far:</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Blacksmith tier</th><th>Improve gear up to</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td>Fine</td></tr>
+          <tr><td>Apprentice</td><td>Superior</td></tr>
+          <tr><td>Journeyman</td><td>Exquisite</td></tr>
+          <tr><td>Expert</td><td>Epic</td></tr>
+          <tr><td>Master</td><td>Legendary</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Enchanting</h3>
+    <p>Only an Enchanter can lay an enchantment, and its strength is measured against the strongest enchantment of the same effect found anywhere in the world: half of it at Novice, three quarters at Apprentice, the full strength at Journeyman, one and a half times at Expert and twice at Master.</p>
+    <h3>Alchemy</h3>
+    <p>Only an Alchemist can brew. Your tier decides how strong a potion or poison comes out, from weak at Novice to the strongest brews at Master, and each brew is work for your Alchemist. Using an alchemy lab also shows you which potions the ingredients you carry can make, and which two to combine.</p>
+  </section>
+  <section>
+    <h2>Crafting follows the land</h2>
+    <p>Gear is made where it belongs. What you may make depends on the province you stand in, and during the alpha that is Cyrodiil. In Cyrodiil the land allows the common work found everywhere and the styles of Cyrodiil and its neighbours, Imperial, Cyrodilic and Elven work among them. The arms of Skyrim, Morrowind and Solstheim are not made here.</p>
+    <p>A people can always make their own, wherever they stand:</p>
+    <div class="g-tablewrap">
+      <table>
+        <thead><tr><th>Race</th><th>Makes its own anywhere</th></tr></thead>
+        <tbody>
+          <tr><td>Orc</td><td>Orcish</td></tr>
+          <tr><td>Nord</td><td>Draugr and Nordic work, stalhrim and Skaal</td></tr>
+          <tr><td>Dark Elf</td><td>Morrowind styles, chitin and bonemold</td></tr>
+          <tr><td>High Elf</td><td>Summerset and Elven</td></tr>
+          <tr><td>Wood Elf</td><td>Valenwood</td></tr>
+          <tr><td>Redguard</td><td>Hammerfell</td></tr>
+          <tr><td>Khajiit</td><td>Elsweyr</td></tr>
+          <tr><td>Imperial</td><td>Imperial, Cyrodilic and Akaviri</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Bretons and Argonians wait for High Rock and Black Marsh. A craft the land refuses costs you nothing: your materials come back when you step away from the bench.</p>
+    <p><strong>Cooking is free everywhere.</strong> Every dish can be cooked in every land.</p>
+  </section>
+  <section>
+    <h2>Mining</h2>
+    <p>Strike an ore vein and a round begins: 30 seconds to land six clean strikes while the marker crosses the mark. The higher your Miner tier, the wider the mark. The server judges every strike.</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Miner tier</th><th>What you can mine</th><th class="g-num">Yield</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td>Copper, iron, corundum; sea salt</td><td class="g-num">x1</td></tr>
+          <tr><td>Apprentice</td><td>Silver, quicksilver; soul gem geodes, amethyst, topaz</td><td class="g-num">x1.2</td></tr>
+          <tr><td>Journeyman</td><td>Orichalcum, moonstone, gold; ruby, sapphire</td><td class="g-num">x1.4</td></tr>
+          <tr><td>Expert</td><td>Malachite; emerald</td><td class="g-num">x1.7</td></tr>
+          <tr><td>Master</td><td>Ebony; diamond</td><td class="g-num">x2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li><strong>Ore:</strong> a copper or iron vein gives 3 ore at Novice and 6 at Master; corundum, silver, quicksilver, orichalcum and moonstone 2 to 4; gold, malachite and ebony 1 to 2.</li>
+      <li><strong>Sea salt deposits</strong> give 4 salt piles at Novice and 8 at Master, and one round in ten turns up frost, fire or void salts as well. They are small and easy to miss, so they glow for Miners while they have salt to give.</li>
+      <li><strong>Geodes:</strong> a soul gem geode holds one empty soul gem, most often petty or lesser and rarely grand. A gem geode gives its own gem, one or two of them.</li>
+    </ul>
+    <p>A vein somebody has worked out rests for <strong>45 minutes, for everyone</strong>, and only one person can work a vein at a time. A failed or abandoned round rests the vein for you alone, for two minutes.</p>
+  </section>
+  <section>
+    <h2>Chopping wood</h2>
+    <p>A chopping block works the same way: a 30-second round of clean strikes, 4 of them at Novice and 20 at Master, for 3 to 8 firewood. A split block rests for 10 minutes, for everyone.</p>
+  </section>
+  <section>
+    <h2>Cooking</h2>
+    <p>Only a Cook may use cooking pots, spits and ovens. A cooked meal fills you far better than raw food: a meal eases your hunger by 35, a snack by 15, a drink by 8 and a raw ingredient by only 4. A dish with more ingredients counts for more Cook work, so the stew teaches more than the grilled leeks. Your Cook tier does not change what you can cook.</p>
+  </section>
+  <section>
+    <h2>The Draught of Revival</h2>
+    <p>An Alchemist of Expert tier who has learned its recipe can brew the Draught of Revival at any alchemy lab from <strong>troll fat, fly amanita and yellow cinnabar polypore</strong>. The recipe turns up now and then in a boss&rsquo;s chest. Pour the draught on a fallen player with E to bring them back.</p>
+  </section>
+  <section>
+    <h2>Breaking things down</h2>
+    <p>What you no longer need can be broken back into materials at the station of its trade: metal gear at a smelter (Blacksmith), hides and leather at a tanning rack (Skinner), clothing at a loom (Tailor), and books at a writing desk or the Scholars&rsquo; Ledger in the Synod Conclave (Scholar).</p>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>Your tier in that trade</th><th>Of the item&rsquo;s materials, you get back</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td>A quarter</td></tr>
+          <tr><td>Apprentice</td><td>35%</td></tr>
+          <tr><td>Journeyman</td><td>Half</td></tr>
+          <tr><td>Expert</td><td>60%</td></tr>
+          <tr><td>Master</td><td>Three quarters</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li>You always get at least one of the main material. Breaking down metal gear needs the Blacksmith tier that works its metal.</li>
+      <li>A bound book gives two sheets of paper and a leather strip; a note, one sheet.</li>
+      <li>Worn gear is never offered, and neither is anything enchanted, named, tempered, poisoned or charged.</li>
+      <li>Dragon gear gives back its other materials, never its dragon bone or scales.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>Books on smithing</h2>
+    <p>The skill books that teach smithing teach a Blacksmith here too: reading one adds to your Blacksmith progress, once for each book, within the usual hourly and daily limits. Someone who is not a smith learns nothing from them.</p>
+  </section>
+  <section>
+    <h2>What no forge makes</h2>
+    <ul>
+      <li><strong>Dragon bone and dragon scales</strong> come only from a slain dragon. No loot, shop, reward or breakdown gives them.</li>
+      <li><strong>Artifacts</strong> are never crafted and never found as loot; they come to the champions of the realm through the story, from the staff. You can still temper one you hold.</li>
+      <li><strong>A faction&rsquo;s own gear</strong> is made only by that faction&rsquo;s smiths and tailors, or by its leader.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>Rope</h2>
+    <p>Anyone carrying a Rope can tie up another player: press X on them and choose <strong>Tie Up</strong>. Someone who is down is tied at once; anyone standing is asked first, and nobody who says no is tied. Each knot uses one rope. Guards and officials keep their shackles.</p>
+    <ul>
+      <li>The captor can <strong>Untie</strong>, <strong>Leave Tied Here</strong>, and <strong>Lead</strong> the captive along again.</li>
+      <li>Rope is weaker than shackles. Once your captor has been more than 10 metres away for 30 seconds, the knots loosen and <code>/struggle</code> gets much easier. After 5 minutes alone in all, the rope slips off by itself.</li>
+      <li>A friend standing right beside you can press X and choose <strong>Cut Free</strong>: five seconds, and neither of you may move.</li>
+    </ul>
+    <p>No shop or recipe offers Rope yet.</p>
+  </section>
+  <footer>
+    <p>Last updated 30 September 2026.</p>
+  </footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/start.html">Starting Out in Alpha</a></li><li><a href="/guides/commands.html">Commands and Systems</a></li><li><a href="/guides/skills.html">The Wheel of Skills</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/magic.html">Schools of Magic</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>
