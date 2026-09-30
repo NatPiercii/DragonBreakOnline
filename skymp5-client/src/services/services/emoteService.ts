@@ -304,14 +304,21 @@ export class EmoteService extends ClientListener {
       logTrace(this, `dboIdle not allowed`, anim);
       return;
     }
-    const seconds = Math.min(MAX_IDLE_SECONDS, Math.max(MIN_IDLE_SECONDS, Number(content["seconds"]) || 3));
-    const endsItself = content["endsItself"] === true;
+    this.playActionIdle(anim, Number(content["seconds"]) || 3, content["endsItself"] === true);
+  }
+
+  /**
+   * An interaction idle (dboIdle, or a client event such as a finished trade): on the next frame, through playIdle,
+   * and not while a game menu is open. Seconds are held between MIN_IDLE_SECONDS and MAX_IDLE_SECONDS.
+   */
+  public playActionIdle(anim: string, seconds: number, endsItself: boolean): void {
+    const held = Math.min(MAX_IDLE_SECONDS, Math.max(MIN_IDLE_SECONDS, seconds));
     this.controller.once("update", () => {
       if (this.gameMenuOpen()) {
-        logTrace(this, `dboIdle skipped under a game menu`, anim);
+        logTrace(this, `Interaction idle skipped under a game menu`, anim);
         return;
       }
-      this.playIdle(anim, seconds, endsItself);
+      this.playIdle(anim, held, endsItself);
     });
   }
 

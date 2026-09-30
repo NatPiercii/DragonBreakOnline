@@ -7,6 +7,11 @@ import { FunctionInfo } from "../../lib/functionInfo";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, ObjectReference } from "skyrimPlatform";
 import { getInventory, Entry, EnchantmentEffect, effectsKey, isBoundItem, PROPERTY_KEY_BASE_ID } from "../../sync/inventory";
 import { logTrace } from "../../logging";
+import { EmoteService } from "./emoteService";
+
+// A finished trade: the hands take what was handed over (Skyrim.esm IDLE IdleTake, a one-shot)
+const TRADE_DONE_IDLE = "IdleTake";
+const TRADE_DONE_SECONDS = 3;
 
 // for the browser-side widget setters (executed inside the CEF browser)
 declare const window: any;
@@ -240,6 +245,7 @@ export class TradeService extends ClientListener {
       case "tradeCompleted":
         notifyNextUpdate(this.controller, this.sp, "Trade complete.");
         this.closeAll();
+        try { this.controller.lookupListener(EmoteService).playActionIdle(TRADE_DONE_IDLE, TRADE_DONE_SECONDS, true); } catch { /* no emote service */ }
         break;
       case "tradeCancelled":
         if (typeof content["reason"] === "string") {
