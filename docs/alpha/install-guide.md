@@ -5,6 +5,8 @@ copy of Skyrim, installs the mods and the multiplayer client into it, and starts
 
 > **Draft for the alpha.** Blanks marked **[NATE: ...]** still need an answer before this is published.
 
+*For launcher 2.1.34 and game client 0.3.71.*
+
 ## What you need
 
 - **A Windows PC.**

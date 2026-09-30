@@ -13,12 +13,14 @@ Nate and Jake run everything themselves (Nate, 2026-09-30), and "staff" on these
 | [event-night.md](event-night.md) | Staff | The alpha dress rehearsal (15-20 players): pre-flight, what to watch and when to stop, the activity, and the numbers for the go/no-go. Its tools are `tools/event-night/watch.py` (a live watch) and `tools/event-night/numbers.py` (the night's numbers) |
 
 **Sources.** Facts were read from the launcher source (released 2.1.34 and the 2.1.35 branch), the live server
-(client 0.3.70, launcher 2.1.34, the public `/api` endpoints), the Discord bug forums, `server/CHECKLIST.md` and the
-crash notes. The staff pages end with a short note on their sources and what to update.
+(client 0.3.70, launcher 2.1.34, the public `/api` endpoints), the patch notes for client 0.3.71 and the hotfix after it,
+the Discord bug forums, `server/CHECKLIST.md` and the crash notes. The staff pages end with a short note on their sources and what to update.
 
 **Before publishing:**
 - install-guide.md: update "Coming in launcher 2.1.35" when 2.1.35 ships, and confirm whether the alpha keeps the
   Discord whitelist role.
+- known-issues.md: the rope section goes out with the rope release, the deer line under "Fixed recently" with the
+  deer release, and "The Synod's enchanting table is open to everyone" comes out once the table is kept for members.
 - known-issues.md and specs.md: replace the estimates in "Is my PC enough?" and specs.md once launcher 2.1.36 reports
   players' hardware.
 - event-night.md: the date, the staff names and the NPC budget decision.

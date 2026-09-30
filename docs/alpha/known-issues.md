@@ -15,14 +15,6 @@ We update it as things are fixed.
   Tick **Keep this private** if it's about an exploit or anything personal.
 - **On Discord:** post in #bugs.
 
-## The mouse is stuck, or menus don't respond
-
-**What happens:** on some new installs the mouse stayed in the middle of the screen at the main menu or
-character select, clicks landed in the wrong place, and opening some containers closed the game.
-
-**What to do:** launcher 2.1.34 fixes this. Open the launcher, let it update itself, then press **Play**. An
-install from before 2.1.34 is repaired when you press Play; you don't need to reinstall.
-
 ## The game closes
 
 **What to do:** open the launcher and send **Report a Problem** (see above) straight away. Add a line about
@@ -68,11 +60,41 @@ little away from where it looks, and a hit can miss it.
 
 **What to do:** type `/bug` while it's happening. The snapshot shows us exactly what you saw.
 
-## Animals appear and disappear in the distance
+## Class Lecterns have no teachers yet
 
-**What happens:** you may see deer and other animals appear or vanish at the edge of your view.
+**What happens:** a class at a Class Lectern can only be held by a teacher the Synod has named, and nobody has been
+named yet. Until then, no classes can be held.
 
-**What to do:** nothing. We know about it and are working on how animals appear and leave.
+**What to do:** nothing for now. If you'd like to teach, ask staff on Discord.
+
+## The Synod's enchanting table is open to everyone
+
+**What happens:** the enchanting table in the Synod Conclave belongs to the Synod and the Colleges, but for now
+anyone can use it.
+
+**What to do:** use it while it's open. Later it will be for members of the Synod and the Colleges only.
+
+## Dragon bone and dragon scales
+
+**What happens:** dragon bone and dragon scales now come only from a slain dragon, and no dragons appear in the alpha
+yet, so for now there's no way to get more. Breaking dragon gear down gives its other materials, but no bone or
+scales.
+
+**What to do:** nothing. We'll tell you when dragons arrive.
+
+<!-- Publish with the rope release: its patch note waits for the same release. Take this section out if the page goes
+out before rope does. -->
+## Tying someone up with rope
+
+**What's new:** anyone carrying a Rope can tie up another player: press X on them and choose **Tie Up**. Someone who
+is down is tied at once; anyone standing is asked first, and nobody who says no is tied. It's new, so expect rough
+edges.
+
+**If you're tied up:** use `/struggle`. When your captor has been more than 10 metres away for 30 seconds, the knots
+loosen and struggling gets much easier, and after 5 minutes alone the rope slips off by itself. A friend standing
+right next to you can press X and choose **Cut Free**.
+
+**What to do if it goes wrong:** type `/bug` while it's happening.
 
 ## You can only travel around Bruma
 
@@ -99,6 +121,21 @@ closed. If you go past the border, you're brought back.
 
 **What to do:** make sure your launcher is up to date (2.1.34 or newer). If it still happens, ask for help on
 Discord and send us your install log. Staff will show you where to find it.
+
+## Fixed recently
+
+- **The mouse stuck in menus, and containers closing the game** (new installs): fixed in launcher 2.1.34. Open the
+  launcher, let it update itself, then press **Play**. An older install is repaired when you press Play; you don't
+  need to reinstall.
+- **Goblins and boars fighting each other:** the goblins of Dusk Thorn Camp are one tribe now and turn on you
+  together, and a boar herd sticks together and charges you as one.
+- **Cooking refused in Bruma:** every dish can now be cooked in every land. Cooked Boar Meat and other dishes from
+  Solstheim and Morrowind are no longer refused.
+- **Alchemist rising from picking plants:** picking plants, mushrooms and fruit now trains Harvesting only, and
+  eating ingredients doesn't train Alchemist. Alchemist grows from working at an alchemy lab.
+<!-- Mark fixed with the deer release. -->
+- **Deer popping in and out:** deer and other animals that run from you no longer vanish and reappear in the
+  distance.
 
 ## Working as intended
 
