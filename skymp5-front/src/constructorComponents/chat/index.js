@@ -51,6 +51,8 @@ const Chat = (props) => {
   const [fadeSeconds, setFadeSeconds] = useState(saved.fadeSeconds != null ? saved.fadeSeconds : 10);
   const [hidePlayerNames, setHidePlayerNames] = useState(saved.hidePlayerNames != null ? saved.hidePlayerNames : false);
   const [showFormIds, setShowFormIds] = useState(saved.showFormIds != null ? saved.showFormIds : true);
+  const [chatBubbles, setChatBubbles] = useState(saved.chatBubbles != null ? saved.chatBubbles : true);
+  const [bubbleSize, setBubbleSize] = useState(saved.bubbleSize != null ? saved.bubbleSize : 55);
   const [idle, setIdle] = useState(false);
   const idleTimerRef = useRef();
   const browserFocusedRef = useRef(false);
@@ -321,8 +323,8 @@ const Chat = (props) => {
 
   // Persist the settings whenever they change so they survive a relaunch.
   useEffect(() => {
-    persistChatSettings({ fontSize, chatTransparency, lockChat, customHighlights, fadeSeconds, hidePlayerNames, showFormIds });
-  }, [fontSize, chatTransparency, lockChat, customHighlights, fadeSeconds, hidePlayerNames, showFormIds]);
+    persistChatSettings({ fontSize, chatTransparency, lockChat, customHighlights, fadeSeconds, hidePlayerNames, showFormIds, chatBubbles, bubbleSize });
+  }, [fontSize, chatTransparency, lockChat, customHighlights, fadeSeconds, hidePlayerNames, showFormIds, chatBubbles, bubbleSize]);
 
   const handleInput = (value) => {
     updateInput(value);
@@ -484,6 +486,10 @@ const Chat = (props) => {
           setFadeSeconds={setFadeSeconds}
           customHighlights={customHighlights}
           setCustomHighlights={setCustomHighlights}
+          chatBubbles={chatBubbles}
+          setChatBubbles={setChatBubbles}
+          bubbleSize={bubbleSize}
+          setBubbleSize={setBubbleSize}
           onBack={() => {
             setSettingsOpened(false);
             if (window.skyrimPlatform && window.skyrimPlatform.sendMessage) {

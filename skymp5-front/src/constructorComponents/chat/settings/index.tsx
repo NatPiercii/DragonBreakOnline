@@ -19,6 +19,10 @@ const Settings = (props: {
   setFadeSeconds: (value: number) => void,
   customHighlights: string,
   setCustomHighlights: (value: string) => void,
+  chatBubbles: boolean,
+  setChatBubbles: (value: boolean) => void,
+  bubbleSize: number,
+  setBubbleSize: (value: number) => void,
   onBack: () => void,
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -45,6 +49,8 @@ const Settings = (props: {
         <CheckBox text={'lock chat'} initialValue={props.lockChat} setChecked={props.setLockChat} disabled={false} />
         <CheckBox text={'hide player names'} initialValue={props.hidePlayerNames} setChecked={props.setHidePlayerNames} disabled={false} />
         <CheckBox text={'show form ids'} initialValue={props.showFormIds} setChecked={props.setShowFormIds} disabled={false} />
+        <CheckBox text={'chat bubbles over heads'} initialValue={props.chatBubbles} setChecked={props.setChatBubbles} disabled={false} />
+        <SkyrimSlider text={'bubble size'} name={'bubbleSize'} min={30} max={100} setValue={(value) => props.setBubbleSize(value)} sliderValue={props.bubbleSize} marks={[30, 40, 55, 70, 85, 100]}/>
         <div className='chat-highlights'>
           <span className='chat-highlights-label'>highlight words</span>
           <textarea
