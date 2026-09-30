@@ -23,7 +23,7 @@
       {
         "heading": "Fixes",
         "items": [
-          "Fixed a crash that could hit players near a werewolf howling or a Vampire Lord casting.",
+          "Fixed a likely cause of crashes near a werewolf howling or a Vampire Lord casting. For now, other players won't see a Vampire Lord's spell effects; the spells still hit as normal.",
           "Your own character's name no longer changes on your screen when someone nearby puts on or takes off a mask.",
           "Auto-run now switches off when a skinning, mining or chopping round takes the keyboard."
         ]
@@ -31,8 +31,8 @@
       {
         "heading": "Animations",
         "items": [
-          "Characters act out everyday things: studying a notice board, saluting when introducing themselves, taking an item when a trade completes, and eating or drinking while seated.",
-          "Potions and draughts stay instant, with no drinking animation."
+          "Characters act out everyday things: studying a notice board, and saluting when introducing themselves.",
+          "Potions and draughts no longer play a drinking animation; they still work instantly."
         ]
       }
     ]
