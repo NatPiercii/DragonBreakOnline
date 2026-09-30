@@ -42,7 +42,8 @@ export interface EconomyData {
   maxTaxRate: number;
   nextReckoning: number;
   factions: { id: string; name: string; rate: number; wages: Record<string, number>; ranks: string[];
-    report: null | { at: number; income: number; taxed: number; overdue: { owner: string; weeks: number; gold: number; where: string }[]; wagesPaid: number; owed: number; balance: number } }[];
+    report: null | { at: number; income: number; taxed: number; overdue: { owner: string; weeks: number; gold: number; where: string }[]; wagesPaid: number; owed: number; balance: number;
+      tithe?: number; titheOwed?: number; titheTo?: string; tithesIn?: number } }[];
 }
 
 export interface RealmData {
@@ -470,7 +471,7 @@ export const TreasuryTab = ({ economy, act, busy }: { economy: EconomyData | nul
           </div>
           {f.report ? (
             <div className="war__line war__line--dim">
-              Last reckoning ({when(f.report.at)}): {gold(f.report.income)} gold in taxes from {f.report.taxed} homes, {gold(f.report.wagesPaid)} in wages{f.report.owed ? `, ${gold(f.report.owed)} owed` : ''}. Treasury: {gold(f.report.balance)} gold.
+              Last reckoning ({when(f.report.at)}): {gold(f.report.income)} gold in taxes from {f.report.taxed} homes{f.report.tithesIn ? `, ${gold(f.report.tithesIn)} in Imperial tithes` : ''}{f.report.tithe || f.report.titheOwed ? `, ${gold(f.report.tithe || 0)} Imperial tithe to ${f.report.titheTo || 'the Empire'}${f.report.titheOwed ? ` (${gold(f.report.titheOwed)} still owed)` : ''}` : ''}, {gold(f.report.wagesPaid)} in wages{f.report.owed ? `, ${gold(f.report.owed)} owed` : ''}. Treasury: {gold(f.report.balance)} gold.
               {f.report.overdue.length > 0 && <div className="war__line war__line--death">Overdue: {f.report.overdue.map((o) => `${o.owner} in ${o.where}, ${o.weeks} week${o.weeks > 1 ? 's' : ''} (${gold(o.gold)} gold)`).join('; ')}</div>}
             </div>
           ) : <div className="war__line war__line--dim">No reckoning yet.</div>}
