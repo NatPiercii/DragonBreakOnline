@@ -140,6 +140,7 @@ const ui = (ev, a, args, widgetId) => (handlers.get(ev) || []).forEach((fn) => f
 const cmd = (name, a, args) => commands.get(name).fn(a, args || '');
 const said = (a) => { const l = out.said.filter((p) => p[0] === a); return l.length ? l[l.length - 1][1] : ''; };
 const saidAny = (a, re) => out.said.some((p) => p[0] === a && re.test(p[1]));
+const lastSent = (a, type) => { const l = out.widgets.filter((w) => w.a === a && (!type || w.w.type === type)); return l.length ? l[l.length - 1] : null; };
 const lastWidget = (a, type) => { const l = out.widgets.filter((w) => w.a === a && (!type || w.w.type === type)); return l.length ? l[l.length - 1].w : null; };
 const lastPacket = (a, type) => { const l = out.packets.filter((x) => x.a === a && x.p.customPacketType === type); return l.length ? l[l.length - 1].p : null; };
 const rec = (a) => props.get(a + '|private.dboSchools');
@@ -228,7 +229,9 @@ ui('schoolChoose', NOVICE, [lastWidget(NOVICE, 'studyMagic').nonce, 'Conjuration
 let w = lastWidget(NOVICE, 'studyMagic');
 check('choosing from the study panel goes straight on to studying Conjuration', rec(NOVICE).primary === 'Conjuration' && w.mode === 'studying' && w.school === 'Conjuration', w);
 check('...with the reading idle played', anims.some(([a, ev]) => a === NOVICE && ev === 'IdleBook_PageTurn'));
+check('the panel the player opened takes focus', lastSent(NOVICE, 'studyMagic').focus === true);
 advance(35000); tick('schools.tick');
+check('the study tick redraws the panel in place, without taking focus, under the same nonce', lastSent(NOVICE, 'studyMagic').focus === false && lastSent(NOVICE, 'studyMagic').w.mode === 'studying' && lastSent(NOVICE, 'studyMagic').w.nonce === out.widgets.filter((x) => x.a === NOVICE && x.w.type === 'studyMagic' && x.focus).pop().w.nonce);
 check('three whole ticks in 35 s pay 3 units to Conjuration', Math.abs(rec(NOVICE).levels.Conjuration.level - 1 - 0.3) < 1e-9 || (rec(NOVICE).levels.Conjuration.level === 1 && Math.abs(rec(NOVICE).levels.Conjuration.xp - 30) < 1e-9), rec(NOVICE).levels.Conjuration);
 advance(30000); tick('schools.tick');
 check('a minute of study credits Arcane Arts once, with a Conjuration spell, through the cast credit', wheelEvents.filter((e) => e.a === NOVICE).length === 1 && wheelEvents[wheelEvents.length - 1].kind === 'cast' && wheelEvents[wheelEvents.length - 1].detail.spellId !== 0, wheelEvents.filter((e) => e.a === NOVICE));
@@ -285,6 +288,7 @@ w = lastWidget(ADEPT, 'classLectern');
 check('an Adept of Destruction may sign up and is told 70% of the lesson', w.role === 'visitor' && w.canJoin === true && /you would take 70% of the lesson/.test(w.gain), w);
 ui('lecternJoin', ADEPT, [w.nonce]);
 check('...and signs up', globalThis.__dboSchoolsState.classes.get(LECTERN).students.has(ADEPT) && lastWidget(ADEPT, 'classLectern').role === 'student' && saidAny(TEACHER, /Adept #TAG6 has signed up/));
+check('...the student\'s own click keeps focus; the teacher\'s panel is redrawn without taking it', lastSent(ADEPT, 'classLectern').focus === true && lastSent(TEACHER, 'classLectern').focus === false && lastSent(TEACHER, 'classLectern').w.students.length === 1);
 // MAGE: Destruction around Apprentice (rank 1): an Expert class pays nothing
 activate(LECTERN, MAGE);
 check('an Apprentice of Destruction is told the Expert class would teach them nothing', lastWidget(MAGE, 'classLectern').canJoin === false && /would teach you nothing/.test(lastWidget(MAGE, 'classLectern').whyNot), lastWidget(MAGE, 'classLectern'));
@@ -299,6 +303,7 @@ check('sign-ups close 10 minutes in', /Sign-ups closed 10 minutes into the class
 // The student steps out for a moment and comes back: kept
 at(ADEPT, BRUMA, [0, 0, 0]); advance(10000); tick('schools.classes');
 check('a student who steps out is warned', saidAny(ADEPT, /Come back within 5 minutes to stay in the class/));
+check('the class tick redraws open lectern panels without focus, under the same nonce', lastSent(TEACHER, 'classLectern').focus === false && lastSent(TEACHER, 'classLectern').w.nonce === out.widgets.filter((x) => x.a === TEACHER && x.w.type === 'classLectern' && x.focus).pop().w.nonce);
 at(ADEPT, SYNOD, [0, 0, 0]); advance(2 * MIN); tick('schools.classes');
 check('...and back within the grace stays in', globalThis.__dboSchoolsState.classes.get(LECTERN).students.has(ADEPT) && !globalThis.__dboSchoolsState.classes.get(LECTERN).students.get(ADEPT).awaySince);
 advance(20 * MIN); tick('schools.classes');
@@ -331,6 +336,18 @@ check('a hot reload keeps the running class and its timers', globalThis.__dboSch
 advance(5 * MIN); tick('schools.classes');
 check('after 5 minutes away the class is cancelled and nobody is paid', !globalThis.__dboSchoolsState.classes.has(LECTERN) && out.audits.some((l) => /SCHOOLS class by P15 on Incinerate .* cancelled/.test(l)));
 online.push(TEACHER);
+
+// ---- a student paid by another class in the meantime is not paid twice ----
+activate(LECTERN, TEACHER);
+ui('lecternStart', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce, T.fireball[1]]);
+activate(LECTERN, MAGE);
+ui('lecternJoin', MAGE, [lastWidget(MAGE, 'classLectern').nonce]);
+check('an Apprentice signs up for an Adept class', globalThis.__dboSchoolsState.classes.get(LECTERN).students.has(MAGE), lastWidget(MAGE, 'classLectern'));
+{ const r = rec(MAGE); r.paidAt = Date.now(); put(MAGE, 'private.dboSchools', r); }
+const mageBefore = level(MAGE, 'Destruction');
+advance(31 * MIN); tick('schools.classes');
+ui('lecternEnd', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
+check('paid by another class since signing up: the cooldown is checked again at payout, nothing paid', level(MAGE, 'Destruction') === mageBefore && saidAny(MAGE, /paid for another class too recently/) && !globalThis.__dboSchoolsState.classes.has(LECTERN), said(MAGE));
 
 // ---- the secondary school ----
 arcane(ILLUSIONIST, 80); setLevel(ILLUSIONIST, 'Illusion', 60);
