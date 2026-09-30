@@ -92,6 +92,14 @@ for k, rec in final.items():
         anim = ANIM.get(dn[0])
         if not anim:
             continue
+        # Battleaxes and warhammers share animation type 6 but carry different damage in the ladder, so the type
+        # keyword splits them. Without this the two cannot be told apart, and verify_ladder.py cannot prove the split.
+        if anim == 'battleaxe/warhammer':
+            kws = keywords(rec)
+            if 'WeapTypeWarhammer' in kws:
+                anim = 'warhammer'
+            elif 'WeapTypeBattleaxe' in kws:
+                anim = 'battleaxe'
         flags2 = struct.unpack_from('<I', dn, 0x30)[0] if len(dn) > 0x33 else 0
         dmg = struct.unpack_from('<H', data, 8)[0]
         if dmg <= 0:
