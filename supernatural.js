@@ -749,10 +749,13 @@ module.exports = (api) => {
   globalThis.__dboSuperActivate = (t, a) => {
     if (!isPlayer(a)) return false;
     const s = stateOf(a); if (!s || (!s.kind && beastForm(a) !== 'werewolf')) return false;
-    let dead = false; try { dead = !!mp.get(t, 'isDead'); } catch (e) { return false; }
-    if (!dead || fedOn.has(t) || (!isHumanoid(t) && !(beastForm(a) === 'werewolf' && typeof globalThis.__dboHuntFed === 'function'))) return false;
+    // Only a fresh corpse is fed on, and deathAt holds only actors that died, so a tree, door or workbench stops here:
+    // isDead on one throws in C++, which logged a context dump and a "treat it as Actor" warning for every E a vampire
+    // or werewolf pressed (Onny #FLC7, 30 Sep: 26 an hour)
     const at = deathAt.get(t);
     if (!at || Date.now() - at > C.corpseFreshMinutes * 60000) return false;
+    let dead = false; try { dead = !!mp.get(t, 'isDead'); } catch (e) { return false; }
+    if (!dead || fedOn.has(t) || (!isHumanoid(t) && !(beastForm(a) === 'werewolf' && typeof globalThis.__dboHuntFed === 'function'))) return false;
     if (!feed(a, t, true)) return false;
     fedOn.add(t); if (fedOn.size > 2048) fedOn.clear();
     quietNear(a, `You see ${nameOf(a)} feed on the dead.`, 1500);
