@@ -1,31 +1,5 @@
 [
   {
-    "title": "Rope: Tie Up, Leave Tied, Cut Free",
-    "date": "2026-10-01",
-    "version": "Server update",
-    "tag": "New",
-    "sections": [
-      {
-        "heading": "Tying someone up",
-        "items": [
-          "Anyone carrying a Rope can now tie up another player: press X on them and choose Tie Up. Someone who is down is tied at once. Anyone standing is asked first, and nobody who says no is tied. Each knot uses one rope.",
-          "If they say no, or do not answer, you cannot ask them again for 2 minutes.",
-          "A player tied with rope is led along like a guard's prisoner. Their captor can Untie them, choose Leave Tied Here to leave them where they stand, and Lead to take them along again.",
-          "Guards and officials keep their shackles. Nothing about arrests changes."
-        ]
-      },
-      {
-        "heading": "Getting free",
-        "items": [
-          "Rope is weaker than shackles. With your captor close, /struggle is as hard as ever. Left alone, with your captor more than 10 metres away for 30 seconds, the knots loosen: struggling is much easier and you can try every minute.",
-          "After 5 minutes alone in all, the rope slips off by itself. The time stops while your captor is back beside you, but it does not start over.",
-          "Friends can cut you free: stand right next to someone tied with rope, press X and choose Cut Free. It takes 5 seconds and fails if either of you moves. Shackles cannot be cut.",
-          "Once free of a rope, nobody can tie you up again for a minute, unless you are down."
-        ]
-      }
-    ]
-  },
-  {
     "title": "Lone Wolves",
     "date": "2026-09-30",
     "version": "Server update",
