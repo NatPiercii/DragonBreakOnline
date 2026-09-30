@@ -87,7 +87,7 @@ const HUB = { cellOrWorldDesc: '17482:DragonBreak Hub.esp', pos: [2122.2, 2079.6
 const pos = new Map(), inHubSet = new Set(), moves = [], opened = [];
 let online = [];
 const creationMap = new Map();
-delete globalThis.__dboCreatorSpots; delete globalThis.__dboCreatorPlacedAt;
+delete globalThis.__dboCreatorSpotHolds; delete globalThis.__dboCreatorPlacedAt;
 const S = new Function('HUB', 'mp', 'onlineActors', 'inHub', 'log', 'creationPending', 'creation', 'setFade', 'display', 'globalThis',
   gm.slice(a0, b0) + '\nreturn { CREATOR_SPOTS, CREATOR_SPACING, CREATOR_PLACE_MS, creatorSpotFor, placeInCreatorSpot, creatorSpotRelease, openCreator, creatorPlacedAt };')(
   HUB,
@@ -134,6 +134,44 @@ arrive(21);
 S.placeInCreatorSpot(21);
 check('a spot left behind is handed out again', pos.get(21).join() === moves[0][1].pos.join(), pos.get(21));
 
+// ---- the overflow at 05:00: 25 arrivals inside 30 s, none of whose moves has landed yet (review 2026-09-30) ----
+{
+  delete globalThis.__dboCreatorSpotHolds;
+  // All 25 spawned on the marker and wait to be placed
+  const stages = new Map(Array.from({ length: 25 }, (_, i) => [100 + i, 'spawning']));
+  const S2 = new Function('HUB', 'mp', 'onlineActors', 'inHub', 'log', 'creationPending', 'creation', 'setFade', 'display', 'globalThis',
+    gm.slice(a0, b0) + '\nreturn { CREATOR_SPOTS, creatorSpotFor, placeInCreatorSpot };')(
+    HUB, { get: (a, k) => (k === 'pos' ? HUB.pos.slice() : undefined), set: () => {} }, () => Array.from({ length: 25 }, (_, i) => 100 + i), () => true,
+    () => {}, () => true, stages, () => {}, String, globalThis);
+  const got = [];
+  // Each is placed as the arrived handler does it: stage 'placed' once promised a spot
+  for (let i = 0; i < 25; i++) { now += 1000; got.push(S2.CREATOR_SPOTS.findIndex((s) => s.join() === S2.creatorSpotFor(100 + i).join())); stages.set(100 + i, 'placed'); }
+  const firstNineteen = new Set(got.slice(0, 19));
+  check('25 arrivals in 25 s, all still standing on the marker: the first 19 take all 19 spots', firstNineteen.size === 19, got.slice(0, 19));
+  const counts = new Map(); for (const i of got) counts.set(i, (counts.get(i) || 0) + 1);
+  check('...and the other 6 double up on 6 different spots, never a third on one', [...counts.values()].filter((n) => n === 2).length === 6 && Math.max(...counts.values()) === 2, [...counts.entries()]);
+  const firstDouble = got.findIndex((x, k) => got.indexOf(x) < k);
+  check('...no spot is doubled while any spot is still unpromised', firstDouble === 19, firstDouble);
+  check('...and the first of them stays on the marker (spot 0), as nobody placed stands there', got[0] === 0, got[0]);
+}
+// A reconnect mid-creation standing on its own spot, with nobody near, keeps it (no move)
+{
+  delete globalThis.__dboCreatorSpotHolds;
+  const moves2 = [];
+  const at = new Map([[50, [HUB.pos[0] + 120, HUB.pos[1], 3]], [51, HUB.pos.slice()]]);
+  const S3 = new Function('HUB', 'mp', 'onlineActors', 'inHub', 'log', 'creationPending', 'creation', 'setFade', 'display', 'globalThis',
+    gm.slice(a0, b0) + '\nreturn { placeInCreatorSpot };')(
+    HUB, { get: (a, k) => (k === 'pos' ? at.get(a) : undefined), set: (a, k, v) => moves2.push([a, v]) }, () => [50, 51], () => true,
+    () => {}, () => true, new Map(), () => {}, String, globalThis);
+  check('a reconnect standing on its own free spot is not moved', S3.placeInCreatorSpot(50) === false && moves2.length === 0, moves2);
+  at.set(52, [HUB.pos[0] + 120, HUB.pos[1], 3]);
+  const S4 = new Function('HUB', 'mp', 'onlineActors', 'inHub', 'log', 'creationPending', 'creation', 'setFade', 'display', 'globalThis',
+    gm.slice(a0, b0) + '\nreturn { placeInCreatorSpot };')(
+    HUB, { get: (a, k) => (k === 'pos' ? at.get(a) : undefined), set: (a, k, v) => moves2.push([a, v]) }, () => [50, 51, 52], () => true,
+    () => {}, () => true, new Map(), () => {}, String, globalThis);
+  check('...but one whose spot someone else now stands on is moved to a free one', S4.placeInCreatorSpot(52) === true && moves2.length === 1 && moves2[0][1].pos.join() !== at.get(50).join(), moves2);
+}
+
 // The creator opens after the move has landed, never during it
 creationMap.clear(); opened.length = 0;
 S.creatorPlacedAt.set(30, now);
@@ -142,6 +180,22 @@ check('RaceMenu does not open while a spot move is landing', opened.length === 0
 now += S.CREATOR_PLACE_MS;
 S.openCreator(30);
 check('...and opens once it has landed', opened.includes(30));
+
+// ---- a finished player taken out of the Realm another way (a staff teleport): no stale creation entry ----
+{
+  const lr = gm.slice(gm.indexOf('const leftRealm = '), gm.indexOf('const sendToArrival = '));
+  const creation2 = new Map([[60, 'open'], [61, 'open']]);
+  const pending = new Set([61]);
+  const clockTo = [], released = [];
+  const L = new Function('creation', 'creationPending', 'creatorSpotRelease', 'globalThis', lr + '\nreturn leftRealm;')(
+    creation2, (a) => pending.has(a), (a) => released.push(a), { __dboClock: { sendTo: (a) => clockTo.push(a) } });
+  L(60); L(61);
+  check('a finished player found outside the Realm drops the entry, frees the spot and gets the real clock at once', !creation2.has(60) && released.includes(60) && clockTo.includes(60));
+  check('...one still creating keeps it (noon is right for them)', creation2.has(61) && !clockTo.includes(61));
+  check('both sendToArrival (not in the hub) and a finished player\'s arrival elsewhere call it',
+    /if \(here !== String\(HUB\.cellOrWorldDesc\)\.toLowerCase\(\)\) return leftRealm\(a\);/.test(gm)
+    && /if \(!creationPending\(a\)\) \{ if \(world !== worldIdOf\(HUB\.cellOrWorldDesc\)\) leftRealm\(a\); return; \}/.test(gm));
+}
 
 // ---- 3. the wiring in gamemode.js ----
 const arrived = gm.slice(gm.indexOf("onUi('arrived'"), gm.indexOf("onUi('arrived'") + 1200);
@@ -153,6 +207,6 @@ check('the clock asks the gamemode who is in creation (a reconnect mid-creation 
 Date.now = realNow;
 process.chdir(home);
 fs.rmSync(dir, { recursive: true, force: true });
-delete globalThis.__dboCreatorSpots; delete globalThis.__dboCreatorPlacedAt; delete globalThis.__dboWorldClock; delete globalThis.__dboClock;
+delete globalThis.__dboCreatorSpotHolds; delete globalThis.__dboCreatorPlacedAt; delete globalThis.__dboWorldClock; delete globalThis.__dboClock;
 console.log(failures ? `\n${failures} FAILED` : '\nall passed');
 process.exit(failures ? 1 : 0);
