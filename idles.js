@@ -23,6 +23,8 @@ module.exports = (api) => {
     // (MQ101, hands working at the other's wrists), the same one rope.js uses for tying; there is no vanilla cuffing
     // idle. Unproven until the console check (row 14); IdleLockPick is the fallback
     cuff: { anim: 'BoundStandingCutNPC', seconds: 3, endsItself: true },
+    // The Character Journal on F3 (journal.js): the wheel's Read Book, IdleBook_TurnManyPages' event, for the client's 10 s
+    journal: { anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false },
   };
   const C = Object.assign({ enabled: true }, (cfg && cfg.interactionIdles) || {});
   const IDLES = Object.assign({}, DEFAULTS, C.idles || {});
