@@ -30,6 +30,7 @@ import { DeathScreenService } from "./services/services/deathScreenService";
 import { ShoutPushService } from "./services/services/shoutPushService";
 import { StatDisplayService } from "./services/services/statDisplayService";
 import { DownedTimerService } from "./services/services/downedTimerService";
+import { ChatBubbleService } from "./services/services/chatBubbleService";
 import { ContainersService } from "./services/services/containersService";
 import { NetworkingService } from "./services/services/networkingService";
 import { RemoteServer } from "./services/services/remoteServer";
@@ -159,6 +160,7 @@ const main = () => {
       new ShoutPushService(sp, controller),
       new StatDisplayService(sp, controller),
       new DownedTimerService(sp, controller),
+      new ChatBubbleService(sp, controller),
       new ContainersService(sp, controller),
       new NetworkingService(sp, controller),
       new ConnectionWatchdogService(sp, controller),

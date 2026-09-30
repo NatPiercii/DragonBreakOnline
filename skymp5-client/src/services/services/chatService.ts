@@ -4,6 +4,8 @@ import { BrowserMessageEvent } from "skyrimPlatform";
 import { MsgType } from "../../messages";
 import { FormView, getScreenResolution } from "../../view/formView";
 import { isGameInputBlocked } from "./widgetMenuUtil";
+import { applyBubbleSettings } from "./chatBubblePlan";
+import { speakerLocalId } from "./chatBubbleService";
 
 declare const window: any;
 
@@ -269,8 +271,7 @@ const buildMountJs = (name: string, isAdmin: boolean, settingsJson: string) => `
       // Strip the server's "<nonce>" prefix (makes repeats unique so they render).
       var us=s.indexOf('\\u001f');
       if (us>0 && /^[0-9]+$/.test(s.slice(0,us))) s=s.slice(us+1);
-      var bubbleRefr=0;
-	  if (s.indexOf('[[B')===0){ var be=s.indexOf(']]'); var hex=be>3?s.slice(3,be):''; if (hex && /^[0-9a-fA-F]+$/.test(hex)){ bubbleRefr=parseInt(hex,16); s=s.slice(be+2); } }
+	  if (s.indexOf('[[B')===0){ var be=s.indexOf(']]'); var hex=be>3?s.slice(3,be):''; if (hex && /^[0-9a-fA-F]+$/.test(hex)){ s=s.slice(be+2); } }
       // Private messages
       if (s.indexOf('[[PM]]')===0){
         var rest=s.slice(6), bar=rest.indexOf('|');
@@ -301,9 +302,6 @@ const buildMountJs = (name: string, isAdmin: boolean, settingsJson: string) => `
         var d=(typeof dist==='number')?dist:-1;
         if (d>0) segs=darkenSegs(segs, d/DARKEN_RANGE_M);
         pushSegs(segs,tab);
-        if (bubbleRefr && window.skyrimPlatform && window.skyrimPlatform.sendMessage){
-          window.skyrimPlatform.sendMessage('alduinakChatBubble', bubbleRefr, segs.map(function(x){ return x.text; }).join(''));
-        }
       }
     };
 
@@ -343,10 +341,6 @@ export class ChatService extends ClientListener {
   }
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
-    if (e.arguments[0] === "alduinakChatBubble") {
-      this.showBubble(Number(e.arguments[1] ?? 0), String(e.arguments[2] ?? ""));
-      return;
-    }
     if (e.arguments[0] === "cef::chat:saveSettings") {
       this.writeChatSettings(String(e.arguments[1] ?? ""));
       return;
@@ -380,6 +374,7 @@ export class ChatService extends ClientListener {
   private applyNametagSettings(parsed: Record<string, unknown>): void {
     FormView.isDisplayingNicknames = parsed["hidePlayerNames"] !== true;
     FormView.isDisplayingActorIds = parsed["showFormIds"] !== false;
+    applyBubbleSettings(parsed);
   }
 
   // Persist settings sent from the chat UI to disk so they survive a relaunch.
@@ -399,7 +394,6 @@ export class ChatService extends ClientListener {
   }
 
   private onUpdate(): void {
-    this.expireBubbles();
     this.expireSystemOverlay();
 
     if (this.sp.storage["ownerModelSet"] !== true) return;
@@ -498,7 +492,9 @@ export class ChatService extends ClientListener {
       if (!/^[0-9a-fA-F]+$/.test(hex)) return -1;
       const refId = parseInt(hex, 16);
       if (!refId) return -1;
-      const sender = this.sp.ObjectReference.from(this.sp.Game.getFormEx(refId));
+      const localId = speakerLocalId(refId);
+      if (!localId) return -1;
+      const sender = this.sp.ObjectReference.from(this.sp.Game.getFormEx(localId));
       const player = this.sp.Game.getPlayer();
       if (!sender || !player) return -1;
       const dx = sender.getPositionX() - player.getPositionX();
@@ -511,32 +507,11 @@ export class ChatService extends ClientListener {
     }
   }
 
-  // Chat bubbles over the player's head for IC lines (/say /me /my ...).
-  private showBubble(refrId: number, text: string): void {
-    if (!text || !refrId) return;
-    const id = this.sp.createText(-1000, -1000, text.slice(0, 100), [1, 1, 1, 1]);
-    this.sp.setTextSize(id, 0.4);
-    this.sp.setTextRefr(id, refrId);
-    this.sp.setTextRefrNode(id, "NPC Head [Head]");
-    this.sp.setTextRefrOffset(id, [0, 0, 40]);
-    this.bubbles.push({ id, expiresAt: Date.now() + 6000 });
-  }
-
-  private expireBubbles(): void {
-    const now = Date.now();
-    this.bubbles = this.bubbles.filter((b) => {
-      if (now < b.expiresAt) return true;
-      this.sp.destroyText(b.id);
-      return false;
-    });
-  }
-
   private mounted = false;
   private lastMsg: string | null = null;
   private lastName: string | null = null;
   private lastAdmin = false;
   private lastOwner: unknown = null;
-  private bubbles: { id: number; expiresAt: number }[] = [];
   private systemOverlay: { id: number; expiresAt: number } | null = null;
   private readonly pluginChatSettingsName = "chat-settings-no-load";
 }
