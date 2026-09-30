@@ -3115,9 +3115,26 @@ const ANIMAL_BODY = Object.assign({
   allowEditorIds: ['^\\w*Food', 'Pelt', 'Hide', 'Leather', 'Fur', 'Tusk', 'Horn', 'Antler', 'Chitin', 'Tooth', 'Teeth', 'Claw', 'Fang', 'Bone', 'Scale', 'Fin$', 'Feather', 'Venom', 'Meat'],
   denyEditorIds: ['Gem', 'Gold', 'Jewel', 'Coin', 'Ingot', 'Ore', 'Human', 'Scarab', 'Unfitted'],
   keepAllKinds: [],
+  // Meat for the animals whose death item has none (Nate, 30 Sep: "add food to all animals"). Matched on the body's own
+  // editor id, not the wildlife kind: a wolf spot also spawns bears, mountain lions and boars. First match wins; each item
+  // is added once per death, and only when the body does not already hold it.
+  addFood: [
+    { creature: 'Wolf', items: ['edb2e:Skyrim.esm'] },                       // FoodDogMeat
+    { creature: 'Fox', items: ['edb2e:Skyrim.esm'] },                        // FoodDogMeat
+    { creature: 'Bear', items: ['65c99:Skyrim.esm'] },                       // FoodBeef
+    { creature: 'SabreCat|MountainLion', items: ['65c99:Skyrim.esm'] },      // FoodBeef
+    { creature: 'Skeever', items: ['6020ad:BSAssets.esm'] },                 // BSKFoodRatMeat
+    { creature: 'Slaughterfish', items: ['f25:ccBGSSSE001-Fish.esm'] },      // ccBGSSSE001_FoodSlaughterfish
+    { creature: 'Boar', items: ['3bd14:Dragonborn.esm', '1cd6f:Dragonborn.esm'] }, // DLC2FoodBoarMeat, DLC2BoarTusk
+  ],
 }, cfg.animalBody || {});
 const animalRx = (list) => { const out = []; for (const x of Array.isArray(list) ? list : []) { try { out.push(new RegExp(String(x))); } catch (e) { log(`animalBody: bad pattern ${x}`); } } return out; };
 const ANIMAL_ALLOW = animalRx(ANIMAL_BODY.allowEditorIds), ANIMAL_DENY = animalRx(ANIMAL_BODY.denyEditorIds);
+const ANIMAL_FOOD = (Array.isArray(ANIMAL_BODY.addFood) ? ANIMAL_BODY.addFood : []).map((rule) => {
+  let rx = null; try { rx = new RegExp(String(rule && rule.creature)); } catch (e) { log(`animalBody.addFood: bad pattern ${rule && rule.creature}`); return null; }
+  const ids = (Array.isArray(rule.items) ? rule.items : []).map((d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { log(`animalBody.addFood: ${d} is not in the load order`); return 0; } }).filter(Boolean);
+  return ids.length ? { rx, ids } : null;
+}).filter(Boolean);
 const isAnimalPart = (r) => {
   if (!r || !r.record) return false;
   const type = String(r.record.type || ''), edid = String(r.record.editorId || '');
@@ -3132,6 +3149,14 @@ globalThis.__dboAnimalBody = (targetId, casterId) => {
   try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
   let entries = [];
   try { const inv = mp.get(targetId, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return null; }
+  let fed = false; try { fed = mp.get(targetId, 'private.dboBodyFed') === true; } catch (e) { /* first search */ }
+  if (!fed) {
+    const br = recordOf(baseIdOf(targetId));
+    const creature = String((br && br.record.editorId) || '');
+    const rule = creature ? ANIMAL_FOOD.find((x) => x.rx.test(creature)) : null;
+    if (rule) { entries = entries.slice(); for (const id of rule.ids) if (!entries.some((e) => (Number(e.baseId) >>> 0) === id && Number(e.count) > 0)) entries.push({ baseId: id, count: 1 }); }
+    try { mp.set(targetId, 'private.dboBodyFed', true); } catch (e) { /* the flag only stops a second helping */ }
+  }
   const keepAll = (ANIMAL_BODY.keepAllKinds || []).includes(tag.split(':')[1]);
   const got = [], dropped = [];
   for (const e of entries) {
@@ -3303,6 +3328,7 @@ if (typeof globalThis.__dboPrevDeath === 'undefined') globalThis.__dboPrevDeath 
 const deathHook = (actorId, killerId, ...rest) => {
   // Each death makes the body searchable once more
   try { mp.set(Number(actorId) >>> 0, 'private.dboBodySearched', false); } catch (e) { /* not a player */ }
+  try { mp.set(Number(actorId) >>> 0, 'private.dboBodyFed', false); } catch (e) { /* the next death feeds again (animalBody.addFood) */ }
   try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(actorId, 'death'); } catch (e) { log('beast revert on death failed', e.message); }
   try { setDeathTemple(Number(actorId) >>> 0); } catch (e) { log('death temple failed', e.message); }
   // MpActor::Kill adds the death item after firing this event, so the pelt only exists a tick later

@@ -407,7 +407,60 @@
    "Scarab",
    "Unfitted"
   ],
-  "keepAllKinds": []
+  "keepAllKinds": [],
+  "_addFood": "Meat for animals whose death item has none (Nate, 30 Sep). creature is a pattern on the dead body's own editor id (a wolf spot also spawns bears and boars); first match wins; each item is added once per death unless the body already holds it. names is for reading only.",
+  "addFood": [
+   {
+    "creature": "Wolf",
+    "items": [
+     "edb2e:Skyrim.esm"
+    ],
+    "names": "FoodDogMeat"
+   },
+   {
+    "creature": "Fox",
+    "items": [
+     "edb2e:Skyrim.esm"
+    ],
+    "names": "FoodDogMeat"
+   },
+   {
+    "creature": "Bear",
+    "items": [
+     "65c99:Skyrim.esm"
+    ],
+    "names": "FoodBeef"
+   },
+   {
+    "creature": "SabreCat|MountainLion",
+    "items": [
+     "65c99:Skyrim.esm"
+    ],
+    "names": "FoodBeef"
+   },
+   {
+    "creature": "Skeever",
+    "items": [
+     "6020ad:BSAssets.esm"
+    ],
+    "names": "BSKFoodRatMeat"
+   },
+   {
+    "creature": "Slaughterfish",
+    "items": [
+     "f25:ccBGSSSE001-Fish.esm"
+    ],
+    "names": "ccBGSSSE001_FoodSlaughterfish"
+   },
+   {
+    "creature": "Boar",
+    "items": [
+     "3bd14:Dragonborn.esm",
+     "1cd6f:Dragonborn.esm"
+    ],
+    "names": "DLC2FoodBoarMeat, DLC2BoarTusk"
+   }
+  ]
  },
  "playtest": {
   "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",

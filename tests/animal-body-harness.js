@@ -11,15 +11,24 @@ if (i < 0 || j < 0) { console.log('FAIL gamemode.js has no ANIMAL_BODY / __dboAn
 let fails = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${what}${!c && got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!c) fails++; };
 const props = new Map(), said = [], given = [];
-const mp = { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => props.set(`${id}|${k}`, v) };
+// Stub load order for mp.getIdFromDesc: the food and tusk descs animalBody.addFood names, at stub ids
+const DESCS = { 'edb2e:skyrim.esm': 0xedb2e, '65c99:skyrim.esm': 0x65c99, '6020ad:bsassets.esm': 0x076020ad, 'f25:ccbgssse001-fish.esm': 0x06000f25,
+  '3bd14:dragonborn.esm': 0x0403bd14, '1cd6f:dragonborn.esm': 0x0401cd6f };
+const mp = { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => props.set(`${id}|${k}`, v),
+  getIdFromDesc: (d) => { const id = DESCS[String(d).toLowerCase()]; if (!id) throw new Error('no such form'); return id; } };
 // Record stubs keyed by id (the ids only need to be distinct here; the type and editor id are what the rule reads)
 const RECS = { 0x669a2: ['ALCH', 'FoodVenison'], 0x6bc0a: ['INGR', 'AntlersLarge'], 0x65c9e: ['ALCH', 'FoodRabbit'], 0xf2011: ['ALCH', 'FoodChicken'],
   0x3b97c: ['ARMO', 'SilverRing'], 0x63b45: ['MISC', 'GemRuby'], 0xf: ['MISC', 'Gold001'], 0x2e4e3: ['SLGM', 'SoulGemPetty'],
   0x3eadd: ['ALCH', 'RestoreHealth01'], 0x6b683: ['MISC', 'BoneHumanSkullFull'], 0x3ad6f: ['INGR', 'BearClaws'],
-  0x3ad52: ['MISC', 'MammothTusk'], 0x9151b: ['MISC', 'BearPelt'], 0x13982: ['WEAP', 'IronDagger'], 0x13989: ['ARMO', 'ArmorIronHelmet'] };
-const build = (cfg) => new Function('globalThis', 'mp', 'cfg', 'profileOf', 'giveItem', 'recordOf', 'edidWords', 'personal', 'log', 'display',
+  0x3ad52: ['MISC', 'MammothTusk'], 0x9151b: ['MISC', 'BearPelt'], 0x13982: ['WEAP', 'IronDagger'], 0x13989: ['ARMO', 'ArmorIronHelmet'],
+  0xedb2e: ['ALCH', 'FoodDogMeat'], 0x65c99: ['ALCH', 'FoodBeef'], 0x076020ad: ['ALCH', 'BSKFoodRatMeat'], 0x06000f25: ['ALCH', 'ccBGSSSE001_FoodSlaughterfish'],
+  0x0403bd14: ['ALCH', 'DLC2FoodBoarMeat'], 0x0401cd6f: ['INGR', 'DLC2BoarTusk'] };
+// Creature bases (NPC_) the bodies are made from, by stub id
+const CREATURES = {};
+const creature = (edid) => { const id = 0x0a000000 + Object.keys(CREATURES).length + 1; CREATURES[id] = edid; RECS[id] = ['NPC_', edid]; return id; };
+const build = (cfg) => new Function('globalThis', 'mp', 'cfg', 'baseIdOf', 'profileOf', 'giveItem', 'recordOf', 'edidWords', 'personal', 'log', 'display',
   `${src.slice(i, j + 3)}\nreturn globalThis.__dboAnimalBody;`)(
-  {}, mp, cfg, (a) => (a === 0xff000014 ? 30 : -1), (a, id, n) => { given.push([id, n]); return true; },
+  {}, mp, cfg, (id) => Number(props.get(`${id}|baseId`)) || 0, (a) => (a === 0xff000014 ? 30 : -1), (a, id, n) => { given.push([id, n]); return true; },
   (id) => (RECS[id] ? { record: { type: RECS[id][0], editorId: RECS[id][1] } } : null),
   (edid, fb) => String(edid || '').replace(/([a-z])([A-Z])/g, '$1 $2').trim() || fb, (a, t) => said.push(t), (t) => logged.push(t), String);
 const logged = [];
@@ -94,6 +103,58 @@ ok(conf && Array.isArray(conf.allowEditorIds) && conf.allowEditorIds.every((x) =
 put(RINGDEER, 'wild:deer:2878', [{ baseId: 0x669a2, count: 1 }, { baseId: 0x3b97c, count: 1 }]);
 given.length = 0;
 ok(build({ animalBody: conf })(RINGDEER, P) === false && given.length === 1 && given[0][0] === 0x669a2, 'the shipped config keeps the venison and drops the ring', given);
+// Food on every animal (Nate, 30 Sep: "add food to all animals"). Every wild creature whose death item holds no meat, by
+// its own editor id (the census of wildlife.json's spawnable creatures, 30 Sep), gets its food with the other parts;
+// monsters and folk get nothing added.
+const FED = {
+  CYREncWolf: 'FoodDogMeat', CYREncWolfTimber: 'FoodDogMeat', EncWolf: 'FoodDogMeat', EncWolfIce: 'FoodDogMeat', dunPOITrappedWolf: 'FoodDogMeat',
+  CYREncFox: 'FoodDogMeat', CYREncFoxGray: 'FoodDogMeat', EncFox: 'FoodDogMeat', EncFoxArctic: 'FoodDogMeat',
+  CYREncBearBlack: 'FoodBeef', CYREncBearBrown: 'FoodBeef', CYREncBearMasked: 'FoodBeef', EncBear: 'FoodBeef', EncBearCave: 'FoodBeef', EncBearSnow: 'FoodBeef',
+  EncSabreCat: 'FoodBeef', EncSabreCatSnow: 'FoodBeef', dunRavenscarSabreCat: 'FoodBeef', CYREncMountainLion: 'FoodBeef',
+  EncSkeever: 'BSKFoodRatMeat', EncSlaughterfish: 'ccBGSSSE001_FoodSlaughterfish',
+};
+const UNFED = ['CYREncTroll', 'CYREncTrollRiver', 'EncTrollFrost', 'EncIceWraith', 'EncChaurus', 'EncFrostbiteSpider', 'EncGiant01', 'CYREncOgre01',
+  'CYREncMinotaur', 'DLC2EncNetchBull', 'DLC2EncLurker01', 'DLC2EncRiekling01Melee'];
+let bodyN = 0x700;
+const kill = (edid, tag, entries) => { const id = 0xff000000 + bodyN++; put(id, tag, entries); props.set(`${id}|baseId`, creature(edid)); return id; };
+const edidOf = (id) => (RECS[id] || [])[1];
+for (const [edid, food] of Object.entries(FED)) {
+  const b = kill(edid, 'wild:wolf:1', []);
+  given.length = 0; said.length = 0;
+  ok(fn(b, P) === false && given.length === 1 && edidOf(given[0][0]) === food, `a dead ${edid} gives ${food}`, given.map(([id]) => edidOf(id)));
+}
+for (const edid of UNFED) {
+  const b = kill(edid, 'wild:troll:1', []);
+  given.length = 0;
+  ok(fn(b, P) === false && given.length === 0, `a dead ${edid} gets no food added`, given.map(([id]) => edidOf(id)));
+}
+// A boar's death item already holds its meat: only the tusk is added, and the meat is not doubled
+const boar = kill('DLC2EncBoarWild', 'wild:boar:1', [{ baseId: 0x0403bd14, count: 1 }]);
+given.length = 0;
+ok(fn(boar, P) === false && given.map(([id, n]) => `${edidOf(id)}x${n}`).sort().join() === 'DLC2BoarTuskx1,DLC2FoodBoarMeatx1', 'a boar gives one boar meat and a tusk', given.map(([id, n]) => `${edidOf(id)}x${n}`));
+const bare = kill('DLC2EncBoarWild', 'wild:boar:2', []);
+given.length = 0;
+ok(fn(bare, P) === false && given.length === 2, 'a boar with nothing on it still gives meat and a tusk', given.map(([id]) => edidOf(id)));
+// Once per death: the second E finds nothing, and a new death feeds again
+const wolf = kill('CYREncWolf', 'wild:wolf:9', []);
+fn(wolf, P); given.length = 0; said.length = 0;
+ok(fn(wolf, P) === false && given.length === 0 && /nothing left/.test(said[0] || ''), 'the food is added once: a second E finds nothing left');
+ok(/'private\.dboBodyFed', false\)/.test(src), 'a death clears the fed flag, so the next death is fed again');
+props.set(`${wolf}|private.dboBodyFed`, false); props.set(`${wolf}|inventory`, { entries: [] });
+given.length = 0;
+ok(fn(wolf, P) === false && given.length === 1, 'after the flag is cleared (a new death) the wolf is fed again');
+// A bad desc in config is skipped, not thrown
+logged.length = 0;
+const broken = build({ animalBody: { addFood: [{ creature: 'Wolf', items: ['123:NoSuchPlugin.esp'] }] } });
+const w2 = kill('EncWolf', 'wild:wolf:3', []);
+given.length = 0;
+ok(broken(w2, P) === false && given.length === 0 && logged.some((l) => /not in the load order/.test(l)), 'a food not in the load order is logged and skipped', logged);
+// The shipped config: every rule's items resolve in the stub order, one per rule
+ok(Array.isArray(conf.addFood) && conf.addFood.every((r) => Array.isArray(r.items) && r.items.every((d) => DESCS[String(d).toLowerCase()])), 'every addFood item in gamemode-config.json is a known desc');
+const cf = build({ animalBody: conf });
+const w3 = kill('EncFoxArctic', 'wild:fox:3', []);
+given.length = 0;
+ok(cf(w3, P) === false && given.length === 1 && edidOf(given[0][0]) === 'FoodDogMeat', 'the shipped config feeds an arctic fox');
 const gm = src;
 ok(/__dboSkin\(targetId >>> 0, casterId >>> 0\) === false\) return false;\n  if \(globalThis\.__dboAnimalBody && globalThis\.__dboAnimalBody\(targetId >>> 0, casterId >>> 0\) === false\) return false;/.test(gm), 'the activate chain asks it right after skinning');
 
