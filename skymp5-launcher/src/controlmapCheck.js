@@ -110,6 +110,91 @@ function moveAside(file, now, tag) {
   return aside
 }
 
+// ---- keeping a player's remaps -------------------------------------------------------------------------------
+//
+// Skyrim writes ControlMap_Custom.txt in the game root when a player remaps a key, and it overrides controlmap.txt.
+// Moving it aside prevented the crash but threw the player's keys away on every launch ("my keybinds reset when
+// loading in", Onny and exsenus, 2026-09-30). So a map that is short or LF is now REPAIRED instead: the player's own
+// lines are merged over the complete seed and written back CRLF, with their original kept as a dated .bak.
+//
+// Blocks are matched by which events they hold, not by position: a custom map may carry only the contexts the player
+// touched, in whatever order, so aligning by index would write one context's bindings into another.
+
+// Blocks of { name, line } keeping the whole line, so a player's binding survives the merge
+function parseFullBlocks(text) {
+  const blocks = [];
+  let current = null;
+  for (const raw of String(text).replace(/^\ufeff/, '').split(/\r?\n/)) {
+    if (!raw.trim()) { current = null; continue; }
+    if (!current) { current = []; blocks.push(current); }
+    if (raw.trim().startsWith('//')) continue;
+    const name = raw.includes('\t') ? raw.split('\t')[0] : ((/^(.*?)\s+0x/i.exec(raw) || [])[1] || '');
+    if (name.trim()) current.push({ name: name.trim(), line: raw });
+  }
+  return blocks.filter(b => b.length);
+}
+
+// The seed block a custom block belongs to: the one sharing the most event names. null when it shares none.
+function matchBlock(customBlock, seedBlocks, taken) {
+  const names = new Set(customBlock.map(e => e.name));
+  let best = null, bestHits = 0;
+  seedBlocks.forEach((block, i) => {
+    if (taken.has(i)) return;
+    const hits = block.filter(e => names.has(e.name)).length;
+    if (hits > bestHits) { best = i; bestHits = hits; }
+  });
+  return bestHits > 0 ? best : null;
+}
+
+/**
+ * The seed with the player's own bindings written over it, or null when nothing could be carried across.
+ * Only events the seed already knows are taken, so a junk file cannot inject lines.
+ */
+function mergeCustomOverSeed(customText, seedText) {
+  const seedBlocks = parseFullBlocks(seedText);
+  const customBlocks = parseFullBlocks(customText);
+  if (!seedBlocks.length || !customBlocks.length) return null;
+  const taken = new Set();
+  const replacement = new Map();   // "blockIndex\u0000eventName" -> the player's line
+  for (const block of customBlocks) {
+    const i = matchBlock(block, seedBlocks, taken);
+    if (i === null) continue;
+    taken.add(i);
+    const known = new Set(seedBlocks[i].map(e => e.name));
+    for (const entry of block) if (known.has(entry.name)) replacement.set(`${i}\u0000${entry.name}`, entry.line);
+  }
+  if (!replacement.size) return null;
+  // Walk the seed text itself, so its comments, blank lines and context order are kept exactly
+  let block = -1, inBlock = false;
+  const out = [];
+  for (const raw of String(seedText).replace(/^\ufeff/, '').split(/\r?\n/)) {
+    if (!raw.trim()) { inBlock = false; out.push(raw); continue; }
+    if (!inBlock) { inBlock = true; block++; }
+    if (raw.trim().startsWith('//')) { out.push(raw); continue; }
+    const name = raw.includes('\t') ? raw.split('\t')[0] : ((/^(.*?)\s+0x/i.exec(raw) || [])[1] || '');
+    const mine = replacement.get(`${block}\u0000${name.trim()}`);
+    out.push(mine === undefined ? raw : mine);
+  }
+  return toCrlf(out.join('\n'));
+}
+
+/**
+ * Repairs one control map in place: the player's bindings merged over the seed, CRLF, original kept as a dated .bak.
+ * Returns the backup path, or null when the file could not be repaired (the caller then moves it aside as before).
+ * A repaired map analyses as complete, so the next launch leaves it alone: no rewrite, no second backup.
+ */
+function repairControlmap(file, now, seedText) {
+  let text;
+  try { text = fs.readFileSync(file, 'utf8'); } catch (err) { return null; }
+  const merged = mergeCustomOverSeed(text, seedText === undefined ? fs.readFileSync(SEED, 'utf8') : seedText);
+  if (!merged || !analyzeControlmap(merged).ok) return null;
+  let bak = `${file}.bak-${stamp(now)}`;
+  for (let n = 2; fs.existsSync(bak); n++) bak = `${file}.bak-${stamp(now)}-${n}`;
+  fs.copyFileSync(file, bak);
+  fs.writeFileSync(file, merged);
+  return bak;
+}
+
 /**
  * Checks the custom map and the Data maps down to the first complete one, moving incomplete ones aside.
  * Returns the lines to log: one per map read, so a report shows which map the game was given.
@@ -130,12 +215,18 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
       lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts`)
       return true
     }
-    const aside = moveAside(file, now, r.missing.length ? 'incomplete' : 'lf')
     const why = [
       r.missing.length ? `missing ${r.missing.join(', ')}` : '',
       r.lf ? `${r.lf} line(s) end in LF only, the game's own map uses CRLF` : '',
     ].filter(Boolean).join('; ')
-    lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), moved aside to ${path.basename(aside)}`)
+    // Keep the player's keys: merge them over the seed rather than throwing the file away
+    const bak = repairControlmap(file, now, undefined)
+    if (bak) {
+      lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), repaired in place with the player's bindings kept; original saved as ${path.basename(bak)}`)
+      return true
+    }
+    const aside = moveAside(file, now, r.missing.length ? 'incomplete' : 'lf')
+    lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), nothing could be carried across, moved aside to ${path.basename(aside)}`)
     return false
   }
   if (custom) check(custom)
@@ -145,4 +236,4 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
   return lines
 }
 
-module.exports = { CONTEXT_NAMES, parseBlocks, analyzeControlmap, enabledMods, controlmapFiles, checkControlmaps, bareLfCount, toCrlf }
+module.exports = { CONTEXT_NAMES, parseBlocks, parseFullBlocks, analyzeControlmap, enabledMods, controlmapFiles, checkControlmaps, bareLfCount, toCrlf, mergeCustomOverSeed, repairControlmap }
