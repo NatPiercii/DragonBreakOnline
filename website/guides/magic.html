@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Schools of Magic - Dragon Break</title>
+<meta name="description" content="Arcane Arts, the four schools, Study Magic, Class Lecterns, tomes, prepared spells and scrolls.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd footer p{margin-inline:auto}
+.gd li{margin:0}
+.gd{--ink:#0f2a2e;--ink-soft:#3a4548;--ground:#e6ecec;--panel:#e6ecec;--rule:#d7e3e3;--accent:#2f7c80;--accent-soft:#e6ecec;--warn:#7a2d2a;--warn-soft:#e6ecec;--good:#3a4548;--good-soft:#e6ecec;--display:'Cinzel','Trajan Pro',Georgia,serif;--body:'Roboto Condensed','Futura Condensed',sans-serif;--mono:ui-monospace,Consolas,monospace}
+.gd{--ink:#e6ecec;--ink-soft:#8c9a9c;--ground:#08191c;--panel:#0f2a2e;--rule:#16383d;--accent:#8fd3d0;--accent-soft:#0f2a2e;--warn:#e0897f;--warn-soft:#08191c;--good:#5fb3b3;--good-soft:#08191c}
+.gd{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+.gd .g-wrap{max-width:780px;margin:0 auto;padding-inline:20px;padding-block:48px 72px;display:flex;flex-direction:column;gap:34px}
+.gd .g-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+.gd h1{font-family:var(--display);font-weight:600;font-size:clamp(30px, 6vw, 42px);line-height:1.12;margin:0 0 12px;text-wrap:balance}
+.gd .g-standfirst{font-size:18px;color:var(--ink-soft);margin:0;max-width:62ch}
+.gd h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid var(--rule);text-wrap:balance}
+.gd h3{font-family:var(--body);font-weight:600;font-size:15px;letter-spacing:0.02em;margin:18px 0 2px}
+.gd p{margin:10px 0;max-width:66ch}
+.gd section > p:first-of-type{margin-top:12px}
+.gd ul{margin:10px 0;padding-left:20px;max-width:66ch}
+.gd li{margin:5px 0}
+.gd code,.gd .g-mono{font-family:var(--mono);font-size:0.87em}
+.gd code{background:var(--accent-soft);padding:1px 5px;border-radius:3px}
+.gd strong{font-weight:600}
+.gd .g-tablewrap{overflow-x:auto;margin:14px 0}
+.gd table{border-collapse:collapse;width:100%;font-size:14.5px}
+.gd th,.gd td{text-align:left;padding:7px 12px 7px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.gd th{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:500;white-space:nowrap}
+.gd td.g-num,.gd th.g-num{text-align:right;font-variant-numeric:tabular-nums;padding-right:0}
+.gd td.g-num+td,.gd th.g-num+th{padding-left:28px}
+.gd .g-ladder td:first-child{font-family:var(--display)}
+.gd .g-callout{background:var(--panel);border-left:3px solid var(--accent);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.gd .g-callout p{margin:0}
+.gd .g-callout--warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.gd .g-callout--good{border-left-color:var(--good);background:var(--good-soft)}
+.gd .g-facts{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:1px;background:var(--rule);border:1px solid var(--rule)}
+.gd .g-fact{background:var(--panel);padding:14px 16px}
+.gd .g-fact dt{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 4px}
+.gd .g-fact dd{margin:0;font-family:var(--display);font-size:25px;line-height:1.1;font-variant-numeric:tabular-nums}
+.gd .g-fact .g-unit{font-family:var(--body);font-size:13px;color:var(--ink-soft);display:block;margin-top:3px}
+.gd .g-moons{display:flex;flex-direction:column;gap:0;border:1px solid var(--rule)}
+.gd .g-moon{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--rule)}
+.gd .g-moon:last-child{border-bottom:0}
+.gd .g-moon .g-glyph{font-size:20px;color:var(--accent);line-height:1.3}
+.gd .g-moon .g-name{font-weight:600}
+.gd .g-moon .g-what{color:var(--ink-soft);font-size:14.5px}
+.gd footer{border-top:1px solid var(--rule);padding-top:16px;color:var(--ink-soft);font-size:14px}
+@media (max-width: 460px){.gd .g-fact dd{font-size:21px}}
+.gd{--accent:#8fd3d0;--accent-soft:rgba(143,211,208,.12);--body:'Roboto Condensed','Futura Condensed',sans-serif;--display:'Cinzel','Trajan Pro',Georgia,serif;--good:#5fb3b3;--good-soft:rgba(95,179,179,.14);--ground:transparent;--ink:#d7e3e3;--ink-soft:rgba(215,227,227,.62);--mono:ui-monospace,Consolas,monospace;--panel:rgba(12,34,38,.94);--rule:rgba(143,211,208,.22);--warn:#c98a3a;--warn-soft:rgba(201,138,58,.16)}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · magic</div><h1>Schools of Magic</h1></div>
+<main class="gd">
+<div class="g-wrap">
+  <header>
+    <p class="g-standfirst">Magic here is studied, not looted. Two skills on the Wheel carry it, four schools shape a mage, and the halls of the Synod are where spells are read, prepared and taught.</p>
+  </header>
+  <section>
+    <h2>Two skills, five schools of spells</h2>
+    <p>Every spell belongs to one of Skyrim&rsquo;s five schools, and two skills on the <a href="/guides/skills.html">Wheel of Skills</a> share them out:</p>
+    <div class="g-tablewrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Spells</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Arcane Arts</strong></td><td>Destruction, Conjuration and Illusion, and Alteration for a mage who chooses it as a school</td></tr>
+          <tr><td><strong>Priest</strong></td><td>Restoration and Alteration</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A skill&rsquo;s tier decides the highest rank of spell it may learn: Novice spells at Novice, Apprentice spells at Apprentice, Adept spells at Journeyman, Expert spells at Expert and Master spells at Master. Arcane Arts also adds to Destruction damage: +20% at Journeyman, +35% at Expert and +50% at Master.</p>
+    <p>You take up either skill in the usual ways: cast its spells until the work adds up to a level and accept the offer in your skills menu (K), or read a Novice tome of its school at a spell study point, which takes the skill up at once for one point. Choosing a school of magic also takes up Arcane Arts if you do not hold it yet.</p>
+    <div class="g-callout">
+      <p><strong>Alteration belongs to both.</strong> A priest learns and casts Alteration through Priest. A mage who chose Alteration as a school learns it through Arcane Arts, and their Alteration casting raises Arcane Arts and the school together.</p>
+    </div>
+  </section>
+  <section>
+    <h2>The four schools</h2>
+    <p>A mage follows a school of magic: <strong>Destruction, Illusion, Conjuration or Alteration</strong>. Restoration is not one of them; it stays with the Priest.</p>
+    <ul>
+      <li><strong>Your first school.</strong> Choose it on the Arcane Arts page of your skills menu (K), or at a Study Magic spot. It starts at your Arcane Arts level, and the other three schools are closed to you.</li>
+      <li><strong>A second school.</strong> When your Arcane Arts reaches <strong>76</strong> you may take up one more. It starts at 33, never above your first, and the last two schools close for good.</li>
+      <li><strong>Every school is a meter from 0 to 100</strong>, on the same curve as the Wheel: quick at first, slow near the top. The same page of your skills menu shows all four.</li>
+    </ul>
+    <div class="g-tablewrap">
+      <table class="g-ladder">
+        <thead><tr><th>School rank</th><th class="g-num">From level</th><th>Tomes you may read in it</th></tr></thead>
+        <tbody>
+          <tr><td>Novice</td><td class="g-num">1</td><td>Novice</td></tr>
+          <tr><td>Apprentice</td><td class="g-num">25</td><td>up to Apprentice</td></tr>
+          <tr><td>Adept</td><td class="g-num">50</td><td>up to Adept</td></tr>
+          <tr><td>Expert</td><td class="g-num">75</td><td>up to Expert</td></tr>
+          <tr><td>Master</td><td class="g-num">90</td><td>up to Master</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Both limits apply: a tome must fit your rank in its school <em>and</em> your Arcane Arts tier. A Journeyman mage whose Destruction is Expert still reads only up to Adept.</p>
+    <h3>How a school grows</h3>
+    <ul>
+      <li><strong>Casting its spells.</strong> Casting the same spell again within the hour counts for less, and each school takes in only so much casting a day.</li>
+      <li><strong>Study Magic</strong>, while you are new to magic (below).</li>
+      <li><strong>Classes</strong> at a Class Lectern (below).</li>
+    </ul>
+    <p>Study and classes count toward Arcane Arts too, within the Wheel&rsquo;s usual hourly and daily limits. The <a href="/guides/leveling.html">Leveling Guide</a> has those numbers.</p>
+  </section>
+  <section>
+    <h2>Study Magic</h2>
+    <p>Study spots stand in the Synod Conclave in Bruma, among its bookcases, and in Frostcrag Spire. Use one and you settle in with a book. Every few seconds of study raises your first school, as long as you stay where you are; step away and you close the books.</p>
+    <dl class="g-facts">
+      <div class="g-fact"><dt>Study</dt><dd>20<span class="g-unit">minutes in any 4 hours</span></dd></div>
+      <div class="g-fact"><dt>Pays</dt><dd>1<span class="g-unit">school, your first</span></dd></div>
+      <div class="g-fact"><dt>Ends</dt><dd>1st<span class="g-unit">spell learned through Arcane Arts</span></dd></div>
+    </dl>
+    <p>Study is how a new mage gets started. Once you have learned your first spell through Arcane Arts, the shelves have nothing more to teach you, and your schools grow by casting and in class. A priest&rsquo;s Alteration spells do not close them.</p>
+  </section>
+  <section>
+    <h2>Classes at a Class Lectern</h2>
+    <p>Class Lecterns stand in the Synod Conclave, in Frostcrag Spire and in the Hall of the Elements at the College of Winterhold. A teacher holds a class at one, and every student in the room learns from it.</p>
+    <h3>Who may teach</h3>
+    <p>A teacher is named by the Synod (the staff), is a member of the Synod or a College, and has reached Expert in one of their schools. If you want to teach, ask the staff on Discord. A teacher may hold a new class an hour after finishing the last.</p>
+    <h3>How a class runs</h3>
+    <ul>
+      <li>The teacher chooses a spell they know. It sets the class&rsquo;s school and rank; nobody learns the spell itself.</li>
+      <li>Students sign up at the same lectern in the first <strong>10 minutes</strong>, up to <strong>12</strong> of them. The school must be one of yours.</li>
+      <li>The class runs <strong>30 minutes</strong>. Everyone stays in the classroom: the building, or within 15 metres of the lectern outdoors.</li>
+      <li>When the time is up the teacher ends it at the lectern, and every student still in the room gains in that school.</li>
+      <li>A teacher gone for 5 minutes (a disconnect counts) cancels the class, and nobody gains. A student gone for 5 minutes drops out.</li>
+      <li>A student gains from one class every <strong>12 hours</strong>.</li>
+    </ul>
+    <div class="g-tablewrap">
+      <table>
+        <thead><tr><th>A class of</th><th>What a student gains</th></tr></thead>
+        <tbody>
+          <tr><td>Your own rank in the school</td><td>A full share</td></tr>
+          <tr><td>One rank above yours</td><td>Seven tenths of a share</td></tr>
+          <tr><td>Novice, for an Apprentice</td><td>About a third of a share</td></tr>
+          <tr><td>Anything else</td><td>Nothing, so you cannot sign up</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <div class="g-callout">
+    <p><strong>The College of Winterhold is in Skyrim.</strong> Its lectern, its Arcanaeum and its halls wait for the day Skyrim opens; during the alpha, mages study in the Synod Conclave and Frostcrag Spire.</p>
+  </div>
+  <section>
+    <h2>Learning a spell</h2>
+    <p>Spells come from tomes, and a tome is read at a <strong>spell study point</strong>: beside the Study Magic spots in the Synod Conclave and Frostcrag Spire, or in the Arcanaeum at the College of Winterhold. Reading one there works when:</p>
+    <ul>
+      <li>you hold the skill that studies its school (or it is a Novice tome, which takes the skill up for you);</li>
+      <li>the tome&rsquo;s rank fits your tier in that skill;</li>
+      <li>for Destruction, Illusion, Conjuration and Alteration learned as a mage, the school is one of yours and the tome fits your rank in it.</li>
+    </ul>
+    <p>A tome you learn from is used up. A tome you cannot learn yet stays in your pack: &ldquo;The words will not settle&rdquo;, and the game tells you why.</p>
+    <h3>Where tomes come from</h3>
+    <ul>
+      <li><strong>The Synod&rsquo;s court mage</strong> sells tomes inside the Synod Conclave (<code>/tomes</code>) to members of the Synod or a College who hold Arcane Arts or Priest at Apprentice or higher. Only the magic of Cyrodiil is sold, up to Expert tomes, one tome a week, and the gold goes to Bruma&rsquo;s treasury.</li>
+      <li><strong>Books.</strong> A Scholar reading the books of the world now and then finds a spell tome between the pages, Novice at first and up to Adept at Master.</li>
+      <li><strong>Another mage.</strong> An Expert in Arcane Arts or Priest can teach a spell of their schools to a player standing within 5 metres (<code>/teach</code>). The student needs the skill at Apprentice or higher and accepts the lesson within a minute.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>Your spellbook and prepared spells</h2>
+    <p>Nothing you learn is forgotten. Every spell you study or are taught stays in your spellbook, with no limit, and <code>/spells</code> opens it.</p>
+    <dl class="g-facts">
+      <div class="g-fact"><dt>Spellbook</dt><dd>&infin;<span class="g-unit">every spell you learn</span></dd></div>
+      <div class="g-fact"><dt>Prepared</dt><dd>3<span class="g-unit">at a time, any school</span></dd></div>
+    </dl>
+    <p>Only your <strong>prepared</strong> spells are in your hands to cast, three at a time whatever their school. You change them at a magic college: the Synod Conclave in Bruma, or the halls of the College of Winterhold. A new spell learned while all three are prepared waits in your spellbook until you swap it in. The spells your race starts with never take a place.</p>
+  </section>
+  <section>
+    <h2>Scrolls</h2>
+    <p>A Scholar who reads a book through sometimes finds a scroll tucked between the pages: about one reading in 25 at Novice, one in 12 at Master, and never more than six scrolls a day. The higher your Scholar tier, the stronger the scroll can be. A scroll casts its spell once, and anyone can use it, so a new mage can cast before owning a single spell.</p>
+  </section>
+  <section>
+    <h2>The Synod&rsquo;s enchanting table</h2>
+    <p>The arcane enchanter in the Synod Conclave belongs to the Synod, but for now it is open to everyone. It will be kept for members of the Synod and the Colleges once they have members.</p>
+    <p>It works like any arcane enchanter: only an Enchanter may use it, and the first time you set your hand to one you take up Enchanter for a point. How strong an enchantment you can lay follows your Enchanter tier, from half the strength of the strongest enchantment of that effect found anywhere in the world at Novice, up to twice it at Master.</p>
+    <p>More on enchanting, smithing and the other trades is in <a href="/guides/crafting.html">Crafting and Trades</a>.</p>
+  </section>
+  <section>
+    <h2>The Priest&rsquo;s gifts</h2>
+    <ul>
+      <li><strong>Healing that does more.</strong> From Apprentice, a Priest&rsquo;s healing spell lifts the chill of the grave from anyone who woke at the temple. From Expert, it raises a fallen player where they lie.</li>
+      <li><strong>Prayer.</strong> Praying at your god&rsquo;s shrine counts as Priest work and raises the odds of a blessing, from 5% at Novice to 30% at Master, and the blessing lasts longer as you rise. The <a href="/guides/religion.html">Religion System</a> guide covers the gods.</li>
+    </ul>
+  </section>
+  <div class="g-callout g-callout--good">
+    <p><strong>New at the alpha.</strong> Everyone starts the alpha with an empty spellbook and no school of magic, so the halls of the Synod are open to all of you from the first day.</p>
+  </div>
+  <footer>
+    <p>Last updated 30 September 2026.</p>
+  </footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/start.html">Starting Out in Alpha</a></li><li><a href="/guides/commands.html">Commands and Systems</a></li><li><a href="/guides/skills.html">The Wheel of Skills</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/crafting.html">Crafting and Trades</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
+</div>
+</body></html>
