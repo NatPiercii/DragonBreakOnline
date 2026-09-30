@@ -51,9 +51,11 @@ module.exports = (api) => {
   const S = old && old.v === 2 ? old : (globalThis.__dboJournalStats = Object.assign(blank(), old && old.players ? { players: old.players } : {}));
 
   const isPlayer = (a) => { try { return profileOf(Number(a) >>> 0) >= 0; } catch (e) { return false; } };
-  // A character's key: made once, kept on the character, never reused (a new character never carries an old one)
+  // A character's key: made once, kept on the character, never reused (a new character never carries an old one).
+  // Players only: nothing else gets a key or a file
   const keyOf = (a) => {
     const id = Number(a) >>> 0;
+    if (!id || !isPlayer(id)) return null;
     let k = null;
     try { k = mp.get(id, KEY_PROP); } catch (e) { return null; }
     if (typeof k === 'string' && KEY_RX.test(k)) return k;

@@ -66,6 +66,7 @@ delete globalThis.__dboJournalStats; delete globalThis.__alduinakTradeLog; delet
   const k1 = M.keyOf(P1);
   ok(/^[0-9a-f]{16}$/.test(k1) && props.get(`${P1}|private.dboJournalId`) === k1 && M.keyOf(P1) === k1, 'a character gets a random key, kept in its private.dboJournalId and read back the same');
   ok(M.keyOf(P2) !== k1, 'another character gets another key');
+  ok(M.keyOf(NPC) === null && M.statsOf(NPC) === null && props.get(`${NPC}|private.dboJournalId`) === undefined, 'an NPC gets no key, no record and no property');
 
   // ---- play time and sessions ----
   online = [P1]; at(P1, [0, 0, 0]);
