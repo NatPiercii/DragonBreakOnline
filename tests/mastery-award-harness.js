@@ -12,18 +12,20 @@ const path = require('path');
 
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests/mastery-award-harness.js <bundled masterySystem.js>'); process.exit(2); }
-if (!/__alduinakMasteryAward/.test(fs.readFileSync(bundle, 'utf8'))) { console.log('ok   skipped: this masterySystem has no award'); process.exit(0); }
+const SRC = fs.readFileSync(bundle, 'utf8');
+if (!/__alduinakMasteryAward/.test(SRC)) { console.log('ok   skipped: this masterySystem has no award'); process.exit(0); }
 const { MasterySystem } = require(path.resolve(bundle));
 
 let fails = 0;
 const ok = (label, cond, got) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}${!cond && got !== undefined ? `: got ${JSON.stringify(got)}` : ''}`); if (!cond) fails++; };
 
-const SMITH = 0xff000014, SCHOLAR = 0xff000015, NPC = 0xff0000aa, USER = 7;
+const SMITH = 0xff000014, SCHOLAR = 0xff000015, PLAIN = 0xff000016, BOOSTED = 0xff000017, LAPSED = 0xff000018, NPC = 0xff0000aa, USER = 7;
+const PLAYERS = new Set([SMITH, SCHOLAR, PLAIN, BOOSTED, LAPSED]);
 const props = new Map();
 const notices = [];
 const mp = {
   get: (id, key) => {
-    if (key === 'profileId') return id === SMITH || id === SCHOLAR ? 2 : -1;
+    if (key === 'profileId') return PLAYERS.has(id >>> 0) ? 2 : -1;
     const v = props.get(`${id >>> 0}:${key}`);
     return v === undefined ? undefined : JSON.parse(v);
   },
@@ -60,6 +62,21 @@ for (let i = 0; i < 40; i++) total += sys.award(ctx, SMITH, 'blacksmith', 3, 0x1
 const last = sys.award(ctx, SMITH, 'blacksmith', 3, 0x200000);
 ok('the hourly bucket stops it (burst 20 units)', total + u1 + u2 + u3 <= 20.001 && last === 0, [total, last]);
 ok('the level-up notice is the Wheel\'s own', notices.some((t) => /Your Blacksmith rises to/.test(t)), notices);
+
+// The playtesters' boost (private.xpBoost { mult, until }) doubles an award as it doubles any other work: brewing
+// (alchemy.js) and smithing books (manuals.js) are credited through the award, and the boost promises all work
+if (!/private\.xpBoost/.test(SRC)) console.log('ok   skipped the boost cases: this masterySystem has no private.xpBoost');
+else {
+  const xpOf = (a) => { const s = mp.get(a, 'private.mastery').skills.blacksmith; return s.level * 100 + s.xp; };
+  for (const a of [PLAIN, BOOSTED, LAPSED]) mp.set(a, 'private.mastery', { v: 2, order: ['blacksmith'], skills: { blacksmith: { level: 10, xp: 0, rank: 0 } } });
+  mp.set(BOOSTED, 'private.xpBoost', { mult: 2, until: Date.now() + 3600000 });
+  mp.set(LAPSED, 'private.xpBoost', { mult: 2, until: Date.now() - 1000 });
+  const gained = {};
+  for (const a of [PLAIN, BOOSTED, LAPSED]) { const x0 = xpOf(a); const u = sys.award(ctx, a, 'blacksmith', 2, 0x300000); gained[a] = { u, xp: xpOf(a) - x0 }; }
+  ok('a boosted award moves the skill twice as far', gained[PLAIN].xp > 0 && gained[BOOSTED].xp === 2 * gained[PLAIN].xp, gained);
+  ok('...from the same metered units: the bucket and the caps count it as before', gained[BOOSTED].u === gained[PLAIN].u, gained);
+  ok('a boost that has run out adds nothing', gained[LAPSED].xp === gained[PLAIN].xp, gained);
+}
 
 console.log(fails ? `${fails} failure(s)` : 'all checks passed');
 process.exit(fails ? 1 : 0);
