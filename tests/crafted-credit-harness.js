@@ -32,8 +32,8 @@ const RECORDS = {
   [PETTY]: { type: 'SLGM', fields: [{ type: 'SOUL', data: new Uint8Array([1]) }] },
   [COMMON]: { type: 'SLGM', fields: [{ type: 'SOUL', data: new Uint8Array([3]) }] },
   [GRAND]: { type: 'SLGM', fields: [{ type: 'SOUL', data: new Uint8Array([5]) }] },
-  // a weapon enchantment (fire and forget, contact, type Enchantment) of one effect, magnitude 10
-  [ENCH]: { type: 'ENCH', fields: [{ type: 'ENIT', data: f32at(24, [[8, 1], [16, 1], [20, 6]]) }, { type: 'EFID', data: u32(MGEF) }, { type: 'EFIT', data: f32at(12, [[0, 10, 'f'], [4, 0], [8, 0]]) }] },
+  // a base game player weapon enchantment (fire and forget, contact, type Enchantment) of one effect, magnitude 10
+  [ENCH]: { type: 'ENCH', editorId: 'EnchWeaponFireDamage01', fields: [{ type: 'ENIT', data: f32at(24, [[8, 1], [16, 1], [20, 6]]) }, { type: 'EFID', data: u32(MGEF) }, { type: 'EFIT', data: f32at(12, [[0, 10, 'f'], [4, 0], [8, 0]]) }] },
   [MGEF]: { type: 'MGEF', fields: [{ type: 'DATA', data: f32at(8, [[4, 1, 'f']]) }] },
   // the grindstone tempers the dagger for one iron ingot
   [TEMPER]: { type: 'COBJ', fields: [{ type: 'CNAM', data: u32(DAGGER) }, { type: 'BNAM', data: u32(KW_GRINDSTONE) }, { type: 'CNTO', data: u32(INGOT, 1) }] },
