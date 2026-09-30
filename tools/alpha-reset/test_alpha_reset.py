@@ -168,8 +168,15 @@ def main():
         hm = [c for c in pm['characters'] if c['name'] == 'Hero'][0]
         check('...and is still reset, its staff grants taken back', hm['removeSpells'] == hero['removeSpells'] and hm['skills'] == hero['skills'])
         check('an entry that matches no character is named', any('Typo' in n and 'no staff character' in n for n in pm['notes']), pm['notes'])
-        check('the shipped config marks Nilis Urnum and Velisse Montclair by tag and profile',
-              set(ar.load_config()['players']) == {('R4XY', 7), ('RWPS', 6)})
+        shipped = ar.load_config()
+        check('the shipped config marks Velisse Montclair a staff member\'s player character and Nilis Urnum\'s account not staff',
+              set(shipped['players']) == {('RWPS', 6)} and set(shipped['notStaff']) == {7}, shipped)
+        # A player account that had admin while testing: out of both staff tables, its grants still taken back
+        ns = ar.plan(ar.World(root), trail, FakeLO(), settings={'players': {}, 'notStaff': {8: {'profile': 8, 'name': 'Hero', 'by': 'Nate'}}})
+        hn = [c for c in ns['characters'] if c['name'] == 'Hero'][0]
+        check('a not-staff account is in neither staff table, and listed as a player who had admin',
+              [x['name'] for x in ns['staff']] == ['Testy'] and not ns['staffPlayers'] and ns['notStaff'][0]['characters'] == ['Hero #HERO'], {'staff': ns['staff'], 'notStaff': ns['notStaff']})
+        check('...and its character is still reset, its grants taken back', hn['removeSpells'] == hero['removeSpells'] and hn['skills'] == hero['skills'])
 
         # ---- apply ----
         before_untouched = open(os.path.join(root, 'state', 'world', 'changeForms', 'b2_Skyrim.esm.json')).read()

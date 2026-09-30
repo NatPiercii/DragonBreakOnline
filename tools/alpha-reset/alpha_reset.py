@@ -51,7 +51,8 @@ def load_config(path=CONFIG):
     players = {}
     for x in cfg.get('playerCharacters') or []:
         players[(str(x['tag']), int(x['profile']))] = x
-    return {'players': players}
+    not_staff = {int(x['profile']): x for x in cfg.get('notStaff') or []}
+    return {'players': players, 'notStaff': not_staff}
 
 
 def log(msg):
@@ -337,7 +338,8 @@ def plan_mastery(d, events, skills_cfg, tag, trail):
 
 
 def plan(world, trail, lo, seed_default=10000, settings=None):
-    settings = settings or {'players': {}}
+    settings = settings or {'players': {}, 'notStaff': {}}
+    settings.setdefault('notStaff', {})
     cfg = world.game_json('gamemode-config.json', {}) or {}
     skills_cfg = world.game_json('skills.json', {}) or {}
     powers = world.game_json('admin-powers.json', {}) or {}
@@ -467,13 +469,17 @@ def plan(world, trail, lo, seed_default=10000, settings=None):
     # ---- staff and test characters: staff-only from the opening (Nate, 2026-09-30) ----
     # A staff profile is one that made a GM action on record or had a character flagged admin at its last login;
     # every character on it is listed with why, and a character named for testing is listed whatever its profile
-    gm_profiles = {g['gmProfile'] for g in trail['grants'] if 'gmProfile' in g}
+    # A player account that had admin rights while testing (notStaff) is not a staff profile, whatever it did
+    not_staff = settings['notStaff']
+    gm_profiles = {g['gmProfile'] for g in trail['grants'] if 'gmProfile' in g} - set(not_staff)
     gm_tags = {g['gmTag'] for g in trail['grants'] if 'gmTag' in g}
-    admin_profiles = {d.get('profileId') for d in world.chars.values() if (d.get('dynamicFields') or {}).get('isAdmin') is True}
+    admin_profiles = {d.get('profileId') for d in world.chars.values() if (d.get('dynamicFields') or {}).get('isAdmin') is True} - set(not_staff)
     staff, players = [], []
     for n, d in world.chars.items():
         df = d.get('dynamicFields') or {}
         why = []
+        if d.get('profileId') in not_staff:
+            continue
         if d.get('profileId') in gm_profiles:
             why.append('staff profile (GM actions on record)')
         elif d.get('profileId') in admin_profiles:
@@ -503,6 +509,13 @@ def plan(world, trail, lo, seed_default=10000, settings=None):
     for key, x in settings['players'].items():
         if key not in found:
             out['notes'].append(f'alpha-reset.json lists {x.get("name")} #{key[0]} (profile {key[1]}) as a player character, but no staff character has that tag and profile.')
+    out['notStaff'] = []
+    for prof, x in sorted(not_staff.items()):
+        mine = [d for d in world.chars.values() if d.get('profileId') == prof]
+        panel = sum(1 for g in trail['grants'] if g.get('gmProfile') == prof)
+        out['notStaff'].append({'profile': prof, 'characters': [f'{name_of(d)} #{tag_of(d)}' for d in mine], 'panelActions': panel, 'by': x.get('by') or 'alpha-reset.json'})
+        if not mine:
+            out['notes'].append(f'alpha-reset.json lists profile {prof} ({x.get("name")}) as not staff, but it has no character.')
     return out
 
 
@@ -687,6 +700,16 @@ def report(p, lo, path, applied=None):
         L.append('|---|---|---|')
         for x in p['staffPlayers']:
             L.append(f'| {x["profile"]} | {x["name"]} #{x["tag"]} | {x["exception"]} |')
+    if p.get('notStaff'):
+        L.append('')
+        L.append(f'## Players who had admin rights while testing: not staff ({len(p["notStaff"])})')
+        L.append('')
+        L.append('Player accounts (alpha-reset.json notStaff). They are in neither staff table. What they granted with the admin panel is taken back like any staff grant, and they are reset like everyone else.')
+        L.append('')
+        L.append('| Profile | Characters | Admin panel actions on record | Marked by |')
+        L.append('|---|---|---|---|')
+        for x in p['notStaff']:
+            L.append(f'| {x["profile"]} | {", ".join(x["characters"]) or "none"} | {x["panelActions"]} | {x["by"]} |')
     L.append('')
     L.append('## Per character')
     for c in sorted(chars, key=lambda c: (-len(c['staff']), c['name'])):

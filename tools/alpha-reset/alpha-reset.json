@@ -1,7 +1,9 @@
 {
- "_comment": "alpha_reset.py settings. playerCharacters: characters on staff profiles that are their owners' own player characters and play in the alpha (Nate, 2026-09-30). Matched by character tag and profile, never by name. They are reset like everyone else and any staff grants on them are taken back; they are only left out of the staff-only list.",
+ "_comment": "alpha_reset.py settings, matched by profile and character tag, never by name. playerCharacters: characters on staff profiles that are their owners' own player characters and play in the alpha. notStaff: player accounts that had admin rights during testing (so the audit log shows GM actions from them) but are not staff; they appear in neither staff table. Both are reset like everyone else and every staff grant, theirs included, is taken back (Nate, 2026-09-30).",
  "playerCharacters": [
-  { "tag": "R4XY", "profile": 7, "name": "Nilis Urnum", "by": "Nate, 2026-09-30" },
   { "tag": "RWPS", "profile": 6, "name": "Velisse Montclair", "by": "Nate, 2026-09-30" }
+ ],
+ "notStaff": [
+  { "profile": 7, "tag": "R4XY", "name": "Nilis Urnum", "by": "Nate, 2026-09-30: a player's character, not staff" }
  ]
 }
