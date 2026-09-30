@@ -1,0 +1,14 @@
+{
+  "title": "No Robbery Mid-Trade",
+  "date": "",
+  "version": "Server update",
+  "tag": "Fix",
+  "sections": [
+    {
+      "heading": "Trading",
+      "items": [
+        "You can't be robbed or pickpocketed while you have a trade open with someone, and you can't rob or pickpocket anyone who has."
+      ]
+    }
+  ]
+}
