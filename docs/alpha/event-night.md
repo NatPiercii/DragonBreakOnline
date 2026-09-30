@@ -11,18 +11,16 @@ every check below counts from it.
 **The question the night answers.** Can 15 to 20 players play for two hours without the server crashing, without the
 game crashing much more often than on a normal night, and without the server running short of memory or falling behind?
 
-## Who does what on the night
+## Who runs the night
 
-| Role | Who | Does |
-|---|---|---|
-| Event lead | Nate | Runs the night, makes every go/stop call, talks to the players in Discord and in game |
-| Lead GM | ____ | Runs the activity in game: the war party (Lead GM and above can raise one), the parties, the expeditions |
-| GM | ____, ____ | One in Bruma with the crowd, one with the raid party; help stuck players; collect `/bug` reports |
-| Developer on watch | ____ | Runs the watch on CT 115 (section 2) and tells the event lead when a line is crossed. Changes nothing |
-| Host on call | Jake | Reachable for the whole event in case the server or the machine goes down. Staff never restart the host |
-| Scribe | ____ | Keeps the timeline (when each phase started, anything that went wrong) and fills in the results table |
+Nate and Jake run it between them; there is no one else on duty.
 
-Staff play from staff characters. Everyone on staff is in the staff voice or text channel for the whole event.
+- **Nate** leads the night: runs the activity in game (the war party needs Lead GM rights or above), helps players form
+  parties, makes every go/stop call and talks to the players in Discord and in game.
+- **Jake** keeps the server and the machine: runs the watch on CT 115 (section 2), or has a Claude session there run it,
+  and tells Nate when a line is crossed. Only Jake restarts anything.
+
+Keep a timeline as you go: when each phase started and anything that went wrong. It goes into the results table.
 
 ## 1. Pre-flight
 
@@ -49,9 +47,9 @@ Staff play from staff characters. Everyone on staff is in the staff voice or tex
       The answer must be `OK, <n> world records, <n> gameplay files, <n> state files`.
 - [ ] **Disk.** `sudo python3 /opt/dragonbreak-tools/backups/dbo_backup.py disk --warn 90 --crit 95`. It should show
       under 80% used and at least 20 GB free. A busy night writes more log than usual.
-- [ ] **Rehearse the activity.** The Lead GM raises and dismisses a small war party (2 or 3 goblins) out of sight of
+- [ ] **Rehearse the activity.** Nate raises and dismisses a small war party (2 or 3 goblins) out of sight of
       players, and checks that the expedition board in the Synod Conclave lists the four expeditions.
-- [ ] **Staff list filled in** (the table above), with a backup for the developer on watch.
+- [ ] **Nate and Jake both free** for the whole evening.
 - [ ] **Announcement** in Discord: the time in UTC and in the main player time zones, what to update, and the plan in
       two lines. Players who cannot come can still help by being online later for the "normal night" comparison.
 
@@ -77,13 +75,13 @@ Staff play from staff characters. Everyone on staff is in the staff voice or tex
       and copy `skymp.rssMB`, `box.memAvailPct` and `disk.usedPct` into the results table.
 - [ ] **A normal-night baseline** for comparison: pick the busiest evening of the last few days (same hours as the
       event, the day before if it was busy enough) and run the numbers for it now (section 4).
-- [ ] **The watch is running** (section 2) and the developer on watch is in the staff channel.
+- [ ] **The watch is running** (section 2), and whoever runs it can reach Nate straight away.
 - [ ] **Staff check-in** in game at the Synod Conclave. The expedition boards (the Synod Conclave, the Fighters Guild)
       show every expedition free.
 
 ## 2. What to watch during the event
 
-Everything here only reads. The developer on watch runs it on CT 115 and says in the staff channel when a line is
+Everything here only reads. Jake (or a Claude session on CT 115) runs it and tells Nate when a line is
 crossed. **NOTE** means write it down with the time and keep going. **STOP** means tell the event lead at once. The event
 lead decides whether to pause (everyone back to Bruma, nothing new started) or end the night.
 
@@ -144,7 +142,7 @@ open problem already. They matter when they grow much faster than host hand-offs
 | "Not a hoster" | more than 3 per host hand-off in a minute with at least 10 hand-offs | only if players report enemies they cannot hit or that freeze, in several places at once |
 
 When the event is paused or ended, the event lead tells the players in game and in Discord, in plain words, and the
-scribe notes the time and why.
+time and the reason go into the timeline.
 
 ## 3. The activity
 
@@ -153,10 +151,10 @@ together, and then the Synod sends parties out after the ruins the goblins came 
 
 | Phase | When | What happens | Systems it exercises |
 |---|---|---|---|
-| 1. Muster | T0 to T+15 | Everyone meets at the Synod Conclave's door in Bruma. GMs greet players and help them form parties with `/party invite` and `/party accept`: one **raid party** of up to 12, and one or two parties of up to 6. (A party of more than 6 is a raid: its skill gain is halved, except inside a raid ruin. Say so, so nobody is surprised) | logins in a crowd; 15-20 players in one city (the city's NPCs hosted and handed between many players); voice, if it is on |
-| 2. The defence of Bruma | T+15 to T+50 | Out of sight of the gate, the Lead GM raises the war party from the Place tab's catalog: Bald Tail goblins (grunts, bruisers, butchers, savages), 10 at a time with `/warband raise <id> 10`, up to 25 in all. The Lead GM leads them to the gate, then `/warband unleash`. Everyone fights in one place. When it is over, `/raid` lists anything left standing and `/raid clear` removes it | warbands (companion system), NPC host hand-offs with many watchers at once, hit checks, the down state and revives (Priest tier 4, the Draught of Revival), friendly fire inside a party (20%), looting bodies, respawn temples |
+| 1. Muster | T0 to T+15 | Everyone meets at the Synod Conclave's door in Bruma. Nate greets players and helps them form parties with `/party invite` and `/party accept`: one **raid party** of up to 12, and one or two parties of up to 6. (A party of more than 6 is a raid: its skill gain is halved, except inside a raid ruin. Say so, so nobody is surprised) | logins in a crowd; 15-20 players in one city (the city's NPCs hosted and handed between many players); voice, if it is on |
+| 2. The defence of Bruma | T+15 to T+50 | Out of sight of the gate, Nate raises the war party from the Place tab's catalog: Bald Tail goblins (grunts, bruisers, butchers, savages), 10 at a time with `/warband raise <id> 10`, up to 25 in all. Nate leads them to the gate, then `/warband unleash`. Everyone fights in one place. When it is over, `/raid` lists anything left standing and `/raid clear` removes it | warbands (companion system), NPC host hand-offs with many watchers at once, hit checks, the down state and revives (Priest tier 4, the Draught of Revival), friendly fire inside a party (20%), looting bodies, respawn temples |
 | 3. The expeditions | T+50 to T+1:50 | From the expedition board in the Synod Conclave (or the Fighters Guild): the raid party takes a **raid ruin**, **Silorn** or **Bawn** (two bosses each, up to 12 players). The other parties take the **boss ruins**, **Niryastare** and **Telepe** (one boss, up to 6). Anyone without a party takes a hunting contract from the board's Contracts tab and hunts around Bruma. So there is a crowd in and around Bruma and two to three ruins full of players at the same time | dungeon leases, raid scaling, many enemies placed at once (the NPC budget), locked chests and lockpicking, loot glow, Ayleid loot, the boss timer that brings a party home, hunting contracts |
-| 4. Home and wrap-up | T+1:50 to T+2:15 | Parties come home when their bosses fall (a 10-minute timer then brings them back) or with `/expedition leave`. Everyone meets at an inn in Bruma (the GMs pick one): rest, eat, and tell the GMs what went wrong. GMs ask everyone who crashed or saw something strange to send a `/bug` | a crowd in one interior; inn rooms (Well Rested, Well Fed); `/bug` snapshots |
+| 4. Home and wrap-up | T+1:50 to T+2:15 | Parties come home when their bosses fall (a 10-minute timer then brings them back) or with `/expedition leave`. Everyone meets at an inn in Bruma (Nate picks one): rest, eat, and tell Nate what went wrong. Everyone who crashed or saw something strange sends a `/bug` | a crowd in one interior; inn rooms (Well Rested, Well Fed); `/bug` snapshots |
 
 **Rules for the night**, said at the muster:
 - Stay with your party; don't go exploring on your own.
@@ -164,7 +162,7 @@ together, and then the Synod sends parties out after the ruins the goblins came 
 - No Vampire Lord form in the crowd.
 - Keep the Bruma lock (no leaving the region).
 
-**If the war party is too much for the server** (a STOP line on lag or memory): the Lead GM uses `/raid clear` and phase
+**If the war party is too much for the server** (a STOP line on lag or memory): Nate uses `/raid clear` and phase
 3 starts early with fewer parties.
 
 ## 4. Afterwards: the numbers for the go/no-go
@@ -232,7 +230,7 @@ Fill in one column for the event and one for the baseline.
 
 ### Also collect
 
-- The scribe's timeline: each phase's start and end, and every pause.
+- The timeline: each phase's start and end, and every pause.
 - Players' own words: a short Discord post the next day. What worked? What broke? Would you play like this every
   week?
 - The `/bug` and launcher reports from the night, triaged by the developer the next day.
