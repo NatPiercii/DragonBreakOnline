@@ -50,8 +50,11 @@ armor	ccBGSSSE025_ArmorMaterialAmber	keyword	hands	11
 armor	ccBGSSSE025_ArmorMaterialAmber	keyword	feet	11
 armor	ccBGSSSE025_ArmorMaterialAmber	keyword	head	16
 armor	ccBGSSSE025_ArmorMaterialAmber	keyword	shield	27
-# VERIFY BEFORE RUNNING: the proposal's baseline for this row is 25, the keyword census reads 19. See the README.
-armor	ArmorMaterialImperialLight	keyword	shield	21
+# No ArmorMaterialImperialLight shield rule: Nate, 2026-09-30, "keep the imperial shield at 19" - which is the value
+# the group already reads, so nothing is touched. NOTE the group is NOT uniform: 13 records, range 19..25, with
+# Skyrim.esm at 19 and DIS_Heavy_Legion.esp at 25. Leaving it alone therefore leaves a DIS Heavy Legion shield at 25,
+# above Elven's 21 - the inconsistency the proposal raised as its item 6. Adding a rule at 19 here would pull those
+# down; it is one line if Nate wants it.
 # Beyond Skyrim chainmail has NO material keyword of its own - by editor id instead. See the README.
 armor	CYR*Chainmail*	edid	body	27
 armor	CYR*Chainmail*	edid	hands	7

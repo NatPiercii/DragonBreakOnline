@@ -37,18 +37,17 @@ MCP is holding a plugin (memory `xedit-save-rename-fails-under-ck-mcp`).
 
 ## What the dry run should say
 
-**1,051 records**, computed here from the census. If the dry run's count is wildly different, stop and ask.
+**1,038 records**, computed here from the census. If the dry run's count is wildly different, stop and ask.
 
 | Material | Records | Material | Records |
 |---|---|---|---|
 | WeapMaterialElven | 322 | WeapMaterialSilver | 23 |
-| WeapMaterialOrcish | 264 | ArmorMaterialImperialLight | 13 |
-| ArmorMaterialDragonscale | 157 | ccBGSSSE025_WeapMaterialMadness | 8 |
-| DLC2ArmorMaterialStalhrimHeavy | 90 | ccBGSSSE025_WeapMaterialAmber | 8 |
-| DLC2WeaponMaterialStalhrim | 74 | ccBGSSSE025_ArmorMaterialMadness | 6 |
-| DLC2ArmorMaterialNordicHeavy | 42 | ccBGSSSE025_ArmorMaterialAmber | 5 |
-| IAKMaterialDragonScale | 34 | IAKMaterialDaedric | 3 |
-| | | ArmorMaterialMithril | 2 |
+| WeapMaterialOrcish | 264 | ccBGSSSE025_WeapMaterialMadness | 8 |
+| ArmorMaterialDragonscale | 157 | ccBGSSSE025_WeapMaterialAmber | 8 |
+| DLC2ArmorMaterialStalhrimHeavy | 90 | ccBGSSSE025_ArmorMaterialMadness | 6 |
+| DLC2WeaponMaterialStalhrim | 74 | ccBGSSSE025_ArmorMaterialAmber | 5 |
+| DLC2ArmorMaterialNordicHeavy | 42 | IAKMaterialDaedric | 3 |
+| IAKMaterialDragonScale | 34 | ArmorMaterialMithril | 2 |
 
 Plus the Beyond Skyrim chainmail records matched by editor id, which the census cannot count separately (below).
 
@@ -93,10 +92,11 @@ and remember `server\data` is a separate plugin copy that needs the same file (m
    half **cannot** be done by keyword — setting all Iron or all Steel to chainmail numbers would wreck both. The
    ladder therefore matches chainmail by editor id (`CYR*Chainmail*`), which is the only handle available. Check the
    dry run's list of chainmail records is the set you expect, and nothing else.
-2. **`ArmorMaterialImperialLight` shield: the proposal's baseline and the census disagree.** The proposal's table says
-   the Imperial light shield is 25 today (from DIS Heavy Legion) and proposes 21. The keyword census reads the group at
-   **19**, over 13 records. So applying 21 *raises* most of them rather than lowering one. The ladder sets 21 as
-   approved, but this row is the one I would eyeball in the dry run before the live pass.
+2. **`ArmorMaterialImperialLight` shield is left alone** (Nate, 2026-09-30: "keep the imperial shield at 19"). Worth
+   knowing what that leaves behind: the group is not uniform. 13 records, range **19 to 25**, with Skyrim.esm at 19 and
+   `DIS_Heavy_Legion.esp` at 25. So an Imperial light shield at 25 stays above Elven's 21 - which is exactly the
+   inconsistency the proposal raised as its item 6. Pulling those down is one line in `ladder.tsv` if Nate wants it;
+   without it, nothing here touches them.
 
 Related: the proposal's tables were measured per canonical set by editor id, while this script works per material
 keyword. Where a keyword group holds several designs the group is flattened to one number, which is the intent
