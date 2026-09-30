@@ -1,7 +1,7 @@
 // Camp-mates are allies (wildlife.js ownedFactionTick; Onny at Dusk Thorn Camp, 30 Sep: "the goblins were all fighting
 // each other more than fighting me"). The bare BSKEncGoblin* templates' only faction is CreatureFaction, neutral to
 // itself, and a Very Aggressive actor attacks neutrals. Each owned-spawn creature of a listed kind gets ff_factions
-// (CreatureFaction + CYRGoblinFaction for goblins), once per live actor. Runs the real wildlife.js in a scratch folder.
+// (CreatureFaction + CYRGoblinFaction for goblins, + CYRBoarFaction for boars), once per live actor. Runs the real wildlife.js in a scratch folder.
 //   node tests/owned-factions-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -43,7 +43,8 @@ try {
   const WANT = { f: [[0x13, 0], [0x080877f5, 0]], c: 0 };
   ok(JSON.stringify(fac(GOB1).map((x) => x[2])) === JSON.stringify([WANT]), 'a Dusk Thorn goblin gets CreatureFaction + CYRGoblinFaction', fac(GOB1));
   ok(fac(GOB2).length === 1, 'so does the goblin boss mage: the whole camp shares a faction that is allied to itself');
-  ok(fac(BOAR).length === 0 && fac(WOLF).length === 0 && fac(DUNGEON).length === 0, 'a boar (no kind listed), a wildlife.json wolf and a dungeon spawn are left alone');
+  ok(JSON.stringify(fac(BOAR).map((x) => x[2])) === JSON.stringify([{ f: [[0x13, 0], [0x0806da79, 0]], c: 0 }]), 'a boar gets CreatureFaction + CYRBoarFaction (GroundedPasta, 30 Sep: four boars fought each other)', fac(BOAR));
+  ok(fac(WOLF).length === 0 && fac(DUNGEON).length === 0, 'a wildlife.json wolf and a dungeon spawn are left alone');
   sets.length = 0; tick();
   ok(fac(GOB1).length === 0, 'each live actor is given its factions once, not every tick');
   // the actor dies and its form id is reused by a new goblin: the id left the sidecar in between
@@ -84,6 +85,9 @@ try {
   ok(fac(GOB1).length === 0, 'a list that only partly resolves is not applied at all (CreatureFaction alone would bring the infighting back)', fac(GOB1));
   ok(logs.some((l) => /ownedSpawns\.factions\.goblin: 877f5:NoSuchPlugin\.esm not in the load order/.test(l)), '...and the missing faction is named in the log', logs);
   ok(Array.isArray(cfg.ownedSpawns.factions.goblin) && cfg.ownedSpawns.factions.goblin.length === 2, 'gamemode-config.json carries the goblin factions');
+  ok(JSON.stringify(cfg.ownedSpawns.factions.boar) === JSON.stringify(['13:Skyrim.esm', '6da79:BSHeartland.esm']), 'gamemode-config.json carries the boar factions', cfg.ownedSpawns.factions.boar);
+  const kinds = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'owned-spawns.json'), 'utf8')).spawns.map((x) => x.kind));
+  ok([...kinds].every((k) => cfg.ownedSpawns.factions[k]), 'every creature kind the owned plugins place has its factions', [...kinds]);
   const gm = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');
   ok(/makeProp\('ff_factions', true\)/.test(gm), 'ff_factions is a neighbour-visible property, so every watcher applies it');
 } finally {
