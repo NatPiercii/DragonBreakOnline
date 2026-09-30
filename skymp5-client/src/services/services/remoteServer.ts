@@ -30,6 +30,7 @@ import { enforceSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
 import { setRefrCollision } from '../../sync/animation';
 import { settleTranslation } from '../../sync/movementApply';
+import { beastRaceOf, casterVariablesFor, noteBeastSkip } from '../../sync/beastRaces';
 import { isOwnCompanion } from './companionService';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
@@ -145,6 +146,7 @@ on('update', () => {
 const unequipDefaultOutfit = () => {
   Game.getPlayer()?.unequipAll();
 };
+
 
 export class RemoteServer extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -1240,11 +1242,18 @@ export class RemoteServer extends ClientListener {
         return;
       }
 
-      const actorAnimationVariables: ActorAnimationVariables = {
+      // A werewolf's or Vampire Lord's copy gets no caster variables: the native writes them at humanoid graph indexes
+      // (sync/beastRaces.ts). A stop still stops the clone; a cast is then not replayed, since the native casts only
+      // after applying them. Hits and effects are the server's either way.
+      const beastRace = beastRaceOf(ac);
+      const actorAnimationVariables: ActorAnimationVariables = casterVariablesFor(beastRace, {
         booleans: new Uint8Array(msg.data.actorAnimationVariables.booleans),
         floats: new Uint8Array(msg.data.actorAnimationVariables.floats),
         integers: new Uint8Array(msg.data.actorAnimationVariables.integers)
-      };
+      });
+      if (beastRace) {
+        noteBeastSkip(msg.data.caster, beastRace, msg.data.interruptCast ? "stop" : msg.data.keepAlive ? "keep-alive" : "cast", Number(msg.data.spell));
+      }
 
       const key = `${msg.data.caster}:${msg.data.castingSource}`;
       const now = Date.now();
@@ -1333,7 +1342,7 @@ export class RemoteServer extends ClientListener {
       }
       this.cloneCastWatch.delete(key);
       logTrace(this, `Clone cast swept for remote caster`, watch.casterRemoteId.toString(16));
-      this.stopCloneCast(ac, watch.casterRemoteId, watch.castingSource, watch.animVars);
+      this.stopCloneCast(ac, watch.casterRemoteId, watch.castingSource, casterVariablesFor(beastRaceOf(ac), watch.animVars));
     }
   }
 
@@ -1343,6 +1352,13 @@ export class RemoteServer extends ClientListener {
     once('update', () => {
       const ac = Actor.from(Game.getFormEx(remoteIdToLocalId(msg.data.actorRemoteId)));
       if (!ac) {
+        return;
+      }
+
+      // Never a humanoid snapshot into a beast's graph (sync/beastRaces.ts)
+      const beastRace = beastRaceOf(ac);
+      if (beastRace) {
+        noteBeastSkip(msg.data.actorRemoteId, beastRace, "anim variables update");
         return;
       }
 

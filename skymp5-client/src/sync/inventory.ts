@@ -23,6 +23,7 @@ import {
   Form,
   Weapon,
 } from "skyrimPlatform";
+import { baseIsPlayers } from "./appearance";
 // @ts-expect-error (TODO: Remove in 2.10.0)
 import { createEnchantment } from "skyrimPlatform";
 
@@ -345,6 +346,10 @@ const getExtraContainerChangesAsInventory = (
 };
 
 const getBaseContainerAsInventory = (refr: ObjectReference): Inventory => {
+  // A copy whose base resolves to the player's (applyTints) has an empty base of its own (createNpc): never the player's
+  if (baseIsPlayers(refr)) {
+    return { entries: [] };
+  }
   return {
     entries: getContainer((refr.getBaseObject() as ActorBase).getFormID()),
   };
@@ -466,6 +471,10 @@ const basesReset = (): Set<number> => {
 };
 
 const resetBase = (refr: ObjectReference): void => {
+  // resetContainer through a copy whose base resolves to the player's would empty the player's own base container
+  if (baseIsPlayers(refr)) {
+    return;
+  }
   const base = refr.getBaseObject();
   const baseId = base ? base.getFormID() : 0;
   if (!basesReset().has(baseId)) {

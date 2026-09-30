@@ -1,4 +1,5 @@
 import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
+import { isBeastRaceId } from "../sync/beastRaceIds";
 import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving, isInSitPose, clearSitPose, setRefrCollision } from "../sync/animation";
 import { isVampireLordRace, noteVampireLordAnim } from "../sync/vampireLordAnimDiag";
 import { Appearance, applyAppearance } from "../sync/appearance";
@@ -30,9 +31,8 @@ type AdminView = "visible" | "hidden" | "ghost";
 
 // A copy nobody drives this far from where the server holds it is re-seated, not left standing there
 const STRANDED_UNITS = 512;
-// Werewolf (Skyrim 0CDD84) and Vampire Lord (Dawnguard 00283A). A watcher crashed updating a remote werewolf's
-// behaviour graph one second after the race swap respawned it; the new copy's first moments are left alone
-const BEAST_RACE_IDS = new Set([0x000cdd84, 0x0200283a]);
+// Werewolf and Vampire Lord (sync/beastRaceIds.ts). A watcher crashed updating a remote werewolf's behaviour graph one
+// second after the race swap respawned it; the new copy's first moments are left alone
 const BEAST_SPAWN_SETTLE_MS = 1500;
 // A hosted copy this far from the server position has its updates refused, so it is snapped back
 const RESYNC_UNITS = 3000;
@@ -125,9 +125,10 @@ export class FormView {
           const equalWithoutNames = JSON.stringify(modelAppearanceCopy) === JSON.stringify(stateAppearanceCopy);
 
           if (equalWithoutNames) {
-            // Change name inplace
+            // Change name inplace, on the reference only: this copy's base carries the player's base id since applyTints,
+            // so setName on it (through getBaseObject() or Game.getFormEx of its own id alike) renamed the local player
+            // (sync/appearance.ts baseIsPlayers). The forced display name is what the crosshair and the tag show.
             const refr = ObjectReference.from(Game.getFormEx(this.refrId));
-            refr?.getBaseObject()?.setName(model.appearance.name);
             refr?.setDisplayName(model.appearance.name, true);
             // Recreate the floating tag so watchers see the new name (/mask)
             this.removeNickname();
@@ -997,7 +998,7 @@ export class FormView {
   }
 
   private isBeastCopy(model: FormModel): boolean {
-    return !!model.appearance && BEAST_RACE_IDS.has(Number(model.appearance.raceId) >>> 0);
+    return !!model.appearance && isBeastRaceId(model.appearance.raceId);
   }
 
   // Logging only; never changes what the view does. Says what became of the local copy at the moment it changed hands.
