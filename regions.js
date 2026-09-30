@@ -5,17 +5,23 @@
 // where the crafter stands, never by the workbench id the client sends. A refused craft never reaches the engine's
 // OnFireSuccess, so the server keeps the materials and never adds the product; the client's copy is corrected
 // when it leaves the crafting menu. Tempering, smelter breakdown and Hearthfire building are not listed and pass.
+// Cooking is universal (Nate, 2026-09-30, after Cooked Boar Meat was refused in Bruma as "a Solstheim design"): a
+// recipe at one of freeBenches (the cookpot, the ovens, the campfire, the grain mill), or one regions.py calls food
+// (freeWhy), passes everywhere; its ingredients already carry the geography. A hand override of that one recipe in
+// regions-overrides.json still decides it.
 // spells.js asks tomeOk for its shop stock. Admins bypass both unless /region test is on.
 //
 // Files: regions.json (generated, read at load), regions-overrides.json (hand rules, re-read when saved).
-// Config "regions": { craft, tomes, adminBypass, failOpen, defaultPlace }
+// Config "regions": { craft, tomes, adminBypass, failOpen, defaultPlace, freeBenches, freeWhy, raceStyles }
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, cfg, registerChatCommand, isAdmin, sendPacket } = api;
-  const CFG = Object.assign({ craft: false, tomes: true, adminBypass: true, failOpen: true, defaultPlace: 'skyrim' }, cfg.regions || {});
+  const CFG = Object.assign({ craft: false, tomes: true, adminBypass: true, failOpen: true, defaultPlace: 'skyrim',
+    freeBenches: ['CraftingCookpot', 'BYOHCraftingOven', 'CYRproxy_HF_BYOHCraftingOven', 'Camping_CampfireCookingShared', 'isGrainMill'],
+    freeWhy: ['food'] }, cfg.regions || {});
   const LIVE = ['cyrodiil', 'skyrim', 'solstheim'];
   const NAMES = { cyrodiil: 'Cyrodiil', skyrim: 'Skyrim', solstheim: 'Solstheim' };
   const DATA_FILE = path.resolve('regions.json');
@@ -154,11 +160,17 @@ module.exports = (api) => {
     if (bench) { const both = p.filter((x) => bench.includes(x)); p = both.length ? both : bench; }
     return { p, entry, why: entry.why || '' };
   };
+  // Cooking and food, known in every province (see the top); a hand override of the recipe is not second-guessed
+  const lower = (list) => new Set((Array.isArray(list) ? list : []).map((x) => String(x).toLowerCase()));
+  const FREE_BENCHES = lower(CFG.freeBenches), FREE_WHY = lower(CFG.freeWhy);
+  const freeRecipe = (r) => r.why !== 'override' && !!r.entry &&
+    (FREE_BENCHES.has(String(r.entry.bench || '').toLowerCase()) || FREE_WHY.has(String(r.entry.why || '').toLowerCase()));
   // { ok, ... } for a craft; refusals carry the text to show
   const recipeOk = (a, itemId, recipeId) => {
     if (!CFG.craft) return { ok: true, why: 'off' };
     const r = recipeWhere(recipeId, itemId);
     if (!r) { once(`recipe:${recipeId}`, `regions: no entry for recipe ${descOf(recipeId)}${CFG.failOpen ? ', allowing it' : ', refusing it'}`); return { ok: !!CFG.failOpen, why: 'unknown' }; }
+    if (freeRecipe(r)) return { ok: true, p: r.p, why: 'free' };
     const place = provinceAt(a);
     if (isCommon(r.p)) return { ok: true, place, p: r.p, why: 'common' };
     if (place.province !== 'none' && r.p.includes(place.province)) return { ok: true, place, p: r.p, why: 'province' };
@@ -223,5 +235,5 @@ module.exports = (api) => {
 
   const data = D();
   const count = (table, prov) => Object.values(data[table]).filter((v) => { const r = resolve(v.p); return r && r.includes(prov); }).length;
-  log(`regions: craft gate ${CFG.craft ? 'on' : 'off'}, tome filter ${CFG.tomes ? 'on' : 'off'}; ${Object.keys(data.cells).length} cells, ${Object.keys(data.worlds).length} worlds; ${LIVE.map((p) => `${p} ${count('tomes', p)} tomes ${count('recipes', p)} recipes`).join(', ')}`);
+  log(`regions: craft gate ${CFG.craft ? 'on' : 'off'}, tome filter ${CFG.tomes ? 'on' : 'off'}; ${Object.keys(data.cells).length} cells, ${Object.keys(data.worlds).length} worlds; ${LIVE.map((p) => `${p} ${count('tomes', p)} tomes ${count('recipes', p)} recipes`).join(', ')}; free everywhere: ${[...FREE_BENCHES].join(', ') || 'no bench'}${FREE_WHY.size ? `, and ${[...FREE_WHY].join(', ')}` : ''}`);
 };

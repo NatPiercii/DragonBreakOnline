@@ -126,12 +126,14 @@
   }
  },
  "regions": {
-  "_comment": "Province rules (server\\regions.js; data regions.json from ck-mcp\\regions.py, hand rules regions-overrides.json). craft: a creation recipe is refused outside the provinces its product belongs to (turn on after the in-game rollback test). tomes: /tomes stocks only what spells.shopProvince sells; spells.shopShowForeign lists the rest as blocked rows. adminBypass: admins pass both unless /region test. failOpen: a recipe or tome with no entry is allowed and logged once. defaultPlace: the province of a place no table knows.",
+  "_comment": "Province rules (server\\regions.js; data regions.json from ck-mcp\\regions.py, hand rules regions-overrides.json). craft: a creation recipe is refused outside the provinces its product belongs to (turn on after the in-game rollback test). tomes: /tomes stocks only what spells.shopProvince sells; spells.shopShowForeign lists the rest as blocked rows. adminBypass: admins pass both unless /region test. failOpen: a recipe or tome with no entry is allowed and logged once. defaultPlace: the province of a place no table knows. freeBenches and freeWhy: cooking is known everywhere (Nate, 2026-09-30, after Cooked Boar Meat was refused in Bruma as a Solstheim design): a recipe at one of these benches, or one regions.py tags with one of these reasons, is never refused; a regions-overrides.json entry for that recipe still decides it.",
   "craft": true,
   "tomes": true,
   "adminBypass": true,
   "failOpen": true,
   "defaultPlace": "skyrim",
+  "freeBenches": ["CraftingCookpot", "BYOHCraftingOven", "CYRproxy_HF_BYOHCraftingOven", "Camping_CampfireCookingShared", "isGrainMill"],
+  "freeWhy": ["food"],
   "raceStyles": {
    "_comment": "A people's own style is made by that race anywhere, and by anyone in its home province (Nate, 2026-09-30: race plus home province; server\\RACE_STYLES_PROPOSAL.md). family = a recipe's c tag in regions.json; edid / notEdid = regexes on the recipe's editor id. Food and place-bound benches never follow race. Bretons wait for High Rock content.",
    "orc": [{ "family": "orcish" }],

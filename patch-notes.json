@@ -1,5 +1,20 @@
 [
   {
+    "title": "Cook Anything, Anywhere",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Cooking",
+        "items": [
+          "Every dish can now be cooked in every land. Cooked Boar Meat and other dishes from Solstheim and Morrowind were refused in Bruma as foreign designs; they no longer are. What you can cook still depends on the ingredients you carry.",
+          "Gear, cloaks and metal ingots keep their homelands as before."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Vampires: Hunger, Feeding and Blood",
     "date": "2026-09-30",
     "version": "Client 0.3.71",

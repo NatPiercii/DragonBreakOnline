@@ -54,7 +54,8 @@ ok(!can('nord', BRUMA, BONE_HAWK), 'Nord: not the whole skyrim catch-all (the Fo
 ok(can('nordVampire', BRUMA, STALHRIM), 'a Nord vampire counts as a Nord');
 ok(can('dunmer', BRUMA, CHITIN) && !can('nord', BRUMA, CHITIN), 'Dunmer: chitin in Bruma; a Nord is refused');
 ok(can('dunmer', BRUMA, TRIBUNAL), 'Dunmer: Tribunal armour in Bruma');
-ok(!can('dunmer', BRUMA, CLIFFRACER), 'food never follows race (Cliffracer stew refused to a Dunmer in Bruma)');
+// Cooking is known everywhere since 2026-09-30 (regions.freeBenches): the stew no longer waits on race or province
+ok(can('dunmer', BRUMA, CLIFFRACER) && can('nord', BRUMA, CLIFFRACER), 'food is known everywhere, whatever the race (Cliffracer stew for a Dunmer and a Nord in Bruma)');
 ok(can('redguard', SKYRIM, ALIKR) && !can('nord', SKYRIM, ALIKR), "Redguard: an Alik'r scimitar in Skyrim; a Nord is refused");
 ok(can('khajiit', SKYRIM, KHAJIIT_BOW) && !can('nord', SKYRIM, KHAJIIT_BOW), 'Khajiit: an ornate Khajiit bow in Skyrim; a Nord is refused');
 ok(can('bosmer', SOLSTHEIM, BOSMER) && !can('nord', SOLSTHEIM, BOSMER), 'Bosmer: Bosmer boots on Solstheim; a Nord is refused');

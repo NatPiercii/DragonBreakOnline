@@ -31,6 +31,11 @@ const AYLEID = ['1dff:Immersive Weapons.esp', '1dfe:Immersive Weapons.esp', [['5
 const DAEDRIC = ['dd993:Skyrim.esm', '1396b:Skyrim.esm', [['800e4:Skyrim.esm', 3], ['5ad9d:Skyrim.esm', 5], ['3ad5b:Skyrim.esm', 1]]]; // RecipeArmorDaedricCuirass, cyrodiil+skyrim
 const STAFF = ['17737:Dragonborn.esm', '4dee3:Skyrim.esm', [['17749:Dragonborn.esm', 2], ['be11f:Skyrim.esm', 1]]]; // DLC2RecipeStaffLightningBolt, solstheim by its bench
 const TEMPER = ['1094d4:Skyrim.esm', 'f71cf:Skyrim.esm', [['5ada0:Skyrim.esm', 1]]]; // TemperMQ203AkaviriKatana4, never listed
+// Cooking (Nate, 2026-09-30): Survival Mode's Cooked Boar Meat, tagged Solstheim food, was refused in Bruma (Purr, 04:27)
+const BOAR = ['919:ccQDRSSE001-SurvivalMode.esl', '3cf72:Dragonborn.esm', [['3bd14:Dragonborn.esm', 1], ['34cdf:Skyrim.esm', 1]]]; // Survival_RecipeFoodBoarCooked, cookpot
+const QUICHE = ['1e4813:Journey to Baan Malur.esp', '1e4810:Journey to Baan Malur.esp']; // KwamaQuicheRecipe, oven, solstheim by plugin (not tagged food)
+const TROUT = ['721cd:BSHeartland.esm', '721c8:BSHeartland.esm']; // CYRRecipeFoodTroutCooked, cookpot, cyrodiil food
+const BRONZE = ['601c4e:BSAssets.esm', '601c51:BSAssets.esm']; // BSKRecipeIngotBronze, smelter, cyrodiil: materials stay regional
 // Real tomes (book desc)
 const SPARKS_BOOK = '9cd53:Skyrim.esm', FROSTFLAMES_BOOK = '7232e:BSHeartland.esm', FIREBOLT_BOOK = 'a26fd:Skyrim.esm';
 const INCINERATE_BOOK = '10f7f4:Skyrim.esm', ASHSHELL_BOOK = '177ac:Dragonborn.esm', SKELETON_BOOK = '2923:DragonBreak.esp';
@@ -297,6 +302,34 @@ at(SMITH, BRUMA_WORLD);
 check('a half-saved overrides file keeps the last good copy', R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok && out.logs.slice(l3).some((l) => /regions-overrides.json unreadable .*keeping the last good copy/.test(l)), out.logs.slice(l3));
 writeOverrides({});
 check('...until a good file replaces it', !R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok);
+
+// ---- cooking is known everywhere --------------------------------------------------------------------------------------
+writeOverrides({});
+at(SMITH, BRUMA_WORLD); stock(SMITH, BOAR);
+const cBoar = credits.length;
+check('Cooked Boar Meat (Solstheim food) cooks in Bruma: the product, the ingredients spent, mastery credit', craft(SMITH, BOAR) !== false && count(SMITH, BOAR[1]) === 1 && count(SMITH, BOAR[2][0][0]) === 0 && credits.length === cBoar + 1);
+check('...judged free, not by province', R().recipeOk(SMITH, idOf(BOAR[1]), idOf(BOAR[0])).why === 'free');
+check('a Solstheim oven dish (Kwama Quiche, by its plugin, not tagged food) bakes in Bruma', R().recipeOk(SMITH, idOf(QUICHE[1]), idOf(QUICHE[0])).ok);
+at(SMITH, TAMRIEL_WORLD);
+check('a Cyrodiil dish (Trout Steak) cooks in Skyrim', R().recipeOk(SMITH, idOf(TROUT[1]), idOf(TROUT[0])).ok);
+check('materials stay regional: a Cyrodiil bronze ingot is refused at a Skyrim smelter', !R().recipeOk(SMITH, idOf(BRONZE[1]), idOf(BRONZE[0])).ok);
+check('gear stays regional: Dwarven armor is still refused in Bruma', (at(SMITH, BRUMA_WORLD), !R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok));
+writeOverrides({ recipes: { Survival_RecipeFoodBoarCooked: 'solstheim' } });
+check('a hand override of that one recipe still decides it', !R().recipeOk(SMITH, idOf(BOAR[1]), idOf(BOAR[0])).ok);
+writeOverrides({});
+regionsCfg = Object.assign({}, regionsCfg, { freeBenches: [], freeWhy: [] }); load();
+check('with freeBenches and freeWhy empty the old rule is back (the boar refused in Bruma)', !R().recipeOk(SMITH, idOf(BOAR[1]), idOf(BOAR[0])).ok);
+regionsCfg = Object.assign({}, regionsCfg); delete regionsCfg.freeBenches; delete regionsCfg.freeWhy; load();
+check('the defaults free cooking with no config at all', R().recipeOk(SMITH, idOf(BOAR[1]), idOf(BOAR[0])).ok);
+const shipped = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).regions;
+check('the shipped config frees the cookpot, the ovens, the campfire and the mill, and food', ['CraftingCookpot', 'BYOHCraftingOven', 'CYRproxy_HF_BYOHCraftingOven', 'Camping_CampfireCookingShared', 'isGrainMill'].every((b) => shipped.freeBenches.includes(b)) && shipped.freeWhy.includes('food'), shipped);
+const cookRegional = Object.entries(DATA.recipes).filter(([, e]) => (shipped.freeBenches.includes(e.bench) || shipped.freeWhy.includes(e.why)) && e.p !== 'common');
+// Plugin names are matched without case; this harness maps a known set of plugins, so the rest are counted, not guessed
+const proper = Object.fromEntries(Object.keys(PLUGINS).concat(Object.keys(ESL)).map((pl) => [pl.toLowerCase(), pl]));
+const cookable = cookRegional.filter(([k, e]) => proper[k.split(':')[1].toLowerCase()] && proper[String(e.item).split(':')[1].toLowerCase()]);
+const refusedCook = cookable.filter(([k, e]) => { const [h, pl] = k.split(':'); const [ih, ipl] = String(e.item).split(':'); return !R().recipeOk(SMITH, idOf(`${ih}:${proper[ipl.toLowerCase()]}`), idOf(`${h}:${proper[pl.toLowerCase()]}`)).ok; });
+check(`every regional cooking recipe in regions.json passes in Bruma (${cookable.length} of ${cookRegional.length}${cookable.length < cookRegional.length ? ', the rest from plugins this harness does not map' : ''})`,
+  cookable.length >= 20 && refusedCook.length === 0, refusedCook.map(([, e]) => e.edid));
 
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());
