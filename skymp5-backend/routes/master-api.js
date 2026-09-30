@@ -17,7 +17,7 @@
  *   POST /api/servers/:key/sessions/:session/purchase  (X-Auth-Token)
  *     Spends a player's coins. Body: { balanceToSpend: number }  Returns: { balanceSpent, success }
  *   GET /api/servers/:key/profiles/:profileId/check
- *     Offline-mode profileId check, same lock/whitelist rules as session validation. Returns { allowed: true } or 403/404 { error }
+ *     Offline-mode profileId check, same lock/whitelist/legal rules as session validation. Returns { allowed: true } or 403/404 { error }
  *   POST /api/servers/:key/connection-check  (X-Auth-Token)
  *     Game server reports a connecting player. Body: { profileId, ip }  Returns { allowed: true } or { allowed: false, reason: 'banned' }
  *   GET /api/servers/:key/players  (X-Auth-Token)
@@ -38,6 +38,7 @@ const serverAccess = require('../sources/serverAccess')
 const profiles = require('../sources/profiles')
 const players  = require('../sources/players')
 const bans     = require('../sources/bans')
+const legal    = require('../sources/legal')
 
 // Persistent balance store: profileId -> coin balance
 
@@ -253,6 +254,13 @@ router.get('/:key/sessions/:session', async (req, res) => {
     return res.status(403).json({ error: gate.error })
   }
 
+  // Terms of Service and Privacy Policy, while LEGAL_REQUIRED is on: the current version must be accepted in the launcher
+  const legalGate = legal.gate(entry.discordId)
+  if (!legalGate.ok) {
+    console.log(`[master-api] refused session for ${entry.username || entry.profileId}: ${legalGate.error} (${legalGate.version})`)
+    return res.status(403).json({ error: legalGate.error, message: legalGate.message })
+  }
+
   // Sliding expiration
   entry.expiresAt = Date.now() + SESSION_TTL
   saveSessions()
@@ -293,6 +301,9 @@ router.get('/:key/profiles/:profileId/check', async (req, res) => {
   if (!access.allowed) {
     return res.status(403).json({ error: access.error || 'accessDenied' })
   }
+
+  const legalGate = legal.gate(discordId)
+  if (!legalGate.ok) return res.status(403).json({ error: legalGate.error, message: legalGate.message })
 
   res.json({
     allowed: true,
