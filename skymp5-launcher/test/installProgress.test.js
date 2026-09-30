@@ -35,11 +35,21 @@ test('a download in flight counts by the bytes that have arrived, and a finished
   const start = t.snapshot().overall
   t.file('A.7z', 50 * MB, 100 * MB, 'a')
   const half = t.snapshot()
-  assert.ok(Math.abs((half.overall - start) - 0.93 * 0.25) < 1e-9, `half of one of two equal halves: ${half.overall - start}`)
+  assert.ok(Math.abs((half.overall - start) - 0.93 / 3) < 1e-9, `half the download is a third of the bytes band (downloads count double): ${half.overall - start}`)
   assert.deepStrictEqual(half.file, { name: 'A.7z', done: 50 * MB, total: 100 * MB })
   t.acquired('a')
   assert.strictEqual(t.snapshot().file, null)
-  assert.ok(Math.abs(t.snapshot().overall - (0.05 + 0.93 * 0.5)) < 1e-9)
+  assert.ok(Math.abs(t.snapshot().overall - (0.05 + 0.93 * 2 / 3)) < 1e-9)
+})
+
+test('a downloaded byte counts twice an installed one, so the bar moves roughly with time', () => {
+  assert.strictEqual(P.DOWNLOAD_WEIGHT, 2)
+  const t = P.createTracker()
+  t.begin('mo2')
+  t.plan({ archives: [{ id: 'a', size: 16 * GB }], installBytes: 29 * GB })
+  t.step('download', { index: 0, total: 1 })
+  t.acquired('a')
+  assert.ok(Math.abs(t.snapshot().overall - (0.05 + 0.93 * 32 / 61)) < 1e-9, 'the downloads fill 32 of the 61 weighted parts')
 })
 
 test('a whole MO2 install only ever moves the bar forward, and ends full', () => {
@@ -114,7 +124,7 @@ test('what the player reads at each phase', () => {
 })
 
 test('the warning says to keep the launcher open, not to press Install again, and to choose Wait', () => {
-  assert.strictEqual(P.BANNER, "Installing. This can take a while (the first install is about 20 GB). Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.")
+  assert.strictEqual(P.BANNER, "Installing. The first install downloads about 16 GB and needs about 60 GB of free space. Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.")
 })
 
 test('the gate refuses a second install until the first ends', () => {

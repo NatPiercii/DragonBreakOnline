@@ -788,7 +788,7 @@ document.getElementById('btn-browse').addEventListener('click', async () => {
 
 // Browse install location (dialog fallback for the Install Location field)
 document.getElementById('btn-browse-base').addEventListener('click', async () => {
-  const folder = await window.electronAPI.openFolder('Choose where to install DragonBreak (~16 GB: MO2 + game copy)')
+  const folder = await window.electronAPI.openFolder('Choose where to install DragonBreak (about 60 GB free: the game copy, MO2, the mods and their downloads)')
   if (folder) fieldBaseDir.value = folder
 })
 

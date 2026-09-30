@@ -24,6 +24,8 @@
   }
   // Parts of the bar the small steps take; the rest is shared out by bytes
   const MO2_BANDS = { prepare: [0, 0.03], verify: [0.03, 0.05], bytes: [0.05, 0.98], finish: [0.98, 1] }
+  // A downloaded byte takes about twice as long as an installed one on an average connection
+  const DOWNLOAD_WEIGHT = 2
   const CLIENT_BANDS = { prepare: [0, 0.02], client: [0.02, 0.6], unpack: [0.6, 0.98], finish: [0.98, 1] }
 
   const clamp01 = (x) => (Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0)
@@ -56,9 +58,9 @@
       if (s.step === 'verify') return within(MO2_BANDS.verify, count(s.item))
       if (s.step === 'finish') return within(MO2_BANDS.finish, count(s.item))
       let total = 0
-      for (const bytes of s.archives.values()) total += bytes
+      for (const bytes of s.archives.values()) total += bytes * DOWNLOAD_WEIGHT
       total += s.installBytes
-      const done = acquiredBytes(s) + Math.min(s.installed, s.installBytes)
+      const done = acquiredBytes(s) * DOWNLOAD_WEIGHT + Math.min(s.installed, s.installBytes)
       return within(MO2_BANDS.bytes, total > 0 ? done / total : 0)
     }
     if (s.kind === 'client') {
@@ -156,8 +158,8 @@
     }
   }
 
-  const BANNER = `Installing. This can take a while (the first install is about 20 GB). Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.`
+  const BANNER = `Installing. The first install downloads about 16 GB and needs about 60 GB of free space. Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.`
   const BUSY_TITLE = 'An install is running. Wait for it to finish.'
 
-  return { createTracker, createGate, describe, overall, FLOWS, LABELS, BANNER, BUSY_TITLE }
+  return { createTracker, createGate, describe, overall, FLOWS, LABELS, BANNER, BUSY_TITLE, DOWNLOAD_WEIGHT }
 })
