@@ -22,7 +22,10 @@ const VVARDENFELL_WORLD = 'd28ad3:Journey to Baan Malur.esp', BAAN_HUT_CELL = '2
 const SURVIVAL_CELL = '861:ccQDRSSE001-SurvivalMode.esl';
 // Real recipes: [recipe desc, product desc, [[input desc, count]...]]
 const IRON = ['a30c3:Skyrim.esm', '5ace4:Skyrim.esm', [['71cf3:Skyrim.esm', 1]]]; // RecipeIngotIron, common
-const GLASS = ['dca0f:Skyrim.esm', '13939:Skyrim.esm', [['800e4:Skyrim.esm', 3], ['db5d2:Skyrim.esm', 1], ['5ada1:Skyrim.esm', 4], ['5ad9f:Skyrim.esm', 2]]]; // RecipeArmorGlassCuirass, skyrim+solstheim
+const GLASS = ['dca0f:Skyrim.esm', '13939:Skyrim.esm', [['800e4:Skyrim.esm', 3], ['db5d2:Skyrim.esm', 1], ['5ada1:Skyrim.esm', 4], ['5ad9f:Skyrim.esm', 2]]]; // RecipeArmorGlassCuirass, common (lore, Nate 2026-09-30)
+const DWARVEN = ['dd97a:Skyrim.esm', '1394d:Skyrim.esm', [['db8a2:Skyrim.esm', 3], ['5ace5:Skyrim.esm', 2], ['800e4:Skyrim.esm', 3]]]; // RecipeArmorDwarvenCuirass, skyrim+solstheim
+const EBONY = ['db8b9:Skyrim.esm', '139ae:Skyrim.esm', [['5ad9d:Skyrim.esm', 1], ['800e4:Skyrim.esm', 1]]]; // RecipeWeaponEbonyDagger, common (lore)
+const SEDUCER = ['88a:ccBGSSSE025-AdvDSGS.esm', '823:ccBGSSSE025-AdvDSGS.esm', [['5ad9f:Skyrim.esm', 2]]]; // Dark Seducer sword, Shivering Isles = cyrodiil (lore)
 const FORSWORN = ['3f1ef:Immersive Weapons.esp', 'cee9e:Skyrim.esm', [['6bc0a:Skyrim.esm', 1], ['6f993:Skyrim.esm', 1]]]; // IWRecipeAmmoForswornArrow, skyrim
 const AYLEID = ['1dff:Immersive Weapons.esp', '1dfe:Immersive Weapons.esp', [['5ad9e:Skyrim.esm', 1], ['5ad9f:Skyrim.esm', 2], ['5ada0:Skyrim.esm', 1], ['5ada1:Skyrim.esm', 2], ['800e4:Skyrim.esm', 2]]]; // IWRecipeWeaponAyleidGreatsword, cyrodiil
 const DAEDRIC = ['dd993:Skyrim.esm', '1396b:Skyrim.esm', [['800e4:Skyrim.esm', 3], ['5ad9d:Skyrim.esm', 5], ['3ad5b:Skyrim.esm', 1]]]; // RecipeArmorDaedricCuirass, cyrodiil+skyrim
@@ -31,7 +34,7 @@ const TEMPER = ['1094d4:Skyrim.esm', 'f71cf:Skyrim.esm', [['5ada0:Skyrim.esm', 1
 // Real tomes (book desc)
 const SPARKS_BOOK = '9cd53:Skyrim.esm', FROSTFLAMES_BOOK = '7232e:BSHeartland.esm', FIREBOLT_BOOK = 'a26fd:Skyrim.esm';
 const INCINERATE_BOOK = '10f7f4:Skyrim.esm', ASHSHELL_BOOK = '177ac:Dragonborn.esm', SKELETON_BOOK = '2923:DragonBreak.esp';
-const GLASS_ARMOR = GLASS[1], FORSWORN_ARROW = FORSWORN[1];
+const DWARVEN_ARMOR = DWARVEN[1], FORSWORN_ARROW = FORSWORN[1];
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'regions-harness-'));
 process.chdir(dir);
@@ -50,7 +53,7 @@ let wallClock = 1780000000000;
 Date.now = () => wallClock;
 
 // Exact plugin-name matching, like the server's FormDesc::ToFormId; an ESL sits in the 0xfe space
-const PLUGINS = { 'Skyrim.esm': 0x00, 'Update.esm': 0x01, 'Dawnguard.esm': 0x02, 'HearthFires.esm': 0x03, 'Dragonborn.esm': 0x04, 'BSAssets.esm': 0x0a, 'BSHeartland.esm': 0x0b, 'Journey to Baan Malur.esp': 0x0c, 'DragonBreak Hub.esp': 0x38, 'Immersive Weapons.esp': 0x3b, 'DragonBreak.esp': 0x60 };
+const PLUGINS = { 'Skyrim.esm': 0x00, 'Update.esm': 0x01, 'Dawnguard.esm': 0x02, 'HearthFires.esm': 0x03, 'Dragonborn.esm': 0x04, 'BSAssets.esm': 0x0a, 'BSHeartland.esm': 0x0b, 'Journey to Baan Malur.esp': 0x0c, 'DragonBreak Hub.esp': 0x38, 'Immersive Weapons.esp': 0x3b, 'DragonBreak.esp': 0x60, 'ccBGSSSE025-AdvDSGS.esm': 0x70 };
 const ESL = { 'ccQDRSSE001-SurvivalMode.esl': 0x001 };
 const BY_INDEX = Object.fromEntries(Object.entries(PLUGINS).map(([k, v]) => [v, k]));
 const BY_ESL = Object.fromEntries(Object.entries(ESL).map(([k, v]) => [v, k]));
@@ -64,7 +67,7 @@ const descOf = (id) => {
   if ((id >>> 24) === 0xfe) return `${(id & 0xfff).toString(16)}:${BY_ESL[(id >>> 12) & 0xfff]}`;
   const p = BY_INDEX[id >>> 24]; if (!p) throw new Error('no plugin'); return `${(id & 0xffffff).toString(16)}:${p}`;
 };
-const RECORDS = { [idOf(GLASS_ARMOR)]: { type: 'ARMO', editorId: 'ArmorGlassCuirass', fields: [] }, [idOf(SURVIVAL_CELL)]: { type: 'CELL', editorId: 'AAASurvivalMarkerCell', fields: [] } };
+const RECORDS = { [idOf(DWARVEN_ARMOR)]: { type: 'ARMO', editorId: 'ArmorDwarvenCuirass', fields: [] }, [idOf(SURVIVAL_CELL)]: { type: 'CELL', editorId: 'AAASurvivalMarkerCell', fields: [] } };
 
 const SMITH = 0x14, ADMIN = 0x15, MAGE = 0x16;
 const props = new Map();
@@ -196,21 +199,34 @@ check('shopShowForeign lists foreign tomes as blocked rows', row(MAGE, INCINERAT
 spellsCfg = {}; load();
 
 // ---- the craft gate ----
-at(SMITH, BRUMA_WORLD); stock(SMITH, GLASS);
+at(SMITH, BRUMA_WORLD); stock(SMITH, DWARVEN);
 const c1 = credits.length, n1 = out.notices.length;
-check('Glass Armor is refused at a Bruma forge', craft(SMITH, GLASS) === false);
-check('...the materials stay and no armor is made', count(SMITH, GLASS[1]) === 0 && GLASS[2].every(([d, n]) => count(SMITH, d) === n));
+check('Dwarven Armor is refused at a Bruma forge', craft(SMITH, DWARVEN) === false);
+check('...the materials stay and no armor is made', count(SMITH, DWARVEN[1]) === 0 && DWARVEN[2].every(([d, n]) => count(SMITH, d) === n));
 check('...no mastery credit', credits.length === c1);
-check('...the smith is told why', said(SMITH) === 'Glass Armor is a Skyrim and Solstheim design; the smiths of Cyrodiil do not know it. Your materials return when you leave the forge.', said(SMITH));
+check('...the smith is told why', said(SMITH) === 'Dwarven Armor is a Skyrim and Solstheim design; the smiths of Cyrodiil do not know it. Your materials return when you leave the forge.', said(SMITH));
 check('...with a notice too', out.notices.length === n1 + 1 && out.notices[out.notices.length - 1][1] === said(SMITH));
-check('...and it is audited', out.audits[out.audits.length - 1] === `REGION refused P14 RecipeArmorGlassCuirass at ${BRUMA_WORLD} (cyrodiil)`, out.audits[out.audits.length - 1]);
+check('...and it is audited', out.audits[out.audits.length - 1] === `REGION refused P14 RecipeArmorDwarvenCuirass at ${BRUMA_WORLD} (cyrodiil)`, out.audits[out.audits.length - 1]);
 const s1 = out.said.length;
-check('a second try at once is refused without a second message', craft(SMITH, GLASS) === false && out.said.length === s1);
+check('a second try at once is refused without a second message', craft(SMITH, DWARVEN) === false && out.said.length === s1);
 wallClock += 1600;
-craft(SMITH, GLASS);
+craft(SMITH, DWARVEN);
 check('...and told again after 1.5 s', out.said.length === s1 + 1);
 at(SMITH, TAMRIEL_WORLD);
-check('the same Glass Armor is made in Skyrim, with credit', craft(SMITH, GLASS) !== false && count(SMITH, GLASS[1]) === 1 && credits.length === c1 + 1);
+check('the same Dwarven Armor is made in Skyrim, with credit', craft(SMITH, DWARVEN) !== false && count(SMITH, DWARVEN[1]) === 1 && credits.length === c1 + 1);
+// Lore (Nate, 2026-09-30: "make ebony and glass common, shivering isles cyrodiil. we have to stay lore accurate above
+// all else"): glass and ebony are made in every province, the Shivering Isles' gear in Cyrodiil
+at(SMITH, BRUMA_WORLD); wallClock += 1600;
+stock(SMITH, GLASS);
+check('Glass Armor is made at a Bruma forge (glass is common)', craft(SMITH, GLASS) !== false && count(SMITH, GLASS[1]) === 1);
+stock(SMITH, EBONY);
+check('an Ebony dagger is made at a Bruma forge (ebony is common)', craft(SMITH, EBONY) !== false && count(SMITH, EBONY[1]) === 1);
+stock(SMITH, SEDUCER);
+check('a Dark Seducer sword is made at a Bruma forge (the Shivering Isles are Cyrodiil)', craft(SMITH, SEDUCER) !== false && count(SMITH, SEDUCER[1]) === 1);
+at(SMITH, TAMRIEL_WORLD); wallClock += 1600; stock(SMITH, SEDUCER);
+check('...and refused in Skyrim', craft(SMITH, SEDUCER) === false && count(SMITH, SEDUCER[1]) === 1);
+at(SMITH, SOLSTHEIM_WORLD); wallClock += 1600; stock(SMITH, GLASS);
+check('Glass Armor is still made on Solstheim', craft(SMITH, GLASS) !== false && count(SMITH, GLASS[1]) === 2);
 at(SMITH, BRUMA_WORLD); stock(SMITH, FORSWORN);
 check('the Forsworn arrow (Skyrim only) is refused in Bruma', craft(SMITH, FORSWORN) === false && count(SMITH, FORSWORN[1]) === 0 && count(SMITH, '6bc0a:Skyrim.esm') === 1);
 at(SMITH, BREEZEHOME_CELL); wallClock += 1600;
@@ -222,24 +238,24 @@ check('...and made in Bruma', craft(SMITH, AYLEID) !== false && count(SMITH, AYL
 check('Daedric (Cyrodiil and Skyrim) is allowed in Bruma and refused on Solstheim', R().recipeOk(SMITH, idOf(DAEDRIC[1]), idOf(DAEDRIC[0])).ok && (at(SMITH, SOLSTHEIM_WORLD), !R().recipeOk(SMITH, idOf(DAEDRIC[1]), idOf(DAEDRIC[0])).ok));
 at(SMITH, SYNOD_CELL);
 check('a staff at the staff enchanter is Solstheim by its bench', !R().recipeOk(SMITH, idOf(STAFF[1]), idOf(STAFF[0])).ok && R().recipeWhere(idOf(STAFF[0]), idOf(STAFF[1])).p.join() === 'solstheim');
-at(SMITH, HUB_WORLD); stock(SMITH, GLASS); wallClock += 1600;
-check('in the Hub only common designs are made', craft(SMITH, GLASS) === false && /only designs known in every province can be made here/.test(said(SMITH)) && R().recipeOk(SMITH, idOf(IRON[1]), idOf(IRON[0])).ok, said(SMITH));
+at(SMITH, HUB_WORLD); stock(SMITH, DWARVEN); wallClock += 1600;
+check('in the Hub only common designs are made', craft(SMITH, DWARVEN) === false && /only designs known in every province can be made here/.test(said(SMITH)) && R().recipeOk(SMITH, idOf(IRON[1]), idOf(IRON[0])).ok, said(SMITH));
 at(SMITH, BRUMA_WORLD);
 const l2 = out.logs.length;
 check('a recipe regions.json does not list (tempering) passes', R().recipeOk(SMITH, idOf(TEMPER[1]), idOf(TEMPER[0])).ok && R().recipeOk(SMITH, idOf(TEMPER[1]), idOf(TEMPER[0])).ok);
 check('...logged once', out.logs.slice(l2).filter((l) => /no entry for recipe 1094d4:Skyrim.esm, allowing it/.test(l)).length === 1, out.logs.slice(l2));
 regionsCfg = Object.assign({}, regionsCfg, { craft: false }); load();
-check('with craft off every recipe passes', R().recipeOk(SMITH, idOf(GLASS[1]), idOf(GLASS[0])).ok);
+check('with craft off every recipe passes', R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok);
 regionsCfg = Object.assign({}, regionsCfg, { craft: true }); load();
 
 // ---- admins ----
-at(ADMIN, BRUMA_WORLD); stock(ADMIN, GLASS);
-check('an admin crafts Glass Armor in Bruma', craft(ADMIN, GLASS) !== false && count(ADMIN, GLASS[1]) === 1);
+at(ADMIN, BRUMA_WORLD); stock(ADMIN, DWARVEN);
+check('an admin crafts Dwarven Armor in Bruma', craft(ADMIN, DWARVEN) !== false && count(ADMIN, DWARVEN[1]) === 1);
 cmd('region', ADMIN, 'test');
-stock(ADMIN, GLASS);
-check('/region test drops the bypass', /Region test on/.test(said(ADMIN)) && craft(ADMIN, GLASS) === false && count(ADMIN, GLASS[1]) === 1);
+stock(ADMIN, DWARVEN);
+check('/region test drops the bypass', /Region test on/.test(said(ADMIN)) && craft(ADMIN, DWARVEN) === false && count(ADMIN, DWARVEN[1]) === 1);
 cmd('region', ADMIN, 'test');
-check('...and /region test again restores it', /Region test off/.test(said(ADMIN)) && craft(ADMIN, GLASS) !== false && count(ADMIN, GLASS[1]) === 2);
+check('...and /region test again restores it', /Region test off/.test(said(ADMIN)) && craft(ADMIN, DWARVEN) !== false && count(ADMIN, DWARVEN[1]) === 2);
 check('the bypass survives a reload', (load(), R().bypass(ADMIN)) && !R().bypass(SMITH));
 at(ADMIN, SYNOD_CELL);
 cmd('region', ADMIN);
@@ -254,11 +270,11 @@ ui('tomeBuy', ADMIN, [shop(ADMIN).nonce, INCINERATE_BOOK]);
 check('...and can buy one', shop(ADMIN).resultKind === 'ok' && count(ADMIN, INCINERATE_BOOK) === 1, shop(ADMIN).result);
 
 // ---- overrides, applied on save without a reload ----
-at(SMITH, BRUMA_WORLD); stock(SMITH, GLASS); wallClock += 1600;
-writeOverrides({ items: { ArmorGlassCuirass: 'common' } });
-check('an item moved to common by editor id is craftable in Bruma at once', craft(SMITH, GLASS) !== false);
-writeOverrides({ items: { [GLASS_ARMOR]: 'glass', [FORSWORN_ARROW]: 'cyrodiil' } });
-check('an item override by desc takes a family name (glass: Skyrim and Solstheim)', !R().recipeOk(SMITH, idOf(GLASS[1]), idOf(GLASS[0])).ok && (at(SMITH, SOLSTHEIM_WORLD), R().recipeOk(SMITH, idOf(GLASS[1]), idOf(GLASS[0])).ok));
+at(SMITH, BRUMA_WORLD); stock(SMITH, DWARVEN); wallClock += 1600;
+writeOverrides({ items: { ArmorDwarvenCuirass: 'common' } });
+check('an item moved to common by editor id is craftable in Bruma at once', craft(SMITH, DWARVEN) !== false);
+writeOverrides({ items: { [DWARVEN_ARMOR]: 'dwarven', [FORSWORN_ARROW]: 'cyrodiil' } });
+check('an item override by desc takes a family name (dwarven: Skyrim and Solstheim)', !R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok && (at(SMITH, SOLSTHEIM_WORLD), R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok));
 at(SMITH, BRUMA_WORLD);
 check('...and moves the Forsworn arrow to Cyrodiil', R().recipeOk(SMITH, idOf(FORSWORN[1]), idOf(FORSWORN[0])).ok && (at(SMITH, TAMRIEL_WORLD), !R().recipeOk(SMITH, idOf(FORSWORN[1]), idOf(FORSWORN[0])).ok));
 writeOverrides({ recipes: { IWRecipeAmmoForswornArrow: 'none' }, items: { [FORSWORN_ARROW]: 'common' } });
@@ -273,14 +289,14 @@ check('a tome override stocks Incinerate in the Synod', row(MAGE, INCINERATE_BOO
 writeOverrides({ places: Object.assign({}, OVR_BASE.places, { BSHeartland: 'skyrim', [SYNOD_CELL]: 'morrowind' }) });
 check('a place override by editor id moves Bruma\'s worldspace', place(BRUMA_WORLD).province === 'skyrim' && place(BRUMA_WORLD).source === 'override');
 check('...and one by desc takes a culture (morrowind: Solstheim)', place(SYNOD_CELL).province === 'solstheim');
-const good = JSON.stringify(Object.assign({}, OVR_BASE, { items: { ArmorGlassCuirass: 'common' } }));
+const good = JSON.stringify(Object.assign({}, OVR_BASE, { items: { ArmorDwarvenCuirass: 'common' } }));
 writeOverrides(null, good);
 const l3 = out.logs.length;
 writeOverrides(null, good.slice(0, 200));
 at(SMITH, BRUMA_WORLD);
-check('a half-saved overrides file keeps the last good copy', R().recipeOk(SMITH, idOf(GLASS[1]), idOf(GLASS[0])).ok && out.logs.slice(l3).some((l) => /regions-overrides.json unreadable .*keeping the last good copy/.test(l)), out.logs.slice(l3));
+check('a half-saved overrides file keeps the last good copy', R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok && out.logs.slice(l3).some((l) => /regions-overrides.json unreadable .*keeping the last good copy/.test(l)), out.logs.slice(l3));
 writeOverrides({});
-check('...until a good file replaces it', !R().recipeOk(SMITH, idOf(GLASS[1]), idOf(GLASS[0])).ok);
+check('...until a good file replaces it', !R().recipeOk(SMITH, idOf(DWARVEN[1]), idOf(DWARVEN[0])).ok);
 
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());

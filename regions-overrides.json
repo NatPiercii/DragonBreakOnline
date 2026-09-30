@@ -8,14 +8,14 @@
     "elsweyr": "cyrodiil",
     "summerset": ["cyrodiil", "skyrim"],
     "valenwood": ["cyrodiil", "skyrim"],
-    "shiveringisles": "skyrim"
+    "shiveringisles": "cyrodiil"
   },
   "families": {
     "imperial": ["cyrodiil", "skyrim"],
     "elven": ["cyrodiil", "skyrim"],
     "daedric": ["cyrodiil", "skyrim"],
-    "glass": ["skyrim", "solstheim"],
-    "ebony": ["skyrim", "solstheim"],
+    "glass": "common",
+    "ebony": "common",
     "dwarven": ["skyrim", "solstheim"],
     "dragon": ["skyrim", "solstheim"],
     "orcish": ["skyrim"]
