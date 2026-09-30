@@ -39,6 +39,18 @@ const D = ALL.find((d) => d.id === 'CYRSerpentsTrailLocation');
 fs.writeFileSync('dungeons.json', JSON.stringify({ dungeons: [D] }));
 fs.writeFileSync('expeditions.json', JSON.stringify({ expeditions: [] }));
 global.setTimeout = () => 0;
+// Math.random, seeded (as expedition-loot-budget-harness does). A solo claim thins non-boss enemies at random
+// (dungeons.js zonesFor: fewer of them for a small party), so an unseeded run could leave a filled room with none this
+// claim and fail 2 runs in 26 (Worker D, 2026-09-30). Seeded, the claim is the same sample every run.
+let rngState = 0;
+const reseed = (key) => { let h = 2166136261; for (const c of String(key)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); rngState = h >>> 0; };
+Math.random = () => {
+  rngState = (rngState + 0x6d2b79f5) >>> 0;
+  let t = Math.imul(rngState ^ (rngState >>> 15), rngState | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+reseed('dungeon-fill|CYRSerpentsTrailLocation|normal');
 let nextId = 0x1000;
 const ids = new Map();
 const idOf = (d) => { const k = String(d).toLowerCase(); if (!ids.has(k)) ids.set(k, nextId++); return ids.get(k); };
