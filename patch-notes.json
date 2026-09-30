@@ -1,19 +1,5 @@
 [
   {
-    "title": "A Reroll for Travelers",
-    "date": "2026-09-30",
-    "version": "Server update",
-    "tag": "Change",
-    "sections": [
-      {
-        "heading": "Supporters",
-        "items": [
-          "The Traveler tier now includes the one identity reroll the Patreon page promises. Use /reroll to change your race, look and name; your skills and gear stay."
-        ]
-      }
-    ]
-  },
-  {
     "title": "Werewolves Seen in Human Shape, For Now",
     "date": "2026-09-30",
     "version": "Server update",
