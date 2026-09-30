@@ -1,5 +1,27 @@
 [
   {
+    "title": "Recipes Follow Your Rank",
+    "date": "2026-10-02",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "The forge",
+        "items": [
+          "The forge now follows your Blacksmith rank. A Novice works iron, hide, fur and leather; steel, silver, dwarven, elven, chainmail and mithril open at Apprentice; orcish, steel plate, scaled and Nordic at Journeyman; ebony, glass and stalhrim at Expert; dragonbone, dragonscale and Daedric at Master. Before, most metals could not be forged at all.",
+          "Every metal past iron also needs its smithing manual. Read it once and its recipes appear at the forge. The Synod sells the Apprentice manuals in the Synod Conclave, harder ones turn up in boss chests, and a Scholar can copy a manual they have learned.",
+          "Tier 5 gear now always outclasses tier 4: a few ebony, glass, stalhrim and Amber pieces are a little weaker, and a few Daedric, dragon and Madness pieces a little stronger. Amber weapons hit as hard as glass."
+        ]
+      },
+      {
+        "heading": "The cooking pot",
+        "items": [
+          "Cooking follows your Cook rank too: simple meals at Novice, hearty ones at Apprentice, feast dishes at Journeyman, restorative dishes at Expert and banquet fare at Master."
+        ]
+      }
+    ]
+  },
+  {
     "title": "A Reroll for Travelers",
     "date": "2026-09-30",
     "version": "Server update",
