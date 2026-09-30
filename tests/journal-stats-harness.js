@@ -246,6 +246,86 @@ delete globalThis.__dboJournalStats; delete globalThis.__alduinakTradeLog; delet
     ok(JSON.parse(fs.readFileSync(keyFile(P5), 'utf8')).downs === 1, '...and the next flush writes it under the key');
   } else console.log('ok    skipped the reload over 0b5f2769: git cannot show that commit here');
 
+  // ---- a flush writes the batch it started with; what is dirtied meanwhile waits (re-review N-M2a) ----
+  {
+    const crowd = [];
+    for (let i = 0; i < 10; i++) { const a = 0xff002000 + i; profiles.set(a, 2000 + i); at(a, [0, 0, 0]); crowd.push(a); }
+    online = crowd; tick();
+    await M.flush();
+    tick();                                                  // all ten dirty again
+    const realWrite2 = fs.writeFile;
+    let writes = 0;
+    fs.writeFile = (f, body, cb) => { writes++; setTimeout(() => realWrite2(f, body, cb), 20); };
+    const p = M.flush();
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 30)); tick(); }   // samples keep dirtying everyone
+    const n = await p;
+    fs.writeFile = realWrite2;
+    ok(n === 10 && writes === 10 && globalThis.__dboJournalStats.dirty.size === 10, 'a slow flush writes its ten and stops; the ten dirtied meanwhile wait for the next flush', [n, writes, globalThis.__dboJournalStats.dirty.size]);
+  }
+
+  // ---- a clock stepped backwards takes no play time away ----
+  {
+    online = [P2]; tick();
+    const before = st(P2).playMs;
+    now -= 30000; timers.journalStatsSample();
+    ok(st(P2).playMs === before, 'a clock stepped back 30 s adds nothing and takes nothing away', st(P2).playMs - before);
+    now += 30000;
+  }
+
+  // ---- a write given up on as hung never lands over a newer file ----
+  {
+    online = [P2]; tick();
+    const realWrite3 = fs.writeFile;
+    let late = null;
+    // The disk takes the write and only gets to it long after: its stale body lands late, then it reports back
+    fs.writeFile = (f, body, cb) => { late = () => realWrite3(f, JSON.stringify({ v: 1, downs: -1, stale: true }), cb); };
+    M.flush();
+    await new Promise((r) => setTimeout(r, 20));
+    fs.writeFile = realWrite3;
+    now += 61000;                                            // a minute later the write counts as hung
+    globalThis.__dboStatsAdd(P2, 'downs');
+    const want = st(P2).downs;
+    await M.flush();
+    late && late();                                          // the hung write finally lands and reports back
+    await new Promise((r) => setTimeout(r, 20));
+    const onDisk2 = JSON.parse(fs.readFileSync(keyFile(P2), 'utf8'));
+    ok(late && onDisk2.downs === want && !onDisk2.stale && logs.some((l) => /hung for a minute/.test(l)), 'a hung write is retried, and when it reports back late it does not land over the newer file', onDisk2);
+    ok(!fs.readdirSync(path.join(dir, 'journal')).some((f) => f.endsWith('.tmp')), '...and leaves no temporary file behind');
+  }
+
+  // ---- a character that lost its key takes its own file back by account and #TAG ----
+  {
+    const P6 = 0xff000019, P7 = 0xff00001a;
+    profiles.set(P6, 12); profiles.set(P7, 13);
+    props.set(`${P6}|private.charTag`, 'AbCd'); props.set(`${P7}|private.charTag`, 'AbCd');   // same tag, another account
+    at(P6, [0, 0, 0]); online = [P6]; tick(); tick();
+    globalThis.__dboStatsAdd(P6, 'trades');
+    await M.flush();
+    const k6 = M.keyOf(P6);
+    const doc6 = JSON.parse(fs.readFileSync(keyFile(P6), 'utf8'));
+    ok(doc6.account === 12 && doc6.tag === 'AbCd' && doc6.actor === 'ff000019', 'the file names its account and #TAG');
+    delete globalThis.__dboJournalStats; props.delete(`${P6}|private.dboJournalId`);   // a restart; the key is lost
+    M = load();
+    ok(M.keyOf(P6) === k6 && st(P6).trades === 1 && logs.some((l) => /ff000019 takes back its file/.test(l)), 'after losing its key the character takes its own file back, counts and all', [M.keyOf(P6), k6]);
+    ok(M.keyOf(P7) !== k6 && st(P7).trades === 0, 'a character with the same #TAG on another account gets a file of its own');
+    // A living character is never an orphan, even when its file's key is not on it
+    props.set(`${P6}|private.indexed.tagKey`, 'abcd');
+    mp.findFormsByPropertyValue = (prop, v) => [...props.entries()].filter(([pk, pv]) => pk.endsWith(`|${prop}`) && pv === v).map(([pk]) => Number(pk.split('|')[0]));
+    await M.flush();
+    delete globalThis.__dboJournalStats; M = load();
+    props.set(`${P6}|private.dboJournalId`, 'dddddddddddddddd');   // a staff edit gave it another key
+    ok(!M.orphans().includes(k6), 'a file whose character is alive (account and #TAG match) is not an orphan, though its key moved');
+    // A character that is gone is an orphan; moved aside, it comes back if the character does
+    gone.add(P6);
+    const lostDoc = JSON.parse(fs.readFileSync(path.join(dir, 'journal', `${k6}.json`), 'utf8'));
+    ok(M.orphans().includes(k6), 'once no living character matches, it is an orphan', lostDoc);
+    M.forget(k6);
+    gone.delete(P6); props.delete(`${P6}|private.dboJournalId`);
+    delete globalThis.__dboJournalStats; M = load();
+    ok(M.keyOf(P6) === k6 && fs.existsSync(path.join(dir, 'journal', `${k6}.json`)) && st(P6).trades === 1, 'a file moved aside by forget() comes back when its character turns up again');
+    delete mp.findFormsByPropertyValue;
+  }
+
   // ---- load: 100 players ----
   const many = [];
   for (let i = 0; i < 100; i++) { const a = 0xff001000 + i; profiles.set(a, 1000 + i); at(a, [i * 10, 0, 0]); many.push(a); }

@@ -46,9 +46,11 @@ module.exports = (api) => {
 
   // cache: key -> stats; dirty: keys to write; live: key -> { pos, world, at, pending } of the last sample; online: the
   // keys seen in the last sample; writing: the one file in flight
-  const blank = () => ({ v: 2, cache: new Map(), dirty: new Set(), live: new Map(), online: new Set(), writing: null, waiters: [], written: 0, players: { at: 0, created: new Map() } });
+  const blank = () => ({ v: 2, cache: new Map(), dirty: new Set(), live: new Map(), online: new Set(), writing: null, queue: [], seq: 0, index: null, waiters: [], written: 0, players: { at: 0, created: new Map() } });
   const old = globalThis.__dboJournalStats;
   const S = old && old.v === 2 ? old : (globalThis.__dboJournalStats = Object.assign(blank(), old && old.players ? { players: old.players } : {}));
+  // Fields added since the state was made (a reload over an earlier version of this module)
+  for (const [k, v] of Object.entries(blank())) if (!(k in S)) S[k] = v;
 
   const isPlayer = (a) => { try { return profileOf(Number(a) >>> 0) >= 0; } catch (e) { return false; } };
   // A character's key: made once, kept on the character, never reused (a new character never carries an old one).
@@ -59,11 +61,57 @@ module.exports = (api) => {
     let k = null;
     try { k = mp.get(id, KEY_PROP); } catch (e) { return null; }
     if (typeof k === 'string' && KEY_RX.test(k)) return k;
-    k = crypto.randomBytes(8).toString('hex');
+    // A character that lost its key (a staff edit, a restored change form) takes its own file back by account and tag
+    k = adoptable(id) || crypto.randomBytes(8).toString('hex');
     try { mp.set(id, KEY_PROP, k); } catch (e) { return null; }
     return k;
   };
   const fileOf = (k) => path.join(DIR, `${k}.json`);
+  // Who a character is, for re-adoption and the orphan check: its account and its own #TAG (private.charTag, random)
+  const identityOf = (a) => {
+    let account = -1, tag = null;
+    try { account = profileOf(Number(a) >>> 0); } catch (e) { account = -1; }
+    try { const x = mp.get(Number(a) >>> 0, 'private.charTag'); if (typeof x === 'string' && x.length === 4) tag = x; } catch (e) { tag = null; }
+    return account >= 0 && tag ? { account, tag } : null;
+  };
+  const idKey = (account, tag) => `${account}:${tag}`;
+  const REMOVED = path.join(DIR, 'removed');
+  const readDoc = (k, where = DIR) => { try { return JSON.parse(fs.readFileSync(path.join(where, `${k}.json`), 'utf8')); } catch (e) { return null; } };
+  // account:tag -> key of every file, the ones moved aside too, read once a process (only when a character without a
+  // key turns up); a live file wins over a removed one
+  const index = () => {
+    if (S.index) return S.index;
+    S.index = new Map();
+    for (const where of [REMOVED, DIR]) {
+      let names = []; try { names = fs.readdirSync(where); } catch (e) { names = []; }
+      for (const n of names) {
+        const m = /^([0-9a-f]{16})\.json$/.exec(n); if (!m) continue;
+        const d = readDoc(m[1], where);
+        if (d && Number.isInteger(d.account) && typeof d.tag === 'string') S.index.set(idKey(d.account, d.tag), m[1]);
+      }
+    }
+    return S.index;
+  };
+  const adoptable = (a) => {
+    const who = identityOf(a); if (!who) return null;
+    const k = index().get(idKey(who.account, who.tag)); if (!k) return null;
+    let d = readDoc(k);
+    // A file forget() moved aside comes back to its character
+    if (!d) { d = readDoc(k, REMOVED); if (d && d.account === who.account && d.tag === who.tag) { try { fs.renameSync(path.join(REMOVED, `${k}.json`), fileOf(k)); } catch (e) { return null; } } }
+    if (!d || d.account !== who.account || d.tag !== who.tag) return null;
+    // Never a file another living character holds
+    const holder = typeof d.actor === 'string' ? parseInt(d.actor, 16) >>> 0 : 0;
+    if (holder && holder !== (Number(a) >>> 0)) { try { if (mp.get(holder, KEY_PROP) === k) return null; } catch (e) { /* gone */ } }
+    log(`journal stats: ${(Number(a) >>> 0).toString(16)} takes back its file ${k} (account ${who.account}, #${who.tag})`);
+    return k;
+  };
+  // Stamps who a record belongs to, and keeps the index current
+  const stamp = (s, k, actor) => {
+    if (!actor) return;
+    s.actor = (Number(actor) >>> 0).toString(16);
+    const who = identityOf(actor);
+    if (who) { s.account = who.account; s.tag = who.tag; if (S.index) S.index.set(idKey(who.account, who.tag), k); }
+  };
   const fresh = (now) => ({ v: 1, since: now, firstSeen: now, created: null, playMs: 0, sessions: 0, sessionMs: 0, longestSessionMs: 0,
     open: null, distanceUnits: 0, ...Object.fromEntries([...COUNTERS].map((k) => [k, 0])) });
   const finite = (x) => typeof x === 'number' && Number.isFinite(x);
@@ -83,8 +131,7 @@ module.exports = (api) => {
     let raw = null;
     try { raw = JSON.parse(fs.readFileSync(fileOf(k), 'utf8')); } catch (e) { raw = null; }
     s = repair(raw, Date.now());
-    // Which character a file belongs to, for the orphan check
-    if (actor) s.actor = (Number(actor) >>> 0).toString(16);
+    stamp(s, k, actor);
     S.cache.set(k, s);
     return s;
   };
@@ -193,10 +240,12 @@ module.exports = (api) => {
     let pending = prev ? prev.pending : false;
     if (!s.open) {
       s.open = { start: now, last: now };
+      stamp(s, k, a);
       pending = typeof creationPending === 'function' && creationPending(a);
       if (!s.created && pending) s.created = now;
     } else {
-      s.playMs += Math.min(now - s.open.last, C.sampleSeconds * 2000);
+      // A clock stepped backwards adds nothing
+      s.playMs += Math.max(0, Math.min(now - s.open.last, C.sampleSeconds * 2000));
       s.open.last = now;
     }
     // Distance: one step per sample, in the same world, no faster than the engine lets anyone move. A step across a gap
@@ -237,21 +286,31 @@ module.exports = (api) => {
     for (const [k, s] of S.cache) if (!S.online.has(k) && !S.dirty.has(k) && !s.open && !(S.writing && S.writing.k === k)) S.cache.delete(k);
   };
   const settle = () => { const n = S.written; S.written = 0; const w = S.waiters; S.waiters = []; for (const f of w) { try { f(n); } catch (e) { /* a waiter's own problem */ } } };
+  // Writes this flush's batch only: characters dirtied meanwhile wait for the next flush, so a slow disk never turns one
+  // flush into endless rewriting (re-review N-M2a)
   const pump = () => {
     for (;;) {
-      const next = S.dirty.values().next();
-      if (next.done) { S.writing = null; evict(); settle(); return; }
-      const k = next.value; S.dirty.delete(k);
+      const k = S.queue.shift();
+      if (k === undefined) { S.writing = null; evict(); settle(); return; }
       const s = S.cache.get(k); if (!s) continue;
       let body; try { body = JSON.stringify(s); } catch (e) { log('journal stats: cannot serialise', k, e.message); continue; }
       const token = {}; S.writing = { k, at: Date.now(), token };
-      const f = fileOf(k), tmp = `${f}.tmp`;
-      const failed = (e) => { if (!S.writing || S.writing.token !== token) return; log('journal stats: write failed for', k, e.message); S.dirty.add(k); S.writing = null; settle(); };
+      // Each write has its own temporary file, so a write given up on as hung can never land over a newer one
+      const f = fileOf(k), tmp = `${f}.${process.pid}.${++S.seq}.tmp`;
+      const mine = () => !!S.writing && S.writing.token === token;
+      const failed = (e) => {
+        fs.unlink(tmp, () => {});
+        if (!mine()) return;
+        log('journal stats: write failed for', k, e.message);
+        S.dirty.add(k); for (const x of S.queue) S.dirty.add(x); S.queue = [];
+        S.writing = null; settle();
+      };
       fs.writeFile(tmp, body, (e1) => {
         if (e1) return failed(e1);
+        if (!mine()) { fs.unlink(tmp, () => {}); return; }
         fs.rename(tmp, f, (e2) => {
           if (e2) return failed(e2);
-          if (!S.writing || S.writing.token !== token) return;   // given up on as stuck; the queue has moved on
+          if (!mine()) return;
           S.written++; S.writing = null; pump();
         });
       });
@@ -260,33 +319,43 @@ module.exports = (api) => {
   };
   const flush = () => new Promise((resolve) => {
     if (S.writing && Date.now() - S.writing.at > 60000) { log('journal stats: a write hung for a minute, retrying', S.writing.k); S.dirty.add(S.writing.k); S.writing = null; }
-    if (!S.dirty.size && !S.writing) { evict(); return resolve(0); }
+    if (S.writing) { S.waiters.push(resolve); return; }     // the batch under way finishes first; new dirt waits
+    S.queue = [...new Set([...S.queue, ...S.dirty])]; S.dirty.clear();
+    if (!S.queue.length) { evict(); return resolve(0); }
+    try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { log('journal stats: cannot make', DIR, e.message); for (const x of S.queue) S.dirty.add(x); S.queue = []; return resolve(0); }
     S.waiters.push(resolve);
-    if (S.writing) return;
-    try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { log('journal stats: cannot make', DIR, e.message); S.waiters.pop(); return resolve(0); }
     pump();
   });
 
-  // ---- characters that are gone: their file's key is no longer on the character it names ----------------------------
-  // Listed, never removed here: the journal (phase 1) decides when, and forget() moves a file aside rather than deleting
+  // ---- characters that are gone: no living character holds the file's key, or matches its account and #TAG ---------
+  // Listed, never removed here: the journal (phase 1) decides when, and forget() moves a file aside rather than deleting.
+  // Reads every file: call it rarely, never in a tick
+  const livingMatch = (d) => {
+    if (!Number.isInteger(d.account) || typeof d.tag !== 'string') return false;
+    if (typeof mp.findFormsByPropertyValue !== 'function') return true;   // cannot tell: never call it an orphan
+    try {
+      const found = mp.findFormsByPropertyValue('private.indexed.tagKey', d.tag.toLowerCase()) || [];
+      return found.some((x) => { const who = identityOf(x); return !!who && who.account === d.account && who.tag === d.tag; });
+    } catch (e) { return true; }
+  };
   const orphans = () => {
     let names = []; try { names = fs.readdirSync(DIR); } catch (e) { return []; }
     const out = [];
     for (const n of names) {
       const m = /^([0-9a-f]{16})\.json$/.exec(n); if (!m) continue;
       const k = m[1]; if (S.cache.has(k)) continue;
-      let doc = null; try { doc = JSON.parse(fs.readFileSync(path.join(DIR, n), 'utf8')); } catch (e) { continue; }
-      const a = doc && typeof doc.actor === 'string' ? parseInt(doc.actor, 16) >>> 0 : 0;
-      let still = false;
-      if (a) { try { still = mp.get(a, KEY_PROP) === k; } catch (e) { still = false; } }
-      if (!still) out.push(k);
+      const doc = readDoc(k); if (!doc) continue;
+      const a = typeof doc.actor === 'string' ? parseInt(doc.actor, 16) >>> 0 : 0;
+      let held = false;
+      if (a) { try { held = mp.get(a, KEY_PROP) === k; } catch (e) { held = false; } }
+      if (!held && !livingMatch(doc)) out.push(k);
     }
     return out;
   };
   const forget = (k) => {
     if (!KEY_RX.test(String(k))) return false;
     S.cache.delete(k); S.dirty.delete(k); S.live.delete(k);
-    try { fs.mkdirSync(path.join(DIR, 'removed'), { recursive: true }); fs.renameSync(fileOf(k), path.join(DIR, 'removed', `${k}.json`)); return true; } catch (e) { return false; }
+    try { fs.mkdirSync(REMOVED, { recursive: true }); fs.renameSync(fileOf(k), path.join(REMOVED, `${k}.json`)); return true; } catch (e) { return false; }
   };
 
   every('journalStatsSample', C.sampleSeconds * 1000, sample);
