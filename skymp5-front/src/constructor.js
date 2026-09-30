@@ -33,6 +33,7 @@ import Pigeon from './features/pigeon';
 import Faction from './features/faction';
 import MailMarkers from './features/mailMarkers';
 import Rite from './features/rite';
+import ShrinePanel from './features/shrinePanel';
 import Skinning from './features/skinning';
 import CharacterSelect from './features/characterSelect';
 import DungeonGate from './features/dungeonGate';
@@ -285,6 +286,8 @@ const Constructor = props => {
       return <MailMarkers data={rend} />;
     case 'rite':
       return <Rite data={rend} />;
+    case 'shrinePanel':
+      return <ShrinePanel data={rend} />;
     case 'skinning':
       return <Skinning data={rend} />;
     case 'characterSelect':
@@ -326,7 +329,7 @@ const Constructor = props => {
 
 // Which part of the world each widget belongs to; anything unlisted keeps the aqua glow (dbo-theme.scss)
 const DOMAINS = {
-  prayer: 'aedric', deityPicker: 'aedric',
+  prayer: 'aedric', deityPicker: 'aedric', shrinePanel: 'aedric',
   rite: 'lorkhan', bountyBoard: 'lorkhan', expeditionBoard: 'lorkhan', dungeonGate: 'lorkhan', death: 'lorkhan', robPrompt: 'lorkhan', feedPrompt: 'lorkhan', downed: 'lorkhan',
   mastery: 'dragonbreak', namePrompt: 'dragonbreak', reading: 'dragonbreak', tomeShop: 'dragonbreak', spellbook: 'dragonbreak',
   labour: 'bronze', skinning: 'bronze', housing: 'bronze', pigeon: 'bronze', mailMarkers: 'bronze', trade: 'bronze', bank: 'bronze',
