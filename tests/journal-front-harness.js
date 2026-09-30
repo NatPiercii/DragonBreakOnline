@@ -112,7 +112,7 @@ const edit = render(J.ProfileTab, { data: data(), editing: true, setEditing: noo
 check('editing: a backstory field capped at 4000 and an origin field at 1000', /<textarea[^>]*maxLength="4000"/.test(edit) && /<textarea[^>]*maxLength="1000"/.test(edit), edit.match(/<textarea[^>]*>/g));
 check('...with character counts', /0 \/ 4000/.test(text(edit)) || /\d+ \/ 4000/.test(text(edit)));
 check('...Save waits for a change; Discard is there', /disabled=""[^>]*>Save<|<button[^>]*disabled=""[^>]*>Save/.test(edit) && />Discard</.test(edit), edit.match(/<button[^>]*>[^<]*/g));
-check('...and the hint says Escape leaves the page unsaved', /Escape leaves the page unsaved/.test(text(edit)));
+check('...and the hint says Escape sets the page aside and only Discard throws it away', /Escape sets the page aside for later\. Discard throws it away\./.test(text(edit)));
 
 // ---- the other tabs ----------------------------------------------------------------------------------------------
 html = render(Journal, { data: data({ tab: 'faction' }) });
@@ -140,6 +140,18 @@ if (process.env.JOURNAL_SAMPLE && fs.existsSync(process.env.JOURNAL_SAMPLE)) {
   }
 }
 
+// ---- giving way to a panel the server opens over the journal (review F2) --------------------------------------------
+const over = J.panelOpenedOver;
+check('panelOpenedOver is exported for this check', typeof over === 'function');
+if (typeof over === 'function') {
+  const before = new Set(['hud:29', 'party:32', 'journal:50', 'faction:37']);
+  check('a HUD, party or journal re-push is not a panel over the journal', !over(before, [{ type: 'journal', id: 50 }, { type: 'hud', id: 29 }, { type: 'party', id: 32 }]));
+  check('...nor a panel that was already there, re-pushed', !over(before, [{ type: 'faction', id: 37 }, { type: 'journal', id: 50 }]));
+  check('...nor a passive marker or prompt appearing', !over(before, [{ type: 'mailMarkers', id: 44 }, { type: 'interactPrompt', id: 45 }, { type: 'journal', id: 50 }]));
+  for (const type of ['downed', 'robPrompt', 'feedPrompt', 'tradeInvite', 'death'])
+    check(`a ${type} panel appearing is`, over(before, [{ type: 'journal', id: 50 }, { type, id: 60 }]));
+}
+
 // ---- the answers go back under the journal's nonce ----------------------------------------------------------------
 const src = fs.readFileSync(bundle, 'utf8');
 for (const ev of ['dbo:journalProfile', 'dbo:journalTitle', 'dbo:journalClose']) check(`sends ${ev}`, src.includes(`'${ev}'`) || src.includes(`"${ev}"`));
@@ -154,6 +166,12 @@ else {
   check('constructor.js draws type "journal" with the Journal widget', /case 'journal':\s*return <Journal data=\{rend\} \/>;/.test(read('constructor.js')));
   check('App.js keys the journal by its id, so a redraw keeps its state', /widget\.type === 'journal'\) \? \('journal-' \+ widget\.id\)/.test(read('App.js')));
   check('the front tells the server it can draw the journal (dbo:uiCaps)', /const UI_CAPS = \[[^\]]*'journal'/.test(read('features/hud/index.tsx')));
+  check('Escape in a field leaves the edit and keeps the draft; only Discard clears it (review F3)',
+    /const discard = \(\): void => \{ unsaved = null; setEditing\(false\); \};/.test(jsrc) && /const leave = \(\): void => setEditing\(false\);/.test(jsrc)
+    && (jsrc.match(/onEscape=\{leave\}/g) || []).length === 2 && /onClick=\{discard\}>Discard</.test(jsrc) && !/onEscape=\{discard\}/.test(jsrc));
+  check('a panel opened over it hides the journal at once and asks the server to close it as a yield (review F2)',
+    /if \(panelOpenedOver\(seen, list\)\) \{ setYielded\(true\); send\('dbo:journalClose', nonce\.current, 'yield'\); \}/.test(jsrc)
+    && /if \(yielded\) return null;/.test(jsrc) && /setBusy\(false\);\s*setYielded\(false\);/.test(jsrc) && /widgets\.removeListener\(onChange\)/.test(jsrc));
   check('the faction menu (panel 37) keeps its own Close and F3 hint', /!embedded && <button className="faction__button" onClick=\{\(\) => send\('dbo:factionClose'/.test(read('features/faction/index.tsx')));
 }
 
