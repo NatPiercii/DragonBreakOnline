@@ -236,6 +236,20 @@ export class BrowserService extends ClientListener {
     return live;
   }
 
+  // Read-only liveBlockingMenus for per-frame callers: pruning here would let onMenuClose miss its record and skip the UI handover
+  anyBlockingMenuLive(): boolean {
+    let live = false;
+    this.badMenusOpen.forEach((name) => {
+      if (live || name === Menu.Main) return;
+      try {
+        live = this.sp.Ui.isMenuOpen(name);
+      } catch (e) {
+        live = true;
+      }
+    });
+    return live;
+  }
+
   private badMenusOpen = new Set<string>();
   private uiHidden = false;
 

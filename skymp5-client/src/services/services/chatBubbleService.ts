@@ -150,7 +150,7 @@ export class ChatBubbleService extends ClientListener {
   }
 
   private menuOpen(): boolean {
-    try { return this.controller.lookupListener(BrowserService).liveBlockingMenus().length > 0; } catch { return false; }
+    try { return this.controller.lookupListener(BrowserService).anyBlockingMenuLive(); } catch { return false; }
   }
 
   private reset(): void {
