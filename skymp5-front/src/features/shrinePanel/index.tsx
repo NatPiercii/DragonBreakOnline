@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import './styles.scss';
 
@@ -39,7 +39,11 @@ const send = (key: string, ...args: unknown[]): void => {
 };
 
 const NONE: ShrineChoice = { label: '', available: false, reason: '' };
-const CONFIRM_HOLD_MS = 800;
+// Longer than the server's guard after the choice (supernatural.js CHOOSE_GUARD_MS, 1000) plus the way there and back, so
+// a Kneel the front lets through is never one the server ignores (Worker D's review)
+const CONFIRM_HOLD_MS = 1200;
+// A press nobody answers (the server ignored it, or the reply was lost) lets go after this, rather than leaving the panel dead
+const PRESS_RELEASE_MS = 3000;
 
 const ShrinePanel = ({ data }: { data: ShrinePanelData }) => {
   // One press per answer: a second click on Kneel or the gem would reach the server before the panel changed. The
@@ -52,7 +56,15 @@ const ShrinePanel = ({ data }: { data: ShrinePanelData }) => {
     const t = window.setTimeout(() => setBusy(false), CONFIRM_HOLD_MS);
     return () => window.clearTimeout(t);
   }, [data.nonce, !!data.confirm, data.result]);
-  const press = (key: string) => { if (busy) return; setBusy(true); send(key, data.nonce); };
+  const releaseRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(releaseRef.current), []);
+  const press = (key: string) => {
+    if (busy) return;
+    setBusy(true);
+    send(key, data.nonce);
+    window.clearTimeout(releaseRef.current);
+    releaseRef.current = window.setTimeout(() => setBusy(false), PRESS_RELEASE_MS);
+  };
 
   const choice = (c: ShrineChoice, key: string, primary: boolean) => (c.available ? (
     <button className={'shrine__button' + (primary ? ' shrine__button--primary' : '')} disabled={busy} onClick={() => press(key)}>
