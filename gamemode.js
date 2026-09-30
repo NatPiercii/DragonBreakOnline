@@ -1493,30 +1493,56 @@ const CREATOR_SPOTS = [[0, 0]].concat(...[[6, 120], [12, 240]].map(([n, r]) => A
 const CREATOR_SPACING = 105;
 const CREATOR_PLACE_MS = 2500;
 const CREATOR_HOLD_MS = 30000;
-// spot index -> { a, until }: a spot promised to a player whose move may not have landed yet
-const creatorSpotHeld = globalThis.__dboCreatorSpots instanceof Map ? globalThis.__dboCreatorSpots : (globalThis.__dboCreatorSpots = new Map());
-const creatorPlacedAt = globalThis.__dboCreatorPlacedAt instanceof Map ? globalThis.__dboCreatorPlacedAt : (globalThis.__dboCreatorPlacedAt = new Map());
-const creatorSpotRelease = (a) => { for (const [i, h] of creatorSpotHeld) if (h.a === (a >>> 0)) creatorSpotHeld.delete(i); creatorPlacedAt.delete(a >>> 0); };
-const creatorSpotFor = (a) => {
-  const now = Date.now();
-  const others = [];
-  for (const p of onlineActors()) {
-    if ((p >>> 0) === (a >>> 0) || !inHub(p)) continue;
-    try { const q = mp.get(p, 'pos'); if (Array.isArray(q)) others.push(q); } catch (e) { /* gone */ }
-  }
-  let best = 0, bestGap = -1;
-  for (let i = 0; i < CREATOR_SPOTS.length; i++) {
-    const s = CREATOR_SPOTS[i];
-    const h = creatorSpotHeld.get(i);
-    if (h && h.a !== (a >>> 0) && h.until > now) continue;
-    const gap = others.reduce((m, q) => Math.min(m, Math.hypot(q[0] - s[0], q[1] - s[1])), Infinity);
-    if (gap >= CREATOR_SPACING) { best = i; bestGap = Infinity; break; }
-    if (gap > bestGap) { bestGap = gap; best = i; }
-  }
-  creatorSpotRelease(a);
-  creatorSpotHeld.set(best, { a: a >>> 0, until: now + CREATOR_HOLD_MS });
-  return CREATOR_SPOTS[best];
+// A set of checked spots handed out one per arrival. Where everyone else (for whom `here` holds) is, or is about to be:
+// a promised spot counts in place of their position, and one `pending` (not yet placed) does not count at all. A player
+// already standing on a spot nobody else is near keeps it (keepOwn: a reconnect mid-creation); else the first free spot;
+// with none free (an overflow), the fewest people, then the most room. holds: actor -> { i, until }, so an overflow can
+// promise one spot twice.
+const spotPicker = ({ spots, holds, spacing, holdMs, here, pending, keepOwn }) => {
+  const release = (a) => { holds.delete(a >>> 0); };
+  const pick = (a) => {
+    const now = Date.now();
+    const me = a >>> 0;
+    const where = new Map();
+    for (const [p, h] of holds) if (p !== me && h.until > now && spots[h.i]) where.set(p, spots[h.i]);
+    for (const p of onlineActors()) {
+      const id = p >>> 0;
+      if (id === me || where.has(id) || (pending && pending(id)) || !here(p)) continue;
+      try { const q = mp.get(p, 'pos'); if (Array.isArray(q)) where.set(id, q); } catch (e) { /* gone */ }
+    }
+    const crowd = (s) => {
+      let n = 0, gap = Infinity;
+      for (const q of where.values()) { const d = Math.hypot(q[0] - s[0], q[1] - s[1]); if (d < spacing) n++; if (d < gap) gap = d; }
+      return { n, gap };
+    };
+    let best = -1;
+    if (keepOwn) {
+      try {
+        const mine = mp.get(a, 'pos');
+        const i = Array.isArray(mine) ? spots.findIndex((s) => Math.hypot(mine[0] - s[0], mine[1] - s[1]) < 30) : -1;
+        if (i >= 0 && crowd(spots[i]).n === 0) best = i;
+      } catch (e) { /* no position yet */ }
+    }
+    if (best < 0) {
+      let key = null;
+      for (let i = 0; i < spots.length; i++) {
+        const c = crowd(spots[i]);
+        if (c.n === 0) { best = i; break; }
+        if (!key || c.n < key.n || (c.n === key.n && c.gap > key.gap)) { key = c; best = i; }
+      }
+    }
+    holds.set(me, { i: best, until: now + holdMs });
+    return spots[best];
+  };
+  return { pick, release };
 };
+const creatorSpotHolds = globalThis.__dboCreatorSpotHolds instanceof Map ? globalThis.__dboCreatorSpotHolds : (globalThis.__dboCreatorSpotHolds = new Map());
+const creatorPlacedAt = globalThis.__dboCreatorPlacedAt instanceof Map ? globalThis.__dboCreatorPlacedAt : (globalThis.__dboCreatorPlacedAt = new Map());
+// An arrival not yet placed is still on the marker, about to be moved
+const creatorSpots = spotPicker({ spots: CREATOR_SPOTS, holds: creatorSpotHolds, spacing: CREATOR_SPACING, holdMs: CREATOR_HOLD_MS,
+  here: (p) => inHub(p), pending: (id) => { const st = creation.get(id); return st === 'spawning' || st === 'hub'; }, keepOwn: true });
+const creatorSpotRelease = (a) => { creatorSpots.release(a); creatorPlacedAt.delete(a >>> 0); };
+const creatorSpotFor = (a) => creatorSpots.pick(a);
 // true when a move was made (the creator then opens once it has landed)
 const placeInCreatorSpot = (a) => {
   const spot = creatorSpotFor(a);
@@ -1579,6 +1605,30 @@ const moveToHubWhenReady = (a, why) => {
 // Chain onto the server's appearance hook (spawn.ts installed its own before the gamemode loaded).
 // Leaving the Realm once a character is made. Only moves someone who is actually still in the hub
 // and has finished creation, so a re-opened creator or an already-departed player is left alone.
+// Where a new character lands from the Realm: the arrival marker and 7 spots down the Pale Pass road, each where
+// players were measured standing still (the server log's npcGround samples), at or above the terrain (VHGT), 28000
+// inside the border region and 110 apart (tools/arrival_spots.py --observed, 2026-09-30). The marker is on the gate's
+// road pieces 50-76 above the terrain, so terrain heights alone cannot place anyone there. Used only while the landing
+// is still this marker; a moved landing (config) falls back to the one point.
+const ARRIVAL_MARKER = [48236.2, 260600.4];
+const ARRIVAL_SPOTS = [[48236.2, 260600.4, 20405.1], [48246, 260454, 20413], [48363, 260374, 20423], [48683, 260538, 20425],
+  [48536, 260205, 20439], [48058, 260124, 20462], [48464, 260120, 20443], [48657, 260262, 20435]];
+const arrivalSpotHolds = globalThis.__dboArrivalSpotHolds instanceof Map ? globalThis.__dboArrivalSpotHolds : (globalThis.__dboArrivalSpotHolds = new Map());
+const atArrivalWorld = (p) => { try { return String(mp.get(p, 'worldOrCellDesc') || '').toLowerCase() === String(LANDING.world).toLowerCase(); } catch (e) { return false; } };
+const arrivalSpots = spotPicker({ spots: ARRIVAL_SPOTS, holds: arrivalSpotHolds, spacing: 105, holdMs: 20000, here: atArrivalWorld });
+const arrivalLocFor = (a) => {
+  const sameMarker = String(LANDING.world).toLowerCase() === 'a764b:bsheartland.esm'
+    && Math.hypot(LANDING.pos[0] - ARRIVAL_MARKER[0], LANDING.pos[1] - ARRIVAL_MARKER[1]) < 50;
+  if (!sameMarker) return LANDING_LOC;
+  return { cellOrWorldDesc: LANDING.world, pos: arrivalSpots.pick(a), rot: LANDING_LOC.rot };
+};
+// A finished character taken out of the Realm another way (a staff teleport) ends creation there: no stale noon
+const leftRealm = (a) => {
+  if (!creation.has(a >>> 0) || creationPending(a)) return;
+  creation.delete(a >>> 0);
+  creatorSpotRelease(a);
+  try { if (globalThis.__dboClock) globalThis.__dboClock.sendTo(a); } catch (e) { /* the next broadcast */ }
+};
 const sendToArrival = (a) => {
   try {
     if (mp.get(a, 'isOnline') === false) return;
@@ -1586,8 +1636,8 @@ const sendToArrival = (a) => {
     // A character still under a default name ("Prisoner") stays in the Realm until named (naming.js); asked again later
     if (globalThis.__dboNameHold && globalThis.__dboNameHold(a)) { setTimeout(() => sendToArrival(a), 20000); return; }
     const here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase();
-    if (here !== String(HUB.cellOrWorldDesc).toLowerCase()) return;
-    mp.set(a, 'locationalData', LANDING_LOC);
+    if (here !== String(HUB.cellOrWorldDesc).toLowerCase()) return leftRealm(a);
+    mp.set(a, 'locationalData', arrivalLocFor(a));
     creation.delete(a);
     creatorSpotRelease(a);
     setFade(a, false);
@@ -2302,7 +2352,7 @@ onUi('mealCancel', (a, args) => endMeal(a, String(args[0] || 'moved').replace(/[
 // The client reports its body really landed in a world; the creation flow steps on that (see startCreationInHub)
 onUi('arrived', (a, args) => {
   const world = Number(args[0]) >>> 0;
-  if (!creationPending(a)) return;
+  if (!creationPending(a)) { if (world !== worldIdOf(HUB.cellOrWorldDesc)) leftRealm(a); return; }
   const stage = creation.get(a);
   if (world === worldIdOf(HUB.cellOrWorldDesc) && (stage === 'spawning' || stage === 'hub')) {
     log(`${display(a)} arrived in the hub${stage === 'spawning' ? ' straight from the spawn' : ''}`);
