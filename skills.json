@@ -79,10 +79,10 @@
    },
    "tiers": [
     "Basic strikes",
-    "Power attacks cost less",
+    "Higher One-Handed and Two-Handed skill",
     "+35% damage",
-    "+65% damage, faster swings",
-    "+100% damage, master power attacks"
+    "+65% damage",
+    "+100% damage, power attacks stagger through a weapon block"
    ],
    "markerSpells": [
     "<T1>",
@@ -117,10 +117,10 @@
    },
    "tiers": [
     "Basic shots",
-    "Steadier aim",
+    "Higher Archery skill",
     "+35% damage",
-    "+65% damage, faster draw",
-    "+100% damage, zoom and slow time"
+    "+65% damage",
+    "+100% damage"
    ],
    "markerSpells": [
     "<T1>",
@@ -157,10 +157,10 @@
    },
    "tiers": [
     "Basic strikes",
-    "Power attacks cost less",
+    "Higher One-Handed and Two-Handed skill",
     "+35% damage",
-    "+65% damage, faster swings",
-    "+100% damage, master power attacks"
+    "+65% damage",
+    "+100% damage, power attacks stagger through a weapon block"
    ],
    "markerSpells": [
     "<T1>",
@@ -175,7 +175,7 @@
    "category": "combat",
    "label": "Defense",
    "title": "The Wall",
-   "description": "Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor.",
+   "description": "Blocking with shields and weapons, and wearing armor well. One skill drives vanilla Block, Light Armor and Heavy Armor. From Apprentice your worn armor counts for more, light or heavy alike, and against another player less of a blocked blow gets through. It grows from blows you take while armored.",
    "vanillaSkills": [
     "Block",
     "LightArmor",
@@ -186,11 +186,11 @@
     "damageTakenWhileArmored": true
    },
    "tiers": [
-    "Light armor, basic blocking",
-    "Medium armor, blocks cost less stamina, worn armor +25%",
-    "Heavy armor, shield bash, worn armor +75%",
-    "Worn armor +150%, power bash, arrows deflected",
-    "Worn armor +250%, blocks reflect part of the blow, no stagger from small hits"
+    "Basic blocking",
+    "Worn armor +25%",
+    "Worn armor +75%",
+    "Worn armor +150%, a bash no longer staggers you",
+    "Worn armor +250%"
    ],
    "markerSpells": [
     "<T1>",
@@ -205,7 +205,7 @@
    "category": "combat",
    "label": "Arcane Arts",
    "title": "The Ordered Mind",
-   "description": "Destruction, Conjuration and Illusion. The only way to learn spells from tomes, studied at any spell study point (the Synod Conclave in Bruma to start). Three spells known at a time; the tier decides the highest spell rank you may learn.",
+   "description": "Destruction, Conjuration and Illusion, and Alteration for a mage who chooses it as a school. The only way to learn these spells from tomes, studied at a spell study point (the Synod Conclave in Bruma to start). The tier decides the highest spell rank you may learn, and your rank in the spell's school must allow it too. Every spell learned stays in your spellbook; three are prepared at a time, changed at a magic college.",
    "vanillaSkills": [
     "Destruction",
     "Conjuration",
@@ -229,9 +229,9 @@
    "tiers": [
     "Novice spells",
     "Apprentice spells",
-    "Adept spells",
-    "Expert spells",
-    "Master spells"
+    "Adept spells, Destruction +20% damage",
+    "Expert spells, Destruction +35%; a second school at 76",
+    "Master spells, Destruction +50%"
    ],
    "markerSpells": [
     "<T1>",
@@ -375,8 +375,8 @@
     "Weak potions",
     "Standard potions",
     "Strong potions",
-    "Potent potions, poisons",
-    "Legendary brews"
+    "Potent potions; the Draught of Revival",
+    "The strongest brews"
    ],
    "markerSpells": [
     "<T1>",
@@ -391,7 +391,7 @@
    "category": "profession",
    "label": "Woodcutter",
    "title": "The Grain Reader",
-   "description": "Only a Woodcutter may use chopping blocks, the charcoal kiln and the lumber mill. Tiers lengthen the chopping mini-game and raise mill yield.",
+   "description": "Only a Woodcutter may use chopping blocks. Each tier sets how many clean strikes a log takes, widens the mark you strike at and adds to the firewood a clean split gives.",
    "vanillaSkills": [],
    "gates": {
     "hint": "a chopping block",
@@ -427,11 +427,11 @@
    ],
    "millCooldownMinutes": 30,
    "tiers": [
-    "4 strikes, rough charcoal",
-    "8 strikes",
-    "12 strikes, good charcoal",
-    "16 strikes",
-    "20 strikes, fine charcoal, best mill yield"
+    "4 strikes, 3 firewood",
+    "8 strikes, 4 firewood",
+    "12 strikes, 5 firewood",
+    "16 strikes, 6 firewood",
+    "20 strikes, 8 firewood"
    ],
    "markerSpells": [
     "<T1>",
@@ -499,11 +499,11 @@
     2
    ],
    "tiers": [
-    "Copper, iron, corundum",
-    "Silver, quicksilver",
-    "Orichalcum, moonstone",
-    "Ebony, malachite",
-    "Double yield from every vein"
+    "Copper, iron, corundum; sea salt",
+    "Silver, quicksilver; geodes, amethyst, topaz",
+    "Orichalcum, moonstone, gold; ruby, sapphire",
+    "Malachite; emerald",
+    "Ebony, diamond; double yield from every vein"
    ],
    "markerSpells": [
     "<T1>",
@@ -554,7 +554,7 @@
    "category": "support",
    "label": "Skinner",
    "title": "The Far Tracker",
-   "description": "Only a Skinner may skin animals and use the tanning rack. Tiers decide the strips, leather and quantity you get.",
+   "description": "Anyone may skin a common animal; only a Skinner may use the tanning rack. Tiers open rarer hides, steady the knife and raise the chance of a second pelt.",
    "vanillaSkills": [],
    "gates": {
     "hint": "a tanning rack",
@@ -573,11 +573,11 @@
     ]
    },
    "tiers": [
-    "Hide, 1 leather per pelt",
-    "Leather strips",
-    "2 leather per pelt",
-    "Fine leather",
-    "3 leather per pelt, rare pelts intact"
+    "Common pelts: fox, deer, wolf",
+    "Sabre cat, mountain lion; a second pelt 1 in 10",
+    "Bear and troll; a second pelt 1 in 5",
+    "Snow and brown bear; a second pelt 1 in 3",
+    "Every hide; a second pelt half the time"
    ],
    "markerSpells": [
     "<T1>",
@@ -592,7 +592,7 @@
    "category": "support",
    "label": "Scholar",
    "title": "The Ink-Stained",
-   "description": "Only a Scholar may read the books of the world. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll.",
+   "description": "Anyone may read the books of the world, and every reading finished counts toward Scholar. Books are nodes, not loot: reading is a mini-game with a chance at copies, and a small chance at a spell tome or scroll.",
    "vanillaSkills": [],
    "gates": {
     "books": true
@@ -616,7 +616,7 @@
     0.07,
     0.1
    ],
-   "tiers": ["Read common books; now and then a scroll, rarely a novice spell tome", "Better copies; now and then a novice spell tome", "Rare books", "More and stronger scrolls; apprentice spell tomes", "Adept spell tomes"],
+   "tiers": ["Copies, now and then a scroll, rarely a novice spell tome", "Better odds of a copy, a scroll or a tome", "Better odds again; sign in another's hand (/sign)", "More and stronger scrolls; apprentice spell tomes", "Adept spell tomes"],
    "markerSpells": [
     "<T1>",
     "<T2>",
@@ -630,7 +630,7 @@
    "category": "support",
    "label": "Enchanter",
    "title": "The Rune-Wright",
-   "description": "Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong.",
+   "description": "Only an Enchanter may use the arcane enchanter. Tiers decide how strong an enchantment you can lay, measured against the strongest of the same effect found in the world.",
    "vanillaSkills": [
     "Enchanting"
    ],
@@ -648,11 +648,11 @@
     ]
    },
    "tiers": [
-    "Fire, frost, shock",
-    "Soul trap, absorb stamina",
-    "Absorb health, paralyze",
-    "Chaos, absorb magicka",
-    "Dual enchantments"
+    "Up to half the strength of the best of their kind",
+    "Up to three quarters of the best",
+    "Up to the best of their kind",
+    "Up to one and a half times the best",
+    "Up to twice the best of their kind"
    ],
    "markerSpells": [
     "<T1>",
@@ -785,10 +785,10 @@
     "yieldMultiplier": 0.5
    },
    "tiers": [
-    "Common plants",
-    "Rare plants, nests",
-    "Double chance on gold pouches",
-    "+75% yield",
+    "A yield 6 times in 10",
+    "7 in 10; more gold from pouches",
+    "8 in 10; double from plants",
+    "9 in 10; more gold again",
     "Double yield, every node"
    ],
    "markerSpells": [
@@ -831,7 +831,7 @@
    "category": "profession",
    "label": "Lockpicking",
    "title": "The Quiet Hand",
-   "description": "Opening what others locked. Only two things can be picked: player-owned doors and dungeon loot chests. Tiers decide the lock level you can attempt. The same quiet hand picks pockets: sneak up on someone and press X, and the better you are, the better your odds.",
+   "description": "Opening what others locked. Only two things can be picked: jail cell doors, which anyone with a lockpick may try, and locked dungeon chests, which need a Lockpicker. Tiers decide the hardest chest you can attempt, hold the tumblers up longer and snap fewer picks. The same quiet hand picks pockets: sneak up on someone and press X, and the better you are, the better your odds.",
    "vanillaSkills": [
     "Lockpicking"
    ],
@@ -852,11 +852,11 @@
     "Master"
    ],
    "tiers": [
-    "Novice locks",
-    "Apprentice locks",
-    "Adept locks, fewer picks broken",
-    "Expert locks",
-    "Master locks, silent entry"
+    "Novice chests",
+    "Apprentice chests",
+    "Adept chests",
+    "Expert chests",
+    "Master chests"
    ],
    "markerSpells": [
     "<T1>",
