@@ -35,21 +35,27 @@ What to send back is listed at the end.
    - the Sanguinare chance;
    - a 20-second bar;
    - **Offer Your Neck** and **Resist / Flee**.
-2. B presses **Offer Your Neck**. Pass:
+2. **Resist:** B presses **Resist / Flee**. Pass:
+   - A reads "... refuses you" and gets a short banner;
+   - B reads "You refuse. Be ready for a fight, or run.".
+   (No answer within 20 seconds, or closing the panel, counts the same.)
+3. A asks again at once. Pass: "... refused you not long ago". A refusal holds 5 minutes for that pair, and a
+   vampire asks at most once a minute. **Wait 5 minutes** (section 1 fits in the wait).
+4. A asks again; B presses **Offer Your Neck**. Pass:
    - A sees "Feeding..." for about 12 seconds;
    - B reads that A drinks from their neck;
    - then B loses about a quarter of their health;
    - A reads "Blood, at last" (the first meal: A's powers wake) and "You drink deep".
-3. **The blood on A's face.** A is a Fledgling, so every feed leaves blood. Pass:
+5. **The blood on A's face.** A is a Fledgling, so every feed leaves blood. Pass:
    - A reads "Blood smears your mouth and chin";
    - A's lips and chin are dark red in third person;
    - **B sees the same on A's character.** Take one screenshot from each client.
-4. **Washing:** A swims in any water deep enough to swim in. Pass:
+6. **Washing:** A swims in any water deep enough to swim in. Pass:
    - "The water runs red, then clear.";
    - the red is gone on both screens.
-5. **Resist:** wait one minute (a vampire asks at most once a minute). A asks B again (Feed). Pass: B is told they have no
-   blood left to give, because a person gives blood once a game day. Step 3.4 below lets them give again.
-6. K again on A. Pass: First meal "Taken, from a willing neck"; the powers are no longer "After your first meal".
+7. A asks B again (after a minute). Pass: B has "no blood left to give", because a person gives blood once a game day.
+   Step 3.3's clock jump lets them give again for section 7.
+8. K again on A. Pass: First meal "Taken, from a willing neck"; the powers are no longer "After your first meal".
 
 ## 3. Vampiric Drain after the thirst changes (which hand)
 
@@ -173,7 +179,7 @@ finds the step. **B watches from about 10 metres. Wait a full minute between ste
 |---|---|
 | A crash | `Documents\My Games\Skyrim Special Edition\SKSE\crash-<date>-<time>.log`, or MO2's `overwrite\SKSE\` |
 | The client's own log (feed pair lines, `vl-anim` lines) | `<game folder>\Data\Platform\Logs\dbo-diag-logs.txt`, or MO2's `overwrite\Platform\Logs\dbo-diag-logs.txt`. It is rewritten at every launch, so copy it before starting the game again |
-| Screenshots | 2.3 (blood on both screens), 3.5 (both hands), 7.4 (the bite on both screens) |
+| Screenshots | 2.5 (blood on both screens), 3.5 (both hands), 7.4 (the bite on both screens) |
 | Times | the UTC time of each numbered step you ran, with pass or fail |
 
 Once launcher 2.1.35 is out, **Report a Problem** carries the crash log and `dbo-diag-logs.txt` by itself.
