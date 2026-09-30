@@ -107,6 +107,8 @@ module.exports = (api) => {
       const downedAttempt = function (aggressorId, targetId, sourceId, damage, ...rest) {
         const agg = Number(aggressorId) >>> 0, tgt = Number(targetId) >>> 0, dmg = Number(damage) || 0;
         S.pending = null;
+        // A logged-out body cannot be finished or harmed (gamemode.js offlineBodyProtected); this wrapper runs first
+        try { if (agg !== tgt && typeof globalThis.__dboOfflineBodyProtected === 'function' && globalThis.__dboOfflineBodyProtected(tgt)) return inner.call(this, aggressorId, targetId, sourceId, damage, ...rest) && false; } catch (e) { /* gamemode older than the gate */ }
         // The gamemode's hit bonuses are noted by the inner handler; a stale one would land on the respawned body
         globalThis.__dboMasteryPending = null;
         globalThis.__dboSuperPending = null;

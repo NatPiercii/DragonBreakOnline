@@ -1477,6 +1477,8 @@ const giveStarterKit = (a) => {
 setTimeout(() => { for (const a of onlineActors()) { try { giveStarterKit(a); pushHud(a, needsOf(a), true); } catch (e) { log('starter kit failed', e.message); } } }, 1000);
 globalThis.__dboHandlers.disconnect = (userId) => {
   const a = actorOf(userId); if (a) audit(`LEAVE ${who(a)}`);
+  // The body stays a while after a logout; whether it may still be harmed is decided now (offlineBodyProtected)
+  if (a) { try { globalThis.__dboNoteLogout(a); } catch (e) { log('logout note failed', e.message); } }
   if (a && globalThis.__dboPlayerMenuLeave) globalThis.__dboPlayerMenuLeave(a);
   // Before the revert below clears the beast state: a drop with the Journal closed may be a crash next to a
   // Vampire Lord, and the breaker needs the position and the state while they still exist
@@ -2944,6 +2946,33 @@ const UNSTUCK = Object.assign({ cooldownMinutes: 25, pvpCombatSeconds: 60 }, cfg
 const pvpAt = globalThis.__dboPvpAt = globalThis.__dboPvpAt || new Map(); // actorId -> last PvP hit given or taken
 // actorId -> last landed blow a player gave or took, NPCs included: rest.js keeps Sleep waiting its combatSeconds after one
 const combatAt = globalThis.__dboCombatAt = globalThis.__dboCombatAt || new Map();
+// A logged-out player's body cannot be harmed (Nate, 2026-09-30). Onny's body was downed and killed twice after he left
+// (16:20, 3.5 minutes after, and 23:55), and he woke at the temple naked. The exception is a player who logs out in
+// the middle of a fight, the combat logger: a blow landed on or by them in the last combatLogSeconds before the
+// logout leaves the body open until it fades. Decided once, at the logout, so blows on the body afterwards change
+// nothing.
+const OFFLINE_BODY = Object.assign({ combatLogSeconds: 30 }, cfg.offlineBody || {});
+const logoutAt = globalThis.__dboLogoutAt instanceof Map ? globalThis.__dboLogoutAt : (globalThis.__dboLogoutAt = new Map()); // actorId -> { at, fighting }
+globalThis.__dboNoteLogout = (a) => {
+  const now = Date.now();
+  const windowMs = Math.max(0, Number(OFFLINE_BODY.combatLogSeconds) || 0) * 1000;
+  const fighting = windowMs > 0 && now - (combatAt.get(a >>> 0) || 0) <= windowMs;
+  logoutAt.set(a >>> 0, { at: now, fighting });
+  if (fighting) log(`${display(a)} logged out within ${OFFLINE_BODY.combatLogSeconds} s of a fight; the body can still be harmed until it fades`);
+};
+const offlineBodyProtected = globalThis.__dboOfflineBodyProtected = (t) => {
+  t = Number(t) >>> 0;
+  if (!(profileOf(t) >= 0) || userOf(t) >= 0) return false;   // an NPC, or someone playing
+  const left = logoutAt.get(t);
+  return !(left && left.fighting);
+};
+const offlineSaid = new Map();
+const refuseOfflineBody = (agg, tgt) => {
+  if (!(profileOf(agg) >= 0) || Date.now() - (offlineSaid.get(agg) || 0) < 5000) return;
+  offlineSaid.set(agg, Date.now());
+  personal(agg, 'They have stepped out of the world. Their body cannot be harmed.');
+  log(`offline body: ${display(agg)} -> ${display(tgt)} refused (logged out)`);
+};
 registerChatCommand('unstuck', (a) => {
   const admin = isAdmin(a);
   try { if (mp.get(a, 'isDead')) return personal(a, 'You cannot use /unstuck while dead.'); } catch (e) { /* alive */ }
@@ -4042,6 +4071,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // 0. A Vampire Lord in Mist Form or bats cannot be touched (beastform.js), and touches no one either: an ethereal
   // attacker's claws and Drain landed while nothing could land on them (combat review, 2026-09-29)
   try { if (globalThis.__dboBeastEthereal && (globalThis.__dboBeastEthereal(tgt) || (agg !== tgt && globalThis.__dboBeastEthereal(agg)))) return false; } catch (e) { /* not loaded */ }
+
+  // 0b. A logged-out player's body cannot be harmed, by players or creatures, unless they left mid-fight
+  if (agg !== tgt && offlineBodyProtected(tgt)) { refuseOfflineBody(agg, tgt); return false; }
 
   // 1. Refuse attack if aggressor has bound hands or is being carried, or while a rune or scroll paralysis holds them:
   // those hold only on the victim's own client, so a modified one kept swinging (combat review, 2026-09-29)
