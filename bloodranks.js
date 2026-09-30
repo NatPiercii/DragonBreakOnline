@@ -13,6 +13,9 @@
 //   damageAtNight   the vampire's hits at night (world clock), x1 .. x1.1; by day nothing
 //   sunMult         the sun's burn, x1 .. x0.6
 //   thirstRate      how fast thirst climbs its stages, x1 .. x0.6
+//   feedSeconds     how long a feed takes, 12 .. 6 (Onny's suggestion, Nate 2026-09-30: a new vampire feeds slowly)
+// From longFeedFromRank (Nightstalker) a vampire can also Feed Deeply: twice as long, for a longer thirst hold, faster
+// recovery a while, and longBloodMult (supernatural.js feed) the blood.
 // A cure, or the end of the curse, starts the next vampire again as a Fledgling; becoming a pure-blood keeps it.
 // /blood shows a vampire their rank, blood and what the next rank brings.
 'use strict';
@@ -26,6 +29,8 @@ module.exports = (api) => {
     damageAtNight: [1, 1.02, 1.04, 1.07, 1.1],
     sunMult: [1, 0.9, 0.8, 0.7, 0.6],
     thirstRate: [1, 0.9, 0.8, 0.7, 0.6],
+    feedSeconds: [12, 10, 8, 7, 6],
+    longFeedFromRank: 2,
     playerEveryHours: 24,
   }, G);
   C.points = Object.assign({ corpse: 5, living: 20, slain: 30 }, G.points || {});
@@ -41,7 +46,7 @@ module.exports = (api) => {
   const partyLeader = (a) => (typeof globalThis.__dboPartyLeaderOf === 'function' ? globalThis.__dboPartyLeaderOf(a) : null);
   const isNight = () => { const c = globalThis.__dboClock; try { return !!(c && typeof c.isNight === 'function' && c.isNight()); } catch (e) { return false; } };
 
-  const describe = (r) => `Your hits land ${Math.round((C.damageAtNight[r] - 1) * 100)}% heavier at night, the sun burns you ${Math.round((1 - C.sunMult[r]) * 100)}% less, and thirst climbs ${Math.round((1 - C.thirstRate[r]) * 100)}% slower.`;
+  const describe = (r) => `Your hits land ${Math.round((C.damageAtNight[r] - 1) * 100)}% heavier at night, the sun burns you ${Math.round((1 - C.sunMult[r]) * 100)}% less, and thirst climbs ${Math.round((1 - C.thirstRate[r]) * 100)}% slower. A feed takes you ${C.feedSeconds[Math.min(r, C.feedSeconds.length - 1)]} seconds${r >= C.longFeedFromRank ? ', and you can feed deeply' : ''}.`;
   const award = (a, points, why) => {
     if (!(points > 0)) return 0;
     const s = stateOf(a); if (!s) return 0;
@@ -68,20 +73,24 @@ module.exports = (api) => {
   };
 
   // ---- hooks for supernatural.js and gamemode.js ------------------------------------------------------------
-  // A vampire fed: victim, whether it was a corpse, and who slew it (0 when unknown)
-  globalThis.__dboBloodFed = (a, victim, onCorpse, killer) => {
+  // A vampire fed: victim, whether it was a corpse, who slew it (0 when unknown), and a multiplier (a deep feed)
+  globalThis.__dboBloodFed = (a, victim, onCorpse, killer, mult) => {
+    const m = Number(mult) > 0 ? Number(mult) : 1;
+    const pts = (n) => Math.round(n * m);
     if (!isVampire(a) || isCompanion(victim)) return 0;
-    if (profileOf(victim) < 0) return onCorpse ? award(a, C.points.corpse, 'a corpse') : 0;
+    if (profileOf(victim) < 0) return onCorpse ? award(a, pts(C.points.corpse), 'a corpse') : 0;
     const s = stateOf(a); if (!s) return 0;
     if (onCorpse && killer !== a) { personal(a, 'This blood earns you nothing: you did not bring them down.'); return 0; }
     const why = playerRefusal(a, victim, s);
     if (why) { personal(a, `This blood earns you nothing: ${why}.`); return 0; }
     s.fedOn = Object.assign({}, s.fedOn, { [profileOf(victim)]: Date.now() });
     save(a, s);
-    return award(a, onCorpse ? C.points.slain : C.points.living, onCorpse ? 'a person slain' : 'a living person');
+    return award(a, pts(onCorpse ? C.points.slain : C.points.living), onCorpse ? 'a person slain' : m > 1 ? 'a living person, deeply' : 'a living person');
   };
   globalThis.__dboBloodSunMult = (a) => at(C.sunMult, a);
   globalThis.__dboBloodThirstRate = (a) => at(C.thirstRate, a);
+  globalThis.__dboBloodFeedSeconds = (a) => at(C.feedSeconds, a);
+  globalThis.__dboBloodCanLongFeed = (a) => rankOf(a) >= C.longFeedFromRank;
   globalThis.__dboBloodDamageMult = (agg) => (isNight() && isVampire(agg) ? at(C.damageAtNight, agg) : 1);
   globalThis.__dboBloodReset = (a) => save(a, { blood: 0, fedOn: {} });
   // The Vampire tab of the skills menu (supernatural.js builds it): the ladder, where this vampire stands on it, and each

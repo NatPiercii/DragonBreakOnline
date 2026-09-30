@@ -8,6 +8,8 @@ const path = require('path');
 const store = new Map(); // `${id}|${prop}` -> value
 const packets = [];
 const cmds = {};
+const timers = {};
+let online = [];
 const noop = () => {};
 let now = Date.UTC(2026, 8, 30, 12, 0);
 Date.now = () => now;
@@ -24,7 +26,7 @@ const mp = {
 const api = {
   mp, log: noop, audit: noop, personal: noop, system: noop, registerChatCommand: (n, f) => { cmds[n] = f; },
   onUi: noop, openWidget: noop, closeWidget: noop, sendPacket: (a, p) => packets.push({ a, p }), display: String, who: String,
-  isAdmin: () => false, findByName: () => null, onlineActors: () => [], every: noop, profileOf: (a) => a,
+  isAdmin: () => false, findByName: () => null, onlineActors: () => online, every: (n, ms, f) => { timers[n] = f; }, profileOf: (a) => a,
   nameOf: String, isWorldspace: () => true, needsFeed: noop, hungerOf: () => hunger, zoneOfActor: () => null, zoneById: () => null, cfg: {},
 };
 for (const f of ['greathunt.js', 'bloodranks.js', 'supernatural.js']) require(path.resolve(__dirname, '..', f))(api);
@@ -135,15 +137,19 @@ const V2 = 14, W2 = 15, BODY = 40, BODY2 = 41, BODY3 = 42, KILLER = 99;
 globalThis.__dboSuperState.crown = { holder: KILLER, name: 'K', since: now }; // a pure-blood made below claims nothing (no file written)
 const meal = (a) => row(globalThis.__dboSuperProgress(a), 'First meal');
 const corpse = (id) => { store.set(`${id}|isDead`, true); globalThis.__dboSuperDeath(id, KILLER); };
+// Feeding takes time (2026-09-30): the feeder and the body stand together, and the feed timer runs past a Fledgling's 12 s
+for (const id of [V2, W2, BODY, BODY2, BODY3]) { store.set(`${id}|worldOrCellDesc`, 'tamriel'); store.set(`${id}|pos`, [0, 0, 0]); }
+online = [V2, W2];
+const drink = (body, who) => { const r = globalThis.__dboSuperActivate(body, who); for (let i = 0; i < 30; i++) { now += 500; if (timers.superFeed) timers.superFeed(); } return r; };
 curse(V2, { kind: 'vampire', stage: 1, lastFed: day });
 ok(meal(V2) && meal(V2).value === 'Not yet' && /bound captive/.test(meal(V2).hint), 'a new vampire has not had their first meal, and is told how', meal(V2));
 corpse(BODY);
-ok(globalThis.__dboSuperActivate(BODY, V2) === true, 'the vampire drinks from a fresh body');
+ok(drink(BODY, V2) === true, 'the vampire drinks from a fresh body');
 ok(meal(V2).value === 'Taken' && meal(V2).hint === 'Your first meal was a moment ago, on a fresh body.', '...and that is their first meal', meal(V2));
 const firstAt = store.get(`${V2}|private.supernatural`).firstMeal.at;
 now += 3 * 86400000;
 corpse(BODY2);
-globalThis.__dboSuperActivate(BODY2, V2);
+drink(BODY2, V2);
 ok(store.get(`${V2}|private.supernatural`).firstMeal.at === firstAt && /3 days ago/.test(meal(V2).hint), 'a later meal leaves the first where it was', meal(V2));
 cmds.curse(V2, 'me purevampire');
 ok(meal(V2).value === 'Taken', "Molag Bal's Embrace on a vampire keeps the first meal: the curse goes on", meal(V2));
@@ -156,7 +162,7 @@ ok(meal(W2).value === 'Not yet' && /In the beast/.test(meal(W2).hint), 'a new we
 corpse(BODY3);
 ok(globalThis.__dboSuperActivate(BODY3, W2) === false && meal(W2).value === 'Not yet', 'in their own shape a werewolf cannot feed', meal(W2));
 store.set(`${W2}|private.beast`, { form: 'werewolf', until: now + 60000 });
-ok(globalThis.__dboSuperActivate(BODY3, W2) === true && meal(W2).value === 'Taken' && /on a fresh body/.test(meal(W2).hint), 'in the beast they feed, and that is their first meal', meal(W2));
+ok(drink(BODY3, W2) === true && meal(W2).value === 'Taken' && /on a fresh body/.test(meal(W2).hint), 'in the beast they feed, and that is their first meal', meal(W2));
 store.delete(`${W2}|private.beast`);
 // Curses from before the first meal was kept: their ranks prove a feed
 ok(meal(VAMP).value === 'Taken' && /before this was kept/.test(meal(VAMP).hint), 'an older vampire with blood has had theirs', meal(VAMP));

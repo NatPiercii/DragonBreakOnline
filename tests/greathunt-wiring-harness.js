@@ -40,13 +40,19 @@ store.set(`${WOLF}|private.supernatural`, { kind: 'werewolf' });
 store.set(`${VAMP}|private.supernatural`, { kind: 'vampire', stage: 2 });
 store.set(`${WOLF}|private.beast`, { form: 'werewolf', until: now + 60000 });
 store.set(`${DEER}|isDead`, true);
+// Feeding takes time now (2026-09-30): everyone stands together, and the feed timer runs past the feed's seconds
+for (const id of [WOLF, VAMP, DEER, 9]) { store.set(`${id}|worldOrCellDesc`, 'tamriel'); store.set(`${id}|pos`, [0, 0, 0]); }
+const feedFor = (secs) => { now += secs * 1000 + 1; timers.get('superFeed')(); };
 
 globalThis.__dboSuperDeath(DEER, WOLF);
 ok(renown() === 2, 'a kill in beast form earns renown through supernatural.js', renown());
 ok(globalThis.__dboSuperActivate(DEER, VAMP) === false, 'a vampire still feeds only on people');
+const beastUntil = now + 60000;
 ok(globalThis.__dboSuperActivate(DEER, WOLF) === true, 'a werewolf in beast form feeds on a fresh animal');
+ok(renown() === 2, 'nothing is earned until the feed is done', renown());
+feedFor(5);
 ok(renown() === 7, 'which earns 5 renown', renown());
-ok(store.get(`${WOLF}|private.beast`).until === now + 60000 + 30000, 'and holds the beast a Fledgling\'s 30 s longer');
+ok(store.get(`${WOLF}|private.beast`).until === beastUntil + 30000, 'and holds the beast a Fledgling\'s 30 s longer');
 ok(fedMeals.length === 1 && fedMeals[0] === WOLF, 'and eases its hunger by a meal', JSON.stringify(fedMeals));
 ok(said.some((s) => s.a === WOLF && /your hunger eases/.test(s.t)), 'and says so');
 ok(globalThis.__dboSuperActivate(DEER, WOLF) === false, 'a corpse is eaten once');
@@ -62,6 +68,7 @@ const VICTIM = 9;
 store.set(`${VICTIM}|isDead`, true);
 globalThis.__dboSuperDeath(VICTIM, VAMP);
 ok(globalThis.__dboSuperActivate(VICTIM, VAMP) === true, 'a vampire feeds on the player it slew');
+feedFor(12);
 ok((store.get(`${VAMP}|private.bloodRanks`) || {}).blood === 30, 'which gives 30 blood through supernatural.js', JSON.stringify(store.get(`${VAMP}|private.bloodRanks`)));
 store.set(`${VAMP}|private.supernatural`, { kind: 'vampire', stage: 1, lastFed: 10.5 - 2 });
 store.set(`${VAMP}|private.bloodRanks`, { blood: 1500, fedOn: {} });

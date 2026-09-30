@@ -10,7 +10,9 @@
 //              Lupinus at huntMarkChance (the turning follows its fever), else the survivor waits riteFailCooldownHours to
 //              run again; surviving Molag Bal's makes a pure-blood at once.
 //   Vampires   stages 1-4, one per game day unfed; sun burns outdoors by day, fire hurts more, the look becomes the
-//              race's vampire variant. Feeding on a restrained player or a fresh humanoid corpse resets to stage 1.
+//              race's vampire variant. Feeding on a restrained or downed player or a fresh humanoid corpse resets to
+//              stage 1; it takes seconds by blood rank, and ranked vampires can feed deeply. A vampire the fever
+//              turned has no gifts until the first meal and withers without one (firstMealHours). Food does little.
 //              The Blood Crown: one pure-blood holds the Vampire Lord power; a vampire who slays the holder takes it.
 //   Werewolves beast form once per game day (beastform.js runs it); under a full moon at night, outdoors, each game hour
 //              has a 1 in 10 chance of a forced change unless Hircine blessed them; feeding in beast form adds 30 s;
@@ -56,7 +58,29 @@ module.exports = (api) => {
     // so a beast hit weaker than a sword. Multiplies a beast player's melee hit: 50 and 35 against an unarmoured target.
     beastMeleeMult: { werewolf: 2.5, vampirelord: 3.5 },
     rite: { rounds: 5, needFever: 3, needVoluntary: 4, leadMs: 700, timeoutMs: 7000, latencyMs: 120, slackMs: 160 },
+    // Onny's suggestion (Nate 2026-09-30: game hours, no permadeath). A vampire turned by the fever has no gifts until
+    // their first meal. After firstMealHours of their own play without one (game hours, counted like incubation),
+    // each further game hour withers their health and stamina recovery by witherPerHour, up to witherMax. Blood
+    // lifts it at once. Pure-bloods and vampires turned before this are fed already.
+    firstMealHours: 6, witherPerHour: 0.10, witherMax: 0.70,
+    // Food does little for a vampire: a share of what it gives a mortal, a smaller one when thirsty (stage 3 and up,
+    // or not yet fed)
+    vampireFood: 0.25, vampireFoodThirsty: 0.10,
   }, cfg.supernatural || {});
+  // Feeding takes time. A vampire's seconds come from their blood rank (bloodranks.js), `seconds` without it; from
+  // the rank bloodranks names, a vampire can also feed deeply: longMult as long, a longer thirst hold, faster
+  // recovery for longSatedHours game hours, longBloodMult the rank blood, and a standing captive blacks out.
+  C.feed = Object.assign({ seconds: 10, longMult: 2, maxDistance: 300, tickMs: 500, werewolfSeconds: 5, struckAt: 0.08,
+    longSatedHours: 6, longRegenMult: 1.25, longThirstHoldDays: 0.5, longBloodMult: 1.5, healthTaken: 0.25,
+    longHealthTaken: 0.5, blackoutSeconds: 20 }, (cfg.supernatural || {}).feed || {});
+  // Idles read out of the load order (2026-09-30): Namira's cannibal kneeling over a body (IdleCannibalFeedCrouching,
+  // Skyrim.esm fe09f), the vampire feeding over a sleeper on a bedroll (VampireFeedingBedRollLeft, 23622; Right, 23623),
+  // the werewolf's own feeding (SpecialFeeding, d23b7, WerewolfBehavior.hkx). Each is played on the feeder's own
+  // client, as downed.js plays its poses, and reaches watchers through the animation sync. A captive standing with
+  // bound hands gets none: the standing bite (Dawnguard's pa_VampireFeedStanding_Front) is a paired animation, which
+  // SkyMP does not sync between two players.
+  C.feedAnims = Object.assign({ corpse: 'IdleCannibalFeedCrouching', lying: 'VampireFeedingBedRollLeft', werewolf: 'SpecialFeeding',
+    stop: 'IdleForceDefaultState' }, (cfg.supernatural || {}).feedAnims || {});
 
   const idOf = (desc) => { try { return mp.getIdFromDesc(desc) >>> 0; } catch (e) { log(`supernatural: ${desc} not in the load order`); return 0; } };
   // Form ids verified against the load order (ck-mcp lookups, 2026-09-22)
@@ -110,6 +134,10 @@ module.exports = (api) => {
   const isOutdoors = (a) => { try { return isWorldspace(String(mp.get(a, 'worldOrCellDesc') || '')); } catch (e) { return false; } };
   const distance = (a, b) => { try { if (mp.get(a, 'worldOrCellDesc') !== mp.get(b, 'worldOrCellDesc')) return Infinity; const p = mp.get(a, 'pos'), q = mp.get(b, 'pos'); return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); } catch (e) { return Infinity; } };
   const quietNear = (a, text, reach) => { for (const o of onlineActors()) if (o !== a && distance(a, o) <= (reach || 3000)) personal(o, text); };
+  // gamemode's needs system sets health and stamina recovery and asks __dboSuperRateMult (below) for a vampire's share
+  const refreshRates = (a) => { try { if (typeof globalThis.__dboNeedsRefresh === 'function') globalThis.__dboNeedsRefresh(a); } catch (e) { /* no needs system */ } };
+  // Plays an idle on a player's own client, as downed.js plays its poses; watchers see it through the animation sync
+  const playAnim = (a, ev) => { if (!ev) return; try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: mp.getDescFromId(a) }, ev]); } catch (e) { log(`supernatural: ${ev} failed on ${display(a)}: ${e.message}`); } };
 
   // ---- the look: a vampire wears the vampire variant of their race -------------------------------------
   const setLookRace = (a, toVampire) => {
@@ -211,8 +239,10 @@ module.exports = (api) => {
     const n = Math.max(1, Math.min(4, stage || 1));
     return [VAMP_DRAIN[n], VAMP_THRALL[n], VAMP_SIGHT, n >= 2 ? VAMP_SEDUCTION : 0, n >= 4 ? VAMP_EMBRACE : 0].filter(Boolean);
   };
+  // A vampire the fever turned has none of them until the first meal
+  const wantSpells = (s) => (s && s.kind === 'vampire' && !s.unfed ? vampSpellsFor(s.stage) : []);
   const syncVampSpells = (a, s) => {
-    const want = s && s.kind === 'vampire' ? vampSpellsFor(s.stage) : [];
+    const want = wantSpells(s);
     const had = Array.isArray(s && s.spells) ? s.spells : [];
     for (const id of had) if (!want.includes(id)) removeSpell(a, id);
     for (const id of want) if (!had.includes(id)) addSpell(a, id);
@@ -239,9 +269,10 @@ module.exports = (api) => {
   const flushStageSpells = (a, s, why) => {
     if (!s || s.kind !== 'vampire') return 0;
     const stage = Math.max(1, Math.min(4, s.stage || 1));
-    if (flushedFor.get(a >>> 0) === stage) return 0;
-    flushedFor.set(a >>> 0, stage);
-    const want = vampSpellsFor(stage);
+    const key = s.unfed ? 'unfed' : stage;
+    if (flushedFor.get(a >>> 0) === key) return 0;
+    flushedFor.set(a >>> 0, key);
+    const want = wantSpells(s);
     const tried = triedSpells.get(a >>> 0) || new Set();
     let n = 0;
     for (const id of VAMP_ALL) {
@@ -393,15 +424,19 @@ module.exports = (api) => {
     audit(`SUPERNATURAL ${who(a)} is no longer a ${s.kind} (${why})`);
     // The first meal goes with the curse, but not when the same curse goes on (a pure-blood's Embrace, Hircine's blessing)
     if (why !== `became a ${s.kind}`) s.firstMeal = null;
-    Object.assign(s, { kind: null, stage: 0, pure: false, blessed: false });
+    Object.assign(s, { kind: null, stage: 0, pure: false, blessed: false, unfed: null, sated: null });
     saveState(a, s);
+    if (globalThis.__dboSuperFeeds instanceof Map) globalThis.__dboSuperFeeds.delete(a >>> 0);
+    refreshRates(a);
   };
   const becomeVampire = (a, pure) => {
     endCurse(a, 'became a vampire');
-    const s = stateOf(a); Object.assign(s, { kind: 'vampire', disease: null, stage: 1, lastFed: gameDays(), pure: !!pure });
+    const s = stateOf(a);
+    Object.assign(s, { kind: 'vampire', disease: null, stage: 1, lastFed: gameDays(), pure: !!pure, unfed: pure ? null : { played: 0, wither: 0 }, sated: null });
     saveState(a, s); removeSpell(a, SANGUINARE); setLookRace(a, true);
     syncVampSpells(a, s); ensureTells(a, stateOf(a));
     personal(a, pure ? 'You rise from Molag Bal\'s embrace a pure-blood.' : 'The fever passes, and a cold hunger takes its place. You are a vampire.');
+    if (!pure) personal(a, `Your gifts sleep until you have fed. Find blood within ${C.firstMealHours} hours, or your body begins to wither: a fresh body, or a captive who cannot fight you off.`);
     audit(`SUPERNATURAL ${who(a)} became a ${pure ? 'pure-blood ' : ''}vampire`);
     if (pure && !crownHolder()) takeCrown(a, 'claimed the vacant Blood Crown');
     else if (pure && crownHolder() !== (a >>> 0)) personal(a, crownLine(a));
@@ -725,16 +760,32 @@ module.exports = (api) => {
   // Feeding on a fresh humanoid corpse: a vampire drinks, a werewolf in beast form eats
   const fedOn = globalThis.__dboSuperFedOn || (globalThis.__dboSuperFedOn = new Set());
   const isHumanoid = (t) => { if (isPlayer(t)) return true; try { const baseId = mp.getIdFromDesc(String(mp.get(t, 'baseDesc'))) >>> 0; const rl = fieldIds(recordOf(baseId), 'RNAM')[0]; return !!rl && hasKeyword(globalOf(baseId, rl), KW.humanoidKeyword); } catch (e) { return false; } };
-  const feed = (a, t, onCorpse) => {
+  // opts.long: a deep feed, on a living captive only. A downed player is fed on as a body (onCorpse) and loses no blood.
+  const feed = (a, t, onCorpse, opts) => {
+    const o = opts || {};
     const s = stateOf(a);
     // Nate 2026-09-30: the first meal is the first time a vampire or a werewolf feeds on a victim (the skills menu tab)
     const firstMeal = !s.firstMeal ? { at: Date.now(), from: onCorpse ? 'body' : 'captive' } : null;
     if (s.kind === 'vampire') {
-      Object.assign(s, { lastFed: gameDays(), stage: 1 }, firstMeal ? { firstMeal } : {}); saveState(a, s);
+      // wasUnfed: a turned vampire's first blood, which wakes the gifts (s.unfed); s.firstMeal (above) is the tab's record
+      const wasUnfed = !!s.unfed;
+      const day = gameDays();
+      Object.assign(s, { lastFed: o.long ? day + Number(C.feed.longThirstHoldDays) : day, stage: 1, unfed: null }, firstMeal ? { firstMeal } : {});
+      if (o.long) s.sated = { until: day + Number(C.feed.longSatedHours) / 24 };
+      saveState(a, s);
+      if (wasUnfed) { syncVampSpells(a, s); flushStageSpells(a, s, 'first meal'); }
+      if (wasUnfed || o.long) refreshRates(a);
       if (needsFeed) try { needsFeed(a); } catch (e) { /* hunger off */ }
-      if (!onCorpse) { const p = health(t); if (p) setHealth(t, Math.max(0.1, p.health - 0.25)); personal(t, `${nameOf(a)} drinks from you. You feel weak.`); if (Math.random() < C.infectFeed) infect(t, 'vampire', a); }
-      personal(a, 'You drink deep. The thirst recedes.');
-      if (typeof globalThis.__dboBloodFed === 'function') { try { globalThis.__dboBloodFed(a, t, onCorpse, killedBy.get(t) || 0); } catch (e) { log('supernatural: blood rank feed failed', e.message); } }
+      if (!onCorpse) {
+        const p = health(t);
+        if (p) setHealth(t, Math.max(o.long ? 0.05 : 0.1, p.health - (o.long ? Number(C.feed.longHealthTaken) : Number(C.feed.healthTaken))));
+        personal(t, o.long ? `${nameOf(a)} drinks long from you. The world goes dark.` : `${nameOf(a)} drinks from you. You feel weak.`);
+        if (o.long) blackout(t);
+        if (Math.random() < C.infectFeed) infect(t, 'vampire', a);
+      }
+      if (wasUnfed) personal(a, 'Blood, at last. The withering lifts, and your gifts wake in you.');
+      personal(a, o.long ? `You drink long and deep. The blood sings in you: your wounds and breath mend faster for ${C.feed.longSatedHours} hours, and the thirst stays away longer.` : 'You drink deep. The thirst recedes.');
+      if (typeof globalThis.__dboBloodFed === 'function') { try { globalThis.__dboBloodFed(a, t, onCorpse, killedBy.get(t) || 0, o.long ? Number(C.feed.longBloodMult) : 1); } catch (e) { log('supernatural: blood rank feed failed', e.message); } }
       return true;
     }
     if (s.kind === 'werewolf' || beastForm(a) === 'werewolf') {
@@ -751,32 +802,121 @@ module.exports = (api) => {
     }
     return false;
   };
+  // A captive standing with bound hands, drained by a deep feed, sinks to the ground for a while (the bleed-out pose
+  // downed.js uses) and comes to on their own
+  const blackout = (t) => {
+    playAnim(t, 'BleedOutStart');
+    setTimeout(() => {
+      try {
+        if (!onlineActors().includes(t >>> 0) || mp.get(t, 'isDead')) return;
+        playAnim(t, 'BleedOutStop');
+        personal(t, 'You come to, cold and weak.');
+      } catch (e) { /* gone */ }
+    }, Number(C.feed.blackoutSeconds) * 1000);
+  };
+
+  // ---- feeding takes time (Onny's suggestion, Nate 2026-09-30) ---------------------------------------------------
+  // One feed at a time per feeder and per victim. It holds while both stay close, the feeder unhurt and still what they
+  // were, the captive still bound and the body still dead; anything else breaks it and gives nothing. Kept across hot
+  // reloads, so a feed in progress still ends.
+  const feeds = globalThis.__dboSuperFeeds instanceof Map ? globalThis.__dboSuperFeeds : (globalThis.__dboSuperFeeds = new Map()); // feeder -> feed
+  const bloodHook = (hook, a, fallback) => { try { const v = typeof globalThis[hook] === 'function' ? globalThis[hook](a) : fallback; return v === undefined || v === null ? fallback : v; } catch (e) { return fallback; } };
+  const canFeedDeeply = (a) => !!bloodHook('__dboBloodCanLongFeed', a, false);
+  const feedSeconds = (a, long) => {
+    const base = Number(bloodHook('__dboBloodFeedSeconds', a, C.feed.seconds)) || Number(C.feed.seconds);
+    return base * (long ? Number(C.feed.longMult) : 1);
+  };
+  const boundCaptive = (t) => { let r = null; try { r = mp.get(t, 'private.restrained'); } catch (e) { /* none */ } return !!(r && r.boundHands); };
+  const isDownedPlayer = (t) => { try { return isPlayer(t) && typeof globalThis.__dboIsDowned === 'function' && !!globalThis.__dboIsDowned(t); } catch (e) { return false; } };
+  const feedingOn = (t) => { for (const f of feeds.values()) if (f.t === (t >>> 0)) return true; return false; };
+  const startFeed = (a, t, o) => {
+    a = a >>> 0; t = t >>> 0;
+    if (feeds.has(a)) { personal(a, 'You are already feeding.'); return false; }
+    if (feedingOn(t)) { personal(a, 'Someone is already feeding there.'); return false; }
+    const beast = beastForm(a) === 'werewolf';
+    const seconds = beast ? Number(C.feed.werewolfSeconds) : feedSeconds(a, !!o.long);
+    const lying = !beast && o.onCorpse && isDownedPlayer(t);
+    const ev = beast ? C.feedAnims.werewolf : o.onCorpse ? (lying ? C.feedAnims.lying : C.feedAnims.corpse) : '';
+    const p = health(a);
+    feeds.set(a, { t, onCorpse: !!o.onCorpse, long: !!o.long, lying, beast, ev, hp: p ? p.health : null, at: Date.now(), until: Date.now() + seconds * 1000 });
+    if (o.onCorpse) { fedOn.add(t); if (fedOn.size > 2048) fedOn.clear(); }
+    playAnim(a, ev);
+    try { sendPacket(a, { customPacketType: 'dboBanner', text: o.long ? 'Feeding deeply...' : 'Feeding...', seconds: Math.ceil(seconds) }); } catch (e) { /* old client */ }
+    if (!o.onCorpse) personal(t, `${nameOf(a)} sinks their teeth into your neck.`);
+    else if (lying) personal(t, `${nameOf(a)} bends over you and drinks.`);
+    quietNear(a, o.onCorpse ? `You see ${nameOf(a)} feed on the fallen.` : `You see ${nameOf(a)} feed on ${nameOf(t)}.`, 1500);
+    log(`supernatural: ${display(a)} started ${o.long ? 'a deep feed' : 'feeding'} on ${display(t)} (${seconds} s${ev ? `, ${ev}` : ''})`);
+    return true;
+  };
+  // Why a feed in progress breaks, or ''
+  const feedBroken = (a, f) => {
+    const online = onlineActors();
+    if (!online.includes(a)) return 'gone';
+    try { if (mp.get(a, 'isDead')) return 'you fell'; } catch (e) { return 'gone'; }
+    if (f.beast ? beastForm(a) !== 'werewolf' : kindOf(a) !== 'vampire') return 'you are no longer what you were';
+    let dead = false; try { dead = !!mp.get(f.t, 'isDead'); } catch (e) { return 'the body is gone'; }
+    if (f.onCorpse) { if (!dead) return 'the body stirred'; }
+    else if (!online.includes(f.t)) return 'they are gone';
+    else if (dead) return 'they fell';
+    else if (!boundCaptive(f.t)) return 'they slipped free';
+    if (distance(a, f.t) > Number(C.feed.maxDistance)) return 'you moved away';
+    const p = health(a);
+    if (p && f.hp !== null && p.health < f.hp - Number(C.feed.struckAt)) return 'you were struck';
+    return '';
+  };
+  const stopFeedAnim = (a, f) => { if (f.ev && !f.beast) playAnim(a, C.feedAnims.stop); };
+  const cancelFeed = (a, f, why) => {
+    feeds.delete(a);
+    stopFeedAnim(a, f);
+    if (f.onCorpse) fedOn.delete(f.t);
+    personal(a, `Your feeding is broken: ${why}.`);
+    if (!f.onCorpse && onlineActors().includes(f.t)) personal(f.t, 'The teeth leave your neck.');
+    log(`supernatural: ${display(a)} stopped feeding on ${display(f.t)}: ${why}`);
+  };
+  const finishFeed = (a, f) => {
+    feeds.delete(a);
+    stopFeedAnim(a, f);
+    if (!feed(a, f.t, f.onCorpse, { long: f.long })) { if (f.onCorpse) fedOn.delete(f.t); return; }
+    if (!f.onCorpse) livingFedAt.set(f.t, gameDays());
+  };
+  every('superFeed', Number(C.feed.tickMs), () => {
+    for (const [a, f] of [...feeds]) {
+      const why = feedBroken(a, f);
+      if (why) cancelFeed(a, f, why);
+      else if (Date.now() >= f.until) finishFeed(a, f);
+    }
+  });
   globalThis.__dboSuperActivate = (t, a) => {
     if (!isPlayer(a)) return false;
     const s = stateOf(a); if (!s || (!s.kind && beastForm(a) !== 'werewolf')) return false;
+    // E again on the body being fed on keeps the feed going rather than opening it
+    const mine = feeds.get(a >>> 0); if (mine && mine.t === (t >>> 0)) return true;
     let dead = false; try { dead = !!mp.get(t, 'isDead'); } catch (e) { return false; }
     if (!dead || fedOn.has(t) || (!isHumanoid(t) && !(beastForm(a) === 'werewolf' && typeof globalThis.__dboHuntFed === 'function'))) return false;
     const at = deathAt.get(t);
     if (!at || Date.now() - at > C.corpseFreshMinutes * 60000) return false;
-    if (!feed(a, t, true)) return false;
-    fedOn.add(t); if (fedOn.size > 2048) fedOn.clear();
-    quietNear(a, `You see ${nameOf(a)} feed on the dead.`, 1500);
+    // Only a vampire or a werewolf in beast form feeds; anyone else searches the body as usual
+    if (s.kind !== 'vampire' && beastForm(a) !== 'werewolf') return false;
+    startFeed(a, t, { onCorpse: true });
     return true;
   };
-  // X menu: Feed on a restrained living player, each victim once per feedLivingEveryDays
+  // X menu: Feed on a restrained living player, each victim once per feedLivingEveryDays; Feed Deeply from the rank
+  // bloodranks.js names
   const livingFedAt = globalThis.__dboSuperLivingFed || (globalThis.__dboSuperLivingFed = new Map()); // victim actorId -> gameDays
   globalThis.__dboSuperMenuEntries = (a, t) => {
-    if (kindOf(a) !== 'vampire') return [];
-    let r = null; try { r = mp.get(t, 'private.restrained'); } catch (e) { /* none */ }
-    return r && r.boundHands ? [{ id: 'super:feed', label: 'Feed' }] : [];
+    if (kindOf(a) !== 'vampire' || !boundCaptive(t)) return [];
+    const out = [{ id: 'super:feed', label: 'Feed' }];
+    if (canFeedDeeply(a)) out.push({ id: 'super:feedlong', label: 'Feed Deeply' });
+    return out;
   };
   globalThis.__dboSuperMenuAction = (a, id, t) => {
-    if (id !== 'super:feed') return false;
-    let r = null; try { r = mp.get(t, 'private.restrained'); } catch (e) { /* none */ }
-    if (kindOf(a) !== 'vampire' || !r || !r.boundHands) return true;
+    if (id !== 'super:feed' && id !== 'super:feedlong') return false;
+    if (kindOf(a) !== 'vampire' || !boundCaptive(t)) return true;
+    const long = id === 'super:feedlong';
+    if (long && !canFeedDeeply(a)) { personal(a, 'Your blood is too young to hold a long feed.'); return true; }
     const last = livingFedAt.get(t >>> 0);
     if (last !== undefined && gameDays() - last < Number(C.feedLivingEveryDays)) { personal(a, `${nameOf(t)} has no blood left to give. Let them recover.`); return true; }
-    if (feed(a, t, false)) livingFedAt.set(t >>> 0, gameDays());
+    startFeed(a, t, { onCorpse: false, long });
     return true;
   };
   // beastform asks before a transform; a reason string refuses it
@@ -959,20 +1099,59 @@ module.exports = (api) => {
   const PLAY_STEP_MAX_MS = 45000;
   const playTicks = globalThis.__dboSuperPlayTicks || (globalThis.__dboSuperPlayTicks = new Map());   // actor -> { day, at }
   const playedOf = (d) => Math.max(0, Number(d && d.played) || 0);
-  const countPlay = (a, s, day) => {
+  // holder: the disease while it incubates, or a new vampire's first-meal clock (the two never run together)
+  const countPlay = (a, s, day, holder) => {
     const now = Date.now();
     const prev = playTicks.get(a >>> 0);
     playTicks.set(a >>> 0, { day, at: now });
     if (!prev || now - prev.at > PLAY_STEP_MAX_MS || !(day > prev.day)) return;
-    s.disease.played = playedOf(s.disease) + (day - prev.day);
+    holder.played = playedOf(holder) + (day - prev.day);
     saveState(a, s);
+  };
+  // A new vampire's withering: nothing for firstMealHours of play, then witherPerHour a game hour, up to witherMax
+  const witherFor = (unfed) => {
+    const over = playedOf(unfed) * 24 - Number(C.firstMealHours);
+    return over >= 1 ? Math.min(Number(C.witherMax), Number(C.witherPerHour) * Math.floor(over)) : 0;
+  };
+  const pct = (x) => Math.round(x * 100);
+  const tickUnfed = (a, s, day) => {
+    countPlay(a, s, day, s.unfed);
+    const hours = playedOf(s.unfed) * 24;
+    const wither = +witherFor(s.unfed).toFixed(2);
+    if (!s.unfed.warned && hours >= Number(C.firstMealHours) - 1) {
+      s.unfed.warned = true; saveState(a, s);
+      personal(a, 'The hunger sharpens. Feed soon, or your body will begin to wither.');
+    }
+    if (wither === (Number(s.unfed.wither) || 0)) return;
+    const first = !(Number(s.unfed.wither) > 0);
+    s.unfed.wither = wither; saveState(a, s);
+    refreshRates(a);
+    personal(a, first ? `Without blood, your body begins to wither. Your wounds and breath mend ${pct(wither)}% slower until you feed.`
+      : `The withering deepens. Your wounds and breath mend ${pct(wither)}% slower.`);
+    // Onny: a starving new vampire loses some control. Shown, never forced: those close by see the hunger
+    if (wither >= 0.3) quietNear(a, `${nameOf(a)} stares at your throat a moment too long.`, 800);
+    log(`supernatural: ${display(a)} unfed for ${hours.toFixed(1)} game hours of play: withering ${pct(wither)}%`);
+  };
+  // gamemode's needs system multiplies health and stamina recovery by this: the withering, and a deep feed's lift
+  globalThis.__dboSuperRateMult = (a, av) => {
+    if (av !== 'HealRateMult' && av !== 'StaminaRateMult') return 1;
+    const s = stateOf(a); if (!s || s.kind !== 'vampire') return 1;
+    let m = 1;
+    if (s.unfed && Number(s.unfed.wither) > 0) m *= 1 - Number(s.unfed.wither);
+    if (s.sated && Number(s.sated.until) > gameDays()) m *= Number(C.feed.longRegenMult);
+    return +m.toFixed(3);
+  };
+  // gamemode's hunger meter multiplies what food restores by this
+  globalThis.__dboSuperFoodMult = (a) => {
+    const s = stateOf(a); if (!s || s.kind !== 'vampire') return 1;
+    return s.unfed || s.stage >= 3 ? Number(C.vampireFoodThirsty) : Number(C.vampireFood);
   };
   every('superSlow', 15000, () => {
     const day = gameDays();
     for (const a of onlineActors()) {
       const s = stateOf(a); if (!s) continue;
       try { if (mp.get(a, 'isDead')) { playTicks.delete(a >>> 0); continue; } } catch (e) { continue; }
-      if (s.disease) countPlay(a, s, day);
+      if (s.disease) countPlay(a, s, day, s.disease);
       if (s.disease && playedOf(s.disease) >= C.incubationDays && !rites.has(a)) {
         // Not in the first moments of a session: the client is still settling, the cursor is not the player's
         // yet, and this trial kills. It waits for the next tick instead; the fever is not going anywhere.
@@ -984,6 +1163,11 @@ module.exports = (api) => {
         personal(a, s.disease.kind === 'vampire' ? 'The fever peaks. Your heart stumbles.' : 'The fever peaks. Something inside you wants out.');
         startRite(a, s.disease.kind === 'vampire' ? 'fever_vampire' : 'fever_werewolf');
         continue;
+      }
+      if (s.kind === 'vampire' && s.unfed) tickUnfed(a, s, day);
+      if (s.kind === 'vampire' && s.sated && !(Number(s.sated.until) > day)) {
+        s.sated = null; saveState(a, s); refreshRates(a);
+        personal(a, 'The rush of the deep feed fades.');
       }
       if (s.kind === 'vampire') {
         // An older vampire's thirst climbs its stages more slowly (bloodranks.js)
@@ -1052,7 +1236,7 @@ module.exports = (api) => {
       return personal(a, restoreCharacter(c, `GM ${nameOf(a)}`) ? `${display(c)} is restored and can be played again.` : `${display(c)} is not permanently dead.`);
     }
     if (!t || !['vampire', 'purevampire', 'werewolf', 'blessedwerewolf', 'infectvampire', 'infectwerewolf', 'cure', 'crown', 'status', 'fever'].includes(w)) return personal(a, 'Usage: /curse <player|me> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|status|restore>');
-    if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease: ${playedOf(s.disease).toFixed(1)} of ${C.incubationDays} game days played (${(gameDays() - s.disease.since).toFixed(1)} since infection)` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
+    if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}${s.unfed ? `, not yet fed (${(playedOf(s.unfed) * 24).toFixed(1)} of ${C.firstMealHours} game hours played${Number(s.unfed.wither) > 0 ? `, withering ${pct(Number(s.unfed.wither))}%` : ''})` : ''}${s.sated && Number(s.sated.until) > gameDays() ? ', deep-fed' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease: ${playedOf(s.disease).toFixed(1)} of ${C.incubationDays} game days played (${(gameDays() - s.disease.since).toFixed(1)} since infection)` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
     if (w === 'vampire' || w === 'purevampire') becomeVampire(t, w === 'purevampire');
     else if (w === 'werewolf' || w === 'blessedwerewolf') becomeWerewolf(t, w === 'blessedwerewolf');
     else if (w === 'infectvampire') infect(t, 'vampire', 0, true);
