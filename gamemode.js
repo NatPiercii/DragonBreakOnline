@@ -1497,14 +1497,19 @@ const CREATOR_HOLD_MS = 30000;
 // a promised spot counts in place of their position, and one `pending` (not yet placed) does not count at all. A player
 // already standing on a spot nobody else is near keeps it (keepOwn: a reconnect mid-creation); else the first free spot;
 // with none free (an overflow), the fewest people, then the most room. holds: actor -> { i, until }, so an overflow can
-// promise one spot twice.
+// promise one spot twice. Each pick drops the holds that have expired or whose player is gone, so they never pile up.
 const spotPicker = ({ spots, holds, spacing, holdMs, here, pending, keepOwn }) => {
   const release = (a) => { holds.delete(a >>> 0); };
+  const gone = (p) => { try { return mp.get(p, 'isOnline') === false; } catch (e) { return true; } };
   const pick = (a) => {
     const now = Date.now();
     const me = a >>> 0;
     const where = new Map();
-    for (const [p, h] of holds) if (p !== me && h.until > now && spots[h.i]) where.set(p, spots[h.i]);
+    for (const [p, h] of holds) {
+      if (p === me) continue;
+      if (!h || !(h.until > now) || gone(p)) { holds.delete(p); continue; }
+      if (spots[h.i]) where.set(p, spots[h.i]);
+    }
     for (const p of onlineActors()) {
       const id = p >>> 0;
       if (id === me || where.has(id) || (pending && pending(id)) || !here(p)) continue;
