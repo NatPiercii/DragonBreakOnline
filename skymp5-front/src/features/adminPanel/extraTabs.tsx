@@ -112,6 +112,19 @@ const Confirm = ({ text, width, disabled, onConfirm }: { text: string; width: nu
   );
 };
 
+// Set the selected character's god aside so they choose again (server prayer.js, Nate 2026-09-30). Lead GM and above; the
+// server checks the rank again. It works on an offline row too: without a live actor the server finds the character by
+// name, and asks for the #TAG when two share it. The answer comes back like any other panel action.
+export const DeityReset = ({ actor, name, canSpawn }: { actor: string | null; name: string; canSpawn: boolean }) => {
+  if (!canSpawn) return null;
+  return (
+    <div className="admin-panel__actions">
+      <Confirm text="Reset deity" width={150} disabled={!actor && !name} onConfirm={() => send('dbo:deityReset', actor || '', name || '')} />
+      <span className="admin-panel__hint">Clears their god, blessing and conversion clock so they choose again</span>
+    </div>
+  );
+};
+
 // Extra buttons for the selected online player, plus the ban list
 export const PlayerPunish = ({ events, target, name, canBan, bans }: {
   events: Record<string, string>; target: string | null; name: string; canBan: boolean; bans: PanelBan[];
