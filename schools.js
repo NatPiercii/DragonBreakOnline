@@ -250,7 +250,9 @@ module.exports = (api) => {
 
   // ---- spells.js asks before a tome is read or a spell taught ------------------------------------------------------
   // A spell studied before the schools is never refused, whatever its school
-  globalThis.__dboSchoolsGrandfathered = (a, spellId) => { try { return stateOf(a).grandfathered.includes(norm(descOf(spellId >>> 0))); } catch (e) { return false; } };
+  // Asked for every tome read, so a player the schools do not apply to yet (switched off, or an old client) is answered
+  // before their record is read: reading it would bring them over, and fix the kept set, too early
+  globalThis.__dboSchoolsGrandfathered = (a, spellId) => { if (!ready(a)) return false; try { return stateOf(a).grandfathered.includes(norm(descOf(spellId >>> 0))); } catch (e) { return false; } };
   // Why `a` cannot take a spell of this school and rank, or null. `whose` is 'You' or the student's name.
   globalThis.__dboSchoolsRefusal = (a, school, rank, whose) => {
     if (!ready(a) || !SCHOOLS.includes(String(school))) return null;
