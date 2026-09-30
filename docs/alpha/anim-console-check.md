@@ -48,11 +48,25 @@ Sit on a chair first (activate it), then:
 If 11-13 do nothing while seated, try each once while **standing** and note it: some chair idles only work from the
 chair's own sitting state.
 
+## Cutting binds (Helgen, MQ101)
+
+Nate's lead: Hadvar (or Ralof) cuts the player's binds at Helgen. In Skyrim.esm the two keep-intro dialogue lines
+(INFO 00020121 and 0004E1A2, one per path) set the speaker's idle to BoundStandingCutNPC, their script fragments hold
+BoundStandingCut, and the keep-intro scenes A and B hold the paired pa_OffsetBoundStandingCut (property PA_OffsetCut).
+For rope's Cut Free (Worker A). Test 14 on its own; 15 and 16 need the bound pose first.
+
+| # | Paste | For | What should happen | Then paste (exit) |
+|---|---|---|---|---|
+| 14 | `player.sae BoundStandingCutNPC` | the rescuer (Cut Free), and maybe tying | Hadvar's motion: works a blade at someone's wrists in front of him | `player.sae IdleForceDefaultState` if still posed |
+| 15 | `player.sae OffsetBoundStandingStart`, then `player.sae BoundStandingCut` | the one being freed | first the hands bound behind the back (already used by arrests), then the player's own freeing motion, hands coming free | `player.sae OffsetStop`, then `player.sae IdleForceDefaultState` |
+| 16 | `player.sae OffsetBoundStandingStart`, then `player.sae pa_OffsetBoundStandingCut` | the paired version | a paired clip normally needs a partner; on its own it may do nothing. Note what it does | `player.sae OffsetStop`, then `player.sae IdleForceDefaultState` |
+
 ## What the result decides
 
 - **plays**: built as planned.
 - **nothing**: the fallback in the plan is used (doors → 2, chests → the proven IdleWarmHandsCrouched, lockpick → 7,
-  trade → 2 on both sides, seated eating → no animation while seated).
+  trade → 2 on both sides, seated eating → no animation while seated, Cut Free → 8 for the rescuer and OffsetStop alone
+  for the freed).
 - **stuck** with no working exit: not used at all.
 
 Send the list of results to the coordinator. The ENAM and form ids of every row are in the plan's IDLE dump:
