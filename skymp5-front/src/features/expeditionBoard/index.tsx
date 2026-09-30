@@ -6,9 +6,11 @@ import './styles.scss';
 // The expedition board in the Synod Conclave and the Fighters Guild (Nat's ExpeditionBoard activator), opened by the
 // gamemode through the dbo relay (widget type "expeditionBoard", dungeons.js openExpeditions). It looks like the
 // notice board: one pinned paper per Ayleid ruin. Reading a paper and choosing "Gather your party" opens the party and
-// difficulty panel (dungeonGate) for that ruin.
+// difficulty panel (dungeonGate) for that ruin. A second tab, Contracts, holds the hold's hunting work (contracts.js,
+// Nate 2026-09-30); it shows only when the server sends contracts, so an older server leaves the board as it was.
 //
 //   Browser -> client -> server: sendMessage(events.pick, expeditionId)
+//                                sendMessage(events.contractTake, contractId), sendMessage(events.contractAbandon)
 //   Escape / Close:              sendMessage(events.close)
 interface Expedition {
   id: string;
@@ -20,13 +22,47 @@ interface Expedition {
   masters: string[];        // who keeps it: an Ayleid lich, a bandit chief, ...
 }
 
+interface Contract {
+  id: string;
+  what: string;             // 3 wolves
+  count: number;
+  reward: number;
+  danger: number;           // 1..3
+  hoursLeft: number;
+  state: 'open' | 'yours' | 'posted';
+}
+
+interface HeldContract {
+  id: string;
+  what: string;
+  zone: string;
+  progress: number;
+  count: number;
+  reward: number;
+  hoursLeft: number;
+}
+
+interface ContractsTab {
+  enabled: boolean;
+  zone: string;             // Bruma
+  treasury: number;
+  note: string;             // why the list is empty or closed, else ''
+  held: HeldContract | null;
+  list: Contract[];
+  canPost: boolean;         // an official of this hold
+}
+
+type TabId = 'expeditions' | 'contracts';
+
 export interface ExpeditionBoardData {
   id: number;
   hall: string;             // the Synod Conclave, the Fighters Guild
   expeditions: Expedition[];
   bossReturnMinutes: number;
   leaseMinutes: number;
-  events: { pick: string; close: string };
+  contracts?: ContractsTab;
+  tab?: TabId;
+  events: { pick: string; close: string; contractTake?: string; contractAbandon?: string };
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -46,6 +82,16 @@ const STAMP: Record<Expedition['state'], string> = {
   resting: 'Resting',
 };
 
+const CONTRACT_STAMP: Record<Contract['state'], string> = {
+  open: 'Wanted',
+  yours: 'Yours',
+  posted: 'Your notice',
+};
+
+const DANGER_WORD = ['', 'A pest', 'Dangerous', 'Deadly'];
+
+const hoursLabel = (h: number): string => (h <= 1 ? 'fades within the hour' : 'fades in ' + h + ' hours');
+
 const keepers = (masters: string[]): string => {
   if (!masters || !masters.length) return '';
   const list = masters.length === 1 ? masters[0] : masters.slice(0, -1).join(', ') + ' and ' + masters[masters.length - 1];
@@ -55,8 +101,19 @@ const keepers = (masters: string[]): string => {
 const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
   const ev = data.events || { pick: 'dbo:expeditionPick', close: 'dbo:expeditionClose' };
   const list = data.expeditions || [];
+  const contracts = data.contracts || null;
+  const [tab, setTab] = useState<TabId>(contracts && data.tab === 'contracts' ? 'contracts' : 'expeditions');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = list.filter((x) => x.id === selectedId)[0] || null;
+  const selected = tab === 'expeditions' ? list.filter((x) => x.id === selectedId)[0] || null : null;
+  const work = contracts ? contracts.list || [] : [];
+  const held = contracts ? contracts.held : null;
+  const selectedContract = tab === 'contracts' ? work.filter((c) => c.id === selectedId)[0] || null : null;
+
+  // The server redraws the board on the Contracts tab after a take or a give-up
+  useEffect(() => {
+    if (contracts && data.tab === 'contracts') setTab('contracts');
+    setSelectedId(null);
+  }, [data]);
 
   useEffect(() => {
     const onUnfocused = () => send(ev.close);
@@ -80,12 +137,60 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
     <div className="bountyBoard expeditionBoard">
       <div className="bountyBoard__fade" />
       <div className="bountyBoard__frame">
-        <h1 className="bountyBoard__title">Expeditions</h1>
-        <div className="bountyBoard__tabs expeditionBoard__subtitle">
-          Ayleid ruins far to the south, posted in {data.hall || 'Bruma'}. Gather your party and set out.
+        <h1 className="bountyBoard__title">{tab === 'contracts' ? 'Hunting Contracts' : 'Expeditions'}</h1>
+        {contracts ? (
+          <div className="bountyBoard__tabs">
+            <button
+              className={'bountyBoard__tab' + (tab === 'expeditions' ? ' bountyBoard__tab--active' : '')}
+              onClick={() => { setTab('expeditions'); setSelectedId(null); }}
+            >
+              Expeditions
+              <span className="bountyBoard__tab-count">{list.length}</span>
+            </button>
+            <button
+              className={'bountyBoard__tab' + (tab === 'contracts' ? ' bountyBoard__tab--active' : '')}
+              onClick={() => { setTab('contracts'); setSelectedId(null); }}
+            >
+              Contracts
+              <span className="bountyBoard__tab-count">{work.length}</span>
+            </button>
+          </div>
+        ) : null}
+        <div className="expeditionBoard__subtitle expeditionBoard__lead">
+          {tab === 'contracts'
+            ? 'The hold of ' + (contracts && contracts.zone ? contracts.zone : 'Bruma') + ' pays for dangerous beasts slain in its wilds.'
+            : 'Ayleid ruins far to the south, posted in ' + (data.hall || 'Bruma') + '. Gather your party and set out.'}
         </div>
 
-        {list.length ? (
+        {tab === 'contracts' ? (
+          <div className="expeditionBoard__contracts">
+            {held ? (
+              <div className="expeditionBoard__held">
+                <span className="expeditionBoard__held-label">You hold</span>
+                <span className="expeditionBoard__held-what">{held.what} in {held.zone}</span>
+                <span className="expeditionBoard__held-progress">{held.progress} of {held.count} slain &middot; {held.reward} gold &middot; {hoursLabel(held.hoursLeft)}</span>
+              </div>
+            ) : null}
+            {work.length ? (
+              <div className="bountyBoard__grid">
+                {work.map((c) => (
+                  <button
+                    key={c.id}
+                    className={'bountyBoard__paper expeditionBoard__paper expeditionBoard__paper--' + (c.state === 'yours' ? 'yours' : c.state === 'posted' ? 'taken' : 'open')}
+                    onClick={() => setSelectedId(c.id)}
+                  >
+                    <span className={'expeditionBoard__stamp expeditionBoard__stamp--' + (c.state === 'yours' ? 'yours' : c.state === 'posted' ? 'taken' : 'open')}>{CONTRACT_STAMP[c.state] || c.state}</span>
+                    <span className="expeditionBoard__name">{c.what}</span>
+                    <span className="expeditionBoard__where">{DANGER_WORD[c.danger] || 'Dangerous'}</span>
+                    <span className="bountyBoard__paper-author">{c.reward} gold &middot; {hoursLabel(c.hoursLeft)}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="bountyBoard__empty">{(contracts && contracts.note) || 'No hunting work is posted here right now.'}</p>
+            )}
+          </div>
+        ) : list.length ? (
           <div className="bountyBoard__grid">
             {list.map((x) => (
               <button
@@ -105,11 +210,21 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
         )}
 
         <div className="bountyBoard__footer">
-          <span className="bountyBoard__hint">
-            A claim lasts {data.leaseMinutes || 60} minutes. Once the ruin's master falls, the party comes home {data.bossReturnMinutes || 10} minutes later.
-            Inside, return to the entrance or say /expedition leave to come home early.
-          </span>
+          {tab === 'contracts' ? (
+            <span className="bountyBoard__hint">
+              You hold one contract at a time and are paid the moment the last beast falls. Kills count only in {contracts && contracts.zone ? contracts.zone : 'the hold'}&apos;s wilds.
+              {contracts && contracts.canPost ? ' As an official you post work with /contract post <creature> <count> <reward>.' : ''}
+            </span>
+          ) : (
+            <span className="bountyBoard__hint">
+              A claim lasts {data.leaseMinutes || 60} minutes. Once the ruin's master falls, the party comes home {data.bossReturnMinutes || 10} minutes later.
+              Inside, return to the entrance or say /expedition leave to come home early.
+            </span>
+          )}
           <div className="bountyBoard__actions">
+            {tab === 'contracts' && held && ev.contractAbandon ? (
+              <button className="bountyBoard__button bountyBoard__button--danger" onClick={() => send(ev.contractAbandon as string)}>Give up your contract</button>
+            ) : null}
             <button className="bountyBoard__button" onClick={() => send(ev.close)}>Close</button>
           </div>
         </div>
@@ -132,6 +247,41 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
                 >
                   {selected.state === 'yours' ? 'Rejoin your party' : 'Gather your party'}
                 </button>
+                <button className="bountyBoard__button" onClick={() => setSelectedId(null)}>Back</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {selectedContract ? (
+          <div className="bountyBoard__shade" onClick={() => setSelectedId(null)}>
+            <div className="bountyBoard__read expeditionBoard__read" onClick={(e) => e.stopPropagation()}>
+              <p className="expeditionBoard__read-name">{selectedContract.what}</p>
+              <p className="bountyBoard__read-age">{DANGER_WORD[selectedContract.danger] || 'Dangerous'} &middot; {hoursLabel(selectedContract.hoursLeft)}</p>
+              <p className="bountyBoard__read-text">
+                The hold of {contracts && contracts.zone ? contracts.zone : 'Bruma'} pays {selectedContract.reward} gold for {selectedContract.what} slain in its wilds.
+                {' '}The reward is set aside from the treasury and paid the moment the last one falls.
+              </p>
+              <p className="bountyBoard__read-author">
+                {selectedContract.state === 'yours' ? 'You hold this contract.' : selectedContract.state === 'posted' ? 'You posted this notice; someone else must do the hunting.' : held ? 'You already hold a contract.' : 'Open to any hunter.'}
+              </p>
+              <div className="bountyBoard__actions bountyBoard__read-actions">
+                {selectedContract.state === 'open' && !held && contracts && contracts.enabled && ev.contractTake ? (
+                  <button
+                    className="bountyBoard__button bountyBoard__button--primary"
+                    onClick={() => { send(ev.contractTake as string, selectedContract.id); setSelectedId(null); }}
+                  >
+                    Take the contract
+                  </button>
+                ) : null}
+                {selectedContract.state === 'yours' && ev.contractAbandon ? (
+                  <button
+                    className="bountyBoard__button bountyBoard__button--danger"
+                    onClick={() => { send(ev.contractAbandon as string); setSelectedId(null); }}
+                  >
+                    Give it up
+                  </button>
+                ) : null}
                 <button className="bountyBoard__button" onClick={() => setSelectedId(null)}>Back</button>
               </div>
             </div>
