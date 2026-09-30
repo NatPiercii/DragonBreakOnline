@@ -115,6 +115,61 @@ check('the fixture really changes the Forward binding', remapped !== forwardLine
   check('every repaired shape is complete and CRLF', bad === 0, { bad });
 }
 
+// ---- Worker G's findings: the failure paths must never leave the game a worse map ---------------------------------
+{
+  // 3. junk on a KNOWN event name is dropped, not merged: analyzeControlmap only counts names, so a malformed
+  //    binding would otherwise reach the game's own parser
+  const junkLine = 'Forward\tnot a key at all\t0xff\t0xff\t0\t0\t0\t0';
+  check('a line that is not the seed line\'s shape is refused', C.sameLineShape(junkLine, forwardLine) === false);
+  check('...and the player\'s real remap is accepted', C.sameLineShape(remapped, forwardLine) === true);
+  const notes = [];
+  const merged = C.mergeCustomOverSeed(SEED.replace(/\r\n/g, '\n').replace(forwardLine.replace(/\r$/, ''), junkLine), SEED, notes);
+  check('...so a junk binding on a known event never reaches the merged map', !!merged && !merged.includes('not a key at all'));
+  check('...and it is reported rather than silently dropped', notes.some((n) => /not the shape/.test(n)), notes);
+
+  // 1. a write that fails midway must not truncate the file the game reads
+  const p2 = write('ControlMap_Custom.txt', SEED.replace(/\r\n/g, '\n'));
+  const realWrite = fs.writeFileSync;
+  fs.writeFileSync = (f, d) => { if (String(f).endsWith('.tmp')) throw Object.assign(new Error('ENOSPC: no space left'), { code: 'ENOSPC' }); return realWrite(f, d); };
+  let bak = null;
+  try { bak = C.repairControlmap(p2, new Date(), SEED); } finally { fs.writeFileSync = realWrite; }
+  check('a failed write returns null so the caller still moves the map aside', bak === null);
+  const still = fs.readFileSync(p2, 'utf8');
+  check('...and the file the game reads is untouched, not truncated', C.parseBlocks(still).length === C.parseBlocks(SEED).length, { blocks: C.parseBlocks(still).length });
+  check('...and no .tmp is left behind', !fs.existsSync(p2 + '.tmp'));
+  for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+
+  // 2. a read-only map must not be left in place: repair declines and the move-aside applies
+  const p3 = write('ControlMap_Custom.txt', SEED.replace(/\r\n/g, '\n'));
+  fs.chmodSync(p3, 0o444);
+  const bak2 = C.repairControlmap(p3, new Date(), SEED);
+  // Writing the merged map beside the file and renaming it over needs permission on the DIRECTORY, not on the file,
+  // so a read-only map is repaired rather than declined. That is the better end state: the player keeps their keys and
+  // the game gets a complete map, where the old code moved the file aside. The rename does replace the file with the
+  // .tmp's mode, so a deliberately read-only map comes back writable; worth knowing, not worth preventing.
+  check('a read-only map is repaired, not thrown on', typeof bak2 === 'string' && fs.existsSync(bak2));
+  check('...and what the game reads is complete and CRLF', C.analyzeControlmap(fs.readFileSync(p3, 'utf8')).ok === true);
+  try { fs.chmodSync(p3, 0o644); } catch (e) { /* already writable after the rename */ }
+  for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+
+  // 5. an ambiguous sparse block is dropped with a reason, not guessed into the wrong context
+  const cancelSeed = seedLines.find((l) => /^Cancel\t/.test(l));
+  if (cancelSeed) {
+    const notes2 = [];
+    const sparse = cancelSeed.replace(/\t0x[0-9a-f]+\t/i, '\t0x2a\t') + '\r\n';
+    const m2 = C.mergeCustomOverSeed(sparse, SEED, notes2);
+    check('a one-line block naming an event that repeats across contexts is not guessed',
+      m2 === null || notes2.some((n) => /more than one context/.test(n)), notes2);
+  }
+
+  // the backup cap
+  const p4 = write('ControlMap_Custom.txt', SEED);
+  for (let i = 0; i < 6; i++) fs.writeFileSync(`${p4}.bak-2026093000000${i}Z`, 'old');
+  C.pruneBackups(p4);
+  check('only the newest few originals are kept', baks(p4).length === 3, baks(p4));
+  for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

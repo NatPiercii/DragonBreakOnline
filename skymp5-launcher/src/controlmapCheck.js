@@ -120,6 +120,23 @@ function moveAside(file, now, tag) {
 // Blocks are matched by which events they hold, not by position: a custom map may carry only the contexts the player
 // touched, in whatever order, so aligning by index would write one context's bindings into another.
 
+// A player's line is taken only when it has the same shape as the seed's line for that event: the same number of tab
+// fields, and each field either a hex number or the very token the seed has there. analyzeControlmap only counts event
+// names, so junk on a known name would otherwise reach the game's own parser (Worker G's review, 2026-09-30).
+function sameLineShape(mine, seed) {
+  const a = String(mine).replace(/\r$/, '').split('\t');
+  const b = String(seed).replace(/\r$/, '').split('\t');
+  if (a.length !== b.length) return false;
+  for (let i = 1; i < b.length; i++) {
+    const f = (a[i] || '').trim(), g = (b[i] || '').trim();
+    if (f === g) continue;
+    if (/^0x[0-9a-f]+$/i.test(g) && /^0x[0-9a-f]+$/i.test(f)) continue;
+    if (/^\d+$/.test(g) && /^\d+$/.test(f)) continue;
+    return false;
+  }
+  return true;
+}
+
 // Blocks of { name, line } keeping the whole line, so a player's binding survives the merge
 function parseFullBlocks(text) {
   const blocks = [];
@@ -150,18 +167,39 @@ function matchBlock(customBlock, seedBlocks, taken) {
  * The seed with the player's own bindings written over it, or null when nothing could be carried across.
  * Only events the seed already knows are taken, so a junk file cannot inject lines.
  */
-function mergeCustomOverSeed(customText, seedText) {
+function mergeCustomOverSeed(customText, seedText, notes = null) {
   const seedBlocks = parseFullBlocks(seedText);
   const customBlocks = parseFullBlocks(customText);
   if (!seedBlocks.length || !customBlocks.length) return null;
+  // How many contexts each event appears in: Cancel is in six, so a one-line block naming it cannot say which context
+  // the player meant. Until a real game-written file settles what the game writes, an ambiguous line in a block that
+  // does not identify its context is DROPPED and logged rather than guessed (Worker G's finding 5).
+  const blocksWith = new Map();
+  for (const block of seedBlocks) for (const e of new Set(block.map(x => x.name))) blocksWith.set(e, (blocksWith.get(e) || 0) + 1);
   const taken = new Set();
   const replacement = new Map();   // "blockIndex\u0000eventName" -> the player's line
+  let carried = 0, droppedShape = 0, droppedAmbiguous = 0;
   for (const block of customBlocks) {
     const i = matchBlock(block, seedBlocks, taken);
     if (i === null) continue;
     taken.add(i);
-    const known = new Set(seedBlocks[i].map(e => e.name));
-    for (const entry of block) if (known.has(entry.name)) replacement.set(`${i}\u0000${entry.name}`, entry.line);
+    const seedLineOf = new Map(seedBlocks[i].map(e => [e.name, e.line]));
+    // The block identifies its context when it carries most of that context's events; a sparse block does not
+    const shared = block.filter(e => seedLineOf.has(e.name)).length;
+    const identifies = shared * 2 >= seedBlocks[i].length;
+    for (const entry of block) {
+      const seedLine = seedLineOf.get(entry.name);
+      if (seedLine === undefined) continue;
+      if (!sameLineShape(entry.line, seedLine)) { droppedShape++; continue; }
+      if (!identifies && (blocksWith.get(entry.name) || 1) > 1) { droppedAmbiguous++; continue; }
+      replacement.set(`${i}\u0000${entry.name}`, entry.line);
+      carried++;
+    }
+  }
+  if (notes) {
+    notes.push(`${carried} binding(s) carried across`);
+    if (droppedShape) notes.push(`${droppedShape} line(s) dropped: not the shape of the map's own line`);
+    if (droppedAmbiguous) notes.push(`${droppedAmbiguous} line(s) dropped: the event appears in more than one context and the block did not say which`);
   }
   if (!replacement.size) return null;
   // Walk the seed text itself, so its comments, blank lines and context order are kept exactly
@@ -178,21 +216,43 @@ function mergeCustomOverSeed(customText, seedText) {
   return toCrlf(out.join('\n'));
 }
 
+// Only the newest few originals are worth keeping: a player who remaps often should not collect a backup per launch
+const BACKUPS_KEPT = 3;
+function pruneBackups(file) {
+  try {
+    const dir = path.dirname(file), base = `${path.basename(file)}.bak-`;
+    const mine = fs.readdirSync(dir).filter(f => f.startsWith(base)).sort();
+    for (const f of mine.slice(0, Math.max(0, mine.length - BACKUPS_KEPT))) fs.rmSync(path.join(dir, f), { force: true });
+  } catch (err) { /* a backup left behind costs nothing */ }
+}
+
 /**
  * Repairs one control map in place: the player's bindings merged over the seed, CRLF, original kept as a dated .bak.
  * Returns the backup path, or null when the file could not be repaired (the caller then moves it aside as before).
  * A repaired map analyses as complete, so the next launch leaves it alone: no rewrite, no second backup.
  */
-function repairControlmap(file, now, seedText) {
-  let text;
-  try { text = fs.readFileSync(file, 'utf8'); } catch (err) { return null; }
-  const merged = mergeCustomOverSeed(text, seedText === undefined ? fs.readFileSync(SEED, 'utf8') : seedText);
-  if (!merged || !analyzeControlmap(merged).ok) return null;
-  let bak = `${file}.bak-${stamp(now)}`;
-  for (let n = 2; fs.existsSync(bak); n++) bak = `${file}.bak-${stamp(now)}-${n}`;
-  fs.copyFileSync(file, bak);
-  fs.writeFileSync(file, merged);
-  return bak;
+function repairControlmap(file, now, seedText, notes = null) {
+  const tmp = `${file}.tmp`;
+  let bak = null;
+  try {
+    const text = fs.readFileSync(file, 'utf8');
+    const merged = mergeCustomOverSeed(text, seedText === undefined ? fs.readFileSync(SEED, 'utf8') : seedText, notes);
+    if (!merged || !analyzeControlmap(merged).ok) return null;
+    bak = `${file}.bak-${stamp(now)}`;
+    for (let n = 2; fs.existsSync(bak); n++) bak = `${file}.bak-${stamp(now)}-${n}`;
+    fs.copyFileSync(file, bak);
+    pruneBackups(file);
+    // The whole map is written beside the file and renamed over it: writeFileSync truncates first, so a failure
+    // midway would leave the game a partial map, which is the crash the check exists to prevent. A rename is atomic
+    // on NTFS and ext4. Any failure at all, a read-only file included, returns null so the move-aside still applies.
+    fs.writeFileSync(tmp, merged);
+    fs.renameSync(tmp, file);
+    return bak;
+  } catch (err) {
+    try { if (fs.existsSync(tmp)) fs.rmSync(tmp, { force: true }); } catch (e) { /* nothing more to do */ }
+    // The backup is left where it is: it holds the player's own file and costs nothing
+    return null;
+  }
 }
 
 /**
@@ -203,8 +263,10 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
   if (!gameDir) return []
   const lines = []
   const { custom, data } = controlmapFiles(gameDir, mo2)
-  // true when the file is complete (or unreadable, so left to the game)
-  const check = file => {
+  // true when the file is complete (or unreadable, so left to the game). `repairable` is the player's own remap file
+  // in the game root: the Data maps are not the player's, and one of them may be a mod's file inside its MO2 folder,
+  // which the launcher must not rewrite (Worker G's review, 2026-09-30).
+  const check = (file, repairable) => {
     let text
     try { text = fs.readFileSync(file, 'utf8') } catch (err) {
       lines.push(`controlmap: could not read ${file}: ${err.message}`)
@@ -220,20 +282,23 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
       r.lf ? `${r.lf} line(s) end in LF only, the game's own map uses CRLF` : '',
     ].filter(Boolean).join('; ')
     // Keep the player's keys: merge them over the seed rather than throwing the file away
-    const bak = repairControlmap(file, now, undefined)
+    const notes = []
+    const bak = repairable ? repairControlmap(file, now, undefined, notes) : null
     if (bak) {
-      lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), repaired in place with the player's bindings kept; original saved as ${path.basename(bak)}`)
+      lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), repaired in place: ${notes.join('; ')}; original saved as ${path.basename(bak)}`)
       return true
     }
     const aside = moveAside(file, now, r.missing.length ? 'incomplete' : 'lf')
-    lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), nothing could be carried across, moved aside to ${path.basename(aside)}`)
+    // "nothing could be carried across" only when a repair was actually tried: the Data maps are never the player's
+    const failed = repairable ? 'nothing could be carried across, ' : ''
+    lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), ${failed}moved aside to ${path.basename(aside)}`)
     return false
   }
-  if (custom) check(custom)
+  if (custom) check(custom, true)
   let settled = false
-  for (const file of data) if ((settled = check(file))) break
+  for (const file of data) if ((settled = check(file, false))) break
   if (!settled) lines.push('controlmap: no loose controlmap.txt is left in Data; the game\'s own applies until the launcher seeds one')
   return lines
 }
 
-module.exports = { CONTEXT_NAMES, parseBlocks, parseFullBlocks, analyzeControlmap, enabledMods, controlmapFiles, checkControlmaps, bareLfCount, toCrlf, mergeCustomOverSeed, repairControlmap }
+module.exports = { CONTEXT_NAMES, parseBlocks, parseFullBlocks, analyzeControlmap, enabledMods, controlmapFiles, checkControlmaps, bareLfCount, toCrlf, mergeCustomOverSeed, repairControlmap, sameLineShape, pruneBackups }

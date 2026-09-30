@@ -92,19 +92,24 @@ test('before launch: a short custom map and a short winning mod map are moved as
   put(modMap, pre1130)
   put(ours, full)
   const lines = cm.checkControlmaps({ gameDir: game, mo2, now })
-  assert.deepStrictEqual(lines, [
-    `controlmap: ${custom} has 3 of 18 contexts (missing Item Menus, Inventory, Debug Text, Favorites, Map, Stats, Cursor, ` +
-      'Book, Debug Overlay, Journal, TFC Mode, Map Debug, Lockpicking, Creations Menu, Favor), moved aside to ' +
-      'ControlMap_Custom.txt.incomplete-20260929T160000Z',
+  // The player's own remap file is REPAIRED so their keys survive (client-controlmap-repair); a mod's map, which is not
+  // the player's, still moves aside, and the game's own complete Data map is then the one that applies.
+  assert.match(lines[0], new RegExp(`^controlmap: ${custom.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')} has 3 of 18 contexts \\(missing `))
+  assert.match(lines[0], /repaired in place: \d+ binding\(s\) carried across.*original saved as ControlMap_Custom\.txt\.bak-20260929T160000Z$/)
+  assert.deepStrictEqual(lines.slice(1), [
     `controlmap: ${modMap} has 16 of 18 contexts (missing Creations Menu, Favor), moved aside to controlmap.txt.incomplete-20260929T160000Z`,
     `controlmap: ${ours} has 18 of 18 contexts`,
   ])
-  assert.ok(!fs.existsSync(custom) && !fs.existsSync(modMap))
-  assert.strictEqual(fs.readFileSync(`${custom}.incomplete-20260929T160000Z`, 'utf8'), truncated)
+  assert.ok(fs.existsSync(custom) && !fs.existsSync(modMap))
+  assert.strictEqual(fs.readFileSync(`${custom}.bak-20260929T160000Z`, 'utf8'), truncated)
+  assert.ok(cm.analyzeControlmap(fs.readFileSync(custom, 'utf8')).ok, 'the repaired custom map is complete and CRLF')
   assert.strictEqual(fs.readFileSync(ours, 'utf8'), full)
-  // Checked again: nothing more to move, and a second bad custom map gets its own name
-  put(custom, truncated)
-  assert.match(cm.checkControlmaps({ gameDir: game, mo2, now })[0], /aside to ControlMap_Custom\.txt\.incomplete-20260929T160000Z-2$/)
+  // Checked again: the repaired map is already complete, so it is left alone and no second backup is made
+  const after = fs.readFileSync(custom)
+  const again = cm.checkControlmaps({ gameDir: game, mo2, now })
+  assert.match(again[0], /has 18 of 18 contexts$/)
+  assert.ok(Buffer.compare(after, fs.readFileSync(custom)) === 0, 'a repaired map is not rewritten')
+  assert.strictEqual(fs.readdirSync(game).filter(f => f.startsWith('ControlMap_Custom.txt.bak-')).length, 1)
   fs.rmSync(root, { recursive: true, force: true })
 })
 
@@ -135,15 +140,19 @@ test('the same full map with LF-only lines is caught: all 18 contexts, but not t
   assert.strictEqual(cm.analyzeControlmap(full.replace('\r\n', '\n')).lf, 1)
 })
 
-test('before launch: an LF-only map is moved aside with its own tag and the reason', () => {
+test('before launch: an LF-only custom map is repaired to CRLF with the player\'s keys kept', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'controlmap-test-'))
   const game = path.join(root, 'skyrim')
   const custom = path.join(game, 'ControlMap_Custom.txt')
   put(custom, full.replace(/\r\n/g, '\n'))
   put(path.join(game, 'Data', DATA_REL), full)
   const lines = cm.checkControlmaps({ gameDir: game, now })
-  assert.match(lines[0], /has 18 of 18 contexts \(\d+ line\(s\) end in LF only, the game's own map uses CRLF\), moved aside to ControlMap_Custom\.txt\.lf-20260929T160000Z$/)
+  // The player's own file is repaired rather than set aside: same contexts, now CRLF, original kept as a .bak
+  assert.match(lines[0], /has 18 of 18 contexts \(\d+ line\(s\) end in LF only, the game's own map uses CRLF\), repaired in place: \d+ binding\(s\) carried across.*original saved as ControlMap_Custom\.txt\.bak-20260929T160000Z$/)
   assert.match(lines[1], /controlmap\.txt has 18 of 18 contexts$/)
-  assert.ok(!fs.existsSync(custom))
+  assert.ok(fs.existsSync(custom), 'the player keeps their file')
+  assert.strictEqual(cm.bareLfCount(fs.readFileSync(custom, 'utf8')), 0, 'and it is CRLF now')
+  assert.ok(cm.analyzeControlmap(fs.readFileSync(custom, 'utf8')).ok)
+  assert.strictEqual(cm.bareLfCount(fs.readFileSync(`${custom}.bak-20260929T160000Z`, 'utf8')) > 0, true, 'the original LF file is kept')
   fs.rmSync(root, { recursive: true, force: true })
 })
