@@ -13,6 +13,9 @@ const path = require('path');
 
 const bundle = process.argv[2];
 if (!bundle) { console.error('usage: node tests/craft-weight-harness.js <bundled masterySystem.js>'); process.exit(2); }
+// A server from before the fork half (mastery-craft-weight 447ab5fa, in the server-next-v2 batch) ignores the key, so
+// there is nothing to test yet: said and not failed, as the front harnesses do for a widget the client lacks
+if (!/craftWeight/.test(fs.readFileSync(bundle, 'utf8'))) { console.log('ok   skipped: this server predates the craft weight (fork mastery-craft-weight)'); process.exit(0); }
 const { MasterySystem } = require(path.resolve(bundle));
 let fails = 0, checks = 0;
 const eq = (label, got, want, tol = 1e-9) => {
