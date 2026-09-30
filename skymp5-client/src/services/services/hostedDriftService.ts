@@ -117,6 +117,7 @@ export class HostedDriftService extends ClientListener {
     const live = new Set(ids.map((raw) => Number(raw) % 0x100000000));
     this.hostedSince.forEach((_, id) => { if (!live.has(id)) this.hostedSince.delete(id); });
     this.loadedSince.forEach((_, id) => { if (!live.has(id)) this.loadedSince.delete(id); });
+    this.sawUnloaded.forEach((id) => { if (!live.has(id)) this.sawUnloaded.delete(id); });
     this.tracks.forEach((_, id) => { if (!live.has(id)) this.tracks.delete(id); });
     this.checkRepairs(now);
     const pc = Game.getPlayer();
@@ -134,8 +135,16 @@ export class HostedDriftService extends ClientListener {
       try {
         const localId = remoteIdToLocalId(remoteId);
         const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
-        if (!ac || !ac.is3DLoaded()) this.loadedSince.delete(remoteId);
-        else if (!this.loadedSince.has(remoteId)) this.loadedSince.set(remoteId, now);
+        // loadedForMs is only worth reporting when we SAW the 3D load. Stamping it the first time we look at an
+        // already-loaded actor made it equal hostedForMs by construction - both took this same `now`, in this same
+        // iteration - and 47 of the 48 split reports carrying both fields had them identical, so the pair could not
+        // tell "hosted before it loaded" from "loaded before we hosted it", which is what they were added for.
+        if (!ac || !ac.is3DLoaded()) {
+          this.loadedSince.delete(remoteId);
+          this.sawUnloaded.add(remoteId);
+        } else if (!this.loadedSince.has(remoteId) && this.sawUnloaded.has(remoteId)) {
+          this.loadedSince.set(remoteId, now);
+        }
         if (!ac || ac.getFormID() === 0x14) {
           pairs.push([remoteId, -1]);
           continue;
@@ -177,7 +186,7 @@ export class HostedDriftService extends ClientListener {
           kind: "split", remoteId: remoteId.toString(16), base: this.baseName(ac), node: nodeName,
           ref: ref.map(Math.round), bone: bone.map(Math.round), dxy: Math.round(dxy), dz: Math.round(dz),
           splitForMs: now - since, attempt: attempts, inCombat: ac.isInCombat(), weaponDrawn: ac.isWeaponDrawn(),
-          hostedForMs: now - (this.hostedSince.get(remoteId) ?? now), loadedForMs: now - (this.loadedSince.get(remoteId) ?? now),
+          hostedForMs: now - (this.hostedSince.get(remoteId) ?? now), loadedForMs: this.loadedFor(remoteId, now),
           fromPlayer: Math.round(this.fromPlayer(ref)), repair: this.repairMode, ...this.context(ac, now),
         });
         this.repair(ac, remoteId, nodeName, limit, ref, bone, now);
@@ -221,7 +230,7 @@ export class HostedDriftService extends ClientListener {
     this.send({
       kind: "sink", remoteId: remoteId.toString(16), base: this.baseName(ac), node,
       ref: ref.map(Math.round), bone: bone.map(Math.round), dz: Math.round(bone[2] - ref[2]), inCombat: ac.isInCombat(),
-      hostedForMs: now - (this.hostedSince.get(remoteId) ?? now), loadedForMs: now - (this.loadedSince.get(remoteId) ?? now),
+      hostedForMs: now - (this.hostedSince.get(remoteId) ?? now), loadedForMs: this.loadedFor(remoteId, now),
       fromPlayer: Math.round(this.fromPlayer(ref)), ...this.context(ac, now),
     });
   }
@@ -598,6 +607,15 @@ export class HostedDriftService extends ClientListener {
   private splitSince = new Map<number, number>();
   private repairedAt = new Map<number, number>();
   private attempts = new Map<number, number>();
+  // Ids we have observed NOT 3D-loaded, so a later load is a transition we witnessed rather than an assumption
+  private sawUnloaded = new Set<number>();
+
+  // ms since we saw this actor's 3D load, or -1 when it was already loaded the first time we looked
+  private loadedFor(remoteId: number, now: number): number {
+    const at = this.loadedSince.get(remoteId);
+    return at === undefined ? -1 : now - at;
+  }
+
   private hostedSince = new Map<number, number>();
   private loadedSince = new Map<number, number>();
   private sinkAt = new Map<number, number>();
