@@ -1,5 +1,20 @@
 [
   {
+    "title": "Your Curse in the Skills Menu",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Werewolves and vampires",
+        "items": [
+          "Werewolves and vampires now have their own tab in the Skills menu (K): your rank and what the next one brings, your thirst or your beast, your first meal, and your powers. It appears with the next client update.",
+          "The werewolf's howl that senses the living is now named for the Totem of the Hunt, as in Skyrim. Howl of the Pack is the howl that calls wolves."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Crafting grows with your skill",
     "date": "2026-09-30",
     "version": "Server update",
