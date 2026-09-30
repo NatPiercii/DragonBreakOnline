@@ -225,6 +225,27 @@ uint32_t FormIdOf(const VarValue& v)
 }
 }
 
+TEST_CASE("GetAngleX/Y/Z return the reference's angle in degrees",
+          "[Papyrus][ObjectReference]")
+{
+  PapyrusObjectReference papyrusObjectReference;
+  PartOne partOne;
+  auto& refr = CreateMpObjectReference(partOne, 0xff000001);
+  // SetAngle takes Papyrus degrees and stores them as they are; GetAngle* must give the same numbers back
+  papyrusObjectReference.SetAngle(
+    refr.ToVarValue(), { VarValue(10.f), VarValue(-20.f), VarValue(270.f) });
+  REQUIRE(refr.GetAngle() == NiPoint3(10.f, -20.f, 270.f));
+  REQUIRE(papyrusObjectReference.GetAngleX(refr.ToVarValue(), {}) ==
+          VarValue(10.f));
+  REQUIRE(papyrusObjectReference.GetAngleY(refr.ToVarValue(), {}) ==
+          VarValue(-20.f));
+  REQUIRE(papyrusObjectReference.GetAngleZ(refr.ToVarValue(), {}) ==
+          VarValue(270.f));
+  // A self that is not a server reference gives None, as GetPositionX does
+  REQUIRE(papyrusObjectReference.GetAngleZ(VarValue::None(), {}) ==
+          VarValue::None());
+}
+
 TEST_CASE("REFR keeps every XLKR with its keyword", "[espm]")
 {
   auto& p = GetPartOne();
