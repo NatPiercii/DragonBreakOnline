@@ -184,6 +184,27 @@ ok(lipsOf(V) === -13424870 && chinOf(V) === 16777215 && !state(V).blood, 'water 
 ok(packets.some(([a, p]) => a === V && p.customPacketType === 'dboBloody' && p.on === false) && heard(V, /water runs red/), 'the client stops watching, and the vampire is told');
 fire('swimming', V);
 ok(said.filter((s) => /water runs red/.test(s.t)).length === 1, 'swimming with a clean face does nothing');
+// Worker B's review: a face changed between the feed and the wash (RaceMenu, a reroll) must not lose the originals
+const BL = 0xc0500808 | 0, BC = 0x90400606 | 0;
+const bloodyWith = (prevList, tintList) => {
+  store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: { prev: prevList, at: now } }));
+  store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: tintList });
+};
+const P_LIPS = { texturePath: 'TintMasks\\MaleHeadNord_Lips.dds', type: 1, argb: -13424870 };
+const P_CHIN = { texturePath: 'TintMasks\\MaleHeadHuman_Chin.dds', type: 11, argb: 16777215 };
+bloodyWith([P_LIPS, P_CHIN], [{ texturePath: 'TintMasks\\MaleHeadImperial_Lips.dds', type: 1, argb: BL }, { texturePath: 'TintMasks\\MaleHeadHuman_Chin.dds', type: 11, argb: BC }]);
+fire('swimming', V);
+ok(lipsOf(V) === -13424870 && chinOf(V) === 16777215 && !state(V).blood, 'a changed lips mask still gets its original colour back (matched by type and the blood colour)');
+bloodyWith([P_LIPS, P_CHIN], [{ texturePath: 'TintMasks\\FemaleHeadBreton_Lips.dds', type: 1, argb: -5000000 }, { texturePath: 'TintMasks\\FemaleHeadHuman_Chin.dds', type: 11, argb: 0 }]);
+const before = JSON.stringify(store.get(`${V}|appearance`));
+fire('swimming', V);
+ok(!state(V).blood && JSON.stringify(store.get(`${V}|appearance`)) === before, 'a new face with no blood on it is left as it is, and the blood state ends');
+bloodyWith([P_LIPS, P_CHIN], [{ texturePath: 'TintMasks\\MaleHeadNord_Lips.dds', type: 1, argb: BL }, { texturePath: 'TintMasks\\MaleHeadDirt_01.dds', type: 14, argb: BC }]);
+fire('swimming', V);
+ok(lipsOf(V) === -13424870 && state(V).blood && state(V).blood.prev.length === 1 && state(V).blood.prev[0].type === 11,
+  'what cannot be put back while blood is still on the face is kept for the next wash, not thrown away', state(V).blood);
+store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { blood: null }));
+store.set(`${V}|appearance`, { raceId: 0x13746, isFemale: false, headpartIds: [], tints: tints() });
 // A client without the feeding service could never wash it off: no blood for it
 fire('uiCaps', V, ['robPrompt']);
 store.set(`${V}|private.supernatural`, Object.assign({}, state(V), { stage: 3, blood: null }));
