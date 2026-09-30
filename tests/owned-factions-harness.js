@@ -35,7 +35,7 @@ const load = (c) => {
 try {
   for (const f of ['wildlife.json', 'loot.json', 'artifacts.json']) fs.writeFileSync(path.join(dir, f), f === 'wildlife.json' ? JSON.stringify({ placements: [], giantCamps: [] }) : f === 'loot.json' ? '{"pools":{}}' : '{"patterns":[]}');
   fs.writeFileSync(path.join(dir, 'zone-spawns.json'), JSON.stringify([GOB1, GOB2, BOAR, WOLF, DUNGEON]));
-  globalThis.__dboOwnedFactioned = undefined;
+  globalThis.__dboOwnedFactioned = undefined; globalThis.__dboOwnedFactionState = undefined;
   load({ ownedSpawns: cfg.ownedSpawns });
   const tick = () => { process.chdir(dir); try { globalThis.__dboOwnedFactionTick(); } finally { process.chdir(cwd); } };
   tick();
@@ -47,15 +47,42 @@ try {
   sets.length = 0; tick();
   ok(fac(GOB1).length === 0, 'each live actor is given its factions once, not every tick');
   // the actor dies and its form id is reused by a new goblin: the id left the sidecar in between
-  fs.writeFileSync(path.join(dir, 'zone-spawns.json'), JSON.stringify([GOB2])); tick();
-  fs.writeFileSync(path.join(dir, 'zone-spawns.json'), JSON.stringify([GOB1, GOB2])); sets.length = 0; tick();
+  fs.writeFileSync(path.join(dir, 'zone-spawns.json'), JSON.stringify([GOB2])); fs.utimesSync(path.join(dir, 'zone-spawns.json'), new Date(), new Date(Date.now() + 1000)); tick();
+  fs.writeFileSync(path.join(dir, 'zone-spawns.json'), JSON.stringify([GOB1, GOB2])); fs.utimesSync(path.join(dir, 'zone-spawns.json'), new Date(), new Date(Date.now() + 2000)); sets.length = 0; tick();
   ok(fac(GOB1).length === 1, 'a form id that left and came back (a respawn) is given the factions again');
-  // config: another kind, and a desc that does not resolve
-  sets.length = 0; globalThis.__dboOwnedFactioned = undefined;
+  // the sidecar unchanged: no re-read (no tag lookups at all)
+  let gets = 0; const realGet = mp.get; mp.get = (id, k) => { gets++; return realGet(id, k); };
+  tick();
+  ok(gets === 0, 'an unchanged sidecar is not read again', gets);
+  mp.get = realGet;
+  // a transient failure is retried, not marked done
+  const realSet = mp.set; let failOnce = true;
+  mp.set = (id, k, v) => { if (k === 'ff_factions' && failOnce) { failOnce = false; throw new Error('transient'); } realSet(id, k, v); };
+  const GOB3 = 0xff0000c0; tag(GOB3, 'wild:goblin:p154072-dragonbreakonlineedits');
+  fs.writeFileSync(path.join(dir, 'zone-spawns.json'), JSON.stringify([GOB1, GOB2, GOB3])); sets.length = 0;
+  fs.utimesSync(path.join(dir, 'zone-spawns.json'), new Date(), new Date(Date.now() + 5000));
+  tick();
+  ok(fac(GOB3).length === 0, 'the first apply fails (transient)');
+  tick();
+  ok(fac(GOB3).length === 1, '...and the next tick applies it, although the sidecar did not change');
+  mp.set = realSet;
+  // config: another kind, a desc that does not resolve, and a list that only partly resolves
+  sets.length = 0; globalThis.__dboOwnedFactioned = undefined; globalThis.__dboOwnedFactionState = undefined;
   load({ ownedSpawns: { factions: { boar: ['2e894:Skyrim.esm'], goblin: ['1:NoSuchPlugin.esm'] } } });
   fs.writeFileSync(path.join(dir, 'zone-spawns.json'), JSON.stringify([GOB1, BOAR])); tick();
   ok(fac(BOAR).length === 1 && fac(BOAR)[0][2].f[0][0] === 0x2e894, 'config adds a kind (boars into PreyFaction here)');
   ok(fac(GOB1).length === 0, 'a kind whose factions do not resolve is left as the plugin made it, not stripped');
+  sets.length = 0; globalThis.__dboOwnedFactioned = undefined; globalThis.__dboOwnedFactionState = undefined;
+  const logs = [];
+  process.chdir(dir);
+  try {
+    delete require.cache[path.join(ROOT, 'wildlife.js')];
+    require(path.join(ROOT, 'wildlife.js'))({ mp, log: (...a) => logs.push(a.join(' ')), personal: () => {}, system: () => {}, registerChatCommand: () => {}, giveItem: () => true,
+      profileOf: () => 1, display: String, who: String, audit: () => {}, isAdmin: () => false, cfg: { ownedSpawns: { factions: { goblin: ['13:Skyrim.esm', '877f5:NoSuchPlugin.esm'] } } }, onlineActors: () => [], sendPacket: () => {} });
+  } finally { process.chdir(cwd); }
+  fs.utimesSync(path.join(dir, 'zone-spawns.json'), new Date(), new Date(Date.now() + 9000)); tick();
+  ok(fac(GOB1).length === 0, 'a list that only partly resolves is not applied at all (CreatureFaction alone would bring the infighting back)', fac(GOB1));
+  ok(logs.some((l) => /ownedSpawns\.factions\.goblin: 877f5:NoSuchPlugin\.esm not in the load order/.test(l)), '...and the missing faction is named in the log', logs);
   ok(Array.isArray(cfg.ownedSpawns.factions.goblin) && cfg.ownedSpawns.factions.goblin.length === 2, 'gamemode-config.json carries the goblin factions');
   const gm = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');
   ok(/makeProp\('ff_factions', true\)/.test(gm), 'ff_factions is a neighbour-visible property, so every watcher applies it');
