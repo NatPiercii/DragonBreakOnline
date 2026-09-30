@@ -31,6 +31,9 @@ const report = require('./report')
 const crashWatch = require('./crashWatch')
 const nxmLinks = require('./nxm')
 const legalLib = require('./legal')
+const installProgress = require('./renderer/installProgress')
+const installGate  = installProgress.createGate()
+const installTrack = installProgress.createTracker()
 
 // Settings stay in the folder named after the launcher's original product name.
 const USER_DATA_DIR = path.join(app.getPath('appData'), 'DragonBreak Online Launcher')
@@ -125,6 +128,12 @@ let win = null
 
 function send(channel, ...args) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
+  // Each progress line is also the panel's detail line
+  const line = channel === 'install:progress' ? args[0] && args[0].file : channel === 'isolated:progress' ? args[0] : null
+  if (typeof line === 'string' && installTrack.running()) {
+    installTrack.detail(line)
+    sendInstallState()
+  }
 }
 
 // Active server helper
@@ -295,6 +304,16 @@ function createWindow() {
   })
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
+  // Closing mid-install asks first; a re-run keeps finished downloads and installed mods
+  win.on('close', (e) => {
+    if (!installGate.running()) return
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning', buttons: ['Keep installing', 'Close anyway'], defaultId: 0, cancelId: 0, noLink: true,
+      title: 'DragonBreak Online', message: 'An install is running. Close anyway?',
+      detail: 'It picks up where it stopped next time: finished downloads and installed mods are kept, and only the file that was downloading starts again.',
+    })
+    if (choice !== 1) e.preventDefault()
+  })
   win.once('ready-to-show', () => {
     win.show()
     // Chained so the two startup modals never stack
@@ -1155,14 +1174,12 @@ function pathsOverlap(a, b) {
 }
 
 ipcMain.handle('game:createIsolated', async (_e, baseDirOverride, opts) => {
-  if (installing) {
-    return { success: false, error: 'An install is already running - wait for it to finish.' }
-  }
-  installing = true
+  const gate = beginInstall('the game copy')
+  if (!gate.ok) return { success: false, error: gate.error }
   try {
     return await createIsolatedImpl(baseDirOverride, !!(opts && opts.force))
   } finally {
-    installing = false
+    endInstall()
   }
 })
 
@@ -1392,9 +1409,14 @@ async function copyGameDir(src, dst) {
   }
 
   let copied = 0
+  // Weighted by bytes for the progress bar: the archives dwarf the rest
+  const sizes = jobs.map(j => { try { return fs.statSync(jobSource(src, j)).size } catch { return 0 } })
+  const totalBytes = sizes.reduce((n, b) => n + b, 0)
+  let doneBytes = 0
+  installStep('copy', { index: 0, total: totalBytes })
   // A fresh run invalidates any previous completion marker.
   try { fs.rmSync(path.join(dst, 'vanilla-copy-complete.json'), { force: true }) } catch {}
-  for (const job of jobs) {
+  for (const [i, job] of jobs.entries()) {
     const to = path.join(dst, job.sub, job.rel)
     try {
       fs.mkdirSync(path.dirname(to), { recursive: true })
@@ -1404,6 +1426,8 @@ async function copyGameDir(src, dst) {
       continue
     }
     copied++
+    doneBytes += sizes[i]
+    installTrack.step('copy', { index: doneBytes, total: totalBytes })
     send('isolated:progress', `Copying vanilla game files… ${copied}/${jobs.length} (${job.rel})`)
   }
   // AE popup fix: an empty Skyrim.ccc declares no CC content expected, so the engine never prompts AE owners to download it.
@@ -1782,6 +1806,7 @@ async function gameProcessRunning() {
 // Refuses a launch while another is being prepared, starting, or the game already runs
 async function guardLaunch(launch) {
   if (launchInFlight) return { success: false, error: 'The game is already launching.' }
+  if (installGate.running()) return { success: false, error: installGate.refusal() }
   launchInFlight = true
   try {
     if (await gameProcessRunning()) return { success: false, error: 'Skyrim is already running.' }
@@ -1981,6 +2006,7 @@ function downloadToFile(url, dest, onProgress, redirectsLeft = 5) {
 // In-app launcher update: download the new installer, run it silently, and let
 // it relaunch us (--force-run). Replaces the "open the download page" flow.
 ipcMain.handle('app:installUpdate', async () => {
+  if (installGate.running()) return { ok: false, error: installGate.refusal() }
   try {
     const data = await fetchJSON(`${config.apiUrl}/api/version`)
     if (!data.downloadUrl) return { ok: false, error: 'No download URL is configured on the server.' }
@@ -2309,6 +2335,7 @@ async function runDowngrade() {
 
 async function exclusive(fn) {
   if (downgradeBusy) return { ok: false, error: 'A Skyrim version step is already running.' }
+  if (installGate.running()) return { ok: false, error: installGate.refusal() }
   downgradeBusy = true
   try { return await fn() } catch (err) {
     log(`[downgrade] ${err.message}`)
@@ -2610,12 +2637,38 @@ function missingPluginsForMO2(skyrimPath, serverLoadOrder) {
 
 // Install files
 
-let installing   = false
 let installAbort = null   // AbortController for the running install's waits
+let installStateAt = 0
+
+// The progress panel's state: at once for a step change or the end, else at most ten times a second
+function sendInstallState(now = false) {
+  if (!now && Date.now() - installStateAt < 100) return
+  installStateAt = Date.now()
+  send('install:state', installTrack.snapshot())
+}
+// flow: 'mo2' or 'client' draw a weighted bar; anything else a bar that only shows the install is working
+function beginInstall(what, flow = 'other') {
+  const gate = installGate.begin(what)
+  if (!gate.ok) return gate
+  installTrack.begin(flow)
+  sendInstallState(true)
+  return gate
+}
+function endInstall() {
+  installGate.end()
+  installTrack.end()
+  sendInstallState(true)
+}
+function installStep(id, info) {
+  installTrack.step(id, info)
+  sendInstallState(true)
+}
 
 // opts.force: 'client' re-downloads the zip, 'modlist' rebuilds every mod (Repair buttons).
 ipcMain.on('install:start', (_e, mode, opts) => {
-  if (installing) {
+  const mo2Run = mode === 'mo2' || mode === 'modlist' || (mode !== 'client' && !!store.get('mo2Enabled'))
+  const gate = beginInstall(mode === 'client' ? 'the client files' : 'the modpack', mo2Run ? 'mo2' : 'client')
+  if (!gate.ok) {
     // Never ignore the click silently: the user has no other way to know an
     // earlier install is still running (e.g. parked on a downloads wait).
     send('install:progress', {
@@ -2626,7 +2679,6 @@ ipcMain.on('install:start', (_e, mode, opts) => {
     send('install:complete', { success: false, error: 'An install is already running - wait for it to finish.' })
     return
   }
-  installing = true
   installAbort = new AbortController()
   const force = !!(opts && opts.force)
 
@@ -2644,21 +2696,21 @@ ipcMain.on('install:start', (_e, mode, opts) => {
   fn.catch(err => {
     log('[install] Unhandled error:', err.message)
     send('install:complete', { success: false, error: `Unexpected error: ${err.message}` })
-    installing = false
+    endInstall()
   })
 })
 
 // Cancels the running install at its next wait/step boundary.
 ipcMain.on('install:cancel', () => {
-  if (installing && installAbort) installAbort.abort()
+  if (installGate.running() && installAbort) installAbort.abort()
 })
 
 // Standalone install steps (Repair tab buttons); all stream progress over the shared install:progress channel.
 
 // MO2 only: download/unpack MO2 and refresh the portable instance. force reinstalls MO2's own files.
 ipcMain.handle('install:mo2only', async (_e, opts) => {
-  if (installing) return { success: false, error: 'An install is already running - cancel it first.' }
-  installing = true
+  const gate = beginInstall('Mod Organizer 2')
+  if (!gate.ok) return { success: false, error: gate.error }
   try {
     const skyrimPath = store.get('skyrimPath')
     if (skyrimPath && pathsOverlap(skyrimPath, mo2.getRoot())) {
@@ -2686,13 +2738,13 @@ ipcMain.handle('install:mo2only', async (_e, opts) => {
   } catch (err) {
     return { success: false, error: err.message }
   } finally {
-    installing = false
+    endInstall()
   }
 })
 
 // SKSE only: download the edition-matched SKSE and install it into the game root. force drops the cached archive so a fresh copy is fetched.
 ipcMain.handle('install:skse', async (_e, opts) => {
-  if (installing) return { success: false, error: 'An install is already running - cancel it first.' }
+  if (installGate.running()) return { success: false, error: installGate.refusal() }
   // With isolation on, SKSE must land in the portable copy, never the original install
   let gamePath
   if (store.get('isolatedGame')) {
@@ -2706,7 +2758,7 @@ ipcMain.handle('install:skse', async (_e, opts) => {
   if (!gamePath || !fs.existsSync(path.join(gamePath, 'SkyrimSE.exe'))) {
     return { success: false, error: 'No game folder found - install the game copy or set a valid Skyrim path first.' }
   }
-  installing = true
+  beginInstall('SKSE')
   try {
     if (opts && opts.force) {
       try { fs.rmSync(path.join(mo2.getDownloadsDir(), mo2.skseSourceFor(gamePath).fileName), { force: true }) } catch {}
@@ -2717,20 +2769,20 @@ ipcMain.handle('install:skse', async (_e, opts) => {
   } catch (err) {
     return { success: false, error: err.message }
   } finally {
-    installing = false
+    endInstall()
   }
 })
 
 // Read-only integrity scan over every Repair section; nothing on disk changes.
 ipcMain.handle('install:check', async () => {
-  if (installing) return { ok: false, error: 'An install is already running - wait for it to finish.' }
-  installing = true
+  const gate = beginInstall('the file check')
+  if (!gate.ok) return { ok: false, error: gate.error }
   try {
     return await checkFilesImpl()
   } catch (err) {
     return { ok: false, error: err.message }
   } finally {
-    installing = false
+    endInstall()
   }
 })
 
@@ -3006,6 +3058,7 @@ ipcMain.handle('extras:state', () => ({
   baseDir: store.get('baseDirPath') || DEFAULT_BASE_DIR,
 }))
 ipcMain.handle('extras:disable', async () => {
+  if (installGate.running()) return { success: false, error: installGate.refusal() }
   try {
     const gamePath = effectiveGamePath()
     if (!gamePath) return { success: false, error: 'No game copy is installed.' }
@@ -3026,6 +3079,7 @@ ipcMain.handle('extras:disable', async () => {
   } catch (err) { return { success: false, error: err.message } }
 })
 ipcMain.handle('extras:enable', async () => {
+  if (installGate.running()) return { success: false, error: installGate.refusal() }
   try {
     const gamePath = effectiveGamePath()
     if (!gamePath) return { success: false, error: 'No game copy is installed.' }
@@ -3038,6 +3092,7 @@ ipcMain.handle('extras:enable', async () => {
 })
 // Uninstall: the whole install location (game copy, MO2, mods, downloads) goes; the launcher and its settings stay
 ipcMain.handle('install:uninstall', async () => {
+  if (installGate.running()) return { success: false, error: installGate.refusal() }
   try {
     const base = store.get('baseDirPath') || DEFAULT_BASE_DIR
     if (await gameProcessRunning()) return { success: false, error: 'Close Skyrim first.' }
@@ -3305,8 +3360,11 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
     }
 
     // 2. Download
+    const directRun = installTrack.kind() === 'client'
+    if (directRun) installStep('client')
     send('install:progress', { phase: 'download', file: 'Connecting to server…', index: 0, total: 0, skipped: false })
     await downloadClientZip(tempZip, (received, total) => {
+      if (directRun) installTrack.file('The client files', received, total)
       const mb  = n => (n / 1024 / 1024).toFixed(1)
       const pct = total > 0 ? ` (${Math.round(received / total * 100)}%)` : ''
       send('install:progress', {
@@ -3322,7 +3380,9 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
     try { settingsSnapshot = fs.readFileSync(clientSettingsPath, 'utf8') } catch { /* first install */ }
     // An interrupted extract must show as an update on the next Play
     store.set('filesVersion', '')
+    if (directRun) installStep('unpack')
     const extracted = await extractClientZip(tempZip, skyrimPath, (file, i, total) => {
+      if (directRun) installTrack.step('unpack', { index: i, total })
       send('install:progress', { phase: 'extract', file, index: i, total, skipped: false })
     })
     if (settingsSnapshot !== null) {
@@ -3363,7 +3423,7 @@ async function runDirectInstall(force = false) {
   const fail = (msg) => {
     log('[install] ABORT:', msg)
     send('install:complete', { success: false, error: msg })
-    installing = false
+    endInstall()
   }
 
   if (!skyrimPath) return fail('Skyrim path not configured.')
@@ -3381,7 +3441,7 @@ async function runDirectInstall(force = false) {
   send('install:complete', core.success
     ? { success: true, upToDate: core.upToDate, ...(integrity.warning ? { warning: integrity.warning } : {}) }
     : { success: false, error: core.error })
-  installing = false
+  endInstall()
 }
 
 // Filename pattern for a Nexus archive: downloads embed the mod id (…-17230-…); a renamed
@@ -3440,6 +3500,7 @@ async function handleNxmLinkNow(link) {
   if (!fileName) { try { const info = await nexus.fileInfo(auth, modId, fileId); fileName = info.file_name || `${modId}-${fileId}.zip` } catch { fileName = `${modId}-${fileId}.zip` } }
   const mb = n => (n / 1048576).toFixed(1)
   const name = await nexus.downloadWithKey(auth, modId, fileId, key, expires, fileName, downloadsDir, (r, t) => {
+    installTrack.file(fileName, r, t, expected ? expected.id : undefined)
     send('install:progress', { phase: 'download', file: `Downloading ${fileName} ${mb(r)}${t ? ' / ' + mb(t) : ''} MB`, index: 0, total: 0, skipped: false })
   })
   if (expected && expected.hash && !(await mo2.verifyArchiveAsync(path.join(downloadsDir, name), expected.hash))) {
@@ -3511,7 +3572,7 @@ async function runMO2Install(opts = {}) {
     // and the update check flips the button to UPDATE until a run succeeds.
     store.set('modpackState', 'failed')
     send('install:complete', { success: false, error: msg })
-    installing = false
+    endInstall()
   }
 
   const skyrimPath = effectiveGamePath()
@@ -3640,6 +3701,7 @@ async function runMO2Install(opts = {}) {
       if (modChanged(manifest.mods[i])) modsToInstall.push(manifest.mods[i])
       if ((i + 1) % 10 === 0 || i + 1 === manifest.mods.length) {
         send('install:progress', { phase: 'verify', index: i + 1, total: manifest.mods.length })
+        installStep('verify', { index: i + 1, total: manifest.mods.length })
       }
       // Yield between folder walks so the UI stays responsive on slow disks
       await new Promise(r => setImmediate(r))
@@ -3663,6 +3725,15 @@ async function runMO2Install(opts = {}) {
     const neededArchiveIds = new Set()
     for (const m of modsToInstall) for (const f of m.files) if (f.archive) neededArchiveIds.add(f.archive)
     if (needsRoot) for (const f of (manifest.root || [])) if (f.archive) neededArchiveIds.add(f.archive)
+    const needed   = manifest.archives.filter(x => neededArchiveIds.has(x.id))
+    const modBytes = m => Math.max(1, (m.files || []).reduce((n, f) => n + (Number(f.size) || 0), 0))
+    installTrack.plan({ archives: needed.map(a => ({ id: a.id, size: a.size })), installBytes: modsToInstall.reduce((n, m) => n + modBytes(m), 0) })
+    installStep('download', { index: 0, total: needed.length })
+    const gotArchive = (a, k) => {
+      installTrack.acquired(a.id)
+      installTrack.step('download', { index: k + 1, total: needed.length })
+      sendInstallState()
+    }
 
     const locate = async (a) => {
       const names = []
@@ -3683,25 +3754,28 @@ async function runMO2Install(opts = {}) {
     }
     let reused = 0
 
-    for (const a of manifest.archives.filter(x => neededArchiveIds.has(x.id))) {
+    for (const [k, a] of needed.entries()) {
       const existing = await locate(a)
-      if (existing) { archivePaths[a.id] = existing; continue }
+      if (existing) { archivePaths[a.id] = existing; gotArchive(a, k); continue }
 
       if (a.source.type === 'url') {
         send('install:progress', { phase: 'mods', file: `Downloading ${a.name}…`, index: 0, total: 0, skipped: false })
         const name = await mo2.downloadToDownloads(a.source.url, a.name, (r, t) => {
           const pct = t > 0 ? ` (${Math.round(r / t * 100)}%)` : ''
+          installTrack.file(a.name, r, t, a.id)
           send('install:progress', { phase: 'mods', file: `Downloading ${a.name}… ${mb(r)} MB${pct}`, index: 0, total: 0, skipped: false })
         })
         const p = path.join(downloadsDir, name)
         if (!(await mo2.verifyArchiveAsync(p, a.hash))) return fail(`${a.name}: downloaded file failed verification (hash mismatch).`)
         archivePaths[a.id] = p
+        gotArchive(a, k)
       } else if (a.source.type === 'nexus' && premium) {
         send('install:progress', { phase: 'mods', file: `Downloading ${a.name}…`, index: 0, total: 0, skipped: false })
         let name = null
         try {
           name = await nexus.downloadFileEntry(nexusAuth, a.source.modId, { fileId: a.source.fileId, fileName: a.name }, downloadsDir, (r, t) => {
             const pct = t > 0 ? ` (${Math.round(r / t * 100)}%)` : ''
+            installTrack.file(a.name, r, t, a.id)
             send('install:progress', { phase: 'mods', file: `Downloading ${a.name}… ${mb(r)} / ${mb(t)} MB${pct}`, index: 0, total: 0, skipped: false })
           })
         } catch (err) {
@@ -3716,6 +3790,7 @@ async function runMO2Install(opts = {}) {
         const p = path.join(downloadsDir, name)
         if (!(await mo2.verifyArchiveAsync(p, a.hash))) return fail(`${a.name}: downloaded file failed verification (hash mismatch - the version pin may have changed).`)
         archivePaths[a.id] = p
+        gotArchive(a, k)
       } else if (a.source.type === 'nexus') {
         needBrowser.push(a)
       } else {
@@ -3735,6 +3810,14 @@ async function runMO2Install(opts = {}) {
         // Not signed in: the whole list, downloaded by hand into the downloads folder.
         const guide = nexusAuth ? nexusGuide(needBrowser) : null
         if (!guide) openDownloadList(downloadsDir, needBrowser)
+        installStep('wait', { index: 0, total: needBrowser.length })
+        // The page the guide just opened: the panel asks the player for that one file
+        const openPage = found => {
+          const i = guide(found)
+          if (i === null || i === undefined) return
+          installTrack.waiting({ page: found.filter(Boolean).length + 1, pages: needBrowser.length, name: needBrowser[i].name })
+          sendInstallState(true)
+        }
         send('install:progress', {
           phase: 'mods',
           file:  guide
@@ -3742,14 +3825,21 @@ async function runMO2Install(opts = {}) {
             : 'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder. Sign in to Nexus in the top bar first and each mod becomes one click with nothing to move.',
           index: 0, total: needBrowser.length, skipped: false,
         })
-        if (guide) guide(needBrowser.map(() => false))
+        if (guide) openPage(needBrowser.map(() => false))
         // Matched by sha256, so paths come back verified regardless of filename; the
         // namePattern only flags likely wrong-version files in the status message.
         const paths = await mo2.waitForDownloads(
           needBrowser.map(a => ({ name: a.name, hash: a.hash, size: a.size, namePattern: nexusNamePattern(a.source.modId, a.name) })),
           (done, total, message, found) => {
-            send('install:progress', { phase: 'mods', file: message, index: done, total, skipped: false })
-            if (guide && found) guide(found)
+            (found || []).forEach((f, j) => { if (f) installTrack.acquired(needBrowser[j].id) })
+            installTrack.step('wait', { index: done, total })
+            if (guide && found) openPage(found)
+            if (done >= total) installTrack.waiting(null)
+            const { waiting: w, file: f } = installTrack.snapshot()
+            const line = f && f.total > 0 && f.done < f.total ? `Downloading ${f.name}…`
+              : guide && w && done < total ? `Waiting for you: click "Slow download" on the Nexus page that just opened (page ${w.page} of ${w.pages}): ${w.name}`
+                : message
+            send('install:progress', { phase: 'mods', file: line, index: done, total, skipped: false })
           },
           installAbort?.signal)
         needBrowser.forEach((a, i) => { archivePaths[a.id] = paths[i] })
@@ -3790,6 +3880,7 @@ async function runMO2Install(opts = {}) {
     for (let i = 0; i < modsToInstall.length; i++) {
       const mod = modsToInstall[i]
       const ids = [...new Set(mod.files.filter(f => f.archive).map(f => f.archive))]
+      installStep('install', { index: i, total: modsToInstall.length })
       send('install:progress', { phase: 'mods', file: `Installing ${mod.name}…`, index: i, total: modsToInstall.length, skipped: false })
       try {
         await ensureExtracted(ids, i, modsToInstall.length)
@@ -3799,8 +3890,12 @@ async function runMO2Install(opts = {}) {
         failed.push(`${mod.name} (${err.message})`)
       }
       release(ids)
+      installTrack.installed(modBytes(mod))
+      installTrack.step('install', { index: i + 1, total: modsToInstall.length })
+      sendInstallState()
     }
 
+    installStep('finish')
     if (needsRoot && manifest.root && manifest.root.length > 0) {
       const ids = [...new Set(manifest.root.filter(f => f.archive).map(f => f.archive))]
       try {
@@ -3836,7 +3931,7 @@ async function runMO2Install(opts = {}) {
     fail(`Install failed: ${err.message}`)
     return
   } finally {
-    installing = false
+    endInstall()
   }
 }
 

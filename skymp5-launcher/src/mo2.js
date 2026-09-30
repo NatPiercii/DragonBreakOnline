@@ -1355,7 +1355,7 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
         : '')
       if (onProgress) {
         onProgress(wanted.length - remaining.length, wanted.length,
-          remaining.length ? `Waiting for downloads: ${remaining.join(', ')}${note}` : 'All downloads received',
+          remaining.length ? `Waiting for downloads: ${wanted.length - remaining.length} of ${wanted.length} received, next ${remaining[0]}${note}` : 'All downloads received',
           found.map(Boolean))
       }
       if (remaining.length === 0) return resolve(found)
