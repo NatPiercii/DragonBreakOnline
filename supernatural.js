@@ -810,6 +810,115 @@ module.exports = (api) => {
   // After an identity reroll a vampire wears the vampire variant of the race just chosen
   globalThis.__dboSuperReapplyLook = (a) => { if (kindOf(a) === 'vampire') setLookRace(a, true); };
   globalThis.__dboSuperCrownHolder = () => crownHolder();
+
+  // ---- the skills menu's Werewolf and Vampire tab (K) --------------------------------------------------------------
+  // Nate 2026-09-30: a werewolf or a vampire sees their progression beside their skills. The client asks for the skills
+  // menu with masteryInfoRequest; masterySystem answers with the skills, and gamemode.js has this answer with the curse
+  // (dboSuperProgress). Anyone else is sent null, so a cure takes the tab away. Every word is written here and the front
+  // only lays it out, so the wording changes with a hot reload, not a client pack.
+  const realMinutes = (gameDaysAhead) => {
+    let scale = 6; try { scale = Number(clock().summary().timeScale) || 6; } catch (e) { /* no clock: the default */ }
+    return Math.max(0, gameDaysAhead) * 1440 / scale;
+  };
+  const inWords = (mins) => (mins < 1.5 ? 'a moment' : mins < 90 ? `${Math.round(mins)} minutes` : `${Math.round(mins / 60)} hours`);
+  const werewolfView = (a, s) => {
+    const hunt = typeof globalThis.__dboHuntView === 'function' ? globalThis.__dboHuntView(a) : null;
+    const alpha = isAlpha(a);
+    const packs = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a).filter((g) => g.kind === 'pack') : [];
+    const rows = [{
+      label: 'Pack',
+      value: packs.length ? packs.map((p) => `${p.name}, ${p.title}`).join('; ') : 'None: you hunt alone',
+      hint: alpha ? 'You lead your pack. You run with the pale coat, and the beast answers to you.'
+        : packs.length ? 'A packmate who brings the Pack Leader down, both in beast form, takes the pack.' : 'A pack takes you in only by invitation.',
+    }];
+    if (spared(a, s)) rows.push({ label: 'Beast form', value: 'At will', hint: alpha ? 'A Pack Leader is not held to a daily change.' : "Hircine's blessing frees you from the daily change." });
+    else {
+      const now = gameDays(); const day = Math.floor(now);
+      const perDay = typeof globalThis.__dboHuntChangesPerDay === 'function' ? Number(globalThis.__dboHuntChangesPerDay(a)) || C.beastChangesPerDay : C.beastChangesPerDay;
+      const used = Math.min(perDay, s.beastDay === day ? Number(s.beastDayUses) || 0 : 0);
+      rows.push({ label: 'Beast form today', value: `${used} of ${perDay} used`, hint: used >= perDay ? `The beast stirs again when the day turns, in about ${inWords(realMinutes(day + 1 - now))}.` : 'Use the Beast Form power to change.' });
+    }
+    if (beastForm(a) === 'werewolf') {
+      let b = null; try { b = mp.get(a, 'private.beast'); } catch (e) { /* offline */ }
+      const left = b && b.until ? Math.max(0, Math.ceil((Number(b.until) - Date.now()) / 1000)) : 0;
+      rows.push({ label: 'In the beast', value: left ? `${left} s left` : 'Now', hint: 'Feed on a fresh body to stay longer.' });
+    }
+    if (spared(a, s)) rows.push({ label: 'The beast within', value: 'Held', hint: 'It never takes you unprepared, and the full moon does not force it out.' });
+    else {
+      const hunger = typeof hungerOf === 'function' ? Math.max(0, Math.min(100, Number(hungerOf(a)) || 0)) : 50;
+      let full = false; try { full = !!clock().isFullMoon(); } catch (e) { /* no clock */ }
+      rows.push({
+        label: 'The beast within', value: hunger < 34 ? 'Quiet' : hunger < 67 ? 'Restless' : 'Straining',
+        hint: `${hunger < 34 ? 'You are fed, and it rarely breaks free.' : hunger < 67 ? 'You are hungry, and it may break free. Eat to calm it.' : 'You are starving, and it will break free soon. Eat.'} It stirs more at night${full ? ', and the moon is full' : ', and most under a full moon'}.`,
+      });
+    }
+    rows.push({ label: 'Silver', value: 'Burns you', hint: `Silver strikes you ${Math.round(C.silverWeakness * 100)}% harder, and you can neither wear it nor wield it.` });
+    const feedSecs = typeof globalThis.__dboHuntFeedSeconds === 'function' ? Number(globalThis.__dboHuntFeedSeconds(a)) || C.beastFeedSeconds : C.beastFeedSeconds;
+    const rank = hunt ? hunt.ranks[hunt.rank] : null;
+    return {
+      kind: 'werewolf', group: 'The Beast', label: 'Werewolf', epithet: rank ? `${rank.name} of the Hunt` : 'Werewolf',
+      creed: "Hircine's blood runs in you. The Great Hunt honours those who live as the beast.",
+      ladder: hunt, rows,
+      powers: [
+        { name: 'Beast Form', have: true, note: 'Become the werewolf' },
+        { name: 'Feeding', have: true, note: `In the beast, activate a fresh body: ${feedSecs} s longer, and your hunger eases` },
+        { name: 'Howl of Terror', have: true, note: 'In the beast: those near you flee in fear' },
+        { name: 'Totem of the Hunt', have: true, note: 'In the beast: sense the living around you' },
+      ],
+    };
+  };
+  const vampireView = (a, s) => {
+    const blood = typeof globalThis.__dboBloodView === 'function' ? globalThis.__dboBloodView(a) : null;
+    const stage = Math.max(1, Math.min(4, Number(s.stage) || 1));
+    const now = gameDays(); const fed = Number(s.lastFed) || now;
+    const rate = bloodRate(a, '__dboBloodThirstRate');
+    const next = stage < 4 && rate > 0 ? fed + stage / rate : 0;
+    const holder = crownHolder();
+    const lord = holder === (a >>> 0) || (() => { try { return mp.get(a, 'private.vampireLordGrant') === true; } catch (e) { return false; } })();
+    const rows = [
+      {
+        label: 'Thirst', value: `Stage ${stage} of 4`,
+        hint: `You last fed ${inWords(realMinutes(now - fed))} ago. ${next ? `Stage ${stage + 1} comes in about ${inWords(realMinutes(next - now))} unless you feed.` : 'It can grow no worse.'} Feeding brings you back to stage 1. The thirstier you are, the stronger your gifts and the worse you burn.`,
+      },
+      {
+        label: 'The sun', value: `${Math.round(C.sunCoverMax * coverOf(a) * 100)}% shielded`,
+        hint: `The sun burns you outdoors by day, more at each stage${s.pure ? ', half as much for a pure-blood' : ''}. Cover your head, body, hands and feet.`,
+      },
+      { label: 'Fire', value: `${Math.round(C.fireWeaknessPerStage * stage * (s.pure ? 0.5 : 1) * 100)}% worse`, hint: 'Fire burns you more at each stage of thirst. Silver you can neither wear nor wield.' },
+      {
+        label: 'Bloodline', value: s.pure ? 'Pure-blood' : 'Turned',
+        hint: s.pure ? "Molag Bal's own Embrace made you." : 'Sanguinare Vampiris turned you. A pure-blood is made by Molag Bal\'s Embrace at his shrine.',
+      },
+      {
+        label: 'The Blood Crown', value: holder === (a >>> 0) ? 'Yours' : holder ? 'Held by another' : 'Unclaimed',
+        hint: crownLine(a) || (holder ? 'Only a pure-blood may hold it. Its holder takes the form of a Vampire Lord, and whoever slays them takes the Crown.'
+          : 'It lies unclaimed. The next vampire made a pure-blood takes it.'),
+      },
+    ];
+    const rank = blood ? blood.ranks[blood.rank] : null;
+    return {
+      kind: 'vampire', group: 'The Blood', label: 'Vampire', epithet: `${rank ? rank.name : 'Vampire'}${s.pure ? ', pure-blood' : ''}`,
+      creed: "Molag Bal's curse is in your veins. Blood makes you more than you were.",
+      ladder: blood, rows,
+      powers: [
+        { name: 'Vampiric Drain', have: true, note: `Stage ${stage} strength: it grows with your thirst` },
+        { name: "Vampire's Servant", have: true, note: 'Raise a corpse to fight for you; stronger with thirst' },
+        { name: "Vampire's Sight", have: true, note: 'See in the dark' },
+        { name: "Vampire's Seduction", have: stage >= 2, note: stage >= 2 ? 'Calm those who would fight you' : 'At stage 2 of thirst' },
+        { name: 'Embrace of Shadows', have: stage >= 4, note: stage >= 4 ? 'Unseen, and seeing in the dark' : 'At stage 4 of thirst' },
+        { name: 'Vampire Lord', have: lord, note: lord ? 'Take the form of a Vampire Lord' : 'Hold the Blood Crown' },
+      ],
+    };
+  };
+  globalThis.__dboSuperProgress = (a) => {
+    const s = stateOf(a); if (!s || !s.kind) return null;
+    return s.kind === 'werewolf' ? werewolfView(a, s) : s.kind === 'vampire' ? vampireView(a, s) : null;
+  };
+  globalThis.__dboSuperProgressSend = (a) => {
+    let progress = null;
+    try { progress = globalThis.__dboSuperProgress(a); } catch (e) { log(`supernatural: progress for ${display(a)} failed: ${e.message}`); }
+    sendPacket(a, { customPacketType: 'dboSuperProgress', progress });
+  };
   globalThis.__dboSuperLogin = (a) => {
     // After the client's own login spell sync (remoteServer.ts enforceSpells on CreateActor), not before it
     flushedFor.delete(a >>> 0);

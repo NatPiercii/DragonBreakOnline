@@ -133,6 +133,23 @@ module.exports = (api) => {
   // For gamemode.js's hit multiplier: a werewolf in beast form takes less and deals more by rank
   globalThis.__dboHuntDamageMult = (agg, tgt) => (inBeast(agg) ? at(C.damageDealt, agg) : 1) * (inBeast(tgt) ? at(C.damageTaken, tgt) : 1);
   globalThis.__dboHuntReset = (a) => save(a, { renown: 0, fedOn: {} });
+  // The Werewolf tab of the skills menu (supernatural.js builds it): the ladder, where this werewolf stands on it, and each
+  // rank's gifts in a line short enough for its cell
+  const perkOf = (r) => {
+    const parts = [`${C.beastSeconds[r]} s in the beast`, `a feed adds ${C.feedSeconds[r]} s`, `${C.changesPerDay[r]} change${C.changesPerDay[r] > 1 ? 's' : ''} a day`];
+    const taken = Math.round((1 - C.damageTaken[r]) * 100), dealt = Math.round((C.damageDealt[r] - 1) * 100);
+    if (taken > 0 || dealt > 0) parts.push(`hits on you ${taken}% lighter, yours ${dealt}% heavier`);
+    if (C.forcedMult[r] < 1) parts.push(`forced out ${Math.round((1 - C.forcedMult[r]) * 100)}% less`);
+    return parts.join(', ');
+  };
+  globalThis.__dboHuntView = (a) => {
+    const s = stateOf(a); const renown = Number(s && s.renown) || 0;
+    return {
+      name: 'The Great Hunt', unit: 'renown', value: renown, rank: rankFor(renown),
+      ranks: C.ranks.map((name, i) => ({ name, at: C.thresholds[i], perk: perkOf(i) })),
+      earn: `Feed in beast form: an animal ${C.points.animal}, a person ${C.points.humanoid}, a player you bring down outside the walls ${C.points.player}. A kill in the beast ${C.points.kill}, a change ${C.points.change}.`,
+    };
+  };
   // A howl is heard across the land, and hunters learn where
   globalThis.__dboHuntHowled = (a, name) => {
     const last = S.howledAt.get(a) || 0;

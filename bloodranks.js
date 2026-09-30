@@ -84,6 +84,21 @@ module.exports = (api) => {
   globalThis.__dboBloodThirstRate = (a) => at(C.thirstRate, a);
   globalThis.__dboBloodDamageMult = (agg) => (isNight() && isVampire(agg) ? at(C.damageAtNight, agg) : 1);
   globalThis.__dboBloodReset = (a) => save(a, { blood: 0, fedOn: {} });
+  // The Vampire tab of the skills menu (supernatural.js builds it): the ladder, where this vampire stands on it, and each
+  // rank's gifts in a line short enough for its cell
+  const perkOf = (r) => {
+    const night = Math.round((C.damageAtNight[r] - 1) * 100), sun = Math.round((1 - C.sunMult[r]) * 100), thirst = Math.round((1 - C.thirstRate[r]) * 100);
+    if (!night && !sun && !thirst) return 'the blood gives nothing yet';
+    return `hits ${night}% heavier at night, the sun ${sun}% weaker, thirst ${thirst}% slower`;
+  };
+  globalThis.__dboBloodView = (a) => {
+    const s = stateOf(a); const blood = Number(s && s.blood) || 0;
+    return {
+      name: 'The Blood', unit: 'blood', value: blood, rank: rankFor(blood),
+      ranks: C.ranks.map((name, i) => ({ name, at: C.thresholds[i], perk: perkOf(i) })),
+      earn: `Feed on people: a fresh body ${C.points.corpse}, a bound captive ${C.points.living}, a person you slew ${C.points.slain}.`,
+    };
+  };
 
   const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
   addStatus('blood', 70, (a) => {
