@@ -817,19 +817,24 @@ export class HousingSystem implements System {
     return refs;
   }
 
-  // Registry ids without a live record (lost changeforms, older load orders) are dropped from the index
+  // The registry drops an entry only when its record says the claim is over (an ownerless stub). An entry that reads
+  // as nothing - a changeform not loaded yet, right after boot or before anyone has touched the ref - is kept and only
+  // left out of this pass: pruning on a null read dropped 4 live claims on 2026-09-24, and three more claims went
+  // missing from the index in the days of the 22 Sep deploy wipes. The index cannot be rebuilt from inside the game,
+  // so an entry is never thrown away on a read that proves nothing (2026-09-30 launch triage).
   private liveClaims(ctx: SystemContext): Array<{ primary: number; rec: PropertyRecord }> {
     const out: Array<{ primary: number; rec: PropertyRecord }> = [];
-    const dead: number[] = [];
+    const over: number[] = [];
     for (const primary of this.claimed) {
       const rec = this.read(ctx, primary);
-      if (rec && rec.owner !== 0) out.push({ primary, rec });
-      else dead.push(primary);
+      if (!rec) continue;
+      if (rec.owner !== 0) out.push({ primary, rec });
+      else over.push(primary);
     }
-    if (dead.length) {
-      this.claimed = this.claimed.filter((id) => dead.indexOf(id) === -1);
+    if (over.length) {
+      this.claimed = this.claimed.filter((id) => over.indexOf(id) === -1);
       this.saveRegistry();
-      this.log(`[housing] dropped ${dead.length} registry entries without a claim record: ${dead.map((id) => id.toString(16)).join(", ")}`);
+      this.log(`[housing] dropped ${over.length} registry entries whose claim is over: ${over.map((id) => id.toString(16)).join(", ")}`);
     }
     return out;
   }
