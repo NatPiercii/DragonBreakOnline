@@ -5,6 +5,7 @@ import { Picker } from '../../components/Picker/Picker';
 import { Tabs, TabItem } from '../../components/Tabs/Tabs';
 import { FactionContent, FactionData } from '../faction';
 import { CurseProgress, CurseRanks, CurseStage } from '../masteryMenu';
+import { widgetKey } from '../../utils/widgetOrder';
 
 // Character Journal (F3, widget 50) drawn from gameplay journal.js; dbo:journalProfile/Title/Close carry the journal nonce
 
@@ -65,6 +66,12 @@ const send = (key: string, ...args: unknown[]): void => {
 };
 
 const BUSY_TIMEOUT_MS = 8000;
+// Widgets drawn beside a focused panel without taking the cursor; any other that appears is a panel opened over the journal
+const PASSIVE = new Set(['hud', 'party', 'chat', 'mailMarkers', 'interactPrompt', 'journal']);
+
+export const panelOpenedOver = (before: Set<string>, widgets: Array<{ type?: string; id?: number }>): boolean =>
+  (widgets || []).some((w) => !!w && !PASSIVE.has(String(w.type)) && !before.has(widgetKey(w)));
+
 const TIER_FLOORS = [25, 50, 75, 90];
 
 // An unsaved story outlives the panel (Escape, a hit, a character switch closes it): it comes back on the next open
@@ -154,7 +161,8 @@ export const ProfileTab = ({ data, editing, setEditing, busy, act }: {
   const keep = (b: string, o: string): void => {
     unsaved = b === (p.backstory || '') && o === (p.origin || '') ? null : { name: p.name, backstory: b, origin: o };
   };
-  const cancel = (): void => { unsaved = null; setEditing(false); };
+  const discard = (): void => { unsaved = null; setEditing(false); };
+  const leave = (): void => setEditing(false);
   const changed = backstory !== (p.backstory || '') || origin !== (p.origin || '');
   const titles = p.titles || [];
 
@@ -170,13 +178,13 @@ export const ProfileTab = ({ data, editing, setEditing, busy, act }: {
         <div className="journal__rule" />
         {editing ? (
           <div className="journal__editor">
-            <StoryField label="Backstory" value={backstory} max={p.backstoryMax || 4000} rows={10} onEscape={cancel}
+            <StoryField label="Backstory" value={backstory} max={p.backstoryMax || 4000} rows={10} onEscape={leave}
               onChange={(v) => { setBackstory(v); keep(v, origin); }} />
-            <StoryField label="Origin" value={origin} max={p.originMax || 1000} rows={4} onEscape={cancel}
+            <StoryField label="Origin" value={origin} max={p.originMax || 1000} rows={4} onEscape={leave}
               onChange={(v) => { setOrigin(v); keep(backstory, v); }} />
             <div className="journal__editor-actions">
-              <span className="journal__hint">Escape leaves the page unsaved.</span>
-              <button type="button" className="journal__button" disabled={busy} onClick={cancel}>Discard</button>
+              <span className="journal__hint">Escape sets the page aside for later. Discard throws it away.</span>
+              <button type="button" className="journal__button" disabled={busy} onClick={discard}>Discard</button>
               <button type="button" className="journal__button journal__button--primary" disabled={busy || !changed}
                 onClick={() => act('dbo:journalProfile', backstory, origin)}>Save</button>
             </div>
@@ -237,10 +245,28 @@ const Journal = ({ data }: { data: JournalData }) => {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(() => !!(unsaved && data.profile && unsaved.name === data.profile.name));
   const saving = useRef(false);
+  const nonce = useRef(data.nonce);
+  nonce.current = data.nonce;
+  const [yielded, setYielded] = useState(false);
+
+  // A panel the server opens over the journal (downed, a robbery, a trade request) takes its place and keeps the cursor
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const widgets = (window as any).skyrimPlatform && (window as any).skyrimPlatform.widgets;
+    if (!widgets || typeof widgets.addListener !== 'function') return undefined;
+    let seen = new Set<string>((widgets.get() || []).map(widgetKey));
+    const onChange = (list: Array<{ type?: string; id?: number }>): void => {
+      if (panelOpenedOver(seen, list)) { setYielded(true); send('dbo:journalClose', nonce.current, 'yield'); }
+      seen = new Set<string>((list || []).map(widgetKey));
+    };
+    widgets.addListener(onChange);
+    return () => widgets.removeListener(onChange);
+  }, []);
 
   // A new nonce answers a save or a title; a saved story leaves the edit
   useEffect(() => {
     setBusy(false);
+    setYielded(false);
     if (saving.current && data.resultKind === 'ok') { unsaved = null; setEditing(false); }
     saving.current = false;
   }, [data.nonce]);
@@ -264,6 +290,7 @@ const Journal = ({ data }: { data: JournalData }) => {
   tabs.push({ id: 'stats', label: 'Stats' });
   const shown: JournalTab = tabs.some((t) => t.id === tab) ? tab : 'profile';
   const p = data.profile;
+  if (yielded) return null;
 
   return (
     <div className="journal">
