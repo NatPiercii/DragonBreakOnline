@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>War and Raids - Dragon Break</title>
+<meta name="description" content="Territory, capitals, peace treaties, war and faction raids, and the 7 to 12 player raid: what is open in the alpha and what is built but not open yet.">
+<link rel="icon" href="/dbo-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Roboto+Condensed:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/dbo.css">
+<link rel="stylesheet" href="/guides/guides.css">
+<style>
+.gd li{margin:0}
+.gd{--ground:#08191c;--surface:#0f2a2e;--raised:#16383d;--line:#3a4548;--line-soft:#16383d;--aqua:#8fd3d0;--aqua-dim:#5fb3b3;--text:#e6ecec;--text-2:#d7e3e3;--muted:#8c9a9c;--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.14);--blood:#e0897f;--blood-soft:rgba(224,137,127,.14);--new:#e8d6a0;--new-soft:rgba(232,214,160,.13);--shadow:0 1px 0 rgba(143,211,208,.05) inset, 0 10px 28px rgba(0,0,0,.28);color-scheme:dark}
+.gd *{box-sizing:border-box}
+.gd{background:var(--ground);color:var(--text-2);font-family:'Roboto Condensed','Futura Condensed',sans-serif;font-size:18px;line-height:1.5;padding-inline:16px;padding-block:0 64px}
+.gd .g-wrap{max-width:1180px;margin:0 auto}
+.gd h1,.gd h2,.gd h3{font-family:'Cinzel','Trajan Pro',Georgia,serif;color:var(--text);text-wrap:balance;margin:0;font-weight:600}
+.gd p{margin:0}
+.gd a{color:var(--aqua)}
+.gd :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.gd .g-hero{padding-block:48px 28px;border-bottom:1px solid var(--line);display:grid;gap:14px}
+.gd .g-eyebrow{font-size:14px;letter-spacing:.22em;text-transform:uppercase;color:var(--aqua);font-weight:600}
+.gd .g-hero h1{font-size:clamp(34px,6vw,58px);letter-spacing:.04em;line-height:1.05}
+.gd .g-hero p{max-width:62ch;color:var(--text-2);font-size:20px}
+.gd .g-tally{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.gd .g-tally b{color:var(--gold);font-weight:600;font-variant-numeric:tabular-nums}
+.gd section{padding-block:40px 8px}
+.gd .g-sec-head{display:grid;gap:6px;margin-bottom:20px}
+.gd .g-sec-head h2{font-size:clamp(24px,3.4vw,32px)}
+.gd .g-sec-head p{max-width:66ch;color:var(--muted)}
+.gd .g-how{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.gd .g-how .g-box{background:var(--surface);border:1px solid var(--line-soft);border-radius:6px;padding:18px 20px;display:grid;gap:8px;align-content:start}
+.gd .g-how h3{font-size:17px;letter-spacing:.04em}
+.gd .g-key{display:inline-block;font-family:'Cinzel','Trajan Pro',Georgia,serif;font-weight:700;font-size:15px;color:var(--gold-ink);background:var(--gold);border-radius:4px;padding:1px 9px;margin-right:4px}
+.gd code{font-family:ui-monospace,Consolas,monospace;font-size:.84em;background:var(--raised);color:var(--text);padding:1px 6px;border-radius:3px;white-space:nowrap}
+.gd .g-cmds{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.gd .g-cmds li{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.gd .g-cmds .g-admin{color:var(--muted);font-size:15px}
+.gd .g-aside{font-size:16px;color:var(--muted)}
+.gd .g-roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:6px;overflow:hidden}
+.gd .g-role{background:var(--surface);padding:16px 18px;display:grid;gap:6px;align-content:start}
+.gd .g-role-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.gd .g-role h3{font-size:18px}
+.gd .g-cap{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);white-space:nowrap}
+.gd .g-perms{display:flex;flex-wrap:wrap;gap:5px}
+.gd .g-perm{font-size:13px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);color:var(--aqua);border-radius:3px;padding:0 6px}
+.gd .g-role p{font-size:16px;color:var(--muted)}
+.gd .g-role.g-leader{background:linear-gradient(180deg,var(--gold-soft),transparent 70%),var(--surface)}
+.gd .g-planned{display:inline-block;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);border:1px dashed var(--gold);border-radius:3px;padding:0 6px;margin-left:4px;vertical-align:2px}
+.gd .g-offices{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.gd .g-office{border:1px solid var(--line);border-radius:6px;padding:18px 20px;display:grid;gap:12px;align-content:start}
+.gd .g-office h3{font-size:19px}
+.gd .g-office .g-who{font-size:15px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.gd .g-seats{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.gd .g-seats li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line-soft);padding-top:8px}
+.gd .g-seats .g-n{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-size:20px;color:var(--gold);font-variant-numeric:tabular-nums;min-width:2ch;text-align:right}
+.gd .g-seats small{display:block;color:var(--muted);font-size:14px}
+.gd .g-tools{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);padding-block:12px;display:grid;gap:10px;border-bottom:1px solid var(--line-soft)}
+.gd .g-search{width:100%;font:inherit;font-size:18px;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:8px 12px}
+.gd .g-search::placeholder{color:var(--muted)}
+.gd .g-chips{display:flex;flex-wrap:wrap;gap:6px}
+.gd .g-chip{font:inherit;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2);background:transparent;border:1px solid var(--line);border-radius:999px;padding:3px 12px;cursor:pointer}
+.gd .g-chip:hover{border-color:var(--aqua)}
+.gd .g-chip[aria-pressed="true"]{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
+.gd .g-chip .g-c{opacity:.7;font-variant-numeric:tabular-nums;margin-left:4px}
+.gd .g-group{padding-block:26px 0}
+.gd .g-group > h3{font-size:21px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.gd .g-group > h3 span{font-family:'Roboto Condensed','Futura Condensed',sans-serif;font-size:15px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:500}
+.gd .g-group > p{color:var(--muted);font-size:16px;margin-top:4px;max-width:70ch}
+.gd .g-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-top:14px;align-items:start}
+.gd .g-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:6px;box-shadow:var(--shadow);overflow:hidden}
+.gd .g-card-head{padding:14px 16px 10px;display:grid;gap:6px;border-bottom:1px solid var(--line-soft)}
+.gd .g-card h4{font-family:'Cinzel','Trajan Pro',Georgia,serif;font-size:17px;font-weight:600;color:var(--text);margin:0;line-height:1.25}
+.gd .g-tags{display:flex;flex-wrap:wrap;gap:5px}
+.gd .g-tag{font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;border-radius:3px;padding:0 6px;border:1px solid var(--line);color:var(--muted)}
+.gd .g-tag.g-secret{color:var(--blood);border-color:var(--blood);background:var(--blood-soft)}
+.gd .g-tag.g-prince{color:var(--gold);border-color:var(--gold);background:var(--gold-soft)}
+.gd .g-tag.g-new{color:var(--new);border-color:var(--new);background:var(--new-soft)}
+.gd .g-tag.g-region{color:var(--aqua);border-color:var(--aqua-dim)}
+.gd .g-tag.g-requires{color:var(--text);border-color:var(--muted)}
+.gd .g-ladder{list-style:none;margin:0;padding:6px 0}
+.gd .g-ladder li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;padding:3px 16px;font-size:16.5px}
+.gd .g-ladder li + li{border-top:1px dotted var(--line-soft)}
+.gd .g-ladder .g-t{color:var(--text)}
+.gd .g-ladder .g-r{font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.gd .g-ladder li.g-leader .g-t{color:var(--gold);font-weight:600}
+.gd .g-ladder li.g-leader .g-r{color:var(--gold)}
+.gd .g-ladder li.g-officer .g-r,.gd .g-ladder li.g-sergeant .g-r{color:var(--aqua)}
+.gd .g-note{padding:12px 16px;font-size:16px;color:var(--muted)}
+.gd .g-empty{padding:30px 0;color:var(--muted);text-align:center}
+.gd footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:15px}
+@media (max-width:520px){.gd{font-size:17px}
+.gd .g-hero{padding-block:32px 22px}}
+.gd{--aqua:#8fd3d0;--aqua-dim:#5fb3b3;--blood:#e0897f;--blood-soft:rgba(224,137,127,.12);--gold:#e8d6a0;--gold-ink:#08191c;--gold-soft:rgba(232,214,160,.16);--ground:transparent;--line:rgba(143,211,208,.22);--line-soft:rgba(143,211,208,.13);--muted:rgba(215,227,227,.62);--new:#8fd3d0;--new-soft:rgba(143,211,208,.13);--raised:rgba(22,56,61,.94);--surface:rgba(12,34,38,.94);--text:#d7e3e3;--text-2:#d7e3e3}
+.gd{background:transparent;margin:0;padding:0;min-height:0}
+.gd .g-wrap{max-width:none;margin:0;padding:0}
+.gd [hidden]{display:none!important}
+.gd .g-note-extra{border-top:1px solid var(--line-soft)}
+.gd .g-live{display:inline-block;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--aqua);border:1px solid var(--aqua-dim);border-radius:3px;padding:0 6px;margin-left:4px;vertical-align:2px}
+.gd .g-status{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:17px}
+</style>
+</head><body>
+<img class="wm" src="/dbo-watermark.png" alt="">
+<div class="wrap guide-wrap">
+<nav class="crumbs"><a href="/">Dragon Break</a> <span>&rsaquo;</span> <a href="/guides/">Guides</a></nav>
+<div class="hero"><div class="tag">DragonBreak Online · Player reference</div><h1>War and Raids</h1></div>
+<main class="gd">
+<div class="g-wrap">
+<header class="g-hero">
+  <p><b>Open now:</b> the Realm map, capitals, peace treaties and raid groups of 7 to 12 players. <b>Not open yet in the alpha:</b> war and faction raids. They are built, and stay closed while the holds and factions are set up.</p>
+  <div class="g-tally"><span><b>6</b> territories</span><span><b>2</b> powers in Bruma</span><span><b>1&ndash;8</b> week treaties</span><span><b>7&ndash;12</b> player raids</span></div>
+</header>
+<section>
+  <div class="g-sec-head"><h2 id="land">The land</h2>
+  <p>It is 4E 211. The Legion has withdrawn from Skyrim, and its nine Holds rule themselves. Bruma, on the Cyrodiil side of the Jerall Mountains, is a county of the Empire under its Count, and the Legion still keeps its forts in Cyrodiil. For the alpha, all the land that can be held lies in the County of Bruma.</p></div>
+  <div class="g-offices">
+    <div class="g-office"><h3>County of Bruma</h3><div class="g-who">Under the Count</div>
+      <ul class="g-seats">
+        <li><span>Bruma<small>The capital, seated at Castle Bruma</small></span><span class="g-n">City</span></li>
+        <li><span>Applewatch</span><span class="g-n">Town</span></li>
+        <li><span>Aleswell</span><span class="g-n">Town</span></li>
+        <li><span>Greenwood</span><span class="g-n">Village</span></li>
+      </ul></div>
+    <div class="g-office"><h3>Imperial Legion</h3><div class="g-who">Its forts in Cyrodiil</div>
+      <ul class="g-seats">
+        <li><span>Fort Caractacus</span><span class="g-n">Fort</span></li>
+        <li><span>Pale Pass</span><span class="g-n">Fort</span></li>
+      </ul></div>
+  </div>
+  <div class="g-how" style="margin-top:14px">
+    <div class="g-box"><h3>The Realm map <span class="g-live">Open</span></h3>
+      <p>The Realm tab of the faction panel (<span class="g-key">F3</span>) shows who holds each place, in the holder&#x27;s colours. Every place has a land marker, and the land around it belongs to the nearest marker. A crown marks a capital.</p></div>
+    <div class="g-box"><h3>What land gives</h3>
+      <p>Land earns nothing by itself. The weekly property tax on every claimed home that stands on it goes to the treasury of whoever holds it. Holding a hold&#x27;s capital means holding the hold.</p></div>
+    <div class="g-box"><h3>Who speaks for a faction</h3>
+      <p>A faction&#x27;s leader, or a hold&#x27;s ruler (a Jarl, a Count or a Chieftain), acts for it in the realm, from the Realm and War tabs of the faction panel. There are no chat commands for war.</p></div>
+  </div>
+</section>
+<section>
+  <div class="g-sec-head"><h2 id="peace">Capitals and peace treaties</h2>
+  <p>Both work now, while war is closed.</p></div>
+  <div class="g-how">
+    <div class="g-box"><h3>Capital <span class="g-live">Open</span></h3>
+      <p>A hold chooses one of its own territories as its capital; until it does, Bruma is the County&#x27;s. Any other faction chooses a territory it holds, or makes the spot where its leader stands its seat, such as a guildhall. A capital can move once every <b>7 days</b>, and never during a war. A faction musters at its capital to declare war.</p></div>
+    <div class="g-box"><h3>Peace treaty <span class="g-live">Open</span></h3>
+      <p>One leader offers peace from the War tab for <b>1 to 8 weeks</b>, and the other side&#x27;s leader accepts or refuses. A treaty costs nothing, and everyone online hears when one is sworn. While it holds, neither side can declare war on the other. It runs its full length: there is no breaking it early.</p></div>
+    <div class="g-box"><h3>What a treaty does not cover</h3>
+      <p>A treaty stops declarations of war, not raids. Two factions already at war cannot swear one; they make peace instead (see below).</p></div>
+  </div>
+</section>
+<section>
+  <div class="g-sec-head"><h2 id="war">War <span class="g-planned">Not open yet</span></h2>
+  <p>Not open yet in the alpha. Everything below is built and waits until the holds and factions are set up; the War tab says so and keeps its declaration form hidden until then.</p></div>
+  <div class="g-how">
+    <div class="g-box"><h3>Declaring war</h3>
+      <p>A leader or ruler declares from the War tab, naming the faction and the territories they mean to take. To declare:</p>
+      <ul class="g-cmds">
+        <li><b>10</b> members of each side online</li>
+        <li>every online member of the declaring faction gathered at its capital</li>
+        <li><b>10,000</b> gold from the declaring faction&#x27;s treasury</li>
+        <li>no treaty between the two, and no other war the declarer started still running</li>
+      </ul></div>
+    <div class="g-box"><h3>Protection</h3>
+      <p>A faction is safe from declarations for its first <b>7 days</b>; holds and strongholds are never new. After a war ends, the same attacker waits <b>14 days</b> before declaring on the same faction again.</p></div>
+    <div class="g-box"><h3>Notice and battle windows</h3>
+      <p>Everyone online hears the declaration at once. Fighting happens only in <b>3 battle windows</b> of <b>2 hours</b> each, which the attacker picks from the server&#x27;s evening battle times (at present 00:00 UTC each day), beginning at least <b>7 days</b> after the declaration. Outside a window, nothing can be taken.</p></div>
+    <div class="g-box"><h3>Taking the land</h3>
+      <p>During a window, attackers who hold a named territory&#x27;s land marker (within about 21 metres) for <b>5 minutes</b> with no defender standing there take it. One living defender at the marker resets the count, and defenders take lost land back the same way. Only fighters wearing their faction&#x27;s uniform count, and the downed do not count.</p></div>
+    <div class="g-box"><h3>War to the death</h3>
+      <p>The attacker may propose it; it applies only if the defender&#x27;s leader accepts before the first window opens. Then an enemy&#x27;s killing blow on contested land, during a battle window, ends that character for good. In any other war a fall goes through the usual down state.</p></div>
+    <div class="g-box"><h3>How a war ends</h3>
+      <ul class="g-cmds">
+        <li>the attacker holds every territory it named</li>
+        <li>the last battle window closes; land taken stays taken</li>
+        <li>the leaders make peace, with a tribute of gold from either treasury if they agree one</li>
+        <li>the defender surrenders, and the named land passes to the attacker</li>
+        <li>the attacker withdraws, and nothing changes hands</li>
+      </ul></div>
+    <div class="g-box"><h3>Taking a hold</h3>
+      <p>Land that is taken changes hands on the Realm map, and its property tax goes to the new holder. Taking a hold&#x27;s capital takes the hold: its officials lose their offices, and the conqueror&#x27;s leader appoints the new ruler and court.</p></div>
+  </div>
+</section>
+<section>
+  <div class="g-sec-head"><h2 id="raids">Faction raids <span class="g-planned">Not open yet</span></h2>
+  <p>Not open yet in the alpha. A raid is a short strike on another faction&#x27;s land for plunder, not conquest: no land changes hands.</p></div>
+  <div class="g-how">
+    <div class="g-box"><h3>Sending a raid</h3>
+      <p>A leader or ruler sends a raid from the War tab on a territory another faction holds. There is no fee and no notice, but <b>5</b> of the land&#x27;s owners must be online, and they are warned the moment it starts. A raid lasts <b>30 minutes</b>, and the same land then rests for <b>3 days</b>.</p></div>
+    <div class="g-box"><h3>Pillage</h3>
+      <p>During the raid, raiders break into claimed homes on that land through their doors: no lock holds. Each home gives up <b>3</b> random items from its containers and <b>15%</b> of their gold, once per raid, and so does each container on its own. Nothing worn and no keys are taken, and the owner is told.</p></div>
+    <div class="g-box"><h3>What is safe</h3>
+      <p>Gold in the bank is never raided, and no territory changes hands. A peace treaty does not stop a raid.</p></div>
+  </div>
+</section>
+<section>
+  <div class="g-sec-head"><h2 id="raid-groups">Raid groups of 7 to 12 <span class="g-live">Open</span></h2>
+  <p>Open now. A raid group is a large party set out together for an expedition. It has nothing to do with faction raids.</p></div>
+  <div class="g-how">
+    <div class="g-box"><h3>From party to raid</h3>
+      <p>A party holds <b>6</b>. Invite a seventh and it becomes a raid of up to <b>12</b> (<code>/party invite</code>, <code>/party accept</code>, <code>/party leave</code>). Skill gain is <b>halved</b> for everyone in a raid, except while standing inside a raid ruin the raid has claimed.</p></div>
+    <div class="g-box"><h3>Raid ruins</h3>
+      <p><b>Silorn</b> and <b>Bawn</b>, Ayleid ruins in the south of Cyrodiil, are built for a raid: each has two masters to defeat, and it takes up to 12. There is no minimum, but a small party will find them very hard. The boss dungeons <b>Niryastare</b> and <b>Telepe</b> take a party of up to 6.</p></div>
+    <div class="g-box"><h3>Setting out</h3>
+      <p>All four are reached as expeditions from the Expedition Board in the Synod Conclave or in the Fighters Guild in Bruma, and the group comes home to the hall it left from. The party leader claims the ruin for <b>60 minutes</b>, one group at a time.</p></div>
+    <div class="g-box"><h3>Harder, and richer</h3>
+      <p>A raid ruin&#x27;s masters are stronger than a boss dungeon&#x27;s and bring guards of their own, and the ruin holds more enemies. Masters and their chests give more boss loot, with a <b>50%</b>, <b>70%</b>, <b>85%</b> or <b>100%</b> chance of an Ayleid piece at Novice, Adept, Expert or Master.</p></div>
+    <div class="g-box"><h3>Coming home</h3>
+      <p>Once the last master falls, the expedition heads home <b>10 minutes</b> later, with a warning 2 minutes before. Each member then waits <b>60 minutes</b> before entering that ruin again.</p></div>
+  </div>
+</section>
+<section>
+  <div class="g-sec-head"><h2 id="who">What officials and leaders can do</h2>
+  <p>The offices themselves, the treasury and the weekly reckoning are in the <a href="/guides/factions.html">Holds &amp; Factions Guide</a>.</p></div>
+  <div class="g-roles">
+    <div class="g-role g-leader"><div class="g-role-top"><h3>Leader or ruler</h3><span class="g-cap">Faction panel</span></div>
+      <div class="g-perms"><span class="g-perm">Capital</span><span class="g-perm">Treaties</span><span class="g-perm">Tax</span><span class="g-perm">Wages</span></div>
+      <p>Chooses the capital, offers and accepts treaties, sets the weekly property tax and wages, and pays gold into the treasury. Nobody can take gold out of a treasury. Once they open, declares war, makes peace and sends raids.</p></div>
+    <div class="g-role"><div class="g-role-top"><h3>Stewards</h3><span class="g-cap">Hold officials</span></div>
+      <p>Assess what each property is worth, and share with the ruler the hold&#x27;s tax on inn beds.</p></div>
+    <div class="g-role"><div class="g-role-top"><h3>Members</h3><span class="g-cap">Everyone</span></div>
+      <p>Gather at the capital for a declaration, wear the faction&#x27;s uniform to count at a land marker, and defend the land in the battle windows.</p></div>
+  </div>
+</section>
+<footer>DragonBreak Online is a fan-made roleplay server for The Elder Scrolls V: Skyrim Special Edition. War and raids as built on the server for the alpha opening on 1 October 2026. Last updated 30 September 2026.</footer>
+</div>
+</main>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/start.html">Starting Out in Alpha</a></li><li><a href="/guides/commands.html">Commands and Systems</a></li><li><a href="/guides/skills.html">The Wheel of Skills</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/crafting.html">Crafting and Trades</a></li><li><a href="/guides/magic.html">Schools of Magic</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/religion.html">Religion System</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a> &middot; <a href="/terms.html">Terms of Service</a> &middot; <a href="/privacy.html">Privacy Policy</a></footer>
+</div>
+</body></html>
