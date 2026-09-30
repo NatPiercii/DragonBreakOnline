@@ -69,7 +69,9 @@
           "The calendar now reads 4E 211 when you type /time. The Wait menu and your journal follow with the next client update.",
           "When staff rename a character, the old name is free again, and the new name is kept for that character alone.",
           "Rent held for an inn's owner while they are away now goes to that owner, even if the inn has changed hands since.",
-          "Only senior staff can raise or clear warbands and raids, from the Place tool as well as from chat."
+          "Only senior staff can raise or clear warbands and raids, from the Place tool as well as from chat.",
+          "Masks can't be duplicated by pressing the mask key rapidly.",
+          "Signatures can't imitate staff or use blocked words."
         ]
       }
     ]
