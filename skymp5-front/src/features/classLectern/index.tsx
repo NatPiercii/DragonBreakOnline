@@ -69,7 +69,10 @@ const ClassLectern = ({ data }: { data: ClassLecternData }) => {
   const [cancelling, setCancelling] = useState(false);
   const [left, setLeft] = useState(Number(data.endsInMs) || 0);
 
-  useEffect(() => { setBusy(false); setCancelling(false); }, [data]);
+  // The server redraws the panel in place (the class tick, a sign-up) under the same nonce: that ends a change in flight
+  // but keeps an open question and the spell picked. A new nonce is a fresh open or the answer to a click.
+  useEffect(() => { setBusy(false); }, [data]);
+  useEffect(() => { setCancelling(false); }, [data.nonce]);
 
   // The countdown runs on screen; the server holds the real end and refreshes the panel as it goes
   useEffect(() => {

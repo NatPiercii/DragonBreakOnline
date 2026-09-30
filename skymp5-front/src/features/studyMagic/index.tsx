@@ -54,8 +54,10 @@ const StudyMagic = ({ data }: { data: StudyMagicData }) => {
   const [busy, setBusy] = useState(false);
   const [left, setLeft] = useState(Number(data.leftSeconds) || 0);
 
-  // Every panel the server sends is the truth again
-  useEffect(() => { setBusy(false); setAsking(null); }, [data]);
+  // A redraw in place (the study tick) ends a change in flight; a new nonce (a fresh open, the answer to a click) also
+  // closes an open question
+  useEffect(() => { setBusy(false); }, [data]);
+  useEffect(() => { setAsking(null); }, [data.nonce]);
 
   // The time left runs down on screen while studying; the server keeps the real count
   useEffect(() => {
