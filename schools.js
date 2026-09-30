@@ -368,9 +368,14 @@ module.exports = (api) => {
     if (b.leftMs <= 0) return `You've done enough studying for the day. Come back in ${inWords(b.resetsIn || windowMs())}.`;
     return '';
   };
-  const openStudy = (a, ref, result, resultKind) => {
+  // A panel takes focus only when the player opened it or clicked in it; the server's own refreshes (the study tick, the
+  // class tick, another player's sign-up) redraw it in place, so a timer never grabs the mouse, least of all over a vanilla
+  // Book or Container menu (Worker E's review, 2026-09-30)
+  const openStudy = (a, ref, result, resultKind, focus = true) => {
     const s = stateOf(a);
-    const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+    // A refresh keeps the panel's nonce, so a click in flight still counts and the panel keeps an open question
+    const kept = !focus && studyAt.get(a >>> 0) === ref ? studyNonces.get(a >>> 0) : '';
+    const nonce = kept || `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
     studyNonces.set(a >>> 0, nonce);
     studyAt.set(a >>> 0, ref);
     const ses = S.studying.get(a >>> 0);
@@ -388,7 +393,7 @@ module.exports = (api) => {
       choices: !school ? SCHOOLS.map((n) => ({ name: n, blurb: BLURB[n] || '', confirm: `Do you want to choose ${n} as your school of magic? The other schools will be closed to you.` })) : [],
       result: result || '', resultKind: resultKind || '',
       events: { choose: 'dbo:schoolChoose', start: 'dbo:studyStart', stop: 'dbo:studyStop', close: 'dbo:studyClose' },
-    }, true);
+    }, focus);
   };
   const posOf = (a) => { try { return mp.get(a, 'pos'); } catch (e) { return null; } };
   const startStudy = (a, ref) => {
@@ -440,7 +445,7 @@ module.exports = (api) => {
         wheel(a, idOf(SCHOOL_SPELL[s.primary] || ''), C.study.wheelValue, 1);
       }
       if (paid < ticks) { stopStudy(a, 'budget'); closeWidget(a, STUDY_PANEL_ID); continue; }
-      if (studyAt.get(a) === ses.ref) openStudy(a, ses.ref);
+      if (studyAt.get(a) === ses.ref) openStudy(a, ses.ref, '', '', false);
     }
   };
   onUi('studyStart', (a, args) => { if (studyNonces.get(a >>> 0) !== String(args[0] || '')) return; const ref = studyAt.get(a >>> 0); if (ref && !S.studying.has(a >>> 0)) startStudy(a, ref); });
@@ -541,8 +546,9 @@ module.exports = (api) => {
       try { sendPacket(a, { customPacketType: 'refDecor', refs }); } catch (e) { /* offline */ }
     }
   };
-  const openLectern = (a, ref, result, resultKind) => {
-    const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+  const openLectern = (a, ref, result, resultKind, focus = true) => {
+    const was = lecternOpen.get(a >>> 0);
+    const nonce = (!focus && was && was.ref === ref && was.nonce) || `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
     lecternOpen.set(a >>> 0, { ref, nonce });
     const k = classOf(ref);
     const base = { type: 'classLectern', id: CLASS_PANEL_ID, nonce, title: 'Class Lectern', result: result || '', resultKind: resultKind || '',
@@ -557,7 +563,7 @@ module.exports = (api) => {
         whyNot: why || (spells.length ? '' : 'You know no spell of your schools to set a class by.'),
         minutes: C.classes.minutes,
         spells: spells.map((sp) => ({ id: sp.desc || descOf(sp.id), name: sp.name, school: sp.school, rank: sp.rank, rankName: RANKS[sp.rank] })),
-      }), true);
+      }), focus);
     }
     const s = stateOf(a);
     const mine = a === k.teacher;
@@ -575,9 +581,10 @@ module.exports = (api) => {
       gain: mine ? '' : `At your study of ${k.spell.school} you would take ${gainWords(f)}.`,
       canJoin: !mine && !signed && !why, whyNot: why,
       canEnd: mine && Date.now() >= k.endsAt,
-    }), true);
+    }), focus);
   };
-  const refreshLectern = (k) => { for (const [a, o] of lecternOpen) if ((k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref); };
+  // Everyone else looking at this lectern; `except` is the player whose click just redrew their own panel
+  const refreshLectern = (k, except) => { for (const [a, o] of lecternOpen) if (a !== except && (k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref, '', '', false); };
   const endClass = (k, paid) => {
     S.classes.delete(k.ref);
     decorate(k, true);
@@ -590,6 +597,8 @@ module.exports = (api) => {
       const s = stateOf(st);
       const f = scaleFor(schoolRank(s, k.spell.school), k.spell.rank);
       if (f <= 0 || !active(s, k.spell.school)) continue;
+      // Checked again at payout: sign-ups for two classes at once would otherwise both pay
+      if ((Number(s.paidAt) || 0) + C.classes.studentCooldownHours * HOUR > Date.now()) { if (online(st)) personal(st, 'You were paid for another class too recently to be paid for this one.'); continue; }
       const before = levelOf(s, k.spell.school);
       credit(s, k.spell.school, C.classes.units * f);
       s.paidAt = Date.now();
@@ -600,7 +609,7 @@ module.exports = (api) => {
       tellGain(st, k.spell.school, before, s);
     }
     audit(`SCHOOLS class by ${who(k.teacher)} on ${k.spell.name} (${k.spell.school} ${RANKS[k.spell.rank]}) at ${descOf(k.ref)} ${paid ? `ended: ${got.join(', ') || 'nobody paid'}` : 'cancelled'}`);
-    for (const [a, o] of [...lecternOpen]) if ((k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref, paid ? 'The class is over.' : 'The class was cancelled.', paid ? 'ok' : 'refused');
+    for (const [a, o] of [...lecternOpen]) if ((k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref, paid ? 'The class is over.' : 'The class was cancelled.', paid ? 'ok' : 'refused', false);
   };
   const startClass = (a, ref, spellDesc) => {
     if (classOf(ref)) return { ok: false, text: 'A class is already held at this lectern.' };
@@ -649,12 +658,12 @@ module.exports = (api) => {
     audit(`SCHOOLS ${who(a)} signed up for ${who(k.teacher)}'s class on ${k.spell.name}`);
     if (online(k.teacher)) personal(k.teacher, `${display(a)} has signed up for your class.`);
     openLectern(a, ref, `You have signed up. Stay in the classroom until ${k.teacherName} ends the class.`, 'ok');
-    refreshLectern(k);
+    refreshLectern(k, a >>> 0);
   });
   onUi('lecternLeave', (a, args) => {
     const ref = lecternRef(a, args); if (!ref) return;
     const k = classOf(ref);
-    if (k && k.students.delete(a >>> 0)) { audit(`SCHOOLS ${who(a)} left ${who(k.teacher)}'s class`); openLectern(a, ref, 'You have left the class.', 'ok'); refreshLectern(k); }
+    if (k && k.students.delete(a >>> 0)) { audit(`SCHOOLS ${who(a)} left ${who(k.teacher)}'s class`); openLectern(a, ref, 'You have left the class.', 'ok'); refreshLectern(k, a >>> 0); }
   });
   onUi('lecternEnd', (a, args) => {
     const ref = lecternRef(a, args); if (!ref) return;
