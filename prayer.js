@@ -733,13 +733,23 @@ module.exports = (api) => {
         const d = deityById(faith.id);
         const name = faith.name || (d && d.name) || faith.id;
         mp.set(t, 'private.dboDeityHistory', (Array.isArray(hist) ? hist : []).concat([{ id: faith.id, name, from: Number(faith.at) || 0, to: Date.now(), resetBy: by }]).slice(-20));
-        setFaith(t, null);
+        // Raw writes, not setFaith / clearBlessing: those swallow a failed write, and a reset must not audit as cleared
+        // what was not (Worker D's review)
+        mp.set(t, 'private.dboDeity', null);
         cleared.push(`${name}, with its conversion clock`);
       }
-      if (blessing) { const bd = deityById(blessing.deity); clearBlessing(t, null); cleared.push(`the blessing of ${bd ? bd.name : blessing.deity}`); }
+      if (blessing) {
+        const bd = deityById(blessing.deity);
+        if (blessing.spell) castSpell(t, Number(blessing.spell) >>> 0, false);
+        mp.set(t, 'private.dboBlessing', null);
+        cleared.push(`the blessing of ${bd ? bd.name : blessing.deity}`);
+      }
       if (offering) { mp.set(t, 'private.dboOffering', null); cleared.push(`an offering of ${Number(offering.gold) || 0} gold`); }
       if (Object.keys(rests).length) { mp.set(t, 'private.prayedShrines', {}); cleared.push('the shrine rests'); }
-    } catch (e) { return { ok: false, text: `The reset of ${display(t)} failed part-way: ${e.message}` }; }
+    } catch (e) {
+      audit(`DEITY ${by} reset of ${who(t)} FAILED part-way (${e.message}); cleared before it: ${cleared.join('; ') || 'nothing'}`);
+      return { ok: false, text: `The reset of ${display(t)} failed part-way (${e.message}). Cleared before it: ${cleared.join('; ') || 'nothing'}.` };
+    }
     if (inFlight) { sessions.delete(t >>> 0); try { closeWidget(t, WIDGET_ID); } catch (e) { /* offline */ } cleared.push('a prayer in progress'); }
     lastShrine.delete(t >>> 0); offered.delete(t >>> 0); offerReadySince.delete(t >>> 0); pickerNonce.delete(t >>> 0);
     const online = onlineNow(t);
@@ -770,11 +780,20 @@ module.exports = (api) => {
     const r = resetDeity(found.t, who(a));
     return reply(r.ok, r.text);
   };
-  // The admin panel's player tab (front extraTabs DeityReset): [live actor hex or '', character name]. Answered the way
-  // AdminSystem answers the panel's own actions, so the result shows in the panel.
+  // An offline row's character: the name, narrowed by the row's profile when two characters share it (the panel has no
+  // #TAG to offer, Worker D's review)
+  const byNameAndProfile = (name, profile) => {
+    if (!(profile > 0)) return 0;
+    let ids = []; try { ids = mp.findFormsByPropertyValue('private.indexed.nameKey', String(name).trim().toLowerCase()) || []; } catch (e) { return 0; }
+    const mine = ids.map((x) => Number(x) >>> 0).filter((x) => { try { return Number(mp.get(x, 'profileId')) === profile; } catch (e) { return false; } });
+    return mine.length === 1 ? mine[0] : 0;
+  };
+  // The admin panel's player tab (front extraTabs DeityReset): [live actor hex or '', character name, profile id]. Answered
+  // the way AdminSystem answers the panel's own actions, so the result shows in the panel.
   onUi('deityReset', (a, args) => {
     const hex = String((args || [])[0] || '').trim();
     const name = String((args || [])[1] || '').trim();
+    const profile = Number((args || [])[2]) || 0;
     const reply = (ok, text) => { try { sendPacket(a, { customPacketType: 'adminActionResult', ok: !!ok, text }); } catch (e) { personal(a, text); } };
     if (/^[0-9a-f]{1,8}$/i.test(hex)) {
       const t = parseInt(hex, 16) >>> 0;
@@ -785,6 +804,8 @@ module.exports = (api) => {
         return reply(r.ok, r.text);
       }
     }
+    const own = name ? byNameAndProfile(name, profile) : 0;
+    if (own && typeof isLeadStaff === 'function' && isLeadStaff(a)) { const r = resetDeity(own, who(a)); return reply(r.ok, r.text); }
     return staffReset(a, name, reply);
   });
 

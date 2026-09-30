@@ -15,11 +15,12 @@ const ui = {}, cmds = {};
 let online = [];
 const noop = () => {};
 const SKILLS = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'skills.json'), 'utf8'));
-const LEAD = 1, GM = 2, PLAYER = 3, WORSHIPPER = 10, OFFLINE = 11, BROKEN = 12, PLAIN = 13;
+const LEAD = 1, GM = 2, PLAYER = 3, WORSHIPPER = 10, OFFLINE = 11, BROKEN = 12, PLAIN = 13, FAILW = 14, TWIN_A = 20, TWIN_B = 21;
 const TAGS = { [OFFLINE]: 'off1', [WORSHIPPER]: 'wor1', [PLAIN]: 'pln1' };
 const mp = {
   get: (id, p) => { if (id === BROKEN) throw new Error('form not loaded'); return store.get(`${id}|${p}`); },
-  set: (id, p, v) => { if (id === BROKEN) throw new Error('form not loaded'); store.set(`${id}|${p}`, v); },
+  set: (id, p, v) => { if (id === BROKEN) throw new Error('form not loaded'); if (id === FAILW && p === 'private.dboDeity') throw new Error('change form write refused'); store.set(`${id}|${p}`, v); },
+  findFormsByPropertyValue: (prop, v) => (prop === 'private.indexed.nameKey' && v === 'twin' ? [TWIN_A, TWIN_B] : []),
   getDescFromId: (id) => `${(id >>> 0).toString(16)}:Skyrim.esm`,
   getIdFromDesc: (d) => parseInt(String(d).split(':')[0], 16) >>> 0,
   callPapyrusFunction: (kind, cls, method, self, args) => { papyrus.push([method, self && self.desc, args && args[0] && args[0].desc]); return null; },
@@ -33,6 +34,7 @@ const findAnyByName = (q) => {
   if (s === 'broken') return BROKEN;
   if (s === 'vaeric') return WORSHIPPER;
   if (s === 'plain') return PLAIN;
+  if (s === 'failw') return FAILW;
   return 0;
 };
 require(path.resolve(__dirname, '..', 'prayer.js'))({
@@ -115,6 +117,19 @@ worship(OFFLINE);
 packets.length = 0;
 ui.deityReset(LEAD, ['', 'Somebody #off1']);
 ok(packets.some(([a, p]) => a === LEAD && p.ok === true) && !get(OFFLINE, 'private.dboDeity'), 'an offline row (no live actor) is found by its name');
+
+// ---- review nits (Worker D): a failed write is a failed reset; an offline row's shared name is told apart by profile --
+worship(FAILW);
+said.length = 0; audits.length = 0;
+cmds.deity(LEAD, 'reset failw');
+ok(heard(LEAD, /failed part-way \(change form write refused\)/) && get(FAILW, 'private.dboDeity'), 'a faith that cannot be written is reported as failed, and is still there');
+ok(audits.some((t) => /reset of W14 FAILED part-way/.test(t)) && !audits.some((t) => /^DEITY W1 reset W14:/.test(t)), 'and audited as a failure, never as cleared', audits);
+worship(TWIN_A); worship(TWIN_B);
+store.set(`${TWIN_A}|profileId`, 5); store.set(`${TWIN_B}|profileId`, 6);
+packets.length = 0;
+ui.deityReset(LEAD, ['', 'Twin', 6]);
+ok(packets.some(([a, p]) => a === LEAD && p.ok === true) && !get(TWIN_B, 'private.dboDeity') && get(TWIN_A, 'private.dboDeity'),
+  'an offline row whose name two characters share is found by its profile, without a #TAG');
 
 // ---- the player's own /deity still works ----------------------------------------------------------------------------
 said.length = 0;
