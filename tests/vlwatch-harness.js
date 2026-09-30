@@ -8,6 +8,10 @@
 'use strict';
 const path = require('path');
 const BEASTFORM = path.resolve(__dirname, '..', 'beastform.js');
+// A trip writes beastform-state.json into the working folder: run in a scratch one, so no run reads another's
+const scratch = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'vl-'));
+process.chdir(scratch);
+process.on('exit', () => { try { require('fs').rmSync(scratch, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 
 const VL = 0x2f6, ONNY = 0x3f4, FAR = 0x3f5;
 const CELL = 'a764b:BSHeartland.esm';

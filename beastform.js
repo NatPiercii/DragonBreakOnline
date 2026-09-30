@@ -8,6 +8,9 @@
 // never saved as the character's own. Who may transform: whoever holds the power (admin panel or /beastform grant).
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 module.exports = (api) => {
   const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, cfg, isAdmin } = api;
   // Config "beastform": vampireLordRemoteRace decides whether other clients build the Vampire Lord body.
@@ -15,7 +18,20 @@ module.exports = (api) => {
   // died with the process. A deliberate off - the breaker tripping, or an admin saying /vlremote - must survive a
   // hot reload; a value merely seeded from config must not, or an old seed outlives the config that set it.
   const CFG = Object.assign({ vampireLordRemoteRace: true, breakerUnits: 6000, breakerSeconds: 120 }, (cfg && cfg.beastform) || {});
-  if (globalThis.__dboVlRemoteSetBy === undefined) globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
+  // It must survive a restart too (2026-09-29: the breaker tripped at 15:03, the 17:15 restart read the config
+  // again and showed the body to everyone for the rest of the day). A trip or /vlremote writes beastform-state.json
+  // beside the gamemode; a fresh process reads it before the config, so only the config's own default is a seed.
+  const STATE_PATH = path.resolve('beastform-state.json');
+  const saveRemote = (on, by) => {
+    try { fs.writeFileSync(STATE_PATH + '.tmp', JSON.stringify({ vampireLordRemote: on === true, setBy: by, at: new Date().toISOString() }, null, 1)); fs.renameSync(STATE_PATH + '.tmp', STATE_PATH); } catch (e) { log(`beastform-state.json write failed: ${e.message}`); }
+  };
+  if (globalThis.__dboVlRemoteSetBy === undefined) {
+    let saved = null; try { saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); } catch (e) { /* none yet: the config decides */ }
+    if (saved && typeof saved.vampireLordRemote === 'boolean') {
+      globalThis.__dboVampireLordRemote = saved.vampireLordRemote;
+      globalThis.__dboVlRemoteSetBy = String(saved.setBy || 'file');
+    } else globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
+  }
   // The name a viewer knows another player by: introduced, else Stranger, else Masked Person (playermenu.js).
   // Only players are named here, so there is no nameOf fallback to leak a real name if playermenu is missing.
   const nameTo = (viewer, x) => {
@@ -316,6 +332,7 @@ module.exports = (api) => {
   const tripBreaker = globalThis.__dboVlBreakerTrip = (dropped, vl, cell) => {
     globalThis.__dboVampireLordRemote = false;
     globalThis.__dboVlRemoteSetBy = 'breaker';
+    saveRemote(false, 'breaker');
     let restored = 0;
     for (const o of shownVampireLords()) {
       const s = stateOf(o);
@@ -405,7 +422,7 @@ module.exports = (api) => {
   // For a controlled crash test: with it on, other clients build the Vampire Lord body again (takes effect on the next change)
   registerChatCommand('vlremote', (a, args) => {
     const v = String(args || '').trim().toLowerCase();
-    if (v === 'on' || v === 'off') { globalThis.__dboVampireLordRemote = v === 'on'; globalThis.__dboVlRemoteSetBy = 'admin'; audit(`GM ${who(a)} set Vampire Lord remote body ${v}`); }
+    if (v === 'on' || v === 'off') { globalThis.__dboVampireLordRemote = v === 'on'; globalThis.__dboVlRemoteSetBy = 'admin'; saveRemote(v === 'on', 'admin'); audit(`GM ${who(a)} set Vampire Lord remote body ${v}`); }
     personal(a, `Other players ${globalThis.__dboVampireLordRemote === true ? 'see the Vampire Lord body' : 'see the real appearance of a Vampire Lord'} (applies on the next change).`);
   }, { admin: true, help: '[on|off] whether other players see the Vampire Lord body (crash test)' });
 

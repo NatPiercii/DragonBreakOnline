@@ -507,5 +507,9 @@
  "tickets": {
   "_comment": "In-game /ticket (gameticket.js, consolidation C9): the players who were within 40 m when a ticket opens are posted to this staff-only channel (#ticket-archive, named by claude-jake 2026-09-28), never into the ticket the reporter reads.",
   "staffChannelId": "1554223778228211894"
+ },
+ "beastform": {
+  "_comment": "vampireLordRemoteRace: whether other players see the Vampire Lord body. Off since the 2026-09-29 crash breaker trip; /vlremote on|off changes it and beastform-state.json keeps that choice across restarts and deploys.",
+  "vampireLordRemoteRace": false
  }
 }

@@ -8,6 +8,10 @@
 'use strict';
 const path = require('path');
 const BEASTFORM = path.resolve(__dirname, '..', 'beastform.js');
+// A trip writes beastform-state.json into the working folder: run in a scratch one, so no run reads another's
+const scratch = require('fs').mkdtempSync(path.join(require('os').tmpdir(), 'vl-'));
+process.chdir(scratch);
+process.on('exit', () => { try { require('fs').rmSync(scratch, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 
 const VL = 0x14, NEAR = 0x15, FAR = 0x16, ELSEWHERE = 0x17;
 const CELL = 'a764b:BSHeartland.esm', OTHER_CELL = '3c:Skyrim.esm';
@@ -60,6 +64,7 @@ const load = () => { delete require.cache[BEASTFORM]; require(BEASTFORM)(api); }
 const fresh = () => {
   reset();
   delete globalThis.__dboVampireLordRemote; delete globalThis.__dboVlSeen; delete globalThis.__dboVlRemoteSetBy;
+  try { require('fs').rmSync('beastform-state.json', { force: true }); } catch (e) { /* none */ }  // a new server, not a restart of this one
   load();
   asVampireLord(VL);
   timers.get('beastForms')();   // the tick records the sighting
