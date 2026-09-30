@@ -114,4 +114,5 @@ app.use(require('./sources/problemReport').bodyErrors)
 app.listen(PORT, () => {
   console.log(`DragonBreak backend running on http://localhost:${PORT}`)
   siteServerRoute.recover()
+  require('./sources/autoReport').start()
 })

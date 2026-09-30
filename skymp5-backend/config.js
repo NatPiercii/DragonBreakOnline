@@ -14,6 +14,10 @@ const NAME_TABLE_PATH = process.env.NAME_TABLE_PATH || path.join(GAME_SERVER_DIR
 
 // Website profile switches: 'off' hides the field; unset, empty or 'on' shows it
 const siteShows = (value) => String(value || '').trim().toLowerCase() !== 'off'
+// A positive whole number from the env, or the fallback when unset or anything else
+const positiveInt = (value, fallback) => (Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : fallback)
+// Auto report switch: anything but collect or on is off
+const AUTO_REPORTS = String(process.env.AUTO_REPORTS || '').trim().toLowerCase()
 
 module.exports = {
   // Client files bucket
@@ -132,6 +136,28 @@ module.exports = {
   discordErrorForumChannelId: process.env.DISCORD_ERROR_FORUM_CHANNEL_ID || '',
   // JSON map {tag name: tag id} for that forum, written once its tags exist; reports go untagged without it
   bugTagsFile: process.env.BUG_TAGS_FILE || '/etc/dragonbreak/bug-tags.json',
+
+  // Automatic error and crash reports (docs/auto-report-v1.md): off answers 503, collect stores without posting, on also posts
+  autoReports: ['collect', 'on'].includes(AUTO_REPORTS) ? AUTO_REPORTS : 'off',
+  // Stored reports, groups and limiter state; every file in it is created 0600
+  autoReportDir: process.env.AUTO_REPORT_DIR || path.join(__dirname, 'data', 'auto'),
+  // Archived client and front source maps with their meta files (§5.4), read to resolve stack frames
+  autoSourceMapDir: process.env.AUTO_REPORT_SOURCEMAP_DIR || path.join(__dirname, 'data', 'sourcemaps'),
+  // How long a sender stays quiet after the 503 while the switch is off
+  autoReportPauseSec: positiveInt(process.env.AUTO_REPORT_PAUSE_SEC, 3600),
+  // Rollout P5: the launcher watches game exits and sends crash kinds only while this is true
+  autoReportCrashWatch: process.env.AUTO_REPORT_CRASH_WATCH === 'true',
+  autoReportLimits: {
+    ipPer10Min:               positiveInt(process.env.AUTO_REPORT_IP_PER_10MIN, 60),
+    unverifiedPer10Min:       positiveInt(process.env.AUTO_REPORT_UNVERIFIED_PER_10MIN, 120),
+    profilePer10Min:          positiveInt(process.env.AUTO_REPORT_PROFILE_PER_10MIN, 20),
+    profilePerDay:            positiveInt(process.env.AUTO_REPORT_PROFILE_PER_DAY, 100),
+    profileBytesPerDay:       positiveInt(process.env.AUTO_REPORT_PROFILE_BYTES_PER_DAY, 2 * 1024 * 1024),
+    newSignaturesPerHour:     positiveInt(process.env.AUTO_REPORT_NEW_SIGNATURES_PER_HOUR, 5),
+    newSignaturesPerDay:      positiveInt(process.env.AUTO_REPORT_NEW_SIGNATURES_PER_DAY, 15),
+    muteNewSignaturesPerHour: positiveInt(process.env.AUTO_REPORT_MUTE_NEW_SIGNATURES_PER_HOUR, 15),
+    muteInvalidPerHour:       positiveInt(process.env.AUTO_REPORT_MUTE_INVALID_PER_HOUR, 20),
+  },
 
   // Server lockdown: when true only serverLockedAllowList IDs can connect; others get loginFailedServerLocked from the TS server and the launcher shows "Server locked"
   serverLocked:          process.env.SERVER_LOCKED === 'true',

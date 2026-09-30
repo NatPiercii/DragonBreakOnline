@@ -1,0 +1,81 @@
+{
+  "contractVersion": 1,
+  "reportId": "3f1c2b9e-8a41-4d2e-9b7a-000000000005",
+  "kind": "script-error",
+  "sender": "client",
+  "clientAt": 1790400000123,
+  "sentAt": 1790400000456,
+  "attempt": 1,
+  "queued": false,
+  "consent": {
+    "noticeVersion": 1,
+    "errors": true
+  },
+  "versions": {
+    "client": "0.3.44",
+    "files": "0.3.44",
+    "launcher": "2.1.30"
+  },
+  "build": {
+    "client": "f8cd78971a2b.20260927T101500Z",
+    "front": "f8cd78971a2b.20260927T101530Z",
+    "probe": {
+      "line": 212,
+      "col": 15
+    }
+  },
+  "session": {
+    "start": 1790399000000,
+    "uptimeSec": 1000,
+    "connected": true,
+    "actorId": "ff00012a"
+  },
+  "error": {
+    "source": "client",
+    "event": "post",
+    "service": null,
+    "handled": false,
+    "site": null,
+    "count": 1,
+    "where": "http",
+    "type": "SyntaxError",
+    "message": "Unexpected end of JSON input",
+    "frames": [
+      {
+        "fn": "JSON.parse",
+        "line": 1,
+        "col": 1,
+        "file": null
+      },
+      {
+        "fn": "AuthService.onLoginResponse",
+        "line": 39120,
+        "col": 22,
+        "file": null
+      }
+    ]
+  },
+  "trail": {
+    "source": "memory",
+    "entries": [
+      {
+        "t": 1790399950123,
+        "s": 950,
+        "k": "menu",
+        "d": "open InventoryMenu"
+      },
+      {
+        "t": 1790399951400,
+        "s": 951,
+        "k": "send",
+        "d": "DropItem 1397d:Skyrim.esm Iron Dagger"
+      },
+      {
+        "t": 1790399999997,
+        "s": 1000,
+        "k": "err",
+        "d": "on TypeError: Cannot read properties of undefined (reading 'getFormID')"
+      }
+    ]
+  }
+}

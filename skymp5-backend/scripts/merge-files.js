@@ -15,6 +15,7 @@ const crypto             = require('crypto')
 const { execFileSync }   = require('child_process')
 const archiver           = require('archiver')
 const config             = require('../config')
+const { findSymbolFiles } = require('./archive-symbols')
 
 const ROOT = path.join(__dirname, '..')
 
@@ -112,6 +113,11 @@ function buildZip(srcDir, zipPath) {
   })
 }
 
+function refuseSymbols(dir) {
+  const symbols = findSymbolFiles(dir)
+  if (symbols.length > 0) throw new Error(`refusing to package source maps or PDBs: ${symbols.slice(0, 10).join(', ')}`)
+}
+
 // Main export
 
 async function mergeSourcesIntoRoot() {
@@ -121,10 +127,14 @@ async function mergeSourcesIntoRoot() {
   console.log(`[merge]   client  : ${CLIENT_SRC}`)
   console.log(`[merge]   output  : ${OUTPUT_DIR}`)
 
+  // The source first, since OUTPUT_DIR is served at /files/root as soon as a file lands in it
+  refuseSymbols(CLIENT_SRC)
   fs.mkdirSync(OUTPUT_DIR, { recursive: true })
 
   const clientFiles = copyDir(CLIENT_SRC, OUTPUT_DIR, SKIP_ALWAYS)
   console.log(`[merge] Files merged: ${clientFiles} total in ${Date.now() - startMs}ms`)
+
+  refuseSymbols(OUTPUT_DIR)
 
   console.log('[merge] Building zip…')
   const zipStart = Date.now()

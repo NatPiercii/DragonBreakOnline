@@ -79,7 +79,7 @@ function pruneExpired() {
 function saveSessions() {
   const now     = Date.now()
   const entries = [...sessions.entries()].filter(([, s]) => s.expiresAt > now)
-  try { fs.writeFileSync(SESSIONS_PATH, JSON.stringify(entries, null, 2) + '\n') }
+  try { fs.writeFileSync(SESSIONS_PATH, JSON.stringify(entries, null, 2) + '\n', { mode: 0o600 }) }
   catch (e) { console.error('Failed to persist sessions:', e) }
 }
 

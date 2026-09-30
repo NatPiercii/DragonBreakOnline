@@ -1,0 +1,521 @@
+{
+  "v": 1,
+  "about": "Run by the backend, launcher and client engines. Each case scrubs input as field (with kind and type when given) under context, or the case context when it has one, and must give expect, with no absent substring left. Inputs stay within 1.25 x cap, so engines that skip the backend pre-cut agree.",
+  "context": {
+    "folders": {
+      "game": [
+        "D:\\Games\\Skyrim Special Edition"
+      ],
+      "docs": [
+        "C:\\Users\\jake\\Documents"
+      ]
+    },
+    "names": {
+      "user": [
+        "jake",
+        "jlake"
+      ],
+      "pc": [
+        "DESKTOP-AB12CDE"
+      ],
+      "discord": [
+        "dovah_kiin99"
+      ],
+      "player": [
+        "Lydia Stormblade",
+        "Ulfric"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "s0-ui-runs-between-diagnostic-lines-crlf",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna",
+        "alduinak",
+        "voice",
+        "gate"
+      ],
+      "input": "[10:00:00:000] Main: loaded\r\n[10:00:01:000] JS window.__alduinakAddChat({\"text\":\"Brelyna: meet me at the gate\"}) ...\r\n[10:00:01:002] JS window.__alduinakSetNames({\"12ab\":\"Lydia Stormblade\"}) ...\r\n[10:00:02:000] on('update'): TypeError: x is undefined\r\n[10:00:03:000] LoadUrl https://voice.dragonbreakonline.com/room?token=abcdef0123\r\n[10:00:04:000] ForegroundGuard: game window is in front again after 3 s",
+      "expect": "[10:00:00:000] Main: loaded\n[2 UI line(s) left out]\n[10:00:02:000] on('update'): TypeError: x is undefined\n[1 UI line(s) left out]\n[10:00:04:000] ForegroundGuard: game window is in front again after 3 s"
+    },
+    {
+      "id": "s0-multi-line-load-url",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna",
+        "hello",
+        "mat"
+      ],
+      "input": "[10:00:00:000] Main: loaded\n[10:00:01:000] LoadUrl data:text/html,<p>hello\nBrelyna: the key is under the mat</p>\n\n[10:00:02:000] Main: ready",
+      "expect": "[10:00:00:000] Main: loaded\n[3 UI line(s) left out]\n[10:00:02:000] Main: ready"
+    },
+    {
+      "id": "s0-partial-first-line-dropped",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna",
+        "secret"
+      ],
+      "input": "lduinakAddChat({\"text\":\"Brelyna: my secret\"}) ...\n[10:00:02:000] Main: ready",
+      "expect": "[10:00:02:000] Main: ready"
+    },
+    {
+      "id": "s0-empty-payload-and-breaks-inside-a-line",
+      "field": "gameLog",
+      "absent": [
+        "Brelyna"
+      ],
+      "input": "[10:00:00:000] Main: loaded\n[10:00:01:000] JS  ...\n[10:00:01:001] JS window.__alduinakAddChat(\"a\rBrelyna\u2028says hi\") ...\n[10:00:02:000] Main: ready",
+      "expect": "[10:00:00:000] Main: loaded\n[2 UI line(s) left out]\n[10:00:02:000] Main: ready"
+    },
+    {
+      "id": "s0-other-log-formats-untouched",
+      "field": "gameLog",
+      "input": "[10:00:00:000] Main: loaded\n[2026-09-26T10:00:00.000Z] launcher: game exited with code 0\nSKSE runtime: initialize (version = 2.2.6 01060970 1DA8D8B7E0F3B2C, os = 6.2 (9200))\n[10:00:01:000] JSON config read",
+      "expect": "[10:00:00:000] Main: loaded\n[2026-09-26T10:00:00.000Z] launcher: game exited with code 0\nSKSE runtime: initialize (version = 2.2.6 01060970 1DA8D8B7E0F3B2C, os = 6.2 (9200))\n[10:00:01:000] JSON config read"
+    },
+    {
+      "id": "s0-only-in-game-log",
+      "field": "message",
+      "input": "[10:00:01:000] JS window.__alduinakAddChat() failed",
+      "expect": "[10:00:01:000] JS window.__alduinakAddChat() failed"
+    },
+    {
+      "id": "names-user-in-path",
+      "field": "gameLog",
+      "input": "[10:00:00:000] Loading C:\\Users\\jake\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt",
+      "expect": "[10:00:00:000] Loading C:\\Users\\<user>\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt"
+    },
+    {
+      "id": "names-plain-and-upper-case",
+      "field": "message",
+      "input": "JAKE on DESKTOP-AB12CDE failed; desktop-ab12cde retried for jake",
+      "expect": "<user> on <pc> failed; <pc> retried for <user>"
+    },
+    {
+      "id": "names-home-folder-differs-from-username",
+      "field": "gameLog",
+      "input": "[10:00:00:000] profile at C:/Users/jlake/AppData",
+      "expect": "[10:00:00:000] profile at C:/Users/<user>/AppData"
+    },
+    {
+      "id": "names-special-characters-are-literal",
+      "field": "message",
+      "context": {
+        "names": {
+          "user": [
+            "j.o$h(n"
+          ]
+        }
+      },
+      "input": "user j.o$h(n and jXoXhXn",
+      "expect": "user <user> and jXoXhXn"
+    },
+    {
+      "id": "names-discord-username",
+      "field": "gameLog",
+      "input": "[10:00:00:000] logged in as Dovah_Kiin99 ok",
+      "expect": "[10:00:00:000] logged in as <discord> ok"
+    },
+    {
+      "id": "names-character-and-seen-player",
+      "field": "trail",
+      "kind": "act",
+      "input": "activate 1a2b3:Skyrim.esm Lydia Stormblade",
+      "expect": "activate 1a2b3:Skyrim.esm <player>"
+    },
+    {
+      "id": "names-seen-player-upper-case",
+      "field": "message",
+      "input": "ULFRIC hit Lydia Stormblade",
+      "expect": "<player> hit <player>"
+    },
+    {
+      "id": "names-two-letters-skipped",
+      "field": "message",
+      "context": {
+        "names": {
+          "user": [
+            "jo"
+          ]
+        }
+      },
+      "input": "jo went to C:\\Games",
+      "expect": "jo went to C:\\Games"
+    },
+    {
+      "id": "names-deny-list-skipped",
+      "field": "message",
+      "context": {
+        "names": {
+          "user": [
+            "admin"
+          ],
+          "pc": [
+            "DESKTOP"
+          ]
+        }
+      },
+      "input": "admin opened the desktop",
+      "expect": "admin opened the desktop"
+    },
+    {
+      "id": "names-three-letters-whole-word-only",
+      "field": "message",
+      "context": {
+        "names": {
+          "user": [
+            "bob"
+          ]
+        }
+      },
+      "input": "bob said bobcat, Bob.",
+      "expect": "<user> said bobcat, <user>."
+    },
+    {
+      "id": "names-longest-first",
+      "field": "message",
+      "context": {
+        "names": {
+          "user": [
+            "jake"
+          ],
+          "discord": [
+            "jakelake"
+          ]
+        }
+      },
+      "input": "jakelake and jake",
+      "expect": "<discord> and <user>"
+    },
+    {
+      "id": "folders-game-both-slash-styles",
+      "field": "gameLog",
+      "input": "[10:00:00:000] D:\\Games\\Skyrim Special Edition\\Data\\Platform\\Logs and d:/games/skyrim special edition/SKSE",
+      "expect": "[10:00:00:000] <game>\\Data\\Platform\\Logs and <game>/SKSE"
+    },
+    {
+      "id": "folders-docs-before-names",
+      "field": "gameLog",
+      "input": "[10:00:00:000] C:\\Users\\jake\\Documents\\My Games\\Skyrim Special Edition\\SKSE\\skse64.log",
+      "expect": "[10:00:00:000] <docs>\\My Games\\Skyrim Special Edition\\SKSE\\skse64.log"
+    },
+    {
+      "id": "folders-json-escaped",
+      "field": "gameLog",
+      "input": "[10:00:00:000] {\"path\":\"D:\\\\Games\\\\Skyrim Special Edition\\\\Data\"}",
+      "expect": "[10:00:00:000] {\"path\":\"<game>\\\\Data\"}"
+    },
+    {
+      "id": "folders-short-path-skipped",
+      "field": "gameLog",
+      "context": {
+        "folders": {
+          "game": [
+            "C:\\G"
+          ]
+        }
+      },
+      "input": "[10:00:00:000] C:\\G\\Data",
+      "expect": "[10:00:00:000] C:\\G\\Data"
+    },
+    {
+      "id": "player-tag",
+      "field": "message",
+      "input": "Hit by Jon Snow #AB2C",
+      "expect": "Hit by <player>"
+    },
+    {
+      "id": "player-tag-takes-up-to-two-words",
+      "field": "trail",
+      "kind": "err",
+      "input": "on Error: no target #K7QZ",
+      "expect": "on Error: <player>"
+    },
+    {
+      "id": "player-tag-alone",
+      "field": "trail",
+      "kind": "err",
+      "input": "on Error: target=#K7QZ",
+      "expect": "on Error: target=<player>"
+    },
+    {
+      "id": "onedrive-organisation",
+      "field": "gameLog",
+      "input": "[10:00:00:000] C:\\Users\\<user>\\OneDrive - Contoso Ltd\\Documents",
+      "expect": "[10:00:00:000] C:\\Users\\<user>\\OneDrive - <org>\\Documents"
+    },
+    {
+      "id": "onedrive-with-raw-user",
+      "field": "gameLog",
+      "context": {},
+      "input": "[10:00:00:000] C:\\Users\\Someone\\OneDrive - Contoso Ltd\\Documents\\x.txt",
+      "expect": "[10:00:00:000] C:\\Users\\<user>\\OneDrive - <org>\\Documents\\x.txt"
+    },
+    {
+      "id": "ipv4-with-port",
+      "field": "gameLog",
+      "input": "[10:00:00:000] connect 192.168.1.20:7777",
+      "expect": "[10:00:00:000] connect <ip>"
+    },
+    {
+      "id": "ipv4-end-of-sentence",
+      "field": "message",
+      "input": "Failed to connect to 192.168.1.20.",
+      "expect": "Failed to connect to <ip>."
+    },
+    {
+      "id": "ipv4-version-numbers-survive",
+      "field": "gameLog",
+      "input": "[10:00:00:000] Skyrim 1.6.640.0 and 1.6.1170.0, client 0.3.44, launcher v2.1.29",
+      "expect": "[10:00:00:000] Skyrim 1.6.640.0 and 1.6.1170.0, client 0.3.44, launcher v2.1.29"
+    },
+    {
+      "id": "ipv6-compressed",
+      "field": "gameLog",
+      "input": "[10:00:00:000] peer fe80::1ff:fe23:4567:890a closed",
+      "expect": "[10:00:00:000] peer <ip> closed"
+    },
+    {
+      "id": "ipv6-compressed-end-of-sentence",
+      "field": "message",
+      "input": "addr 2001:db8::1.",
+      "expect": "addr <ip>."
+    },
+    {
+      "id": "ipv6-full-upper-case",
+      "field": "gameLog",
+      "input": "[10:00:00:000] 2001:DB8:0:0:8:800:200C:417A",
+      "expect": "[10:00:00:000] <ip>"
+    },
+    {
+      "id": "ipv6-lookalikes-survive",
+      "field": "gameLog",
+      "input": "[10:00:00:000] RE::Actor::Add std::vector D3D11::Create 12:34:56 BSScript::Internal",
+      "expect": "[10:00:00:000] RE::Actor::Add std::vector D3D11::Create 12:34:56 BSScript::Internal"
+    },
+    {
+      "id": "discord-mention",
+      "field": "message",
+      "input": "ping <@123456789012345678> and <@!123456789012345678>",
+      "expect": "ping <discord> and <discord>"
+    },
+    {
+      "id": "email",
+      "field": "gameLog",
+      "input": "[10:00:00:000] mail a.b@example.org now",
+      "expect": "[10:00:00:000] mail <email> now"
+    },
+    {
+      "id": "session-json-value",
+      "field": "gameLog",
+      "input": "[10:00:00:000] {\"session\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"masterApiId\":7}",
+      "expect": "[10:00:00:000] {\"session\":\"<redacted>\",\"masterApiId\":7}"
+    },
+    {
+      "id": "session-json-value-short",
+      "field": "gameLog",
+      "input": "[10:00:00:000] {\"session\" : \"abc\"}",
+      "expect": "[10:00:00:000] {\"session\" : \"<redacted>\"}"
+    },
+    {
+      "id": "discord-bot-token",
+      "field": "gameLog",
+      "input": "[10:00:00:000] token for bot ZmFrZS1ub3QtYS1yZWFsLXRva2Vu.GAbCdE.abcdefghijklmnopqrstuvwxyz012345 end",
+      "expect": "[10:00:00:000] token for bot <token-redacted> end"
+    },
+    {
+      "id": "bearer-token",
+      "field": "gameLog",
+      "input": "[10:00:00:000] Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
+      "expect": "[10:00:00:000] Authorization: Bearer <redacted>"
+    },
+    {
+      "id": "windows-users-path-unknown-user",
+      "field": "gameLog",
+      "context": {},
+      "input": "[10:00:00:000] C:\\Users\\Jake\\Desktop\\notes.txt",
+      "expect": "[10:00:00:000] C:\\Users\\<user>\\Desktop\\notes.txt"
+    },
+    {
+      "id": "unix-home-path",
+      "field": "gameLog",
+      "context": {},
+      "input": "[10:00:00:000] /home/jake/.config and /Users/jake/Library",
+      "expect": "[10:00:00:000] /home/<user>/.config and /Users/<user>/Library"
+    },
+    {
+      "id": "nexus-download-key",
+      "field": "gameLog",
+      "input": "[10:00:00:000] https://cf.nexus/f.7z?md5=x&key=AbCdEf123456&expires=1790400000&user_id=12345",
+      "expect": "[10:00:00:000] https://cf.nexus/f.7z?md5=x&key=<redacted>&expires=<redacted>&user_id=<redacted>"
+    },
+    {
+      "id": "long-hex-run",
+      "field": "gameLog",
+      "input": "[10:00:00:000] hwid 0123456789abcdef0123456789abcdef01 ok",
+      "expect": "[10:00:00:000] hwid 01234567<redacted> ok"
+    },
+    {
+      "id": "foreground-guard-line",
+      "field": "gameLog",
+      "input": "[10:00:00:000] ForegroundGuard: window class 'Chrome_WidgetWin_1' pid 4242 (C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe) is in front",
+      "expect": "[10:00:00:000] ForegroundGuard: window class '<app>' pid 4242 (<app>) is in front"
+    },
+    {
+      "id": "json-snippet-in-game-log",
+      "field": "gameLog",
+      "absent": [
+        "letter"
+      ],
+      "input": "[10:00:00:000] on('update'): Unexpected token 'm', \"{\"a\": my letter \"... is not valid JSON",
+      "expect": "[10:00:00:000] on('update'): Unexpected token in JSON"
+    },
+    {
+      "id": "json-quoted-snippet",
+      "field": "gameLog",
+      "input": "[10:00:00:000] parse failed: \"[object Object]\" is not valid JSON",
+      "expect": "[10:00:00:000] parse failed: <s> is not valid JSON"
+    },
+    {
+      "id": "json-parse-session-snippet",
+      "field": "message",
+      "type": "SyntaxError",
+      "absent": [
+        "session"
+      ],
+      "input": "Unexpected token 'x', \"x{\"session\"... is not valid JSON",
+      "expect": "Unexpected token in JSON"
+    },
+    {
+      "id": "json-parse-end-of-input",
+      "field": "message",
+      "type": "SyntaxError",
+      "input": "Unexpected end of JSON input",
+      "expect": "Unexpected end of JSON input"
+    },
+    {
+      "id": "json-parse-unterminated",
+      "field": "message",
+      "type": "SyntaxError",
+      "input": "Unterminated string in JSON at position 7 (line 1 column 8)",
+      "expect": "Unterminated string in JSON"
+    },
+    {
+      "id": "json-parse-control-character",
+      "field": "message",
+      "type": "SyntaxError",
+      "input": "Bad control character in string literal in JSON at position 7 (line 1 column 8)",
+      "expect": "Bad control character in JSON"
+    },
+    {
+      "id": "json-parse-expected",
+      "field": "message",
+      "type": "SyntaxError",
+      "input": "Expected ',' or '}' after property value in JSON at position 78 (line 1 column 79)",
+      "expect": "Expected token in JSON"
+    },
+    {
+      "id": "json-parse-other",
+      "field": "message",
+      "type": "SyntaxError",
+      "input": "\"undefined\" is not valid JSON",
+      "expect": "Invalid JSON"
+    },
+    {
+      "id": "json-parse-only-for-syntax-errors",
+      "field": "message",
+      "type": "TypeError",
+      "input": "JSON.parse is not a function",
+      "expect": "JSON.parse is not a function"
+    },
+    {
+      "id": "json-parse-needs-json-in-message",
+      "field": "message",
+      "type": "SyntaxError",
+      "input": "Unexpected identifier 'foo'",
+      "expect": "Unexpected identifier 'foo'"
+    },
+    {
+      "id": "json-parse-trail-err",
+      "field": "trail",
+      "kind": "err",
+      "input": "on SyntaxError: Unexpected token 'x', \"xyz\" is not valid JSON",
+      "expect": "on SyntaxError: Unexpected token in JSON"
+    },
+    {
+      "id": "json-parse-trail-err-logged",
+      "field": "trail",
+      "kind": "err",
+      "input": "logged AuthService: SyntaxError: Expected property name or '}' in JSON at position 1",
+      "expect": "logged AuthService: SyntaxError: Expected token in JSON"
+    },
+    {
+      "id": "json-parse-not-in-game-log",
+      "field": "gameLog",
+      "input": "[10:00:00:000] SyntaxError: Unexpected end of JSON input",
+      "expect": "[10:00:00:000] SyntaxError: Unexpected end of JSON input"
+    },
+    {
+      "id": "control-and-bidi-characters",
+      "field": "message",
+      "input": "a\u0000b\u0007c\u001bd\u202ee\u2066f\u200bg\r\nh\ti\rj",
+      "expect": "abcdefg\nh\tij"
+    },
+    {
+      "id": "hex-words-untouched",
+      "field": "message",
+      "input": "decade facade deadbeef",
+      "expect": "decade facade deadbeef"
+    },
+    {
+      "id": "cap-keeps-head",
+      "field": "message",
+      "cap": 10,
+      "input": "0123456789AB",
+      "expect": "0123456789"
+    },
+    {
+      "id": "cap-keeps-whole-lines-at-the-tail-of-game-log",
+      "field": "gameLog",
+      "cap": 34,
+      "input": "[10:00:00:000] line1\n[10:00:00:001] line2",
+      "expect": "[10:00:00:001] line2"
+    },
+    {
+      "id": "game-log-line-cut-to-500",
+      "field": "gameLog",
+      "absent": [
+        "LAST"
+      ],
+      "input": "[10:00:00:000] on('update'): Error: unexpected packet xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx LAST\n[10:00:01:000] next line",
+      "expect": "[10:00:00:000] on('update'): Error: unexpected packet xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n[10:00:01:000] next line"
+    },
+    {
+      "id": "cap-never-splits-a-surrogate-pair",
+      "field": "message",
+      "cap": 5,
+      "input": "abcd\ud83d\ude00",
+      "expect": "abcd"
+    }
+  ],
+  "timing": {
+    "chars": 65536,
+    "units": [
+      "a",
+      "\"",
+      "a@",
+      "1.",
+      "a:",
+      "class '",
+      "1:",
+      "OneDrive ",
+      "Unexpected token ",
+      "[00:00:00:000] JS ",
+      "[00:00:00:000] JS \n"
+    ],
+    "ruleMs": 50
+  }
+}
