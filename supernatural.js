@@ -885,24 +885,39 @@ module.exports = (api) => {
     log(`supernatural: ${display(a)} has blood on their face`);
     return true;
   };
-  // Puts back the tint layers the blood covered, found by mask and type in case the list changed since
+  // Puts back the tint layers the blood covered. Each original goes back to the layer with its mask and type; failing that
+  // (a RaceMenu or a reroll changed the list since), to a layer of its type still wearing a blood colour. The kept originals
+  // are dropped only when nothing is left to undo: all put back, or no blood colour left on the face (a new face replaced
+  // the bloody one, so there is nothing of ours on it). Otherwise what could not be put back is kept for the next wash
+  // (Worker B's review, 2026-09-30: clearing first threw the originals away when the list had changed).
+  const BLOOD_TYPES = new Set([TINT_LIPS, TINT_CHIN, TINT_DIRT]);
+  const isBloodColour = (argb) => [C.blood.lips, C.blood.chin].some((c) => ((Number(c) >>> 0) | 0) === ((Number(argb) >>> 0) | 0));
   const washBlood = (a, why) => {
     const s = stateOf(a); if (!s || !s.blood) return false;
     const prev = Array.isArray(s.blood.prev) ? s.blood.prev : [];
-    s.blood = null; saveState(a, s);
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { app = null; }
-    if (app && Array.isArray(app.tints) && prev.length) {
-      const used = new Set();
-      const tints = app.tints.map((x) => {
-        const k = prev.findIndex((p, j) => !used.has(j) && p.texturePath === x.texturePath && Number(p.type) === Number(x.type));
-        if (k < 0) return x;
-        used.add(k);
-        return Object.assign({}, x, { argb: prev[k].argb });
-      });
-      mp.set(a, 'appearance', Object.assign({}, app, { tints }));
+    const tints = app && Array.isArray(app.tints) ? app.tints.map((x) => Object.assign({}, x)) : [];
+    const used = new Set();
+    const remaining = [];
+    let restored = 0;
+    for (const p of prev) {
+      let i = tints.findIndex((x, j) => !used.has(j) && x.texturePath === p.texturePath && Number(x.type) === Number(p.type));
+      if (i < 0) i = tints.findIndex((x, j) => !used.has(j) && Number(x.type) === Number(p.type) && isBloodColour(x.argb));
+      if (i < 0) { remaining.push(p); continue; }
+      used.add(i);
+      tints[i].argb = p.argb;
+      restored++;
     }
+    if (restored) mp.set(a, 'appearance', Object.assign({}, app, { tints }));
+    const stillBloody = tints.some((x) => BLOOD_TYPES.has(Number(x.type)) && isBloodColour(x.argb));
+    if (remaining.length && stillBloody) {
+      s.blood = Object.assign({}, s.blood, { prev: remaining }); saveState(a, s);
+      log(`supernatural: ${display(a)} washed ${restored} of ${prev.length} blood layer(s) off (${why}); ${remaining.length} kept for the next wash`);
+      return restored > 0;
+    }
+    s.blood = null; saveState(a, s);
     try { sendPacket(a, { customPacketType: 'dboBloody', on: false }); } catch (e) { /* old client */ }
-    log(`supernatural: ${display(a)} washed the blood off (${why})`);
+    log(`supernatural: ${display(a)} washed the blood off (${why})${remaining.length ? `; ${remaining.length} layer(s) had no blood left to undo` : ''}`);
     return true;
   };
   // The client says so while there is blood to wash and the player is in water (VampireFeedService)
