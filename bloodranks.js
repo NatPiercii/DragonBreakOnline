@@ -91,6 +91,7 @@ module.exports = (api) => {
   globalThis.__dboBloodThirstRate = (a) => at(C.thirstRate, a);
   globalThis.__dboBloodFeedSeconds = (a) => at(C.feedSeconds, a);
   globalThis.__dboBloodCanLongFeed = (a) => rankOf(a) >= C.longFeedFromRank;
+  globalThis.__dboBloodRank = (a) => rankOf(a);
   globalThis.__dboBloodDamageMult = (agg) => (isNight() && isVampire(agg) ? at(C.damageAtNight, agg) : 1);
   globalThis.__dboBloodReset = (a) => save(a, { blood: 0, fedOn: {} });
   // The Vampire tab of the skills menu (supernatural.js builds it): the ladder, where this vampire stands on it, and each
@@ -105,7 +106,7 @@ module.exports = (api) => {
     return {
       name: 'The Blood', unit: 'blood', value: blood, rank: rankFor(blood),
       ranks: C.ranks.map((name, i) => ({ name, at: C.thresholds[i], perk: perkOf(i) })),
-      earn: `Feed on people: a fresh body ${C.points.corpse}, a bound captive ${C.points.living}, a person you slew ${C.points.slain}.`,
+      earn: `Feed on people: a fresh body ${C.points.corpse}, a living person, bound or willing, ${C.points.living}, a person you slew ${C.points.slain}.`,
     };
   };
 

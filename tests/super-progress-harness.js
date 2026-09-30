@@ -107,7 +107,7 @@ ok(v && v.kind === 'vampire' && v.label === 'Vampire' && v.group === 'The Blood'
 ok(v.epithet === 'Vampire', 'titled by their blood rank', v.epithet);
 ok(v.ladder && v.ladder.unit === 'blood' && v.ladder.value === 150 && v.ladder.rank === 1 && v.ladder.ranks[4].name === 'Master Vampire', 'the ladder: 150 blood, the second rank', v.ladder);
 ok(v.ladder.ranks[0].perk === 'the blood gives nothing yet' && /10% heavier at night, the sun 40% weaker, thirst 40% slower/.test(v.ladder.ranks[4].perk), '...each rank says what it gives', v.ladder.ranks.map((r) => r.perk));
-ok(/a bound captive 20/.test(v.ladder.earn), '...and how blood is earned', v.ladder.earn);
+ok(/a living person, bound or willing, 20/.test(v.ladder.earn), '...and how blood is earned (willing people too, 2026-09-30)', v.ladder.earn);
 // Fed 1.5 game days ago (360 real minutes); stage 3 at 2 days after at rank 1's rate 0.9 (2 / 0.9 = 2.22 days): 0.72 days, 174 minutes
 const thirst = row(v, 'Thirst');
 ok(thirst && thirst.value === 'Stage 2 of 4', 'thirst: stage 2 of 4', thirst);

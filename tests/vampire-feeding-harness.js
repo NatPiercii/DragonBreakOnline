@@ -142,7 +142,7 @@ ok(JSON.stringify(entries()) === '["super:feed"]', 'a Fledgling is offered Feed 
 ok(globalThis.__dboSuperMenuAction(V, 'super:feedlong', CAPTIVE) === true && heard(V, /too young/), 'and refused Feed Deeply');
 store.set(`${V}|private.bloodRanks`, { blood: 300, fedOn: {} });
 ok(JSON.stringify(entries()) === '["super:feed","super:feedlong"]', 'a Nightstalker is offered Feed Deeply too', entries());
-ok(JSON.stringify(globalThis.__dboSuperMenuEntries(V, W)) === '[]', 'nothing on someone free');
+ok(JSON.stringify(globalThis.__dboSuperMenuEntries(V, W).map((e) => e.id)) === '["super:feed","super:feedlong"]', 'someone free is offered the same (they are asked first: vampire-consent-harness)');
 anims.length = 0; banners.length = 0;
 globalThis.__dboSuperMenuAction(V, 'super:feedlong', CAPTIVE);
 ok(banners.some(([a, t, s]) => a === V && /deeply/.test(t) && s === 16), 'a Nightstalker\'s deep feed takes 16 seconds (8 x 2)', banners);
