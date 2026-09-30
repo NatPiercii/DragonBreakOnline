@@ -1,5 +1,25 @@
 [
   {
+    "title": "Client 0.3.70: Contracts on the Expedition Board",
+    "date": "2026-09-30",
+    "version": "Client 0.3.70",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Contracts",
+        "items": [
+          "The expedition board now has a Contracts tab: read the hunting notices your area has posted, take one, see your progress and give it up, all from the board. /contract still works."
+        ]
+      },
+      {
+        "heading": "Getting it",
+        "items": [
+          "The launcher downloads this update the next time you press Play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Better Loot, Brewing Help and Saltier Deposits",
     "date": "2026-09-30",
     "version": "Server update",
