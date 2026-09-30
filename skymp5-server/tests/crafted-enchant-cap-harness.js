@@ -166,6 +166,10 @@ const LOAD_ORDER = ['Skyrim.esm', 'Update.esm', 'Dawnguard.esm', 'HearthFires.es
   setRank(4);
   r = enchant(sys, RING, [[FORTIFY_HEALTH, 50]]);
   check('with no base game at the head of the load order nothing sets a cap, so enchanting is refused', !r.made && r.refused);
+  sys = await boot(undefined);
+  setRank(4);
+  r = enchant(sys, RING, [[FORTIFY_HEALTH, 1e6]]);
+  check('with no load order to read, the five base game files are assumed to lead it', mag(r, FORTIFY_HEALTH) === 140, mag(r, FORTIFY_HEALTH));
   sys = await boot(LOAD_ORDER.map((p) => p.replace(/\//g, '\\\\').toUpperCase()));
   setRank(4);
   r = enchant(sys, RING, [[FORTIFY_HEALTH, 50]]);

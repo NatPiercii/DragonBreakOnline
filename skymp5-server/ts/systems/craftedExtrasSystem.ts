@@ -64,8 +64,7 @@ const KEYWORD_DISALLOW_ENCHANTING = 0x000c27bd;
 const KEYWORD_REUSABLE_SOUL_GEM = 0x000ed2f1;
 // ENCH ENIT enchant type; weapon enchantments are fire and forget on contact, armor ones constant on self
 const ENCH_TYPE_ENCHANTMENT = 6;
-// Caps come from the base game's player enchantments only (Skyrim.esm, Update and the DLC, the EnchWeapon, EnchArmor and
-// EnchRobes families); a mod's enchantment never raises one
+// Caps come only from the base game's EnchWeapon, EnchArmor and EnchRobes enchantments; a mod's never raises one
 const BASE_GAME_FILES = new Set(["skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"]);
 const PLAYER_ENCHANTMENT = /^Ench(Weapon|Armor|Robes)/;
 // Effects on the Alchemy and Enchanting skills and their modifiers (the MGEF's actor value) are never accepted on an item
@@ -155,9 +154,9 @@ const chargeOf = (e: InventoryEntry): number => (typeof e.chargePercent === "num
 const formulaCost = (baseCost: number, e: EnchantmentEffect): number =>
   baseCost * Math.pow(Math.max(e.magnitude, 1), 1.1) * Math.pow(Math.max(e.duration / 10, 1), 1.1);
 
-// Load order entries from the first that are base game files: their records' ids start with 0 up to this count
+// Leading load order entries that are base game files (ids from 0 up to it); all five when there is no load order
 const baseGameFileCount = (loadOrder: unknown): number => {
-  if (!Array.isArray(loadOrder)) return 0;
+  if (!Array.isArray(loadOrder) || !loadOrder.length) return BASE_GAME_FILES.size;
   let n = 0;
   while (n < loadOrder.length && BASE_GAME_FILES.has(String(String(loadOrder[n]).split(/[\\/]/).pop()).toLowerCase())) n++;
   return n;
@@ -769,7 +768,7 @@ export class CraftedExtrasSystem implements System {
   private itemCache = new Map<number, ItemInfo>();
   private keywordCache = new Map<number, number[]>();
   private caps: Map<string, Cap> | null = null;
-  private baseFiles = 0;
+  private baseFiles = BASE_GAME_FILES.size;
   private uncappedLogged = new Set<string>();
   private recipes: Map<number, TemperRecipe[]> | null = null;
 }
