@@ -242,7 +242,13 @@ module.exports = (api) => {
     if (tier < 0) return `${whose} not taken up ${skill.label}, the skill that studies ${sp.school}. Reading a Novice ${sp.school} tome at a spell study point takes it up.`;
     const max = maxRankFor(skill.id, tier);
     if (sp.rank > max) return `${sp.name} is ${/^[AEIOU]/.test(RANKS[sp.rank]) ? 'an' : 'a'} ${RANKS[sp.rank]} spell. ${skill.label} at ${TIER_NAMES[tier]} allows up to ${RANKS[max]} spells.`;
-    return null;
+    return schoolRefusal(a, sp, whose === 'You have' ? 'You' : display(a));
+  };
+  // The schools of magic (schools.js): a spell of Destruction, Illusion, Conjuration or Alteration is taken only in a school
+  // the character has chosen, and no higher than their study of it. null when schools.js has no objection or is not loaded.
+  const schoolRefusal = (a, sp, whose) => {
+    try { return typeof globalThis.__dboSchoolsRefusal === 'function' ? (globalThis.__dboSchoolsRefusal(a, sp.school, Number(sp.rank) || 0, whose) || null) : null; }
+    catch (e) { log('spells: school check failed', e.message); return null; }
   };
 
   // ---- reading a tome --------------------------------------------------------------------------------
@@ -262,6 +268,9 @@ module.exports = (api) => {
       personal(a, `${tome.name} is already in your spellbook. You keep the tome. ${COLLEGE_HINT}`);
       return { refuse: true };
     }
+    // A school tome is refused before it can take a skill up: no pool point is spent on a read the school would refuse
+    const noSchool = schoolRefusal(a, tome, 'You');
+    if (noSchool) return refuse(noSchool);
     // A Novice tome read at a spell study point takes up its school's skill, for one pool point, the way a trade is
     // started at its bench (Nate, 2026-09-25): a new character has no spell to cast, so Arcane Arts had no way in
     const opens = SKILL_OF_SCHOOL[tome.school];
@@ -386,6 +395,12 @@ module.exports = (api) => {
     openFromCommand(a, '');
     return panel;
   };
+
+  // For schools.js: the spellbook (every spell studied or taught), every school spell the character knows (the engine's
+  // list and the book), and one spell's school and rank; each entry { id, desc, school, rank, name }
+  globalThis.__dboSpellsBook = (a) => knownIds(a).map(classifySpell).filter(Boolean);
+  globalThis.__dboSpellsKnown = (a) => { const ids = new Set(learnedIds(a) || []); for (const id of knownIds(a)) ids.add(id); return [...ids].map(classifySpell).filter(Boolean); };
+  globalThis.__dboSpellsClassify = (id) => classifySpell(Number(id) >>> 0);
 
   // Bringing a character over: the first time the server sees them after this change, the spells of their book the
   // engine holds become prepared, up to the limit in the order they were learned; any beyond it are taken back into
