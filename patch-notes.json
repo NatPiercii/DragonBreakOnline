@@ -1,5 +1,26 @@
 [
   {
+    "title": "Dressed After Death, and the Blood Crown",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "If you die while logged out, you no longer come back naked: your outfit is put back on when you log in, and after every return from the temple.",
+          "A vampire now only holds the spells of their own stage; spells from an earlier stage no longer appear and then vanish when you equip them."
+        ]
+      },
+      {
+        "heading": "Vampires",
+        "items": [
+          "A new pure-blood is now told when the Blood Crown is held by another vampire: slay its holder to take the Vampire Lord's form. /blood tells a pure-blood where the Crown stands."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client 0.3.69: Every Dropdown Works",
     "date": "2026-09-29",
     "version": "Client 0.3.69",
