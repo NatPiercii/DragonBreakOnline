@@ -17,9 +17,11 @@ const INDEX = {};
 const idOf = (d) => { const [hex, plugin] = String(d).split(':'); if (!(plugin in INDEX)) INDEX[plugin] = Object.keys(INDEX).length + 1; return ((INDEX[plugin] << 24) | parseInt(hex, 16)) >>> 0; };
 const REFS = DEPOSITS.map((d) => idOf(d.ref));
 
-const MINER = 0x14, OTHER = 0x15;
+const MINER = 0x14, OTHER = 0x15, MINER2 = 0x16;
+const SALT_BASE = 0x7f000802;   // a SeaSalt pickaxe activator, as DragonBreak.esp 000802
 const props = new Map(), packets = [];
 let timers = [];
+let online = [MINER, OTHER];
 const realSetInterval = setInterval;
 const load = (labourCfg) => {
   globalThis.setInterval = (fn, ms) => { timers.push({ fn, ms }); return { unref() {} }; };
@@ -30,11 +32,11 @@ const load = (labourCfg) => {
   try {
     delete require.cache[require.resolve(LABOUR)];
     require(LABOUR)({
-      mp: { getIdFromDesc: idOf, get: (id, p) => props.get(id + '|' + p), set: (id, p, v) => props.set(id + '|' + p, v), lookupEspmRecordById: () => null },
+      mp: { getIdFromDesc: idOf, get: (id, p) => props.get(id + '|' + p), set: (id, p, v) => props.set(id + '|' + p, v), lookupEspmRecordById: (id) => (id === SALT_BASE ? { record: { type: 'ACTI', editorId: '12SeaSaltMinepickaxeDUPLICATE003' } } : null) },
       log: () => {}, personal: () => {}, audit: () => {}, display: () => 'Tester', who: () => 'Tester', cfg: { labour: labourCfg || {} },
       openWidget: () => true, closeWidget: () => true, onUi: () => {}, giveItem: () => true,
       skills: require(path.join(SERVER, 'skills.json')),
-      sendPacket: (a, p) => packets.push([a, p]), onlineActors: () => [MINER, OTHER],
+      sendPacket: (a, p) => packets.push([a, p]), onlineActors: () => online.slice(),
     });
   } finally { process.chdir(cwd); globalThis.setInterval = realSetInterval; }
 };
@@ -77,6 +79,22 @@ ok(glowFor(MINER).on.has(REFS[0]), 'a rest that ran out lights it again');
 packets.length = 0;
 timers[0].fn();
 ok(new Set(packets.map(([a]) => a)).size === 2, 'the tick reaches every player online');
+
+// a round on a deposit darkens it for every other Miner at once, not at the next tick (Worker G's review)
+online = [MINER, OTHER, MINER2];
+props.set(MINER2 + '|private.mastery', { order: ['miner'], skills: { miner: { rank: 0 } } });
+const DEP = REFS[5];
+props.set(DEP + '|baseDesc', (SALT_BASE & 0xffffff).toString(16) + ':SaltBase.esp');
+INDEX['SaltBase.esp'] = SALT_BASE >>> 24;
+packets.length = 0;
+const opened = globalThis.__dboLabour(DEP, MINER);
+const one = (a) => packets.filter(([w, p]) => w === a && p.customPacketType === 'dboGlow' && p.refs.length === 1 && p.refs[0] === DEP).map(([, p]) => p.on);
+ok(opened === true, 'the first Miner opens a round on the deposit');
+ok(JSON.stringify(one(MINER2)) === '[false]', 'the other Miner is told at once that it went dark', one(MINER2));
+ok(JSON.stringify(one(MINER)) === '[true]', 'the worker still sees their own seam lit', one(MINER));
+ok(one(OTHER).length === 0, 'someone outside the audience is not sent anything');
+ok(!glowFor(MINER2).on.has(DEP), "...and the other Miner's next tick agrees");
+online = [MINER, OTHER];
 
 // config: everyone, and off
 load({ saltGlow: { enabled: true, audience: 'everyone' } });
