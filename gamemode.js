@@ -3693,8 +3693,22 @@ const isInteriorDesc = (desc) => {
 // The host policy, shared with server\npcdirector.js (review 2026-09-25: the director must not trust a client's own
 // distances): the requester is online, the actor is not a player's body, the requester is not bound, both are in the
 // same world, and the server-measured distance is within reach. Returns { ok, dist, why }.
+// A form the server has destroyed that a client still reports, from its own stale copy (Onny, 2026-09-30: three NPCs
+// in his sight report every second for 40 minutes after a relog, 2,682 errors in the log). Each read of a gone form
+// throws and the C++ logs it, twice per policy check. So it is probed once, then taken as gone for GONE_TTL_MS; a
+// dynamic id the server hands out again is found alive at the next probe.
+const GONE_TTL_MS = 60000;
+const goneForms = globalThis.__dboGoneForms instanceof Map ? globalThis.__dboGoneForms : (globalThis.__dboGoneForms = new Map()); // id -> when found gone
+const formExists = globalThis.__dboFormExists = (id) => {
+  id = Number(id) >>> 0;
+  const at = goneForms.get(id);
+  if (at !== undefined && Date.now() - at < GONE_TTL_MS) return false;
+  try { mp.get(id, 'type'); goneForms.delete(id); return true; }
+  catch (e) { if (goneForms.size > 4096) goneForms.clear(); goneForms.set(id, Date.now()); return false; }
+};
 const hostPolicy = (req, act) => {
   if (userOf(req) === -1) return { ok: false, why: 'offline' };
+  if (!formExists(act)) return { ok: false, why: 'gone' };
   // A logged-out character's body waiting out its grace is never driven by another player's client
   if (profileOf(act) >= 0) return { ok: false, why: 'player body' };
   try {

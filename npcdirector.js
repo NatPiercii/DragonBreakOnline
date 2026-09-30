@@ -46,6 +46,9 @@ module.exports = (api) => {
 
   const managed = (npc) => {
     try {
+      // A form the server destroyed that a client still reports (gamemode.js formExists: probed once a minute, not
+      // on every report)
+      if (typeof globalThis.__dboFormExists === 'function' && !globalThis.__dboFormExists(npc)) return false;
       if (profileOf(npc) >= 0) return false;
       if (mp.get(npc, 'isDead') === true) return false;
       const owner = mp.get(npc, 'ff_companionOf');
