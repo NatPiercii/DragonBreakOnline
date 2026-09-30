@@ -19,7 +19,7 @@ const ABOVE_NAME_PX = 72;
 const LOS_EVERY_MS = 250;
 const UNITS_PER_METER = 70;
 
-interface Drawn { ids: number[]; texts: string[]; sizes: number[]; alphas: number[] }
+interface Drawn { ids: number[]; texts: string[]; sizes: number[]; colors: string[] }
 
 // This game's form id for a server actor id: 0x14 for our own, 0 when not loaded
 export const speakerLocalId = (serverId: number): number => {
@@ -112,20 +112,21 @@ export class ChatBubbleService extends ClientListener {
   }
 
   private draw(id: number, lines: Array<{ text: string; color: number[]; alpha: number; x: number; y: number }>, size: number): void {
-    const d = this.drawn.get(id) || { ids: [], texts: [], sizes: [], alphas: [] };
+    const d = this.drawn.get(id) || { ids: [], texts: [], sizes: [], colors: [] };
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
       const color = [l.color[0], l.color[1], l.color[2], 0.95 * l.alpha];
+      const colorKey = color.join(",");
       if (!d.ids[i]) {
         d.ids[i] = createText(l.x, l.y, l.text, color);
         setTextSize(d.ids[i], size);
         d.texts[i] = l.text;
         d.sizes[i] = size;
-        d.alphas[i] = l.alpha;
+        d.colors[i] = colorKey;
         continue;
       }
       setTextPos(d.ids[i], l.x, l.y);
-      if (d.alphas[i] !== l.alpha || d.texts[i] !== l.text) { setTextColor(d.ids[i], color); d.alphas[i] = l.alpha; }
+      if (d.colors[i] !== colorKey) { setTextColor(d.ids[i], color); d.colors[i] = colorKey; }
       if (d.sizes[i] !== size) { setTextSize(d.ids[i], size); d.sizes[i] = size; }
       if (d.texts[i] !== l.text) { setTextString(d.ids[i], l.text); d.texts[i] = l.text; }
     }
@@ -133,7 +134,7 @@ export class ChatBubbleService extends ClientListener {
     d.ids.length = lines.length;
     d.texts.length = lines.length;
     d.sizes.length = lines.length;
-    d.alphas.length = lines.length;
+    d.colors.length = lines.length;
     this.drawn.set(id, d);
   }
 
@@ -149,7 +150,7 @@ export class ChatBubbleService extends ClientListener {
   }
 
   private menuOpen(): boolean {
-    try { return this.controller.lookupListener(BrowserService).isBlockingMenuOpen(); } catch { return false; }
+    try { return this.controller.lookupListener(BrowserService).liveBlockingMenus().length > 0; } catch { return false; }
   }
 
   private reset(): void {
