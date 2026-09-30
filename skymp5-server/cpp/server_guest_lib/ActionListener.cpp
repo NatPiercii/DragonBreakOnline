@@ -512,9 +512,14 @@ MpActor* ActionListener::SendToNeighbours(uint32_t idx,
         spdlog::warn("SendToNeighbours - idx=0, <Message>::ReadJson or "
                      "similar is probably incorrect");
       }
-      spdlog::error(
-        "SendToNeighbours - No permission to update actor {:x} (not a hoster)",
-        actor->GetFormId());
+      // The userId and the actor's cell are here so the 1300-a-day count can be split by player and by place.
+      // A true zone kind (wild / dungeon / NPC) is gameplay-layer knowledge and cannot come from here; the cell id
+      // is what the server has, and server/*.js or the metrics script can join it to a zone.
+      spdlog::error("SendToNeighbours - No permission to update actor {:x} "
+                    "(not a hoster) user {} cell {:x}",
+                    actor->GetFormId(), userId,
+                    actor->GetCellOrWorld().ToFormId(
+                      partOne.worldState.espmFiles));
       partOne.SendHostStop(userId, *actor);
       return nullptr;
     }
@@ -1766,9 +1771,20 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
     constexpr float kExteriorCellWidthUnits = 4096.f;
     if ((aggressorPos - targetPos).SqrLength() >
         kExteriorCellWidthUnits * kExteriorCellWidthUnits) {
+      // Without the positions this line cannot be diagnosed. Measured 2026-09-30: 568 of these in nine days, in 22
+      // distinct minutes, and none of the paths that could leave a position stale fits - only 1% land within 2 s of
+      // a host change or release, the movement validator corrected nothing in any burst, and there are far too few
+      // destroy and cleaner events to account for them. The leading remaining explanation is that targetRef is not
+      // the actor the player hit (a recycled dynamic id resolving to something else entirely), and the way to tell
+      // is the distance: a few thousand units means a stale position, tens of thousands means the wrong actor.
+      const NiPoint3 delta = aggressorPos - targetPos;
       spdlog::error("ActionListener::OnHit - aggressor and targetRef are too "
-                    "distant. Aggressor: {:x}, targetRef: {:x}",
-                    aggressor->GetFormId(), targetRef->GetFormId());
+                    "distant. Aggressor: {:x}, targetRef: {:x}, aggressorPos: "
+                    "{:.0f},{:.0f},{:.0f}, targetPos: {:.0f},{:.0f},{:.0f}, "
+                    "distance: {:.0f}",
+                    aggressor->GetFormId(), targetRef->GetFormId(),
+                    aggressorPos.x, aggressorPos.y, aggressorPos.z,
+                    targetPos.x, targetPos.y, targetPos.z, delta.Length());
       return;
     }
   } else {
