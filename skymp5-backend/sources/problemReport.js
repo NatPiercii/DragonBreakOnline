@@ -17,8 +17,13 @@ const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log']
 // to 48 KB, so it passes whole, and anything longer keeps its head
 const BOTH_ENDS = { csLog: [32 * 1024, 32 * 1024], crashLog: [56 * 1024, 8 * 1024] }
 // Only these context fields are ever repeated back into Discord, and each is scrubbed like a log
+// ramGb, ramFreeGb, cpu and gpu are the machine a crash happened on: through launcher 2.1.34 no report carried any
+// hardware, so a crash class could not be read against the PC and "minimum specs we can publish" had nothing behind
+// it. They go through the same text() + scrub(300) path as every other context field, so a non-scalar is dropped, a
+// long value is cut and a path is redacted; nothing outside this list is ever repeated into Discord.
 const CONTEXT_FIELDS = ['launcherVersion', 'clientVersion', 'filesVersion', 'os', 'gameVersion',
-                        'installDir', 'step', 'error', 'mo2Enabled', 'freeSpaceGb']
+                        'installDir', 'step', 'error', 'mo2Enabled', 'freeSpaceGb',
+                        'ramGb', 'ramFreeGb', 'cpu', 'gpu']
 const SOURCES = { launcher: 'from the launcher', game: 'in game', site: 'from the website' }
 const SOURCE_TAGS = { launcher: ['Manual', 'Launcher'], game: ['Manual'], site: ['Manual'] }
 // A 1080p JPEG at quality 80 measured 213-489 KiB; the cap leaves room for the logs inside a 2 MB body
