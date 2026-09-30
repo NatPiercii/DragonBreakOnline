@@ -179,6 +179,66 @@ export const CurseRanks = ({ ladder }: { ladder: CurseLadder | null }) => (
   </section>
 );
 
+// The schools of magic (gameplay schools.js, Swag's rework, Nate 2026-09-30): four meters on the Arcane Arts page, filling
+// bottom to top over the whole ladder, with the rank floors marked. Every word comes from the server; a choice goes back
+// as dbo:schoolChoose(nonce, school, 'primary' | 'secondary') after the confirm.
+interface SchoolChoice {
+  as: string;
+  label: string;
+  title: string;
+  confirm: string;
+  yes: string;
+  no: string;
+}
+
+interface SchoolMeter {
+  name: string;
+  role: 'primary' | 'secondary' | 'locked';
+  roleLabel: string;
+  level: number;
+  rank: string;
+  fill: number;
+  hint: string;
+  choose: SchoolChoice | null;
+}
+
+export interface SchoolProgress {
+  skill: string;
+  title: string;
+  note: string;
+  nonce: string;
+  floors: number[];
+  ranks: string[];
+  schools: SchoolMeter[];
+  events: { choose: string };
+}
+
+export const SchoolMeters = ({ progress, onChoose }: { progress: SchoolProgress; onChoose: (s: SchoolMeter) => void }) => (
+  <section className="mastery__ranks mastery__schools">
+    <h3 className="mastery__schools-title">{progress.title}</h3>
+    <div className="mastery__schools-row">
+      {progress.schools.map((s) => (
+        <div key={s.name} className={'mastery__school mastery__school--' + s.role + ' mastery__school--' + s.name.toLowerCase()}>
+          <div className="mastery__school-meter">
+            {(progress.floors || []).slice(1).map((f, i) => (
+              <span key={f} className="mastery__school-tick" style={{ bottom: `${f}%` }} title={(progress.ranks || [])[i + 1] || ''} />
+            ))}
+            <i style={{ height: `${Math.max(0, Math.min(1, Number(s.fill) || 0)) * 100}%` }} />
+          </div>
+          <span className="mastery__school-name">{s.name}</span>
+          <span className="mastery__school-role">{s.roleLabel}</span>
+          {s.role !== 'locked' ? <span className="mastery__school-rank">{s.rank} &middot; {s.level}</span> : null}
+          {s.hint ? <span className="mastery__school-hint">{s.hint}</span> : null}
+          {s.choose ? (
+            <button className="mastery__school-choose" onClick={() => onChoose(s)}>{s.choose.label}</button>
+          ) : null}
+        </div>
+      ))}
+    </div>
+    <p className="mastery__schools-note">{progress.note}</p>
+  </section>
+);
+
 export interface MasteryData {
   points?: PointState;
   maxChosen?: number;
@@ -189,6 +249,7 @@ export interface MasteryData {
   chosen?: Chosen[];
   respec?: Respec;
   supernatural?: CurseProgress | null;
+  schools?: SchoolProgress | null;
   // legacy fields still sent by the server
   profession: string | null;
   rank: number;
@@ -236,6 +297,9 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
   );
   const [confirming, setConfirming] = useState<{ action: 'choose' | 'drop'; id: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [schoolAsk, setSchoolAsk] = useState<SchoolMeter | null>(null);
+  // A new set of meters (the server's answer to a choice) closes the question
+  useEffect(() => { setSchoolAsk(null); }, [data.schools && data.schools.nonce]);
 
   useEffect(() => { setBusy(false); setConfirming(null); }, [chosen.length, respec.count]);
 
@@ -246,15 +310,16 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
   }, [ev.close]);
 
   useEffect(() => {
-    if (!confirming) return undefined;
+    if (!confirming && !schoolAsk) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.stopImmediatePropagation();
       setConfirming(null);
+      setSchoolAsk(null);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [confirming]);
+  }, [confirming, schoolAsk]);
 
   const curse = data.supernatural && data.supernatural.label ? data.supernatural : null;
   const curseId = curse ? CURSE_ID + curse.kind : '';
@@ -265,6 +330,7 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
   if (!current) return null;
   const mine = chosen.filter((c) => c.id === current.id)[0] || null;
   const slotsLeft = maxChosen - chosen.length;
+  const schools = data.schools && Array.isArray(data.schools.schools) && data.schools.skill === current.id ? data.schools : null;
 
   return (
     <div className="mastery">
@@ -437,6 +503,7 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
               </div>
             </section>
 
+            {schools ? <SchoolMeters progress={schools} onChoose={(s) => setSchoolAsk(s)} /> : (
             <section className="mastery__ranks mastery__ranks--five">
               {tierNames.map((tierName, i) => {
                 const h = points ? heldOf(current.id) : null;
@@ -452,10 +519,33 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
                 );
               })}
             </section>
+            )}
           </>
         )}
 
         <button className="mastery__close" onClick={() => send(ev.close)}>Close</button>
+
+        {schoolAsk && schoolAsk.choose && data.schools ? (
+          <div className="mastery__confirm-shade">
+            <div className="mastery__confirm">
+              <h3 className="mastery__confirm-title">{schoolAsk.choose.title}</h3>
+              <p className="mastery__confirm-body">{schoolAsk.choose.confirm}</p>
+              <div className="mastery__confirm-actions">
+                <button
+                  className="mastery__choose"
+                  onClick={() => {
+                    const p = data.schools as SchoolProgress;
+                    send(p.events && p.events.choose ? p.events.choose : 'dbo:schoolChoose', p.nonce, schoolAsk.name, (schoolAsk.choose as SchoolChoice).as);
+                    setSchoolAsk(null);
+                  }}
+                >
+                  {schoolAsk.choose.yes}
+                </button>
+                <button className="mastery__cancel" onClick={() => setSchoolAsk(null)}>{schoolAsk.choose.no}</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {confirming ? (
           <div className="mastery__confirm-shade">
