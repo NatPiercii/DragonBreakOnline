@@ -46,6 +46,9 @@ module.exports = (api) => {
 
   const managed = (npc) => {
     try {
+      // A form the server destroyed that a client still reports (gamemode.js formExists): the director steps aside,
+      // so a client asking to host the same id, handed on to a new NPC, is not refused by it
+      if (typeof globalThis.__dboFormExists === 'function' && !globalThis.__dboFormExists(npc)) return false;
       if (profileOf(npc) >= 0) return false;
       if (mp.get(npc, 'isDead') === true) return false;
       const owner = mp.get(npc, 'ff_companionOf');
@@ -72,6 +75,8 @@ module.exports = (api) => {
     for (const [p, s] of S.sight) {
       if (now - s.at > C.freshMs) continue;
       for (const npc of s.dist.keys()) {
+        // A form the server destroyed that this client still reports: skipped without reading it (gamemode.js formExists)
+        if (typeof globalThis.__dboFormExists === 'function' && !globalThis.__dboFormExists(npc)) continue;
         const v = policy(p, npc);
         if (!v.ok) continue;
         let l = seenBy.get(npc); if (!l) seenBy.set(npc, l = []); l.push([p, Number(v.dist) || 0]);
