@@ -218,6 +218,39 @@ module.exports = (api) => {
     for (const id of want) if (!had.includes(id)) addSpell(a, id);
     if (s) { s.spells = want; saveState(a, s); }
   };
+  // ---- the client's stale stage spells ----
+  // A vampire's client can hold Drain and Raise Thrall of stages the server never gave it this session (Onny,
+  // 2026-09-30: stage 3 on the server, while his client equipped Drain 01 and 02 and Thrall 01, each stripped by the
+  // server as an "unlearned spell": the Drain that vanished from his hand). The source is probably the vanilla
+  // Sanguinare / PlayerVampireQuest scripts running in the client's own Papyrus, which hand out stage spells on a local
+  // clock. That is unproven. A plain RemoveSpell cannot take them back: the server sends the removal only for a spell
+  // it holds as learned (PapyrusActor::RemoveSpell). So every stage spell outside the current stage is learned and
+  // unlearned in one step, which carries the removal to the client. Once per login and once per stage change.
+  const VAMP_ALL = [...new Set([...VAMP_DRAIN, ...VAMP_THRALL, VAMP_SIGHT, VAMP_SEDUCTION, VAMP_EMBRACE].filter(Boolean))];
+  const flushedFor = globalThis.__dboSuperFlushed instanceof Map ? globalThis.__dboSuperFlushed : (globalThis.__dboSuperFlushed = new Map()); // actor -> stage flushed this session
+  const triedSpells = globalThis.__dboSuperTried instanceof Map ? globalThis.__dboSuperTried : (globalThis.__dboSuperTried = new Map()); // actor -> vampire spells its client last held
+  // gamemode's equipment hook: what the client tried to hold, before the server strips an unlearned spell
+  globalThis.__dboSuperEquipSeen = (a, equipment) => {
+    if (!equipment) return;
+    const held = ['leftSpell', 'rightSpell', 'voiceSpell', 'instantSpell'].map((k) => Number(equipment[k]) >>> 0).filter((id) => id && VAMP_ALL.includes(id));
+    if (held.length) triedSpells.set(a >>> 0, new Set(held)); else triedSpells.delete(a >>> 0);
+  };
+  const spellName = (id) => { const r = recordOf(id); return r && r.editorId ? r.editorId : id.toString(16); };
+  const flushStageSpells = (a, s, why) => {
+    if (!s || s.kind !== 'vampire') return 0;
+    const stage = Math.max(1, Math.min(4, s.stage || 1));
+    if (flushedFor.get(a >>> 0) === stage) return 0;
+    flushedFor.set(a >>> 0, stage);
+    const want = vampSpellsFor(stage);
+    const tried = triedSpells.get(a >>> 0) || new Set();
+    let n = 0;
+    for (const id of VAMP_ALL) {
+      if (want.includes(id)) continue;
+      addSpell(a, id); removeSpell(a, id); n++;
+      if (tried.has(id)) log(`supernatural: took ${spellName(id)} back out of ${display(a)}'s hands: not a stage ${stage} spell, and the server never gave it (${why})`);
+    }
+    return n;
+  };
   // gamemode's onSpellHit: a vampire's drain gives back some of what it takes (the server applies only the damage)
   const VAMP_DRAIN_SET = new Set(VAMP_DRAIN.filter(Boolean));
   globalThis.__dboSuperSpellHit = (agg, tgt, spellId) => {
@@ -312,6 +345,15 @@ module.exports = (api) => {
     for (const v of vampiresOnline()) personal(v, v === a ? 'Molag Bal\'s gift is yours: you hold the Blood Crown and the form of a Vampire Lord.' : `The Blood Crown has passed to ${nameOf(a)}.`);
     audit(`BLOODCROWN ${who(a)} ${how}`);
   };
+  // A pure-blood who finds the Crown taken is told how it passes (Onny, 2026-09-30: "i have the pure blood but can't
+  // transform into a vampire lord"); /blood repeats it (bloodranks.js)
+  const crownLine = (a) => {
+    const s = stateOf(a); if (!s || s.kind !== 'vampire' || !s.pure) return null;
+    const holder = crownHolder();
+    if (holder === (a >>> 0)) return "You hold the Blood Crown. The Vampire Lord's form is yours.";
+    return holder ? "The Blood Crown is held by another vampire. Slay its holder to take the Vampire Lord's form." : null;
+  };
+  globalThis.__dboSuperCrownLine = crownLine;
   const dropCrown = (a, why) => { if (crownHolder() !== (a >>> 0)) return; removeSpell(a, VAMPIRE_LORD_POWER); G.crown = null; saveG(); for (const v of vampiresOnline()) personal(v, 'The Blood Crown lies unclaimed.'); audit(`BLOODCROWN ${who(a)} lost it (${why})`); };
 
   // ---- becoming and ending -------------------------------------------------------------------------------
@@ -360,6 +402,8 @@ module.exports = (api) => {
     personal(a, pure ? 'You rise from Molag Bal\'s embrace a pure-blood.' : 'The fever passes, and a cold hunger takes its place. You are a vampire.');
     audit(`SUPERNATURAL ${who(a)} became a ${pure ? 'pure-blood ' : ''}vampire`);
     if (pure && !crownHolder()) takeCrown(a, 'claimed the vacant Blood Crown');
+    else if (pure && crownHolder() !== (a >>> 0)) personal(a, crownLine(a));
+    flushStageSpells(a, stateOf(a), 'became a vampire');
   };
   const becomeWerewolf = (a, blessed) => {
     endCurse(a, 'became a werewolf');
@@ -767,6 +811,9 @@ module.exports = (api) => {
   globalThis.__dboSuperReapplyLook = (a) => { if (kindOf(a) === 'vampire') setLookRace(a, true); };
   globalThis.__dboSuperCrownHolder = () => crownHolder();
   globalThis.__dboSuperLogin = (a) => {
+    // After the client's own login spell sync (remoteServer.ts enforceSpells on CreateActor), not before it
+    flushedFor.delete(a >>> 0);
+    setTimeout(() => { try { if (onlineActors().includes(a)) flushStageSpells(a, stateOf(a), 'login'); } catch (e) { log('supernatural: login spell flush failed', e.message); } }, 15000);
     const i = G.revoke.indexOf(a >>> 0);
     if (i >= 0) { removeSpell(a, VAMPIRE_LORD_POWER); G.revoke.splice(i, 1); saveG(); }
     for (const o of onlineActors()) { if (o !== a && beastForm(o) === 'werewolf' && globalThis.__dboGuildIsPackLeader && globalThis.__dboGuildIsPackLeader(o)) sendPacket(a, { customPacketType: 'dboPale', actor: o >>> 0, shader: PALE_SHADER, on: true }); }
@@ -811,7 +858,7 @@ module.exports = (api) => {
       if (s.kind === 'vampire') {
         // An older vampire's thirst climbs its stages more slowly (bloodranks.js)
         const stage = Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day)) * bloodRate(a, '__dboBloodThirstRate')));
-        if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
+        if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); flushStageSpells(a, s, 'stage change'); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
         else if (!Array.isArray(s.spells) || !s.spells.length) syncVampSpells(a, s);
       }
       if (s.kind) ensureTells(a, s);

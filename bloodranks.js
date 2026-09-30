@@ -98,6 +98,7 @@ module.exports = (api) => {
     personal(a, describe(r));
     if (r + 1 < C.ranks.length) personal(a, `${C.ranks[r + 1]} at ${C.thresholds[r + 1]} blood: feed on people (a fresh body ${C.points.corpse}, a living captive ${C.points.living}, a person you slew ${C.points.slain}).`);
     else personal(a, 'There is no higher rank of the blood.');
+    try { const crown = typeof globalThis.__dboSuperCrownLine === 'function' ? globalThis.__dboSuperCrownLine(a) : null; if (crown) personal(a, crown); } catch (e) { /* supernatural not loaded */ }
   }, { help: 'your rank among vampires, for vampires' });
 
   log(`bloodranks on: ${C.ranks.map((n, i) => `${n} ${C.thresholds[i]}`).join(', ')}`);
