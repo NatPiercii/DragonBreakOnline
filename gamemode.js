@@ -895,6 +895,10 @@ const handleChat = (userId, text) => {
   const a = actorOf(userId); if (!a) return;
   const name = nameOf(a);
   let cmd = 'say', body = String(text).trim();
+  // The chat box stops at 2000 characters, so a longer line came from a modified client. A player's own '#{rrggbb}'
+  // would recolour the rest of the line in every reader's chat (a fake system notice); staff keep it
+  if (body.length > Number(FLOOD.chatMaxChars) && !isAdmin(a)) return personal(a, `That message is too long (${Number(FLOOD.chatMaxChars)} characters at most).`);
+  if (FLOOD.stripColourCodes && body.includes('#{') && !isAdmin(a)) body = body.split('#{').join('# {');
   if (body.startsWith('/')) { const i = body.indexOf(' '); cmd = (i < 0 ? body : body.slice(0, i)).slice(1).toLowerCase(); body = i < 0 ? '' : body.slice(i + 1).trim(); }
   const spoken = { say: ['says', R.say, C.WHITE], low: ['says quietly', R.low, C.WHITE], whisper: ['whispers', R.whisper, C.WHITE], wide: ['says loudly', R.wide, C.WHITE], shout: ['shouts', R.shout, C.SHOUT] };
   if (spoken[cmd]) { if (body) sendNear(a, spoken[cmd][1], quoteSay(name, spoken[cmd][0], body, spoken[cmd][2])); return; }
@@ -1169,6 +1173,87 @@ if (!globalThis.__dboHandlers) {
     mp.on(ev, (...args) => { const h = globalThis.__dboHandlers[ev]; if (h) h(...args); });
   }
 }
+// ---- the flood guard (launch hardening, 2026-09-30) ----------------------------------------------------------------
+// Every client is a stranger from 3 Oct. Nothing limited how often or how much a client could send: every custom packet
+// was parsed and dispatched, chat had no rate or length limit, and several branches wrote a server-log line per packet.
+// Per connection: a token bucket for every packet (staff are exempt: the F7 Place tool drags fast), a size cap before
+// JSON.parse, and a chat window. What is dropped is counted and logged at most once a minute per connection.
+// gamemode-config.json "floodGuard": { packetsPerSecond, packetBurst, maxPacketChars, chatMessages, chatWindowSeconds,
+// chatMaxChars, stripColourCodes }. Legit clients send a few packets a second at most; the largest (dboDiag) is about
+// 16 KB. The chat box itself stops at 2000 characters.
+const FLOOD = Object.assign({ packetsPerSecond: 40, packetBurst: 200, maxPacketChars: 65536, chatMessages: 8, chatWindowSeconds: 10, chatMaxChars: 2000, stripColourCodes: true }, cfg.floodGuard || {});
+const floodState = globalThis.__dboFloodState instanceof Map ? globalThis.__dboFloodState : (globalThis.__dboFloodState = new Map()); // userId -> state
+const floodOf = (userId) => {
+  let f = floodState.get(userId);
+  if (!f) { f = { tokens: Number(FLOOD.packetBurst), at: Date.now(), chat: [], dropped: 0, big: 0, chatDropped: 0, loggedAt: 0, staff: false, staffAt: 0 }; floodState.set(userId, f); }
+  return f;
+};
+// Asked only once a limit is reached, and remembered for 10 s: the role lookup is not free and staff rarely hit a limit
+const floodExempt = (userId, f) => {
+  const now = Date.now();
+  if (now - f.staffAt > 10000) { f.staffAt = now; try { const a = actorOf(userId); f.staff = !!a && isAdmin(a); } catch (e) { f.staff = false; } }
+  return f.staff;
+};
+const floodNote = (userId, f) => {
+  const now = Date.now();
+  if (now - f.loggedAt < 60000) return;
+  f.loggedAt = now;
+  const a = actorOf(userId);
+  log(`flood guard: user ${userId}${a ? ` ${display(a)}` : ''} dropped ${f.dropped} packet(s), ${f.big} oversized, ${f.chatDropped} chat line(s) in the last minute or so`);
+  f.dropped = 0; f.big = 0; f.chatDropped = 0;
+};
+// true: let the packet through
+const floodPacketOk = (userId, rawContent) => {
+  if (typeof rawContent === 'string' && rawContent.length > Number(FLOOD.maxPacketChars)) {
+    const f = floodOf(userId); f.big++; floodNote(userId, f); return false;
+  }
+  const f = floodOf(userId);
+  const now = Date.now();
+  f.tokens = Math.min(Number(FLOOD.packetBurst), f.tokens + ((now - f.at) / 1000) * Number(FLOOD.packetsPerSecond));
+  f.at = now;
+  if (f.tokens < 1) {
+    if (floodExempt(userId, f)) return true;
+    f.dropped++; floodNote(userId, f); return false;
+  }
+  f.tokens -= 1;
+  return true;
+};
+// true: the line may be handled
+const floodChatOk = (userId) => {
+  const f = floodOf(userId);
+  const now = Date.now();
+  const since = now - Number(FLOOD.chatWindowSeconds) * 1000;
+  while (f.chat.length && f.chat[0] < since) f.chat.shift();
+  if (f.chat.length >= Number(FLOOD.chatMessages)) {
+    if (floodExempt(userId, f)) return true;
+    f.chatDropped++; floodNote(userId, f);
+    const a = actorOf(userId);
+    // One notice per window, so the refusal is not itself a flood
+    if (a && now - (f.chatToldAt || 0) > Number(FLOOD.chatWindowSeconds) * 1000) { f.chatToldAt = now; personal(a, 'You are sending messages too quickly. Wait a few seconds.'); }
+    return false;
+  }
+  f.chat.push(now);
+  return true;
+};
+// A line a client can trigger at will goes to the log at most `perMinute` times a minute per key, then a count
+const cappedLogs = globalThis.__dboCappedLogs instanceof Map ? globalThis.__dboCappedLogs : (globalThis.__dboCappedLogs = new Map());
+const logCapped = (key, perMinute, ...parts) => {
+  const now = Date.now();
+  let c = cappedLogs.get(key);
+  if (!c || now - c.since >= 60000) {
+    if (c && c.suppressed) log(`(${c.suppressed} more "${key.split(':')[0]}" line(s) suppressed in the last minute)`);
+    c = { since: now, n: 0, suppressed: 0 };
+    cappedLogs.set(key, c);
+  }
+  if (c.n < perMinute) { c.n++; log(...parts); } else c.suppressed++;
+};
+// Nothing outlives a connection by long: prune idle entries every minute
+every('floodPrune', 60000, () => {
+  const now = Date.now();
+  for (const [u, f] of floodState) if (!connected.has(u) && now - f.at > 120000) floodState.delete(u);
+  for (const [k, c] of cappedLogs) if (now - c.since > 120000) cappedLogs.delete(k);
+});
+
 // The client's diagnostic relay: how many lines each player has had written, kept across a hot reload so a reload
 // cannot hand someone a fresh allowance. A stuck player sends at most this many, whatever the client asks for.
 const DIAG_MAX_PER_PLAYER = 60;
@@ -1194,9 +1279,10 @@ const writeDiagLines = (userId, lines) => {
 
 globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
   try {
+    if (!floodPacketOk(userId, rawContent)) return;
     const content = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
     if (!content) return;
-    if (content.type === 'cef::chat:send') return handleChat(userId, content.data);
+    if (content.type === 'cef::chat:send') { if (!floodChatOk(userId)) return; return handleChat(userId, content.data); }
     // Door prompt names: the client asks what a load door leads to; answers come from doors.json and the hub gates.
     if (content.customPacketType === 'dboDoorName') {
       const a = actorOf(userId); if (!a) return;
@@ -1217,7 +1303,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     // Front widgets driven by this file talk back through the client's DboRelayService.
     if (content.customPacketType === 'dbo') {
       const a = actorOf(userId); const hs = (globalThis.__dboUiEvents && globalThis.__dboUiEvents.get(String(content.event))) || [];
-      for (const h of hs) { if (!a) break; try { h(a, Array.isArray(content.args) ? content.args : [], Number(content.widget) || 0); } catch (e) { log('ui event failed', content.event, e.message); } }
+      for (const h of hs) { if (!a) break; try { h(a, Array.isArray(content.args) ? content.args : [], Number(content.widget) || 0); } catch (e) { logCapped(`uifail:${userId}`, 6, 'ui event failed', String(content.event).slice(0, 60), e.message); } }
       return;
     }
     // The client saw a beast power cast (BeastFormService); the server decides and transforms.
@@ -1225,7 +1311,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     // a client that never relayed from a server that refused.
     if (content.customPacketType === 'dboBeastRequest') {
       const a = actorOf(userId); const spell = Number(content.spell) >>> 0;
-      log(`beast request from user ${userId} actor ${a ? a.toString(16) : 'none'} spell ${spell.toString(16)}`);
+      logCapped(`beastreq:${userId}`, 20, `beast request from user ${userId} actor ${a ? a.toString(16) : 'none'} spell ${spell.toString(16)}`);
       if (a && spell && typeof globalThis.__dboBeastRequest === 'function') { try { globalThis.__dboBeastRequest(a, spell); } catch (e) { log('beast request failed', e.message); } }
       else log('beast request dropped: no actor, no spell, or beastform.js is not loaded');
       return;
@@ -1233,7 +1319,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     // Measurement for the gliding beast: what the beast's own client reads for its locomotion (every 2 s in form)
     if (content.customPacketType === 'dboBeastDiag') {
       const a = actorOf(userId);
-      if (a) log(`beastdiag ${display(a)} speedSampled=${Number(content.speedSampled).toFixed(1)} running=${!!content.running} sprinting=${!!content.sprinting}`);
+      if (a) logCapped(`beastdiag:${userId}`, 40, `beastdiag ${display(a)} speedSampled=${Number(content.speedSampled).toFixed(1)} running=${!!content.running} sprinting=${!!content.sprinting}`);
       return;
     }
     // The client used a beast power with the Shout key (BeastFormService); beastform.js gives it its effect on others
@@ -1247,7 +1333,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     if (content.customPacketType === 'dboShoutCast') {
       const a = actorOf(userId); if (!a || !combat) return;
       const r = combat.shoutRelay(a, content.data);
-      if (!r.data) { log(`shout relay refused: ${display(a)} ${(Number((content.data || {}).spell) >>> 0).toString(16)} (${r.refused})`); return; }
+      if (!r.data) { logCapped(`shoutref:${userId}`, 10, `shout relay refused: ${display(a)} ${(Number((content.data || {}).spell) >>> 0).toString(16)} (${r.refused})`); return; }
       const reach = Number((cfg.combat || {}).shoutRelayMeters) || 150;
       let n = 0;
       for (const b of onlineActors()) { if (b === a || distanceMeters(a, b) > reach) continue; sendPacket(b, { customPacketType: 'dboShoutFx', data: r.data }); n++; }
@@ -1522,7 +1608,7 @@ const startLoginWait = (userId, seenActor) => {
   }), 500);
   globalThis.__dboLoginWaits.set(userId, wait);
 };
-globalThis.__dboHandlers.connect = (userId) => { connected.add(userId); resetDiagForConnection(userId); startLoginWait(userId, 0); };
+globalThis.__dboHandlers.connect = (userId) => { connected.add(userId); resetDiagForConnection(userId); floodState.delete(userId); startLoginWait(userId, 0); };
 // A hot reload drops the waiters; players already connected get theirs back, without redoing the
 // login work for a character they are already playing.
 for (const userId of connected) startLoginWait(userId, actorOf(userId));
