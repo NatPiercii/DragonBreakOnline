@@ -37,6 +37,7 @@ const DEFAULT_KEEP_MAX_DISTANCE = 512;
 const WATCH_INTERVAL_MS = 500;
 // Distinct items a dead player's body gives up before it is removed. Overridable via "searchPlayerBodyTakeLimit" (0 = no limit).
 const DEFAULT_PLAYER_BODY_TAKE_LIMIT = 2;
+const FELL_NOTICE = "They have fallen. Search the body instead.";
 // Refused takes within this window share one inventory resync
 const RESYNC_DELAY_MS = 200;
 
@@ -104,6 +105,12 @@ export class SearchSystem implements System {
         this.resyncInventory(ctx, actorId >>> 0);
         return false;
       }
+      const live = this.sessions.get(sourceId >>> 0);
+      if (live && live.searcherActorId === (actorId >>> 0) && this.fellDuringSearch(ctx, live)) {
+        this.resyncInventory(ctx, actorId >>> 0);
+        this.endSession(ctx, live, FELL_NOTICE);
+        return false;
+      }
       const taken = this.limitedTakes(ctx, sourceId >>> 0, actorId >>> 0);
       // More of a counted base form is free, so a take the server splits over several copies moves whole
       if (taken && taken.size >= this.playerBodyTakeLimit && !taken.has(baseId >>> 0)) {
@@ -153,6 +160,10 @@ export class SearchSystem implements System {
       // Respawned, revived or despawned
       if (s.body && !this.isDead(ctx, s.targetActorId)) {
         this.endSession(ctx, s, "The body is gone.");
+        continue;
+      }
+      if (this.fellDuringSearch(ctx, s)) {
+        this.endSession(ctx, s, FELL_NOTICE);
         continue;
       }
       if (!this.nearEnough(ctx, s.searcherActorId, s.targetActorId, this.keepMaxDistance)) {
@@ -217,12 +228,7 @@ export class SearchSystem implements System {
       this.notice(ctx, userId, "Look at a player or a body to search.");
       return;
     }
-    // A body follows the gamemode's body rule, the same as pressing E on it
-    const lootBody = (globalThis as any).__dboLootBody;
-    if (typeof lootBody === "function" && this.isDead(ctx, targetActorId)) {
-      let handled: unknown;
-      try { handled = lootBody(targetActorId, searcherActorId); } catch (e) { this.log(`[search] body loot failed: ${e}`); }
-      if (handled === undefined) this.notice(ctx, userId, "There is nothing to search.");
+    if (this.searchBodyByRule(ctx, userId, searcherActorId, targetActorId)) {
       return;
     }
     // Searching a living player is a guard's job; bodies stay open to everyone under the take limit
@@ -321,7 +327,32 @@ export class SearchSystem implements System {
     if (this.sessions.has(pend.targetActorId) || this.searching.has(pend.searcherActorId)) {
       return; // state changed while waiting
     }
+    // Downed while the prompt was open: the consent was for a living search, and a body follows the body rule
+    if (this.searchBodyByRule(ctx, searcherUser, pend.searcherActorId, pend.targetActorId)) {
+      return;
+    }
     this.startSession(ctx, pend.searcherActorId, pend.targetActorId, this.isDead(ctx, pend.targetActorId));
+  }
+
+  // A body follows the gamemode's body rule, the same as pressing E on it; true when the rule took the search
+  private searchBodyByRule(ctx: SystemContext, userId: number, searcherActorId: number, targetActorId: number): boolean {
+    const lootBody = (globalThis as any).__dboLootBody;
+    if (typeof lootBody !== "function" || !this.isDead(ctx, targetActorId)) {
+      return false;
+    }
+    let handled: unknown;
+    try { handled = lootBody(targetActorId, searcherActorId); } catch (e) { this.log(`[search] body loot failed: ${e}`); }
+    if (handled === undefined) this.notice(ctx, userId, "There is nothing to search.");
+    return true;
+  }
+
+  private bodyRuleLoaded(): boolean {
+    return typeof (globalThis as any).__dboLootBody === "function";
+  }
+
+  // A living search whose target went down; with the body rule loaded the body is searched by that rule instead
+  private fellDuringSearch(ctx: SystemContext, s: SearchSession): boolean {
+    return !s.body && this.bodyRuleLoaded() && this.isDead(ctx, s.targetActorId);
   }
 
   private onSearchEnd(ctx: SystemContext, userId: number): void {
@@ -423,7 +454,8 @@ export class SearchSystem implements System {
     if (s) {
       this.endSession(ctx, s, "You cannot take anything else from this body.");
     }
-    if (!this.isDead(ctx, targetActorId)) {
+    // The body rule never respawns (a downed player can still be revived); the window's limit only closes it
+    if (!this.isDead(ctx, targetActorId) || this.bodyRuleLoaded()) {
       return;
     }
     const mp = ctx.svr as Mp;
