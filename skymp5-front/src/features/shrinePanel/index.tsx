@@ -39,11 +39,19 @@ const send = (key: string, ...args: unknown[]): void => {
 };
 
 const NONE: ShrineChoice = { label: '', available: false, reason: '' };
+const CONFIRM_HOLD_MS = 800;
 
 const ShrinePanel = ({ data }: { data: ShrinePanelData }) => {
-  // One press per answer: a second click on Kneel or the gem would reach the server before the panel changed
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { setBusy(false); }, [data.nonce, !!data.confirm, data.result]);
+  // One press per answer: a second click on Kneel or the gem would reach the server before the panel changed. The
+  // warning's own button sits about where Perform the Rite was, so the confirm view comes up held for a moment: a double
+  // click's second press lands on nothing (Worker D's review; the server also ignores a confirm under a second old).
+  const [busy, setBusy] = useState(!!data.confirm);
+  useEffect(() => {
+    if (!data.confirm) { setBusy(false); return undefined; }
+    setBusy(true);
+    const t = window.setTimeout(() => setBusy(false), CONFIRM_HOLD_MS);
+    return () => window.clearTimeout(t);
+  }, [data.nonce, !!data.confirm, data.result]);
   const press = (key: string) => { if (busy) return; setBusy(true); send(key, data.nonce); };
 
   const choice = (c: ShrineChoice, key: string, primary: boolean) => (c.available ? (
