@@ -1101,6 +1101,41 @@ void ActionListener::OnActivate(const RawMessageData& rawMsgData,
   }
 }
 
+namespace {
+// A put, take or drop moves at least one of an item record that exists (item-flow review, 2026-09-29): a drop of
+// count 0 found nothing to remove, fell through to DropItem and came back as one item on pick-up, any record at
+// all; an unknown record crashed DropItem. The gameplay layer's itemguards.js refused both, but only while it loads.
+bool IsItemMove(WorldState* worldState, uint32_t baseId, uint32_t count,
+                const char* what, uint32_t actorId)
+{
+  constexpr uint32_t kMaxCount = 1'000'000;
+  if (count < 1 || count > kMaxCount) {
+    spdlog::warn("{} by {:x} of {:x} refused: count {}", what, actorId,
+                 baseId, count);
+    return false;
+  }
+  if (!worldState || !worldState->HasEspm()) {
+    return false;
+  }
+  const auto lookup = worldState->GetEspm().GetBrowser().LookupById(baseId);
+  if (!lookup.rec) {
+    spdlog::warn("{} by {:x} refused: no record {:x}", what, actorId, baseId);
+    return false;
+  }
+  static const std::unordered_set<std::string> kItemTypes = {
+    "WEAP", "ARMO", "AMMO", "MISC", "INGR", "ALCH",
+    "BOOK", "SCRL", "SLGM", "KEYM", "LIGH"
+  };
+  const std::string type = lookup.rec->GetType().ToString();
+  if (!kItemTypes.count(type)) {
+    spdlog::warn("{} by {:x} refused: {:x} is a {}, not an item", what,
+                 actorId, baseId, type);
+    return false;
+  }
+  return true;
+}
+}
+
 void ActionListener::OnPutItem(const RawMessageData& rawMsgData,
                                const PutItemMessage& msg)
 {
@@ -1119,6 +1154,11 @@ void ActionListener::OnPutItem(const RawMessageData& rawMsgData,
   if (worldState->HasKeyword(msg.baseId, "SweetCantDrop")) {
     return spdlog::error("Attempt to put SweetCantDrop item {:x}",
                          actor->GetFormId());
+  }
+
+  if (!IsItemMove(worldState, msg.baseId, msg.count, "PutItem",
+                  actor->GetFormId())) {
+    return;
   }
 
   Inventory::Entry entry;
@@ -1157,6 +1197,11 @@ void ActionListener::OnTakeItem(const RawMessageData& rawMsgData,
                          actor->GetFormId());
   }
 
+  if (!IsItemMove(worldState, msg.baseId, msg.count, "TakeItem",
+                  actor->GetFormId())) {
+    return;
+  }
+
   Inventory::Entry entry;
   entry.baseId = msg.baseId;
   entry.count = msg.count;
@@ -1191,6 +1236,11 @@ void ActionListener::OnDropItem(const RawMessageData& rawMsgData,
   if (worldState->HasKeyword(baseId, "SweetCantDrop")) {
     return spdlog::error("Attempt to drop SweetCantDrop item {:x}",
                          ac->GetFormId());
+  }
+
+  if (!IsItemMove(worldState, baseId, msg.count, "DropItem",
+                  ac->GetFormId())) {
+    return;
   }
 
   Inventory::Entry entry;
@@ -1797,7 +1847,13 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
 
   const bool isUnarmed = IsUnarmedAttack(hitData.source);
 
-  if (equipment.inv.HasItem(hitData.source) || isUnarmed) {
+  // Equipped and still held: moving an item (trade, container, drop) never rewrites the equipment record, so a
+  // modified client that sent no equipment update kept hitting with a weapon it had given away (item-flow review,
+  // 2026-09-29). Players only: a hosted NPC's server inventory need not hold what its template equips.
+  if ((equipment.inv.HasItem(hitData.source) &&
+       (aggressor->GetProfileId() == -1 ||
+        aggressor->GetInventory().HasItem(hitData.source))) ||
+      isUnarmed) {
     OnWeaponHit(aggressor, targetRef, hitData, isUnarmed);
     return;
   }
