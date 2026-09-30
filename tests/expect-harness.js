@@ -30,7 +30,7 @@ const noRope = path.join(scratch, 'capture.js'); fs.writeFileSync(noRope, 'expor
 const GUARDED = {
   'crafted-credit': empty, 'craft-weight': empty, 'mastery-award': empty, 'mastery-boost': empty, 'mastery-cast-route': empty,
   'capture-rope': noRope, 'shrine-panel-widget': empty, 'class-lectern': empty, 'contracts-tab': empty, 'school-meters': empty,
-  'study-magic': empty, 'supernatural-tab': empty,
+  'study-magic': empty, 'supernatural-tab': empty, 'name-release': empty, 'client-calendar': empty,
 };
 for (const [name, bundle] of Object.entries(GUARDED)) {
   const h = `tests/${name}-harness.js`;
@@ -41,6 +41,12 @@ for (const [name, bundle] of Object.entries(GUARDED)) {
   const all = run([h, bundle], { EXPECT_FEATURES: 'all' });
   ok(all.code === 1, `${name}: fails under EXPECT_FEATURES=all`, all);
 }
+// name-release's second skip: a spawn.ts bundle from a fork without the delete fix
+const noNameKey = path.join(scratch, 'spawn.js'); fs.writeFileSync(noNameKey, 'exports.Spawn = class {};\n');
+const oldFork = run(['tests/name-release-harness.js', noNameKey], {});
+ok(oldFork.code === 0 && /SKIP  deleting a character \(this fork/.test(oldFork.out), 'name-release: skips the delete checks on a fork without the fix', oldFork);
+const oldForkWant = run(['tests/name-release-harness.js', noNameKey], { EXPECT_FEATURES: 'name-release' });
+ok(oldForkWant.code === 1 && /FAIL  name-release is expected .*does not free the name/.test(oldForkWant.out), 'name-release: fails on that fork when the gate expects it', oldForkWant);
 // No other harness may skip on a missing feature without the guard: a new skip must call tests/expect.js too
 const unguarded = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('-harness.js') && f !== 'expect-harness.js')
   .filter((f) => { const s = fs.readFileSync(path.join(ROOT, 'tests', f), 'utf8'); return /(predates|has no |credits no )[^\n]*process\.exit\(0\)|console\.log\([^)]*(predates|has no )[^\n]*\n[^\n]*process\.exit\(0\)/.test(s) && !/require\('\.\/expect'\)/.test(s); });
