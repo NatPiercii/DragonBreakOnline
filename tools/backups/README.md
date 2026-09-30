@@ -25,7 +25,8 @@ Each snapshot is one archive, `world-<UTC stamp>.tar.gz`, about 3.8 MB today. Ev
   isn't worth maintaining a hand-kept list that could miss a new file.
 - **The Character Journal's files:** `journal/<key>.json` and `journal/removed/<key>.json` beside dbo-gamemode.js
   (journalstats.js, one small file per character: play time, travel, counters, later the written profile). They can't
-  be rebuilt from anything else.
+  be rebuilt from anything else. One bad file never stops the hourly backup: a file moved aside mid-snapshot is
+  skipped, and one that does not parse is archived as it is and listed under `badJournal` in the manifest.
 - **Not included:** `server-settings*.json`. These hold the Discord bot token. The updater snapshots settings
   separately.
 

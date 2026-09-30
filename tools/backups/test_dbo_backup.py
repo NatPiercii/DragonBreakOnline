@@ -48,6 +48,27 @@ m2 = B.verify(a2, quiet=True)
 ok('journal/0123456789abcdef.json' in m2['gameplayFiles'] and 'journal/removed/fedcba9876543210.json' in m2['gameplayFiles']
    and not any(g.endswith('.tmp') for g in m2['gameplayFiles']), "the journal's files are in, the .tmp is not")
 os.remove(a2); os.remove(a2[:-len('.tar.gz')] + '.manifest.json')
+# 1c. a journal file that does not parse does not stop the world backup; it is kept raw and listed
+open(os.path.join(jd, '1111111111111111.json'), 'w').write('{"torn')
+a3 = B.snapshot(out)
+m3 = B.verify(a3, quiet=True)
+ok(m3['records'] == 200 and m3['badJournal'] == ['journal/1111111111111111.json'] and 'journal/0123456789abcdef.json' in m3['gameplayFiles'],
+   'a journal file that does not parse is kept as it is and listed as badJournal; the snapshot still verifies')
+os.remove(a3); os.remove(a3[:-len('.tar.gz')] + '.manifest.json'); os.remove(os.path.join(jd, '1111111111111111.json'))
+# 1d. a journal file moved aside between the listing and the read is skipped
+real_open = open
+def vanishing_open(p, *args, **kw):
+    if str(p).endswith('0123456789abcdef.json') and os.sep + 'journal' + os.sep in str(p) and 'stage' not in str(p) and str(p).startswith(server):
+        raise FileNotFoundError(p)
+    return real_open(p, *args, **kw)
+B.open = vanishing_open
+try:
+    a4 = B.snapshot(out)
+finally:
+    del B.open
+m4 = B.verify(a4, quiet=True)
+ok('journal/0123456789abcdef.json' not in m4['gameplayFiles'] and m4['records'] == 200, 'a journal file that vanishes mid-snapshot is skipped, and the snapshot is kept')
+os.remove(a4); os.remove(a4[:-len('.tar.gz')] + '.manifest.json')
 
 # 2. a record renamed over right after the link pass keeps the version at link time
 real_run = subprocess.run

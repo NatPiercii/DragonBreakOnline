@@ -98,7 +98,10 @@ def snapshot(out):
                 stable_copy(p, os.path.join(stage, 'server', n))
                 gameplay.append(n)
         # 3b. the Character Journal's files (journalstats.js), journal/<key>.json and journal/removed/<key>.json. Node
-        # replaces each one whole by rename, never in place, so one read that parses is a whole file
+        # replaces each one whole by rename, never in place, so one read that parses is a whole file. One bad file never
+        # stops the world backup: a file moved away meanwhile is skipped, one that does not parse is kept as it is and
+        # listed as badJournal
+        bad_journal = []
         for sub in ('journal', os.path.join('journal', 'removed')):
             src_dir = os.path.join(SERVER, sub)
             if not os.path.isdir(src_dir) or os.path.islink(src_dir):
@@ -107,11 +110,18 @@ def snapshot(out):
             for n in sorted(os.listdir(src_dir)):
                 p = os.path.join(src_dir, n)
                 if JOURNAL.match(n) and os.path.isfile(p) and not os.path.islink(p):
-                    data = open(p, 'rb').read()
-                    json.loads(data.decode('utf-8'))
+                    try:
+                        data = open(p, 'rb').read()
+                    except FileNotFoundError:
+                        continue
                     with open(os.path.join(stage, 'server', sub, n), 'wb') as fh:
                         fh.write(data)
-                    gameplay.append(os.path.join(sub, n))
+                    try:
+                        json.loads(data.decode('utf-8'))
+                        gameplay.append(os.path.join(sub, n))
+                    except ValueError:
+                        bad_journal.append(os.path.join(sub, n))
+                        log(f'snapshot: journal file {os.path.join(sub, n)} does not parse; kept as it is (badJournal)')
         # 4. check every record and write the manifest
         records, bad = 0, []
         digests = {}
@@ -126,6 +136,7 @@ def snapshot(out):
         if bad:
             raise RuntimeError(f'{len(bad)} world record(s) failed to parse, snapshot refused: {bad[:5]}')
         manifest = {'stamp': stamp, 'linkMs': round(link_ms, 1), 'records': records, 'gameplayFiles': gameplay,
+                    'badJournal': bad_journal,
                     'stateFiles': sorted(n for n in os.listdir(os.path.join(stage, 'state')) if n.endswith('.json')),
                     'sha256': digests}
         with open(os.path.join(stage, 'MANIFEST.json'), 'w') as fh:
@@ -168,7 +179,11 @@ def verify(src, quiet=False):
         raise RuntimeError(f'{src}: no MANIFEST.json')
     man = json.loads(files['MANIFEST.json'])
     records, bad = 0, []
+    # journal files that did not parse when the snapshot was taken are kept as they were (see snapshot)
+    unparsed = {f'server/{g}' for g in man.get('badJournal', [])}
     for name, data in files.items():
+        if name in unparsed:
+            continue
         if name.startswith('state/world/changeForms/'):
             try:
                 d = json.loads(data.decode('utf-8'))
