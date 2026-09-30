@@ -269,6 +269,7 @@ module.exports = (api) => {
     round.ore = ore;
     const started = startRound(casterId, round);
     reserve(targetId, casterId, round);
+    if (ore === 'salt') saltRefresh(targetId);
     return started;
   };
 
@@ -317,7 +318,7 @@ module.exports = (api) => {
     }
     openWidget(a, packetFor(round, text, kind), false);
     sessions.delete(a);
-    if (round.ore === 'salt') { try { saltGlow(a); } catch (e) { log('salt glow failed', e.message); } }
+    if (round.ore === 'salt') saltRefresh(round.refId);
     // Remembered only so a repeat of the same report is logged as a replay instead of vanishing
     spent.set(round.nonce, Date.now());
     while (spent.size > 200) spent.delete(spent.keys().next().value);
@@ -325,7 +326,12 @@ module.exports = (api) => {
 
   // A round walked away from rests like a failed one: cancelling cost nothing, so a worker could look at the bands
   // and cancel until an easy set came up (loot review, 2026-09-29)
-  const abandon = (a) => { const round = sessions.get(a); if (round) writeRest(a, round, CFG.failRestMinutes); sessions.delete(a); };
+  const abandon = (a) => {
+    const round = sessions.get(a);
+    if (round) writeRest(a, round, CFG.failRestMinutes);
+    sessions.delete(a);
+    if (round && round.ore === 'salt') saltRefresh(round.refId);
+  };
   onUi('labourCancel', (a) => { abandon(a); closeWidget(a, WIDGET_ID); });
   // F2 hides the interface by closing the focused widget (client closeFocused sends args ['hidden']): not walking away,
   // so the round ends with no rest and the seam opens again at once
@@ -448,26 +454,43 @@ module.exports = (api) => {
   })();
   const saltCfg = () => Object.assign({ enabled: true, audience: 'miners', seconds: 30 }, CFG.saltGlow || {});
   const saltAudience = (a) => saltCfg().audience === 'everyone' || tierOf(a, 'miner') >= (Number((CFG.extraOreTier || {}).salt) || 0);
-  const saltReady = (ref, a) => {
-    const own = Number(restsOf(a, 'private.minedVeins')[ref.toString(16)]) || 0;
-    return Math.max(own, sharedRest(ref)) <= Date.now() && !workedByOther(ref, a);
+  // own: the player's rests (private.minedVeins), read once per player; shared: ref -> the shared rest, once per tick
+  const saltReady = (ref, a, own, shared) => {
+    const mine = Number(own[ref.toString(16)]) || 0;
+    const all = shared && shared.has(ref) ? shared.get(ref) : sharedRest(ref);
+    return Math.max(mine, all) <= Date.now() && !workedByOther(ref, a);
   };
-  const saltGlow = (a) => {
+  const saltGlow = (a, shared) => {
     if (typeof sendPacket !== 'function' || !SALT_REFS.length) return;
     const c = saltCfg();
     const show = c.enabled !== false && CFG.enabled !== false && saltAudience(a);
+    const own = show ? restsOf(a, 'private.minedVeins') : {};
     const on = [], off = [];
-    for (const ref of SALT_REFS) (show && saltReady(ref, a) ? on : off).push(ref);
+    for (const ref of SALT_REFS) (show && saltReady(ref, a, own, shared) ? on : off).push(ref);
     try {
       if (off.length) sendPacket(a, { customPacketType: 'dboGlow', refs: off, on: false, kind: 'loot' });
       if (on.length) sendPacket(a, { customPacketType: 'dboGlow', refs: on, on: true, kind: 'loot' });
     } catch (e) { /* offline */ }
   };
+  // One deposit changed (a round reserved it, a win rested it for everyone, or the worker gave up): tell everyone in the
+  // audience now instead of at the next tick, so nobody walks to a glow that has just gone out (Worker G's review)
+  const saltRefresh = (ref) => {
+    if (typeof sendPacket !== 'function' || !SALT_REFS.includes(ref >>> 0)) return;
+    const c = saltCfg();
+    if (c.enabled === false || CFG.enabled === false) return;
+    let online = []; try { online = typeof onlineActors === 'function' ? onlineActors() : []; } catch (e) { return; }
+    for (const a of online) {
+      if (!saltAudience(a)) continue;
+      const on = saltReady(ref >>> 0, a, restsOf(a, 'private.minedVeins'), null);
+      try { sendPacket(a, { customPacketType: 'dboGlow', refs: [ref >>> 0], on, kind: 'loot' }); } catch (e) { /* offline */ }
+    }
+  };
   globalThis.__dboSaltGlow = saltGlow;
   if (globalThis.__dboSaltGlowTimer) clearInterval(globalThis.__dboSaltGlowTimer);
   globalThis.__dboSaltGlowTimer = setInterval(() => {
     let online = []; try { online = typeof onlineActors === 'function' ? onlineActors() : []; } catch (e) { return; }
-    for (const a of online) { try { globalThis.__dboSaltGlow(a); } catch (e) { log('salt glow failed', e.message); } }
+    const shared = new Map(SALT_REFS.map((ref) => [ref, sharedRest(ref)]));
+    for (const a of online) { try { globalThis.__dboSaltGlow(a, shared); } catch (e) { log('salt glow failed', e.message); } }
   }, Math.max(5, Number(saltCfg().seconds) || 30) * 1000);
 
   log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min; rounds issued and judged server-side from strike times (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms); salt glow ${saltCfg().enabled !== false ? `for ${saltCfg().audience}, ${SALT_REFS.length} deposits` : 'off'}`);
