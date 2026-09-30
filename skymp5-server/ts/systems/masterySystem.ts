@@ -588,13 +588,14 @@ export class MasterySystem implements System {
   // Work the gameplay judged for one named skill (manuals.js: a smithing skill book read is Blacksmith work). Only a skill
   // already held gains; one is taken up at its own station or offer, never by an award. `weight` is one act's worth in
   // the units weightOf gives (0.5 to 3); `key` is what the repeat ring counts. Returns the units credited, 0 at the caps.
+  // A timed private.xpBoost applies to an award as to any other work.
   private award(ctx: SystemContext, actorId: number, skillId: string, weight: number, key: number): number {
     if (!this.points || !this.isPlayer(ctx, actorId) || !this.def(skillId) || !(weight > 0)) return 0;
     const rec = this.read(ctx, actorId); if (!rec) return 0;
     const prog = rec.skills[skillId]; if (!prog || !(prog.level >= 1)) return 0;
     this.creditStats.events.set("award", (this.creditStats.events.get("award") || 0) + 1);
     this.creditStats.actors.add(actorId);
-    const units = this.gain(ctx, actorId, rec, skillId, prog, Math.min(3, weight) * this.xpMultOf(ctx, actorId), (key >>> 0) ^ 0x61000000, Date.now(), this.userOf(ctx, actorId));
+    const units = this.gain(ctx, actorId, rec, skillId, prog, Math.min(3, weight) * this.xpMultOf(ctx, actorId), (key >>> 0) ^ 0x61000000, Date.now(), this.userOf(ctx, actorId), this.xpBoostOf(ctx, actorId));
     this.write(ctx, actorId, rec);
     return units;
   }
