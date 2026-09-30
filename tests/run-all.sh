@@ -47,6 +47,7 @@ declare -A LIMIT=([expedition-loot-budget]=600)
 # harness -> the bundle it takes: which fork (client: $FORK, server: $FORK_SERVER) and the entry point in it
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
+  [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-staff]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
@@ -101,6 +102,8 @@ for h in tests/*-harness.js; do
     if [ ! -x "$ESBUILD" ]; then echo "SKIP $name (no esbuild at $ESBUILD)"; fail=$((fail+1)); failed+=("$name"); continue; fi
     # A front widget this client line does not have yet (a panel still on its branch) has nothing to test
     if [[ "${NEEDS[$name]}" == front:* ]] && [ ! -f "$FORK/${NEEDS[$name]#front:}" ]; then echo "ok   $name (skipped: no ${NEEDS[$name]#front:} in $FORK)"; pass=$((pass+1)); continue; fi
+    # The same for a client module still on its branch (dboGlowPlan.ts until client-glow-shader is on the client line)
+    if [[ "${NEEDS[$name]}" == client:* ]] && [ ! -f "$FORK/${NEEDS[$name]#client:}" ]; then echo "ok   $name (skipped: no ${NEEDS[$name]#client:} in $FORK)"; pass=$((pass+1)); continue; fi
     arg=$(bundle "${NEEDS[$name]}") || { echo "FAIL $name (bundle did not build)"; fail=$((fail+1)); failed+=("$name"); continue; }
   fi
   if timeout "${LIMIT[$name]:-120}" node "$h" $arg > "$OUT/$name.log" 2>&1; then

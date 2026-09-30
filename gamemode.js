@@ -2055,9 +2055,20 @@ registerChatCommand('selftest', (a) => {
 const INVALID_USER = 65535;
 // Counted by type so a playtest can show which feature is talking most; /load reports it
 globalThis.__dboPacketCounts = globalThis.__dboPacketCounts || { since: Date.now(), byType: {}, total: 0 };
+// A glow's shader, named by the server when gamemode-config glow.membrane is on (server\glowshader.js)
+const glowShader = (() => {
+  try {
+    const GLOW_JS = path.resolve('glowshader.js');
+    delete require.cache[GLOW_JS];
+    const f = require(GLOW_JS)(cfg, (d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } }, log);
+    log(`glow: ${f.state}`);
+    return f;
+  } catch (e) { log('glowshader.js failed to load:', e.message); return (p) => p; }
+})();
 const sendPacket = (a, payload) => {
   const u = userOf(a); if (u < 0 || u === INVALID_USER) return false;
   try {
+    payload = glowShader(payload);
     mp.sendCustomPacket(u, JSON.stringify(payload));
     const c = globalThis.__dboPacketCounts;
     const t = String((payload && payload.customPacketType) || 'other');

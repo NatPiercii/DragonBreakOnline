@@ -319,6 +319,14 @@
   "gemChance": 0.35,
   "creditShare": 0.1
  },
+ "glow": {
+  "_comment": "Which shader lights a glowing chest, barrel or salt deposit (server\\glowshader.js). The client's defaults for loot and locked (LifeDetected 146, LifeDetectedUndead AAEB3) are particle-only and draw nothing on a container or an activator (GroundedPasta, 30 Sep). membrane true names these membrane shaders in every dboGlow packet instead; a 0.3.73+ client plays them, an older one ignores the field. Off until Nate's console check (pms 10272e on a chest). Hot reload.",
+  "membrane": false,
+  "shaders": {
+   "loot": "10272e:Skyrim.esm",
+   "locked": "4c6d8:Skyrim.esm"
+  }
+ },
  "labour": {
   "_comment": "Mining and woodcutting mini-game: seconds per round, strike band half-width in percent of the bar by tier, seconds the marker takes to cross the bar by tier, how many strikes a vein needs, ore per vein before the tier multiplier, firewood per block by tier, and the rest each node takes afterwards.",
   "enabled": true,
