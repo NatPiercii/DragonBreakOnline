@@ -46,11 +46,11 @@ module.exports = (api) => {
     castUnits: 0.5,
     castDailyUnits: 120,
     study: {
-      enabled: true, edid: 'DBO_StudyMagic', refs: [], tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20, windowHours: 4,
+      enabled: true, edid: 'StudyMagic', refs: [], tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20, windowHours: 4,
       moveLimitMeters: 1.5, anim: 'IdleBook_PageTurn', exitAnim: 'IdleForceDefaultState', wheelEverySeconds: 60, wheelValue: 0,
     },
     classes: {
-      enabled: true, edid: 'DBO_ClassLectern', lecterns: [], minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
+      enabled: true, edid: 'ClassLectern', lecterns: [], sameLecternUnits: 300, minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
       teacherCooldownMinutes: 60, studentCooldownHours: 12, teacherMinRank: 3, requireList: true, teacherGuilds: ['synod', 'college-of-winterhold', 'college-of-whispers'],
       units: 60, wheelEvents: 8, wheelValue: 150, maxStudents: 12,
       // [student rank][class rank], ranks Novice..Master. "Reduced" (Apprentice student, Novice class) and "XP" (Expert
@@ -73,6 +73,13 @@ module.exports = (api) => {
   });
   const SCHOOLS = (Array.isArray(C.schools) ? C.schools : DEFAULTS.schools).map(String);
   const RANKS = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+  // One line each for the choice, as the colleges of the Fourth Era teach them
+  const BLURB = {
+    Destruction: 'Fire, frost and shock: magic that does harm.',
+    Illusion: 'The minds of others: fear and calm, courage and fury, and silence for oneself.',
+    Conjuration: 'Daedra called from Oblivion, weapons bound from nothing, and the dead raised to serve.',
+    Alteration: 'The world bent to the will: skin as hard as stone, light from nothing, things moved without a hand.',
+  };
   const PROP = 'private.dboSchools';
   const CLASS_PANEL_ID = 72;
   const STUDY_PANEL_ID = 73;
@@ -288,10 +295,11 @@ module.exports = (api) => {
         const l = s.levels[school];
         return {
           name: school, role, level, rank: role === 'locked' ? '' : RANKS[Math.max(0, r)],
+          roleLabel: role === 'primary' ? 'Primary school' : role === 'secondary' ? 'Secondary school' : 'Closed',
           // The meter fills bottom to top over the whole ladder, 0..100
           fill: role === 'locked' ? 0 : Math.max(0, Math.min(1, (level + (l ? Number(l.xp) || 0 : 0) / 100) / 100)),
           hint: role === 'locked' ? (pick ? '' : 'Closed to you') : next ? `${RANKS[r + 1]} at ${next}` : 'The top of the school',
-          choose: pick ? { as: pick, label: pick === 'primary' ? 'Choose as my school' : 'Choose as secondary',
+          choose: pick ? { as: pick, label: pick === 'primary' ? 'Choose as my school' : 'Choose as secondary', title: `Choose ${school}?`, yes: 'Choose', no: 'Not yet',
             confirm: pick === 'primary' ? `Do you want to choose ${school} as your school of magic? The other schools will be closed to you.` : `Do you want to choose ${school} as your secondary school of magic?` } : null,
         };
       }),
@@ -377,7 +385,7 @@ module.exports = (api) => {
       leftSeconds: Math.round(b.leftMs / 1000), tickSeconds: C.study.tickSeconds,
       gained: ses ? Math.round(ses.gained * 10) / 10 : 0,
       whyNot: why,
-      choices: !school ? SCHOOLS.map((n) => ({ name: n, confirm: `Do you want to choose ${n} as your school of magic? The other schools will be closed to you.` })) : [],
+      choices: !school ? SCHOOLS.map((n) => ({ name: n, blurb: BLURB[n] || '', confirm: `Do you want to choose ${n} as your school of magic? The other schools will be closed to you.` })) : [],
       result: result || '', resultKind: resultKind || '',
       events: { choose: 'dbo:schoolChoose', start: 'dbo:studyStart', stop: 'dbo:studyStop', close: 'dbo:studyClose' },
     }, true);
@@ -491,7 +499,25 @@ module.exports = (api) => {
     let world = false; try { world = typeof isWorldspace === 'function' ? isWorldspace(k.cell) : false; } catch (e) { world = false; }
     return !world || distanceMeters(a, k.ref) <= C.classes.radiusMeters;
   };
-  const classOf = (ref) => S.classes.get(ref >>> 0) || null;
+  // Nate's lecterns carry two activator boxes each (DLE v7: 15e4bb/15e4bc at the Synod, 16 units apart). Boxes within
+  // sameLecternUnits of each other in one cell are one lectern: one class, and the status on every box's crosshair.
+  const nearRef = (x, y) => {
+    if (x === y) return true;
+    if (norm(get(x, 'worldOrCellDesc', '')) !== norm(get(y, 'worldOrCellDesc', ''))) return false;
+    const p = get(x, 'pos', null), q = get(y, 'pos', null);
+    return !!(p && q) && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= C.classes.sameLecternUnits;
+  };
+  const siblingsOf = (ref) => [ref >>> 0].concat([...LECTERN_REFS].filter((r) => r !== (ref >>> 0) && nearRef(ref >>> 0, r)));
+  const classOf = (ref) => {
+    ref >>>= 0;
+    const exact = S.classes.get(ref);
+    if (exact) return exact;
+    for (const k of S.classes.values()) {
+      if ((k.refs || []).includes(ref)) return k;
+      if (nearRef(ref, k.ref)) { k.refs = (k.refs || [k.ref]).concat([ref]); return k; }
+    }
+    return null;
+  };
   const studentRefusal = (k, a) => {
     if (a === k.teacher) return 'You are teaching this class.';
     if (k.students.has(a)) return '';
@@ -506,11 +532,13 @@ module.exports = (api) => {
     return '';
   };
   const lecternName = (k) => (k ? (Date.now() >= k.endsAt ? 'Class Lectern: the class may be ended' : `Class Lectern: Class in Progress, ${inWords(k.endsAt - Date.now())} left`) : null);
-  const decorate = (ref, k) => {
-    const cell = k ? k.cell : String(get(ref, 'worldOrCellDesc', ''));
+  // The class's status on the crosshair of every box of its lectern, for everyone in its cell; null hands the name back
+  const decorate = (k, over) => {
+    const name = over ? null : lecternName(k);
+    const refs = (k.refs || [k.ref]).map((r) => ({ refId: r >>> 0, name, locked: false }));
     for (const a of onlineActors()) {
-      if (norm(get(a, 'worldOrCellDesc', '')) !== norm(cell)) continue;
-      try { sendPacket(a, { customPacketType: 'refDecor', refs: [{ refId: ref >>> 0, name: lecternName(k), locked: false }] }); } catch (e) { /* offline */ }
+      if (norm(get(a, 'worldOrCellDesc', '')) !== norm(k.cell)) continue;
+      try { sendPacket(a, { customPacketType: 'refDecor', refs }); } catch (e) { /* offline */ }
     }
   };
   const openLectern = (a, ref, result, resultKind) => {
@@ -549,10 +577,10 @@ module.exports = (api) => {
       canEnd: mine && Date.now() >= k.endsAt,
     }), true);
   };
-  const refreshLectern = (ref) => { for (const [a, o] of lecternOpen) if (o.ref === ref && online(a)) openLectern(a, ref); };
+  const refreshLectern = (k) => { for (const [a, o] of lecternOpen) if ((k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref); };
   const endClass = (k, paid) => {
     S.classes.delete(k.ref);
-    decorate(k.ref, null);
+    decorate(k, true);
     const t = stateOf(k.teacher);
     if (paid) { t.classAt = Date.now(); save(k.teacher, t); }
     const got = [];
@@ -572,7 +600,7 @@ module.exports = (api) => {
       tellGain(st, k.spell.school, before, s);
     }
     audit(`SCHOOLS class by ${who(k.teacher)} on ${k.spell.name} (${k.spell.school} ${RANKS[k.spell.rank]}) at ${descOf(k.ref)} ${paid ? `ended: ${got.join(', ') || 'nobody paid'}` : 'cancelled'}`);
-    for (const [a, o] of [...lecternOpen]) if (o.ref === k.ref && online(a)) openLectern(a, k.ref, paid ? 'The class is over.' : 'The class was cancelled.', paid ? 'ok' : 'refused');
+    for (const [a, o] of [...lecternOpen]) if ((k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref, paid ? 'The class is over.' : 'The class was cancelled.', paid ? 'ok' : 'refused');
   };
   const startClass = (a, ref, spellDesc) => {
     if (classOf(ref)) return { ok: false, text: 'A class is already held at this lectern.' };
@@ -582,10 +610,10 @@ module.exports = (api) => {
     const sp = classSpells(a).find((x) => norm(x.desc || descOf(x.id)) === norm(spellDesc));
     if (!sp) return { ok: false, text: 'You cannot set a class by that spell.' };
     const now = Date.now();
-    const k = { ref: ref >>> 0, teacher: a >>> 0, teacherName: display(a), spell: { id: sp.id >>> 0, desc: sp.desc || descOf(sp.id), name: sp.name, school: sp.school, rank: Number(sp.rank) || 0 },
+    const k = { ref: ref >>> 0, refs: siblingsOf(ref), teacher: a >>> 0, teacherName: display(a), spell: { id: sp.id >>> 0, desc: sp.desc || descOf(sp.id), name: sp.name, school: sp.school, rank: Number(sp.rank) || 0 },
       cell: String(get(ref, 'worldOrCellDesc', '') || get(a, 'worldOrCellDesc', '')), startedAt: now, endsAt: now + C.classes.minutes * MIN, students: new Map(), teacherAwaySince: 0 };
     S.classes.set(k.ref, k);
-    decorate(k.ref, k);
+    decorate(k);
     audit(`SCHOOLS ${who(a)} opened a class on ${sp.name} (${sp.school} ${RANKS[k.spell.rank]}) at ${descOf(ref)}`);
     return { ok: true, text: `Your class on ${sp.name} has begun. Students sign up at this lectern for the first ${C.classes.joinMinutes} minutes; after ${C.classes.minutes} minutes, end it here.` };
   };
@@ -604,8 +632,8 @@ module.exports = (api) => {
         else if (now - e.awaySince >= C.classes.graceMinutes * MIN) { k.students.delete(st); if (online(st)) personal(st, 'You were away too long and have dropped out of the class.'); }
       }
       if (!k.readyTold && now >= k.endsAt) { k.readyTold = true; if (online(k.teacher)) personal(k.teacher, 'Your class has run its course. End it at the lectern to mark the lesson.'); }
-      decorate(k.ref, k);
-      refreshLectern(k.ref);
+      decorate(k);
+      refreshLectern(k);
     }
   };
   const lecternRef = (a, args) => { const o = lecternOpen.get(a >>> 0); return o && o.nonce === String(args[0] || '') ? o.ref : 0; };
@@ -621,12 +649,12 @@ module.exports = (api) => {
     audit(`SCHOOLS ${who(a)} signed up for ${who(k.teacher)}'s class on ${k.spell.name}`);
     if (online(k.teacher)) personal(k.teacher, `${display(a)} has signed up for your class.`);
     openLectern(a, ref, `You have signed up. Stay in the classroom until ${k.teacherName} ends the class.`, 'ok');
-    refreshLectern(ref);
+    refreshLectern(k);
   });
   onUi('lecternLeave', (a, args) => {
     const ref = lecternRef(a, args); if (!ref) return;
     const k = classOf(ref);
-    if (k && k.students.delete(a >>> 0)) { audit(`SCHOOLS ${who(a)} left ${who(k.teacher)}'s class`); openLectern(a, ref, 'You have left the class.', 'ok'); refreshLectern(ref); }
+    if (k && k.students.delete(a >>> 0)) { audit(`SCHOOLS ${who(a)} left ${who(k.teacher)}'s class`); openLectern(a, ref, 'You have left the class.', 'ok'); refreshLectern(k); }
   });
   onUi('lecternEnd', (a, args) => {
     const ref = lecternRef(a, args); if (!ref) return;

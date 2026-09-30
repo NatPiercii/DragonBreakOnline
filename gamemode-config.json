@@ -83,7 +83,7 @@
   "shopShowForeign": false
  },
  "schools": {
-  "_comment": "Schools of magic (server\\schools.js, Swag's rework, Nate 2026-09-30). A mage chooses a primary school from `schools` (K, Arcane Arts page, or at a Study Magic shelf); the rest lock until Arcane Arts reaches secondaryAtLevel, when one secondary may be chosen, starting at secondaryStartLevel. Each school is a 0-100 meter on the Wheel's curve (Novice 1, Apprentice 25, Adept 50, Expert 75, Master 90) and a tome of it is read only up to its rank. Casting an active school's spell adds castUnits (repeats worth less), at most castDailyUnits a school a day. study: a ref in `refs` (the Synod Conclave's seven bookcases) or a base with editor id `edid` opens Study Magic: unitsPerTick every tickSeconds to the primary while the reader stays within moveLimitMeters, minutesPerWindow per windowHours, closed once a school spell is in the spellbook. classes: a Class Lectern (base editor id `edid`, or a ref in `lecterns`); a teacher on the staff list (/classteacher, when requireList), in teacherGuilds, at teacherMinRank (3 = Expert) in the school, sets a class by one known spell; students sign up in the first joinMinutes; after `minutes` the teacher ends it and each student in the classroom (the lectern's interior cell, or radiusMeters outdoors) gets units x scale[student rank][class rank]; graceMinutes away cancels (teacher) or drops (student); cooldowns teacherCooldownMinutes after a finished class, studentCooldownHours between paid classes. Study and classes also credit Arcane Arts through masterySystem's cast credit (wheel), inside the Wheel's hourly and daily limits. requireClient: the gate and panels only for clients whose UI reports the 'schools' capability. Off until the client pack with the school meters and the two panels is out.",
+  "_comment": "Schools of magic (server\\schools.js, Swag's rework, Nate 2026-09-30). A mage chooses a primary school from `schools` (K, Arcane Arts page, or at a Study Magic shelf); the rest lock until Arcane Arts reaches secondaryAtLevel, when one secondary may be chosen, starting at secondaryStartLevel. Each school is a 0-100 meter on the Wheel's curve (Novice 1, Apprentice 25, Adept 50, Expert 75, Master 90) and a tome of it is read only up to its rank. Casting an active school's spell adds castUnits (repeats worth less), at most castDailyUnits a school a day. study: a ref in `refs` (the Synod Conclave's seven bookcases) or a base with editor id `edid` (StudyMagic, when Nate makes one) opens Study Magic: unitsPerTick every tickSeconds to the primary while the reader stays within moveLimitMeters, minutesPerWindow per windowHours, closed once a school spell is in the spellbook. classes: a Class Lectern (base editor id `edid`: Nate's ClassLectern activator in DLE v7, two boxes per lectern at the Synod, Frostcrag Spire and the Hall of the Elements, listed in `lecterns`; boxes within sameLecternUnits are one lectern); a teacher on the staff list (/classteacher, when requireList), in teacherGuilds, at teacherMinRank (3 = Expert) in the school, sets a class by one known spell; students sign up in the first joinMinutes; after `minutes` the teacher ends it and each student in the classroom (the lectern's interior cell, or radiusMeters outdoors) gets units x scale[student rank][class rank]; graceMinutes away cancels (teacher) or drops (student); cooldowns teacherCooldownMinutes after a finished class, studentCooldownHours between paid classes. Study and classes also credit Arcane Arts through masterySystem's cast credit (wheel), inside the Wheel's hourly and daily limits. requireClient: the gate and panels only for clients whose UI reports the 'schools' capability. Off until the client pack with the school meters and the two panels is out.",
   "enabled": false,
   "requireClient": true,
   "schools": ["Destruction", "Illusion", "Conjuration", "Alteration"],
@@ -93,7 +93,7 @@
   "castDailyUnits": 120,
   "study": {
    "enabled": true,
-   "edid": "DBO_StudyMagic",
+   "edid": "StudyMagic",
    "refs": ["651cc:BSHeartland.esm", "651cf:BSHeartland.esm", "651d2:BSHeartland.esm", "651d3:BSHeartland.esm", "652fe:BSHeartland.esm", "652ff:BSHeartland.esm", "6530d:BSHeartland.esm"],
    "tickSeconds": 10,
    "unitsPerTick": 1,
@@ -106,8 +106,9 @@
   },
   "classes": {
    "enabled": true,
-   "edid": "DBO_ClassLectern",
-   "lecterns": [],
+   "edid": "ClassLectern",
+   "lecterns": ["15e4bb:DragonBreak Online Edits.esp", "15e4bc:DragonBreak Online Edits.esp", "15e4c4:DragonBreak Online Edits.esp", "15e4c5:DragonBreak Online Edits.esp", "15e4c6:DragonBreak Online Edits.esp", "15e4c7:DragonBreak Online Edits.esp"],
+   "sameLecternUnits": 300,
    "minutes": 30,
    "joinMinutes": 10,
    "graceMinutes": 5,

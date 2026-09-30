@@ -33,8 +33,8 @@ const descOf = (id) => { const p = BY_INDEX[id >>> 24]; if (!p) throw new Error(
 // Real places: the Synod Conclave, a bookcase in it (CYRSynodBookCase01, from the census), Bruma's worldspace
 const SYNOD = '20ff:BSHeartland.esm', BRUMA = 'a764b:BSHeartland.esm';
 const BOOKCASE = idOf('651cc:BSHeartland.esm'), BOOKCASE_BASE = 'cc2d4:BSHeartland.esm';
-// A lectern placed by Nate's plugin: base DBO_ClassLectern (not in any plugin yet, so a made-up id in a fake slot)
-const LECTERN = idOf('900:DragonBreak Online Edits.esp'), LECTERN_BASE = '800:DragonBreak Online Edits.esp';
+// Nate's lectern at the Synod (DLE v7): the ClassLectern activator 15e4b7, two boxes 16 units apart, 15e4bb and 15e4bc
+const LECTERN = idOf('15e4bb:DragonBreak Online Edits.esp'), LECTERN2 = idOf('15e4bc:DragonBreak Online Edits.esp'), LECTERN_BASE = '15e4b7:DragonBreak Online Edits.esp';
 const OTHER_SHELF = idOf('651c3:BSHeartland.esm'); // a Winterhold bookcase: not a study point
 // Tomes and spells (book desc, spell desc) from spell-tomes.json
 const T = {
@@ -48,7 +48,7 @@ const HEALING = '12fcc:Skyrim.esm';
 const RECORDS = {
   [idOf(BOOKCASE_BASE)]: { type: 'CONT', editorId: 'CYRSynodBookCase01', fields: [] },
   [idOf('109d86:Skyrim.esm')]: { type: 'CONT', editorId: 'WinterholdBookCase01', fields: [] },
-  [idOf(LECTERN_BASE)]: { type: 'ACTI', editorId: 'DBO_ClassLectern', fields: [] },
+  [idOf(LECTERN_BASE)]: { type: 'ACTI', editorId: 'ClassLectern', fields: [] },
 };
 
 const MAGE = 0x14, TEACHER = 0x15, ADEPT = 0x16, NOVICE = 0x17, ILLUSIONIST = 0x18, OLDMAGE = 0x19, NPC = 0xff000123;
@@ -64,7 +64,8 @@ const arcane = (a, level) => {
 };
 put(BOOKCASE, 'baseDesc', BOOKCASE_BASE); at(BOOKCASE, SYNOD, [0, 0, 0]);
 put(OTHER_SHELF, 'baseDesc', '109d86:Skyrim.esm'); at(OTHER_SHELF, SYNOD, [50, 0, 0]);
-put(LECTERN, 'baseDesc', LECTERN_BASE); at(LECTERN, SYNOD, [300, 0, 0]);
+put(LECTERN, 'baseDesc', LECTERN_BASE); at(LECTERN, SYNOD, [-274, 433.5, 196.6]);
+put(LECTERN2, 'baseDesc', LECTERN_BASE); at(LECTERN2, SYNOD, [-258.3, 435.9, 201.9]);
 for (const a of [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE]) { at(a, SYNOD, [0, 0, 0]); put(a, 'profileId', a); }
 
 const learned = new Map();
@@ -160,7 +161,7 @@ const advance = (ms) => { wallClock += ms; };
 (async () => {
 
 // ---- boot and the client gate ----
-check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at DBO_StudyMagic \+ 7 refs; classes 30 min at DBO_ClassLectern, 0 running; school spells 4/.test(l)), out.logs.filter((l) => /schools/.test(l)));
+check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4/.test(l)), out.logs.filter((l) => /schools/.test(l)));
 check('the tracked config ships it switched off until the client pack is out', CONFIG.schools.enabled === false && CONFIG.schools.requireClient === true);
 check('an old client (no schools cap): no gate, no panel, no meters', globalThis.__dboSchoolsRefusal(MAGE, 'Destruction', 0, 'You') === null && activate(BOOKCASE, MAGE) === false && progress(MAGE) === null);
 check('...and a cast counts for nothing', (globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1])), !rec(MAGE) || !rec(MAGE).levels.Destruction));
@@ -261,7 +262,7 @@ arcane(TEACHER, 85); known(TEACHER).add(idOf(T.fireball[1])); known(TEACHER).add
 p = progress(TEACHER);
 ui('schoolChoose', TEACHER, [p.nonce, 'Destruction', 'primary']);
 check('a mage who chooses at Arcane Arts 85 starts the primary at 85', level(TEACHER, 'Destruction') === 85);
-check('an activator whose base is DBO_ClassLectern opens the lectern panel', activate(LECTERN, TEACHER) === true && lastWidget(TEACHER, 'classLectern').id === 72 && lastWidget(TEACHER, 'classLectern').mode === 'idle', lastWidget(TEACHER, 'classLectern'));
+check('an activator whose base is ClassLectern opens the lectern panel', activate(LECTERN, TEACHER) === true && lastWidget(TEACHER, 'classLectern').id === 72 && lastWidget(TEACHER, 'classLectern').mode === 'idle', lastWidget(TEACHER, 'classLectern'));
 check('...but a teacher not on the list may not start one', lastWidget(TEACHER, 'classLectern').canTeach === false && /Only teachers the Synod has named/.test(lastWidget(TEACHER, 'classLectern').whyNot));
 cmd('classteacher', TEACHER, 'add Teacher');
 activate(LECTERN, TEACHER);
@@ -274,7 +275,9 @@ ui('lecternStart', TEACHER, [w.nonce, T.incinerate[1]]);
 w = lastWidget(TEACHER, 'classLectern');
 check('the class on Incinerate begins: Class in Progress with the countdown', w.mode === 'running' && w.status === 'Class in Progress' && w.spell === 'Incinerate' && w.rankName === 'Expert' && w.endsInMs === 30 * MIN && w.role === 'teacher' && w.canEnd === false, w);
 const decor = lastPacket(ADEPT, 'refDecor');
-check('...and everyone in the Conclave sees it on the lectern\'s crosshair name', decor && decor.refs[0].refId === LECTERN && decor.refs[0].name === 'Class Lectern: Class in Progress, 30 minutes left', decor);
+check('...and everyone in the Conclave sees it on both boxes\' crosshair name', decor && decor.refs.map((r) => r.refId).join() === [LECTERN, LECTERN2].join() && decor.refs.every((r) => r.name === 'Class Lectern: Class in Progress, 30 minutes left'), decor);
+activate(LECTERN2, NOVICE);
+check('the lectern\'s other box shows the same class', lastWidget(NOVICE, 'classLectern').mode === 'running' && lastWidget(NOVICE, 'classLectern').spell === 'Incinerate');
 // ADEPT: Destruction primary at 60 (Adept, rank 2): an Expert class pays 70%
 arcane(ADEPT, 60); p = progress(ADEPT); ui('schoolChoose', ADEPT, [p.nonce, 'Destruction', 'primary']);
 activate(LECTERN, ADEPT);
