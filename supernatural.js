@@ -655,8 +655,9 @@ module.exports = (api) => {
       const p = pendingRite.get(a); pendingRite.delete(a);
       log(`rite ${display(a)} 'confirm' pending=${p ? `${p.type} ${Math.round((Date.now() - p.at) / 1000)}s ago` : 'none'}`);
       if (!p || Date.now() - p.at > CONFIRM_MS) return personal(a, 'There is nothing to confirm. Touch the shrine and say /rite again.');
-      closeShrinePanel(a);
-      return startRite(a, p.type);
+      // The rite's panel first, then the shrine panel closes: the cursor stays
+      startRite(a, p.type);
+      return closeShrinePanel(a);
     }
     const deity = lastShrine(a);
     const offer = riteOffer(a, deity);
@@ -678,6 +679,7 @@ module.exports = (api) => {
   // Every word is written here. The panel and the pending rite outlive a hot reload (globalThis), and /rite and
   // /rite confirm stay as the fallback.
   const SHRINE_PANEL_ID = 74;
+  const CHOOSE_GUARD_MS = 1000;
   const RITE_SHRINES = new Set(['molagbal', 'hircine', 'arkay', 'stendarr']);
   const shrinePanels = globalThis.__dboShrinePanels || (globalThis.__dboShrinePanels = new Map()); // actorId -> panel
   // Only a client whose front draws it (dbo:uiCaps 'shrinePanel', client 0.3.72) gets the panel: an older one would hold
@@ -727,11 +729,15 @@ module.exports = (api) => {
     if (!offer.type) return showShrinePanel(a, st, offer.reason, 'refused');
     pendingRite.set(a, { type: offer.type, at: Date.now(), via: 'panel' });
     st.confirming = true;
+    st.chosenAt = Date.now();
     log(`rite ${display(a)} chose ${offer.type} at the shrine panel (${st.name})`);
     showShrinePanel(a, st);
   });
   onUi('shrineConfirm', (a, args) => {
     const st = panelFor(a, args); if (!st || !st.confirming) return; // not confirming: a second click after the answer
+    // The rite's button sits about where Perform the Rite was, so a double click's second press lands on it: a press
+    // this soon after choosing is that, not a decision (Worker D's review), and the warning stays up
+    if (Date.now() - (Number(st.chosenAt) || 0) < CHOOSE_GUARD_MS) return log(`rite ${display(a)} confirm ignored: ${Date.now() - (Number(st.chosenAt) || 0)} ms after choosing`);
     const p = pendingRite.get(a);
     const offer = riteOffer(a, st.deity);
     if (!p || Date.now() - p.at > CONFIRM_MS || p.type !== offer.type) {

@@ -109,6 +109,13 @@ ui('shrineCancel', p.nonce);
 ok(!lastOpen(74).confirm && !globalThis.__dboPendingRite.has(A), 'Cancel goes back to the choice and forgets the rite');
 ui('shrineRite', p.nonce);
 ok(lastOpen(74).confirm && globalThis.__dboPendingRite.get(A).type === 'embrace', 'chosen again, it waits for Kneel');
+// A double click: the second press lands where Kneel now is, moments after choosing
+trail.length = 0;
+wall += 150;
+ui('shrineConfirm', p.nonce);
+ok(!inRite() && !trail.length && globalThis.__dboShrinePanels.get(A).confirming && globalThis.__dboPendingRite.get(A).type === 'embrace',
+  "a double click's second press, 150 ms after choosing, does not kneel: the warning stays up", trail);
+wall += 1000;
 
 // A hot reload between choosing and kneeling keeps it
 load();
@@ -161,6 +168,7 @@ set(A, 'inventory', { entries: [{ baseId: GEM, count: 1 }] });
 touch(REF.arkay); p = lastOpen(74);
 ui('shrineRite', p.nonce);
 const cure = lastOpen(74).confirm;
+wall += 1500;
 ok(cure && cure.confirm === 'Offer the soul gem' && /gem is spent/.test(cure.warning) && /rank among vampires is lost/.test(cure.warning), 'with the gem: the cure warns what it costs and asks for the gem', cure);
 ui('shrineConfirm', p.nonce);
 const s = get(A, 'private.supernatural');
@@ -181,6 +189,7 @@ ok(said.some((t) => /Say \/rite confirm within 5 minutes to kneel/.test(t)), '/r
 trail.length = 0;
 commands.get('rite')(A, 'confirm');
 ok(inRite() && indexOf('close', 74) >= 0, '/rite confirm still begins it, and closes the panel that was open', trail);
+ok(indexOf('open', 39) >= 0 && indexOf('open', 39) < indexOf('close', 74), "...the rite's panel first, so the cursor stays", trail.map((t) => `${t.op} ${t.id}`));
 globalThis.__dboRites.clear();
 
 // A panel left too long closes itself

@@ -77,6 +77,8 @@ h = html(confirming);
 check("choosing the rite: its name, the server's warning, Kneel and Cancel", /Molag Bal's Embrace Molag Bal's Embrace makes a pure-blood of those who survive it\. Many do not, and some never wake again\. Kneel Cancel/.test(t), t);
 check('...under the grave shade, with no Leave and no Pray', /shrine__fade--grave/.test(h) && !/Leave/.test(t) && !/>Pray</.test(h), h);
 check('...Kneel is the grave button', /shrine__button shrine__button--grave"[^>]*>Kneel</.test(h), h);
+check('...and it comes up held, so a double click cannot land on Kneel', /<button class="shrine__button shrine__button--grave" disabled="">Kneel<\/button><button class="shrine__button" disabled="">Cancel<\/button>/.test(h), h);
+check('the choice is not held: Pray and Perform the Rite answer at once', !/disabled/.test(html(both)), html(both));
 
 t = text(html(neither));
 h = html(neither);
