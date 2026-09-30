@@ -10,8 +10,9 @@ const SERVER = path.resolve(__dirname, '..');
 const CONFIG = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
 const TIERS = JSON.parse(fs.readFileSync(path.join(SERVER, 'patron-tiers.json'), 'utf8'));
 const NOTES = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
-// The note waits in docs/patch-notes-pending until the alpha opens and the boost is switched on (release-1003)
-const PENDING = JSON.parse(fs.readFileSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'playtesters-thank-you.json'), 'utf8'));
+// The note waited in docs/patch-notes-pending through release-1003 and went to the top of patch-notes.json with the
+// launch (release-1004), under the "Welcome to the Alpha" note, since every gameplay deploy rebuilds the launcher news
+const BOOST_NOTE = 'A Thank-You for Our Playtesters';
 const GAMEMODE = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 const IGNORE = fs.readFileSync(path.join(SERVER, '.gitignore'), 'utf8');
 const MODULE = path.join(SERVER, 'playtesterboost.js');
@@ -31,13 +32,14 @@ ok('config: enabled is a boolean', typeof B.enabled === 'boolean', B.enabled);
 const prealpha = (TIERS.bonuses || []).find((t) => t.id === 'prealpha');
 ok('config: the role is the Pre-Alpha Tester role that grants the second slot', prealpha && B.roleId === prealpha.roleId, B.roleId);
 ok('gitignore keeps the runtime windows out of the public repo', /^playtester-boost\.json$/m.test(IGNORE));
-const note = PENDING;
-ok('patch note waits in patch-notes-pending, a Server update dated the opening', note.version === 'Server update' && note.date === B.startsAt.slice(0, 10), [note.version, note.date, B.startsAt]);
+const note = NOTES.find((n) => n.title === BOOST_NOTE) || {};
+ok('patch note in patch-notes.json, a Server update dated the opening', note.version === 'Server update' && note.date === B.startsAt.slice(0, 10), [note.version, note.date, B.startsAt]);
+ok('...among the launch notes on top, under the welcome', NOTES.slice(0, 2).map((n) => n.title).join(' | ') === `Welcome to the Alpha | ${BOOST_NOTE}`, NOTES.slice(0, 2).map((n) => n.title));
+ok('...and no longer parked in patch-notes-pending', !fs.existsSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'playtesters-thank-you.json')));
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const dayOf = (d) => `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 ok(`patch note names the config's days: opens ${dayOf(STARTS)}, claim by ${dayOf(CLAIM)}`,
   JSON.stringify(note).includes(`on ${dayOf(STARTS)} at 05:00 UTC`) && JSON.stringify(note).includes(`by ${dayOf(CLAIM)} at 05:00 UTC`), note.sections);
-ok('...and is not in patch-notes.json, so deploy-news cannot publish it before the launch', !NOTES.some((n) => n.title === note.title), note.title);
 ok('patch note says 24 hours of double skill progress from the first login after launch',
   /double skill progress for 24 hours/i.test(JSON.stringify(note)) && /first login after the alpha opens/i.test(JSON.stringify(note)), note.title);
 ok('gamemode loads playtesterboost.js', /require\(PLAYTESTERBOOST_JS\)\(\{[^}]*isLeadStaff[^}]*\}\)/.test(GAMEMODE));
