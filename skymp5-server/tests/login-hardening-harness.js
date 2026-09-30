@@ -165,6 +165,49 @@ const quiet = { log: console.log, error: console.error };
   off.customPacket(10, 'loginWithSkympIo', { gameData: { profileId: 12 } }, ctx);
   check('offline mode still logs in by profile id', emitted.includes('spawnAllowed'), emitted);
 
+  // ---- the session never reaches a log whole (review follow-up) ----
+  {
+    const lines = [];
+    const grab = (...a) => lines.push(a.map((x) => (typeof x === 'string' ? x : (() => { try { return JSON.stringify(x); } catch (e) { return String(x); } })())).join(' '));
+    const TOKEN = 'b'.repeat(64);
+    const saved = { log: console.log, error: console.error };
+    console.log = grab; console.error = grab;
+    const l4 = new Login(grab, 100, 'http://master.test', 7777, 'KEY', false);
+    await l4.initAsync(ctx);
+    l4.customPacket(11, 'loginWithSkympIo', { gameData: { session: TOKEN } }, ctx); await tick();        // not found: the error line
+    l4.customPacket(12, 'loginWithSkympIo', { gameData: { session: `${TOKEN}/balance` } }, ctx); await tick(); // not a token
+    l4.customPacket(13, 'loginWithSkympIo', { gameData: { session: `${TOKEN}\n[fake]` } }, ctx); await tick();
+    console.log = saved.log; console.error = saved.error;
+    const all = lines.join('\n');
+    check('a failed login\'s error line still names the attempt', /Error logging in client:/.test(all), lines.filter((l) => /Error logging/.test(l)));
+    check('...but no log line carries the whole session', !all.includes(TOKEN) && !all.includes('b'.repeat(7)), lines.filter((l) => l.includes('bbbbbbb')));
+    check('...only its first 6 characters and its length', /bbbbbb\.\.\. \(64 chars\)/.test(all) && /bbbbbb\.\.\. \(72 chars\)/.test(all), lines.filter((l) => /chars\)/.test(l)));
+  }
+
+  // ---- the balance system encodes the session in its URLs ----
+  {
+    const urls = [];
+    await esbuild.build({
+      entryPoints: [path.join(root, 'ts', 'systems', 'masterApiBalanceSystem.ts')],
+      bundle: true, platform: 'node', format: 'cjs', outfile: path.join(out, 'balance.js'), logLevel: 'error',
+      plugins: [{
+        name: 'stubs',
+        setup(b) {
+          b.onResolve({ filter: /^(axios|\.\.\/settings)$/ }, (a) => ({ path: a.path, namespace: 'stub' }));
+          b.onLoad({ filter: /.*/, namespace: 'stub' }, (a) => ({ loader: 'js', contents: a.path === 'axios'
+            ? 'module.exports = { __esModule: true, default: { get: async (u) => { globalThis.__balanceUrls.push(u); return { data: { user: { id: 1, balance: 5 } } }; }, post: async (u) => { globalThis.__balanceUrls.push(u); return { data: { balanceSpent: 1, success: true } }; } } };'
+            : 'module.exports = { Settings: { get: async () => ({ allSettings: { masterApiAuthToken: "t" } }) } };' }));
+        },
+      }],
+    });
+    globalThis.__balanceUrls = urls;
+    const { MasterApiBalanceSystem } = require(path.join(out, 'balance.js'));
+    const bal = new MasterApiBalanceSystem(() => {}, 10, 'http://master.test', 7777, 'KEY', false);
+    await bal['getUserBalanceImpl']('a/b?c');
+    await bal['makeUserMasterApiPurchaseImpl']('a/b?c', 1);
+    check('the balance and purchase URLs carry the session as one encoded segment', urls[0] === 'http://master.test/api/servers/KEY/sessions/a%2Fb%3Fc/balance' && urls[1] === 'http://master.test/api/servers/KEY/sessions/a%2Fb%3Fc/purchase', urls);
+  }
+
   fs.rmSync(out, { recursive: true, force: true });
   console.log(failures ? `\n${failures} FAILED` : '\nall passed');
   process.exit(failures ? 1 : 0);
