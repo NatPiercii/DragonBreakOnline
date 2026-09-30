@@ -96,30 +96,35 @@
       counts toward your Priest skill, and now and then your god answers with a blessing.</p>
     <div class="g-rule"></div>
   </header>
+  <div class="g-note g-note--amber">
+    <strong>Every faith starts fresh at launch.</strong> When the alpha opens on Saturday 3 October at
+    05:00 UTC, every character's faith is reset once, along with any blessing, offering or shrine wait.
+    Everyone chooses a god again, and that first choice is free.
+  </div>
   <section>
     <h2>How religion works</h2>
     <p>A character holds <strong>one god at a time</strong> and may only pray at that god's shrines
-      (the older faiths need none). Praying is a short test of devotion: three verses run in turn, and
-      you hold the prayer key from the first word to the last. A completed prayer counts toward your
+      (the older faiths need none). Praying is a short test of devotion: three verses of six seconds each,
+      and you hold the prayer key from the first word to the last. A completed prayer counts toward your
       <strong>Priest</strong> skill. It only rarely earns the blessing.</p>
     <div class="g-loop">
       <div class="g-step">
         <div class="g-step-n">First</div>
         <div class="g-step-t">Take a god</div>
-        <div class="g-step-d">The picker opens as the last step of making your character. The first
+        <div class="g-step-d">The god picker is the last step of making your character. The first
           choice is free and needs no shrine. <code>/deity</code> opens it at any time.</div>
       </div>
       <div class="g-step">
         <div class="g-step-n">Then</div>
-        <div class="g-step-t">Kneel</div>
-        <div class="g-step-d">Activating your own shrine opens the round. Another god's shrine answers
-          with a notice and no roll.</div>
+        <div class="g-step-t">Use the shrine</div>
+        <div class="g-step-d">Using your own god's shrine opens the prayer panel. Another god's shrine
+          tells you so and gives nothing.</div>
       </div>
       <div class="g-step">
         <div class="g-step-n">Hold</div>
         <div class="g-step-t">Three verses</div>
-        <div class="g-step-d">Eighteen seconds. Let go for more than half a second in any one verse and
-          the prayer ends with nothing.</div>
+        <div class="g-step-d">Press and hold Space to begin, and keep holding for eighteen seconds. Let go
+          for more than half a second in any one verse and the prayer ends with nothing.</div>
       </div>
       <div class="g-step">
         <div class="g-step-n">Rarely</div>
@@ -136,6 +141,17 @@
       <div class="g-num"><div class="g-num-v">7 days</div><div class="g-num-l">Between conversions</div></div>
       <div class="g-num"><div class="g-num-v">33</div><div class="g-num-l">Gods and faiths</div></div>
     </div>
+    <h3>The shrine panel</h3>
+    <p>Walk up to a shrine of your god and use it. The prayer panel opens with the shrine's name and the
+      three verses. The verses wait for you: <strong>press and hold Space</strong> (or hold the bar with the
+      mouse) when you are ready, within a minute, and keep holding until the third verse ends. Press
+      <strong>Rise</strong> or Escape to stand up early.</p>
+    <p>The shrines of <strong>Molag Bal, Hircine, Arkay and Stendarr</strong> keep a rite as well as a
+      prayer, so using one of them first opens a shrine panel with two choices: <em>Pray</em> or
+      <em>Perform the Rite</em>. Whatever you cannot do there, the panel tells you why. Molag Bal and
+      Hircine give their curses; Arkay and Stendarr lift them for a filled black soul gem. A rite always
+      shows what it can cost before anything happens. The <a href="/guides/supernatural.html">Supernatural
+      Guide</a> has the rest.</p>
     <figure>
       <div class="g-round-box">
         <svg viewBox="0 0 640 132" role="img">
@@ -150,38 +166,66 @@
           <rect x="0" y="94" width="330" height="9" fill="#8fd3d0"></rect>
           <rect x="341" y="94" width="290" height="9" fill="#8fd3d0"></rect>
           <line x1="335" y1="90" x2="335" y2="107" stroke="#c98a3a" stroke-width="1"></line>
-          <text x="335" y="122" fill="#c98a3a" font-size="11" text-anchor="middle">300 ms flicker, forgiven</text>
+          <text x="335" y="122" fill="#c98a3a" font-size="11" text-anchor="middle">a brief slip, forgiven</text>
           <text x="0" y="72" fill="#5d6b6e" font-size="10">0s</text>
           <text x="209" y="72" fill="#5d6b6e" font-size="10">6s</text>
           <text x="422" y="72" fill="#5d6b6e" font-size="10">12s</text>
           <text x="631" y="72" fill="#5d6b6e" font-size="10" text-anchor="end">18s</text>
         </svg>
       </div>
-      <figcaption>Hold the prayer key through all three verses. A brief slip is forgiven, but let go for
-        more than half a second in any one verse and the prayer fails.</figcaption>
+      <figcaption>The round starts at your first press. Hold the prayer key through all three verses. A
+        brief slip is forgiven, but more than half a second off the key in any one verse and the prayer
+        fails.</figcaption>
     </figure>
+    <h3>Rest between prayers</h3>
+    <p>Once a prayer is held to the end, <strong>that shrine will not hear you again for an hour</strong>.
+      Your god's other shrines will. A prayer that fails, or that you rise from early, rests the shrine for
+      five minutes.</p>
+    <h3>Blessings</h3>
+    <p>Every completed prayer rolls for your god's blessing. The odds and how long the blessing lasts
+      depend on your <strong>Priest</strong> tier. You carry one blessing at a time: a new one replaces the
+      old, and it fades when its hours are up.</p>
+    <div class="g-table-box">
+      <table>
+        <thead><tr><th>Who prays</th><th>Chance of a blessing</th><th>Blessing lasts</th></tr></thead>
+        <tbody>
+          <tr><td>Anyone without the Priest skill</td><td class="g-n">2%</td><td class="g-n">8 hours</td></tr>
+          <tr><td>Priest, Novice</td><td class="g-n">5%</td><td class="g-n">8 hours</td></tr>
+          <tr><td>Priest, Apprentice</td><td class="g-n">10%</td><td class="g-n">8 hours</td></tr>
+          <tr><td>Priest, Adept</td><td class="g-n">15%</td><td class="g-n">12 hours</td></tr>
+          <tr><td>Priest, Expert</td><td class="g-n">20%</td><td class="g-n">16 hours</td></tr>
+          <tr><td>Priest, Master</td><td class="g-n">30%</td><td class="g-n">24 hours</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The older faiths answer half as often and for half as long. A prayer held to the end to one of the
+      Divines or the older faiths also breaks the fever that comes before vampirism or lycanthropy.</p>
     <h3>Offerings</h3>
-    <p>Say <code>/offer &lt;gold&gt;</code> at your god's shrine (anywhere, for the older faiths) to leave an
-      offering of 5 to 1000 gold. <strong>Half is consumed</strong> as the offering itself, and <strong>half
-      goes to the treasury of the town</strong> it is made in, for the temple's upkeep. For the next hour your
-      god listens more closely: your next prayer's chance of a blessing grows with the offering, up to
-      <strong>double at 100 gold</strong>, and that prayer spends it.</p>
+    <p>Use your god's shrine, then within two minutes type <code>/offer &lt;gold&gt;</code> to leave an
+      offering of 5 to 1000 gold (the older faiths take one anywhere). <strong>Half is consumed</strong> as
+      the offering itself, and <strong>half goes to the treasury of the town</strong> it is made in, for the
+      temple's upkeep. For the next hour your god listens more closely: your next prayer's chance of a
+      blessing grows with the offering, up to <strong>double at 100 gold</strong>, and that prayer spends it.</p>
     <h3>The picker</h3>
     <p>Choosing a god is the last step of making your character. <strong>Your first choice is free and
       needs no shrine</strong>, or press <em>Not yet</em> and type <code>/deity</code> when you are ready.
-      After that you may change faith once every seven days, from the same menu. Turning to another god
-      takes away any blessing you carry.</p>
-    <p>Columns of names beside a reading pane: <strong>Divines keyed aqua, Princes amber</strong>, and the
-      older faiths in a column of their own. Each name carries its marks, <em>yours</em>,
-      <em>no shrine</em> and <em>unlawful</em>, and the pane gives the sphere, the boon, and whether
-      there is anywhere you could pray.</p>
+      After that you may <strong>change faith once every seven days</strong>, counted from your last choice,
+      from the same menu and wherever you stand. Turning to another god takes away any blessing you carry.
+      (You can also turn by hand: use the new god's shrine and type <code>/deity &lt;name&gt;</code> there.)</p>
+    <p>The picker lists <em>The Divines</em>, <em>The Princes</em> and the <em>Other Faiths</em> in columns
+      beside a reading pane. Outlawed gods carry an <em>unlawful</em> mark, your own god is highlighted, and
+      the pane gives the sphere, the boon, whether there are shrines you can reach, and what the law says.</p>
+    <p><strong>The staff can reset your faith</strong> if something has gone wrong with it. That clears your
+      god, the seven-day wait, any blessing, offering and shrine waits, and you choose again as if for the
+      first time.</p>
     <div class="g-note">
       <strong>Two rules worth knowing.</strong> <strong>Auri-El is Akatosh</strong> under his Aldmeri
       name, so a worshipper of either may kneel at either's shrine. Auri-El also has a shrine of his
       own in Bruma county. And <strong>Talos and most Daedric Princes are outlawed</strong> in Imperial
       Bruma, though Malacath, Azura and Meridia are tolerated. Bruma's Great Chapel of Talos has been
-      rededicated as the Cathedral of St Martin. You will be reminded the first time you kneel to a
-      forbidden god, and nobody stops you.
+      rededicated as the Cathedral of St Martin. The picker marks the outlawed faiths, and you are reminded
+      of the law the first time you kneel at a forbidden shrine. Nothing more happens: nobody stops you,
+      and the game does not punish it.
     </div>
   </section>
     <section>
@@ -189,7 +233,7 @@
         <div>
       <div class="g-god">
         <div class="g-god-name">Akatosh<span class="g-god-alias">Auri-El · Bormahu</span></div>
-        <div class="g-god-sphere">Time. Chief of the Divines, whose covenant with Alessia binds the Empire.</div>
+        <div class="g-god-sphere">Time. Chief of the Divines, the Dragon God whose covenant with Alessia binds the Empire.</div>
         <div class="g-god-boon">Magicka returns 10% faster</div>
       </div>
       <div class="g-god">
@@ -225,7 +269,7 @@
       <div class="g-god">
         <div class="g-god-name">Talos<span class="g-god-alias">Ysmir · Hjalti Early-Beard</span></div>
         <div class="g-god-sphere">The man who became the Ninth and founded the Empire that outlawed him. Unlawful in Bruma.</div>
-        <div class="g-god-boon">Two-handed weapons deal 10% more damage</div>
+        <div class="g-god-boon">Two-handed +10 <span class="g-chip g-chip--pending">unlawful</span></div>
       </div>
       <div class="g-god">
         <div class="g-god-name">Zenithar<span class="g-god-alias">Z'en</span></div>
@@ -235,29 +279,30 @@
       <div class="g-god">
         <div class="g-god-name">Auri-El<span class="g-god-alias">an aspect of Akatosh</span></div>
         <div class="g-god-sphere">The Aldmeri Akatosh, held by the Snow Elves as the founder of their line.</div>
-        <div class="g-god-boon">Bows and crossbows deal 10% more damage</div>
+        <div class="g-god-boon">Archery +10</div>
       </div>
     </div>
   </section>
   <section>
     <h2>The Princes</h2>
     <p><strong>Sixteen Daedric Princes</strong> may be worshipped here, Mehrunes Dagon among them, whose
-      Great Gate once opened outside Bruma. <strong>Jyggalag has no cult in this age.</strong></p>
+      Great Gate once opened outside Bruma. <strong>Jyggalag has no cult in this age.</strong> Only Malacath,
+      Azura and Meridia are lawful in the Empire.</p>
     <div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Azura</div>
         <div class="g-god-sphere">Dusk and dawn, prophecy, the Moonshadow. The kindest of them, which is not saying much.</div>
-        <div class="g-god-boon">Spells hurt you 10% less</div>
+        <div class="g-god-boon">10% of magic resisted</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Boethiah</div>
         <div class="g-god-sphere">Plots and secret murder, and the teacher who makes the Chimer strong by testing them to destruction.</div>
-        <div class="g-god-boon">One-handed weapons deal 10% more damage</div>
+        <div class="g-god-boon">One-handed +10</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Clavicus Vile</div>
         <div class="g-god-sphere">Power through bargains. Every wish granted exactly as worded, and the wording is never yours.</div>
-        <div class="g-god-boon">No blessing yet</div>
+        <div class="g-god-boon">No blessing yet; prayers still count toward Priest</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Hermaeus Mora</div>
@@ -272,12 +317,12 @@
       <div class="g-god g-daedra">
         <div class="g-god-name">Malacath</div>
         <div class="g-god-sphere">The sworn oath, the broken curse, and every people the others cast out. Trinimac was, and Malacath is.</div>
-        <div class="g-god-boon">Weapons deal 10% more damage</div>
+        <div class="g-god-boon">Damage +10% and Block +15</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Mehrunes Dagon</div>
         <div class="g-god-sphere">Destruction and ambition. Bruma above all has met him: the Great Gate opened here, and Martin broke it.</div>
-        <div class="g-god-boon">Your spells deal 10% more damage</div>
+        <div class="g-god-boon">Destruction +10</div>
       </div>
       <div class="g-god g-daedra">
         <div class="g-god-name">Mephala</div>
@@ -334,11 +379,11 @@
   <section>
     <h2>The older faiths</h2>
     <p>Not every people kneels to the Divines or bargains with the Princes. Seven older faiths are open
-      to anyone, and <strong>none of them needs a shrine</strong>: kneel wherever you are and say
-      <code>/pray</code>. The same three verses, the same Priest credit, one rest of an hour between prayers.
-      Because they can be prayed to anywhere, <strong>their blessings come half as often and last half as
-      long</strong> as a shrine god's. Each boon is its people's own gift, and the Dragon Cult and the
-      Worm Cult are outlawed in the Empire.</p>
+      to anyone, and <strong>none of them needs a shrine</strong>: kneel wherever you are and type
+      <code>/pray</code> to open the prayer panel. The same three verses, the same Priest credit, one rest of
+      an hour between prayers wherever you kneel. Because they can be prayed to anywhere, <strong>their
+      blessings come half as often and last half as long</strong> as a shrine god's. Each boon is its
+      people's own gift, and the Dragon Cult and the Worm Cult are outlawed in the Empire.</p>
     <div>
       <div class="g-god">
         <div class="g-god-name">The Hist<span class="g-god-alias">The Root</span></div>
@@ -363,12 +408,12 @@
       <div class="g-god">
         <div class="g-god-name">Trinimac<span class="g-god-alias">The Champion of Auri-El</span></div>
         <div class="g-god-sphere">The Aldmeri warrior god, strongest of the elven gods before Boethiah devoured him and he rose again as Malacath. Some Orsimer still keep his name, and most of their kin despise them for it.</div>
-        <div class="g-god-boon">Spells hurt you 25% less</div>
+        <div class="g-god-boon">Armor +50 and 25% of magic resisted</div>
       </div>
       <div class="g-god">
         <div class="g-god-name">The Dragon Cult<span class="g-god-alias">The Dragon Priests</span></div>
         <div class="g-god-sphere">Worship of the dragons as the children of Akatosh and rightful lords of mortals, served by masked Dragon Priests who ruled in their name in ancient Skyrim. An old Nordic heresy, rarely pressed in Cyrodiil.</div>
-        <div class="g-god-boon">A blessing for the Voice, which few mortals have <span class="g-chip g-chip--pending">unlawful</span></div>
+        <div class="g-god-boon">Shouts recover 20% faster <span class="g-chip g-chip--pending">unlawful</span></div>
       </div>
       <div class="g-god">
         <div class="g-god-name">The Worm Cult<span class="g-god-alias">The King of Worms</span></div>
@@ -380,17 +425,19 @@
   <section>
     <h2>Where to pray</h2>
     <p>Every Divine has shrines in Bruma county, and the Cathedral of St Martin in Bruma holds most of
-      them. Auri-El has a shrine of his own in the county, and his faithful may also pray at any shrine
-      of Akatosh. The Princes' shrines lie in the wilds of the county. The older faiths need no shrine.
-      <strong>Every god on the list has somewhere you can pray.</strong></p>
+      them. Talos is the exception: his shrines stand out in the county, not in the cathedral. Auri-El has
+      a shrine of his own in the county, and his faithful may also pray at any shrine of Akatosh. The
+      Princes' shrines lie in the wilds of the county. The older faiths need no shrine.
+      <strong>Every god on the list has somewhere you can pray</strong>, even while the server is held to
+      Bruma.</p>
   </section>
 
   <footer>
-    Last updated 28 September 2026.
+    Last updated 30 September 2026, for the alpha launch.
   </footer>
 </div>
 </main>
-<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/commands.html">Commands and Systems</a></li><li><a href="/guides/skills.html">Skill System</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
+<nav class="panel others" aria-label="More guides"><h2>More guides</h2><ul><li><a href="/guides/start.html">Starting Out in Alpha</a></li><li><a href="/guides/commands.html">Commands and Systems</a></li><li><a href="/guides/skills.html">The Wheel of Skills</a></li><li><a href="/guides/leveling.html">Leveling Guide</a></li><li><a href="/guides/crafting.html">Crafting and Trades</a></li><li><a href="/guides/magic.html">Schools of Magic</a></li><li><a href="/guides/races.html">Racial Guide</a></li><li><a href="/guides/factions.html">Holds &amp; Factions Guide</a></li><li><a href="/guides/supernatural.html">Supernatural Guide</a></li><li><a href="/guides/rules.html">Server Rules</a></li></ul></nav>
 <footer>Dragon Break &middot; <a href="/">dragonbreakonline.com</a></footer>
 </div>
 </body></html>
