@@ -407,7 +407,9 @@
    "Scarab",
    "Unfitted"
   ],
-  "keepAllKinds": [],
+  "keepAllKinds": [
+   "giant"
+  ],
   "_addFood": "Meat for animals whose death item has none (Nate, 30 Sep). creature is a pattern on the dead body's own editor id (a wolf spot also spawns bears and boars); first match wins; each item is added once per death unless the body already holds it. names is for reading only.",
   "addFood": [
    {
