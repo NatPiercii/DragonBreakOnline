@@ -55,6 +55,11 @@ export class VoiceSystem implements System {
   private apiKey = "";
   private apiSecret = "";
   private room = "dragonbreak";
+  // One token per user every 2 s at most (a port of 57503548 without the profile identity): the client asks every 5 s at
+  // most (voiceService TOKEN_RETRY_MS), so a faster stream of requests comes from a modified client, and each one signs
+  // a token
+  private lastMintAt = new Map<number, number>();
+  private static readonly MINT_COOLDOWN_MS = 2000;
   // Voice modes cycled in-game with Alt+V; units are game units (70 per meter): whisper 2m, talk 12m, shout 45m by default
   private modes: Array<{ key: string; label: string; units: number }> = [
     { key: "whisper", label: "Whisper", units: 140 },
@@ -95,6 +100,11 @@ export class VoiceSystem implements System {
     this.log(`VoiceSystem: ${this.enabled ? `enabled, room '${this.room}', modes: ${modeDesc}` : "disabled (missing url/apiKey/apiSecret or enabled=false)"}`);
   }
 
+  // A new connection on the same user slot is not held to the last one's cooldown
+  disconnect(userId: number, _ctx: SystemContext): void {
+    this.lastMintAt.delete(userId);
+  }
+
   customPacket(userId: number, type: string, _content: Content, ctx: SystemContext): void {
     if (type !== "voiceTokenRequest") return;
     const mp = ctx.svr as Mp;
@@ -105,6 +115,9 @@ export class VoiceSystem implements System {
     let actorId = 0;
     try { actorId = mp.getUserActor(userId); } catch { }
     if (!actorId) return; // not spawned yet; the client re-requests after assign
+    const now = Date.now();
+    if (now - (this.lastMintAt.get(userId) || 0) < VoiceSystem.MINT_COOLDOWN_MS) return;
+    this.lastMintAt.set(userId, now);
     const identity = actorId.toString(16);
     try {
       const token = mintLiveKitToken(this.apiKey, this.apiSecret, identity, this.room);

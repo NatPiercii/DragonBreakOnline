@@ -21,6 +21,22 @@ const loginRefusedReasons: Record<string, string> = {
 };
 const loginRefusedDefault = "The server refused your login. Start the game again from the DragonBreak launcher, and ask staff if this keeps happening.";
 
+// A session is one URL segment of token characters
+const sessionShape = /^[A-Za-z0-9_-]{16,256}$/;
+// A session is a credential: a log shows its first 6 characters and its length
+const redactSession = (v: unknown): string =>
+  typeof v === "string" ? `${v.slice(0, 6).replace(/[^A-Za-z0-9_-]/g, "?")}... (${v.length} chars)` : `<${typeof v}>`;
+const withoutSession = (gameData: unknown): unknown =>
+  gameData && typeof gameData === "object" && "session" in (gameData as object)
+    ? { ...(gameData as Record<string, unknown>), session: redactSession((gameData as Record<string, unknown>).session) }
+    : gameData;
+const clip = (v: unknown, n = 200): string => {
+  let s: string;
+  try { s = typeof v === "string" ? v : JSON.stringify(v); } catch { s = "<unprintable>"; }
+  s = String(s).replace(/[\r\n]+/g, " ");
+  return s.length > n ? `${s.slice(0, n)}... (${s.length} chars)` : s;
+};
+
 type Mp = any; // TODO
 
 interface UserProfile {
@@ -36,6 +52,19 @@ namespace DiscordErrors {
 // TODO: reimplement Login system. Preferably, in C++ with clear data flow.
 export class Login implements System {
   systemName = "Login";
+
+  // One login per connection: each attempt costs master api and Discord calls
+  private loginAttempted = new Set<number>();
+  private repeatLoggedAt = 0;
+  private repeatCount = 0;
+
+  connect(userId: number): void {
+    this.loginAttempted.delete(userId);
+  }
+
+  disconnect(userId: number): void {
+    this.loginAttempted.delete(userId);
+  }
 
   constructor(
     private log: Log,
@@ -61,7 +90,7 @@ export class Login implements System {
 
   private async getUserProfile(session: string, userId: number, ctx: SystemContext): Promise<UserProfile> {
     const response = await this.fetchRetry(
-      `${this.masterUrl}/api/servers/${this.masterKey}/sessions/${session}`,
+      `${this.masterUrl}/api/servers/${this.masterKey}/sessions/${encodeURIComponent(session)}`,
       this.getFetchOptions('getUserProfile')
     );
 
@@ -137,12 +166,30 @@ export class Login implements System {
       return;
     }
 
+    // The client sends it once per connection; a failed login reconnects
+    if (this.loginAttempted.has(userId)) {
+      this.repeatCount++;
+      const now = Date.now();
+      if (now - this.repeatLoggedAt > 60000) {
+        this.log(`Login: ignored ${this.repeatCount} repeated login packet(s) in the last minute (latest from user ${userId})`);
+        this.repeatLoggedAt = now;
+        this.repeatCount = 0;
+      }
+      return;
+    }
+    this.loginAttempted.add(userId);
+
     const ip = ctx.svr.getUserIp(userId);
     console.log(`Connecting a user ${userId} with ip ${ip}`);
 
     let discordAuth = this.settingsObject.discordAuth;
 
     const gameData = content["gameData"];
+    if (this.offlineMode === false && gameData && gameData.session && (typeof gameData.session !== "string" || !sessionShape.test(gameData.session))) {
+      this.log(`Login: refused user ${userId}, the session is not a token: ${redactSession(gameData.session)}`);
+      ctx.svr.sendCustomPacket(userId, loginFailedSessionNotFound);
+      return;
+    }
     if (this.offlineMode === true && gameData && gameData.session) {
       this.log("The server is in offline mode, the client is NOT");
     } else if (this.offlineMode === false && gameData && gameData.session) {
@@ -170,6 +217,12 @@ export class Login implements System {
         if (discordAuth && (!discordAuth.guilds || discordAuth.guilds.length === 0)) {
           discordAuth = undefined;
           console.error("discordAuth.guilds array is missing or empty, skipping Discord server integration");
+        }
+
+        // Every master session carries a Discord id; without one the Discord gate below would be skipped
+        if (discordAuth && !profile.discordId) {
+          ctx.svr.sendCustomPacket(userId, loginFailedNotInTheDiscordServer);
+          throw new Error("No discordId in the master api profile");
         }
 
         if ((ctx.svr as any).onLoginAttempt) {
@@ -289,7 +342,7 @@ export class Login implements System {
       })()
         .catch((err) => {
           loginErrorsCounter.inc({ reason: err?.message || "unknown" });
-          console.error("Error logging in client:", JSON.stringify(gameData), err)
+          console.error("Error logging in client:", clip(withoutSession(gameData)), err)
         });
     } else if (this.offlineMode === true && gameData && typeof gameData.profileId === "number") {
       let profileId = gameData.profileId;
@@ -304,7 +357,7 @@ export class Login implements System {
       loginsCounter.inc();
       this.log(userId + " logged as " + profileId);
     } else {
-      this.log("No credentials found in gameData:", gameData);
+      this.log("No credentials found in gameData:", clip(withoutSession(gameData)));
     }
   }
 

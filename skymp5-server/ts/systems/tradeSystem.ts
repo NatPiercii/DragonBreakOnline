@@ -269,6 +269,21 @@ export class TradeSystem implements System {
     }
   }
 
+  // The gamemode can hold an item back from a trade (a smithing manual its reader still owes); a reason, or null
+  private offerVeto(mp: Mp, userId: number, offer: Item[]): string | null {
+    const veto = (globalThis as any).__dboTradeItemVeto;
+    if (typeof veto !== "function") return null;
+    const actorId = this.actorOf(mp, userId);
+    const counts = new Map<number, number>();
+    for (const item of offer) counts.set(item.baseId >>> 0, (counts.get(item.baseId >>> 0) || 0) + item.count);
+    for (const [baseId, count] of counts) {
+      let why: unknown = null;
+      try { why = veto(actorId, baseId, count); } catch { why = null; }
+      if (typeof why === "string" && why) return why;
+    }
+    return null;
+  }
+
   private bothConnected(mp: Mp, s: Session): boolean {
     try {
       return mp.isConnected(s.a) && mp.isConnected(s.b);
@@ -471,6 +486,12 @@ export class TradeSystem implements System {
       this.sendStateTo(mp, s, userId);
       return;
     }
+    const vetoed = this.offerVeto(mp, userId, offer);
+    if (vetoed) {
+      this.notice(mp, userId, vetoed);
+      this.sendStateTo(mp, s, userId);
+      return;
+    }
     const oldOffer = s.a === userId ? s.offerA : s.offerB;
     const oldPlain = resolveOffer(inv, oldOffer).plain;
     const wasPlain = new Set(oldOffer.filter((_, n) => oldPlain[n]).map(lineKey));
@@ -600,6 +621,15 @@ export class TradeSystem implements System {
     const resB = resolveOffer(invB, s.offerB);
     if (!resA.ok || !resB.ok) {
       this.cancel(mp, s, 'The trade failed - an item was no longer available.');
+      return;
+    }
+    // An offer made before its book was read is asked again here
+    const vetoA = this.offerVeto(mp, s.a, s.offerA);
+    const vetoB = this.offerVeto(mp, s.b, s.offerB);
+    if (vetoA || vetoB) {
+      if (vetoA) this.notice(mp, s.a, vetoA);
+      if (vetoB) this.notice(mp, s.b, vetoB);
+      this.cancel(mp, s, 'The trade was interrupted.');
       return;
     }
 
