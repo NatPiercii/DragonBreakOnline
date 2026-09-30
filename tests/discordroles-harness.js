@@ -185,6 +185,50 @@ const pos = (n) => byName(n).position;
   await mod.sync(PLAYER);
   check('someone who left the guild is skipped without an error', !logs.some((l) => /sync failed/.test(l)), logs.filter((l) => /failed/.test(l)).join(' | '));
 
+  // Staff are read on every sync, whatever the key, and the gamemode sees the roles each time (2026-09-30)
+  {
+    members['111111111111111111'] = { roles: [roles.find((r) => r.name === 'Owners').id] };
+    const seen = [];
+    let staff = true;
+    delete require.cache[MODULE];
+    const mod2 = require(MODULE)({
+      mp: { get: (a, k) => props[a][k] },
+      log: (...x) => logs.push(x.join(' ')), audit: () => {}, who: (a) => `#${a}`, onlineActors: () => [PLAYER], every: () => {},
+      discordOf: (a) => props[a].discord, profileOf: (a) => props[a].profile, zoneById: () => null, cfg: {},
+      skills: [{ id: 'blade', label: 'Blade' }, { id: 'miner', label: 'Miner' }, { id: 'unarmed', label: 'Unarmed' }, { id: 'blacksmith', label: 'Blacksmith' }],
+      token: 'T', guildId: 'G', isStaff: () => staff, staffRolesSeen: (a, r) => seen.push([a, r.slice()]),
+    });
+    await mod2.setup();
+    await mod2.sync(PLAYER);
+    const gets = () => calls.filter((c) => c === 'GET /members/111111111111111111').length;
+    const before = gets();
+    await mod2.sync(PLAYER);
+    await mod2.sync(PLAYER);
+    check('a staff member is read on every sync, even with nothing to change', gets() === before + 2, `${gets() - before} reads`);
+    check('...and the gamemode is shown their roles each time', seen.length === 3 && seen[2][0] === PLAYER && seen[2][1].includes(roles.find((r) => r.name === 'Owners').id), JSON.stringify(seen.map((x) => x[1].length)));
+    staff = false;
+    const before2 = gets();
+    await mod2.sync(PLAYER);
+    check('a player who is not staff keeps the old shortcut (no read when nothing changed)', gets() === before2, `${gets() - before2} reads`);
+    staff = true;
+    delete members['111111111111111111'];
+    await mod2.sync(PLAYER);
+    check('a staff member who left the guild is shown no roles at all', seen.length === 4 && seen[3][1].length === 0, JSON.stringify(seen[3]));
+    members['111111111111111111'] = { roles: [] };
+    delete require.cache[MODULE];
+    const mod3 = require(MODULE)({
+      mp: { get: (a, k) => props[a][k] },
+      log: (...x) => logs.push(x.join(' ')), audit: () => {}, who: (a) => `#${a}`, onlineActors: () => [PLAYER], every: () => {},
+      discordOf: (a) => props[a].discord, profileOf: (a) => props[a].profile, zoneById: () => null, cfg: {},
+      skills: [{ id: 'blade', label: 'Blade' }, { id: 'miner', label: 'Miner' }, { id: 'unarmed', label: 'Unarmed' }, { id: 'blacksmith', label: 'Blacksmith' }],
+      token: 'T', guildId: 'G', isStaff: () => true, staffRolesSeen: () => { throw new Error('boom'); },
+    });
+    await mod3.setup();
+    logs.length = 0;
+    await mod3.sync(PLAYER);
+    check('a staff check that throws is logged and the role sync still finishes', logs.some((l) => /staff check failed/.test(l)) && !logs.some((l) => /sync failed/.test(l)) && names('111111111111111111').includes('Blade'), logs.join(' | '));
+  }
+
   https.request = realRequest;
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });

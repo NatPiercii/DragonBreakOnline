@@ -192,16 +192,29 @@ const who = (actorId) => { const d = discordOf(actorId); return `${display(actor
 // Discord name; the post sets allowed_mentions to none, so nobody is pinged)
 const staffWho = (actorId) => { const d = discordOf(actorId); return `${display(actorId)}${d ? ` <@${d}>` : ''}`; };
 
-const tierOf = (actorId) => {
-  if (ADMIN_PROFILES.has(profileOf(actorId))) return 'senior';
-  const roles = rolesOf(actorId);
+const tierFrom = (profile, roles) => {
+  if (ADMIN_PROFILES.has(profile)) return 'senior';
   const has = (ids) => roles.some(r => ids.includes(r));
   for (const t of TIERS) if (has(tierRoles[t])) return t;
   return has(legacyAdminRoles) ? 'senior' : null;
 };
+const tierOf = (actorId) => tierFrom(profileOf(actorId), rolesOf(actorId));
 const isAdmin = (actorId) => tierOf(actorId) !== null;
 // Lead GM and above: spawning, grants, curses, world state, the console
 const isLeadStaff = (actorId) => { const t = tierOf(actorId); return t !== null && t !== 'gm'; };
+// Staff rights are read from the roles written at login, so a Discord demotion only took effect at the next login. The
+// role sync (discordroles.js) reads a staff member's roles every syncMinutes; a lower tier or none logs them out, and the
+// next login derives every right afresh (2026-09-30)
+const TIER_RANK = { senior: 4, developer: 3, leadgm: 2, gm: 1 };
+const staffRolesSeen = (a, roles) => {
+  const before = tierOf(a);
+  if (!before) return;
+  const now = tierFrom(profileOf(a), idList(roles));
+  if ((TIER_RANK[now] || 0) >= TIER_RANK[before]) return;
+  audit(`STAFF ${who(a)}: Discord roles now give ${now || 'no staff tier'} (was ${before}); logged out so it takes effect`);
+  personal(a, 'Your staff roles have changed. Log in again.');
+  setTimeout(() => { try { const u = userOf(a); if (u >= 0) mp.kick(u); } catch (e) { log('staff role change: kick failed', e.message); } }, 1500);
+};
 const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM', gm: 'GM' };
 // Staff commands a GM may not use (command name, or 'name sub' for one subcommand)
 // appoint and dismiss are here because an official's powers are real money: a rank lets its holder post work paid
@@ -4708,7 +4721,8 @@ try {
   delete require.cache[DISCORDROLES_JS];
   const auth = serverSettings.discordAuth || {};
   require(DISCORDROLES_JS)({ mp, log, audit, who, onlineActors, every, discordOf, profileOf, zoneById, cfg,
-    skills: SKILLS_DEF.skills || [], token: (cfg.discord || {}).botToken || auth.botToken, guildId: ((auth.guilds || [])[0] || {}).guildId });
+    skills: SKILLS_DEF.skills || [], token: (cfg.discord || {}).botToken || auth.botToken, guildId: ((auth.guilds || [])[0] || {}).guildId,
+    isStaff: (a) => tierOf(a) !== null, staffRolesSeen });
 } catch (e) { log('discordroles.js failed to load:', e.stack || e.message); }
 
 // ---- /ticket: a private Discord ticket with staff, opened from the game (server\gameticket.js, config "tickets") -------

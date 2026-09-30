@@ -140,6 +140,7 @@ module.exports = (api) => {
     return { skillNames, skillLevels, homes };
   };
 
+  const staffRoles = (a, roles) => { try { if (typeof api.staffRolesSeen === 'function') api.staffRolesSeen(a, roles); } catch (e) { log('discord roles: staff check failed for', who(a), e.message); } };
   const sync = (a) => serial(async () => {
     const discordId = discordOf(a);
     if (!discordId || !/^\d{15,22}$/.test(discordId)) return;
@@ -147,7 +148,9 @@ module.exports = (api) => {
     // The key follows the levels, so a skill overtaking another is a change even when the names are the same set
     const key = skillLevels.map((c) => `${c.name}:${c.level}`).sort().join(',') + '|' + [...homes].sort().join(',');
     const prev = S.synced.get(discordId);
-    if (prev && prev.key === key && prev.actor === a && Date.now() - prev.at < C.syncMinutes * 60000 * 3) { prev.at = Date.now(); return; }
+    // Staff are read every time: their roles decide their rights (gamemode.js staffRolesSeen)
+    const staff = typeof api.isStaff === 'function' && api.isStaff(a);
+    if (!staff && prev && prev.key === key && prev.actor === a && Date.now() - prev.at < C.syncMinutes * 60000 * 3) { prev.at = Date.now(); return; }
     let roles = S.roles || await loadRoles();
     for (const h of homes) if (!roles.has(h)) { await createUnder(h, C.homesDivider); roles = S.roles; }
     const managed = new Set();
@@ -155,7 +158,11 @@ module.exports = (api) => {
     for (const h of new Set([...Object.values(C.homeNames), ...homes])) { const r = roles.get(h); if (r) managed.add(r.id); }
     let member;
     try { member = await request('GET', `/guilds/${guildId}/members/${discordId}`); }
-    catch (e) { if (e.status === 404) { S.synced.set(discordId, { key, at: Date.now(), actor: a }); return; } throw e; }
+    catch (e) {
+      if (e.status === 404) { staffRoles(a, []); S.synced.set(discordId, { key, at: Date.now(), actor: a }); return; }
+      throw e;
+    }
+    staffRoles(a, member.roles || []);
     const have = new Set(member.roles || []);
     // Ties are settled by what is already worn, so the skill roles are only known once the member has been read
     const heldSkills = new Set(skillLabels().filter((l) => { const r = roles.get(l); return r && have.has(r.id); }));
