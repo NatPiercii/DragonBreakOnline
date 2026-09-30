@@ -1,5 +1,19 @@
 [
   {
+    "title": "Dragon Bone and Scales Come From Dragons",
+    "date": "2026-09-30",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Materials",
+        "items": [
+          "Dragon bone and dragon scales now come only from slain dragons. Dragon gear breaks down into its other materials."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Cook Anything, Anywhere",
     "date": "2026-09-30",
     "version": "Server update",
