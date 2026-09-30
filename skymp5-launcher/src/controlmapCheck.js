@@ -182,7 +182,6 @@ function mergeCustomOverSeed(customText, seedText, notes = null) {
   for (const block of customBlocks) {
     const i = matchBlock(block, seedBlocks, taken);
     if (i === null) continue;
-    taken.add(i);
     const seedLineOf = new Map(seedBlocks[i].map(e => [e.name, e.line]));
     // The block identifies its context when it carries most of that context's events; a sparse block does not
     const shared = block.filter(e => seedLineOf.has(e.name)).length;
@@ -194,6 +193,9 @@ function mergeCustomOverSeed(customText, seedText, notes = null) {
       if (!identifies && (blocksWith.get(entry.name) || 1) > 1) { droppedAmbiguous++; continue; }
       replacement.set(`${i}\u0000${entry.name}`, entry.line);
       carried++;
+      // A block only claims its seed context once it has actually carried a line: a junk block naming Forward would
+      // otherwise take Gameplay away from a real Forward remap further down the file (Worker G's re-review)
+      taken.add(i);
     }
   }
   if (notes) {
@@ -218,11 +220,16 @@ function mergeCustomOverSeed(customText, seedText, notes = null) {
 
 // Only the newest few originals are worth keeping: a player who remaps often should not collect a backup per launch
 const BACKUPS_KEPT = 3;
-function pruneBackups(file) {
+// `keep` is the backup this run just made and must never be deleted: the list is sorted by name, so a clock that was
+// set back leaves later-stamped backups looking "newer" and this run's the oldest. Pruning it and then replacing the
+// file would lose the player's original outright (Worker G's re-review, finding R1).
+function pruneBackups(file, keep = null) {
   try {
     const dir = path.dirname(file), base = `${path.basename(file)}.bak-`;
-    const mine = fs.readdirSync(dir).filter(f => f.startsWith(base)).sort();
-    for (const f of mine.slice(0, Math.max(0, mine.length - BACKUPS_KEPT))) fs.rmSync(path.join(dir, f), { force: true });
+    const keepName = keep ? path.basename(keep) : null;
+    const mine = fs.readdirSync(dir).filter(f => f.startsWith(base) && f !== keepName).sort();
+    const over = mine.length - (keepName ? BACKUPS_KEPT - 1 : BACKUPS_KEPT);
+    for (const f of mine.slice(0, Math.max(0, over))) fs.rmSync(path.join(dir, f), { force: true });
   } catch (err) { /* a backup left behind costs nothing */ }
 }
 
@@ -232,7 +239,8 @@ function pruneBackups(file) {
  * A repaired map analyses as complete, so the next launch leaves it alone: no rewrite, no second backup.
  */
 function repairControlmap(file, now, seedText, notes = null) {
-  const tmp = `${file}.tmp`;
+  // A unique name: a fixed .tmp could overwrite, and then on failure delete, an unrelated file of that name
+  const tmp = `${file}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
   let bak = null;
   try {
     const text = fs.readFileSync(file, 'utf8');
@@ -241,12 +249,13 @@ function repairControlmap(file, now, seedText, notes = null) {
     bak = `${file}.bak-${stamp(now)}`;
     for (let n = 2; fs.existsSync(bak); n++) bak = `${file}.bak-${stamp(now)}-${n}`;
     fs.copyFileSync(file, bak);
-    pruneBackups(file);
     // The whole map is written beside the file and renamed over it: writeFileSync truncates first, so a failure
     // midway would leave the game a partial map, which is the crash the check exists to prevent. A rename is atomic
     // on NTFS and ext4. Any failure at all, a read-only file included, returns null so the move-aside still applies.
     fs.writeFileSync(tmp, merged);
     fs.renameSync(tmp, file);
+    // Only once the replace has landed, and never the one just made
+    pruneBackups(file, bak);
     return bak;
   } catch (err) {
     try { if (fs.existsSync(tmp)) fs.rmSync(tmp, { force: true }); } catch (e) { /* nothing more to do */ }

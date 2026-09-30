@@ -130,23 +130,23 @@ check('the fixture really changes the Forward binding', remapped !== forwardLine
   // 1. a write that fails midway must not truncate the file the game reads
   const p2 = write('ControlMap_Custom.txt', SEED.replace(/\r\n/g, '\n'));
   const realWrite = fs.writeFileSync;
-  fs.writeFileSync = (f, d) => { if (String(f).endsWith('.tmp')) throw Object.assign(new Error('ENOSPC: no space left'), { code: 'ENOSPC' }); return realWrite(f, d); };
+  fs.writeFileSync = (f, d) => { if (/\.tmp-/.test(String(f))) throw Object.assign(new Error('ENOSPC: no space left'), { code: 'ENOSPC' }); return realWrite(f, d); };
   let bak = null;
   try { bak = C.repairControlmap(p2, new Date(), SEED); } finally { fs.writeFileSync = realWrite; }
   check('a failed write returns null so the caller still moves the map aside', bak === null);
   const still = fs.readFileSync(p2, 'utf8');
   check('...and the file the game reads is untouched, not truncated', C.parseBlocks(still).length === C.parseBlocks(SEED).length, { blocks: C.parseBlocks(still).length });
-  check('...and no .tmp is left behind', !fs.existsSync(p2 + '.tmp'));
+  check('...and no .tmp is left behind', fs.readdirSync(dir).every((f) => !/\.tmp-/.test(f)), fs.readdirSync(dir));
   for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
 
   // 2. a read-only map must not be left in place: repair declines and the move-aside applies
   const p3 = write('ControlMap_Custom.txt', SEED.replace(/\r\n/g, '\n'));
   fs.chmodSync(p3, 0o444);
   const bak2 = C.repairControlmap(p3, new Date(), SEED);
-  // Writing the merged map beside the file and renaming it over needs permission on the DIRECTORY, not on the file,
-  // so a read-only map is repaired rather than declined. That is the better end state: the player keeps their keys and
-  // the game gets a complete map, where the old code moved the file aside. The rename does replace the file with the
-  // .tmp's mode, so a deliberately read-only map comes back writable; worth knowing, not worth preventing.
+  // ON LINUX a rename needs permission on the DIRECTORY, not on the file, so a read-only map is repaired. ON WINDOWS
+  // MoveFileEx will not replace a read-only target, so the rename throws, repair returns null, and the player gets the
+  // safe move-aside instead. Both ends are safe; this case asserts the Linux behaviour, which is what CI runs. The
+  // rename also replaces the file with the .tmp's mode, so a read-only map comes back writable here.
   check('a read-only map is repaired, not thrown on', typeof bak2 === 'string' && fs.existsSync(bak2));
   check('...and what the game reads is complete and CRLF', C.analyzeControlmap(fs.readFileSync(p3, 'utf8')).ok === true);
   try { fs.chmodSync(p3, 0o644); } catch (e) { /* already writable after the rename */ }
@@ -160,6 +160,26 @@ check('the fixture really changes the Forward binding', remapped !== forwardLine
     const m2 = C.mergeCustomOverSeed(sparse, SEED, notes2);
     check('a one-line block naming an event that repeats across contexts is not guessed',
       m2 === null || notes2.some((n) => /more than one context/.test(n)), notes2);
+  }
+
+// R1 (Worker G's probe 7): pruneBackups must never delete the backup this run just made. The list is sorted by name,
+  // so a clock that was set back leaves later-stamped backups looking newer and this run's the oldest. Pruning it and
+  // then replacing the file would lose the player's original outright.
+  const p5 = write('ControlMap_Custom.txt', SEED.replace(/\r\n/g, '\n'));
+  for (const later of ['20271231T235959Z', '20271231T235958Z', '20271231T235957Z']) fs.writeFileSync(`${p5}.bak-${later}`, 'a later backup');
+  const bak5 = C.repairControlmap(p5, new Date('2026-10-01T00:00:00Z'), SEED);
+  check('a repair with later-stamped backups around it still makes its own', typeof bak5 === 'string');
+  check('...and that backup SURVIVES the prune', fs.existsSync(bak5), { bak5, present: baks(p5) });
+  check('...and it holds the player\'s original, not the repaired map', C.bareLfCount(fs.readFileSync(bak5, 'utf8')) > 0);
+  check('...while the cap is still honoured', baks(p5).length <= 3, baks(p5));
+  for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+
+  // A junk block must not claim a context a real remap later in the file needs
+  {
+    const notes3 = [];
+    const junkFirst = `Forward\tnot a key\t0xff\t0xff\t0\t0\t0\t0\r\n\r\n${remapped}\r\n`;
+    const m3 = C.mergeCustomOverSeed(junkFirst, SEED, notes3);
+    check('a junk block does not steal the context a real remap needs', !!m3 && m3.includes(remapped.replace(/\r$/, '')), notes3);
   }
 
   // the backup cap
