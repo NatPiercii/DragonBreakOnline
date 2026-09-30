@@ -5,6 +5,7 @@ import ChatCorner from '../../img/chat_corner.svg';
 import Settings from './settings';
 import ChatInput from './input';
 import Channels, { DEFAULT_CHANNEL, SYSTEM_CHANNEL, applyChannel, channelForMessage } from './channels';
+import { enterOpensChat, widgetTypes } from './enterFocus';
 import { replaceIfMoreThan20 } from '../../utils/replaceIfMoreThan20';
 
 import './styles.scss';
@@ -215,21 +216,24 @@ const Chat = (props) => {
     }
   }, [isInputHidden]);
 
+  const focusInput = () => {
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      setEndOfContenteditable(el);
+    }
+  };
+
   // Behavior for T button (activate chat)
   useEffect(() => {
-    const focusInput = () => {
-      const el = inputRef.current;
-      if (el) {
-        el.focus();
-        setEndOfContenteditable(el);
-      }
-    };
     // Enter and T both focus chat in the tab that is showing; the System tab takes /commands
     const onBrowserFocused = () => {
       browserFocusedRef.current = true;
       bumpIdle();
       if (isInputHidden) return;
       focusInput();
+      // The page may not hold the keyboard the instant it gets it; T already retries a frame later
+      requestAnimationFrame(() => { if (document.activeElement !== inputRef.current) focusInput(); });
     };
     // The dedicated chat key always lands in the Local tab
     const onChatKeyFocused = () => {
@@ -244,6 +248,24 @@ const Chat = (props) => {
       window.removeEventListener('skymp5-client:chatKeyFocused', onChatKeyFocused);
     };
   }, [isInputHidden, isSystemTab]);
+
+  // Enter with nothing focused in the page: the browser already held the keyboard, so the game never saw it
+  useEffect(() => {
+    const onKey = (event) => {
+      let widgets = [];
+      try { widgets = window.skyrimPlatform && window.skyrimPlatform.widgets ? window.skyrimPlatform.widgets.get() : []; } catch (e) { widgets = []; }
+      if (isInputHidden || !enterOpensChat(event, document, widgets)) return;
+      event.preventDefault();
+      browserFocusedRef.current = true;
+      bumpIdle();
+      focusInput();
+      try {
+        if (window.skyrimPlatform && window.skyrimPlatform.sendMessage) window.skyrimPlatform.sendMessage('chat:enterUnfocused', widgetTypes(widgets));
+      } catch (e) { /* the diagnostic is optional */ }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isInputHidden]);
 
   useEffect(() => {
     const onUnfocused = () => {
