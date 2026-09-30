@@ -15,6 +15,60 @@ inline void SendEvent(const char* eventName, const Napi::Object& obj)
 {
   EventsApi::SendEvent(eventName, { obj });
 }
+
+// The hand, voice or power a cast came from; false if not the caster's own
+bool CastingSourceOf(RE::Actor* caster, RE::SpellItem* spell,
+                     RE::MagicSystem::CastingSource& castingSource)
+{
+  const bool isLeftHand =
+    caster->GetActorRuntimeData()
+      .selectedSpells[RE::Actor::SlotTypes::kLeftHand] == spell;
+  const bool isRightHand =
+    caster->GetActorRuntimeData()
+      .selectedSpells[RE::Actor::SlotTypes::kRightHand] == spell;
+  const bool isVoise =
+    caster->GetActorRuntimeData()
+      .selectedSpells[RE::Actor::SlotTypes::kUnknown] == spell;
+  const bool isInstant =
+    caster->GetActorRuntimeData()
+      .selectedSpells[RE::Actor::SlotTypes::kPowerOrShout] == spell;
+
+  // A scroll is held in a hand, not selected (ScrollItem is a SpellItem)
+  const bool isScroll = spell->GetFormType() == RE::FormType::Scroll;
+  const bool isScrollLeft =
+    isScroll && caster->GetEquippedObject(true) == spell;
+  const bool isScrollRight =
+    isScroll && caster->GetEquippedObject(false) == spell;
+
+  // A shout casts a word's spell; the selected power is the shout itself
+  bool isShoutWord = false;
+  if (spell->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower) {
+    auto* power = caster->GetActorRuntimeData().selectedPower;
+    if (auto* shout = power ? power->As<RE::TESShout>() : nullptr) {
+      for (const auto& variation : shout->variations) {
+        if (variation.spell == spell) {
+          isShoutWord = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!(isLeftHand || isRightHand || isVoise || isInstant || isScrollLeft ||
+        isScrollRight || isShoutWord)) {
+    return false;
+  }
+
+  castingSource = RE::MagicSystem::CastingSource::kLeftHand;
+  if (isRightHand || (!isLeftHand && isScrollRight)) {
+    castingSource = RE::MagicSystem::CastingSource::kRightHand;
+  } else if (isVoise || isShoutWord) {
+    castingSource = RE::MagicSystem::CastingSource::kOther;
+  } else if (isInstant) {
+    castingSource = RE::MagicSystem::CastingSource::kInstant;
+  }
+  return true;
+}
 }
 
 void EventHandler::SendSimpleEventOnUpdate(const char* eventName)
@@ -1332,8 +1386,20 @@ EventResult EventHandler::ProcessEvent(
   const auto casterId = event->object ? event->object->GetFormID() : 0;
   const auto spellId = event->spell;
 
-  SkyrimPlatform::GetSingleton()->AddUpdateTask([casterId,
-                                                 spellId](Napi::Env env) {
+  // Decided now: a consumed last scroll is no longer held by the next update
+  auto castingSource = RE::MagicSystem::CastingSource::kLeftHand;
+  bool isCastValid = false;
+  {
+    auto* caster = RE::TESForm::LookupByID<RE::Actor>(casterId);
+    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
+    if (caster && spell && spell->IsMagicItem()) {
+      isCastValid = CastingSourceOf(caster, spell, castingSource);
+    }
+  }
+
+  SkyrimPlatform::GetSingleton()->AddUpdateTask([casterId, spellId,
+                                                 isCastValid, castingSource](
+                                                  Napi::Env env) {
     auto obj = Napi::Object::New(env);
 
     auto* caster = RE::TESForm::LookupByID<RE::Actor>(casterId);
@@ -1355,56 +1421,8 @@ EventResult EventHandler::ProcessEvent(
       return;
     }
 
-    const bool isLeftHand =
-      caster->GetActorRuntimeData()
-        .selectedSpells[RE::Actor::SlotTypes::kLeftHand] == spell;
-    const bool isRightHand =
-      caster->GetActorRuntimeData()
-        .selectedSpells[RE::Actor::SlotTypes::kRightHand] == spell;
-    const bool isVoise =
-      caster->GetActorRuntimeData()
-        .selectedSpells[RE::Actor::SlotTypes::kUnknown] == spell;
-    const bool isInstant =
-      caster->GetActorRuntimeData()
-        .selectedSpells[RE::Actor::SlotTypes::kPowerOrShout] == spell;
-
-    // A scroll is not a selected spell but an object held in a hand (ScrollItem derives from SpellItem, so the lookup
-    // above finds it), and every scroll cast was dropped here before scripts saw it: the server never learned of the
-    // cast and gave the scroll back (#bugs, 2026-09-28: "scrolls show the casting, then do nothing").
-    const bool isScroll = spell->GetFormType() == RE::FormType::Scroll;
-    const bool isScrollLeft = isScroll && caster->GetEquippedObject(true) == spell;
-    const bool isScrollRight = isScroll && caster->GetEquippedObject(false) == spell;
-
-    // A shout casts one of its words' spells (VoiceUnrelentingForce1...), while the caster's selected power is the
-    // shout itself, so every shout was dropped here too (Nate, 2026-09-28: shouts, a draugr's included, did nothing)
-    bool isShoutWord = false;
-    if (spell->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower) {
-      auto* power = caster->GetActorRuntimeData().selectedPower;
-      if (auto* shout = power ? power->As<RE::TESShout>() : nullptr) {
-        for (const auto& variation : shout->variations) {
-          if (variation.spell == spell) {
-            isShoutWord = true;
-            break;
-          }
-        }
-      }
-    }
-
-    const bool isCastValid = isLeftHand || isRightHand || isVoise ||
-      isInstant || isScrollLeft || isScrollRight || isShoutWord;
-
     if (!isCastValid) {
       return;
-    }
-
-    auto castingSource = RE::MagicSystem::CastingSource::kLeftHand;
-
-    if (isRightHand || (!isLeftHand && isScrollRight)) {
-      castingSource = RE::MagicSystem::CastingSource::kRightHand;
-    } else if (isVoise || isShoutWord) {
-      castingSource = RE::MagicSystem::CastingSource::kOther;
-    } else if (isInstant) {
-      castingSource = RE::MagicSystem::CastingSource::kInstant;
     }
 
     const auto magicCaster = caster->GetMagicCaster(castingSource);
@@ -1660,9 +1678,12 @@ EventResult EventHandler::ProcessEvent(
 
   auto actorId = event->actor ? event->actor->GetFormID() : 0;
   auto sourceFormId = event->sourceForm ? event->sourceForm->GetFormID() : 0;
+  // SKSE's event is gone by the next update, so nothing is read from it there
+  const auto type = event->type.get();
+  const auto slot = event->slot.get();
 
   SkyrimPlatform::GetSingleton()->AddUpdateTask(
-    [actorId, sourceFormId, event](Napi::Env env) {
+    [actorId, sourceFormId, type, slot](Napi::Env env) {
       auto obj = Napi::Object::New(env);
 
       auto actor = RE::TESForm::LookupByID<RE::Actor>(actorId);
@@ -1677,12 +1698,12 @@ EventResult EventHandler::ProcessEvent(
 
       AddObjProperty(&obj, "actor", actor, "Actor");
       AddObjProperty(&obj, "source", sourceForm, "Form");
-      AddObjProperty(&obj, "slot", static_cast<int>(event->slot.get()));
-      AddObjProperty(&obj, "type", static_cast<int>(event->type.get()));
+      AddObjProperty(&obj, "slot", static_cast<int>(slot));
+      AddObjProperty(&obj, "type", static_cast<int>(type));
 
       // Define the output event name based on the type of action event
       std::string eventName;
-      switch (event->type.get()) {
+      switch (type) {
         case SKSE::ActionEvent::Type::kWeaponSwing:
           eventName = "actionWeaponSwing";
           break;
