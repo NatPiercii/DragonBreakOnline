@@ -66,11 +66,13 @@ module.exports = (api) => {
   // Starts the account's window the first time a role holder is in the world inside the claim period; a staff window
   // still running is lengthened rather than replaced
   const claim = (a, now) => {
+    // A character with no profile id has no account to keep the window under (review: it was stored as "-1")
+    const pid = profileOf(a); if (!(Number.isFinite(pid) && pid >= 0)) return null;
     const old = recOf(a);
     if (!prop() || (old && old.claimed) || !claimable(a, now)) return null;
     const on = active(old, now);
     const rec = { start: on ? old.start : now, until: (on ? old.until : now) + C.hours * HOUR_MS, mult: on ? old.mult : C.mult, claimed: true, staff: on && !!old.staff };
-    store.profiles[String(profileOf(a))] = rec;
+    store.profiles[String(pid)] = rec;
     save();
     audit(`BOOST ${who(a)} started the playtester boost: x${rec.mult} for ${C.hours} h`);
     return rec;

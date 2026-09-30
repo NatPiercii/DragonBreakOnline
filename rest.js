@@ -222,7 +222,14 @@ module.exports = (api) => {
   // actorId -> { bed, until }: the next activation of that bed goes to the engine, so the player lies down.
   const lying = globalThis.__dboRestLying = globalThis.__dboRestLying || new Map();
   const LIE_WINDOW_MS = 20000;
-  const openPrompt = (a, bed, kind) => {
+  // actorId -> when its bed prompt was last reopened. Renting and "Make this my bed" reopen the prompt in place with Sleep
+  // (log out) as its first button, where the button just clicked was: the second click of a double-click logged the player
+  // out. A sleep that soon after the reopen is that click, not a choice (the coordinator's review of the rent fixes). The
+  // first prompt opens from E on the bed, so no click can carry over onto it.
+  const reopenedAt = globalThis.__dboRestReopenedAt = globalThis.__dboRestReopenedAt || new Map();
+  const SLEEP_GUARD_MS = 1000;
+  const openPrompt = (a, bed, kind, reopened) => {
+    if (reopened) reopenedAt.set(a >>> 0, Date.now()); else reopenedAt.delete(a >>> 0);
     // The context menu brings its own Close button, and shows lines only in inspect mode, so the rent's end
     // goes in the title.
     const r = rentOf(bed);
@@ -242,7 +249,7 @@ module.exports = (api) => {
     }, true);
     log(`rest: ${who(a)} opened the ${kind} prompt for bed ${bedDesc(bed)}${where(bed)}`);
   };
-  const closePrompt = (a) => { pending.delete(a >>> 0); quoted.delete(a >>> 0); closeWidget(a, WIDGET_ID); };
+  const closePrompt = (a) => { pending.delete(a >>> 0); quoted.delete(a >>> 0); reopenedAt.delete(a >>> 0); closeWidget(a, WIDGET_ID); };
 
   // Called from the gamemode's activate chain; true means handled (the activation is refused).
   globalThis.__dboRestActivate = (target, caster) => {
@@ -365,6 +372,9 @@ module.exports = (api) => {
     const rentAt = choice.match(/^rent(?::(\d+))?$/);
     // Renting and keeping reopen this same widget id, and closing it in between leaves the panel up with no cursor
     const renting = !!rentAt || choice === 'keep';
+    // The prompt stays open: the player's real choice is still to come
+    const sinceReopen = Date.now() - (reopenedAt.get(a >>> 0) || 0);
+    if (choice === 'sleep' && sinceReopen < SLEEP_GUARD_MS) return log(`rest: ${who(a)} sleep ignored, ${sinceReopen} ms after the bed prompt reopened`);
     if (!renting) closePrompt(a);
     if (choice === 'cancel') return;
     if (!bed) { if (renting) closePrompt(a); log(`rest: ${who(a)} chose ${choice} with no bed prompt on record`); return personal(a, 'Use the bed again.'); }
@@ -373,7 +383,7 @@ module.exports = (api) => {
     if (choice === 'keep') {
       // The prompt may be stale: someone may have rented the bed since it opened
       if (kind === 'taken' || kind === 'rented') { closePrompt(a); const r = rentOf(bed); return personal(a, `This bed is rented until ${r ? clock(r.until) : 'later'}. You can make it yours when the rent runs out.`); }
-      if (kind === 'keep' && keepBed(a, bed)) return openPrompt(a, bed, 'own');
+      if (kind === 'keep' && keepBed(a, bed)) return openPrompt(a, bed, 'own', true);
       closePrompt(a);
       return;
     }
@@ -394,7 +404,7 @@ module.exports = (api) => {
         closePrompt(a);
         return personal(a, `The rent for this bed is now ${price} gold. Use the bed again to rent it.`);
       }
-      if (payRent(a, bed, price)) return openPrompt(a, bed, 'rented');
+      if (payRent(a, bed, price)) return openPrompt(a, bed, 'rented', true);
       closePrompt(a);
       return;
     }

@@ -10,6 +10,8 @@ const SERVER = path.resolve(__dirname, '..');
 const CONFIG = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
 const TIERS = JSON.parse(fs.readFileSync(path.join(SERVER, 'patron-tiers.json'), 'utf8'));
 const NOTES = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
+// The note waits in docs/patch-notes-pending until the alpha opens and the boost is switched on (release-1003)
+const PENDING = JSON.parse(fs.readFileSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'playtesters-thank-you.json'), 'utf8'));
 const GAMEMODE = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 const IGNORE = fs.readFileSync(path.join(SERVER, '.gitignore'), 'utf8');
 const MODULE = path.join(SERVER, 'playtesterboost.js');
@@ -26,8 +28,9 @@ ok('config: enabled is a boolean', typeof B.enabled === 'boolean', B.enabled);
 const prealpha = (TIERS.bonuses || []).find((t) => t.id === 'prealpha');
 ok('config: the role is the Pre-Alpha Tester role that grants the second slot', prealpha && B.roleId === prealpha.roleId, B.roleId);
 ok('gitignore keeps the runtime windows out of the public repo', /^playtester-boost\.json$/m.test(IGNORE));
-const note = NOTES[0] || {};
-ok('patch note on top, a Server update', note.version === 'Server update', note.version);
+const note = PENDING;
+ok('patch note waits in patch-notes-pending, a Server update dated the opening', note.version === 'Server update' && note.date === '2026-10-03', [note.version, note.date]);
+ok('...and is not in patch-notes.json, so deploy-news cannot publish it before the launch', !NOTES.some((n) => n.title === note.title), note.title);
 ok('patch note says 24 hours of double skill progress from the first login after launch',
   /double skill progress for 24 hours/i.test(JSON.stringify(note)) && /first login after the alpha opens/i.test(JSON.stringify(note)), note.title);
 ok('gamemode loads playtesterboost.js', /require\(PLAYTESTERBOOST_JS\)\(\{[^}]*isLeadStaff[^}]*\}\)/.test(GAMEMODE));
@@ -228,6 +231,16 @@ login(13);
 ok('enabled false: no automatic start', !store()['110'], store()['110']);
 login(12);
 ok('enabled false: a running window still reaches the character', boostOf(12) && boostOf(12).until === store()['100'].until, boostOf(12));
+
+// 12. a role holder with no profile id (the review's one-line fix): nothing is claimed, nothing stored under "-1"
+config = { playtesterBoost: Object.assign({}, B, { enabled: true }) };
+load();
+clock = START + 3 * H;
+add(14, -1, [ROLE], 'No Profile');
+login(14);
+tick();
+ok('no profile id: no window is stored for it', !store()['-1'] && !Object.keys(store()).some((k) => Number(k) < 0), Object.keys(store()));
+ok('no profile id: no boost reaches the character', boostOf(14) === undefined, boostOf(14));
 
 Date.now = realNow;
 try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* temp */ }

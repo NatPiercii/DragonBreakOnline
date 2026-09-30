@@ -183,6 +183,17 @@ check('the rent is recorded on the bed for 24 hours', props.get(INN_BED + '|priv
 check('...and on the renter', props.get(ME + '|private.dboRentBed').bed === INN_BED);
 check('the rent is audited with the inn and hold', out.audits.some((t) => /^REST P14 rented bed 7ec0f at Snowstone Rest for 10 gold: 0 to no owner, 10 to bruma$/.test(t)), out.audits);
 check('after renting the sleep prompt opens', actionIds().join() === 'sleep,lie' && /^Your bed at Snowstone Rest until \d\d:\d\d UTC$/.test(lastWidget().w.targetName), lastWidget().w);
+// The coordinator's review of the rent fixes: renting reopens the prompt in place with Sleep (log out) where Rent was, so
+// the second click of a double-click on Rent landed on Sleep and logged the player out
+let closedBefore = out.closed;
+ui('restChoose', ME, ['sleep']);
+check('a double-click on Rent: its second click, on Sleep, in the same second as the reopen, logs nobody out', out.kicks.length === 0 && !props.get(ME + '|private.dboSleep') && out.logs.some((l) => /P14 sleep ignored, 0 ms after the bed prompt reopened/.test(l)), out.logs.slice(-2));
+check('...and the prompt stays open for the real choice', out.closed === closedBefore && globalThis.__dboRestPending.get(ME) === INN_BED, [out.closed, closedBefore]);
+wallClock += 1000;
+globalThis.__dboCombatAt = new Map([[ME, wallClock - 60000]]);
+ui('restChoose', ME, ['sleep']);
+check('...a Sleep a second after the reopen is a choice again (refused here for a fight, so nobody is logged out)', /blood is still up from the fight/.test(lastPersonal(ME)) && out.kicks.length === 0, lastPersonal(ME));
+globalThis.__dboCombatAt = undefined;
 
 // ---- the lock, and one bed per renter ----
 check('someone else is turned away from a rented bed, the renter unnamed', activate(INN_BED, OTHER) === true && /rented by Stranger/.test(lastPersonal(OTHER)), lastPersonal(OTHER));
@@ -235,6 +246,15 @@ ui('restChoose', OTHER, ['cancel']);
 activate(JERALL_BED, THIRD); ui('restChoose', THIRD, ['keep']);
 check('choosing the bed stores it on the claim with the owner', kept() && kept().bed === JERALL_BED && kept().owner === 104, kept());
 check('...and reopens the menu as their own bed, with the way to give it up', actionIds().join() === 'sleep,lie,unkeep' && lastWidget().w.targetName === 'Your bed at Jerall View Inn' && lastWidget().w.actions[2].label === 'This is no longer my bed' && lastWidget().a === THIRD, lastWidget().w);
+// "Make this my bed" reopens it the same way, with Sleep under the cursor
+closedBefore = out.closed;
+ui('restChoose', THIRD, ['sleep']);
+check('a double-click on Make this my bed: its second click, on Sleep, logs nobody out and the prompt stays', out.kicks.length === 0 && !props.get(THIRD + '|private.dboSleep') && out.closed === closedBefore && out.logs.some((l) => /P17 sleep ignored, 0 ms after the bed prompt reopened/.test(l)), out.logs.slice(-2));
+wallClock += 1000;
+globalThis.__dboCombatAt = new Map([[THIRD, wallClock - 60000]]);
+ui('restChoose', THIRD, ['sleep']);
+check('...a Sleep a second later is a choice again (refused here for a fight)', /blood is still up from the fight/.test(lastPersonal(THIRD)) && out.kicks.length === 0, lastPersonal(THIRD));
+globalThis.__dboCombatAt = undefined;
 check('...and is audited', /^REST P17 keeps bed 1155 at Jerall View Inn as their own$/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 ui('restChoose', THIRD, ['cancel']);
 check('the owner sleeps free in the bed they keep', (() => { activate(JERALL_BED, THIRD); ui('restChoose', THIRD, ['lie']); return /Use the bed again/.test(lastPersonal(THIRD)) && activate(JERALL_BED, THIRD) === false; })());

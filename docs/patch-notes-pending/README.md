@@ -7,3 +7,4 @@ of `patch-notes.json` (newest first, with that day's date) and delete it here.
 | File | Waits for |
 |---|---|
 | `rope-binding.json` | The fork release that sets `__dboRopeCapture` (captureSystem rope ties, fork `rope-binding-ts` da0ff303, going into server-next-v2). Until then the rope entries in the X menu stay hidden, so the note would announce something nobody can use. Gameplay: rope-binding 50ac4d44. |
+| `playtesters-thank-you.json` | The alpha's opening, 3 October 05:00 UTC, with `playtesterBoost.enabled` switched on in `gamemode-config.json` (still false: switching it on needs Nate). The launch news goes out with the launch; a copy for it is `~/claude-nate-release/launch-news-boost.json` on CT 115. Gameplay: playtester-boost 98b3631d. |
