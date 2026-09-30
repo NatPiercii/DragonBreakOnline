@@ -33,10 +33,22 @@ declare -A NEEDS=(
   [spawn-slots]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [capture-leash]=server:skymp5-server/ts/systems/captureSystem.ts
+  [contracts-tab]=front:skymp5-front/src/features/expeditionBoard/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
   local root=$FORK; [ "$side" = server ] && root=$FORK_SERVER
+  # A front widget from $FORK, bundled with React's static renderer; styles are left out. A worktree has no
+  # node_modules of its own, so React comes from the main clone (beside this repo, or ~/dragonbreak/fork) when $FORK has none.
+  if [ "$side" = front ]; then
+    local out="$OUT/front-$(basename "$(dirname "$entry")").js" wrap="$OUT/front-$(basename "$(dirname "$entry")")-entry.tsx"
+    local mods="$root/skymp5-front/node_modules"
+    [ -d "$mods" ] || mods="$(cd .. && pwd)/fork/skymp5-front/node_modules"
+    [ -d "$mods" ] || mods="$HOME/dragonbreak/fork/skymp5-front/node_modules"
+    printf "export { default as Widget } from '%s';\nexport { renderToStaticMarkup } from 'react-dom/server';\nexport { createElement } from 'react';\n" "$root/$entry" > "$wrap"
+    [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.scss=empty --outfile="$out" --log-level=error || return 1
+    echo "$out"; return 0
+  fi
   local out="$OUT/$side-$(basename "${entry%.ts}").js"
   [ -f "$out" ] || (cd "$root" && "$ESBUILD" "$entry" --bundle --platform=node --format=cjs --outfile="$out" --log-level=error) || return 1
   echo "$out"
