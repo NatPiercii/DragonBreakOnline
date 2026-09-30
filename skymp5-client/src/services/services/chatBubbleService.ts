@@ -3,9 +3,12 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
+import { localIdToRemoteId, remoteIdentityFacts, remoteIdToLocalId } from "../../view/worldViewMisc";
 import { getScreenResolution } from "../../view/formView";
-import { BubbleBoard, bubbleSettings, lineHeightPx, readBubblePacket } from "./chatBubblePlan";
+import { PlayerCharacterDataHolder } from "../../view/playerCharacterDataHolder";
+import { isUiHidden } from "./widgetMenuUtil";
+import { BrowserService } from "./browserService";
+import { BubbleBoard, bubbleSettings, bubbleShows, lineHeightPx, readBubblePacket } from "./chatBubblePlan";
 
 // Chat bubbles over the speaker's head for in-character local lines (dboBubble, see chatBubblePlan.ts)
 // Placed each frame from the head node like the nametags; only ids are kept across frames
@@ -16,7 +19,7 @@ const ABOVE_NAME_PX = 72;
 const LOS_EVERY_MS = 250;
 const UNITS_PER_METER = 70;
 
-interface Drawn { ids: number[]; texts: string[] }
+interface Drawn { ids: number[]; texts: string[]; sizes: number[]; alphas: number[] }
 
 // This game's form id for a server actor id: 0x14 for our own, 0 when not loaded
 export const speakerLocalId = (serverId: number): number => {
@@ -37,6 +40,7 @@ export class ChatBubbleService extends ClientListener {
     super();
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.on("update", () => this.onUpdate());
+    this.controller.emitter.on("connectionDisconnect", () => this.reset());
   }
 
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
@@ -47,12 +51,17 @@ export class ChatBubbleService extends ClientListener {
 
   private onUpdate(): void {
     if (!bubbleSettings.on) {
-      if (this.board.size || this.drawn.size) { this.board.clear(); this.hideAll(); }
+      if (this.board.size || this.drawn.size) this.reset();
       return;
     }
+    const cell = PlayerCharacterDataHolder.getWorldOrCell();
+    if (cell !== this.lastCell) { this.lastCell = cell; this.hideAll(); }
     if (!this.board.size && !this.drawn.size) return;
+    // Not over a loading screen, the map, inventory, console or the like, nor with the interface hidden
+    if (this.menuOpen() || isUiHidden(this.controller)) { this.hideAll(); return; }
     const now = Date.now();
     this.board.expire(now);
+    this.los.forEach((_v, id) => { if (!this.board.rangeOf(id)) this.los.delete(id); });
     const player = Game.getPlayer();
     if (!player) { this.hideAll(); return; }
     const res = getScreenResolution();
@@ -77,27 +86,33 @@ export class ChatBubbleService extends ClientListener {
     for (const id of Array.from(this.drawn.keys())) if (!live.has(id)) this.hide(id);
   }
 
-  // Loaded, within the line's range and in sight (always for our own lines)
+  // The speaker's actor when its bubbles should show (bubbleShows); nothing native is kept
   private visibleActor(serverId: number, player: Actor, now: number): Actor | null {
     const localId = speakerLocalId(serverId);
-    if (!localId) return null;
     let actor: Actor | null = null;
-    try { actor = localId === 0x14 ? player : Actor.from(Game.getFormEx(localId)); } catch { actor = null; }
-    if (!actor) return null;
-    if (localId === 0x14) return actor;
-    try {
-      if (player.getDistance(actor) > (this.board.rangeOf(serverId) + 2) * UNITS_PER_METER) return null;
-      const seen = this.los.get(serverId);
-      if (!seen || now - seen.at >= LOS_EVERY_MS) this.los.set(serverId, { at: now, ok: player.hasLOS(actor) });
-      return this.los.get(serverId)!.ok ? actor : null;
-    } catch {
-      return null;
+    try { actor = !localId ? null : localId === 0x14 ? player : Actor.from(Game.getFormEx(localId)); } catch { actor = null; }
+    const mine = localId === 0x14;
+    let inRange = false;
+    let inSight = false;
+    let identity = null;
+    if (actor && !mine) {
+      try {
+        inRange = player.getDistance(actor) <= (this.board.rangeOf(serverId) + 2) * UNITS_PER_METER;
+        identity = inRange ? remoteIdentityFacts(serverId, actor) : null;
+        if (inRange && identity) {
+          const seen = this.los.get(serverId);
+          if (!seen || now - seen.at >= LOS_EVERY_MS) this.los.set(serverId, { at: now, ok: player.hasLOS(actor) });
+          inSight = this.los.get(serverId)!.ok;
+        }
+      } catch {
+        return null;
+      }
     }
+    return bubbleShows({ mine, loaded: !!actor, inRange, inSight, identity }) ? actor : null;
   }
 
   private draw(id: number, lines: Array<{ text: string; color: number[]; alpha: number; x: number; y: number }>, size: number): void {
-    const d = this.drawn.get(id) || { ids: [], texts: [] };
-    const resize = this.drawnSize !== size;
+    const d = this.drawn.get(id) || { ids: [], texts: [], sizes: [], alphas: [] };
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
       const color = [l.color[0], l.color[1], l.color[2], 0.95 * l.alpha];
@@ -105,18 +120,21 @@ export class ChatBubbleService extends ClientListener {
         d.ids[i] = createText(l.x, l.y, l.text, color);
         setTextSize(d.ids[i], size);
         d.texts[i] = l.text;
+        d.sizes[i] = size;
+        d.alphas[i] = l.alpha;
         continue;
       }
       setTextPos(d.ids[i], l.x, l.y);
-      setTextColor(d.ids[i], color);
-      if (resize) setTextSize(d.ids[i], size);
+      if (d.alphas[i] !== l.alpha || d.texts[i] !== l.text) { setTextColor(d.ids[i], color); d.alphas[i] = l.alpha; }
+      if (d.sizes[i] !== size) { setTextSize(d.ids[i], size); d.sizes[i] = size; }
       if (d.texts[i] !== l.text) { setTextString(d.ids[i], l.text); d.texts[i] = l.text; }
     }
     for (let i = lines.length; i < d.ids.length; i++) { try { destroyText(d.ids[i]); } catch { /* gone */ } }
     d.ids.length = lines.length;
     d.texts.length = lines.length;
+    d.sizes.length = lines.length;
+    d.alphas.length = lines.length;
     this.drawn.set(id, d);
-    this.drawnSize = size;
   }
 
   private hide(id: number): void {
@@ -130,8 +148,17 @@ export class ChatBubbleService extends ClientListener {
     this.los.clear();
   }
 
+  private menuOpen(): boolean {
+    try { return this.controller.lookupListener(BrowserService).isBlockingMenuOpen(); } catch { return false; }
+  }
+
+  private reset(): void {
+    this.board.clear();
+    this.hideAll();
+  }
+
   private board = new BubbleBoard();
   private drawn = new Map<number, Drawn>();
-  private drawnSize = 0;
+  private lastCell = 0;
   private los = new Map<number, { at: number; ok: boolean }>();
 }
