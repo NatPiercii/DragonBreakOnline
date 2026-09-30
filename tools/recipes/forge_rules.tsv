@@ -1,0 +1,134 @@
+# Which Blacksmith tier makes a forge recipe (the forge, the anvil, the Skyforge, the Dawnguard forge).
+# Nate, 2026-09-30: "keep the approved ladder". The tiers are skills.json blacksmith.tiers, which players read today
+# ("Tiers decide which metals you may work"), and the ladder in BLACKSMITH_TIERS_PROPOSAL.md:
+#   1 Iron, hide, fur, leather   2 Steel, silver, dwarven, elven, chainmail, mithril   3 Orcish, steel plate, scaled,
+#   Nordic   4 Ebony, glass, stalhrim   5 Dragonbone, dragonscale, Daedric
+#
+# A recipe's tier comes from, in order:
+#   1. edid     the result's editor id matches the pattern (* wildcard, case-insensitive; first match wins). Needed where
+#               a material has no keyword of its own: Beyond Skyrim's chainmail carries ArmorMaterialIron/Steel.
+#   2. keyword  the result's material keywords; the highest tier among them (a Dragonplate-based variant is Dragon).
+#   3. perk     the vanilla smithing perk(s) the recipe asks for today; the highest. Only for results whose keywords
+#               are not listed below (Immersive Armors' faction sets, More Craftable Equipment, WAF, guild armour).
+#   4. default  and the row is marked "review" in forge_tiers.csv.
+# The manual column (Nate, 2026-09-30, "do both, gives scholars more meaning"): a recipe of that material also needs its
+# smithing manual read (HasSpell DBO_Manual_<manual>), whatever the tier; manuals.tsv lists them. Empty = no manual:
+# tier 1 metals, jewellery, and regalia made from a Dragon Priest's mask. A recipe takes the manual of the rule that
+# gave its tier (for a keyword tier, the manual of its highest-tier keyword).
+# make_tables.py applies this and writes forge_tiers.csv, whose tier and manual columns Nate may change per recipe.
+#
+# kind	selector	tier	manual	note
+# ---- editor-id rules ------------------------------------------------------------------------------------------------
+edid	CYR*Chainmail*	2	Chainmail	Beyond Skyrim chainmail: its keyword says iron or steel
+edid	DPA_DragonPriest*	5		Dragon Priest regalia, made only while holding the priest's mask
+edid	*Miraak*	5		Miraak's regalia, the same
+edid	CYRArmorFur*	1		Beyond Skyrim's fur set carries no material keyword
+edid	NetchLeather*	1		netch leather (Journey to Baan Malur), no keyword
+edid	BYOHMaterial*	1		Hearthfire's nails, hinges, locks and iron fittings
+edid	CYRHorseshoe	1
+edid	*FishingRod*	1
+edid	*CorkbulbArrow	1
+edid	*CorkbulbBolt	1
+edid	*Jewelry*Ebony*	4
+edid	*Jewelry*Jade*	3
+edid	*Jewelry*Copper*	1
+edid	*Jewelry*Bronze*	1
+edid	*Jewelry*Brass*	1
+edid	*Jewelry*Silver*	2
+edid	*Jewelry*Gold*	3
+edid	ClothesCirclet*	3		circlets are gold or silver set with gems
+# ---- tier 1: iron, hide, fur, leather ---------------------------------------------------------------------------------
+keyword	ArmorMaterialIron	1
+keyword	ArmorMaterialIronBanded	1
+keyword	ArmorMaterialHide	1
+keyword	ArmorMaterialLeather	1
+keyword	ArmorMaterialStudded	1
+keyword	ArmorMaterialFur	1
+keyword	ArmorMaterialStormcloak	1		fur and leather
+keyword	ArmorMaterialBearStormcloak	1		fur and leather
+keyword	ArmorMaterialForsworn	1		hide and bone
+keyword	IAKMaterialIron	1
+keyword	IAKMaterialLeather	1
+keyword	WeapMaterialIron	1
+keyword	WeapMaterialWood	1
+keyword	WeapMaterialImperial	2	Steel	the Legion's steel
+# ---- tier 2: steel, silver, dwarven, elven, chainmail, mithril --------------------------------------------------------
+keyword	ArmorMaterialSteel	2	Steel
+keyword	ArmorMaterialImperialHeavy	2	Steel
+keyword	ArmorMaterialImperialLight	2	Steel
+keyword	ArmorMaterialImperialStudded	2	Steel
+keyword	ArmorMaterialDwarven	2	Dwarven
+keyword	ArmorMaterialElven	2	Elven
+keyword	ArmorMaterialMithril	2	Mithril
+keyword	ArmorMaterialBlades	2	Steel	the ladder puts Blades beside Dwarven
+keyword	DLC1ArmorMaterialDawnguard	2	Steel
+keyword	DLC1ArmorMaterialFalmerHardened	2	Falmer
+keyword	DLC2ArmorMaterialBonemoldHeavy	2	BoneAndChitin
+keyword	DLC2ArmorMaterialBonemoldLight	2	BoneAndChitin
+keyword	DLC2ArmorMaterialChitinHeavy	2	BoneAndChitin
+keyword	DLC2ArmorMaterialChitinLight	2	BoneAndChitin
+keyword	IAKMaterialSteel	2	Steel
+keyword	IAKMaterialSteelChain	2	Chainmail	chainmail
+keyword	IAKMaterialDwarven	2	Dwarven
+keyword	IAKMaterialElven	2	Elven
+keyword	WAF_MaterialChitin	2	BoneAndChitin
+keyword	WeapMaterialSteel	2	Steel
+keyword	WeapMaterialSilver	2	Silver
+keyword	WeapMaterialDwarven	2	Dwarven
+keyword	WeapMaterialElven	2	Elven
+keyword	WeapMaterialDraugr	2	AncientNord	ancient Nord, steel's peer
+keyword	WeapMaterialFalmer	2	Falmer
+keyword	WeapMaterialFalmerHoned	2	Falmer
+# ---- tier 3: orcish, steel plate, scaled, Nordic ----------------------------------------------------------------------
+keyword	ArmorMaterialOrcish	3	Orcish
+keyword	ArmorMaterialSteelPlate	3	PlateAndScale
+keyword	ArmorMaterialScaled	3	PlateAndScale
+keyword	ArmorMaterialElvenGilded	3	Elven	the ladder puts Elven Gilded beside Scaled
+keyword	DLC2ArmorMaterialNordicHeavy	3	Nordic
+keyword	DLC2ArmorMaterialNordicLight	3	Nordic
+keyword	IAKMaterialOrcish	3	Orcish
+keyword	IAKMaterialAdvancedPlate	3	PlateAndScale	steel plate
+keyword	IAKMaterialAdvancedScale	3	PlateAndScale	scaled
+keyword	WeapMaterialOrcish	3	Orcish
+keyword	WeapMaterialDraugrHoned	3	AncientNord	honed ancient Nord, Nordic's peer
+keyword	DLC2WeaponMaterialNordic	3	Nordic
+# ---- tier 4: ebony, glass, stalhrim -----------------------------------------------------------------------------------
+keyword	ArmorMaterialEbony	4	Ebony
+keyword	ArmorMaterialGlass	4	Glass
+keyword	DLC1ArmorMaterialFalmerHeavy	4	Falmer
+keyword	DLC2ArmorMaterialStalhrimHeavy	4	Stalhrim
+keyword	DLC2ArmorMaterialStalhrimLight	4	Stalhrim
+keyword	IAKMaterialEbony	4	Ebony
+keyword	IAKMaterialGlass	4	Glass
+keyword	ccBGSSSE025_ArmorMaterialAmber	4	ShiveringIsles	follows Glass (ladder choice 9)
+keyword	ccBGSSSE025_WeapMaterialAmber	4	ShiveringIsles	follows Glass
+keyword	WeapMaterialEbony	4	Ebony
+keyword	WeapMaterialGlass	4	Glass
+keyword	DLC2WeaponMaterialStalhrim	4	Stalhrim
+# ---- tier 5: dragonbone, dragonscale, Daedric -------------------------------------------------------------------------
+keyword	ArmorMaterialDaedric	5	Daedric
+keyword	ArmorMaterialDragonplate	5	Dragon
+keyword	ArmorMaterialDragonscale	5	Dragon
+keyword	IAKMaterialDaedric	5	Daedric
+keyword	IAKMaterialDragonPlate	5	Dragon
+keyword	IAKMaterialDragonScale	5	Dragon
+keyword	ccBGSSSE025_ArmorMaterialMadness	5	ShiveringIsles	follows Daedric (ladder choice 9)
+keyword	ccBGSSSE025_WeapMaterialMadness	5	ShiveringIsles	follows Daedric
+keyword	WeapMaterialDaedric	5	Daedric
+keyword	DLC1WeapMaterialDragonbone	5	Dragon
+# ---- the vanilla perk, for results whose material is not listed above ------------------------------------------------
+perk	SteelSmithing	2	Steel
+perk	ElvenSmithing	2	Elven
+perk	DwarvenSmithing	2	Dwarven
+perk	AdvancedArmors	3	PlateAndScale
+perk	OrcishSmithing	3	Orcish
+perk	GlassSmithing	4	Glass
+perk	EbonySmithing	4	Ebony
+perk	DaedricSmithing	5	Daedric
+perk	DragonArmor	5	Dragon
+# ArcaneBlacksmith is about improving enchanted gear, not a metal: it sets no tier
+# Left to the default and marked "review" on purpose: the Thieves Guild and Dark Brotherhood sets from More Craftable
+# Equipment (quest-locked; the server counts quest conditions as false, so no one can make them at any tier), the
+# giant armour and a few curiosities. Set them by hand in forge_tiers.csv.
+# ---- anything else ------------------------------------------------------------------------------------------------------
+default		1

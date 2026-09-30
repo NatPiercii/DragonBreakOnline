@@ -1,0 +1,25 @@
+# The smithing manuals (Nate, 2026-09-30: "do both, gives scholars more meaning"). A Blacksmith's tier lets them work a
+# metal; reading its manual shows them its recipes. DBO_BlacksmithTiers.pas creates each marker SPEL (a copy of
+# DBO_Skill_cook_T1, inert) and each BOOK (a copy of DBO_RecipeRevivePotion, the Draught of Revival's recipe book: no
+# skill, no script) in DragonBreak Online Edits.esp, and puts the text of manuals/<manual>.txt in the book. Reading a
+# book adds its marker for good: that is the gameplay side (Worker G), keyed on the book's editor id.
+# Titles and texts are drafts for Nate. "source" is the canon each one rests on; "new" means written for DragonBreak.
+#
+# manual	marker spell	book	title	lowest tier	value	source
+Steel	DBO_Manual_Steel	DBO_BookManualSteel	Thorbald's Methods: Steel	2	150	Forge, Hammer and Anvil (Skyrim, Book3ValuableForgeHammerAndAnvil): Thorbald's notes, quoted
+Silver	DBO_Manual_Silver	DBO_BookManualSilver	Silver of the Reach	2	150	new; Markarth's silver as in The City of Stone (Skyrim) and the Silver-Blood mines
+Chainmail	DBO_Manual_Chainmail	DBO_BookManualChainmail	Rings and Rivets	2	150	new; the Legion's mail of Oblivion and Beyond Skyrim: Cyrodiil
+Dwarven	DBO_Manual_Dwarven	DBO_BookManualDwarven	Thorbald's Methods: Dwarven Metal	2	150	Forge, Hammer and Anvil (Skyrim), quoted
+Elven	DBO_Manual_Elven	DBO_BookManualElven	Thorbald's Methods: Elven and Gilded	2	150	Forge, Hammer and Anvil (Skyrim), quoted
+BoneAndChitin	DBO_Manual_BoneAndChitin	DBO_BookManualBoneAndChitin	Bonemold and Chitin	2	150	Bone, Part I and II by Tavi Dromio, and the Bonemold Formula (Dragonborn)
+Falmer	DBO_Manual_Falmer	DBO_BookManualFalmer	What the Deep Elves Forge	2	150	new; the Falmer's chaurus-chitin gear of Skyrim and Dawnguard
+AncientNord	DBO_Manual_AncientNord	DBO_BookManualAncientNord	Blades of the Old Nords	2	150	new; the ancient Nord weapons of the barrows
+Orcish	DBO_Manual_Orcish	DBO_BookManualOrcish	Thorbald's Methods: Orcish	3	300	Forge, Hammer and Anvil (Skyrim), quoted; Orsinium and the Orcs
+PlateAndScale	DBO_Manual_PlateAndScale	DBO_BookManualPlateAndScale	Thorbald's Methods: Plate and Scale	3	300	Forge, Hammer and Anvil (Skyrim), quoted
+Nordic	DBO_Manual_Nordic	DBO_BookManualNordic	Carved Nordic Steel	3	300	new; the carved Nordic armour of Solstheim (Dragonborn)
+Glass	DBO_Manual_Glass	DBO_BookManualGlass	Thorbald's Methods: Glass	4	600	Forge, Hammer and Anvil (Skyrim), quoted
+Ebony	DBO_Manual_Ebony	DBO_BookManualEbony	Thorbald's Methods: Ebony	4	600	Forge, Hammer and Anvil (Skyrim), quoted
+Stalhrim	DBO_Manual_Stalhrim	DBO_BookManualStalhrim	The Ice That Will Not Melt	4	600	new; the Skaal's stalhrim (Dragonborn), Deathbrand
+ShiveringIsles	DBO_Manual_ShiveringIsles	DBO_BookManualShiveringIsles	Amber and Madness	4	600	Joften's Notes, Evethra's Journal, Note on Amber and Madness Ore (Saints & Seducers)
+Daedric	DBO_Manual_Daedric	DBO_BookManualDaedric	What Thorbald Would Not Write	5	1200	Forge, Hammer and Anvil (Skyrim): "Like I'd rite that down. (He uses daydra hearts.)"
+Dragon	DBO_Manual_Dragon	DBO_BookManualDragon	Bone and Scale	5	1200	new; dragon bone and scale, the capstone of smithing in Skyrim

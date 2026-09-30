@@ -1,0 +1,52 @@
+# Written by t4_below_t5.py --write: tier 4 gear above the tier 4 ceiling and tier 5 gear below the tier 5 floor,
+# per slot and weight class (Nate, 2026-09-30). DBO_BlacksmithTiers.pas applies these after ladder.tsv. Do not edit.
+# sig	origin plugin	local form id	editor id	slot or type	value now	value after the ladder	set to
+ARMO	Hothtrooper44_ArmorCompilation.esp	004F3C	IADragonhideHeavyRobe	body	45	45	46
+ARMO	Hothtrooper44_ArmorCompilation.esp	0232F6	IAGlacialCrystalHCuirass	body	46	46	44
+ARMO	Hothtrooper44_ArmorCompilation.esp	023084	IATrollbaneHeavyCuirass	body	45	45	44
+ARMO	Hothtrooper44_ArmorCompilation.esp	0232E3	IAGlacialCrystalHBoots	feet	17	17	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	06AA06	IAImperialKnightGreaves	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	06A9F2	IAStormlordBoots	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	023146	IATribunalHeavyBootsBlack	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	023147	IATribunalHeavyBootsBlue	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	023148	IATribunalHeavyBootsGreen	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	023149	IATribunalHeavyBootsRed	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	02314A	IATribunalHeavyBootsWhite	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	023083	IATrollbaneHeavyBoots	feet	17	17	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	000D92	IAWarchiefHeavyStompers	feet	16.5	16.5	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	004F39	IADragonhideHeavyGloves	hands	16.5	16.5	17
+ARMO	Hothtrooper44_ArmorCompilation.esp	0232E4	IAGlacialCrystalHGauntlets	hands	17	17	16
+ARMO	Hothtrooper44_ArmorCompilation.esp	023085	IATrollbaneHeavyGauntlets	hands	17	17	16
+ARMO	WindhelmSSE.esp	0DD922	ArmorDraugrHelmetWHReversed	head	15	15	22
+ARMO	Hothtrooper44_ArmorCompilation.esp	0232E5	IAGlacialCrystalHHelmet	head	22	22	21
+ARMO	Hothtrooper44_ArmorCompilation.esp	06AA07	IAImperialKnightHelmet	head	21.5	21.5	21
+ARMO	Hothtrooper44_ArmorCompilation.esp	06A9F3	IAStormlordHelmet	head	21.5	21.5	21
+ARMO	Hothtrooper44_ArmorCompilation.esp	023086	IATrollbaneHeavyHeaddress	head	22	22	21
+ARMO	Hothtrooper44_ArmorCompilation.esp	023088	IATrollbaneHeavyHelmet	head	22	22	21
+ARMO	Hothtrooper44_ArmorCompilation.esp	023087	IATrollbaneHeavyMask	head	22	22	21
+ARMO	Hothtrooper44_ArmorCompilation.esp	0232E6	IAGlacialCrystalHShield	shield	34	34	32
+ARMO	Hothtrooper44_ArmorCompilation.esp	084F4E	IAGlacialCrystalLCuirass	body	40	40	39
+ARMO	Hothtrooper44_ArmorCompilation.esp	084F4D	IAGlacialCrystalLBoots	feet	12	12	11.5
+ARMO	Sentinel.esp	0008A2	TH_Daedric1Boots	feet	14	14	17
+ARMO	Sentinel.esp	0008A4	TH_Daedric1Gauntlets	hands	14	14	17
+ARMO	Sentinel.esp	0008A5	TH_Daedric1Helmet	head	20	20	22
+ARMO	Hothtrooper44_ArmorCompilation.esp	085A52	IAGildergreenLAegis	shield	30	30	29.5
+WEAP	Immersive Weapons.esp	00AF28	IWDragonsteelBattleaxe	battleaxe	23	23	24
+WEAP	Immersive Weapons.esp	00B48E	IWDragonsteelScythe	battleaxe	21	21	24
+WEAP	Immersive Weapons.esp	001830	IWWabbaJaxeHalberd	battleaxe	24	24	25
+WEAP	Immersive Weapons.esp	004925	IWDragonsteelBow	bow	17	17	18
+WEAP	Immersive Weapons.esp	000922	IWDragonsteelDagger	dagger	10	10	11
+WEAP	BSAssets.esm	601AB9	BSK74wNodachiDaedric	greatsword	20	20	24
+WEAP	BSHeartland.esm	078F5D	CYRUniqueNodachiDaedric	greatsword	20	20	24
+WEAP	Immersive Weapons.esp	00FE28	IWDaedricCrescentGreatsword	greatsword	22	22	24
+WEAP	Immersive Weapons.esp	0747A6	IWDaedricLongsword	greatsword	22	22	24
+WEAP	Immersive Weapons.esp	0747A1	IWDaedricNodachi	greatsword	23	23	24
+WEAP	Immersive Weapons.esp	007921	IWDragonsteelNodachi	greatsword	22	22	23
+WEAP	BSAssets.esm	601A98	BSK74wWakizashiDaedric	sword	13	13	14
+WEAP	Immersive Weapons.esp	0747CE	IWDaedricWakizashi	sword	13	13	14
+WEAP	Immersive Weapons.esp	00FE27	IWDeadricCrescentSword	sword	13	13	14
+WEAP	Immersive Weapons.esp	035012	IWEbonyScimitar	sword	14	14	13
+WEAP	Immersive Weapons.esp	0747AE	IWDaedricBattleStaff	warhammer	19	19	27
+WEAP	Immersive Weapons.esp	009971	IWDaedricQuarterstaff	warhammer	17	17	27
+WEAP	Immersive Weapons.esp	000D99	IWFalkreathWarhammer	warhammer	27	27	26
+WEAP	Immersive Weapons.esp	370D63	IWSixthHouseBellWarhammer	warhammer	27	27	26

@@ -17,7 +17,10 @@ third-party override needs without breaking a plugin's own index (memory `mergin
 
 ## Run it
 
-Put `DBO_BlacksmithTiers.pas` **and `ladder.tsv`** together in xEdit's `Edit Scripts` folder.
+Put `DBO_BlacksmithTiers.pas` **and `ladder.tsv`** together in xEdit's `Edit Scripts` folder. Since 2026-09-30 the same
+run also sets the recipe tiers, creates the smithing manuals and moves tier 4 gear below tier 5: it needs
+`tools/recipes/stat_clamps.tsv`, `recipe_tiers.tsv`, `manuals.tsv` and the `manuals\` folder beside it too. See
+`tools/recipes/README.md`, which also has what the dry run should say for those parts.
 
 ```
 SSEEdit64.exe -IKnowWhatImDoing -autoload -script:DBO_BlacksmithTiers.pas -autoexit ^
