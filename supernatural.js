@@ -956,7 +956,7 @@ module.exports = (api) => {
     const ev = beast ? C.feedAnims.werewolf : o.onCorpse ? (lying ? C.feedAnims.lying : C.feedAnims.corpse) : '';
     const p = health(a);
     feeds.set(a, { t, onCorpse: !!o.onCorpse, long: !!o.long, willing: !!o.willing, lying, beast, ev, hp: p ? p.health : null, at: Date.now(), until: Date.now() + seconds * 1000 });
-    if (standing && C.feedPair.enabled) sendFeedPair(a, t);
+    if (standing && feedPairOn()) sendFeedPair(a, t);
     if (o.onCorpse) { fedOn.add(t); if (fedOn.size > 2048) fedOn.clear(); }
     playAnim(a, ev);
     try { sendPacket(a, { customPacketType: 'dboBanner', text: o.long ? 'Feeding deeply...' : 'Feeding...', seconds: Math.ceil(seconds) }); } catch (e) { /* old client */ }
@@ -967,6 +967,14 @@ module.exports = (api) => {
     return true;
   };
   const FEED_PAIR_IDLE = idOf(C.feedPair.idle);
+  // /feedpair on|off switches the standing bite for a staff test without a config edit. Kept across hot reloads, never
+  // written: a restart goes back to supernatural.feedPair.enabled (off). Lead GM and above (gamemode.js LEAD_ONLY).
+  const feedPairOn = () => (typeof globalThis.__dboFeedPairOn === 'boolean' ? globalThis.__dboFeedPairOn : !!C.feedPair.enabled);
+  registerChatCommand('feedpair', (a, args) => {
+    const v = String(args || '').trim().toLowerCase();
+    if (v === 'on' || v === 'off') { globalThis.__dboFeedPairOn = v === 'on'; audit(`SUPERNATURAL GM ${who(a)} set the standing feeding bite ${v}`); }
+    personal(a, `The standing feeding bite (a paired animation every client near a feed plays) is ${feedPairOn() ? 'ON' : 'off'}. It goes back to the config (${C.feedPair.enabled ? 'on' : 'off'}) at the next restart.`);
+  }, { admin: true, help: 'on|off: the standing feeding bite for a staff test; off again after a restart' });
   // To the feeder, the victim and every client within reach of the feed: each plays the pair with its own objects
   const sendFeedPair = (a, t) => {
     if (!FEED_PAIR_IDLE) return 0;

@@ -148,6 +148,15 @@ globalThis.__dboSuperMenuAction(V, 'super:feed', W2, nameFor);
 ok(widgets.length === 0 && globalThis.__dboSuperFeeds.has(V), 'a bound captive is not asked');
 feedTick(12500);
 
+// ---- /feedpair switches the standing bite for a staff test, until a restart --------------------------------------
+now += 61000;
+store.set(`${B}|percentages`, { health: 1, magicka: 1, stamina: 1 });
+cmds.feedpair(V, 'on');
+ok(globalThis.__dboFeedPairOn === true && heard(V, /standing feeding bite .* is ON/), '/feedpair on switches the standing bite on');
+cmds.feedpair(V, 'off');
+ok(globalThis.__dboFeedPairOn === false && heard(V, /is off/), '/feedpair off switches it off again');
+delete globalThis.__dboFeedPairOn;
+
 // ---- the standing bite, when switched on --------------------------------------------------------------------------
 load({ supernatural: { feedPair: { enabled: true } } });
 fire('uiCaps', T, ['feedPrompt']);

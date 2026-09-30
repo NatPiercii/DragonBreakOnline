@@ -194,7 +194,7 @@ const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM'
 // Staff commands a GM may not use (command name, or 'name sub' for one subcommand)
 // appoint and dismiss are here because an official's powers are real money: a rank lets its holder post work paid
 // out of the hold treasury, so a GM who could appoint himself could pay himself (claude-jake's review, A1-1).
-const LEAD_ONLY = new Set(['beastform', 'vlremote', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
+const LEAD_ONLY = new Set(['beastform', 'vlremote', 'feedpair', 'chargen', 'sethunger', 'wipechars', 'driftspawn', 'driftrepair', 'driftset',
   'jail', 'placeexport', 'staffstats', 'war', 'curse', 'schedule', 'warband', 'raid', 'settime', 'timescale', 'setweather', 'npc remove', 'dungeon end',
   'appoint', 'dismiss',
   // Review A3-5 / A7-STAFF-1: /masktest creates armour, a faction's leader holds a hold's economy
