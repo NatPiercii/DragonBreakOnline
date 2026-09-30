@@ -28,6 +28,7 @@ STATE = os.environ.get('DBO_STATE', '/opt/skymp-state')
 SERVER = os.environ.get('DBO_SERVER', '/opt/alduinak/build/dist/server')
 OUT = os.environ.get('DBO_BACKUP_OUT', '/opt/skymp-backups/world')
 SECRET = re.compile(r'^server-settings.*\.json$')
+JOURNAL = re.compile(r'^[0-9a-f]{16}\.json$')
 # Retention for world snapshots only (this script's own files): every snapshot for 48 h, then the first of each day
 # for 30 days, then the first of each month for a year. Pruning runs only with --apply (see README: ops rule 9).
 KEEP_ALL_HOURS, KEEP_DAILY_DAYS, KEEP_MONTHLY_DAYS = 48, 30, 365
@@ -96,6 +97,21 @@ def snapshot(out):
             if n.endswith('.json') and not SECRET.match(n) and os.path.isfile(p) and not os.path.islink(p):
                 stable_copy(p, os.path.join(stage, 'server', n))
                 gameplay.append(n)
+        # 3b. the Character Journal's files (journalstats.js), journal/<key>.json and journal/removed/<key>.json. Node
+        # replaces each one whole by rename, never in place, so one read that parses is a whole file
+        for sub in ('journal', os.path.join('journal', 'removed')):
+            src_dir = os.path.join(SERVER, sub)
+            if not os.path.isdir(src_dir) or os.path.islink(src_dir):
+                continue
+            os.makedirs(os.path.join(stage, 'server', sub), exist_ok=True)
+            for n in sorted(os.listdir(src_dir)):
+                p = os.path.join(src_dir, n)
+                if JOURNAL.match(n) and os.path.isfile(p) and not os.path.islink(p):
+                    data = open(p, 'rb').read()
+                    json.loads(data.decode('utf-8'))
+                    with open(os.path.join(stage, 'server', sub, n), 'wb') as fh:
+                        fh.write(data)
+                    gameplay.append(os.path.join(sub, n))
         # 4. check every record and write the manifest
         records, bad = 0, []
         digests = {}

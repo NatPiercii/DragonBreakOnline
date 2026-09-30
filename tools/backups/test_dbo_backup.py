@@ -37,6 +37,18 @@ m = B.verify(a, quiet=True)
 ok(m['records'] == 200, 'a snapshot holds every world record, and the .tmp is left out')
 ok('bank.json' in m['gameplayFiles'] and 'server-settings.json' not in m['gameplayFiles'], 'gameplay state is in; the settings with the bot token are not')
 
+# 1b. the Character Journal's files, and the ones moved aside, come along; strays in the folder do not
+jd = os.path.join(server, 'journal')
+os.makedirs(os.path.join(jd, 'removed'))
+open(os.path.join(jd, '0123456789abcdef.json'), 'w').write(json.dumps({'v': 1, 'downs': 2}))
+open(os.path.join(jd, 'removed', 'fedcba9876543210.json'), 'w').write(json.dumps({'v': 1}))
+open(os.path.join(jd, '0123456789abcdef.json.tmp'), 'w').write('{"half')
+a2 = B.snapshot(out)
+m2 = B.verify(a2, quiet=True)
+ok('journal/0123456789abcdef.json' in m2['gameplayFiles'] and 'journal/removed/fedcba9876543210.json' in m2['gameplayFiles']
+   and not any(g.endswith('.tmp') for g in m2['gameplayFiles']), "the journal's files are in, the .tmp is not")
+os.remove(a2); os.remove(a2[:-len('.tar.gz')] + '.manifest.json')
+
 # 2. a record renamed over right after the link pass keeps the version at link time
 real_run = subprocess.run
 def run_then_save(cmd, **kw):
