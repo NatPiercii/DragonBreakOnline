@@ -2,6 +2,7 @@
 
 For Nate's next session with two clients, after client 0.3.71 and gameplay increments 11 and 12 are live.
 The safe checks come first. The two that may crash a client (the standing bite, then the Vampire Lord) come last.
+Sections 7, 8 and 9 need later builds; each says what it needs at its top. Skip one until then.
 
 ## Before you start
 
@@ -9,7 +10,9 @@ The safe checks come first. The two that may crash a client (the standing bite, 
   world clock or switch on something that other players would see too.
 - **Two clients:**
   - **A** is a Lead GM (needed for `/settime`, `/feedpair`, `/vlremote`, `/curse`).
-  - **B** is a second staff client, a mortal.
+  - **B** is a second staff client, a mortal. For section 7, B must not be Lead GM or above and must hold no zone rank:
+    anyone with authority ties with shackles (Restrain), not rope.
+  - **C**, a third client, only for section 7's Cut Free: any character with no Lead GM tier and no zone rank.
 - **Both run Crash Logger**, so a crash leaves `Documents\My Games\Skyrim Special Edition\SKSE\crash-<date>-<time>.log`
   (under MO2, the `overwrite\SKSE` folder).
 - **Note the time (UTC) at every numbered step.** The logs are matched by time.
@@ -54,7 +57,7 @@ What to send back is listed at the end.
    - "The water runs red, then clear.";
    - the red is gone on both screens.
 7. A asks B again (after a minute). Pass: B has "no blood left to give", because a person gives blood once a game day.
-   Step 3.3's clock jump lets them give again for section 7.
+   Step 3.3's clock jump lets them give again for section 10.
 8. K again on A. Pass: First meal "Taken, from a willing neck"; the powers are no longer "After your first meal".
 
 ## 3. Vampiric Drain after the thirst changes (which hand)
@@ -131,7 +134,80 @@ Do each with one client while the other stands back and watches.
    - Pass: it leads somewhere a guest may go.
    - Fail: it opens a room that should stay private. Say which room.
 
-## 7. The standing bite (may crash a client)
+## 7. Rope: tying up, leaving tied, the slip, Cut Free (needs rope live)
+
+Needs the server build with rope (server-next-v2) and the rope gameplay. If B, carrying a Rope, presses X on A and sees
+no **Tie Up**, rope is not live yet: skip this section. It takes about 15 minutes.
+
+Setup: give B two Ropes (admin panel item list, "Rope"). A and B must not be in the same party (a party hurts itself for
+only 20%). Do it somewhere quiet outside town.
+
+1. **Asking first.** B presses X on A and chooses **Tie Up**. Pass: A is asked "B wants to tie your hands with rope.
+   Allow?". A answers **No**. Pass:
+   - nothing is tied; B reads "A refused.";
+   - B asks again at once: "A refused you not long ago." (a refusal holds 2 minutes).
+2. **A downed player is tied at once.** A takes off their armour (a naked character has 150 health). B fights A until A
+   falls, then stops: a hostile player can finish someone who is down. Within 60 s, B presses X on A, **Tie Up**. Pass:
+   - A stands up with hands bound, with no prompt;
+   - B has one Rope fewer;
+   - B reads "You tied up A."; A reads "B tied your hands with rope." and "Your hands are tied with rope. Type /struggle...";
+   - **the Helgen animation at the knot:** B's hands work at A's wrists (the motion Hadvar uses to cut your binds at
+     Helgen). Write down what each screen shows, or that nothing played.
+3. **Led, then left.** B walks a few steps. Pass: A is walked after B. Then B presses X on A, **Leave Tied Here**, and
+   walks off. Pass: A stays where they are; B's X menu on A now offers **Lead**. B comes back, **Lead**, walks: A follows
+   again. Finish with **Leave Tied Here**.
+4. **Time the slip** (about 6 minutes). B walks well away, more than 20 paces or out of sight, notes the UTC time and
+   stays there. Pass, counted from that moment:
+   - about **0:30**: A reads "Nobody is watching you. The knots are loosening...";
+   - A types /struggle once. Pass: the gap in the bar is visibly wider than with cuffs, and the hint says "Nobody is
+     watching and the knots are loose". A presses **Give up** (a win ends the timing early: if A wins, note it and redo
+     from step 2);
+   - about **4:30**: "The rope is nearly loose.";
+   - about **5:30**: "The knots slip loose. Your hands are free."; B reads "A slipped out of the rope."
+   Write down the three times.
+5. **Cut Free.** Wait a minute (a player just freed from rope cannot be tied again for 60 s unless they are down). B ties
+   A again (**Tie Up**, A accepts).
+   1. C stands right next to A and presses X on A. Pass: C's menu has **Cut Free** (B's has Untie and Leave Tied Here).
+   2. C chooses **Cut Free** and holds still. Pass:
+      - C's hands work at A's wrists (the Helgen motion) and C sees "Cutting the rope...";
+      - after 5 s, A plays the Helgen "freed" motion from the bound pose, and about 2 s later A's hands are free;
+      - A reads "C cuts you free." (or "Stranger" if not introduced); B reads "Someone cut A free."
+      Write down what each screen shows for both motions.
+   3. After another minute B ties A again; C starts **Cut Free** and takes a step. Pass: "You stop cutting: you moved.",
+      and A stays tied.
+   4. B presses X on A, **Untie**. Pass: A is free; B reads "You untied A."
+6. **Shackles cannot be cut.** A (Lead GM) presses X on C, **Restrain**, then B presses X on C. Pass: no **Cut Free**.
+   A uncuffs C.
+
+## 8. The chest hold (needs client 0.3.72, Worker D's chest hold and its business-chest fix)
+
+Off by default. Only a client on 0.3.72 or later crouches; an older one opens chests at once. **Nobody else online:** the
+switch changes every chest for every 0.3.72 player.
+
+1. Turn it on: in `gamemode-config.json` on CT 115 set `"interactionIdles": { "chestHold": { "enabled": true } }`
+   (keep the rest of `interactionIdles`), and deploy the gameplay as in section 5. If Worker D adds a staff command, use
+   that instead.
+2. A opens a plain chest (any unlocked chest outside a dungeon). Pass: A crouches over it (warming-hands crouch) and its
+   menu opens about 1 s later, promptly. Write down what B sees.
+3. A activates a chest and walks away during the crouch. Pass: the menu does not open.
+4. A opens a locked chest (a locked dungeon chest during a claim, or any locked chest). Pass: unchanged: lockpicking
+   works as before.
+5. If a rented business chest exists and its renter is online: the renter opens it with less than a day's rent left,
+   chooses **Open** in the rent menu, then uses the chest again. Pass: it opens (the review found it looping back to the
+   menu; the fix ships with the hold).
+6. Turn it off again (`"enabled": false`, deploy). Pass: the next chest opens at once, with no crouch.
+
+## 9. Auto-run into a work round (needs client 0.3.72)
+
+Worker B's fix. Each tap writes a line in the client's `dbo-diag-logs.txt`; send it afterwards.
+
+1. A switches auto-run on and runs into a **skinning** round (E on an animal body while auto-running). Pass: the
+   character stops and the round plays normally.
+2. The same with a **mining** round (E on an ore vein while auto-running). Pass: the character stops.
+3. A holds W and runs into a round. Pass: nothing extra happens: auto-run is not switched on afterwards.
+4. A stands still and starts a round. Pass: nothing changes.
+
+## 10. The standing bite (may crash a client)
 
 Dawnguard's standing feed, the one Serana uses when she turns the player. It is a paired animation, which SkyMP does
 not sync, so **every client near the feed plays it itself: A, B, and any bystander**. It is off by default.
@@ -146,7 +222,7 @@ not sync, so **every client near the feed plays it itself: A, B, and any bystand
 6. If a client crashes, stop here and send that client's crash log and `dbo-diag-logs.txt` (see below). Each attempt
    writes a "feed pair ... played / skipped / refused" line in it.
 
-## 8. LAST: the Vampire Lord, one power at a time (may crash B)
+## 11. LAST: the Vampire Lord, one power at a time (may crash B)
 
 Both Vampire Lord watchers crashed on 28 and 29 Sep, each seconds after the Lord's magic, not at the transform. This
 finds the step. **B watches from about 10 metres. Wait a full minute between steps, and note the UTC time of each.**
@@ -179,7 +255,7 @@ finds the step. **B watches from about 10 metres. Wait a full minute between ste
 |---|---|
 | A crash | `Documents\My Games\Skyrim Special Edition\SKSE\crash-<date>-<time>.log`, or MO2's `overwrite\SKSE\` |
 | The client's own log (feed pair lines, `vl-anim` lines) | `<game folder>\Data\Platform\Logs\dbo-diag-logs.txt`, or MO2's `overwrite\Platform\Logs\dbo-diag-logs.txt`. It is rewritten at every launch, so copy it before starting the game again |
-| Screenshots | 2.5 (blood on both screens), 3.5 (both hands), 7.4 (the bite on both screens) |
-| Times | the UTC time of each numbered step you ran, with pass or fail |
+| Screenshots | 2.5 (blood on both screens), 3.5 (both hands), 7.2 and 7.5 (the Helgen motions, on each screen), 10.4 (the bite on both screens) |
+| Times | the UTC time of each numbered step you ran, with pass or fail; for 7.4, the three times from when B walked away |
 
 Once launcher 2.1.35 is out, **Report a Problem** carries the crash log and `dbo-diag-logs.txt` by itself.
