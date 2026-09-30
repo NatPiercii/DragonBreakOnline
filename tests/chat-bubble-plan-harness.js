@@ -111,8 +111,10 @@ else {
     /this\.los\.forEach\(\(_v, id\) => \{ if \(!this\.board\.rangeOf\(id\)\) this\.los\.delete\(id\); \}\)/.test(service)
     && /cell !== this\.lastCell\) \{ this\.lastCell = cell; this\.hideAll\(\); \}/.test(service)
     && /connectionDisconnect", \(\) => this\.reset\(\)/.test(service) && /private hideAll\(\)[\s\S]{0,120}this\.los\.clear\(\)/.test(service));
-  check('nothing is drawn over a blocking menu (loading screen, map, inventory, console) or with the interface hidden',
-    /if \(this\.menuOpen\(\) \|\| isUiHidden\(this\.controller\)\) \{ this\.hideAll\(\); return; \}/.test(service) && /isBlockingMenuOpen\(\)/.test(service));
+  check('nothing is drawn over a blocking menu, asked of the engine (liveBlockingMenus), or with the interface hidden',
+    /if \(this\.menuOpen\(\) \|\| isUiHidden\(this\.controller\)\) \{ this\.hideAll\(\); return; \}/.test(service) && /liveBlockingMenus\(\)\.length > 0/.test(service));
+  check('a reused line takes the new colour even with the same text and alpha (the colour itself is compared)',
+    /if \(d\.colors\[i\] !== colorKey\) \{ setTextColor\(d\.ids\[i\], color\);/.test(service) && /const colorKey = color\.join/.test(service));
 }
 
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
