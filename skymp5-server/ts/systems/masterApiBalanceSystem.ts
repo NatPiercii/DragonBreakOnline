@@ -59,7 +59,7 @@ export class MasterApiBalanceSystem implements System {
     private async getUserBalanceImpl(session: string): Promise<number> {
         try {
             const response = await Axios.get(
-                `${this.masterUrl}/api/servers/${this.masterKey}/sessions/${session}/balance`,
+                `${this.masterUrl}/api/servers/${this.masterKey}/sessions/${encodeURIComponent(session)}/balance`,
             );
             if (!response.data || !response.data.user || !response.data.user.id || typeof response.data.user.balance !== "number") {
                 throw new Error(`getUserBalanceImpl: bad master-api response ${JSON.stringify(response.data)}`);
@@ -80,7 +80,7 @@ export class MasterApiBalanceSystem implements System {
             }
 
             const response = await Axios.post(
-                `${this.masterUrl}/api/servers/${this.masterKey}/sessions/${session}/purchase`,
+                `${this.masterUrl}/api/servers/${this.masterKey}/sessions/${encodeURIComponent(session)}/purchase`,
                 { balanceToSpend },
                 { headers: { 'X-Auth-Token': authToken } }
             );

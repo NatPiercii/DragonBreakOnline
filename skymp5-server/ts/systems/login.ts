@@ -23,6 +23,13 @@ const loginRefusedDefault = "The server refused your login. Start the game again
 
 // A session is one URL segment of token characters
 const sessionShape = /^[A-Za-z0-9_-]{16,256}$/;
+// A session is a credential: a log shows its first 6 characters and its length
+const redactSession = (v: unknown): string =>
+  typeof v === "string" ? `${v.slice(0, 6).replace(/[^A-Za-z0-9_-]/g, "?")}... (${v.length} chars)` : `<${typeof v}>`;
+const withoutSession = (gameData: unknown): unknown =>
+  gameData && typeof gameData === "object" && "session" in (gameData as object)
+    ? { ...(gameData as Record<string, unknown>), session: redactSession((gameData as Record<string, unknown>).session) }
+    : gameData;
 const clip = (v: unknown, n = 200): string => {
   let s: string;
   try { s = typeof v === "string" ? v : JSON.stringify(v); } catch { s = "<unprintable>"; }
@@ -179,7 +186,7 @@ export class Login implements System {
 
     const gameData = content["gameData"];
     if (this.offlineMode === false && gameData && gameData.session && (typeof gameData.session !== "string" || !sessionShape.test(gameData.session))) {
-      this.log(`Login: refused user ${userId}, the session is not a token: ${clip(gameData.session, 80)}`);
+      this.log(`Login: refused user ${userId}, the session is not a token: ${redactSession(gameData.session)}`);
       ctx.svr.sendCustomPacket(userId, loginFailedSessionNotFound);
       return;
     }
@@ -335,7 +342,7 @@ export class Login implements System {
       })()
         .catch((err) => {
           loginErrorsCounter.inc({ reason: err?.message || "unknown" });
-          console.error("Error logging in client:", clip(gameData), err)
+          console.error("Error logging in client:", clip(withoutSession(gameData)), err)
         });
     } else if (this.offlineMode === true && gameData && typeof gameData.profileId === "number") {
       let profileId = gameData.profileId;
@@ -350,7 +357,7 @@ export class Login implements System {
       loginsCounter.inc();
       this.log(userId + " logged as " + profileId);
     } else {
-      this.log("No credentials found in gameData:", clip(gameData));
+      this.log("No credentials found in gameData:", clip(withoutSession(gameData)));
     }
   }
 
