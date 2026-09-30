@@ -21,8 +21,8 @@
 //
 // Kept free of imports so tests/automove-harness.js can drive it.
 
-// struggle.js sends the labour widget with kind 'struggle', so these two cover all three mini-games
-export const MINIGAME_WIDGETS = ['labour', 'skinning'];
+// labour (struggle.js sends it too) and skinning are the mini-games; the Character Journal holds the keyboard the same way
+export const MINIGAME_WIDGETS = ['labour', 'skinning', 'journal'];
 
 export interface MoveSample {
   speed: number;            // SpeedSampled; 0 standing, ~150 walking, ~350 running
