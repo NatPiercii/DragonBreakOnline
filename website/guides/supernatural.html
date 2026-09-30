@@ -141,7 +141,7 @@
   <div class="g-sec-head"><div class="g-eyebrow">Molag Bal's curse</div><h2 id="v-h">Vampirism</h2>
   <p>Vampirism begins as a disease, <em>Sanguinare Vampiris</em>. Left alone, it ends in undeath.</p></div>
   <ol class="g-timeline">
-    <li><span class="g-when">Infection</span><h3>Bitten</h3><p>Every hit from a vampire carries a 10% chance of Sanguinare Vampiris, and so does being fed on by one.</p></li>
+    <li><span class="g-when">Infection</span><h3>Bitten</h3><p>Every hit from a vampire carries a 10% chance of Sanguinare Vampiris, and so does being fed on by one while you are awake.</p></li>
     <li><span class="g-when">3 in-game days</span><h3>Incubation</h3><p>Three in-game days of your own play, about twelve real hours online; time logged out does not count. Still curable: drink a Cure Disease potion, or complete a prayer to your own god, if your god is not a Daedric Prince.</p></li>
     <li><span class="g-when">The fever peaks</span><h3>Blood Fever</h3><p>A trial of five strikes: strike as the pulse crosses the mark. Three true strikes and you rise. Fail and you die, and the disease burns out with you.</p></li>
     <li><span class="g-when">Turned</span><h3>Stage 1 vampire</h3><p>You wake undead, but your gifts sleep until your first meal. Go six in-game hours of play without blood and your body begins to wither.</p></li>
@@ -174,7 +174,7 @@
     <div class="g-card"><h3>Asking for blood</h3>
       <p>Anyone awake who is not a vampire can be asked: choose <strong>Feed</strong> in the <strong>X</strong> menu. They have 20 seconds to <strong>Offer Your Neck</strong> or <strong>Resist / Flee</strong>, and no answer is a refusal. You can ask once a minute, and someone who refused you cannot be asked again for five minutes.</p></div>
     <div class="g-card"><h3>Blood and rank</h3>
-      <p>Blood earns rank (type <code>/blood</code>): <strong>5</strong> for a fresh body, <strong>20</strong> for a living person, bound or willing, <strong>30</strong> for a person you slew yourself. The same person counts once a real day, never a partymate or your own characters, and companions and summons give nothing.</p>
+      <p>Blood earns rank (type <code>/blood</code>): <strong>5</strong> for a fresh body, <strong>20</strong> for a living person, bound or willing, and <strong>30</strong> for a player&#x27;s body if you brought them down yourself (nothing if someone else did). The same person counts once a real day, never a partymate or your own characters, and companions and summons give nothing.</p>
       <ul class="g-names">
         <li><span>Fledgling</span><span class="g-pill">0</span></li>
         <li><span>Vampire</span><span class="g-pill">100</span></li>
@@ -198,14 +198,14 @@
         <li><span>Clan Volkihar</span><span class="g-pill g-secret">Secret</span></li>
       </ul></div>
     <div class="g-card"><h3>The hunters</h3>
-      <ul class="g-names"><li><span>Vigil of Stendarr</span></li><li><span>Dawnguard</span></li></ul></div>
+      <ul class="g-names"><li><span>Vigil of Stendarr</span></li><li><span>Dawnguard</span></li><li><span>Order of the Virtuous Blood</span><span class="g-pill">In lore</span></li></ul></div>
   </div>
 </section>
 <section id="lycanthropy" class="g-wolf">
   <div class="g-sec-head"><div class="g-eyebrow">Hircine's gift</div><h2 id="w-h">Lycanthropy</h2>
   <p>Lycanthropy passes by bite as <em>Sanies Lupinus</em>. Those who survive it belong to the Huntsman.</p></div>
   <ol class="g-timeline">
-    <li><span class="g-when">Infection</span><h3>Bitten</h3><p>Every hit from a werewolf carries a 2% chance of Sanies Lupinus, far rarer than a vampire's bite.</p></li>
+    <li><span class="g-when">Infection</span><h3>Bitten</h3><p>Every hit from a werewolf in beast form carries a 2% chance of Sanies Lupinus, far rarer than a vampire's bite.</p></li>
     <li><span class="g-when">3 in-game days</span><h3>Incubation</h3><p>The same window of your own play, and the same cures: a Cure Disease potion, or a completed prayer to your own god, if your god is not a Daedric Prince.</p></li>
     <li><span class="g-when">The fever peaks</span><h3>Hircine's Hunt</h3><p>The trial of the beast: five strikes, three true to survive. Fail and you die.</p></li>
     <li><span class="g-when">Turned</span><h3>Werewolf</h3><p>The beast lives under your skin from now on.</p></li>
@@ -227,7 +227,7 @@
     <div class="g-card"><h3>Drawbacks</h3>
       <ul><li>Weakness to silver: it strikes you 50% harder, and you cannot wear it or strike with it.</li><li>No gear in beast form.</li><li>Anyone close by sees you change.</li><li>Your Howl of Terror is heard by everyone in the land, echoing through the region you are in.</li><li>The beast can take you when you least want it (see the full moon, below).</li></ul></div>
     <div class="g-card"><h3>Renown &middot; the Great Hunt</h3>
-      <p>A werewolf climbs by living as one (type <code>/hunt</code>). Feeding in beast form earns <strong>5</strong> for an animal, <strong>10</strong> for a person, <strong>60</strong> for a player you brought down yourself, outdoors and away from the city, once a real day per person, never a partymate or your own characters. A kill in beast form earns 2, as does each change.</p>
+      <p>A werewolf climbs by living as one (type <code>/hunt</code>). Feeding in beast form earns <strong>5</strong> for an animal, <strong>10</strong> for a person, <strong>60</strong> for a player&#x27;s body, but only if you brought them down yourself, outdoors and away from the city (otherwise it earns nothing), once a real day per person, never a partymate or your own characters. A kill in beast form earns 2, though never a player, and so does each change, up to the day&#x27;s allowance.</p>
       <ul class="g-names">
         <li><span>Fledgling</span><span class="g-pill">0</span></li>
         <li><span>Prowler</span><span class="g-pill">100</span></li>
@@ -235,7 +235,7 @@
         <li><span>Blood-Howler</span><span class="g-pill">700</span></li>
         <li><span>Elder</span><span class="g-pill">1500</span></li>
       </ul>
-      <p>Rank lengthens the change and every feed, lets it come more often, and hardens the beast. An Elder holds the beast for 300 seconds, gains 60 from each feed, changes up to three times a day, takes 20% less and deals 20% more in beast form, and is forced into the change far less often. Companions and summons earn nothing, fed on or slain. A cure starts the next werewolf at Fledgling again.</p></div>
+      <p>Rank lengthens the change and every feed, lets it come more often, and hardens the beast. An Elder holds the beast for 300 seconds, gains 60 seconds from each feed, changes up to three times a day, takes 20% less and deals 20% more in beast form, and is forced into the change far less often. Companions and summons earn nothing, fed on or slain. A cure starts the next werewolf at Fledgling again.</p></div>
     <div class="g-card g-crown"><h3>Pack leader</h3>
       <p>Each pack has one leader. A packmate who brings the leader down, both <strong>in beast form</strong>, takes the place. The leader is also free of the daily limit and is never forced to change. A werewolf in no pack is a Lone Wolf, and a pack takes you in only by invitation.</p></div>
   </div>
