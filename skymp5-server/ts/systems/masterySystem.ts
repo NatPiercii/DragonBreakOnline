@@ -211,6 +211,13 @@ interface Location { cell: string; pos: number[]; }
 const emptyRecord = (): MasteryRecord => ({ skills: {}, order: [], respecs: 0 });
 const emptyProgress = (): SkillProgress => ({ level: 0, lastPointAt: 0, rank: 0, granted: [] });
 const stringList = (v: unknown): string[] => Array.isArray(v) ? v.filter((x) => typeof x === "string" && x) : [];
+// The one skill a player's cast of a school credits, when the gameplay names it (schools.js: Alteration is Priest's, or
+// Arcane Arts' for a mage who chose it as a school); undefined keeps skills.json's spellCastSchools
+const castRoute = (actorId: number, school: string): string | undefined => {
+  const route = (globalThis as any).__dboCastSkill;
+  if (typeof route !== "function") return undefined;
+  try { const id = route(actorId, school); return typeof id === "string" && id ? id : undefined; } catch { return undefined; }
+};
 
 export class MasterySystem implements System {
   systemName = "MasterySystem";
@@ -635,7 +642,9 @@ export class MasterySystem implements System {
       case "cast": {
         if (!rules.spellSchools.size) return false;
         const school = this.spellSchool(ctx, ev.detail["spellId"]);
-        return !!school && rules.spellSchools.has(school);
+        if (!school) return false;
+        const routed = castRoute(ev.actorId, school);
+        return routed ? routed === skillId : rules.spellSchools.has(school);
       }
       case "prayer": return skillId === "priest";
       case "lock": return skillId === "lockpicking";
