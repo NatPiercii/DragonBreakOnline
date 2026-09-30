@@ -76,5 +76,44 @@ check('the range of the newest line is kept per speaker', b.rangeOf(1) === 20 &&
 b.clear();
 check('clear empties the board', b.size === 0);
 
+// ---- who shows a bubble: the nametag's identity gates (Worker F's review M1) ----
+const facts = (o) => Object.assign({ mine: false, loaded: true, inRange: true, inSight: true, identity: { beast: false, adminHidden: false, sweetHidden: false } }, o);
+const id = (o) => Object.assign({ beast: false, adminHidden: false, sweetHidden: false }, o);
+check('a loaded speaker in range and in sight shows', P.bubbleShows(facts({})) === true);
+check('no bubble over a beast copy (werewolf, Vampire Lord), like the nametag', P.bubbleShows(facts({ identity: id({ beast: true }) })) === false);
+check('no bubble over an admin hidden from this viewer', P.bubbleShows(facts({ identity: id({ adminHidden: true }) })) === false);
+check('no bubble over a SweetHidePerson wearer', P.bubbleShows(facts({ identity: id({ sweetHidden: true }) })) === false);
+check('no bubble for a speaker with no view (identity unknown)', P.bubbleShows(facts({ identity: null })) === false);
+check('none out of range', P.bubbleShows(facts({ inRange: false })) === false);
+check('none out of sight', P.bubbleShows(facts({ inSight: false })) === false);
+check('none when the speaker is not loaded', P.bubbleShows(facts({ loaded: false })) === false && P.bubbleShows(facts({ mine: true, loaded: false })) === false);
+check('our own bubble shows whatever form we are in', P.bubbleShows(facts({ mine: true, identity: null, inRange: false, inSight: false })) === true
+  && P.bubbleShows(facts({ mine: true, identity: id({ beast: true }) })) === true);
+
+// ---- the client source, when run-all hands us the fork: one set of gates, and the review's S1/S2 ----
+const fork = process.env.FORK;
+const fs = require('fs');
+const read = (rel) => { try { return fs.readFileSync(path.join(fork, rel), 'utf8'); } catch { return null; } };
+const formView = fork && read('skymp5-client/src/view/formView.ts');
+const service = fork && read('skymp5-client/src/services/services/chatBubbleService.ts');
+const plan = fork && read('skymp5-client/src/services/services/chatBubblePlan.ts');
+if (!formView || !service || !plan) console.log('skip  source checks (no FORK with the chat bubble files)');
+else {
+  const gate = formView.slice(formView.indexOf('const isVisibleByPlayer ='), formView.indexOf('if (isVisibleByPlayer)'));
+  check('the nametag gate reads hidesIdentity(this.identityFacts(...))', /!hidesIdentity\(this\.identityFacts\(refr, model\)\)/.test(gate), gate);
+  check('...and no longer tests beast/admin/sweet-hide itself, so the two cannot drift', !/isBeastCopy|adminViewOf|isSweetHidePerson/.test(gate));
+  const facts = formView.slice(formView.indexOf('  identityFacts('), formView.indexOf('  private isSweetHidePerson('));
+  check('identityFacts is built from formView\'s own predicates', /this\.isBeastCopy\(model\)/.test(facts) && /FormView\.adminViewOf\(model\) === "hidden"/.test(facts) && /this\.isSweetHidePerson\(refr\)/.test(facts), facts);
+  check('the bubble service asks the view for those facts and decides with bubbleShows', /remoteIdentityFacts\(serverId, actor\)/.test(service) && /bubbleShows\(\{/.test(service));
+  check('sneaking is a nametag gate only, with the reason in the plan', /isSneaking/.test(gate) && !/isSneaking/.test(service) && /Sneaking does not hide a bubble/.test(plan));
+  check('S1: the size is kept and applied per text, not once per frame', /d\.sizes\[i\] !== size/.test(service) && !/drawnSize/.test(service));
+  check('S2: the LOS cache is pruned with the board, and dropped on a cell change and a disconnect',
+    /this\.los\.forEach\(\(_v, id\) => \{ if \(!this\.board\.rangeOf\(id\)\) this\.los\.delete\(id\); \}\)/.test(service)
+    && /cell !== this\.lastCell\) \{ this\.lastCell = cell; this\.hideAll\(\); \}/.test(service)
+    && /connectionDisconnect", \(\) => this\.reset\(\)/.test(service) && /private hideAll\(\)[\s\S]{0,120}this\.los\.clear\(\)/.test(service));
+  check('nothing is drawn over a blocking menu (loading screen, map, inventory, console) or with the interface hidden',
+    /if \(this\.menuOpen\(\) \|\| isUiHidden\(this\.controller\)\) \{ this\.hideAll\(\); return; \}/.test(service) && /isBlockingMenuOpen\(\)/.test(service));
+}
+
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);
