@@ -30,7 +30,7 @@ const noRope = path.join(scratch, 'capture.js'); fs.writeFileSync(noRope, 'expor
 const GUARDED = {
   'crafted-credit': empty, 'craft-weight': empty, 'mastery-award': empty, 'mastery-boost': empty, 'mastery-cast-route': empty,
   'capture-rope': noRope, 'shrine-panel-widget': empty, 'class-lectern': empty, 'contracts-tab': empty, 'school-meters': empty,
-  'study-magic': empty, 'supernatural-tab': empty, 'name-release': empty, 'client-calendar': empty,
+  'study-magic': empty, 'supernatural-tab': empty, 'name-release': empty, 'client-calendar': empty, 'trade-open-hook': empty,
 };
 for (const [name, bundle] of Object.entries(GUARDED)) {
   const h = `tests/${name}-harness.js`;
