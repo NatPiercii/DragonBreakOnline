@@ -41,10 +41,14 @@ ok(BANNED instanceof RegExp, 'dungeons.js publishes its ban for the camp chests'
 // ---- the pattern ----
 const MUST = ['BSKEnchArmorDragonscaleBootsWaterWalking', 'BSKEnchArmorDragonplateWaterWalking', 'EbonyDagger', 'CYREbonyDagger', 'DaedricDagger',
   'ArmorDragonplateCuirass', 'ArmorDragonscaleHelmet', 'DLC1DragonboneSwordKeeper03', 'DLC1KeeperArmorCuirass', 'IADragonHideCuirass',
-  'IWDragonsteelSword', 'DLC1DragonboneArrow', 'IngotEbony', 'EnchEbonyDaggerFire04'];
+  'IWDragonsteelSword', 'DLC1DragonboneArrow', 'IngotEbony', 'EnchEbonyDaggerFire04',
+  // and what Worker D's census found the first pattern still let through: Orcish (Nate) and Stalhrim (Ebony's tier)
+  'OrcishDagger', 'ArmorOrcishCuirass', 'EnchArmorOrcishBootsSneak02', 'DLC2StalhrimSword', 'DLC2ArmorStalhrimHeavyCuirass', 'DLC2EnchArmorStalhrimLightBoots01', 'DragonPriestDagger',
+  'IngotOrichalcum'];
 const missed = MUST.filter((n) => !BANNED.test(n));
-ok(!missed.length, 'the ban takes the Dragon Water Walking pieces, Ebony/Daedric, plain Dragon gear, Keeper, Dragonhide, Dragonsteel', missed);
-const KEEP = ['IronSword', 'SteelDagger', 'ArmorGlassCuirass', 'CYRGlassSword', 'ArmorElvenCuirass', 'DwarvenBow', 'DragonsTongue', 'BSKGoblinWarAxe'];
+ok(!missed.length, 'the ban takes the Dragon Water Walking pieces, Ebony/Daedric, plain Dragon gear, Keeper, Dragonhide, Dragonsteel, Orcish, Stalhrim, the Dragon Priest dagger, the orichalcum ingot', missed);
+const KEEP = ['IronSword', 'SteelDagger', 'ArmorGlassCuirass', 'CYRGlassSword', 'ArmorElvenCuirass', 'DwarvenBow', 'DragonsTongue', 'BSKGoblinWarAxe',
+  'ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorNordicCuirass', 'ArmorElvenGildedCuirass', 'ArmorHideCuirass', 'ImperialSword', 'ArmorDwarvenCuirass'];
 const wrong = KEEP.filter((n) => BANNED.test(n));
 ok(!wrong.length, 'ordinary gear and dragon\'s tongue (an ingredient) stay loot', wrong);
 const inPools = Object.values(LOOT).flat().filter((it) => BANNED.test(String(it.name || ''))).length;
@@ -64,7 +68,7 @@ const roll = (n) => { given.length = 0; for (let i = 0; i < n; i++) { props.clea
 const names = roll(4000);
 const bad = names.filter((n) => BANNED.test(n));
 const weapons = names.filter((n) => LOOT.weapons.some((w) => w.name === n));
-ok(weapons.length > 300 && !bad.length, `4000 camp chests: ${weapons.length} weapons, none Ebony, Daedric or Dragon, and no ebony ingot`, [...new Set(bad)].slice(0, 8));
+ok(weapons.length > 300 && !bad.length, `4000 camp chests: ${weapons.length} weapons, none Ebony, Daedric, Dragon, Stalhrim or Orcish, and no ebony or orichalcum ingot`, [...new Set(bad)].slice(0, 8));
 // Without dungeons.js's pattern the chest gives no weapon and no material rather than an unfiltered one
 delete globalThis.__dboBannedLoot;
 const bare = roll(1000);

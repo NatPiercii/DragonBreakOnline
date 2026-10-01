@@ -365,10 +365,11 @@ module.exports = (api) => {
   // dungeons.json already carries Beyond Skyrim's own location keywords, so no generator re-run is needed.
   // Vilverin is an Ayleid ruin BS keyworded only as a cave, hence the id list.
   // Nat: ebony and daedric never come out of a dungeon (chests, bodies, corpses, or what an enemy is armed with); Nate,
-  // 1 Oct: nor dragon gear (Dragonplate, Dragonscale, Dragonbone, Dawnguard's Keeper set, Dragonhide, Dragonsteel).
+  // 1 Oct: nor dragon gear (Dragonplate, Dragonscale, Dragonbone, Dawnguard's Keeper set, Dragonhide, Dragonsteel, the
+  // Dragon Priest dagger), nor Stalhrim (Ebony's tier), nor Orcish ("orcs would be mad") and its orichalcum ingot.
   // Matched on the editor id, so the enchanted variants and the ingot go too. Config dungeons.bannedLoot overrides.
   // The camp chests (wildlife.js) take the same pattern from globalThis.__dboBannedLoot.
-  const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric|Dragon(?:plate|scale|bone)|DLC1Keeper|DragonHide|Dragonsteel/i;
+  const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric|Dragon(?:plate|scale|bone)|DLC1Keeper|DragonHide|Dragonsteel|DragonPriestDagger|Orcish|Orichalcum|Stalhrim/i;
   globalThis.__dboBannedLoot = BANNED_LOOT;
   // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json)
   const ARTIFACT = (() => {
