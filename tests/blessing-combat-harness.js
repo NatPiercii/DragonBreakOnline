@@ -13,6 +13,13 @@ if (a < 0 || b < a) { console.log('FAIL block not found'); process.exit(1); }
 const WEAP = (anim) => ({ record: { type: 'WEAP', fields: [{ type: 'DNAM', data: Uint8Array.from([anim, 0, 0, 0]) }] } });
 const records = { 0x100: WEAP(1), 0x101: WEAP(5), 0x102: WEAP(7), 0x103: WEAP(9), 0x104: WEAP(6), 0x200: { record: { type: 'SPEL', fields: [] } } };
 const SWORD = 0x100, GREATSWORD = 0x101, BOW = 0x102, CROSSBOW = 0x103, WARHAMMER = 0x104, FIREBOLT = 0x200, FIST = 0x1f4;
+// The element is the MGEF DATA resist value (i32 at 16): 41 FireResist, 43 FrostResist; -1 none
+const u32le = (n) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+const MGEF = (resist) => { const d = new Array(152).fill(0); u32le(resist >>> 0).forEach((b, i) => { d[16 + i] = b; }); return { record: { type: 'MGEF', fields: [{ type: 'DATA', data: Uint8Array.from(d) }] } }; };
+const withEffects = (type, ...mgefs) => ({ record: { type, fields: mgefs.flatMap((m) => [{ type: 'EFID', data: Uint8Array.from(u32le(m)) }, { type: 'EFIT', data: Uint8Array.from(new Array(12).fill(0)) }]) } });
+Object.assign(records, { 0x301: MGEF(41), 0x302: MGEF(43), 0x303: MGEF(-1),
+  0x210: withEffects('SPEL', 0x301), 0x211: withEffects('SPEL', 0x302), 0x212: withEffects('ENCH', 0x301), 0x213: withEffects('SPEL', 0x303, 0x301), 0x214: withEffects('SPEL', 0x303) });
+const FLAMES = 0x210, ICE_SPIKE = 0x211, FIRE_STAFF = 0x212, FIRE_BREATH = 0x213, PARALYZE = 0x214;
 let now = 1790000000000;
 const blessings = {};
 const mp = { get: (id, k) => (k === 'private.dboBlessing' ? blessings[id] : undefined) };
@@ -49,6 +56,16 @@ bless(T, 'trinimac');
 check('Trinimac on the target: spells -25%', near(mult(A, T, FIREBOLT), 0.75));
 bless(A, 'mehrunes');
 check('both at once multiply: 1.1 x 0.75', near(mult(A, T, FIREBOLT), 1.1 * 0.75));
+delete blessings[A];
+bless(T, 'ancestors');
+check('the Ancestors on the target: fire -25% (a fire spell, a fire enchantment, a spell with fire among its effects)',
+  near(mult(A, T, FLAMES), 0.75) && near(mult(A, T, FIRE_STAFF), 0.75) && near(mult(A, T, FIRE_BREATH), 0.75));
+check('the Ancestors: frost, a spell with no element, weapons and fists unchanged',
+  near(mult(A, T, ICE_SPIKE), 1) && near(mult(A, T, PARALYZE), 1) && near(mult(A, T, FIREBOLT), 1) && near(mult(A, T, SWORD), 1) && near(mult(A, T, FIST), 1));
+bless(A, 'mehrunes');
+check('Mehrunes Dagon\'s fire into the Ancestors\' ward: 1.1 x 0.75', near(mult(A, T, FLAMES), 1.1 * 0.75));
+delete blessings[T];
+check('the Ancestors\' ward is the target\'s, not the attacker\'s', (() => { bless(A, 'ancestors'); return near(mult(A, T, FLAMES), 1); })());
 bless(A, 'talos', -1);
 check('an expired blessing does nothing', near(mult(A, T, GREATSWORD), 1));
 bless(A, 'akatosh'); delete blessings[T];

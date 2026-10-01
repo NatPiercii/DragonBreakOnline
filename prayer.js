@@ -221,12 +221,16 @@ module.exports = (api) => {
     try { mp.set(a, 'private.dboBlessing', null); } catch (e) { /* gone with the character */ }
     if (why) personal(a, why);
   };
+  // A boon the server keeps with no spell at all: Sanguine's appetite, Hermaeus Mora's reading, and since 2026-10-01 the
+  // regeneration of the Hist and the Yokudan gods (blessingRegen, held by the regeneration tick below) and the Ancestors'
+  // ward against fire (combatBoon: gamemode.js blessingCombat, target.ancestors)
+  const serverBoonOf = (d) => !!(d && (d.hungerHalf || d.scholarBoon || d.blessingRegen || d.combatBoon));
   // Sheogorath has no blessing of his own and should not have one. The Madgod gives what he feels
   // like, so his worshipper is handed another god's blessing at random - a different one each time.
   // This is the only boon in the list that is more lore-accurate as code than as a record, and it is
   // the only one that needed no Creation Kit work at all. skills.json marks him `capricious: true`.
   const capriceOf = (d) => {
-    const pool = DEITIES.filter((x) => x.id !== d.id && (blessingIdOf(x) || x.hungerHalf || x.scholarBoon));
+    const pool = DEITIES.filter((x) => x.id !== d.id && (blessingIdOf(x) || serverBoonOf(x)));
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   };
 
@@ -241,8 +245,8 @@ module.exports = (api) => {
     const spell = blessingIdOf(d);
     // A boon does not have to be a spell. Sanguine's is a change to the appetite meter and Hermaeus Mora's lives in
     // the reading round and the dungeon loot; neither has a record, so "no spell" is only a failure when the deity has
-    // nothing server-side either.
-    const serverSide = !!d.hungerHalf || !!d.scholarBoon;
+    // nothing server-side either (serverBoonOf).
+    const serverSide = serverBoonOf(d);
     clearBlessing(a, null, 'replaced');
     if (!spell && !serverSide) {
       // Every Prince still waiting on its SPEL lands here. The prayer succeeded and counted; there
@@ -264,7 +268,34 @@ module.exports = (api) => {
     // `via` says how the spell was given, so the expiry knows whether there is anything to take back
     try { mp.set(a, 'private.dboBlessing', spell ? { deity: d.id, spell, until, via: cast ? 'cast' : 'spell' } : { deity: d.id, spell, until }); } catch (e) { /* not fatal */ }
     if (spell) log(`prayer: the blessing of ${d.name} ${cast ? 'cast on' : 'given as a spell to'} ${display(a)} for ${Math.max(1, hours)} h${info ? '' : ' (spell record unreadable)'}`);
+    else log(`prayer: the blessing of ${d.name} (the server's own) given to ${display(a)} for ${Math.max(1, hours)} h`);
     return true;
+  };
+
+  // The four racial powers the faiths gave until 2026-10-01 (Histskin, Ancestor's Wrath, Adrenaline Rush, Night Eye) are
+  // dispelled by the client the moment they are used (magicSyncService BLOCKED_POWER_IDS: "Racial powers are disabled on
+  // this server"). Their deities now give a passive boon instead (skills.json). A blessing still running from before is
+  // moved over at login or at the next sweep: the dead power leaves the learned list and the record takes the deity's
+  // blessing of today. Riddle'Thar's Night Eye is then cast like any other; the Hist, the Ancestors and the Yokudan gods
+  // are the server's own and need nothing on the client.
+  const SPIT_POWER = 2, SPIT_LESSER_POWER = 3;
+  const movePower = (a, b) => {
+    if (!b || !b.spell || b.via === 'cast' || Number(b.until) <= Date.now()) return b;
+    const old = Number(b.spell) >>> 0;
+    const info = spellInfo(old);
+    if (!info || (info.type !== SPIT_POWER && info.type !== SPIT_LESSER_POWER)) return b;
+    const d = deityById(b.deity);
+    const now = d ? blessingIdOf(d) : 0;
+    if (!d || now === old) return b;                   // a deity that still gives this power keeps it
+    const nowInfo = now ? spellInfo(now) : null;
+    castSpell(a, old, false);
+    let next;
+    if (now && nowInfo && nowInfo.cast) next = { deity: b.deity, spell: now, until: b.until, via: 'cast' };     // cast by the next login or sweep
+    else if (now) next = castSpell(a, now, true) ? { deity: b.deity, spell: now, until: b.until, via: 'spell' } : { deity: b.deity, spell: 0, until: b.until };
+    else next = { deity: b.deity, spell: 0, until: b.until };
+    try { mp.set(a, 'private.dboBlessing', next); } catch (e) { return b; }
+    log(`prayer: ${display(a)}'s blessing of ${d.name} was the racial power ${old.toString(16)}, which the client blocks; taken back, ${next.via === 'cast' ? `${now.toString(16)} is cast instead` : next.spell ? `${now.toString(16)} given instead` : 'the server keeps the boon now'}`);
+    return next;
   };
 
   // Cast a running blessing again: at login, when the spell's own duration ends first, or for a worshipper blessed before
@@ -292,7 +323,7 @@ module.exports = (api) => {
     return true;
   };
   // gamemode.js calls this with the other login hooks, 8 s into the login
-  globalThis.__dboPrayerLogin = (a) => { blessCasts.delete(a); regenOwed.delete(a); recastBlessing(a, 'login'); };
+  globalThis.__dboPrayerLogin = (a) => { blessCasts.delete(a); regenOwed.delete(a); movePower(a, blessingOf(a)); recastBlessing(a, 'login'); };
 
   // Sanguine's boon is not a spell and could not be one: the Prince of indulgence belongs on the
   // appetite meter, and appetite is the gamemode's (private.needs), not the engine's. The needs tick
@@ -326,13 +357,14 @@ module.exports = (api) => {
     const here = globalThis.__dboBlessingSeen = new Set();
     for (const a of (api.onlineActors ? api.onlineActors() : [])) {
       here.add(a);
-      const b = blessingOf(a);
+      let b = blessingOf(a);
       if (!b) continue;
       if (Number(b.until) <= Date.now()) {
         const d = deityById(b.deity);
         clearBlessing(a, `The blessing of ${d ? d.name : 'your god'} fades.`, 'expired');
         continue;
       }
+      b = movePower(a, b);
       const info = b.spell ? spellInfo(Number(b.spell) >>> 0) : null;
       if (!info || !info.cast) continue;
       const at = blessCasts.get(a);

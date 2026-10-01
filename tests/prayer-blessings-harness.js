@@ -4,7 +4,9 @@
 // every login while it runs and again when the spell's own duration ends first; an Ability is still learned, and so is a
 // Power. Also: closing a prayer round before its first press (to make an offering) rests no shrine. Since the follow-up
 // (fix/prayer-blessings-2): a cast blessing that ends (its end, a turn, a new blessing, a staff reset) is ended on the
-// client too (dboDispelSelf), and one whose worshipper died is cast again once they stand. Loads the real
+// client too (dboDispelSelf), and one whose worshipper died is cast again once they stand; the faiths' racial powers,
+// which the client blocks, are gone: the Hist, the Ancestors and the Yokudan gods give a boon the server keeps,
+// Riddle'Thar's Night Eye is cast, and a power still held from before is taken back. Loads the real
 // module with a mock gamemode api and spell records shaped like the real ones. Run it from this folder's parent with
 //
 //   node tests/prayer-blessings-harness.js
@@ -44,13 +46,17 @@ const MEASURED = {
   meridia: ['DBO_BlessingOfMeridia', 0, 1, 0, [28800, 0]], namira: ['DBO_BlessingOfNamira', 0, 1, 0, [28800, 28800]],
   peryite: ['DBO_BlessingOfPeryite', 0, 1, 0, [28800, 0]], vaermina: ['DBO_BlessingOfVaermina', 0, 1, 0, [28800, 0]],
   dragoncult: ['AltarTalosSpell', 0, 1, 0, [28800, 0]],
-  hist: ['PowerArgonianHistskin', 2, 1, 0, [60, 60]], ancestors: ['PowerDarkElfFlameCloak', 2, 1, 0, [60, 62]],
-  yokudan: ['PowerRedguardStaminaRegen', 2, 1, 0, [60]], riddlethar: ['PowerKhajiitNightEye', 3, 1, 0, [60]],
+  riddlethar: ['DBO_BlessingOfVaermina', 0, 1, 0, [28800, 0]],
   trinimac: ['doomLordAbility', 4, 0, 0, [0, 0]], wormcult: ['doomApprenticeAbility', 4, 0, 0, [0]],
 };
 const CAST = Object.keys(MEASURED).filter((k) => MEASURED[k][1] === 0 && MEASURED[k][2] === 1);
 const ABILITIES = ['trinimac', 'wormcult'];
-const POWERS = ['hist', 'ancestors', 'yokudan', 'riddlethar'];
+// The faiths whose blessing was a racial power until 2026-10-01: three now keep a boon on the server with no spell
+const SERVER_HELD = ['hist', 'ancestors', 'yokudan'];
+// and the powers themselves, still in the load order, for a blessing granted before (SPIT type 2 Power, 3 Lesser Power)
+const OLD = { hist: 0xe40d5, ancestors: 0xe40d4, yokudan: 0xe40ce, riddlethar: 0xaa01d };
+const OLD_RECORDS = { hist: ['PowerArgonianHistskin', 2, 1, 0, [60, 60]], ancestors: ['PowerDarkElfFlameCloak', 2, 1, 0, [60, 62]],
+  yokudan: ['PowerRedguardStaminaRegen', 2, 1, 0, [60]], riddlethar: ['PowerKhajiitNightEye', 3, 1, 0, [60]] };
 const field = (type, bytes) => ({ type, data: Uint8Array.from(bytes) });
 const u32le = (n) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
 const spel = ([edid, type, castType, delivery, durations]) => ({ record: { type: 'SPEL', editorId: edid, fields: [
@@ -62,6 +68,7 @@ const spel = ([edid, type, castType, delivery, durations]) => ({ record: { type:
 
 const records = new Map();
 for (const [deity, m] of Object.entries(MEASURED)) records.set(spellOf(deity), spel(m));
+for (const [deity, m] of Object.entries(OLD_RECORDS)) records.set(OLD[deity], spel(m));
 
 const props = new Map();
 let online = true;
@@ -144,14 +151,15 @@ load();
 
 // ---- 1. what each blessing is, read from its record --------------------------------------------------------------
 check('the measured table covers every blessing spell in skills.json',
-  SKILLS.deities.choices.filter((c) => /^[0-9a-f]+:/i.test(String(c.blessing))).every((c) => MEASURED[c.id]) && Object.keys(MEASURED).length === 29,
+  SKILLS.deities.choices.filter((c) => /^[0-9a-f]+:/i.test(String(c.blessing))).every((c) => MEASURED[c.id]) && Object.keys(MEASURED).length === 26,
   `${Object.keys(MEASURED).length} measured`);
 const boot = out.logs.find((l) => /^prayer on:/.test(l)) || '';
-check('the boot line counts 23 blessings cast on the worshipper and 6 learned', /29 resolved \(23 cast on the worshipper, 6 learned\)/.test(boot), boot.replace(/^.*blessings /, ''));
+check('the boot line counts 24 blessings cast on the worshipper, 2 learned and 7 kept by the server',
+  /26 resolved \(24 cast on the worshipper, 2 learned\), 7 server-side, 0 broken/.test(boot), boot.replace(/^.*blessings /, ''));
 
 // ---- 2. every blessing, granted for real -------------------------------------------------------------------------
 const rows = [];
-for (const id of Object.keys(MEASURED)) {
+for (const id of [...Object.keys(MEASURED), ...SERVER_HELD]) {
   worship(id);
   learned.clear();
   const r = prayAndWin(id);
@@ -162,9 +170,9 @@ for (const id of Object.keys(MEASURED)) {
 }
 const row = (id) => rows.find((x) => x.id === id);
 const castRows = CAST.map(row);
-check('every Fire-and-Forget blessing (23) is cast on the worshipper by their own client',
-  castRows.length === 23 && castRows.every((x) => x.ok && x.sent === 1 && x.via === 'cast' && x.spellOk),
-  castRows.filter((x) => !(x.ok && x.sent === 1 && x.via === 'cast')).map((x) => x.id).join(', ') || '23 of 23');
+check('every Fire-and-Forget blessing (24, Riddle\'Thar\'s Night Eye among them) is cast on the worshipper by their own client',
+  castRows.length === 24 && castRows.every((x) => x.ok && x.sent === 1 && x.via === 'cast' && x.spellOk) && castRows.some((x) => x.id === 'riddlethar'),
+  castRows.filter((x) => !(x.ok && x.sent === 1 && x.via === 'cast')).map((x) => x.id).join(', ') || '24 of 24');
 check('the packet is the one castSelfService reads: { customPacketType: dboCastSelf, spell }',
   castRows.every((x) => x.packet && x.packet.customPacketType === 'dboCastSelf' && x.packet.spell === spellOf(x.id) && Object.keys(x.packet).length === 2),
   JSON.stringify(row('akatosh').packet));
@@ -173,9 +181,10 @@ check('and none of them is taught: no AddSpell, nothing in the learned list',
 check('the Abilities (Trinimac, the Worm Cult) are still learned, which is what runs them, and nothing is cast',
   ABILITIES.map(row).every((x) => x.ok && x.added === 1 && x.learnedNow && x.sent === 0 && x.via === 'spell'),
   JSON.stringify(ABILITIES.map(row)));
-check('the Powers (the Hist, the Ancestors, the Yokudan gods, Riddle\'Thar) keep today\'s behaviour: a power to use',
-  POWERS.map(row).every((x) => x.ok && x.added === 1 && x.learnedNow && x.sent === 0 && x.via === 'spell'),
-  JSON.stringify(POWERS.map(row).map((x) => [x.id, x.added, x.sent])));
+check('the Hist, the Ancestors and the Yokudan gods give a boon the server keeps: nothing taught, nothing cast, the record holds the god and the end',
+  SERVER_HELD.map(row).every((x) => x.ok && x.added === 0 && x.sent === 0 && x.via === undefined && x.spellOk),
+  JSON.stringify(SERVER_HELD.map(row)));
+check('and no power is handed out any more', rows.every((x) => !Object.values(OLD).includes(x.packet ? x.packet.spell : -1)) && Object.values(OLD).every((id) => !learned.has(id)));
 
 // ---- 3. the cast, step by step: Akatosh at priest tier 3 (a 16 h blessing over an 8 h spell) ----------------------
 worship('akatosh', 3);
@@ -396,6 +405,61 @@ prayAndWin('wormcult');
 dead(true); clear(); watch(); dead(false); watch(); wallClock += 4000; watch();
 check('an Ability is not cast at a stand-up (the learned list keeps it)', out.packets.length === 0);
 dead(false);
+
+// ---- 14. a racial power granted before: taken back, and the deity's blessing of today in its place -------------------
+worship('hist');
+learned.clear(); learned.add(OLD.hist);
+props.set(ACTOR + '|private.dboBlessing', { deity: 'hist', spell: OLD.hist, until: wallClock + 3 * H, via: 'spell' });
+globalThis.__dboDeityForget(ACTOR); clear();
+globalThis.__dboPrayerLogin(ACTOR);
+b = blessing();
+check('a Hist blessing from before (Histskin, a power the client blocks) at login: the power leaves the learned list, the server keeps the boon for the time left',
+  !learned.has(OLD.hist) && calls('RemoveSpell').length === 1 && calls('RemoveSpell')[0].spell === OLD.hist && b.deity === 'hist' && b.spell === 0
+  && b.until === wallClock + 3 * H && out.packets.length === 0 && out.logs.some((l) => /racial power e40d5/.test(l)), JSON.stringify(b));
+check('and the Hist\'s regeneration is held from then', globalThis.__dboBlessingRegen(ACTOR).some((e) => e.av === 'HealRateMult' && e.mag === 50));
+wallClock = b.until + 1; sweep();
+check('at its end there is nothing left to take back', !blessing() && calls('RemoveSpell').length === 0 && dispels().length === 0);
+worship('riddlethar');
+learned.clear(); learned.add(OLD.riddlethar);
+props.set(ACTOR + '|private.dboBlessing', { deity: 'riddlethar', spell: OLD.riddlethar, until: wallClock + 5 * H, via: 'spell' });
+globalThis.__dboDeityForget(ACTOR); clear();
+globalThis.__dboPrayerLogin(ACTOR);
+b = blessing();
+check('a Riddle\'Thar blessing from before (the Khajiit Night Eye power): taken back, and the Night Eye cast at login for the time left',
+  !learned.has(OLD.riddlethar) && b.spell === spellOf('riddlethar') && b.via === 'cast' && casts().length === 1 && casts()[0].p.spell === spellOf('riddlethar')
+  && calls('RemoveSpell')[0].spell === OLD.riddlethar && calls('RemoveSpell')[0].n === 0, JSON.stringify({ b, packets: out.packets }));
+for (const id of ['ancestors', 'yokudan']) {
+  worship(id);
+  learned.clear(); learned.add(OLD[id]);
+  // the Yokudan one as the code before 2026-10-01 wrote it (no `via`)
+  props.set(ACTOR + '|private.dboBlessing', Object.assign({ deity: id, spell: OLD[id], until: wallClock + 2 * H }, id === 'ancestors' ? { via: 'spell' } : {}));
+  clear(); sweep();
+  b = blessing();
+  check(`a${id === 'ancestors' ? 'n Ancestors' : ' Yokudan'} blessing from before, online when this loads: moved over at the next sweep`,
+    !learned.has(OLD[id]) && calls('RemoveSpell').length === 1 && b.spell === 0 && b.deity === id && out.packets.length === 0, JSON.stringify(b));
+}
+worship('ancestors');
+learned.clear(); learned.add(OLD.ancestors);
+props.set(ACTOR + '|private.dboBlessing', { deity: 'ancestors', spell: OLD.ancestors, until: wallClock - 1000, via: 'spell' });
+clear(); sweep();
+check('one that ended while its worshipper was away is taken back at the sweep, as always', !blessing() && !learned.has(OLD.ancestors) && calls('RemoveSpell').length === 1);
+// Sheogorath's pool holds the server's own boons too
+const pool = SKILLS.deities.choices.filter((x) => x.id !== 'sheogorath' && (/^[0-9a-f]+:/i.test(String(x.blessing)) || x.hungerHalf || x.scholarBoon || x.blessingRegen || x.combatBoon));
+const poolAt = pool.findIndex((x) => x.id === 'ancestors');
+worship('sheogorath');
+{
+  const sheo = choiceOf('sheogorath');
+  wallClock += 2000; virtual += 100000; clear();
+  if (sheo.prayAnywhere) commands.get('pray')(ACTOR, ''); else globalThis.__dboPrayerActivate(idOf(sheo.shrines[0]), ACTOR);
+  const w = out.widgets[out.widgets.length - 1];
+  virtual += w.totalMs + 100;
+  const rolls = [0, (poolAt + 0.5) / pool.length];
+  const roll = Math.random; Math.random = () => (rolls.length ? rolls.shift() : 0);
+  clear();
+  try { fire('prayer', [w.nonce, JSON.stringify([[0, w.totalMs]]), w.totalMs]); } finally { Math.random = roll; }
+}
+b = blessing();
+check('Sheogorath can hand over a boon the server keeps (the Ancestors\' ward)', poolAt >= 0 && !!b && b.deity === 'ancestors' && b.spell === 0 && out.packets.length === 0, JSON.stringify(b));
 
 console.log('');
 console.log('deity        cast  learned  via');
