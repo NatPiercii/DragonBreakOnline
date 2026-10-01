@@ -57,6 +57,21 @@
     ]
   },
   {
+    "title": "Skills rise more slowly",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "A skill now counts at most half as much work in an hour as before, and the most it can count in a day is halved too. Skills that were rising as fast as they could now rise half as fast.",
+          "Every level you have already earned is kept."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Three spell tomes in their proper schools",
     "date": "2026-10-01",
     "version": "Server update",
