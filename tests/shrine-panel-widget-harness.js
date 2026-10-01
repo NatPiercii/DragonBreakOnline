@@ -49,7 +49,11 @@ const api = {
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); }, registerChatCommand: noop,
   sendPacket: noop, isAdmin: () => false, findByName: () => null, onlineActors: () => [A], every: noop,
   profileOf: (a) => a, isWorldspace: () => true, needsFeed: noop, hungerOf: () => 0, skills: SKILLS, takeGold: () => false, treasuryHere: () => 0,
+  // The rite judged on the player's machine (minigames-client-judged): under the default legacyDeadly 'safe' a client
+  // without riteJudge (0.3.74 and older) is never offered the Embrace. This panel is drawn for one that names it (0.3.75)
+  hasUiCap: (a, cap) => clientCaps.has(cap),
 };
+const clientCaps = new Set(['riteJudge']);
 for (const f of ['prayer.js', 'supernatural.js']) require(path.join(SERVER, f))(api);
 const ui = (ev, ...args) => { for (const fn of handlers.get(ev) || []) fn(A, args, 74); };
 const last = () => panels[panels.length - 1];
@@ -64,6 +68,11 @@ globalThis.__dboPrayerActivate(REF.arkay, A);
 const neither = last();
 ui('shrinePray', neither.nonce);
 const refused = last();
+clientCaps.delete('riteJudge');
+props.set(`${A}|private.dboDeity`, { id: 'molagbal', since: 0 });
+globalThis.__dboPrayerActivate(REF.molagbal, A);
+const oldClient = last();
+clientCaps.add('riteJudge');
 
 // ---- the widget ----
 let t = text(html(both));
@@ -88,6 +97,9 @@ check('...and no button for either, only Leave', (h.match(/<button/g) || []).len
 t = text(html(refused));
 check('an answer from the server shows under the choice', /Arkay has no ear.*Leave$/.test(t) && /shrine__result--refused/.test(html(refused)), t);
 check('a success shows as one', /shrine__result--ok/.test(html(Object.assign({}, neither, { result: 'The black soul gem drinks the curse from you. You are mortal again.', resultKind: 'ok' }))));
+t = text(html(oldClient));
+check('a client that cannot judge its own strikes: the Embrace in a quiet line, closed until it updates, no rite button',
+  /Pray Perform the Rite Molag Bal's Embrace needs the newer game client.*until you update\. Leave$/.test(t) && !/>Perform the Rite<span/.test(html(oldClient)), t);
 check('a panel missing a choice still draws', /Shrine of Molag Bal/.test(text(html(Object.assign({}, both, { pray: undefined, rite: undefined })))));
 check('the widget id is a number', both.id === 74 && typeof both.id === 'number', both.id);
 // The confirm view's hold must outlast the server's guard after the choice, or a Kneel the front lets through is one the
