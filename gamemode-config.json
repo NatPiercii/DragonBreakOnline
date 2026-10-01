@@ -370,6 +370,11 @@
   "veinRestMinutes": 45,
   "blockRestMinutes": 10,
   "failRestMinutes": 2,
+  "_clientJudged": "Jake, 2026-09-30: the widget judges the round on the player's machine and the server accepts its verdict, keeping only checks latency cannot fail (nonce, one report, the worker within nearMeters of the node, no faster than the round's exact minimum, rests and yields). roundTimeoutMs cleans up a round nobody reports. replayCheck: 'log' lets a claimed win its own strike times do not bear out stand with a LABOUR-MISMATCH audit line, 'refuse' refuses it. ROLLBACK: set clientJudged to false and reload the gamemode; today's server judging (lagGraceMs refuses late reports) comes back for every client.",
+  "clientJudged": true,
+  "replayCheck": "log",
+  "roundTimeoutMs": 180000,
+  "nearMeters": 15,
   "saltGlow": { "_comment": "Sea Salt Deposits glow while they hold salt for you and go dark while the seam rests (GroundedPasta, 30 Sep: very small, very hard to see). audience: miners (Miner taken up) or everyone. The list is salt-deposits.json (tools/labour/salt_deposits.py). Hot reload.", "enabled": true, "audience": "miners", "seconds": 30 }
  },
  "needs": {

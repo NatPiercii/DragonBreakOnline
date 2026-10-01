@@ -14,6 +14,7 @@ const SERVER = path.resolve(__dirname, '..');
 const LABOUR = path.join(SERVER, 'labour.js');
 
 let virtual = 0;
+let nearM = 2;
 globalThis.performance = { now: () => virtual };
 
 const ACTOR = 0x14;
@@ -51,7 +52,10 @@ const api = {
   audit: (t) => out.audits.push(t),
   display: () => 'Tester #ABCD',
   who: () => 'Tester #ABCD (profile 1)',
-  cfg: {},
+  // The cases above are the server-judged rules: they run with the rollback switch, so they also prove clientJudged
+  // false behaves exactly as before. The client-judged cases are at the end.
+  cfg: { labour: { clientJudged: false } },
+  distanceMeters: () => nearM,
   openWidget: (a, w) => { out.widgets.push(w); return true; },
   closeWidget: () => true,
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
@@ -427,6 +431,224 @@ check('closing it with Escape still rests the seam', Number((props.get(ACTOR + '
   check('a won round on a seam worked out meanwhile pays nothing', res2.items.length === 0 && /before you finished/.test(JSON.stringify(res2.result || {})), JSON.stringify(res2.result));
   clearRests();
 }
+
+// ---- client-judged rounds (labour.clientJudged true): the widget's verdict stands, latency refuses nothing ----------
+console.log('');
+console.log('client-judged:');
+api.cfg = { labour: { clientJudged: true } };
+load();
+const claimOf = (win, hits) => JSON.stringify({ v: 1, win, hits });
+const reportC = (w, strikes, at, lagMs, start, claim) => {
+  virtual = start + at + (lagMs === undefined ? 120 : lagMs);
+  out.logs.length = 0; out.items.length = 0; out.audits.length = 0; out.widgets.length = 0; out.events.length = 0; out.personals.length = 0;
+  const args = [w.nonce, typeof strikes === 'string' ? strikes : JSON.stringify(strikes), at];
+  if (claim !== undefined) args.push(claim);
+  fire('labour', args);
+  return { log: out.logs.join(' | '), items: out.items.slice(), result: out.widgets[0], personals: out.personals.slice() };
+};
+const judgeOf = (line) => (/ judge=(\w+)/.exec(line) || [])[1] || '?';
+const susOf = (line) => (/ sus=([\w,-]+)/.exec(line) || [])[1] || '';
+let T = 20000000;
+const fresh = (kind, tier) => { T += 1000000; virtual = T; nearM = 2; return openRound(kind || 'mining', tier === undefined ? 3 : tier).w; };
+
+w = fresh();
+check('the round tells the widget it is the judge', w.judge === 'client', JSON.stringify(w.judge));
+check('every round issued is logged with the fastest it can be won', /labour issue .* min=\d+ judge=client seed=/.test(out.logs.join(' | ')), out.logs.slice(-1)[0]);
+p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 4000, T, claimOf(true, p.hits));
+check('4 s of lag (refused(late) before) wins and pays', verdictOf(res.log) === 'win' && res.items.length === 1 && judgeOf(res.log) === 'client', res.log);
+
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 9000, T, claimOf(true, p.hits));
+check('9 s of lag still wins, flagged slow for review', verdictOf(res.log) === 'win' && /slow/.test(susOf(res.log)), res.log);
+
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 4000, T);
+check('a 0.3.71 widget (no verdict) is judged from its times with the lag relaxed', verdictOf(res.log) === 'win' && judgeOf(res.log) === 'legacy' && res.items.length === 1, res.log);
+
+// A widget clock a little ahead of the server's (drift, a resend reordering nothing) is only a review flag. Far enough
+// ahead that the server saw less time pass than the round's fastest win, it is refused(fast) further down.
+w = fresh(); p = play(w, { aim: 0.2 });
+res = reportC(w, p.strikes, p.at, -60, T, claimOf(true, p.hits));
+check('a widget clock ahead of the server is flagged, not refused', verdictOf(res.log) === 'win' && /future/.test(susOf(res.log)), res.log);
+
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 170000, T, claimOf(true, p.hits));
+check('a report nearly three minutes late is still judged', verdictOf(res.log) === 'win', res.log);
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 600000, T, claimOf(true, p.hits));
+check('a report ten minutes late is refused as expired, nothing paid', verdictOf(res.log) === 'refused(expired)' && res.items.length === 0, res.log);
+
+// A claimed win its own strike times do not bear out (replayCheck 'log', the default): it stands if it took no less than
+// the round's exact minimum, flagged and audited; one claimed sooner than that is refused as too fast
+w = fresh();
+const even = Array.from({ length: w.strikes }, (_, i) => 1000 + i * 700);
+const evenAt = Math.max(even[even.length - 1], w.totalMs - 10);
+res = reportC(w, even, evenAt, 120, T, claimOf(true, w.strikes));
+const auditMismatch = out.audits.some((t) => /^LABOUR-MISMATCH /.test(t));
+check("replayCheck 'log' (default): a mismatched win no faster than min= stands, flagged and audited", verdictOf(res.log) === 'win' && /mismatch/.test(susOf(res.log)) && auditMismatch, res.log);
+w = fresh();
+res = reportC(w, [10], 20, 120, T, claimOf(true, w.strikes));
+check('...but one claiming less time than the round\'s fastest win is refused(fast), nothing paid', verdictOf(res.log) === 'refused(fast)' && res.items.length === 0, res.log);
+
+w = fresh(); const fp = fastestPossible(w);
+res = reportC(w, fp, fp[fp.length - 1], 120, T, claimOf(true, w.strikes));
+check('the fastest possible round still replays to a win (min= is that time)', verdictOf(res.log) === 'win' && new RegExp(` min=${fp[fp.length - 1]} `).test(res.log), res.log);
+
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 120, T, claimOf(false, p.hits - 1));
+check("the widget's own loss stands even when the times replay to a win", verdictOf(res.log) === 'lose' && /mismatch/.test(susOf(res.log)) && res.items.length === 0, res.log);
+
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 120, T, 'not json');
+check('an unreadable verdict falls back to judging the times', verdictOf(res.log) === 'win' && judgeOf(res.log) === 'legacy', res.log);
+
+w = fresh(); p = play(w, { aim: 0.5 }); nearM = 40;
+res = reportC(w, p.strikes, p.at, 120, T, claimOf(true, p.hits));
+check('a worker 40 m from the node when the report lands is refused', verdictOf(res.log) === 'refused(far)' && res.items.length === 0, res.log);
+w = fresh(); p = play(w, { aim: 0.5 }); nearM = 12;
+res = reportC(w, p.strikes, p.at, 120, T, claimOf(true, p.hits));
+check('12 m (inside the 15 m radius) is fine', verdictOf(res.log) === 'win', res.log);
+
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 120, T, claimOf(true, p.hits));
+const again2 = reportC(w, p.strikes, p.at, 130, T, claimOf(true, p.hits));
+check('one report per round: the second is a logged replay and pays nothing', verdictOf(again2.log) === 'replay' && again2.items.length === 0, again2.log);
+
+// Walk away overtaking the report (client -> server is RELIABLE, not ordered)
+w = fresh(); p = play(w, { aim: 0.5 });
+virtual = T + p.at + 50; fire('labourCancel', [w.nonce]);
+const failRest = Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) || 0;
+res = reportC(w, p.strikes, p.at, 400, T, claimOf(true, p.hits));
+const restAfter = Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) || 0;
+check('a report that lands after the Walk away is still judged and paid', verdictOf(res.log) === 'win' && /after-close/.test(susOf(res.log)) && res.items.length === 1, res.log);
+check('...its verdict comes as a message, not a widget reopened', !res.result && res.personals.some((t) => /seam gives way/.test(t)), JSON.stringify(res.personals));
+check('...and the win replaces the fail rest with the full one', failRest > Date.now() && restAfter - failRest > 30 * 60000, `${failRest} -> ${restAfter}`);
+
+w = fresh(); p = play(w, { aim: 0.5 });
+virtual = T + p.at + 20; fire('close', ['hidden'], 33);
+res = reportC(w, p.strikes, p.at, 300, T, claimOf(true, p.hits));
+check('a report that lands after F2 hid the widget is still judged', verdictOf(res.log) === 'win' && res.items.length === 1, res.log);
+
+w = fresh(); out.logs.length = 0;
+globalThis.__dboLabourLeave(ACTOR);
+check('a logout ends the round like walking away (rest, logged)', /labour abandon\(logout\)/.test(out.logs.join(' | ')) && Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) > Date.now(), out.logs.join(' | '));
+
+// Activating again during a live round
+w = fresh(); out.widgets.length = 0;
+virtual = T + 5000; globalThis.__dboLabour(VEIN, ACTOR);
+check('activating mid-round is still swallowed while the widget should be up', out.widgets.length === 0, String(out.widgets.length));
+virtual = T + w.totalMs + 20000; globalThis.__dboLabour(VEIN, ACTOR);
+check('activating after the round length draws the same round again (lost widget)', out.widgets.length === 1 && out.widgets[0].nonce === w.nonce, out.widgets.length ? out.widgets[0].nonce : 'none');
+out.widgets.length = 0; out.logs.length = 0;
+virtual = T + w.totalMs + 180000 + 1; globalThis.__dboLabour(VEIN, ACTOR);
+check('a round unreported for the full timeout expires (logged) and a new one opens', out.widgets.length === 1 && out.widgets[0].nonce !== w.nonce && /labour expired/.test(out.logs.join(' | ')), out.logs.join(' | '));
+
+// The seam is reserved for its worker for the round plus reserveSlackMs, not for the whole timeout
+{
+  const OTHER = 0x16;
+  props.set(OTHER + '|private.mastery', { order: ['miner'], skills: { miner: { rank: 3 } } });
+  w = fresh();
+  out.widgets.length = 0; out.personals.length = 0;
+  globalThis.__dboLabour(VEIN, OTHER);
+  check('a second worker is still turned away while the round runs', out.widgets.length === 0 && out.personals.some((t) => /Someone is working this seam/.test(t)), JSON.stringify(out.personals));
+  sessions_cleanup: { const s = globalThis.__dboLabourRounds; s.delete(OTHER); }
+}
+
+// replayCheck 'refuse': the same mismatched win is refused
+api.cfg = { labour: { clientJudged: true, replayCheck: 'refuse' } };
+load();
+w = fresh();
+const slowEven = Array.from({ length: w.strikes }, (_, i) => 1000 + i * 3000);
+res = reportC(w, slowEven, Math.max(slowEven[slowEven.length - 1], w.totalMs - 10), 120, T, claimOf(true, w.strikes));
+check("replayCheck 'refuse': a mismatched win is refused, nothing paid", verdictOf(res.log) === 'refused(mismatch)' && res.items.length === 0, res.log);
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 2500, T, claimOf(true, p.hits));
+check("...and an honest win at 2.5 s of lag still wins under it", verdictOf(res.log) === 'win' && res.items.length === 1, res.log);
+
+// ---- the task's cases, over a fake network (tests/lib/netsim.js) ----------------------------------------------------
+const NET = require(path.join(__dirname, 'lib', 'netsim.js'));
+api.cfg = { labour: { clientJudged: true } };
+load();
+// The widget's verdict is the replay of its own strikes, so any honest round must get the same verdict at every level
+{
+  const rand = NET.rngOf(11);
+  let changed = 0, rounds = 0, wins = 0; const seen = [];
+  for (const c of NET.matrix()) {
+    for (let i = 0; i < 8; i++) {
+      const kind = i % 2 ? 'chopping' : 'mining';
+      w = fresh(kind, i % 5);
+      p = play(w, i % 3 === 0 ? { sloppy: 0.03 } : { aim: 0.5 + (i % 4) * 0.1 });
+      const want = p.hits >= w.strikes ? 'win' : 'lose';
+      const lag = NET.arrival(T, p.at, c, rand) - T - p.at;
+      res = reportC(w, p.strikes, p.at, lag, T, claimOf(p.hits >= w.strikes, p.hits));
+      rounds++; if (want === 'win') wins++;
+      if (verdictOf(res.log) !== want) { changed++; if (seen.length < 3) seen.push(`${c.name}: ${res.log}`); }
+    }
+  }
+  check(`no honest verdict changes under ${NET.matrix().length} network conditions (0 to 2.5 s, jitter, resends, 5 and 10 s spikes, an 8.8 s stall, clock rate +-0.5%)`, changed === 0, `${rounds} rounds, ${wins} wins${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+for (const rtt of NET.REQUIRED) {
+  w = fresh(); p = play(w, { aim: 0.5 });
+  res = reportC(w, p.strikes, p.at, rtt, T, claimOf(true, p.hits));
+  check(`the new widget's win is accepted at ${rtt} ms`, verdictOf(res.log) === 'win' && judgeOf(res.log) === 'client' && res.items.length === 1, res.log);
+  w = fresh(); p = play(w, { aim: 0.5 });
+  const loseAt = Math.min(w.totalMs, p.at + 50);
+  res = reportC(w, p.strikes.slice(0, 2), loseAt, rtt, T, claimOf(false, Math.min(2, p.hits)));
+  check(`...and its loss stands at ${rtt} ms`, verdictOf(res.log) === 'lose' && res.items.length === 0, res.log);
+}
+for (const lag of [2500, 4000, 9000, 60000]) {
+  w = fresh(); p = play(w, { aim: 0.5 });
+  res = reportC(w, p.strikes, p.at, lag, T);
+  check(`an old widget's timing report is accepted ${lag / 1000} s late`, verdictOf(res.log) === 'win' && judgeOf(res.log) === 'legacy' && res.items.length === 1, res.log);
+}
+// Duplicate and foreign nonces
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 400, T, claimOf(true, p.hits));
+const dup = reportC(w, p.strikes, p.at, 900, T, claimOf(true, p.hits));
+check('a second report for the same round pays nothing (replay)', verdictOf(res.log) === 'win' && verdictOf(dup.log) === 'replay' && dup.items.length === 0, dup.log);
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(Object.assign({}, w, { nonce: '99-forged-nonce' }), p.strikes, p.at, 400, T, claimOf(true, p.hits));
+check("a report with a nonce this player was never issued pays nothing", res.items.length === 0 && /labour ignored .*another round is live/.test(res.log), res.log);
+{
+  const OTHER = 0x17;
+  const before = out.items.length;
+  out.logs.length = 0;
+  (handlers.get('labour') || []).forEach((f) => f(OTHER, [w.nonce, JSON.stringify(p.strikes), p.at, claimOf(true, p.hits)], 33));
+  check("another player's report on this player's nonce pays nothing", out.items.length === before && /labour ignored .*no round/.test(out.logs.join(' | ')), out.logs.join(' | '));
+  res = reportC(w, p.strikes, p.at, 400, T, claimOf(true, p.hits));
+  check('...and the round is still there for its own worker', verdictOf(res.log) === 'win' && res.items.length === 1, res.log);
+}
+// Impossible durations: sooner than the round's exact fastest win, by the widget's clock or the server's
+w = fresh(); { const fp2 = fastestPossible(w);
+  res = reportC(w, fp2, fp2[fp2.length - 1], -Math.round(fp2[fp2.length - 1] * 0.5), T, claimOf(true, w.strikes));
+  check('a win that reaches the server before the round could have been played is refused(fast)', verdictOf(res.log) === 'refused(fast)' && res.items.length === 0, res.log); }
+w = fresh(); { const fp3 = fastestPossible(w);
+  res = reportC(w, fp3, fp3[fp3.length - 1], 0, T, claimOf(true, w.strikes));
+  check('the fastest possible win itself, sent at 0 ms, is accepted', verdictOf(res.log) === 'win', res.log); }
+// Cooldowns and caps unchanged: the vein's own rest, the shared rest, the fail rest and the yield
+{
+  w = fresh('mining', 3); p = play(w, { aim: 0.5 });
+  res = reportC(w, p.strikes, p.at, 2500, T, claimOf(true, p.hits));
+  const own = Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) || 0;
+  const shared = Number(props.get(VEIN + '|private.dboWorkedUntil')) || 0;
+  check('a client-judged win rests the vein 45 min for the worker and for everyone', Math.abs(own - (Date.now() + 45 * 60000)) < 5000 && Math.abs(shared - (Date.now() + 45 * 60000)) < 5000, `${own - Date.now()} / ${shared - Date.now()} ms`);
+  check('...and pays the same yield as before (iron: 3 x the tier multiplier)', res.items.length === 1 && res.items[0][1] >= 3, JSON.stringify(res.items));
+  out.widgets.length = 0;
+  globalThis.__dboLabour(VEIN, ACTOR);
+  check('...so the vein cannot be worked again at once', out.widgets.length === 0, String(out.widgets.length));
+  w = fresh('mining', 3);
+  res = reportC(w, [100], 600, 2500, T, claimOf(false, 0));
+  const fail = Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) || 0;
+  check('a client-judged loss takes the 2 min fail rest, as before', verdictOf(res.log) === 'lose' && Math.abs(fail - (Date.now() + 2 * 60000)) < 5000, `${fail - Date.now()} ms`);
+}
+
+// Rollback: clientJudged false refuses on lag exactly as before
+api.cfg = { labour: { clientJudged: false } };
+load();
+w = fresh(); p = play(w, { aim: 0.5 });
+res = reportC(w, p.strikes, p.at, 4000, T, claimOf(true, p.hits));
+check('rollback (clientJudged false): the same 4 s lag is refused(late) again', verdictOf(res.log) === 'refused(late)' && judgeOf(res.log) === 'server', res.log);
 
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

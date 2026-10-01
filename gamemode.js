@@ -1912,7 +1912,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
   // What a UI said it can draw, and a deity offer already made, belong to this session (review C6, PRAY-1)
-  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
+  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave', '__dboLabourLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -4960,7 +4960,7 @@ try {
 try {
   const LABOUR_JS = path.resolve('labour.js');
   delete require.cache[LABOUR_JS];
-  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF, sendPacket, onlineActors });
+  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF, distanceMeters, sendPacket, onlineActors });
 } catch (e) {
   log('labour.js failed to load:', e.stack || e.message);
   // Fail closed: with labour.js down, a seam's vanilla ore script and its pickaxe markers paid out with no round, no

@@ -17,7 +17,11 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills, sendPacket, onlineActors } = api;
+  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills, sendPacket, onlineActors, distanceMeters } = api;
+  // The shared rules for client-judged mini-games, beside this file (reloaded with it)
+  const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
+  delete require.cache[MINIGAMES_JS];
+  const MG = require(MINIGAMES_JS);
 
   const WIDGET_ID = 33;
   const CFG = Object.assign({
@@ -40,6 +44,24 @@ module.exports = (api) => {
     // Both clocks are monotonic (QPC), so only crystal drift between the two machines (200 ppm over
     // a 30 s round is 6 ms) and the widget's 1 ms quantisation can make the difference negative.
     clockSlackMs: 50,
+    // Client-judged rounds (Jake, 2026-09-30: the server-side judging failed rounds on latency). true: the widget's own
+    // verdict stands and nothing measured on the server clock can refuse it; the server keeps only what latency cannot
+    // fail - the nonce, one report per round, the worker still at the node, the widget's own strike times replaying to
+    // its verdict (stagger, bands, no faster than the round allows), rests and yields. lagGraceMs and clockSlackMs then
+    // only flag. false: rollback to server judging exactly as before.
+    clientJudged: true,
+    // A round nobody reports is cleaned up this long after its length: minutes, never a latency budget
+    roundTimeoutMs: 180000,
+    // How long past the round's length the node stays reserved for its worker; a soft lock, the shared rest decides pay
+    reserveSlackMs: 10000,
+    // The worker must still be this close to the node when the report lands (activation reach is 6.5 m); 0 = off
+    nearMeters: 15,
+    // Logged, never refused: a report this far behind the server's clock (slow motion, or a very bad connection)
+    slowFlagMs: 5000,
+    // A claimed win whose own strike times do not replay to a win (our bug or a modified widget; latency cannot cause
+    // it): 'log' lets it stand if it is no faster than the round's exact minimum, with a LABOUR-MISMATCH audit line;
+    // 'refuse' refuses it. 'log' for the first week of the new client, then Jake decides (DESIGN.md section 12, item 1).
+    replayCheck: 'log',
     // Salt 4 (was 2): a cook needs a lot of it, and Bruma's deposits are few (groundedpasta, 2026-09-29; Nate: more yield)
     oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 4 },
     // Sea Salt Deposits (Saltdeposits.esp, copied into DragonBreak.esp) and the geodes of Whistling Mine: the Miner tier (0 based)
@@ -119,7 +141,7 @@ module.exports = (api) => {
   const working = globalThis.__dboLabourWorking instanceof Map ? globalThis.__dboLabourWorking : (globalThis.__dboLabourWorking = new Map());
   const workedByOther = (ref, a) => { const w = working.get(ref); return !!w && w.a !== a && w.until > Date.now() && sessions.has(w.a); };
   const reserve = (ref, a, round) => {
-    working.set(ref, { a, until: Date.now() + (Number(round.totalMs) || 60000) + (Number(CFG.lagGraceMs) || 0) });
+    working.set(ref, { a, until: Date.now() + (Number(round.totalMs) || 60000) + Math.max(Number(CFG.lagGraceMs) || 0, Number(CFG.reserveSlackMs) || 0) });
     if (working.size > 2000) for (const [k, w] of working) if (w.until <= Date.now()) working.delete(k);
   };
   const deny = (a, text) => {
@@ -203,6 +225,25 @@ module.exports = (api) => {
     return phase <= 1 ? phase * 100 : (2 - phase) * 100;
   };
 
+  // The earliest this round can be won on the widget's own clock: the first millisecond each band can be struck once
+  // the stagger after the last hit has passed. No honest widget reports a win sooner, whatever the network did. Logged
+  // with every verdict; real players have come within 1% of it (server.log, 54 wins to 1 Oct), so it is a floor, not a
+  // humanity margin.
+  const minMsOf = (round) => {
+    let ready = 0, t = 0;
+    for (const b of round.bands) {
+      t = ready;
+      while (t <= round.totalMs && Math.abs(markerAt(t, round.sweepMs) - b) > round.half) t++;
+      if (t > round.totalMs) return round.totalMs + 1;
+      ready = t + round.hitMs;
+    }
+    return t;
+  };
+  const clientJudged = () => MG.clientJudged(CFG);
+  // How long a round may stay unreported before it is dead: the round plus minutes when the widget judges, the round
+  // plus the transport grace when the server does (rollback)
+  const limitMs = (r) => r.totalMs + (clientJudged() ? Math.max(60000, Number(CFG.roundTimeoutMs) || 180000) : CFG.lagGraceMs);
+
   const roundFor = (a, kind, tier, strikes, title, refId) => {
     const seed = crypto.randomBytes(4).readUInt32LE(0);
     const rand = rngOf(seed);
@@ -211,7 +252,7 @@ module.exports = (api) => {
     const half = Math.max(3, Math.min(30, tierValue(CFG.bandByTier, tier, 8)));
     const bands = [];
     for (let i = 0; i < strikes; i++) bands.push(Math.round((half + rand() * (100 - 2 * half)) * 100) / 100);
-    return {
+    const round = {
       nonce: `${a.toString(16)}-${Date.now().toString(36)}-${crypto.randomBytes(4).readUInt32LE(0).toString(36)}`,
       kind, tier, strikes, title, refId, seed, half, bands,
       sweepMs: Math.max(400, Math.round(tierValue(CFG.sweepByTier, tier, 1.4) * 1000)),
@@ -220,6 +261,8 @@ module.exports = (api) => {
       missMs: Math.max(0, Math.round(Number(CFG.missStaggerMs) || 600)),
       startedAt: 0,
     };
+    round.minMs = minMsOf(round);
+    return round;
   };
 
   // Everything the widget needs to draw the server's round, and nothing it could use to judge it
@@ -228,6 +271,8 @@ module.exports = (api) => {
       type: 'labour', id: WIDGET_ID, nonce: round.nonce, kind: round.kind, title: round.title,
       strikes: round.strikes, band: round.half, bands: round.bands,
       sweepMs: round.sweepMs, totalMs: round.totalMs, hitMs: round.hitMs, missMs: round.missMs,
+      // The widget shows its own verdict at once when it is the judge; an older widget ignores the field
+      judge: clientJudged() ? 'client' : 'server',
     };
     if (result) { w.result = result; w.resultKind = resultKind; }
     return w;
@@ -236,18 +281,28 @@ module.exports = (api) => {
   const startRound = (a, round) => {
     sessions.set(a, round);
     round.startedAt = nowMs();
+    // Every round issued is logged, so a round that never comes back (cancelled, hidden, lost) can be counted
+    log(`labour issue ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} strikes=${round.strikes} min=${round.minMs} judge=${clientJudged() ? 'client' : 'server'} seed=${round.seed.toString(16)}`);
     if (!openWidget(a, packetFor(round), true)) sessions.delete(a);
     return true;
   };
 
   // A round whose report never came back (a crash, a lost packet, a closed browser) must not lock
-  // the player out of the seam for ever, so anything past the round plus the lag grace is dead.
+  // the player out of the seam for ever, so anything past limitMs is dead.
   const liveRound = (a) => {
     const r = sessions.get(a);
     if (!r) return null;
-    if (nowMs() - r.startedAt <= r.totalMs + CFG.lagGraceMs) return r;
+    if (nowMs() - r.startedAt <= limitMs(r)) return r;
     sessions.delete(a);
+    log(`labour expired ${display(a)} ${r.kind} after ${Math.round(nowMs() - r.startedAt)} ms, no report`);
     return null;
+  };
+  // Activating again while a round is live: with minutes before it expires, the widget may be gone (a browser reload, a
+  // panel crash), so once the round's own length has passed the same round is drawn again instead of the activation
+  // vanishing. Same nonce and bands; a widget still showing it keeps its state (it resets only on a new nonce).
+  const reshow = (a, round) => {
+    if (clientJudged() && nowMs() - round.startedAt > round.totalMs) openWidget(a, packetFor(round), true);
+    return true;
   };
 
   const mine = (targetId, casterId, rec) => {
@@ -258,7 +313,7 @@ module.exports = (api) => {
     // first touch (SKILLS_DESIGN 5.3). deny() returns true, which makes gamemode.js:638 stop the
     // activate chain before that gate ever runs - the skill could then never be opened at all.
     if (tier < 0) return false;
-    if (liveRound(casterId)) return true;
+    { const live = liveRound(casterId); if (live) return reshow(casterId, live); }
     if (ore !== 'geode' && !ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
     if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${titleCase(ore)} is beyond your skill. Work the seams you know first.`);
     const rests = restsOf(casterId, 'private.minedVeins');
@@ -276,7 +331,7 @@ module.exports = (api) => {
   const chop = (targetId, casterId) => {
     const tier = tierOf(casterId, 'woodcutter');
     if (tier < 0) return false;   // same first-touch fall-through as mine()
-    if (liveRound(casterId)) return true;
+    { const live = liveRound(casterId); if (live) return reshow(casterId, live); }
     const rests = restsOf(casterId, 'private.choppedBlocks');
     const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
     if (until > Date.now()) return deny(casterId, `You have split all the logs here. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
@@ -316,8 +371,8 @@ module.exports = (api) => {
       const minutes = round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes;
       try { mp.set(round.refId, SHARED_REST, Date.now() + minutes * 60000); } catch (e) { log('labour shared rest save failed', e.message); }
     }
-    openWidget(a, packetFor(round, text, kind), false);
-    sessions.delete(a);
+    // A round walked away from before its report landed (see closing below) has no widget left to show the verdict in
+    if (sessions.get(a) === round) { openWidget(a, packetFor(round, text, kind), false); sessions.delete(a); } else personal(a, text);
     if (round.ore === 'salt') { try { saltRefresh(round.refId); } catch (e) { log('salt glow failed', e.message); } }
     // Remembered only so a repeat of the same report is logged as a replay instead of vanishing
     spent.set(round.nonce, Date.now());
@@ -326,27 +381,45 @@ module.exports = (api) => {
 
   // A round walked away from rests like a failed one: cancelling cost nothing, so a worker could look at the bands
   // and cancel until an easy set came up (loot review, 2026-09-29)
-  const abandon = (a) => {
+  // Client -> server packets are RELIABLE but not ordered (skymp5-server/cpp/mp_common/Networking.cpp:91), so a Walk away
+  // or an Escape sent just after the report can overtake it when a packet is lost and resent. A round walked away from
+  // is kept by nonce until its timeout: a report that turns up after the cancel is still judged, and a win pays and
+  // replaces the fail rest with the full one. Client-judged only; the rollback drops it as before.
+  const closing = globalThis.__dboLabourClosing instanceof Map ? globalThis.__dboLabourClosing : (globalThis.__dboLabourClosing = new Map()); // nonce -> { a, round }
+  const keepClosing = (a, round) => {
+    if (!clientJudged()) return;
+    for (const [n, c] of closing) if (nowMs() - c.round.startedAt > limitMs(c.round)) closing.delete(n);
+    closing.set(round.nonce, { a, round });
+    while (closing.size > 500) closing.delete(closing.keys().next().value);
+  };
+  const abandon = (a, why) => {
     const round = sessions.get(a);
-    if (round) writeRest(a, round, CFG.failRestMinutes);
+    if (round) {
+      writeRest(a, round, CFG.failRestMinutes);
+      log(`labour abandon(${why || 'cancel'}) ${display(a)} ${round.kind} after ${Math.round(nowMs() - round.startedAt)} ms`);
+      keepClosing(a, round);
+    }
     sessions.delete(a);
     if (round && round.ore === 'salt') saltRefresh(round.refId);
   };
-  onUi('labourCancel', (a) => { abandon(a); closeWidget(a, WIDGET_ID); });
+  onUi('labourCancel', (a) => { abandon(a, 'cancel'); closeWidget(a, WIDGET_ID); });
   // F2 hides the interface by closing the focused widget (client closeFocused sends args ['hidden']): not walking away,
   // so the round ends with no rest and the seam opens again at once
   onUi('close', (a, args, widgetId) => {
     if (widgetId !== WIDGET_ID) return;
-    if (!(Array.isArray(args) && args[0] === 'hidden')) return abandon(a);
+    if (!(Array.isArray(args) && args[0] === 'hidden')) return abandon(a, 'close:' + String(Array.isArray(args) ? args[0] : '').slice(0, 16));
     const round = sessions.get(a);
     sessions.delete(a);
+    if (round) { log(`labour abandon(hidden) ${display(a)} ${round.kind} after ${Math.round(nowMs() - round.startedAt)} ms, no rest`); keepClosing(a, round); }
     if (round && round.ore === 'salt') saltRefresh(round.refId);   // the seam is free again: light it for the others
   });
+  // A logout ends the round like walking away (gamemode.js disconnect handler, the __dbo*Leave list)
+  globalThis.__dboLabourLeave = (a) => { if (sessions.has(a)) abandon(a, 'logout'); };
 
   // Replay the round against the report. The widget sends the millisecond of every strike it took,
   // hit or miss; the hits are counted here, from the sweep and the band list the server issued.
   const judge = (round, raw, at, elapsed) => {
-    const r = { hits: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '' };
+    const r = { hits: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '', sus: [] };
     let list = null;
     if (Array.isArray(raw)) list = raw;
     else if (typeof raw === 'string' && raw.length <= 2048) { try { list = JSON.parse(raw); } catch (e) { list = null; } }
@@ -369,8 +442,16 @@ module.exports = (api) => {
     }
     if (r.hits) r.err /= r.hits;
     if (r.bad) return r;
-    if (r.last > at) r.bad = 'submit';                      // a strike after the report went out
-    else if (r.lag < -CFG.clockSlackMs) r.bad = 'future';   // more time on its clock than the server watched pass
+    if (r.hits >= 3 && r.err < 0.05) r.sus.push('precise');   // every hit on the centre line: flagged, never refused
+    if (r.last > at) { r.bad = 'submit'; return r; }        // a strike after the report went out
+    if (clientJudged()) {
+      // The widget judges: nothing measured on the server's clock refuses a round. What it shows is kept for review -
+      // a report that outran the server's clock, or one far behind it (a sweep played in slow motion, or a bad line).
+      r.sus.push(...MG.lagFlags(r.lag, CFG.clockSlackMs, CFG.slowFlagMs));
+      return r;
+    }
+    // Rollback (clientJudged false): the server's clock binds the widget's as before
+    if (r.lag < -CFG.clockSlackMs) r.bad = 'future';   // more time on its clock than the server watched pass
     // The widget's clock may only sit behind the server's by the transport: the packet out, the
     // mount, the report back. Further behind means the round was drawn out in real time and the
     // times scaled back down — a sweep played in slow motion is the one cheat the band check alone
@@ -379,24 +460,71 @@ module.exports = (api) => {
     return r;
   };
 
+  // The new widget's own verdict, args[3]: '{"v":1,"win":true,"hits":6}' (MG.verdictOf: at most 256 characters, with v).
+  // A 0.3.71 widget sends none and is judged from its strike times as before, with the server-clock limits relaxed to
+  // the round timeout. Anything unreadable is an old widget, never a refusal.
+  const claimOf = (raw) => {
+    const c = MG.verdictOf(raw);
+    return c && typeof c.win === 'boolean' ? { win: c.win, hits: Math.max(0, Math.floor(Number(c.hits) || 0)) } : null;
+  };
+  const ignored = MG.limiter(5000);
   onUi('labour', (a, args) => {
-    const round = sessions.get(a);
-    if (!round || String(args[0]) !== round.nonce) {
-      if (spent.has(String(args[0]))) log(`labour replay ${display(a)}: ${String(args[0]).slice(0, 40)} was already judged`);
-      return;
+    const nonce = String(args[0]);
+    let round = sessions.get(a);
+    let closed = false;
+    if (!round || nonce !== round.nonce) {
+      const c = closing.get(nonce);
+      if (c && c.a === a && nowMs() - c.round.startedAt <= limitMs(c.round)) { round = c.round; closed = true; }
+      else {
+        // A spent nonce is a replay, logged as before. Another player's nonce, or one for a round that is gone: nothing is
+        // judged, and at most one line per player in 5 s says so
+        if (spent.has(nonce)) log(`labour replay ${display(a)}: ${nonce.slice(0, 40)} was already judged`);
+        else if (ignored(a, nowMs())) log(`labour ignored ${display(a)}: ${round ? 'another round is live' : 'no round'} for ${nonce.slice(0, 40)}`);
+        return;
+      }
     }
+    closing.delete(nonce);
     const elapsed = nowMs() - round.startedAt;
     // An interface from before the round was server-issued reports a hit count and nothing else
     if (typeof args[1] === 'number' || /^\s*\d+\s*$/.test(String(args[1]))) {
       log(`labour stale-ui ${display(a)} ${round.kind}: a hit count, no strike times`);
       return finish(a, round, false, 'Your interface is out of date. Rejoin the server to pick up the new one.', 'lose', false);
     }
-    const v = judge(round, args[1], Math.max(0, Math.floor(Number(args[2]) || 0)), elapsed);
-    const win = !v.bad && v.hits >= round.strikes;
+    const at = Math.max(0, Math.floor(Number(args[2]) || 0));
+    const v = judge(round, args[1], at, elapsed);
+    const cj = clientJudged();
+    const claim = cj ? claimOf(args[3]) : null;
+    const replayWin = !v.bad && v.hits >= round.strikes;
+    // Only a cleanup bound, minutes past the round: a report this late belongs to a round already given up on
+    if (!v.bad && cj && elapsed > limitMs(round)) v.bad = 'expired';
+    // Still at the node: the server's last streamed position, against a radius twice the activation reach. The worker
+    // stands still while playing, so the server's position lagging behind theirs cannot fail it.
+    const near = cj && Number(CFG.nearMeters) > 0 && typeof distanceMeters === 'function' ? distanceMeters(a, round.refId) : undefined;
+    if (!v.bad && near !== undefined && !(near <= Number(CFG.nearMeters))) v.bad = 'far';
+    let win = !v.bad && replayWin;
+    if (!v.bad && claim) {
+      if (claim.win !== replayWin || claim.hits !== v.hits) v.sus.push('mismatch');
+      if (!claim.win) win = false;                              // the widget's own loss stands
+      else if (!replayWin) {
+        // A claimed win its own strike times do not bear out: a forged report, or the widget and this file out of step.
+        // replayCheck 'log' (the default) lets it stand if it is no faster than the round allows; 'refuse' refuses it.
+        audit(`LABOUR-MISMATCH ${who(a)} ${round.kind} widget=win/${claim.hits} replay=${v.hits}/${round.strikes} seed=${round.seed.toString(16)}`);
+        if (MG.replayRefuses(CFG)) v.bad = 'mismatch';
+        else if (at < round.minMs) v.bad = 'fast';
+        else win = true;
+      }
+    }
+    // Humanly possible: no win sooner than the round's exact fastest, on the server's clock counted from when the round
+    // was SENT (lag only adds to it, so no connection fails this). The widget's own clock is held to it by the replay.
+    if (cj && win && MG.serverTooSoon(elapsed, round.minMs, CFG.clockSlackMs)) { v.bad = 'fast'; win = false; }
     // One line per verdict: hits of strikes taken, the last strike and the report's own clock, the
     // lag between that clock and the server's, how far off centre the hits were (0 is dead centre,
-    // 1 is the band's edge — a player who is always at 0.00 is not a player), and the round's seed.
-    log(`labour ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} ${v.hits}/${round.strikes} of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`);
+    // 1 is the band's edge — a player who is always at 0.00 is not a player), and the round's seed;
+    // then who judged (client: the widget's verdict; legacy: a 0.3.71 widget judged from its times; server: rollback),
+    // the widget's claim, the fastest the round could be won, the distance to the node and any review flags.
+    // lag= is logged on every line and never decides anything when the widget judges.
+    log(`labour ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} ${v.hits}/${round.strikes} of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`
+      + MG.tail({ judge: !cj ? 'server' : claim ? 'client' : 'legacy', min: round.minMs, near: cj ? (near === undefined ? NaN : near) : undefined, claim: cj ? (claim ? `${claim.win ? 'win' : 'lose'}/${claim.hits}` : null) : undefined, sus: v.sus.concat(closed ? ['after-close'] : []) }));
 
     if (!win) {
       const text = round.kind === 'mining'
@@ -499,5 +627,5 @@ module.exports = (api) => {
     for (const a of online) { try { globalThis.__dboSaltGlow(a, shared); } catch (e) { log('salt glow failed', e.message); } }
   }, Math.max(5, Number(saltCfg().seconds) || 30) * 1000);
 
-  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min; rounds issued and judged server-side from strike times (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms); salt glow ${saltCfg().enabled !== false ? `for ${saltCfg().audience}, ${SALT_REFS.length} deposits` : 'off'}`);
+  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min; rounds issued server-side, ${clientJudged() ? `judged by the widget (replay ${MG.replayRefuses(CFG) ? 'refuses' : 'logs'} a mismatch, ${Math.round(Math.max(60000, Number(CFG.roundTimeoutMs) || 180000) / 1000)} s cleanup, ${CFG.nearMeters} m reach)` : 'judged server-side from strike times'} (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms${clientJudged() ? ', logged only' : ''}); salt glow ${saltCfg().enabled !== false ? `for ${saltCfg().audience}, ${SALT_REFS.length} deposits` : 'off'}`);
 };
