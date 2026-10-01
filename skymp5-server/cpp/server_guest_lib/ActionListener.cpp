@@ -453,6 +453,97 @@ bool CanHitWithSpell(const MpActor& actor, uint32_t spellId)
   }
   return false;
 }
+
+// The enchantment of a staff (WEAP with staff animation), as a global id; 0 for anything else
+uint32_t StaffEnchantmentOf(WorldState* worldState, uint32_t weaponId)
+{
+  const auto lookup = worldState->GetEspm().GetBrowser().LookupById(weaponId);
+  const auto weapon = espm::Convert<espm::WEAP>(lookup.rec);
+  if (!weapon) {
+    return 0;
+  }
+  const auto data = weapon->GetData(worldState->GetEspmCache());
+  if (!data.weapDNAM ||
+      data.weapDNAM->animType != espm::WEAP::AnimType::Staff ||
+      !data.enchantmentFormId) {
+    return 0;
+  }
+  return lookup.ToGlobalId(data.enchantmentFormId);
+}
+
+// A hosted NPC's staff comes from its base: its inventory and outfit, its template's when it uses that inventory, leveled items
+bool IsStaffInTemplateTree(const MpActor& actor, uint32_t enchantmentId)
+{
+  WorldState* worldState = actor.GetParent();
+  auto& browser = worldState->GetEspm().GetBrowser();
+  auto& cache = worldState->GetEspmCache();
+  std::vector<uint32_t> pending = { actor.GetBaseId() };
+  std::unordered_set<uint32_t> visited;
+  constexpr size_t kMaxVisited = 512;
+  while (!pending.empty() && visited.size() < kMaxVisited) {
+    const uint32_t formId = pending.back();
+    pending.pop_back();
+    if (!visited.insert(formId).second) {
+      continue;
+    }
+    const auto lookup = browser.LookupById(formId);
+    if (espm::Convert<espm::WEAP>(lookup.rec)) {
+      if (StaffEnchantmentOf(worldState, formId) == enchantmentId) {
+        return true;
+      }
+      continue;
+    }
+    if (const auto npc = espm::Convert<espm::NPC_>(lookup.rec)) {
+      const auto npcData = npc->GetData(cache);
+      for (const auto& object : npcData.objects) {
+        pending.push_back(lookup.ToGlobalId(object.formId));
+      }
+      if (npcData.defaultOutfitId != 0) {
+        pending.push_back(lookup.ToGlobalId(npcData.defaultOutfitId));
+      }
+      if (npcData.baseTemplate != 0 &&
+          (npcData.templateDataFlags & espm::NPC_::UseInventory)) {
+        pending.push_back(lookup.ToGlobalId(npcData.baseTemplate));
+      }
+      continue;
+    }
+    if (const auto outfit = espm::Convert<espm::OTFT>(lookup.rec)) {
+      const auto outfitData = outfit->GetData(cache);
+      for (uint32_t i = 0; i < outfitData.count; ++i) {
+        pending.push_back(lookup.ToGlobalId(outfitData.formIds[i]));
+      }
+      continue;
+    }
+    const espm::LeveledListBase* list = espm::Convert<espm::LVLI>(lookup.rec);
+    if (!list) {
+      list = espm::Convert<espm::LVLN>(lookup.rec);
+    }
+    if (list) {
+      const auto listData = list->GetData(cache);
+      for (uint8_t i = 0; i < listData.numEntries; ++i) {
+        pending.push_back(lookup.ToGlobalId(listData.entries[i].formId));
+      }
+    }
+  }
+  return false;
+}
+
+// A staff hit names the staff's enchantment: a staff in either hand, or for a hosted NPC one its base carries
+bool CanHitWithStaffEnchantment(const MpActor& actor, uint32_t enchantmentId)
+{
+  WorldState* worldState = actor.GetParent();
+  if (!worldState || !worldState->HasEspm()) {
+    return false;
+  }
+  for (const auto& entry : actor.GetEquippedWeapon()) {
+    if (entry &&
+        StaffEnchantmentOf(worldState, entry->baseId) == enchantmentId) {
+      return true;
+    }
+  }
+  return actor.GetProfileId() == -1 &&
+    IsStaffInTemplateTree(actor, enchantmentId);
+}
 }
 
 MpActor* ActionListener::SendToNeighbours(uint32_t idx,
@@ -1745,6 +1836,8 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
     sourceInEspm.rec && sourceInEspm.rec->GetType() == espm::SPEL::kType;
   const bool isSourceScroll =
     sourceInEspm.rec && sourceInEspm.rec->GetType() == espm::SCRL::kType;
+  const bool isSourceEnchantment =
+    sourceInEspm.rec && sourceInEspm.rec->GetType() == espm::ENCH::kType;
 
   const auto equipment = aggressor->GetEquipment();
 
@@ -1760,6 +1853,25 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
                    "lately, hit refused",
                    hitData.aggressor, hitData.source);
     }
+    return;
+  }
+
+  // A staff's hit is its enchantment's (client-staff-hits): only a staff the aggressor holds, at the staff's own pace
+  if (isSourceEnchantment) {
+    if (!CanHitWithStaffEnchantment(*aggressor, hitData.source)) {
+      spdlog::info("ActionListener::OnHit - {:x} holds no staff with "
+                   "enchantment {:x}, hit refused",
+                   hitData.aggressor, hitData.source);
+      return;
+    }
+    if (!TakeStaffHit(aggressor->GetFormId(), hitData.source,
+                      hitData.target)) {
+      spdlog::debug("ActionListener::OnHit - staff enchantment {:x} of {:x} "
+                    "hit {:x} faster than the staff fires, hit refused",
+                    hitData.source, hitData.aggressor, hitData.target);
+      return;
+    }
+    OnSpellHit(aggressor, targetRef, hitData);
     return;
   }
 
@@ -2732,6 +2844,55 @@ bool ActionListener::TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
     return true;
   }
   return false;
+}
+
+// A staff fires no faster than it can: a concentration staff ticks once per kStaffTickInterval per target, a
+// fire-and-forget staff one volley per kStaffVolleyInterval, which hits each target once within kStaffVolleySpread
+bool ActionListener::TakeStaffHit(uint32_t casterId, uint32_t enchantmentId,
+                                  uint32_t targetId)
+{
+  const auto now = std::chrono::steady_clock::now();
+  if (staffTicks.size() + staffVolleys.size() > 1024) {
+    std::erase_if(staffTicks, [&](const auto& entry) {
+      return now - entry.second > std::chrono::seconds(5);
+    });
+    std::erase_if(staffVolleys, [&](const auto& entry) {
+      return now - entry.second.firstAt > std::chrono::seconds(5);
+    });
+  }
+  const auto lookup =
+    partOne.GetEspm().GetBrowser().LookupById(enchantmentId);
+  const auto enchantment = espm::Convert<espm::ENCH>(lookup.rec);
+  if (!enchantment) {
+    return false;
+  }
+  const auto* enchantedItem =
+    enchantment->GetSpellData(partOne.worldState.GetEspmCache())
+      .enchantedItem;
+  if (enchantedItem &&
+      enchantedItem->castType == espm::SPEL::CastType::Concentration) {
+    auto& last = staffTicks[(static_cast<uint64_t>(casterId) << 32) | targetId];
+    if (now - last < kStaffTickInterval) {
+      return false;
+    }
+    last = now;
+    return true;
+  }
+  auto& volley =
+    staffVolleys[(static_cast<uint64_t>(casterId) << 32) | enchantmentId];
+  if (volley.targets.empty() || now - volley.firstAt >= kStaffVolleyInterval) {
+    volley.firstAt = now;
+    volley.targets = { targetId };
+    return true;
+  }
+  if (now - volley.firstAt > kStaffVolleySpread ||
+      volley.targets.size() >= kStaffTargetsPerVolley ||
+      std::find(volley.targets.begin(), volley.targets.end(), targetId) !=
+        volley.targets.end()) {
+    return false;
+  }
+  volley.targets.push_back(targetId);
+  return true;
 }
 
 void ActionListener::NoteForcefulAnim(uint32_t actorId,
