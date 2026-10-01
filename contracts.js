@@ -65,7 +65,21 @@ module.exports = (api) => {
     }
   }
 
-  // Which creature kinds the spawner actually places in a zone's worldspaces
+  // What a creature is, by its own record. A wild:<kind> spot is named after the first creature of its leveled list, but
+  // wildlife.js places one entry of that list picked by level: a Bruma "wolf" spot puts down a rat where the pick is
+  // "low" and an ogre or a troll elsewhere, and most Skyrim "skeever" spots a bear or a sabre cat. So the tag let a rat
+  // count for a wolf contract (#bugs, 1 Oct 2026). The kind is the first creature word in the editor id
+  // (EncFrostbiteSpiderGiant is a spider, EncMudcrabGiant a mudcrab, dunPOITrappedWolf a wolf); BSKEncRat, CYREncOgre01
+  // and EncIceWraith name no kind at all.
+  const CREATURE_WORD = /(Werewolf|Werebear|FrostbiteSpider|SabreCat|Slaughterfish|Skeever|Mudcrab|Crab|Horker|Mammoth|Giant|Troll|Riekling|Netch|Lurker|Wolf|Bear|Chicken|Cow|Hare|Dog|Deer|Elk|Goat|Fox)/i;
+  const kindOfEdid = (edid) => { const m = CREATURE_WORD.exec(String(edid || '')); if (!m) return ''; const k = m[1].toLowerCase(); return k === 'crab' ? 'mudcrab' : k; };
+  // undefined when the record cannot be read: the caller then goes by the spawn tag, as before
+  const kindOfBase = (desc) => {
+    if (!desc) return undefined;
+    try { const r = mp.lookupEspmRecordById(mp.getIdFromDesc(String(desc)) >>> 0); return r && r.record ? kindOfEdid(r.record.editorId) : undefined; } catch (e) { return undefined; }
+  };
+
+  // Which creature kinds the spawner actually places in a zone's worldspaces: the NPC each spot puts down, not its name
   const kindsByZone = (() => {
     const out = {};
     let list = [];
@@ -77,6 +91,10 @@ module.exports = (api) => {
     for (const entry of list) {
       const m = /^wild:([^:]+):/.exec(String(entry.Name || entry.name || ''));
       if (!m) continue;
+      const npcs = entry.NPC || entry.npc;
+      const own = kindOfBase(Array.isArray(npcs) && npcs[0] ? npcs[0].id : '');
+      const kind = own === undefined ? m[1] : own;
+      if (!kind) continue;
       let zoneId = worldOf[String(entry.ID || entry.id || '').toLowerCase()];
       if (!zoneId && Array.isArray(entry.POS)) {
         let best = null; let bestD = CAPITAL_REACH;
@@ -87,7 +105,7 @@ module.exports = (api) => {
         zoneId = best;
       }
       if (!zoneId) continue;
-      (out[zoneId] = out[zoneId] || {})[m[1]] = (out[zoneId][m[1]] || 0) + 1;
+      (out[zoneId] = out[zoneId] || {})[kind] = (out[zoneId][kind] || 0) + 1;
     }
     return out;
   })();
@@ -255,7 +273,11 @@ module.exports = (api) => {
     if (!c) { setTaken(killerId, null); return; }
     let tag = ''; try { tag = String(mp.get(npcId, 'private.npcSpawner') || ''); } catch (e) { return; }
     const m = /^wild:([^:]+):/.exec(tag);
-    if (!m || m[1] !== c.kind) return;
+    if (!m) return;
+    // The body's own record says what fell; the spot's name only when that cannot be read (kindOfBase above)
+    let base = ''; try { base = String(mp.get(npcId, 'baseDesc') || ''); } catch (e) { base = ''; }
+    const own = kindOfBase(base);
+    if ((own === undefined ? m[1] : own) !== c.kind) return;
     // The hold pays for its own ground: a wolf felled in another hold is not this notice's work
     const where = zoneOf(npcId);
     if (!where || where.id !== c.zone) return;
