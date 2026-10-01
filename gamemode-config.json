@@ -62,6 +62,10 @@
   "watchMeters": 3,
   "nearbyMeters": 15,
   "whileCarried": false,
+  "_clientJudged": "Jake, 2026-09-30: the labour widget that draws /struggle may report its own verdict and the server accepts it, keeping only checks latency cannot fail (nonce, one report, the pull list's range, flood, cooldown, early, overtime, stall and precise checks, no win sooner than the round's fastest, the cooldown and winChance). An old widget is judged from its pulls without the late and future checks. expireMs cleans up a round nobody reports. replayCheck: 'log' lets a claimed win its pulls do not bear out stand with a STRUGGLE-MISMATCH audit line, 'refuse' refuses it. ROLLBACK: set clientJudged to false and reload the gamemode; today's judging (lagGraceMs refuses late reports) comes back for every client.",
+  "clientJudged": true,
+  "replayCheck": "log",
+  "expireMs": 300000,
   "ropeUnattended": {
    "_comment": "A rope captive left unattended (server\\rope.js): the gap, the chance a clean round frees them and the wait between tries, in place of band, winChance and cooldownMinutes above. The wait counts from the start of the last try. With the captor near, a rope captive plays the round above.",
    "band": 9,

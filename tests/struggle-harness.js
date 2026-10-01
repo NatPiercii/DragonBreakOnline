@@ -58,7 +58,9 @@ const api = {
   audit: (t) => out.audits.push(t),
   display: (a) => `P${(a & 0xff).toString(16)} #TAG`,
   nameOf: (a) => `P${(a & 0xff).toString(16)}`,
-  cfg: { struggle: Object.assign({}, CONFIG, { winChance: 1 }) },
+  // The cases up to "client-judged" are today's server-judged rules: they run with the rollback switch (clientJudged
+  // false), which so proves it behaves exactly as before. The client-judged cases come after the difficulty estimate.
+  cfg: { struggle: Object.assign({}, CONFIG, { winChance: 1, clientJudged: false }) },
   openWidget: (a, w) => { out.widgets.push(w); return true; },
   closeWidget: (a, id) => { out.closed.push(id); return true; },
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
@@ -436,6 +438,109 @@ const average = rateFor(30, false, 3000).clean * winChance;
 check('difficulty: an average hand (30 ms timing error) breaks free about 1 attempt in 3 to 7', average > 0.14 && average < 0.34, rows.join('; '));
 const sharp = rateFor(12, false, 3000);
 check('a sharp honest hand (12 ms) is never refused as a script', sharp.precise < 0.002, `precise refusals ${pct(sharp.precise)}, a script's ceiling is winChance ${pct(winChance)}`);
+
+// ---- client-judged (struggle.clientJudged true; Jake, 2026-09-30): the widget's verdict stands, latency refuses nothing
+console.log('');
+console.log('client-judged:');
+const NET = require(path.join(__dirname, 'lib', 'netsim.js'));
+api.cfg = { struggle: Object.assign({}, CONFIG, { winChance: 1, clientJudged: true }) };
+load();
+const claimT = (win, hits) => JSON.stringify({ v: 1, win, hits });
+const reportC = (wd, strikes, at, lagMs, start, claim, who) => {
+  virtual = start + at + lagMs;
+  reset();
+  const args = [wd.nonce, typeof strikes === 'string' ? strikes : JSON.stringify(strikes), at];
+  if (claim !== undefined) args.push(claim);
+  (handlers.get('struggle') || []).forEach((f) => f(who || CAPTIVE, args, 40));
+  return { log: out.logs.join(' | '), freed: out.freed.slice(), audit: out.audits.slice() };
+};
+const jOf = (line) => (/ judge=(\w+)/.exec(line) || [])[1] || '?';
+const sOf = (line) => (/ sus=([\w,-]+)/.exec(line) || [])[1] || '';
+let T2 = 40000000;
+const freshC = () => { T2 += 1000000; pos.set(GUARD, 10); return { start: T2, w: fresh(T2) }; };
+let f = freshC();
+check('the round tells the widget it is the judge', f.w.judge === 'client', JSON.stringify(f.w.judge));
+check('...and every round issued logs the fastest it can be won', /struggle start .* min=\d+ judge=client/.test(out.logs.join(' | ')), out.logs.join(' | '));
+for (const rtt of NET.REQUIRED) {
+  f = freshC(); const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes, pc.at, rtt, f.start, claimT(pc.hits >= f.w.strikes, pc.hits));
+  check(`the new widget's verdict is accepted at ${rtt} ms`, verdictOf(res.log) === (pc.hits >= f.w.strikes ? 'win' : 'lose') && jOf(res.log) === 'client', res.log);
+}
+{
+  const rand = NET.rngOf(51); let changed = 0, n = 0; const seen = [];
+  for (const c of NET.matrix()) {
+    for (const sigma of [12, 30]) {
+      f = freshC(); const h = human(f.w, sigma);
+      const want = verdictOf(report(Object.assign({}, f.w), h.strikes, h.at, 0, f.start).log);
+      f = freshC();
+      const h2 = human(f.w, sigma);
+      const won = !h2.missed && h2.hits >= f.w.strikes;
+      const lag = NET.arrival(f.start, h2.at, c, rand) - f.start - h2.at;
+      res = reportC(f.w, h2.strikes, h2.at, lag, f.start, claimT(won, h2.hits));
+      n++;
+      const got = verdictOf(res.log);
+      if (!['win', 'lose', 'refused(precise)'].includes(got) || (got === 'win') !== won) { changed++; if (seen.length < 3) seen.push(`${c.name}: ${res.log}`); }
+      void want;
+    }
+  }
+  check(`no honest verdict changes under ${NET.matrix().length} network conditions`, changed === 0, `${n} rounds${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+for (const lag of [2500, 4000, 60000]) {
+  f = freshC(); const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes, pc.at, lag, f.start);
+  check(`an old widget's pulls ${lag / 1000} s late are judged from its pulls (refused(late) before)`, verdictOf(res.log) === (pc.hits >= f.w.strikes ? 'win' : 'lose') && jOf(res.log) === 'legacy', res.log);
+}
+f = freshC(); { const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes, pc.at, 400000, f.start, claimT(true, pc.hits));
+  check('a report past the 5 min cleanup is refused(expired)', verdictOf(res.log) === 'refused(expired)' && res.freed.length === 0, res.log); }
+// Duplicate and foreign nonces
+f = freshC(); { const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes, pc.at, 400, f.start, claimT(pc.hits >= f.w.strikes, pc.hits));
+  const dup = reportC(f.w, pc.strikes, pc.at, 900, f.start, claimT(true, pc.hits));
+  check('a second report for the same round frees nobody (replay)', /refused\(replay\)/.test(dup.log) && dup.freed.length === 0, dup.log); }
+f = freshC(); { const pc = careful(f.w);
+  res = reportC(Object.assign({}, f.w, { nonce: 'sforged' }), pc.strikes, pc.at, 400, f.start, claimT(true, f.w.strikes));
+  check('a report on a nonce never issued frees nobody', /refused\(nonce\)/.test(res.log) && res.freed.length === 0, res.log);
+  res = reportC(f.w, pc.strikes, pc.at, 400, f.start, claimT(true, f.w.strikes), PEASANT);
+  check("another player's report on this captive's nonce frees nobody", /refused\(nonce\)/.test(res.log) && res.freed.length === 0, res.log); }
+// Impossible durations
+f = freshC(); res = reportC(f.w, [50], 60, 120, f.start, claimT(true, f.w.strikes));
+check('a pull at 50 ms is still refused(early)', verdictOf(res.log) === 'refused(early)' && res.freed.length === 0, res.log);
+f = freshC(); { const pp = perfect(f.w);
+  res = reportC(f.w, '[130]', 135, 120, f.start, claimT(true, f.w.strikes));
+  check('a claimed win from one pull, sooner than the round could be won, is refused(fast)', verdictOf(res.log) === 'refused(fast)' && res.freed.length === 0, res.log);
+  void pp; }
+f = freshC(); { const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes, pc.at, -pc.at + 100, f.start, claimT(pc.hits >= f.w.strikes, pc.hits));
+  check('a win reaching the server 100 ms after it sent the round is refused(fast)', pc.hits < f.w.strikes || (verdictOf(res.log) === 'refused(fast)' && res.freed.length === 0), res.log); }
+// Cooldown and the roll unchanged
+f = freshC(); { const pc = careful(f.w);
+  check('the cooldown is set when the round opens, as before', cooldownSet());
+  res = reportC(f.w, pc.strikes, pc.at, 2500, f.start, claimT(pc.hits >= f.w.strikes, pc.hits)); }
+reset(); bind();
+check('...so a second /struggle waits it out', !struggle() && cooldownText.test(lastPersonal()), lastPersonal());
+// Mismatch and the widget's own loss
+f = freshC(); { const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes.slice(0, 2), pc.strikes[1] + 3, 120, f.start, claimT(false, 2));
+  check("the widget's own loss stands", verdictOf(res.log) === 'lose' && res.freed.length === 0, res.log); }
+f = freshC(); {
+  // One pull just after the round's fastest win (min= from the start line), reported at once: a forged claim the pulls do
+  // not bear out, but no faster than the round allows
+  const minMs = Number((/ min=(\d+)/.exec(out.logs.join(' | ')) || [])[1]);
+  res = reportC(f.w, [minMs + 10], minMs + 13, 150, f.start, claimT(true, f.w.strikes));
+  check("replayCheck 'log' (default): a claimed win its pulls do not bear out stands, flagged and audited", verdictOf(res.log) === 'win' && /mismatch/.test(sOf(res.log)) && res.audit.some((t) => /^STRUGGLE-MISMATCH /.test(t)), res.log); }
+api.cfg = { struggle: Object.assign({}, CONFIG, { winChance: 1, clientJudged: true, replayCheck: 'refuse' }) };
+load();
+f = freshC(); { const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes.slice(0, 1), pc.strikes[0] + 3, 120, f.start, claimT(true, f.w.strikes));
+  check("replayCheck 'refuse': a claimed win its pulls do not bear out is refused", verdictOf(res.log) === 'refused(mismatch)' && res.freed.length === 0, res.log); }
+// Rollback
+api.cfg = { struggle: Object.assign({}, CONFIG, { winChance: 1, clientJudged: false }) };
+load();
+f = freshC(); { const pc = careful(f.w);
+  res = reportC(f.w, pc.strikes, pc.at, 4000, f.start, claimT(true, pc.hits));
+  check('rollback (clientJudged false): 4 s late is refused(late) again', verdictOf(res.log) === 'refused(late)' && jOf(res.log) === 'server', res.log); }
+check('...and the widget is not told it judges', f.w.judge === undefined);
 
 console.log('');
 console.log(failures ? `${failures} FAILED` : 'all passed');

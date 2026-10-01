@@ -20,14 +20,25 @@
 // shorter wait, counted from the start of the last attempt (private.dboStruggleAt), so a try made while watched
 // does not hold back one made alone.
 //
-//   Browser -> server: dbo:struggle [nonce, JSON strike ms list, atMs], dbo:struggleCancel [nonce]
+//   Browser -> server: dbo:struggle [nonce, JSON strike ms list, atMs[, verdict]], dbo:struggleCancel [nonce]
+//
+// Client-judged (Jake, 2026-09-30; minigames.js, DESIGN.md section 4.7): the labour widget that draws this round may
+// add its own verdict, '{"v":1,"win":true,"hits":6}', and the server accepts it; an older widget is judged from its pull
+// times as before. Neither is refused by anything on the server's clock: the 2.5 s `late` becomes a cleanup after
+// expireMs (5 min), `future` a review flag. The pull list's own checks (range, flood, cooldown, early, overtime, stall,
+// precise) stay, as do the cooldown and the winChance roll. struggle.clientJudged false puts back today's judging.
 'use strict';
 
 const crypto = require('crypto');
+const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand,
     onlineActors, isAdmin, distanceMeters, sendPacket } = api;
+  // The shared rules for client-judged mini-games, beside this file (reloaded with it)
+  const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
+  delete require.cache[MINIGAMES_JS];
+  const MG = require(MINIGAMES_JS);
   // A GM observes; the powers below are for a Lead GM and above (claude-jake's review A3). Fails closed with an old gamemode.
   const isLeadStaff = typeof api.isLeadStaff === 'function' ? api.isLeadStaff : () => false;
 
@@ -63,7 +74,16 @@ module.exports = (api) => {
     overtimeMs: 1000,
     // Mean distance from the centre, in half-bands, below which a winning round is a script
     minErr: 0.04,
+    // The widget judges (minigames.js); lagGraceMs and clockSlackMs then only flag. false: today's judging exactly.
+    clientJudged: true,
+    // A round nobody reports is cleaned up this long after its length: minutes, never a latency budget
+    expireMs: 300000,
+    // A claimed win its own pulls do not bear out: 'log' lets it stand with a STRUGGLE-MISMATCH audit line, 'refuse'
+    // refuses it (DESIGN.md section 12, item 1)
+    replayCheck: 'log',
+    slowFlagMs: 5000,
   }, cfg.struggle || {});
+  const clientJudged = () => MG.clientJudged(CFG);
   // A rope captive left unattended (rope.js): band, winChance and cooldownMinutes in place of the ones above
   CFG.ropeUnattended = Object.assign({ band: 9, winChance: 0.85, cooldownMinutes: 1 }, CFG.ropeUnattended || {});
 
@@ -113,6 +133,21 @@ module.exports = (api) => {
     return phase <= 1 ? phase * 100 : (2 - phase) * 100;
   };
 
+  // The earliest a round can be won on the widget's clock: the first pull no sooner than minFirstMs, each next one once
+  // the stagger has passed, each the first millisecond the marker sits in its band (the sweep speeds up at every pull).
+  // Logged as min= and the floor a win is held to on the server's clock, counted from when it sent the round.
+  const minMsOf = (round) => {
+    const hitAt = [];
+    let t = Math.max(0, Number(CFG.minFirstMs) || 0);
+    for (let i = 0; i < round.strikes; i++) {
+      if (i) t = hitAt[i - 1] + round.hitMs;
+      while (t <= round.totalMs && Math.abs(markerOn(t, round.sweeps, hitAt) - round.bands[i]) > round.half) t++;
+      if (t > round.totalMs) return round.totalMs + 1;
+      hitAt.push(t);
+    }
+    return hitAt.length ? hitAt[hitAt.length - 1] : 0;
+  };
+
   const roundFor = (a, watched, alone) => {
     const seed = crypto.randomBytes(4).readUInt32LE(0);
     const rand = rngOf(seed);
@@ -128,7 +163,7 @@ module.exports = (api) => {
       bands.push(Math.round((half + rand() * (100 - 2 * half)) * 100) / 100);
       sweeps.push(Math.max(floor, Math.round(first * Math.pow(step, i))));
     }
-    return {
+    const round = {
       nonce: `s${a.toString(16)}-${Date.now().toString(36)}-${crypto.randomBytes(4).readUInt32LE(0).toString(36)}`,
       seed, half, bands, sweeps, strikes, watched, alone,
       winChance: Number(alone ? CFG.ropeUnattended.winChance : CFG.winChance),
@@ -136,6 +171,8 @@ module.exports = (api) => {
       hitMs: int(CFG.hitCooldownMs, 250, 0),
       startedAt: 0, prevNext: 0, captor: 0,
     };
+    round.minMs = minMsOf(round);
+    return round;
   };
 
   // Everything the widget needs to draw the server's round, and nothing it could use to judge it
@@ -152,20 +189,26 @@ module.exports = (api) => {
       failOnMiss: true, totalMs: round.totalMs, hitMs: round.hitMs, missMs: round.hitMs,
       strikeLabel: 'Pull', leaveLabel: 'Give up', doneLabel: 'Close',
     };
+    // The labour widget shows its own verdict at once when it is the judge; an older one ignores the field
+    if (clientJudged()) w.judge = 'client';
     if (result) { w.result = result; w.resultKind = resultKind; }
     return w;
   };
 
-  // A round whose report never came back is dead after its length plus the lag grace
+  // A round whose report never came back is dead after its length plus the lag grace (rollback), or plus expireMs when
+  // the widget judges: a cleanup in minutes, never a latency budget
+  const limitMs = (r) => r.totalMs + (clientJudged() ? Math.max(60000, Number(CFG.expireMs) || 300000) : CFG.lagGraceMs);
   const liveRound = (a) => {
     const r = sessions.get(a);
     if (!r) return null;
-    if (nowMs() - r.startedAt <= r.totalMs + CFG.lagGraceMs) return r;
+    if (nowMs() - r.startedAt <= limitMs(r)) return r;
     sessions.delete(a);
+    if (clientJudged()) log(`struggle expired ${display(a)} after ${Math.round(nowMs() - r.startedAt)} ms, no report`);
     return null;
   };
-  // captureSystem and searchSystem hold back consent prompts meanwhile: closing one takes the widget's focus
-  globalThis.__dboStruggling = (actorId) => !!liveRound(Number(actorId) >>> 0);
+  // captureSystem and searchSystem hold back consent prompts meanwhile: closing one takes the widget's focus. Only while
+  // the widget can still be up (its length plus the lag grace), not for the whole cleanup window.
+  globalThis.__dboStruggling = (actorId) => { const r = liveRound(Number(actorId) >>> 0); return !!r && nowMs() - r.startedAt <= r.totalMs + CFG.lagGraceMs; };
 
   // Lawful players close enough to see the struggle, never the captor
   const watchersOf = (a, captor, online) => online
@@ -178,7 +221,13 @@ module.exports = (api) => {
     if (!r) return personal(a, 'You are not restrained.');
     if (r.carried && !CFG.whileCarried) return personal(a, 'You cannot struggle while you are being carried.');
     if (get(a, 'isDead', false) === true) return personal(a, 'Not while you are down.');
-    if (liveRound(a)) return personal(a, 'You are already struggling.');
+    {
+      const live = liveRound(a);
+      // Client-judged: past the round's length its widget is gone (a reload, F2, a crash), so the same round is drawn
+      // again rather than the struggle being stuck until the cleanup
+      if (live && clientJudged() && nowMs() - live.startedAt > live.totalMs) { openWidget(a, packetFor(live), true); return true; }
+      if (live) return personal(a, 'You are already struggling.');
+    }
     const captor = Number(r.captorActorId) >>> 0;
     const online = onlineActors();
     const watchers = watchersOf(a, captor, online);
@@ -203,7 +252,7 @@ module.exports = (api) => {
       system(w, text);
       sendPacket(w, { customPacketType: 'dboNotice', text });
     }
-    log(`struggle start ${display(a)} band=${round.half} sweeps=${round.sweeps.join('/')} ${watchers.length ? `watched by ${watchers.map(display).join(', ')}` : alone ? 'rope, unattended' : 'unwatched'} seed=${round.seed.toString(16)}`);
+    log(`struggle start ${display(a)} band=${round.half} sweeps=${round.sweeps.join('/')} ${watchers.length ? `watched by ${watchers.map(display).join(', ')}` : alone ? 'rope, unattended' : 'unwatched'} seed=${round.seed.toString(16)} min=${round.minMs} judge=${clientJudged() ? 'client' : 'server'}`);
     return true;
   };
 
@@ -250,7 +299,7 @@ module.exports = (api) => {
 
   // Replay the round against the report: every pull's millisecond, the last one the miss if there was one
   const judge = (round, raw, at, elapsed) => {
-    const r = { hits: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '', missed: false };
+    const r = { hits: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '', missed: false, sus: [] };
     let list = null;
     if (Array.isArray(raw)) list = raw;
     else if (typeof raw === 'string' && raw.length <= 1024) { try { list = JSON.parse(raw); } catch (e) { list = null; } }
@@ -280,10 +329,20 @@ module.exports = (api) => {
     if (r.last > at) r.bad = 'submit';                                   // a pull after the report went out
     else if (at > round.totalMs + CFG.overtimeMs) r.bad = 'overtime';    // a clock that ran on past the round
     else if (ended && at - r.last > CFG.submitSlackMs) r.bad = 'stall';  // held back after the last pull: slow motion
+    else if (clientJudged()) {
+      // The widget judges: nothing on the server's clock refuses a round; the two bounds become review flags
+      r.sus.push(...MG.lagFlags(r.lag, CFG.clockSlackMs, CFG.slowFlagMs));
+      if (r.hits >= round.strikes && r.err < CFG.minErr) r.bad = 'precise'; // every pull on the centre line
+    }
     else if (r.lag < -CFG.clockSlackMs) r.bad = 'future';                // more time on its clock than the server watched pass
     else if (r.lag > CFG.lagGraceMs) r.bad = 'late';                     // the sweep played in slow motion, or a stale report
     else if (r.hits >= round.strikes && r.err < CFG.minErr) r.bad = 'precise'; // every pull on the centre line
     return r;
+  };
+  // The widget's verdict, args[3] (minigames.js); anything unreadable is an old widget, judged from its pulls
+  const claimOf = (raw) => {
+    const c = MG.verdictOf(raw);
+    return c && typeof c.win === 'boolean' ? { win: c.win, hits: Math.max(0, Math.floor(Number(c.hits) || 0)) } : null;
   };
 
   const nearbyTell = (a, text) => {
@@ -299,14 +358,36 @@ module.exports = (api) => {
       return;
     }
     const elapsed = nowMs() - round.startedAt;
-    const v = judge(round, args[1], Math.max(0, Math.floor(Number(args[2]) || 0)), elapsed);
+    const at = Math.max(0, Math.floor(Number(args[2]) || 0));
+    const v = judge(round, args[1], at, elapsed);
+    const cj = clientJudged();
+    const claim = cj ? claimOf(args[3]) : null;
+    // Cleanup bound only: minutes past the round
+    if (!v.bad && cj && elapsed > limitMs(round)) v.bad = 'expired';
+    const replayWin = !v.bad && v.hits >= round.strikes;
+    let pulledFree = replayWin;
+    if (!v.bad && claim) {
+      if (claim.win !== replayWin || claim.hits !== v.hits) v.sus.push('mismatch');
+      if (!claim.win) pulledFree = false;                    // the widget's own loss stands
+      else if (!replayWin) {
+        audit(`STRUGGLE-MISMATCH ${display(a)} widget=win/${claim.hits} replay=${v.hits}/${round.strikes} seed=${round.seed.toString(16)}`);
+        if (MG.replayRefuses(CFG)) v.bad = 'mismatch';
+        else if (at < round.minMs) v.bad = 'fast';
+        else pulledFree = true;
+      }
+    }
+    // Humanly possible on the server's clock: no win reaching it sooner after it sent the round than the round's
+    // fastest (lag only lengthens that)
+    if (!v.bad && cj && pulledFree && MG.serverTooSoon(elapsed, round.minMs, CFG.clockSlackMs)) v.bad = 'fast';
     const r = restraintOf(a);
     const moot = !r;
     const carried = !!(r && r.carried && !CFG.whileCarried);
-    const clean = !moot && !carried && !v.bad && v.hits >= round.strikes;
+    const clean = !moot && !carried && !v.bad && pulledFree;
     const held = clean && !(Math.random() < Number(round.winChance));
-    // hits of strikes and pulls taken, the last pull and the report's clock, their lag, and how far off centre the hits were (0 is dead centre)
-    log(`struggle ${v.bad ? `refused(${v.bad})` : moot ? 'moot' : carried ? 'carried' : !clean ? 'lose' : held ? 'held' : 'win'} ${display(a)}${round.alone ? ' (rope, unattended)' : ''} ${v.hits}/${round.strikes} of ${v.count} band=${round.half} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`);
+    // hits of strikes and pulls taken, the last pull and the report's clock, their lag, and how far off centre the hits were (0 is dead centre);
+    // then who judged, the round's fastest win, the widget's claim and review flags. lag= decides nothing when the widget judges.
+    log(`struggle ${v.bad ? `refused(${v.bad})` : moot ? 'moot' : carried ? 'carried' : !clean ? 'lose' : held ? 'held' : 'win'} ${display(a)}${round.alone ? ' (rope, unattended)' : ''} ${v.hits}/${round.strikes} of ${v.count} band=${round.half} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`
+      + MG.tail({ judge: !cj ? 'server' : claim ? 'client' : 'legacy', min: cj ? round.minMs : undefined, claim: cj ? (claim ? `${claim.win ? 'win' : 'lose'}/${claim.hits}` : null) : undefined, sus: v.sus }));
     if (v.bad === 'precise') audit(`STRUGGLE ${display(a)} report refused: every pull on the centre line (err ${v.err.toFixed(3)}, seed ${round.seed.toString(16)})`);
     if (moot) return conclude(a, round, 'Your hands are already free.');
     if (carried) return finish(a, round, `You were picked up and lost your grip. ${retryText(a)}`, 'lose');
