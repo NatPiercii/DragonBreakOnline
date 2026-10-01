@@ -71,6 +71,20 @@
     ]
   },
   {
+    "title": "Falling in beast form",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Werewolves and Vampire Lords",
+        "items": [
+          "Dying in beast form: the \"You're down!\" panel now takes the mouse, so you can choose Give up."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Found Your Own Faction",
     "date": "2026-10-01",
     "version": "Server update",
