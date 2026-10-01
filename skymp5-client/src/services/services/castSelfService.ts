@@ -10,6 +10,12 @@ import { logTrace, logError } from "../../logging";
 // howls of the Great Hunt. Spell.Cast is instant and plays no animation (CK wiki Cast - Spell), and needs the spell
 // only as a form, not in the player's list.
 const CAST_SELF = "dboCastSelf";
+// Server -> Client: { customPacketType: "dboDispelSelf", spell: <form id> }
+// The other half: a shrine blessing that ends before the spell's own duration does (the faiths' 4 h blessing over an
+// 8 h altar spell, a turn to another god, a staff reset) is taken off the player here, with Actor.DispelSpell, as
+// beastFormService ends a beast power. Anything that is not a spell is ignored, and a spell with no active effect on
+// the player is nothing to dispel. Clients before this ignored the packet and let the effect run out by itself.
+const DISPEL_SELF = "dboDispelSelf";
 // The engine reports such a cast as the player's own; magicSyncService does not relay the one the server asked for.
 // Each request covers one cast of that spell within the window, so the player's own casts of it still go through.
 const SERVER_CAST_MS = 3000;
@@ -30,10 +36,18 @@ export class CastSelfService extends ClientListener {
 
   private onMessage(event: ConnectionMessage<CustomPacketMessage>): void {
     const content = parseCustomPacket(event);
-    if (!content || content["customPacketType"] !== CAST_SELF) return;
+    if (!content) return;
+    const type = content["customPacketType"];
+    if (type !== CAST_SELF && type !== DISPEL_SELF) return;
     const spellId = Number(content["spell"]) >>> 0;
-    const text = typeof content["text"] === "string" ? content["text"] : "";
     if (!spellId) return;
+    // Both wait for the next update, in the order they came: a dispel and then a cast of the same spell (a blessing
+    // given again) end the old effect before the new one starts
+    if (type === DISPEL_SELF) {
+      this.controller.once("update", () => this.dispel(spellId));
+      return;
+    }
+    const text = typeof content["text"] === "string" ? content["text"] : "";
     this.controller.once("update", () => this.cast(spellId, text));
   }
 
@@ -58,5 +72,22 @@ export class CastSelfService extends ClientListener {
     if (text) {
       try { this.sp.Debug.notification(text); } catch { /* no hud */ }
     }
+  }
+
+  private dispel(spellId: number): void {
+    const player = this.sp.Game.getPlayer();
+    const spell = this.sp.Spell.from(this.sp.Game.getFormEx(spellId));
+    if (!player || !spell) {
+      logTrace(this, "No dispel of", spellId.toString(16), !spell ? "(not a spell here)" : "(no player)");
+      return;
+    }
+    let ended = false;
+    try {
+      ended = player.dispelSpell(spell);
+    } catch (e) {
+      logError(this, "Dispel on self failed", spellId.toString(16), e);
+      return;
+    }
+    logTrace(this, "Dispel", spellId.toString(16), "on self:", ended ? "ended" : "was not active");
   }
 }
