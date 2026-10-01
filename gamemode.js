@@ -4615,7 +4615,15 @@ const npcKindDamageMult = (agg, tgt, dmg) => {
 const npcLethalGuard = (agg, tgt, dmg, mult, flags) => {
   if (!(mult > 0 && mult < 1) || !(dmg > 0) || agg === tgt) return null;
   if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return null;
-  const max = Number((flags && typeof flags === 'object' ? flags : {}).targetMaxHealth);
+  const f = flags && typeof flags === 'object' ? flags : {};
+  // Weapon hits only. A spell hit snapshots the target before this hook and writes the snapshot back after it (fork
+  // 713d6463 ActionListener.cpp OnSpellHit: 2099, 2145-2152), so a raise here would be lost while no give-back is pending
+  if (f.spell) return null;
+  // Not a hit from someone fighting for a player (a companion or a summon: ff_companionOf names a player, downed.js
+  // sideOf). downed.js wraps this hook from outside, reads health after it, and hands back 80% of a friendly hit measured
+  // from the raised health, which left the player with more than before the hit (Worker D's review D1)
+  try { const owner = Number(mp.get(agg, 'ff_companionOf')) >>> 0; if (owner && profileOf(owner) >= 0) return null; } catch (e) { /* not an actor */ }
+  const max = Number(f.targetMaxHealth);
   if (!(max > 0)) return null;
   let p = null; try { p = mp.get(tgt, 'percentages'); } catch (e) { return null; }
   if (!p || !(p.health > 0)) return null;

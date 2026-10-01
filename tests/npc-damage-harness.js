@@ -65,6 +65,58 @@ setHealth(90);
 g = F.npcLethalGuard(BOAR, PLAYER, 100, 0.2, { targetMaxHealth: MAX });
 ok(!!g && healthPts() === 150 && Math.abs(g.rest - 0.8) < 1e-9, 'a 100-point power bite at 90 health, scaled to 20: the raise stops at full health (150), and the give-back is told to return the 20 the cap kept (rest 0.8)', [g, healthPts()]);
 
+// D2: weapon hits only (a spell hit writes its own snapshot back after the hook)
+setHealth(40);
+ok(F.npcLethalGuard(BOAR, PLAYER, 50, 0.4, { targetMaxHealth: MAX, spell: true }) === null && healthPts() === 40, 'a spell hit is never guarded (OnSpellHit writes its snapshot back after the hook)');
+
+// D1 (Worker D's repro): a hit from someone fighting for a player goes through downed.js's friendly-fire rule, which reads
+// health after this hook; a raise there handed the player back more than the hit took. Through the real downed.js.
+const friendlyRun = (guardSrc) => {
+  const OWNER = 0xff000016, COMP = 0xff000200;
+  const fp = new Map(); const fput = (id, k, v) => fp.set(id + '|' + k, v);
+  fput(PLAYER, 'profileId', 7); fput(OWNER, 'profileId', 8); fput(COMP, 'ff_companionOf', OWNER);
+  const fmp = { get: (id, k) => fp.get(id + '|' + k), set: (id, k, v) => fp.set(id + '|' + k, v) };
+  const fprofile = (x) => { const v = fp.get(x + '|profileId'); return v === undefined ? -1 : v; };
+  const G = new Function('mp', 'cfg', 'profileOf', guardSrc + '\nreturn { npcLethalGuard };')(fmp, { npcPowerHits: { mult: 0.5 } }, fprofile);
+  const MULT = 0.5;
+  let pending = null;
+  fmp.onHitDamageAttempt = (agg, tgt, srcId, dmg, flags) => {     // the gamemode's hook, reduced to the guard and the pending note
+    pending = null;
+    const g = G.npcLethalGuard(agg, tgt, dmg, MULT, flags);
+    if (g) { if (g.rest < 1) pending = { mult: g.rest, health: g.health }; return true; }
+    const q = fmp.get(tgt, 'percentages'); pending = { mult: MULT, health: q.health }; return true;
+  };
+  fmp.onHitDamage = (agg, tgt) => {                               // masteryBonusDamage's give-back
+    const pend = pending; pending = null; if (!pend) return;
+    const now = fmp.get(tgt, 'percentages'); if (!(now.health > 0)) return;
+    const dealt = pend.health - now.health; if (!(dealt > 0)) return;
+    const h = Math.min(pend.health, now.health - dealt * (pend.mult - 1)); if (h > now.health) fmp.set(tgt, 'percentages', { health: h, magicka: 1, stamina: 1 });
+  };
+  const savedLeader = globalThis.__dboPartyLeaderOf, savedState = globalThis.__dboDownedState;
+  globalThis.__dboPartyLeaderOf = (x) => (x === PLAYER || x === OWNER ? OWNER : null);
+  globalThis.__dboDownedState = undefined;
+  const DOWNED = path.join(SERVER, 'downed.js'); delete require.cache[DOWNED];
+  require(DOWNED)({ mp: fmp, log: () => {}, personal: () => {}, sendPacket: () => {}, audit: () => {}, who: String, display: String,
+    profileOf: fprofile, nameOf: String, onlineActors: () => [PLAYER, OWNER], every: () => {}, registerChatCommand: () => {}, cfg: {}, openWidget: () => {},
+    closeWidget: () => {}, onUi: () => {}, redress: () => {} });
+  const out = [];
+  for (const [h0, d] of [[60, 100], [60, 70], [40, 50], [120, 140]]) {
+    fput(PLAYER, 'percentages', { health: h0 / MAX, magicka: 1, stamina: 1 });
+    if (fmp.onHitDamageAttempt(COMP, PLAYER, 0x1f4, d, { targetMaxHealth: MAX }) !== false) {
+      const q = fmp.get(PLAYER, 'percentages');                  // the C++ re-reads, then deducts the engine's full damage
+      fmp.set(PLAYER, 'percentages', { health: Math.max(0, q.health - d / MAX), magicka: 1, stamina: 1 });
+      fmp.onHitDamage(COMP, PLAYER, 0x1f4, d, {});
+    }
+    out.push([h0, Math.round(fmp.get(PLAYER, 'percentages').health * MAX * 10) / 10]);
+  }
+  globalThis.__dboPartyLeaderOf = savedLeader; globalThis.__dboDownedState = savedState;
+  return out;
+};
+const NO_GUARD = NEW.replace(/const npcLethalGuard = [\s\S]*?\n};\n/, 'const npcLethalGuard = () => null;\n');
+const today = friendlyRun(NO_GUARD), withGuard = friendlyRun(NEW);
+ok(withGuard.every(([h0, h1]) => h1 <= h0), "a party member's companion's scaled hit never leaves the player with more health than before (downed.js's friendly rule)", withGuard);
+ok(JSON.stringify(withGuard) === JSON.stringify(today), "...and lands exactly as it does without the guard: downed.js owns friendly hits", { withGuard, today });
+
 // ---- boar bites through the server's model ------------------------------------------------------------------------------
 // formula: unarmed 25 x armor penalty, x2 for a power attack, x2 NPC on player; the hook's mult (npcPowerHits x byKind x the
 // Defense ratio); the guard; the engine's deduction; then masteryBonusDamage's give-back of dealt x (1 - mult) if alive.
