@@ -85,6 +85,28 @@
     ]
   },
   {
+    "title": "Shrine blessings take effect",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Blessings",
+        "items": [
+          "A blessing from a Divine or a Daedric Prince is now cast on you when it is granted. Until now most of them only put a 'Blessing of' spell in your spellbook and did nothing.",
+          "Your blessing is cast on you again when you log back in, and again when the spell's own eight hours run out before your blessing does.",
+          "If you were blessed before this update, the useless spell leaves your spellbook and the blessing is cast on you instead."
+        ]
+      },
+      {
+        "heading": "Offerings",
+        "items": [
+          "Standing up from a prayer before you begin it no longer makes the shrine rest, so you can touch a shrine, make your /offer and pray straight away."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Found Your Own Faction",
     "date": "2026-10-01",
     "version": "Server update",
