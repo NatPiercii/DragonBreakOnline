@@ -319,6 +319,13 @@ check('a GM denies it: the faction stands, and its treasury with it', /Denied; J
 check('...audited and sent to staff in the GM\'s name', out.audits.some((t) => /CHARTER disband of pf-jerall-road-traders-2 \(Jerall Road Traders\) denied by P1a: Your members are still active\./.test(t)) && out.staff.some(([w, d, a]) => w === 'disband denied' && a === A.GM));
 ch(A.U2, 'disband Truly done this time.');
 online = online.filter((a) => a !== A.U2);
+// Review N1 (Worker F): player-factions.json cannot be written (a directory where its temporary file goes): the closed
+// treasury is put back, nothing is owed, the faction stands and the request still waits
+fs.mkdirSync('player-factions.json.tmp');
+r = ch(A.GM, `approve-disband ${fid2}`);
+check('a disbanding whose faction file cannot be written changes nothing: the 300 is back in the treasury, nothing owed', /^Not disbanded: player-factions\.json could not be written/.test(r) && bank().factions[fid2] === 300 && globalThis.__dboGuildExists(fid2) && !store().owed[String(A.U2)] && store().disbands.some((d) => d.fid === fid2 && d.status === 'pending'), [r, bank().factions[fid2]]);
+check('...the bank audits the close and the roll-back', out.audits.some((t) => /BANK treasury of pf-jerall-road-traders-2 opened with 300 gold \(disband rolled back\)/.test(t)));
+fs.rmdirSync('player-factions.json.tmp');
 r = ch(A.GM, `approve-disband ${fid2}`);
 check('a GM approves it: the faction is gone, its treasury key closed', /Jerall Road Traders is disbanded; 300 gold goes to its Founder Rolf Gant/.test(r) && !globalThis.__dboGuildExists(fid2) && !(fid2 in bank().factions) && !pfile().some((f) => f.id === fid2), r);
 check('...the Founder was away: the 300 is owed', goldOf(A.U2) === 5000 && store().owed[String(A.U2)] === 300);

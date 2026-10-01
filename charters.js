@@ -498,7 +498,19 @@ module.exports = (api) => {
       paid = globalThis.__dboTreasury && typeof globalThis.__dboTreasury.close === 'function' ? globalThis.__dboTreasury.close(fid, `disbanded, paid to its Founder ${founder.name}`) : -1;
       if (paid < 0) return 'The treasury could not be closed; nothing was done.';
     } else kept = globalThis.__dboTreasury ? globalThis.__dboTreasury.balance(fid) : 0;
-    const err = removeFaction(fid); if (err) return err;
+    const err = removeFaction(fid);
+    if (err) {
+      // The treasury was closed first (it is found through the faction): give it back, or the gold is neither owed nor
+      // kept (review N1, Worker F: player-factions.json not written, 300 gold gone). The faction still exists here.
+      if (paid > 0) {
+        const back = globalThis.__dboTreasury.open(fid, paid, 'disband rolled back');
+        if (!back) {
+          audit(`CHARTER disband of ${fid} failed and its ${paid} gold could not be put back: settle it by hand`);
+          staff(a, 'disband failed', `could not disband ${def.name} (${fid}), and its ${paid} gold could not be put back in its treasury: settle it by hand.`);
+        }
+      }
+      return `Not disbanded: ${err}`;
+    }
     d.status = 'approved'; d.decidedBy = who(a); d.decidedAt = Date.now(); d.paid = paid; d.kept = kept;
     if (c) { c.dissolvedAt = Date.now(); c.dissolvedBy = who(a); c.dissolveReason = `disbanded at its leader's request: ${d.reason}`; }
     save();
