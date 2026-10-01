@@ -4347,6 +4347,7 @@ const equipHook = (actorId, equipment, isAllowed, ...rest) => {
     const a = Number(actorId) >>> 0;
     // supernatural.js notes a vampire spell the client holds before the server strips an unlearned one
     if (typeof globalThis.__dboSuperEquipSeen === 'function') globalThis.__dboSuperEquipSeen(a, equipment);
+    if (typeof globalThis.__dboBeastStaleSpells === 'function') globalThis.__dboBeastStaleSpells(a, equipment);
     const worn = wornOf(equipment);
     const conn = connectedAt.get(a) || 0;
     const first = firstEquipOf.get(a) !== conn;

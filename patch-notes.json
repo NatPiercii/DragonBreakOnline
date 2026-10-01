@@ -85,6 +85,20 @@
     ]
   },
   {
+    "title": "Vampire spells after a meal",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Vampires",
+        "items": [
+          "Vampires: feeding no longer leaves your vampire spells missing after you log back in. Anyone affected gets them back automatically."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Mini-games and a slow connection",
     "date": "2026-10-01",
     "version": "Server update",

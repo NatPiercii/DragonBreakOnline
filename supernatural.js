@@ -281,10 +281,12 @@ module.exports = (api) => {
   // server does not hold as learned and removes it on the client ("stripping unlearned spell"), which is how a stage change
   // took the drain out of Onny's hand (2026-09-29): the old one went first and the client's hand was left with nothing, or
   // with a spell the server had just unlearned.
+  // Every wanted spell is learned again, not only those missing from s.spells: the record can drift from what the server
+  // holds (Viggo, 2026-10-01: a feed at stage 4 kept the stage 4 list while the login flush unlearned it all)
   const syncVampSpells = (a, s) => {
     const want = wantSpells(s);
     const had = Array.isArray(s && s.spells) ? s.spells : [];
-    for (const id of want) if (!had.includes(id)) addSpell(a, id);
+    for (const id of want) addSpell(a, id);
     swapHands(a, want);
     for (const id of had) if (!want.includes(id)) removeSpell(a, id);
     if (s) { s.spells = want; saveState(a, s); }
@@ -316,6 +318,7 @@ module.exports = (api) => {
       if (next) equipSpell(a, next, slot);
     }
   };
+  const sameSpells = (x, y) => Array.isArray(x) && x.length === y.length && y.every((id) => x.includes(id));
   const flushedFor = globalThis.__dboSuperFlushed instanceof Map ? globalThis.__dboSuperFlushed : (globalThis.__dboSuperFlushed = new Map()); // actor -> stage flushed this session
   const triedSpells = globalThis.__dboSuperTried instanceof Map ? globalThis.__dboSuperTried : (globalThis.__dboSuperTried = new Map()); // actor -> vampire spells its client last held
   // gamemode's equipment hook: what the client tried to hold, before the server strips an unlearned spell
@@ -1056,12 +1059,14 @@ module.exports = (api) => {
     if (s.kind === 'vampire') {
       // wasUnfed: a turned vampire's first blood, which wakes the gifts (s.unfed); s.firstMeal (above) is the tab's record
       const wasUnfed = !!s.unfed;
+      const wasStage = Number(s.stage) || 1;
       const hungry = wasUnfed || Number(s.stage) >= 3;
       const day = gameDays();
       Object.assign(s, { lastFed: o.long ? day + Number(C.feed.longThirstHoldDays) : day, stage: 1, unfed: null }, firstMeal ? { firstMeal } : {});
       if (o.long) s.sated = { until: day + Number(C.feed.longSatedHours) / 24 };
       saveState(a, s);
-      if (wasUnfed) { syncVampSpells(a, s); flushStageSpells(a, s, 'first meal'); }
+      // A first meal wakes the gifts; a meal at stage 2-4 brings the stage 1 spells back
+      if (wasUnfed || wasStage > 1) { syncVampSpells(a, s); flushStageSpells(a, s, wasUnfed ? 'first meal' : 'fed'); }
       if (wasUnfed || o.long) refreshRates(a);
       if (needsFeed) try { needsFeed(a); } catch (e) { /* hunger off */ }
       if (!onCorpse) {
@@ -1645,7 +1650,7 @@ module.exports = (api) => {
         // An older vampire's thirst climbs its stages more slowly (bloodranks.js)
         const stage = Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day)) * bloodRate(a, '__dboBloodThirstRate')));
         if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); flushStageSpells(a, s, 'stage change'); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
-        else if (!Array.isArray(s.spells) || !s.spells.length) syncVampSpells(a, s);
+        else if (!sameSpells(s.spells, wantSpells(s))) syncVampSpells(a, s);
       }
       if (s.kind) ensureTells(a, s);
     }

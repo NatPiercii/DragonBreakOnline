@@ -214,6 +214,8 @@ module.exports = (api) => {
   };
 
   const revert = (a, why) => {
+    // The form's spells may stay in the client's hands once more: take them back again after this revert
+    if (globalThis.__dboBeastStaleTaken instanceof Map) globalThis.__dboBeastStaleTaken.delete(Number(a) >>> 0);
     const s = stateOf(a);
     if (!s) return false;
     try {
@@ -497,6 +499,26 @@ module.exports = (api) => {
     return '';
   };
   globalThis.__dboBeastRequest = (a, spellId) => globalThis.__dboBeastCast(a, spellId);
+  // A beast spell a client still holds after the form ended: the server strips it from every equipment update, so it is
+  // learned and unlearned once, which carries the removal to the client (supernatural.js flushStageSpells does the same)
+  const staleTaken = globalThis.__dboBeastStaleTaken instanceof Map ? globalThis.__dboBeastStaleTaken : (globalThis.__dboBeastStaleTaken = new Map()); // actor -> spells taken back
+  globalThis.__dboBeastStaleSpells = (a, equipment) => {
+    a = Number(a) >>> 0;
+    if (!equipment || stateOf(a)) return 0;
+    const beast = new Set([...allSpells('vampirelord'), ...allSpells('werewolf')].map((sp) => sp.id));
+    const taken = staleTaken.get(a) || new Set();
+    let n = 0;
+    for (const k of ['leftSpell', 'rightSpell', 'voiceSpell', 'instantSpell']) {
+      const id = Number(equipment[k]) >>> 0;
+      if (!id || !beast.has(id) || taken.has(id)) continue;
+      taken.add(id); n++;
+      papyrus(a, 'AddSpell', [spellArg(id), false]);
+      papyrus(a, 'RemoveSpell', [spellArg(id)]);
+      log(`beastform: took ${id.toString(16)} back out of ${display(a)}'s hands: the form has ended`);
+    }
+    if (n) staleTaken.set(a, taken);
+    return n;
+  };
   // The admin panel and /beastform drive the change directly, so an admin never depends on the cast relay
   globalThis.__dboBeastAdmin = (a, key, op) => {
     const k = key === 'vampire' ? 'vampirelord' : String(key || 'werewolf').toLowerCase();
