@@ -634,6 +634,27 @@ check('scale: Adept none below, full, 70% at Expert, none at Master', S[2].join(
 check('scale: Expert none below, full, some at Master', S[3].slice(0, 4).join() === '0,0,0,1' && S[3][4] > 0);
 check('scale: Master full, none below', S[4].join() === '0,0,0,0,1');
 
+// ---- Preach (DLE v9/v10 temple pulpits, editor id Preach): a placeholder until sermons exist (Nate, 1 Oct) ----
+{
+  const PREACH_BASE = '1688e2:DragonBreak Online Edits.esp', PREACH = idOf('1688e3:DragonBreak Online Edits.esp');
+  put(PREACH, 'baseDesc', PREACH_BASE); at(PREACH, SYNOD, [0, 0, 0]);
+  load();
+  out.said.length = 0; out.widgets.length = 0;
+  check('Preach: before the plugin, the ref is nothing to schools.js', globalThis.__dboSchoolsActivate(PREACH, MAGE) === false && !out.said.length);
+  RECORDS[idOf(PREACH_BASE)] = { type: 'ACTI', editorId: 'Preach', fields: [] };
+  load();
+  const wheel0 = wheelEvents.length;
+  check('Preach: with the plugin it answers "Sermons are coming soon."', globalThis.__dboSchoolsActivate(PREACH, MAGE) === true && out.said.some(([x, s]) => x === MAGE && s === 'Sermons are coming soon.'), out.said);
+  out.said.length = 0;
+  globalThis.__dboSchoolsActivate(PREACH, MAGE);
+  check('Preach: a double press says it once', !out.said.length, out.said);
+  check('Preach: nothing else happens (no panel, no Wheel credit)', !out.widgets.length && wheelEvents.length === wheel0, { widgets: out.widgets.length, wheel: wheelEvents.length - wheel0 });
+  check('Preach: an NPC activating it gets nothing', globalThis.__dboSchoolsActivate(PREACH, NPC) === false);
+  load({ preach: { enabled: false } });
+  out.said.length = 0;
+  check('Preach: schools.preach.enabled false turns it off', globalThis.__dboSchoolsActivate(PREACH, MAGE) === false && !out.said.length);
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });

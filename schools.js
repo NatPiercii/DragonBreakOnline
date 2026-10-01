@@ -27,6 +27,8 @@
 //     temples) plays the same reading idle under the same windows and limits, its own window, and pays Priest: no school
 //     meter, only the Wheel's cast credit with a Novice Restoration spell every `wheelEverySeconds`. It closes for good
 //     once a Restoration spell studied through Priest is in the spellbook, as Study Magic closes at the first school spell.
+//   Preach: a placeholder until sermons exist (Nate, 1 Oct). A Preach activator (base editor id `preach.edid`, DLE v9/v10's
+//     temple pulpits) answers "Sermons are coming soon." Nothing else happens; before the plugin loads no ref matches.
 // Study and classes also feed Arcane Arts itself through masterySystem's own "cast" credit (__alduinakMasteryEvent with a
 // spell of the school), so the Wheel's hourly bucket and daily caps hold for them as for any cast.
 //
@@ -62,6 +64,7 @@ module.exports = (api) => {
       enabled: true, edid: 'PriestStudy', refs: [], skill: 'priest', school: 'Restoration', tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20,
       windowHours: 4, moveLimitMeters: 1.5, anim: 'IdleBook_PageTurn', exitAnim: 'IdleForceDefaultState', wheelEverySeconds: 60, wheelValue: 0,
     },
+    preach: { enabled: true, edid: 'Preach', refs: [], text: 'Sermons are coming soon.' },
     classes: {
       enabled: true, edid: 'ClassLectern', lecterns: [], sameLecternUnits: 300, minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
       teacherCooldownMinutes: 60, studentCooldownHours: 12, teacherMinRank: 3, requireList: true, teacherGuilds: ['synod', 'college-of-winterhold', 'college-of-whispers'],
@@ -82,6 +85,7 @@ module.exports = (api) => {
   const C = Object.assign({}, DEFAULTS, raw, {
     study: Object.assign({}, DEFAULTS.study, raw.study || {}),
     priestStudy: Object.assign({}, DEFAULTS.priestStudy, raw.priestStudy || {}),
+    preach: Object.assign({}, DEFAULTS.preach, raw.preach || {}),
     classes: Object.assign({}, DEFAULTS.classes, raw.classes || {}),
     wheel: Object.assign({}, DEFAULTS.wheel, raw.wheel || {}),
   });
@@ -399,6 +403,9 @@ module.exports = (api) => {
   const isStudy = (ref) => C.study.enabled && (STUDY_REFS.has(ref) || (!!C.study.edid && baseEdidOf(ref) === String(C.study.edid).toLowerCase()));
   const PRIEST_REFS = refSet(C.priestStudy.refs);
   const isPriestStudy = (ref) => C.priestStudy.enabled && (PRIEST_REFS.has(ref) || (!!C.priestStudy.edid && baseEdidOf(ref) === String(C.priestStudy.edid).toLowerCase()));
+  const PREACH_REFS = refSet(C.preach.refs);
+  const isPreach = (ref) => C.preach.enabled && (PREACH_REFS.has(ref) || (!!C.preach.edid && baseEdidOf(ref) === String(C.preach.edid).toLowerCase()));
+  const preachSaidAt = new Map();
   const isLectern = (ref) => C.classes.enabled && (LECTERN_REFS.has(ref) || (!!C.classes.edid && baseEdidOf(ref) === String(C.classes.edid).toLowerCase()));
 
   // ---- Study Magic ---------------------------------------------------------------------------------------------------
@@ -888,6 +895,11 @@ module.exports = (api) => {
     if (isLectern(targetId)) { openLectern(casterId, targetId >>> 0); return true; }
     if (isStudy(targetId)) { useStudy(targetId >>> 0, casterId >>> 0); return true; }
     if (isPriestStudy(targetId)) { notePriestStudy(targetId >>> 0); usePriest(targetId >>> 0, casterId >>> 0); return true; }
+    if (isPreach(targetId)) {
+      const now = Date.now();
+      if (now - (preachSaidAt.get(casterId >>> 0) || 0) > 1500) { preachSaidAt.set(casterId >>> 0, now); personal(casterId, String(C.preach.text || 'Sermons are coming soon.')); }
+      return true;
+    }
     return false;
   };
   // A player who logs out or changes cell mid-study stops; one who disconnects mid-class is caught by the class tick
