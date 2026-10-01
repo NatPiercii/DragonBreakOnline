@@ -50,8 +50,8 @@ sudo systemctl daemon-reload && sudo systemctl enable --now knownissues.timer
    sudo python3 /opt/dragonbreak-tools/knownissues/knownissues.py --write
    ```
    - It creates the tags Known, Fixing, Fixed and Ignore if they are missing.
-   - It opens at most `--max-new` posts (10), the biggest of the last 24 h first. Only kinds over the threshold get one:
-     20 lines in 24 h, or 3 launcher crashes.
+   - It opens at most `--max-new` posts (10). Only kinds over the threshold get one: 20 lines in 24 h, or 3 launcher
+     crashes. Launcher crashes take their slots first, then the biggest kinds of the last 24 h.
 2. Then the timer, in `/etc/systemd/system/knownissues.service`: change `--collect` to `--write`, then
    `sudo systemctl daemon-reload`.
 3. **Undo posting:** change it back to `--collect`. To remove posts, delete them in Discord: a deleted post mutes its kind

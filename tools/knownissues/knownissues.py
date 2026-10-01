@@ -30,7 +30,8 @@ ignore.json lists known-harmless noise, each with its reason. Those kinds are co
 
 Posting (--write): one post per kind in #known-issues, whose first message is EDITED with the current numbers. There is
 never a new message per run.
-- A run opens at most --max-new posts (10), the biggest first, and only for kinds over the threshold in the last 24 h.
+- A run opens at most --max-new posts (10), only for kinds over the threshold in the last 24 h: launcher crashes first,
+  then the biggest.
 - The tags Known, Fixing, Fixed and Ignore are created on the forum if missing. A new post gets Known. Staff change the
   tag, and the tool reads it every run:
   - Known or Fixing: the numbers are kept current.
@@ -559,16 +560,17 @@ def secret_in(text):
 
 
 def candidates(st, args, now):
-    """Kinds that would get a new post: not ignored or muted, no post yet, over the threshold; biggest first."""
+    """Kinds that would get a new post: not ignored or muted, no post yet, over the threshold. Launcher crashes come
+    first, ahead of every server and client kind, since they are what staff most need to see; then the biggest."""
     out = []
     for k, s in st['sigs'].items():
         if s.get('thread') or s.get('muted') or s.get('ignored'):
             continue
         n24 = window(s, 24, now)
         if n24 >= (args.crash_threshold if s['source'] == 'launcher' else args.threshold):
-            out.append((n24, s['count'], k))
-    out.sort(key=lambda x: (-x[0], -x[1], x[2]))
-    return [k for _, _, k in out]
+            out.append((s['source'] != 'launcher', -n24, -s['count'], k))
+    out.sort()
+    return [k for *_, k in out]
 
 
 # ---- Discord --------------------------------------------------------------------------------------------------------
@@ -814,7 +816,7 @@ def main(argv=None):
     ap.add_argument('--offline', action='store_true', help='dry run without reading Discord')
     ap.add_argument('--threshold', type=int, default=20, help='server and client lines in 24 h before a post (20)')
     ap.add_argument('--crash-threshold', type=int, default=3, help='launcher crashes in 24 h before a post (3)')
-    ap.add_argument('--max-new', type=int, default=10, help='new posts per run, biggest first (10)')
+    ap.add_argument('--max-new', type=int, default=10, help='new posts per run: crashes first, then the biggest (10)')
     ap.add_argument('--max-edits', type=int, default=60, help='first-message edits per run (60)')
     ap.add_argument('--show', type=int, default=25, help='kinds listed at the end of a dry run (25)')
     ap.add_argument('--forum', default=FORUM)

@@ -351,10 +351,13 @@ def posting(d):
     opens = [c for c in FAKE.calls if c[0] == 'OPEN']
     known = next(t['id'] for t in FAKE.tags if t['name'] == 'Known')
     ok(len(opens) == 10 and all(c[4] == [known] for c in opens), 'a write run opens at most ten posts, each tagged Known', len(opens))
-    big = sorted((K.window(s, 24, NOW), k) for k, s in st['sigs'].items() if not s.get('ignored'))[::-1][:10]
-    ok({st['sigs'][k]['thread'] for _, k in big} == {c[2] and FAKE.threads[t]['id'] for t in FAKE.threads for c in opens
-                                                       if FAKE.threads[t]['name'] == c[2]} and all(st['sigs'][k].get('thread') for _, k in big),
-       '...the ten biggest of the last 24 h', [st['sigs'][k]['sig'] for _, k in big])
+    ok(opens[0][2] == K.title_of(st['sigs'][crash]) and K.window(st['sigs'][crash], 24, NOW) == 5,
+       '...the launcher crash first, though five crashes are far fewer lines than any other kind over its threshold',
+       [c[2] for c in opens[:2]])
+    big = [k for _, k in sorted(((K.window(s, 24, NOW), k) for k, s in st['sigs'].items()
+                                 if not s.get('ignored') and s['source'] != 'launcher'), reverse=True)[:9]]
+    ok([c[2] for c in opens[1:]] == [K.title_of(st['sigs'][k]) for k in big] and all(st['sigs'][k].get('thread') for k in big),
+       '...then the nine biggest of the last 24 h, in order', [st['sigs'][k]['sig'] for k in big])
     first = opens[0]
     ok(len(first[2]) <= 100 and len(first[3]) <= 1900 and f"key `{sig_of(st, first[2].split('] ', 1)[1][:30])}`" in first[3]
        and 'Sample, ids masked:' in first[3], 'a post: the kind as its title, the numbers, a sample and its key', first[3])
