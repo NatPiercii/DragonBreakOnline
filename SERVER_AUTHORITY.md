@@ -194,8 +194,9 @@ it, so a refused packet no longer reaches other clients; hosted actors keep the 
   arrival window, widened and made continuous. That window holds only up to about 400 ms of round trip with no packet
   lost, so no rite that kills is judged by it (`supernatural.rite.legacyDeadly` 'safe'): the Embrace and the Great Hunt
   wait for the client that names riteJudge, and a fever rite lost by arrival breaks the fever without killing. Each game has its switch, `<game>.clientJudged` in
-  gamemode-config.json (`supernatural.rite.clientJudged` for the rite); false and a gamemode reload put back today's
-  judging. ACCEPTED EXPOSURE: a modified widget could already compute perfect timings (the bands are sent); the window
+  gamemode-config.json (`supernatural.rite.clientJudged` for the rite); false, committed on origin/server and shipped
+  as a release or a `deploy-gameplay --hotfix`, puts back today's judging. A live-only edit of the deployed config does
+  not last: every release and hotfix copies the repo's gamemode-config.json over it and keeps only `admins`. ACCEPTED EXPOSURE: a modified widget could already compute perfect timings (the bands are sent); the window
   for playing a round in slow motion grows from 2.5 s to the cleanup timeout and is flagged (`sus=slow`), not refused.
   What bounds the damage is unchanged and server-side: rests, caps, reward tables, tier gates. Shared rules:
   `minigames.js`; fake-network tests: `tests/lib/netsim.js` and each game's harness.
