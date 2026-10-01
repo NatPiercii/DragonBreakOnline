@@ -4,7 +4,8 @@
 // Every weapon and armour has a material family (loot-materials.json, tools/loot/loot_materials.py: keyword, then template
 // chain, then editor id). A family belongs to a tier, or is never loot (Ebony, Daedric, Dragon, Stalhrim, Orcish, Golden
 // Saint, Aetherium), or is a trinket (clothing, jewellery, staves: their own roll), or is a faction uniform (never loot,
-// with every item faction-gear.json names). An item the map does not know is not loot.
+// with every item faction-gear.json names). An item the map does not know is not loot. loot-overrides.json names items
+// that are never loot whatever their material (an untextured model, say), and is read before the map.
 // A difficulty rolls a tier from its row (a chest, a boss, a raid boss, a locked chest by its lock); a tier with nothing
 // there for the dungeon falls to the next one down. Enchanted gear rolls the same tiers under a cap on its rank.
 // Config dungeons.lootTiers overrides any table below.
@@ -42,7 +43,7 @@ const ENCH_CAP = { story: 2, normal: 3, hard: 4, nightmare: 6 };
 
 const normDesc = (d) => { const s = String(d || ''); const i = s.indexOf(':'); if (i < 0) return s.toLowerCase(); const n = parseInt(s.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase(); };
 
-module.exports = ({ materials, factionGear, cfg }) => {
+module.exports = ({ materials, factionGear, overrides, cfg }) => {
   const C = cfg || {};
   const tierOf = Object.assign({}, TIER_OF, C.tierOf || {});
   const rows = { chest: Object.assign({}, ROWS.chest, (C.rows || {}).chest || {}), boss: Object.assign({}, ROWS.boss, (C.rows || {}).boss || {}), raidBoss: Object.assign({}, ROWS.raidBoss, (C.rows || {}).raidBoss || {}) };
@@ -50,10 +51,12 @@ module.exports = ({ materials, factionGear, cfg }) => {
   const enchCap = Object.assign({}, ENCH_CAP, C.enchCap || {});
   const fam = new Map(Object.entries((materials && materials.items) || {}).map(([k, v]) => [normDesc(k), String(v)]));
   const faction = new Set(Object.keys((factionGear && factionGear.items) || {}).map(normDesc));
+  const handNever = new Map(Object.entries((overrides && overrides.never) || {}).filter(([k]) => k[0] !== '_').map(([k, why]) => [normDesc(k), String(why)]));
 
   // { kind: 'gear' | 'trinket' | 'never' | 'uniform' | 'unknown', family, tier }
   const classOf = (desc) => {
     const d = normDesc(desc);
+    if (handNever.has(d)) return { kind: 'never', family: fam.get(d) || '', tier: 0, why: handNever.get(d) };
     const f = fam.get(d);
     if (!f) return { kind: 'unknown', family: '', tier: 0 };
     if (NEVER.has(f)) return { kind: 'never', family: f, tier: 0 };

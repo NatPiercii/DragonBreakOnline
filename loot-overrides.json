@@ -1,0 +1,6 @@
+{
+  "_comment": "Hand overrides for the dungeon loot tiers (loottiers.js), checked before loot-materials.json, so a regeneration of that map keeps them. never: items that are never loot on any path, with the reason. Keys are mp descs.",
+  "never": {
+    "81dfc:BSHeartland.esm": "CYRIronFalchion: untextured model in Beyond Skyrim Bruma (#bugs \"Iron Falchion Missing Textures\", 1 Oct 2026)"
+  }
+}

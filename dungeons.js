@@ -117,7 +117,7 @@ module.exports = (api) => {
   const LOOT_TIERS_JS = path.join(__dirname, 'loottiers.js');
   delete require.cache[LOOT_TIERS_JS];
   const besideJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`${file} unreadable: no weapon or armour is loot`, e.message); return fallback; } };
-  const TIERS = require(LOOT_TIERS_JS)({ materials: besideJson('loot-materials.json', { items: {} }), factionGear: besideJson('faction-gear.json', { items: {} }), cfg: C.lootTiers });
+  const TIERS = require(LOOT_TIERS_JS)({ materials: besideJson('loot-materials.json', { items: {} }), factionGear: besideJson('faction-gear.json', { items: {} }), overrides: besideJson('loot-overrides.json', { never: {} }), cfg: C.lootTiers });
   const GEAR_POOLS = new Set(['weapons', 'armor', 'ench_weapons', 'ench_armor']);
   const descOfId = (id) => { try { return String(mp.getDescFromId(id >>> 0) || ''); } catch (e) { return ''; } };
   const byId = new Map();            // dungeon id -> dungeon

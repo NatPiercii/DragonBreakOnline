@@ -20,8 +20,8 @@ const CLAIMS = Number(process.env.CLAIMS) || 24;
 let fails = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c || got === undefined ? '' : '   ' + JSON.stringify(got).slice(0, 600)}`); if (!c) fails++; };
 const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
-const MATERIALS = read('loot-materials.json'), FACTION = read('faction-gear.json'), LOOT = read('loot.json').pools;
-const T = require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION });
+const MATERIALS = read('loot-materials.json'), FACTION = read('faction-gear.json'), OVERRIDES = read('loot-overrides.json'), LOOT = read('loot.json').pools;
+const T = require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES });
 const DIFFS = ['story', 'normal', 'hard', 'nightmare'];
 
 // Seeded Math.random, so a run is the same sample every time
@@ -47,6 +47,12 @@ const facDesc = Object.keys(FACTION.items)[0];
 ok(T.classOf(facDesc).kind === 'uniform' || T.classOf(facDesc).kind === 'never' || T.classOf(facDesc).kind === 'unknown', 'every item faction-gear.json names is not loot', [facDesc, T.classOf(facDesc)]);
 ok(cls('ClothesMonkRobes').kind === 'trinket' || cls('JewelryRingGold').kind === 'trinket', 'clothing and jewellery are trinkets, with their own roll');
 ok(T.classOf('abcdef:Nowhere.esp').kind === 'unknown' && !T.lootable('abcdef:Nowhere.esp'), 'an item the material map does not know is not loot');
+// loot-overrides.json: CYRIronFalchion's Beyond Skyrim model is untextured (#bugs "Iron Falchion Missing Textures")
+ok(MATERIALS.items['81dfc:bsheartland.esm'] === 'iron' && cls('CYRIronFalchion').kind === 'never' && /untextured/.test(cls('CYRIronFalchion').why || ''), 'CYRIronFalchion is never loot (loot-overrides.json, "untextured BS model"), though its map entry still says iron', cls('CYRIronFalchion'));
+{
+  const t1Cyr = (LOOT.weapons || []).filter((w) => (w.p || []).includes('cyrodiil') && T.classOf(w.id).kind === 'gear' && T.classOf(w.id).tier === 1);
+  ok(t1Cyr.length >= 10 && !t1Cyr.some((w) => w.name === 'CYRIronFalchion'), `the tier 1 Cyrodiil weapons are still there without it (${t1Cyr.length}: ${t1Cyr.slice(0, 5).map((w) => w.name).join(', ')}, ...)`);
+}
 // Shares, 200,000 rolls a row
 const shareOf = (row, n = 200000) => { reseed(JSON.stringify(row)); const c = { 1: 0, 2: 0, 3: 0, 4: 0 }; for (let i = 0; i < n; i++) c[T.rollTier(row)]++; return c; };
 const off = [];
@@ -209,6 +215,7 @@ for (const diff of DIFFS) {
   const st = DIFFS.map(standin);
   ok(st[0] < 0.05 && st[2] > 0.4 && st[2] < 0.7 && st[3] > 0.35 && st[3] < 0.65, `chest weapons that are the high Elven stand-ins: ${st.map((x) => Math.round(x * 100)).join('/')}% (Novice/Adept/Expert/Master)`, st);
 }
+ok(!seen.some((s) => s.name === 'CYRIronFalchion'), 'CYRIronFalchion never comes out of any path', seen.filter((s) => s.name === 'CYRIronFalchion').map((s) => s.path).slice(0, 5));
 ok(seen.some((s) => s.path === 'chest' && s.diff === 'hard' && ['ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorElvenGildedCuirass'].some((n) => s.name.startsWith(n.slice(0, -7)))), 'Steel plate, Scaled and Elven gilded drop in Bruma (Nate\'s option 1)');
 ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) => s.path === 'creature corpse').every((s) => s.kind === 'gear' || s.kind === 'trinket'), 'bodies hand over gear within their tiers, and a creature\'s corpse keeps none of what it may not');
 
