@@ -9,7 +9,12 @@
 // Only a revive raises them: a Restoration heal-other spell cast by a Priest of tier 4 or higher, or a revive potion.
 // The reviver must not be fighting the fallen player. A hostile player may finish them, NPCs leave them alone.
 // /respawn gives up and wakes at the temple at once.
+//
+// A crash before the fall costs nothing (Jake, 2026-10-01): a down that began after the player's game crashed wakes
+// where they fell, at full health, without the temple or Death's Chill (see crashBefore below).
 'use strict';
+
+const fs = require('fs');
 
 module.exports = (api) => {
   const { mp, log, personal, sendPacket, audit, who, display, profileOf, nameOf, onlineActors, every, registerChatCommand, cfg, openWidget, closeWidget, onUi, redress } = api;
@@ -41,6 +46,12 @@ module.exports = (api) => {
     // A player who falls in beast form gets the panel again this long after, once their client has turned them back:
     // the first one lost the keyboard to that change (Purr, 2026-10-01: no cursor, no Give up, the whole bleed-out)
     beastPanelRetryMs: 2000,
+    // A crash before the fall: the launcher's notes as the backend keeps them (sources/sessionEnds.js); the down must
+    // begin within crashWithinMinutes of the crash, with nothing from the client after it (crashQuietSeconds' grace),
+    // at most crashForgivePerDay times a day per character; a note landing within crashLateMinutes of the wake lifts
+    // the Chill then
+    crashForgive: true, crashNotesFile: '/opt/alduinak/skymp5-backend/data/session-ends.jsonl',
+    crashWithinMinutes: 10, crashQuietSeconds: 5, crashForgivePerDay: 2, crashLateMinutes: 30,
     // Finishing is deliberate (Nate, 2026-09-28, after swag was finished 0.3 s after falling by a spell already hitting
     // him): nothing finishes a fallen player in their first finishGraceSeconds, and then only a weapon or bare hands
     finishGraceSeconds: 3, finishWeaponOnly: true,
@@ -370,7 +381,7 @@ module.exports = (api) => {
   }
   // The engine's own respawn at the end of the bleed-out gives no event: watch the downed every second
   every('downedPanel', 1000, () => {
-    for (const [a] of S.downed) { let dead = true; try { dead = isDead(a); } catch (e) { dead = false; } if (!dead) { endDown(a); chill(a); dressAfterWake(a); } }
+    for (const [a, d] of S.downed) { let dead = true; try { dead = isDead(a); } catch (e) { dead = false; } if (!dead) { endDown(a); wakeAfter(a, d); dressAfterWake(a); } }
     if (S.downed.size || sentTimers.size) pushTimers(false);
   });
 
@@ -382,7 +393,7 @@ module.exports = (api) => {
     }
     const now = Date.now();
     for (const [a, d] of S.downed) {
-      if (!isDead(a)) { endDown(a); chill(a); dressAfterWake(a); }
+      if (!isDead(a)) { endDown(a); wakeAfter(a, d); dressAfterWake(a); }
       else if (now - d.at > (C.bleedoutSeconds + 30) * 1000) endDown(a);
     }
     for (const [k, t] of S.fought) if (now - t > C.hostileMs) S.fought.delete(k);
@@ -400,7 +411,7 @@ module.exports = (api) => {
         const out = inner.call(this, actorId, killerId, ...rest);
         try {
           if (isPlayer(a) && mp.get(a, 'private.permaDead') !== true) {
-            const d = { at: Date.now(), by: Number(killerId) >>> 0, nonce: `${a.toString(16)}-${Date.now().toString(36)}` };
+            const d = { at: Date.now(), by: Number(killerId) >>> 0, nonce: `${a.toString(16)}-${Date.now().toString(36)}`, fell: placeOf(a), lastPacket: lastPacketOf(a) };
             S.downed.set(a, d);
             // The panel says it all; chat keeps a line for anyone who closes it
             personal(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or choose Give up (or say /respawn). A Priest's healing or a Draught of Revival can bring you back where you fell.`);
@@ -468,12 +479,95 @@ module.exports = (api) => {
     }
   });
 
+  // ---- a crash before the fall ------------------------------------------------------------------------------------
+  // The launcher reports how the game closed (POST /api/files/session-end) and the backend keeps every note in
+  // data/session-ends.jsonl. Only its 'crash' counts (a crash log, or an error exit code): a quit, Alt-F4 or a kill from
+  // Task Manager still costs the temple and the Chill, so a fight cannot be left by quitting. The note is the player's
+  // own launcher's word, so the server checks what it can: the down began after the crash and soon after it, nothing
+  // came from that client after the crash, and it is forgiven at most crashForgivePerDay times a day.
+  S.crashes = S.crashes instanceof Map ? S.crashes : new Map();         // profileId -> [{ endedAt, at, exitCode, crashLog }]
+  S.recentWakes = S.recentWakes instanceof Map ? S.recentWakes : new Map(); // actor -> { d, wokeAt }, chilled wakes a late note may forgive
+  const FORGIVEN = 'private.dboCrashForgiven';
+  const DAY = 24 * 3600000;
+  const iso = (t) => new Date(t).toISOString().slice(11, 19) + 'Z';
+  const placeOf = (a) => {
+    try {
+      const pos = mp.get(a, 'pos'), cell = mp.get(a, 'worldOrCellDesc'), ang = mp.get(a, 'angle');
+      return Array.isArray(pos) && cell ? { cellOrWorldDesc: cell, pos: pos.slice(), rot: [0, 0, Number(Array.isArray(ang) ? ang[2] : 0) || 0] } : null;
+    } catch (e) { return null; }
+  };
+  const lastPacketOf = (a) => { const m = globalThis.__dboLastPacketAt; return m instanceof Map && m.has(a) ? m.get(a) : 0; };
+  const readCrashNotes = async () => {
+    if (!C.crashForgive) return 0;
+    let st = null; try { st = await fs.promises.stat(C.crashNotesFile); } catch (e) { return 0; }
+    if (st.mtimeMs === S.crashMtime) return 0;
+    let text = ''; try { text = await fs.promises.readFile(C.crashNotesFile, 'utf8'); } catch (e) { return 0; }
+    S.crashMtime = st.mtimeMs;
+    const since = Date.now() - DAY;
+    const byProfile = new Map();
+    for (const line of text.split('\n')) {
+      if (line.indexOf('"crash"') < 0) continue;
+      let n = null; try { n = JSON.parse(line); } catch (e) { continue; }
+      if (!n || n.outcome !== 'crash' || !(Number(n.endedAt) > since) || !(Number(n.profileId) >= 0)) continue;
+      const p = Number(n.profileId);
+      if (!byProfile.has(p)) byProfile.set(p, []);
+      byProfile.get(p).push({ endedAt: Number(n.endedAt), at: Number(n.at) || 0, exitCode: n.exitCode, crashLog: n.crashLog === true });
+    }
+    S.crashes = byProfile;
+    return lateForgive();
+  };
+  every('downedCrashNotes', 2000, () => readCrashNotes().catch((e) => log(`downed: crash notes unreadable: ${e.message}`)));
+  // The launcher's crash note that forgives this down, or null
+  const crashBefore = (a, d) => {
+    if (!C.crashForgive || !d || !Number.isFinite(d.at)) return null;
+    const quiet = (t) => !(Number(d.lastPacket) > t + C.crashQuietSeconds * 1000);
+    return (S.crashes.get(Number(profileOf(a))) || [])
+      .find((n) => n.endedAt <= d.at && d.at - n.endedAt <= C.crashWithinMinutes * 60000 && quiet(n.endedAt)) || null;
+  };
+  // late: the wake already happened and chilled them; the Chill goes, and the place and health only while they are away
+  const forgive = (a, d, note, late) => {
+    let times = [];
+    try { const v = mp.get(a, FORGIVEN); times = Array.isArray(v) ? v.filter((t) => Date.now() - t < DAY) : []; } catch (e) { times = []; }
+    const crash = `the game crashed at ${iso(note.endedAt)} (launcher: exit ${note.exitCode === null || note.exitCode === undefined ? 'none' : '0x' + (Number(note.exitCode) >>> 0).toString(16)}${note.crashLog ? ', crash log' : ''}), the down began at ${iso(d.at)}`;
+    if (times.length >= C.crashForgivePerDay) { audit(`CRASH-DOWN not forgiven ${who(a)}: ${crash}; already ${times.length} today`); return false; }
+    try { mp.set(a, FORGIVEN, times.concat([Date.now()])); } catch (e) { /* not an actor */ }
+    const away = !onlineActors().includes(a);
+    if (late) liftChill(a, 0);
+    if (!late || away) {
+      if (d.fell) { try { mp.set(a, 'locationalData', d.fell); } catch (e) { log(`downed: crash-down move failed for ${display(a)}: ${e.message}`); } }
+      setHealth(a, 1);
+    }
+    if (!away) banner(a, late ? 'Your game had crashed before you fell: the chill of the grave is lifted.' : 'Your game had crashed before you fell: you wake where you were, unharmed.', 6);
+    audit(`CRASH-DOWN forgiven ${who(a)}: ${crash}${late ? '; the Chill lifted after the wake' : '; woke where they fell, no Chill'}`);
+    return true;
+  };
+  // The way out of a down at the temple: forgiven after a crash, else the Chill
+  const wakeAfter = (a, d) => {
+    const note = crashBefore(a, d);
+    if (note && forgive(a, d, note, false)) return;
+    chill(a);
+    if (C.crashForgive && d) S.recentWakes.set(a, { d, wokeAt: Date.now() });
+  };
+  const lateForgive = () => {
+    let n = 0;
+    for (const [a, w] of S.recentWakes) {
+      if (Date.now() - w.wokeAt > C.crashLateMinutes * 60000) { S.recentWakes.delete(a); continue; }
+      const note = crashBefore(a, w.d);
+      if (!note) continue;
+      S.recentWakes.delete(a);
+      if (forgive(a, w.d, note, true)) n++;
+    }
+    return n;
+  };
+  globalThis.__dboCrashNotesRead = readCrashNotes;
+
   // Wakes at the spawn point (the temple of the area, set on death) the way the engine's own respawn does
   const toTemple = (t) => {
+    const d = S.downed.get(t);
     endDown(t);
     try { const sp = mp.get(t, 'spawnPoint'); if (sp && sp.cellOrWorldDesc) mp.set(t, 'locationalData', sp); } catch (e) { log(`downed: temple move failed for ${display(t)}: ${e.message}`); }
     mp.set(t, 'isDead', false);
-    chill(t);
+    wakeAfter(t, d);
     dressAfterWake(t);
   };
   const finish = (t, by) => {

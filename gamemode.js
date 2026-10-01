@@ -1413,9 +1413,12 @@ const writeDiagLines = (userId, lines) => {
   if (n > (DIAG_SEEN.get(key) || 0)) DIAG_SEEN.set(key, n);
 };
 
+// When each player's client last sent anything: downed.js forgives a down only if nothing came after their game crashed
+const lastPacketAt = globalThis.__dboLastPacketAt instanceof Map ? globalThis.__dboLastPacketAt : (globalThis.__dboLastPacketAt = new Map());
 globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
   try {
     if (!floodPacketOk(userId, rawContent)) return;
+    try { const sender = actorOf(userId); if (sender) lastPacketAt.set(sender >>> 0, Date.now()); } catch (e) { /* no actor yet */ }
     const content = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
     if (!content) return;
     if (content.type === 'cef::chat:send') { if (!floodChatOk(userId)) return; return handleChat(userId, content.data); }
