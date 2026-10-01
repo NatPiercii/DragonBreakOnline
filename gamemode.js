@@ -1931,7 +1931,8 @@ const NEEDS_AV = { staminaRateMult: 'StaminaRateMult', healRateMult: 'HealRateMu
 const needsOf = (a) => {
   let n = null; try { n = mp.get(a, 'private.needs'); } catch (e) { /* not an actor */ }
   if (!n || typeof n !== 'object') n = {};
-  return { hunger: Math.min(100, Math.max(0, Number(n.hunger) || 0)), stage: String(n.stage || ''), applied: Object.assign({ staminaRateMult: 0, healRateMult: 0 }, n.applied || {}), warnedAt: Number(n.warnedAt) || 0, xpMult: Number(n.xpMult) > 0 ? Number(n.xpMult) : 1 };
+  const map = (v) => (v && typeof v === 'object' ? Object.assign({}, v) : {});
+  return { hunger: Math.min(100, Math.max(0, Number(n.hunger) || 0)), stage: String(n.stage || ''), applied: Object.assign({ staminaRateMult: 0, healRateMult: 0 }, n.applied || {}), appliedValue: map(n.appliedValue), appliedAt: map(n.appliedAt), warnedAt: Number(n.warnedAt) || 0, xpMult: Number(n.xpMult) > 0 ? Number(n.xpMult) : 1 };
 };
 const saveNeeds = (a, n) => { try { mp.set(a, 'private.needs', n); } catch (e) { log('needs save failed', e.message); } pushHud(a, n); };
 // HUD: the owner-visible ff_hud property carries {h: hunger, s: stage}; the owner-side code below
@@ -1979,6 +1980,8 @@ const stageFor = (hunger) => { let s = NEEDS_STAGES[0] || { at: 0, name: 'Sated'
 // to NEEDS_RATE_BASE here. It is dispatched to the owner's client as a snippet, which is where regen
 // is computed; the server's own regen ceiling (CropRegeneration) is unchanged and still caps it.
 const NEEDS_RATE_BASE = Number(NEEDS.baseRateMult) > 0 ? Number(NEEDS.baseRateMult) : 100;
+// An unchanged rate is still re-sent this often, so a value the game itself reset (a race change, a respawn) comes back
+const NEEDS_REAPPLY_MS = (Number(NEEDS.reapplyMinutes) > 0 ? Number(NEEDS.reapplyMinutes) : 10) * 60000;
 const setActorValue = (a, av, value) => {
   try {
     mp.callPapyrusFunction('method', 'Actor', 'SetActorValue', { type: 'form', desc: mp.getDescFromId(a) }, [av, value]);
@@ -1991,6 +1994,7 @@ const applyNeedsStage = (a, n, announce, force) => {
   // Skill progress slows with hunger: masterySystem reads private.needs.xpMult (1 = full rate).
   n.xpMult = Number(st.xpMult) > 0 && Number(st.xpMult) <= 1 ? Number(st.xpMult) : 1;
   n.appliedValue = n.appliedValue || {};
+  n.appliedAt = n.appliedAt || {};
   for (const key of Object.keys(NEEDS_AV)) {
     const want = Number(st[key]) || 0, have = Number(n.applied[key]) || 0;
     // Death's Chill slows the same recovery (downed.js): its factor multiplies the hunger stage's rate
@@ -2002,10 +2006,12 @@ const applyNeedsStage = (a, n, announce, force) => {
     try { if (typeof globalThis.__dboSuperRateMult === 'function') blood = Number(globalThis.__dboSuperRateMult(a, NEEDS_AV[key])); } catch (e) { blood = 1; }
     if (!(blood >= 0)) blood = 1;
     const value = Math.max(0, Math.round((NEEDS_RATE_BASE + want) * mult * blood));
-    if (want === have && value === n.appliedValue[key] && !force) continue;
+    const fresh = Date.now() - (Number(n.appliedAt[key]) || 0) < NEEDS_REAPPLY_MS;
+    if (want === have && value === n.appliedValue[key] && fresh && !force) continue;
     if (setActorValue(a, NEEDS_AV[key], value)) {
       n.applied[key] = want;
       n.appliedValue[key] = value;
+      n.appliedAt[key] = Date.now();
       log(`needs ${display(a)} ${NEEDS_AV[key]} -> ${value} (${st.name}${want ? `, ${want}%` : ''}${mult !== 1 ? `, chill x${mult}` : ''}${blood !== 1 ? `, blood x${blood}` : ''})`);
     }
   }

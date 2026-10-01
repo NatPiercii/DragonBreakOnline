@@ -202,10 +202,10 @@ const gm = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8')
 const lift = (from, to) => { const i = gm.indexOf(from), j = gm.indexOf(to, i); if (i < 0 || j < 0) throw new Error(`gamemode.js: ${from} not found`); return gm.slice(i, j); };
 const sets = [];
 const needsSrc = lift('const applyNeedsStage = ', '// downed.js asks for this');
-const applyNeedsStage = new Function('globalThis', 'stageFor', 'NEEDS_AV', 'NEEDS_RATE_BASE', 'setActorValue', 'log', 'display', 'system',
+const applyNeedsStage = new Function('globalThis', 'stageFor', 'NEEDS_AV', 'NEEDS_RATE_BASE', 'NEEDS_REAPPLY_MS', 'setActorValue', 'log', 'display', 'system',
   `${needsSrc}\nreturn applyNeedsStage;`)(
   { __dboSuperRateMult: (a, av) => (av === 'HealRateMult' ? 0.3 : 1), __dboChillRateMult: () => 0.5 },
-  () => ({ name: 'Hungry', healRateMult: -50, staminaRateMult: -35 }), { staminaRateMult: 'StaminaRateMult', healRateMult: 'HealRateMult' }, 100,
+  () => ({ name: 'Hungry', healRateMult: -50, staminaRateMult: -35 }), { staminaRateMult: 'StaminaRateMult', healRateMult: 'HealRateMult' }, 100, 600000,
   (a, av, v) => { sets.push([av, v]); return true; }, noop, String, noop);
 applyNeedsStage(V, { hunger: 60, stage: '', applied: {} }, false, true);
 ok(JSON.stringify(sets) === '[["StaminaRateMult",33],["HealRateMult",8]]', 'gamemode multiplies the hunger stage, the chill and the blood: (100-50) x 0.5 x 0.3 = 8', sets);
