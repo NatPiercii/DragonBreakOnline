@@ -336,6 +336,37 @@ check('the snaps go to the widget as 0 and 1, one per try', lw.snaps.every((x) =
   const line = send(lw, r, 400);
   check('...and a result that lands after it is still judged (sent first, overtaken)', /^lockpick win .*after-close/.test(line) && opened === 1, line);
 }
+// Review F2 (2026-10-01): a cancelled client lock stays judgeable and its target stays locked, so begin, cancel, begin,
+// cancel on one chest used to give every one of those locks a paid win (onSuccess and a mastery event each)
+{
+  let opens = 0;
+  const lockOn = (cancel) => {
+    globalThis.__dboLockpick.begin(A, { target: DOOR, level: 1, label: 'Chest', onSuccess: () => { opens++; } });
+    const l = last(); l._sentAt = mono; mono += 5;
+    if (cancel) ui.lockpickCancel(A, [l.nonce]);
+    return l;
+  };
+  const lockEvents = () => events.filter((e) => e[0] === 'lock').length;
+  for (const order of ['in order', 'last first']) {
+    picks(3); opens = 0; events.length = 0;
+    const l1 = lockOn(true), l2 = lockOn(true);
+    const r1 = playLock(l1, ['hit', 'hit']), r2 = playLock(l2, ['hit', 'hit']);
+    const lines = order === 'in order' ? [send(l1, r1, 400), send(l2, r2, 400)] : [send(l2, r2, 400), send(l1, r1, 400)];
+    check(`begin, cancel, begin, cancel on one target, two win reports (${order}): one success and one mastery event`, opens === 1 && lockEvents() === 1 && /^lockpick win /.test(lines[0]) && /^lockpick refused\(superseded\)/.test(lines[1]) && pickCount() === 3, lines.join(' || '));
+  }
+  // The honest race: the win was played and the window left, the player tries the chest again before the result lands
+  picks(3); opens = 0; events.length = 0;
+  const l1 = lockOn(true), l2 = lockOn(false);
+  const line1 = send(l1, playLock(l1, ['hit', 'hit']), 2500);
+  check("an honest win whose result lands after the player began the same lock again is still paid", /^lockpick win .*after-close/.test(line1) && opens === 1 && lockEvents() === 1, line1);
+  const line2 = send(l2, playLock(l2, ['hit', 'hit']), 400);
+  check('...and the second lock on that chest opens nothing more', /^lockpick refused\(superseded\)/.test(line2) && opens === 1 && lockEvents() === 1 && /already been picked/.test(last().notice), `${line2} / ${last().notice}`);
+  // A lock begun after the paid win is a new lock: it pays as before
+  picks(3); opens = 0; events.length = 0;
+  const l3 = lockOn(false);
+  const line3 = send(l3, playLock(l3, ['hit', 'hit']), 400);
+  check('a lock on the same target begun after that win pays as before', /^lockpick win /.test(line3) && opens === 1 && lockEvents() === 1, line3);
+}
 {
   const realNow2 = Date.now; let clock2 = realNow2(); Date.now = () => clock2;
   lw = beginC(1);

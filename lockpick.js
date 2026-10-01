@@ -66,6 +66,24 @@ module.exports = (api) => {
   // ordered): kept by nonce until its timeout, so the result is still judged and its snapped picks still taken
   const closing = globalThis.__dboLockpickClosing instanceof Map ? globalThis.__dboLockpickClosing : (globalThis.__dboLockpickClosing = new Map()); // nonce -> L
   const spentLocks = globalThis.__dboLockpickSpent instanceof Map ? globalThis.__dboLockpickSpent : (globalThis.__dboLockpickSpent = new Map()); // nonce -> when judged
+  // One paid win per lock (review F2, 2026-10-01). A cancelled or closed client lock stays judgeable, and its chest or
+  // door is still locked, so a player could begin, cancel, begin, cancel... on one target and have every one of those
+  // locks report a win: onSuccess and a 'lock' mastery event each time. Every lock gets a number when it begins
+  // (L.gen); a paid win records the next number for its player and target. A win from a lock that began before the
+  // latest paid win on that target is superseded: its snapped picks are still taken, but it opens nothing and earns
+  // nothing. Keyed on the paid win, not on a new begin, so an honest win whose result lands after the player has
+  // already tried the lock again is still paid (the first win to land pays; lag cannot cost it).
+  const paidWins = globalThis.__dboLockpickPaid instanceof Map ? globalThis.__dboLockpickPaid : (globalThis.__dboLockpickPaid = new Map()); // 'actor|target' -> { gen, at }
+  const nextGen = () => (globalThis.__dboLockpickGen = (Number(globalThis.__dboLockpickGen) || 0) + 1);
+  const paidKey = (L) => `${(Number(L.a) >>> 0).toString(16)}|${(Number(L.target) >>> 0).toString(16)}`;
+  const superseded = (L) => { if (!L.target) return false; const p = paidWins.get(paidKey(L)); return !!p && p.gen > (Number(L.gen) || 0); };
+  const markPaid = (L) => {
+    if (!L.target) return;
+    const now = Date.now();
+    // A lock older than its own lifetime is gone, so a paid win older than that can supersede nothing still alive
+    for (const [k, p] of paidWins) if (now - p.at > Math.max(timeoutMs(), C.idleSeconds * 1000)) paidWins.delete(k);
+    paidWins.set(paidKey(L), { gen: nextGen(), at: now });
+  };
   const nowMs = () => performance.now();
   const name = (a) => (typeof display === 'function' ? display(a) : who(a));
   const ignored = MG.limiter(5000);
@@ -132,7 +150,7 @@ module.exports = (api) => {
       const mean = H.base + H.perTier * (tier + 1) + H.perLevel * level;
       return Math.round(Math.max(H.min, mean * (1 + (Math.random() * 2 - 1) * H.jitter)));
     });
-    const L = { a, target: opts.target >>> 0, level, label: opts.label || 'lock', onSuccess: opts.onSuccess, tier, holds, set: holds.map(() => false), at: Date.now(),
+    const L = { a, target: opts.target >>> 0, level, label: opts.label || 'lock', onSuccess: opts.onSuccess, tier, holds, set: holds.map(() => false), at: Date.now(), gen: nextGen(),
       nonce: `${a.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`, tries: 0, misses: 0, missRun: 0 };
     // A widget that plays the lock itself: the snaps are rolled now, one per try it may make (a miss on that try snaps
     // the pick when it is set), from the same odds the per-try path rolls with. It sees which misses would snap a pick; it still has to land every tumbler, and the picks
@@ -216,6 +234,12 @@ module.exports = (api) => {
       L.missRun = 0;
       if (L.set.every(Boolean)) {
         end(L);
+        if (superseded(L)) {
+          verdictLine(L, 'refused(superseded)', ` judge=${legacyJudge()} tries=${L.tries} misses=${Number(L.misses) || 0}`);
+          openWidget(a, payload(L, 'This lock has already been picked.', 'fail'), false);
+          return;
+        }
+        markPaid(L);
         verdictLine(L, 'win', ` judge=${legacyJudge()} tries=${L.tries} misses=${Number(L.misses) || 0}`);
         audit(`LOCK ${who(a)} picked ${/^[AEIOU]/.test(LEVELS[L.level]) ? 'an' : 'a'} ${LEVELS[L.level]} ${L.label.toLowerCase()} ${L.target ? mp.getDescFromId(L.target) : ''}`.trim());
         try { if (L.onSuccess) L.onSuccess(a); } catch (e) { log('lockpick: success handler failed', e.stack || e.message); }
@@ -350,6 +374,7 @@ module.exports = (api) => {
       else if (r.mismatch && MG.replayRefuses(C)) bad = 'mismatch';
       else if (outcome !== r.outcome) bad = 'inconsistent';
       else if (outcome === 'win' && (r.tooFast || !(own >= minMs) || MG.serverTooSoon(sinceSent, minMs, 50))) bad = 'fast';
+      else if (outcome === 'win' && superseded(L)) bad = 'superseded';
       else if (outcome === 'win' && L.target && !near(a, L.target)) bad = 'far';
     }
     if (r.mismatch) audit(`LOCKPICK-MISMATCH ${who(a)} ${LEVELS[L.level]} ${String(L.label).toLowerCase()} ${r.mismatch} tr${r.mismatch === 1 ? 'y' : 'ies'} the hang times do not bear out`);
@@ -359,6 +384,7 @@ module.exports = (api) => {
     verdictLine(L, verdict, MG.tail({ judge: 'client', own, lag: Number.isFinite(own) ? Math.round(sinceSent - own) : NaN, min: minMs, sus })
       + ` tries=${Array.isArray(list) ? list.length : '-'} misses=${r.misses} snaps=${r.snapped} held=[${r.held.join(',')}] picks=${picksBefore}->${picksOf(a)} xc=${r.mismatch}`);
     if (win) {
+      markPaid(L);
       audit(`LOCK ${who(a)} picked ${/^[AEIOU]/.test(LEVELS[L.level]) ? 'an' : 'a'} ${LEVELS[L.level]} ${L.label.toLowerCase()} ${L.target ? mp.getDescFromId(L.target) : ''}`.trim());
       try { if (L.onSuccess) L.onSuccess(a); } catch (e) { log('lockpick: success handler failed', e.stack || e.message); }
       try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('lock', a, { refrId: L.target, level: L.level }); } catch (e) { /* no skill system */ }
@@ -368,6 +394,7 @@ module.exports = (api) => {
     }
     if (outcome === 'cancel' && !bad) { if (!closed) closeWidget(a, WIDGET_ID); return; }
     const text = bad === 'far' ? 'You have stepped away from the lock.'
+      : bad === 'superseded' ? 'This lock has already been picked.'
       : outcome === 'win' && !bad ? 'You have no lockpick left.'
       : r.outcome === 'fail' ? (r.failWhy === 'tries' ? 'Your hands are tired, and the lock still holds.' : 'The pick snaps, and it was your last.') : 'The lock holds.';
     if (!closed) openWidget(a, payload(L, text, 'fail'), false);
