@@ -1,3 +1,4 @@
+import { playerCopies, PlayerSpot } from "./aggroWindow";
 import { FormView } from "./formView";
 import { FormModel, WorldModel } from "./model";
 import { NiPoint3 } from "../sync/movement";
@@ -45,8 +46,10 @@ export class FormViewArray {
 
     const forms = model.forms;
     const n = forms.length;
+    const spots: PlayerSpot[] = [];
     for (let i = 0; i < n; ++i) {
       const form = forms[i];
+      if (form && form.appearance && form.movement) spots.push({ pos: [form.movement.pos[0], form.movement.pos[1], form.movement.pos[2]], cell: form.movement.worldOrCell || 0 });
 
       if (!form || (model.playerCharacterFormIdx === i && !showMe)) {
         this.destroyForm(i);
@@ -83,6 +86,7 @@ export class FormViewArray {
         form.movement.pos = realPos;
       }
     }
+    if (!isCloneView) playerCopies.spots = spots;
   }
 
   syncFormView(model: WorldModel, showMe: boolean,) {

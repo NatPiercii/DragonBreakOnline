@@ -21,6 +21,7 @@ import { WorldCleanerService } from "../services/services/worldCleanerService";
 import { GamemodeUpdateService } from "../services/services/gamemodeUpdateService";
 import { isOwnCompanion, isAnyCompanion } from "../services/services/companionService";
 import { sendCustomPacket } from "../services/services/customPacketUtil";
+import { apply as applyAggroWindow, CHECK_EVERY_MS, combatStartLine, decide as decideAggroWindow, distance, nearestPlayer, newWindowState, playerCopies, Vec, WindowState } from "./aggroWindow";
 
 export interface ScreenResolution {
   width: number;
@@ -321,6 +322,8 @@ export class FormView {
 
   destroy(): void {
     this.isOnScreen = false;
+    this.aggro = newWindowState();
+    this.combatReported = false;
     // A reused view granted on its first frame must not read the old copy's hosting as its own (false 'pinned')
     this.movState.wasHosted = false;
     this.lastNiNodeUpdateMs = 0;
@@ -462,6 +465,7 @@ export class FormView {
     setDefaultAnimsDisabled(this.refrId, alreadyHosted ? false : true);
 
     const ac = Actor.from(refr);
+    if (ac && !model.appearance) this.updateAggroWindow(ac, model, alreadyHosted);
     if (refr.is3DLoaded()) {
       if (!this.movState.havokSeated) {
         this.movState.havokSeated = true;
@@ -876,6 +880,42 @@ export class FormView {
     });
   }
 
+  // The dungeon aggro window (aggroWindow.ts): passive until a player is near; the first moment of combat is reported once
+  private updateAggroWindow(ac: Actor, model: FormModel, hosted: boolean): void {
+    const inCombat = hosted && ac.isInCombat();
+    // Dungeon spawns only (they carry ff_aggroWindow, 0 included), so wildlife does not spend the budget
+    if (inCombat && !this.combatReported && (model as Record<string, unknown>)["ff_aggroWindow"] !== undefined) {
+      this.combatReported = true;
+      this.reportCombatStart(ac, model);
+    }
+    const now = Date.now();
+    const st = this.aggro;
+    if (now - st.lastCheck < CHECK_EVERY_MS) return;
+    st.lastCheck = now;
+    const window = Number((model as Record<string, unknown>)["ff_aggroWindow"]) || 0;
+    const pos: Vec = [ac.getPositionX(), ac.getPositionY(), ac.getPositionZ()];
+    const nearest = hosted && window > 0 && !st.opened ? nearestPlayer(pos, model.movement?.worldOrCell ?? 0, playerCopies.spots) : Infinity;
+    const opened = applyAggroWindow(st, decideAggroWindow(st, window, hosted, nearest, inCombat), () => ac.getActorValue("Aggression"), (v) => ac.setActorValue("Aggression", v));
+    if (opened && this.remoteRefrId) {
+      sendCustomPacket(SpApiInteractor.getControllerInstance(), { customPacketType: "dbo", event: "aggroOpen", args: [this.remoteRefrId.toString(16)] });
+    }
+  }
+
+  private reportCombatStart(ac: Actor, model: FormModel): void {
+    const pos: Vec = [ac.getPositionX(), ac.getPositionY(), ac.getPositionZ()];
+    const player = Game.getPlayer();
+    const target = ac.getCombatTarget();
+    const window = Number((model as Record<string, unknown>)["ff_aggroWindow"]) || 0;
+    const line = combatStartLine({
+      remoteId: this.remoteRefrId ?? 0, base: ac.getBaseObject()?.getName() ?? "",
+      fromPlayer: player ? distance(pos, [player.getPositionX(), player.getPositionY(), player.getPositionZ()]) : NaN,
+      toTarget: target ? distance(pos, [target.getPositionX(), target.getPositionY(), target.getPositionZ()]) : NaN,
+      nearestPlayer: nearestPlayer(pos, model.movement?.worldOrCell ?? 0, playerCopies.spots),
+      aggression: ac.getActorValue("Aggression"), window, windowOpen: window <= 0 || this.aggro.opened, held: this.aggro.held,
+    });
+    if (line) sendCustomPacket(SpApiInteractor.getControllerInstance(), { customPacketType: "dbo", event: "npcDrift", args: [line] });
+  }
+
   private applyHostility(actor: Actor, model: FormModel): void {
     const flag = (model as Record<string, unknown>)["ff_hostile"];
     if (this.hostilityApplied && flag === this.hostileFlagSeen) {
@@ -1136,6 +1176,8 @@ export class FormView {
   private factionsSeen = "";
   private outfitSeen = "";
   private aggressionBeforeRaise: number | undefined = undefined;
+  private aggro: WindowState = newWindowState();
+  private combatReported = false;
   private adminView: AdminView = "visible";
   private adminShaderOn = false;
   private adminShaderReplayAt = 0;
