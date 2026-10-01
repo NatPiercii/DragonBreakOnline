@@ -326,6 +326,9 @@ const sendJson = (method, url, body, headers) => new Promise((resolve, reject) =
     let b = ''; r.on('data', (c) => b += c);
     r.on('end', () => r.statusCode < 300 ? resolve(b) : reject(Object.assign(new Error(`HTTP ${r.statusCode} ${b.slice(0, 160)}`), { status: r.statusCode, body: b })));
   });
+  // A call that never answers would hold its queue's busy flag (on globalThis) until a restart: give up after 20 s, as a
+  // network error (status 0), which the staff, audit and approval-forum queues all try again (Worker F's review)
+  req.setTimeout(20000, () => req.destroy(Object.assign(new Error('timeout'), { status: 0 })));
   req.on('error', reject); req.end(data);
 });
 const auditQueue = []; let auditBusy = false; let auditPauseUntil = 0;
