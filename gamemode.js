@@ -4154,6 +4154,12 @@ try {
   delete require.cache[ITEMGUARDS_JS];
   require(ITEMGUARDS_JS)({ mp, log, who, recordOf, cfg, personal });
 } catch (e) { log('itemguards.js failed to load:', e.stack || e.message); }
+// ---- gear above the steel loot cap swapped for steel, once per character (server\gearswap.js; Nate, 1 Oct 2026) ----
+try {
+  const GEARSWAP_JS = path.resolve('gearswap.js');
+  delete require.cache[GEARSWAP_JS];
+  require(GEARSWAP_JS)({ mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand, findByName });
+} catch (e) { log('gearswap.js failed to load:', e.stack || e.message); }
 // The trade window (fork tradeSystem.ts) asks before an item changes hands: a reason for the player, or null
 globalThis.__dboTradeItemVeto = (a, baseId, count) => {
   try { return typeof globalThis.__dboManualsOwedMove === 'function' ? globalThis.__dboManualsOwedMove(Number(a) >>> 0, Number(baseId) >>> 0, Number(count)) || null : null; } catch (e) { return null; }
