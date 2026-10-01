@@ -94,7 +94,7 @@ dice = 0.99;   // no infection
 fire('feedAnswer', T, [w[1].nonce, 'submit']);
 ok(closed.some(([a, id]) => a === T && id === 51) && heard(T, /You offer your neck/), 'Offer Your Neck closes the panel');
 ok(globalThis.__dboSuperFeeds.get(V) && globalThis.__dboSuperFeeds.get(V).willing === true, 'and starts a willing feed');
-ok(heard(T, /P7 drinks from your neck/), 'the willing hear it gently');
+ok(heard(T, /(Stranger|Someone) drinks from your neck/), 'the willing hear it gently, and an unmet vampire stays a Stranger (feed names fix)');
 ok(!packets.some(([, p]) => p.customPacketType === 'dboFeedPair'), 'no standing bite while feedPair is off (the default)');
 feedTick(6000);
 ok(globalThis.__dboSuperFeeds.has(V), 'a willing feed holds though nobody bound them');
