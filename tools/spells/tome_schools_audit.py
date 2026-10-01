@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """Every spell tome in spell-tomes.json and readables.json, reclassified from the winning SPEL record in the server's load
-order. A spell's school and rank come from its first effect's MGEF (magic skill at DATA+0x0C, minimum skill level at
-DATA+0x28; a half-cost perk's rank word wins, as ck-mcp/readables.py does), which is also its costliest effect for every
-tome in this load order. ck-mcp/readables.py took the LAST effect instead: core.subrecords is a dict, so a second EFID
-overwrote the first. Spectral Arrow, Command Daedra and Paralyze (whose last effect is a free Restoration stagger) came
-out Restoration (#bugs 1555203751822762084, 1 Oct). Exit 1 on any tome recorded wrongly.
+order. A spell's school and rank come from its COSTLIEST effect, as the engine picks it (GetCostliestEffectIndex): the
+effect's MGEF magic skill (DATA+0x0C) and minimum skill level (DATA+0x28). A half-cost perk's rank word wins, as
+ck-mcp/readables.py does.
+- Effect cost: base cost (DATA+0x04) x max(magnitude, 1)^1.1 x max(duration / 10, 1)^1.1 (the CK and UESP formula); the
+  first of equal costs wins.
+- The first effect is not always the costliest. Calm, Harmony and Bane of the Undead open with a free perk rider of their
+  own school (Worker F's review). So the first effect only happens to give the same school and rank for every tome here.
+- ck-mcp/readables.py took the LAST effect instead: core.subrecords is a dict, so a second EFID overwrote the first.
+  Spectral Arrow, Command Daedra and Paralyze (whose last effect is a free Restoration stagger) came out Restoration
+  (#bugs 1555203751822762084, 1 Oct).
+Exit 1 on any tome recorded wrongly. A spell whose two costliest effects are within 10% of each other but of different
+schools is printed for a person to judge, without failing.
 
     python3 tools/spells/tome_schools_audit.py [--data /opt/skyrim-data] [--order <loadorder.txt>] [--server <server dir>]
 """
@@ -52,13 +59,28 @@ def classify(spell_canon):
     pid = struct.unpack_from('<I', spit, 32)[0] if len(spit) >= 36 else 0
     pk = win.get(('PERK', canon_in(k[0], pid))) if pid else None
     perk = edid(subs(pk)) if pk else ''
-    efid = next((v for s, v in sb if s == b'EFID'), b'')   # the FIRST effect, as the game's main effect here
-    mk = win.get(('MGEF', canon_in(k[0], struct.unpack('<I', efid)[0]))) if len(efid) == 4 else None
-    d = next((v for s, v in subs(mk) if s == b'DATA'), b'') if mk else b''
-    if len(d) < 44: return None
-    return AVI.get(struct.unpack_from('<i', d, 12)[0]), rank(struct.unpack_from('<I', d, 40)[0], perk)
+    effs, cur = [], None
+    for s, v in sb:
+        if s == b'EFID' and len(v) == 4: cur = {'id': struct.unpack('<I', v)[0], 'mag': 0.0, 'dur': 0}; effs.append(cur)
+        elif s == b'EFIT' and cur is not None and len(v) >= 12: cur['mag'], _, cur['dur'] = struct.unpack_from('<fII', v, 0)
+    rows = []
+    for e in effs:
+        mk = win.get(('MGEF', canon_in(k[0], e['id'])))
+        d = next((v for s, v in subs(mk) if s == b'DATA'), b'') if mk else b''
+        if len(d) < 44: continue
+        base = struct.unpack_from('<f', d, 4)[0]
+        cost = base * max(e['mag'], 1.0) ** 1.1 * max(e['dur'] / 10.0, 1.0) ** 1.1
+        rows.append((cost, AVI.get(struct.unpack_from('<i', d, 12)[0]), struct.unpack_from('<I', d, 40)[0], edid(subs(mk))))
+    if not rows: return None
+    best = max(range(len(rows)), key=lambda i: (rows[i][0], -i))   # the costliest; the first of equal costs
+    top = sorted(rows, key=lambda r: -r[0])
+    if len(top) > 1 and top[0][1] != top[1][1] and top[0][0] > 0 and top[1][0] >= 0.9 * top[0][0]:
+        close.append((edid(sb), [(r[3], r[1], round(r[0], 1)) for r in top[:2]]))
+    if best != 0: first_not_costliest.append(edid(sb))
+    return rows[best][1], rank(rows[best][2], perk)
 
 bad = 0
+close, first_not_costliest = [], []
 spell_of = {}
 for t in json.load(open(os.path.join(a.server, 'spell-tomes.json')))['tomes']:
     src, loc = t['spellId'].rsplit(':', 1); spell_of[t['id']] = (src.lower(), int(loc, 16))
@@ -72,5 +94,8 @@ for fname in ('spell-tomes.json', 'readables.json'):
             bad += 1
             print(f'{fname}: {t["name"]} is recorded {t["school"]} {WORDS[int(t["rank"])]}, its spell is {got[0]} {WORDS[got[1]]}')
     print(f'{fname}: {len(tomes)} tomes checked')
+for name, two in sorted(set((n, tuple(t)) for n, t in close)):
+    print(f'judge by hand: {name}: its two costliest effects are close and of different schools: {list(two)}')
+print(f'the first effect is not the costliest for: {", ".join(sorted(set(first_not_costliest))) or "none"}')
 print('all tomes match their spells' if not bad else f'{bad} tome(s) recorded wrongly')
 sys.exit(1 if bad else 0)
