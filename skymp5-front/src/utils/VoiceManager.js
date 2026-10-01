@@ -62,6 +62,9 @@ const DX_TO_CODE = (() => {
 const isTextField = (el) => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
   || (el.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'image', 'color', 'number'].includes(String(el.type || '').toLowerCase())));
 
+// An error's name only ("NotFoundError"): its message can carry a device label, which must not reach the server's log
+const errorName = (e) => String((e && e.name) || 'Error').replace(/[^A-Za-z]/g, '').slice(0, 40) || 'Error';
+
 function sendToGame(...args) {
   try { window.skyrimPlatform.sendMessage(...args); } catch (e) { /* outside game */ }
 }
@@ -147,7 +150,7 @@ class VoiceManager {
       this.startLoopback(this.mix);
     } catch (e) {
       this.mix = null; // falls back to per-element volume
-      this.setEcho('elements', String(e && e.message || e));
+      this.setEcho('elements', errorName(e));
     }
     return this.mix;
   }
@@ -199,7 +202,7 @@ class VoiceManager {
       try { if (a) a.close(); if (b) b.close(); } catch (e2) { /* closed */ }
       mix.loop = null;
       mix.out.srcObject = mix.dest.stream;
-      this.setEcho('failed', String(e && e.message || e));
+      this.setEcho('failed', errorName(e));
     }
   }
 
