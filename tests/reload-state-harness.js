@@ -23,6 +23,7 @@ const SESSIONS = [
   ['gamemode.js', 'skinSessions', 'skinning rounds'],
   ['prayer.js', 'sessions', 'prayer rounds'],
   ['prayer.js', 'blessCasts', 'blessings cast this session'],
+  ['prayer.js', 'fallen', 'blessed worshippers seen dead, for the cast at their stand-up'],
   ['supernatural.js', 'rites', 'rites'],
   ['struggle.js', 'sessions', 'struggles'],
   ['robbery.js', 'S', 'robberies'],

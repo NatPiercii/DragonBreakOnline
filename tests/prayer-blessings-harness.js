@@ -4,7 +4,7 @@
 // every login while it runs and again when the spell's own duration ends first; an Ability is still learned, and so is a
 // Power. Also: closing a prayer round before its first press (to make an offering) rests no shrine. Since the follow-up
 // (fix/prayer-blessings-2): a cast blessing that ends (its end, a turn, a new blessing, a staff reset) is ended on the
-// client too (dboDispelSelf). Loads the real
+// client too (dboDispelSelf), and one whose worshipper died is cast again once they stand. Loads the real
 // module with a mock gamemode api and spell records shaped like the real ones. Run it from this folder's parent with
 //
 //   node tests/prayer-blessings-harness.js
@@ -364,6 +364,38 @@ worship('trinimac');
 prayAndWin('trinimac');
 clear(); commands.get('deity')(STAFF, 'reset tester');
 check('an Ability is taken back by RemoveSpell, with nothing to end on the client', !blessing() && calls('RemoveSpell').length === 1 && dispels().length === 0);
+
+// ---- 13. a death: the client skips a cast on the dead, and may come back without the effect ------------------------
+const dead = (v) => props.set(ACTOR + '|isDead', v);
+const watch = () => timers.get('prayerBlessingRespawn')();
+worship('mara', 3);
+prayAndWin('mara');                               // 16 h over the 8 h AltarMaraSpell
+dead(true); clear(); watch(); wallClock += 1000; watch();
+check('while the worshipper is dead nothing is cast', casts().length === 0 && dispels().length === 0);
+dead(false); watch(); wallClock += 1000; watch();
+check('nor in their first seconds on their feet (the client\'s own death lags the server\'s; a temple respawn loads a cell)', casts().length === 0);
+wallClock += 2000; watch();
+check('3 s after they stand, the blessing is cast again, any effect that survived the death ended first',
+  sent().join(' ') === `dboDispelSelf:${spellOf('mara').toString(16)} dboCastSelf:${spellOf('mara').toString(16)}`, sent().join(' '));
+clear(); wallClock += 1000; watch(); wallClock += 5000; watch();
+check('once', out.packets.length === 0);
+const R = globalThis.__dboBlessingCasts.get(ACTOR);
+wallClock = R + 8 * H - 30000; dead(true); sweep();
+check('the spell running out while its worshipper lies dead is not cast on them (castSelfService would skip it, Reviewer F)', casts().length === 0, JSON.stringify(out.packets));
+watch(); dead(false); watch(); wallClock += 3000; clear(); watch();
+check('it is cast when they stand', casts().length === 1 && casts()[0].p.spell === spellOf('mara'));
+clear(); sweep();
+check('and the sweep, seeing that cast, does not cast it again', casts().length === 0);
+globalThis.__dboDeityForget(ACTOR); dead(true); clear();
+globalThis.__dboPrayerLogin(ACTOR);
+check('a login while dead casts nothing', casts().length === 0);
+watch(); dead(false); watch(); wallClock += 3000; watch();
+check('the stand-up after it does', casts().length === 1);
+worship('wormcult');
+prayAndWin('wormcult');
+dead(true); clear(); watch(); dead(false); watch(); wallClock += 4000; watch();
+check('an Ability is not cast at a stand-up (the learned list keeps it)', out.packets.length === 0);
+dead(false);
 
 console.log('');
 console.log('deity        cast  learned  via');
