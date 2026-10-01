@@ -1,5 +1,6 @@
 #include "TestUtils.hpp"
 #include <catch2/catch_all.hpp>
+#include <algorithm>
 #include <chrono>
 
 #include "GetBaseActorValues.h"
@@ -251,12 +252,13 @@ TEST_CASE("checking weapon cooldown", "[Hit]")
 }
 
 namespace {
-nlohmann::json MakeSpellCastMessage(uint32_t spell, bool interruptCast)
+nlohmann::json MakeSpellCastMessage(uint32_t spell, bool interruptCast,
+                                    uint32_t caster = 0x14)
 {
   return nlohmann::json{
     { "t", MsgType::SpellCast },
     { "data",
-      { { "caster", 0x14 },
+      { { "caster", caster },
         { "target", 0x14 },
         { "spell", spell },
         { "isDualCasting", false },
@@ -328,6 +330,67 @@ TEST_CASE("An active ward blocks a frontal spell hit like a shield", "[Hit]")
 
   p.DestroyActor(kAggressor);
   p.DestroyActor(kTarget);
+  DoDisconnect(p, 0);
+  DoDisconnect(p, 1);
+}
+
+TEST_CASE("castRelayBlockedRaces: an NPC of a blocked race casts and stops "
+          "for its host only",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  constexpr uint32_t kHost = 0xff000000;
+  constexpr uint32_t kWatcher = 0xff000001;
+  constexpr uint32_t kNpc = 0xff000002;
+  constexpr uint32_t kFlames = 0x00012fcd;
+  constexpr uint32_t kDraugrRace = 0x00000d53;
+  constexpr uint32_t kNordRace = 0x00013746;
+
+  DoConnect(p, 0);
+  DoConnect(p, 1);
+  p.CreateActor(kHost, { 0, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kWatcher, { 10, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kNpc, { 20, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, kHost);
+  p.SetUserActor(1, kWatcher);
+  p.worldState.hosters[kNpc] = kHost;
+
+  auto& npc = p.worldState.GetFormAt<MpActor>(kNpc);
+  Equipment npcEquipment;
+  npcEquipment.leftSpell = kFlames;
+  npc.SetEquipment(npcEquipment);
+  Appearance look;
+  look.raceId = kDraugrRace;
+  npc.SetAppearance(&look);
+
+  auto castsSeenByWatcher = [&](bool interruptCast) {
+    p.Messages().clear();
+    DoMessage(p, 0, MakeSpellCastMessage(kFlames, interruptCast, kNpc));
+    return std::count_if(
+      p.Messages().begin(), p.Messages().end(), [](PartOne::Message& m) {
+        return m.userId == 1 && m.j["t"] == MsgType::SpellCast;
+      });
+  };
+
+  // No list: relayed as before
+  REQUIRE(castsSeenByWatcher(false) == 1);
+  REQUIRE(castsSeenByWatcher(true) == 1);
+
+  p.worldState.SetCastRelayBlockedRaces({ kDraugrRace });
+  REQUIRE(castsSeenByWatcher(false) == 0);
+  REQUIRE(castsSeenByWatcher(true) == 0);
+
+  // A humanoid NPC is still relayed with the list in place
+  look.raceId = kNordRace;
+  npc.SetAppearance(&look);
+  REQUIRE(castsSeenByWatcher(false) == 1);
+  REQUIRE(castsSeenByWatcher(true) == 1);
+
+  p.worldState.SetCastRelayBlockedRaces({});
+  p.worldState.hosters.erase(kNpc);
+  p.DestroyActor(kNpc);
+  p.DestroyActor(kHost);
+  p.DestroyActor(kWatcher);
   DoDisconnect(p, 0);
   DoDisconnect(p, 1);
 }
