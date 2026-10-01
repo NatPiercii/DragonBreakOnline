@@ -1,4 +1,4 @@
-import { Actor, Game, on, once } from "skyrimPlatform";
+import { Actor, Game, on } from "skyrimPlatform";
 import { NiNodeQueuePlan } from "./niNodeQueuePlan";
 import { isBeastRaceId } from "../sync/beastRaceIds";
 
@@ -31,10 +31,22 @@ const flush = (): void => {
   if (actor) actor.queueNiNodeUpdate();
 };
 
+const sendPlayer = (): void => {
+  const player = Game.getPlayer();
+  if (player) player.queueNiNodeUpdate();
+  plan.playerQueued(frame);
+};
+
+// The order of "update" callbacks within a frame is not fixed (SkyrimPlatform's EventManager map), so a deferred
+// player's update is sent here, first thing in the next frame, and no copy goes in that frame
 const install = (): void => {
   if (installed) return;
   installed = true;
-  on("update", () => { frame++; flush(); });
+  on("update", () => {
+    frame++;
+    if (plan.playerWaiting && !plan.copySentIn(frame)) { sendPlayer(); return; }
+    flush();
+  });
 };
 
 export const queueCopyNiNodeUpdate = (formId: number): void => {
@@ -44,12 +56,6 @@ export const queueCopyNiNodeUpdate = (formId: number): void => {
 
 export const queuePlayerNiNodeUpdate = (): void => {
   install();
-  if (plan.copySentIn(frame)) {
-    once("update", () => queuePlayerNiNodeUpdate());
-    return;
-  }
-  const player = Game.getPlayer();
-  if (!player) return;
-  player.queueNiNodeUpdate();
-  plan.playerQueued(frame);
+  if (plan.copySentIn(frame)) { plan.wantPlayer(); return; }
+  sendPlayer();
 };

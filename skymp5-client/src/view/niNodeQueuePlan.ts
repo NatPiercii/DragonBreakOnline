@@ -9,6 +9,16 @@ export class NiNodeQueuePlan {
   playerQueued(frame: number): void {
     this.playerFrame = frame;
     this.lastSentFrame = frame;
+    this.playerWanted = false;
+  }
+
+  // The player's own waits for the next frame (a copy went out in this one); no copy goes before it
+  wantPlayer(): void {
+    this.playerWanted = true;
+  }
+
+  get playerWaiting(): boolean {
+    return this.playerWanted;
   }
 
   // A remote copy wants its 3D rebuilt; asked again while it waits changes nothing
@@ -33,7 +43,7 @@ export class NiNodeQueuePlan {
 
   // The copy to send this frame, or 0. loaded(id) answers for this frame: true loaded, false not yet, null gone
   next(frame: number, loaded: (formId: number) => boolean | null): number {
-    if (this.lastSentFrame === frame) return 0;
+    if (this.playerWanted || this.lastSentFrame === frame) return 0;
     if (this.playerFrame >= 0 && frame - this.playerFrame <= 1) return 0;
     for (let i = 0; i < this.pending.length; i++) {
       const id = this.pending[i];
@@ -49,5 +59,6 @@ export class NiNodeQueuePlan {
 
   private pending: number[] = [];
   private playerFrame = -1;
+  private playerWanted = false;
   private lastSentFrame = -1;
 }
