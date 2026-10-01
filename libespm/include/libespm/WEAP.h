@@ -49,6 +49,8 @@ public:
   {
     const WeapData* weapData = nullptr;
     const DNAM* weapDNAM = nullptr;
+    // EITM, a record-local form id (0 for none)
+    uint32_t enchantmentFormId = 0;
   };
 
   Data GetData(CompressedFieldsCache& compressedFieldsCache) const noexcept;
