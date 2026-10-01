@@ -15,7 +15,11 @@ let fails = 0, checks = 0;
 const ok = (label, cond, got) => { checks++; console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}${!cond && got !== undefined ? `: got ${JSON.stringify(got)}` : ''}`); if (!cond) fails++; };
 
 ok('config: the playtester boost is off', CONFIG.playtesterBoost && CONFIG.playtesterBoost.enabled === false);
-ok('patch note: it ended early, near the top', NOTES.slice(0, 4).some((n) => JSON.stringify(n).includes('The playtester double-progress boost has ended early while we rebalance how fast skills grow.')));
+// Found by its title, among the newest: later notes go above it (the loot and first-spell notes, 1 Oct)
+{
+  const at = NOTES.findIndex((n) => n.title === 'Playtester double progress ended early');
+  ok('patch note: it ended early, among the newest', at >= 0 && at < 8 && JSON.stringify(NOTES[at]).includes('The playtester double-progress boost has ended early while we rebalance how fast skills grow.'));
+}
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-boostend-'));
 process.chdir(tmp);
